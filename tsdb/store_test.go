@@ -4,8 +4,12 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"math"
+	"math/rand"
 	"os"
 	"path/filepath"
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -15,11 +19,14 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/deep"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/uber-go/zap"
 )
 
 // Ensure the store can delete a retention policy and all shards under
 // it.
 func TestStore_DeleteRetentionPolicy(t *testing.T) {
+	t.Parallel()
+
 	s := MustOpenStore()
 	defer s.Close()
 
@@ -88,6 +95,8 @@ func TestStore_DeleteRetentionPolicy(t *testing.T) {
 
 // Ensure the store can create a new shard.
 func TestStore_CreateShard(t *testing.T) {
+	t.Parallel()
+
 	s := MustOpenStore()
 	defer s.Close()
 
@@ -96,8 +105,6 @@ func TestStore_CreateShard(t *testing.T) {
 		t.Fatal(err)
 	} else if sh := s.Shard(1); sh == nil {
 		t.Fatalf("expected shard")
-	} else if di := s.DatabaseIndex("db0"); di == nil {
-		t.Errorf("expected database index")
 	}
 
 	// Create another shard and verify that it exists.
@@ -119,6 +126,8 @@ func TestStore_CreateShard(t *testing.T) {
 
 // Ensure the store can delete an existing shard.
 func TestStore_DeleteShard(t *testing.T) {
+	t.Parallel()
+
 	s := MustOpenStore()
 	defer s.Close()
 
@@ -139,6 +148,8 @@ func TestStore_DeleteShard(t *testing.T) {
 
 // Ensure the store can create a snapshot to a shard.
 func TestStore_CreateShardSnapShot(t *testing.T) {
+	t.Parallel()
+
 	s := MustOpenStore()
 	defer s.Close()
 
@@ -147,8 +158,6 @@ func TestStore_CreateShardSnapShot(t *testing.T) {
 		t.Fatal(err)
 	} else if sh := s.Shard(1); sh == nil {
 		t.Fatalf("expected shard")
-	} else if di := s.DatabaseIndex("db0"); di == nil {
-		t.Errorf("expected database index")
 	}
 
 	dir, e := s.CreateShardSnapshot(1)
@@ -160,8 +169,46 @@ func TestStore_CreateShardSnapShot(t *testing.T) {
 	}
 }
 
+func TestStore_Open(t *testing.T) {
+	t.Parallel()
+
+	s := NewStore()
+	defer s.Close()
+
+	if err := os.MkdirAll(filepath.Join(s.Path(), "db0", "rp0", "2"), 0777); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.MkdirAll(filepath.Join(s.Path(), "db0", "rp2", "4"), 0777); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.MkdirAll(filepath.Join(s.Path(), "db1", "rp0", "1"), 0777); err != nil {
+		t.Fatal(err)
+	}
+
+	// Store should ignore shard since it does not have a numeric name.
+	if err := s.Open(); err != nil {
+		t.Fatal(err)
+	} else if n := len(s.Databases()); n != 2 {
+		t.Fatalf("unexpected database index count: %d", n)
+	} else if n := s.ShardN(); n != 3 {
+		t.Fatalf("unexpected shard count: %d", n)
+	}
+
+	expDatabases := []string{"db0", "db1"}
+	gotDatabases := s.Databases()
+	sort.Strings(gotDatabases)
+
+	if got, exp := gotDatabases, expDatabases; !reflect.DeepEqual(got, exp) {
+		t.Fatalf("got %#v, expected %#v", got, exp)
+	}
+}
+
 // Ensure the store reports an error when it can't open a database directory.
 func TestStore_Open_InvalidDatabaseFile(t *testing.T) {
+	t.Parallel()
+
 	s := NewStore()
 	defer s.Close()
 
@@ -173,13 +220,15 @@ func TestStore_Open_InvalidDatabaseFile(t *testing.T) {
 	// Store should ignore database since it's a file.
 	if err := s.Open(); err != nil {
 		t.Fatal(err)
-	} else if n := s.DatabaseIndexN(); n != 0 {
+	} else if n := len(s.Databases()); n != 0 {
 		t.Fatalf("unexpected database index count: %d", n)
 	}
 }
 
 // Ensure the store reports an error when it can't open a retention policy.
 func TestStore_Open_InvalidRetentionPolicy(t *testing.T) {
+	t.Parallel()
+
 	s := NewStore()
 	defer s.Close()
 
@@ -190,16 +239,20 @@ func TestStore_Open_InvalidRetentionPolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Store should ignore database since it's a file.
+	// Store should ignore retention policy since it's a file, and there should
+	// be no indices created.
 	if err := s.Open(); err != nil {
 		t.Fatal(err)
-	} else if n := s.DatabaseIndexN(); n != 1 {
+	} else if n := len(s.Databases()); n != 0 {
+		t.Log(s.Databases())
 		t.Fatalf("unexpected database index count: %d", n)
 	}
 }
 
 // Ensure the store reports an error when it can't open a retention policy.
 func TestStore_Open_InvalidShard(t *testing.T) {
+	t.Parallel()
+
 	s := NewStore()
 	defer s.Close()
 
@@ -213,7 +266,7 @@ func TestStore_Open_InvalidShard(t *testing.T) {
 	// Store should ignore shard since it does not have a numeric name.
 	if err := s.Open(); err != nil {
 		t.Fatal(err)
-	} else if n := s.DatabaseIndexN(); n != 1 {
+	} else if n := len(s.Databases()); n != 0 {
 		t.Fatalf("unexpected database index count: %d", n)
 	} else if n := s.ShardN(); n != 0 {
 		t.Fatalf("unexpected shard count: %d", n)
@@ -222,6 +275,8 @@ func TestStore_Open_InvalidShard(t *testing.T) {
 
 // Ensure shards can create iterators.
 func TestShards_CreateIterator(t *testing.T) {
+	t.Parallel()
+
 	s := MustOpenStore()
 	defer s.Close()
 
@@ -297,6 +352,8 @@ func TestShards_CreateIterator(t *testing.T) {
 
 // Ensure the store can backup a shard and another store can restore it.
 func TestStore_BackupRestoreShard(t *testing.T) {
+	t.Parallel()
+
 	s0, s1 := MustOpenStore(), MustOpenStore()
 	defer s0.Close()
 	defer s1.Close()
@@ -307,6 +364,10 @@ func TestStore_BackupRestoreShard(t *testing.T) {
 		`cpu value=2 10`,
 		`cpu value=3 20`,
 	)
+
+	if err := s0.Reopen(); err != nil {
+		t.Fatal(err)
+	}
 
 	// Backup shard to a buffer.
 	var buf bytes.Buffer
@@ -323,7 +384,7 @@ func TestStore_BackupRestoreShard(t *testing.T) {
 	}
 
 	// Read data from
-	itr, err := s1.Shard(100).CreateIterator("cpu", influxql.IteratorOptions{
+	itr, err := s0.Shard(100).CreateIterator("cpu", influxql.IteratorOptions{
 		Expr:      influxql.MustParseExpr(`value`),
 		Ascending: true,
 		StartTime: influxql.MinTime,
@@ -356,6 +417,371 @@ func TestStore_BackupRestoreShard(t *testing.T) {
 	if !deep.Equal(p, &influxql.FloatPoint{Name: "cpu", Time: time.Unix(20, 0).UnixNano(), Value: 3}) {
 		t.Fatalf("unexpected point(2): %s", spew.Sdump(p))
 	}
+}
+
+func testStoreCardinalityTombstoning(t *testing.T, store *Store) {
+	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" {
+		t.Skip("Skipping test in short, race and appveyor mode.")
+	}
+
+	// Generate point data to write to the shards.
+	series := genTestSeries(10, 2, 4) // 160 series
+
+	points := make([]models.Point, 0, len(series))
+	for _, s := range series {
+		points = append(points, models.MustNewPoint(s.Measurement, s.Series.Tags(), map[string]interface{}{"value": 1.0}, time.Now()))
+	}
+
+	// Create requested number of shards in the store & write points across
+	// shards such that we never write the same series to multiple shards.
+	for shardID := 0; shardID < 4; shardID++ {
+		if err := store.CreateShard("db", "rp", uint64(shardID), true); err != nil {
+			t.Errorf("create shard: %s", err)
+		}
+
+		if err := store.BatchWrite(shardID, points[shardID*40:(shardID+1)*40]); err != nil {
+			t.Errorf("batch write: %s", err)
+		}
+	}
+
+	// Delete all the series for each measurement.
+	mnames, err := store.MeasurementNames("db", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, name := range mnames {
+		if err := store.DeleteSeries("db", []influxql.Source{&influxql.Measurement{Name: string(name)}}, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Estimate the series cardinality...
+	cardinality, err := store.Store.SeriesCardinality("db")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Estimated cardinality should be well within 10 of the actual cardinality.
+	// TODO(edd): this epsilon is arbitrary. How can I make it better?
+	if got, exp := cardinality, int64(10); got > exp {
+		t.Errorf("series cardinality out by %v (expected within %v), estimation was: %d", got, exp, cardinality)
+	}
+
+	// Since all the series have been deleted, all the measurements should have
+	// been removed from the index too.
+	if cardinality, err = store.Store.MeasurementsCardinality("db"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Estimated cardinality should be well within 2 of the actual cardinality.
+	// TODO(edd): this is totally arbitrary. How can I make it better?
+	if got, exp := cardinality, int64(2); got > exp {
+		t.Errorf("measurement cardinality out by %v (expected within %v), estimation was: %d", got, exp, cardinality)
+	}
+}
+
+func TestStore_Cardinality_Tombstoning_Inmem(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+	store.EngineOptions.Config.Index = "inmem"
+	if err := store.Open(); err != nil {
+		panic(err)
+	}
+	defer store.Close()
+	testStoreCardinalityTombstoning(t, store)
+}
+
+func TestStore_Cardinality_Tombstoning_TSI(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+	store.EngineOptions.Config.Index = "tsi1"
+	if err := store.Open(); err != nil {
+		panic(err)
+	}
+	defer store.Close()
+	testStoreCardinalityTombstoning(t, store)
+}
+
+func testStoreCardinalityUnique(t *testing.T, store *Store) {
+	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" {
+		t.Skip("Skipping test in short, race and appveyor mode.")
+	}
+
+	// Generate point data to write to the shards.
+	series := genTestSeries(64, 5, 5) // 200,000 series
+	expCardinality := len(series)
+
+	points := make([]models.Point, 0, len(series))
+	for _, s := range series {
+		points = append(points, models.MustNewPoint(s.Measurement, s.Series.Tags(), map[string]interface{}{"value": 1.0}, time.Now()))
+	}
+
+	// Create requested number of shards in the store & write points across
+	// shards such that we never write the same series to multiple shards.
+	for shardID := 0; shardID < 10; shardID++ {
+		if err := store.CreateShard("db", "rp", uint64(shardID), true); err != nil {
+			t.Fatalf("create shard: %s", err)
+		}
+		if err := store.BatchWrite(shardID, points[shardID*20000:(shardID+1)*20000]); err != nil {
+			t.Fatalf("batch write: %s", err)
+		}
+	}
+
+	// Estimate the series cardinality...
+	cardinality, err := store.Store.SeriesCardinality("db")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Estimated cardinality should be well within 1.5% of the actual cardinality.
+	if got, exp := math.Abs(float64(cardinality)-float64(expCardinality))/float64(expCardinality), 0.015; got > exp {
+		t.Errorf("got epsilon of %v for series cardinality %v (expected %v), which is larger than expected %v", got, cardinality, expCardinality, exp)
+	}
+
+	// Estimate the measurement cardinality...
+	if cardinality, err = store.Store.MeasurementsCardinality("db"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Estimated cardinality should be well within 2 of the actual cardinality. (arbitrary...)
+	expCardinality = 64
+	if got, exp := math.Abs(float64(cardinality)-float64(expCardinality)), 2.0; got > exp {
+		t.Errorf("got measurmement cardinality %v, expected upto %v; difference is larger than expected %v", cardinality, expCardinality, exp)
+	}
+}
+
+func TestStore_Cardinality_Unique_Inmem(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+	store.EngineOptions.Config.Index = "inmem"
+	store.EngineOptions.Config.MaxSeriesPerDatabase = 0
+	if err := store.Open(); err != nil {
+		panic(err)
+	}
+	defer store.Close()
+	testStoreCardinalityUnique(t, store)
+}
+
+func TestStore_Cardinality_Unique_TSI1(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+	store.EngineOptions.Config.Index = "tsi1"
+	store.EngineOptions.Config.MaxSeriesPerDatabase = 0
+	if err := store.Open(); err != nil {
+		panic(err)
+	}
+	defer store.Close()
+	testStoreCardinalityUnique(t, store)
+}
+
+// This test tests cardinality estimation when series data is duplicated across
+// multiple shards.
+func testStoreCardinalityDuplicates(t *testing.T, store *Store) {
+	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" {
+		t.Skip("Skipping test in short, race and appveyor mode.")
+	}
+
+	// Generate point data to write to the shards.
+	series := genTestSeries(64, 5, 5) // 200,000 series.
+	expCardinality := len(series)
+
+	points := make([]models.Point, 0, len(series))
+	for _, s := range series {
+		points = append(points, models.MustNewPoint(s.Measurement, s.Series.Tags(), map[string]interface{}{"value": 1.0}, time.Now()))
+	}
+
+	// Create requested number of shards in the store & write points.
+	for shardID := 0; shardID < 10; shardID++ {
+		if err := store.CreateShard("db", "rp", uint64(shardID), true); err != nil {
+			t.Fatalf("create shard: %s", err)
+		}
+
+		var from, to int
+		if shardID == 0 {
+			// if it's the first shard then write all of the points.
+			from, to = 0, len(points)-1
+		} else {
+			// For other shards we write a random sub-section of all the points.
+			// which will duplicate the series and shouldn't increase the
+			// cardinality.
+			from, to := rand.Intn(len(points)), rand.Intn(len(points))
+			if from > to {
+				from, to = to, from
+			}
+		}
+
+		if err := store.BatchWrite(shardID, points[from:to]); err != nil {
+			t.Fatalf("batch write: %s", err)
+		}
+	}
+
+	// Estimate the series cardinality...
+	cardinality, err := store.Store.SeriesCardinality("db")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Estimated cardinality should be well within 1.5% of the actual cardinality.
+	if got, exp := math.Abs(float64(cardinality)-float64(expCardinality))/float64(expCardinality), 0.015; got > exp {
+		t.Errorf("got epsilon of %v for series cardinality %d (expected %d), which is larger than expected %v", got, cardinality, expCardinality, exp)
+	}
+
+	// Estimate the measurement cardinality...
+	if cardinality, err = store.Store.MeasurementsCardinality("db"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Estimated cardinality should be well within 2 of the actual cardinality. (Arbitrary...)
+	expCardinality = 64
+	if got, exp := math.Abs(float64(cardinality)-float64(expCardinality)), 2.0; got > exp {
+		t.Errorf("got measurement cardinality %v, expected upto %v; difference is larger than expected %v", cardinality, expCardinality, exp)
+	}
+}
+
+func TestStore_Cardinality_Duplicates_Inmem(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+	store.EngineOptions.Config.Index = "inmem"
+	store.EngineOptions.Config.MaxSeriesPerDatabase = 0
+	if err := store.Open(); err != nil {
+		panic(err)
+	}
+	defer store.Close()
+	testStoreCardinalityDuplicates(t, store)
+}
+
+func TestStore_Cardinality_Duplicates_TSI1(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+	store.EngineOptions.Config.Index = "tsi1"
+	store.EngineOptions.Config.MaxSeriesPerDatabase = 0
+	if err := store.Open(); err != nil {
+		panic(err)
+	}
+	defer store.Close()
+	testStoreCardinalityDuplicates(t, store)
+}
+
+// Creates a large number of series in multiple shards, which will force
+// compactions to occur.
+func testStoreCardinalityCompactions(t *testing.T, store *Store) {
+	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" {
+		t.Skip("Skipping test in short, race and appveyor mode.")
+	}
+
+	// Generate point data to write to the shards.
+	series := genTestSeries(300, 5, 5) // 937,500 series
+	expCardinality := len(series)
+
+	points := make([]models.Point, 0, len(series))
+	for _, s := range series {
+		points = append(points, models.MustNewPoint(s.Measurement, s.Series.Tags(), map[string]interface{}{"value": 1.0}, time.Now()))
+	}
+
+	// Create requested number of shards in the store & write points across
+	// shards such that we never write the same series to multiple shards.
+	for shardID := 0; shardID < 2; shardID++ {
+		if err := store.CreateShard("db", "rp", uint64(shardID), true); err != nil {
+			t.Fatalf("create shard: %s", err)
+		}
+		if err := store.BatchWrite(shardID, points[shardID*468750:(shardID+1)*468750]); err != nil {
+			t.Fatalf("batch write: %s", err)
+		}
+	}
+
+	// Estimate the series cardinality...
+	cardinality, err := store.Store.SeriesCardinality("db")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Estimated cardinality should be well within 1.5% of the actual cardinality.
+	if got, exp := math.Abs(float64(cardinality)-float64(expCardinality))/float64(expCardinality), 0.015; got > exp {
+		t.Errorf("got epsilon of %v for series cardinality %v (expected %v), which is larger than expected %v", got, cardinality, expCardinality, exp)
+	}
+
+	// Estimate the measurement cardinality...
+	if cardinality, err = store.Store.MeasurementsCardinality("db"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Estimated cardinality should be well within 2 of the actual cardinality. (Arbitrary...)
+	expCardinality = 300
+	if got, exp := math.Abs(float64(cardinality)-float64(expCardinality)), 2.0; got > exp {
+		t.Errorf("got measurement cardinality %v, expected upto %v; difference is larger than expected %v", cardinality, expCardinality, exp)
+	}
+}
+
+func TestStore_Cardinality_Compactions_Inmem(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+	store.EngineOptions.Config.Index = "inmem"
+	store.EngineOptions.Config.MaxSeriesPerDatabase = 0
+	if err := store.Open(); err != nil {
+		panic(err)
+	}
+	defer store.Close()
+	testStoreCardinalityCompactions(t, store)
+}
+
+func TestStore_Cardinality_Compactions_TSI1(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+	store.EngineOptions.Config.Index = "tsi1"
+	store.EngineOptions.Config.MaxSeriesPerDatabase = 0
+	if err := store.Open(); err != nil {
+		panic(err)
+	}
+	defer store.Close()
+	testStoreCardinalityCompactions(t, store)
+}
+
+func benchmarkStoreSeriesCardinality(b *testing.B, store *Store, n int) {
+	// Write a point to n shards.
+	for shardID := 0; shardID < n; shardID++ {
+		if err := store.CreateShard("db", "rp", uint64(shardID), true); err != nil {
+			b.Fatalf("create shard: %s", err)
+		}
+
+		err := store.WriteToShard(uint64(shardID), []models.Point{models.MustNewPoint("cpu", nil, map[string]interface{}{"value": 1.0}, time.Now())})
+		if err != nil {
+			b.Fatalf("write: %s", err)
+		}
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = store.SeriesCardinality("db")
+	}
+}
+
+func BenchmarkStore_SeriesCardinality_100_Shards_Inmem(b *testing.B) {
+	store := NewStore()
+	store.EngineOptions.Config.Index = "inmem"
+	if err := store.Open(); err != nil {
+		panic(err)
+	}
+	defer store.Close()
+	benchmarkStoreSeriesCardinality(b, store, 100)
+}
+
+func BenchmarkStore_SeriesCardinality_100_Shards_TSI(b *testing.B) {
+	store := NewStore()
+	store.EngineOptions.Config.Index = "tsi1"
+	if err := store.Open(); err != nil {
+		panic(err)
+	}
+	defer store.Close()
+	benchmarkStoreSeriesCardinality(b, store, 100)
 }
 
 func BenchmarkStoreOpen_200KSeries_100Shards(b *testing.B) { benchmarkStoreOpen(b, 64, 5, 5, 1, 100) }
@@ -422,10 +848,19 @@ func NewStore() *Store {
 
 	s := &Store{Store: tsdb.NewStore(path)}
 	s.EngineOptions.Config.WALDir = filepath.Join(path, "wal")
+	s.EngineOptions.Config.TraceLoggingEnabled = true
+
+	if testing.Verbose() {
+		s.WithLogger(zap.New(
+			zap.NewTextEncoder(),
+			zap.Output(os.Stdout),
+		))
+	}
 	return s
 }
 
-// MustOpenStore returns a new, open Store at a temporary path.
+// MustOpenStore returns a new, open Store using the default index,
+// at a temporary path.
 func MustOpenStore() *Store {
 	s := NewStore()
 	if err := s.Open(); err != nil {

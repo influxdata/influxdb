@@ -22,6 +22,8 @@ test:
     override:
         - bash circle-test.sh:
             parallel: true
+            # Race tests using 960s timeout
+            timeout: 960
 
 deployment:
   release:

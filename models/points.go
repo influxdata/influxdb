@@ -1356,9 +1356,9 @@ func parseTags(buf []byte) Tags {
 		}
 
 		if hasEscape {
-			tags = append(tags, Tag{Key: unescapeTag(key), Value: unescapeTag(value)})
+			tags = append(tags, NewTag(unescapeTag(key), unescapeTag(value)))
 		} else {
-			tags = append(tags, Tag{Key: key, Value: value})
+			tags = append(tags, NewTag(key, value))
 		}
 
 		i++
@@ -1639,6 +1639,17 @@ type Tag struct {
 	Value []byte
 }
 
+// NewTag returns a new Tag.
+func NewTag(key, value []byte) Tag {
+	return Tag{
+		Key:   key,
+		Value: value,
+	}
+}
+
+// Size returns the size of the key and value.
+func (t Tag) Size() int { return len(t.Key) + len(t.Value) }
+
 // Clone returns a shallow copy of Tag.
 //
 // Tags associated with a Point created by ParsePointsWithPrecision will hold references to the byte slice that was parsed.
@@ -1655,6 +1666,17 @@ func (t Tag) Clone() Tag {
 	return other
 }
 
+// String returns the string reprsentation of the tag.
+func (t *Tag) String() string {
+	var buf bytes.Buffer
+	buf.WriteByte('{')
+	buf.WriteString(string(t.Key))
+	buf.WriteByte(' ')
+	buf.WriteString(string(t.Value))
+	buf.WriteByte('}')
+	return buf.String()
+}
+
 // Tags represents a sorted list of tags.
 type Tags []Tag
 
@@ -1665,10 +1687,35 @@ func NewTags(m map[string]string) Tags {
 	}
 	a := make(Tags, 0, len(m))
 	for k, v := range m {
-		a = append(a, Tag{Key: []byte(k), Value: []byte(v)})
+		a = append(a, NewTag([]byte(k), []byte(v)))
 	}
 	sort.Sort(a)
 	return a
+}
+
+// String returns the string representation of the tags.
+func (a Tags) String() string {
+	var buf bytes.Buffer
+	buf.WriteByte('[')
+	for i := range a {
+		buf.WriteString(a[i].String())
+		if i < len(a)-1 {
+			buf.WriteByte(' ')
+		}
+	}
+	buf.WriteByte(']')
+	return buf.String()
+}
+
+// Size returns the number of bytes needed to store all tags. Note, this is
+// the number of bytes needed to store all keys and values and does not account
+// for data structures or delimiters for example.
+func (a Tags) Size() int {
+	var total int
+	for _, t := range a {
+		total += t.Size()
+	}
+	return total
 }
 
 // Clone returns a copy of the slice where the elements are a result of calling `Clone` on the original elements
@@ -1688,14 +1735,45 @@ func (a Tags) Clone() Tags {
 	return others
 }
 
-// Len implements sort.Interface.
-func (a Tags) Len() int { return len(a) }
-
-// Less implements sort.Interface.
+func (a Tags) Len() int           { return len(a) }
 func (a Tags) Less(i, j int) bool { return bytes.Compare(a[i].Key, a[j].Key) == -1 }
+func (a Tags) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
-// Swap implements sort.Interface.
-func (a Tags) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+// Equal returns true if a equals other.
+func (a Tags) Equal(other Tags) bool {
+	if len(a) != len(other) {
+		return false
+	}
+	for i := range a {
+		if !bytes.Equal(a[i].Key, other[i].Key) || !bytes.Equal(a[i].Value, other[i].Value) {
+			return false
+		}
+	}
+	return true
+}
+
+// CompareTags returns -1 if a < b, 1 if a > b, and 0 if a == b.
+func CompareTags(a, b Tags) int {
+	// Compare each key & value until a mismatch.
+	for i := 0; i < len(a) && i < len(b); i++ {
+		if cmp := bytes.Compare(a[i].Key, b[i].Key); cmp != 0 {
+			return cmp
+		}
+		if cmp := bytes.Compare(a[i].Value, b[i].Value); cmp != 0 {
+			return cmp
+		}
+	}
+
+	// If all tags are equal up to this point then return shorter tagset.
+	if len(a) < len(b) {
+		return -1
+	} else if len(a) > len(b) {
+		return 1
+	}
+
+	// All tags are equal.
+	return 0
+}
 
 // Get returns the value for a key.
 func (a Tags) Get(key []byte) []byte {
@@ -1716,9 +1794,9 @@ func (a Tags) GetString(key string) string {
 
 // Set sets the value for a key.
 func (a *Tags) Set(key, value []byte) {
-	for _, t := range *a {
+	for i, t := range *a {
 		if bytes.Equal(t.Key, key) {
-			t.Value = value
+			(*a)[i].Value = value
 			return
 		}
 	}
@@ -1809,6 +1887,37 @@ func (a Tags) HashKey() []byte {
 		idx += len(v)
 	}
 	return b[:idx]
+}
+
+// CopyTags returns a shallow copy of tags.
+func CopyTags(a Tags) Tags {
+	other := make(Tags, len(a))
+	copy(other, a)
+	return other
+}
+
+// DeepCopyTags returns a deep copy of tags.
+func DeepCopyTags(a Tags) Tags {
+	// Calculate size of keys/values in bytes.
+	var n int
+	for _, t := range a {
+		n += len(t.Key) + len(t.Value)
+	}
+
+	// Build single allocation for all key/values.
+	buf := make([]byte, n)
+
+	// Copy tags to new set.
+	other := make(Tags, len(a))
+	for i, t := range a {
+		copy(buf, t.Key)
+		other[i].Key, buf = buf[:len(t.Key)], buf[len(t.Key):]
+
+		copy(buf, t.Value)
+		other[i].Value, buf = buf[:len(t.Value)], buf[len(t.Value):]
+	}
+
+	return other
 }
 
 // Fields represents a mapping between a Point's field names and their

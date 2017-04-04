@@ -10,16 +10,21 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
-	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/influxdata/influxdb/tsdb/index/inmem"
+
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/bytesutil"
+	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/tsdb"
+	_ "github.com/influxdata/influxdb/tsdb/index"
 	"github.com/uber-go/zap"
 )
 
@@ -99,11 +104,8 @@ type Engine struct {
 	traceLogger  zap.Logger // Logger to be used when trace-logging is on.
 	traceLogging bool
 
-	// TODO(benbjohnson): Index needs to be moved entirely into engine.
-	index *tsdb.DatabaseIndex
-
-	fieldsMu          sync.RWMutex
-	measurementFields map[string]*tsdb.MeasurementFields
+	index    tsdb.Index
+	fieldset *tsdb.MeasurementFieldSet
 
 	WAL            *WAL
 	Cache          *Cache
@@ -129,7 +131,7 @@ type Engine struct {
 }
 
 // NewEngine returns a new instance of Engine.
-func NewEngine(id uint64, path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine {
+func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine {
 	w := NewWAL(walPath)
 	w.syncDelay = time.Duration(opt.Config.WALFsyncDelay)
 
@@ -145,11 +147,12 @@ func NewEngine(id uint64, path string, walPath string, opt tsdb.EngineOptions) t
 	e := &Engine{
 		id:           id,
 		path:         path,
+		index:        idx,
 		logger:       logger,
 		traceLogger:  logger,
 		traceLogging: opt.Config.TraceLoggingEnabled,
 
-		measurementFields: make(map[string]*tsdb.MeasurementFields),
+		fieldset: tsdb.NewMeasurementFieldSet(),
 
 		WAL:   w,
 		Cache: cache,
@@ -166,6 +169,9 @@ func NewEngine(id uint64, path string, walPath string, opt tsdb.EngineOptions) t
 		enableCompactionsOnOpen:       true,
 		stats: &EngineStatistics{},
 	}
+
+	// Attach fieldset to index.
+	e.index.SetFieldSet(e.fieldset)
 
 	if e.traceLogging {
 		fs.enableTraceLogging(true)
@@ -284,36 +290,70 @@ func (e *Engine) disableSnapshotCompactions() {
 // Path returns the path the engine was opened with.
 func (e *Engine) Path() string { return e.path }
 
-// Index returns the database index.
-func (e *Engine) Index() *tsdb.DatabaseIndex {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	return e.index
+func (e *Engine) SetFieldName(measurement, name string) {
+	e.index.SetFieldName(measurement, name)
+}
+
+func (e *Engine) MeasurementExists(name []byte) (bool, error) {
+	return e.index.MeasurementExists(name)
+}
+
+func (e *Engine) MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
+	return e.index.MeasurementNamesByExpr(expr)
+}
+
+func (e *Engine) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
+	return e.index.MeasurementNamesByRegex(re)
 }
 
 // MeasurementFields returns the measurement fields for a measurement.
 func (e *Engine) MeasurementFields(measurement string) *tsdb.MeasurementFields {
-	e.fieldsMu.RLock()
-	m := e.measurementFields[measurement]
-	e.fieldsMu.RUnlock()
-
-	if m != nil {
-		return m
-	}
-
-	e.fieldsMu.Lock()
-	m = e.measurementFields[measurement]
-	if m == nil {
-		m = tsdb.NewMeasurementFields()
-		e.measurementFields[measurement] = m
-	}
-	e.fieldsMu.Unlock()
-	return m
+	return e.fieldset.CreateFieldsIfNotExists(measurement)
 }
 
-// Format returns the format type of this engine.
-func (e *Engine) Format() tsdb.EngineFormat {
-	return tsdb.TSM1Format
+func (e *Engine) ForEachMeasurementSeriesByExpr(name []byte, condition influxql.Expr, fn func(tags models.Tags) error) error {
+	return e.index.ForEachMeasurementSeriesByExpr(name, condition, fn)
+}
+
+func (e *Engine) HasTagKey(name, key []byte) (bool, error) {
+	return e.index.HasTagKey(name, key)
+}
+
+func (e *Engine) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error) {
+	return e.index.MeasurementTagKeysByExpr(name, expr)
+}
+
+func (e *Engine) ForEachMeasurementTagKey(name []byte, fn func(key []byte) error) error {
+	return e.index.ForEachMeasurementTagKey(name, fn)
+}
+
+func (e *Engine) TagKeyCardinality(name, key []byte) int {
+	return e.index.TagKeyCardinality(name, key)
+}
+
+// SeriesN returns the unique number of series in the index.
+func (e *Engine) SeriesN() int64 {
+	return e.index.SeriesN()
+}
+
+func (e *Engine) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
+	return e.index.SeriesSketches()
+}
+
+func (e *Engine) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
+	return e.index.MeasurementsSketches()
+}
+
+// LastModified returns the time when this shard was last modified.
+func (e *Engine) LastModified() time.Time {
+	walTime := e.WAL.LastWriteTime()
+	fsTime := e.FileStore.LastModified()
+
+	if walTime.After(fsTime) {
+		return walTime
+	}
+
+	return fsTime
 }
 
 // EngineStatistics maintains statistics for the engine.
@@ -377,6 +417,7 @@ func (e *Engine) Statistics(tags map[string]string) []models.Statistic {
 			statTSMFullCompactionDuration: atomic.LoadInt64(&e.stats.TSMFullCompactionDuration),
 		},
 	})
+
 	statistics = append(statistics, e.Cache.Statistics(tags)...)
 	statistics = append(statistics, e.FileStore.Statistics(tags)...)
 	statistics = append(statistics, e.WAL.Statistics(tags)...)
@@ -442,7 +483,7 @@ func (e *Engine) WithLogger(log zap.Logger) {
 }
 
 // LoadMetadataIndex loads the shard metadata into memory.
-func (e *Engine) LoadMetadataIndex(shardID uint64, index *tsdb.DatabaseIndex) error {
+func (e *Engine) LoadMetadataIndex(shardID uint64, index tsdb.Index) error {
 	now := time.Now()
 
 	// Save reference to index for iterator creation.
@@ -454,7 +495,7 @@ func (e *Engine) LoadMetadataIndex(shardID uint64, index *tsdb.DatabaseIndex) er
 			return err
 		}
 
-		if err := e.addToIndexFromKey(shardID, key, fieldType, index); err != nil {
+		if err := e.addToIndexFromKey(key, fieldType, index); err != nil {
 			return err
 		}
 		return nil
@@ -469,7 +510,10 @@ func (e *Engine) LoadMetadataIndex(shardID uint64, index *tsdb.DatabaseIndex) er
 			e.logger.Info(fmt.Sprintf("error getting the data type of values for key %s: %s", key, err.Error()))
 		}
 
-		return e.addToIndexFromKey(shardID, []byte(key), fieldType, index)
+		if err := e.addToIndexFromKey([]byte(key), fieldType, index); err != nil {
+			return err
+		}
+		return nil
 	}); err != nil {
 		return err
 	}
@@ -491,31 +535,39 @@ func (e *Engine) Backup(w io.Writer, basePath string, since time.Time) error {
 		return err
 	}
 
+	if err := e.index.SnapshotTo(path); err != nil {
+		return err
+	}
+
 	tw := tar.NewWriter(w)
 	defer tw.Close()
 
 	// Remove the temporary snapshot dir
 	defer os.RemoveAll(path)
 
-	snapshotFiles, err := ioutil.ReadDir(path)
+	// Recursively read all files from path.
+	files, err := readDir(path, "")
 	if err != nil {
 		return err
 	}
 
-	var files []os.FileInfo
-	// grab all the files and tombstones that have a modified time after since
-	for _, f := range snapshotFiles {
-		if f.ModTime().UnixNano() > since.UnixNano() {
-			files = append(files, f)
+	// Filter paths to only changed files.
+	var filtered []string
+	for _, file := range files {
+		fi, err := os.Stat(filepath.Join(path, file))
+		if err != nil {
+			return err
+		} else if !fi.ModTime().After(since) {
+			continue
 		}
+		filtered = append(filtered, file)
 	}
-
-	if len(files) == 0 {
+	if len(filtered) == 0 {
 		return nil
 	}
 
-	for _, f := range files {
-		if err := e.writeFileToBackup(f, basePath, filepath.Join(path, f.Name()), tw); err != nil {
+	for _, f := range filtered {
+		if err := e.writeFileToBackup(f, basePath, filepath.Join(path, f), tw); err != nil {
 			return err
 		}
 	}
@@ -525,9 +577,14 @@ func (e *Engine) Backup(w io.Writer, basePath string, since time.Time) error {
 
 // writeFileToBackup copies the file into the tar archive. Files will use the shardRelativePath
 // in their names. This should be the <db>/<retention policy>/<id> part of the path.
-func (e *Engine) writeFileToBackup(f os.FileInfo, shardRelativePath, fullPath string, tw *tar.Writer) error {
+func (e *Engine) writeFileToBackup(name string, shardRelativePath, fullPath string, tw *tar.Writer) error {
+	f, err := os.Stat(fullPath)
+	if err != nil {
+		return err
+	}
+
 	h := &tar.Header{
-		Name:    filepath.ToSlash(filepath.Join(shardRelativePath, f.Name())),
+		Name:    filepath.ToSlash(filepath.Join(shardRelativePath, name)),
 		ModTime: f.ModTime(),
 		Size:    f.Size(),
 		Mode:    int64(f.Mode()),
@@ -620,42 +677,24 @@ func (e *Engine) readFileFromBackup(tr *tar.Reader, shardRelativePath string) er
 	return renameFile(tmp, destPath)
 }
 
-// addToIndexFromKey extracts the measurement name, series key, and field name from a composite key, and adds it to the
-// database index and measurement fields.
-func (e *Engine) addToIndexFromKey(shardID uint64, key []byte, fieldType influxql.DataType, index *tsdb.DatabaseIndex) error {
+// addToIndexFromKey will pull the measurement name, series key, and field name from a composite key and add it to the
+// database index and measurement fields
+func (e *Engine) addToIndexFromKey(key []byte, fieldType influxql.DataType, index tsdb.Index) error {
 	seriesKey, field := SeriesAndFieldFromCompositeKey(key)
-	measurement := tsdb.MeasurementFromSeriesKey(string(seriesKey))
+	name := tsdb.MeasurementFromSeriesKey(string(seriesKey))
 
-	m := index.CreateMeasurementIndexIfNotExists(measurement)
-	m.SetFieldName(field)
-
-	e.fieldsMu.Lock()
-	mf := e.measurementFields[measurement]
-	if mf == nil {
-		mf = tsdb.NewMeasurementFields()
-		e.measurementFields[measurement] = mf
-	}
-	e.fieldsMu.Unlock()
-
+	mf := e.fieldset.CreateFieldsIfNotExists(name)
 	if err := mf.CreateFieldIfNotExists(field, fieldType, false); err != nil {
 		return err
 	}
 
-	// Have we already indexed this series?
-	ss := index.SeriesBytes(seriesKey)
-	if ss != nil {
-		// Add this shard to the existing series
-		ss.AssignShard(shardID)
-		return nil
+	// Build in-memory index, if necessary.
+	if e.index.Type() == inmem.IndexName {
+		_, tags, _ := models.ParseKey(seriesKey)
+		if err := e.index.InitializeSeries(seriesKey, []byte(name), tags); err != nil {
+			return err
+		}
 	}
-
-	// ignore error because ParseKey returns "missing fields" and we don't have
-	// fields (in line protocol format) in the series key
-	_, tags, _ := models.ParseKey(seriesKey)
-
-	s := tsdb.NewSeries(string(seriesKey), tags)
-	index.CreateSeriesIndexIfNotExists(measurement, s, true)
-	s.AssignShard(shardID)
 
 	return nil
 }
@@ -716,14 +755,14 @@ func (e *Engine) WritePoints(points []models.Point) error {
 	return err
 }
 
-// ContainsSeries returns a map of keys indicating whether the key exists and
+// containsSeries returns a map of keys indicating whether the key exists and
 // has values or not.
-func (e *Engine) ContainsSeries(keys []string) (map[string]bool, error) {
+func (e *Engine) containsSeries(keys [][]byte) (map[string]bool, error) {
 	// keyMap is used to see if a given key exists.  keys
 	// are the measurement + tagset (minus separate & field)
 	keyMap := map[string]bool{}
 	for _, k := range keys {
-		keyMap[k] = false
+		keyMap[string(k)] = false
 	}
 
 	for _, k := range e.Cache.unsortedKeys() {
@@ -740,23 +779,24 @@ func (e *Engine) ContainsSeries(keys []string) (map[string]bool, error) {
 	}); err != nil {
 		return nil, err
 	}
+
 	return keyMap, nil
 }
 
-// DeleteSeries removes all series keys from the engine.
-func (e *Engine) DeleteSeries(seriesKeys []string) error {
+// deleteSeries removes all series keys from the engine.
+func (e *Engine) deleteSeries(seriesKeys [][]byte) error {
 	return e.DeleteSeriesRange(seriesKeys, math.MinInt64, math.MaxInt64)
 }
 
 // DeleteSeriesRange removes the values between min and max (inclusive) from all series.
-func (e *Engine) DeleteSeriesRange(seriesKeys []string, min, max int64) error {
+func (e *Engine) DeleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 	if len(seriesKeys) == 0 {
 		return nil
 	}
 
 	// Ensure keys are sorted since lower layers require them to be.
-	if !sort.StringsAreSorted(seriesKeys) {
-		sort.Strings(seriesKeys)
+	if !bytesutil.IsSorted(seriesKeys) {
+		bytesutil.Sort(seriesKeys)
 	}
 
 	// Disable and abort running compactions so that tombstones added existing tsm
@@ -776,12 +816,12 @@ func (e *Engine) DeleteSeriesRange(seriesKeys []string, min, max int64) error {
 
 		// Both tempKeys and keys walked are sorted, skip any passed in keys
 		// that don't exist in our key set.
-		for len(tempKeys) > 0 && tempKeys[0] < string(seriesKey) {
+		for len(tempKeys) > 0 && bytes.Compare(tempKeys[0], seriesKey) < 0 {
 			tempKeys = tempKeys[1:]
 		}
 
 		// Keys match, add the full series key to delete.
-		if len(tempKeys) > 0 && tempKeys[0] == string(seriesKey) {
+		if len(tempKeys) > 0 && bytes.Equal(tempKeys[0], seriesKey) {
 			deleteKeys = append(deleteKeys, string(k))
 		}
 
@@ -803,8 +843,8 @@ func (e *Engine) DeleteSeriesRange(seriesKeys []string, min, max int64) error {
 
 		// Cache does not walk keys in sorted order, so search the sorted
 		// series we need to delete to see if any of the cache keys match.
-		i := sort.SearchStrings(seriesKeys, string(seriesKey))
-		if i < len(seriesKeys) && string(seriesKey) == seriesKeys[i] {
+		i := bytesutil.SearchBytes(seriesKeys, seriesKey)
+		if i < len(seriesKeys) && bytes.Equal(seriesKey, seriesKeys[i]) {
 			// k is the measurement + tags + sep + field
 			walKeys = append(walKeys, k)
 		}
@@ -814,48 +854,80 @@ func (e *Engine) DeleteSeriesRange(seriesKeys []string, min, max int64) error {
 	e.Cache.DeleteRange(walKeys, min, max)
 
 	// delete from the WAL
-	_, err := e.WAL.DeleteRange(walKeys, min, max)
-
-	return err
-}
-
-// DeleteMeasurement deletes a measurement and all related series.
-func (e *Engine) DeleteMeasurement(name string, seriesKeys []string) error {
-	// Delete the bulk of data outside of the fields lock
-	if err := e.DeleteSeries(seriesKeys); err != nil {
+	if _, err := e.WAL.DeleteRange(walKeys, min, max); err != nil {
 		return err
 	}
 
-	e.fieldsMu.Lock()
-	defer e.fieldsMu.Unlock()
-
-	// Delete any data that may have been written while we were deleting outside
-	// of the lock
-	if err := e.DeleteSeries(seriesKeys); err != nil {
+	// Have we deleted all points for the series? If so, we need to remove
+	// the series from the index.
+	existing, err := e.containsSeries(seriesKeys)
+	if err != nil {
 		return err
 	}
 
-	// Remove the field type mapping
-	delete(e.measurementFields, name)
+	for k, exists := range existing {
+		if !exists {
+			if err := e.index.UnassignShard(k, e.id); err != nil {
+				return err
+			}
+		}
+	}
 
 	return nil
 }
 
-// SeriesCount returns the number of series buckets on the shard.
-func (e *Engine) SeriesCount() (n int, err error) {
-	return e.index.SeriesN(), nil
-}
-
-// LastModified returns the time when this shard was last modified.
-func (e *Engine) LastModified() time.Time {
-	walTime := e.WAL.LastWriteTime()
-	fsTime := e.FileStore.LastModified()
-
-	if walTime.After(fsTime) {
-		return walTime
+// DeleteMeasurement deletes a measurement and all related series.
+func (e *Engine) DeleteMeasurement(name []byte) error {
+	// Delete the bulk of data outside of the fields lock.
+	if err := e.deleteMeasurement(name); err != nil {
+		return err
 	}
 
-	return fsTime
+	// Under lock, delete any series created deletion.
+	if err := e.fieldset.DeleteWithLock(string(name), func() error {
+		return e.deleteMeasurement(name)
+	}); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// DeleteMeasurement deletes a measurement and all related series.
+func (e *Engine) deleteMeasurement(name []byte) error {
+	// Attempt to find the series keys.
+	keys, err := e.index.MeasurementSeriesKeysByExpr(name, nil)
+	if err != nil {
+		return err
+	} else if len(keys) > 0 {
+		if err := e.deleteSeries(keys); err != nil {
+			return err
+		}
+	}
+
+	// Remove the measurement from the index.
+	if err := e.index.DropMeasurement(name); err != nil {
+		return err
+	}
+	return nil
+}
+
+// ForEachMeasurementName iterates over each measurement name in the engine.
+func (e *Engine) ForEachMeasurementName(fn func(name []byte) error) error {
+	return e.index.ForEachMeasurementName(fn)
+}
+
+// MeasurementSeriesKeysByExpr returns a list of series keys matching expr.
+func (e *Engine) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr) ([][]byte, error) {
+	return e.index.MeasurementSeriesKeysByExpr(name, expr)
+}
+
+func (e *Engine) CreateSeriesListIfNotExists(keys, names [][]byte, tagsSlice []models.Tags) error {
+	return e.index.CreateSeriesListIfNotExists(keys, names, tagsSlice)
+}
+
+func (e *Engine) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error {
+	return e.index.CreateSeriesIfNotExists(key, name, tags)
 }
 
 // WriteTo is not implemented.
@@ -1288,13 +1360,14 @@ func (e *Engine) CreateIterator(measurement string, opt influxql.IteratorOptions
 func (e *Engine) createCallIterator(measurement string, call *influxql.Call, opt influxql.IteratorOptions) ([]influxql.Iterator, error) {
 	ref, _ := call.Args[0].(*influxql.VarRef)
 
-	mm := e.index.Measurement(measurement)
-	if mm == nil {
+	if exists, err := e.index.MeasurementExists([]byte(measurement)); err != nil {
+		return nil, err
+	} else if !exists {
 		return nil, nil
 	}
 
 	// Determine tagsets for this measurement based on dimensions and filters.
-	tagSets, err := mm.TagSets(e.id, opt)
+	tagSets, err := e.index.TagSets([]byte(measurement), opt)
 	if err != nil {
 		return nil, err
 	}
@@ -1320,7 +1393,7 @@ func (e *Engine) createCallIterator(measurement string, call *influxql.Call, opt
 			default:
 			}
 
-			inputs, err := e.createTagSetIterators(ref, mm, t, opt)
+			inputs, err := e.createTagSetIterators(ref, measurement, t, opt)
 			if err != nil {
 				return err
 			} else if len(inputs) == 0 {
@@ -1356,13 +1429,14 @@ func (e *Engine) createCallIterator(measurement string, call *influxql.Call, opt
 func (e *Engine) createVarRefIterator(measurement string, opt influxql.IteratorOptions) ([]influxql.Iterator, error) {
 	ref, _ := opt.Expr.(*influxql.VarRef)
 
-	mm := e.index.Measurement(measurement)
-	if mm == nil {
+	if exists, err := e.index.MeasurementExists([]byte(measurement)); err != nil {
+		return nil, err
+	} else if !exists {
 		return nil, nil
 	}
 
 	// Determine tagsets for this measurement based on dimensions and filters.
-	tagSets, err := mm.TagSets(e.id, opt)
+	tagSets, err := e.index.TagSets([]byte(measurement), opt)
 	if err != nil {
 		return nil, err
 	}
@@ -1380,7 +1454,7 @@ func (e *Engine) createVarRefIterator(measurement string, opt influxql.IteratorO
 	itrs := make([]influxql.Iterator, 0, len(tagSets))
 	if err := func() error {
 		for _, t := range tagSets {
-			inputs, err := e.createTagSetIterators(ref, mm, t, opt)
+			inputs, err := e.createTagSetIterators(ref, measurement, t, opt)
 			if err != nil {
 				return err
 			} else if len(inputs) == 0 {
@@ -1430,7 +1504,7 @@ func (e *Engine) createVarRefIterator(measurement string, opt influxql.IteratorO
 }
 
 // createTagSetIterators creates a set of iterators for a tagset.
-func (e *Engine) createTagSetIterators(ref *influxql.VarRef, mm *tsdb.Measurement, t *influxql.TagSet, opt influxql.IteratorOptions) ([]influxql.Iterator, error) {
+func (e *Engine) createTagSetIterators(ref *influxql.VarRef, name string, t *influxql.TagSet, opt influxql.IteratorOptions) ([]influxql.Iterator, error) {
 	// Set parallelism by number of logical cpus.
 	parallelism := runtime.GOMAXPROCS(0)
 	if parallelism > len(t.SeriesKeys) {
@@ -1467,7 +1541,7 @@ func (e *Engine) createTagSetIterators(ref *influxql.VarRef, mm *tsdb.Measuremen
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			groups[i].itrs, groups[i].err = e.createTagSetGroupIterators(ref, mm, groups[i].keys, t, groups[i].filters, opt)
+			groups[i].itrs, groups[i].err = e.createTagSetGroupIterators(ref, name, groups[i].keys, t, groups[i].filters, opt)
 		}(i)
 	}
 	wg.Wait()
@@ -1498,7 +1572,7 @@ func (e *Engine) createTagSetIterators(ref *influxql.VarRef, mm *tsdb.Measuremen
 }
 
 // createTagSetGroupIterators creates a set of iterators for a subset of a tagset's series.
-func (e *Engine) createTagSetGroupIterators(ref *influxql.VarRef, mm *tsdb.Measurement, seriesKeys []string, t *influxql.TagSet, filters []influxql.Expr, opt influxql.IteratorOptions) ([]influxql.Iterator, error) {
+func (e *Engine) createTagSetGroupIterators(ref *influxql.VarRef, name string, seriesKeys []string, t *influxql.TagSet, filters []influxql.Expr, opt influxql.IteratorOptions) ([]influxql.Iterator, error) {
 	conditionFields := make([]influxql.VarRef, len(influxql.ExprNames(opt.Condition)))
 
 	itrs := make([]influxql.Iterator, 0, len(seriesKeys))
@@ -1512,7 +1586,7 @@ func (e *Engine) createTagSetGroupIterators(ref *influxql.VarRef, mm *tsdb.Measu
 			}
 		}
 
-		itr, err := e.createVarRefSeriesIterator(ref, mm, seriesKey, t, filters[i], conditionFields[:fields], opt)
+		itr, err := e.createVarRefSeriesIterator(ref, name, seriesKey, t, filters[i], conditionFields[:fields], opt)
 		if err != nil {
 			return itrs, err
 		} else if itr == nil {
@@ -1539,8 +1613,9 @@ func (e *Engine) createTagSetGroupIterators(ref *influxql.VarRef, mm *tsdb.Measu
 }
 
 // createVarRefSeriesIterator creates an iterator for a variable reference for a series.
-func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, mm *tsdb.Measurement, seriesKey string, t *influxql.TagSet, filter influxql.Expr, conditionFields []influxql.VarRef, opt influxql.IteratorOptions) (influxql.Iterator, error) {
-	tags := influxql.NewTags(e.index.TagsForSeries(seriesKey).Map())
+func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, name string, seriesKey string, t *influxql.TagSet, filter influxql.Expr, conditionFields []influxql.VarRef, opt influxql.IteratorOptions) (influxql.Iterator, error) {
+	_, tfs, _ := models.ParseKey([]byte(seriesKey))
+	tags := influxql.NewTags(tfs.Map())
 
 	// Create options specific for this series.
 	itrOpt := opt
@@ -1554,7 +1629,7 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, mm *tsdb.Measu
 		for i, ref := range opt.Aux {
 			// Create cursor from field if a tag wasn't requested.
 			if ref.Type != influxql.Tag {
-				cur := e.buildCursor(mm.Name, seriesKey, &ref, opt)
+				cur := e.buildCursor(name, seriesKey, &ref, opt)
 				if cur != nil {
 					aux[i] = newBufCursor(cur, opt.Ascending)
 					continue
@@ -1595,7 +1670,7 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, mm *tsdb.Measu
 		for i, ref := range conditionFields {
 			// Create cursor from field if a tag wasn't requested.
 			if ref.Type != influxql.Tag {
-				cur := e.buildCursor(mm.Name, seriesKey, &ref, opt)
+				cur := e.buildCursor(name, seriesKey, &ref, opt)
 				if cur != nil {
 					conds[i] = newBufCursor(cur, opt.Ascending)
 					continue
@@ -1635,11 +1710,11 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, mm *tsdb.Measu
 
 	// If it's only auxiliary fields then it doesn't matter what type of iterator we use.
 	if ref == nil {
-		return newFloatIterator(mm.Name, tags, itrOpt, nil, aux, conds, condNames), nil
+		return newFloatIterator(name, tags, itrOpt, nil, aux, conds, condNames), nil
 	}
 
 	// Build main cursor.
-	cur := e.buildCursor(mm.Name, seriesKey, ref, opt)
+	cur := e.buildCursor(name, seriesKey, ref, opt)
 
 	// If the field doesn't exist then don't build an iterator.
 	if cur == nil {
@@ -1648,13 +1723,13 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, mm *tsdb.Measu
 
 	switch cur := cur.(type) {
 	case floatCursor:
-		return newFloatIterator(mm.Name, tags, itrOpt, cur, aux, conds, condNames), nil
+		return newFloatIterator(name, tags, itrOpt, cur, aux, conds, condNames), nil
 	case integerCursor:
-		return newIntegerIterator(mm.Name, tags, itrOpt, cur, aux, conds, condNames), nil
+		return newIntegerIterator(name, tags, itrOpt, cur, aux, conds, condNames), nil
 	case stringCursor:
-		return newStringIterator(mm.Name, tags, itrOpt, cur, aux, conds, condNames), nil
+		return newStringIterator(name, tags, itrOpt, cur, aux, conds, condNames), nil
 	case booleanCursor:
-		return newBooleanIterator(mm.Name, tags, itrOpt, cur, aux, conds, condNames), nil
+		return newBooleanIterator(name, tags, itrOpt, cur, aux, conds, condNames), nil
 	default:
 		panic("unreachable")
 	}
@@ -1663,10 +1738,7 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, mm *tsdb.Measu
 // buildCursor creates an untyped cursor for a field.
 func (e *Engine) buildCursor(measurement, seriesKey string, ref *influxql.VarRef, opt influxql.IteratorOptions) cursor {
 	// Look up fields for measurement.
-	e.fieldsMu.RLock()
-	mf := e.measurementFields[measurement]
-	e.fieldsMu.RUnlock()
-
+	mf := e.fieldset.Fields(measurement)
 	if mf == nil {
 		return nil
 	}
@@ -1740,6 +1812,10 @@ func (e *Engine) buildBooleanCursor(measurement, seriesKey, field string, opt in
 	return newBooleanCursor(opt.SeekTime(), opt.Ascending, cacheValues, keyCursor)
 }
 
+func (e *Engine) SeriesPointIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+	return e.index.SeriesPointIterator(opt)
+}
+
 // SeriesFieldKey combine a series key and field name for a unique string to be hashed to a numeric ID.
 func SeriesFieldKey(seriesKey, field string) string {
 	return seriesKey + keyFieldSeparator + field
@@ -1768,4 +1844,38 @@ func SeriesAndFieldFromCompositeKey(key []byte) ([]byte, string) {
 		return key, ""
 	}
 	return key[:sep], string(key[sep+len(keyFieldSeparator):])
+}
+
+// readDir recursively reads all files from a path.
+func readDir(root, rel string) ([]string, error) {
+	// Open root.
+	f, err := os.Open(filepath.Join(root, rel))
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	// Read all files.
+	fis, err := f.Readdir(-1)
+	if err != nil {
+		return nil, err
+	}
+
+	// Read all subdirectories and append to the end.
+	var paths []string
+	for _, fi := range fis {
+		// Simply append if it's a file.
+		if !fi.IsDir() {
+			paths = append(paths, filepath.Join(rel, fi.Name()))
+			continue
+		}
+
+		// Read and append nested file paths.
+		children, err := readDir(root, filepath.Join(rel, fi.Name()))
+		if err != nil {
+			return nil, err
+		}
+		paths = append(paths, children...)
+	}
+	return paths, nil
 }

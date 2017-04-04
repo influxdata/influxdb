@@ -29,8 +29,7 @@ func TestMain(m *testing.M) {
 	c.Admin.Enabled = false
 	c.Subscriber.Enabled = false
 	c.ContinuousQuery.Enabled = false
-	c.Data.MaxSeriesPerDatabase = 10000000 // 10M
-	c.Data.MaxValuesPerTag = 1000000       // 1M
+	c.Data.MaxValuesPerTag = 1000000 // 1M
 	benchServer = OpenDefaultServer(c)
 
 	// Run suite.
@@ -6503,7 +6502,7 @@ func TestServer_Query_DropAndRecreateMeasurement(t *testing.T) {
 		&Query{
 			name:    "Drop non-existant measurement",
 			command: `DROP MEASUREMENT doesntexist`,
-			exp:     `{"results":[{"statement_id":0,"error":"measurement not found: doesntexist"}]}`,
+			exp:     `{"results":[{"statement_id":0}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 	}...)

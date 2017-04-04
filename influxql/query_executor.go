@@ -45,9 +45,6 @@ const (
 // ErrDatabaseNotFound returns a database not found error for the given database name.
 func ErrDatabaseNotFound(name string) error { return fmt.Errorf("database not found: %s", name) }
 
-// ErrMeasurementNotFound returns a measurement not found error for the given measurement name.
-func ErrMeasurementNotFound(name string) error { return fmt.Errorf("measurement not found: %s", name) }
-
 // ErrMaxSelectPointsLimitExceeded is an error when a query hits the maximum number of points.
 func ErrMaxSelectPointsLimitExceeded(n, limit int) error {
 	return fmt.Errorf("max-select-point limit exceeed: (%d/%d)", n, limit)

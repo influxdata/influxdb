@@ -13,6 +13,9 @@ const (
 	// DefaultEngine is the default engine for new shards
 	DefaultEngine = "tsm1"
 
+	// DefaultIndex is the default index for new shards
+	DefaultIndex = "inmem"
+
 	// tsdb/engine/wal configuration options
 
 	// Default settings for TSM
@@ -39,6 +42,7 @@ const (
 	DefaultMaxPointsPerBlock = 1000
 
 	// DefaultMaxSeriesPerDatabase is the maximum number of series a node can hold per database.
+	// This limit only applies to the "inmem" index.
 	DefaultMaxSeriesPerDatabase = 1000000
 
 	// DefaultMaxValuesPerTag is the maximum number of values a tag can have within a measurement.
@@ -49,6 +53,7 @@ const (
 type Config struct {
 	Dir    string `toml:"dir"`
 	Engine string `toml:"-"`
+	Index  string `toml:"index-version"`
 
 	// General WAL configuration options
 	WALDir string `toml:"wal-dir"`
@@ -71,7 +76,7 @@ type Config struct {
 
 	// MaxSeriesPerDatabase is the maximum number of series a node can hold per database.
 	// When this limit is exceeded, writes return a 'max series per database exceeded' error.
-	// A value of 0 disables the limit.
+	// A value of 0 disables the limit. This limit only applies when using the "inmem" index.
 	MaxSeriesPerDatabase int `toml:"max-series-per-database"`
 
 	// MaxValuesPerTag is the maximum number of tag values a single tag key can have within
@@ -86,6 +91,7 @@ type Config struct {
 func NewConfig() Config {
 	return Config{
 		Engine: DefaultEngine,
+		Index:  DefaultIndex,
 
 		QueryLogEnabled: true,
 
@@ -118,6 +124,17 @@ func (c *Config) Validate() error {
 	}
 	if !valid {
 		return fmt.Errorf("unrecognized engine %s", c.Engine)
+	}
+
+	valid = false
+	for _, e := range RegisteredIndexes() {
+		if e == c.Index {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		return fmt.Errorf("unrecognized index %s", c.Index)
 	}
 
 	return nil

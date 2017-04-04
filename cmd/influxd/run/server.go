@@ -32,8 +32,10 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 	client "github.com/influxdata/usage-client/v1"
 	"github.com/uber-go/zap"
-	// Initialize the engine packages
+
+	// Initialize the engine & index packages
 	_ "github.com/influxdata/influxdb/tsdb/engine"
+	_ "github.com/influxdata/influxdb/tsdb/index"
 )
 
 var startTime time.Time
@@ -167,6 +169,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 
 	// Copy TSDB configuration.
 	s.TSDBStore.EngineOptions.EngineVersion = c.Data.Engine
+	s.TSDBStore.EngineOptions.IndexVersion = c.Data.Index
 
 	// Create the Subscriber service
 	s.Subscriber = subscriber.NewService(c.Subscriber)
@@ -504,23 +507,28 @@ func (s *Server) startServerReporting() {
 
 // reportServer reports usage statistics about the system.
 func (s *Server) reportServer() {
-	dis := s.MetaClient.Databases()
-	numDatabases := len(dis)
+	dbs := s.MetaClient.Databases()
+	numDatabases := len(dbs)
 
-	numMeasurements := 0
-	numSeries := 0
+	var (
+		numMeasurements int64
+		numSeries       int64
+	)
 
-	// Only needed in the case of a data node
-	if s.TSDBStore != nil {
-		for _, di := range dis {
-			d := s.TSDBStore.DatabaseIndex(di.Name)
-			if d == nil {
-				// No data in this store for this database.
-				continue
-			}
-			m, s := d.MeasurementSeriesCounts()
-			numMeasurements += m
-			numSeries += s
+	for _, db := range dbs {
+		name := db.Name
+		n, err := s.TSDBStore.SeriesCardinality(name)
+		if err != nil {
+			s.Logger.Error(fmt.Sprintf("Unable to get series cardinality for database %s: %v", name, err))
+		} else {
+			numSeries += n
+		}
+
+		n, err = s.TSDBStore.MeasurementsCardinality(name)
+		if err != nil {
+			s.Logger.Error(fmt.Sprintf("Unable to get measurement cardinality for database %s: %v", name, err))
+		} else {
+			numMeasurements += n
 		}
 	}
 
