@@ -22,6 +22,7 @@ export const CreateSource = React.createClass({
   getInitialState() {
     return {
       showSSL: false,
+      showMeta: false,
     }
   },
 
@@ -53,8 +54,9 @@ export const CreateSource = React.createClass({
     return this.props.router.push(fixedPath)
   },
 
-  checkForSSL() {
-    this.setState({showSSL: !!this.sourceURL.value.startsWith("https")})
+  onInputChange() {
+    const showSSL = !!this.sourceURL.value.startsWith("https")
+    this.setState(showSSL)
   },
 
   render() {
@@ -75,7 +77,7 @@ export const CreateSource = React.createClass({
                     <div>
                       <div className="form-group col-xs-6 col-sm-4 col-sm-offset-2">
                         <label htmlFor="connect-string">Connection String</label>
-                        <input ref={(r) => this.sourceURL = r} onChange={this.checkForSSL} className="form-control" id="connect-string" defaultValue="http://localhost:8086"></input>
+                        <input ref={(r) => this.sourceURL = r} onChange={this.onInputChange} className="form-control" id="connect-string" defaultValue="http://localhost:8086"></input>
                       </div>
                       <div className="form-group col-xs-6 col-sm-4">
                         <label htmlFor="name">Name</label>
