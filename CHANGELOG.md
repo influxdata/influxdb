@@ -18,6 +18,7 @@
 
 ### Bugfixes
 
+- [#8231](https://github.com/influxdata/influxdb/pull/8231): Fix spelling mistake in HTTP section of config -- shared-sercret
 - [#8190](https://github.com/influxdata/influxdb/issues/8190): History file should redact passwords before saving to history.
 - [#8122](https://github.com/influxdata/influxdb/pull/8122): Suppress headers in output for influx cli when they are the same.
 - [#8119](https://github.com/influxdata/influxdb/pull/8119): Add chunked/chunk size as setting/options in cli.
