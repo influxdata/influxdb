@@ -14,6 +14,9 @@ const {
   string,
 } = PropTypes
 
+const BUILDER = 'Help me build a query'
+const EDITOR = 'Type my own query'
+
 const QueryBuilder = React.createClass({
   propTypes: {
     queries: arrayOf(shape({})).isRequired,
@@ -122,17 +125,17 @@ const QueryBuilder = React.createClass({
 
   onChoose(item) {
     switch (item.text) {
-      case 'Help me build a query':
+      case BUILDER:
         this.handleAddQuery()
         break
-      case 'Type my own query':
+      case EDITOR:
         this.handleAddRawQuery()
         break
     }
   },
 
   renderAddQuery() {
-    const items = [{text: 'Help me build a query'}, {text: 'Type my own query'}]
+    const items = [{text: BUILDER}, {text: EDITOR}]
     return (
       <SimpleDropdown onChoose={this.onChoose} items={items} className="panel--tab-new">
         <span className="icon plus"></span>
