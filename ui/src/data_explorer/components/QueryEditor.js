@@ -91,7 +91,7 @@ const QueryEditor = React.createClass({
 
   renderQuery() {
     const {query, timeRange} = this.props
-    const statement = query.rawText || buildInfluxQLQuery(timeRange, query) || `Select a database, measurement, and field below.`
+    const statement = query.rawText || buildInfluxQLQuery(timeRange, query) || 'Select a database, measurement, and field below.'
 
     if (typeof query.rawText !== 'string') {
       return (
