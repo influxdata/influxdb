@@ -43,6 +43,9 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	// Prefix any URLs found in the React assets with any configured basepath
 	prefixedAssets := NewDefaultURLPrefixer(basepath, assets, opts.Logger)
 
+	// Compress the assets with gzip if an accepted encoding
+	compressed := gziphandler.GzipHandler(prefixedAssets)
+
 	// Set route prefix for all routes if basepath is present
 	var router chronograf.Router
 	if opts.Basepath != "" && opts.PrefixRoutes {
@@ -50,24 +53,15 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 			Prefix:   opts.Basepath,
 			Delegate: hr,
 		}
+		// The react application handles all the routing if the server does not
+		// know about the route.  This means that we never have unknown routes on
+		// the server. The assets handler is always unaware of basepaths, so the
+		// basepath needs to always be removed before sending requests to it
+		hr.NotFound = http.StripPrefix(opts.Basepath, compressed)
 	} else {
 		router = hr
+		hr.NotFound = compressed
 	}
-
-	// Compress the assets with gzip if an accepted encoding
-	compressed := gziphandler.GzipHandler(prefixedAssets)
-
-	// The react application handles all the routing if the server does not
-	// know about the route.  This means that we never have unknown
-	// routes on the server.
-	hr.NotFound = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		// The assets handler is always unaware of basepaths, so it needs to always
-		// be removed before sending requests to it
-		if opts.Basepath != "" && opts.PrefixRoutes {
-			r.URL.Path = r.URL.Path[len(opts.Basepath):]
-		}
-		compressed.ServeHTTP(rw, r)
-	})
 
 	/* Documentation */
 	router.GET("/swagger.json", Spec())
