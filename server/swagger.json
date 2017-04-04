@@ -2259,6 +2259,18 @@
 				"duration": "3d",
 				"replication": 3,
 				"shardDuration": "3h",
+				"retentionPolicies": [
+					{
+						"name": "weekly",
+						"duration": "7d",
+						"replication": 1,
+						"shardDuration": "7d",
+						"default": true,
+						"links": {
+							"self": "/chronograf/v1/ousrces/1/dbs/NOAA_water_database/rps/liquid"
+						}
+					}
+				],
 				"links": {
 					"self": "/chronograf/v1/sources/1/dbs/NOAA_water_database",
 					"rps": "/chronograf/v1/sources/1/dbs/NOAA_water_database/rps"
@@ -2281,6 +2293,12 @@
 				"shardDuration": {
 					"type": "string",
 					"description": "the interval spanned by each shard group"
+				},
+				"retentionPolicies": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/RetentionPolicy"
+					}
 				},
 				"links": {
 					"type": "object",
