@@ -105,10 +105,9 @@ const Visualization = React.createClass({
     const q = activeQuery || defaultQuery
 
     switch (view) {
-      case GRAPH:
-        return this.renderGraph(queries)
       case TABLE:
         return (q ? <Table query={activeQuery || defaultQuery} height={heightPixels} onEditRawStatus={onEditRawStatus} /> : <div className="generic-empty-state">Enter your query below</div>)
+      case GRAPH:
       default:
         this.renderGraph(queries)
     }
