@@ -4,7 +4,10 @@ import {connect} from 'react-redux'
 
 import {createSource, updateSource} from 'shared/apis'
 import SourceForm from 'src/sources/components/SourceForm'
-import {addSource as addSourceAction} from 'src/shared/actions/sources'
+import {
+  addSource as addSourceAction,
+  updateSource as updateSourceAction,
+} from 'src/shared/actions/sources'
 
 const {
   func,
@@ -30,24 +33,6 @@ export const CreateSource = React.createClass({
     return {
       source: {},
     }
-  },
-
-  handleNewSource(e) {
-    e.preventDefault()
-    const source = {
-      url: this.sourceURL.value.trim(),
-      name: this.sourceName.value,
-      username: this.sourceUser.value,
-      password: this.sourcePassword.value,
-      isDefault: true,
-      telegraf: this.sourceTelegraf.value,
-      insecureSkipVerify: this.sourceInsecureSkipVerify ? this.sourceInsecureSkipVerify.checked : false,
-      metaUrl: this.metaUrl && this.metaUrl.value.trim(),
-    }
-    createSource(source).then(({data: sourceFromServer}) => {
-      this.props.addSourceAction(sourceFromServer)
-      this.redirectToApp(sourceFromServer)
-    })
   },
 
   redirectToApp(source) {
@@ -104,7 +89,7 @@ export const CreateSource = React.createClass({
 
     updateSource(newSource).then(({data: sourceFromServer}) => {
       this.props.updateSourceAction(sourceFromServer)
-      this.redirectToApp(newSource)
+      this.redirectToApp(sourceFromServer)
     }).catch(() => {
       // give a useful error message to the user
     })
@@ -142,4 +127,4 @@ function mapStateToProps(_) {
   return {}
 }
 
-export default connect(mapStateToProps, {addSourceAction})(withRouter(CreateSource))
+export default connect(mapStateToProps, {addSourceAction, updateSourceAction})(withRouter(CreateSource))
