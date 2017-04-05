@@ -40,6 +40,7 @@
 - [#8230](https://github.com/influxdata/influxdb/issues/8230): Prevent overflowing or underflowing during window computation.
 - [#8058](https://github.com/influxdata/influxdb/pull/8058): Enabled golint for admin, httpd, subscriber, udp. @karlding
 - [#8252](https://github.com/influxdata/influxdb/issues/8252): Implicitly cast null to false in binary expressions with a boolean.
+- [#8067](https://github.com/influxdata/influxdb/issues/8067): Restrict fill(none) and fill(linear) to be usable only with aggregate queries.
 
 ## v1.2.3 [unreleased]
 
