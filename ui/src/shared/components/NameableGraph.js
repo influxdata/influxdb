@@ -80,6 +80,9 @@ const NameableGraph = React.createClass({
             if (evt.key === 'Enter') {
               onUpdateCell(cell)()
             }
+            if (evt.key === 'Escape') {
+              onEditCell(x, y, false)()
+            }
           }}
         />
       )
@@ -88,7 +91,7 @@ const NameableGraph = React.createClass({
     }
 
     let onClickHandler
-    if (isEditable) {
+    if (!isEditing && isEditable) {
       onClickHandler = onEditCell
     } else {
       onClickHandler = () => {
