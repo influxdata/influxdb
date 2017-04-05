@@ -154,7 +154,7 @@ func (b *BlockIterator) Read() (key string, minTime int64, maxTime int64, typ by
 	if b.err != nil {
 		return "", 0, 0, 0, 0, nil, b.err
 	}
-	checksum, buf, err = b.r.readBytes(&b.entries[0], nil)
+	checksum, buf, err = b.r.ReadBytes(&b.entries[0], nil)
 	if err != nil {
 		return "", 0, 0, 0, 0, nil, err
 	}
@@ -311,7 +311,7 @@ func (t *TSMReader) ReadAll(key string) ([]Value, error) {
 	return v, err
 }
 
-func (t *TSMReader) readBytes(e *IndexEntry, b []byte) (uint32, []byte, error) {
+func (t *TSMReader) ReadBytes(e *IndexEntry, b []byte) (uint32, []byte, error) {
 	t.mu.RLock()
 	n, v, err := t.accessor.readBytes(e, b)
 	t.mu.RUnlock()
