@@ -1,4 +1,7 @@
 import React, {PropTypes} from 'react'
+
+import _ from 'lodash'
+
 import DatabaseTable from 'src/admin/components/DatabaseTable'
 
 const DatabaseManager = ({
@@ -31,7 +34,7 @@ const DatabaseManager = ({
       </div>
       <div className="panel-body">
         {
-          databases.map(db =>
+          _.sortBy(databases, ({name}) => name.toLowerCase()).map(db =>
             <DatabaseTable
               key={db.links.self}
               database={db}
@@ -92,4 +95,3 @@ DatabaseManager.propTypes = {
 }
 
 export default DatabaseManager
-
