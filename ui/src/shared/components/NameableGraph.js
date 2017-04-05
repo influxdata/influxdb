@@ -81,7 +81,7 @@ const NameableGraph = React.createClass({
               onUpdateCell(cell)()
             }
             if (evt.key === 'Escape') {
-              onEditCell(x, y, false)()
+              onEditCell(x, y, true)()
             }
           }}
         />
