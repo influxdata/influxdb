@@ -776,7 +776,6 @@ func (i *Index) compact() {
 			go func() {
 				defer i.wg.Done()
 				i.compactGroup(group)
-				i.Compact() // check for new compactions
 			}()
 		}(group)
 	}
