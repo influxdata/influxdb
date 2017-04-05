@@ -26,7 +26,6 @@ class QueriesPage extends Component {
   constructor(props) {
     super(props)
     this.updateQueries = ::this.updateQueries
-    this.handleConfirmKillQuery = ::this.handleConfirmKillQuery
     this.handleKillQuery = ::this.handleKillQuery
   }
 
@@ -44,7 +43,7 @@ class QueriesPage extends Component {
     const {queries} = this.props
 
     return (
-      <QueriesTable queries={queries} onConfirm={this.handleConfirmKillQuery} onKillQuery={this.handleKillQuery} />
+      <QueriesTable queries={queries} onKillQuery={this.handleKillQuery} />
     )
   }
 
@@ -84,20 +83,9 @@ class QueriesPage extends Component {
     })
   }
 
-  handleKillQuery(e) {
-    e.stopPropagation()
-    const id = e.target.dataset.queryId
-
-    this.props.setQueryToKill(id)
-  }
-
-  handleConfirmKillQuery() {
-    const {queryIDToKill, source, killQuery} = this.props
-    if (queryIDToKill === null) {
-      return
-    }
-
-    killQuery(source.links.proxy, queryIDToKill)
+  handleKillQuery(id) {
+    const {source, killQuery} = this.props
+    killQuery(source.links.proxy, id)
   }
 }
 
