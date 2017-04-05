@@ -103,13 +103,11 @@ const Visualization = React.createClass({
     const activeQuery = queries[activeQueryIndex]
     const defaultQuery = queries[0]
 
-    switch (view) {
-      case TABLE:
-        return this.renderTable(activeQuery || defaultQuery, heightPixels, onEditRawStatus)
-      case GRAPH:
-      default:
-        this.renderGraph(queries)
+    if (view === TABLE) {
+      return this.renderTable(activeQuery || defaultQuery, heightPixels, onEditRawStatus)
     }
+
+    return this.renderGraph(queries)
   },
 
   renderTable(query, heightPixels, onEditRawStatus) {
