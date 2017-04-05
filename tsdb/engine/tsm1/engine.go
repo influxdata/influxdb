@@ -1120,9 +1120,10 @@ type compactionStrategy struct {
 	successStat  *int64
 	errorStat    *int64
 
-	logger    zap.Logger
-	compactor *Compactor
-	fileStore *FileStore
+	traceLogger zap.Logger
+	logger      zap.Logger
+	compactor   *Compactor
+	fileStore   *FileStore
 }
 
 // Apply concurrently compacts all the groups in a compaction strategy.
@@ -1165,7 +1166,7 @@ func (s *compactionStrategy) compactGroup(groupNum int) {
 
 	if err != nil {
 		if err == errCompactionsDisabled || err == errCompactionInProgress {
-			s.logger.Info(fmt.Sprintf("aborted %s compaction group (%d). %v", s.description, groupNum, err))
+			s.traceLogger.Info(fmt.Sprintf("aborted %s compaction group (%d). %v", s.description, groupNum, err))
 
 			if err == errCompactionInProgress {
 				time.Sleep(time.Second)
@@ -1204,6 +1205,7 @@ func (e *Engine) levelCompactionStrategy(fast bool, level int) *compactionStrate
 
 	return &compactionStrategy{
 		compactionGroups: compactionGroups,
+		traceLogger:      e.traceLogger,
 		logger:           e.logger,
 		fileStore:        e.FileStore,
 		compactor:        e.Compactor,
@@ -1234,6 +1236,7 @@ func (e *Engine) fullCompactionStrategy() *compactionStrategy {
 
 	s := &compactionStrategy{
 		compactionGroups: compactionGroups,
+		traceLogger:      e.traceLogger,
 		logger:           e.logger,
 		fileStore:        e.FileStore,
 		compactor:        e.Compactor,
