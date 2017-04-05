@@ -118,11 +118,11 @@ func (w *csvFormatter) WriteResponse(resp Response) (n int, err error) {
 					return n, err
 				}
 
-				if out, err := io.WriteString(w, "\n"); err != nil {
+				out, err := io.WriteString(w, "\n")
+				if err != nil {
 					return n, err
-				} else {
-					n += out
 				}
+				n += out
 			}
 			w.statementID = result.StatementID
 
