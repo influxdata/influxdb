@@ -1,12 +1,9 @@
 import _ from 'lodash'
 
 import reducer from 'src/dashboards/reducers/ui'
-import timeRanges from 'hson!src/shared/data/timeRanges.hson'
 
 import {
   loadDashboards,
-  setDashboard,
-  deleteDashboard,
   deleteDashboardFailed,
   setTimeRange,
   updateDashboardCells,
@@ -15,12 +12,7 @@ import {
   syncDashboardCell,
 } from 'src/dashboards/actions'
 
-const noopAction = () => {
-  return {type: 'NOOP'}
-}
-
 let state
-const timeRange = timeRanges[1]
 const d1 = {id: 1, cells: [], name: "d1"}
 const d2 = {id: 2, cells: [], name: "d2"}
 const dashboards = [d1, d2]
@@ -40,26 +32,9 @@ describe('DataExplorer.Reducers.UI', () => {
     const actual = reducer(state, loadDashboards(dashboards, d1.id))
     const expected = {
       dashboards,
-      dashboard: d1,
     }
 
     expect(actual.dashboards).to.deep.equal(expected.dashboards)
-    expect(actual.dashboard).to.deep.equal(expected.dashboard)
-  })
-
-  it('can set a dashboard', () => {
-    const loadedState = reducer(state, loadDashboards(dashboards, d1.id))
-    const actual = reducer(loadedState, setDashboard(d2.id))
-
-    expect(actual.dashboard).to.deep.equal(d2)
-  })
-
-  it('can handle a successful dashboard deletion', () => {
-    const loadedState = reducer(state, loadDashboards(dashboards))
-    const expected = [d1]
-    const actual = reducer(loadedState, deleteDashboard(d2))
-
-    expect(actual.dashboards).to.deep.equal(expected)
   })
 
   it('can handle a failed dashboard deletion', () => {
@@ -82,34 +57,30 @@ describe('DataExplorer.Reducers.UI', () => {
 
   it('can update dashboard cells', () => {
     state = {
-      dashboard: d1,
       dashboards,
     }
 
-    const cells = [{id: 1}, {id: 2}]
+    const updatedCells = [{id: 1}, {id: 2}]
 
     const expected = {
       id: 1,
-      cells,
+      cells: updatedCells,
       name: 'd1',
     }
 
-    const actual = reducer(state, updateDashboardCells(cells))
+    const actual = reducer(state, updateDashboardCells(d1, updatedCells))
 
-    expect(actual.dashboard).to.deep.equal(expected)
     expect(actual.dashboards[0]).to.deep.equal(expected)
   })
 
-  it('can edit cell', () => {
+  it('can edit a cell', () => {
     const dash = {...d1, cells}
     state = {
-      dashboard: dash,
       dashboards: [dash],
     }
 
-    const actual = reducer(state, editDashboardCell(0, 0, true))
+    const actual = reducer(state, editDashboardCell(dash, 0, 0, true))
     expect(actual.dashboards[0].cells[0].isEditing).to.equal(true)
-    expect(actual.dashboard.cells[0].isEditing).to.equal(true)
   })
 
   it('can sync a cell', () => {
@@ -121,25 +92,21 @@ describe('DataExplorer.Reducers.UI', () => {
     }
     const dash = {...d1, cells: [c1]}
     state = {
-      dashboard: dash,
       dashboards: [dash],
     }
 
-    const actual = reducer(state, syncDashboardCell(newCell))
+    const actual = reducer(state, syncDashboardCell(dash, newCell))
     expect(actual.dashboards[0].cells[0].name).to.equal(newCellName)
-    expect(actual.dashboard.cells[0].name).to.equal(newCellName)
   })
 
   it('can rename cells', () => {
     const c2 = {...c1, isEditing: true}
     const dash = {...d1, cells: [c2]}
     state = {
-      dashboard: dash,
       dashboards: [dash],
     }
 
-    const actual = reducer(state, renameDashboardCell(0, 0, "Plutonium Consumption Rate (ug/sec)"))
+    const actual = reducer(state, renameDashboardCell(dash, 0, 0, "Plutonium Consumption Rate (ug/sec)"))
     expect(actual.dashboards[0].cells[0].name).to.equal("Plutonium Consumption Rate (ug/sec)")
-    expect(actual.dashboard.cells[0].name).to.equal("Plutonium Consumption Rate (ug/sec)")
   })
 })

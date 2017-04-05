@@ -15,6 +15,7 @@
   1. [#1178](https://github.com/influxdata/chronograf/pull/1178): Repair DataExplorer+CellEditorOverlay's QueryBuilder in Safari
   1. [#979](https://github.com/influxdata/chronograf/issues/979): Fix empty tags for non-default retention policies
   1. [#1179](https://github.com/influxdata/chronograf/pull/1179): Admin Databases Page will render a database without retention policies
+  1. [#1128](https://github.com/influxdata/chronograf/pull/1128): No more ghost dashboards 👻
   1. [#1189](https://github.com/influxdata/chronograf/pull/1189): Clicking inside the graph header edit box will no longer blur the field. Use the Escape key for that behavior instead.
 
 ### Features
