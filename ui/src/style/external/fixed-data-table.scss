@@ -95,7 +95,7 @@
 }
 
 .fixedDataTableCellLayout_columnResizerContainer:hover {
-  cursor: $cc-resize-ew;
+  cursor: ew-resize;
 }
 
 .fixedDataTableCellLayout_columnResizerContainer:hover .fixedDataTableCellLayout_columnResizerKnob {
@@ -120,7 +120,7 @@
  */
 
 .fixedDataTableColumnResizerLineLayout_mouseArea {
-  cursor: $cc-resize-ew;
+  cursor: ew-resize;
   position: absolute;
   right: -5px;
   width: 12px;

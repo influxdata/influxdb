@@ -72,7 +72,7 @@ table .monotype {
     position: absolute;
     top: 50%;
     right: 8px;
-    color: #fff;
+    color: $g20-white;
     font-family: 'icomoon';
     opacity: 0;
     transform: translateY(-50%);
@@ -83,7 +83,7 @@ table .monotype {
   }
 
   &:hover {
-    cursor: $cc-pointer;
+    cursor: pointer;
     color: $g19-ghost;
     background-color: $g5-pepper;
 

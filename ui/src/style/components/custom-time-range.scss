@@ -150,13 +150,13 @@ $rd-cell-size: 30px;
     border-radius: 5px;
 
     &:hover {
-      cursor: $cc-pointer;
+      cursor: pointer;
       color: $g20-white !important;
       background-color: $g6-smoke;
     }
     &.rd-day-next-month,
     &.rd-day-prev-month {
-      cursor: $cc-default;
+      cursor: default;
       color: $g8-storm !important;
       background-color: $g5-pepper !important;
     }
@@ -196,7 +196,7 @@ $rd-cell-size: 30px;
   &:hover {
     color: $g20-white;
     background-color: $g6-smoke;
-    cursor: $cc-pointer;
+    cursor: pointer;
   }
 }
 .rd-time-list {
@@ -230,7 +230,7 @@ $rd-cell-size: 30px;
   &:active,
   &:focus {
     color: $g20-white;
-    cursor: $cc-pointer;
+    cursor: pointer;
     outline: none;
     @include gradient-h($c-laser, $c-pool);
   }
