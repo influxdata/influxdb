@@ -169,11 +169,9 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: calc(100% - 32px);
   background-color: transparent;
   background-color: $g3-castle;
   border-radius: 0 $radius $radius 0;
-  margin-top: 16px;
   &,
   & > * {
     @include no-user-select();

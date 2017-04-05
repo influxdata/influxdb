@@ -420,11 +420,8 @@ $overlay-bg: rgba($c-pool, 0.7);
     @include gradient-h($g3-castle,$overlay-controls-bg);
 
     /* Hack for making the adjacent query builder have less margin on top */
-    & + .query-builder .query-builder--tabs,
-    & + .query-builder .query-builder--tab-contents,
-    & + .query-builder .qeditor--empty {
+    & + .query-builder {
       margin-top: 2px;
-      height: calc(100% - 18px);
     }
   }
   .overlay-controls--right {
