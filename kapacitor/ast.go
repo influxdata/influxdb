@@ -1,7 +1,6 @@
 package kapacitor
 
 import (
-	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -355,7 +354,7 @@ func alertType(script chronograf.TICKScript) (string, error) {
 	} else if strings.Contains(t, `var triggerType = 'relative'`) {
 		if strings.Contains(t, `eval(lambda: float("current.value" - "past.value"))`) {
 			return ChangeAmount, nil
-		} else if strings.Contains(t, `|eval(lambda: abs(float("current.value" - "past.value"))/float("past.value") * 100.0)`) {
+		} else if strings.Contains(t, `|eval(lambda: abs(float("current.value" - "past.value")) / float("past.value") * 100.0)`) {
 			return ChangePercent, nil
 		}
 		return "", ErrNotChronoTickscript
@@ -475,19 +474,6 @@ func Reverse(script chronograf.TICKScript) (chronograf.AlertRule, error) {
 
 	extractAlertNodes(p, &rule)
 	return rule, err
-}
-
-func valueStr(key string, value *string, vars map[string]tick.Var) error {
-	v, ok := vars[key]
-	if !ok {
-		return fmt.Errorf("No %s", key)
-	}
-	val, ok := v.Value.(string)
-	if !ok {
-		return fmt.Errorf("No %s", key)
-	}
-	value = &val
-	return nil
 }
 
 func extractAlertNodes(p *pipeline.Pipeline, rule *chronograf.AlertRule) {
