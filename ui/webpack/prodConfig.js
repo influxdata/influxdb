@@ -49,7 +49,7 @@ var config = {
         loader: ExtractTextPlugin.extract('style-loader', 'css-loader!postcss-loader'),
       },
       {
-        test   : /\.(ico|png|jpg|ttf|eot|svg|woff(2)?)(\?[a-z0-9]+)?$/,
+        test   : /\.(ico|png|cur|jpg|ttf|eot|svg|woff(2)?)(\?[a-z0-9]+)?$/,
         loader : 'file',
       },
       {

@@ -59,7 +59,7 @@ $resizer-color-active: $c-pool;
       background-color 0.19s ease;
   }
   &:hover {
-    cursor: $cc-resize-ns;
+    cursor: ns-resize;
 
     &:before {
       background-color: $resizer-color-hover;
