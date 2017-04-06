@@ -73,25 +73,13 @@ export const CreateSource = React.createClass({
     createSource(newSource).then(({data: sourceFromServer}) => {
       this.props.addSourceAction(sourceFromServer)
       this.setState({source: sourceFromServer})
-    }).catch(({data: error}) => {
-      // dont want to flash this until they submit
-      this.setState({error: error.message})
     })
   },
 
   handleSubmit(newSource) {
-    const {error} = this.state
-
-    if (error) {
-      // useful error message
-      // return addFlashMessage({type: 'error', text: error})
-    }
-
     updateSource(newSource).then(({data: sourceFromServer}) => {
       this.props.updateSourceAction(sourceFromServer)
       this.redirectToApp(sourceFromServer)
-    }).catch(() => {
-      // give a useful error message to the user
     })
   },
 
