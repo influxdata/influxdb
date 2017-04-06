@@ -1,5 +1,7 @@
 import React, {PropTypes} from 'react'
 import classNames from 'classnames'
+import Dropdown from 'src/shared/components/Dropdown'
+import {QUERY_TEMPLATES} from 'src/data_explorer/constants'
 
 const ENTER = 13
 const ESCAPE = 27
@@ -62,7 +64,10 @@ const RawQueryEditor = React.createClass({
           autoComplete="off"
           spellCheck="false"
         />
-        {this.renderStatus(rawStatus)}
+        <div style={{display: 'flex'}}>
+          {this.renderStatus(rawStatus)}
+          <Dropdown items={QUERY_TEMPLATES} selected={'Query Templates'} onChoose={() => {}} />
+        </div>
       </div>
     )
   },
