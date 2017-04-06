@@ -100,7 +100,8 @@ export const LayoutRenderer = React.createClass({
         // on a stable query representation.
         let queryText
         if (query.queryConfig) {
-          queryText = buildInfluxQLQuery(timeRange, query.queryConfig)
+          const {queryConfig: {rawText}} = query
+          queryText = rawText || buildInfluxQLQuery(timeRange, query.queryConfig)
         } else {
           queryText = this.buildQueryForOldQuerySchema(query)
         }
