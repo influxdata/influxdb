@@ -318,7 +318,6 @@ func openService(ctx context.Context, boltPath string, lBuilder LayoutBuilder, s
 		UsersStore:       db.UsersStore,
 		LayoutStore:      layouts,
 		DashboardsStore:  db.DashboardsStore,
-		AlertRulesStore:  db.AlertsStore,
 		Logger:           logger,
 		UseAuth:          useAuth,
 		Databases:        &influx.Client{Logger: logger},
