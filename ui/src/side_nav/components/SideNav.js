@@ -11,7 +11,7 @@ const SideNav = React.createClass({
     location: string.isRequired,
     sourceID: string.isRequired,
     me: shape({
-      email: string,
+      name: string,
     }),
     isHidden: bool.isRequired,
   },
@@ -21,7 +21,7 @@ const SideNav = React.createClass({
     const sourcePrefix = `/sources/${sourceID}`
     const dataExplorerLink = `${sourcePrefix}/chronograf/data-explorer`
 
-    const loggedIn = !!(me && me.email)
+    const loggedIn = !!(me && me.name)
 
     return isHidden ? null : (
       <NavBar location={location}>
