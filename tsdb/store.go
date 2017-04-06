@@ -874,14 +874,23 @@ func (s *Store) MeasurementNames(database string, cond influxql.Expr) ([][]byte,
 	shards := s.filterShards(byDatabase(database))
 	s.mu.RUnlock()
 
+	// Map to deduplicate measurement names across all shards.  This is kind of naive
+	// and could be improved using a sorted merge of the already sorted measurements in
+	// each shard.
+	set := make(map[string]struct{})
 	var names [][]byte
 	for _, sh := range shards {
 		a, err := sh.MeasurementNamesByExpr(cond)
 		if err != nil {
 			return nil, err
 		}
-		names = append(names, a...)
-		continue
+
+		for _, m := range a {
+			if _, ok := set[string(m)]; !ok {
+				set[string(m)] = struct{}{}
+				names = append(names, m)
+			}
+		}
 	}
 	bytesutil.Sort(names)
 

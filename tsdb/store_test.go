@@ -419,6 +419,40 @@ func TestStore_BackupRestoreShard(t *testing.T) {
 	}
 }
 
+func TestStore_MeasurementNames_Deduplicate(t *testing.T) {
+	t.Parallel()
+
+	s := MustOpenStore()
+	defer s.Close()
+
+	// Create shard with data.
+	s.MustCreateShardWithData("db0", "rp0", 1,
+		`cpu value=1 0`,
+		`cpu value=2 10`,
+		`cpu value=3 20`,
+	)
+
+	// Create 2nd shard w/ same measurements.
+	s.MustCreateShardWithData("db0", "rp0", 2,
+		`cpu value=1 0`,
+		`cpu value=2 10`,
+		`cpu value=3 20`,
+	)
+
+	meas, err := s.MeasurementNames("db0", nil)
+	if err != nil {
+		t.Fatalf("unexpected error with MeasurementNames: %v", err)
+	}
+
+	if exp, got := 1, len(meas); exp != got {
+		t.Fatalf("measurement len mismatch: exp %v, got %v", exp, got)
+	}
+
+	if exp, got := "cpu", string(meas[0]); exp != got {
+		t.Fatalf("measurement name mismatch: exp %v, got %v", exp, got)
+	}
+}
+
 func testStoreCardinalityTombstoning(t *testing.T, store *Store) {
 	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" {
 		t.Skip("Skipping test in short, race and appveyor mode.")
