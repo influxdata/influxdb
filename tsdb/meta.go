@@ -841,17 +841,16 @@ func expandExprWithValues(expr influxql.Expr, keys []string, tagExprs []tagExpr,
 // SeriesIDsAllOrByExpr walks an expressions for matching series IDs
 // or, if no expressions is given, returns all series IDs for the measurement.
 func (m *Measurement) SeriesIDsAllOrByExpr(expr influxql.Expr) (SeriesIDs, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.seriesIDsAllOrByExpr(expr)
-}
-
-func (m *Measurement) seriesIDsAllOrByExpr(expr influxql.Expr) (SeriesIDs, error) {
 	// If no expression given or the measurement has no series,
 	// we can take just return the ids or nil accordingly.
 	if expr == nil {
 		return m.SeriesIDs(), nil
-	} else if len(m.seriesByID) == 0 {
+	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if len(m.seriesByID) == 0 {
 		return nil, nil
 	}
 
