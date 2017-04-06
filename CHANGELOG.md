@@ -34,6 +34,7 @@
   1. [#1124](https://github.com/influxdata/chronograf/pull/1124): Polished dashboard cell drag interaction, use Hover-To-Reveal UI pattern in all tables, Source Indicator & Graph Tips are no longer misleading, and aesthetic improvements to the DB Management page
   1. [#1187](https://github.com/influxdata/chronograf/pull/1187): Replace Kill Query confirmation modal with ConfirmButtons
   1. [#1185](https://github.com/influxdata/chronograf/pull/1185): Alphabetically sort Admin Database Page
+  1. [#1199](https://github.com/influxdata/chronograf/pull/1199): Move Rename Cell functionality to ContextMenu dropdown
 
 ## v1.2.0-beta7 [2017-03-28]
 ### Bug Fixes
