@@ -1258,13 +1258,41 @@ func NewPointFromBytes(b []byte) (Point, error) {
 	if err := p.UnmarshalBinary(b); err != nil {
 		return nil, err
 	}
-	fields, err := p.Fields()
-	if err != nil {
-		return nil, err
+
+	// This does some basic validation to ensure there are fields and they
+	// can be unmarshalled as well.
+	iter := p.FieldIterator()
+	var hasField bool
+	for iter.Next() {
+		if len(iter.FieldKey()) == 0 {
+			continue
+		}
+		hasField = true
+		switch iter.Type() {
+		case Float:
+			_, err := iter.FloatValue()
+			if err != nil {
+				return nil, fmt.Errorf("unable to unmarshal field %s: %s", string(iter.FieldKey()), err)
+			}
+		case Integer:
+			_, err := iter.IntegerValue()
+			if err != nil {
+				return nil, fmt.Errorf("unable to unmarshal field %s: %s", string(iter.FieldKey()), err)
+			}
+		case String:
+			// Skip since this won't return an error
+		case Boolean:
+			_, err := iter.BooleanValue()
+			if err != nil {
+				return nil, fmt.Errorf("unable to unmarshal field %s: %s", string(iter.FieldKey()), err)
+			}
+		}
 	}
-	if len(fields) == 0 {
+
+	if !hasField {
 		return nil, ErrPointMustHaveAField
 	}
+
 	return p, nil
 }
 
