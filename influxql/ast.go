@@ -4294,6 +4294,18 @@ func Eval(expr Expr, m map[string]interface{}) interface{} {
 func evalBinaryExpr(expr *BinaryExpr, m map[string]interface{}) interface{} {
 	lhs := Eval(expr.LHS, m)
 	rhs := Eval(expr.RHS, m)
+	if lhs == nil && rhs != nil {
+		// When the LHS is nil and the RHS is a boolean, implicitly cast the
+		// nil to false.
+		if _, ok := rhs.(bool); ok {
+			lhs = false
+		}
+	} else if lhs != nil && rhs == nil {
+		// Implicit cast of the RHS nil to false when the LHS is a boolean.
+		if _, ok := lhs.(bool); ok {
+			rhs = false
+		}
+	}
 
 	// Evaluate if both sides are simple types.
 	switch lhs := lhs.(type) {
@@ -4465,16 +4477,28 @@ func evalBinaryExpr(expr *BinaryExpr, m map[string]interface{}) interface{} {
 		switch expr.Op {
 		case EQ:
 			rhs, ok := rhs.(string)
-			return ok && lhs == rhs
+			if !ok {
+				return nil
+			}
+			return lhs == rhs
 		case NEQ:
 			rhs, ok := rhs.(string)
-			return ok && lhs != rhs
+			if !ok {
+				return nil
+			}
+			return lhs != rhs
 		case EQREGEX:
 			rhs, ok := rhs.(*regexp.Regexp)
-			return ok && rhs.MatchString(lhs)
+			if !ok {
+				return nil
+			}
+			return rhs.MatchString(lhs)
 		case NEQREGEX:
 			rhs, ok := rhs.(*regexp.Regexp)
-			return ok && !rhs.MatchString(lhs)
+			if !ok {
+				return nil
+			}
+			return !rhs.MatchString(lhs)
 		}
 	}
 	return nil
