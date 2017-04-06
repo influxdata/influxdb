@@ -35,7 +35,7 @@ func Test_Heroku_PrincipalID_ExtractsEmailAddress(t *testing.T) {
 	prov := oauth2.Heroku{
 		Logger: logger,
 	}
-	tt, err := NewTestTripper(logger, mockAPI, http.DefaultTransport)
+	tt, err := oauth2.NewTestTripper(logger, mockAPI, http.DefaultTransport)
 	if err != nil {
 		t.Fatal("Error initializing TestTripper: err:", err)
 	}
@@ -86,7 +86,7 @@ func Test_Heroku_PrincipalID_RestrictsByOrganization(t *testing.T) {
 		Organizations: []string{"enchantment-under-the-sea-dance-committee"},
 	}
 
-	tt, err := NewTestTripper(logger, mockAPI, http.DefaultTransport)
+	tt, err := oauth2.NewTestTripper(logger, mockAPI, http.DefaultTransport)
 	if err != nil {
 		t.Fatal("Error initializing TestTripper: err:", err)
 	}

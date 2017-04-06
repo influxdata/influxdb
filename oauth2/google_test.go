@@ -34,7 +34,7 @@ func TestGooglePrincipalID(t *testing.T) {
 	prov := oauth2.Google{
 		Logger: logger,
 	}
-	tt, err := NewTestTripper(logger, mockAPI, http.DefaultTransport)
+	tt, err := oauth2.NewTestTripper(logger, mockAPI, http.DefaultTransport)
 	if err != nil {
 		t.Fatal("Error initializing TestTripper: err:", err)
 	}
@@ -63,8 +63,6 @@ func TestGooglePrincipalIDDomain(t *testing.T) {
 		"martymcfly@example.com",
 		"Hill Valley Preservation Society",
 	}
-	//a := goauth2.Userinfoplus{}
-
 	mockAPI := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/oauth2/v2/userinfo" {
 			rw.WriteHeader(http.StatusNotFound)
@@ -82,7 +80,7 @@ func TestGooglePrincipalIDDomain(t *testing.T) {
 		Logger:  logger,
 		Domains: []string{"Hill Valley Preservation Society"},
 	}
-	tt, err := NewTestTripper(logger, mockAPI, http.DefaultTransport)
+	tt, err := oauth2.NewTestTripper(logger, mockAPI, http.DefaultTransport)
 	if err != nil {
 		t.Fatal("Error initializing TestTripper: err:", err)
 	}

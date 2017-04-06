@@ -23,6 +23,20 @@ dev: dep dev-assets ${BINARY}
 ${BINARY}: $(SOURCES) .bindata .jsdep .godep
 	go build -o ${BINARY} ${LDFLAGS} ./cmd/chronograf/main.go
 
+define CHRONOGIRAFFE
+             ._ o o
+             \_`-)|_
+          ,""      _\_
+        ,"  ## |   0 0.
+      ," ##   ,-\__    `.
+    ,"       /     `--._;)
+  ,"     ## /
+,"   ##    /
+endef
+export CHRONOGIRAFFE
+chronogiraffe: ${BINARY}
+	@echo "$$CHRONOGIRAFFE"
+
 docker-${BINARY}: $(SOURCES)
 	CGO_ENABLED=0 GOOS=linux go build -installsuffix cgo -o ${BINARY} ${LDFLAGS} \
 		./cmd/chronograf/main.go
@@ -93,7 +107,7 @@ jstest:
 run: ${BINARY}
 	./chronograf
 
-run-dev: ${BINARY}
+run-dev: chronogiraffe
 	./chronograf -d --log-level=debug
 
 clean:
