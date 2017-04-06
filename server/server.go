@@ -67,6 +67,14 @@ type Server struct {
 	HerokuSecret        string   `long:"heroku-secret" description:"Heroku Secret for OAuth 2 support" env:"HEROKU_SECRET"`
 	HerokuOrganizations []string `long:"heroku-organization" description:"Heroku Organization Memberships a user is required to have for access to Chronograf (comma separated)" env:"HEROKU_ORGS" env-delim:","`
 
+	GenericName         string   `long:"generic-name" description:"Generic OAuth2 name presented on the login page"  env:"GENERIC_NAME"`
+	GenericClientID     string   `long:"generic-client-id" description:"Generic OAuth2 Client ID. Can be used own OAuth2 service."  env:"GENERIC_CLIENT_ID"`
+	GenericClientSecret string   `long:"generic-client-secret" description:"Generic OAuth2 Client Secret" env:"GENERIC_CLIENT_SECRET"`
+	GenericDomains      []string `long:"generic-domains" description:"Email domain users' email address to have (example.com)" env:"GENERIC_DOMAINS" env-delim:","`
+	GenericAuthURL      string   `long:"generic-auth-url" description:"OAuth 2.0 provider's authorization endpoint URL" env:"GENERIC_AUTH_URL"`
+	GenericTokenURL     string   `long:"generic-token-url" description:"OAuth 2.0 provider's token endpoint URL" env:"GENERIC_TOKEN_URL"`
+	GenericAPIURL       string   `long:"generic-api-url" description:"URL that returns OpenID UserInfo compatible information." env:"GENERIC_API_URL"`
+
 	ReportingDisabled bool   `short:"r" long:"reporting-disabled" description:"Disable reporting of usage stats (os,arch,version,cluster_id,uptime) once every 24hr" env:"REPORTING_DISABLED"`
 	LogLevel          string `short:"l" long:"log-level" value-name:"choice" choice:"debug" choice:"info" choice:"error" default:"info" description:"Set the logging level" env:"LOG_LEVEL"`
 	Basepath          string `short:"p" long:"basepath" description:"A URL path prefix under which all chronograf routes will be mounted" env:"BASE_PATH"`
@@ -98,6 +106,13 @@ func (s *Server) UseGoogle() bool {
 // UseHeroku validates the CLI parameters to enable heroku oauth support
 func (s *Server) UseHeroku() bool {
 	return s.TokenSecret != "" && s.HerokuClientID != "" && s.HerokuSecret != ""
+}
+
+// UseGenericOAuth2 validates the CLI parameters to enable generic oauth support
+func (s *Server) UseGenericOAuth2() bool {
+	return s.TokenSecret != "" && s.GenericClientID != "" &&
+		s.GenericClientSecret != "" && s.GenericAuthURL != "" &&
+		s.GenericTokenURL != ""
 }
 
 func (s *Server) githubOAuth(logger chronograf.Logger, auth oauth2.Authenticator) (oauth2.Provider, oauth2.Mux, func() bool) {
@@ -138,6 +153,22 @@ func (s *Server) herokuOAuth(logger chronograf.Logger, auth oauth2.Authenticator
 	return &heroku, hMux, s.UseHeroku
 }
 
+func (s *Server) genericOAuth(logger chronograf.Logger, auth oauth2.Authenticator) (oauth2.Provider, oauth2.Mux, func() bool) {
+	gen := oauth2.Generic{
+		PageName:     s.GenericName,
+		ClientID:     s.GenericClientID,
+		ClientSecret: s.GenericClientSecret,
+		Domains:      s.GenericDomains,
+		AuthURL:      s.GenericAuthURL,
+		TokenURL:     s.GenericTokenURL,
+		APIURL:       s.GenericAPIURL,
+		Logger:       logger,
+	}
+	jwt := oauth2.NewJWT(s.TokenSecret)
+	genMux := oauth2.NewAuthMux(&gen, auth, jwt, logger)
+	return &gen, genMux, s.UseGenericOAuth2
+}
+
 // BuildInfo is sent to the usage client to track versions and commits
 type BuildInfo struct {
 	Version string
@@ -145,10 +176,7 @@ type BuildInfo struct {
 }
 
 func (s *Server) useAuth() bool {
-	gh := s.TokenSecret != "" && s.GithubClientID != "" && s.GithubClientSecret != ""
-	google := s.TokenSecret != "" && s.GoogleClientID != "" && s.GoogleClientSecret != "" && s.PublicURL != ""
-	heroku := s.TokenSecret != "" && s.HerokuClientID != "" && s.HerokuSecret != ""
-	return gh || google || heroku
+	return s.UseGithub() || s.UseGoogle() || s.UseHeroku() || s.UseGenericOAuth2()
 }
 
 func (s *Server) useTLS() bool {
@@ -213,6 +241,7 @@ func (s *Server) Serve(ctx context.Context) error {
 	providerFuncs = append(providerFuncs, provide(s.githubOAuth(logger, auth)))
 	providerFuncs = append(providerFuncs, provide(s.googleOAuth(logger, auth)))
 	providerFuncs = append(providerFuncs, provide(s.herokuOAuth(logger, auth)))
+	providerFuncs = append(providerFuncs, provide(s.genericOAuth(logger, auth)))
 
 	s.handler = NewMux(MuxOpts{
 		Develop:       s.Develop,
