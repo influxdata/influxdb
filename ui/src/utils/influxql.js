@@ -1,3 +1,6 @@
+
+import _ from 'lodash'
+
 export default function buildInfluxQLQuery(timeBounds, config) {
   const {groupBy, tags, areTagsAccepted} = config
   const {upper, lower} = timeBounds
@@ -54,7 +57,7 @@ function _buildWhereClause({lower, upper, tags, areTagsAccepted}) {
 
   // If a tag key has more than one value, * e.g. cpu=cpu1, cpu=cpu2, combine
   // them with OR instead of AND for the final query.
-  const tagClauses = Object.keys(tags).map((k) => {
+  const tagClauses = _.keys(tags).map((k) => {
     const operator = areTagsAccepted ? '=' : '!='
 
     if (tags[k].length > 1) {
