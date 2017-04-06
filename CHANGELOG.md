@@ -17,6 +17,7 @@
   1. [#1179](https://github.com/influxdata/chronograf/pull/1179): Admin Databases Page will render a database without retention policies
   1. [#1128](https://github.com/influxdata/chronograf/pull/1128): No more ghost dashboards 👻
   1. [#1189](https://github.com/influxdata/chronograf/pull/1189): Clicking inside the graph header edit box will no longer blur the field. Use the Escape key for that behavior instead.
+  1. [#1193](https://github.com/influxdata/chronograf/issues/1193): Fix no quoting of raw InfluxQL fields with function names
 
 ### Features
   1. [#1112](https://github.com/influxdata/chronograf/pull/1112): Add ability to delete a dashboard
