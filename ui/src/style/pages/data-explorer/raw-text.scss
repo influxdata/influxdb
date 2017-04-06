@@ -26,7 +26,7 @@
 }
 
 $raw-text-color: $c-pool;
-$raw-text-height: 38px;
+$raw-text-height: 42px;
 
 .raw-text--field {
   @include custom-scrollbar($g2-kevlar, $raw-text-color);
@@ -72,7 +72,7 @@ $raw-text-height: 38px;
 }
 .raw-text--status {
   width: 100%;
-  height: ($query-builder--preview-height - 2px - $raw-text-height);
+  height: ($query-builder--preview-height - $raw-text-height);
   line-height: 12px;
   font-size: 12px;
   background-color: $g2-kevlar;
@@ -107,5 +107,14 @@ $raw-text-height: 38px;
   /* Success State */
   &.raw-text--success {
     color: $c-rainforest;
+  }
+}
+
+.dropdown.query-template {
+  position: absolute;
+  top: 8px;
+  right: 7px;
+  >.dropdown-toggle {
+    width: 135px;
   }
 }

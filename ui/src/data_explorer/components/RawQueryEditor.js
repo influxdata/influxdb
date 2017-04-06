@@ -68,10 +68,8 @@ const RawQueryEditor = React.createClass({
           autoComplete="off"
           spellCheck="false"
         />
-        <div style={{display: 'flex'}}>
-          {this.renderStatus(rawStatus)}
-          <Dropdown items={QUERY_TEMPLATES} selected={'Query Templates'} onChoose={this.handleChooseTemplate} />
-        </div>
+        {this.renderStatus(rawStatus)}
+        <Dropdown items={QUERY_TEMPLATES} selected={'Query Templates'} onChoose={this.handleChooseTemplate} className="query-template"/>
       </div>
     )
   },
