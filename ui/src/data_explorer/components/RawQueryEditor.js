@@ -1,6 +1,7 @@
 import React, {PropTypes} from 'react'
 import classNames from 'classnames'
 import Dropdown from 'src/shared/components/Dropdown'
+import LoadingDots from 'src/shared/components/LoadingDots'
 import {QUERY_TEMPLATES} from 'src/data_explorer/constants'
 
 const ENTER = 13
@@ -78,6 +79,14 @@ const RawQueryEditor = React.createClass({
     if (!rawStatus) {
       return (
         <div className="raw-text--status"></div>
+      )
+    }
+
+    if (rawStatus.loading) {
+      return (
+        <div className="raw-text--status">
+          <LoadingDots />
+        </div>
       )
     }
 
