@@ -179,6 +179,7 @@ func (c *Client) All(ctx context.Context) (map[string]chronograf.AlertRule, erro
 		script := chronograf.TICKScript(task.TICKscript)
 		if rule, err := Reverse(script); err != nil {
 			alerts[task.ID] = chronograf.AlertRule{
+				ID:         task.ID,
 				Name:       task.ID,
 				TICKScript: script,
 			}
@@ -207,6 +208,7 @@ func (c *Client) Get(ctx context.Context, id string) (chronograf.AlertRule, erro
 	rule, err := Reverse(script)
 	if err != nil {
 		return chronograf.AlertRule{
+			ID:         task.ID,
 			Name:       task.ID,
 			TICKScript: script,
 		}, nil
