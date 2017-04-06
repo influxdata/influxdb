@@ -63,7 +63,7 @@ const HipchatConfig = React.createClass({
               className="form-control"
               id="room"
               type="text"
-              placeholder="your-hipchat-token"
+              placeholder="your-hipchat-room"
               ref={(r) => this.room = r}
               defaultValue={room || ''}
             />
