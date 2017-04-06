@@ -1,11 +1,11 @@
 import React, {PropTypes} from 'react'
-import buildInfluxQLQuery from 'utils/influxql'
 
 import DatabaseList from './DatabaseList'
 import MeasurementList from './MeasurementList'
 import FieldList from './FieldList'
 import TagList from './TagList'
 import RawQueryEditor from './RawQueryEditor'
+import buildInfluxQLQuery from 'utils/influxql'
 
 const {
   string,
@@ -72,30 +72,19 @@ const QueryEditor = React.createClass({
   },
 
   render() {
+    const {query, timeRange} = this.props
+    const q = query.rawText || buildInfluxQLQuery(timeRange, query) || ''
+
     return (
       <div className="query-builder--tab-contents">
         <div>
-          {this.renderQuery()}
+          <RawQueryEditor query={q} onUpdate={this.handleEditRawText} />
           {this.renderLists()}
         </div>
       </div>
     )
   },
 
-  renderQuery() {
-    const {query, timeRange} = this.props
-    const statement = query.rawText || buildInfluxQLQuery(timeRange, query) || 'Select a database, measurement, and field below.'
-
-    if (typeof query.rawText !== 'string') {
-      return (
-        <div className="query-builder--query-preview">
-          <pre><code>{statement}</code></pre>
-        </div>
-      )
-    }
-
-    return <RawQueryEditor query={query} onUpdate={this.handleEditRawText} />
-  },
 
   renderLists() {
     const {query} = this.props

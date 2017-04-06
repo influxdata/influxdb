@@ -8,22 +8,19 @@ const ENTER = 13
 const ESCAPE = 27
 const RawQueryEditor = React.createClass({
   propTypes: {
-    query: PropTypes.shape({
-      rawText: PropTypes.string.isRequired,
-      id: PropTypes.string.isRequired,
-    }).isRequired,
+    query: PropTypes.string.isRequired,
     onUpdate: PropTypes.func.isRequired,
   },
 
   getInitialState() {
     return {
-      value: this.props.query.rawText,
+      value: this.props.query,
     }
   },
 
   componentWillReceiveProps(nextProps) {
-    if (nextProps.query.rawText !== this.props.query.rawText) {
-      this.setState({value: nextProps.query.rawText})
+    if (this.props.query !== nextProps.query) {
+      this.setState({value: nextProps.query})
     }
   },
 
@@ -65,7 +62,7 @@ const RawQueryEditor = React.createClass({
           onBlur={this.handleUpdate}
           ref={(editor) => this.editor = editor}
           value={value}
-          placeholder="Enter a query..."
+          placeholder="Enter a query or select database, measurement, and field below and have us build one for you..."
           autoComplete="off"
           spellCheck="false"
         />

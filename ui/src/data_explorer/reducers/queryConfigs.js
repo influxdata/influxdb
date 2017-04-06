@@ -24,7 +24,7 @@ export default function queryConfigs(state = {}, action) {
       const nextQueryConfig = chooseNamespace(state[queryId], {database, retentionPolicy})
 
       return Object.assign({}, state, {
-        [queryId]: Object.assign(nextQueryConfig, {rawText: state[queryId].rawText}),
+        [queryId]: Object.assign(nextQueryConfig, {rawText: null}),
       })
     }
 
@@ -108,7 +108,7 @@ export default function queryConfigs(state = {}, action) {
       const nextQueryConfig = toggleField(state[queryId], fieldFunc, isKapacitorRule)
 
       return Object.assign({}, state, {
-        [queryId]: nextQueryConfig,
+        [queryId]: {...nextQueryConfig, rawText: null},
       })
     }
 

@@ -2,7 +2,6 @@ import React, {PropTypes} from 'react'
 
 import QueryEditor from './QueryEditor'
 import QueryTabItem from './QueryTabItem'
-import SimpleDropdown from 'src/shared/components/SimpleDropdown'
 import buildInfluxQLQuery from 'utils/influxql'
 
 const {
@@ -13,9 +12,6 @@ const {
   shape,
   string,
 } = PropTypes
-
-const BUILDER = 'Help me build a query'
-const EDITOR = 'Type my own query'
 
 const QueryBuilder = React.createClass({
   propTypes: {
@@ -99,11 +95,14 @@ const QueryBuilder = React.createClass({
 
   renderQueryTabList() {
     const {queries, activeQueryIndex, onDeleteQuery, timeRange, setActiveQueryIndex} = this.props
+
     return (
       <div className="query-builder--tabs">
         <div className="query-builder--tabs-heading">
           <h1>Queries</h1>
-          {this.renderAddQuery()}
+          <div className="panel--tab-new btn btn-sm btn-primary dropdown-toggle" onClick={this.handleAddQuery}>
+            <span className="icon plus"></span>
+          </div>
         </div>
         {queries.map((q, i) => {
           return (
@@ -120,26 +119,6 @@ const QueryBuilder = React.createClass({
         })}
         {this.props.children}
       </div>
-    )
-  },
-
-  onChoose(item) {
-    switch (item.text) {
-      case BUILDER:
-        this.handleAddQuery()
-        break
-      case EDITOR:
-        this.handleAddRawQuery()
-        break
-    }
-  },
-
-  renderAddQuery() {
-    const items = [{text: BUILDER}, {text: EDITOR}]
-    return (
-      <SimpleDropdown onChoose={this.onChoose} items={items} className="panel--tab-new">
-        <span className="icon plus"></span>
-      </SimpleDropdown>
     )
   },
 })
