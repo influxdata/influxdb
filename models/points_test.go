@@ -131,6 +131,25 @@ func BenchmarkNewPoint(b *testing.B) {
 	}
 }
 
+func BenchmarkNewPointFromBinary(b *testing.B) {
+	pts, err := models.ParsePointsString("cpu value1=1.0,value2=1.0,value3=3.0,value4=4,value5=\"five\" 1000000000")
+	if err != nil {
+		b.Fatalf("unexpected error ParsePointsString: %v", err)
+	}
+
+	bytes, err := pts[0].MarshalBinary()
+	if err != nil {
+		b.Fatalf("unexpected error MarshalBinary: %v", err)
+	}
+
+	for i := 0; i < b.N; i++ {
+		_, err := models.NewPointFromBytes(bytes)
+		if err != nil {
+			b.Fatalf("unexpected error NewPointsFromBytes: %v", err)
+		}
+	}
+}
+
 func BenchmarkParsePointNoTags5000(b *testing.B) {
 	var batch [5000]string
 	for i := 0; i < len(batch); i++ {
