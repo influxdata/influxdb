@@ -163,7 +163,8 @@
 .qeditor--empty {
   text-align: center;
   color: $g10-wolf;
-  width: 100%;
+  flex: 1 0 0;
+  margin: 16px 0;
   padding: 0;
   display: flex;
   flex-direction: column;

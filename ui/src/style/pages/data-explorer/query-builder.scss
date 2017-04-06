@@ -4,8 +4,6 @@ $query-builder-tabs-width: 210px;
 
 .query-builder {
   position: relative;
-  flex: 1 0 0;
-  margin: 16px 0;
   width: calc(100% - #{($explorer-page-padding * 2)});
   left: $explorer-page-padding;
   border: 0;
@@ -16,6 +14,7 @@ $query-builder-tabs-width: 210px;
 
 // Tabs
 .query-builder--tabs {
+  margin: 16px 0;
   display: flex;
   width: $query-builder-tabs-width;
   flex-direction: column;
@@ -149,7 +148,8 @@ $query-builder--preview-height: 60px;
 $query-builder--column-heading-height: 50px;
 
 .query-builder--tab-contents {
-  width: 100%;
+  flex: 1 0 0;
+  margin: 16px 0;
   background-color: $g4-onyx;
   border-radius: 0 $radius $radius 0;
   overflow: hidden;
