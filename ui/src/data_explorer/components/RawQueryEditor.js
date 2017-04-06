@@ -47,6 +47,10 @@ const RawQueryEditor = React.createClass({
     this.props.onUpdate(this.state.value)
   },
 
+  handleChooseTemplate(template) {
+    this.setState({value: template.query})
+  },
+
   render() {
     const {query: {rawStatus}} = this.props
     const {value} = this.state
@@ -66,7 +70,7 @@ const RawQueryEditor = React.createClass({
         />
         <div style={{display: 'flex'}}>
           {this.renderStatus(rawStatus)}
-          <Dropdown items={QUERY_TEMPLATES} selected={'Query Templates'} onChoose={() => {}} />
+          <Dropdown items={QUERY_TEMPLATES} selected={'Query Templates'} onChoose={this.handleChooseTemplate} />
         </div>
       </div>
     )
