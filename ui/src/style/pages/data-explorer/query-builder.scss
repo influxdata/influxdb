@@ -1,3 +1,7 @@
+/* Variables */
+$query-builder-tabs-width: 210px;
+
+
 .query-builder {
   position: relative;
   flex: 1 0 0;
@@ -13,10 +17,10 @@
 // Tabs
 .query-builder--tabs {
   display: flex;
-  width: 250px;
+  width: $query-builder-tabs-width;
   flex-direction: column;
   align-items: stretch;
-  @include gradient-v($g3-castle,$g1-raven);
+  background-color: $g3-castle;
   border-radius: $radius 0 0 $radius;
 }
 .query-builder--tabs-heading {
@@ -132,7 +136,7 @@
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
-  width: 90%;
+  width: ($query-builder-tabs-width - 8px - 16px - 16px);
   text-overflow: ellipsis;
   @include no-user-select();
 }
