@@ -25,6 +25,8 @@
   1. [#1120](https://github.com/influxdata/chronograf/pull/1120): Allow users to update user passwords.
   1. [#1129](https://github.com/influxdata/chronograf/pull/1129): Allow InfluxDB and Kapacitor configuration via ENV vars or CLI options
   1. [#1130](https://github.com/influxdata/chronograf/pull/1130): Add loading spinner to Alert History page.
+  1. [#1168](https://github.com/influxdata/chronograf/issues/1168): Expand support for --basepath on some load balancers
+  1. [#1113](https://github.com/influxdata/chronograf/issues/1113): Add Slack channel per Kapacitor alert.
   1. [#1095](https://github.com/influxdata/chronograf/pull/1095): Add new auth duration CLI option; add client heartbeat
   1. [#1168](https://github.com/influxdata/chronograf/issue/1168): Expand support for --basepath on some load balancers
 
