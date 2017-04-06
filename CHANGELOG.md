@@ -17,6 +17,7 @@
   1. [#1179](https://github.com/influxdata/chronograf/pull/1179): Admin Databases Page will render a database without retention policies
   1. [#1128](https://github.com/influxdata/chronograf/pull/1128): No more ghost dashboards 👻
   1. [#1189](https://github.com/influxdata/chronograf/pull/1189): Clicking inside the graph header edit box will no longer blur the field. Use the Escape key for that behavior instead.
+  1. [#1195](https://github.com/influxdata/chronograf/issues/1195): Chronograf was not redirecting with authentiation for Influx Enterprise Meta service
   1. [#1095](https://github.com/influxdata/chronograf/pull/1095): Make logout button display again
   1. [#1209](https://github.com/influxdata/chronograf/pull/1209): HipChat Kapacitor config now uses only the subdomain instead of asking for the entire HipChat URL.
 
