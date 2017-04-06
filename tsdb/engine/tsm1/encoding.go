@@ -299,23 +299,23 @@ type FloatValue struct {
 }
 
 // UnixNano returns the timestamp of the value.
-func (f FloatValue) UnixNano() int64 {
-	return f.unixnano
+func (v FloatValue) UnixNano() int64 {
+	return v.unixnano
 }
 
 // Value returns the underlying float64 value.
-func (f FloatValue) Value() interface{} {
-	return f.value
+func (v FloatValue) Value() interface{} {
+	return v.value
 }
 
 // Size returns the number of bytes necessary to represent the value and its timestamp.
-func (f FloatValue) Size() int {
+func (v FloatValue) Size() int {
 	return 16
 }
 
 // String returns the string representation of the value and its timestamp.
-func (f FloatValue) String() string {
-	return fmt.Sprintf("%v %v", time.Unix(0, f.unixnano), f.value)
+func (v FloatValue) String() string {
+	return fmt.Sprintf("%v %v", time.Unix(0, v.unixnano), v.value)
 }
 
 func encodeFloatBlock(buf []byte, values []Value) ([]byte, error) {
@@ -434,23 +434,23 @@ type BooleanValue struct {
 }
 
 // Size returns the number of bytes necessary to represent the value and its timestamp.
-func (b BooleanValue) Size() int {
+func (v BooleanValue) Size() int {
 	return 9
 }
 
 // UnixNano returns the timestamp of the value in nanoseconds since unix epoch.
-func (b BooleanValue) UnixNano() int64 {
-	return b.unixnano
+func (v BooleanValue) UnixNano() int64 {
+	return v.unixnano
 }
 
 // Value returns the underlying boolean value.
-func (b BooleanValue) Value() interface{} {
-	return b.value
+func (v BooleanValue) Value() interface{} {
+	return v.value
 }
 
 // String returns the string representation of the value and its timestamp.
-func (f BooleanValue) String() string {
-	return fmt.Sprintf("%v %v", time.Unix(0, f.unixnano), f.Value())
+func (v BooleanValue) String() string {
+	return fmt.Sprintf("%v %v", time.Unix(0, v.unixnano), v.Value())
 }
 
 func encodeBooleanBlock(buf []byte, values []Value) ([]byte, error) {
@@ -575,8 +575,8 @@ func (v IntegerValue) Size() int {
 }
 
 // String returns the string representation of the value and its timestamp.
-func (f IntegerValue) String() string {
-	return fmt.Sprintf("%v %v", time.Unix(0, f.unixnano), f.Value())
+func (v IntegerValue) String() string {
+	return fmt.Sprintf("%v %v", time.Unix(0, v.unixnano), v.Value())
 }
 
 func encodeIntegerBlock(buf []byte, values []Value) ([]byte, error) {
@@ -693,8 +693,8 @@ func (v StringValue) Size() int {
 }
 
 // String returns the string representation of the value and its timestamp.
-func (f StringValue) String() string {
-	return fmt.Sprintf("%v %v", time.Unix(0, f.unixnano), f.Value())
+func (v StringValue) String() string {
+	return fmt.Sprintf("%v %v", time.Unix(0, v.unixnano), v.Value())
 }
 
 func encodeStringBlock(buf []byte, values []Value) ([]byte, error) {
