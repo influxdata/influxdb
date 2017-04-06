@@ -384,7 +384,12 @@ func (d *defaultClient) Do(URL *url.URL, path, method string, params map[string]
 		req.Header.Set("Content-Type", "application/json")
 	}
 
-	res, err := http.DefaultClient.Do(req)
+	// Meta servers will redirect (307) to leader. We need
+	// special handling to preserve authentication headers.
+	client := &http.Client{
+		CheckRedirect: AuthedCheckRedirect,
+	}
+	res, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -402,6 +407,22 @@ func (d *defaultClient) Do(URL *url.URL, path, method string, params map[string]
 
 	return res, nil
 
+}
+
+// AuthedCheckRedirect tries to follow the Influx Enterprise pattern of
+// redirecting to the leader but preserving authentication headers.
+func AuthedCheckRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) >= 10 {
+		return errors.New("too many redirects")
+	} else if len(via) == 0 {
+		return nil
+	}
+	for attr, val := range via[0].Header {
+		if _, ok := req.Header[attr]; !ok {
+			req.Header[attr] = val
+		}
+	}
+	return nil
 }
 
 // Do is a cancelable function to interface with Influx Enterprise's Meta API
