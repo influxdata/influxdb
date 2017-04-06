@@ -417,10 +417,9 @@ func AuthedCheckRedirect(req *http.Request, via []*http.Request) error {
 	} else if len(via) == 0 {
 		return nil
 	}
-	for attr, val := range via[0].Header {
-		if _, ok := req.Header[attr]; !ok {
-			req.Header[attr] = val
-		}
+	preserve := "Authorization"
+	if auth, ok := via[0].Header[preserve]; ok {
+		req.Header[preserve] = auth
 	}
 	return nil
 }

@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"reflect"
 	"testing"
@@ -1395,4 +1396,60 @@ func (c *MockClient) Do(URL *url.URL, path, method string, params map[string]str
 		Header:     c.HeaderMap,
 		Body:       ioutil.NopCloser(bytes.NewReader(c.Body)),
 	}, nil
+}
+
+func Test_AuthedCheckRedirect_Do(t *testing.T) {
+	var ts2URL string
+	ts1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		want := http.Header{
+			"Referer":         []string{ts2URL},
+			"Accept-Encoding": []string{"gzip"},
+			"Authorization":   []string{"hunter2"},
+		}
+		for k, v := range want {
+			if !reflect.DeepEqual(r.Header[k], v) {
+				t.Errorf("Request.Header = %#v; want %#v", r.Header[k], v)
+			}
+		}
+		if t.Failed() {
+			w.Header().Set("Result", "got errors")
+		} else {
+			w.Header().Set("Result", "ok")
+		}
+	}))
+	defer ts1.Close()
+
+	ts2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, ts1.URL, http.StatusFound)
+	}))
+	defer ts2.Close()
+	ts2URL = ts2.URL
+
+	tr := &http.Transport{}
+	defer tr.CloseIdleConnections()
+
+	c := &http.Client{
+		Transport:     tr,
+		CheckRedirect: AuthedCheckRedirect,
+	}
+
+	req, _ := http.NewRequest("GET", ts2.URL, nil)
+	req.Header.Add("Cookie", "foo=bar")
+	req.Header.Add("Authorization", "hunter2")
+	req.Header.Add("Howdy", "doody")
+	req.Header.Set("User-Agent", "Darth Vader, an extraterrestrial from the Planet Vulcan")
+
+	res, err := c.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer res.Body.Close()
+	if res.StatusCode != 200 {
+		t.Fatal(res.Status)
+	}
+
+	if got := res.Header.Get("Result"); got != "ok" {
+		t.Errorf("result = %q; want ok", got)
+	}
 }
