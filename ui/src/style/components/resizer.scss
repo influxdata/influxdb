@@ -59,7 +59,7 @@ $resizer-color-active: $c-pool;
       background-color 0.19s ease;
   }
   &:hover {
-    cursor: $cc-resize-ns;
+    cursor: ns-resize;
 
     &:before {
       background-color: $resizer-color-hover;
@@ -93,6 +93,7 @@ $resizer-color-active: $c-pool;
     flex-direction: column;
     position: absolute;
     top: 0;
+    left: 0;
     height: 60%;
     width: 100%;
   }
@@ -102,6 +103,7 @@ $resizer-color-active: $c-pool;
     position: absolute;
     height: 40%;
     bottom: 0;
+    left: 0;
     width: 100%;
   }
 }

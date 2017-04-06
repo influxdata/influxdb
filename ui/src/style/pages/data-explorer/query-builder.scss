@@ -1,6 +1,7 @@
 .query-builder {
   position: relative;
   flex: 1 0 0;
+  margin: 16px 0;
   width: calc(100% - #{($explorer-page-padding * 2)});
   left: $explorer-page-padding;
   border: 0;
@@ -13,8 +14,6 @@
 .query-builder--tabs {
   display: flex;
   width: 250px;
-  margin-top: $de-vertical-margin;
-  height: calc(100% - #{($de-vertical-margin * 2)});
   flex-direction: column;
   align-items: stretch;
   @include gradient-v($g3-castle,$g1-raven);
@@ -44,7 +43,7 @@
   color: $g11-sidewalk;
   background: transparent;
   height: 30px;
-  cursor: $cc-pointer;
+  cursor: pointer;
   padding: 0 8px 0 16px;
   transition:
       color 0.25s ease,
@@ -115,9 +114,9 @@
     }
   }
   > .dropdown-menu {
-    width: 108px !important;
+    width: 145px !important;
     min-width: 108px !important;
-    max-width: 108px !important;
+    max-width: 145px !important;
   }
 }
 .panel--tab-new.open {
@@ -133,7 +132,7 @@
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
-  max-width: 177px;
+  width: 90%;
   text-overflow: ellipsis;
   @include no-user-select();
 }
@@ -147,8 +146,6 @@ $query-builder--column-heading-height: 50px;
 
 .query-builder--tab-contents {
   width: 100%;
-  margin-top: $de-vertical-margin;
-  height: calc(100% - #{($de-vertical-margin * 2)});
   background-color: $g4-onyx;
   border-radius: 0 $radius $radius 0;
   overflow: hidden;
@@ -165,7 +162,8 @@ $query-builder--column-heading-height: 50px;
   position: relative;
 
   pre {
-    display: block;
+    display: flex;
+    align-items: center;
     padding: 7px;
     border: 2px solid $query-editor-tab-inactive;
     background-color: $query-editor-tab-inactive;

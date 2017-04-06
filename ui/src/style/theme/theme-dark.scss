@@ -293,7 +293,7 @@ input {
       color 0.25s ease;
 
     &:hover {
-      cursor: $cc-pointer;
+      cursor: pointer;
       background-color: transparent;
       color: $g20-white !important;
     }
@@ -479,7 +479,7 @@ code {
   &:after { transform: translate(-50%,-50%) rotate(-45deg); }
 
   &:hover {
-    cursor: $cc-pointer;
+    cursor: pointer;
 
     &:before,
     &:after {
@@ -528,7 +528,7 @@ $toggle-border: 2px;
     color 0.25s;
 
   &:hover {
-    cursor: $cc-pointer;
+    cursor: pointer;
     color: $g14-chromium;
     background-color: $g4-onyx;
   }
@@ -616,7 +616,7 @@ $form-static-checkbox-size: 16px;
           transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
       }
       &:hover {
-        cursor: $cc-pointer;
+        cursor: pointer;
         color: $g20-white;
 
         &:before {
@@ -693,7 +693,7 @@ $form-static-checkbox-size: 16px;
           transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
       }
       &:hover {
-        cursor: $cc-pointer;
+        cursor: pointer;
         color: $g20-white;
 
         &:before {
@@ -731,7 +731,7 @@ $form-static-checkbox-size: 16px;
     transition: background-color 0.25s ease;
   }
   label:hover {
-    cursor: $cc-pointer;
+    cursor: pointer;
     background-color: $g2-kevlar;
   }
   label:after {

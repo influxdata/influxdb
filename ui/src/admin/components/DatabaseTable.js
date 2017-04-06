@@ -1,4 +1,7 @@
 import React, {PropTypes} from 'react'
+
+import _ from 'lodash'
+
 import DatabaseRow from 'src/admin/components/DatabaseRow'
 import DatabaseTableHeader from 'src/admin/components/DatabaseTableHeader'
 
@@ -55,7 +58,7 @@ const DatabaseTable = ({
           </thead>
           <tbody>
             {
-              database.retentionPolicies.map(rp => {
+              _.sortBy(database.retentionPolicies, ({name}) => name.toLowerCase()).map(rp => {
                 return (
                   <DatabaseRow
                     key={rp.links.self}

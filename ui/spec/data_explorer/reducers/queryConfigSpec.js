@@ -10,6 +10,7 @@ import {
   groupByTime,
   toggleTagAcceptance,
   updateRawQuery,
+  editRawQueryStatus,
 } from 'src/data_explorer/actions/view'
 
 const fakeAddQueryAction = (panelID, queryID) => {
@@ -321,4 +322,18 @@ describe('Chronograf.Reducers.queryConfig', () => {
 
     expect(nextState[queryId].rawText).to.equal('foo')
   })
+
+  it('updates a query\'s raw status', () => {
+    const queryId = 123
+    const initialState = {
+      [queryId]: buildInitialState(queryId),
+    }
+    const status = 'your query was sweet'
+    const action = editRawQueryStatus(queryId, status)
+
+    const nextState = reducer(initialState, action)
+
+    expect(nextState[queryId].rawStatus).to.equal(status)
+  })
 })
+

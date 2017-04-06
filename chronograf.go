@@ -42,6 +42,19 @@ type Logger interface {
 	Writer() *io.PipeWriter
 }
 
+// Router is an abstracted Router based on the API provided by the
+// julienschmidt/httprouter package.
+type Router interface {
+	http.Handler
+	GET(string, http.HandlerFunc)
+	PATCH(string, http.HandlerFunc)
+	POST(string, http.HandlerFunc)
+	DELETE(string, http.HandlerFunc)
+	PUT(string, http.HandlerFunc)
+
+	Handler(string, string, http.Handler)
+}
+
 // Assets returns a handler to serve the website.
 type Assets interface {
 	Handler() http.Handler

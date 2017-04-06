@@ -40,7 +40,6 @@ const DashboardPage = React.createClass({
     dashboardActions: shape({
       putDashboard: func.isRequired,
       getDashboardsAsync: func.isRequired,
-      setDashboard: func.isRequired,
       setTimeRange: func.isRequired,
       addDashboardCellAsync: func.isRequired,
       editDashboardCell: func.isRequired,
@@ -50,10 +49,6 @@ const DashboardPage = React.createClass({
       id: number.isRequired,
       cells: arrayOf(shape({})).isRequired,
     })),
-    dashboard: shape({
-      id: number.isRequired,
-      cells: arrayOf(shape({})).isRequired,
-    }),
     handleChooseAutoRefresh: func.isRequired,
     autoRefresh: number.isRequired,
     timeRange: shape({}).isRequired,
@@ -90,27 +85,12 @@ const DashboardPage = React.createClass({
     getDashboardsAsync(dashboardID)
   },
 
-  componentWillReceiveProps(nextProps) {
-    const {location: {pathname}} = this.props
-    const {
-      location: {pathname: nextPathname},
-      params: {dashboardID: nextID},
-      dashboardActions: {setDashboard},
-    } = nextProps
-
-    if (nextPathname.pathname === pathname) {
-      return
-    }
-
-    setDashboard(nextID)
-  },
-
   handleDismissOverlay() {
     this.setState({selectedCell: null})
   },
 
   handleSaveEditedCell(newCell) {
-    this.props.dashboardActions.updateDashboardCell(newCell)
+    this.props.dashboardActions.updateDashboardCell(this.getActiveDashboard(), newCell)
     .then(this.handleDismissOverlay)
   },
 
@@ -123,13 +103,13 @@ const DashboardPage = React.createClass({
   },
 
   handleUpdatePosition(cells) {
-    this.props.dashboardActions.updateDashboardCells(cells)
-    this.props.dashboardActions.putDashboard()
+    const dashboard = this.getActiveDashboard()
+    this.props.dashboardActions.updateDashboardCells(dashboard, cells)
+    this.props.dashboardActions.putDashboard(dashboard)
   },
 
   handleAddCell() {
-    const {dashboard} = this.props
-    this.props.dashboardActions.addDashboardCellAsync(dashboard)
+    this.props.dashboardActions.addDashboardCellAsync(this.getActiveDashboard())
   },
 
   handleEditDashboard() {
@@ -142,29 +122,28 @@ const DashboardPage = React.createClass({
 
   handleRenameDashboard(name) {
     this.setState({isEditMode: false})
-    const {dashboard} = this.props
-    const newDashboard = {...dashboard, name}
+    const newDashboard = {...this.getActiveDashboard(), name}
     this.props.dashboardActions.updateDashboard(newDashboard)
-    this.props.dashboardActions.putDashboard()
+    this.props.dashboardActions.putDashboard(newDashboard)
   },
 
   // Places cell into editing mode.
   handleEditDashboardCell(x, y, isEditing) {
     return () => {
-      this.props.dashboardActions.editDashboardCell(x, y, !isEditing) /* eslint-disable no-negated-condition */
+      this.props.dashboardActions.editDashboardCell(this.getActiveDashboard(), x, y, !isEditing) /* eslint-disable no-negated-condition */
     }
   },
 
   handleRenameDashboardCell(x, y) {
     return (evt) => {
-      this.props.dashboardActions.renameDashboardCell(x, y, evt.target.value)
+      this.props.dashboardActions.renameDashboardCell(this.getActiveDashboard(), x, y, evt.target.value)
     }
   },
 
   handleUpdateDashboardCell(newCell) {
     return () => {
       this.props.dashboardActions.editDashboardCell(newCell.x, newCell.y, false)
-      this.props.dashboardActions.putDashboard()
+      this.props.dashboardActions.putDashboard(this.getActiveDashboard())
     }
   },
 
@@ -172,11 +151,15 @@ const DashboardPage = React.createClass({
     this.props.dashboardActions.deleteDashboardCellAsync(cell)
   },
 
+  getActiveDashboard() {
+    const {params: {dashboardID}, dashboards} = this.props
+    return dashboards.find(d => d.id === +dashboardID)
+  },
+
   render() {
     const {
       dashboards,
-      dashboard,
-      params: {sourceID},
+      params: {sourceID, dashboardID},
       inPresentationMode,
       handleClickPresentationButton,
       source,
@@ -184,6 +167,8 @@ const DashboardPage = React.createClass({
       autoRefresh,
       timeRange,
     } = this.props
+
+    const dashboard = dashboards.find(d => d.id === +dashboardID)
 
     const {
       selectedCell,
@@ -269,14 +254,12 @@ const mapStateToProps = (state) => {
     },
     dashboardUI: {
       dashboards,
-      dashboard,
       timeRange,
     },
   } = state
 
   return {
     dashboards,
-    dashboard,
     autoRefresh,
     timeRange,
     inPresentationMode,

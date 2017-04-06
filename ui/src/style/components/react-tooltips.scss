@@ -31,7 +31,7 @@ $tooltip-code-color: $c-potassium;
   border: 2px solid $tooltip-accent !important;
   border-radius: $tooltip-radius !important;
   text-transform: none !important;
-  cursor: $cc-default;
+  cursor: default;
 
   p {
     margin: 0;
@@ -125,7 +125,7 @@ $qmark-tooltip-size: 15px;
     background-color 0.25s ease;
 }
 .question-mark-tooltip:hover {
-  cursor: $cc-default;
+  cursor: default;
   .question-mark-tooltip--icon {
     background-color: $c-pool;
   }

@@ -106,3 +106,72 @@ func Test_Server_Prefixer_RewritesURLs(t *testing.T) {
 		}
 	}
 }
+
+// clogger is an http.ResponseWriter that is not an http.Flusher. It is used
+// for testing the behavior of handlers that may rely on specific behavior of
+// http.Flusher
+type clogger struct {
+	next http.ResponseWriter
+}
+
+func (c *clogger) Header() http.Header {
+	return c.next.Header()
+}
+
+func (c *clogger) Write(bytes []byte) (int, error) {
+	return c.next.Write(bytes)
+}
+
+func (c *clogger) WriteHeader(code int) {
+	c.next.WriteHeader(code)
+}
+
+func Test_Server_Prefixer_NoPrefixingWithoutFlusther(t *testing.T) {
+	backend := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(rw, "<a href=\"/valley\">Hill Valley Preservation Society</a>")
+	})
+
+	wrapFunc := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			clog := &clogger{rw}
+			next.ServeHTTP(clog, r)
+		})
+	}
+
+	tl := &TestLogger{}
+	pfx := &server.URLPrefixer{
+		Prefix: "/hill",
+		Next:   backend,
+		Logger: tl,
+		Attrs: [][]byte{
+			[]byte("href=\""),
+		},
+	}
+
+	ts := httptest.NewServer(wrapFunc(pfx))
+	defer ts.Close()
+
+	res, err := http.Get(ts.URL)
+	if err != nil {
+		t.Fatal("Unexpected error fetching from prefixer: err:", err)
+	}
+
+	actual, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		t.Fatal("Unable to read prefixed body: err:", err)
+	}
+
+	unexpected := "<a href=\"/hill/valley\">Hill Valley Preservation Society</a>"
+	expected := "<a href=\"/valley\">Hill Valley Preservation Society</a>"
+	if string(actual) == unexpected {
+		t.Error("No Flusher", ":\n Prefixing occurred without an http.Flusher")
+	}
+
+	if string(actual) != expected {
+		t.Error("No Flusher", ":\n\tPrefixing failed to output without an http.Flusher\n\t\tWant:\n", expected, "\n\t\tGot:\n", string(actual))
+	}
+
+	if !tl.HasMessage("info", server.ErrNotFlusher) {
+		t.Error("No Flusher", ":\n Expected Error Message: \"", server.ErrNotFlusher, "\" but saw none. Msgs:", tl.Messages)
+	}
+}

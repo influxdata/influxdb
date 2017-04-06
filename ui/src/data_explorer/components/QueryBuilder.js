@@ -3,6 +3,7 @@ import React, {PropTypes} from 'react'
 import QueryEditor from './QueryEditor'
 import QueryTabItem from './QueryTabItem'
 import SimpleDropdown from 'src/shared/components/SimpleDropdown'
+import buildInfluxQLQuery from 'utils/influxql'
 
 const {
   arrayOf,
@@ -12,6 +13,9 @@ const {
   shape,
   string,
 } = PropTypes
+
+const BUILDER = 'Help me build a query'
+const EDITOR = 'Type my own query'
 
 const QueryBuilder = React.createClass({
   propTypes: {
@@ -39,20 +43,16 @@ const QueryBuilder = React.createClass({
     children: node,
   },
 
-  handleSetActiveQueryIndex(index) {
-    this.props.setActiveQueryIndex(index)
-  },
-
   handleAddQuery() {
     const newIndex = this.props.queries.length
     this.props.actions.addQuery()
-    this.handleSetActiveQueryIndex(newIndex)
+    this.props.setActiveQueryIndex(newIndex)
   },
 
   handleAddRawQuery() {
     const newIndex = this.props.queries.length
-    this.props.actions.addQuery({rawText: `SELECT "fields" from "db"."rp"."measurement"`})
-    this.handleSetActiveQueryIndex(newIndex)
+    this.props.actions.addQuery({rawText: ''})
+    this.props.setActiveQueryIndex(newIndex)
   },
 
   getActiveQuery() {
@@ -98,7 +98,7 @@ const QueryBuilder = React.createClass({
   },
 
   renderQueryTabList() {
-    const {queries, activeQueryIndex, onDeleteQuery} = this.props
+    const {queries, activeQueryIndex, onDeleteQuery, timeRange, setActiveQueryIndex} = this.props
     return (
       <div className="query-builder--tabs">
         <div className="query-builder--tabs-heading">
@@ -106,21 +106,15 @@ const QueryBuilder = React.createClass({
           {this.renderAddQuery()}
         </div>
         {queries.map((q, i) => {
-          let queryTabText
-          if (q.rawText) {
-            queryTabText = 'InfluxQL'
-          } else {
-            queryTabText = (q.measurement && q.fields.length !== 0) ? `${q.measurement}.${q.fields[0].field}` : 'Query'
-          }
           return (
             <QueryTabItem
               isActive={i === activeQueryIndex}
               key={i}
               queryIndex={i}
               query={q}
-              onSelect={this.handleSetActiveQueryIndex}
+              onSelect={setActiveQueryIndex}
               onDelete={onDeleteQuery}
-              queryTabText={queryTabText}
+              queryTabText={q.rawText || buildInfluxQLQuery(timeRange, q) || `Query ${i + 1}`}
             />
           )
         })}
@@ -131,18 +125,19 @@ const QueryBuilder = React.createClass({
 
   onChoose(item) {
     switch (item.text) {
-      case 'Query Builder':
+      case BUILDER:
         this.handleAddQuery()
         break
-      case 'InfluxQL':
+      case EDITOR:
         this.handleAddRawQuery()
         break
     }
   },
 
   renderAddQuery() {
+    const items = [{text: BUILDER}, {text: EDITOR}]
     return (
-      <SimpleDropdown onChoose={this.onChoose} items={[{text: 'Query Builder'}, {text: 'InfluxQL'}]} className="panel--tab-new">
+      <SimpleDropdown onChoose={this.onChoose} items={items} className="panel--tab-new">
         <span className="icon plus"></span>
       </SimpleDropdown>
     )

@@ -49,7 +49,7 @@ $sidebar-logo-color: $g8-storm;
 
   &:hover {
     background-color: $g9-mountain;
-    cursor: $cc-pointer;
+    cursor: pointer;
   }
 }
 
@@ -121,7 +121,7 @@ $sidebar-logo-color: $g8-storm;
     }
 
     &:hover {
-      cursor: $cc-pointer;
+      cursor: pointer;
 
       .sidebar__icon {
         color: $sidebar-icon-hover;
@@ -270,7 +270,7 @@ $sidebar-logo-color: $g8-storm;
       transform: translate(-50%,-50%);
     }
     &:hover {
-      cursor: $cc-pointer;
+      cursor: pointer;
       background-color: $sidebar-item-hover;
       color: $sidebar-icon-hover;
 

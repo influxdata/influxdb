@@ -25,8 +25,7 @@ const RuleMessageAlertConfig = ({
         className="form-control size-486"
         type="text"
         placeholder={DEFAULT_ALERT_PLACEHOLDERS[alert]}
-        name="alertProperty"
-        onChange={(evt) => updateAlertNodes(rule.id, alert, evt.target.form.alertProperty.value)}
+        onChange={(e) => updateAlertNodes(rule.id, alert, e.target.value)}
         value={ALERT_NODES_ACCESSORS[alert](rule)}
       />
     </div>

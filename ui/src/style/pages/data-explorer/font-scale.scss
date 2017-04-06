@@ -36,14 +36,47 @@ $breakpoint-c: 2100px;
     .query-builder--column-heading {
       font-size: 16px;
     }
-    .query-builder--query-preview pre code {
-      font-size: 13.5px;
-    }
     .toggle-sm .toggle-btn {
       font-size: 14px;
     }
     .btn-xs {
       font-size: 13.5px;
+    }
+    .query-builder--tab-delete {
+      width: 20px;
+      height: 20px;
+
+      &:before,
+      &:after {
+        width: 10px;
+      }
+    }
+    .query-builder--tabs-heading {
+      height: 80px;
+    }
+    .query-builder--query-preview pre {
+      height: calc(80px - 4px);
+    }
+    .query-builder--columns {
+      top: 80px;
+      height: calc(100% - 80px);
+    }
+    .raw-text--field,
+    .query-builder--query-preview pre,
+    .query-builder--query-preview pre code {
+      font-size: 14px !important;
+      line-height: 16px !important;
+    }
+    .raw-text--field {
+      height: 48px;
+      padding: 12px 10px 0 10px;
+    }
+    .raw-text--status {
+      height: 28px;
+      padding: 0 10px;
+    }
+    .query-builder--query-preview pre {
+      padding: 10px;
     }
   }
 }
@@ -66,9 +99,6 @@ $breakpoint-c: 2100px;
       font-weight: 400;
       text-transform: uppercase;
     }
-    .query-builder--query-preview pre code {
-      font-size: 14px;
-    }
     .toggle-sm .toggle-btn {
       font-size: 14px;
     }
@@ -77,6 +107,21 @@ $breakpoint-c: 2100px;
     }
     .multi-select-dropdown .dropdown-toggle {
       width: 140px;
+    }
+    .query-builder--tab-delete {
+      width: 22px;
+      height: 22px;
+
+      &:before,
+      &:after {
+        width: 12px;
+      }
+    }
+    .raw-text--field,
+    .query-builder--query-preview pre,
+    .query-builder--query-preview pre code {
+      font-size: 16px !important;
+      line-height: 18px !important;
     }
   }
 }

@@ -17,7 +17,6 @@ const {
 
 export default function AutoRefresh(ComposedComponent) {
   const wrapper = React.createClass({
-    displayName: `AutoRefresh_${ComposedComponent.displayName}`,
     propTypes: {
       children: element,
       autoRefresh: number.isRequired,
@@ -87,6 +86,7 @@ export default function AutoRefresh(ComposedComponent) {
     },
     componentWillUnmount() {
       clearInterval(this.intervalID)
+      this.intervalID = false
     },
     render() {
       const {timeSeries} = this.state

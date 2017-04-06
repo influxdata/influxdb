@@ -11,14 +11,14 @@
     ----------------------------------------------
 */
 .admin-tabs {
-	padding-right: 0;
+  padding-right: 0;
 
-	& + div {
-		padding-left: 0;
+  & + div {
+    padding-left: 0;
 
-		.panel {
-			border-top-left-radius: 0;
-		}
+    .panel {
+      border-top-left-radius: 0;
+    }
     .panel-body {
       min-height: 300px;
     }
@@ -27,7 +27,7 @@
       font-weight: 400 !important;
       color: $g12-forge;
     }
-	}
+  }
 }
 .admin-tabs .btn-group {
   margin: 0;
@@ -74,6 +74,9 @@
   .multi-select-dropdown {
     width: 100%;
     min-width: 150px;
+  }
+  .admin-table--kill-button {
+    width: 70px;
   }
   .admin-table--hidden {
     visibility: hidden;
@@ -188,7 +191,7 @@
 }
 .db-manager-header--edit {
   justify-content: flex-start;
-  
+
   .form-control {
     height: 22px;
     padding: 0 6px;

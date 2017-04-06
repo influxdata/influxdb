@@ -244,7 +244,7 @@
       background-color 0.25s ease;
 
     &:hover {
-      cursor: $cc-pointer;
+      cursor: pointer;
       background-color: $g18-cloud;
       color: $g9-mountain;
     }
@@ -390,7 +390,7 @@ $form-static-checkbox-size: 16px;
           transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
       }
       &:hover {
-        cursor: $cc-pointer;
+        cursor: pointer;
         color: $g20-white;
 
         &:before {
