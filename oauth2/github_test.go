@@ -36,7 +36,7 @@ func TestGithubPrincipalID(t *testing.T) {
 	prov := oauth2.Github{
 		Logger: logger,
 	}
-	tt, err := NewTestTripper(logger, mockAPI, http.DefaultTransport)
+	tt, err := oauth2.NewTestTripper(logger, mockAPI, http.DefaultTransport)
 	if err != nil {
 		t.Fatal("Error initializing TestTripper: err:", err)
 	}
@@ -93,7 +93,7 @@ func TestGithubPrincipalIDOrganization(t *testing.T) {
 		Logger: logger,
 		Orgs:   []string{"Hill Valley Preservation Society"},
 	}
-	tt, err := NewTestTripper(logger, mockAPI, http.DefaultTransport)
+	tt, err := oauth2.NewTestTripper(logger, mockAPI, http.DefaultTransport)
 	if err != nil {
 		t.Fatal("Error initializing TestTripper: err:", err)
 	}
