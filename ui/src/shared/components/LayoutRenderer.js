@@ -188,7 +188,7 @@ export const LayoutRenderer = React.createClass({
         useCSSTransforms={false}
         onResize={this.triggerWindowResize}
         onLayoutChange={this.handleLayoutChange}
-        draggableHandle={'.dash-graph--drag-handle'}
+        draggableHandle={'.dash-graph--name'}
         isDraggable={isDashboard}
         isResizable={isDashboard}
       >

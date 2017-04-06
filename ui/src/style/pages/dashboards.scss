@@ -3,7 +3,8 @@
   ------------------------------------------------------
 */
 $dash-graph-heading: 30px;
-
+$dash-graph-heading-context: $dash-graph-heading - 8px;
+$dash-graph-options-arrow: 8px;
 
 /*
   Animations
@@ -98,112 +99,64 @@ $dash-graph-heading: 30px;
   left: 0;
   width: 100%;
   height: $dash-graph-heading;
-  padding: 0 16px;
   margin: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-radius: $radius;
+  border-radius: $radius-small;
   font-weight: 600;
   font-size: 13px;
   color: $g14-chromium;
   transition:
     color 0.25s ease,
     background-color 0.25s ease;
-  &:hover {
-    cursor: default;
-  }
-}
-.dash-graph--drag-handle {
-  height: $dash-graph-heading;
-  width: 100%;
-
-  &:before {
-    content: '';
-    position: absolute;
-    width: 100%;
-    left: 0;
-    height: $dash-graph-heading;
-    background-color: $g5-pepper;
-    border-radius: 3px;
-    z-index: -1;
-    opacity: 0;
-    transition: opacity 0.25s ease;
-  }
-  &:hover {
+  &.dash-graph--heading-draggable:hover {
     cursor: move;
-  }
-  &:hover:before {
-    opacity: 1;
+    background-color: $g5-pepper;
   }
 }
 .dash-graph--name-edit,
 .dash-graph--name {
-  display: inline-block;
-  padding: 0 6px;
-  height: 26px !important;
-  line-height: (26px - 4px) !important;
   font-size: 13px;
   font-weight: 600;
-  position: relative;
-  left: -6px;
   border-radius: $radius;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .dash-graph--name {
+  height: $dash-graph-heading;
+  line-height: $dash-graph-heading;
+  width: calc(100% - 50px);
+  margin-left: 16px;
   transition:
     color 0.25s ease,
     background-color 0.25s ease,
     border-color 0.25s ease;
-  border: 2px solid transparent;
-  top: 2px;
-
-  &.editable {
-    &:after {
-      display: inline-block;
-      content: "\f058";
-      font-family: 'icomoon' !important;
-      font-style: normal;
-      font-weight: normal;
-      font-variant: normal;
-      line-height: 1;
-      text-transform: none;
-      color: $g11-sidewalk;
-      font-size: 14px;
-      opacity: 0;
-      transition: opacity 0.25s ease;
-      margin-left: 5px;
-    }
-
-    &:hover {
-      cursor: text;
-      color: $g20-white;
-
-      &:after {
-        opacity: 1;
-      }
-    }
-  }
 }
 .dash-graph--name-edit {
-  top: -1px;
-  width: 190px;
+  margin-left: 8px;
+  padding: 0 6px;
+  width: calc(100% - 42px);
+  height: 26px !important;
+  line-height: (26px - 4px) !important;
+  position: relative;
+  top: -1px; // Fix for slight offset
 }
 .dash-graph--options {
-  height: $dash-graph-heading;
-  position: relative;
-  width: ($dash-graph-heading - 8px);
-  right: -6px;
+  width: $dash-graph-heading;
+  position: absolute;
+  z-index: 2;
+  right: 0px;
+  top: 0px;
 
   > .btn {
     background-color: transparent !important;
     padding: 0;
     margin: 4px 0;
-    height: ($dash-graph-heading - 8px);
-    width: ($dash-graph-heading - 8px);
-    line-height: ($dash-graph-heading - 8px);
+    height: $dash-graph-heading-context;
+    width: $dash-graph-heading-context;
+    line-height: $dash-graph-heading-context;
     transition:
       background-color 0.25s ease,
       color 0.25s ease !important;
@@ -214,7 +167,6 @@ $dash-graph-heading: 30px;
     }
   }
 }
-$dash-graph-options-arrow: 8px;
 
 .presentation-mode .dash-graph--options {
   display: none;
@@ -351,9 +303,8 @@ $dash-graph-options-arrow: 8px;
       cursor: move;
     }
 
-    .dash-graph--drag-handle:before,
-    .dash-graph--drag-handle:hover:before {
-      opacity: 1 !important;
+    .dash-graph--heading {
+      background-color: $g5-pepper;
       cursor: move;
     }
   }

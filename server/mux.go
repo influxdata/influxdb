@@ -20,13 +20,12 @@ const (
 
 // MuxOpts are the options for the router.  Mostly related to auth.
 type MuxOpts struct {
-	Logger       chronograf.Logger
-	Develop      bool   // Develop loads assets from filesystem instead of bindata
-	Basepath     string // URL path prefix under which all chronograf routes will be mounted
-	PrefixRoutes bool   // Mounts all backend routes under route specified by the Basepath
-	UseAuth      bool   // UseAuth turns on Github OAuth and JWT
-	TokenSecret  string
-
+	Logger        chronograf.Logger
+	Develop       bool                 // Develop loads assets from filesystem instead of bindata
+	Basepath      string               // URL path prefix under which all chronograf routes will be mounted
+	PrefixRoutes  bool                 // Mounts all backend routes under route specified by the Basepath
+	UseAuth       bool                 // UseAuth turns on Github OAuth and JWT
+	Auth          oauth2.Authenticator // Auth is used to authenticate and authorize
 	ProviderFuncs []func(func(oauth2.Provider, oauth2.Mux))
 }
 
@@ -192,9 +191,7 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 }
 
 // AuthAPI adds the OAuth routes if auth is enabled.
-// TODO: this function is not great.  Would be good if providers added their routes.
 func AuthAPI(opts MuxOpts, router chronograf.Router) (http.Handler, AuthRoutes) {
-	auth := oauth2.NewJWT(opts.TokenSecret)
 	routes := AuthRoutes{}
 	for _, pf := range opts.ProviderFuncs {
 		pf(func(p oauth2.Provider, m oauth2.Mux) {
@@ -214,7 +211,7 @@ func AuthAPI(opts MuxOpts, router chronograf.Router) (http.Handler, AuthRoutes) 
 		})
 	}
 
-	tokenMiddleware := oauth2.AuthorizedToken(&auth, &oauth2.CookieExtractor{Name: "session"}, opts.Logger, router)
+	tokenMiddleware := AuthorizedToken(opts.Auth, opts.Logger, router)
 	// Wrap the API with token validation middleware.
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/chronograf/v1/") || r.URL.Path == "/oauth/logout" {

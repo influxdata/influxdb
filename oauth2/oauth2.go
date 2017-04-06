@@ -48,7 +48,6 @@ type Provider interface {
 	Config() *oauth2.Config
 	// PrincipalID with fetch the identifier to be associated with the principal.
 	PrincipalID(provider *http.Client) (string, error)
-
 	// Name is the name of the Provider
 	Name() string
 }
@@ -62,14 +61,26 @@ type Mux interface {
 
 // Authenticator represents a service for authenticating users.
 type Authenticator interface {
-	// Authenticate returns User associated with token if successful.
-	Authenticate(ctx context.Context, token string) (Principal, error)
-	// Token generates a valid token for Principal lasting a duration
-	Token(context.Context, Principal, time.Duration) (string, error)
+	// Validate returns Principal associated with authenticated and authorized
+	// entity if successful.
+	Validate(context.Context, *http.Request) (Principal, error)
+	// Authorize will grant privileges to a Principal
+	Authorize(context.Context, http.ResponseWriter, Principal) error
+	// Expire revokes privileges from a Principal
+	Expire(http.ResponseWriter)
 }
 
-// TokenExtractor extracts tokens from http requests
-type TokenExtractor interface {
-	// Extract will return the token or an error.
-	Extract(r *http.Request) (string, error)
+// Token represents a time-dependent reference (i.e. identifier) that maps back
+// to the sensitive data through a tokenization system
+type Token string
+
+// Tokenizer substitutes a sensitive data element (Principal) with a
+// non-sensitive equivalent, referred to as a token, that has no extrinsic
+// or exploitable meaning or value.
+type Tokenizer interface {
+	// Create uses a token lasting duration with Principal data
+	Create(context.Context, Principal, time.Duration) (Token, error)
+	// ValidPrincipal checks if the token has a valid Principal and requires
+	// a duration to ensure it complies with possible server runtime arguments.
+	ValidPrincipal(context.Context, Token, time.Duration) (Principal, error)
 }
