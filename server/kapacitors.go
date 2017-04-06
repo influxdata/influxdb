@@ -3,7 +3,6 @@ package server
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 
@@ -570,7 +569,6 @@ func (h *Service) KapacitorRulesGet(w http.ResponseWriter, r *http.Request) {
 		Error(w, http.StatusInternalServerError, err.Error(), h.Logger)
 		return
 	}
-
 	statuses, err := c.AllStatus(ctx)
 	if err != nil {
 		Error(w, http.StatusInternalServerError, err.Error(), h.Logger)
@@ -644,8 +642,6 @@ func (h *Service) KapacitorRulesID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res := newAlertResponse(rule, rule.TICKScript, c.Href(rule.ID), c.HrefOutput(rule.ID), status, srv.SrcID, srv.ID)
-	octets, _ := json.MarshalIndent(res, "", "    ")
-	log.Printf("%s", string(octets))
 	encodeJSON(w, http.StatusOK, res, h.Logger)
 }
 
