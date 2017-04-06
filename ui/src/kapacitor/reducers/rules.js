@@ -101,6 +101,21 @@ export default function rules(state = {}, action) {
             },
           ]
           break
+        case 'slack':
+          alertNodesByType = [
+            {
+              name: alertType,
+              properties: [
+                {
+                  name: 'channel',
+                  args: [
+                    alertNodesText,
+                  ],
+                },
+              ],
+            },
+          ]
+          break
         case 'alerta':
           alertNodesByType = [
             {

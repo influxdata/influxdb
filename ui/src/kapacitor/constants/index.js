@@ -47,6 +47,7 @@ export const DEFAULT_ALERT_LABELS = {
   tcp: 'Address:',
   exec: 'Add Command (Arguments separated by Spaces):',
   smtp: 'Email Addresses (Separated by Spaces):',
+  slack: 'Send alerts to Slack channel:',
   alerta: 'Paste Alerta TICKscript:',
 }
 export const DEFAULT_ALERT_PLACEHOLDERS = {
@@ -54,6 +55,7 @@ export const DEFAULT_ALERT_PLACEHOLDERS = {
   tcp: 'Address:',
   exec: 'Ex: woogie boogie',
   smtp: 'Ex: benedict@domain.com delaney@domain.com susan@domain.com',
+  slack: '#alerts',
   alerta: 'alerta()',
 }
 
@@ -62,6 +64,7 @@ export const ALERT_NODES_ACCESSORS = {
   tcp: (rule) => _.get(rule, 'alertNodes[0].args[0]', ''),
   exec: (rule) => _.get(rule, 'alertNodes[0].args', []).join(' '),
   smtp: (rule) => _.get(rule, 'alertNodes[0].args', []).join(' '),
+  slack: (rule) => _.get(rule, 'alertNodes[0].properties[0].args', ''),
   alerta: (rule) => _.get(rule, 'alertNodes[0].properties', []).reduce((strs, item) => {
     strs.push(`${item.name}('${item.args.join(' ')}')`)
     return strs
