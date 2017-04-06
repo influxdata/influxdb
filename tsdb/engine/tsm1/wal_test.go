@@ -11,7 +11,7 @@ import (
 	"github.com/golang/snappy"
 )
 
-func TestWALWriter_WritePoints_Single(t *testing.T) {
+func TestWALWriter_WriteMulti_Single(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 	f := MustTempFile(dir)
@@ -70,7 +70,7 @@ func TestWALWriter_WritePoints_Single(t *testing.T) {
 	}
 }
 
-func TestWALWriter_WritePoints_LargeBatch(t *testing.T) {
+func TestWALWriter_WriteMulti_LargeBatch(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 	f := MustTempFile(dir)
@@ -126,7 +126,7 @@ func TestWALWriter_WritePoints_LargeBatch(t *testing.T) {
 		t.Fatalf("wrong count of bytes read, got %d, exp %d", n, MustReadFileSize(f))
 	}
 }
-func TestWALWriter_WritePoints_Multiple(t *testing.T) {
+func TestWALWriter_WriteMulti_Multiple(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 	f := MustTempFile(dir)
@@ -240,7 +240,7 @@ func TestWALWriter_WriteDelete_Single(t *testing.T) {
 	}
 }
 
-func TestWALWriter_WritePointsDelete_Multiple(t *testing.T) {
+func TestWALWriter_WriteMultiDelete_Multiple(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 	f := MustTempFile(dir)
@@ -326,7 +326,7 @@ func TestWALWriter_WritePointsDelete_Multiple(t *testing.T) {
 	}
 }
 
-func TestWALWriter_WritePointsDeleteRange_Multiple(t *testing.T) {
+func TestWALWriter_WriteMultiDeleteRange_Multiple(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 	f := MustTempFile(dir)
@@ -444,7 +444,7 @@ func TestWAL_ClosedSegments(t *testing.T) {
 		t.Fatalf("close segment length mismatch: got %v, exp %v", got, exp)
 	}
 
-	if _, err := w.WritePoints(map[string][]tsm1.Value{
+	if _, err := w.WriteMulti(map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": []tsm1.Value{
 			tsm1.NewValue(1, 1.1),
 		},

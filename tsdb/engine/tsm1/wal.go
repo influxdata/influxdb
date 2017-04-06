@@ -289,10 +289,10 @@ func (l *WAL) sync() {
 	}
 }
 
-// WritePoints writes the given points to the WAL. It returns the WAL segment ID to
+// WriteMulti writes the given values to the WAL. It returns the WAL segment ID to
 // which the points were written. If an error is returned the segment ID should
 // be ignored.
-func (l *WAL) WritePoints(values map[string][]Value) (int, error) {
+func (l *WAL) WriteMulti(values map[string][]Value) (int, error) {
 	entry := &WriteWALEntry{
 		Values: values,
 	}

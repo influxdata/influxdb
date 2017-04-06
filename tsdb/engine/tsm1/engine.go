@@ -760,7 +760,7 @@ func (e *Engine) WritePoints(points []models.Point) error {
 		return err
 	}
 
-	_, err = e.WAL.WritePoints(values)
+	_, err = e.WAL.WriteMulti(values)
 	return err
 }
 
