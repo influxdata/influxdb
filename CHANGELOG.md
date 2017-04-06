@@ -21,6 +21,7 @@
   1. [#1195](https://github.com/influxdata/chronograf/issues/1195): Chronograf was not redirecting with authentiation for Influx Enterprise Meta service
   1. [#1095](https://github.com/influxdata/chronograf/pull/1095): Make logout button display again
   1. [#1209](https://github.com/influxdata/chronograf/pull/1209): HipChat Kapacitor config now uses only the subdomain instead of asking for the entire HipChat URL.
+  1. [#1219](https://github.com/influxdata/chronograf/pull/1219): Update query for default cell in new dashboard
 
 ### Features
   1. [#1112](https://github.com/influxdata/chronograf/pull/1112): Add ability to delete a dashboard

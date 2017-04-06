@@ -24,7 +24,7 @@ export const NEW_DASHBOARD = {
       type: 'line',
       queries: [
         {
-          query: "SELECT mean(\"usage_user\") AS \"usage_user\" FROM \"cpu\"",
+          query: "SELECT mean(\"usage_user\") AS \"usage_user\" FROM \"telegraf\".\"autogen\".\"cpu\"",
           label: "",
           groupbys: [],
           wheres: [],
