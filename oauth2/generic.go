@@ -18,6 +18,7 @@ var _ Provider = &Generic{}
 // cookie.  This cookie's value is a JWT containing the user's primary
 // email address.
 type Generic struct {
+	PageName     string // Name displayed on the login page
 	ClientID     string
 	ClientSecret string
 	Domains      []string // Optional email domain checking
@@ -29,7 +30,10 @@ type Generic struct {
 
 // Name is the name of the provider
 func (g *Generic) Name() string {
-	return "generic"
+	if g.PageName == "" {
+		return "generic"
+	}
+	return g.PageName
 }
 
 // ID returns the generic application client id
