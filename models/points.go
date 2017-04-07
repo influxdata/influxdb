@@ -159,9 +159,6 @@ type FieldIterator interface {
 	// FloatValue returns the float value of the current field.
 	FloatValue() (float64, error)
 
-	// Delete deletes the current field.
-	Delete()
-
 	// Reset resets the iterator to its initial state.
 	Reset()
 }
@@ -1929,26 +1926,6 @@ func (p *point) FloatValue() (float64, error) {
 		return 0, fmt.Errorf("unable to parse floating point value %q: %v", p.it.valueBuf, err)
 	}
 	return f, nil
-}
-
-// Delete deletes the current field.
-func (p *point) Delete() {
-	switch {
-	case p.it.end == p.it.start:
-	case p.it.end >= len(p.fields):
-		// Remove the trailing comma if there are more than one fields
-		p.fields = bytes.TrimSuffix(p.fields[:p.it.start], []byte(","))
-
-	case p.it.start == 0:
-		p.fields = p.fields[p.it.end:]
-	default:
-		p.fields = append(p.fields[:p.it.start], p.fields[p.it.end:]...)
-	}
-
-	p.it.end = p.it.start
-	p.it.key = nil
-	p.it.valueBuf = nil
-	p.it.fieldType = Empty
 }
 
 // Reset resets the iterator to its initial state.
