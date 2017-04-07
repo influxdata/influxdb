@@ -874,7 +874,7 @@
 				],
 				"responses": {
 					"204": {
-						"description": "Database has been deleted",
+						"description": "Database has been deleted"
 					},
 					"404": {
 						"description": "Data source id does not exist.",
@@ -1075,7 +1075,7 @@
 				],
 				"responses": {
 					"204": {
-						"description": "Retention Policy has been deleted",
+						"description": "Retention Policy has been deleted"
 					},
 					"404": {
 						"description": "Data source id does not exist.",
@@ -2279,7 +2279,7 @@
 			"properties": {
 				"name": {
 					"type": "string",
-					"description": "The identifying name of the database",
+					"description": "The identifying name of the database"
 				},
 				"duration": {
 					"type": "string",
@@ -2589,7 +2589,7 @@
 			"properties": {
 				"name": {
 					"type": "string",
-					"description": "The identifying name of the retention policy",
+					"description": "The identifying name of the retention policy"
 				},
 				"duration": {
 					"type": "string",
@@ -3532,7 +3532,7 @@
 		"LayoutQuery": {
 			"type": "object",
 			"required": [
-				"query",
+				"query"
 			],
 			"properties": {
 				"label": {
