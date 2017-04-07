@@ -146,10 +146,10 @@ export default function queryConfigs(state = {}, action) {
       })
     }
 
-    case 'EDIT_RAW_QUERY_STATUS': {
-      const {queryID, rawStatus} = action.payload
+    case 'EDIT_QUERY_STATUS': {
+      const {queryID, status} = action.payload
       const nextState = {
-        [queryID]: {...state[queryID], rawStatus},
+        [queryID]: {...state[queryID], status},
       }
 
       return {...state, ...nextState}

@@ -50,7 +50,7 @@ const RawQueryEditor = React.createClass({
   },
 
   render() {
-    const {query: {rawStatus}} = this.props
+    const {config: {status}} = this.props
     const {value} = this.state
 
     return (
@@ -66,20 +66,20 @@ const RawQueryEditor = React.createClass({
           autoComplete="off"
           spellCheck="false"
         />
-        {this.renderStatus(rawStatus)}
+        {this.renderStatus(status)}
         <Dropdown items={QUERY_TEMPLATES} selected={'Query Templates'} onChoose={this.handleChooseTemplate} className="query-template"/>
       </div>
     )
   },
 
-  renderStatus(rawStatus) {
-    if (!rawStatus) {
+  renderStatus(status) {
+    if (!status) {
       return (
         <div className="raw-text--status"></div>
       )
     }
 
-    if (rawStatus.loading) {
+    if (status.loading) {
       return (
         <div className="raw-text--status">
           <LoadingDots />
@@ -88,9 +88,9 @@ const RawQueryEditor = React.createClass({
     }
 
     return (
-      <div className={classNames("raw-text--status", {"raw-text--error": rawStatus.error, "raw-text--success": rawStatus.success, "raw-text--warning": rawStatus.warn})}>
-        <span className={classNames("icon", {stop: rawStatus.error, checkmark: rawStatus.success, "alert-triangle": rawStatus.warn})}></span>
-        {rawStatus.error || rawStatus.warn || rawStatus.success}
+      <div className={classNames("raw-text--status", {"raw-text--error": status.error, "raw-text--success": status.success, "raw-text--warning": status.warn})}>
+        <span className={classNames("icon", {stop: status.error, checkmark: status.success, "alert-triangle": status.warn})}></span>
+        {status.error || status.warn || status.success}
       </div>
     )
   },

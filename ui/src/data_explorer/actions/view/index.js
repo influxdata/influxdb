@@ -129,12 +129,12 @@ export function updateRawQuery(queryID, text) {
   }
 }
 
-export function editRawQueryStatus(queryID, rawStatus) {
+export function editQueryStatus(queryID, status) {
   return {
-    type: 'EDIT_RAW_QUERY_STATUS',
+    type: 'EDIT_QUERY_STATUS',
     payload: {
       queryID,
-      rawStatus,
+      status,
     },
   }
 }
