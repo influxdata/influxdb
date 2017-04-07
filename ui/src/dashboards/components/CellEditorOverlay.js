@@ -117,7 +117,7 @@ class CellEditorOverlay extends Component {
             cellName={cellWorkingName}
           />
           <ResizeBottom>
-            <div>
+            <div style={{display: 'flex', flexDirection: 'column', height: '100%'}}>
               <OverlayControls
                 selectedGraphType={cellWorkingType}
                 onSelectGraphType={this.handleSelectGraphType}
