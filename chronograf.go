@@ -2,22 +2,22 @@ package chronograf
 
 import (
 	"context"
+	"io"
 	"net/http"
-	"time"
 )
 
 // General errors.
 const (
-	ErrUpstreamTimeout     = Error("request to backend timed out")
-	ErrExplorationNotFound = Error("exploration not found")
-	ErrSourceNotFound      = Error("source not found")
-	ErrServerNotFound      = Error("server not found")
-	ErrLayoutNotFound      = Error("layout not found")
-	ErrDashboardNotFound   = Error("dashboard not found")
-	ErrUserNotFound        = Error("user not found")
-	ErrLayoutInvalid       = Error("layout is invalid")
-	ErrAlertNotFound       = Error("alert not found")
-	ErrAuthentication      = Error("user not authenticated")
+	ErrUpstreamTimeout   = Error("request to backend timed out")
+	ErrSourceNotFound    = Error("source not found")
+	ErrServerNotFound    = Error("server not found")
+	ErrLayoutNotFound    = Error("layout not found")
+	ErrDashboardNotFound = Error("dashboard not found")
+	ErrUserNotFound      = Error("user not found")
+	ErrLayoutInvalid     = Error("layout is invalid")
+	ErrAlertNotFound     = Error("alert not found")
+	ErrAuthentication    = Error("user not authenticated")
+	ErrUninitialized     = Error("client uninitialized. Call Open() method")
 )
 
 // Error is a domain error encountered while processing chronograf requests
@@ -33,17 +33,53 @@ func (e Error) Error() string {
 type Logger interface {
 	Debug(...interface{})
 	Info(...interface{})
-	Warn(...interface{})
 	Error(...interface{})
-	Fatal(...interface{})
-	Panic(...interface{})
 
 	WithField(string, interface{}) Logger
+
+	// Logger can be transformed into an io.Writer.
+	// That writer is the end of an io.Pipe and it is your responsibility to close it.
+	Writer() *io.PipeWriter
+}
+
+// Router is an abstracted Router based on the API provided by the
+// julienschmidt/httprouter package.
+type Router interface {
+	http.Handler
+	GET(string, http.HandlerFunc)
+	PATCH(string, http.HandlerFunc)
+	POST(string, http.HandlerFunc)
+	DELETE(string, http.HandlerFunc)
+	PUT(string, http.HandlerFunc)
+
+	Handler(string, string, http.Handler)
 }
 
 // Assets returns a handler to serve the website.
 type Assets interface {
 	Handler() http.Handler
+}
+
+// Supported time-series databases
+const (
+	// InfluxDB is the open-source time-series database
+	InfluxDB = "influx"
+	// InfluxEnteprise is the clustered HA time-series database
+	InfluxEnterprise = "influx-enterprise"
+	// InfluxRelay is the basic HA layer over InfluxDB
+	InfluxRelay = "influx-relay"
+)
+
+// TSDBStatus represents the current status of a time series database
+type TSDBStatus interface {
+	// Connect will connect to the time series using the information in `Source`.
+	Connect(ctx context.Context, src *Source) error
+	// Ping returns version and TSDB type of time series database if reachable.
+	Ping(context.Context) error
+	// Version returns the version of the TSDB database
+	Version(context.Context) (string, error)
+	// Type returns the type of the TSDB database
+	Type(context.Context) (string, error)
 }
 
 // TimeSeries represents a queryable time series database.
@@ -52,6 +88,33 @@ type TimeSeries interface {
 	Query(context.Context, Query) (Response, error)
 	// Connect will connect to the time series using the information in `Source`.
 	Connect(context.Context, *Source) error
+	// UsersStore represents the user accounts within the TimeSeries database
+	Users(context.Context) UsersStore
+	// Permissions returns all valid names permissions in this database
+	Permissions(context.Context) Permissions
+	// Roles represents the roles associated with this TimesSeriesDatabase
+	Roles(context.Context) (RolesStore, error)
+}
+
+// Role is a restricted set of permissions assigned to a set of users.
+type Role struct {
+	Name        string      `json:"name"`
+	Permissions Permissions `json:"permissions,omitempty"`
+	Users       []User      `json:"users,omitempty"`
+}
+
+// RolesStore is the Storage and retrieval of authentication information
+type RolesStore interface {
+	// All lists all roles from the RolesStore
+	All(context.Context) ([]Role, error)
+	// Create a new Role in the RolesStore
+	Add(context.Context, *Role) (*Role, error)
+	// Delete the Role from the RolesStore
+	Delete(context.Context, *Role) error
+	// Get retrieves a role if name exists.
+	Get(ctx context.Context, name string) (*Role, error)
+	// Update the roles' users or permissions
+	Update(context.Context, *Role) error
 }
 
 // Range represents an upper and lower bound for data
@@ -71,6 +134,15 @@ type Query struct {
 	Range    *Range   `json:"range,omitempty"`    // Range is the default Y-Axis range for the data
 }
 
+// DashboardQuery includes state for the query builder.  This is a transition
+// struct while we move to the full InfluxQL AST
+type DashboardQuery struct {
+	Command     string      `json:"query"`                 // Command is the query itself
+	Label       string      `json:"label,omitempty"`       // Label is the Y-Axis label for the data
+	Range       *Range      `json:"range,omitempty"`       // Range is the default Y-Axis range for the data
+	QueryConfig QueryConfig `json:"queryConfig,omitempty"` // QueryConfig represents the query state that is understood by the data explorer
+}
+
 // Response is the result of a query against a TimeSeries
 type Response interface {
 	MarshalJSON() ([]byte, error)
@@ -78,12 +150,13 @@ type Response interface {
 
 // Source is connection information to a time-series data store.
 type Source struct {
-	ID                 int    `json:"id,omitempty,string"`          // ID is the unique ID of the source
+	ID                 int    `json:"id,string"`                    // ID is the unique ID of the source
 	Name               string `json:"name"`                         // Name is the user-defined name for the source
 	Type               string `json:"type,omitempty"`               // Type specifies which kinds of source (enterprise vs oss)
 	Username           string `json:"username,omitempty"`           // Username is the username to connect to the source
 	Password           string `json:"password,omitempty"`           // Password is in CLEARTEXT
 	URL                string `json:"url"`                          // URL are the connections to the source
+	MetaURL            string `json:"metaUrl,omitempty"`            // MetaURL is the url for the meta node
 	InsecureSkipVerify bool   `json:"insecureSkipVerify,omitempty"` // InsecureSkipVerify as true means any certificate presented by the source is accepted.
 	Default            bool   `json:"default"`                      // Default specifies the default source for the application
 	Telegraf           string `json:"telegraf"`                     // Telegraf is the db telegraf is written to.  By default it is "telegraf"
@@ -105,14 +178,16 @@ type SourcesStore interface {
 
 // AlertRule represents rules for building a tickscript alerting task
 type AlertRule struct {
-	ID            string        `json:"id,omitempty"` // ID is the unique ID of the alert
-	Query         QueryConfig   `json:"query"`        // Query is the filter of data for the alert.
-	Every         string        `json:"every"`        // Every how often to check for the alerting criteria
-	Alerts        []string      `json:"alerts"`       // AlertServices name all the services to notify (e.g. pagerduty)
-	Message       string        `json:"message"`      // Message included with alert
-	Trigger       string        `json:"trigger"`      // Trigger is a type that defines when to trigger the alert
-	TriggerValues TriggerValues `json:"values"`       // Defines the values that cause the alert to trigger
-	Name          string        `json:"name"`         // Name is the user-defined name for the alert
+	ID            string          `json:"id,omitempty"`         // ID is the unique ID of the alert
+	Query         QueryConfig     `json:"query"`                // Query is the filter of data for the alert.
+	Every         string          `json:"every"`                // Every how often to check for the alerting criteria
+	Alerts        []string        `json:"alerts"`               // Alerts name all the services to notify (e.g. pagerduty)
+	AlertNodes    []KapacitorNode `json:"alertNodes,omitempty"` // AlertNodes define additional arguments to alerts
+	Message       string          `json:"message"`              // Message included with alert
+	Details       string          `json:"details"`              // Details is generally used for the Email alert.  If empty will not be added.
+	Trigger       string          `json:"trigger"`              // Trigger is a type that defines when to trigger the alert
+	TriggerValues TriggerValues   `json:"values"`               // Defines the values that cause the alert to trigger
+	Name          string          `json:"name"`                 // Name is the user-defined name for the alert
 }
 
 // AlertRulesStore stores rules for building tickscript alerting tasks
@@ -173,6 +248,20 @@ type QueryConfig struct {
 	RawText         string              `json:"rawText,omitempty"`
 }
 
+// KapacitorNode adds arguments and properties to an alert
+type KapacitorNode struct {
+	Name       string              `json:"name"`
+	Args       []string            `json:"args"`
+	Properties []KapacitorProperty `json:"properties"`
+	// In the future we could add chaining methods here.
+}
+
+// KapacitorProperty modifies the node they are called on
+type KapacitorProperty struct {
+	Name string   `json:"name"`
+	Args []string `json:"args"`
+}
+
 // Server represents a proxy connection to an HTTP server
 type Server struct {
 	ID       int    // ID is the unique ID of the server
@@ -203,27 +292,80 @@ type ID interface {
 	Generate() (string, error)
 }
 
-// UserID is a unique ID for a source user.
-type UserID int
+const (
+	// AllScope grants permission for all databases.
+	AllScope Scope = "all"
+	// DBScope grants permissions for a specific database
+	DBScope Scope = "database"
+)
+
+// Permission is a specific allowance for User or Role bound to a
+// scope of the data source
+type Permission struct {
+	Scope   Scope      `json:"scope"`
+	Name    string     `json:"name,omitempty"`
+	Allowed Allowances `json:"allowed"`
+}
+
+// Permissions represent the entire set of permissions a User or Role may have
+type Permissions []Permission
+
+// Allowances defines what actions a user can have on a scoped permission
+type Allowances []string
+
+// Scope defines the location of access of a permission
+type Scope string
 
 // User represents an authenticated user.
 type User struct {
-	ID    UserID `json:"id"`
-	Email string `json:"email"`
+	Name        string      `json:"name"`
+	Passwd      string      `json:"password"`
+	Permissions Permissions `json:"permissions,omitempty"`
+	Roles       []Role      `json:"roles,omitempty"`
 }
 
 // UsersStore is the Storage and retrieval of authentication information
 type UsersStore interface {
+	// All lists all users from the UsersStore
+	All(context.Context) ([]User, error)
 	// Create a new User in the UsersStore
 	Add(context.Context, *User) (*User, error)
 	// Delete the User from the UsersStore
 	Delete(context.Context, *User) error
-	// Get retrieves a user if `ID` exists.
-	Get(ctx context.Context, ID UserID) (*User, error)
+	// Get retrieves a user if name exists.
+	Get(ctx context.Context, name string) (*User, error)
 	// Update the user's permissions or roles
 	Update(context.Context, *User) error
-	// FindByEmail will retrieve a user by email address.
-	FindByEmail(ctx context.Context, Email string) (*User, error)
+}
+
+// Database represents a database in a time series source
+type Database struct {
+	Name          string `json:"name"`                    // a unique string identifier for the database
+	Duration      string `json:"duration,omitempty"`      // the duration (when creating a default retention policy)
+	Replication   int32  `json:"replication,omitempty"`   // the replication factor (when creating a default retention policy)
+	ShardDuration string `json:"shardDuration,omitempty"` // the shard duration (when creating a default retention policy)
+}
+
+// RetentionPolicy represents a retention policy in a time series source
+type RetentionPolicy struct {
+	Name          string `json:"name"`                    // a unique string identifier for the retention policy
+	Duration      string `json:"duration,omitempty"`      // the duration
+	Replication   int32  `json:"replication,omitempty"`   // the replication factor
+	ShardDuration string `json:"shardDuration,omitempty"` // the shard duration
+	Default       bool   `json:"isDefault,omitempty"`     // whether the RP should be the default
+}
+
+// Databases represents a databases in a time series source
+type Databases interface {
+	// All lists all databases
+	AllDB(context.Context) ([]Database, error)
+	Connect(context.Context, *Source) error
+	CreateDB(context.Context, *Database) (*Database, error)
+	DropDB(context.Context, string) error
+	AllRP(context.Context, string) ([]RetentionPolicy, error)
+	CreateRP(context.Context, string, *RetentionPolicy) (*RetentionPolicy, error)
+	UpdateRP(context.Context, string, string, *RetentionPolicy) (*RetentionPolicy, error)
+	DropRP(context.Context, string, string) error
 }
 
 // DashboardID is the dashboard ID
@@ -238,13 +380,14 @@ type Dashboard struct {
 
 // DashboardCell holds visual and query information for a cell
 type DashboardCell struct {
-	X       int32    `json:"x"`
-	Y       int32    `json:"y"`
-	W       int32    `json:"w"`
-	H       int32    `json:"h"`
-	Name    string   `json:"name"`
-	Queries []Query `json:"queries"`
-	Type    string   `json:"type"`
+	ID      string           `json:"i"`
+	X       int32            `json:"x"`
+	Y       int32            `json:"y"`
+	W       int32            `json:"w"`
+	H       int32            `json:"h"`
+	Name    string           `json:"name"`
+	Queries []DashboardQuery `json:"queries"`
+	Type    string           `json:"type"`
 }
 
 // DashboardsStore is the storage and retrieval of dashboards
@@ -259,34 +402,6 @@ type DashboardsStore interface {
 	Get(ctx context.Context, id DashboardID) (Dashboard, error)
 	// Update replaces the dashboard information
 	Update(context.Context, Dashboard) error
-}
-
-// ExplorationID is a unique ID for an Exploration.
-type ExplorationID int
-
-// Exploration is a serialization of front-end Data Explorer.
-type Exploration struct {
-	ID        ExplorationID
-	Name      string    // User provided name of the Exploration.
-	UserID    UserID    // UserID is the owner of this Exploration.
-	Data      string    // Opaque blob of JSON data.
-	CreatedAt time.Time // Time the exploration was first created.
-	UpdatedAt time.Time // Latest time the exploration was updated.
-	Default   bool      // Flags an exploration as the default.
-}
-
-// ExplorationStore stores front-end serializations of data explorer sessions.
-type ExplorationStore interface {
-	// Search the ExplorationStore for each Exploration owned by `UserID`.
-	Query(ctx context.Context, userID UserID) ([]*Exploration, error)
-	// Create a new Exploration in the ExplorationStore.
-	Add(context.Context, *Exploration) (*Exploration, error)
-	// Delete the Exploration from the ExplorationStore.
-	Delete(context.Context, *Exploration) error
-	// Retrieve an Exploration if `ID` exists.
-	Get(ctx context.Context, ID ExplorationID) (*Exploration, error)
-	// Update the Exploration; will also update the `UpdatedAt` time.
-	Update(context.Context, *Exploration) error
 }
 
 // Cell is a rectangle and multiple time series queries to visualize.
@@ -322,26 +437,4 @@ type LayoutStore interface {
 	Get(ctx context.Context, ID string) (Layout, error)
 	// Update the dashboard in the store.
 	Update(context.Context, Layout) error
-}
-
-// Principal is any entity that can be authenticated
-type Principal string
-
-// PrincipalKey is used to pass principal
-// via context.Context to request-scoped
-// functions.
-const PrincipalKey Principal = "principal"
-
-// Authenticator represents a service for authenticating users.
-type Authenticator interface {
-	// Authenticate returns User associated with token if successful.
-	Authenticate(ctx context.Context, token string) (Principal, error)
-	// Token generates a valid token for Principal lasting a duration
-	Token(context.Context, Principal, time.Duration) (string, error)
-}
-
-// TokenExtractor extracts tokens from http requests
-type TokenExtractor interface {
-	// Extract will return the token or an error.
-	Extract(r *http.Request) (string, error)
 }

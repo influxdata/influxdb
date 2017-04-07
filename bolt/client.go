@@ -1,6 +1,7 @@
 package bolt
 
 import (
+	"context"
 	"time"
 
 	"github.com/boltdb/bolt"
@@ -15,18 +16,17 @@ type Client struct {
 	Now       func() time.Time
 	LayoutIDs chronograf.ID
 
-	ExplorationStore *ExplorationStore
-	SourcesStore     *SourcesStore
-	ServersStore     *ServersStore
-	LayoutStore      *LayoutStore
-	UsersStore       *UsersStore
-	AlertsStore      *AlertsStore
-	DashboardsStore  *DashboardsStore
+	SourcesStore    *SourcesStore
+	ServersStore    *ServersStore
+	LayoutStore     *LayoutStore
+	UsersStore      *UsersStore
+	AlertsStore     *AlertsStore
+	DashboardsStore *DashboardsStore
 }
 
+// NewClient initializes all stores
 func NewClient() *Client {
 	c := &Client{Now: time.Now}
-	c.ExplorationStore = &ExplorationStore{client: c}
 	c.SourcesStore = &SourcesStore{client: c}
 	c.ServersStore = &ServersStore{client: c}
 	c.AlertsStore = &AlertsStore{client: c}
@@ -35,12 +35,15 @@ func NewClient() *Client {
 		client: c,
 		IDs:    &uuid.V4{},
 	}
-	c.DashboardsStore = &DashboardsStore{client: c}
+	c.DashboardsStore = &DashboardsStore{
+		client: c,
+		IDs:    &uuid.V4{},
+	}
 	return c
 }
 
 // Open and initialize boltDB. Initial buckets are created if they do not exist.
-func (c *Client) Open() error {
+func (c *Client) Open(ctx context.Context) error {
 	// Open database file.
 	db, err := bolt.Open(c.Path, 0600, &bolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
@@ -49,10 +52,6 @@ func (c *Client) Open() error {
 	c.db = db
 
 	if err := c.db.Update(func(tx *bolt.Tx) error {
-		// Always create explorations bucket.
-		if _, err := tx.CreateBucketIfNotExists(ExplorationBucket); err != nil {
-			return err
-		}
 		// Always create Sources bucket.
 		if _, err := tx.CreateBucketIfNotExists(SourcesBucket); err != nil {
 			return err
@@ -82,9 +81,11 @@ func (c *Client) Open() error {
 		return err
 	}
 
-	return nil
+	// Runtime migrations
+	return c.DashboardsStore.Migrate(ctx)
 }
 
+// Close the connection to the bolt database
 func (c *Client) Close() error {
 	if c.db != nil {
 		return c.db.Close()

@@ -1,24 +1,22 @@
-import React, {PropTypes} from 'react';
-import classNames from 'classnames';
-import _ from 'lodash';
-import selectStatement from '../utils/influxql/select';
+import React, {PropTypes} from 'react'
+import buildInfluxQLQuery from 'utils/influxql'
 
-import DatabaseList from './DatabaseList';
-import MeasurementList from './MeasurementList';
-import FieldList from './FieldList';
-import TagList from './TagList';
-import RawQueryEditor from './RawQueryEditor';
+import DatabaseList from './DatabaseList'
+import MeasurementList from './MeasurementList'
+import FieldList from './FieldList'
+import TagList from './TagList'
+import RawQueryEditor from './RawQueryEditor'
 
-const DB_TAB = 'databases';
-const MEASUREMENTS_TAB = 'measurments';
-const FIELDS_TAB = 'fields';
-const TAGS_TAB = 'tags';
+const {
+  string,
+  shape,
+  func,
+} = PropTypes
 
-const {string, shape, func} = PropTypes;
 const QueryEditor = React.createClass({
   propTypes: {
     query: shape({
-      id: string.isRequired,
+      id: string,
     }).isRequired,
     timeRange: shape({
       upper: string,
@@ -33,148 +31,100 @@ const QueryEditor = React.createClass({
       toggleField: func.isRequired,
       groupByTime: func.isRequired,
       toggleTagAcceptance: func.isRequired,
+      editRawText: func.isRequired,
     }).isRequired,
   },
 
-  getInitialState() {
-    return {
-      activeTab: DB_TAB,
-      database: null,
-      measurement: null,
-    };
-  },
-
-  componentWillReceiveProps(nextProps) {
-    const changingQueries = this.props.query.id !== nextProps.query.id;
-    if (changingQueries) {
-      this.setState({activeTab: DB_TAB});
-    }
-  },
-
   handleChooseNamespace(namespace) {
-    this.props.actions.chooseNamespace(this.props.query.id, namespace);
-
-    this.setState({activeTab: MEASUREMENTS_TAB});
+    this.props.actions.chooseNamespace(this.props.query.id, namespace)
   },
 
   handleChooseMeasurement(measurement) {
-    this.props.actions.chooseMeasurement(this.props.query.id, measurement);
-
-    this.setState({activeTab: FIELDS_TAB});
+    this.props.actions.chooseMeasurement(this.props.query.id, measurement)
   },
 
   handleToggleField(field) {
-    this.props.actions.toggleField(this.props.query.id, field);
+    this.props.actions.toggleField(this.props.query.id, field)
   },
 
   handleGroupByTime(time) {
-    this.props.actions.groupByTime(this.props.query.id, time);
+    this.props.actions.groupByTime(this.props.query.id, time)
   },
 
   handleApplyFuncsToField(fieldFunc) {
-    this.props.actions.applyFuncsToField(this.props.query.id, fieldFunc);
+    this.props.actions.applyFuncsToField(this.props.query.id, fieldFunc)
   },
 
   handleChooseTag(tag) {
-    this.props.actions.chooseTag(this.props.query.id, tag);
+    this.props.actions.chooseTag(this.props.query.id, tag)
   },
 
   handleToggleTagAcceptance() {
-    this.props.actions.toggleTagAcceptance(this.props.query.id);
+    this.props.actions.toggleTagAcceptance(this.props.query.id)
   },
 
   handleGroupByTag(tagKey) {
-    this.props.actions.groupByTag(this.props.query.id, tagKey);
+    this.props.actions.groupByTag(this.props.query.id, tagKey)
   },
 
   handleEditRawText(text) {
-    this.props.actions.editRawText(this.props.query.id, text);
-  },
-
-  handleClickTab(tab) {
-    this.setState({activeTab: tab});
+    this.props.actions.editRawText(this.props.query.id, text)
   },
 
   render() {
     return (
-      <div className="panel--tab-contents">
-        {this.renderQuery()}
-        {this.renderLists()}
+      <div className="query-builder--tab-contents">
+        <div>
+          {this.renderQuery()}
+          {this.renderLists()}
+        </div>
       </div>
-    );
+    )
   },
 
   renderQuery() {
-    const {query, timeRange} = this.props;
-    const statement = query.rawText || selectStatement(timeRange, query) || `SELECT "fields" FROM "db"."rp"."measurement"`;
+    const {query, timeRange} = this.props
+    const statement = query.rawText || buildInfluxQLQuery(timeRange, query) || 'Select a database, measurement, and field below.'
 
-    if (!query.rawText) {
+    if (typeof query.rawText !== 'string') {
       return (
-        <div className="qeditor--query-preview">
+        <div className="query-builder--query-preview">
           <pre><code>{statement}</code></pre>
         </div>
-      );
+      )
     }
 
-    return <RawQueryEditor query={query} onUpdate={this.handleEditRawText} />;
+    return <RawQueryEditor query={query} onUpdate={this.handleEditRawText} />
   },
 
   renderLists() {
-    const {activeTab} = this.state;
+    const {query} = this.props
+
     return (
-      <div>
-        <div className="qeditor--tabs">
-          <div className="qeditor--tabs-heading">Schema Explorer</div>
-          <div onClick={_.wrap(DB_TAB, this.handleClickTab)} className={classNames("qeditor--tab", {active: activeTab === DB_TAB})}>Databases</div>
-          <div onClick={_.wrap(MEASUREMENTS_TAB, this.handleClickTab)} className={classNames("qeditor--tab", {active: activeTab === MEASUREMENTS_TAB})}>Measurements</div>
-          <div onClick={_.wrap(FIELDS_TAB, this.handleClickTab)} className={classNames("qeditor--tab", {active: activeTab === FIELDS_TAB})}>Fields</div>
-          <div onClick={_.wrap(TAGS_TAB, this.handleClickTab)} className={classNames("qeditor--tab", {active: activeTab === TAGS_TAB})}>Tags</div>
-        </div>
-        {this.renderList()}
+      <div className="query-builder--columns">
+        <DatabaseList
+          query={query}
+          onChooseNamespace={this.handleChooseNamespace}
+        />
+        <MeasurementList
+          query={query}
+          onChooseMeasurement={this.handleChooseMeasurement}
+        />
+        <FieldList
+          query={query}
+          onToggleField={this.handleToggleField}
+          onGroupByTime={this.handleGroupByTime}
+          applyFuncsToField={this.handleApplyFuncsToField}
+        />
+        <TagList
+          query={query}
+          onChooseTag={this.handleChooseTag}
+          onGroupByTag={this.handleGroupByTag}
+          onToggleTagAcceptance={this.handleToggleTagAcceptance}
+        />
       </div>
-    );
+    )
   },
+})
 
-  renderList() {
-    const {query} = this.props;
-
-    switch (this.state.activeTab) {
-      case DB_TAB:
-        return (
-          <DatabaseList
-            query={query}
-            onChooseNamespace={this.handleChooseNamespace}
-          />
-        );
-      case MEASUREMENTS_TAB:
-        return (
-          <MeasurementList
-            query={query}
-            onChooseMeasurement={this.handleChooseMeasurement}
-          />
-        );
-      case FIELDS_TAB:
-        return (
-          <FieldList
-            query={query}
-            onToggleField={this.handleToggleField}
-            onGroupByTime={this.handleGroupByTime}
-            applyFuncsToField={this.handleApplyFuncsToField}
-          />
-        );
-      case TAGS_TAB:
-        return (
-          <TagList
-            query={query}
-            onChooseTag={this.handleChooseTag}
-            onGroupByTag={this.handleGroupByTag}
-            onToggleTagAcceptance={this.handleToggleTagAcceptance}
-          />
-        );
-      default:
-        return <ul className="qeditor--list"></ul>;
-    }
-  },
-});
-
-export default QueryEditor;
+export default QueryEditor

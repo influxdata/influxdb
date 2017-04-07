@@ -1,4 +1,4 @@
-import React, {PropTypes} from 'react';
+import React, {PropTypes} from 'react'
 
 const PagerDutyConfig = React.createClass({
   propTypes: {
@@ -12,26 +12,26 @@ const PagerDutyConfig = React.createClass({
   },
 
   handleSaveAlert(e) {
-    e.preventDefault();
+    e.preventDefault()
 
     const properties = {
       serviceKey: this.serviceKey.value,
       url: this.url.value,
-    };
+    }
 
-    this.props.onSave(properties);
+    this.props.onSave(properties)
   },
 
   render() {
-    const {options} = this.props.config;
-    const {url} = options;
-    const serviceKey = options['service-key'];
+    const {options} = this.props.config
+    const {url} = options
+    const serviceKey = options['service-key']
 
     return (
       <div>
-        <h4 className="text-center">PagerDuty Alert</h4>
+        <h4 className="text-center no-user-select">PagerDuty Alert</h4>
         <br/>
-        <p>You can have alerts sent to PagerDuty by entering info below.</p>
+        <p className="no-user-select">You can have alerts sent to PagerDuty by entering info below.</p>
         <form onSubmit={this.handleSaveAlert}>
           <div className="form-group col-xs-12">
             <label htmlFor="service-key">Service Key</label>
@@ -49,8 +49,8 @@ const PagerDutyConfig = React.createClass({
           </div>
         </form>
       </div>
-    );
+    )
   },
-});
+})
 
-export default PagerDutyConfig;
+export default PagerDutyConfig

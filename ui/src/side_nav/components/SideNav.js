@@ -1,46 +1,51 @@
-import React, {PropTypes} from 'react';
-import {NavBar, NavBlock, NavHeader, NavListItem} from 'src/side_nav/components/NavItems';
+import React, {PropTypes} from 'react'
+import {NavBar, NavBlock, NavHeader, NavListItem} from 'src/side_nav/components/NavItems'
 
-const {string, shape} = PropTypes;
+const {
+  string,
+  shape,
+  bool,
+} = PropTypes
 const SideNav = React.createClass({
   propTypes: {
     location: string.isRequired,
     sourceID: string.isRequired,
-    explorationID: string,
     me: shape({
-      email: string,
+      name: string,
     }),
+    isHidden: bool.isRequired,
   },
 
   render() {
-    const {me, location, sourceID, explorationID} = this.props;
-    const sourcePrefix = `/sources/${sourceID}`;
-    const explorationSuffix = explorationID ? `/${explorationID}` : '';
-    const dataExplorerLink = `${sourcePrefix}/chronograf/data-explorer${explorationSuffix}`;
+    const {me, location, sourceID, isHidden} = this.props
+    const sourcePrefix = `/sources/${sourceID}`
+    const dataExplorerLink = `${sourcePrefix}/chronograf/data-explorer`
 
-    const loggedIn = !!(me && me.email);
+    const loggedIn = !!(me && me.name)
 
-    return (
+    return isHidden ? null : (
       <NavBar location={location}>
         <div className="sidebar__logo">
           <a href="/"><span className="icon cubo-uniform"></span></a>
         </div>
-        <NavBlock icon="cpu" link={`${sourcePrefix}/hosts`}>
-          <NavHeader link={`${sourcePrefix}/hosts`} title="Infrastructure" />
-          <NavListItem link={`${sourcePrefix}/hosts`}>Host List</NavListItem>
-          <NavListItem link={`${sourcePrefix}/kubernetes`}>Kubernetes Dashboard</NavListItem>
+        <NavBlock icon="cubo-node" link={`${sourcePrefix}/hosts`}>
+          <NavHeader link={`${sourcePrefix}/hosts`} title="Host List" />
         </NavBlock>
         <NavBlock icon="graphline" link={dataExplorerLink}>
-          <NavHeader link={dataExplorerLink} title={'Data'} />
-          <NavListItem link={dataExplorerLink}>Explorer</NavListItem>
-          <NavListItem link={`${sourcePrefix}/dashboards`}>Dashboards</NavListItem>
+          <NavHeader link={dataExplorerLink} title="Data Explorer" />
         </NavBlock>
-        <NavBlock matcher="alerts" icon="pulse-b" link={`${sourcePrefix}/alerts`}>
+        <NavBlock icon="dash-h" link={`${sourcePrefix}/dashboards`}>
+          <NavHeader link={`${sourcePrefix}/dashboards`} title={'Dashboards'} />
+        </NavBlock>
+        <NavBlock matcher="alerts" icon="alert-triangle" link={`${sourcePrefix}/alerts`}>
           <NavHeader link={`${sourcePrefix}/alerts`} title="Alerting" />
           <NavListItem link={`${sourcePrefix}/alerts`}>Alert History</NavListItem>
           <NavListItem link={`${sourcePrefix}/alert-rules`}>Kapacitor Rules</NavListItem>
         </NavBlock>
-        <NavBlock icon="access-key" link={`${sourcePrefix}/manage-sources`}>
+        <NavBlock icon="crown2" link={`${sourcePrefix}/admin`}>
+          <NavHeader link={`${sourcePrefix}/admin`} title="Admin" />
+        </NavBlock>
+        <NavBlock icon="cog-thick" link={`${sourcePrefix}/manage-sources`}>
           <NavHeader link={`${sourcePrefix}/manage-sources`} title="Configuration" />
           <NavListItem link={`${sourcePrefix}/manage-sources`}>InfluxDB</NavListItem>
           <NavListItem link={`${sourcePrefix}/kapacitor-config`}>Kapacitor</NavListItem>
@@ -51,8 +56,8 @@ const SideNav = React.createClass({
         </NavBlock>
         ) : null}
       </NavBar>
-    );
+    )
   },
-});
+})
 
-export default SideNav;
+export default SideNav

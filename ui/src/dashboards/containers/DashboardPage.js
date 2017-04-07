@@ -1,111 +1,275 @@
-import React, {PropTypes} from 'react';
-import ReactTooltip from 'react-tooltip';
+import React, {PropTypes} from 'react'
+import {Link} from 'react-router'
+import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux'
 
-import LayoutRenderer from 'shared/components/LayoutRenderer';
-import TimeRangeDropdown from '../../shared/components/TimeRangeDropdown';
-import timeRanges from 'hson!../../shared/data/timeRanges.hson';
+import CellEditorOverlay from 'src/dashboards/components/CellEditorOverlay'
+import DashboardHeader from 'src/dashboards/components/DashboardHeader'
+import DashboardHeaderEdit from 'src/dashboards/components/DashboardHeaderEdit'
+import Dashboard from 'src/dashboards/components/Dashboard'
 
-import {getDashboard} from '../apis';
-import {getSource} from 'shared/apis';
+import * as dashboardActionCreators from 'src/dashboards/actions'
+
+import {setAutoRefresh} from 'shared/actions/app'
+import {presentationButtonDispatcher} from 'shared/dispatchers'
+
+const {
+  arrayOf,
+  bool,
+  func,
+  number,
+  shape,
+  string,
+} = PropTypes
 
 const DashboardPage = React.createClass({
   propTypes: {
-    params: PropTypes.shape({
-      sourceID: PropTypes.string.isRequired,
-      dashboardID: PropTypes.string.isRequired,
+    source: shape({
+      links: shape({
+        proxy: string,
+        self: string,
+      }),
+    }),
+    params: shape({
+      sourceID: string.isRequired,
+      dashboardID: string.isRequired,
+    }).isRequired,
+    location: shape({
+      pathname: string.isRequired,
+    }).isRequired,
+    dashboardActions: shape({
+      putDashboard: func.isRequired,
+      getDashboardsAsync: func.isRequired,
+      setTimeRange: func.isRequired,
+      addDashboardCellAsync: func.isRequired,
+      editDashboardCell: func.isRequired,
+      renameDashboardCell: func.isRequired,
+    }).isRequired,
+    dashboards: arrayOf(shape({
+      id: number.isRequired,
+      cells: arrayOf(shape({})).isRequired,
+    })),
+    handleChooseAutoRefresh: func.isRequired,
+    autoRefresh: number.isRequired,
+    timeRange: shape({}).isRequired,
+    inPresentationMode: bool.isRequired,
+    handleClickPresentationButton: func,
+  },
+
+  childContextTypes: {
+    source: shape({
+      links: shape({
+        proxy: string.isRequired,
+        self: string.isRequired,
+      }).isRequired,
     }).isRequired,
   },
 
-  getInitialState() {
-    const fifteenMinutesIndex = 1;
+  getChildContext() {
+    return {source: this.props.source}
+  },
 
+  getInitialState() {
     return {
-      timeRange: timeRanges[fifteenMinutesIndex],
-    };
+      selectedCell: null,
+      isEditMode: false,
+    }
   },
 
   componentDidMount() {
-    getDashboard(this.props.params.dashboardID).then((resp) => {
-      getSource(this.props.params.sourceID).then(({data: source}) => {
-        this.setState({
-          dashboard: resp.data,
-          source,
-        });
-      });
-    });
+    const {
+      params: {dashboardID},
+      dashboardActions: {getDashboardsAsync},
+    } = this.props
+
+    getDashboardsAsync(dashboardID)
   },
 
-  renderDashboard(dashboard) {
-    const autoRefreshMs = 15000;
-    const {timeRange} = this.state;
-    const {source} = this.state;
+  handleDismissOverlay() {
+    this.setState({selectedCell: null})
+  },
 
-    const cellWidth = 4;
-    const cellHeight = 4;
+  handleSaveEditedCell(newCell) {
+    this.props.dashboardActions.updateDashboardCell(this.getActiveDashboard(), newCell)
+    .then(this.handleDismissOverlay)
+  },
 
-    const cells = dashboard.cells.map((cell, i) => {
-      const dashboardCell = Object.assign(cell, {
-        w: cellWidth,
-        h: cellHeight,
-        queries: cell.queries,
-        i: i.toString(),
-      });
-
-      dashboardCell.queries.forEach((q) => {
-        q.text = q.query;
-        q.database = source.telegraf;
-      });
-      return dashboardCell;
-    });
-
-    return (
-      <LayoutRenderer
-        timeRange={timeRange}
-        cells={cells}
-        autoRefreshMs={autoRefreshMs}
-        source={source.links.proxy}
-      />
-    );
+  handleSummonOverlayTechnologies(cell) {
+    this.setState({selectedCell: cell})
   },
 
   handleChooseTimeRange({lower}) {
-    const timeRange = timeRanges.find((range) => range.queryValue === lower);
-    this.setState({timeRange});
+    this.props.dashboardActions.setTimeRange({lower, upper: null})
+  },
+
+  handleUpdatePosition(cells) {
+    const newDashboard = {...this.getActiveDashboard(), cells}
+    this.props.dashboardActions.updateDashboard(newDashboard)
+    this.props.dashboardActions.putDashboard(newDashboard)
+  },
+
+  handleAddCell() {
+    this.props.dashboardActions.addDashboardCellAsync(this.getActiveDashboard())
+  },
+
+  handleEditDashboard() {
+    this.setState({isEditMode: true})
+  },
+
+  handleCancelEditDashboard() {
+    this.setState({isEditMode: false})
+  },
+
+  handleRenameDashboard(name) {
+    this.setState({isEditMode: false})
+    const newDashboard = {...this.getActiveDashboard(), name}
+    this.props.dashboardActions.updateDashboard(newDashboard)
+    this.props.dashboardActions.putDashboard(newDashboard)
+  },
+
+  // Places cell into editing mode.
+  handleEditDashboardCell(x, y, isEditing) {
+    return () => {
+      this.props.dashboardActions.editDashboardCell(this.getActiveDashboard(), x, y, !isEditing) /* eslint-disable no-negated-condition */
+    }
+  },
+
+  handleRenameDashboardCell(x, y) {
+    return (evt) => {
+      this.props.dashboardActions.renameDashboardCell(this.getActiveDashboard(), x, y, evt.target.value)
+    }
+  },
+
+  handleUpdateDashboardCell(newCell) {
+    return () => {
+      this.props.dashboardActions.editDashboardCell(this.getActiveDashboard(), newCell.x, newCell.y, false)
+      this.props.dashboardActions.putDashboard(this.getActiveDashboard())
+    }
+  },
+
+  handleDeleteDashboardCell(cell) {
+    this.props.dashboardActions.deleteDashboardCellAsync(cell)
+  },
+
+  getActiveDashboard() {
+    const {params: {dashboardID}, dashboards} = this.props
+    return dashboards.find(d => d.id === +dashboardID)
   },
 
   render() {
-    const {dashboard, timeRange} = this.state;
-    const dashboardName = dashboard ? dashboard.name : '';
+    const {
+      dashboards,
+      params: {sourceID, dashboardID},
+      inPresentationMode,
+      handleClickPresentationButton,
+      source,
+      handleChooseAutoRefresh,
+      autoRefresh,
+      timeRange,
+    } = this.props
+
+    const dashboard = dashboards.find(d => d.id === +dashboardID)
+
+    const {
+      selectedCell,
+      isEditMode,
+    } = this.state
 
     return (
       <div className="page">
-        <div className="page-header full-width">
-          <div className="page-header__container">
-            <div className="page-header__left">
-              <div className="dropdown page-header-dropdown">
-                <button className="dropdown-toggle" type="button" data-toggle="dropdown">
-                  <span className="button-text">{dashboardName}</span>
-                </button>
-              </div>
-            </div>
-            <div className="page-header__right">
-              <div className="btn btn-info btn-sm" data-for="graph-tips-tooltip" data-tip="<p><code>Click + Drag</code> Zoom in (X or Y)</p><p><code>Shift + Click</code> Pan Graph Window</p><p><code>Double Click</code> Reset Graph Window</p>">
-                <span className="icon heart"></span>
-                Graph Tips
-              </div>
-              <ReactTooltip id="graph-tips-tooltip" effect="solid" html={true} offset={{top: 2}} place="bottom" class="influx-tooltip place-bottom" />
-              <TimeRangeDropdown onChooseTimeRange={this.handleChooseTimeRange} selected={timeRange.inputValue} />
-            </div>
-          </div>
-        </div>
-        <div className="page-contents">
-          <div className="container-fluid full-width">
-            { dashboard ? this.renderDashboard(dashboard) : '' }
-          </div>
-        </div>
+        {
+          selectedCell ?
+            <CellEditorOverlay
+              cell={selectedCell}
+              autoRefresh={autoRefresh}
+              timeRange={timeRange}
+              onCancel={this.handleDismissOverlay}
+              onSave={this.handleSaveEditedCell}
+            /> :
+            null
+        }
+        {
+          isEditMode ?
+            <DashboardHeaderEdit
+              dashboard={dashboard}
+              onCancel={this.handleCancelEditDashboard}
+              onSave={this.handleRenameDashboard}
+            /> :
+            <DashboardHeader
+              buttonText={dashboard ? dashboard.name : ''}
+              handleChooseAutoRefresh={handleChooseAutoRefresh}
+              autoRefresh={autoRefresh}
+              timeRange={timeRange}
+              handleChooseTimeRange={this.handleChooseTimeRange}
+              isHidden={inPresentationMode}
+              handleClickPresentationButton={handleClickPresentationButton}
+              dashboard={dashboard}
+              sourceID={sourceID}
+              source={source}
+              onAddCell={this.handleAddCell}
+              onEditDashboard={this.handleEditDashboard}
+            >
+              {
+                dashboards ?
+                dashboards.map((d, i) => {
+                  return (
+                    <li key={i}>
+                      <Link to={`/sources/${sourceID}/dashboards/${d.id}`} className="role-option">
+                        {d.name}
+                      </Link>
+                    </li>
+                  )
+                }) :
+                null
+              }
+            </DashboardHeader>
+        }
+        {
+          dashboard ?
+          <Dashboard
+            dashboard={dashboard}
+            inPresentationMode={inPresentationMode}
+            source={source}
+            autoRefresh={autoRefresh}
+            timeRange={timeRange}
+            onPositionChange={this.handleUpdatePosition}
+            onEditCell={this.handleEditDashboardCell}
+            onRenameCell={this.handleRenameDashboardCell}
+            onUpdateCell={this.handleUpdateDashboardCell}
+            onDeleteCell={this.handleDeleteDashboardCell}
+            onSummonOverlayTechnologies={this.handleSummonOverlayTechnologies}
+          /> :
+          null
+        }
       </div>
-    );
+    )
   },
-});
+})
 
-export default DashboardPage;
+const mapStateToProps = (state) => {
+  const {
+    app: {
+      ephemeral: {inPresentationMode},
+      persisted: {autoRefresh},
+    },
+    dashboardUI: {
+      dashboards,
+      timeRange,
+    },
+  } = state
+
+  return {
+    dashboards,
+    autoRefresh,
+    timeRange,
+    inPresentationMode,
+  }
+}
+
+const mapDispatchToProps = (dispatch) => ({
+  handleChooseAutoRefresh: bindActionCreators(setAutoRefresh, dispatch),
+  handleClickPresentationButton: presentationButtonDispatcher(dispatch),
+  dashboardActions: bindActionCreators(dashboardActionCreators, dispatch),
+})
+
+export default connect(mapStateToProps, mapDispatchToProps)(DashboardPage)

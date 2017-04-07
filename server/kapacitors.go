@@ -349,6 +349,7 @@ func (h *Service) KapacitorRulesPost(w http.ResponseWriter, r *http.Request) {
 			Output:    fmt.Sprintf("/chronograf/v1/sources/%d/kapacitors/%d/proxy?path=%s", srv.SrcID, srv.ID, url.QueryEscape(task.HrefOutput)),
 		},
 		TICKScript: string(task.TICKScript),
+		Status:     "enabled",
 	}
 
 	w.Header().Add("Location", res.Links.Self)
@@ -364,6 +365,7 @@ type alertLinks struct {
 type alertResponse struct {
 	chronograf.AlertRule
 	TICKScript string     `json:"tickscript"`
+	Status     string     `json:"status"`
 	Links      alertLinks `json:"links"`
 }
 
@@ -438,6 +440,94 @@ func (h *Service) KapacitorRulesPut(w http.ResponseWriter, r *http.Request) {
 			Output:    fmt.Sprintf("/chronograf/v1/sources/%d/kapacitors/%d/proxy?path=%s", srv.SrcID, srv.ID, url.QueryEscape(task.HrefOutput)),
 		},
 		TICKScript: string(task.TICKScript),
+		Status:     "enabled",
+	}
+	encodeJSON(w, http.StatusOK, res, h.Logger)
+}
+
+// KapacitorStatus is the current state of a running task
+type KapacitorStatus struct {
+	Status string `json:"status"`
+}
+
+// Valid check if the kapacitor status is enabled or disabled
+func (k *KapacitorStatus) Valid() error {
+	if k.Status == "enabled" || k.Status == "disabled" {
+		return nil
+	}
+	return fmt.Errorf("Invalid Kapacitor status: %s", k.Status)
+}
+
+// KapacitorRulesStatus proxies PATCH to kapacitor to enable/disable tasks
+func (h *Service) KapacitorRulesStatus(w http.ResponseWriter, r *http.Request) {
+	id, err := paramID("kid", r)
+	if err != nil {
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
+		return
+	}
+
+	srcID, err := paramID("id", r)
+	if err != nil {
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
+		return
+	}
+
+	ctx := r.Context()
+	srv, err := h.ServersStore.Get(ctx, id)
+	if err != nil || srv.SrcID != srcID {
+		notFound(w, id, h.Logger)
+		return
+	}
+
+	tid := httprouter.GetParamFromContext(ctx, "tid")
+	c := kapa.Client{
+		URL:      srv.URL,
+		Username: srv.Username,
+		Password: srv.Password,
+		Ticker:   &kapa.Alert{},
+	}
+	var req KapacitorStatus
+	if err = json.NewDecoder(r.Body).Decode(&req); err != nil {
+		invalidJSON(w, h.Logger)
+		return
+	}
+	if err := req.Valid(); err != nil {
+		invalidData(w, err, h.Logger)
+		return
+	}
+
+	// Check if the rule exists and is scoped correctly
+	alert, err := h.AlertRulesStore.Get(ctx, srcID, id, tid)
+	if err != nil {
+		if err == chronograf.ErrAlertNotFound {
+			notFound(w, id, h.Logger)
+			return
+		}
+		Error(w, http.StatusInternalServerError, err.Error(), h.Logger)
+		return
+	}
+
+	var task *kapa.Task
+	if req.Status == "enabled" {
+		task, err = c.Enable(ctx, c.Href(tid))
+	} else {
+		task, err = c.Disable(ctx, c.Href(tid))
+	}
+
+	if err != nil {
+		Error(w, http.StatusInternalServerError, err.Error(), h.Logger)
+		return
+	}
+
+	res := alertResponse{
+		AlertRule: alert,
+		Links: alertLinks{
+			Self:      fmt.Sprintf("/chronograf/v1/sources/%d/kapacitors/%d/rules/%s", srv.SrcID, srv.ID, task.ID),
+			Kapacitor: fmt.Sprintf("/chronograf/v1/sources/%d/kapacitors/%d/proxy?path=%s", srv.SrcID, srv.ID, url.QueryEscape(task.Href)),
+			Output:    fmt.Sprintf("/chronograf/v1/sources/%d/kapacitors/%d/proxy?path=%s", srv.SrcID, srv.ID, url.QueryEscape(task.HrefOutput)),
+		},
+		TICKScript: string(task.TICKScript),
+		Status:     req.Status,
 	}
 	encodeJSON(w, http.StatusOK, res, h.Logger)
 }
@@ -470,7 +560,18 @@ func (h *Service) KapacitorRulesGet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ticker := &kapa.Alert{}
-	c := kapa.Client{}
+	c := kapa.Client{
+		URL:      srv.URL,
+		Username: srv.Username,
+		Password: srv.Password,
+		Ticker:   ticker,
+	}
+	statuses, err := c.AllStatus(ctx)
+	if err != nil {
+		Error(w, http.StatusInternalServerError, err.Error(), h.Logger)
+		return
+	}
+
 	res := allAlertsResponse{
 		Rules: []alertResponse{},
 	}
@@ -481,6 +582,11 @@ func (h *Service) KapacitorRulesGet(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		status, ok := statuses[rule.ID]
+		// The defined rule is not actually in kapacitor
+		if !ok {
+			continue
+		}
 		ar := alertResponse{
 			AlertRule: rule,
 			Links: alertLinks{
@@ -489,6 +595,7 @@ func (h *Service) KapacitorRulesGet(w http.ResponseWriter, r *http.Request) {
 				Output:    fmt.Sprintf("/chronograf/v1/sources/%d/kapacitors/%d/proxy?path=%s", srv.SrcID, srv.ID, url.QueryEscape(c.HrefOutput(rule.ID))),
 			},
 			TICKScript: string(tickscript),
+			Status:     status,
 		}
 		res.Rules = append(res.Rules, ar)
 	}
@@ -532,8 +639,19 @@ func (h *Service) KapacitorRulesID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ticker := &kapa.Alert{}
-	c := kapa.Client{}
+	c := kapa.Client{
+		URL:      srv.URL,
+		Username: srv.Username,
+		Password: srv.Password,
+		Ticker:   ticker,
+	}
 	tickscript, err := ticker.Generate(rule)
+	if err != nil {
+		Error(w, http.StatusInternalServerError, err.Error(), h.Logger)
+		return
+	}
+
+	status, err := c.Status(ctx, c.Href(rule.ID))
 	if err != nil {
 		Error(w, http.StatusInternalServerError, err.Error(), h.Logger)
 		return
@@ -547,6 +665,7 @@ func (h *Service) KapacitorRulesID(w http.ResponseWriter, r *http.Request) {
 			Output:    fmt.Sprintf("/chronograf/v1/sources/%d/kapacitors/%d/proxy?path=%s", srv.SrcID, srv.ID, url.QueryEscape(c.HrefOutput(rule.ID))),
 		},
 		TICKScript: string(tickscript),
+		Status:     status,
 	}
 	encodeJSON(w, http.StatusOK, res, h.Logger)
 }

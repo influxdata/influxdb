@@ -37,9 +37,19 @@ $kapacitor-font-sm: 13px;
   height: (300px + ($kap-padding-sm * 2));
   position: relative;
 
-  > div {
-    padding: 8px 16px;
-    position: relative;
+  & > div {
+    position: absolute;
+    top: 0;
+    left: $kap-padding-sm;
+    width: calc(100% - #{($kap-padding-sm * 2)});
+    height: 100%;
+
+    & > div {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      padding: 8px 16px;
+    }
   }
 
   &:before {
@@ -70,6 +80,7 @@ $kapacitor-font-sm: 13px;
   display: flex;
   align-items: center;
   justify-content: center;
+  @include no-user-select();
 
   p {
     margin: 0;
@@ -91,6 +102,7 @@ $kapacitor-font-sm: 13px;
   font-weight: 400;
   color: $g13-mist;
   position: relative;
+  @include no-user-select();
 
   &:before,
   &:after {
@@ -219,6 +231,34 @@ div.qeditor.kapacitor-metric-selector {
   .kapacitor-tab-list {
     background-color: $kapacitor-graphic-color;
     border-radius: 0 0 $kap-radius-lg $kap-radius-lg;
+
+    .query-builder--column {
+      position: relative;
+      top: initial;
+      left: initial;
+      width: 100%;
+      height: 190px;
+
+      .qeditor--list-header {
+        width: 50%;
+        top: -34px;
+        right: 0;
+        z-index: 5;
+      }
+      .qeditor--list {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+      }
+      .group-by-time-dropdown {
+        width: 70px;
+      }
+    }
+    .query-builder--column-heading {
+      display: none;
+    }
   }
   .qeditor--list {
     overflow: auto;
@@ -345,9 +385,8 @@ div.qeditor.kapacitor-metric-selector {
   }
 }
 
-.alert-message {
+.alert-text {
   border: 2px solid $g3-castle;
-  border-radius: $kap-radius-lg $kap-radius-lg 0 0;
   background-color: $kapacitor-graphic-color;
   margin: 0;
   padding: $kap-padding-sm $kap-padding-lg;
@@ -364,6 +403,7 @@ div.qeditor.kapacitor-metric-selector {
   transition:
     color 0.25s ease,
     border-color 0.25s ease;
+  border-radius: 0;
 
   @include custom-scrollbar($kapacitor-graphic-color,$kapacitor-accent);
 
@@ -382,12 +422,15 @@ div.qeditor.kapacitor-metric-selector {
 }
 
 .alert-message--endpoint {
-  display: flex;
-  align-items: center;
   width: auto;
-  border-top: 2px solid $kapacitor-divider-color;
+  border-radius: $kap-radius-lg $kap-radius-lg 0 0;
+  border-bottom: 2px solid $kapacitor-divider-color;
 
-  > p {
+  & > div {
+    display: flex;
+    align-items: center;
+  }
+  p {
     margin-right: $kap-padding-sm !important;
   }
 }
@@ -398,12 +441,14 @@ div.qeditor.kapacitor-metric-selector {
   align-items: center;
   flex-wrap: wrap;
   border-top: 2px solid $kapacitor-divider-color;
+  border-radius: 0 0 $kap-radius-lg $kap-radius-lg;
 
   > p {
     margin: 0 ($kap-padding-sm - 2px) 0 0;
     font-weight: 600;
     display: inline-block;
     color: $g15-platinum;
+    @include no-user-select();
   }
   > code {
     background-color: $g2-kevlar;
@@ -418,12 +463,27 @@ div.qeditor.kapacitor-metric-selector {
     font-size: ($kapacitor-font-sm - 2px);
     font-weight: 600;
     transition: color 0.25s ease;
+    @include no-user-select();
 
     &:hover {
       color: $c-rainforest;
       cursor: pointer;
     }
   }
+}
+.alert-message--config {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  border-bottom: 2px solid $kapacitor-divider-color;
+
+  & > p {
+    margin-right: ($kap-padding-sm - 2px);
+  }
+}
+.alert-message--email-body {
+  border-bottom: 2px solid $kapacitor-divider-color;
 }
 
 .rule-section--item {
@@ -436,6 +496,7 @@ div.qeditor.kapacitor-metric-selector {
     font-weight: 600;
     display: inline-block;
     color: $g15-platinum;
+    @include no-user-select();
   }
 
   &.top {
@@ -467,6 +528,7 @@ div.qeditor.kapacitor-metric-selector {
   }
 
   > p {
+    @include no-user-select();
     white-space: nowrap;
     font-weight: 600;
     color: $g15-platinum;
@@ -474,6 +536,7 @@ div.qeditor.kapacitor-metric-selector {
     margin-right: ($kap-padding-sm / 2);
   }
   > span {
+    @include no-user-select();
     color: $kapacitor-accent;
     height: $kap-input-height;
     line-height: $kap-input-height;
@@ -562,6 +625,14 @@ div.qeditor.kapacitor-metric-selector {
     &:hover {
       color: $c-honeydew !important;
     }
+  }
+  
+  
+  .size-486 {
+    width: 486px;
+  }
+  .size-384 {
+    width: 384px;
   }
   .size-256 {
     width: 256px;

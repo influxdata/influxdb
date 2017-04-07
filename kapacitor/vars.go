@@ -3,6 +3,7 @@ package kapacitor
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/influxdata/chronograf"
@@ -39,20 +40,17 @@ func Vars(rule chronograf.AlertRule) (string, error) {
 		%s
         var crit = %s
  `
-			return fmt.Sprintf(vars,
-				common,
-				rule.TriggerValues.Value), nil
-		} else {
-			vars := `
+			return fmt.Sprintf(vars, common, formatValue(rule.TriggerValues.Value)), nil
+		}
+		vars := `
 			%s
 					var lower = %s
 					var upper = %s
-	 `
-			return fmt.Sprintf(vars,
-				common,
-				rule.TriggerValues.Value,
-				rule.TriggerValues.RangeValue), nil
-		}
+`
+		return fmt.Sprintf(vars,
+			common,
+			rule.TriggerValues.Value,
+			rule.TriggerValues.RangeValue), nil
 	case Relative:
 		vars := `
 		%s
@@ -100,7 +98,7 @@ func commonVars(rule chronograf.AlertRule) (string, error) {
         var outputMeasurement = '%s'
         var triggerType = '%s'
     `
-	return fmt.Sprintf(common,
+	res := fmt.Sprintf(common,
 		rule.Query.Database,
 		rule.Query.RetentionPolicy,
 		rule.Query.Measurement,
@@ -117,7 +115,14 @@ func commonVars(rule chronograf.AlertRule) (string, error) {
 		RP,
 		Measurement,
 		rule.Trigger,
-	), nil
+	)
+
+	if rule.Details != "" {
+		res += fmt.Sprintf(`
+        var details = '%s'
+    `, rule.Details)
+	}
+	return res, nil
 }
 
 // window is only used if deadman or threshold/relative with aggregate.  Will return empty
@@ -170,4 +175,14 @@ func whereFilter(q chronograf.QueryConfig) string {
 	}
 
 	return "lambda: TRUE"
+}
+
+// formatValue return the same string if a numeric type or if it is a string
+// will return it as a kapacitor formatted single-quoted string
+func formatValue(value string) string {
+	// Test if numeric if it can be converted to a float
+	if _, err := strconv.ParseFloat(value, 64); err == nil {
+		return value
+	}
+	return "'" + value + "'"
 }

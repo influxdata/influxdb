@@ -3,7 +3,7 @@
 	"info": {
 		"title": "Chronograf",
 		"description": "API endpoints for Chronograf",
-		"version": "1.1.0"
+		"version": "1.2.0"
 	},
 	"schemes": [
 		"http"
@@ -272,13 +272,95 @@
 				}
 			}
 		},
-		"/users": {
+		"/sources/{id}/permissions": {
+			"get": {
+				"tags": [
+					"sources",
+					"users"
+				],
+				"summary": "Retrieve possible permissions for this data source",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the data source",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Listing of all possible permissions",
+						"schema": {
+							"$ref": "#/definitions/AllPermissions"
+						}
+					},
+					"404": {
+						"description": "Data source id does not exist.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					},
+					"default": {
+						"description": "A processing or an unexpected error.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					}
+				}
+			}
+		},
+		"/sources/{id}/users": {
+			"get": {
+				"tags": [
+					"sources",
+					"users"
+				],
+				"summary": "Retrieve all data sources users",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the data source",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Listing of all users",
+						"schema": {
+							"$ref": "#/definitions/Users"
+						}
+					},
+					"404": {
+						"description": "Data source id does not exist.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					},
+					"default": {
+						"description": "A processing or an unexpected error.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					}
+				}
+			},
 			"post": {
 				"tags": [
+					"sources",
 					"users"
 				],
 				"summary": "Create new user for this data source",
 				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the data source",
+						"required": true
+					},
 					{
 						"name": "user",
 						"in": "body",
@@ -302,6 +384,12 @@
 							"$ref": "#/definitions/User"
 						}
 					},
+					"404": {
+						"description": "Data source id does not exist.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					},
 					"default": {
 						"description": "A processing or an unexpected error.",
 						"schema": {
@@ -311,12 +399,20 @@
 				}
 			}
 		},
-		"/users/{user_id}": {
+		"/sources/{id}/users/{user_id}": {
 			"get": {
 				"tags": [
+					"sources",
 					"users"
 				],
 				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the data source",
+						"required": true
+					},
 					{
 						"name": "user_id",
 						"in": "path",
@@ -326,7 +422,7 @@
 					}
 				],
 				"summary": "Returns information about a specific user",
-				"description": "Specific User.\n",
+				"description": "Specific User within a data source",
 				"responses": {
 					"200": {
 						"description": "Information relating to the user",
@@ -335,7 +431,7 @@
 						}
 					},
 					"404": {
-						"description": "Unknown user",
+						"description": "Unknown user or unknown source",
 						"schema": {
 							"$ref": "#/definitions/Error"
 						}
@@ -350,10 +446,18 @@
 			},
 			"patch": {
 				"tags": [
+					"sources",
 					"users"
 				],
 				"summary": "Update user configuration",
 				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the data source",
+						"required": true
+					},
 					{
 						"name": "user_id",
 						"in": "path",
@@ -379,7 +483,7 @@
 						}
 					},
 					"404": {
-						"description": "Happens when trying to access a non-existent user.",
+						"description": "Happens when trying to access a non-existent user or source.",
 						"schema": {
 							"$ref": "#/definitions/Error"
 						}
@@ -394,9 +498,17 @@
 			},
 			"delete": {
 				"tags": [
+					"sources",
 					"users"
 				],
 				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the data source",
+						"required": true
+					},
 					{
 						"name": "user_id",
 						"in": "path",
@@ -405,13 +517,13 @@
 						"required": true
 					}
 				],
-				"summary": "This specific user will be removed from the data store",
+				"summary": "This specific user will be removed from the data source",
 				"responses": {
 					"204": {
 						"description": "User has been removed"
 					},
 					"404": {
-						"description": "Unknown user id",
+						"description": "Unknown user id or data source",
 						"schema": {
 							"$ref": "#/definitions/Error"
 						}
@@ -425,37 +537,38 @@
 				}
 			}
 		},
-		"/users/{user_id}/explorations": {
+		"/sources/{id}/roles": {
 			"get": {
 				"tags": [
+					"sources",
 					"users",
-					"explorations"
+					"roles"
 				],
-				"summary": "Returns all explorations for specified user",
+				"summary": "Retrieve all data sources roles.  Available only in Influx Enterprise",
 				"parameters": [
 					{
-						"name": "user_id",
+						"name": "id",
 						"in": "path",
 						"type": "string",
-						"description": "All Data Explorations returned only for this user.",
+						"description": "ID of the data source",
 						"required": true
 					}
 				],
 				"responses": {
 					"200": {
-						"description": "Data Explorations saved sessions for user are returned.",
+						"description": "Listing of all roles",
 						"schema": {
-							"$ref": "#/definitions/Explorations"
+							"$ref": "#/definitions/Roles"
 						}
 					},
 					"404": {
-						"description": "User does not exist.",
+						"description": "Data source id does not exist.",
 						"schema": {
 							"$ref": "#/definitions/Error"
 						}
 					},
 					"default": {
-						"description": "Unexpected internal service error",
+						"description": "A processing or an unexpected error.",
 						"schema": {
 							"$ref": "#/definitions/Error"
 						}
@@ -464,43 +577,44 @@
 			},
 			"post": {
 				"tags": [
+					"sources",
 					"users",
-					"explorations"
+					"roles"
 				],
-				"summary": "Create new named exploration for this user",
+				"summary": "Create new role for this data source",
 				"parameters": [
 					{
-						"name": "user_id",
+						"name": "id",
 						"in": "path",
 						"type": "string",
-						"description": "ID of user to associate this exploration with.",
+						"description": "ID of the data source",
 						"required": true
 					},
 					{
-						"name": "exploration",
+						"name": "roleuser",
 						"in": "body",
-						"description": "Exploration session to save",
+						"description": "Configuration options for new role",
 						"schema": {
-							"$ref": "#/definitions/Exploration"
+							"$ref": "#/definitions/Role"
 						}
 					}
 				],
 				"responses": {
 					"201": {
-						"description": "Successfully created new Exploration session",
+						"description": "Successfully created new role",
 						"headers": {
 							"Location": {
 								"type": "string",
 								"format": "url",
-								"description": "Location of the newly created exploration resource."
+								"description": "Location of the newly created role resource."
 							}
 						},
 						"schema": {
-							"$ref": "#/definitions/Exploration"
+							"$ref": "#/definitions/Role"
 						}
 					},
 					"404": {
-						"description": "User does not exist.",
+						"description": "Data source id does not exist.",
 						"schema": {
 							"$ref": "#/definitions/Error"
 						}
@@ -514,39 +628,40 @@
 				}
 			}
 		},
-		"/users/{user_id}/explorations/{exploration_id}": {
+		"/sources/{id}/roles/{role_id}": {
 			"get": {
 				"tags": [
+					"sources",
 					"users",
-					"explorations"
+					"roles"
 				],
 				"parameters": [
 					{
-						"name": "user_id",
+						"name": "id",
 						"in": "path",
 						"type": "string",
-						"description": "ID of user to associate this exploration with.",
+						"description": "ID of the data source",
 						"required": true
 					},
 					{
-						"name": "exploration_id",
+						"name": "role_id",
 						"in": "path",
 						"type": "string",
-						"description": "ID of the specific exploration.",
+						"description": "ID of the specific role",
 						"required": true
 					}
 				],
-				"summary": "Returns the specified data exploration session",
-				"description": "A data exploration session specifies query information.\n",
+				"summary": "Returns information about a specific role",
+				"description": "Specific role within a data source",
 				"responses": {
 					"200": {
-						"description": "Information relating to the exploration",
+						"description": "Information relating to the role",
 						"schema": {
-							"$ref": "#/definitions/Exploration"
+							"$ref": "#/definitions/Role"
 						}
 					},
 					"404": {
-						"description": "User or exploration does not exist.",
+						"description": "Unknown role or unknown source",
 						"schema": {
 							"$ref": "#/definitions/Error"
 						}
@@ -561,44 +676,45 @@
 			},
 			"patch": {
 				"tags": [
+					"sources",
 					"users",
-					"explorations"
+					"roles"
 				],
-				"summary": "Update exploration configuration",
+				"summary": "Update role configuration",
 				"parameters": [
 					{
-						"name": "user_id",
+						"name": "id",
 						"in": "path",
 						"type": "string",
-						"description": "ID of user",
+						"description": "ID of the data source",
 						"required": true
 					},
 					{
-						"name": "exploration_id",
+						"name": "role_id",
 						"in": "path",
 						"type": "string",
-						"description": "ID of the specific exploration.",
+						"description": "ID of the specific role",
 						"required": true
 					},
 					{
-						"name": "exploration",
+						"name": "config",
 						"in": "body",
-						"description": "Update the exploration information to this.",
-						"required": true,
+						"description": "role configuration",
 						"schema": {
-							"$ref": "#/definitions/Exploration"
-						}
+							"$ref": "#/definitions/Role"
+						},
+						"required": true
 					}
 				],
 				"responses": {
 					"200": {
-						"description": "Exploration's configuration was changed",
+						"description": "Roles's configuration was changed",
 						"schema": {
-							"$ref": "#/definitions/Exploration"
+							"$ref": "#/definitions/Role"
 						}
 					},
 					"404": {
-						"description": "Data source id, user, or exploration does not exist.",
+						"description": "Happens when trying to access a non-existent role or source.",
 						"schema": {
 							"$ref": "#/definitions/Error"
 						}
@@ -613,38 +729,362 @@
 			},
 			"delete": {
 				"tags": [
+					"sources",
 					"users",
-					"explorations"
+					"roles"
 				],
 				"parameters": [
 					{
-						"name": "user_id",
+						"name": "id",
 						"in": "path",
 						"type": "string",
-						"description": "ID of user to associate this exploration with.",
+						"description": "ID of the data source",
 						"required": true
 					},
 					{
-						"name": "exploration_id",
+						"name": "role_id",
 						"in": "path",
 						"type": "string",
-						"description": "ID of the specific exploration.",
+						"description": "ID of the specific role",
 						"required": true
 					}
 				],
-				"summary": "This specific exporer session will be removed.",
+				"summary": "This specific role will be removed from the data source",
 				"responses": {
 					"204": {
-						"description": "Exploration session has been removed"
+						"description": "Role has been removed"
 					},
 					"404": {
-						"description": "Data source id, user, or exploration does not exist.",
+						"description": "Unknown role id or data source",
 						"schema": {
 							"$ref": "#/definitions/Error"
 						}
 					},
 					"default": {
 						"description": "Unexpected internal service error",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					}
+				}
+			}
+		},
+		"/sources/{id}/dbs/": {
+			"get": {
+				"tags": [
+					"databases"
+				],
+				"summary": "Retrieve all databases for a source",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the data source",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Listing of all databases for a source",
+						"schema": {
+							"$ref": "#/definitions/Databases"
+						}
+					},
+					"404": {
+						"description": "Data source id does not exist.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					},
+					"default": {
+						"description": "A processing or an unexpected error.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					}
+				}
+			},
+			"post": {
+				"tags": [
+					"databases"
+				],
+				"summary": "Create new database for a source",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the data source",
+						"required": true
+					},
+					{
+						"name": "database",
+						"in": "body",
+						"description": "Configuration options for a database",
+						"schema": {
+							"$ref": "#/definitions/Database"
+						},
+						"required": true
+					}
+				],
+				"responses": {
+					"201": {
+						"description": "Database successfully created.",
+						"schema": {
+							"$ref": "#/definitions/Database"
+						}
+					},
+					"404": {
+						"description": "Data source id does not exist.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					},
+					"default": {
+						"description": "A processing or an unexpected error.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					}
+				}
+			}
+		},
+		"/sources/{id}/dbs/{db_id}": {
+			"delete": {
+				"tags": [
+					"databases"
+				],
+				"summary": "Delete database for a source",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the data source",
+						"required": true
+					},
+					{
+						"name": "db_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the database",
+						"required": true
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "Database has been deleted",
+					},
+					"404": {
+						"description": "Data source id does not exist.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					},
+					"default": {
+						"description": "A processing or an unexpected error.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					}
+				}
+			}
+		},
+		"/sources/{id}/dbs/{db_id}/rps": {
+			"get": {
+				"tags": [
+					"retention policies"
+				],
+				"summary": "Retrieve all retention policies for a database",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the data source",
+						"required": true
+					},
+					{
+						"name": "db_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the database",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Listing of all retention policies for a database",
+						"schema": {
+							"$ref": "#/definitions/RetentionPolicies"
+						}
+					},
+					"404": {
+						"description": "Specified retention policy does not exist.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					},
+					"default": {
+						"description": "A processing or an unexpected error.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					}
+				}
+			},
+			"post": {
+				"tags": [
+					"retention policies"
+				],
+				"summary": "Create new retention policy for a database",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the data source",
+						"required": true
+					},
+					{
+						"name": "db_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the database",
+						"required": true
+					},
+					{
+						"name": "rp",
+						"in": "body",
+						"description": "Configuration options for the retention policy",
+						"schema": {
+							"$ref": "#/definitions/RetentionPolicy"
+						},
+						"required": true
+					}
+				],
+				"responses": {
+					"201": {
+						"description": "Retention Policy successfully created.",
+						"schema": {
+							"$ref": "#/definitions/RetentionPolicy"
+						}
+					},
+					"404": {
+						"description": "Data source id does not exist.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					},
+					"default": {
+						"description": "A processing or an unexpected error.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					}
+				}
+			}
+		},
+		"/sources/{id}/dbs/{db_id}/rps/{rp_id}": {
+			"patch": {
+				"tags": [
+					"retention policies"
+				],
+				"summary": "Alter retention policy for a database",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the data source",
+						"required": true
+					},
+					{
+						"name": "db_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the database",
+						"required": true
+					},
+					{
+						"name": "rp_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the retention policy",
+						"required": true
+					},
+					{
+						"name": "rp",
+						"in": "body",
+						"description": "Configuration options for the retention policy",
+						"schema": {
+							"$ref": "#/definitions/RetentionPolicy"
+						},
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Retention Policy was altered",
+						"schema": {
+							"$ref": "#/definitions/RetentionPolicy"
+						}
+					},
+					"404": {
+						"description": "Database or source does not exist.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					},
+					"default": {
+						"description": "A processing or an unexpected error.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					}
+				}
+			},
+			"delete": {
+				"tags": [
+					"retention policies"
+				],
+				"summary": "Delete retention policy for a database",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the data source",
+						"required": true
+					},
+					{
+						"name": "db_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the database",
+						"required": true
+					},
+					{
+						"name": "rp_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the retention policy",
+						"required": true
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "Retention Policy has been deleted",
+					},
+					"404": {
+						"description": "Data source id does not exist.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					},
+					"default": {
+						"description": "A processing or an unexpected error.",
 						"schema": {
 							"$ref": "#/definitions/Error"
 						}
@@ -1705,7 +2145,7 @@
 			},
 			"put": {
 				"tags": [
-					"layouts"
+					"dashboards"
 				],
 				"summary": "Replace dashboard information.",
 				"parameters": [
@@ -1746,10 +2186,137 @@
 						}
 					}
 				}
+			},
+			"patch": {
+				"tags": [
+					"layouts"
+				],
+				"summary": "Update dashboard information.",
+				"description": "Update either the dashboard name or the dashboard cells",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "integer",
+						"description": "ID of a dashboard",
+						"required": true
+					},
+					{
+						"name": "config",
+						"in": "body",
+						"description": "dashboard configuration update parameters. Must be either name or cells",
+						"schema": {
+							"$ref": "#/definitions/Dashboard"
+						},
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Dashboard has been updated and the new dashboard is returned.",
+						"schema": {
+							"$ref": "#/definitions/Dashboard"
+						}
+					},
+					"404": {
+						"description": "Happens when trying to access a non-existent dashboard.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					},
+					"default": {
+						"description": "A processing or an unexpected error.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					}
+				}
 			}
 		}
 	},
 	"definitions": {
+		"Databases": {
+			"type": "object",
+			"required": [
+				"databases"
+			],
+			"properties": {
+				"databases": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/Database"
+					}
+				}
+			}
+		},
+		"Database": {
+			"type": "object",
+			"required": [
+				"name"
+			],
+			"example": {
+				"name": "NOAA_water_database",
+				"duration": "3d",
+				"replication": 3,
+				"shardDuration": "3h",
+				"retentionPolicies": [
+					{
+						"name": "weekly",
+						"duration": "7d",
+						"replication": 1,
+						"shardDuration": "7d",
+						"default": true,
+						"links": {
+							"self": "/chronograf/v1/ousrces/1/dbs/NOAA_water_database/rps/liquid"
+						}
+					}
+				],
+				"links": {
+					"self": "/chronograf/v1/sources/1/dbs/NOAA_water_database",
+					"rps": "/chronograf/v1/sources/1/dbs/NOAA_water_database/rps"
+				}
+			},
+			"properties": {
+				"name": {
+					"type": "string",
+					"description": "The identifying name of the database",
+				},
+				"duration": {
+					"type": "string",
+					"description": "the duration of the default retention policy"
+				},
+				"replication": {
+					"type": "integer",
+					"format": "int32",
+					"description": "how many copies of the data are stored in the cluster"
+				},
+				"shardDuration": {
+					"type": "string",
+					"description": "the interval spanned by each shard group"
+				},
+				"retentionPolicies": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/RetentionPolicy"
+					}
+				},
+				"links": {
+					"type": "object",
+					"properties": {
+						"self": {
+							"type": "string",
+							"description": "Self link mapping to this resource",
+							"format": "url"
+						},
+						"rps": {
+							"type": "string",
+							"description": "Link to retention policies for this database",
+							"format": "url"
+						}
+					}
+				}
+			}
+		},
 		"Kapacitors": {
 			"type": "object",
 			"required": [
@@ -1770,6 +2337,16 @@
 				"name",
 				"url"
 			],
+			"example": {
+				"id": "4",
+				"name": "kapa",
+				"url": "http://localhost:9092",
+				"links": {
+					"proxy": "/chronograf/v1/sources/4/kapacitors/4/proxy",
+					"self": "/chronograf/v1/sources/4/kapacitors/4",
+					"rules": "/chronograf/v1/sources/4/kapacitors/4/rules"
+				}
+			},
 			"properties": {
 				"id": {
 					"type": "string",
@@ -1839,6 +2416,26 @@
 		},
 		"QueryConfig": {
 			"type": "object",
+			"example": {
+				"id": "ce72917d-1ecb-45ea-a6cb-4c122deb93c7",
+				"database": "telegraf",
+				"measurement": "cpu",
+				"retentionPolicy": "autogen",
+				"fields": [
+					{
+						"field": "usage_system",
+						"funcs": [
+							"max"
+						]
+					}
+				],
+				"tags": {},
+				"groupBy": {
+					"time": "10m",
+					"tags": []
+				},
+				"areTagsAccepted": true
+			},
 			"properties": {
 				"id": {
 					"type": "string"
@@ -1911,8 +2508,169 @@
 				"fields"
 			]
 		},
+		"KapacitorNode": {
+			"type": "object",
+			"description": "Represents a node in the kapacitor TICKscript graph",
+			"required": [
+				"name"
+			],
+			"properties": {
+				"name": {
+					"type": "string",
+					"description": "Name of the kapacitor node e.g. slack"
+				},
+				"args": {
+					"type": "array",
+					"description": "All arguments to the named node",
+					"items": {
+						"type": "string"
+					}
+				},
+				"properties": {
+					"type": "array",
+					"description": "All properties attached to the kapacitor node",
+					"items": {
+						"$ref": "#/definitions/KapacitorProperty"
+					}
+				}
+			}
+		},
+		"KapacitorProperty": {
+			"type": "object",
+			"description": "Represents a property attached to a node in the kapacitor TICKscript graph",
+			"required": [
+				"name"
+			],
+			"properties": {
+				"name": {
+					"type": "string",
+					"description": "Name of the kapacitor property e.g. channel for a slack ndoe"
+				},
+				"args": {
+					"type": "array",
+					"description": "All arguments to the named property",
+					"items": {
+						"type": "string"
+					}
+				}
+			}
+		},
+		"RetentionPolicies": {
+			"type": "object",
+			"required": [
+				"retentionPolicies"
+			],
+			"properties": {
+				"retentionPolicies": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/RetentionPolicy"
+					}
+				}
+			}
+		},
+		"RetentionPolicy": {
+			"type": "object",
+			"required": [
+				"name",
+				"duration",
+				"replication"
+			],
+			"example": {
+				"name": "weekly",
+				"duration": "7d",
+				"replication": 1,
+				"shardDuration": "7d",
+				"default": true,
+				"links": {
+					"self": "/chronograf/v1/ousrces/1/dbs/NOAA_water_database/rps/liquid"
+				}
+			},
+			"properties": {
+				"name": {
+					"type": "string",
+					"description": "The identifying name of the retention policy",
+				},
+				"duration": {
+					"type": "string",
+					"description": "the duration of the retention policy"
+				},
+				"replication": {
+					"type": "integer",
+					"format": "int32",
+					"description": "how many copies of the data are stored in the cluster"
+				},
+				"shardDuration": {
+					"type": "string",
+					"description": "the interval spanned by each shard group"
+				},
+				"default": {
+					"type": "boolean",
+					"description": "Indicates whether this retention policy should be the default"
+				},
+				"links": {
+					"type": "object",
+					"properties": {
+						"self": {
+							"type": "string",
+							"description": "Self link mapping to this resource",
+							"format": "url"
+						}
+					}
+				}
+			}
+		},
 		"Rule": {
 			"type": "object",
+			"example": {
+				"id": "chronograf-v1-b2b065ea-79bd-4e4f-8c0d-d0ef68477d38",
+				"query": {
+					"id": "ce72917d-1ecb-45ea-a6cb-4c122deb93c7",
+					"database": "telegraf",
+					"measurement": "cpu",
+					"retentionPolicy": "autogen",
+					"fields": [
+						{
+							"field": "usage_system",
+							"funcs": [
+								"max"
+							]
+						}
+					],
+					"tags": {},
+					"groupBy": {
+						"time": "10m",
+						"tags": []
+					},
+					"areTagsAccepted": true
+				},
+				"every": "30s",
+				"alerts": [
+					"alerta"
+				],
+				"alertNodes": [
+					{
+						"name": "alerta",
+						"args": [],
+						"properties": []
+					}
+				],
+				"message": "too much spam",
+				"details": "muh body",
+				"trigger": "threshold",
+				"values": {
+					"operator": "greater than",
+					"value": "10"
+				},
+				"name": "Untitled Rule",
+				"tickscript": "var db = 'telegraf'\n\nvar rp = 'autogen'\n\nvar measurement = 'cpu'\n\nvar groupBy = []\n\nvar whereFilter = lambda: TRUE\n\nvar period = 10m\n\nvar every = 30s\n\nvar name = 'Untitled Rule'\n\nvar idVar = name + ':{{.Group}}'\n\nvar message = 'too much spam'\n\nvar idTag = 'alertID'\n\nvar levelTag = 'level'\n\nvar messageField = 'message'\n\nvar durationField = 'duration'\n\nvar outputDB = 'chronograf'\n\nvar outputRP = 'autogen'\n\nvar outputMeasurement = 'alerts'\n\nvar triggerType = 'threshold'\n\nvar details = 'muh body'\n\nvar crit = 10\n\nvar data = stream\n    |from()\n        .database(db)\n        .retentionPolicy(rp)\n        .measurement(measurement)\n        .groupBy(groupBy)\n        .where(whereFilter)\n    |window()\n        .period(period)\n        .every(every)\n        .align()\n    |max('usage_system')\n        .as('value')\n\nvar trigger = data\n    |alert()\n        .crit(lambda: \"value\" > crit)\n        .stateChangesOnly()\n        .message(message)\n        .id(idVar)\n        .idTag(idTag)\n        .levelTag(levelTag)\n        .messageField(messageField)\n        .durationField(durationField)\n        .details(details)\n        .alerta()\n\ntrigger\n    |influxDBOut()\n        .create()\n        .database(outputDB)\n        .retentionPolicy(outputRP)\n        .measurement(outputMeasurement)\n        .tag('alertName', name)\n        .tag('triggerType', triggerType)\n\ntrigger\n    |httpOut('output')\n",
+				"status": "enabled",
+				"links": {
+					"self": "/chronograf/v1/sources/5/kapacitors/5/rules/chronograf-v1-b2b065ea-79bd-4e4f-8c0d-d0ef68477d38",
+					"kapacitor": "/chronograf/v1/sources/5/kapacitors/5/proxy?path=%2Fkapacitor%2Fv1%2Ftasks%2Fchronograf-v1-b2b065ea-79bd-4e4f-8c0d-d0ef68477d38",
+					"output": "/chronograf/v1/sources/5/kapacitors/5/proxy?path=%2Fkapacitor%2Fv1%2Ftasks%2Fchronograf-v1-b2b065ea-79bd-4e4f-8c0d-d0ef68477d38%2Foutput"
+				}
+			},
 			"required": [
 				"query",
 				"every",
@@ -1924,7 +2682,6 @@
 					"description": "ID for this rule; the ID is shared with kapacitor"
 				},
 				"query": {
-					"description": "Query config structure is historical from chronograf 1.0",
 					"$ref": "#/definitions/QueryConfig"
 				},
 				"name": {
@@ -1941,22 +2698,38 @@
 					"items": {
 						"type": "string",
 						"enum": [
+							"alerta",
+							"post",
+							"http",
 							"hipchat",
 							"opsgenie",
 							"pagerduty",
 							"victorops",
 							"smtp",
 							"email",
+							"exec",
 							"sensu",
 							"slack",
 							"talk",
-							"telegram"
+							"telegram",
+							"tcp"
 						]
+					}
+				},
+				"alertNodes": {
+					"type": "array",
+					"description": "Arguments and properties to add to alert",
+					"items": {
+						"$ref": "#/definitions/KapacitorNode"
 					}
 				},
 				"message": {
 					"type": "string",
 					"description": "Message to send when alert occurs."
+				},
+				"details": {
+					"type": "string",
+					"description": "Template for constructing a detailed HTML message for the alert. (Currently, only used for email/smtp"
 				},
 				"trigger": {
 					"type": "string",
@@ -2015,6 +2788,14 @@
 					"type": "string",
 					"description": "TICKscript representing this rule"
 				},
+				"status": {
+					"type": "string",
+					"description": "Represents if this rule is enabled or disabled in kapacitor",
+					"enum": [
+						"enabled",
+						"disabled"
+					]
+				},
 				"links": {
 					"type": "object",
 					"required": [
@@ -2057,8 +2838,22 @@
 		},
 		"Source": {
 			"type": "object",
+			"example": {
+				"id": "4",
+				"name": "Influx 1",
+				"url": "http://localhost:8086",
+				"default": false,
+				"telegraf": "telegraf",
+				"links": {
+					"self": "/chronograf/v1/sources/4",
+					"kapacitors": "/chronograf/v1/sources/4/kapacitors",
+					"proxy": "/chronograf/v1/sources/4/proxy",
+					"permissions": "/chronograf/v1/sources/4/permissions",
+					"users": "/chronograf/v1/sources/4/users",
+					"roles": "/chronograf/v1/sources/4/roles"
+				}
+			},
 			"required": [
-				"name",
 				"url"
 			],
 			"properties": {
@@ -2074,9 +2869,11 @@
 				"type": {
 					"type": "string",
 					"description": "Format of the data source",
+					"readOnly": true,
 					"enum": [
 						"influx",
-						"influx-enterprise"
+						"influx-enterprise",
+						"influx-relay"
 					]
 				},
 				"username": {
@@ -2091,6 +2888,11 @@
 					"type": "string",
 					"format": "url",
 					"description": "URL for the time series data source backend (e.g. http://localhost:8086)"
+				},
+				"metaUrl": {
+					"type": "string",
+					"format": "url",
+					"description": "URL for the influxdb meta node"
 				},
 				"insecureSkipVerify": {
 					"type": "boolean",
@@ -2122,6 +2924,21 @@
 							"type": "string",
 							"description": "URL location of the kapacitors endpoint for this source",
 							"format": "url"
+						},
+						"users": {
+							"type": "string",
+							"description": "URL location of the users endpoint for this source",
+							"format": "url"
+						},
+						"permissions": {
+							"type": "string",
+							"description": "URL location of the permissions endpoint for this source",
+							"format": "url"
+						},
+						"roles": {
+							"type": "string",
+							"description": "Optional path to the roles endpoint IFF it is supported on this source",
+							"format": "url"
 						}
 					}
 				}
@@ -2129,6 +2946,12 @@
 		},
 		"Proxy": {
 			"type": "object",
+			"example": {
+				"query": "select * from cpu where time > now() - 10m",
+				"db": "telegraf",
+				"rp": "autogen",
+				"format": "raw"
+			},
 			"required": [
 				"query"
 			],
@@ -2153,6 +2976,50 @@
 		},
 		"ProxyResponse": {
 			"type": "object",
+			"example": {
+				"results": [
+					{
+						"statement_id": 0,
+						"series": [
+							{
+								"name": "cpu",
+								"columns": [
+									"time",
+									"cpu",
+									"host",
+									"usage_guest",
+									"usage_guest_nice",
+									"usage_idle",
+									"usage_iowait",
+									"usage_irq",
+									"usage_nice",
+									"usage_softirq",
+									"usage_steal",
+									"usage_system",
+									"usage_user"
+								],
+								"values": [
+									[
+										1487785510000,
+										"cpu-total",
+										"ChristohersMBP2.lan",
+										0,
+										0,
+										76.6916354556804,
+										0,
+										0,
+										0,
+										0,
+										0,
+										4.781523096129837,
+										18.526841448189764
+									]
+								]
+							}
+						]
+					}
+				]
+			},
 			"properties": {
 				"results": {
 					"description": "results from influx",
@@ -2160,42 +3027,92 @@
 				}
 			}
 		},
-		"Explorations": {
-			"type": "object",
-			"required": [
-				"explorations"
-			],
-			"properties": {
-				"explorations": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/Exploration"
+		"Roles": {
+			"type": "array",
+			"items": {
+				"$ref": "#/definitions/Role"
+			},
+			"example": {
+				"roles": [
+					{
+						"users": [
+							{
+								"name": "admin",
+								"links": {
+									"self": "/chronograf/v1/sources/3/users/admin"
+								}
+							}
+						],
+						"name": "timetravelers",
+						"permissions": [
+							{
+								"scope": "database",
+								"name": "telegraf",
+								"allowed": [
+									"ReadData",
+									"WriteData"
+								]
+							}
+						],
+						"links": {
+							"self": "/chronograf/v1/sources/3/roles/timetravelers"
+						}
 					}
-				}
+				]
 			}
 		},
-		"Exploration": {
+		"Role": {
 			"type": "object",
+			"required": [
+				"name"
+			],
 			"properties": {
-				"created_at": {
-					"type": "string",
-					"format": "date-time"
-				},
-				"updated_at": {
-					"type": "string",
-					"format": "date-time",
-					"description": "Latest time the exploration was updated."
-				},
 				"name": {
 					"type": "string",
-					"description": "Exploration name given by user."
+					"description": "Unique name of the role",
+					"maxLength": 254,
+					"minLength": 1
 				},
-				"data": {
+				"users": {
+					"$ref": "#/definitions/Users"
+				},
+				"permissions": {
+					"$ref": "#/definitions/Permissions"
+				},
+				"links": {
 					"type": "object",
-					"description": "Serialization of the exploration query configuration."
-				},
-				"link": {
-					"$ref": "#/definitions/Link"
+					"description": "URL relations of this role",
+					"properties": {
+						"self": {
+							"type": "string",
+							"format": "url",
+							"description": "URI of resource."
+						}
+					}
+				}
+			},
+			"example": {
+				"users": [
+					{
+						"name": "admin",
+						"links": {
+							"self": "/chronograf/v1/sources/3/users/admin"
+						}
+					}
+				],
+				"name": "timetravelers",
+				"permissions": [
+					{
+						"scope": "database",
+						"name": "telegraf",
+						"allowed": [
+							"ReadData",
+							"WriteData"
+						]
+					}
+				],
+				"links": {
+					"self": "/chronograf/v1/sources/3/roles/timetravelers"
 				}
 			}
 		},
@@ -2208,21 +3125,226 @@
 						"$ref": "#/definitions/User"
 					}
 				}
+			},
+			"example": {
+				"users": [
+					{
+						"name": "docbrown",
+						"permissions": [
+							{
+								"scope": "all",
+								"allowed": [
+									"ViewAdmin",
+									"ViewChronograf",
+									"CreateDatabase",
+									"CreateUserAndRole",
+									"DropDatabase",
+									"DropData",
+									"ReadData",
+									"WriteData",
+									"ManageShard",
+									"ManageContinuousQuery",
+									"ManageQuery",
+									"ManageSubscription",
+									"Monitor",
+									"KapacitorAPI"
+								]
+							}
+						],
+						"roles": [
+							{
+								"name": "timetravelers",
+								"permissions": [
+									{
+										"scope": "database",
+										"name": "telegraf",
+										"allowed": [
+											"ReadData",
+											"WriteData"
+										]
+									}
+								],
+								"links": {
+									"self": "/chronograf/v1/sources/3/roles/timetravelers"
+								}
+							}
+						],
+						"links": {
+							"self": "/chronograf/v1/sources/3/users/docbrown"
+						}
+					}
+				]
 			}
 		},
 		"User": {
 			"type": "object",
+			"properties": {
+				"name": {
+					"type": "string",
+					"description": "Unique name of the user",
+					"maxLength": 254,
+					"minLength": 1
+				},
+				"password": {
+					"type": "string"
+				},
+				"permissions": {
+					"$ref": "#/definitions/Permissions"
+				},
+				"roles": {
+					"$ref": "#/definitions/Roles"
+				},
+				"links": {
+					"type": "object",
+					"description": "URL relations of this user",
+					"properties": {
+						"self": {
+							"type": "string",
+							"format": "url",
+							"description": "URI of resource."
+						}
+					}
+				}
+			},
+			"example": {
+				"name": "docbrown",
+				"permissions": [
+					{
+						"scope": "all",
+						"allowed": [
+							"ViewAdmin",
+							"ViewChronograf",
+							"CreateDatabase",
+							"CreateUserAndRole",
+							"DropDatabase",
+							"DropData",
+							"ReadData",
+							"WriteData",
+							"ManageShard",
+							"ManageContinuousQuery",
+							"ManageQuery",
+							"ManageSubscription",
+							"Monitor",
+							"KapacitorAPI"
+						]
+					}
+				],
+				"roles": [
+					{
+						"name": "timetravelers",
+						"permissions": [
+							{
+								"scope": "database",
+								"name": "telegraf",
+								"allowed": [
+									"ReadData",
+									"WriteData"
+								]
+							}
+						],
+						"links": {
+							"self": "/chronograf/v1/sources/3/roles/timetravelers"
+						}
+					}
+				],
+				"links": {
+					"self": "/chronograf/v1/sources/3/users/docbrown"
+				}
+			}
+		},
+		"Permissions": {
+			"description": "Permissions represent the entire set of permissions a User or Role may have",
+			"type": "array",
+			"items": {
+				"$ref": "#/definitions/Permission"
+			}
+		},
+		"Permission": {
+			"description": "Permission is a specific allowance for User or Role bound to a scope of the data source",
+			"type": "object",
 			"required": [
-				"email"
+				"scope",
+				"allowed"
 			],
 			"properties": {
-				"email": {
+				"scope": {
 					"type": "string",
-					"maxLength": 254
+					"description": "Describes if the permission is for all databases or restricted to one database",
+					"enum": [
+						"all",
+						"database"
+					]
 				},
-				"link": {
-					"$ref": "#/definitions/Link"
+				"name": {
+					"type": "string",
+					"description": "If the scope is database this identifies the name of the database"
+				},
+				"allowed": {
+					"$ref": "#/definitions/Allowances"
 				}
+			},
+			"example": {
+				"scope": "database",
+				"name": "telegraf",
+				"allowed": [
+					"READ",
+					"WRITE"
+				]
+			}
+		},
+		"AllPermissions": {
+			"description": "All possible permissions for this particular datasource.  Used as a static list",
+			"type": "object",
+			"properties": {
+				"permissions": {
+					"$ref": "#/definitions/Permissions"
+				},
+				"links": {
+					"type": "object",
+					"properties": {
+						"self": {
+							"description": "Relative link back to the permissions endpoint",
+							"type": "string",
+							"format": "uri"
+						},
+						"source": {
+							"description": "Relative link to host with these permissiosn",
+							"type": "string",
+							"format": "uri"
+						}
+					}
+				}
+			}
+		},
+		"Allowances": {
+			"description": "Allowances defines what actions a user can have on a scoped permission",
+			"type": "array",
+			"items": {
+				"type": "string",
+				"description": "OSS InfluxDB is READ and WRITE.  Enterprise is all others",
+				"enum": [
+					"READ",
+					"WRITE",
+					"NoPermissions",
+					"ViewAdmin",
+					"ViewChronograf",
+					"CreateDatabase",
+					"CreateUserAndRole",
+					"AddRemoveNode",
+					"DropDatabase",
+					"DropData",
+					"ReadData",
+					"WriteData",
+					"Rebalance",
+					"ManageShard",
+					"ManageContinuousQuery",
+					"ManageQuery",
+					"ManageSubscription",
+					"Monitor",
+					"CopyShard",
+					"KapacitorAPI",
+					"KapacitorConfigAPI"
+				]
 			}
 		},
 		"Layouts": {
@@ -2269,6 +3391,41 @@
 				"link": {
 					"$ref": "#/definitions/Link"
 				}
+			},
+			"example": {
+				"id": "0e980b97-c162-487b-a815-3f955df62430",
+				"app": "docker",
+				"measurement": "docker_container_net",
+				"autoflow": true,
+				"cells": [
+					{
+						"x": 0,
+						"y": 0,
+						"w": 4,
+						"h": 4,
+						"i": "4c79cefb-5152-410c-9b88-74f9bff7ef23",
+						"name": "Docker - Container Network",
+						"queries": [
+							{
+								"query": "SELECT derivative(mean(\"tx_bytes\"), 10s) AS \"net_tx_bytes\" FROM \"docker_container_net\"",
+								"groupbys": [
+									"\"container_name\""
+								]
+							},
+							{
+								"query": "SELECT derivative(mean(\"rx_bytes\"), 10s) AS \"net_rx_bytes\" FROM \"docker_container_net\"",
+								"groupbys": [
+									"\"container_name\""
+								]
+							}
+						],
+						"type": ""
+					}
+				],
+				"link": {
+					"href": "/chronograf/v1/layouts/0e980b97-c162-487b-a815-3f955df62430",
+					"rel": "self"
+				}
 			}
 		},
 		"Mappings": {
@@ -2300,6 +3457,10 @@
 					"description": "The application name which will be assigned to the corresponding measurement",
 					"type": "string"
 				}
+			},
+			"example": {
+				"measurement": "riak",
+				"name": "riak"
 			}
 		},
 		"Cell": {
@@ -2337,6 +3498,10 @@
 					"type": "integer",
 					"format": "int32"
 				},
+				"name": {
+					"description": "Cell name",
+					"type": "string"
+				},
 				"queries": {
 					"description": "Time-series data queries for Cell.",
 					"type": "array",
@@ -2346,15 +3511,28 @@
 				},
 				"type": {
 					"description": "Cell visualization type",
-					"type": "string",
-					"format": "uuid4"
+					"type": "string"
 				}
+			},
+			"example": {
+				"x": 5,
+				"y": 5,
+				"w": 4,
+				"h": 4,
+				"name": "usage_user",
+				"queries": [
+					{
+						"query": "SELECT mean(\"usage_user\") AS \"usage_user\" FROM \"cpu\"",
+						"label": "%"
+					}
+				],
+				"type": "line"
 			}
 		},
 		"LayoutQuery": {
 			"type": "object",
 			"required": [
-				"query"
+				"query",
 			],
 			"properties": {
 				"label": {
@@ -2398,6 +3576,96 @@
 						"type": "string"
 					}
 				}
+			},
+			"example": {
+				"label": "# warnings",
+				"query": "SELECT count(\"check_id\") as \"Number Warning\" FROM consul_health_checks",
+				"wheres": [
+					"\"status\" = 'warning'"
+				],
+				"groupbys": [
+					"\"service_name\""
+				]
+			}
+		},
+		"DashboardQuery": {
+			"type": "object",
+			"required": [
+				"query"
+			],
+			"properties": {
+				"label": {
+					"description": "Optional Y-axis user-facing label for this query",
+					"type": "string"
+				},
+				"range": {
+					"description": "Optional default range of the Y-axis",
+					"type": "object",
+					"required": [
+						"upper",
+						"lower"
+					],
+					"properties": {
+						"upper": {
+							"description": "Upper bound of the display range of the Y-axis",
+							"type": "integer",
+							"format": "int64"
+						},
+						"lower": {
+							"description": "Lower bound of the display range of the Y-axis",
+							"type": "integer",
+							"format": "int64"
+						}
+					}
+				},
+				"query": {
+					"type": "string"
+				},
+				"queryConfig": {
+					"$ref": "#/definitions/QueryConfig"
+				}
+			},
+			"example": {
+				"id": 4,
+				"cells": [
+					{
+						"x": 0,
+						"y": 0,
+						"w": 4,
+						"h": 4,
+						"name": "",
+						"queries": [
+							{
+								"query": "SELECT mean(\"usage_user\") AS \"usage_user\" FROM \"cpu\"",
+								"label": "%",
+								"queryConfig": {
+									"database": "",
+									"measurement": "cpu",
+									"retentionPolicy": "",
+									"fields": [
+										{
+											"field": "usage_user",
+											"funcs": [
+												"mean"
+											]
+										}
+									],
+									"tags": {},
+									"groupBy": {
+										"time": "",
+										"tags": []
+									},
+									"areTagsAccepted": false
+								}
+							}
+						],
+						"type": "line"
+					}
+				],
+				"name": "dashboard name",
+				"links": {
+					"self": "/chronograf/v1/dashboards/4"
+				}
 			}
 		},
 		"Dashboards": {
@@ -2426,9 +3694,6 @@
 					"items": {
 						"description": "cell visualization information",
 						"type": "object",
-						"required": [
-							"queries"
-						],
 						"properties": {
 							"x": {
 								"description": "X-coordinate of Cell in the Dashboard",
@@ -2443,18 +3708,26 @@
 							"w": {
 								"description": "Width of Cell in the Dashboard",
 								"type": "integer",
-								"format": "int32"
+								"format": "int32",
+								"minimum": 1,
+								"default": 4
 							},
 							"h": {
 								"description": "Height of Cell in the Dashboard",
 								"type": "integer",
-								"format": "int32"
+								"format": "int32",
+								"minimum": 1,
+								"default": 4
+							},
+							"name": {
+								"description": "Name of Cell in the Dashboard",
+								"type": "string"
 							},
 							"queries": {
 								"description": "Time-series data queries for Cell.",
 								"type": "array",
 								"items": {
-									"$ref": "#/definitions/LayoutQuery"
+									"$ref": "#/definitions/DashboardQuery"
 								}
 							},
 							"type": {
@@ -2463,9 +3736,21 @@
 								"enum": [
 									"single-stat",
 									"line",
-									"line-plus-single-stat"
+									"line-plus-single-stat",
+									"line-stacked",
+									"line-stepplot"
 								],
 								"default": "line"
+							},
+							"links": {
+								"type": "object",
+								"properties": {
+									"self": {
+										"type": "string",
+										"description": "Self link mapping to this resource",
+										"format": "url"
+									}
+								}
 							}
 						}
 					}
@@ -2484,16 +3769,50 @@
 						}
 					}
 				}
+			},
+			"example": {
+				"id": 4,
+				"cells": [
+					{
+						"x": 5,
+						"y": 5,
+						"w": 4,
+						"h": 4,
+						"name": "usage_user",
+						"queries": [
+							{
+								"query": "SELECT mean(\"usage_user\") AS \"usage_user\" FROM \"cpu\"",
+								"db": "telegraf",
+								"label": "%"
+							}
+						],
+						"type": "line"
+					},
+					{
+						"x": 0,
+						"y": 0,
+						"w": 4,
+						"h": 4,
+						"name": "usage_system",
+						"queries": [
+							{
+								"query": "SELECT mean(\"usage_system\") AS \"usage_system\" FROM \"cpu\"",
+								"db": "telegraf",
+								"label": "%"
+							}
+						],
+						"type": "line"
+					}
+				],
+				"name": "lalalalala",
+				"links": {
+					"self": "/chronograf/v1/dashboards/4"
+				}
 			}
 		},
 		"Routes": {
 			"type": "object",
 			"properties": {
-				"users": {
-					"description": "Location of the users endpoint",
-					"type": "string",
-					"format": "url"
-				},
 				"me": {
 					"description": "Location of the me endpoint.",
 					"type": "string",
@@ -2519,17 +3838,13 @@
 					"type": "string",
 					"format": "url"
 				}
-			}
-		},
-		"Links": {
-			"type": "object",
-			"properties": {
-				"links": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/Link"
-					}
-				}
+			},
+			"example": {
+				"layouts": "/chronograf/v1/layouts",
+				"mappings": "/chronograf/v1/mappings",
+				"sources": "/chronograf/v1/sources",
+				"me": "/chronograf/v1/me",
+				"dashboards": "/chronograf/v1/dashboards"
 			}
 		},
 		"Link": {

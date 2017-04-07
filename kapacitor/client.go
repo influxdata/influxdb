@@ -119,6 +119,44 @@ func (c *Client) Enable(ctx context.Context, href string) (*Task, error) {
 	return c.updateStatus(ctx, href, client.Enabled)
 }
 
+// AllStatus returns the status of all tasks in kapacitor
+func (c *Client) AllStatus(ctx context.Context) (map[string]string, error) {
+	kapa, err := c.kapaClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Only get the status, id and link section back
+	opts := &client.ListTasksOptions{
+		Fields: []string{"status"},
+	}
+	tasks, err := kapa.ListTasks(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	taskStatuses := map[string]string{}
+	for _, task := range tasks {
+		taskStatuses[task.ID] = task.Status.String()
+	}
+
+	return taskStatuses, nil
+}
+
+// Status returns the status of a task in kapacitor
+func (c *Client) Status(ctx context.Context, href string) (string, error) {
+	kapa, err := c.kapaClient(ctx)
+	if err != nil {
+		return "", err
+	}
+	task, err := kapa.Task(client.Link{Href: href}, nil)
+	if err != nil {
+		return "", err
+	}
+
+	return task.Status.String(), nil
+}
+
 // Update changes the tickscript of a given id.
 func (c *Client) Update(ctx context.Context, href string, rule chronograf.AlertRule) (*Task, error) {
 	kapa, err := c.kapaClient(ctx)

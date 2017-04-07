@@ -14,6 +14,7 @@
       "queries": [
         {
           "query": "SELECT count(\"check_id\") as \"Number Critical\" FROM consul_health_checks",
+          "label": "count",
           "groupbys": [
             "\"service_name\""
           ],
@@ -33,6 +34,7 @@
       "queries": [
         {
           "query": "SELECT count(\"check_id\") as \"Number Warning\" FROM consul_health_checks",
+          "label": "count",          
           "groupbys": [
             "\"service_name\""
           ],

@@ -7,9 +7,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/NYTimes/gziphandler"
 	"github.com/bouk/httprouter"
 	"github.com/influxdata/chronograf" // When julienschmidt/httprouter v2 w/ context is out, switch
-	"github.com/influxdata/chronograf/jwt"
+	"github.com/influxdata/chronograf/oauth2"
 )
 
 const (
@@ -19,18 +20,18 @@ const (
 
 // MuxOpts are the options for the router.  Mostly related to auth.
 type MuxOpts struct {
-	Logger             chronograf.Logger
-	Develop            bool     // Develop loads assets from filesystem instead of bindata
-	UseAuth            bool     // UseAuth turns on Github OAuth and JWT
-	TokenSecret        string   // TokenSecret is the JWT secret
-	GithubClientID     string   // GithubClientID is the GH OAuth id
-	GithubClientSecret string   // GithubClientSecret is the GH OAuth secret
-	GithubOrgs         []string // GithubOrgs is the list of organizations a user my be a member of
+	Logger        chronograf.Logger
+	Develop       bool                 // Develop loads assets from filesystem instead of bindata
+	Basepath      string               // URL path prefix under which all chronograf routes will be mounted
+	PrefixRoutes  bool                 // Mounts all backend routes under route specified by the Basepath
+	UseAuth       bool                 // UseAuth turns on Github OAuth and JWT
+	Auth          oauth2.Authenticator // Auth is used to authenticate and authorize
+	ProviderFuncs []func(func(oauth2.Provider, oauth2.Mux))
 }
 
 // NewMux attaches all the route handlers; handler returned servers chronograf.
 func NewMux(opts MuxOpts, service Service) http.Handler {
-	router := httprouter.New()
+	hr := httprouter.New()
 
 	/* React Application */
 	assets := Assets(AssetsOpts{
@@ -41,19 +42,33 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	// Prefix any URLs found in the React assets with any configured basepath
 	prefixedAssets := NewDefaultURLPrefixer(basepath, assets, opts.Logger)
 
+	// Compress the assets with gzip if an accepted encoding
+	compressed := gziphandler.GzipHandler(prefixedAssets)
+
 	// The react application handles all the routing if the server does not
-	// know about the route.  This means that we never have unknown
-	// routes on the server.
-	router.NotFound = prefixedAssets
+	// know about the route.  This means that we never have unknown routes on
+	// the server.
+	hr.NotFound = compressed
+
+	var router chronograf.Router = hr
+
+	// Set route prefix for all routes if basepath is present
+	if opts.PrefixRoutes {
+		router = &MountableRouter{
+			Prefix:   opts.Basepath,
+			Delegate: hr,
+		}
+
+		//The assets handler is always unaware of basepaths, so the
+		// basepath needs to always be removed before sending requests to it
+		hr.NotFound = http.StripPrefix(opts.Basepath, hr.NotFound)
+	}
 
 	/* Documentation */
 	router.GET("/swagger.json", Spec())
 	router.GET("/docs", Redoc("/swagger.json"))
 
 	/* API */
-	// Root Routes returns all top-level routes in the API
-	router.GET("/chronograf/v1/", AllRoutes(opts.Logger))
-
 	// Sources
 	router.GET("/chronograf/v1/sources", service.Sources)
 	router.POST("/chronograf/v1/sources", service.NewSource)
@@ -62,8 +77,31 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.PATCH("/chronograf/v1/sources/:id", service.UpdateSource)
 	router.DELETE("/chronograf/v1/sources/:id", service.RemoveSource)
 
-	// Source Proxy
-	router.POST("/chronograf/v1/sources/:id/proxy", service.Proxy)
+	// Source Proxy to Influx; Has gzip compression around the handler
+	influx := gziphandler.GzipHandler(http.HandlerFunc(service.Influx))
+	router.Handler("POST", "/chronograf/v1/sources/:id/proxy", influx)
+
+	// Queries is used to analyze a specific queries
+	router.POST("/chronograf/v1/sources/:id/queries", service.Queries)
+
+	// All possible permissions for users in this source
+	router.GET("/chronograf/v1/sources/:id/permissions", service.Permissions)
+
+	// Users associated with the data source
+	router.GET("/chronograf/v1/sources/:id/users", service.SourceUsers)
+	router.POST("/chronograf/v1/sources/:id/users", service.NewSourceUser)
+
+	router.GET("/chronograf/v1/sources/:id/users/:uid", service.SourceUserID)
+	router.DELETE("/chronograf/v1/sources/:id/users/:uid", service.RemoveSourceUser)
+	router.PATCH("/chronograf/v1/sources/:id/users/:uid", service.UpdateSourceUser)
+
+	// Roles associated with the data source
+	router.GET("/chronograf/v1/sources/:id/roles", service.Roles)
+	router.POST("/chronograf/v1/sources/:id/roles", service.NewRole)
+
+	router.GET("/chronograf/v1/sources/:id/roles/:rid", service.RoleID)
+	router.DELETE("/chronograf/v1/sources/:id/roles/:rid", service.RemoveRole)
+	router.PATCH("/chronograf/v1/sources/:id/roles/:rid", service.UpdateRole)
 
 	// Kapacitor
 	router.GET("/chronograf/v1/sources/:id/kapacitors", service.Kapacitors)
@@ -79,6 +117,7 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 
 	router.GET("/chronograf/v1/sources/:id/kapacitors/:kid/rules/:tid", service.KapacitorRulesID)
 	router.PUT("/chronograf/v1/sources/:id/kapacitors/:kid/rules/:tid", service.KapacitorRulesPut)
+	router.PATCH("/chronograf/v1/sources/:id/kapacitors/:kid/rules/:tid", service.KapacitorRulesStatus)
 	router.DELETE("/chronograf/v1/sources/:id/kapacitors/:kid/rules/:tid", service.KapacitorRulesDelete)
 
 	// Kapacitor Proxy
@@ -100,19 +139,6 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 
 	// Users
 	router.GET("/chronograf/v1/me", service.Me)
-	router.POST("/chronograf/v1/users", service.NewUser)
-
-	router.GET("/chronograf/v1/users/:id", service.UserID)
-	router.PATCH("/chronograf/v1/users/:id", service.UpdateUser)
-	router.DELETE("/chronograf/v1/users/:id", service.RemoveUser)
-
-	// Explorations
-	router.GET("/chronograf/v1/users/:id/explorations", service.Explorations)
-	router.POST("/chronograf/v1/users/:id/explorations", service.NewExploration)
-
-	router.GET("/chronograf/v1/users/:id/explorations/:eid", service.ExplorationsID)
-	router.PATCH("/chronograf/v1/users/:id/explorations/:eid", service.UpdateExploration)
-	router.DELETE("/chronograf/v1/users/:id/explorations/:eid", service.RemoveExploration)
 
 	// Dashboards
 	router.GET("/chronograf/v1/dashboards", service.Dashboards)
@@ -120,48 +146,83 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 
 	router.GET("/chronograf/v1/dashboards/:id", service.DashboardID)
 	router.DELETE("/chronograf/v1/dashboards/:id", service.RemoveDashboard)
-	router.PUT("/chronograf/v1/dashboards/:id", service.UpdateDashboard)
+	router.PUT("/chronograf/v1/dashboards/:id", service.ReplaceDashboard)
+	router.PATCH("/chronograf/v1/dashboards/:id", service.UpdateDashboard)
+	// Dashboard Cells
+	router.GET("/chronograf/v1/dashboards/:id/cells", service.DashboardCells)
+	router.POST("/chronograf/v1/dashboards/:id/cells", service.NewDashboardCell)
 
-	// Queries
-	router.POST("/chronograf/v1/query", service.Query)
+	router.GET("/chronograf/v1/dashboards/:id/cells/:cid", service.DashboardCellID)
+	router.DELETE("/chronograf/v1/dashboards/:id/cells/:cid", service.RemoveDashboardCell)
+	router.PUT("/chronograf/v1/dashboards/:id/cells/:cid", service.ReplaceDashboardCell)
 
+	// Databases
+	router.GET("/chronograf/v1/sources/:id/dbs", service.GetDatabases)
+	router.POST("/chronograf/v1/sources/:id/dbs", service.NewDatabase)
+
+	router.DELETE("/chronograf/v1/sources/:id/dbs/:dbid", service.DropDatabase)
+
+	// Retention Policies
+	router.GET("/chronograf/v1/sources/:id/dbs/:dbid/rps", service.RetentionPolicies)
+	router.POST("/chronograf/v1/sources/:id/dbs/:dbid/rps", service.NewRetentionPolicy)
+
+	router.PUT("/chronograf/v1/sources/:id/dbs/:dbid/rps/:rpid", service.UpdateRetentionPolicy)
+	router.DELETE("/chronograf/v1/sources/:id/dbs/:dbid/rps/:rpid", service.DropRetentionPolicy)
+
+	var authRoutes AuthRoutes
+	var out http.Handler
 	/* Authentication */
 	if opts.UseAuth {
-		auth := AuthAPI(opts, router)
-		return Logger(opts.Logger, auth)
+		// Encapsulate the router with OAuth2
+		var auth http.Handler
+		auth, authRoutes = AuthAPI(opts, router)
+
+		// Create middleware to redirect to the appropriate provider logout
+		targetURL := "/"
+		router.GET("/oauth/logout", Logout(targetURL, authRoutes))
+
+		out = Logger(opts.Logger, auth)
+	} else {
+		out = Logger(opts.Logger, router)
 	}
-	return Logger(opts.Logger, router)
+
+	router.GET("/chronograf/v1/", AllRoutes(authRoutes, opts.Logger))
+	router.GET("/chronograf/v1", AllRoutes(authRoutes, opts.Logger))
+
+	return out
 }
 
 // AuthAPI adds the OAuth routes if auth is enabled.
-func AuthAPI(opts MuxOpts, router *httprouter.Router) http.Handler {
-	auth := jwt.NewJWT(opts.TokenSecret)
+func AuthAPI(opts MuxOpts, router chronograf.Router) (http.Handler, AuthRoutes) {
+	routes := AuthRoutes{}
+	for _, pf := range opts.ProviderFuncs {
+		pf(func(p oauth2.Provider, m oauth2.Mux) {
+			urlName := PathEscape(strings.ToLower(p.Name()))
+			loginPath := fmt.Sprintf("%s/oauth/%s/login", opts.Basepath, urlName)
+			logoutPath := fmt.Sprintf("%s/oauth/%s/logout", opts.Basepath, urlName)
+			callbackPath := fmt.Sprintf("%s/oauth/%s/callback", opts.Basepath, urlName)
+			router.Handler("GET", loginPath, m.Login())
+			router.Handler("GET", logoutPath, m.Logout())
+			router.Handler("GET", callbackPath, m.Callback())
+			routes = append(routes, AuthRoute{
+				Name:     p.Name(),
+				Label:    strings.Title(p.Name()),
+				Login:    loginPath,
+				Logout:   logoutPath,
+				Callback: callbackPath,
+			})
+		})
+	}
 
-	successURL := "/"
-	failureURL := "/login"
-	gh := NewGithub(
-		opts.GithubClientID,
-		opts.GithubClientSecret,
-		successURL,
-		failureURL,
-		opts.GithubOrgs,
-		&auth,
-		opts.Logger,
-	)
-
-	router.GET("/oauth/github", gh.Login())
-	router.GET("/oauth/logout", gh.Logout())
-	router.GET("/oauth/github/callback", gh.Callback())
-
-	tokenMiddleware := AuthorizedToken(&auth, &CookieExtractor{Name: "session"}, opts.Logger, router)
+	tokenMiddleware := AuthorizedToken(opts.Auth, opts.Logger, router)
 	// Wrap the API with token validation middleware.
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/chronograf/v1/") {
+		if strings.HasPrefix(r.URL.Path, "/chronograf/v1/") || r.URL.Path == "/oauth/logout" {
 			tokenMiddleware.ServeHTTP(w, r)
 			return
 		}
 		router.ServeHTTP(w, r)
-	})
+	}), routes
 }
 
 func encodeJSON(w http.ResponseWriter, status int, v interface{}, logger chronograf.Logger) {

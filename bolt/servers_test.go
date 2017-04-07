@@ -14,7 +14,7 @@ func TestServerStore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := c.Open(); err != nil {
+	if err := c.Open(context.TODO()); err != nil {
 		t.Fatal(err)
 	}
 	defer c.Close()

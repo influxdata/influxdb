@@ -8,7 +8,7 @@ var dependencies = package.dependencies;
 
 var config = {
   bail: true,
-  devtool:  'hidden-source-map',
+  devtool:  'eval',
   entry: {
     app: path.resolve(__dirname, '..', 'src', 'index.js'),
     vendor: Object.keys(dependencies),
@@ -49,7 +49,7 @@ var config = {
         loader: ExtractTextPlugin.extract('style-loader', 'css-loader!postcss-loader'),
       },
       {
-        test   : /\.(ico|png|jpg|ttf|eot|svg|woff(2)?)(\?[a-z0-9]+)?$/,
+        test   : /\.(ico|png|cur|jpg|ttf|eot|svg|woff(2)?)(\?[a-z0-9]+)?$/,
         loader : 'file',
       },
       {
@@ -101,7 +101,10 @@ var config = {
           process.exit(1);
         }
       });
-    }
+    },
+    new webpack.DefinePlugin({
+      VERSION: JSON.stringify(require('../package.json').version),
+    }),
   ],
   postcss: require('./postcss'),
   target: 'web',

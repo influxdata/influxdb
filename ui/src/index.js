@@ -1,95 +1,120 @@
-import React from 'react';
-import {render} from 'react-dom';
-import {Provider} from 'react-redux';
-import {Router, Route, Redirect} from 'react-router';
-import {createHistory, useBasename} from 'history';
+import React from 'react'
+import {render} from 'react-dom'
+import {Provider} from 'react-redux'
+import {Router, Route, Redirect, useRouterHistory} from 'react-router'
+import {createHistory} from 'history'
 
-import App from 'src/App';
-import AlertsApp from 'src/alerts';
-import CheckSources from 'src/CheckSources';
-import {HostsPage, HostPage} from 'src/hosts';
-import {KubernetesPage} from 'src/kubernetes';
-import {Login} from 'src/auth';
-import {KapacitorPage, KapacitorRulePage, KapacitorRulesPage, KapacitorTasksPage} from 'src/kapacitor';
-import DataExplorer from 'src/data_explorer';
-import {DashboardsPage, DashboardPage} from 'src/dashboards';
-import {CreateSource, SourcePage, ManageSources} from 'src/sources';
-import NotFound from 'src/shared/components/NotFound';
-import configureStore from 'src/store/configureStore';
-import {getMe, getSources} from 'shared/apis';
-import {receiveMe} from 'shared/actions/me';
+import App from 'src/App'
+import AlertsApp from 'src/alerts'
+import CheckSources from 'src/CheckSources'
+import {HostsPage, HostPage} from 'src/hosts'
+import {KubernetesPage} from 'src/kubernetes'
+import {Login} from 'src/auth'
+import {KapacitorPage, KapacitorRulePage, KapacitorRulesPage, KapacitorTasksPage} from 'src/kapacitor'
+import DataExplorer from 'src/data_explorer'
+import {DashboardsPage, DashboardPage} from 'src/dashboards'
+import {CreateSource, SourcePage, ManageSources} from 'src/sources'
+import {AdminPage} from 'src/admin'
+import NotFound from 'src/shared/components/NotFound'
+import configureStore from 'src/store/configureStore'
+import {getMe, getSources} from 'shared/apis'
+import {receiveMe} from 'shared/actions/me'
+import {receiveAuth} from 'shared/actions/auth'
+import {disablePresentationMode} from 'shared/actions/app'
+import {publishNotification} from 'shared/actions/notifications'
+import {loadLocalStorage} from './localStorage'
 
-import 'src/style/chronograf.scss';
+import 'src/style/chronograf.scss'
 
-const defaultTimeRange = {upper: null, lower: 'now() - 15m'};
-const lsTimeRange = window.localStorage.getItem('timeRange');
-const parsedTimeRange = JSON.parse(lsTimeRange) || {};
-const timeRange = Object.assign(defaultTimeRange, parsedTimeRange);
+import {HTTP_FORBIDDEN, HEARTBEAT_INTERVAL} from 'shared/constants'
 
-const store = configureStore({timeRange});
-const rootNode = document.getElementById('react-root');
+const store = configureStore(loadLocalStorage())
+const rootNode = document.getElementById('react-root')
 
-let browserHistory;
-const basepath = rootNode.dataset.basepath;
-window.basepath = basepath;
+let browserHistory
+const basepath = rootNode.dataset.basepath
+window.basepath = basepath
 if (basepath) {
-  browserHistory = useBasename(createHistory)({
+  browserHistory = useRouterHistory(createHistory)({
     basename: basepath, // this is written in when available by the URL prefixer middleware
-  });
+  })
 } else {
-  browserHistory = useBasename(createHistory)({
+  browserHistory = useRouterHistory(createHistory)({
     basename: "",
-  });
+  })
 }
+browserHistory.listen(() => {
+  store.dispatch(disablePresentationMode())
+})
+
+window.addEventListener('keyup', (event) => {
+  if (event.key === 'Escape') {
+    store.dispatch(disablePresentationMode())
+  }
+})
 
 const Root = React.createClass({
   getInitialState() {
     return {
       loggedIn: null,
-    };
+    }
   },
   componentDidMount() {
-    this.checkAuth();
+    this.checkAuth()
   },
   activeSource(sources) {
-    const defaultSource = sources.find((s) => s.default);
+    const defaultSource = sources.find((s) => s.default)
     if (defaultSource && defaultSource.id) {
-      return defaultSource;
+      return defaultSource
     }
-    return sources[0];
+    return sources[0]
   },
 
   redirectFromRoot(_, replace, callback) {
     getSources().then(({data: {sources}}) => {
       if (sources && sources.length) {
-        const path = `/sources/${this.activeSource(sources).id}/hosts`;
-        replace(path);
+        const path = `/sources/${this.activeSource(sources).id}/hosts`
+        replace(path)
       }
-      callback();
-    });
+      callback()
+    })
   },
 
   checkAuth() {
     if (store.getState().me.links) {
-      return this.setState({loggedIn: true});
+      return this.setState({loggedIn: true})
     }
-    getMe().then(({data: me}) => {
-      store.dispatch(receiveMe(me));
-      this.setState({loggedIn: true});
-    }).catch((err) => {
-      const AUTH_DISABLED = 418;
-      if (err.response.status === AUTH_DISABLED) {
-        return this.setState({loggedIn: true});
-        // Could store a boolean indicating auth is not set up
+
+    this.heartbeat({shouldDispatchResponse: true})
+  },
+
+  async heartbeat({shouldDispatchResponse}) {
+    try {
+      const {data: me, auth} = await getMe()
+      if (shouldDispatchResponse) {
+        store.dispatch(receiveMe(me))
+        store.dispatch(receiveAuth(auth))
+        this.setState({loggedIn: true})
       }
 
-      this.setState({loggedIn: false});
-    });
+      setTimeout(this.heartbeat.bind(null, {shouldDispatchResponse: false}), HEARTBEAT_INTERVAL)
+    } catch (error) {
+      if (error.auth) {
+        store.dispatch(receiveAuth(error.auth))
+      }
+      if (error.status === HTTP_FORBIDDEN) {
+        store.dispatch(publishNotification('error', 'Session timed out. Please login again.'))
+      } else {
+        store.dispatch(publishNotification('error', 'Cannot communicate with server.'))
+      }
+
+      this.setState({loggedIn: false})
+    }
   },
 
   render() {
     if (this.state.loggedIn === null) {
-      return <div className="page-spinner"></div>;
+      return <div className="page-spinner"></div>
     }
     if (this.state.loggedIn === false) {
       return (
@@ -99,7 +124,7 @@ const Root = React.createClass({
             <Redirect from="*" to="/login" />
           </Router>
         </Provider>
-      );
+      )
     }
     return (
       <Provider store={store}>
@@ -112,7 +137,6 @@ const Root = React.createClass({
               <Route path="manage-sources/new" component={SourcePage} />
               <Route path="manage-sources/:id/edit" component={SourcePage} />
               <Route path="chronograf/data-explorer" component={DataExplorer} />
-              <Route path="chronograf/data-explorer/:base64ExplorerID" component={DataExplorer} />
               <Route path="hosts" component={HostsPage} />
               <Route path="hosts/:hostID" component={HostPage} />
               <Route path="kubernetes" component={KubernetesPage} />
@@ -124,15 +148,16 @@ const Root = React.createClass({
               <Route path="alert-rules" component={KapacitorRulesPage} />
               <Route path="alert-rules/:ruleID" component={KapacitorRulePage} />
               <Route path="alert-rules/new" component={KapacitorRulePage} />
+              <Route path="admin" component={AdminPage} />
             </Route>
-            <Route path="*" component={NotFound} />
           </Route>
+          <Route path="*" component={NotFound} />
         </Router>
       </Provider>
-    );
+    )
   },
-});
+})
 
 if (rootNode) {
-  render(<Root />, rootNode);
+  render(<Root />, rootNode)
 }

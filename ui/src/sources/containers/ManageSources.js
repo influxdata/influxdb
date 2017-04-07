@@ -1,66 +1,69 @@
-import React, {PropTypes} from 'react';
-import {withRouter, Link} from 'react-router';
-import {getKapacitor, deleteSource} from 'shared/apis';
-import {
-  loadSources as loadSourcesAction,
-  removeSource as removeSourceAction,
-} from 'src/shared/actions/sources';
-import {connect} from 'react-redux';
+import React, {PropTypes} from 'react'
+import {withRouter, Link} from 'react-router'
+import {getKapacitor} from 'shared/apis'
+import {removeAndLoadSources} from 'src/shared/actions/sources'
+import {connect} from 'react-redux'
+
+const {
+  array,
+  func,
+  shape,
+  string,
+} = PropTypes
 
 export const ManageSources = React.createClass({
   propTypes: {
-    location: PropTypes.shape({
-      pathname: PropTypes.string.isRequired,
+    location: shape({
+      pathname: string.isRequired,
     }).isRequired,
-    source: PropTypes.shape({
-      id: PropTypes.string.isRequired,
-      links: PropTypes.shape({
-        proxy: PropTypes.string.isRequired,
-        self: PropTypes.string.isRequired,
+    source: shape({
+      id: string.isRequired,
+      links: shape({
+        proxy: string.isRequired,
+        self: string.isRequired,
       }),
     }),
-    sources: PropTypes.array,
-    addFlashMessage: PropTypes.func,
-    loadSourcesAction: PropTypes.func.isRequired,
-    removeSourceAction: PropTypes.func.isRequired,
+    sources: array,
+    addFlashMessage: func,
+    removeAndLoadSources: func,
   },
+
   getInitialState() {
     return {
       kapacitors: {},
-    };
+    }
   },
 
   componentDidMount() {
-    const updates = [];
-    const kapas = {};
+    const updates = []
+    const kapas = {}
     this.props.sources.forEach((source) => {
       const prom = getKapacitor(source).then((kapacitor) => {
-        kapas[source.id] = kapacitor;
-      });
-      updates.push(prom);
-    });
+        kapas[source.id] = kapacitor
+      })
+      updates.push(prom)
+    })
     Promise.all(updates).then(() => {
-      this.setState({kapacitors: kapas});
-    });
+      this.setState({kapacitors: kapas})
+    })
   },
 
   handleDeleteSource(source) {
-    const {addFlashMessage} = this.props;
+    const {addFlashMessage} = this.props
 
-    deleteSource(source).then(() => {
-      this.props.removeSourceAction(source);
-      addFlashMessage({type: 'success', text: 'Source removed from Chronograf'});
-    }).catch(() => {
-      addFlashMessage({type: 'error', text: 'Could not remove source from Chronograf'});
-    });
+    try {
+      this.props.removeAndLoadSources(source)
+    } catch (e) {
+      addFlashMessage({type: 'error', text: 'Could not remove source from Chronograf'})
+    }
   },
 
   render() {
-    const {kapacitors} = this.state;
-    const {sources} = this.props;
-    const {pathname} = this.props.location;
-    const numSources = sources.length;
-    const sourcesTitle = `${numSources} ${numSources === 1 ? 'Source' : 'Sources'}`;
+    const {kapacitors} = this.state
+    const {sources} = this.props
+    const {pathname} = this.props.location
+    const numSources = sources.length
+    const sourcesTitle = `${numSources} ${numSources === 1 ? 'Source' : 'Sources'}`
 
     return (
       <div className="page" id="manage-sources-page">
@@ -95,7 +98,7 @@ export const ManageSources = React.createClass({
                         <tbody>
                           {
                             sources.map((source) => {
-                              const kapacitorName = kapacitors[source.id] ? kapacitors[source.id].name : '';
+                              const kapacitorName = kapacitors[source.id] ? kapacitors[source.id].name : ''
                               return (
                                 <tr key={source.id}>
                                   <td>{source.name}{source.default ? <span className="default-source-label">Default</span> : null}</td>
@@ -107,7 +110,7 @@ export const ManageSources = React.createClass({
                                     <button className="btn btn-danger btn-xs" onClick={() => this.handleDeleteSource(source)}><span className="icon trash"></span></button>
                                   </td>
                                 </tr>
-                              );
+                              )
                             })
                           }
                         </tbody>
@@ -120,14 +123,14 @@ export const ManageSources = React.createClass({
           </div>
         </div>
       </div>
-    );
+    )
   },
-});
+})
 
 function mapStateToProps(state) {
   return {
     sources: state.sources,
-  };
+  }
 }
 
-export default connect(mapStateToProps, {loadSourcesAction, removeSourceAction})(withRouter(ManageSources));
+export default connect(mapStateToProps, {removeAndLoadSources})(withRouter(ManageSources))

@@ -12,18 +12,19 @@ It lists every host that is sending [Telegraf](https://github.com/influxdata/tel
 
 ![Host List](https://github.com/influxdata/chronograf/blob/master/docs/images/host-list-gs.png)
 
-The Chronograf instance shown above is connected to two hosts (`telegraf-neverland` and `telegraf-narnia`).
-The first host is using 0.23%	of its total CPU and has a load of 0.00.
+The Chronograf instance shown above is connected to two hosts (`telegraf-narnia` and `telegraf-neverland`).
+The first host is using 0.35%	of its total CPU and has a load of 0.00.
 It has one configured app: `system`.
 Apps are Telegraf [input plugins](https://github.com/influxdata/telegraf#input-plugins) that have dashboard templates in Chronograf.
 
 Click on the app on the `HOST LIST` page to access its dashboard template.
-The dashboard offers [pre-canned](https://github.com/influxdata/chronograf/tree/master/canned) graphs of the input's data that are currently in InfluxDB.
+The dashboard offers [pre-created](https://github.com/influxdata/chronograf/tree/master/canned) graphs of the input's data that are currently in InfluxDB.
 Here's the dashboard template for Telegraf's [system stats](https://github.com/influxdata/telegraf/tree/master/plugins/inputs/system) input plugin:
 
 ![System Graph Layout](https://github.com/influxdata/chronograf/blob/master/docs/images/system-layout-gs.gif)
 
-Hover over the graphs to get additional information about the data, and select alternative time ranges for the graphs by using the time selector in the top right corner.
+Hover over the graphs to get additional information about the data.
+In addition, select alternative refresh intervals, alternative time ranges, and enter presentation mode with the icons in the top right corner.
 
 See the [README](https://github.com/influxdata/chronograf#dashboard-templates) for a complete list of the apps supported by Chronograf.
 
@@ -44,7 +45,7 @@ Paste an existing [InfluxQL](https://docs.influxdata.com/influxdb/latest/query_l
 ![Raw Editor](https://github.com/influxdata/chronograf/blob/master/docs/images/raw-editor-gs.gif)
 
 ### Other Features
-View query results in tabular format (1), easily alter the query's time range with the time range selector (2), and save your graphs in individual exploration sessions (3):
+Select an alternative refresh interval (1), an alternative time range (2), and view query results in tabular format (3):
 
 ![Data Exploration Extras](https://github.com/influxdata/chronograf/blob/master/docs/images/data-exploration-extras-gs.png)
 
@@ -71,7 +72,7 @@ It supports three rule types:
 * Relative Rule - alert if the data change relative to the data in a different time range
 * Deadman Rule - alert if no data are received for the specified time range
 
-The example above creates a simple threshold rule that sends an alert when `usage_idle` values are less than 86% within the past minute.
+The example above creates a simple threshold rule that sends an alert when `usage_idle` values are less than 96%.
 Notice that the graph provides a preview of the target data and the configured rule boundary.
 
 Lastly, the `Alert Message` section allows you to personalize the alert message and select an alert endpoint.
@@ -89,3 +90,37 @@ See all active alerts on the `ALERTING` page, and filter them by `Name`,
 `Level`, and `Host`:
 
 ![Alert View](https://github.com/influxdata/chronograf/blob/master/docs/images/alert-view-gs.png)
+
+### Alerta TICKscript Parser
+
+Chronograf offers a parser for TICKscripts that use the [Alerta](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#alerta) output.
+This is a new feature in version 1.2.0-beta2.
+
+To use the TICKscript parser:
+
+* Select Alerta as the output when creating or editing an alert rule
+* Paste your existing TICKscript in the text input (spacing doesn't matter!)
+* Save your rule
+
+You're good to go! The system automatically parses your TICKscript and creates a
+Chronograf-friendly alert rule.
+
+> **Notes:**
+>
+* Currently, the Alerta TICKscript parser requires users to **paste** their existing TICKscript in the text input. The parser does not support manually entering or editing a TICKscript.
+* The parser requires users to whitespace delimit any services listed in the TICKscript's [`.services()` attribute](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#alerta-services).
+
+## Manage Users and Queries
+
+The `ADMIN` section of Chronograf supports managing InfluxDB users and queries.
+
+### User Management
+
+Create, assign permissions to, and delete [InfluxDB users](https://docs.influxdata.com/influxdb/latest/query_language/authentication_and_authorization/#user-types-and-privileges).
+In version 1.2.0-beta5, Chronograf only supports assigning `ALL` permissions to users; that is, read and write permissions to every database in the InfluxDB instance.
+
+### Query Management
+
+View currently-running queries and stop expensive queries from running on the InfluxDB instance:
+
+![Alert View](https://github.com/influxdata/chronograf/blob/master/docs/images/admin-gs.png)

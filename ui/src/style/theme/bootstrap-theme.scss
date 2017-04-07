@@ -248,8 +248,14 @@
 .icon.access-key:before {
   content: "\e921";
 }
+.icon.crown2:before {
+  content: "\e94b";
+}
 .icon.crown:before {
   content: "\e90f";
+}
+.icon.server2:before {
+  content: "\e94c";
 }
 .icon.server:before {
   content: "\e914";
@@ -265,6 +271,12 @@
 }
 .icon.user-outline:before {
   content: "\e91c";
+}
+.icon.refresh:before {
+  content: "\e949";
+}
+.icon.pause:before {
+  content: "\e94a";
 }
 .icon.clock:before {
   content: "\e91b";
@@ -334,6 +346,27 @@
 }
 .icon.export:before {
   content: "\e941";
+}
+.icon.expand-b:before {
+  content: "\e942";
+}
+.icon.expand-c:before {
+  content: "\e943";
+}
+.icon.expand-a:before {
+  content: "\e944";
+}
+.icon.undo:before {
+  content: "\e945";
+}
+.icon.redo:before {
+  content: "\e946";
+}
+.icon.heroku:before {
+  content: "\e947";
+}
+.icon.heroku-simple:before {
+  content: "\e948";
 }
 .icon.alert-triangle:before {
   content: "\f02d";

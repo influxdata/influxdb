@@ -1,7 +1,7 @@
-import React, {PropTypes} from 'react';
-import cx from 'classnames';
+import React, {PropTypes} from 'react'
+import cx from 'classnames'
 
-const {node, func, bool, number, string} = PropTypes;
+const {node, func, bool, number, string} = PropTypes
 export const Tab = React.createClass({
   propTypes: {
     children: node.isRequired,
@@ -18,9 +18,9 @@ export const Tab = React.createClass({
       >
         {this.props.children}
       </div>
-    );
+    )
   },
-});
+})
 
 export const TabList = React.createClass({
   propTypes: {
@@ -28,12 +28,13 @@ export const TabList = React.createClass({
     activeIndex: number,
     onActivate: func,
     isKapacitorTabs: string,
+    customClass: string,
   },
 
   getDefaultProps() {
     return {
       isKapacitorTabs: '',
-    };
+    }
   },
 
   render() {
@@ -41,8 +42,8 @@ export const TabList = React.createClass({
       return React.cloneElement(child, {
         isActive: index === this.props.activeIndex,
         onClick: () => this.props.onActivate(index),
-      });
-    });
+      })
+    })
 
     if (this.props.isKapacitorTabs === "true") {
       return (
@@ -50,29 +51,39 @@ export const TabList = React.createClass({
           <p>Alert Type</p>
           <div className="btn-group btn-group-lg tab-group">{children}</div>
         </div>
-      );
+      )
+    }
+
+    if (this.props.customClass) {
+      return (
+        <div className={this.props.customClass}>
+          <div className="btn-group btn-group-lg tab-group">{children}</div>
+        </div>
+      )
     }
 
     return (
       <div className="btn-group btn-group-lg tab-group">{children}</div>
-    );
+    )
   },
-});
+})
 
 export const TabPanels = React.createClass({
   propTypes: {
     children: node.isRequired,
     activeIndex: number,
+    customClass: string,
   },
 
+  // if only 1 child, children array index lookup will fail
   render() {
     return (
-      <div>
+      <div className={this.props.customClass ? this.props.customClass : null}>
         {this.props.children[this.props.activeIndex]}
       </div>
-    );
+    )
   },
-});
+})
 
 export const TabPanel = React.createClass({
   propTypes: {
@@ -80,9 +91,9 @@ export const TabPanel = React.createClass({
   },
 
   render() {
-    return <div>{this.props.children}</div>;
+    return <div>{this.props.children}</div>
   },
-});
+})
 
 export const Tabs = React.createClass({
   propTypes: {
@@ -97,7 +108,7 @@ export const Tabs = React.createClass({
     return {
       onSelect() {},
       tabContentsClass: '',
-    };
+    }
   },
 
   getInitialState() {
@@ -105,12 +116,12 @@ export const Tabs = React.createClass({
     // other than 0 on initial render.
     return {
       activeIndex: this.props.initialIndex || 0,
-    };
+    }
   },
 
   handleActivateTab(activeIndex) {
-    this.setState({activeIndex});
-    this.props.onSelect(activeIndex);
+    this.setState({activeIndex})
+    this.props.onSelect(activeIndex)
   },
 
   render() {
@@ -118,17 +129,17 @@ export const Tabs = React.createClass({
       if (child.type === TabPanels) {
         return React.cloneElement(child, {
           activeIndex: this.state.activeIndex,
-        });
+        })
       } else if (child.type === TabList) {
         return React.cloneElement(child, {
           activeIndex: this.state.activeIndex,
           onActivate: this.handleActivateTab,
-        });
+        })
       }
 
-      return child;
-    });
+      return child
+    })
 
-    return <div className={this.props.tabContentsClass}>{children}</div>;
+    return <div className={this.props.tabContentsClass}>{children}</div>
   },
-});
+})

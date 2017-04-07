@@ -1,7 +1,12 @@
-import uuid from 'node-uuid';
-import {getRules, getRule, deleteRule as deleteRuleAPI} from 'src/kapacitor/apis';
-import {getKapacitor} from 'src/shared/apis';
-import {publishNotification} from 'src/shared/actions/notifications';
+import uuid from 'node-uuid'
+import {getKapacitor} from 'src/shared/apis'
+import {publishNotification} from 'src/shared/actions/notifications'
+import {
+  getRules,
+  getRule,
+  deleteRule as deleteRuleAPI,
+  updateRuleStatus as updateRuleStatusAPI,
+} from 'src/kapacitor/apis'
 
 export function fetchRule(source, ruleID) {
   return (dispatch) => {
@@ -12,35 +17,35 @@ export function fetchRule(source, ruleID) {
           payload: {
             rule: Object.assign(rule, {queryID: rule.query.id}),
           },
-        });
+        })
 
         dispatch({
           type: 'LOAD_KAPACITOR_QUERY',
           payload: {
             query: rule.query,
           },
-        });
-      });
-    });
-  };
+        })
+      })
+    })
+  }
 }
 
 export function loadDefaultRule() {
   return (dispatch) => {
-    const queryID = uuid.v4();
+    const queryID = uuid.v4()
     dispatch({
       type: 'LOAD_DEFAULT_RULE',
       payload: {
         queryID,
       },
-    });
+    })
     dispatch({
       type: 'ADD_KAPACITOR_QUERY',
       payload: {
-        queryId: queryID,
+        queryID,
       },
-    });
-  };
+    })
+  }
 }
 
 export function fetchRules(kapacitor) {
@@ -51,9 +56,9 @@ export function fetchRules(kapacitor) {
         payload: {
           rules,
         },
-      });
-    });
-  };
+      })
+    })
+  }
 }
 
 export function chooseTrigger(ruleID, trigger) {
@@ -63,7 +68,7 @@ export function chooseTrigger(ruleID, trigger) {
       ruleID,
       trigger,
     },
-  };
+  }
 }
 
 export function updateRuleValues(ruleID, trigger, values) {
@@ -74,7 +79,7 @@ export function updateRuleValues(ruleID, trigger, values) {
       trigger,
       values,
     },
-  };
+  }
 }
 
 export function updateMessage(ruleID, message) {
@@ -84,7 +89,17 @@ export function updateMessage(ruleID, message) {
       ruleID,
       message,
     },
-  };
+  }
+}
+
+export function updateDetails(ruleID, details) {
+  return {
+    type: 'UPDATE_RULE_DETAILS',
+    payload: {
+      ruleID,
+      details,
+    },
+  }
 }
 
 export function updateAlerts(ruleID, alerts) {
@@ -94,7 +109,18 @@ export function updateAlerts(ruleID, alerts) {
       ruleID,
       alerts,
     },
-  };
+  }
+}
+
+export function updateAlertNodes(ruleID, alertType, alertNodesText) {
+  return {
+    type: 'UPDATE_RULE_ALERT_NODES',
+    payload: {
+      ruleID,
+      alertType,
+      alertNodesText,
+    },
+  }
 }
 
 export function updateRuleName(ruleID, name) {
@@ -104,7 +130,7 @@ export function updateRuleName(ruleID, name) {
       ruleID,
       name,
     },
-  };
+  }
 }
 
 export function deleteRuleSuccess(ruleID) {
@@ -113,16 +139,36 @@ export function deleteRuleSuccess(ruleID) {
     payload: {
       ruleID,
     },
-  };
+  }
+}
+
+export function updateRuleStatusSuccess(ruleID, status) {
+  return {
+    type: 'UPDATE_RULE_STATUS_SUCCESS',
+    payload: {
+      ruleID,
+      status,
+    },
+  }
 }
 
 export function deleteRule(rule) {
   return (dispatch) => {
     deleteRuleAPI(rule).then(() => {
-      dispatch(deleteRuleSuccess(rule.id));
-      dispatch(publishNotification('success', `${rule.name} deleted successfully`));
+      dispatch(deleteRuleSuccess(rule.id))
+      dispatch(publishNotification('success', `${rule.name} deleted successfully`))
     }).catch(() => {
-      dispatch(publishNotification('error', `${rule.name} could not be deleted`));
-    });
-  };
+      dispatch(publishNotification('error', `${rule.name} could not be deleted`))
+    })
+  }
+}
+
+export function updateRuleStatus(rule, status) {
+  return (dispatch) => {
+    updateRuleStatusAPI(rule, status).then(() => {
+      dispatch(publishNotification('success', `${rule.name} ${status} successfully`))
+    }).catch(() => {
+      dispatch(publishNotification('error', `${rule.name} could not be ${status}`))
+    })
+  }
 }

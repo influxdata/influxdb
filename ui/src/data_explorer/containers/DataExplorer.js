@@ -1,113 +1,130 @@
-import React, {PropTypes} from 'react';
-import {connect} from 'react-redux';
-import PanelBuilder from '../components/PanelBuilder';
-import Visualizations from '../components/Visualizations';
-import Header from '../containers/Header';
-import ResizeContainer from 'shared/components/ResizeContainer';
-import {FETCHING} from '../reducers/explorers';
-import {
-  setTimeRange as setTimeRangeAction,
-  createExploration as createExplorationAction,
-  chooseExploration as chooseExplorationAction,
-  deleteExplorer as deleteExplorerAction,
-  editExplorer as editExplorerAction,
-} from '../actions/view';
+import React, {PropTypes} from 'react'
+import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux'
+
+import _ from 'lodash'
+
+import QueryBuilder from '../components/QueryBuilder'
+import Visualization from '../components/Visualization'
+import Header from '../containers/Header'
+import ResizeContainer, {ResizeBottom} from 'src/shared/components/ResizeContainer'
+
+import {setAutoRefresh} from 'shared/actions/app'
+import * as viewActions from 'src/data_explorer/actions/view'
+
+const {
+  arrayOf,
+  func,
+  number,
+  shape,
+  string,
+} = PropTypes
 
 const DataExplorer = React.createClass({
   propTypes: {
-    source: PropTypes.shape({
-      links: PropTypes.shape({
-        proxy: PropTypes.string.isRequired,
-        self: PropTypes.string.isRequired,
+    source: shape({
+      links: shape({
+        proxy: string.isRequired,
+        self: string.isRequired,
       }).isRequired,
     }).isRequired,
-    explorers: PropTypes.shape({}).isRequired,
-    explorerID: PropTypes.string,
-    timeRange: PropTypes.shape({
-      upper: PropTypes.string,
-      lower: PropTypes.string,
+    queryConfigs: arrayOf(shape({})).isRequired,
+    queryConfigActions: shape({}).isRequired,
+    autoRefresh: number.isRequired,
+    handleChooseAutoRefresh: func.isRequired,
+    timeRange: shape({
+      upper: string,
+      lower: string,
     }).isRequired,
-    setTimeRange: PropTypes.func.isRequired,
-    createExploration: PropTypes.func.isRequired,
-    chooseExploration: PropTypes.func.isRequired,
-    deleteExplorer: PropTypes.func.isRequired,
-    editExplorer: PropTypes.func.isRequired,
+    setTimeRange: func.isRequired,
+    dataExplorer: shape({
+      queryIDs: arrayOf(string).isRequired,
+    }).isRequired,
   },
 
   childContextTypes: {
-    source: PropTypes.shape({
-      links: PropTypes.shape({
-        proxy: PropTypes.string.isRequired,
-        self: PropTypes.string.isRequired,
+    source: shape({
+      links: shape({
+        proxy: string.isRequired,
+        self: string.isRequired,
       }).isRequired,
     }).isRequired,
   },
 
   getChildContext() {
-    return {source: this.props.source};
+    return {source: this.props.source}
   },
 
   getInitialState() {
     return {
-      activePanelID: null,
-      activeQueryID: null,
-    };
+      activeQueryIndex: null,
+    }
   },
 
-  handleSetActivePanel(id) {
-    this.setState({activePanelID: id});
+  handleSetActiveQueryIndex(index) {
+    this.setState({activeQueryIndex: index})
   },
 
-  handleSetActiveQuery(id) {
-    this.setState({activeQueryID: id});
+  handleDeleteQuery(index) {
+    const {queryConfigs} = this.props
+    const query = queryConfigs[index]
+    this.props.queryConfigActions.deleteQuery(query.id)
   },
 
   render() {
-    const {timeRange, explorers, explorerID, setTimeRange, createExploration, chooseExploration, deleteExplorer, editExplorer} = this.props;
-
-    if (explorers === FETCHING || !explorerID) {
-      // TODO: page-wide spinner
-      return null;
-    }
+    const {autoRefresh, handleChooseAutoRefresh, timeRange, setTimeRange, queryConfigs, queryConfigActions} = this.props
+    const {activeQueryIndex} = this.state
 
     return (
       <div className="data-explorer">
         <Header
-          actions={{setTimeRange, createExploration, chooseExploration, deleteExplorer, editExplorer}}
-          explorers={explorers}
+          actions={{handleChooseAutoRefresh, setTimeRange}}
+          autoRefresh={autoRefresh}
           timeRange={timeRange}
-          explorerID={explorerID}
         />
         <ResizeContainer>
-          <PanelBuilder
+          <QueryBuilder
+            queries={queryConfigs}
+            actions={queryConfigActions}
+            autoRefresh={autoRefresh}
             timeRange={timeRange}
-            activePanelID={this.state.activePanelID}
-            activeQueryID={this.state.activeQueryID}
-            setActiveQuery={this.handleSetActiveQuery}
-            setActivePanel={this.handleSetActivePanel}
+            setActiveQueryIndex={this.handleSetActiveQueryIndex}
+            onDeleteQuery={this.handleDeleteQuery}
+            activeQueryIndex={activeQueryIndex}
           />
-          <Visualizations
-            timeRange={timeRange}
-            activePanelID={this.state.activePanelID}
-            activeQueryID={this.state.activeQueryID}
-          />
+          <ResizeBottom>
+            <Visualization
+              autoRefresh={autoRefresh}
+              timeRange={timeRange}
+              queryConfigs={queryConfigs}
+              activeQueryIndex={activeQueryIndex}
+              onEditRawStatus={queryConfigActions.editRawQueryStatus}
+            />
+          </ResizeBottom>
         </ResizeContainer>
       </div>
-    );
+    )
   },
-});
+})
 
 function mapStateToProps(state) {
+  const {app: {persisted: {autoRefresh}}, timeRange, queryConfigs, dataExplorer} = state
+  const queryConfigValues = _.values(queryConfigs)
+
   return {
-    timeRange: state.timeRange,
-    explorers: state.explorers,
-  };
+    autoRefresh,
+    timeRange,
+    queryConfigs: queryConfigValues,
+    dataExplorer,
+  }
 }
 
-export default connect(mapStateToProps, {
-  setTimeRange: setTimeRangeAction,
-  createExploration: createExplorationAction,
-  chooseExploration: chooseExplorationAction,
-  deleteExplorer: deleteExplorerAction,
-  editExplorer: editExplorerAction,
-})(DataExplorer);
+function mapDispatchToProps(dispatch) {
+  return {
+    handleChooseAutoRefresh: bindActionCreators(setAutoRefresh, dispatch),
+    setTimeRange: bindActionCreators(viewActions.setTimeRange, dispatch),
+    queryConfigActions: bindActionCreators(viewActions, dispatch),
+  }
+}
+
+export default connect(mapStateToProps, mapDispatchToProps)(DataExplorer)

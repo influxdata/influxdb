@@ -1,6 +1,6 @@
-import React, {PropTypes} from 'react';
-import _ from 'lodash';
-import {Link} from 'react-router';
+import React, {PropTypes} from 'react'
+import _ from 'lodash'
+import {Link} from 'react-router'
 
 const AlertsTable = React.createClass({
   propTypes: {
@@ -23,50 +23,51 @@ const AlertsTable = React.createClass({
       filteredAlerts: this.props.alerts,
       sortDirection: null,
       sortKey: null,
-    };
+    }
   },
 
   componentWillReceiveProps(newProps) {
-    this.filterAlerts(newProps.alerts, this.state.searchTerm);
+    this.filterAlerts(this.state.searchTerm, newProps.alerts)
   },
 
-  filterAlerts(searchTerm) {
-    const filteredAlerts = this.props.alerts.filter((h) => {
+  filterAlerts(searchTerm, newAlerts) {
+    const alerts = newAlerts || this.props.alerts
+    const filteredAlerts = alerts.filter((h) => {
       if (h.host === null || h.name === null || h.level === null) {
-        return false;
+        return false
       }
 
       return h.name.toLowerCase().search((searchTerm).toLowerCase()) !== -1 ||
-              h.host.toLowerCase().search((searchTerm).toLowerCase()) !== -1 ||
-              h.level.toLowerCase().search((searchTerm).toLowerCase()) !== -1;
-    });
-    this.setState({searchTerm, filteredAlerts});
+        h.host.toLowerCase().search((searchTerm).toLowerCase()) !== -1 ||
+        h.level.toLowerCase().search((searchTerm).toLowerCase()) !== -1
+    })
+    this.setState({searchTerm, filteredAlerts})
   },
 
   changeSort(key) {
     // if we're using the key, reverse order; otherwise, set it with ascending
     if (this.state.sortKey === key) {
-      const reverseDirection = (this.state.sortDirection === 'asc' ? 'desc' : 'asc');
-      this.setState({sortDirection: reverseDirection});
+      const reverseDirection = (this.state.sortDirection === 'asc' ? 'desc' : 'asc')
+      this.setState({sortDirection: reverseDirection})
     } else {
-      this.setState({sortKey: key, sortDirection: 'asc'});
+      this.setState({sortKey: key, sortDirection: 'asc'})
     }
   },
 
   sort(alerts, key, direction) {
     switch (direction) {
       case 'asc':
-        return _.sortBy(alerts, (e) => e[key]);
+        return _.sortBy(alerts, (e) => e[key])
       case 'desc':
-        return _.sortBy(alerts, (e) => e[key]).reverse();
+        return _.sortBy(alerts, (e) => e[key]).reverse()
       default:
-        return alerts;
+        return alerts
     }
   },
 
   render() {
-    const {id} = this.props.source;
-    const alerts = this.sort(this.state.filteredAlerts, this.state.sortKey, this.state.sortDirection);
+    const {id} = this.props.source
+    const alerts = this.sort(this.state.filteredAlerts, this.state.sortKey, this.state.sortDirection)
     return (
       <div className="panel panel-minimal">
         <div className="panel-heading u-flex u-ai-center u-jc-space-between">
@@ -99,16 +100,16 @@ const AlertsTable = React.createClass({
                       </td>
                       <td className="monotype">{value}</td>
                     </tr>
-                  );
+                  )
                 })
               }
             </tbody>
           </table>
         </div>
       </div>
-    );
+    )
   },
-});
+})
 
 const SearchBar = React.createClass({
   propTypes: {
@@ -118,20 +119,20 @@ const SearchBar = React.createClass({
   getInitialState() {
     return {
       searchTerm: '',
-    };
+    }
   },
 
   componentWillMount() {
-    const waitPeriod = 300;
-    this.handleSearch = _.debounce(this.handleSearch, waitPeriod);
+    const waitPeriod = 300
+    this.handleSearch = _.debounce(this.handleSearch, waitPeriod)
   },
 
   handleSearch() {
-    this.props.onSearch(this.state.searchTerm);
+    this.props.onSearch(this.state.searchTerm)
   },
 
   handleChange(e) {
-    this.setState({searchTerm: e.target.value}, this.handleSearch);
+    this.setState({searchTerm: e.target.value}, this.handleSearch)
   },
 
   render() {
@@ -148,8 +149,8 @@ const SearchBar = React.createClass({
           <span className="icon search" aria-hidden="true"></span>
         </div>
       </div>
-    );
+    )
   },
-});
+})
 
-export default AlertsTable;
+export default AlertsTable

@@ -2,44 +2,12 @@ package internal
 
 import (
 	"encoding/json"
-	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/chronograf"
 )
 
 //go:generate protoc --gogo_out=. internal.proto
-
-// MarshalExploration encodes an exploration to binary protobuf format.
-func MarshalExploration(e *chronograf.Exploration) ([]byte, error) {
-	return proto.Marshal(&Exploration{
-		ID:        int64(e.ID),
-		Name:      e.Name,
-		UserID:    int64(e.UserID),
-		Data:      e.Data,
-		CreatedAt: e.CreatedAt.UnixNano(),
-		UpdatedAt: e.UpdatedAt.UnixNano(),
-		Default:   e.Default,
-	})
-}
-
-// UnmarshalExploration decodes an exploration from binary protobuf data.
-func UnmarshalExploration(data []byte, e *chronograf.Exploration) error {
-	var pb Exploration
-	if err := proto.Unmarshal(data, &pb); err != nil {
-		return err
-	}
-
-	e.ID = chronograf.ExplorationID(pb.ID)
-	e.Name = pb.Name
-	e.UserID = chronograf.UserID(pb.UserID)
-	e.Data = pb.Data
-	e.CreatedAt = time.Unix(0, pb.CreatedAt).UTC()
-	e.UpdatedAt = time.Unix(0, pb.UpdatedAt).UTC()
-	e.Default = pb.Default
-
-	return nil
-}
 
 // MarshalSource encodes a source to binary protobuf format.
 func MarshalSource(s chronograf.Source) ([]byte, error) {
@@ -50,6 +18,7 @@ func MarshalSource(s chronograf.Source) ([]byte, error) {
 		Username:           s.Username,
 		Password:           s.Password,
 		URL:                s.URL,
+		MetaURL:            s.MetaURL,
 		InsecureSkipVerify: s.InsecureSkipVerify,
 		Default:            s.Default,
 		Telegraf:           s.Telegraf,
@@ -69,6 +38,7 @@ func UnmarshalSource(data []byte, s *chronograf.Source) error {
 	s.Username = pb.Username
 	s.Password = pb.Password
 	s.URL = pb.URL
+	s.MetaURL = pb.MetaURL
 	s.InsecureSkipVerify = pb.InsecureSkipVerify
 	s.Default = pb.Default
 	s.Telegraf = pb.Telegraf
@@ -201,17 +171,14 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 				r.Upper, r.Lower = q.Range.Upper, q.Range.Lower
 			}
 			queries[j] = &Query{
-				Command:  q.Command,
-				DB:       q.DB,
-				RP:       q.RP,
-				GroupBys: q.GroupBys,
-				Wheres:   q.Wheres,
-				Label:    q.Label,
-				Range:    r,
+				Command: q.Command,
+				Label:   q.Label,
+				Range:   r,
 			}
 		}
 
 		cells[i] = &DashboardCell{
+			ID:      c.ID,
 			X:       c.X,
 			Y:       c.Y,
 			W:       c.W,
@@ -238,15 +205,11 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 
 	cells := make([]chronograf.DashboardCell, len(pb.Cells))
 	for i, c := range pb.Cells {
-		queries := make([]chronograf.Query, len(c.Queries))
+		queries := make([]chronograf.DashboardQuery, len(c.Queries))
 		for j, q := range c.Queries {
-			queries[j] = chronograf.Query{
-				Command:  q.Command,
-				DB:       q.DB,
-				RP:       q.RP,
-				GroupBys: q.GroupBys,
-				Wheres:   q.Wheres,
-				Label:    q.Label,
+			queries[j] = chronograf.DashboardQuery{
+				Command: q.Command,
+				Label:   q.Label,
 			}
 			if q.Range.Upper != q.Range.Lower {
 				queries[j].Range = &chronograf.Range{
@@ -257,6 +220,7 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 		}
 
 		cells[i] = chronograf.DashboardCell{
+			ID:      c.ID,
 			X:       c.X,
 			Y:       c.Y,
 			W:       c.W,
@@ -310,21 +274,35 @@ func UnmarshalAlertRule(data []byte, r *ScopedAlert) error {
 }
 
 // MarshalUser encodes a user to binary protobuf format.
+// We are ignoring the password for now.
 func MarshalUser(u *chronograf.User) ([]byte, error) {
-	return proto.Marshal(&User{
-		ID:    uint64(u.ID),
-		Email: u.Email,
+	return MarshalUserPB(&User{
+		Name: u.Name,
 	})
 }
 
+// MarshalUserPB encodes a user to binary protobuf format.
+// We are ignoring the password for now.
+func MarshalUserPB(u *User) ([]byte, error) {
+	return proto.Marshal(u)
+}
+
 // UnmarshalUser decodes a user from binary protobuf data.
+// We are ignoring the password for now.
 func UnmarshalUser(data []byte, u *chronograf.User) error {
 	var pb User
-	if err := proto.Unmarshal(data, &pb); err != nil {
+	if err := UnmarshalUserPB(data, &pb); err != nil {
 		return err
 	}
+	u.Name = pb.Name
+	return nil
+}
 
-	u.ID = chronograf.UserID(pb.ID)
-	u.Email = pb.Email
+// UnmarshalUser decodes a user from binary protobuf data.
+// We are ignoring the password for now.
+func UnmarshalUserPB(data []byte, u *User) error {
+	if err := proto.Unmarshal(data, u); err != nil {
+		return err
+	}
 	return nil
 }

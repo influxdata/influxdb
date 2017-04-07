@@ -1,4 +1,4 @@
-import React, {PropTypes} from 'react';
+import React, {PropTypes} from 'react'
 
 const SMTPConfig = React.createClass({
   propTypes: {
@@ -15,7 +15,7 @@ const SMTPConfig = React.createClass({
   },
 
   handleSaveAlert(e) {
-    e.preventDefault();
+    e.preventDefault()
 
     const properties = {
       host: this.host.value,
@@ -23,19 +23,19 @@ const SMTPConfig = React.createClass({
       from: this.from.value,
       username: this.username.value,
       password: this.password.value,
-    };
+    }
 
-    this.props.onSave(properties);
+    this.props.onSave(properties)
   },
 
   render() {
-    const {host, port, from, username, password} = this.props.config.options;
+    const {host, port, from, username, password} = this.props.config.options
 
     return (
       <div>
-        <h4 className="text-center">SMTP Alert</h4>
+        <h4 className="text-center no-user-select">SMTP Alert</h4>
         <br/>
-        <p>You can have alerts sent to an email address by setting up an SMTP endpoint.</p>
+        <p className="no-user-select">You can have alerts sent to an email address by setting up an SMTP endpoint.</p>
         <form onSubmit={this.handleSaveAlert}>
           <div className="form-group col-xs-12 col-md-6">
             <label htmlFor="smtp-host">SMTP Host</label>
@@ -67,8 +67,8 @@ const SMTPConfig = React.createClass({
           </div>
         </form>
       </div>
-    );
+    )
   },
-});
+})
 
-export default SMTPConfig;
+export default SMTPConfig

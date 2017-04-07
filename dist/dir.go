@@ -11,6 +11,7 @@ type Dir struct {
 	dir     http.Dir
 }
 
+// NewDir constructs a Dir with a default file
 func NewDir(dir, def string) Dir {
 	return Dir{
 		Default: def,

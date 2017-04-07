@@ -1,9 +1,9 @@
-import React, {PropTypes} from 'react';
-import classNames from 'classnames';
-import _ from 'lodash';
+import React, {PropTypes} from 'react'
+import classNames from 'classnames'
+import _ from 'lodash'
 
-import {showMeasurements} from 'shared/apis/metaQuery';
-import showMeasurementsParser from 'shared/parsing/showMeasurements';
+import {showMeasurements} from 'shared/apis/metaQuery'
+import showMeasurementsParser from 'shared/parsing/showMeasurements'
 
 const MeasurementList = React.createClass({
   propTypes: {
@@ -26,77 +26,97 @@ const MeasurementList = React.createClass({
     return {
       measurements: [],
       filterText: "",
-    };
+    }
   },
 
   componentDidMount() {
     if (!this.props.query.database) {
-      return;
+      return
     }
 
-    const {source} = this.context;
-    const proxy = source.links.proxy;
-    showMeasurements(proxy, this.props.query.database).then((resp) => {
-      const {errors, measurementSets} = showMeasurementsParser(resp.data);
-      if (errors.length) {
-        // TODO: display errors in the UI.
-        return console.error('InfluxDB returned error(s): ', errors); // eslint-disable-line no-console
-      }
+    this._getMeasurements()
+  },
 
-      this.setState({
-        measurements: measurementSets[0].measurements,
-      });
-    });
+  componentDidUpdate(prevProps) {
+    const {query} = this.props
+
+    if (!query.database) {
+      return
+    }
+
+    if (prevProps.query.database === query.database) {
+      return
+    }
+
+    this._getMeasurements()
   },
 
   handleFilterText(e) {
-    e.stopPropagation();
+    e.stopPropagation()
     this.setState({
       filterText: this.refs.filterText.value,
-    });
+    })
   },
 
   handleEscape(e) {
     if (e.key !== 'Escape') {
-      return;
+      return
     }
 
-    e.stopPropagation();
+    e.stopPropagation()
     this.setState({
       filterText: '',
-    });
+    })
   },
 
   render() {
     return (
-      <div>
+      <div className="query-builder--column">
+        <div className="query-builder--column-heading">Measurements</div>
         {this.props.query.database ? <div className="qeditor--list-header">
-          <input className="qeditor--filter" ref="filterText" placeholder="Filter Measurements..." type="text" value={this.state.filterText} onChange={this.handleFilterText} onKeyUp={this.handleEscape} />
+          <input className="qeditor--filter" ref="filterText" placeholder="Filter" type="text" value={this.state.filterText} onChange={this.handleFilterText} onKeyUp={this.handleEscape} />
           <span className="icon search"></span>
         </div> : null }
         {this.renderList()}
       </div>
-    );
+    )
   },
 
   renderList() {
     if (!this.props.query.database) {
-      return <div className="qeditor--empty">No <strong>Database</strong> selected</div>;
+      return <div className="qeditor--empty">No <strong>Database</strong> selected</div>
     }
 
-    const measurements = this.state.measurements.filter((m) => m.match(this.state.filterText));
+    const measurements = this.state.measurements.filter((m) => m.match(this.state.filterText))
 
     return (
       <ul className="qeditor--list">
         {measurements.map((measurement) => {
-          const isActive = measurement === this.props.query.measurement;
+          const isActive = measurement === this.props.query.measurement
           return (
             <li className={classNames('qeditor--list-item qeditor--list-radio', {active: isActive})} key={measurement} onClick={_.wrap(measurement, this.props.onChooseMeasurement)}>{measurement}</li>
-          );
+          )
         })}
       </ul>
-    );
+    )
   },
-});
 
-export default MeasurementList;
+  _getMeasurements() {
+    const {source} = this.context
+    const proxy = source.links.proxy
+    showMeasurements(proxy, this.props.query.database).then((resp) => {
+      const {errors, measurementSets} = showMeasurementsParser(resp.data)
+      if (errors.length) {
+        // TODO: display errors in the UI.
+        return console.error('InfluxDB returned error(s): ', errors) // eslint-disable-line no-console
+      }
+
+      this.setState({
+        measurements: measurementSets[0].measurements,
+      })
+    })
+  },
+
+})
+
+export default MeasurementList

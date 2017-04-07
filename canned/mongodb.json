@@ -14,6 +14,7 @@
       "queries": [
         {
           "query": "SELECT mean(queries_per_sec) AS queries_per_second, mean(getmores_per_sec) AS getmores_per_second FROM mongodb",
+          "label": "reads/s",
           "groupbys": [],
           "wheres": []
         }
@@ -29,6 +30,7 @@
       "queries": [
         {
           "query": "SELECT mean(inserts_per_sec) AS inserts_per_second, mean(updates_per_sec) AS updates_per_second, mean(deletes_per_sec) AS deletes_per_second FROM mongodb",
+          "label": "writes/s",
           "groupbys": [],
           "wheres": []
         }
@@ -44,6 +46,7 @@
       "queries": [
         {
           "query": "SELECT mean(open_connections) AS open_connections FROM mongodb",
+          "label": "count",
           "groupbys": [],
           "wheres": []
         }
@@ -59,6 +62,7 @@
       "queries": [
         {
           "query": "SELECT max(queued_reads) AS queued_reads, max(queued_writes) as queued_writes FROM mongodb",
+          "label": "count",
           "groupbys": [],
           "wheres": []
         }
@@ -74,6 +78,7 @@
       "queries": [
         {
           "query": "SELECT mean(net_in_bytes) AS net_in_bytes, mean(net_out_bytes) as net_out_bytes FROM mongodb",
+          "label": "bytes/s",
           "groupbys": [],
           "wheres": []
         }
@@ -89,6 +94,7 @@
       "queries": [
         {
           "query": "SELECT mean(page_faults_per_sec) AS page_faults_per_second FROM mongodb",
+          "label": "faults/s",
           "groupbys": [],
           "wheres": []
         }
@@ -104,6 +110,7 @@
       "queries": [
         {
           "query": "SELECT mean(vsize_megabytes) AS virtual_memory_megabytes, mean(resident_megabytes) as resident_memory_megabytes FROM mongodb",
+          "label": "MB",
           "groupbys": [],
           "wheres": []
         }

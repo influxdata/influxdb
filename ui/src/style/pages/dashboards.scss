@@ -1,0 +1,449 @@
+/*
+  Variables
+  ------------------------------------------------------
+*/
+$dash-graph-heading: 30px;
+$dash-graph-heading-context: $dash-graph-heading - 8px;
+$dash-graph-options-arrow: 8px;
+
+/*
+  Animations
+  ------------------------------------------------------
+*/
+@keyframes refreshingSpinnerA {
+  0% { transform: translate(-50%,-50%) scale(1.75); background-color: $g7-graphite; }
+  33% { transform: translate(-50%,-50%) scale(1,1); }
+  66% { transform: translate(-50%,-50%) scale(1,1); }
+  100% { transform: translate(-50%,-50%) scale(1,1); }
+}
+@keyframes refreshingSpinnerB {
+  0% { transform: translate(-50%,-50%) scale(1,1); }
+  33% { transform: translate(-50%,-50%) scale(1.75); background-color: $g7-graphite; }
+  66% { transform: translate(-50%,-50%) scale(1,1); }
+  100% { transform: translate(-50%,-50%) scale(1,1); }
+}
+@keyframes refreshingSpinnerC {
+  0% { transform: translate(-50%,-50%) scale(1,1); }
+  33% { transform: translate(-50%,-50%) scale(1,1); }
+  66% { transform: translate(-50%,-50%) scale(1.75); background-color: $g7-graphite; }
+  100% { transform: translate(-50%,-50%) scale(1,1); }
+}
+
+/*
+  Default Dashboard Mode
+  ------------------------------------------------------
+*/
+.dashboard {
+  .react-grid-item {
+    background-color: $g3-castle;
+    border-radius: $radius;
+    border: 2px solid $g3-castle;
+    transition-property: left, top, border-color, background-color;
+  }
+  .graph-empty {
+    background-color: transparent;
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+  }
+}
+.dash-graph {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+}
+.dash-graph--container {
+  user-select: none !important;
+  -o-user-select: none !important;
+  -moz-user-select: none !important;
+  -webkit-user-select: none !important;
+  background-color: transparent;
+  position: absolute;
+  width: 100%;
+  height: calc(100% - #{$dash-graph-heading});
+  top: $dash-graph-heading;
+  left: 0;
+  padding: 0;
+
+  & > div:not(.graph-empty) {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+
+    & > div:not(.graph-panel__refreshing) {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      padding: 8px 16px;
+    }
+  }
+  .graph-panel__refreshing {
+    top: (-$dash-graph-heading + 5px) !important;
+  }
+}
+.dash-graph--heading {
+  user-select: none !important;
+  -o-user-select: none !important;
+  -moz-user-select: none !important;
+  -webkit-user-select: none !important;
+  background-color: transparent;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: $dash-graph-heading;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: $radius-small;
+  font-weight: 600;
+  font-size: 13px;
+  color: $g14-chromium;
+  transition:
+    color 0.25s ease,
+    background-color 0.25s ease;
+  &.dash-graph--heading-draggable:hover {
+    cursor: move;
+    background-color: $g5-pepper;
+  }
+}
+.dash-graph--name-edit,
+.dash-graph--name {
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: $radius;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dash-graph--name {
+  height: $dash-graph-heading;
+  line-height: $dash-graph-heading;
+  width: calc(100% - 50px);
+  margin-left: 16px;
+  transition:
+    color 0.25s ease,
+    background-color 0.25s ease,
+    border-color 0.25s ease;
+}
+.dash-graph--name-edit {
+  margin-left: 8px;
+  padding: 0 6px;
+  width: calc(100% - 42px);
+  height: 26px !important;
+  line-height: (26px - 4px) !important;
+  position: relative;
+  top: -1px; // Fix for slight offset
+}
+.dash-graph--options {
+  width: $dash-graph-heading;
+  position: absolute;
+  z-index: 1;
+  right: 0px;
+  top: 0px;
+
+  > .btn {
+    background-color: transparent !important;
+    padding: 0;
+    margin: 4px 0;
+    height: $dash-graph-heading-context;
+    width: $dash-graph-heading-context;
+    line-height: $dash-graph-heading-context;
+    transition:
+      background-color 0.25s ease,
+      color 0.25s ease !important;
+
+    &:hover {
+      background-color: $g5-pepper !important;
+      color: $g20-white;
+    }
+  }
+}
+
+.presentation-mode .dash-graph--options {
+  display: none;
+  visibility: hidden;
+}
+.dash-graph--options-menu {
+  position: absolute;
+  top: ($dash-graph-heading + $dash-graph-options-arrow);
+  left: 50%;
+  transform: translateX(-50%);
+  display: block;
+  list-style: none;
+  padding: 0;
+  width: 90px;
+  visibility: hidden;
+  transition-property: all;
+
+  > li {
+    position: relative;
+    width: 100%;
+    height: 28px;
+    line-height: 28px;
+    background-color: $g5-pepper;
+    padding: 0 11px;
+    color: $g15-platinum;
+    opacity: 0;
+    transition:
+      opacity 0.25s ease,
+      color 0.25s ease,
+      background-color 0.25s ease;
+
+    &:first-child {
+      border-radius: $radius $radius 0 0;
+
+      &:before {
+        content: '';
+        width: 0;
+        height: 0;
+        border-width: $dash-graph-options-arrow;
+        border-style: solid;
+        border-color: transparent transparent $g5-pepper transparent;
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        top: -($dash-graph-options-arrow * 2);
+      }
+    }
+    &:last-child {
+      border-radius: 0 0 $radius $radius;
+    }
+
+    &:hover {
+      cursor: pointer;
+      background-color: $g6-smoke;
+      color: $g20-white;
+    }
+  }
+}
+
+/* Menu Open State */
+.dash-graph--options.dash-graph--options-show {
+  > .btn {
+    color: $g20-white;
+    background-color: $g5-pepper !important;
+  }
+  .dash-graph--options-menu { visibility: visible; }
+  .dash-graph--options-menu > li { opacity: 1; }
+}
+
+
+
+.graph-panel__refreshing {
+  position: absolute;
+  top: -18px !important;
+  transform: translate(0,0);
+  right: 50%;
+  transform: translateX(50%);
+  width: 16px;
+  height: 18px;
+
+  > div {
+    width: 4px;
+    height: 4px;
+    background-color: $g6-smoke;
+    border-radius: 50%;
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%,-50%);
+  }
+
+  div:nth-child(1) {left: 0; animation: refreshingSpinnerA 0.8s cubic-bezier(0.645, 0.045, 0.355, 1) infinite; }
+  div:nth-child(2) {left: 50%; animation: refreshingSpinnerB 0.8s cubic-bezier(0.645, 0.045, 0.355, 1) infinite; }
+  div:nth-child(3) {left: 100%; animation: refreshingSpinnerC 0.8s cubic-bezier(0.645, 0.045, 0.355, 1) infinite;}
+}
+
+/*
+  Dashboard Edit Mode
+  ------------------------------------------------------
+*/
+.react-grid-placeholder {
+  @include gradient-diag-down($c-pool,$c-comet);
+  border: 0 !important;
+  opacity: 0.3;
+  z-index: 2;
+  border-radius: $radius !important;
+}
+.react-grid-item {
+  &.resizing {
+    background-color: fade-out($g3-castle,0.09);
+    border-color: $c-pool;
+    border-image-slice: 3%;
+    border-image-repeat: initial;
+    border-image-outset: 0;
+    border-image-width: 2px;
+    border-image-source: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAYAAABw4pVUAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAyhpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuNi1jMDY3IDc5LjE1Nzc0NywgMjAxNS8wMy8zMC0yMzo0MDo0MiAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RSZWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZVJlZiMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIENDIDIwMTUgKE1hY2ludG9zaCkiIHhtcE1NOkluc3RhbmNlSUQ9InhtcC5paWQ6MTg0NjVDRkVGMEVFMTFFNkE0QjVFRTJGNEI1ODc0RDMiIHhtcE1NOkRvY3VtZW50SUQ9InhtcC5kaWQ6MTg0NjVDRkZGMEVFMTFFNkE0QjVFRTJGNEI1ODc0RDMiPiA8eG1wTU06RGVyaXZlZEZyb20gc3RSZWY6aW5zdGFuY2VJRD0ieG1wLmlpZDoxODQ2NUNGQ0YwRUUxMUU2QTRCNUVFMkY0QjU4NzREMyIgc3RSZWY6ZG9jdW1lbnRJRD0ieG1wLmRpZDoxODQ2NUNGREYwRUUxMUU2QTRCNUVFMkY0QjU4NzREMyIvPiA8L3JkZjpEZXNjcmlwdGlvbj4gPC9yZGY6UkRGPiA8L3g6eG1wbWV0YT4gPD94cGFja2V0IGVuZD0iciI/PpeetfIAAAMnSURBVHja7N1PatwwFMfxJ5NlKT1DIfQKWZfSA/Q0hexDL9McoOQAPUKglwhp6dZ9Ho/HfyTZs6l+b/E1GDm27IH5oH9Pyji9//7XfLtNZt88/eT722TzlvrFseXHaXFmypuO8vd5nmW6nyeNefrKfZv7i9f75blU/NzafXvns2dV7tl8zqsnT55+9f3Xjf/xwQ9+evou+xLB+N8Ydi4AX3z/6PnvOj94AEOGMV/rB4P00J2rKTC0GNOTPne0GWEwhv1NB0YYjNPWgREHI00gYMTAOIGAEQdjuKcDIw7GXGWBEQJjrLLACIORrFBlgaHDsG2VBYYWY1VlgaHHSH3WqIOhxLB1ow6GGmPRqIMRAeMMAkYUDFuGTsDQYwxP6MCIg1Hp9oKhwih0e8FQYthuLAuM5hj1WBYYEoxUjGWBIcOwrFEHQ4qxLiFgyDFOvSww4mCM8yFghMEoDgzB0GGk2owhGBoMq5UQMDQYxRIChg4ja0PA0GLYMrgIhh7jUkLAiIExV1lghMA4GBiC0RrjNIULRhyMysAQDBVGYWAIhhJjM6cOhhpjUULAiIAxr1wEIwTGPDAEIwTGWGWBEQajHu0FQ4JRjvaCIcPIo71gSDHW0V4w5Bj5SB0MKUZxoRwYOoxsPgQMLcZqPgQMPUaxUQdDh2HVcQgYEoxUHIeAIcPIqywwpBjrKgsMOcb8f+pghMDIwu9gaDFWI3Uw9Bg2N+pgRMA497LAiIJRXf0OhgajuPodDB3G1dFeMNpgXBXtBaMdxmG0F4y2GLvRXjDaY2wGhmCoMawU7QVDh5G20V4wtBjzwBCMEBiXVx6BEQPjsJcFRluM3V4WGO0xqr0sMDQYVuplgaHDWL1YEgw9hi17WWDoMVJ1ChcMCYYVp3DBkGFUl5KCocGw6deAwIiBYUfBRTDaYmTdXjC0GFYLLoKhwSj+cAAYOgzbBhfB0GKsgotg6DGuWrkIRjuMudsLRgiMsQ0BIwzG5ZVHYMTAmKqsVzBiYPj2Z+j2PoERAmM4/2MoIfe+v4Ahx3jx5H4AefYLd37q0Y9/g9EcY/jOHz11A3v+J8AA9wisahRCWTQAAAAASUVORK5CYII=);
+    z-index: 3;
+
+    & > .react-resizable-handle {
+      &:before, &:after {
+        background-color: $c-comet;
+      }
+    }
+  }
+  &.react-draggable-dragging {
+    background-color: fade-out($g3-castle,0.09);
+    border-color: $c-pool;
+    border-image-slice: 3%;
+    border-image-repeat: initial;
+    border-image-outset: 0;
+    border-image-width: 2px;
+    border-image-source: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAYAAABw4pVUAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAyhpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuNi1jMDY3IDc5LjE1Nzc0NywgMjAxNS8wMy8zMC0yMzo0MDo0MiAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RSZWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZVJlZiMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIENDIDIwMTUgKE1hY2ludG9zaCkiIHhtcE1NOkluc3RhbmNlSUQ9InhtcC5paWQ6MTg0NjVDRkVGMEVFMTFFNkE0QjVFRTJGNEI1ODc0RDMiIHhtcE1NOkRvY3VtZW50SUQ9InhtcC5kaWQ6MTg0NjVDRkZGMEVFMTFFNkE0QjVFRTJGNEI1ODc0RDMiPiA8eG1wTU06RGVyaXZlZEZyb20gc3RSZWY6aW5zdGFuY2VJRD0ieG1wLmlpZDoxODQ2NUNGQ0YwRUUxMUU2QTRCNUVFMkY0QjU4NzREMyIgc3RSZWY6ZG9jdW1lbnRJRD0ieG1wLmRpZDoxODQ2NUNGREYwRUUxMUU2QTRCNUVFMkY0QjU4NzREMyIvPiA8L3JkZjpEZXNjcmlwdGlvbj4gPC9yZGY6UkRGPiA8L3g6eG1wbWV0YT4gPD94cGFja2V0IGVuZD0iciI/PpeetfIAAAMnSURBVHja7N1PatwwFMfxJ5NlKT1DIfQKWZfSA/Q0hexDL9McoOQAPUKglwhp6dZ9Ho/HfyTZs6l+b/E1GDm27IH5oH9Pyji9//7XfLtNZt88/eT722TzlvrFseXHaXFmypuO8vd5nmW6nyeNefrKfZv7i9f75blU/NzafXvns2dV7tl8zqsnT55+9f3Xjf/xwQ9+evou+xLB+N8Ydi4AX3z/6PnvOj94AEOGMV/rB4P00J2rKTC0GNOTPne0GWEwhv1NB0YYjNPWgREHI00gYMTAOIGAEQdjuKcDIw7GXGWBEQJjrLLACIORrFBlgaHDsG2VBYYWY1VlgaHHSH3WqIOhxLB1ow6GGmPRqIMRAeMMAkYUDFuGTsDQYwxP6MCIg1Hp9oKhwih0e8FQYthuLAuM5hj1WBYYEoxUjGWBIcOwrFEHQ4qxLiFgyDFOvSww4mCM8yFghMEoDgzB0GGk2owhGBoMq5UQMDQYxRIChg4ja0PA0GLYMrgIhh7jUkLAiIExV1lghMA4GBiC0RrjNIULRhyMysAQDBVGYWAIhhJjM6cOhhpjUULAiIAxr1wEIwTGPDAEIwTGWGWBEQajHu0FQ4JRjvaCIcPIo71gSDHW0V4w5Bj5SB0MKUZxoRwYOoxsPgQMLcZqPgQMPUaxUQdDh2HVcQgYEoxUHIeAIcPIqywwpBjrKgsMOcb8f+pghMDIwu9gaDFWI3Uw9Bg2N+pgRMA497LAiIJRXf0OhgajuPodDB3G1dFeMNpgXBXtBaMdxmG0F4y2GLvRXjDaY2wGhmCoMawU7QVDh5G20V4wtBjzwBCMEBiXVx6BEQPjsJcFRluM3V4WGO0xqr0sMDQYVuplgaHDWL1YEgw9hi17WWDoMVJ1ChcMCYYVp3DBkGFUl5KCocGw6deAwIiBYUfBRTDaYmTdXjC0GFYLLoKhwSj+cAAYOgzbBhfB0GKsgotg6DGuWrkIRjuMudsLRgiMsQ0BIwzG5ZVHYMTAmKqsVzBiYPj2Z+j2PoERAmM4/2MoIfe+v4Ahx3jx5H4AefYLd37q0Y9/g9EcY/jOHz11A3v+J8AA9wisahRCWTQAAAAASUVORK5CYII=);
+    cursor: move;
+    &:hover {
+      cursor: move;
+    }
+
+    .dash-graph--heading {
+      background-color: $g5-pepper;
+      cursor: move;
+    }
+  }
+  & > .react-resizable-handle {
+    background-image: none;
+    cursor: nwse-resize;
+
+    &:before,
+    &:after {
+      content: '';
+      display: block;
+      position: absolute;
+      height: 2px;
+      background-color: $g6-smoke;
+      transition: background-color 0.25s ease;
+      top: 50%;
+      left: 50%;
+    }
+    &:before {
+      width: 20px;
+      transform: translate(-50%,-50%) rotate(-45deg);
+    }
+    &:after {
+      width: 12px;
+      transform: translate(-3px,2px) rotate(-45deg);
+    }
+    &:hover {
+      &:before, &:after {
+        background-color: $c-comet;
+      }
+    }
+  }
+}
+
+/*
+  Cell Edit Mode
+  ------------------------------------------------------
+*/
+$overlay-controls-height: 50px;
+$overlay-controls-bg: $g2-kevlar;
+$overlay-bg: rgba($c-pool, 0.7);
+
+.overlay-technology {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: $overlay-bg;
+
+  .overlay-controls {
+    padding: 0 16px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex: 0 0 $overlay-controls-height;
+    width: calc(100% - #{($explorer-page-padding * 2)});
+    left: $explorer-page-padding;
+    margin-top: $de-vertical-margin;
+    border: 0;
+    border-radius: $radius;
+    @include gradient-h($g3-castle,$overlay-controls-bg);
+  }
+  .overlay-controls--right {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+
+    .toggle {
+      margin: 0 0 0 5px;
+    }
+    p {
+      font-weight: 600;
+      color: $g13-mist;
+      margin: 0;
+      @include no-user-select;
+    }
+  }
+  .overlay--graph-name {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 400;
+    text-transform: uppercase;
+    @include no-user-select;
+  }
+  .confirm-buttons {
+    margin-left: 32px;
+  }
+  .confirm-buttons .btn {
+    height: 30px;
+    line-height: 30px;
+    padding: 0 9px;
+
+    & > span.icon {
+      font-size: 16px;
+    }
+  }
+  .overlay-controls .toggle {
+
+    .toggle-btn {
+      background-color: $overlay-controls-bg;
+
+      &:hover {
+        background-color: $g4-onyx;
+      }
+      &.active {
+        background-color: $g5-pepper;
+      }
+    }
+  }
+}
+
+/* Graph editing in Dashboards is a little smaller so the dash can be seen in the background */
+.overlay-technology .page-contents {
+  background-image: none !important;
+}
+.overlay-technology .resize-bottom {
+  background-color: $g0-obsidian !important;
+}
+.overlay-technology .graph {
+  width: 70%;
+  left: 15%;
+}
+.overlay-technology .dash-graph--heading {
+  top: 0;
+  height: $dash-graph-heading;
+}
+.overlay-technology .dash-graph--container {
+  height: calc(100% - #{$dash-graph-heading});
+  top: $dash-graph-heading;
+}
+.overlay-technology .query-builder {
+  flex: 1 0 0;
+  margin-bottom: 16px;
+  margin-top: 2px;
+}
+.overlay-technology .query-builder--tabs,
+.overlay-technology .query-builder--tab-contents,
+.overlay-technology .qeditor--empty {
+  margin: 0;
+}

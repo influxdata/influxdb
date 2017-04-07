@@ -8,12 +8,17 @@ import (
 	"net/url"
 
 	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/influx"
 )
 
 type sourceLinks struct {
-	Self       string `json:"self"`       // Self link mapping to this resource
-	Kapacitors string `json:"kapacitors"` // URL for kapacitors endpoint
-	Proxy      string `json:"proxy"`      // URL for proxy endpoint
+	Self        string `json:"self"`            // Self link mapping to this resource
+	Kapacitors  string `json:"kapacitors"`      // URL for kapacitors endpoint
+	Proxy       string `json:"proxy"`           // URL for proxy endpoint
+	Permissions string `json:"permissions"`     // URL for all allowed permissions for this source
+	Users       string `json:"users"`           // URL for all users associated with this source
+	Roles       string `json:"roles,omitempty"` // URL for all users associated with this source
+	Databases   string `json:"databases"`       // URL for the databases contained within this soure
 }
 
 type sourceResponse struct {
@@ -27,15 +32,26 @@ func newSourceResponse(src chronograf.Source) sourceResponse {
 		src.Telegraf = "telegraf"
 	}
 
+	// Omit the password on response
+	src.Password = ""
+
 	httpAPISrcs := "/chronograf/v1/sources"
-	return sourceResponse{
+	res := sourceResponse{
 		Source: src,
 		Links: sourceLinks{
-			Self:       fmt.Sprintf("%s/%d", httpAPISrcs, src.ID),
-			Proxy:      fmt.Sprintf("%s/%d/proxy", httpAPISrcs, src.ID),
-			Kapacitors: fmt.Sprintf("%s/%d/kapacitors", httpAPISrcs, src.ID),
+			Self:        fmt.Sprintf("%s/%d", httpAPISrcs, src.ID),
+			Proxy:       fmt.Sprintf("%s/%d/proxy", httpAPISrcs, src.ID),
+			Kapacitors:  fmt.Sprintf("%s/%d/kapacitors", httpAPISrcs, src.ID),
+			Permissions: fmt.Sprintf("%s/%d/permissions", httpAPISrcs, src.ID),
+			Users:       fmt.Sprintf("%s/%d/users", httpAPISrcs, src.ID),
+			Databases:   fmt.Sprintf("%s/%d/dbs", httpAPISrcs, src.ID),
 		},
 	}
+
+	if src.Type == chronograf.InfluxEnterprise {
+		res.Links.Roles = fmt.Sprintf("%s/%d/roles", httpAPISrcs, src.ID)
+	}
+	return res
 }
 
 // NewSource adds a new valid source to the store
@@ -56,8 +72,15 @@ func (h *Service) NewSource(w http.ResponseWriter, r *http.Request) {
 		src.Telegraf = "telegraf"
 	}
 
-	var err error
-	if src, err = h.SourcesStore.Add(r.Context(), src); err != nil {
+	ctx := r.Context()
+	dbType, err := h.tsdbType(ctx, &src)
+	if err != nil {
+		Error(w, http.StatusBadRequest, "Error contacting source", h.Logger)
+		return
+	}
+
+	src.Type = dbType
+	if src, err = h.SourcesStore.Add(ctx, src); err != nil {
 		msg := fmt.Errorf("Error storing source %v: %v", src, err)
 		unknownErrorWithMessage(w, msg, h.Logger)
 		return
@@ -66,6 +89,16 @@ func (h *Service) NewSource(w http.ResponseWriter, r *http.Request) {
 	res := newSourceResponse(src)
 	w.Header().Add("Location", res.Links.Self)
 	encodeJSON(w, http.StatusCreated, res, h.Logger)
+}
+
+func (h *Service) tsdbType(ctx context.Context, src *chronograf.Source) (string, error) {
+	cli := &influx.Client{
+		Logger: h.Logger,
+	}
+	if err := cli.Connect(ctx, src); err != nil {
+		return "", err
+	}
+	return cli.Type(ctx)
 }
 
 type getSourcesResponse struct {
@@ -122,7 +155,11 @@ func (h *Service) RemoveSource(w http.ResponseWriter, r *http.Request) {
 	src := chronograf.Source{ID: id}
 	ctx := r.Context()
 	if err = h.SourcesStore.Delete(ctx, src); err != nil {
-		unknownErrorWithMessage(w, err, h.Logger)
+		if err == chronograf.ErrSourceNotFound {
+			notFound(w, id, h.Logger)
+		} else {
+			unknownErrorWithMessage(w, err, h.Logger)
+		}
 		return
 	}
 
@@ -212,6 +249,9 @@ func (h *Service) UpdateSource(w http.ResponseWriter, r *http.Request) {
 	if req.URL != "" {
 		src.URL = req.URL
 	}
+	if req.MetaURL != "" {
+		src.MetaURL = req.MetaURL
+	}
 	if req.Type != "" {
 		src.Type = req.Type
 	}
@@ -224,6 +264,13 @@ func (h *Service) UpdateSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	dbType, err := h.tsdbType(ctx, &src)
+	if err != nil {
+		Error(w, http.StatusBadRequest, "Error contacting source", h.Logger)
+		return
+	}
+	src.Type = dbType
+
 	if err := h.SourcesStore.Update(ctx, src); err != nil {
 		msg := fmt.Sprintf("Error updating source ID %d", id)
 		Error(w, http.StatusInternalServerError, msg, h.Logger)
@@ -235,12 +282,12 @@ func (h *Service) UpdateSource(w http.ResponseWriter, r *http.Request) {
 // ValidSourceRequest checks if name, url and type are valid
 func ValidSourceRequest(s chronograf.Source) error {
 	// Name and URL areq required
-	if s.Name == "" || s.URL == "" {
-		return fmt.Errorf("name and url required")
+	if s.URL == "" {
+		return fmt.Errorf("url required")
 	}
 	// Type must be influx or influx-enterprise
 	if s.Type != "" {
-		if s.Type != "influx" && s.Type != "influx-enterprise" {
+		if s.Type != chronograf.InfluxDB && s.Type != chronograf.InfluxEnterprise && s.Type != chronograf.InfluxRelay {
 			return fmt.Errorf("invalid source type %s", s.Type)
 		}
 	}

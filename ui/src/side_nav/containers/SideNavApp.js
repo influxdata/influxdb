@@ -1,38 +1,42 @@
-import React, {PropTypes} from 'react';
-import {connect} from 'react-redux';
-import SideNav from '../components/SideNav';
+import React, {PropTypes} from 'react'
+import {connect} from 'react-redux'
+import SideNav from '../components/SideNav'
 
-const {func, string, shape} = PropTypes;
+const {
+  func,
+  string,
+  shape,
+  bool,
+} = PropTypes
+
 const SideNavApp = React.createClass({
   propTypes: {
     currentLocation: string.isRequired,
     addFlashMessage: func.isRequired,
     sourceID: string.isRequired,
-    explorationID: string,
     me: shape({
       email: string,
     }),
+    inPresentationMode: bool.isRequired,
   },
 
   render() {
-    const {me, currentLocation, sourceID, explorationID} = this.props;
+    const {me, currentLocation, sourceID, inPresentationMode} = this.props
 
     return (
       <SideNav
         sourceID={sourceID}
         location={currentLocation}
-        explorationID={explorationID}
         me={me}
+        isHidden={inPresentationMode}
       />
-    );
+    )
   },
+})
 
-});
+const mapStateToProps = ({me, app: {ephemeral: {inPresentationMode}}}) => ({
+  me,
+  inPresentationMode,
+})
 
-function mapStateToProps(state) {
-  return {
-    me: state.me,
-  };
-}
-
-export default connect(mapStateToProps)(SideNavApp);
+export default connect(mapStateToProps)(SideNavApp)

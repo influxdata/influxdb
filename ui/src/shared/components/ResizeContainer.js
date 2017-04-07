@@ -1,7 +1,11 @@
-import React, {PropTypes} from 'react';
-import ResizeHandle from 'shared/components/ResizeHandle';
+import React, {PropTypes} from 'react'
+import ResizeHandle from 'shared/components/ResizeHandle'
 
-const {node} = PropTypes;
+const {
+  node,
+  string,
+} = PropTypes
+
 const ResizeContainer = React.createClass({
   propTypes: {
     children: node.isRequired,
@@ -9,66 +13,100 @@ const ResizeContainer = React.createClass({
 
   getInitialState() {
     return {
-      leftWidth: '34%',
-      rightWidth: '66%',
+      topHeight: '60%',
+      bottomHeight: '40%',
       isDragging: false,
-    };
+    }
   },
 
   handleStopDrag() {
-    this.setState({isDragging: false});
+    this.setState({isDragging: false})
   },
 
   handleStartDrag() {
-    this.setState({isDragging: true});
+    this.setState({isDragging: true})
   },
 
   handleMouseLeave() {
-    this.setState({isDragging: false});
+    this.setState({isDragging: false})
   },
 
   handleDrag(e) {
     if (!this.state.isDragging) {
-      return;
+      return
     }
 
-    const appWidth = parseInt(getComputedStyle(this.refs.resizeContainer).width, 10);
-    // handleOffSet moves the resize handle as many pixels as the side bar is taking up.
-    const handleOffSet = window.innerWidth - appWidth;
-    const turnToPercent = 100;
-    const newLeftPanelPercent = Math.ceil(((e.pageX - handleOffSet) / (appWidth)) * turnToPercent);
-    const newRightPanelPercent = (turnToPercent - newLeftPanelPercent);
+    const appHeight = parseInt(getComputedStyle(this.refs.resizeContainer).height, 10)
+    // headingOffset moves the resize handle as many pixels as the page-heading is taking up.
+    const headingOffset = window.innerHeight - appHeight
+    const turnToPercent = 100
+    const newTopPanelPercent = Math.ceil(((e.pageY - headingOffset) / (appHeight)) * turnToPercent)
+    const newBottomPanelPercent = (turnToPercent - newTopPanelPercent)
 
     // Don't trigger a resize unless the change in size is greater than minResizePercentage
-    const minResizePercentage = 0.5;
-    if (Math.abs(newLeftPanelPercent - parseFloat(this.state.leftWidth)) < minResizePercentage) {
-      return;
+    const minResizePercentage = 0.5
+    if (Math.abs(newTopPanelPercent - parseFloat(this.state.topHeight)) < minResizePercentage) {
+      return
     }
 
     // Don't trigger a resize if the new sizes are too small
-    const minLeftPanelWidth = 371;
-    const minRightPanelWidth = 389;
-    if (((newLeftPanelPercent / turnToPercent) * appWidth) < minLeftPanelWidth || ((newRightPanelPercent / turnToPercent) * appWidth) < minRightPanelWidth) {
-      return;
+    const minTopPanelHeight = 200
+    const minBottomPanelHeight = 200
+    const topHeightPixels = ((newTopPanelPercent / turnToPercent) * appHeight)
+    const bottomHeightPixels = ((newBottomPanelPercent / turnToPercent) * appHeight)
+
+    if (topHeightPixels < minTopPanelHeight || bottomHeightPixels < minBottomPanelHeight) {
+      return
     }
 
-    this.setState({leftWidth: `${(newLeftPanelPercent)}%`, rightWidth: `${(newRightPanelPercent)}%`});
+    this.setState({
+      topHeight: `${(newTopPanelPercent)}%`,
+      bottomHeight: `${(newBottomPanelPercent)}%`,
+      topHeightPixels,
+      bottomHeightPixels,
+    })
+  },
+
+  renderHandle() {
+    const {isDragging, topHeight} = this.state
+    return (
+      <ResizeHandle isDragging={isDragging} onHandleStartDrag={this.handleStartDrag} top={topHeight} />
+    )
   },
 
   render() {
-    const {leftWidth, rightWidth, isDragging} = this.state;
-    const left = React.cloneElement(this.props.children[0], {width: leftWidth});
-    const right = React.cloneElement(this.props.children[1], {width: rightWidth});
-    const handle = <ResizeHandle isDragging={isDragging} onHandleStartDrag={this.handleStartDrag} />;
-
+    const {
+      topHeight,
+      topHeightPixels,
+      bottomHeightPixels,
+    } = this.state
+    const top = React.cloneElement(this.props.children[0], {height: topHeight, heightPixels: topHeightPixels})
+    const bottom = React.cloneElement(this.props.children[1], {height: `${bottomHeightPixels}px`})
     return (
       <div className="resize-container page-contents" onMouseLeave={this.handleMouseLeave} onMouseUp={this.handleStopDrag} onMouseMove={this.handleDrag} ref="resizeContainer" >
-        {left}
-        {handle}
-        {right}
+        {top}
+        {this.renderHandle()}
+        {bottom}
       </div>
-    );
+    )
   },
-});
+})
 
-export default ResizeContainer;
+export const ResizeBottom = ({
+  height,
+  children,
+}) => {
+  const child = React.cloneElement(children, {height})
+  return (
+    <div className="resize-bottom" style={{height}}>
+      {child}
+    </div>
+  )
+}
+
+ResizeBottom.propTypes = {
+  children: node.isRequired,
+  height: string,
+}
+
+export default ResizeContainer

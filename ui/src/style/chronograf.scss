@@ -37,6 +37,10 @@
 @import 'components/search-widget';
 @import 'components/tables';
 @import 'components/resizer';
+@import 'components/source-indicator';
+@import 'components/graph-tips';
+@import 'components/confirm-buttons';
+@import 'components/custom-time-range';
 
 // Pages
 @import 'pages/alerts';
@@ -45,6 +49,8 @@
 @import 'pages/hosts';
 @import 'pages/kapacitor';
 @import 'pages/data-explorer';
+@import 'pages/dashboards';
+@import 'pages/admin';
 
 // TODO
 @import 'unsorted';

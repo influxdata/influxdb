@@ -1,11 +1,25 @@
-import React, {PropTypes} from 'react';
-import {Table, Column, Cell} from 'fixed-data-table';
-import Dimensions from 'react-dimensions';
-import fetchTimeSeries from 'shared/apis/timeSeries';
-import _ from 'lodash';
-import moment from 'moment';
+import React, {PropTypes} from 'react'
+import {Table, Column, Cell} from 'fixed-data-table'
+import Dimensions from 'react-dimensions'
+import fetchTimeSeries from 'shared/apis/timeSeries'
+import _ from 'lodash'
+import moment from 'moment'
 
-const {oneOfType, number, string, shape, arrayOf} = PropTypes;
+const {
+  arrayOf,
+  func,
+  number,
+  oneOfType,
+  shape,
+  string,
+} = PropTypes
+
+const emptyCells = {
+  columns: [],
+  values: [],
+}
+
+const defaultTableHeight = 1000
 
 const CustomCell = React.createClass({
   propTypes: {
@@ -14,60 +28,98 @@ const CustomCell = React.createClass({
   },
 
   render() {
-    const {columnName, data} = this.props;
+    const {columnName, data} = this.props
 
     if (columnName === 'time') {
-      const date = moment(new Date(data)).format('MM/DD/YY hh:mm:ssA');
+      const date = moment(new Date(data)).format('MM/DD/YY hh:mm:ssA')
 
-      return <span>{date}</span>;
+      return <span>{date}</span>
     }
 
-    return <span>{data}</span>;
+    return <span>{data}</span>
   },
-});
+})
 
 const ChronoTable = React.createClass({
   propTypes: {
     query: shape({
       host: arrayOf(string.isRequired).isRequired,
       text: string.isRequired,
-    }),
+    }).isRequired,
     containerWidth: number.isRequired,
+    height: number,
+    onEditRawStatus: func,
   },
 
   getInitialState() {
     return {
-      cellData: {
-        columns: [],
-        values: [],
-      },
+      cellData: emptyCells,
       columnWidths: {},
-    };
+    }
   },
 
-  fetchCellData(query) {
-    this.setState({isLoading: true});
-    // second param is db, we want to leave this blank
-    fetchTimeSeries(query.host, undefined, query.text).then((resp) => {
-      const cellData = _.get(resp.data, ['results', '0', 'series', '0'], false);
-      if (!cellData) {
-        return this.setState({isLoading: false});
-      }
-
-      this.setState({
-        cellData,
-        isLoading: false,
-      });
-    });
+  getDefaultProps() {
+    return {
+      height: defaultTableHeight,
+    }
   },
 
   componentDidMount() {
-    this.fetchCellData(this.props.query);
+    this.fetchCellData(this.props.query)
   },
 
   componentWillReceiveProps(nextProps) {
-    if (this.props.query.text !== nextProps.query.text) {
-      this.fetchCellData(nextProps.query);
+    if (this.props.query.text === nextProps.query.text) {
+      return
+    }
+
+    this.fetchCellData(nextProps.query)
+  },
+
+
+  async fetchCellData(query) {
+    if (!query || !query.text) {
+      return
+    }
+
+    const {onEditRawStatus} = this.props
+
+    onEditRawStatus(query.id, {loading: true})
+    this.setState({isLoading: true})
+    // second param is db, we want to leave this blank
+    try {
+      const {data} = await fetchTimeSeries(query.host, undefined, query.text)
+      this.setState({isLoading: false})
+      onEditRawStatus(query.id, {loading: false})
+
+      const results = _.get(data, ['results', '0'], false)
+      if (!results) {
+        return
+      }
+
+      // 200 from server and no results = warn
+      if (_.isEmpty(results)) {
+        this.setState({cellData: emptyCells})
+        return onEditRawStatus(query.id, {warn: 'Your query is syntactically correct but returned no results'})
+      }
+
+      // 200 from chrono server but influx returns an error = warn
+      const warn = _.get(results, 'error', false)
+      if (warn) {
+        this.setState({cellData: emptyCells})
+        return onEditRawStatus(query.id, {warn})
+      }
+
+      // 200 from server and results contains data = success
+      const cellData = _.get(results, ['series', '0'], {})
+      onEditRawStatus(query.id, {success: 'Success!'})
+      this.setState({cellData})
+    } catch (error) {
+      // 400 from chrono server = fail
+      const message = _.get(error, ['data', 'message'], error)
+      this.setState({isLoading: false})
+      console.error(message)
+      onEditRawStatus(query.id, {error: message})
     }
   },
 
@@ -76,35 +128,43 @@ const ChronoTable = React.createClass({
       columnWidths: Object.assign({}, columnWidths, {
         [columnKey]: newColumnWidth,
       }),
-    }));
+    }))
   },
 
   // Table data as a list of array.
   render() {
-    const {containerWidth} = this.props;
-    const {cellData, columnWidths, isLoading} = this.state;
-    const {columns, values} = cellData;
+    const {containerWidth, height, query} = this.props
+    const {cellData, columnWidths, isLoading} = this.state
+    const {columns, values} = cellData
 
-    const ownerHeight = 300;
-    const rowHeight = 34;
-    const height = 300;
-    const width = 200;
-    const headerHeight = 40;
-    const minWidth = 70;
+    // adjust height to proper value by subtracting the heights of the UI around it
+    // tab height, graph-container vertical padding, graph-heading height, multitable-header height
+    const stylePixelOffset = 136
+
+    const rowHeight = 34
+    const defaultColumnWidth = 200
+    const width = columns.length > 1 ? defaultColumnWidth : containerWidth
+    const headerHeight = 30
+    const minWidth = 70
+    const styleAdjustedHeight = height - stylePixelOffset
+
+    if (!query) {
+      return <div className="generic-empty-state">Please add a query below</div>
+    }
 
     if (!isLoading && !values.length) {
-      return <div>Your query returned no data</div>;
+      return <div className="generic-empty-state">Your query returned no data</div>
     }
 
     return (
       <Table
         onColumnResizeEndCallback={this.handleColumnResize}
         isColumnResizing={false}
-        ownerHeight={ownerHeight}
         rowHeight={rowHeight}
         rowsCount={values.length}
         width={containerWidth}
-        height={height}
+        ownerHeight={styleAdjustedHeight}
+        height={styleAdjustedHeight}
         headerHeight={headerHeight}>
         {columns.map((columnName, colIndex) => {
           return (
@@ -114,16 +174,16 @@ const ChronoTable = React.createClass({
               columnKey={columnName}
               header={<Cell>{columnName}</Cell>}
               cell={({rowIndex}) => {
-                return <CustomCell columnName={columnName} data={values[rowIndex][colIndex]} />;
+                return <CustomCell columnName={columnName} data={values[rowIndex][colIndex]} />
               }}
               width={columnWidths[columnName] || width}
               minWidth={minWidth}
             />
-          );
+          )
         })}
       </Table>
-    );
+    )
   },
-});
+})
 
-export default Dimensions({elementResize: true})(ChronoTable);
+export default Dimensions({elementResize: true})(ChronoTable)

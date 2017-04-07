@@ -1,128 +1,209 @@
-import React, {PropTypes} from 'react';
-import AutoRefresh from 'shared/components/AutoRefresh';
-import LineGraph from 'shared/components/LineGraph';
-import SingleStat from 'shared/components/SingleStat';
-import ReactGridLayout, {WidthProvider} from 'react-grid-layout';
-const GridLayout = WidthProvider(ReactGridLayout);
-import _ from 'lodash';
+import React, {PropTypes} from 'react'
+import AutoRefresh from 'shared/components/AutoRefresh'
+import LineGraph from 'shared/components/LineGraph'
+import SingleStat from 'shared/components/SingleStat'
+import NameableGraph from 'shared/components/NameableGraph'
+import ReactGridLayout, {WidthProvider} from 'react-grid-layout'
 
-const RefreshingLineGraph = AutoRefresh(LineGraph);
-const RefreshingSingleStat = AutoRefresh(SingleStat);
+import timeRanges from 'hson!../data/timeRanges.hson'
+import buildInfluxQLQuery from 'utils/influxql'
+
+const GridLayout = WidthProvider(ReactGridLayout)
+
+const RefreshingLineGraph = AutoRefresh(LineGraph)
+const RefreshingSingleStat = AutoRefresh(SingleStat)
+
+const {
+  arrayOf,
+  bool,
+  func,
+  number,
+  shape,
+  string,
+} = PropTypes
 
 export const LayoutRenderer = React.createClass({
   propTypes: {
-    timeRange: PropTypes.shape({
-      defaultGroupBy: PropTypes.string.isRequired,
-      queryValue: PropTypes.string.isRequired,
+    autoRefresh: number.isRequired,
+    timeRange: shape({
+      lower: string.isRequired,
     }).isRequired,
-    cells: PropTypes.arrayOf(
-      PropTypes.shape({
-        queries: PropTypes.arrayOf(
-          PropTypes.shape({
-            label: PropTypes.string,
-            range: PropTypes.shape({
-              upper: PropTypes.number,
-              lower: PropTypes.number,
-            }),
-            rp: PropTypes.string,
-            text: PropTypes.string.isRequired,
-            database: PropTypes.string.isRequired,
-            groupbys: PropTypes.arrayOf(PropTypes.string),
-            wheres: PropTypes.arrayOf(PropTypes.string),
+    cells: arrayOf(
+      shape({
+        queries: arrayOf(
+          shape({
+            label: string,
+            text: string,
+            query: string,
           }).isRequired
         ).isRequired,
-        x: PropTypes.number.isRequired,
-        y: PropTypes.number.isRequired,
-        w: PropTypes.number.isRequired,
-        h: PropTypes.number.isRequired,
-        i: PropTypes.string.isRequired,
-        name: PropTypes.string.isRequired,
+        x: number.isRequired,
+        y: number.isRequired,
+        w: number.isRequired,
+        h: number.isRequired,
+        i: string.isRequired,
+        name: string.isRequired,
+        type: string.isRequired,
       }).isRequired
     ),
-    autoRefreshMs: PropTypes.number.isRequired,
-    host: PropTypes.string,
-    source: PropTypes.string,
+    host: string,
+    source: string,
+    onPositionChange: func,
+    onEditCell: func,
+    onRenameCell: func,
+    onUpdateCell: func,
+    onDeleteCell: func,
+    onSummonOverlayTechnologies: func,
+    shouldNotBeEditable: bool,
   },
 
-  getInitialState() {
-    return ({
-      layout: _.without(this.props.cells, ['queries']),
-    });
-  },
+  buildQueryForOldQuerySchema(q) {
+    const {timeRange: {lower}, host} = this.props
+    const {defaultGroupBy} = timeRanges.find((range) => range.lower === lower)
+    const {wheres, groupbys} = q
 
-  buildQuery(q) {
-    const {timeRange, host} = this.props;
-    const {wheres, groupbys} = q;
+    let text = q.text
 
-    let text = q.text;
-
-    text += ` where time > ${timeRange.queryValue}`;
+    text += ` where time > ${lower}`
 
     if (host) {
-      text += ` and \"host\" = '${host}'`;
+      text += ` and \"host\" = '${host}'`
     }
 
     if (wheres && wheres.length > 0) {
-      text += ` and ${wheres.join(' and ')}`;
+      text += ` and ${wheres.join(' and ')}`
     }
 
     if (groupbys) {
       if (groupbys.find((g) => g.includes("time"))) {
-        text += ` group by ${groupbys.join(',')}`;
+        text += ` group by ${groupbys.join(',')}`
       } else if (groupbys.length > 0) {
-        text += ` group by time(${timeRange.defaultGroupBy}),${groupbys.join(',')}`;
+        text += ` group by time(${defaultGroupBy}),${groupbys.join(',')}`
       } else {
-        text += ` group by time(${timeRange.defaultGroupBy})`;
+        text += ` group by time(${defaultGroupBy})`
       }
     } else {
-      text += ` group by time(${timeRange.defaultGroupBy})`;
+      text += ` group by time(${defaultGroupBy})`
     }
 
-    return text;
+    return text
   },
 
   generateVisualizations() {
-    const {autoRefreshMs, source, cells} = this.props;
+    const {autoRefresh, timeRange, source, cells, onEditCell, onRenameCell, onUpdateCell, onDeleteCell, onSummonOverlayTechnologies, shouldNotBeEditable} = this.props
 
     return cells.map((cell) => {
-      const qs = cell.queries.map((q) => {
-        return Object.assign({}, q, {
-          host: source,
-          text: this.buildQuery(q),
-        });
-      });
+      const qs = cell.queries.map((query) => {
+        // TODO: Canned dashboards (and possibly Kubernetes dashboard) use an old query schema,
+        // which does not have enough information for the new `buildInfluxQLQuery` function
+        // to operate on. We will use `buildQueryForOldQuerySchema` until we conform
+        // on a stable query representation.
+        let queryText
+        if (query.queryConfig) {
+          const {queryConfig: {rawText}} = query
+          queryText = rawText || buildInfluxQLQuery(timeRange, query.queryConfig)
+        } else {
+          queryText = this.buildQueryForOldQuerySchema(query)
+        }
 
+        return Object.assign({}, query, {
+          host: source,
+          text: queryText,
+        })
+      })
 
       if (cell.type === 'single-stat') {
         return (
           <div key={cell.i}>
-            <h2 className="hosts-graph-heading">{cell.name}</h2>
-            <div className="hosts-graph graph-container">
-              <RefreshingSingleStat queries={[qs[0]]} autoRefresh={autoRefreshMs} />
-            </div>
+            <NameableGraph
+              onEditCell={onEditCell}
+              onRenameCell={onRenameCell}
+              onUpdateCell={onUpdateCell}
+              onDeleteCell={onDeleteCell}
+              onSummonOverlayTechnologies={onSummonOverlayTechnologies}
+              shouldNotBeEditable={shouldNotBeEditable}
+              cell={cell}
+            >
+              <RefreshingSingleStat queries={[qs[0]]} autoRefresh={autoRefresh} />
+            </NameableGraph>
           </div>
-        );
+        )
+      }
+
+      const displayOptions = {
+        stepPlot: cell.type === 'line-stepplot',
+        stackedGraph: cell.type === 'line-stacked',
       }
 
       return (
         <div key={cell.i}>
-          <h2 className="hosts-graph-heading">{cell.name}</h2>
-          <div className="hosts-graph graph-container">
-            <RefreshingLineGraph queries={qs} autoRefresh={autoRefreshMs} showSingleStat={cell.type === "line-plus-single-stat"} />
-          </div>
+          <NameableGraph
+            onEditCell={onEditCell}
+            onRenameCell={onRenameCell}
+            onUpdateCell={onUpdateCell}
+            onDeleteCell={onDeleteCell}
+            onSummonOverlayTechnologies={onSummonOverlayTechnologies}
+            shouldNotBeEditable={shouldNotBeEditable}
+            cell={cell}
+          >
+            <RefreshingLineGraph
+              queries={qs}
+              autoRefresh={autoRefresh}
+              showSingleStat={cell.type === 'line-plus-single-stat'}
+              displayOptions={displayOptions}
+            />
+          </NameableGraph>
         </div>
-      );
-    });
+      )
+    })
+  },
+
+  handleLayoutChange(layout) {
+    this.triggerWindowResize()
+
+    if (!this.props.onPositionChange) {
+      return
+    }
+
+    const newCells = this.props.cells.map((cell) => {
+      const l = layout.find((ly) => ly.i === cell.i)
+      const newLayout = {x: l.x, y: l.y, h: l.h, w: l.w}
+      return {...cell, ...newLayout}
+    })
+
+    this.props.onPositionChange(newCells)
   },
 
   render() {
-    const layoutMargin = 4;
+    const layoutMargin = 4
+    const isDashboard = !!this.props.onPositionChange
+
     return (
-      <GridLayout layout={this.state.layout} isDraggable={false} isResizable={false} cols={12} rowHeight={83.5} margin={[layoutMargin, layoutMargin]} containerPadding={[0, 0]} useCSSTransforms={false} >
+      <GridLayout
+        layout={this.props.cells}
+        cols={12}
+        rowHeight={83.5}
+        margin={[layoutMargin, layoutMargin]}
+        containerPadding={[0, 0]}
+        useCSSTransforms={false}
+        onResize={this.triggerWindowResize}
+        onLayoutChange={this.handleLayoutChange}
+        draggableHandle={'.dash-graph--name'}
+        isDraggable={isDashboard}
+        isResizable={isDashboard}
+      >
         {this.generateVisualizations()}
       </GridLayout>
-    );
+    )
   },
-});
 
-export default LayoutRenderer;
+
+  triggerWindowResize() {
+    // Hack to get dygraphs to fit properly during and after resize (dispatchEvent is a global method on window).
+    const evt = document.createEvent('CustomEvent')  // MUST be 'CustomEvent'
+    evt.initCustomEvent('resize', false, false, null)
+    dispatchEvent(evt)
+  },
+})
+
+export default LayoutRenderer

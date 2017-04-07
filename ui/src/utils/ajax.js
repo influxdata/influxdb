@@ -1,20 +1,57 @@
-import axios from 'axios';
+import axios from 'axios'
 
-export default function AJAX({
+let links
+
+import {HTTP_UNAUTHORIZED} from 'shared/constants'
+
+export default async function AJAX({
   url,
+  resource,
+  id,
   method = 'GET',
   data = {},
   params = {},
   headers = {},
 }) {
-  if (window.basepath) {
-    url = `${window.basepath}${url}`;
+  try {
+    const basepath = window.basepath || ''
+    let response
+
+    url = `${basepath}${url}`
+
+    if (!links) {
+      const linksRes = response = await axios({
+        url: `${basepath}/chronograf/v1`,
+        method: 'GET',
+      })
+      links = linksRes.data
+    }
+
+    const {auth} = links
+
+    if (resource) {
+      url = id ? `${basepath}${links[resource]}/${id}` : `${basepath}${links[resource]}`
+    }
+
+    response = await axios({
+      url,
+      method,
+      data,
+      params,
+      headers,
+    })
+
+    return {
+      auth,
+      ...response,
+    }
+  } catch (error) {
+    const {response} = error
+    if (!response.status === HTTP_UNAUTHORIZED) {
+      console.error(error) // eslint-disable-line no-console
+    }
+    // console.error(error) // eslint-disable-line no-console
+    const {auth} = links
+    throw {auth, ...response} // eslint-disable-line no-throw-literal
   }
-  return axios({
-    url,
-    method,
-    data,
-    params,
-    headers,
-  });
 }

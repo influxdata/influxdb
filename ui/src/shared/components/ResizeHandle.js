@@ -1,16 +1,25 @@
-import React from 'react';
-import cx from 'classnames';
+import React from 'react'
+import cx from 'classnames'
 
-const {func, bool} = React.PropTypes;
+const {func, bool, string} = React.PropTypes
 const ResizeHandle = React.createClass({
   propTypes: {
     onHandleStartDrag: func.isRequired,
     isDragging: bool.isRequired,
+    top: string,
   },
 
   render() {
-    return <div className={cx("resizer__handle", {dragging: this.props.isDragging})} ref="resizer" onMouseDown={this.props.onHandleStartDrag} />;
-  },
-});
+    const {isDragging, onHandleStartDrag, top} = this.props
 
-export default ResizeHandle;
+    return (
+      <div
+        className={cx("resizer__handle", {dragging: isDragging})}
+        onMouseDown={onHandleStartDrag}
+        style={{top}}
+      />
+    )
+  },
+})
+
+export default ResizeHandle

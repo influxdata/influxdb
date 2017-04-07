@@ -1,7 +1,7 @@
 {
   "id": "0e980b97-c162-487b-a815-3f955df6243f",
-  "measurement": "docker",
   "app": "docker",
+  "measurement": "docker",
   "autoflow": true,
   "cells": [
     {
@@ -10,16 +10,17 @@
       "w": 4,
       "h": 4,
       "i": "4c79cefb-5152-410c-9b88-74f9bff7ef22",
-      "name": "Docker - Container CPU",
+      "name": "Docker - Container CPU %",
       "queries": [
         {
           "query": "SELECT mean(\"usage_percent\") AS \"usage_percent\" FROM \"docker_container_cpu\"",
+          "label": "% CPU time",
           "groupbys": [
             "\"container_name\""
-          ],
-          "wheres": []
+          ]
         }
-      ]
+      ],
+      "type": "line-stacked"
     },
     {
       "x": 0,
@@ -27,16 +28,82 @@
       "w": 4,
       "h": 4,
       "i": "4c79cefb-5152-410c-9b88-74f9bff7ef00",
-      "name": "Docker - Container Memory",
+      "name": "Docker - Container Memory (MB)",
       "queries": [
         {
-          "query": "SELECT mean(\"usage\") AS \"usage\" FROM \"docker_container_mem\"",
+          "query": "SELECT mean(\"usage\") / 1048576 AS \"usage\" FROM \"docker_container_mem\"",
+          "label": "MB",
           "groupbys": [
             "\"container_name\""
-          ],
-          "wheres": []
+          ]
         }
-      ]
+      ],
+      "type": "line-stepplot"
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "4c79cefb-5152-410c-9b88-74f9bff7ef01",
+      "name": "Docker - Containers",
+      "queries": [
+        {
+          "query": "SELECT max(\"n_containers\") AS \"max_n_containers\" FROM \"docker\"",
+          "label": "count",
+          "groupbys": [
+            "\"host\""
+          ]
+        }
+      ],
+      "type": "single-stat"
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "4c79cefb-5152-410c-9b88-74f9bff7ef02",
+      "name": "Docker - Images",
+      "queries": [
+        {
+          "query": "SELECT max(\"n_images\") AS \"max_n_images\" FROM \"docker\"",
+          "groupbys": [
+            "\"host\""
+          ]
+        }
+      ],
+      "type": "single-stat"
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "4c79cefb-5152-410c-9b88-74f9bff7ef03",
+      "name": "Docker - Container State",
+      "queries": [
+        {
+          "query": "SELECT max(\"n_containers_running\") AS \"max_n_containers_running\" FROM \"docker\"",
+          "label": "count",
+          "groupbys": [
+            "\"host\""
+          ]
+        },
+        {
+          "query": "SELECT max(\"n_containers_stopped\") AS \"max_n_containers_stopped\" FROM \"docker\"",
+          "groupbys": [
+            "\"host\""
+          ]
+        },
+        {
+          "query": "SELECT max(\"n_containers_paused\") AS \"max_n_containers_paused\" FROM \"docker\"",
+          "groupbys": [
+            "\"host\""
+          ]
+        }
+      ],
+      "type": ""
     }
   ]
 }

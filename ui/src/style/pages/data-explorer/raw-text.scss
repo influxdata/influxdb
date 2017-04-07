@@ -4,39 +4,41 @@
   between builder / raw tabs
 */
 .raw-text--field,
-.qeditor--query-preview pre,
-.qeditor--query-preview pre code {
+.query-builder--query-preview pre,
+.query-builder--query-preview pre code {
   font-style: normal !important;
-  letter-spacing: 0.02em !important;
+  letter-spacing: 0 !important;
   font-size: 12px !important;
+  font-variant: normal !important;
+  line-height: 14px !important;
   font-family: $code-font !important;
   font-weight: 600 !important;
   word-wrap: break-word !important;
   word-break: break-all !important;
   white-space: pre-wrap !important;
   -webkit-font-smoothing: antialiased;
-}
-
-$raw-text-color: $c-comet;
-
-.raw-text {
-  border-bottom: 2px solid $g4-onyx;
-}
-.raw-text--field {
-  @include custom-scrollbar($g2-kevlar, $raw-text-color);
-  display: block;
-  width: 100%;
-  height: 100px;
-  background-color: $g2-kevlar;
-  border: 2px solid $g2-kevlar;
-  color: $raw-text-color;
-  padding: (9px - 2px);
-  border-radius: 3px 3px 0 0;
-  line-height: 1.5em;
   -webkit-appearance: none;
   -moz-appearance: none;
   appearance: none;
   resize: none;
+  text-size-adjust: 100% !important;
+  text-shadow: none !important;
+}
+
+$raw-text-color: $c-pool;
+$raw-text-height: 42px;
+
+.raw-text--field {
+  @include custom-scrollbar($g2-kevlar, $raw-text-color);
+  display: block;
+  width: 100%;
+  height: $raw-text-height;
+  background-color: $g2-kevlar;
+  border: 2px solid $g2-kevlar;
+  border-bottom: 0;
+  color: $raw-text-color;
+  padding: 7px;
+  border-radius: $radius $radius 0 0;
   margin: 0;
   transition:
     color 0.25s ease,
@@ -55,13 +57,64 @@ $raw-text-color: $c-comet;
   &:-moz-placeholder { /* Firefox 18- */
     color: $g8-storm;
   }
-  &:hover {
-    background-color: $g3-castle;
-    border-color: $g3-castle;
+  &:hover,
+  &:hover + .raw-text--status {
+    border-color: $g5-pepper;
   }
   &:focus {
     outline: none;
     color: $raw-text-color !important;
     border-color: $c-pool;
   }
-} 
+  &:focus + .raw-text--status {
+    border-color: $c-pool;
+  }
+}
+.raw-text--status {
+  width: 100%;
+  height: ($query-builder--preview-height - $raw-text-height);
+  line-height: 12px;
+  font-size: 12px;
+  background-color: $g2-kevlar;
+  border: 2px solid $g2-kevlar;
+  padding: 0 7px;
+  border-radius: 0 0 $radius $radius;
+  border-top: 0;
+  color: $g11-sidewalk;
+  font-family: $code-font;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition:
+    color 0.25s ease,
+    background-color 0.25s ease,
+    border-color 0.25s ease;
+
+  span.icon {
+    margin-right: 5px;
+  }
+
+  /* Error State */
+  &.raw-text--error {
+    color: $c-dreamsicle;
+  }
+
+  /* Warning State */
+  &.raw-text--warning {
+    color: $c-comet;
+  }
+
+  /* Success State */
+  &.raw-text--success {
+    color: $c-rainforest;
+  }
+}
+
+.dropdown.query-template {
+  position: absolute;
+  top: 8px;
+  right: 7px;
+  .dropdown-toggle {
+    width: 135px;
+  }
+}

@@ -1,30 +1,29 @@
-$graph-bg-color: $g3-castle;
-$graph-active-color: $g4-onyx;
-$graph-radius: 4px;
-
-$dygraphs-legend-offset: 32px;
-
 .graph {
-  position: relative;
-  margin-bottom: 18px;
-
-  &:last-child {
-    margin-bottom: 100%;
-  }
+  position: absolute;
+  top: 0;
+  width: calc(100% - #{($explorer-page-padding * 2)});
+  left: $explorer-page-padding;
+}
+/* Special rule for when the graph is in the bottom of resizer */
+.resize-bottom .graph {
+  height: 100%;
 }
 .graph-heading {
+  position: relative;
+  top: $de-vertical-margin;
   background-color: $graph-bg-color;
   border-radius: $graph-radius $graph-radius 0 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 44px;
+  height: $de-graph-heading-height;
   padding: 0 16px;
   transition:
     background-color 0.25s ease;
 
   .toggle {
     margin: 0;
+    text-transform: capitalize;
   }
 }
 .graph-title {
@@ -32,6 +31,7 @@ $dygraphs-legend-offset: 32px;
   color: $g13-mist;
   font-weight: 600;
   margin-right: 16px;
+  @include no-user-select();
   transition:
     color 0.25s ease;
 }
@@ -39,7 +39,33 @@ $dygraphs-legend-offset: 32px;
   display: flex;
   align-items: center;
 }
+.graph .table-container {
+  background-color: $graph-bg-color;
+  border-radius: 0 0 $graph-radius $graph-radius;
+  padding: 8px 16px;
+  position: relative;
+  top: $de-vertical-margin;
+  height: calc(100% - #{$de-graph-heading-height} - #{($de-vertical-margin * 2)});
+
+  & > div > div:last-child {
+    position: absolute;
+    top: 30px;
+    height: calc(100% - 30px) !important;
+    width: 100%;
+  }
+  .fixedDataTableLayout_main {
+    height: 100% !important;
+  }
+  .generic-empty-state {
+    background-color: transparent;
+    padding: 50px 0;
+    height: 100%;
+    font-size: 22px;
+    @include no-user-select();
+  }
+}
 .graph-container {
+  @include no-user-select();
   background-color: $graph-bg-color;
   border-radius: 0 0 $graph-radius $graph-radius;
   padding: 8px 16px;
@@ -48,16 +74,24 @@ $dygraphs-legend-offset: 32px;
   transition:
     background-color 0.25s ease;
 }
+.data-explorer .graph-container {
+  top: $de-vertical-margin;
+  height: calc(100% - #{$de-graph-heading-height} - #{($de-vertical-margin * 2)});
+  padding: 0;
 
-
-/* Active State */
-.graph.active {
-  .graph-heading,
-  .graph-container {
-    background-color: $graph-active-color;
+  & > div:not(.graph-panel__refreshing) {
+    position: absolute;
+    width: 100%;
+    height: 100%;
   }
-  .graph-title {
-    color: $g20-white;
+  & > div:not(.graph-panel__refreshing) > div:not(.graph-panel__refreshing) {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    padding: 8px 16px;
+  }
+  & > div:not(.graph-panel__refreshing) > div:not(.graph-panel__refreshing) > div:first-child {
+    height: 100% !important;
   }
 }
 

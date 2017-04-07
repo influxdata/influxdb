@@ -1,13 +1,13 @@
-import React, {PropTypes} from 'react';
-import classNames from 'classnames';
-import {insecureSkipVerifyText} from 'src/shared/copy/tooltipText';
-import _ from 'lodash';
+import React, {PropTypes} from 'react'
+import classNames from 'classnames'
+import {insecureSkipVerifyText} from 'src/shared/copy/tooltipText'
+import _ from 'lodash'
 
 const {
   bool,
   func,
   shape,
-} = PropTypes;
+} = PropTypes
 
 export const SourceForm = React.createClass({
   propTypes: {
@@ -18,11 +18,13 @@ export const SourceForm = React.createClass({
     editMode: bool.isRequired,
     onInputChange: func.isRequired,
     onSubmit: func.isRequired,
+    onBlurSourceURL: func.isRequired,
   },
 
   handleSubmitForm(e) {
-    e.preventDefault();
-    const newSource = Object.assign({}, this.props.source, {
+    e.preventDefault()
+    const newSource = {
+      ...this.props.source,
       url: this.sourceURL.value.trim(),
       name: this.sourceName.value,
       username: this.sourceUsername.value,
@@ -30,15 +32,32 @@ export const SourceForm = React.createClass({
       'default': this.sourceDefault.checked,
       telegraf: this.sourceTelegraf.value,
       insecureSkipVerify: this.sourceInsecureSkipVerify ? this.sourceInsecureSkipVerify.checked : false,
-    });
-    this.props.onSubmit(newSource);
+      metaUrl: this.metaUrl && this.metaUrl.value.trim(),
+    }
+
+    this.props.onSubmit(newSource)
+  },
+
+  handleBlurSourceURL() {
+    const url = this.sourceURL.value.trim()
+
+    if (!url) {
+      return
+    }
+
+    const newSource = {
+      ...this.props.source,
+      url: this.sourceURL.value.trim(),
+    }
+
+    this.props.onBlurSourceURL(newSource)
   },
 
   render() {
-    const {source, editMode, onInputChange} = this.props;
+    const {source, editMode, onInputChange} = this.props
 
     if (editMode && !source.id) {
-      return <div className="page-spinner"></div>;
+      return <div className="page-spinner"></div>
     }
 
     return (
@@ -63,8 +82,8 @@ export const SourceForm = React.createClass({
 
                     <form onSubmit={this.handleSubmitForm}>
                       <div className="form-group col-xs-12 col-sm-6">
-                        <label htmlFor="connect-string">Connection String</label>
-                        <input type="text" name="url" ref={(r) => this.sourceURL = r} className="form-control" id="connect-string" placeholder="http://localhost:8086" onChange={onInputChange} value={source.url || ''}></input>
+                        <label htmlFor="connect-string"> Connection String</label>
+                        <input type="text" name="url" ref={(r) => this.sourceURL = r} className="form-control" id="connect-string" placeholder="http://localhost:8086" onChange={onInputChange} value={source.url || ''} onBlur={this.handleBlurSourceURL}></input>
                       </div>
                       <div className="form-group col-xs-12 col-sm-6">
                         <label htmlFor="name">Name</label>
@@ -78,6 +97,11 @@ export const SourceForm = React.createClass({
                         <label htmlFor="password">Password</label>
                         <input type="password" name="password" ref={(r) => this.sourcePassword = r} className="form-control" id="password" onChange={onInputChange} value={source.password || ''}></input>
                       </div>
+                      {_.get(source, 'type', '').includes("enterprise") ?
+                          <div className="form-group col-xs-12">
+                            <label htmlFor="meta-url">Meta Service Connection URL</label>
+                            <input type="text" name="metaUrl" ref={(r) => this.metaUrl = r} className="form-control" id="meta-url" placeholder="http://localhost:8091" onChange={onInputChange} value={source.metaUrl || ''}></input>
+                          </div> : null}
                       <div className="form-group col-xs-12">
                         <label htmlFor="telegraf">Telegraf database</label>
                         <input type="text" name="telegraf" ref={(r) => this.sourceTelegraf = r} className="form-control" id="telegraf" onChange={onInputChange} value={source.telegraf || 'telegraf'}></input>
@@ -107,8 +131,8 @@ export const SourceForm = React.createClass({
           </div>
         </div>
       </div>
-    );
+    )
   },
-});
+})
 
-export default SourceForm;
+export default SourceForm

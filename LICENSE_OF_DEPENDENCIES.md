@@ -1,4 +1,5 @@
 ### Go
+* github.com/NYTimes/gziphandler [APACHE-2.0](https://github.com/NYTimes/gziphandler/blob/master/LICENSE.md)
 * github.com/Sirupsen/logrus [MIT](https://github.com/Sirupsen/logrus/blob/master/LICENSE)
 * github.com/boltdb/bolt [MIT](https://github.com/boltdb/bolt/blob/master/LICENSE)
 * github.com/bouk/httprouter [BSD](https://github.com/bouk/httprouter/blob/master/LICENSE)
@@ -7,6 +8,7 @@
 * github.com/gogo/protobuf [BSD](https://github.com/gogo/protobuf/blob/master/LICENSE)
 * github.com/google/go-github [BSD](https://github.com/google/go-github/blob/master/LICENSE)
 * github.com/google/go-querystring [BSD](https://github.com/google/go-querystring/blob/master/LICENSE)
+* github.com/influxdata/influxdb [MIT](https://github.com/influxdata/influxdb/blob/master/LICENSE)
 * github.com/influxdata/kapacitor [MIT](https://github.com/influxdata/kapacitor/blob/master/LICENSE)
 * github.com/influxdata/usage-client [MIT](https://github.com/influxdata/usage-client/blob/master/LICENSE.TXT)
 * github.com/jessevdk/go-flags [BSD](https://github.com/jessevdk/go-flags/blob/master/LICENSE)
@@ -16,8 +18,7 @@
 * golang.org/x/net [BSD](https://github.com/golang/net/blob/master/LICENSE)
 * golang.org/x/oauth2 [BSD](https://github.com/golang/oauth2/blob/master/LICENSE)
 * github.com/influxdata/influxdb [MIT](https://github.com/influxdata/influxdb/blob/master/LICENSE)
-* go.uber.org/zap [MIT](https://github.com/uber-go/zap/blob/master/LICENSE.txt)
-* github.com/uber-go/atomic [MIT](https://github.com/uber-go/atomic/blob/master/LICENSE.txt)
+* google.golang.org/api/oauth2/v2 [BSD](https://github.com/google/google-api-go-client/blob/master/LICENSE)
 
 ### Javascript
 * Base64 0.2.1 [WTFPL](http://github.com/davidchambers/Base64.js)
@@ -891,6 +892,7 @@
 * rimraf 2.5.3 [ISC](http://github.com/isaacs/rimraf)
 * rimraf 2.5.4 [ISC](http://github.com/isaacs/rimraf)
 * ripemd160 0.2.0 [Unknown](https://github.com/cryptocoinjs/ripemd160)
+* rome 2.1.22 [MIT](https://github.com/bevacqua/rome)
 * run-async 0.1.0 [MIT](http://github.com/SBoudrias/run-async)
 * rx-lite 3.1.2 [Apache License](https://github.com/Reactive-Extensions/RxJS)
 * samsam 1.1.2 [BSD](https://github.com/busterjs/samsam)

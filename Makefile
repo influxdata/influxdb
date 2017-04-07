@@ -1,19 +1,41 @@
+.PHONY: assets dep clean test gotest gotestrace jstest run run-dev ctags continuous
+
 VERSION ?= $(shell git describe --always --tags)
 COMMIT ?= $(shell git rev-parse --short=8 HEAD)
+GDM := $(shell command -v gdm 2> /dev/null)
+GOBINDATA := $(shell go list -f {{.Root}}  github.com/jteeuwen/go-bindata 2> /dev/null)
+YARN := $(shell command -v yarn 2> /dev/null)
 
-SOURCES := $(shell find . -name '*.go')
+SOURCES := $(shell find . -name '*.go' ! -name '*_gen.go')
+UISOURCES := $(shell find ui -type f -not \( -path ui/build/\* -o -path ui/node_modules/\* -prune \) )
 
 LDFLAGS=-ldflags "-s -X main.version=${VERSION} -X main.commit=${COMMIT}"
 BINARY=chronograf
 
-default: dep build
+.DEFAULT_GOAL := all
+
+all: dep build
 
 build: assets ${BINARY}
 
-dev: dev-assets ${BINARY}
+dev: dep dev-assets ${BINARY}
 
-${BINARY}: $(SOURCES)
+${BINARY}: $(SOURCES) .bindata .jsdep .godep
 	go build -o ${BINARY} ${LDFLAGS} ./cmd/chronograf/main.go
+
+define CHRONOGIRAFFE
+             ._ o o
+             \_`-)|_
+          ,""      _\_
+        ,"  ## |   0 0.
+      ," ##   ,-\__    `.
+    ,"       /     `--._;)
+  ,"     ## /
+,"   ##    /
+endef
+export CHRONOGIRAFFE
+chronogiraffe: ${BINARY}
+	@echo "$$CHRONOGIRAFFE"
 
 docker-${BINARY}: $(SOURCES)
 	CGO_ENABLED=0 GOOS=linux go build -installsuffix cgo -o ${BINARY} ${LDFLAGS} \
@@ -22,30 +44,51 @@ docker-${BINARY}: $(SOURCES)
 docker: dep assets docker-${BINARY}
 	docker build -t chronograf .
 
-assets: js bindata
+assets: .jssrc .bindata
 
-dev-assets: dev-js bindata
+dev-assets: .dev-jssrc .bindata
 
-bindata:
+.bindata: server/swagger_gen.go canned/bin_gen.go dist/dist_gen.go
+	@touch .bindata
+
+dist/dist_gen.go: $(UISOURCES)
 	go generate -x ./dist
-	go generate -x ./canned
+
+server/swagger_gen.go: server/swagger.json
 	go generate -x ./server
 
-js:
+canned/bin_gen.go: canned/*.json
+	go generate -x ./canned
+
+.jssrc: $(UISOURCES)
 	cd ui && npm run build
+	@touch .jssrc
 
-dev-js:
+.dev-jssrc: $(UISOURCES)
 	cd ui && npm run build:dev
+	@touch .dev-jssrc
 
-dep: jsdep godep
+dep: .jsdep .godep
 
-godep:
+.godep: Godeps
+ifndef GDM
+	@echo "Installing GDM"
 	go get github.com/sparrc/gdm
-	gdm restore
+endif
+ifndef GOBINDATA
+	@echo "Installing go-bindata"
 	go get -u github.com/jteeuwen/go-bindata/...
+endif
+	gdm restore
+	@touch .godep
 
-jsdep:
-	cd ui && npm install
+.jsdep: ui/yarn.lock
+ifndef YARN
+	$(error Please install yarn 0.19.1+)
+else
+	cd ui && yarn --no-progress --no-emoji
+	@touch .jsdep
+endif
 
 gen: bolt/internal/internal.proto
 	go generate -x ./bolt/internal
@@ -64,12 +107,18 @@ jstest:
 run: ${BINARY}
 	./chronograf
 
-run-dev: ${BINARY}
-	./chronograf -d
+run-dev: chronogiraffe
+	./chronograf -d --log-level=debug
 
 clean:
 	if [ -f ${BINARY} ] ; then rm ${BINARY} ; fi
 	cd ui && npm run clean
 	cd ui && rm -rf node_modules
+	rm -f dist/dist_gen.go canned/bin_gen.go server/swagger_gen.go
+	@rm -f .godep .jsdep .jssrc .dev-jssrc .bindata
 
-.PHONY: clean test jstest gotest run
+continuous:
+	while true; do if fswatch -e "\.git" -r --one-event .; then echo "#-> Starting build: `date`"; make dev; pkill -9 chronograf; make run-dev & echo "#-> Build complete."; fi; sleep 0.5; done
+
+ctags:
+	ctags -R --languages="Go" --exclude=.git --exclude=ui .

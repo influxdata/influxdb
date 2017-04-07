@@ -3,32 +3,10 @@ package internal_test
 import (
 	"reflect"
 	"testing"
-	"time"
 
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/bolt/internal"
 )
-
-// Ensure an exploration can be marshaled and unmarshaled.
-func TestMarshalExploration(t *testing.T) {
-	v := chronograf.Exploration{
-		ID:        12,
-		Name:      "Some Exploration",
-		UserID:    34,
-		Data:      "{\"data\":\"something\"}",
-		CreatedAt: time.Now().UTC(),
-		UpdatedAt: time.Now().UTC(),
-	}
-
-	var vv chronograf.Exploration
-	if buf, err := internal.MarshalExploration(&v); err != nil {
-		t.Fatal(err)
-	} else if err := internal.UnmarshalExploration(buf, &vv); err != nil {
-		t.Fatal(err)
-	} else if !reflect.DeepEqual(v, vv) {
-		t.Fatalf("exploration protobuf copy error: got %#v, expected %#v", vv, v)
-	}
-}
 
 func TestMarshalSource(t *testing.T) {
 	v := chronograf.Source{
@@ -38,6 +16,7 @@ func TestMarshalSource(t *testing.T) {
 		Username: "docbrown",
 		Password: "1 point twenty-one g1g@w@tts",
 		URL:      "http://twin-pines.mall.io:8086",
+		MetaURL:  "http://twin-pines.meta.io:8086",
 		Default:  true,
 		Telegraf: "telegraf",
 	}

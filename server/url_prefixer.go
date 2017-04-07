@@ -9,6 +9,10 @@ import (
 	"github.com/influxdata/chronograf"
 )
 
+const (
+	ErrNotFlusher = "Expected http.ResponseWriter to be an http.Flusher, but wasn't"
+)
+
 // URLPrefixer is a wrapper for an http.Handler that will prefix all occurrences of a relative URL with the configured Prefix
 type URLPrefixer struct {
 	Prefix string            // the prefix to be appended after any detected Attrs
@@ -22,16 +26,27 @@ type wrapResponseWriter struct {
 	Substitute *io.PipeWriter
 
 	headerWritten bool
-	dupHeader     http.Header
+	dupHeader     *http.Header
 }
 
-func (wrw wrapResponseWriter) Write(p []byte) (int, error) {
+func (wrw *wrapResponseWriter) Write(p []byte) (int, error) {
 	return wrw.Substitute.Write(p)
 }
 
-func (wrw wrapResponseWriter) WriteHeader(code int) {
+func (wrw *wrapResponseWriter) WriteHeader(code int) {
 	if !wrw.headerWritten {
-		wrw.ResponseWriter.Header().Set("Content-Type", wrw.Header().Get("Content-Type"))
+		wrw.ResponseWriter.Header().Set("Content-Type", wrw.dupHeader.Get("Content-Type"))
+		header := wrw.ResponseWriter.Header()
+		// Filter out content length header to prevent stopping writing
+		if wrw.dupHeader != nil {
+			for k, v := range *wrw.dupHeader {
+				if k == "Content-Length" {
+					continue
+				}
+				header[k] = v
+			}
+		}
+
 		wrw.headerWritten = true
 	}
 	wrw.ResponseWriter.WriteHeader(code)
@@ -39,41 +54,45 @@ func (wrw wrapResponseWriter) WriteHeader(code int) {
 
 // Header() copies the Header map from the underlying ResponseWriter to prevent
 // modifications to it by callers
-func (wrw wrapResponseWriter) Header() http.Header {
-	wrw.dupHeader = http.Header{}
-	origHeader := wrw.ResponseWriter.Header()
-	for k, v := range origHeader {
-		wrw.dupHeader[k] = v
+func (wrw *wrapResponseWriter) Header() http.Header {
+	if wrw.dupHeader == nil {
+		h := http.Header{}
+		origHeader := wrw.ResponseWriter.Header()
+		for k, v := range origHeader {
+			h[k] = v
+		}
+		wrw.dupHeader = &h
 	}
-	return wrw.dupHeader
+	return *wrw.dupHeader
 }
 
-const CHUNK_SIZE int = 512
+// ChunkSize is the number of bytes per chunked transfer-encoding
+const ChunkSize int = 512
 
 // ServeHTTP implements an http.Handler that prefixes relative URLs from the
 // Next handler with the configured prefix. It does this by examining the
 // stream through the ResponseWriter, and appending the Prefix after any of the
 // Attrs detected in the stream.
 func (up *URLPrefixer) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+	// extract the flusher for flushing chunks
+	flusher, ok := rw.(http.Flusher)
+
+	if !ok {
+		up.Logger.Info(ErrNotFlusher)
+		up.Next.ServeHTTP(rw, r)
+		return
+	}
+
 	// chunked transfer because we're modifying the response on the fly, so we
 	// won't know the final content-length
 	rw.Header().Set("Connection", "Keep-Alive")
 	rw.Header().Set("Transfer-Encoding", "chunked")
 
 	writtenCount := 0 // number of bytes written to rw
-
-	// extract the flusher for flushing chunks
-	flusher, ok := rw.(http.Flusher)
-	if !ok {
-		up.Logger.
-			WithField("component", "prefixer").
-			Fatal("Expected http.ResponseWriter to be an http.Flusher, but wasn't")
-	}
-
 	nextRead, nextWrite := io.Pipe()
 	go func() {
 		defer nextWrite.Close()
-		up.Next.ServeHTTP(wrapResponseWriter{ResponseWriter: rw, Substitute: nextWrite}, r)
+		up.Next.ServeHTTP(&wrapResponseWriter{ResponseWriter: rw, Substitute: nextWrite}, r)
 	}()
 
 	// setup a buffer which is the max length of our target attrs
@@ -95,7 +114,7 @@ func (up *URLPrefixer) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 				writtenCount++
 				buf.Write(src.Bytes())
 
-				if writtenCount >= CHUNK_SIZE {
+				if writtenCount >= ChunkSize {
 					flusher.Flush()
 					writtenCount = 0
 				}

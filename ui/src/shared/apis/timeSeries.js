@@ -1,5 +1,12 @@
-import {proxy} from 'utils/queryUrlGenerator';
+import {proxy} from 'utils/queryUrlGenerator'
 
-export default function fetchTimeSeries(source, database, query) {
-  return proxy({source, query, database});
+const fetchTimeSeries = async (source, database, query) => {
+  try {
+    return await proxy({source, query, database})
+  } catch (error) {
+    console.error('error from proxy: ', error)
+    throw error
+  }
 }
+
+export default fetchTimeSeries

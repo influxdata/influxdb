@@ -3,7 +3,6 @@ package kapacitor
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/influxdata/chronograf"
@@ -18,14 +17,13 @@ func ValidateAlert(service string) error {
 	// Simple tick script to check alert service.
 	// If a pipeline cannot be created then we know this is an invalid
 	// service.  At least with this version of kapacitor!
-	script := fmt.Sprintf("stream|from()|alert().%s()", service)
+	script := fmt.Sprintf("stream|from()|alert()%s", service)
 	return validateTick(chronograf.TICKScript(script))
 }
 
 func formatTick(tickscript string) (chronograf.TICKScript, error) {
 	node, err := ast.Parse(tickscript)
 	if err != nil {
-		log.Fatalf("parse execution: %s", err)
 		return "", err
 	}
 
@@ -40,6 +38,9 @@ func validateTick(script chronograf.TICKScript) error {
 	_, err := pipeline.CreatePipeline(string(script), pipeline.StreamEdge, scope, &deadman{}, predefinedVars)
 	return err
 }
+
+// deadman is an empty implementation of a kapacitor DeadmanService to allow CreatePipeline
+var _ pipeline.DeadmanService = &deadman{}
 
 type deadman struct {
 	interval  time.Duration

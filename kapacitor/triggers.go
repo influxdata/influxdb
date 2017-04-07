@@ -27,13 +27,19 @@ var AllAlerts = `
 	.durationField(durationField)
 `
 
-// ThresholdTrigger is the trickscript trigger for alerts that exceed a value
+// Details is used only for alerts that specify detail string
+var Details = `
+	.details(details)
+`
+
+// ThresholdTrigger is the tickscript trigger for alerts that exceed a value
 var ThresholdTrigger = `
   var trigger = data
   |alert()
     .crit(lambda: "value" %s crit)
 `
 
+// ThresholdRangeTrigger is the alert when data does not intersect the range.
 var ThresholdRangeTrigger = `
 	var trigger = data
 	|alert()
@@ -102,7 +108,11 @@ func Trigger(rule chronograf.AlertRule) (string, error) {
 		return "", err
 	}
 
-	return trigger + AllAlerts, nil
+	trigger += AllAlerts
+	if rule.Details != "" {
+		trigger += Details
+	}
+	return trigger, nil
 }
 
 func relativeTrigger(rule chronograf.AlertRule) (string, error) {
@@ -132,7 +142,7 @@ func thresholdRangeTrigger(rule chronograf.AlertRule) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	var iops []interface{} = make([]interface{}, len(ops))
+	var iops = make([]interface{}, len(ops))
 	for i, o := range ops {
 		iops[i] = o
 	}

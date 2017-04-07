@@ -1,6 +1,6 @@
 {
   "name": "chronograf-ui",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": false,
   "license": "AGPL-3.0",
   "description": "",
@@ -17,9 +17,7 @@
     "test:lint": "npm run lint; npm run test",
     "test:dev": "nodemon --exec npm run test:lint",
     "clean": "rm -rf build",
-    "storybook": "start-storybook -p 6006",
-    "build-storybook": "build-storybook",
-    "proxy": "node ./corsless"
+    "storybook": "node ./storybook"
   },
   "author": "",
   "eslintConfig": {
@@ -94,6 +92,7 @@
     "bootstrap": "^3.3.7",
     "classnames": "^2.2.3",
     "dygraphs": "^1.1.1",
+    "fast.js": "^0.1.1",
     "fixed-data-table": "^0.6.1",
     "jquery": "^3.1.0",
     "lodash": "^4.3.0",
@@ -112,6 +111,7 @@
     "react-tooltip": "^3.2.1",
     "redux": "^3.3.1",
     "redux-thunk": "^1.0.3",
+    "rome": "^2.1.22",
     "updeep": "^0.13.0"
   }
 }

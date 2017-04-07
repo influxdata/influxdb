@@ -1,0 +1,225 @@
+/*
+    Styles for Admin Pages
+    ----------------------------------------------
+*/
+
+
+
+
+/*
+    Admin Tabs
+    ----------------------------------------------
+*/
+.admin-tabs {
+  padding-right: 0;
+
+  & + div {
+    padding-left: 0;
+
+    .panel {
+      border-top-left-radius: 0;
+    }
+    .panel-body {
+      min-height: 300px;
+    }
+    .panel-title {
+      font-size: 17px;
+      font-weight: 400 !important;
+      color: $g12-forge;
+    }
+  }
+}
+.admin-tabs .btn-group {
+  margin: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+
+  .tab {
+    font-weight: 500 !important;
+    border-radius: $radius 0 0 $radius !important;
+    margin-bottom: 2px !important;
+    transition:
+      background-color 0.25s ease,
+      color 0.25s ease !important;
+    border: 0 !important;
+    text-align: left;
+    height: 60px !important;
+    line-height: 60px !important;
+    padding: 0 0 0 16px !important;
+    font-size: 17px;
+    background-color: transparent !important;
+    color: $g11-sidewalk !important;
+
+    &:hover,
+    &:active,
+    &:active:hover {
+      background-color: $g3-castle !important;
+      color: $g15-platinum !important;
+    }
+    &.active {
+      background-color: $g3-castle !important;
+      color: $g18-cloud !important;
+    }
+  }
+}
+
+
+/*
+    Admin Table
+    ----------------------------------------------
+*/
+.admin-table {
+  .multi-select-dropdown {
+    width: 100%;
+    min-width: 150px;
+  }
+  .admin-table--kill-button {
+    width: 70px;
+  }
+  .admin-table--hidden {
+    visibility: hidden;
+  }
+  .dropdown-toggle {
+    background-color: transparent;
+    font-size: 14px;
+    font-weight: 500;
+    color: $g14-chromium;
+    width: 100%;
+    transition: none !important;
+
+    .caret {opacity: 0;}
+    .multi-select-dropdown__label {left: 0;}
+  }
+  .open .dropdown-toggle .multi-select-dropdown__label {left: 9px;}
+  tbody tr:hover {
+    .admin-table--hidden {
+      visibility: visible;
+    }
+    .dropdown-toggle {
+      color: $g20-white !important;
+      background-color: $c-pool;
+      font-weight: 600;
+
+      .caret {opacity: 1;}
+      .multi-select-dropdown__label {left: 9px;}
+
+      &:hover {
+        transition: background-color 0.25s ease;
+        background-color: $c-laser;
+      }
+    }
+  }
+  .multi-select-dropdown.open .dropdown-toggle {
+    color: $g20-white !important;
+    background-color: $c-laser !important;
+    font-weight: 600;
+    .multi-select-dropdown__label {left: 9x !important;}
+  }
+}
+.admin-table--edit-row {
+  background-color: $g4-onyx;
+}
+.admin-table--edit-cell {
+  width: 100%;
+  margin: 0 !important;
+  display: flex !important;
+  justify-content: space-between;
+
+  > input {
+    height: 30px;
+    padding: 0 9px;
+    flex-grow: 1;
+    margin: 0 2px;
+    min-width: 110px;
+
+    &:first-child {margin-left: 0;}
+    &:last-child {margin-right: 0;}
+  }
+}
+
+.admin-table--delete-cell {
+  margin: 0 !important;
+  display: flex !important;
+  justify-content: space-between;
+
+  > input {
+    height: 22px;
+    padding: 0 6px;
+    flex-grow: 1;
+    margin: 0 4px 0 0;
+    min-width: 110px;
+    font-size: 12px;
+  }
+
+  & + .confirm-buttons .btn {
+    display: block !important;
+  }
+}
+
+.db-manager {
+  margin-bottom: 8px;
+
+  .db-manager-header--actions {
+    display: none;
+  }
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+  &:hover .db-manager-header--actions {
+    display: block;
+  }
+}
+.db-manager-header {
+  padding: 0 11px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: $g4-onyx;
+  border-radius: $radius-small $radius-small 0 0;
+
+  h4 {
+    margin: 0px;
+    color: $c-potassium;
+    font-size: 17px;
+    font-family: $code-font;
+    padding-left: 6px;
+  }
+}
+.db-manager-header--edit {
+  justify-content: flex-start;
+
+  .form-control {
+    height: 22px;
+    padding: 0 6px;
+    margin: 0 4px 0 0;
+    min-width: 110px;
+    font-size: 12px;
+    width: 50%;
+  }
+}
+
+.db-manager-table {
+  background-color: $g4-onyx;
+  padding: 9px 11px;
+  border-radius: 0 0 $radius-small $radius-small;
+}
+
+
+.admin-change-pw {
+  float: right;
+  display: flex !important;
+  flex-wrap: nowrap;
+
+  .form-control {
+    height: 22px;
+    padding: 0 6px;
+    margin: 0 4px 0 0;
+    min-width: 110px;
+    font-size: 12px;
+    width: 120px;
+  }
+}

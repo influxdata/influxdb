@@ -5,33 +5,7 @@
   Abbreviated as "qeditor"
 
 */
-$query-editor-gutter: 16px;
-$query-editor-tab-inactive: $g2-kevlar;
-$query-editor-tab-active: $g3-castle;
-$query-editor-height: 250px;
 
-.qeditor--query-preview {
-  position: relative;
-
-  pre {
-    padding: 9px;
-    border: 0;
-    background-color: $query-editor-tab-inactive;
-    color: $c-pool;
-    border-radius: $radius-small $radius-small 0 0;
-    border-bottom: 2px solid $query-editor-tab-active;
-    margin-bottom: 0;
-    overflow: auto;
-    min-height: 3.25em;
-    @include custom-scrollbar($query-editor-tab-inactive, $c-pool);
-
-    code {
-      white-space: pre-wrap;
-      line-height: 1.5em;
-      margin: 0;
-    }
-  }
-}
 // Tabs for switching between queries
 .qeditor--tabs {
   display: flex;
@@ -63,6 +37,7 @@ $query-editor-height: 250px;
   font-weight: 600;
   border-radius: $radius-small $radius-small 0 0;
   margin-right: 2px;
+  @include no-user-select();
   transition:
     color 0.25s ease,
     background-color 0.25s ease;
@@ -83,29 +58,30 @@ $query-editor-height: 250px;
   padding: 9.5px 0 0 0;
   background-color: $query-editor-tab-active;
   border-radius: 0 0 $radius-small $radius-small;
-  min-height: $query-editor-height;
 
   &-item {
+    @include no-user-select();
     color: $g11-sidewalk;
     list-style-type: none;
     margin: 0;
     font-size: 12px;
-    padding: 4px 9px 4px 18px;
+    font-weight: 500;
+    padding: 4px 9px;
     transition:
       color 0.25s ease,
       background-color 0.25s ease;
 
     &:hover {
-      background-color: $g4-onyx;
-      color: $g17-whisper;
+      background-color: $g5-pepper;
+      color: $g15-platinum;
       cursor: pointer;
     }
   }
   &-radio {
     &.active {
       color: $g20-white;
-      background-color: $g4-onyx;
-      font-weight: 600;
+      background-color: $g5-pepper;
+      font-weight: 700;
     }
   }
   &-checkbox {
@@ -169,23 +145,38 @@ $query-editor-height: 250px;
       }
     }
   }
-  &-header {
-    position: relative;
-    background-color: $query-editor-tab-active;
-      padding: 8px 18px 0px 18px;
-  }
+}
+.qeditor--list-header {
+  position: absolute;
+  top: 7px;
+  right: 16px;
+  width: calc(50% - 16px);
+  height: 30px;
+  padding: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 // List empty state
 .qeditor--empty {
   text-align: center;
   color: $g10-wolf;
-  display: inline-block;
-  width: 100%;
-  padding: 18px 0;
-  height: $query-editor-height;
-  background-color: $query-editor-tab-active;
-  border-radius: 0 0 $radius $radius;
+  flex: 1 0 0;
+  margin: 16px 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: transparent;
+  background-color: $g3-castle;
+  border-radius: 0 $radius $radius 0;
+  &,
+  & > * {
+    @include no-user-select();
+  }
 }
 
 // Hidden dropdowns
@@ -210,7 +201,7 @@ $query-editor-height: 250px;
   height: 30px;
   border-radius: 15px;
   font-size: 13px;
-  padding-left: 38px;
+  padding-left: 28px;
   outline: none;
   color: $g20-white;
   font-weight: 700;
@@ -244,8 +235,8 @@ $query-editor-height: 250px;
   }
   + .icon {
     position: absolute;
-    top: calc(50% + 5px);
-    left: calc(19px * 2);
+    top: 50%;
+    left: 11px;
     transform: translateY(-50%);
     color: $g10-wolf;
     transition: color 0.25s ease;

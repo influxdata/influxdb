@@ -1,49 +1,59 @@
-import React, {PropTypes} from 'react';
-import OnClickOutside from 'shared/components/OnClickOutside';
+import React, {PropTypes} from 'react'
+import classnames from 'classnames'
+import OnClickOutside from 'shared/components/OnClickOutside'
+
+const {
+  arrayOf,
+  shape,
+  string,
+  func,
+} = PropTypes
 
 const Dropdown = React.createClass({
   propTypes: {
-    items: PropTypes.arrayOf(PropTypes.shape({
-      text: PropTypes.string.isRequired,
+    items: arrayOf(shape({
+      text: string.isRequired,
     })).isRequired,
-    onChoose: PropTypes.func.isRequired,
-    selected: PropTypes.string.isRequired,
-    className: PropTypes.string,
+    onChoose: func.isRequired,
+    selected: string.isRequired,
+    iconName: string,
+    className: string,
   },
   getInitialState() {
     return {
       isOpen: false,
-    };
+    }
   },
   getDefaultProps() {
     return {
       actions: [],
-    };
+    }
   },
   handleClickOutside() {
-    this.setState({isOpen: false});
+    this.setState({isOpen: false})
   },
   handleSelection(item) {
-    this.toggleMenu();
-    this.props.onChoose(item);
+    this.toggleMenu()
+    this.props.onChoose(item)
   },
   toggleMenu(e) {
     if (e) {
-      e.stopPropagation();
+      e.stopPropagation()
     }
-    this.setState({isOpen: !this.state.isOpen});
+    this.setState({isOpen: !this.state.isOpen})
   },
   handleAction(e, action, item) {
-    e.stopPropagation();
-    action.handler(item);
+    e.stopPropagation()
+    action.handler(item)
   },
   render() {
-    const self = this;
-    const {items, selected, className, actions} = self.props;
+    const self = this
+    const {items, selected, className, iconName, actions} = self.props
 
     return (
       <div onClick={this.toggleMenu} className={`dropdown ${className}`}>
         <div className="btn btn-sm btn-info dropdown-toggle">
+          {iconName ? <span className={classnames("icon", {[iconName]: true})}></span> : null}
           <span className="dropdown-selected">{selected}</span>
           <span className="caret" />
         </div>
@@ -61,17 +71,17 @@ const Dropdown = React.createClass({
                         <button key={action.text} data-target={action.target} data-toggle="modal" className="dropdown-item__action" onClick={(e) => self.handleAction(e, action, item)}>
                           <span title={action.text} className={`icon ${action.icon}`}></span>
                         </button>
-                      );
+                      )
                     })}
                   </div>
                 </li>
-              );
+              )
             })}
           </ul>
           : null}
       </div>
-    );
+    )
   },
-});
+})
 
-export default OnClickOutside(Dropdown);
+export default OnClickOutside(Dropdown)

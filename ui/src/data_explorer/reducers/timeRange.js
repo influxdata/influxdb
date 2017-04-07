@@ -1,15 +1,24 @@
-import update from 'react-addons-update';
+import timeRanges from 'hson!../../shared/data/timeRanges.hson'
 
-export default function timeRange(state = {}, action) {
+const initialLower = timeRanges[1].lower
+const initialUpper = timeRanges[1].upper
+
+const initialState = {
+  upper: initialUpper,
+  lower: initialLower,
+}
+
+export default function timeRange(state = initialState, action) {
   switch (action.type) {
     case 'SET_TIME_RANGE': {
-      const {upper, lower} = action.payload;
+      const {upper, lower} = action.payload
+      const newState = {
+        upper,
+        lower,
+      }
 
-      return update(state, {
-        ['lower']: {$set: lower},
-        ['upper']: {$set: upper},
-      });
+      return {...state, ...newState}
     }
   }
-  return state;
+  return state
 }

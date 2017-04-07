@@ -12,8 +12,8 @@ type QueryRequest struct {
 	Query string `json:"query"`
 }
 
-// Query parses InfluxQL and returns the JSON
-func (s *Service) Query(w http.ResponseWriter, r *http.Request) {
+// Queries parses InfluxQL and returns the JSON
+func (s *Service) Queries(w http.ResponseWriter, r *http.Request) {
 	var req QueryRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		invalidJSON(w, s.Logger)

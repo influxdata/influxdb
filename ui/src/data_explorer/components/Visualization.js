@@ -1,21 +1,41 @@
-import React, {PropTypes} from 'react';
-import selectStatement from '../utils/influxql/select';
-import classNames from 'classnames';
-import AutoRefresh from 'shared/components/AutoRefresh';
-import LineGraph from 'shared/components/LineGraph';
-import MultiTable from './MultiTable';
-const RefreshingLineGraph = AutoRefresh(LineGraph);
+import React, {PropTypes} from 'react'
+import buildInfluxQLQuery from 'utils/influxql'
+import classNames from 'classnames'
+import AutoRefresh from 'shared/components/AutoRefresh'
+import LineGraph from 'shared/components/LineGraph'
+import SingleStat from 'shared/components/SingleStat'
+import Table from './Table'
+import VisHeader from 'src/data_explorer/components/VisHeader'
+
+const RefreshingLineGraph = AutoRefresh(LineGraph)
+const RefreshingSingleStat = AutoRefresh(SingleStat)
+
+const GRAPH = 'graph'
+const TABLE = 'table'
+const VIEWS = [GRAPH, TABLE]
+
+const {
+  func,
+  arrayOf,
+  number,
+  shape,
+  string,
+} = PropTypes
 
 const Visualization = React.createClass({
   propTypes: {
-    timeRange: PropTypes.shape({
-      upper: PropTypes.string,
-      lower: PropTypes.string,
+    cellName: string,
+    cellType: string,
+    autoRefresh: number.isRequired,
+    timeRange: shape({
+      upper: string,
+      lower: string,
     }).isRequired,
-    queryConfigs: PropTypes.arrayOf(PropTypes.shape({})).isRequired,
-    isActive: PropTypes.bool.isRequired,
-    name: PropTypes.string,
-    activeQueryIndex: PropTypes.number,
+    queryConfigs: arrayOf(shape({})).isRequired,
+    activeQueryIndex: number,
+    height: string,
+    heightPixels: number,
+    onEditRawStatus: func,
   },
 
   contextTypes: {
@@ -27,65 +47,100 @@ const Visualization = React.createClass({
   },
 
   getInitialState() {
-    return {
-      isGraphInView: true,
-    };
-  },
+    const {queryConfigs, activeQueryIndex} = this.props
+    if (!queryConfigs.length || activeQueryIndex === null) {
+      return {
+        view: GRAPH,
+      }
+    }
 
-  componentDidUpdate() {
-    if (this.props.isActive) {
-      this.panel.scrollIntoView();
-      // scrollIntoView scrolls slightly *too* far, so this adds some top offset.
-      this.panel.parentNode.scrollTop -= 10;
+    return {
+      view: typeof queryConfigs[activeQueryIndex].rawText === 'string' ? TABLE : GRAPH,
     }
   },
 
-  handleToggleView() {
-    this.setState({isGraphInView: !this.state.isGraphInView});
+  componentWillReceiveProps(nextProps) {
+    const {queryConfigs, activeQueryIndex} = nextProps
+    if (!queryConfigs.length || activeQueryIndex === null || activeQueryIndex === this.props.activeQueryIndex) {
+      return
+    }
+
+    const activeQuery = queryConfigs[activeQueryIndex]
+    if (activeQuery && typeof activeQuery.rawText === 'string') {
+      return this.setState({view: TABLE})
+    }
+  },
+
+  handleToggleView(view) {
+    this.setState({view})
   },
 
   render() {
-    const {queryConfigs, timeRange, isActive, name, activeQueryIndex} = this.props;
-    const {source} = this.context;
-    const proxyLink = source.links.proxy;
+    const {queryConfigs, timeRange, height, heightPixels, onEditRawStatus, activeQueryIndex} = this.props
+    const {source} = this.context
+    const proxyLink = source.links.proxy
+    const {view} = this.state
 
-    const {isGraphInView} = this.state;
     const statements = queryConfigs.map((query) => {
-      const text = query.rawText || selectStatement(timeRange, query);
-      return {text, id: query.id};
-    });
+      const text = query.rawText || buildInfluxQLQuery(timeRange, query)
+      return {text, id: query.id}
+    })
     const queries = statements.filter((s) => s.text !== null).map((s) => {
-      return {host: [proxyLink], text: s.text, id: s.id};
-    });
-    const autoRefreshMs = 10000;
-    const isInDataExplorer = true;
+      return {host: [proxyLink], text: s.text, id: s.id}
+    })
 
     return (
-      <div ref={(p) => this.panel = p} className={classNames("graph", {active: isActive})}>
-        <div className="graph-heading">
-          <div className="graph-title">
-            {name || "Graph"}
-          </div>
-          <div className="graph-actions">
-            <ul className="toggle toggle-sm">
-              <li onClick={this.handleToggleView} className={classNames("toggle-btn ", {active: isGraphInView})}>Graph</li>
-              <li onClick={this.handleToggleView} className={classNames("toggle-btn ", {active: !isGraphInView})}>Table</li>
-            </ul>
-          </div>
-        </div>
-        <div className="graph-container">
-          {isGraphInView ? (
-            <RefreshingLineGraph
-              queries={queries}
-              autoRefresh={autoRefreshMs}
-              activeQueryIndex={activeQueryIndex}
-              isInDataExplorer={isInDataExplorer}
-              />
-          ) : <MultiTable queries={queries} />}
+      <div className="graph" style={{height}}>
+        <VisHeader views={VIEWS} view={view} onToggleView={this.handleToggleView} name={name || 'Graph'}/>
+        <div className={classNames({"graph-container": view === GRAPH, "table-container": view === TABLE})}>
+          {this.renderVisualization(view, queries, heightPixels, onEditRawStatus, activeQueryIndex)}
         </div>
       </div>
-    );
+    )
   },
-});
 
-export default Visualization;
+  renderVisualization(view, queries, heightPixels, onEditRawStatus, activeQueryIndex) {
+    const activeQuery = queries[activeQueryIndex]
+    const defaultQuery = queries[0]
+
+    if (view === TABLE) {
+      return this.renderTable(activeQuery || defaultQuery, heightPixels, onEditRawStatus)
+    }
+
+    return this.renderGraph(queries)
+  },
+
+  renderTable(query, heightPixels, onEditRawStatus) {
+    if (!query) {
+      return <div className="generic-empty-state">Enter your query above</div>
+    }
+
+    return <Table query={query} height={heightPixels} onEditRawStatus={onEditRawStatus} />
+  },
+
+  renderGraph(queries) {
+    const {cellType, autoRefresh, activeQueryIndex} = this.props
+    const isInDataExplorer = true
+
+    if (cellType === 'single-stat') {
+      return <RefreshingSingleStat queries={[queries[0]]} autoRefresh={autoRefresh} />
+    }
+
+    const displayOptions = {
+      stepPlot: cellType === 'line-stepplot',
+      stackedGraph: cellType === 'line-stacked',
+    }
+    return (
+      <RefreshingLineGraph
+        queries={queries}
+        autoRefresh={autoRefresh}
+        activeQueryIndex={activeQueryIndex}
+        isInDataExplorer={isInDataExplorer}
+        showSingleStat={cellType === "line-plus-single-stat"}
+        displayOptions={displayOptions}
+      />
+    )
+  },
+})
+
+export default Visualization

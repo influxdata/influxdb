@@ -1,13 +1,9 @@
-import queryConfigs from './queryConfigs';
-import panels from './panels';
-import timeRange from './timeRange';
-import explorers from './explorers';
-import activeExplorer from './activeExplorer';
+import queryConfigs from './queryConfigs'
+import timeRange from './timeRange'
+import dataExplorer from './ui'
 
-export {
+export default {
   queryConfigs,
-  panels,
   timeRange,
-  explorers,
-  activeExplorer,
-};
+  dataExplorer,
+}

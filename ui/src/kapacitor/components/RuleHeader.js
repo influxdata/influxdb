@@ -1,9 +1,11 @@
-import React, {PropTypes} from 'react';
-import ReactTooltip from 'react-tooltip';
-import TimeRangeDropdown from '../../shared/components/TimeRangeDropdown';
+import React, {PropTypes} from 'react'
+import ReactTooltip from 'react-tooltip'
+import TimeRangeDropdown from '../../shared/components/TimeRangeDropdown'
+import SourceIndicator from '../../shared/components/SourceIndicator'
 
 export const RuleHeader = React.createClass({
   propTypes: {
+    source: PropTypes.shape({}).isRequired,
     onSave: PropTypes.func.isRequired,
     rule: PropTypes.shape({}).isRequired,
     actions: PropTypes.shape({
@@ -17,31 +19,31 @@ export const RuleHeader = React.createClass({
   getInitialState() {
     return {
       isEditingName: false,
-    };
+    }
   },
 
   handleEditName(e, rule) {
     if (e.key === 'Enter') {
-      const {updateRuleName} = this.props.actions;
-      const name = this.ruleName.value;
-      updateRuleName(rule.id, name);
-      this.toggleEditName();
+      const {updateRuleName} = this.props.actions
+      const name = this.ruleName.value
+      updateRuleName(rule.id, name)
+      this.toggleEditName()
     }
 
     if (e.key === 'Escape') {
-      this.toggleEditName();
+      this.toggleEditName()
     }
   },
 
   handleEditNameBlur(rule) {
-    const {updateRuleName} = this.props.actions;
-    const name = this.ruleName.value;
-    updateRuleName(rule.id, name);
-    this.toggleEditName();
+    const {updateRuleName} = this.props.actions
+    const name = this.ruleName.value
+    updateRuleName(rule.id, name)
+    this.toggleEditName()
   },
 
   toggleEditName() {
-    this.setState({isEditingName: !this.state.isEditingName});
+    this.setState({isEditingName: !this.state.isEditingName})
   },
 
   render() {
@@ -52,32 +54,33 @@ export const RuleHeader = React.createClass({
           {this.renderSave()}
         </div>
       </div>
-    );
+    )
   },
 
   renderSave() {
-    const {validationError, onSave, timeRange, onChooseTimeRange} = this.props;
+    const {validationError, onSave, timeRange, onChooseTimeRange, source} = this.props
     const saveButton = validationError ?
-      <button className="btn btn-sm btn-default disabled" data-for="save-kapacitor-tooltip" data-tip={validationError}>
+      (<button className="btn btn-success btn-sm disabled" data-for="save-kapacitor-tooltip" data-tip={validationError}>
         Save Rule
-      </button> :
-      <button className="btn btn-success btn-sm" onClick={onSave}>Save Rule</button>;
+      </button>) :
+      <button className="btn btn-success btn-sm" onClick={onSave}>Save Rule</button>
 
     return (
       <div className="page-header__right">
-        <TimeRangeDropdown onChooseTimeRange={onChooseTimeRange} selected={timeRange.inputValue} />
+        <SourceIndicator sourceName={source.name} />
+        <TimeRangeDropdown onChooseTimeRange={onChooseTimeRange} selected={timeRange} />
         {saveButton}
         <ReactTooltip id="save-kapacitor-tooltip" effect="solid" html={true} offset={{top: 2}} place="bottom" class="influx-tooltip kapacitor-tooltip place-bottom" />
       </div>
-    );
+    )
   },
 
   renderEditName() {
-    const {rule} = this.props;
-    const {isEditingName} = this.state;
+    const {rule} = this.props
+    const {isEditingName} = this.state
 
     const name = isEditingName ?
-      <input
+      (<input
         className="chronograf-header__editing"
         autoFocus={true}
         defaultValue={rule.name}
@@ -85,20 +88,20 @@ export const RuleHeader = React.createClass({
         onKeyDown={(e) => this.handleEditName(e, rule)}
         onBlur={() => this.handleEditNameBlur(rule)}
         placeholder="Name your rule"
-      /> :
-      <h1 className="chronograf-header__editable" onClick={this.toggleEditName} data-for="rename-kapacitor-tooltip" data-tip="Click to Rename">
+      />) :
+      (<h1 className="chronograf-header__editable" onClick={this.toggleEditName} data-for="rename-kapacitor-tooltip" data-tip="Click to Rename">
         {rule.name}
         <span className="icon pencil"></span>
         <ReactTooltip id="rename-kapacitor-tooltip" delayShow={200} effect="solid" html={true} offset={{top: 2}} place="bottom" class="influx-tooltip kapacitor-tooltip place-bottom" />
-      </h1>;
+      </h1>)
 
     return (
       <div className="page-header__left">
         {name}
       </div>
-    );
+    )
   },
 
-});
+})
 
-export default RuleHeader;
+export default RuleHeader

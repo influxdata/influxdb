@@ -10,16 +10,16 @@ $resizer-color-hover: $g8-storm;
 $resizer-color-active: $c-pool;
 
 .resizer__handle {
-  top: 0;
+  top: 60%;
   left: 0;
-  width: $resizer-click-area;
-  margin-left: -$resizer-click-area/2;
-  margin-right: -$resizer-click-area/2;
-  height: 100%;
+  height: $resizer-click-area;
+  margin-top: -$resizer-click-area/2;
+  margin-bottom: -$resizer-click-area/2;
+  width: 100%;
   z-index: 2;
   user-select: none;
   -webkit-user-select: none;
-  position: relative;
+  position: absolute;
 
   // Psuedo element for handle
   &:before {
@@ -31,7 +31,7 @@ $resizer-color-active: $c-pool;
     position: absolute;
     top: 50%;
     left: 50%;
-    transform: translate(-50%,-50%) rotate(90deg);
+    transform: translate(-50%,-50%);
     width: 130px;
     height: $resizer-handle-width;
     line-height: $resizer-handle-width;
@@ -48,18 +48,18 @@ $resizer-color-active: $c-pool;
     content: '';
     display: block;
     position: absolute;
-    top: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    height: 100%;
-    width: $resizer-line-width;
+    top: 50%;
+    left: 0;
+    transform: translateY(-50%);
+    width: 100%;
+    height: $resizer-line-width;
     background-color: $resizer-color;
     box-shadow: 0 0 0 transparent;
     transition:
       background-color 0.19s ease;
   }
   &:hover {
-    cursor: ew-resize;
+    cursor: ns-resize;
 
     &:before {
       background-color: $resizer-color-hover;
@@ -85,4 +85,25 @@ $resizer-color-active: $c-pool;
   display: flex;
   flex-direction: row;
   align-items: stretch;
+}
+
+.resize-container {
+  .resize-top {
+    display: flex;
+    flex-direction: column;
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 60%;
+    width: 100%;
+  }
+  .resize-bottom {
+    display: flex;
+    flex-direction: column;
+    position: absolute;
+    height: 40%;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+  }
 }

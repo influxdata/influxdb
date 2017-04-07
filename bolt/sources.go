@@ -11,8 +11,10 @@ import (
 // Ensure SourcesStore implements chronograf.SourcesStore.
 var _ chronograf.SourcesStore = &SourcesStore{}
 
+// SourcesBucket is the bolt bucket used to store source information
 var SourcesBucket = []byte("Sources")
 
+// SourcesStore is a bolt implementation to store time-series source information.
 type SourcesStore struct {
 	client *Client
 }
@@ -202,23 +204,23 @@ func (s *SourcesStore) setRandomDefault(ctx context.Context, src chronograf.Sour
 		return err
 	} else if target.Default {
 		// Locate another source to be the new default
-		if srcs, err := s.all(ctx, tx); err != nil {
+		srcs, err := s.all(ctx, tx)
+		if err != nil {
 			return err
-		} else {
-			var other *chronograf.Source
-			for idx, _ := range srcs {
-				other = &srcs[idx]
-				// avoid selecting the source we're about to delete as the new default
-				if other.ID != target.ID {
-					break
-				}
+		}
+		var other *chronograf.Source
+		for idx := range srcs {
+			other = &srcs[idx]
+			// avoid selecting the source we're about to delete as the new default
+			if other.ID != target.ID {
+				break
 			}
+		}
 
-			// set the other to be the default
-			other.Default = true
-			if err := s.update(ctx, *other, tx); err != nil {
-				return err
-			}
+		// set the other to be the default
+		other.Default = true
+		if err := s.update(ctx, *other, tx); err != nil {
+			return err
 		}
 	}
 	return nil

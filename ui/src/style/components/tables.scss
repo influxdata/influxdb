@@ -2,6 +2,29 @@
     Stuff for making Tables of Data more readable
     ----------------------------------------------
 */
+
+
+table {
+  thead th {
+    color: $g17-whisper !important;
+    border-width: 1px;
+    border-color: $g5-pepper !important;
+  }
+  tbody td {
+    font-weight: 500;
+    color: $g14-chromium !important;
+    border: 0 !important;
+    padding: 6px 8px !important;
+  }
+  tbody tr:hover {
+    background-color: $g5-pepper;
+
+    td {
+      color: $g19-ghost !important;
+    }
+  }
+}
+
 table .monotype {
   font-family: $code-font;
   letter-spacing: 0px;
@@ -49,7 +72,7 @@ table .monotype {
     position: absolute;
     top: 50%;
     right: 8px;
-    color: #fff;
+    color: $g20-white;
     font-family: 'icomoon';
     opacity: 0;
     transform: translateY(-50%);
