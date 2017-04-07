@@ -47,6 +47,7 @@
   1. [#1187](https://github.com/influxdata/chronograf/pull/1187): Replace Kill Query confirmation modal with ConfirmButtons
   1. [#1185](https://github.com/influxdata/chronograf/pull/1185): Alphabetically sort Admin Database Page
   1. [#1199](https://github.com/influxdata/chronograf/pull/1199): Move Rename Cell functionality to ContextMenu dropdown
+  1. [#1211](https://github.com/influxdata/chronograf/pull/1211): Reverse the positioning of the graph visualization and the query builder on the Data Explorer page
   1. [#1222](https://github.com/influxdata/chronograf/pull/1222): Isolate cell repositioning to just those affected by adding a new cell
 
 ## v1.2.0-beta7 [2017-03-28]
