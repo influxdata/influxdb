@@ -78,7 +78,7 @@ export const SourcePage = React.createClass({
 
     createSource(newSource).then(({data: sourceFromServer}) => {
       this.props.addSourceAction(sourceFromServer)
-      this.setState({source: sourceFromServer})
+      this.setState({source: sourceFromServer, error: null})
     }).catch(({data: error}) => {
       // dont want to flash this until they submit
       this.setState({error: error.message})
@@ -105,22 +105,40 @@ export const SourcePage = React.createClass({
 
   render() {
     const {source, editMode} = this.state
-    const {addFlashMessage, router, location, params} = this.props
+
+    if (editMode && !source.id) {
+      return <div className="page-spinner"></div>
+    }
 
     return (
-      <SourceForm
-        sourceID={params.sourceID}
-        router={router}
-        location={location}
-        source={source}
-        editMode={editMode}
-        addFlashMessage={addFlashMessage}
-        addSourceAction={addSourceAction}
-        updateSourceAction={updateSourceAction}
-        onInputChange={this.handleInputChange}
-        onSubmit={this.handleSubmit}
-        onBlurSourceURL={this.handleBlurSourceURL}
-      />
+      <div className="page" id="source-form-page">
+        <div className="page-header">
+          <div className="page-header__container">
+            <div className="page-header__left">
+              <h1>
+                {editMode ? "Edit Source" : "Add a New Source"}
+              </h1>
+            </div>
+          </div>
+        </div>
+        <div className="page-contents">
+          <div className="container-fluid">
+            <div className="row">
+              <div className="col-md-8 col-md-offset-2">
+                <div className="panel panel-minimal">
+                  <SourceForm
+                    source={source}
+                    editMode={editMode}
+                    onInputChange={this.handleInputChange}
+                    onSubmit={this.handleSubmit}
+                    onBlurSourceURL={this.handleBlurSourceURL}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     )
   },
 })
