@@ -70,6 +70,7 @@ type Server struct {
 	GenericName         string   `long:"generic-name" description:"Generic OAuth2 name presented on the login page"  env:"GENERIC_NAME"`
 	GenericClientID     string   `long:"generic-client-id" description:"Generic OAuth2 Client ID. Can be used own OAuth2 service."  env:"GENERIC_CLIENT_ID"`
 	GenericClientSecret string   `long:"generic-client-secret" description:"Generic OAuth2 Client Secret" env:"GENERIC_CLIENT_SECRET"`
+	GenericScopes       []string `long:"generic-scopes" description:"Scopes requested by provider of web client." default:"user:email" env:"GENERIC_SCOPES" env-delim:","`
 	GenericDomains      []string `long:"generic-domains" description:"Email domain users' email address to have (example.com)" env:"GENERIC_DOMAINS" env-delim:","`
 	GenericAuthURL      string   `long:"generic-auth-url" description:"OAuth 2.0 provider's authorization endpoint URL" env:"GENERIC_AUTH_URL"`
 	GenericTokenURL     string   `long:"generic-token-url" description:"OAuth 2.0 provider's token endpoint URL" env:"GENERIC_TOKEN_URL"`
@@ -155,14 +156,15 @@ func (s *Server) herokuOAuth(logger chronograf.Logger, auth oauth2.Authenticator
 
 func (s *Server) genericOAuth(logger chronograf.Logger, auth oauth2.Authenticator) (oauth2.Provider, oauth2.Mux, func() bool) {
 	gen := oauth2.Generic{
-		PageName:     s.GenericName,
-		ClientID:     s.GenericClientID,
-		ClientSecret: s.GenericClientSecret,
-		Domains:      s.GenericDomains,
-		AuthURL:      s.GenericAuthURL,
-		TokenURL:     s.GenericTokenURL,
-		APIURL:       s.GenericAPIURL,
-		Logger:       logger,
+		PageName:       s.GenericName,
+		ClientID:       s.GenericClientID,
+		ClientSecret:   s.GenericClientSecret,
+		RequiredScopes: s.GenericScopes,
+		Domains:        s.GenericDomains,
+		AuthURL:        s.GenericAuthURL,
+		TokenURL:       s.GenericTokenURL,
+		APIURL:         s.GenericAPIURL,
+		Logger:         logger,
 	}
 	jwt := oauth2.NewJWT(s.TokenSecret)
 	genMux := oauth2.NewAuthMux(&gen, auth, jwt, logger)

@@ -18,14 +18,15 @@ var _ Provider = &Generic{}
 // cookie.  This cookie's value is a JWT containing the user's primary
 // email address.
 type Generic struct {
-	PageName     string // Name displayed on the login page
-	ClientID     string
-	ClientSecret string
-	Domains      []string // Optional email domain checking
-	AuthURL      string
-	TokenURL     string
-	APIURL       string // APIURL returns OpenID Userinfo
-	Logger       chronograf.Logger
+	PageName       string // Name displayed on the login page
+	ClientID       string
+	ClientSecret   string
+	RequiredScopes []string
+	Domains        []string // Optional email domain checking
+	AuthURL        string
+	TokenURL       string
+	APIURL         string // APIURL returns OpenID Userinfo
+	Logger         chronograf.Logger
 }
 
 // Name is the name of the provider
@@ -46,10 +47,9 @@ func (g *Generic) Secret() string {
 	return g.ClientSecret
 }
 
-// Scopes for generic is only the email address
+// Scopes for generic provider required of the client.
 func (g *Generic) Scopes() []string {
-	scopes := []string{"user:email"}
-	return scopes
+	return g.RequiredScopes
 }
 
 // Config is the Generic OAuth2 exchange information and endpoints

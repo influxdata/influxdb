@@ -132,6 +132,17 @@ The generic OAuth2 provider has many settings that are required.
 * `GENERIC_TOKEN_URL` : OAuth 2.0 provider's token endpoint [endpoint](https://tools.ietf.org/html/rfc6749#section-3.2) is used by the client to obtain an access token
 * `TOKEN_SECRET` : Used to validate OAuth [state](https://tools.ietf.org/html/rfc6749#section-4.1.1) response. (see above)
 
+#### Optional Scopes
+By default chronograf will ask for the `user:email`
+[scope](https://tools.ietf.org/html/rfc6749#section-3.3)
+of the client.  If your
+provider scopes email access under a different scope or scopes provide them as 
+comma separated values in the `GENERIC_SCOPES` environment variable.
+
+```sh
+export GENERIC_SCOPES="openid,email" # Requests access to openid and email scopes
+```
+
 #### Optional Email domains
 Also, the generic OAuth2 provider has a few optional parameters as well.
 
