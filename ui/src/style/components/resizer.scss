@@ -19,7 +19,7 @@ $resizer-color-active: $c-pool;
   z-index: 2;
   user-select: none;
   -webkit-user-select: none;
-  position: relative;
+  position: absolute;
 
   // Psuedo element for handle
   &:before {

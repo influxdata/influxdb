@@ -112,7 +112,7 @@ const Visualization = React.createClass({
 
   renderTable(query, heightPixels, onEditRawStatus) {
     if (!query) {
-      return <div className="generic-empty-state">Enter your query below</div>
+      return <div className="generic-empty-state">Enter your query above</div>
     }
 
     return <Table query={query} height={heightPixels} onEditRawStatus={onEditRawStatus} />
