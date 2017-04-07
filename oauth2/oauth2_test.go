@@ -1,4 +1,4 @@
-package oauth2_test
+package oauth2
 
 import (
 	"context"
@@ -10,10 +10,9 @@ import (
 	goauth "golang.org/x/oauth2"
 
 	"github.com/influxdata/chronograf"
-	"github.com/influxdata/chronograf/oauth2"
 )
 
-var _ oauth2.Provider = &MockProvider{}
+var _ Provider = &MockProvider{}
 
 type MockProvider struct {
 	Email string
@@ -53,19 +52,19 @@ func (mp *MockProvider) Secret() string {
 	return "4815162342"
 }
 
-var _ oauth2.Authenticator = &YesManAuthenticator{}
+var _ Tokenizer = &YesManTokenizer{}
 
-type YesManAuthenticator struct{}
+type YesManTokenizer struct{}
 
-func (y *YesManAuthenticator) Authenticate(ctx context.Context, token string) (oauth2.Principal, error) {
-	return oauth2.Principal{
+func (y *YesManTokenizer) ValidPrincipal(ctx context.Context, token Token, duration time.Duration) (Principal, error) {
+	return Principal{
 		Subject: "biff@example.com",
 		Issuer:  "Biff Tannen's Pleasure Paradise",
 	}, nil
 }
 
-func (y *YesManAuthenticator) Token(ctx context.Context, p oauth2.Principal, t time.Duration) (string, error) {
-	return "HELLO?!MCFLY?!ANYONEINTHERE?!", nil
+func (y *YesManTokenizer) Create(ctx context.Context, p Principal, t time.Duration) (Token, error) {
+	return Token("HELLO?!MCFLY?!ANYONEINTHERE?!"), nil
 }
 
 func NewTestTripper(log chronograf.Logger, ts *httptest.Server, rt http.RoundTripper) (*TestTripper, error) {

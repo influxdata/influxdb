@@ -2,23 +2,33 @@
 
 OAuth 2.0 Style Authentication
 
+### TL;DR
+#### Github
+
+```sh
+export AUTH_DURATION=1h                                           # force login every hour
+export TOKEN_SECRET=supersupersecret                              # Signing secret
+export GH_CLIENT_ID=b339dd4fddd95abec9aa                          # Github client id
+export GH_CLIENT_SECRET=260041897d3252c146ece6b46ba39bc1e54416dc  # Github client secret
+export GH_ORGS=biffs-gang                                         # Restrict to GH orgs
+```
 
 ### Configuration
 
-To use authentication in Chronograf, both Github OAuth and JWT signature need to be configured.
+To use authentication in Chronograf, both the OAuth provider and JWT signature
+need to be configured.
 
 #### Configuring JWT signature
 
 Set a [JWT](https://tools.ietf.org/html/rfc7519) signature to a random string. This is needed for all OAuth2 providers that you choose to configure. *Keep this random string around!*
 
-You'll need it each time you start a chronograf server because it is used to verify user authorization. If you are running multiple chronograf servers in an HA configuration set the `TOKEN_SECRET` on each to allow users to stay logged in.
+You'll need it each time you start a chronograf server because it is used to verify user authorization. If you are running multiple chronograf servers in an HA configuration set the `TOKEN_SECRET` on each to allow users to stay logged in. If you want to log all users out every time the server restarts, change the value of `TOKEN_SECRET` to a different value on each restart.
 
 ```sh
 export TOKEN_SECRET=supersupersecret
 ```
 
-# Github
-
+### Github
 #### Creating Github OAuth Application
 
 To create a Github OAuth Application follow the [Register your app](https://developer.github.com/guides/basics-of-authentication/#registering-your-app) instructions.
@@ -26,13 +36,13 @@ Essentially, you'll register your application [here](https://github.com/settings
 
 The `Homepage URL` should be Chronograf's full server name and port.  If you are running it locally for example, make it `http://localhost:8888`
 
-The `Authorization callback URL` must be the location of the `Homepage URL` plus `/oauth/github/callback`.  For example, if `Homepage URL` was 
+The `Authorization callback URL` must be the location of the `Homepage URL` plus `/oauth/github/callback`.  For example, if `Homepage URL` was
 `http://localhost:8888` then the `Authorization callback URL` should be `http://localhost:8888/oauth/github/callback`.
 
 Github will provide a `Client ID` and `Client Secret`.  To register these values with chronograf set the following environment variables:
 
-* `GH_CLIENT_ID` 
-* `GH_CLIENT_SECRET` 
+* `GH_CLIENT_ID`
+* `GH_CLIENT_SECRET`
 
 For example:
 
@@ -56,7 +66,7 @@ To support multiple organizations use a comma delimted list like so:
 export GH_ORGS=hill-valley-preservation-sociey,the-pinheads
 ```
 
-# Google
+### Google
 
 #### Creating Google OAuth Application
 
@@ -82,7 +92,7 @@ Similar to Github's organization restriction, Google authentication can be restr
 export GOOGLE_DOMAINS=biffspleasurepalance.com,savetheclocktower.com
 ```
 
-# Heroku
+### Heroku
 
 #### Creating Heroku Application
 
@@ -103,3 +113,19 @@ Like the other OAuth2 providers, access to Chronograf via Heroku can be restrict
 ```sh
 export HEROKU_ORGS=hill-valley-preservation-sociey,the-pinheads
 ```
+
+### Optional: Configuring Authentication Duration
+
+By default, auth will remain valid for 30 days via a cookie stored in the browser. This duration can be changed with the environment variable `AUTH_DURATION`. For example, to change it to 1 hour, use:
+
+```sh
+export AUTH_DURATION=1h
+```
+
+The duration uses the golang [time duration format](https://golang.org/pkg/time/#ParseDuration), so the largest time unit is `h` (hours). So to change it to 45 days, use:
+
+```sh
+export AUTH_DURATION=1080h
+```
+
+Additionally, for greater security, if you want to require re-authentication every time the browser is closed, set `AUTH_DURATION` to `0`. This will make the cookie transient (aka "in-memory").

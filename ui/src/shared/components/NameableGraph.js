@@ -87,36 +87,34 @@ const NameableGraph = React.createClass({
         />
       )
     } else {
-      nameOrField = (<span className={classnames("dash-graph--name", {editable: !shouldNotBeEditable})}>{name}</span>)
+      nameOrField = (<span className="dash-graph--name">{name}</span>)
     }
 
-    let onClickHandler
+    let onStartRenaming
     if (!isEditing && isEditable) {
-      onClickHandler = onEditCell
+      onStartRenaming = onEditCell
     } else {
-      onClickHandler = () => {
+      onStartRenaming = () => {
         // no-op
       }
     }
 
     return (
       <div className="dash-graph">
-        <div className="dash-graph--heading">
-          <div onClick={onClickHandler(x, y, isEditing)}>{nameOrField}</div>
-          {shouldNotBeEditable ? null : <div className="dash-graph--drag-handle"></div>}
-          {
-            shouldNotBeEditable ?
-              null :
-              <ContextMenu
-                isOpen={this.state.isMenuOpen}
-                toggleMenu={this.toggleMenu}
-                onEdit={onSummonOverlayTechnologies}
-                onDelete={onDeleteCell}
-                cell={cell}
-                handleClickOutside={this.closeMenu}
-              />
-          }
-        </div>
+        <div className={classnames("dash-graph--heading", {"dash-graph--heading-draggable": !shouldNotBeEditable})}>{nameOrField}</div>
+        {
+          shouldNotBeEditable ?
+          null :
+          <ContextMenu
+            isOpen={this.state.isMenuOpen}
+            toggleMenu={this.toggleMenu}
+            onEdit={onSummonOverlayTechnologies}
+            onRename={onStartRenaming}
+            onDelete={onDeleteCell}
+            cell={cell}
+            handleClickOutside={this.closeMenu}
+          />
+        }
         <div className="dash-graph--container">
           {children}
         </div>
@@ -125,13 +123,14 @@ const NameableGraph = React.createClass({
   },
 })
 
-const ContextMenu = OnClickOutside(({isOpen, toggleMenu, onEdit, onDelete, cell}) => (
+const ContextMenu = OnClickOutside(({isOpen, toggleMenu, onEdit, onRename, onDelete, cell}) => (
   <div className={classnames("dash-graph--options", {"dash-graph--options-show": isOpen})} onClick={toggleMenu}>
     <button className="btn btn-info btn-xs">
       <span className="icon caret-down"></span>
     </button>
     <ul className="dash-graph--options-menu">
       <li onClick={() => onEdit(cell)}>Edit</li>
+      <li onClick={onRename(cell.x, cell.y, cell.isEditing)}>Rename</li>
       <li onClick={() => onDelete(cell)}>Delete</li>
     </ul>
   </div>

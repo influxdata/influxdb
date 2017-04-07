@@ -17,14 +17,24 @@
   1. [#1179](https://github.com/influxdata/chronograf/pull/1179): Admin Databases Page will render a database without retention policies
   1. [#1128](https://github.com/influxdata/chronograf/pull/1128): No more ghost dashboards 👻
   1. [#1189](https://github.com/influxdata/chronograf/pull/1189): Clicking inside the graph header edit box will no longer blur the field. Use the Escape key for that behavior instead.
+  1. [#1193](https://github.com/influxdata/chronograf/issues/1193): Fix no quoting of raw InfluxQL fields with function names
+  1. [#1195](https://github.com/influxdata/chronograf/issues/1195): Chronograf was not redirecting with authentiation for Influx Enterprise Meta service
+  1. [#1095](https://github.com/influxdata/chronograf/pull/1095): Make logout button display again
+  1. [#1209](https://github.com/influxdata/chronograf/pull/1209): HipChat Kapacitor config now uses only the subdomain instead of asking for the entire HipChat URL.
+  1. [#1219](https://github.com/influxdata/chronograf/pull/1219): Update query for default cell in new dashboard
+  1. [#1206](https://github.com/influxdata/chronograf/issues/1206): Chronograf now proxies to kapacitors behind proxy using vhost correctly.
 
 ### Features
   1. [#1112](https://github.com/influxdata/chronograf/pull/1112): Add ability to delete a dashboard
   1. [#1120](https://github.com/influxdata/chronograf/pull/1120): Allow users to update user passwords.
   1. [#1129](https://github.com/influxdata/chronograf/pull/1129): Allow InfluxDB and Kapacitor configuration via ENV vars or CLI options
   1. [#1130](https://github.com/influxdata/chronograf/pull/1130): Add loading spinner to Alert History page.
+  1. [#1168](https://github.com/influxdata/chronograf/issues/1168): Expand support for --basepath on some load balancers
+  1. [#1113](https://github.com/influxdata/chronograf/issues/1113): Add Slack channel per Kapacitor alert.
+  1. [#1095](https://github.com/influxdata/chronograf/pull/1095): Add new auth duration CLI option; add client heartbeat
   1. [#1168](https://github.com/influxdata/chronograf/issue/1168): Expand support for --basepath on some load balancers
   1. [#1212](https://github.com/influxdata/chronograf/issue/1212): Add query templates and loading animation to the RawQueryEditor
+  1. [#1221](https://github.com/influxdata/chronograf/issue/1221): More sensical Cell and Dashboard defaults
 
 ### UI Improvements
   1. [#1101](https://github.com/influxdata/chronograf/pull/1101): Compress InfluxQL responses with gzip
@@ -35,6 +45,7 @@
   1. [#1124](https://github.com/influxdata/chronograf/pull/1124): Polished dashboard cell drag interaction, use Hover-To-Reveal UI pattern in all tables, Source Indicator & Graph Tips are no longer misleading, and aesthetic improvements to the DB Management page
   1. [#1187](https://github.com/influxdata/chronograf/pull/1187): Replace Kill Query confirmation modal with ConfirmButtons
   1. [#1185](https://github.com/influxdata/chronograf/pull/1185): Alphabetically sort Admin Database Page
+  1. [#1199](https://github.com/influxdata/chronograf/pull/1199): Move Rename Cell functionality to ContextMenu dropdown
 
 ## v1.2.0-beta7 [2017-03-28]
 ### Bug Fixes

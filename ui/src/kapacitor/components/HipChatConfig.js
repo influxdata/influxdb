@@ -26,7 +26,7 @@ const HipchatConfig = React.createClass({
 
     const properties = {
       room: this.room.value,
-      url: this.url.value,
+      url: `https://${this.url.value}.hipchat.com/v2/room`,
       token: this.token.value,
     }
 
@@ -37,6 +37,8 @@ const HipchatConfig = React.createClass({
     const {options} = this.props.config
     const {url, room, token} = options
 
+    const subdomain = url.replace('https://', '').replace('.hipchat.com/v2/room', '')
+
     return (
       <div>
         <h4 className="text-center no-user-select">HipChat Alert</h4>
@@ -44,14 +46,14 @@ const HipchatConfig = React.createClass({
         <p className="no-user-select">Send alert messages to HipChat.</p>
         <form onSubmit={this.handleSaveAlert}>
           <div className="form-group col-xs-12">
-            <label htmlFor="url">HipChat URL</label>
+            <label htmlFor="url">Subdomain</label>
             <input
               className="form-control"
               id="url"
               type="text"
-              placeholder="https://your-subdomain.hipchat.com/v2/room"
+              placeholder="your-subdomain"
               ref={(r) => this.url = r}
-              defaultValue={url || ''}
+              defaultValue={subdomain && subdomain.length ? subdomain : ''}
             />
           </div>
 
@@ -61,7 +63,7 @@ const HipchatConfig = React.createClass({
               className="form-control"
               id="room"
               type="text"
-              placeholder="your-hipchat-token"
+              placeholder="your-hipchat-room"
               ref={(r) => this.room = r}
               defaultValue={room || ''}
             />
