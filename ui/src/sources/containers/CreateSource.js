@@ -8,6 +8,7 @@ import {
   updateSource as updateSourceAJAX,
 } from 'shared/apis'
 import SourceForm from 'src/sources/components/SourceForm'
+import Notifications from 'shared/components/Notifications'
 import {
   addSource as addSourceAction,
   updateSource as updateSourceAction,
@@ -101,24 +102,28 @@ export const CreateSource = React.createClass({
   },
 
   render() {
+    const {location} = this.props
     const {source} = this.state
 
     return (
-      <div className="select-source-page">
-        <div className="container-fluid">
-          <div className="row">
-            <div className="col-md-8 col-md-offset-2">
-              <div className="panel panel-minimal">
-                <div className="panel-heading text-center">
-                  <h2 className="deluxe">Welcome to Chronograf</h2>
+      <div>
+        <Notifications location={location} />
+        <div className="select-source-page">
+          <div className="container-fluid">
+            <div className="row">
+              <div className="col-md-8 col-md-offset-2">
+                <div className="panel panel-minimal">
+                  <div className="panel-heading text-center">
+                    <h2 className="deluxe">Welcome to Chronograf</h2>
+                  </div>
+                  <SourceForm
+                    source={source}
+                    editMode={false}
+                    onInputChange={this.handleInputChange}
+                    onSubmit={this.handleSubmit}
+                    onBlurSourceURL={this.handleBlurSourceURL}
+                  />
                 </div>
-                <SourceForm
-                  source={source}
-                  editMode={false}
-                  onInputChange={this.handleInputChange}
-                  onSubmit={this.handleSubmit}
-                  onBlurSourceURL={this.handleBlurSourceURL}
-                />
               </div>
             </div>
           </div>
@@ -128,10 +133,6 @@ export const CreateSource = React.createClass({
   },
 })
 
-function mapStateToProps(_) {
-  return {}
-}
-
 function mapDispatchToProps(dispatch) {
   return {
     addSource: bindActionCreators(addSourceAction, dispatch),
@@ -140,4 +141,4 @@ function mapDispatchToProps(dispatch) {
   }
 }
 
-export default connect(mapStateToProps, mapDispatchToProps)(withRouter(CreateSource))
+export default connect(null, mapDispatchToProps)(withRouter(CreateSource))
