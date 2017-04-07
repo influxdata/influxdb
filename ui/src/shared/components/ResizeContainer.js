@@ -81,7 +81,7 @@ const ResizeContainer = React.createClass({
       bottomHeightPixels,
     } = this.state
     const top = React.cloneElement(this.props.children[0], {height: topHeight, heightPixels: topHeightPixels})
-    const bottom = React.cloneElement(this.props.children[1], {height: bottomHeightPixels})
+    const bottom = React.cloneElement(this.props.children[1], {height: `${bottomHeightPixels}px`})
     return (
       <div className="resize-container page-contents" onMouseLeave={this.handleMouseLeave} onMouseUp={this.handleStopDrag} onMouseMove={this.handleDrag} ref="resizeContainer" >
         {top}
