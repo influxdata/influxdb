@@ -10,6 +10,7 @@ import Header from '../containers/Header'
 import ResizeContainer, {ResizeBottom} from 'src/shared/components/ResizeContainer'
 
 import {setAutoRefresh} from 'shared/actions/app'
+import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
 import * as viewActions from 'src/data_explorer/actions/view'
 
 const {
@@ -40,6 +41,7 @@ const DataExplorer = React.createClass({
     dataExplorer: shape({
       queryIDs: arrayOf(string).isRequired,
     }).isRequired,
+    fetchTimeSeries: func.isRequired,
   },
 
   childContextTypes: {
@@ -72,7 +74,7 @@ const DataExplorer = React.createClass({
   },
 
   render() {
-    const {autoRefresh, handleChooseAutoRefresh, timeRange, setTimeRange, queryConfigs, queryConfigActions} = this.props
+    const {autoRefresh, handleChooseAutoRefresh, timeRange, setTimeRange, queryConfigs, queryConfigActions, fetchTimeSeries} = this.props
     const {activeQueryIndex} = this.state
 
     return (
@@ -91,6 +93,7 @@ const DataExplorer = React.createClass({
             setActiveQueryIndex={this.handleSetActiveQueryIndex}
             onDeleteQuery={this.handleDeleteQuery}
             activeQueryIndex={activeQueryIndex}
+            fetchTimeSeries={fetchTimeSeries}
           />
           <ResizeBottom>
             <Visualization
@@ -99,6 +102,7 @@ const DataExplorer = React.createClass({
               queryConfigs={queryConfigs}
               activeQueryIndex={activeQueryIndex}
               onEditRawStatus={queryConfigActions.editRawQueryStatus}
+              fetchTimeSeries={fetchTimeSeries}
             />
           </ResizeBottom>
         </ResizeContainer>
@@ -124,6 +128,7 @@ function mapDispatchToProps(dispatch) {
     handleChooseAutoRefresh: bindActionCreators(setAutoRefresh, dispatch),
     setTimeRange: bindActionCreators(viewActions.setTimeRange, dispatch),
     queryConfigActions: bindActionCreators(viewActions, dispatch),
+    fetchTimeSeries: bindActionCreators(fetchTimeSeriesAsync, dispatch),
   }
 }
 

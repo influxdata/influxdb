@@ -35,7 +35,7 @@ const Visualization = React.createClass({
     activeQueryIndex: number,
     height: string,
     heightPixels: number,
-    onEditRawStatus: func,
+    fetchTimeSeries: func.isRequired,
   },
 
   contextTypes: {
@@ -76,7 +76,7 @@ const Visualization = React.createClass({
   },
 
   render() {
-    const {queryConfigs, timeRange, height, heightPixels, onEditRawStatus, activeQueryIndex} = this.props
+    const {queryConfigs, timeRange, height, heightPixels, fetchTimeSeries, activeQueryIndex} = this.props
     const {source} = this.context
     const proxyLink = source.links.proxy
     const {view} = this.state
@@ -93,29 +93,29 @@ const Visualization = React.createClass({
       <div className="graph" style={{height}}>
         <VisHeader views={VIEWS} view={view} onToggleView={this.handleToggleView} name={name || 'Graph'}/>
         <div className={classNames({"graph-container": view === GRAPH, "table-container": view === TABLE})}>
-          {this.renderVisualization(view, queries, heightPixels, onEditRawStatus, activeQueryIndex)}
+          {this.renderVisualization(view, queries, heightPixels, fetchTimeSeries, activeQueryIndex)}
         </div>
       </div>
     )
   },
 
-  renderVisualization(view, queries, heightPixels, onEditRawStatus, activeQueryIndex) {
+  renderVisualization(view, queries, heightPixels, fetchTimeSeries, activeQueryIndex) {
     const activeQuery = queries[activeQueryIndex]
     const defaultQuery = queries[0]
 
     if (view === TABLE) {
-      return this.renderTable(activeQuery || defaultQuery, heightPixels, onEditRawStatus)
+      return this.renderTable(activeQuery || defaultQuery, heightPixels, fetchTimeSeries)
     }
 
     return this.renderGraph(queries)
   },
 
-  renderTable(query, heightPixels, onEditRawStatus) {
+  renderTable(query, heightPixels, fetchTimeSeries) {
     if (!query) {
       return <div className="generic-empty-state">Enter your query above</div>
     }
 
-    return <Table query={query} height={heightPixels} onEditRawStatus={onEditRawStatus} />
+    return <Table query={query} height={heightPixels} fetchTimeSeries={fetchTimeSeries} />
   },
 
   renderGraph(queries) {
