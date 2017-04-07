@@ -25,19 +25,25 @@ const App = React.createClass({
     notify: func.isRequired,
   },
 
+  handleAddFlashMessage({type, text}) {
+    const {notify} = this.props
+
+    notify(type, text)
+  },
+
   render() {
-    const {params: {sourceID}, location, notify} = this.props
+    const {params: {sourceID}, location} = this.props
 
     return (
       <div className="chronograf-root">
         <SideNavContainer
           sourceID={sourceID}
-          addFlashMessage={notify}
+          addFlashMessage={this.handleAddFlashMessage}
           currentLocation={this.props.location.pathname}
         />
         <Notifications location={location} />
         {this.props.children && React.cloneElement(this.props.children, {
-          addFlashMessage: notify,
+          addFlashMessage: this.handleAddFlashMessage,
         })}
       </div>
     )
