@@ -78,7 +78,7 @@ const QueryEditor = React.createClass({
     return (
       <div className="query-builder--tab-contents">
         <div>
-          <RawQueryEditor query={q} onUpdate={this.handleEditRawText} />
+          <RawQueryEditor query={q} config={query} onUpdate={this.handleEditRawText} />
           {this.renderLists()}
         </div>
       </div>

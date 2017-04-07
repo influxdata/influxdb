@@ -6,10 +6,16 @@ import {QUERY_TEMPLATES} from 'src/data_explorer/constants'
 
 const ENTER = 13
 const ESCAPE = 27
+const {
+  func,
+  shape,
+  string,
+} = PropTypes
 const RawQueryEditor = React.createClass({
   propTypes: {
-    query: PropTypes.string.isRequired,
-    onUpdate: PropTypes.func.isRequired,
+    query: string.isRequired,
+    onUpdate: func.isRequired,
+    config: shape().isRequired,
   },
 
   getInitialState() {
