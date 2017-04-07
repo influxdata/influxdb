@@ -98,11 +98,11 @@ const FieldList = React.createClass({
 
     return (
       <ul className="qeditor--list">
-        {this.state.fields.map((fieldFunc) => {
+        {this.state.fields.map((fieldFunc, i) => {
           const selectedField = this.props.query.fields.find((f) => f.field === fieldFunc.field)
           return (
             <FieldListItem
-              key={fieldFunc.field}
+              key={fieldFunc.field + i}
               onToggleField={this.props.onToggleField}
               onApplyFuncsToField={this.props.applyFuncsToField}
               isSelected={!!selectedField}
