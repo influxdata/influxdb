@@ -1,12 +1,11 @@
-export function fetchTimeSeries(host, query) {
-  return {
-    type: 'REQUEST_TIME_SERIES',
-    meta: {
-      query: true,
-    },
-    payload: {
-      host,
-      query,
-    },
+import {fetchTimeSeries} from 'shared/apis/timeSeries'
+import {editQueryStatus} from 'src/data_explorer/actions/view'
+
+export const fetchTimeSeriesAsync = (source, database, query) => async (dispatch) => {
+  try {
+    const {data} = await fetchTimeSeries(source, database, query)
+  } catch (error) {
+    console.error(error)
+    throw error
   }
 }
