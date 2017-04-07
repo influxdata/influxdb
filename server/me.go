@@ -3,7 +3,6 @@ package server
 import (
 	"fmt"
 	"net/http"
-	"net/url"
 
 	"golang.org/x/net/context"
 
@@ -26,9 +25,7 @@ func newMeResponse(usr *chronograf.User) meResponse {
 	base := "/chronograf/v1/users"
 	name := "me"
 	if usr != nil {
-		// TODO: Change to urls.PathEscape for go 1.8
-		u := &url.URL{Path: usr.Name}
-		name = u.String()
+		name = PathEscape(usr.Name)
 	}
 
 	return meResponse{
