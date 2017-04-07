@@ -31,9 +31,8 @@ const Dashboard = ({
 }
 
 Dashboard.renderDashboard = (dashboard, autoRefresh, timeRange, source, onPositionChange, onEditCell, onRenameCell, onUpdateCell, onDeleteCell, onSummonOverlayTechnologies) => {
-  const cells = dashboard.cells.map((cell, i) => {
-    i = `${i}`
-    const dashboardCell = {...cell, i}
+  const cells = dashboard.cells.map((cell) => {
+    const dashboardCell = {...cell}
     dashboardCell.queries = dashboardCell.queries.map(({label, query, queryConfig, db}) =>
       ({
         label,
