@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -195,9 +196,10 @@ func AuthAPI(opts MuxOpts, router chronograf.Router) (http.Handler, AuthRoutes) 
 	routes := AuthRoutes{}
 	for _, pf := range opts.ProviderFuncs {
 		pf(func(p oauth2.Provider, m oauth2.Mux) {
-			loginPath := fmt.Sprintf("%s/oauth/%s/login", opts.Basepath, strings.ToLower(p.Name()))
-			logoutPath := fmt.Sprintf("%s/oauth/%s/logout", opts.Basepath, strings.ToLower(p.Name()))
-			callbackPath := fmt.Sprintf("%s/oauth/%s/callback", opts.Basepath, strings.ToLower(p.Name()))
+			urlName := url.PathEscape(strings.ToLower(p.Name()))
+			loginPath := fmt.Sprintf("%s/oauth/%s/login", opts.Basepath, urlName)
+			logoutPath := fmt.Sprintf("%s/oauth/%s/logout", opts.Basepath, urlName)
+			callbackPath := fmt.Sprintf("%s/oauth/%s/callback", opts.Basepath, urlName)
 			router.Handler("GET", loginPath, m.Login())
 			router.Handler("GET", logoutPath, m.Logout())
 			router.Handler("GET", callbackPath, m.Callback())
