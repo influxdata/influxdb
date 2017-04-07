@@ -1,13 +1,18 @@
 import React, {PropTypes} from 'react'
 import {withRouter} from 'react-router'
 import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux'
 
-import {createSource, updateSource} from 'shared/apis'
+import {
+  createSource as createSourceAJAX,
+  updateSource as updateSourceAJAX,
+} from 'shared/apis'
 import SourceForm from 'src/sources/components/SourceForm'
 import {
   addSource as addSourceAction,
   updateSource as updateSourceAction,
 } from 'src/shared/actions/sources'
+import {publishNotification} from 'src/shared/actions/notifications'
 
 const {
   func,
@@ -25,8 +30,9 @@ export const CreateSource = React.createClass({
         redirectPath: string,
       }).isRequired,
     }).isRequired,
-    addSourceAction: func,
-    updateSourceAction: func,
+    addSource: func,
+    updateSource: func,
+    notify: func,
   },
 
   getInitialState() {
@@ -70,16 +76,27 @@ export const CreateSource = React.createClass({
       return
     }
 
-    createSource(newSource).then(({data: sourceFromServer}) => {
-      this.props.addSourceAction(sourceFromServer)
+    createSourceAJAX(newSource).then(({data: sourceFromServer}) => {
+      this.props.addSource(sourceFromServer)
       this.setState({source: sourceFromServer})
+    }).catch(({data: error}) => {
+      this.setState({error: error.message})
     })
   },
 
   handleSubmit(newSource) {
-    updateSource(newSource).then(({data: sourceFromServer}) => {
-      this.props.updateSourceAction(sourceFromServer)
+    const {error} = this.state
+    const {notify, updateSource} = this.props
+
+    if (error) {
+      return notify('error', error)
+    }
+
+    updateSourceAJAX(newSource).then(({data: sourceFromServer}) => {
+      updateSource(sourceFromServer)
       this.redirectToApp(sourceFromServer)
+    }).catch(() => {
+      notify('error', 'There was a problem updating the source. Check the settings')
     })
   },
 
@@ -115,4 +132,12 @@ function mapStateToProps(_) {
   return {}
 }
 
-export default connect(mapStateToProps, {addSourceAction, updateSourceAction})(withRouter(CreateSource))
+function mapDispatchToProps(dispatch) {
+  return {
+    addSource: bindActionCreators(addSourceAction, dispatch),
+    updateSource: bindActionCreators(updateSourceAction, dispatch),
+    notify: bindActionCreators(publishNotification, dispatch),
+  }
+}
+
+export default connect(mapStateToProps, mapDispatchToProps)(withRouter(CreateSource))
