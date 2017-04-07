@@ -14,7 +14,7 @@ func ToQueryConfig(query string) chronograf.QueryConfig {
 		return qc
 	}
 	return chronograf.QueryConfig{
-		RawText: query,
+		RawText: &query,
 		Fields:  []chronograf.Field{},
 		GroupBy: chronograf.GroupBy{
 			Tags: []string{},
