@@ -17,9 +17,12 @@
   1. [#1179](https://github.com/influxdata/chronograf/pull/1179): Admin Databases Page will render a database without retention policies
   1. [#1128](https://github.com/influxdata/chronograf/pull/1128): No more ghost dashboards 👻
   1. [#1189](https://github.com/influxdata/chronograf/pull/1189): Clicking inside the graph header edit box will no longer blur the field. Use the Escape key for that behavior instead.
+  1. [#1193](https://github.com/influxdata/chronograf/issues/1193): Fix no quoting of raw InfluxQL fields with function names
   1. [#1195](https://github.com/influxdata/chronograf/issues/1195): Chronograf was not redirecting with authentiation for Influx Enterprise Meta service
   1. [#1095](https://github.com/influxdata/chronograf/pull/1095): Make logout button display again
   1. [#1209](https://github.com/influxdata/chronograf/pull/1209): HipChat Kapacitor config now uses only the subdomain instead of asking for the entire HipChat URL.
+  1. [#1219](https://github.com/influxdata/chronograf/pull/1219): Update query for default cell in new dashboard
+  1. [#1206](https://github.com/influxdata/chronograf/issues/1206): Chronograf now proxies to kapacitors behind proxy using vhost correctly.
 
 ### Features
   1. [#1112](https://github.com/influxdata/chronograf/pull/1112): Add ability to delete a dashboard
@@ -30,6 +33,7 @@
   1. [#1113](https://github.com/influxdata/chronograf/issues/1113): Add Slack channel per Kapacitor alert.
   1. [#1095](https://github.com/influxdata/chronograf/pull/1095): Add new auth duration CLI option; add client heartbeat
   1. [#1168](https://github.com/influxdata/chronograf/issue/1168): Expand support for --basepath on some load balancers
+  1. [#1221](https://github.com/influxdata/chronograf/issue/1221): More sensical Cell and Dashboard defaults
 
 ### UI Improvements
   1. [#1101](https://github.com/influxdata/chronograf/pull/1101): Compress InfluxQL responses with gzip

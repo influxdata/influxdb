@@ -246,7 +246,7 @@ func Test_newDashboardResponse(t *testing.T) {
 								{
 									Command: "SELECT donors from hill_valley_preservation_society where time > '1985-10-25 08:00:00'",
 									QueryConfig: chronograf.QueryConfig{
-										RawText: "SELECT donors FROM hill_valley_preservation_society WHERE time > '1985-10-25 08:00:00'",
+										RawText: "SELECT donors from hill_valley_preservation_society where time > '1985-10-25 08:00:00'",
 										Fields:  []chronograf.Field{},
 										GroupBy: chronograf.GroupBy{
 											Tags: []string{},

@@ -57,6 +57,7 @@ $dash-graph-options-arrow: 8px;
   left: 0;
 }
 .dash-graph--container {
+  z-index: 0;
   user-select: none !important;
   -o-user-select: none !important;
   -moz-user-select: none !important;
@@ -88,7 +89,7 @@ $dash-graph-options-arrow: 8px;
   }
 }
 .dash-graph--heading {
-  z-index: 1;
+  z-index: 0;
   user-select: none !important;
   -o-user-select: none !important;
   -moz-user-select: none !important;
@@ -146,7 +147,7 @@ $dash-graph-options-arrow: 8px;
 .dash-graph--options {
   width: $dash-graph-heading;
   position: absolute;
-  z-index: 2;
+  z-index: 1;
   right: 0px;
   top: 0px;
 
