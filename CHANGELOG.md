@@ -33,6 +33,7 @@
   1. [#1113](https://github.com/influxdata/chronograf/issues/1113): Add Slack channel per Kapacitor alert.
   1. [#1095](https://github.com/influxdata/chronograf/pull/1095): Add new auth duration CLI option; add client heartbeat
   1. [#1168](https://github.com/influxdata/chronograf/issue/1168): Expand support for --basepath on some load balancers
+  1. [#1207](https://github.com/influxdata/chronograf/pull/1207): Add support for custom OAuth2 providers
   1. [#1212](https://github.com/influxdata/chronograf/issue/1212): Add query templates and loading animation to the RawQueryEditor
   1. [#1221](https://github.com/influxdata/chronograf/issue/1221): More sensical Cell and Dashboard defaults
 
