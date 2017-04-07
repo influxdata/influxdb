@@ -94,7 +94,6 @@ export default React.createClass({
       highlightCircleSize: 3,
       colors: finalLineColors,
       series: dygraphSeries,
-      hideOverlayOnMouseOut: false,
       axes: {
         y: {
           valueRange: getRange(timeSeries, ranges.y, ruleValues),
