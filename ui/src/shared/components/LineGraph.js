@@ -67,7 +67,7 @@ export default React.createClass({
   },
 
   render() {
-    const {data, ranges, isFetchingInitially, isRefreshing, isGraphFilled, overrideLineColors, title, underlayCallback, queries, showSingleStat, displayOptions, ruleValues} = this.props
+    const {data, ranges, isFetchingInitially, isRefreshing, isGraphFilled, overrideLineColors, title, underlayCallback, queries, showSingleStat, displayOptions, ruleValues, isInDataExplorer} = this.props
     const {labels, timeSeries, dygraphSeries} = this._timeSeries
 
     // If data for this graph is being fetched for the first time, show a graph-wide spinner.
@@ -119,6 +119,7 @@ export default React.createClass({
           dygraphSeries={dygraphSeries}
           ranges={ranges || this.getRanges()}
           ruleValues={ruleValues}
+          legendOnBottom={isInDataExplorer ? true : null}
         />
         {showSingleStat ? <div className="graph-single-stat single-stat">{roundedValue}</div> : null}
       </div>
