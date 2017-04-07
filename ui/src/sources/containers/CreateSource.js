@@ -79,7 +79,7 @@ export const CreateSource = React.createClass({
 
     createSourceAJAX(newSource).then(({data: sourceFromServer}) => {
       this.props.addSource(sourceFromServer)
-      this.setState({source: sourceFromServer})
+      this.setState({source: sourceFromServer, error: null})
     }).catch(({data: error}) => {
       this.setState({error: error.message})
     })

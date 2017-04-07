@@ -78,7 +78,7 @@ export const SourcePage = React.createClass({
 
     createSource(newSource).then(({data: sourceFromServer}) => {
       this.props.addSourceAction(sourceFromServer)
-      this.setState({source: sourceFromServer})
+      this.setState({source: sourceFromServer, error: null})
     }).catch(({data: error}) => {
       // dont want to flash this until they submit
       this.setState({error: error.message})
