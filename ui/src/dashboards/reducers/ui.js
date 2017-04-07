@@ -72,15 +72,13 @@ export default function ui(state = initialState, action) {
     }
 
     case 'ADD_DASHBOARD_CELL': {
-      const {cell} = action.payload
-      const {dashboard, dashboards} = state
+      const {cell, dashboard} = action.payload
+      const {dashboards} = state
 
       const newCells = [cell, ...dashboard.cells]
       const newDashboard = {...dashboard, cells: newCells}
       const newDashboards = dashboards.map((d) => d.id === dashboard.id ? newDashboard : d)
-      const newState = {
-        dashboards: newDashboards,
-      }
+      const newState = {dashboards: newDashboards}
 
       return {...state, ...newState}
     }

@@ -64,9 +64,10 @@ export const syncDashboardCell = (dashboard, cell) => ({
   },
 })
 
-export const addDashboardCell = (cell) => ({
+export const addDashboardCell = (dashboard, cell) => ({
   type: 'ADD_DASHBOARD_CELL',
   payload: {
+    dashboard,
     cell,
   },
 })
@@ -141,7 +142,7 @@ export const deleteDashboardAsync = (dashboard) => async (dispatch) => {
 export const addDashboardCellAsync = (dashboard) => async (dispatch) => {
   try {
     const {data} = await addDashboardCellAJAX(dashboard, NEW_DEFAULT_DASHBOARD_CELL)
-    dispatch(addDashboardCell(data))
+    dispatch(addDashboardCell(dashboard, data))
   } catch (error) {
     console.error(error)
     throw error
