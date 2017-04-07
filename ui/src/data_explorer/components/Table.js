@@ -1,7 +1,6 @@
 import React, {PropTypes} from 'react'
 import {Table, Column, Cell} from 'fixed-data-table'
 import Dimensions from 'react-dimensions'
-import fetchTimeSeries from 'shared/apis/timeSeries'
 import _ from 'lodash'
 import moment from 'moment'
 
@@ -45,10 +44,12 @@ const ChronoTable = React.createClass({
     query: shape({
       host: arrayOf(string.isRequired).isRequired,
       text: string.isRequired,
+      id: string.isRequired,
     }).isRequired,
     containerWidth: number.isRequired,
     height: number,
     onEditRawStatus: func,
+    fetchTimeSeries: func.isRequired,
   },
 
   getInitialState() {
@@ -82,44 +83,25 @@ const ChronoTable = React.createClass({
       return
     }
 
-    const {onEditRawStatus} = this.props
-
-    onEditRawStatus(query.id, {loading: true})
     this.setState({isLoading: true})
     // second param is db, we want to leave this blank
     try {
-      const {data} = await fetchTimeSeries(query.host, undefined, query.text)
+      const results = await this.props.fetchTimeSeries(query.host, undefined, query)
       this.setState({isLoading: false})
-      onEditRawStatus(query.id, {loading: false})
 
-      const results = _.get(data, ['results', '0'], false)
       if (!results) {
-        return
+        return this.setState({cellData: emptyCells})
       }
 
-      // 200 from server and no results = warn
-      if (_.isEmpty(results)) {
-        this.setState({cellData: emptyCells})
-        return onEditRawStatus(query.id, {warn: 'Your query is syntactically correct but returned no results'})
-      }
-
-      // 200 from chrono server but influx returns an error = warn
-      const warn = _.get(results, 'error', false)
-      if (warn) {
-        this.setState({cellData: emptyCells})
-        return onEditRawStatus(query.id, {warn})
-      }
-
-      // 200 from server and results contains data = success
       const cellData = _.get(results, ['series', '0'], {})
-      onEditRawStatus(query.id, {success: 'Success!'})
       this.setState({cellData})
     } catch (error) {
-      // 400 from chrono server = fail
-      const message = _.get(error, ['data', 'message'], error)
-      this.setState({isLoading: false})
-      console.error(message)
-      onEditRawStatus(query.id, {error: message})
+      this.setState({
+        isLoading: false,
+        cellData: emptyCells,
+      })
+      console.error(error)
+      throw error
     }
   },
 
