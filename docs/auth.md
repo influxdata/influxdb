@@ -114,6 +114,53 @@ Like the other OAuth2 providers, access to Chronograf via Heroku can be restrict
 export HEROKU_ORGS=hill-valley-preservation-sociey,the-pinheads
 ```
 
+### Generic OAuth2 Provider
+#### Creating OAuth Application using your own provider
+
+The generic OAuth2 provider is very similiar to the Github provider, but,
+you are able to set your own authentication, token and API URLs.
+
+The callback URL path will be `/oauth/generic/callback`.  So, if your chronograf
+is hosted at `https://localhost:8888` then the full callback URL would be 
+`https://localhost:8888/oauth/generic/callback`
+
+The generic OAuth2 provider has many settings that are required.  
+
+* `GENERIC_CLIENT_ID` : this application's client [identifier](https://tools.ietf.org/html/rfc6749#section-2.2) issued by the provider
+* `GENERIC_CLIENT_SECRET` : this application's [secret](https://tools.ietf.org/html/rfc6749#section-2.3.1) issued by the provider
+* `GENERIC_AUTH_URL` : OAuth 2.0 provider's authorization [endpoint](https://tools.ietf.org/html/rfc6749#section-3.1) URL
+* `GENERIC_TOKEN_URL` : OAuth 2.0 provider's token endpoint [endpoint](https://tools.ietf.org/html/rfc6749#section-3.2) is used by the client to obtain an access token
+* `TOKEN_SECRET` : Used to validate OAuth [state](https://tools.ietf.org/html/rfc6749#section-4.1.1) response. (see above)
+
+#### Optional Scopes
+By default chronograf will ask for the `user:email`
+[scope](https://tools.ietf.org/html/rfc6749#section-3.3)
+of the client.  If your
+provider scopes email access under a different scope or scopes provide them as 
+comma separated values in the `GENERIC_SCOPES` environment variable.
+
+```sh
+export GENERIC_SCOPES="openid,email" # Requests access to openid and email scopes
+```
+
+#### Optional Email domains
+Also, the generic OAuth2 provider has a few optional parameters as well.
+
+* `GENERIC_API_URL` : URL that returns [OpenID UserInfo JWT](https://connect2id.com/products/server/docs/api/userinfo) (specifically email address)
+* `GENERIC_DOMAINS` : Email domains user's email address must use.
+
+#### Configuring the look of the login page
+
+To configure the copy of the login page button text, set `GENERIC_NAME`.
+
+For example with 
+
+```sh
+export GENERIC_NAME="Hill Valley Preservation Society"
+```
+
+the button text will be `Login with Hill Valley Preservation Society`.
+
 ### Optional: Configuring Authentication Duration
 
 By default, auth will remain valid for 30 days via a cookie stored in the browser. This duration can be changed with the environment variable `AUTH_DURATION`. For example, to change it to 1 hour, use:
