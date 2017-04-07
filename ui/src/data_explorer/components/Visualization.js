@@ -35,7 +35,7 @@ const Visualization = React.createClass({
     activeQueryIndex: number,
     height: string,
     heightPixels: number,
-    onEditRawStatus: func.isRequired,
+    onEditRawStatus: func,
   },
 
   contextTypes: {
