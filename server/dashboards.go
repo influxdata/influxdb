@@ -365,7 +365,7 @@ func (s *Service) NewDashboardCell(w http.ResponseWriter, r *http.Request) {
 
 	dash.Cells = append(dash.Cells, cell)
 	if err := s.DashboardsStore.Update(ctx, dash); err != nil {
-		msg := fmt.Sprintf("Error updating dashboard ID %d: %v", id, err)
+		msg := fmt.Sprintf("Error adding cell %s to dashboard %d: %v", cid, id, err)
 		Error(w, http.StatusInternalServerError, msg, s.Logger)
 		return
 	}
@@ -435,7 +435,7 @@ func (s *Service) RemoveDashboardCell(w http.ResponseWriter, r *http.Request) {
 
 	dash.Cells = append(dash.Cells[:cellid], dash.Cells[cellid+1:]...)
 	if err := s.DashboardsStore.Update(ctx, dash); err != nil {
-		msg := fmt.Sprintf("Error updating dashboard ID %d: %v", id, err)
+		msg := fmt.Sprintf("Error removing cell %s from dashboard %d: %v", cid, id, err)
 		Error(w, http.StatusInternalServerError, msg, s.Logger)
 		return
 	}
@@ -484,7 +484,7 @@ func (s *Service) ReplaceDashboardCell(w http.ResponseWriter, r *http.Request) {
 
 	dash.Cells[cellid] = cell
 	if err := s.DashboardsStore.Update(ctx, dash); err != nil {
-		msg := fmt.Sprintf("Error updating dashboard ID %d: %v", id, err)
+		msg := fmt.Sprintf("Error updating cell %s in dashboard %d: %v", cid, id, err)
 		Error(w, http.StatusInternalServerError, msg, s.Logger)
 		return
 	}
