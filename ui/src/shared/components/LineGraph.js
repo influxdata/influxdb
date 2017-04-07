@@ -119,7 +119,7 @@ export default React.createClass({
           dygraphSeries={dygraphSeries}
           ranges={ranges || this.getRanges()}
           ruleValues={ruleValues}
-          legendOnBottom={isInDataExplorer ? true : null}
+          legendOnBottom={isInDataExplorer}
         />
         {showSingleStat ? <div className="graph-single-stat single-stat">{roundedValue}</div> : null}
       </div>
