@@ -12,29 +12,17 @@ export const EMPTY_DASHBOARD = {
   ],
 }
 
-export const NEW_DASHBOARD = {
-  name: 'Name This Dashboard',
-  cells: [
-    {
-      x: 0,
-      y: 0,
-      w: 4,
-      h: 4,
-      name: 'Name This Graph',
-      type: 'line',
-      queries: [
-        {
-          query: "SELECT mean(\"usage_user\") AS \"usage_user\" FROM \"telegraf\".\"autogen\".\"cpu\"",
-          label: "",
-          groupbys: [],
-          wheres: [],
-        },
-      ],
-    },
-  ],
+export const NEW_DEFAULT_DASHBOARD_CELL = {
+  x: 0,
+  y: 0,
+  w: 4,
+  h: 4,
+  name: 'Name This Graph',
+  type: 'line',
+  queries: [],
 }
 
-export const NEW_DEFAULT_DASHBOARD_CELL = {
-  query: [],
-  type: 'line',
+export const NEW_DASHBOARD = {
+  name: 'Name This Dashboard',
+  cells: [NEW_DEFAULT_DASHBOARD_CELL],
 }
