@@ -1,7 +1,9 @@
+/* Variables */
+$query-builder-tabs-width: 210px;
+
+
 .query-builder {
   position: relative;
-  flex: 1 0 0;
-  margin: 16px 0;
   width: calc(100% - #{($explorer-page-padding * 2)});
   left: $explorer-page-padding;
   border: 0;
@@ -12,11 +14,12 @@
 
 // Tabs
 .query-builder--tabs {
+  margin: 16px 0;
   display: flex;
-  width: 250px;
+  width: $query-builder-tabs-width;
   flex-direction: column;
   align-items: stretch;
-  @include gradient-v($g3-castle,$g1-raven);
+  background-color: $g3-castle;
   border-radius: $radius 0 0 $radius;
 }
 .query-builder--tabs-heading {
@@ -132,7 +135,7 @@
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
-  width: 90%;
+  width: ($query-builder-tabs-width - 8px - 16px - 16px);
   text-overflow: ellipsis;
   @include no-user-select();
 }
@@ -145,7 +148,8 @@ $query-builder--preview-height: 60px;
 $query-builder--column-heading-height: 50px;
 
 .query-builder--tab-contents {
-  width: 100%;
+  flex: 1 0 0;
+  margin: 16px 0;
   background-color: $g4-onyx;
   border-radius: 0 $radius $radius 0;
   overflow: hidden;
@@ -219,6 +223,7 @@ $query-builder--column-heading-height: 50px;
     background-color: $g4-onyx;
   }
   .qeditor--empty {
+    width: 100%;
     margin-top: 0;
     height: calc(100% - #{$query-builder--column-heading-height});
     position: absolute;

@@ -142,7 +142,7 @@ const DashboardPage = React.createClass({
 
   handleUpdateDashboardCell(newCell) {
     return () => {
-      this.props.dashboardActions.editDashboardCell(newCell.x, newCell.y, false)
+      this.props.dashboardActions.editDashboardCell(this.getActiveDashboard(), newCell.x, newCell.y, false)
       this.props.dashboardActions.putDashboard(this.getActiveDashboard())
     }
   },

@@ -1,5 +1,8 @@
 import React, {PropTypes} from 'react'
 import classNames from 'classnames'
+import Dropdown from 'src/shared/components/Dropdown'
+import LoadingDots from 'src/shared/components/LoadingDots'
+import {QUERY_TEMPLATES} from 'src/data_explorer/constants'
 
 const ENTER = 13
 const ESCAPE = 27
@@ -45,6 +48,10 @@ const RawQueryEditor = React.createClass({
     this.props.onUpdate(this.state.value)
   },
 
+  handleChooseTemplate(template) {
+    this.setState({value: template.query})
+  },
+
   render() {
     const {query: {rawStatus}} = this.props
     const {value} = this.state
@@ -63,6 +70,7 @@ const RawQueryEditor = React.createClass({
           spellCheck="false"
         />
         {this.renderStatus(rawStatus)}
+        <Dropdown items={QUERY_TEMPLATES} selected={'Query Templates'} onChoose={this.handleChooseTemplate} className="query-template"/>
       </div>
     )
   },
@@ -71,6 +79,14 @@ const RawQueryEditor = React.createClass({
     if (!rawStatus) {
       return (
         <div className="raw-text--status"></div>
+      )
+    }
+
+    if (rawStatus.loading) {
+      return (
+        <div className="raw-text--status">
+          <LoadingDots />
+        </div>
       )
     }
 

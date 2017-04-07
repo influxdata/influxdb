@@ -83,22 +83,22 @@ const DataExplorer = React.createClass({
           timeRange={timeRange}
         />
         <ResizeContainer>
-          <Visualization
+          <QueryBuilder
+            queries={queryConfigs}
+            actions={queryConfigActions}
             autoRefresh={autoRefresh}
             timeRange={timeRange}
-            queryConfigs={queryConfigs}
+            setActiveQueryIndex={this.handleSetActiveQueryIndex}
+            onDeleteQuery={this.handleDeleteQuery}
             activeQueryIndex={activeQueryIndex}
-            onEditRawStatus={queryConfigActions.editRawQueryStatus}
           />
           <ResizeBottom>
-            <QueryBuilder
-              queries={queryConfigs}
-              actions={queryConfigActions}
+            <Visualization
               autoRefresh={autoRefresh}
               timeRange={timeRange}
-              setActiveQueryIndex={this.handleSetActiveQueryIndex}
-              onDeleteQuery={this.handleDeleteQuery}
+              queryConfigs={queryConfigs}
               activeQueryIndex={activeQueryIndex}
+              onEditRawStatus={queryConfigActions.editRawQueryStatus}
             />
           </ResizeBottom>
         </ResizeContainer>

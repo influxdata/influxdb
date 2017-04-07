@@ -57,7 +57,6 @@ $dash-graph-options-arrow: 8px;
   left: 0;
 }
 .dash-graph--container {
-  z-index: 0;
   user-select: none !important;
   -o-user-select: none !important;
   -moz-user-select: none !important;
@@ -89,7 +88,6 @@ $dash-graph-options-arrow: 8px;
   }
 }
 .dash-graph--heading {
-  z-index: 0;
   user-select: none !important;
   -o-user-select: none !important;
   -moz-user-select: none !important;
@@ -370,11 +368,6 @@ $overlay-bg: rgba($c-pool, 0.7);
     border: 0;
     border-radius: $radius;
     @include gradient-h($g3-castle,$overlay-controls-bg);
-
-    /* Hack for making the adjacent query builder have less margin on top */
-    & + .query-builder {
-      margin-top: 2px;
-    }
   }
   .overlay-controls--right {
     display: flex;
@@ -443,4 +436,14 @@ $overlay-bg: rgba($c-pool, 0.7);
 .overlay-technology .dash-graph--container {
   height: calc(100% - #{$dash-graph-heading});
   top: $dash-graph-heading;
+}
+.overlay-technology .query-builder {
+  flex: 1 0 0;
+  margin-bottom: 16px;
+  margin-top: 2px;
+}
+.overlay-technology .query-builder--tabs,
+.overlay-technology .query-builder--tab-contents,
+.overlay-technology .qeditor--empty {
+  margin: 0;
 }

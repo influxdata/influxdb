@@ -380,7 +380,7 @@ type Dashboard struct {
 
 // DashboardCell holds visual and query information for a cell
 type DashboardCell struct {
-	ID      string           `json:"-"`
+	ID      string           `json:"i"`
 	X       int32            `json:"x"`
 	Y       int32            `json:"y"`
 	W       int32            `json:"w"`

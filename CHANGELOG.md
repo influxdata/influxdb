@@ -34,6 +34,7 @@
   1. [#1095](https://github.com/influxdata/chronograf/pull/1095): Add new auth duration CLI option; add client heartbeat
   1. [#1168](https://github.com/influxdata/chronograf/issue/1168): Expand support for --basepath on some load balancers
   1. [#1207](https://github.com/influxdata/chronograf/pull/1207): Add support for custom OAuth2 providers
+  1. [#1212](https://github.com/influxdata/chronograf/issue/1212): Add query templates and loading animation to the RawQueryEditor
   1. [#1221](https://github.com/influxdata/chronograf/issue/1221): More sensical Cell and Dashboard defaults
 
 ### UI Improvements
@@ -46,6 +47,7 @@
   1. [#1187](https://github.com/influxdata/chronograf/pull/1187): Replace Kill Query confirmation modal with ConfirmButtons
   1. [#1185](https://github.com/influxdata/chronograf/pull/1185): Alphabetically sort Admin Database Page
   1. [#1199](https://github.com/influxdata/chronograf/pull/1199): Move Rename Cell functionality to ContextMenu dropdown
+  1. [#1222](https://github.com/influxdata/chronograf/pull/1222): Isolate cell repositioning to just those affected by adding a new cell
 
 ## v1.2.0-beta7 [2017-03-28]
 ### Bug Fixes

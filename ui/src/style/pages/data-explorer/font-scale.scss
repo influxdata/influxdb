@@ -26,6 +26,9 @@ $breakpoint-c: 2100px;
     .query-builder--tabs {
       width: 320px;
     }
+    .query-builder--tab-label {
+      width: (320px - 8px - 16px - 16px);
+    }
     .qeditor--list-item,
     .query-builder--tab-label {
       font-size: 15px;
@@ -89,6 +92,7 @@ $breakpoint-c: 2100px;
       letter-spacing: 0.3px;
     }
     .query-builder--tab-label {
+      width: (373px - 8px - 16px - 16px);
       font-size: 16px;
     }
     .query-builder--tab {
