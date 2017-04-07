@@ -83,9 +83,12 @@ const ResizeContainer = React.createClass({
   },
 })
 
-const ResizeBottom = (props) => (
-  <div className="resize-bottom" style={{height: props.height}}>
-    {props.children}
+export const ResizeBottom = ({
+  height,
+  children,
+}) => (
+  <div className="resize-bottom" style={{height}}>
+    {children}
   </div>
 )
 
@@ -93,7 +96,5 @@ ResizeBottom.propTypes = {
   children: node.isRequired,
   height: string,
 }
-
-export {ResizeBottom}
 
 export default ResizeContainer
