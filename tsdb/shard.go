@@ -546,26 +546,26 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 	var skip bool
 	for i, p := range points {
 		skip = false
-		// verify the tags and fields
+
+		// Drop any series w/ a "time" tag, these are illegal
 		tags := p.Tags()
 		if v := tags.Get(timeBytes); v != nil {
-			s.logger.Info(fmt.Sprintf("dropping tag 'time' from '%s'\n", p.PrecisionString("")))
-			tags.Delete(timeBytes)
-			p.SetTags(tags)
+			dropped++
+			continue
 		}
 
 		var validField bool
 		iter := p.FieldIterator()
 		for iter.Next() {
 			if bytes.Equal(iter.FieldKey(), timeBytes) {
-				s.logger.Info(fmt.Sprintf("dropping field 'time' from '%s'\n", p.PrecisionString("")))
-				iter.Delete()
 				continue
 			}
 			validField = true
+			break
 		}
 
 		if !validField {
+			dropped++
 			continue
 		}
 
@@ -592,10 +592,14 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 
 		// see if the field definitions need to be saved to the shard
 		mf := s.engine.MeasurementFields(p.Name())
-
 		if mf == nil {
 			var createType influxql.DataType
 			for iter.Next() {
+				// Skip fields name "time", they are illegal
+				if bytes.Equal(iter.FieldKey(), timeBytes) {
+					continue
+				}
+
 				switch iter.Type() {
 				case models.Float:
 					createType = influxql.Float
@@ -631,6 +635,12 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 
 		// validate field types and encode data
 		for iter.Next() {
+
+			// Skip fields name "time", they are illegal
+			if bytes.Equal(iter.FieldKey(), timeBytes) {
+				continue
+			}
+
 			var fieldType influxql.DataType
 			switch iter.Type() {
 			case models.Float:
