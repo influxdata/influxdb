@@ -19,12 +19,17 @@ const ConfirmButtons = ({onConfirm, item, onCancel}) => (
 
 const {
   func,
+  oneOfType,
   shape,
+  string,
 } = PropTypes
 
 ConfirmButtons.propTypes = {
   onConfirm: func.isRequired,
-  item: shape({}),
+  item: oneOfType([
+    shape(),
+    string,
+  ]),
   onCancel: func.isRequired,
 }
 
