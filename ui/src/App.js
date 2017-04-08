@@ -1,18 +1,16 @@
 import React, {PropTypes} from 'react'
 import {connect} from 'react-redux'
-import classnames from 'classnames'
 import SideNavContainer from 'src/side_nav'
+import Notifications from 'shared/components/Notifications'
 import {
   publishNotification as publishNotificationAction,
-  dismissNotification as dismissNotificationAction,
-  dismissAllNotifications as dismissAllNotificationsAction,
 } from 'src/shared/actions/notifications'
 
 const {
+  func,
   node,
   shape,
   string,
-  func,
 } = PropTypes
 
 const App = React.createClass({
@@ -24,99 +22,34 @@ const App = React.createClass({
     params: shape({
       sourceID: string.isRequired,
     }).isRequired,
-    publishNotification: func.isRequired,
-    dismissNotification: func.isRequired,
-    dismissAllNotifications: func.isRequired,
-    notifications: shape({
-      success: string,
-      error: string,
-      warning: string,
-    }),
+    notify: func.isRequired,
   },
 
-  handleNotification({type, text}) {
-    const validTypes = ['error', 'success', 'warning']
-    if (!validTypes.includes(type) || text === undefined) {
-      console.error("handleNotification must have a valid type and text") // eslint-disable-line no-console
-    }
-    this.props.publishNotification(type, text)
-  },
+  handleAddFlashMessage({type, text}) {
+    const {notify} = this.props
 
-  handleDismissNotification(type) {
-    this.props.dismissNotification(type)
-  },
-
-  componentWillReceiveProps(nextProps) {
-    if (nextProps.location.pathname !== this.props.location.pathname) {
-      this.props.dismissAllNotifications()
-    }
+    notify(type, text)
   },
 
   render() {
-    const {params: {sourceID}} = this.props
+    const {params: {sourceID}, location} = this.props
 
     return (
       <div className="chronograf-root">
         <SideNavContainer
           sourceID={sourceID}
-          addFlashMessage={this.handleNotification}
+          addFlashMessage={this.handleAddFlashMessage}
           currentLocation={this.props.location.pathname}
         />
-        {this.renderNotifications()}
+        <Notifications location={location} />
         {this.props.children && React.cloneElement(this.props.children, {
-          addFlashMessage: this.handleNotification,
+          addFlashMessage: this.handleAddFlashMessage,
         })}
       </div>
     )
   },
-
-  renderNotifications() {
-    const {success, error, warning} = this.props.notifications
-    if (!success && !error && !warning) {
-      return null
-    }
-    return (
-      <div className="flash-messages">
-        {this.renderNotification('success', success)}
-        {this.renderNotification('error', error)}
-        {this.renderNotification('warning', warning)}
-      </div>
-    )
-  },
-
-  renderNotification(type, message) {
-    if (!message) {
-      return null
-    }
-    const cls = classnames('alert', {
-      'alert-danger': type === 'error',
-      'alert-success': type === 'success',
-      'alert-warning': type === 'warning',
-    })
-    return (
-      <div className={cls} role="alert">
-        {message}{this.renderDismiss(type)}
-      </div>
-    )
-  },
-
-  renderDismiss(type) {
-    return (
-      <button className="close" data-dismiss="alert" aria-label="Close" onClick={() => this.handleDismissNotification(type)}>
-        <span className="icon remove"></span>
-      </button>
-    )
-  },
 })
 
-function mapStateToProps(state) {
-  return {
-    notifications: state.notifications,
-  }
-}
-
-export default connect(mapStateToProps, {
-  publishNotification: publishNotificationAction,
-  dismissNotification: dismissNotificationAction,
-  dismissAllNotifications: dismissAllNotificationsAction,
+export default connect(null, {
+  notify: publishNotificationAction,
 })(App)
