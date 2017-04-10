@@ -656,35 +656,3 @@ div.qeditor.kapacitor-metric-selector {
     width: 49px;
   }
 }
-
-.chronograf-header__editable {
-  transition: color 0.25s ease;
-
-  &:hover {
-    color: $g13-mist;
-    cursor: text !important;
-  }
-  .icon {
-    cursor: inherit;
-    margin-left: 5px;
-    position: relative;
-    top: -1.5px;
-  }
-}
-.chronograf-header__editing {
-  border: 0;
-  outline: none;
-  background-color: $g0-obsidian;
-  font-size: 20px;
-  font-weight: 400;
-  padding: 0;
-  width: 466px;
-
-  &:focus {
-    color: $kapacitor-accent;
-  }
-  &::-webkit-input-placeholder { color: $g9-mountain; }
-  &::-moz-placeholder { color: $g9-mountain; }
-  &:-ms-input-placeholder { color: $g9-mountain; }
-  &:-moz-placeholder { color: $g9-mountain; }
-}
