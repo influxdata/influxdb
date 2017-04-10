@@ -187,7 +187,7 @@ def go_get(branch, update=False, no_uncommitted=False):
     run("{}/bin/gdm restore -v".format(os.environ.get("GOPATH")))
     return True
 
-def run_tests(race, parallel, timeout, no_vet):
+def run_tests(race, parallel, timeout, no_vet, junit=False):
     """Run the Go test suite on binary output.
     """
     logging.info("Starting tests...")
@@ -219,9 +219,33 @@ def run_tests(race, parallel, timeout, no_vet):
     if timeout is not None:
         test_command += " -timeout {}".format(timeout)
     test_command += " ./..."
-    logging.info("Running tests...")
-    output = run(test_command)
-    logging.debug("Test output:\n{}".format(output.encode('ascii', 'ignore')))
+    if junit:
+        logging.info("Retrieving go-junit-report...")
+        run("go get github.com/jstemmer/go-junit-report")
+
+        # Retrieve the output from this command.
+        logging.info("Running tests...")
+        logging.debug("{}".format(test_command))
+        proc = subprocess.Popen(test_command.split(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        output, unused_err = proc.communicate()
+        output = output.decode('utf-8').strip()
+
+        # Process the output through go-junit-report.
+        with open('test-results.xml', 'w') as f:
+            logging.debug("{}".format("go-junit-report"))
+            junit_proc = subprocess.Popen(["go-junit-report"], stdin=subprocess.PIPE, stdout=f, stderr=subprocess.PIPE)
+            unused_output, err = junit_proc.communicate(output.encode('ascii', 'ignore'))
+            if junit_proc.returncode != 0:
+                logging.error("Command '{}' failed with error: {}".format("go-junit-report", err))
+                sys.exit(1)
+
+        if proc.returncode != 0:
+            logging.error("Command '{}' failed with error: {}".format(test_command, output.encode('ascii', 'ignore')))
+            sys.exit(1)
+    else:
+        logging.info("Running tests...")
+        output = run(test_command)
+        logging.debug("Test output:\n{}".format(out.encode('ascii', 'ignore')))
     return True
 
 ################
@@ -784,7 +808,7 @@ def main(args):
             return 1
 
     if args.test:
-        if not run_tests(args.race, args.parallel, args.timeout, args.no_vet):
+        if not run_tests(args.race, args.parallel, args.timeout, args.no_vet, args.junit_report):
             return 1
 
     platforms = []
@@ -968,6 +992,9 @@ if __name__ == '__main__':
     parser.add_argument('--test',
                         action='store_true',
                         help='Run tests (does not produce build output)')
+    parser.add_argument('--junit-report',
+                        action='store_true',
+                        help='Output tests in the JUnit XML format')
     parser.add_argument('--no-vet',
                         action='store_true',
                         help='Do not run "go vet" when running tests')
