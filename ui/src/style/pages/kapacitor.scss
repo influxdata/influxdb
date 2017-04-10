@@ -99,8 +99,9 @@ $kapacitor-font-sm: 13px;
 .rule-section-heading {
   margin: 0;
   padding: $kapacitor-page-padding 0 $kap-padding-md $kapacitor-page-gutter;
-  font-weight: 400;
-  color: $g13-mist;
+  font-size: $page-header-size;
+  font-weight: $page-header-weight;
+  color: $g12-forge;
   position: relative;
   @include no-user-select();
 
