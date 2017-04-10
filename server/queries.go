@@ -9,6 +9,7 @@ import (
 )
 
 type QueryRequest struct {
+	ID    string `json:"id"`
 	Query string `json:"query"`
 }
 
@@ -17,6 +18,7 @@ type QueriesRequest struct {
 }
 
 type QueryResponse struct {
+	ID          string                   `json:"id"`
 	Query       string                   `json:"query"`
 	QueryConfig chronograf.QueryConfig   `json:"queryConfig"`
 	QueryAST    *queries.SelectStatement `json:"queryAST,omitempty"`
@@ -52,12 +54,14 @@ func (s *Service) Queries(w http.ResponseWriter, r *http.Request) {
 
 	for i, q := range req.Queries {
 		qr := QueryResponse{
+			ID:          q.ID,
 			Query:       q.Query,
 			QueryConfig: ToQueryConfig(q.Query),
 		}
 		if stmt, err := queries.ParseSelect(q.Query); err == nil {
 			qr.QueryAST = stmt
 		}
+		qr.QueryConfig.ID = q.ID
 		res.Queries[i] = qr
 	}
 

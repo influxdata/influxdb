@@ -150,9 +150,9 @@ export function editQueryStatus(queryID, status) {
 // Async actions
 export const editRawTextAsync = (url, id, text) => async (dispatch) => {
   try {
-    const {data} = await getQueryConfig(url, [{query: text}])
-    const config = data.queries.find(q => q.query === text)
-    dispatch(updateQueryConfig({...config.queryConfig, id}))
+    const {data} = await getQueryConfig(url, [{query: text, id}])
+    const config = data.queries.find(q => q.id === id)
+    dispatch(updateQueryConfig(config.queryConfig))
   } catch (error) {
     console.error(error)
   }
