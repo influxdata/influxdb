@@ -245,7 +245,7 @@ type QueryConfig struct {
 	Tags            map[string][]string `json:"tags"`
 	GroupBy         GroupBy             `json:"groupBy"`
 	AreTagsAccepted bool                `json:"areTagsAccepted"`
-	RawText         string              `json:"rawText,omitempty"`
+	RawText         *string             `json:"rawText"`
 }
 
 // KapacitorNode adds arguments and properties to an alert

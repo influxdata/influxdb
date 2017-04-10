@@ -8,7 +8,7 @@ import (
 
 // Data returns the tickscript data section for querying
 func Data(rule chronograf.AlertRule) (string, error) {
-	if rule.Query.RawText != "" {
+	if rule.Query.RawText != nil && *rule.Query.RawText != "" {
 		batch := `
      var data = batch
      |query('''

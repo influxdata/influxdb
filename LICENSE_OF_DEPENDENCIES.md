@@ -17,6 +17,7 @@
 * github.com/tylerb/graceful [MIT](https://github.com/tylerb/graceful/blob/master/LICENSE)
 * golang.org/x/net [BSD](https://github.com/golang/net/blob/master/LICENSE)
 * golang.org/x/oauth2 [BSD](https://github.com/golang/oauth2/blob/master/LICENSE)
+* github.com/influxdata/influxdb [MIT](https://github.com/influxdata/influxdb/blob/master/LICENSE)
 * google.golang.org/api/oauth2/v2 [BSD](https://github.com/google/google-api-go-client/blob/master/LICENSE)
 
 ### Javascript
