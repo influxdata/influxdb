@@ -27,7 +27,7 @@ const IndexName = "tsi1"
 // Default compaction thresholds.
 const (
 	DefaultMaxLogFileSize   = 5 * 1024 * 1024
-	DefaultCompactionFactor = 1.8
+	DefaultCompactionFactor = 10 // 1.8
 )
 
 func init() {
