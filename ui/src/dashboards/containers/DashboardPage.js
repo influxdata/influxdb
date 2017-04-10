@@ -180,6 +180,7 @@ const DashboardPage = React.createClass({
         {
           selectedCell ?
             <CellEditorOverlay
+              source={source}
               cell={selectedCell}
               autoRefresh={autoRefresh}
               timeRange={timeRange}

@@ -92,7 +92,7 @@ class CellEditorOverlay extends Component {
   }
 
   render() {
-    const {onCancel, autoRefresh, timeRange} = this.props
+    const {onCancel, autoRefresh, timeRange, source} = this.props
     const {
       activeQueryIndex,
       cellWorkingName,
@@ -102,6 +102,7 @@ class CellEditorOverlay extends Component {
 
     const queryActions = {
       addQuery: this.handleAddQuery,
+      editRawTextAsync: () => { /* TODO add this functionality when this component is refactored */ },
       ..._.mapValues(queryModifiers, (qm) => this.queryStateReducer(qm)),
     }
 
@@ -115,6 +116,7 @@ class CellEditorOverlay extends Component {
             activeQueryIndex={0}
             cellType={cellWorkingType}
             cellName={cellWorkingName}
+            fetchTimeSeries={() => { /* TODO add this functionality when this component is refactored */ }}
           />
           <ResizeBottom>
             <div style={{display: 'flex', flexDirection: 'column', height: '100%'}}>
@@ -125,6 +127,7 @@ class CellEditorOverlay extends Component {
                 onSave={this.handleSaveCell}
               />
               <QueryBuilder
+                source={source}
                 queries={queriesWorkingDraft}
                 actions={queryActions}
                 autoRefresh={autoRefresh}
@@ -157,6 +160,11 @@ CellEditorOverlay.propTypes = {
     lower: string,
   }).isRequired,
   autoRefresh: number.isRequired,
+  source: shape({
+    links: shape({
+      queries: string.isRequired,
+    }),
+  }),
 }
 
 export default CellEditorOverlay
