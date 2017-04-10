@@ -1,4 +1,5 @@
 import uuid from 'node-uuid'
+import {getQueryConfig} from 'shared/apis'
 
 export function addQuery(options = {}) {
   return {
@@ -129,6 +130,13 @@ export function updateRawQuery(queryID, text) {
   }
 }
 
+export const updateQueryConfig = (config) => ({
+  type: 'UPDATE_QUERY_CONFIG',
+  payload: {
+    config,
+  },
+})
+
 export function editQueryStatus(queryID, status) {
   return {
     type: 'EDIT_QUERY_STATUS',
@@ -136,5 +144,16 @@ export function editQueryStatus(queryID, status) {
       queryID,
       status,
     },
+  }
+}
+
+// Async actions
+export const editRawTextAsync = (url, id, text) => async (dispatch) => {
+  try {
+    const {data} = await getQueryConfig(url, [{query: text}])
+    const config = data.queries.find(q => q.query === text)
+    dispatch(updateQueryConfig({...config.queryConfig, id}))
+  } catch (error) {
+    console.error(error)
   }
 }

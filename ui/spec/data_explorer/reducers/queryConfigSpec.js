@@ -9,6 +9,7 @@ import {
   groupByTag,
   groupByTime,
   toggleTagAcceptance,
+  updateQueryConfig,
   updateRawQuery,
   editQueryStatus,
 } from 'src/data_explorer/actions/view'
@@ -301,6 +302,18 @@ describe('Chronograf.Reducers.queryConfig', () => {
     })
   })
 
+  it('updates entire config', () => {
+    const initialState = {
+      [queryId]: buildInitialState(queryId),
+    }
+    const expected = defaultQueryConfig(queryId, {rawText: 'hello'})
+    const action = updateQueryConfig(expected)
+
+    const nextState = reducer(initialState, action)
+
+    expect(nextState[queryId]).to.deep.equal(expected)
+  })
+
   it('updates a query\'s raw text', () => {
     const initialState = {
       [queryId]: buildInitialState(queryId),
@@ -325,4 +338,3 @@ describe('Chronograf.Reducers.queryConfig', () => {
     expect(nextState[queryId].status).to.equal(status)
   })
 })
-

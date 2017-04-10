@@ -156,3 +156,9 @@ export function kapacitorProxy(kapacitor, method, path, body) {
     data: body,
   })
 }
+
+export const getQueryConfig = (url, queries) => AJAX({
+  url,
+  method: 'POST',
+  data: {queries},
+})

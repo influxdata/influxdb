@@ -65,6 +65,11 @@ export default function queryConfigs(state = {}, action) {
       return nextState
     }
 
+    case 'UPDATE_QUERY_CONFIG': {
+      const {config} = action.payload
+      return {...state, [config.id]: config}
+    }
+
     case 'EDIT_RAW_TEXT': {
       const {queryId, rawText} = action.payload
       const nextQueryConfig = editRawText(state[queryId], rawText)

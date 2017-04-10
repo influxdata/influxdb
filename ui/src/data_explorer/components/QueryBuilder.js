@@ -15,6 +15,11 @@ const {
 
 const QueryBuilder = React.createClass({
   propTypes: {
+    source: shape({
+      links: shape({
+        queries: string.isRequired,
+      }).isRequired,
+    }).isRequired,
     queries: arrayOf(shape({})).isRequired,
     timeRange: shape({
       upper: string,
@@ -70,7 +75,7 @@ const QueryBuilder = React.createClass({
   },
 
   renderQueryEditor() {
-    const {timeRange, actions} = this.props
+    const {timeRange, actions, source} = this.props
     const query = this.getActiveQuery()
 
     if (!query) {
@@ -85,6 +90,7 @@ const QueryBuilder = React.createClass({
 
     return (
       <QueryEditor
+        source={source}
         timeRange={timeRange}
         query={query}
         actions={actions}

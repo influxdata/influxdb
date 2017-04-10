@@ -15,6 +15,11 @@ const {
 
 const QueryEditor = React.createClass({
   propTypes: {
+    source: shape({
+      links: shape({
+        queries: string.isRequired,
+      }).isRequired,
+    }).isRequired,
     query: shape({
       id: string,
     }).isRequired,
@@ -68,7 +73,8 @@ const QueryEditor = React.createClass({
   },
 
   handleEditRawText(text) {
-    this.props.actions.editRawText(this.props.query.id, text)
+    const {source: {links}, query} = this.props
+    this.props.actions.editRawTextAsync(links.queries, query.id, text)
   },
 
   render() {

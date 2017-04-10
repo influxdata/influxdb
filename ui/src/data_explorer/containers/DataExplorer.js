@@ -27,6 +27,7 @@ const DataExplorer = React.createClass({
       links: shape({
         proxy: string.isRequired,
         self: string.isRequired,
+        queries: string.isRequired,
       }).isRequired,
     }).isRequired,
     queryConfigs: arrayOf(shape({})).isRequired,
@@ -74,7 +75,16 @@ const DataExplorer = React.createClass({
   },
 
   render() {
-    const {autoRefresh, handleChooseAutoRefresh, timeRange, setTimeRange, queryConfigs, queryConfigActions, fetchTimeSeries} = this.props
+    const {
+      autoRefresh,
+      handleChooseAutoRefresh,
+      timeRange,
+      setTimeRange,
+      queryConfigs,
+      queryConfigActions,
+      fetchTimeSeries,
+      source,
+    } = this.props
     const {activeQueryIndex} = this.state
 
     return (
@@ -86,6 +96,7 @@ const DataExplorer = React.createClass({
         />
         <ResizeContainer>
           <QueryBuilder
+            source={source}
             queries={queryConfigs}
             actions={queryConfigActions}
             autoRefresh={autoRefresh}
