@@ -1063,7 +1063,13 @@ type {{$k.name}}Reduce{{$v.Name}}Point struct {
 // The previous value for the dimension is passed to fn.
 func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() ([]{{$v.Name}}Point, error) {
 	// Calculate next window.
-	var startTime, endTime int64
+	var (
+		startTime, endTime int64
+		window             struct {
+			name string
+			tags string
+		}
+	)
 	for {
 		p, err := itr.input.Next()
 		if err != nil || p == nil {
@@ -1075,6 +1081,7 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() ([]{{$v.Name}}Point, e
 		// Unread the point so it can be processed.
 		itr.input.unread(p)
 		startTime, endTime = itr.opt.Window(p.Time)
+		window.name, window.tags = p.Name, p.Tags.Subset(itr.opt.Dimensions).ID()
 		break
 	}
 
@@ -1089,13 +1096,24 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() ([]{{$v.Name}}Point, e
 			break
 		} else if curr.Nil {
 			continue
+		} else if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
 		}
-		tags := curr.Tags.Subset(itr.dims)
 
-		id := curr.Name
-		if len(tags.m) > 0 {
-			id += "\x00" + tags.ID()
+		// Ensure this point is within the same final window.
+		if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != window.tags {
+			itr.input.unread(curr)
+			break
 		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
 
 		// Retrieve the aggregator for this name/tag combination or create one.
 		rp := m[id]
@@ -1112,17 +1130,18 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() ([]{{$v.Name}}Point, e
 		rp.Aggregator.Aggregate{{$k.Name}}(curr)
 	}
 
-	// Reverse sort points by name & tag.
+	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 {
+	if len(keys) > 1 && itr.opt.Ordered {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
 	// Assume the points are already sorted until proven otherwise.
 	sortedByTime := true
+	// Emit the points for each name & tag combination.
 	a := make([]{{$v.Name}}Point, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]

@@ -804,6 +804,58 @@ func (b *exprIteratorBuilder) buildCallIterator(expr *Call) (Iterator, error) {
 		}
 		interval := opt.IntegralInterval()
 		return newIntegralIterator(input, opt, interval)
+	case "top":
+		var tags []int
+		if len(expr.Args) < 2 {
+			return nil, fmt.Errorf("top() requires 2 or more arguments, got %d", len(expr.Args))
+		} else if len(expr.Args) > 2 {
+			// We need to find the indices of where the tag values are stored in Aux
+			// This section is O(n^2), but for what should be a low value.
+			for i := 1; i < len(expr.Args)-1; i++ {
+				ref := expr.Args[i].(*VarRef)
+				for index, aux := range b.opt.Aux {
+					if aux.Val == ref.Val {
+						tags = append(tags, index)
+						break
+					}
+				}
+			}
+		}
+
+		opt := b.opt
+		opt.Ordered = true
+		input, err := buildExprIterator(expr.Args[0].(*VarRef), b.ic, b.sources, opt, false)
+		if err != nil {
+			return nil, err
+		}
+		n := expr.Args[len(expr.Args)-1].(*IntegerLiteral)
+		return newTopIterator(input, opt, n, tags)
+	case "bottom":
+		var tags []int
+		if len(expr.Args) < 2 {
+			return nil, fmt.Errorf("bottom() requires 2 or more arguments, got %d", len(expr.Args))
+		} else if len(expr.Args) > 2 {
+			// We need to find the indices of where the tag values are stored in Aux
+			// This section is O(n^2), but for what should be a low value.
+			for i := 1; i < len(expr.Args)-1; i++ {
+				ref := expr.Args[i].(*VarRef)
+				for index, aux := range b.opt.Aux {
+					if aux.Val == ref.Val {
+						tags = append(tags, index)
+						break
+					}
+				}
+			}
+		}
+
+		opt := b.opt
+		opt.Ordered = true
+		input, err := buildExprIterator(expr.Args[0].(*VarRef), b.ic, b.sources, opt, false)
+		if err != nil {
+			return nil, err
+		}
+		n := expr.Args[len(expr.Args)-1].(*IntegerLiteral)
+		return newBottomIterator(input, b.opt, n, tags)
 	}
 
 	itr, err := func() (Iterator, error) {
@@ -894,58 +946,6 @@ func (b *exprIteratorBuilder) buildCallIterator(expr *Call) (Iterator, error) {
 				return nil, err
 			}
 			return newSpreadIterator(input, b.opt)
-		case "top":
-			var tags []int
-			if len(expr.Args) < 2 {
-				return nil, fmt.Errorf("top() requires 2 or more arguments, got %d", len(expr.Args))
-			} else if len(expr.Args) > 2 {
-				// We need to find the indices of where the tag values are stored in Aux
-				// This section is O(n^2), but for what should be a low value.
-				for i := 1; i < len(expr.Args)-1; i++ {
-					ref := expr.Args[i].(*VarRef)
-					for index, aux := range b.opt.Aux {
-						if aux.Val == ref.Val {
-							tags = append(tags, index)
-							break
-						}
-					}
-				}
-			}
-
-			opt := b.opt
-			opt.Ordered = true
-			input, err := buildExprIterator(expr.Args[0].(*VarRef), b.ic, b.sources, opt, false)
-			if err != nil {
-				return nil, err
-			}
-			n := expr.Args[len(expr.Args)-1].(*IntegerLiteral)
-			return newTopIterator(input, opt, n, tags)
-		case "bottom":
-			var tags []int
-			if len(expr.Args) < 2 {
-				return nil, fmt.Errorf("bottom() requires 2 or more arguments, got %d", len(expr.Args))
-			} else if len(expr.Args) > 2 {
-				// We need to find the indices of where the tag values are stored in Aux
-				// This section is O(n^2), but for what should be a low value.
-				for i := 1; i < len(expr.Args)-1; i++ {
-					ref := expr.Args[i].(*VarRef)
-					for index, aux := range b.opt.Aux {
-						if aux.Val == ref.Val {
-							tags = append(tags, index)
-							break
-						}
-					}
-				}
-			}
-
-			opt := b.opt
-			opt.Ordered = true
-			input, err := buildExprIterator(expr.Args[0].(*VarRef), b.ic, b.sources, opt, false)
-			if err != nil {
-				return nil, err
-			}
-			n := expr.Args[len(expr.Args)-1].(*IntegerLiteral)
-			return newBottomIterator(input, b.opt, n, tags)
 		case "percentile":
 			opt := b.opt
 			opt.Ordered = true
@@ -971,9 +971,7 @@ func (b *exprIteratorBuilder) buildCallIterator(expr *Call) (Iterator, error) {
 	}
 
 	if !b.selector || !b.opt.Interval.IsZero() {
-		if expr.Name != "top" && expr.Name != "bottom" {
-			itr = NewIntervalIterator(itr, b.opt)
-		}
+		itr = NewIntervalIterator(itr, b.opt)
 		if !b.opt.Interval.IsZero() && b.opt.Fill != NoFill {
 			itr = NewFillIterator(itr, expr, b.opt)
 		}
