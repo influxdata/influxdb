@@ -29,8 +29,7 @@ const Visualization = React.createClass({
     activeQueryIndex: number,
     height: string,
     heightPixels: number,
-    fetchTimeSeries: func.isRequired,
-    editQueryStatus: func,
+    editQueryStatus: func.isRequired,
   },
 
   contextTypes: {
@@ -79,7 +78,6 @@ const Visualization = React.createClass({
       heightPixels,
       queryConfigs,
       editQueryStatus,
-      fetchTimeSeries,
       activeQueryIndex,
     } = this.props
     const {source} = this.context
@@ -105,7 +103,6 @@ const Visualization = React.createClass({
             autoRefresh={autoRefresh}
             heightPixels={heightPixels}
             editQueryStatus={editQueryStatus}
-            fetchTimeSeries={fetchTimeSeries}
             activeQueryIndex={activeQueryIndex}
           />
         </div>

@@ -9,7 +9,6 @@ import DashboardHeaderEdit from 'src/dashboards/components/DashboardHeaderEdit'
 import Dashboard from 'src/dashboards/components/Dashboard'
 
 import * as dashboardActionCreators from 'src/dashboards/actions'
-import {fetchTimeSeriesAsync} from 'src/shared/actions/timeSeries'
 
 import {setAutoRefresh} from 'shared/actions/app'
 import {presentationButtonDispatcher} from 'shared/dispatchers'
@@ -55,7 +54,6 @@ const DashboardPage = React.createClass({
     timeRange: shape({}).isRequired,
     inPresentationMode: bool.isRequired,
     handleClickPresentationButton: func,
-    fetchTimeSeries: func,
     cellQueryStatus: shape({
       queryID: string,
       status: shape(),
@@ -168,7 +166,6 @@ const DashboardPage = React.createClass({
       timeRange,
       dashboards,
       autoRefresh,
-      fetchTimeSeries,
       cellQueryStatus,
       dashboardActions,
       inPresentationMode,
@@ -195,7 +192,6 @@ const DashboardPage = React.createClass({
               timeRange={timeRange}
               onCancel={this.handleDismissOverlay}
               onSave={this.handleSaveEditedCell}
-              fetchTimeSeries={fetchTimeSeries}
               editQueryStatus={dashboardActions.editCellQueryStatus}
               queryStatus={cellQueryStatus}
             /> :
@@ -285,7 +281,6 @@ const mapDispatchToProps = (dispatch) => ({
   handleChooseAutoRefresh: bindActionCreators(setAutoRefresh, dispatch),
   handleClickPresentationButton: presentationButtonDispatcher(dispatch),
   dashboardActions: bindActionCreators(dashboardActionCreators, dispatch),
-  fetchTimeSeries: bindActionCreators(fetchTimeSeriesAsync, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(DashboardPage)

@@ -3,6 +3,7 @@ import {Table, Column, Cell} from 'fixed-data-table'
 import Dimensions from 'react-dimensions'
 import _ from 'lodash'
 import moment from 'moment'
+import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
 
 const {
   arrayOf,
@@ -22,7 +23,7 @@ const defaultTableHeight = 1000
 
 const CustomCell = React.createClass({
   propTypes: {
-    data: oneOfType([number, string]).isRequired,
+    data: oneOfType([number, string]),
     columnName: string.isRequired,
   },
 
@@ -48,8 +49,7 @@ const ChronoTable = React.createClass({
     }).isRequired,
     containerWidth: number.isRequired,
     height: number,
-    onEditRawStatus: func,
-    fetchTimeSeries: func.isRequired,
+    editQueryStatus: func.isRequired,
   },
 
   getInitialState() {
@@ -86,7 +86,7 @@ const ChronoTable = React.createClass({
     this.setState({isLoading: true})
     // second param is db, we want to leave this blank
     try {
-      const {results} = await this.props.fetchTimeSeries({source: query.host, query})
+      const {results} = await fetchTimeSeriesAsync({source: query.host, query})
       this.setState({isLoading: false})
 
       if (!results) {

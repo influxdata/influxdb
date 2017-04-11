@@ -10,8 +10,6 @@ import Header from '../containers/Header'
 import ResizeContainer, {ResizeBottom} from 'src/shared/components/ResizeContainer'
 
 import {setAutoRefresh} from 'shared/actions/app'
-import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
-import {editQueryStatus} from 'src/data_explorer/actions/view'
 import * as viewActions from 'src/data_explorer/actions/view'
 
 const {
@@ -32,7 +30,9 @@ const DataExplorer = React.createClass({
       }).isRequired,
     }).isRequired,
     queryConfigs: arrayOf(shape({})).isRequired,
-    queryConfigActions: shape({}).isRequired,
+    queryConfigActions: shape({
+      editQueryStatus: func.isRequired,
+    }).isRequired,
     autoRefresh: number.isRequired,
     handleChooseAutoRefresh: func.isRequired,
     timeRange: shape({
@@ -43,7 +43,6 @@ const DataExplorer = React.createClass({
     dataExplorer: shape({
       queryIDs: arrayOf(string).isRequired,
     }).isRequired,
-    fetchTimeSeries: func.isRequired,
   },
 
   childContextTypes: {
@@ -83,7 +82,6 @@ const DataExplorer = React.createClass({
       setTimeRange,
       queryConfigs,
       queryConfigActions,
-      fetchTimeSeries,
       source,
     } = this.props
     const {activeQueryIndex} = this.state
@@ -105,7 +103,6 @@ const DataExplorer = React.createClass({
             setActiveQueryIndex={this.handleSetActiveQueryIndex}
             onDeleteQuery={this.handleDeleteQuery}
             activeQueryIndex={activeQueryIndex}
-            fetchTimeSeries={fetchTimeSeries}
           />
           <ResizeBottom>
             <Visualization
@@ -113,8 +110,7 @@ const DataExplorer = React.createClass({
               timeRange={timeRange}
               queryConfigs={queryConfigs}
               activeQueryIndex={activeQueryIndex}
-              fetchTimeSeries={fetchTimeSeries}
-              editQueryStatus={editQueryStatus}
+              editQueryStatus={queryConfigActions.editQueryStatus}
             />
           </ResizeBottom>
         </ResizeContainer>
@@ -140,7 +136,6 @@ function mapDispatchToProps(dispatch) {
     handleChooseAutoRefresh: bindActionCreators(setAutoRefresh, dispatch),
     setTimeRange: bindActionCreators(viewActions.setTimeRange, dispatch),
     queryConfigActions: bindActionCreators(viewActions, dispatch),
-    fetchTimeSeries: bindActionCreators(fetchTimeSeriesAsync, dispatch),
   }
 }
 

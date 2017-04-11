@@ -105,10 +105,6 @@ class CellEditorOverlay extends Component {
     this.setState({activeQueryIndex})
   }
 
-  handleValidateQuery() {
-    // fetch info from server and update query configs
-  }
-
   async handleEditRawText(url, id, text) {
     // use this as the handler passed into fetchTimeSeries to update a query status
     try {
@@ -127,7 +123,6 @@ class CellEditorOverlay extends Component {
       onCancel,
       timeRange,
       autoRefresh,
-      fetchTimeSeries,
       editQueryStatus,
     } = this.props
 
@@ -154,7 +149,6 @@ class CellEditorOverlay extends Component {
             activeQueryIndex={0}
             cellType={cellWorkingType}
             cellName={cellWorkingName}
-            fetchTimeSeries={fetchTimeSeries}
             editQueryStatus={editQueryStatus}
           />
           <ResizeBottom>
@@ -204,7 +198,6 @@ CellEditorOverlay.propTypes = {
       queries: string.isRequired,
     }),
   }),
-  fetchTimeSeries: func.isRequired,
   editQueryStatus: func.isRequired,
   queryStatus: shape({
     queryID: string,

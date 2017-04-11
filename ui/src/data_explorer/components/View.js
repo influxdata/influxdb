@@ -14,7 +14,6 @@ const View = ({
   autoRefresh,
   heightPixels,
   editQueryStatus,
-  fetchTimeSeries,
   activeQueryIndex,
 }) => {
   const activeQuery = queries[activeQueryIndex]
@@ -31,7 +30,6 @@ const View = ({
         query={query}
         height={heightPixels}
         editQueryStatus={editQueryStatus}
-        fetchTimeSeries={fetchTimeSeries}
       />
     )
   }
@@ -53,7 +51,6 @@ const View = ({
       isInDataExplorer={true}
       showSingleStat={cellType === "line-plus-single-stat"}
       displayOptions={displayOptions}
-      fetchTimeSeries={fetchTimeSeries}
       editQueryStatus={editQueryStatus}
     />
   )
@@ -73,8 +70,7 @@ View.propTypes = {
   cellType: string,
   autoRefresh: number.isRequired,
   heightPixels: number,
-  editQueryStatus: func,
-  fetchTimeSeries: func.isRequired,
+  editQueryStatus: func.isRequired,
   activeQueryIndex: number,
 }
 

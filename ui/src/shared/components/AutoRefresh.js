@@ -1,8 +1,5 @@
 import React, {PropTypes} from 'react'
-import {connect} from 'react-redux'
-import {bindActionCreators} from 'redux'
 import _ from 'lodash'
-
 import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
 
 const {
@@ -24,7 +21,6 @@ const AutoRefresh = (ComposedComponent) => {
         host: oneOfType([string, arrayOf(string)]),
         text: string,
       }).isRequired).isRequired,
-      fetchTimeSeries: func.isRequired,
       editQueryStatus: func,
     },
     getInitialState() {
@@ -73,7 +69,7 @@ const AutoRefresh = (ComposedComponent) => {
       const newSeries = []
       for (const query of queries) {
         const {host, database, rp} = query
-        const response = await this.props.fetchTimeSeries({source: host, db: database, rp, query}, this.props.editQueryStatus)
+        const response = await fetchTimeSeriesAsync({source: host, db: database, rp, query}, this.props.editQueryStatus)
         newSeries.push({response})
         count += 1
         if (count === queries.length) {
@@ -150,11 +146,7 @@ const AutoRefresh = (ComposedComponent) => {
     },
   })
 
-  const mapDispatchToProps = (dispatch) => ({
-    fetchTimeSeries: bindActionCreators(fetchTimeSeriesAsync, dispatch),
-  })
-
-  return connect(null, mapDispatchToProps)(wrapper)
+  return wrapper
 }
 
 export default AutoRefresh
