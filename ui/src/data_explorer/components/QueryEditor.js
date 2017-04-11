@@ -36,7 +36,7 @@ const QueryEditor = React.createClass({
       toggleField: func.isRequired,
       groupByTime: func.isRequired,
       toggleTagAcceptance: func.isRequired,
-      editRawText: func.isRequired,
+      editRawTextAsync: func.isRequired,
     }).isRequired,
   },
 

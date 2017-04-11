@@ -11,6 +11,7 @@ import * as queryModifiers from 'src/utils/queryTransitions'
 
 import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 import buildInfluxQLQuery from 'utils/influxql'
+import {getQueryConfig} from 'shared/apis'
 
 class CellEditorOverlay extends Component {
   constructor(props) {
@@ -25,9 +26,10 @@ class CellEditorOverlay extends Component {
 
     this.handleSelectGraphType = ::this.handleSelectGraphType
     this.handleSetActiveQueryIndex = ::this.handleSetActiveQueryIndex
+    this.handleEditRawText = ::this.handleEditRawText
 
     const {cell: {name, type, queries}} = props
-    const queriesWorkingDraft = _.cloneDeep(queries.map(({queryConfig}) => queryConfig))
+    const queriesWorkingDraft = _.cloneDeep(queries.map(({queryConfig}) => ({...queryConfig, id: uuid.v4()})))
 
     this.state = {
       cellWorkingName: name,
@@ -91,8 +93,31 @@ class CellEditorOverlay extends Component {
     this.setState({activeQueryIndex})
   }
 
+  handleValidateQuery() {
+    // fetch info from server and update query configs
+  }
+
+  async handleEditRawText(url, id, text) {
+    // use this as the handler passed into fetchTimeSeries to update a query status
+    try {
+      const {data} = await getQueryConfig(url, [{query: text, id}])
+      const config = data.queries.find(q => q.id === id)
+      const nextQueries = this.state.queriesWorkingDraft.map((q) => q.id === id ? config.queryConfig : q)
+      this.setState({queriesWorkingDraft: nextQueries})
+    } catch (error) {
+      console.error(error)
+    }
+  }
+
   render() {
-    const {onCancel, autoRefresh, timeRange, source} = this.props
+    const {
+      onCancel,
+      autoRefresh,
+      timeRange,
+      source,
+      fetchTimeSeries,
+    } = this.props
+
     const {
       activeQueryIndex,
       cellWorkingName,
@@ -102,7 +127,7 @@ class CellEditorOverlay extends Component {
 
     const queryActions = {
       addQuery: this.handleAddQuery,
-      editRawTextAsync: () => { /* TODO add this functionality when this component is refactored */ },
+      editRawTextAsync: this.handleEditRawText,
       ..._.mapValues(queryModifiers, (qm) => this.queryStateReducer(qm)),
     }
 
@@ -116,7 +141,7 @@ class CellEditorOverlay extends Component {
             activeQueryIndex={0}
             cellType={cellWorkingType}
             cellName={cellWorkingName}
-            fetchTimeSeries={() => { /* TODO add this functionality when this component is refactored */ }}
+            fetchTimeSeries={fetchTimeSeries}
           />
           <ResizeBottom>
             <div style={{display: 'flex', flexDirection: 'column', height: '100%'}}>
@@ -165,6 +190,7 @@ CellEditorOverlay.propTypes = {
       queries: string.isRequired,
     }),
   }),
+  fetchTimeSeries: func.isRequired,
 }
 
 export default CellEditorOverlay

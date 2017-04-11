@@ -35,6 +35,7 @@ const QueryBuilder = React.createClass({
       groupByTime: func.isRequired,
       toggleTagAcceptance: func.isRequired,
       applyFuncsToField: func.isRequired,
+      editRawTextAsync: func.isRequired,
     }).isRequired,
     height: string,
     top: string,
