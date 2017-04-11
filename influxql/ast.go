@@ -1740,6 +1740,10 @@ func (s *SelectStatement) validate(tr targetRequirement) error {
 		return err
 	}
 
+	if err := s.validateFill(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -2107,6 +2111,20 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 	if tr != targetSubquery {
 		if err := s.validateGroupByInterval(); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+// validateFill ensures that the fill option matches the query type.
+func (s *SelectStatement) validateFill() error {
+	info := newSelectInfo(s)
+	if len(info.calls) == 0 {
+		switch s.Fill {
+		case NoFill:
+			return errors.New("fill(none) must be used with a function")
+		case LinearFill:
+			return errors.New("fill(linear) must be used with a function")
 		}
 	}
 	return nil
