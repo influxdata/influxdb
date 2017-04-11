@@ -2,7 +2,7 @@ import {proxy} from 'utils/queryUrlGenerator'
 import _ from 'lodash'
 
 const NOOP = () => ({
-  type: 'I_NEED_TO_EDIT_QUERY_STATUS',
+  type: 'RUNNING_FETCH_TIME_SERIES',
 })
 
 export const handleLoading = (query, editQueryStatus, dispatch) => {

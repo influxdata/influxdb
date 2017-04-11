@@ -29,6 +29,7 @@ class CellEditorOverlay extends Component {
     this.handleEditRawText = ::this.handleEditRawText
 
     const {cell: {name, type, queries}} = props
+
     const queriesWorkingDraft = _.cloneDeep(queries.map(({queryConfig}) => ({...queryConfig, id: uuid.v4()})))
 
     this.state = {
@@ -36,6 +37,17 @@ class CellEditorOverlay extends Component {
       cellWorkingType: type,
       queriesWorkingDraft,
       activeQueryIndex: 0,
+    }
+  }
+
+  componentWillReceiveProps(nextProps) {
+    const {status, queryID} = this.props.queryStatus
+    const nextStatus = nextProps.queryStatus
+    if (nextStatus.status && nextStatus.queryID) {
+      if (nextStatus.queryID !== queryID || nextStatus.status !== status) {
+        const nextQueries = this.state.queriesWorkingDraft.map((q) => q.id === queryID ? ({...q, status: nextStatus.status}) : q)
+        this.setState({queriesWorkingDraft: nextQueries})
+      }
     }
   }
 
@@ -111,11 +123,12 @@ class CellEditorOverlay extends Component {
 
   render() {
     const {
-      onCancel,
-      autoRefresh,
-      timeRange,
       source,
+      onCancel,
+      timeRange,
+      autoRefresh,
       fetchTimeSeries,
+      editQueryStatus,
     } = this.props
 
     const {
@@ -142,6 +155,7 @@ class CellEditorOverlay extends Component {
             cellType={cellWorkingType}
             cellName={cellWorkingName}
             fetchTimeSeries={fetchTimeSeries}
+            editQueryStatus={editQueryStatus}
           />
           <ResizeBottom>
             <div style={{display: 'flex', flexDirection: 'column', height: '100%'}}>
@@ -191,6 +205,11 @@ CellEditorOverlay.propTypes = {
     }),
   }),
   fetchTimeSeries: func.isRequired,
+  editQueryStatus: func.isRequired,
+  queryStatus: shape({
+    queryID: string,
+    status: shape({}),
+  }).isRequired,
 }
 
 export default CellEditorOverlay
