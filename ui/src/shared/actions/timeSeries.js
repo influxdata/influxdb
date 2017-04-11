@@ -1,12 +1,15 @@
 import {proxy} from 'utils/queryUrlGenerator'
-import {editQueryStatus} from 'src/data_explorer/actions/view'
 import _ from 'lodash'
 
-export const handleLoading = (query, dispatch) => {
+const NOOP = () => ({
+  type: 'I_NEED_TO_EDIT_QUERY_STATUS',
+})
+
+export const handleLoading = (query, editQueryStatus, dispatch) => {
   dispatch(editQueryStatus(query.id, {loading: true}))
 }
 // {results: [{}]}
-export const handleSuccess = (data, query, dispatch) => {
+export const handleSuccess = (data, query, editQueryStatus, dispatch) => {
   const {results} = data
   const error = _.get(results, ['0', 'error'], false)
   const series = _.get(results, ['0', 'series'], false)
@@ -27,7 +30,7 @@ export const handleSuccess = (data, query, dispatch) => {
   return data
 }
 
-export const handleError = (error, query, dispatch) => {
+export const handleError = (error, query, editQueryStatus, dispatch) => {
   const message = _.get(error, ['data', 'message'], error)
 
   // 400 from chrono server = fail
@@ -35,13 +38,13 @@ export const handleError = (error, query, dispatch) => {
   console.error(error)
 }
 
-export const fetchTimeSeriesAsync = ({source, db, rp, query}) => async (dispatch) => {
-  handleLoading(query, dispatch)
+export const fetchTimeSeriesAsync = ({source, db, rp, query}, editQueryStatus = NOOP) => async (dispatch) => {
+  handleLoading(query, editQueryStatus, dispatch)
   try {
     const {data} = await proxy({source, db, rp, query: query.text})
-    return handleSuccess(data, query, dispatch)
+    return handleSuccess(data, query, editQueryStatus, dispatch)
   } catch (error) {
-    handleError(error, query, dispatch)
+    handleError(error, query, editQueryStatus, dispatch)
     throw error
   }
 }

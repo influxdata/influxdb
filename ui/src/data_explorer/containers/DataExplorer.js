@@ -11,6 +11,7 @@ import ResizeContainer, {ResizeBottom} from 'src/shared/components/ResizeContain
 
 import {setAutoRefresh} from 'shared/actions/app'
 import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
+import {editQueryStatus} from 'src/data_explorer/actions/view'
 import * as viewActions from 'src/data_explorer/actions/view'
 
 const {
@@ -112,8 +113,8 @@ const DataExplorer = React.createClass({
               timeRange={timeRange}
               queryConfigs={queryConfigs}
               activeQueryIndex={activeQueryIndex}
-              onEditRawStatus={queryConfigActions.editRawQueryStatus}
               fetchTimeSeries={fetchTimeSeries}
+              editQueryStatus={editQueryStatus}
             />
           </ResizeBottom>
         </ResizeContainer>

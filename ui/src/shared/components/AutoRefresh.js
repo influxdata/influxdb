@@ -25,6 +25,7 @@ const AutoRefresh = (ComposedComponent) => {
         text: string,
       }).isRequired).isRequired,
       fetchTimeSeries: func.isRequired,
+      editQueryStatus: func,
     },
     getInitialState() {
       return {
@@ -72,7 +73,7 @@ const AutoRefresh = (ComposedComponent) => {
       const newSeries = []
       for (const query of queries) {
         const {host, database, rp} = query
-        const response = await this.props.fetchTimeSeries({source: host, db: database, rp, query})
+        const response = await this.props.fetchTimeSeries({source: host, db: database, rp, query}, this.props.editQueryStatus)
         newSeries.push({response})
         count += 1
         if (count === queries.length) {
