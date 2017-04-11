@@ -23,10 +23,10 @@ class DashboardEditHeader extends Component {
         <div className="page-header__container">
           <div className="page-header__left">
             <input
-              className="chronograf-header__editing"
+              className="page-header--editing"
               autoFocus={true}
               value={name}
-              placeholder="Dashboard name"
+              placeholder="Name this Dashboard"
               onChange={(e) => this.handleChange(e.target.value)}
             />
           </div>

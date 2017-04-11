@@ -81,7 +81,7 @@ export const RuleHeader = React.createClass({
 
     const name = isEditingName ?
       (<input
-        className="chronograf-header__editing"
+        className="page-header--editing kapacitor-theme"
         autoFocus={true}
         defaultValue={rule.name}
         ref={r => this.ruleName = r}
@@ -89,7 +89,7 @@ export const RuleHeader = React.createClass({
         onBlur={() => this.handleEditNameBlur(rule)}
         placeholder="Name your rule"
       />) :
-      (<h1 className="chronograf-header__editable" onClick={this.toggleEditName} data-for="rename-kapacitor-tooltip" data-tip="Click to Rename">
+      (<h1 className="page-header--editable kapacitor-theme" onClick={this.toggleEditName} data-for="rename-kapacitor-tooltip" data-tip="Click to Rename">
         {rule.name}
         <span className="icon pencil"></span>
         <ReactTooltip id="rename-kapacitor-tooltip" delayShow={200} effect="solid" html={true} offset={{top: 2}} place="bottom" class="influx-tooltip kapacitor-tooltip place-bottom" />
