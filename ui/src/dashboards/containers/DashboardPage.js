@@ -103,9 +103,9 @@ const DashboardPage = React.createClass({
   },
 
   handleUpdatePosition(cells) {
-    const dashboard = this.getActiveDashboard()
-    this.props.dashboardActions.updateDashboardCells(dashboard, cells)
-    this.props.dashboardActions.putDashboard(dashboard)
+    const newDashboard = {...this.getActiveDashboard(), cells}
+    this.props.dashboardActions.updateDashboard(newDashboard)
+    this.props.dashboardActions.putDashboard(newDashboard)
   },
 
   handleAddCell() {
@@ -142,7 +142,7 @@ const DashboardPage = React.createClass({
 
   handleUpdateDashboardCell(newCell) {
     return () => {
-      this.props.dashboardActions.editDashboardCell(newCell.x, newCell.y, false)
+      this.props.dashboardActions.editDashboardCell(this.getActiveDashboard(), newCell.x, newCell.y, false)
       this.props.dashboardActions.putDashboard(this.getActiveDashboard())
     }
   },

@@ -44,6 +44,9 @@ func (h *Service) KapacitorProxy(w http.ResponseWriter, r *http.Request) {
 	u.Path = path
 
 	director := func(req *http.Request) {
+		// Set the Host header of the original Kapacitor URL
+		req.Host = u.Host
+
 		req.URL = u
 		// Because we are acting as a proxy, kapacitor needs to have the basic auth information set as
 		// a header directly

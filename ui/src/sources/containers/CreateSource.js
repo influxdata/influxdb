@@ -1,36 +1,45 @@
 import React, {PropTypes} from 'react'
 import {withRouter} from 'react-router'
-import {addSource as addSourceAction} from 'src/shared/actions/sources'
-import {createSource} from 'shared/apis'
 import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux'
+
+import {
+  createSource as createSourceAJAX,
+  updateSource as updateSourceAJAX,
+} from 'shared/apis'
+import SourceForm from 'src/sources/components/SourceForm'
+import Notifications from 'shared/components/Notifications'
+import {
+  addSource as addSourceAction,
+  updateSource as updateSourceAction,
+} from 'src/shared/actions/sources'
+import {publishNotification} from 'src/shared/actions/notifications'
+
+const {
+  func,
+  shape,
+  string,
+} = PropTypes
 
 export const CreateSource = React.createClass({
   propTypes: {
-    router: PropTypes.shape({
-      push: PropTypes.func.isRequired,
+    router: shape({
+      push: func.isRequired,
     }).isRequired,
-    location: PropTypes.shape({
-      query: PropTypes.shape({
-        redirectPath: PropTypes.string,
+    location: shape({
+      query: shape({
+        redirectPath: string,
       }).isRequired,
     }).isRequired,
-    addSourceAction: PropTypes.func,
+    addSource: func,
+    updateSource: func,
+    notify: func,
   },
 
-  handleNewSource(e) {
-    e.preventDefault()
-    const source = {
-      url: this.sourceURL.value.trim(),
-      name: this.sourceName.value,
-      username: this.sourceUser.value,
-      password: this.sourcePassword.value,
-      isDefault: true,
-      telegraf: this.sourceTelegraf.value,
+  getInitialState() {
+    return {
+      source: {},
     }
-    createSource(source).then(({data: sourceFromServer}) => {
-      this.props.addSourceAction(sourceFromServer)
-      this.redirectToApp(sourceFromServer)
-    })
   },
 
   redirectToApp(source) {
@@ -43,47 +52,77 @@ export const CreateSource = React.createClass({
     return this.props.router.push(fixedPath)
   },
 
-  render() {
-    return (
-      <div className="select-source-page" id="select-source-page">
-        <div className="container-fluid">
-          <div className="row">
-            <div className="col-md-8 col-md-offset-2">
-              <div className="panel panel-minimal">
-                <div className="panel-heading text-center">
-                  <h2 className="deluxe">Welcome to Chronograf</h2>
-                </div>
-                <div className="panel-body">
-                  <h4 className="text-center">Connect to a New Source</h4>
-                  <br/>
+  handleInputChange(e) {
+    const val = e.target.value
+    const name = e.target.name
+    this.setState((prevState) => {
+      const newSource = Object.assign({}, prevState.source, {
+        [name]: val,
+      })
+      return Object.assign({}, prevState, {source: newSource})
+    })
+  },
 
-                  <form onSubmit={this.handleNewSource}>
-                    <div>
-                      <div className="form-group col-xs-6 col-sm-4 col-sm-offset-2">
-                        <label htmlFor="connect-string">Connection String</label>
-                        <input ref={(r) => this.sourceURL = r} className="form-control" id="connect-string" defaultValue="http://localhost:8086"></input>
-                      </div>
-                      <div className="form-group col-xs-6 col-sm-4">
-                        <label htmlFor="name">Name</label>
-                        <input ref={(r) => this.sourceName = r} className="form-control" id="name" defaultValue="Influx 1"></input>
-                      </div>
-                      <div className="form-group col-xs-6 col-sm-4 col-sm-offset-2">
-                        <label htmlFor="username">Username</label>
-                        <input ref={(r) => this.sourceUser = r} className="form-control" id="username"></input>
-                      </div>
-                      <div className="form-group col-xs-6 col-sm-4">
-                        <label htmlFor="password">Password</label>
-                        <input ref={(r) => this.sourcePassword = r} className="form-control" id="password" type="password"></input>
-                      </div>
-                    </div>
-                    <div className="form-group col-xs-8 col-xs-offset-2">
-                      <label htmlFor="telegraf">Telegraf Database</label>
-                      <input ref={(r) => this.sourceTelegraf = r} className="form-control" id="telegraf" type="text" defaultValue="telegraf"></input>
-                    </div>
-                    <div className="form-group form-group-submit col-xs-12 text-center">
-                      <button className="btn btn-success" type="submit">Connect New Source</button>
-                    </div>
-                  </form>
+  handleBlurSourceURL(newSource) {
+    if (this.state.editMode) {
+      return
+    }
+
+    if (!newSource.url) {
+      return
+    }
+
+    // if there is a type on source it has already been created
+    if (newSource.type) {
+      return
+    }
+
+    createSourceAJAX(newSource).then(({data: sourceFromServer}) => {
+      this.props.addSource(sourceFromServer)
+      this.setState({source: sourceFromServer, error: null})
+    }).catch(({data: error}) => {
+      this.setState({error: error.message})
+    })
+  },
+
+  handleSubmit(newSource) {
+    const {error} = this.state
+    const {notify, updateSource} = this.props
+
+    if (error) {
+      return notify('error', error)
+    }
+
+    updateSourceAJAX(newSource).then(({data: sourceFromServer}) => {
+      updateSource(sourceFromServer)
+      this.redirectToApp(sourceFromServer)
+    }).catch(() => {
+      notify('error', 'There was a problem updating the source. Check the settings')
+    })
+  },
+
+  render() {
+    const {location} = this.props
+    const {source} = this.state
+
+    return (
+      <div>
+        <Notifications location={location} />
+        <div className="select-source-page">
+          <div className="container-fluid">
+            <div className="row">
+              <div className="col-md-8 col-md-offset-2">
+                <div className="panel panel-minimal">
+                  <div className="panel-heading text-center">
+                    <h2 className="deluxe">Welcome to Chronograf</h2>
+                  </div>
+                  <SourceForm
+                    source={source}
+                    editMode={false}
+                    onInputChange={this.handleInputChange}
+                    onSubmit={this.handleSubmit}
+                    onBlurSourceURL={this.handleBlurSourceURL}
+                  />
                 </div>
               </div>
             </div>
@@ -94,8 +133,12 @@ export const CreateSource = React.createClass({
   },
 })
 
-function mapStateToProps(_) {
-  return {}
+function mapDispatchToProps(dispatch) {
+  return {
+    addSource: bindActionCreators(addSourceAction, dispatch),
+    updateSource: bindActionCreators(updateSourceAction, dispatch),
+    notify: bindActionCreators(publishNotification, dispatch),
+  }
 }
 
-export default connect(mapStateToProps, {addSourceAction})(withRouter(CreateSource))
+export default connect(null, mapDispatchToProps)(withRouter(CreateSource))

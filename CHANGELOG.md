@@ -1,39 +1,58 @@
-## v1.2.0 [unreleased]
+## v1.2.0-beta8 [2017-04-07]
 
 ### Bug Fixes
-  1. [#1104](https://github.com/influxdata/chronograf/pull/1104): Fix windows hosts on host list
-  1. [#1125](https://github.com/influxdata/chronograf/pull/1125): Fix visualizations not showing graph name
-  1. [#1133](https://github.com/influxdata/chronograf/issues/1133): Fix Enterprise Kapacitor authentication.
-  1. [#1142](https://github.com/influxdata/chronograf/issues/1142): Fix Kapacitor Telegram config to display correct disableNotification setting
-  1. [#1097](https://github.com/influxdata/chronograf/issues/1097): Fix broken graph spinner in the Data Explorer & Dashboard Cell Edit
-  1. [#1106](https://github.com/influxdata/chronograf/issues/1106): Fix obscured legends in dashboards
-  1. [#1051](https://github.com/influxdata/chronograf/issues/1051): Exit presentation mode when using the browser back button
-  1. [#1123](https://github.com/influxdata/chronograf/issues/1123): Widen single column results in data explorer
-  1. [#1164](https://github.com/influxdata/chronograf/pull/1164): Restore ability to save raw queries to a Dashboard Cell
-  1. [#1115](https://github.com/influxdata/chronograf/pull/1115): Fix Basepath issue where content would fail to render under certain circumstances
-  1. [#1173](https://github.com/influxdata/chronograf/pull/1173): Fix saving email in Kapacitor alerts
-  1. [#1178](https://github.com/influxdata/chronograf/pull/1178): Repair DataExplorer+CellEditorOverlay's QueryBuilder in Safari
-  1. [#979](https://github.com/influxdata/chronograf/issues/979): Fix empty tags for non-default retention policies
-  1. [#1179](https://github.com/influxdata/chronograf/pull/1179): Admin Databases Page will render a database without retention policies
-  1. [#1128](https://github.com/influxdata/chronograf/pull/1128): No more ghost dashboards 👻
-  1. [#1189](https://github.com/influxdata/chronograf/pull/1189): Clicking inside the graph header edit box will no longer blur the field. Use the Escape key for that behavior instead.
+  1. [#1104](https://github.com/influxdata/chronograf/pull/1104): Fix Windows hosts on the host list page
+  1. [#1125](https://github.com/influxdata/chronograf/pull/1125): Show cell name when editing dashboard cells
+  1. [#1134](https://github.com/influxdata/chronograf/pull/1134): Fix Enterprise Kapacitor authentication
+  1. [#1142](https://github.com/influxdata/chronograf/pull/1142): Fix Telegram Kapacitor configuration to display the correct disableNotification setting
+  1. [#1124](https://github.com/influxdata/chronograf/pull/1124): Fix broken graph spinner in the explorer and when editing dashboard cells
+  1. [#1124](https://github.com/influxdata/chronograf/pull/1124): Fix obscured legends in dashboards
+  1. [#1149](https://github.com/influxdata/chronograf/pull/1149): Exit presentation mode on dashboards when using the browser back button
+  1. [#1152](https://github.com/influxdata/chronograf/pull/1152): Widen single column results in the explorer
+  1. [#1164](https://github.com/influxdata/chronograf/pull/1164): Restore ability to save raw queries to a dashboard cell
+  1. [#1115](https://github.com/influxdata/chronograf/pull/1115): Fix `--basepath` issue where content would fail to render under certain circumstances
+  1. [#1173](https://github.com/influxdata/chronograf/pull/1173): Actually save emails in Kapacitor alerts
+  1. [#1178](https://github.com/influxdata/chronograf/pull/1178): Ensure Safari renders the explorer and CellEditorOverlay correctly
+  1. [#1182](https://github.com/influxdata/chronograf/pull/1182): Fix empty tags for non-default retention policies
+  1. [#1179](https://github.com/influxdata/chronograf/pull/1179): Render databases without retention policies on the admin page
+  1. [#1128](https://github.com/influxdata/chronograf/pull/1128): Fix dashboard cell repositioning 👻
+  1. [#1189](https://github.com/influxdata/chronograf/pull/1189): Improve dashboard cell renaming UX
+  1. [#1202](https://github.com/influxdata/chronograf/pull/1202): Fix server returning unquoted InfluxQL keyword identifiers (e.g. `mean(count)`)
+  1. [#1203](https://github.com/influxdata/chronograf/pull/1203): Fix redirect with authentication in Chronograf for InfluxEnterprise
+  1. [#1095](https://github.com/influxdata/chronograf/pull/1095): Restore the logout button
+  1. [#1209](https://github.com/influxdata/chronograf/pull/1209): Ask for the HipChat subdomain instead of the entire HipChat URL in the HipChat Kapacitor configuration
+  1. [#1223](https://github.com/influxdata/chronograf/pull/1223): Use vhost as Chronograf's proxy to Kapacitor
+  1. [#1205](https://github.com/influxdata/chronograf/pull/1205): Allow initial source to be an InfluxEnterprise source
+  1. [#1244](https://github.com/influxdata/chronograf/pull/1244): Fix env var name for Google client secret 
 
 ### Features
   1. [#1112](https://github.com/influxdata/chronograf/pull/1112): Add ability to delete a dashboard
-  1. [#1120](https://github.com/influxdata/chronograf/pull/1120): Allow users to update user passwords.
-  1. [#1129](https://github.com/influxdata/chronograf/pull/1129): Allow InfluxDB and Kapacitor configuration via ENV vars or CLI options
-  1. [#1130](https://github.com/influxdata/chronograf/pull/1130): Add loading spinner to Alert History page.
-  1. [#1168](https://github.com/influxdata/chronograf/issue/1168): Expand support for --basepath on some load balancers
+  1. [#1120](https://github.com/influxdata/chronograf/pull/1120): Allow admins to update user passwords
+  1. [#1129](https://github.com/influxdata/chronograf/pull/1129): Allow InfluxDB and Kapacitor configuration via environment vars or CLI options
+  1. [#1130](https://github.com/influxdata/chronograf/pull/1130): Add loading spinner to the alert history page
+  1. [#1168](https://github.com/influxdata/chronograf/pull/1168): Expand support for `--basepath` on some load balancers
+  1. [#1204](https://github.com/influxdata/chronograf/pull/1204): Add Slack channel per Kapacitor alert rule configuration
+  1. [#1119](https://github.com/influxdata/chronograf/pull/1119): Add new auth duration CLI option; add client heartbeat
+  1. [#1207](https://github.com/influxdata/chronograf/pull/1207): Add support for custom OAuth2 providers
+  1. [#1212](https://github.com/influxdata/chronograf/pull/1212): Add meta query templates and loading animation to the RawQueryEditor
+  1. [#1221](https://github.com/influxdata/chronograf/pull/1221): Remove the default query from empty cells on dashboards
+  1. [#1101](https://github.com/influxdata/chronograf/pull/1101): Compress InfluxQL responses with gzip
 
 ### UI Improvements
-  1. [#1101](https://github.com/influxdata/chronograf/pull/1101): Compress InfluxQL responses with gzip
-  1. [#1132](https://github.com/influxdata/chronograf/pull/1132): All sidebar items show activity with a blue strip
-  1. [#1135](https://github.com/influxdata/chronograf/pull/1135): Clarify Kapacitor Alert configuration for Telegram
-  1. [#1137](https://github.com/influxdata/chronograf/pull/1137): Clarify Kapacitor Alert configuration for HipChat
-  1. [#1079](https://github.com/influxdata/chronograf/issues/1079): Remove series highlighting in line graphs
-  1. [#1124](https://github.com/influxdata/chronograf/pull/1124): Polished dashboard cell drag interaction, use Hover-To-Reveal UI pattern in all tables, Source Indicator & Graph Tips are no longer misleading, and aesthetic improvements to the DB Management page
-  1. [#1187](https://github.com/influxdata/chronograf/pull/1187): Replace Kill Query confirmation modal with ConfirmButtons
-  1. [#1185](https://github.com/influxdata/chronograf/pull/1185): Alphabetically sort Admin Database Page
+  1. [#1132](https://github.com/influxdata/chronograf/pull/1132): Show blue strip next to active tab on the sidebar
+  1. [#1135](https://github.com/influxdata/chronograf/pull/1135): Clarify Kapacitor alert configuration for Telegram
+  1. [#1137](https://github.com/influxdata/chronograf/pull/1137): Clarify Kapacitor alert configuration for HipChat
+  1. [#1136](https://github.com/influxdata/chronograf/pull/1136): Remove series highlighting in line graphs
+  1. [#1124](https://github.com/influxdata/chronograf/pull/1124): Polish UI:
+    * Polish dashboard cell drag interaction
+    * Use Hover-To-Reveal UI pattern in all tables
+    * Clarify source Indicator & Graph Tips
+    * Improve DB Management page UI
+  1. [#1187](https://github.com/influxdata/chronograf/pull/1187): Replace kill query confirmation modal with confirm buttons
+  1. [#1185](https://github.com/influxdata/chronograf/pull/1185): Alphabetically sort databases and retention policies on the admin page
+  1. [#1199](https://github.com/influxdata/chronograf/pull/1199): Move rename cell functionality to cell dropdown menu
+  1. [#1211](https://github.com/influxdata/chronograf/pull/1211): Reverse the positioning of the graph visualization and the query builder on the Data Explorer page
+  1. [#1222](https://github.com/influxdata/chronograf/pull/1222): Isolate cell repositioning to just those affected by adding a new cell
 
 ## v1.2.0-beta7 [2017-03-28]
 ### Bug Fixes
@@ -45,10 +64,10 @@
   1. [#1086](https://github.com/influxdata/chronograf/issues/1086): Fix validation for deleting databases
 
 ### Features
+
 ### UI Improvements
   1. [#1092](https://github.com/influxdata/chronograf/pull/1092): Persist and render Dashboard Cell groupby queries
 
-### UI Improvements
 
 ## v1.2.0-beta6 [2017-03-24]
 

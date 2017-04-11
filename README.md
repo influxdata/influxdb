@@ -110,7 +110,7 @@ Change the default root path of the Chronograf server with the `--basepath` opti
 
 ## Versions
 
-Chronograf v1.2.0-beta7 is a beta release.
+Chronograf v1.2.0-beta8 is a beta release.
 We will be iterating quickly based on user feedback and recommend using the [nightly builds](https://www.influxdata.com/downloads/) for the time being.
 
 Spotted a bug or have a feature request?

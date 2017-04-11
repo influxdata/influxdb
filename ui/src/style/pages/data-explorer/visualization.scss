@@ -4,6 +4,10 @@
   width: calc(100% - #{($explorer-page-padding * 2)});
   left: $explorer-page-padding;
 }
+/* Special rule for when the graph is in the bottom of resizer */
+.resize-bottom .graph {
+  height: 100%;
+}
 .graph-heading {
   position: relative;
   top: $de-vertical-margin;

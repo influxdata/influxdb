@@ -117,21 +117,23 @@ class CellEditorOverlay extends Component {
             cellName={cellWorkingName}
           />
           <ResizeBottom>
-            <OverlayControls
-              selectedGraphType={cellWorkingType}
-              onSelectGraphType={this.handleSelectGraphType}
-              onCancel={onCancel}
-              onSave={this.handleSaveCell}
-            />
-            <QueryBuilder
-              queries={queriesWorkingDraft}
-              actions={queryActions}
-              autoRefresh={autoRefresh}
-              timeRange={timeRange}
-              setActiveQueryIndex={this.handleSetActiveQueryIndex}
-              onDeleteQuery={this.handleDeleteQuery}
-              activeQueryIndex={activeQueryIndex}
-            />
+            <div style={{display: 'flex', flexDirection: 'column', height: '100%'}}>
+              <OverlayControls
+                selectedGraphType={cellWorkingType}
+                onSelectGraphType={this.handleSelectGraphType}
+                onCancel={onCancel}
+                onSave={this.handleSaveCell}
+              />
+              <QueryBuilder
+                queries={queriesWorkingDraft}
+                actions={queryActions}
+                autoRefresh={autoRefresh}
+                timeRange={timeRange}
+                setActiveQueryIndex={this.handleSetActiveQueryIndex}
+                onDeleteQuery={this.handleDeleteQuery}
+                activeQueryIndex={activeQueryIndex}
+              />
+            </div>
           </ResizeBottom>
         </ResizeContainer>
       </div>

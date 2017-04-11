@@ -2,7 +2,7 @@ import axios from 'axios'
 
 let links
 
-import {RES_UNAUTHORIZED} from 'shared/constants'
+import {HTTP_UNAUTHORIZED} from 'shared/constants'
 
 export default async function AJAX({
   url,
@@ -47,7 +47,7 @@ export default async function AJAX({
     }
   } catch (error) {
     const {response} = error
-    if (!response.status === RES_UNAUTHORIZED) {
+    if (!response.status === HTTP_UNAUTHORIZED) {
       console.error(error) // eslint-disable-line no-console
     }
     // console.error(error) // eslint-disable-line no-console

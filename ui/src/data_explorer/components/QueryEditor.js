@@ -35,13 +35,6 @@ const QueryEditor = React.createClass({
     }).isRequired,
   },
 
-  getInitialState() {
-    return {
-      database: null,
-      measurement: null,
-    }
-  },
-
   handleChooseNamespace(namespace) {
     this.props.actions.chooseNamespace(this.props.query.id, namespace)
   },

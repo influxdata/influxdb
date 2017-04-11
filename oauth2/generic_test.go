@@ -10,29 +10,30 @@ import (
 	"github.com/influxdata/chronograf/oauth2"
 )
 
-func TestGooglePrincipalID(t *testing.T) {
+func TestGenericPrincipalID(t *testing.T) {
 	t.Parallel()
 
-	expected := struct {
+	response := struct {
 		Email string `json:"email"`
 	}{
-		"martymcfly@example.com",
+		"martymcfly@pinheads.rok",
 	}
 	mockAPI := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/oauth2/v2/userinfo" {
+		if r.URL.Path != "/" {
 			rw.WriteHeader(http.StatusNotFound)
 			return
 		}
-
 		enc := json.NewEncoder(rw)
+
 		rw.WriteHeader(http.StatusOK)
-		_ = enc.Encode(expected)
+		_ = enc.Encode(response)
 	}))
 	defer mockAPI.Close()
 
 	logger := clog.New(clog.ParseLevel("debug"))
-	prov := oauth2.Google{
+	prov := oauth2.Generic{
 		Logger: logger,
+		APIURL: mockAPI.URL,
 	}
 	tt, err := oauth2.NewTestTripper(logger, mockAPI, http.DefaultTransport)
 	if err != nil {
@@ -43,42 +44,48 @@ func TestGooglePrincipalID(t *testing.T) {
 		Transport: tt,
 	}
 
-	email, err := prov.PrincipalID(tc)
+	got, err := prov.PrincipalID(tc)
 	if err != nil {
 		t.Fatal("Unexpected error while retrieiving PrincipalID: err:", err)
 	}
 
-	if email != expected.Email {
-		t.Fatal("Retrieved email was not as expected. Want:", expected.Email, "Got:", email)
+	want := "martymcfly@pinheads.rok"
+	if got != want {
+		t.Fatal("Retrieved email was not as expected. Want:", want, "Got:", got)
 	}
 }
 
-func TestGooglePrincipalIDDomain(t *testing.T) {
+func TestGenericPrincipalIDDomain(t *testing.T) {
 	t.Parallel()
-
-	expectedUser := struct {
-		Email string `json:"email"`
-		Hd    string `json:"hd"`
+	expectedEmail := []struct {
+		Email    string `json:"email"`
+		Primary  bool   `json:"primary"`
+		Verified bool   `json:"verified"`
 	}{
-		"martymcfly@example.com",
-		"Hill Valley Preservation Society",
+		{"martymcfly@pinheads.rok", true, false},
 	}
 	mockAPI := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/oauth2/v2/userinfo" {
-			rw.WriteHeader(http.StatusNotFound)
+		if r.URL.Path == "/" {
+			enc := json.NewEncoder(rw)
+			rw.WriteHeader(http.StatusOK)
+			_ = enc.Encode(struct{}{})
+			return
+		}
+		if r.URL.Path == "/emails" {
+			enc := json.NewEncoder(rw)
+			rw.WriteHeader(http.StatusOK)
+			_ = enc.Encode(expectedEmail)
 			return
 		}
 
-		enc := json.NewEncoder(rw)
-		rw.WriteHeader(http.StatusOK)
-		_ = enc.Encode(expectedUser)
+		rw.WriteHeader(http.StatusNotFound)
 	}))
 	defer mockAPI.Close()
 
 	logger := clog.New(clog.ParseLevel("debug"))
-	prov := oauth2.Google{
+	prov := oauth2.Generic{
 		Logger:  logger,
-		Domains: []string{"Hill Valley Preservation Society"},
+		Domains: []string{"pinheads.rok"},
 	}
 	tt, err := oauth2.NewTestTripper(logger, mockAPI, http.DefaultTransport)
 	if err != nil {
@@ -89,12 +96,12 @@ func TestGooglePrincipalIDDomain(t *testing.T) {
 		Transport: tt,
 	}
 
-	email, err := prov.PrincipalID(tc)
+	got, err := prov.PrincipalID(tc)
 	if err != nil {
 		t.Fatal("Unexpected error while retrieiving PrincipalID: err:", err)
 	}
-
-	if email != expectedUser.Email {
-		t.Fatal("Retrieved email was not as expected. Want:", expectedUser.Email, "Got:", email)
+	want := "martymcfly@pinheads.rok"
+	if got != want {
+		t.Fatal("Retrieved email was not as expected. Want:", want, "Got:", got)
 	}
 }

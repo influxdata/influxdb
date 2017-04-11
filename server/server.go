@@ -48,23 +48,33 @@ type Server struct {
 	KapacitorUsername string `long:"kapacitor-username" description:"Username of your Kapacitor instance" env:"KAPACITOR_USERNAME"`
 	KapacitorPassword string `long:"kapacitor-password" description:"Password of your Kapacitor instance" env:"KAPACITOR_PASSWORD"`
 
-	Develop     bool   `short:"d" long:"develop" description:"Run server in develop mode."`
-	BoltPath    string `short:"b" long:"bolt-path" description:"Full path to boltDB file (/var/lib/chronograf/chronograf-v1.db)" env:"BOLT_PATH" default:"chronograf-v1.db"`
-	CannedPath  string `short:"c" long:"canned-path" description:"Path to directory of pre-canned application layouts (/usr/share/chronograf/canned)" env:"CANNED_PATH" default:"canned"`
-	TokenSecret string `short:"t" long:"token-secret" description:"Secret to sign tokens" env:"TOKEN_SECRET"`
+	Develop      bool          `short:"d" long:"develop" description:"Run server in develop mode."`
+	BoltPath     string        `short:"b" long:"bolt-path" description:"Full path to boltDB file (/var/lib/chronograf/chronograf-v1.db)" env:"BOLT_PATH" default:"chronograf-v1.db"`
+	CannedPath   string        `short:"c" long:"canned-path" description:"Path to directory of pre-canned application layouts (/usr/share/chronograf/canned)" env:"CANNED_PATH" default:"canned"`
+	TokenSecret  string        `short:"t" long:"token-secret" description:"Secret to sign tokens" env:"TOKEN_SECRET"`
+	AuthDuration time.Duration `long:"auth-duration" default:"720h" description:"Total duration of cookie life for authentication (in hours). 0 means authentication expires on browser close." env:"AUTH_DURATION"`
 
 	GithubClientID     string   `short:"i" long:"github-client-id" description:"Github Client ID for OAuth 2 support" env:"GH_CLIENT_ID"`
 	GithubClientSecret string   `short:"s" long:"github-client-secret" description:"Github Client Secret for OAuth 2 support" env:"GH_CLIENT_SECRET"`
 	GithubOrgs         []string `short:"o" long:"github-organization" description:"Github organization user is required to have active membership" env:"GH_ORGS" env-delim:","`
 
 	GoogleClientID     string   `long:"google-client-id" description:"Google Client ID for OAuth 2 support" env:"GOOGLE_CLIENT_ID"`
-	GoogleClientSecret string   `long:"google-client-secret" description:"Google Client Secret for OAuth 2 support" env:"GOGGLE_CLIENT_SECRET"`
+	GoogleClientSecret string   `long:"google-client-secret" description:"Google Client Secret for OAuth 2 support" env:"GOOGLE_CLIENT_SECRET"`
 	GoogleDomains      []string `long:"google-domains" description:"Google email domain user is required to have active membership" env:"GOOGLE_DOMAINS" env-delim:","`
 	PublicURL          string   `long:"public-url" description:"Full public URL used to access Chronograf from a web browser. Used for Google OAuth2 authentication. (http://localhost:8888)" env:"PUBLIC_URL"`
 
 	HerokuClientID      string   `long:"heroku-client-id" description:"Heroku Client ID for OAuth 2 support" env:"HEROKU_CLIENT_ID"`
 	HerokuSecret        string   `long:"heroku-secret" description:"Heroku Secret for OAuth 2 support" env:"HEROKU_SECRET"`
 	HerokuOrganizations []string `long:"heroku-organization" description:"Heroku Organization Memberships a user is required to have for access to Chronograf (comma separated)" env:"HEROKU_ORGS" env-delim:","`
+
+	GenericName         string   `long:"generic-name" description:"Generic OAuth2 name presented on the login page"  env:"GENERIC_NAME"`
+	GenericClientID     string   `long:"generic-client-id" description:"Generic OAuth2 Client ID. Can be used own OAuth2 service."  env:"GENERIC_CLIENT_ID"`
+	GenericClientSecret string   `long:"generic-client-secret" description:"Generic OAuth2 Client Secret" env:"GENERIC_CLIENT_SECRET"`
+	GenericScopes       []string `long:"generic-scopes" description:"Scopes requested by provider of web client." default:"user:email" env:"GENERIC_SCOPES" env-delim:","`
+	GenericDomains      []string `long:"generic-domains" description:"Email domain users' email address to have (example.com)" env:"GENERIC_DOMAINS" env-delim:","`
+	GenericAuthURL      string   `long:"generic-auth-url" description:"OAuth 2.0 provider's authorization endpoint URL" env:"GENERIC_AUTH_URL"`
+	GenericTokenURL     string   `long:"generic-token-url" description:"OAuth 2.0 provider's token endpoint URL" env:"GENERIC_TOKEN_URL"`
+	GenericAPIURL       string   `long:"generic-api-url" description:"URL that returns OpenID UserInfo compatible information." env:"GENERIC_API_URL"`
 
 	ReportingDisabled bool   `short:"r" long:"reporting-disabled" description:"Disable reporting of usage stats (os,arch,version,cluster_id,uptime) once every 24hr" env:"REPORTING_DISABLED"`
 	LogLevel          string `short:"l" long:"log-level" value-name:"choice" choice:"debug" choice:"info" choice:"error" default:"info" description:"Set the logging level" env:"LOG_LEVEL"`
@@ -99,6 +109,13 @@ func (s *Server) UseHeroku() bool {
 	return s.TokenSecret != "" && s.HerokuClientID != "" && s.HerokuSecret != ""
 }
 
+// UseGenericOAuth2 validates the CLI parameters to enable generic oauth support
+func (s *Server) UseGenericOAuth2() bool {
+	return s.TokenSecret != "" && s.GenericClientID != "" &&
+		s.GenericClientSecret != "" && s.GenericAuthURL != "" &&
+		s.GenericTokenURL != ""
+}
+
 func (s *Server) githubOAuth(logger chronograf.Logger, auth oauth2.Authenticator) (oauth2.Provider, oauth2.Mux, func() bool) {
 	gh := oauth2.Github{
 		ClientID:     s.GithubClientID,
@@ -106,7 +123,8 @@ func (s *Server) githubOAuth(logger chronograf.Logger, auth oauth2.Authenticator
 		Orgs:         s.GithubOrgs,
 		Logger:       logger,
 	}
-	ghMux := oauth2.NewCookieMux(&gh, auth, logger)
+	jwt := oauth2.NewJWT(s.TokenSecret)
+	ghMux := oauth2.NewAuthMux(&gh, auth, jwt, logger)
 	return &gh, ghMux, s.UseGithub
 }
 
@@ -119,8 +137,8 @@ func (s *Server) googleOAuth(logger chronograf.Logger, auth oauth2.Authenticator
 		RedirectURL:  redirectURL,
 		Logger:       logger,
 	}
-
-	goMux := oauth2.NewCookieMux(&google, auth, logger)
+	jwt := oauth2.NewJWT(s.TokenSecret)
+	goMux := oauth2.NewAuthMux(&google, auth, jwt, logger)
 	return &google, goMux, s.UseGoogle
 }
 
@@ -131,9 +149,26 @@ func (s *Server) herokuOAuth(logger chronograf.Logger, auth oauth2.Authenticator
 		Organizations: s.HerokuOrganizations,
 		Logger:        logger,
 	}
-
-	hMux := oauth2.NewCookieMux(&heroku, auth, logger)
+	jwt := oauth2.NewJWT(s.TokenSecret)
+	hMux := oauth2.NewAuthMux(&heroku, auth, jwt, logger)
 	return &heroku, hMux, s.UseHeroku
+}
+
+func (s *Server) genericOAuth(logger chronograf.Logger, auth oauth2.Authenticator) (oauth2.Provider, oauth2.Mux, func() bool) {
+	gen := oauth2.Generic{
+		PageName:       s.GenericName,
+		ClientID:       s.GenericClientID,
+		ClientSecret:   s.GenericClientSecret,
+		RequiredScopes: s.GenericScopes,
+		Domains:        s.GenericDomains,
+		AuthURL:        s.GenericAuthURL,
+		TokenURL:       s.GenericTokenURL,
+		APIURL:         s.GenericAPIURL,
+		Logger:         logger,
+	}
+	jwt := oauth2.NewJWT(s.TokenSecret)
+	genMux := oauth2.NewAuthMux(&gen, auth, jwt, logger)
+	return &gen, genMux, s.UseGenericOAuth2
 }
 
 // BuildInfo is sent to the usage client to track versions and commits
@@ -143,10 +178,7 @@ type BuildInfo struct {
 }
 
 func (s *Server) useAuth() bool {
-	gh := s.TokenSecret != "" && s.GithubClientID != "" && s.GithubClientSecret != ""
-	google := s.TokenSecret != "" && s.GoogleClientID != "" && s.GoogleClientSecret != "" && s.PublicURL != ""
-	heroku := s.TokenSecret != "" && s.HerokuClientID != "" && s.HerokuSecret != ""
-	return gh || google || heroku
+	return s.UseGithub() || s.UseGoogle() || s.UseHeroku() || s.UseGenericOAuth2()
 }
 
 func (s *Server) useTLS() bool {
@@ -207,14 +239,15 @@ func (s *Server) Serve(ctx context.Context) error {
 
 	providerFuncs := []func(func(oauth2.Provider, oauth2.Mux)){}
 
-	auth := oauth2.NewJWT(s.TokenSecret)
-	providerFuncs = append(providerFuncs, provide(s.githubOAuth(logger, &auth)))
-	providerFuncs = append(providerFuncs, provide(s.googleOAuth(logger, &auth)))
-	providerFuncs = append(providerFuncs, provide(s.herokuOAuth(logger, &auth)))
+	auth := oauth2.NewCookieJWT(s.TokenSecret, s.AuthDuration)
+	providerFuncs = append(providerFuncs, provide(s.githubOAuth(logger, auth)))
+	providerFuncs = append(providerFuncs, provide(s.googleOAuth(logger, auth)))
+	providerFuncs = append(providerFuncs, provide(s.herokuOAuth(logger, auth)))
+	providerFuncs = append(providerFuncs, provide(s.genericOAuth(logger, auth)))
 
 	s.handler = NewMux(MuxOpts{
 		Develop:       s.Develop,
-		TokenSecret:   s.TokenSecret,
+		Auth:          auth,
 		Logger:        logger,
 		UseAuth:       s.useAuth(),
 		ProviderFuncs: providerFuncs,

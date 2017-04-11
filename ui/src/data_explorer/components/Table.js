@@ -82,12 +82,15 @@ const ChronoTable = React.createClass({
       return
     }
 
-    this.setState({isLoading: true})
     const {onEditRawStatus} = this.props
+
+    onEditRawStatus(query.id, {loading: true})
+    this.setState({isLoading: true})
     // second param is db, we want to leave this blank
     try {
       const {data} = await fetchTimeSeries(query.host, undefined, query.text)
       this.setState({isLoading: false})
+      onEditRawStatus(query.id, {loading: false})
 
       const results = _.get(data, ['results', '0'], false)
       if (!results) {

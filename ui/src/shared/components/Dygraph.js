@@ -48,6 +48,7 @@ export default React.createClass({
       value: string,
       rangeValue: string,
     }),
+    legendOnBottom: bool,
   },
 
   getDefaultProps() {
@@ -55,6 +56,7 @@ export default React.createClass({
       containerStyle: {},
       isGraphFilled: true,
       overrideLineColors: null,
+      legendOnBottom: false,
     }
   },
 
@@ -67,7 +69,7 @@ export default React.createClass({
   componentDidMount() {
     const timeSeries = this.getTimeSeries()
     // dygraphSeries is a legend label and its corresponding y-axis e.g. {legendLabel1: 'y', legendLabel2: 'y2'};
-    const {ranges, dygraphSeries, ruleValues} = this.props
+    const {ranges, dygraphSeries, ruleValues, legendOnBottom} = this.props
 
     const refs = this.refs
     const graphContainerNode = refs.graphContainer
@@ -122,7 +124,12 @@ export default React.createClass({
         }
 
         legendContainerNode.style.left = `${legendLeft}px`
-        legendContainerNode.style.top = `${legendTop}px`
+        if (legendOnBottom) {
+          legendContainerNode.style.bottom = `4px`
+        } else {
+          legendContainerNode.style.top = `${legendTop}px`
+        }
+
         setMarker(points)
       },
       unhighlightCallback() {
