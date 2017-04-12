@@ -3,10 +3,10 @@ import {withRouter} from 'react-router'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
-import {getSources} from 'src/shared/apis'
-import {loadSources as loadSourcesAction} from 'src/shared/actions/sources'
-import {showDatabases} from 'src/shared/apis/metaQuery'
-import {publishNotification as publishNotificationAction} from 'src/shared/actions/notifications'
+import {getSources} from 'shared/apis'
+import {loadSources as loadSourcesAction} from 'shared/actions/sources'
+import {showDatabases} from 'shared/apis/metaQuery'
+import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
 
 // Acts as a 'router middleware'. The main `App` component is responsible for
 // getting the list of data nodes, but not every page requires them to function.

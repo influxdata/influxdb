@@ -106,7 +106,7 @@
     "react-grid-layout": "^0.13.9",
     "react-onclickoutside": "^5.2.0",
     "react-redux": "^4.4.0",
-    "react-router": "^2.4.1",
+    "react-router": "^3.0.2",
     "react-router-redux": "^4.0.8",
     "react-sparklines": "^1.4.2",
     "react-tooltip": "^3.2.1",

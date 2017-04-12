@@ -1,19 +1,23 @@
 import React, {PropTypes} from 'react'
+import {withRouter} from 'react-router'
 import {connect} from 'react-redux'
-import SideNav from '../components/SideNav'
+
+import SideNav from 'src/side_nav/components/SideNav'
 
 const {
-  func,
-  string,
-  shape,
   bool,
+  shape,
+  string,
 } = PropTypes
 
 const SideNavApp = React.createClass({
   propTypes: {
-    currentLocation: string.isRequired,
-    addFlashMessage: func.isRequired,
-    sourceID: string.isRequired,
+    params: shape({
+      sourceID: string.isRequired,
+    }).isRequired,
+    location: shape({
+      pathname: string.isRequired,
+    }).isRequired,
     me: shape({
       email: string,
     }),
@@ -21,12 +25,12 @@ const SideNavApp = React.createClass({
   },
 
   render() {
-    const {me, currentLocation, sourceID, inPresentationMode} = this.props
+    const {me, params: {sourceID}, location: {pathname: location}, inPresentationMode} = this.props
 
     return (
       <SideNav
         sourceID={sourceID}
-        location={currentLocation}
+        location={location}
         me={me}
         isHidden={inPresentationMode}
       />
@@ -39,4 +43,4 @@ const mapStateToProps = ({me, app: {ephemeral: {inPresentationMode}}}) => ({
   inPresentationMode,
 })
 
-export default connect(mapStateToProps)(SideNavApp)
+export default connect(mapStateToProps)(withRouter(SideNavApp))

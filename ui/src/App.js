@@ -10,19 +10,11 @@ import {publishNotification} from 'src/shared/actions/notifications'
 const {
   func,
   node,
-  shape,
-  string,
 } = PropTypes
 
 const App = React.createClass({
   propTypes: {
     children: node.isRequired,
-    location: shape({
-      pathname: string,
-    }),
-    params: shape({
-      sourceID: string.isRequired,
-    }).isRequired,
     notify: func.isRequired,
   },
 
@@ -33,16 +25,10 @@ const App = React.createClass({
   },
 
   render() {
-    const {params: {sourceID}, location} = this.props
-
     return (
       <div className="chronograf-root">
-        <SideNavContainer
-          sourceID={sourceID}
-          addFlashMessage={this.handleAddFlashMessage}
-          currentLocation={this.props.location.pathname}
-        />
-        <Notifications location={location} />
+        <SideNavContainer />
+        <Notifications />
         {this.props.children && React.cloneElement(this.props.children, {
           addFlashMessage: this.handleAddFlashMessage,
         })}

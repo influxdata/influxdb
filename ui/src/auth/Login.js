@@ -4,14 +4,14 @@ import {connect} from 'react-redux'
 
 import Notifications from 'shared/components/Notifications'
 
-const Login = ({auth, location}) => {
+const Login = ({auth}) => {
   if (auth.isAuthLoading) {
     return <div className="page-spinner"></div>
   }
 
   return (
     <div>
-      <Notifications location={location} />
+      <Notifications />
       <div className="auth-page">
         <div className="auth-box">
           <div className="auth-logo"></div>
