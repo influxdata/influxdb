@@ -78,6 +78,8 @@ const Root = React.createClass({
   },
 
   async checkAuth() {
+    dispatch(authRequested())
+    dispatch(meRequested())
     try {
       await this.startHeartbeat({shouldDispatchResponse: true})
     } catch (error) {
@@ -97,8 +99,6 @@ const Root = React.createClass({
   },
 
   async startHeartbeat({shouldDispatchResponse}) {
-    dispatch(authRequested())
-    dispatch(meRequested())
     try {
       const {data: me, auth} = await getMe()
       if (shouldDispatchResponse) {
@@ -108,12 +108,11 @@ const Root = React.createClass({
 
       setTimeout(this.startHeartbeat.bind(null, {shouldDispatchResponse: false}), HEARTBEAT_INTERVAL)
     } catch (error) {
-      const {auth, status} = error
-      if (auth) {
-        dispatch(authReceived(auth))
+      if (error.auth) {
+        dispatch(authReceived(error.auth))
         dispatch(meReceived(null))
       }
-      if (status === HTTP_FORBIDDEN) {
+      if (error.status === HTTP_FORBIDDEN) {
         dispatch(publishNotification('error', 'Session timed out. Please login again.'))
       } else {
         dispatch(publishNotification('error', 'Cannot communicate with server.'))
