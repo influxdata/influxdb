@@ -108,14 +108,19 @@ const Root = React.createClass({
 
       setTimeout(this.startHeartbeat.bind(null, {shouldDispatchResponse: false}), HEARTBEAT_INTERVAL)
     } catch (error) {
+      if (error.status === HTTP_FORBIDDEN) {
+        const {auth: {me}} = store.getState()
+        if (me === null) {
+          dispatch(publishNotification('error', 'Please login to use Chronograf.'))
+        } else {
+          dispatch(publishNotification('error', 'Session timed out. Please login again.'))
+        }
+      } else {
+        dispatch(publishNotification('error', 'Cannot communicate with server.'))
+      }
       if (error.auth) {
         dispatch(authReceived(error.auth))
         dispatch(meReceived(null))
-      }
-      if (error.status === HTTP_FORBIDDEN) {
-        dispatch(publishNotification('error', 'Session timed out. Please login again.'))
-      } else {
-        dispatch(publishNotification('error', 'Cannot communicate with server.'))
       }
     }
   },
