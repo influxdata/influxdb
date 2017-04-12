@@ -4,11 +4,11 @@ import {UserAuthWrapper} from 'redux-auth-wrapper'
 
 export const UserIsAuthenticated = UserAuthWrapper({
   authSelector: ({auth}) => ({auth}),
-  authenticatingSelector: ({auth: {isAuthLoading}}) => isAuthLoading,
+  authenticatingSelector: ({auth: {isMeLoading}}) => isMeLoading,
   LoadingComponent: (() => <div className="page-spinner" />),
   redirectAction: routerActions.replace,
   wrapperDisplayName: 'UserIsAuthenticated',
-  predicate: ({auth: {me, links, isAuthLoading}}) => isAuthLoading === false && links.length && me !== null,
+  predicate: ({auth: {me, isMeLoading}}) => !isMeLoading && me !== null,
 })
 //
 // UserIsAuthenticated.onEnter = (store, nextState, replace) => {
@@ -20,11 +20,11 @@ export const Authenticated = UserIsAuthenticated((props) => React.cloneElement(p
 
 export const UserIsNotAuthenticated = UserAuthWrapper({
   authSelector: ({auth}) => ({auth}),
-  authenticatingSelector: ({auth: {isAuthLoading}}) => isAuthLoading,
+  authenticatingSelector: ({auth: {isMeLoading}}) => isMeLoading,
   LoadingComponent: (() => <div className="page-spinner" />),
   redirectAction: routerActions.replace,
   wrapperDisplayName: 'UserIsNotAuthenticated',
-  predicate: ({auth: {me, links, isAuthLoading}}) => isAuthLoading === false && links.length > 0 && me === null,
+  predicate: ({auth: {me, isMeLoading}}) => !isMeLoading && me === null,
   failureRedirectPath: () => '/',
   allowRedirectBack: false,
 })
