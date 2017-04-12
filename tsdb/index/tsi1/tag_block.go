@@ -326,9 +326,15 @@ func (e *TagBlockValueElem) SeriesID(i int) uint64 {
 
 // SeriesIDs returns a list decoded series ids.
 func (e *TagBlockValueElem) SeriesIDs() []uint64 {
-	a := make([]uint64, e.series.n)
-	for i := 0; i < int(e.series.n); i++ {
-		a[i] = e.SeriesID(i)
+	a := make([]uint64, 0, e.series.n)
+	var prev uint64
+	for data := e.series.data; len(data) > 0; {
+		delta, n := binary.Uvarint(data)
+		data = data[n:]
+
+		seriesID := prev + delta
+		a = append(a, seriesID)
+		prev = seriesID
 	}
 	return a
 }
@@ -351,9 +357,13 @@ func (e *TagBlockValueElem) unmarshal(buf []byte) {
 	e.series.n, n = binary.Uvarint(buf)
 	buf = buf[n:]
 
+	// Parse data block size.
+	sz, n = binary.Uvarint(buf)
+	buf = buf[n:]
+
 	// Save reference to series data.
-	e.series.data = buf[:e.series.n*SeriesIDSize]
-	buf = buf[e.series.n*SeriesIDSize:]
+	e.series.data = buf[:sz]
+	buf = buf[sz:]
 
 	// Save length of elem.
 	e.size = start - len(buf)
@@ -457,7 +467,8 @@ func ReadTagBlockTrailer(data []byte) (TagBlockTrailer, error) {
 
 // TagBlockEncoder encodes a tags to a TagBlock section.
 type TagBlockEncoder struct {
-	w io.Writer
+	w   io.Writer
+	buf bytes.Buffer
 
 	// Track value offsets.
 	offsets *rhh.HashMap
@@ -542,16 +553,33 @@ func (enc *TagBlockEncoder) EncodeValue(value []byte, deleted bool, seriesIDs []
 		return err
 	}
 
+	// Build series data in buffer.
+	enc.buf.Reset()
+	var prev uint64
+	for _, seriesID := range seriesIDs {
+		delta := seriesID - prev
+
+		var buf [binary.MaxVarintLen64]byte
+		i := binary.PutUvarint(buf[:], delta)
+		if _, err := enc.buf.Write(buf[:i]); err != nil {
+			return err
+		}
+
+		prev = seriesID
+	}
+
 	// Write series count.
 	if err := writeUvarintTo(enc.w, uint64(len(seriesIDs)), &enc.n); err != nil {
 		return err
 	}
 
-	// Write series ids.
-	for _, seriesID := range seriesIDs {
-		if err := writeUint64To(enc.w, seriesID, &enc.n); err != nil {
-			return err
-		}
+	// Write data size & buffer.
+	if err := writeUvarintTo(enc.w, uint64(enc.buf.Len()), &enc.n); err != nil {
+		return err
+	}
+	nn, err := enc.buf.WriteTo(enc.w)
+	if enc.n += nn; err != nil {
+		return err
 	}
 
 	return nil
@@ -721,31 +749,3 @@ func encodeTagValueFlag(deleted bool) byte {
 	}
 	return flag
 }
-
-/*
-type tagSet struct {
-	deleted bool
-	data    struct {
-		offset int64
-		size   int64
-	}
-	hashIndex struct {
-		offset int64
-		size   int64
-	}
-	values map[string]tagValue
-
-	offset int64
-}
-
-func (ts tagSet) flag() byte { return encodeTagKeyFlag(ts.deleted) }
-
-type tagValue struct {
-	seriesIDs []uint64
-	deleted   bool
-
-	offset int64
-}
-
-func (tv tagValue) flag() byte { return encodeTagValueFlag(tv.deleted) }
-*/

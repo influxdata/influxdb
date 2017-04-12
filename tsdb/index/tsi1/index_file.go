@@ -265,6 +265,7 @@ func (f *IndexFile) TagValueSeriesIterator(name, key, value []byte) SeriesIterat
 	return newSeriesDecodeIterator(
 		&f.sblk,
 		&rawSeriesIDIterator{
+			n:    ve.(*TagBlockValueElem).series.n,
 			data: ve.(*TagBlockValueElem).series.data,
 		},
 	)

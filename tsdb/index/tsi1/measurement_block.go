@@ -148,7 +148,7 @@ func (blk *MeasurementBlock) seriesIDIterator(name []byte) seriesIDIterator {
 	if !ok {
 		return &rawSeriesIDIterator{}
 	}
-	return &rawSeriesIDIterator{data: e.series.data}
+	return &rawSeriesIDIterator{n: e.series.n, data: e.series.data}
 }
 
 // blockMeasurementIterator iterates over a list measurements in a block.
@@ -175,6 +175,8 @@ func (itr *blockMeasurementIterator) Next() MeasurementElem {
 
 // rawSeriesIterator iterates over a list of raw series data.
 type rawSeriesIDIterator struct {
+	prev uint64
+	n    uint64
 	data []byte
 }
 
@@ -184,9 +186,12 @@ func (itr *rawSeriesIDIterator) next() uint64 {
 		return 0
 	}
 
-	id := binary.BigEndian.Uint64(itr.data)
-	itr.data = itr.data[SeriesIDSize:]
-	return id
+	delta, n := binary.Uvarint(itr.data)
+	itr.data = itr.data[n:]
+
+	seriesID := itr.prev + delta
+	itr.prev = seriesID
+	return seriesID
 }
 
 // MeasurementBlockTrailer represents meta data at the end of a MeasurementBlock.
@@ -334,9 +339,15 @@ func (e *MeasurementBlockElem) SeriesID(i int) uint64 {
 
 // SeriesIDs returns a list of decoded series ids.
 func (e *MeasurementBlockElem) SeriesIDs() []uint64 {
-	a := make([]uint64, e.series.n)
-	for i := 0; i < int(e.series.n); i++ {
-		a[i] = e.SeriesID(i)
+	a := make([]uint64, 0, e.series.n)
+	var prev uint64
+	for data := e.series.data; len(data) > 0; {
+		delta, n := binary.Uvarint(data)
+		data = data[n:]
+
+		seriesID := prev + delta
+		a = append(a, seriesID)
+		prev = seriesID
 	}
 	return a
 }
@@ -362,7 +373,9 @@ func (e *MeasurementBlockElem) UnmarshalBinary(data []byte) error {
 	// Parse series data.
 	v, n := binary.Uvarint(data)
 	e.series.n, data = uint64(v), data[n:]
-	e.series.data, data = data[:e.series.n*SeriesIDSize], data[e.series.n*SeriesIDSize:]
+	sz, n = binary.Uvarint(data)
+	data = data[n:]
+	e.series.data, data = data[:sz], data[sz:]
 
 	// Save length of elem.
 	e.size = start - len(data)
@@ -372,6 +385,7 @@ func (e *MeasurementBlockElem) UnmarshalBinary(data []byte) error {
 
 // MeasurementBlockWriter writes a measurement block.
 type MeasurementBlockWriter struct {
+	buf bytes.Buffer
 	mms map[string]measurement
 
 	// Measurement sketch and tombstoned measurement sketch.
@@ -518,14 +532,33 @@ func (mw *MeasurementBlockWriter) writeMeasurementTo(w io.Writer, name []byte, m
 		return err
 	}
 
-	// Write series count & ids.
+	// Write series data to buffer.
+	mw.buf.Reset()
+	var prev uint64
+	for _, seriesID := range mm.seriesIDs {
+		delta := seriesID - prev
+
+		var buf [binary.MaxVarintLen64]byte
+		i := binary.PutUvarint(buf[:], delta)
+		if _, err := mw.buf.Write(buf[:i]); err != nil {
+			return err
+		}
+
+		prev = seriesID
+	}
+
+	// Write series count.
 	if err := writeUvarintTo(w, uint64(len(mm.seriesIDs)), n); err != nil {
 		return err
 	}
-	for _, seriesID := range mm.seriesIDs {
-		if err := writeUint64To(w, seriesID, n); err != nil {
-			return err
-		}
+
+	// Write data size & buffer.
+	if err := writeUvarintTo(w, uint64(mw.buf.Len()), n); err != nil {
+		return err
+	}
+	nn, err := mw.buf.WriteTo(w)
+	if *n += nn; err != nil {
+		return err
 	}
 
 	return nil
