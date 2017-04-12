@@ -172,6 +172,7 @@ func (s *Service) Run(database, name string, t time.Time) error {
 	// Loop through databases.
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	var cqs []string
 	for _, db := range dbs {
 		// Loop through CQs in each DB executing the ones that match name.
 		for _, cq := range db.ContinuousQueries {
@@ -181,12 +182,16 @@ func (s *Service) Run(database, name string, t time.Time) error {
 				if _, ok := s.lastRuns[id]; ok {
 					delete(s.lastRuns, id)
 				}
+				cqs = append(cqs, cq.Name)
 			}
 		}
 	}
 
 	// Signal the background routine to run CQs.
-	s.RunCh <- &RunRequest{Now: t}
+	s.RunCh <- &RunRequest{
+		Now: t,
+		CQs: cqs,
+	}
 
 	return nil
 }
@@ -244,14 +249,18 @@ func (s *Service) runContinuousQueries(req *RunRequest) {
 	for _, db := range dbs {
 		// TODO: distribute across nodes
 		for _, cq := range db.ContinuousQueries {
-			if !req.matches(&cq) {
-				continue
-			}
-			if ok, err := s.ExecuteContinuousQuery(&db, &cq, req.Now); err != nil {
-				s.Logger.Info(fmt.Sprintf("error executing query: %s: err = %s", cq.Query, err))
-				atomic.AddInt64(&s.stats.QueryFail, 1)
-			} else if ok {
-				atomic.AddInt64(&s.stats.QueryOK, 1)
+			db := db
+			cq := cq
+			now := req.Now
+			if req.matches(&cq) {
+				go func(db *meta.DatabaseInfo, cq *meta.ContinuousQueryInfo, now time.Time) {
+					if ok, err := s.ExecuteContinuousQuery(db, cq, now); err != nil {
+						s.Logger.Info(fmt.Sprintf("error executing query: %s: err = %s", cq.Query, err))
+						atomic.AddInt64(&s.stats.QueryFail, 1)
+					} else if ok {
+						atomic.AddInt64(&s.stats.QueryOK, 1)
+					}
+				}(&db, &cq, now)
 			}
 		}
 	}
@@ -268,9 +277,9 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 		return false, err
 	}
 
-	// Get the last time this CQ was run from the service's cache.
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// Get the last time this CQ was run from the service's cache.
 	id := fmt.Sprintf("%s%s%s", dbi.Name, idDelimiter, cqi.Name)
 	cq.LastRun, cq.HasRun = s.lastRuns[id]
 
