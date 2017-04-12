@@ -1,5 +1,6 @@
 import {createStore, applyMiddleware, compose} from 'redux'
 import {combineReducers} from 'redux'
+import {routerReducer, routerMiddleware} from 'react-router-redux'
 import thunkMiddleware from 'redux-thunk'
 import makeQueryExecuter from 'src/shared/middleware/queryExecuter'
 import resizeLayout from 'src/shared/middleware/resizeLayout'
@@ -11,6 +12,7 @@ import dashboardUI from 'src/dashboards/reducers/ui'
 import persistStateEnhancer from './persistStateEnhancer'
 
 const rootReducer = combineReducers({
+  routing: routerReducer,
   ...sharedReducers,
   ...dataExplorerReducers,
   admin: adminReducer,
@@ -20,10 +22,11 @@ const rootReducer = combineReducers({
 
 const composeEnhancers = window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ || compose
 
-export default function configureStore(initialState) {
+export default function configureStore(initialState, browserHistory) {
+  const routingMiddleware = routerMiddleware(browserHistory)
   const createPersistentStore = composeEnhancers(
     persistStateEnhancer(),
-    applyMiddleware(thunkMiddleware, makeQueryExecuter(), resizeLayout),
+    applyMiddleware(thunkMiddleware, routingMiddleware, makeQueryExecuter(), resizeLayout),
   )(createStore)
 
 
