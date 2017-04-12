@@ -21,7 +21,7 @@ import configureStore from 'src/store/configureStore'
 import {getMe, getSources} from 'shared/apis'
 import {authRequested, authReceived, meRequested, meReceived} from 'shared/actions/auth'
 import {disablePresentationMode} from 'shared/actions/app'
-import {publishNotification} from 'shared/actions/notifications'
+import {publishNotification as notify} from 'shared/actions/notifications'
 import {loadLocalStorage} from './localStorage'
 
 import 'src/style/chronograf.scss'
@@ -111,12 +111,12 @@ const Root = React.createClass({
       if (error.status === HTTP_FORBIDDEN) {
         const {auth: {me}} = store.getState()
         if (me === null) {
-          dispatch(publishNotification('error', 'Please login to use Chronograf.'))
+          dispatch(notify('error', 'Please login to use Chronograf.'))
         } else {
-          dispatch(publishNotification('error', 'Session timed out. Please login again.'))
+          dispatch(notify('error', 'Session timed out. Please login again.'))
         }
       } else {
-        dispatch(publishNotification('error', 'Cannot communicate with server.'))
+        dispatch(notify('error', 'Cannot communicate with server.'))
       }
       if (error.auth) {
         dispatch(authReceived(error.auth))

@@ -1,10 +1,11 @@
 import React, {PropTypes} from 'react'
 import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux'
+
 import SideNavContainer from 'src/side_nav'
 import Notifications from 'shared/components/Notifications'
-import {
-  publishNotification as publishNotificationAction,
-} from 'src/shared/actions/notifications'
+
+import {publishNotification} from 'src/shared/actions/notifications'
 
 const {
   func,
@@ -50,6 +51,8 @@ const App = React.createClass({
   },
 })
 
-export default connect(null, {
-  notify: publishNotificationAction,
-})(App)
+const mapDispatchToProps = (dispatch) => ({
+  notify: bindActionCreators(publishNotification, dispatch),
+})
+
+export default connect(null, mapDispatchToProps)(App)
