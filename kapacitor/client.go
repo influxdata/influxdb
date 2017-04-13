@@ -217,7 +217,7 @@ func (c *Client) kapaClient(ctx context.Context) (*client.Client, error) {
 }
 
 func toTask(q chronograf.QueryConfig) client.TaskType {
-	if q.RawText == "" {
+	if q.RawText == nil || *q.RawText == "" {
 		return client.StreamTask
 	}
 	return client.BatchTask

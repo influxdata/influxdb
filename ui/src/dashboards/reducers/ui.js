@@ -7,6 +7,7 @@ const initialState = {
   dashboards: [],
   timeRange: {lower, upper},
   isEditMode: false,
+  cellQueryStatus: {queryID: null, status: null},
 }
 
 export default function ui(state = initialState, action) {
@@ -156,6 +157,12 @@ export default function ui(state = initialState, action) {
       }
 
       return {...state, ...newState}
+    }
+
+    case 'EDIT_CELL_QUERY_STATUS': {
+      const {queryID, status} = action.payload
+
+      return {...state, cellQueryStatus: {queryID, status}}
     }
   }
 

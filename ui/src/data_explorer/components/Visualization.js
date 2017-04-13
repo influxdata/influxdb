@@ -1,14 +1,8 @@
 import React, {PropTypes} from 'react'
 import buildInfluxQLQuery from 'utils/influxql'
 import classNames from 'classnames'
-import AutoRefresh from 'shared/components/AutoRefresh'
-import LineGraph from 'shared/components/LineGraph'
-import SingleStat from 'shared/components/SingleStat'
-import Table from './Table'
 import VisHeader from 'src/data_explorer/components/VisHeader'
-
-const RefreshingLineGraph = AutoRefresh(LineGraph)
-const RefreshingSingleStat = AutoRefresh(SingleStat)
+import VisView from 'src/data_explorer/components/VisView'
 
 const GRAPH = 'graph'
 const TABLE = 'table'
@@ -35,7 +29,7 @@ const Visualization = React.createClass({
     activeQueryIndex: number,
     height: string,
     heightPixels: number,
-    onEditRawStatus: func,
+    editQueryStatus: func.isRequired,
   },
 
   contextTypes: {
@@ -76,7 +70,16 @@ const Visualization = React.createClass({
   },
 
   render() {
-    const {queryConfigs, timeRange, height, heightPixels, onEditRawStatus, activeQueryIndex} = this.props
+    const {
+      height,
+      cellType,
+      timeRange,
+      autoRefresh,
+      heightPixels,
+      queryConfigs,
+      editQueryStatus,
+      activeQueryIndex,
+    } = this.props
     const {source} = this.context
     const proxyLink = source.links.proxy
     const {view} = this.state
@@ -93,52 +96,17 @@ const Visualization = React.createClass({
       <div className="graph" style={{height}}>
         <VisHeader views={VIEWS} view={view} onToggleView={this.handleToggleView} name={name || 'Graph'}/>
         <div className={classNames({"graph-container": view === GRAPH, "table-container": view === TABLE})}>
-          {this.renderVisualization(view, queries, heightPixels, onEditRawStatus, activeQueryIndex)}
+          <VisView
+            view={view}
+            queries={queries}
+            cellType={cellType}
+            autoRefresh={autoRefresh}
+            heightPixels={heightPixels}
+            editQueryStatus={editQueryStatus}
+            activeQueryIndex={activeQueryIndex}
+          />
         </div>
       </div>
-    )
-  },
-
-  renderVisualization(view, queries, heightPixels, onEditRawStatus, activeQueryIndex) {
-    const activeQuery = queries[activeQueryIndex]
-    const defaultQuery = queries[0]
-
-    if (view === TABLE) {
-      return this.renderTable(activeQuery || defaultQuery, heightPixels, onEditRawStatus)
-    }
-
-    return this.renderGraph(queries)
-  },
-
-  renderTable(query, heightPixels, onEditRawStatus) {
-    if (!query) {
-      return <div className="generic-empty-state">Enter your query above</div>
-    }
-
-    return <Table query={query} height={heightPixels} onEditRawStatus={onEditRawStatus} />
-  },
-
-  renderGraph(queries) {
-    const {cellType, autoRefresh, activeQueryIndex} = this.props
-    const isInDataExplorer = true
-
-    if (cellType === 'single-stat') {
-      return <RefreshingSingleStat queries={[queries[0]]} autoRefresh={autoRefresh} />
-    }
-
-    const displayOptions = {
-      stepPlot: cellType === 'line-stepplot',
-      stackedGraph: cellType === 'line-stacked',
-    }
-    return (
-      <RefreshingLineGraph
-        queries={queries}
-        autoRefresh={autoRefresh}
-        activeQueryIndex={activeQueryIndex}
-        isInDataExplorer={isInDataExplorer}
-        showSingleStat={cellType === "line-plus-single-stat"}
-        displayOptions={displayOptions}
-      />
     )
   },
 })

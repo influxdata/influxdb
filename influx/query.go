@@ -15,7 +15,7 @@ func Convert(influxQL string) (chronograf.QueryConfig, error) {
 	}
 
 	raw := chronograf.QueryConfig{
-		RawText: influxQL,
+		RawText: &influxQL,
 		Fields:  []chronograf.Field{},
 		GroupBy: chronograf.GroupBy{
 			Tags: []string{},

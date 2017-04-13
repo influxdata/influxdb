@@ -1,21 +1,18 @@
 import React, {PropTypes} from 'react'
 import _ from 'lodash'
-import {proxy} from 'utils/queryUrlGenerator'
-
-function _fetchTimeSeries(source, db, rp, query) {
-  return proxy({source, db, rp, query})
-}
+import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
 
 const {
-  element,
-  number,
   arrayOf,
-  shape,
+  element,
+  func,
+  number,
   oneOfType,
+  shape,
   string,
 } = PropTypes
 
-export default function AutoRefresh(ComposedComponent) {
+const AutoRefresh = (ComposedComponent) => {
   const wrapper = React.createClass({
     propTypes: {
       children: element,
@@ -24,6 +21,7 @@ export default function AutoRefresh(ComposedComponent) {
         host: oneOfType([string, arrayOf(string)]),
         text: string,
       }).isRequired).isRequired,
+      editQueryStatus: func,
     },
     getInitialState() {
       return {
@@ -58,7 +56,7 @@ export default function AutoRefresh(ComposedComponent) {
       const rightStrs = right.map((q) => `${q.host}${q.text}`)
       return _.difference(_.union(leftStrs, rightStrs), _.intersection(leftStrs, rightStrs))
     },
-    executeQueries(queries) {
+    async executeQueries(queries) {
       if (!queries.length) {
         this.setState({
           timeSeries: [],
@@ -69,20 +67,20 @@ export default function AutoRefresh(ComposedComponent) {
       this.setState({isFetching: true})
       let count = 0
       const newSeries = []
-      queries.forEach(({host, database, rp, text}) => {
-        _fetchTimeSeries(host, database, rp, text).then((resp) => {
-          newSeries.push({response: resp.data})
-          count += 1
-          if (count === queries.length) {
-            const querySuccessful = !this._noResultsForQuery(newSeries)
-            this.setState({
-              lastQuerySuccessful: querySuccessful,
-              isFetching: false,
-              timeSeries: newSeries,
-            })
-          }
-        })
-      })
+      for (const query of queries) {
+        const {host, database, rp} = query
+        const response = await fetchTimeSeriesAsync({source: host, db: database, rp, query}, this.props.editQueryStatus)
+        newSeries.push({response})
+        count += 1
+        if (count === queries.length) {
+          const querySuccessful = !this._noResultsForQuery(newSeries)
+          this.setState({
+            lastQuerySuccessful: querySuccessful,
+            isFetching: false,
+            timeSeries: newSeries,
+          })
+        }
+      }
     },
     componentWillUnmount() {
       clearInterval(this.intervalID)
@@ -150,3 +148,5 @@ export default function AutoRefresh(ComposedComponent) {
 
   return wrapper
 }
+
+export default AutoRefresh

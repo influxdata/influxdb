@@ -54,6 +54,10 @@ const DashboardPage = React.createClass({
     timeRange: shape({}).isRequired,
     inPresentationMode: bool.isRequired,
     handleClickPresentationButton: func,
+    cellQueryStatus: shape({
+      queryID: string,
+      status: shape(),
+    }).isRequired,
   },
 
   childContextTypes: {
@@ -158,14 +162,16 @@ const DashboardPage = React.createClass({
 
   render() {
     const {
-      dashboards,
-      params: {sourceID, dashboardID},
-      inPresentationMode,
-      handleClickPresentationButton,
       source,
-      handleChooseAutoRefresh,
-      autoRefresh,
       timeRange,
+      dashboards,
+      autoRefresh,
+      cellQueryStatus,
+      dashboardActions,
+      inPresentationMode,
+      handleChooseAutoRefresh,
+      handleClickPresentationButton,
+      params: {sourceID, dashboardID},
     } = this.props
 
     const dashboard = dashboards.find(d => d.id === +dashboardID)
@@ -180,11 +186,14 @@ const DashboardPage = React.createClass({
         {
           selectedCell ?
             <CellEditorOverlay
+              source={source}
               cell={selectedCell}
               autoRefresh={autoRefresh}
               timeRange={timeRange}
               onCancel={this.handleDismissOverlay}
               onSave={this.handleSaveEditedCell}
+              editQueryStatus={dashboardActions.editCellQueryStatus}
+              queryStatus={cellQueryStatus}
             /> :
             null
         }
@@ -256,6 +265,7 @@ const mapStateToProps = (state) => {
     dashboardUI: {
       dashboards,
       timeRange,
+      cellQueryStatus,
     },
   } = state
 
@@ -264,6 +274,7 @@ const mapStateToProps = (state) => {
     autoRefresh,
     timeRange,
     inPresentationMode,
+    cellQueryStatus,
   }
 }
 

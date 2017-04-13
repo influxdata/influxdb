@@ -11,6 +11,7 @@ import * as queryModifiers from 'src/utils/queryTransitions'
 
 import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 import buildInfluxQLQuery from 'utils/influxql'
+import {getQueryConfig} from 'shared/apis'
 
 class CellEditorOverlay extends Component {
   constructor(props) {
@@ -25,15 +26,28 @@ class CellEditorOverlay extends Component {
 
     this.handleSelectGraphType = ::this.handleSelectGraphType
     this.handleSetActiveQueryIndex = ::this.handleSetActiveQueryIndex
+    this.handleEditRawText = ::this.handleEditRawText
 
     const {cell: {name, type, queries}} = props
-    const queriesWorkingDraft = _.cloneDeep(queries.map(({queryConfig}) => queryConfig))
+
+    const queriesWorkingDraft = _.cloneDeep(queries.map(({queryConfig}) => ({...queryConfig, id: uuid.v4()})))
 
     this.state = {
       cellWorkingName: name,
       cellWorkingType: type,
       queriesWorkingDraft,
       activeQueryIndex: 0,
+    }
+  }
+
+  componentWillReceiveProps(nextProps) {
+    const {status, queryID} = this.props.queryStatus
+    const nextStatus = nextProps.queryStatus
+    if (nextStatus.status && nextStatus.queryID) {
+      if (nextStatus.queryID !== queryID || nextStatus.status !== status) {
+        const nextQueries = this.state.queriesWorkingDraft.map((q) => q.id === queryID ? ({...q, status: nextStatus.status}) : q)
+        this.setState({queriesWorkingDraft: nextQueries})
+      }
     }
   }
 
@@ -91,8 +105,27 @@ class CellEditorOverlay extends Component {
     this.setState({activeQueryIndex})
   }
 
+  async handleEditRawText(url, id, text) {
+    // use this as the handler passed into fetchTimeSeries to update a query status
+    try {
+      const {data} = await getQueryConfig(url, [{query: text, id}])
+      const config = data.queries.find(q => q.id === id)
+      const nextQueries = this.state.queriesWorkingDraft.map((q) => q.id === id ? config.queryConfig : q)
+      this.setState({queriesWorkingDraft: nextQueries})
+    } catch (error) {
+      console.error(error)
+    }
+  }
+
   render() {
-    const {onCancel, autoRefresh, timeRange} = this.props
+    const {
+      source,
+      onCancel,
+      timeRange,
+      autoRefresh,
+      editQueryStatus,
+    } = this.props
+
     const {
       activeQueryIndex,
       cellWorkingName,
@@ -102,6 +135,7 @@ class CellEditorOverlay extends Component {
 
     const queryActions = {
       addQuery: this.handleAddQuery,
+      editRawTextAsync: this.handleEditRawText,
       ..._.mapValues(queryModifiers, (qm) => this.queryStateReducer(qm)),
     }
 
@@ -115,6 +149,7 @@ class CellEditorOverlay extends Component {
             activeQueryIndex={0}
             cellType={cellWorkingType}
             cellName={cellWorkingName}
+            editQueryStatus={editQueryStatus}
           />
           <ResizeBottom>
             <div style={{display: 'flex', flexDirection: 'column', height: '100%'}}>
@@ -125,6 +160,7 @@ class CellEditorOverlay extends Component {
                 onSave={this.handleSaveCell}
               />
               <QueryBuilder
+                source={source}
                 queries={queriesWorkingDraft}
                 actions={queryActions}
                 autoRefresh={autoRefresh}
@@ -157,6 +193,16 @@ CellEditorOverlay.propTypes = {
     lower: string,
   }).isRequired,
   autoRefresh: number.isRequired,
+  source: shape({
+    links: shape({
+      queries: string.isRequired,
+    }),
+  }),
+  editQueryStatus: func.isRequired,
+  queryStatus: shape({
+    queryID: string,
+    status: shape({}),
+  }).isRequired,
 }
 
 export default CellEditorOverlay

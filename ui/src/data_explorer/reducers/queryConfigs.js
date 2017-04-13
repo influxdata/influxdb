@@ -24,7 +24,7 @@ export default function queryConfigs(state = {}, action) {
       const nextQueryConfig = chooseNamespace(state[queryId], {database, retentionPolicy})
 
       return Object.assign({}, state, {
-        [queryId]: Object.assign(nextQueryConfig, {rawText: state[queryId].rawText}),
+        [queryId]: Object.assign(nextQueryConfig, {rawText: null}),
       })
     }
 
@@ -63,6 +63,11 @@ export default function queryConfigs(state = {}, action) {
       })
 
       return nextState
+    }
+
+    case 'UPDATE_QUERY_CONFIG': {
+      const {config} = action.payload
+      return {...state, [config.id]: config}
     }
 
     case 'EDIT_RAW_TEXT': {
@@ -108,7 +113,7 @@ export default function queryConfigs(state = {}, action) {
       const nextQueryConfig = toggleField(state[queryId], fieldFunc, isKapacitorRule)
 
       return Object.assign({}, state, {
-        [queryId]: nextQueryConfig,
+        [queryId]: {...nextQueryConfig, rawText: null},
       })
     }
 
@@ -146,10 +151,10 @@ export default function queryConfigs(state = {}, action) {
       })
     }
 
-    case 'EDIT_RAW_QUERY_STATUS': {
-      const {queryID, rawStatus} = action.payload
+    case 'EDIT_QUERY_STATUS': {
+      const {queryID, status} = action.payload
       const nextState = {
-        [queryID]: {...state[queryID], rawStatus},
+        [queryID]: {...state[queryID], status},
       }
 
       return {...state, ...nextState}

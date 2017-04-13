@@ -44,7 +44,6 @@ func TestGenerate(t *testing.T) {
 				Tags: []string{"host", "cluster_id"},
 			},
 			AreTagsAccepted: true,
-			RawText:         "",
 		},
 	}
 	gen := Alert{}
@@ -90,7 +89,6 @@ func TestThreshold(t *testing.T) {
 				Tags: []string{"host", "cluster_id"},
 			},
 			AreTagsAccepted: true,
-			RawText:         "",
 		},
 	}
 
@@ -509,7 +507,6 @@ func TestThresholdDetail(t *testing.T) {
 				Tags: []string{"host", "cluster_id"},
 			},
 			AreTagsAccepted: true,
-			RawText:         "",
 		},
 	}
 
@@ -657,7 +654,6 @@ func TestThresholdInsideRange(t *testing.T) {
 				Tags: []string{"host", "cluster_id"},
 			},
 			AreTagsAccepted: true,
-			RawText:         "",
 		},
 	}
 
@@ -804,7 +800,6 @@ func TestThresholdOutsideRange(t *testing.T) {
 				Tags: []string{"host", "cluster_id"},
 			},
 			AreTagsAccepted: true,
-			RawText:         "",
 		},
 	}
 
@@ -950,7 +945,6 @@ func TestThresholdNoAggregate(t *testing.T) {
 				Tags: []string{"host", "cluster_id"},
 			},
 			AreTagsAccepted: true,
-			RawText:         "",
 		},
 	}
 
@@ -1088,7 +1082,6 @@ func TestRelative(t *testing.T) {
 				Tags: []string{"host", "cluster_id"},
 			},
 			AreTagsAccepted: true,
-			RawText:         "",
 		},
 	}
 
@@ -1246,7 +1239,6 @@ func TestRelativeChange(t *testing.T) {
 				Tags: []string{"host", "cluster_id"},
 			},
 			AreTagsAccepted: true,
-			RawText:         "",
 		},
 	}
 
@@ -1401,7 +1393,6 @@ func TestDeadman(t *testing.T) {
 				Tags: []string{"host", "cluster_id"},
 			},
 			AreTagsAccepted: true,
-			RawText:         "",
 		},
 	}
 
