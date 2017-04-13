@@ -1,15 +1,13 @@
-function getInitialState() {
-  return {
-    links: null,
-    me: null,
-    isMeLoading: false,
-    isAuthLoading: false,
-  }
-}
+const getInitialState = () => ({
+  links: null,
+  me: null,
+  isMeLoading: false,
+  isAuthLoading: false,
+})
 
 const initialState = getInitialState()
 
-export default function auth(state = initialState, action) {
+const auth = (state = initialState, action) => {
   switch (action.type) {
     case 'AUTH_REQUESTED': {
       return {...state, isAuthLoading: true}
@@ -34,3 +32,5 @@ export default function auth(state = initialState, action) {
 
   return state
 }
+
+export default auth
