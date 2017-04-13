@@ -1,5 +1,4 @@
 import React, {PropTypes} from 'react'
-import {withRouter} from 'react-router'
 import {connect} from 'react-redux'
 import _ from 'lodash'
 import * as kapacitorActionCreators from '../actions/view'
@@ -117,4 +116,4 @@ function mapDispatchToProps(dispatch) {
   }
 }
 
-export default connect(mapStateToProps, mapDispatchToProps)(withRouter(KapacitorRulePage))
+export default connect(mapStateToProps, mapDispatchToProps)(KapacitorRulePage)
