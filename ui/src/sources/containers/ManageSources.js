@@ -5,6 +5,7 @@ import {removeAndLoadSources} from 'src/shared/actions/sources'
 import {connect} from 'react-redux'
 
 import InfluxTable from '../components/InfluxTable'
+import KapacitorTable from '../components/KapacitorTable'
 
 const {
   array,
@@ -83,6 +84,7 @@ export const ManageSources = React.createClass({
               kapacitors={kapacitors}
               location={location}
             />
+            <KapacitorTable />
           </div>
         </div>
       </div>

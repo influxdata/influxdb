@@ -10,7 +10,6 @@ const InfluxTable = ({
 }) => (
   <div className="row">
     <div className="col-md-12">
-
       <div className="panel panel-minimal">
         <div className="panel-heading u-flex u-ai-center u-jc-space-between">
           <h2 className="panel-title">InfluxDB Sources</h2>
