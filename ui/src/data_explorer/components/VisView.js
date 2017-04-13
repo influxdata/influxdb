@@ -7,7 +7,7 @@ import SingleStat from 'shared/components/SingleStat'
 const RefreshingLineGraph = AutoRefresh(LineGraph)
 const RefreshingSingleStat = AutoRefresh(SingleStat)
 
-const View = ({
+const VisView = ({
   view,
   queries,
   cellType,
@@ -64,7 +64,7 @@ const {
   string,
 } = PropTypes
 
-View.propTypes = {
+VisView.propTypes = {
   view: string.isRequired,
   queries: arrayOf(shape()).isRequired,
   cellType: string,
@@ -74,4 +74,4 @@ View.propTypes = {
   activeQueryIndex: number,
 }
 
-export default View
+export default VisView

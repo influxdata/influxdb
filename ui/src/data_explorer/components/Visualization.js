@@ -2,7 +2,7 @@ import React, {PropTypes} from 'react'
 import buildInfluxQLQuery from 'utils/influxql'
 import classNames from 'classnames'
 import VisHeader from 'src/data_explorer/components/VisHeader'
-import View from 'src/data_explorer/components/View'
+import VisView from 'src/data_explorer/components/VisView'
 
 const GRAPH = 'graph'
 const TABLE = 'table'
@@ -96,7 +96,7 @@ const Visualization = React.createClass({
       <div className="graph" style={{height}}>
         <VisHeader views={VIEWS} view={view} onToggleView={this.handleToggleView} name={name || 'Graph'}/>
         <div className={classNames({"graph-container": view === GRAPH, "table-container": view === TABLE})}>
-          <View
+          <VisView
             view={view}
             queries={queries}
             cellType={cellType}
