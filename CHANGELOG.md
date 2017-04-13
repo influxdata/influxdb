@@ -32,6 +32,7 @@
   1. [#1223](https://github.com/influxdata/chronograf/pull/1223): Use vhost as Chronograf's proxy to Kapacitor
   1. [#1205](https://github.com/influxdata/chronograf/pull/1205): Allow initial source to be an InfluxEnterprise source
   1. [#1244](https://github.com/influxdata/chronograf/pull/1244): Fix env var name for Google client secret
+  1. [#1257](https://github.com/influxdata/chronograf/issues/1257): Fix function selection in query builder
 
 ### Features
   1. [#1112](https://github.com/influxdata/chronograf/pull/1112): Add ability to delete a dashboard
