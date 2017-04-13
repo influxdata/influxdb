@@ -18,6 +18,7 @@
 
 ### Bugfixes
 
+- [#8187](https://github.com/influxdata/influxdb/pull/8187): Several statements were missing the DefaultDatabase method
 - [#8231](https://github.com/influxdata/influxdb/pull/8231): Fix spelling mistake in HTTP section of config -- shared-sercret
 - [#8190](https://github.com/influxdata/influxdb/issues/8190): History file should redact passwords before saving to history.
 - [#8122](https://github.com/influxdata/influxdb/pull/8122): Suppress headers in output for influx cli when they are the same.
