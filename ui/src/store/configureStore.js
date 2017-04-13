@@ -12,12 +12,12 @@ import dashboardUI from 'src/dashboards/reducers/ui'
 import persistStateEnhancer from './persistStateEnhancer'
 
 const rootReducer = combineReducers({
-  routing: routerReducer,
   ...sharedReducers,
   ...dataExplorerReducers,
   admin: adminReducer,
   rules: rulesReducer,
   dashboardUI,
+  routing: routerReducer,
 })
 
 const composeEnhancers = window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ || compose
