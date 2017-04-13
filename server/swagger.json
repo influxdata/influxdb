@@ -1154,7 +1154,7 @@
 						"required": true
 					}
 				],
-				"summary": "Configured kapacitors",
+				"summary": "Retrieve list of configured kapacitors",
 				"responses": {
 					"200": {
 						"description": "An array of kapacitors",
@@ -1239,7 +1239,7 @@
 					}
 				],
 				"summary": "Configured kapacitors",
-				"description": "These kapacitors are used for monitoring and alerting.",
+				"description": "Retrieve information on a single kapacitor instance",
 				"responses": {
 					"200": {
 						"description": "Kapacitor connection information",
@@ -1334,7 +1334,8 @@
 						"required": true
 					}
 				],
-				"summary": "This specific kapacitor will be removed. All associated rule resources will also be removed from the store.",
+				"summary": "Remove Kapacitor backend",
+				"description": "This specific kapacitor will be removed. All associated rule resources will also be removed from the store.",
 				"responses": {
 					"204": {
 						"description": "kapacitor has been removed."
@@ -1683,7 +1684,7 @@
 					"kapacitors",
 					"proxy"
 				],
-				"description": "DELETE to `path` of kapacitor.  The response and status code from kapacitor is directly returned.",
+				"description": "DELETE to `path` of kapacitor. The response and status code from kapacitor is directly returned.",
 				"parameters": [
 					{
 						"name": "id",
