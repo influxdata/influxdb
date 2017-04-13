@@ -34,16 +34,17 @@ const CheckSources = React.createClass({
     }
   },
 
-  componentDidMount() {
+  async componentWillMount() {
     const {loadSources, notify} = this.props
 
-    getSources().then(({data: {sources}}) => {
+    try {
+      const {data: {sources}} = await getSources()
       loadSources(sources)
       this.setState({isFetching: false})
-    }).catch(() => {
+    } catch (error) {
       notify('error', 'Unable to connect to Chronograf server')
       this.setState({isFetching: false})
-    })
+    }
   },
 
   componentWillUpdate(nextProps, nextState) {
@@ -51,11 +52,17 @@ const CheckSources = React.createClass({
     const {isFetching} = nextState
     const source = sources.find((s) => s.id === params.sourceID)
     const defaultSource = sources.find((s) => s.default === true)
+
     if (!isFetching && !source) {
+      const rest = location.pathname.match(/\/sources\/\d+?\/(.+)/)
+      const restString = rest === null ? 'hosts' : rest[1]
+
       if (defaultSource) {
-        const rest = location.pathname.match(/\/sources\/\d+?\/(.+)/)
-        return router.push(`/sources/${defaultSource.id}/${rest[1]}`)
+        return router.push(`/sources/${defaultSource.id}/${restString}`)
+      } else if (sources[0]) {
+        return router.push(`/sources/${sources[0].id}/${restString}`)
       }
+
       return router.push(`/sources/new?redirectPath=${location.pathname}`)
     }
 
