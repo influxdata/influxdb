@@ -232,6 +232,7 @@ const DashboardPage = React.createClass({
             source={source}
             autoRefresh={autoRefresh}
             timeRange={timeRange}
+            onAddCell={this.handleAddCell}
             onPositionChange={this.handleUpdatePosition}
             onEditCell={this.handleEditDashboardCell}
             onRenameCell={this.handleRenameDashboardCell}

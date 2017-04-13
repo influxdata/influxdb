@@ -3,6 +3,7 @@
 ### Bug Fixes
 ### Features
 ### UI Improvements
+  1. [#1259](https://github.com/influxdata/chronograf/pull/1259): Add default display for empty dashboard
   1. [#1258](https://github.com/influxdata/chronograf/pull/1258): Display Kapacitor alert endpoint options as radio button group
 
 ## v1.2.0-beta8 [2017-04-07]
