@@ -36,6 +36,7 @@
   1. [#1212](https://github.com/influxdata/chronograf/pull/1212): Add meta query templates and loading animation to the RawQueryEditor
   1. [#1221](https://github.com/influxdata/chronograf/pull/1221): Remove the default query from empty cells on dashboards
   1. [#1101](https://github.com/influxdata/chronograf/pull/1101): Compress InfluxQL responses with gzip
+  1. [#1232](https://github.com/influxdata/chronograf/pull/1232): Fuse the query builder and raw query editor
 
 ### UI Improvements
   1. [#1132](https://github.com/influxdata/chronograf/pull/1132): Show blue strip next to active tab on the sidebar
