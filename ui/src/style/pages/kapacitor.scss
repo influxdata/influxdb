@@ -511,6 +511,7 @@ div.qeditor.kapacitor-metric-selector {
 }
 
 .kapacitor-values-tabs,
+.kapacitor-alert-message,
 .value-selector {
   background-color: $kapacitor-graphic-color;
   padding: ($kap-padding-sm - 2px) $kap-padding-lg;
@@ -556,11 +557,14 @@ div.qeditor.kapacitor-metric-selector {
   }
 }
 
-.kapacitor-values-tabs {
+.kapacitor-values-tabs,
+.kapacitor-alert-message, {
   border-radius: $kap-radius-lg $kap-radius-lg 0 0;
   border-bottom: 2px solid $kapacitor-divider-color;
 
   .tab-group {
+    padding: 0;
+
     > .btn.tab {
       padding: 0 $kap-padding-md;
       height: $kap-input-height;
@@ -627,8 +631,8 @@ div.qeditor.kapacitor-metric-selector {
       color: $c-honeydew !important;
     }
   }
-  
-  
+
+
   .size-486 {
     width: 486px;
   }

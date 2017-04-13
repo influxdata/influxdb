@@ -1,7 +1,7 @@
 import React, {PropTypes} from 'react'
+import classnames from 'classnames'
 import ReactTooltip from 'react-tooltip'
 
-import Dropdown from 'shared/components/Dropdown'
 import RuleMessageAlertConfig from 'src/kapacitor/components/RuleMessageAlertConfig'
 
 import {
@@ -55,17 +55,25 @@ export const RuleMessage = React.createClass({
       return {text, ruleID: rule.id}
     }).concat(defaultAlertEndpoints)
 
-    const selectedAlert = rule.alerts[0]
+    const selectedAlert = rule.alerts[0] || alerts[0].text
 
     return (
       <div className="kapacitor-rule-section">
         <h3 className="rule-section-heading">Alert Message</h3>
         <div className="rule-section-body">
-          <div className="rule-section--item alert-message--endpoint">
-            <div>
-              <p>Send this Alert to:</p>
-              <Dropdown className="dropdown-kapacitor size-136" selected={selectedAlert || 'Choose an output'} items={alerts} onChoose={this.handleChooseAlert} />
-            </div>
+          <div className="kapacitor-values-tabs">
+            <p>Send this Alert to:</p>
+            <ul className="btn-group btn-group-lg tab-group">
+              {alerts.map(alert =>
+                <li
+                  key={alert.text}
+                  className={classnames('btn tab', {active: alert.text === selectedAlert})}
+                  onClick={() => this.handleChooseAlert(alert)}
+                >
+                  {alert.text}
+                </li>
+              )}
+            </ul>
           </div>
           <RuleMessageAlertConfig
             updateAlertNodes={actions.updateAlertNodes}
