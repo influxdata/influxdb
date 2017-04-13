@@ -29,8 +29,7 @@ const SideNav = React.createClass({
 
     const sourcePrefix = `/sources/${sourceID}`
     const dataExplorerLink = `${sourcePrefix}/chronograf/data-explorer`
-
-    const loggedIn = !!(me && me.name)
+    const showLogout = !!(me && me.name)
 
     return isHidden ?
       null : (
@@ -61,7 +60,7 @@ const SideNav = React.createClass({
           <NavListItem link={`${sourcePrefix}/kapacitor-config`}>Kapacitor</NavListItem>
         </NavBlock>
         {
-          loggedIn ? (
+          showLogout ? (
           <NavBlock icon="user-outline" className="sidebar__square-last">
             <a className="sidebar__menu-item" href="/oauth/logout">Logout</a>
           </NavBlock>
