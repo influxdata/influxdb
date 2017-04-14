@@ -40,6 +40,26 @@ $dash-graph-options-arrow: 8px;
   transition-property: left, top, border-color, background-color;
 }
 
+.template-variable-manager {
+  width: 80%;
+  margin: auto;
+
+  .template-variable-manager--header {
+    height: 60px;
+    background: $g0-obsidian;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 20px;
+    font-size: 18px;
+  }
+
+  .template-variable-manager--body {
+    min-height: 150px;
+    @include gradient-v($g2-kevlar,$g0-obsidian);
+  }
+}
+
 .dashboard {
   .tv-control-bar {
     height: 50px;

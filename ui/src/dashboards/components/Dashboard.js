@@ -4,18 +4,19 @@ import classnames from 'classnames'
 import LayoutRenderer from 'shared/components/LayoutRenderer'
 
 const Dashboard = ({
+  source,
+  timeRange,
   dashboard,
-  inPresentationMode,
   onAddCell,
-  onPositionChange,
   onEditCell,
+  autoRefresh,
   onRenameCell,
   onUpdateCell,
   onDeleteCell,
+  onPositionChange,
+  inPresentationMode,
+  onOpenTemplateManager,
   onSummonOverlayTechnologies,
-  source,
-  autoRefresh,
-  timeRange,
 }) => {
   if (dashboard.id === 0) {
     return null
@@ -40,7 +41,7 @@ const Dashboard = ({
     <div className={classnames('dashboard container-fluid full-width page-contents', {'presentation-mode': inPresentationMode})}>
       <div className="tv-control-bar">
         Template Variables
-        <button className="btn btn-primary btn-sm">Manage</button>
+        <button className="btn btn-primary btn-sm" onClick={onOpenTemplateManager}>Manage</button>
       </div>
       {cells.length ?
         <LayoutRenderer
@@ -94,6 +95,7 @@ Dashboard.propTypes = {
   }).isRequired,
   autoRefresh: number.isRequired,
   timeRange: shape({}).isRequired,
+  onOpenTemplateManager: func.isRequired,
 }
 
 export default Dashboard

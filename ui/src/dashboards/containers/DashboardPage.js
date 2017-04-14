@@ -77,6 +77,7 @@ const DashboardPage = React.createClass({
     return {
       selectedCell: null,
       isEditMode: false,
+      isTemplating: false,
     }
   },
 
@@ -87,6 +88,14 @@ const DashboardPage = React.createClass({
     } = this.props
 
     getDashboardsAsync(dashboardID)
+  },
+
+  handleOpenTemplateManager() {
+    this.setState({isTemplating: true})
+  },
+
+  handleCloseTemplateManager() {
+    this.setState({isTemplating: false})
   },
 
   handleDismissOverlay() {
@@ -179,10 +188,30 @@ const DashboardPage = React.createClass({
     const {
       selectedCell,
       isEditMode,
+      isTemplating,
     } = this.state
 
     return (
       <div className="page">
+        {
+          isTemplating ?
+            <div className="overlay-technology">
+              <div className="template-variable-manager">
+                <div className="template-variable-manager--header">
+                  <div className="page-header__left">
+                    Template Variables
+                  </div>
+                  <div className="page-header__right">
+                    <button className="btn btn-primary btn-sm">New Variable</button>
+                    <button className="btn btn-success btn-sm">Save Changes</button>
+                    <span className="icon remove" onClick={this.handleCloseTemplateManager}></span>
+                  </div>
+                </div>
+                <div className="template-variable-manager--body"></div>
+              </div>
+            </div> :
+            null
+        }
         {
           selectedCell ?
             <CellEditorOverlay
@@ -236,17 +265,18 @@ const DashboardPage = React.createClass({
         {
           dashboard ?
           <Dashboard
-            dashboard={dashboard}
-            inPresentationMode={inPresentationMode}
             source={source}
-            autoRefresh={autoRefresh}
+            dashboard={dashboard}
             timeRange={timeRange}
+            autoRefresh={autoRefresh}
             onAddCell={this.handleAddCell}
-            onPositionChange={this.handleUpdatePosition}
+            inPresentationMode={inPresentationMode}
             onEditCell={this.handleEditDashboardCell}
+            onPositionChange={this.handleUpdatePosition}
+            onDeleteCell={this.handleDeleteDashboardCell}
             onRenameCell={this.handleRenameDashboardCell}
             onUpdateCell={this.handleUpdateDashboardCell}
-            onDeleteCell={this.handleDeleteDashboardCell}
+            onOpenTemplateManager={this.handleOpenTemplateManager}
             onSummonOverlayTechnologies={this.handleSummonOverlayTechnologies}
           /> :
           null
