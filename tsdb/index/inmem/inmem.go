@@ -136,12 +136,12 @@ func (i *Index) CreateSeriesIfNotExists(shardID uint64, key, name []byte, tags m
 	i.mu.RLock()
 	// if there is a series for this id, it's already been added
 	ss := i.series[string(key)]
+	i.mu.RUnlock()
+
 	if ss != nil {
 		ss.AssignShard(shardID)
-		i.mu.RUnlock()
 		return nil
 	}
-	i.mu.RUnlock()
 
 	// get or create the measurement index
 	m := i.CreateMeasurementIndexIfNotExists(string(name))
@@ -150,8 +150,8 @@ func (i *Index) CreateSeriesIfNotExists(shardID uint64, key, name []byte, tags m
 	// Check for the series again under a write lock
 	ss = i.series[string(key)]
 	if ss != nil {
-		ss.AssignShard(shardID)
 		i.mu.Unlock()
+		ss.AssignShard(shardID)
 		return nil
 	}
 
@@ -228,9 +228,9 @@ func (i *Index) HasTagKey(name, key []byte) (bool, error) {
 // HasTagValue returns true if tag value exists.
 func (i *Index) HasTagValue(name, key, value []byte) bool {
 	i.mu.RLock()
-	defer i.mu.RUnlock()
-
 	mm := i.measurements[string(name)]
+	i.mu.RUnlock()
+
 	if mm == nil {
 		return false
 	}
