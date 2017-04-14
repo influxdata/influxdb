@@ -80,7 +80,7 @@ const Visualization = React.createClass({
       editQueryStatus,
       activeQueryIndex,
     } = this.props
-    const {source: {links: proxy}} = this.context
+    const {source: {links: {proxy}}} = this.context
     const {view} = this.state
 
     const statements = queryConfigs.map((query) => {
