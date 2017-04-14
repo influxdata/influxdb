@@ -3,10 +3,12 @@ import {Link} from 'react-router'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
+import OverlayTechnologies from 'src/shared/components/OverlayTechnologies'
 import CellEditorOverlay from 'src/dashboards/components/CellEditorOverlay'
 import DashboardHeader from 'src/dashboards/components/DashboardHeader'
 import DashboardHeaderEdit from 'src/dashboards/components/DashboardHeaderEdit'
 import Dashboard from 'src/dashboards/components/Dashboard'
+import TemplateVariableManager from 'src/dashboards/components/TemplateVariableManager'
 
 import * as dashboardActionCreators from 'src/dashboards/actions'
 
@@ -154,21 +156,12 @@ class DashboardPage extends Component {
       <div className="page">
         {
           isTemplating ?
-            <div className="overlay-technology">
-              <div className="template-variable-manager">
-                <div className="template-variable-manager--header">
-                  <div className="page-header__left">
-                    Template Variables
-                  </div>
-                  <div className="page-header__right">
-                    <button className="btn btn-primary btn-sm">New Variable</button>
-                    <button className="btn btn-success btn-sm">Save Changes</button>
-                    <span className="icon remove" onClick={this.handleCloseTemplateManager}></span>
-                  </div>
-                </div>
-                <div className="template-variable-manager--body"></div>
-              </div>
-            </div> :
+            <OverlayTechnologies>
+              <TemplateVariableManager
+                onClose={this.handleCloseTemplateManager}
+                handleClickOutside={this.handleCloseTemplateManager}
+              />
+            </OverlayTechnologies> :
             null
         }
         {
