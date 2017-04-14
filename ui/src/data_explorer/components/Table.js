@@ -1,13 +1,10 @@
 import React, {PropTypes} from 'react'
-import {connect} from 'react-redux'
-import {bindActionCreators} from 'redux'
 
 import Dimensions from 'react-dimensions'
 import _ from 'lodash'
 import moment from 'moment'
 
 import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
-import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 
 import {Table, Column, Cell} from 'fixed-data-table'
 
@@ -55,7 +52,6 @@ const ChronoTable = React.createClass({
     }).isRequired,
     containerWidth: number.isRequired,
     height: number,
-    errorThrown: func.isRequired,
     editQueryStatus: func.isRequired,
   },
 
@@ -90,8 +86,6 @@ const ChronoTable = React.createClass({
       return
     }
 
-    const {errorThrown} = this.props
-
     this.setState({isLoading: true})
     // second param is db, we want to leave this blank
     try {
@@ -110,7 +104,6 @@ const ChronoTable = React.createClass({
 
       this.setState({cellData})
     } catch (error) {
-      errorThrown(error)
       this.setState({
         isLoading: false,
         cellData: emptyCells,
@@ -182,8 +175,4 @@ const ChronoTable = React.createClass({
   },
 })
 
-const mapDispatchToProps = (dispatch) => ({
-  errorThrown: bindActionCreators(errorThrownAction, dispatch),
-})
-
-export default connect(null, mapDispatchToProps)(Dimensions({elementResize: true})(ChronoTable))
+export default Dimensions({elementResize: true})(ChronoTable)

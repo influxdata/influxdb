@@ -2,6 +2,8 @@ import {proxy} from 'utils/queryUrlGenerator'
 import {noop} from 'shared/actions/app'
 import _ from 'lodash'
 
+import {errorThrown} from 'shared/actions/errors'
+
 export const handleLoading = (query, editQueryStatus) => {
   editQueryStatus(query.id, {loading: true})
 }
@@ -41,6 +43,7 @@ export const fetchTimeSeriesAsync = async ({source, db, rp, query}, editQuerySta
     const {data} = await proxy({source, db, rp, query: query.text})
     return handleSuccess(data, query, editQueryStatus)
   } catch (error) {
+    errorThrown(error) // use errorsMiddleware to catch 403s first, otherwise query --> config --> error.status will be error obj
     handleError(error, query, editQueryStatus)
     throw error
   }
