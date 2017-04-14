@@ -30,14 +30,6 @@ class MultiSelectDropdown extends Component {
     this.onApplyFunctions = ::this.onApplyFunctions
   }
 
-  componentWillReceiveProps(nextProps) {
-    if (!_.isEqual(this.state.localSelectedItems, nextProps.selectedItems)) {
-      this.setState({
-        localSelectedItems: nextProps.selectedItems,
-      })
-    }
-  }
-
   handleClickOutside() {
     this.setState({isOpen: false})
   }
