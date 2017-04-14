@@ -7,6 +7,7 @@ import {getSources} from 'shared/apis'
 import {loadSources as loadSourcesAction} from 'shared/actions/sources'
 import {showDatabases} from 'shared/apis/metaQuery'
 import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
+import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 
 // Acts as a 'router middleware'. The main `App` component is responsible for
 // getting the list of data nodes, but not every page requires them to function.
@@ -25,6 +26,7 @@ const CheckSources = React.createClass({
     }).isRequired,
     sources: PropTypes.array.isRequired,
     notify: PropTypes.func.isRequired,
+    errorThrown: PropTypes.func.isRequired,
     loadSources: PropTypes.func.isRequired,
   },
 
@@ -35,20 +37,21 @@ const CheckSources = React.createClass({
   },
 
   async componentWillMount() {
-    const {loadSources, notify} = this.props
+    const {loadSources, notify, errorThrown} = this.props
 
     try {
       const {data: {sources}} = await getSources()
       loadSources(sources)
       this.setState({isFetching: false})
     } catch (error) {
+      errorThrown(error)
       notify('error', 'Unable to connect to Chronograf server')
       this.setState({isFetching: false})
     }
   },
 
-  componentWillUpdate(nextProps, nextState) {
-    const {router, location, params, notify, sources} = nextProps
+  async componentWillUpdate(nextProps, nextState) {
+    const {router, location, params, notify, errorThrown, sources} = nextProps
     const {isFetching} = nextState
     const source = sources.find((s) => s.id === params.sourceID)
     const defaultSource = sources.find((s) => s.default === true)
@@ -68,9 +71,12 @@ const CheckSources = React.createClass({
 
     if (!isFetching && !location.pathname.includes("/manage-sources")) {
       // Do simple query to proxy to see if the source is up.
-      showDatabases(source.links.proxy).catch(() => {
+      try {
+        await showDatabases(source.links.proxy)
+      } catch (error) {
+        errorThrown(error)
         notify('error', 'Unable to connect to source')
-      })
+      }
     }
   },
 
@@ -96,6 +102,7 @@ const mapStateToProps = ({sources}) => ({
 const mapDispatchToProps = (dispatch) => ({
   loadSources: bindActionCreators(loadSourcesAction, dispatch),
   notify: bindActionCreators(publishNotificationAction, dispatch),
+  errorThrown: bindActionCreators(errorThrownAction, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(withRouter(CheckSources))

@@ -18,15 +18,17 @@ import {CreateSource, SourcePage, ManageSources} from 'src/sources'
 import {AdminPage} from 'src/admin'
 import NotFound from 'src/shared/components/NotFound'
 import configureStore from 'src/store/configureStore'
-import {getMe} from 'shared/apis'
-import {authRequested, authReceived, meRequested, meReceived} from 'shared/actions/auth'
-import {disablePresentationMode} from 'shared/actions/app'
-import {publishNotification as notify} from 'shared/actions/notifications'
 import {loadLocalStorage} from './localStorage'
+
+import {getMe} from 'shared/apis'
+
+import {disablePresentationMode} from 'shared/actions/app'
+import {authRequested, authReceived, meRequested, meReceived} from 'shared/actions/auth'
+import {errorThrown} from 'shared/actions/errors'
 
 import 'src/style/chronograf.scss'
 
-import {HTTP_FORBIDDEN, HEARTBEAT_INTERVAL} from 'shared/constants'
+import {HEARTBEAT_INTERVAL} from 'shared/constants'
 
 const rootNode = document.getElementById('react-root')
 
@@ -69,7 +71,7 @@ const Root = React.createClass({
     try {
       await this.startHeartbeat({shouldDispatchResponse: true})
     } catch (error) {
-      console.error(error)
+      dispatch(errorThrown(error))
     }
   },
 
@@ -83,20 +85,7 @@ const Root = React.createClass({
 
       setTimeout(this.startHeartbeat.bind(null, {shouldDispatchResponse: false}), HEARTBEAT_INTERVAL)
     } catch (error) {
-      if (error.status === HTTP_FORBIDDEN) {
-        const {auth: {me}} = store.getState()
-        if (me === null) {
-          dispatch(notify('error', 'Please login to use Chronograf.'))
-        } else {
-          dispatch(notify('error', 'Session timed out. Please login again.'))
-        }
-      } else {
-        dispatch(notify('error', 'Cannot communicate with server.'))
-      }
-      if (error.auth) {
-        dispatch(authReceived(error.auth))
-        dispatch(meReceived(null))
-      }
+      dispatch(errorThrown(error))
     }
   },
 

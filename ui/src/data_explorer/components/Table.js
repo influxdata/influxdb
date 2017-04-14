@@ -1,9 +1,16 @@
 import React, {PropTypes} from 'react'
-import {Table, Column, Cell} from 'fixed-data-table'
+import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux'
+
 import Dimensions from 'react-dimensions'
-import fetchTimeSeries from 'shared/apis/timeSeries'
 import _ from 'lodash'
 import moment from 'moment'
+
+import fetchTimeSeries from 'shared/apis/timeSeries'
+
+import {errorThrown as errorThrownAction} from 'shared/actions/errors'
+
+import {Table, Column, Cell} from 'fixed-data-table'
 
 const {
   arrayOf,
@@ -49,6 +56,7 @@ const ChronoTable = React.createClass({
     containerWidth: number.isRequired,
     height: number,
     onEditRawStatus: func,
+    errorThrown: func.isRequired,
   },
 
   getInitialState() {
@@ -82,7 +90,7 @@ const ChronoTable = React.createClass({
       return
     }
 
-    const {onEditRawStatus} = this.props
+    const {onEditRawStatus, errorThrown} = this.props
 
     onEditRawStatus(query.id, {loading: true})
     this.setState({isLoading: true})
@@ -115,6 +123,7 @@ const ChronoTable = React.createClass({
       onEditRawStatus(query.id, {success: 'Success!'})
       this.setState({cellData})
     } catch (error) {
+      errorThrown(error)
       // 400 from chrono server = fail
       const message = _.get(error, ['data', 'message'], error)
       this.setState({isLoading: false})
@@ -186,4 +195,8 @@ const ChronoTable = React.createClass({
   },
 })
 
-export default Dimensions({elementResize: true})(ChronoTable)
+const mapDispatchToProps = (dispatch) => ({
+  errorThrown: bindActionCreators(errorThrownAction, dispatch),
+})
+
+export default connect(null, mapDispatchToProps)(Dimensions({elementResize: true})(ChronoTable))

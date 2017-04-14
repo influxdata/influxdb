@@ -22,6 +22,7 @@ import {
 
 import {publishNotification} from 'shared/actions/notifications'
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
+import {errorThrown} from 'shared/actions/errors'
 
 import {REVERT_STATE_DELAY} from 'shared/constants'
 
@@ -221,23 +222,39 @@ export const editRetentionPolicy = (database, retentionPolicy, updates) => ({
 
 // async actions
 export const loadUsersAsync = (url) => async (dispatch) => {
-  const {data} = await getUsersAJAX(url)
-  dispatch(loadUsers(data))
+  try {
+    const {data} = await getUsersAJAX(url)
+    dispatch(loadUsers(data))
+  } catch (error) {
+    dispatch(errorThrown(error))
+  }
 }
 
 export const loadRolesAsync = (url) => async (dispatch) => {
-  const {data} = await getRolesAJAX(url)
-  dispatch(loadRoles(data))
+  try {
+    const {data} = await getRolesAJAX(url)
+    dispatch(loadRoles(data))
+  } catch (error) {
+    dispatch(errorThrown(error))
+  }
 }
 
 export const loadPermissionsAsync = (url) => async (dispatch) => {
-  const {data} = await getPermissionsAJAX(url)
-  dispatch(loadPermissions(data))
+  try {
+    const {data} = await getPermissionsAJAX(url)
+    dispatch(loadPermissions(data))
+  } catch (error) {
+    dispatch(errorThrown(error))
+  }
 }
 
 export const loadDBsAndRPsAsync = (url) => async (dispatch) => {
-  const {data: {databases}} = await getDbsAndRpsAJAX(url)
-  dispatch(loadDatabases(databases))
+  try {
+    const {data: {databases}} = await getDbsAndRpsAJAX(url)
+    dispatch(loadDatabases(databases))
+  } catch (error) {
+    dispatch(errorThrown(error))
+  }
 }
 
 export const createUserAsync = (url, user) => async (dispatch) => {
@@ -246,6 +263,7 @@ export const createUserAsync = (url, user) => async (dispatch) => {
     dispatch(publishAutoDismissingNotification('success', 'User created successfully'))
     dispatch(syncUser(user, data))
   } catch (error) {
+    dispatch(errorThrown(error))
     // undo optimistic update
     dispatch(publishNotification('error', `Failed to create user: ${error.data.message}`))
     setTimeout(() => dispatch(deleteUser(user)), REVERT_STATE_DELAY)
@@ -258,6 +276,7 @@ export const createRoleAsync = (url, role) => async (dispatch) => {
     dispatch(publishAutoDismissingNotification('success', 'Role created successfully'))
     dispatch(syncRole(role, data))
   } catch (error) {
+    dispatch(errorThrown(error))
     // undo optimistic update
     dispatch(publishNotification('error', `Failed to create role: ${error.data.message}`))
     setTimeout(() => dispatch(deleteRole(role)), REVERT_STATE_DELAY)
@@ -270,6 +289,7 @@ export const createDatabaseAsync = (url, database) => async (dispatch) => {
     dispatch(syncDatabase(database, data))
     dispatch(publishAutoDismissingNotification('success', 'Database created successfully'))
   } catch (error) {
+    dispatch(errorThrown(error))
     // undo optimistic update
     dispatch(publishNotification('error', `Failed to create database: ${error.data.message}`))
     setTimeout(() => dispatch(removeDatabase(database)), REVERT_STATE_DELAY)
@@ -282,6 +302,7 @@ export const createRetentionPolicyAsync = (database, retentionPolicy) => async (
     dispatch(publishAutoDismissingNotification('success', 'Retention policy created successfully'))
     dispatch(syncRetentionPolicy(database, retentionPolicy, data))
   } catch (error) {
+    dispatch(errorThrown(error))
     // undo optimistic update
     dispatch(publishNotification('error', `Failed to create retention policy: ${error.data.message}`))
     setTimeout(() => dispatch(removeRetentionPolicy(database, retentionPolicy)), REVERT_STATE_DELAY)
@@ -295,17 +316,22 @@ export const updateRetentionPolicyAsync = (database, retentionPolicy, updates) =
     dispatch(publishAutoDismissingNotification('success', 'Retention policy updated successfully'))
     dispatch(syncRetentionPolicy(database, retentionPolicy, data))
   } catch (error) {
+    dispatch(errorThrown(error))
     dispatch(publishNotification('error', `Failed to update retention policy: ${error.data.message}`))
   }
 }
 
-export const killQueryAsync = (source, queryID) => (dispatch) => {
+export const killQueryAsync = (source, queryID) => async (dispatch) => {
   // optimistic update
   dispatch(killQuery(queryID))
   dispatch(setQueryToKill(null))
-
-  // kill query on server
-  killQueryProxy(source, queryID)
+  try {
+    // kill query on server
+    await killQueryProxy(source, queryID)
+  } catch (error) {
+    dispatch(errorThrown(error))
+    // TODO: handle failed killQuery
+  }
 }
 
 export const deleteRoleAsync = (role) => async (dispatch) => {
@@ -314,6 +340,7 @@ export const deleteRoleAsync = (role) => async (dispatch) => {
     await deleteRoleAJAX(role.links.self)
     dispatch(publishAutoDismissingNotification('success', 'Role deleted'))
   } catch (error) {
+    dispatch(errorThrown(error))
     dispatch(publishNotification('error', `Failed to delete role: ${error.data.message}`))
   }
 }
@@ -324,6 +351,7 @@ export const deleteUserAsync = (user) => async (dispatch) => {
     await deleteUserAJAX(user.links.self)
     dispatch(publishAutoDismissingNotification('success', 'User deleted'))
   } catch (error) {
+    dispatch(errorThrown(error))
     dispatch(publishNotification('error', `Failed to delete user: ${error.data.message}`))
   }
 }
@@ -334,6 +362,7 @@ export const deleteDatabaseAsync = (database) => async (dispatch) => {
     await deleteDatabaseAJAX(database.links.self)
     dispatch(publishAutoDismissingNotification('success', 'Database deleted'))
   } catch (error) {
+    dispatch(errorThrown(error))
     dispatch(publishNotification('error', `Failed to delete database: ${error.data.message}`))
   }
 }
@@ -344,6 +373,7 @@ export const deleteRetentionPolicyAsync = (database, retentionPolicy) => async (
     await deleteRetentionPolicyAJAX(retentionPolicy.links.self)
     dispatch(publishAutoDismissingNotification('success', `Retention policy ${retentionPolicy.name} deleted`))
   } catch (error) {
+    dispatch(errorThrown(error))
     dispatch(publishNotification('error', `Failed to delete retentionPolicy: ${error.data.message}`))
   }
 }
@@ -354,6 +384,7 @@ export const updateRoleUsersAsync = (role, users) => async (dispatch) => {
     dispatch(publishAutoDismissingNotification('success', 'Role users updated'))
     dispatch(syncRole(role, data))
   } catch (error) {
+    dispatch(errorThrown(error))
     dispatch(publishNotification('error', `Failed to update role: ${error.data.message}`))
   }
 }
@@ -364,6 +395,7 @@ export const updateRolePermissionsAsync = (role, permissions) => async (dispatch
     dispatch(publishAutoDismissingNotification('success', 'Role permissions updated'))
     dispatch(syncRole(role, data))
   } catch (error) {
+    dispatch(errorThrown(error))
     dispatch(publishNotification('error', `Failed to update role:  ${error.data.message}`))
   }
 }
@@ -374,6 +406,7 @@ export const updateUserPermissionsAsync = (user, permissions) => async (dispatch
     dispatch(publishAutoDismissingNotification('success', 'User permissions updated'))
     dispatch(syncUser(user, data))
   } catch (error) {
+    dispatch(errorThrown(error))
     dispatch(publishNotification('error', `Failed to update user:  ${error.data.message}`))
   }
 }
@@ -384,6 +417,7 @@ export const updateUserRolesAsync = (user, roles) => async (dispatch) => {
     dispatch(publishAutoDismissingNotification('success', 'User roles updated'))
     dispatch(syncUser(user, data))
   } catch (error) {
+    dispatch(errorThrown(error))
     dispatch(publishNotification('error', `Failed to update user:  ${error.data.message}`))
   }
 }
@@ -394,6 +428,7 @@ export const updateUserPasswordAsync = (user, password) => async (dispatch) => {
     dispatch(publishAutoDismissingNotification('success', 'User password updated'))
     dispatch(syncUser(user, data))
   } catch (error) {
+    dispatch(errorThrown(error))
     dispatch(publishNotification('error', `Failed to update user:  ${error.data.message}`))
   }
 }
