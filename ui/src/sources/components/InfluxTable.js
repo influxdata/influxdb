@@ -13,7 +13,7 @@ const InfluxTable = ({
       <div className="panel panel-minimal">
         <div className="panel-heading u-flex u-ai-center u-jc-space-between">
           <h2 className="panel-title">InfluxDB Sources</h2>
-          <Link to={`/sources/${source.id}/manage-sources/new`} className="btn btn-sm btn-primary">Add New Source</Link>
+          <Link to={`/sources/${source.id}/manage-sources/new`} className="btn btn-sm btn-primary">Add Source</Link>
         </div>
         <div className="panel-body">
           <div className="table-responsive margin-bottom-zero">

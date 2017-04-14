@@ -1,6 +1,6 @@
 import React, {PropTypes} from 'react'
 import {withRouter} from 'react-router'
-import {getKapacitor} from 'shared/apis'
+import {getKapacitor, getKapacitors} from 'shared/apis'
 import {removeAndLoadSources} from 'src/shared/actions/sources'
 import {connect} from 'react-redux'
 
@@ -40,6 +40,12 @@ export const ManageSources = React.createClass({
   componentDidMount() {
     const updates = []
     const kapas = {}
+    // getKapacitors.then((kapacitors) => {
+    //   console.log(kapacitors)
+    // }).catch(() => {
+    //   console.log("wow you suck")
+    // })
+
     this.props.sources.forEach((source) => {
       const prom = getKapacitor(source).then((kapacitor) => {
         kapas[source.id] = kapacitor
