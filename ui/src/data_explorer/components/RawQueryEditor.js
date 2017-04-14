@@ -7,6 +7,7 @@ import {QUERY_TEMPLATES} from 'src/data_explorer/constants'
 const ENTER = 13
 const ESCAPE = 27
 const {
+  bool,
   func,
   shape,
   string,
@@ -18,7 +19,7 @@ const RawQueryEditor = React.createClass({
     config: shape({
       status: shape({
         error: string,
-        loading: string,
+        loading: bool,
         success: string,
         warn: string,
       }),
