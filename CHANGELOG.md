@@ -2,6 +2,7 @@
 
 ### Bugfixes
 
+- [#8190](https://github.com/influxdata/influxdb/issues/8190): History file should redact passwords before saving to history.
 - [#8187](https://github.com/influxdata/influxdb/pull/8187): Several statements were missing the DefaultDatabase method
 - [#8022](https://github.com/influxdata/influxdb/issues/8022): Segment violation in models.Tags.Get
 - [#8155](https://github.com/influxdata/influxdb/pull/8155): Simplify admin user check.
