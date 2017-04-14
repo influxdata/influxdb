@@ -1,6 +1,8 @@
 import React, {PropTypes} from 'react'
 import {Link} from 'react-router'
 
+import Dropdown from 'shared/components/Dropdown'
+
 const InfluxTable = ({
   sources,
   source,
@@ -34,7 +36,12 @@ const InfluxTable = ({
                       <tr key={s.id}>
                         <td>{s.name}{s.default ? <span className="default-source-label">Default</span> : null}</td>
                         <td className="monotype">{s.url}</td>
-                        <td>{kapacitorName ? kapacitorName : "--"}</td>
+                        <td>{
+                              kapacitorName ?
+                                <Dropdown items={[{text: kapacitorName}]} onChoose={() => {}} selected={kapacitorName} /> :
+                                --
+                            }
+                        </td>
                         <td className="text-right">
                           <Link className="btn btn-info btn-xs" to={`${location.pathname}/${s.id}/edit`}><span className="icon pencil"></span></Link>
                           <Link className="btn btn-success btn-xs" to={`/sources/${s.id}/hosts`}>Connect</Link>

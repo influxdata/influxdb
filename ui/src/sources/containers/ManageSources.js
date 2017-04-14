@@ -1,11 +1,10 @@
 import React, {PropTypes} from 'react'
 import {withRouter} from 'react-router'
-import {getKapacitor, getKapacitors} from 'shared/apis'
+import {getKapacitor} from 'shared/apis'
 import {removeAndLoadSources} from 'src/shared/actions/sources'
 import {connect} from 'react-redux'
 
 import InfluxTable from '../components/InfluxTable'
-import KapacitorTable from '../components/KapacitorTable'
 
 const {
   array,
@@ -40,11 +39,6 @@ export const ManageSources = React.createClass({
   componentDidMount() {
     const updates = []
     const kapas = {}
-    // getKapacitors.then((kapacitors) => {
-    //   console.log(kapacitors)
-    // }).catch(() => {
-    //   console.log("wow you suck")
-    // })
 
     this.props.sources.forEach((source) => {
       const prom = getKapacitor(source).then((kapacitor) => {
@@ -90,7 +84,6 @@ export const ManageSources = React.createClass({
               kapacitors={kapacitors}
               location={location}
             />
-            <KapacitorTable />
           </div>
         </div>
       </div>
