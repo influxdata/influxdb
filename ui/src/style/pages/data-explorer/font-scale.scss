@@ -23,12 +23,6 @@ $breakpoint-c: 2100px;
 
 @media only screen and (min-width: $breakpoint-b) {
   .data-explorer {
-    .query-builder--tabs {
-      width: 320px;
-    }
-    .query-builder--tab-label {
-      width: (320px - 8px - 16px - 16px);
-    }
     .qeditor--list-item,
     .query-builder--tab-label {
       font-size: 15px;
@@ -54,45 +48,20 @@ $breakpoint-c: 2100px;
         width: 10px;
       }
     }
-    .query-builder--tabs-heading {
-      height: 80px;
-    }
-    .query-builder--query-preview pre {
-      height: calc(80px - 4px);
-    }
-    .query-builder--columns {
-      top: 80px;
-      height: calc(100% - 80px);
-    }
     .raw-text--field,
     .query-builder--query-preview pre,
     .query-builder--query-preview pre code {
       font-size: 14px !important;
       line-height: 16px !important;
     }
-    .raw-text--field {
-      height: 48px;
-      padding: 12px 10px 0 10px;
-    }
-    .raw-text--status {
-      height: 28px;
-      padding: 0 10px;
-    }
-    .query-builder--query-preview pre {
-      padding: 10px;
-    }
   }
 }
 @media only screen and (min-width: $breakpoint-c) {
   .data-explorer {
-    .query-builder--tabs {
-      width: 372px;
-    }
     .qeditor--list-item {
       letter-spacing: 0.3px;
     }
     .query-builder--tab-label {
-      width: (373px - 8px - 16px - 16px);
       font-size: 16px;
     }
     .query-builder--tab {

@@ -27,6 +27,7 @@ func Test_newSourceResponse(t *testing.T) {
 				Links: sourceLinks{
 					Self:        "/chronograf/v1/sources/1",
 					Proxy:       "/chronograf/v1/sources/1/proxy",
+					Queries:     "/chronograf/v1/sources/1/queries",
 					Kapacitors:  "/chronograf/v1/sources/1/kapacitors",
 					Users:       "/chronograf/v1/sources/1/users",
 					Permissions: "/chronograf/v1/sources/1/permissions",
@@ -48,6 +49,7 @@ func Test_newSourceResponse(t *testing.T) {
 				Links: sourceLinks{
 					Self:        "/chronograf/v1/sources/1",
 					Proxy:       "/chronograf/v1/sources/1/proxy",
+					Queries:     "/chronograf/v1/sources/1/queries",
 					Kapacitors:  "/chronograf/v1/sources/1/kapacitors",
 					Users:       "/chronograf/v1/sources/1/users",
 					Permissions: "/chronograf/v1/sources/1/permissions",

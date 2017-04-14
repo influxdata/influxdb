@@ -20,3 +20,8 @@ export const setAutoRefresh = (milliseconds) => ({
     milliseconds,
   },
 })
+
+export const noop = () => ({
+  type: 'NOOP',
+  payload: {},
+})

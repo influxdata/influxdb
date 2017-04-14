@@ -2,6 +2,11 @@
     Page Header
     ----------------------------------------------
 */
+
+$page-header-size: 19px;
+$page-header-weight: 400 !important;
+
+
 .page-header {
   height: $chronograf-page-header-height;
   width: 100%;
@@ -21,13 +26,14 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-wrap: nowrap;
     width: 100%;
     max-width: ($page-wrapper-max-width - $page-wrapper-padding - $page-wrapper-padding);
   }
   h1 {
-    text-transform: uppercase;
-    font-size: 17px;
-    font-weight: 400;
+    text-transform: none;
+    font-size: $page-header-size;
+    font-weight: $page-header-weight;
     margin: 0;
     display: inline-block;
     vertical-align: middle;
@@ -35,6 +41,7 @@
   }
   &__left,
   &__right {
+    flex: 1 0 0;
     display: flex;
     align-items: center;
 
@@ -43,11 +50,13 @@
     }
   }
   &__left {
+    justify-content: flex-start;
     > * {
       margin: 0 4px 0 0;
     }
   }
   &__right {
+    justify-content: flex-end;
     > * {
       margin: 0 0 0 4px;
     }

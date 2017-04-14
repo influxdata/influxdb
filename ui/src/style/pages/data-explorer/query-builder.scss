@@ -1,5 +1,6 @@
 /* Variables */
 $query-builder-tabs-width: 210px;
+$query-builder--column-heading-height: 50px;
 
 
 .query-builder {
@@ -23,7 +24,7 @@ $query-builder-tabs-width: 210px;
   border-radius: $radius 0 0 $radius;
 }
 .query-builder--tabs-heading {
-  height: 60px;
+  height: 90px;
   padding: 0 9px 0 16px;
   display: flex;
   align-items: center;
@@ -144,8 +145,6 @@ $query-builder-tabs-width: 210px;
   Tab Contents
   -------------------------------------------
 */
-$query-builder--preview-height: 60px;
-$query-builder--column-heading-height: 50px;
 
 .query-builder--tab-contents {
   flex: 1 0 0;
@@ -168,14 +167,14 @@ $query-builder--column-heading-height: 50px;
   pre {
     display: flex;
     align-items: center;
-    padding: 7px;
+    padding: 10px;
     border: 2px solid $query-editor-tab-inactive;
     background-color: $query-editor-tab-inactive;
     color: $c-pool;
     border-radius: $radius;
     margin-bottom: 0;
     overflow: auto;
-    height: ($query-builder--preview-height - 4px);
+    height: 86px;
     @include custom-scrollbar($query-editor-tab-inactive, $c-pool);
 
     code {
@@ -186,8 +185,8 @@ $query-builder--column-heading-height: 50px;
 .query-builder--columns {
   position: absolute;
   width: 100%;
-  height: calc(100% - #{$query-builder--preview-height});
-  top: $query-builder--preview-height;
+  height: calc(100% - 90px);
+  top: 90px;
 }
 .query-builder--column-heading {
   @include no-user-select();

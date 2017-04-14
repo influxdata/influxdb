@@ -9,8 +9,9 @@ import {
   groupByTag,
   groupByTime,
   toggleTagAcceptance,
+  updateQueryConfig,
   updateRawQuery,
-  editRawQueryStatus,
+  editQueryStatus,
 } from 'src/data_explorer/actions/view'
 
 const fakeAddQueryAction = (panelID, queryID) => {
@@ -112,7 +113,6 @@ describe('Chronograf.Reducers.queryConfig', () => {
 
   describe('APPLY_FUNCS_TO_FIELD', () => {
     it('applies functions to a field without any existing functions', () => {
-      const queryId = 123
       const initialState = {
         [queryId]: {
           id: 123,
@@ -138,7 +138,6 @@ describe('Chronograf.Reducers.queryConfig', () => {
     })
 
     it('removes all functions and group by time when one field has no funcs applied', () => {
-      const queryId = 123
       const initialState = {
         [queryId]: {
           id: 123,
@@ -172,7 +171,6 @@ describe('Chronograf.Reducers.queryConfig', () => {
 
   describe('CHOOSE_TAG', () => {
     it('adds a tag key/value to the query', () => {
-      const queryId = 123
       const initialState = {
         [queryId]: buildInitialState(queryId, {
           tags: {
@@ -195,7 +193,6 @@ describe('Chronograf.Reducers.queryConfig', () => {
     })
 
     it('creates a new entry if it\'s the first key', () => {
-      const queryId = 123
       const initialState = {
         [queryId]: buildInitialState(queryId, {
           tags: {},
@@ -214,7 +211,6 @@ describe('Chronograf.Reducers.queryConfig', () => {
     })
 
     it('removes a value that is already in the list', () => {
-      const queryId = 123
       const initialState = {
         [queryId]: buildInitialState(queryId, {
           tags: {
@@ -236,7 +232,6 @@ describe('Chronograf.Reducers.queryConfig', () => {
 
   describe('GROUP_BY_TAG', () => {
     it('adds a tag key/value to the query', () => {
-      const queryId = 123
       const initialState = {
         [queryId]: {
           id: 123,
@@ -258,7 +253,6 @@ describe('Chronograf.Reducers.queryConfig', () => {
     })
 
     it('removes a tag if the given tag key is already in the GROUP BY list', () => {
-      const queryId = 123
       const initialState = {
         [queryId]: {
           id: 123,
@@ -282,7 +276,6 @@ describe('Chronograf.Reducers.queryConfig', () => {
 
   describe('TOGGLE_TAG_ACCEPTANCE', () => {
     it('it toggles areTagsAccepted', () => {
-      const queryId = 123
       const initialState = {
         [queryId]: buildInitialState(queryId),
       }
@@ -296,7 +289,6 @@ describe('Chronograf.Reducers.queryConfig', () => {
 
   describe('GROUP_BY_TIME', () => {
     it('applys the appropriate group by time', () => {
-      const queryId = 123
       const time = '100y'
       const initialState = {
         [queryId]: buildInitialState(queryId),
@@ -310,8 +302,19 @@ describe('Chronograf.Reducers.queryConfig', () => {
     })
   })
 
+  it('updates entire config', () => {
+    const initialState = {
+      [queryId]: buildInitialState(queryId),
+    }
+    const expected = defaultQueryConfig(queryId, {rawText: 'hello'})
+    const action = updateQueryConfig(expected)
+
+    const nextState = reducer(initialState, action)
+
+    expect(nextState[queryId]).to.deep.equal(expected)
+  })
+
   it('updates a query\'s raw text', () => {
-    const queryId = 123
     const initialState = {
       [queryId]: buildInitialState(queryId),
     }
@@ -324,16 +327,14 @@ describe('Chronograf.Reducers.queryConfig', () => {
   })
 
   it('updates a query\'s raw status', () => {
-    const queryId = 123
     const initialState = {
       [queryId]: buildInitialState(queryId),
     }
     const status = 'your query was sweet'
-    const action = editRawQueryStatus(queryId, status)
+    const action = editQueryStatus(queryId, status)
 
     const nextState = reducer(initialState, action)
 
-    expect(nextState[queryId].rawStatus).to.equal(status)
+    expect(nextState[queryId].status).to.equal(status)
   })
 })
-

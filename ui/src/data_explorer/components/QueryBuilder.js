@@ -2,7 +2,6 @@ import React, {PropTypes} from 'react'
 
 import QueryEditor from './QueryEditor'
 import QueryTabItem from './QueryTabItem'
-import SimpleDropdown from 'src/shared/components/SimpleDropdown'
 import buildInfluxQLQuery from 'utils/influxql'
 
 const {
@@ -14,11 +13,13 @@ const {
   string,
 } = PropTypes
 
-const BUILDER = 'Help me build a query'
-const EDITOR = 'Type my own query'
-
 const QueryBuilder = React.createClass({
   propTypes: {
+    source: shape({
+      links: shape({
+        queries: string.isRequired,
+      }).isRequired,
+    }).isRequired,
     queries: arrayOf(shape({})).isRequired,
     timeRange: shape({
       upper: string,
@@ -34,6 +35,7 @@ const QueryBuilder = React.createClass({
       groupByTime: func.isRequired,
       toggleTagAcceptance: func.isRequired,
       applyFuncsToField: func.isRequired,
+      editRawTextAsync: func.isRequired,
     }).isRequired,
     height: string,
     top: string,
@@ -74,7 +76,7 @@ const QueryBuilder = React.createClass({
   },
 
   renderQueryEditor() {
-    const {timeRange, actions} = this.props
+    const {timeRange, actions, source} = this.props
     const query = this.getActiveQuery()
 
     if (!query) {
@@ -89,6 +91,7 @@ const QueryBuilder = React.createClass({
 
     return (
       <QueryEditor
+        source={source}
         timeRange={timeRange}
         query={query}
         actions={actions}
@@ -99,11 +102,14 @@ const QueryBuilder = React.createClass({
 
   renderQueryTabList() {
     const {queries, activeQueryIndex, onDeleteQuery, timeRange, setActiveQueryIndex} = this.props
+
     return (
       <div className="query-builder--tabs">
         <div className="query-builder--tabs-heading">
           <h1>Queries</h1>
-          {this.renderAddQuery()}
+          <div className="panel--tab-new btn btn-sm btn-primary dropdown-toggle" onClick={this.handleAddQuery}>
+            <span className="icon plus"></span>
+          </div>
         </div>
         {queries.map((q, i) => {
           return (
@@ -120,26 +126,6 @@ const QueryBuilder = React.createClass({
         })}
         {this.props.children}
       </div>
-    )
-  },
-
-  onChoose(item) {
-    switch (item.text) {
-      case BUILDER:
-        this.handleAddQuery()
-        break
-      case EDITOR:
-        this.handleAddRawQuery()
-        break
-    }
-  },
-
-  renderAddQuery() {
-    const items = [{text: BUILDER}, {text: EDITOR}]
-    return (
-      <SimpleDropdown onChoose={this.onChoose} items={items} className="panel--tab-new">
-        <span className="icon plus"></span>
-      </SimpleDropdown>
     )
   },
 })

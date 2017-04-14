@@ -1,4 +1,19 @@
 /*
+  Variables
+  -------------------------------------
+*/
+
+$raw-text-color: $c-pool;
+$raw-text-height: 52px;
+$raw-status-height: 34px;
+/* ^ These 2 should total to 86px */
+$query-template-dropdown-width: 135px;
+$query-template-dropdown-height: 22px;
+$query-template-dropdown-offset: 6px;
+$query-template-dropdown-menu-width: 200px;
+
+
+/*
   Dropping the metaphorical CSS nuke here,
   was experiencing some weird typographic jank
   between builder / raw tabs
@@ -25,8 +40,6 @@
   text-shadow: none !important;
 }
 
-$raw-text-color: $c-pool;
-$raw-text-height: 42px;
 
 .raw-text--field {
   @include custom-scrollbar($g2-kevlar, $raw-text-color);
@@ -37,7 +50,7 @@ $raw-text-height: 42px;
   border: 2px solid $g2-kevlar;
   border-bottom: 0;
   color: $raw-text-color;
-  padding: 7px;
+  padding: 12px 10px 0 10px;
   border-radius: $radius $radius 0 0;
   margin: 0;
   transition:
@@ -71,13 +84,15 @@ $raw-text-height: 42px;
   }
 }
 .raw-text--status {
+  position: relative;
   width: 100%;
-  height: ($query-builder--preview-height - $raw-text-height);
-  line-height: 12px;
+  height: $raw-status-height;
+  line-height: $raw-status-height;
   font-size: 12px;
   background-color: $g2-kevlar;
   border: 2px solid $g2-kevlar;
-  padding: 0 7px;
+  padding: 0 10px;
+  padding-right: ($query-template-dropdown-width + ($query-template-dropdown-offset * 2)) !important;
   border-radius: 0 0 $radius $radius;
   border-top: 0;
   color: $g11-sidewalk;
@@ -108,13 +123,34 @@ $raw-text-height: 42px;
   &.raw-text--success {
     color: $c-rainforest;
   }
+
+  /* Loading State */
+  .loading-dots {
+    top: calc(50% + 2px);
+    left: 14px;
+    transform: translateY(-50%);
+  }
 }
 
 .dropdown.query-template {
   position: absolute;
-  top: 8px;
-  right: 7px;
-  .dropdown-toggle {
-    width: 135px;
+  top: ($raw-text-height + (($raw-status-height - $query-template-dropdown-height) / 2));
+  right: $query-template-dropdown-offset;
+
+  div.dropdown-toggle.btn.btn-sm {
+    width: $query-template-dropdown-width;
+    padding: 0 9px !important;
+    height: $query-template-dropdown-height !important;
+    line-height: $query-template-dropdown-height !important;
+    font-size: 12px;
+    border-radius: $radius-small;
+  }
+
+  .dropdown-menu {
+    left: initial;
+    right: 0;
+    width: $query-template-dropdown-menu-width;
+    min-width: $query-template-dropdown-menu-width;
+    max-width: $query-template-dropdown-menu-width;
   }
 }

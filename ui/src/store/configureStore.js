@@ -4,7 +4,6 @@ import {routerReducer, routerMiddleware} from 'react-router-redux'
 import thunkMiddleware from 'redux-thunk'
 
 import errorsMiddleware from 'shared/middleware/errors'
-import makeQueryExecuter from 'src/shared/middleware/queryExecuter'
 import resizeLayout from 'src/shared/middleware/resizeLayout'
 import adminReducer from 'src/admin/reducers/admin'
 import sharedReducers from 'src/shared/reducers'
@@ -28,7 +27,7 @@ export default function configureStore(initialState, browserHistory) {
   const routingMiddleware = routerMiddleware(browserHistory)
   const createPersistentStore = composeEnhancers(
     persistStateEnhancer(),
-    applyMiddleware(thunkMiddleware, routingMiddleware, errorsMiddleware, makeQueryExecuter(), resizeLayout),
+    applyMiddleware(thunkMiddleware, routingMiddleware, errorsMiddleware, resizeLayout),
   )(createStore)
 
 

@@ -1,3 +1,11 @@
+## v1.2.0 [unreleased]
+
+### Bug Fixes
+### Features
+### UI Improvements
+  1. [#1259](https://github.com/influxdata/chronograf/pull/1259): Add default display for empty dashboard
+  1. [#1258](https://github.com/influxdata/chronograf/pull/1258): Display Kapacitor alert endpoint options as radio button group
+
 ## v1.2.0-beta8 [2017-04-07]
 
 ### Bug Fixes
@@ -23,6 +31,7 @@
   1. [#1209](https://github.com/influxdata/chronograf/pull/1209): Ask for the HipChat subdomain instead of the entire HipChat URL in the HipChat Kapacitor configuration
   1. [#1223](https://github.com/influxdata/chronograf/pull/1223): Use vhost as Chronograf's proxy to Kapacitor
   1. [#1205](https://github.com/influxdata/chronograf/pull/1205): Allow initial source to be an InfluxEnterprise source
+  1. [#1244](https://github.com/influxdata/chronograf/pull/1244): Fix env var name for Google client secret
 
 ### Features
   1. [#1112](https://github.com/influxdata/chronograf/pull/1112): Add ability to delete a dashboard
@@ -36,6 +45,7 @@
   1. [#1212](https://github.com/influxdata/chronograf/pull/1212): Add meta query templates and loading animation to the RawQueryEditor
   1. [#1221](https://github.com/influxdata/chronograf/pull/1221): Remove the default query from empty cells on dashboards
   1. [#1101](https://github.com/influxdata/chronograf/pull/1101): Compress InfluxQL responses with gzip
+  1. [#1232](https://github.com/influxdata/chronograf/pull/1232): Fuse the query builder and raw query editor
 
 ### UI Improvements
   1. [#1132](https://github.com/influxdata/chronograf/pull/1132): Show blue strip next to active tab on the sidebar

@@ -6,8 +6,7 @@ import Dimensions from 'react-dimensions'
 import _ from 'lodash'
 import moment from 'moment'
 
-import fetchTimeSeries from 'shared/apis/timeSeries'
-
+import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 
 import {Table, Column, Cell} from 'fixed-data-table'
@@ -30,7 +29,7 @@ const defaultTableHeight = 1000
 
 const CustomCell = React.createClass({
   propTypes: {
-    data: oneOfType([number, string]).isRequired,
+    data: oneOfType([number, string]),
     columnName: string.isRequired,
   },
 
@@ -52,11 +51,12 @@ const ChronoTable = React.createClass({
     query: shape({
       host: arrayOf(string.isRequired).isRequired,
       text: string.isRequired,
+      id: string.isRequired,
     }).isRequired,
     containerWidth: number.isRequired,
     height: number,
-    onEditRawStatus: func,
     errorThrown: func.isRequired,
+    editQueryStatus: func.isRequired,
   },
 
   getInitialState() {
@@ -90,45 +90,32 @@ const ChronoTable = React.createClass({
       return
     }
 
-    const {onEditRawStatus, errorThrown} = this.props
+    const {errorThrown} = this.props
 
-    onEditRawStatus(query.id, {loading: true})
     this.setState({isLoading: true})
     // second param is db, we want to leave this blank
     try {
-      const {data} = await fetchTimeSeries(query.host, undefined, query.text)
+      const {results} = await fetchTimeSeriesAsync({source: query.host, query})
       this.setState({isLoading: false})
-      onEditRawStatus(query.id, {loading: false})
 
-      const results = _.get(data, ['results', '0'], false)
       if (!results) {
-        return
+        return this.setState({cellData: emptyCells})
       }
 
-      // 200 from server and no results = warn
-      if (_.isEmpty(results)) {
-        this.setState({cellData: emptyCells})
-        return onEditRawStatus(query.id, {warn: 'Your query is syntactically correct but returned no results'})
+      const cellData = _.get(results, ['0', 'series', '0'], false)
+
+      if (!cellData) {
+        return this.setState({cellData: emptyCells})
       }
 
-      // 200 from chrono server but influx returns an error = warn
-      const warn = _.get(results, 'error', false)
-      if (warn) {
-        this.setState({cellData: emptyCells})
-        return onEditRawStatus(query.id, {warn})
-      }
-
-      // 200 from server and results contains data = success
-      const cellData = _.get(results, ['series', '0'], {})
-      onEditRawStatus(query.id, {success: 'Success!'})
       this.setState({cellData})
     } catch (error) {
       errorThrown(error)
-      // 400 from chrono server = fail
-      const message = _.get(error, ['data', 'message'], error)
-      this.setState({isLoading: false})
-      console.error(message)
-      onEditRawStatus(query.id, {error: message})
+      this.setState({
+        isLoading: false,
+        cellData: emptyCells,
+      })
+      throw error
     }
   },
 

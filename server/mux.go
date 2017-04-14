@@ -81,6 +81,9 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	influx := gziphandler.GzipHandler(http.HandlerFunc(service.Influx))
 	router.Handler("POST", "/chronograf/v1/sources/:id/proxy", influx)
 
+	// Queries is used to analyze a specific queries
+	router.POST("/chronograf/v1/sources/:id/queries", service.Queries)
+
 	// All possible permissions for users in this source
 	router.GET("/chronograf/v1/sources/:id/permissions", service.Permissions)
 
@@ -167,7 +170,6 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.DELETE("/chronograf/v1/sources/:id/dbs/:dbid/rps/:rpid", service.DropRetentionPolicy)
 
 	var authRoutes AuthRoutes
-
 	var out http.Handler
 	/* Authentication */
 	if opts.UseAuth {

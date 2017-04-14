@@ -6,10 +6,10 @@
     width: auto;
     border: 0;
     background-color: transparent;
-    text-transform: uppercase;
+    text-transform: none;
     padding-right: (11px + 12px); // caret width + offset
-    font-size: 17px;
-    font-weight: 400;
+    font-size: $page-header-size;
+    font-weight: $page-header-weight;
     transition: color 0.25s ease;
     @include no-user-select();
   }

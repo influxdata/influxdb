@@ -99,8 +99,9 @@ $kapacitor-font-sm: 13px;
 .rule-section-heading {
   margin: 0;
   padding: $kapacitor-page-padding 0 $kap-padding-md $kapacitor-page-gutter;
-  font-weight: 400;
-  color: $g13-mist;
+  font-size: $page-header-size;
+  font-weight: $page-header-weight;
+  color: $g12-forge;
   position: relative;
   @include no-user-select();
 
@@ -510,6 +511,7 @@ div.qeditor.kapacitor-metric-selector {
 }
 
 .kapacitor-values-tabs,
+.kapacitor-alert-message,
 .value-selector {
   background-color: $kapacitor-graphic-color;
   padding: ($kap-padding-sm - 2px) $kap-padding-lg;
@@ -555,11 +557,14 @@ div.qeditor.kapacitor-metric-selector {
   }
 }
 
-.kapacitor-values-tabs {
+.kapacitor-values-tabs,
+.kapacitor-alert-message, {
   border-radius: $kap-radius-lg $kap-radius-lg 0 0;
   border-bottom: 2px solid $kapacitor-divider-color;
 
   .tab-group {
+    padding: 0;
+
     > .btn.tab {
       padding: 0 $kap-padding-md;
       height: $kap-input-height;
@@ -626,8 +631,8 @@ div.qeditor.kapacitor-metric-selector {
       color: $c-honeydew !important;
     }
   }
-  
-  
+
+
   .size-486 {
     width: 486px;
   }
@@ -655,36 +660,4 @@ div.qeditor.kapacitor-metric-selector {
   .size-49 {
     width: 49px;
   }
-}
-
-.chronograf-header__editable {
-  transition: color 0.25s ease;
-
-  &:hover {
-    color: $g13-mist;
-    cursor: text !important;
-  }
-  .icon {
-    cursor: inherit;
-    margin-left: 5px;
-    position: relative;
-    top: -1.5px;
-  }
-}
-.chronograf-header__editing {
-  border: 0;
-  outline: none;
-  background-color: $g0-obsidian;
-  font-size: 20px;
-  font-weight: 400;
-  padding: 0;
-  width: 466px;
-
-  &:focus {
-    color: $kapacitor-accent;
-  }
-  &::-webkit-input-placeholder { color: $g9-mountain; }
-  &::-moz-placeholder { color: $g9-mountain; }
-  &:-ms-input-placeholder { color: $g9-mountain; }
-  &:-moz-placeholder { color: $g9-mountain; }
 }

@@ -7,7 +7,6 @@ import (
 
 	"github.com/bouk/httprouter"
 	"github.com/influxdata/chronograf"
-	"github.com/influxdata/chronograf/influx"
 	"github.com/influxdata/chronograf/uuid"
 )
 
@@ -291,21 +290,9 @@ func AddQueryConfigs(d *chronograf.Dashboard) {
 // query config's raw text is set to the command.
 func AddQueryConfig(c *chronograf.DashboardCell) {
 	for i, q := range c.Queries {
-		qc, err := influx.Convert(q.Command)
-		if err == nil {
-			q.QueryConfig = qc
-			c.Queries[i] = q
-		} else {
-			q.QueryConfig = chronograf.QueryConfig{
-				RawText: q.Command,
-				Fields:  []chronograf.Field{},
-				GroupBy: chronograf.GroupBy{
-					Tags: []string{},
-				},
-				Tags: make(map[string][]string, 0),
-			}
-			c.Queries[i] = q
-		}
+		qc := ToQueryConfig(q.Command)
+		q.QueryConfig = qc
+		c.Queries[i] = q
 	}
 }
 

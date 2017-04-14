@@ -104,6 +104,14 @@ export const deleteDashboardCell = (cell) => ({
   },
 })
 
+export const editCellQueryStatus = (queryID, status) => ({
+  type: 'EDIT_CELL_QUERY_STATUS',
+  payload: {
+    queryID,
+    status,
+  },
+})
+
 // Async Action Creators
 
 export const getDashboardsAsync = (dashboardID) => async (dispatch) => {

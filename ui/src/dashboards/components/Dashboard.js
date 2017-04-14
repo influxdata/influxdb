@@ -7,6 +7,7 @@ const Dashboard = ({
   dashboard,
   isEditMode,
   inPresentationMode,
+  onAddCell,
   onPositionChange,
   onEditCell,
   onRenameCell,
@@ -21,16 +22,6 @@ const Dashboard = ({
     return null
   }
 
-  return (
-    <div className={classnames({'page-contents': true, 'presentation-mode': inPresentationMode})}>
-      <div className={classnames('container-fluid full-width dashboard', {'dashboard-edit': isEditMode})}>
-        {Dashboard.renderDashboard(dashboard, autoRefresh, timeRange, source, onPositionChange, onEditCell, onRenameCell, onUpdateCell, onDeleteCell, onSummonOverlayTechnologies)}
-      </div>
-    </div>
-  )
-}
-
-Dashboard.renderDashboard = (dashboard, autoRefresh, timeRange, source, onPositionChange, onEditCell, onRenameCell, onUpdateCell, onDeleteCell, onSummonOverlayTechnologies) => {
   const cells = dashboard.cells.map((cell) => {
     const dashboardCell = {...cell}
     dashboardCell.queries = dashboardCell.queries.map(({label, query, queryConfig, db}) =>
@@ -47,18 +38,33 @@ Dashboard.renderDashboard = (dashboard, autoRefresh, timeRange, source, onPositi
   })
 
   return (
-    <LayoutRenderer
-      timeRange={timeRange}
-      cells={cells}
-      autoRefresh={autoRefresh}
-      source={source.links.proxy}
-      onPositionChange={onPositionChange}
-      onEditCell={onEditCell}
-      onRenameCell={onRenameCell}
-      onUpdateCell={onUpdateCell}
-      onDeleteCell={onDeleteCell}
-      onSummonOverlayTechnologies={onSummonOverlayTechnologies}
-    />
+    <div className={classnames({'page-contents': true, 'presentation-mode': inPresentationMode})}>
+      {cells.length ?
+        <div className={classnames('container-fluid full-width dashboard', {'dashboard-edit': isEditMode})}>
+          <LayoutRenderer
+            timeRange={timeRange}
+            cells={cells}
+            autoRefresh={autoRefresh}
+            source={source.links.proxy}
+            onPositionChange={onPositionChange}
+            onEditCell={onEditCell}
+            onRenameCell={onRenameCell}
+            onUpdateCell={onUpdateCell}
+            onDeleteCell={onDeleteCell}
+            onSummonOverlayTechnologies={onSummonOverlayTechnologies}
+          />
+        </div> :
+        <div className="dashboard__empty">
+          <p>This Dashboard has no Graphs</p>
+          <button
+            className="btn btn-primary btn-m"
+            onClick={onAddCell}
+          >
+            Add Graph
+          </button>
+        </div>
+      }
+    </div>
   )
 }
 
@@ -74,6 +80,7 @@ Dashboard.propTypes = {
   dashboard: shape({}).isRequired,
   isEditMode: bool,
   inPresentationMode: bool,
+  onAddCell: func,
   onPositionChange: func,
   onEditCell: func,
   onRenameCell: func,
