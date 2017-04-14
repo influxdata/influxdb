@@ -151,31 +151,3 @@
     transform: rotate(360deg);
   }
 }
-
-.multi-table__tabs {
-  display: flex;
-}
-.multi-table__tab {
-  white-space: nowrap;
-  color: $g10-wolf;
-  background: $g5-pepper;
-  height: 30px;
-  line-height: 30px;
-  margin-right: 2px;
-  border-radius: 4px 4px 0 0;
-  cursor: pointer;
-  padding: 0 10px;
-  transition:
-    color 0.25s ease,
-    background-color 0.25s ease;
-
-  &:hover {
-    color: $g20-white;
-    background-color: $g6-smoke;
-  }
-  &.active {
-    font-weight: 700;
-    background-color: $g6-smoke;
-    color: $g14-chromium;
-  }
-}
