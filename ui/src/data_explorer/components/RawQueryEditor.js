@@ -15,7 +15,14 @@ const RawQueryEditor = React.createClass({
   propTypes: {
     query: string.isRequired,
     onUpdate: func.isRequired,
-    config: shape().isRequired,
+    config: shape({
+      status: shape({
+        error: string,
+        loading: string,
+        success: string,
+        warn: string,
+      }),
+    }).isRequired,
   },
 
   getInitialState() {
