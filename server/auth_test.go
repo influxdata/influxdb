@@ -18,7 +18,7 @@ type MockAuthenticator struct {
 	Serialized  string
 }
 
-func (m *MockAuthenticator) Validate(context.Context, *http.Request) (oauth2.Principal, error) {
+func (m *MockAuthenticator) Validate(context.Context, http.ResponseWriter, *http.Request) (oauth2.Principal, error) {
 	return m.Principal, m.ValidateErr
 }
 func (m *MockAuthenticator) Authorize(ctx context.Context, w http.ResponseWriter, p oauth2.Principal) error {

@@ -10,6 +10,7 @@ import (
 )
 
 func TestAuthenticate(t *testing.T) {
+	history := time.Unix(-446774400, 0)
 	var tests = []struct {
 		Desc      string
 		Secret    string
@@ -33,7 +34,9 @@ func TestAuthenticate(t *testing.T) {
 			Token:    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIvY2hyb25vZ3JhZi92MS91c2Vycy8xIiwibmFtZSI6IkRvYyBCcm93biIsImlhdCI6LTQ0Njc3NDQwMCwiZXhwIjotNDQ2Nzc0Mzk5LCJuYmYiOi00NDY3NzQ0MDB9.Ga0zGXWTT2CBVnnIhIO5tUAuBEVk4bKPaT4t4MU1ngo",
 			Duration: time.Second,
 			Principal: oauth2.Principal{
-				Subject: "/chronograf/v1/users/1",
+				Subject:   "/chronograf/v1/users/1",
+				ExpiresAt: history.Add(time.Second),
+				IssuedAt:  history,
 			},
 		},
 		{
@@ -42,7 +45,9 @@ func TestAuthenticate(t *testing.T) {
 			Token:    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIvY2hyb25vZ3JhZi92MS91c2Vycy8xIiwibmFtZSI6IkRvYyBCcm93biIsImlhdCI6LTQ0Njc3NDQwMCwiZXhwIjotNDQ2Nzc0NDAxLCJuYmYiOi00NDY3NzQ0MDB9.vWXdm0-XQ_pW62yBpSISFFJN_yz0vqT9_INcUKTp5Q8",
 			Duration: time.Second,
 			Principal: oauth2.Principal{
-				Subject: "",
+				Subject:   "",
+				ExpiresAt: history.Add(time.Second),
+				IssuedAt:  history,
 			},
 			Err: errors.New("token is expired by 1s"),
 		},
@@ -52,7 +57,9 @@ func TestAuthenticate(t *testing.T) {
 			Token:    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIvY2hyb25vZ3JhZi92MS91c2Vycy8xIiwibmFtZSI6IkRvYyBCcm93biIsImlhdCI6LTQ0Njc3NDQwMCwiZXhwIjotNDQ2Nzc0NDAwLCJuYmYiOi00NDY3NzQzOTl9.TMGAhv57u1aosjc4ywKC7cElP1tKyQH7GmRF2ToAxlE",
 			Duration: time.Second,
 			Principal: oauth2.Principal{
-				Subject: "",
+				Subject:   "",
+				ExpiresAt: history.Add(time.Second),
+				IssuedAt:  history,
 			},
 			Err: errors.New("token is not valid yet"),
 		},
@@ -62,7 +69,9 @@ func TestAuthenticate(t *testing.T) {
 			Token:    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOi00NDY3NzQ0MDAsImV4cCI6LTQ0Njc3NDQwMCwibmJmIjotNDQ2Nzc0NDAwfQ.gxsA6_Ei3s0f2I1TAtrrb8FmGiO25OqVlktlF_ylhX4",
 			Duration: time.Second,
 			Principal: oauth2.Principal{
-				Subject: "",
+				Subject:   "",
+				ExpiresAt: history.Add(time.Second),
+				IssuedAt:  history,
 			},
 			Err: errors.New("claim has no subject"),
 		},
@@ -72,17 +81,11 @@ func TestAuthenticate(t *testing.T) {
 			Token:    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIvY2hyb25vZ3JhZi92MS91c2Vycy8xIiwibmFtZSI6IkRvYyBCcm93biIsImlhdCI6LTQ0Njc3NDQwMCwiZXhwIjotNDQ2Nzc0NDAwLCJuYmYiOi00NDY3NzQ0MDB9._rZ4gOIei9PizHOABH6kLcJTA3jm8ls0YnDxtz1qeUI",
 			Duration: 500 * time.Hour,
 			Principal: oauth2.Principal{
-				Subject: "/chronograf/v1/users/1",
+				Subject:   "/chronograf/v1/users/1",
+				ExpiresAt: history,
+				IssuedAt:  history,
 			},
 			Err: errors.New("claims duration is different from auth duration"),
-		},
-		{
-			Desc:   "Test valid EverlastingClaim",
-			Secret: "secret",
-			Token:  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIvY2hyb25vZ3JhZi92MS91c2Vycy8xIiwibmFtZSI6IkRvYyBCcm93biIsImlhdCI6LTQ0Njc3NDQwMCwiZXhwIjotNDQ2Nzc0Mzk5LCJuYmYiOi00NDY3NzQ0MDB9.Ga0zGXWTT2CBVnnIhIO5tUAuBEVk4bKPaT4t4MU1ngo",
-			Principal: oauth2.Principal{
-				Subject: "/chronograf/v1/users/1",
-			},
 		},
 	}
 	for _, test := range tests {
@@ -107,18 +110,20 @@ func TestAuthenticate(t *testing.T) {
 }
 
 func TestToken(t *testing.T) {
-	duration := time.Second
 	expected := oauth2.Token("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOi00NDY3NzQzOTksImlhdCI6LTQ0Njc3NDQwMCwibmJmIjotNDQ2Nzc0NDAwLCJzdWIiOiIvY2hyb25vZ3JhZi92MS91c2Vycy8xIn0.ofQM6yTmrmve5JeEE0RcK4_euLXuZ_rdh6bLAbtbC9M")
+	history := time.Unix(-446774400, 0)
 	j := oauth2.JWT{
 		Secret: "secret",
 		Now: func() time.Time {
-			return time.Unix(-446774400, 0)
+			return history
 		},
 	}
 	p := oauth2.Principal{
-		Subject: "/chronograf/v1/users/1",
+		Subject:   "/chronograf/v1/users/1",
+		ExpiresAt: history.Add(time.Second),
+		IssuedAt:  history,
 	}
-	if token, err := j.Create(context.Background(), p, duration); err != nil {
+	if token, err := j.Create(context.Background(), p); err != nil {
 		t.Errorf("Error creating token for principal: %v", err)
 	} else if token != expected {
 		t.Errorf("Error creating token; expected: %s  actual: %s", expected, token)

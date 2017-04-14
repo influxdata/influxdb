@@ -22,8 +22,12 @@ func (m *MockTokenizer) ValidPrincipal(ctx context.Context, token Token, duratio
 	return m.Principal, m.ValidErr
 }
 
-func (m *MockTokenizer) Create(ctx context.Context, p Principal, t time.Duration) (Token, error) {
+func (m *MockTokenizer) Create(ctx context.Context, p Principal) (Token, error) {
 	return m.Token, m.CreateErr
+}
+
+func (m *MockTokenizer) ExtendPrincipal(ctx context.Context, principal Principal, extension time.Duration) (Principal, error) {
+	return principal, nil
 }
 
 func TestCookieAuthorize(t *testing.T) {
@@ -48,7 +52,7 @@ func TestCookieAuthorize(t *testing.T) {
 	}
 	for _, test := range test {
 		cook := cookie{
-			Duration: 1 * time.Second,
+			Lifespan: 1 * time.Second,
 			Now: func() time.Time {
 				return time.Unix(0, 0)
 			},
@@ -121,8 +125,9 @@ func TestCookieValidate(t *testing.T) {
 		})
 
 		cook := cookie{
-			Name:     test.Lookup,
-			Duration: 1 * time.Second,
+			Name:       test.Lookup,
+			Lifespan:   1 * time.Second,
+			Inactivity: DefaultInactivityDuration,
 			Now: func() time.Time {
 				return time.Unix(0, 0)
 			},
@@ -133,7 +138,8 @@ func TestCookieValidate(t *testing.T) {
 				ValidErr: test.ValidErr,
 			},
 		}
-		principal, err := cook.Validate(context.Background(), req)
+		w := httptest.NewRecorder()
+		principal, err := cook.Validate(context.Background(), w, req)
 		if err != test.Err {
 			t.Errorf("Cookie extract error; expected %v  actual %v", test.Err, err)
 		}

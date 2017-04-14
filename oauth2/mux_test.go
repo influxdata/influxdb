@@ -30,10 +30,11 @@ func setupMuxTest(selector func(*AuthMux) http.Handler) (*http.Client, *httptest
 	mp := &MockProvider{"biff@example.com", provider.URL}
 	mt := &YesManTokenizer{}
 	auth := &cookie{
-		Name:     DefaultCookieName,
-		Duration: 1 * time.Hour,
-		Now:      now,
-		Tokens:   mt,
+		Name:       DefaultCookieName,
+		Lifespan:   1 * time.Hour,
+		Inactivity: DefaultInactivityDuration,
+		Now:        now,
+		Tokens:     mt,
 	}
 
 	jm := NewAuthMux(mp, auth, mt, clog.New(clog.ParseLevel("debug")))
