@@ -2,7 +2,6 @@
     Page Header
     ----------------------------------------------
 */
-
 $page-header-size: 19px;
 $page-header-weight: 400 !important;
 
@@ -66,7 +65,7 @@ $page-header-weight: 400 !important;
   }
   &.full-width-no-scrollbar {
     padding-right: $page-wrapper-padding;
-    
+
     .page-header__container {
       max-width: 100%;
     }
