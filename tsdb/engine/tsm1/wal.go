@@ -121,7 +121,7 @@ func NewWAL(path string) *WAL {
 		// these options should be overriden by any options in the config
 		SegmentSize: DefaultSegmentSize,
 		closing:     make(chan struct{}),
-		syncWaiters: make(chan chan error, 256),
+		syncWaiters: make(chan chan error, 1024),
 		stats:       &WALStatistics{},
 		limiter:     limiter.NewFixed(defaultWaitingWALWrites),
 		logger:      logger,
@@ -398,7 +398,12 @@ func (l *WAL) writeToLog(entry WALEntry) (int, error) {
 
 		l.lastWriteTime = time.Now()
 
-		l.syncWaiters <- syncErr
+		select {
+		case l.syncWaiters <- syncErr:
+		default:
+			return -1, fmt.Errorf("error syncing wal")
+		}
+
 		return l.currentSegmentID, nil
 
 	}()
