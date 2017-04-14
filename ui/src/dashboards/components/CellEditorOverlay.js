@@ -195,9 +195,10 @@ CellEditorOverlay.propTypes = {
   autoRefresh: number.isRequired,
   source: shape({
     links: shape({
+      proxy: string.isRequired,
       queries: string.isRequired,
-    }),
-  }),
+    }).isRequired,
+  }).isRequired,
   editQueryStatus: func.isRequired,
   queryStatus: shape({
     queryID: string,
