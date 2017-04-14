@@ -1,27 +1,3 @@
-/**
- * Page-wide layout specific styles.
- */
-
-.data-explorer {
-  width: 100%;
-  height: 100%;
-  position: absolute;
-  top: 0;
-  left: 0;
-  background-color: $g1-raven;
-
-  .page-header {
-    padding-left: $explorer-page-padding;
-    padding-right: $explorer-page-padding;
-  }
-  .page-header__container {
-    max-width: 100%;
-  }
-  .page-contents {
-    overflow: hidden;
-  }
-}
-
 $query-editor-gutter: 16px;
 $query-editor-tab-inactive: $g2-kevlar;
 $query-editor-tab-active: $g3-castle;
