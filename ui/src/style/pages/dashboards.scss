@@ -55,6 +55,7 @@ $dash-graph-options-arrow: 8px;
   }
 
   .template-variable-manager--body {
+    border-radius: 0 0 $radius $radius;
     min-height: 150px;
     @include gradient-v($g2-kevlar,$g0-obsidian);
   }
