@@ -42,6 +42,15 @@ $dash-graph-options-arrow: 8px;
 
 .dashboard {
   .tv-control-bar {
+    height: 50px;
+    font-size: 18px;
+    font-weight: 400;
+    color: $g14-chromium;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+    padding: 10px 15px;
     @extend .cell-shell;
   }
   .react-grid-item {

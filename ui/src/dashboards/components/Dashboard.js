@@ -38,7 +38,10 @@ const Dashboard = ({
 
   return (
     <div className={classnames('dashboard container-fluid full-width page-contents', {'presentation-mode': inPresentationMode})}>
-      <marquee className="tv-control-bar">TV CONTROL BAR</marquee>
+      <div className="tv-control-bar">
+        Template Variables
+        <button className="btn btn-primary btn-sm">Manage</button>
+      </div>
       {cells.length ?
         <LayoutRenderer
           timeRange={timeRange}
