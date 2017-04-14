@@ -33,12 +33,19 @@ $dash-graph-options-arrow: 8px;
   Default Dashboard Mode
   ------------------------------------------------------
 */
+.cell-shell {
+  background-color: $g3-castle;
+  border-radius: $radius;
+  border: 2px solid $g3-castle;
+  transition-property: left, top, border-color, background-color;
+}
+
 .dashboard {
+  .tv-control-bar {
+    @extend .cell-shell;
+  }
   .react-grid-item {
-    background-color: $g3-castle;
-    border-radius: $radius;
-    border: 2px solid $g3-castle;
-    transition-property: left, top, border-color, background-color;
+    @extend .cell-shell;
   }
   .graph-empty {
     background-color: transparent;

@@ -5,7 +5,6 @@ import LayoutRenderer from 'shared/components/LayoutRenderer'
 
 const Dashboard = ({
   dashboard,
-  isEditMode,
   inPresentationMode,
   onAddCell,
   onPositionChange,
@@ -38,22 +37,21 @@ const Dashboard = ({
   })
 
   return (
-    <div className={classnames({'page-contents': true, 'presentation-mode': inPresentationMode})}>
+    <div className={classnames('dashboard container-fluid full-width page-contents', {'presentation-mode': inPresentationMode})}>
+      <marquee className="tv-control-bar">TV CONTROL BAR</marquee>
       {cells.length ?
-        <div className={classnames('container-fluid full-width dashboard', {'dashboard-edit': isEditMode})}>
-          <LayoutRenderer
-            timeRange={timeRange}
-            cells={cells}
-            autoRefresh={autoRefresh}
-            source={source.links.proxy}
-            onPositionChange={onPositionChange}
-            onEditCell={onEditCell}
-            onRenameCell={onRenameCell}
-            onUpdateCell={onUpdateCell}
-            onDeleteCell={onDeleteCell}
-            onSummonOverlayTechnologies={onSummonOverlayTechnologies}
-          />
-        </div> :
+        <LayoutRenderer
+          timeRange={timeRange}
+          cells={cells}
+          autoRefresh={autoRefresh}
+          source={source.links.proxy}
+          onPositionChange={onPositionChange}
+          onEditCell={onEditCell}
+          onRenameCell={onRenameCell}
+          onUpdateCell={onUpdateCell}
+          onDeleteCell={onDeleteCell}
+          onSummonOverlayTechnologies={onSummonOverlayTechnologies}
+        /> :
         <div className="dashboard__empty">
           <p>This Dashboard has no Graphs</p>
           <button
@@ -78,7 +76,6 @@ const {
 
 Dashboard.propTypes = {
   dashboard: shape({}).isRequired,
-  isEditMode: bool,
   inPresentationMode: bool,
   onAddCell: func,
   onPositionChange: func,
