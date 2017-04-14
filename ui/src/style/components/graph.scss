@@ -1,22 +1,29 @@
+/*
+  Variables
+  ---------------------------------------------
+*/
+$graph-heading-height: 44px;
+
+
+/*
+  Graph Styles
+  ---------------------------------------------
+*/
 .graph {
   position: absolute;
   top: 0;
-  width: calc(100% - #{($explorer-page-padding * 2)});
-  left: $explorer-page-padding;
-}
-/* Special rule for when the graph is in the bottom of resizer */
-.resize-bottom .graph {
-  height: 100%;
+  width: calc(100% - #{($page-wrapper-padding * 2)});
+  left: $page-wrapper-padding;
 }
 .graph-heading {
   position: relative;
-  top: $de-vertical-margin;
-  background-color: $graph-bg-color;
-  border-radius: $graph-radius $graph-radius 0 0;
+  top: 16px;
+  background-color: $g3-castle;
+  border-radius: $radius $radius 0 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: $de-graph-heading-height;
+  height: $graph-heading-height;
   padding: 0 16px;
   transition:
     background-color 0.25s ease;
@@ -40,12 +47,12 @@
   align-items: center;
 }
 .graph .table-container {
-  background-color: $graph-bg-color;
-  border-radius: 0 0 $graph-radius $graph-radius;
+  background-color: $g3-castle;
+  border-radius: 0 0 $radius $radius;
   padding: 8px 16px;
   position: relative;
-  top: $de-vertical-margin;
-  height: calc(100% - #{$de-graph-heading-height} - #{($de-vertical-margin * 2)});
+  top: 16px;
+  height: calc(100% - #{($graph-heading-height - 32px)});
 
   & > div > div:last-child {
     position: absolute;
@@ -66,8 +73,8 @@
 }
 .graph-container {
   @include no-user-select();
-  background-color: $graph-bg-color;
-  border-radius: 0 0 $graph-radius $graph-radius;
+  background-color: $g3-castle;
+  border-radius: 0 0 $radius $radius;
   padding: 8px 16px;
   position: relative;
   height: 316px;
@@ -75,8 +82,8 @@
     background-color 0.25s ease;
 }
 .data-explorer .graph-container {
-  top: $de-vertical-margin;
-  height: calc(100% - #{$de-graph-heading-height} - #{($de-vertical-margin * 2)});
+  top: 16px;
+  height: calc(100% - #{$graph-heading-height - 32px});
   padding: 0;
 
   & > div:not(.graph-panel__refreshing) {
