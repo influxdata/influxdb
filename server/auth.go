@@ -23,7 +23,7 @@ func AuthorizedToken(auth oauth2.Authenticator, logger chronograf.Logger, next h
 		ctx := r.Context()
 		// We do not check the validity of the principal.  Those
 		// served further down the chain should do so.
-		principal, err := auth.Validate(ctx, r)
+		principal, err := auth.Validate(ctx, w, r)
 		if err != nil {
 			log.Error("Invalid principal")
 			w.WriteHeader(http.StatusForbidden)

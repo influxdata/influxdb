@@ -23,6 +23,7 @@ func NewAuthMux(p Provider, a Authenticator, t Tokenizer, l chronograf.Logger) *
 		Logger:     l,
 		SuccessURL: "/",
 		FailureURL: "/login",
+		Now:        time.Now,
 	}
 }
 
@@ -38,6 +39,7 @@ type AuthMux struct {
 	Logger     chronograf.Logger // Logger is used to give some more information about the OAuth2 process
 	SuccessURL string            // SuccessURL is redirect location after successful authorization
 	FailureURL string            // FailureURL is redirect location after authorization failure
+	Now        func() time.Time  // Now returns the current time (for testing)
 }
 
 // Login uses a Cookie with a random string as the state validation method.  JWTs are
@@ -52,12 +54,17 @@ func (j *AuthMux) Login() http.Handler {
 		// oauth2 provider's password.
 		// If the callback is not received within 10 minutes, then authorization will fail.
 		csrf := randomString(32) // 32 is not important... just long
-		p := Principal{
-			Subject: csrf,
-		}
+		now := j.Now().UTC()
+
 		// This token will be valid for 10 minutes.  Any chronograf server will
 		// be able to validate this token.
-		token, err := j.Tokens.Create(r.Context(), p, TenMinutes)
+		p := Principal{
+			Subject:   csrf,
+			IssuedAt:  now,
+			ExpiresAt: now.Add(TenMinutes),
+		}
+		token, err := j.Tokens.Create(r.Context(), p)
+
 		// This is likely an internal server error
 		if err != nil {
 			j.Logger.
