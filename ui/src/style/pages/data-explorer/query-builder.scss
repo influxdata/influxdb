@@ -237,12 +237,3 @@ $query-builder--column-heading-height: 50px;
 .query-builder--column:nth-of-type(2) { left: 25%; }
 .query-builder--column:nth-of-type(3) { left: 50%; }
 .query-builder--column:nth-of-type(4) { left: 75%; }
-
-/* Time Range Selector */
-.time-range-dropdown {
-  display: inline-block;
-
-  .dropdown-toggle {
-    width: 160px;
-  }
-}
