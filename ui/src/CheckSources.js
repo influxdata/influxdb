@@ -8,21 +8,57 @@ import {showDatabases} from 'src/shared/apis/metaQuery'
 // Acts as a 'router middleware'. The main `App` component is responsible for
 // getting the list of data nodes, but not every page requires them to function.
 // Routes that do require data nodes can be nested under this component.
+const {
+  arrayOf,
+  func,
+  node,
+  shape,
+  string,
+} = PropTypes
 const CheckSources = React.createClass({
   propTypes: {
-    addFlashMessage: PropTypes.func,
-    children: PropTypes.node,
-    params: PropTypes.shape({
-      sourceID: PropTypes.string,
+    sources: arrayOf(shape({
+      links: shape({
+        proxy: string.isRequired,
+        self: string.isRequired,
+        kapacitors: string.isRequired,
+        queries: string.isRequired,
+        permissions: string.isRequired,
+        users: string.isRequired,
+        databases: string.isRequired,
+      }).isRequired,
+    })),
+    addFlashMessage: func,
+    children: node,
+    params: shape({
+      sourceID: string,
     }).isRequired,
-    router: PropTypes.shape({
-      push: PropTypes.func.isRequired,
+    router: shape({
+      push: func.isRequired,
     }).isRequired,
-    location: PropTypes.shape({
-      pathname: PropTypes.string.isRequired,
+    location: shape({
+      pathname: string.isRequired,
     }).isRequired,
-    sources: PropTypes.array.isRequired,
-    loadSourcesAction: PropTypes.func.isRequired,
+    loadSourcesAction: func.isRequired,
+  },
+
+  childContextTypes: {
+    source: shape({
+      links: shape({
+        proxy: string.isRequired,
+        self: string.isRequired,
+        kapacitors: string.isRequired,
+        queries: string.isRequired,
+        permissions: string.isRequired,
+        users: string.isRequired,
+        databases: string.isRequired,
+      }).isRequired,
+    }),
+  },
+
+  getChildContext() {
+    const {sources, params: {sourceID}} = this.props
+    return {source: sources.find((s) => s.id === sourceID)}
   },
 
   getInitialState() {
