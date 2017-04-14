@@ -64,4 +64,11 @@ $page-header-weight: 400 !important;
   &.full-width .page-header__container {
     max-width: 100%;
   }
+  &.full-width-no-scrollbar {
+    padding-right: $page-wrapper-padding;
+    
+    .page-header__container {
+      max-width: 100%;
+    }
+  }
 }
