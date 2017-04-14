@@ -44,6 +44,7 @@ const DashboardPage = React.createClass({
       addDashboardCellAsync: func.isRequired,
       editDashboardCell: func.isRequired,
       renameDashboardCell: func.isRequired,
+      editQueryStatus: func.isRequired,
     }).isRequired,
     dashboards: arrayOf(shape({
       id: number.isRequired,
