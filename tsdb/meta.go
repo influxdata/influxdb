@@ -1121,7 +1121,17 @@ func NewSeries(key []byte, tags models.Tags) *Series {
 }
 
 func (s *Series) AssignShard(shardID uint64) {
+	s.mu.RLock()
+	_, ok := s.shardIDs[shardID]
+	s.mu.RUnlock()
+
+	if ok {
+		return
+	}
+
 	s.mu.Lock()
+	// Skip the existence check under the write lock because we're just storing
+	// and empty struct.
 	s.shardIDs[shardID] = struct{}{}
 	s.mu.Unlock()
 }
