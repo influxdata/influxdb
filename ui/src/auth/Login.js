@@ -1,10 +1,9 @@
 /* global VERSION */
 import React, {PropTypes} from 'react'
-import {connect} from 'react-redux'
 
 import Notifications from 'shared/components/Notifications'
 
-const Login = ({auth}) => {
+const Login = ({authData: {auth}}) => {
   if (auth.isAuthLoading) {
     return <div className="page-spinner"></div>
   }
@@ -39,7 +38,7 @@ const {
 } = PropTypes
 
 Login.propTypes = {
-  auth: shape({
+  authData: shape({
     me: shape(),
     links: array,
     isLoading: bool,
@@ -49,8 +48,4 @@ Login.propTypes = {
   }),
 }
 
-const mapStateToProps = ({auth}) => ({
-  auth,
-})
-
-export default connect(mapStateToProps)(Login)
+export default Login
