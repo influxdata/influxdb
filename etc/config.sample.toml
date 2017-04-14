@@ -237,7 +237,7 @@
   # https-private-key = ""
 
   # The JWT auth shared secret to validate requests using JSON web tokens.
-  # shared-sercret = ""
+  # shared-secret = ""
 
   # The default chunk size for result sets that should be chunked.
   # max-row-limit = 0
