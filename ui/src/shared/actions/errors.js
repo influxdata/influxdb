@@ -1,4 +1,5 @@
-export const errorThrown = (error) => ({
+export const errorThrown = (error, altText) => ({
   type: 'ERROR_THROWN',
   error,
+  altText,
 })

@@ -7,7 +7,6 @@ import {
   deleteDashboardCell as deleteDashboardCellAJAX,
 } from 'src/dashboards/apis'
 
-import {publishNotification} from 'shared/actions/notifications'
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
 import {errorThrown} from 'shared/actions/errors'
 
@@ -149,9 +148,8 @@ export const deleteDashboardAsync = (dashboard) => async (dispatch) => {
     await deleteDashboardAJAX(dashboard)
     dispatch(publishAutoDismissingNotification('success', 'Dashboard deleted successfully.'))
   } catch (error) {
-    dispatch(errorThrown(error))
+    dispatch(errorThrown(error, `Failed to delete dashboard: ${error.data.message}.`))
     dispatch(deleteDashboardFailed(dashboard))
-    dispatch(publishNotification('error', `Failed to delete dashboard: ${error.data.message}.`))
   }
 }
 
@@ -172,7 +170,6 @@ export const deleteDashboardCellAsync = (cell) => async (dispatch) => {
     dispatch(deleteDashboardCell(cell))
   } catch (error) {
     dispatch(errorThrown(error))
-    console.error(error)
     throw error
   }
 }

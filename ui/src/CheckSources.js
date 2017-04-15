@@ -4,9 +4,9 @@ import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
 import {getSources} from 'shared/apis'
-import {loadSources as loadSourcesAction} from 'shared/actions/sources'
 import {showDatabases} from 'shared/apis/metaQuery'
-import {publishNotification as publishNotificationAction} from 'shared/actions/notifications'
+
+import {loadSources as loadSourcesAction} from 'shared/actions/sources'
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 
 // Acts as a 'router middleware'. The main `App` component is responsible for
@@ -25,7 +25,6 @@ const CheckSources = React.createClass({
       pathname: PropTypes.string.isRequired,
     }).isRequired,
     sources: PropTypes.array.isRequired,
-    notify: PropTypes.func.isRequired,
     errorThrown: PropTypes.func.isRequired,
     loadSources: PropTypes.func.isRequired,
   },
@@ -37,21 +36,20 @@ const CheckSources = React.createClass({
   },
 
   async componentWillMount() {
-    const {loadSources, notify, errorThrown} = this.props
+    const {loadSources, errorThrown} = this.props
 
     try {
       const {data: {sources}} = await getSources()
       loadSources(sources)
       this.setState({isFetching: false})
     } catch (error) {
-      errorThrown(error)
-      notify('error', 'Unable to connect to Chronograf server')
+      errorThrown(error, 'Unable to connect to Chronograf server')
       this.setState({isFetching: false})
     }
   },
 
   async componentWillUpdate(nextProps, nextState) {
-    const {router, location, params, notify, errorThrown, sources} = nextProps
+    const {router, location, params, errorThrown, sources} = nextProps
     const {isFetching} = nextState
     const source = sources.find((s) => s.id === params.sourceID)
     const defaultSource = sources.find((s) => s.default === true)
@@ -74,8 +72,7 @@ const CheckSources = React.createClass({
       try {
         await showDatabases(source.links.proxy)
       } catch (error) {
-        errorThrown(error)
-        notify('error', 'Unable to connect to source')
+        errorThrown(error, 'Unable to connect to source')
       }
     }
   },
@@ -101,7 +98,6 @@ const mapStateToProps = ({sources}) => ({
 
 const mapDispatchToProps = (dispatch) => ({
   loadSources: bindActionCreators(loadSourcesAction, dispatch),
-  notify: bindActionCreators(publishNotificationAction, dispatch),
   errorThrown: bindActionCreators(errorThrownAction, dispatch),
 })
 

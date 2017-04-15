@@ -9,7 +9,7 @@ let allowNotifications = true // eslint-disable-line
 
 const errorsMiddleware = store => next => action => {
   if (action.type === 'ERROR_THROWN') {
-    const {error, error: {status, auth}} = action
+    const {error, error: {status, auth}, altText} = action
 
     console.error(error)
 
@@ -29,6 +29,8 @@ const errorsMiddleware = store => next => action => {
       } else {
         store.dispatch(notify('error', 'Please login to use Chronograf.'))
       }
+    } else if (altText) {
+      store.dispatch(notify('error', altText))
     } else {
       store.dispatch(notify('error', 'Cannot communicate with server.'))
     }

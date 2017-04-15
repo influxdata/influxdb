@@ -43,7 +43,7 @@ export const fetchTimeSeriesAsync = async ({source, db, rp, query}, editQuerySta
     const {data} = await proxy({source, db, rp, query: query.text})
     return handleSuccess(data, query, editQueryStatus)
   } catch (error) {
-    errorThrown(error) // use errorsMiddleware to catch 403s first, otherwise query --> config --> error.status will be error obj
+    errorThrown(error) // TODO: use errorsMiddleware to catch 403s first, otherwise query --> config --> error.status will be error obj
     handleError(error, query, editQueryStatus)
     throw error
   }
