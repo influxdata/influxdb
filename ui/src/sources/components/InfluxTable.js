@@ -39,7 +39,7 @@ const InfluxTable = ({
                         <td>{
                               kapacitorName ?
                                 <Dropdown items={[{text: kapacitorName}]} onChoose={() => {}} selected={kapacitorName} /> :
-                                --
+                                <span>--</span>
                             }
                         </td>
                         <td className="text-right">

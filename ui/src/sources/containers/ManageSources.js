@@ -1,8 +1,8 @@
 import React, {PropTypes} from 'react'
 import {withRouter} from 'react-router'
-import {getKapacitor} from 'shared/apis'
-import {removeAndLoadSources} from 'src/shared/actions/sources'
+import {removeAndLoadSources, fetchKapacitorsAsync} from 'src/shared/actions/sources'
 import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux'
 
 import InfluxTable from '../components/InfluxTable'
 
@@ -27,7 +27,8 @@ export const ManageSources = React.createClass({
     }),
     sources: array,
     addFlashMessage: func,
-    removeAndLoadSources: func,
+    removeAndLoadSources: func.isRequired,
+    fetchKapacitors: func.isRequired,
   },
 
   getInitialState() {
@@ -37,17 +38,8 @@ export const ManageSources = React.createClass({
   },
 
   componentDidMount() {
-    const updates = []
-    const kapas = {}
-
     this.props.sources.forEach((source) => {
-      const prom = getKapacitor(source).then((kapacitor) => {
-        kapas[source.id] = kapacitor
-      })
-      updates.push(prom)
-    })
-    Promise.all(updates).then(() => {
-      this.setState({kapacitors: kapas})
+      this.props.fetchKapacitors(source)
     })
   },
 
@@ -91,10 +83,13 @@ export const ManageSources = React.createClass({
   },
 })
 
-function mapStateToProps(state) {
-  return {
-    sources: state.sources,
-  }
-}
+const mapStateToProps = ({sources}) => ({
+  sources,
+})
 
-export default connect(mapStateToProps, {removeAndLoadSources})(withRouter(ManageSources))
+const mapDispatchToProps = (dispatch) => ({
+  removeAndLoadSources: bindActionCreators(removeAndLoadSources, dispatch),
+  fetchKapacitors: bindActionCreators(fetchKapacitorsAsync, dispatch),
+})
+
+export default connect(mapStateToProps, mapDispatchToProps)(withRouter(ManageSources))

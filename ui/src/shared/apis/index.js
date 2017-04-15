@@ -67,6 +67,18 @@ export function getKapacitor(source) {
   })
 }
 
+export const getKapacitors = async (source) => {
+  try {
+    return await AJAX({
+      method: 'GET',
+      url: source.links.kapacitors,
+    })
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}
+
 export function createKapacitor(source, {url, name = 'My Kapacitor', username, password}) {
   return AJAX({
     url: source.links.kapacitors,

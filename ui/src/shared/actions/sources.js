@@ -1,4 +1,7 @@
-import {deleteSource, getSources} from 'src/shared/apis'
+import {deleteSource,
+  getSources,
+  getKapacitors as getKapacitorsAJAX,
+} from 'src/shared/apis'
 import {publishNotification} from './notifications'
 
 export const loadSources = (sources) => ({
@@ -22,6 +25,14 @@ export const addSource = (source) => ({
   },
 })
 
+export const fetchKapacitors = (source, kapacitors) => ({
+  type: 'LOAD_KAPACITORS',
+  payload: {
+    source,
+    kapacitors,
+  },
+})
+
 // Async action creators
 
 export const removeAndLoadSources = (source) => async (dispatch) => {
@@ -40,5 +51,14 @@ export const removeAndLoadSources = (source) => async (dispatch) => {
     dispatch(loadSources(newSources))
   } catch (err) {
     dispatch(publishNotification("error", "Internal Server Error. Check API Logs"))
+  }
+}
+
+export const fetchKapacitorsAsync = (source) => async (dispatch) => {
+  try {
+    const {data} = await getKapacitorsAJAX(source)
+    dispatch(fetchKapacitors(source, data.kapacitors))
+  } catch (err) {
+    dispatch(publishNotification('error', `Internal Server Error. Could not retrieve kapacitors for source ${source.id}.`))
   }
 }
