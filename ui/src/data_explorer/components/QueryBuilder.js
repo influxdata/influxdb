@@ -68,7 +68,7 @@ const QueryBuilder = React.createClass({
   render() {
     const {height, top} = this.props
     return (
-      <div className="query-builder" style={{height, top}}>
+      <div className="query-maker" style={{height, top}}>
         {this.renderQueryTabList()}
         {this.renderQueryEditor()}
       </div>
@@ -81,8 +81,8 @@ const QueryBuilder = React.createClass({
 
     if (!query) {
       return (
-        <div className="qeditor--empty">
-          <h5 className="no-user-select">This Graph has no Queries</h5>
+        <div className="query-maker--empty">
+          <h5>This Graph has no Queries</h5>
           <br/>
           <div className="btn btn-primary" role="button" onClick={this.handleAddQuery}>Add a Query</div>
         </div>
@@ -104,13 +104,7 @@ const QueryBuilder = React.createClass({
     const {queries, activeQueryIndex, onDeleteQuery, timeRange, setActiveQueryIndex} = this.props
 
     return (
-      <div className="query-builder--tabs">
-        <div className="query-builder--tabs-heading">
-          <h1>Queries</h1>
-          <div className="panel--tab-new btn btn-sm btn-primary dropdown-toggle" onClick={this.handleAddQuery}>
-            <span className="icon plus"></span>
-          </div>
-        </div>
+      <div className="query-maker--tabs">
         {queries.map((q, i) => {
           return (
             <QueryTabItem
@@ -125,6 +119,9 @@ const QueryBuilder = React.createClass({
           )
         })}
         {this.props.children}
+        <div className="query-maker--new btn btn-sm btn-primary" onClick={this.handleAddQuery}>
+          <span className="icon plus"></span>
+        </div>
       </div>
     )
   },

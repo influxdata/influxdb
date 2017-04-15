@@ -82,11 +82,9 @@ const QueryEditor = React.createClass({
     const q = query.rawText || buildInfluxQLQuery(timeRange, query) || ''
 
     return (
-      <div className="query-builder--tab-contents">
-        <div>
-          <RawQueryEditor query={q} config={query} onUpdate={this.handleEditRawText} />
-          {this.renderLists()}
-        </div>
+      <div className="query-maker--tab-contents">
+        <RawQueryEditor query={q} config={query} onUpdate={this.handleEditRawText} />
+        {this.renderLists()}
       </div>
     )
   },
@@ -96,7 +94,7 @@ const QueryEditor = React.createClass({
     const {query} = this.props
 
     return (
-      <div className="query-builder--columns">
+      <div className="query-builder">
         <DatabaseList
           query={query}
           onChooseNamespace={this.handleChooseNamespace}

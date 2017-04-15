@@ -1,3 +1,42 @@
+/*
+    Query Maker
+    -------------------------------------------------------------
+    Consists of two parts:
+      - Query Editor (Manual query entry)
+      - Query Builder (Asssited query construction)
+*/
+
+.query-maker {
+  position: relative;
+  left: $explorer-page-padding;
+  width: calc(100% - #{($explorer-page-padding * 2)});
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+/*
+    Variables
+    -------------------------------------------------------------
+*/
+$query-maker--gutter: 16px;
+
+$query-maker--tabs-height: 44px;
+$query-maker--tabs-header-text: $g18-cloud;
+
+$query-maker--tab-width: 138px;
+$query-maker--tab-text: $g11-sidewalk;
+$query-maker--tab-text-hover: $g15-platinum;
+$query-maker--tab-text-active: $g18-cloud;
+$query-maker--tab-bg: $g3-castle;
+$query-maker--tab-bg-hover: $g4-onyx;
+$query-maker--tab-bg-active: $g5-pepper;
+
+$query-maker--tab-contents-bg: $g4-onyx;
+
+$query-editor--bg: $query-maker--tab-bg-active;
+
+$query-builder--column-heading-height: 50px;
 $query-editor-gutter: 16px;
 $query-editor-tab-inactive: $g2-kevlar;
 $query-editor-tab-active: $g3-castle;
@@ -9,11 +48,796 @@ $de-vertical-margin: 16px;
 $dygraphs-legend-offset: 32px;
 $de-graph-heading-height: 44px;
 
-// DE Specific components
-@import 'data-explorer/query-builder';
-@import 'data-explorer/query-editor';
-@import 'data-explorer/raw-text';
-@import 'data-explorer/tag-list';
+
+/*
+    Tabs & Tab Contents
+    -------------------------------------------------------------
+    Controls which query is currently being modified
+*/
+
+.query-maker--tabs {
+  margin: $query-maker--gutter 0 0 0;
+  display: flex;
+  height: $query-maker--tabs-height;
+  align-items: center;
+}
+.query-maker--tabs > div.btn.query-maker--new {
+  margin-left: 6px;
+  padding: 0 8px !important;
+}
+.query-maker--new > span.icon {
+  margin: 0 !important;
+}
+.query-maker--tab {
+  border-radius: $radius $radius 0 0;  
+  height: $query-maker--tabs-height;
+  margin: 0 2px 0 0;
+  max-width: $query-maker--tab-width;
+  flex: 1 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: $query-maker--tab-text;
+  background: $query-maker--tab-bg;
+  cursor: pointer;
+  padding: 0 9px 0 12px;
+  transition:
+      color 0.25s ease,
+      background-color 0.25s ease;
+
+  > label {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    width: ($query-maker--tab-width - 42px);
+    text-overflow: ellipsis;
+    @include no-user-select();
+    cursor: pointer;
+  }
+  &:hover {
+    color: $query-maker--tab-text-hover;
+    background-color: $query-maker--tab-bg-hover;
+  }
+  &.active {
+    color: $query-maker--tab-text-active;
+    background: $query-maker--tab-bg-active;
+  }
+}
+.query-maker--delete {
+  margin: 0;
+  width: 18px;
+  height: 18px;
+  background-color: transparent;
+  display: inline-block;
+  vertical-align: text-top;
+  position: relative;
+
+  &:before,
+  &:after {
+    display: block;
+    content: '';
+    width: 10px;
+    height: 2px;
+    border-radius: 1px;
+    background-color: $g8-storm;
+    transition:
+      background-color 0.25s ease;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+  }
+  &:before {
+    transform: translate(-50%,-50%) rotate(45deg);
+  }
+  &:after {
+    transform: translate(-50%,-50%) rotate(-45deg);
+  }
+
+  &:hover {
+    &:before,
+    &:after {
+      background-color: $c-dreamsicle;
+    }
+  }
+}
+.query-maker--tab-contents,
+.query-maker--empty {
+  flex: 1 0 0;
+  margin: 0 0 $query-maker--gutter 0;
+  background-color: $query-maker--tab-contents-bg;
+  border-radius: 0 $radius $radius $radius;
+  overflow: hidden;
+  position: relative;
+}
+.query-maker--empty {
+  text-align: center;
+  color: $g10-wolf;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  &,
+  & > * {
+    @include no-user-select();
+  }
+}
+
+/*
+    Query Builder
+    -------------------------------------------------------------
+*/
+.query-builder {
+  position: absolute;
+  width: 100%;
+  height: calc(100% - 90px);
+  top: 90px;
+}
+.query-builder--column-heading {
+  @include no-user-select();
+  width: 100%;
+  height: $query-builder--column-heading-height;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  font-weight: 600;
+  color: $g13-mist;
+  padding: 0 9px;
+  line-height: $query-builder--column-heading-height;
+  border-bottom: 2px solid $g5-pepper;
+}
+.query-builder--column {
+  position: absolute;
+  width: 25%;
+  height: 100%;
+  top: 0;
+
+  .qeditor--list {
+    position: absolute;
+    top: $query-builder--column-heading-height;
+    height: calc(100% - #{$query-builder--column-heading-height});
+    width: 100%;
+    left: 0;
+    padding: 0;
+    overflow: auto;
+    overflow-x: hidden;
+    overflow-y: scroll;
+    @include custom-scrollbar($g4-onyx,$c-pool);
+    background-color: $g4-onyx;
+  }
+  .qeditor--empty {
+    width: 100%;
+    margin-top: 0;
+    height: calc(100% - #{$query-builder--column-heading-height});
+    position: absolute;
+    top: $query-builder--column-heading-height;
+    left: 0;
+    background-color: transparent;
+
+    p,h1,h2,h3,h4,h5,h6 { @include no-user-select(); }
+  }
+}
+.query-builder--column:nth-of-type(1) { left: 0; }
+.query-builder--column:nth-of-type(2) { left: 25%; }
+.query-builder--column:nth-of-type(3) { left: 50%; }
+.query-builder--column:nth-of-type(4) { left: 75%; }
+
+
+
+
+
+
+
+
+
+
+
+/*
+
+  Query Editor Styles
+  -------------------------------------------------
+  Abbreviated as "qeditor"
+
+*/
+
+// Tabs for switching between queries
+.qeditor--tabs {
+  display: flex;
+  width: 100%;
+  justify-content: flex-start;
+  padding: 8px 9px 0 9px;
+  background-color: $query-editor-tab-inactive;
+  flex-wrap: wrap;
+
+  &-heading {
+    flex-basis: 100%;
+    width: 100%;
+    font-size: 12px;
+    color: $g9-mountain;
+    font-weight: 500;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+}
+.qeditor--tab {
+  text-align: center;
+  background-color: $query-editor-tab-inactive;
+  color: $g13-mist;
+  height: 28px;
+  padding: 0 9px;
+  line-height: 28px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: $radius-small $radius-small 0 0;
+  margin-right: 2px;
+  @include no-user-select();
+  transition:
+    color 0.25s ease,
+    background-color 0.25s ease;
+
+  &:hover {
+    cursor: pointer;
+    color: $g20-white;
+  }
+  &.active {
+    background-color: $query-editor-tab-active;
+    color: $g20-white;
+  }
+}
+
+// List of options
+.qeditor--list {
+  margin: 0;
+  padding: 9.5px 0 0 0;
+  background-color: $query-editor-tab-active;
+  border-radius: 0 0 $radius-small $radius-small;
+
+  &-item {
+    @include no-user-select();
+    color: $g11-sidewalk;
+    list-style-type: none;
+    margin: 0;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 4px 9px;
+    transition:
+      color 0.25s ease,
+      background-color 0.25s ease;
+
+    &:hover {
+      background-color: $g5-pepper;
+      color: $g15-platinum;
+      cursor: pointer;
+    }
+  }
+  &-radio {
+    &.active {
+      color: $g20-white;
+      background-color: $g5-pepper;
+      font-weight: 700;
+    }
+  }
+  &-checkbox {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    &.checked {
+      color: $g20-white;
+      font-weight: 600;
+
+      // Animate checked state
+      .qeditor--list-checkbox__checkbox {
+        &:before {
+          opacity: 1;
+          transform: translate(-50%,-50%) scale(0.4,0.4);
+        }
+      }
+      // Fade in & out dropdowns when checked
+      .qeditor--hidden-dropdown {
+        visibility: visible;
+
+        .dropdown {
+          opacity: 1;
+        }
+      }
+    }
+
+    &__checkbox {
+      position: relative;
+      padding-left: 24px;
+
+      &:before {
+        z-index: 2;
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 8px;
+        transform: translate(-50%,-50%);
+        width: 20px;
+        height: 20px;
+        opacity: 0;
+        background-color: $c-pool;
+        border-radius: 50%;
+        transition:
+          transform 0.25s ease,
+          opacity 0.25s ease;
+      }
+
+      &:after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 0;
+        transform: translateY(-50%);
+        width: 16px;
+        height: 16px;
+        background-color: $g2-kevlar;
+        border-radius: 3px;
+        z-index: 1;
+      }
+    }
+  }
+}
+.qeditor--list-header {
+  position: absolute;
+  top: 7px;
+  right: 16px;
+  width: calc(50% - 16px);
+  height: 30px;
+  padding: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+// Hidden dropdowns
+.qeditor--hidden-dropdown {
+  visibility: hidden;
+  transition: all 0.3s all;
+
+  .dropdown {
+    transition: opacity 0.3s ease;
+    opacity: 0;
+  }
+}
+
+// Filter list results
+.qeditor--filter {
+  position: relative;
+  width: 100%;
+  display: block;
+  background-color: $g3-castle;
+  border: 2px solid $g6-smoke;
+  color: $g13-mist;
+  height: 30px;
+  border-radius: 15px;
+  font-size: 13px;
+  padding-left: 28px;
+  outline: none;
+  color: $g20-white;
+  font-weight: 700;
+  transition:
+    border-color 0.25s ease,
+    color 0.25s ease,
+    background-color 0.25s ease;
+
+  &:focus {
+    border-color: $c-pool;
+    & + .icon {
+      color: $g20-white;
+
+    }
+  }
+  &::-webkit-input-placeholder {
+    color: $g10-wolf;
+    font-weight: 500;
+  }
+  &:-moz-placeholder { /* Firefox 18- */
+    color: $g10-wolf;
+    font-weight: 500;
+  }
+  &::-moz-placeholder {  /* Firefox 19+ */
+    color: $g10-wolf;
+    font-weight: 500;
+  }
+  &:-ms-input-placeholder {
+    color: $g10-wolf;
+    font-weight: 500;
+  }
+  + .icon {
+    position: absolute;
+    top: 50%;
+    left: 11px;
+    transform: translateY(-50%);
+    color: $g10-wolf;
+    transition: color 0.25s ease;
+    font-size: 12px;
+    z-index: 2;
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+  Variables
+  -------------------------------------
+*/
+
+$raw-text-color: $c-pool;
+$raw-text-height: 52px;
+$raw-status-height: 34px;
+/* ^ These 2 should total to 86px */
+$query-template-dropdown-width: 135px;
+$query-template-dropdown-height: 22px;
+$query-template-dropdown-offset: 6px;
+$query-template-dropdown-menu-width: 200px;
+
+
+.raw-text {
+  padding: 8px;
+  border-radius: 0 $radius 0 0;
+  background-color: $query-editor--bg;
+}
+/*
+  Dropping the metaphorical CSS nuke here,
+  was experiencing some weird typographic jank
+  between builder / raw tabs
+*/
+.raw-text--field {
+  font-style: normal !important;
+  letter-spacing: 0 !important;
+  font-size: 12px !important;
+  font-variant: normal !important;
+  line-height: 14px !important;
+  font-family: $code-font !important;
+  font-weight: 600 !important;
+  word-wrap: break-word !important;
+  word-break: break-all !important;
+  white-space: pre-wrap !important;
+  -webkit-font-smoothing: antialiased;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  resize: none;
+  text-size-adjust: 100% !important;
+  text-shadow: none !important;
+  @include custom-scrollbar($g2-kevlar, $raw-text-color);
+  display: block;
+  width: 100%;
+  height: $raw-text-height;
+  background-color: $g2-kevlar;
+  border: 2px solid $query-editor--bg;
+  border-bottom: 0;
+  color: $raw-text-color;
+  padding: 12px 10px 0 10px;
+  border-radius: $radius $radius 0 0;
+  margin: 0;
+  transition:
+    color 0.25s ease,
+    background-color 0.25s ease,
+    border-color 0.25s ease;
+
+  &::-webkit-input-placeholder { /* Chrome/Opera/Safari */
+    color: $g8-storm;
+  }
+  &::-moz-placeholder { /* Firefox 19+ */
+    color: $g8-storm;
+  }
+  &:-ms-input-placeholder { /* IE 10+ */
+    color: $g8-storm;
+  }
+  &:-moz-placeholder { /* Firefox 18- */
+    color: $g8-storm;
+  }
+  &:hover,
+  &:hover + .raw-text--status {
+    border-color: $g5-pepper;
+  }
+  &:focus {
+    outline: none;
+    color: $raw-text-color !important;
+    border-color: $c-pool;
+  }
+  &:focus + .raw-text--status {
+    border-color: $c-pool;
+  }
+}
+.raw-text--status {
+  position: relative;
+  width: 100%;
+  height: $raw-status-height;
+  line-height: $raw-status-height;
+  font-size: 12px;
+  background-color: $g2-kevlar;
+  border: 2px solid $query-editor--bg;
+  padding: 0 10px;
+  padding-right: ($query-template-dropdown-width + ($query-template-dropdown-offset * 2)) !important;
+  border-radius: 0 0 $radius $radius;
+  border-top: 0;
+  color: $g11-sidewalk;
+  font-family: $code-font;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition:
+    color 0.25s ease,
+    background-color 0.25s ease,
+    border-color 0.25s ease;
+
+  span.icon {
+    margin-right: 5px;
+  }
+
+  /* Error State */
+  &.raw-text--error {
+    color: $c-dreamsicle;
+  }
+
+  /* Warning State */
+  &.raw-text--warning {
+    color: $c-comet;
+  }
+
+  /* Success State */
+  &.raw-text--success {
+    color: $c-rainforest;
+  }
+
+  /* Loading State */
+  .loading-dots {
+    top: calc(50% + 2px);
+    left: 14px;
+    transform: translateY(-50%);
+  }
+}
+
+.dropdown.query-template {
+  position: absolute;
+  top: ($raw-text-height + (($raw-status-height - $query-template-dropdown-height) / 2));
+  right: $query-template-dropdown-offset;
+
+  div.dropdown-toggle.btn.btn-sm {
+    width: $query-template-dropdown-width;
+    padding: 0 9px !important;
+    height: $query-template-dropdown-height !important;
+    line-height: $query-template-dropdown-height !important;
+    font-size: 12px;
+    border-radius: $radius-small;
+  }
+
+  .dropdown-menu {
+    left: initial;
+    right: 0;
+    width: $query-template-dropdown-menu-width;
+    min-width: $query-template-dropdown-menu-width;
+    max-width: $query-template-dropdown-menu-width;
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+.tag-list {
+
+  &__item {
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    &:hover .tag-list__group-by {
+      display: flex;
+    }
+
+    &.open {
+      font-weight: 600;
+      color: $g20-white;
+
+      .tag-list__caret .icon {
+        transform: translateY(-50%) rotate(90deg);
+      }
+    }
+  }
+  &__title {
+    display: flex;
+    align-items:center;
+    justify-content: flex-start;
+
+    .badge {
+      background-color: $g2-kevlar;
+      color: $c-pool;
+      margin-left: 5px;
+    }
+  }
+  &__caret {
+    width: 16px;
+    position: relative;
+
+    .icon {
+      font-size: 10px;
+      position: absolute;
+      top: 50%;
+      left: 0;
+      transform: translateY(-50%) rotate(0deg);
+      transition: transform 0.25s ease;
+    }
+  }
+}
+
+.tag-value-list {
+  padding: 0;
+
+  &__checkbox {
+    width: 16px;
+    height: 16px;
+    background-color: $g2-kevlar;
+    border-radius: 3px;
+    position: relative;
+    margin-right: 8px;
+
+    &:after {
+      z-index: 2;
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%,-50%);
+      width: 20px;
+      height: 20px;
+      opacity: 0;
+      background-color: $c-pool;
+      border-radius: 50%;
+      transition:
+        transform 0.25s ease,
+        opacity 0.25s ease;
+    }
+  }
+
+  &__item {
+    padding-left: 35px;
+    position: relative;
+    display: flex;
+    align-items: center;
+
+    &.active {
+      background: $g4-onyx;
+      color: $g20-white;
+      font-weight: 600;
+
+      .tag-value-list__checkbox:after {
+        transform: translate(-50%,-50%) scale(0.4,0.4);
+        opacity: 1;
+      }
+    }
+  }
+  &__filter {
+    position: relative;
+    width: 100%;
+    display: block;
+    background-color: $g3-castle;
+    border: 2px solid $g5-pepper;
+    color: $g13-mist;
+    height: 30px;
+    border-radius: 15px;
+    font-size: 13px;
+    padding-left: 25px;
+    outline: none;
+    color: $g20-white;
+    font-weight: 700;
+    transition:
+      border-color 0.25s ease,
+      color 0.25s ease,
+      background-color 0.25s ease;
+
+    &:focus {
+      border-color: $c-pool;
+      & + .icon {
+        color: $g20-white;
+
+      }
+    }
+    &::-webkit-input-placeholder {
+      color: $g10-wolf;
+      font-weight: 500;
+    }
+    &:-moz-placeholder { /* Firefox 18- */
+      color: $g10-wolf;
+      font-weight: 500;
+    }
+    &::-moz-placeholder {  /* Firefox 19+ */
+      color: $g10-wolf;
+      font-weight: 500;
+    }
+    &:-ms-input-placeholder {
+      color: $g10-wolf;
+      font-weight: 500;
+    }
+
+    + .icon {
+      position: absolute;
+      top: 50%;
+      left: 39px;
+      transform: translateY(-50%);
+      color: $g10-wolf;
+      transition: color 0.25s ease;
+      font-size: 12px;
+      z-index: 2;
+    }
+
+    &-container {
+      padding: 8px 9.5px 8px 31px;
+      position: relative;
+    }
+  }
+}
+
+.tag-list__group-by {
+  display: none;
+  background-color: $g5-pepper;
+  border-color: $g5-pepper;
+  color: $g13-mist !important;
+
+  &:hover {
+    background-color: $g6-smoke;
+    border-color: $g6-smoke;
+    color: $g20-white !important;
+  }
+  &:active,
+  &:active:hover,
+  &:active:focus {
+    color: $g20-white !important;
+    background-color: $g7-graphite;
+    border-color: $g6-smoke;
+  }
+  &.active {
+    display: flex;
+    background: $c-pool;
+    border-color: $c-pool;
+
+    &:hover {
+      background: $c-laser;
+      border-color: $c-laser;
+    }
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
 
 // Font size in response to screen size
 @import 'data-explorer/font-scale';
