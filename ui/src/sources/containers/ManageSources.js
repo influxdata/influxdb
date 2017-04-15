@@ -1,4 +1,4 @@
-import React, {PropTypes} from 'react'
+import React, {Component, PropTypes} from 'react'
 import {withRouter} from 'react-router'
 import {removeAndLoadSources, fetchKapacitorsAsync} from 'src/shared/actions/sources'
 import {connect} from 'react-redux'
@@ -6,36 +6,18 @@ import {bindActionCreators} from 'redux'
 
 import InfluxTable from '../components/InfluxTable'
 
-const {
-  array,
-  func,
-  shape,
-  string,
-} = PropTypes
+class ManageSources extends Component {
+  constructor(props) {
+    super(props)
 
-export const ManageSources = React.createClass({
-  propTypes: {
-    location: shape({
-      pathname: string.isRequired,
-    }).isRequired,
-    source: shape({
-      id: string.isRequired,
-      links: shape({
-        proxy: string.isRequired,
-        self: string.isRequired,
-      }),
-    }),
-    sources: array,
-    addFlashMessage: func,
-    removeAndLoadSources: func.isRequired,
-    fetchKapacitors: func.isRequired,
-  },
+    this.handleDeleteSource = ::this.handleDeleteSource
+  }
 
   componentDidMount() {
     this.props.sources.forEach((source) => {
       this.props.fetchKapacitors(source)
     })
-  },
+  }
 
   handleDeleteSource(source) {
     const {addFlashMessage} = this.props
@@ -45,7 +27,7 @@ export const ManageSources = React.createClass({
     } catch (e) {
       addFlashMessage({type: 'error', text: 'Could not remove source from Chronograf'})
     }
-  },
+  }
 
   render() {
     const {sources, source, location} = this.props
@@ -71,8 +53,32 @@ export const ManageSources = React.createClass({
         </div>
       </div>
     )
-  },
-})
+  }
+}
+
+const {
+  array,
+  func,
+  shape,
+  string,
+} = PropTypes
+
+ManageSources.propTypes = {
+  location: shape({
+    pathname: string.isRequired,
+  }).isRequired,
+  source: shape({
+    id: string.isRequired,
+    links: shape({
+      proxy: string.isRequired,
+      self: string.isRequired,
+    }),
+  }),
+  sources: array,
+  addFlashMessage: func,
+  removeAndLoadSources: func.isRequired,
+  fetchKapacitors: func.isRequired,
+}
 
 const mapStateToProps = ({sources}) => ({
   sources,
