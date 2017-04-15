@@ -37,6 +37,7 @@ $page-header-weight: 400 !important;
     display: inline-block;
     vertical-align: middle;
     @include no-user-select();
+    cursor: default;
   }
   &__left,
   &__right {
