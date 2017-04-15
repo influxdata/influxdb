@@ -52,7 +52,7 @@ $graph-heading-height: 44px;
   padding: 8px 16px;
   position: relative;
   top: 16px;
-  height: calc(100% - #{($graph-heading-height - 32px)});
+  height: calc(100% - #{($graph-heading-height + 32px)});
 
   & > div > div:last-child {
     position: absolute;
@@ -75,17 +75,14 @@ $graph-heading-height: 44px;
   @include no-user-select();
   background-color: $g3-castle;
   border-radius: 0 0 $radius $radius;
-  padding: 8px 16px;
   position: relative;
   height: 316px;
   transition:
     background-color 0.25s ease;
+  top: 16px;
+  height: calc(100% - #{$graph-heading-height + 32px});
 }
 .data-explorer .graph-container {
-  top: 16px;
-  height: calc(100% - #{$graph-heading-height - 32px});
-  padding: 0;
-
   & > div:not(.graph-panel__refreshing) {
     position: absolute;
     width: 100%;
@@ -133,21 +130,6 @@ $graph-heading-height: 44px;
   background-position: center center;
   background-repeat: no-repeat;
   animation: graph-panel-spinner 1s infinite linear;
-}
-.graph-spinner--small {
-  width: 58px;
-  height: 58px;
-  background-image: url(assets/images/laser-spinner.png);
-  background-size: 100% 100%;
-  background-position: center center;
-  background-repeat: no-repeat;
-  animation: graph-panel-spinner 1s infinite linear;
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  right: 0;
-  top: 0;
-  margin: auto;
 }
 
 @keyframes graph-panel-spinner {
