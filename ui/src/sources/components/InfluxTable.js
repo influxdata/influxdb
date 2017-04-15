@@ -3,11 +3,24 @@ import {Link} from 'react-router'
 
 import Dropdown from 'shared/components/Dropdown'
 
+const kapacitorDropdown = (kapacitors) => {
+  if (!kapacitors || kapacitors.length === 0) {
+    return (
+      <span>--</span>
+    )
+  }
+  const kapacitorItems = kapacitors.map((k) => {
+    return {text: k.name}
+  })
+  return (
+    <Dropdown items={kapacitorItems} onChoose={() => {}} selected={kapacitorItems[0].text} />
+  )
+}
+
 const InfluxTable = ({
   sources,
   source,
   handleDeleteSource,
-  kapacitors,
   location,
 }) => (
   <div className="row">
@@ -31,16 +44,14 @@ const InfluxTable = ({
               <tbody>
                 {
                   sources.map((s) => {
-                    const kapacitorName = kapacitors[s.id] ? kapacitors[s.id].name : ''
                     return (
                       <tr key={s.id}>
                         <td>{s.name}{s.default ? <span className="default-source-label">Default</span> : null}</td>
                         <td className="monotype">{s.url}</td>
-                        <td>{
-                              kapacitorName ?
-                                <Dropdown items={[{text: kapacitorName}]} onChoose={() => {}} selected={kapacitorName} /> :
-                                <span>--</span>
-                            }
+                        <td>
+                          {
+                            kapacitorDropdown(s.kapacitors)
+                          }
                         </td>
                         <td className="text-right">
                           <Link className="btn btn-info btn-xs" to={`${location.pathname}/${s.id}/edit`}><span className="icon pencil"></span></Link>
@@ -63,14 +74,12 @@ const InfluxTable = ({
 const {
   array,
   func,
-  object,
   shape,
   string,
 } = PropTypes
 
 InfluxTable.propTypes = {
   sources: array.isRequired,
-  kapacitors: object,
   location: shape({
     pathname: string.isRequired,
   }).isRequired,

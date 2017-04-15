@@ -31,12 +31,6 @@ export const ManageSources = React.createClass({
     fetchKapacitors: func.isRequired,
   },
 
-  getInitialState() {
-    return {
-      kapacitors: {},
-    }
-  },
-
   componentDidMount() {
     this.props.sources.forEach((source) => {
       this.props.fetchKapacitors(source)
@@ -54,8 +48,6 @@ export const ManageSources = React.createClass({
   },
 
   render() {
-    // probably should move kapacitors to props and use redux store
-    const {kapacitors} = this.state
     const {sources, source, location} = this.props
 
     return (
@@ -73,7 +65,6 @@ export const ManageSources = React.createClass({
               handleDeleteSource={this.handleDeleteSource}
               source={source}
               sources={sources}
-              kapacitors={kapacitors}
               location={location}
             />
           </div>
