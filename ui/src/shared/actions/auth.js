@@ -1,3 +1,10 @@
+export const authExpired = (auth) => ({
+  type: 'AUTH_EXPIRED',
+  payload: {
+    auth,
+  },
+})
+
 export const authRequested = () => ({
   type: 'AUTH_REQUESTED',
 })
