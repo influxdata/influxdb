@@ -1,9 +1,11 @@
 // import {replace} from 'react-router-redux'
-
 import {authExpired} from 'shared/actions/auth'
 import {publishNotification as notify} from 'shared/actions/notifications'
 
 import {HTTP_FORBIDDEN} from 'shared/constants'
+
+const notificationsBlackoutDuration = 5000
+let allowNotifications = true // eslint-disable-line
 
 const errorsMiddleware = store => next => action => {
   if (action.type === 'ERROR_THROWN') {
@@ -19,6 +21,11 @@ const errorsMiddleware = store => next => action => {
 
       if (wasSessionTimeout) {
         store.dispatch(notify('error', 'Session timed out. Please login again.'))
+
+        allowNotifications = false
+        setTimeout(() => {
+          allowNotifications = true
+        }, notificationsBlackoutDuration)
       } else {
         store.dispatch(notify('error', 'Please login to use Chronograf.'))
       }
