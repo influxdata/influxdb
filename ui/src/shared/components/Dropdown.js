@@ -1,51 +1,44 @@
-import React, {PropTypes} from 'react'
+import React, {Component, PropTypes} from 'react'
 import classnames from 'classnames'
 import OnClickOutside from 'shared/components/OnClickOutside'
 
-const {
-  arrayOf,
-  shape,
-  string,
-  func,
-} = PropTypes
-
-const Dropdown = React.createClass({
-  propTypes: {
-    items: arrayOf(shape({
-      text: string.isRequired,
-    })).isRequired,
-    onChoose: func.isRequired,
-    selected: string.isRequired,
-    iconName: string,
-    className: string,
-  },
-  getInitialState() {
-    return {
+class Dropdown extends Component {
+  constructor(props) {
+    super(props)
+    this.state = {
       isOpen: false,
     }
-  },
-  getDefaultProps() {
-    return {
-      actions: [],
-    }
-  },
+
+    this.handleClickOutside = ::this.handleClickOutside
+    this.handleSelection = ::this.handleSelection
+    this.toggleMenu = ::this.toggleMenu
+  }
+
+  static defaultProps = {
+    actions: [],
+  }
+
   handleClickOutside() {
     this.setState({isOpen: false})
-  },
+  }
+
   handleSelection(item) {
     this.toggleMenu()
     this.props.onChoose(item)
-  },
+  }
+
   toggleMenu(e) {
     if (e) {
       e.stopPropagation()
     }
     this.setState({isOpen: !this.state.isOpen})
-  },
+  }
+
   handleAction(e, action, item) {
     e.stopPropagation()
     action.handler(item)
-  },
+  }
+
   render() {
     const self = this
     const {items, selected, className, iconName, actions} = self.props
@@ -81,7 +74,24 @@ const Dropdown = React.createClass({
           : null}
       </div>
     )
-  },
-})
+  }
+}
+
+const {
+  arrayOf,
+  shape,
+  string,
+  func,
+} = PropTypes
+
+Dropdown.propTypes = {
+  items: arrayOf(shape({
+    text: string.isRequired,
+  })).isRequired,
+  onChoose: func.isRequired,
+  selected: string.isRequired,
+  iconName: string,
+  className: string,
+}
 
 export default OnClickOutside(Dropdown)
