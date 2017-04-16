@@ -3,7 +3,7 @@ import {Link} from 'react-router'
 
 import Dropdown from 'shared/components/Dropdown'
 
-const kapacitorDropdown = (kapacitors) => {
+const kapacitorDropdown = (kapacitors, source) => {
   if (!kapacitors || kapacitors.length === 0) {
     return (
       <span>--</span>
@@ -13,7 +13,15 @@ const kapacitorDropdown = (kapacitors) => {
     return {text: k.name}
   })
   return (
-    <Dropdown items={kapacitorItems} onChoose={() => {}} selected={kapacitorItems[0].text} />
+    <Dropdown
+      items={kapacitorItems}
+      onChoose={() => {}}
+      addNew={{
+        url: `/sources/${source.id}/kapacitors/new`,
+        text: "Add Kapacitor",
+      }}
+      selected={kapacitorItems[0].text}
+    />
   )
 }
 
@@ -50,7 +58,7 @@ const InfluxTable = ({
                         <td className="monotype">{s.url}</td>
                         <td>
                           {
-                            kapacitorDropdown(s.kapacitors)
+                            kapacitorDropdown(s.kapacitors, source)
                           }
                         </td>
                         <td className="text-right">

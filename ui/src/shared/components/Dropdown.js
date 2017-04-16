@@ -1,5 +1,7 @@
 import React, {Component, PropTypes} from 'react'
+import {Link} from 'react-router'
 import classnames from 'classnames'
+
 import OnClickOutside from 'shared/components/OnClickOutside'
 
 class Dropdown extends Component {
@@ -12,6 +14,7 @@ class Dropdown extends Component {
     this.handleClickOutside = ::this.handleClickOutside
     this.handleSelection = ::this.handleSelection
     this.toggleMenu = ::this.toggleMenu
+    this.handleAction = ::this.handleAction
   }
 
   static defaultProps = {
@@ -40,8 +43,8 @@ class Dropdown extends Component {
   }
 
   render() {
-    const self = this
-    const {items, selected, className, iconName, actions} = self.props
+    const {items, selected, className, iconName, actions, addNew} = this.props
+    const {isOpen} = this.state
 
     return (
       <div onClick={this.toggleMenu} className={`dropdown ${className}`}>
@@ -50,7 +53,7 @@ class Dropdown extends Component {
           <span className="dropdown-selected">{selected}</span>
           <span className="caret" />
         </div>
-        {self.state.isOpen ?
+        {isOpen ?
           <ul className="dropdown-menu show">
             {items.map((item, i) => {
               return (
@@ -61,7 +64,7 @@ class Dropdown extends Component {
                   <div className="dropdown-item__actions">
                     {actions.map((action) => {
                       return (
-                        <button key={action.text} data-target={action.target} data-toggle="modal" className="dropdown-item__action" onClick={(e) => self.handleAction(e, action, item)}>
+                        <button key={action.text} data-target={action.target} data-toggle="modal" className="dropdown-item__action" onClick={(e) => this.handleAction(e, action, item)}>
                           <span title={action.text} className={`icon ${action.icon}`}></span>
                         </button>
                       )
@@ -70,6 +73,15 @@ class Dropdown extends Component {
                 </li>
               )
             })}
+            {
+              addNew ?
+                <li>
+                  <Link to={addNew.url}>
+                    {addNew.text}
+                  </Link>
+                </li> :
+                null
+            }
           </ul>
           : null}
       </div>
@@ -85,10 +97,19 @@ const {
 } = PropTypes
 
 Dropdown.propTypes = {
+  actions: arrayOf(shape({
+    icon: string.isRequired,
+    target: string.isRequired,
+    text: string.isRequired,
+  })),
   items: arrayOf(shape({
     text: string.isRequired,
   })).isRequired,
   onChoose: func.isRequired,
+  addNew: shape({
+    url: string.isRequired,
+    text: string.isRequired,
+  }),
   selected: string.isRequired,
   iconName: string,
   className: string,
