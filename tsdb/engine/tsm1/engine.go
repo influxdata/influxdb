@@ -37,8 +37,12 @@ func init() {
 	tsdb.RegisterEngine("tsm1", NewEngine)
 }
 
-// Ensure Engine implements the interface.
-var _ tsdb.Engine = &Engine{}
+var (
+	// Ensure Engine implements the interface.
+	_ tsdb.Engine = &Engine{}
+	// Static objects to prevent small allocs.
+	timeBytes = []byte("time")
+)
 
 const (
 	// keyFieldSeparator separates the series key from the field name in the composite key
@@ -712,6 +716,11 @@ func (e *Engine) WritePoints(points []models.Point) error {
 		iter := p.FieldIterator()
 		t := p.Time().UnixNano()
 		for iter.Next() {
+			// Skip fields name "time", they are illegal
+			if bytes.Equal(iter.FieldKey(), timeBytes) {
+				continue
+			}
+
 			keyBuf = append(keyBuf[:baseLen], iter.FieldKey()...)
 			var v Value
 			switch iter.Type() {

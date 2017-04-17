@@ -1,7 +1,6 @@
 package tsdb_test
 
 import (
-	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -21,7 +20,6 @@ import (
 	_ "github.com/influxdata/influxdb/tsdb/engine"
 	_ "github.com/influxdata/influxdb/tsdb/index"
 	"github.com/influxdata/influxdb/tsdb/index/inmem"
-	"github.com/uber-go/zap"
 )
 
 func TestShardWriteAndIndex(t *testing.T) {
@@ -220,12 +218,8 @@ func TestWriteTimeTag(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	buf := bytes.NewBuffer(nil)
-	sh.WithLogger(zap.New(zap.NewTextEncoder(), zap.Output(zap.AddSync(buf))))
-	if err := sh.WritePoints([]models.Point{pt}); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	} else if got, exp := buf.String(), "dropping field 'time'"; !strings.Contains(got, exp) {
-		t.Fatalf("unexpected log message: %s", strings.TrimSpace(got))
+	if err := sh.WritePoints([]models.Point{pt}); err == nil {
+		t.Fatal("expected error: got nil")
 	}
 
 	pt = models.MustNewPoint(
@@ -235,12 +229,8 @@ func TestWriteTimeTag(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	buf = bytes.NewBuffer(nil)
-	sh.WithLogger(zap.New(zap.NewTextEncoder(), zap.Output(zap.AddSync(buf))))
 	if err := sh.WritePoints([]models.Point{pt}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
-	} else if got, exp := buf.String(), "dropping field 'time'"; !strings.Contains(got, exp) {
-		t.Fatalf("unexpected log message: %s", strings.TrimSpace(got))
 	}
 
 	mf := sh.MeasurementFields([]byte("cpu"))
@@ -276,12 +266,13 @@ func TestWriteTimeField(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	buf := bytes.NewBuffer(nil)
-	sh.WithLogger(zap.New(zap.NewTextEncoder(), zap.Output(zap.AddSync(buf))))
-	if err := sh.WritePoints([]models.Point{pt}); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	} else if got, exp := buf.String(), "dropping tag 'time'"; !strings.Contains(got, exp) {
-		t.Fatalf("unexpected log message: %s", strings.TrimSpace(got))
+	if err := sh.WritePoints([]models.Point{pt}); err == nil {
+		t.Fatal("expected error: got nil")
+	}
+
+	key := models.MakeKey([]byte("cpu"), nil)
+	if ok, err := sh.MeasurementExists(key); ok && err == nil {
+		t.Fatal("unexpected series")
 	}
 }
 
