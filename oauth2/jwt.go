@@ -21,7 +21,7 @@ type JWT struct {
 func NewJWT(secret string) *JWT {
 	return &JWT{
 		Secret: secret,
-		Now:    time.Now,
+		Now:    DefaultNowTime,
 	}
 }
 
@@ -127,6 +127,6 @@ func (j *JWT) ExtendPrincipal(ctx context.Context, principal Principal, extensio
 	// Extend the time of expiration.  Do not change IssuedAt as the
 	// lifetime of the token is extended, but, NOT the original time
 	// of issue. This is used to enforce a maximum lifetime of a token
-	principal.ExpiresAt = j.Now().UTC().Add(extension)
+	principal.ExpiresAt = j.Now().Add(extension)
 	return principal, nil
 }

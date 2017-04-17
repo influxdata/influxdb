@@ -23,7 +23,7 @@ func NewAuthMux(p Provider, a Authenticator, t Tokenizer, l chronograf.Logger) *
 		Logger:     l,
 		SuccessURL: "/",
 		FailureURL: "/login",
-		Now:        time.Now,
+		Now:        DefaultNowTime,
 	}
 }
 
@@ -54,7 +54,7 @@ func (j *AuthMux) Login() http.Handler {
 		// oauth2 provider's password.
 		// If the callback is not received within 10 minutes, then authorization will fail.
 		csrf := randomString(32) // 32 is not important... just long
-		now := j.Now().UTC()
+		now := j.Now()
 
 		// This token will be valid for 10 minutes.  Any chronograf server will
 		// be able to validate this token.

@@ -30,10 +30,10 @@ func NewCookieJWT(secret string, lifespan time.Duration) Authenticator {
 		Name:       DefaultCookieName,
 		Lifespan:   lifespan,
 		Inactivity: DefaultInactivityDuration,
-		Now:        time.Now,
+		Now:        DefaultNowTime,
 		Tokens: &JWT{
 			Secret: secret,
-			Now:    time.Now,
+			Now:    DefaultNowTime,
 		},
 	}
 }
@@ -76,7 +76,7 @@ func (c *cookie) Validate(ctx context.Context, w http.ResponseWriter, r *http.Re
 func (c *cookie) Authorize(ctx context.Context, w http.ResponseWriter, p Principal) error {
 	// Principal will be issued at Now() and will expire
 	// c.Inactivity into the future
-	now := c.Now().UTC()
+	now := c.Now()
 	p.IssuedAt = now
 	p.ExpiresAt = now.Add(c.Inactivity)
 
@@ -104,7 +104,7 @@ func (c *cookie) setCookie(w http.ResponseWriter, value string, exp time.Time) {
 
 	// Only set a cookie to be persistent (endure beyond the browser session)
 	// if auth duration is greater than zero
-	if c.Lifespan > 0 || exp.Before(c.Now().UTC()) {
+	if c.Lifespan > 0 || exp.Before(c.Now()) {
 		cookie.Expires = exp
 	}
 
@@ -114,5 +114,5 @@ func (c *cookie) setCookie(w http.ResponseWriter, value string, exp time.Time) {
 // Expire returns a cookie that will expire an existing cookie
 func (c *cookie) Expire(w http.ResponseWriter) {
 	// to expire cookie set the time in the past
-	c.setCookie(w, "none", c.Now().UTC().Add(-1*time.Hour))
+	c.setCookie(w, "none", c.Now().Add(-1*time.Hour))
 }
