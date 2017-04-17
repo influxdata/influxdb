@@ -6,7 +6,7 @@ import Dropdown from 'shared/components/Dropdown'
 const kapacitorDropdown = (kapacitors, source, router) => {
   if (!kapacitors || kapacitors.length === 0) {
     return (
-      <span>--</span>
+      <Link to={`/sources/${source.id}/kapacitors/new`}>Add Kapacitor</Link>
     )
   }
   const kapacitorItems = kapacitors.map((k) => {
@@ -67,7 +67,7 @@ const InfluxTable = ({
                         <td className="monotype">{s.url}</td>
                         <td>
                           {
-                            kapacitorDropdown(s.kapacitors, source, router)
+                            kapacitorDropdown(s.kapacitors, s, router)
                           }
                         </td>
                         <td className="text-right">
