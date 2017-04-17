@@ -382,16 +382,16 @@ func (l *WAL) writeToLog(entry WALEntry) (int, error) {
 	//defer l.limiter.Release()
 
 	// encode and compress the entry while we're not locked
-	bytes := getBuf(walEncodeBufSize)
-	defer putBuf(bytes)
+	bytes := *(getBuf(walEncodeBufSize))
+	defer putBuf(&bytes)
 
 	b, err := entry.Encode(bytes)
 	if err != nil {
 		return -1, err
 	}
 
-	encBuf := getBuf(snappy.MaxEncodedLen(len(b)))
-	defer putBuf(encBuf)
+	encBuf := *(getBuf(snappy.MaxEncodedLen(len(b))))
+	defer putBuf(&encBuf)
 	compressed := snappy.Encode(encBuf, b)
 	syncErr := make(chan error)
 
@@ -1031,8 +1031,8 @@ func NewWALSegmentReader(r io.ReadCloser) *WALSegmentReader {
 
 // Next indicates if there is a value to read.
 func (r *WALSegmentReader) Next() bool {
-	b := getBuf(defaultBufLen)
-	defer putBuf(b)
+	b := *(getBuf(defaultBufLen))
+	defer putBuf(&b)
 	var nReadOK int
 
 	// read the type and the length of the entry
@@ -1069,8 +1069,8 @@ func (r *WALSegmentReader) Next() bool {
 		r.err = err
 		return true
 	}
-	decBuf := getBuf(decLen)
-	defer putBuf(decBuf)
+	decBuf := *(getBuf(decLen))
+	defer putBuf(&decBuf)
 
 	data, err := snappy.Decode(decBuf, b[:length])
 	if err != nil {
