@@ -56,7 +56,7 @@ func CreateSeriesBlock(a []Series) (*tsi1.SeriesBlock, error) {
 	var buf bytes.Buffer
 
 	// Create writer and sketches. Add series.
-	enc := tsi1.NewSeriesBlockEncoder(&buf)
+	enc := tsi1.NewSeriesBlockEncoder(&buf, uint64(len(a)))
 	for i, s := range a {
 		if err := enc.Encode(s.Name, s.Tags, s.Deleted); err != nil {
 			return nil, fmt.Errorf("SeriesBlockWriter.Add(): i=%d, err=%s", i, err)

@@ -11,6 +11,7 @@ import (
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/bloom"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/estimator/hll"
 	"github.com/influxdata/influxdb/pkg/mmap"
@@ -20,12 +21,16 @@ import (
 // ErrSeriesOverflow is returned when too many series are added to a series writer.
 var ErrSeriesOverflow = errors.New("series overflow")
 
+// BloomFalsePositiveRate is the false positive rate of the series bloom filter.
+const BloomFalsePositiveRate = 0.02
+
 // Series list field size constants.
 const (
 	// Series list trailer field sizes.
 	SeriesBlockTrailerSize = 0 +
 		8 + 8 + // series data offset/size
 		8 + 8 + 8 + // series index offset/size/capacity
+		8 + 8 + 8 + // bloom filter false positive rate, offset/size
 		8 + 8 + // series sketch offset/size
 		8 + 8 + // tombstone series sketch offset/size
 		8 + 8 + // series count and tombstone count
@@ -60,6 +65,9 @@ type SeriesBlock struct {
 	// Exact series counts for this block.
 	seriesN    int64
 	tombstoneN int64
+
+	// Bloom filter used for fast series existence check.
+	filter *bloom.Filter
 
 	// Series block sketch and tombstone sketch for cardinality estimation.
 	// While we have exact counts for the block, these sketches allow us to
@@ -96,6 +104,14 @@ func (blk *SeriesBlock) Offset(name []byte, tags models.Tags, buf []byte) (offse
 	// Compute series key.
 	buf = AppendSeriesKey(buf[:0], name, tags)
 	bufN := uint64(len(buf))
+
+	// Quickly check the bloom filter.
+	// If the key doesn't exist then we know for sure that it doesn't exist.
+	// If it does exist then we need to do a hash index check to verify. False
+	// positives are possible with a bloom filter.
+	if !blk.filter.Contains(buf) {
+		return 0, false
+	}
 
 	// Find the correct partition.
 	// Use previous index unless an exact match on the min value.
@@ -195,6 +211,13 @@ func (blk *SeriesBlock) UnmarshalBinary(data []byte) error {
 	if len(buf) != 0 {
 		return fmt.Errorf("data remaining in index list buffer: %d", len(buf))
 	}
+
+	// Initialize bloom filter.
+	filter, err := bloom.NewFilterBuffer(data[t.Bloom.Offset:][:t.Bloom.Size], t.Bloom.K)
+	if err != nil {
+		return err
+	}
+	blk.filter = filter
 
 	// Initialise sketches. We're currently using HLL+.
 	var s, ts = hll.NewDefaultPlus(), hll.NewDefaultPlus()
@@ -510,13 +533,18 @@ type SeriesBlockEncoder struct {
 	indexMin []byte
 	indexes  []seriesBlockIndexEncodeInfo
 
+	// Bloom filter to check for series existance.
+	filter *bloom.Filter
+
 	// Series sketch and tombstoned series sketch. These must be
 	// set before calling WriteTo.
 	sketch, tSketch estimator.Sketch
 }
 
 // NewSeriesBlockEncoder returns a new instance of SeriesBlockEncoder.
-func NewSeriesBlockEncoder(w io.Writer) *SeriesBlockEncoder {
+func NewSeriesBlockEncoder(w io.Writer, n uint64) *SeriesBlockEncoder {
+	m, k := bloom.Estimate(n, BloomFalsePositiveRate)
+
 	return &SeriesBlockEncoder{
 		w: w,
 
@@ -524,6 +552,8 @@ func NewSeriesBlockEncoder(w io.Writer) *SeriesBlockEncoder {
 			Capacity:   MaxSeriesBlockHashSize,
 			LoadFactor: LoadFactor,
 		}),
+
+		filter: bloom.NewFilter(m, k),
 
 		sketch:  hll.NewDefaultPlus(),
 		tSketch: hll.NewDefaultPlus(),
@@ -574,6 +604,9 @@ func (enc *SeriesBlockEncoder) Encode(name []byte, tags models.Tags, deleted boo
 	// Key is copied by the RHH map.
 	enc.offsets.Put(buf[1:], uint64(offset))
 
+	// Update bloom filter.
+	enc.filter.Insert(buf[1:])
+
 	// Update sketches & trailer.
 	if deleted {
 		enc.trailer.TombstoneN++
@@ -608,6 +641,14 @@ func (enc *SeriesBlockEncoder) Close() error {
 		return err
 	}
 	enc.trailer.Series.Index.Size = enc.n - enc.trailer.Series.Index.Offset
+
+	// Flush bloom filter.
+	enc.trailer.Bloom.K = enc.filter.K()
+	enc.trailer.Bloom.Offset = enc.n
+	if err := writeTo(enc.w, enc.filter.Bytes(), &enc.n); err != nil {
+		return err
+	}
+	enc.trailer.Bloom.Size = enc.n - enc.trailer.Bloom.Offset
 
 	// Write the sketches out.
 	enc.trailer.Sketch.Offset = enc.n
@@ -774,6 +815,11 @@ func ReadSeriesBlockTrailer(data []byte) SeriesBlockTrailer {
 	t.Series.Index.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
 	t.Series.Index.N, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
 
+	// Read bloom filter info.
+	t.Bloom.K, buf = binary.BigEndian.Uint64(buf[0:8]), buf[8:]
+	t.Bloom.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
+	t.Bloom.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
+
 	// Read series sketch info.
 	t.Sketch.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
 	t.Sketch.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
@@ -801,6 +847,13 @@ type SeriesBlockTrailer struct {
 			Size   int64
 			N      int64
 		}
+	}
+
+	// Bloom filter info.
+	Bloom struct {
+		K      uint64
+		Offset int64
+		Size   int64
 	}
 
 	// Offset and size of cardinality sketch for measurements.
@@ -831,6 +884,15 @@ func (t SeriesBlockTrailer) WriteTo(w io.Writer) (n int64, err error) {
 	} else if err := writeUint64To(w, uint64(t.Series.Index.Size), &n); err != nil {
 		return n, err
 	} else if err := writeUint64To(w, uint64(t.Series.Index.N), &n); err != nil {
+		return n, err
+	}
+
+	// Write bloom filter info.
+	if err := writeUint64To(w, t.Bloom.K, &n); err != nil {
+		return n, err
+	} else if err := writeUint64To(w, uint64(t.Bloom.Offset), &n); err != nil {
+		return n, err
+	} else if err := writeUint64To(w, uint64(t.Bloom.Size), &n); err != nil {
 		return n, err
 	}
 

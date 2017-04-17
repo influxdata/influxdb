@@ -808,8 +808,14 @@ func (f *LogFile) WriteTo(w io.Writer) (n int64, err error) {
 }
 
 func (f *LogFile) writeSeriesBlockTo(w io.Writer, names []string, info *logFileCompactInfo, n *int64) error {
+	// Determine series count.
+	var seriesN uint64
+	for _, mm := range f.mms {
+		seriesN += uint64(len(mm.series))
+	}
+
 	// Write all series.
-	enc := NewSeriesBlockEncoder(w)
+	enc := NewSeriesBlockEncoder(w, seriesN)
 
 	// Add series from measurements.
 	for _, name := range names {

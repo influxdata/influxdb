@@ -8,6 +8,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/influxdata/influxdb/pkg/estimator/hll"
 	"github.com/influxdata/influxdb/pkg/mmap"
 )
 
@@ -187,8 +188,16 @@ func (p IndexFiles) WriteTo(w io.Writer) (n int64, err error) {
 }
 
 func (p IndexFiles) writeSeriesBlockTo(w io.Writer, info *indexCompactInfo, n *int64) error {
+	// Estimate series cardinality.
+	sketch := hll.NewDefaultPlus()
+	for _, f := range p {
+		if err := f.MergeSeriesSketches(sketch, sketch); err != nil {
+			return err
+		}
+	}
+
 	itr := p.SeriesIterator()
-	enc := NewSeriesBlockEncoder(w)
+	enc := NewSeriesBlockEncoder(w, sketch.Count())
 
 	// Write all series.
 	for e := itr.Next(); e != nil; e = itr.Next() {
