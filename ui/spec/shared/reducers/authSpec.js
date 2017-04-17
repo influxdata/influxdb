@@ -51,4 +51,18 @@ describe('Shared.Reducers.authReducer', () => {
     expect(reducedState.links[0]).to.deep.equal(defaultAuth.links[0])
     expect(reducedState.isAuthLoading).to.equal(false)
   })
+
+  it('should handle ME_REQUESTED', () => {
+    const reducedState = authReducer(initialState, meRequested())
+
+    expect(reducedState.isMeLoading).to.equal(true)
+  })
+
+  it('should handle ME_RECEIVED', () => {
+    const loadingState = Object.assign({}, initialState, {isMeLoading: true})
+    const reducedState = authReducer(loadingState, meReceived(defaultMe))
+
+    expect(reducedState.me).to.deep.equal(defaultMe)
+    expect(reducedState.isAuthLoading).to.equal(false)
+  })
 })
