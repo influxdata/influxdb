@@ -109,8 +109,8 @@ const Root = React.createClass({
               <Route path="hosts" component={HostsPage} />
               <Route path="hosts/:hostID" component={HostPage} />
               <Route path="kubernetes" component={KubernetesPage} />
-              <Route path="kapacitors/new" component={CreateKapacitorPage} />
-              <Route path="kapacitor-config" component={KapacitorPage} />
+              <Route path="kapacitors/new" component={KapacitorPage} />
+              <Route path="kapacitors/:id/edit" component={KapacitorPage} />
               <Route path="kapacitor-tasks" component={KapacitorTasksPage} />
               <Route path="alerts" component={AlertsApp} />
               <Route path="dashboards" component={DashboardsPage} />

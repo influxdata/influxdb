@@ -1,4 +1,4 @@
-import React, {PropTypes} from 'react'
+import React, {Component, PropTypes} from 'react'
 import {
   getKapacitor,
   createKapacitor,
@@ -10,23 +10,10 @@ import KapacitorForm from '../components/KapacitorForm'
 const defaultName = "My Kapacitor"
 const kapacitorPort = "9092"
 
-const {
-  func,
-  shape,
-  string,
-} = PropTypes
-
-export const KapacitorPage = React.createClass({
-  propTypes: {
-    source: shape({
-      id: string.isRequired,
-      url: string.isRequired,
-    }),
-    addFlashMessage: func,
-  },
-
-  getInitialState() {
-    return {
+class KapacitorPage extends Component {
+  constructor(props) {
+    super(props)
+    this.state = {
       kapacitor: {
         url: this._parseKapacitorURL(),
         name: defaultName,
@@ -35,7 +22,12 @@ export const KapacitorPage = React.createClass({
       },
       exists: false,
     }
-  },
+
+    this.handleInputChange = ::this.handleInputChange
+    this.handleSubmit = ::this.handleSubmit
+    this.handleResetToDefaults = ::this.handleResetToDefaults
+    this._parseKapacitorURL = ::this._parseKapacitorURL
+  }
 
   componentDidMount() {
     const {source} = this.props
@@ -50,24 +42,7 @@ export const KapacitorPage = React.createClass({
         })
       })
     })
-  },
-
-  render() {
-    const {source, addFlashMessage} = this.props
-    const {kapacitor, exists} = this.state
-
-    return (
-      <KapacitorForm
-        onSubmit={this.handleSubmit}
-        onInputChange={this.handleInputChange}
-        onReset={this.handleResetToDefaults}
-        kapacitor={kapacitor}
-        source={source}
-        addFlashMessage={addFlashMessage}
-        exists={exists}
-      />
-    )
-  },
+  }
 
   handleInputChange(e) {
     const {value, name} = e.target
@@ -76,8 +51,7 @@ export const KapacitorPage = React.createClass({
       const update = {[name]: value.trim()}
       return {kapacitor: {...prevState.kapacitor, ...update}}
     })
-  },
-
+  }
 
   handleSubmit(e) {
     e.preventDefault()
@@ -99,7 +73,7 @@ export const KapacitorPage = React.createClass({
         addFlashMessage({type: 'error', text: 'There was a problem creating the Kapacitor record'})
       })
     }
-  },
+  }
 
   handleResetToDefaults(e) {
     e.preventDefault()
@@ -111,14 +85,48 @@ export const KapacitorPage = React.createClass({
     }
 
     this.setState({kapacitor: {...defaultState}})
-  },
+  }
 
   _parseKapacitorURL() {
     const parser = document.createElement('a')
     parser.href = this.props.source.url
 
     return `${parser.protocol}//${parser.hostname}:${kapacitorPort}`
-  },
-})
+  }
+
+  render() {
+    const {source, addFlashMessage} = this.props
+    const {kapacitor, exists} = this.state
+
+    return (
+      <KapacitorForm
+        onSubmit={this.handleSubmit}
+        onInputChange={this.handleInputChange}
+        onReset={this.handleResetToDefaults}
+        kapacitor={kapacitor}
+        source={source}
+        addFlashMessage={addFlashMessage}
+        exists={exists}
+      />
+    )
+  }
+}
+
+const {
+  func,
+  shape,
+  string,
+} = PropTypes
+
+KapacitorPage.propTypes = {
+  addFlashMessage: func,
+  params: shape({
+    id: string,
+  }).isRequired,
+  source: shape({
+    id: string.isRequired,
+    url: string.isRequired,
+  }),
+}
 
 export default KapacitorPage
