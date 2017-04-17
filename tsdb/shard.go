@@ -579,6 +579,10 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 
 	// get the shard mutex for locally defined fields
 	n := 0
+
+	// mfCache is a local cache of MeasurementFields to reduce lock contention when validating
+	// field types.
+	mfCache := make(map[string]*MeasurementFields, 16)
 	for i, p := range points {
 		var skip bool
 		var validField bool
@@ -606,47 +610,13 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 			}
 		}
 
+		name := p.Name()
 		// see if the field definitions need to be saved to the shard
-		mf := s.engine.MeasurementFields(p.Name())
+		mf := mfCache[name]
 		if mf == nil {
-			var createType influxql.DataType
-			for iter.Next() {
-				// Skip fields name "time", they are illegal
-				if bytes.Equal(iter.FieldKey(), timeBytes) {
-					continue
-				}
-
-				switch iter.Type() {
-				case models.Float:
-					createType = influxql.Float
-				case models.Integer:
-					createType = influxql.Integer
-				case models.String:
-					createType = influxql.String
-				case models.Boolean:
-					createType = influxql.Boolean
-				default:
-					continue
-				}
-
-				if f := mf.FieldBytes(iter.FieldKey()); f != nil {
-					// Field present in shard metadata, make sure there is no type conflict.
-					if f.Type != createType {
-						atomic.AddInt64(&s.stats.WritePointsDropped, 1)
-						dropped++
-						reason = fmt.Sprintf("%s: input field \"%s\" on measurement \"%s\" is type %s, already exists as type %s", ErrFieldTypeConflict, iter.FieldKey(), p.Name(), createType, f.Type)
-						skip = true
-					} else {
-						continue // Field is present, and it's of the same type. Nothing more to do.
-					}
-				}
-
-				if !skip {
-					fieldsToCreate = append(fieldsToCreate, &FieldCreate{p.Name(), &Field{Name: string(iter.FieldKey()), Type: createType}})
-				}
-			}
+			mf = s.engine.MeasurementFields(name).Clone()
+			mfCache[name] = mf
 		}
-
 		iter.Reset()
 
 		// validate field types and encode data
@@ -670,12 +640,13 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 			default:
 				continue
 			}
+
 			if f := mf.FieldBytes(iter.FieldKey()); f != nil {
 				// Field present in shard metadata, make sure there is no type conflict.
 				if f.Type != fieldType {
 					atomic.AddInt64(&s.stats.WritePointsDropped, 1)
 					dropped++
-					reason = fmt.Sprintf("%s: input field \"%s\" on measurement \"%s\" is type %s, already exists as type %s", ErrFieldTypeConflict, iter.FieldKey(), p.Name(), fieldType, f.Type)
+					reason = fmt.Sprintf("%s: input field \"%s\" on measurement \"%s\" is type %s, already exists as type %s", ErrFieldTypeConflict, iter.FieldKey(), name, fieldType, f.Type)
 					skip = true
 				} else {
 					continue // Field is present, and it's of the same type. Nothing more to do.
@@ -1297,6 +1268,19 @@ func (m *MeasurementFields) FieldSet() map[string]influxql.DataType {
 		fields[name] = f.Type
 	}
 	return fields
+}
+
+// Clone returns copy of the MeasurementFields
+func (m *MeasurementFields) Clone() *MeasurementFields {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	fields := make(map[string]*Field, len(m.fields))
+	for key, field := range m.fields {
+		fields[key] = field
+	}
+	return &MeasurementFields{
+		fields: fields,
+	}
 }
 
 // MeasurementFieldSet represents a collection of fields by measurement.
