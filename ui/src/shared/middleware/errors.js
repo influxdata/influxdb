@@ -35,11 +35,11 @@ const errorsMiddleware = store => next => action => {
     }
   }
 
-  // if auth has expired, do not execute any further actions or redux state
-  // changes in order to prevent changing notification that indiciates why
-  // logout occurred and any attempts to change redux state by actions that may
-  // have triggered AJAX requests prior to auth expiration and whose response
-  // returns after logout
+  // If auth has expired, do not execute any further actions or redux state
+  // changes not related to routing and auth. This allows the error notification
+  // telling the user why they've been logged out to persist in the UI. It also
+  // prevents further changes to redux state by actions that may have triggered
+  // AJAX requests pre-auth expiration and whose response returns post-logout
   if (me === null && !(actionsAllowedDuringBlackout.some((allowedAction) => action.type.includes(allowedAction)))) {
     return
   }
