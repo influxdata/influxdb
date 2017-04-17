@@ -72,7 +72,7 @@ const MeasurementList = React.createClass({
   render() {
     return (
       <div className="query-builder--column">
-        <div className="query-builder--column-heading">Measurements</div>
+        <div className="query-builder--heading">Measurements</div>
         {this.props.query.database ? <div className="qeditor--list-header">
           <input className="qeditor--filter" ref="filterText" placeholder="Filter" type="text" value={this.state.filterText} onChange={this.handleFilterText} onKeyUp={this.handleEscape} />
           <span className="icon search"></span>
@@ -84,20 +84,20 @@ const MeasurementList = React.createClass({
 
   renderList() {
     if (!this.props.query.database) {
-      return <div className="qeditor--empty">No <strong>Database</strong> selected</div>
+      return <div className="query-builder--list-empty">No <strong>Database</strong> selected</div>
     }
 
     const measurements = this.state.measurements.filter((m) => m.match(this.state.filterText))
 
     return (
-      <ul className="qeditor--list">
+      <div className="query-builder--list">
         {measurements.map((measurement) => {
           const isActive = measurement === this.props.query.measurement
           return (
-            <li className={classNames('qeditor--list-item qeditor--list-radio', {active: isActive})} key={measurement} onClick={_.wrap(measurement, this.props.onChooseMeasurement)}>{measurement}</li>
+            <div className={classNames('qeditor--list-item qeditor--list-radio', {active: isActive})} key={measurement} onClick={_.wrap(measurement, this.props.onChooseMeasurement)}>{measurement}</div>
           )
         })}
-      </ul>
+      </div>
     )
   },
 

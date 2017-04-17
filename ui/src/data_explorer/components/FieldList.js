@@ -74,7 +74,7 @@ const FieldList = React.createClass({
 
     return (
       <div className="query-builder--column">
-        <div className="query-builder--column-heading">Fields</div>
+        <div className="query-builder--heading">Fields</div>
         {
           hasAggregates ?
             <div className="qeditor--list-header">
@@ -93,11 +93,11 @@ const FieldList = React.createClass({
   renderList() {
     const {database, measurement} = this.props.query
     if (!database || !measurement) {
-      return <div className="qeditor--empty">No <strong>Measurement</strong> selected</div>
+      return <div className="query-builder--list-empty">No <strong>Measurement</strong> selected</div>
     }
 
     return (
-      <ul className="qeditor--list">
+      <div className="query-builder--list">
         {this.state.fields.map((fieldFunc) => {
           const selectedField = this.props.query.fields.find((f) => f.field === fieldFunc.field)
           return (
@@ -111,7 +111,7 @@ const FieldList = React.createClass({
             />
           )
         })}
-      </ul>
+      </div>
     )
   },
 

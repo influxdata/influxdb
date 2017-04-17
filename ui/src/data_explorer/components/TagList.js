@@ -91,7 +91,7 @@ const TagList = React.createClass({
 
     return (
       <div className="query-builder--column">
-        <div className="query-builder--column-heading">Tags</div>
+        <div className="query-builder--heading">Tags</div>
         {(!query.database || !query.measurement || !query.retentionPolicy) ? null : <div className="qeditor--list-header">
           <div className="toggle toggle-sm">
             <div onClick={this.handleAcceptReject} className={cx("toggle-btn", {active: query.areTagsAccepted})}>=</div>
@@ -106,11 +106,11 @@ const TagList = React.createClass({
   renderList() {
     const {database, measurement, retentionPolicy} = this.props.query
     if (!database || !measurement || !retentionPolicy) {
-      return <div className="qeditor--empty">No <strong>Measurement</strong> selected</div>
+      return <div className="query-builder--list-empty">No <strong>Measurement</strong> selected</div>
     }
 
     return (
-      <ul className="qeditor--list">
+      <div className="query-builder--list">
         {_.map(this.state.tags, (tagValues, tagKey) => {
           return (
             <TagListItem
@@ -124,7 +124,7 @@ const TagList = React.createClass({
             />
           )
         })}
-      </ul>
+      </div>
     )
   },
 })
