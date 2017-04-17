@@ -286,7 +286,7 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 
 		// copy to prevent data race
 		theTest := test
-		sm := coordinator.NewShardMapping()
+		sm := coordinator.NewShardMapping(16)
 		sm.MapPoint(
 			&meta.ShardInfo{ID: uint64(1), Owners: []meta.ShardOwner{
 				{NodeID: 1},
