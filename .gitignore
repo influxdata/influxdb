@@ -9,6 +9,9 @@ config.json
 
 /query/a.out*
 
+# Eclipse project file
+.project
+
 # ignore generated files.
 cmd/influxd/version.go
 
