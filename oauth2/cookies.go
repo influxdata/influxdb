@@ -56,6 +56,7 @@ func (c *cookie) Extend(ctx context.Context, w http.ResponseWriter, p Principal)
 		return Principal{}, ErrAuthentication
 	}
 
+	// Creating a new token with the extended principal
 	token, err := c.Tokens.Create(ctx, p)
 	if err != nil {
 		return Principal{}, ErrAuthentication
