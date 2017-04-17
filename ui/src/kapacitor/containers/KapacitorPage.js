@@ -30,12 +30,12 @@ class KapacitorPage extends Component {
   }
 
   componentDidMount() {
-    const {source} = this.props
-    getKapacitor(source).then((kapacitor) => {
-      if (!kapacitor) {
-        return
-      }
+    const {source, params: {id}} = this.props
+    if (!id) {
+      return
+    }
 
+    getKapacitor(source, id).then((kapacitor) => {
       this.setState({kapacitor, exists: true}, () => {
         pingKapacitor(kapacitor).catch(() => {
           this.props.addFlashMessage({type: 'error', text: 'Could not connect to Kapacitor. Check settings.'})

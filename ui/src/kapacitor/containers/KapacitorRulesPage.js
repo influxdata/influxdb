@@ -18,7 +18,7 @@ class KapacitorRulesPage extends Component {
   }
 
   componentDidMount() {
-    getKapacitor(this.props.source).then((kapacitor) => {
+    getKapacitor(this.props.source, '1').then((kapacitor) => {
       if (kapacitor) {
         this.props.actions.fetchRules(kapacitor)
       }

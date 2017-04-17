@@ -52,7 +52,7 @@ export const KapacitorRulePage = React.createClass({
       kapacitorActions.loadDefaultRule()
     }
 
-    getKapacitor(source).then((kapacitor) => {
+    getKapacitor(source, '1').then((kapacitor) => {
       this.setState({kapacitor})
       getKapacitorConfig(kapacitor).then(({data: {sections}}) => {
         const enabledAlerts = Object.keys(sections).filter((section) => {

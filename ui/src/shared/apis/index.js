@@ -58,12 +58,12 @@ export function pingKapacitor(kapacitor) {
   })
 }
 
-export function getKapacitor(source) {
+export function getKapacitor(source, kapacitorID) {
   return AJAX({
-    url: source.links.kapacitors,
+    url: `${source.links.kapacitors}/${kapacitorID}`,
     method: 'GET',
   }).then(({data}) => {
-    return data.kapacitors[0]
+    return data
   })
 }
 

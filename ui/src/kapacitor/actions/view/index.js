@@ -10,7 +10,7 @@ import {
 
 export function fetchRule(source, ruleID) {
   return (dispatch) => {
-    getKapacitor(source).then((kapacitor) => {
+    getKapacitor(source, '1').then((kapacitor) => {
       getRule(kapacitor, ruleID).then(({data: rule}) => {
         dispatch({
           type: 'LOAD_RULE',
