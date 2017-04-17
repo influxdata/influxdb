@@ -1,16 +1,16 @@
 import React, {PropTypes} from 'react'
-import {Link} from 'react-router'
+import {Link, withRouter} from 'react-router'
 
 import Dropdown from 'shared/components/Dropdown'
 
-const kapacitorDropdown = (kapacitors, source) => {
+const kapacitorDropdown = (kapacitors, source, router) => {
   if (!kapacitors || kapacitors.length === 0) {
     return (
       <span>--</span>
     )
   }
   const kapacitorItems = kapacitors.map((k) => {
-    return {text: k.name}
+    return {text: k.name, resource: `/sources/${source.id}/kapacitors/${k.id}`}
   })
   return (
     <Dropdown
@@ -20,6 +20,14 @@ const kapacitorDropdown = (kapacitors, source) => {
         url: `/sources/${source.id}/kapacitors/new`,
         text: "Add Kapacitor",
       }}
+      actions={
+      [{
+        icon: "pencil",
+        text: "edit",
+        handler: (item) => {
+          router.push(`${item.resource}/edit`)
+        },
+      }]}
       selected={kapacitorItems[0].text}
     />
   )
@@ -30,6 +38,7 @@ const InfluxTable = ({
   source,
   handleDeleteSource,
   location,
+  router,
 }) => (
   <div className="row">
     <div className="col-md-12">
@@ -58,7 +67,7 @@ const InfluxTable = ({
                         <td className="monotype">{s.url}</td>
                         <td>
                           {
-                            kapacitorDropdown(s.kapacitors, source)
+                            kapacitorDropdown(s.kapacitors, source, router)
                           }
                         </td>
                         <td className="text-right">
@@ -87,11 +96,13 @@ const {
 } = PropTypes
 
 InfluxTable.propTypes = {
-  sources: array.isRequired,
+  handleDeleteSource: func.isRequired,
   location: shape({
     pathname: string.isRequired,
   }).isRequired,
-  handleDeleteSource: func.isRequired,
+  router: PropTypes.shape({
+    push: PropTypes.func.isRequired,
+  }).isRequired,
   source: shape({
     id: string.isRequired,
     links: shape({
@@ -99,6 +110,7 @@ InfluxTable.propTypes = {
       self: string.isRequired,
     }),
   }),
+  sources: array.isRequired,
 }
 
-export default InfluxTable
+export default withRouter(InfluxTable)

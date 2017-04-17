@@ -64,7 +64,7 @@ class Dropdown extends Component {
                   <div className="dropdown-item__actions">
                     {actions.map((action) => {
                       return (
-                        <button key={action.text} data-target={action.target} data-toggle="modal" className="dropdown-item__action" onClick={(e) => this.handleAction(e, action, item)}>
+                        <button key={action.text} className="dropdown-item__action" onClick={(e) => this.handleAction(e, action, item)}>
                           <span title={action.text} className={`icon ${action.icon}`}></span>
                         </button>
                       )
@@ -99,8 +99,8 @@ const {
 Dropdown.propTypes = {
   actions: arrayOf(shape({
     icon: string.isRequired,
-    target: string.isRequired,
     text: string.isRequired,
+    handler: func.isRequired,
   })),
   items: arrayOf(shape({
     text: string.isRequired,
