@@ -1,0 +1,106 @@
+/*
+  Query Editor
+  -------------------------------------
+  Displays generated query from Query Builder
+  User can manually type a query as well
+
+  NOTE: Variables are located in query-maker.scss
+*/
+.query-editor {
+  padding: 8px 8px 0 8px;
+  border-radius: 0 $radius 0 0;
+  background-color: $query-editor--bg;
+  position: relative;
+}
+.query-editor--field,
+.query-editor--status {
+  font-family: $code-font;
+  transition:
+    color 0.25s ease,
+    background-color 0.25s ease,
+    border-color 0.25s ease;
+  border: 2px solid $query-editor--bg;
+  background-color: $query-editor--field-bg;
+  
+}
+.query-editor--field {
+  font-size: 12px;
+  line-height: 14px;
+  font-weight: 600;
+  word-wrap: break-word;
+  word-break: break-all;
+  @include custom-scrollbar($query-editor--field-bg, $query-editor--field-text);
+  display: block;
+  resize: none;
+  width: 100%;
+  height: $query-editor--field-height;
+  border-bottom: 0;
+  color: $query-editor--field-text;
+  padding: 12px 10px 0 10px;
+  border-radius: $radius $radius 0 0;
+  margin: 0;
+
+  &:hover,
+  &:hover + .query-editor--status {
+    border-color: $query-editor--bg;
+  }
+  &:focus {
+    outline: none;
+    color: $query-editor--field-text !important;
+    border-color: $c-pool;
+  }
+  &:focus + .query-editor--status {
+    border-color: $c-pool;
+  }
+}
+.query-editor--status {
+  height: $query-editor--status-height;
+  line-height: $query-editor--status-height;
+  font-size: 12px;
+  padding: 0 10px;
+  padding-right: ($query-editor--templates-width + ($query-editor--templates-offset * 2)) !important;
+  border-radius: 0 0 $radius $radius;
+  border-top: 0;
+  color: $query-editor--status-default;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  span.icon {
+    margin-right: 5px;
+  }
+
+  /* Error State */
+  &.query-editor--error { color: $query-editor--status-error; }
+  /* Warning State */
+  &.query-editor--warning { color: $query-editor--status-warning; }
+  /* Success State */
+  &.query-editor--success { color: $query-editor--status-success; }
+  /* Loading State */
+  .loading-dots {
+    bottom: $query-editor--templates-offset;
+    left: ($query-editor--templates-offset + 10px);
+    transform: translateY(50%);
+  }
+}
+.dropdown.query-editor--templates {
+  position: absolute;
+  bottom: ($query-editor--templates-offset - 8px);
+  right: $query-editor--templates-offset;
+
+  div.dropdown-toggle.btn.btn-sm {
+    width: $query-editor--templates-width;
+    padding: 0 9px !important;
+    height: $query-editor--templates-height !important;
+    line-height: $query-editor--templates-height !important;
+    font-size: 12px;
+    border-radius: $radius-small;
+  }
+  .dropdown-menu {
+    left: initial;
+    right: 0;
+    width: $query-editor--templates-menu-width;
+    min-width: $query-editor--templates-menu-width;
+    max-width: $query-editor--templates-menu-width;
+  }
+}

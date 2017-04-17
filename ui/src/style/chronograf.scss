@@ -42,12 +42,12 @@
 @import 'components/confirm-buttons';
 @import 'components/custom-time-range';
 @import 'components/graph';
+@import 'components/query-maker';
 
 // Pages
 @import 'pages/signup';
 @import 'pages/auth-page';
 @import 'pages/kapacitor';
-@import 'pages/data-explorer';
 @import 'pages/dashboards';
 @import 'pages/admin';
 

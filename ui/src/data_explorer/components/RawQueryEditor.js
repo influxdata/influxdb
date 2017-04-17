@@ -60,9 +60,9 @@ const RawQueryEditor = React.createClass({
     const {value} = this.state
 
     return (
-      <div className="raw-text">
+      <div className="query-editor">
         <textarea
-          className="raw-text--field"
+          className="query-editor--field"
           onChange={this.handleChange}
           onKeyDown={this.handleKeyDown}
           onBlur={this.handleUpdate}
@@ -73,7 +73,7 @@ const RawQueryEditor = React.createClass({
           spellCheck="false"
         />
         {this.renderStatus(status)}
-        <Dropdown items={QUERY_TEMPLATES} selected={'Query Templates'} onChoose={this.handleChooseTemplate} className="query-template"/>
+        <Dropdown items={QUERY_TEMPLATES} selected={'Query Templates'} onChoose={this.handleChooseTemplate} className="query-editor--templates"/>
       </div>
     )
   },
@@ -81,20 +81,20 @@ const RawQueryEditor = React.createClass({
   renderStatus(status) {
     if (!status) {
       return (
-        <div className="raw-text--status"></div>
+        <div className="query-editor--status"></div>
       )
     }
 
     if (status.loading) {
       return (
-        <div className="raw-text--status">
+        <div className="query-editor--status">
           <LoadingDots />
         </div>
       )
     }
 
     return (
-      <div className={classNames("raw-text--status", {"raw-text--error": status.error, "raw-text--success": status.success, "raw-text--warning": status.warn})}>
+      <div className={classNames("query-editor--status", {"query-editor--error": status.error, "query-editor--success": status.success, "query-editor--warning": status.warn})}>
         <span className={classNames("icon", {stop: status.error, checkmark: status.success, "alert-triangle": status.warn})}></span>
         {status.error || status.warn || status.success}
       </div>
