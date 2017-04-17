@@ -37,4 +37,10 @@ describe('Shared.Reducers.authReducer', () => {
     expect(reducedState.isMeLoading).to.equal(false)
     expect(reducedState.isAuthLoading).to.equal(false)
   })
+
+  it('should handle AUTH_REQUESTED', () => {
+    const reducedState = authReducer(initialState, authRequested())
+
+    expect(reducedState.isAuthLoading).to.equal(true)
+  })
 })
