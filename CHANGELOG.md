@@ -7,6 +7,7 @@
 
 ### Features
   1. [#1232](https://github.com/influxdata/chronograf/pull/1232): Fuse the query builder and raw query editor
+  1. [#1265](https://github.com/influxdata/chronograf/pull/1265): Refactor router to use auth and force /login route when auth expired
 
 ### UI Improvements
   1. [#1259](https://github.com/influxdata/chronograf/pull/1259): Add default display for empty dashboard
