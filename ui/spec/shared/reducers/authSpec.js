@@ -43,4 +43,12 @@ describe('Shared.Reducers.authReducer', () => {
 
     expect(reducedState.isAuthLoading).to.equal(true)
   })
+
+  it('should handle AUTH_RECEIVED', () => {
+    const loadingState = Object.assign({}, initialState, {isAuthLoading: true})
+    const reducedState = authReducer(loadingState, authReceived(defaultAuth))
+
+    expect(reducedState.links[0]).to.deep.equal(defaultAuth.links[0])
+    expect(reducedState.isAuthLoading).to.equal(false)
+  })
 })
