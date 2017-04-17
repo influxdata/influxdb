@@ -697,6 +697,25 @@ func (i *Index) RemoveShard(shardID uint64) {
 	}
 }
 
+// assignExistingSeries assigns the existings series to shardID and returns the series, names and tags that
+// do not exists yet.
+func (i *Index) assignExistingSeries(shardID uint64, keys, names [][]byte, tagsSlice []models.Tags) ([][]byte, [][]byte, []models.Tags) {
+	i.mu.RLock()
+	var n int
+	for j, key := range keys {
+		if ss, ok := i.series[string(key)]; !ok {
+			keys[n] = keys[j]
+			names[n] = names[j]
+			tagsSlice[n] = tagsSlice[j]
+			n++
+		} else {
+			ss.AssignShard(shardID)
+		}
+	}
+	i.mu.RUnlock()
+	return keys[:n], names[:n], tagsSlice[:n]
+}
+
 // Ensure index implements interface.
 var _ tsdb.Index = &ShardIndex{}
 
@@ -712,6 +731,12 @@ type ShardIndex struct {
 
 // CreateSeriesListIfNotExists creates a list of series if they doesn't exist in bulk.
 func (idx *ShardIndex) CreateSeriesListIfNotExists(keys, names [][]byte, tagsSlice []models.Tags) error {
+
+	keys, names, tagsSlice = idx.assignExistingSeries(idx.id, keys, names, tagsSlice)
+	if len(keys) == 0 {
+		return nil
+	}
+
 	var reason string
 	var dropped int
 	var droppedKeys map[string]struct{}
