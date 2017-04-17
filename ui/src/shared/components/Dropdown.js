@@ -58,7 +58,7 @@ class Dropdown extends Component {
             {items.map((item, i) => {
               return (
                 <li className="dropdown-item" key={i}>
-                  <a href="#" onClick={() => self.handleSelection(item)}>
+                  <a href="#" onClick={() => this.handleSelection(item)}>
                     {item.text}
                   </a>
                   <div className="dropdown-item__actions">
