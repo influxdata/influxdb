@@ -8,7 +8,8 @@ import CellEditorOverlay from 'src/dashboards/components/CellEditorOverlay'
 import DashboardHeader from 'src/dashboards/components/DashboardHeader'
 import DashboardHeaderEdit from 'src/dashboards/components/DashboardHeaderEdit'
 import Dashboard from 'src/dashboards/components/Dashboard'
-import TemplateVariableManager from 'src/dashboards/components/TemplateVariableManager'
+import TemplateVariableManager
+  from 'src/dashboards/components/TemplateVariableManager'
 
 import * as dashboardActionCreators from 'src/dashboards/actions'
 
@@ -39,7 +40,8 @@ class DashboardPage extends Component {
     this.handleRenameDashboardCell = ::this.handleRenameDashboardCell
     this.handleUpdateDashboardCell = ::this.handleUpdateDashboardCell
     this.handleCloseTemplateManager = ::this.handleCloseTemplateManager
-    this.handleSummonOverlayTechnologies = ::this.handleSummonOverlayTechnologies
+    this.handleSummonOverlayTechnologies = ::this
+      .handleSummonOverlayTechnologies
   }
 
   componentDidMount() {
@@ -64,8 +66,9 @@ class DashboardPage extends Component {
   }
 
   handleSaveEditedCell(newCell) {
-    this.props.dashboardActions.updateDashboardCell(this.getActiveDashboard(), newCell)
-    .then(this.handleDismissOverlay)
+    this.props.dashboardActions
+      .updateDashboardCell(this.getActiveDashboard(), newCell)
+      .then(this.handleDismissOverlay)
   }
 
   handleSummonOverlayTechnologies(cell) {
@@ -104,19 +107,34 @@ class DashboardPage extends Component {
   // Places cell into editing mode.
   handleEditDashboardCell(x, y, isEditing) {
     return () => {
-      this.props.dashboardActions.editDashboardCell(this.getActiveDashboard(), x, y, !isEditing) /* eslint-disable no-negated-condition */
+      this.props.dashboardActions.editDashboardCell(
+        this.getActiveDashboard(),
+        x,
+        y,
+        !isEditing
+      ) /* eslint-disable no-negated-condition */
     }
   }
 
   handleRenameDashboardCell(x, y) {
-    return (evt) => {
-      this.props.dashboardActions.renameDashboardCell(this.getActiveDashboard(), x, y, evt.target.value)
+    return evt => {
+      this.props.dashboardActions.renameDashboardCell(
+        this.getActiveDashboard(),
+        x,
+        y,
+        evt.target.value
+      )
     }
   }
 
   handleUpdateDashboardCell(newCell) {
     return () => {
-      this.props.dashboardActions.editDashboardCell(this.getActiveDashboard(), newCell.x, newCell.y, false)
+      this.props.dashboardActions.editDashboardCell(
+        this.getActiveDashboard(),
+        newCell.x,
+        newCell.y,
+        false
+      )
       this.props.dashboardActions.putDashboard(this.getActiveDashboard())
     }
   }
@@ -146,27 +164,21 @@ class DashboardPage extends Component {
 
     const dashboard = dashboards.find(d => d.id === +dashboardID)
 
-    const {
-      selectedCell,
-      isEditMode,
-      isTemplating,
-    } = this.state
+    const {selectedCell, isEditMode, isTemplating} = this.state
 
     return (
       <div className="page">
-        {
-          isTemplating ?
-            <OverlayTechnologies>
+        {isTemplating
+          ? <OverlayTechnologies>
               <TemplateVariableManager
                 onClose={this.handleCloseTemplateManager}
                 handleClickOutside={this.handleCloseTemplateManager}
+                templates={dashboard.templates}
               />
-            </OverlayTechnologies> :
-            null
-        }
-        {
-          selectedCell ?
-            <CellEditorOverlay
+            </OverlayTechnologies>
+          : null}
+        {selectedCell
+          ? <CellEditorOverlay
               source={source}
               cell={selectedCell}
               timeRange={timeRange}
@@ -175,17 +187,15 @@ class DashboardPage extends Component {
               onSave={this.handleSaveEditedCell}
               onCancel={this.handleDismissOverlay}
               editQueryStatus={dashboardActions.editCellQueryStatus}
-            /> :
-            null
-        }
-        {
-          isEditMode ?
-            <DashboardHeaderEdit
+            />
+          : null}
+        {isEditMode
+          ? <DashboardHeaderEdit
               dashboard={dashboard}
               onCancel={this.handleCancelEditDashboard}
               onSave={this.handleRenameDashboard}
-            /> :
-            <DashboardHeader
+            />
+          : <DashboardHeader
               buttonText={dashboard ? dashboard.name : ''}
               handleChooseAutoRefresh={handleChooseAutoRefresh}
               autoRefresh={autoRefresh}
@@ -199,53 +209,44 @@ class DashboardPage extends Component {
               onAddCell={this.handleAddCell}
               onEditDashboard={this.handleEditDashboard}
             >
-              {
-                dashboards ?
-                dashboards.map((d, i) => {
-                  return (
-                    <li key={i}>
-                      <Link to={`/sources/${sourceID}/dashboards/${d.id}`} className="role-option">
-                        {d.name}
-                      </Link>
-                    </li>
-                  )
-                }) :
-                null
-              }
-            </DashboardHeader>
-        }
-        {
-          dashboard ?
-          <Dashboard
-            source={source}
-            dashboard={dashboard}
-            timeRange={timeRange}
-            autoRefresh={autoRefresh}
-            onAddCell={this.handleAddCell}
-            inPresentationMode={inPresentationMode}
-            onEditCell={this.handleEditDashboardCell}
-            onPositionChange={this.handleUpdatePosition}
-            onDeleteCell={this.handleDeleteDashboardCell}
-            onRenameCell={this.handleRenameDashboardCell}
-            onUpdateCell={this.handleUpdateDashboardCell}
-            onOpenTemplateManager={this.handleOpenTemplateManager}
-            onSummonOverlayTechnologies={this.handleSummonOverlayTechnologies}
-          /> :
-          null
-        }
+              {dashboards
+                ? dashboards.map((d, i) => {
+                    return (
+                      <li key={i}>
+                        <Link
+                          to={`/sources/${sourceID}/dashboards/${d.id}`}
+                          className="role-option"
+                        >
+                          {d.name}
+                        </Link>
+                      </li>
+                    )
+                  })
+                : null}
+            </DashboardHeader>}
+        {dashboard
+          ? <Dashboard
+              source={source}
+              dashboard={dashboard}
+              timeRange={timeRange}
+              autoRefresh={autoRefresh}
+              onAddCell={this.handleAddCell}
+              inPresentationMode={inPresentationMode}
+              onEditCell={this.handleEditDashboardCell}
+              onPositionChange={this.handleUpdatePosition}
+              onDeleteCell={this.handleDeleteDashboardCell}
+              onRenameCell={this.handleRenameDashboardCell}
+              onUpdateCell={this.handleUpdateDashboardCell}
+              onOpenTemplateManager={this.handleOpenTemplateManager}
+              onSummonOverlayTechnologies={this.handleSummonOverlayTechnologies}
+            />
+          : null}
       </div>
     )
   }
 }
 
-const {
-  arrayOf,
-  bool,
-  func,
-  number,
-  shape,
-  string,
-} = PropTypes
+const {arrayOf, bool, func, number, shape, string} = PropTypes
 
 DashboardPage.propTypes = {
   source: shape({
@@ -269,10 +270,24 @@ DashboardPage.propTypes = {
     editDashboardCell: func.isRequired,
     renameDashboardCell: func.isRequired,
   }).isRequired,
-  dashboards: arrayOf(shape({
-    id: number.isRequired,
-    cells: arrayOf(shape({})).isRequired,
-  })),
+  dashboards: arrayOf(
+    shape({
+      id: number.isRequired,
+      cells: arrayOf(shape({})).isRequired,
+      templates: arrayOf(
+        shape({
+          type: string.isRequired,
+          label: string.isRequired,
+          code: string.isRequired,
+          query: shape({
+            db: string.isRequired,
+            text: string.isRequired,
+          }),
+          values: arrayOf(string.isRequired),
+        })
+      ),
+    })
+  ),
   handleChooseAutoRefresh: func.isRequired,
   autoRefresh: number.isRequired,
   timeRange: shape({}).isRequired,
@@ -284,17 +299,10 @@ DashboardPage.propTypes = {
   }).isRequired,
 }
 
-const mapStateToProps = (state) => {
+const mapStateToProps = state => {
   const {
-    app: {
-      ephemeral: {inPresentationMode},
-      persisted: {autoRefresh},
-    },
-    dashboardUI: {
-      dashboards,
-      timeRange,
-      cellQueryStatus,
-    },
+    app: {ephemeral: {inPresentationMode}, persisted: {autoRefresh}},
+    dashboardUI: {dashboards, timeRange, cellQueryStatus},
   } = state
 
   return {
@@ -306,7 +314,7 @@ const mapStateToProps = (state) => {
   }
 }
 
-const mapDispatchToProps = (dispatch) => ({
+const mapDispatchToProps = dispatch => ({
   handleChooseAutoRefresh: bindActionCreators(setAutoRefresh, dispatch),
   handleClickPresentationButton: presentationButtonDispatcher(dispatch),
   dashboardActions: bindActionCreators(dashboardActionCreators, dispatch),
