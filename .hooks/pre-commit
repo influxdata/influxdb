@@ -20,4 +20,3 @@ if [ "$fixme_lines" != "" ]; then
     echo -e "$fixme_lines"
     exit 1
 fi
-
