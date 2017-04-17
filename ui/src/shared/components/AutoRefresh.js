@@ -70,6 +70,7 @@ const AutoRefresh = (ComposedComponent) => {
       for (const query of queries) {
         const {host, database, rp} = query
         // TODO: enact this via an action creator so redux will know about it; currently errors are used as responses here
+        // TODO: may need to make this a try/catch
         const response = await fetchTimeSeriesAsync({source: host, db: database, rp, query}, this.props.editQueryStatus)
         newSeries.push({response})
         count += 1
