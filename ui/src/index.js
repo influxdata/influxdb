@@ -83,7 +83,11 @@ const Root = React.createClass({
         dispatch(meReceived(me))
       }
 
-      setTimeout(this.startHeartbeat.bind(null, {shouldDispatchResponse: false}), HEARTBEAT_INTERVAL)
+      setTimeout(() => {
+        if (store.getState().auth.me !== null) {
+          this.startHeartbeat({shouldDispatchResponse: false})
+        }
+      }, HEARTBEAT_INTERVAL)
     } catch (error) {
       dispatch(errorThrown(error))
     }
