@@ -854,7 +854,7 @@ type tsmKeyIterator struct {
 	// values is the temporary buffers for each key that is returned by a reader
 	values map[string][]Value
 
-	// pos is the current key postion within the corresponding readers slice.  A value of
+	// pos is the current key position within the corresponding readers slice.  A value of
 	// pos[0] = 1, means the reader[0] is currently at key 1 in its ordered index.
 	pos []int
 
