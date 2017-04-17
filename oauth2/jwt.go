@@ -122,8 +122,8 @@ func (j *JWT) Create(ctx context.Context, user Principal) (Token, error) {
 	return Token(t), nil
 }
 
-// ExtendPrincipal sets the expires at to be the current time plus the extention into the future
-func (j *JWT) ExtendPrincipal(ctx context.Context, principal Principal, extension time.Duration) (Principal, error) {
+// ExtendedPrincipal sets the expires at to be the current time plus the extention into the future
+func (j *JWT) ExtendedPrincipal(ctx context.Context, principal Principal, extension time.Duration) (Principal, error) {
 	// Extend the time of expiration.  Do not change IssuedAt as the
 	// lifetime of the token is extended, but, NOT the original time
 	// of issue. This is used to enforce a maximum lifetime of a token
