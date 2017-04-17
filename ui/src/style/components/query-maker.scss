@@ -33,6 +33,7 @@ $query-maker--tab-bg-hover: $g4-onyx;
 $query-maker--tab-bg-active: $g5-pepper;
 
 $query-maker--tab-contents-bg: $g3-castle;
+$query-maker--empty-text: $g10-wolf;
 
 $query-editor--bg: $query-maker--tab-bg-active;
 $query-editor--field-text: $c-pool;
@@ -54,6 +55,7 @@ $query-builder--heading-text: $g13-mist;
 $query-builder--heading-bg: $query-maker--tab-bg-active;
 
 $query-builder--list-bg: $g3-castle;
+$query-builder--list-empty-text: $g10-wolf;
 
 $query-editor-tab-inactive: $g2-kevlar;
 $query-editor-tab-active: $g3-castle;
@@ -167,7 +169,7 @@ $query-editor-tab-active: $g3-castle;
 .query-maker--empty {
   border-radius: $radius;
   text-align: center;
-  color: $g10-wolf;
+  color: $query-maker--empty-text;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -232,6 +234,11 @@ $query-editor-tab-active: $g3-castle;
 }
 .query-builder--list-empty {
   background-color: $query-builder--list-bg;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: $query-builder--list-empty-text;
 
   &,
   & * {

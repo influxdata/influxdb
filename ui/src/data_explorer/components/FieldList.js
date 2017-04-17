@@ -93,7 +93,11 @@ const FieldList = React.createClass({
   renderList() {
     const {database, measurement} = this.props.query
     if (!database || !measurement) {
-      return <div className="query-builder--list-empty">No <strong>Measurement</strong> selected</div>
+      return (
+        <div className="query-builder--list-empty">
+          <span>No <strong>Measurement</strong> selected</span>
+        </div>
+      )
     }
 
     return (

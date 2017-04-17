@@ -106,7 +106,11 @@ const TagList = React.createClass({
   renderList() {
     const {database, measurement, retentionPolicy} = this.props.query
     if (!database || !measurement || !retentionPolicy) {
-      return <div className="query-builder--list-empty">No <strong>Measurement</strong> selected</div>
+      return (
+        <div className="query-builder--list-empty">
+          <span>No <strong>Measurement</strong> selected</span>
+        </div>
+      )
     }
 
     return (

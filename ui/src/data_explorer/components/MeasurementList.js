@@ -84,7 +84,11 @@ const MeasurementList = React.createClass({
 
   renderList() {
     if (!this.props.query.database) {
-      return <div className="query-builder--list-empty">No <strong>Database</strong> selected</div>
+      return (
+        <div className="query-builder--list-empty">
+          <span>No <strong>Database</strong> selected</span>
+        </div>
+      )
     }
 
     const measurements = this.state.measurements.filter((m) => m.match(this.state.filterText))
