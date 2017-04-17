@@ -29,7 +29,7 @@ define CHRONOGIRAFFE
           ,""      _\_
         ,"  ## |   0 0.
       ," ##   ,-\__    `.
-    ,"       /     `--._;)
+    ,"       /     `--._;) - "HAI, I'm Chronogiraffe.  Will you be my friend?"
   ,"     ## /
 ,"   ##    /
 endef
