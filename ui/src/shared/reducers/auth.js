@@ -5,13 +5,12 @@ const getInitialState = () => ({
   isAuthLoading: false,
 })
 
-const initialState = getInitialState()
+export const initialState = getInitialState()
 
 const authReducer = (state = initialState, action) => {
   switch (action.type) {
     case 'AUTH_EXPIRED': {
       const {auth: {links}} = action.payload
-
       return {...initialState, links}
     }
     case 'AUTH_REQUESTED': {
@@ -19,7 +18,6 @@ const authReducer = (state = initialState, action) => {
     }
     case 'AUTH_RECEIVED': {
       const {auth: {links}} = action.payload
-
       return {...state, links, isAuthLoading: false}
     }
     case 'ME_REQUESTED': {
@@ -27,11 +25,7 @@ const authReducer = (state = initialState, action) => {
     }
     case 'ME_RECEIVED': {
       const {me} = action.payload
-
       return {...state, me, isMeLoading: false}
-    }
-    case 'LOGOUT': {
-      return {...initialState}
     }
   }
 

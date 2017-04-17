@@ -26,9 +26,3 @@ export const meReceived = (me) => ({
     me,
   },
 })
-
-export function logout() {
-  return {
-    type: 'LOGOUT',
-  }
-}
