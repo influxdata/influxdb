@@ -378,7 +378,7 @@ $overlay-bg: rgba($c-pool, 0.7);
     flex: 0 0 $overlay-controls-height;
     width: calc(100% - #{($explorer-page-padding * 2)});
     left: $explorer-page-padding;
-    margin-top: $de-vertical-margin;
+    margin-top: 16px;
     border: 0;
     border-radius: $radius;
     @include gradient-h($g3-castle,$overlay-controls-bg);
