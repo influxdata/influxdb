@@ -210,18 +210,16 @@ class DashboardPage extends Component {
               onEditDashboard={this.handleEditDashboard}
             >
               {dashboards
-                ? dashboards.map((d, i) => {
-                    return (
-                      <li key={i}>
-                        <Link
-                          to={`/sources/${sourceID}/dashboards/${d.id}`}
-                          className="role-option"
-                        >
-                          {d.name}
-                        </Link>
-                      </li>
-                    )
-                  })
+                ? dashboards.map((d, i) => (
+                    <li key={i}>
+                      <Link
+                        to={`/sources/${sourceID}/dashboards/${d.id}`}
+                        className="role-option"
+                      >
+                        {d.name}
+                      </Link>
+                    </li>
+                  ))
                 : null}
             </DashboardHeader>}
         {dashboard

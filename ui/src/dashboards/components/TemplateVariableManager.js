@@ -25,10 +25,22 @@ const TemplateVariableManager = ({onClose, templates}) => (
   </div>
 )
 
-const {func} = PropTypes
+const {arrayOf, func, shape, string} = PropTypes
 
 TemplateVariableManager.propTypes = {
   onClose: func.isRequired,
+  templates: arrayOf(
+    shape({
+      type: string.isRequired,
+      label: string.isRequired,
+      code: string.isRequired,
+      query: shape({
+        db: string.isRequired,
+        text: string.isRequired,
+      }),
+      values: arrayOf(string.isRequired),
+    })
+  ),
 }
 
 export default OnClickOutside(TemplateVariableManager)
