@@ -3,6 +3,7 @@ package oauth2_test
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
@@ -137,5 +138,58 @@ func TestSigningMethod(t *testing.T) {
 		t.Error("Error was expected while validating incorrectly signed token")
 	} else if err.Error() != "unexpected signing method: RS256" {
 		t.Errorf("Error wanted 'unexpected signing method', got %s", err.Error())
+	}
+}
+
+func TestJWT_ExtendedPrincipal(t *testing.T) {
+	history := time.Unix(-446774400, 0)
+	type fields struct {
+		Now func() time.Time
+	}
+	type args struct {
+		ctx       context.Context
+		principal oauth2.Principal
+		extension time.Duration
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		want    oauth2.Principal
+		wantErr bool
+	}{
+		{
+			name: "Extend principal by one hour",
+			fields: fields{
+				Now: func() time.Time {
+					return history
+				},
+			},
+			args: args{
+				ctx: context.Background(),
+				principal: oauth2.Principal{
+					ExpiresAt: history,
+				},
+				extension: time.Hour,
+			},
+			want: oauth2.Principal{
+				ExpiresAt: history.Add(time.Hour),
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			j := &oauth2.JWT{
+				Now: tt.fields.Now,
+			}
+			got, err := j.ExtendedPrincipal(tt.args.ctx, tt.args.principal, tt.args.extension)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("JWT.ExtendedPrincipal() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("JWT.ExtendedPrincipal() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
