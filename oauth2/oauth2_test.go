@@ -67,7 +67,7 @@ func (y *YesManTokenizer) Create(ctx context.Context, p Principal) (Token, error
 	return Token("HELLO?!MCFLY?!ANYONEINTHERE?!"), nil
 }
 
-func (y *YesManTokenizer) ExtendPrincipal(ctx context.Context, p Principal, ext time.Duration) (Principal, error) {
+func (y *YesManTokenizer) ExtendedPrincipal(ctx context.Context, p Principal, ext time.Duration) (Principal, error) {
 	return p, nil
 }
 

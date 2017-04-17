@@ -26,7 +26,7 @@ func (m *MockTokenizer) Create(ctx context.Context, p Principal) (Token, error) 
 	return m.Token, m.CreateErr
 }
 
-func (m *MockTokenizer) ExtendPrincipal(ctx context.Context, principal Principal, extension time.Duration) (Principal, error) {
+func (m *MockTokenizer) ExtendedPrincipal(ctx context.Context, principal Principal, extension time.Duration) (Principal, error) {
 	return principal, nil
 }
 
@@ -138,8 +138,7 @@ func TestCookieValidate(t *testing.T) {
 				ValidErr: test.ValidErr,
 			},
 		}
-		w := httptest.NewRecorder()
-		principal, err := cook.Validate(context.Background(), w, req)
+		principal, err := cook.Validate(context.Background(), req)
 		if err != test.Err {
 			t.Errorf("Cookie extract error; expected %v  actual %v", test.Err, err)
 		}

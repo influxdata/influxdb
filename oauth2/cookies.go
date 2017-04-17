@@ -39,19 +39,19 @@ func NewCookieJWT(secret string, lifespan time.Duration) Authenticator {
 }
 
 // Validate returns Principal of the Cookie if the Token is valid.
-func (c *cookie) Validate(ctx context.Context, w http.ResponseWriter, r *http.Request) (Principal, error) {
+func (c *cookie) Validate(ctx context.Context, r *http.Request) (Principal, error) {
 	cookie, err := r.Cookie(c.Name)
 	if err != nil {
 		return Principal{}, ErrAuthentication
 	}
+	return c.Tokens.ValidPrincipal(ctx, Token(cookie.Value), c.Lifespan)
+}
 
-	p, err := c.Tokens.ValidPrincipal(ctx, Token(cookie.Value), c.Lifespan)
-	if err != nil {
-		return Principal{}, ErrAuthentication
-	}
-
+// Extend will extend the lifetime of the Token by the Inactivity time.  Assumes
+// Principal is already valid.
+func (c *cookie) Extend(ctx context.Context, w http.ResponseWriter, p Principal) (Principal, error) {
 	// Refresh the token by extending its life another Inactivity duration
-	p, err = c.Tokens.ExtendPrincipal(ctx, p, c.Inactivity)
+	p, err := c.Tokens.ExtendedPrincipal(ctx, p, c.Inactivity)
 	if err != nil {
 		return Principal{}, ErrAuthentication
 	}

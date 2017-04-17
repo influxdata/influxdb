@@ -64,11 +64,12 @@ type Mux interface {
 // Authenticator represents a service for authenticating users.
 type Authenticator interface {
 	// Validate returns Principal associated with authenticated and authorized
-	// entity if successful.  ResponseWriter is passed if the Validation
-	// wishes to manipulate the response (i.e. refreshing a cookie)
-	Validate(context.Context, http.ResponseWriter, *http.Request) (Principal, error)
+	// entity if successful.
+	Validate(context.Context, *http.Request) (Principal, error)
 	// Authorize will grant privileges to a Principal
 	Authorize(context.Context, http.ResponseWriter, Principal) error
+	// Extend will extend the lifetime of a already validated Principal
+	Extend(context.Context, http.ResponseWriter, Principal) (Principal, error)
 	// Expire revokes privileges from a Principal
 	Expire(http.ResponseWriter)
 }
@@ -86,6 +87,6 @@ type Tokenizer interface {
 	// ValidPrincipal checks if the token has a valid Principal and requires
 	// a lifespan duration to ensure it complies with possible server runtime arguments.
 	ValidPrincipal(ctx context.Context, token Token, lifespan time.Duration) (Principal, error)
-	// ExtendPrincipal adds the extention to the principal's lifespan.
-	ExtendPrincipal(ctx context.Context, principal Principal, extension time.Duration) (Principal, error)
+	// ExtendedPrincipal adds the extention to the principal's lifespan.
+	ExtendedPrincipal(ctx context.Context, principal Principal, extension time.Duration) (Principal, error)
 }

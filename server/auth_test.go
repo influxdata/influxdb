@@ -15,19 +15,30 @@ import (
 type MockAuthenticator struct {
 	Principal   oauth2.Principal
 	ValidateErr error
+	ExtendErr   error
 	Serialized  string
 }
 
-func (m *MockAuthenticator) Validate(context.Context, http.ResponseWriter, *http.Request) (oauth2.Principal, error) {
+func (m *MockAuthenticator) Validate(context.Context, *http.Request) (oauth2.Principal, error) {
 	return m.Principal, m.ValidateErr
 }
+
+func (m *MockAuthenticator) Extend(ctx context.Context, w http.ResponseWriter, p oauth2.Principal) (oauth2.Principal, error) {
+	cookie := http.Cookie{}
+
+	http.SetCookie(w, &cookie)
+	return m.Principal, m.ExtendErr
+}
+
 func (m *MockAuthenticator) Authorize(ctx context.Context, w http.ResponseWriter, p oauth2.Principal) error {
 	cookie := http.Cookie{}
 
 	http.SetCookie(w, &cookie)
 	return nil
 }
+
 func (m *MockAuthenticator) Expire(http.ResponseWriter) {}
+
 func (m *MockAuthenticator) ValidAuthorization(ctx context.Context, serializedAuthorization string) (oauth2.Principal, error) {
 	return oauth2.Principal{}, nil
 }
