@@ -29,7 +29,7 @@ define CHRONOGIRAFFE
           ,""      _\_
         ,"  ## |   0 0.
       ," ##   ,-\__    `.
-    ,"       /     `--._;)
+    ,"       /     `--._;) - "Do ya feel lucky, punk? Huh, do ya?"
   ,"     ## /
 ,"   ##    /
 endef
