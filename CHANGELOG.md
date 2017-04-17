@@ -7,6 +7,8 @@
 
 ### Features
   1. [#1232](https://github.com/influxdata/chronograf/pull/1232): Fuse the query builder and raw query editor
+  1. [#1286](https://github.com/influxdata/chronograf/pull/1286): Add refreshing JWTs for authentication
+
 
 ### UI Improvements
   1. [#1259](https://github.com/influxdata/chronograf/pull/1259): Add default display for empty dashboard
