@@ -1,4 +1,8 @@
-export default function sources(state = [], action) {
+const getInitialState = () => []
+
+const initialState = getInitialState()
+
+const sourcesReducer = (state = initialState, action) => {
   switch (action.type) {
     case 'LOAD_SOURCES': {
       return action.payload.sources
@@ -25,3 +29,5 @@ export default function sources(state = [], action) {
 
   return state
 }
+
+export default sourcesReducer

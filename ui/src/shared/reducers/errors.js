@@ -4,7 +4,7 @@ const getInitialState = () => ({
 
 const initialState = getInitialState()
 
-const errors = (state = initialState, action) => {
+const errorsReducer = (state = initialState, action) => {
   switch (action.type) {
     case 'ERROR_THROWN': {
       return {...action.error}
@@ -14,4 +14,4 @@ const errors = (state = initialState, action) => {
   return state
 }
 
-export default errors
+export default errorsReducer

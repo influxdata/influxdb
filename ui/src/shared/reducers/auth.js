@@ -31,7 +31,7 @@ const authReducer = (state = initialState, action) => {
       return {...state, me, isMeLoading: false}
     }
     case 'LOGOUT': {
-      return {}
+      return {...initialState}
     }
   }
 
