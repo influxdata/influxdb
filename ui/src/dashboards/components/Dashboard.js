@@ -44,18 +44,13 @@ const Dashboard = ({
       <div className="tv-control-bar">
         Template Variables
         {
-          dashboard.templates.map(({id, values}) => {
-            let items
-            if (values === null) {
-              items = [{text: 'Loading...'}]
-            } else {
-              items = values.map(value => ({text: value}))
-            }
+          dashboard.templates.map(({id, values, selected}) => {
+            const items = values ? values.map(value => ({text: value})) : []
             return (
               <Dropdown
                 key={id}
                 items={items}
-                selected={items[0].text}
+                selected={selected || "Loading..."}
                 onChoose={(item) => onSelectTV(id, item.text)}
               />
             )
