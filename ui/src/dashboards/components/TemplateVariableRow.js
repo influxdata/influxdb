@@ -1,6 +1,7 @@
 import React, {PropTypes, Component} from 'react'
 import Dropdown from 'shared/components/Dropdown'
-import TemplateQueries from 'src/dashboards/components/TemplateQueries'
+import TemplateQueryBuilder
+  from 'src/dashboards/components/TemplateQueryBuilder'
 
 import {TEMPLATE_VARIBALE_TYPES} from 'src/dashboards/constants'
 
@@ -12,6 +13,8 @@ const TemplateVariableRow = ({
   onSelectType,
   onSelectDatabase,
   onSelectMeasurement,
+  selectedTagKey,
+  onSelectTagKey,
 }) => (
   <tr>
     <td>{label}</td>
@@ -25,12 +28,14 @@ const TemplateVariableRow = ({
       />
     </td>
     <td>
-      <TemplateQueries
+      <TemplateQueryBuilder
         onSelectDatabase={onSelectDatabase}
         selectedType={selectedType}
         selectedDatabase={selectedDatabase}
         onSelectMeasurement={onSelectMeasurement}
         selectedMeasurement={selectedMeasurement}
+        selectedTagKey={selectedTagKey}
+        onSelectTagKey={onSelectTagKey}
       />
     </td>
     <td>
@@ -51,11 +56,13 @@ class RowWrapper extends Component {
       selectedType: type,
       selectedDatabase: query && query.db,
       selectedMeasurement: query && query.measurement,
+      selectedTagKey: query && query.tagKey,
     }
 
     this.handleSelectType = ::this.handleSelectType
     this.handleSelectDatabase = ::this.handleSelectDatabase
     this.handleSelectMeasurement = ::this.handleSelectMeasurement
+    this.handleSelectTagKey = ::this.handleSelectTagKey
   }
 
   handleSelectType(item) {
@@ -70,17 +77,28 @@ class RowWrapper extends Component {
     this.setState({selectedMeasurement: item.text})
   }
 
+  handleSelectTagKey(item) {
+    this.setState({selectedTagKey: item.text})
+  }
+
   render() {
-    const {selectedType, selectedDatabase, selectedMeasurement} = this.state
+    const {
+      selectedType,
+      selectedDatabase,
+      selectedMeasurement,
+      selectedTagKey,
+    } = this.state
     return (
       <TemplateVariableRow
         {...this.props}
         selectedType={selectedType}
         selectedDatabase={selectedDatabase}
         selectedMeasurement={selectedMeasurement}
+        selectedTagKey={selectedTagKey}
         onSelectType={this.handleSelectType}
         onSelectDatabase={this.handleSelectDatabase}
         onSelectMeasurement={this.handleSelectMeasurement}
+        onSelectTagKey={this.handleSelectTagKey}
       />
     )
   }
@@ -94,8 +112,10 @@ RowWrapper.propTypes = {
     label: string.isRequired,
     code: string.isRequired,
     query: shape({
-      db: string.isRequired,
+      db: string,
       text: string.isRequired,
+      measurement: string,
+      tagKey: string,
     }),
     values: arrayOf(string.isRequired),
   }),
@@ -105,8 +125,10 @@ TemplateVariableRow.propTypes = {
   ...RowWrapper.propTypes,
   selectedType: string.isRequired,
   selectedDatabase: string,
+  selectedTagKey: string,
   onSelectType: func.isRequired,
   onSelectDatabase: func.isRequired,
+  onSelectTagKey: func.isRequired,
 }
 
 export default RowWrapper
