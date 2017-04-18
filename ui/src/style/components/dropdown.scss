@@ -222,3 +222,41 @@ $dropdown-menu-max-height: 290px;
     background-color: transparent;
   }
 }
+
+/*
+    Group By Time Dropdown
+    ----------------------------------------------
+*/
+.group-by-time-dropdown {
+  .dropdown-toggle {
+    width: 120px;
+    height: 28px !important;
+    line-height: 28px !important;
+    font-size: 12px;
+    text-transform: none;
+    border-radius: $radius;
+    display: block;
+  }
+  .dropdown-menu > li.dropdown-item > a {display: block;}
+}
+.data-explorer .group-by-time-dropdown .dropdown-toggle {
+  font-weight: 600;
+  background-color: $g2-kevlar;
+  line-height: 24px !important;
+  border: 2px solid $g6-smoke;
+  transition:
+    border-color 0.25s ease,
+    color 0.25s ease,
+    box-shadow 0.25s ease;
+  color: $g10-wolf;
+
+  &:hover {
+    border-color: $g7-graphite;
+    color: $g18-cloud;
+  }
+}
+.data-explorer .group-by-time-dropdown.open .dropdown-toggle {
+  background-color: $g2-kevlar !important;
+  border-color: $c-pool !important;
+  box-shadow: 0 0 6px 0px $c-pool !important
+}

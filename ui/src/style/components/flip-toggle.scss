@@ -6,6 +6,7 @@
 */
 
 $flip-toggle-text: $g11-sidewalk;
+$flip-toggle-text-hover: $g18-cloud;
 $flip-toggle-bg: $g2-kevlar;
 $flip-toggle-border: $g6-smoke;
 $flip-toggle-border-hover: $g7-graphite;
@@ -22,6 +23,7 @@ $flip-toggle-size: 28px;
     .flip-toggle--front,
     .flip-toggle--back {
       border-color: $flip-toggle-border-hover;
+      color: $flip-toggle-text-hover;
     }
   }
 }
@@ -34,7 +36,9 @@ $flip-toggle-size: 28px;
 .flip-toggle--back {
   border: 2px solid $flip-toggle-border;
   background-color: $flip-toggle-bg;
-  transition: border-color 0.25s ease;
+  transition:
+    color 0.25s ease,
+    border-color 0.25s ease;
   border-radius: $radius-small;
   width: $flip-toggle-size;
   height: $flip-toggle-size;

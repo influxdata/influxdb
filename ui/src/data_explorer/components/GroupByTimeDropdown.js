@@ -17,7 +17,7 @@ const GroupByTimeDropdown = React.createClass({
 
     return (
       <div className={classNames("dropdown group-by-time-dropdown", {open: isOpen})}>
-        <div className="btn btn-sm btn-info dropdown-toggle" style={{width: '120px'}} data-toggle="dropdown">
+        <div className="btn btn-sm btn-info dropdown-toggle" data-toggle="dropdown">
           <span>Group by {selected || 'time'}</span>
           <span className="caret"></span>
         </div>
