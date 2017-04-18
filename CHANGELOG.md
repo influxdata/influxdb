@@ -3,6 +3,7 @@
 ### Bug Fixes
 ### Features
   1. [#1292](https://github.com/influxdata/chronograf/pull/1292): Introduce Template Variable Manager
+  1. [#1311](https://github.com/influxdata/chronograf/pull/1311): Display currently selected values in TVControlBar
 
 ### UI Improvements
   1. [#1259](https://github.com/influxdata/chronograf/pull/1259): Add default display for empty dashboard
