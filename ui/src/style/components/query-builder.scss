@@ -175,6 +175,13 @@
   .query-builder--list-item {padding: 0;}
   .query-builder--filter {margin-bottom: 4px;}
 }
+/* Dropdowns inside query builder list items are forced to "xs" size */
+.query-builder--list-item .dropdown-toggle {
+  height: 22px !important;
+  line-height: 22px !important;
+  font-size: 12px !important;
+  width: 110px !important;
+}
 /* Toggle for grouping by tags in tags list */
 .group-by-tag {
   visibility: hidden;

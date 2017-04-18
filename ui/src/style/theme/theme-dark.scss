@@ -233,6 +233,21 @@ input {
   color: $g20-white !important;
 }
 
+/* Green (Kapacitor) themed inputs */
+.form-control--green {
+  color: $c-rainforest !important;
+  &:focus {color: $g20-white !important;}
+
+  &::selection {
+    background-color: $c-rainforest !important;
+    color: $g20-white !important;
+  }
+  &::-moz-selection {
+    background-color: $c-rainforest !important;
+    color: $g20-white !important;
+  }
+}
+
 
 /*
     Dark Code Samples

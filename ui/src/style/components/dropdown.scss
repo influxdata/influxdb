@@ -114,7 +114,12 @@ $dropdown-menu-max-height: 290px;
     border-radius: 3px 3px 0 0;
   }
 }
-.dropdown.dropdown-kapacitor .dropdown-menu {
+.dropdown.dropdown-kapacitor .dropdown-toggle {
+  color: $c-rainforest !important;
+  &:hover {color: $c-honeydew !important;}
+}
+.dropdown.dropdown-kapacitor .dropdown-menu,
+.rule-builder .dropdown .dropdown-menu {
   @include custom-scrollbar($c-rainforest, $c-honeydew);
   @include gradient-h($c-pool, $c-rainforest);
 
