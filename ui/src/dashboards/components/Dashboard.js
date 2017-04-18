@@ -67,6 +67,7 @@ const Dashboard = ({
       {cells.length ?
         <LayoutRenderer
           timeRange={timeRange}
+          templates={templates}
           cells={cells}
           autoRefresh={autoRefresh}
           source={source.links.proxy}

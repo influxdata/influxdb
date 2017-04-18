@@ -46,6 +46,10 @@ export const LayoutRenderer = React.createClass({
         type: string.isRequired,
       }).isRequired
     ),
+    templates: arrayOf(shape({
+      code: string.isRequired,
+      selected: string,
+    })).isRequired,
     host: string,
     source: string,
     onPositionChange: func,
@@ -89,9 +93,17 @@ export const LayoutRenderer = React.createClass({
     return text
   },
 
-  renderRefreshingGraph(type, queries, autoRefresh) {
+  renderRefreshingGraph(type, queries) {
+    const {autoRefresh, templates} = this.props
+
     if (type === 'single-stat') {
-      return <RefreshingSingleStat queries={[queries[0]]} autoRefresh={autoRefresh} />
+      return (
+        <RefreshingSingleStat
+          queries={[queries[0]]}
+          params={templates}
+          autoRefresh={autoRefresh}
+        />
+      )
     }
 
     const displayOptions = {
@@ -102,6 +114,7 @@ export const LayoutRenderer = React.createClass({
     return (
       <RefreshingLineGraph
         queries={queries}
+        params={templates}
         autoRefresh={autoRefresh}
         showSingleStat={type === 'line-plus-single-stat'}
         displayOptions={displayOptions}
@@ -110,7 +123,7 @@ export const LayoutRenderer = React.createClass({
   },
 
   generateVisualizations() {
-    const {autoRefresh, timeRange, source, cells, onEditCell, onRenameCell, onUpdateCell, onDeleteCell, onSummonOverlayTechnologies, shouldNotBeEditable} = this.props
+    const {timeRange, source, cells, onEditCell, onRenameCell, onUpdateCell, onDeleteCell, onSummonOverlayTechnologies, shouldNotBeEditable} = this.props
 
     return cells.map((cell) => {
       const queries = cell.queries.map((query) => {
@@ -143,7 +156,7 @@ export const LayoutRenderer = React.createClass({
             shouldNotBeEditable={shouldNotBeEditable}
             cell={cell}
           >
-            {this.renderRefreshingGraph(cell.type, queries, autoRefresh)}
+            {this.renderRefreshingGraph(cell.type, queries)}
           </NameableGraph>
         </div>
       )

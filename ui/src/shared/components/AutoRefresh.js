@@ -17,18 +17,24 @@ const AutoRefresh = (ComposedComponent) => {
     propTypes: {
       children: element,
       autoRefresh: number.isRequired,
+      params: arrayOf(shape({
+        code: string.isRequired,
+        values: arrayOf(string),
+      })),
       queries: arrayOf(shape({
         host: oneOfType([string, arrayOf(string)]),
         text: string,
       }).isRequired).isRequired,
       editQueryStatus: func,
     },
+
     getInitialState() {
       return {
         lastQuerySuccessful: false,
         timeSeries: [],
       }
     },
+
     componentDidMount() {
       const {queries, autoRefresh} = this.props
       this.executeQueries(queries)
@@ -36,6 +42,7 @@ const AutoRefresh = (ComposedComponent) => {
         this.intervalID = setInterval(() => this.executeQueries(queries), autoRefresh)
       }
     },
+
     componentWillReceiveProps(nextProps) {
       const shouldRefetch = this.queryDifference(this.props.queries, nextProps.queries).length
 
@@ -51,41 +58,45 @@ const AutoRefresh = (ComposedComponent) => {
         }
       }
     },
+
     queryDifference(left, right) {
       const leftStrs = left.map((q) => `${q.host}${q.text}`)
       const rightStrs = right.map((q) => `${q.host}${q.text}`)
       return _.difference(_.union(leftStrs, rightStrs), _.intersection(leftStrs, rightStrs))
     },
+
     async executeQueries(queries) {
+      const {params, editQueryStatus} = this.props
+
       if (!queries.length) {
-        this.setState({
-          timeSeries: [],
-        })
+        this.setState({timeSeries: []})
         return
       }
 
       this.setState({isFetching: true})
-      let count = 0
-      const newSeries = []
-      for (const query of queries) {
+
+      const timeSeriesPromises = queries.map((query) => {
         const {host, database, rp} = query
-        const response = await fetchTimeSeriesAsync({source: host, db: database, rp, query}, this.props.editQueryStatus)
-        newSeries.push({response})
-        count += 1
-        if (count === queries.length) {
-          const querySuccessful = !this._noResultsForQuery(newSeries)
-          this.setState({
-            lastQuerySuccessful: querySuccessful,
-            isFetching: false,
-            timeSeries: newSeries,
-          })
-        }
-      }
+        return fetchTimeSeriesAsync({source: host, db: database, rp, query, params}, editQueryStatus)
+      })
+
+      Promise.all(timeSeriesPromises).then(timeSeries => {
+        const lastSeries = timeSeries[timeSeries.length - 1]
+        const lastQuerySuccessful = !this._noResultsForQuery(lastSeries)
+
+        this.setState({
+          timeSeries,
+          lastQuerySuccessful,
+          isFetching: false,
+        })
+      })
     },
+
     componentWillUnmount() {
       clearInterval(this.intervalID)
       this.intervalID = false
     },
+
     render() {
       const {timeSeries} = this.state
 
@@ -139,7 +150,7 @@ const AutoRefresh = (ComposedComponent) => {
       }
 
       return data.every((datum) => {
-        return datum.response.results.every((result) => {
+        return datum.results.every((result) => {
           return Object.keys(result).length === 0
         })
       })
