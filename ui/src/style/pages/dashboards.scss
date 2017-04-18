@@ -433,31 +433,32 @@ $overlay-bg: rgba($c-pool, 0.7);
 }
 
 /* Graph editing in Dashboards is a little smaller so the dash can be seen in the background */
-.overlay-technology .page-contents {
+.overlay-technology .resize-container.page-contents {
   background-image: none !important;
-}
-.overlay-technology .resize-bottom {
-  background-color: $g0-obsidian !important;
+  overflow: visible;
 }
 .overlay-technology .graph {
   width: 70%;
   left: 15%;
 }
-.overlay-technology .dash-graph--heading {
-  top: 0;
-  height: $dash-graph-heading;
+.overlay-technology .graph-heading,
+.overlay-technology .graph-container,
+.overlay-technology .table-container {
+  top: -24px;
 }
-.overlay-technology .dash-graph--container {
-  height: calc(100% - #{$dash-graph-heading});
-  top: $dash-graph-heading;
+.overlay-technology .graph-heading .graph-actions {
+  order: 2;
 }
-.overlay-technology .query-builder {
+.overlay-technology .graph-container,
+.overlay-technology .table-container {
+  height: calc(100% - 38px);
+}
+.overlay-technology .query-maker {
   flex: 1 0 0;
-  margin-bottom: 16px;
-  margin-top: 2px;
 }
-.overlay-technology .query-builder--tabs,
-.overlay-technology .query-builder--tab-contents,
-.overlay-technology .qeditor--empty {
-  margin: 0;
+.overlay-technology .query-maker--tabs {
+  margin-top: 8px;
+}
+.overlay-technology .query-maker--tab-contents {
+  margin-bottom: 8px;
 }
