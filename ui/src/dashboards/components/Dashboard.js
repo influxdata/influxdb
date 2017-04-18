@@ -24,6 +24,8 @@ const Dashboard = ({
     return null
   }
 
+  const {templates} = dashboard
+
   const cells = dashboard.cells.map((cell) => {
     const dashboardCell = {...cell}
     dashboardCell.queries = dashboardCell.queries.map(({label, query, queryConfig, db}) =>
@@ -47,7 +49,7 @@ const Dashboard = ({
         </div>
         <div className="page-header__right">
           {
-            dashboard.templates.map(({id, values, selected}) => {
+            templates.map(({id, values, selected}) => {
               const items = values ? values.map(value => ({text: value})) : []
               return (
                 <Dropdown
