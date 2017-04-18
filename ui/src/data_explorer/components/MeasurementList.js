@@ -72,11 +72,15 @@ const MeasurementList = React.createClass({
   render() {
     return (
       <div className="query-builder--column">
-        <div className="query-builder--heading">Measurements</div>
-        {this.props.query.database ? <div className="qeditor--list-header">
-          <input className="qeditor--filter" ref="filterText" placeholder="Filter" type="text" value={this.state.filterText} onChange={this.handleFilterText} onKeyUp={this.handleEscape} />
-          <span className="icon search"></span>
-        </div> : null }
+        <div className="query-builder--heading">
+          <span>Measurements</span>
+          {this.props.query.database ?
+            <div className="query-builder--heading-filter">
+              <input className="form-control input-sm" ref="filterText" placeholder="Filter" type="text" value={this.state.filterText} onChange={this.handleFilterText} onKeyUp={this.handleEscape} />
+              <span className="icon search"></span>
+            </div>
+          : null }
+        </div>
         {this.renderList()}
       </div>
     )

@@ -56,6 +56,7 @@ $query-builder--heading-bg: $query-maker--tab-bg-active;
 
 $query-builder--list-bg: $g3-castle;
 $query-builder--list-empty-text: $g10-wolf;
+$query-builder--list-gutter: 10px;
 
 $query-editor-tab-inactive: $g2-kevlar;
 $query-editor-tab-active: $g3-castle;
@@ -217,8 +218,35 @@ $query-editor-tab-active: $g3-castle;
   font-weight: 600;
   color: $query-builder--heading-text;
   background-color: $query-builder--heading-bg;
-  padding: 0 9px;
+  padding: 0 $scrollbar-width 0 $query-builder--list-gutter;
   line-height: $query-builder--heading-height;
+}
+.query-builder--heading-filter {
+  flex: 1 0 0;
+  margin-left: $query-maker--gutter;
+  display: flex;
+
+  & > span {
+    font-size: 11px;
+    line-height: 28px;
+    order: 1;
+    width: 20px;
+    margin-right: -20px;
+    text-align: right;
+    position: relative;
+    z-index: 2;
+    transition: color 0.25s ease;
+    color: $g9-mountain;
+  }
+  & > input {
+    order: 2;
+    padding: 0 8px 0 24px;
+    border-color: $g6-smoke !important;
+
+    &:hover {border-color: $g7-graphite !important;}
+    &:focus {border-color: $c-pool !important;}
+    &:focus + span {color: $c-pool;}
+  }
 }
 .query-builder--list,
 .query-builder--list-empty {
