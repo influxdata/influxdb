@@ -4,40 +4,46 @@ $breakpoint-c: 2100px;
 
 
 @media only screen and (min-width: $breakpoint-a) {
-  .query-builder--list-item {
-    font-size: 14px;
-  }
-  .query-builder--heading {
-    font-size: 15px;
+  .data-explorer {
+    .query-builder--list-item {
+      font-size: 14px;
+    }
+    .query-builder--heading {
+      font-size: 15px;
+    }
   }
 }
 
 @media only screen and (min-width: $breakpoint-b) {
-  .query-builder--list-item {
-    font-size: 15px;
-  }
-  .query-builder--heading {
-    font-size: 16px;
-  }
-  .query-editor--field {
-    font-size: 14px;
-    line-height: 16px;
+  .data-explorer {
+    .query-builder--list-item {
+      font-size: 15px;
+    }
+    .query-builder--heading {
+      font-size: 16px;
+    }
+    .query-editor--field {
+      font-size: 14px;
+      line-height: 16px;
+    }
   }
 }
 @media only screen and (min-width: $breakpoint-c) {
-  .query-builder--list-item {
-    letter-spacing: 0.3px;
-  }
-  .query-builder--heading {
-    font-size: 17px;
-    font-weight: 400;
-    text-transform: uppercase;
-  }
-  .query-maker .multi-select-dropdown .dropdown-toggle {
-    width: 140px;
-  }
-  .query-editor--field {
-    font-size: 16px;
-    line-height: 18px;
+  .data-explorer {
+    .query-builder--list-item {
+      letter-spacing: 0.3px;
+    }
+    .query-builder--heading {
+      font-size: 17px;
+      font-weight: 400;
+      text-transform: uppercase;
+    }
+    .query-maker .multi-select-dropdown .dropdown-toggle {
+      width: 140px;
+    }
+    .query-editor--field {
+      font-size: 16px;
+      line-height: 18px;
+    }
   }
 }
