@@ -117,8 +117,12 @@ func (b *PointBatcher) Stop() {
 		return
 	}
 
-	close(b.stop)
-	b.wg.Wait()
+	// If not stopped, stop the batching go routine gracefully
+	if b.stop != nil {
+		b.stop <- struct{}{}
+		b.wg.Wait()
+		close(b.stop)
+	}
 }
 
 // In returns the channel to which points should be written.
