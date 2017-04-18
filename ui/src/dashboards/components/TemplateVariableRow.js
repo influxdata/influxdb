@@ -34,7 +34,7 @@ const TemplateVariableRow = ({
       />
     </td>
     <td>
-      {values.join(' ,')}
+      {values.join(', ')}
     </td>
     <td>
       <button className="btn btn-sm btn-danger" type="button">Delete</button>

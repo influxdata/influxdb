@@ -121,7 +121,7 @@ const templates = [
     code: '$HOSTS',
     query: {
       db: 'db1',
-      measurement: null,
+      measurement: 'm1',
       text: 'SHOW TAGS WHERE HUNTER = "coo"',
     },
     values: ['h1', 'h2', 'h3'],

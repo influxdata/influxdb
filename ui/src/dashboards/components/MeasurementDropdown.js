@@ -1,6 +1,7 @@
 import React, {PropTypes, Component} from 'react'
-import Dropdown from 'shared/components/Dropdown'
+import _ from 'lodash'
 
+import Dropdown from 'shared/components/Dropdown'
 import {showMeasurements} from 'shared/apis/metaQuery'
 import showMeasurementsParser from 'shared/parsing/showMeasurements'
 
@@ -40,11 +41,16 @@ class MeasurementDropdown extends Component {
 
   async _getMeasurements() {
     const {source: {links: {proxy}}} = this.context
+    const {measurement, database, onSelectMeasurement} = this.props
 
     try {
-      const {data} = await showMeasurements(proxy, this.props.database)
+      const {data} = await showMeasurements(proxy, database)
       const {measurementSets} = showMeasurementsParser(data)
       this.setState({measurements: measurementSets[0].measurements})
+      const selected = measurementSets.includes(measurement)
+        ? measurement
+        : _.get(measurementSets, ['0', 'measurements', '0'], 'No measurements')
+      onSelectMeasurement({text: selected})
     } catch (error) {
       console.error(error)
     }

@@ -14,20 +14,24 @@ class DatabaseDropdown extends Component {
 
   componentDidMount() {
     const {source} = this.context
+    const {database, onSelectDatabase} = this.props
     const proxy = source.links.proxy
     showDatabases(proxy).then(resp => {
       const {databases} = showDatabasesParser(resp.data)
       this.setState({databases})
+      const selected = databases.includes(database) ? database : databases[0] || 'No databases'
+      onSelectDatabase({text: selected})
     })
   }
 
   render() {
     const {databases} = this.state
     const {database, onSelectDatabase} = this.props
+
     return (
       <Dropdown
-        items={databases.map(db => ({text: db}))}
-        selected={database || 'Select Database'}
+        items={databases.map(text => ({text}))}
+        selected={database}
         onChoose={onSelectDatabase}
       />
     )
