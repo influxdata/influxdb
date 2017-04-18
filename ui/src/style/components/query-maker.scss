@@ -164,8 +164,6 @@ $query-editor-tab-active: $g3-castle;
   flex: 1 0 0;
   margin: 0 0 $query-maker--gutter 0;
   background-color: $query-maker--tab-contents-bg;
-  overflow: hidden;
-  position: relative;
 }
 .query-maker--empty {
   border-radius: $radius;
