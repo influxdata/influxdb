@@ -19,8 +19,10 @@ class DatabaseDropdown extends Component {
     showDatabases(proxy).then(resp => {
       const {databases} = showDatabasesParser(resp.data)
       this.setState({databases})
-      const selected = databases.includes(database) ? database : databases[0] || 'No databases'
-      onSelectDatabase({text: selected})
+      const selected = databases.includes(database)
+        ? database
+        : databases[0] || 'No databases'
+      onSelectDatabase({text: selected})
     })
   }
 
