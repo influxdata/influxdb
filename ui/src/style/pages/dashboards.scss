@@ -380,8 +380,8 @@ $overlay-bg: rgba($c-pool, 0.7);
     left: $explorer-page-padding;
     margin-top: 16px;
     border: 0;
-    border-radius: $radius;
-    @include gradient-h($g3-castle,$overlay-controls-bg);
+    background-color: $g2-kevlar;
+    border-radius: $radius $radius 0 0;
   }
   .overlay-controls--right {
     display: flex;
@@ -455,9 +455,13 @@ $overlay-bg: rgba($c-pool, 0.7);
 }
 .overlay-technology .query-maker {
   flex: 1 0 0;
+  padding: 0 8px;
+  margin-bottom: 8px;
+  border-radius: 0 0 $radius $radius;
+  background-color: $g2-kevlar;
 }
 .overlay-technology .query-maker--tabs {
-  margin-top: 8px;
+  margin-top: 0;
 }
 .overlay-technology .query-maker--tab-contents {
   margin-bottom: 8px;
