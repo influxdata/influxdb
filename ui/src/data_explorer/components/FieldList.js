@@ -77,10 +77,7 @@ const FieldList = React.createClass({
         <div className="query-builder--heading">
           <span>Fields</span>
           {hasAggregates ?
-            <div className="group-by-time">
-              <p>Group by Time</p>
-              <GroupByTimeDropdown isOpen={!hasGroupByTime} selected={query.groupBy.time} onChooseGroupByTime={this.handleGroupByTime} />
-            </div>
+          <GroupByTimeDropdown isOpen={!hasGroupByTime} selected={query.groupBy.time} onChooseGroupByTime={this.handleGroupByTime} />
           : null}
         </div>
         {this.renderList()}
