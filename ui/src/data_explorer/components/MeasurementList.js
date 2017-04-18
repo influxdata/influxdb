@@ -75,7 +75,7 @@ const MeasurementList = React.createClass({
         <div className="query-builder--heading">
           <span>Measurements</span>
           {this.props.query.database ?
-            <div className="query-builder--heading-filter">
+            <div className="query-builder--filter">
               <input className="form-control input-sm" ref="filterText" placeholder="Filter" type="text" value={this.state.filterText} onChange={this.handleFilterText} onKeyUp={this.handleEscape} />
               <span className="icon search"></span>
             </div>
@@ -102,7 +102,7 @@ const MeasurementList = React.createClass({
         {measurements.map((measurement) => {
           const isActive = measurement === this.props.query.measurement
           return (
-            <div className={classNames('qeditor--list-item qeditor--list-radio', {active: isActive})} key={measurement} onClick={_.wrap(measurement, this.props.onChooseMeasurement)}>{measurement}</div>
+            <div className={classNames('query-builder--list-item', {active: isActive})} key={measurement} onClick={_.wrap(measurement, this.props.onChooseMeasurement)}>{measurement}</div>
           )
         })}
       </div>
