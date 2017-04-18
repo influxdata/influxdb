@@ -12,6 +12,10 @@ import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
 import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants'
 
+import {
+  TEMPLATE_VARIABLE_SELECTED,
+} from 'shared/constants/actionTypes'
+
 export const loadDashboards = (dashboards, dashboardID) => ({
   type: 'LOAD_DASHBOARDS',
   payload: {
@@ -111,6 +115,15 @@ export const editCellQueryStatus = (queryID, status) => ({
   },
 })
 
+export const tvSelected = (dashboardID, tvID, valueText) => ({
+  type: TEMPLATE_VARIABLE_SELECTED,
+  payload: {
+    dashboardID,
+    tvID,
+    valueText,
+  },
+})
+
 // Stub Template Variables Data
 
 const templates = [
@@ -131,6 +144,13 @@ const templates = [
     label: 'test csv',
     code: '$INFLX',
     values: ['A', 'B', 'C'],
+  },
+  {
+    id: 3,
+    type: 'csv',
+    label: 'test csv',
+    code: '$NULL',
+    values: null,
   },
 ]
 

@@ -73,6 +73,12 @@ $dash-graph-options-arrow: 8px;
     margin-bottom: 4px;
     padding: 10px 15px;
     @extend .cell-shell;
+    .dropdown {
+        flex-grow: 1;
+    }
+    .dropdown-toggle {
+      width: 100%;
+    }
   }
   .react-grid-item {
     @extend .cell-shell;

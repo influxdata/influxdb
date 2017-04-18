@@ -2,6 +2,7 @@ import React, {PropTypes} from 'react'
 import classnames from 'classnames'
 
 import LayoutRenderer from 'shared/components/LayoutRenderer'
+import Dropdown from 'shared/components/Dropdown'
 
 const Dashboard = ({
   source,
@@ -17,6 +18,7 @@ const Dashboard = ({
   inPresentationMode,
   onOpenTemplateManager,
   onSummonOverlayTechnologies,
+  onSelectTV,
 }) => {
   if (dashboard.id === 0) {
     return null
@@ -41,6 +43,24 @@ const Dashboard = ({
     <div className={classnames('dashboard container-fluid full-width page-contents', {'presentation-mode': inPresentationMode})}>
       <div className="tv-control-bar">
         Template Variables
+        {
+          dashboard.templates.map(({id, values}) => {
+            let items
+            if (values === null) {
+              items = [{text: 'Loading...'}]
+            } else {
+              items = values.map(value => ({text: value}))
+            }
+            return (
+              <Dropdown
+                key={id}
+                items={items}
+                selected={items[0].text}
+                onChoose={(item) => onSelectTV(id, item.text)}
+              />
+            )
+          })
+        }
         <button className="btn btn-primary btn-sm" onClick={onOpenTemplateManager}>Manage</button>
       </div>
       {cells.length ?
@@ -96,6 +116,7 @@ Dashboard.propTypes = {
   autoRefresh: number.isRequired,
   timeRange: shape({}).isRequired,
   onOpenTemplateManager: func.isRequired,
+  onSelectTV: func.isRequired,
 }
 
 export default Dashboard
