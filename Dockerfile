@@ -1,24 +1,21 @@
-FROM busybox:ubuntu-14.04
+FROM golang:1.4.3
+MAINTAINER Jonathan A. Sternberg <jonathan@influxdb.com>
 
-MAINTAINER Jason Wilder "<jason@influxdb.com>"
+RUN go get github.com/sparrc/gdm
+COPY . /go/src/github.com/influxdata/influxdb
+WORKDIR /go/src/github.com/influxdata/influxdb
+RUN gdm restore
+RUN go install -v github.com/influxdata/influxdb/cmd/...
+RUN mkdir -p /etc/influxdb && \
+    INFLUXDB_DATA_DIR=/var/lib/influxdb/data \
+    INFLUXDB_META_DIR=/var/lib/influxdb/meta \
+    INFLUXDB_DATA_WAL_DIR=/var/lib/influxdb/wal \
+    influxd config > /etc/influxdb/influxdb.conf
 
-# admin, http, udp, cluster, graphite, opentsdb, collectd
-EXPOSE 8083 8086 8086/udp 8088 2003 4242 25826
+EXPOSE 8083 8086
 
-WORKDIR /app
+VOLUME /var/lib/influxdb
 
-# copy binary into image
-COPY influxd /app/
-
-# Add influxd to the PATH
-ENV PATH=/app:$PATH
-
-# Generate a default config
-RUN influxd config > /etc/influxdb.toml
-
-# Use /data for all disk storage
-RUN sed -i 's/dir = "\/.*influxdb/dir = "\/data/' /etc/influxdb.toml
-
-VOLUME ["/data"]
-
-ENTRYPOINT ["influxd", "--config", "/etc/influxdb.toml"]
+COPY docker-entrypoint.sh /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["influxd"]
