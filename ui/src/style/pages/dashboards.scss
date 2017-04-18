@@ -59,6 +59,10 @@ $dash-graph-options-arrow: 8px;
     min-height: 150px;
     @include gradient-v($g2-kevlar,$g0-obsidian);
   }
+
+  .dropdown-toggle {
+    width: 150px;
+  }
 }
 
 .dashboard {

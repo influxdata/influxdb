@@ -26,3 +26,30 @@ export const NEW_DASHBOARD = {
   name: 'Name This Dashboard',
   cells: [NEW_DEFAULT_DASHBOARD_CELL],
 }
+
+export const TEMPLATE_VARIBALE_TYPES = [
+  {
+    text: 'CSV',
+    type: 'csv',
+  },
+  {
+    text: 'Measurements',
+    type: 'measurements',
+  },
+  {
+    text: 'Databases',
+    type: 'databases',
+  },
+  {
+    text: 'Fields',
+    type: 'fields',
+  },
+  {
+    text: 'Tag Keys',
+    type: 'tagKeys',
+  },
+  {
+    text: 'Tag Values',
+    type: 'tagValues',
+  },
+]
