@@ -117,6 +117,13 @@ func (b *PointBatcher) Stop() {
 		return
 	}
 
+	// If not stopped, stop the batching go routine gracefully
+	if b.stop != nil {
+		b.stop <- struct{}{}
+		b.wg.Wait()
+		close(b.stop)
+	}
+
 	close(b.stop)
 	b.wg.Wait()
 }
