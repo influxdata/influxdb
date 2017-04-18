@@ -30,8 +30,10 @@ var (
 
 // Principal is any entity that can be authenticated
 type Principal struct {
-	Subject string
-	Issuer  string
+	Subject   string
+	Issuer    string
+	ExpiresAt time.Time
+	IssuedAt  time.Time
 }
 
 /* Interfaces */
@@ -66,6 +68,8 @@ type Authenticator interface {
 	Validate(context.Context, *http.Request) (Principal, error)
 	// Authorize will grant privileges to a Principal
 	Authorize(context.Context, http.ResponseWriter, Principal) error
+	// Extend will extend the lifetime of a already validated Principal
+	Extend(context.Context, http.ResponseWriter, Principal) (Principal, error)
 	// Expire revokes privileges from a Principal
 	Expire(http.ResponseWriter)
 }
@@ -78,9 +82,11 @@ type Token string
 // non-sensitive equivalent, referred to as a token, that has no extrinsic
 // or exploitable meaning or value.
 type Tokenizer interface {
-	// Create uses a token lasting duration with Principal data
-	Create(context.Context, Principal, time.Duration) (Token, error)
+	// Create issues a token at Principal's IssuedAt that lasts until Principal's ExpireAt
+	Create(context.Context, Principal) (Token, error)
 	// ValidPrincipal checks if the token has a valid Principal and requires
-	// a duration to ensure it complies with possible server runtime arguments.
-	ValidPrincipal(context.Context, Token, time.Duration) (Principal, error)
+	// a lifespan duration to ensure it complies with possible server runtime arguments.
+	ValidPrincipal(ctx context.Context, token Token, lifespan time.Duration) (Principal, error)
+	// ExtendedPrincipal adds the extention to the principal's lifespan.
+	ExtendedPrincipal(ctx context.Context, principal Principal, extension time.Duration) (Principal, error)
 }
