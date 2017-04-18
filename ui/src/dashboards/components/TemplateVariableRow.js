@@ -1,13 +1,17 @@
 import React, {PropTypes, Component} from 'react'
 import Dropdown from 'shared/components/Dropdown'
-import TemplateValues from 'src/dashboards/components/TemplateValues'
+import TemplateQueries from 'src/dashboards/components/TemplateQueries'
 
 import {TEMPLATE_VARIBALE_TYPES} from 'src/dashboards/constants'
 
 const TemplateVariableRow = ({
   template: {label, code, values},
   selectedType,
-  handleSelectType,
+  selectedDatabase,
+  selectedMeasurement,
+  onSelectType,
+  onSelectDatabase,
+  onSelectMeasurement,
 }) => (
   <tr>
     <td>{label}</td>
@@ -15,13 +19,22 @@ const TemplateVariableRow = ({
     <td>
       <Dropdown
         items={TEMPLATE_VARIBALE_TYPES}
-        onChoose={handleSelectType}
+        onChoose={onSelectType}
         selected={selectedType}
         className={'template-variable--dropdown'}
       />
     </td>
     <td>
-      <TemplateValues values={values} selectedType={selectedType} />
+      <TemplateQueries
+        onSelectDatabase={onSelectDatabase}
+        selectedType={selectedType}
+        selectedDatabase={selectedDatabase}
+        onSelectMeasurement={onSelectMeasurement}
+        selectedMeasurement={selectedMeasurement}
+      />
+    </td>
+    <td>
+      {values.join(' ,')}
     </td>
     <td>
       <button className="btn btn-sm btn-danger" type="button">Delete</button>
@@ -32,23 +45,42 @@ const TemplateVariableRow = ({
 class RowWrapper extends Component {
   constructor(props) {
     super(props)
+    const {template: {query, type}} = this.props
+
     this.state = {
-      selectedType: this.props.template.type,
+      selectedType: type,
+      selectedDatabase: query && query.db,
+      selectedMeasurement: query && query.measurement,
     }
 
     this.handleSelectType = ::this.handleSelectType
+    this.handleSelectDatabase = ::this.handleSelectDatabase
+    this.handleSelectMeasurement = ::this.handleSelectMeasurement
   }
 
   handleSelectType(item) {
     this.setState({selectedType: item.type})
   }
 
+  handleSelectDatabase(item) {
+    this.setState({selectedDatabase: item.text})
+  }
+
+  handleSelectMeasurement(item) {
+    this.setState({selectedMeasurement: item.text})
+  }
+
   render() {
+    const {selectedType, selectedDatabase, selectedMeasurement} = this.state
     return (
       <TemplateVariableRow
         {...this.props}
-        selectedType={this.state.selectedType}
-        handleSelectType={this.handleSelectType}
+        selectedType={selectedType}
+        selectedDatabase={selectedDatabase}
+        selectedMeasurement={selectedMeasurement}
+        onSelectType={this.handleSelectType}
+        onSelectDatabase={this.handleSelectDatabase}
+        onSelectMeasurement={this.handleSelectMeasurement}
       />
     )
   }
@@ -72,7 +104,9 @@ RowWrapper.propTypes = {
 TemplateVariableRow.propTypes = {
   ...RowWrapper.propTypes,
   selectedType: string.isRequired,
-  handleSelectType: func.isRequired,
+  selectedDatabase: string,
+  onSelectType: func.isRequired,
+  onSelectDatabase: func.isRequired,
 }
 
 export default RowWrapper

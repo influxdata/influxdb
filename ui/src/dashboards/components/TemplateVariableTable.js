@@ -9,6 +9,7 @@ const TemplateVariableTable = ({templates}) => (
         <th>Dropdown Label</th>
         <th>Shortcode</th>
         <th>Type</th>
+        <th>Queries</th>
         <th>Values</th>
         <th />
       </tr>

@@ -33,12 +33,12 @@ export const TEMPLATE_VARIBALE_TYPES = [
     type: 'csv',
   },
   {
-    text: 'Measurements',
-    type: 'measurements',
-  },
-  {
     text: 'Databases',
     type: 'databases',
+  },
+  {
+    text: 'Measurements',
+    type: 'measurements',
   },
   {
     text: 'Fields',

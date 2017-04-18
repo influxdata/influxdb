@@ -116,11 +116,12 @@ export const editCellQueryStatus = (queryID, status) => ({
 const templates = [
   {
     id: 1,
-    type: 'query',
+    type: 'measurement',
     label: 'test query',
     code: '$HOSTS',
     query: {
-      db: 'db1.rp1',
+      db: 'db1',
+      measurement: null,
       text: 'SHOW TAGS WHERE HUNTER = "coo"',
     },
     values: ['h1', 'h2', 'h3'],
