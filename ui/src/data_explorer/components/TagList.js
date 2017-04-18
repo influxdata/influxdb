@@ -91,13 +91,16 @@ const TagList = React.createClass({
 
     return (
       <div className="query-builder--column">
-        <div className="query-builder--heading">Tags</div>
-        {(!query.database || !query.measurement || !query.retentionPolicy) ? null : <div className="qeditor--list-header">
-          <div className="toggle toggle-sm">
-            <div onClick={this.handleAcceptReject} className={cx("toggle-btn", {active: query.areTagsAccepted})}>=</div>
-            <div onClick={this.handleAcceptReject} className={cx("toggle-btn", {active: !query.areTagsAccepted})}>!=</div>
-          </div>
-        </div>}
+        <div className="query-builder--heading">
+          <span>Tags</span>
+          {(!query.database || !query.measurement || !query.retentionPolicy) ? null :
+          <div className={cx("flip-toggle", {flipped: query.areTagsAccepted})} onClick={this.handleAcceptReject}>
+            <div className="flip-toggle--container">
+              <div className="flip-toggle--front">!=</div>
+              <div className="flip-toggle--back">=</div>
+            </div>
+          </div>}
+        </div>
         {this.renderList()}
       </div>
     )
