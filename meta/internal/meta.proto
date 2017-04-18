@@ -1,0 +1,237 @@
+package internal;
+
+//========================================================================
+//
+// Metadata
+//
+//========================================================================
+
+message Data {
+	repeated NodeInfo Nodes = 1;
+	repeated DatabaseInfo Databases = 2;
+}
+
+message NodeInfo {
+	required uint64 ID = 1;
+	required string Host = 2;
+}
+
+message DatabaseInfo {
+	required string Name = 1;
+	required string DefaultRetentionPolicy = 2;
+	repeated RetentionPolicyInfo Polices = 3;
+	repeated ContinuousQueryInfo ContinuousQueries = 4;
+}
+
+message RetentionPolicyInfo {
+	required string Name = 1;
+	required int64 Duration = 2;
+	required int64 ShardGroupDuration = 3;
+	required uint32 ReplicaN = 4;
+	repeated ShardGroupInfo ShardGroups = 5;
+}
+
+message ShardGroupInfo {
+	required uint64 ID = 1;
+	required int64 StartTime = 2;
+	required int64 EndTime = 3;
+	repeated ShardInfo Shards = 4;
+}
+
+message ShardInfo {
+	required uint64 ID = 1;
+	required uint64 OwnerIDs = 2;
+}
+
+message ContinuousQueryInfo {
+	required string Query = 1;
+}
+
+message User {
+	required string Name = 1;
+	required string Hash = 2;
+	required bool Admin = 3;
+	repeated UserPrivilege Privileges = 4;
+}
+
+message UserPrivilege {
+	required string Database = 1;
+	required int32 Privilege = 2;
+}
+
+
+//========================================================================
+//
+// COMMANDS
+//
+//========================================================================
+
+message Command {
+    extensions 100 to max;
+
+    enum Type {
+		CreateContinuousQueryCommand            = 1;
+		DropContinuousQueryCommand              = 2;
+		CreateNodeCommand                       = 3;
+		DeleteNodeCommand                       = 4;
+		CreateDatabaseCommand                   = 5;
+		DropDatabaseCommand                     = 6;
+		CreateDatabaseIfNotExistsCommand        = 7;
+		CreateRetentionPolicyCommand            = 8;
+		CreateRetentionPolicyIfNotExistsCommand = 9;
+		DeleteRetentionPolicyCommand            = 10;
+		SetDefaultRetentionPolicyCommand        = 11;
+		UpdateRetentionPolicyCommand            = 12;
+		CreateShardGroupIfNotExistsCommand      = 13;
+		CreateUserCommand                       = 14;
+		DeleteUserCommand                       = 15;
+		UpdateUserCommand                       = 16;
+		SetPrivilegeCommand                     = 17;
+		DeleteShardGroupCommand                 = 18;
+    }
+
+    required Type type = 1;
+}
+
+message CreateContinuousQueryCommand {
+    extend Command {
+        required CreateContinuousQueryCommand command = 100;
+    }
+	required string Query = 1;
+}
+
+message DropContinuousQueryCommand {
+    extend Command {
+        required DropContinuousQueryCommand command = 101;
+    }
+	required string Query = 1;
+}
+
+message CreateNodeCommand {
+    extend Command {
+        required CreateNodeCommand command = 102;
+    }
+	required string Host = 1;
+}
+
+message DeleteNodeCommand {
+    extend Command {
+        required DeleteNodeCommand command = 103;
+    }
+	required string ID = 1;
+}
+
+message CreateDatabaseCommand {
+    extend Command {
+        required CreateDatabaseCommand command = 104;
+    }
+	required string Name = 1;
+}
+
+message DropDatabaseCommand {
+    extend Command {
+        required DropDatabaseCommand command = 105;
+    }
+	required string Name = 1;
+}
+
+message CreateDatabaseIfNotExistsCommand {
+    extend Command {
+        required CreateDatabaseIfNotExistsCommand command = 106;
+    }
+	required string Name = 1;
+}
+
+message CreateRetentionPolicyCommand {
+    extend Command {
+        required CreateRetentionPolicyCommand command = 107;
+    }
+	required string Database = 1;
+	required RetentionPolicyInfo RetentionPolicy = 2;
+}
+
+message CreateRetentionPolicyIfNotExistsCommand {
+    extend Command {
+        required CreateRetentionPolicyIfNotExistsCommand command = 108;
+    }
+	required string Database = 1;
+	required RetentionPolicyInfo RetentionPolicy = 2;
+}
+
+message DeleteRetentionPolicyCommand {
+    extend Command {
+        required DeleteRetentionPolicyCommand command = 109;
+    }
+	required string Database = 1;
+	required string Name = 2;
+}
+
+message SetDefaultRetentionPolicyCommand {
+    extend Command {
+        required SetDefaultRetentionPolicyCommand command = 110;
+    }
+	required string Database = 1;
+	required string Name = 2;
+}
+
+message UpdateRetentionPolicyCommand {
+    extend Command {
+        required UpdateRetentionPolicyCommand command = 111;
+    }
+	required string Database = 1;
+	required string Name = 2;
+	optional string NewName = 3;
+	optional int64 Duration = 4;
+	optional uint32 ReplicaN = 5;
+}
+
+message CreateShardGroupIfNotExistsCommand {
+    extend Command {
+        required CreateShardGroupIfNotExistsCommand command = 112;
+    }
+    required string Database = 1;
+    required string Policy = 2;
+    required int64 Timestamp = 3;
+}
+
+message CreateUserCommand {
+    extend Command {
+        required CreateUserCommand command = 113;
+    }
+    required string Username = 1;
+    required string Password = 2;
+    required bool Admin = 3;
+}
+
+message DeleteUserCommand {
+    extend Command {
+        required DeleteUserCommand command = 114;
+    }
+    required string Username = 1;
+}
+
+message UpdateUserCommand {
+    extend Command {
+        required UpdateUserCommand command = 115;
+    }
+    required string Username = 1;
+    required string Password = 2;
+}
+
+message SetPrivilegeCommand {
+    extend Command {
+        required SetPrivilegeCommand command = 116;
+    }
+    required string Username = 1;
+    required UserPrivilege Privilege = 2;
+}
+
+message DeleteShardGroupCommand {
+    extend Command {
+        required DeleteShardGroupCommand command = 117;
+    }
+    required string Database = 1;
+    required string Policy = 2;
+    required uint64 ShardID = 3;
+}
+
