@@ -137,6 +137,7 @@ const templates = [
       text: 'SHOW TAGS WHERE HUNTER = "coo"',
     },
     values: ['h1', 'h2', 'h3'],
+    selected: 'h2',
   },
   {
     id: 2,
@@ -144,6 +145,7 @@ const templates = [
     label: 'test csv',
     code: '$INFLX',
     values: ['A', 'B', 'C'],
+    selected: 'A',
   },
   {
     id: 3,
@@ -151,6 +153,7 @@ const templates = [
     label: 'test csv',
     code: '$NULL',
     values: null,
+    selected: null,
   },
 ]
 
