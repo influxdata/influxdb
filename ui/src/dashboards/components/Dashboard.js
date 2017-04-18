@@ -42,21 +42,25 @@ const Dashboard = ({
   return (
     <div className={classnames('dashboard container-fluid full-width page-contents', {'presentation-mode': inPresentationMode})}>
       <div className="tv-control-bar">
-        Template Variables
-        {
-          dashboard.templates.map(({id, values, selected}) => {
-            const items = values ? values.map(value => ({text: value})) : []
-            return (
-              <Dropdown
-                key={id}
-                items={items}
-                selected={selected || "Loading..."}
-                onChoose={(item) => onSelectTV(id, item.text)}
-              />
-            )
-          })
-        }
-        <button className="btn btn-primary btn-sm" onClick={onOpenTemplateManager}>Manage</button>
+        <div className="page-header__left">
+          Template Variables
+        </div>
+        <div className="page-header__right">
+          {
+            dashboard.templates.map(({id, values, selected}) => {
+              const items = values ? values.map(value => ({text: value})) : []
+              return (
+                <Dropdown
+                  key={id}
+                  items={items}
+                  selected={selected || "Loading..."}
+                  onChoose={(item) => onSelectTV(id, item.text)}
+                />
+              )
+            })
+          }
+          <button className="btn btn-primary btn-sm" onClick={onOpenTemplateManager}>Manage</button>
+        </div>
       </div>
       {cells.length ?
         <LayoutRenderer

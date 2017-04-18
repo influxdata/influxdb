@@ -74,7 +74,8 @@ $dash-graph-options-arrow: 8px;
     padding: 10px 15px;
     @extend .cell-shell;
     .dropdown {
-        flex-grow: 1;
+      flex: 0 1 auto;
+      min-width: 100px;
     }
     .dropdown-toggle {
       width: 100%;
