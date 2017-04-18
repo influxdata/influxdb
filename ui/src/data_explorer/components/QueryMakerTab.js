@@ -1,7 +1,7 @@
 import React, {PropTypes} from 'react'
 import classNames from 'classnames'
 
-const QueryTabItem = React.createClass({
+const QueryMakerTab = React.createClass({
   propTypes: {
     isActive: PropTypes.bool,
     query: PropTypes.shape({
@@ -32,4 +32,4 @@ const QueryTabItem = React.createClass({
   },
 })
 
-export default QueryTabItem
+export default QueryMakerTab

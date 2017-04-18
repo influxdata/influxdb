@@ -1,16 +1,16 @@
 import React, {PropTypes} from 'react'
 
+import DatabaseList from './DatabaseList'
+import MeasurementList from './MeasurementList'
+import FieldList from './FieldList'
+import TagList from './TagList'
 import QueryEditor from './QueryEditor'
-import QueryTabItem from './QueryTabItem'
 import buildInfluxQLQuery from 'utils/influxql'
 
 const {
-  arrayOf,
-  func,
-  node,
-  number,
-  shape,
   string,
+  shape,
+  func,
 } = PropTypes
 
 const QueryBuilder = React.createClass({
@@ -20,7 +20,9 @@ const QueryBuilder = React.createClass({
         queries: string.isRequired,
       }).isRequired,
     }).isRequired,
-    queries: arrayOf(shape({})).isRequired,
+    query: shape({
+      id: string,
+    }).isRequired,
     timeRange: shape({
       upper: string,
       lower: string,
@@ -28,100 +30,91 @@ const QueryBuilder = React.createClass({
     actions: shape({
       chooseNamespace: func.isRequired,
       chooseMeasurement: func.isRequired,
+      applyFuncsToField: func.isRequired,
       chooseTag: func.isRequired,
       groupByTag: func.isRequired,
-      addQuery: func.isRequired,
       toggleField: func.isRequired,
       groupByTime: func.isRequired,
       toggleTagAcceptance: func.isRequired,
-      applyFuncsToField: func.isRequired,
       editRawTextAsync: func.isRequired,
     }).isRequired,
-    height: string,
-    top: string,
-    setActiveQueryIndex: func.isRequired,
-    onDeleteQuery: func.isRequired,
-    activeQueryIndex: number,
-    children: node,
   },
 
-  handleAddQuery() {
-    const newIndex = this.props.queries.length
-    this.props.actions.addQuery()
-    this.props.setActiveQueryIndex(newIndex)
+  handleChooseNamespace(namespace) {
+    this.props.actions.chooseNamespace(this.props.query.id, namespace)
   },
 
-  handleAddRawQuery() {
-    const newIndex = this.props.queries.length
-    this.props.actions.addQuery({rawText: ''})
-    this.props.setActiveQueryIndex(newIndex)
+  handleChooseMeasurement(measurement) {
+    this.props.actions.chooseMeasurement(this.props.query.id, measurement)
   },
 
-  getActiveQuery() {
-    const {queries, activeQueryIndex} = this.props
-    const activeQuery = queries[activeQueryIndex]
-    const defaultQuery = queries[0]
+  handleToggleField(field) {
+    this.props.actions.toggleField(this.props.query.id, field)
+  },
 
-    return activeQuery || defaultQuery
+  handleGroupByTime(time) {
+    this.props.actions.groupByTime(this.props.query.id, time)
+  },
+
+  handleApplyFuncsToField(fieldFunc) {
+    this.props.actions.applyFuncsToField(this.props.query.id, fieldFunc)
+  },
+
+  handleChooseTag(tag) {
+    this.props.actions.chooseTag(this.props.query.id, tag)
+  },
+
+  handleToggleTagAcceptance() {
+    this.props.actions.toggleTagAcceptance(this.props.query.id)
+  },
+
+  handleGroupByTag(tagKey) {
+    this.props.actions.groupByTag(this.props.query.id, tagKey)
+  },
+
+  handleEditRawText(text) {
+    const {source: {links}, query} = this.props
+    this.props.actions.editRawTextAsync(links.queries, query.id, text)
   },
 
   render() {
-    const {height, top} = this.props
+    const {query, timeRange} = this.props
+    const q = query.rawText || buildInfluxQLQuery(timeRange, query) || ''
+
     return (
-      <div className="query-maker" style={{height, top}}>
-        {this.renderQueryTabList()}
-        {this.renderQueryEditor()}
+      <div className="query-maker--tab-contents">
+        <QueryEditor query={q} config={query} onUpdate={this.handleEditRawText} />
+        {this.renderLists()}
       </div>
     )
   },
 
-  renderQueryEditor() {
-    const {timeRange, actions, source} = this.props
-    const query = this.getActiveQuery()
 
-    if (!query) {
-      return (
-        <div className="query-maker--empty">
-          <h5>This Graph has no Queries</h5>
-          <br/>
-          <div className="btn btn-primary" role="button" onClick={this.handleAddQuery}>Add a Query</div>
-        </div>
-      )
-    }
+  renderLists() {
+    const {query} = this.props
 
     return (
-      <QueryEditor
-        source={source}
-        timeRange={timeRange}
-        query={query}
-        actions={actions}
-        onAddQuery={this.handleAddQuery}
-      />
-    )
-  },
-
-  renderQueryTabList() {
-    const {queries, activeQueryIndex, onDeleteQuery, timeRange, setActiveQueryIndex} = this.props
-
-    return (
-      <div className="query-maker--tabs">
-        {queries.map((q, i) => {
-          return (
-            <QueryTabItem
-              isActive={i === activeQueryIndex}
-              key={i}
-              queryIndex={i}
-              query={q}
-              onSelect={setActiveQueryIndex}
-              onDelete={onDeleteQuery}
-              queryTabText={q.rawText || buildInfluxQLQuery(timeRange, q) || `Query ${i + 1}`}
-            />
-          )
-        })}
-        {this.props.children}
-        <div className="query-maker--new btn btn-sm btn-primary" onClick={this.handleAddQuery}>
-          <span className="icon plus"></span>
-        </div>
+      <div className="query-builder">
+        <DatabaseList
+          query={query}
+          onChooseNamespace={this.handleChooseNamespace}
+        />
+        <MeasurementList
+          query={query}
+          onChooseMeasurement={this.handleChooseMeasurement}
+        />
+        <FieldList
+          query={query}
+          onToggleField={this.handleToggleField}
+          onGroupByTime={this.handleGroupByTime}
+          applyFuncsToField={this.handleApplyFuncsToField}
+        />
+        <TagList
+          query={query}
+          onChooseTag={this.handleChooseTag}
+          onGroupByTag={this.handleGroupByTag}
+          onToggleTagAcceptance={this.handleToggleTagAcceptance}
+        />
       </div>
     )
   },
