@@ -1,5 +1,9 @@
 ## v1.3.0 [unreleased]
 
+### Removals
+
+The admin UI is removed and unusable in this release. The `[admin]` configuration section will be ignored.
+
 ### Features
 
 - [#8143](https://github.com/influxdata/influxdb/pull/8143): Add WAL sync delay
@@ -16,6 +20,7 @@
 - [#7393](https://github.com/influxdata/influxdb/issues/7393): Add "non_negative_difference" function to InfluxQL.
 - [#8042](https://github.com/influxdata/influxdb/issues/8042): Add bitwise AND, OR and XOR operators to the query language.
 - [#8302](https://github.com/influxdata/influxdb/pull/8302): Write throughput/concurrency improvements
+- [#8273](https://github.com/influxdata/influxdb/issues/8273): Remove the admin UI.
 
 ### Bugfixes
 
@@ -138,7 +143,6 @@ The stress tool `influx_stress` will be removed in a subsequent release. We reco
 
 ### Bugfixes
 
-
 - [#7845](https://github.com/influxdata/influxdb/issues/7845): Fix race in storage engine.
 - [#7838](https://github.com/influxdata/influxdb/issues/7838): Ensure Subscriber service can be disabled.
 - [#7822](https://github.com/influxdata/influxdb/issues/7822): Drop database will delete /influxdb/data directory
@@ -160,6 +164,7 @@ The stress tool `influx_stress` will be removed in a subsequent release. We reco
 - [#7563](https://github.com/influxdata/influxdb/issues/7563): RP should not allow `INF` or `0` as a shard duration.
 - [#7396](https://github.com/influxdata/influxdb/issues/7396): CLI should use spaces for alignment, not tabs.
 - [#6527](https://github.com/influxdata/influxdb/issues/6527): 0.12.2 Influx CLI client PRECISION returns "Unknown precision....
+
 ## v1.1.4 [2017-02-27]
 
 ### Bugfixes

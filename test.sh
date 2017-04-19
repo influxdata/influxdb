@@ -131,18 +131,18 @@ fi
 case $ENVIRONMENT_INDEX in
     0)
         # 64 bit tests
-        run_test_docker Dockerfile_build_ubuntu64 test_64bit --generate --test --junit-report
+        run_test_docker Dockerfile_build_ubuntu64 test_64bit --test --junit-report
         rc=$?
         ;;
     1)
         # 64 bit race tests
         GORACE="halt_on_error=1"
-        run_test_docker Dockerfile_build_ubuntu64 test_64bit_race --generate --test --junit-report --race
+        run_test_docker Dockerfile_build_ubuntu64 test_64bit_race --test --junit-report --race
         rc=$?
         ;;
     2)
         # 32 bit tests
-        run_test_docker Dockerfile_build_ubuntu32 test_32bit --generate --test --junit-report --arch=i386
+        run_test_docker Dockerfile_build_ubuntu32 test_32bit --test --junit-report --arch=i386
         rc=$?
         ;;
     "save")

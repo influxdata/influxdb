@@ -3,7 +3,6 @@ github.com/BurntSushi/toml 99064174e013895bbd9b025c31100bd1d9b590ca
 github.com/bmizerany/pat c068ca2f0aacee5ac3681d68e4d0a003b7d1fd2c
 github.com/boltdb/bolt 4b1ebc1869ad66568b313d0dc410e2be72670dda
 github.com/cespare/xxhash 4a94f899c20bc44d4f5f807cb14529e72aca99d6
-github.com/clarkduvall/hyperloglog 2d38f733946d0a1f2e810513c71b834cbeba1480
 github.com/davecgh/go-spew 346938d642f2ec3594ed81d874461961cd0faa76
 github.com/dgrijalva/jwt-go 24c63f56522a87ec5339cc3567883f1039378fdb
 github.com/dgryski/go-bits 2ad8d707cc05b1815ce6ff2543bb5e8d8f9298ef
@@ -14,7 +13,6 @@ github.com/influxdata/usage-client 6d3895376368aa52a3a81d2a16e90f0f52371967
 github.com/jwilder/encoding 27894731927e49b0a9023f00312be26733744815
 github.com/paulbellamy/ratecounter 5a11f585a31379765c190c033b6ad39956584447
 github.com/peterh/liner 88609521dc4b6c858fd4c98b628147da928ce4ac
-github.com/rakyll/statik e383bbf6b2ec1a2fb8492dfd152d945fb88919b6
 github.com/retailnext/hllpp 38a7bb71b483e855d35010808143beaf05b67f9d
 github.com/uber-go/atomic 74ca5ec650841aee9f289dce76e928313a37cbc6
 github.com/uber-go/zap fbae0281ffd546fa6d1959fec6075ac5da7fb577

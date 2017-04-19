@@ -189,27 +189,6 @@
   # store-interval = "10s"
 
 ###
-### [admin]
-###
-### Controls the availability of the built-in, web-based admin interface. If HTTPS is
-### enabled for the admin interface, HTTPS must also be enabled on the [http] service.
-###
-### NOTE: This interface is deprecated as of 1.1.0 and will be removed in a future release.
-
-[admin]
-  # Determines whether the admin service is enabled.
-  # enabled = false
-
-  # The default bind address used by the admin service.
-  # bind-address = ":8083"
-
-  # Whether the admin service should use HTTPS.
-  # https-enabled = false
-
-  # The SSL certificate used when HTTPS is enabled.
-  # https-certificate = "/etc/ssl/influxdb.pem"
-
-###
 ### [http]
 ###
 ### Controls how the HTTP endpoints are configured. These are the primary

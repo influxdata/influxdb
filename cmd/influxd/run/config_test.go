@@ -22,9 +22,6 @@ dir = "/tmp/data"
 
 [coordinator]
 
-[admin]
-bind-address = ":8083"
-
 [http]
 bind-address = ":8087"
 
@@ -69,8 +66,6 @@ enabled = true
 		t.Fatalf("unexpected meta dir: %s", c.Meta.Dir)
 	} else if c.Data.Dir != "/tmp/data" {
 		t.Fatalf("unexpected data dir: %s", c.Data.Dir)
-	} else if c.Admin.BindAddress != ":8083" {
-		t.Fatalf("unexpected admin bind address: %s", c.Admin.BindAddress)
 	} else if c.HTTPD.BindAddress != ":8087" {
 		t.Fatalf("unexpected api bind address: %s", c.HTTPD.BindAddress)
 	} else if len(c.GraphiteInputs) != 2 {
