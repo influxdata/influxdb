@@ -94,11 +94,11 @@ const AutoRefresh = (ComposedComponent) => {
       })
 
       Promise.all(timeSeriesPromises).then(timeSeries => {
-        const lastSeries = timeSeries[timeSeries.length - 1]
-        const lastQuerySuccessful = !this._noResultsForQuery(lastSeries)
+        const newSeries = timeSeries.map((response) => ({response}))
+        const lastQuerySuccessful = !this._noResultsForQuery(newSeries)
 
         this.setState({
-          timeSeries,
+          timeSeries: newSeries,
           lastQuerySuccessful,
           isFetching: false,
         })
@@ -163,7 +163,7 @@ const AutoRefresh = (ComposedComponent) => {
       }
 
       return data.every((datum) => {
-        return datum.results.every((result) => {
+        return datum.response.results.every((result) => {
           return Object.keys(result).length === 0
         })
       })
