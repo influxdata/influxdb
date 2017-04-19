@@ -1,6 +1,7 @@
 package tsm1
 
 import (
+	"bufio"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -973,7 +974,8 @@ func (w *WALSegmentWriter) close() error {
 
 // WALSegmentReader reads WAL segments.
 type WALSegmentReader struct {
-	r     io.ReadCloser
+	rc    io.ReadCloser
+	r     io.Reader
 	entry WALEntry
 	n     int64
 	err   error
@@ -982,7 +984,8 @@ type WALSegmentReader struct {
 // NewWALSegmentReader returns a new WALSegmentReader reading from r.
 func NewWALSegmentReader(r io.ReadCloser) *WALSegmentReader {
 	return &WALSegmentReader{
-		r: r,
+		rc: r,
+		r:  bufio.NewReaderSize(r, 1024*1024),
 	}
 }
 
@@ -1080,7 +1083,7 @@ func (r *WALSegmentReader) Error() error {
 
 // Close closes the underlying io.Reader.
 func (r *WALSegmentReader) Close() error {
-	return r.r.Close()
+	return r.rc.Close()
 }
 
 // idFromFileName parses the segment file ID from its name.
