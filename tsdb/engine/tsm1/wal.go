@@ -740,29 +740,7 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 		nvals := int(binary.BigEndian.Uint32(b[i : i+4]))
 		i += 4
 
-		values := make([]Value, nvals)
-		switch typ {
-		case float64EntryType:
-			for i := 0; i < nvals; i++ {
-				values[i] = FloatValue{}
-			}
-		case integerEntryType:
-			for i := 0; i < nvals; i++ {
-				values[i] = IntegerValue{}
-			}
-		case booleanEntryType:
-			for i := 0; i < nvals; i++ {
-				values[i] = BooleanValue{}
-			}
-		case stringEntryType:
-			for i := 0; i < nvals; i++ {
-				values[i] = StringValue{}
-			}
-
-		default:
-			return fmt.Errorf("unsupported value type: %#v", typ)
-		}
-
+		values := make([]Value, 0, nvals)
 		for j := 0; j < nvals; j++ {
 			if i+8 > len(b) {
 				return ErrWALCorrupt
@@ -779,12 +757,7 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 
 				v := math.Float64frombits((binary.BigEndian.Uint64(b[i : i+8])))
 				i += 8
-				if fv, ok := values[j].(FloatValue); ok {
-					x := (&fv)
-					x.unixnano = un
-					x.value = v
-					values[j] = *x
-				}
+				values = append(values, NewFloatValue(un, v))
 			case integerEntryType:
 				if i+8 > len(b) {
 					return ErrWALCorrupt
@@ -792,12 +765,7 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 
 				v := int64(binary.BigEndian.Uint64(b[i : i+8]))
 				i += 8
-				if fv, ok := values[j].(IntegerValue); ok {
-					x := (&fv)
-					x.unixnano = un
-					x.value = v
-					values[j] = *x
-				}
+				values = append(values, NewIntegerValue(un, v))
 			case booleanEntryType:
 				if i >= len(b) {
 					return ErrWALCorrupt
@@ -805,16 +773,10 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 
 				v := b[i]
 				i += 1
-				if fv, ok := values[j].(BooleanValue); ok {
-					x := (&fv)
-					x.unixnano = un
-					fv.unixnano = un
-					if v == 1 {
-						x.value = true
-					} else {
-						x.value = false
-					}
-					values[j] = *x
+				if v == 1 {
+					values = append(values, NewBooleanValue(un, true))
+				} else {
+					values = append(values, NewBooleanValue(un, false))
 				}
 			case stringEntryType:
 				if i+4 > len(b) {
@@ -834,12 +796,7 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 
 				v := string(b[i : i+length])
 				i += length
-				if fv, ok := values[j].(StringValue); ok {
-					x := (&fv)
-					x.unixnano = un
-					x.value = v
-					values[j] = *x
-				}
+				values = append(values, NewStringValue(un, v))
 			default:
 				return fmt.Errorf("unsupported value type: %#v", typ)
 			}
@@ -1082,7 +1039,7 @@ func (r *WALSegmentReader) Next() bool {
 	switch WalEntryType(entryType) {
 	case WriteWALEntryType:
 		r.entry = &WriteWALEntry{
-			Values: map[string][]Value{},
+			Values: make(map[string][]Value),
 		}
 	case DeleteWALEntryType:
 		r.entry = &DeleteWALEntry{}
