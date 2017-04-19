@@ -29,6 +29,7 @@ import (
 	"github.com/influxdata/influxdb/services/retention"
 	"github.com/influxdata/influxdb/services/subscriber"
 	"github.com/influxdata/influxdb/services/udp"
+	"github.com/influxdata/influxdb/services/unixsocket"
 	"github.com/influxdata/influxdb/tsdb"
 )
 
@@ -45,14 +46,15 @@ type Config struct {
 	Retention   retention.Config   `toml:"retention"`
 	Precreator  precreator.Config  `toml:"shard-precreation"`
 
-	Admin          admin.Config      `toml:"admin"`
-	Monitor        monitor.Config    `toml:"monitor"`
-	Subscriber     subscriber.Config `toml:"subscriber"`
-	HTTPD          httpd.Config      `toml:"http"`
-	GraphiteInputs []graphite.Config `toml:"graphite"`
-	CollectdInputs []collectd.Config `toml:"collectd"`
-	OpenTSDBInputs []opentsdb.Config `toml:"opentsdb"`
-	UDPInputs      []udp.Config      `toml:"udp"`
+	Admin            admin.Config        `toml:"admin"`
+	Monitor          monitor.Config      `toml:"monitor"`
+	Subscriber       subscriber.Config   `toml:"subscriber"`
+	HTTPD            httpd.Config        `toml:"http"`
+	GraphiteInputs   []graphite.Config   `toml:"graphite"`
+	CollectdInputs   []collectd.Config   `toml:"collectd"`
+	OpenTSDBInputs   []opentsdb.Config   `toml:"opentsdb"`
+	UDPInputs        []udp.Config        `toml:"udp"`
+	UnixSocketInputs []unixsocket.Config `toml:"unixsocket"`
 
 	ContinuousQuery continuous_querier.Config `toml:"continuous_queries"`
 
@@ -80,6 +82,7 @@ func NewConfig() *Config {
 	c.CollectdInputs = []collectd.Config{collectd.NewConfig()}
 	c.OpenTSDBInputs = []opentsdb.Config{opentsdb.NewConfig()}
 	c.UDPInputs = []udp.Config{udp.NewConfig()}
+	c.UnixSocketInputs = []unixsocket.Config{unixsocket.NewConfig()}
 
 	c.ContinuousQuery = continuous_querier.NewConfig()
 	c.Retention = retention.NewConfig()
