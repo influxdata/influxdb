@@ -44,7 +44,7 @@ const AlertaConfig = React.createClass({
         <div className="form-group col-xs-12">
           <label htmlFor="token">Token</label>
           <input className="form-control" id="token" type="text" ref={(r) => this.token = r} defaultValue={token || ''}></input>
-          <span>Note: a value of <code>true</code> indicates the Alerta Token has been set</span>
+          <label class="form-helper">Note: a value of <code>true</code> indicates the Alerta Token has been set</label>
         </div>
 
         <div className="form-group col-xs-12">
