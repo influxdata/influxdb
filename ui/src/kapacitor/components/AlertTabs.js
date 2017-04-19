@@ -150,13 +150,13 @@ class AlertTabs extends Component {
           </div>
         </div>
 
-        <Tabs className="row">
-          <TabList customClass="col-md-2 admin-tabs">
+        <Tabs tabContentsClass="config-endpoint">
+          <TabList customClass="config-endpoint--tabs">
             {
               tabs.map((t, i) => (<Tab key={tabs[i].type}>{tabs[i].type}</Tab>))
             }
           </TabList>
-          <TabPanels customClass="col-md-10">
+          <TabPanels customClass="config-endpoint--tab-contents">
             {
               tabs.map((t, i) => (<TabPanel key={tabs[i].type}>{t.component}</TabPanel>))
             }
