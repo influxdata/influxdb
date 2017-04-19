@@ -741,36 +741,48 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 		nvals := int(binary.BigEndian.Uint32(b[i : i+4]))
 		i += 4
 
-		values := make([]Value, 0, nvals)
-		for j := 0; j < nvals; j++ {
-			if i+8 > len(b) {
-				return ErrWALCorrupt
-			}
-
-			un := int64(binary.BigEndian.Uint64(b[i : i+8]))
-			i += 8
-
-			switch typ {
-			case float64EntryType:
-				if i+8 > len(b) {
+		switch typ {
+		case float64EntryType:
+			values := make([]Value, 0, nvals)
+			for j := 0; j < nvals; j++ {
+				if i+16 > len(b) {
 					return ErrWALCorrupt
 				}
+
+				un := int64(binary.BigEndian.Uint64(b[i : i+8]))
+				i += 8
 
 				v := math.Float64frombits((binary.BigEndian.Uint64(b[i : i+8])))
 				i += 8
+
 				values = append(values, NewFloatValue(un, v))
-			case integerEntryType:
-				if i+8 > len(b) {
+			}
+			w.Values[k] = values
+		case integerEntryType:
+			values := make([]Value, 0, nvals)
+			for j := 0; j < nvals; j++ {
+				if i+16 > len(b) {
 					return ErrWALCorrupt
 				}
+
+				un := int64(binary.BigEndian.Uint64(b[i : i+8]))
+				i += 8
 
 				v := int64(binary.BigEndian.Uint64(b[i : i+8]))
 				i += 8
 				values = append(values, NewIntegerValue(un, v))
-			case booleanEntryType:
-				if i >= len(b) {
+			}
+			w.Values[k] = values
+
+		case booleanEntryType:
+			values := make([]Value, 0, nvals)
+			for j := 0; j < nvals; j++ {
+				if i+9 > len(b) {
 					return ErrWALCorrupt
 				}
+
+				un := int64(binary.BigEndian.Uint64(b[i : i+8]))
+				i += 8
 
 				v := b[i]
 				i += 1
@@ -779,10 +791,18 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 				} else {
 					values = append(values, NewBooleanValue(un, false))
 				}
-			case stringEntryType:
-				if i+4 > len(b) {
+			}
+			w.Values[k] = values
+
+		case stringEntryType:
+			values := make([]Value, 0, nvals)
+			for j := 0; j < nvals; j++ {
+				if i+12 > len(b) {
 					return ErrWALCorrupt
 				}
+
+				un := int64(binary.BigEndian.Uint64(b[i : i+8]))
+				i += 8
 
 				length := int(binary.BigEndian.Uint32(b[i : i+4]))
 				if i+length > int(uint32(len(b))) {
@@ -798,11 +818,12 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 				v := string(b[i : i+length])
 				i += length
 				values = append(values, NewStringValue(un, v))
-			default:
-				return fmt.Errorf("unsupported value type: %#v", typ)
 			}
+			w.Values[k] = values
+
+		default:
+			return fmt.Errorf("unsupported value type: %#v", typ)
 		}
-		w.Values[k] = values
 	}
 	return nil
 }
