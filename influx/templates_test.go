@@ -2,54 +2,54 @@ package influx
 
 import (
 	"testing"
+
+	"github.com/influxdata/chronograf"
 )
 
 func TestTemplateReplace(t *testing.T) {
 	tests := []struct {
 		name  string
 		query string
-		vars  TemplateVars
+		vars  []chronograf.TemplateVar
 		want  string
 	}{
 		{
 			name:  "select with parameters",
 			query: "$METHOD field1, $field FROM $measurement WHERE temperature > $temperature",
-			vars: TemplateVars{
-				Vars: []TemplateVar{
-					{
-						Var: "$temperature",
-						Values: []TemplateValue{
-							{
-								Type:  "csv",
-								Value: "10",
-							},
+			vars: []chronograf.TemplateVar{
+				{
+					Var: "$temperature",
+					Values: []chronograf.TemplateValue{
+						{
+							Type:  "csv",
+							Value: "10",
 						},
 					},
-					{
-						Var: "$field",
-						Values: []TemplateValue{
-							{
-								Type:  "fieldKey",
-								Value: "field2",
-							},
+				},
+				{
+					Var: "$field",
+					Values: []chronograf.TemplateValue{
+						{
+							Type:  "fieldKey",
+							Value: "field2",
 						},
 					},
-					{
-						Var: "$METHOD",
-						Values: []TemplateValue{
-							{
-								Type:  "csv",
-								Value: "SELECT",
-							},
+				},
+				{
+					Var: "$METHOD",
+					Values: []chronograf.TemplateValue{
+						{
+							Type:  "csv",
+							Value: "SELECT",
 						},
 					},
-					{
-						Var: "$measurement",
-						Values: []TemplateValue{
-							{
-								Type:  "csv",
-								Value: `"cpu"`,
-							},
+				},
+				{
+					Var: "$measurement",
+					Values: []chronograf.TemplateValue{
+						{
+							Type:  "csv",
+							Value: `"cpu"`,
 						},
 					},
 				},
@@ -59,33 +59,31 @@ func TestTemplateReplace(t *testing.T) {
 		{
 			name:  "select with parameters and aggregates",
 			query: `SELECT mean($field) FROM "cpu" WHERE $tag = $value GROUP BY $tag`,
-			vars: TemplateVars{
-				Vars: []TemplateVar{
-					{
-						Var: "$value",
-						Values: []TemplateValue{
-							{
-								Type:  "tagValue",
-								Value: "howdy.com",
-							},
+			vars: []chronograf.TemplateVar{
+				{
+					Var: "$value",
+					Values: []chronograf.TemplateValue{
+						{
+							Type:  "tagValue",
+							Value: "howdy.com",
 						},
 					},
-					{
-						Var: "$tag",
-						Values: []TemplateValue{
-							{
-								Type:  "tagKey",
-								Value: "host",
-							},
+				},
+				{
+					Var: "$tag",
+					Values: []chronograf.TemplateValue{
+						{
+							Type:  "tagKey",
+							Value: "host",
 						},
 					},
-					{
-						Var: "$field",
-						Values: []TemplateValue{
-							{
-								Type:  "fieldKey",
-								Value: "field",
-							},
+				},
+				{
+					Var: "$field",
+					Values: []chronograf.TemplateValue{
+						{
+							Type:  "fieldKey",
+							Value: "field",
 						},
 					},
 				},
@@ -100,11 +98,9 @@ func TestTemplateReplace(t *testing.T) {
 		{
 			name:  "var without a value",
 			query: `SELECT $field FROM "cpu"`,
-			vars: TemplateVars{
-				Vars: []TemplateVar{
-					{
-						Var: "$field",
-					},
+			vars: []chronograf.TemplateVar{
+				{
+					Var: "$field",
 				},
 			},
 			want: `SELECT $field FROM "cpu"`,
@@ -112,15 +108,13 @@ func TestTemplateReplace(t *testing.T) {
 		{
 			name:  "var with unknown type",
 			query: `SELECT $field FROM "cpu"`,
-			vars: TemplateVars{
-				Vars: []TemplateVar{
-					{
-						Var: "$field",
-						Values: []TemplateValue{
-							{
-								Type:  "who knows?",
-								Value: "field",
-							},
+			vars: []chronograf.TemplateVar{
+				{
+					Var: "$field",
+					Values: []chronograf.TemplateValue{
+						{
+							Type:  "who knows?",
+							Value: "field",
 						},
 					},
 				},
