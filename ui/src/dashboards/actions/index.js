@@ -111,6 +111,15 @@ export const editCellQueryStatus = (queryID, status) => ({
   },
 })
 
+export const editTemplate = (dashboardID, templateID, updates) => ({
+  type: 'EDIT_TEMPLATE',
+  payload: {
+    dashboardID,
+    templateID,
+    updates,
+  },
+})
+
 // Stub Template Variables Data
 
 const templates = [
