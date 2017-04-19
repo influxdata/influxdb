@@ -451,6 +451,35 @@ func (f *LogFile) HasSeries(name []byte, tags models.Tags, buf []byte) (exists, 
 	return true, e.Deleted()
 }
 
+// FilterNamesTags filters out any series which already exist. It modifies the
+// provided slices of names and tags.
+func (f *LogFile) FilterNamesTags(names [][]byte, tagsSlice []models.Tags) ([][]byte, []models.Tags) {
+	buf := make([]byte, 1024)
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	newNames, newTagsSlice := names[:0], tagsSlice[:0]
+	for i := 0; i < len(names); i++ {
+		name := names[i]
+		tags := tagsSlice[i]
+
+		mm := f.mms[string(name)]
+		if mm == nil {
+			newNames = append(newNames, name)
+			newTagsSlice = append(newTagsSlice, tags)
+			continue
+		}
+
+		key := AppendSeriesKey(buf[:0], name, tags)
+		s := mm.series[string(key)]
+		if s == nil || s.Deleted() {
+			newNames = append(newNames, name)
+			newTagsSlice = append(newTagsSlice, tags)
+		}
+	}
+	return newNames, newTagsSlice
+}
+
 // Series returns a series by name/tags.
 func (f *LogFile) Series(name []byte, tags models.Tags) SeriesElem {
 	return f.SeriesWithBuffer(name, tags, nil)

@@ -10,6 +10,7 @@ import (
 type File struct {
 	Closef                     func() error
 	Pathf                      func() string
+	FilterNameTagsf            func(names [][]byte, tagsSlice []models.Tags) ([][]byte, []models.Tags)
 	Measurementf               func(name []byte) tsi1.MeasurementElem
 	MeasurementIteratorf       func() tsi1.MeasurementIterator
 	HasSeriesf                 func(name []byte, tags models.Tags, buf []byte) (exists, tombstoned bool)
@@ -29,8 +30,11 @@ type File struct {
 	Releasef                   func()
 }
 
-func (f *File) Close() error                                  { return f.Closef() }
-func (f *File) Path() string                                  { return f.Pathf() }
+func (f *File) Close() error { return f.Closef() }
+func (f *File) Path() string { return f.Pathf() }
+func (f *File) FilterNamesTags(names [][]byte, tagsSlice []models.Tags) ([][]byte, []models.Tags) {
+	return f.FilterNameTagsf(names, tagsSlice)
+}
 func (f *File) Measurement(name []byte) tsi1.MeasurementElem  { return f.Measurementf(name) }
 func (f *File) MeasurementIterator() tsi1.MeasurementIterator { return f.MeasurementIteratorf() }
 func (f *File) HasSeries(name []byte, tags models.Tags, buf []byte) (exists, tombstoned bool) {

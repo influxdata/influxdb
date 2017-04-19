@@ -289,8 +289,19 @@ func TestFileSet_FilterNamesTags(t *testing.T) {
 
 	// Filter out first name/tags in arguments.
 	reset()
-	mf.HasSeriesf = func(name []byte, tags models.Tags, buf []byte) (bool, bool) {
-		return string(name) == "m1" && tags[0].String() == "{host server-1}", false
+	mf.FilterNameTagsf = func(names [][]byte, tagsSlice []models.Tags) ([][]byte, []models.Tags) {
+		newNames := names[:0]
+		newTags := tagsSlice[:0]
+		for i := range names {
+			name := names[i]
+			tags := tagsSlice[i]
+			if string(name) == "m1" && tags[0].String() == "{host server-1}" {
+				continue
+			}
+			newNames = append(newNames, names[i])
+			newTags = append(newTags, tagsSlice[i])
+		}
+		return newNames, newTags
 	}
 
 	gotNames, gotTags := fs.FilterNamesTags(names, tags)
@@ -303,8 +314,19 @@ func TestFileSet_FilterNamesTags(t *testing.T) {
 
 	// Filter out middle name/tags in arguments.
 	reset()
-	mf.HasSeriesf = func(name []byte, tags models.Tags, buf []byte) (bool, bool) {
-		return string(name) == "m3" && tags[0].String() == "{host server-3}", false
+	mf.FilterNameTagsf = func(names [][]byte, tagsSlice []models.Tags) ([][]byte, []models.Tags) {
+		newNames := names[:0]
+		newTags := tagsSlice[:0]
+		for i := range names {
+			name := names[i]
+			tags := tagsSlice[i]
+			if string(name) == "m3" && tags[0].String() == "{host server-3}" {
+				continue
+			}
+			newNames = append(newNames, names[i])
+			newTags = append(newTags, tagsSlice[i])
+		}
+		return newNames, newTags
 	}
 
 	gotNames, gotTags = fs.FilterNamesTags(names, tags)
@@ -317,10 +339,20 @@ func TestFileSet_FilterNamesTags(t *testing.T) {
 
 	// Filter out last name/tags in arguments.
 	reset()
-	mf.HasSeriesf = func(name []byte, tags models.Tags, buf []byte) (bool, bool) {
-		return string(name) == "m4" && tags[0].String() == "{host server-3}", false
+	mf.FilterNameTagsf = func(names [][]byte, tagsSlice []models.Tags) ([][]byte, []models.Tags) {
+		newNames := names[:0]
+		newTags := tagsSlice[:0]
+		for i := range names {
+			name := names[i]
+			tags := tagsSlice[i]
+			if string(name) == "m4" && tags[0].String() == "{host server-3}" {
+				continue
+			}
+			newNames = append(newNames, names[i])
+			newTags = append(newTags, tagsSlice[i])
+		}
+		return newNames, newTags
 	}
-
 	gotNames, gotTags = fs.FilterNamesTags(names, tags)
 	reset()
 	if got, exp := gotNames, names[:3]; !reflect.DeepEqual(got, exp) {

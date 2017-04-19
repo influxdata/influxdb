@@ -549,15 +549,10 @@ func (fs FileSet) HasSeries(name []byte, tags models.Tags, buf []byte) bool {
 // FilterNamesTags filters out any series which already exist. It modifies the
 // provided slices of names and tags.
 func (fs FileSet) FilterNamesTags(names [][]byte, tagsSlice []models.Tags) ([][]byte, []models.Tags) {
-	buf := make([]byte, 1024)
-	newNames, newTagsSlice := names[:0], tagsSlice[:0]
-	for i := 0; i < len(names); i++ {
-		if !fs.HasSeries(names[i], tagsSlice[i], buf) {
-			newNames = append(newNames, names[i])
-			newTagsSlice = append(newTagsSlice, tagsSlice[i])
-		}
+	for _, f := range fs {
+		names, tagsSlice = f.FilterNamesTags(names, tagsSlice)
 	}
-	return newNames, newTagsSlice
+	return names, tagsSlice
 }
 
 // SeriesSketches returns the merged series sketches for the FileSet.
@@ -775,6 +770,7 @@ type File interface {
 	Close() error
 	Path() string
 
+	FilterNamesTags(names [][]byte, tagsSlice []models.Tags) ([][]byte, []models.Tags)
 	Measurement(name []byte) MeasurementElem
 	MeasurementIterator() MeasurementIterator
 	HasSeries(name []byte, tags models.Tags, buf []byte) (exists, tombstoned bool)
