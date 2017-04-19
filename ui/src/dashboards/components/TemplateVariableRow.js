@@ -1,4 +1,5 @@
 import React, {PropTypes, Component} from 'react'
+import OnClickOutside from 'react-onclickoutside'
 import Dropdown from 'shared/components/Dropdown'
 import TemplateQueryBuilder
   from 'src/dashboards/components/TemplateQueryBuilder'
@@ -7,6 +8,7 @@ import {TEMPLATE_VARIBALE_TYPES} from 'src/dashboards/constants'
 
 const TemplateVariableRow = ({
   template: {label, code, values},
+  isEditing,
   selectedType,
   selectedDatabase,
   selectedMeasurement,
@@ -15,10 +17,24 @@ const TemplateVariableRow = ({
   onSelectMeasurement,
   selectedTagKey,
   onSelectTagKey,
+  onStartEdit,
+  autoFocusTarget,
 }) => (
-  <div className="tr">
-    <div className="td">{label}</div>
-    <div className="td">{code}</div>
+  <form className="tr">
+    <TableInput
+      name="label"
+      defaultValue={label}
+      isEditing={isEditing}
+      onStartEdit={onStartEdit}
+      autoFocusTarget={autoFocusTarget}
+    />
+    <TableInput
+      name="code"
+      defaultValue={code}
+      isEditing={isEditing}
+      onStartEdit={onStartEdit}
+      autoFocusTarget={autoFocusTarget}
+    />
     <div className="td">
       <Dropdown
         items={TEMPLATE_VARIBALE_TYPES}
@@ -44,8 +60,28 @@ const TemplateVariableRow = ({
     <div className="td">
       <button className="btn btn-sm btn-danger" type="button">Delete</button>
     </div>
-  </div>
+  </form>
 )
+
+const TableInput = ({
+  name,
+  defaultValue,
+  isEditing,
+  onStartEdit,
+  autoFocusTarget,
+}) => {
+  return isEditing
+    ? <div name={name} className="td">
+        <input
+          name={name}
+          autoFocus={name === autoFocusTarget}
+          className="input"
+          type="text"
+          defaultValue={defaultValue}
+        />
+      </div>
+    : <div className="td" onClick={() => onStartEdit(name)}>{defaultValue}</div>
+}
 
 class RowWrapper extends Component {
   constructor(props) {
@@ -53,16 +89,32 @@ class RowWrapper extends Component {
     const {template: {query, type}} = this.props
 
     this.state = {
+      isEditing: false,
       selectedType: type,
       selectedDatabase: query && query.db,
       selectedMeasurement: query && query.measurement,
       selectedTagKey: query && query.tagKey,
+      autoFocusTarget: null,
     }
 
     this.handleSelectType = ::this.handleSelectType
     this.handleSelectDatabase = ::this.handleSelectDatabase
     this.handleSelectMeasurement = ::this.handleSelectMeasurement
     this.handleSelectTagKey = ::this.handleSelectTagKey
+    this.handleStartEdit = ::this.handleStartEdit
+    this.handleEndEdit = ::this.handleEndEdit
+  }
+
+  handleClickOutside() {
+    this.setState({isEditing: false})
+  }
+
+  handleEndEdit() {
+    this.setState({isEditing: false})
+  }
+
+  handleStartEdit(name) {
+    this.setState({isEditing: true, autoFocusTarget: name})
   }
 
   handleSelectType(item) {
@@ -83,14 +135,18 @@ class RowWrapper extends Component {
 
   render() {
     const {
+      isEditing,
       selectedType,
       selectedDatabase,
       selectedMeasurement,
       selectedTagKey,
+      autoFocusTarget,
     } = this.state
+
     return (
       <TemplateVariableRow
         {...this.props}
+        isEditing={isEditing}
         selectedType={selectedType}
         selectedDatabase={selectedDatabase}
         selectedMeasurement={selectedMeasurement}
@@ -99,12 +155,14 @@ class RowWrapper extends Component {
         onSelectDatabase={this.handleSelectDatabase}
         onSelectMeasurement={this.handleSelectMeasurement}
         onSelectTagKey={this.handleSelectTagKey}
+        onStartEdit={this.handleStartEdit}
+        autoFocusTarget={autoFocusTarget}
       />
     )
   }
 }
 
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 RowWrapper.propTypes = {
   template: shape({
@@ -131,4 +189,12 @@ TemplateVariableRow.propTypes = {
   onSelectTagKey: func.isRequired,
 }
 
-export default RowWrapper
+TableInput.propTypes = {
+  defaultValue: string,
+  isEditing: bool.isRequired,
+  onStartEdit: func.isRequired,
+  name: string.isRequired,
+  autoFocusTarget: string,
+}
+
+export default OnClickOutside(RowWrapper)
