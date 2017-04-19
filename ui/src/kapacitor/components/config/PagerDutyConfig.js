@@ -28,29 +28,22 @@ const PagerDutyConfig = React.createClass({
     const serviceKey = options['service-key']
 
     return (
-      <div className="panel panel-info col-xs-12">
-        <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-          <h4 className="panel-title text-center">PagerDuty Alert</h4>
+      <form onSubmit={this.handleSaveAlert}>
+        <div className="form-group col-xs-12">
+          <label htmlFor="service-key">Service Key</label>
+          <input className="form-control" id="service-key" type="text" ref={(r) => this.serviceKey = r} defaultValue={serviceKey || ''}></input>
+          <label className="form-helper">Note: a value of <code>true</code> indicates the PagerDuty service key has been set</label>
         </div>
-        <br/>
-        <p className="no-user-select">You can have alerts sent to PagerDuty by entering info below.</p>
-        <form onSubmit={this.handleSaveAlert}>
-          <div className="form-group col-xs-12">
-            <label htmlFor="service-key">Service Key</label>
-            <input className="form-control" id="service-key" type="text" ref={(r) => this.serviceKey = r} defaultValue={serviceKey || ''}></input>
-            <label className="form-helper">Note: a value of <code>true</code> indicates the PagerDuty service key has been set</label>
-          </div>
 
-          <div className="form-group col-xs-12">
-            <label htmlFor="url">PagerDuty URL</label>
-            <input className="form-control" id="url" type="text" ref={(r) => this.url = r} defaultValue={url || ''}></input>
-          </div>
+        <div className="form-group col-xs-12">
+          <label htmlFor="url">PagerDuty URL</label>
+          <input className="form-control" id="url" type="text" ref={(r) => this.url = r} defaultValue={url || ''}></input>
+        </div>
 
-          <div className="form-group form-group-submit col-xs-12 col-sm-6 col-sm-offset-3">
-            <button className="btn btn-block btn-primary" type="submit">Save</button>
-          </div>
-        </form>
-      </div>
+        <div className="form-group form-group-submit col-xs-12 col-sm-6 col-sm-offset-3">
+          <button className="btn btn-block btn-primary" type="submit">Save</button>
+        </div>
+      </form>
     )
   },
 })

@@ -64,27 +64,20 @@ const OpsGenieConfig = React.createClass({
     const {currentTeams, currentRecipients} = this.state
 
     return (
-      <div className="panel panel-info col-xs-12">
-        <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-          <h4 className="panel-title text-center">OpsGenie Alert</h4>
+      <form onSubmit={this.handleSaveAlert}>
+        <div className="form-group col-xs-12">
+          <label htmlFor="api-key">API Key</label>
+          <input className="form-control" id="api-key" type="text" ref={(r) => this.apiKey = r} defaultValue={apiKey || ''}></input>
+          <label className="form-helper">Note: a value of <code>true</code> indicates the OpsGenie API key has been set</label>
         </div>
-        <br/>
-        <p className="no-user-select">Have alerts sent to OpsGenie.</p>
-        <form onSubmit={this.handleSaveAlert}>
-          <div className="form-group col-xs-12">
-            <label htmlFor="api-key">API Key</label>
-            <input className="form-control" id="api-key" type="text" ref={(r) => this.apiKey = r} defaultValue={apiKey || ''}></input>
-            <label className="form-helper">Note: a value of <code>true</code> indicates the OpsGenie API key has been set</label>
-          </div>
 
-          <TagInput title="Teams" onAddTag={this.handleAddTeam} onDeleteTag={this.handleDeleteTeam} tags={currentTeams} />
-          <TagInput title="Recipients" onAddTag={this.handleAddRecipient} onDeleteTag={this.handleDeleteRecipient} tags={currentRecipients} />
+        <TagInput title="Teams" onAddTag={this.handleAddTeam} onDeleteTag={this.handleDeleteTeam} tags={currentTeams} />
+        <TagInput title="Recipients" onAddTag={this.handleAddRecipient} onDeleteTag={this.handleDeleteRecipient} tags={currentRecipients} />
 
-          <div className="form-group form-group-submit col-xs-12 col-sm-6 col-sm-offset-3">
-            <button className="btn btn-block btn-primary" type="submit">Save</button>
-          </div>
-        </form>
-      </div>
+        <div className="form-group form-group-submit col-xs-12 col-sm-6 col-sm-offset-3">
+          <button className="btn btn-block btn-primary" type="submit">Save</button>
+        </div>
+      </form>
     )
   },
 })

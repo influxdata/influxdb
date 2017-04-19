@@ -40,61 +40,54 @@ const HipchatConfig = React.createClass({
     const subdomain = url.replace('https://', '').replace('.hipchat.com/v2/room', '')
 
     return (
-      <div className="panel panel-info col-xs-12">
-        <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-          <h4 className="panel-title text-center">HipChat Alert</h4>
+      <form onSubmit={this.handleSaveAlert}>
+        <div className="form-group col-xs-12">
+          <label htmlFor="url">Subdomain</label>
+          <input
+            className="form-control"
+            id="url"
+            type="text"
+            placeholder="your-subdomain"
+            ref={(r) => this.url = r}
+            defaultValue={subdomain && subdomain.length ? subdomain : ''}
+          />
         </div>
-        <br/>
-        <p className="no-user-select">Send alert messages to HipChat.</p>
-        <form onSubmit={this.handleSaveAlert}>
-          <div className="form-group col-xs-12">
-            <label htmlFor="url">Subdomain</label>
-            <input
-              className="form-control"
-              id="url"
-              type="text"
-              placeholder="your-subdomain"
-              ref={(r) => this.url = r}
-              defaultValue={subdomain && subdomain.length ? subdomain : ''}
-            />
-          </div>
 
-          <div className="form-group col-xs-12">
-            <label htmlFor="room">Room</label>
-            <input
-              className="form-control"
-              id="room"
-              type="text"
-              placeholder="your-hipchat-room"
-              ref={(r) => this.room = r}
-              defaultValue={room || ''}
-            />
-          </div>
+        <div className="form-group col-xs-12">
+          <label htmlFor="room">Room</label>
+          <input
+            className="form-control"
+            id="room"
+            type="text"
+            placeholder="your-hipchat-room"
+            ref={(r) => this.room = r}
+            defaultValue={room || ''}
+          />
+        </div>
 
-          <div className="form-group col-xs-12">
-            <label htmlFor="token">
-              Token
-              <QuestionMarkTooltip
-                tipID="token"
-                tipContent={HIPCHAT_TOKEN_TIP}
-              />
-            </label>
-            <input
-              className="form-control"
-              id="token"
-              type="text"
-              placeholder="your-hipchat-token"
-              ref={(r) => this.token = r}
-              defaultValue={token || ''}
+        <div className="form-group col-xs-12">
+          <label htmlFor="token">
+            Token
+            <QuestionMarkTooltip
+              tipID="token"
+              tipContent={HIPCHAT_TOKEN_TIP}
             />
-            <label className="form-helper">Note: a value of <code>true</code> indicates the HipChat token has been set</label>
-          </div>
+          </label>
+          <input
+            className="form-control"
+            id="token"
+            type="text"
+            placeholder="your-hipchat-token"
+            ref={(r) => this.token = r}
+            defaultValue={token || ''}
+          />
+          <label className="form-helper">Note: a value of <code>true</code> indicates the HipChat token has been set</label>
+        </div>
 
-          <div className="form-group form-group-submit col-xs-12 col-sm-6 col-sm-offset-3">
-            <button className="btn btn-block btn-primary" type="submit">Save</button>
-          </div>
-        </form>
-      </div>
+        <div className="form-group form-group-submit col-xs-12 col-sm-6 col-sm-offset-3">
+          <button className="btn btn-block btn-primary" type="submit">Save</button>
+        </div>
+      </form>
     )
   },
 })

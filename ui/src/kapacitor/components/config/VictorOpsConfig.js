@@ -31,34 +31,27 @@ const VictorOpsConfig = React.createClass({
     const {url} = options
 
     return (
-      <div className="panel panel-info col-xs-12">
-        <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-          <h4 className="panel-title text-center">VictorOps Alert</h4>
+      <form onSubmit={this.handleSaveAlert}>
+        <div className="form-group col-xs-12">
+          <label htmlFor="api-key">API Key</label>
+          <input className="form-control" id="api-key" type="text" ref={(r) => this.apiKey = r} defaultValue={apiKey || ''}></input>
+          <label className="form-helper">Note: a value of <code>true</code> indicates the VictorOps API key has been set</label>
         </div>
-        <br/>
-        <p className="no-user-select">Have alerts sent to VictorOps.</p>
-        <form onSubmit={this.handleSaveAlert}>
-          <div className="form-group col-xs-12">
-            <label htmlFor="api-key">API Key</label>
-            <input className="form-control" id="api-key" type="text" ref={(r) => this.apiKey = r} defaultValue={apiKey || ''}></input>
-            <label className="form-helper">Note: a value of <code>true</code> indicates the VictorOps API key has been set</label>
-          </div>
 
-          <div className="form-group col-xs-12">
-            <label htmlFor="routing-key">Routing Key</label>
-            <input className="form-control" id="routing-key" type="text" ref={(r) => this.routingKey = r} defaultValue={routingKey || ''}></input>
-          </div>
+        <div className="form-group col-xs-12">
+          <label htmlFor="routing-key">Routing Key</label>
+          <input className="form-control" id="routing-key" type="text" ref={(r) => this.routingKey = r} defaultValue={routingKey || ''}></input>
+        </div>
 
-          <div className="form-group col-xs-12">
-            <label htmlFor="url">VictorOps URL</label>
-            <input className="form-control" id="url" type="text" ref={(r) => this.url = r} defaultValue={url || ''}></input>
-          </div>
+        <div className="form-group col-xs-12">
+          <label htmlFor="url">VictorOps URL</label>
+          <input className="form-control" id="url" type="text" ref={(r) => this.url = r} defaultValue={url || ''}></input>
+        </div>
 
-          <div className="form-group form-group-submit col-xs-12 col-sm-6 col-sm-offset-3">
-            <button className="btn btn-block btn-primary" type="submit">Save</button>
-          </div>
-        </form>
-      </div>
+        <div className="form-group form-group-submit col-xs-12 col-sm-6 col-sm-offset-3">
+          <button className="btn btn-block btn-primary" type="submit">Save</button>
+        </div>
+      </form>
     )
   },
 })
