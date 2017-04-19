@@ -8,6 +8,8 @@ import (
 	"io"
 	"os"
 	"sort"
+	"sync/atomic"
+	"time"
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
@@ -17,6 +19,34 @@ import (
 	"github.com/influxdata/influxdb/pkg/mmap"
 	"github.com/influxdata/influxdb/pkg/rhh"
 )
+
+// TEMP
+var (
+	offsetCount                    uint64
+	offsetFilterFalseCount         uint64
+	offsetFilterFalsePositiveCount uint64
+)
+
+// TEMP
+func init() {
+	go func() {
+		ticker := time.NewTicker(10 * time.Second)
+		for range ticker.C {
+			// Read values.
+			ofc := atomic.LoadUint64(&offsetCount)
+			offc := atomic.LoadUint64(&offsetFilterFalseCount)
+			offpc := atomic.LoadUint64(&offsetFilterFalsePositiveCount)
+
+			// Clear values.
+			atomic.StoreUint64(&offsetCount, 0)
+			atomic.StoreUint64(&offsetFilterFalseCount, 0)
+			atomic.StoreUint64(&offsetFilterFalsePositiveCount, 0)
+
+			// Report values.
+			println("dbg/OFFSET.STATS>>>", ofc, offc, offpc)
+		}
+	}()
+}
 
 // ErrSeriesOverflow is returned when too many series are added to a series writer.
 var ErrSeriesOverflow = errors.New("series overflow")
@@ -105,6 +135,8 @@ func (blk *SeriesBlock) Offset(name []byte, tags models.Tags, buf []byte) (offse
 	buf = AppendSeriesKey(buf[:0], name, tags)
 	bufN := uint64(len(buf))
 
+	atomic.AddUint64(&offsetCount, 1) // TEMP
+
 	// Quickly check the bloom filter.
 	// If the key doesn't exist then we know for sure that it doesn't exist.
 	// If it does exist then we need to do a hash index check to verify. False
@@ -112,6 +144,7 @@ func (blk *SeriesBlock) Offset(name []byte, tags models.Tags, buf []byte) (offse
 	if !blk.filter.Contains(buf) {
 		return 0, false
 	}
+	atomic.AddUint64(&offsetFilterFalseCount, 1) // TEMP
 
 	// Find the correct partition.
 	// Use previous index unless an exact match on the min value.
@@ -134,6 +167,7 @@ func (blk *SeriesBlock) Offset(name []byte, tags models.Tags, buf []byte) (offse
 		// Find offset of series.
 		offset := binary.BigEndian.Uint64(seriesIndex.data[pos*SeriesIDSize:])
 		if offset == 0 {
+			atomic.AddUint64(&offsetFilterFalsePositiveCount, 1) // TEMP
 			return 0, false
 		}
 
@@ -146,6 +180,7 @@ func (blk *SeriesBlock) Offset(name []byte, tags models.Tags, buf []byte) (offse
 		// Check if we've exceeded the probe distance.
 		max := rhh.Dist(rhh.HashKey(key), pos, n)
 		if d > max {
+			atomic.AddUint64(&offsetFilterFalsePositiveCount, 1) // TEMP
 			return 0, false
 		}
 
@@ -154,6 +189,7 @@ func (blk *SeriesBlock) Offset(name []byte, tags models.Tags, buf []byte) (offse
 		d++
 
 		if d > n {
+			atomic.AddUint64(&offsetFilterFalsePositiveCount, 1) // TEMP
 			return 0, false
 		}
 	}
