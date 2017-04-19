@@ -16,18 +16,18 @@ const TemplateVariableRow = ({
   selectedTagKey,
   onSelectTagKey,
 }) => (
-  <tr>
-    <td>{label}</td>
-    <td>{code}</td>
-    <td>
+  <div className="tr">
+    <div className="td">{label}</div>
+    <div className="td">{code}</div>
+    <div className="td">
       <Dropdown
         items={TEMPLATE_VARIBALE_TYPES}
         onChoose={onSelectType}
         selected={selectedType}
         className={'template-variable--dropdown'}
       />
-    </td>
-    <td>
+    </div>
+    <div className="td">
       <TemplateQueryBuilder
         onSelectDatabase={onSelectDatabase}
         selectedType={selectedType}
@@ -37,14 +37,14 @@ const TemplateVariableRow = ({
         selectedTagKey={selectedTagKey}
         onSelectTagKey={onSelectTagKey}
       />
-    </td>
-    <td>
+    </div>
+    <div className="td">
       {values.join(', ')}
-    </td>
-    <td>
+    </div>
+    <div className="td">
       <button className="btn btn-sm btn-danger" type="button">Delete</button>
-    </td>
-  </tr>
+    </div>
+  </div>
 )
 
 class RowWrapper extends Component {
