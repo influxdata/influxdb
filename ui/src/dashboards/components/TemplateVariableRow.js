@@ -19,8 +19,9 @@ const TemplateVariableRow = ({
   onSelectTagKey,
   onStartEdit,
   autoFocusTarget,
+  onSubmit,
 }) => (
-  <form className="tr">
+  <form className="tr" onSubmit={onSubmit}>
     <TableInput
       name="label"
       defaultValue={label}
@@ -57,8 +58,19 @@ const TemplateVariableRow = ({
     <div className="td">
       {values.join(', ')}
     </div>
-    <div className="td">
-      <button className="btn btn-sm btn-danger" type="button">Delete</button>
+    <div className="td" style={{display: 'flex'}}>
+      {isEditing
+        ? <div>
+            <button className="btn btn-sm btn-success" type="submit">
+              Submit
+            </button>
+            <button className="btn btn-sm btn-primary" type="button">
+              Cancel
+            </button>
+          </div>
+        : <button className="btn btn-sm btn-danger" type="button">
+            Delete
+          </button>}
     </div>
   </form>
 )
@@ -73,6 +85,7 @@ const TableInput = ({
   return isEditing
     ? <div name={name} className="td">
         <input
+          required={true}
           name={name}
           autoFocus={name === autoFocusTarget}
           className="input"
@@ -103,6 +116,14 @@ class RowWrapper extends Component {
     this.handleSelectTagKey = ::this.handleSelectTagKey
     this.handleStartEdit = ::this.handleStartEdit
     this.handleEndEdit = ::this.handleEndEdit
+  }
+
+  handleSubmit(e) {
+    e.preventDefault()
+    const code = e.target.code.value
+    const label = e.target.label.value
+
+    // updateTempVarsAsync({code, label})
   }
 
   handleClickOutside() {
@@ -157,6 +178,7 @@ class RowWrapper extends Component {
         onSelectTagKey={this.handleSelectTagKey}
         onStartEdit={this.handleStartEdit}
         autoFocusTarget={autoFocusTarget}
+        onSubmit={this.handleSubmit}
       />
     )
   }
