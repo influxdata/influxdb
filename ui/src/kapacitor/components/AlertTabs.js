@@ -12,7 +12,7 @@ import TalkConfig from './TalkConfig'
 import TelegramConfig from './TelegramConfig'
 import VictorOpsConfig from './VictorOpsConfig'
 
-const AlertOutputs = React.createClass({
+const AlertTabs = React.createClass({
   propTypes: {
     source: PropTypes.shape({
       id: PropTypes.string.isRequired,
@@ -104,9 +104,10 @@ const AlertOutputs = React.createClass({
 
     return (
       <div className="panel panel-minimal">
+        <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+          <h2 className="panel-title">Configure Alert Endpoints</h2>
+        </div>
         <div className="panel-body">
-          <h4 className="text-center no-user-select">Configure Alert Endpoints</h4>
-          <br/>
           <div className="row">
             <div className="form-group col-xs-12 col-sm-8 col-sm-offset-2">
               <label htmlFor="alert-endpoint" className="sr-only">Alert Enpoint</label>
@@ -181,4 +182,4 @@ const AlertOutputs = React.createClass({
   },
 })
 
-export default AlertOutputs
+export default AlertTabs

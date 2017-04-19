@@ -7,8 +7,8 @@ import {
 } from 'shared/apis'
 import KapacitorForm from '../components/KapacitorForm'
 
-const defaultName = "My Kapacitor"
-const kapacitorPort = "9092"
+const defaultName = 'My Kapacitor'
+const kapacitorPort = '9092'
 
 class KapacitorPage extends Component {
   constructor(props) {
