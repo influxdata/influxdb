@@ -58,4 +58,7 @@ $config-endpoint-tab-bg-active: $g3-castle;
 }
 .config-endpoint--tab-contents {
   flex: 1 0 0;
+  background-color: $config-endpoint-tab-bg-active;
+  border-radius: 0 $radius $radius 0;
+  padding: 16px 42px;
 }
