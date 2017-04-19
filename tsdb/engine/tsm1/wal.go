@@ -991,12 +991,11 @@ func NewWALSegmentReader(r io.ReadCloser) *WALSegmentReader {
 
 // Next indicates if there is a value to read.
 func (r *WALSegmentReader) Next() bool {
-	b := *(getBuf(defaultBufLen))
-	defer putBuf(&b)
 	var nReadOK int
 
 	// read the type and the length of the entry
-	n, err := io.ReadFull(r.r, b[:5])
+	var lv [5]byte
+	n, err := io.ReadFull(r.r, lv[:])
 	if err == io.EOF {
 		return false
 	}
@@ -1009,14 +1008,13 @@ func (r *WALSegmentReader) Next() bool {
 	}
 	nReadOK += n
 
-	entryType := b[0]
-	length := binary.BigEndian.Uint32(b[1:5])
+	entryType := lv[0]
+	length := binary.BigEndian.Uint32(lv[1:5])
+
+	b := *(getBuf(int(length)))
+	defer putBuf(&b)
 
 	// read the compressed block and decompress it
-	if int(length) > len(b) {
-		b = make([]byte, length)
-	}
-
 	n, err = io.ReadFull(r.r, b[:length])
 	if err != nil {
 		r.err = err
