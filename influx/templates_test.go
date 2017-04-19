@@ -8,17 +8,17 @@ func TestTemplateReplace(t *testing.T) {
 	tests := []struct {
 		name  string
 		query string
-		vars  TempVars
+		vars  TemplateVars
 		want  string
 	}{
 		{
 			name:  "select with parameters",
 			query: "$METHOD field1, $field FROM $measurement WHERE temperature > $temperature",
-			vars: TempVars{
-				Vars: []TempVar{
+			vars: TemplateVars{
+				Vars: []TemplateVar{
 					{
 						Var: "$temperature",
-						Values: []TempValue{
+						Values: []TemplateValue{
 							{
 								Type:  "csv",
 								Value: "10",
@@ -27,7 +27,7 @@ func TestTemplateReplace(t *testing.T) {
 					},
 					{
 						Var: "$field",
-						Values: []TempValue{
+						Values: []TemplateValue{
 							{
 								Type:  "fieldKey",
 								Value: "field2",
@@ -36,7 +36,7 @@ func TestTemplateReplace(t *testing.T) {
 					},
 					{
 						Var: "$METHOD",
-						Values: []TempValue{
+						Values: []TemplateValue{
 							{
 								Type:  "csv",
 								Value: "SELECT",
@@ -45,7 +45,7 @@ func TestTemplateReplace(t *testing.T) {
 					},
 					{
 						Var: "$measurement",
-						Values: []TempValue{
+						Values: []TemplateValue{
 							{
 								Type:  "csv",
 								Value: `"cpu"`,
@@ -59,11 +59,11 @@ func TestTemplateReplace(t *testing.T) {
 		{
 			name:  "select with parameters and aggregates",
 			query: `SELECT mean($field) FROM "cpu" WHERE $tag = $value GROUP BY $tag`,
-			vars: TempVars{
-				Vars: []TempVar{
+			vars: TemplateVars{
+				Vars: []TemplateVar{
 					{
 						Var: "$value",
-						Values: []TempValue{
+						Values: []TemplateValue{
 							{
 								Type:  "tagValue",
 								Value: "howdy.com",
@@ -72,7 +72,7 @@ func TestTemplateReplace(t *testing.T) {
 					},
 					{
 						Var: "$tag",
-						Values: []TempValue{
+						Values: []TemplateValue{
 							{
 								Type:  "tagKey",
 								Value: "host",
@@ -81,7 +81,7 @@ func TestTemplateReplace(t *testing.T) {
 					},
 					{
 						Var: "$field",
-						Values: []TempValue{
+						Values: []TemplateValue{
 							{
 								Type:  "fieldKey",
 								Value: "field",
@@ -100,8 +100,8 @@ func TestTemplateReplace(t *testing.T) {
 		{
 			name:  "var without a value",
 			query: `SELECT $field FROM "cpu"`,
-			vars: TempVars{
-				Vars: []TempVar{
+			vars: TemplateVars{
+				Vars: []TemplateVar{
 					{
 						Var: "$field",
 					},
@@ -112,11 +112,11 @@ func TestTemplateReplace(t *testing.T) {
 		{
 			name:  "var with unknown type",
 			query: `SELECT $field FROM "cpu"`,
-			vars: TempVars{
-				Vars: []TempVar{
+			vars: TemplateVars{
+				Vars: []TemplateVar{
 					{
 						Var: "$field",
-						Values: []TempValue{
+						Values: []TemplateValue{
 							{
 								Type:  "who knows?",
 								Value: "field",
