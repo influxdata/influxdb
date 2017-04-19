@@ -170,16 +170,16 @@ export default function ui(state = initialState, action) {
     }
 
     case TEMPLATE_VARIABLE_SELECTED: {
-      const {dashboardID, tvID, valueText} = action.payload
+      const {dashboardID, tvID, values} = action.payload
       const newDashboards = state.dashboards.map((dashboard) => {
         if (dashboard.id === dashboardID) {
-          const newTVs = dashboard.templates.map((tV) => {
+          const newTVs = dashboard.tempVars.map((tV) => {
             if (tV.id === tvID) {
-              return {...tV, selected: valueText}
+              return {...tV, selectedValues: values}
             }
             return tV
           })
-          return {...dashboard, templates: newTVs}
+          return {...dashboard, tempVars: newTVs}
         }
         return dashboard
       })

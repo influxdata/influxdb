@@ -143,9 +143,9 @@ class DashboardPage extends Component {
     this.props.dashboardActions.deleteDashboardCellAsync(cell)
   }
 
-  handleSelectTV(tvID, valueText) {
+  handleSelectTV(tvID, values) {
     const {params: {dashboardID}} = this.props
-    this.props.dashboardActions.tvSelected(+dashboardID, tvID, valueText)
+    this.props.dashboardActions.tvSelected(+dashboardID, tvID, values)
   }
 
   getActiveDashboard() {
@@ -178,7 +178,7 @@ class DashboardPage extends Component {
               <TemplateVariableManager
                 onClose={this.handleCloseTemplateManager}
                 handleClickOutside={this.handleCloseTemplateManager}
-                templates={dashboard.templates}
+                tempVars={dashboard.tempVars}
               />
             </OverlayTechnologies>
           : null}
@@ -278,17 +278,24 @@ DashboardPage.propTypes = {
     shape({
       id: number.isRequired,
       cells: arrayOf(shape({})).isRequired,
-      templates: arrayOf(
+      tempVars: arrayOf(
         shape({
           type: string.isRequired,
           label: string.isRequired,
-          code: string.isRequired,
+          tempVar: string.isRequired,
           query: shape({
             db: string.isRequired,
             text: string.isRequired,
           }),
-          values: arrayOf(string.isRequired),
-        })
+          values: arrayOf(shape({
+            type: string.isRequired,
+            value: string.isRequired,
+          })).isRequired,
+          selectedValues: arrayOf(shape({
+            type: string.isRequired,
+            value: string.isRequired,
+          })).isRequired,
+        }),
       ),
     })
   ),

@@ -46,9 +46,13 @@ export const LayoutRenderer = React.createClass({
         type: string.isRequired,
       }).isRequired
     ),
-    templates: arrayOf(shape({
-      code: string.isRequired,
-      selected: string,
+    tempVars: arrayOf(shape({
+      id: number.isRequired,
+      type: string.isRequired,
+      label: string.isRequired,
+      tempVar: string.isRequired,
+      values: arrayOf(shape()).isRequired,
+      selectedValues: arrayOf(shape()).isRequired,
     })).isRequired,
     host: string,
     source: string,
@@ -94,13 +98,13 @@ export const LayoutRenderer = React.createClass({
   },
 
   renderRefreshingGraph(type, queries) {
-    const {autoRefresh, templates} = this.props
+    const {autoRefresh, tempVars} = this.props
 
     if (type === 'single-stat') {
       return (
         <RefreshingSingleStat
           queries={[queries[0]]}
-          tempVars={templates}
+          tempVars={tempVars}
           autoRefresh={autoRefresh}
         />
       )
@@ -114,7 +118,7 @@ export const LayoutRenderer = React.createClass({
     return (
       <RefreshingLineGraph
         queries={queries}
-        tempVars={templates}
+        tempVars={tempVars}
         autoRefresh={autoRefresh}
         showSingleStat={type === 'line-plus-single-stat'}
         displayOptions={displayOptions}

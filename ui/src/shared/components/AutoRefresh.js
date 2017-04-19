@@ -18,8 +18,21 @@ const AutoRefresh = (ComposedComponent) => {
       children: element,
       autoRefresh: number.isRequired,
       tempVars: arrayOf(shape({
-        code: string.isRequired,
-        values: arrayOf(string),
+        type: string.isRequired,
+        label: string.isRequired,
+        tempVar: string.isRequired,
+        query: shape({
+          db: string.isRequired,
+          text: string.isRequired,
+        }),
+        values: arrayOf(shape({
+          type: string.isRequired,
+          value: string.isRequired,
+        })).isRequired,
+        selectedValues: arrayOf(shape({
+          type: string.isRequired,
+          value: string.isRequired,
+        })).isRequired,
       })),
       queries: arrayOf(shape({
         host: oneOfType([string, arrayOf(string)]),

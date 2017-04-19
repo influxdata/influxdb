@@ -115,45 +115,45 @@ export const editCellQueryStatus = (queryID, status) => ({
   },
 })
 
-export const tvSelected = (dashboardID, tvID, valueText) => ({
+export const tvSelected = (dashboardID, tvID, values) => ({
   type: TEMPLATE_VARIABLE_SELECTED,
   payload: {
     dashboardID,
     tvID,
-    valueText,
+    values,
   },
 })
 
 // Stub Template Variables Data
 
-const templates = [
+const tempVars = [
   {
     id: 1,
     type: 'query',
     label: 'test query',
-    code: '$REGION',
+    tempVar: '$REGION',
     query: {
       db: 'db1.rp1',
       text: 'SHOW TAGS WHERE HUNTER = "coo"',
     },
-    values: ['us-west', 'us-east', 'us-mount'],
-    selected: 'us-east',
+    values: [
+      {value: 'us-west', type: 'tagKey'},
+      {value: 'us-east', type: 'tagKey'},
+      {value: 'us-mount', type: 'tagKey'},
+    ],
+    selectedValues: [{value: 'us-east', type: 'tagKey'}],
   },
   {
     id: 2,
     type: 'csv',
     label: 'test csv',
-    code: '$TEMPERATURE',
-    values: ['98.7', '99.1', '101.3'],
-    selected: '99.1',
-  },
-  {
-    id: 3,
-    type: 'csv',
-    label: 'test csv',
-    code: '$NULL',
-    values: null,
-    selected: null,
+    tempVar: '$TEMPERATURE',
+    values: [
+      {value: '98.7', type: 'measurement'},
+      {value: '99.1', type: 'measurement'},
+      {value: '101.3', type: 'measurement'},
+    ],
+    selectedValues: [{value: '99.1', type: 'measurement'}],
   },
 ]
 
@@ -162,7 +162,7 @@ const templates = [
 export const getDashboardsAsync = dashboardID => async dispatch => {
   try {
     const {data: {dashboards}} = await getDashboardsAJAX()
-    const stubbedDashboards = dashboards.map(d => ({...d, templates}))
+    const stubbedDashboards = dashboards.map(d => ({...d, tempVars}))
     dispatch(loadDashboards(stubbedDashboards, dashboardID))
   } catch (error) {
     console.error(error)
@@ -172,7 +172,7 @@ export const getDashboardsAsync = dashboardID => async dispatch => {
 
 export const putDashboard = dashboard => dispatch => {
   updateDashboardAJAX(dashboard).then(({data}) => {
-    dispatch(updateDashboard({...data, templates}))
+    dispatch(updateDashboard({...data, tempVars}))
   })
 }
 

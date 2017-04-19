@@ -35,10 +35,10 @@ export const handleError = (error, query, editQueryStatus) => {
   console.error(error)
 }
 
-export const fetchTimeSeriesAsync = async ({source, db, rp, query, params}, editQueryStatus = noop) => {
+export const fetchTimeSeriesAsync = async ({source, db, rp, query, tempVars}, editQueryStatus = noop) => {
   handleLoading(query, editQueryStatus)
   try {
-    const {data} = await proxy({source, db, rp, query: query.text, params})
+    const {data} = await proxy({source, db, rp, query: query.text, tempVars})
     return handleSuccess(data, query, editQueryStatus)
   } catch (error) {
     handleError(error, query, editQueryStatus)

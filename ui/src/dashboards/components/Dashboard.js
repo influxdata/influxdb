@@ -24,7 +24,7 @@ const Dashboard = ({
     return null
   }
 
-  const {templates} = dashboard
+  const {tempVars} = dashboard
 
   const cells = dashboard.cells.map((cell) => {
     const dashboardCell = {...cell}
@@ -49,14 +49,17 @@ const Dashboard = ({
         </div>
         <div className="page-header__right">
           {
-            templates.map(({id, values, selected}) => {
-              const items = values ? values.map(value => ({text: value})) : []
+            tempVars.map(({id, values, selectedValues}) => {
+              const items = values ? values.map((value) => Object.assign(value, {text: value.value})) : []
+              // TODO: change Dropdown to a MultiSelectDropdown, [0].value to
+              // the full array, and [item] to all selectedValues when we update
+              // this component to support multiple values
               return (
                 <Dropdown
                   key={id}
                   items={items}
-                  selected={selected || "Loading..."}
-                  onChoose={(item) => onSelectTV(id, item.text)}
+                  selected={selectedValues[0].value || "Loading..."}
+                  onChoose={(item) => onSelectTV(id, [item])}
                 />
               )
             })
@@ -67,7 +70,7 @@ const Dashboard = ({
       {cells.length ?
         <LayoutRenderer
           timeRange={timeRange}
-          templates={templates}
+          tempVars={tempVars}
           cells={cells}
           autoRefresh={autoRefresh}
           source={source.links.proxy}
@@ -93,6 +96,7 @@ const Dashboard = ({
 }
 
 const {
+  arrayOf,
   bool,
   func,
   shape,
@@ -119,6 +123,7 @@ Dashboard.propTypes = {
   timeRange: shape({}).isRequired,
   onOpenTemplateManager: func.isRequired,
   onSelectTV: func.isRequired,
+  tempVars: arrayOf(shape()),
 }
 
 export default Dashboard
