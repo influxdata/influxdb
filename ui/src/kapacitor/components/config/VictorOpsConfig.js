@@ -31,8 +31,10 @@ const VictorOpsConfig = React.createClass({
     const {url} = options
 
     return (
-      <div>
-        <h4 className="text-center no-user-select">VictorOps Alert</h4>
+      <div className="panel panel-info col-xs-12">
+        <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+          <h4 className="panel-title text-center">VictorOps Alert</h4>
+        </div>
         <br/>
         <p className="no-user-select">Have alerts sent to VictorOps.</p>
         <form onSubmit={this.handleSaveAlert}>

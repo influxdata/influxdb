@@ -54,8 +54,10 @@ const TelegramConfig = React.createClass({
     const parseMode = options['parse-mode']
 
     return (
-      <div>
-        <h4 className="text-center no-user-select">Telegram Alert</h4>
+      <div className="panel panel-info col-xs-12">
+        <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+          <h4 className="panel-title text-center">Telegram Alert</h4>
+        </div>
         <br/>
         <p className="no-user-select">
           Send alert messages to a <a href="https://docs.influxdata.com/kapacitor/v1.2/guides/event-handler-setup/#telegram-bot" target="_blank">Telegram bot</a>.

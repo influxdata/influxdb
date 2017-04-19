@@ -28,8 +28,10 @@ const PagerDutyConfig = React.createClass({
     const serviceKey = options['service-key']
 
     return (
-      <div>
-        <h4 className="text-center no-user-select">PagerDuty Alert</h4>
+      <div className="panel panel-info col-xs-12">
+        <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+          <h4 className="panel-title text-center">PagerDuty Alert</h4>
+        </div>
         <br/>
         <p className="no-user-select">You can have alerts sent to PagerDuty by entering info below.</p>
         <form onSubmit={this.handleSaveAlert}>

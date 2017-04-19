@@ -47,8 +47,10 @@ const SlackConfig = React.createClass({
     const {url, channel} = this.props.config.options
 
     return (
-      <div>
-        <h4 className="text-center no-user-select">Slack Alert</h4>
+      <div className="panel panel-info col-xs-12">
+        <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+          <h4 className="panel-title text-center">Slack Alert</h4>
+        </div>
         <br/>
         <p className="no-user-select">Post alerts to a Slack channel.</p>
         <form onSubmit={this.handleSaveAlert}>

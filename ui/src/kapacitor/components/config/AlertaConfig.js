@@ -30,8 +30,10 @@ const AlertaConfig = React.createClass({
     const {environment, origin, token, url} = this.props.config.options
 
     return (
-      <div className="col-xs-12">
-        <h4 className="text-center no-user-select">Alerta Alert</h4>
+      <div className="panel panel-info col-xs-12">
+        <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+          <h4 className="panel-title text-center">Alerta Alert</h4>
+        </div>
         <br/>
         <form onSubmit={this.handleSaveAlert}>
           <p className="no-user-select">

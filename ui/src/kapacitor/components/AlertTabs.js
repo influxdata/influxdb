@@ -150,22 +150,18 @@ class AlertTabs extends Component {
           </div>
         </div>
 
-        <div className="panel panel-info">
-          <div className="panel-body">
-            <Tabs className="row">
-              <TabList customClass="col-md-2 admin-tabs">
-                {
-                  tabs.map((t, i) => (<Tab key={tabs[i].type}>{tabs[i].type}</Tab>))
-                }
-              </TabList>
-              <TabPanels customClass="col-md-10">
-                {
-                  tabs.map((t, i) => (<TabPanel key={tabs[i].type}>{t.component}</TabPanel>))
-                }
-              </TabPanels>
-            </Tabs>
-          </div>
-        </div>
+        <Tabs className="row">
+          <TabList customClass="col-md-2 admin-tabs">
+            {
+              tabs.map((t, i) => (<Tab key={tabs[i].type}>{tabs[i].type}</Tab>))
+            }
+          </TabList>
+          <TabPanels customClass="col-md-10">
+            {
+              tabs.map((t, i) => (<TabPanel key={tabs[i].type}>{t.component}</TabPanel>))
+            }
+          </TabPanels>
+        </Tabs>
       </div>
     )
   }

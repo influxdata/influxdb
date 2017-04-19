@@ -26,8 +26,10 @@ const SensuConfig = React.createClass({
     const {source, addr} = this.props.config.options
 
     return (
-      <div>
-        <h4 className="text-center no-user-select">Sensu Alert</h4>
+      <div className="panel panel-info col-xs-12">
+        <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+          <h4 className="panel-title text-center">Sensu Alert</h4>
+        </div>
         <br/>
         <p className="no-user-select">Have alerts sent to Sensu.</p>
         <form onSubmit={this.handleSaveAlert}>

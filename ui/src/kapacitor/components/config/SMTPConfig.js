@@ -32,8 +32,10 @@ const SMTPConfig = React.createClass({
     const {host, port, from, username, password} = this.props.config.options
 
     return (
-      <div>
-        <h4 className="text-center no-user-select">SMTP Alert</h4>
+      <div className="panel panel-info col-xs-12">
+        <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+          <h4 className="panel-title text-center">SMTP Alert</h4>
+        </div>
         <br/>
         <p className="no-user-select">You can have alerts sent to an email address by setting up an SMTP endpoint.</p>
         <form onSubmit={this.handleSaveAlert}>
