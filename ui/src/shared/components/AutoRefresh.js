@@ -17,7 +17,7 @@ const AutoRefresh = (ComposedComponent) => {
     propTypes: {
       children: element,
       autoRefresh: number.isRequired,
-      params: arrayOf(shape({
+      tempVars: arrayOf(shape({
         code: string.isRequired,
         values: arrayOf(string),
       })),
@@ -66,7 +66,7 @@ const AutoRefresh = (ComposedComponent) => {
     },
 
     async executeQueries(queries) {
-      const {params, editQueryStatus} = this.props
+      const {tempVars, editQueryStatus} = this.props
 
       if (!queries.length) {
         this.setState({timeSeries: []})
@@ -77,7 +77,7 @@ const AutoRefresh = (ComposedComponent) => {
 
       const timeSeriesPromises = queries.map((query) => {
         const {host, database, rp} = query
-        return fetchTimeSeriesAsync({source: host, db: database, rp, query, params}, editQueryStatus)
+        return fetchTimeSeriesAsync({source: host, db: database, rp, query, tempVars}, editQueryStatus)
       })
 
       Promise.all(timeSeriesPromises).then(timeSeries => {

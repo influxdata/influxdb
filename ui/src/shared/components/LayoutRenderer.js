@@ -100,7 +100,7 @@ export const LayoutRenderer = React.createClass({
       return (
         <RefreshingSingleStat
           queries={[queries[0]]}
-          params={templates}
+          tempVars={templates}
           autoRefresh={autoRefresh}
         />
       )
@@ -114,7 +114,7 @@ export const LayoutRenderer = React.createClass({
     return (
       <RefreshingLineGraph
         queries={queries}
-        params={templates}
+        tempVars={templates}
         autoRefresh={autoRefresh}
         showSingleStat={type === 'line-plus-single-stat'}
         displayOptions={displayOptions}
