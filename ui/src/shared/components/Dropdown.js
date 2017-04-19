@@ -19,6 +19,9 @@ class Dropdown extends Component {
 
   static defaultProps = {
     actions: [],
+    buttonSize: 'btn-sm',
+    buttonColor: 'btn-info',
+    menuWidth: '100%',
   }
 
   handleClickOutside() {
@@ -43,33 +46,35 @@ class Dropdown extends Component {
   }
 
   render() {
-    const {items, selected, className, iconName, actions, addNew} = this.props
+    const {items, selected, className, iconName, actions, addNew, buttonSize, buttonColor, menuWidth} = this.props
     const {isOpen} = this.state
 
     return (
-      <div onClick={this.toggleMenu} className={`dropdown ${className}`}>
-        <div className="btn btn-sm btn-info dropdown-toggle">
-          {iconName ? <span className={classnames("icon", {[iconName]: true})}></span> : null}
+      <div onClick={this.toggleMenu} className={classnames(`dropdown ${className}`, {open: isOpen})}>
+        <div className={`btn dropdown-toggle ${buttonSize} ${buttonColor}`}>
+          {iconName ? <span className={classnames('icon', {[iconName]: true})}></span> : null}
           <span className="dropdown-selected">{selected}</span>
           <span className="caret" />
         </div>
         {isOpen ?
-          <ul className="dropdown-menu show">
+          <ul className="dropdown-menu" style={{width: menuWidth}}>
             {items.map((item, i) => {
               return (
                 <li className="dropdown-item" key={i}>
                   <a href="#" onClick={() => this.handleSelection(item)}>
                     {item.text}
                   </a>
-                  <div className="dropdown-item__actions">
-                    {actions.map((action) => {
-                      return (
-                        <button key={action.text} className="dropdown-item__action" onClick={(e) => this.handleAction(e, action, item)}>
-                          <span title={action.text} className={`icon ${action.icon}`}></span>
-                        </button>
-                      )
-                    })}
-                  </div>
+                  {actions.length > 0 ?
+                    <div className="dropdown-item__actions">
+                      {actions.map((action) => {
+                        return (
+                          <button key={action.text} className="dropdown-item__action" onClick={(e) => this.handleAction(e, action, item)}>
+                            <span title={action.text} className={`icon ${action.icon}`}></span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  : null}
                 </li>
               )
             })}
@@ -113,6 +118,9 @@ Dropdown.propTypes = {
   selected: string.isRequired,
   iconName: string,
   className: string,
+  buttonSize: string,
+  buttonColor: string,
+  menuWidth: string,
 }
 
 export default OnClickOutside(Dropdown)
