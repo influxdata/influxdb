@@ -63,7 +63,7 @@ const InfluxTable = ({
                   sources.map((s) => {
                     return (
                       <tr key={s.id}>
-                        <td>{s.name}{s.default ? <span className="default-source-label">Default</span> : null}</td>
+                        <td><Link to={`${location.pathname}/${s.id}/edit`}>{s.name}</Link> {s.default ? <span className="default-source-label">Default</span> : null}</td>
                         <td className="monotype">{s.url}</td>
                         <td>
                           {
@@ -71,7 +71,6 @@ const InfluxTable = ({
                           }
                         </td>
                         <td className="text-right">
-                          <Link className="btn btn-info btn-xs" to={`${location.pathname}/${s.id}/edit`}><span className="icon pencil"></span></Link>
                           <Link className="btn btn-success btn-xs" to={`/sources/${s.id}/hosts`}>Connect</Link>
                           <button className="btn btn-danger btn-xs" onClick={() => handleDeleteSource(s)}><span className="icon trash"></span></button>
                         </td>
