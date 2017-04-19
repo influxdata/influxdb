@@ -14,6 +14,9 @@ const kapacitorDropdown = (kapacitors, source, router) => {
   })
   return (
     <Dropdown
+      className="sources--kapacitor-selector"
+      buttonColor="btn-info"
+      buttonSize="btn-xs"
       items={kapacitorItems}
       onChoose={() => {}}
       addNew={{
