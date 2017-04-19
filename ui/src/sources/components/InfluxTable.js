@@ -48,39 +48,37 @@ const InfluxTable = ({
           <Link to={`/sources/${source.id}/manage-sources/new`} className="btn btn-sm btn-primary">Add Source</Link>
         </div>
         <div className="panel-body">
-          <div className="table-responsive margin-bottom-zero">
-            <table className="table v-center margin-bottom-zero">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Host</th>
-                  <th>Kapacitor</th>
-                  <th className="text-right"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {
-                  sources.map((s) => {
-                    return (
-                      <tr key={s.id}>
-                        <td><Link to={`${location.pathname}/${s.id}/edit`}>{s.name}</Link> {s.default ? <span className="default-source-label">Default</span> : null}</td>
-                        <td className="monotype">{s.url}</td>
-                        <td>
-                          {
-                            kapacitorDropdown(s.kapacitors, s, router)
-                          }
-                        </td>
-                        <td className="text-right">
-                          <Link className="btn btn-success btn-xs" to={`/sources/${s.id}/hosts`}>Connect</Link>
-                          <button className="btn btn-danger btn-xs" onClick={() => handleDeleteSource(s)}><span className="icon trash"></span></button>
-                        </td>
-                      </tr>
-                    )
-                  })
-                }
-              </tbody>
-            </table>
-          </div>
+          <table className="table v-center margin-bottom-zero">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Host</th>
+                <th>Kapacitor</th>
+                <th className="text-right"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {
+                sources.map((s) => {
+                  return (
+                    <tr key={s.id}>
+                      <td><Link to={`${location.pathname}/${s.id}/edit`}>{s.name}</Link> {s.default ? <span className="default-source-label">Default</span> : null}</td>
+                      <td className="monotype">{s.url}</td>
+                      <td>
+                        {
+                          kapacitorDropdown(s.kapacitors, s, router)
+                        }
+                      </td>
+                      <td className="text-right">
+                        <Link className="btn btn-success btn-xs" to={`/sources/${s.id}/hosts`}>Connect</Link>
+                        <button className="btn btn-danger btn-xs" onClick={() => handleDeleteSource(s)}><span className="icon trash"></span></button>
+                      </td>
+                    </tr>
+                  )
+                })
+              }
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
