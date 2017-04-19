@@ -36,7 +36,8 @@ class KapacitorForm extends Component {
                             name="url"
                             placeholder={url}
                             value={url}
-                            onChange={onInputChange}>
+                            onChange={onInputChange}
+                            spellCheck="false">
                           </input>
                         </div>
                         <div className="form-group">
@@ -47,7 +48,8 @@ class KapacitorForm extends Component {
                             name="name"
                             placeholder={name}
                             value={name}
-                            onChange={onInputChange}>
+                            onChange={onInputChange}
+                            spellCheck="false">
                           </input>
                         </div>
                         <div className="form-group">
@@ -58,7 +60,8 @@ class KapacitorForm extends Component {
                             name="username"
                             placeholder="username"
                             value={username}
-                            onChange={onInputChange}>
+                            onChange={onInputChange}
+                            spellCheck="false">
                           </input>
                         </div>
                         <div className="form-group">
@@ -71,6 +74,7 @@ class KapacitorForm extends Component {
                             placeholder="password"
                             value={password}
                             onChange={onInputChange}
+                            spellCheck="false"
                           />
                         </div>
                       </div>
