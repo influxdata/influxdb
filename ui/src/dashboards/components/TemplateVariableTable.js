@@ -3,21 +3,21 @@ import React, {PropTypes} from 'react'
 import TemplateVariableRow from 'src/dashboards/components/TemplateVariableRow'
 
 const TemplateVariableTable = ({templates}) => (
-  <table className="table v-center">
-    <thead>
-      <tr>
-        <th>Dropdown Label</th>
-        <th>Shortcode</th>
-        <th>Type</th>
-        <th>Queries</th>
-        <th>Values</th>
-        <th />
-      </tr>
-    </thead>
-    <tbody>
+  <div className="table-custom">
+    <div className="thead">
+      <div className="tr">
+        <div className="th">Dropdown Label</div>
+        <div className="th">Shortcode</div>
+        <div className="th">Type</div>
+        <div className="th">Queries</div>
+        <div className="th">Values</div>
+        <div className="th" />
+      </div>
+    </div>
+    <div className="tbody">
       {templates.map(t => <TemplateVariableRow key={t.id} template={t} />)}
-    </tbody>
-  </table>
+    </div>
+  </div>
 )
 
 const {arrayOf, shape, string} = PropTypes
