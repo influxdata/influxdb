@@ -10,6 +10,39 @@ import (
 	"github.com/influxdata/chronograf/uuid"
 )
 
+const (
+	// DefaultWidth is used if not specified
+	DefaultWidth = 4
+	// DefaultHeight is used if not specified
+	DefaultHeight = 4
+)
+
+type dashboardCellLinks struct {
+	Self string `json:"self"` // Self link mapping to this resource
+}
+
+type dashboardCellResponse struct {
+	chronograf.DashboardCell
+	Links dashboardCellLinks `json:"links"`
+}
+
+func newCellResponses(dID chronograf.DashboardID, dcells []chronograf.DashboardCell) []dashboardCellResponse {
+	base := "/chronograf/v1/dashboards"
+	cells := make([]dashboardCellResponse, len(dcells))
+	for i, cell := range dcells {
+		if len(cell.Queries) == 0 {
+			cell.Queries = make([]chronograf.DashboardQuery, 0)
+		}
+		cells[i] = dashboardCellResponse{
+			DashboardCell: cell,
+			Links: dashboardCellLinks{
+				Self: fmt.Sprintf("%s/%d/cells/%s", base, dID, cell.ID),
+			},
+		}
+	}
+	return cells
+}
+
 // ValidDashboardCellRequest verifies that the dashboard cells have a query
 func ValidDashboardCellRequest(c *chronograf.DashboardCell) error {
 	CorrectWidthHeight(c)
@@ -108,7 +141,7 @@ func (s *Service) NewDashboardCell(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// DashboardCellID adds a cell to an existing dashboard
+// DashboardCellID gets a specific cell from an existing dashboard
 func (s *Service) DashboardCellID(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id, err := paramID("id", r)
@@ -134,7 +167,7 @@ func (s *Service) DashboardCellID(w http.ResponseWriter, r *http.Request) {
 	notFound(w, id, s.Logger)
 }
 
-// RemoveDashboardCell adds a cell to an existing dashboard
+// RemoveDashboardCell removes a specific cell from an existing dashboard
 func (s *Service) RemoveDashboardCell(w http.ResponseWriter, r *http.Request) {
 	id, err := paramID("id", r)
 	if err != nil {
@@ -171,7 +204,7 @@ func (s *Service) RemoveDashboardCell(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// ReplaceDashboardCell adds a cell to an existing dashboard
+// ReplaceDashboardCell replaces a cell entirely within an existing dashboard
 func (s *Service) ReplaceDashboardCell(w http.ResponseWriter, r *http.Request) {
 	id, err := paramID("id", r)
 	if err != nil {

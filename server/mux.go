@@ -155,6 +155,13 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.GET("/chronograf/v1/dashboards/:id/cells/:cid", service.DashboardCellID)
 	router.DELETE("/chronograf/v1/dashboards/:id/cells/:cid", service.RemoveDashboardCell)
 	router.PUT("/chronograf/v1/dashboards/:id/cells/:cid", service.ReplaceDashboardCell)
+	// Dashboard Templates
+	router.GET("/chronograf/v1/dashboards/:id/templates", service.Templates)
+	router.POST("/chronograf/v1/dashboards/:id/templates", service.NewTemplate)
+
+	router.GET("/chronograf/v1/dashboards/:id/templates/:tid", service.TemplateID)
+	router.DELETE("/chronograf/v1/dashboards/:id/templates/:tid", service.RemoveTemplate)
+	router.PUT("/chronograf/v1/dashboards/:id/templates/:tid", service.ReplaceTemplate)
 
 	// Databases
 	router.GET("/chronograf/v1/sources/:id/dbs", service.GetDatabases)

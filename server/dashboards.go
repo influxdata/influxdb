@@ -8,32 +8,18 @@ import (
 	"github.com/influxdata/chronograf"
 )
 
-const (
-	// DefaultWidth is used if not specified
-	DefaultWidth = 4
-	// DefaultHeight is used if not specified
-	DefaultHeight = 4
-)
-
 type dashboardLinks struct {
-	Self  string `json:"self"`  // Self link mapping to this resource
-	Cells string `json:"cells"` // Cells link to the cells endpoint
-}
-
-type dashboardCellLinks struct {
-	Self string `json:"self"` // Self link mapping to this resource
-}
-
-type dashboardCellResponse struct {
-	chronograf.DashboardCell
-	Links dashboardCellLinks `json:"links"`
+	Self      string `json:"self"`      // Self link mapping to this resource
+	Cells     string `json:"cells"`     // Cells link to the cells endpoint
+	Templates string `json:"templates"` // Templates link to the templates endpoint
 }
 
 type dashboardResponse struct {
-	ID    chronograf.DashboardID  `json:"id"`
-	Cells []dashboardCellResponse `json:"cells"`
-	Name  string                  `json:"name"`
-	Links dashboardLinks          `json:"links"`
+	ID        chronograf.DashboardID  `json:"id"`
+	Cells     []dashboardCellResponse `json:"cells"`
+	Templates []templateResponse      `json:"templates"`
+	Name      string                  `json:"name"`
+	Links     dashboardLinks          `json:"links"`
 }
 
 type getDashboardsResponse struct {
@@ -44,25 +30,18 @@ func newDashboardResponse(d chronograf.Dashboard) *dashboardResponse {
 	base := "/chronograf/v1/dashboards"
 	DashboardDefaults(&d)
 	AddQueryConfigs(&d)
-	cells := make([]dashboardCellResponse, len(d.Cells))
-	for i, cell := range d.Cells {
-		if len(cell.Queries) == 0 {
-			cell.Queries = make([]chronograf.DashboardQuery, 0)
-		}
-		cells[i] = dashboardCellResponse{
-			DashboardCell: cell,
-			Links: dashboardCellLinks{
-				Self: fmt.Sprintf("%s/%d/cells/%s", base, d.ID, cell.ID),
-			},
-		}
-	}
+	cells := newCellResponses(d.ID, d.Cells)
+	templates := newTemplateResponses(d.ID, d.Templates)
+
 	return &dashboardResponse{
-		ID:    d.ID,
-		Name:  d.Name,
-		Cells: cells,
+		ID:        d.ID,
+		Name:      d.Name,
+		Cells:     cells,
+		Templates: templates,
 		Links: dashboardLinks{
-			Self:  fmt.Sprintf("%s/%d", base, d.ID),
-			Cells: fmt.Sprintf("%s/%d/cells", base, d.ID),
+			Self:      fmt.Sprintf("%s/%d", base, d.ID),
+			Cells:     fmt.Sprintf("%s/%d/cells", base, d.ID),
+			Templates: fmt.Sprintf("%s/%d/templates", base, d.ID),
 		},
 	}
 }
@@ -83,7 +62,6 @@ func (s *Service) Dashboards(w http.ResponseWriter, r *http.Request) {
 	for _, dashboard := range dashboards {
 		res.Dashboards = append(res.Dashboards, newDashboardResponse(dashboard))
 	}
-
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
 
