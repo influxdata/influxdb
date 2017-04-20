@@ -302,10 +302,6 @@ func Test_newDashboardResponse(t *testing.T) {
 	for _, tt := range tests {
 		if got := newDashboardResponse(tt.d); !reflect.DeepEqual(got, tt.want) {
 			t.Errorf("%q. newDashboardResponse() = \n%+v\n\n, want\n\n%+v", tt.name, got, tt.want)
-			g, _ := json.MarshalIndent(got, "", "    ")
-			w, _ := json.MarshalIndent(tt.want, "", "    ")
-			log.Printf(string(g))
-			log.Printf(string(w))
 		}
 	}
 }
