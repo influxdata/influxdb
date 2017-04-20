@@ -10,6 +10,7 @@ class RawQueryEditor extends Component {
     super(props)
     this.state = {
       value: this.props.query,
+      isTemplating: false,
     }
 
     this.handleKeyDown = ::this.handleKeyDown
@@ -32,6 +33,8 @@ class RawQueryEditor extends Component {
       this.setState({value: this.state.value}, () => {
         this.editor.blur()
       })
+    } else if (e.key === '$') {
+      this.setState({isTemplating: true})
     }
   }
 
@@ -50,11 +53,12 @@ class RawQueryEditor extends Component {
   }
 
   render() {
-    const {config: {status}} = this.props
-    const {value} = this.state
+    const {config: {status}, templates} = this.props
+    const {value, isTemplating} = this.state
 
     return (
       <div className="raw-text">
+        {isTemplating ? <TemplateDrawer templates={templates} /> : null}
         <textarea
           className="raw-text--field"
           onChange={this.handleChange}
@@ -111,12 +115,17 @@ class RawQueryEditor extends Component {
   }
 }
 
-const {func, shape, string} = PropTypes
+const {arrayOf, func, shape, string} = PropTypes
 
 RawQueryEditor.propTypes = {
   query: string.isRequired,
   onUpdate: func.isRequired,
   config: shape().isRequired,
+  templates: arrayOf(
+    shape({
+      tempVar: string.isRequired,
+    })
+  ).isRequired,
 }
 
 export default RawQueryEditor

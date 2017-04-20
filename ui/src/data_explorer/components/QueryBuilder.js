@@ -4,14 +4,7 @@ import QueryEditor from './QueryEditor'
 import QueryTabItem from './QueryTabItem'
 import buildInfluxQLQuery from 'utils/influxql'
 
-const {
-  arrayOf,
-  func,
-  node,
-  number,
-  shape,
-  string,
-} = PropTypes
+const {arrayOf, func, node, number, shape, string} = PropTypes
 
 const QueryBuilder = React.createClass({
   propTypes: {
@@ -25,6 +18,11 @@ const QueryBuilder = React.createClass({
       upper: string,
       lower: string,
     }).isRequired,
+    templates: arrayOf(
+      shape({
+        tempVar: string.isRequired,
+      })
+    ),
     actions: shape({
       chooseNamespace: func.isRequired,
       chooseMeasurement: func.isRequired,
@@ -76,15 +74,21 @@ const QueryBuilder = React.createClass({
   },
 
   renderQueryEditor() {
-    const {timeRange, actions, source} = this.props
+    const {timeRange, actions, source, templates} = this.props
     const query = this.getActiveQuery()
 
     if (!query) {
       return (
         <div className="qeditor--empty">
           <h5 className="no-user-select">This Graph has no Queries</h5>
-          <br/>
-          <div className="btn btn-primary" role="button" onClick={this.handleAddQuery}>Add a Query</div>
+          <br />
+          <div
+            className="btn btn-primary"
+            role="button"
+            onClick={this.handleAddQuery}
+          >
+            Add a Query
+          </div>
         </div>
       )
     }
@@ -93,6 +97,7 @@ const QueryBuilder = React.createClass({
       <QueryEditor
         source={source}
         timeRange={timeRange}
+        templates={templates}
         query={query}
         actions={actions}
         onAddQuery={this.handleAddQuery}

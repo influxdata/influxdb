@@ -131,6 +131,7 @@ class CellEditorOverlay extends Component {
     const {
       source,
       onCancel,
+      templates,
       timeRange,
       autoRefresh,
       editQueryStatus,
@@ -173,6 +174,7 @@ class CellEditorOverlay extends Component {
               />
               <QueryBuilder
                 source={source}
+                templates={templates}
                 queries={queriesWorkingDraft}
                 actions={queryActions}
                 autoRefresh={autoRefresh}
@@ -189,17 +191,17 @@ class CellEditorOverlay extends Component {
   }
 }
 
-const {
-  func,
-  number,
-  shape,
-  string,
-} = PropTypes
+const {arrayOf, func, number, shape, string} = PropTypes
 
 CellEditorOverlay.propTypes = {
   onCancel: func.isRequired,
   onSave: func.isRequired,
   cell: shape({}).isRequired,
+  templates: arrayOf(
+    shape({
+      tempVar: string.isRequired,
+    })
+  ).isRequired,
   timeRange: shape({
     upper: string,
     lower: string,

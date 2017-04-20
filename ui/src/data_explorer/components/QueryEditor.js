@@ -20,6 +20,11 @@ const QueryEditor = React.createClass({
         queries: string.isRequired,
       }).isRequired,
     }).isRequired,
+    templates: arrayOf(
+      shape({
+        tempVar: string.isRequired,
+      })
+    ),
     query: shape({
       id: string,
     }).isRequired,
@@ -78,19 +83,23 @@ const QueryEditor = React.createClass({
   },
 
   render() {
-    const {query, timeRange} = this.props
+    const {query, timeRange, templates} = this.props
     const q = query.rawText || buildInfluxQLQuery(timeRange, query) || ''
 
     return (
       <div className="query-builder--tab-contents">
         <div>
-          <RawQueryEditor query={q} config={query} onUpdate={this.handleEditRawText} />
+          <RawQueryEditor
+            query={q}
+            config={query}
+            templates={templates}
+            onUpdate={this.handleEditRawText}
+          />
           {this.renderLists()}
         </div>
       </div>
     )
   },
-
 
   renderLists() {
     const {query} = this.props

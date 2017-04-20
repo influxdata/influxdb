@@ -224,6 +224,7 @@ class DashboardPage extends Component {
         {selectedCell
           ? <CellEditorOverlay
               source={source}
+              templates={dashboard.templates}
               cell={selectedCell}
               timeRange={timeRange}
               autoRefresh={autoRefresh}
@@ -329,11 +330,11 @@ DashboardPage.propTypes = {
           }),
           values: arrayOf(
             shape({
-              type: string.isRequired,
               value: string.isRequired,
-              selected: bool,
+              selected: bool.isRequired,
+              type: string.isRequired,
             })
-          ).isRequired,
+          ),
         })
       ),
     })
