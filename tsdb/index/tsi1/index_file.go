@@ -349,6 +349,20 @@ func (f *IndexFile) MergeSeriesSketches(s, t estimator.Sketch) error {
 	return t.Merge(f.sblk.tsketch)
 }
 
+// FilterNamesTags filters out any series which already exist. It modifies the
+// provided slices of names and tags.
+func (f *IndexFile) FilterNamesTags(names [][]byte, tagsSlice []models.Tags) ([][]byte, []models.Tags) {
+	buf := make([]byte, 1024)
+	newNames, newTagsSlice := names[:0], tagsSlice[:0]
+	for i := range names {
+		if exists, tombstoned := f.HasSeries(names[i], tagsSlice[i], buf); !exists || tombstoned {
+			newNames = append(newNames, names[i])
+			newTagsSlice = append(newTagsSlice, tagsSlice[i])
+		}
+	}
+	return newNames, newTagsSlice
+}
+
 // ReadIndexFileTrailer returns the index file trailer from data.
 func ReadIndexFileTrailer(data []byte) (IndexFileTrailer, error) {
 	var t IndexFileTrailer

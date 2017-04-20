@@ -447,20 +447,15 @@ func (i *Index) CreateSeriesListIfNotExists(_, names [][]byte, tagsSlice []model
 	}
 
 	// Ensure fileset cannot change during insert.
-	i.mu.Lock()
-	defer i.mu.Unlock()
-
+	i.mu.RLock()
 	// Insert series into log file.
 	if err := i.activeLogFile.AddSeriesList(names, tagsSlice); err != nil {
+		i.mu.RUnlock()
 		return err
 	}
+	i.mu.RUnlock()
 
-	// Switch log file if necessary.
-	if err := i.checkLogFile(); err != nil {
-		return err
-	}
-
-	return nil
+	return i.CheckLogFile()
 }
 
 // InitializeSeries is a no-op. This only applies to the in-memory index.

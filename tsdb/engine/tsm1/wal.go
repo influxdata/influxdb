@@ -121,7 +121,7 @@ func NewWAL(path string) *WAL {
 		// these options should be overriden by any options in the config
 		SegmentSize: DefaultSegmentSize,
 		closing:     make(chan struct{}),
-		syncWaiters: make(chan chan error, 256),
+		syncWaiters: make(chan chan error, 1024),
 		stats:       &WALStatistics{},
 		limiter:     limiter.NewFixed(defaultWaitingWALWrites),
 		logger:      logger,
@@ -233,10 +233,10 @@ func (l *WAL) Open() error {
 	return nil
 }
 
-// sync will schedule an fsync to the current wal segment and notify any
+// scheduleSync will schedule an fsync to the current wal segment and notify any
 // waiting gorutines.  If an fsync is already scheduled, subsequent calls will
 // not schedule a new fsync and will be handle by the existing scheduled fsync.
-func (l *WAL) sync() {
+func (l *WAL) scheduleSync() {
 	// If we're not the first to sync, then another goroutine is fsyncing the wal for us.
 	if !atomic.CompareAndSwapUint64(&l.syncCount, 0, 1) {
 		return
@@ -244,24 +244,48 @@ func (l *WAL) sync() {
 
 	// Fsync the wal and notify all pending waiters
 	go func() {
-		t := time.NewTimer(l.syncDelay)
-		select {
-		case <-t.C:
-			if len(l.syncWaiters) > 0 {
-				l.mu.Lock()
-				err := l.currentSegmentWriter.sync()
-				for len(l.syncWaiters) > 0 {
-					errC := <-l.syncWaiters
-					errC <- err
-				}
-				l.mu.Unlock()
-			}
-		case <-l.closing:
-			t.Stop()
-		}
+		defer atomic.StoreUint64(&l.syncCount, 0)
+		var timerCh <-chan time.Time
 
-		atomic.StoreUint64(&l.syncCount, 0)
+		// time.NewTicker requires a > 0 delay, since 0 indicates no delay, use a closed
+		// channel which will always be ready to read from.
+		if l.syncDelay == 0 {
+			// Create a RW chan and close it
+			timerChrw := make(chan time.Time)
+			close(timerChrw)
+			// Convert it to a read-only
+			timerCh = timerChrw
+		} else {
+			t := time.NewTicker(l.syncDelay)
+			defer t.Stop()
+			timerCh = t.C
+		}
+		for {
+			select {
+			case <-timerCh:
+				l.mu.Lock()
+				if len(l.syncWaiters) == 0 {
+					l.mu.Unlock()
+					return
+				}
+
+				l.sync()
+				l.mu.Unlock()
+			case <-l.closing:
+				return
+			}
+		}
 	}()
+}
+
+// sync fsyncs the current wal segments and notifies any waiters.  Callers must ensure
+// a write lock on the WAL is obtained before calling sync.
+func (l *WAL) sync() {
+	err := l.currentSegmentWriter.sync()
+	for len(l.syncWaiters) > 0 {
+		errC := <-l.syncWaiters
+		errC <- err
+	}
 }
 
 // WritePoints writes the given points to the WAL. It returns the WAL segment ID to
@@ -354,22 +378,21 @@ func (l *WAL) writeToLog(entry WALEntry) (int, error) {
 	// limit how many concurrent encodings can be in flight.  Since we can only
 	// write one at a time to disk, a slow disk can cause the allocations below
 	// to increase quickly.  If we're backed up, wait until others have completed.
-	l.limiter.Take()
-	defer l.limiter.Release()
+	//l.limiter.Take()
+	//defer l.limiter.Release()
 
 	// encode and compress the entry while we're not locked
-	bytes := getBuf(walEncodeBufSize)
-	defer putBuf(bytes)
+	bytes := *(getBuf(walEncodeBufSize))
+	defer putBuf(&bytes)
 
 	b, err := entry.Encode(bytes)
 	if err != nil {
 		return -1, err
 	}
 
-	encBuf := getBuf(snappy.MaxEncodedLen(len(b)))
-	defer putBuf(encBuf)
+	encBuf := *(getBuf(snappy.MaxEncodedLen(len(b))))
+	defer putBuf(&encBuf)
 	compressed := snappy.Encode(encBuf, b)
-
 	syncErr := make(chan error)
 
 	segID, err := func() (int, error) {
@@ -393,12 +416,18 @@ func (l *WAL) writeToLog(entry WALEntry) (int, error) {
 			return -1, fmt.Errorf("error writing WAL entry: %v", err)
 		}
 
+		select {
+		case l.syncWaiters <- syncErr:
+		default:
+			return -1, fmt.Errorf("error syncing wal")
+		}
+		l.scheduleSync()
+
 		// Update stats for current segment size
 		atomic.StoreInt64(&l.stats.CurrentBytes, int64(l.currentSegmentWriter.size))
 
 		l.lastWriteTime = time.Now()
 
-		l.syncWaiters <- syncErr
 		return l.currentSegmentID, nil
 
 	}()
@@ -407,7 +436,6 @@ func (l *WAL) writeToLog(entry WALEntry) (int, error) {
 	}
 
 	// schedule an fsync and wait for it to complete
-	l.sync()
 	return segID, <-syncErr
 }
 
@@ -487,6 +515,7 @@ func (l *WAL) Close() error {
 		close(l.closing)
 
 		if l.currentSegmentWriter != nil {
+			l.sync()
 			l.currentSegmentWriter.close()
 			l.currentSegmentWriter = nil
 		}
@@ -509,6 +538,8 @@ func segmentFileNames(dir string) ([]string, error) {
 func (l *WAL) newSegmentFile() error {
 	l.currentSegmentID++
 	if l.currentSegmentWriter != nil {
+		l.sync()
+
 		if err := l.currentSegmentWriter.close(); err != nil {
 			return err
 		}
@@ -1000,8 +1031,8 @@ func NewWALSegmentReader(r io.ReadCloser) *WALSegmentReader {
 
 // Next indicates if there is a value to read.
 func (r *WALSegmentReader) Next() bool {
-	b := getBuf(defaultBufLen)
-	defer putBuf(b)
+	b := *(getBuf(defaultBufLen))
+	defer putBuf(&b)
 	var nReadOK int
 
 	// read the type and the length of the entry
@@ -1038,8 +1069,8 @@ func (r *WALSegmentReader) Next() bool {
 		r.err = err
 		return true
 	}
-	decBuf := getBuf(decLen)
-	defer putBuf(decBuf)
+	decBuf := *(getBuf(decLen))
+	defer putBuf(&decBuf)
 
 	data, err := snappy.Decode(decBuf, b[:length])
 	if err != nil {

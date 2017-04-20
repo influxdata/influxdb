@@ -136,12 +136,12 @@ func (i *Index) CreateSeriesIfNotExists(shardID uint64, key, name []byte, tags m
 	i.mu.RLock()
 	// if there is a series for this id, it's already been added
 	ss := i.series[string(key)]
+	i.mu.RUnlock()
+
 	if ss != nil {
 		ss.AssignShard(shardID)
-		i.mu.RUnlock()
 		return nil
 	}
-	i.mu.RUnlock()
 
 	// get or create the measurement index
 	m := i.CreateMeasurementIndexIfNotExists(string(name))
@@ -150,8 +150,8 @@ func (i *Index) CreateSeriesIfNotExists(shardID uint64, key, name []byte, tags m
 	// Check for the series again under a write lock
 	ss = i.series[string(key)]
 	if ss != nil {
-		ss.AssignShard(shardID)
 		i.mu.Unlock()
+		ss.AssignShard(shardID)
 		return nil
 	}
 
@@ -228,9 +228,9 @@ func (i *Index) HasTagKey(name, key []byte) (bool, error) {
 // HasTagValue returns true if tag value exists.
 func (i *Index) HasTagValue(name, key, value []byte) bool {
 	i.mu.RLock()
-	defer i.mu.RUnlock()
-
 	mm := i.measurements[string(name)]
+	i.mu.RUnlock()
+
 	if mm == nil {
 		return false
 	}
@@ -697,6 +697,25 @@ func (i *Index) RemoveShard(shardID uint64) {
 	}
 }
 
+// assignExistingSeries assigns the existings series to shardID and returns the series, names and tags that
+// do not exists yet.
+func (i *Index) assignExistingSeries(shardID uint64, keys, names [][]byte, tagsSlice []models.Tags) ([][]byte, [][]byte, []models.Tags) {
+	i.mu.RLock()
+	var n int
+	for j, key := range keys {
+		if ss, ok := i.series[string(key)]; !ok {
+			keys[n] = keys[j]
+			names[n] = names[j]
+			tagsSlice[n] = tagsSlice[j]
+			n++
+		} else {
+			ss.AssignShard(shardID)
+		}
+	}
+	i.mu.RUnlock()
+	return keys[:n], names[:n], tagsSlice[:n]
+}
+
 // Ensure index implements interface.
 var _ tsdb.Index = &ShardIndex{}
 
@@ -712,6 +731,12 @@ type ShardIndex struct {
 
 // CreateSeriesListIfNotExists creates a list of series if they doesn't exist in bulk.
 func (idx *ShardIndex) CreateSeriesListIfNotExists(keys, names [][]byte, tagsSlice []models.Tags) error {
+
+	keys, names, tagsSlice = idx.assignExistingSeries(idx.id, keys, names, tagsSlice)
+	if len(keys) == 0 {
+		return nil
+	}
+
 	var reason string
 	var dropped int
 	var droppedKeys map[string]struct{}
