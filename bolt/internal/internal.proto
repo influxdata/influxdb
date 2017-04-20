@@ -18,6 +18,7 @@ message Dashboard {
 	int64 ID                     = 1; // ID is the unique ID of the dashboard
 	string Name                  = 2; // Name is the user-defined name of the dashboard
 	repeated DashboardCell cells = 3; // a representation of all visual data required for rendering the dashboard
+    repeated Template templates = 4; // Templates replace template variables within InfluxQL
 }
 
 message DashboardCell {
@@ -29,6 +30,30 @@ message DashboardCell {
 	string name             = 6; // User-facing name for this Dashboard
 	string type             = 7; // Dashboard visualization type
     string ID               = 8; // id is the unique id of the dashboard. MIGRATED FIELD added in 1.2.0-beta6
+}
+
+message Template {
+    string ID                     = 1; // ID is the unique ID associated with this template
+    string temp_var               = 2;
+    repeated TemplateValue values = 3;
+    string type                   = 4; // Type can be fieldKeys, tagKeys, tagValues, CSV, constant, query, measurements, databases
+    string label                  = 5; // Label is a user-facing description of the Template
+    TemplateQuery query           = 6; // Query is used to generate the choices for a template
+}
+
+message TemplateValue {
+    string type                   = 1; // Type can be tagKey, tagValue, fieldKey, csv, measurement, database, constant
+    string value                  = 2; // Value is the specific value used to replace a template in an InfluxQL query
+    bool selected                 = 3; // Selected states that this variable has been picked to use for replacement
+}
+
+message TemplateQuery {
+    string command                = 1; // Command is the query itself
+    string db                     = 2; // DB the database for the query (optional)
+    string rp                     = 3; // RP is a retention policy and optional;
+    string measurement            = 4; // Measurement is the optinally selected measurement for the query
+	string tag_key                = 5; // TagKey is the optionally selected tag key for the query
+	string field_key              = 6; // FieldKey is the optionally selected field key for the query
 }
 
 message Server {
