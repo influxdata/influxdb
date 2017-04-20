@@ -9,7 +9,7 @@ const OverlayControls = (props) => {
   const {onCancel, onSave, selectedGraphType, onSelectGraphType} = props
   return (
     <div className="overlay-controls">
-      <h3 className="overlay--graph-name">Graph Editor</h3>
+      <h3 className="overlay--graph-name">Cell Editor</h3>
       <div className="overlay-controls--right">
         <p>Visualization Type:</p>
         <ul className="toggle toggle-sm">

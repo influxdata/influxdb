@@ -1,7 +1,7 @@
 import React, {PropTypes} from 'react'
 import classNames from 'classnames'
 
-const QueryTabItem = React.createClass({
+const QueryMakerTab = React.createClass({
   propTypes: {
     isActive: PropTypes.bool,
     query: PropTypes.shape({
@@ -24,12 +24,12 @@ const QueryTabItem = React.createClass({
 
   render() {
     return (
-      <div className={classNames('query-builder--tab', {active: this.props.isActive})} onClick={this.handleSelect}>
-        <span className="query-builder--tab-label">{this.props.queryTabText}</span>
-        <span className="query-builder--tab-delete" onClick={this.handleDelete}></span>
+      <div className={classNames('query-maker--tab', {active: this.props.isActive})} onClick={this.handleSelect}>
+        <label>{this.props.queryTabText}</label>
+        <span className="query-maker--delete" onClick={this.handleDelete}></span>
       </div>
     )
   },
 })
 
-export default QueryTabItem
+export default QueryMakerTab

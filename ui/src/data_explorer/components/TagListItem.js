@@ -55,23 +55,23 @@ const TagListItem = React.createClass({
     const filtered = tagValues.filter((v) => v.match(this.state.filterText))
 
     return (
-      <li>
-        <div className="tag-value-list__filter-container">
-          <input className="tag-value-list__filter" ref="filterText" placeholder={`Filter within ${this.props.tagKey}`} type="text" value={this.state.filterText} onChange={this.handleFilterText} onKeyUp={this.handleEscape} />
+      <div className="query-builder--sub-list">
+        <div className="query-builder--filter">
+          <input className="form-control input-sm" ref="filterText" placeholder={`Filter within ${this.props.tagKey}`} type="text" value={this.state.filterText} onChange={this.handleFilterText} onKeyUp={this.handleEscape} />
           <span className="icon search"></span>
         </div>
-        <ul className="tag-value-list">
-          {filtered.map((v) => {
-            const cx = classNames('tag-value-list__item qeditor--list-item', {active: selectedTagValues.indexOf(v) > -1})
-            return (
-              <li className={cx} onClick={_.wrap(v, this.handleChoose)} key={v}>
-                <div className="tag-value-list__checkbox"></div>
-                <div className="tag-value-list__item-label">{v}</div>
-              </li>
-            )
-          })}
-        </ul>
-      </li>
+        {filtered.map((v) => {
+          const cx = classNames('query-builder--list-item', {active: selectedTagValues.indexOf(v) > -1})
+          return (
+            <div className={cx} onClick={_.wrap(v, this.handleChoose)} key={v}>
+              <span>
+                <div className="query-builder--checkbox"></div>
+                {v}
+              </span>
+            </div>
+          )
+        })}
+      </div>
     )
   },
 
@@ -83,23 +83,20 @@ const TagListItem = React.createClass({
   render() {
     const {tagKey, tagValues} = this.props
     const {isOpen} = this.state
-    const itemClasses = classNames("qeditor--list-item tag-list__item", {open: isOpen})
+    const tagItemLabel = `${tagKey} — ${tagValues.length}`
 
     return (
       <div>
-        <li className={itemClasses} onClick={this.handleClickKey}>
-          <div className="tag-list__title">
-            <div className="tag-list__caret">
-              <div className="icon caret-right"></div>
-            </div>
-            {tagKey}
-            <span className="badge">{tagValues.length}</span>
-          </div>
+        <div className={classNames("query-builder--list-item", {active: isOpen})} onClick={this.handleClickKey}>
+          <span>
+            <div className="query-builder--caret icon caret-right"></div>
+            {tagItemLabel}
+          </span>
           <div
-            className={classNames('btn btn-info btn-xs tag-list__group-by', {active: this.props.isUsingGroupBy})}
+            className={classNames('btn btn-info btn-xs group-by-tag', {active: this.props.isUsingGroupBy})}
             onClick={this.handleGroupBy}>Group By {tagKey}
           </div>
-        </li>
+        </div>
         {isOpen ? this.renderTagValues() : null}
       </div>
     )

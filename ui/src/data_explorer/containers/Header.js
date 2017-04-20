@@ -40,7 +40,7 @@ const Header = React.createClass({
     const {autoRefresh, actions: {handleChooseAutoRefresh}, timeRange} = this.props
 
     return (
-      <div className="page-header">
+      <div className="page-header full-width-no-scrollbar">
         <div className="page-header__container">
           <div className="page-header__left">
             <h1>Data Explorer</h1>

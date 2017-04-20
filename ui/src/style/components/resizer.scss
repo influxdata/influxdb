@@ -107,3 +107,8 @@ $resizer-color-active: $c-pool;
     width: 100%;
   }
 }
+
+/* Special rule for when a graph is in the bottom of resizer */
+.resize-bottom .graph {
+  height: 100%;
+}

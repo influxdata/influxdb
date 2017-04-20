@@ -47,7 +47,7 @@ const AutoRefreshDropdown = React.createClass({
     const {milliseconds, inputValue} = this.findAutoRefreshItem(selected)
 
     return (
-      <div className="dropdown time-range-dropdown">
+      <div className="dropdown dropdown-160">
         <div className="btn btn-sm btn-info dropdown-toggle" onClick={() => self.toggleMenu()}>
           <span className={classnames("icon", +milliseconds > 0 ? "refresh" : "pause")}></span>
           <span className="selected-time-range">{inputValue}</span>

@@ -4,7 +4,7 @@ import {bindActionCreators} from 'redux'
 
 import _ from 'lodash'
 
-import QueryBuilder from '../components/QueryBuilder'
+import QueryMaker from '../components/QueryMaker'
 import Visualization from '../components/Visualization'
 import Header from '../containers/Header'
 import ResizeContainer, {ResizeBottom} from 'src/shared/components/ResizeContainer'
@@ -94,7 +94,7 @@ const DataExplorer = React.createClass({
           timeRange={timeRange}
         />
         <ResizeContainer>
-          <QueryBuilder
+          <QueryMaker
             source={source}
             queries={queryConfigs}
             actions={queryConfigActions}
