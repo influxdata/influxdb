@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -16,14 +17,19 @@ type MockTokenizer struct {
 	ValidErr  error
 	Token     Token
 	CreateErr error
+	ExtendErr error
 }
 
 func (m *MockTokenizer) ValidPrincipal(ctx context.Context, token Token, duration time.Duration) (Principal, error) {
 	return m.Principal, m.ValidErr
 }
 
-func (m *MockTokenizer) Create(ctx context.Context, p Principal, t time.Duration) (Token, error) {
+func (m *MockTokenizer) Create(ctx context.Context, p Principal) (Token, error) {
 	return m.Token, m.CreateErr
+}
+
+func (m *MockTokenizer) ExtendedPrincipal(ctx context.Context, principal Principal, extension time.Duration) (Principal, error) {
+	return principal, m.ExtendErr
 }
 
 func TestCookieAuthorize(t *testing.T) {
@@ -48,7 +54,7 @@ func TestCookieAuthorize(t *testing.T) {
 	}
 	for _, test := range test {
 		cook := cookie{
-			Duration: 1 * time.Second,
+			Lifespan: 1 * time.Second,
 			Now: func() time.Time {
 				return time.Unix(0, 0)
 			},
@@ -121,8 +127,9 @@ func TestCookieValidate(t *testing.T) {
 		})
 
 		cook := cookie{
-			Name:     test.Lookup,
-			Duration: 1 * time.Second,
+			Name:       test.Lookup,
+			Lifespan:   1 * time.Second,
+			Inactivity: DefaultInactivityDuration,
 			Now: func() time.Time {
 				return time.Unix(0, 0)
 			},
@@ -148,5 +155,120 @@ func TestNewCookieJWT(t *testing.T) {
 	auth := NewCookieJWT("secret", time.Second)
 	if _, ok := auth.(*cookie); !ok {
 		t.Errorf("NewCookieJWT() did not create cookie Authenticator")
+	}
+}
+
+func TestCookieExtend(t *testing.T) {
+	history := time.Unix(-446774400, 0)
+	type fields struct {
+		Name       string
+		Lifespan   time.Duration
+		Inactivity time.Duration
+		Now        func() time.Time
+		Tokens     Tokenizer
+	}
+	type args struct {
+		ctx context.Context
+		w   *httptest.ResponseRecorder
+		p   Principal
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		want    Principal
+		wantErr bool
+	}{
+		{
+			name: "Successful extention",
+			want: Principal{
+				Subject: "subject",
+			},
+			fields: fields{
+				Name:       "session",
+				Lifespan:   time.Second,
+				Inactivity: time.Second,
+				Now: func() time.Time {
+					return history
+				},
+				Tokens: &MockTokenizer{
+					Principal: Principal{
+						Subject: "subject",
+					},
+					Token:     "token",
+					ExtendErr: nil,
+				},
+			},
+			args: args{
+				ctx: context.Background(),
+				w:   httptest.NewRecorder(),
+				p: Principal{
+					Subject: "subject",
+				},
+			},
+		},
+		{
+			name:    "Unable to extend",
+			wantErr: true,
+			fields: fields{
+				Tokens: &MockTokenizer{
+					ExtendErr: fmt.Errorf("bad extend"),
+				},
+			},
+			args: args{
+				ctx: context.Background(),
+				w:   httptest.NewRecorder(),
+				p: Principal{
+					Subject: "subject",
+				},
+			},
+		},
+		{
+			name:    "Unable to create",
+			wantErr: true,
+			fields: fields{
+				Tokens: &MockTokenizer{
+					CreateErr: fmt.Errorf("bad extend"),
+				},
+			},
+			args: args{
+				ctx: context.Background(),
+				w:   httptest.NewRecorder(),
+				p: Principal{
+					Subject: "subject",
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &cookie{
+				Name:       tt.fields.Name,
+				Lifespan:   tt.fields.Lifespan,
+				Inactivity: tt.fields.Inactivity,
+				Now:        tt.fields.Now,
+				Tokens:     tt.fields.Tokens,
+			}
+			got, err := c.Extend(tt.args.ctx, tt.args.w, tt.args.p)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("cookie.Extend() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if tt.wantErr == false {
+				if !reflect.DeepEqual(got, tt.want) {
+					t.Errorf("cookie.Extend() = %v, want %v", got, tt.want)
+				}
+
+				cookies := tt.args.w.HeaderMap["Set-Cookie"]
+				if len(cookies) == 0 {
+					t.Fatal("Expected some cookies but got zero")
+				}
+				log.Printf("%s", cookies)
+				want := fmt.Sprintf("%s=%s", DefaultCookieName, "token")
+				if !strings.Contains(cookies[0], want) {
+					t.Errorf("cookie.Extend() = %v, want %v", cookies[0], want)
+				}
+			}
+		})
 	}
 }

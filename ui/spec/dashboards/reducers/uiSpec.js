@@ -10,11 +10,12 @@ import {
   editDashboardCell,
   renameDashboardCell,
   syncDashboardCell,
+  editTemplate,
 } from 'src/dashboards/actions'
 
 let state
-const d1 = {id: 1, cells: [], name: "d1"}
-const d2 = {id: 2, cells: [], name: "d2"}
+const d1 = {id: 1, cells: [], name: 'd1', templates: []}
+const d2 = {id: 2, cells: [], name: 'd2', templates: []}
 const dashboards = [d1, d2]
 const c1 = {
   x: 0,
@@ -23,9 +24,20 @@ const c1 = {
   h: 4,
   id: 1,
   isEditing: false,
-  name: "Gigawatts",
+  name: 'Gigawatts',
 }
 const cells = [c1]
+const tempVar = {
+  id: 1,
+  type: 'measurement',
+  label: 'test query',
+  code: '$HOSTS',
+  query: {
+    db: 'db1',
+    text: 'SHOW TAGS WHERE HUNTER = "coo"',
+  },
+  values: ['h1', 'h2', 'h3'],
+}
 
 describe('DataExplorer.Reducers.UI', () => {
   it('can load the dashboards', () => {
@@ -106,7 +118,28 @@ describe('DataExplorer.Reducers.UI', () => {
       dashboards: [dash],
     }
 
-    const actual = reducer(state, renameDashboardCell(dash, 0, 0, "Plutonium Consumption Rate (ug/sec)"))
-    expect(actual.dashboards[0].cells[0].name).to.equal("Plutonium Consumption Rate (ug/sec)")
+    const actual = reducer(
+      state,
+      renameDashboardCell(dash, 0, 0, 'Plutonium Consumption Rate (ug/sec)')
+    )
+    expect(actual.dashboards[0].cells[0].name).to.equal(
+      'Plutonium Consumption Rate (ug/sec)'
+    )
+  })
+
+  it('can edit a template', () => {
+    const dash = {...d1, templates: [tempVar]}
+    state = {
+      dashboards: [dash],
+    }
+    const updates = {
+      code: '$NEWCODE',
+      label: 'new label',
+      type: 'tagKey',
+    }
+    const expected = {...tempVar, ...updates}
+
+    const actual = reducer(state, editTemplate(dash.id, tempVar.id, updates))
+    expect(actual.dashboards[0].templates[0]).to.deep.equal(expected)
   })
 })

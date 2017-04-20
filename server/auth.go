@@ -21,11 +21,20 @@ func AuthorizedToken(auth oauth2.Authenticator, logger chronograf.Logger, next h
 			WithField("url", r.URL)
 
 		ctx := r.Context()
-		// We do not check the validity of the principal.  Those
+		// We do not check the authorization of the principal.  Those
 		// served further down the chain should do so.
 		principal, err := auth.Validate(ctx, r)
 		if err != nil {
 			log.Error("Invalid principal")
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+
+		// If the principal is valid we will extend its lifespan
+		// into the future
+		principal, err = auth.Extend(ctx, w, principal)
+		if err != nil {
+			log.Error("Unable to extend principal")
 			w.WriteHeader(http.StatusForbidden)
 			return
 		}

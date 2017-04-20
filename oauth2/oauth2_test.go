@@ -63,8 +63,12 @@ func (y *YesManTokenizer) ValidPrincipal(ctx context.Context, token Token, durat
 	}, nil
 }
 
-func (y *YesManTokenizer) Create(ctx context.Context, p Principal, t time.Duration) (Token, error) {
+func (y *YesManTokenizer) Create(ctx context.Context, p Principal) (Token, error) {
 	return Token("HELLO?!MCFLY?!ANYONEINTHERE?!"), nil
+}
+
+func (y *YesManTokenizer) ExtendedPrincipal(ctx context.Context, p Principal, ext time.Duration) (Principal, error) {
+	return p, nil
 }
 
 func NewTestTripper(log chronograf.Logger, ts *httptest.Server, rt http.RoundTripper) (*TestTripper, error) {

@@ -3,6 +3,45 @@
     ----------------------------------------------
 */
 
+// table-custom class allows us to make a table from divs so we can use
+// forms inside a table
+.table-custom {
+  display: table !important;
+  border-collapse: separate;
+  border-spacing: 2px;
+  width: 100%;
+  padding: 10px;
+  .thead {
+    display: table-header-group;
+    color: white;
+    color: $g17-whisper !important;
+    border-width: 1px;
+  }
+  .th {
+    display: table-cell;
+    font-weight: 700;
+    color: $g14-chromium !important;
+    border: 0 !important;
+    padding: 6px 8px !important;
+  }
+  .tbody {
+    display: table-row-group;
+  }
+  .tr {
+    display: table-row;
+  }
+  .td {
+    display: table-cell;
+    font-weight: 500;
+    color: $g14-chromium !important;
+    border: 0 !important;
+    padding: 6px 8px !important;
+  }
+  .tr .td .input {
+    background-color: $g5-pepper;
+    color: $g19-ghost !important;
+  }
+}
 
 table {
   thead th {

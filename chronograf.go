@@ -123,15 +123,46 @@ type Range struct {
 	Lower int64 `json:"lower"` // Lower is the lower bound
 }
 
+// TemplateValue is a value use to replace a template in an InfluxQL query
+type TemplateValue struct {
+	Value string `json:"value"`
+	Type  string `json:"type"`
+}
+
+// TemplateVar is a named variable within an InfluxQL query to be replaced with Values
+type TemplateVar struct {
+	Var    string          `json:"tempVar"`
+	Values []TemplateValue `json:"values"`
+}
+
+// String converts the template variable into a correct InfluxQL string based
+// on its type
+func (t TemplateVar) String() string {
+	if len(t.Values) == 0 {
+		return ""
+	}
+	switch t.Values[0].Type {
+	case "tagKey", "fieldKey":
+		return `"` + t.Values[0].Value + `"`
+	case "tagValue":
+		return `'` + t.Values[0].Value + `'`
+	case "csv":
+		return t.Values[0].Value
+	default:
+		return ""
+	}
+}
+
 // Query retrieves a Response from a TimeSeries.
 type Query struct {
-	Command  string   `json:"query"`              // Command is the query itself
-	DB       string   `json:"db,omitempty"`       // DB is optional and if empty will not be used.
-	RP       string   `json:"rp,omitempty"`       // RP is a retention policy and optional; if empty will not be used.
-	Wheres   []string `json:"wheres,omitempty"`   // Wheres restricts the query to certain attributes
-	GroupBys []string `json:"groupbys,omitempty"` // GroupBys collate the query by these tags
-	Label    string   `json:"label,omitempty"`    // Label is the Y-Axis label for the data
-	Range    *Range   `json:"range,omitempty"`    // Range is the default Y-Axis range for the data
+	Command      string        `json:"query"`              // Command is the query itself
+	DB           string        `json:"db,omitempty"`       // DB is optional and if empty will not be used.
+	RP           string        `json:"rp,omitempty"`       // RP is a retention policy and optional; if empty will not be used.
+	TemplateVars []TemplateVar `json:"tempVars"`           // TemplateVars are template variables to replace within an InfluxQL query
+	Wheres       []string      `json:"wheres,omitempty"`   // Wheres restricts the query to certain attributes
+	GroupBys     []string      `json:"groupbys,omitempty"` // GroupBys collate the query by these tags
+	Label        string        `json:"label,omitempty"`    // Label is the Y-Axis label for the data
+	Range        *Range        `json:"range,omitempty"`    // Range is the default Y-Axis range for the data
 }
 
 // DashboardQuery includes state for the query builder.  This is a transition

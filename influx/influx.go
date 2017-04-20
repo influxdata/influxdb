@@ -68,17 +68,20 @@ func (c *Client) query(u *url.URL, q chronograf.Query) (chronograf.Response, err
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-
-	c.Logger.
+	command := q.Command
+	if len(q.TemplateVars) > 0 {
+		command = TemplateReplace(q.Command, q.TemplateVars)
+	}
+	logs := c.Logger.
 		WithField("component", "proxy").
 		WithField("host", req.Host).
-		WithField("command", q.Command).
+		WithField("command", command).
 		WithField("db", q.DB).
-		WithField("rp", q.RP).
-		Debug("query")
+		WithField("rp", q.RP)
+	logs.Debug("query")
 
 	params := req.URL.Query()
-	params.Set("q", q.Command)
+	params.Set("q", command)
 	params.Set("db", q.DB)
 	params.Set("rp", q.RP)
 	params.Set("epoch", "ms")
@@ -111,13 +114,7 @@ func (c *Client) query(u *url.URL, q chronograf.Query) (chronograf.Response, err
 
 	// If we got a valid decode error, send that back
 	if decErr != nil {
-		c.Logger.
-			WithField("component", "proxy").
-			WithField("host", req.Host).
-			WithField("command", q.Command).
-			WithField("db", q.DB).
-			WithField("rp", q.RP).
-			WithField("influx_status", resp.StatusCode).
+		logs.WithField("influx_status", resp.StatusCode).
 			Error("Error parsing results from influxdb: err:", decErr)
 		return nil, decErr
 	}
@@ -125,12 +122,7 @@ func (c *Client) query(u *url.URL, q chronograf.Query) (chronograf.Response, err
 	// If we don't have an error in our json response, and didn't get statusOK
 	// then send back an error
 	if resp.StatusCode != http.StatusOK && response.Err != "" {
-		c.Logger.
-			WithField("component", "proxy").
-			WithField("host", req.Host).
-			WithField("command", q.Command).
-			WithField("db", q.DB).
-			WithField("rp", q.RP).
+		logs.
 			WithField("influx_status", resp.StatusCode).
 			Error("Received non-200 response from influxdb")
 

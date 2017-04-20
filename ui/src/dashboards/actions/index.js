@@ -124,6 +124,15 @@ export const tvSelected = (dashboardID, tvID, values) => ({
   },
 })
 
+export const editTemplate = (dashboardID, templateID, updates) => ({
+  type: 'EDIT_TEMPLATE',
+  payload: {
+    dashboardID,
+    templateID,
+    updates,
+  },
+})
+
 // Stub Template Variables Data
 
 const tempVars = [
@@ -135,12 +144,13 @@ const tempVars = [
     query: {
       db: 'db1',
       rp: 'rp1',
+      measurement: 'm1',
       text: 'SHOW TAGS WHERE HUNTER = "coo"',
     },
     values: [
-      {value: 'us-west', type: 'tagKey'},
+      {value: 'us-west', type: 'tagKey', selected: false},
       {value: 'us-east', type: 'tagKey', selected: true},
-      {value: 'us-mount', type: 'tagKey'},
+      {value: 'us-mount', type: 'tagKey', selected: false},
     ],
   },
   {
@@ -149,8 +159,8 @@ const tempVars = [
     label: 'test csv',
     tempVar: '$TEMPERATURE',
     values: [
-      {value: '98.7', type: 'measurement'},
-      {value: '99.1', type: 'measurement'},
+      {value: '98.7', type: 'measurement', selected: false},
+      {value: '99.1', type: 'measurement', selected: false},
       {value: '101.3', type: 'measurement', selected: true},
     ],
   },
