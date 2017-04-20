@@ -188,11 +188,41 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 			Type:    c.Type,
 		}
 	}
+	templates := make([]*Template, len(d.Templates))
+	for i, t := range d.Templates {
+		vals := make([]*TemplateValue, len(t.Values))
+		for j, v := range t.Values {
+			vals[j] = &TemplateValue{
+				Selected: v.Selected,
+				Type:     v.Type,
+				Value:    v.Value,
+			}
+		}
 
+		template := &Template{
+			ID:      string(t.ID),
+			TempVar: t.Var,
+			Values:  vals,
+			Type:    t.Type,
+			Label:   t.Label,
+		}
+		if t.Query != nil {
+			template.Query = &TemplateQuery{
+				Command:     t.Query.Command,
+				Db:          t.Query.DB,
+				Rp:          t.Query.RP,
+				Measurement: t.Query.Measurement,
+				TagKey:      t.Query.TagKey,
+				FieldKey:    t.Query.FieldKey,
+			}
+		}
+		templates[i] = template
+	}
 	return proto.Marshal(&Dashboard{
-		ID:    int64(d.ID),
-		Cells: cells,
-		Name:  d.Name,
+		ID:        int64(d.ID),
+		Cells:     cells,
+		Templates: templates,
+		Name:      d.Name,
 	})
 }
 
@@ -230,8 +260,44 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 			Type:    c.Type,
 		}
 	}
+
+	templates := make([]chronograf.Template, len(pb.Templates))
+	for i, t := range pb.Templates {
+		vals := make([]chronograf.TemplateValue, len(t.Values))
+		for j, v := range t.Values {
+			vals[j] = chronograf.TemplateValue{
+				Selected: v.Selected,
+				Type:     v.Type,
+				Value:    v.Value,
+			}
+		}
+
+		template := chronograf.Template{
+			ID: chronograf.TemplateID(t.ID),
+			TemplateVar: chronograf.TemplateVar{
+				Var:    t.TempVar,
+				Values: vals,
+			},
+			Type:  t.Type,
+			Label: t.Label,
+		}
+
+		if t.Query != nil {
+			template.Query = &chronograf.TemplateQuery{
+				Command:     t.Query.Command,
+				DB:          t.Query.Db,
+				RP:          t.Query.Rp,
+				Measurement: t.Query.Measurement,
+				TagKey:      t.Query.TagKey,
+				FieldKey:    t.Query.FieldKey,
+			}
+		}
+		templates[i] = template
+	}
+
 	d.ID = chronograf.DashboardID(pb.ID)
 	d.Cells = cells
+	d.Templates = templates
 	d.Name = pb.Name
 	return nil
 }
@@ -298,7 +364,7 @@ func UnmarshalUser(data []byte, u *chronograf.User) error {
 	return nil
 }
 
-// UnmarshalUser decodes a user from binary protobuf data.
+// UnmarshalUserPB decodes a user from binary protobuf data.
 // We are ignoring the password for now.
 func UnmarshalUserPB(data []byte, u *User) error {
 	if err := proto.Unmarshal(data, u); err != nil {

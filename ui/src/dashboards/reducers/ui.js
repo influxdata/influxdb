@@ -187,11 +187,11 @@ export default function ui(state = initialState, action) {
         d =>
           (d.id === dashboardID
             ? {
-                ...d,
-                templates: d.templates.map(
-                  t => (t.id === templateID ? {...t, ...updates} : t)
-                ),
-              }
+              ...d,
+              templates: d.templates.map(
+                t => (t.id === templateID ? {...t, ...updates} : t)
+              ),
+            }
             : d)
       )
       return {...state, dashboards}

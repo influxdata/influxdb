@@ -1,6 +1,8 @@
 package server
 
 import (
+	"encoding/json"
+	"log"
 	"reflect"
 	"testing"
 
@@ -233,6 +235,7 @@ func Test_newDashboardResponse(t *testing.T) {
 				},
 			},
 			want: &dashboardResponse{
+				Templates: []templateResponse{},
 				Cells: []dashboardCellResponse{
 					dashboardCellResponse{
 						Links: dashboardCellLinks{
@@ -289,8 +292,9 @@ func Test_newDashboardResponse(t *testing.T) {
 					},
 				},
 				Links: dashboardLinks{
-					Self:  "/chronograf/v1/dashboards/0",
-					Cells: "/chronograf/v1/dashboards/0/cells",
+					Self:      "/chronograf/v1/dashboards/0",
+					Cells:     "/chronograf/v1/dashboards/0/cells",
+					Templates: "/chronograf/v1/dashboards/0/templates",
 				},
 			},
 		},
