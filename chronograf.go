@@ -189,7 +189,7 @@ type DashboardQuery struct {
 
 // TemplateQuery is used to retrieve choices for template replacement
 type TemplateQuery struct {
-	Command     string `json:"query"`        // Command is the query itself
+	Command     string `json:"influxql"`     // Command is the query itself
 	DB          string `json:"db,omitempty"` // DB is optional and if empty will not be used.
 	RP          string `json:"rp,omitempty"` // RP is a retention policy and optional; if empty will not be used.
 	Measurement string `json:"measurement"`  // Measurement is the optinally selected measurement for the query
