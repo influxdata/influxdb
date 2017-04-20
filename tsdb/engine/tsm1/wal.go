@@ -743,31 +743,28 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 
 		switch typ {
 		case float64EntryType:
+			if i+16*nvals > len(b) {
+				return ErrWALCorrupt
+			}
+
 			values := make([]Value, 0, nvals)
 			for j := 0; j < nvals; j++ {
-				if i+16 > len(b) {
-					return ErrWALCorrupt
-				}
-
 				un := int64(binary.BigEndian.Uint64(b[i : i+8]))
 				i += 8
-
 				v := math.Float64frombits((binary.BigEndian.Uint64(b[i : i+8])))
 				i += 8
-
 				values = append(values, NewFloatValue(un, v))
 			}
 			w.Values[k] = values
 		case integerEntryType:
+			if i+16*nvals > len(b) {
+				return ErrWALCorrupt
+			}
+
 			values := make([]Value, 0, nvals)
 			for j := 0; j < nvals; j++ {
-				if i+16 > len(b) {
-					return ErrWALCorrupt
-				}
-
 				un := int64(binary.BigEndian.Uint64(b[i : i+8]))
 				i += 8
-
 				v := int64(binary.BigEndian.Uint64(b[i : i+8]))
 				i += 8
 				values = append(values, NewIntegerValue(un, v))
@@ -775,12 +772,12 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 			w.Values[k] = values
 
 		case booleanEntryType:
+			if i+9*nvals > len(b) {
+				return ErrWALCorrupt
+			}
+
 			values := make([]Value, 0, nvals)
 			for j := 0; j < nvals; j++ {
-				if i+9 > len(b) {
-					return ErrWALCorrupt
-				}
-
 				un := int64(binary.BigEndian.Uint64(b[i : i+8]))
 				i += 8
 
@@ -805,7 +802,7 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 				i += 8
 
 				length := int(binary.BigEndian.Uint32(b[i : i+4]))
-				if i+length > int(uint32(len(b))) {
+				if i+length > len(b) {
 					return ErrWALCorrupt
 				}
 
