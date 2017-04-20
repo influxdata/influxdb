@@ -145,7 +145,7 @@ const templates = [
       db: 'db1',
       rp: 'rp1',
       measurement: 'm1',
-      query: 'SHOW TAGS WHERE HUNTER = "coo"',
+      influxql: 'SHOW TAGS WHERE HUNTER = "coo"',
     },
     values: [
       {value: 'us-west', type: 'tagKey', selected: false},
