@@ -219,8 +219,15 @@ func (s *Service) UpdateDashboard(w http.ResponseWriter, r *http.Request) {
 // ValidDashboardRequest verifies that the dashboard cells have a query
 func ValidDashboardRequest(d *chronograf.Dashboard) error {
 	for i, c := range d.Cells {
-		CorrectWidthHeight(&c)
+		if err := ValidDashboardCellRequest(&c); err != nil {
+			return err
+		}
 		d.Cells[i] = c
+	}
+	for _, t := range d.Templates {
+		if err := ValidTemplateRequest(&t); err != nil {
+			return err
+		}
 	}
 	DashboardDefaults(d)
 	return nil
