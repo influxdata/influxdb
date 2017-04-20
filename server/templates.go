@@ -15,20 +15,21 @@ func ValidTemplateRequest(template *chronograf.Template) error {
 	switch template.Type {
 	default:
 		return fmt.Errorf("Unknown template type %s", template.Type)
-	case "query", "constant", "csv", "fieldKeys", "tagKeys", "tagValues":
+	case "query", "constant", "csv", "fieldKeys", "tagKeys", "tagValues", "measurements", "databases":
 	}
 
 	for _, v := range template.Values {
 		switch v.Type {
 		default:
 			return fmt.Errorf("Unknown template variable type %s", v.Type)
-		case "csv", "fieldKey", "tagKey", "tagValue":
+		case "csv", "fieldKey", "tagKey", "tagValue", "measurement", "database", "constant":
 		}
 	}
 
 	if template.Type == "query" && template.Query == nil {
 		return fmt.Errorf("No query set for template of type 'query'")
 	}
+
 	return nil
 }
 
@@ -150,6 +151,7 @@ func (s *Service) TemplateID(w http.ResponseWriter, r *http.Request) {
 		if t.ID == chronograf.TemplateID(tid) {
 			res := newTemplateResponse(chronograf.DashboardID(id), t)
 			encodeJSON(w, http.StatusOK, res, s.Logger)
+			return
 		}
 	}
 
