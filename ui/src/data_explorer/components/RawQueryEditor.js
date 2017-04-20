@@ -1,28 +1,28 @@
-import React, {PropTypes} from 'react'
+import React, {PropTypes, Component} from 'react'
 import classNames from 'classnames'
 import Dropdown from 'src/shared/components/Dropdown'
 import LoadingDots from 'src/shared/components/LoadingDots'
+import TemplateDrawer from 'src/shared/components/TemplateDrawer'
 import {QUERY_TEMPLATES} from 'src/data_explorer/constants'
 
-const {func, shape, string} = PropTypes
-const RawQueryEditor = React.createClass({
-  propTypes: {
-    query: string.isRequired,
-    onUpdate: func.isRequired,
-    config: shape().isRequired,
-  },
-
-  getInitialState() {
-    return {
+class RawQueryEditor extends Component {
+  constructor(props) {
+    super(props)
+    this.state = {
       value: this.props.query,
     }
-  },
+
+    this.handleKeyDown = ::this.handleKeyDown
+    this.handleChange = ::this.handleChange
+    this.handleUpdate = ::this.handleUpdate
+    this.handleChooseTemplate = ::this.handleChooseTemplate
+  }
 
   componentWillReceiveProps(nextProps) {
     if (this.props.query !== nextProps.query) {
       this.setState({value: nextProps.query})
     }
-  },
+  }
 
   handleKeyDown(e) {
     if (e.key === 'Enter') {
@@ -33,21 +33,21 @@ const RawQueryEditor = React.createClass({
         this.editor.blur()
       })
     }
-  },
+  }
 
   handleChange() {
     this.setState({
       value: this.editor.value,
     })
-  },
+  }
 
   handleUpdate() {
     this.props.onUpdate(this.state.value)
-  },
+  }
 
   handleChooseTemplate(template) {
     this.setState({value: template.query})
-  },
+  }
 
   render() {
     const {config: {status}} = this.props
@@ -60,7 +60,7 @@ const RawQueryEditor = React.createClass({
           onChange={this.handleChange}
           onKeyDown={this.handleKeyDown}
           onBlur={this.handleUpdate}
-          ref={editor => this.editor = editor}
+          ref={editor => (this.editor = editor)}
           value={value}
           placeholder="Enter a query or select database, measurement, and field below and have us build one for you..."
           autoComplete="off"
@@ -75,7 +75,7 @@ const RawQueryEditor = React.createClass({
         />
       </div>
     )
-  },
+  }
 
   renderStatus(status) {
     if (!status) {
@@ -108,7 +108,15 @@ const RawQueryEditor = React.createClass({
         {status.error || status.warn || status.success}
       </div>
     )
-  },
-})
+  }
+}
+
+const {func, shape, string} = PropTypes
+
+RawQueryEditor.propTypes = {
+  query: string.isRequired,
+  onUpdate: func.isRequired,
+  config: shape().isRequired,
+}
 
 export default RawQueryEditor
