@@ -4,6 +4,7 @@ import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
 
 const {
   arrayOf,
+  bool,
   element,
   func,
   number,
@@ -28,10 +29,7 @@ const AutoRefresh = (ComposedComponent) => {
         values: arrayOf(shape({
           type: string.isRequired,
           value: string.isRequired,
-        })).isRequired,
-        selectedValues: arrayOf(shape({
-          type: string.isRequired,
-          value: string.isRequired,
+          selected: bool,
         })).isRequired,
       })),
       queries: arrayOf(shape({

@@ -128,32 +128,31 @@ export const tvSelected = (dashboardID, tvID, values) => ({
 
 const tempVars = [
   {
-    id: 1,
+    id: '1',
     type: 'query',
     label: 'test query',
     tempVar: '$REGION',
     query: {
-      db: 'db1.rp1',
+      db: 'db1',
+      rp: 'rp1',
       text: 'SHOW TAGS WHERE HUNTER = "coo"',
     },
     values: [
       {value: 'us-west', type: 'tagKey'},
-      {value: 'us-east', type: 'tagKey'},
+      {value: 'us-east', type: 'tagKey', selected: true},
       {value: 'us-mount', type: 'tagKey'},
     ],
-    selectedValues: [{value: 'us-east', type: 'tagKey'}],
   },
   {
-    id: 2,
+    id: '2',
     type: 'csv',
     label: 'test csv',
     tempVar: '$TEMPERATURE',
     values: [
       {value: '98.7', type: 'measurement'},
       {value: '99.1', type: 'measurement'},
-      {value: '101.3', type: 'measurement'},
+      {value: '101.3', type: 'measurement', selected: true},
     ],
-    selectedValues: [{value: '99.1', type: 'measurement'}],
   },
 ]
 

@@ -47,12 +47,11 @@ export const LayoutRenderer = React.createClass({
       }).isRequired
     ),
     tempVars: arrayOf(shape({
-      id: number.isRequired,
+      id: string.isRequired,
       type: string.isRequired,
       label: string.isRequired,
       tempVar: string.isRequired,
       values: arrayOf(shape()).isRequired,
-      selectedValues: arrayOf(shape()).isRequired,
     })).isRequired,
     host: string,
     source: string,

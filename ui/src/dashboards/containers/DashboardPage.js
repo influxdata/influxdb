@@ -290,10 +290,7 @@ DashboardPage.propTypes = {
           values: arrayOf(shape({
             type: string.isRequired,
             value: string.isRequired,
-          })).isRequired,
-          selectedValues: arrayOf(shape({
-            type: string.isRequired,
-            value: string.isRequired,
+            selected: bool,
           })).isRequired,
         }),
       ),

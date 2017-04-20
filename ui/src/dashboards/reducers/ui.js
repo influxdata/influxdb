@@ -170,14 +170,24 @@ export default function ui(state = initialState, action) {
     }
 
     case TEMPLATE_VARIABLE_SELECTED: {
-      const {dashboardID, tvID, values} = action.payload
+      const {dashboardID, tvID, values: updatedSelectedValues} = action.payload
       const newDashboards = state.dashboards.map((dashboard) => {
         if (dashboard.id === dashboardID) {
-          const newTVs = dashboard.tempVars.map((tV) => {
-            if (tV.id === tvID) {
-              return {...tV, selectedValues: values}
+          const newTVs = dashboard.tempVars.map((staleTV) => {
+            if (staleTV.id === tvID) {
+              const newValues = staleTV.values.map((staleValue) => {
+                let selected = false
+                for (let i = 0; i < updatedSelectedValues.length; i++) {
+                  if (updatedSelectedValues[i].value === staleValue.value) {
+                    selected = true
+                    break
+                  }
+                }
+                return {...staleValue, selected}
+              })
+              return {...staleTV, values: newValues}
             }
-            return tV
+            return staleTV
           })
           return {...dashboard, tempVars: newTVs}
         }

@@ -1,6 +1,8 @@
 import React, {PropTypes} from 'react'
 import classnames from 'classnames'
 
+import omit from 'lodash/omit'
+
 import LayoutRenderer from 'shared/components/LayoutRenderer'
 import Dropdown from 'shared/components/Dropdown'
 
@@ -49,17 +51,23 @@ const Dashboard = ({
         </div>
         <div className="page-header__right">
           {
-            tempVars.map(({id, values, selectedValues}) => {
-              const items = values ? values.map((value) => Object.assign(value, {text: value.value})) : []
-              // TODO: change Dropdown to a MultiSelectDropdown, [0].value to
-              // the full array, and [item] to all selectedValues when we update
+            tempVars.map(({id, values}) => {
+              let selected
+              const items = values ? values.map((value) => {
+                if (value.selected) {
+                  selected = value.value
+                }
+                return Object.assign(value, {text: value.value})
+              }) : []
+              // TODO: change Dropdown to a MultiSelectDropdown, `selected` to
+              // the full array, and [item] to all `selected` values when we update
               // this component to support multiple values
               return (
                 <Dropdown
                   key={id}
                   items={items}
-                  selected={selectedValues[0].value || "Loading..."}
-                  onChoose={(item) => onSelectTV(id, [item])}
+                  selected={selected || "Loading..."}
+                  onChoose={(item) => onSelectTV(id, [item].map((x) => omit(x, 'text')))}
                 />
               )
             })
