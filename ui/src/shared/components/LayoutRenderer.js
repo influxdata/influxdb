@@ -50,7 +50,7 @@ export const LayoutRenderer = React.createClass({
       id: string.isRequired,
       type: string.isRequired,
       label: string.isRequired,
-      tempVar: string.isRequired,
+      code: string.isRequired,
       values: arrayOf(shape()).isRequired,
     })).isRequired,
     host: string,

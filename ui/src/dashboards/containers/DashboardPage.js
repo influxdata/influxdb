@@ -282,7 +282,7 @@ DashboardPage.propTypes = {
         shape({
           type: string.isRequired,
           label: string.isRequired,
-          tempVar: string.isRequired,
+          code: string.isRequired,
           query: shape({
             db: string.isRequired,
             query: string.isRequired,

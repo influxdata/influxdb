@@ -140,7 +140,7 @@ const templates = [
     id: '1',
     type: 'query',
     label: 'test query',
-    tempVar: '$REGION',
+    code: '$REGION',
     query: {
       db: 'db1',
       rp: 'rp1',
@@ -157,7 +157,7 @@ const templates = [
     id: '2',
     type: 'csv',
     label: 'test csv',
-    tempVar: '$TEMPERATURE',
+    code: '$TEMPERATURE',
     values: [
       {value: '98.7', type: 'measurement', selected: false},
       {value: '99.1', type: 'measurement', selected: false},
