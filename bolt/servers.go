@@ -53,6 +53,10 @@ func (s *ServersStore) Add(ctx context.Context, src chronograf.Server) (chronogr
 		}
 		src.ID = int(seq)
 
+		// make the newly added source "active"
+		s.resetActiveServer(ctx, tx)
+		src.Active = true
+
 		if v, err := internal.MarshalServer(src); err != nil {
 			return err
 		} else if err := b.Put(itob(src.ID), v); err != nil {
@@ -106,6 +110,11 @@ func (s *ServersStore) Update(ctx context.Context, src chronograf.Server) error 
 			return chronograf.ErrServerNotFound
 		}
 
+		// only one server can be active at a time
+		if src.Active {
+			s.resetActiveServer(ctx, tx)
+		}
+
 		if v, err := internal.MarshalServer(src); err != nil {
 			return err
 		} else if err := b.Put(itob(src.ID), v); err != nil {
@@ -116,5 +125,41 @@ func (s *ServersStore) Update(ctx context.Context, src chronograf.Server) error 
 		return err
 	}
 
+	return nil
+}
+
+func (s *ServersStore) all(ctx context.Context, tx *bolt.Tx) ([]chronograf.Server, error) {
+	var srcs []chronograf.Server
+	if err := tx.Bucket(ServersBucket).ForEach(func(k, v []byte) error {
+		var src chronograf.Server
+		if err := internal.UnmarshalServer(v, &src); err != nil {
+			return err
+		}
+		srcs = append(srcs, src)
+		return nil
+	}); err != nil {
+		return srcs, err
+	}
+	return srcs, nil
+}
+
+// resetActiveServer unsets the Active flag on all sources
+func (s *ServersStore) resetActiveServer(ctx context.Context, tx *bolt.Tx) error {
+	b := tx.Bucket(ServersBucket)
+	srcs, err := s.all(ctx, tx)
+	if err != nil {
+		return err
+	}
+
+	for _, other := range srcs {
+		if other.Active {
+			other.Active = false
+			if v, err := internal.MarshalServer(other); err != nil {
+				return err
+			} else if err := b.Put(itob(other.ID), v); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }

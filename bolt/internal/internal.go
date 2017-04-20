@@ -54,6 +54,7 @@ func MarshalServer(s chronograf.Server) ([]byte, error) {
 		Username: s.Username,
 		Password: s.Password,
 		URL:      s.URL,
+		Active:   s.Active,
 	})
 }
 
@@ -70,6 +71,7 @@ func UnmarshalServer(data []byte, s *chronograf.Server) error {
 	s.Username = pb.Username
 	s.Password = pb.Password
 	s.URL = pb.URL
+	s.Active = pb.Active
 	return nil
 }
 

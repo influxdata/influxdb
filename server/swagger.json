@@ -2389,6 +2389,7 @@
 				"id": "4",
 				"name": "kapa",
 				"url": "http://localhost:9092",
+				"active": false,
 				"links": {
 					"proxy": "/chronograf/v1/sources/4/kapacitors/4/proxy",
 					"self": "/chronograf/v1/sources/4/kapacitors/4",
@@ -2417,6 +2418,10 @@
 					"type": "string",
 					"format": "url",
 					"description": "URL for the kapacitor backend (e.g. http://localhost:9092)"
+				},
+				"active": {
+					"type": "boolean",
+					"description": "Indicates whether the kapacitor is the current kapacitor being used for a source"
 				},
 				"links": {
 					"type": "object",
