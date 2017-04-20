@@ -4,13 +4,7 @@ import Dropdown from 'src/shared/components/Dropdown'
 import LoadingDots from 'src/shared/components/LoadingDots'
 import {QUERY_TEMPLATES} from 'src/data_explorer/constants'
 
-const ENTER = 13
-const ESCAPE = 27
-const {
-  func,
-  shape,
-  string,
-} = PropTypes
+const {func, shape, string} = PropTypes
 const RawQueryEditor = React.createClass({
   propTypes: {
     query: string.isRequired,
@@ -31,10 +25,10 @@ const RawQueryEditor = React.createClass({
   },
 
   handleKeyDown(e) {
-    if (e.keyCode === ENTER) {
+    if (e.key === 'Enter') {
       e.preventDefault()
       this.handleUpdate()
-    } else if (e.keyCode === ESCAPE) {
+    } else if (e.key === 'Escape') {
       this.setState({value: this.state.value}, () => {
         this.editor.blur()
       })
@@ -66,23 +60,26 @@ const RawQueryEditor = React.createClass({
           onChange={this.handleChange}
           onKeyDown={this.handleKeyDown}
           onBlur={this.handleUpdate}
-          ref={(editor) => this.editor = editor}
+          ref={editor => this.editor = editor}
           value={value}
           placeholder="Enter a query or select database, measurement, and field below and have us build one for you..."
           autoComplete="off"
           spellCheck="false"
         />
         {this.renderStatus(status)}
-        <Dropdown items={QUERY_TEMPLATES} selected={'Query Templates'} onChoose={this.handleChooseTemplate} className="query-template"/>
+        <Dropdown
+          items={QUERY_TEMPLATES}
+          selected={'Query Templates'}
+          onChoose={this.handleChooseTemplate}
+          className="query-template"
+        />
       </div>
     )
   },
 
   renderStatus(status) {
     if (!status) {
-      return (
-        <div className="raw-text--status"></div>
-      )
+      return <div className="raw-text--status" />
     }
 
     if (status.loading) {
@@ -94,8 +91,20 @@ const RawQueryEditor = React.createClass({
     }
 
     return (
-      <div className={classNames("raw-text--status", {"raw-text--error": status.error, "raw-text--success": status.success, "raw-text--warning": status.warn})}>
-        <span className={classNames("icon", {stop: status.error, checkmark: status.success, "alert-triangle": status.warn})}></span>
+      <div
+        className={classNames('raw-text--status', {
+          'raw-text--error': status.error,
+          'raw-text--success': status.success,
+          'raw-text--warning': status.warn,
+        })}
+      >
+        <span
+          className={classNames('icon', {
+            stop: status.error,
+            checkmark: status.success,
+            'alert-triangle': status.warn,
+          })}
+        />
         {status.error || status.warn || status.success}
       </div>
     )
