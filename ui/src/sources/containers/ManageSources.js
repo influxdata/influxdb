@@ -1,8 +1,10 @@
 import React, {Component, PropTypes} from 'react'
 import {withRouter} from 'react-router'
-import {removeAndLoadSources, fetchKapacitorsAsync} from 'src/shared/actions/sources'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
+import _ from 'lodash'
+
+import {removeAndLoadSources, fetchKapacitorsAsync} from 'src/shared/actions/sources'
 
 import InfluxTable from '../components/InfluxTable'
 
@@ -17,6 +19,14 @@ class ManageSources extends Component {
     this.props.sources.forEach((source) => {
       this.props.fetchKapacitors(source)
     })
+  }
+
+  componentDidUpdate(prevProps) {
+    if (!_.isEqual(prevProps.sources, this.props.sources)) {
+      this.props.sources.forEach((source) => {
+        this.props.fetchKapacitors(source)
+      })
+    }
   }
 
   handleDeleteSource(source) {
