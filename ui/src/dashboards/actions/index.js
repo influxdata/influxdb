@@ -145,7 +145,7 @@ const tempVars = [
       db: 'db1',
       rp: 'rp1',
       measurement: 'm1',
-      text: 'SHOW TAGS WHERE HUNTER = "coo"',
+      query: 'SHOW TAGS WHERE HUNTER = "coo"',
     },
     values: [
       {value: 'us-west', type: 'tagKey', selected: false},

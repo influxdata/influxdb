@@ -285,7 +285,7 @@ DashboardPage.propTypes = {
           tempVar: string.isRequired,
           query: shape({
             db: string.isRequired,
-            text: string.isRequired,
+            query: string.isRequired,
           }),
           values: arrayOf(shape({
             type: string.isRequired,
