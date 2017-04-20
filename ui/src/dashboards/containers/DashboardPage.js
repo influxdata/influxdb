@@ -178,7 +178,7 @@ class DashboardPage extends Component {
               <TemplateVariableManager
                 onClose={this.handleCloseTemplateManager}
                 handleClickOutside={this.handleCloseTemplateManager}
-                tempVars={dashboard.tempVars}
+                templates={dashboard.templates}
               />
             </OverlayTechnologies>
           : null}
@@ -278,7 +278,7 @@ DashboardPage.propTypes = {
     shape({
       id: number.isRequired,
       cells: arrayOf(shape({})).isRequired,
-      tempVars: arrayOf(
+      templates: arrayOf(
         shape({
           type: string.isRequired,
           label: string.isRequired,

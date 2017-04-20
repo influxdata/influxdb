@@ -188,7 +188,7 @@ export default function ui(state = initialState, action) {
       const {dashboardID, tvID, values: updatedSelectedValues} = action.payload
       const newDashboards = state.dashboards.map((dashboard) => {
         if (dashboard.id === dashboardID) {
-          const newTVs = dashboard.tempVars.map((staleTV) => {
+          const newTVs = dashboard.templates.map((staleTV) => {
             if (staleTV.id === tvID) {
               const newValues = staleTV.values.map((staleValue) => {
                 let selected = false
@@ -204,13 +204,13 @@ export default function ui(state = initialState, action) {
             }
             return staleTV
           })
-          return {...dashboard, tempVars: newTVs}
+          return {...dashboard, templates: newTVs}
         }
         return dashboard
       })
       return {...state, dashboards: newDashboards}
     }
-  
+
     case 'EDIT_TEMPLATE': {
       const {dashboardID, templateID, updates} = action.payload
 

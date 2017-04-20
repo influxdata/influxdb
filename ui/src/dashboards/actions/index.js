@@ -135,7 +135,7 @@ export const editTemplate = (dashboardID, templateID, updates) => ({
 
 // Stub Template Variables Data
 
-const tempVars = [
+const templates = [
   {
     id: '1',
     type: 'query',
@@ -171,7 +171,7 @@ const tempVars = [
 export const getDashboardsAsync = dashboardID => async dispatch => {
   try {
     const {data: {dashboards}} = await getDashboardsAJAX()
-    const stubbedDashboards = dashboards.map(d => ({...d, tempVars}))
+    const stubbedDashboards = dashboards.map(d => ({...d, templates}))
     dispatch(loadDashboards(stubbedDashboards, dashboardID))
   } catch (error) {
     console.error(error)
@@ -181,7 +181,7 @@ export const getDashboardsAsync = dashboardID => async dispatch => {
 
 export const putDashboard = dashboard => dispatch => {
   updateDashboardAJAX(dashboard).then(({data}) => {
-    dispatch(updateDashboard({...data, tempVars}))
+    dispatch(updateDashboard({...data, templates}))
   })
 }
 

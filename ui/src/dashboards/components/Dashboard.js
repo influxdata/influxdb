@@ -26,7 +26,7 @@ const Dashboard = ({
     return null
   }
 
-  const {tempVars} = dashboard
+  const {templates} = dashboard
 
   const cells = dashboard.cells.map((cell) => {
     const dashboardCell = {...cell}
@@ -51,7 +51,7 @@ const Dashboard = ({
         </div>
         <div className="page-header__right">
           {
-            tempVars.map(({id, values}) => {
+            templates.map(({id, values}) => {
               let selected
               const items = values ? values.map((value) => {
                 if (value.selected) {
@@ -78,7 +78,7 @@ const Dashboard = ({
       {cells.length ?
         <LayoutRenderer
           timeRange={timeRange}
-          tempVars={tempVars}
+          templates={templates}
           cells={cells}
           autoRefresh={autoRefresh}
           source={source.links.proxy}
@@ -131,7 +131,7 @@ Dashboard.propTypes = {
   timeRange: shape({}).isRequired,
   onOpenTemplateManager: func.isRequired,
   onSelectTV: func.isRequired,
-  tempVars: arrayOf(shape()),
+  templates: arrayOf(shape()),
 }
 
 export default Dashboard
