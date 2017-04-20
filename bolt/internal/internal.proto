@@ -18,7 +18,7 @@ message Dashboard {
 	int64 ID                     = 1; // ID is the unique ID of the dashboard
 	string Name                  = 2; // Name is the user-defined name of the dashboard
 	repeated DashboardCell cells = 3; // a representation of all visual data required for rendering the dashboard
-    repeated Template templates = 4; // Templates replace template variables within InfluxQL
+	repeated Template templates = 4; // Templates replace template variables within InfluxQL
 }
 
 message DashboardCell {
@@ -52,8 +52,8 @@ message TemplateQuery {
     string db                     = 2; // DB the database for the query (optional)
     string rp                     = 3; // RP is a retention policy and optional;
     string measurement            = 4; // Measurement is the optinally selected measurement for the query
-	string tag_key                = 5; // TagKey is the optionally selected tag key for the query
-	string field_key              = 6; // FieldKey is the optionally selected field key for the query
+    string tag_key                = 5; // TagKey is the optionally selected tag key for the query
+    string field_key              = 6; // FieldKey is the optionally selected field key for the query
 }
 
 message Server {
