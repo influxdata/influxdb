@@ -1,22 +1,29 @@
+/*
+  Variables
+  ---------------------------------------------
+*/
+$graph-heading-height: 44px;
+
+
+/*
+  Graph Styles
+  ---------------------------------------------
+*/
 .graph {
   position: absolute;
   top: 0;
-  width: calc(100% - #{($explorer-page-padding * 2)});
-  left: $explorer-page-padding;
-}
-/* Special rule for when the graph is in the bottom of resizer */
-.resize-bottom .graph {
-  height: 100%;
+  width: calc(100% - #{($page-wrapper-padding * 2)});
+  left: $page-wrapper-padding;
 }
 .graph-heading {
   position: relative;
-  top: $de-vertical-margin;
-  background-color: $graph-bg-color;
-  border-radius: $graph-radius $graph-radius 0 0;
+  top: 16px;
+  background-color: $g3-castle;
+  border-radius: $radius $radius 0 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: $de-graph-heading-height;
+  height: $graph-heading-height;
   padding: 0 16px;
   transition:
     background-color 0.25s ease;
@@ -40,12 +47,12 @@
   align-items: center;
 }
 .graph .table-container {
-  background-color: $graph-bg-color;
-  border-radius: 0 0 $graph-radius $graph-radius;
+  background-color: $g3-castle;
+  border-radius: 0 0 $radius $radius;
   padding: 8px 16px;
   position: relative;
-  top: $de-vertical-margin;
-  height: calc(100% - #{$de-graph-heading-height} - #{($de-vertical-margin * 2)});
+  top: 16px;
+  height: calc(100% - #{($graph-heading-height + 32px)});
 
   & > div > div:last-child {
     position: absolute;
@@ -66,19 +73,16 @@
 }
 .graph-container {
   @include no-user-select();
-  background-color: $graph-bg-color;
-  border-radius: 0 0 $graph-radius $graph-radius;
-  padding: 8px 16px;
+  background-color: $g3-castle;
+  border-radius: 0 0 $radius $radius;
   position: relative;
   height: 316px;
   transition:
     background-color 0.25s ease;
+  top: 16px;
+  height: calc(100% - #{$graph-heading-height + 32px});
 }
 .data-explorer .graph-container {
-  top: $de-vertical-margin;
-  height: calc(100% - #{$de-graph-heading-height} - #{($de-vertical-margin * 2)});
-  padding: 0;
-
   & > div:not(.graph-panel__refreshing) {
     position: absolute;
     width: 100%;
@@ -127,21 +131,6 @@
   background-repeat: no-repeat;
   animation: graph-panel-spinner 1s infinite linear;
 }
-.graph-spinner--small {
-  width: 58px;
-  height: 58px;
-  background-image: url(assets/images/laser-spinner.png);
-  background-size: 100% 100%;
-  background-position: center center;
-  background-repeat: no-repeat;
-  animation: graph-panel-spinner 1s infinite linear;
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  right: 0;
-  top: 0;
-  margin: auto;
-}
 
 @keyframes graph-panel-spinner {
   0% {
@@ -149,33 +138,5 @@
   }
   100% {
     transform: rotate(360deg);
-  }
-}
-
-.multi-table__tabs {
-  display: flex;
-}
-.multi-table__tab {
-  white-space: nowrap;
-  color: $g10-wolf;
-  background: $g5-pepper;
-  height: 30px;
-  line-height: 30px;
-  margin-right: 2px;
-  border-radius: 4px 4px 0 0;
-  cursor: pointer;
-  padding: 0 10px;
-  transition:
-    color 0.25s ease,
-    background-color 0.25s ease;
-
-  &:hover {
-    color: $g20-white;
-    background-color: $g6-smoke;
-  }
-  &.active {
-    font-weight: 700;
-    background-color: $g6-smoke;
-    color: $g14-chromium;
   }
 }

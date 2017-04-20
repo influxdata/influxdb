@@ -1,0 +1,262 @@
+/*
+    Dropdowns
+    ----------------------------------------------
+    Note: Some of these styles are intended to
+    override styles from bootstrap-theme
+*/
+
+$dropdown-menu-default-width: 100%;
+$dropdown-menu-max-height: 290px;
+
+/*
+    Generic width modifiers
+    Use instead of creating new classes if possible
+*/
+.dropdown .dropdown-toggle {
+  width: 120px; /* Default width */
+}
+.dropdown {
+  &-80 .dropdown-toggle {width: 80px;}
+  &-90 .dropdown-toggle {width: 90px;}
+  &-100 .dropdown-toggle {width: 100px;}
+  &-110 .dropdown-toggle {width: 110px;}
+  &-120 .dropdown-toggle {width: 120px;}
+  &-130 .dropdown-toggle {width: 130px;}
+  &-140 .dropdown-toggle {width: 140px;}
+  &-150 .dropdown-toggle {width: 150px;}
+  &-160 .dropdown-toggle {width: 160px;}
+  &-170 .dropdown-toggle {width: 170px;}
+  &-180 .dropdown-toggle {width: 180px;}
+  &-190 .dropdown-toggle {width: 190px;}
+  &-200 .dropdown-toggle {width: 200px;}
+  &-210 .dropdown-toggle {width: 210px;}
+  &-220 .dropdown-toggle {width: 220px;}
+  &-230 .dropdown-toggle {width: 230px;}
+  &-240 .dropdown-toggle {width: 240px;}
+  &-250 .dropdown-toggle {width: 250px;}
+}
+
+.dropdown-toggle {
+  position: relative;
+  text-align: left;
+
+  .caret {
+    position: absolute;
+    top: calc(50% + 1px);
+    right: 8px;
+    transform: translateY(-50%);
+  }
+  > .icon {
+    font-size: 16px;
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 6px;
+    position: relative;
+    top: -1px;
+  }
+}
+
+/*
+    Dropdown Menu
+    ----------------------------------------------
+*/
+.dropdown-menu {
+  float: none !important;
+  width: $dropdown-menu-default-width;
+  min-width: $dropdown-menu-default-width;
+  max-width: $dropdown-menu-default-width;
+  margin: 0 !important;
+  padding: 0 !important;
+  max-height: $dropdown-menu-max-height;
+  overflow: auto;
+  @include custom-scrollbar-round($c-pool, $c-laser);
+  @include gradient-h($c-ocean, $c-pool);
+  box-shadow: 0 2px 5px 0.6px fade-out($g0-obsidian, 0.8);
+
+  > li {
+    width: 100%;
+    font-size: 0px;
+
+    &:hover {
+      @include gradient-h($c-laser, $c-pool);
+    }
+  }
+  > li > a {
+    width: 100%;
+    border-radius: 0 !important;
+    display: inline-block;
+    padding: 7px 9px;
+    font-size: 13px;
+    line-height: 15px;
+    font-weight: 500;
+    color: $c-yeti !important;
+    background-color: transparent;
+    transition:
+      color 0.25s ease;
+
+    &:hover {
+      cursor: pointer;
+      background-color: transparent;
+      color: $g20-white !important;
+    }
+    &:active,
+    &:active:focus {
+      @include gradient-h($c-sapphire, $c-pool);
+    }
+    &:focus {
+      @include gradient-h($c-ocean, $c-pool);
+    }
+  }
+  > li:last-child a {
+    border-radius: 0 0 3px 3px;
+  }
+  > li:first-child a {
+    border-radius: 3px 3px 0 0;
+  }
+}
+.dropdown.dropdown-kapacitor .dropdown-toggle {
+  color: $c-rainforest !important;
+  &:hover {color: $c-honeydew !important;}
+}
+.dropdown.dropdown-kapacitor .dropdown-menu,
+.rule-builder .dropdown .dropdown-menu {
+  @include custom-scrollbar($c-rainforest, $c-honeydew);
+  @include gradient-h($c-pool, $c-rainforest);
+
+  > li:hover {
+    @include gradient-h($c-laser, $c-rainforest);
+  }
+  > li > a {
+    color: $c-mint !important;
+    &:hover {
+      color: $g20-white !important;
+    }
+  }
+}
+.dropdown.dropdown-chronograf .dropdown-menu {
+  @include custom-scrollbar($c-comet, $c-potassium);
+  @include gradient-h($c-ocean, $c-comet);
+
+  > li:hover {
+    @include gradient-h($c-laser, $c-comet);
+  }
+  > li > a {
+    color: $c-cremedeviolette !important;
+    &:hover {
+      color: $g20-white !important;
+    }
+  }
+}
+
+/*
+    Dropdown Header
+    ----------------------------------------------
+*/
+.dropdown-header {
+  height: 32px;
+  line-height: 30px;
+  padding: 0 9px;
+  white-space: nowrap;
+  font-size: 14px !important;
+  font-weight: 900;
+  color: $c-neutrino !important;
+  text-transform: none !important;
+  border-bottom: 2px solid $c-pool;
+  background-color: $c-ocean;
+
+  &:hover {
+    background-image: none !important;
+    background-color: $c-ocean !important;
+    cursor: default;
+  }
+}
+
+/*
+    Dropdown Actions
+    ----------------------------------------------
+*/
+.dropdown-item {
+  position: relative;
+
+  > a {
+    position: relative;
+    z-index: 1;
+  }
+}
+.dropdown-item__actions {
+  z-index: 2;
+  position: absolute;
+  top: 0;
+  right: 3px;
+  height: 100%;
+  width: auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+.dropdown-item__action {
+  padding: 0;
+  margin: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 2px;
+  background-color: transparent;
+  border: none !important;
+  font-size: 13px;
+  transition:
+    text-shadow 0.25s ease,
+    color 0.25s ease;
+  color: $c-sapphire;
+
+  &[data-target="#deleteExplorerModal"] .icon {
+    position: relative;
+    right: -1px;
+  }
+
+  &:hover {
+    color: $g20-white;
+    text-shadow:
+      0 0 2px $c-hydrogen,
+      0 0 3px $c-laser,
+      0 0 6px $c-ocean;
+    background-color: transparent;
+  }
+}
+
+/*
+    Group By Time Dropdown
+    ----------------------------------------------
+*/
+.group-by-time-dropdown {
+  .dropdown-toggle {
+    width: 120px;
+    height: 28px !important;
+    line-height: 28px !important;
+    font-size: 12px;
+    text-transform: none;
+    border-radius: $radius;
+    display: block;
+  }
+  .dropdown-menu > li.dropdown-item > a {display: block;}
+}
+.data-explorer .group-by-time-dropdown .dropdown-toggle {
+  font-weight: 600;
+  background-color: $g2-kevlar;
+  line-height: 24px !important;
+  border: 2px solid $g6-smoke;
+  transition:
+    border-color 0.25s ease,
+    color 0.25s ease,
+    box-shadow 0.25s ease;
+  color: $g10-wolf;
+
+  &:hover {
+    border-color: $g7-graphite;
+    color: $g18-cloud;
+  }
+}
+.data-explorer .group-by-time-dropdown.open .dropdown-toggle {
+  background-color: $g2-kevlar !important;
+  border-color: $c-pool !important;
+  box-shadow: 0 0 6px 0px $c-pool !important
+}

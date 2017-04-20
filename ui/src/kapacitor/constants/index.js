@@ -51,8 +51,8 @@ export const DEFAULT_ALERT_LABELS = {
   alerta: 'Paste Alerta TICKscript:',
 }
 export const DEFAULT_ALERT_PLACEHOLDERS = {
-  http: 'http://',
-  tcp: 'Address:',
+  http: 'Ex: http://example.com/api/alert',
+  tcp: 'Ex: exampleendpoint.com:5678',
   exec: 'Ex: woogie boogie',
   smtp: 'Ex: benedict@domain.com delaney@domain.com susan@domain.com',
   slack: '#alerts',

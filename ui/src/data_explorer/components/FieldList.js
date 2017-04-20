@@ -74,17 +74,12 @@ const FieldList = React.createClass({
 
     return (
       <div className="query-builder--column">
-        <div className="query-builder--column-heading">Fields</div>
-        {
-          hasAggregates ?
-            <div className="qeditor--list-header">
-              <div className="group-by-time">
-                <p>Group by Time</p>
-                <GroupByTimeDropdown isOpen={!hasGroupByTime} selected={query.groupBy.time} onChooseGroupByTime={this.handleGroupByTime} />
-              </div>
-            </div>
-            : null
-        }
+        <div className="query-builder--heading">
+          <span>Fields</span>
+          {hasAggregates ?
+          <GroupByTimeDropdown isOpen={!hasGroupByTime} selected={query.groupBy.time} onChooseGroupByTime={this.handleGroupByTime} />
+          : null}
+        </div>
         {this.renderList()}
       </div>
     )
@@ -93,11 +88,15 @@ const FieldList = React.createClass({
   renderList() {
     const {database, measurement} = this.props.query
     if (!database || !measurement) {
-      return <div className="qeditor--empty">No <strong>Measurement</strong> selected</div>
+      return (
+        <div className="query-builder--list-empty">
+          <span>No <strong>Measurement</strong> selected</span>
+        </div>
+      )
     }
 
     return (
-      <ul className="qeditor--list">
+      <div className="query-builder--list">
         {this.state.fields.map((fieldFunc) => {
           const selectedField = this.props.query.fields.find((f) => f.field === fieldFunc.field)
           return (
@@ -111,7 +110,7 @@ const FieldList = React.createClass({
             />
           )
         })}
-      </ul>
+      </div>
     )
   },
 

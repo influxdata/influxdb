@@ -39,16 +39,17 @@ const FieldListItem = React.createClass({
     })
 
     return (
-      <li className={classNames("qeditor--list-item qeditor--list-checkbox", {checked: isSelected})} key={fieldFunc} onClick={_.wrap(fieldFunc, this.handleToggleField)}>
-        <span className="qeditor--list-checkbox__checkbox">{fieldText}</span>
-        <div className="qeditor--hidden-dropdown">
-          {
-            isKapacitorRule ?
-              <Dropdown items={items} onChoose={this.handleApplyFunctions} selected={fieldFunc.funcs.length ? fieldFunc.funcs[0] : 'Select a function'} /> :
-              <MultiSelectDropdown items={INFLUXQL_FUNCTIONS} onApply={this.handleApplyFunctions} selectedItems={fieldFunc.funcs || []} />
-          }
-        </div>
-      </li>
+      <div className={classNames("query-builder--list-item", {active: isSelected})} key={fieldFunc} onClick={_.wrap(fieldFunc, this.handleToggleField)}>
+        <span>
+          <div className="query-builder--checkbox"></div>
+          {fieldText}
+        </span>
+        {
+          isKapacitorRule ?
+            <Dropdown items={items} onChoose={this.handleApplyFunctions} selected={fieldFunc.funcs.length ? fieldFunc.funcs[0] : 'Function'} /> :
+            <MultiSelectDropdown items={INFLUXQL_FUNCTIONS} onApply={this.handleApplyFunctions} selectedItems={fieldFunc.funcs || []} />
+        }
+      </div>
     )
   },
 })
