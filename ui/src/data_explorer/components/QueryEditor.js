@@ -7,11 +7,7 @@ import TagList from './TagList'
 import RawQueryEditor from './RawQueryEditor'
 import buildInfluxQLQuery from 'utils/influxql'
 
-const {
-  string,
-  shape,
-  func,
-} = PropTypes
+const {arrayOf, string, shape, func} = PropTypes
 
 const QueryEditor = React.createClass({
   propTypes: {

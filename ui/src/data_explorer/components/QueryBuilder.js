@@ -106,14 +106,23 @@ const QueryBuilder = React.createClass({
   },
 
   renderQueryTabList() {
-    const {queries, activeQueryIndex, onDeleteQuery, timeRange, setActiveQueryIndex} = this.props
+    const {
+      queries,
+      activeQueryIndex,
+      onDeleteQuery,
+      timeRange,
+      setActiveQueryIndex,
+    } = this.props
 
     return (
       <div className="query-builder--tabs">
         <div className="query-builder--tabs-heading">
           <h1>Queries</h1>
-          <div className="panel--tab-new btn btn-sm btn-primary dropdown-toggle" onClick={this.handleAddQuery}>
-            <span className="icon plus"></span>
+          <div
+            className="panel--tab-new btn btn-sm btn-primary dropdown-toggle"
+            onClick={this.handleAddQuery}
+          >
+            <span className="icon plus" />
           </div>
         </div>
         {queries.map((q, i) => {
@@ -125,7 +134,11 @@ const QueryBuilder = React.createClass({
               query={q}
               onSelect={setActiveQueryIndex}
               onDelete={onDeleteQuery}
-              queryTabText={q.rawText || buildInfluxQLQuery(timeRange, q) || `Query ${i + 1}`}
+              queryTabText={
+                q.rawText ||
+                  buildInfluxQLQuery(timeRange, q) ||
+                  `Query ${i + 1}`
+              }
             />
           )
         })}
