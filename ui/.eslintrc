@@ -149,7 +149,7 @@
     'eol-last': 0, // TODO: revisit
     'id-length': 0,
     'id-match': 0,
-    'indent': [2, 2, {SwitchCase: 1}],
+    'indent': [0, 2, {SwitchCase: 1}],
     'key-spacing': [2, {beforeColon: false, afterColon: true}],
     'linebreak-style': [2, 'unix'],
     'lines-around-comment': 0,
