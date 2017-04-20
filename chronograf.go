@@ -125,14 +125,15 @@ type Range struct {
 
 // TemplateValue is a value use to replace a template in an InfluxQL query
 type TemplateValue struct {
-	Value string `json:"value"`
-	Type  string `json:"type"`
+	Value    string `json:"value"`    // Value is the specific value used to replace a template in an InfluxQL query
+	Type     string `json:"type"`     // Type can be tagKey, tagValue, fieldKey, csv
+	Selected bool   `json:"selected"` // Selected states that this variable has been picked to use for replacement
 }
 
 // TemplateVar is a named variable within an InfluxQL query to be replaced with Values
 type TemplateVar struct {
-	Var    string          `json:"tempVar"`
-	Values []TemplateValue `json:"values"`
+	Var    string          `json:"tempVar"` // Var is the string to replace within InfluxQL
+	Values []TemplateValue `json:"values"`  // Values are the replacement values within InfluxQL
 }
 
 // String converts the template variable into a correct InfluxQL string based
@@ -153,12 +154,24 @@ func (t TemplateVar) String() string {
 	}
 }
 
+// TemplateID is the unique ID used to identify a template
+type TemplateID string
+
+// Template represents a series of choices to replace TemplateVars within InfluxQL
+type Template struct {
+	TemplateVar
+	ID    TemplateID     `json:"id"`              // ID is the unique ID associated with this template
+	Type  string         `json:"type"`            // Type can be fieldKeys, tagKeys, tagValues, CSV, constant, query
+	Label string         `json:"label"`           // Label is a user-facing description of the Template
+	Query *TemplateQuery `json:"query,omitempty"` // Query is used to generate the choices for a template
+}
+
 // Query retrieves a Response from a TimeSeries.
 type Query struct {
 	Command      string        `json:"query"`              // Command is the query itself
 	DB           string        `json:"db,omitempty"`       // DB is optional and if empty will not be used.
 	RP           string        `json:"rp,omitempty"`       // RP is a retention policy and optional; if empty will not be used.
-	TemplateVars []TemplateVar `json:"tempVars"`           // TemplateVars are template variables to replace within an InfluxQL query
+	TemplateVars []TemplateVar `json:"tempVars,omitempty"` // TemplateVars are template variables to replace within an InfluxQL query
 	Wheres       []string      `json:"wheres,omitempty"`   // Wheres restricts the query to certain attributes
 	GroupBys     []string      `json:"groupbys,omitempty"` // GroupBys collate the query by these tags
 	Label        string        `json:"label,omitempty"`    // Label is the Y-Axis label for the data
@@ -172,6 +185,13 @@ type DashboardQuery struct {
 	Label       string      `json:"label,omitempty"`       // Label is the Y-Axis label for the data
 	Range       *Range      `json:"range,omitempty"`       // Range is the default Y-Axis range for the data
 	QueryConfig QueryConfig `json:"queryConfig,omitempty"` // QueryConfig represents the query state that is understood by the data explorer
+}
+
+// TemplateQuery is used to retrieve choices for template replacement
+type TemplateQuery struct {
+	Command string `json:"query"`        // Command is the query itself
+	DB      string `json:"db,omitempty"` // DB is optional and if empty will not be used.
+	RP      string `json:"rp,omitempty"` // RP is a retention policy and optional; if empty will not be used.
 }
 
 // Response is the result of a query against a TimeSeries
@@ -404,9 +424,10 @@ type DashboardID int
 
 // Dashboard represents all visual and query data for a dashboard
 type Dashboard struct {
-	ID    DashboardID     `json:"id"`
-	Cells []DashboardCell `json:"cells"`
-	Name  string          `json:"name"`
+	ID        DashboardID     `json:"id"`
+	Cells     []DashboardCell `json:"cells"`
+	Templates []Template      `json:"templates"`
+	Name      string          `json:"name"`
 }
 
 // DashboardCell holds visual and query information for a cell
