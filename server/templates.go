@@ -49,6 +49,10 @@ func newTemplateResponses(dID chronograf.DashboardID, tmps []chronograf.Template
 	return res
 }
 
+type templatesResponses struct {
+	Templates []templateResponse `json:"templates"`
+}
+
 func newTemplateResponse(dID chronograf.DashboardID, tmp chronograf.Template) templateResponse {
 	base := "/chronograf/v1/dashboards"
 	return templateResponse{
@@ -68,15 +72,16 @@ func (s *Service) Templates(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	e, err := s.DashboardsStore.Get(ctx, chronograf.DashboardID(id))
+	d, err := s.DashboardsStore.Get(ctx, chronograf.DashboardID(id))
 	if err != nil {
 		notFound(w, id, s.Logger)
 		return
 	}
 
-	boards := newDashboardResponse(e)
-	templates := boards.Templates
-	encodeJSON(w, http.StatusOK, templates, s.Logger)
+	res := templatesResponses{
+		Templates: newTemplateResponses(chronograf.DashboardID(id), d.Templates),
+	}
+	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
 
 // NewTemplate adds a template to an existing dashboard
