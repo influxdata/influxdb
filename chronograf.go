@@ -126,7 +126,7 @@ type Range struct {
 // TemplateValue is a value use to replace a template in an InfluxQL query
 type TemplateValue struct {
 	Value    string `json:"value"`    // Value is the specific value used to replace a template in an InfluxQL query
-	Type     string `json:"type"`     // Type can be tagKey, tagValue, fieldKey, csv
+	Type     string `json:"type"`     // Type can be tagKey, tagValue, fieldKey, csv, measurement, database, constant
 	Selected bool   `json:"selected"` // Selected states that this variable has been picked to use for replacement
 }
 
@@ -143,11 +143,11 @@ func (t TemplateVar) String() string {
 		return ""
 	}
 	switch t.Values[0].Type {
-	case "tagKey", "fieldKey":
+	case "tagKey", "fieldKey", "measurement", "database":
 		return `"` + t.Values[0].Value + `"`
 	case "tagValue":
 		return `'` + t.Values[0].Value + `'`
-	case "csv":
+	case "csv", "constant":
 		return t.Values[0].Value
 	default:
 		return ""
@@ -161,7 +161,7 @@ type TemplateID string
 type Template struct {
 	TemplateVar
 	ID    TemplateID     `json:"id"`              // ID is the unique ID associated with this template
-	Type  string         `json:"type"`            // Type can be fieldKeys, tagKeys, tagValues, CSV, constant, query
+	Type  string         `json:"type"`            // Type can be fieldKeys, tagKeys, tagValues, CSV, constant, query, measurements, databases
 	Label string         `json:"label"`           // Label is a user-facing description of the Template
 	Query *TemplateQuery `json:"query,omitempty"` // Query is used to generate the choices for a template
 }
@@ -189,9 +189,12 @@ type DashboardQuery struct {
 
 // TemplateQuery is used to retrieve choices for template replacement
 type TemplateQuery struct {
-	Command string `json:"query"`        // Command is the query itself
-	DB      string `json:"db,omitempty"` // DB is optional and if empty will not be used.
-	RP      string `json:"rp,omitempty"` // RP is a retention policy and optional; if empty will not be used.
+	Command     string `json:"query"`        // Command is the query itself
+	DB          string `json:"db,omitempty"` // DB is optional and if empty will not be used.
+	RP          string `json:"rp,omitempty"` // RP is a retention policy and optional; if empty will not be used.
+	Measurement string `json:"measurement"`  // Measurement is the optinally selected measurement for the query
+	TagKey      string `json:"tagKey"`       // TagKey is the optionally selected tag key for the query
+	FieldKey    string `json:"fieldKey"`     // FieldKey is the optionally selected field key for the query
 }
 
 // Response is the result of a query against a TimeSeries
