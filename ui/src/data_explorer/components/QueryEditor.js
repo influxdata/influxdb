@@ -7,6 +7,7 @@ import {QUERY_TEMPLATES} from 'src/data_explorer/constants'
 const ENTER = 13
 const ESCAPE = 27
 const {
+  bool,
   func,
   shape,
   string,
@@ -15,7 +16,14 @@ const QueryEditor = React.createClass({
   propTypes: {
     query: string.isRequired,
     onUpdate: func.isRequired,
-    config: shape().isRequired,
+    config: shape({
+      status: shape({
+        error: string,
+        loading: bool,
+        success: string,
+        warn: string,
+      }),
+    }).isRequired,
   },
 
   getInitialState() {

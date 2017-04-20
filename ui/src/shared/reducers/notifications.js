@@ -5,7 +5,7 @@ function getInitialState() {
 }
 const initialState = getInitialState()
 
-export default function notifications(state = initialState, action) {
+const notificationsReducer = (state = initialState, action) => {
   switch (action.type) {
     case 'NOTIFICATION_RECEIVED': {
       const {type, message} = action.payload
@@ -22,3 +22,5 @@ export default function notifications(state = initialState, action) {
 
   return state
 }
+
+export default notificationsReducer

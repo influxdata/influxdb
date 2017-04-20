@@ -1,29 +1,38 @@
 import React, {PropTypes} from 'react'
+import {withRouter} from 'react-router'
+import {connect} from 'react-redux'
+
 import {NavBar, NavBlock, NavHeader, NavListItem} from 'src/side_nav/components/NavItems'
 
 const {
-  string,
-  shape,
   bool,
+  shape,
+  string,
 } = PropTypes
+
 const SideNav = React.createClass({
   propTypes: {
-    location: string.isRequired,
-    sourceID: string.isRequired,
+    params: shape({
+      sourceID: string.isRequired,
+    }).isRequired,
+    location: shape({
+      pathname: string.isRequired,
+    }).isRequired,
     me: shape({
-      name: string,
+      email: string,
     }),
     isHidden: bool.isRequired,
   },
 
   render() {
-    const {me, location, sourceID, isHidden} = this.props
+    const {me, params: {sourceID}, location: {pathname: location}, isHidden} = this.props
+
     const sourcePrefix = `/sources/${sourceID}`
     const dataExplorerLink = `${sourcePrefix}/chronograf/data-explorer`
+    const showLogout = !!(me && me.name)
 
-    const loggedIn = !!(me && me.name)
-
-    return isHidden ? null : (
+    return isHidden ?
+      null : (
       <NavBar location={location}>
         <div className="sidebar__logo">
           <a href="/"><span className="icon cubo-uniform"></span></a>
@@ -50,14 +59,22 @@ const SideNav = React.createClass({
           <NavListItem link={`${sourcePrefix}/manage-sources`}>InfluxDB</NavListItem>
           <NavListItem link={`${sourcePrefix}/kapacitor-config`}>Kapacitor</NavListItem>
         </NavBlock>
-        {loggedIn ? (
-        <NavBlock icon="user-outline" className="sidebar__square-last">
-          <a className="sidebar__menu-item" href="/oauth/logout">Logout</a>
-        </NavBlock>
-        ) : null}
+        {
+          showLogout ? (
+          <NavBlock icon="user-outline" className="sidebar__square-last">
+            <a className="sidebar__menu-item" href="/oauth/logout">Logout</a>
+          </NavBlock>
+          ) :
+          null
+        }
       </NavBar>
     )
   },
 })
 
-export default SideNav
+const mapStateToProps = ({auth: {me}, app: {ephemeral: {inPresentationMode}}}) => ({
+  me,
+  isHidden: inPresentationMode,
+})
+
+export default connect(mapStateToProps)(withRouter(SideNav))

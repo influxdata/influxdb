@@ -7,8 +7,8 @@ import {
   deleteDashboardCell as deleteDashboardCellAJAX,
 } from 'src/dashboards/apis'
 
-import {publishNotification} from 'shared/actions/notifications'
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
+import {errorThrown} from 'shared/actions/errors'
 
 import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants'
 
@@ -118,22 +118,28 @@ export const getDashboardsAsync = (dashboardID) => async (dispatch) => {
     const {data: {dashboards}} = await getDashboardsAJAX()
     dispatch(loadDashboards(dashboards, dashboardID))
   } catch (error) {
+    dispatch(errorThrown(error))
     console.error(error)
     throw error
   }
 }
 
-export const putDashboard = (dashboard) => (dispatch) => {
-  updateDashboardAJAX(dashboard).then(({data}) => {
+export const putDashboard = (dashboard) => async (dispatch) => {
+  try {
+    const {data} = await updateDashboardAJAX(dashboard)
     dispatch(updateDashboard(data))
-  })
+  } catch (error) {
+    dispatch(errorThrown(error))
+  }
 }
 
-export const updateDashboardCell = (dashboard, cell) => (dispatch) => {
-  return updateDashboardCellAJAX(cell)
-  .then(({data}) => {
+export const updateDashboardCell = (dashboard, cell) => async (dispatch) => {
+  try {
+    const {data} = await updateDashboardCellAJAX(cell)
     dispatch(syncDashboardCell(dashboard, data))
-  })
+  } catch (error) {
+    dispatch(errorThrown(error))
+  }
 }
 
 export const deleteDashboardAsync = (dashboard) => async (dispatch) => {
@@ -142,8 +148,8 @@ export const deleteDashboardAsync = (dashboard) => async (dispatch) => {
     await deleteDashboardAJAX(dashboard)
     dispatch(publishAutoDismissingNotification('success', 'Dashboard deleted successfully.'))
   } catch (error) {
+    dispatch(errorThrown(error, `Failed to delete dashboard: ${error.data.message}.`))
     dispatch(deleteDashboardFailed(dashboard))
-    dispatch(publishNotification('error', `Failed to delete dashboard: ${error.data.message}.`))
   }
 }
 
@@ -152,6 +158,7 @@ export const addDashboardCellAsync = (dashboard) => async (dispatch) => {
     const {data} = await addDashboardCellAJAX(dashboard, NEW_DEFAULT_DASHBOARD_CELL)
     dispatch(addDashboardCell(dashboard, data))
   } catch (error) {
+    dispatch(errorThrown(error))
     console.error(error)
     throw error
   }
@@ -162,7 +169,7 @@ export const deleteDashboardCellAsync = (cell) => async (dispatch) => {
     await deleteDashboardCellAJAX(cell)
     dispatch(deleteDashboardCell(cell))
   } catch (error) {
-    console.error(error)
+    dispatch(errorThrown(error))
     throw error
   }
 }
