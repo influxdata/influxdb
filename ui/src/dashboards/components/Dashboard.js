@@ -20,7 +20,7 @@ const Dashboard = ({
   inPresentationMode,
   onOpenTemplateManager,
   onSummonOverlayTechnologies,
-  onSelectTV,
+  onSelectTemplate,
 }) => {
   if (dashboard.id === 0) {
     return null
@@ -45,7 +45,7 @@ const Dashboard = ({
 
   return (
     <div className={classnames('dashboard container-fluid full-width page-contents', {'presentation-mode': inPresentationMode})}>
-      <div className="tv-control-bar">
+      <div className="template-control-bar">
         <div className="page-header__left">
           Template Variables
         </div>
@@ -67,7 +67,7 @@ const Dashboard = ({
                   key={id}
                   items={items}
                   selected={selected || "Loading..."}
-                  onChoose={(item) => onSelectTV(id, [item].map((x) => omit(x, 'text')))}
+                  onChoose={(item) => onSelectTemplate(id, [item].map((x) => omit(x, 'text')))}
                 />
               )
             })
@@ -130,7 +130,7 @@ Dashboard.propTypes = {
   autoRefresh: number.isRequired,
   timeRange: shape({}).isRequired,
   onOpenTemplateManager: func.isRequired,
-  onSelectTV: func.isRequired,
+  onSelectTemplate: func.isRequired,
   templates: arrayOf(shape()),
 }
 

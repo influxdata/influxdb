@@ -115,11 +115,11 @@ export const editCellQueryStatus = (queryID, status) => ({
   },
 })
 
-export const tvSelected = (dashboardID, tvID, values) => ({
+export const templateSelected = (dashboardID, templateID, values) => ({
   type: TEMPLATE_VARIABLE_SELECTED,
   payload: {
     dashboardID,
-    tvID,
+    templateID,
     values,
   },
 })

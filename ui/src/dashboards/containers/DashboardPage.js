@@ -41,7 +41,7 @@ class DashboardPage extends Component {
     this.handleUpdateDashboardCell = ::this.handleUpdateDashboardCell
     this.handleCloseTemplateManager = ::this.handleCloseTemplateManager
     this.handleSummonOverlayTechnologies = ::this.handleSummonOverlayTechnologies
-    this.handleSelectTV = ::this.handleSelectTV
+    this.handleSelectTemplate = ::this.handleSelectTemplate
   }
 
   componentDidMount() {
@@ -143,9 +143,9 @@ class DashboardPage extends Component {
     this.props.dashboardActions.deleteDashboardCellAsync(cell)
   }
 
-  handleSelectTV(tvID, values) {
+  handleSelectTemplate(templateID, values) {
     const {params: {dashboardID}} = this.props
-    this.props.dashboardActions.tvSelected(+dashboardID, tvID, values)
+    this.props.dashboardActions.templateSelected(+dashboardID, templateID, values)
   }
 
   getActiveDashboard() {
@@ -242,7 +242,7 @@ class DashboardPage extends Component {
               onUpdateCell={this.handleUpdateDashboardCell}
               onOpenTemplateManager={this.handleOpenTemplateManager}
               onSummonOverlayTechnologies={this.handleSummonOverlayTechnologies}
-              onSelectTV={this.handleSelectTV}
+              onSelectTemplate={this.handleSelectTemplate}
             />
           : null}
       </div>
