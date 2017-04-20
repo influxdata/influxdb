@@ -29,7 +29,7 @@ define CHRONOGIRAFFE
           ,""      _\_
         ,"  ## |   0 0.
       ," ##   ,-\__    `.
-    ,"       /     `--._;) - "Do ya feel lucky, punk? Huh, do ya?"
+    ,"       /     `--._;) - "HAI, I'm Chronogiraffe. Let's be friends!"
   ,"     ## /
 ,"   ##    /
 endef
