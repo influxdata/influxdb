@@ -4,7 +4,7 @@ import _ from 'lodash'
 import * as kapacitorActionCreators from '../actions/view'
 import * as queryActionCreators from '../../data_explorer/actions/view'
 import {bindActionCreators} from 'redux'
-import {getKapacitor, getKapacitorConfig} from 'shared/apis/index'
+import {getActiveKapacitor, getKapacitorConfig} from 'shared/apis/index'
 import {ALERTS, DEFAULT_RULE_ID} from 'src/kapacitor/constants'
 import KapacitorRule from 'src/kapacitor/components/KapacitorRule'
 
@@ -52,7 +52,7 @@ export const KapacitorRulePage = React.createClass({
       kapacitorActions.loadDefaultRule()
     }
 
-    getKapacitor(source, '1').then((kapacitor) => {
+    getActiveKapacitor(source).then((kapacitor) => {
       this.setState({kapacitor})
       getKapacitorConfig(kapacitor).then(({data: {sections}}) => {
         const enabledAlerts = Object.keys(sections).filter((section) => {

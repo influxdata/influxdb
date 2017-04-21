@@ -67,6 +67,16 @@ export function getKapacitor(source, kapacitorID) {
   })
 }
 
+export function getActiveKapacitor(source) {
+  return AJAX({
+    url: source.links.kapacitors,
+    method: 'GET',
+  }).then(({data}) => {
+    const activeKapacitor = data.kapacitors.find((k) => k.active)
+    return activeKapacitor || data.kapacitors[0]
+  })
+}
+
 export const getKapacitors = async (source) => {
   try {
     return await AJAX({
