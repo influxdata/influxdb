@@ -66,7 +66,7 @@ $dash-graph-options-arrow: 8px;
 }
 
 .dashboard {
-  .tv-control-bar {
+  .template-control-bar {
     height: 50px;
     font-size: 18px;
     font-weight: 400;
@@ -77,6 +77,13 @@ $dash-graph-options-arrow: 8px;
     margin-bottom: 4px;
     padding: 10px 15px;
     @extend .cell-shell;
+    .dropdown {
+      flex: 0 1 auto;
+      min-width: 100px;
+    }
+    .dropdown-toggle {
+      width: 100%;
+    }
   }
   .react-grid-item {
     @extend .cell-shell;

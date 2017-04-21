@@ -11,10 +11,45 @@ import {
   renameDashboardCell,
   syncDashboardCell,
   editTemplate,
+  templateSelected,
 } from 'src/dashboards/actions'
 
 let state
-const d1 = {id: 1, cells: [], name: 'd1', templates: []}
+const d1 = {
+  id: 1,
+  cells: [],
+  name: 'd1',
+  templates: [
+    {
+      id: '1',
+      type: 'query',
+      label: 'test query',
+      tempVar: '$REGION',
+      query: {
+        db: 'db1',
+        rp: 'rp1',
+        measurement: 'm1',
+        influxql: 'SHOW TAGS WHERE CHRONOGIRAFFE = "friend"',
+      },
+      values: [
+        {value: 'us-west', type: 'tagKey', selected: false},
+        {value: 'us-east', type: 'tagKey', selected: true},
+        {value: 'us-mount', type: 'tagKey', selected: false},
+      ],
+    },
+    {
+      id: '2',
+      type: 'csv',
+      label: 'test csv',
+      tempVar: '$TEMPERATURE',
+      values: [
+        {value: '98.7', type: 'measurement', selected: false},
+        {value: '99.1', type: 'measurement', selected: false},
+        {value: '101.3', type: 'measurement', selected: true},
+      ],
+    },
+  ],
+}
 const d2 = {id: 2, cells: [], name: 'd2', templates: []}
 const dashboards = [d1, d2]
 const c1 = {
@@ -141,5 +176,18 @@ describe('DataExplorer.Reducers.UI', () => {
 
     const actual = reducer(state, editTemplate(dash.id, tempVar.id, updates))
     expect(actual.dashboards[0].templates[0]).to.deep.equal(expected)
+  })
+
+  it('can select a different template variable', () => {
+    const dash = _.cloneDeep(d1)
+    state = {
+      dashboards: [dash]
+    }
+    const value = dash.templates[0].values[2].value
+    const actual = reducer({dashboards}, templateSelected(dash.id, dash.templates[0].id, [{value}]))
+
+    expect(actual.dashboards[0].templates[0].values[0].selected).to.equal(false)
+    expect(actual.dashboards[0].templates[0].values[1].selected).to.equal(false)
+    expect(actual.dashboards[0].templates[0].values[2].selected).to.equal(true)
   })
 })

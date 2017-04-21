@@ -10,6 +10,10 @@ const initialState = {
   cellQueryStatus: {queryID: null, status: null},
 }
 
+import {
+  TEMPLATE_VARIABLE_SELECTED,
+} from 'shared/constants/actionTypes'
+
 export default function ui(state = initialState, action) {
   switch (action.type) {
     case 'LOAD_DASHBOARDS': {
@@ -178,6 +182,33 @@ export default function ui(state = initialState, action) {
       const {queryID, status} = action.payload
 
       return {...state, cellQueryStatus: {queryID, status}}
+    }
+
+    case TEMPLATE_VARIABLE_SELECTED: {
+      const {dashboardID, templateID, values: updatedSelectedValues} = action.payload
+      const newDashboards = state.dashboards.map((dashboard) => {
+        if (dashboard.id === dashboardID) {
+          const newTemplates = dashboard.templates.map((staleTemplate) => {
+            if (staleTemplate.id === templateID) {
+              const newValues = staleTemplate.values.map((staleValue) => {
+                let selected = false
+                for (let i = 0; i < updatedSelectedValues.length; i++) {
+                  if (updatedSelectedValues[i].value === staleValue.value) {
+                    selected = true
+                    break
+                  }
+                }
+                return {...staleValue, selected}
+              })
+              return {...staleTemplate, values: newValues}
+            }
+            return staleTemplate
+          })
+          return {...dashboard, templates: newTemplates}
+        }
+        return dashboard
+      })
+      return {...state, dashboards: newDashboards}
     }
 
     case 'EDIT_TEMPLATE': {

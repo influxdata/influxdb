@@ -4,6 +4,7 @@ import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
 
 const {
   arrayOf,
+  bool,
   element,
   func,
   number,
@@ -17,18 +18,35 @@ const AutoRefresh = (ComposedComponent) => {
     propTypes: {
       children: element,
       autoRefresh: number.isRequired,
+      templates: arrayOf(shape({
+        type: string.isRequired,
+        label: string.isRequired,
+        tempVar: string.isRequired,
+        query: shape({
+          db: string.isRequired,
+          rp: string,
+          influxql: string.isRequired,
+        }),
+        values: arrayOf(shape({
+          type: string.isRequired,
+          value: string.isRequired,
+          selected: bool,
+        })).isRequired,
+      })),
       queries: arrayOf(shape({
         host: oneOfType([string, arrayOf(string)]),
         text: string,
       }).isRequired).isRequired,
       editQueryStatus: func,
     },
+
     getInitialState() {
       return {
         lastQuerySuccessful: false,
         timeSeries: [],
       }
     },
+
     componentDidMount() {
       const {queries, autoRefresh} = this.props
       this.executeQueries(queries)
@@ -36,6 +54,7 @@ const AutoRefresh = (ComposedComponent) => {
         this.intervalID = setInterval(() => this.executeQueries(queries), autoRefresh)
       }
     },
+
     componentWillReceiveProps(nextProps) {
       const shouldRefetch = this.queryDifference(this.props.queries, nextProps.queries).length
 
@@ -51,41 +70,45 @@ const AutoRefresh = (ComposedComponent) => {
         }
       }
     },
+
     queryDifference(left, right) {
       const leftStrs = left.map((q) => `${q.host}${q.text}`)
       const rightStrs = right.map((q) => `${q.host}${q.text}`)
       return _.difference(_.union(leftStrs, rightStrs), _.intersection(leftStrs, rightStrs))
     },
+
     async executeQueries(queries) {
+      const {templates, editQueryStatus} = this.props
+
       if (!queries.length) {
-        this.setState({
-          timeSeries: [],
-        })
+        this.setState({timeSeries: []})
         return
       }
 
       this.setState({isFetching: true})
-      let count = 0
-      const newSeries = []
-      for (const query of queries) {
+
+      const timeSeriesPromises = queries.map((query) => {
         const {host, database, rp} = query
-        const response = await fetchTimeSeriesAsync({source: host, db: database, rp, query}, this.props.editQueryStatus)
-        newSeries.push({response})
-        count += 1
-        if (count === queries.length) {
-          const querySuccessful = !this._noResultsForQuery(newSeries)
-          this.setState({
-            lastQuerySuccessful: querySuccessful,
-            isFetching: false,
-            timeSeries: newSeries,
-          })
-        }
-      }
+        return fetchTimeSeriesAsync({source: host, db: database, rp, query, templates}, editQueryStatus)
+      })
+
+      Promise.all(timeSeriesPromises).then(timeSeries => {
+        const newSeries = timeSeries.map((response) => ({response}))
+        const lastQuerySuccessful = !this._noResultsForQuery(newSeries)
+
+        this.setState({
+          timeSeries: newSeries,
+          lastQuerySuccessful,
+          isFetching: false,
+        })
+      })
     },
+
     componentWillUnmount() {
       clearInterval(this.intervalID)
       this.intervalID = false
     },
+
     render() {
       const {timeSeries} = this.state
 

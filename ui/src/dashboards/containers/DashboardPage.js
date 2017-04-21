@@ -40,8 +40,8 @@ class DashboardPage extends Component {
     this.handleRenameDashboardCell = ::this.handleRenameDashboardCell
     this.handleUpdateDashboardCell = ::this.handleUpdateDashboardCell
     this.handleCloseTemplateManager = ::this.handleCloseTemplateManager
-    this.handleSummonOverlayTechnologies = ::this
-      .handleSummonOverlayTechnologies
+    this.handleSummonOverlayTechnologies = ::this.handleSummonOverlayTechnologies
+    this.handleSelectTemplate = ::this.handleSelectTemplate
   }
 
   componentDidMount() {
@@ -143,6 +143,11 @@ class DashboardPage extends Component {
     this.props.dashboardActions.deleteDashboardCellAsync(cell)
   }
 
+  handleSelectTemplate(templateID, values) {
+    const {params: {dashboardID}} = this.props
+    this.props.dashboardActions.templateSelected(+dashboardID, templateID, values)
+  }
+
   getActiveDashboard() {
     const {params: {dashboardID}, dashboards} = this.props
     return dashboards.find(d => d.id === +dashboardID)
@@ -237,6 +242,7 @@ class DashboardPage extends Component {
               onUpdateCell={this.handleUpdateDashboardCell}
               onOpenTemplateManager={this.handleOpenTemplateManager}
               onSummonOverlayTechnologies={this.handleSummonOverlayTechnologies}
+              onSelectTemplate={this.handleSelectTemplate}
             />
           : null}
       </div>
@@ -279,10 +285,15 @@ DashboardPage.propTypes = {
           code: string.isRequired,
           query: shape({
             db: string.isRequired,
-            text: string.isRequired,
+            rp: string,
+            influxql: string.isRequired,
           }),
-          values: arrayOf(string.isRequired),
-        })
+          values: arrayOf(shape({
+            type: string.isRequired,
+            value: string.isRequired,
+            selected: bool,
+          })).isRequired,
+        }),
       ),
     })
   ),

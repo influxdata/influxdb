@@ -12,6 +12,10 @@ import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
 import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants'
 
+import {
+  TEMPLATE_VARIABLE_SELECTED,
+} from 'shared/constants/actionTypes'
+
 export const loadDashboards = (dashboards, dashboardID) => ({
   type: 'LOAD_DASHBOARDS',
   payload: {
@@ -111,6 +115,15 @@ export const editCellQueryStatus = (queryID, status) => ({
   },
 })
 
+export const templateSelected = (dashboardID, templateID, values) => ({
+  type: TEMPLATE_VARIABLE_SELECTED,
+  payload: {
+    dashboardID,
+    templateID,
+    values,
+  },
+})
+
 export const editTemplate = (dashboardID, templateID, updates) => ({
   type: 'EDIT_TEMPLATE',
   payload: {
@@ -124,23 +137,32 @@ export const editTemplate = (dashboardID, templateID, updates) => ({
 
 const templates = [
   {
-    id: 1,
-    type: 'measurement',
+    id: '1',
+    type: 'query',
     label: 'test query',
-    code: '$HOSTS',
+    tempVar: '$REGION',
     query: {
       db: 'db1',
+      rp: 'rp1',
       measurement: 'm1',
-      text: 'SHOW TAGS WHERE HUNTER = "coo"',
+      influxql: 'SHOW TAGS WHERE CHRONOGIRAFFE = "friend"',
     },
-    values: ['h1', 'h2', 'h3'],
+    values: [
+      {value: 'us-west', type: 'tagKey', selected: false},
+      {value: 'us-east', type: 'tagKey', selected: true},
+      {value: 'us-mount', type: 'tagKey', selected: false},
+    ],
   },
   {
-    id: 2,
+    id: '2',
     type: 'csv',
     label: 'test csv',
-    code: '$INFLX',
-    values: ['A', 'B', 'C'],
+    tempVar: '$TEMPERATURE',
+    values: [
+      {value: '98.7', type: 'measurement', selected: false},
+      {value: '99.1', type: 'measurement', selected: false},
+      {value: '101.3', type: 'measurement', selected: true},
+    ],
   },
 ]
 

@@ -10,7 +10,8 @@
   1. [#1232](https://github.com/influxdata/chronograf/pull/1232): Fuse the query builder and raw query editor
   1. [#1286](https://github.com/influxdata/chronograf/pull/1286): Add refreshing JWTs for authentication
   1. [#1316](https://github.com/influxdata/chronograf/pull/1316): Add templates API scoped within a dashboard
-
+  1. [#1311](https://github.com/influxdata/chronograf/pull/1311): Display currently selected values in TVControlBar
+  1. [#1315](https://github.com/influxdata/chronograf/pull/1315): Send selected TV values to proxy
 
 ### UI Improvements
   1. [#1259](https://github.com/influxdata/chronograf/pull/1259): Add default display for empty dashboard

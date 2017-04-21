@@ -1,7 +1,10 @@
 import React, {PropTypes} from 'react'
 import classnames from 'classnames'
 
+import omit from 'lodash/omit'
+
 import LayoutRenderer from 'shared/components/LayoutRenderer'
+import Dropdown from 'shared/components/Dropdown'
 
 const Dashboard = ({
   source,
@@ -17,10 +20,13 @@ const Dashboard = ({
   inPresentationMode,
   onOpenTemplateManager,
   onSummonOverlayTechnologies,
+  onSelectTemplate,
 }) => {
   if (dashboard.id === 0) {
     return null
   }
+
+  const {templates} = dashboard
 
   const cells = dashboard.cells.map((cell) => {
     const dashboardCell = {...cell}
@@ -39,13 +45,40 @@ const Dashboard = ({
 
   return (
     <div className={classnames('dashboard container-fluid full-width page-contents', {'presentation-mode': inPresentationMode})}>
-      <div className="tv-control-bar">
-        Template Variables
-        <button className="btn btn-primary btn-sm" onClick={onOpenTemplateManager}>Manage</button>
+      <div className="template-control-bar">
+        <div className="page-header__left">
+          Template Variables
+        </div>
+        <div className="page-header__right">
+          {
+            templates.map(({id, values}) => {
+              let selected
+              const items = values.map((value) => {
+                if (value.selected) {
+                  selected = value.value
+                }
+                return {...value, text: value.value}
+              })
+              // TODO: change Dropdown to a MultiSelectDropdown, `selected` to
+              // the full array, and [item] to all `selected` values when we update
+              // this component to support multiple values
+              return (
+                <Dropdown
+                  key={id}
+                  items={items}
+                  selected={selected || "Loading..."}
+                  onChoose={(item) => onSelectTemplate(id, [item].map((x) => omit(x, 'text')))}
+                />
+              )
+            })
+          }
+          <button className="btn btn-primary btn-sm" onClick={onOpenTemplateManager}>Manage</button>
+        </div>
       </div>
       {cells.length ?
         <LayoutRenderer
           timeRange={timeRange}
+          templates={templates}
           cells={cells}
           autoRefresh={autoRefresh}
           source={source.links.proxy}
@@ -71,6 +104,7 @@ const Dashboard = ({
 }
 
 const {
+  arrayOf,
   bool,
   func,
   shape,
@@ -96,6 +130,22 @@ Dashboard.propTypes = {
   autoRefresh: number.isRequired,
   timeRange: shape({}).isRequired,
   onOpenTemplateManager: func.isRequired,
+  onSelectTemplate: func.isRequired,
+  templates: arrayOf(shape({
+    type: string.isRequired,
+    label: string.isRequired,
+    tempVar: string.isRequired,
+    query: shape({
+      db: string.isRequired,
+      rp: string,
+      influxql: string.isRequired,
+    }),
+    values: arrayOf(shape({
+      type: string.isRequired,
+      value: string.isRequired,
+      selected: bool,
+    })).isRequired,
+  })),
 }
 
 export default Dashboard
