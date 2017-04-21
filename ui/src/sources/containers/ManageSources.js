@@ -1,5 +1,4 @@
 import React, {Component, PropTypes} from 'react'
-import {withRouter} from 'react-router'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
@@ -43,7 +42,7 @@ class ManageSources extends Component {
   }
 
   render() {
-    const {sources, source, location, setActiveKapacitor} = this.props
+    const {sources, source, setActiveKapacitor} = this.props
 
     return (
       <div className="page" id="manage-sources-page">
@@ -60,7 +59,6 @@ class ManageSources extends Component {
               handleDeleteSource={this.handleDeleteSource}
               source={source}
               sources={sources}
-              location={location}
               setActiveKapacitor={setActiveKapacitor}
             />
           </div>
@@ -78,9 +76,6 @@ const {
 } = PropTypes
 
 ManageSources.propTypes = {
-  location: shape({
-    pathname: string.isRequired,
-  }).isRequired,
   source: shape({
     id: string.isRequired,
     links: shape({
@@ -105,4 +100,4 @@ const mapDispatchToProps = (dispatch) => ({
   setActiveKapacitor: bindActionCreators(setActiveKapacitorAsync, dispatch),
 })
 
-export default connect(mapStateToProps, mapDispatchToProps)(withRouter(ManageSources))
+export default connect(mapStateToProps, mapDispatchToProps)(ManageSources)

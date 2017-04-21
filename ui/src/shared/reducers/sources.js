@@ -5,8 +5,6 @@ const getInitialState = () => []
 const initialState = getInitialState()
 
 const sourcesReducer = (state = initialState, action) => {
-
-export default function sources(state = [], action) {
   switch (action.type) {
     case 'LOAD_SOURCES': {
       return action.payload.sources
