@@ -26,10 +26,18 @@ type cookie struct {
 
 // NewCookieJWT creates an Authenticator that uses cookies for auth
 func NewCookieJWT(secret string, lifespan time.Duration) Authenticator {
+	inactivity := DefaultInactivityDuration
+	// Server interprets a token duration longer than the cookie lifespan as
+	// a token that was issued by a server with a longer auth-duration and is
+	// thus invalid, as a security precaution. So, inactivity must be set to
+	// be less than lifespan.
+	if lifespan > 0 && inactivity > lifespan {
+		inactivity = lifespan / 2 // half of the lifespan ensures tokens can be refreshed once.
+	}
 	return &cookie{
 		Name:       DefaultCookieName,
 		Lifespan:   lifespan,
-		Inactivity: DefaultInactivityDuration,
+		Inactivity: inactivity,
 		Now:        DefaultNowTime,
 		Tokens: &JWT{
 			Secret: secret,
@@ -44,6 +52,7 @@ func (c *cookie) Validate(ctx context.Context, r *http.Request) (Principal, erro
 	if err != nil {
 		return Principal{}, ErrAuthentication
 	}
+
 	return c.Tokens.ValidPrincipal(ctx, Token(cookie.Value), c.Lifespan)
 }
 
@@ -105,15 +114,22 @@ func (c *cookie) setCookie(w http.ResponseWriter, value string, exp time.Time) {
 
 	// Only set a cookie to be persistent (endure beyond the browser session)
 	// if auth duration is greater than zero
-	if c.Lifespan > 0 || exp.Before(c.Now()) {
+	if c.Lifespan > 0 {
 		cookie.Expires = exp
 	}
-
 	http.SetCookie(w, &cookie)
 }
 
 // Expire returns a cookie that will expire an existing cookie
 func (c *cookie) Expire(w http.ResponseWriter) {
 	// to expire cookie set the time in the past
-	c.setCookie(w, "none", c.Now().Add(-1*time.Hour))
+	cookie := http.Cookie{
+		Name:     DefaultCookieName,
+		Value:    "none",
+		HttpOnly: true,
+		Path:     "/",
+		Expires:  c.Now().Add(-1 * time.Hour),
+	}
+
+	http.SetCookie(w, &cookie)
 }

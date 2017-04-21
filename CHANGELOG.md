@@ -4,6 +4,7 @@
   1. [#1257](https://github.com/influxdata/chronograf/issues/1257): Fix function selection in query builder
   1. [#1244](https://github.com/influxdata/chronograf/pull/1244): Fix env var name for Google client secret
   1. [#1269](https://github.com/influxdata/chronograf/issues/1269): Add more functionality to query config generation
+  1. [#1318](https://github.com/influxdata/chronograf/issues/1318): Fix JWT refresh for auth-duration zero and less than 5 min
 
 ### Features
   1. [#1232](https://github.com/influxdata/chronograf/pull/1232): Fuse the query builder and raw query editor
