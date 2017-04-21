@@ -120,8 +120,8 @@ class RowWrapper extends Component {
 
   handleSubmit(e) {
     e.preventDefault()
-    const code = e.target.code.value
-    const label = e.target.label.value
+    // const code = e.target.code.value
+    // const label = e.target.label.value
 
     // updateTempVarsAsync({code, label})
   }
