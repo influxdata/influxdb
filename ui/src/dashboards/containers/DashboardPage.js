@@ -40,7 +40,8 @@ class DashboardPage extends Component {
     this.handleRenameDashboardCell = ::this.handleRenameDashboardCell
     this.handleUpdateDashboardCell = ::this.handleUpdateDashboardCell
     this.handleCloseTemplateManager = ::this.handleCloseTemplateManager
-    this.handleSummonOverlayTechnologies = ::this.handleSummonOverlayTechnologies
+    this.handleSummonOverlayTechnologies = ::this
+      .handleSummonOverlayTechnologies
     this.handleSelectTemplate = ::this.handleSelectTemplate
   }
 
@@ -145,7 +146,11 @@ class DashboardPage extends Component {
 
   handleSelectTemplate(templateID, values) {
     const {params: {dashboardID}} = this.props
-    this.props.dashboardActions.templateSelected(+dashboardID, templateID, values)
+    this.props.dashboardActions.templateSelected(
+      +dashboardID,
+      templateID,
+      values
+    )
   }
 
   getActiveDashboard() {
@@ -282,18 +287,20 @@ DashboardPage.propTypes = {
         shape({
           type: string.isRequired,
           label: string.isRequired,
-          code: string.isRequired,
+          tempVar: string.isRequired,
           query: shape({
             db: string.isRequired,
             rp: string,
             influxql: string.isRequired,
           }),
-          values: arrayOf(shape({
-            type: string.isRequired,
-            value: string.isRequired,
-            selected: bool,
-          })).isRequired,
-        }),
+          values: arrayOf(
+            shape({
+              type: string.isRequired,
+              value: string.isRequired,
+              selected: bool,
+            })
+          ).isRequired,
+        })
       ),
     })
   ),

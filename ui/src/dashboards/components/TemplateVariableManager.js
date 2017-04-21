@@ -25,7 +25,7 @@ const TemplateVariableManager = ({onClose, templates}) => (
   </div>
 )
 
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 TemplateVariableManager.propTypes = {
   onClose: func.isRequired,
@@ -33,12 +33,18 @@ TemplateVariableManager.propTypes = {
     shape({
       type: string.isRequired,
       label: string.isRequired,
-      code: string.isRequired,
+      tempVar: string.isRequired,
       query: shape({
         db: string.isRequired,
-        text: string.isRequired,
+        influxql: string.isRequired,
       }),
-      values: arrayOf(string.isRequired),
+      values: arrayOf(
+        shape({
+          value: string.isRequired,
+          type: string.isRequired,
+          selected: bool.isRequired,
+        })
+      ).isRequired,
     })
   ),
 }

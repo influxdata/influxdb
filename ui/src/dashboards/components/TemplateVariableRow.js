@@ -4,10 +4,10 @@ import Dropdown from 'shared/components/Dropdown'
 import TemplateQueryBuilder
   from 'src/dashboards/components/TemplateQueryBuilder'
 
-import {TEMPLATE_VARIBALE_TYPES} from 'src/dashboards/constants'
+import {TEMPLATE_VARIABLE_TYPES} from 'src/dashboards/constants'
 
 const TemplateVariableRow = ({
-  template: {label, code, values},
+  template: {label, tempVar, values},
   isEditing,
   selectedType,
   selectedDatabase,
@@ -30,15 +30,15 @@ const TemplateVariableRow = ({
       autoFocusTarget={autoFocusTarget}
     />
     <TableInput
-      name="code"
-      defaultValue={code}
+      name="tempVar"
+      defaultValue={tempVar}
       isEditing={isEditing}
       onStartEdit={onStartEdit}
       autoFocusTarget={autoFocusTarget}
     />
     <div className="td">
       <Dropdown
-        items={TEMPLATE_VARIBALE_TYPES}
+        items={TEMPLATE_VARIABLE_TYPES}
         onChoose={onSelectType}
         selected={selectedType}
         className={'template-variable--dropdown'}
@@ -56,7 +56,7 @@ const TemplateVariableRow = ({
       />
     </div>
     <div className="td">
-      {values.join(', ')}
+      {values.map(({value}) => value).join(', ')}
     </div>
     <div className="td" style={{display: 'flex'}}>
       {isEditing
@@ -120,10 +120,10 @@ class RowWrapper extends Component {
 
   handleSubmit(e) {
     e.preventDefault()
-    // const code = e.target.code.value
+    // const tempVar = e.target.tempVar.value
     // const label = e.target.label.value
 
-    // updateTempVarsAsync({code, label})
+    // updateTempVarsAsync({tempVar, label})
   }
 
   handleClickOutside() {
@@ -190,14 +190,20 @@ RowWrapper.propTypes = {
   template: shape({
     type: string.isRequired,
     label: string.isRequired,
-    code: string.isRequired,
+    tempVar: string.isRequired,
     query: shape({
       db: string,
-      text: string.isRequired,
+      influxql: string.isRequired,
       measurement: string,
       tagKey: string,
     }),
-    values: arrayOf(string.isRequired),
+    values: arrayOf(
+      shape({
+        value: string.isRequired,
+        type: string.isRequired,
+        selected: bool.isRequired,
+      })
+    ).isRequired,
   }),
 }
 

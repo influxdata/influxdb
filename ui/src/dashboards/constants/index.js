@@ -27,7 +27,7 @@ export const NEW_DASHBOARD = {
   cells: [NEW_DEFAULT_DASHBOARD_CELL],
 }
 
-export const TEMPLATE_VARIBALE_TYPES = [
+export const TEMPLATE_VARIABLE_TYPES = [
   {
     text: 'CSV',
     type: 'csv',

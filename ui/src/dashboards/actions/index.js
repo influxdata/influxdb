@@ -12,9 +12,7 @@ import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
 import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants'
 
-import {
-  TEMPLATE_VARIABLE_SELECTED,
-} from 'shared/constants/actionTypes'
+import {TEMPLATE_VARIABLE_SELECTED} from 'shared/constants/actionTypes'
 
 export const loadDashboards = (dashboards, dashboardID) => ({
   type: 'LOAD_DASHBOARDS',
@@ -138,7 +136,7 @@ export const editTemplate = (dashboardID, templateID, updates) => ({
 const templates = [
   {
     id: '1',
-    type: 'query',
+    type: 'tagKeys',
     label: 'test query',
     tempVar: '$REGION',
     query: {

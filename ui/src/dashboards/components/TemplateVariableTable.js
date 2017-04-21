@@ -20,19 +20,25 @@ const TemplateVariableTable = ({templates}) => (
   </div>
 )
 
-const {arrayOf, shape, string} = PropTypes
+const {arrayOf, bool, shape, string} = PropTypes
 
 TemplateVariableTable.propTypes = {
   templates: arrayOf(
     shape({
       type: string.isRequired,
       label: string.isRequired,
-      code: string.isRequired,
+      tempVar: string.isRequired,
       query: shape({
         db: string.isRequired,
-        text: string.isRequired,
+        influxql: string.isRequired,
       }),
-      values: arrayOf(string.isRequired),
+      values: arrayOf(
+        shape({
+          value: string.isRequired,
+          type: string.isRequired,
+          selected: bool.isRequired,
+        })
+      ).isRequired,
     })
   ),
 }
