@@ -18,6 +18,7 @@ const TemplateVariableRow = ({
   selectedTagKey,
   onSelectTagKey,
   onStartEdit,
+  onEndEdit,
   autoFocusTarget,
   onSubmit,
 }) => (
@@ -40,7 +41,9 @@ const TemplateVariableRow = ({
       <Dropdown
         items={TEMPLATE_VARIABLE_TYPES}
         onChoose={onSelectType}
-        selected={selectedType}
+        selected={
+          TEMPLATE_VARIABLE_TYPES.find(t => t.type === selectedType).text
+        }
         className={'template-variable--dropdown'}
       />
     </div>
@@ -64,7 +67,11 @@ const TemplateVariableRow = ({
             <button className="btn btn-sm btn-success" type="submit">
               Submit
             </button>
-            <button className="btn btn-sm btn-primary" type="button">
+            <button
+              className="btn btn-sm btn-primary"
+              type="button"
+              onClick={onEndEdit}
+            >
               Cancel
             </button>
           </div>
@@ -177,6 +184,7 @@ class RowWrapper extends Component {
         onSelectMeasurement={this.handleSelectMeasurement}
         onSelectTagKey={this.handleSelectTagKey}
         onStartEdit={this.handleStartEdit}
+        onEndEdit={this.handleEndEdit}
         autoFocusTarget={autoFocusTarget}
         onSubmit={this.handleSubmit}
       />
@@ -215,6 +223,8 @@ TemplateVariableRow.propTypes = {
   onSelectType: func.isRequired,
   onSelectDatabase: func.isRequired,
   onSelectTagKey: func.isRequired,
+  onStartEdit: func.isRequired,
+  onEndEdit: func.isRequired,
 }
 
 TableInput.propTypes = {
