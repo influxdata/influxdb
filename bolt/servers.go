@@ -24,14 +24,9 @@ type ServersStore struct {
 func (s *ServersStore) All(ctx context.Context) ([]chronograf.Server, error) {
 	var srcs []chronograf.Server
 	if err := s.client.db.View(func(tx *bolt.Tx) error {
-		if err := tx.Bucket(ServersBucket).ForEach(func(k, v []byte) error {
-			var src chronograf.Server
-			if err := internal.UnmarshalServer(v, &src); err != nil {
-				return err
-			}
-			srcs = append(srcs, src)
-			return nil
-		}); err != nil {
+		var err error
+		srcs, err = s.all(ctx, tx)
+		if err != nil {
 			return err
 		}
 		return nil
