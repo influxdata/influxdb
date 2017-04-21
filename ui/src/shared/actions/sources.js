@@ -1,6 +1,7 @@
 import {deleteSource,
   getSources,
   getKapacitors as getKapacitorsAJAX,
+  updateKapacitor as updateKapacitorAJAX,
 } from 'src/shared/apis'
 import {publishNotification} from './notifications'
 
@@ -33,6 +34,13 @@ export const fetchKapacitors = (source, kapacitors) => ({
   },
 })
 
+export const setActiveKapacitor = (kapacitor) => ({
+  type: 'SET_ACTIVE_KAPACITOR',
+  payload: {
+    kapacitor,
+  },
+})
+
 // Async action creators
 
 export const removeAndLoadSources = (source) => async (dispatch) => {
@@ -61,4 +69,11 @@ export const fetchKapacitorsAsync = (source) => async (dispatch) => {
   } catch (err) {
     dispatch(publishNotification('error', `Internal Server Error. Could not retrieve kapacitors for source ${source.id}.`))
   }
+}
+
+export const setActiveKapacitorAsync = (kapacitor) => async (dispatch) => {
+  // eagerly update the redux state
+  dispatch(setActiveKapacitor(kapacitor))
+  const kapacitorPost = {...kapacitor, active: true}
+  await updateKapacitorAJAX(kapacitorPost)
 }

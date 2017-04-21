@@ -92,7 +92,7 @@ export function createKapacitor(source, {url, name = 'My Kapacitor', username, p
   })
 }
 
-export function updateKapacitor({links, url, name = 'My Kapacitor', username, password}) {
+export function updateKapacitor({links, url, name = 'My Kapacitor', username, password, active}) {
   return AJAX({
     url: links.self,
     method: 'PATCH',
@@ -101,6 +101,7 @@ export function updateKapacitor({links, url, name = 'My Kapacitor', username, pa
       url,
       username,
       password,
+      active,
     },
   })
 }

@@ -39,6 +39,17 @@ export default function sources(state = [], action) {
       }
       return updatedSources
     }
+
+    case 'SET_ACTIVE_KAPACITOR': {
+      const {kapacitor} = action.payload
+      const updatedSources = _.cloneDeep(state)
+      updatedSources.forEach((source) => {
+        source.kapacitors.forEach((k, i) => {
+          source.kapacitors[i].active = (k.id === kapacitor.id)
+        })
+      })
+      return updatedSources
+    }
   }
 
   return state

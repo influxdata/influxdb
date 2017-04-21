@@ -3,7 +3,11 @@ import {withRouter} from 'react-router'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
-import {removeAndLoadSources, fetchKapacitorsAsync} from 'src/shared/actions/sources'
+import {
+  removeAndLoadSources,
+  fetchKapacitorsAsync,
+  setActiveKapacitorAsync,
+} from 'src/shared/actions/sources'
 
 import InfluxTable from '../components/InfluxTable'
 
@@ -39,7 +43,7 @@ class ManageSources extends Component {
   }
 
   render() {
-    const {sources, source, location} = this.props
+    const {sources, source, location, setActiveKapacitor} = this.props
 
     return (
       <div className="page" id="manage-sources-page">
@@ -57,6 +61,7 @@ class ManageSources extends Component {
               source={source}
               sources={sources}
               location={location}
+              setActiveKapacitor={setActiveKapacitor}
             />
           </div>
         </div>
@@ -87,6 +92,7 @@ ManageSources.propTypes = {
   addFlashMessage: func,
   removeAndLoadSources: func.isRequired,
   fetchKapacitors: func.isRequired,
+  setActiveKapacitor: func.isRequired,
 }
 
 const mapStateToProps = ({sources}) => ({
@@ -96,6 +102,7 @@ const mapStateToProps = ({sources}) => ({
 const mapDispatchToProps = (dispatch) => ({
   removeAndLoadSources: bindActionCreators(removeAndLoadSources, dispatch),
   fetchKapacitors: bindActionCreators(fetchKapacitorsAsync, dispatch),
+  setActiveKapacitor: bindActionCreators(setActiveKapacitorAsync, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(withRouter(ManageSources))

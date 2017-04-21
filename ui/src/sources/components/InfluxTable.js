@@ -3,14 +3,18 @@ import {Link, withRouter} from 'react-router'
 
 import Dropdown from 'shared/components/Dropdown'
 
-const kapacitorDropdown = (kapacitors, source, router) => {
+const kapacitorDropdown = (kapacitors, source, router, setActiveKapacitor) => {
   if (!kapacitors || kapacitors.length === 0) {
     return (
       <Link to={`/sources/${source.id}/kapacitors/new`}>Add Kapacitor</Link>
     )
   }
   const kapacitorItems = kapacitors.map((k) => {
-    return {text: k.name, resource: `/sources/${source.id}/kapacitors/${k.id}`}
+    return {
+      text: k.name,
+      resource: `/sources/${source.id}/kapacitors/${k.id}`,
+      kapacitor: k,
+    }
   })
 
   const activeKapacitor = kapacitors.find((k) => k.active)
@@ -28,7 +32,7 @@ const kapacitorDropdown = (kapacitors, source, router) => {
       buttonColor="btn-info"
       buttonSize="btn-xs"
       items={kapacitorItems}
-      onChoose={() => {}}
+      onChoose={(item) => setActiveKapacitor(item.kapacitor)}
       addNew={{
         url: `/sources/${source.id}/kapacitors/new`,
         text: "Add Kapacitor",
@@ -52,6 +56,7 @@ const InfluxTable = ({
   handleDeleteSource,
   location,
   router,
+  setActiveKapacitor,
 }) => (
   <div className="row">
     <div className="col-md-12">
@@ -79,7 +84,7 @@ const InfluxTable = ({
                       <td className="monotype">{s.url}</td>
                       <td>
                         {
-                          kapacitorDropdown(s.kapacitors, s, router)
+                          kapacitorDropdown(s.kapacitors, s, router, setActiveKapacitor)
                         }
                       </td>
                       <td className="text-right">
@@ -121,6 +126,7 @@ InfluxTable.propTypes = {
     }),
   }),
   sources: array.isRequired,
+  setActiveKapacitor: func.isRequired,
 }
 
 export default withRouter(InfluxTable)
