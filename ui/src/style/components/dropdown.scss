@@ -141,7 +141,7 @@ $dropdown-menu-max-height: 290px;
     @include gradient-h($c-laser, $c-comet);
   }
   > li > a {
-    color: $c-cremedeviolette !important;
+    color: $c-twilight !important;
     &:hover {
       color: $g20-white !important;
     }
