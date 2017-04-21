@@ -209,7 +209,7 @@ func (s *Store) loadShards() error {
 					// Shard file names are numeric shardIDs
 					shardID, err := strconv.ParseUint(sh, 10, 64)
 					if err != nil {
-						resC <- &res{err: fmt.Errorf("%s is not a valid ID. Skipping shard.", sh)}
+						resC <- &res{err: fmt.Errorf("%s is not a valid ID. Skipping shard", sh)}
 						return
 					}
 
@@ -385,7 +385,7 @@ func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64, en
 	return nil
 }
 
-// CreateShardSnapShot will create a hard link to the underlying shard and return a path.
+// CreateShardSnapshot will create a hard link to the underlying shard and return a path.
 // The caller is responsible for cleaning up (removing) the file path returned.
 func (s *Store) CreateShardSnapshot(id uint64) (string, error) {
 	sh := s.Shard(id)
@@ -650,7 +650,7 @@ func (s *Store) Databases() []string {
 	defer s.mu.RUnlock()
 
 	databases := make([]string, 0, len(s.databases))
-	for k, _ := range s.databases {
+	for k := range s.databases {
 		databases = append(databases, k)
 	}
 	return databases
@@ -904,6 +904,7 @@ func (s *Store) MeasurementSeriesCounts(database string) (measuments int, series
 	return 0, 0
 }
 
+// TagValues represents the tag values in a measurement.
 type TagValues struct {
 	Measurement string
 	Values      []KeyValue
@@ -1038,7 +1039,7 @@ func (a KeyValues) Less(i, j int) bool {
 // filterShowSeriesResult will limit the number of series returned based on the limit and the offset.
 // Unlike limit and offset on SELECT statements, the limit and offset don't apply to the number of Rows, but
 // to the number of total Values returned, since each Value represents a unique series.
-func (e *Store) filterShowSeriesResult(limit, offset int, rows models.Rows) models.Rows {
+func (s *Store) filterShowSeriesResult(limit, offset int, rows models.Rows) models.Rows {
 	var filteredSeries models.Rows
 	seriesCount := 0
 	for _, r := range rows {

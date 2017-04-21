@@ -683,6 +683,7 @@ func (s *Shard) MeasurementFields(name []byte) *MeasurementFields {
 	return s.engine.MeasurementFields(string(name))
 }
 
+// MeasurementExists returns true if the measurement exists.
 func (s *Shard) MeasurementExists(name []byte) (bool, error) {
 	return s.engine.MeasurementExists(name)
 }
@@ -811,6 +812,7 @@ func (s *Shard) FieldDimensions(measurements []string) (fields map[string]influx
 	return fields, dimensions, nil
 }
 
+// MeasurementsByRegex returns the names of measurements matching the passed in regular expression.
 func (s *Shard) MeasurementsByRegex(re *regexp.Regexp) []string {
 	a, _ := s.engine.MeasurementNamesByRegex(re)
 
@@ -1004,6 +1006,7 @@ func (s *Shard) monitor() {
 	}
 }
 
+// ShardGroup interface
 type ShardGroup interface {
 	MeasurementsByRegex(re *regexp.Regexp) []string
 	FieldDimensions(measurements []string) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error)
@@ -1024,6 +1027,7 @@ func (a Shards) Less(i, j int) bool { return a[i].id < a[j].id }
 // Swap implements sort.Interface.
 func (a Shards) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 
+// MeasurementsByRegex returns the names of measurements matching the passed in regular expression.
 func (a Shards) MeasurementsByRegex(re *regexp.Regexp) []string {
 	m := make(map[string]struct{})
 	for _, sh := range a {
@@ -1045,6 +1049,7 @@ func (a Shards) MeasurementsByRegex(re *regexp.Regexp) []string {
 	return names
 }
 
+// FieldDimensions returns the field dimensions of the passed in measurements.
 func (a Shards) FieldDimensions(measurements []string) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
 	fields = make(map[string]influxql.DataType)
 	dimensions = make(map[string]struct{})
@@ -1066,6 +1071,7 @@ func (a Shards) FieldDimensions(measurements []string) (fields map[string]influx
 	return
 }
 
+// MapType returns the data type for the field within the measurement.
 func (a Shards) MapType(measurement, field string) influxql.DataType {
 	var typ influxql.DataType
 	for _, sh := range a {
@@ -1076,6 +1082,7 @@ func (a Shards) MapType(measurement, field string) influxql.DataType {
 	return typ
 }
 
+// CreateIterator returns an iterator for the data in the shard.
 func (a Shards) CreateIterator(measurement string, opt influxql.IteratorOptions) (influxql.Iterator, error) {
 	itrs := make([]influxql.Iterator, 0, len(a))
 	for _, sh := range a {
@@ -1107,6 +1114,8 @@ func (a Shards) CreateIterator(measurement string, opt influxql.IteratorOptions)
 	return influxql.Iterators(itrs).Merge(opt)
 }
 
+// ExpandSources expands regex sources and removes duplicates.
+// NOTE: sources must be normalized (db and rp set) before calling this function.
 func (a Shards) ExpandSources(sources influxql.Sources) (influxql.Sources, error) {
 	// Use a map as a set to prevent duplicates.
 	set := map[string]influxql.Source{}
@@ -1225,6 +1234,7 @@ func (m *MeasurementFields) CreateFieldIfNotExists(name string, typ influxql.Dat
 	return nil
 }
 
+// FieldN returns the number of fields.
 func (m *MeasurementFields) FieldN() int {
 	m.mu.RLock()
 	n := len(m.fields)
@@ -1240,6 +1250,7 @@ func (m *MeasurementFields) Field(name string) *Field {
 	return f
 }
 
+// HasField returns true if the field with the passed in name exists.
 func (m *MeasurementFields) HasField(name string) bool {
 	m.mu.RLock()
 	f := m.fields[name]
