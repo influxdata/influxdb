@@ -1,3 +1,5 @@
+import _ from 'lodash'
+
 const getInitialState = () => []
 
 const initialState = getInitialState()
@@ -24,6 +26,27 @@ const sourcesReducer = (state = initialState, action) => {
         s.default = false; return s
       }) : state
       return [...updatedSources, source]
+    }
+
+    case 'LOAD_KAPACITORS': {
+      const {source, kapacitors} = action.payload
+      const sourceIndex = state.findIndex((s) => s.id === source.id)
+      const updatedSources = _.cloneDeep(state)
+      if (updatedSources[sourceIndex]) {
+        updatedSources[sourceIndex].kapacitors = kapacitors
+      }
+      return updatedSources
+    }
+
+    case 'SET_ACTIVE_KAPACITOR': {
+      const {kapacitor} = action.payload
+      const updatedSources = _.cloneDeep(state)
+      updatedSources.forEach((source) => {
+        source.kapacitors.forEach((k, i) => {
+          source.kapacitors[i].active = (k.id === kapacitor.id)
+        })
+      })
+      return updatedSources
     }
   }
 

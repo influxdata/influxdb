@@ -270,6 +270,7 @@ type Server struct {
 	Username string // Username is the username to connect to the server
 	Password string // Password is in CLEARTEXT
 	URL      string // URL are the connections to the server
+	Active   bool   // Is this the active server for the source?
 }
 
 // ServersStore stores connection information for a `Server`

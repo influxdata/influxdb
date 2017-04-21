@@ -1,5 +1,5 @@
 import uuid from 'node-uuid'
-import {getKapacitor} from 'src/shared/apis'
+import {getActiveKapacitor} from 'src/shared/apis'
 import {publishNotification} from 'src/shared/actions/notifications'
 import {
   getRules,
@@ -10,7 +10,7 @@ import {
 
 export function fetchRule(source, ruleID) {
   return (dispatch) => {
-    getKapacitor(source).then((kapacitor) => {
+    getActiveKapacitor(source).then((kapacitor) => {
       getRule(kapacitor, ruleID).then(({data: rule}) => {
         dispatch({
           type: 'LOAD_RULE',

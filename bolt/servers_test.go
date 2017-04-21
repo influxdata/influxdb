@@ -27,6 +27,7 @@ func TestServerStore(t *testing.T) {
 			Username: "marty",
 			Password: "I❤️  jennifer parker",
 			URL:      "toyota-hilux.lyon-estates.local",
+			Active:   false,
 		},
 		chronograf.Server{
 			Name:     "HipToBeSquare",
@@ -34,6 +35,7 @@ func TestServerStore(t *testing.T) {
 			Username: "calvinklein",
 			Password: "chuck b3rry",
 			URL:      "toyota-hilux.lyon-estates.local",
+			Active:   false,
 		},
 	}
 
@@ -70,6 +72,21 @@ func TestServerStore(t *testing.T) {
 		t.Fatal(err)
 	} else if src.Name != "Enchantment Under the Sea Dance" {
 		t.Fatalf("server 1 update error: got %v, expected %v", src.Name, "Enchantment Under the Sea Dance")
+	}
+
+	// Attempt to make two active sources
+	srcs[0].Active = true
+	srcs[1].Active = true
+	if err := s.Update(ctx, srcs[0]); err != nil {
+		t.Fatal(err)
+	} else if err := s.Update(ctx, srcs[1]); err != nil {
+		t.Fatal(err)
+	}
+
+	if actual, err := s.Get(ctx, srcs[0].ID); err != nil {
+		t.Fatal(err)
+	} else if actual.Active == true {
+		t.Fatal("Able to set two active servers when only one should be permitted")
 	}
 
 	// Delete an server.
