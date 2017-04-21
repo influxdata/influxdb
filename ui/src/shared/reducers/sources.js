@@ -34,7 +34,9 @@ export default function sources(state = [], action) {
       const {source, kapacitors} = action.payload
       const sourceIndex = state.findIndex((s) => s.id === source.id)
       const updatedSources = _.cloneDeep(state)
-      updatedSources[sourceIndex].kapacitors = kapacitors
+      if (updatedSources[sourceIndex]) {
+        updatedSources[sourceIndex].kapacitors = kapacitors
+      }
       return updatedSources
     }
   }

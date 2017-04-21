@@ -12,6 +12,16 @@ const kapacitorDropdown = (kapacitors, source, router) => {
   const kapacitorItems = kapacitors.map((k) => {
     return {text: k.name, resource: `/sources/${source.id}/kapacitors/${k.id}`}
   })
+
+  const activeKapacitor = kapacitors.find((k) => k.active)
+
+  let selected = ''
+  if (activeKapacitor) {
+    selected = activeKapacitor.name
+  } else {
+    selected = kapacitorItems[0].text
+  }
+
   return (
     <Dropdown
       className="sources--kapacitor-selector"
@@ -31,7 +41,7 @@ const kapacitorDropdown = (kapacitors, source, router) => {
           router.push(`${item.resource}/edit`)
         },
       }]}
-      selected={kapacitorItems[0].text}
+      selected={selected}
     />
   )
 }
