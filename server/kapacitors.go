@@ -17,6 +17,7 @@ type postKapacitorRequest struct {
 	URL      *string `json:"url"`                // URL for the kapacitor backend (e.g. http://localhost:9092);/ Required: true
 	Username string  `json:"username,omitempty"` // Username for authentication to kapacitor
 	Password string  `json:"password,omitempty"`
+	Active   bool    `json:"active"`
 }
 
 func (p *postKapacitorRequest) Valid() error {
@@ -47,6 +48,7 @@ type kapacitor struct {
 	URL      string    `json:"url"`                // URL for the kapacitor backend (e.g. http://localhost:9092)
 	Username string    `json:"username,omitempty"` // Username for authentication to kapacitor
 	Password string    `json:"password,omitempty"`
+	Active   bool      `json:"active"`
 	Links    kapaLinks `json:"links"` // Links are URI locations related to kapacitor
 }
 
@@ -81,6 +83,7 @@ func (h *Service) NewKapacitor(w http.ResponseWriter, r *http.Request) {
 		Username: req.Username,
 		Password: req.Password,
 		URL:      *req.URL,
+		Active:   req.Active,
 	}
 
 	if srv, err = h.ServersStore.Add(ctx, srv); err != nil {
@@ -102,6 +105,7 @@ func newKapacitor(srv chronograf.Server) kapacitor {
 		Username: srv.Username,
 		Password: srv.Password,
 		URL:      srv.URL,
+		Active:   srv.Active,
 		Links: kapaLinks{
 			Self:  fmt.Sprintf("%s/%d/kapacitors/%d", httpAPISrcs, srv.SrcID, srv.ID),
 			Proxy: fmt.Sprintf("%s/%d/kapacitors/%d/proxy", httpAPISrcs, srv.SrcID, srv.ID),
@@ -217,6 +221,7 @@ type patchKapacitorRequest struct {
 	URL      *string `json:"url,omitempty"`      // URL for the kapacitor
 	Username *string `json:"username,omitempty"` // Username for kapacitor auth
 	Password *string `json:"password,omitempty"`
+	Active   *bool   `json:"active"`
 }
 
 func (p *patchKapacitorRequest) Valid() error {
@@ -275,6 +280,9 @@ func (h *Service) UpdateKapacitor(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Username != nil {
 		srv.Username = *req.Username
+	}
+	if req.Active != nil {
+		srv.Active = *req.Active
 	}
 
 	if err := h.ServersStore.Update(ctx, srv); err != nil {
