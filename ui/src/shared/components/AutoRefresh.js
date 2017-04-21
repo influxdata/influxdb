@@ -21,10 +21,11 @@ const AutoRefresh = (ComposedComponent) => {
       templates: arrayOf(shape({
         type: string.isRequired,
         label: string.isRequired,
-        code: string.isRequired,
+        tempVar: string.isRequired,
         query: shape({
           db: string.isRequired,
-          text: string.isRequired,
+          rp: string,
+          influxql: string.isRequired,
         }),
         values: arrayOf(shape({
           type: string.isRequired,

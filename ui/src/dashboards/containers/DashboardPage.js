@@ -285,7 +285,8 @@ DashboardPage.propTypes = {
           code: string.isRequired,
           query: shape({
             db: string.isRequired,
-            query: string.isRequired,
+            rp: string,
+            influxql: string.isRequired,
           }),
           values: arrayOf(shape({
             type: string.isRequired,

@@ -46,13 +46,7 @@ export const LayoutRenderer = React.createClass({
         type: string.isRequired,
       }).isRequired
     ),
-    templates: arrayOf(shape({
-      id: string.isRequired,
-      type: string.isRequired,
-      label: string.isRequired,
-      code: string.isRequired,
-      values: arrayOf(shape()).isRequired,
-    })).isRequired,
+    templates: arrayOf(shape()).isRequired,
     host: string,
     source: string,
     onPositionChange: func,

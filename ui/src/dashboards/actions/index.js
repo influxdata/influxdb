@@ -140,12 +140,12 @@ const templates = [
     id: '1',
     type: 'query',
     label: 'test query',
-    code: '$REGION',
+    tempVar: '$REGION',
     query: {
       db: 'db1',
       rp: 'rp1',
       measurement: 'm1',
-      influxql: 'SHOW TAGS WHERE HUNTER = "coo"',
+      influxql: 'SHOW TAGS WHERE CHRONOGIRAFFE = "friend"',
     },
     values: [
       {value: 'us-west', type: 'tagKey', selected: false},
@@ -157,7 +157,7 @@ const templates = [
     id: '2',
     type: 'csv',
     label: 'test csv',
-    code: '$TEMPERATURE',
+    tempVar: '$TEMPERATURE',
     values: [
       {value: '98.7', type: 'measurement', selected: false},
       {value: '99.1', type: 'measurement', selected: false},
