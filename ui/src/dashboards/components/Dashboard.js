@@ -53,12 +53,12 @@ const Dashboard = ({
           {
             templates.map(({id, values}) => {
               let selected
-              const items = values ? values.map((value) => {
+              const items = values.map((value) => {
                 if (value.selected) {
                   selected = value.value
                 }
-                return Object.assign(value, {text: value.value})
-              }) : []
+                return {...value, text: value.value}
+              })
               // TODO: change Dropdown to a MultiSelectDropdown, `selected` to
               // the full array, and [item] to all `selected` values when we update
               // this component to support multiple values
@@ -131,7 +131,21 @@ Dashboard.propTypes = {
   timeRange: shape({}).isRequired,
   onOpenTemplateManager: func.isRequired,
   onSelectTemplate: func.isRequired,
-  templates: arrayOf(shape()),
+  templates: arrayOf(shape({
+    type: string.isRequired,
+    label: string.isRequired,
+    tempVar: string.isRequired,
+    query: shape({
+      db: string.isRequired,
+      rp: string,
+      influxql: string.isRequired,
+    }),
+    values: arrayOf(shape({
+      type: string.isRequired,
+      value: string.isRequired,
+      selected: bool,
+    })).isRequired,
+  })),
 }
 
 export default Dashboard
