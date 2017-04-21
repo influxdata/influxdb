@@ -10,6 +10,7 @@
   1. [#1232](https://github.com/influxdata/chronograf/pull/1232): Fuse the query builder and raw query editor
   1. [#1265](https://github.com/influxdata/chronograf/pull/1265): Refactor router to use auth and force /login route when auth expired
   1. [#1286](https://github.com/influxdata/chronograf/pull/1286): Add refreshing JWTs for authentication
+  1. [#1302](https://github.com/influxdata/chronograf/pull/1302): Add support for multiple kapacitors per source
 
 
 ### UI Improvements
