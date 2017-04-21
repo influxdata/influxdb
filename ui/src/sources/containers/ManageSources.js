@@ -2,7 +2,6 @@ import React, {Component, PropTypes} from 'react'
 import {withRouter} from 'react-router'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
-import _ from 'lodash'
 
 import {removeAndLoadSources, fetchKapacitorsAsync} from 'src/shared/actions/sources'
 
@@ -22,7 +21,7 @@ class ManageSources extends Component {
   }
 
   componentDidUpdate(prevProps) {
-    if (!_.isEqual(prevProps.sources, this.props.sources)) {
+    if (prevProps.sources.length !== this.props.sources.length) {
       this.props.sources.forEach((source) => {
         this.props.fetchKapacitors(source)
       })
