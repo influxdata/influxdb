@@ -10,8 +10,8 @@ import {
   editDashboardCell,
   renameDashboardCell,
   syncDashboardCell,
-  editTemplate,
-  templateSelected,
+  templateVariableEdited,
+  templateVariableSelected,
 } from 'src/dashboards/actions'
 
 let state
@@ -174,17 +174,23 @@ describe('DataExplorer.Reducers.UI', () => {
     }
     const expected = {...tempVar, ...updates}
 
-    const actual = reducer(state, editTemplate(dash.id, tempVar.id, updates))
+    const actual = reducer(
+      state,
+      templateVariableEdited(dash.id, tempVar.id, updates)
+    )
     expect(actual.dashboards[0].templates[0]).to.deep.equal(expected)
   })
 
   it('can select a different template variable', () => {
     const dash = _.cloneDeep(d1)
     state = {
-      dashboards: [dash]
+      dashboards: [dash],
     }
     const value = dash.templates[0].values[2].value
-    const actual = reducer({dashboards}, templateSelected(dash.id, dash.templates[0].id, [{value}]))
+    const actual = reducer(
+      {dashboards},
+      templateVariableSelected(dash.id, dash.templates[0].id, [{value}])
+    )
 
     expect(actual.dashboards[0].templates[0].values[0].selected).to.equal(false)
     expect(actual.dashboards[0].templates[0].values[1].selected).to.equal(false)

@@ -11,6 +11,7 @@ const TemplateQueryBuilder = ({
   onSelectDatabase,
   onSelectMeasurement,
   onSelectTagKey,
+  onStartEdit,
 }) => {
   switch (selectedType) {
     case 'csv':
@@ -24,17 +25,19 @@ const TemplateQueryBuilder = ({
           <DatabaseDropdown
             onSelectDatabase={onSelectDatabase}
             database={selectedDatabase}
+            onStartEdit={onStartEdit}
           />
         </div>
       )
-    case 'fields':
+    case 'fieldKeys':
     case 'tagKeys':
       return (
         <div>
-          SHOW {selectedType === 'fields' ? 'FIELD' : 'TAG'} KEYS ON
+          SHOW {selectedType === 'fieldKeys' ? 'FIELD' : 'TAG'} KEYS ON
           <DatabaseDropdown
             onSelectDatabase={onSelectDatabase}
             database={selectedDatabase}
+            onStartEdit={onStartEdit}
           />
           FROM
           {selectedDatabase
@@ -42,8 +45,9 @@ const TemplateQueryBuilder = ({
                 database={selectedDatabase}
                 measurement={selectedMeasurement}
                 onSelectMeasurement={onSelectMeasurement}
+                onStartEdit={onStartEdit}
               />
-            : 'Pick a DB'}
+            : <div>No database selected</div>}
         </div>
       )
     case 'tagValues':
@@ -53,6 +57,7 @@ const TemplateQueryBuilder = ({
           <DatabaseDropdown
             onSelectDatabase={onSelectDatabase}
             database={selectedDatabase}
+            onStartEdit={onStartEdit}
           />
           FROM
           {selectedDatabase
@@ -60,6 +65,7 @@ const TemplateQueryBuilder = ({
                 database={selectedDatabase}
                 measurement={selectedMeasurement}
                 onSelectMeasurement={onSelectMeasurement}
+                onStartEdit={onStartEdit}
               />
             : 'Pick a DB'}
           WITH KEY =
@@ -69,6 +75,7 @@ const TemplateQueryBuilder = ({
                 measurement={selectedMeasurement}
                 tagKey={selectedTagKey}
                 onSelectTagKey={onSelectTagKey}
+                onStartEdit={onStartEdit}
               />
             : 'Pick a Tag Key'}
         </div>
@@ -85,6 +92,7 @@ TemplateQueryBuilder.propTypes = {
   onSelectDatabase: func.isRequired,
   onSelectMeasurement: func.isRequired,
   onSelectTagKey: func.isRequired,
+  onStartEdit: func.isRequired,
   selectedMeasurement: string,
   selectedDatabase: string,
   selectedTagKey: string,

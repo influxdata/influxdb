@@ -146,10 +146,19 @@ class DashboardPage extends Component {
 
   handleSelectTemplate(templateID, values) {
     const {params: {dashboardID}} = this.props
-    this.props.dashboardActions.templateSelected(
+    this.props.dashboardActions.templateVariableSelected(
       +dashboardID,
       templateID,
       values
+    )
+  }
+
+  handleEditTemplate(templateVariableID, updates) {
+    const {params: {dashboardID}} = this.props
+    this.props.dashboardActions.templateVariableEdited(
+      +dashboardID,
+      templateVariableID,
+      updates
     )
   }
 
@@ -248,6 +257,7 @@ class DashboardPage extends Component {
               onOpenTemplateManager={this.handleOpenTemplateManager}
               onSummonOverlayTechnologies={this.handleSummonOverlayTechnologies}
               onSelectTemplate={this.handleSelectTemplate}
+              onEditTemplate={this.handleEditTemplate}
             />
           : null}
       </div>

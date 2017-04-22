@@ -31,12 +31,13 @@ class TagKeyDropdown extends Component {
 
   render() {
     const {tagKeys} = this.state
-    const {tagKey, onSelectTagKey} = this.props
+    const {tagKey, onSelectTagKey, onStartEdit} = this.props
     return (
       <Dropdown
         items={tagKeys.map(text => ({text}))}
         selected={tagKey || 'Select Tag Key'}
         onChoose={onSelectTagKey}
+        onClick={() => onStartEdit(null)}
       />
     )
   }
@@ -69,6 +70,7 @@ TagKeyDropdown.propTypes = {
   measurement: string.isRequired,
   tagKey: string,
   onSelectTagKey: func.isRequired,
+  onStartEdit: func.isRequired,
 }
 
 export default TagKeyDropdown

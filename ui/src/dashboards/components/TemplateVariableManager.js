@@ -10,8 +10,7 @@ const TemplateVariableManager = ({onClose, templates}) => (
         Template Variables
       </div>
       <div className="page-header__right">
-        <button className="btn btn-primary btn-sm">New Variable</button>
-        <button className="btn btn-success btn-sm">Save Changes</button>
+        <button className="btn btn-primary btn-sm">Add Variable</button>
         <span
           className="icon remove"
           onClick={onClose}

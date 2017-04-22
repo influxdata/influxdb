@@ -2,19 +2,17 @@ import React, {PropTypes} from 'react'
 import classnames from 'classnames'
 import OnClickOutside from 'shared/components/OnClickOutside'
 
-const {
-  arrayOf,
-  shape,
-  string,
-  func,
-} = PropTypes
+const {arrayOf, shape, string, func} = PropTypes
 
 const Dropdown = React.createClass({
   propTypes: {
-    items: arrayOf(shape({
-      text: string.isRequired,
-    })).isRequired,
+    items: arrayOf(
+      shape({
+        text: string.isRequired,
+      })
+    ).isRequired,
     onChoose: func.isRequired,
+    onClick: func,
     selected: string.isRequired,
     iconName: string,
     className: string,
@@ -40,6 +38,9 @@ const Dropdown = React.createClass({
     if (e) {
       e.stopPropagation()
     }
+    if (this.props.onClick) {
+      this.props.onClick(e)
+    }
     this.setState({isOpen: !this.state.isOpen})
   },
   handleAction(e, action, item) {
@@ -53,31 +54,42 @@ const Dropdown = React.createClass({
     return (
       <div onClick={this.toggleMenu} className={`dropdown ${className}`}>
         <div className="btn btn-sm btn-info dropdown-toggle">
-          {iconName ? <span className={classnames("icon", {[iconName]: true})}></span> : null}
+          {iconName
+            ? <span className={classnames('icon', {[iconName]: true})} />
+            : null}
           <span className="dropdown-selected">{selected}</span>
           <span className="caret" />
         </div>
-        {self.state.isOpen ?
-          <ul className="dropdown-menu show">
-            {items.map((item, i) => {
-              return (
-                <li className="dropdown-item" key={i}>
-                  <a href="#" onClick={() => self.handleSelection(item)}>
-                    {item.text}
-                  </a>
-                  <div className="dropdown-item__actions">
-                    {actions.map((action) => {
-                      return (
-                        <button key={action.text} data-target={action.target} data-toggle="modal" className="dropdown-item__action" onClick={(e) => self.handleAction(e, action, item)}>
-                          <span title={action.text} className={`icon ${action.icon}`}></span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
+        {self.state.isOpen
+          ? <ul className="dropdown-menu show">
+              {items.map((item, i) => {
+                return (
+                  <li className="dropdown-item" key={i}>
+                    <a href="#" onClick={() => self.handleSelection(item)}>
+                      {item.text}
+                    </a>
+                    <div className="dropdown-item__actions">
+                      {actions.map(action => {
+                        return (
+                          <button
+                            key={action.text}
+                            data-target={action.target}
+                            data-toggle="modal"
+                            className="dropdown-item__action"
+                            onClick={e => self.handleAction(e, action, item)}
+                          >
+                            <span
+                              title={action.text}
+                              className={`icon ${action.icon}`}
+                            />
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
           : null}
       </div>
     )

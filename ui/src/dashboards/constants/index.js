@@ -27,7 +27,7 @@ export const NEW_DASHBOARD = {
   cells: [NEW_DEFAULT_DASHBOARD_CELL],
 }
 
-export const TEMPLATE_VARIABLE_TYPES = [
+export const TEMPLATE_TYPES = [
   {
     text: 'CSV',
     type: 'csv',
@@ -41,8 +41,8 @@ export const TEMPLATE_VARIABLE_TYPES = [
     type: 'measurements',
   },
   {
-    text: 'Fields',
-    type: 'fields',
+    text: 'Field Keys',
+    type: 'fieldKeys',
   },
   {
     text: 'Tag Keys',
@@ -51,5 +51,32 @@ export const TEMPLATE_VARIABLE_TYPES = [
   {
     text: 'Tag Values',
     type: 'tagValues',
+  },
+]
+
+export const TEMPLATE_VARIABLE_TYPES = [
+  {
+    text: 'CSV',
+    type: 'csv',
+  },
+  {
+    text: 'Database',
+    type: 'database',
+  },
+  {
+    text: 'Measurement',
+    type: 'measurement',
+  },
+  {
+    text: 'Field Key',
+    type: 'fieldKey',
+  },
+  {
+    text: 'Tag Key',
+    type: 'tagKey',
+  },
+  {
+    text: 'Tag Value',
+    type: 'tagValue',
   },
 ]

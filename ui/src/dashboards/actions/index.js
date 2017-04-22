@@ -113,7 +113,7 @@ export const editCellQueryStatus = (queryID, status) => ({
   },
 })
 
-export const templateSelected = (dashboardID, templateID, values) => ({
+export const templateVariableSelected = (dashboardID, templateID, values) => ({
   type: TEMPLATE_VARIABLE_SELECTED,
   payload: {
     dashboardID,
@@ -122,8 +122,8 @@ export const templateSelected = (dashboardID, templateID, values) => ({
   },
 })
 
-export const editTemplate = (dashboardID, templateID, updates) => ({
-  type: 'EDIT_TEMPLATE',
+export const templateVariableEdited = (dashboardID, templateID, updates) => ({
+  type: 'TEMPLATE_VARIABLE_EDITED',
   payload: {
     dashboardID,
     templateID,

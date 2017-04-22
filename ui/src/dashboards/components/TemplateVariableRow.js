@@ -4,10 +4,10 @@ import Dropdown from 'shared/components/Dropdown'
 import TemplateQueryBuilder
   from 'src/dashboards/components/TemplateQueryBuilder'
 
-import {TEMPLATE_VARIABLE_TYPES} from 'src/dashboards/constants'
+import {TEMPLATE_TYPES} from 'src/dashboards/constants'
 
 const TemplateVariableRow = ({
-  template: {label, tempVar, values},
+  template: {id, label, tempVar, values},
   isEditing,
   selectedType,
   selectedDatabase,
@@ -18,11 +18,22 @@ const TemplateVariableRow = ({
   selectedTagKey,
   onSelectTagKey,
   onStartEdit,
-  onEndEdit,
+  onCancelEdit,
   autoFocusTarget,
   onSubmit,
 }) => (
-  <form className="tr" onSubmit={onSubmit}>
+  <form
+    className="tr"
+    onSubmit={onSubmit(
+      {
+        selectedType,
+        selectedDatabase,
+        selectedMeasurement,
+        selectedTagKey,
+      },
+      id
+    )}
+  >
     <TableInput
       name="label"
       defaultValue={label}
@@ -39,11 +50,10 @@ const TemplateVariableRow = ({
     />
     <div className="td">
       <Dropdown
-        items={TEMPLATE_VARIABLE_TYPES}
+        items={TEMPLATE_TYPES}
         onChoose={onSelectType}
-        selected={
-          TEMPLATE_VARIABLE_TYPES.find(t => t.type === selectedType).text
-        }
+        onClick={() => onStartEdit(null)}
+        selected={TEMPLATE_TYPES.find(t => t.type === selectedType).text}
         className={'template-variable--dropdown'}
       />
     </div>
@@ -56,6 +66,7 @@ const TemplateVariableRow = ({
         selectedMeasurement={selectedMeasurement}
         selectedTagKey={selectedTagKey}
         onSelectTagKey={onSelectTagKey}
+        onStartEdit={onStartEdit}
       />
     </div>
     <div className="td">
@@ -70,7 +81,7 @@ const TemplateVariableRow = ({
             <button
               className="btn btn-sm btn-primary"
               type="button"
-              onClick={onEndEdit}
+              onClick={onCancelEdit}
             >
               Cancel
             </button>
@@ -122,22 +133,40 @@ class RowWrapper extends Component {
     this.handleSelectMeasurement = ::this.handleSelectMeasurement
     this.handleSelectTagKey = ::this.handleSelectTagKey
     this.handleStartEdit = ::this.handleStartEdit
-    this.handleEndEdit = ::this.handleEndEdit
+    this.handleCancelEdit = ::this.handleCancelEdit
   }
 
-  handleSubmit(e) {
-    e.preventDefault()
-    // const tempVar = e.target.tempVar.value
-    // const label = e.target.label.value
+  handleSubmit(
+    {
+      selectedDatabase: database,
+      selectedMeasurement: measurement,
+      selectedTagKey: tagKey,
+      selectedType: type,
+    },
+    id
+  ) {
+    return e => {
+      e.preventDefault()
 
-    // updateTempVarsAsync({tempVar, label})
+      const label = e.target.label.value
+      const tempVar = e.target.tempVar.value
+
+      console.log({
+        id,
+        type,
+        label,
+        tempVar,
+        query: {
+          db: database,
+          measurement,
+          tagKey,
+        },
+      })
+      // updateTempVarsAsync({tempVar, label})
+    }
   }
 
   handleClickOutside() {
-    this.setState({isEditing: false})
-  }
-
-  handleEndEdit() {
     this.setState({isEditing: false})
   }
 
@@ -145,8 +174,24 @@ class RowWrapper extends Component {
     this.setState({isEditing: true, autoFocusTarget: name})
   }
 
+  handleCancelEdit() {
+    const {template: {type, query: {db, measurement, tagKey}}} = this.props
+    this.setState({
+      selectedType: type,
+      selectedDatabase: db,
+      selectedMeasurement: measurement,
+      selectedKey: tagKey,
+      isEditing: false,
+    })
+  }
+
   handleSelectType(item) {
-    this.setState({selectedType: item.type})
+    this.setState({
+      selectedType: item.type,
+      selectedDatabase: null,
+      selectedMeasurement: null,
+      selectedKey: null,
+    })
   }
 
   handleSelectDatabase(item) {
@@ -184,7 +229,7 @@ class RowWrapper extends Component {
         onSelectMeasurement={this.handleSelectMeasurement}
         onSelectTagKey={this.handleSelectTagKey}
         onStartEdit={this.handleStartEdit}
-        onEndEdit={this.handleEndEdit}
+        onCancelEdit={this.handleCancelEdit}
         autoFocusTarget={autoFocusTarget}
         onSubmit={this.handleSubmit}
       />
@@ -224,7 +269,7 @@ TemplateVariableRow.propTypes = {
   onSelectDatabase: func.isRequired,
   onSelectTagKey: func.isRequired,
   onStartEdit: func.isRequired,
-  onEndEdit: func.isRequired,
+  onCancelEdit: func.isRequired,
 }
 
 TableInput.propTypes = {

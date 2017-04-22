@@ -29,12 +29,13 @@ class MeasurementDropdown extends Component {
 
   render() {
     const {measurements} = this.state
-    const {measurement, onSelectMeasurement} = this.props
+    const {measurement, onSelectMeasurement, onStartEdit} = this.props
     return (
       <Dropdown
         items={measurements.map(text => ({text}))}
         selected={measurement || 'Select Measurement'}
         onChoose={onSelectMeasurement}
+        onClick={() => onStartEdit(null)}
       />
     )
   }
@@ -71,6 +72,7 @@ MeasurementDropdown.propTypes = {
   database: string.isRequired,
   measurement: string,
   onSelectMeasurement: func.isRequired,
+  onStartEdit: func.isRequired,
 }
 
 export default MeasurementDropdown

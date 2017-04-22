@@ -28,13 +28,19 @@ class DatabaseDropdown extends Component {
 
   render() {
     const {databases} = this.state
-    const {database, onSelectDatabase} = this.props
+    const {database, onSelectDatabase, onStartEdit} = this.props
+
+    // :(
+    if (!database) {
+      this.componentDidMount()
+    }
 
     return (
       <Dropdown
         items={databases.map(text => ({text}))}
-        selected={database}
+        selected={database || 'Loading...'}
         onChoose={onSelectDatabase}
+        onClick={() => onStartEdit(null)}
       />
     )
   }
@@ -53,6 +59,7 @@ DatabaseDropdown.contextTypes = {
 DatabaseDropdown.propTypes = {
   database: string,
   onSelectDatabase: func.isRequired,
+  onStartEdit: func.isRequired,
 }
 
 export default DatabaseDropdown
