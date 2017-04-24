@@ -6,6 +6,7 @@ import Dropdown from 'src/shared/components/Dropdown'
 import LoadingDots from 'src/shared/components/LoadingDots'
 import TemplateDrawer from 'src/shared/components/TemplateDrawer'
 import {QUERY_TEMPLATES} from 'src/data_explorer/constants'
+import {TEMPLATE_MATCHER} from 'src/dashboards/constants'
 
 class RawQueryEditor extends Component {
   constructor(props) {
@@ -24,6 +25,7 @@ class RawQueryEditor extends Component {
     this.handleChooseTemplate = ::this.handleChooseTemplate
     this.handleCloseDrawer = ::this.handleCloseDrawer
     this.findTempVar = ::this.findTempVar
+    this.handleTemplateReplace = ::this.handleTemplateReplace
   }
 
   componentWillReceiveProps(nextProps) {
@@ -42,19 +44,52 @@ class RawQueryEditor extends Component {
     if (isTemplating) {
       if (e.key === ('ArrowRight' || 'ArrowDown')) {
         e.preventDefault()
-        this.setState({selectedTempVar: this.findTempVar('next')})
+
+        this.handleTemplateReplace('next')
       }
 
       if (e.key === ('ArrowLeft' || 'ArrowUp')) {
         e.preventDefault()
-        this.setState({selectedTempVar: this.findTempVar('previous')})
+        this.handleTemplateReplace('previous')
+      }
+
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        const start = this.editor.selectionStart
+        const end = this.editor.selectionEnd
+        this.editor.setSelectionRange(start, end)
       }
     } else if (e.key === 'Escape') {
+      e.preventDefault()
       this.setState({value, isTemplating: false})
     } else if (e.key === 'Enter') {
-      e.preventDefault()
       this.handleUpdate()
     }
+  }
+
+  handleTemplateReplace(direction) {
+    const {selectionStart, value} = this.editor
+    const selectedTempVar = this.findTempVar(direction)
+
+    let templatedValue
+    const matched = value.match(TEMPLATE_MATCHER)
+    if (matched) {
+      templatedValue = value.replace(
+        TEMPLATE_MATCHER,
+        `:${selectedTempVar.tempVar}`
+      )
+    }
+
+    // debugger
+    const diffInLength = selectedTempVar.tempVar.length - matched[0].length
+    // console.log(diffInLength)
+
+    this.setState({value: templatedValue, selectedTempVar}, () =>
+      this.editor.setSelectionRange(
+        selectionStart + diffInLength + 1,
+        selectionStart + diffInLength + 1
+      )
+    )
   }
 
   findTempVar(direction) {
@@ -84,33 +119,17 @@ class RawQueryEditor extends Component {
   }
 
   handleChange() {
-    const {selectedTempVar} = this.state
     const value = this.editor.value
 
-    if (value.match(/[$][^\s]+|[$]/g)) {
-      this.setState({isTemplating: true})
+    if (value.match(TEMPLATE_MATCHER)) {
       // maintain cursor poition
       const start = this.editor.selectionStart
       const end = this.editor.selectionEnd
+      this.setState({isTemplating: true, value})
       this.editor.setSelectionRange(start, end)
     } else {
-      this.setState({isTemplating: false})
+      this.setState({isTemplating: false, value})
     }
-
-    let templatedValue
-    if (selectedTempVar.tempVar) {
-      templatedValue = this.editor.value.replace(
-        /[$][^\s]+|[$]/g,
-        selectedTempVar.tempVar
-      )
-    }
-
-    this.setState({
-      value: templatedValue || this.editor.value,
-      selectedTempVar: {
-        tempVar: '',
-      },
-    })
   }
 
   handleUpdate() {
@@ -143,7 +162,7 @@ class RawQueryEditor extends Component {
           onChange={this.handleChange}
           onKeyDown={this.handleKeyDown}
           onBlur={this.handleUpdate}
-          ref={editor => this.editor = editor}
+          ref={editor => (this.editor = editor)}
           value={value}
           placeholder="Enter a query or select database, measurement, and field below and have us build one for you..."
           autoComplete="off"
