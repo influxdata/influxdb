@@ -1,5 +1,7 @@
 import React, {PropTypes, Component} from 'react'
+import _ from 'lodash'
 import classNames from 'classnames'
+
 import Dropdown from 'src/shared/components/Dropdown'
 import LoadingDots from 'src/shared/components/LoadingDots'
 import TemplateDrawer from 'src/shared/components/TemplateDrawer'
@@ -11,12 +13,17 @@ class RawQueryEditor extends Component {
     this.state = {
       value: this.props.query,
       isTemplating: false,
+      selectedTempVar: {
+        tempVar: '',
+      },
     }
 
     this.handleKeyDown = ::this.handleKeyDown
     this.handleChange = ::this.handleChange
     this.handleUpdate = ::this.handleUpdate
     this.handleChooseTemplate = ::this.handleChooseTemplate
+    this.handleCloseDrawer = ::this.handleCloseDrawer
+    this.findTempVar = ::this.findTempVar
   }
 
   componentWillReceiveProps(nextProps) {
@@ -25,22 +32,84 @@ class RawQueryEditor extends Component {
     }
   }
 
+  handleCloseDrawer() {
+    this.setState({isTemplating: false})
+  }
+
   handleKeyDown(e) {
-    if (e.key === 'Enter') {
+    const {isTemplating, value} = this.state
+
+    if (isTemplating) {
+      if (e.key === ('ArrowRight' || 'ArrowDown')) {
+        e.preventDefault()
+        this.setState({selectedTempVar: this.findTempVar('next')})
+      }
+
+      if (e.key === ('ArrowLeft' || 'ArrowUp')) {
+        e.preventDefault()
+        this.setState({selectedTempVar: this.findTempVar('previous')})
+      }
+    } else if (e.key === 'Escape') {
+      this.setState({value, isTemplating: false})
+    } else if (e.key === 'Enter') {
       e.preventDefault()
       this.handleUpdate()
-    } else if (e.key === 'Escape') {
-      this.setState({value: this.state.value}, () => {
-        this.editor.blur()
-      })
-    } else if (e.key === '$') {
-      this.setState({isTemplating: true})
     }
   }
 
+  findTempVar(direction) {
+    const {templates} = this.props
+    const {selectedTempVar} = this.state
+
+    const i = _.findIndex(templates, selectedTempVar)
+    const lastIndex = templates.length - 1
+
+    if (i >= 0) {
+      if (direction === 'next') {
+        if (i === lastIndex) {
+          return templates[0]
+        }
+        return templates[i + 1]
+      }
+
+      if (direction === 'previous') {
+        if (i === 0) {
+          return templates[lastIndex]
+        }
+        return templates[i - 1]
+      }
+    }
+
+    return templates[0]
+  }
+
   handleChange() {
+    const {selectedTempVar} = this.state
+    const value = this.editor.value
+
+    if (value.match(/[$][^\s]+|[$]/g)) {
+      this.setState({isTemplating: true})
+      // maintain cursor poition
+      const start = this.editor.selectionStart
+      const end = this.editor.selectionEnd
+      this.editor.setSelectionRange(start, end)
+    } else {
+      this.setState({isTemplating: false})
+    }
+
+    let templatedValue
+    if (selectedTempVar.tempVar) {
+      templatedValue = this.editor.value.replace(
+        /[$][^\s]+|[$]/g,
+        selectedTempVar.tempVar
+      )
+    }
+
     this.setState({
-      value: this.editor.value,
+      value: templatedValue || this.editor.value,
+      selectedTempVar: {
+        tempVar: '',
+      },
     })
   }
 
@@ -52,19 +121,29 @@ class RawQueryEditor extends Component {
     this.setState({value: template.query})
   }
 
+  handleSelectTempVar(tempVar) {
+    this.setState({selectedTempVar: tempVar})
+  }
+
   render() {
     const {config: {status}, templates} = this.props
-    const {value, isTemplating} = this.state
+    const {value, isTemplating, selectedTempVar} = this.state
 
     return (
       <div className="raw-text">
-        {isTemplating ? <TemplateDrawer templates={templates} /> : null}
+        {isTemplating
+          ? <TemplateDrawer
+              templates={templates}
+              selected={selectedTempVar}
+              handleClickOutside={this.handleCloseDrawer}
+            />
+          : null}
         <textarea
           className="raw-text--field"
           onChange={this.handleChange}
           onKeyDown={this.handleKeyDown}
           onBlur={this.handleUpdate}
-          ref={editor => (this.editor = editor)}
+          ref={editor => this.editor = editor}
           value={value}
           placeholder="Enter a query or select database, measurement, and field below and have us build one for you..."
           autoComplete="off"

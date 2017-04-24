@@ -1,8 +1,26 @@
 import React, {PropTypes} from 'react'
+import OnClickOutside from 'react-onclickoutside'
 
-const TemplateDrawer = ({templates}) => (
-  <div style={{display: 'flex', alignItems: 'center', fontWeight: '700'}}>
-    {templates.map(t => <div key={t.tempVar}> {t.tempVar} </div>)}
+const style = {
+  display: 'flex',
+  alignItems: 'center',
+  fontWeight: '700',
+  padding: '15px',
+}
+
+const TemplateDrawer = ({templates, selected}) => (
+  <div style={style}>
+    {templates.map(t => (
+      <div
+        style={{
+          background: t.tempVar === selected.tempVar ? 'red' : 'transparent',
+          marginRight: '5px',
+        }}
+        key={t.tempVar}
+      >
+        {' '}{t.tempVar}{' '}
+      </div>
+    ))}
   </div>
 )
 
@@ -14,6 +32,9 @@ TemplateDrawer.propTypes = {
       tempVar: string.isRequired,
     })
   ),
+  selected: shape({
+    tempVar: string,
+  }),
 }
 
-export default TemplateDrawer
+export default OnClickOutside(TemplateDrawer)
