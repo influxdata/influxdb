@@ -10,9 +10,7 @@ const initialState = {
   cellQueryStatus: {queryID: null, status: null},
 }
 
-import {
-  TEMPLATE_VARIABLE_SELECTED,
-} from 'shared/constants/actionTypes'
+import {TEMPLATE_VARIABLE_SELECTED} from 'shared/constants/actionTypes'
 
 export default function ui(state = initialState, action) {
   switch (action.type) {
@@ -185,12 +183,16 @@ export default function ui(state = initialState, action) {
     }
 
     case TEMPLATE_VARIABLE_SELECTED: {
-      const {dashboardID, templateID, values: updatedSelectedValues} = action.payload
-      const newDashboards = state.dashboards.map((dashboard) => {
+      const {
+        dashboardID,
+        templateID,
+        values: updatedSelectedValues,
+      } = action.payload
+      const newDashboards = state.dashboards.map(dashboard => {
         if (dashboard.id === dashboardID) {
-          const newTemplates = dashboard.templates.map((staleTemplate) => {
+          const newTemplates = dashboard.templates.map(staleTemplate => {
             if (staleTemplate.id === templateID) {
-              const newValues = staleTemplate.values.map((staleValue) => {
+              const newValues = staleTemplate.values.map(staleValue => {
                 let selected = false
                 for (let i = 0; i < updatedSelectedValues.length; i++) {
                   if (updatedSelectedValues[i].value === staleValue.value) {
@@ -211,18 +213,16 @@ export default function ui(state = initialState, action) {
       return {...state, dashboards: newDashboards}
     }
 
-    case 'EDIT_TEMPLATE': {
-      const {dashboardID, templateID, updates} = action.payload
-
+    case 'EDIT_TEMPLATE_VARIABLE_SUCCESS': {
+      const {dashboardID, data} = action.payload
+      debugger
       const dashboards = state.dashboards.map(
         d =>
           (d.id === dashboardID
             ? {
-              ...d,
-              templates: d.templates.map(
-                t => (t.id === templateID ? {...t, ...updates} : t)
-              ),
-            }
+                ...d,
+                templates: d.templates.map(t => (t.id === data.id ? data : t)),
+              }
             : d)
       )
       return {...state, dashboards}

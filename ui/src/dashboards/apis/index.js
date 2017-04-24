@@ -23,7 +23,7 @@ export function updateDashboardCell(cell) {
   })
 }
 
-export const createDashboard = async (dashboard) => {
+export const createDashboard = async dashboard => {
   try {
     return await AJAX({
       method: 'POST',
@@ -36,7 +36,7 @@ export const createDashboard = async (dashboard) => {
   }
 }
 
-export const deleteDashboard = async (dashboard) => {
+export const deleteDashboard = async dashboard => {
   try {
     return await AJAX({
       method: 'DELETE',
@@ -61,11 +61,27 @@ export const addDashboardCell = async (dashboard, cell) => {
   }
 }
 
-export const deleteDashboardCell = async (cell) => {
+export const deleteDashboardCell = async cell => {
   try {
     return await AJAX({
       method: 'DELETE',
       url: cell.links.self,
+    })
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}
+
+export const editTemplateVariable = async (
+  staleTemplateVariable,
+  editedTemplateVariable
+) => {
+  try {
+    return await AJAX({
+      method: 'PUT',
+      url: staleTemplateVariable.links.self,
+      data: editedTemplateVariable,
     })
   } catch (error) {
     console.error(error)

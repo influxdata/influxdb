@@ -154,14 +154,12 @@ class DashboardPage extends Component {
     )
   }
 
-  handleEditTemplateVariable(staleTemplateVariable, newTemplateVariable) {
-    // const {params: {dashboardID}} = this.props
-    console.log(staleTemplateVariable, newTemplateVariable)
-    // this.props.dashboardActions.templateVariableEdited(
-    //   +dashboardID,
-    //   templateVariableID,
-    //   updates
-    // )
+  handleEditTemplateVariable(staleTemplateVariable, editedTemplateVariable) {
+    this.props.dashboardActions.editTemplateVariableAsync(
+      this.props.params.dashboardID,
+      staleTemplateVariable,
+      editedTemplateVariable
+    )
   }
 
   getActiveDashboard() {

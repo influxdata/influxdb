@@ -10,7 +10,7 @@ import {
   editDashboardCell,
   renameDashboardCell,
   syncDashboardCell,
-  templateVariableEdited,
+  editTemplateVariableSuccess,
   templateVariableSelected,
 } from 'src/dashboards/actions'
 
@@ -63,10 +63,11 @@ const c1 = {
 }
 const cells = [c1]
 const tempVar = {
-  id: 1,
+  ...d1.templates[0],
+  id: '1',
   type: 'measurement',
   label: 'test query',
-  code: '$HOSTS',
+  tempVar: '$HOSTS',
   query: {
     db: 'db1',
     text: 'SHOW TAGS WHERE HUNTER = "coo"',
@@ -167,17 +168,17 @@ describe('DataExplorer.Reducers.UI', () => {
     state = {
       dashboards: [dash],
     }
-    const updates = {
-      code: '$NEWCODE',
+    const edited = {
+      ...d1.templates[0],
+      id: '1',
+      tempVar: '$NEWCODE',
       label: 'new label',
       type: 'tagKey',
     }
-    const expected = {...tempVar, ...updates}
+    const expected = {...tempVar, ...edited}
 
-    const actual = reducer(
-      state,
-      templateVariableEdited(dash.id, tempVar.id, updates)
-    )
+    const actual = reducer(state, editTemplateVariableSuccess(dash.id, edited))
+
     expect(actual.dashboards[0].templates[0]).to.deep.equal(expected)
   })
 

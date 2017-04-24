@@ -5,10 +5,12 @@ import {
   updateDashboardCell as updateDashboardCellAJAX,
   addDashboardCell as addDashboardCellAJAX,
   deleteDashboardCell as deleteDashboardCellAJAX,
+  editTemplateVariable as editTemplateVariableAJAX,
 } from 'src/dashboards/apis'
 
 import {publishNotification} from 'shared/actions/notifications'
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
+// import {errorThrown} from 'shared/actions/errors'
 
 import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants'
 
@@ -122,12 +124,11 @@ export const templateVariableSelected = (dashboardID, templateID, values) => ({
   },
 })
 
-export const templateVariableEdited = (dashboardID, templateID, updates) => ({
-  type: 'TEMPLATE_VARIABLE_EDITED',
+export const editTemplateVariableSuccess = (dashboardID, data) => ({
+  type: 'EDIT_TEMPLATE_VARIABLE_SUCCESS',
   payload: {
     dashboardID,
-    templateID,
-    updates,
+    data,
   },
 })
 
@@ -150,6 +151,9 @@ const templates = [
       {value: 'us-east', type: 'tagKey', selected: true},
       {value: 'us-mount', type: 'tagKey', selected: false},
     ],
+    links: {
+      self: '/chronograf/v1/dashboards/2/templates/1',
+    },
   },
   {
     id: '2',
@@ -161,6 +165,9 @@ const templates = [
       {value: '99.1', type: 'measurement', selected: false},
       {value: '101.3', type: 'measurement', selected: true},
     ],
+    links: {
+      self: '/chronograf/v1/dashboards/2/templates/2',
+    },
   },
 ]
 
@@ -230,5 +237,23 @@ export const deleteDashboardCellAsync = cell => async dispatch => {
   } catch (error) {
     console.error(error)
     throw error
+  }
+}
+
+export const editTemplateVariableAsync = (
+  dashboardID,
+  staleTemplateVariable,
+  editedTemplateVariable
+) => async dispatch => {
+  // dispatch(editTemplateVariableRequested())
+  try {
+    const {data} = await editTemplateVariableAJAX(
+      staleTemplateVariable,
+      editedTemplateVariable
+    )
+    dispatch(editTemplateVariableSuccess(+dashboardID, data))
+  } catch (error) {
+    // dispatch(errorThrown(error))
+    // dispatch(editTemplateVariableFailed())
   }
 }
