@@ -101,16 +101,14 @@ class RawQueryEditor extends Component {
 
     if (i >= 0) {
       if (direction === 'next') {
-        if (i === lastIndex) {
-          return templates[0]
-        }
-        return templates[i + 1]
+        return templates[(i + 1) % templates.length]
       }
 
       if (direction === 'previous') {
         if (i === 0) {
           return templates[lastIndex]
         }
+
         return templates[i - 1]
       }
     }
