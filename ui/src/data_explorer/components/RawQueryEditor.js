@@ -15,7 +15,7 @@ class RawQueryEditor extends Component {
       value: this.props.query,
       isTemplating: false,
       selectedTemplate: {
-        tempVar: '',
+        tempVar: _.get(this.props.templates, ['0', 'tempVar'], ''),
       },
     }
 
@@ -63,9 +63,24 @@ class RawQueryEditor extends Component {
 
       if (e.key === 'Enter') {
         e.preventDefault()
-        const start = this.editor.selectionStart
-        const end = this.editor.selectionEnd
-        this.editor.setSelectionRange(start, end)
+
+        this.handleTemplateReplace(this.state.selectedTemplate, e.key)
+        this.setState({
+          isTemplating: false,
+          selectedTemplate: {
+            tempVar: _.get(this.props.templates, ['0', 'tempVar'], ''),
+          },
+        })
+      }
+
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        this.setState({
+          isTemplating: false,
+          selectedTemplate: {
+            tempVar: _.get(this.props.templates, ['0', 'tempVar'], ''),
+          },
+        })
       }
     } else if (e.key === 'Escape') {
       e.preventDefault()
@@ -75,14 +90,15 @@ class RawQueryEditor extends Component {
     }
   }
 
-  handleTemplateReplace(selectedTemplate) {
+  handleTemplateReplace(selectedTemplate, key) {
     const {selectionStart, value} = this.editor
     const {tempVar} = selectedTemplate
 
     let templatedValue
+    const prefix = key === 'Enter' ? '' : ':'
     const matched = value.match(TEMPLATE_MATCHER)
     if (matched) {
-      templatedValue = value.replace(TEMPLATE_MATCHER, `:${tempVar}`)
+      templatedValue = value.replace(TEMPLATE_MATCHER, `${prefix}${tempVar}`)
     }
 
     const diffInLength = tempVar.length - matched[0].length
