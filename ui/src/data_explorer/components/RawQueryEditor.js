@@ -14,7 +14,7 @@ class RawQueryEditor extends Component {
     this.state = {
       value: this.props.query,
       isTemplating: false,
-      selectedTempVar: {
+      selectedTemplate: {
         tempVar: '',
       },
     }
@@ -26,6 +26,7 @@ class RawQueryEditor extends Component {
     this.handleCloseDrawer = ::this.handleCloseDrawer
     this.findTempVar = ::this.findTempVar
     this.handleTemplateReplace = ::this.handleTemplateReplace
+    this.handleMouseOverTempVar = ::this.handleMouseOverTempVar
   }
 
   componentWillReceiveProps(nextProps) {
@@ -38,6 +39,10 @@ class RawQueryEditor extends Component {
     this.setState({isTemplating: false})
   }
 
+  handleMouseOverTempVar(template) {
+    this.handleTemplateReplace(template)
+  }
+
   handleKeyDown(e) {
     const {isTemplating, value} = this.state
 
@@ -45,12 +50,15 @@ class RawQueryEditor extends Component {
       if (e.key === ('ArrowRight' || 'ArrowDown')) {
         e.preventDefault()
 
-        this.handleTemplateReplace('next')
+        const tempVar = this.findTempVar('next')
+        this.handleTemplateReplace(tempVar)
       }
 
       if (e.key === ('ArrowLeft' || 'ArrowUp')) {
         e.preventDefault()
-        this.handleTemplateReplace('previous')
+
+        const tempVar = this.findTempVar('previous')
+        this.handleTemplateReplace(tempVar)
       }
 
       if (e.key === 'Enter') {
@@ -67,24 +75,19 @@ class RawQueryEditor extends Component {
     }
   }
 
-  handleTemplateReplace(direction) {
+  handleTemplateReplace(selectedTemplate) {
     const {selectionStart, value} = this.editor
-    const selectedTempVar = this.findTempVar(direction)
+    const {tempVar} = selectedTemplate
 
     let templatedValue
     const matched = value.match(TEMPLATE_MATCHER)
     if (matched) {
-      templatedValue = value.replace(
-        TEMPLATE_MATCHER,
-        `:${selectedTempVar.tempVar}`
-      )
+      templatedValue = value.replace(TEMPLATE_MATCHER, `:${tempVar}`)
     }
 
-    // debugger
-    const diffInLength = selectedTempVar.tempVar.length - matched[0].length
-    // console.log(diffInLength)
+    const diffInLength = tempVar.length - matched[0].length
 
-    this.setState({value: templatedValue, selectedTempVar}, () =>
+    this.setState({value: templatedValue, selectedTemplate}, () =>
       this.editor.setSelectionRange(
         selectionStart + diffInLength + 1,
         selectionStart + diffInLength + 1
@@ -94,9 +97,9 @@ class RawQueryEditor extends Component {
 
   findTempVar(direction) {
     const {templates} = this.props
-    const {selectedTempVar} = this.state
+    const {selectedTemplate} = this.state
 
-    const i = _.findIndex(templates, selectedTempVar)
+    const i = _.findIndex(templates, selectedTemplate)
     const lastIndex = templates.length - 1
 
     if (i >= 0) {
@@ -139,20 +142,21 @@ class RawQueryEditor extends Component {
   }
 
   handleSelectTempVar(tempVar) {
-    this.setState({selectedTempVar: tempVar})
+    this.setState({selectedTemplate: tempVar})
   }
 
   render() {
     const {config: {status}, templates} = this.props
-    const {value, isTemplating, selectedTempVar} = this.state
+    const {value, isTemplating, selectedTemplate} = this.state
 
     return (
       <div className="raw-text">
         {isTemplating
           ? <TemplateDrawer
               templates={templates}
-              selected={selectedTempVar}
+              selected={selectedTemplate}
               handleClickOutside={this.handleCloseDrawer}
+              handleMouseOverTempVar={this.handleMouseOverTempVar}
             />
           : null}
         <textarea
