@@ -7,7 +7,7 @@ import TemplateQueryBuilder
 import {TEMPLATE_TYPES} from 'src/dashboards/constants'
 
 const TemplateVariableRow = ({
-  template: {id, label, tempVar, values},
+  template: {label, tempVar, values},
   isEditing,
   selectedType,
   selectedDatabase,
@@ -24,15 +24,12 @@ const TemplateVariableRow = ({
 }) => (
   <form
     className="tr"
-    onSubmit={onSubmit(
-      {
-        selectedType,
-        selectedDatabase,
-        selectedMeasurement,
-        selectedTagKey,
-      },
-      id
-    )}
+    onSubmit={onSubmit({
+      selectedType,
+      selectedDatabase,
+      selectedMeasurement,
+      selectedTagKey,
+    })}
   >
     <TableInput
       name="label"
@@ -128,6 +125,7 @@ class RowWrapper extends Component {
       autoFocusTarget: null,
     }
 
+    this.handleSubmit = ::this.handleSubmit
     this.handleSelectType = ::this.handleSelectType
     this.handleSelectDatabase = ::this.handleSelectDatabase
     this.handleSelectMeasurement = ::this.handleSelectMeasurement
@@ -136,23 +134,21 @@ class RowWrapper extends Component {
     this.handleCancelEdit = ::this.handleCancelEdit
   }
 
-  handleSubmit(
-    {
-      selectedDatabase: database,
-      selectedMeasurement: measurement,
-      selectedTagKey: tagKey,
-      selectedType: type,
-    },
-    id
-  ) {
+  handleSubmit({
+    selectedDatabase: database,
+    selectedMeasurement: measurement,
+    selectedTagKey: tagKey,
+    selectedType: type,
+  }) {
     return e => {
       e.preventDefault()
 
       const label = e.target.label.value
       const tempVar = e.target.tempVar.value
 
-      console.log({
-        id,
+      const {template, onEditTemplateVariable} = this.props
+
+      onEditTemplateVariable(template, {
         type,
         label,
         tempVar,
@@ -162,7 +158,6 @@ class RowWrapper extends Component {
           tagKey,
         },
       })
-      // updateTempVarsAsync({tempVar, label})
     }
   }
 
@@ -257,7 +252,11 @@ RowWrapper.propTypes = {
         selected: bool.isRequired,
       })
     ).isRequired,
+    links: shape({
+      self: string.isRequired,
+    }).isRequired,
   }),
+  onEditTemplateVariable: func.isRequired,
 }
 
 TemplateVariableRow.propTypes = {

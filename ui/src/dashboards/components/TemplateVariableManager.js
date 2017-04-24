@@ -3,7 +3,11 @@ import OnClickOutside from 'react-onclickoutside'
 import TemplateVariableTable
   from 'src/dashboards/components/TemplateVariableTable'
 
-const TemplateVariableManager = ({onClose, templates}) => (
+const TemplateVariableManager = ({
+  onClose,
+  onEditTemplateVariable,
+  templates,
+}) => (
   <div className="template-variable-manager">
     <div className="template-variable-manager--header">
       <div className="page-header__left">
@@ -19,7 +23,10 @@ const TemplateVariableManager = ({onClose, templates}) => (
       </div>
     </div>
     <div className="template-variable-manager--body">
-      <TemplateVariableTable templates={templates} />
+      <TemplateVariableTable
+        templates={templates}
+        onEditTemplateVariable={onEditTemplateVariable}
+      />
     </div>
   </div>
 )
@@ -28,6 +35,7 @@ const {arrayOf, bool, func, shape, string} = PropTypes
 
 TemplateVariableManager.propTypes = {
   onClose: func.isRequired,
+  onEditTemplateVariable: func.isRequired,
   templates: arrayOf(
     shape({
       type: string.isRequired,

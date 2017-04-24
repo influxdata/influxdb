@@ -43,6 +43,7 @@ class DashboardPage extends Component {
     this.handleSummonOverlayTechnologies = ::this
       .handleSummonOverlayTechnologies
     this.handleSelectTemplate = ::this.handleSelectTemplate
+    this.handleEditTemplateVariable = ::this.handleEditTemplateVariable
   }
 
   componentDidMount() {
@@ -153,13 +154,14 @@ class DashboardPage extends Component {
     )
   }
 
-  handleEditTemplate(templateVariableID, updates) {
-    const {params: {dashboardID}} = this.props
-    this.props.dashboardActions.templateVariableEdited(
-      +dashboardID,
-      templateVariableID,
-      updates
-    )
+  handleEditTemplateVariable(staleTemplateVariable, newTemplateVariable) {
+    // const {params: {dashboardID}} = this.props
+    console.log(staleTemplateVariable, newTemplateVariable)
+    // this.props.dashboardActions.templateVariableEdited(
+    //   +dashboardID,
+    //   templateVariableID,
+    //   updates
+    // )
   }
 
   getActiveDashboard() {
@@ -191,6 +193,7 @@ class DashboardPage extends Component {
           ? <OverlayTechnologies>
               <TemplateVariableManager
                 onClose={this.handleCloseTemplateManager}
+                onEditTemplateVariable={this.handleEditTemplateVariable}
                 handleClickOutside={this.handleCloseTemplateManager}
                 templates={dashboard.templates}
               />
@@ -257,7 +260,6 @@ class DashboardPage extends Component {
               onOpenTemplateManager={this.handleOpenTemplateManager}
               onSummonOverlayTechnologies={this.handleSummonOverlayTechnologies}
               onSelectTemplate={this.handleSelectTemplate}
-              onEditTemplate={this.handleEditTemplate}
             />
           : null}
       </div>

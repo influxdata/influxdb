@@ -2,7 +2,7 @@ import React, {PropTypes} from 'react'
 
 import TemplateVariableRow from 'src/dashboards/components/TemplateVariableRow'
 
-const TemplateVariableTable = ({templates}) => (
+const TemplateVariableTable = ({templates, onEditTemplateVariable}) => (
   <div className="table-custom">
     <div className="thead">
       <div className="tr">
@@ -15,12 +15,18 @@ const TemplateVariableTable = ({templates}) => (
       </div>
     </div>
     <div className="tbody">
-      {templates.map(t => <TemplateVariableRow key={t.id} template={t} />)}
+      {templates.map(t => (
+        <TemplateVariableRow
+          key={t.id}
+          template={t}
+          onEditTemplateVariable={onEditTemplateVariable}
+        />
+      ))}
     </div>
   </div>
 )
 
-const {arrayOf, bool, shape, string} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 TemplateVariableTable.propTypes = {
   templates: arrayOf(
@@ -41,6 +47,7 @@ TemplateVariableTable.propTypes = {
       ).isRequired,
     })
   ),
+  onEditTemplateVariable: func.isRequired,
 }
 
 export default TemplateVariableTable
