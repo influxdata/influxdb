@@ -12,12 +12,11 @@ class RedactedInput extends Component {
     const {defaultValue, id, refFunc} = this.props
     const {editing} = this.state
 
-    let component = null
     if (defaultValue === true && !editing) {
-      component = (
-        <div>
+      return (
+        <div className="alert-value-set">
           <span>
-            Value set
+            value set
             <a
               href="#"
               onClick={() => {
@@ -32,22 +31,21 @@ class RedactedInput extends Component {
             id={id}
             type="hidden"
             ref={refFunc}
-            defaultValue={defaultValue || ''}
+            defaultValue={defaultValue}
           />
         </div>
       )
-    } else {
-      component = (
-        <input
-          className="form-control"
-          id={id}
-          type="text"
-          ref={refFunc}
-          defaultValue={''}
-        />
-      )
     }
-    return component
+
+    return (
+      <input
+        className="form-control"
+        id={id}
+        type="text"
+        ref={refFunc}
+        defaultValue={''}
+      />
+    )
   }
 }
 
