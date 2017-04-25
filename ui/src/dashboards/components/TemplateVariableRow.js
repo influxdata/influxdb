@@ -5,6 +5,8 @@ import TemplateQueryBuilder
   from 'src/dashboards/components/TemplateQueryBuilder'
 
 import {TEMPLATE_TYPES} from 'src/dashboards/constants'
+import q
+  from 'src/dashboards/utils/onlyTheBigliestBigLeagueTemplateVariableQueryGenerator'
 
 const TemplateVariableRow = ({
   template: {label, tempVar, values},
@@ -125,7 +127,7 @@ class RowWrapper extends Component {
       autoFocusTarget: null,
     }
 
-    this.handleSubmit = ::this.handleSubmit
+    this.handleRunQuery = ::this.handleRunQuery
     this.handleSelectType = ::this.handleSelectType
     this.handleSelectDatabase = ::this.handleSelectDatabase
     this.handleSelectMeasurement = ::this.handleSelectMeasurement
@@ -134,7 +136,7 @@ class RowWrapper extends Component {
     this.handleCancelEdit = ::this.handleCancelEdit
   }
 
-  handleSubmit({
+  handleRunQuery({
     selectedDatabase: database,
     selectedMeasurement: measurement,
     selectedTagKey: tagKey,
@@ -146,18 +148,30 @@ class RowWrapper extends Component {
       const label = e.target.label.value
       const tempVar = e.target.tempVar.value
 
-      const {template, onEditTemplateVariable} = this.props
-
-      onEditTemplateVariable(template, {
+      const {template, onRunTemplateVariableQuery} = this.props
+      const {query, tempVars} = q({
         type,
         label,
         tempVar,
         query: {
-          db: database,
+          database,
+          // rp, TODO
           measurement,
           tagKey,
         },
       })
+
+      onRunTemplateVariableQuery(template, {
+        query,
+        database,
+        // rp: TODO
+        tempVars,
+        type,
+        measurement,
+        tagKey,
+      })
+
+      // TODO: save values to state in TVM, using template
     }
   }
 
@@ -226,7 +240,7 @@ class RowWrapper extends Component {
         onStartEdit={this.handleStartEdit}
         onCancelEdit={this.handleCancelEdit}
         autoFocusTarget={autoFocusTarget}
-        onSubmit={this.handleSubmit}
+        onSubmit={this.handleRunQuery}
       />
     )
   }
@@ -256,7 +270,7 @@ RowWrapper.propTypes = {
       self: string.isRequired,
     }).isRequired,
   }),
-  onEditTemplateVariable: func.isRequired,
+  onRunTemplateVariableQuery: func.isRequired,
 }
 
 TemplateVariableRow.propTypes = {

@@ -5,7 +5,8 @@ import TemplateVariableTable
 
 const TemplateVariableManager = ({
   onClose,
-  onEditTemplateVariable,
+  onEditTemplateVariables,
+  onRunTemplateVariableQuery,
   templates,
 }) => (
   <div className="template-variable-manager">
@@ -15,6 +16,11 @@ const TemplateVariableManager = ({
       </div>
       <div className="page-header__right">
         <button className="btn btn-primary btn-sm">Add Variable</button>
+        <button
+          className="btn btn-primary btn-sm"
+          onClick={onEditTemplateVariables}
+        >Save Template
+        </button>
         <span
           className="icon remove"
           onClick={onClose}
@@ -25,7 +31,7 @@ const TemplateVariableManager = ({
     <div className="template-variable-manager--body">
       <TemplateVariableTable
         templates={templates}
-        onEditTemplateVariable={onEditTemplateVariable}
+        onRunTemplateVariableQuery={onRunTemplateVariableQuery}
       />
     </div>
   </div>
@@ -35,7 +41,8 @@ const {arrayOf, bool, func, shape, string} = PropTypes
 
 TemplateVariableManager.propTypes = {
   onClose: func.isRequired,
-  onEditTemplateVariable: func.isRequired,
+  onEditTemplateVariables: func.isRequired,
+  onRunTemplateVariableQuery: func.isRequired,
   templates: arrayOf(
     shape({
       type: string.isRequired,

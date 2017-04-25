@@ -54,29 +54,10 @@ export const TEMPLATE_TYPES = [
   },
 ]
 
-export const TEMPLATE_VARIABLE_TYPES = [
-  {
-    text: 'CSV',
-    type: 'csv',
-  },
-  {
-    text: 'Database',
-    type: 'database',
-  },
-  {
-    text: 'Measurement',
-    type: 'measurement',
-  },
-  {
-    text: 'Field Key',
-    type: 'fieldKey',
-  },
-  {
-    text: 'Tag Key',
-    type: 'tagKey',
-  },
-  {
-    text: 'Tag Value',
-    type: 'tagValue',
-  },
-]
+export const TEMPLATE_VARIABLE_QUERIES = {
+  databases: 'SHOW DATABASES',
+  measurements: 'SHOW MEASUREMENTS ON $database',
+  fieldKeys: 'SHOW FIELD KEYS ON $database FROM $measurement',
+  tagKeys: 'SHOW TAG KEYS ON $database FROM $measurement',
+  tagValues: 'SHOW TAG VALUES ON $database FROM $measurement WITH KEY=$tagKey',
+}

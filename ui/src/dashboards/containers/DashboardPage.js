@@ -42,8 +42,9 @@ class DashboardPage extends Component {
     this.handleCloseTemplateManager = ::this.handleCloseTemplateManager
     this.handleSummonOverlayTechnologies = ::this
       .handleSummonOverlayTechnologies
+    this.handleRunTemplateVariableQuery = ::this.handleRunTemplateVariableQuery
     this.handleSelectTemplate = ::this.handleSelectTemplate
-    this.handleEditTemplateVariable = ::this.handleEditTemplateVariable
+    this.handleEditTemplateVariables = ::this.handleEditTemplateVariables
   }
 
   componentDidMount() {
@@ -154,12 +155,34 @@ class DashboardPage extends Component {
     )
   }
 
-  handleEditTemplateVariable(staleTemplateVariable, editedTemplateVariable) {
-    this.props.dashboardActions.editTemplateVariableAsync(
-      this.props.params.dashboardID,
-      staleTemplateVariable,
-      editedTemplateVariable
+  handleRunTemplateVariableQuery(
+    templateVariable,
+    {query, db, tempVars, type, tagKey, measurement}
+  ) {
+    const {source} = this.props
+    this.props.dashboardActions.runTemplateVariableQueryAsync(
+      templateVariable,
+      {
+        source,
+        query,
+        db,
+        // rp, TODO
+        tempVars,
+        type,
+        tagKey,
+        measurement,
+      }
     )
+  }
+
+  // TODO: make this work over array of template variables onSave in TVM
+  handleEditTemplateVariables(staleTemplateVariable, editedTemplateVariable) {
+    //   // this.props.dashboardActions.editTemplateVariableAsync(
+    //   //   this.props.params.dashboardID,
+    //   //   staleTemplateVariable,
+    //   //   editedTemplateVariable
+    //   // )
+    //   console.log('hello')
   }
 
   getActiveDashboard() {
@@ -191,7 +214,8 @@ class DashboardPage extends Component {
           ? <OverlayTechnologies>
               <TemplateVariableManager
                 onClose={this.handleCloseTemplateManager}
-                onEditTemplateVariable={this.handleEditTemplateVariable}
+                onRunTemplateVariableQuery={this.handleRunTemplateVariableQuery}
+                onEditTemplateVariables={this.handleEditTemplateVariables}
                 handleClickOutside={this.handleCloseTemplateManager}
                 templates={dashboard.templates}
               />

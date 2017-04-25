@@ -6,11 +6,14 @@ import {
   addDashboardCell as addDashboardCellAJAX,
   deleteDashboardCell as deleteDashboardCellAJAX,
   editTemplateVariable as editTemplateVariableAJAX,
+  runTemplateVariableQuery as runTemplateVariableQueryAJAX,
 } from 'src/dashboards/apis'
 
 import {publishNotification} from 'shared/actions/notifications'
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
 // import {errorThrown} from 'shared/actions/errors'
+
+import parsers from 'shared/parsing'
 
 import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants'
 
@@ -132,52 +135,20 @@ export const editTemplateVariableSuccess = (dashboardID, data) => ({
   },
 })
 
-// Stub Template Variables Data
-
-const templates = [
-  {
-    id: '1',
-    type: 'tagKeys',
-    label: 'test query',
-    tempVar: '$REGION',
-    query: {
-      db: 'db1',
-      rp: 'rp1',
-      measurement: 'm1',
-      influxql: 'SHOW TAGS WHERE CHRONOGIRAFFE = "friend"',
-    },
-    values: [
-      {value: 'us-west', type: 'tagKey', selected: false},
-      {value: 'us-east', type: 'tagKey', selected: true},
-      {value: 'us-mount', type: 'tagKey', selected: false},
-    ],
-    links: {
-      self: '/chronograf/v1/dashboards/2/templates/1',
-    },
+export const runTemplateVariableQuerySuccess = (templateVariable, values) => ({
+  type: 'RUN_TEMPLATE_VARIABLE_QUERY_SUCCESS',
+  payload: {
+    templateVariable,
+    values,
   },
-  {
-    id: '2',
-    type: 'csv',
-    label: 'test csv',
-    tempVar: '$TEMPERATURE',
-    values: [
-      {value: '98.7', type: 'measurement', selected: false},
-      {value: '99.1', type: 'measurement', selected: false},
-      {value: '101.3', type: 'measurement', selected: true},
-    ],
-    links: {
-      self: '/chronograf/v1/dashboards/2/templates/2',
-    },
-  },
-]
+})
 
 // Async Action Creators
 
-export const getDashboardsAsync = dashboardID => async dispatch => {
+export const getDashboardsAsync = () => async dispatch => {
   try {
     const {data: {dashboards}} = await getDashboardsAJAX()
-    const stubbedDashboards = dashboards.map(d => ({...d, templates}))
-    dispatch(loadDashboards(stubbedDashboards, dashboardID))
+    dispatch(loadDashboards(dashboards))
   } catch (error) {
     console.error(error)
     throw error
@@ -186,7 +157,7 @@ export const getDashboardsAsync = dashboardID => async dispatch => {
 
 export const putDashboard = dashboard => dispatch => {
   updateDashboardAJAX(dashboard).then(({data}) => {
-    dispatch(updateDashboard({...data, templates}))
+    dispatch(updateDashboard(data))
   })
 }
 
@@ -253,7 +224,35 @@ export const editTemplateVariableAsync = (
     )
     dispatch(editTemplateVariableSuccess(+dashboardID, data))
   } catch (error) {
+    console.error(error)
     // dispatch(errorThrown(error))
     // dispatch(editTemplateVariableFailed())
+  }
+}
+
+export const runTemplateVariableQueryAsync = (
+  templateVariable,
+  {source, query, database, rp, tempVars, type, measurement, tagKey}
+) => async dispatch => {
+  // dispatch(runTemplateVariableQueryRequested())
+  try {
+    const {data} = await runTemplateVariableQueryAJAX({
+      source,
+      query,
+      db: database,
+      rp,
+      tempVars,
+    })
+    const parsedData = parsers[type](data, tagKey || measurement) // tagKey covers tagKey and fieldKey
+    if (parsedData.errors.length) {
+      throw parsedData.errors
+    }
+    dispatch(
+      runTemplateVariableQuerySuccess(templateVariable, parsedData[type])
+    )
+  } catch (error) {
+    console.error(error)
+    // dispatch(errorThrown(error))
+    // dispatch(runTemplateVariableQueryFailed())
   }
 }

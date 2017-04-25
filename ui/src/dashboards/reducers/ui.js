@@ -32,7 +32,6 @@ export default function ui(state = initialState, action) {
     case 'UPDATE_DASHBOARD': {
       const {dashboard} = action.payload
       const newState = {
-        dashboard,
         dashboards: state.dashboards.map(
           d => (d.id === dashboard.id ? dashboard : d)
         ),
@@ -215,7 +214,6 @@ export default function ui(state = initialState, action) {
 
     case 'EDIT_TEMPLATE_VARIABLE_SUCCESS': {
       const {dashboardID, data} = action.payload
-      debugger
       const dashboards = state.dashboards.map(
         d =>
           (d.id === dashboardID
