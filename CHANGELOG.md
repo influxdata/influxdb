@@ -5,7 +5,6 @@
 ### Features
 
 ### UI Improvements
-  
 ## v1.2.0-beta9 [2017-04-21]
 
 ### Bug Fixes
