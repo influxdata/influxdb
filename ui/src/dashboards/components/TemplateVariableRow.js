@@ -75,7 +75,7 @@ const TemplateVariableRow = ({
       {isEditing
         ? <div>
             <button className="btn btn-sm btn-success" type="submit">
-              Submit
+              Run Query
             </button>
             <button
               className="btn btn-sm btn-primary"
