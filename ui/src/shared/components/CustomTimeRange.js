@@ -45,7 +45,7 @@ class CustomTimeRange extends Component {
     const {isVisible, onToggle, timeRange: {upper, lower}} = this.props
 
     return (
-      <div className={classNames("custom-time-range", {show: isVisible})} style={{display: 'flex'}}>
+      <div className={classNames('custom-time-range', {show: isVisible})} style={{display: 'flex'}}>
         <button className="btn btn-sm btn-info custom-time-range--btn" onClick={onToggle}>
           <span className="icon clock"></span>
           {`${moment(lower).format('MMM Do HH:mm')} — ${moment(upper).format('MMM Do HH:mm')}`}

@@ -1,13 +1,13 @@
-import me from './me'
 import app from './app'
 import auth from './auth'
+import errors from './errors'
 import notifications from './notifications'
 import sources from './sources'
 
 export default {
-  me,
   app,
   auth,
+  errors,
   notifications,
   sources,
 }

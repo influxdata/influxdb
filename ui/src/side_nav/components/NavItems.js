@@ -15,7 +15,7 @@ const NavListItem = React.createClass({
     const {link, children, location} = this.props
     const isActive = location.startsWith(link)
 
-    return <Link className={cx("sidebar__menu-item", {active: isActive})} to={link}>{children}</Link>
+    return <Link className={cx('sidebar__menu-item', {active: isActive})} to={link}>{children}</Link>
   },
 })
 
@@ -62,7 +62,7 @@ const NavBlock = React.createClass({
     return (
       <div className={cx('sidebar__square', className, {active: isActive})}>
         {this.renderLink()}
-        <div className={wrapperClassName || "sidebar__menu-wrapper"}>
+        <div className={wrapperClassName || 'sidebar__menu-wrapper'}>
           <div className="sidebar__menu">
             {children}
           </div>

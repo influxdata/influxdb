@@ -29,7 +29,7 @@ export const RuleGraph = React.createClass({
     const autoRefreshMs = 30000
     const queryText = buildInfluxQLQuery({lower}, query)
     const queries = [{host: source.links.proxy, text: queryText}]
-    const kapacitorLineColors = ["#4ED8A0"]
+    const kapacitorLineColors = ['#4ED8A0']
 
     if (!queryText) {
       return (

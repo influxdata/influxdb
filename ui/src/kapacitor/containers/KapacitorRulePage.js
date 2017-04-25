@@ -1,11 +1,10 @@
 import React, {PropTypes} from 'react'
-import {withRouter} from 'react-router'
 import {connect} from 'react-redux'
 import _ from 'lodash'
 import * as kapacitorActionCreators from '../actions/view'
 import * as queryActionCreators from '../../data_explorer/actions/view'
 import {bindActionCreators} from 'redux'
-import {getKapacitor, getKapacitorConfig} from 'shared/apis/index'
+import {getActiveKapacitor, getKapacitorConfig} from 'shared/apis/index'
 import {ALERTS, DEFAULT_RULE_ID} from 'src/kapacitor/constants'
 import KapacitorRule from 'src/kapacitor/components/KapacitorRule'
 
@@ -53,7 +52,7 @@ export const KapacitorRulePage = React.createClass({
       kapacitorActions.loadDefaultRule()
     }
 
-    getKapacitor(source).then((kapacitor) => {
+    getActiveKapacitor(source).then((kapacitor) => {
       this.setState({kapacitor})
       getKapacitorConfig(kapacitor).then(({data: {sections}}) => {
         const enabledAlerts = Object.keys(sections).filter((section) => {
@@ -61,9 +60,9 @@ export const KapacitorRulePage = React.createClass({
         })
         this.setState({enabledAlerts})
       }).catch(() => {
-        addFlashMessage({type: 'error', text: `There was a problem communicating with Kapacitor`})
+        addFlashMessage({type: 'error', text: 'There was a problem communicating with Kapacitor'})
       }).catch(() => {
-        addFlashMessage({type: 'error', text: `We couldn't find a configured Kapacitor for this source`})
+        addFlashMessage({type: 'error', text: 'We couldn\'t find a configured Kapacitor for this source'})
       })
     })
   },
@@ -117,4 +116,4 @@ function mapDispatchToProps(dispatch) {
   }
 }
 
-export default connect(mapStateToProps, mapDispatchToProps)(withRouter(KapacitorRulePage))
+export default connect(mapStateToProps, mapDispatchToProps)(KapacitorRulePage)

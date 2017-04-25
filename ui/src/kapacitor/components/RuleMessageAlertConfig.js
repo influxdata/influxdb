@@ -22,11 +22,13 @@ const RuleMessageAlertConfig = ({
       <p>{DEFAULT_ALERT_LABELS[alert]}</p>
       <input
         id="alert-input"
-        className="form-control size-486"
+        className="form-control size-486 form-control--green input-sm"
         type="text"
         placeholder={DEFAULT_ALERT_PLACEHOLDERS[alert]}
         onChange={(e) => updateAlertNodes(rule.id, alert, e.target.value)}
         value={ALERT_NODES_ACCESSORS[alert](rule)}
+        autoComplete="off"
+        spellCheck="false"
       />
     </div>
   )

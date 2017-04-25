@@ -102,12 +102,11 @@ export const CreateSource = React.createClass({
   },
 
   render() {
-    const {location} = this.props
     const {source} = this.state
 
     return (
       <div>
-        <Notifications location={location} />
+        <Notifications />
         <div className="select-source-page">
           <div className="container-fluid">
             <div className="row">

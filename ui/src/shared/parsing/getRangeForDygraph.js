@@ -40,7 +40,7 @@ export default function getRange(timeSeries, override, ruleValues = {value: null
         min = val
       }
 
-      if (typeof val === "number") {
+      if (typeof val === 'number') {
         min = Math.min(min, val)
         max = Math.max(max, val)
       }

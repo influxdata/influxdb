@@ -1,15 +1,16 @@
 import React from 'react'
 import {render} from 'react-dom'
 import {Provider} from 'react-redux'
-import {Router, Route, Redirect, useRouterHistory} from 'react-router'
+import {Router, Route, useRouterHistory} from 'react-router'
 import {createHistory} from 'history'
+import {syncHistoryWithStore} from 'react-router-redux'
 
 import App from 'src/App'
 import AlertsApp from 'src/alerts'
 import CheckSources from 'src/CheckSources'
 import {HostsPage, HostPage} from 'src/hosts'
 import {KubernetesPage} from 'src/kubernetes'
-import {Login} from 'src/auth'
+import {Login, UserIsAuthenticated, UserIsNotAuthenticated} from 'src/auth'
 import {KapacitorPage, KapacitorRulePage, KapacitorRulesPage, KapacitorTasksPage} from 'src/kapacitor'
 import DataExplorer from 'src/data_explorer'
 import {DashboardsPage, DashboardPage} from 'src/dashboards'
@@ -17,18 +18,18 @@ import {CreateSource, SourcePage, ManageSources} from 'src/sources'
 import {AdminPage} from 'src/admin'
 import NotFound from 'src/shared/components/NotFound'
 import configureStore from 'src/store/configureStore'
-import {getMe, getSources} from 'shared/apis'
-import {receiveMe} from 'shared/actions/me'
-import {receiveAuth} from 'shared/actions/auth'
-import {disablePresentationMode} from 'shared/actions/app'
-import {publishNotification} from 'shared/actions/notifications'
 import {loadLocalStorage} from './localStorage'
+
+import {getMe} from 'shared/apis'
+
+import {disablePresentationMode} from 'shared/actions/app'
+import {authRequested, authReceived, meRequested, meReceived} from 'shared/actions/auth'
+import {errorThrown} from 'shared/actions/errors'
 
 import 'src/style/chronograf.scss'
 
-import {HTTP_FORBIDDEN, HEARTBEAT_INTERVAL} from 'shared/constants'
+import {HEARTBEAT_INTERVAL} from 'shared/constants'
 
-const store = configureStore(loadLocalStorage())
 const rootNode = document.getElementById('react-root')
 
 let browserHistory
@@ -40,98 +41,66 @@ if (basepath) {
   })
 } else {
   browserHistory = useRouterHistory(createHistory)({
-    basename: "",
+    basename: '',
   })
 }
+
+const store = configureStore(loadLocalStorage(), browserHistory)
+const {dispatch} = store
+
 browserHistory.listen(() => {
-  store.dispatch(disablePresentationMode())
+  dispatch(disablePresentationMode())
 })
 
 window.addEventListener('keyup', (event) => {
   if (event.key === 'Escape') {
-    store.dispatch(disablePresentationMode())
+    dispatch(disablePresentationMode())
   }
 })
 
+const history = syncHistoryWithStore(browserHistory, store)
+
 const Root = React.createClass({
-  getInitialState() {
-    return {
-      loggedIn: null,
-    }
-  },
-  componentDidMount() {
+  componentWillMount() {
     this.checkAuth()
   },
-  activeSource(sources) {
-    const defaultSource = sources.find((s) => s.default)
-    if (defaultSource && defaultSource.id) {
-      return defaultSource
+
+  async checkAuth() {
+    dispatch(authRequested())
+    dispatch(meRequested())
+    try {
+      await this.startHeartbeat({shouldDispatchResponse: true})
+    } catch (error) {
+      dispatch(errorThrown(error))
     }
-    return sources[0]
   },
 
-  redirectFromRoot(_, replace, callback) {
-    getSources().then(({data: {sources}}) => {
-      if (sources && sources.length) {
-        const path = `/sources/${this.activeSource(sources).id}/hosts`
-        replace(path)
-      }
-      callback()
-    })
-  },
-
-  checkAuth() {
-    if (store.getState().me.links) {
-      return this.setState({loggedIn: true})
-    }
-
-    this.heartbeat({shouldDispatchResponse: true})
-  },
-
-  async heartbeat({shouldDispatchResponse}) {
+  async startHeartbeat({shouldDispatchResponse}) {
     try {
       const {data: me, auth} = await getMe()
       if (shouldDispatchResponse) {
-        store.dispatch(receiveMe(me))
-        store.dispatch(receiveAuth(auth))
-        this.setState({loggedIn: true})
+        dispatch(authReceived(auth))
+        dispatch(meReceived(me))
       }
 
-      setTimeout(this.heartbeat.bind(null, {shouldDispatchResponse: false}), HEARTBEAT_INTERVAL)
+      setTimeout(() => {
+        if (store.getState().auth.me !== null) {
+          this.startHeartbeat({shouldDispatchResponse: false})
+        }
+      }, HEARTBEAT_INTERVAL)
     } catch (error) {
-      if (error.auth) {
-        store.dispatch(receiveAuth(error.auth))
-      }
-      if (error.status === HTTP_FORBIDDEN) {
-        store.dispatch(publishNotification('error', 'Session timed out. Please login again.'))
-      } else {
-        store.dispatch(publishNotification('error', 'Cannot communicate with server.'))
-      }
-
-      this.setState({loggedIn: false})
+      dispatch(errorThrown(error))
     }
   },
 
   render() {
-    if (this.state.loggedIn === null) {
-      return <div className="page-spinner"></div>
-    }
-    if (this.state.loggedIn === false) {
-      return (
-        <Provider store={store}>
-          <Router history={browserHistory}>
-            <Route path="/login" component={Login} />
-            <Redirect from="*" to="/login" />
-          </Router>
-        </Provider>
-      )
-    }
     return (
       <Provider store={store}>
-        <Router history={browserHistory}>
-          <Route path="/" component={CreateSource} onEnter={this.redirectFromRoot} />
-          <Route path="/sources/new" component={CreateSource} />
-          <Route path="/sources/:sourceID" component={App}>
+        <Router history={history}>
+          <Route path="/" component={UserIsAuthenticated(CheckSources)} />
+          <Route path="login" component={UserIsNotAuthenticated(Login)} />
+          <Route path="sources/new" component={UserIsAuthenticated(CreateSource)} />
+          <Route path="sources/:sourceID" component={UserIsAuthenticated(App)}>
             <Route component={CheckSources}>
               <Route path="manage-sources" component={ManageSources} />
               <Route path="manage-sources/new" component={SourcePage} />
@@ -140,7 +109,8 @@ const Root = React.createClass({
               <Route path="hosts" component={HostsPage} />
               <Route path="hosts/:hostID" component={HostPage} />
               <Route path="kubernetes" component={KubernetesPage} />
-              <Route path="kapacitor-config" component={KapacitorPage} />
+              <Route path="kapacitors/new" component={KapacitorPage} />
+              <Route path="kapacitors/:id/edit" component={KapacitorPage} />
               <Route path="kapacitor-tasks" component={KapacitorTasksPage} />
               <Route path="alerts" component={AlertsApp} />
               <Route path="dashboards" component={DashboardsPage} />

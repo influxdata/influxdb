@@ -101,7 +101,7 @@ const NameableGraph = React.createClass({
 
     return (
       <div className="dash-graph">
-        <div className={classnames("dash-graph--heading", {"dash-graph--heading-draggable": !shouldNotBeEditable})}>{nameOrField}</div>
+        <div className={classnames('dash-graph--heading', {'dash-graph--heading-draggable': !shouldNotBeEditable})}>{nameOrField}</div>
         {
           shouldNotBeEditable ?
           null :
@@ -124,7 +124,7 @@ const NameableGraph = React.createClass({
 })
 
 const ContextMenu = OnClickOutside(({isOpen, toggleMenu, onEdit, onRename, onDelete, cell}) => (
-  <div className={classnames("dash-graph--options", {"dash-graph--options-show": isOpen})} onClick={toggleMenu}>
+  <div className={classnames('dash-graph--options', {'dash-graph--options-show': isOpen})} onClick={toggleMenu}>
     <button className="btn btn-info btn-xs">
       <span className="icon caret-down"></span>
     </button>

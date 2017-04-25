@@ -7,9 +7,8 @@ import {
   deleteDashboardCell as deleteDashboardCellAJAX,
 } from 'src/dashboards/apis'
 
-import {publishNotification} from 'shared/actions/notifications'
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
-// import {errorThrown} from 'shared/actions/errors'
+import {errorThrown} from 'shared/actions/errors'
 
 import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants'
 
@@ -138,6 +137,7 @@ export const getDashboardsAsync = () => async dispatch => {
     const {data: {dashboards}} = await getDashboardsAJAX()
     dispatch(loadDashboards(dashboards))
   } catch (error) {
+    dispatch(errorThrown(error))
     console.error(error)
     throw error
   }
@@ -159,7 +159,7 @@ export const updateDashboardCell = (dashboard, cell) => async dispatch => {
     dispatch(syncDashboardCell(dashboard, data))
   } catch (error) {
     console.error(error)
-    // dispatch(errorThrown(error))
+    dispatch(errorThrown(error))
   }
 }
 
@@ -174,13 +174,10 @@ export const deleteDashboardAsync = dashboard => async dispatch => {
       )
     )
   } catch (error) {
-    dispatch(deleteDashboardFailed(dashboard))
     dispatch(
-      publishNotification(
-        'error',
-        `Failed to delete dashboard: ${error.data.message}.`
-      )
+      errorThrown(error, `Failed to delete dashboard: ${error.data.message}.`)
     )
+    dispatch(deleteDashboardFailed(dashboard))
   }
 }
 
@@ -192,6 +189,7 @@ export const addDashboardCellAsync = dashboard => async dispatch => {
     )
     dispatch(addDashboardCell(dashboard, data))
   } catch (error) {
+    dispatch(errorThrown(error))
     console.error(error)
     throw error
   }
@@ -202,7 +200,7 @@ export const deleteDashboardCellAsync = cell => async dispatch => {
     await deleteDashboardCellAJAX(cell)
     dispatch(deleteDashboardCell(cell))
   } catch (error) {
-    console.error(error)
+    dispatch(errorThrown(error))
     throw error
   }
 }

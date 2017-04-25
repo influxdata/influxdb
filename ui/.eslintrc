@@ -40,7 +40,7 @@
     },
   },
   rules: {
-    'quotes': [0, "double"],
+    'quotes': [1, 'single'],
     'func-style': 0,
     'func-names': 0,
     'arrow-parens': 0,

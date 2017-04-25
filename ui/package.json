@@ -106,10 +106,12 @@
     "react-grid-layout": "^0.13.9",
     "react-onclickoutside": "^5.2.0",
     "react-redux": "^4.4.0",
-    "react-router": "^2.4.1",
+    "react-router": "^3.0.2",
+    "react-router-redux": "^4.0.8",
     "react-sparklines": "^1.4.2",
     "react-tooltip": "^3.2.1",
     "redux": "^3.3.1",
+    "redux-auth-wrapper": "^1.0.0",
     "redux-thunk": "^1.0.3",
     "rome": "^2.1.22",
     "updeep": "^0.13.0"

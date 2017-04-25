@@ -79,14 +79,14 @@ func TestAuthenticate(t *testing.T) {
 		{
 			Desc:     "Test jwt duration matches auth duration",
 			Secret:   "secret",
-			Token:    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIvY2hyb25vZ3JhZi92MS91c2Vycy8xIiwibmFtZSI6IkRvYyBCcm93biIsImlhdCI6LTQ0Njc3NDQwMCwiZXhwIjotNDQ2Nzc0NDAwLCJuYmYiOi00NDY3NzQ0MDB9._rZ4gOIei9PizHOABH6kLcJTA3jm8ls0YnDxtz1qeUI",
-			Duration: 500 * time.Hour,
+			Token:    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOi00NDY3NzQzMDAsImlhdCI6LTQ0Njc3NDQwMCwiaXNzIjoiaGlsbHZhbGxleSIsIm5iZiI6LTQ0Njc3NDQwMCwic3ViIjoibWFydHlAcGluaGVhZC5uZXQifQ.njEjstpuIDnghSR7VyPPB9QlvJ6Q5JpR3ZEZ_8vGYfA",
+			Duration: time.Second,
 			Principal: oauth2.Principal{
-				Subject:   "/chronograf/v1/users/1",
+				Subject:   "marty@pinhead.net",
 				ExpiresAt: history,
-				IssuedAt:  history,
+				IssuedAt:  history.Add(100 * time.Second),
 			},
-			Err: errors.New("claims duration is different from auth duration"),
+			Err: errors.New("claims duration is different from auth lifespan"),
 		},
 	}
 	for _, test := range tests {
@@ -97,6 +97,9 @@ func TestAuthenticate(t *testing.T) {
 			},
 		}
 		principal, err := j.ValidPrincipal(context.Background(), test.Token, test.Duration)
+		if test.Err != nil && err == nil {
+			t.Fatalf("Expected err %s", test.Err.Error())
+		}
 		if err != nil {
 			if test.Err == nil {
 				t.Errorf("Error in test %s authenticating with bad token: %v", test.Desc, err)

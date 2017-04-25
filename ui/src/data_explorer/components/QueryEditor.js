@@ -1,122 +1,120 @@
 import React, {PropTypes} from 'react'
+import classNames from 'classnames'
+import Dropdown from 'src/shared/components/Dropdown'
+import LoadingDots from 'src/shared/components/LoadingDots'
+import {QUERY_TEMPLATES} from 'src/data_explorer/constants'
 
-import DatabaseList from './DatabaseList'
-import MeasurementList from './MeasurementList'
-import FieldList from './FieldList'
-import TagList from './TagList'
-import RawQueryEditor from './RawQueryEditor'
-import buildInfluxQLQuery from 'utils/influxql'
-
-const {
-  string,
-  shape,
-  func,
-} = PropTypes
-
+const ENTER = 13
+const ESCAPE = 27
+const {bool, func, shape, string} = PropTypes
 const QueryEditor = React.createClass({
   propTypes: {
-    source: shape({
-      links: shape({
-        queries: string.isRequired,
-      }).isRequired,
-    }).isRequired,
-    query: shape({
-      id: string,
-    }).isRequired,
-    timeRange: shape({
-      upper: string,
-      lower: string,
-    }).isRequired,
-    actions: shape({
-      chooseNamespace: func.isRequired,
-      chooseMeasurement: func.isRequired,
-      applyFuncsToField: func.isRequired,
-      chooseTag: func.isRequired,
-      groupByTag: func.isRequired,
-      toggleField: func.isRequired,
-      groupByTime: func.isRequired,
-      toggleTagAcceptance: func.isRequired,
-      editRawTextAsync: func.isRequired,
+    query: string.isRequired,
+    onUpdate: func.isRequired,
+    config: shape({
+      status: shape({
+        error: string,
+        loading: bool,
+        success: string,
+        warn: string,
+      }),
     }).isRequired,
   },
 
-  handleChooseNamespace(namespace) {
-    this.props.actions.chooseNamespace(this.props.query.id, namespace)
+  getInitialState() {
+    return {
+      value: this.props.query,
+    }
   },
 
-  handleChooseMeasurement(measurement) {
-    this.props.actions.chooseMeasurement(this.props.query.id, measurement)
+  componentWillReceiveProps(nextProps) {
+    if (this.props.query !== nextProps.query) {
+      this.setState({value: nextProps.query})
+    }
   },
 
-  handleToggleField(field) {
-    this.props.actions.toggleField(this.props.query.id, field)
+  handleKeyDown(e) {
+    if (e.keyCode === ENTER) {
+      e.preventDefault()
+      this.handleUpdate()
+    } else if (e.keyCode === ESCAPE) {
+      this.setState({value: this.state.value}, () => {
+        this.editor.blur()
+      })
+    }
   },
 
-  handleGroupByTime(time) {
-    this.props.actions.groupByTime(this.props.query.id, time)
+  handleChange() {
+    this.setState({
+      value: this.editor.value,
+    })
   },
 
-  handleApplyFuncsToField(fieldFunc) {
-    this.props.actions.applyFuncsToField(this.props.query.id, fieldFunc)
+  handleUpdate() {
+    this.props.onUpdate(this.state.value)
   },
 
-  handleChooseTag(tag) {
-    this.props.actions.chooseTag(this.props.query.id, tag)
-  },
-
-  handleToggleTagAcceptance() {
-    this.props.actions.toggleTagAcceptance(this.props.query.id)
-  },
-
-  handleGroupByTag(tagKey) {
-    this.props.actions.groupByTag(this.props.query.id, tagKey)
-  },
-
-  handleEditRawText(text) {
-    const {source: {links}, query} = this.props
-    this.props.actions.editRawTextAsync(links.queries, query.id, text)
+  handleChooseTemplate(template) {
+    this.setState({value: template.query})
   },
 
   render() {
-    const {query, timeRange} = this.props
-    const q = query.rawText || buildInfluxQLQuery(timeRange, query) || ''
+    const {config: {status}} = this.props
+    const {value} = this.state
 
     return (
-      <div className="query-builder--tab-contents">
-        <div>
-          <RawQueryEditor query={q} config={query} onUpdate={this.handleEditRawText} />
-          {this.renderLists()}
-        </div>
+      <div className="query-editor">
+        <textarea
+          className="query-editor--field"
+          onChange={this.handleChange}
+          onKeyDown={this.handleKeyDown}
+          onBlur={this.handleUpdate}
+          ref={editor => (this.editor = editor)}
+          value={value}
+          placeholder="Enter a query or select database, measurement, and field below and have us build one for you..."
+          autoComplete="off"
+          spellCheck="false"
+        />
+        {this.renderStatus(status)}
+        <Dropdown
+          items={QUERY_TEMPLATES}
+          selected={'Query Templates'}
+          onChoose={this.handleChooseTemplate}
+          className="query-editor--templates"
+        />
       </div>
     )
   },
 
+  renderStatus(status) {
+    if (!status) {
+      return <div className="query-editor--status" />
+    }
 
-  renderLists() {
-    const {query} = this.props
+    if (status.loading) {
+      return (
+        <div className="query-editor--status">
+          <LoadingDots />
+        </div>
+      )
+    }
 
     return (
-      <div className="query-builder--columns">
-        <DatabaseList
-          query={query}
-          onChooseNamespace={this.handleChooseNamespace}
+      <div
+        className={classNames('query-editor--status', {
+          'query-editor--error': status.error,
+          'query-editor--success': status.success,
+          'query-editor--warning': status.warn,
+        })}
+      >
+        <span
+          className={classNames('icon', {
+            stop: status.error,
+            checkmark: status.success,
+            'alert-triangle': status.warn,
+          })}
         />
-        <MeasurementList
-          query={query}
-          onChooseMeasurement={this.handleChooseMeasurement}
-        />
-        <FieldList
-          query={query}
-          onToggleField={this.handleToggleField}
-          onGroupByTime={this.handleGroupByTime}
-          applyFuncsToField={this.handleApplyFuncsToField}
-        />
-        <TagList
-          query={query}
-          onChooseTag={this.handleChooseTag}
-          onGroupByTag={this.handleGroupByTag}
-          onToggleTagAcceptance={this.handleToggleTagAcceptance}
-        />
+        {status.error || status.warn || status.success}
       </div>
     )
   },

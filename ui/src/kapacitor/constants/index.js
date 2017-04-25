@@ -29,14 +29,14 @@ export const ALERTS = ['alerta', 'hipchat', 'opsgenie', 'pagerduty', 'sensu', 's
 export const DEFAULT_RULE_ID = 'DEFAULT_RULE_ID'
 
 export const RULE_MESSAGE_TEMPLATES = {
-  id: {label: "{{.ID}}", text: "The ID of the alert"},
-  name: {label: "{{.Name}}", text: "Measurement name"},
-  taskName: {label: "{{.TaskName}}", text: "The name of the task"},
-  group: {label: "{{.Group}}", text: "Concatenation of all group-by tags of the form <code>&#91;key=value,&#93;+</code>. If no groupBy is performed equal to literal &quot;nil&quot;"},
-  tags: {label: "{{.Tags}}", text: "Map of tags. Use <code>&#123;&#123; index .Tags &quot;key&quot; &#125;&#125;</code> to get a specific tag value"},
-  level: {label: "{{.Level}}", text: "Alert Level, one of: <code>INFO</code><code>WARNING</code><code>CRITICAL</code>"},
-  fields: {label: `{{ index .Fields "value" }}`, text: "Map of fields. Use <code>&#123;&#123; index .Fields &quot;key&quot; &#125;&#125;</code> to get a specific field value"},
-  time: {label: "{{.Time}}", text: "The time of the point that triggered the event"},
+  id: {label: '{{.ID}}', text: 'The ID of the alert'},
+  name: {label: '{{.Name}}', text: 'Measurement name'},
+  taskName: {label: '{{.TaskName}}', text: 'The name of the task'},
+  group: {label: '{{.Group}}', text: 'Concatenation of all group-by tags of the form <code>&#91;key=value,&#93;+</code>. If no groupBy is performed equal to literal &quot;nil&quot;'},
+  tags: {label: '{{.Tags}}', text: 'Map of tags. Use <code>&#123;&#123; index .Tags &quot;key&quot; &#125;&#125;</code> to get a specific tag value'},
+  level: {label: '{{.Level}}', text: 'Alert Level, one of: <code>INFO</code><code>WARNING</code><code>CRITICAL</code>'},
+  fields: {label: '{{ index .Fields "value" }}', text: 'Map of fields. Use <code>&#123;&#123; index .Fields &quot;key&quot; &#125;&#125;</code> to get a specific field value'},
+  time: {label: '{{.Time}}', text: 'The time of the point that triggered the event'},
 }
 
 export const DEFAULT_ALERTS = ['http', 'tcp', 'exec']
@@ -51,8 +51,8 @@ export const DEFAULT_ALERT_LABELS = {
   alerta: 'Paste Alerta TICKscript:',
 }
 export const DEFAULT_ALERT_PLACEHOLDERS = {
-  http: 'http://',
-  tcp: 'Address:',
+  http: 'Ex: http://example.com/api/alert',
+  tcp: 'Ex: exampleendpoint.com:5678',
   exec: 'Ex: woogie boogie',
   smtp: 'Ex: benedict@domain.com delaney@domain.com susan@domain.com',
   slack: '#alerts',

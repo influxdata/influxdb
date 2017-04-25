@@ -1,21 +1,34 @@
 ## v1.2.0 [unreleased]
 
 ### Bug Fixes
-  1. [#1257](https://github.com/influxdata/chronograf/issues/1257): Fix function selection in query builder
-  1. [#1244](https://github.com/influxdata/chronograf/pull/1244): Fix env var name for Google client secret
-  1. [#1269](https://github.com/influxdata/chronograf/issues/1269): Add more functionality to query config generation
+
+### Features
+
+### UI Improvements
+
+## v1.2.0-beta9 [2017-04-21]
+
+### Bug Fixes
+  1. [#1257](https://github.com/influxdata/chronograf/issues/1257): Fix function selection in the query builder
+  1. [#1244](https://github.com/influxdata/chronograf/pull/1244): Fix the environment variable name for Google client secret
+  1. [#1269](https://github.com/influxdata/chronograf/issues/1269): Add more functionality to the explorer's query generation process
+  1. [#1318](https://github.com/influxdata/chronograf/issues/1318): Fix JWT refresh for auth-durations of zero and less than five minutes
+  1. [#1332](https://github.com/influxdata/chronograf/pull/1332): Remove table toggle from dashboard visualization
 
 ### Features
   1. [#1292](https://github.com/influxdata/chronograf/pull/1292): Introduce Template Variable Manager
   1. [#1232](https://github.com/influxdata/chronograf/pull/1232): Fuse the query builder and raw query editor
+  1. [#1265](https://github.com/influxdata/chronograf/pull/1265): Refactor the router to use auth and force /login route when auth expires
   1. [#1286](https://github.com/influxdata/chronograf/pull/1286): Add refreshing JWTs for authentication
   1. [#1316](https://github.com/influxdata/chronograf/pull/1316): Add templates API scoped within a dashboard
   1. [#1311](https://github.com/influxdata/chronograf/pull/1311): Display currently selected values in TVControlBar
   1. [#1315](https://github.com/influxdata/chronograf/pull/1315): Send selected TV values to proxy
+  1. [#1302](https://github.com/influxdata/chronograf/pull/1302): Add support for multiple Kapacitors per InfluxDB source
 
 ### UI Improvements
-  1. [#1259](https://github.com/influxdata/chronograf/pull/1259): Add default display for empty dashboard
+  1. [#1259](https://github.com/influxdata/chronograf/pull/1259): Add a default display for empty dashboard
   1. [#1258](https://github.com/influxdata/chronograf/pull/1258): Display Kapacitor alert endpoint options as radio button group
+  1. [#1321](https://github.com/influxdata/chronograf/pull/1321): Add yellow color to UI, Query Editor warnings are now appropriately colored
 
 ## v1.2.0-beta8 [2017-04-07]
 

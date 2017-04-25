@@ -87,9 +87,9 @@ export const KapacitorRule = React.createClass({
 
     createRule(kapacitor, newRule).then(() => {
       router.push(`/sources/${source.id}/alert-rules`)
-      addFlashMessage({type: 'success', text: `Rule successfully created`})
+      addFlashMessage({type: 'success', text: 'Rule successfully created'})
     }).catch(() => {
-      addFlashMessage({type: 'error', text: `There was a problem creating the rule`})
+      addFlashMessage({type: 'error', text: 'There was a problem creating the rule'})
     })
   },
 
@@ -101,9 +101,9 @@ export const KapacitorRule = React.createClass({
     })
 
     editRule(updatedRule).then(() => {
-      addFlashMessage({type: 'success', text: `Rule successfully updated!`})
+      addFlashMessage({type: 'success', text: 'Rule successfully updated!'})
     }).catch(() => {
-      addFlashMessage({type: 'error', text: `There was a problem updating the rule`})
+      addFlashMessage({type: 'error', text: 'There was a problem updating the rule'})
     })
   },
 

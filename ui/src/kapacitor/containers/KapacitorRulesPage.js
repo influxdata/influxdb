@@ -1,7 +1,7 @@
 import React, {PropTypes, Component} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
-import {getKapacitor} from 'src/shared/apis'
+import {getActiveKapacitor} from 'src/shared/apis'
 import * as kapacitorActionCreators from '../actions/view'
 import KapacitorRules from 'src/kapacitor/components/KapacitorRules'
 
@@ -18,7 +18,7 @@ class KapacitorRulesPage extends Component {
   }
 
   componentDidMount() {
-    getKapacitor(this.props.source).then((kapacitor) => {
+    getActiveKapacitor(this.props.source).then((kapacitor) => {
       if (kapacitor) {
         this.props.actions.fetchRules(kapacitor)
       }
