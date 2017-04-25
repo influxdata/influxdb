@@ -2,12 +2,7 @@ import React, {PropTypes} from 'react'
 import QuestionMarkTooltip from 'src/shared/components/QuestionMarkTooltip'
 import {TELEGRAM_CHAT_ID_TIP, TELEGRAM_TOKEN_TIP} from 'src/kapacitor/copy'
 
-const {
-  bool,
-  func,
-  shape,
-  string,
-} = PropTypes
+const {bool, func, shape, string} = PropTypes
 
 const TelegramConfig = React.createClass({
   propTypes: {
@@ -56,7 +51,16 @@ const TelegramConfig = React.createClass({
     return (
       <form onSubmit={this.handleSaveAlert}>
         <p className="no-user-select">
-          You need a <a href="https://docs.influxdata.com/kapacitor/v1.2/guides/event-handler-setup/#telegram-bot" target="_blank">Telegram Bot</a> to use this endpoint
+          You need a
+          {' '}
+          <a
+            href="https://docs.influxdata.com/kapacitor/v1.2/guides/event-handler-setup/#telegram-bot"
+            target="_blank"
+          >
+            Telegram Bot
+          </a>
+          {' '}
+          to use this endpoint
         </p>
         <div className="form-group col-xs-12">
           <label htmlFor="token">
@@ -71,10 +75,16 @@ const TelegramConfig = React.createClass({
             id="token"
             type="text"
             placeholder="your-telegram-token"
-            ref={(r) => this.token = r}
-            defaultValue={token || ''}>
-          </input>
-          <label className="form-helper">Note: a value of <code>true</code> indicates the Telegram token has been set</label>
+            ref={r => this.token = r}
+            defaultValue={token || ''}
+          />
+          <label className="form-helper">
+            Note: a value of
+            {' '}
+            <code>true</code>
+            {' '}
+            indicates the Telegram token has been set
+          </label>
         </div>
 
         <div className="form-group col-xs-12">
@@ -90,20 +100,34 @@ const TelegramConfig = React.createClass({
             id="chat-id"
             type="text"
             placeholder="your-telegram-chat-id"
-            ref={(r) => this.chatID = r}
-            defaultValue={chatID || ''}>
-          </input>
+            ref={r => this.chatID = r}
+            defaultValue={chatID || ''}
+          />
         </div>
 
         <div className="form-group col-xs-12">
           <label htmlFor="parseMode">Select the alert message format</label>
           <div className="form-control-static">
             <div className="radio">
-              <input id="parseModeMarkdown" type="radio" name="parseMode" value="markdown" defaultChecked={parseMode !== 'HTML'} ref={(r) => this.parseModeMarkdown = r} />
+              <input
+                id="parseModeMarkdown"
+                type="radio"
+                name="parseMode"
+                value="markdown"
+                defaultChecked={parseMode !== 'HTML'}
+                ref={r => this.parseModeMarkdown = r}
+              />
               <label htmlFor="parseModeMarkdown">Markdown</label>
             </div>
             <div className="radio">
-              <input id="parseModeHTML" type="radio" name="parseMode" value="html" defaultChecked={parseMode === 'HTML'} ref={(r) => this.parseModeHTML = r} />
+              <input
+                id="parseModeHTML"
+                type="radio"
+                name="parseMode"
+                value="html"
+                defaultChecked={parseMode === 'HTML'}
+                ref={r => this.parseModeHTML = r}
+              />
               <label htmlFor="parseModeHTML">HTML</label>
             </div>
           </div>
@@ -111,16 +135,32 @@ const TelegramConfig = React.createClass({
 
         <div className="form-group col-xs-12">
           <div className="form-control-static">
-            <input id="disableWebPagePreview" type="checkbox" defaultChecked={disableWebPagePreview} ref={(r) => this.disableWebPagePreview = r} />
+            <input
+              id="disableWebPagePreview"
+              type="checkbox"
+              defaultChecked={disableWebPagePreview}
+              ref={r => this.disableWebPagePreview = r}
+            />
             <label htmlFor="disableWebPagePreview">
-              Disable <a href="https://telegram.org/blog/link-preview" target="_blank">link previews</a> in alert messages.
+              Disable
+              {' '}
+              <a href="https://telegram.org/blog/link-preview" target="_blank">
+                link previews
+              </a>
+              {' '}
+              in alert messages.
             </label>
           </div>
         </div>
 
         <div className="form-group col-xs-12">
           <div className="form-control-static">
-            <input id="disableNotification" type="checkbox" defaultChecked={disableNotification} ref={(r) => this.disableNotification = r} />
+            <input
+              id="disableNotification"
+              type="checkbox"
+              defaultChecked={disableNotification}
+              ref={r => this.disableNotification = r}
+            />
             <label htmlFor="disableNotification">
               Disable notifications on iOS devices and disable sounds on Android devices. Android users continue to receive notifications.
             </label>
@@ -128,7 +168,9 @@ const TelegramConfig = React.createClass({
         </div>
 
         <div className="form-group form-group-submit col-xs-12 col-sm-6 col-sm-offset-3">
-          <button className="btn btn-block btn-primary" type="submit">Save</button>
+          <button className="btn btn-block btn-primary" type="submit">
+            Save
+          </button>
         </div>
       </form>
     )

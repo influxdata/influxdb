@@ -49,18 +49,49 @@ const SlackConfig = React.createClass({
     return (
       <form onSubmit={this.handleSaveAlert}>
         <div className="form-group col-xs-12">
-          <label htmlFor="slack-url">Slack Webhook URL (<a href="https://api.slack.com/incoming-webhooks" target="_">see more on Slack webhooks</a>)</label>
-          <input className="form-control" id="slack-url" type="text" ref={(r) => this.url = r} defaultValue={url || ''}></input>
-          <label className="form-helper">Note: a value of <code>true</code> indicates that the Slack channel has been set</label>
+          <label htmlFor="slack-url">
+            Slack Webhook URL (
+            <a href="https://api.slack.com/incoming-webhooks" target="_">
+              see more on Slack webhooks
+            </a>
+            )
+          </label>
+          <input
+            className="form-control"
+            id="slack-url"
+            type="text"
+            ref={r => this.url = r}
+            defaultValue={url || ''}
+          />
+          <label className="form-helper">
+            Note: a value of
+            {' '}
+            <code>true</code>
+            {' '}
+            indicates that the Slack channel has been set
+          </label>
         </div>
 
         <div className="form-group col-xs-12">
           <label htmlFor="slack-channel">Slack Channel (optional)</label>
-          <input className="form-control" id="slack-channel" type="text" placeholder="#alerts" ref={(r) => this.channel = r} defaultValue={channel || ''}></input>
+          <input
+            className="form-control"
+            id="slack-channel"
+            type="text"
+            placeholder="#alerts"
+            ref={r => this.channel = r}
+            defaultValue={channel || ''}
+          />
         </div>
 
         <div className="form-group form-group-submit col-xs-12 text-center">
-          <a className="btn btn-warning" onClick={this.handleTest} disabled={!this.state.testEnabled}>Send Test Message</a>
+          <a
+            className="btn btn-warning"
+            onClick={this.handleTest}
+            disabled={!this.state.testEnabled}
+          >
+            Send Test Message
+          </a>
           <button className="btn btn-primary" type="submit">Save</button>
         </div>
       </form>

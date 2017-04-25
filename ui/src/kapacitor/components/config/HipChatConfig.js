@@ -2,12 +2,7 @@ import React, {PropTypes} from 'react'
 import QuestionMarkTooltip from 'src/shared/components/QuestionMarkTooltip'
 import {HIPCHAT_TOKEN_TIP} from 'src/kapacitor/copy'
 
-const {
-  bool,
-  func,
-  shape,
-  string,
-} = PropTypes
+const {bool, func, shape, string} = PropTypes
 
 const HipchatConfig = React.createClass({
   propTypes: {
@@ -37,7 +32,9 @@ const HipchatConfig = React.createClass({
     const {options} = this.props.config
     const {url, room, token} = options
 
-    const subdomain = url.replace('https://', '').replace('.hipchat.com/v2/room', '')
+    const subdomain = url
+      .replace('https://', '')
+      .replace('.hipchat.com/v2/room', '')
 
     return (
       <form onSubmit={this.handleSaveAlert}>
@@ -48,7 +45,7 @@ const HipchatConfig = React.createClass({
             id="url"
             type="text"
             placeholder="your-subdomain"
-            ref={(r) => this.url = r}
+            ref={r => this.url = r}
             defaultValue={subdomain && subdomain.length ? subdomain : ''}
           />
         </div>
@@ -60,7 +57,7 @@ const HipchatConfig = React.createClass({
             id="room"
             type="text"
             placeholder="your-hipchat-room"
-            ref={(r) => this.room = r}
+            ref={r => this.room = r}
             defaultValue={room || ''}
           />
         </div>
@@ -68,24 +65,29 @@ const HipchatConfig = React.createClass({
         <div className="form-group col-xs-12">
           <label htmlFor="token">
             Token
-            <QuestionMarkTooltip
-              tipID="token"
-              tipContent={HIPCHAT_TOKEN_TIP}
-            />
+            <QuestionMarkTooltip tipID="token" tipContent={HIPCHAT_TOKEN_TIP} />
           </label>
           <input
             className="form-control"
             id="token"
             type="text"
             placeholder="your-hipchat-token"
-            ref={(r) => this.token = r}
+            ref={r => this.token = r}
             defaultValue={token || ''}
           />
-          <label className="form-helper">Note: a value of <code>true</code> indicates the HipChat token has been set</label>
+          <label className="form-helper">
+            Note: a value of
+            {' '}
+            <code>true</code>
+            {' '}
+            indicates the HipChat token has been set
+          </label>
         </div>
 
         <div className="form-group form-group-submit col-xs-12 col-sm-6 col-sm-offset-3">
-          <button className="btn btn-block btn-primary" type="submit">Save</button>
+          <button className="btn btn-block btn-primary" type="submit">
+            Save
+          </button>
         </div>
       </form>
     )
