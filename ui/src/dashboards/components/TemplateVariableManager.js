@@ -55,7 +55,7 @@ class TemplateVariableManagerWrapper extends Component {
 
   onRunQuerySuccess(template, queryConfig, parsedData, {tempVar, label}) {
     const {rows} = this.state
-    const {id} = template
+    const {id, links} = template
     const {
       type,
       query: influxql,
@@ -69,7 +69,10 @@ class TemplateVariableManagerWrapper extends Component {
 
     let selectedValue
     if (currentRow && currentRow.values && currentRow.values.length) {
-      selectedValue = currentRow.values.find(val => val.selected).value
+      const matchedValue = currentRow.values.find(val => val.selected)
+      if (matchedValue) {
+        selectedValue = matchedValue.value
+      }
     }
 
     if (
@@ -100,11 +103,10 @@ class TemplateVariableManagerWrapper extends Component {
         measurement,
         tagKey,
       },
+      links,
     }
 
     const newRows = rows.map(r => (r.id === template.id ? templateVariable : r))
-
-    console.log(newRows)
 
     this.setState({rows: newRows})
   }

@@ -154,6 +154,8 @@ class RowWrapper extends Component {
     return async e => {
       e.preventDefault()
 
+      this.setState({isEditing: false})
+
       const label = e.target.label.value
       const tempVar = e.target.tempVar.value
 
@@ -185,7 +187,7 @@ class RowWrapper extends Component {
         measurement,
         tagKey,
       }
-      console.log('bob', this.runTemplateVariableQuery)
+
       try {
         const parsedData = await this.runTemplateVariableQuery(
           source,
@@ -306,7 +308,7 @@ RowWrapper.propTypes = {
     tempVar: string.isRequired,
     query: shape({
       db: string,
-      influxql: string.isRequired,
+      influxql: string,
       measurement: string,
       tagKey: string,
     }),
