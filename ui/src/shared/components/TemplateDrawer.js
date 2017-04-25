@@ -8,13 +8,19 @@ const style = {
   padding: '15px',
 }
 
-const TemplateDrawer = ({templates, selected, handleMouseOverTempVar}) => (
+const TemplateDrawer = ({
+  templates,
+  selected,
+  onMouseOverTempVar,
+  onClickTempVar,
+}) => (
   <div style={style}>
     {templates.map(t => (
       <div
         onMouseOver={() => {
-          handleMouseOverTempVar(t)
+          onMouseOverTempVar(t)
         }}
+        onClick={() => onClickTempVar(t)}
         style={{
           background: t.tempVar === selected.tempVar ? 'red' : 'transparent',
           marginRight: '5px',
@@ -39,7 +45,8 @@ TemplateDrawer.propTypes = {
   selected: shape({
     tempVar: string,
   }),
-  handleMouseOverTempVar: func.isRequired,
+  onMouseOverTempVar: func.isRequired,
+  onClickTempVar: func.isRequired,
 }
 
 export default OnClickOutside(TemplateDrawer)

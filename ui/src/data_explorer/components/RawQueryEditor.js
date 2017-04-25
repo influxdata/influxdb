@@ -27,6 +27,8 @@ class RawQueryEditor extends Component {
     this.findTempVar = ::this.findTempVar
     this.handleTemplateReplace = ::this.handleTemplateReplace
     this.handleMouseOverTempVar = ::this.handleMouseOverTempVar
+    this.handleClickTempVar = ::this.handleClickTempVar
+    this.closeDrawer = ::this.closeDrawer
   }
 
   componentWillReceiveProps(nextProps) {
@@ -43,49 +45,47 @@ class RawQueryEditor extends Component {
     this.handleTemplateReplace(template)
   }
 
+  handleClickTempVar(template) {
+    // Clicking a tempVar does the same thing as hitting 'Enter'
+    this.handleTemplateReplace(template, 'Enter')
+    this.closeDrawer()
+  }
+
+  closeDrawer() {
+    this.setState({
+      isTemplating: false,
+      selectedTemplate: {
+        tempVar: _.get(this.props.templates, ['0', 'tempVar'], ''),
+      },
+    })
+  }
+
   handleKeyDown(e) {
     const {isTemplating, value} = this.state
 
     if (isTemplating) {
-      if (e.key === ('ArrowRight' || 'ArrowDown')) {
-        e.preventDefault()
-
-        const tempVar = this.findTempVar('next')
-        this.handleTemplateReplace(tempVar)
-      }
-
-      if (e.key === ('ArrowLeft' || 'ArrowUp')) {
-        e.preventDefault()
-
-        const tempVar = this.findTempVar('previous')
-        this.handleTemplateReplace(tempVar)
-      }
-
-      if (e.key === 'Enter') {
-        e.preventDefault()
-
-        this.handleTemplateReplace(this.state.selectedTemplate, e.key)
-        this.setState({
-          isTemplating: false,
-          selectedTemplate: {
-            tempVar: _.get(this.props.templates, ['0', 'tempVar'], ''),
-          },
-        })
-      }
-
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        this.setState({
-          isTemplating: false,
-          selectedTemplate: {
-            tempVar: _.get(this.props.templates, ['0', 'tempVar'], ''),
-          },
-        })
+      switch (e.key) {
+        case 'ArrowRight':
+        case 'ArrowDown':
+          e.preventDefault()
+          return this.handleTemplateReplace(this.findTempVar('next'))
+        case 'ArrowLeft':
+        case 'ArrowUp':
+          e.preventDefault()
+          return this.handleTemplateReplace(this.findTempVar('previous'))
+        case 'Enter':
+          e.preventDefault()
+          this.handleTemplateReplace(this.state.selectedTemplate, e.key)
+          return this.closeDrawer()
+        case 'Escape':
+          e.preventDefault()
+          return this.closeDrawer()
       }
     } else if (e.key === 'Escape') {
       e.preventDefault()
       this.setState({value, isTemplating: false})
     } else if (e.key === 'Enter') {
+      e.preventDefault()
       this.handleUpdate()
     }
   }
@@ -169,10 +169,11 @@ class RawQueryEditor extends Component {
       <div className="raw-text">
         {isTemplating
           ? <TemplateDrawer
+              onClickTempVar={this.handleClickTempVar}
               templates={templates}
               selected={selectedTemplate}
+              onMouseOverTempVar={this.handleMouseOverTempVar}
               handleClickOutside={this.handleCloseDrawer}
-              handleMouseOverTempVar={this.handleMouseOverTempVar}
             />
           : null}
         <textarea
