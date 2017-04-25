@@ -1,5 +1,7 @@
 import React, {PropTypes} from 'react'
 
+import RedactedInput from './RedactedInput'
+
 const {bool, func, shape, string} = PropTypes
 
 const AlertaConfig = React.createClass({
@@ -57,20 +59,11 @@ const AlertaConfig = React.createClass({
 
         <div className="form-group col-xs-12">
           <label htmlFor="token">Token</label>
-          <input
-            className="form-control"
+          <RedactedInput
+            defaultValue={token}
             id="token"
-            type="text"
-            ref={r => this.token = r}
-            defaultValue={token || ''}
+            refFunc={r => this.token = r}
           />
-          <label className="form-helper">
-            Note: a value of
-            {' '}
-            <code>true</code>
-            {' '}
-            indicates the Alerta Token has been set
-          </label>
         </div>
 
         <div className="form-group col-xs-12">
