@@ -8,14 +8,7 @@ import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
 
 import {Table, Column, Cell} from 'fixed-data-table'
 
-const {
-  arrayOf,
-  func,
-  number,
-  oneOfType,
-  shape,
-  string,
-} = PropTypes
+const {arrayOf, func, number, oneOfType, shape, string} = PropTypes
 
 const emptyCells = {
   columns: [],
@@ -57,6 +50,7 @@ const ChronoTable = React.createClass({
 
   getInitialState() {
     return {
+      series: [],
       cellData: emptyCells,
       columnWidths: {},
     }
@@ -80,7 +74,6 @@ const ChronoTable = React.createClass({
     this.fetchCellData(nextProps.query)
   },
 
-
   async fetchCellData(query) {
     if (!query || !query.text) {
       return
@@ -92,21 +85,18 @@ const ChronoTable = React.createClass({
       const {results} = await fetchTimeSeriesAsync({source: query.host, query})
       this.setState({isLoading: false})
 
-      if (!results) {
-        return this.setState({cellData: emptyCells})
+      let series = _.get(results, ['0', 'series'], [])
+
+      if (!series.length) {
+        return this.setState({series: []})
       }
 
-      const cellData = _.get(results, ['0', 'series', '0'], false)
-
-      if (!cellData) {
-        return this.setState({cellData: emptyCells})
-      }
-
-      this.setState({cellData})
+      series = series.map(s => (s.values ? s : {...s, values: []}))
+      this.setState({series})
     } catch (error) {
       this.setState({
         isLoading: false,
-        cellData: emptyCells,
+        series: [],
       })
       throw error
     }
@@ -123,16 +113,13 @@ const ChronoTable = React.createClass({
   // Table data as a list of array.
   render() {
     const {containerWidth, height, query} = this.props
-    const {cellData, columnWidths, isLoading} = this.state
-    const {columns, values} = cellData
+    const {series, columnWidths, isLoading} = this.state
 
     // adjust height to proper value by subtracting the heights of the UI around it
     // tab height, graph-container vertical padding, graph-heading height, multitable-header height
     const stylePixelOffset = 136
-
     const rowHeight = 34
     const defaultColumnWidth = 200
-    const width = columns.length > 1 ? defaultColumnWidth : containerWidth
     const headerHeight = 30
     const minWidth = 70
     const styleAdjustedHeight = height - stylePixelOffset
@@ -141,36 +128,54 @@ const ChronoTable = React.createClass({
       return <div className="generic-empty-state">Please add a query below</div>
     }
 
-    if (!isLoading && !values.length) {
-      return <div className="generic-empty-state">Your query returned no data</div>
+    if (!isLoading && !series.length) {
+      return (
+        <div className="generic-empty-state">Your query returned no data</div>
+      )
     }
 
     return (
-      <Table
-        onColumnResizeEndCallback={this.handleColumnResize}
-        isColumnResizing={false}
-        rowHeight={rowHeight}
-        rowsCount={values.length}
-        width={containerWidth}
-        ownerHeight={styleAdjustedHeight}
-        height={styleAdjustedHeight}
-        headerHeight={headerHeight}>
-        {columns.map((columnName, colIndex) => {
+      <div>
+        {series.map(({columns, values}, i) => {
+          if (!values.legnth) {
+            return <div key={i} className="generic-empty-state">No data</div>
+          }
           return (
-            <Column
-              isResizable={true}
-              key={columnName}
-              columnKey={columnName}
-              header={<Cell>{columnName}</Cell>}
-              cell={({rowIndex}) => {
-                return <CustomCell columnName={columnName} data={values[rowIndex][colIndex]} />
-              }}
-              width={columnWidths[columnName] || width}
-              minWidth={minWidth}
-            />
+            <Table
+              key={i}
+              onColumnResizeEndCallback={this.handleColumnResize}
+              isColumnResizing={false}
+              rowHeight={rowHeight}
+              rowsCount={values.length}
+              width={containerWidth}
+              ownerHeight={styleAdjustedHeight}
+              height={styleAdjustedHeight}
+              headerHeight={headerHeight}
+            >
+              {columns.map((columnName, colIndex) => (
+                <Column
+                  isResizable={true}
+                  key={columnName}
+                  columnKey={columnName}
+                  header={<Cell>{columnName}</Cell>}
+                  cell={({rowIndex}) => (
+                    <CustomCell
+                      columnName={columnName}
+                      data={values[rowIndex][colIndex]}
+                    />
+                  )}
+                  width={
+                    columnWidths[columnName] || columns.length > 1
+                      ? defaultColumnWidth
+                      : containerWidth
+                  }
+                  minWidth={minWidth}
+                />
+              ))}
+            </Table>
           )
         })}
-      </Table>
+      </div>
     )
   },
 })
