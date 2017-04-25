@@ -45,6 +45,7 @@ class DashboardPage extends Component {
     this.handleRunTemplateVariableQuery = ::this.handleRunTemplateVariableQuery
     this.handleSelectTemplate = ::this.handleSelectTemplate
     this.handleEditTemplateVariables = ::this.handleEditTemplateVariables
+    this.handleRunQueryFailure = ::this.handleRunQueryFailure
   }
 
   componentDidMount() {
@@ -185,6 +186,11 @@ class DashboardPage extends Component {
     //   console.log('hello')
   }
 
+  handleRunQueryFailure(error) {
+    console.error(error)
+    // this.props.errorThrown(error)
+  }
+
   getActiveDashboard() {
     const {params: {dashboardID}, dashboards} = this.props
     return dashboards.find(d => d.id === +dashboardID)
@@ -214,10 +220,11 @@ class DashboardPage extends Component {
           ? <OverlayTechnologies>
               <TemplateVariableManager
                 onClose={this.handleCloseTemplateManager}
-                onRunTemplateVariableQuery={this.handleRunTemplateVariableQuery}
                 onEditTemplateVariables={this.handleEditTemplateVariables}
                 handleClickOutside={this.handleCloseTemplateManager}
+                source={source}
                 templates={dashboard.templates}
+                onRunQueryFailure={this.handleRunQueryFailure}
               />
             </OverlayTechnologies>
           : null}
@@ -368,6 +375,7 @@ const mapDispatchToProps = dispatch => ({
   handleChooseAutoRefresh: bindActionCreators(setAutoRefresh, dispatch),
   handleClickPresentationButton: presentationButtonDispatcher(dispatch),
   dashboardActions: bindActionCreators(dashboardActionCreators, dispatch),
+  // errorThrown: bindActionCreators(errorThrownAction, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(DashboardPage)

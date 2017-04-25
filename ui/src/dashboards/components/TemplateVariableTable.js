@@ -2,7 +2,12 @@ import React, {PropTypes} from 'react'
 
 import TemplateVariableRow from 'src/dashboards/components/TemplateVariableRow'
 
-const TemplateVariableTable = ({templates, onRunTemplateVariableQuery}) => (
+const TemplateVariableTable = ({
+  source,
+  templates,
+  onRunQuerySuccess,
+  onRunQueryFailure,
+}) => (
   <div className="table-custom">
     <div className="thead">
       <div className="tr">
@@ -18,8 +23,10 @@ const TemplateVariableTable = ({templates, onRunTemplateVariableQuery}) => (
       {templates.map(t => (
         <TemplateVariableRow
           key={t.id}
+          source={source}
           template={t}
-          onRunTemplateVariableQuery={onRunTemplateVariableQuery}
+          onRunQuerySuccess={onRunQuerySuccess}
+          onRunQueryFailure={onRunQueryFailure}
         />
       ))}
     </div>
@@ -29,6 +36,11 @@ const TemplateVariableTable = ({templates, onRunTemplateVariableQuery}) => (
 const {arrayOf, bool, func, shape, string} = PropTypes
 
 TemplateVariableTable.propTypes = {
+  source: shape({
+    links: shape({
+      proxy: string,
+    }),
+  }).isRequired,
   templates: arrayOf(
     shape({
       type: string.isRequired,
@@ -47,7 +59,8 @@ TemplateVariableTable.propTypes = {
       ).isRequired,
     })
   ),
-  onRunTemplateVariableQuery: func.isRequired,
+  onRunQuerySuccess: func.isRequired,
+  onRunQueryFailure: func.isRequired,
 }
 
 export default TemplateVariableTable

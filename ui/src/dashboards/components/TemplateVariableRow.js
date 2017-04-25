@@ -4,6 +4,12 @@ import Dropdown from 'shared/components/Dropdown'
 import TemplateQueryBuilder
   from 'src/dashboards/components/TemplateQueryBuilder'
 
+import {
+  runTemplateVariableQuery as runTemplateVariableQueryAJAX,
+} from 'src/dashboards/apis'
+
+import parsers from 'shared/parsing'
+
 import {TEMPLATE_TYPES} from 'src/dashboards/constants'
 import q
   from 'src/dashboards/utils/onlyTheBigliestBigLeagueTemplateVariableQueryGenerator'
@@ -69,7 +75,9 @@ const TemplateVariableRow = ({
       />
     </div>
     <div className="td">
-      {values.map(({value}) => value).join(', ')}
+      {values.length
+        ? values.map(({value}) => value).join(', ')
+        : '(Query returned no values)'}
     </div>
     <div className="td" style={{display: 'flex'}}>
       {isEditing
@@ -127,28 +135,35 @@ class RowWrapper extends Component {
       autoFocusTarget: null,
     }
 
-    this.handleRunQuery = ::this.handleRunQuery
+    this.handleRunQueryRequested = ::this.handleRunQueryRequested
     this.handleSelectType = ::this.handleSelectType
     this.handleSelectDatabase = ::this.handleSelectDatabase
     this.handleSelectMeasurement = ::this.handleSelectMeasurement
     this.handleSelectTagKey = ::this.handleSelectTagKey
     this.handleStartEdit = ::this.handleStartEdit
     this.handleCancelEdit = ::this.handleCancelEdit
+    this.runTemplateVariableQuery = ::this.runTemplateVariableQuery
   }
 
-  handleRunQuery({
+  handleRunQueryRequested({
     selectedDatabase: database,
     selectedMeasurement: measurement,
     selectedTagKey: tagKey,
     selectedType: type,
   }) {
-    return e => {
+    return async e => {
       e.preventDefault()
 
       const label = e.target.label.value
       const tempVar = e.target.tempVar.value
 
-      const {template, onRunTemplateVariableQuery} = this.props
+      const {
+        source,
+        template,
+        onRunQuerySuccess,
+        onRunQueryFailure,
+      } = this.props
+
       const {query, tempVars} = q({
         type,
         label,
@@ -161,7 +176,7 @@ class RowWrapper extends Component {
         },
       })
 
-      onRunTemplateVariableQuery(template, {
+      const queryConfig = {
         query,
         database,
         // rp: TODO
@@ -169,9 +184,17 @@ class RowWrapper extends Component {
         type,
         measurement,
         tagKey,
-      })
-
-      // TODO: save values to state in TVM, using template
+      }
+      console.log('bob', this.runTemplateVariableQuery)
+      try {
+        const parsedData = await this.runTemplateVariableQuery(
+          source,
+          queryConfig
+        )
+        onRunQuerySuccess(template, queryConfig, parsedData, {tempVar, label})
+      } catch (error) {
+        onRunQueryFailure(error)
+      }
     }
   }
 
@@ -215,6 +238,29 @@ class RowWrapper extends Component {
     this.setState({selectedTagKey: item.text})
   }
 
+  async runTemplateVariableQuery(
+    source,
+    {query, database, rp, tempVars, type, measurement, tagKey}
+  ) {
+    try {
+      const {data} = await runTemplateVariableQueryAJAX(source, {
+        query,
+        db: database,
+        rp,
+        tempVars,
+      })
+      const parsedData = parsers[type](data, tagKey || measurement) // tagKey covers tagKey and fieldKey
+      if (parsedData.errors.length) {
+        throw parsedData.errors
+      }
+
+      return parsedData[type]
+    } catch (error) {
+      console.error(error)
+      throw error
+    }
+  }
+
   render() {
     const {
       isEditing,
@@ -240,7 +286,7 @@ class RowWrapper extends Component {
         onStartEdit={this.handleStartEdit}
         onCancelEdit={this.handleCancelEdit}
         autoFocusTarget={autoFocusTarget}
-        onSubmit={this.handleRunQuery}
+        onSubmit={this.handleRunQueryRequested}
       />
     )
   }
@@ -249,6 +295,11 @@ class RowWrapper extends Component {
 const {arrayOf, bool, func, shape, string} = PropTypes
 
 RowWrapper.propTypes = {
+  source: shape({
+    links: shape({
+      proxy: string,
+    }),
+  }).isRequired,
   template: shape({
     type: string.isRequired,
     label: string.isRequired,
@@ -270,7 +321,8 @@ RowWrapper.propTypes = {
       self: string.isRequired,
     }).isRequired,
   }),
-  onRunTemplateVariableQuery: func.isRequired,
+  onRunQuerySuccess: func.isRequired,
+  onRunQueryFailure: func.isRequired,
 }
 
 TemplateVariableRow.propTypes = {

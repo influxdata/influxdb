@@ -6,14 +6,11 @@ import {
   addDashboardCell as addDashboardCellAJAX,
   deleteDashboardCell as deleteDashboardCellAJAX,
   editTemplateVariable as editTemplateVariableAJAX,
-  runTemplateVariableQuery as runTemplateVariableQueryAJAX,
 } from 'src/dashboards/apis'
 
 import {publishNotification} from 'shared/actions/notifications'
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
 // import {errorThrown} from 'shared/actions/errors'
-
-import parsers from 'shared/parsing'
 
 import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants'
 
@@ -135,14 +132,6 @@ export const editTemplateVariableSuccess = (dashboardID, data) => ({
   },
 })
 
-export const runTemplateVariableQuerySuccess = (templateVariable, values) => ({
-  type: 'RUN_TEMPLATE_VARIABLE_QUERY_SUCCESS',
-  payload: {
-    templateVariable,
-    values,
-  },
-})
-
 // Async Action Creators
 
 export const getDashboardsAsync = () => async dispatch => {
@@ -227,32 +216,5 @@ export const editTemplateVariableAsync = (
     console.error(error)
     // dispatch(errorThrown(error))
     // dispatch(editTemplateVariableFailed())
-  }
-}
-
-export const runTemplateVariableQueryAsync = (
-  templateVariable,
-  {source, query, database, rp, tempVars, type, measurement, tagKey}
-) => async dispatch => {
-  // dispatch(runTemplateVariableQueryRequested())
-  try {
-    const {data} = await runTemplateVariableQueryAJAX({
-      source,
-      query,
-      db: database,
-      rp,
-      tempVars,
-    })
-    const parsedData = parsers[type](data, tagKey || measurement) // tagKey covers tagKey and fieldKey
-    if (parsedData.errors.length) {
-      throw parsedData.errors
-    }
-    dispatch(
-      runTemplateVariableQuerySuccess(templateVariable, parsedData[type])
-    )
-  } catch (error) {
-    console.error(error)
-    // dispatch(errorThrown(error))
-    // dispatch(runTemplateVariableQueryFailed())
   }
 }

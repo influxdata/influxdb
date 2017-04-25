@@ -1,4 +1,4 @@
-import React, {PropTypes} from 'react'
+import React, {Component, PropTypes} from 'react'
 import OnClickOutside from 'react-onclickoutside'
 import TemplateVariableTable
   from 'src/dashboards/components/TemplateVariableTable'
@@ -6,8 +6,10 @@ import TemplateVariableTable
 const TemplateVariableManager = ({
   onClose,
   onEditTemplateVariables,
-  onRunTemplateVariableQuery,
+  source,
   templates,
+  onRunQuerySuccess,
+  onRunQueryFailure,
 }) => (
   <div className="template-variable-manager">
     <div className="template-variable-manager--header">
@@ -19,7 +21,8 @@ const TemplateVariableManager = ({
         <button
           className="btn btn-primary btn-sm"
           onClick={onEditTemplateVariables}
-        >Save Template
+        >
+          Save Template
         </button>
         <span
           className="icon remove"
@@ -30,19 +33,108 @@ const TemplateVariableManager = ({
     </div>
     <div className="template-variable-manager--body">
       <TemplateVariableTable
+        source={source}
         templates={templates}
-        onRunTemplateVariableQuery={onRunTemplateVariableQuery}
+        onRunQuerySuccess={onRunQuerySuccess}
+        onRunQueryFailure={onRunQueryFailure}
       />
     </div>
   </div>
 )
 
+class TemplateVariableManagerWrapper extends Component {
+  constructor(props) {
+    super(props)
+
+    this.state = {
+      rows: this.props.templates,
+    }
+
+    this.onRunQuerySuccess = ::this.onRunQuerySuccess
+  }
+
+  onRunQuerySuccess(template, queryConfig, parsedData, {tempVar, label}) {
+    const {rows} = this.state
+    const {id} = template
+    const {
+      type,
+      query: influxql,
+      database: db,
+      measurement,
+      tagKey,
+    } = queryConfig
+
+    // Determine which is the selectedValue, if any
+    const currentRow = rows.find(row => row.tempVar === tempVar)
+
+    let selectedValue
+    if (currentRow && currentRow.values && currentRow.values.length) {
+      selectedValue = currentRow.values.find(val => val.selected).value
+    }
+
+    if (
+      !selectedValue &&
+      currentRow &&
+      currentRow.values &&
+      currentRow.values.length
+    ) {
+      selectedValue = currentRow.values[0].value
+    }
+
+    const values = parsedData.map(value => ({
+      value,
+      type,
+      selected: selectedValue === value,
+    }))
+
+    const templateVariable = {
+      tempVar,
+      values,
+      id,
+      type,
+      label,
+      query: {
+        influxql,
+        db,
+        // rp, TODO
+        measurement,
+        tagKey,
+      },
+    }
+
+    const newRows = rows.map(r => (r.id === template.id ? templateVariable : r))
+
+    console.log(newRows)
+
+    this.setState({rows: newRows})
+  }
+
+  render() {
+    return (
+      <TemplateVariableManager
+        {...this.props}
+        onRunQuerySuccess={this.onRunQuerySuccess}
+        templates={this.state.rows}
+      />
+    )
+  }
+}
+
 const {arrayOf, bool, func, shape, string} = PropTypes
 
 TemplateVariableManager.propTypes = {
+  ...TemplateVariableManagerWrapper.propTypes,
+  onRunQuerySuccess: func.isRequired,
+}
+
+TemplateVariableManagerWrapper.propTypes = {
   onClose: func.isRequired,
   onEditTemplateVariables: func.isRequired,
-  onRunTemplateVariableQuery: func.isRequired,
+  source: shape({
+    links: shape({
+      proxy: string,
+    }),
+  }).isRequired,
   templates: arrayOf(
     shape({
       type: string.isRequired,
@@ -61,6 +153,7 @@ TemplateVariableManager.propTypes = {
       ).isRequired,
     })
   ),
+  onRunQueryFailure: func.isRequired,
 }
 
-export default OnClickOutside(TemplateVariableManager)
+export default OnClickOutside(TemplateVariableManagerWrapper)

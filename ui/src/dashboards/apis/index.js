@@ -90,13 +90,15 @@ export const editTemplateVariable = async (
   }
 }
 
-export const runTemplateVariableQuery = async ({
+export const runTemplateVariableQuery = async (
   source,
-  query,
-  db,
-  // rp, TODO
-  tempVars,
-}) => {
+  {
+    query,
+    db,
+    // rp, TODO
+    tempVars,
+  }
+) => {
   try {
     // TODO: add rp as argument to proxy
     return await proxy({source: source.links.proxy, query, db, tempVars})
