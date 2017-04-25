@@ -270,7 +270,7 @@ func TestFileSet_TagKeyIterator(t *testing.T) {
 
 func TestFileSet_FilterNamesTags(t *testing.T) {
 	var mf internal.File
-	fs := tsi1.FileSet{&mf}
+	fs := tsi1.NewFileSet(nil, []tsi1.File{&mf})
 
 	var (
 		names [][]byte

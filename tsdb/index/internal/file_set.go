@@ -2,6 +2,7 @@ package internal
 
 import (
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/bloom"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 )
@@ -10,6 +11,8 @@ import (
 type File struct {
 	Closef                     func() error
 	Pathf                      func() string
+	IDf                        func() int
+	Levelf                     func() int
 	FilterNameTagsf            func(names [][]byte, tagsSlice []models.Tags) ([][]byte, []models.Tags)
 	Measurementf               func(name []byte) tsi1.MeasurementElem
 	MeasurementIteratorf       func() tsi1.MeasurementIterator
@@ -28,10 +31,13 @@ type File struct {
 	MergeMeasurementsSketchesf func(s, t estimator.Sketch) error
 	Retainf                    func()
 	Releasef                   func()
+	Filterf                    func() *bloom.Filter
 }
 
 func (f *File) Close() error { return f.Closef() }
 func (f *File) Path() string { return f.Pathf() }
+func (f *File) ID() int      { return f.IDf() }
+func (f *File) Level() int   { return f.Levelf() }
 func (f *File) FilterNamesTags(names [][]byte, tagsSlice []models.Tags) ([][]byte, []models.Tags) {
 	return f.FilterNameTagsf(names, tagsSlice)
 }
@@ -64,5 +70,6 @@ func (f *File) MergeSeriesSketches(s, t estimator.Sketch) error { return f.Merge
 func (f *File) MergeMeasurementsSketches(s, t estimator.Sketch) error {
 	return f.MergeMeasurementsSketchesf(s, t)
 }
-func (f *File) Retain()  { f.Retainf() }
-func (f *File) Release() { f.Releasef() }
+func (f *File) Retain()               { f.Retainf() }
+func (f *File) Release()              { f.Releasef() }
+func (f *File) Filter() *bloom.Filter { return f.Filterf() }

@@ -19,7 +19,7 @@ type IndexFiles []*IndexFile
 func (p IndexFiles) IDs() []int {
 	a := make([]int, len(p))
 	for i, f := range p {
-		a[i] = f.ID
+		a[i] = f.ID()
 	}
 	return a
 }

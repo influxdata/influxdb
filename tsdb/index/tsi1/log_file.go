@@ -17,6 +17,7 @@ import (
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/bloom"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/mmap"
 )
@@ -38,6 +39,7 @@ const (
 type LogFile struct {
 	mu   sync.RWMutex
 	wg   sync.WaitGroup // ref count
+	id   int            // file sequence identifier
 	data []byte         // mmap
 	file *os.File       // writer
 	w    *bufio.Writer  // buffered writer
@@ -78,6 +80,8 @@ func (f *LogFile) Open() error {
 }
 
 func (f *LogFile) open() error {
+	f.id, _ = ParseFilename(f.path)
+
 	// Open file for appending.
 	file, err := os.OpenFile(f.Path(), os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
 	if err != nil {
@@ -162,11 +166,20 @@ func (f *LogFile) Flush() error {
 	return nil
 }
 
+// ID returns the file sequence identifier.
+func (f *LogFile) ID() int { return f.id }
+
 // Path returns the file path.
 func (f *LogFile) Path() string { return f.path }
 
 // SetPath sets the log file's path.
 func (f *LogFile) SetPath(path string) { f.path = path }
+
+// Level returns the log level of the file.
+func (f *LogFile) Level() int { return 0 }
+
+// Filter returns the bloom filter for the file.
+func (f *LogFile) Filter() *bloom.Filter { return nil }
 
 // Retain adds a reference count to the file.
 func (f *LogFile) Retain() { f.wg.Add(1) }
@@ -1400,6 +1413,6 @@ func (itr *logSeriesIterator) Next() (e SeriesElem) {
 }
 
 // FormatLogFileName generates a log filename for the given index.
-func FormatLogFileName(i int) string {
-	return fmt.Sprintf("%08d%s", i, LogFileExt)
+func FormatLogFileName(id int) string {
+	return fmt.Sprintf("L0-%08d%s", id, LogFileExt)
 }

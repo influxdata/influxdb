@@ -79,6 +79,24 @@ func (f *Filter) Contains(v []byte) bool {
 	return true
 }
 
+// Merge performs an in-place union of other into f.
+// Returns an error if m or k of the filters differs.
+func (f *Filter) Merge(other *Filter) error {
+	// Ensure m & k fields match.
+	if len(f.b) != len(other.b) {
+		return fmt.Errorf("bloom.Filter.Merge(): m mismatch: %d <> %d", len(f.b), len(other.b))
+	} else if f.k != other.k {
+		return fmt.Errorf("bloom.Filter.Merge(): k mismatch: %d <> %d", f.b, other.b)
+	}
+
+	// Perform union of each byte.
+	for i := range f.b {
+		f.b[i] |= other.b[i]
+	}
+
+	return nil
+}
+
 // location returns the ith hashed location using the four base hash values.
 func (f *Filter) location(h [4]uint64, i uint64) uint {
 	return uint((h[i%2] + i*h[2+(((i+(i%2))%4)/2)]) & f.mask)

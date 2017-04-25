@@ -26,8 +26,7 @@ const IndexName = "tsi1"
 
 // Default compaction thresholds.
 const (
-	DefaultMaxLogFileSize   = 5 * 1024 * 1024
-	DefaultCompactionFactor = 10 // 1.8
+	DefaultMaxLogFileSize = 5 * 1024 * 1024
 )
 
 func init() {
@@ -60,9 +59,10 @@ type Index struct {
 	opened  bool
 	options tsdb.EngineOptions
 
-	activeLogFile *LogFile // current log file
-	fileSet       FileSet  // current file set
-	seq           int      // file id sequence
+	activeLogFile *LogFile          // current log file
+	fileSet       *FileSet          // current file set
+	levels        []CompactionLevel // compaction levels
+	seq           int               // file id sequence
 
 	// Close management.
 	once    sync.Once
@@ -79,8 +79,7 @@ type Index struct {
 	Path string
 
 	// Log file compaction thresholds.
-	MaxLogFileSize   int64
-	CompactionFactor float64
+	MaxLogFileSize int64
 
 	// Frequency of compaction checks.
 	CompactionEnabled         bool
@@ -118,12 +117,17 @@ func (i *Index) Open() error {
 	// Read manifest file.
 	m, err := ReadManifestFile(filepath.Join(i.Path, ManifestFileName))
 	if os.IsNotExist(err) {
-		m = &Manifest{}
+		m = NewManifest()
 	} else if err != nil {
 		return err
 	}
 
+	// Copy compaction levels to the index.
+	i.levels = make([]CompactionLevel, len(m.Levels))
+	copy(i.levels, m.Levels)
+
 	// Open each file in the manifest.
+	var files []File
 	for _, filename := range m.Files {
 		switch filepath.Ext(filename) {
 		case LogFileExt:
@@ -131,7 +135,7 @@ func (i *Index) Open() error {
 			if err != nil {
 				return err
 			}
-			i.fileSet = append(i.fileSet, f)
+			files = append(files, f)
 
 			// Make first log file active, if within threshold.
 			sz, _ := f.Stat()
@@ -144,9 +148,10 @@ func (i *Index) Open() error {
 			if err != nil {
 				return err
 			}
-			i.fileSet = append(i.fileSet, f)
+			files = append(files, f)
 		}
 	}
+	i.fileSet = NewFileSet(i.levels, files)
 
 	// Set initial sequnce number.
 	i.seq = i.fileSet.MaxID()
@@ -230,10 +235,10 @@ func (i *Index) Close() error {
 	defer i.mu.Unlock()
 
 	// Close log files.
-	for _, f := range i.fileSet {
+	for _, f := range i.fileSet.files {
 		f.Close()
 	}
-	i.fileSet = nil
+	i.fileSet.files = nil
 
 	return nil
 }
@@ -258,10 +263,11 @@ func (i *Index) ManifestPath() string {
 // Manifest returns a manifest for the index.
 func (i *Index) Manifest() *Manifest {
 	m := &Manifest{
-		Files: make([]string, len(i.fileSet)),
+		Levels: i.levels,
+		Files:  make([]string, len(i.fileSet.files)),
 	}
 
-	for j, f := range i.fileSet {
+	for j, f := range i.fileSet.files {
 		m.Files[j] = filepath.Base(f.Path())
 	}
 
@@ -281,21 +287,21 @@ func (i *Index) SetFieldSet(fs *tsdb.MeasurementFieldSet) {
 }
 
 // RetainFileSet returns the current fileset and adds a reference count.
-func (i *Index) RetainFileSet() FileSet {
+func (i *Index) RetainFileSet() *FileSet {
 	i.mu.RLock()
 	fs := i.retainFileSet()
 	i.mu.RUnlock()
 	return fs
 }
 
-func (i *Index) retainFileSet() FileSet {
+func (i *Index) retainFileSet() *FileSet {
 	fs := i.fileSet
 	fs.Retain()
 	return fs
 }
 
 // FileN returns the active files in the file set.
-func (i *Index) FileN() int { return len(i.fileSet) }
+func (i *Index) FileN() int { return len(i.fileSet.files) }
 
 // prependActiveLogFile adds a new log file so that the current log file can be compacted.
 func (i *Index) prependActiveLogFile() error {
@@ -305,7 +311,7 @@ func (i *Index) prependActiveLogFile() error {
 		return err
 	}
 	i.activeLogFile = f
-	i.fileSet = append([]File{f}, i.fileSet...)
+	i.fileSet.files = append([]File{f}, i.fileSet.files...)
 
 	// Write new manifest.
 	if err := i.writeManifestFile(); err != nil {
@@ -562,7 +568,7 @@ func (i *Index) SeriesN() int64 {
 	defer fs.Release()
 
 	var total int64
-	for _, f := range fs {
+	for _, f := range fs.files {
 		total += int64(f.SeriesN())
 	}
 	return total
@@ -721,7 +727,7 @@ func (i *Index) SnapshotTo(path string) error {
 	}
 
 	// Link files in directory.
-	for _, f := range fs {
+	for _, f := range fs.files {
 		if err := os.Link(f.Path(), filepath.Join(path, "index", filepath.Base(f.Path()))); err != nil {
 			return fmt.Errorf("error creating tsi hard link: %q", err)
 		}
@@ -788,19 +794,19 @@ func (i *Index) compact() {
 // All groups will have at least two files and the total size is more than the
 // largest file times the compaction factor. For example, if the compaction
 // factor is 2 then the total size will be at least double the max file size.
-func (i *Index) compactionGroups(fileSet FileSet) [][]*IndexFile {
-	log.Printf("%s: checking for compaction groups: n=%d", IndexName, len(fileSet))
+func (i *Index) compactionGroups(fileSet *FileSet) [][]*IndexFile {
+	log.Printf("%s: checking for compaction groups: n=%d", IndexName, len(fileSet.files))
 
 	var groups [][]*IndexFile
 
 	// Loop over all files to find contiguous group of compactable files.
 	var group []*IndexFile
-	for _, f := range fileSet {
+	for _, f := range fileSet.files {
 		indexFile, ok := f.(*IndexFile)
 
 		// Skip over log files. They compact themselves.
 		if !ok {
-			if isCompactableGroup(group, i.CompactionFactor) {
+			if isCompactableGroup(group, CompactionFactor) {
 				group, groups = nil, append(groups, group)
 			} else {
 				group = nil
@@ -810,7 +816,7 @@ func (i *Index) compactionGroups(fileSet FileSet) [][]*IndexFile {
 
 		// If file is currently compacting then stop current group.
 		if indexFile.Compacting() {
-			if isCompactableGroup(group, i.CompactionFactor) {
+			if isCompactableGroup(group, CompactionFactor) {
 				group, groups = nil, append(groups, group)
 			} else {
 				group = nil
@@ -820,7 +826,7 @@ func (i *Index) compactionGroups(fileSet FileSet) [][]*IndexFile {
 
 		// Stop current group if adding file will invalidate group.
 		// This can happen when appending a large file to a group of small files.
-		if isCompactableGroup(group, i.CompactionFactor) && !isCompactableGroup(append(group, indexFile), i.CompactionFactor) {
+		if isCompactableGroup(group, CompactionFactor) && !isCompactableGroup(append(group, indexFile), CompactionFactor) {
 			group, groups = []*IndexFile{indexFile}, append(groups, group)
 			continue
 		}
@@ -830,7 +836,7 @@ func (i *Index) compactionGroups(fileSet FileSet) [][]*IndexFile {
 	}
 
 	// Append final group, if compactable.
-	if isCompactableGroup(group, i.CompactionFactor) {
+	if isCompactableGroup(group, CompactionFactor) {
 		groups = append(groups, group)
 	}
 
@@ -868,7 +874,7 @@ func (i *Index) compactGroup(files []*IndexFile) {
 	start := time.Now()
 
 	// Create new index file.
-	path := filepath.Join(i.Path, FormatIndexFileName(i.NextSequence()))
+	path := filepath.Join(i.Path, FormatIndexFileName(i.NextSequence(), 1)) // TODO
 	f, err := os.Create(path)
 	if err != nil {
 		log.Printf("%s: error creating compaction files: %s", IndexName, err)
@@ -985,11 +991,11 @@ func (i *Index) compactLogFile(logFile *LogFile) {
 	log.Printf("tsi1: compacting log file: file=%s", logFile.Path())
 
 	// Retrieve identifier from current path.
-	id := ParseFileID(logFile.Path())
+	id := logFile.ID()
 	assert(id != 0, "cannot parse log file id: %s", logFile.Path())
 
 	// Create new index file.
-	path := filepath.Join(i.Path, FormatIndexFileName(id))
+	path := filepath.Join(i.Path, FormatIndexFileName(id, 1))
 	f, err := os.Create(path)
 	if err != nil {
 		log.Printf("tsi1: error creating index file: %s", err)
@@ -1054,7 +1060,7 @@ func (i *Index) compactLogFile(logFile *LogFile) {
 // seriesPointIterator adapts SeriesIterator to an influxql.Iterator.
 type seriesPointIterator struct {
 	once     sync.Once
-	fs       FileSet
+	fs       *FileSet
 	fieldset *tsdb.MeasurementFieldSet
 	mitr     MeasurementIterator
 	sitr     SeriesIterator
@@ -1064,7 +1070,7 @@ type seriesPointIterator struct {
 }
 
 // newSeriesPointIterator returns a new instance of seriesPointIterator.
-func newSeriesPointIterator(fs FileSet, fieldset *tsdb.MeasurementFieldSet, opt influxql.IteratorOptions) *seriesPointIterator {
+func newSeriesPointIterator(fs *FileSet, fieldset *tsdb.MeasurementFieldSet, opt influxql.IteratorOptions) *seriesPointIterator {
 	return &seriesPointIterator{
 		fs:       fs,
 		fieldset: fieldset,
@@ -1153,24 +1159,35 @@ func intersectStringSets(a, b map[string]struct{}) map[string]struct{} {
 	return other
 }
 
-var fileIDRegex = regexp.MustCompile(`^(\d+)\..+$`)
+var fileIDRegex = regexp.MustCompile(`^L(\d+)-(\d+)\..+$`)
 
-// ParseFileID extracts the numeric id from a log or index file path.
+// ParseFilename extracts the numeric id from a log or index file path.
 // Returns 0 if it cannot be parsed.
-func ParseFileID(name string) int {
+func ParseFilename(name string) (level, id int) {
 	a := fileIDRegex.FindStringSubmatch(filepath.Base(name))
 	if a == nil {
-		return 0
+		return 0, 0
 	}
 
-	i, _ := strconv.Atoi(a[1])
-	return i
+	level, _ = strconv.Atoi(a[1])
+	id, _ = strconv.Atoi(a[2])
+	return id, level
 }
 
 // Manifest represents the list of log & index files that make up the index.
 // The files are listed in time order, not necessarily ID order.
 type Manifest struct {
-	Files []string `json:"files,omitempty"`
+	Levels []CompactionLevel `json:"levels,omitempty`
+	Files  []string          `json:"files,omitempty"`
+}
+
+// NewManifest returns a new instance of Manifest with default compaction levels.
+func NewManifest() *Manifest {
+	m := &Manifest{
+		Levels: make([]CompactionLevel, len(DefaultCompactionLevels)),
+	}
+	copy(m.Levels, DefaultCompactionLevels[:])
+	return m
 }
 
 // HasFile returns true if name is listed in the log files or index files.
@@ -1195,6 +1212,7 @@ func ReadManifestFile(path string) (*Manifest, error) {
 	if err := json.Unmarshal(buf, &m); err != nil {
 		return nil, err
 	}
+
 	return &m, nil
 }
 
@@ -1220,3 +1238,48 @@ func joinIntSlice(a []int, sep string) string {
 	}
 	return strings.Join(other, sep)
 }
+
+// CompactionLevel represents a grouping of index files based on size and
+// bloom filter settings. By having the same bloom filter settings, the filters
+// can be merged and evaluated at a higher level.
+type CompactionLevel struct {
+	// Minimum expected index size
+	MinSize int64 `json:"minSize,omitempty"`
+
+	// Bloom filter bit size & hash count
+	M uint64 `json:"m,omitempty"`
+	K uint64 `json:"k,omitempty"`
+}
+
+// DefaultCompactionLevels is the default settings used by the index.
+var DefaultCompactionLevels = []CompactionLevel{
+	// Log files, no filter.
+	{M: 0, K: 0},
+
+	// Initial compaction, 4MB filter
+	{
+		MinSize: 0,
+		M:       1 << 25,
+		K:       6,
+	},
+
+	// 200MB min file, 33MB filter
+	{
+		MinSize: 200 * (1 << 20),
+		M:       1 << 28,
+		K:       6,
+	},
+
+	// 2GB min file, 134MB filter
+	{
+		MinSize: 2 * (1 << 30),
+		M:       1 << 30,
+		K:       6,
+	},
+}
+
+// MaxIndexFileSize is the maximum expected size of an index file.
+const MaxIndexFileSize = 4 * (1 << 30)
+
+// TEMP
+const CompactionFactor = 10
