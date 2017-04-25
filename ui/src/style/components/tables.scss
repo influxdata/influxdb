@@ -132,6 +132,22 @@ table .monotype {
 }
 
 /*
+    Table Tabs
+    ----------------------------------------------
+*/
+
+.table--tabs {
+  display: flex;
+  height: 44px;
+  align-items: center;
+}
+
+.table--tabs-content {
+  position: absolute;
+  top: 43px;
+}
+
+/*
     Responsive Tables
     ----------------------------------------------
 */
