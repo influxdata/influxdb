@@ -17,6 +17,7 @@ class RawQueryEditor extends Component {
       selectedTemplate: {
         tempVar: _.get(this.props.templates, ['0', 'tempVar'], ''),
       },
+      filteredTemplates: this.props.templates,
     }
 
     this.handleKeyDown = ::this.handleKeyDown
@@ -112,7 +113,7 @@ class RawQueryEditor extends Component {
   }
 
   findTempVar(direction) {
-    const {templates} = this.props
+    const {filteredTemplates: templates} = this.state
     const {selectedTemplate} = this.state
 
     const i = _.findIndex(templates, selectedTemplate)
@@ -136,13 +137,21 @@ class RawQueryEditor extends Component {
   }
 
   handleChange() {
+    const {templates} = this.props
     const value = this.editor.value
-
-    if (value.match(TEMPLATE_MATCHER)) {
+    const matches = value.match(TEMPLATE_MATCHER)
+    if (matches) {
       // maintain cursor poition
       const start = this.editor.selectionStart
       const end = this.editor.selectionEnd
-      this.setState({isTemplating: true, value})
+      const filteredTemplates = templates.filter(t =>
+        t.tempVar.includes(matches[0].substring(1))
+      )
+      this.setState({
+        isTemplating: true,
+        filteredTemplates,
+        value,
+      })
       this.editor.setSelectionRange(start, end)
     } else {
       this.setState({isTemplating: false, value})
@@ -162,15 +171,20 @@ class RawQueryEditor extends Component {
   }
 
   render() {
-    const {config: {status}, templates} = this.props
-    const {value, isTemplating, selectedTemplate} = this.state
+    const {config: {status}} = this.props
+    const {
+      value,
+      isTemplating,
+      selectedTemplate,
+      filteredTemplates,
+    } = this.state
 
     return (
       <div className="raw-text">
         {isTemplating
           ? <TemplateDrawer
               onClickTempVar={this.handleClickTempVar}
-              templates={templates}
+              templates={filteredTemplates}
               selected={selectedTemplate}
               onMouseOverTempVar={this.handleMouseOverTempVar}
               handleClickOutside={this.handleCloseDrawer}
