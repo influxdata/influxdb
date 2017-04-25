@@ -177,13 +177,16 @@ class DashboardPage extends Component {
   }
 
   // TODO: make this work over array of template variables onSave in TVM
-  handleEditTemplateVariables(staleTemplateVariable, editedTemplateVariable) {
-    //   // this.props.dashboardActions.editTemplateVariableAsync(
-    //   //   this.props.params.dashboardID,
-    //   //   staleTemplateVariable,
-    //   //   editedTemplateVariable
-    //   // )
-    //   console.log('hello')
+  handleEditTemplateVariables(templates) {
+    return e => {
+      const {params: {dashboardID}, dashboards} = this.props
+      const currentDashboard = dashboards.find(({id}) => id === +dashboardID)
+
+      this.props.dashboardActions.putDashboard({
+        ...currentDashboard,
+        templates,
+      })
+    }
   }
 
   handleRunQueryFailure(error) {

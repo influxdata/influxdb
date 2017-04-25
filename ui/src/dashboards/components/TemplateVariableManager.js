@@ -3,6 +3,8 @@ import OnClickOutside from 'react-onclickoutside'
 import TemplateVariableTable
   from 'src/dashboards/components/TemplateVariableTable'
 
+import {TEMPLATE_VARIABLE_TYPES} from 'src/dashboards/constants'
+
 const TemplateVariableManager = ({
   onClose,
   onEditTemplateVariables,
@@ -20,7 +22,7 @@ const TemplateVariableManager = ({
         <button className="btn btn-primary btn-sm">Add Variable</button>
         <button
           className="btn btn-primary btn-sm"
-          onClick={onEditTemplateVariables}
+          onClick={onEditTemplateVariables(templates)}
         >
           Save Template
         </button>
@@ -86,7 +88,7 @@ class TemplateVariableManagerWrapper extends Component {
 
     const values = parsedData.map(value => ({
       value,
-      type,
+      type: TEMPLATE_VARIABLE_TYPES[type],
       selected: selectedValue === value,
     }))
 

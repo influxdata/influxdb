@@ -5,7 +5,6 @@ import {
   updateDashboardCell as updateDashboardCellAJAX,
   addDashboardCell as addDashboardCellAJAX,
   deleteDashboardCell as deleteDashboardCellAJAX,
-  editTemplateVariable as editTemplateVariableAJAX,
 } from 'src/dashboards/apis'
 
 import {publishNotification} from 'shared/actions/notifications'
@@ -197,24 +196,5 @@ export const deleteDashboardCellAsync = cell => async dispatch => {
   } catch (error) {
     console.error(error)
     throw error
-  }
-}
-
-export const editTemplateVariableAsync = (
-  dashboardID,
-  staleTemplateVariable,
-  editedTemplateVariable
-) => async dispatch => {
-  // dispatch(editTemplateVariableRequested())
-  try {
-    const {data} = await editTemplateVariableAJAX(
-      staleTemplateVariable,
-      editedTemplateVariable
-    )
-    dispatch(editTemplateVariableSuccess(+dashboardID, data))
-  } catch (error) {
-    console.error(error)
-    // dispatch(errorThrown(error))
-    // dispatch(editTemplateVariableFailed())
   }
 }

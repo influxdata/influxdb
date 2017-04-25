@@ -219,7 +219,7 @@ export default function ui(state = initialState, action) {
           (d.id === dashboardID
             ? {
                 ...d,
-                templates: d.templates.map(t => (t.id === data.id ? data : t)),
+                templates: data,
               }
             : d)
       )
