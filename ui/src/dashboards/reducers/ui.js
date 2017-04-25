@@ -218,9 +218,9 @@ export default function ui(state = initialState, action) {
         d =>
           (d.id === dashboardID
             ? {
-                ...d,
-                templates: data,
-              }
+              ...d,
+              templates: data,
+            }
             : d)
       )
       return {...state, dashboards}
