@@ -8,13 +8,7 @@ const GRAPH = 'graph'
 const TABLE = 'table'
 const VIEWS = [GRAPH, TABLE]
 
-const {
-  func,
-  arrayOf,
-  number,
-  shape,
-  string,
-} = PropTypes
+const {func, arrayOf, number, shape, string} = PropTypes
 
 const Visualization = React.createClass({
   propTypes: {
@@ -49,13 +43,19 @@ const Visualization = React.createClass({
     }
 
     return {
-      view: typeof queryConfigs[activeQueryIndex].rawText === 'string' ? TABLE : GRAPH,
+      view: typeof queryConfigs[activeQueryIndex].rawText === 'string'
+        ? TABLE
+        : GRAPH,
     }
   },
 
   componentWillReceiveProps(nextProps) {
     const {queryConfigs, activeQueryIndex} = nextProps
-    if (!queryConfigs.length || activeQueryIndex === null || activeQueryIndex === this.props.activeQueryIndex) {
+    if (
+      !queryConfigs.length ||
+      activeQueryIndex === null ||
+      activeQueryIndex === this.props.activeQueryIndex
+    ) {
       return
     }
 
@@ -84,18 +84,28 @@ const Visualization = React.createClass({
     const proxyLink = source.links.proxy
     const {view} = this.state
 
-    const statements = queryConfigs.map((query) => {
+    const statements = queryConfigs.map(query => {
       const text = query.rawText || buildInfluxQLQuery(timeRange, query)
       return {text, id: query.id}
     })
-    const queries = statements.filter((s) => s.text !== null).map((s) => {
+    const queries = statements.filter(s => s.text !== null).map(s => {
       return {host: [proxyLink], text: s.text, id: s.id}
     })
 
     return (
       <div className="graph" style={{height}}>
-        <VisHeader views={VIEWS} view={view} onToggleView={this.handleToggleView} name={name || 'Graph'}/>
-        <div className={classNames({'graph-container': view === GRAPH, 'table-container': view === TABLE})}>
+        <VisHeader
+          views={VIEWS}
+          view={view}
+          onToggleView={this.handleToggleView}
+          name={name || 'Graph'}
+        />
+        <div
+          className={classNames({
+            'graph-container': view === GRAPH,
+            'table-container': view === TABLE,
+          })}
+        >
           <VisView
             view={view}
             queries={queries}

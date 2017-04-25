@@ -3,7 +3,9 @@ import React, {Component, PropTypes} from 'react'
 import _ from 'lodash'
 import uuid from 'node-uuid'
 
-import ResizeContainer, {ResizeBottom} from 'src/shared/components/ResizeContainer'
+import ResizeContainer, {
+  ResizeBottom,
+} from 'src/shared/components/ResizeContainer'
 import QueryMaker from 'src/data_explorer/components/QueryMaker'
 import Visualization from 'src/data_explorer/components/Visualization'
 import OverlayControls from 'src/dashboards/components/OverlayControls'
@@ -30,7 +32,9 @@ class CellEditorOverlay extends Component {
 
     const {cell: {name, type, queries}} = props
 
-    const queriesWorkingDraft = _.cloneDeep(queries.map(({queryConfig}) => ({...queryConfig, id: uuid.v4()})))
+    const queriesWorkingDraft = _.cloneDeep(
+      queries.map(({queryConfig}) => ({...queryConfig, id: uuid.v4()}))
+    )
 
     this.state = {
       cellWorkingName: name,
@@ -45,7 +49,9 @@ class CellEditorOverlay extends Component {
     const nextStatus = nextProps.queryStatus
     if (nextStatus.status && nextStatus.queryID) {
       if (nextStatus.queryID !== queryID || nextStatus.status !== status) {
-        const nextQueries = this.state.queriesWorkingDraft.map((q) => q.id === queryID ? ({...q, status: nextStatus.status}) : q)
+        const nextQueries = this.state.queriesWorkingDraft.map(
+          q => (q.id === queryID ? {...q, status: nextStatus.status} : q)
+        )
         this.setState({queriesWorkingDraft: nextQueries})
       }
     }
@@ -54,11 +60,13 @@ class CellEditorOverlay extends Component {
   queryStateReducer(queryModifier) {
     return (queryID, payload) => {
       const {queriesWorkingDraft} = this.state
-      const query = queriesWorkingDraft.find((q) => q.id === queryID)
+      const query = queriesWorkingDraft.find(q => q.id === queryID)
 
       const nextQuery = queryModifier(query, payload)
 
-      const nextQueries = queriesWorkingDraft.map((q) => q.id === query.id ? nextQuery : q)
+      const nextQueries = queriesWorkingDraft.map(
+        q => (q.id === query.id ? nextQuery : q)
+      )
       this.setState({queriesWorkingDraft: nextQueries})
     }
   }
@@ -70,7 +78,9 @@ class CellEditorOverlay extends Component {
   }
 
   handleDeleteQuery(index) {
-    const nextQueries = this.state.queriesWorkingDraft.filter((__, i) => i !== index)
+    const nextQueries = this.state.queriesWorkingDraft.filter(
+      (__, i) => i !== index
+    )
     this.setState({queriesWorkingDraft: nextQueries})
   }
 
@@ -81,11 +91,9 @@ class CellEditorOverlay extends Component {
     const newCell = _.cloneDeep(cell)
     newCell.name = cellWorkingName
     newCell.type = cellWorkingType
-    newCell.queries = queriesWorkingDraft.map((q) => {
+    newCell.queries = queriesWorkingDraft.map(q => {
       const query = q.rawText || buildInfluxQLQuery(timeRange, q)
-      const label = q.rawText ?
-        '' :
-        `${q.measurement}.${q.fields[0].field}`
+      const label = q.rawText ? '' : `${q.measurement}.${q.fields[0].field}`
 
       return {
         queryConfig: q,
@@ -110,7 +118,9 @@ class CellEditorOverlay extends Component {
     try {
       const {data} = await getQueryConfig(url, [{query: text, id}])
       const config = data.queries.find(q => q.id === id)
-      const nextQueries = this.state.queriesWorkingDraft.map((q) => q.id === id ? config.queryConfig : q)
+      const nextQueries = this.state.queriesWorkingDraft.map(
+        q => (q.id === id ? config.queryConfig : q)
+      )
       this.setState({queriesWorkingDraft: nextQueries})
     } catch (error) {
       console.error(error)
@@ -136,7 +146,7 @@ class CellEditorOverlay extends Component {
     const queryActions = {
       addQuery: this.handleAddQuery,
       editRawTextAsync: this.handleEditRawText,
-      ..._.mapValues(queryModifiers, (qm) => this.queryStateReducer(qm)),
+      ..._.mapValues(queryModifiers, qm => this.queryStateReducer(qm)),
     }
 
     return (
@@ -152,7 +162,9 @@ class CellEditorOverlay extends Component {
             editQueryStatus={editQueryStatus}
           />
           <ResizeBottom>
-            <div style={{display: 'flex', flexDirection: 'column', height: '100%'}}>
+            <div
+              style={{display: 'flex', flexDirection: 'column', height: '100%'}}
+            >
               <OverlayControls
                 selectedGraphType={cellWorkingType}
                 onSelectGraphType={this.handleSelectGraphType}
@@ -177,12 +189,7 @@ class CellEditorOverlay extends Component {
   }
 }
 
-const {
-  func,
-  number,
-  shape,
-  string,
-} = PropTypes
+const {func, number, shape, string} = PropTypes
 
 CellEditorOverlay.propTypes = {
   onCancel: func.isRequired,
