@@ -161,8 +161,8 @@ TemplateVariableManagerWrapper.propTypes = {
       label: string.isRequired,
       tempVar: string.isRequired,
       query: shape({
-        db: string.isRequired,
-        influxql: string.isRequired,
+        db: string,
+        influxql: string,
       }),
       values: arrayOf(
         shape({

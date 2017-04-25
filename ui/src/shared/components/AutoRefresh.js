@@ -24,9 +24,9 @@ const AutoRefresh = ComposedComponent => {
           label: string.isRequired,
           tempVar: string.isRequired,
           query: shape({
-            db: string.isRequired,
+            db: string,
             rp: string,
-            influxql: string.isRequired,
+            influxql: string,
           }),
           values: arrayOf(
             shape({

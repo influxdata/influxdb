@@ -30,19 +30,16 @@ const Dashboard = ({
 
   const cells = dashboard.cells.map(cell => {
     const dashboardCell = {...cell}
-    dashboardCell.queries = dashboardCell.queries.map(({
-      label,
-      query,
-      queryConfig,
-      db,
-    }) => ({
-      label,
-      query,
-      queryConfig,
-      db,
-      database: db,
-      text: query,
-    }))
+    dashboardCell.queries = dashboardCell.queries.map(
+      ({label, query, queryConfig, db}) => ({
+        label,
+        query,
+        queryConfig,
+        db,
+        database: db,
+        text: query,
+      })
+    )
     return dashboardCell
   })
 
@@ -138,9 +135,9 @@ Dashboard.propTypes = {
       label: string.isRequired,
       tempVar: string.isRequired,
       query: shape({
-        db: string.isRequired,
+        db: string,
         rp: string,
-        influxql: string.isRequired,
+        influxql: string,
       }),
       values: arrayOf(
         shape({
