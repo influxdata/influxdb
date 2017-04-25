@@ -1,5 +1,7 @@
 import React, {PropTypes} from 'react'
 
+import RedactedInput from './RedactedInput'
+
 const VictorOpsConfig = React.createClass({
   propTypes: {
     config: PropTypes.shape({
@@ -34,20 +36,11 @@ const VictorOpsConfig = React.createClass({
       <form onSubmit={this.handleSaveAlert}>
         <div className="form-group col-xs-12">
           <label htmlFor="api-key">API Key</label>
-          <input
-            className="form-control"
+          <RedactedInput
+            defaultValue={apiKey}
             id="api-key"
-            type="text"
-            ref={r => this.apiKey = r}
-            defaultValue={apiKey || ''}
+            refFunc={r => this.apiKey = r}
           />
-          <label className="form-helper">
-            Note: a value of
-            {' '}
-            <code>true</code>
-            {' '}
-            indicates the VictorOps API key has been set
-          </label>
         </div>
 
         <div className="form-group col-xs-12">

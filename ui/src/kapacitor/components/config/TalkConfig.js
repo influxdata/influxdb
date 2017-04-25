@@ -1,5 +1,7 @@
 import React, {PropTypes} from 'react'
 
+import RedactedInput from './RedactedInput'
+
 const {bool, string, shape, func} = PropTypes
 
 const TalkConfig = React.createClass({
@@ -31,20 +33,11 @@ const TalkConfig = React.createClass({
       <form onSubmit={this.handleSaveAlert}>
         <div className="form-group col-xs-12">
           <label htmlFor="url">URL</label>
-          <input
-            className="form-control"
+          <RedactedInput
+            defaultValue={url}
             id="url"
-            type="text"
-            ref={r => this.url = r}
-            defaultValue={url || ''}
+            refFunc={r => this.url = r}
           />
-          <label className="form-helper">
-            Note: a value of
-            {' '}
-            <code>true</code>
-            {' '}
-            indicates that the Talk URL has been set
-          </label>
         </div>
 
         <div className="form-group col-xs-12">

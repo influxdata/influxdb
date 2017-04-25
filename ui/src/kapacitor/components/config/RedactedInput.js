@@ -55,7 +55,7 @@ const {bool, func, string} = PropTypes
 
 RedactedInput.propTypes = {
   id: string.isRequired,
-  defaultValue: bool.isRequired,
+  defaultValue: bool,
   refFunc: func.isRequired,
 }
 

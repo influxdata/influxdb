@@ -1,6 +1,8 @@
 import React, {PropTypes} from 'react'
+
 import QuestionMarkTooltip from 'src/shared/components/QuestionMarkTooltip'
 import {HIPCHAT_TOKEN_TIP} from 'src/kapacitor/copy'
+import RedactedInput from './RedactedInput'
 
 const {bool, func, shape, string} = PropTypes
 
@@ -67,21 +69,11 @@ const HipchatConfig = React.createClass({
             Token
             <QuestionMarkTooltip tipID="token" tipContent={HIPCHAT_TOKEN_TIP} />
           </label>
-          <input
-            className="form-control"
+          <RedactedInput
+            defaultValue={token}
             id="token"
-            type="text"
-            placeholder="your-hipchat-token"
-            ref={r => this.token = r}
-            defaultValue={token || ''}
+            refFunc={r => this.token = r}
           />
-          <label className="form-helper">
-            Note: a value of
-            {' '}
-            <code>true</code>
-            {' '}
-            indicates the HipChat token has been set
-          </label>
         </div>
 
         <div className="form-group form-group-submit col-xs-12 col-sm-6 col-sm-offset-3">

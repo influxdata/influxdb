@@ -2,6 +2,8 @@ import React, {PropTypes} from 'react'
 import QuestionMarkTooltip from 'src/shared/components/QuestionMarkTooltip'
 import {TELEGRAM_CHAT_ID_TIP, TELEGRAM_TOKEN_TIP} from 'src/kapacitor/copy'
 
+import RedactedInput from './RedactedInput'
+
 const {bool, func, shape, string} = PropTypes
 
 const TelegramConfig = React.createClass({
@@ -70,21 +72,11 @@ const TelegramConfig = React.createClass({
               tipContent={TELEGRAM_TOKEN_TIP}
             />
           </label>
-          <input
-            className="form-control"
+          <RedactedInput
+            defaultValue={token}
             id="token"
-            type="text"
-            placeholder="your-telegram-token"
-            ref={r => this.token = r}
-            defaultValue={token || ''}
+            refFunc={r => this.token = r}
           />
-          <label className="form-helper">
-            Note: a value of
-            {' '}
-            <code>true</code>
-            {' '}
-            indicates the Telegram token has been set
-          </label>
         </div>
 
         <div className="form-group col-xs-12">

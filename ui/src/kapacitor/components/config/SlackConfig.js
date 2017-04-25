@@ -1,5 +1,7 @@
 import React, {PropTypes} from 'react'
 
+import RedactedInput from './RedactedInput'
+
 const SlackConfig = React.createClass({
   propTypes: {
     config: PropTypes.shape({
@@ -56,20 +58,11 @@ const SlackConfig = React.createClass({
             </a>
             )
           </label>
-          <input
-            className="form-control"
-            id="slack-url"
-            type="text"
-            ref={r => this.url = r}
-            defaultValue={url || ''}
+          <RedactedInput
+            defaultValue={url}
+            id="url"
+            refFunc={r => this.url = r}
           />
-          <label className="form-helper">
-            Note: a value of
-            {' '}
-            <code>true</code>
-            {' '}
-            indicates that the Slack channel has been set
-          </label>
         </div>
 
         <div className="form-group col-xs-12">

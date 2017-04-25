@@ -1,6 +1,8 @@
 import React, {PropTypes} from 'react'
 import _ from 'lodash'
 
+import RedactedInput from './RedactedInput'
+
 const {array, arrayOf, bool, func, shape, string} = PropTypes
 
 const OpsGenieConfig = React.createClass({
@@ -68,12 +70,10 @@ const OpsGenieConfig = React.createClass({
       <form onSubmit={this.handleSaveAlert}>
         <div className="form-group col-xs-12">
           <label htmlFor="api-key">API Key</label>
-          <input
-            className="form-control"
+          <RedactedInput
+            defaultValue={apiKey}
             id="api-key"
-            type="text"
-            ref={r => this.apiKey = r}
-            defaultValue={apiKey || ''}
+            refFunc={r => this.apiKey = r}
           />
           <label className="form-helper">
             Note: a value of
