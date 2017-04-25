@@ -138,6 +138,7 @@ class RawQueryEditor extends Component {
 
   handleChange() {
     const {templates} = this.props
+    const {selectedTemplate} = this.state
     const value = this.editor.value
     const matches = value.match(TEMPLATE_MATCHER)
     if (matches) {
@@ -147,8 +148,15 @@ class RawQueryEditor extends Component {
       const filteredTemplates = templates.filter(t =>
         t.tempVar.includes(matches[0].substring(1))
       )
+
+      const found = filteredTemplates.find(
+        t => t.tempVar === selectedTemplate && selectedTemplate.tempVar
+      )
+      const newTemplate = found ? found : filteredTemplates[0]
+
       this.setState({
         isTemplating: true,
+        selectedTemplate: newTemplate,
         filteredTemplates,
         value,
       })
