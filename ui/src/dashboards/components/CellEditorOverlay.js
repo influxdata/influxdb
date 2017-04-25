@@ -160,6 +160,7 @@ class CellEditorOverlay extends Component {
             cellType={cellWorkingType}
             cellName={cellWorkingName}
             editQueryStatus={editQueryStatus}
+            views={[]}
           />
           <ResizeBottom>
             <div

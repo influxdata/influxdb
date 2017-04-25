@@ -11,6 +11,7 @@ import ResizeContainer, {
   ResizeBottom,
 } from 'src/shared/components/ResizeContainer'
 
+import {VIS_VIEWS} from 'src/shared/constants'
 import {setAutoRefresh} from 'shared/actions/app'
 import * as viewActions from 'src/data_explorer/actions/view'
 
@@ -107,6 +108,7 @@ const DataExplorer = React.createClass({
               queryConfigs={queryConfigs}
               activeQueryIndex={activeQueryIndex}
               editQueryStatus={queryConfigActions.editQueryStatus}
+              views={VIS_VIEWS}
             />
           </ResizeBottom>
         </ResizeContainer>

@@ -3,12 +3,9 @@ import buildInfluxQLQuery from 'utils/influxql'
 import classNames from 'classnames'
 import VisHeader from 'src/data_explorer/components/VisHeader'
 import VisView from 'src/data_explorer/components/VisView'
+import {GRAPH, TABLE} from 'src/shared/constants'
 
-const GRAPH = 'graph'
-const TABLE = 'table'
-const VIEWS = [GRAPH, TABLE]
-
-const {func, arrayOf, number, shape, string} = PropTypes
+const {arrayOf, func, number, shape, string} = PropTypes
 
 const Visualization = React.createClass({
   propTypes: {
@@ -24,6 +21,7 @@ const Visualization = React.createClass({
     height: string,
     heightPixels: number,
     editQueryStatus: func.isRequired,
+    views: arrayOf(string).isRequired,
   },
 
   contextTypes: {
@@ -49,6 +47,12 @@ const Visualization = React.createClass({
     }
   },
 
+  getDefaultProps() {
+    return {
+      cellName: '',
+    }
+  },
+
   componentWillReceiveProps(nextProps) {
     const {queryConfigs, activeQueryIndex} = nextProps
     if (
@@ -71,8 +75,10 @@ const Visualization = React.createClass({
 
   render() {
     const {
+      views,
       height,
       cellType,
+      cellName,
       timeRange,
       autoRefresh,
       heightPixels,
@@ -95,10 +101,10 @@ const Visualization = React.createClass({
     return (
       <div className="graph" style={{height}}>
         <VisHeader
-          views={VIEWS}
+          views={views}
           view={view}
           onToggleView={this.handleToggleView}
-          name={name || 'Graph'}
+          name={cellName}
         />
         <div
           className={classNames({
