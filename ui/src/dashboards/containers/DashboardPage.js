@@ -177,15 +177,20 @@ class DashboardPage extends Component {
   }
 
   // TODO: make this work over array of template variables onSave in TVM
-  handleEditTemplateVariables(templates) {
-    return e => {
+  handleEditTemplateVariables(templates, onSaveTemplatesSuccess) {
+    return async e => {
       const {params: {dashboardID}, dashboards} = this.props
       const currentDashboard = dashboards.find(({id}) => id === +dashboardID)
 
-      this.props.dashboardActions.putDashboard({
-        ...currentDashboard,
-        templates,
-      })
+      try {
+        await this.props.dashboardActions.putDashboard({
+          ...currentDashboard,
+          templates,
+        })
+        onSaveTemplatesSuccess()
+      } catch (error) {
+        console.error(error)
+      }
     }
   }
 

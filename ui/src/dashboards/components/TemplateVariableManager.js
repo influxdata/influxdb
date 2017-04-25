@@ -1,4 +1,5 @@
 import React, {Component, PropTypes} from 'react'
+import classNames from 'classnames'
 import OnClickOutside from 'react-onclickoutside'
 import TemplateVariableTable
   from 'src/dashboards/components/TemplateVariableTable'
@@ -12,6 +13,8 @@ const TemplateVariableManager = ({
   templates,
   onRunQuerySuccess,
   onRunQueryFailure,
+  onSaveTemplatesSuccess,
+  isEdited,
 }) => (
   <div className="template-variable-manager">
     <div className="template-variable-manager--header">
@@ -21,8 +24,10 @@ const TemplateVariableManager = ({
       <div className="page-header__right">
         <button className="btn btn-primary btn-sm">Add Variable</button>
         <button
-          className="btn btn-primary btn-sm"
-          onClick={onEditTemplateVariables(templates)}
+          className={classNames('btn btn-primary btn-sm', {
+            disabled: !isEdited,
+          })}
+          onClick={onEditTemplateVariables(templates, onSaveTemplatesSuccess)}
         >
           Save Template
         </button>
@@ -50,9 +55,11 @@ class TemplateVariableManagerWrapper extends Component {
 
     this.state = {
       rows: this.props.templates,
+      isEdited: false,
     }
 
     this.onRunQuerySuccess = ::this.onRunQuerySuccess
+    this.onSaveTemplatesSuccess = ::this.onSaveTemplatesSuccess
   }
 
   onRunQuerySuccess(template, queryConfig, parsedData, {tempVar, label}) {
@@ -110,15 +117,22 @@ class TemplateVariableManagerWrapper extends Component {
 
     const newRows = rows.map(r => (r.id === template.id ? templateVariable : r))
 
-    this.setState({rows: newRows})
+    this.setState({rows: newRows, isEdited: true})
+  }
+
+  onSaveTemplatesSuccess() {
+    this.setState({isEdited: false})
   }
 
   render() {
+    const {rows, isEdited} = this.state
     return (
       <TemplateVariableManager
         {...this.props}
         onRunQuerySuccess={this.onRunQuerySuccess}
-        templates={this.state.rows}
+        onSaveTemplatesSuccess={this.onSaveTemplatesSuccess}
+        templates={rows}
+        isEdited={isEdited}
       />
     )
   }
@@ -129,6 +143,8 @@ const {arrayOf, bool, func, shape, string} = PropTypes
 TemplateVariableManager.propTypes = {
   ...TemplateVariableManagerWrapper.propTypes,
   onRunQuerySuccess: func.isRequired,
+  onSaveTemplatesSuccess: func.isRequired,
+  isEdited: bool.isRequired,
 }
 
 TemplateVariableManagerWrapper.propTypes = {

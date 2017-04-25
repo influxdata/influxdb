@@ -143,16 +143,24 @@ export const getDashboardsAsync = () => async dispatch => {
   }
 }
 
-export const putDashboard = dashboard => dispatch => {
-  updateDashboardAJAX(dashboard).then(({data}) => {
+export const putDashboard = dashboard => async dispatch => {
+  try {
+    const {data} = await updateDashboardAJAX(dashboard)
     dispatch(updateDashboard(data))
-  })
+  } catch (error) {
+    console.error(error)
+    // dispatch(errorThrown(error))
+  }
 }
 
-export const updateDashboardCell = (dashboard, cell) => dispatch => {
-  return updateDashboardCellAJAX(cell).then(({data}) => {
+export const updateDashboardCell = (dashboard, cell) => async dispatch => {
+  try {
+    const {data} = await updateDashboardCellAJAX(cell)
     dispatch(syncDashboardCell(dashboard, data))
-  })
+  } catch (error) {
+    console.error(error)
+    // dispatch(errorThrown(error))
+  }
 }
 
 export const deleteDashboardAsync = dashboard => async dispatch => {
