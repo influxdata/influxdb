@@ -137,9 +137,8 @@ export const getDashboardsAsync = () => async dispatch => {
     const {data: {dashboards}} = await getDashboardsAJAX()
     dispatch(loadDashboards(dashboards))
   } catch (error) {
-    dispatch(errorThrown(error))
     console.error(error)
-    throw error
+    dispatch(errorThrown(error))
   }
 }
 
@@ -149,7 +148,7 @@ export const putDashboard = dashboard => async dispatch => {
     dispatch(updateDashboard(data))
   } catch (error) {
     console.error(error)
-    // dispatch(errorThrown(error))
+    dispatch(errorThrown(error))
   }
 }
 
@@ -189,9 +188,8 @@ export const addDashboardCellAsync = dashboard => async dispatch => {
     )
     dispatch(addDashboardCell(dashboard, data))
   } catch (error) {
-    dispatch(errorThrown(error))
     console.error(error)
-    throw error
+    dispatch(errorThrown(error))
   }
 }
 
@@ -200,7 +198,7 @@ export const deleteDashboardCellAsync = cell => async dispatch => {
     await deleteDashboardCellAJAX(cell)
     dispatch(deleteDashboardCell(cell))
   } catch (error) {
+    console.error(error)
     dispatch(errorThrown(error))
-    throw error
   }
 }

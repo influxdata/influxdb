@@ -11,6 +11,8 @@ import Dashboard from 'src/dashboards/components/Dashboard'
 import TemplateVariableManager
   from 'src/dashboards/components/TemplateVariableManager'
 
+import {errorThrown as errorThrownAction} from 'shared/actions/errors'
+
 import * as dashboardActionCreators from 'src/dashboards/actions'
 
 import {setAutoRefresh} from 'shared/actions/app'
@@ -196,7 +198,7 @@ class DashboardPage extends Component {
 
   handleRunQueryFailure(error) {
     console.error(error)
-    // this.props.errorThrown(error)
+    this.props.errorThrown(error)
   }
 
   getActiveDashboard() {
@@ -383,7 +385,7 @@ const mapDispatchToProps = dispatch => ({
   handleChooseAutoRefresh: bindActionCreators(setAutoRefresh, dispatch),
   handleClickPresentationButton: presentationButtonDispatcher(dispatch),
   dashboardActions: bindActionCreators(dashboardActionCreators, dispatch),
-  // errorThrown: bindActionCreators(errorThrownAction, dispatch),
+  errorThrown: bindActionCreators(errorThrownAction, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(DashboardPage)
