@@ -41,7 +41,7 @@ if (basepath) {
   })
 } else {
   browserHistory = useRouterHistory(createHistory)({
-    basename: "",
+    basename: '',
   })
 }
 

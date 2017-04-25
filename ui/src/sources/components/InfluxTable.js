@@ -35,12 +35,12 @@ const kapacitorDropdown = (kapacitors, source, router, setActiveKapacitor) => {
       onChoose={(item) => setActiveKapacitor(item.kapacitor)}
       addNew={{
         url: `/sources/${source.id}/kapacitors/new`,
-        text: "Add Kapacitor",
+        text: 'Add Kapacitor',
       }}
       actions={
       [{
-        icon: "pencil",
-        text: "edit",
+        icon: 'pencil',
+        text: 'edit',
         handler: (item) => {
           router.push(`${item.resource}/edit`)
         },

@@ -67,7 +67,7 @@ const CheckSources = React.createClass({
       return router.push(`/sources/new?redirectPath=${location.pathname}`)
     }
 
-    if (!isFetching && !location.pathname.includes("/manage-sources")) {
+    if (!isFetching && !location.pathname.includes('/manage-sources')) {
       // Do simple query to proxy to see if the source is up.
       try {
         await showDatabases(source.links.proxy)
