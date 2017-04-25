@@ -60,7 +60,7 @@ const TimeRangeDropdown = React.createClass({
           <span className="selected-time-range">{self.findTimeRangeInputValue(selected)}</span>
           <span className="caret" />
         </div>
-        <ul className={classnames("dropdown-menu", {show: isOpen})}>
+        <ul className={classnames('dropdown-menu', {show: isOpen})}>
           <li className="dropdown-header">Time Range</li>
           {timeRanges.map((item) => {
             return (

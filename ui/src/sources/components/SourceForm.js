@@ -75,7 +75,7 @@ export const SourceForm = React.createClass({
             <label htmlFor="password">Password</label>
             <input type="password" name="password" ref={(r) => this.sourcePassword = r} className="form-control" id="password" onChange={onInputChange} value={source.password || ''}></input>
           </div>
-          {_.get(source, 'type', '').includes("enterprise") ?
+          {_.get(source, 'type', '').includes('enterprise') ?
               <div className="form-group col-xs-12">
                 <label htmlFor="meta-url">Meta Service Connection URL</label>
                 <input type="text" name="metaUrl" ref={(r) => this.metaUrl = r} className="form-control" id="meta-url" placeholder="http://localhost:8091" onChange={onInputChange} value={source.metaUrl || ''}></input>
@@ -90,7 +90,7 @@ export const SourceForm = React.createClass({
               <label htmlFor="defaultSourceCheckbox">Make this the default source</label>
             </div>
           </div>
-          {_.get(source, 'url', '').startsWith("https") ?
+          {_.get(source, 'url', '').startsWith('https') ?
             <div className="form-group col-xs-12">
               <div className="form-control-static">
                 <input type="checkbox" id="insecureSkipVerifyCheckbox" defaultChecked={source.insecureSkipVerify} ref={(r) => this.sourceInsecureSkipVerify = r} />
@@ -99,7 +99,7 @@ export const SourceForm = React.createClass({
               <label className="form-helper">{insecureSkipVerifyText}</label>
             </div> : null}
           <div className="form-group form-group-submit col-xs-12 col-sm-6 col-sm-offset-3">
-            <button className={classNames('btn btn-block', {'btn-primary': editMode, 'btn-success': !editMode})} type="submit">{editMode ? "Save Changes" : "Add Source"}</button>
+            <button className={classNames('btn btn-block', {'btn-primary': editMode, 'btn-success': !editMode})} type="submit">{editMode ? 'Save Changes' : 'Add Source'}</button>
           </div>
         </form>
       </div>

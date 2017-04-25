@@ -84,7 +84,7 @@ class CellEditorOverlay extends Component {
     newCell.queries = queriesWorkingDraft.map((q) => {
       const query = q.rawText || buildInfluxQLQuery(timeRange, q)
       const label = q.rawText ?
-        "" :
+        '' :
         `${q.measurement}.${q.fields[0].field}`
 
       return {

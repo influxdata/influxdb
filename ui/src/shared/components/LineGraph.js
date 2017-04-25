@@ -105,7 +105,7 @@ export default React.createClass({
 
     return (
       <div
-        className={classNames("dygraph", {"graph--hasYLabel": !!(options.ylabel || options.y2label)})}
+        className={classNames('dygraph', {'graph--hasYLabel': !!(options.ylabel || options.y2label)})}
         style={{height: '100%'}}
       >
         {isRefreshing ? this.renderSpinner() : null}

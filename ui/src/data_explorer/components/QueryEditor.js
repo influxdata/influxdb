@@ -6,12 +6,7 @@ import {QUERY_TEMPLATES} from 'src/data_explorer/constants'
 
 const ENTER = 13
 const ESCAPE = 27
-const {
-  bool,
-  func,
-  shape,
-  string,
-} = PropTypes
+const {bool, func, shape, string} = PropTypes
 const QueryEditor = React.createClass({
   propTypes: {
     query: string.isRequired,
@@ -74,23 +69,26 @@ const QueryEditor = React.createClass({
           onChange={this.handleChange}
           onKeyDown={this.handleKeyDown}
           onBlur={this.handleUpdate}
-          ref={(editor) => this.editor = editor}
+          ref={editor => (this.editor = editor)}
           value={value}
           placeholder="Enter a query or select database, measurement, and field below and have us build one for you..."
           autoComplete="off"
           spellCheck="false"
         />
         {this.renderStatus(status)}
-        <Dropdown items={QUERY_TEMPLATES} selected={'Query Templates'} onChoose={this.handleChooseTemplate} className="query-editor--templates"/>
+        <Dropdown
+          items={QUERY_TEMPLATES}
+          selected={'Query Templates'}
+          onChoose={this.handleChooseTemplate}
+          className="query-editor--templates"
+        />
       </div>
     )
   },
 
   renderStatus(status) {
     if (!status) {
-      return (
-        <div className="query-editor--status"></div>
-      )
+      return <div className="query-editor--status" />
     }
 
     if (status.loading) {
@@ -102,8 +100,20 @@ const QueryEditor = React.createClass({
     }
 
     return (
-      <div className={classNames("query-editor--status", {"query-editor--error": status.error, "query-editor--success": status.success, "query-editor--warning": status.warn})}>
-        <span className={classNames("icon", {stop: status.error, checkmark: status.success, "alert-triangle": status.warn})}></span>
+      <div
+        className={classNames('query-editor--status', {
+          'query-editor--error': status.error,
+          'query-editor--success': status.success,
+          'query-editor--warning': status.warn,
+        })}
+      >
+        <span
+          className={classNames('icon', {
+            stop: status.error,
+            checkmark: status.success,
+            'alert-triangle': status.warn,
+          })}
+        />
         {status.error || status.warn || status.success}
       </div>
     )

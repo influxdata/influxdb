@@ -9,7 +9,7 @@ const VisHeader = ({views, view, onToggleView, name}) => (
           <li
             key={v}
             onClick={() => onToggleView(v)}
-            className={classNames("toggle-btn ", {active: view === v})}>
+            className={classNames('toggle-btn ', {active: view === v})}>
             {v}
           </li>
         ))}

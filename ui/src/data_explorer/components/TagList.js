@@ -94,7 +94,7 @@ const TagList = React.createClass({
         <div className="query-builder--heading">
           <span>Tags</span>
           {(!query.database || !query.measurement || !query.retentionPolicy) ? null :
-          <div className={cx("flip-toggle", {flipped: query.areTagsAccepted})} onClick={this.handleAcceptReject}>
+          <div className={cx('flip-toggle', {flipped: query.areTagsAccepted})} onClick={this.handleAcceptReject}>
             <div className="flip-toggle--container">
               <div className="flip-toggle--front">!=</div>
               <div className="flip-toggle--back">=</div>

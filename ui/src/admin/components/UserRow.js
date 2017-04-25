@@ -42,7 +42,7 @@ const UserRow = ({
         <UserEditingRow user={user} onEdit={onEdit} onSave={onSave} isNew={isNew} />
         {hasRoles ? <td></td> : null}
         <td></td>
-        <td className="text-right" style={{width: "85px"}}>
+        <td className="text-right" style={{width: '85px'}}>
           <ConfirmButtons item={user} onConfirm={onSave} onCancel={onCancel} />
         </td>
       </tr>
@@ -75,7 +75,7 @@ const UserRow = ({
             /> : null
         }
       </td>
-      <td className="text-right" style={{width: "300px"}}>
+      <td className="text-right" style={{width: '300px'}}>
         <ChangePassRow onEdit={onEdit} onApply={handleUpdatePassword} user={user} />
       </td>
       <DeleteConfirmTableCell onDelete={onDelete} item={user} />

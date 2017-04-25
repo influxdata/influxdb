@@ -87,7 +87,7 @@ const TagListItem = React.createClass({
 
     return (
       <div>
-        <div className={classNames("query-builder--list-item", {active: isOpen})} onClick={this.handleClickKey}>
+        <div className={classNames('query-builder--list-item', {active: isOpen})} onClick={this.handleClickKey}>
           <span>
             <div className="query-builder--caret icon caret-right"></div>
             {tagItemLabel}

@@ -58,7 +58,7 @@ export const removeAndLoadSources = (source) => async (dispatch) => {
     const {data: {sources: newSources}} = await getSources()
     dispatch(loadSources(newSources))
   } catch (err) {
-    dispatch(publishNotification("error", "Internal Server Error. Check API Logs"))
+    dispatch(publishNotification('error', 'Internal Server Error. Check API Logs'))
   }
 }
 

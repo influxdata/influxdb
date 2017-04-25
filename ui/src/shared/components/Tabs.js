@@ -13,7 +13,7 @@ export const Tab = React.createClass({
   render() {
     return (
       <div
-        className={cx("btn tab", {active: this.props.isActive})}
+        className={cx('btn tab', {active: this.props.isActive})}
         onClick={this.props.isDisabled ? null : this.props.onClick}
       >
         {this.props.children}
@@ -45,7 +45,7 @@ export const TabList = React.createClass({
       })
     })
 
-    if (this.props.isKapacitorTabs === "true") {
+    if (this.props.isKapacitorTabs === 'true') {
       return (
         <div className="kapacitor-values-tabs">
           <p>Alert Type</p>

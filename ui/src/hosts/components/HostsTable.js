@@ -83,11 +83,11 @@ const HostsTable = React.createClass({
   sortableClasses(key) {
     if (this.state.sortKey === key) {
       if (this.state.sortDirection === 'asc') {
-        return "sortable-header sorting-up"
+        return 'sortable-header sorting-up'
       }
-      return "sortable-header sorting-down"
+      return 'sortable-header sorting-down'
     }
-    return "sortable-header"
+    return 'sortable-header'
   },
 
   render() {
@@ -99,11 +99,11 @@ const HostsTable = React.createClass({
     let hostsTitle
 
     if (hostsLoading) {
-      hostsTitle = `Loading Hosts...`
+      hostsTitle = 'Loading Hosts...'
     } else if (hostsError.length) {
-      hostsTitle = `There was a problem loading hosts`
+      hostsTitle = 'There was a problem loading hosts'
     } else if (hosts.length === 0) {
-      hostsTitle = `No hosts found`
+      hostsTitle = 'No hosts found'
     } else if (hostCount === 1) {
       hostsTitle = `${hostCount} Host`
     } else {
@@ -164,11 +164,11 @@ const HostRow = React.createClass({
     const {host, source} = this.props
     const {name, cpu, load, apps = []} = host
 
-    let stateStr = ""
+    let stateStr = ''
     if (host.deltaUptime < 0) {
-      stateStr = "table-dot dot-critical"
+      stateStr = 'table-dot dot-critical'
     } else if (host.deltaUptime > 0) {
-      stateStr = "table-dot dot-success"
+      stateStr = 'table-dot dot-success'
     }
 
     return (
@@ -182,7 +182,7 @@ const HostRow = React.createClass({
             return (
               <span key={app}>
                 <Link
-                  style={{marginLeft: "2px"}}
+                  style={{marginLeft: '2px'}}
                   to={{pathname: `/sources/${source.id}/hosts/${name}`, query: {app}}}>
                   {app}
                 </Link>

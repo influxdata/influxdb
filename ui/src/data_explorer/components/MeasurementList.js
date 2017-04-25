@@ -25,7 +25,7 @@ const MeasurementList = React.createClass({
   getInitialState() {
     return {
       measurements: [],
-      filterText: "",
+      filterText: '',
     }
   },
 

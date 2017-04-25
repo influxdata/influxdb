@@ -49,11 +49,11 @@ const AutoRefreshDropdown = React.createClass({
     return (
       <div className="dropdown dropdown-160">
         <div className="btn btn-sm btn-info dropdown-toggle" onClick={() => self.toggleMenu()}>
-          <span className={classnames("icon", +milliseconds > 0 ? "refresh" : "pause")}></span>
+          <span className={classnames('icon', +milliseconds > 0 ? 'refresh' : 'pause')}></span>
           <span className="selected-time-range">{inputValue}</span>
           <span className="caret" />
         </div>
-        <ul className={classnames("dropdown-menu", {show: isOpen})}>
+        <ul className={classnames('dropdown-menu', {show: isOpen})}>
           <li className="dropdown-header">AutoRefresh Interval</li>
           {autoRefreshItems.map((item) => {
             return (

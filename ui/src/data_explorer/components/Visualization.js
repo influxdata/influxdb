@@ -95,7 +95,7 @@ const Visualization = React.createClass({
     return (
       <div className="graph" style={{height}}>
         <VisHeader views={VIEWS} view={view} onToggleView={this.handleToggleView} name={name || 'Graph'}/>
-        <div className={classNames({"graph-container": view === GRAPH, "table-container": view === TABLE})}>
+        <div className={classNames({'graph-container': view === GRAPH, 'table-container': view === TABLE})}>
           <VisView
             view={view}
             queries={queries}
