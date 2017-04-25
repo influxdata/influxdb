@@ -10,11 +10,6 @@ import {Table, Column, Cell} from 'fixed-data-table'
 
 const {arrayOf, func, number, oneOfType, shape, string} = PropTypes
 
-const emptyCells = {
-  columns: [],
-  values: [],
-}
-
 const defaultTableHeight = 1000
 
 const CustomCell = React.createClass({
@@ -51,7 +46,6 @@ const ChronoTable = React.createClass({
   getInitialState() {
     return {
       series: [],
-      cellData: emptyCells,
       columnWidths: {},
     }
   },
