@@ -143,12 +143,45 @@ export const runTemplateVariableQuerySuccess = (templateVariable, values) => ({
   },
 })
 
+const templates = [
+  {
+    id: '1',
+    type: 'tagKeys',
+    label: 'test query',
+    tempVar: '$HOSTS',
+    query: {
+      db: 'db1',
+      measurement: 'm1',
+      influxql: 'SHOW TAGS WHERE HUNTER = "coo"',
+    },
+    values: [
+      {value: 'h1', type: 'tagKeys', selected: false},
+      {value: 'h2', type: 'tagKeys', selected: false},
+      {value: 'h3', type: 'tagKeys', selected: false},
+      {value: 'h4', type: 'tagKeys', selected: false},
+    ],
+  },
+  {
+    id: '2',
+    type: 'csv',
+    label: 'test csv',
+    tempVar: '$INFLX',
+    values: [
+      {value: 'A', type: 'csv', selected: false},
+      {value: 'B', type: 'csv', selected: false},
+      {value: 'C', type: 'csv', selected: false},
+    ],
+  },
+]
+
 // Async Action Creators
 
 export const getDashboardsAsync = () => async dispatch => {
   try {
     const {data: {dashboards}} = await getDashboardsAJAX()
-    dispatch(loadDashboards(dashboards))
+    const stubbedDashboards = dashboards.map(d => ({...d, templates}))
+
+    dispatch(loadDashboards(stubbedDashboards))
   } catch (error) {
     console.error(error)
     throw error
@@ -157,7 +190,7 @@ export const getDashboardsAsync = () => async dispatch => {
 
 export const putDashboard = dashboard => dispatch => {
   updateDashboardAJAX(dashboard).then(({data}) => {
-    dispatch(updateDashboard(data))
+    dispatch(updateDashboard({...data, templates}))
   })
 }
 
