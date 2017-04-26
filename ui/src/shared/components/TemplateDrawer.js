@@ -1,12 +1,6 @@
 import React, {PropTypes} from 'react'
 import OnClickOutside from 'react-onclickoutside'
-
-const style = {
-  display: 'flex',
-  alignItems: 'center',
-  fontWeight: '700',
-  padding: '15px',
-}
+import classNames from 'classnames'
 
 const TemplateDrawer = ({
   templates,
@@ -14,18 +8,13 @@ const TemplateDrawer = ({
   onMouseOverTempVar,
   onClickTempVar,
 }) => (
-  <div style={style}>
+  <div className="template-drawer">
     {templates.map(t => (
-      <div
+      <div className={classNames('template-drawer--item', {'template-drawer--selected': t.tempVar === selected.tempVar})}
         onMouseOver={() => {
           onMouseOverTempVar(t)
         }}
         onClick={() => onClickTempVar(t)}
-        style={{
-          background: t.tempVar === selected.tempVar ? 'red' : 'transparent',
-          marginRight: '5px',
-          cursor: 'pointer',
-        }}
         key={t.tempVar}
       >
         {' '}{t.tempVar}{' '}

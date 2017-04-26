@@ -189,15 +189,6 @@ class QueryEditor extends Component {
 
     return (
       <div className="query-editor">
-        {isTemplating
-          ? <TemplateDrawer
-              onClickTempVar={this.handleClickTempVar}
-              templates={filteredTemplates}
-              selected={selectedTemplate}
-              onMouseOverTempVar={this.handleMouseOverTempVar}
-              handleClickOutside={this.handleCloseDrawer}
-            />
-          : null}
         <textarea
           className="query-editor--field"
           onChange={this.handleChange}
@@ -209,7 +200,22 @@ class QueryEditor extends Component {
           autoComplete="off"
           spellCheck="false"
         />
-        {this.renderStatus(status)}
+        <div className={classNames('varmoji', {'varmoji-rotated': isTemplating})}>
+          <div className="varmoji-container">
+            <div className="varmoji-front">{this.renderStatus(status)}</div>
+            <div className="varmoji-back">
+              {isTemplating
+              ? <TemplateDrawer
+                  onClickTempVar={this.handleClickTempVar}
+                  templates={filteredTemplates}
+                  selected={selectedTemplate}
+                  onMouseOverTempVar={this.handleMouseOverTempVar}
+                  handleClickOutside={this.handleCloseDrawer}
+                />
+              : null}
+            </div>
+          </div>
+        </div>
       </div>
     )
   }
