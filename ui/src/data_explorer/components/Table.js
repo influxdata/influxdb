@@ -159,7 +159,7 @@ const ChronoTable = React.createClass({
         <div className="table--tabs-content">
           {(columns && !columns.length) || (values && !values.length)
             ? <div className="generic-empty-state">
-                Your query returned no data
+                This series is empty
               </div>
             : <Table
                 onColumnResizeEndCallback={this.handleColumnResize}
