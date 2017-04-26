@@ -1761,6 +1761,10 @@ func (s *SelectStatement) validate(tr targetRequirement) error {
 		return err
 	}
 
+	if err := s.validateTopBottom(); err != nil {
+		return err
+	}
+
 	if err := s.validateAggregates(tr); err != nil {
 		return err
 	}
@@ -2247,7 +2251,7 @@ func (s *SelectStatement) validateDistinct() error {
 	}
 
 	if len(s.Fields) > 1 {
-		return fmt.Errorf("aggregate function distinct() can not be combined with other functions or fields")
+		return fmt.Errorf("aggregate function distinct() cannot be combined with other functions or fields")
 	}
 
 	switch c := s.Fields[0].Expr.(type) {
@@ -2258,6 +2262,19 @@ func (s *SelectStatement) validateDistinct() error {
 
 		if len(c.Args) != 1 {
 			return fmt.Errorf("distinct function can only have one argument")
+		}
+	}
+	return nil
+}
+
+func (s *SelectStatement) validateTopBottom() error {
+	// Ensure there are not multiple calls if top/bottom is present.
+	info := newSelectInfo(s)
+	if len(info.calls) > 1 {
+		for call := range info.calls {
+			if call.Name == "top" || call.Name == "bottom" {
+				return fmt.Errorf("selector function %s() cannot be combined with other functions", call.Name)
+			}
 		}
 	}
 	return nil
