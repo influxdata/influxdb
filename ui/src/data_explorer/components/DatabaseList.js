@@ -68,7 +68,7 @@ const DatabaseList = React.createClass({
             const isActive = database === query.database && retentionPolicy === query.retentionPolicy
 
             return (
-              <div className={classNames('query-builder--list-item', {active: isActive})} key={`${database}..${retentionPolicy}`} onClick={_.wrap(namespace, onChooseNamespace)}>
+              <div className={classNames('query-builder--list-item', {active: isActive})} key={`${database}..${retentionPolicy}`} onClick={isActive ? null : _.wrap(namespace, onChooseNamespace)}>
                 {database}.{retentionPolicy}
               </div>
             )
