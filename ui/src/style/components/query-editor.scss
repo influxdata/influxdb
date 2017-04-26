@@ -14,7 +14,6 @@
 }
 .query-editor--field,
 .query-editor--status {
-  font-family: $code-font;
   transition:
     color 0.25s ease,
     background-color 0.25s ease,
@@ -24,6 +23,7 @@
   
 }
 .query-editor--field {
+  font-family: $code-font;
   font-size: 12px;
   line-height: 14px;
   font-weight: 600;
@@ -54,28 +54,13 @@
   }
 }
 .query-editor--status {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
   height: $query-editor--status-height;
-  line-height: $query-editor--status-height;
-  font-size: 12px;
-  padding: 0 10px;
-  padding-right: ($query-editor--templates-width + ($query-editor--templates-offset * 2)) !important;
   border-radius: 0 0 $radius $radius;
   border-top: 0;
-  color: $query-editor--status-default;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 
-  span.icon {
-    margin-right: 5px;
-  }
-
-  /* Error State */
-  &.query-editor--error { color: $query-editor--status-error; }
-  /* Warning State */
-  &.query-editor--warning { color: $query-editor--status-warning; }
-  /* Success State */
-  &.query-editor--success { color: $query-editor--status-success; }
   /* Loading State */
   .loading-dots {
     bottom: $query-editor--templates-offset;
@@ -83,10 +68,30 @@
     transform: translateY(50%);
   }
 }
+.query-status-output {
+  flex: 1 0 0;
+  display: inline-block;
+  color: $query-editor--status-default;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 10px;
+  line-height: $query-editor--status-height;
+  font-size: 12px;
+  font-family: $code-font;
+  
+  span.icon {
+    margin-right: 5px;
+  }
+  /* Error State */
+  &.query-status-output--error { color: $query-editor--status-error; }
+  /* Warning State */
+  &.query-status-output--warning { color: $query-editor--status-warning; }
+  /* Success State */
+  &.query-status-output--success { color: $query-editor--status-success; }
+}
 .dropdown.query-editor--templates {
-  position: absolute;
-  bottom: ($query-editor--templates-offset - 8px);
-  right: $query-editor--templates-offset;
+  margin: 0 4px 0 0 ;
 
   div.dropdown-toggle.btn.btn-sm {
     width: $query-editor--templates-width;

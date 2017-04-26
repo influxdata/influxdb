@@ -210,45 +210,58 @@ class QueryEditor extends Component {
           spellCheck="false"
         />
         {this.renderStatus(status)}
-        <Dropdown
-          items={QUERY_TEMPLATES}
-          selected={'Query Templates'}
-          onChoose={this.handleChooseTemplate}
-          className="query-editor--templates"
-        />
       </div>
     )
   }
 
   renderStatus(status) {
     if (!status) {
-      return <div className="query-editor--status" />
+      return (
+        <div className="query-editor--status">
+          <Dropdown
+            items={QUERY_TEMPLATES}
+            selected={'Query Templates'}
+            onChoose={this.handleChooseTemplate}
+            className="query-editor--templates"
+          />
+        </div>
+      )
     }
 
     if (status.loading) {
       return (
         <div className="query-editor--status">
           <LoadingDots />
+          <Dropdown
+            items={QUERY_TEMPLATES}
+            selected={'Query Templates'}
+            onChoose={this.handleChooseTemplate}
+            className="query-editor--templates"
+          />
         </div>
       )
     }
 
     return (
-      <div
-        className={classNames('query-editor--status', {
-          'query-editor--error': status.error,
-          'query-editor--success': status.success,
-          'query-editor--warning': status.warn,
-        })}
-      >
-        <span
-          className={classNames('icon', {
+      <div className="query-editor--status">
+        <span className={classNames('query-status-output', {
+          'query-status-output--error': status.error,
+          'query-status-output--success': status.success,
+          'query-status-output--warning': status.warn,
+        })}>
+          <span className={classNames('icon', {
             stop: status.error,
             checkmark: status.success,
             'alert-triangle': status.warn,
-          })}
+          })} />
+          {status.error || status.warn || status.success}
+        </span>
+        <Dropdown
+          items={QUERY_TEMPLATES}
+          selected={'Query Templates'}
+          onChoose={this.handleChooseTemplate}
+          className="query-editor--templates"
         />
-        {status.error || status.warn || status.success}
       </div>
     )
   }
