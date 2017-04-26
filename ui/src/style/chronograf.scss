@@ -24,25 +24,26 @@
 @import 'layout/sidebar';
 
 // Components
-@import 'components/dropdown';
-@import 'components/input-tag-list';
-@import 'components/page-header-dropdown';
-@import 'components/page-header-editable';
-@import 'components/multi-select-dropdown';
-@import 'components/page-spinner';
-@import 'components/flash-messages';
-@import 'components/flip-toggle';
-@import 'components/dygraphs';
-@import 'components/react-tooltips';
-@import 'components/search-widget';
-@import 'components/tables';
-@import 'components/resizer';
-@import 'components/source-indicator';
-@import 'components/graph-tips';
 @import 'components/confirm-buttons';
 @import 'components/custom-time-range';
+@import 'components/dropdown';
+@import 'components/dygraphs';
+@import 'components/flash-messages';
+@import 'components/flip-toggle';
+@import 'components/graph-tips';
 @import 'components/graph';
+@import 'components/input-tag-list';
+@import 'components/multi-select-dropdown';
+@import 'components/page-header-dropdown';
+@import 'components/page-header-editable';
+@import 'components/page-spinner';
 @import 'components/query-maker';
+@import 'components/react-tooltips';
+@import 'components/redacted-input';
+@import 'components/resizer';
+@import 'components/search-widget';
+@import 'components/source-indicator';
+@import 'components/tables';
 
 // Pages
 

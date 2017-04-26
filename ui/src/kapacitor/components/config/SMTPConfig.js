@@ -35,31 +35,64 @@ const SMTPConfig = React.createClass({
       <form onSubmit={this.handleSaveAlert}>
         <div className="form-group col-xs-12 col-md-6">
           <label htmlFor="smtp-host">SMTP Host</label>
-          <input className="form-control" id="smtp-host" type="text" ref={(r) => this.host = r} defaultValue={host || ''}></input>
+          <input
+            className="form-control"
+            id="smtp-host"
+            type="text"
+            ref={r => this.host = r}
+            defaultValue={host || ''}
+          />
         </div>
 
         <div className="form-group col-xs-12 col-md-6">
           <label htmlFor="smtp-port">SMTP Port</label>
-          <input className="form-control" id="smtp-port" type="text" ref={(r) => this.port = r} defaultValue={port || ''}></input>
+          <input
+            className="form-control"
+            id="smtp-port"
+            type="text"
+            ref={r => this.port = r}
+            defaultValue={port || ''}
+          />
         </div>
 
         <div className="form-group col-xs-12">
           <label htmlFor="smtp-from">From Email</label>
-          <input className="form-control" id="smtp-from" placeholder="email@domain.com" type="text" ref={(r) => this.from = r} defaultValue={from || ''}></input>
+          <input
+            className="form-control"
+            id="smtp-from"
+            placeholder="email@domain.com"
+            type="text"
+            ref={r => this.from = r}
+            defaultValue={from || ''}
+          />
         </div>
 
         <div className="form-group col-xs-12 col-md-6">
           <label htmlFor="smtp-user">User</label>
-          <input className="form-control" id="smtp-user" type="text" ref={(r) => this.username = r} defaultValue={username || ''}></input>
+          <input
+            className="form-control"
+            id="smtp-user"
+            type="text"
+            ref={r => this.username = r}
+            defaultValue={username || ''}
+          />
         </div>
 
         <div className="form-group col-xs-12 col-md-6">
           <label htmlFor="smtp-password">Password</label>
-          <input className="form-control" id="smtp-password" type="password" ref={(r) => this.password = r} defaultValue={`${password}`}></input>
+          <input
+            className="form-control"
+            id="smtp-password"
+            type="password"
+            ref={r => this.password = r}
+            defaultValue={`${password}`}
+          />
         </div>
 
         <div className="form-group form-group-submit col-xs-12 col-sm-6 col-sm-offset-3">
-          <button className="btn btn-block btn-primary" type="submit">Save</button>
+          <button className="btn btn-block btn-primary" type="submit">
+            Save
+          </button>
         </div>
       </form>
     )
