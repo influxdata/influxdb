@@ -93,18 +93,20 @@ class QueryEditor extends Component {
 
   handleTemplateReplace(selectedTemplate, key) {
     const {selectionStart, value} = this.editor
+    const isEnter = key === 'Enter'
     const {tempVar} = selectedTemplate
 
     let templatedValue
     const matched = value.match(TEMPLATE_MATCHER)
     if (matched) {
-      const newTempVar = key === 'Enter'
+      const newTempVar = isEnter
         ? tempVar
-        : tempVar.substring(1, tempVar.length - 1)
+        : tempVar.substring(0, tempVar.length - 1)
       templatedValue = value.replace(TEMPLATE_MATCHER, newTempVar)
     }
 
-    const diffInLength = tempVar.length - matched[0].length
+    const enterModifier = isEnter ? 0 : -1
+    const diffInLength = tempVar.length - matched[0].length + enterModifier
 
     this.setState({value: templatedValue, selectedTemplate}, () =>
       this.editor.setSelectionRange(
