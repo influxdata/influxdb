@@ -946,6 +946,16 @@ func (s *Shard) Restore(r io.Reader, basePath string) error {
 	return s.Open()
 }
 
+// Import imports data to the underlying engine for the shard. r should
+// be a reader from a backup created by Backup.
+func (s *Shard) Import(r io.Reader, basePath string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Restore to engine.
+	return s.engine.Import(r, basePath)
+}
+
 // CreateSnapshot will return a path to a temp directory
 // containing hard links to the underlying shard files.
 func (s *Shard) CreateSnapshot() (string, error) {
