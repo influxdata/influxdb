@@ -173,6 +173,7 @@ $table-tab-scrollbar-height: 6px;
 }
 .table--tabs-content {
   width: 100%;
+  height: calc(100% - #{$table-tab-height});
   position: absolute;
   top: $table-tab-height;
 }
