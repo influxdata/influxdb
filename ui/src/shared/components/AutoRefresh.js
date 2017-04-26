@@ -77,7 +77,7 @@ const AutoRefresh = (ComposedComponent) => {
       return _.difference(_.union(leftStrs, rightStrs), _.intersection(leftStrs, rightStrs))
     },
 
-    async executeQueries(queries) {
+    executeQueries(queries) {
       const {templates, editQueryStatus} = this.props
 
       if (!queries.length) {

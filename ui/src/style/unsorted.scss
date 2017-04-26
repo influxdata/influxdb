@@ -81,6 +81,52 @@
   }
 }
 
+// Tabs for switching between queries
+.qeditor--tabs {
+  display: flex;
+  width: 100%;
+  justify-content: flex-start;
+  padding: 8px 9px 0 9px;
+  background-color: $query-editor-tab-inactive;
+  flex-wrap: wrap;
+
+  &-heading {
+    flex-basis: 100%;
+    width: 100%;
+    font-size: 12px;
+    color: $g9-mountain;
+    font-weight: 500;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+}
+.qeditor--tab {
+  text-align: center;
+  background-color: $query-editor-tab-inactive;
+  color: $g13-mist;
+  height: 28px;
+  padding: 0 9px;
+  line-height: 28px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: $radius-small $radius-small 0 0;
+  margin-right: 2px;
+  @include no-user-select();
+  transition:
+    color 0.25s ease,
+    background-color 0.25s ease;
+
+  &:hover {
+    cursor: pointer;
+    color: $g20-white;
+  }
+  &.active {
+    background-color: $query-editor-tab-active;
+    color: $g20-white;
+  }
+}
+
 /*
     Loading Dots
     ----------------------------------------------
@@ -107,4 +153,29 @@
   div:nth-child(2) {left: 50%; animation: refreshingSpinnerB 0.8s cubic-bezier(0.645, 0.045, 0.355, 1) infinite;}
   div:nth-child(3) {left: 100%; animation: refreshingSpinnerC 0.8s cubic-bezier(0.645, 0.045, 0.355, 1) infinite;}
 }
+
+
+/*
+    Kapacitor selector dropdown
+    ----------------------------------------------
+*/
+.dropdown .dropdown-toggle.btn-xs {
+  height: 22px !important;
+  line-height: 22px !important;
+  padding: 0 9px !important;
+}
+.dropdown-selected {
+  display: inline-block;
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-right: 15px;
+}
+.dropdown.sources--kapacitor-selector {
+  .dropdown-toggle {
+    width: 160px;
+  }
+}
+
 

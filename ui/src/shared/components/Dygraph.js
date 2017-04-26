@@ -125,7 +125,7 @@ export default React.createClass({
 
         legendContainerNode.style.left = `${legendLeft}px`
         if (legendOnBottom) {
-          legendContainerNode.style.bottom = `4px`
+          legendContainerNode.style.bottom = '4px'
         } else {
           legendContainerNode.style.top = `${legendTop}px`
         }

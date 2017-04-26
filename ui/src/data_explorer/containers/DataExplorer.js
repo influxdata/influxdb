@@ -4,21 +4,18 @@ import {bindActionCreators} from 'redux'
 
 import _ from 'lodash'
 
-import QueryBuilder from '../components/QueryBuilder'
+import QueryMaker from '../components/QueryMaker'
 import Visualization from '../components/Visualization'
 import Header from '../containers/Header'
-import ResizeContainer, {ResizeBottom} from 'src/shared/components/ResizeContainer'
+import ResizeContainer, {
+  ResizeBottom,
+} from 'src/shared/components/ResizeContainer'
 
+import {VIS_VIEWS} from 'src/shared/constants'
 import {setAutoRefresh} from 'shared/actions/app'
 import * as viewActions from 'src/data_explorer/actions/view'
 
-const {
-  arrayOf,
-  func,
-  number,
-  shape,
-  string,
-} = PropTypes
+const {arrayOf, func, number, shape, string} = PropTypes
 
 const DataExplorer = React.createClass({
   propTypes: {
@@ -94,7 +91,7 @@ const DataExplorer = React.createClass({
           timeRange={timeRange}
         />
         <ResizeContainer>
-          <QueryBuilder
+          <QueryMaker
             source={source}
             queries={queryConfigs}
             actions={queryConfigActions}
@@ -111,6 +108,7 @@ const DataExplorer = React.createClass({
               queryConfigs={queryConfigs}
               activeQueryIndex={activeQueryIndex}
               editQueryStatus={queryConfigActions.editQueryStatus}
+              views={VIS_VIEWS}
             />
           </ResizeBottom>
         </ResizeContainer>
@@ -120,7 +118,12 @@ const DataExplorer = React.createClass({
 })
 
 function mapStateToProps(state) {
-  const {app: {persisted: {autoRefresh}}, timeRange, queryConfigs, dataExplorer} = state
+  const {
+    app: {persisted: {autoRefresh}},
+    timeRange,
+    queryConfigs,
+    dataExplorer,
+  } = state
   const queryConfigValues = _.values(queryConfigs)
 
   return {

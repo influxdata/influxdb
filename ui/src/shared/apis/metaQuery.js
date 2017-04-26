@@ -3,7 +3,7 @@ import _ from 'lodash'
 import {buildInfluxUrl, proxy} from 'utils/queryUrlGenerator'
 
 export const showDatabases = async (source) => {
-  const query = `SHOW DATABASES`
+  const query = 'SHOW DATABASES'
   return await proxy({source, query})
 }
 
@@ -52,7 +52,7 @@ export function showTagValues({source, database, retentionPolicy, measurement, t
 
 export function showShards() {
   return AJAX({
-    url: `/api/int/v1/show-shards`,
+    url: '/api/int/v1/show-shards',
   })
 }
 

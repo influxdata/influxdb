@@ -101,9 +101,9 @@ const Threshold = React.createClass({
         <span>{query.fields.length ? query.fields[0].field : 'Select a Time-Series'}</span>
         <p>is</p>
         <Dropdown className="size-176 dropdown-kapacitor" items={operators} selected={operator} onChoose={this.handleDropdownChange} />
-        <input className="form-control input-sm size-166 form-control--green" type="text" ref={(r) => this.valueInput = r} defaultValue={value} onKeyUp={this.handleInputChange} />
+        <input className="form-control input-sm size-166 form-control--green" type="text" spellCheck="false" ref={(r) => this.valueInput = r} defaultValue={value} onKeyUp={this.handleInputChange} />
         { (operator === 'inside range' || operator === 'outside range') &&
-          <input className="form-control input-sm size-166 form-control--green" type="text" ref={(r) => this.valueRangeInput = r} defaultValue={rangeValue} onKeyUp={this.handleInputChange} />
+          <input className="form-control input-sm size-166 form-control--green" type="text" spellCheck="false" ref={(r) => this.valueRangeInput = r} defaultValue={rangeValue} onKeyUp={this.handleInputChange} />
         }
       </div>
     )
@@ -153,6 +153,7 @@ const Relative = React.createClass({
           onKeyUp={this.handleInputChange}
           required={true}
           type="text"
+          spellCheck="false"
         />
         <p>{ change === CHANGES[1] ? '%' : '' }</p>
       </div>

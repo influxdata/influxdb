@@ -40,7 +40,7 @@ const RuleRow = ({rule, source, onDelete, onChangeRuleStatus}) => {
             id={`kapacitor-enabled ${rule.id}`}
             className="form-control-static"
             type="checkbox"
-            defaultChecked={rule.status === "enabled"}
+            defaultChecked={rule.status === 'enabled'}
             onClick={() => onChangeRuleStatus(rule)}
           />
           <label htmlFor={`kapacitor-enabled ${rule.id}`}></label>

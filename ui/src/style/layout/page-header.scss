@@ -2,7 +2,6 @@
     Page Header
     ----------------------------------------------
 */
-
 $page-header-size: 19px;
 $page-header-weight: 400 !important;
 
@@ -38,6 +37,7 @@ $page-header-weight: 400 !important;
     display: inline-block;
     vertical-align: middle;
     @include no-user-select();
+    cursor: default;
   }
   &__left,
   &__right {
@@ -63,5 +63,12 @@ $page-header-weight: 400 !important;
   }
   &.full-width .page-header__container {
     max-width: 100%;
+  }
+  &.full-width-no-scrollbar {
+    padding-right: $page-wrapper-padding;
+
+    .page-header__container {
+      max-width: 100%;
+    }
   }
 }

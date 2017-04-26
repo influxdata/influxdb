@@ -12,11 +12,11 @@ const initialState = {
 }
 
 const {
-  ephemeral: initialEphemeralState,
-  persisted: initialPersistedState,
+  ephemeral: initialAppEphemeralState,
+  persisted: initialAppPersistedState,
 } = initialState
 
-const ephemeralReducer = (state = initialEphemeralState, action) => {
+const appEphemeralReducer = (state = initialAppEphemeralState, action) => {
   switch (action.type) {
     case 'ENABLE_PRESENTATION_MODE': {
       return {
@@ -37,7 +37,7 @@ const ephemeralReducer = (state = initialEphemeralState, action) => {
   }
 }
 
-const persistedReducer = (state = initialPersistedState, action) => {
+const appPersistedReducer = (state = initialAppPersistedState, action) => {
   switch (action.type) {
     case 'SET_AUTOREFRESH': {
       return {
@@ -51,7 +51,9 @@ const persistedReducer = (state = initialPersistedState, action) => {
   }
 }
 
-export default combineReducers({
-  ephemeral: ephemeralReducer,
-  persisted: persistedReducer,
+const appReducer = combineReducers({
+  ephemeral: appEphemeralReducer,
+  persisted: appPersistedReducer,
 })
+
+export default appReducer

@@ -3,18 +3,9 @@ import buildInfluxQLQuery from 'utils/influxql'
 import classNames from 'classnames'
 import VisHeader from 'src/data_explorer/components/VisHeader'
 import VisView from 'src/data_explorer/components/VisView'
+import {GRAPH, TABLE} from 'src/shared/constants'
 
-const GRAPH = 'graph'
-const TABLE = 'table'
-const VIEWS = [GRAPH, TABLE]
-
-const {
-  func,
-  arrayOf,
-  number,
-  shape,
-  string,
-} = PropTypes
+const {arrayOf, func, number, shape, string} = PropTypes
 
 const Visualization = React.createClass({
   propTypes: {
@@ -30,6 +21,7 @@ const Visualization = React.createClass({
     height: string,
     heightPixels: number,
     editQueryStatus: func.isRequired,
+    views: arrayOf(string).isRequired,
   },
 
   contextTypes: {
@@ -49,13 +41,25 @@ const Visualization = React.createClass({
     }
 
     return {
-      view: typeof queryConfigs[activeQueryIndex].rawText === 'string' ? TABLE : GRAPH,
+      view: typeof queryConfigs[activeQueryIndex].rawText === 'string'
+        ? TABLE
+        : GRAPH,
+    }
+  },
+
+  getDefaultProps() {
+    return {
+      cellName: '',
     }
   },
 
   componentWillReceiveProps(nextProps) {
     const {queryConfigs, activeQueryIndex} = nextProps
-    if (!queryConfigs.length || activeQueryIndex === null || activeQueryIndex === this.props.activeQueryIndex) {
+    if (
+      !queryConfigs.length ||
+      activeQueryIndex === null ||
+      activeQueryIndex === this.props.activeQueryIndex
+    ) {
       return
     }
 
@@ -71,8 +75,10 @@ const Visualization = React.createClass({
 
   render() {
     const {
+      views,
       height,
       cellType,
+      cellName,
       timeRange,
       autoRefresh,
       heightPixels,
@@ -83,7 +89,7 @@ const Visualization = React.createClass({
     const {source: {links: {proxy}}} = this.context
     const {view} = this.state
 
-    const statements = queryConfigs.map((query) => {
+    const statements = queryConfigs.map(query => {
       const text = query.rawText || buildInfluxQLQuery(timeRange, query)
       return {text, id: query.id}
     })
@@ -93,8 +99,18 @@ const Visualization = React.createClass({
 
     return (
       <div className="graph" style={{height}}>
-        <VisHeader views={VIEWS} view={view} onToggleView={this.handleToggleView} name={name || 'Graph'}/>
-        <div className={classNames({"graph-container": view === GRAPH, "table-container": view === TABLE})}>
+        <VisHeader
+          views={views}
+          view={view}
+          onToggleView={this.handleToggleView}
+          name={cellName}
+        />
+        <div
+          className={classNames({
+            'graph-container': view === GRAPH,
+            'table-container': view === TABLE,
+          })}
+        >
           <VisView
             view={view}
             queries={queries}

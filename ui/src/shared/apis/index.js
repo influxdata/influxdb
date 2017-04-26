@@ -2,7 +2,7 @@ import AJAX from 'utils/ajax'
 
 export function fetchLayouts() {
   return AJAX({
-    url: `/chronograf/v1/layouts`,
+    url: '/chronograf/v1/layouts',
     method: 'GET',
     resource: 'layouts',
   })
@@ -58,13 +58,35 @@ export function pingKapacitor(kapacitor) {
   })
 }
 
-export function getKapacitor(source) {
+export function getKapacitor(source, kapacitorID) {
+  return AJAX({
+    url: `${source.links.kapacitors}/${kapacitorID}`,
+    method: 'GET',
+  }).then(({data}) => {
+    return data
+  })
+}
+
+export function getActiveKapacitor(source) {
   return AJAX({
     url: source.links.kapacitors,
     method: 'GET',
   }).then(({data}) => {
-    return data.kapacitors[0]
+    const activeKapacitor = data.kapacitors.find((k) => k.active)
+    return activeKapacitor || data.kapacitors[0]
   })
+}
+
+export const getKapacitors = async (source) => {
+  try {
+    return await AJAX({
+      method: 'GET',
+      url: source.links.kapacitors,
+    })
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
 }
 
 export function createKapacitor(source, {url, name = 'My Kapacitor', username, password}) {
@@ -80,7 +102,7 @@ export function createKapacitor(source, {url, name = 'My Kapacitor', username, p
   })
 }
 
-export function updateKapacitor({links, url, name = 'My Kapacitor', username, password}) {
+export function updateKapacitor({links, url, name = 'My Kapacitor', username, password, active}) {
   return AJAX({
     url: links.self,
     method: 'PATCH',
@@ -89,6 +111,7 @@ export function updateKapacitor({links, url, name = 'My Kapacitor', username, pa
       url,
       username,
       password,
+      active,
     },
   })
 }

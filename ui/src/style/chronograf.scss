@@ -1,9 +1,7 @@
 // Modules
 @import 'modules/influx-colors';
 @import 'modules/variables';
-
-// Mixins
-@import 'mixins/mixins';
+@import 'modules/mixins';
 
 // Fonts
 @import 'fonts/fonts';
@@ -23,16 +21,17 @@
 // Layout
 @import 'layout/page';
 @import 'layout/page-header';
-@import 'layout/sidebar.scss';
+@import 'layout/sidebar';
 
 // Components
+@import 'components/dropdown';
 @import 'components/input-tag-list';
-@import 'components/group-by-time-dropdown';
 @import 'components/page-header-dropdown';
 @import 'components/page-header-editable';
 @import 'components/multi-select-dropdown';
 @import 'components/page-spinner';
 @import 'components/flash-messages';
+@import 'components/flip-toggle';
 @import 'components/dygraphs';
 @import 'components/react-tooltips';
 @import 'components/search-widget';
@@ -42,14 +41,15 @@
 @import 'components/graph-tips';
 @import 'components/confirm-buttons';
 @import 'components/custom-time-range';
+@import 'components/graph';
+@import 'components/query-maker';
 
 // Pages
-@import 'pages/alerts';
+
+@import 'pages/config-endpoints';
 @import 'pages/signup';
 @import 'pages/auth-page';
-@import 'pages/hosts';
 @import 'pages/kapacitor';
-@import 'pages/data-explorer';
 @import 'pages/dashboards';
 @import 'pages/admin';
 

@@ -112,7 +112,7 @@ export default function timeSeriesToDygraph(raw = [], activeQueryIndex, isInData
   }, {})
 
   return {
-    labels: ["time", ...map(sortedLabels, ({label}) => label)],
+    labels: ['time', ...map(sortedLabels, ({label}) => label)],
     timeSeries: map(sortedTimeSeries, ({time, values}) => ([new Date(time), ...values])),
     dygraphSeries,
   }

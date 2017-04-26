@@ -59,8 +59,8 @@ Currently, Chronograf offers dashboard templates for the following Telegraf inpu
 
 Chronograf's graphing tool that allows you to dig in and create personalized visualizations of your data.
 
-* Generate [InfluxQL](https://docs.influxdata.com/influxdb/latest/query_language/) statements with the query builder
-* Generate and edit [InfluxQL](https://docs.influxdata.com/influxdb/latest/query_language/) statements with the raw query editor
+* Generate and edit [InfluxQL](https://docs.influxdata.com/influxdb/latest/query_language/) statements with the query editor
+* Use Chronograf's query templates to easily explore your data
 * Create visualizations and view query results in tabular format
 
 ### Dashboards
@@ -91,6 +91,7 @@ A UI for [Kapacitor](https://github.com/influxdata/kapacitor) alert creation and
   * [VictorOps](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#victorops)
 * View all active alerts at a glance on the alerting dashboard
 * Enable and disable existing alert rules with the check of a box
+* Configure multiple Kapacitor instances per InfluxDB source
 
 ### User and Query Management
 
@@ -110,7 +111,7 @@ Change the default root path of the Chronograf server with the `--basepath` opti
 
 ## Versions
 
-Chronograf v1.2.0-beta8 is a beta release.
+Chronograf v1.2.0-beta9 is a beta release.
 We will be iterating quickly based on user feedback and recommend using the [nightly builds](https://www.influxdata.com/downloads/) for the time being.
 
 Spotted a bug or have a feature request?

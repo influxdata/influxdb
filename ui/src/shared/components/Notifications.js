@@ -1,5 +1,6 @@
 import React, {Component, PropTypes} from 'react'
 import classnames from 'classnames'
+import {withRouter} from 'react-router'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
@@ -73,8 +74,8 @@ const {
 
 Notifications.propTypes = {
   location: shape({
-    pathname: string,
-  }),
+    pathname: string.isRequired,
+  }).isRequired,
   publishNotification: func.isRequired,
   dismissNotification: func.isRequired,
   dismissAllNotifications: func.isRequired,
@@ -95,4 +96,4 @@ const mapDispatchToProps = (dispatch) => ({
   dismissAllNotifications: bindActionCreators(dismissAllNotificationsAction, dispatch),
 })
 
-export default connect(mapStateToProps, mapDispatchToProps)(Notifications)
+export default connect(mapStateToProps, mapDispatchToProps)(withRouter(Notifications))

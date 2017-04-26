@@ -6,7 +6,7 @@ import uuid from 'node-uuid'
 import ResizeContainer, {
   ResizeBottom,
 } from 'src/shared/components/ResizeContainer'
-import QueryBuilder from 'src/data_explorer/components/QueryBuilder'
+import QueryMaker from 'src/data_explorer/components/QueryMaker'
 import Visualization from 'src/data_explorer/components/Visualization'
 import OverlayControls from 'src/dashboards/components/OverlayControls'
 import * as queryModifiers from 'src/utils/queryTransitions'
@@ -161,6 +161,7 @@ class CellEditorOverlay extends Component {
             cellType={cellWorkingType}
             cellName={cellWorkingName}
             editQueryStatus={editQueryStatus}
+            views={[]}
           />
           <ResizeBottom>
             <div
@@ -172,7 +173,7 @@ class CellEditorOverlay extends Component {
                 onCancel={onCancel}
                 onSave={this.handleSaveCell}
               />
-              <QueryBuilder
+              <QueryMaker
                 source={source}
                 templates={templates}
                 queries={queriesWorkingDraft}

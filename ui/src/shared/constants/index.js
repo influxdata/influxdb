@@ -72,121 +72,32 @@ export const PERMISSIONS = {
 
 export const DEFAULT_LINE_COLORS = [
   // 1 Color Palettes
-  [
-    [
-      '#00C9FF',
-    ],
-    [
-      '#00C9FF',
-    ],
-    [
-      '#00C9FF',
-    ],
-  ],
+  [['#00C9FF'], ['#00C9FF'], ['#00C9FF']],
   // 2 Color Palettes
-  [
-    [
-      '#00C9FF',
-      '#00C9FF',
-    ],
-    [
-      '#00C9FF',
-      '#00C9FF',
-    ],
-    [
-      '#00C9FF',
-      '#00C9FF',
-    ],
-  ],
+  [['#00C9FF', '#00C9FF'], ['#00C9FF', '#00C9FF'], ['#00C9FF', '#00C9FF']],
   // 3 Color Palettes
   [
-    [
-      '#00C9FF',
-      '#9394FF',
-      '#4ED8A0',
-    ],
-    [
-      '#00C9FF',
-      '#9394FF',
-      '#4ED8A0',
-    ],
-    [
-      '#00C9FF',
-      '#9394FF',
-      '#4ED8A0',
-    ],
+    ['#00C9FF', '#9394FF', '#4ED8A0'],
+    ['#00C9FF', '#9394FF', '#4ED8A0'],
+    ['#00C9FF', '#9394FF', '#4ED8A0'],
   ],
   // 4 Color Palettes
   [
-    [
-      '#00C9FF',
-      '#9394FF',
-      '#4ED8A0',
-      '#ff0054',
-    ],
-    [
-      '#00C9FF',
-      '#9394FF',
-      '#4ED8A0',
-      '#ff0054',
-    ],
-    [
-      '#00C9FF',
-      '#9394FF',
-      '#4ED8A0',
-      '#ff0054',
-    ],
+    ['#00C9FF', '#9394FF', '#4ED8A0', '#ff0054'],
+    ['#00C9FF', '#9394FF', '#4ED8A0', '#ff0054'],
+    ['#00C9FF', '#9394FF', '#4ED8A0', '#ff0054'],
   ],
   // 5 Color Palettes
   [
-    [
-      '#00C9FF',
-      '#9394FF',
-      '#4ED8A0',
-      '#ff0054',
-      '#ffcc00',
-    ],
-    [
-      '#00C9FF',
-      '#9394FF',
-      '#4ED8A0',
-      '#ff0054',
-      '#ffcc00',
-    ],
-    [
-      '#00C9FF',
-      '#9394FF',
-      '#4ED8A0',
-      '#ff0054',
-      '#ffcc00',
-    ],
+    ['#00C9FF', '#9394FF', '#4ED8A0', '#ff0054', '#ffcc00'],
+    ['#00C9FF', '#9394FF', '#4ED8A0', '#ff0054', '#ffcc00'],
+    ['#00C9FF', '#9394FF', '#4ED8A0', '#ff0054', '#ffcc00'],
   ],
   // 6 Color Palettes
   [
-    [
-      '#00C9FF',
-      '#9394FF',
-      '#4ED8A0',
-      '#ff0054',
-      '#ffcc00',
-      '#33aa99',
-    ],
-    [
-      '#00C9FF',
-      '#9394FF',
-      '#4ED8A0',
-      '#ff0054',
-      '#ffcc00',
-      '#33aa99',
-    ],
-    [
-      '#00C9FF',
-      '#9394FF',
-      '#4ED8A0',
-      '#ff0054',
-      '#ffcc00',
-      '#33aa99',
-    ],
+    ['#00C9FF', '#9394FF', '#4ED8A0', '#ff0054', '#ffcc00', '#33aa99'],
+    ['#00C9FF', '#9394FF', '#4ED8A0', '#ff0054', '#ffcc00', '#33aa99'],
+    ['#00C9FF', '#9394FF', '#4ED8A0', '#ff0054', '#ffcc00', '#33aa99'],
   ],
   // 7 Color Palettes
   [
@@ -481,3 +392,7 @@ export const HTTP_UNAUTHORIZED = 401
 export const HTTP_FORBIDDEN = 403
 
 export const AUTOREFRESH_DEFAULT = 15000 // in milliseconds
+
+export const GRAPH = 'graph'
+export const TABLE = 'table'
+export const VIS_VIEWS = [GRAPH, TABLE]

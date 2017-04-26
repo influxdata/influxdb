@@ -54,13 +54,13 @@ const TimeRangeDropdown = React.createClass({
     const {isOpen} = self.state
 
     return (
-      <div className="dropdown time-range-dropdown">
+      <div className="dropdown dropdown-160">
         <div className="btn btn-sm btn-info dropdown-toggle" onClick={() => self.toggleMenu()}>
           <span className="icon clock"></span>
           <span className="selected-time-range">{self.findTimeRangeInputValue(selected)}</span>
           <span className="caret" />
         </div>
-        <ul className={classnames("dropdown-menu", {show: isOpen})}>
+        <ul className={classnames('dropdown-menu', {show: isOpen})}>
           <li className="dropdown-header">Time Range</li>
           {timeRanges.map((item) => {
             return (

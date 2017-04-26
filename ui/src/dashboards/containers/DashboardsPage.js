@@ -56,9 +56,9 @@ const DashboardsPage = React.createClass({
     const dashboardLink = `/sources/${this.props.source.id}`
     let tableHeader
     if (dashboards === null) {
-      tableHeader = "Loading Dashboards..."
+      tableHeader = 'Loading Dashboards...'
     } else if (dashboards.length === 0) {
-      tableHeader = "1 Dashboard"
+      tableHeader = '1 Dashboard'
     } else {
       tableHeader = `${dashboards.length + 1} Dashboards`
     }

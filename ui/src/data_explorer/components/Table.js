@@ -1,9 +1,12 @@
 import React, {PropTypes} from 'react'
-import {Table, Column, Cell} from 'fixed-data-table'
+
 import Dimensions from 'react-dimensions'
 import _ from 'lodash'
 import moment from 'moment'
+
 import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
+
+import {Table, Column, Cell} from 'fixed-data-table'
 
 const {
   arrayOf,
@@ -105,7 +108,6 @@ const ChronoTable = React.createClass({
         isLoading: false,
         cellData: emptyCells,
       })
-      console.error(error)
       throw error
     }
   },

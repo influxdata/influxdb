@@ -37,7 +37,7 @@ const RoleRow = ({
         <RoleEditingRow role={role} onEdit={onEdit} onSave={onSave} isNew={isNew} />
         <td></td>
         <td></td>
-        <td className="text-right" style={{width: "85px"}}>
+        <td className="text-right" style={{width: '85px'}}>
           <ConfirmButtons item={role} onConfirm={onSave} onCancel={onCancel} />
         </td>
       </tr>
