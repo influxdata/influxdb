@@ -13,6 +13,7 @@ import {Table, Column, Cell} from 'fixed-data-table'
 const {arrayOf, bool, func, number, oneOfType, shape, string} = PropTypes
 
 const defaultTableHeight = 1000
+const emptySeries = {columns: [], values: []}
 
 const CustomCell = React.createClass({
   propTypes: {
@@ -47,12 +48,7 @@ const ChronoTable = React.createClass({
 
   getInitialState() {
     return {
-      series: [
-        {
-          columns: [],
-          values: [],
-        },
-      ],
+      series: [emptySeries],
       columnWidths: {},
       activeSeriesIndex: 0,
     }
@@ -126,7 +122,11 @@ const ChronoTable = React.createClass({
   render() {
     const {containerWidth, height, query} = this.props
     const {series, columnWidths, isLoading, activeSeriesIndex} = this.state
-    const {columns, values} = series[activeSeriesIndex]
+    const {columns, values} = _.get(
+      series,
+      [`${activeSeriesIndex}`],
+      emptySeries
+    )
 
     const maximumTabsCount = 11
     // adjust height to proper value by subtracting the heights of the UI around it
@@ -217,7 +217,10 @@ const ChronoTable = React.createClass({
 })
 
 const TabItem = ({name, index, onClickTab, isActive}) => (
-  <div className={classNames('table--tab', {active: isActive})} onClick={() => onClickTab(index)}>
+  <div
+    className={classNames('table--tab', {active: isActive})}
+    onClick={() => onClickTab(index)}
+  >
     {name}
   </div>
 )
