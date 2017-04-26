@@ -16,6 +16,7 @@ const TemplateVariableManager = ({
   onRunQueryFailure,
   onSaveTemplatesSuccess,
   onAddVariable,
+  onDelete,
   isEdited,
 }) => (
   <div className="template-variable-manager">
@@ -48,6 +49,7 @@ const TemplateVariableManager = ({
         templates={templates}
         onRunQuerySuccess={onRunQuerySuccess}
         onRunQueryFailure={onRunQueryFailure}
+        onDelete={onDelete}
       />
     </div>
   </div>
@@ -65,6 +67,7 @@ class TemplateVariableManagerWrapper extends Component {
     this.onRunQuerySuccess = ::this.onRunQuerySuccess
     this.onSaveTemplatesSuccess = ::this.onSaveTemplatesSuccess
     this.onAddVariable = ::this.onAddVariable
+    this.onDeleteTemplateVariable = ::this.onDeleteTemplateVariable
   }
 
   onAddVariable() {
@@ -152,6 +155,14 @@ class TemplateVariableManagerWrapper extends Component {
     this.setState({isEdited: false})
   }
 
+  onDeleteTemplateVariable(templateID) {
+    const {rows} = this.state
+
+    const newRows = rows.filter(({id}) => id !== templateID)
+
+    this.setState({rows: newRows, isEdited: true})
+  }
+
   render() {
     const {rows, isEdited} = this.state
     return (
@@ -162,6 +173,7 @@ class TemplateVariableManagerWrapper extends Component {
         onAddVariable={this.onAddVariable}
         templates={rows}
         isEdited={isEdited}
+        onDelete={this.onDeleteTemplateVariable}
       />
     )
   }
@@ -175,6 +187,7 @@ TemplateVariableManager.propTypes = {
   onSaveTemplatesSuccess: func.isRequired,
   onAddVariable: func.isRequired,
   isEdited: bool.isRequired,
+  onDelete: func.isRequired,
 }
 
 TemplateVariableManagerWrapper.propTypes = {

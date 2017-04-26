@@ -1,6 +1,8 @@
 import React, {PropTypes, Component} from 'react'
 import OnClickOutside from 'react-onclickoutside'
+
 import Dropdown from 'shared/components/Dropdown'
+import DeleteConfirmButtons from 'shared/components/DeleteConfirmButtons'
 import TemplateQueryBuilder
   from 'src/dashboards/components/TemplateQueryBuilder'
 
@@ -15,7 +17,7 @@ import q
   from 'src/dashboards/utils/onlyTheBigliestBigLeagueTemplateVariableQueryGenerator'
 
 const TemplateVariableRow = ({
-  template: {label, tempVar, values},
+  template: {id, label, tempVar, values},
   isEditing,
   selectedType,
   selectedDatabase,
@@ -29,6 +31,7 @@ const TemplateVariableRow = ({
   onCancelEdit,
   autoFocusTarget,
   onSubmit,
+  onDelete,
 }) => (
   <form
     className="tr"
@@ -93,9 +96,7 @@ const TemplateVariableRow = ({
               Cancel
             </button>
           </div>
-        : <button className="btn btn-sm btn-danger" type="button">
-            Delete
-          </button>}
+        : <DeleteConfirmButtons onDelete={() => onDelete(id)} />}
     </div>
   </form>
 )
@@ -325,6 +326,7 @@ RowWrapper.propTypes = {
   }),
   onRunQuerySuccess: func.isRequired,
   onRunQueryFailure: func.isRequired,
+  onDelete: func.isRequired,
 }
 
 TemplateVariableRow.propTypes = {
@@ -337,6 +339,7 @@ TemplateVariableRow.propTypes = {
   onSelectTagKey: func.isRequired,
   onStartEdit: func.isRequired,
   onCancelEdit: func.isRequired,
+  onSubmit: func.isRequired,
 }
 
 TableInput.propTypes = {
