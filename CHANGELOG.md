@@ -1,3 +1,7 @@
+## v1.1.5 [unreleased]
+
+- [#8190](https://github.com/influxdata/influxdb/issues/8190): History file should redact passwords before saving to history.
+
 ## v1.1.4 [2017-02-27]
 
 ### Bugfixes
