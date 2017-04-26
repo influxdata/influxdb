@@ -148,7 +148,7 @@ const templates = [
     id: '1',
     type: 'tagKeys',
     label: 'test query',
-    tempVar: '$HOSTS',
+    tempVar: ':hosts:',
     query: {
       db: 'db1',
       measurement: 'm1',
@@ -165,7 +165,7 @@ const templates = [
     id: '2',
     type: 'csv',
     label: 'test csv',
-    tempVar: '$INFLX',
+    tempVar: ':tags:',
     values: [
       {value: 'A', type: 'csv', selected: false},
       {value: 'B', type: 'csv', selected: false},
@@ -176,7 +176,7 @@ const templates = [
     id: '3',
     type: 'csv',
     label: 'test csv',
-    tempVar: '$PINEAPPLE',
+    tempVar: ':fields:',
     values: [
       {value: 'A', type: 'csv', selected: false},
       {value: 'B', type: 'csv', selected: false},
