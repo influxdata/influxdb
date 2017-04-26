@@ -321,7 +321,7 @@ RowWrapper.propTypes = {
     ).isRequired,
     links: shape({
       self: string.isRequired,
-    }).isRequired,
+    }),
   }),
   onRunQuerySuccess: func.isRequired,
   onRunQueryFailure: func.isRequired,

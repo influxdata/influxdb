@@ -1,5 +1,7 @@
 import React, {Component, PropTypes} from 'react'
 import classNames from 'classnames'
+import uuid from 'node-uuid'
+
 import TemplateVariableTable
   from 'src/dashboards/components/TemplateVariableTable'
 
@@ -13,6 +15,7 @@ const TemplateVariableManager = ({
   onRunQuerySuccess,
   onRunQueryFailure,
   onSaveTemplatesSuccess,
+  onAddVariable,
   isEdited,
 }) => (
   <div className="template-variable-manager">
@@ -21,7 +24,9 @@ const TemplateVariableManager = ({
         Template Variables
       </div>
       <div className="page-header__right">
-        <button className="btn btn-primary btn-sm">Add Variable</button>
+        <button className="btn btn-primary btn-sm" onClick={onAddVariable}>
+          Add Variable
+        </button>
         <button
           className={classNames('btn btn-primary btn-sm', {
             disabled: !isEdited,
@@ -59,6 +64,30 @@ class TemplateVariableManagerWrapper extends Component {
 
     this.onRunQuerySuccess = ::this.onRunQuerySuccess
     this.onSaveTemplatesSuccess = ::this.onSaveTemplatesSuccess
+    this.onAddVariable = ::this.onAddVariable
+  }
+
+  onAddVariable() {
+    const {rows} = this.state
+
+    const newRow = {
+      tempVar: '',
+      values: [],
+      id: uuid.v4(),
+      type: 'csv',
+      label: '',
+      query: {
+        influxql: '',
+        db: '',
+        // rp, TODO
+        measurement: '',
+        tagKey: '',
+      },
+    }
+
+    const newRows = [newRow, ...rows]
+
+    this.setState({rows: newRows})
   }
 
   onRunQuerySuccess(template, queryConfig, parsedData, {tempVar, label}) {
@@ -130,6 +159,7 @@ class TemplateVariableManagerWrapper extends Component {
         {...this.props}
         onRunQuerySuccess={this.onRunQuerySuccess}
         onSaveTemplatesSuccess={this.onSaveTemplatesSuccess}
+        onAddVariable={this.onAddVariable}
         templates={rows}
         isEdited={isEdited}
       />
@@ -143,6 +173,7 @@ TemplateVariableManager.propTypes = {
   ...TemplateVariableManagerWrapper.propTypes,
   onRunQuerySuccess: func.isRequired,
   onSaveTemplatesSuccess: func.isRequired,
+  onAddVariable: func.isRequired,
   isEdited: bool.isRequired,
 }
 
