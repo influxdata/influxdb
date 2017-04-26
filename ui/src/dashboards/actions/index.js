@@ -199,7 +199,7 @@ export const getDashboardsAsync = () => async dispatch => {
   }
 }
 
-export const putDashboard = (dashboard) => async (dispatch) => {
+export const putDashboard = dashboard => async dispatch => {
   try {
     const {data} = await updateDashboardAJAX(dashboard)
     dispatch(updateDashboard({...data, templates}))
@@ -208,7 +208,7 @@ export const putDashboard = (dashboard) => async (dispatch) => {
   }
 }
 
-export const updateDashboardCell = (dashboard, cell) => async (dispatch) => {
+export const updateDashboardCell = (dashboard, cell) => async dispatch => {
   try {
     const {data} = await updateDashboardCellAJAX(cell)
     dispatch(syncDashboardCell(dashboard, data))
@@ -228,7 +228,9 @@ export const deleteDashboardAsync = dashboard => async dispatch => {
       )
     )
   } catch (error) {
-    dispatch(errorThrown(error, `Failed to delete dashboard: ${error.data.message}.`))
+    dispatch(
+      errorThrown(error, `Failed to delete dashboard: ${error.data.message}.`)
+    )
     dispatch(deleteDashboardFailed(dashboard))
   }
 }
