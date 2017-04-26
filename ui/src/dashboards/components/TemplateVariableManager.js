@@ -105,7 +105,7 @@ class TemplateVariableManagerWrapper extends Component {
     } = queryConfig
 
     // Determine which is the selectedValue, if any
-    const currentRow = rows.find(row => row.tempVar === tempVar)
+    const currentRow = rows.find(row => row.id === id)
 
     let selectedValue
     if (currentRow && currentRow.values && currentRow.values.length) {

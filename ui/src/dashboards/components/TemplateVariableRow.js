@@ -41,6 +41,26 @@ const RowValues = ({
     : <span>(No values to display)</span>
 }
 
+const RowButtons = ({isEditing, onCancelEdit, onDelete, id, selectedType}) => {
+  if (isEditing) {
+    return (
+      <div>
+        <button className="btn btn-sm btn-success" type="submit">
+          {selectedType === 'csv' ? 'Save Values' : 'Get Values'}
+        </button>
+        <button
+          className="btn btn-sm btn-primary"
+          type="button"
+          onClick={onCancelEdit}
+        >
+          Cancel
+        </button>
+      </div>
+    )
+  }
+  return <DeleteConfirmButtons onDelete={() => onDelete(id)} />
+}
+
 const TemplateVariableRow = ({
   template: {id, label, tempVar, values},
   isEditing,
@@ -112,20 +132,13 @@ const TemplateVariableRow = ({
       />
     </div>
     <div className="td" style={{display: 'flex'}}>
-      {isEditing
-        ? <div>
-            <button className="btn btn-sm btn-success" type="submit">
-              Run Query
-            </button>
-            <button
-              className="btn btn-sm btn-primary"
-              type="button"
-              onClick={onCancelEdit}
-            >
-              Cancel
-            </button>
-          </div>
-        : <DeleteConfirmButtons onDelete={() => onDelete(id)} />}
+      <RowButtons
+        isEditing={isEditing}
+        onCancelEdit={onCancelEdit}
+        onDelete={onDelete}
+        id={id}
+        selectedType={selectedType}
+      />
     </div>
   </form>
 )
@@ -165,7 +178,7 @@ class RowWrapper extends Component {
       autoFocusTarget: null,
     }
 
-    this.handleRunQueryRequested = ::this.handleRunQueryRequested
+    this.handleSubmit = ::this.handleSubmit
     this.handleSelectType = ::this.handleSelectType
     this.handleSelectDatabase = ::this.handleSelectDatabase
     this.handleSelectMeasurement = ::this.handleSelectMeasurement
@@ -175,7 +188,7 @@ class RowWrapper extends Component {
     this.runTemplateVariableQuery = ::this.runTemplateVariableQuery
   }
 
-  handleRunQueryRequested({
+  handleSubmit({
     selectedDatabase: database,
     selectedMeasurement: measurement,
     selectedTagKey: tagKey,
@@ -219,10 +232,14 @@ class RowWrapper extends Component {
       }
 
       try {
-        const parsedData = await this.runTemplateVariableQuery(
-          source,
-          queryConfig
-        )
+        let parsedData
+        if (type === 'csv') {
+          parsedData = e.target.values.value
+            .split(',')
+            .map(value => value.trim())
+        } else {
+          parsedData = await this.runTemplateVariableQuery(source, queryConfig)
+        }
         onRunQuerySuccess(template, queryConfig, parsedData, {tempVar, label})
       } catch (error) {
         onRunQueryFailure(error)
@@ -318,7 +335,7 @@ class RowWrapper extends Component {
         onStartEdit={this.handleStartEdit}
         onCancelEdit={this.handleCancelEdit}
         autoFocusTarget={autoFocusTarget}
-        onSubmit={this.handleRunQueryRequested}
+        onSubmit={this.handleSubmit}
       />
     )
   }
@@ -385,6 +402,14 @@ RowValues.propTypes = {
   isEditing: bool.isRequired,
   onStartEdit: func.isRequired,
   autoFocusTarget: string,
+}
+
+RowButtons.propTypes = {
+  isEditing: bool.isRequired,
+  onCancelEdit: func.isRequired,
+  onDelete: func.isRequired,
+  id: string.isRequired,
+  selectedType: string.isRequired,
 }
 
 export default OnClickOutside(RowWrapper)
