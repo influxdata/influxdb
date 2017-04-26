@@ -151,31 +151,25 @@ const ChronoTable = React.createClass({
 
     return (
       <div style={{width: '100%', height: '100%', position: 'relative'}}>
-        {
-          series.length < maximumTabsCount ?
-             (
-              <div className="table--tabs">
-                {series.map(({name}, i) => (
-                  <TabItem
-                    isActive={i === activeSeriesIndex}
-                    key={i}
-                    name={name}
-                    index={i}
-                    onClickTab={this.handleClickTab}
-                  />
-                ))}
-              </div>
-            ) :
-           (
-            <Dropdown
+        {series.length < maximumTabsCount
+          ? <div className="table--tabs">
+              {series.map(({name}, i) => (
+                <TabItem
+                  isActive={i === activeSeriesIndex}
+                  key={i}
+                  name={name}
+                  index={i}
+                  onClickTab={this.handleClickTab}
+                />
+              ))}
+            </div>
+          : <Dropdown
               className="dropdown-160 table--tabs-dropdown"
               items={series.map((s, index) => ({...s, text: s.name, index}))}
               onChoose={this.handleClickDropdown}
               selected={series[activeSeriesIndex].name}
               buttonSize="btn-xs"
-            />
-          )
-        }
+            />}
         <div className="table--tabs-content">
           {(columns && !columns.length) || (values && !values.length)
             ? <div className="generic-empty-state">
