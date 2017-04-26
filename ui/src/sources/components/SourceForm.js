@@ -69,6 +69,7 @@ export const SourceForm = React.createClass({
               onChange={onInputChange}
               value={source.url || ''}
               onBlur={this.handleBlurSourceURL}
+              required={true}
             />
           </div>
           <div className="form-group col-xs-12 col-sm-6">
@@ -82,6 +83,7 @@ export const SourceForm = React.createClass({
               placeholder="Influx 1"
               onChange={onInputChange}
               value={source.name || ''}
+              required={true}
             />
           </div>
           <div className="form-group col-xs-12 col-sm-6">
