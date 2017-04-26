@@ -63,6 +63,9 @@ const Dashboard = ({
               }
               return {...value, text: value.value}
             })
+            if (!selected && items.length) {
+              selected = items[0].value
+            }
             // TODO: change Dropdown to a MultiSelectDropdown, `selected` to
             // the full array, and [item] to all `selected` values when we update
             // this component to support multiple values
