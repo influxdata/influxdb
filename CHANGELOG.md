@@ -49,6 +49,7 @@ The admin UI is removed and unusable in this release. The `[admin]` configuratio
 - [#8252](https://github.com/influxdata/influxdb/issues/8252): Implicitly cast null to false in binary expressions with a boolean.
 - [#8067](https://github.com/influxdata/influxdb/issues/8067): Restrict fill(none) and fill(linear) to be usable only with aggregate queries.
 - [#8065](https://github.com/influxdata/influxdb/issues/8065): Restrict top() and bottom() selectors to be used with no other functions.
+- [#8266](https://github.com/influxdata/influxdb/issues/8266): top() and bottom() now returns the time for every point.
 
 ## v1.2.3 [unreleased]
 

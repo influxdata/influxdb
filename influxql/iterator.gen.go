@@ -1062,7 +1062,13 @@ type floatReduceFloatPoint struct {
 // The previous value for the dimension is passed to fn.
 func (itr *floatReduceFloatIterator) reduce() ([]FloatPoint, error) {
 	// Calculate next window.
-	var startTime, endTime int64
+	var (
+		startTime, endTime int64
+		window             struct {
+			name string
+			tags string
+		}
+	)
 	for {
 		p, err := itr.input.Next()
 		if err != nil || p == nil {
@@ -1074,6 +1080,7 @@ func (itr *floatReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		// Unread the point so it can be processed.
 		itr.input.unread(p)
 		startTime, endTime = itr.opt.Window(p.Time)
+		window.name, window.tags = p.Name, p.Tags.Subset(itr.opt.Dimensions).ID()
 		break
 	}
 
@@ -1088,13 +1095,24 @@ func (itr *floatReduceFloatIterator) reduce() ([]FloatPoint, error) {
 			break
 		} else if curr.Nil {
 			continue
+		} else if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
 		}
-		tags := curr.Tags.Subset(itr.dims)
 
-		id := curr.Name
-		if len(tags.m) > 0 {
-			id += "\x00" + tags.ID()
+		// Ensure this point is within the same final window.
+		if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != window.tags {
+			itr.input.unread(curr)
+			break
 		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
 
 		// Retrieve the aggregator for this name/tag combination or create one.
 		rp := m[id]
@@ -1111,17 +1129,18 @@ func (itr *floatReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		rp.Aggregator.AggregateFloat(curr)
 	}
 
-	// Reverse sort points by name & tag.
+	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 {
+	if len(keys) > 1 && itr.opt.Ordered {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
 	// Assume the points are already sorted until proven otherwise.
 	sortedByTime := true
+	// Emit the points for each name & tag combination.
 	a := make([]FloatPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
@@ -1455,7 +1474,13 @@ type floatReduceIntegerPoint struct {
 // The previous value for the dimension is passed to fn.
 func (itr *floatReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 	// Calculate next window.
-	var startTime, endTime int64
+	var (
+		startTime, endTime int64
+		window             struct {
+			name string
+			tags string
+		}
+	)
 	for {
 		p, err := itr.input.Next()
 		if err != nil || p == nil {
@@ -1467,6 +1492,7 @@ func (itr *floatReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		// Unread the point so it can be processed.
 		itr.input.unread(p)
 		startTime, endTime = itr.opt.Window(p.Time)
+		window.name, window.tags = p.Name, p.Tags.Subset(itr.opt.Dimensions).ID()
 		break
 	}
 
@@ -1481,13 +1507,24 @@ func (itr *floatReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 			break
 		} else if curr.Nil {
 			continue
+		} else if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
 		}
-		tags := curr.Tags.Subset(itr.dims)
 
-		id := curr.Name
-		if len(tags.m) > 0 {
-			id += "\x00" + tags.ID()
+		// Ensure this point is within the same final window.
+		if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != window.tags {
+			itr.input.unread(curr)
+			break
 		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
 
 		// Retrieve the aggregator for this name/tag combination or create one.
 		rp := m[id]
@@ -1504,17 +1541,18 @@ func (itr *floatReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		rp.Aggregator.AggregateFloat(curr)
 	}
 
-	// Reverse sort points by name & tag.
+	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 {
+	if len(keys) > 1 && itr.opt.Ordered {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
 	// Assume the points are already sorted until proven otherwise.
 	sortedByTime := true
+	// Emit the points for each name & tag combination.
 	a := make([]IntegerPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
@@ -1852,7 +1890,13 @@ type floatReduceStringPoint struct {
 // The previous value for the dimension is passed to fn.
 func (itr *floatReduceStringIterator) reduce() ([]StringPoint, error) {
 	// Calculate next window.
-	var startTime, endTime int64
+	var (
+		startTime, endTime int64
+		window             struct {
+			name string
+			tags string
+		}
+	)
 	for {
 		p, err := itr.input.Next()
 		if err != nil || p == nil {
@@ -1864,6 +1908,7 @@ func (itr *floatReduceStringIterator) reduce() ([]StringPoint, error) {
 		// Unread the point so it can be processed.
 		itr.input.unread(p)
 		startTime, endTime = itr.opt.Window(p.Time)
+		window.name, window.tags = p.Name, p.Tags.Subset(itr.opt.Dimensions).ID()
 		break
 	}
 
@@ -1878,13 +1923,24 @@ func (itr *floatReduceStringIterator) reduce() ([]StringPoint, error) {
 			break
 		} else if curr.Nil {
 			continue
+		} else if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
 		}
-		tags := curr.Tags.Subset(itr.dims)
 
-		id := curr.Name
-		if len(tags.m) > 0 {
-			id += "\x00" + tags.ID()
+		// Ensure this point is within the same final window.
+		if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != window.tags {
+			itr.input.unread(curr)
+			break
 		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
 
 		// Retrieve the aggregator for this name/tag combination or create one.
 		rp := m[id]
@@ -1901,17 +1957,18 @@ func (itr *floatReduceStringIterator) reduce() ([]StringPoint, error) {
 		rp.Aggregator.AggregateFloat(curr)
 	}
 
-	// Reverse sort points by name & tag.
+	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 {
+	if len(keys) > 1 && itr.opt.Ordered {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
 	// Assume the points are already sorted until proven otherwise.
 	sortedByTime := true
+	// Emit the points for each name & tag combination.
 	a := make([]StringPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
@@ -2249,7 +2306,13 @@ type floatReduceBooleanPoint struct {
 // The previous value for the dimension is passed to fn.
 func (itr *floatReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 	// Calculate next window.
-	var startTime, endTime int64
+	var (
+		startTime, endTime int64
+		window             struct {
+			name string
+			tags string
+		}
+	)
 	for {
 		p, err := itr.input.Next()
 		if err != nil || p == nil {
@@ -2261,6 +2324,7 @@ func (itr *floatReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		// Unread the point so it can be processed.
 		itr.input.unread(p)
 		startTime, endTime = itr.opt.Window(p.Time)
+		window.name, window.tags = p.Name, p.Tags.Subset(itr.opt.Dimensions).ID()
 		break
 	}
 
@@ -2275,13 +2339,24 @@ func (itr *floatReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 			break
 		} else if curr.Nil {
 			continue
+		} else if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
 		}
-		tags := curr.Tags.Subset(itr.dims)
 
-		id := curr.Name
-		if len(tags.m) > 0 {
-			id += "\x00" + tags.ID()
+		// Ensure this point is within the same final window.
+		if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != window.tags {
+			itr.input.unread(curr)
+			break
 		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
 
 		// Retrieve the aggregator for this name/tag combination or create one.
 		rp := m[id]
@@ -2298,17 +2373,18 @@ func (itr *floatReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		rp.Aggregator.AggregateFloat(curr)
 	}
 
-	// Reverse sort points by name & tag.
+	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 {
+	if len(keys) > 1 && itr.opt.Ordered {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
 	// Assume the points are already sorted until proven otherwise.
 	sortedByTime := true
+	// Emit the points for each name & tag combination.
 	a := make([]BooleanPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
@@ -3835,7 +3911,13 @@ type integerReduceFloatPoint struct {
 // The previous value for the dimension is passed to fn.
 func (itr *integerReduceFloatIterator) reduce() ([]FloatPoint, error) {
 	// Calculate next window.
-	var startTime, endTime int64
+	var (
+		startTime, endTime int64
+		window             struct {
+			name string
+			tags string
+		}
+	)
 	for {
 		p, err := itr.input.Next()
 		if err != nil || p == nil {
@@ -3847,6 +3929,7 @@ func (itr *integerReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		// Unread the point so it can be processed.
 		itr.input.unread(p)
 		startTime, endTime = itr.opt.Window(p.Time)
+		window.name, window.tags = p.Name, p.Tags.Subset(itr.opt.Dimensions).ID()
 		break
 	}
 
@@ -3861,13 +3944,24 @@ func (itr *integerReduceFloatIterator) reduce() ([]FloatPoint, error) {
 			break
 		} else if curr.Nil {
 			continue
+		} else if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
 		}
-		tags := curr.Tags.Subset(itr.dims)
 
-		id := curr.Name
-		if len(tags.m) > 0 {
-			id += "\x00" + tags.ID()
+		// Ensure this point is within the same final window.
+		if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != window.tags {
+			itr.input.unread(curr)
+			break
 		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
 
 		// Retrieve the aggregator for this name/tag combination or create one.
 		rp := m[id]
@@ -3884,17 +3978,18 @@ func (itr *integerReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		rp.Aggregator.AggregateInteger(curr)
 	}
 
-	// Reverse sort points by name & tag.
+	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 {
+	if len(keys) > 1 && itr.opt.Ordered {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
 	// Assume the points are already sorted until proven otherwise.
 	sortedByTime := true
+	// Emit the points for each name & tag combination.
 	a := make([]FloatPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
@@ -4232,7 +4327,13 @@ type integerReduceIntegerPoint struct {
 // The previous value for the dimension is passed to fn.
 func (itr *integerReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 	// Calculate next window.
-	var startTime, endTime int64
+	var (
+		startTime, endTime int64
+		window             struct {
+			name string
+			tags string
+		}
+	)
 	for {
 		p, err := itr.input.Next()
 		if err != nil || p == nil {
@@ -4244,6 +4345,7 @@ func (itr *integerReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		// Unread the point so it can be processed.
 		itr.input.unread(p)
 		startTime, endTime = itr.opt.Window(p.Time)
+		window.name, window.tags = p.Name, p.Tags.Subset(itr.opt.Dimensions).ID()
 		break
 	}
 
@@ -4258,13 +4360,24 @@ func (itr *integerReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 			break
 		} else if curr.Nil {
 			continue
+		} else if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
 		}
-		tags := curr.Tags.Subset(itr.dims)
 
-		id := curr.Name
-		if len(tags.m) > 0 {
-			id += "\x00" + tags.ID()
+		// Ensure this point is within the same final window.
+		if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != window.tags {
+			itr.input.unread(curr)
+			break
 		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
 
 		// Retrieve the aggregator for this name/tag combination or create one.
 		rp := m[id]
@@ -4281,17 +4394,18 @@ func (itr *integerReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		rp.Aggregator.AggregateInteger(curr)
 	}
 
-	// Reverse sort points by name & tag.
+	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 {
+	if len(keys) > 1 && itr.opt.Ordered {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
 	// Assume the points are already sorted until proven otherwise.
 	sortedByTime := true
+	// Emit the points for each name & tag combination.
 	a := make([]IntegerPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
@@ -4625,7 +4739,13 @@ type integerReduceStringPoint struct {
 // The previous value for the dimension is passed to fn.
 func (itr *integerReduceStringIterator) reduce() ([]StringPoint, error) {
 	// Calculate next window.
-	var startTime, endTime int64
+	var (
+		startTime, endTime int64
+		window             struct {
+			name string
+			tags string
+		}
+	)
 	for {
 		p, err := itr.input.Next()
 		if err != nil || p == nil {
@@ -4637,6 +4757,7 @@ func (itr *integerReduceStringIterator) reduce() ([]StringPoint, error) {
 		// Unread the point so it can be processed.
 		itr.input.unread(p)
 		startTime, endTime = itr.opt.Window(p.Time)
+		window.name, window.tags = p.Name, p.Tags.Subset(itr.opt.Dimensions).ID()
 		break
 	}
 
@@ -4651,13 +4772,24 @@ func (itr *integerReduceStringIterator) reduce() ([]StringPoint, error) {
 			break
 		} else if curr.Nil {
 			continue
+		} else if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
 		}
-		tags := curr.Tags.Subset(itr.dims)
 
-		id := curr.Name
-		if len(tags.m) > 0 {
-			id += "\x00" + tags.ID()
+		// Ensure this point is within the same final window.
+		if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != window.tags {
+			itr.input.unread(curr)
+			break
 		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
 
 		// Retrieve the aggregator for this name/tag combination or create one.
 		rp := m[id]
@@ -4674,17 +4806,18 @@ func (itr *integerReduceStringIterator) reduce() ([]StringPoint, error) {
 		rp.Aggregator.AggregateInteger(curr)
 	}
 
-	// Reverse sort points by name & tag.
+	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 {
+	if len(keys) > 1 && itr.opt.Ordered {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
 	// Assume the points are already sorted until proven otherwise.
 	sortedByTime := true
+	// Emit the points for each name & tag combination.
 	a := make([]StringPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
@@ -5022,7 +5155,13 @@ type integerReduceBooleanPoint struct {
 // The previous value for the dimension is passed to fn.
 func (itr *integerReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 	// Calculate next window.
-	var startTime, endTime int64
+	var (
+		startTime, endTime int64
+		window             struct {
+			name string
+			tags string
+		}
+	)
 	for {
 		p, err := itr.input.Next()
 		if err != nil || p == nil {
@@ -5034,6 +5173,7 @@ func (itr *integerReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		// Unread the point so it can be processed.
 		itr.input.unread(p)
 		startTime, endTime = itr.opt.Window(p.Time)
+		window.name, window.tags = p.Name, p.Tags.Subset(itr.opt.Dimensions).ID()
 		break
 	}
 
@@ -5048,13 +5188,24 @@ func (itr *integerReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 			break
 		} else if curr.Nil {
 			continue
+		} else if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
 		}
-		tags := curr.Tags.Subset(itr.dims)
 
-		id := curr.Name
-		if len(tags.m) > 0 {
-			id += "\x00" + tags.ID()
+		// Ensure this point is within the same final window.
+		if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != window.tags {
+			itr.input.unread(curr)
+			break
 		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
 
 		// Retrieve the aggregator for this name/tag combination or create one.
 		rp := m[id]
@@ -5071,17 +5222,18 @@ func (itr *integerReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		rp.Aggregator.AggregateInteger(curr)
 	}
 
-	// Reverse sort points by name & tag.
+	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 {
+	if len(keys) > 1 && itr.opt.Ordered {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
 	// Assume the points are already sorted until proven otherwise.
 	sortedByTime := true
+	// Emit the points for each name & tag combination.
 	a := make([]BooleanPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
@@ -6594,7 +6746,13 @@ type stringReduceFloatPoint struct {
 // The previous value for the dimension is passed to fn.
 func (itr *stringReduceFloatIterator) reduce() ([]FloatPoint, error) {
 	// Calculate next window.
-	var startTime, endTime int64
+	var (
+		startTime, endTime int64
+		window             struct {
+			name string
+			tags string
+		}
+	)
 	for {
 		p, err := itr.input.Next()
 		if err != nil || p == nil {
@@ -6606,6 +6764,7 @@ func (itr *stringReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		// Unread the point so it can be processed.
 		itr.input.unread(p)
 		startTime, endTime = itr.opt.Window(p.Time)
+		window.name, window.tags = p.Name, p.Tags.Subset(itr.opt.Dimensions).ID()
 		break
 	}
 
@@ -6620,13 +6779,24 @@ func (itr *stringReduceFloatIterator) reduce() ([]FloatPoint, error) {
 			break
 		} else if curr.Nil {
 			continue
+		} else if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
 		}
-		tags := curr.Tags.Subset(itr.dims)
 
-		id := curr.Name
-		if len(tags.m) > 0 {
-			id += "\x00" + tags.ID()
+		// Ensure this point is within the same final window.
+		if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != window.tags {
+			itr.input.unread(curr)
+			break
 		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
 
 		// Retrieve the aggregator for this name/tag combination or create one.
 		rp := m[id]
@@ -6643,17 +6813,18 @@ func (itr *stringReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		rp.Aggregator.AggregateString(curr)
 	}
 
-	// Reverse sort points by name & tag.
+	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 {
+	if len(keys) > 1 && itr.opt.Ordered {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
 	// Assume the points are already sorted until proven otherwise.
 	sortedByTime := true
+	// Emit the points for each name & tag combination.
 	a := make([]FloatPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
@@ -6991,7 +7162,13 @@ type stringReduceIntegerPoint struct {
 // The previous value for the dimension is passed to fn.
 func (itr *stringReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 	// Calculate next window.
-	var startTime, endTime int64
+	var (
+		startTime, endTime int64
+		window             struct {
+			name string
+			tags string
+		}
+	)
 	for {
 		p, err := itr.input.Next()
 		if err != nil || p == nil {
@@ -7003,6 +7180,7 @@ func (itr *stringReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		// Unread the point so it can be processed.
 		itr.input.unread(p)
 		startTime, endTime = itr.opt.Window(p.Time)
+		window.name, window.tags = p.Name, p.Tags.Subset(itr.opt.Dimensions).ID()
 		break
 	}
 
@@ -7017,13 +7195,24 @@ func (itr *stringReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 			break
 		} else if curr.Nil {
 			continue
+		} else if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
 		}
-		tags := curr.Tags.Subset(itr.dims)
 
-		id := curr.Name
-		if len(tags.m) > 0 {
-			id += "\x00" + tags.ID()
+		// Ensure this point is within the same final window.
+		if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != window.tags {
+			itr.input.unread(curr)
+			break
 		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
 
 		// Retrieve the aggregator for this name/tag combination or create one.
 		rp := m[id]
@@ -7040,17 +7229,18 @@ func (itr *stringReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		rp.Aggregator.AggregateString(curr)
 	}
 
-	// Reverse sort points by name & tag.
+	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 {
+	if len(keys) > 1 && itr.opt.Ordered {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
 	// Assume the points are already sorted until proven otherwise.
 	sortedByTime := true
+	// Emit the points for each name & tag combination.
 	a := make([]IntegerPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
@@ -7388,7 +7578,13 @@ type stringReduceStringPoint struct {
 // The previous value for the dimension is passed to fn.
 func (itr *stringReduceStringIterator) reduce() ([]StringPoint, error) {
 	// Calculate next window.
-	var startTime, endTime int64
+	var (
+		startTime, endTime int64
+		window             struct {
+			name string
+			tags string
+		}
+	)
 	for {
 		p, err := itr.input.Next()
 		if err != nil || p == nil {
@@ -7400,6 +7596,7 @@ func (itr *stringReduceStringIterator) reduce() ([]StringPoint, error) {
 		// Unread the point so it can be processed.
 		itr.input.unread(p)
 		startTime, endTime = itr.opt.Window(p.Time)
+		window.name, window.tags = p.Name, p.Tags.Subset(itr.opt.Dimensions).ID()
 		break
 	}
 
@@ -7414,13 +7611,24 @@ func (itr *stringReduceStringIterator) reduce() ([]StringPoint, error) {
 			break
 		} else if curr.Nil {
 			continue
+		} else if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
 		}
-		tags := curr.Tags.Subset(itr.dims)
 
-		id := curr.Name
-		if len(tags.m) > 0 {
-			id += "\x00" + tags.ID()
+		// Ensure this point is within the same final window.
+		if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != window.tags {
+			itr.input.unread(curr)
+			break
 		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
 
 		// Retrieve the aggregator for this name/tag combination or create one.
 		rp := m[id]
@@ -7437,17 +7645,18 @@ func (itr *stringReduceStringIterator) reduce() ([]StringPoint, error) {
 		rp.Aggregator.AggregateString(curr)
 	}
 
-	// Reverse sort points by name & tag.
+	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 {
+	if len(keys) > 1 && itr.opt.Ordered {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
 	// Assume the points are already sorted until proven otherwise.
 	sortedByTime := true
+	// Emit the points for each name & tag combination.
 	a := make([]StringPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
@@ -7781,7 +7990,13 @@ type stringReduceBooleanPoint struct {
 // The previous value for the dimension is passed to fn.
 func (itr *stringReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 	// Calculate next window.
-	var startTime, endTime int64
+	var (
+		startTime, endTime int64
+		window             struct {
+			name string
+			tags string
+		}
+	)
 	for {
 		p, err := itr.input.Next()
 		if err != nil || p == nil {
@@ -7793,6 +8008,7 @@ func (itr *stringReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		// Unread the point so it can be processed.
 		itr.input.unread(p)
 		startTime, endTime = itr.opt.Window(p.Time)
+		window.name, window.tags = p.Name, p.Tags.Subset(itr.opt.Dimensions).ID()
 		break
 	}
 
@@ -7807,13 +8023,24 @@ func (itr *stringReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 			break
 		} else if curr.Nil {
 			continue
+		} else if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
 		}
-		tags := curr.Tags.Subset(itr.dims)
 
-		id := curr.Name
-		if len(tags.m) > 0 {
-			id += "\x00" + tags.ID()
+		// Ensure this point is within the same final window.
+		if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != window.tags {
+			itr.input.unread(curr)
+			break
 		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
 
 		// Retrieve the aggregator for this name/tag combination or create one.
 		rp := m[id]
@@ -7830,17 +8057,18 @@ func (itr *stringReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		rp.Aggregator.AggregateString(curr)
 	}
 
-	// Reverse sort points by name & tag.
+	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 {
+	if len(keys) > 1 && itr.opt.Ordered {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
 	// Assume the points are already sorted until proven otherwise.
 	sortedByTime := true
+	// Emit the points for each name & tag combination.
 	a := make([]BooleanPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
@@ -9353,7 +9581,13 @@ type booleanReduceFloatPoint struct {
 // The previous value for the dimension is passed to fn.
 func (itr *booleanReduceFloatIterator) reduce() ([]FloatPoint, error) {
 	// Calculate next window.
-	var startTime, endTime int64
+	var (
+		startTime, endTime int64
+		window             struct {
+			name string
+			tags string
+		}
+	)
 	for {
 		p, err := itr.input.Next()
 		if err != nil || p == nil {
@@ -9365,6 +9599,7 @@ func (itr *booleanReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		// Unread the point so it can be processed.
 		itr.input.unread(p)
 		startTime, endTime = itr.opt.Window(p.Time)
+		window.name, window.tags = p.Name, p.Tags.Subset(itr.opt.Dimensions).ID()
 		break
 	}
 
@@ -9379,13 +9614,24 @@ func (itr *booleanReduceFloatIterator) reduce() ([]FloatPoint, error) {
 			break
 		} else if curr.Nil {
 			continue
+		} else if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
 		}
-		tags := curr.Tags.Subset(itr.dims)
 
-		id := curr.Name
-		if len(tags.m) > 0 {
-			id += "\x00" + tags.ID()
+		// Ensure this point is within the same final window.
+		if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != window.tags {
+			itr.input.unread(curr)
+			break
 		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
 
 		// Retrieve the aggregator for this name/tag combination or create one.
 		rp := m[id]
@@ -9402,17 +9648,18 @@ func (itr *booleanReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		rp.Aggregator.AggregateBoolean(curr)
 	}
 
-	// Reverse sort points by name & tag.
+	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 {
+	if len(keys) > 1 && itr.opt.Ordered {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
 	// Assume the points are already sorted until proven otherwise.
 	sortedByTime := true
+	// Emit the points for each name & tag combination.
 	a := make([]FloatPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
@@ -9750,7 +9997,13 @@ type booleanReduceIntegerPoint struct {
 // The previous value for the dimension is passed to fn.
 func (itr *booleanReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 	// Calculate next window.
-	var startTime, endTime int64
+	var (
+		startTime, endTime int64
+		window             struct {
+			name string
+			tags string
+		}
+	)
 	for {
 		p, err := itr.input.Next()
 		if err != nil || p == nil {
@@ -9762,6 +10015,7 @@ func (itr *booleanReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		// Unread the point so it can be processed.
 		itr.input.unread(p)
 		startTime, endTime = itr.opt.Window(p.Time)
+		window.name, window.tags = p.Name, p.Tags.Subset(itr.opt.Dimensions).ID()
 		break
 	}
 
@@ -9776,13 +10030,24 @@ func (itr *booleanReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 			break
 		} else if curr.Nil {
 			continue
+		} else if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
 		}
-		tags := curr.Tags.Subset(itr.dims)
 
-		id := curr.Name
-		if len(tags.m) > 0 {
-			id += "\x00" + tags.ID()
+		// Ensure this point is within the same final window.
+		if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != window.tags {
+			itr.input.unread(curr)
+			break
 		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
 
 		// Retrieve the aggregator for this name/tag combination or create one.
 		rp := m[id]
@@ -9799,17 +10064,18 @@ func (itr *booleanReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		rp.Aggregator.AggregateBoolean(curr)
 	}
 
-	// Reverse sort points by name & tag.
+	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 {
+	if len(keys) > 1 && itr.opt.Ordered {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
 	// Assume the points are already sorted until proven otherwise.
 	sortedByTime := true
+	// Emit the points for each name & tag combination.
 	a := make([]IntegerPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
@@ -10147,7 +10413,13 @@ type booleanReduceStringPoint struct {
 // The previous value for the dimension is passed to fn.
 func (itr *booleanReduceStringIterator) reduce() ([]StringPoint, error) {
 	// Calculate next window.
-	var startTime, endTime int64
+	var (
+		startTime, endTime int64
+		window             struct {
+			name string
+			tags string
+		}
+	)
 	for {
 		p, err := itr.input.Next()
 		if err != nil || p == nil {
@@ -10159,6 +10431,7 @@ func (itr *booleanReduceStringIterator) reduce() ([]StringPoint, error) {
 		// Unread the point so it can be processed.
 		itr.input.unread(p)
 		startTime, endTime = itr.opt.Window(p.Time)
+		window.name, window.tags = p.Name, p.Tags.Subset(itr.opt.Dimensions).ID()
 		break
 	}
 
@@ -10173,13 +10446,24 @@ func (itr *booleanReduceStringIterator) reduce() ([]StringPoint, error) {
 			break
 		} else if curr.Nil {
 			continue
+		} else if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
 		}
-		tags := curr.Tags.Subset(itr.dims)
 
-		id := curr.Name
-		if len(tags.m) > 0 {
-			id += "\x00" + tags.ID()
+		// Ensure this point is within the same final window.
+		if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != window.tags {
+			itr.input.unread(curr)
+			break
 		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
 
 		// Retrieve the aggregator for this name/tag combination or create one.
 		rp := m[id]
@@ -10196,17 +10480,18 @@ func (itr *booleanReduceStringIterator) reduce() ([]StringPoint, error) {
 		rp.Aggregator.AggregateBoolean(curr)
 	}
 
-	// Reverse sort points by name & tag.
+	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 {
+	if len(keys) > 1 && itr.opt.Ordered {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
 	// Assume the points are already sorted until proven otherwise.
 	sortedByTime := true
+	// Emit the points for each name & tag combination.
 	a := make([]StringPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
@@ -10544,7 +10829,13 @@ type booleanReduceBooleanPoint struct {
 // The previous value for the dimension is passed to fn.
 func (itr *booleanReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 	// Calculate next window.
-	var startTime, endTime int64
+	var (
+		startTime, endTime int64
+		window             struct {
+			name string
+			tags string
+		}
+	)
 	for {
 		p, err := itr.input.Next()
 		if err != nil || p == nil {
@@ -10556,6 +10847,7 @@ func (itr *booleanReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		// Unread the point so it can be processed.
 		itr.input.unread(p)
 		startTime, endTime = itr.opt.Window(p.Time)
+		window.name, window.tags = p.Name, p.Tags.Subset(itr.opt.Dimensions).ID()
 		break
 	}
 
@@ -10570,13 +10862,24 @@ func (itr *booleanReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 			break
 		} else if curr.Nil {
 			continue
+		} else if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
 		}
-		tags := curr.Tags.Subset(itr.dims)
 
-		id := curr.Name
-		if len(tags.m) > 0 {
-			id += "\x00" + tags.ID()
+		// Ensure this point is within the same final window.
+		if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != window.tags {
+			itr.input.unread(curr)
+			break
 		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
 
 		// Retrieve the aggregator for this name/tag combination or create one.
 		rp := m[id]
@@ -10593,17 +10896,18 @@ func (itr *booleanReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		rp.Aggregator.AggregateBoolean(curr)
 	}
 
-	// Reverse sort points by name & tag.
+	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 {
+	if len(keys) > 1 && itr.opt.Ordered {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
 	// Assume the points are already sorted until proven otherwise.
 	sortedByTime := true
+	// Emit the points for each name & tag combination.
 	a := make([]BooleanPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]

@@ -740,8 +740,9 @@ func newIteratorOptionsStmt(stmt *SelectStatement, sopt *SelectOptions) (opt Ite
 	}
 	opt.Interval.Duration = interval
 
-	// Determine if the input for this select call must be ordered.
-	opt.Ordered = stmt.IsRawQuery
+	// Always request an ordered output for the top level iterators.
+	// The emitter will always emit points as ordered.
+	opt.Ordered = true
 
 	// Determine dimensions.
 	opt.GroupBy = make(map[string]struct{}, len(opt.Dimensions))
@@ -805,17 +806,15 @@ func newIteratorOptionsSubstatement(stmt *SelectStatement, opt IteratorOptions) 
 		subOpt.Fill = NoFill
 	}
 
-	// Determine if the input to this iterator needs to be ordered so it outputs
-	// the correct order to the outer query.
-	interval, err := stmt.GroupByInterval()
-	if err != nil {
-		return IteratorOptions{}, err
-	}
-	subOpt.Ordered = opt.Ordered && (interval == 0 && stmt.HasSelector())
+	// Inherit the ordering method from the outer query.
+	subOpt.Ordered = opt.Ordered
 
 	// If there is no interval for this subquery, but the outer query has an
 	// interval, inherit the parent interval.
-	if interval == 0 {
+	interval, err := stmt.GroupByInterval()
+	if err != nil {
+		return IteratorOptions{}, err
+	} else if interval == 0 {
 		subOpt.Interval = opt.Interval
 	}
 	return subOpt, nil

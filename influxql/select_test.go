@@ -703,11 +703,11 @@ func TestSelect_Top_NoTags_Float(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	} else if !deep.Equal(a, [][]influxql.Point{
 		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 20}},
-		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 19}},
-		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 100}},
-		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10}},
-		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 30 * Second, Value: 5}},
-		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 30 * Second, Value: 4}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 9 * Second, Value: 19}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 31 * Second, Value: 100}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 5 * Second, Value: 10}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 53 * Second, Value: 5}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 53 * Second, Value: 4}},
 	}) {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
 	}
@@ -749,11 +749,11 @@ func TestSelect_Top_NoTags_Integer(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	} else if !deep.Equal(a, [][]influxql.Point{
 		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 20}},
-		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 19}},
-		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 100}},
-		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10}},
-		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 30 * Second, Value: 5}},
-		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 30 * Second, Value: 4}},
+		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 9 * Second, Value: 19}},
+		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 31 * Second, Value: 100}},
+		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 5 * Second, Value: 10}},
+		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 53 * Second, Value: 5}},
+		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 53 * Second, Value: 4}},
 	}) {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
 	}
@@ -799,16 +799,16 @@ func TestSelect_Top_Tags_Float(t *testing.T) {
 			&influxql.StringPoint{Name: "cpu", Time: 0 * Second, Value: "A"},
 		},
 		{
-			&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 10, Aux: []interface{}{"B"}},
-			&influxql.StringPoint{Name: "cpu", Time: 0 * Second, Value: "B"},
+			&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
+			&influxql.StringPoint{Name: "cpu", Time: 5 * Second, Value: "B"},
 		},
 		{
-			&influxql.FloatPoint{Name: "cpu", Time: 30 * Second, Value: 100, Aux: []interface{}{"A"}},
-			&influxql.StringPoint{Name: "cpu", Time: 30 * Second, Value: "A"},
+			&influxql.FloatPoint{Name: "cpu", Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
+			&influxql.StringPoint{Name: "cpu", Time: 31 * Second, Value: "A"},
 		},
 		{
-			&influxql.FloatPoint{Name: "cpu", Time: 30 * Second, Value: 5, Aux: []interface{}{"B"}},
-			&influxql.StringPoint{Name: "cpu", Time: 30 * Second, Value: "B"},
+			&influxql.FloatPoint{Name: "cpu", Time: 53 * Second, Value: 5, Aux: []interface{}{"B"}},
+			&influxql.StringPoint{Name: "cpu", Time: 53 * Second, Value: "B"},
 		},
 	}) {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
@@ -855,16 +855,16 @@ func TestSelect_Top_Tags_Integer(t *testing.T) {
 			&influxql.StringPoint{Name: "cpu", Time: 0 * Second, Value: "A"},
 		},
 		{
-			&influxql.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 10, Aux: []interface{}{"B"}},
-			&influxql.StringPoint{Name: "cpu", Time: 0 * Second, Value: "B"},
+			&influxql.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
+			&influxql.StringPoint{Name: "cpu", Time: 5 * Second, Value: "B"},
 		},
 		{
-			&influxql.IntegerPoint{Name: "cpu", Time: 30 * Second, Value: 100, Aux: []interface{}{"A"}},
-			&influxql.StringPoint{Name: "cpu", Time: 30 * Second, Value: "A"},
+			&influxql.IntegerPoint{Name: "cpu", Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
+			&influxql.StringPoint{Name: "cpu", Time: 31 * Second, Value: "A"},
 		},
 		{
-			&influxql.IntegerPoint{Name: "cpu", Time: 30 * Second, Value: 5, Aux: []interface{}{"B"}},
-			&influxql.StringPoint{Name: "cpu", Time: 30 * Second, Value: "B"},
+			&influxql.IntegerPoint{Name: "cpu", Time: 53 * Second, Value: 5, Aux: []interface{}{"B"}},
+			&influxql.StringPoint{Name: "cpu", Time: 53 * Second, Value: "B"},
 		},
 	}) {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
@@ -907,16 +907,16 @@ func TestSelect_Top_GroupByTags_Float(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	} else if !deep.Equal(a, [][]influxql.Point{
 		{
-			&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("region=east"), Time: 0 * Second, Value: 19, Aux: []interface{}{"A"}},
-			&influxql.StringPoint{Name: "cpu", Tags: ParseTags("region=east"), Time: 0 * Second, Value: "A"},
+			&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("region=east"), Time: 9 * Second, Value: 19, Aux: []interface{}{"A"}},
+			&influxql.StringPoint{Name: "cpu", Tags: ParseTags("region=east"), Time: 9 * Second, Value: "A"},
 		},
 		{
 			&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
 			&influxql.StringPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 0 * Second, Value: "A"},
 		},
 		{
-			&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 30 * Second, Value: 100, Aux: []interface{}{"A"}},
-			&influxql.StringPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 30 * Second, Value: "A"},
+			&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
+			&influxql.StringPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 31 * Second, Value: "A"},
 		},
 	}) {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
@@ -959,16 +959,16 @@ func TestSelect_Top_GroupByTags_Integer(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	} else if !deep.Equal(a, [][]influxql.Point{
 		{
-			&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("region=east"), Time: 0 * Second, Value: 19, Aux: []interface{}{"A"}},
-			&influxql.StringPoint{Name: "cpu", Tags: ParseTags("region=east"), Time: 0 * Second, Value: "A"},
+			&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("region=east"), Time: 9 * Second, Value: 19, Aux: []interface{}{"A"}},
+			&influxql.StringPoint{Name: "cpu", Tags: ParseTags("region=east"), Time: 9 * Second, Value: "A"},
 		},
 		{
 			&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
 			&influxql.StringPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 0 * Second, Value: "A"},
 		},
 		{
-			&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 30 * Second, Value: 100, Aux: []interface{}{"A"}},
-			&influxql.StringPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 30 * Second, Value: "A"},
+			&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
+			&influxql.StringPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 31 * Second, Value: "A"},
 		},
 	}) {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
@@ -1010,12 +1010,12 @@ func TestSelect_Bottom_NoTags_Float(t *testing.T) {
 	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	} else if !deep.Equal(a, [][]influxql.Point{
-		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 2}},
-		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 3}},
-		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 100}},
-		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10}},
-		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 30 * Second, Value: 1}},
-		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 30 * Second, Value: 2}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 11 * Second, Value: 3}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 31 * Second, Value: 100}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 5 * Second, Value: 10}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 1}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 51 * Second, Value: 2}},
 	}) {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
 	}
@@ -1056,12 +1056,12 @@ func TestSelect_Bottom_NoTags_Integer(t *testing.T) {
 	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	} else if !deep.Equal(a, [][]influxql.Point{
-		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 2}},
-		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 3}},
-		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 100}},
-		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10}},
-		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 30 * Second, Value: 1}},
-		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 30 * Second, Value: 2}},
+		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2}},
+		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 11 * Second, Value: 3}},
+		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 31 * Second, Value: 100}},
+		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 5 * Second, Value: 10}},
+		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 1}},
+		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 51 * Second, Value: 2}},
 	}) {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
 	}
@@ -1103,20 +1103,20 @@ func TestSelect_Bottom_Tags_Float(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	} else if !deep.Equal(a, [][]influxql.Point{
 		{
-			&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 2, Aux: []interface{}{"A"}},
-			&influxql.StringPoint{Name: "cpu", Time: 0 * Second, Value: "A"},
+			&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
+			&influxql.StringPoint{Name: "cpu", Time: 5 * Second, Value: "B"},
 		},
 		{
-			&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 10, Aux: []interface{}{"B"}},
-			&influxql.StringPoint{Name: "cpu", Time: 0 * Second, Value: "B"},
+			&influxql.FloatPoint{Name: "cpu", Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
+			&influxql.StringPoint{Name: "cpu", Time: 10 * Second, Value: "A"},
 		},
 		{
-			&influxql.FloatPoint{Name: "cpu", Time: 30 * Second, Value: 1, Aux: []interface{}{"B"}},
-			&influxql.StringPoint{Name: "cpu", Time: 30 * Second, Value: "B"},
+			&influxql.FloatPoint{Name: "cpu", Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
+			&influxql.StringPoint{Name: "cpu", Time: 31 * Second, Value: "A"},
 		},
 		{
-			&influxql.FloatPoint{Name: "cpu", Time: 30 * Second, Value: 100, Aux: []interface{}{"A"}},
-			&influxql.StringPoint{Name: "cpu", Time: 30 * Second, Value: "A"},
+			&influxql.FloatPoint{Name: "cpu", Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
+			&influxql.StringPoint{Name: "cpu", Time: 50 * Second, Value: "B"},
 		},
 	}) {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
@@ -1159,20 +1159,20 @@ func TestSelect_Bottom_Tags_Integer(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	} else if !deep.Equal(a, [][]influxql.Point{
 		{
-			&influxql.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 2, Aux: []interface{}{"A"}},
-			&influxql.StringPoint{Name: "cpu", Time: 0 * Second, Value: "A"},
+			&influxql.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
+			&influxql.StringPoint{Name: "cpu", Time: 5 * Second, Value: "B"},
 		},
 		{
-			&influxql.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 10, Aux: []interface{}{"B"}},
-			&influxql.StringPoint{Name: "cpu", Time: 0 * Second, Value: "B"},
+			&influxql.IntegerPoint{Name: "cpu", Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
+			&influxql.StringPoint{Name: "cpu", Time: 10 * Second, Value: "A"},
 		},
 		{
-			&influxql.IntegerPoint{Name: "cpu", Time: 30 * Second, Value: 1, Aux: []interface{}{"B"}},
-			&influxql.StringPoint{Name: "cpu", Time: 30 * Second, Value: "B"},
+			&influxql.IntegerPoint{Name: "cpu", Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
+			&influxql.StringPoint{Name: "cpu", Time: 31 * Second, Value: "A"},
 		},
 		{
-			&influxql.IntegerPoint{Name: "cpu", Time: 30 * Second, Value: 100, Aux: []interface{}{"A"}},
-			&influxql.StringPoint{Name: "cpu", Time: 30 * Second, Value: "A"},
+			&influxql.IntegerPoint{Name: "cpu", Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
+			&influxql.StringPoint{Name: "cpu", Time: 50 * Second, Value: "B"},
 		},
 	}) {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
@@ -1215,16 +1215,16 @@ func TestSelect_Bottom_GroupByTags_Float(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	} else if !deep.Equal(a, [][]influxql.Point{
 		{
-			&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("region=east"), Time: 0 * Second, Value: 2, Aux: []interface{}{"A"}},
-			&influxql.StringPoint{Name: "cpu", Tags: ParseTags("region=east"), Time: 0 * Second, Value: "A"},
+			&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("region=east"), Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
+			&influxql.StringPoint{Name: "cpu", Tags: ParseTags("region=east"), Time: 10 * Second, Value: "A"},
 		},
 		{
-			&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 0 * Second, Value: 3, Aux: []interface{}{"A"}},
-			&influxql.StringPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 0 * Second, Value: "A"},
+			&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 11 * Second, Value: 3, Aux: []interface{}{"A"}},
+			&influxql.StringPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 11 * Second, Value: "A"},
 		},
 		{
-			&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 30 * Second, Value: 1, Aux: []interface{}{"B"}},
-			&influxql.StringPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 30 * Second, Value: "B"},
+			&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
+			&influxql.StringPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 50 * Second, Value: "B"},
 		},
 	}) {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
@@ -1267,16 +1267,16 @@ func TestSelect_Bottom_GroupByTags_Integer(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	} else if !deep.Equal(a, [][]influxql.Point{
 		{
-			&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("region=east"), Time: 0 * Second, Value: 2, Aux: []interface{}{"A"}},
-			&influxql.StringPoint{Name: "cpu", Tags: ParseTags("region=east"), Time: 0 * Second, Value: "A"},
+			&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("region=east"), Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
+			&influxql.StringPoint{Name: "cpu", Tags: ParseTags("region=east"), Time: 10 * Second, Value: "A"},
 		},
 		{
-			&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 0 * Second, Value: 3, Aux: []interface{}{"A"}},
-			&influxql.StringPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 0 * Second, Value: "A"},
+			&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 11 * Second, Value: 3, Aux: []interface{}{"A"}},
+			&influxql.StringPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 11 * Second, Value: "A"},
 		},
 		{
-			&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 30 * Second, Value: 1, Aux: []interface{}{"B"}},
-			&influxql.StringPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 30 * Second, Value: "B"},
+			&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
+			&influxql.StringPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 50 * Second, Value: "B"},
 		},
 	}) {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))

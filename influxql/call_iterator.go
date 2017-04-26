@@ -786,14 +786,14 @@ func IntegerSpreadReduceSlice(a []IntegerPoint) []IntegerPoint {
 func newTopIterator(input Iterator, opt IteratorOptions, n *IntegerLiteral, tags []int) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
-		aggregateFn := NewFloatTopReduceSliceFunc(int(n.Val), tags, opt.Interval)
+		aggregateFn := NewFloatTopReduceSliceFunc(int(n.Val), tags, opt)
 		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
 			fn := NewFloatSliceFuncReducer(aggregateFn)
 			return fn, fn
 		}
 		return newFloatReduceFloatIterator(input, opt, createFn), nil
 	case IntegerIterator:
-		aggregateFn := NewIntegerTopReduceSliceFunc(int(n.Val), tags, opt.Interval)
+		aggregateFn := NewIntegerTopReduceSliceFunc(int(n.Val), tags, opt)
 		createFn := func() (IntegerPointAggregator, IntegerPointEmitter) {
 			fn := NewIntegerSliceFuncReducer(aggregateFn)
 			return fn, fn
@@ -805,7 +805,7 @@ func newTopIterator(input Iterator, opt IteratorOptions, n *IntegerLiteral, tags
 }
 
 // NewFloatTopReduceSliceFunc returns the top values within a window.
-func NewFloatTopReduceSliceFunc(n int, tags []int, interval Interval) FloatReduceSliceFunc {
+func NewFloatTopReduceSliceFunc(n int, tags []int, opt IteratorOptions) FloatReduceSliceFunc {
 	return func(a []FloatPoint) []FloatPoint {
 		// Filter by tags if they exist.
 		if len(tags) > 0 {
@@ -837,13 +837,9 @@ func NewFloatTopReduceSliceFunc(n int, tags []int, interval Interval) FloatReduc
 			points = append(points, p)
 		}
 
-		// Either zero out all values or sort the points by time
-		// depending on if a time interval was given or not.
-		if !interval.IsZero() {
-			for i := range points {
-				points[i].Time = ZeroTime
-			}
-		} else {
+		// Order the points by time if an ordered output was requested.
+		// Try to keep the original ordering if possible by using a stable sort.
+		if opt.Ordered {
 			sort.Stable(floatPointsByTime(points))
 		}
 		return points
@@ -851,7 +847,7 @@ func NewFloatTopReduceSliceFunc(n int, tags []int, interval Interval) FloatReduc
 }
 
 // NewIntegerTopReduceSliceFunc returns the top values within a window.
-func NewIntegerTopReduceSliceFunc(n int, tags []int, interval Interval) IntegerReduceSliceFunc {
+func NewIntegerTopReduceSliceFunc(n int, tags []int, opt IteratorOptions) IntegerReduceSliceFunc {
 	return func(a []IntegerPoint) []IntegerPoint {
 		// Filter by tags if they exist.
 		if len(tags) > 0 {
@@ -883,13 +879,9 @@ func NewIntegerTopReduceSliceFunc(n int, tags []int, interval Interval) IntegerR
 			points = append(points, p)
 		}
 
-		// Either zero out all values or sort the points by time
-		// depending on if a time interval was given or not.
-		if !interval.IsZero() {
-			for i := range points {
-				points[i].Time = ZeroTime
-			}
-		} else {
+		// Order the points by time if an ordered output was requested.
+		// Try to keep the original ordering if possible by using a stable sort.
+		if opt.Ordered {
 			sort.Stable(integerPointsByTime(points))
 		}
 		return points
@@ -899,14 +891,14 @@ func NewIntegerTopReduceSliceFunc(n int, tags []int, interval Interval) IntegerR
 func newBottomIterator(input Iterator, opt IteratorOptions, n *IntegerLiteral, tags []int) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
-		aggregateFn := NewFloatBottomReduceSliceFunc(int(n.Val), tags, opt.Interval)
+		aggregateFn := NewFloatBottomReduceSliceFunc(int(n.Val), tags, opt)
 		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
 			fn := NewFloatSliceFuncReducer(aggregateFn)
 			return fn, fn
 		}
 		return newFloatReduceFloatIterator(input, opt, createFn), nil
 	case IntegerIterator:
-		aggregateFn := NewIntegerBottomReduceSliceFunc(int(n.Val), tags, opt.Interval)
+		aggregateFn := NewIntegerBottomReduceSliceFunc(int(n.Val), tags, opt)
 		createFn := func() (IntegerPointAggregator, IntegerPointEmitter) {
 			fn := NewIntegerSliceFuncReducer(aggregateFn)
 			return fn, fn
@@ -918,7 +910,7 @@ func newBottomIterator(input Iterator, opt IteratorOptions, n *IntegerLiteral, t
 }
 
 // NewFloatBottomReduceSliceFunc returns the bottom values within a window.
-func NewFloatBottomReduceSliceFunc(n int, tags []int, interval Interval) FloatReduceSliceFunc {
+func NewFloatBottomReduceSliceFunc(n int, tags []int, opt IteratorOptions) FloatReduceSliceFunc {
 	return func(a []FloatPoint) []FloatPoint {
 		// Filter by tags if they exist.
 		if len(tags) > 0 {
@@ -950,13 +942,9 @@ func NewFloatBottomReduceSliceFunc(n int, tags []int, interval Interval) FloatRe
 			points = append(points, p)
 		}
 
-		// Either zero out all values or sort the points by time
-		// depending on if a time interval was given or not.
-		if !interval.IsZero() {
-			for i := range points {
-				points[i].Time = ZeroTime
-			}
-		} else {
+		// Order the points by time if an ordered output was requested.
+		// Try to keep the original ordering if possible by using a stable sort.
+		if opt.Ordered {
 			sort.Stable(floatPointsByTime(points))
 		}
 		return points
@@ -964,7 +952,7 @@ func NewFloatBottomReduceSliceFunc(n int, tags []int, interval Interval) FloatRe
 }
 
 // NewIntegerBottomReduceSliceFunc returns the bottom values within a window.
-func NewIntegerBottomReduceSliceFunc(n int, tags []int, interval Interval) IntegerReduceSliceFunc {
+func NewIntegerBottomReduceSliceFunc(n int, tags []int, opt IteratorOptions) IntegerReduceSliceFunc {
 	return func(a []IntegerPoint) []IntegerPoint {
 		// Filter by tags if they exist.
 		if len(tags) > 0 {
@@ -996,13 +984,9 @@ func NewIntegerBottomReduceSliceFunc(n int, tags []int, interval Interval) Integ
 			points = append(points, p)
 		}
 
-		// Either zero out all values or sort the points by time
-		// depending on if a time interval was given or not.
-		if !interval.IsZero() {
-			for i := range points {
-				points[i].Time = ZeroTime
-			}
-		} else {
+		// Order the points by time if an ordered output was requested.
+		// Try to keep the original ordering if possible by using a stable sort.
+		if opt.Ordered {
 			sort.Stable(integerPointsByTime(points))
 		}
 		return points
