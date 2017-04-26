@@ -41,7 +41,14 @@ const RowValues = ({
     : <span>(No values to display)</span>
 }
 
-const RowButtons = ({isEditing, onCancelEdit, onDelete, id, selectedType}) => {
+const RowButtons = ({
+  onStartEdit,
+  isEditing,
+  onCancelEdit,
+  onDelete,
+  id,
+  selectedType,
+}) => {
   if (isEditing) {
     return (
       <div>
@@ -58,7 +65,18 @@ const RowButtons = ({isEditing, onCancelEdit, onDelete, id, selectedType}) => {
       </div>
     )
   }
-  return <DeleteConfirmButtons onDelete={() => onDelete(id)} />
+  return (
+    <div>
+      <button
+        className="btn btn-sm btn-info"
+        type="button"
+        onClick={() => onStartEdit('name')}
+      >
+        Edit
+      </button>
+      <DeleteConfirmButtons onDelete={() => onDelete(id)} />
+    </div>
+  )
 }
 
 const TemplateVariableRow = ({
@@ -133,6 +151,7 @@ const TemplateVariableRow = ({
     </div>
     <div className="td" style={{display: 'flex'}}>
       <RowButtons
+        onStartEdit={onStartEdit}
         isEditing={isEditing}
         onCancelEdit={onCancelEdit}
         onDelete={onDelete}
@@ -405,6 +424,7 @@ RowValues.propTypes = {
 }
 
 RowButtons.propTypes = {
+  onStartEdit: func.isRequired,
   isEditing: bool.isRequired,
   onCancelEdit: func.isRequired,
   onDelete: func.isRequired,
