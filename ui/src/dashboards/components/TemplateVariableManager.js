@@ -1,6 +1,5 @@
 import React, {Component, PropTypes} from 'react'
 import classNames from 'classnames'
-import OnClickOutside from 'react-onclickoutside'
 import TemplateVariableTable
   from 'src/dashboards/components/TemplateVariableTable'
 
@@ -33,7 +32,7 @@ const TemplateVariableManager = ({
         </button>
         <span
           className="icon remove"
-          onClick={onClose}
+          onClick={() => onClose(isEdited)}
           style={{cursor: 'pointer'}}
         />
       </div>
@@ -176,4 +175,4 @@ TemplateVariableManagerWrapper.propTypes = {
   onRunQueryFailure: func.isRequired,
 }
 
-export default OnClickOutside(TemplateVariableManagerWrapper)
+export default TemplateVariableManagerWrapper

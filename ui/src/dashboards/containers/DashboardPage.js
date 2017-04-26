@@ -63,8 +63,13 @@ class DashboardPage extends Component {
     this.setState({isTemplating: true})
   }
 
-  handleCloseTemplateManager() {
-    this.setState({isTemplating: false})
+  handleCloseTemplateManager(isEdited) {
+    if (
+      !isEdited ||
+      (isEdited && confirm('Do you want to close without saving?')) // eslint-disable-line no-alert
+    ) {
+      this.setState({isTemplating: false})
+    }
   }
 
   handleDismissOverlay() {
@@ -231,7 +236,6 @@ class DashboardPage extends Component {
               <TemplateVariableManager
                 onClose={this.handleCloseTemplateManager}
                 onEditTemplateVariables={this.handleEditTemplateVariables}
-                handleClickOutside={this.handleCloseTemplateManager}
                 source={source}
                 templates={dashboard.templates}
                 onRunQueryFailure={this.handleRunQueryFailure}
