@@ -289,7 +289,7 @@ QueryEditor.propTypes = {
     shape({
       tempVar: string.isRequired,
     })
-  ).isRequired,
+  ),
 }
 
 export default QueryEditor

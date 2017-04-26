@@ -176,7 +176,7 @@ class DashboardPage extends Component {
   }
 
   // TODO: make this work over array of template variables onSave in TVM
-  handleEditTemplateVariables(staleTemplateVariable, editedTemplateVariable) {
+  handleEditTemplateVariables() {
     //   // this.props.dashboardActions.editTemplateVariableAsync(
     //   //   this.props.params.dashboardID,
     //   //   staleTemplateVariable,
