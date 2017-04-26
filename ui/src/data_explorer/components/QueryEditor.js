@@ -194,25 +194,27 @@ class QueryEditor extends Component {
           onChange={this.handleChange}
           onKeyDown={this.handleKeyDown}
           onBlur={this.handleUpdate}
-          ref={editor => (this.editor = editor)}
+          ref={editor => this.editor = editor}
           value={value}
           placeholder="Enter a query or select database, measurement, and field below and have us build one for you..."
           autoComplete="off"
           spellCheck="false"
         />
-        <div className={classNames('varmoji', {'varmoji-rotated': isTemplating})}>
+        <div
+          className={classNames('varmoji', {'varmoji-rotated': isTemplating})}
+        >
           <div className="varmoji-container">
             <div className="varmoji-front">{this.renderStatus(status)}</div>
             <div className="varmoji-back">
               {isTemplating
-              ? <TemplateDrawer
-                  onClickTempVar={this.handleClickTempVar}
-                  templates={filteredTemplates}
-                  selected={selectedTemplate}
-                  onMouseOverTempVar={this.handleMouseOverTempVar}
-                  handleClickOutside={this.handleCloseDrawer}
-                />
-              : null}
+                ? <TemplateDrawer
+                    onClickTempVar={this.handleClickTempVar}
+                    templates={filteredTemplates}
+                    selected={selectedTemplate}
+                    onMouseOverTempVar={this.handleMouseOverTempVar}
+                    handleClickOutside={this.handleCloseDrawer}
+                  />
+                : null}
             </div>
           </div>
         </div>
@@ -250,16 +252,20 @@ class QueryEditor extends Component {
 
     return (
       <div className="query-editor--status">
-        <span className={classNames('query-status-output', {
-          'query-status-output--error': status.error,
-          'query-status-output--success': status.success,
-          'query-status-output--warning': status.warn,
-        })}>
-          <span className={classNames('icon', {
-            stop: status.error,
-            checkmark: status.success,
-            'alert-triangle': status.warn,
-          })} />
+        <span
+          className={classNames('query-status-output', {
+            'query-status-output--error': status.error,
+            'query-status-output--success': status.success,
+            'query-status-output--warning': status.warn,
+          })}
+        >
+          <span
+            className={classNames('icon', {
+              stop: status.error,
+              checkmark: status.success,
+              'alert-triangle': status.warn,
+            })}
+          />
           {status.error || status.warn || status.success}
         </span>
         <Dropdown
