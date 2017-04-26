@@ -123,7 +123,7 @@ func (p IndexFiles) TagValueSeriesIterator(name, key, value []byte) SeriesIterat
 }
 
 // WriteTo merges all index files and writes them to w.
-func (p IndexFiles) WriteTo(w io.Writer) (n int64, err error) {
+func (p IndexFiles) WriteTo(w io.Writer, m, k uint64) (n int64, err error) {
 	var t IndexFileTrailer
 
 	// Wrap writer in buffered I/O.
@@ -140,7 +140,7 @@ func (p IndexFiles) WriteTo(w io.Writer) (n int64, err error) {
 
 	// Write combined series list.
 	t.SeriesBlock.Offset = n
-	if err := p.writeSeriesBlockTo(bw, &info, &n); err != nil {
+	if err := p.writeSeriesBlockTo(bw, m, k, &info, &n); err != nil {
 		return n, err
 	}
 	t.SeriesBlock.Size = n - t.SeriesBlock.Offset
@@ -187,7 +187,7 @@ func (p IndexFiles) WriteTo(w io.Writer) (n int64, err error) {
 	return n, nil
 }
 
-func (p IndexFiles) writeSeriesBlockTo(w io.Writer, info *indexCompactInfo, n *int64) error {
+func (p IndexFiles) writeSeriesBlockTo(w io.Writer, m, k uint64, info *indexCompactInfo, n *int64) error {
 	// Estimate series cardinality.
 	sketch := hll.NewDefaultPlus()
 	for _, f := range p {
@@ -197,7 +197,7 @@ func (p IndexFiles) writeSeriesBlockTo(w io.Writer, info *indexCompactInfo, n *i
 	}
 
 	itr := p.SeriesIterator()
-	enc := NewSeriesBlockEncoder(w, sketch.Count())
+	enc := NewSeriesBlockEncoder(w, sketch.Count(), m, k)
 
 	// Write all series.
 	for e := itr.Next(); e != nil; e = itr.Next() {

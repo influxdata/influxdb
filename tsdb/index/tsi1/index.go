@@ -59,10 +59,13 @@ type Index struct {
 	opened  bool
 	options tsdb.EngineOptions
 
-	activeLogFile *LogFile          // current log file
-	fileSet       *FileSet          // current file set
-	levels        []CompactionLevel // compaction levels
-	seq           int               // file id sequence
+	activeLogFile *LogFile // current log file
+	fileSet       *FileSet // current file set
+	seq           int      // file id sequence
+
+	// Compaction management
+	levels          []CompactionLevel // compaction levels
+	levelCompacting []bool            // level compaction status
 
 	// Close management.
 	once    sync.Once
@@ -125,6 +128,9 @@ func (i *Index) Open() error {
 	// Copy compaction levels to the index.
 	i.levels = make([]CompactionLevel, len(m.Levels))
 	copy(i.levels, m.Levels)
+
+	// Set up flags to track whether a level is compacting.
+	i.levelCompacting = make([]bool, len(i.levels))
 
 	// Open each file in the manifest.
 	var files []File
@@ -311,7 +317,9 @@ func (i *Index) prependActiveLogFile() error {
 		return err
 	}
 	i.activeLogFile = f
-	i.fileSet.files = append([]File{f}, i.fileSet.files...)
+
+	// Prepend and generate new fileset.
+	i.fileSet = i.fileSet.Prepend(f)
 
 	// Write new manifest.
 	if err := i.writeManifestFile(); err != nil {
@@ -768,102 +776,68 @@ func (i *Index) compact() {
 	fs := i.retainFileSet()
 	defer fs.Release()
 
-	// Return contiguous groups of files that are available for compaction.
-	for _, group := range i.compactionGroups(fs) {
-		// Mark files in group as compacting.
-		for _, f := range group {
-			f.Retain()
-			f.setCompacting(true)
+	// Iterate over each level we are going to compact.
+	// We skip the first level (0) because it is log files and they are compacted separately.
+	// We skip the last level because the files have no higher level to compact into.
+	minLevel, maxLevel := 1, len(i.levels)-2
+	for level := minLevel; level <= maxLevel; level++ {
+		// Skip level if it is currently compacting.
+		if i.levelCompacting[level] {
+			// log.Printf("tsi1: SKIP, already compacting: level=%d", level)
+			continue
 		}
 
+		// Collect files for the level.
+		files := fs.IndexFilesByLevel(level)
+
+		// Calculate total size. Skip level if it doesn't meet min size of next level.
+		var size int64
+		for _, f := range files {
+			size += f.Size()
+		}
+		if size < i.levels[level+1].MinSize {
+			// log.Printf("tsi1: SKIP, too small: level=%d, size=%d, target=%d", level, size, i.levels[level+1].MinSize)
+			continue
+		}
+
+		// Limit the number of files that can be merged at once.
+		if len(files) > MaxIndexMergeCount {
+			files = files[len(files)-MaxIndexMergeCount:]
+		}
+
+		// Retain files during compaction.
+		IndexFiles(files).Retain()
+
+		// Mark the level as compacting.
+		i.levelCompacting[level] = true
+
 		// Execute in closure to save reference to the group within the loop.
-		func(group []*IndexFile) {
+		func(files []*IndexFile, level int) {
 			// Start compacting in a separate goroutine.
 			i.wg.Add(1)
 			go func() {
 				defer i.wg.Done()
-				i.compactGroup(group)
-				i.Compact() // check for new compactions
+
+				// Compact to a new level.
+				i.compactToLevel(files, level+1)
+
+				// Ensure compaction lock for the level is released.
+				i.mu.Lock()
+				i.levelCompacting[level] = false
+				i.mu.Unlock()
+
+				// Check for new compactions
+				i.Compact()
 			}()
-		}(group)
+		}(files, level)
 	}
 }
 
-// compactionGroups returns contiguous groups of index files that can be compacted.
-//
-// All groups will have at least two files and the total size is more than the
-// largest file times the compaction factor. For example, if the compaction
-// factor is 2 then the total size will be at least double the max file size.
-func (i *Index) compactionGroups(fileSet *FileSet) [][]*IndexFile {
-	log.Printf("%s: checking for compaction groups: n=%d", IndexName, len(fileSet.files))
-
-	var groups [][]*IndexFile
-
-	// Loop over all files to find contiguous group of compactable files.
-	var group []*IndexFile
-	for _, f := range fileSet.files {
-		indexFile, ok := f.(*IndexFile)
-
-		// Skip over log files. They compact themselves.
-		if !ok {
-			if isCompactableGroup(group, CompactionFactor) {
-				group, groups = nil, append(groups, group)
-			} else {
-				group = nil
-			}
-			continue
-		}
-
-		// If file is currently compacting then stop current group.
-		if indexFile.Compacting() {
-			if isCompactableGroup(group, CompactionFactor) {
-				group, groups = nil, append(groups, group)
-			} else {
-				group = nil
-			}
-			continue
-		}
-
-		// Stop current group if adding file will invalidate group.
-		// This can happen when appending a large file to a group of small files.
-		if isCompactableGroup(group, CompactionFactor) && !isCompactableGroup(append(group, indexFile), CompactionFactor) {
-			group, groups = []*IndexFile{indexFile}, append(groups, group)
-			continue
-		}
-
-		// Otherwise append to the current group.
-		group = append(group, indexFile)
-	}
-
-	// Append final group, if compactable.
-	if isCompactableGroup(group, CompactionFactor) {
-		groups = append(groups, group)
-	}
-
-	return groups
-}
-
-// isCompactableGroup returns true if total file size is greater than max file size times factor.
-func isCompactableGroup(files []*IndexFile, factor float64) bool {
-	if len(files) < 2 {
-		return false
-	}
-
-	var max, total int64
-	for _, f := range files {
-		sz := f.Size()
-		if sz > max {
-			max = sz
-		}
-		total += sz
-	}
-	return total >= int64(float64(max)*factor)
-}
-
-// compactGroup compacts files into a new file. Replaces old files with
+// compactToLevel compacts a set of files into a new file. Replaces old files with
 // compacted file on successful completion. This runs in a separate goroutine.
-func (i *Index) compactGroup(files []*IndexFile) {
+func (i *Index) compactToLevel(files []*IndexFile, level int) {
 	assert(len(files) >= 2, "at least two index files are required for compaction")
+	assert(level > 0, "cannot compact level zero")
 
 	// Files have already been retained by caller.
 	// Ensure files are released only once.
@@ -874,7 +848,7 @@ func (i *Index) compactGroup(files []*IndexFile) {
 	start := time.Now()
 
 	// Create new index file.
-	path := filepath.Join(i.Path, FormatIndexFileName(i.NextSequence(), 1)) // TODO
+	path := filepath.Join(i.Path, FormatIndexFileName(i.NextSequence(), level))
 	f, err := os.Create(path)
 	if err != nil {
 		log.Printf("%s: error creating compaction files: %s", IndexName, err)
@@ -883,10 +857,11 @@ func (i *Index) compactGroup(files []*IndexFile) {
 	defer f.Close()
 
 	srcIDs := joinIntSlice(IndexFiles(files).IDs(), ",")
-	log.Printf("%s: performing full compaction: src=%s, path=%s", IndexName, srcIDs, path)
+	log.Printf("%s: performing full compaction: src=%s, path=%s", IndexName, srcIDs, filepath.Base(path))
 
 	// Compact all index files to new index file.
-	n, err := IndexFiles(files).WriteTo(f)
+	lvl := i.levels[level]
+	n, err := IndexFiles(files).WriteTo(f, lvl.M, lvl.K)
 	if err != nil {
 		log.Printf("%s: error compacting index files: src=%s, path=%s, err=%s", IndexName, srcIDs, path, err)
 		return
@@ -988,7 +963,6 @@ func (i *Index) checkLogFile() error {
 // compacted then the manifest is updated and the log file is discarded.
 func (i *Index) compactLogFile(logFile *LogFile) {
 	start := time.Now()
-	log.Printf("tsi1: compacting log file: file=%s", logFile.Path())
 
 	// Retrieve identifier from current path.
 	id := logFile.ID()
@@ -1004,8 +978,8 @@ func (i *Index) compactLogFile(logFile *LogFile) {
 	defer f.Close()
 
 	// Compact log file to new index file.
-	n, err := logFile.WriteTo(f)
-	if err != nil {
+	lvl := i.levels[1]
+	if _, err := logFile.WriteTo(f, lvl.M, lvl.K); err != nil {
 		log.Printf("%s: error compacting log file: path=%s, err=%s", IndexName, logFile.Path(), err)
 		return
 	}
@@ -1042,10 +1016,9 @@ func (i *Index) compactLogFile(logFile *LogFile) {
 		log.Printf("%s: error updating manifest: %s", IndexName, err)
 		return
 	}
-	log.Printf("%s: finished compacting log file: file=%s, t=%v, sz=%d", IndexName, logFile.Path(), time.Since(start), n)
+	log.Printf("%s: log file compacted: file=%s, t=%0.03fs", IndexName, filepath.Base(logFile.Path()), time.Since(start).Seconds())
 
 	// Closing the log file will automatically wait until the ref count is zero.
-	log.Printf("%s: removing log file: file=%s", IndexName, logFile.Path())
 	if err := logFile.Close(); err != nil {
 		log.Printf("%s: error closing log file: %s", IndexName, err)
 		return
@@ -1263,10 +1236,38 @@ var DefaultCompactionLevels = []CompactionLevel{
 		K:       6,
 	},
 
-	// 200MB min file, 33MB filter
+	// 24MB min file, 4MB filter
 	{
-		MinSize: 200 * (1 << 20),
+		MinSize: 24 * (1 << 20),
+		M:       1 << 25,
+		K:       6,
+	},
+
+	// 48MB min file, 8MB filter
+	{
+		MinSize: 48 * (1 << 20),
+		M:       1 << 26,
+		K:       6,
+	},
+
+	// 96MB min file, 8MB filter
+	{
+		MinSize: 96 * (1 << 20),
+		M:       1 << 27,
+		K:       6,
+	},
+
+	// 192MB min file, 33MB filter
+	{
+		MinSize: 192 * (1 << 20),
 		M:       1 << 28,
+		K:       6,
+	},
+
+	// 768MB min file, 66MB filter
+	{
+		MinSize: 768 * (1 << 20),
+		M:       1 << 29,
 		K:       6,
 	},
 
@@ -1278,8 +1279,8 @@ var DefaultCompactionLevels = []CompactionLevel{
 	},
 }
 
+// MaxIndexMergeCount is the maximum number of files that can be merged together at once.
+const MaxIndexMergeCount = 2
+
 // MaxIndexFileSize is the maximum expected size of an index file.
 const MaxIndexFileSize = 4 * (1 << 30)
-
-// TEMP
-const CompactionFactor = 10

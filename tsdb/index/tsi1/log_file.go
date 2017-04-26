@@ -756,7 +756,7 @@ func (f *LogFile) MeasurementSeriesIterator(name []byte) SeriesIterator {
 }
 
 // WriteTo compacts the log file and writes it to w.
-func (f *LogFile) WriteTo(w io.Writer) (n int64, err error) {
+func (f *LogFile) WriteTo(w io.Writer, m, k uint64) (n int64, err error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
@@ -777,7 +777,7 @@ func (f *LogFile) WriteTo(w io.Writer) (n int64, err error) {
 
 	// Write series list.
 	t.SeriesBlock.Offset = n
-	if err := f.writeSeriesBlockTo(bw, names, info, &n); err != nil {
+	if err := f.writeSeriesBlockTo(bw, names, m, k, info, &n); err != nil {
 		return n, err
 	}
 	t.SeriesBlock.Size = n - t.SeriesBlock.Offset
@@ -820,7 +820,7 @@ func (f *LogFile) WriteTo(w io.Writer) (n int64, err error) {
 	return n, nil
 }
 
-func (f *LogFile) writeSeriesBlockTo(w io.Writer, names []string, info *logFileCompactInfo, n *int64) error {
+func (f *LogFile) writeSeriesBlockTo(w io.Writer, names []string, m, k uint64, info *logFileCompactInfo, n *int64) error {
 	// Determine series count.
 	var seriesN uint64
 	for _, mm := range f.mms {
@@ -828,7 +828,7 @@ func (f *LogFile) writeSeriesBlockTo(w io.Writer, names []string, info *logFileC
 	}
 
 	// Write all series.
-	enc := NewSeriesBlockEncoder(w, seriesN)
+	enc := NewSeriesBlockEncoder(w, seriesN, m, k)
 
 	// Add series from measurements.
 	for _, name := range names {

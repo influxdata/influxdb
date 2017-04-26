@@ -54,6 +54,11 @@ func (fs *FileSet) Release() {
 	}
 }
 
+// Prepend returns a new file set with f added at the beginning.
+func (fs *FileSet) Prepend(f File) *FileSet {
+	return NewFileSet(fs.levels, append([]File{f}, fs.files...))
+}
+
 // MustReplace swaps a list of files for a single file and returns a new file set.
 // The caller should always guarentee that the files exist and are contiguous.
 func (fs *FileSet) MustReplace(oldFiles []File, newFile File) *FileSet {
@@ -112,6 +117,17 @@ func (fs *FileSet) IndexFiles() []*IndexFile {
 	var a []*IndexFile
 	for _, f := range fs.files {
 		if f, ok := f.(*IndexFile); ok {
+			a = append(a, f)
+		}
+	}
+	return a
+}
+
+// IndexFilesByLevel returns all index files for a given level.
+func (fs *FileSet) IndexFilesByLevel(level int) []*IndexFile {
+	var a []*IndexFile
+	for _, f := range fs.files {
+		if f, ok := f.(*IndexFile); ok && f.Level() == level {
 			a = append(a, f)
 		}
 	}
@@ -572,10 +588,54 @@ func (fs *FileSet) HasSeries(name []byte, tags models.Tags, buf []byte) bool {
 // FilterNamesTags filters out any series which already exist. It modifies the
 // provided slices of names and tags.
 func (fs *FileSet) FilterNamesTags(names [][]byte, tagsSlice []models.Tags) ([][]byte, []models.Tags) {
-	for _, f := range fs.files {
+	buf := make([]byte, 4096)
+
+	// Filter across all log files.
+	// Log files obtain a read lock and should be done in bulk for performance.
+	for _, f := range fs.LogFiles() {
 		names, tagsSlice = f.FilterNamesTags(names, tagsSlice)
 	}
-	return names, tagsSlice
+
+	// Filter across remaining index files.
+	indexFiles := fs.IndexFiles()
+	newNames, newTagsSlice := names[:0], tagsSlice[:0]
+	for i := range names {
+		name, tags := names[i], tagsSlice[i]
+		currentLevel, skipLevel := -1, false
+
+		var exists, tombstoned bool
+		for j := 0; j < len(indexFiles); j++ {
+			f := indexFiles[j]
+
+			// Check for existence on the level when it changes.
+			if level := f.Level(); currentLevel != level {
+				currentLevel, skipLevel = level, false
+
+				if filter := fs.filters[level]; filter != nil {
+					if !filter.Contains(AppendSeriesKey(buf[:0], name, tags)) {
+						skipLevel = true
+					}
+				}
+			}
+
+			// Skip file if in level where it doesn't exist.
+			if skipLevel {
+				continue
+			}
+
+			// Stop once we find the series in a file.
+			if exists, tombstoned = f.HasSeries(name, tags, buf); exists {
+				break
+			}
+		}
+
+		// If the series doesn't exist or it has been tombstoned then add it.
+		if !exists || tombstoned {
+			newNames = append(newNames, name)
+			newTagsSlice = append(newTagsSlice, tags)
+		}
+	}
+	return newNames, newTagsSlice
 }
 
 // SeriesSketches returns the merged series sketches for the FileSet.
@@ -790,14 +850,13 @@ func (fs *FileSet) seriesByBinaryExprVarRefIterator(name, key []byte, value *inf
 
 // buildFilters builds a series existence filter for each compaction level.
 func (fs *FileSet) buildFilters() {
-	if len(fs.filters) == 0 {
+	if len(fs.levels) == 0 {
 		fs.filters = nil
 		return
 	}
 
-	// Generate enough filters for each level.
-	maxLevel := fs.files[len(fs.files)-1].Level()
-	fs.filters = make([]*bloom.Filter, maxLevel+1)
+	// Generate filters for each level.
+	fs.filters = make([]*bloom.Filter, len(fs.levels))
 
 	// Merge filters at each level.
 	for _, f := range fs.files {
@@ -829,7 +888,6 @@ type File interface {
 	ID() int
 	Level() int
 
-	FilterNamesTags(names [][]byte, tagsSlice []models.Tags) ([][]byte, []models.Tags)
 	Measurement(name []byte) MeasurementElem
 	MeasurementIterator() MeasurementIterator
 	HasSeries(name []byte, tags models.Tags, buf []byte) (exists, tombstoned bool)

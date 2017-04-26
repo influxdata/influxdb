@@ -76,7 +76,7 @@ func CreateIndexFile(series []Series) (*tsi1.IndexFile, error) {
 
 	// Write index file to buffer.
 	var buf bytes.Buffer
-	if _, err := lf.WriteTo(&buf); err != nil {
+	if _, err := lf.WriteTo(&buf, M, K); err != nil {
 		return nil, err
 	}
 
@@ -99,7 +99,7 @@ func GenerateIndexFile(measurementN, tagN, valueN int) (*tsi1.IndexFile, error) 
 
 	// Compact log file to buffer.
 	var buf bytes.Buffer
-	if _, err := lf.WriteTo(&buf); err != nil {
+	if _, err := lf.WriteTo(&buf, M, K); err != nil {
 		return nil, err
 	}
 
