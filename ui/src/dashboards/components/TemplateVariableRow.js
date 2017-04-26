@@ -16,6 +16,31 @@ import {TEMPLATE_TYPES} from 'src/dashboards/constants'
 import q
   from 'src/dashboards/utils/onlyTheBigliestBigLeagueTemplateVariableQueryGenerator'
 
+const RowValues = ({
+  selectedType,
+  values = [],
+  isEditing,
+  onStartEdit,
+  autoFocusTarget,
+}) => {
+  const _values = values.map(({value}) => value).join(', ')
+
+  if (selectedType === 'csv') {
+    return (
+      <TableInput
+        name="values"
+        defaultValue={_values}
+        isEditing={isEditing}
+        onStartEdit={onStartEdit}
+        autoFocusTarget={autoFocusTarget}
+      />
+    )
+  }
+  return values.length
+    ? <span>{_values}</span>
+    : <span>(No values to display)</span>
+}
+
 const TemplateVariableRow = ({
   template: {id, label, tempVar, values},
   isEditing,
@@ -78,9 +103,13 @@ const TemplateVariableRow = ({
       />
     </div>
     <div className="td">
-      {values.length
-        ? values.map(({value}) => value).join(', ')
-        : '(No values to display)'}
+      <RowValues
+        selectedType={selectedType}
+        values={values}
+        isEditing={isEditing}
+        onStartEdit={onStartEdit}
+        autoFocusTarget={autoFocusTarget}
+      />
     </div>
     <div className="td" style={{display: 'flex'}}>
       {isEditing
@@ -347,6 +376,14 @@ TableInput.propTypes = {
   isEditing: bool.isRequired,
   onStartEdit: func.isRequired,
   name: string.isRequired,
+  autoFocusTarget: string,
+}
+
+RowValues.propTypes = {
+  selectedType: string.isRequired,
+  values: arrayOf(shape()),
+  isEditing: bool.isRequired,
+  onStartEdit: func.isRequired,
   autoFocusTarget: string,
 }
 
