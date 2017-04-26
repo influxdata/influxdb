@@ -246,47 +246,6 @@ func (f *FileStore) NextGeneration() int {
 	return f.currentGeneration
 }
 
-// Add adds the given files to the file store's list of files.
-func (f *FileStore) Add(files ...TSMFile) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	for _, file := range files {
-		atomic.AddInt64(&f.stats.DiskBytes, int64(file.Size()))
-	}
-	f.lastFileStats = nil
-	f.files = append(f.files, files...)
-	sort.Sort(tsmReaders(f.files))
-	atomic.StoreInt64(&f.stats.FileCount, int64(len(f.files)))
-}
-
-// Remove removes the files with matching paths from the set of active files.  It does
-// not remove the paths from disk.
-func (f *FileStore) Remove(paths ...string) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	var active []TSMFile
-	for _, file := range f.files {
-		keep := true
-		for _, remove := range paths {
-			if remove == file.Path() {
-				keep = false
-				break
-			}
-		}
-
-		if keep {
-			active = append(active, file)
-		} else {
-			// Removing the file, remove the file size from the total file store bytes
-			atomic.AddInt64(&f.stats.DiskBytes, -int64(file.Size()))
-		}
-	}
-	f.lastFileStats = nil
-	f.files = active
-	sort.Sort(tsmReaders(f.files))
-	atomic.StoreInt64(&f.stats.FileCount, int64(len(f.files)))
-}
-
 // WalkKeys calls fn for every key in every TSM file known to the FileStore.  If the key
 // exists in multiple files, it will be invoked for each file.
 func (f *FileStore) WalkKeys(fn func(key []byte, typ byte) error) error {
