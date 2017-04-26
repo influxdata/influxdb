@@ -172,6 +172,17 @@ const templates = [
       {value: 'C', type: 'csv', selected: false},
     ],
   },
+  {
+    id: '3',
+    type: 'csv',
+    label: 'test csv',
+    tempVar: '$PINEAPPLE',
+    values: [
+      {value: 'A', type: 'csv', selected: false},
+      {value: 'B', type: 'csv', selected: false},
+      {value: 'C', type: 'csv', selected: false},
+    ],
+  },
 ]
 
 // Async Action Creators
