@@ -124,7 +124,7 @@ export function getAppsForHosts(proxyLink, hosts, appMappings, telegrafDB) {
     allSeries.forEach(([series]) => {
       const seriesObj = parseSeries(series)
       const measurement = seriesObj.measurement
-      const host = seriesObj.tags.host
+      const host = _.get(seriesObj, ['tags', 'host'], '')
 
       if (!newHosts[host]) {
         return
