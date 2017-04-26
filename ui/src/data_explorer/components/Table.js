@@ -3,12 +3,14 @@ import React, {PropTypes} from 'react'
 import Dimensions from 'react-dimensions'
 import _ from 'lodash'
 import moment from 'moment'
+import classNames from 'classnames'
 
+import Dropdown from 'shared/components/Dropdown'
 import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
 
 import {Table, Column, Cell} from 'fixed-data-table'
 
-const {arrayOf, func, number, oneOfType, shape, string} = PropTypes
+const {arrayOf, bool, func, number, oneOfType, shape, string} = PropTypes
 
 const defaultTableHeight = 1000
 
@@ -117,11 +119,16 @@ const ChronoTable = React.createClass({
     this.setState({activeSeriesIndex})
   },
 
+  handleClickDropdown(item) {
+    this.setState({activeSeriesIndex: item.index})
+  },
+
   render() {
     const {containerWidth, height, query} = this.props
     const {series, columnWidths, isLoading, activeSeriesIndex} = this.state
     const {columns, values} = series[activeSeriesIndex]
 
+    const maximumTabsCount = 11
     // adjust height to proper value by subtracting the heights of the UI around it
     // tab height, graph-container vertical padding, graph-heading height, multitable-header height
     const stylePixelOffset = 136
@@ -139,23 +146,36 @@ const ChronoTable = React.createClass({
     }
 
     if (isLoading) {
-      return <div className="generic-empty-state">Loading</div>
+      return <div className="generic-empty-state">Loading...</div>
     }
 
     return (
       <div>
-        {series.length > 1
-          ? <div className="table--tabs">
-              {series.map(({name}, i) => (
-                <TabItem
-                  key={i}
-                  name={name}
-                  index={i}
-                  onClickTab={this.handleClickTab}
-                />
-              ))}
-            </div>
-          : null}
+        {
+          series.length < maximumTabsCount ?
+             (
+              <div className="table--tabs">
+                {series.map(({name}, i) => (
+                  <TabItem
+                    isActive={i === activeSeriesIndex}
+                    key={i}
+                    name={name}
+                    index={i}
+                    onClickTab={this.handleClickTab}
+                  />
+                ))}
+              </div>
+            ) :
+           (
+            <Dropdown
+              className="dropdown-160 table--tabs-dropdown"
+              items={series.map((s, index) => ({...s, text: s.name, index}))}
+              onChoose={this.handleClickDropdown}
+              selected={series[activeSeriesIndex].name}
+              buttonSize="btn-xs"
+            />
+          )
+        }
         <div className="table--tabs-content">
           {(columns && !columns.length) || (values && !values.length)
             ? <div className="generic-empty-state">
@@ -196,8 +216,8 @@ const ChronoTable = React.createClass({
   },
 })
 
-const TabItem = ({name, index, onClickTab}) => (
-  <div className="query-maker--tab" onClick={() => onClickTab(index)}>
+const TabItem = ({name, index, onClickTab, isActive}) => (
+  <div className={classNames('table--tab', {active: isActive})} onClick={() => onClickTab(index)}>
     {name}
   </div>
 )
@@ -206,6 +226,7 @@ TabItem.propTypes = {
   name: string,
   onClickTab: func.isRequired,
   index: number.isRequired,
+  isActive: bool,
 }
 
 export default Dimensions({elementResize: true})(ChronoTable)
