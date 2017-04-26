@@ -4,6 +4,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/influxdata/influxdb/monitor/diagnostics"
 	"github.com/influxdata/influxdb/toml"
 )
 
@@ -48,4 +49,19 @@ func (c Config) Validate() error {
 	}
 
 	return nil
+}
+
+// Diagnostics returns a diagnostics representation of a subset of the Config.
+func (c Config) Diagnostics() (*diagnostics.Diagnostics, error) {
+	if !c.Enabled {
+		return diagnostics.RowFromMap(map[string]interface{}{
+			"enabled": false,
+		}), nil
+	}
+
+	return diagnostics.RowFromMap(map[string]interface{}{
+		"enabled":        true,
+		"check-interval": c.CheckInterval,
+		"advance-period": c.AdvancePeriod,
+	}), nil
 }

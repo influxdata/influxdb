@@ -71,3 +71,6 @@ integration/migration_data/
 man/*.xml
 man/*.1
 man/*.1.gz
+
+# test outputs
+/test-results.xml

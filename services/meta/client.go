@@ -20,7 +20,7 @@ import (
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/influxql"
-	"go.uber.org/zap"
+	"github.com/uber-go/zap"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -547,13 +547,7 @@ func (c *Client) UserPrivilege(username, database string) (*influxql.Privilege, 
 func (c *Client) AdminUserExists() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-
-	for _, u := range c.cacheData.Users {
-		if u.Admin {
-			return true
-		}
-	}
-	return false
+	return c.cacheData.AdminUserExists()
 }
 
 // Authenticate returns a UserInfo if the username and password match an existing entry.

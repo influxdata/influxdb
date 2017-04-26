@@ -3,11 +3,23 @@ package influxql
 type iteratorMapper struct {
 	e         *Emitter
 	buf       []interface{}
-	fields    []int // which iterator to use for an aux field
+	fields    []IteratorMap // which iterator to use for an aux field
 	auxFields []interface{}
 }
 
-func NewIteratorMapper(itrs []Iterator, fields []int, opt IteratorOptions) Iterator {
+type IteratorMap interface {
+	Value(tags Tags, buf []interface{}) interface{}
+}
+
+type FieldMap int
+
+func (i FieldMap) Value(tags Tags, buf []interface{}) interface{} { return buf[i] }
+
+type TagMap string
+
+func (s TagMap) Value(tags Tags, buf []interface{}) interface{} { return tags.Value(string(s)) }
+
+func NewIteratorMapper(itrs []Iterator, fields []IteratorMap, opt IteratorOptions) Iterator {
 	e := NewEmitter(itrs, opt.Ascending, 0)
 	e.OmitTime = true
 	return &iteratorMapper{
@@ -26,7 +38,7 @@ func (itr *iteratorMapper) Next() (*FloatPoint, error) {
 
 	itr.e.readInto(t, name, tags, itr.buf)
 	for i, f := range itr.fields {
-		itr.auxFields[i] = itr.buf[f]
+		itr.auxFields[i] = f.Value(tags, itr.buf)
 	}
 	return &FloatPoint{
 		Name: name,

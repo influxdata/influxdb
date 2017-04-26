@@ -5,12 +5,16 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/influxdata/influxdb/monitor/diagnostics"
 	"github.com/influxdata/influxdb/toml"
 )
 
 const (
 	// DefaultEngine is the default engine for new shards
 	DefaultEngine = "tsm1"
+
+	// DefaultIndex is the default index for new shards
+	DefaultIndex = "inmem"
 
 	// tsdb/engine/wal configuration options
 
@@ -38,6 +42,7 @@ const (
 	DefaultMaxPointsPerBlock = 1000
 
 	// DefaultMaxSeriesPerDatabase is the maximum number of series a node can hold per database.
+	// This limit only applies to the "inmem" index.
 	DefaultMaxSeriesPerDatabase = 1000000
 
 	// DefaultMaxValuesPerTag is the maximum number of values a tag can have within a measurement.
@@ -48,9 +53,15 @@ const (
 type Config struct {
 	Dir    string `toml:"dir"`
 	Engine string `toml:"-"`
+	Index  string `toml:"index-version"`
 
 	// General WAL configuration options
 	WALDir string `toml:"wal-dir"`
+
+	// WALFsyncDelay is the amount of time that a write will wait before fsyncing.  A duration
+	// greater than 0 can be used to batch up multiple fsync calls.  This is useful for slower
+	// disks or when WAL write contention is seen.  A value of 0 fsyncs every write to the WAL.
+	WALFsyncDelay toml.Duration `toml:"wal-fsync-delay"`
 
 	// Query logging
 	QueryLogEnabled bool `toml:"query-log-enabled"`
@@ -65,7 +76,7 @@ type Config struct {
 
 	// MaxSeriesPerDatabase is the maximum number of series a node can hold per database.
 	// When this limit is exceeded, writes return a 'max series per database exceeded' error.
-	// A value of 0 disables the limit.
+	// A value of 0 disables the limit. This limit only applies when using the "inmem" index.
 	MaxSeriesPerDatabase int `toml:"max-series-per-database"`
 
 	// MaxValuesPerTag is the maximum number of tag values a single tag key can have within
@@ -80,6 +91,7 @@ type Config struct {
 func NewConfig() Config {
 	return Config{
 		Engine: DefaultEngine,
+		Index:  DefaultIndex,
 
 		QueryLogEnabled: true,
 
@@ -114,5 +126,31 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("unrecognized engine %s", c.Engine)
 	}
 
+	valid = false
+	for _, e := range RegisteredIndexes() {
+		if e == c.Index {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		return fmt.Errorf("unrecognized index %s", c.Index)
+	}
+
 	return nil
+}
+
+// Diagnostics returns a diagnostics representation of a subset of the Config.
+func (c Config) Diagnostics() (*diagnostics.Diagnostics, error) {
+	return diagnostics.RowFromMap(map[string]interface{}{
+		"dir":                                c.Dir,
+		"wal-dir":                            c.WALDir,
+		"wal-fsync-delay":                    c.WALFsyncDelay,
+		"cache-max-memory-size":              c.CacheMaxMemorySize,
+		"cache-snapshot-memory-size":         c.CacheSnapshotMemorySize,
+		"cache-snapshot-write-cold-duration": c.CacheSnapshotWriteColdDuration,
+		"compact-full-write-cold-duration":   c.CompactFullWriteColdDuration,
+		"max-series-per-database":            c.MaxSeriesPerDatabase,
+		"max-values-per-tag":                 c.MaxValuesPerTag,
+	}), nil
 }

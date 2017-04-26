@@ -10,12 +10,12 @@ import (
 type goRuntime struct{}
 
 func (g *goRuntime) Diagnostics() (*diagnostics.Diagnostics, error) {
-	diagnostics := map[string]interface{}{
+	d := map[string]interface{}{
 		"GOARCH":     runtime.GOARCH,
 		"GOOS":       runtime.GOOS,
 		"GOMAXPROCS": runtime.GOMAXPROCS(-1),
 		"version":    runtime.Version(),
 	}
 
-	return DiagnosticsFromMap(diagnostics), nil
+	return diagnostics.RowFromMap(d), nil
 }

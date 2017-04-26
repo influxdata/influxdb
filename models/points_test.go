@@ -3,6 +3,7 @@ package models_test
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"math"
 	"math/rand"
 	"reflect"
@@ -70,7 +71,7 @@ func TestPoint_AppendString(t *testing.T) {
 
 func testPoint_cube(t *testing.T, f func(p models.Point)) {
 	// heard of a table-driven test? let's make a cube-driven test...
-	tagList := []models.Tags{nil, {models.Tag{Key: []byte("foo"), Value: []byte("bar")}}, tags}
+	tagList := []models.Tags{nil, {models.NewTag([]byte("foo"), []byte("bar"))}, tags}
 	fieldList := []models.Fields{{"a": 42.0}, {"a": 42, "b": "things"}, fields}
 	timeList := []time.Time{time.Time{}, time.Unix(0, 0), time.Unix(-34526, 0), time.Unix(231845, 0), time.Now()}
 
@@ -90,7 +91,7 @@ func testPoint_cube(t *testing.T, f func(p models.Point)) {
 }
 
 func TestTag_Clone(t *testing.T) {
-	tag := models.Tag{Key: []byte("key"), Value: []byte("value")}
+	tag := models.NewTag([]byte("key"), []byte("value"))
 
 	c := tag.Clone()
 
@@ -127,6 +128,25 @@ func BenchmarkNewPoint(b *testing.B) {
 	ts := time.Now()
 	for i := 0; i < b.N; i++ {
 		p, _ = models.NewPoint("measurement", tags, fields, ts)
+	}
+}
+
+func BenchmarkNewPointFromBinary(b *testing.B) {
+	pts, err := models.ParsePointsString("cpu value1=1.0,value2=1.0,value3=3.0,value4=4,value5=\"five\" 1000000000")
+	if err != nil {
+		b.Fatalf("unexpected error ParsePointsString: %v", err)
+	}
+
+	bytes, err := pts[0].MarshalBinary()
+	if err != nil {
+		b.Fatalf("unexpected error MarshalBinary: %v", err)
+	}
+
+	for i := 0; i < b.N; i++ {
+		_, err := models.NewPointFromBytes(bytes)
+		if err != nil {
+			b.Fatalf("unexpected error NewPointsFromBytes: %v", err)
+		}
 	}
 }
 
@@ -2017,6 +2037,13 @@ func TestNewPointsWithBytesWithCorruptData(t *testing.T) {
 	}
 }
 
+func TestNewPointsWithShortBuffer(t *testing.T) {
+	_, err := models.NewPointFromBytes([]byte{0, 0, 0, 3, 4})
+	if err != io.ErrShortBuffer {
+		t.Fatalf("NewPointFromBytes: got: (%v, %v), expected: (nil, error)", p, err)
+	}
+}
+
 func TestNewPointsRejectsEmptyFieldNames(t *testing.T) {
 	if _, err := models.NewPoint("foo", nil, models.Fields{"": 1}, time.Now()); err == nil {
 		t.Fatalf("new point with empty field name. got: nil, expected: error")
@@ -2153,110 +2180,6 @@ m a=2i,b=3i,c=true,d="stuff",e=-0.23,f=123.456
 		if !reflect.DeepEqual(got, exp) {
 			t.Errorf("FieldIterator failed for %#q: got %#v, exp %#v", p.String(), got, exp)
 		}
-	}
-}
-
-func TestPoint_FieldIterator_Delete_Begin(t *testing.T) {
-	points, err := models.ParsePointsString(`m a=1,b=2,c=3`)
-	if err != nil || len(points) != 1 {
-		t.Fatal("failed parsing point")
-	}
-
-	fi := points[0].FieldIterator()
-	fi.Next() // a
-	fi.Delete()
-
-	fi.Reset()
-
-	got := toFields(fi)
-	exp := models.Fields{"b": float64(2), "c": float64(3)}
-
-	if !reflect.DeepEqual(got, exp) {
-		t.Fatalf("Delete failed, got %#v, exp %#v", got, exp)
-	}
-}
-
-func TestPoint_FieldIterator_Delete_Middle(t *testing.T) {
-	points, err := models.ParsePointsString(`m a=1,b=2,c=3`)
-	if err != nil || len(points) != 1 {
-		t.Fatal("failed parsing point")
-	}
-
-	fi := points[0].FieldIterator()
-	fi.Next() // a
-	fi.Next() // b
-	fi.Delete()
-
-	fi.Reset()
-
-	got := toFields(fi)
-	exp := models.Fields{"a": float64(1), "c": float64(3)}
-
-	if !reflect.DeepEqual(got, exp) {
-		t.Fatalf("Delete failed, got %#v, exp %#v", got, exp)
-	}
-}
-
-func TestPoint_FieldIterator_Delete_End(t *testing.T) {
-	points, err := models.ParsePointsString(`m a=1,b=2,c=3`)
-	if err != nil || len(points) != 1 {
-		t.Fatal("failed parsing point")
-	}
-
-	fi := points[0].FieldIterator()
-	fi.Next() // a
-	fi.Next() // b
-	fi.Next() // c
-	fi.Delete()
-
-	fi.Reset()
-
-	got := toFields(fi)
-	exp := models.Fields{"a": float64(1), "b": float64(2)}
-
-	if !reflect.DeepEqual(got, exp) {
-		t.Fatalf("Delete failed, got %#v, exp %#v", got, exp)
-	}
-}
-
-func TestPoint_FieldIterator_Delete_Nothing(t *testing.T) {
-	points, err := models.ParsePointsString(`m a=1,b=2,c=3`)
-	if err != nil || len(points) != 1 {
-		t.Fatal("failed parsing point")
-	}
-
-	fi := points[0].FieldIterator()
-	fi.Delete()
-
-	fi.Reset()
-
-	got := toFields(fi)
-	exp := models.Fields{"a": float64(1), "b": float64(2), "c": float64(3)}
-
-	if !reflect.DeepEqual(got, exp) {
-		t.Fatalf("Delete failed, got %#v, exp %#v", got, exp)
-	}
-}
-
-func TestPoint_FieldIterator_Delete_Twice(t *testing.T) {
-	points, err := models.ParsePointsString(`m a=1,b=2,c=3`)
-	if err != nil || len(points) != 1 {
-		t.Fatal("failed parsing point")
-	}
-
-	fi := points[0].FieldIterator()
-	fi.Next() // a
-	fi.Next() // b
-	fi.Delete()
-	fi.Delete() // no-op
-
-	fi.Reset()
-
-	got := toFields(fi)
-	exp := models.Fields{"a": float64(1), "c": float64(3)}
-
-	if !reflect.DeepEqual(got, exp) {
-		t.Fatalf("Delete failed, got %#v, exp %#v", got, exp)
 	}
 }
 

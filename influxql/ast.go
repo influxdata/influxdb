@@ -75,6 +75,16 @@ func InspectDataTypes(a []interface{}) []DataType {
 	return dta
 }
 
+// LessThan returns true if the other DataType has greater precedence than the
+// current data type. Unknown has the lowest precedence.
+//
+// NOTE: This is not the same as using the `<` or `>` operator because the
+// integers used decrease with higher precedence, but Unknown is the lowest
+// precedence at the zero value.
+func (d DataType) LessThan(other DataType) bool {
+	return d == Unknown || (other != Unknown && other < d)
+}
+
 // String returns the human-readable string representation of the DataType.
 func (d DataType) String() string {
 	switch d {
@@ -584,6 +594,11 @@ func (s *DropRetentionPolicyStatement) RequiredPrivileges() (ExecutionPrivileges
 	return ExecutionPrivileges{{Admin: false, Name: s.Database, Privilege: WritePrivilege}}, nil
 }
 
+// DefaultDatabase returns the default database from the statement.
+func (s *DropRetentionPolicyStatement) DefaultDatabase() string {
+	return s.Database
+}
+
 // CreateUserStatement represents a command for creating a new user.
 type CreateUserStatement struct {
 	// Name of the user to be created.
@@ -694,6 +709,11 @@ func (s *GrantStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
 	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}, nil
 }
 
+// DefaultDatabase returns the default database from the statement.
+func (s *GrantStatement) DefaultDatabase() string {
+	return s.On
+}
+
 // GrantAdminStatement represents a command for granting admin privilege.
 type GrantAdminStatement struct {
 	// Who to grant the privilege to.
@@ -792,6 +812,11 @@ func (s *RevokeStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
 	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}, nil
 }
 
+// DefaultDatabase returns the default database from the statement.
+func (s *RevokeStatement) DefaultDatabase() string {
+	return s.On
+}
+
 // RevokeAdminStatement represents a command to revoke admin privilege from a user.
 type RevokeAdminStatement struct {
 	// Who to revoke admin privilege from.
@@ -858,6 +883,11 @@ func (s *CreateRetentionPolicyStatement) RequiredPrivileges() (ExecutionPrivileg
 	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}, nil
 }
 
+// DefaultDatabase returns the default database from the statement.
+func (s *CreateRetentionPolicyStatement) DefaultDatabase() string {
+	return s.Database
+}
+
 // AlterRetentionPolicyStatement represents a command to alter an existing retention policy.
 type AlterRetentionPolicyStatement struct {
 	// Name of policy to alter.
@@ -912,6 +942,11 @@ func (s *AlterRetentionPolicyStatement) String() string {
 // RequiredPrivileges returns the privilege required to execute an AlterRetentionPolicyStatement.
 func (s *AlterRetentionPolicyStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
 	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}, nil
+}
+
+// DefaultDatabase returns the default database from the statement.
+func (s *AlterRetentionPolicyStatement) DefaultDatabase() string {
+	return s.Database
 }
 
 // FillOption represents different options for filling aggregate windows.
@@ -973,6 +1008,9 @@ type SelectStatement struct {
 
 	// The value to fill empty aggregate buckets with, if any.
 	FillValue interface{}
+
+	// The timezone for the query, if any.
+	Location *time.Location
 
 	// Renames the implicit time field name.
 	TimeAlias string
@@ -1263,6 +1301,26 @@ func (s *SelectStatement) RewriteFields(m FieldMapper) (*SelectStatement, error)
 						Alias: fmt.Sprintf("%s_%s", f.Name(), ref.Val),
 					})
 				}
+			case *BinaryExpr:
+				// Search for regexes or wildcards within the binary
+				// expression. If we find any, throw an error indicating that
+				// it's illegal.
+				var regex, wildcard bool
+				WalkFunc(expr, func(n Node) {
+					switch n.(type) {
+					case *RegexLiteral:
+						regex = true
+					case *Wildcard:
+						wildcard = true
+					}
+				})
+
+				if wildcard {
+					return nil, fmt.Errorf("unsupported expression with wildcard: %s", f.Expr)
+				} else if regex {
+					return nil, fmt.Errorf("unsupported expression with regex field: %s", f.Expr)
+				}
+				rwFields = append(rwFields, f)
 			default:
 				rwFields = append(rwFields, f)
 			}
@@ -1620,6 +1678,9 @@ func (s *SelectStatement) String() string {
 	if s.SOffset > 0 {
 		_, _ = fmt.Fprintf(&buf, " SOFFSET %d", s.SOffset)
 	}
+	if s.Location != nil {
+		_, _ = fmt.Fprintf(&buf, ` TZ('%s')`, s.Location)
+	}
 	return buf.String()
 }
 
@@ -1701,6 +1762,10 @@ func (s *SelectStatement) validate(tr targetRequirement) error {
 	}
 
 	if err := s.validateAggregates(tr); err != nil {
+		return err
+	}
+
+	if err := s.validateFill(); err != nil {
 		return err
 	}
 
@@ -1890,7 +1955,7 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 	for _, f := range s.Fields {
 		for _, expr := range walkFunctionCalls(f.Expr) {
 			switch expr.Name {
-			case "derivative", "non_negative_derivative", "difference", "moving_average", "cumulative_sum", "elapsed":
+			case "derivative", "non_negative_derivative", "difference", "non_negative_difference", "moving_average", "cumulative_sum", "elapsed":
 				if err := s.validSelectWithAggregate(); err != nil {
 					return err
 				}
@@ -1906,7 +1971,7 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 							return fmt.Errorf("second argument to %s must be a duration, got %T", expr.Name, expr.Args[1])
 						}
 					}
-				case "difference", "cumulative_sum":
+				case "difference", "non_negative_difference", "cumulative_sum":
 					if got := len(expr.Args); got != 1 {
 						return fmt.Errorf("invalid number of arguments for %s, expected 1, got %d", expr.Name, got)
 					}
@@ -1979,6 +2044,20 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 			case "sample":
 				if err := s.validSampleAggr(expr); err != nil {
 					return err
+				}
+			case "integral":
+				if err := s.validSelectWithAggregate(); err != nil {
+					return err
+				}
+				if min, max, got := 1, 2, len(expr.Args); got > max || got < min {
+					return fmt.Errorf("invalid number of arguments for %s, expected at least %d but no more than %d, got %d", expr.Name, min, max, got)
+				}
+				// If a duration arg is passed, make sure it's a duration
+				if len(expr.Args) == 2 {
+					// Second must be a duration .e.g (1h)
+					if _, ok := expr.Args[1].(*DurationLiteral); !ok {
+						return errors.New("second argument must be a duration")
+					}
 				}
 			case "holt_winters", "holt_winters_with_fit":
 				if exp, got := 3, len(expr.Args); got != exp {
@@ -2062,6 +2141,20 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 	return nil
 }
 
+// validateFill ensures that the fill option matches the query type.
+func (s *SelectStatement) validateFill() error {
+	info := newSelectInfo(s)
+	if len(info.calls) == 0 {
+		switch s.Fill {
+		case NoFill:
+			return errors.New("fill(none) must be used with a function")
+		case LinearFill:
+			return errors.New("fill(linear) must be used with a function")
+		}
+	}
+	return nil
+}
+
 // validateTimeExpression ensures that any select statements that have a group
 // by interval either have a time expression limiting the time range or have a
 // parent query that does that.
@@ -2112,7 +2205,7 @@ func (s *SelectStatement) validateGroupByInterval() error {
 		switch expr := f.Expr.(type) {
 		case *Call:
 			switch expr.Name {
-			case "derivative", "non_negative_derivative", "difference", "moving_average", "cumulative_sum", "elapsed", "holt_winters", "holt_winters_with_fit":
+			case "derivative", "non_negative_derivative", "difference", "non_negative_difference", "moving_average", "cumulative_sum", "elapsed", "holt_winters", "holt_winters_with_fit":
 				// If the first argument is a call, we needed a group by interval and we don't have one.
 				if _, ok := expr.Args[0].(*Call); ok {
 					return fmt.Errorf("%s aggregate requires a GROUP BY interval", expr.Name)
@@ -2490,6 +2583,14 @@ func (s *DeleteStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
 	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: WritePrivilege}}, nil
 }
 
+// DefaultDatabase returns the default database from the statement.
+func (s *DeleteStatement) DefaultDatabase() string {
+	if m, ok := s.Source.(*Measurement); ok {
+		return m.Database
+	}
+	return ""
+}
+
 // ShowSeriesStatement represents a command for listing series in the database.
 type ShowSeriesStatement struct {
 	// Database to query. If blank, use the default database.
@@ -2549,6 +2650,11 @@ func (s *ShowSeriesStatement) String() string {
 // RequiredPrivileges returns the privilege required to execute a ShowSeriesStatement.
 func (s *ShowSeriesStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
 	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: ReadPrivilege}}, nil
+}
+
+// DefaultDatabase returns the default database from the statement.
+func (s *ShowSeriesStatement) DefaultDatabase() string {
+	return s.Database
 }
 
 // DropSeriesStatement represents a command for removing a series from the database.
@@ -2774,6 +2880,11 @@ func (s *DropContinuousQueryStatement) RequiredPrivileges() (ExecutionPrivileges
 	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: WritePrivilege}}, nil
 }
 
+// DefaultDatabase returns the default database from the statement.
+func (s *DropContinuousQueryStatement) DefaultDatabase() string {
+	return s.Database
+}
+
 // ShowMeasurementsStatement represents a command for listing measurements.
 type ShowMeasurementsStatement struct {
 	// Database to query. If blank, use the default database.
@@ -2838,6 +2949,11 @@ func (s *ShowMeasurementsStatement) RequiredPrivileges() (ExecutionPrivileges, e
 	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: ReadPrivilege}}, nil
 }
 
+// DefaultDatabase returns the default database from the statement.
+func (s *ShowMeasurementsStatement) DefaultDatabase() string {
+	return s.Database
+}
+
 // DropMeasurementStatement represents a command to drop a measurement.
 type DropMeasurementStatement struct {
 	// Name of the measurement to be dropped.
@@ -2890,6 +3006,11 @@ func (s *ShowRetentionPoliciesStatement) String() string {
 // RequiredPrivileges returns the privilege(s) required to execute a ShowRetentionPoliciesStatement
 func (s *ShowRetentionPoliciesStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
 	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: ReadPrivilege}}, nil
+}
+
+// DefaultDatabase returns the default database from the statement.
+func (s *ShowRetentionPoliciesStatement) DefaultDatabase() string {
+	return s.Database
 }
 
 // ShowStatsStatement displays statistics for a given module.
@@ -2993,6 +3114,11 @@ func (s *CreateSubscriptionStatement) RequiredPrivileges() (ExecutionPrivileges,
 	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}, nil
 }
 
+// DefaultDatabase returns the default database from the statement.
+func (s *CreateSubscriptionStatement) DefaultDatabase() string {
+	return s.Database
+}
+
 // DropSubscriptionStatement represents a command to drop a subscription to the incoming data stream.
 type DropSubscriptionStatement struct {
 	Name            string
@@ -3008,6 +3134,11 @@ func (s *DropSubscriptionStatement) String() string {
 // RequiredPrivileges returns the privilege required to execute a DropSubscriptionStatement
 func (s *DropSubscriptionStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
 	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}, nil
+}
+
+// DefaultDatabase returns the default database from the statement.
+func (s *DropSubscriptionStatement) DefaultDatabase() string {
+	return s.Database
 }
 
 // ShowSubscriptionsStatement represents a command to show a list of subscriptions.
@@ -3097,6 +3228,11 @@ func (s *ShowTagKeysStatement) RequiredPrivileges() (ExecutionPrivileges, error)
 	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: ReadPrivilege}}, nil
 }
 
+// DefaultDatabase returns the default database from the statement.
+func (s *ShowTagKeysStatement) DefaultDatabase() string {
+	return s.Database
+}
+
 // ShowTagValuesStatement represents a command for listing tag values.
 type ShowTagValuesStatement struct {
 	// Database to query. If blank, use the default database.
@@ -3171,6 +3307,11 @@ func (s *ShowTagValuesStatement) RequiredPrivileges() (ExecutionPrivileges, erro
 	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: ReadPrivilege}}, nil
 }
 
+// DefaultDatabase returns the default database from the statement.
+func (s *ShowTagValuesStatement) DefaultDatabase() string {
+	return s.Database
+}
+
 // ShowUsersStatement represents a command for listing users.
 type ShowUsersStatement struct{}
 
@@ -3235,6 +3376,11 @@ func (s *ShowFieldKeysStatement) String() string {
 // RequiredPrivileges returns the privilege(s) required to execute a ShowFieldKeysStatement.
 func (s *ShowFieldKeysStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
 	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: ReadPrivilege}}, nil
+}
+
+// DefaultDatabase returns the default database from the statement.
+func (s *ShowFieldKeysStatement) DefaultDatabase() string {
+	return s.Database
 }
 
 // Fields represents a list of fields.
@@ -3927,8 +4073,8 @@ func TimeRange(expr Expr) (min, max time.Time, err error) {
 				if min.IsZero() || value.After(min) {
 					min = value
 				}
-				if max.IsZero() || value.Add(1*time.Nanosecond).Before(max) {
-					max = value.Add(1 * time.Nanosecond)
+				if max.IsZero() || value.Before(max) {
+					max = value
 				}
 			}
 		}
@@ -4244,6 +4390,18 @@ func Eval(expr Expr, m map[string]interface{}) interface{} {
 func evalBinaryExpr(expr *BinaryExpr, m map[string]interface{}) interface{} {
 	lhs := Eval(expr.LHS, m)
 	rhs := Eval(expr.RHS, m)
+	if lhs == nil && rhs != nil {
+		// When the LHS is nil and the RHS is a boolean, implicitly cast the
+		// nil to false.
+		if _, ok := rhs.(bool); ok {
+			lhs = false
+		}
+	} else if lhs != nil && rhs == nil {
+		// Implicit cast of the RHS nil to false when the LHS is a boolean.
+		if _, ok := lhs.(bool); ok {
+			rhs = false
+		}
+	}
 
 	// Evaluate if both sides are simple types.
 	switch lhs := lhs.(type) {
@@ -4254,6 +4412,12 @@ func evalBinaryExpr(expr *BinaryExpr, m map[string]interface{}) interface{} {
 			return ok && (lhs && rhs)
 		case OR:
 			return ok && (lhs || rhs)
+		case BITWISE_AND:
+			return ok && (lhs && rhs)
+		case BITWISE_OR:
+			return ok && (lhs || rhs)
+		case BITWISE_XOR:
+			return ok && (lhs != rhs)
 		case EQ:
 			return ok && (lhs == rhs)
 		case NEQ:
@@ -4388,22 +4552,49 @@ func evalBinaryExpr(expr *BinaryExpr, m map[string]interface{}) interface{} {
 					return int64(0)
 				}
 				return lhs % rhs
+			case BITWISE_AND:
+				if !ok {
+					return nil
+				}
+				return lhs & rhs
+			case BITWISE_OR:
+				if !ok {
+					return nil
+				}
+				return lhs | rhs
+			case BITWISE_XOR:
+				if !ok {
+					return nil
+				}
+				return lhs ^ rhs
 			}
 		}
 	case string:
 		switch expr.Op {
 		case EQ:
 			rhs, ok := rhs.(string)
-			return ok && lhs == rhs
+			if !ok {
+				return nil
+			}
+			return lhs == rhs
 		case NEQ:
 			rhs, ok := rhs.(string)
-			return ok && lhs != rhs
+			if !ok {
+				return nil
+			}
+			return lhs != rhs
 		case EQREGEX:
 			rhs, ok := rhs.(*regexp.Regexp)
-			return ok && rhs.MatchString(lhs)
+			if !ok {
+				return nil
+			}
+			return rhs.MatchString(lhs)
 		case NEQREGEX:
 			rhs, ok := rhs.(*regexp.Regexp)
-			return ok && !rhs.MatchString(lhs)
+			if !ok {
+				return nil
+			}
+			return !rhs.MatchString(lhs)
 		}
 	}
 	return nil
@@ -4442,15 +4633,13 @@ func EvalType(expr Expr, sources Sources, typmap TypeMapper) DataType {
 		for _, src := range sources {
 			switch src := src.(type) {
 			case *Measurement:
-				t := typmap.MapType(src, expr.Val)
-				if typ == Unknown || t < typ {
+				if t := typmap.MapType(src, expr.Val); typ.LessThan(t) {
 					typ = t
 				}
 			case *SubQuery:
 				_, e := src.Statement.FieldExprByName(expr.Val)
 				if e != nil {
-					t := EvalType(e, src.Statement.Sources, typmap)
-					if typ == Unknown || t < typ {
+					if t := EvalType(e, src.Statement.Sources, typmap); typ.LessThan(t) {
 						typ = t
 					}
 				}
@@ -4467,7 +4656,7 @@ func EvalType(expr Expr, sources Sources, typmap TypeMapper) DataType {
 		return typ
 	case *Call:
 		switch expr.Name {
-		case "mean", "median":
+		case "mean", "median", "integral":
 			return Float
 		case "count":
 			return Integer
@@ -4639,6 +4828,12 @@ func reduceBinaryExprBooleanLHS(op Token, lhs *BooleanLiteral, rhs Expr) Expr {
 			return &BooleanLiteral{Val: lhs.Val && rhs.Val}
 		case OR:
 			return &BooleanLiteral{Val: lhs.Val || rhs.Val}
+		case BITWISE_AND:
+			return &BooleanLiteral{Val: lhs.Val && rhs.Val}
+		case BITWISE_OR:
+			return &BooleanLiteral{Val: lhs.Val || rhs.Val}
+		case BITWISE_XOR:
+			return &BooleanLiteral{Val: lhs.Val != rhs.Val}
 		}
 	case *nilLiteral:
 		return &BooleanLiteral{Val: false}
@@ -4732,6 +4927,12 @@ func reduceBinaryExprIntegerLHS(op Token, lhs *IntegerLiteral, rhs Expr) Expr {
 				return &IntegerLiteral{Val: 0}
 			}
 			return &IntegerLiteral{Val: lhs.Val % rhs.Val}
+		case BITWISE_AND:
+			return &IntegerLiteral{Val: lhs.Val & rhs.Val}
+		case BITWISE_OR:
+			return &IntegerLiteral{Val: lhs.Val | rhs.Val}
+		case BITWISE_XOR:
+			return &IntegerLiteral{Val: lhs.Val ^ rhs.Val}
 		case EQ:
 			return &BooleanLiteral{Val: lhs.Val == rhs.Val}
 		case NEQ:

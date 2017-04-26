@@ -26,6 +26,9 @@ const (
 	// MaxTime is used as the maximum time value when computing an unbounded range.
 	// This time is 2262-04-11 23:47:16.854775806 +0000 UTC
 	MaxTime = models.MaxNanoTime
+
+	// secToNs is the number of nanoseconds in a second.
+	secToNs = int64(time.Second)
 )
 
 // Iterator represents a generic interface for all Iterators.
@@ -657,6 +660,7 @@ type IteratorOptions struct {
 	Interval   Interval
 	Dimensions []string            // The final dimensions of the query (stays the same even in subqueries).
 	GroupBy    map[string]struct{} // Dimensions to group points by in intermediate iterators.
+	Location   *time.Location
 
 	// Fill options.
 	Fill      FillOption
@@ -718,6 +722,7 @@ func newIteratorOptionsStmt(stmt *SelectStatement, sopt *SelectOptions) (opt Ite
 			opt.EndTime = MaxTime
 		}
 	}
+	opt.Location = stmt.Location
 
 	// Determine group by interval.
 	interval, err := stmt.GroupByInterval()
@@ -839,6 +844,13 @@ func (opt IteratorOptions) Window(t int64) (start, end int64) {
 	// Subtract the offset to the time so we calculate the correct base interval.
 	t -= int64(opt.Interval.Offset)
 
+	// Retrieve the zone offset for the start time.
+	var startOffset int64
+	if opt.Location != nil {
+		_, startOffset = opt.Zone(t)
+		t += startOffset
+	}
+
 	// Truncate time by duration.
 	dt := t % int64(opt.Interval.Duration)
 	if dt < 0 {
@@ -846,11 +858,50 @@ func (opt IteratorOptions) Window(t int64) (start, end int64) {
 		// with the duration.
 		dt += int64(opt.Interval.Duration)
 	}
-	t -= dt
 
-	// Apply the offset.
-	start = t + int64(opt.Interval.Offset)
-	end = start + int64(opt.Interval.Duration)
+	// Find the start time.
+	if MinTime+dt >= t {
+		start = MinTime
+	} else {
+		start = t - dt
+	}
+
+	// Look for the start offset again because the first time may have been
+	// after the offset switch. Now that we are at midnight in UTC, we can
+	// lookup the zone offset again to get the real starting offset.
+	if opt.Location != nil {
+		_, adjustedOffset := opt.Zone(start)
+		// Do not adjust the offset if the offset change is greater than or
+		// equal to the duration.
+		if o := startOffset - adjustedOffset; o != 0 && abs(o) < int64(opt.Interval.Duration) {
+			startOffset = adjustedOffset
+		}
+	}
+	start += int64(opt.Interval.Offset) - startOffset
+
+	// Find the end time.
+	if dt := int64(opt.Interval.Duration) - dt; MaxTime-dt <= t {
+		end = MaxTime
+	} else {
+		end = t + dt
+	}
+	end += int64(opt.Interval.Offset) - startOffset
+
+	// Retrieve the zone offset for the end time.
+	if opt.Location != nil {
+		_, endOffset := opt.Zone(end)
+		// Adjust the end time if the offset is different from the start offset.
+		if startOffset != endOffset {
+			offset := startOffset - endOffset
+
+			// Only apply the offset if it is smaller than the duration.
+			// This prevents going back in time and creating time windows
+			// that don't make any sense.
+			if abs(offset) < int64(opt.Interval.Duration) {
+				end += offset
+			}
+		}
+	}
 	return
 }
 
@@ -879,6 +930,16 @@ func (opt IteratorOptions) ElapsedInterval() Interval {
 	return Interval{Duration: time.Nanosecond}
 }
 
+// IntegralInterval returns the time interval for the integral function.
+func (opt IteratorOptions) IntegralInterval() Interval {
+	// Use the interval on the integral() call, if specified.
+	if expr, ok := opt.Expr.(*Call); ok && len(expr.Args) == 2 {
+		return Interval{Duration: expr.Args[1].(*DurationLiteral).Val}
+	}
+
+	return Interval{Duration: time.Second}
+}
+
 // GetDimensions retrieves the dimensions for this query.
 func (opt IteratorOptions) GetDimensions() []string {
 	if len(opt.GroupBy) > 0 {
@@ -889,6 +950,17 @@ func (opt IteratorOptions) GetDimensions() []string {
 		return dimensions
 	}
 	return opt.Dimensions
+}
+
+// Zone returns the zone information for the given time. The offset is in nanoseconds.
+func (opt *IteratorOptions) Zone(ns int64) (string, int64) {
+	if opt.Location == nil {
+		return "", 0
+	}
+
+	t := time.Unix(0, ns).In(opt.Location)
+	name, offset := t.Zone()
+	return name, secToNs * int64(offset)
 }
 
 // MarshalBinary encodes opt into a binary format.
@@ -932,6 +1004,11 @@ func encodeIteratorOptions(opt *IteratorOptions) *internal.IteratorOptions {
 	// Set expression, if set.
 	if opt.Expr != nil {
 		pb.Expr = proto.String(opt.Expr.String())
+	}
+
+	// Set the location, if set.
+	if opt.Location != nil {
+		pb.Location = proto.String(opt.Location.String())
 	}
 
 	// Convert and encode aux fields as variable references.
@@ -999,6 +1076,14 @@ func decodeIteratorOptions(pb *internal.IteratorOptions) (*IteratorOptions, erro
 			return nil, err
 		}
 		opt.Expr = expr
+	}
+
+	if pb.Location != nil {
+		loc, err := time.LoadLocation(pb.GetLocation())
+		if err != nil {
+			return nil, err
+		}
+		opt.Location = loc
 	}
 
 	// Convert and decode variable references.
@@ -1272,3 +1357,10 @@ type reverseStringSlice []string
 func (p reverseStringSlice) Len() int           { return len(p) }
 func (p reverseStringSlice) Less(i, j int) bool { return p[i] > p[j] }
 func (p reverseStringSlice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+
+func abs(v int64) int64 {
+	if v < 0 {
+		return -v
+	}
+	return v
+}

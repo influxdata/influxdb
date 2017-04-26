@@ -13,6 +13,7 @@ const (
 	ILLEGAL Token = iota
 	EOF
 	WS
+	COMMENT
 
 	literalBeg
 	// IDENT and the following are InfluxQL literal tokens.
@@ -32,11 +33,14 @@ const (
 
 	operatorBeg
 	// ADD and the following are InfluxQL Operators
-	ADD // +
-	SUB // -
-	MUL // *
-	DIV // /
-	MOD // %
+	ADD         // +
+	SUB         // -
+	MUL         // *
+	DIV         // /
+	MOD         // %
+	BITWISE_AND // &
+	BITWISE_OR  // |
+	BITWISE_XOR // ^
 
 	AND // AND
 	OR  // OR
@@ -152,11 +156,14 @@ var tokens = [...]string{
 	FALSE:       "FALSE",
 	REGEX:       "REGEX",
 
-	ADD: "+",
-	SUB: "-",
-	MUL: "*",
-	DIV: "/",
-	MOD: "%",
+	ADD:         "+",
+	SUB:         "-",
+	MUL:         "*",
+	DIV:         "/",
+	MOD:         "%",
+	BITWISE_AND: "&",
+	BITWISE_OR:  "|",
+	BITWISE_XOR: "^",
 
 	AND: "AND",
 	OR:  "OR",
@@ -284,9 +291,9 @@ func (tok Token) Precedence() int {
 		return 2
 	case EQ, NEQ, EQREGEX, NEQREGEX, LT, LTE, GT, GTE:
 		return 3
-	case ADD, SUB:
+	case ADD, SUB, BITWISE_OR, BITWISE_XOR:
 		return 4
-	case MUL, DIV, MOD:
+	case MUL, DIV, MOD, BITWISE_AND:
 		return 5
 	}
 	return 0

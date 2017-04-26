@@ -33,3 +33,7 @@ do
         ./test.sh $i
     fi
 done
+
+# Copy the JUnit test XML to the test reports folder.
+mkdir -p $CIRCLE_TEST_REPORTS/reports
+cp test-results.xml $CIRCLE_TEST_REPORTS/reports/test-results.xml

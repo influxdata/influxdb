@@ -434,7 +434,7 @@ func NewTSMWriter(w io.Writer) (TSMWriter, error) {
 		blocks: map[string]*indexEntries{},
 	}
 
-	return &tsmWriter{wrapped: w, w: bufio.NewWriterSize(w, 4*1024*1024), index: index}, nil
+	return &tsmWriter{wrapped: w, w: bufio.NewWriterSize(w, 1024*1024), index: index}, nil
 }
 
 func (t *tsmWriter) writeHeader() error {

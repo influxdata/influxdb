@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"sort"
 	"strconv"
@@ -157,9 +158,6 @@ type FieldIterator interface {
 
 	// FloatValue returns the float value of the current field.
 	FloatValue() (float64, error)
-
-	// Delete deletes the current field.
-	Delete()
 
 	// Reset resets the iterator to its initial state.
 	Reset()
@@ -1257,13 +1255,41 @@ func NewPointFromBytes(b []byte) (Point, error) {
 	if err := p.UnmarshalBinary(b); err != nil {
 		return nil, err
 	}
-	fields, err := p.Fields()
-	if err != nil {
-		return nil, err
+
+	// This does some basic validation to ensure there are fields and they
+	// can be unmarshalled as well.
+	iter := p.FieldIterator()
+	var hasField bool
+	for iter.Next() {
+		if len(iter.FieldKey()) == 0 {
+			continue
+		}
+		hasField = true
+		switch iter.Type() {
+		case Float:
+			_, err := iter.FloatValue()
+			if err != nil {
+				return nil, fmt.Errorf("unable to unmarshal field %s: %s", string(iter.FieldKey()), err)
+			}
+		case Integer:
+			_, err := iter.IntegerValue()
+			if err != nil {
+				return nil, fmt.Errorf("unable to unmarshal field %s: %s", string(iter.FieldKey()), err)
+			}
+		case String:
+			// Skip since this won't return an error
+		case Boolean:
+			_, err := iter.BooleanValue()
+			if err != nil {
+				return nil, fmt.Errorf("unable to unmarshal field %s: %s", string(iter.FieldKey()), err)
+			}
+		}
 	}
-	if len(fields) == 0 {
+
+	if !hasField {
 		return nil, ErrPointMustHaveAField
 	}
+
 	return p, nil
 }
 
@@ -1323,11 +1349,6 @@ func (p *point) Tags() Tags {
 		return p.cachedTags
 	}
 	p.cachedTags = parseTags(p.key)
-
-	for i := range p.cachedTags {
-		p.cachedTags[i].shouldCopy = true
-	}
-
 	return p.cachedTags
 }
 
@@ -1360,9 +1381,9 @@ func parseTags(buf []byte) Tags {
 		}
 
 		if hasEscape {
-			tags = append(tags, Tag{Key: unescapeTag(key), Value: unescapeTag(value)})
+			tags = append(tags, NewTag(unescapeTag(key), unescapeTag(value)))
 		} else {
-			tags = append(tags, Tag{Key: key, Value: value})
+			tags = append(tags, NewTag(key, value))
 		}
 
 		i++
@@ -1497,21 +1518,36 @@ func (p *point) MarshalBinary() ([]byte, error) {
 
 // UnmarshalBinary decodes a binary representation of the point into a point struct.
 func (p *point) UnmarshalBinary(b []byte) error {
-	var i int
-	keyLen := int(binary.BigEndian.Uint32(b[:4]))
-	i += int(4)
+	var n int
 
-	p.key = b[i : i+keyLen]
-	i += keyLen
+	// Read key length.
+	if len(b) < 4 {
+		return io.ErrShortBuffer
+	}
+	n, b = int(binary.BigEndian.Uint32(b[:4])), b[4:]
 
-	fieldLen := int(binary.BigEndian.Uint32(b[i : i+4]))
-	i += int(4)
+	// Read key.
+	if len(b) < n {
+		return io.ErrShortBuffer
+	}
+	p.key, b = b[:n], b[n:]
 
-	p.fields = b[i : i+fieldLen]
-	i += fieldLen
+	// Read fields length.
+	if len(b) < 4 {
+		return io.ErrShortBuffer
+	}
+	n, b = int(binary.BigEndian.Uint32(b[:4])), b[4:]
 
-	p.time = time.Now()
-	p.time.UnmarshalBinary(b[i:])
+	// Read fields.
+	if len(b) < n {
+		return io.ErrShortBuffer
+	}
+	p.fields, b = b[:n], b[n:]
+
+	// Read timestamp.
+	if err := p.time.UnmarshalBinary(b); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -1626,20 +1662,24 @@ func (p *point) Split(size int) []Point {
 type Tag struct {
 	Key   []byte
 	Value []byte
-
-	// shouldCopy returns whether or not a tag should be copied when Clone-ing
-	shouldCopy bool
 }
+
+// NewTag returns a new Tag.
+func NewTag(key, value []byte) Tag {
+	return Tag{
+		Key:   key,
+		Value: value,
+	}
+}
+
+// Size returns the size of the key and value.
+func (t Tag) Size() int { return len(t.Key) + len(t.Value) }
 
 // Clone returns a shallow copy of Tag.
 //
 // Tags associated with a Point created by ParsePointsWithPrecision will hold references to the byte slice that was parsed.
 // Use Clone to create a Tag with new byte slices that do not refer to the argument to ParsePointsWithPrecision.
 func (t Tag) Clone() Tag {
-	if !t.shouldCopy {
-		return t
-	}
-
 	other := Tag{
 		Key:   make([]byte, len(t.Key)),
 		Value: make([]byte, len(t.Value)),
@@ -1649,6 +1689,17 @@ func (t Tag) Clone() Tag {
 	copy(other.Value, t.Value)
 
 	return other
+}
+
+// String returns the string reprsentation of the tag.
+func (t *Tag) String() string {
+	var buf bytes.Buffer
+	buf.WriteByte('{')
+	buf.WriteString(string(t.Key))
+	buf.WriteByte(' ')
+	buf.WriteString(string(t.Value))
+	buf.WriteByte('}')
+	return buf.String()
 }
 
 // Tags represents a sorted list of tags.
@@ -1661,10 +1712,35 @@ func NewTags(m map[string]string) Tags {
 	}
 	a := make(Tags, 0, len(m))
 	for k, v := range m {
-		a = append(a, Tag{Key: []byte(k), Value: []byte(v)})
+		a = append(a, NewTag([]byte(k), []byte(v)))
 	}
 	sort.Sort(a)
 	return a
+}
+
+// String returns the string representation of the tags.
+func (a Tags) String() string {
+	var buf bytes.Buffer
+	buf.WriteByte('[')
+	for i := range a {
+		buf.WriteString(a[i].String())
+		if i < len(a)-1 {
+			buf.WriteByte(' ')
+		}
+	}
+	buf.WriteByte(']')
+	return buf.String()
+}
+
+// Size returns the number of bytes needed to store all tags. Note, this is
+// the number of bytes needed to store all keys and values and does not account
+// for data structures or delimiters for example.
+func (a Tags) Size() int {
+	var total int
+	for _, t := range a {
+		total += t.Size()
+	}
+	return total
 }
 
 // Clone returns a copy of the slice where the elements are a result of calling `Clone` on the original elements
@@ -1676,15 +1752,6 @@ func (a Tags) Clone() Tags {
 		return nil
 	}
 
-	needsClone := false
-	for i := 0; i < len(a) && !needsClone; i++ {
-		needsClone = a[i].shouldCopy
-	}
-
-	if !needsClone {
-		return a
-	}
-
 	others := make(Tags, len(a))
 	for i := range a {
 		others[i] = a[i].Clone()
@@ -1693,14 +1760,45 @@ func (a Tags) Clone() Tags {
 	return others
 }
 
-// Len implements sort.Interface.
-func (a Tags) Len() int { return len(a) }
-
-// Less implements sort.Interface.
+func (a Tags) Len() int           { return len(a) }
 func (a Tags) Less(i, j int) bool { return bytes.Compare(a[i].Key, a[j].Key) == -1 }
+func (a Tags) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
-// Swap implements sort.Interface.
-func (a Tags) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+// Equal returns true if a equals other.
+func (a Tags) Equal(other Tags) bool {
+	if len(a) != len(other) {
+		return false
+	}
+	for i := range a {
+		if !bytes.Equal(a[i].Key, other[i].Key) || !bytes.Equal(a[i].Value, other[i].Value) {
+			return false
+		}
+	}
+	return true
+}
+
+// CompareTags returns -1 if a < b, 1 if a > b, and 0 if a == b.
+func CompareTags(a, b Tags) int {
+	// Compare each key & value until a mismatch.
+	for i := 0; i < len(a) && i < len(b); i++ {
+		if cmp := bytes.Compare(a[i].Key, b[i].Key); cmp != 0 {
+			return cmp
+		}
+		if cmp := bytes.Compare(a[i].Value, b[i].Value); cmp != 0 {
+			return cmp
+		}
+	}
+
+	// If all tags are equal up to this point then return shorter tagset.
+	if len(a) < len(b) {
+		return -1
+	} else if len(a) > len(b) {
+		return 1
+	}
+
+	// All tags are equal.
+	return 0
+}
 
 // Get returns the value for a key.
 func (a Tags) Get(key []byte) []byte {
@@ -1721,9 +1819,9 @@ func (a Tags) GetString(key string) string {
 
 // Set sets the value for a key.
 func (a *Tags) Set(key, value []byte) {
-	for _, t := range *a {
+	for i, t := range *a {
 		if bytes.Equal(t.Key, key) {
-			t.Value = value
+			(*a)[i].Value = value
 			return
 		}
 	}
@@ -1814,6 +1912,37 @@ func (a Tags) HashKey() []byte {
 		idx += len(v)
 	}
 	return b[:idx]
+}
+
+// CopyTags returns a shallow copy of tags.
+func CopyTags(a Tags) Tags {
+	other := make(Tags, len(a))
+	copy(other, a)
+	return other
+}
+
+// DeepCopyTags returns a deep copy of tags.
+func DeepCopyTags(a Tags) Tags {
+	// Calculate size of keys/values in bytes.
+	var n int
+	for _, t := range a {
+		n += len(t.Key) + len(t.Value)
+	}
+
+	// Build single allocation for all key/values.
+	buf := make([]byte, n)
+
+	// Copy tags to new set.
+	other := make(Tags, len(a))
+	for i, t := range a {
+		copy(buf, t.Key)
+		other[i].Key, buf = buf[:len(t.Key)], buf[len(t.Key):]
+
+		copy(buf, t.Value)
+		other[i].Value, buf = buf[:len(t.Value)], buf[len(t.Value):]
+	}
+
+	return other
 }
 
 // Fields represents a mapping between a Point's field names and their
@@ -1917,24 +2046,6 @@ func (p *point) FloatValue() (float64, error) {
 		return 0, fmt.Errorf("unable to parse floating point value %q: %v", p.it.valueBuf, err)
 	}
 	return f, nil
-}
-
-// Delete deletes the current field.
-func (p *point) Delete() {
-	switch {
-	case p.it.end == p.it.start:
-	case p.it.end >= len(p.fields):
-		p.fields = p.fields[:p.it.start]
-	case p.it.start == 0:
-		p.fields = p.fields[p.it.end:]
-	default:
-		p.fields = append(p.fields[:p.it.start], p.fields[p.it.end:]...)
-	}
-
-	p.it.end = p.it.start
-	p.it.key = nil
-	p.it.valueBuf = nil
-	p.it.fieldType = Empty
 }
 
 // Reset resets the iterator to its initial state.

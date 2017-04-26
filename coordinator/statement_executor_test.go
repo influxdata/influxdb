@@ -17,7 +17,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
-	"go.uber.org/zap"
+	"github.com/uber-go/zap"
 )
 
 const (
@@ -310,7 +310,6 @@ type TSDBStore struct {
 	DeleteRetentionPolicyFn func(database, name string) error
 	DeleteShardFn           func(id uint64) error
 	DeleteSeriesFn          func(database string, sources []influxql.Source, condition influxql.Expr) error
-	DatabaseIndexFn         func(name string) *tsdb.DatabaseIndex
 	ShardGroupFn            func(ids []uint64) tsdb.ShardGroup
 }
 
@@ -357,11 +356,11 @@ func (s *TSDBStore) ShardGroup(ids []uint64) tsdb.ShardGroup {
 	return s.ShardGroupFn(ids)
 }
 
-func (s *TSDBStore) DatabaseIndex(name string) *tsdb.DatabaseIndex {
-	return s.DatabaseIndexFn(name)
+func (s *TSDBStore) Measurements(database string, cond influxql.Expr) ([]string, error) {
+	return nil, nil
 }
 
-func (s *TSDBStore) Measurements(database string, cond influxql.Expr) ([]string, error) {
+func (s *TSDBStore) MeasurementNames(database string, cond influxql.Expr) ([][]byte, error) {
 	return nil, nil
 }
 

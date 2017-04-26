@@ -17,12 +17,12 @@ func init() {
 type system struct{}
 
 func (s *system) Diagnostics() (*diagnostics.Diagnostics, error) {
-	diagnostics := map[string]interface{}{
+	d := map[string]interface{}{
 		"PID":         os.Getpid(),
 		"currentTime": time.Now().UTC(),
 		"started":     startTime,
 		"uptime":      time.Since(startTime).String(),
 	}
 
-	return DiagnosticsFromMap(diagnostics), nil
+	return diagnostics.RowFromMap(d), nil
 }

@@ -488,7 +488,6 @@ func TestValues_MergeFloat(t *testing.T) {
 
 	for i, test := range tests {
 		got := tsm1.Values(test.a).Merge(test.b)
-
 		if exp, got := len(test.exp), len(got); exp != got {
 			t.Fatalf("test(%d): value length mismatch: exp %v, got %v", i, exp, got)
 		}
@@ -1366,8 +1365,96 @@ func BenchmarkValues_Merge(b *testing.B) {
 	}
 
 	b.ResetTimer()
+	benchmarkMerge(a, c, b)
+}
+
+func BenchmarkValues_MergeDisjoint(b *testing.B) {
+	valueCount := 1000
+	times := getTimes(valueCount, 60, time.Second)
+	a := make([]tsm1.Value, len(times))
+	c := make([]tsm1.Value, len(times))
+
+	for i, t := range times {
+		a[i] = tsm1.NewValue(t, float64(i))
+		c[i] = tsm1.NewValue(times[len(times)-1]+int64((i+1)*1e9), float64(i))
+	}
+
+	b.ResetTimer()
+	benchmarkMerge(a, c, b)
+}
+
+func BenchmarkValues_MergeSame(b *testing.B) {
+	valueCount := 1000
+	times := getTimes(valueCount, 60, time.Second)
+	a := make([]tsm1.Value, len(times))
+	c := make([]tsm1.Value, len(times))
+
+	for i, t := range times {
+		a[i] = tsm1.NewValue(t, float64(i))
+		c[i] = tsm1.NewValue(t, float64(i))
+	}
+
+	b.ResetTimer()
+	benchmarkMerge(a, c, b)
+}
+
+func BenchmarkValues_MergeSimilar(b *testing.B) {
+	valueCount := 1000
+	times := getTimes(valueCount, 60, time.Second)
+	a := make([]tsm1.Value, len(times))
+	c := make([]tsm1.Value, len(times))
+
+	for i, t := range times {
+		a[i] = tsm1.NewValue(t, float64(i))
+		if i == 0 {
+			t++
+		}
+		c[i] = tsm1.NewValue(t, float64(i))
+	}
+
+	b.ResetTimer()
+	benchmarkMerge(a, c, b)
+}
+
+func BenchmarkValues_MergeUnevenA(b *testing.B) {
+	valueCount := 1000
+	times := getTimes(valueCount, 60, time.Second)
+	a := make([]tsm1.Value, len(times))
+	c := make([]tsm1.Value, len(times))
+
+	for i, t := range times {
+		a[i] = tsm1.NewValue(t, float64(i))
+		c[i] = tsm1.NewValue(t, float64(i))
+	}
+
+	b.ResetTimer()
+	benchmarkMerge(a[:700], c[:10], b)
+}
+
+func BenchmarkValues_MergeUnevenB(b *testing.B) {
+	valueCount := 1000
+	times := getTimes(valueCount, 60, time.Second)
+	a := make([]tsm1.Value, len(times))
+	c := make([]tsm1.Value, len(times))
+
+	for i, t := range times {
+		a[i] = tsm1.NewValue(t, float64(i))
+		c[i] = tsm1.NewValue(t, float64(i))
+	}
+
+	b.ResetTimer()
+	benchmarkMerge(a[:10], c[:700], b)
+}
+
+func benchmarkMerge(a, c tsm1.Values, b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		tsm1.Values(a).Merge(c)
+		b.StopTimer()
+		aa := make(tsm1.Values, len(a))
+		copy(aa, a)
+		cc := make(tsm1.Values, len(c))
+		copy(cc, c)
+		b.StartTimer()
+		tsm1.Values(aa).Merge(tsm1.Values(cc))
 	}
 }
 

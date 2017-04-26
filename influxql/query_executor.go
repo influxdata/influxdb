@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/models"
-	"go.uber.org/zap"
+	"github.com/uber-go/zap"
 )
 
 var (
@@ -44,9 +44,6 @@ const (
 
 // ErrDatabaseNotFound returns a database not found error for the given database name.
 func ErrDatabaseNotFound(name string) error { return fmt.Errorf("database not found: %s", name) }
-
-// ErrMeasurementNotFound returns a measurement not found error for the given measurement name.
-func ErrMeasurementNotFound(name string) error { return fmt.Errorf("measurement not found: %s", name) }
 
 // ErrMaxSelectPointsLimitExceeded is an error when a query hits the maximum number of points.
 func ErrMaxSelectPointsLimitExceeded(n, limit int) error {

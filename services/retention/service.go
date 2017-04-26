@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/services/meta"
-	"go.uber.org/zap"
+	"github.com/uber-go/zap"
 )
 
 // Service represents the retention policy enforcement service.
@@ -119,14 +119,14 @@ func (s *Service) deleteShards() {
 			}
 
 			for _, id := range s.TSDBStore.ShardIDs() {
-				if di, ok := deletedShardIDs[id]; ok {
+				if info, ok := deletedShardIDs[id]; ok {
 					if err := s.TSDBStore.DeleteShard(id); err != nil {
-						s.logger.Info(fmt.Sprintf("failed to delete shard ID %d from database %s, retention policy %s: %s",
-							id, di.db, di.rp, err.Error()))
+						s.logger.Error(fmt.Sprintf("failed to delete shard ID %d from database %s, retention policy %s: %s",
+							id, info.db, info.rp, err.Error()))
 						continue
 					}
 					s.logger.Info(fmt.Sprintf("shard ID %d from database %s, retention policy %s, deleted",
-						id, di.db, di.rp))
+						id, info.db, info.rp))
 				}
 			}
 			if err := s.MetaClient.PruneShardGroups(); err != nil {

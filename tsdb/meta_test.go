@@ -104,7 +104,7 @@ func TestMeasurement_AppendSeriesKeysByID_Missing(t *testing.T) {
 
 func TestMeasurement_AppendSeriesKeysByID_Exists(t *testing.T) {
 	m := tsdb.NewMeasurement("cpu")
-	s := tsdb.NewSeries("cpu,host=foo", models.Tags{models.Tag{Key: []byte("host"), Value: []byte("foo")}})
+	s := tsdb.NewSeries([]byte("cpu,host=foo"), models.Tags{models.NewTag([]byte("host"), []byte("foo"))})
 	s.ID = 1
 	m.AddSeries(s)
 
@@ -122,9 +122,9 @@ func TestMeasurement_AppendSeriesKeysByID_Exists(t *testing.T) {
 func BenchmarkMeasurement_SeriesIDForExp_EQRegex(b *testing.B) {
 	m := tsdb.NewMeasurement("cpu")
 	for i := 0; i < 100000; i++ {
-		s := tsdb.NewSeries("cpu", models.Tags{models.Tag{
-			Key:   []byte("host"),
-			Value: []byte(fmt.Sprintf("host%d", i))}})
+		s := tsdb.NewSeries([]byte("cpu"), models.Tags{models.NewTag(
+			[]byte("host"),
+			[]byte(fmt.Sprintf("host%d", i)))})
 		s.ID = uint64(i)
 		m.AddSeries(s)
 	}
@@ -153,7 +153,7 @@ func BenchmarkMeasurement_SeriesIDForExp_EQRegex(b *testing.B) {
 func BenchmarkMeasurement_SeriesIDForExp_NERegex(b *testing.B) {
 	m := tsdb.NewMeasurement("cpu")
 	for i := 0; i < 100000; i++ {
-		s := tsdb.NewSeries("cpu", models.Tags{models.Tag{
+		s := tsdb.NewSeries([]byte("cpu"), models.Tags{models.Tag{
 			Key:   []byte("host"),
 			Value: []byte(fmt.Sprintf("host%d", i))}})
 		s.ID = uint64(i)
@@ -233,6 +233,7 @@ func benchmarkMarshalTags(b *testing.B, keyN int) {
 	}
 }
 
+/*
 func BenchmarkCreateSeriesIndex_1K(b *testing.B) {
 	benchmarkCreateSeriesIndex(b, genTestSeries(38, 3, 3))
 }
@@ -248,17 +249,22 @@ func BenchmarkCreateSeriesIndex_1M(b *testing.B) {
 func benchmarkCreateSeriesIndex(b *testing.B, series []*TestSeries) {
 	idxs := make([]*tsdb.DatabaseIndex, 0, b.N)
 	for i := 0; i < b.N; i++ {
-		idxs = append(idxs, tsdb.NewDatabaseIndex(fmt.Sprintf("db%d", i)))
+		index, err := tsdb.NewDatabaseIndex(fmt.Sprintf("db%d", i))
+		if err != nil {
+			b.Fatal(err)
+		}
+		idxs = append(idxs, index)
 	}
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		idx := idxs[n]
 		for _, s := range series {
-			idx.CreateSeriesIndexIfNotExists(s.Measurement, s.Series)
+			idx.CreateSeriesIndexIfNotExists(s.Measurement, s.Series, false)
 		}
 	}
 }
+*/
 
 type TestSeries struct {
 	Measurement string
@@ -273,7 +279,7 @@ func genTestSeries(mCnt, tCnt, vCnt int) []*TestSeries {
 		for _, ts := range tagSets {
 			series = append(series, &TestSeries{
 				Measurement: m,
-				Series:      tsdb.NewSeries(fmt.Sprintf("%s:%s", m, string(tsdb.MarshalTags(ts))), models.NewTags(ts)),
+				Series:      tsdb.NewSeries([]byte(fmt.Sprintf("%s:%s", m, string(tsdb.MarshalTags(ts)))), models.NewTags(ts)),
 			})
 		}
 	}

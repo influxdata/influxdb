@@ -17,7 +17,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/influxdata/influxdb/coordinator"
 	"github.com/influxdata/influxdb/monitor"
-	"github.com/influxdata/influxdb/services/admin"
+	"github.com/influxdata/influxdb/monitor/diagnostics"
 	"github.com/influxdata/influxdb/services/collectd"
 	"github.com/influxdata/influxdb/services/continuous_querier"
 	"github.com/influxdata/influxdb/services/graphite"
@@ -44,7 +44,6 @@ type Config struct {
 	Retention   retention.Config   `toml:"retention"`
 	Precreator  precreator.Config  `toml:"shard-precreation"`
 
-	Admin          admin.Config      `toml:"admin"`
 	Monitor        monitor.Config    `toml:"monitor"`
 	Subscriber     subscriber.Config `toml:"subscriber"`
 	HTTPD          httpd.Config      `toml:"http"`
@@ -70,7 +69,6 @@ func NewConfig() *Config {
 	c.Coordinator = coordinator.NewConfig()
 	c.Precreator = precreator.NewConfig()
 
-	c.Admin = admin.NewConfig()
 	c.Monitor = monitor.NewConfig()
 	c.Subscriber = subscriber.NewConfig()
 	c.HTTPD = httpd.NewConfig()
@@ -305,4 +303,61 @@ func (c *Config) applyEnvOverrides(prefix string, spec reflect.Value, structKey 
 		}
 	}
 	return nil
+}
+
+// Diagnostics returns a diagnostics representation of Config.
+func (c *Config) Diagnostics() (*diagnostics.Diagnostics, error) {
+	return diagnostics.RowFromMap(map[string]interface{}{
+		"reporting-disabled": c.ReportingDisabled,
+		"bind-address":       c.BindAddress,
+	}), nil
+}
+
+func (c *Config) diagnosticsClients() map[string]diagnostics.Client {
+	// Config settings that are always present.
+	m := map[string]diagnostics.Client{
+		"config": c,
+
+		"config-data":        c.Data,
+		"config-meta":        c.Meta,
+		"config-coordinator": c.Coordinator,
+		"config-retention":   c.Retention,
+		"config-precreator":  c.Precreator,
+
+		"config-monitor":    c.Monitor,
+		"config-subscriber": c.Subscriber,
+		"config-httpd":      c.HTTPD,
+
+		"config-cqs": c.ContinuousQuery,
+	}
+
+	// Config settings that can be repeated and can be disabled.
+	if g := graphite.Configs(c.GraphiteInputs); g.Enabled() {
+		m["config-graphite"] = g
+	}
+	if cc := collectd.Configs(c.CollectdInputs); cc.Enabled() {
+		m["config-collectd"] = cc
+	}
+	if t := opentsdb.Configs(c.OpenTSDBInputs); t.Enabled() {
+		m["config-opentsdb"] = t
+	}
+	if u := udp.Configs(c.UDPInputs); u.Enabled() {
+		m["config-udp"] = u
+	}
+
+	return m
+}
+
+// registerDiagnostics registers the config settings with the Monitor.
+func (c *Config) registerDiagnostics(m *monitor.Monitor) {
+	for name, dc := range c.diagnosticsClients() {
+		m.RegisterDiagnosticsClient(name, dc)
+	}
+}
+
+// registerDiagnostics deregisters the config settings from the Monitor.
+func (c *Config) deregisterDiagnostics(m *monitor.Monitor) {
+	for name := range c.diagnosticsClients() {
+		m.DeregisterDiagnosticsClient(name)
+	}
 }
