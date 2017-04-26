@@ -80,7 +80,7 @@ const TemplateVariableRow = ({
     <div className="td">
       {values.length
         ? values.map(({value}) => value).join(', ')
-        : '(Query returned no values)'}
+        : '(No values to display)'}
     </div>
     <div className="td" style={{display: 'flex'}}>
       {isEditing
