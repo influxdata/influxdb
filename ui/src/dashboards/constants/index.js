@@ -56,10 +56,10 @@ export const TEMPLATE_TYPES = [
 
 export const TEMPLATE_VARIABLE_QUERIES = {
   databases: 'SHOW DATABASES',
-  measurements: 'SHOW MEASUREMENTS ON $database',
-  fieldKeys: 'SHOW FIELD KEYS ON $database FROM $measurement',
-  tagKeys: 'SHOW TAG KEYS ON $database FROM $measurement',
-  tagValues: 'SHOW TAG VALUES ON $database FROM $measurement WITH KEY=$tagKey',
+  measurements: 'SHOW MEASUREMENTS ON :database:',
+  fieldKeys: 'SHOW FIELD KEYS ON :database: FROM :measurement:',
+  tagKeys: 'SHOW TAG KEYS ON :database: FROM :measurement:',
+  tagValues: 'SHOW TAG VALUES ON :database: FROM :measurement: WITH KEY=:tagKey:',
 }
 
-export const TEMPLATE_MATCHER = /(:\$[a-zA-Z0-9:]*)/g
+export const TEMPLATE_MATCHER = /\B:\B|:\w+\b(?!:)/g
