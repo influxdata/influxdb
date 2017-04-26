@@ -1237,6 +1237,56 @@ func TestEvalType(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: `rounding float to integer`,
+			in:   `round(value)`,
+			typ:  influxql.Integer,
+			data: EvalFixture{
+				"cpu": map[string]influxql.DataType{
+					"value": influxql.Float,
+				},
+			},
+		},
+		{
+			name: `sin(integer) returns float`,
+			in:   `sin(value)`,
+			typ:  influxql.Float,
+			data: EvalFixture{
+				"cpu": map[string]influxql.DataType{
+					"value": influxql.Integer,
+				},
+			},
+		},
+		{
+			name: `pow(integer, 4) returns integer`,
+			in:   `pow(value, 4)`,
+			typ:  influxql.Integer,
+			data: EvalFixture{
+				"cpu": map[string]influxql.DataType{
+					"value": influxql.Integer,
+				},
+			},
+		},
+		{
+			name: `pow(integer, -2) returns float`,
+			in:   `pow(value, -2)`,
+			typ:  influxql.Float,
+			data: EvalFixture{
+				"cpu": map[string]influxql.DataType{
+					"value": influxql.Integer,
+				},
+			},
+		},
+		{
+			name: `pow(integer, 2.2) returns float`,
+			in:   `pow(value, 2.2)`,
+			typ:  influxql.Float,
+			data: EvalFixture{
+				"cpu": map[string]influxql.DataType{
+					"value": influxql.Integer,
+				},
+			},
+		},
 	} {
 		sources := make([]influxql.Source, 0, len(tt.data))
 		for src := range tt.data {

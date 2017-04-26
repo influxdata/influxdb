@@ -1761,6 +1761,10 @@ func (s *SelectStatement) validate(tr targetRequirement) error {
 		return err
 	}
 
+	if err := s.validateValueTransforms(); err != nil {
+		return err
+	}
+
 	if err := s.validateAggregates(tr); err != nil {
 		return err
 	}
@@ -1831,6 +1835,82 @@ func (s *SelectStatement) validateDimensions() error {
 			return errors.New("only time and tag dimensions allowed")
 		}
 	}
+	return nil
+}
+
+func (s *SelectStatement) validateValueTransforms() error {
+	for _, f := range s.Fields {
+		if err := validateValueTransformExpr(f.Expr); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Walks the Expr and returns an error if any of the value transform calls have
+// incorrect arguments.
+func validateValueTransformExpr(exp Expr) error {
+	switch expr := exp.(type) {
+	case *VarRef:
+		return nil
+	case *Call:
+		if !IsValueTransform(expr) {
+			// Don't need to look inside, non-value-transforms don't currently
+			// support nesting a value-transform inside, you have to use a
+			// subquery.
+			return nil
+		}
+		switch expr.Name {
+		case "abs", "exp", "log", "log10", "sqrt", "asin", "acos", "atan", "sin", "cos", "tan", "deg2rad", "rad2deg":
+			if len(expr.Args) != 1 {
+				return fmt.Errorf("%s() must have exactly 1 argument", expr.Name)
+			}
+			return validateValueTransformExpr(expr.Args[0])
+		case "ceiling", "floor", "round":
+			if len(expr.Args) < 1 || len(expr.Args) > 2 {
+				return fmt.Errorf("%s() must have 1 or 2 arguments", expr.Name)
+			}
+			if len(expr.Args) == 2 {
+				switch arg2 := expr.Args[1].(type) {
+				case *IntegerLiteral:
+					if expr.Name != "round" && arg2.Val <= 0 {
+						return fmt.Errorf("second argument to %s() must be > 0, got %s", expr.Name, expr.Args[1])
+					}
+					return validateValueTransformExpr(expr.Args[0])
+				case *NumberLiteral:
+					if expr.Name == "round" {
+						return fmt.Errorf("second argument to %s() must be an integer literal, got %T", expr.Name, expr.Args[1])
+					}
+					return validateValueTransformExpr(expr.Args[0])
+				default:
+					return fmt.Errorf("second argument to %s() must be a numeric literal, got %T", expr.Name, expr.Args[1])
+				}
+			}
+		case "pow":
+			if len(expr.Args) != 2 {
+				return fmt.Errorf("%s() must have exactly 2 arguments", expr.Name)
+			}
+			switch expr.Args[1].(type) {
+			case *IntegerLiteral, *NumberLiteral:
+				return validateValueTransformExpr(expr.Args[0])
+			default:
+				return fmt.Errorf("second argument to %s() must be a numeric literal, got %T", expr.Name, expr.Args[1])
+			}
+		default:
+			return fmt.Errorf("unrecognized value transform %s", expr.Name)
+		}
+	case *BinaryExpr:
+		if err := validateValueTransformExpr(expr.LHS); err != nil {
+			return err
+		}
+		if err := validateValueTransformExpr(expr.RHS); err != nil {
+			return err
+		}
+		return nil
+	case *ParenExpr:
+		return validateValueTransformExpr(expr.Expr)
+	}
+
 	return nil
 }
 
@@ -2494,6 +2574,7 @@ func (s *SelectStatement) FunctionCalls() []*Call {
 }
 
 // FunctionCallsByPosition returns the Call objects from the query in the order they appear in the select statement.
+// TODO(Tomcat-Engineering): this doesn't appear to be used anywhere?
 func (s *SelectStatement) FunctionCallsByPosition() [][]*Call {
 	var a [][]*Call
 	for _, f := range s.Fields {
@@ -2508,7 +2589,9 @@ func walkFunctionCalls(exp Expr) []*Call {
 	case *VarRef:
 		return nil
 	case *Call:
-		return []*Call{expr}
+		if !IsValueTransform(expr) {
+			return []*Call{expr}
+		}
 	case *BinaryExpr:
 		var ret []*Call
 		ret = append(ret, walkFunctionCalls(expr.LHS)...)
@@ -4660,7 +4743,35 @@ func EvalType(expr Expr, sources Sources, typmap TypeMapper) DataType {
 			return Float
 		case "count":
 			return Integer
+		case "exp", "log", "log10", "sqrt", "asin", "acos", "atan", "sin", "cos", "tan", "deg2rad", "rad2deg":
+			return Float
+		case "ceiling", "floor":
+			if len(expr.Args) < 2 {
+				return Integer
+			}
+			if _, ok := expr.Args[1].(*IntegerLiteral); ok {
+				return Integer
+			}
+			return Float
+		case "round":
+			if len(expr.Args) < 2 {
+				return Integer
+			}
+			if a2, ok := expr.Args[1].(*IntegerLiteral); ok && a2.Val <= 0 {
+				return Integer
+			}
+			return Float
+		case "pow":
+			if EvalType(expr.Args[0], sources, typmap) != Integer {
+				return Float
+			}
+			exponent, integerSecondArg := expr.Args[1].(*IntegerLiteral)
+			if integerSecondArg && exponent.Val >= 0 {
+				return Integer
+			}
+			return Float
 		default:
+			// abs() is included in this
 			return EvalType(expr.Args[0], sources, typmap)
 		}
 	case *ParenExpr:
@@ -5298,9 +5409,11 @@ type containsVarRefVisitor struct {
 }
 
 func (v *containsVarRefVisitor) Visit(n Node) Visitor {
-	switch n.(type) {
+	switch n := n.(type) {
 	case *Call:
-		return nil
+		if !IsValueTransform(n) {
+			return nil
+		}
 	case *VarRef:
 		v.contains = true
 	}
@@ -5311,6 +5424,16 @@ func IsSelector(expr Expr) bool {
 	if call, ok := expr.(*Call); ok {
 		switch call.Name {
 		case "first", "last", "min", "max", "percentile", "sample", "top", "bottom":
+			return true
+		}
+	}
+	return false
+}
+
+func IsValueTransform(expr Expr) bool {
+	if call, ok := expr.(*Call); ok {
+		switch call.Name {
+		case "abs", "exp", "log", "log10", "sqrt", "asin", "acos", "atan", "sin", "cos", "tan", "deg2rad", "rad2deg", "ceiling", "floor", "round", "pow":
 			return true
 		}
 	}
