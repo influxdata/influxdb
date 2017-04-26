@@ -49,7 +49,8 @@ export const HostsPage = React.createClass({
               hostsLoading: false,
             })
           })
-          .catch(() => {
+          .catch(error => {
+            console.error(error)
             const reason = 'Unable to get apps for hosts'
             addFlashMessage({type: 'error', text: reason})
             this.setState({

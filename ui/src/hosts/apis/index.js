@@ -108,6 +108,7 @@ export function getAppsForHosts(proxyLink, hosts, appMappings, telegrafDB) {
     appMappings.map(m => m.measurement),
     appMappings.map(m => m.name)
   )
+
   return proxy({
     source: proxyLink,
     query: `show series from /${measurements}/`,
@@ -119,6 +120,7 @@ export function getAppsForHosts(proxyLink, hosts, appMappings, telegrafDB) {
       ['data', 'results', '0', 'series', '0', 'values'],
       []
     )
+
     allSeries.forEach(([series]) => {
       const seriesObj = parseSeries(series)
       const measurement = seriesObj.measurement
@@ -127,12 +129,15 @@ export function getAppsForHosts(proxyLink, hosts, appMappings, telegrafDB) {
       if (!newHosts[host]) {
         return
       }
+
       if (!newHosts[host].apps) {
         newHosts[host].apps = []
       }
+
       if (!newHosts[host].tags) {
         newHosts[host].tags = {}
       }
+
       newHosts[host].apps = _.uniq(
         newHosts[host].apps.concat(measurementsToApps[measurement])
       )
