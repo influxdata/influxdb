@@ -16,7 +16,6 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
-	"github.com/influxdata/influxdb/services/admin"
 	"github.com/influxdata/influxdb/services/collectd"
 	"github.com/influxdata/influxdb/services/continuous_querier"
 	"github.com/influxdata/influxdb/services/graphite"
@@ -252,15 +251,6 @@ func (s *Server) appendRetentionPolicyService(c retention.Config) {
 	s.Services = append(s.Services, srv)
 }
 
-func (s *Server) appendAdminService(c admin.Config) {
-	if !c.Enabled {
-		return
-	}
-	c.Version = s.buildInfo.Version
-	srv := admin.NewService(c)
-	s.Services = append(s.Services, srv)
-}
-
 func (s *Server) appendHTTPDService(c httpd.Config) {
 	if !c.Enabled {
 		return
@@ -374,7 +364,6 @@ func (s *Server) Open() error {
 	s.appendMonitorService()
 	s.appendPrecreatorService(s.config.Precreator)
 	s.appendSnapshotterService()
-	s.appendAdminService(s.config.Admin)
 	s.appendContinuousQueryService(s.config.ContinuousQuery)
 	s.appendHTTPDService(s.config.HTTPD)
 	s.appendRetentionPolicyService(s.config.Retention)

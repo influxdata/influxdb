@@ -26,7 +26,6 @@ func TestMain(m *testing.M) {
 	c.Retention.Enabled = false
 	c.Monitor.StoreEnabled = false
 	c.Meta.LoggingEnabled = false
-	c.Admin.Enabled = false
 	c.Subscriber.Enabled = false
 	c.ContinuousQuery.Enabled = false
 	c.Data.MaxValuesPerTag = 1000000 // 1M

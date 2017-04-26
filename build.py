@@ -156,22 +156,6 @@ def package_man_files(build_root):
         for f in files:
             run("gzip -9n {}".format(os.path.join(path, f)))
 
-def run_generate():
-    """Run 'go generate' to rebuild any static assets.
-    """
-    logging.info("Running 'go generate'...")
-    if not check_path_for("statik"):
-        run("go install github.com/rakyll/statik")
-    orig_path = None
-    if os.path.join(os.environ.get("GOPATH"), "bin") not in os.environ["PATH"].split(os.pathsep):
-        orig_path = os.environ["PATH"].split(os.pathsep)
-        os.environ["PATH"] = os.environ["PATH"].split(os.pathsep).append(os.path.join(os.environ.get("GOPATH"), "bin"))
-    run("rm -f ./services/admin/statik/statik.go")
-    run("go generate ./services/admin")
-    if orig_path is not None:
-        os.environ["PATH"] = orig_path
-    return True
-
 def go_get(branch, update=False, no_uncommitted=False):
     """Retrieve build dependencies or restore pinned dependencies.
     """
@@ -803,10 +787,6 @@ def main(args):
         if not go_get(args.branch, update=args.update, no_uncommitted=args.no_uncommitted):
             return 1
 
-    if args.generate:
-        if not run_generate():
-            return 1
-
     if args.test:
         if not run_tests(args.race, args.parallel, args.timeout, args.no_vet, args.junit_report):
             return 1
@@ -977,9 +957,6 @@ if __name__ == '__main__':
                         type=str,
                         default=DEFAULT_BUCKET,
                         help='Destination bucket for uploads')
-    parser.add_argument('--generate',
-                        action='store_true',
-                        help='Run "go generate" before building')
     parser.add_argument('--build-tags',
                         metavar='<tags>',
                         help='Optional build tags to use for compilation')
