@@ -96,18 +96,20 @@ class QueryEditor extends Component {
     const {tempVar} = selectedTemplate
 
     let templatedValue
-    const prefix = key === 'Enter' ? '' : ':'
     const matched = value.match(TEMPLATE_MATCHER)
     if (matched) {
-      templatedValue = value.replace(TEMPLATE_MATCHER, `${prefix}${tempVar}`)
+      const newTempVar = key === 'Enter'
+        ? tempVar
+        : tempVar.substring(1, tempVar.length - 1)
+      templatedValue = value.replace(TEMPLATE_MATCHER, newTempVar)
     }
 
     const diffInLength = tempVar.length - matched[0].length
 
     this.setState({value: templatedValue, selectedTemplate}, () =>
       this.editor.setSelectionRange(
-        selectionStart + diffInLength + 1,
-        selectionStart + diffInLength + 1
+        selectionStart + diffInLength,
+        selectionStart + diffInLength
       )
     )
   }
