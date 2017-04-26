@@ -23,6 +23,7 @@ import (
 
 	"github.com/influxdata/influxdb/client"
 	"github.com/influxdata/influxdb/importer/v8"
+	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/peterh/liner"
 )
