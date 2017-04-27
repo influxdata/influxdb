@@ -111,14 +111,6 @@ const DashboardsPage = React.createClass({
                             }) :
                             null
                           }
-                          <tr>
-                            <td className="monotype">
-                              <Link to={`${dashboardLink}/kubernetes`}>
-                                {'Kubernetes'}
-                              </Link>
-                            </td>
-                            <td></td>
-                          </tr>
                       </tbody>
                     </table>
                   </div>
