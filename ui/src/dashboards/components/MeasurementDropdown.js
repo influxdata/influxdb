@@ -1,5 +1,4 @@
 import React, {PropTypes, Component} from 'react'
-import _ from 'lodash'
 
 import Dropdown from 'shared/components/Dropdown'
 import {showMeasurements} from 'shared/apis/metaQuery'
