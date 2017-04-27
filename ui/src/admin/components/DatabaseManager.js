@@ -29,46 +29,49 @@ const DatabaseManager = ({
   return (
     <div className="panel panel-info">
       <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-        <h2 className="panel-title">{databases.length === 1 ? '1 Database' : `${databases.length} Databases`}</h2>
-        <button className="btn btn-sm btn-primary" disabled={isAddDBDisabled} onClick={addDatabase}>Create Database</button>
+        <h2 className="panel-title">
+          {databases.length === 1
+            ? '1 Database'
+            : `${databases.length} Databases`}
+        </h2>
+        <button
+          className="btn btn-sm btn-primary"
+          disabled={isAddDBDisabled}
+          onClick={addDatabase}
+        >
+          Create Database
+        </button>
       </div>
       <div className="panel-body">
-        {
-          _.sortBy(databases, ({name}) => name.toLowerCase()).map(db =>
-            <DatabaseTable
-              key={db.links.self}
-              database={db}
-              notify={notify}
-              isRFDisplayed={isRFDisplayed}
-              onEditDatabase={onEditDatabase}
-              onKeyDownDatabase={onKeyDownDatabase}
-              onCancelDatabase={onCancelDatabase}
-              onConfirmDatabase={onConfirmDatabase}
-              onRemoveDeleteCode={onRemoveDeleteCode}
-              onDeleteDatabase={onDeleteDatabase}
-              onStartDeleteDatabase={onStartDeleteDatabase}
-              onDatabaseDeleteConfirm={onDatabaseDeleteConfirm}
-              onAddRetentionPolicy={onAddRetentionPolicy}
-              onStopEditRetentionPolicy={onStopEditRetentionPolicy}
-              onCancelRetentionPolicy={onCancelRetentionPolicy}
-              onCreateRetentionPolicy={onCreateRetentionPolicy}
-              onUpdateRetentionPolicy={onUpdateRetentionPolicy}
-              onRemoveRetentionPolicy={onRemoveRetentionPolicy}
-              onDeleteRetentionPolicy={onDeleteRetentionPolicy}
-            />
-          )
-        }
+        {_.sortBy(databases, ({name}) => name.toLowerCase()).map(db => (
+          <DatabaseTable
+            key={db.links.self}
+            database={db}
+            notify={notify}
+            isRFDisplayed={isRFDisplayed}
+            onEditDatabase={onEditDatabase}
+            onKeyDownDatabase={onKeyDownDatabase}
+            onCancelDatabase={onCancelDatabase}
+            onConfirmDatabase={onConfirmDatabase}
+            onRemoveDeleteCode={onRemoveDeleteCode}
+            onDeleteDatabase={onDeleteDatabase}
+            onStartDeleteDatabase={onStartDeleteDatabase}
+            onDatabaseDeleteConfirm={onDatabaseDeleteConfirm}
+            onAddRetentionPolicy={onAddRetentionPolicy}
+            onStopEditRetentionPolicy={onStopEditRetentionPolicy}
+            onCancelRetentionPolicy={onCancelRetentionPolicy}
+            onCreateRetentionPolicy={onCreateRetentionPolicy}
+            onUpdateRetentionPolicy={onUpdateRetentionPolicy}
+            onRemoveRetentionPolicy={onRemoveRetentionPolicy}
+            onDeleteRetentionPolicy={onDeleteRetentionPolicy}
+          />
+        ))}
       </div>
     </div>
   )
 }
 
-const {
-  arrayOf,
-  bool,
-  func,
-  shape,
-} = PropTypes
+const {arrayOf, bool, func, shape} = PropTypes
 
 DatabaseManager.propTypes = {
   databases: arrayOf(shape()),
