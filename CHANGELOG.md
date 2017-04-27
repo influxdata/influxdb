@@ -7,6 +7,7 @@
 
 ### UI Improvements
   1. [#1335](https://github.com/influxdata/chronograf/pull/1335): Improve UX for sanitized kapacitor settings
+  1. [#1344](https://github.com/influxdata/chronograf/pull/1344): Remove K8 dashboard
 
 ## v1.2.0-beta9 [2017-04-21]
 
