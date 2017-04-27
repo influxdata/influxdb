@@ -122,14 +122,6 @@ export const templateVariableSelected = (dashboardID, templateID, values) => ({
   },
 })
 
-export const editTemplateVariableSuccess = (dashboardID, data) => ({
-  type: 'EDIT_TEMPLATE_VARIABLE_SUCCESS',
-  payload: {
-    dashboardID,
-    data,
-  },
-})
-
 // Async Action Creators
 
 export const getDashboardsAsync = () => async dispatch => {
