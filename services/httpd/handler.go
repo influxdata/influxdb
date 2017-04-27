@@ -38,6 +38,10 @@ const (
 	//
 	// This has no relation to the number of bytes that are returned.
 	DefaultChunkSize = 10000
+
+	DefaultDebugRequestsInterval = 10 * time.Second
+
+	MaxDebugRequestsInterval = 6 * time.Hour
 )
 
 // AuthenticationMethod defines the type of authentication used.
@@ -99,16 +103,19 @@ type Handler struct {
 	Logger    zap.Logger
 	CLFLogger *log.Logger
 	stats     *Statistics
+
+	requestTracker *RequestTracker
 }
 
 // NewHandler returns a new instance of handler with routes.
 func NewHandler(c Config) *Handler {
 	h := &Handler{
-		mux:       pat.New(),
-		Config:    &c,
-		Logger:    zap.New(zap.NullEncoder()),
-		CLFLogger: log.New(os.Stderr, "[httpd] ", 0),
-		stats:     &Statistics{},
+		mux:            pat.New(),
+		Config:         &c,
+		Logger:         zap.New(zap.NullEncoder()),
+		CLFLogger:      log.New(os.Stderr, "[httpd] ", 0),
+		stats:          &Statistics{},
+		requestTracker: NewRequestTracker(),
 	}
 
 	h.AddRoutes([]Route{
@@ -257,6 +264,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	} else if strings.HasPrefix(r.URL.Path, "/debug/vars") {
 		h.serveExpvar(w, r)
+	} else if strings.HasPrefix(r.URL.Path, "/debug/requests") {
+		h.serveDebugRequests(w, r)
 	} else {
 		h.mux.ServeHTTP(w, r)
 	}
@@ -282,6 +291,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 	defer func(start time.Time) {
 		atomic.AddInt64(&h.stats.QueryRequestDuration, time.Since(start).Nanoseconds())
 	}(time.Now())
+	h.requestTracker.Add(r, user)
 
 	// Retrieve the underlying ResponseWriter or initialize our own.
 	rw, ok := w.(ResponseWriter)
@@ -584,6 +594,7 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *meta.
 		atomic.AddInt64(&h.stats.ActiveWriteRequests, -1)
 		atomic.AddInt64(&h.stats.WriteRequestDuration, time.Since(start).Nanoseconds())
 	}(time.Now())
+	h.requestTracker.Add(r, user)
 
 	database := r.URL.Query().Get("db")
 	if database == "" {
@@ -829,6 +840,64 @@ func (h *Handler) serveExpvar(w http.ResponseWriter, r *http.Request) {
 		}
 		first = false
 		fmt.Fprintf(w, "%q: ", key)
+		w.Write(bytes.TrimSpace(val))
+	}
+	fmt.Fprintln(w, "\n}")
+}
+
+// serveDebugRequests will track requests for a period of time.
+func (h *Handler) serveDebugRequests(w http.ResponseWriter, r *http.Request) {
+	var d time.Duration
+	if s := r.URL.Query().Get("seconds"); s == "" {
+		d = DefaultDebugRequestsInterval
+	} else if seconds, err := strconv.ParseInt(s, 10, 64); err != nil {
+		h.httpError(w, err.Error(), http.StatusBadRequest)
+		return
+	} else {
+		d = time.Duration(seconds) * time.Second
+		if d > MaxDebugRequestsInterval {
+			h.httpError(w, fmt.Sprintf("exceeded maximum interval time: %s > %s",
+				influxql.FormatDuration(d),
+				influxql.FormatDuration(MaxDebugRequestsInterval)),
+				http.StatusBadRequest)
+			return
+		}
+	}
+
+	var closing <-chan bool
+	if notifier, ok := w.(http.CloseNotifier); ok {
+		closing = notifier.CloseNotify()
+	}
+
+	profile := h.requestTracker.TrackRequests()
+
+	timer := time.NewTimer(d)
+	select {
+	case <-timer.C:
+		profile.Stop()
+	case <-closing:
+		// Connection was closed early.
+		profile.Stop()
+		timer.Stop()
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Add("Connection", "close")
+
+	fmt.Fprintln(w, "{")
+	first := true
+	for req, st := range profile.Requests {
+		val, err := json.Marshal(st)
+		if err != nil {
+			continue
+		}
+
+		if !first {
+			fmt.Fprintln(w, ",")
+		}
+		first = false
+		fmt.Fprintf(w, "%q: ", req.String())
 		w.Write(bytes.TrimSpace(val))
 	}
 	fmt.Fprintln(w, "\n}")

@@ -24,6 +24,7 @@ The admin UI is removed and unusable in this release. The `[admin]` configuratio
 - [#8327](https://github.com/influxdata/influxdb/pull/8327): Update to go1.8.1
 - [#8348](https://github.com/influxdata/influxdb/pull/8348): Add max concurrent compaction limits
 - [#8366](https://github.com/influxdata/influxdb/pull/8366): Add TSI support tooling.
+- [#8350](https://github.com/influxdata/influxdb/pull/8350): Track HTTP client requests for /write and /query with /debug/requests.
 
 ### Bugfixes
 
