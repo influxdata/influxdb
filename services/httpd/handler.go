@@ -684,9 +684,9 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *meta.
 	} else if parseError != nil {
 		// We wrote some of the points
 		atomic.AddInt64(&h.stats.PointsWrittenOK, int64(len(points)))
-		// The other points failed to parse which means the client sent invalid line protocol.  We return a 400
-		// response code as well as the lines that failed to parse.
-		h.httpError(w, fmt.Sprintf("partial write:\n%v", parseError), http.StatusBadRequest)
+		// The other points failed to parse which means the client sent invalid line protocol.  We return a 202
+		// response code as well as the lines that failed to parse (partial write).
+		h.httpError(w, fmt.Sprintf("partial write:\n%v", parseError), http.StatusAccepted)
 		return
 	}
 
