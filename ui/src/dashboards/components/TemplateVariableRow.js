@@ -183,7 +183,11 @@ const TableInput = ({
           autoFocus={name === autoFocusTarget}
           className="input"
           type="text"
-          defaultValue={defaultValue}
+          defaultValue={
+            name === 'tempVar'
+              ? defaultValue.replace(/\u003a/g, '') // remove ':'s
+              : defaultValue
+          }
         />
       </div>
     : <div className="td" onClick={() => onStartEdit(name)}>{defaultValue}</div>
@@ -226,7 +230,7 @@ class RowWrapper extends Component {
       this.setState({isEditing: false, isNew: false})
 
       const label = e.target.label.value
-      const tempVar = e.target.tempVar.value
+      const tempVar = `\u003a${e.target.tempVar.value}\u003a` // add ':'s
 
       const {
         source,
