@@ -340,7 +340,6 @@ DashboardPage.propTypes = {
       templates: arrayOf(
         shape({
           type: string.isRequired,
-          label: string.isRequired,
           tempVar: string.isRequired,
           query: shape({
             db: string,

@@ -15,8 +15,7 @@ const TemplateVariableTable = ({
       ? <div>
           <div className="thead">
             <div className="tr">
-              <div className="th">Dropdown Label</div>
-              <div className="th">Shortcode</div>
+              <div className="th">Variable</div>
               <div className="th">Type</div>
               <div className="th">Queries</div>
               <div className="th">Values</div>
@@ -51,7 +50,6 @@ TemplateVariableTable.propTypes = {
   templates: arrayOf(
     shape({
       type: string.isRequired,
-      label: string.isRequired,
       tempVar: string.isRequired,
       query: shape({
         db: string,

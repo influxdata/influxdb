@@ -75,7 +75,7 @@ const RowButtons = ({
           // possible onClickOutside, after 'onClick'. this allows
           // us to enter 'isEditing' mode
           e.preventDefault()
-          onStartEdit('label')
+          onStartEdit('tempVar')
         }}
       >
         Edit
@@ -86,7 +86,7 @@ const RowButtons = ({
 }
 
 const TemplateVariableRow = ({
-  template: {id, label, tempVar, values},
+  template: {id, tempVar, values},
   isEditing,
   selectedType,
   selectedDatabase,
@@ -111,13 +111,6 @@ const TemplateVariableRow = ({
       selectedTagKey,
     })}
   >
-    <TableInput
-      name="label"
-      defaultValue={label}
-      isEditing={isEditing}
-      onStartEdit={onStartEdit}
-      autoFocusTarget={autoFocusTarget}
-    />
     <TableInput
       name="tempVar"
       defaultValue={tempVar}
@@ -205,7 +198,7 @@ class RowWrapper extends Component {
       selectedDatabase: query && query.db,
       selectedMeasurement: query && query.measurement,
       selectedTagKey: query && query.tagKey,
-      autoFocusTarget: 'label',
+      autoFocusTarget: 'tempVar',
     }
 
     this.handleSubmit = ::this.handleSubmit
@@ -229,7 +222,6 @@ class RowWrapper extends Component {
 
       this.setState({isEditing: false, isNew: false})
 
-      const label = e.target.label.value
       const tempVar = `\u003a${e.target.tempVar.value}\u003a` // add ':'s
 
       const {
@@ -241,7 +233,6 @@ class RowWrapper extends Component {
 
       const {query, tempVars} = generateTemplateVariableQuery({
         type,
-        label,
         tempVar,
         query: {
           database,
@@ -270,7 +261,7 @@ class RowWrapper extends Component {
         } else {
           parsedData = await this.runTemplateVariableQuery(source, queryConfig)
         }
-        onRunQuerySuccess(template, queryConfig, parsedData, {tempVar, label})
+        onRunQuerySuccess(template, queryConfig, parsedData, tempVar)
       } catch (error) {
         onRunQueryFailure(error)
       }
@@ -387,7 +378,6 @@ RowWrapper.propTypes = {
   }).isRequired,
   template: shape({
     type: string.isRequired,
-    label: string.isRequired,
     tempVar: string.isRequired,
     query: shape({
       db: string,

@@ -78,7 +78,6 @@ class TemplateVariableManagerWrapper extends Component {
       values: [],
       id: uuid.v4(),
       type: 'csv',
-      label: '',
       query: {
         influxql: '',
         db: '',
@@ -94,7 +93,7 @@ class TemplateVariableManagerWrapper extends Component {
     this.setState({rows: newRows})
   }
 
-  onRunQuerySuccess(template, queryConfig, parsedData, {tempVar, label}) {
+  onRunQuerySuccess(template, queryConfig, parsedData, tempVar) {
     const {rows} = this.state
     const {id, links} = template
     const {
@@ -136,7 +135,6 @@ class TemplateVariableManagerWrapper extends Component {
       values,
       id,
       type,
-      label,
       query: {
         influxql,
         db,
@@ -202,7 +200,6 @@ TemplateVariableManagerWrapper.propTypes = {
   templates: arrayOf(
     shape({
       type: string.isRequired,
-      label: string.isRequired,
       tempVar: string.isRequired,
       query: shape({
         db: string,
