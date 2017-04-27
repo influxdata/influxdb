@@ -13,8 +13,8 @@ import {
 import parsers from 'shared/parsing'
 
 import {TEMPLATE_TYPES} from 'src/dashboards/constants'
-import q
-  from 'src/dashboards/utils/onlyTheBigliestBigLeagueTemplateVariableQueryGenerator'
+import generateTemplateVariableQuery
+  from 'src/dashboards/utils/templateVariableQueryGenerator'
 
 const RowValues = ({
   selectedType,
@@ -235,7 +235,7 @@ class RowWrapper extends Component {
         onRunQueryFailure,
       } = this.props
 
-      const {query, tempVars} = q({
+      const {query, tempVars} = generateTemplateVariableQuery({
         type,
         label,
         tempVar,
