@@ -70,7 +70,13 @@ const RowButtons = ({
       <button
         className="btn btn-sm btn-info"
         type="button"
-        onClick={() => onStartEdit('name')}
+        onClick={e => {
+          // prevent subsequent 'onSubmit' that is caused by an unknown source,
+          // possible onClickOutside, after 'onClick'. this allows
+          // us to enter 'isEditing' mode
+          e.preventDefault()
+          onStartEdit('label')
+        }}
       >
         Edit
       </button>
@@ -186,15 +192,15 @@ const TableInput = ({
 class RowWrapper extends Component {
   constructor(props) {
     super(props)
-    const {template: {query, type}} = this.props
+    const {template: {query, type, isNew}} = this.props
 
     this.state = {
-      isEditing: false,
+      isEditing: !!isNew,
       selectedType: type,
       selectedDatabase: query && query.db,
       selectedMeasurement: query && query.measurement,
       selectedTagKey: query && query.tagKey,
-      autoFocusTarget: null,
+      autoFocusTarget: 'label',
     }
 
     this.handleSubmit = ::this.handleSubmit

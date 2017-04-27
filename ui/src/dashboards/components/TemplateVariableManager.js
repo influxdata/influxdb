@@ -29,7 +29,7 @@ const TemplateVariableManager = ({
           Add Variable
         </button>
         <button
-          className={classNames('btn btn-primary btn-sm', {
+          className={classNames('btn btn-success btn-sm', {
             disabled: !isEdited,
           })}
           onClick={onEditTemplateVariables(templates, onSaveTemplatesSuccess)}
@@ -86,6 +86,7 @@ class TemplateVariableManagerWrapper extends Component {
         measurement: '',
         tagKey: '',
       },
+      isNew: true,
     }
 
     const newRows = [newRow, ...rows]
