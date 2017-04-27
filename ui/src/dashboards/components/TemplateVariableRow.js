@@ -196,6 +196,7 @@ class RowWrapper extends Component {
 
     this.state = {
       isEditing: !!isNew,
+      isNew,
       selectedType: type,
       selectedDatabase: query && query.db,
       selectedMeasurement: query && query.measurement,
@@ -222,7 +223,7 @@ class RowWrapper extends Component {
     return async e => {
       e.preventDefault()
 
-      this.setState({isEditing: false})
+      this.setState({isEditing: false, isNew: false})
 
       const label = e.target.label.value
       const tempVar = e.target.tempVar.value
@@ -281,7 +282,13 @@ class RowWrapper extends Component {
   }
 
   handleCancelEdit() {
-    const {template: {type, query: {db, measurement, tagKey}}} = this.props
+    const {
+      template: {type, query: {db, measurement, tagKey}, isNew, id},
+      onDelete,
+    } = this.props
+    if (isNew) {
+      return onDelete(id)
+    }
     this.setState({
       selectedType: type,
       selectedDatabase: db,
