@@ -52,10 +52,10 @@ const DashboardsPage = React.createClass({
     let tableHeader
     if (dashboards === null) {
       tableHeader = 'Loading Dashboards...'
-    } else if (dashboards.length === 0) {
+    } else if (dashboards.length === 1) {
       tableHeader = '1 Dashboard'
     } else {
-      tableHeader = `${dashboards.length + 1} Dashboards`
+      tableHeader = `${dashboards.length} Dashboards`
     }
 
     return (
