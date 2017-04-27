@@ -33,39 +33,14 @@ const Visualization = React.createClass({
   },
 
   getInitialState() {
-    const {queryConfigs, activeQueryIndex} = this.props
-    if (!queryConfigs.length || activeQueryIndex === null) {
-      return {
-        view: GRAPH,
-      }
-    }
-
     return {
-      view: typeof queryConfigs[activeQueryIndex].rawText === 'string'
-        ? TABLE
-        : GRAPH,
+      view: GRAPH,
     }
   },
 
   getDefaultProps() {
     return {
       cellName: '',
-    }
-  },
-
-  componentWillReceiveProps(nextProps) {
-    const {queryConfigs, activeQueryIndex} = nextProps
-    if (
-      !queryConfigs.length ||
-      activeQueryIndex === null ||
-      activeQueryIndex === this.props.activeQueryIndex
-    ) {
-      return
-    }
-
-    const activeQuery = queryConfigs[activeQueryIndex]
-    if (activeQuery && typeof activeQuery.rawText === 'string') {
-      return this.setState({view: TABLE})
     }
   },
 
