@@ -29,16 +29,30 @@ const SensuConfig = React.createClass({
       <form onSubmit={this.handleSaveAlert}>
         <div className="form-group col-xs-12 col-md-6">
           <label htmlFor="source">Source</label>
-          <input className="form-control" id="source" type="text" ref={(r) => this.source = r} defaultValue={source || ''}></input>
+          <input
+            className="form-control"
+            id="source"
+            type="text"
+            ref={r => this.source = r}
+            defaultValue={source || ''}
+          />
         </div>
 
         <div className="form-group col-xs-12 col-md-6">
           <label htmlFor="address">Address</label>
-          <input className="form-control" id="address" type="text" ref={(r) => this.addr = r} defaultValue={addr || ''}></input>
+          <input
+            className="form-control"
+            id="address"
+            type="text"
+            ref={r => this.addr = r}
+            defaultValue={addr || ''}
+          />
         </div>
 
         <div className="form-group form-group-submit col-xs-12 col-sm-6 col-sm-offset-3">
-          <button className="btn btn-block btn-primary" type="submit">Save</button>
+          <button className="btn btn-block btn-primary" type="submit">
+            Save
+          </button>
         </div>
       </form>
     )

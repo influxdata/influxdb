@@ -1,11 +1,8 @@
 import React, {PropTypes} from 'react'
 
-const {
-  bool,
-  string,
-  shape,
-  func,
-} = PropTypes
+import RedactedInput from './RedactedInput'
+
+const {bool, string, shape, func} = PropTypes
 
 const TalkConfig = React.createClass({
   propTypes: {
@@ -36,17 +33,28 @@ const TalkConfig = React.createClass({
       <form onSubmit={this.handleSaveAlert}>
         <div className="form-group col-xs-12">
           <label htmlFor="url">URL</label>
-          <input className="form-control" id="url" type="text" ref={(r) => this.url = r} defaultValue={url || ''}></input>
-          <label className="form-helper">Note: a value of <code>true</code> indicates that the Talk URL has been set</label>
+          <RedactedInput
+            defaultValue={url}
+            id="url"
+            refFunc={r => this.url = r}
+          />
         </div>
 
         <div className="form-group col-xs-12">
           <label htmlFor="author">Author Name</label>
-          <input className="form-control" id="author" type="text" ref={(r) => this.author = r} defaultValue={author || ''}></input>
+          <input
+            className="form-control"
+            id="author"
+            type="text"
+            ref={r => this.author = r}
+            defaultValue={author || ''}
+          />
         </div>
 
         <div className="form-group form-group-submit col-xs-12 col-sm-6 col-sm-offset-3">
-          <button className="btn btn-block btn-primary" type="submit">Save</button>
+          <button className="btn btn-block btn-primary" type="submit">
+            Save
+          </button>
         </div>
       </form>
     )
