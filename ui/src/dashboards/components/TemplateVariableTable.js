@@ -9,6 +9,7 @@ const TemplateVariableTable = ({
   onRunQuerySuccess,
   onRunQueryFailure,
   onDelete,
+  tempVarAlreadyExists,
 }) => (
   <div className="table-custom">
     {templates.length
@@ -31,6 +32,7 @@ const TemplateVariableTable = ({
                 onRunQuerySuccess={onRunQuerySuccess}
                 onRunQueryFailure={onRunQueryFailure}
                 onDelete={onDelete}
+                tempVarAlreadyExists={tempVarAlreadyExists}
               />
             ))}
           </div>
@@ -69,6 +71,7 @@ TemplateVariableTable.propTypes = {
   onRunQuerySuccess: func.isRequired,
   onRunQueryFailure: func.isRequired,
   onDelete: func.isRequired,
+  tempVarAlreadyExists: func.isRequired,
 }
 
 export default TemplateVariableTable

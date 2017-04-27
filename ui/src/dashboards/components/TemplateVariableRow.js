@@ -1,4 +1,7 @@
 import React, {PropTypes, Component} from 'react'
+import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux'
+
 import OnClickOutside from 'react-onclickoutside'
 
 import Dropdown from 'shared/components/Dropdown'
@@ -15,6 +18,8 @@ import parsers from 'shared/parsing'
 import {TEMPLATE_TYPES} from 'src/dashboards/constants'
 import generateTemplateVariableQuery
   from 'src/dashboards/utils/templateVariableQueryGenerator'
+
+import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
 const RowValues = ({
   selectedType,
@@ -220,16 +225,26 @@ class RowWrapper extends Component {
     return async e => {
       e.preventDefault()
 
-      this.setState({isEditing: false, isNew: false})
-
-      const tempVar = `\u003a${e.target.tempVar.value}\u003a` // add ':'s
-
       const {
         source,
         template,
         onRunQuerySuccess,
         onRunQueryFailure,
+        tempVarAlreadyExists,
+        notify,
       } = this.props
+
+      const _tempVar = e.target.tempVar.value
+      const tempVar = `\u003a${_tempVar}\u003a` // add ':'s
+
+      if (tempVarAlreadyExists(tempVar)) {
+        return notify(
+          'error',
+          `Variable '${_tempVar}' already exists. Please enter a new value.`
+        )
+      }
+
+      this.setState({isEditing: false, isNew: false})
 
       const {query, tempVars} = generateTemplateVariableQuery({
         type,
@@ -399,6 +414,8 @@ RowWrapper.propTypes = {
   onRunQuerySuccess: func.isRequired,
   onRunQueryFailure: func.isRequired,
   onDelete: func.isRequired,
+  tempVarAlreadyExists: func.isRequired,
+  notify: func.isRequired,
 }
 
 TemplateVariableRow.propTypes = {
@@ -439,4 +456,8 @@ RowButtons.propTypes = {
   selectedType: string.isRequired,
 }
 
-export default OnClickOutside(RowWrapper)
+const mapDispatchToProps = dispatch => ({
+  notify: bindActionCreators(publishAutoDismissingNotification, dispatch),
+})
+
+export default connect(null, mapDispatchToProps)(OnClickOutside(RowWrapper))

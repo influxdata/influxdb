@@ -17,6 +17,7 @@ const TemplateVariableManager = ({
   onSaveTemplatesSuccess,
   onAddVariable,
   onDelete,
+  tempVarAlreadyExists,
   isEdited,
 }) => (
   <div className="template-variable-manager">
@@ -50,6 +51,7 @@ const TemplateVariableManager = ({
         onRunQuerySuccess={onRunQuerySuccess}
         onRunQueryFailure={onRunQueryFailure}
         onDelete={onDelete}
+        tempVarAlreadyExists={tempVarAlreadyExists}
       />
     </div>
   </div>
@@ -68,6 +70,7 @@ class TemplateVariableManagerWrapper extends Component {
     this.onSaveTemplatesSuccess = ::this.onSaveTemplatesSuccess
     this.onAddVariable = ::this.onAddVariable
     this.onDeleteTemplateVariable = ::this.onDeleteTemplateVariable
+    this.tempVarAlreadyExists = ::this.tempVarAlreadyExists
   }
 
   onAddVariable() {
@@ -162,6 +165,11 @@ class TemplateVariableManagerWrapper extends Component {
     this.setState({rows: newRows, isEdited: true})
   }
 
+  tempVarAlreadyExists(possibleDupeTempVar) {
+    const {rows: tempVars} = this.state
+    return tempVars.some(({tempVar}) => tempVar === possibleDupeTempVar)
+  }
+
   render() {
     const {rows, isEdited} = this.state
     return (
@@ -173,6 +181,7 @@ class TemplateVariableManagerWrapper extends Component {
         templates={rows}
         isEdited={isEdited}
         onDelete={this.onDeleteTemplateVariable}
+        tempVarAlreadyExists={this.tempVarAlreadyExists}
       />
     )
   }
