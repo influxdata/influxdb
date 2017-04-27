@@ -11,12 +11,7 @@ import {getDashboardsAsync, deleteDashboardAsync} from 'src/dashboards/actions'
 
 import {NEW_DASHBOARD} from 'src/dashboards/constants'
 
-const {
-  arrayOf,
-  func,
-  string,
-  shape,
-} = PropTypes
+const {arrayOf, func, string, shape} = PropTypes
 
 const DashboardsPage = React.createClass({
   propTypes: {
@@ -84,33 +79,41 @@ const DashboardsPage = React.createClass({
                 <div className="panel panel-minimal">
                   <div className="panel-heading u-flex u-ai-center u-jc-space-between">
                     <h2 className="panel-title">{tableHeader}</h2>
-                    <button className="btn btn-sm btn-primary" onClick={this.handleCreateDashbord}>Create Dashboard</button>
+                    <button
+                      className="btn btn-sm btn-primary"
+                      onClick={this.handleCreateDashbord}
+                    >
+                      Create Dashboard
+                    </button>
                   </div>
                   <div className="panel-body">
                     <table className="table v-center admin-table">
                       <thead>
                         <tr>
                           <th>Name</th>
-                          <th></th>
+                          <th />
                         </tr>
                       </thead>
                       <tbody>
-                          {
-                            dashboards && dashboards.length ?
-                            dashboards.map((dashboard) => {
-                              return (
+                        {dashboards && dashboards.length
+                          ? dashboards.map(dashboard => {
+                            return (
                                 <tr key={dashboard.id} className="">
                                   <td className="monotype">
-                                    <Link to={`${dashboardLink}/dashboards/${dashboard.id}`}>
+                                    <Link
+                                      to={`${dashboardLink}/dashboards/${dashboard.id}`}
+                                    >
                                       {dashboard.name}
                                     </Link>
                                   </td>
-                                  <DeleteConfirmTableCell onDelete={this.handleDeleteDashboard} item={dashboard} />
+                                  <DeleteConfirmTableCell
+                                    onDelete={this.handleDeleteDashboard}
+                                    item={dashboard}
+                                  />
                                 </tr>
-                              )
-                            }) :
-                            null
-                          }
+                            )
+                          })
+                          : null}
                       </tbody>
                     </table>
                   </div>
@@ -129,9 +132,11 @@ const mapStateToProps = ({dashboardUI: {dashboards, dashboard}}) => ({
   dashboard,
 })
 
-const mapDispatchToProps = (dispatch) => ({
+const mapDispatchToProps = dispatch => ({
   handleGetDashboards: bindActionCreators(getDashboardsAsync, dispatch),
   handleDeleteDashboard: bindActionCreators(deleteDashboardAsync, dispatch),
 })
 
-export default connect(mapStateToProps, mapDispatchToProps)(withRouter(DashboardsPage))
+export default connect(mapStateToProps, mapDispatchToProps)(
+  withRouter(DashboardsPage)
+)
