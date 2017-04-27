@@ -4,8 +4,10 @@ import classNames from 'classnames'
 import VisHeader from 'src/data_explorer/components/VisHeader'
 import VisView from 'src/data_explorer/components/VisView'
 import {GRAPH, TABLE} from 'src/shared/constants'
+import _ from 'lodash'
 
 const {arrayOf, func, number, shape, string} = PropTypes
+const META_QUERY_REGEX = /^show/i
 
 const Visualization = React.createClass({
   propTypes: {
@@ -33,15 +35,37 @@ const Visualization = React.createClass({
   },
 
   getInitialState() {
-    return {
-      view: GRAPH,
-    }
+    const {activeQueryIndex, queryConfigs} = this.props
+    const activeQueryText = this.getQueryText(queryConfigs, activeQueryIndex)
+
+    return activeQueryText.match(META_QUERY_REGEX)
+      ? {view: TABLE}
+      : {view: GRAPH}
   },
 
   getDefaultProps() {
     return {
       cellName: '',
     }
+  },
+
+  componentWillReceiveProps(nextProps) {
+    const {activeQueryIndex, queryConfigs} = nextProps
+    const nextQueryText = this.getQueryText(queryConfigs, activeQueryIndex)
+    const queryText = this.getQueryText(
+      this.props.queryConfigs,
+      this.props.activeQueryIndex
+    )
+
+    if (queryText === nextQueryText) {
+      return
+    }
+
+    if (!nextQueryText.match(META_QUERY_REGEX)) {
+      return this.setState({view: GRAPH})
+    }
+
+    this.setState({view: TABLE})
   },
 
   handleToggleView(view) {
@@ -99,6 +123,11 @@ const Visualization = React.createClass({
         </div>
       </div>
     )
+  },
+
+  getQueryText(queryConfigs, index) {
+    // rawText can be null
+    return _.get(queryConfigs, [`${index}`, 'rawText'], '') || ''
   },
 })
 
