@@ -22,6 +22,7 @@ import {publishAutoDismissingNotification} from 'shared/dispatchers'
 import {errorThrown} from 'shared/actions/errors'
 
 import {REVERT_STATE_DELAY} from 'shared/constants'
+import _ from 'lodash'
 
 export const loadUsers = ({users}) => ({
   type: 'LOAD_USERS',
@@ -247,7 +248,7 @@ export const loadPermissionsAsync = url => async dispatch => {
 export const loadDBsAndRPsAsync = url => async dispatch => {
   try {
     const {data: {databases}} = await getDbsAndRpsAJAX(url)
-    dispatch(loadDatabases(databases))
+    dispatch(loadDatabases(_.sortBy(databases, ({name}) => name.toLowerCase())))
   } catch (error) {
     dispatch(errorThrown(error))
   }
