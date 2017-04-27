@@ -43,15 +43,28 @@ class TagKeyDropdown extends Component {
   }
 
   async _getTags() {
-    const {database, measurement, tagKey, onSelectTagKey} = this.props
+    const {
+      database,
+      measurement,
+      tagKey,
+      onSelectTagKey,
+      onErrorThrown,
+    } = this.props
     const {source: {links: {proxy}}} = this.context
 
-    const {data} = await showTagKeys({source: proxy, database, measurement})
-    const {tagKeys} = showTagKeysParser(data)
+    try {
+      const {data} = await showTagKeys({source: proxy, database, measurement})
+      const {tagKeys} = showTagKeysParser(data)
 
-    this.setState({tagKeys})
-    const selected = tagKeys.includes(tagKey) ? tagKey : tagKeys[0] || 'No tags'
-    onSelectTagKey({text: selected})
+      this.setState({tagKeys})
+      const selectedText = tagKeys.includes(tagKey)
+        ? tagKey
+        : tagKeys[0] || 'No tags'
+      onSelectTagKey({text: selectedText})
+    } catch (error) {
+      console.error(error)
+      onErrorThrown(error)
+    }
   }
 }
 
@@ -71,6 +84,7 @@ TagKeyDropdown.propTypes = {
   tagKey: string,
   onSelectTagKey: func.isRequired,
   onStartEdit: func.isRequired,
+  onErrorThrown: func.isRequired,
 }
 
 export default TagKeyDropdown

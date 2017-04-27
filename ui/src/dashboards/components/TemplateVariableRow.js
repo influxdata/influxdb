@@ -19,6 +19,7 @@ import {TEMPLATE_TYPES} from 'src/dashboards/constants'
 import generateTemplateVariableQuery
   from 'src/dashboards/utils/templateVariableQueryGenerator'
 
+import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
 const RowValues = ({
@@ -110,6 +111,7 @@ const TemplateVariableRow = ({
   autoFocusTarget,
   onSubmit,
   onDelete,
+  onErrorThrown,
 }) => (
   <form
     className="tr"
@@ -146,6 +148,7 @@ const TemplateVariableRow = ({
         selectedTagKey={selectedTagKey}
         onSelectTagKey={onSelectTagKey}
         onStartEdit={onStartEdit}
+        onErrorThrown={onErrorThrown}
       />
     </div>
     <RowValues
@@ -438,6 +441,7 @@ TemplateVariableRow.propTypes = {
   onStartEdit: func.isRequired,
   onCancelEdit: func.isRequired,
   onSubmit: func.isRequired,
+  onErrorThrown: func.isRequired,
 }
 
 TableInput.propTypes = {
@@ -466,6 +470,7 @@ RowButtons.propTypes = {
 }
 
 const mapDispatchToProps = dispatch => ({
+  onErrorThrown: bindActionCreators(errorThrownAction, dispatch),
   notify: bindActionCreators(publishAutoDismissingNotification, dispatch),
 })
 

@@ -12,6 +12,7 @@ const TemplateQueryBuilder = ({
   onSelectMeasurement,
   onSelectTagKey,
   onStartEdit,
+  onErrorThrown,
 }) => {
   switch (selectedType) {
     case 'csv':
@@ -26,6 +27,7 @@ const TemplateQueryBuilder = ({
             onSelectDatabase={onSelectDatabase}
             database={selectedDatabase}
             onStartEdit={onStartEdit}
+            onErrorThrown={onErrorThrown}
           />
         </div>
       )
@@ -38,6 +40,7 @@ const TemplateQueryBuilder = ({
             onSelectDatabase={onSelectDatabase}
             database={selectedDatabase}
             onStartEdit={onStartEdit}
+            onErrorThrown={onErrorThrown}
           />
           FROM
           {selectedDatabase
@@ -46,6 +49,7 @@ const TemplateQueryBuilder = ({
                 measurement={selectedMeasurement}
                 onSelectMeasurement={onSelectMeasurement}
                 onStartEdit={onStartEdit}
+                onErrorThrown={onErrorThrown}
               />
             : <div>No database selected</div>}
         </div>
@@ -58,6 +62,7 @@ const TemplateQueryBuilder = ({
             onSelectDatabase={onSelectDatabase}
             database={selectedDatabase}
             onStartEdit={onStartEdit}
+            onErrorThrown={onErrorThrown}
           />
           FROM
           {selectedDatabase
@@ -66,6 +71,7 @@ const TemplateQueryBuilder = ({
                 measurement={selectedMeasurement}
                 onSelectMeasurement={onSelectMeasurement}
                 onStartEdit={onStartEdit}
+                onErrorThrown={onErrorThrown}
               />
             : 'Pick a DB'}
           WITH KEY =
@@ -76,6 +82,7 @@ const TemplateQueryBuilder = ({
                 tagKey={selectedTagKey}
                 onSelectTagKey={onSelectTagKey}
                 onStartEdit={onStartEdit}
+                onErrorThrown={onErrorThrown}
               />
             : 'Pick a Tag Key'}
         </div>
@@ -96,6 +103,7 @@ TemplateQueryBuilder.propTypes = {
   selectedMeasurement: string,
   selectedDatabase: string,
   selectedTagKey: string,
+  onErrorThrown: func.isRequired,
 }
 
 export default TemplateQueryBuilder

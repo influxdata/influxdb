@@ -10,27 +10,18 @@ class DatabaseDropdown extends Component {
     this.state = {
       databases: [],
     }
+
+    this._getDatabases = ::this._getDatabases
   }
 
   componentDidMount() {
-    const {source} = this.context
-    const {database, onSelectDatabase} = this.props
-    const proxy = source.links.proxy
-    showDatabases(proxy).then(resp => {
-      const {databases} = showDatabasesParser(resp.data)
-      this.setState({databases})
-      const selected = databases.includes(database)
-        ? database
-        : databases[0] || 'No databases'
-      onSelectDatabase({text: selected})
-    })
+    this._getDatabases()
   }
 
   render() {
     const {databases} = this.state
     const {database, onSelectDatabase, onStartEdit} = this.props
 
-    // :(
     if (!database) {
       this.componentDidMount()
     }
@@ -43,6 +34,25 @@ class DatabaseDropdown extends Component {
         onClick={() => onStartEdit(null)}
       />
     )
+  }
+
+  async _getDatabases() {
+    const {source} = this.context
+    const {database, onSelectDatabase, onErrorThrown} = this.props
+    const proxy = source.links.proxy
+    try {
+      const {data} = await showDatabases(proxy)
+      const {databases} = showDatabasesParser(data)
+
+      this.setState({databases})
+      const selectedText = databases.includes(database)
+        ? database
+        : databases[0] || 'No databases'
+      onSelectDatabase({text: selectedText})
+    } catch (error) {
+      console.error(error)
+      onErrorThrown(error)
+    }
   }
 }
 
@@ -60,6 +70,7 @@ DatabaseDropdown.propTypes = {
   database: string,
   onSelectDatabase: func.isRequired,
   onStartEdit: func.isRequired,
+  onErrorThrown: func.isRequired,
 }
 
 export default DatabaseDropdown
