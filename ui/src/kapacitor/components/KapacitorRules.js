@@ -50,7 +50,7 @@ const PageContents = ({children, source}) => (
     <div className="page-header">
       <div className="page-header__container">
         <div className="page-header__left">
-          <h1>Kapacitor Rules</h1>
+          <h1 className="page-header__title">Kapacitor Rules</h1>
         </div>
         <div className="page-header__right">
           <SourceIndicator sourceName={source && source.name} />

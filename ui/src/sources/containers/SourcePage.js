@@ -115,7 +115,7 @@ export const SourcePage = React.createClass({
         <div className="page-header">
           <div className="page-header__container">
             <div className="page-header__left">
-              <h1>
+              <h1 className="page-header__title">
                 {editMode ? 'Edit Source' : 'Add a New Source'}
               </h1>
             </div>

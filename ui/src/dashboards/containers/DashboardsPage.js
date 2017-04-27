@@ -11,12 +11,7 @@ import {getDashboardsAsync, deleteDashboardAsync} from 'src/dashboards/actions'
 
 import {NEW_DASHBOARD} from 'src/dashboards/constants'
 
-const {
-  arrayOf,
-  func,
-  string,
-  shape,
-} = PropTypes
+const {arrayOf, func, string, shape} = PropTypes
 
 const DashboardsPage = React.createClass({
   propTypes: {
@@ -57,10 +52,10 @@ const DashboardsPage = React.createClass({
     let tableHeader
     if (dashboards === null) {
       tableHeader = 'Loading Dashboards...'
-    } else if (dashboards.length === 0) {
+    } else if (dashboards.length === 1) {
       tableHeader = '1 Dashboard'
     } else {
-      tableHeader = `${dashboards.length + 1} Dashboards`
+      tableHeader = `${dashboards.length} Dashboards`
     }
 
     return (
@@ -84,43 +79,52 @@ const DashboardsPage = React.createClass({
                 <div className="panel panel-minimal">
                   <div className="panel-heading u-flex u-ai-center u-jc-space-between">
                     <h2 className="panel-title">{tableHeader}</h2>
-                    <button className="btn btn-sm btn-primary" onClick={this.handleCreateDashbord}>Create Dashboard</button>
+                    <button
+                      className="btn btn-sm btn-primary"
+                      onClick={this.handleCreateDashbord}
+                    >
+                      Create Dashboard
+                    </button>
                   </div>
                   <div className="panel-body">
-                    <table className="table v-center admin-table">
-                      <thead>
-                        <tr>
-                          <th>Name</th>
-                          <th></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                          {
-                            dashboards && dashboards.length ?
-                            dashboards.map((dashboard) => {
-                              return (
-                                <tr key={dashboard.id} className="">
-                                  <td className="monotype">
-                                    <Link to={`${dashboardLink}/dashboards/${dashboard.id}`}>
-                                      {dashboard.name}
-                                    </Link>
-                                  </td>
-                                  <DeleteConfirmTableCell onDelete={this.handleDeleteDashboard} item={dashboard} />
-                                </tr>
-                              )
-                            }) :
-                            null
-                          }
-                          <tr>
-                            <td className="monotype">
-                              <Link to={`${dashboardLink}/kubernetes`}>
-                                {'Kubernetes'}
-                              </Link>
-                            </td>
-                            <td></td>
-                          </tr>
-                      </tbody>
-                    </table>
+                    {dashboards && dashboards.length
+                      ? <table className="table v-center admin-table">
+                          <thead>
+                            <tr>
+                              <th>Name</th>
+                              <th />
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {dashboards.map(dashboard => (
+                              <tr key={dashboard.id} className="">
+                                <td className="monotype">
+                                  <Link
+                                    to={`${dashboardLink}/dashboards/${dashboard.id}`}
+                                  >
+                                    {dashboard.name}
+                                  </Link>
+                                </td>
+                                <DeleteConfirmTableCell
+                                  onDelete={this.handleDeleteDashboard}
+                                  item={dashboard}
+                                />
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      : <div className="generic-empty-state">
+                          <h4 style={{marginTop: '90px'}}>
+                            Looks like you dont have any dashboards
+                          </h4>
+                          <button
+                            className="btn btn-sm btn-primary"
+                            onClick={this.handleCreateDashbord}
+                            style={{marginBottom: '90px'}}
+                          >
+                            Create Dashboard
+                          </button>
+                        </div>}
                   </div>
                 </div>
               </div>
@@ -137,9 +141,11 @@ const mapStateToProps = ({dashboardUI: {dashboards, dashboard}}) => ({
   dashboard,
 })
 
-const mapDispatchToProps = (dispatch) => ({
+const mapDispatchToProps = dispatch => ({
   handleGetDashboards: bindActionCreators(getDashboardsAsync, dispatch),
   handleDeleteDashboard: bindActionCreators(deleteDashboardAsync, dispatch),
 })
 
-export default connect(mapStateToProps, mapDispatchToProps)(withRouter(DashboardsPage))
+export default connect(mapStateToProps, mapDispatchToProps)(
+  withRouter(DashboardsPage)
+)

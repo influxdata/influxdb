@@ -1,16 +1,20 @@
 import React, {PropTypes} from 'react'
 
+import RedactedInput from './RedactedInput'
+
+const {bool, func, shape, string} = PropTypes
+
 const AlertaConfig = React.createClass({
   propTypes: {
-    config: PropTypes.shape({
-      options: PropTypes.shape({
-        environment: PropTypes.string,
-        origin: PropTypes.string,
-        token: PropTypes.bool,
-        url: PropTypes.string,
+    config: shape({
+      options: shape({
+        environment: string,
+        origin: string,
+        token: bool,
+        url: string,
       }).isRequired,
     }).isRequired,
-    onSave: PropTypes.func.isRequired,
+    onSave: func.isRequired,
   },
 
   handleSaveAlert(e) {
@@ -33,27 +37,50 @@ const AlertaConfig = React.createClass({
       <form onSubmit={this.handleSaveAlert}>
         <div className="form-group col-xs-12">
           <label htmlFor="environment">Environment</label>
-          <input className="form-control" id="environment" type="text" ref={(r) => this.environment = r} defaultValue={environment || ''}></input>
+          <input
+            className="form-control"
+            id="environment"
+            type="text"
+            ref={r => this.environment = r}
+            defaultValue={environment || ''}
+          />
         </div>
 
         <div className="form-group col-xs-12">
           <label htmlFor="origin">Origin</label>
-          <input className="form-control" id="origin" type="text" ref={(r) => this.origin = r} defaultValue={origin || ''}></input>
+          <input
+            className="form-control"
+            id="origin"
+            type="text"
+            ref={r => this.origin = r}
+            defaultValue={origin || ''}
+          />
         </div>
 
         <div className="form-group col-xs-12">
           <label htmlFor="token">Token</label>
-          <input className="form-control" id="token" type="text" ref={(r) => this.token = r} defaultValue={token || ''}></input>
-          <label className="form-helper">Note: a value of <code>true</code> indicates the Alerta Token has been set</label>
+          <RedactedInput
+            defaultValue={token}
+            id="token"
+            refFunc={r => this.token = r}
+          />
         </div>
 
         <div className="form-group col-xs-12">
           <label htmlFor="url">User</label>
-          <input className="form-control" id="url" type="text" ref={(r) => this.url = r} defaultValue={url || ''}></input>
+          <input
+            className="form-control"
+            id="url"
+            type="text"
+            ref={r => this.url = r}
+            defaultValue={url || ''}
+          />
         </div>
 
         <div className="form-group-submit col-xs-12 col-sm-6 col-sm-offset-3">
-          <button className="btn btn-block btn-primary" type="submit">Save</button>
+          <button className="btn btn-block btn-primary" type="submit">
+            Save
+          </button>
         </div>
       </form>
     )

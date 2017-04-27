@@ -4,8 +4,10 @@ import classNames from 'classnames'
 import VisHeader from 'src/data_explorer/components/VisHeader'
 import VisView from 'src/data_explorer/components/VisView'
 import {GRAPH, TABLE} from 'src/shared/constants'
+import _ from 'lodash'
 
 const {arrayOf, func, number, shape, string} = PropTypes
+const META_QUERY_REGEX = /^show/i
 
 const Visualization = React.createClass({
   propTypes: {
@@ -33,18 +35,12 @@ const Visualization = React.createClass({
   },
 
   getInitialState() {
-    const {queryConfigs, activeQueryIndex} = this.props
-    if (!queryConfigs.length || activeQueryIndex === null) {
-      return {
-        view: GRAPH,
-      }
-    }
+    const {activeQueryIndex, queryConfigs} = this.props
+    const activeQueryText = this.getQueryText(queryConfigs, activeQueryIndex)
 
-    return {
-      view: typeof queryConfigs[activeQueryIndex].rawText === 'string'
-        ? TABLE
-        : GRAPH,
-    }
+    return activeQueryText.match(META_QUERY_REGEX)
+      ? {view: TABLE}
+      : {view: GRAPH}
   },
 
   getDefaultProps() {
@@ -54,19 +50,22 @@ const Visualization = React.createClass({
   },
 
   componentWillReceiveProps(nextProps) {
-    const {queryConfigs, activeQueryIndex} = nextProps
-    if (
-      !queryConfigs.length ||
-      activeQueryIndex === null ||
-      activeQueryIndex === this.props.activeQueryIndex
-    ) {
+    const {activeQueryIndex, queryConfigs} = nextProps
+    const nextQueryText = this.getQueryText(queryConfigs, activeQueryIndex)
+    const queryText = this.getQueryText(
+      this.props.queryConfigs,
+      this.props.activeQueryIndex
+    )
+
+    if (queryText === nextQueryText) {
       return
     }
 
-    const activeQuery = queryConfigs[activeQueryIndex]
-    if (activeQuery && typeof activeQuery.rawText === 'string') {
+    if (nextQueryText.match(META_QUERY_REGEX)) {
       return this.setState({view: TABLE})
     }
+
+    this.setState({view: GRAPH})
   },
 
   handleToggleView(view) {
@@ -123,6 +122,11 @@ const Visualization = React.createClass({
         </div>
       </div>
     )
+  },
+
+  getQueryText(queryConfigs, index) {
+    // rawText can be null
+    return _.get(queryConfigs, [`${index}`, 'rawText'], '') || ''
   },
 })
 

@@ -2,7 +2,11 @@ import React, {Component, PropTypes} from 'react'
 import _ from 'lodash'
 
 import {Tab, Tabs, TabPanel, TabPanels, TabList} from 'shared/components/Tabs'
-import {getKapacitorConfig, updateKapacitorConfigSection, testAlertOutput} from 'shared/apis'
+import {
+  getKapacitorConfig,
+  updateKapacitorConfigSection,
+  testAlertOutput,
+} from 'shared/apis'
 
 import {
   AlertaConfig,
@@ -42,12 +46,17 @@ class AlertTabs extends Component {
   }
 
   refreshKapacitorConfig(kapacitor) {
-    getKapacitorConfig(kapacitor).then(({data: {sections}}) => {
-      this.setState({configSections: sections})
-    }).catch(() => {
-      this.setState({configSections: null})
-      this.props.addFlashMessage({type: 'error', text: 'There was an error getting the Kapacitor config'})
-    })
+    getKapacitorConfig(kapacitor)
+      .then(({data: {sections}}) => {
+        this.setState({configSections: sections})
+      })
+      .catch(() => {
+        this.setState({configSections: null})
+        this.props.addFlashMessage({
+          type: 'error',
+          text: 'There was an error getting the Kapacitor config',
+        })
+      })
   }
 
   getSection(sections, section) {
@@ -57,29 +66,45 @@ class AlertTabs extends Component {
   handleSaveConfig(section, properties) {
     if (section !== '') {
       const propsToSend = this.sanitizeProperties(section, properties)
-      updateKapacitorConfigSection(this.props.kapacitor, section, propsToSend).then(() => {
-        this.refreshKapacitorConfig(this.props.kapacitor)
-        this.props.addFlashMessage({type: 'success', text: `Alert for ${section} successfully saved`})
-      }).catch(() => {
-        this.props.addFlashMessage({type: 'error', text: 'There was an error saving the kapacitor config'})
-      })
+      updateKapacitorConfigSection(this.props.kapacitor, section, propsToSend)
+        .then(() => {
+          this.refreshKapacitorConfig(this.props.kapacitor)
+          this.props.addFlashMessage({
+            type: 'success',
+            text: `Alert for ${section} successfully saved`,
+          })
+        })
+        .catch(() => {
+          this.props.addFlashMessage({
+            type: 'error',
+            text: 'There was an error saving the kapacitor config',
+          })
+        })
     }
   }
 
   handleTest(section, properties) {
     const propsToSend = this.sanitizeProperties(section, properties)
-    testAlertOutput(this.props.kapacitor, section, propsToSend).then(() => {
-      this.props.addFlashMessage({type: 'success', text: 'Slack test message sent'})
-    }).catch(() => {
-      this.props.addFlashMessage({type: 'error', text: 'There was an error testing the slack alert'})
-    })
+    testAlertOutput(this.props.kapacitor, section, propsToSend)
+      .then(() => {
+        this.props.addFlashMessage({
+          type: 'success',
+          text: 'Slack test message sent',
+        })
+      })
+      .catch(() => {
+        this.props.addFlashMessage({
+          type: 'error',
+          text: 'There was an error testing the slack alert',
+        })
+      })
   }
 
   sanitizeProperties(section, properties) {
     const cleanProps = Object.assign({}, properties, {enabled: true})
     const {redacted} = this.getSection(this.state.configSections, section)
     if (redacted && redacted.length) {
-      redacted.forEach((badProp) => {
+      redacted.forEach(badProp => {
         if (properties[badProp] === 'true') {
           delete cleanProps[badProp]
         }
@@ -95,50 +120,101 @@ class AlertTabs extends Component {
       return null
     }
 
-    const test = (properties) => {
+    const test = properties => {
       this.handleTest('slack', properties)
     }
 
     const tabs = [
       {
         type: 'Alerta',
-        component: (<AlertaConfig onSave={(p) => this.handleSaveConfig('alerta', p)} config={this.getSection(configSections, 'alerta')} />),
+        component: (
+          <AlertaConfig
+            onSave={p => this.handleSaveConfig('alerta', p)}
+            config={this.getSection(configSections, 'alerta')}
+          />
+        ),
       },
       {
         type: 'SMTP',
-        component: (<SMTPConfig onSave={(p) => this.handleSaveConfig('smtp', p)} config={this.getSection(configSections, 'smtp')} />),
+        component: (
+          <SMTPConfig
+            onSave={p => this.handleSaveConfig('smtp', p)}
+            config={this.getSection(configSections, 'smtp')}
+          />
+        ),
       },
       {
         type: 'Slack',
-        component: (<SlackConfig onSave={(p) => this.handleSaveConfig('slack', p)} onTest={test} config={this.getSection(configSections, 'slack')} />),
+        component: (
+          <SlackConfig
+            onSave={p => this.handleSaveConfig('slack', p)}
+            onTest={test}
+            config={this.getSection(configSections, 'slack')}
+          />
+        ),
       },
       {
         type: 'VictorOps',
-        component: (<VictorOpsConfig onSave={(p) => this.handleSaveConfig('victorops', p)} config={this.getSection(configSections, 'victorops')} />),
+        component: (
+          <VictorOpsConfig
+            onSave={p => this.handleSaveConfig('victorops', p)}
+            config={this.getSection(configSections, 'victorops')}
+          />
+        ),
       },
       {
         type: 'Telegram',
-        component: (<TelegramConfig onSave={(p) => this.handleSaveConfig('telegram', p)} config={this.getSection(configSections, 'telegram')} />),
+        component: (
+          <TelegramConfig
+            onSave={p => this.handleSaveConfig('telegram', p)}
+            config={this.getSection(configSections, 'telegram')}
+          />
+        ),
       },
       {
         type: 'OpsGenie',
-        component: (<OpsGenieConfig onSave={(p) => this.handleSaveConfig('opsgenie', p)} config={this.getSection(configSections, 'opsgenie')} />),
+        component: (
+          <OpsGenieConfig
+            onSave={p => this.handleSaveConfig('opsgenie', p)}
+            config={this.getSection(configSections, 'opsgenie')}
+          />
+        ),
       },
       {
         type: 'PagerDuty',
-        component: (<PagerDutyConfig onSave={(p) => this.handleSaveConfig('pagerduty', p)} config={this.getSection(configSections, 'pagerduty')} />),
+        component: (
+          <PagerDutyConfig
+            onSave={p => this.handleSaveConfig('pagerduty', p)}
+            config={this.getSection(configSections, 'pagerduty')}
+          />
+        ),
       },
       {
         type: 'HipChat',
-        component: (<HipChatConfig onSave={(p) => this.handleSaveConfig('hipchat', p)} config={this.getSection(configSections, 'hipchat')} />),
+        component: (
+          <HipChatConfig
+            onSave={p => this.handleSaveConfig('hipchat', p)}
+            config={this.getSection(configSections, 'hipchat')}
+          />
+        ),
       },
       {
         type: 'Sensu',
-        component: (<SensuConfig onSave={(p) => this.handleSaveConfig('sensu', p)} config={this.getSection(configSections, 'sensu')} />),
+        component: (
+          <SensuConfig
+            onSave={p => this.handleSaveConfig('sensu', p)}
+            config={this.getSection(configSections, 'sensu')}
+          />
+        ),
       },
       {
         type: 'Talk',
-        component: (<TalkConfig onSave={(p) => this.handleSaveConfig('talk', p)} config={this.getSection(configSections, 'talk')} />),
+        component: (
+          <TalkConfig
+            onSave={p => this.handleSaveConfig('talk', p)}
+            config={this.getSection(configSections, 'talk')}
+          />
+        ),
       },
     ]
 
@@ -152,14 +228,12 @@ class AlertTabs extends Component {
 
         <Tabs tabContentsClass="config-endpoint">
           <TabList customClass="config-endpoint--tabs">
-            {
-              tabs.map((t, i) => (<Tab key={tabs[i].type}>{tabs[i].type}</Tab>))
-            }
+            {tabs.map((t, i) => <Tab key={tabs[i].type}>{tabs[i].type}</Tab>)}
           </TabList>
           <TabPanels customClass="config-endpoint--tab-contents">
-            {
-              tabs.map((t, i) => (<TabPanel key={tabs[i].type}>{t.component}</TabPanel>))
-            }
+            {tabs.map((t, i) => (
+              <TabPanel key={tabs[i].type}>{t.component}</TabPanel>
+            ))}
           </TabPanels>
         </Tabs>
       </div>
@@ -167,11 +241,7 @@ class AlertTabs extends Component {
   }
 }
 
-const {
-  func,
-  shape,
-  string,
-} = PropTypes
+const {func, shape, string} = PropTypes
 
 AlertTabs.propTypes = {
   source: shape({

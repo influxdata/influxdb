@@ -23,7 +23,7 @@ const TemplateVariableManager = ({
   <div className="template-variable-manager">
     <div className="template-variable-manager--header">
       <div className="page-header__left">
-        Template Variables
+        <h1 className="page-header__title">Template Variables</h1>
       </div>
       <div className="page-header__right">
         <button
@@ -40,7 +40,7 @@ const TemplateVariableManager = ({
           type="button"
           onClick={onEditTemplateVariables(templates, onSaveTemplatesSuccess)}
         >
-          Save Template
+          Save Changes
         </button>
         <span
           className="icon remove"

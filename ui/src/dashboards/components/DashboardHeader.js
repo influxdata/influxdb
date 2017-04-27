@@ -32,11 +32,8 @@ const DashboardHeader = ({
             <ul className="dropdown-menu" aria-labelledby="dropdownMenu1">
               {children}
             </ul>
-          </div>
-        }
-        {headerText &&
-          <h1>Kubernetes Dashboard</h1>
-        }
+          </div>}
+        {headerText}
       </div>
       <div className="page-header__right">
         <GraphTips />

@@ -7,7 +7,7 @@ export function getCpuAndLoadForHosts(proxyLink, telegrafDB) {
     source: proxyLink,
     query: 'select mean(usage_user) from cpu where cpu = \'cpu-total\' and time > now() - 10m group by host; select mean("load1") from "system" where time > now() - 10m group by host;  select mean("Percent_Processor_Time") from win_cpu where time > now() - 10m group by host; select mean("Processor_Queue_Length") from win_system where time > now() - 10s group by host; select non_negative_derivative(mean(uptime)) as deltaUptime from "system" where time > now() - 10m group by host, time(1m) fill(0); show tag values from /win_system|system/ with key = "host"',
     db: telegrafDB,
-  }).then((resp) => {
+  }).then(resp => {
     const hosts = {}
     const precision = 100
     const cpuSeries = _.get(resp, ['data', 'results', '0', 'series'], [])
@@ -17,9 +17,9 @@ export function getCpuAndLoadForHosts(proxyLink, telegrafDB) {
     const uptimeSeries = _.get(resp, ['data', 'results', '4', 'series'], [])
     const allHostsSeries = _.get(resp, ['data', 'results', '5', 'series'], [])
 
-    allHostsSeries.forEach((s) => {
-      const hostnameIndex = s.columns.findIndex((col) => col === 'value')
-      s.values.forEach((v) => {
+    allHostsSeries.forEach(s => {
+      const hostnameIndex = s.columns.findIndex(col => col === 'value')
+      s.values.forEach(v => {
         const hostname = v[hostnameIndex]
         hosts[hostname] = {
           name: hostname,
@@ -30,35 +30,38 @@ export function getCpuAndLoadForHosts(proxyLink, telegrafDB) {
       })
     })
 
-    cpuSeries.forEach((s) => {
-      const meanIndex = s.columns.findIndex((col) => col === 'mean')
+    cpuSeries.forEach(s => {
+      const meanIndex = s.columns.findIndex(col => col === 'mean')
       hosts[s.tags.host] = {
         name: s.tags.host,
-        cpu: (Math.round(s.values[0][meanIndex] * precision) / precision),
+        cpu: Math.round(s.values[0][meanIndex] * precision) / precision,
       }
     })
 
-    loadSeries.forEach((s) => {
-      const meanIndex = s.columns.findIndex((col) => col === 'mean')
-      hosts[s.tags.host].load = (Math.round(s.values[0][meanIndex] * precision) / precision)
+    loadSeries.forEach(s => {
+      const meanIndex = s.columns.findIndex(col => col === 'mean')
+      hosts[s.tags.host].load =
+        Math.round(s.values[0][meanIndex] * precision) / precision
     })
 
-    uptimeSeries.forEach((s) => {
-      const uptimeIndex = s.columns.findIndex((col) => col === 'deltaUptime')
-      hosts[s.tags.host].deltaUptime = s.values[s.values.length - 1][uptimeIndex]
+    uptimeSeries.forEach(s => {
+      const uptimeIndex = s.columns.findIndex(col => col === 'deltaUptime')
+      hosts[s.tags.host].deltaUptime =
+        s.values[s.values.length - 1][uptimeIndex]
     })
 
-    winCPUSeries.forEach((s) => {
-      const meanIndex = s.columns.findIndex((col) => col === 'mean')
+    winCPUSeries.forEach(s => {
+      const meanIndex = s.columns.findIndex(col => col === 'mean')
       hosts[s.tags.host] = {
         name: s.tags.host,
-        cpu: (Math.round(s.values[0][meanIndex] * precision) / precision),
+        cpu: Math.round(s.values[0][meanIndex] * precision) / precision,
       }
     })
 
-    winLoadSeries.forEach((s) => {
-      const meanIndex = s.columns.findIndex((col) => col === 'mean')
-      hosts[s.tags.host].load = (Math.round(s.values[0][meanIndex] * precision) / precision)
+    winLoadSeries.forEach(s => {
+      const meanIndex = s.columns.findIndex(col => col === 'mean')
+      hosts[s.tags.host].load =
+        Math.round(s.values[0][meanIndex] * precision) / precision
     })
 
     return hosts
@@ -75,9 +78,9 @@ export async function getAllHosts(proxyLink, telegrafDB) {
     const hosts = {}
     const allHostsSeries = _.get(resp, ['data', 'results', '0', 'series'], [])
 
-    allHostsSeries.forEach((s) => {
-      const hostnameIndex = s.columns.findIndex((col) => col === 'value')
-      s.values.forEach((v) => {
+    allHostsSeries.forEach(s => {
+      const hostnameIndex = s.columns.findIndex(col => col === 'value')
+      s.values.forEach(v => {
         const hostname = v[hostnameIndex]
         hosts[hostname] = {
           name: hostname,
@@ -100,30 +103,44 @@ export function getMappings() {
 }
 
 export function getAppsForHosts(proxyLink, hosts, appMappings, telegrafDB) {
-  const measurements = appMappings.map((m) => `^${m.measurement}$`).join('|')
-  const measurementsToApps = _.zipObject(appMappings.map(m => m.measurement), appMappings.map(m => m.name))
+  const measurements = appMappings.map(m => `^${m.measurement}$`).join('|')
+  const measurementsToApps = _.zipObject(
+    appMappings.map(m => m.measurement),
+    appMappings.map(m => m.name)
+  )
+
   return proxy({
     source: proxyLink,
     query: `show series from /${measurements}/`,
     db: telegrafDB,
-  }).then((resp) => {
+  }).then(resp => {
     const newHosts = Object.assign({}, hosts)
-    const allSeries = _.get(resp, ['data', 'results', '0', 'series', '0', 'values'], [])
+    const allSeries = _.get(
+      resp,
+      ['data', 'results', '0', 'series', '0', 'values'],
+      []
+    )
+
     allSeries.forEach(([series]) => {
       const seriesObj = parseSeries(series)
       const measurement = seriesObj.measurement
-      const host = seriesObj.tags.host
+      const host = _.get(seriesObj, ['tags', 'host'], '')
 
       if (!newHosts[host]) {
         return
       }
+
       if (!newHosts[host].apps) {
         newHosts[host].apps = []
       }
+
       if (!newHosts[host].tags) {
         newHosts[host].tags = {}
       }
-      newHosts[host].apps = _.uniq(newHosts[host].apps.concat(measurementsToApps[measurement]))
+
+      newHosts[host].apps = _.uniq(
+        newHosts[host].apps.concat(measurementsToApps[measurement])
+      )
       _.assign(newHosts[host].tags, seriesObj.tags)
     })
 
@@ -142,7 +159,7 @@ export function getMeasurementsForHost(source, host) {
     }
 
     const series = data.results[0].series[0]
-    return series.values.map((measurement) => {
+    return series.values.map(measurement => {
       return measurement[0]
     })
   })
