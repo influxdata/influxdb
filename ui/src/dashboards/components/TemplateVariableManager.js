@@ -26,13 +26,18 @@ const TemplateVariableManager = ({
         Template Variables
       </div>
       <div className="page-header__right">
-        <button className="btn btn-primary btn-sm" onClick={onAddVariable}>
+        <button
+          className="btn btn-primary btn-sm"
+          type="button"
+          onClick={onAddVariable}
+        >
           Add Variable
         </button>
         <button
           className={classNames('btn btn-success btn-sm', {
             disabled: !isEdited,
           })}
+          type="button"
           onClick={onEditTemplateVariables(templates, onSaveTemplatesSuccess)}
         >
           Save Template
