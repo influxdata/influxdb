@@ -2,11 +2,13 @@
 
 ### Bug Fixes
   1. [#1337](https://github.com/influxdata/chronograf/pull/1337): Fix no apps for hosts false negative
+  1. [#1340](https://github.com/influxdata/chronograf/pull/1340): Fix no active query in DE and Cell editing
 
 ### Features
 
 ### UI Improvements
   1. [#1335](https://github.com/influxdata/chronograf/pull/1335): Improve UX for sanitized kapacitor settings
+  1. [#1340](https://github.com/influxdata/chronograf/pull/1340): Automatically switch to table view if meta query
 
 ## v1.2.0-beta9 [2017-04-21]
 
