@@ -161,7 +161,7 @@ class TemplateVariableManagerWrapper extends Component {
   onSaveTemplatesSuccess() {
     const {rows} = this.state
 
-    const newRows = rows.map(row => row.isNew === false)
+    const newRows = rows.map(row => ({...row, isNew: false}))
 
     this.setState({rows: newRows, isEdited: false})
   }
