@@ -1,6 +1,6 @@
 import {TEMPLATE_VARIABLE_QUERIES} from 'src/dashboards/constants'
 
-const q = ({
+const generateTemplateVariableQuery = ({
   type,
   query: {
     database,
@@ -53,4 +53,4 @@ const q = ({
   }
 }
 
-export default q
+export default generateTemplateVariableQuery

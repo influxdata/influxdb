@@ -265,11 +265,11 @@ class RowWrapper extends Component {
       })
 
       const queryConfig = {
+        type,
+        tempVars,
         query,
         database,
         // rp: TODO
-        tempVars,
-        type,
         measurement,
         tagKey,
       }
