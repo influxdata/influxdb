@@ -56,16 +56,10 @@ const Dashboard = ({
         </div>
         <div className="page-header__right">
           {templates.map(({id, values}) => {
-            let selected
-            const items = values.map(value => {
-              if (value.selected) {
-                selected = value.value
-              }
-              return {...value, text: value.value}
-            })
-            if (!selected && items.length) {
-              selected = items[0].value
-            }
+            const items = values.map(value => ({...value, text: value.value}))
+            const selectedItem = items.filter(item => item.selected) || items[0]
+            const selectedText = selectedItem && selectedItem.text
+
             // TODO: change Dropdown to a MultiSelectDropdown, `selected` to
             // the full array, and [item] to all `selected` values when we update
             // this component to support multiple values
@@ -73,7 +67,7 @@ const Dashboard = ({
               <Dropdown
                 key={id}
                 items={items}
-                selected={selected || 'Loading...'}
+                selected={selectedText || 'Loading...'}
                 onChoose={item =>
                   onSelectTemplate(id, [item].map(x => omit(x, 'text')))}
               />
