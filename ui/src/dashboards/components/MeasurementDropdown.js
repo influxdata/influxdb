@@ -3,7 +3,8 @@ import _ from 'lodash'
 
 import Dropdown from 'shared/components/Dropdown'
 import {showMeasurements} from 'shared/apis/metaQuery'
-import showMeasurementsParser from 'shared/parsing/showMeasurements'
+import parsers from 'shared/parsing'
+const {measurements: showMeasurementsParser} = parsers
 
 class MeasurementDropdown extends Component {
   constructor(props) {
@@ -51,12 +52,13 @@ class MeasurementDropdown extends Component {
 
     try {
       const {data} = await showMeasurements(proxy, database)
-      const {measurementSets} = showMeasurementsParser(data)
-      this.setState({measurements: measurementSets[0].measurements})
-      const selectedText = measurementSets.includes(measurement)
+      const {measurements} = showMeasurementsParser(data)
+
+      this.setState({measurements})
+      const selectedMeasurementText = measurements.includes(measurement)
         ? measurement
-        : _.get(measurementSets, ['0', 'measurements', '0'], 'No measurements')
-      onSelectMeasurement({text: selectedText})
+        : measurements[0] || 'No measurements'
+      onSelectMeasurement({text: selectedMeasurementText})
     } catch (error) {
       console.error(error)
       onErrorThrown(error)

@@ -2,7 +2,8 @@ import React, {PropTypes, Component} from 'react'
 import Dropdown from 'shared/components/Dropdown'
 
 import {showDatabases} from 'shared/apis/metaQuery'
-import showDatabasesParser from 'shared/parsing/showDatabases'
+import parsers from 'shared/parsing'
+const {databases: showDatabasesParser} = parsers
 
 class DatabaseDropdown extends Component {
   constructor(props) {
@@ -45,10 +46,10 @@ class DatabaseDropdown extends Component {
       const {databases} = showDatabasesParser(data)
 
       this.setState({databases})
-      const selectedText = databases.includes(database)
+      const selectedDatabaseText = databases.includes(database)
         ? database
         : databases[0] || 'No databases'
-      onSelectDatabase({text: selectedText})
+      onSelectDatabase({text: selectedDatabaseText})
     } catch (error) {
       console.error(error)
       onErrorThrown(error)

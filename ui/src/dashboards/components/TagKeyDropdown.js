@@ -2,7 +2,8 @@ import React, {PropTypes, Component} from 'react'
 
 import Dropdown from 'shared/components/Dropdown'
 import {showTagKeys} from 'shared/apis/metaQuery'
-import showTagKeysParser from 'shared/parsing/showTagKeys'
+import parsers from 'shared/parsing'
+const {tagKeys: showTagKeysParser} = parsers
 
 class TagKeyDropdown extends Component {
   constructor(props) {
@@ -57,10 +58,10 @@ class TagKeyDropdown extends Component {
       const {tagKeys} = showTagKeysParser(data)
 
       this.setState({tagKeys})
-      const selectedText = tagKeys.includes(tagKey)
+      const selectedTagKeyText = tagKeys.includes(tagKey)
         ? tagKey
         : tagKeys[0] || 'No tags'
-      onSelectTagKey({text: selectedText})
+      onSelectTagKey({text: selectedTagKeyText})
     } catch (error) {
       console.error(error)
       onErrorThrown(error)
