@@ -87,35 +87,44 @@ const DashboardsPage = React.createClass({
                     </button>
                   </div>
                   <div className="panel-body">
-                    <table className="table v-center admin-table">
-                      <thead>
-                        <tr>
-                          <th>Name</th>
-                          <th />
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {dashboards && dashboards.length
-                          ? dashboards.map(dashboard => {
-                            return (
-                                <tr key={dashboard.id} className="">
-                                  <td className="monotype">
-                                    <Link
-                                      to={`${dashboardLink}/dashboards/${dashboard.id}`}
-                                    >
-                                      {dashboard.name}
-                                    </Link>
-                                  </td>
-                                  <DeleteConfirmTableCell
-                                    onDelete={this.handleDeleteDashboard}
-                                    item={dashboard}
-                                  />
-                                </tr>
-                            )
-                          })
-                          : null}
-                      </tbody>
-                    </table>
+                    {dashboards && dashboards.length
+                      ? <table className="table v-center admin-table">
+                          <thead>
+                            <tr>
+                              <th>Name</th>
+                              <th />
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {dashboards.map(dashboard => (
+                              <tr key={dashboard.id} className="">
+                                <td className="monotype">
+                                  <Link
+                                    to={`${dashboardLink}/dashboards/${dashboard.id}`}
+                                  >
+                                    {dashboard.name}
+                                  </Link>
+                                </td>
+                                <DeleteConfirmTableCell
+                                  onDelete={this.handleDeleteDashboard}
+                                  item={dashboard}
+                                />
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      : <div className="generic-empty-state">
+                          <h4 style={{marginTop: '90px'}}>
+                            Looks like you dont have any dashboards
+                          </h4>
+                          <button
+                            className="btn btn-sm btn-primary"
+                            onClick={this.handleCreateDashbord}
+                            style={{marginBottom: '90px'}}
+                          >
+                            Create Dashboard
+                          </button>
+                        </div>}
                   </div>
                 </div>
               </div>
