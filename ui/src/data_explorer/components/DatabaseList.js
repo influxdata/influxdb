@@ -1,21 +1,22 @@
 import React, {PropTypes} from 'react'
-import _ from 'lodash'
-import classNames from 'classnames'
 
 import {showDatabases, showRetentionPolicies} from 'shared/apis/metaQuery'
 import showDatabasesParser from 'shared/parsing/showDatabases'
 import showRetentionPoliciesParser from 'shared/parsing/showRetentionPolicies'
+import Dropdown from 'shared/components/Dropdown'
+
+const {func, shape, string} = PropTypes
 
 const DatabaseList = React.createClass({
   propTypes: {
-    query: PropTypes.shape({}).isRequired,
-    onChooseNamespace: PropTypes.func.isRequired,
+    query: shape({}).isRequired,
+    onChooseNamespace: func.isRequired,
   },
 
   contextTypes: {
-    source: PropTypes.shape({
-      links: PropTypes.shape({
-        proxy: PropTypes.string.isRequired,
+    source: shape({
+      links: shape({
+        proxy: string.isRequired,
       }).isRequired,
     }).isRequired,
   },
@@ -57,22 +58,19 @@ const DatabaseList = React.createClass({
   },
 
   render() {
-    const {onChooseNamespace, query} = this.props
+    const {query, onChooseNamespace} = this.props
+    const {namespaces} = this.state
 
     return (
       <div className="query-builder--column">
         <div className="query-builder--heading">Databases</div>
         <div className="query-builder--list">
-          {this.state.namespaces.map((namespace) => {
-            const {database, retentionPolicy} = namespace
-            const isActive = database === query.database && retentionPolicy === query.retentionPolicy
-
-            return (
-              <div className={classNames('query-builder--list-item', {active: isActive})} key={`${database}..${retentionPolicy}`} onClick={isActive ? null : _.wrap(namespace, onChooseNamespace)}>
-                {database}.{retentionPolicy}
-              </div>
-            )
-          })}
+          <Dropdown
+            className="dropdown-160 query-builder--db-dropdown"
+            items={namespaces.map(n => ({...n, text: `${n.database}.${n.retentionPolicy}`}))}
+            onChoose={onChooseNamespace}
+            selected={(query.database && query.retentionPolicy) ? `${query.database}.${query.retentionPolicy}` : 'Choose a DB & RP'}
+          />
         </div>
       </div>
     )
