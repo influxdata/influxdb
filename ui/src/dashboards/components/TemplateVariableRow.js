@@ -196,11 +196,12 @@ const TableInput = ({
 class RowWrapper extends Component {
   constructor(props) {
     super(props)
-    const {template: {query, type, isNew}} = this.props
+    const {template: {type, query, isNew}} = this.props
 
     this.state = {
       isEditing: !!isNew,
-      isNew,
+      isNew: !!isNew,
+      hasBeenSavedToComponentStateOnce: !isNew,
       selectedType: type,
       selectedDatabase: query && query.db,
       selectedMeasurement: query && query.measurement,
@@ -230,6 +231,7 @@ class RowWrapper extends Component {
       const {
         source,
         template,
+        template: {id},
         onRunQuerySuccess,
         onRunQueryFailure,
         tempVarAlreadyExists,
@@ -239,14 +241,17 @@ class RowWrapper extends Component {
       const _tempVar = e.target.tempVar.value
       const tempVar = `\u003a${_tempVar}\u003a` // add ':'s
 
-      if (tempVarAlreadyExists(tempVar)) {
+      if (tempVarAlreadyExists(tempVar, id)) {
         return notify(
           'error',
           `Variable '${_tempVar}' already exists. Please enter a new value.`
         )
       }
 
-      this.setState({isEditing: false, isNew: false})
+      this.setState({
+        isEditing: false,
+        hasBeenSavedToComponentStateOnce: true,
+      })
 
       const {query, tempVars} = generateTemplateVariableQuery({
         type,
@@ -295,10 +300,12 @@ class RowWrapper extends Component {
 
   handleCancelEdit() {
     const {
-      template: {type, query: {db, measurement, tagKey}, isNew, id},
+      template: {type, query: {db, measurement, tagKey}, id},
       onDelete,
     } = this.props
-    if (isNew) {
+    const {hasBeenSavedToComponentStateOnce} = this.state
+
+    if (!hasBeenSavedToComponentStateOnce) {
       return onDelete(id)
     }
     this.setState({

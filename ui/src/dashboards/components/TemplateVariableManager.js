@@ -154,7 +154,11 @@ class TemplateVariableManagerWrapper extends Component {
   }
 
   onSaveTemplatesSuccess() {
-    this.setState({isEdited: false})
+    const {rows} = this.state
+
+    const newRows = rows.map(row => row.isNew === false)
+
+    this.setState({rows: newRows, isEdited: false})
   }
 
   onDeleteTemplateVariable(templateID) {
@@ -165,9 +169,11 @@ class TemplateVariableManagerWrapper extends Component {
     this.setState({rows: newRows, isEdited: true})
   }
 
-  tempVarAlreadyExists(possibleDupeTempVar) {
+  tempVarAlreadyExists(testTempVar, testID) {
     const {rows: tempVars} = this.state
-    return tempVars.some(({tempVar}) => tempVar === possibleDupeTempVar)
+    return tempVars.some(
+      ({tempVar, id}) => tempVar === testTempVar && id !== testID
+    )
   }
 
   render() {
