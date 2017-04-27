@@ -1,0 +1,30 @@
+/*
+  Styles for the Template Variables Manager Panel
+  ------------------------------------------------------
+  Accessed via Dashboards
+*/
+
+.template-variable-manager {
+  width: 80%;
+  margin: auto;
+
+  .template-variable-manager--header {
+    height: 60px;
+    background: $g0-obsidian;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 20px;
+    font-size: 18px;
+  }
+
+  .template-variable-manager--body {
+    border-radius: 0 0 $radius $radius;
+    min-height: 150px;
+    @include gradient-v($g2-kevlar,$g0-obsidian);
+  }
+
+  .dropdown-toggle {
+    width: 150px;
+  }
+}
