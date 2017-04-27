@@ -61,11 +61,11 @@ const Visualization = React.createClass({
       return
     }
 
-    if (!nextQueryText.match(META_QUERY_REGEX)) {
-      return this.setState({view: GRAPH})
+    if (nextQueryText.match(META_QUERY_REGEX)) {
+      return this.setState({view: TABLE})
     }
 
-    this.setState({view: TABLE})
+    this.setState({view: GRAPH})
   },
 
   handleToggleView(view) {
