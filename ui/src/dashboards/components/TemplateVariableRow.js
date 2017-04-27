@@ -41,9 +41,13 @@ const RowValues = ({
       />
     )
   }
-  return values.length
-    ? <span>{_values}</span>
-    : <span>(No values to display)</span>
+  return (
+    <div className="td">
+      {values.length
+        ? <span>{_values}</span>
+        : <span>(No values to display)</span>}
+    </div>
+  )
 }
 
 const RowButtons = ({
@@ -144,15 +148,13 @@ const TemplateVariableRow = ({
         onStartEdit={onStartEdit}
       />
     </div>
-    <div className="td">
-      <RowValues
-        selectedType={selectedType}
-        values={values}
-        isEditing={isEditing}
-        onStartEdit={onStartEdit}
-        autoFocusTarget={autoFocusTarget}
-      />
-    </div>
+    <RowValues
+      selectedType={selectedType}
+      values={values}
+      isEditing={isEditing}
+      onStartEdit={onStartEdit}
+      autoFocusTarget={autoFocusTarget}
+    />
     <div className="td" style={{display: 'flex'}}>
       <RowButtons
         onStartEdit={onStartEdit}
