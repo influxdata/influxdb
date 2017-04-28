@@ -14,40 +14,42 @@ import {
 } from 'src/dashboards/actions'
 
 let state
+const templates = [
+  {
+    id: '1',
+    type: 'query',
+    label: 'test query',
+    tempVar: '$REGION',
+    query: {
+      db: 'db1',
+      rp: 'rp1',
+      measurement: 'm1',
+      influxql: 'SHOW TAGS WHERE CHRONOGIRAFFE = "friend"',
+    },
+    values: [
+      {value: 'us-west', type: 'tagKey', selected: false},
+      {value: 'us-east', type: 'tagKey', selected: true},
+      {value: 'us-mount', type: 'tagKey', selected: false},
+    ],
+  },
+  {
+    id: '2',
+    type: 'csv',
+    label: 'test csv',
+    tempVar: '$TEMPERATURE',
+    values: [
+      {value: '98.7', type: 'measurement', selected: false},
+      {value: '99.1', type: 'measurement', selected: false},
+      {value: '101.3', type: 'measurement', selected: true},
+    ],
+  },
+]
+
 const d1 = {
   id: 1,
   cells: [],
   name: 'd1',
-  templates: [
-    {
-      id: '1',
-      type: 'query',
-      label: 'test query',
-      tempVar: '$REGION',
-      query: {
-        db: 'db1',
-        rp: 'rp1',
-        measurement: 'm1',
-        influxql: 'SHOW TAGS WHERE CHRONOGIRAFFE = "friend"',
-      },
-      values: [
-        {value: 'us-west', type: 'tagKey', selected: false},
-        {value: 'us-east', type: 'tagKey', selected: true},
-        {value: 'us-mount', type: 'tagKey', selected: false},
-      ],
-    },
-    {
-      id: '2',
-      type: 'csv',
-      label: 'test csv',
-      tempVar: '$TEMPERATURE',
-      values: [
-        {value: '98.7', type: 'measurement', selected: false},
-        {value: '99.1', type: 'measurement', selected: false},
-        {value: '101.3', type: 'measurement', selected: true},
-      ],
-    },
-  ],
+  templates,
 }
 const d2 = {id: 2, cells: [], name: 'd2', templates: []}
 const dashboards = [d1, d2]
@@ -113,6 +115,7 @@ describe('DataExplorer.Reducers.UI', () => {
       id: 1,
       cells: updatedCells,
       name: 'd1',
+      templates,
     }
 
     const actual = reducer(state, updateDashboardCells(d1, updatedCells))
