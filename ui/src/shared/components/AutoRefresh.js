@@ -54,11 +54,11 @@ const AutoRefresh = ComposedComponent => {
     },
 
     componentDidMount() {
-      const {queries, autoRefresh} = this.props
-      this.executeQueries(queries)
+      const {queries, templates, autoRefresh} = this.props
+      this.executeQueries(queries, templates)
       if (autoRefresh) {
         this.intervalID = setInterval(
-          () => this.executeQueries(queries),
+          () => this.executeQueries(queries, templates),
           autoRefresh
         )
       }
@@ -78,7 +78,7 @@ const AutoRefresh = ComposedComponent => {
       const shouldRefetch = queriesDidUpdate || tempVarsDidUpdate
 
       if (shouldRefetch) {
-        this.executeQueries(nextProps.queries)
+        this.executeQueries(nextProps.queries, nextProps.templates)
       }
 
       if (this.props.autoRefresh !== nextProps.autoRefresh || shouldRefetch) {
@@ -86,7 +86,7 @@ const AutoRefresh = ComposedComponent => {
 
         if (nextProps.autoRefresh) {
           this.intervalID = setInterval(
-            () => this.executeQueries(nextProps.queries),
+            () => this.executeQueries(nextProps.queries, nextProps.templates),
             nextProps.autoRefresh
           )
         }
@@ -102,8 +102,8 @@ const AutoRefresh = ComposedComponent => {
       )
     },
 
-    executeQueries(queries) {
-      const {templates = [], editQueryStatus} = this.props
+    executeQueries(queries, templates = []) {
+      const {editQueryStatus} = this.props
 
       if (!queries.length) {
         this.setState({timeSeries: []})
