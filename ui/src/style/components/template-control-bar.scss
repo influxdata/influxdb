@@ -5,24 +5,27 @@
   template variables
 */
 
-$template-control--margin: 4px;
+$template-control--margin: 2px;
 
 .template-control-bar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  margin-bottom: $template-control--margin;
+  margin-bottom: 8px;
+  padding: $template-control--margin;
+  @extend .cell-shell;
+  background-color: $g0-obsidian;
 }
 .template-control--heading {
   font-size: 16px;
   font-weight: 500;
   color: $g13-mist;
-  margin: 0 8px 0 0;
+  margin: 0 8px 0 16px;
   @include no-user-select();
   white-space: nowrap;
 }
 .template-control--manage {
-  margin: $template-control--margin;
+  margin: $template-control--margin 8px;
 }
 .template-control--dropdown {
   flex: 0 1 auto;

@@ -52,13 +52,6 @@ const Dashboard = ({
     >
       <div className="template-control-bar">
         <h1 className="template-control--heading">Template Variables</h1>
-        <button
-          className="btn btn-primary btn-sm template-control--manage"
-          onClick={onOpenTemplateManager}
-        >
-          <span className="icon cog-thick" />
-           Manage
-        </button>
         {templates.map(({id, values, tempVar}) => {
           const items = values.map(value => ({...value, text: value.value}))
           const selectedItem = items.find(item => item.selected) || items[0]
@@ -82,6 +75,13 @@ const Dashboard = ({
             </div>
           )
         })}
+        <button
+          className="btn btn-primary btn-sm template-control--manage"
+          onClick={onOpenTemplateManager}
+        >
+          <span className="icon cog-thick" />
+           Manage
+        </button>
       </div>
       {cells.length
         ? <LayoutRenderer
