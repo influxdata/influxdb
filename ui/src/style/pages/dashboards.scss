@@ -105,6 +105,7 @@ $dash-graph-options-arrow: 8px;
   top: $dash-graph-heading;
   left: 0;
   padding: 0;
+  z-index: 0;
 
   & > div:not(.graph-empty) {
     position: absolute;
