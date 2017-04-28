@@ -8,12 +8,14 @@ import (
 	"golang.org/x/net/context"
 
 	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/influx"
 	"github.com/influxdata/chronograf/influx/queries"
 )
 
 type QueryRequest struct {
-	ID    string `json:"id"`
-	Query string `json:"query"`
+	ID           string                   `json:"id"`
+	Query        string                   `json:"query"`
+	TemplateVars []chronograf.TemplateVar `json:"tempVars,omitempty"`
 }
 
 type QueriesRequest struct {
@@ -21,10 +23,12 @@ type QueriesRequest struct {
 }
 
 type QueryResponse struct {
-	ID          string                   `json:"id"`
-	Query       string                   `json:"query"`
-	QueryConfig chronograf.QueryConfig   `json:"queryConfig"`
-	QueryAST    *queries.SelectStatement `json:"queryAST,omitempty"`
+	ID             string                   `json:"id"`
+	Query          string                   `json:"query"`
+	QueryConfig    chronograf.QueryConfig   `json:"queryConfig"`
+	QueryAST       *queries.SelectStatement `json:"queryAST,omitempty"`
+	QueryTemplated *string                  `json:"queryTemplated,omitempty"`
+	TemplateVars   []chronograf.TemplateVar `json:"tempVars,omitempty"`
 }
 
 type QueriesResponse struct {
@@ -62,15 +66,26 @@ func (s *Service) Queries(w http.ResponseWriter, r *http.Request) {
 			Query: q.Query,
 		}
 
-		qc := ToQueryConfig(q.Query)
+		query := q.Query
+		if len(q.TemplateVars) > 0 {
+			query = influx.TemplateReplace(query, q.TemplateVars)
+			qr.QueryTemplated = &query
+		}
+
+		qc := ToQueryConfig(query)
 		if err := s.DefaultRP(ctx, &qc, &src); err != nil {
 			Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 			return
 		}
 		qr.QueryConfig = qc
 
-		if stmt, err := queries.ParseSelect(q.Query); err == nil {
+		if stmt, err := queries.ParseSelect(query); err == nil {
 			qr.QueryAST = stmt
+		}
+
+		if len(q.TemplateVars) > 0 {
+			qr.TemplateVars = q.TemplateVars
+			qr.QueryConfig.RawText = &qr.Query
 		}
 
 		qr.QueryConfig.ID = q.ID
