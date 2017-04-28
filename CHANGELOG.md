@@ -10,6 +10,7 @@
 
 ### UI Improvements
   1. [#1335](https://github.com/influxdata/chronograf/pull/1335): Improve UX for sanitized kapacitor settings
+  1. [#1342](https://github.com/influxdata/chronograf/pull/1342): No more sort-as-you-type in DB admin
   1. [#1344](https://github.com/influxdata/chronograf/pull/1344): Remove K8 dashboard
   1. [#1340](https://github.com/influxdata/chronograf/pull/1340): Automatically switch to table view if meta query
 
