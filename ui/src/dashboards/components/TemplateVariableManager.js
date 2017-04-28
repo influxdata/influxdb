@@ -132,6 +132,10 @@ class TemplateVariableManagerWrapper extends Component {
       selectedValue = currentRow.values[0].value
     }
 
+    if (!selectedValue) {
+      selectedValue = parsedData[0]
+    }
+
     const values = parsedData.map(value => ({
       value,
       type: TEMPLATE_VARIABLE_TYPES[type],
