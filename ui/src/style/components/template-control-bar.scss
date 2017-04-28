@@ -5,14 +5,13 @@
   template variables
 */
 
+$template-control--margin: 4px;
+
 .template-control-bar {
-  height: 50px;
   display: flex;
-  justify-content: space-between;
+  flex-wrap: wrap;
   align-items: center;
-  margin-bottom: 4px;
-  padding: 0 14px;
-  @extend .cell-shell;
+  margin-bottom: $template-control--margin;
 }
 .template-control--heading {
   font-size: 16px;
@@ -22,14 +21,16 @@
   @include no-user-select();
   white-space: nowrap;
 }
-
+.template-control--manage {
+  margin: $template-control--margin;
+}
 .template-control--dropdown {
   flex: 0 1 auto;
-  min-width: 160px;
+  min-width: 150px;
   display: flex;
-  align-items: center;
-  flex-wrap: nowrap;
-  margin: 0 0 0 8px;
+  flex-direction: column;
+  align-items: stretch;
+  margin: $template-control--margin;
 
   .dropdown {
     order: 2;
@@ -38,40 +39,35 @@
   }
 
   .dropdown-toggle {
-    border-radius: 0 $radius-small $radius-small 0;
+    border-radius: 0 0 $radius-small $radius-small;
     width: 100%;
-  }
-  .dropdown.open > div.btn.dropdown-toggle {
-    @include gradient-h($c-comet,$c-pool);
+    font-size: 12px;
+    font-family: $code-font;
   }
   .dropdown-menu {
-    @include gradient-h($c-amethyst,$c-ocean);
-    @include custom-scrollbar-round($c-ocean,$c-laser);
+    @include gradient-h($c-star,$c-pool);
+    @include custom-scrollbar-round($c-pool,$c-laser);
 
     > li > a {
       &, &:active {background-color: transparent !important;}
+      font-size: 12px;
+      font-family: $code-font;
     }
     > li {
-      &:hover {@include gradient-h($c-star,$c-ocean);}
+      &:hover {@include gradient-h($c-comet,$c-pool);}
     }
   }
-}
+} 
 .template-control--label {
+  @include no-user-select();
   order: 1;
-  height: 30px;
-  padding: 0 9px;
+  height: 18px;
+  padding: 0 8px;
   margin: 0;
-  font-size: 12px;
+  font-size: 11px;
   font-family: $code-font;
   color: $c-potassium;
-  line-height: 30px;
-  border-radius: $radius-small 0 0 $radius-small;
-  background-color: $g5-pepper;
-  // transition:
-  //   background-color 0.25s ease,
-  //   color 0.25s ease;
-}
-.dropdown.open + .template-control--label {
-  @include gradient-h($c-star,$c-comet);
-  color: $g20-white;
+  line-height: 18px;
+  border-radius: $radius-small $radius-small 0 0;
+  background-color: $g4-onyx;
 }

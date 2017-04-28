@@ -51,40 +51,37 @@ const Dashboard = ({
       )}
     >
       <div className="template-control-bar">
-        <div className="page-header__left">
-          <h1 className="template-control--heading">Template Variables</h1>
-          {templates.map(({id, values, tempVar}) => {
-            const items = values.map(value => ({...value, text: value.value}))
-            const selectedItem = items.find(item => item.selected) || items[0]
-            const selectedText = selectedItem && selectedItem.text
+        <h1 className="template-control--heading">Template Variables</h1>
+        <button
+          className="btn btn-primary btn-sm template-control--manage"
+          onClick={onOpenTemplateManager}
+        >
+          <span className="icon cog-thick" />
+           Manage
+        </button>
+        {templates.map(({id, values, tempVar}) => {
+          const items = values.map(value => ({...value, text: value.value}))
+          const selectedItem = items.find(item => item.selected) || items[0]
+          const selectedText = selectedItem && selectedItem.text
 
-            // TODO: change Dropdown to a MultiSelectDropdown, `selected` to
-            // the full array, and [item] to all `selected` values when we update
-            // this component to support multiple values
-            return (
-              <div key={id} className="template-control--dropdown">
-                <Dropdown
-                  items={items}
-                  selected={selectedText || 'Loading...'}
-                  onChoose={item =>
-                    onSelectTemplate(id, [item].map(x => omit(x, 'text')))}
-                />
-                <label className="template-control--label">
-                  {tempVar}
-                </label>
-              </div>
-            )
-          })}
-        </div>
-        <div className="page-header__right">
-          <button
-            className="btn btn-primary btn-sm"
-            onClick={onOpenTemplateManager}
-          >
-            <span className="icon cog-thick" />
-             Manage
-          </button>
-        </div>
+          // TODO: change Dropdown to a MultiSelectDropdown, `selected` to
+          // the full array, and [item] to all `selected` values when we update
+          // this component to support multiple values
+          return (
+            <div key={id} className="template-control--dropdown">
+              <Dropdown
+                items={items}
+                buttonSize="btn-xs"
+                selected={selectedText || 'Loading...'}
+                onChoose={item =>
+                  onSelectTemplate(id, [item].map(x => omit(x, 'text')))}
+              />
+              <label className="template-control--label">
+                {tempVar}
+              </label>
+            </div>
+          )
+        })}
       </div>
       {cells.length
         ? <LayoutRenderer
