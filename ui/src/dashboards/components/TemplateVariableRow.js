@@ -315,7 +315,7 @@ class RowWrapper extends Component {
       selectedType: type,
       selectedDatabase: db,
       selectedMeasurement: measurement,
-      selectedKey: tagKey,
+      selectedTagKey: tagKey,
       isEditing: false,
     })
   }
@@ -325,7 +325,7 @@ class RowWrapper extends Component {
       selectedType: item.type,
       selectedDatabase: null,
       selectedMeasurement: null,
-      selectedKey: null,
+      selectedTagKey: null,
     })
   }
 
