@@ -10,7 +10,6 @@ import {
   editDashboardCell,
   renameDashboardCell,
   syncDashboardCell,
-  editTemplateVariableSuccess,
   templateVariableSelected,
 } from 'src/dashboards/actions'
 
@@ -161,25 +160,6 @@ describe('DataExplorer.Reducers.UI', () => {
     expect(actual.dashboards[0].cells[0].name).to.equal(
       'Plutonium Consumption Rate (ug/sec)'
     )
-  })
-
-  it('can edit a template', () => {
-    const dash = {...d1, templates: [tempVar]}
-    state = {
-      dashboards: [dash],
-    }
-    const edited = {
-      ...d1.templates[0],
-      id: '1',
-      tempVar: '$NEWCODE',
-      label: 'new label',
-      type: 'tagKey',
-    }
-    const expected = {...tempVar, ...edited}
-
-    const actual = reducer(state, editTemplateVariableSuccess(dash.id, edited))
-
-    expect(actual.dashboards[0].templates[0]).to.deep.equal(expected)
   })
 
   it('can select a different template variable', () => {
