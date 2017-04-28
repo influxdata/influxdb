@@ -37,6 +37,7 @@ type Engine interface {
 	CreateSnapshot() (string, error)
 	Backup(w io.Writer, basePath string, since time.Time) error
 	Restore(r io.Reader, basePath string) error
+	Import(r io.Reader, basePath string) error
 
 	CreateIterator(measurement string, opt influxql.IteratorOptions) (influxql.Iterator, error)
 	WritePoints(points []models.Point) error

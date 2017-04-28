@@ -134,6 +134,9 @@ type TSMWriter interface {
 	// WriteIndex finishes the TSM write streams and writes the index.
 	WriteIndex() error
 
+	// Flushes flushes all pending changes to the underlying file resources.
+	Flush() error
+
 	// Close closes any underlying file resources.
 	Close() error
 
@@ -570,7 +573,7 @@ func (t *tsmWriter) WriteIndex() error {
 	return err
 }
 
-func (t *tsmWriter) Close() error {
+func (t *tsmWriter) Flush() error {
 	if err := t.w.Flush(); err != nil {
 		return err
 	}
@@ -579,6 +582,13 @@ func (t *tsmWriter) Close() error {
 		if err := f.Sync(); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func (t *tsmWriter) Close() error {
+	if err := t.Flush(); err != nil {
+		return err
 	}
 
 	if c, ok := t.wrapped.(io.Closer); ok {

@@ -31,7 +31,7 @@ func TestFileStore_Read(t *testing.T) {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
 
-	fs.Add(files...)
+	fs.Replace(nil, files)
 
 	// Search for an entry that exists in the second file
 	values, err := fs.Read("cpu", 1)
@@ -68,7 +68,7 @@ func TestFileStore_SeekToAsc_FromStart(t *testing.T) {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
 
-	fs.Add(files...)
+	fs.Replace(nil, files)
 
 	buf := make([]tsm1.FloatValue, 1000)
 	c := fs.KeyCursor("cpu", 0, true)
@@ -108,7 +108,7 @@ func TestFileStore_SeekToAsc_Duplicate(t *testing.T) {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
 
-	fs.Add(files...)
+	fs.Replace(nil, files)
 
 	buf := make([]tsm1.FloatValue, 1000)
 	c := fs.KeyCursor("cpu", 0, true)
@@ -180,7 +180,7 @@ func TestFileStore_SeekToAsc_BeforeStart(t *testing.T) {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
 
-	fs.Add(files...)
+	fs.Replace(nil, files)
 
 	// Search for an entry that exists in the second file
 	buf := make([]tsm1.FloatValue, 1000)
@@ -222,7 +222,7 @@ func TestFileStore_SeekToAsc_BeforeStart_OverlapFloat(t *testing.T) {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
 
-	fs.Add(files...)
+	fs.Replace(nil, files)
 
 	// Search for an entry that exists in the second file
 	buf := make([]tsm1.FloatValue, 1000)
@@ -289,7 +289,7 @@ func TestFileStore_SeekToAsc_BeforeStart_OverlapInteger(t *testing.T) {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
 
-	fs.Add(files...)
+	fs.Replace(nil, files)
 
 	// Search for an entry that exists in the second file
 	buf := make([]tsm1.IntegerValue, 1000)
@@ -355,7 +355,7 @@ func TestFileStore_SeekToAsc_BeforeStart_OverlapBoolean(t *testing.T) {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
 
-	fs.Add(files...)
+	fs.Replace(nil, files)
 
 	// Search for an entry that exists in the second file
 	buf := make([]tsm1.BooleanValue, 1000)
@@ -421,7 +421,7 @@ func TestFileStore_SeekToAsc_BeforeStart_OverlapString(t *testing.T) {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
 
-	fs.Add(files...)
+	fs.Replace(nil, files)
 
 	// Search for an entry that exists in the second file
 	buf := make([]tsm1.StringValue, 1000)
@@ -487,7 +487,7 @@ func TestFileStore_SeekToAsc_OverlapMinFloat(t *testing.T) {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
 
-	fs.Add(files...)
+	fs.Replace(nil, files)
 
 	buf := make([]tsm1.FloatValue, 1000)
 	c := fs.KeyCursor("cpu", 0, true)
@@ -567,7 +567,7 @@ func TestFileStore_SeekToAsc_OverlapMinInteger(t *testing.T) {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
 
-	fs.Add(files...)
+	fs.Replace(nil, files)
 
 	buf := make([]tsm1.IntegerValue, 1000)
 	c := fs.KeyCursor("cpu", 0, true)
@@ -646,7 +646,7 @@ func TestFileStore_SeekToAsc_OverlapMinBoolean(t *testing.T) {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
 
-	fs.Add(files...)
+	fs.Replace(nil, files)
 
 	buf := make([]tsm1.BooleanValue, 1000)
 	c := fs.KeyCursor("cpu", 0, true)
@@ -725,7 +725,7 @@ func TestFileStore_SeekToAsc_OverlapMinString(t *testing.T) {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
 
-	fs.Add(files...)
+	fs.Replace(nil, files)
 
 	buf := make([]tsm1.StringValue, 1000)
 	c := fs.KeyCursor("cpu", 0, true)
@@ -802,7 +802,7 @@ func TestFileStore_SeekToAsc_Middle(t *testing.T) {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
 
-	fs.Add(files...)
+	fs.Replace(nil, files)
 
 	// Search for an entry that exists in the second file
 	buf := make([]tsm1.FloatValue, 1000)
@@ -859,7 +859,7 @@ func TestFileStore_SeekToAsc_End(t *testing.T) {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
 
-	fs.Add(files...)
+	fs.Replace(nil, files)
 
 	buf := make([]tsm1.FloatValue, 1000)
 	c := fs.KeyCursor("cpu", 2, true)
@@ -897,7 +897,7 @@ func TestFileStore_SeekToDesc_FromStart(t *testing.T) {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
 
-	fs.Add(files...)
+	fs.Replace(nil, files)
 
 	// Search for an entry that exists in the second file
 	buf := make([]tsm1.FloatValue, 1000)
@@ -936,7 +936,7 @@ func TestFileStore_SeekToDesc_Duplicate(t *testing.T) {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
 
-	fs.Add(files...)
+	fs.Replace(nil, files)
 
 	// Search for an entry that exists in the second file
 	buf := make([]tsm1.FloatValue, 1000)
@@ -995,7 +995,7 @@ func TestFileStore_SeekToDesc_OverlapMaxFloat(t *testing.T) {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
 
-	fs.Add(files...)
+	fs.Replace(nil, files)
 
 	// Search for an entry that exists in the second file
 	buf := make([]tsm1.FloatValue, 1000)
@@ -1060,7 +1060,7 @@ func TestFileStore_SeekToDesc_OverlapMaxInteger(t *testing.T) {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
 
-	fs.Add(files...)
+	fs.Replace(nil, files)
 
 	// Search for an entry that exists in the second file
 	buf := make([]tsm1.IntegerValue, 1000)
@@ -1123,7 +1123,7 @@ func TestFileStore_SeekToDesc_OverlapMaxBoolean(t *testing.T) {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
 
-	fs.Add(files...)
+	fs.Replace(nil, files)
 
 	// Search for an entry that exists in the second file
 	buf := make([]tsm1.BooleanValue, 1000)
@@ -1186,7 +1186,7 @@ func TestFileStore_SeekToDesc_OverlapMaxString(t *testing.T) {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
 
-	fs.Add(files...)
+	fs.Replace(nil, files)
 
 	// Search for an entry that exists in the second file
 	buf := make([]tsm1.StringValue, 1000)
@@ -1248,7 +1248,7 @@ func TestFileStore_SeekToDesc_AfterEnd(t *testing.T) {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
 
-	fs.Add(files...)
+	fs.Replace(nil, files)
 
 	buf := make([]tsm1.FloatValue, 1000)
 	c := fs.KeyCursor("cpu", 4, false)
@@ -1287,7 +1287,7 @@ func TestFileStore_SeekToDesc_AfterEnd_OverlapFloat(t *testing.T) {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
 
-	fs.Add(files...)
+	fs.Replace(nil, files)
 
 	buf := make([]tsm1.FloatValue, 1000)
 	c := fs.KeyCursor("cpu", 10, false)
@@ -1384,7 +1384,7 @@ func TestFileStore_SeekToDesc_AfterEnd_OverlapInteger(t *testing.T) {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
 
-	fs.Add(files...)
+	fs.Replace(nil, files)
 
 	buf := make([]tsm1.IntegerValue, 1000)
 	c := fs.KeyCursor("cpu", 11, false)
@@ -1461,7 +1461,7 @@ func TestFileStore_SeekToDesc_AfterEnd_OverlapBoolean(t *testing.T) {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
 
-	fs.Add(files...)
+	fs.Replace(nil, files)
 
 	buf := make([]tsm1.BooleanValue, 1000)
 	c := fs.KeyCursor("cpu", 11, false)
@@ -1558,7 +1558,7 @@ func TestFileStore_SeekToDesc_AfterEnd_OverlapString(t *testing.T) {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
 
-	fs.Add(files...)
+	fs.Replace(nil, files)
 
 	buf := make([]tsm1.StringValue, 1000)
 	c := fs.KeyCursor("cpu", 11, false)
@@ -1657,7 +1657,7 @@ func TestFileStore_SeekToDesc_Middle(t *testing.T) {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
 
-	fs.Add(files...)
+	fs.Replace(nil, files)
 
 	// Search for an entry that exists in the second file
 	buf := make([]tsm1.FloatValue, 1000)
@@ -1731,7 +1731,7 @@ func TestFileStore_SeekToDesc_End(t *testing.T) {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
 
-	fs.Add(files...)
+	fs.Replace(nil, files)
 
 	buf := make([]tsm1.FloatValue, 1000)
 	c := fs.KeyCursor("cpu", 2, false)
@@ -1769,7 +1769,7 @@ func TestKeyCursor_TombstoneRange(t *testing.T) {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
 
-	fs.Add(files...)
+	fs.Replace(nil, files)
 
 	if err := fs.DeleteRange([]string{"cpu"}, 1, 1); err != nil {
 		t.Fatalf("unexpected error delete range: %v", err)
@@ -1814,7 +1814,7 @@ func TestKeyCursor_TombstoneRange_PartialFloat(t *testing.T) {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
 
-	fs.Add(files...)
+	fs.Replace(nil, files)
 
 	if err := fs.DeleteRange([]string{"cpu"}, 1, 1); err != nil {
 		t.Fatalf("unexpected error delete range: %v", err)
@@ -1858,7 +1858,7 @@ func TestKeyCursor_TombstoneRange_PartialInteger(t *testing.T) {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
 
-	fs.Add(files...)
+	fs.Replace(nil, files)
 
 	if err := fs.DeleteRange([]string{"cpu"}, 1, 1); err != nil {
 		t.Fatalf("unexpected error delete range: %v", err)
@@ -1902,7 +1902,7 @@ func TestKeyCursor_TombstoneRange_PartialString(t *testing.T) {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
 
-	fs.Add(files...)
+	fs.Replace(nil, files)
 
 	if err := fs.DeleteRange([]string{"cpu"}, 1, 1); err != nil {
 		t.Fatalf("unexpected error delete range: %v", err)
@@ -1946,7 +1946,7 @@ func TestKeyCursor_TombstoneRange_PartialBoolean(t *testing.T) {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
 
-	fs.Add(files...)
+	fs.Replace(nil, files)
 
 	if err := fs.DeleteRange([]string{"cpu"}, 1, 1); err != nil {
 		t.Fatalf("unexpected error delete range: %v", err)
@@ -2033,7 +2033,7 @@ func TestFileStore_Remove(t *testing.T) {
 		t.Fatalf("current ID mismatch: got %v, exp %v", got, exp)
 	}
 
-	fs.Remove(files[2])
+	fs.Replace(files[2:3], nil)
 
 	if got, exp := fs.Count(), 2; got != exp {
 		t.Fatalf("file count mismatch: got %v, exp %v", got, exp)
@@ -2193,7 +2193,7 @@ func TestFileStore_Delete(t *testing.T) {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
 
-	fs.Add(files...)
+	fs.Replace(nil, files)
 
 	keys := fs.Keys()
 	if got, exp := len(keys), 3; got != exp {
@@ -2243,7 +2243,7 @@ func TestFileStore_Stats(t *testing.T) {
 	}
 
 	// Removing one of the files should invalidate the cache.
-	fs.Remove(files[0])
+	fs.Replace(files[0:1], nil)
 	if got, exp := len(fs.Stats()), 2; got != exp {
 		t.Fatalf("file count mismatch: got %v, exp %v", got, exp)
 	}
@@ -2278,18 +2278,8 @@ func TestFileStore_Stats(t *testing.T) {
 		"mem": []tsm1.Value{tsm1.NewValue(0, 1.0)},
 	})
 
-	fd, err := os.Open(newFile)
-	if err != nil {
-		t.Fatalf("open file: %v", err)
-	}
-
-	f, err := tsm1.NewTSMReader(fd)
-	if err != nil {
-		t.Fatalf("new reader: %v", err)
-	}
-
 	// Adding some files should invalidate the cache.
-	fs.Add(f)
+	fs.Replace(nil, []string{newFile})
 	if got, exp := len(fs.Stats()), 2; got != exp {
 		t.Fatalf("file count mismatch: got %v, exp %v", got, exp)
 	}
@@ -2312,7 +2302,7 @@ func TestFileStore_CreateSnapshot(t *testing.T) {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
 
-	fs.Add(files...)
+	fs.Replace(nil, files)
 
 	// Create a tombstone
 	if err := fs.DeleteRange([]string{"cpu"}, 1, 1); err != nil {
@@ -2383,8 +2373,8 @@ func newFileDir(dir string, values ...keyValues) ([]string, error) {
 
 }
 
-func newFiles(dir string, values ...keyValues) ([]tsm1.TSMFile, error) {
-	var files []tsm1.TSMFile
+func newFiles(dir string, values ...keyValues) ([]string, error) {
+	var files []string
 
 	id := 1
 	for _, v := range values {
@@ -2412,15 +2402,7 @@ func newFiles(dir string, values ...keyValues) ([]tsm1.TSMFile, error) {
 		}
 		id++
 
-		fd, err := os.Open(newName)
-		if err != nil {
-			return nil, err
-		}
-		r, err := tsm1.NewTSMReader(fd)
-		if err != nil {
-			return nil, err
-		}
-		files = append(files, r)
+		files = append(files, newName)
 	}
 	return files, nil
 }
