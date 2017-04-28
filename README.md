@@ -35,6 +35,7 @@ Currently, Chronograf offers dashboard templates for the following Telegraf inpu
 * Network
 * [NGINX](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/nginx)
 * [NSQ](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/nsq)
+* [PHPfpm](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/phpfpm)
 * [Ping](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/ping)
 * [PostgreSQL](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/postgresql)
 * Processes

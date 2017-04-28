@@ -5,6 +5,7 @@
   1. [#1340](https://github.com/influxdata/chronograf/pull/1340): Fix no active query in DE and Cell editing
   1. [#1338](https://github.com/influxdata/chronograf/pull/1338): Require url and name when adding a new source
   1. [#1348](https://github.com/influxdata/chronograf/pull/1348): Fix broken 'Add Kapacitor' Link
+  1. [#1351](https://github.com/influxdata/chronograf/pull/1350): Add a canned dashboard for phpfpm
 
 ### Features
 
