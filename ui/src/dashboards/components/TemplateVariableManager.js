@@ -43,9 +43,8 @@ const TemplateVariableManager = ({
           Save Changes
         </button>
         <span
-          className="icon remove"
+          className="page-header__dismiss"
           onClick={() => onClose(isEdited)}
-          style={{cursor: 'pointer'}}
         />
       </div>
     </div>

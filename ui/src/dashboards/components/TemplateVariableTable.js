@@ -1,7 +1,6 @@
 import React, {PropTypes} from 'react'
 
 import TemplateVariableRow from 'src/dashboards/components/TemplateVariableRow'
-import EmptyRow from 'src/admin/components/EmptyRow'
 
 const TemplateVariableTable = ({
   source,
@@ -11,19 +10,16 @@ const TemplateVariableTable = ({
   onDelete,
   tempVarAlreadyExists,
 }) => (
-  <div className="table-custom">
+  <div className="template-variable-manager--table">
     {templates.length
-      ? <div>
-          <div className="thead">
-            <div className="tr">
-              <div className="th">Variable</div>
-              <div className="th">Type</div>
-              <div className="th">Queries</div>
-              <div className="th">Values</div>
-              <div className="th" />
-            </div>
+      ? <div className="template-variable-manager--table-container">
+          <div className="template-variable-manager--table-heading">
+            <div className="tvm--col-1">Variable</div>
+            <div className="tvm--col-2">Type</div>
+            <div className="tvm--col-3">Definition / Values</div>
+            <div className="tvm--col-4" />
           </div>
-          <div className="tbody">
+          <div className="template-variable-manager--table-rows">
             {templates.map(t => (
               <TemplateVariableRow
                 key={t.id}
@@ -37,7 +33,10 @@ const TemplateVariableTable = ({
             ))}
           </div>
         </div>
-      : <EmptyRow tableName={'Template Variables'} />}
+      : <div className="generic-empty-state">
+          <h4 style={{margin: '60px 0'}} className="no-user-select">You have no Template Variables, why not create one?</h4>
+        </div>
+    }
   </div>
 )
 
