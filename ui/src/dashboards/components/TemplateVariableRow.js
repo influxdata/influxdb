@@ -115,7 +115,9 @@ const TemplateVariableRow = ({
   onErrorThrown,
 }) => (
   <form
-    className={classNames('template-variable-manager--table-row', {editing: isEditing})}
+    className={classNames('template-variable-manager--table-row', {
+      editing: isEditing,
+    })}
     onSubmit={onSubmit({
       selectedType,
       selectedDatabase,
@@ -246,7 +248,7 @@ class RowWrapper extends Component {
         notify,
       } = this.props
 
-      const _tempVar = e.target.tempVar.value
+      const _tempVar = e.target.tempVar.value.replace(/\u003a/g, '')
       const tempVar = `\u003a${_tempVar}\u003a` // add ':'s
 
       if (tempVarAlreadyExists(tempVar, id)) {
