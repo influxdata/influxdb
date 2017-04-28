@@ -2,7 +2,7 @@ import AJAX from 'utils/ajax'
 import _ from 'lodash'
 import {buildInfluxUrl, proxy} from 'utils/queryUrlGenerator'
 
-export const showDatabases = async (source) => {
+export const showDatabases = async source => {
   const query = 'SHOW DATABASES'
   return await proxy({source, query})
 }
@@ -10,7 +10,7 @@ export const showDatabases = async (source) => {
 export const showRetentionPolicies = async (source, databases) => {
   let query
   if (Array.isArray(databases)) {
-    query = databases.map((db) => `SHOW RETENTION POLICIES ON "${db}"`).join(';')
+    query = databases.map(db => `SHOW RETENTION POLICIES ON "${db}"`).join(';')
   } else {
     query = `SHOW RETENTION POLICIES ON "${databases}"`
   }
@@ -30,24 +30,35 @@ export function killQuery(source, queryId) {
   return proxy({source, query})
 }
 
-export function showMeasurements(source, db) {
+export const showMeasurements = async (source, db) => {
   const query = 'SHOW MEASUREMENTS'
 
-  return proxy({source, db, query})
+  return await proxy({source, db, query})
 }
 
-export function showTagKeys({source, database, retentionPolicy, measurement}) {
+export const showTagKeys = async ({
+  source,
+  database,
+  retentionPolicy,
+  measurement,
+}) => {
   const rp = _.toString(retentionPolicy)
   const query = `SHOW TAG KEYS FROM "${rp}"."${measurement}"`
-  return proxy({source, db: database, rp: retentionPolicy, query})
+  return await proxy({source, db: database, rp: retentionPolicy, query})
 }
 
-export function showTagValues({source, database, retentionPolicy, measurement, tagKeys}) {
-  const keys = tagKeys.sort().map((k) => `"${k}"`).join(', ')
+export const showTagValues = async ({
+  source,
+  database,
+  retentionPolicy,
+  measurement,
+  tagKeys,
+}) => {
+  const keys = tagKeys.sort().map(k => `"${k}"`).join(', ')
   const rp = _.toString(retentionPolicy)
   const query = `SHOW TAG VALUES FROM "${rp}"."${measurement}" WITH KEY IN (${keys})`
 
-  return proxy({source, db: database, rp: retentionPolicy, query})
+  return await proxy({source, db: database, rp: retentionPolicy, query})
 }
 
 export function showShards() {
@@ -56,7 +67,14 @@ export function showShards() {
   })
 }
 
-export function createRetentionPolicy({host, database, rpName, duration, replicationFactor, clusterID}) {
+export function createRetentionPolicy({
+  host,
+  database,
+  rpName,
+  duration,
+  replicationFactor,
+  clusterID,
+}) {
   const statement = `CREATE RETENTION POLICY "${rpName}" ON "${database}" DURATION ${duration} REPLICATION ${replicationFactor}`
   const url = buildInfluxUrl({host, statement})
 
@@ -70,8 +88,8 @@ export function dropShard(host, shard, clusterID) {
   return proxy(url, clusterID)
 }
 
-export function showFieldKeys(source, db, measurement, rp) {
+export const showFieldKeys = async (source, db, measurement, rp) => {
   const query = `SHOW FIELD KEYS FROM "${rp}"."${measurement}"`
 
-  return proxy({source, query, db})
+  return await proxy({source, query, db})
 }

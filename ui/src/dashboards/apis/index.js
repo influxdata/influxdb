@@ -74,15 +74,12 @@ export const deleteDashboardCell = async cell => {
   }
 }
 
-export const editTemplateVariable = async (
-  staleTemplateVariable,
-  editedTemplateVariable
-) => {
+export const editTemplateVariables = async templateVariable => {
   try {
     return await AJAX({
       method: 'PUT',
-      url: staleTemplateVariable.links.self,
-      data: editedTemplateVariable,
+      url: templateVariable.links.self,
+      data: templateVariable,
     })
   } catch (error) {
     console.error(error)
@@ -90,13 +87,15 @@ export const editTemplateVariable = async (
   }
 }
 
-export const runTemplateVariableQuery = async ({
+export const runTemplateVariableQuery = async (
   source,
-  query,
-  db,
-  // rp, TODO
-  tempVars,
-}) => {
+  {
+    query,
+    db,
+    // rp, TODO
+    tempVars,
+  }
+) => {
   try {
     // TODO: add rp as argument to proxy
     return await proxy({source: source.links.proxy, query, db, tempVars})

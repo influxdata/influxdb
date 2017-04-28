@@ -54,6 +54,15 @@ export const TEMPLATE_TYPES = [
   },
 ]
 
+export const TEMPLATE_VARIABLE_TYPES = {
+  csv: 'csv',
+  databases: 'database',
+  measurements: 'measurement',
+  fieldKeys: 'fieldKey',
+  tagKeys: 'tagKey',
+  tagValues: 'tagValue',
+}
+
 export const TEMPLATE_VARIABLE_QUERIES = {
   databases: 'SHOW DATABASES',
   measurements: 'SHOW MEASUREMENTS ON :database:',

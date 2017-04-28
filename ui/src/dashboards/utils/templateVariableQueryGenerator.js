@@ -1,6 +1,6 @@
 import {TEMPLATE_VARIABLE_QUERIES} from 'src/dashboards/constants'
 
-const q = ({
+const generateTemplateVariableQuery = ({
   type,
   query: {
     database,
@@ -13,7 +13,7 @@ const q = ({
 
   if (database) {
     tempVars.push({
-      tempVar: '$database',
+      tempVar: ':database:',
       values: [
         {
           type: 'database',
@@ -24,7 +24,7 @@ const q = ({
   }
   if (measurement) {
     tempVars.push({
-      tempVar: '$measurement',
+      tempVar: ':measurement:',
       values: [
         {
           type: 'measurement',
@@ -35,7 +35,7 @@ const q = ({
   }
   if (tagKey) {
     tempVars.push({
-      tempVar: '$tagKey',
+      tempVar: ':tagKey:',
       values: [
         {
           type: 'tagKey',
@@ -53,4 +53,4 @@ const q = ({
   }
 }
 
-export default q
+export default generateTemplateVariableQuery

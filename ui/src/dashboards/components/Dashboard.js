@@ -30,19 +30,16 @@ const Dashboard = ({
 
   const cells = dashboard.cells.map(cell => {
     const dashboardCell = {...cell}
-    dashboardCell.queries = dashboardCell.queries.map(({
-      label,
-      query,
-      queryConfig,
-      db,
-    }) => ({
-      label,
-      query,
-      queryConfig,
-      db,
-      database: db,
-      text: query,
-    }))
+    dashboardCell.queries = dashboardCell.queries.map(
+      ({label, query, queryConfig, db}) => ({
+        label,
+        query,
+        queryConfig,
+        db,
+        database: db,
+        text: query,
+      })
+    )
     return dashboardCell
   })
 
@@ -59,13 +56,10 @@ const Dashboard = ({
         </div>
         <div className="page-header__right">
           {templates.map(({id, values}) => {
-            let selected
-            const items = values.map(value => {
-              if (value.selected) {
-                selected = value.value
-              }
-              return {...value, text: value.value}
-            })
+            const items = values.map(value => ({...value, text: value.value}))
+            const selectedItem = items.find(item => item.selected) || items[0]
+            const selectedText = selectedItem && selectedItem.text
+
             // TODO: change Dropdown to a MultiSelectDropdown, `selected` to
             // the full array, and [item] to all `selected` values when we update
             // this component to support multiple values
@@ -73,7 +67,7 @@ const Dashboard = ({
               <Dropdown
                 key={id}
                 items={items}
-                selected={selected || 'Loading...'}
+                selected={selectedText || 'Loading...'}
                 onChoose={item =>
                   onSelectTemplate(id, [item].map(x => omit(x, 'text')))}
               />
@@ -135,12 +129,11 @@ Dashboard.propTypes = {
   templates: arrayOf(
     shape({
       type: string.isRequired,
-      label: string.isRequired,
       tempVar: string.isRequired,
       query: shape({
-        db: string.isRequired,
+        db: string,
         rp: string,
-        influxql: string.isRequired,
+        influxql: string,
       }),
       values: arrayOf(
         shape({

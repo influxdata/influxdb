@@ -11,6 +11,8 @@ import Dashboard from 'src/dashboards/components/Dashboard'
 import TemplateVariableManager
   from 'src/dashboards/components/TemplateVariableManager'
 
+import {errorThrown as errorThrownAction} from 'shared/actions/errors'
+
 import * as dashboardActionCreators from 'src/dashboards/actions'
 
 import {setAutoRefresh} from 'shared/actions/app'
@@ -45,6 +47,7 @@ class DashboardPage extends Component {
     this.handleRunTemplateVariableQuery = ::this.handleRunTemplateVariableQuery
     this.handleSelectTemplate = ::this.handleSelectTemplate
     this.handleEditTemplateVariables = ::this.handleEditTemplateVariables
+    this.handleRunQueryFailure = ::this.handleRunQueryFailure
   }
 
   componentDidMount() {
@@ -60,8 +63,13 @@ class DashboardPage extends Component {
     this.setState({isTemplating: true})
   }
 
-  handleCloseTemplateManager() {
-    this.setState({isTemplating: false})
+  handleCloseTemplateManager(isEdited) {
+    if (
+      !isEdited ||
+      (isEdited && confirm('Do you want to close without saving?')) // eslint-disable-line no-alert
+    ) {
+      this.setState({isTemplating: false})
+    }
   }
 
   handleDismissOverlay() {
@@ -175,14 +183,26 @@ class DashboardPage extends Component {
     )
   }
 
-  // TODO: make this work over array of template variables onSave in TVM
-  handleEditTemplateVariables() {
-    //   // this.props.dashboardActions.editTemplateVariableAsync(
-    //   //   this.props.params.dashboardID,
-    //   //   staleTemplateVariable,
-    //   //   editedTemplateVariable
-    //   // )
-    //   console.log('hello')
+  handleEditTemplateVariables(templates, onSaveTemplatesSuccess) {
+    return async () => {
+      const {params: {dashboardID}, dashboards} = this.props
+      const currentDashboard = dashboards.find(({id}) => id === +dashboardID)
+
+      try {
+        await this.props.dashboardActions.putDashboard({
+          ...currentDashboard,
+          templates,
+        })
+        onSaveTemplatesSuccess()
+      } catch (error) {
+        console.error(error)
+      }
+    }
+  }
+
+  handleRunQueryFailure(error) {
+    console.error(error)
+    this.props.errorThrown(error)
   }
 
   getActiveDashboard() {
@@ -214,10 +234,10 @@ class DashboardPage extends Component {
           ? <OverlayTechnologies>
               <TemplateVariableManager
                 onClose={this.handleCloseTemplateManager}
-                onRunTemplateVariableQuery={this.handleRunTemplateVariableQuery}
                 onEditTemplateVariables={this.handleEditTemplateVariables}
-                handleClickOutside={this.handleCloseTemplateManager}
+                source={source}
                 templates={dashboard.templates}
+                onRunQueryFailure={this.handleRunQueryFailure}
               />
             </OverlayTechnologies>
           : null}
@@ -321,12 +341,11 @@ DashboardPage.propTypes = {
       templates: arrayOf(
         shape({
           type: string.isRequired,
-          label: string.isRequired,
           tempVar: string.isRequired,
           query: shape({
-            db: string.isRequired,
+            db: string,
             rp: string,
-            influxql: string.isRequired,
+            influxql: string,
           }),
           values: arrayOf(
             shape({
@@ -348,6 +367,7 @@ DashboardPage.propTypes = {
     queryID: string,
     status: shape(),
   }).isRequired,
+  errorThrown: func,
 }
 
 const mapStateToProps = state => {
@@ -369,6 +389,7 @@ const mapDispatchToProps = dispatch => ({
   handleChooseAutoRefresh: bindActionCreators(setAutoRefresh, dispatch),
   handleClickPresentationButton: presentationButtonDispatcher(dispatch),
   dashboardActions: bindActionCreators(dashboardActionCreators, dispatch),
+  errorThrown: bindActionCreators(errorThrownAction, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(DashboardPage)

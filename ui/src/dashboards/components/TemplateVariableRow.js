@@ -1,15 +1,102 @@
 import React, {PropTypes, Component} from 'react'
+import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux'
+
 import OnClickOutside from 'react-onclickoutside'
+
 import Dropdown from 'shared/components/Dropdown'
+import DeleteConfirmButtons from 'shared/components/DeleteConfirmButtons'
 import TemplateQueryBuilder
   from 'src/dashboards/components/TemplateQueryBuilder'
 
+import {
+  runTemplateVariableQuery as runTemplateVariableQueryAJAX,
+} from 'src/dashboards/apis'
+
+import parsers from 'shared/parsing'
+
 import {TEMPLATE_TYPES} from 'src/dashboards/constants'
-import q
-  from 'src/dashboards/utils/onlyTheBigliestBigLeagueTemplateVariableQueryGenerator'
+import generateTemplateVariableQuery
+  from 'src/dashboards/utils/templateVariableQueryGenerator'
+
+import {errorThrown as errorThrownAction} from 'shared/actions/errors'
+import {publishAutoDismissingNotification} from 'shared/dispatchers'
+
+const RowValues = ({
+  selectedType,
+  values = [],
+  isEditing,
+  onStartEdit,
+  autoFocusTarget,
+}) => {
+  const _values = values.map(({value}) => value).join(', ')
+
+  if (selectedType === 'csv') {
+    return (
+      <TableInput
+        name="values"
+        defaultValue={_values}
+        isEditing={isEditing}
+        onStartEdit={onStartEdit}
+        autoFocusTarget={autoFocusTarget}
+      />
+    )
+  }
+  return (
+    <div className="td">
+      {values.length
+        ? <span>{_values}</span>
+        : <span>(No values to display)</span>}
+    </div>
+  )
+}
+
+const RowButtons = ({
+  onStartEdit,
+  isEditing,
+  onCancelEdit,
+  onDelete,
+  id,
+  selectedType,
+}) => {
+  if (isEditing) {
+    return (
+      <div>
+        <button className="btn btn-sm btn-success" type="submit">
+          {selectedType === 'csv' ? 'Save Values' : 'Get Values'}
+        </button>
+        <button
+          className="btn btn-sm btn-primary"
+          type="button"
+          onClick={onCancelEdit}
+        >
+          Cancel
+        </button>
+      </div>
+    )
+  }
+  return (
+    <div>
+      <button
+        className="btn btn-sm btn-info"
+        type="button"
+        onClick={e => {
+          // prevent subsequent 'onSubmit' that is caused by an unknown source,
+          // possible onClickOutside, after 'onClick'. this allows
+          // us to enter 'isEditing' mode
+          e.preventDefault()
+          onStartEdit('tempVar')
+        }}
+      >
+        Edit
+      </button>
+      <DeleteConfirmButtons onDelete={() => onDelete(id)} />
+    </div>
+  )
+}
 
 const TemplateVariableRow = ({
-  template: {label, tempVar, values},
+  template: {id, tempVar, values},
   isEditing,
   selectedType,
   selectedDatabase,
@@ -23,6 +110,8 @@ const TemplateVariableRow = ({
   onCancelEdit,
   autoFocusTarget,
   onSubmit,
+  onDelete,
+  onErrorThrown,
 }) => (
   <form
     className="tr"
@@ -33,13 +122,6 @@ const TemplateVariableRow = ({
       selectedTagKey,
     })}
   >
-    <TableInput
-      name="label"
-      defaultValue={label}
-      isEditing={isEditing}
-      onStartEdit={onStartEdit}
-      autoFocusTarget={autoFocusTarget}
-    />
     <TableInput
       name="tempVar"
       defaultValue={tempVar}
@@ -66,28 +148,25 @@ const TemplateVariableRow = ({
         selectedTagKey={selectedTagKey}
         onSelectTagKey={onSelectTagKey}
         onStartEdit={onStartEdit}
+        onErrorThrown={onErrorThrown}
       />
     </div>
-    <div className="td">
-      {values.map(({value}) => value).join(', ')}
-    </div>
+    <RowValues
+      selectedType={selectedType}
+      values={values}
+      isEditing={isEditing}
+      onStartEdit={onStartEdit}
+      autoFocusTarget={autoFocusTarget}
+    />
     <div className="td" style={{display: 'flex'}}>
-      {isEditing
-        ? <div>
-            <button className="btn btn-sm btn-success" type="submit">
-              Submit
-            </button>
-            <button
-              className="btn btn-sm btn-primary"
-              type="button"
-              onClick={onCancelEdit}
-            >
-              Cancel
-            </button>
-          </div>
-        : <button className="btn btn-sm btn-danger" type="button">
-            Delete
-          </button>}
+      <RowButtons
+        onStartEdit={onStartEdit}
+        isEditing={isEditing}
+        onCancelEdit={onCancelEdit}
+        onDelete={onDelete}
+        id={id}
+        selectedType={selectedType}
+      />
     </div>
   </form>
 )
@@ -107,7 +186,11 @@ const TableInput = ({
           autoFocus={name === autoFocusTarget}
           className="input"
           type="text"
-          defaultValue={defaultValue}
+          defaultValue={
+            name === 'tempVar'
+              ? defaultValue.replace(/\u003a/g, '') // remove ':'s
+              : defaultValue
+          }
         />
       </div>
     : <div className="td" onClick={() => onStartEdit(name)}>{defaultValue}</div>
@@ -116,42 +199,65 @@ const TableInput = ({
 class RowWrapper extends Component {
   constructor(props) {
     super(props)
-    const {template: {query, type}} = this.props
+    const {template: {type, query, isNew}} = this.props
 
     this.state = {
-      isEditing: false,
+      isEditing: !!isNew,
+      isNew: !!isNew,
+      hasBeenSavedToComponentStateOnce: !isNew,
       selectedType: type,
       selectedDatabase: query && query.db,
       selectedMeasurement: query && query.measurement,
       selectedTagKey: query && query.tagKey,
-      autoFocusTarget: null,
+      autoFocusTarget: 'tempVar',
     }
 
-    this.handleRunQuery = ::this.handleRunQuery
+    this.handleSubmit = ::this.handleSubmit
     this.handleSelectType = ::this.handleSelectType
     this.handleSelectDatabase = ::this.handleSelectDatabase
     this.handleSelectMeasurement = ::this.handleSelectMeasurement
     this.handleSelectTagKey = ::this.handleSelectTagKey
     this.handleStartEdit = ::this.handleStartEdit
     this.handleCancelEdit = ::this.handleCancelEdit
+    this.runTemplateVariableQuery = ::this.runTemplateVariableQuery
   }
 
-  handleRunQuery({
+  handleSubmit({
     selectedDatabase: database,
     selectedMeasurement: measurement,
     selectedTagKey: tagKey,
     selectedType: type,
   }) {
-    return e => {
+    return async e => {
       e.preventDefault()
 
-      const label = e.target.label.value
-      const tempVar = e.target.tempVar.value
+      const {
+        source,
+        template,
+        template: {id},
+        onRunQuerySuccess,
+        onRunQueryFailure,
+        tempVarAlreadyExists,
+        notify,
+      } = this.props
 
-      const {template, onRunTemplateVariableQuery} = this.props
-      const {query, tempVars} = q({
+      const _tempVar = e.target.tempVar.value
+      const tempVar = `\u003a${_tempVar}\u003a` // add ':'s
+
+      if (tempVarAlreadyExists(tempVar, id)) {
+        return notify(
+          'error',
+          `Variable '${_tempVar}' already exists. Please enter a new value.`
+        )
+      }
+
+      this.setState({
+        isEditing: false,
+        hasBeenSavedToComponentStateOnce: true,
+      })
+
+      const {query, tempVars} = generateTemplateVariableQuery({
         type,
-        label,
         tempVar,
         query: {
           database,
@@ -161,17 +267,29 @@ class RowWrapper extends Component {
         },
       })
 
-      onRunTemplateVariableQuery(template, {
+      const queryConfig = {
+        type,
+        tempVars,
         query,
         database,
         // rp: TODO
-        tempVars,
-        type,
         measurement,
         tagKey,
-      })
+      }
 
-      // TODO: save values to state in TVM, using template
+      try {
+        let parsedData
+        if (type === 'csv') {
+          parsedData = e.target.values.value
+            .split(',')
+            .map(value => value.trim())
+        } else {
+          parsedData = await this.runTemplateVariableQuery(source, queryConfig)
+        }
+        onRunQuerySuccess(template, queryConfig, parsedData, tempVar)
+      } catch (error) {
+        onRunQueryFailure(error)
+      }
     }
   }
 
@@ -184,12 +302,20 @@ class RowWrapper extends Component {
   }
 
   handleCancelEdit() {
-    const {template: {type, query: {db, measurement, tagKey}}} = this.props
+    const {
+      template: {type, query: {db, measurement, tagKey}, id},
+      onDelete,
+    } = this.props
+    const {hasBeenSavedToComponentStateOnce} = this.state
+
+    if (!hasBeenSavedToComponentStateOnce) {
+      return onDelete(id)
+    }
     this.setState({
       selectedType: type,
       selectedDatabase: db,
       selectedMeasurement: measurement,
-      selectedKey: tagKey,
+      selectedTagKey: tagKey,
       isEditing: false,
     })
   }
@@ -199,7 +325,7 @@ class RowWrapper extends Component {
       selectedType: item.type,
       selectedDatabase: null,
       selectedMeasurement: null,
-      selectedKey: null,
+      selectedTagKey: null,
     })
   }
 
@@ -213,6 +339,29 @@ class RowWrapper extends Component {
 
   handleSelectTagKey(item) {
     this.setState({selectedTagKey: item.text})
+  }
+
+  async runTemplateVariableQuery(
+    source,
+    {query, database, rp, tempVars, type, measurement, tagKey}
+  ) {
+    try {
+      const {data} = await runTemplateVariableQueryAJAX(source, {
+        query,
+        db: database,
+        rp,
+        tempVars,
+      })
+      const parsedData = parsers[type](data, tagKey || measurement) // tagKey covers tagKey and fieldKey
+      if (parsedData.errors.length) {
+        throw parsedData.errors
+      }
+
+      return parsedData[type]
+    } catch (error) {
+      console.error(error)
+      throw error
+    }
   }
 
   render() {
@@ -240,7 +389,7 @@ class RowWrapper extends Component {
         onStartEdit={this.handleStartEdit}
         onCancelEdit={this.handleCancelEdit}
         autoFocusTarget={autoFocusTarget}
-        onSubmit={this.handleRunQuery}
+        onSubmit={this.handleSubmit}
       />
     )
   }
@@ -249,13 +398,17 @@ class RowWrapper extends Component {
 const {arrayOf, bool, func, shape, string} = PropTypes
 
 RowWrapper.propTypes = {
+  source: shape({
+    links: shape({
+      proxy: string,
+    }),
+  }).isRequired,
   template: shape({
     type: string.isRequired,
-    label: string.isRequired,
     tempVar: string.isRequired,
     query: shape({
       db: string,
-      influxql: string.isRequired,
+      influxql: string,
       measurement: string,
       tagKey: string,
     }),
@@ -268,9 +421,13 @@ RowWrapper.propTypes = {
     ).isRequired,
     links: shape({
       self: string.isRequired,
-    }).isRequired,
+    }),
   }),
-  onRunTemplateVariableQuery: func.isRequired,
+  onRunQuerySuccess: func.isRequired,
+  onRunQueryFailure: func.isRequired,
+  onDelete: func.isRequired,
+  tempVarAlreadyExists: func.isRequired,
+  notify: func.isRequired,
 }
 
 TemplateVariableRow.propTypes = {
@@ -283,6 +440,8 @@ TemplateVariableRow.propTypes = {
   onSelectTagKey: func.isRequired,
   onStartEdit: func.isRequired,
   onCancelEdit: func.isRequired,
+  onSubmit: func.isRequired,
+  onErrorThrown: func.isRequired,
 }
 
 TableInput.propTypes = {
@@ -293,4 +452,26 @@ TableInput.propTypes = {
   autoFocusTarget: string,
 }
 
-export default OnClickOutside(RowWrapper)
+RowValues.propTypes = {
+  selectedType: string.isRequired,
+  values: arrayOf(shape()),
+  isEditing: bool.isRequired,
+  onStartEdit: func.isRequired,
+  autoFocusTarget: string,
+}
+
+RowButtons.propTypes = {
+  onStartEdit: func.isRequired,
+  isEditing: bool.isRequired,
+  onCancelEdit: func.isRequired,
+  onDelete: func.isRequired,
+  id: string.isRequired,
+  selectedType: string.isRequired,
+}
+
+const mapDispatchToProps = dispatch => ({
+  onErrorThrown: bindActionCreators(errorThrownAction, dispatch),
+  notify: bindActionCreators(publishAutoDismissingNotification, dispatch),
+})
+
+export default connect(null, mapDispatchToProps)(OnClickOutside(RowWrapper))

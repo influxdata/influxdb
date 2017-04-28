@@ -29,16 +29,6 @@ $page-header-weight: 400 !important;
     width: 100%;
     max-width: ($page-wrapper-max-width - $page-wrapper-padding - $page-wrapper-padding);
   }
-  h1 {
-    text-transform: none;
-    font-size: $page-header-size;
-    font-weight: $page-header-weight;
-    margin: 0;
-    display: inline-block;
-    vertical-align: middle;
-    @include no-user-select();
-    cursor: default;
-  }
   &__left,
   &__right {
     flex: 1 0 0;
@@ -71,4 +61,14 @@ $page-header-weight: 400 !important;
       max-width: 100%;
     }
   }
+}
+.page-header__title {
+  text-transform: none;
+  font-size: $page-header-size;
+  font-weight: $page-header-weight;
+  margin: 0;
+  display: inline-block;
+  vertical-align: middle;
+  @include no-user-select();
+  cursor: default;
 }

@@ -211,20 +211,6 @@ export default function ui(state = initialState, action) {
       })
       return {...state, dashboards: newDashboards}
     }
-
-    case 'EDIT_TEMPLATE_VARIABLE_SUCCESS': {
-      const {dashboardID, data} = action.payload
-      const dashboards = state.dashboards.map(
-        d =>
-          (d.id === dashboardID
-            ? {
-                ...d,
-                templates: d.templates.map(t => (t.id === data.id ? data : t)),
-              }
-            : d)
-      )
-      return {...state, dashboards}
-    }
   }
 
   return state

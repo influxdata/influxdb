@@ -13,30 +13,36 @@ const {
   string,
 } = PropTypes
 
-const AutoRefresh = (ComposedComponent) => {
+const AutoRefresh = ComposedComponent => {
   const wrapper = React.createClass({
     propTypes: {
       children: element,
       autoRefresh: number.isRequired,
-      templates: arrayOf(shape({
-        type: string.isRequired,
-        label: string.isRequired,
-        tempVar: string.isRequired,
-        query: shape({
-          db: string.isRequired,
-          rp: string,
-          influxql: string.isRequired,
-        }),
-        values: arrayOf(shape({
+      templates: arrayOf(
+        shape({
           type: string.isRequired,
-          value: string.isRequired,
-          selected: bool,
-        })).isRequired,
-      })),
-      queries: arrayOf(shape({
-        host: oneOfType([string, arrayOf(string)]),
-        text: string,
-      }).isRequired).isRequired,
+          label: string.isRequired,
+          tempVar: string.isRequired,
+          query: shape({
+            db: string,
+            rp: string,
+            influxql: string,
+          }),
+          values: arrayOf(
+            shape({
+              type: string.isRequired,
+              value: string.isRequired,
+              selected: bool,
+            })
+          ).isRequired,
+        })
+      ),
+      queries: arrayOf(
+        shape({
+          host: oneOfType([string, arrayOf(string)]),
+          text: string,
+        }).isRequired
+      ).isRequired,
       editQueryStatus: func,
     },
 
@@ -51,30 +57,42 @@ const AutoRefresh = (ComposedComponent) => {
       const {queries, autoRefresh} = this.props
       this.executeQueries(queries)
       if (autoRefresh) {
-        this.intervalID = setInterval(() => this.executeQueries(queries), autoRefresh)
+        this.intervalID = setInterval(
+          () => this.executeQueries(queries),
+          autoRefresh
+        )
       }
     },
 
     componentWillReceiveProps(nextProps) {
-      const shouldRefetch = this.queryDifference(this.props.queries, nextProps.queries).length
+      const shouldRefetch = this.queryDifference(
+        this.props.queries,
+        nextProps.queries
+      ).length
 
       if (shouldRefetch) {
         this.executeQueries(nextProps.queries)
       }
 
-      if ((this.props.autoRefresh !== nextProps.autoRefresh) || shouldRefetch) {
+      if (this.props.autoRefresh !== nextProps.autoRefresh || shouldRefetch) {
         clearInterval(this.intervalID)
 
         if (nextProps.autoRefresh) {
-          this.intervalID = setInterval(() => this.executeQueries(nextProps.queries), nextProps.autoRefresh)
+          this.intervalID = setInterval(
+            () => this.executeQueries(nextProps.queries),
+            nextProps.autoRefresh
+          )
         }
       }
     },
 
     queryDifference(left, right) {
-      const leftStrs = left.map((q) => `${q.host}${q.text}`)
-      const rightStrs = right.map((q) => `${q.host}${q.text}`)
-      return _.difference(_.union(leftStrs, rightStrs), _.intersection(leftStrs, rightStrs))
+      const leftStrs = left.map(q => `${q.host}${q.text}`)
+      const rightStrs = right.map(q => `${q.host}${q.text}`)
+      return _.difference(
+        _.union(leftStrs, rightStrs),
+        _.intersection(leftStrs, rightStrs)
+      )
     },
 
     executeQueries(queries) {
@@ -87,13 +105,27 @@ const AutoRefresh = (ComposedComponent) => {
 
       this.setState({isFetching: true})
 
-      const timeSeriesPromises = queries.map((query) => {
+      const selectedTempVarTemplates = templates.map(template => {
+        const selectedValues = template.values.filter(value => value.selected)
+        return {...template, values: selectedValues}
+      })
+
+      const timeSeriesPromises = queries.map(query => {
         const {host, database, rp} = query
-        return fetchTimeSeriesAsync({source: host, db: database, rp, query, templates}, editQueryStatus)
+        return fetchTimeSeriesAsync(
+          {
+            source: host,
+            db: database,
+            rp,
+            query,
+            tempVars: selectedTempVarTemplates,
+          },
+          editQueryStatus
+        )
       })
 
       Promise.all(timeSeriesPromises).then(timeSeries => {
-        const newSeries = timeSeries.map((response) => ({response}))
+        const newSeries = timeSeries.map(response => ({response}))
         const lastQuerySuccessful = !this._noResultsForQuery(newSeries)
 
         this.setState({
@@ -116,16 +148,14 @@ const AutoRefresh = (ComposedComponent) => {
         return this.renderFetching(timeSeries)
       }
 
-      if (this._noResultsForQuery(timeSeries) || !this.state.lastQuerySuccessful) {
+      if (
+        this._noResultsForQuery(timeSeries) ||
+        !this.state.lastQuerySuccessful
+      ) {
         return this.renderNoResults()
       }
 
-      return (
-        <ComposedComponent
-          {...this.props}
-          data={timeSeries}
-        />
-      )
+      return <ComposedComponent {...this.props} data={timeSeries} />
     },
 
     /**
@@ -161,8 +191,8 @@ const AutoRefresh = (ComposedComponent) => {
         return true
       }
 
-      return data.every((datum) => {
-        return datum.response.results.every((result) => {
+      return data.every(datum => {
+        return datum.response.results.every(result => {
           return Object.keys(result).length === 0
         })
       })

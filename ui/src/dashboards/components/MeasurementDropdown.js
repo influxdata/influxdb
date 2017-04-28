@@ -1,9 +1,9 @@
 import React, {PropTypes, Component} from 'react'
-import _ from 'lodash'
 
 import Dropdown from 'shared/components/Dropdown'
 import {showMeasurements} from 'shared/apis/metaQuery'
-import showMeasurementsParser from 'shared/parsing/showMeasurements'
+import parsers from 'shared/parsing'
+const {measurements: showMeasurementsParser} = parsers
 
 class MeasurementDropdown extends Component {
   constructor(props) {
@@ -42,18 +42,25 @@ class MeasurementDropdown extends Component {
 
   async _getMeasurements() {
     const {source: {links: {proxy}}} = this.context
-    const {measurement, database, onSelectMeasurement} = this.props
+    const {
+      measurement,
+      database,
+      onSelectMeasurement,
+      onErrorThrown,
+    } = this.props
 
     try {
       const {data} = await showMeasurements(proxy, database)
-      const {measurementSets} = showMeasurementsParser(data)
-      this.setState({measurements: measurementSets[0].measurements})
-      const selected = measurementSets.includes(measurement)
+      const {measurements} = showMeasurementsParser(data)
+
+      this.setState({measurements})
+      const selectedMeasurementText = measurements.includes(measurement)
         ? measurement
-        : _.get(measurementSets, ['0', 'measurements', '0'], 'No measurements')
-      onSelectMeasurement({text: selected})
+        : measurements[0] || 'No measurements'
+      onSelectMeasurement({text: selectedMeasurementText})
     } catch (error) {
       console.error(error)
+      onErrorThrown(error)
     }
   }
 }
@@ -73,6 +80,7 @@ MeasurementDropdown.propTypes = {
   measurement: string,
   onSelectMeasurement: func.isRequired,
   onStartEdit: func.isRequired,
+  onErrorThrown: func.isRequired,
 }
 
 export default MeasurementDropdown

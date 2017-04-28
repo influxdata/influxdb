@@ -12,26 +12,22 @@ import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 // Acts as a 'router middleware'. The main `App` component is responsible for
 // getting the list of data nodes, but not every page requires them to function.
 // Routes that do require data nodes can be nested under this component.
-const {
-  arrayOf,
-  func,
-  node,
-  shape,
-  string,
-} = PropTypes
+const {arrayOf, func, node, shape, string} = PropTypes
 const CheckSources = React.createClass({
   propTypes: {
-    sources: arrayOf(shape({
-      links: shape({
-        proxy: string.isRequired,
-        self: string.isRequired,
-        kapacitors: string.isRequired,
-        queries: string.isRequired,
-        permissions: string.isRequired,
-        users: string.isRequired,
-        databases: string.isRequired,
-      }).isRequired,
-    })),
+    sources: arrayOf(
+      shape({
+        links: shape({
+          proxy: string.isRequired,
+          self: string.isRequired,
+          kapacitors: string.isRequired,
+          queries: string.isRequired,
+          permissions: string.isRequired,
+          users: string.isRequired,
+          databases: string.isRequired,
+        }).isRequired,
+      })
+    ),
     children: node,
     params: shape({
       sourceID: string,
@@ -42,8 +38,8 @@ const CheckSources = React.createClass({
     location: shape({
       pathname: string.isRequired,
     }).isRequired,
-    errorThrown: func.isRequired,
     loadSources: func.isRequired,
+    errorThrown: func.isRequired,
   },
 
   childContextTypes: {
@@ -62,7 +58,7 @@ const CheckSources = React.createClass({
 
   getChildContext() {
     const {sources, params: {sourceID}} = this.props
-    return {source: sources.find((s) => s.id === sourceID)}
+    return {source: sources.find(s => s.id === sourceID)}
   },
 
   getInitialState() {
@@ -87,8 +83,8 @@ const CheckSources = React.createClass({
   async componentWillUpdate(nextProps, nextState) {
     const {router, location, params, errorThrown, sources} = nextProps
     const {isFetching} = nextState
-    const source = sources.find((s) => s.id === params.sourceID)
-    const defaultSource = sources.find((s) => s.default === true)
+    const source = sources.find(s => s.id === params.sourceID)
+    const defaultSource = sources.find(s => s.default === true)
 
     if (!isFetching && !source) {
       const rest = location.pathname.match(/\/sources\/\d+?\/(.+)/)
@@ -116,15 +112,21 @@ const CheckSources = React.createClass({
   render() {
     const {params, sources} = this.props
     const {isFetching} = this.state
-    const source = sources.find((s) => s.id === params.sourceID)
+    const source = sources.find(s => s.id === params.sourceID)
 
     if (isFetching || !source) {
       return <div className="page-spinner" />
     }
 
-    return this.props.children && React.cloneElement(this.props.children, Object.assign({}, this.props, {
-      source,
-    }))
+    return (
+      this.props.children &&
+      React.cloneElement(
+        this.props.children,
+        Object.assign({}, this.props, {
+          source,
+        })
+      )
+    )
   },
 })
 
@@ -132,9 +134,11 @@ const mapStateToProps = ({sources}) => ({
   sources,
 })
 
-const mapDispatchToProps = (dispatch) => ({
+const mapDispatchToProps = dispatch => ({
   loadSources: bindActionCreators(loadSourcesAction, dispatch),
   errorThrown: bindActionCreators(errorThrownAction, dispatch),
 })
 
-export default connect(mapStateToProps, mapDispatchToProps)(withRouter(CheckSources))
+export default connect(mapStateToProps, mapDispatchToProps)(
+  withRouter(CheckSources)
+)
