@@ -9,11 +9,7 @@ import {
 import {connect} from 'react-redux'
 import SourceForm from 'src/sources/components/SourceForm'
 
-const {
-  func,
-  shape,
-  string,
-} = PropTypes
+const {func, shape, string} = PropTypes
 
 export const SourcePage = React.createClass({
   propTypes: {
@@ -54,7 +50,7 @@ export const SourcePage = React.createClass({
   handleInputChange(e) {
     const val = e.target.value
     const name = e.target.name
-    this.setState((prevState) => {
+    this.setState(prevState => {
       const newSource = Object.assign({}, prevState.source, {
         [name]: val,
       })
@@ -76,13 +72,15 @@ export const SourcePage = React.createClass({
       return
     }
 
-    createSource(newSource).then(({data: sourceFromServer}) => {
-      this.props.addSourceAction(sourceFromServer)
-      this.setState({source: sourceFromServer, error: null})
-    }).catch(({data: error}) => {
-      // dont want to flash this until they submit
-      this.setState({error: error.message})
-    })
+    createSource(newSource)
+      .then(({data: sourceFromServer}) => {
+        this.props.addSourceAction(sourceFromServer)
+        this.setState({source: sourceFromServer, error: null})
+      })
+      .catch(({data: error}) => {
+        // dont want to flash this until they submit
+        this.setState({error: error.message})
+      })
   },
 
   handleSubmit(newSource) {
@@ -93,21 +91,25 @@ export const SourcePage = React.createClass({
       return addFlashMessage({type: 'error', text: error})
     }
 
-    updateSource(newSource).then(({data: sourceFromServer}) => {
-      this.props.updateSourceAction(sourceFromServer)
-      router.push(`/sources/${params.sourceID}/manage-sources`)
-      addFlashMessage({type: 'success', text: 'The source info saved'})
-    }).catch(() => {
-      addFlashMessage({type: 'error', text: 'There was a problem updating the source. Check the settings'})
-    })
+    updateSource(newSource)
+      .then(({data: sourceFromServer}) => {
+        this.props.updateSourceAction(sourceFromServer)
+        router.push(`/sources/${params.sourceID}/manage-sources`)
+        addFlashMessage({type: 'success', text: 'The source info saved'})
+      })
+      .catch(() => {
+        addFlashMessage({
+          type: 'error',
+          text: 'There was a problem updating the source. Check the settings',
+        })
+      })
   },
-
 
   render() {
     const {source, editMode} = this.state
 
     if (editMode && !source.id) {
-      return <div className="page-spinner"></div>
+      return <div className="page-spinner" />
     }
 
     return (
@@ -147,4 +149,6 @@ function mapStateToProps(_) {
   return {}
 }
 
-export default connect(mapStateToProps, {addSourceAction, updateSourceAction})(withRouter(SourcePage))
+export default connect(mapStateToProps, {addSourceAction, updateSourceAction})(
+  withRouter(SourcePage)
+)

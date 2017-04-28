@@ -34,9 +34,10 @@ const TemplateVariableTable = ({
           </div>
         </div>
       : <div className="generic-empty-state">
-          <h4 style={{margin: '60px 0'}} className="no-user-select">You have no Template Variables, why not create one?</h4>
-        </div>
-    }
+          <h4 style={{margin: '60px 0'}} className="no-user-select">
+            You have no Template Variables, why not create one?
+          </h4>
+        </div>}
   </div>
 )
 

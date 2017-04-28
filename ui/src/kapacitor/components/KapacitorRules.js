@@ -30,10 +30,15 @@ const KapacitorRules = ({
   }
 
   return (
-    <PageContents source={source} >
+    <PageContents source={source}>
       <div className="panel-heading u-flex u-ai-center u-jc-space-between">
         <h2 className="panel-title">Alert Rules</h2>
-        <Link to={`/sources/${source.id}/alert-rules/new`} className="btn btn-sm btn-primary">Create Rule</Link>
+        <Link
+          to={`/sources/${source.id}/alert-rules/new`}
+          className="btn btn-sm btn-primary"
+        >
+          Create Rule
+        </Link>
       </div>
       <KapacitorRulesTable
         source={source}
@@ -71,13 +76,7 @@ const PageContents = ({children, source}) => (
   </div>
 )
 
-const {
-  arrayOf,
-  bool,
-  func,
-  shape,
-  node,
-} = PropTypes
+const {arrayOf, bool, func, shape, node} = PropTypes
 
 KapacitorRules.propTypes = {
   source: shape(),

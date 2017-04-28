@@ -61,7 +61,7 @@ const SlackConfig = React.createClass({
           <RedactedInput
             defaultValue={url}
             id="url"
-            refFunc={r => this.url = r}
+            refFunc={r => (this.url = r)}
           />
         </div>
 
@@ -72,7 +72,7 @@ const SlackConfig = React.createClass({
             id="slack-channel"
             type="text"
             placeholder="#alerts"
-            ref={r => this.channel = r}
+            ref={r => (this.channel = r)}
             defaultValue={channel || ''}
           />
         </div>

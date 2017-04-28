@@ -34,7 +34,7 @@ class ChangePassRow extends Component {
   }
 
   handleKeyPress(user) {
-    return (e) => {
+    return e => {
       if (e.key === 'Enter') {
         this.handleSubmit(user)
       }
@@ -42,7 +42,7 @@ class ChangePassRow extends Component {
   }
 
   handleEdit(user) {
-    return (e) => {
+    return e => {
       this.props.onEdit(user, {[e.target.name]: e.target.value})
     }
   }

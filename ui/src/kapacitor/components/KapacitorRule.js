@@ -33,8 +33,16 @@ export const KapacitorRule = React.createClass({
   },
 
   render() {
-    const {queryActions, source, enabledAlerts, queryConfigs, query,
-      rule, kapacitorActions, isEditing} = this.props
+    const {
+      queryActions,
+      source,
+      enabledAlerts,
+      queryConfigs,
+      query,
+      rule,
+      kapacitorActions,
+      isEditing,
+    } = this.props
     const {chooseTrigger, updateRuleValues} = kapacitorActions
     const {timeRange} = this.state
 
@@ -54,15 +62,29 @@ export const KapacitorRule = React.createClass({
             <div className="row">
               <div className="col-xs-12">
                 <div className="rule-builder">
-                  <DataSection timeRange={timeRange} source={source} query={query} actions={queryActions} />
+                  <DataSection
+                    timeRange={timeRange}
+                    source={source}
+                    query={query}
+                    actions={queryActions}
+                  />
                   <ValuesSection
                     rule={rule}
                     query={queryConfigs[rule.queryID]}
                     onChooseTrigger={chooseTrigger}
                     onUpdateValues={updateRuleValues}
                   />
-                  <RuleGraph timeRange={timeRange} source={source} query={query} rule={rule} />
-                  <RuleMessage rule={rule} actions={kapacitorActions} enabledAlerts={enabledAlerts} />
+                  <RuleGraph
+                    timeRange={timeRange}
+                    source={source}
+                    query={query}
+                    rule={rule}
+                  />
+                  <RuleMessage
+                    rule={rule}
+                    actions={kapacitorActions}
+                    enabledAlerts={enabledAlerts}
+                  />
                 </div>
               </div>
             </div>
@@ -73,24 +95,36 @@ export const KapacitorRule = React.createClass({
   },
 
   handleChooseTimeRange({lower}) {
-    const timeRange = timeRanges.find((range) => range.lower === lower)
+    const timeRange = timeRanges.find(range => range.lower === lower)
     this.setState({timeRange})
   },
 
   handleCreate() {
-    const {addFlashMessage, queryConfigs, rule, source, router, kapacitor} = this.props
+    const {
+      addFlashMessage,
+      queryConfigs,
+      rule,
+      source,
+      router,
+      kapacitor,
+    } = this.props
 
     const newRule = Object.assign({}, rule, {
       query: queryConfigs[rule.queryID],
     })
     delete newRule.queryID
 
-    createRule(kapacitor, newRule).then(() => {
-      router.push(`/sources/${source.id}/alert-rules`)
-      addFlashMessage({type: 'success', text: 'Rule successfully created'})
-    }).catch(() => {
-      addFlashMessage({type: 'error', text: 'There was a problem creating the rule'})
-    })
+    createRule(kapacitor, newRule)
+      .then(() => {
+        router.push(`/sources/${source.id}/alert-rules`)
+        addFlashMessage({type: 'success', text: 'Rule successfully created'})
+      })
+      .catch(() => {
+        addFlashMessage({
+          type: 'error',
+          text: 'There was a problem creating the rule',
+        })
+      })
   },
 
   handleEdit() {
@@ -100,11 +134,16 @@ export const KapacitorRule = React.createClass({
       query: queryConfigs[rule.queryID],
     })
 
-    editRule(updatedRule).then(() => {
-      addFlashMessage({type: 'success', text: 'Rule successfully updated!'})
-    }).catch(() => {
-      addFlashMessage({type: 'error', text: 'There was a problem updating the rule'})
-    })
+    editRule(updatedRule)
+      .then(() => {
+        addFlashMessage({type: 'success', text: 'Rule successfully updated!'})
+      })
+      .catch(() => {
+        addFlashMessage({
+          type: 'error',
+          text: 'There was a problem updating the rule',
+        })
+      })
   },
 
   validationError() {

@@ -9,16 +9,24 @@ export const loadLocalStorage = () => {
   }
 }
 
-export const saveToLocalStorage = ({app: {persisted}, queryConfigs, timeRange, dataExplorer}) => {
+export const saveToLocalStorage = ({
+  app: {persisted},
+  queryConfigs,
+  timeRange,
+  dataExplorer,
+}) => {
   try {
     const appPersisted = Object.assign({}, {app: {persisted}})
 
-    window.localStorage.setItem('state', JSON.stringify({
-      ...appPersisted,
-      queryConfigs,
-      timeRange,
-      dataExplorer,
-    }))
+    window.localStorage.setItem(
+      'state',
+      JSON.stringify({
+        ...appPersisted,
+        queryConfigs,
+        timeRange,
+        dataExplorer,
+      })
+    )
   } catch (err) {
     console.error('Unable to save data explorer: ', JSON.parse(err)) // eslint-disable-line no-console
   }

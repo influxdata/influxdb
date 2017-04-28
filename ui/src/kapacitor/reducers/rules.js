@@ -84,9 +84,7 @@ export default function rules(state = {}, action) {
           alertNodesByType = [
             {
               name: alertType,
-              args: [
-                alertNodesText,
-              ],
+              args: [alertNodesText],
               properties: [],
             },
           ]
@@ -108,9 +106,7 @@ export default function rules(state = {}, action) {
               properties: [
                 {
                   name: 'channel',
-                  args: [
-                    alertNodesText,
-                  ],
+                  args: [alertNodesText],
                 },
               ],
             },
@@ -154,17 +150,23 @@ export default function rules(state = {}, action) {
     case 'UPDATE_RULE_DETAILS': {
       const {ruleID, details} = action.payload
 
-      return {...state, ...{
-        [ruleID]: {...state[ruleID], details},
-      }}
+      return {
+        ...state,
+        ...{
+          [ruleID]: {...state[ruleID], details},
+        },
+      }
     }
 
     case 'UPDATE_RULE_STATUS_SUCCESS': {
       const {ruleID, status} = action.payload
 
-      return {...state, ...{
-        [ruleID]: {...state[ruleID], status},
-      }}
+      return {
+        ...state,
+        ...{
+          [ruleID]: {...state[ruleID], status},
+        },
+      }
     }
   }
   return state

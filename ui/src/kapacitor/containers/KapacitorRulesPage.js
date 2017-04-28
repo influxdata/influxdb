@@ -18,7 +18,7 @@ class KapacitorRulesPage extends Component {
   }
 
   componentDidMount() {
-    getActiveKapacitor(this.props.source).then((kapacitor) => {
+    getActiveKapacitor(this.props.source).then(kapacitor => {
       if (kapacitor) {
         this.props.actions.fetchRules(kapacitor)
       }
@@ -56,12 +56,7 @@ class KapacitorRulesPage extends Component {
   }
 }
 
-const {
-  arrayOf,
-  func,
-  shape,
-  string,
-} = PropTypes
+const {arrayOf, func, shape, string} = PropTypes
 
 KapacitorRulesPage.propTypes = {
   source: shape({
@@ -72,12 +67,14 @@ KapacitorRulesPage.propTypes = {
       kapacitors: string.isRequired,
     }),
   }),
-  rules: arrayOf(shape({
-    name: string.isRequired,
-    trigger: string.isRequired,
-    message: string.isRequired,
-    alerts: arrayOf(string.isRequired).isRequired,
-  })).isRequired,
+  rules: arrayOf(
+    shape({
+      name: string.isRequired,
+      trigger: string.isRequired,
+      message: string.isRequired,
+      alerts: arrayOf(string.isRequired).isRequired,
+    })
+  ).isRequired,
   actions: shape({
     fetchRules: func.isRequired,
     deleteRule: func.isRequired,
@@ -86,13 +83,13 @@ KapacitorRulesPage.propTypes = {
   addFlashMessage: func,
 }
 
-const mapStateToProps = (state) => {
+const mapStateToProps = state => {
   return {
     rules: Object.values(state.rules),
   }
 }
 
-const mapDispatchToProps = (dispatch) => {
+const mapDispatchToProps = dispatch => {
   return {
     actions: bindActionCreators(kapacitorActionCreators, dispatch),
   }

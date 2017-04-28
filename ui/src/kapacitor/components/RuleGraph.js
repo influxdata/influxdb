@@ -79,7 +79,8 @@ export const RuleGraph = React.createClass({
 
         case 'not equal to':
         case 'equal to': {
-          const width = (theOnePercent) * (dygraph.yAxisRange()[1] - dygraph.yAxisRange()[0])
+          const width =
+            theOnePercent * (dygraph.yAxisRange()[1] - dygraph.yAxisRange()[0])
           highlightStart = +rule.values.value - width
           highlightEnd = +rule.values.value + width
           break
@@ -105,7 +106,9 @@ export const RuleGraph = React.createClass({
       const bottom = dygraph.toDomYCoord(highlightStart)
       const top = dygraph.toDomYCoord(highlightEnd)
 
-      canvas.fillStyle = rule.values.operator === 'outside range' ? 'rgba(41, 41, 51, 1)' : 'rgba(78, 216, 160, 0.3)'
+      canvas.fillStyle = rule.values.operator === 'outside range'
+        ? 'rgba(41, 41, 51, 1)'
+        : 'rgba(78, 216, 160, 0.3)'
       canvas.fillRect(area.x, top, area.w, bottom - top)
     }
   },

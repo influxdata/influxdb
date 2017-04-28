@@ -6,15 +6,11 @@ import {
   ALERT_NODES_ACCESSORS,
 } from '../constants'
 
-const RuleMessageAlertConfig = ({
-  updateAlertNodes,
-  alert,
-  rule,
-}) => {
-  if (!Object.keys(DEFAULT_ALERT_PLACEHOLDERS).find((a) => a === alert)) {
+const RuleMessageAlertConfig = ({updateAlertNodes, alert, rule}) => {
+  if (!Object.keys(DEFAULT_ALERT_PLACEHOLDERS).find(a => a === alert)) {
     return null
   }
-  if (!Object.keys(DEFAULT_ALERT_LABELS).find((a) => a === alert)) {
+  if (!Object.keys(DEFAULT_ALERT_LABELS).find(a => a === alert)) {
     return null
   }
   return (
@@ -25,7 +21,7 @@ const RuleMessageAlertConfig = ({
         className="form-control size-486 form-control--green input-sm"
         type="text"
         placeholder={DEFAULT_ALERT_PLACEHOLDERS[alert]}
-        onChange={(e) => updateAlertNodes(rule.id, alert, e.target.value)}
+        onChange={e => updateAlertNodes(rule.id, alert, e.target.value)}
         value={ALERT_NODES_ACCESSORS[alert](rule)}
         autoComplete="off"
         spellCheck="false"
@@ -34,11 +30,7 @@ const RuleMessageAlertConfig = ({
   )
 }
 
-const {
-  func,
-  shape,
-  string,
-} = PropTypes
+const {func, shape, string} = PropTypes
 
 RuleMessageAlertConfig.propTypes = {
   updateAlertNodes: func.isRequired,

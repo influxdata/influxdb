@@ -35,10 +35,13 @@ class KapacitorPage extends Component {
       return
     }
 
-    getKapacitor(source, id).then((kapacitor) => {
+    getKapacitor(source, id).then(kapacitor => {
       this.setState({kapacitor, exists: true}, () => {
         pingKapacitor(kapacitor).catch(() => {
-          this.props.addFlashMessage({type: 'error', text: 'Could not connect to Kapacitor. Check settings.'})
+          this.props.addFlashMessage({
+            type: 'error',
+            text: 'Could not connect to Kapacitor. Check settings.',
+          })
         })
       })
     })
@@ -47,7 +50,7 @@ class KapacitorPage extends Component {
   handleInputChange(e) {
     const {value, name} = e.target
 
-    this.setState((prevState) => {
+    this.setState(prevState => {
       const update = {[name]: value.trim()}
       return {kapacitor: {...prevState.kapacitor, ...update}}
     })
@@ -59,19 +62,29 @@ class KapacitorPage extends Component {
     const {kapacitor, exists} = this.state
 
     if (exists) {
-      updateKapacitor(kapacitor).then(() => {
-        addFlashMessage({type: 'success', text: 'Kapacitor Updated!'})
-      }).catch(() => {
-        addFlashMessage({type: 'error', text: 'There was a problem updating the Kapacitor record'})
-      })
+      updateKapacitor(kapacitor)
+        .then(() => {
+          addFlashMessage({type: 'success', text: 'Kapacitor Updated!'})
+        })
+        .catch(() => {
+          addFlashMessage({
+            type: 'error',
+            text: 'There was a problem updating the Kapacitor record',
+          })
+        })
     } else {
-      createKapacitor(source, kapacitor).then(({data}) => {
-        // need up update kapacitor with info from server to AlertOutputs
-        this.setState({kapacitor: data, exists: true})
-        addFlashMessage({type: 'success', text: 'Kapacitor Created!'})
-      }).catch(() => {
-        addFlashMessage({type: 'error', text: 'There was a problem creating the Kapacitor record'})
-      })
+      createKapacitor(source, kapacitor)
+        .then(({data}) => {
+          // need up update kapacitor with info from server to AlertOutputs
+          this.setState({kapacitor: data, exists: true})
+          addFlashMessage({type: 'success', text: 'Kapacitor Created!'})
+        })
+        .catch(() => {
+          addFlashMessage({
+            type: 'error',
+            text: 'There was a problem creating the Kapacitor record',
+          })
+        })
     }
   }
 
@@ -112,11 +125,7 @@ class KapacitorPage extends Component {
   }
 }
 
-const {
-  func,
-  shape,
-  string,
-} = PropTypes
+const {func, shape, string} = PropTypes
 
 KapacitorPage.propTypes = {
   addFlashMessage: func,

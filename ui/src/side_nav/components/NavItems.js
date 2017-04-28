@@ -15,7 +15,11 @@ const NavListItem = React.createClass({
     const {link, children, location} = this.props
     const isActive = location.startsWith(link)
 
-    return <Link className={cx('sidebar__menu-item', {active: isActive})} to={link}>{children}</Link>
+    return (
+      <Link className={cx('sidebar__menu-item', {active: isActive})} to={link}>
+        {children}
+      </Link>
+    )
   },
 })
 
@@ -46,18 +50,17 @@ const NavBlock = React.createClass({
   render() {
     const {location, className, wrapperClassName} = this.props
 
-    const isActive = React.Children.toArray(this.props.children).find((child) => {
+    const isActive = React.Children.toArray(this.props.children).find(child => {
       return location.startsWith(child.props.link)
     })
 
-    const children = React.Children.map((this.props.children), (child) => {
+    const children = React.Children.map(this.props.children, child => {
       if (child && child.type === NavListItem) {
         return React.cloneElement(child, {location})
       }
 
       return child
     })
-
 
     return (
       <div className={cx('sidebar__square', className, {active: isActive})}>
@@ -77,7 +80,7 @@ const NavBlock = React.createClass({
     if (!link) {
       return (
         <div className="sidebar__icon">
-          <span className={`icon ${icon}`}></span>
+          <span className={`icon ${icon}`} />
         </div>
       )
     }
@@ -85,7 +88,7 @@ const NavBlock = React.createClass({
     return (
       <Link className="sidebar__menu-route" to={link}>
         <div className="sidebar__icon">
-          <span className={`icon ${icon}`}></span>
+          <span className={`icon ${icon}`} />
         </div>
       </Link>
     )
@@ -99,7 +102,7 @@ const NavBar = React.createClass({
   },
 
   render() {
-    const children = React.Children.map(this.props.children, (child) => {
+    const children = React.Children.map(this.props.children, child => {
       if (child && child.type === NavBlock) {
         return React.cloneElement(child, {
           location: this.props.location,
@@ -112,9 +115,4 @@ const NavBar = React.createClass({
   },
 })
 
-export {
-  NavBar,
-  NavBlock,
-  NavHeader,
-  NavListItem,
-}
+export {NavBar, NavBlock, NavHeader, NavListItem}

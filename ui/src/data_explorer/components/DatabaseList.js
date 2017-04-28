@@ -29,21 +29,23 @@ const DatabaseList = React.createClass({
   componentDidMount() {
     const {source} = this.context
     const proxy = source.links.proxy
-    showDatabases(proxy).then((resp) => {
+    showDatabases(proxy).then(resp => {
       const {errors, databases} = showDatabasesParser(resp.data)
       if (errors.length) {
         // do something
       }
 
       const namespaces = []
-      showRetentionPolicies(proxy, databases).then((res) => {
+      showRetentionPolicies(proxy, databases).then(res => {
         res.data.results.forEach((result, index) => {
-          const {errors: errs, retentionPolicies} = showRetentionPoliciesParser(result)
+          const {errors: errs, retentionPolicies} = showRetentionPoliciesParser(
+            result
+          )
           if (errs.length) {
             // do something
           }
 
-          retentionPolicies.forEach((rp) => {
+          retentionPolicies.forEach(rp => {
             namespaces.push({
               database: databases[index],
               retentionPolicy: rp.name,
@@ -63,12 +65,20 @@ const DatabaseList = React.createClass({
       <div className="query-builder--column">
         <div className="query-builder--heading">Databases</div>
         <div className="query-builder--list">
-          {this.state.namespaces.map((namespace) => {
+          {this.state.namespaces.map(namespace => {
             const {database, retentionPolicy} = namespace
-            const isActive = database === query.database && retentionPolicy === query.retentionPolicy
+            const isActive =
+              database === query.database &&
+              retentionPolicy === query.retentionPolicy
 
             return (
-              <div className={classNames('query-builder--list-item', {active: isActive})} key={`${database}..${retentionPolicy}`} onClick={_.wrap(namespace, onChooseNamespace)}>
+              <div
+                className={classNames('query-builder--list-item', {
+                  active: isActive,
+                })}
+                key={`${database}..${retentionPolicy}`}
+                onClick={_.wrap(namespace, onChooseNamespace)}
+              >
                 {database}.{retentionPolicy}
               </div>
             )

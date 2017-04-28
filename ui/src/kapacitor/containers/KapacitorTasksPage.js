@@ -15,8 +15,7 @@ export const KapacitorTasksPage = React.createClass({
   },
 
   getInitialState() {
-    return {
-    }
+    return {}
   },
 
   render() {
@@ -26,7 +25,6 @@ export const KapacitorTasksPage = React.createClass({
       </div>
     )
   },
-
 })
 
 export default KapacitorTasksPage

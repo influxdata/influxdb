@@ -198,7 +198,7 @@ class QueryEditor extends Component {
           onChange={this.handleChange}
           onKeyDown={this.handleKeyDown}
           onBlur={this.handleUpdate}
-          ref={editor => this.editor = editor}
+          ref={editor => (this.editor = editor)}
           value={value}
           placeholder="Enter a query or select database, measurement, and field below and have us build one for you..."
           autoComplete="off"

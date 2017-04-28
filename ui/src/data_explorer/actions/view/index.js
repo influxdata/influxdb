@@ -133,7 +133,7 @@ export function updateRawQuery(queryID, text) {
   }
 }
 
-export const updateQueryConfig = (config) => ({
+export const updateQueryConfig = config => ({
   type: 'UPDATE_QUERY_CONFIG',
   payload: {
     config,
@@ -149,7 +149,7 @@ export const editQueryStatus = (queryID, status) => ({
 })
 
 // Async actions
-export const editRawTextAsync = (url, id, text) => async (dispatch) => {
+export const editRawTextAsync = (url, id, text) => async dispatch => {
   try {
     const {data} = await getQueryConfig(url, [{query: text, id}])
     const config = data.queries.find(q => q.id === id)

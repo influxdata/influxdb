@@ -9,7 +9,7 @@ export default function parseshowQueries(response) {
     return {errors: [], queries: []}
   }
 
-  const queries = series.values.map((value) => {
+  const queries = series.values.map(value => {
     return {
       id: value[series.columns.indexOf('qid')],
       database: value[series.columns.indexOf('database')],

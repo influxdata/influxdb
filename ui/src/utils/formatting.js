@@ -1,4 +1,4 @@
-export const formatBytes = (bytes) => {
+export const formatBytes = bytes => {
   if (bytes === 0) {
     return '0 Bytes'
   }
@@ -15,7 +15,7 @@ export const formatBytes = (bytes) => {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`
 }
 
-export const formatRPDuration = (duration) => {
+export const formatRPDuration = duration => {
   if (!duration) {
     return
   }

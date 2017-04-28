@@ -16,7 +16,7 @@ export default function parseShowRetentionPolicies(result) {
   const replicationIndex = columns.indexOf('replicaN')
   const defaultIndex = columns.indexOf('default')
 
-  const retentionPolicies = series.values.map((arr) => {
+  const retentionPolicies = series.values.map(arr => {
     return {
       name: arr[nameIndex],
       duration: arr[durationIndex],

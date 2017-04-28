@@ -21,11 +21,11 @@ const RoleRow = ({
   onUpdateRoleUsers,
   onUpdateRolePermissions,
 }) => {
-  const handleUpdateUsers = (u) => {
-    onUpdateRoleUsers(role, u.map((n) => ({name: n})))
+  const handleUpdateUsers = u => {
+    onUpdateRoleUsers(role, u.map(n => ({name: n})))
   }
 
-  const handleUpdatePermissions = (allowed) => {
+  const handleUpdatePermissions = allowed => {
     onUpdateRolePermissions(role, [{scope: 'all', allowed}])
   }
 
@@ -34,9 +34,14 @@ const RoleRow = ({
   if (isEditing) {
     return (
       <tr className="admin-table--edit-row">
-        <RoleEditingRow role={role} onEdit={onEdit} onSave={onSave} isNew={isNew} />
-        <td></td>
-        <td></td>
+        <RoleEditingRow
+          role={role}
+          onEdit={onEdit}
+          onSave={onSave}
+          isNew={isNew}
+        />
+        <td />
+        <td />
         <td className="text-right" style={{width: '85px'}}>
           <ConfirmButtons item={role} onConfirm={onSave} onCancel={onCancel} />
         </td>
@@ -48,49 +53,45 @@ const RoleRow = ({
     <tr>
       <td>{name}</td>
       <td>
-        {
-          allPermissions && allPermissions.length ?
-            <MultiSelectDropdown
+        {allPermissions && allPermissions.length
+          ? <MultiSelectDropdown
               items={allPermissions}
               selectedItems={perms}
               label={perms.length ? '' : 'Select Permissions'}
               onApply={handleUpdatePermissions}
-            /> : null
-        }
+            />
+          : null}
       </td>
       <td>
-        {
-          allUsers && allUsers.length ?
-            <MultiSelectDropdown
-              items={allUsers.map((u) => u.name)}
-              selectedItems={users === undefined ? [] : users.map((u) => u.name)}
+        {allUsers && allUsers.length
+          ? <MultiSelectDropdown
+              items={allUsers.map(u => u.name)}
+              selectedItems={users === undefined ? [] : users.map(u => u.name)}
               label={users && users.length ? '' : 'Select Users'}
               onApply={handleUpdateUsers}
-            /> : null
-        }
+            />
+          : null}
       </td>
       <DeleteConfirmTableCell onDelete={onDelete} item={role} />
     </tr>
   )
 }
 
-const {
-  arrayOf,
-  bool,
-  func,
-  shape,
-  string,
-} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 RoleRow.propTypes = {
   role: shape({
     name: string,
-    permissions: arrayOf(shape({
-      name: string,
-    })),
-    users: arrayOf(shape({
-      name: string,
-    })),
+    permissions: arrayOf(
+      shape({
+        name: string,
+      })
+    ),
+    users: arrayOf(
+      shape({
+        name: string,
+      })
+    ),
   }).isRequired,
   isNew: bool,
   isEditing: bool,

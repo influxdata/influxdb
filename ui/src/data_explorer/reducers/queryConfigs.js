@@ -21,7 +21,10 @@ export default function queryConfigs(state = {}, action) {
 
     case 'CHOOSE_NAMESPACE': {
       const {queryId, database, retentionPolicy} = action.payload
-      const nextQueryConfig = chooseNamespace(state[queryId], {database, retentionPolicy})
+      const nextQueryConfig = chooseNamespace(state[queryId], {
+        database,
+        retentionPolicy,
+      })
 
       return Object.assign({}, state, {
         [queryId]: Object.assign(nextQueryConfig, {rawText: null}),
@@ -33,7 +36,9 @@ export default function queryConfigs(state = {}, action) {
       const nextQueryConfig = chooseMeasurement(state[queryId], measurement)
 
       return Object.assign({}, state, {
-        [queryId]: Object.assign(nextQueryConfig, {rawText: state[queryId].rawText}),
+        [queryId]: Object.assign(nextQueryConfig, {
+          rawText: state[queryId].rawText,
+        }),
       })
     }
 
@@ -99,10 +104,12 @@ export default function queryConfigs(state = {}, action) {
 
     case 'DELETE_QUERY': {
       const {queryID} = action.payload
-      const nextState = update(state, {$apply: (configs) => {
-        delete configs[queryID]
-        return configs
-      }})
+      const nextState = update(state, {
+        $apply: configs => {
+          delete configs[queryID]
+          return configs
+        },
+      })
 
       return nextState
     }
@@ -110,7 +117,11 @@ export default function queryConfigs(state = {}, action) {
     case 'TOGGLE_FIELD': {
       const {isKapacitorRule} = action.meta
       const {queryId, fieldFunc} = action.payload
-      const nextQueryConfig = toggleField(state[queryId], fieldFunc, isKapacitorRule)
+      const nextQueryConfig = toggleField(
+        state[queryId],
+        fieldFunc,
+        isKapacitorRule
+      )
 
       return Object.assign({}, state, {
         [queryId]: {...nextQueryConfig, rawText: null},

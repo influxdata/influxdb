@@ -6,12 +6,7 @@ import TimeRangeDropdown from '../../shared/components/TimeRangeDropdown'
 import SourceIndicator from '../../shared/components/SourceIndicator'
 import GraphTips from '../../shared/components/GraphTips'
 
-const {
-  func,
-  number,
-  shape,
-  string,
-} = PropTypes
+const {func, number, shape, string} = PropTypes
 
 const Header = React.createClass({
   propTypes: {
@@ -37,7 +32,11 @@ const Header = React.createClass({
   },
 
   render() {
-    const {autoRefresh, actions: {handleChooseAutoRefresh}, timeRange} = this.props
+    const {
+      autoRefresh,
+      actions: {handleChooseAutoRefresh},
+      timeRange,
+    } = this.props
 
     return (
       <div className="page-header full-width-no-scrollbar">
@@ -50,8 +49,15 @@ const Header = React.createClass({
           <div className="page-header__right">
             <GraphTips />
             <SourceIndicator sourceName={this.context.source.name} />
-            <AutoRefreshDropdown onChoose={handleChooseAutoRefresh} selected={autoRefresh} iconName="refresh" />
-            <TimeRangeDropdown onChooseTimeRange={this.handleChooseTimeRange} selected={timeRange} />
+            <AutoRefreshDropdown
+              onChoose={handleChooseAutoRefresh}
+              selected={autoRefresh}
+              iconName="refresh"
+            />
+            <TimeRangeDropdown
+              onChooseTimeRange={this.handleChooseTimeRange}
+              selected={timeRange}
+            />
           </div>
         </div>
       </div>

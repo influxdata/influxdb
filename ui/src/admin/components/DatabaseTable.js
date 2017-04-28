@@ -5,11 +5,7 @@ import _ from 'lodash'
 import DatabaseRow from 'src/admin/components/DatabaseRow'
 import DatabaseTableHeader from 'src/admin/components/DatabaseTableHeader'
 
-const {
-  func,
-  shape,
-  bool,
-} = PropTypes
+const {func, shape, bool} = PropTypes
 
 const DatabaseTable = ({
   database,
@@ -53,28 +49,28 @@ const DatabaseTable = ({
               <th>Retention Policy</th>
               <th>Duration</th>
               {isRFDisplayed ? <th>Replication Factor</th> : null}
-              <th></th>
+              <th />
             </tr>
           </thead>
           <tbody>
-            {
-              _.sortBy(database.retentionPolicies, ({name}) => name.toLowerCase()).map(rp => {
-                return (
-                  <DatabaseRow
-                    key={rp.links.self}
-                    notify={notify}
-                    database={database}
-                    retentionPolicy={rp}
-                    onCreate={onCreateRetentionPolicy}
-                    onUpdate={onUpdateRetentionPolicy}
-                    onRemove={onRemoveRetentionPolicy}
-                    onDelete={onDeleteRetentionPolicy}
-                    isRFDisplayed={isRFDisplayed}
-                    isDeletable={database.retentionPolicies.length > 1}
-                  />
-                )
-              })
-            }
+            {_.sortBy(database.retentionPolicies, ({name}) =>
+              name.toLowerCase()
+            ).map(rp => {
+              return (
+                <DatabaseRow
+                  key={rp.links.self}
+                  notify={notify}
+                  database={database}
+                  retentionPolicy={rp}
+                  onCreate={onCreateRetentionPolicy}
+                  onUpdate={onUpdateRetentionPolicy}
+                  onRemove={onRemoveRetentionPolicy}
+                  onDelete={onDeleteRetentionPolicy}
+                  isRFDisplayed={isRFDisplayed}
+                  isDeletable={database.retentionPolicies.length > 1}
+                />
+              )
+            })}
           </tbody>
         </table>
       </div>

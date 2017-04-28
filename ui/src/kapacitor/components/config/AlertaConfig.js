@@ -41,7 +41,7 @@ const AlertaConfig = React.createClass({
             className="form-control"
             id="environment"
             type="text"
-            ref={r => this.environment = r}
+            ref={r => (this.environment = r)}
             defaultValue={environment || ''}
           />
         </div>
@@ -52,7 +52,7 @@ const AlertaConfig = React.createClass({
             className="form-control"
             id="origin"
             type="text"
-            ref={r => this.origin = r}
+            ref={r => (this.origin = r)}
             defaultValue={origin || ''}
           />
         </div>
@@ -62,7 +62,7 @@ const AlertaConfig = React.createClass({
           <RedactedInput
             defaultValue={token}
             id="token"
-            refFunc={r => this.token = r}
+            refFunc={r => (this.token = r)}
           />
         </div>
 
@@ -72,7 +72,7 @@ const AlertaConfig = React.createClass({
             className="form-control"
             id="url"
             type="text"
-            ref={r => this.url = r}
+            ref={r => (this.url = r)}
             defaultValue={url || ''}
           />
         </div>

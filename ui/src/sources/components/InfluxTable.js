@@ -9,7 +9,7 @@ const kapacitorDropdown = (kapacitors, source, router, setActiveKapacitor) => {
       <Link to={`/sources/${source.id}/kapacitors/new`}>Add Kapacitor</Link>
     )
   }
-  const kapacitorItems = kapacitors.map((k) => {
+  const kapacitorItems = kapacitors.map(k => {
     return {
       text: k.name,
       resource: `/sources/${source.id}/kapacitors/${k.id}`,
@@ -17,7 +17,7 @@ const kapacitorDropdown = (kapacitors, source, router, setActiveKapacitor) => {
     }
   })
 
-  const activeKapacitor = kapacitors.find((k) => k.active)
+  const activeKapacitor = kapacitors.find(k => k.active)
 
   let selected = ''
   if (activeKapacitor) {
@@ -32,19 +32,20 @@ const kapacitorDropdown = (kapacitors, source, router, setActiveKapacitor) => {
       buttonColor="btn-info"
       buttonSize="btn-xs"
       items={kapacitorItems}
-      onChoose={(item) => setActiveKapacitor(item.kapacitor)}
+      onChoose={item => setActiveKapacitor(item.kapacitor)}
       addNew={{
         url: `/sources/${source.id}/kapacitors/new`,
         text: 'Add Kapacitor',
       }}
-      actions={
-      [{
-        icon: 'pencil',
-        text: 'edit',
-        handler: (item) => {
-          router.push(`${item.resource}/edit`)
+      actions={[
+        {
+          icon: 'pencil',
+          text: 'edit',
+          handler: item => {
+            router.push(`${item.resource}/edit`)
+          },
         },
-      }]}
+      ]}
       selected={selected}
     />
   )
@@ -63,7 +64,12 @@ const InfluxTable = ({
       <div className="panel panel-minimal">
         <div className="panel-heading u-flex u-ai-center u-jc-space-between">
           <h2 className="panel-title">InfluxDB Sources</h2>
-          <Link to={`/sources/${source.id}/manage-sources/new`} className="btn btn-sm btn-primary">Add Source</Link>
+          <Link
+            to={`/sources/${source.id}/manage-sources/new`}
+            className="btn btn-sm btn-primary"
+          >
+            Add Source
+          </Link>
         </div>
         <div className="panel-body">
           <table className="table v-center margin-bottom-zero">
@@ -72,29 +78,48 @@ const InfluxTable = ({
                 <th>Name</th>
                 <th>Host</th>
                 <th>Kapacitor</th>
-                <th className="text-right"></th>
+                <th className="text-right" />
               </tr>
             </thead>
             <tbody>
-              {
-                sources.map((s) => {
-                  return (
-                    <tr key={s.id}>
-                      <td><Link to={`${location.pathname}/${s.id}/edit`}>{s.name}</Link> {s.default ? <span className="default-source-label">Default</span> : null}</td>
-                      <td className="monotype">{s.url}</td>
-                      <td>
-                        {
-                          kapacitorDropdown(s.kapacitors, s, router, setActiveKapacitor)
-                        }
-                      </td>
-                      <td className="text-right">
-                        <Link className="btn btn-success btn-xs" to={`/sources/${s.id}/hosts`}>Connect</Link>
-                        <button className="btn btn-danger btn-xs" onClick={() => handleDeleteSource(s)}><span className="icon trash"></span></button>
-                      </td>
-                    </tr>
-                  )
-                })
-              }
+              {sources.map(s => {
+                return (
+                  <tr key={s.id}>
+                    <td>
+                      <Link to={`${location.pathname}/${s.id}/edit`}>
+                        {s.name}
+                      </Link>
+                      {' '}
+                      {s.default
+                        ? <span className="default-source-label">Default</span>
+                        : null}
+                    </td>
+                    <td className="monotype">{s.url}</td>
+                    <td>
+                      {kapacitorDropdown(
+                        s.kapacitors,
+                        s,
+                        router,
+                        setActiveKapacitor
+                      )}
+                    </td>
+                    <td className="text-right">
+                      <Link
+                        className="btn btn-success btn-xs"
+                        to={`/sources/${s.id}/hosts`}
+                      >
+                        Connect
+                      </Link>
+                      <button
+                        className="btn btn-danger btn-xs"
+                        onClick={() => handleDeleteSource(s)}
+                      >
+                        <span className="icon trash" />
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -103,12 +128,7 @@ const InfluxTable = ({
   </div>
 )
 
-const {
-  array,
-  func,
-  shape,
-  string,
-} = PropTypes
+const {array, func, shape, string} = PropTypes
 
 InfluxTable.propTypes = {
   handleDeleteSource: func.isRequired,
