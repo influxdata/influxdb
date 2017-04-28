@@ -500,7 +500,7 @@ func IntegerMedianReduceSlice(a []IntegerPoint) []FloatPoint {
 	return []FloatPoint{{Time: ZeroTime, Value: float64(a[len(a)/2].Value)}}
 }
 
-// newModeIterator returns an iterator for operating on a mode() call.
+// NewModeIterator returns an iterator for operating on a mode() call.
 func NewModeIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:

@@ -1052,7 +1052,7 @@ func (s *SelectStatement) HasSelector() bool {
 	var selector *Call
 	for _, f := range s.Fields {
 		if call, ok := f.Expr.(*Call); ok {
-			if selector != nil || !IsSelector(call) {
+			if selector != nil || !isSelector(call) {
 				// This is an aggregate call or there is already a selector.
 				return false
 			}
@@ -1177,7 +1177,7 @@ func (s *SelectStatement) RewriteFields(m FieldMapper) (*SelectStatement, error)
 		return other, nil
 	}
 
-	fieldSet, dimensionSet, err := FieldDimensions(other.Sources, m)
+	fieldSet, dimensionSet, err := fieldDimensions(other.Sources, m)
 	if err != nil {
 		return nil, err
 	}
@@ -4696,19 +4696,18 @@ func EvalType(expr Expr, sources Sources, typmap TypeMapper) DataType {
 		if lhs != Unknown && rhs != Unknown {
 			if lhs < rhs {
 				return lhs
-			} else {
-				return rhs
 			}
-		} else if lhs != Unknown {
-			return lhs
-		} else {
 			return rhs
 		}
+		if lhs != Unknown {
+			return lhs
+		}
+		return rhs
 	}
 	return Unknown
 }
 
-func FieldDimensions(sources Sources, m FieldMapper) (fields map[string]DataType, dimensions map[string]struct{}, err error) {
+func fieldDimensions(sources Sources, m FieldMapper) (fields map[string]DataType, dimensions map[string]struct{}, err error) {
 	fields = make(map[string]DataType)
 	dimensions = make(map[string]struct{})
 
@@ -5324,7 +5323,7 @@ func (v *containsVarRefVisitor) Visit(n Node) Visitor {
 	return v
 }
 
-func IsSelector(expr Expr) bool {
+func isSelector(expr Expr) bool {
 	if call, ok := expr.(*Call); ok {
 		switch call.Name {
 		case "first", "last", "min", "max", "percentile", "sample", "top", "bottom":

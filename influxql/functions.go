@@ -386,12 +386,14 @@ func NewFloatCumulativeSumReducer() *FloatCumulativeSumReducer {
 	}
 }
 
+// AggregateFloat aggregates a point into the reducer and updates the current window.
 func (r *FloatCumulativeSumReducer) AggregateFloat(p *FloatPoint) {
 	r.curr.Value += p.Value
 	r.curr.Time = p.Time
 	r.curr.Nil = false
 }
 
+// Emit emits the cumulative sum of the aggregated points as a single point.
 func (r *FloatCumulativeSumReducer) Emit() []FloatPoint {
 	var pts []FloatPoint
 	if !r.curr.Nil {
@@ -412,12 +414,14 @@ func NewIntegerCumulativeSumReducer() *IntegerCumulativeSumReducer {
 	}
 }
 
+// AggregateInteger aggregates a point into the reducer and updates the current window.
 func (r *IntegerCumulativeSumReducer) AggregateInteger(p *IntegerPoint) {
 	r.curr.Value += p.Value
 	r.curr.Time = p.Time
 	r.curr.Nil = false
 }
 
+// Emit emits the cumulative sum of the aggregated points as a single point.
 func (r *IntegerCumulativeSumReducer) Emit() []IntegerPoint {
 	var pts []IntegerPoint
 	if !r.curr.Nil {

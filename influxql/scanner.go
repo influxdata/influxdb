@@ -323,10 +323,9 @@ func (s *Scanner) scanNumber() (tok Token, pos Pos, lit string) {
 				}
 			}
 			return DURATIONVAL, pos, buf.String()
-		} else {
-			s.r.unread()
-			return INTEGER, pos, buf.String()
 		}
+		s.r.unread()
+		return INTEGER, pos, buf.String()
 	}
 	return NUMBER, pos, buf.String()
 }

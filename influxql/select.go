@@ -93,7 +93,7 @@ func buildIterators(stmt *SelectStatement, ic IteratorCreator, opt IteratorOptio
 	selector := false
 	if len(info.calls) == 1 {
 		for call := range info.calls {
-			selector = IsSelector(call)
+			selector = isSelector(call)
 		}
 	}
 
@@ -172,7 +172,7 @@ func buildAuxIterators(fields Fields, ic IteratorCreator, sources Sources, opt I
 				// need to include that even if it isn't referenced directly.
 				var selector *Field
 				for _, f := range source.Statement.Fields {
-					if IsSelector(f.Expr) {
+					if isSelector(f.Expr) {
 						selector = f
 						break
 					}
@@ -600,7 +600,7 @@ func (b *exprIteratorBuilder) buildVarRefIterator(expr *VarRef) (Iterator, error
 
 						// Check if this is a selector or not and
 						// create the iterator directly.
-						selector := len(info.calls) == 1 && IsSelector(e)
+						selector := len(info.calls) == 1 && isSelector(e)
 						itr, err := buildExprIterator(e, b.ic, source.Statement.Sources, subOpt, selector)
 						if err != nil {
 							return nil, err

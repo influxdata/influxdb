@@ -7,18 +7,25 @@ type iteratorMapper struct {
 	auxFields []interface{}
 }
 
+// IteratorMap is an interface that provides a means of retrieving an iterator by an arbitrary key.
+// Implementations might document how the mapping is done in each case.
 type IteratorMap interface {
 	Value(tags Tags, buf []interface{}) interface{}
 }
 
+// FieldMap is an IteratorMap that provides iterators by index
 type FieldMap int
 
+// Value provides the iterator in the Nth position in buf, being N the receiver's value.
 func (i FieldMap) Value(tags Tags, buf []interface{}) interface{} { return buf[i] }
 
+// TagMap is an IteratorMap that provides iterators by tag.
 type TagMap string
 
+// Value provides the iterator mapped to the receiver's tag.
 func (s TagMap) Value(tags Tags, buf []interface{}) interface{} { return tags.Value(string(s)) }
 
+// NewIteratorMapper creates an empty iteratorMapper ready for use.
 func NewIteratorMapper(itrs []Iterator, fields []IteratorMap, opt IteratorOptions) Iterator {
 	e := NewEmitter(itrs, opt.Ascending, 0)
 	e.OmitTime = true
