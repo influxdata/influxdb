@@ -39,6 +39,8 @@ const RowValues = ({
         isEditing={isEditing}
         onStartEdit={onStartEdit}
         autoFocusTarget={autoFocusTarget}
+        spellCheck={false}
+        autoComplete={false}
       />
     )
   }
