@@ -1,0 +1,77 @@
+/*
+  Template Control Bar
+  ------------------------------------------------------
+  Used within a dashboard to control values for
+  template variables
+*/
+
+.template-control-bar {
+  height: 50px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+  padding: 0 14px;
+  @extend .cell-shell;
+}
+.template-control--heading {
+  font-size: 16px;
+  font-weight: 500;
+  color: $g13-mist;
+  margin: 0 8px 0 0;
+  @include no-user-select();
+  white-space: nowrap;
+}
+
+.template-control--dropdown {
+  flex: 0 1 auto;
+  min-width: 160px;
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  margin: 0 0 0 8px;
+
+  .dropdown {
+    order: 2;
+    margin: 0;
+    flex: 1 0 0;
+  }
+
+  .dropdown-toggle {
+    border-radius: 0 $radius-small $radius-small 0;
+    width: 100%;
+  }
+  .dropdown.open > div.btn.dropdown-toggle {
+    @include gradient-h($c-comet,$c-pool);
+  }
+  .dropdown-menu {
+    @include gradient-h($c-amethyst,$c-ocean);
+    @include custom-scrollbar-round($c-ocean,$c-laser);
+
+    > li > a {
+      &, &:active {background-color: transparent !important;}
+    }
+    > li {
+      &:hover {@include gradient-h($c-star,$c-ocean);}
+    }
+  }
+}
+.template-control--label {
+  order: 1;
+  height: 30px;
+  padding: 0 9px;
+  margin: 0;
+  font-size: 12px;
+  font-family: $code-font;
+  color: $c-potassium;
+  line-height: 30px;
+  border-radius: $radius-small 0 0 $radius-small;
+  background-color: $g5-pepper;
+  // transition:
+  //   background-color 0.25s ease,
+  //   color 0.25s ease;
+}
+.dropdown.open + .template-control--label {
+  @include gradient-h($c-star,$c-comet);
+  color: $g20-white;
+}
