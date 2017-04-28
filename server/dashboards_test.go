@@ -1,8 +1,6 @@
 package server
 
 import (
-	"encoding/json"
-	"log"
 	"reflect"
 	"testing"
 
