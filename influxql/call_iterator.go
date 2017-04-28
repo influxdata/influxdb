@@ -470,8 +470,6 @@ func FloatMedianReduceSlice(a []FloatPoint) []FloatPoint {
 		return a
 	}
 
-	// OPTIMIZE(benbjohnson): Use getSortedRange() from v0.9.5.1.
-
 	// Return the middle value from the points.
 	// If there are an even number of points then return the mean of the two middle points.
 	sort.Sort(floatPointsByValue(a))
@@ -487,8 +485,6 @@ func IntegerMedianReduceSlice(a []IntegerPoint) []FloatPoint {
 	if len(a) == 1 {
 		return []FloatPoint{{Time: ZeroTime, Value: float64(a[0].Value)}}
 	}
-
-	// OPTIMIZE(benbjohnson): Use getSortedRange() from v0.9.5.1.
 
 	// Return the middle value from the points.
 	// If there are an even number of points then return the mean of the two middle points.
