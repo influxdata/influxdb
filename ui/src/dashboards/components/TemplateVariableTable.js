@@ -1,7 +1,6 @@
 import React, {PropTypes} from 'react'
 
 import TemplateVariableRow from 'src/dashboards/components/TemplateVariableRow'
-import EmptyRow from 'src/admin/components/EmptyRow'
 
 const TemplateVariableTable = ({
   source,
@@ -34,7 +33,10 @@ const TemplateVariableTable = ({
             ))}
           </div>
         </div>
-      : <EmptyRow tableName={'Template Variables'} />}
+      : <div className="generic-empty-state">
+          <h4 style={{margin: '60px 0'}} className="no-user-select">You have no Template Variables, why not create one?</h4>
+        </div>
+    }
   </div>
 )
 
