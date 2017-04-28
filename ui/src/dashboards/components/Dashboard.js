@@ -77,7 +77,8 @@ const Dashboard = ({
             className="btn btn-primary btn-sm"
             onClick={onOpenTemplateManager}
           >
-            Manage
+            <span className="icon cog-thick" />
+             Manage
           </button>
         </div>
       </div>
