@@ -554,7 +554,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 		if v := tags.Get(timeBytes); v != nil {
 			dropped++
 			if reason == "" {
-				reason = fmt.Sprintf("invalid field name: input tag \"%s\" on measurement \"%s\" is invalid", "time", p.Name())
+				reason = fmt.Sprintf("invalid tag key: input tag \"%s\" on measurement \"%s\" is invalid", "time", p.Name())
 			}
 			continue
 		}
@@ -601,7 +601,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 		if !validField {
 			dropped++
 			if reason == "" {
-				reason = fmt.Sprintf("invalid field name: input tag \"%s\" on measurement \"%s\" is invalid", "time", p.Name())
+				reason = fmt.Sprintf("invalid field name: input field \"%s\" on measurement \"%s\" is invalid", "time", p.Name())
 			}
 			continue
 		}
