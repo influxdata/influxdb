@@ -3,6 +3,7 @@ import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
 import OnClickOutside from 'react-onclickoutside'
+import classNames from 'classnames'
 
 import Dropdown from 'shared/components/Dropdown'
 import DeleteConfirmButtons from 'shared/components/DeleteConfirmButtons'
@@ -42,10 +43,8 @@ const RowValues = ({
     )
   }
   return (
-    <div className="td">
-      {values.length
-        ? <span>{_values}</span>
-        : <span>(No values to display)</span>}
+    <div className={values.length ? 'tvm-values' : 'tvm-values-empty'}>
+      {values.length ? _values : 'No values to display'}
     </div>
   )
 }
@@ -60,24 +59,25 @@ const RowButtons = ({
 }) => {
   if (isEditing) {
     return (
-      <div>
-        <button className="btn btn-sm btn-success" type="submit">
-          {selectedType === 'csv' ? 'Save Values' : 'Get Values'}
-        </button>
+      <div className="tvm-actions">
         <button
-          className="btn btn-sm btn-primary"
+          className="btn btn-sm btn-info"
           type="button"
           onClick={onCancelEdit}
         >
           Cancel
         </button>
+        <button className="btn btn-sm btn-success" type="submit">
+          {selectedType === 'csv' ? 'Save Values' : 'Get Values'}
+        </button>
       </div>
     )
   }
   return (
-    <div>
+    <div className="tvm-actions">
+      <DeleteConfirmButtons onDelete={() => onDelete(id)} />
       <button
-        className="btn btn-sm btn-info"
+        className="btn btn-sm btn-info btn-edit"
         type="button"
         onClick={e => {
           // prevent subsequent 'onSubmit' that is caused by an unknown source,
@@ -87,9 +87,8 @@ const RowButtons = ({
           onStartEdit('tempVar')
         }}
       >
-        Edit
+        <span className="icon pencil" />
       </button>
-      <DeleteConfirmButtons onDelete={() => onDelete(id)} />
     </div>
   )
 }
@@ -112,7 +111,7 @@ const TemplateVariableRow = ({
   onDelete,
 }) => (
   <form
-    className="tr"
+    className={classNames('template-variable-manager--table-row', {editing: isEditing})}
     onSubmit={onSubmit({
       selectedType,
       selectedDatabase,
@@ -120,23 +119,25 @@ const TemplateVariableRow = ({
       selectedTagKey,
     })}
   >
-    <TableInput
-      name="tempVar"
-      defaultValue={tempVar}
-      isEditing={isEditing}
-      onStartEdit={onStartEdit}
-      autoFocusTarget={autoFocusTarget}
-    />
-    <div className="td">
+    <div className="tvm--col-1">
+      <TableInput
+        name="tempVar"
+        defaultValue={tempVar}
+        isEditing={isEditing}
+        onStartEdit={onStartEdit}
+        autoFocusTarget={autoFocusTarget}
+      />
+    </div>
+    <div className="tvm--col-2">
       <Dropdown
         items={TEMPLATE_TYPES}
         onChoose={onSelectType}
         onClick={() => onStartEdit(null)}
         selected={TEMPLATE_TYPES.find(t => t.type === selectedType).text}
-        className={'template-variable--dropdown'}
+        className="dropdown-140"
       />
     </div>
-    <div className="td">
+    <div className="tvm--col-3">
       <TemplateQueryBuilder
         onSelectDatabase={onSelectDatabase}
         selectedType={selectedType}
@@ -147,15 +148,15 @@ const TemplateVariableRow = ({
         onSelectTagKey={onSelectTagKey}
         onStartEdit={onStartEdit}
       />
+      <RowValues
+        selectedType={selectedType}
+        values={values}
+        isEditing={isEditing}
+        onStartEdit={onStartEdit}
+        autoFocusTarget={autoFocusTarget}
+      />
     </div>
-    <RowValues
-      selectedType={selectedType}
-      values={values}
-      isEditing={isEditing}
-      onStartEdit={onStartEdit}
-      autoFocusTarget={autoFocusTarget}
-    />
-    <div className="td" style={{display: 'flex'}}>
+    <div className="tvm--col-4">
       <RowButtons
         onStartEdit={onStartEdit}
         isEditing={isEditing}
@@ -176,12 +177,12 @@ const TableInput = ({
   autoFocusTarget,
 }) => {
   return isEditing
-    ? <div name={name} className="td">
+    ? <div name={name} style={{width: '100%'}}>
         <input
           required={true}
           name={name}
           autoFocus={name === autoFocusTarget}
-          className="input"
+          className="form-control input-sm tvm-input-edit"
           type="text"
           defaultValue={
             name === 'tempVar'
@@ -190,7 +191,9 @@ const TableInput = ({
           }
         />
       </div>
-    : <div className="td" onClick={() => onStartEdit(name)}>{defaultValue}</div>
+    : <div style={{width: '100%'}} onClick={() => onStartEdit(name)}>
+        <div className="tvm-input">{defaultValue}</div>
+      </div>
 }
 
 class RowWrapper extends Component {

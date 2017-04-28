@@ -15,13 +15,13 @@ const TemplateQueryBuilder = ({
 }) => {
   switch (selectedType) {
     case 'csv':
-      return <div>n/a</div>
+      return <div className="tvm-csv-instructions">Enter values below</div>
     case 'databases':
-      return <div>SHOW DATABASES</div>
+      return <div className="tvm-query-builder--text">SHOW DATABASES</div>
     case 'measurements':
       return (
-        <div>
-          <span>SHOW MEASUREMENTS ON</span>
+        <div className="tvm-query-builder">
+          <span className="tvm-query-builder--text">SHOW MEASUREMENTS ON</span>
           <DatabaseDropdown
             onSelectDatabase={onSelectDatabase}
             database={selectedDatabase}
@@ -32,14 +32,16 @@ const TemplateQueryBuilder = ({
     case 'fieldKeys':
     case 'tagKeys':
       return (
-        <div>
-          SHOW {selectedType === 'fieldKeys' ? 'FIELD' : 'TAG'} KEYS ON
+        <div className="tvm-query-builder">
+          <span className="tvm-query-builder--text">
+            SHOW {selectedType === 'fieldKeys' ? 'FIELD' : 'TAG'} KEYS ON
+          </span>
           <DatabaseDropdown
             onSelectDatabase={onSelectDatabase}
             database={selectedDatabase}
             onStartEdit={onStartEdit}
           />
-          FROM
+          <span className="tvm-query-builder--text">FROM</span>
           {selectedDatabase
             ? <MeasurementDropdown
                 database={selectedDatabase}
@@ -52,14 +54,14 @@ const TemplateQueryBuilder = ({
       )
     case 'tagValues':
       return (
-        <div>
-          SHOW TAG VALUES ON
+        <div className="tvm-query-builder">
+          <span className="tvm-query-builder--text">SHOW TAG VALUES ON</span>
           <DatabaseDropdown
             onSelectDatabase={onSelectDatabase}
             database={selectedDatabase}
             onStartEdit={onStartEdit}
           />
-          FROM
+          <span className="tvm-query-builder--text">FROM</span>
           {selectedDatabase
             ? <MeasurementDropdown
                 database={selectedDatabase}
@@ -68,7 +70,7 @@ const TemplateQueryBuilder = ({
                 onStartEdit={onStartEdit}
               />
             : 'Pick a DB'}
-          WITH KEY =
+          <span className="tvm-query-builder--text">WITH KEY =</span>
           {selectedMeasurement
             ? <TagKeyDropdown
                 database={selectedDatabase}
@@ -81,7 +83,7 @@ const TemplateQueryBuilder = ({
         </div>
       )
     default:
-      return <div>n/a</div>
+      return <div><span className="tvm-query-builder--text">n/a</span></div>
   }
 }
 

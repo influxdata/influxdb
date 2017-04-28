@@ -64,29 +64,29 @@ $overlay-z: 100;
     text-transform: uppercase;
     @include no-user-select;
   }
-  .confirm-buttons {
-    margin-left: 32px;
-  }
-  .confirm-buttons .btn {
-    height: 30px;
-    line-height: 30px;
-    padding: 0 9px;
+}
+.overlay-controls .confirm-buttons {
+  margin-left: 32px;
+}
+.overlay-controls .confirm-buttons .btn {
+  height: 30px;
+  line-height: 30px;
+  padding: 0 9px;
 
-    & > span.icon {
-      font-size: 16px;
+  & > span.icon {
+    font-size: 16px;
+  }
+}
+.overlay-controls .toggle {
+
+  .toggle-btn {
+    background-color: $overlay-controls-bg;
+
+    &:hover {
+      background-color: $g4-onyx;
     }
-  }
-  .overlay-controls .toggle {
-
-    .toggle-btn {
-      background-color: $overlay-controls-bg;
-
-      &:hover {
-        background-color: $g4-onyx;
-      }
-      &.active {
-        background-color: $g5-pepper;
-      }
+    &.active {
+      background-color: $g5-pepper;
     }
   }
 }
