@@ -2,12 +2,17 @@
 
 ### Bug Fixes
   1. [#1337](https://github.com/influxdata/chronograf/pull/1337): Fix no apps for hosts false negative
+  1. [#1340](https://github.com/influxdata/chronograf/pull/1340): Fix no active query in DE and Cell editing
+  1. [#1338](https://github.com/influxdata/chronograf/pull/1338): Require url and name when adding a new source
+  1. [#1348](https://github.com/influxdata/chronograf/pull/1348): Fix broken 'Add Kapacitor' Link
 
 ### Features
 
 ### UI Improvements
   1. [#1335](https://github.com/influxdata/chronograf/pull/1335): Improve UX for sanitized kapacitor settings
   1. [#1342](https://github.com/influxdata/chronograf/pull/1342): No more sort-as-you-type in DB admin
+  1. [#1344](https://github.com/influxdata/chronograf/pull/1344): Remove K8 dashboard
+  1. [#1340](https://github.com/influxdata/chronograf/pull/1340): Automatically switch to table view if meta query
 
 ## v1.2.0-beta9 [2017-04-21]
 
@@ -17,6 +22,8 @@
   1. [#1269](https://github.com/influxdata/chronograf/issues/1269): Add more functionality to the explorer's query generation process
   1. [#1318](https://github.com/influxdata/chronograf/issues/1318): Fix JWT refresh for auth-durations of zero and less than five minutes
   1. [#1332](https://github.com/influxdata/chronograf/pull/1332): Remove table toggle from dashboard visualization
+  1. [#1335](https://github.com/influxdata/chronograf/pull/1335): Improve UX for sanitized kapacitor settings
+
 
 ### Features
   1. [#1232](https://github.com/influxdata/chronograf/pull/1232): Fuse the query builder and raw query editor

@@ -94,7 +94,7 @@ export const LayoutRenderer = React.createClass({
 
     return cells.map((cell) => {
       const qs = cell.queries.map((query) => {
-        // TODO: Canned dashboards (and possibly Kubernetes dashboard) use an old query schema,
+        // TODO: Canned dashboards use an old query schema,
         // which does not have enough information for the new `buildInfluxQLQuery` function
         // to operate on. We will use `buildQueryForOldQuerySchema` until we conform
         // on a stable query representation.
