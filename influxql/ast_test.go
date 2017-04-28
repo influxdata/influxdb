@@ -2,6 +2,7 @@ package influxql_test
 
 import (
 	"fmt"
+	"go/importer"
 	"reflect"
 	"strings"
 	"testing"
@@ -1401,6 +1402,102 @@ func TestParse_Errors(t *testing.T) {
 		bad := fmt.Sprintf(tt.tmpl, tt.bad)
 		if _, err := influxql.ParseStatement(bad); err == nil {
 			t.Fatalf("statement %q should have resulted in a parse error but did not", bad)
+		}
+	}
+}
+
+// This test checks to ensure that we have given thought to the database
+// context required for security checks.  If a new statement is added, this
+// test will fail until it is categorized into the correct bucket below.
+func Test_EnforceHasDefaultDatabase(t *testing.T) {
+	pkg, err := importer.Default().Import("github.com/influxdata/influxdb/influxql")
+	if err != nil {
+		fmt.Printf("error: %s\n", err.Error())
+		return
+	}
+	statements := []string{}
+
+	// this is a list of statements that do not have a database context
+	exemptStatements := []string{
+		"CreateDatabaseStatement",
+		"CreateUserStatement",
+		"DeleteSeriesStatement",
+		"DropDatabaseStatement",
+		"DropMeasurementStatement",
+		"DropSeriesStatement",
+		"DropShardStatement",
+		"DropUserStatement",
+		"GrantAdminStatement",
+		"KillQueryStatement",
+		"RevokeAdminStatement",
+		"SelectStatement",
+		"SetPasswordUserStatement",
+		"ShowContinuousQueriesStatement",
+		"ShowDatabasesStatement",
+		"ShowDiagnosticsStatement",
+		"ShowGrantsForUserStatement",
+		"ShowQueriesStatement",
+		"ShowShardGroupsStatement",
+		"ShowShardsStatement",
+		"ShowStatsStatement",
+		"ShowSubscriptionsStatement",
+		"ShowUsersStatement",
+	}
+
+	exists := func(stmt string) bool {
+		switch stmt {
+		// These are functions with the word statement in them, and can be ignored
+		case "Statement", "MustParseStatement", "ParseStatement", "RewriteStatement":
+			return true
+		default:
+			// check the exempt statements
+			for _, s := range exemptStatements {
+				if s == stmt {
+					return true
+				}
+			}
+			// check the statements that passed the interface test for HasDefaultDatabase
+			for _, s := range statements {
+				if s == stmt {
+					return true
+				}
+			}
+			return false
+		}
+	}
+
+	needsHasDefault := []interface{}{
+		&influxql.AlterRetentionPolicyStatement{},
+		&influxql.CreateContinuousQueryStatement{},
+		&influxql.CreateRetentionPolicyStatement{},
+		&influxql.CreateSubscriptionStatement{},
+		&influxql.DeleteStatement{},
+		&influxql.DropContinuousQueryStatement{},
+		&influxql.DropRetentionPolicyStatement{},
+		&influxql.DropSubscriptionStatement{},
+		&influxql.GrantStatement{},
+		&influxql.RevokeStatement{},
+		&influxql.ShowFieldKeysStatement{},
+		&influxql.ShowMeasurementsStatement{},
+		&influxql.ShowRetentionPoliciesStatement{},
+		&influxql.ShowSeriesStatement{},
+		&influxql.ShowTagKeysStatement{},
+		&influxql.ShowTagValuesStatement{},
+	}
+
+	for _, stmt := range needsHasDefault {
+		statements = append(statements, strings.TrimPrefix(fmt.Sprintf("%T", stmt), "*influxql."))
+		if _, ok := stmt.(influxql.HasDefaultDatabase); !ok {
+			t.Errorf("%T was expected to declare DefaultDatabase method", stmt)
+		}
+
+	}
+
+	for _, declName := range pkg.Scope().Names() {
+		if strings.HasSuffix(declName, "Statement") {
+			if !exists(declName) {
+				t.Errorf("unchecked statement %s.  please update this test to determine if this statement needs to declare 'DefaultDatabase'", declName)
+			}
 		}
 	}
 }

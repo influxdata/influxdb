@@ -23,6 +23,7 @@ import (
 
 	"github.com/influxdata/influxdb/client"
 	"github.com/influxdata/influxdb/importer/v8"
+	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/peterh/liner"
 )
@@ -225,6 +226,7 @@ func (c *CommandLine) mainLoop() error {
 				return e
 			}
 			if err := c.ParseCommand(l); err != ErrBlankCommand && !strings.HasPrefix(strings.TrimSpace(l), "auth") {
+				l = influxql.Sanitize(l)
 				c.Line.AppendHistory(l)
 				c.saveHistory()
 			}
