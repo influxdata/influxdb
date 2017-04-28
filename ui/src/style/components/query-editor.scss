@@ -74,7 +74,7 @@
   line-height: $query-editor--status-height;
   font-size: 12px;
   font-family: $code-font;
-  
+
   span.icon {
     margin-right: 5px;
   }
@@ -183,5 +183,9 @@
   &.template-drawer--selected {
     color: $g20-white;
     background-color: $c-star;
+  }
+
+  .divider {
+    background: linear-gradient(to right, #00C9FF 0%, #22ADF6 100%);
   }
 }

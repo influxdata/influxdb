@@ -73,6 +73,9 @@ class Dropdown extends Component {
         {isOpen
           ? <ul className="dropdown-menu" style={{width: menuWidth}}>
               {items.map((item, i) => {
+                if (item.text === 'SEPARATOR') {
+                  return <li key={i} role="separator" className="divider" />
+                }
                 return (
                   <li className="dropdown-item" key={i}>
                     <a href="#" onClick={() => this.handleSelection(item)}>

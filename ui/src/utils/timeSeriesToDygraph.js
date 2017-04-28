@@ -16,67 +16,102 @@ const cells = {
 }
 
 // activeQueryIndex is an optional argument that indicated which query's series we want highlighted.
-export default function timeSeriesToDygraph(raw = [], activeQueryIndex, isInDataExplorer) {
+export default function timeSeriesToDygraph(
+  raw = [],
+  activeQueryIndex,
+  isInDataExplorer
+) {
   // collect results from each influx response
-  const results = reduce(raw, (acc, rawResponse, responseIndex) => {
-    const responses = _.get(rawResponse, 'response.results', [])
-    const indexedResponses = map(responses, (response) => ({...response, responseIndex}))
-    return [...acc, ...indexedResponses]
-  }, [])
+  const results = reduce(
+    raw,
+    (acc, rawResponse, responseIndex) => {
+      const responses = _.get(rawResponse, 'response.results', [])
+      const indexedResponses = map(responses, response => ({
+        ...response,
+        responseIndex,
+      }))
+      return [...acc, ...indexedResponses]
+    },
+    []
+  )
 
   // collect each series
-  const serieses = reduce(results, (acc, {series = [], responseIndex}, index) => {
-    return [...acc, ...map(series, (item) => ({...item, responseIndex, index}))]
-  }, [])
+  const serieses = reduce(
+    results,
+    (acc, {series = [], responseIndex}, index) => {
+      return [...acc, ...map(series, item => ({...item, responseIndex, index}))]
+    },
+    []
+  )
 
-  const size = reduce(serieses, (acc, {columns, values}) => {
-    if (columns.length && values.length) {
-      return acc + (columns.length - 1) * values.length
-    }
-    return acc
-  }, 0)
+  const size = reduce(
+    serieses,
+    (acc, {columns, values}) => {
+      if (columns.length && (values && values.length)) {
+        return acc + (columns.length - 1) * values.length
+      }
+      return acc
+    },
+    0
+  )
 
   // convert series into cells with rows and columns
   let cellIndex = 0
   let labels = []
 
-  forEach(serieses, ({name: measurement, columns, values, index: seriesIndex, responseIndex, tags = {}}) => {
-    const rows = map(values, (vals) => ({
-      vals,
-    }))
-
-    // tagSet is each tag key and value for a series
-    const tagSet = map(Object.keys(tags), (tag) => `[${tag}=${tags[tag]}]`).sort().join('')
-    const unsortedLabels = map(columns.slice(1), (field) => ({
-      label: `${measurement}.${field}${tagSet}`,
+  forEach(
+    serieses,
+    ({
+      name: measurement,
+      columns,
+      values,
+      index: seriesIndex,
       responseIndex,
-      seriesIndex,
-    }))
-    labels = concat(labels, unsortedLabels)
+      tags = {},
+    }) => {
+      const rows = map(values || [], vals => ({
+        vals,
+      }))
 
-    forEach(rows, ({vals}) => {
-      const [time, ...rowValues] = vals
+      // tagSet is each tag key and value for a series
+      const tagSet = map(Object.keys(tags), tag => `[${tag}=${tags[tag]}]`)
+        .sort()
+        .join('')
+      const unsortedLabels = map(columns.slice(1), field => ({
+        label: `${measurement}.${field}${tagSet}`,
+        responseIndex,
+        seriesIndex,
+      }))
+      labels = concat(labels, unsortedLabels)
 
-      forEach(rowValues, (value, i) => {
-        cells.label[cellIndex] = unsortedLabels[i].label
-        cells.value[cellIndex] = value
-        cells.time[cellIndex] = time
-        cells.seriesIndex[cellIndex] = seriesIndex
-        cells.responseIndex[cellIndex] = responseIndex
-        cellIndex++ // eslint-disable-line no-plusplus
+      forEach(rows, ({vals}) => {
+        const [time, ...rowValues] = vals
+
+        forEach(rowValues, (value, i) => {
+          cells.label[cellIndex] = unsortedLabels[i].label
+          cells.value[cellIndex] = value
+          cells.time[cellIndex] = time
+          cells.seriesIndex[cellIndex] = seriesIndex
+          cells.responseIndex[cellIndex] = responseIndex
+          cellIndex++ // eslint-disable-line no-plusplus
+        })
       })
-    })
-  })
+    }
+  )
 
   const sortedLabels = _.sortBy(labels, 'label')
   const tsMemo = {}
   const nullArray = Array(sortedLabels.length).fill(null)
 
-  const labelsToValueIndex = reduce(sortedLabels, (acc, {label, seriesIndex}, i) => {
-    // adding series index prevents overwriting of two distinct labels that have the same field and measurements
-    acc[label + seriesIndex] = i
-    return acc
-  }, {})
+  const labelsToValueIndex = reduce(
+    sortedLabels,
+    (acc, {label, seriesIndex}, i) => {
+      // adding series index prevents overwriting of two distinct labels that have the same field and measurements
+      acc[label + seriesIndex] = i
+      return acc
+    },
+    {}
+  )
 
   const timeSeries = []
   for (let i = 0; i < size; i++) {
@@ -97,23 +132,32 @@ export default function timeSeriesToDygraph(raw = [], activeQueryIndex, isInData
       tsMemo[time] = existingRowIndex
     }
 
-    timeSeries[existingRowIndex].values[labelsToValueIndex[label + seriesIndex]] = value
+    timeSeries[existingRowIndex].values[
+      labelsToValueIndex[label + seriesIndex]
+    ] = value
   }
   const sortedTimeSeries = _.sortBy(timeSeries, 'time')
 
-  const dygraphSeries = reduce(sortedLabels, (acc, {label, responseIndex}) => {
-    if (!isInDataExplorer) {
-      acc[label] = {
-        axis: responseIndex === 0 ? 'y' : 'y2',
+  const dygraphSeries = reduce(
+    sortedLabels,
+    (acc, {label, responseIndex}) => {
+      if (!isInDataExplorer) {
+        acc[label] = {
+          axis: responseIndex === 0 ? 'y' : 'y2',
+        }
       }
-    }
 
-    return acc
-  }, {})
+      return acc
+    },
+    {}
+  )
 
   return {
     labels: ['time', ...map(sortedLabels, ({label}) => label)],
-    timeSeries: map(sortedTimeSeries, ({time, values}) => ([new Date(time), ...values])),
+    timeSeries: map(sortedTimeSeries, ({time, values}) => [
+      new Date(time),
+      ...values,
+    ]),
     dygraphSeries,
   }
 }
