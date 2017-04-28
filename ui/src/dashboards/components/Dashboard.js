@@ -52,10 +52,8 @@ const Dashboard = ({
     >
       <div className="template-control-bar">
         <div className="page-header__left">
-          Template Variables
-        </div>
-        <div className="page-header__right">
-          {templates.map(({id, values}) => {
+          <h1 className="template-control--heading">Template Variables</h1>
+          {templates.map(({id, values, tempVar}) => {
             const items = values.map(value => ({...value, text: value.value}))
             const selectedItem = items.find(item => item.selected) || items[0]
             const selectedText = selectedItem && selectedItem.text
@@ -64,15 +62,21 @@ const Dashboard = ({
             // the full array, and [item] to all `selected` values when we update
             // this component to support multiple values
             return (
-              <Dropdown
-                key={id}
-                items={items}
-                selected={selectedText || 'Loading...'}
-                onChoose={item =>
-                  onSelectTemplate(id, [item].map(x => omit(x, 'text')))}
-              />
+              <div key={id} className="template-control--dropdown">
+                <Dropdown
+                  items={items}
+                  selected={selectedText || 'Loading...'}
+                  onChoose={item =>
+                    onSelectTemplate(id, [item].map(x => omit(x, 'text')))}
+                />
+                <label className="template-control--label">
+                  {tempVar}
+                </label>
+              </div>
             )
           })}
+        </div>
+        <div className="page-header__right">
           <button
             className="btn btn-primary btn-sm"
             onClick={onOpenTemplateManager}
