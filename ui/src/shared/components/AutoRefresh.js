@@ -65,10 +65,17 @@ const AutoRefresh = ComposedComponent => {
     },
 
     componentWillReceiveProps(nextProps) {
-      const shouldRefetch = this.queryDifference(
+      const queriesDidUpdate = this.queryDifference(
         this.props.queries,
         nextProps.queries
       ).length
+
+      const tempVarsDidUpdate = !_.isEqual(
+        this.props.templates,
+        nextProps.templates
+      )
+
+      const shouldRefetch = queriesDidUpdate || tempVarsDidUpdate
 
       if (shouldRefetch) {
         this.executeQueries(nextProps.queries)
