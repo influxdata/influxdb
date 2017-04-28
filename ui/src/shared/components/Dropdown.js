@@ -11,6 +11,7 @@ class Dropdown extends Component {
     }
 
     this.handleClickOutside = ::this.handleClickOutside
+    this.handleClick = ::this.handleClick
     this.handleSelection = ::this.handleSelection
     this.toggleMenu = ::this.toggleMenu
     this.handleAction = ::this.handleAction
@@ -25,6 +26,13 @@ class Dropdown extends Component {
 
   handleClickOutside() {
     this.setState({isOpen: false})
+  }
+
+  handleClick(e) {
+    this.toggleMenu(e)
+    if (this.props.onClick) {
+      this.props.onClick(e)
+    }
   }
 
   handleSelection(item) {
@@ -60,7 +68,7 @@ class Dropdown extends Component {
 
     return (
       <div
-        onClick={this.toggleMenu}
+        onClick={this.handleClick}
         className={classnames(`dropdown ${className}`, {open: isOpen})}
       >
         <div className={`btn dropdown-toggle ${buttonSize} ${buttonColor}`}>
