@@ -675,7 +675,7 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *meta.
 	} else if werr, ok := err.(tsdb.PartialWriteError); ok {
 		atomic.AddInt64(&h.stats.PointsWrittenOK, int64(len(points)-werr.Dropped))
 		atomic.AddInt64(&h.stats.PointsWrittenDropped, int64(werr.Dropped))
-		h.httpError(w, fmt.Sprintf("partial write: %v", werr), http.StatusBadRequest)
+		h.httpError(w, werr.Error(), http.StatusBadRequest)
 		return
 	} else if err != nil {
 		atomic.AddInt64(&h.stats.PointsWrittenFail, int64(len(points)))
@@ -686,7 +686,7 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *meta.
 		atomic.AddInt64(&h.stats.PointsWrittenOK, int64(len(points)))
 		// The other points failed to parse which means the client sent invalid line protocol.  We return a 400
 		// response code as well as the lines that failed to parse.
-		h.httpError(w, fmt.Sprintf("partial write:\n%v", parseError), http.StatusBadRequest)
+		h.httpError(w, tsdb.PartialWriteError{Reason: parseError.Error()}.Error(), http.StatusBadRequest)
 		return
 	}
 
