@@ -37,8 +37,8 @@ class KapacitorForm extends Component {
                             placeholder={url}
                             value={url}
                             onChange={onInputChange}
-                            spellCheck="false">
-                          </input>
+                            spellCheck="false"
+                          />
                         </div>
                         <div className="form-group">
                           <label htmlFor="name">Name</label>
@@ -49,8 +49,8 @@ class KapacitorForm extends Component {
                             placeholder={name}
                             value={name}
                             onChange={onInputChange}
-                            spellCheck="false">
-                          </input>
+                            spellCheck="false"
+                          />
                         </div>
                         <div className="form-group">
                           <label htmlFor="username">Username</label>
@@ -61,8 +61,8 @@ class KapacitorForm extends Component {
                             placeholder="username"
                             value={username}
                             onChange={onInputChange}
-                            spellCheck="false">
-                          </input>
+                            spellCheck="false"
+                          />
                         </div>
                         <div className="form-group">
                           <label htmlFor="password">Password</label>
@@ -80,8 +80,16 @@ class KapacitorForm extends Component {
                       </div>
 
                       <div className="form-group form-group-submit col-xs-12 text-center">
-                        <button className="btn btn-info" type="button" onClick={onReset}>Reset</button>
-                        <button className="btn btn-success" type="submit">Connect</button>
+                        <button
+                          className="btn btn-info"
+                          type="button"
+                          onClick={onReset}
+                        >
+                          Reset
+                        </button>
+                        <button className="btn btn-success" type="submit">
+                          Connect
+                        </button>
                       </div>
                     </form>
                   </div>
@@ -102,7 +110,13 @@ class KapacitorForm extends Component {
     const {exists, kapacitor, addFlashMessage, source} = this.props
 
     if (exists) {
-      return <AlertTabs source={source} kapacitor={kapacitor} addFlashMessage={addFlashMessage} />
+      return (
+        <AlertTabs
+          source={source}
+          kapacitor={kapacitor}
+          addFlashMessage={addFlashMessage}
+        />
+      )
     }
 
     return (
@@ -111,20 +125,17 @@ class KapacitorForm extends Component {
           <h2 className="panel-title">Configure Alert Endpoints</h2>
         </div>
         <div className="panel-body">
-          <br/>
-          <p className="text-center">Set your Kapacitor connection info to configure alerting endpoints.</p>
+          <br />
+          <p className="text-center">
+            Set your Kapacitor connection info to configure alerting endpoints.
+          </p>
         </div>
       </div>
     )
   }
 }
 
-const {
-  func,
-  shape,
-  string,
-  bool,
-} = PropTypes
+const {func, shape, string, bool} = PropTypes
 
 KapacitorForm.propTypes = {
   onSubmit: func.isRequired,

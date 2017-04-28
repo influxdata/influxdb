@@ -1,5 +1,11 @@
 import React, {PropTypes} from 'react'
-import {Tab, Tabs, TabPanel, TabPanels, TabList} from 'src/shared/components/Tabs'
+import {
+  Tab,
+  Tabs,
+  TabPanel,
+  TabPanels,
+  TabList,
+} from 'src/shared/components/Tabs'
 import UsersTable from 'src/admin/components/UsersTable'
 import RolesTable from 'src/admin/components/RolesTable'
 import QueriesPage from 'src/admin/containers/QueriesPage'
@@ -33,7 +39,7 @@ const AdminTabs = ({
   let tabs = [
     {
       type: 'DB Management',
-      component: (<DatabaseManagerPage source={source} />),
+      component: <DatabaseManagerPage source={source} />,
     },
     {
       type: 'Users',
@@ -77,7 +83,7 @@ const AdminTabs = ({
     },
     {
       type: 'Queries',
-      component: (<QueriesPage source={source} />),
+      component: <QueriesPage source={source} />,
     },
   ]
 
@@ -88,34 +94,30 @@ const AdminTabs = ({
   return (
     <Tabs className="row">
       <TabList customClass="col-md-2 admin-tabs">
-        {
-          tabs.map((t, i) => (<Tab key={tabs[i].type}>{tabs[i].type}</Tab>))
-        }
+        {tabs.map((t, i) => <Tab key={tabs[i].type}>{tabs[i].type}</Tab>)}
       </TabList>
       <TabPanels customClass="col-md-10">
-        {
-          tabs.map((t, i) => (<TabPanel key={tabs[i].type}>{t.component}</TabPanel>))
-        }
+        {tabs.map((t, i) => (
+          <TabPanel key={tabs[i].type}>{t.component}</TabPanel>
+        ))}
       </TabPanels>
     </Tabs>
   )
 }
 
-const {
-  arrayOf,
-  bool,
-  func,
-  shape,
-  string,
-} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 AdminTabs.propTypes = {
-  users: arrayOf(shape({
-    name: string.isRequired,
-    roles: arrayOf(shape({
-      name: string,
-    })),
-  })),
+  users: arrayOf(
+    shape({
+      name: string.isRequired,
+      roles: arrayOf(
+        shape({
+          name: string,
+        })
+      ),
+    })
+  ),
   roles: arrayOf(shape()),
   source: shape(),
   permissions: arrayOf(string),

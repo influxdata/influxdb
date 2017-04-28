@@ -62,9 +62,7 @@ export const TabList = React.createClass({
       )
     }
 
-    return (
-      <div className="btn-group btn-group-lg tab-group">{children}</div>
-    )
+    return <div className="btn-group btn-group-lg tab-group">{children}</div>
   },
 })
 
@@ -125,7 +123,7 @@ export const Tabs = React.createClass({
   },
 
   render() {
-    const children = React.Children.map(this.props.children, (child) => {
+    const children = React.Children.map(this.props.children, child => {
       if (child.type === TabPanels) {
         return React.cloneElement(child, {
           activeIndex: this.state.activeIndex,

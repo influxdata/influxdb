@@ -4,10 +4,7 @@ import OnClickOutside from 'shared/components/OnClickOutside'
 
 import autoRefreshItems from 'hson!../data/autoRefreshes.hson'
 
-const {
-  number,
-  func,
-} = PropTypes
+const {number, func} = PropTypes
 
 const AutoRefreshDropdown = React.createClass({
   autobind: false,
@@ -24,7 +21,7 @@ const AutoRefreshDropdown = React.createClass({
   },
 
   findAutoRefreshItem(milliseconds) {
-    return autoRefreshItems.find((values) => values.milliseconds === milliseconds)
+    return autoRefreshItems.find(values => values.milliseconds === milliseconds)
   },
 
   handleClickOutside() {
@@ -48,17 +45,28 @@ const AutoRefreshDropdown = React.createClass({
 
     return (
       <div className="dropdown dropdown-160">
-        <div className="btn btn-sm btn-info dropdown-toggle" onClick={() => self.toggleMenu()}>
-          <span className={classnames('icon', +milliseconds > 0 ? 'refresh' : 'pause')}></span>
+        <div
+          className="btn btn-sm btn-info dropdown-toggle"
+          onClick={() => self.toggleMenu()}
+        >
+          <span
+            className={classnames(
+              'icon',
+              +milliseconds > 0 ? 'refresh' : 'pause'
+            )}
+          />
           <span className="selected-time-range">{inputValue}</span>
           <span className="caret" />
         </div>
         <ul className={classnames('dropdown-menu', {show: isOpen})}>
           <li className="dropdown-header">AutoRefresh Interval</li>
-          {autoRefreshItems.map((item) => {
+          {autoRefreshItems.map(item => {
             return (
               <li key={item.menuOption}>
-                <a href="#" onClick={() => self.handleSelection(item.milliseconds)}>
+                <a
+                  href="#"
+                  onClick={() => self.handleSelection(item.milliseconds)}
+                >
                   {item.menuOption}
                 </a>
               </li>

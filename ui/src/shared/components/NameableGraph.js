@@ -2,14 +2,7 @@ import React, {PropTypes} from 'react'
 import classnames from 'classnames'
 import OnClickOutside from 'react-onclickoutside'
 
-const {
-  bool,
-  func,
-  node,
-  number,
-  shape,
-  string,
-} = PropTypes
+const {bool, func, node, number, shape, string} = PropTypes
 
 const NameableGraph = React.createClass({
   propTypes: {
@@ -49,12 +42,7 @@ const NameableGraph = React.createClass({
   render() {
     const {
       cell,
-      cell: {
-        x,
-        y,
-        name,
-        isEditing,
-      },
+      cell: {x, y, name, isEditing},
       onEditCell,
       onRenameCell,
       onUpdateCell,
@@ -76,7 +64,7 @@ const NameableGraph = React.createClass({
           autoFocus={true}
           onChange={onRenameCell(x, y)}
           onBlur={onUpdateCell(cell)}
-          onKeyUp={(evt) => {
+          onKeyUp={evt => {
             if (evt.key === 'Enter') {
               onUpdateCell(cell)()
             }
@@ -87,7 +75,7 @@ const NameableGraph = React.createClass({
         />
       )
     } else {
-      nameOrField = (<span className="dash-graph--name">{name}</span>)
+      nameOrField = <span className="dash-graph--name">{name}</span>
     }
 
     let onStartRenaming
@@ -101,20 +89,24 @@ const NameableGraph = React.createClass({
 
     return (
       <div className="dash-graph">
-        <div className={classnames('dash-graph--heading', {'dash-graph--heading-draggable': !shouldNotBeEditable})}>{nameOrField}</div>
-        {
-          shouldNotBeEditable ?
-          null :
-          <ContextMenu
-            isOpen={this.state.isMenuOpen}
-            toggleMenu={this.toggleMenu}
-            onEdit={onSummonOverlayTechnologies}
-            onRename={onStartRenaming}
-            onDelete={onDeleteCell}
-            cell={cell}
-            handleClickOutside={this.closeMenu}
-          />
-        }
+        <div
+          className={classnames('dash-graph--heading', {
+            'dash-graph--heading-draggable': !shouldNotBeEditable,
+          })}
+        >
+          {nameOrField}
+        </div>
+        {shouldNotBeEditable
+          ? null
+          : <ContextMenu
+              isOpen={this.state.isMenuOpen}
+              toggleMenu={this.toggleMenu}
+              onEdit={onSummonOverlayTechnologies}
+              onRename={onStartRenaming}
+              onDelete={onDeleteCell}
+              cell={cell}
+              handleClickOutside={this.closeMenu}
+            />}
         <div className="dash-graph--container">
           {children}
         </div>
@@ -123,16 +115,23 @@ const NameableGraph = React.createClass({
   },
 })
 
-const ContextMenu = OnClickOutside(({isOpen, toggleMenu, onEdit, onRename, onDelete, cell}) => (
-  <div className={classnames('dash-graph--options', {'dash-graph--options-show': isOpen})} onClick={toggleMenu}>
-    <button className="btn btn-info btn-xs">
-      <span className="icon caret-down"></span>
-    </button>
-    <ul className="dash-graph--options-menu">
-      <li onClick={() => onEdit(cell)}>Edit</li>
-      <li onClick={onRename(cell.x, cell.y, cell.isEditing)}>Rename</li>
-      <li onClick={() => onDelete(cell)}>Delete</li>
-    </ul>
-  </div>
-))
+const ContextMenu = OnClickOutside(
+  ({isOpen, toggleMenu, onEdit, onRename, onDelete, cell}) => (
+    <div
+      className={classnames('dash-graph--options', {
+        'dash-graph--options-show': isOpen,
+      })}
+      onClick={toggleMenu}
+    >
+      <button className="btn btn-info btn-xs">
+        <span className="icon caret-down" />
+      </button>
+      <ul className="dash-graph--options-menu">
+        <li onClick={() => onEdit(cell)}>Edit</li>
+        <li onClick={onRename(cell.x, cell.y, cell.isEditing)}>Rename</li>
+        <li onClick={() => onDelete(cell)}>Delete</li>
+      </ul>
+    </div>
+  )
+)
 export default NameableGraph

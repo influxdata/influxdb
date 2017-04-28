@@ -9,7 +9,7 @@ class RoleEditingRow extends Component {
   }
 
   handleKeyPress(role) {
-    return (e) => {
+    return e => {
       if (e.key === 'Enter') {
         this.props.onSave(role)
       }
@@ -17,7 +17,7 @@ class RoleEditingRow extends Component {
   }
 
   handleEdit(role) {
-    return (e) => {
+    return e => {
       this.props.onEdit(role, {[e.target.name]: e.target.value})
     }
   }
@@ -43,11 +43,7 @@ class RoleEditingRow extends Component {
   }
 }
 
-const {
-  bool,
-  func,
-  shape,
-} = PropTypes
+const {bool, func, shape} = PropTypes
 
 RoleEditingRow.propTypes = {
   role: shape().isRequired,

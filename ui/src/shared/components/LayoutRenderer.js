@@ -13,14 +13,7 @@ const GridLayout = WidthProvider(ReactGridLayout)
 const RefreshingLineGraph = AutoRefresh(LineGraph)
 const RefreshingSingleStat = AutoRefresh(SingleStat)
 
-const {
-  arrayOf,
-  bool,
-  func,
-  number,
-  shape,
-  string,
-} = PropTypes
+const {arrayOf, bool, func, number, shape, string} = PropTypes
 
 export const LayoutRenderer = React.createClass({
   propTypes: {
@@ -60,7 +53,7 @@ export const LayoutRenderer = React.createClass({
 
   buildQueryForOldQuerySchema(q) {
     const {timeRange: {lower}, host} = this.props
-    const {defaultGroupBy} = timeRanges.find((range) => range.lower === lower)
+    const {defaultGroupBy} = timeRanges.find(range => range.lower === lower)
     const {wheres, groupbys} = q
 
     let text = q.text
@@ -76,7 +69,7 @@ export const LayoutRenderer = React.createClass({
     }
 
     if (groupbys) {
-      if (groupbys.find((g) => g.includes('time'))) {
+      if (groupbys.find(g => g.includes('time'))) {
         text += ` group by ${groupbys.join(',')}`
       } else if (groupbys.length > 0) {
         text += ` group by time(${defaultGroupBy}),${groupbys.join(',')}`
@@ -120,10 +113,20 @@ export const LayoutRenderer = React.createClass({
   },
 
   generateVisualizations() {
-    const {timeRange, source, cells, onEditCell, onRenameCell, onUpdateCell, onDeleteCell, onSummonOverlayTechnologies, shouldNotBeEditable} = this.props
+    const {
+      timeRange,
+      source,
+      cells,
+      onEditCell,
+      onRenameCell,
+      onUpdateCell,
+      onDeleteCell,
+      onSummonOverlayTechnologies,
+      shouldNotBeEditable,
+    } = this.props
 
-    return cells.map((cell) => {
-      const queries = cell.queries.map((query) => {
+    return cells.map(cell => {
+      const queries = cell.queries.map(query => {
         // TODO: Canned dashboards (and possibly Kubernetes dashboard) use an old query schema,
         // which does not have enough information for the new `buildInfluxQLQuery` function
         // to operate on. We will use `buildQueryForOldQuerySchema` until we conform
@@ -131,7 +134,8 @@ export const LayoutRenderer = React.createClass({
         let queryText
         if (query.queryConfig) {
           const {queryConfig: {rawText}} = query
-          queryText = rawText || buildInfluxQLQuery(timeRange, query.queryConfig)
+          queryText =
+            rawText || buildInfluxQLQuery(timeRange, query.queryConfig)
         } else {
           queryText = this.buildQueryForOldQuerySchema(query)
         }
@@ -167,8 +171,8 @@ export const LayoutRenderer = React.createClass({
       return
     }
 
-    const newCells = this.props.cells.map((cell) => {
-      const l = layout.find((ly) => ly.i === cell.i)
+    const newCells = this.props.cells.map(cell => {
+      const l = layout.find(ly => ly.i === cell.i)
       const newLayout = {x: l.x, y: l.y, h: l.h, w: l.w}
       return {...cell, ...newLayout}
     })
@@ -199,10 +203,9 @@ export const LayoutRenderer = React.createClass({
     )
   },
 
-
   triggerWindowResize() {
     // Hack to get dygraphs to fit properly during and after resize (dispatchEvent is a global method on window).
-    const evt = document.createEvent('CustomEvent')  // MUST be 'CustomEvent'
+    const evt = document.createEvent('CustomEvent') // MUST be 'CustomEvent'
     evt.initCustomEvent('resize', false, false, null)
     dispatchEvent(evt)
   },

@@ -17,14 +17,21 @@ export default function enhanceWithClickOutside(WrappedComponent) {
 
     handleClickOutside(e) {
       const domNode = ReactDOM.findDOMNode(this)
-      if ((!domNode || !domNode.contains(e.target)) &&
-        typeof this.wrappedComponent.handleClickOutside === 'function') {
+      if (
+        (!domNode || !domNode.contains(e.target)) &&
+        typeof this.wrappedComponent.handleClickOutside === 'function'
+      ) {
         this.wrappedComponent.handleClickOutside(e)
       }
     },
 
     render() {
-      return <WrappedComponent {...this.props} ref={(ref) => this.wrappedComponent = ref} />
+      return (
+        <WrappedComponent
+          {...this.props}
+          ref={ref => (this.wrappedComponent = ref)}
+        />
+      )
     },
   })
 }

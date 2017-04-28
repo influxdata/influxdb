@@ -81,8 +81,14 @@ const QueryMaker = React.createClass({
       return (
         <div className="query-maker--empty">
           <h5>This Graph has no Queries</h5>
-          <br/>
-          <div className="btn btn-primary" role="button" onClick={this.handleAddQuery}>Add a Query</div>
+          <br />
+          <div
+            className="btn btn-primary"
+            role="button"
+            onClick={this.handleAddQuery}
+          >
+            Add a Query
+          </div>
         </div>
       )
     }
@@ -100,7 +106,13 @@ const QueryMaker = React.createClass({
   },
 
   renderQueryTabList() {
-    const {queries, activeQueryIndex, onDeleteQuery, timeRange, setActiveQueryIndex} = this.props
+    const {
+      queries,
+      activeQueryIndex,
+      onDeleteQuery,
+      timeRange,
+      setActiveQueryIndex,
+    } = this.props
 
     return (
       <div className="query-maker--tabs">
@@ -113,13 +125,20 @@ const QueryMaker = React.createClass({
               query={q}
               onSelect={setActiveQueryIndex}
               onDelete={onDeleteQuery}
-              queryTabText={q.rawText || buildInfluxQLQuery(timeRange, q) || `Query ${i + 1}`}
+              queryTabText={
+                q.rawText ||
+                  buildInfluxQLQuery(timeRange, q) ||
+                  `Query ${i + 1}`
+              }
             />
           )
         })}
         {this.props.children}
-        <div className="query-maker--new btn btn-sm btn-primary" onClick={this.handleAddQuery}>
-          <span className="icon plus"></span>
+        <div
+          className="query-maker--new btn btn-sm btn-primary"
+          onClick={this.handleAddQuery}
+        >
+          <span className="icon plus" />
         </div>
       </div>
     )

@@ -5,7 +5,7 @@ import {OPERATORS, PERIODS, CHANGES, SHIFTS} from 'src/kapacitor/constants'
 import _ from 'lodash'
 
 const TABS = ['Threshold', 'Relative', 'Deadman']
-const mapToItems = (arr, type) => arr.map((text) => ({text, type}))
+const mapToItems = (arr, type) => arr.map(text => ({text, type}))
 
 export const ValuesSection = React.createClass({
   propTypes: {
@@ -32,7 +32,11 @@ export const ValuesSection = React.createClass({
 
             <TabPanels>
               <TabPanel>
-                <Threshold rule={rule} query={query} onChange={this.handleValuesChange} />
+                <Threshold
+                  rule={rule}
+                  query={query}
+                  onChange={this.handleValuesChange}
+                />
               </TabPanel>
               <TabPanel>
                 <Relative rule={rule} onChange={this.handleValuesChange} />
@@ -76,7 +80,6 @@ const Threshold = React.createClass({
     query: PropTypes.shape({}).isRequired,
   },
 
-
   handleDropdownChange(item) {
     this.props.onChange({...this.props.rule.values, [item.type]: item.text})
   },
@@ -98,13 +101,33 @@ const Threshold = React.createClass({
     return (
       <div className="value-selector">
         <p>Send Alert where</p>
-        <span>{query.fields.length ? query.fields[0].field : 'Select a Time-Series'}</span>
+        <span>
+          {query.fields.length ? query.fields[0].field : 'Select a Time-Series'}
+        </span>
         <p>is</p>
-        <Dropdown className="size-176 dropdown-kapacitor" items={operators} selected={operator} onChoose={this.handleDropdownChange} />
-        <input className="form-control input-sm size-166 form-control--green" type="text" spellCheck="false" ref={(r) => this.valueInput = r} defaultValue={value} onKeyUp={this.handleInputChange} />
-        { (operator === 'inside range' || operator === 'outside range') &&
-          <input className="form-control input-sm size-166 form-control--green" type="text" spellCheck="false" ref={(r) => this.valueRangeInput = r} defaultValue={rangeValue} onKeyUp={this.handleInputChange} />
-        }
+        <Dropdown
+          className="size-176 dropdown-kapacitor"
+          items={operators}
+          selected={operator}
+          onChoose={this.handleDropdownChange}
+        />
+        <input
+          className="form-control input-sm size-166 form-control--green"
+          type="text"
+          spellCheck="false"
+          ref={r => (this.valueInput = r)}
+          defaultValue={value}
+          onKeyUp={this.handleInputChange}
+        />
+        {(operator === 'inside range' || operator === 'outside range') &&
+          <input
+            className="form-control input-sm size-166 form-control--green"
+            type="text"
+            spellCheck="false"
+            ref={r => (this.valueRangeInput = r)}
+            defaultValue={rangeValue}
+            onKeyUp={this.handleInputChange}
+          />}
       </div>
     )
   },
@@ -141,21 +164,36 @@ const Relative = React.createClass({
     return (
       <div className="value-selector">
         <p>Send Alert when</p>
-        <Dropdown className="size-106 dropdown-kapacitor"items={changes} selected={change} onChoose={this.handleDropdownChange} />
+        <Dropdown
+          className="size-106 dropdown-kapacitor"
+          items={changes}
+          selected={change}
+          onChoose={this.handleDropdownChange}
+        />
         <p>compared to previous</p>
-        <Dropdown className="size-66 dropdown-kapacitor" items={shifts} selected={shift} onChoose={this.handleDropdownChange} />
+        <Dropdown
+          className="size-66 dropdown-kapacitor"
+          items={shifts}
+          selected={shift}
+          onChoose={this.handleDropdownChange}
+        />
         <p>is</p>
-        <Dropdown className="size-176 dropdown-kapacitor" items={operators} selected={operator} onChoose={this.handleDropdownChange} />
+        <Dropdown
+          className="size-176 dropdown-kapacitor"
+          items={operators}
+          selected={operator}
+          onChoose={this.handleDropdownChange}
+        />
         <input
           className="form-control input-sm size-166 form-control--green"
-          ref={(r) => this.input = r}
+          ref={r => (this.input = r)}
           defaultValue={value}
           onKeyUp={this.handleInputChange}
           required={true}
           type="text"
           spellCheck="false"
         />
-        <p>{ change === CHANGES[1] ? '%' : '' }</p>
+        <p>{change === CHANGES[1] ? '%' : ''}</p>
       </div>
     )
   },
@@ -176,14 +214,19 @@ const Deadman = React.createClass({
   },
 
   render() {
-    const periods = PERIODS.map((text) => {
+    const periods = PERIODS.map(text => {
       return {text}
     })
 
     return (
       <div className="value-selector">
         <p>Send Alert if Data is missing for</p>
-        <Dropdown className="size-66 dropdown-kapacitor" items={periods} selected={this.props.rule.values.period} onChoose={this.handleChange} />
+        <Dropdown
+          className="size-66 dropdown-kapacitor"
+          items={periods}
+          selected={this.props.rule.values.period}
+          onChoose={this.handleChange}
+        />
       </div>
     )
   },

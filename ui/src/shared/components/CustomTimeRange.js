@@ -45,18 +45,29 @@ class CustomTimeRange extends Component {
     const {isVisible, onToggle, timeRange: {upper, lower}} = this.props
 
     return (
-      <div className={classNames('custom-time-range', {show: isVisible})} style={{display: 'flex'}}>
-        <button className="btn btn-sm btn-info custom-time-range--btn" onClick={onToggle}>
-          <span className="icon clock"></span>
+      <div
+        className={classNames('custom-time-range', {show: isVisible})}
+        style={{display: 'flex'}}
+      >
+        <button
+          className="btn btn-sm btn-info custom-time-range--btn"
+          onClick={onToggle}
+        >
+          <span className="icon clock" />
           {`${moment(lower).format('MMM Do HH:mm')} — ${moment(upper).format('MMM Do HH:mm')}`}
-          <span className="caret"></span>
+          <span className="caret" />
         </button>
         <div className="custom-time--container">
           <div className="custom-time--dates">
-            <div className="custom-time--lower" ref={(r) => this.lower = r} />
-            <div className="custom-time--upper" ref={(r) => this.upper = r} />
+            <div className="custom-time--lower" ref={r => (this.lower = r)} />
+            <div className="custom-time--upper" ref={r => (this.upper = r)} />
           </div>
-          <div className="custom-time--apply btn btn-sm btn-primary" onClick={this.handleClick}>Apply</div>
+          <div
+            className="custom-time--apply btn btn-sm btn-primary"
+            onClick={this.handleClick}
+          >
+            Apply
+          </div>
         </div>
       </div>
     )
@@ -91,12 +102,7 @@ class CustomTimeRange extends Component {
   }
 }
 
-const {
-  bool,
-  func,
-  shape,
-  string,
-} = PropTypes
+const {bool, func, shape, string} = PropTypes
 
 CustomTimeRange.propTypes = {
   onApplyTimeRange: func.isRequired,

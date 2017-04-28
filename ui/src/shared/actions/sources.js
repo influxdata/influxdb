@@ -1,25 +1,28 @@
-import {deleteSource,
+import {
+  deleteSource,
   getSources,
   getKapacitors as getKapacitorsAJAX,
   updateKapacitor as updateKapacitorAJAX,
 } from 'src/shared/apis'
 import {publishNotification} from './notifications'
 
-export const loadSources = (sources) => ({
+import {HTTP_NOT_FOUND} from 'src/shared/constants'
+
+export const loadSources = sources => ({
   type: 'LOAD_SOURCES',
   payload: {
     sources,
   },
 })
 
-export const updateSource = (source) => ({
+export const updateSource = source => ({
   type: 'SOURCE_UPDATED',
   payload: {
     source,
   },
 })
 
-export const addSource = (source) => ({
+export const addSource = source => ({
   type: 'SOURCE_ADDED',
   payload: {
     source,
@@ -34,7 +37,7 @@ export const fetchKapacitors = (source, kapacitors) => ({
   },
 })
 
-export const setActiveKapacitor = (kapacitor) => ({
+export const setActiveKapacitor = kapacitor => ({
   type: 'SET_ACTIVE_KAPACITOR',
   payload: {
     kapacitor,
@@ -43,35 +46,43 @@ export const setActiveKapacitor = (kapacitor) => ({
 
 // Async action creators
 
-export const removeAndLoadSources = (source) => async (dispatch) => {
+export const removeAndLoadSources = source => async dispatch => {
   try {
     try {
       await deleteSource(source)
     } catch (err) {
       // A 404 means that either a concurrent write occurred or the source
       // passed to this action creator doesn't exist (or is undefined)
-      if (err.status !== 404) { // eslint-disable-line no-magic-numbers
-        throw (err)
+      if (err.status !== HTTP_NOT_FOUND) {
+        // eslint-disable-line no-magic-numbers
+        throw err
       }
     }
 
     const {data: {sources: newSources}} = await getSources()
     dispatch(loadSources(newSources))
   } catch (err) {
-    dispatch(publishNotification('error', 'Internal Server Error. Check API Logs'))
+    dispatch(
+      publishNotification('error', 'Internal Server Error. Check API Logs')
+    )
   }
 }
 
-export const fetchKapacitorsAsync = (source) => async (dispatch) => {
+export const fetchKapacitorsAsync = source => async dispatch => {
   try {
     const {data} = await getKapacitorsAJAX(source)
     dispatch(fetchKapacitors(source, data.kapacitors))
   } catch (err) {
-    dispatch(publishNotification('error', `Internal Server Error. Could not retrieve kapacitors for source ${source.id}.`))
+    dispatch(
+      publishNotification(
+        'error',
+        `Internal Server Error. Could not retrieve kapacitors for source ${source.id}.`
+      )
+    )
   }
 }
 
-export const setActiveKapacitorAsync = (kapacitor) => async (dispatch) => {
+export const setActiveKapacitorAsync = kapacitor => async dispatch => {
   // eagerly update the redux state
   dispatch(setActiveKapacitor(kapacitor))
   const kapacitorPost = {...kapacitor, active: true}

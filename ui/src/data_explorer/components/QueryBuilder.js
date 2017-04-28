@@ -84,12 +84,16 @@ const QueryBuilder = React.createClass({
 
     return (
       <div className="query-maker--tab-contents">
-        <QueryEditor query={q} config={query} onUpdate={this.handleEditRawText} templates={templates} />
+        <QueryEditor
+          query={q}
+          config={query}
+          onUpdate={this.handleEditRawText}
+          templates={templates}
+        />
         {this.renderLists()}
       </div>
     )
   },
-
 
   renderLists() {
     const {query} = this.props

@@ -75,7 +75,7 @@ const TelegramConfig = React.createClass({
           <RedactedInput
             defaultValue={token}
             id="token"
-            refFunc={r => this.token = r}
+            refFunc={r => (this.token = r)}
           />
         </div>
 
@@ -92,7 +92,7 @@ const TelegramConfig = React.createClass({
             id="chat-id"
             type="text"
             placeholder="your-telegram-chat-id"
-            ref={r => this.chatID = r}
+            ref={r => (this.chatID = r)}
             defaultValue={chatID || ''}
           />
         </div>
@@ -107,7 +107,7 @@ const TelegramConfig = React.createClass({
                 name="parseMode"
                 value="markdown"
                 defaultChecked={parseMode !== 'HTML'}
-                ref={r => this.parseModeMarkdown = r}
+                ref={r => (this.parseModeMarkdown = r)}
               />
               <label htmlFor="parseModeMarkdown">Markdown</label>
             </div>
@@ -118,7 +118,7 @@ const TelegramConfig = React.createClass({
                 name="parseMode"
                 value="html"
                 defaultChecked={parseMode === 'HTML'}
-                ref={r => this.parseModeHTML = r}
+                ref={r => (this.parseModeHTML = r)}
               />
               <label htmlFor="parseModeHTML">HTML</label>
             </div>
@@ -131,7 +131,7 @@ const TelegramConfig = React.createClass({
               id="disableWebPagePreview"
               type="checkbox"
               defaultChecked={disableWebPagePreview}
-              ref={r => this.disableWebPagePreview = r}
+              ref={r => (this.disableWebPagePreview = r)}
             />
             <label htmlFor="disableWebPagePreview">
               Disable
@@ -151,7 +151,7 @@ const TelegramConfig = React.createClass({
               id="disableNotification"
               type="checkbox"
               defaultChecked={disableNotification}
-              ref={r => this.disableNotification = r}
+              ref={r => (this.disableNotification = r)}
             />
             <label htmlFor="disableNotification">
               Disable notifications on iOS devices and disable sounds on Android devices. Android users continue to receive notifications.

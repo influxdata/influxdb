@@ -10,7 +10,10 @@ const TemplateDrawer = ({
 }) => (
   <div className="template-drawer">
     {templates.map(t => (
-      <div className={classNames('template-drawer--item', {'template-drawer--selected': t.tempVar === selected.tempVar})}
+      <div
+        className={classNames('template-drawer--item', {
+          'template-drawer--selected': t.tempVar === selected.tempVar,
+        })}
         onMouseOver={() => {
           onMouseOverTempVar(t)
         }}

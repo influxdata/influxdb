@@ -9,8 +9,8 @@ import {
 } from 'src/kapacitor/apis'
 
 export function fetchRule(source, ruleID) {
-  return (dispatch) => {
-    getActiveKapacitor(source).then((kapacitor) => {
+  return dispatch => {
+    getActiveKapacitor(source).then(kapacitor => {
       getRule(kapacitor, ruleID).then(({data: rule}) => {
         dispatch({
           type: 'LOAD_RULE',
@@ -31,7 +31,7 @@ export function fetchRule(source, ruleID) {
 }
 
 export function loadDefaultRule() {
-  return (dispatch) => {
+  return dispatch => {
     const queryID = uuid.v4()
     dispatch({
       type: 'LOAD_DEFAULT_RULE',
@@ -49,7 +49,7 @@ export function loadDefaultRule() {
 }
 
 export function fetchRules(kapacitor) {
-  return (dispatch) => {
+  return dispatch => {
     getRules(kapacitor).then(({data: {rules}}) => {
       dispatch({
         type: 'LOAD_RULES',
@@ -153,22 +153,34 @@ export function updateRuleStatusSuccess(ruleID, status) {
 }
 
 export function deleteRule(rule) {
-  return (dispatch) => {
-    deleteRuleAPI(rule).then(() => {
-      dispatch(deleteRuleSuccess(rule.id))
-      dispatch(publishNotification('success', `${rule.name} deleted successfully`))
-    }).catch(() => {
-      dispatch(publishNotification('error', `${rule.name} could not be deleted`))
-    })
+  return dispatch => {
+    deleteRuleAPI(rule)
+      .then(() => {
+        dispatch(deleteRuleSuccess(rule.id))
+        dispatch(
+          publishNotification('success', `${rule.name} deleted successfully`)
+        )
+      })
+      .catch(() => {
+        dispatch(
+          publishNotification('error', `${rule.name} could not be deleted`)
+        )
+      })
   }
 }
 
 export function updateRuleStatus(rule, status) {
-  return (dispatch) => {
-    updateRuleStatusAPI(rule, status).then(() => {
-      dispatch(publishNotification('success', `${rule.name} ${status} successfully`))
-    }).catch(() => {
-      dispatch(publishNotification('error', `${rule.name} could not be ${status}`))
-    })
+  return dispatch => {
+    updateRuleStatusAPI(rule, status)
+      .then(() => {
+        dispatch(
+          publishNotification('success', `${rule.name} ${status} successfully`)
+        )
+      })
+      .catch(() => {
+        dispatch(
+          publishNotification('error', `${rule.name} could not be ${status}`)
+        )
+      })
   }
 }

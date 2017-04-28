@@ -62,7 +62,7 @@ export const SourceForm = React.createClass({
             <input
               type="text"
               name="url"
-              ref={r => this.sourceURL = r}
+              ref={r => (this.sourceURL = r)}
               className="form-control"
               id="connect-string"
               placeholder="http://localhost:8086"
@@ -77,7 +77,7 @@ export const SourceForm = React.createClass({
             <input
               type="text"
               name="name"
-              ref={r => this.sourceName = r}
+              ref={r => (this.sourceName = r)}
               className="form-control"
               id="name"
               placeholder="Influx 1"
@@ -91,7 +91,7 @@ export const SourceForm = React.createClass({
             <input
               type="text"
               name="username"
-              ref={r => this.sourceUsername = r}
+              ref={r => (this.sourceUsername = r)}
               className="form-control"
               id="username"
               onChange={onInputChange}
@@ -103,7 +103,7 @@ export const SourceForm = React.createClass({
             <input
               type="password"
               name="password"
-              ref={r => this.sourcePassword = r}
+              ref={r => (this.sourcePassword = r)}
               className="form-control"
               id="password"
               onChange={onInputChange}
@@ -116,7 +116,7 @@ export const SourceForm = React.createClass({
                 <input
                   type="text"
                   name="metaUrl"
-                  ref={r => this.metaUrl = r}
+                  ref={r => (this.metaUrl = r)}
                   className="form-control"
                   id="meta-url"
                   placeholder="http://localhost:8091"
@@ -130,7 +130,7 @@ export const SourceForm = React.createClass({
             <input
               type="text"
               name="telegraf"
-              ref={r => this.sourceTelegraf = r}
+              ref={r => (this.sourceTelegraf = r)}
               className="form-control"
               id="telegraf"
               onChange={onInputChange}
@@ -143,7 +143,7 @@ export const SourceForm = React.createClass({
                 type="checkbox"
                 id="defaultSourceCheckbox"
                 defaultChecked={source.default}
-                ref={r => this.sourceDefault = r}
+                ref={r => (this.sourceDefault = r)}
               />
               <label htmlFor="defaultSourceCheckbox">
                 Make this the default source
@@ -157,7 +157,7 @@ export const SourceForm = React.createClass({
                     type="checkbox"
                     id="insecureSkipVerifyCheckbox"
                     defaultChecked={source.insecureSkipVerify}
-                    ref={r => this.sourceInsecureSkipVerify = r}
+                    ref={r => (this.sourceInsecureSkipVerify = r)}
                   />
                   <label htmlFor="insecureSkipVerifyCheckbox">Unsafe SSL</label>
                 </div>

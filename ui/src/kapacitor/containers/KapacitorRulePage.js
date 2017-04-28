@@ -52,31 +52,56 @@ export const KapacitorRulePage = React.createClass({
       kapacitorActions.loadDefaultRule()
     }
 
-    getActiveKapacitor(source).then((kapacitor) => {
+    getActiveKapacitor(source).then(kapacitor => {
       this.setState({kapacitor})
-      getKapacitorConfig(kapacitor).then(({data: {sections}}) => {
-        const enabledAlerts = Object.keys(sections).filter((section) => {
-          return _.get(sections, [section, 'elements', '0', 'options', 'enabled'], false) && ALERTS.includes(section)
+      getKapacitorConfig(kapacitor)
+        .then(({data: {sections}}) => {
+          const enabledAlerts = Object.keys(sections).filter(section => {
+            return (
+              _.get(
+                sections,
+                [section, 'elements', '0', 'options', 'enabled'],
+                false
+              ) && ALERTS.includes(section)
+            )
+          })
+          this.setState({enabledAlerts})
         })
-        this.setState({enabledAlerts})
-      }).catch(() => {
-        addFlashMessage({type: 'error', text: 'There was a problem communicating with Kapacitor'})
-      }).catch(() => {
-        addFlashMessage({type: 'error', text: 'We couldn\'t find a configured Kapacitor for this source'})
-      })
+        .catch(() => {
+          addFlashMessage({
+            type: 'error',
+            text: 'There was a problem communicating with Kapacitor',
+          })
+        })
+        .catch(() => {
+          addFlashMessage({
+            type: 'error',
+            text: 'We couldn\'t find a configured Kapacitor for this source',
+          })
+        })
     })
   },
 
   render() {
-    const {rules, queryConfigs, params, kapacitorActions,
-      source, queryActions, addFlashMessage, router} = this.props
+    const {
+      rules,
+      queryConfigs,
+      params,
+      kapacitorActions,
+      source,
+      queryActions,
+      addFlashMessage,
+      router,
+    } = this.props
     const {enabledAlerts, kapacitor} = this.state
 
-    const rule = this.isEditing() ? rules[params.ruleID] : rules[DEFAULT_RULE_ID]
+    const rule = this.isEditing()
+      ? rules[params.ruleID]
+      : rules[DEFAULT_RULE_ID]
     const query = rule && queryConfigs[rule.queryID]
 
     if (!query) {
-      return <div className="page-spinner"></div>
+      return <div className="page-spinner" />
     }
 
     return (

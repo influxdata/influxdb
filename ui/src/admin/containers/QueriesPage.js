@@ -5,10 +5,7 @@ import {bindActionCreators} from 'redux'
 import flatten from 'lodash/flatten'
 import uniqBy from 'lodash/uniqBy'
 
-import {
-  showDatabases,
-  showQueries,
-} from 'shared/apis/metaQuery'
+import {showDatabases, showQueries} from 'shared/apis/metaQuery'
 
 import QueriesTable from 'src/admin/components/QueriesTable'
 import showDatabasesParser from 'shared/parsing/showDatabases'
@@ -42,39 +39,37 @@ class QueriesPage extends Component {
   render() {
     const {queries} = this.props
 
-    return (
-      <QueriesTable queries={queries} onKillQuery={this.handleKillQuery} />
-    )
+    return <QueriesTable queries={queries} onKillQuery={this.handleKillQuery} />
   }
 
   updateQueries() {
     const {source, notify, loadQueries} = this.props
-    showDatabases(source.links.proxy).then((resp) => {
+    showDatabases(source.links.proxy).then(resp => {
       const {databases, errors} = showDatabasesParser(resp.data)
       if (errors.length) {
-        errors.forEach((message) => notify('error', message))
+        errors.forEach(message => notify('error', message))
         return
       }
 
-      const fetches = databases.map((db) => showQueries(source.links.proxy, db))
+      const fetches = databases.map(db => showQueries(source.links.proxy, db))
 
-      Promise.all(fetches).then((queryResponses) => {
+      Promise.all(fetches).then(queryResponses => {
         const allQueries = []
-        queryResponses.forEach((queryResponse) => {
+        queryResponses.forEach(queryResponse => {
           const result = showQueriesParser(queryResponse.data)
           if (result.errors.length) {
-            result.errors.forEach((message) => notify('error', message))
+            result.errors.forEach(message => notify('error', message))
           }
 
           allQueries.push(...result.queries)
         })
 
-        const queries = uniqBy(flatten(allQueries), (q) => q.id)
+        const queries = uniqBy(flatten(allQueries), q => q.id)
 
         // sorting queries by magnitude, so generally longer queries will appear atop the list
         const sortedQueries = queries.sort((a, b) => {
-          const aTime = TIMES.find((t) => a.duration.match(t.test))
-          const bTime = TIMES.find((t) => b.duration.match(t.test))
+          const aTime = TIMES.find(t => a.duration.match(t.test))
+          const bTime = TIMES.find(t => b.duration.match(t.test))
           return +aTime.magnitude <= +bTime.magnitude
         })
 
@@ -89,12 +84,7 @@ class QueriesPage extends Component {
   }
 }
 
-const {
-  arrayOf,
-  func,
-  string,
-  shape,
-} = PropTypes
+const {arrayOf, func, string, shape} = PropTypes
 
 QueriesPage.propTypes = {
   source: shape({
@@ -115,7 +105,7 @@ const mapStateToProps = ({admin: {queries, queryIDToKill}}) => ({
   queryIDToKill,
 })
 
-const mapDispatchToProps = (dispatch) => ({
+const mapDispatchToProps = dispatch => ({
   loadQueries: bindActionCreators(loadQueriesAction, dispatch),
   setQueryToKill: bindActionCreators(setQueryToKillAction, dispatch),
   killQuery: bindActionCreators(killQueryAsync, dispatch),

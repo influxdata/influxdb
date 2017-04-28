@@ -44,23 +44,22 @@ class DatabaseRow extends Component {
     if (isEditing) {
       return (
         <tr>
-          <td>{
-            isNew ?
-              <div className="admin-table--edit-cell">
-                <input
-                  className="form-control"
-                  type="text"
-                  defaultValue={name}
-                  placeholder="Name this RP"
-                  onKeyDown={(e) => this.handleKeyDown(e, database)}
-                  ref={(r) => this.name = r}
-                  autoFocus={true}
-                />
-              </div> :
-              <div className="admin-table--edit-cell">
-                {name}
-              </div>
-          }
+          <td>
+            {isNew
+              ? <div className="admin-table--edit-cell">
+                  <input
+                    className="form-control"
+                    type="text"
+                    defaultValue={name}
+                    placeholder="Name this RP"
+                    onKeyDown={e => this.handleKeyDown(e, database)}
+                    ref={r => (this.name = r)}
+                    autoFocus={true}
+                  />
+                </div>
+              : <div className="admin-table--edit-cell">
+                  {name}
+                </div>}
           </td>
           <td>
             <div className="admin-table--edit-cell">
@@ -70,8 +69,8 @@ class DatabaseRow extends Component {
                 type="text"
                 defaultValue={formattedDuration}
                 placeholder="How long should Data last"
-                onKeyDown={(e) => this.handleKeyDown(e, database)}
-                ref={(r) => this.duration = r}
+                onKeyDown={e => this.handleKeyDown(e, database)}
+                ref={r => (this.duration = r)}
                 autoFocus={!isNew}
               />
             </div>
@@ -85,15 +84,19 @@ class DatabaseRow extends Component {
                 min="1"
                 defaultValue={replication || 1}
                 placeholder="# of Nodes"
-                onKeyDown={(e) => this.handleKeyDown(e, database)}
-                ref={(r) => this.replication = r}
+                onKeyDown={e => this.handleKeyDown(e, database)}
+                ref={r => (this.replication = r)}
               />
             </div>
           </td>
           <td className="text-right">
             <YesNoButtons
               onConfirm={isNew ? this.handleCreate : this.handleUpdate}
-              onCancel={isNew ? () => onRemove(database, retentionPolicy) : this.handleEndEdit}
+              onCancel={
+                isNew
+                  ? () => onRemove(database, retentionPolicy)
+                  : this.handleEndEdit
+              }
             />
           </td>
         </tr>
@@ -102,21 +105,30 @@ class DatabaseRow extends Component {
 
     return (
       <tr>
-        <td>{name} {isDefault ? <span className="default-source-label">default</span> : null}</td>
+        <td>
+          {name}
+          {' '}
+          {isDefault
+            ? <span className="default-source-label">default</span>
+            : null}
+        </td>
         <td onClick={this.handleStartEdit}>{formattedDuration}</td>
-        {isRFDisplayed ? <td onClick={this.handleStartEdit}>{replication}</td> : null}
+        {isRFDisplayed
+          ? <td onClick={this.handleStartEdit}>{replication}</td>
+          : null}
         <td className="text-right">
-          {
-            isDeleting ?
-              <YesNoButtons
+          {isDeleting
+            ? <YesNoButtons
                 onConfirm={() => onDelete(database, retentionPolicy)}
-                onCancel={this.handleEndDelete} /> :
-              <button
+                onCancel={this.handleEndDelete}
+              />
+            : <button
                 className="btn btn-xs btn-danger admin-table--hidden"
                 style={isDeletable ? {} : {visibility: 'hidden'}}
-                onClick={this.handleStartDelete}>{`Delete ${name}`}
-              </button>
-          }
+                onClick={this.handleStartDelete}
+              >
+                {`Delete ${name}`}
+              </button>}
         </td>
       </tr>
     )
@@ -174,7 +186,6 @@ class DatabaseRow extends Component {
     const {key} = e
     const {retentionPolicy, database, onRemove} = this.props
 
-
     if (key === 'Escape') {
       if (retentionPolicy.isNew) {
         onRemove(database, retentionPolicy)
@@ -196,7 +207,7 @@ class DatabaseRow extends Component {
 
   getInputValues() {
     const {notify, retentionPolicy: {name: currentName}} = this.props
-    const name = this.name && this.name.value.trim() || currentName
+    const name = (this.name && this.name.value.trim()) || currentName
     let duration = this.duration.value.trim()
     const replication = +this.replication.value.trim()
 
@@ -215,16 +226,9 @@ class DatabaseRow extends Component {
       replication,
     }
   }
-
 }
 
-const {
-  bool,
-  func,
-  number,
-  shape,
-  string,
-} = PropTypes
+const {bool, func, number, shape, string} = PropTypes
 
 DatabaseRow.propTypes = {
   retentionPolicy: shape({

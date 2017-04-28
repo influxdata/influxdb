@@ -12,11 +12,13 @@ const QueriesTable = ({queries, onKillQuery}) => (
               <th>Database</th>
               <th>Query</th>
               <th>Running</th>
-              <th></th>
+              <th />
             </tr>
           </thead>
           <tbody>
-            {queries.map((q) => <QueryRow key={q.id} query={q} onKill={onKillQuery}/>)}
+            {queries.map(q => (
+              <QueryRow key={q.id} query={q} onKill={onKillQuery} />
+            ))}
           </tbody>
         </table>
       </div>
@@ -24,11 +26,7 @@ const QueriesTable = ({queries, onKillQuery}) => (
   </div>
 )
 
-const {
-  arrayOf,
-  func,
-  shape,
-} = PropTypes
+const {arrayOf, func, shape} = PropTypes
 
 QueriesTable.propTypes = {
   queries: arrayOf(shape()),

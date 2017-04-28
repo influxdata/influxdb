@@ -7,15 +7,7 @@ import _ from 'lodash'
 import timeSeriesToDygraph from 'utils/timeSeriesToDygraph'
 import lastValues from 'src/shared/parsing/lastValues'
 
-const {
-  array,
-  arrayOf,
-  bool,
-  func,
-  number,
-  shape,
-  string,
-} = PropTypes
+const {array, arrayOf, bool, func, number, shape, string} = PropTypes
 
 export default React.createClass({
   displayName: 'LineGraph',
@@ -56,18 +48,43 @@ export default React.createClass({
 
   componentWillMount() {
     const {data, activeQueryIndex, isInDataExplorer} = this.props
-    this._timeSeries = timeSeriesToDygraph(data, activeQueryIndex, isInDataExplorer)
+    this._timeSeries = timeSeriesToDygraph(
+      data,
+      activeQueryIndex,
+      isInDataExplorer
+    )
   },
 
   componentWillUpdate(nextProps) {
     const {data, activeQueryIndex} = this.props
-    if (data !== nextProps.data || activeQueryIndex !== nextProps.activeQueryIndex) {
-      this._timeSeries = timeSeriesToDygraph(nextProps.data, nextProps.activeQueryIndex, nextProps.isInDataExplorer)
+    if (
+      data !== nextProps.data ||
+      activeQueryIndex !== nextProps.activeQueryIndex
+    ) {
+      this._timeSeries = timeSeriesToDygraph(
+        nextProps.data,
+        nextProps.activeQueryIndex,
+        nextProps.isInDataExplorer
+      )
     }
   },
 
   render() {
-    const {data, ranges, isFetchingInitially, isRefreshing, isGraphFilled, overrideLineColors, title, underlayCallback, queries, showSingleStat, displayOptions, ruleValues, isInDataExplorer} = this.props
+    const {
+      data,
+      ranges,
+      isFetchingInitially,
+      isRefreshing,
+      isGraphFilled,
+      overrideLineColors,
+      title,
+      underlayCallback,
+      queries,
+      showSingleStat,
+      displayOptions,
+      ruleValues,
+      isInDataExplorer,
+    } = this.props
     const {labels, timeSeries, dygraphSeries} = this._timeSeries
 
     // If data for this graph is being fetched for the first time, show a graph-wide spinner.
@@ -79,21 +96,25 @@ export default React.createClass({
       )
     }
 
-    const options = Object.assign({}, {
-      labels,
-      connectSeparatedPoints: true,
-      labelsKMB: true,
-      axisLineColor: '#383846',
-      gridLineColor: '#383846',
-      title,
-      rightGap: 0,
-      yRangePad: 10,
-      axisLabelWidth: 38,
-      drawAxesAtZero: true,
-      underlayCallback,
-      ylabel: _.get(queries, ['0', 'label'], ''),
-      y2label: _.get(queries, ['1', 'label'], ''),
-    }, displayOptions)
+    const options = Object.assign(
+      {},
+      {
+        labels,
+        connectSeparatedPoints: true,
+        labelsKMB: true,
+        axisLineColor: '#383846',
+        gridLineColor: '#383846',
+        title,
+        rightGap: 0,
+        yRangePad: 10,
+        axisLabelWidth: 38,
+        drawAxesAtZero: true,
+        underlayCallback,
+        ylabel: _.get(queries, ['0', 'label'], ''),
+        y2label: _.get(queries, ['1', 'label'], ''),
+      },
+      displayOptions
+    )
 
     let roundedValue
     if (showSingleStat) {
@@ -105,7 +126,9 @@ export default React.createClass({
 
     return (
       <div
-        className={classNames('dygraph', {'graph--hasYLabel': !!(options.ylabel || options.y2label)})}
+        className={classNames('dygraph', {
+          'graph--hasYLabel': !!(options.ylabel || options.y2label),
+        })}
         style={{height: '100%'}}
       >
         {isRefreshing ? this.renderSpinner() : null}
@@ -121,7 +144,9 @@ export default React.createClass({
           ruleValues={ruleValues}
           legendOnBottom={isInDataExplorer}
         />
-        {showSingleStat ? <div className="graph-single-stat single-stat">{roundedValue}</div> : null}
+        {showSingleStat
+          ? <div className="graph-single-stat single-stat">{roundedValue}</div>
+          : null}
       </div>
     )
   },
@@ -129,9 +154,9 @@ export default React.createClass({
   renderSpinner() {
     return (
       <div className="graph-panel__refreshing">
-        <div></div>
-        <div></div>
-        <div></div>
+        <div />
+        <div />
+        <div />
       </div>
     )
   },

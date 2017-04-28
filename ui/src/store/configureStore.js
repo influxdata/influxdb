@@ -27,15 +27,16 @@ export default function configureStore(initialState, browserHistory) {
   const routingMiddleware = routerMiddleware(browserHistory)
   const createPersistentStore = composeEnhancers(
     persistStateEnhancer(),
-    applyMiddleware(thunkMiddleware, routingMiddleware, errorsMiddleware, resizeLayout),
+    applyMiddleware(
+      thunkMiddleware,
+      routingMiddleware,
+      errorsMiddleware,
+      resizeLayout
+    )
   )(createStore)
-
 
   // https://github.com/elgerlambert/redux-localstorage/issues/42
   // createPersistantStore should ONLY take reducer and initialState
   // any store enhancers must be added to the compose() function.
-  return createPersistentStore(
-    rootReducer,
-    initialState,
-  )
+  return createPersistentStore(rootReducer, initialState)
 }

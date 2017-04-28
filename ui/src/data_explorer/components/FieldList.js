@@ -51,12 +51,20 @@ const FieldList = React.createClass({
 
   componentDidUpdate(prevProps) {
     const {database, measurement, retentionPolicy} = this.props.query
-    const {database: prevDB, measurement: prevMeas, retentionPolicy: prevRP} = prevProps.query
+    const {
+      database: prevDB,
+      measurement: prevMeas,
+      retentionPolicy: prevRP,
+    } = prevProps.query
     if (!database || !measurement) {
       return
     }
 
-    if (database === prevDB && measurement === prevMeas && retentionPolicy === prevRP) {
+    if (
+      database === prevDB &&
+      measurement === prevMeas &&
+      retentionPolicy === prevRP
+    ) {
       return
     }
 
@@ -69,16 +77,20 @@ const FieldList = React.createClass({
 
   render() {
     const {query} = this.props
-    const hasAggregates = query.fields.some((f) => f.funcs && f.funcs.length)
+    const hasAggregates = query.fields.some(f => f.funcs && f.funcs.length)
     const hasGroupByTime = query.groupBy.time
 
     return (
       <div className="query-builder--column">
         <div className="query-builder--heading">
           <span>Fields</span>
-          {hasAggregates ?
-          <GroupByTimeDropdown isOpen={!hasGroupByTime} selected={query.groupBy.time} onChooseGroupByTime={this.handleGroupByTime} />
-          : null}
+          {hasAggregates
+            ? <GroupByTimeDropdown
+                isOpen={!hasGroupByTime}
+                selected={query.groupBy.time}
+                onChooseGroupByTime={this.handleGroupByTime}
+              />
+            : null}
         </div>
         {this.renderList()}
       </div>
@@ -97,8 +109,10 @@ const FieldList = React.createClass({
 
     return (
       <div className="query-builder--list">
-        {this.state.fields.map((fieldFunc) => {
-          const selectedField = this.props.query.fields.find((f) => f.field === fieldFunc.field)
+        {this.state.fields.map(fieldFunc => {
+          const selectedField = this.props.query.fields.find(
+            f => f.field === fieldFunc.field
+          )
           return (
             <FieldListItem
               key={fieldFunc.field}
@@ -119,14 +133,19 @@ const FieldList = React.createClass({
     const {source} = this.context
     const proxySource = source.links.proxy
 
-    showFieldKeys(proxySource, database, measurement, retentionPolicy).then((resp) => {
+    showFieldKeys(
+      proxySource,
+      database,
+      measurement,
+      retentionPolicy
+    ).then(resp => {
       const {errors, fieldSets} = showFieldKeysParser(resp.data)
       if (errors.length) {
         // TODO: do something
       }
 
       this.setState({
-        fields: fieldSets[measurement].map((f) => {
+        fields: fieldSets[measurement].map(f => {
           return {field: f, funcs: []}
         }),
       })

@@ -36,20 +36,24 @@ class QueryRow extends Component {
         <td><code>{query}</code></td>
         <td>{duration}</td>
         <td className="admin-table--kill-button text-right">
-          { this.state.confirmingKill ?
-            <ConfirmButtons onConfirm={this.handleFinishHim} onCancel={this.handleShowMercy} /> :
-            <button className="btn btn-xs btn-danger admin-table--hidden" onClick={this.handleInitiateKill}>Kill</button>
-          }
+          {this.state.confirmingKill
+            ? <ConfirmButtons
+                onConfirm={this.handleFinishHim}
+                onCancel={this.handleShowMercy}
+              />
+            : <button
+                className="btn btn-xs btn-danger admin-table--hidden"
+                onClick={this.handleInitiateKill}
+              >
+                Kill
+              </button>}
         </td>
       </tr>
     )
   }
 }
 
-const {
-  func,
-  shape,
-} = PropTypes
+const {func, shape} = PropTypes
 
 QueryRow.propTypes = {
   query: shape().isRequired,

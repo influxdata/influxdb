@@ -2,7 +2,7 @@ import moment from 'moment'
 
 export default function parseShowShards(results) {
   const shards = {}
-  results.forEach((result) => {
+  results.forEach(result => {
     if (!result.owners.length) {
       return
     }

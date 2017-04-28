@@ -47,7 +47,7 @@ const HipchatConfig = React.createClass({
             id="url"
             type="text"
             placeholder="your-subdomain"
-            ref={r => this.url = r}
+            ref={r => (this.url = r)}
             defaultValue={subdomain && subdomain.length ? subdomain : ''}
           />
         </div>
@@ -59,7 +59,7 @@ const HipchatConfig = React.createClass({
             id="room"
             type="text"
             placeholder="your-hipchat-room"
-            ref={r => this.room = r}
+            ref={r => (this.room = r)}
             defaultValue={room || ''}
           />
         </div>
@@ -72,7 +72,7 @@ const HipchatConfig = React.createClass({
           <RedactedInput
             defaultValue={token}
             id="token"
-            refFunc={r => this.token = r}
+            refFunc={r => (this.token = r)}
           />
         </div>
 

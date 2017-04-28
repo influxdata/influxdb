@@ -37,20 +37,22 @@ class FilterBar extends Component {
             onChange={this.handleText}
           />
           <div className="input-group-addon">
-            <span className="icon search" aria-hidden="true"></span>
+            <span className="icon search" aria-hidden="true" />
           </div>
         </div>
-        <button className="btn btn-sm btn-primary" disabled={isEditing} onClick={() => onClickCreate(type)}>Create {placeholderText.substring(0, placeholderText.length - 1)}</button>
+        <button
+          className="btn btn-sm btn-primary"
+          disabled={isEditing}
+          onClick={() => onClickCreate(type)}
+        >
+          Create {placeholderText.substring(0, placeholderText.length - 1)}
+        </button>
       </div>
     )
   }
 }
 
-const {
-  bool,
-  func,
-  string,
-} = PropTypes
+const {bool, func, string} = PropTypes
 
 FilterBar.propTypes = {
   onFilter: func.isRequired,

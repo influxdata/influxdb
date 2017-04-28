@@ -72,12 +72,12 @@ export function getActiveKapacitor(source) {
     url: source.links.kapacitors,
     method: 'GET',
   }).then(({data}) => {
-    const activeKapacitor = data.kapacitors.find((k) => k.active)
+    const activeKapacitor = data.kapacitors.find(k => k.active)
     return activeKapacitor || data.kapacitors[0]
   })
 }
 
-export const getKapacitors = async (source) => {
+export const getKapacitors = async source => {
   try {
     return await AJAX({
       method: 'GET',
@@ -89,7 +89,10 @@ export const getKapacitors = async (source) => {
   }
 }
 
-export function createKapacitor(source, {url, name = 'My Kapacitor', username, password}) {
+export function createKapacitor(
+  source,
+  {url, name = 'My Kapacitor', username, password}
+) {
   return AJAX({
     url: source.links.kapacitors,
     method: 'POST',
@@ -102,7 +105,14 @@ export function createKapacitor(source, {url, name = 'My Kapacitor', username, p
   })
 }
 
-export function updateKapacitor({links, url, name = 'My Kapacitor', username, password, active}) {
+export function updateKapacitor({
+  links,
+  url,
+  name = 'My Kapacitor',
+  username,
+  password,
+  active,
+}) {
   return AJAX({
     url: links.self,
     method: 'PATCH',
@@ -141,9 +151,18 @@ export function updateKapacitorConfigSection(kapacitor, section, properties) {
 }
 
 export function testAlertOutput(kapacitor, outputName, properties) {
-  return kapacitorProxy(kapacitor, 'GET', '/kapacitor/v1/service-tests').then(({data: {services}}) => {
+  return kapacitorProxy(
+    kapacitor,
+    'GET',
+    '/kapacitor/v1/service-tests'
+  ).then(({data: {services}}) => {
     const service = services.find(s => s.name === outputName)
-    return kapacitorProxy(kapacitor, 'POST', service.link.href, Object.assign({}, service.options, properties))
+    return kapacitorProxy(
+      kapacitor,
+      'POST',
+      service.link.href,
+      Object.assign({}, service.options, properties)
+    )
   })
 }
 
@@ -158,11 +177,15 @@ export function createKapacitorTask(kapacitor, id, type, dbrps, script) {
 }
 
 export function enableKapacitorTask(kapacitor, id) {
-  return kapacitorProxy(kapacitor, 'PATCH', `/kapacitor/v1/tasks/${id}`, {status: 'enabled'})
+  return kapacitorProxy(kapacitor, 'PATCH', `/kapacitor/v1/tasks/${id}`, {
+    status: 'enabled',
+  })
 }
 
 export function disableKapacitorTask(kapacitor, id) {
-  return kapacitorProxy(kapacitor, 'PATCH', `/kapacitor/v1/tasks/${id}`, {status: 'disabled'})
+  return kapacitorProxy(kapacitor, 'PATCH', `/kapacitor/v1/tasks/${id}`, {
+    status: 'disabled',
+  })
 }
 
 export function deleteKapacitorTask(kapacitor, id) {
@@ -180,8 +203,9 @@ export function kapacitorProxy(kapacitor, method, path, body) {
   })
 }
 
-export const getQueryConfig = (url, queries) => AJAX({
-  url,
-  method: 'POST',
-  data: {queries},
-})
+export const getQueryConfig = (url, queries) =>
+  AJAX({
+    url,
+    method: 'POST',
+    data: {queries},
+  })
