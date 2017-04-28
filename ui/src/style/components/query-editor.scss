@@ -21,7 +21,7 @@
     border-color 0.25s ease;
   border: 2px solid $query-editor--bg;
   background-color: $query-editor--field-bg;
-  
+
 }
 .query-editor--field {
   font-size: 12px;
@@ -102,5 +102,8 @@
     width: $query-editor--templates-menu-width;
     min-width: $query-editor--templates-menu-width;
     max-width: $query-editor--templates-menu-width;
+  }
+  .divider {
+    background: linear-gradient(to right, #00C9FF 0%, #22ADF6 100%);
   }
 }

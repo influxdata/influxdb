@@ -132,6 +132,58 @@ table .monotype {
 }
 
 /*
+    Table Tabs
+    ----------------------------------------------
+*/
+$table-tab-height: 30px;
+$table-tab-scrollbar-height: 6px;
+
+.table--tabs {
+  display: flex;
+  height: $table-tab-height;
+  align-items: center;
+}
+.table--tab {
+  font-size: 12px;
+  font-weight: 600;
+  @include no-user-select();  
+  height: $table-tab-height;
+  border-radius: $radius-small $radius-small 0 0;
+  line-height: $table-tab-height;
+  padding: 0 6px;
+  background-color: $g4-onyx;
+  color: $g11-sidewalk;
+  margin-right: 2px;
+  transition:
+    color 0.25s ease,
+    background-color 0.25s ease;
+
+  &:hover {
+    background-color: $g5-pepper;
+    color: $g15-platinum;
+    cursor: pointer;
+  }
+  &.active {
+    background-color: $g6-smoke;
+    color: $g18-cloud;
+  }
+}
+.table--tabs-dropdown {
+  display: inline-block;
+}
+.table--tabs-content {
+  width: 100%;
+  height: calc(100% - #{$table-tab-height});
+  position: absolute;
+  top: $table-tab-height;
+}
+
+.table--tabs + .table--tabs-content > .generic-empty-state {
+  background-color: $g6-smoke !important;
+  border-radius: 0 $radius-small $radius-small $radius-small;
+}
+
+/*
     Responsive Tables
     ----------------------------------------------
 */
