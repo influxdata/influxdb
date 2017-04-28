@@ -99,7 +99,7 @@ type PartialWriteError struct {
 }
 
 func (e PartialWriteError) Error() string {
-	return fmt.Sprintf("%s dropped=%d", e.Reason, e.Dropped)
+	return fmt.Sprintf("partial write: %s dropped=%d", e.Reason, e.Dropped)
 }
 
 // Shard represents a self-contained time series database. An inverted index of
@@ -539,7 +539,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 		fieldsToCreate []*FieldCreate
 		err            error
 		dropped        int
-		reason         string
+		reason         string // only first error reason is set unless returned from CreateSeriesListIfNotExists
 	)
 
 	// Create all series against the index in bulk.
@@ -553,6 +553,9 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 		tags := p.Tags()
 		if v := tags.Get(timeBytes); v != nil {
 			dropped++
+			if reason == "" {
+				reason = fmt.Sprintf("invalid tag key: input tag \"%s\" on measurement \"%s\" is invalid", "time", p.Name())
+			}
 			continue
 		}
 		keys[j] = p.Key()
@@ -597,6 +600,9 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 
 		if !validField {
 			dropped++
+			if reason == "" {
+				reason = fmt.Sprintf("invalid field name: input field \"%s\" on measurement \"%s\" is invalid", "time", p.Name())
+			}
 			continue
 		}
 
@@ -646,7 +652,9 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 				if f.Type != fieldType {
 					atomic.AddInt64(&s.stats.WritePointsDropped, 1)
 					dropped++
-					reason = fmt.Sprintf("%s: input field \"%s\" on measurement \"%s\" is type %s, already exists as type %s", ErrFieldTypeConflict, iter.FieldKey(), name, fieldType, f.Type)
+					if reason == "" {
+						reason = fmt.Sprintf("%s: input field \"%s\" on measurement \"%s\" is type %s, already exists as type %s", ErrFieldTypeConflict, iter.FieldKey(), name, fieldType, f.Type)
+					}
 					skip = true
 				} else {
 					continue // Field is present, and it's of the same type. Nothing more to do.
