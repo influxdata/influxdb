@@ -14,6 +14,7 @@ const Visualization = React.createClass({
     cellName: string,
     cellType: string,
     autoRefresh: number.isRequired,
+    templates: arrayOf(shape()),
     timeRange: shape({
       upper: string,
       lower: string,
@@ -79,6 +80,7 @@ const Visualization = React.createClass({
       cellType,
       cellName,
       timeRange,
+      templates,
       autoRefresh,
       heightPixels,
       queryConfigs,
@@ -113,6 +115,7 @@ const Visualization = React.createClass({
           <VisView
             view={view}
             queries={queries}
+            templates={templates}
             cellType={cellType}
             autoRefresh={autoRefresh}
             heightPixels={heightPixels}

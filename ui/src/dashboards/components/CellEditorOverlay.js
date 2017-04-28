@@ -156,6 +156,7 @@ class CellEditorOverlay extends Component {
           <Visualization
             autoRefresh={autoRefresh}
             timeRange={timeRange}
+            templates={templates}
             queryConfigs={queriesWorkingDraft}
             activeQueryIndex={0}
             cellType={cellWorkingType}

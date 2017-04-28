@@ -11,6 +11,7 @@ const VisView = ({
   view,
   queries,
   cellType,
+  templates,
   autoRefresh,
   heightPixels,
   editQueryStatus,
@@ -35,7 +36,13 @@ const VisView = ({
   }
 
   if (cellType === 'single-stat') {
-    return <RefreshingSingleStat queries={[queries[0]]} autoRefresh={autoRefresh} />
+    return (
+      <RefreshingSingleStat
+        queries={[queries[0]]}
+        autoRefresh={autoRefresh}
+        templates={templates}
+      />
+    )
   }
 
   const displayOptions = {
@@ -47,6 +54,7 @@ const VisView = ({
     <RefreshingLineGraph
       queries={queries}
       autoRefresh={autoRefresh}
+      templates={templates}
       activeQueryIndex={activeQueryIndex}
       isInDataExplorer={true}
       showSingleStat={cellType === 'line-plus-single-stat'}
@@ -56,18 +64,13 @@ const VisView = ({
   )
 }
 
-const {
-  arrayOf,
-  func,
-  number,
-  shape,
-  string,
-} = PropTypes
+const {arrayOf, func, number, shape, string} = PropTypes
 
 VisView.propTypes = {
   view: string.isRequired,
   queries: arrayOf(shape()).isRequired,
   cellType: string,
+  templates: arrayOf(shape()),
   autoRefresh: number.isRequired,
   heightPixels: number,
   editQueryStatus: func.isRequired,
