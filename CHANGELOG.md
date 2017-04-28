@@ -1,3 +1,9 @@
+## v1.2.4 [unreleased]
+
+### Bugfixes
+
+- [#8338](https://github.com/influxdata/influxdb/pull/8338): Prefix partial write errors with `partial write:` to generalize identification in other subsystems
+
 ## v1.2.3 [2017-04-17]
 
 ### Bugfixes
