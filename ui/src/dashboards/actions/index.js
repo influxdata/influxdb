@@ -127,8 +127,7 @@ export const templateVariableSelected = (dashboardID, templateID, values) => ({
 export const getDashboardsAsync = () => async dispatch => {
   try {
     const {data: {dashboards}} = await getDashboardsAJAX()
-    const stubbedDashboards = dashboards.map(d => ({...d, templates}))
-    dispatch(loadDashboards(stubbedDashboards))
+    dispatch(loadDashboards(dashboards))
   } catch (error) {
     console.error(error)
     dispatch(errorThrown(error))
