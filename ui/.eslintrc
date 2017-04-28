@@ -149,7 +149,7 @@
     'eol-last': 0, // TODO: revisit
     'id-length': 0,
     'id-match': 0,
-    'indent': [2, 2, {SwitchCase: 1}],
+    'indent': [0, 2, {SwitchCase: 1}],
     'key-spacing': [2, {beforeColon: false, afterColon: true}],
     'linebreak-style': [2, 'unix'],
     'lines-around-comment': 0,
@@ -234,6 +234,6 @@
     'react/require-extension': 0,
     'react/self-closing-comp': 0, // TODO: we can re-enable this if some brave soul wants to update the code (mostly spans acting as icons)
     'react/sort-comp': 0, // TODO: 2
-    'react/jsx-wrap-multilines': 'error',
+    'react/jsx-wrap-multilines': ['error', {'declaration': false, 'assignment': false}],
   },
 }

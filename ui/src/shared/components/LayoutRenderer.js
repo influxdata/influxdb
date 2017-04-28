@@ -46,6 +46,7 @@ export const LayoutRenderer = React.createClass({
         type: string.isRequired,
       }).isRequired
     ),
+    templates: arrayOf(shape()).isRequired,
     host: string,
     source: string,
     onPositionChange: func,
@@ -89,12 +90,41 @@ export const LayoutRenderer = React.createClass({
     return text
   },
 
+  renderRefreshingGraph(type, queries) {
+    const {autoRefresh, templates} = this.props
+
+    if (type === 'single-stat') {
+      return (
+        <RefreshingSingleStat
+          queries={[queries[0]]}
+          templates={templates}
+          autoRefresh={autoRefresh}
+        />
+      )
+    }
+
+    const displayOptions = {
+      stepPlot: type === 'line-stepplot',
+      stackedGraph: type === 'line-stacked',
+    }
+
+    return (
+      <RefreshingLineGraph
+        queries={queries}
+        templates={templates}
+        autoRefresh={autoRefresh}
+        showSingleStat={type === 'line-plus-single-stat'}
+        displayOptions={displayOptions}
+      />
+    )
+  },
+
   generateVisualizations() {
-    const {autoRefresh, timeRange, source, cells, onEditCell, onRenameCell, onUpdateCell, onDeleteCell, onSummonOverlayTechnologies, shouldNotBeEditable} = this.props
+    const {timeRange, source, cells, onEditCell, onRenameCell, onUpdateCell, onDeleteCell, onSummonOverlayTechnologies, shouldNotBeEditable} = this.props
 
     return cells.map((cell) => {
-      const qs = cell.queries.map((query) => {
-        // TODO: Canned dashboards use an old query schema,
+      const queries = cell.queries.map((query) => {
+        // TODO: Canned dashboards (and possibly Kubernetes dashboard) use an old query schema,
         // which does not have enough information for the new `buildInfluxQLQuery` function
         // to operate on. We will use `buildQueryForOldQuerySchema` until we conform
         // on a stable query representation.
@@ -112,29 +142,6 @@ export const LayoutRenderer = React.createClass({
         })
       })
 
-      if (cell.type === 'single-stat') {
-        return (
-          <div key={cell.i}>
-            <NameableGraph
-              onEditCell={onEditCell}
-              onRenameCell={onRenameCell}
-              onUpdateCell={onUpdateCell}
-              onDeleteCell={onDeleteCell}
-              onSummonOverlayTechnologies={onSummonOverlayTechnologies}
-              shouldNotBeEditable={shouldNotBeEditable}
-              cell={cell}
-            >
-              <RefreshingSingleStat queries={[qs[0]]} autoRefresh={autoRefresh} />
-            </NameableGraph>
-          </div>
-        )
-      }
-
-      const displayOptions = {
-        stepPlot: cell.type === 'line-stepplot',
-        stackedGraph: cell.type === 'line-stacked',
-      }
-
       return (
         <div key={cell.i}>
           <NameableGraph
@@ -146,12 +153,7 @@ export const LayoutRenderer = React.createClass({
             shouldNotBeEditable={shouldNotBeEditable}
             cell={cell}
           >
-            <RefreshingLineGraph
-              queries={qs}
-              autoRefresh={autoRefresh}
-              showSingleStat={cell.type === 'line-plus-single-stat'}
-              displayOptions={displayOptions}
-            />
+            {this.renderRefreshingGraph(cell.type, queries)}
           </NameableGraph>
         </div>
       )

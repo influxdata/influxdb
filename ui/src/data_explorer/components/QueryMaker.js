@@ -4,14 +4,7 @@ import QueryBuilder from './QueryBuilder'
 import QueryMakerTab from './QueryMakerTab'
 import buildInfluxQLQuery from 'utils/influxql'
 
-const {
-  arrayOf,
-  func,
-  node,
-  number,
-  shape,
-  string,
-} = PropTypes
+const {arrayOf, func, node, number, shape, string} = PropTypes
 
 const QueryMaker = React.createClass({
   propTypes: {
@@ -25,6 +18,11 @@ const QueryMaker = React.createClass({
       upper: string,
       lower: string,
     }).isRequired,
+    templates: arrayOf(
+      shape({
+        tempVar: string.isRequired,
+      })
+    ),
     actions: shape({
       chooseNamespace: func.isRequired,
       chooseMeasurement: func.isRequired,
@@ -76,7 +74,7 @@ const QueryMaker = React.createClass({
   },
 
   renderQueryBuilder() {
-    const {timeRange, actions, source} = this.props
+    const {timeRange, actions, source, templates} = this.props
     const query = this.getActiveQuery()
 
     if (!query) {
@@ -93,6 +91,7 @@ const QueryMaker = React.createClass({
       <QueryBuilder
         source={source}
         timeRange={timeRange}
+        templates={templates}
         query={query}
         actions={actions}
         onAddQuery={this.handleAddQuery}

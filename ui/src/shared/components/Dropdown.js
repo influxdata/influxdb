@@ -1,7 +1,6 @@
 import React, {Component, PropTypes} from 'react'
 import {Link} from 'react-router'
 import classnames from 'classnames'
-
 import OnClickOutside from 'shared/components/OnClickOutside'
 
 class Dropdown extends Component {
@@ -134,6 +133,7 @@ Dropdown.propTypes = {
     })
   ).isRequired,
   onChoose: func.isRequired,
+  onClick: func,
   addNew: shape({
     url: string.isRequired,
     text: string.isRequired,

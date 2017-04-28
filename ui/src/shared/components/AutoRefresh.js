@@ -4,6 +4,7 @@ import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
 
 const {
   arrayOf,
+  bool,
   element,
   func,
   number,
@@ -12,82 +13,141 @@ const {
   string,
 } = PropTypes
 
-const AutoRefresh = (ComposedComponent) => {
+const AutoRefresh = ComposedComponent => {
   const wrapper = React.createClass({
     propTypes: {
       children: element,
       autoRefresh: number.isRequired,
-      queries: arrayOf(shape({
-        host: oneOfType([string, arrayOf(string)]),
-        text: string,
-      }).isRequired).isRequired,
+      templates: arrayOf(
+        shape({
+          type: string.isRequired,
+          label: string.isRequired,
+          tempVar: string.isRequired,
+          query: shape({
+            db: string,
+            rp: string,
+            influxql: string,
+          }),
+          values: arrayOf(
+            shape({
+              type: string.isRequired,
+              value: string.isRequired,
+              selected: bool,
+            })
+          ).isRequired,
+        })
+      ),
+      queries: arrayOf(
+        shape({
+          host: oneOfType([string, arrayOf(string)]),
+          text: string,
+        }).isRequired
+      ).isRequired,
       editQueryStatus: func,
     },
+
     getInitialState() {
       return {
         lastQuerySuccessful: false,
         timeSeries: [],
       }
     },
+
     componentDidMount() {
       const {queries, autoRefresh} = this.props
       this.executeQueries(queries)
       if (autoRefresh) {
-        this.intervalID = setInterval(() => this.executeQueries(queries), autoRefresh)
+        this.intervalID = setInterval(
+          () => this.executeQueries(queries),
+          autoRefresh
+        )
       }
     },
+
     componentWillReceiveProps(nextProps) {
-      const shouldRefetch = this.queryDifference(this.props.queries, nextProps.queries).length
+      const queriesDidUpdate = this.queryDifference(
+        this.props.queries,
+        nextProps.queries
+      ).length
+
+      const tempVarsDidUpdate = !_.isEqual(
+        this.props.templates,
+        nextProps.templates
+      )
+
+      const shouldRefetch = queriesDidUpdate || tempVarsDidUpdate
 
       if (shouldRefetch) {
         this.executeQueries(nextProps.queries)
       }
 
-      if ((this.props.autoRefresh !== nextProps.autoRefresh) || shouldRefetch) {
+      if (this.props.autoRefresh !== nextProps.autoRefresh || shouldRefetch) {
         clearInterval(this.intervalID)
 
         if (nextProps.autoRefresh) {
-          this.intervalID = setInterval(() => this.executeQueries(nextProps.queries), nextProps.autoRefresh)
+          this.intervalID = setInterval(
+            () => this.executeQueries(nextProps.queries),
+            nextProps.autoRefresh
+          )
         }
       }
     },
+
     queryDifference(left, right) {
-      const leftStrs = left.map((q) => `${q.host}${q.text}`)
-      const rightStrs = right.map((q) => `${q.host}${q.text}`)
-      return _.difference(_.union(leftStrs, rightStrs), _.intersection(leftStrs, rightStrs))
+      const leftStrs = left.map(q => `${q.host}${q.text}`)
+      const rightStrs = right.map(q => `${q.host}${q.text}`)
+      return _.difference(
+        _.union(leftStrs, rightStrs),
+        _.intersection(leftStrs, rightStrs)
+      )
     },
-    async executeQueries(queries) {
+
+    executeQueries(queries) {
+      const {templates = [], editQueryStatus} = this.props
+
       if (!queries.length) {
-        this.setState({
-          timeSeries: [],
-        })
+        this.setState({timeSeries: []})
         return
       }
 
       this.setState({isFetching: true})
-      let count = 0
-      const newSeries = []
-      for (const query of queries) {
+
+      const selectedTempVarTemplates = templates.map(template => {
+        const selectedValues = template.values.filter(value => value.selected)
+        return {...template, values: selectedValues}
+      })
+
+      const timeSeriesPromises = queries.map(query => {
         const {host, database, rp} = query
-        // TODO: enact this via an action creator so redux will know about it; currently errors are used as responses here
-        // TODO: may need to make this a try/catch
-        const response = await fetchTimeSeriesAsync({source: host, db: database, rp, query}, this.props.editQueryStatus)
-        newSeries.push({response})
-        count += 1
-        if (count === queries.length) {
-          const querySuccessful = !this._noResultsForQuery(newSeries)
-          this.setState({
-            lastQuerySuccessful: querySuccessful,
-            isFetching: false,
-            timeSeries: newSeries,
-          })
-        }
-      }
+        return fetchTimeSeriesAsync(
+          {
+            source: host,
+            db: database,
+            rp,
+            query,
+            tempVars: selectedTempVarTemplates,
+          },
+          editQueryStatus
+        )
+      })
+
+      Promise.all(timeSeriesPromises).then(timeSeries => {
+        const newSeries = timeSeries.map(response => ({response}))
+        const lastQuerySuccessful = !this._noResultsForQuery(newSeries)
+
+        this.setState({
+          timeSeries: newSeries,
+          lastQuerySuccessful,
+          isFetching: false,
+        })
+      })
     },
+
     componentWillUnmount() {
       clearInterval(this.intervalID)
       this.intervalID = false
     },
+
     render() {
       const {timeSeries} = this.state
 
@@ -95,16 +155,14 @@ const AutoRefresh = (ComposedComponent) => {
         return this.renderFetching(timeSeries)
       }
 
-      if (this._noResultsForQuery(timeSeries) || !this.state.lastQuerySuccessful) {
+      if (
+        this._noResultsForQuery(timeSeries) ||
+        !this.state.lastQuerySuccessful
+      ) {
         return this.renderNoResults()
       }
 
-      return (
-        <ComposedComponent
-          {...this.props}
-          data={timeSeries}
-        />
-      )
+      return <ComposedComponent {...this.props} data={timeSeries} />
     },
 
     /**
@@ -140,8 +198,8 @@ const AutoRefresh = (ComposedComponent) => {
         return true
       }
 
-      return data.every((datum) => {
-        return datum.response.results.every((result) => {
+      return data.every(datum => {
+        return datum.response.results.every(result => {
           return Object.keys(result).length === 0
         })
       })

@@ -82,6 +82,7 @@ func Test_Influx_HTTPS_Failure(t *testing.T) {
 func Test_Influx_HTTPS_InsecureSkipVerify(t *testing.T) {
 	t.Parallel()
 	called := false
+	q := ""
 	ts := httptest.NewTLSServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		rw.WriteHeader(http.StatusOK)
 		rw.Write([]byte(`{}`))
@@ -89,6 +90,8 @@ func Test_Influx_HTTPS_InsecureSkipVerify(t *testing.T) {
 		if path := r.URL.Path; path != "/query" {
 			t.Error("Expected the path to contain `/query` but was", path)
 		}
+		values := r.URL.Query()
+		q = values.Get("q")
 	}))
 	defer ts.Close()
 
@@ -117,6 +120,34 @@ func Test_Influx_HTTPS_InsecureSkipVerify(t *testing.T) {
 
 	if called == false {
 		t.Error("Expected http request to Influx but there was none")
+	}
+	called = false
+	q = ""
+	query = chronograf.Query{
+		Command: "select $field from cpu",
+		TemplateVars: []chronograf.TemplateVar{
+			{
+				Var: "$field",
+				Values: []chronograf.TemplateValue{
+					{
+						Value: "usage_user",
+						Type:  "fieldKey",
+					},
+				},
+			},
+		},
+	}
+	_, err = series.Query(ctx, query)
+	if err != nil {
+		t.Fatal("Expected no error but was", err)
+	}
+
+	if called == false {
+		t.Error("Expected http request to Influx but there was none")
+	}
+
+	if q != `select "usage_user" from cpu` {
+		t.Errorf("Unexpected query: %s", q)
 	}
 }
 

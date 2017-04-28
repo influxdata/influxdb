@@ -10,11 +10,48 @@ import {
   editDashboardCell,
   renameDashboardCell,
   syncDashboardCell,
+  templateVariableSelected,
 } from 'src/dashboards/actions'
 
 let state
-const d1 = {id: 1, cells: [], name: "d1"}
-const d2 = {id: 2, cells: [], name: "d2"}
+const templates = [
+  {
+    id: '1',
+    type: 'query',
+    label: 'test query',
+    tempVar: '$REGION',
+    query: {
+      db: 'db1',
+      rp: 'rp1',
+      measurement: 'm1',
+      influxql: 'SHOW TAGS WHERE CHRONOGIRAFFE = "friend"',
+    },
+    values: [
+      {value: 'us-west', type: 'tagKey', selected: false},
+      {value: 'us-east', type: 'tagKey', selected: true},
+      {value: 'us-mount', type: 'tagKey', selected: false},
+    ],
+  },
+  {
+    id: '2',
+    type: 'csv',
+    label: 'test csv',
+    tempVar: '$TEMPERATURE',
+    values: [
+      {value: '98.7', type: 'measurement', selected: false},
+      {value: '99.1', type: 'measurement', selected: false},
+      {value: '101.3', type: 'measurement', selected: true},
+    ],
+  },
+]
+
+const d1 = {
+  id: 1,
+  cells: [],
+  name: 'd1',
+  templates,
+}
+const d2 = {id: 2, cells: [], name: 'd2', templates: []}
 const dashboards = [d1, d2]
 const c1 = {
   x: 0,
@@ -23,9 +60,21 @@ const c1 = {
   h: 4,
   id: 1,
   isEditing: false,
-  name: "Gigawatts",
+  name: 'Gigawatts',
 }
 const cells = [c1]
+const tempVar = {
+  ...d1.templates[0],
+  id: '1',
+  type: 'measurement',
+  label: 'test query',
+  tempVar: '$HOSTS',
+  query: {
+    db: 'db1',
+    text: 'SHOW TAGS WHERE HUNTER = "coo"',
+  },
+  values: ['h1', 'h2', 'h3'],
+}
 
 describe('DataExplorer.Reducers.UI', () => {
   it('can load the dashboards', () => {
@@ -66,6 +115,7 @@ describe('DataExplorer.Reducers.UI', () => {
       id: 1,
       cells: updatedCells,
       name: 'd1',
+      templates,
     }
 
     const actual = reducer(state, updateDashboardCells(d1, updatedCells))
@@ -106,7 +156,28 @@ describe('DataExplorer.Reducers.UI', () => {
       dashboards: [dash],
     }
 
-    const actual = reducer(state, renameDashboardCell(dash, 0, 0, "Plutonium Consumption Rate (ug/sec)"))
-    expect(actual.dashboards[0].cells[0].name).to.equal("Plutonium Consumption Rate (ug/sec)")
+    const actual = reducer(
+      state,
+      renameDashboardCell(dash, 0, 0, 'Plutonium Consumption Rate (ug/sec)')
+    )
+    expect(actual.dashboards[0].cells[0].name).to.equal(
+      'Plutonium Consumption Rate (ug/sec)'
+    )
+  })
+
+  it('can select a different template variable', () => {
+    const dash = _.cloneDeep(d1)
+    state = {
+      dashboards: [dash],
+    }
+    const value = dash.templates[0].values[2].value
+    const actual = reducer(
+      {dashboards},
+      templateVariableSelected(dash.id, dash.templates[0].id, [{value}])
+    )
+
+    expect(actual.dashboards[0].templates[0].values[0].selected).to.equal(false)
+    expect(actual.dashboards[0].templates[0].values[1].selected).to.equal(false)
+    expect(actual.dashboards[0].templates[0].values[2].selected).to.equal(true)
   })
 })

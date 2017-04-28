@@ -19,56 +19,88 @@ $page-header-weight: 400 !important;
   background-color: $g0-obsidian;
   border: none;
   margin: 0;
+}
+.page-header__container {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  width: 100%;
+  max-width: ($page-wrapper-max-width - $page-wrapper-padding - $page-wrapper-padding);
+}
+.page-header__left,
+.page-header__right {
+  flex: 1 0 0;
+  display: flex;
+  align-items: center;
 
-  &__container {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: nowrap;
-    width: 100%;
-    max-width: ($page-wrapper-max-width - $page-wrapper-padding - $page-wrapper-padding);
-  }
-  h1 {
-    text-transform: none;
-    font-size: $page-header-size;
-    font-weight: $page-header-weight;
+  > *:only-child {
     margin: 0;
-    display: inline-block;
-    vertical-align: middle;
-    @include no-user-select();
-    cursor: default;
   }
-  &__left,
-  &__right {
-    flex: 1 0 0;
-    display: flex;
-    align-items: center;
+}
+.page-header__left {
+  justify-content: flex-start;
+  > * {
+    margin: 0 4px 0 0;
+  }
+}
+.page-header__right {
+  justify-content: flex-end;
+  > * {
+    margin: 0 0 0 4px;
+  }
+}
+.page-header.full-width .page-header__container {
+  max-width: 100%;
+}
+.page-header.full-width-no-scrollbar {
+  padding-right: $page-wrapper-padding;
 
-    > *:only-child {
-      margin: 0;
-    }
-  }
-  &__left {
-    justify-content: flex-start;
-    > * {
-      margin: 0 4px 0 0;
-    }
-  }
-  &__right {
-    justify-content: flex-end;
-    > * {
-      margin: 0 0 0 4px;
-    }
-  }
-  &.full-width .page-header__container {
+  .page-header__container {
     max-width: 100%;
   }
-  &.full-width-no-scrollbar {
-    padding-right: $page-wrapper-padding;
+}
+.page-header__title {
+  text-transform: none;
+  font-size: $page-header-size;
+  font-weight: $page-header-weight;
+  margin: 0;
+  display: inline-block;
+  vertical-align: middle;
+  @include no-user-select();
+  cursor: default;
+}
+.page-header__dismiss {
+  width: ($chronograf-page-header-height - 20px);
+  height: ($chronograf-page-header-height - 20px);
+  position: relative;
 
-    .page-header__container {
-      max-width: 100%;
-    }
+  /* Use psuedo elements to render the X */
+  &:before,
+  &:after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 22px;
+    height: 2px;
+    border-radius: 1px;
+    background-color: $g11-sidewalk;
+    transition: background-color 0.25s ease;
+  }
+  &:before {
+    transform: translate(-50%,-50%) rotate(45deg);
+  }
+  &:after {
+    transform: translate(-50%,-50%) rotate(-45deg);
+  }
+  /* Hover State */
+  &:hover {
+    cursor: pointer;
+  }
+  &:hover:before,
+  &:hover:after {
+    background-color: $g18-cloud;
   }
 }

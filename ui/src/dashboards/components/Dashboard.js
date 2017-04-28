@@ -1,31 +1,37 @@
 import React, {PropTypes} from 'react'
 import classnames from 'classnames'
 
+import omit from 'lodash/omit'
+
 import LayoutRenderer from 'shared/components/LayoutRenderer'
+import Dropdown from 'shared/components/Dropdown'
 
 const Dashboard = ({
+  source,
+  timeRange,
   dashboard,
-  isEditMode,
-  inPresentationMode,
   onAddCell,
-  onPositionChange,
   onEditCell,
+  autoRefresh,
   onRenameCell,
   onUpdateCell,
   onDeleteCell,
+  onPositionChange,
+  inPresentationMode,
+  onOpenTemplateManager,
   onSummonOverlayTechnologies,
-  source,
-  autoRefresh,
-  timeRange,
+  onSelectTemplate,
 }) => {
   if (dashboard.id === 0) {
     return null
   }
 
-  const cells = dashboard.cells.map((cell) => {
+  const {templates} = dashboard
+
+  const cells = dashboard.cells.map(cell => {
     const dashboardCell = {...cell}
-    dashboardCell.queries = dashboardCell.queries.map(({label, query, queryConfig, db}) =>
-      ({
+    dashboardCell.queries = dashboardCell.queries.map(
+      ({label, query, queryConfig, db}) => ({
         label,
         query,
         queryConfig,
@@ -38,11 +44,47 @@ const Dashboard = ({
   })
 
   return (
-    <div className={classnames({'page-contents': true, 'presentation-mode': inPresentationMode})}>
-      {cells.length ?
-        <div className={classnames('container-fluid full-width dashboard', {'dashboard-edit': isEditMode})}>
-          <LayoutRenderer
+    <div
+      className={classnames(
+        'dashboard container-fluid full-width page-contents',
+        {'presentation-mode': inPresentationMode}
+      )}
+    >
+      <div className="template-control-bar">
+        <div className="page-header__left">
+          Template Variables
+        </div>
+        <div className="page-header__right">
+          {templates.map(({id, values}) => {
+            const items = values.map(value => ({...value, text: value.value}))
+            const selectedItem = items.find(item => item.selected) || items[0]
+            const selectedText = selectedItem && selectedItem.text
+
+            // TODO: change Dropdown to a MultiSelectDropdown, `selected` to
+            // the full array, and [item] to all `selected` values when we update
+            // this component to support multiple values
+            return (
+              <Dropdown
+                key={id}
+                items={items}
+                selected={selectedText || 'Loading...'}
+                onChoose={item =>
+                  onSelectTemplate(id, [item].map(x => omit(x, 'text')))}
+              />
+            )
+          })}
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={onOpenTemplateManager}
+          >
+            Manage
+          </button>
+        </div>
+      </div>
+      {cells.length
+        ? <LayoutRenderer
             timeRange={timeRange}
+            templates={templates}
             cells={cells}
             autoRefresh={autoRefresh}
             source={source.links.proxy}
@@ -53,32 +95,20 @@ const Dashboard = ({
             onDeleteCell={onDeleteCell}
             onSummonOverlayTechnologies={onSummonOverlayTechnologies}
           />
-        </div> :
-        <div className="dashboard__empty">
-          <p>This Dashboard has no Graphs</p>
-          <button
-            className="btn btn-primary btn-m"
-            onClick={onAddCell}
-          >
-            Add Graph
-          </button>
-        </div>
-      }
+        : <div className="dashboard__empty">
+            <p>This Dashboard has no Graphs</p>
+            <button className="btn btn-primary btn-m" onClick={onAddCell}>
+              Add Graph
+            </button>
+          </div>}
     </div>
   )
 }
 
-const {
-  bool,
-  func,
-  shape,
-  string,
-  number,
-} = PropTypes
+const {arrayOf, bool, func, shape, string, number} = PropTypes
 
 Dashboard.propTypes = {
   dashboard: shape({}).isRequired,
-  isEditMode: bool,
   inPresentationMode: bool,
   onAddCell: func,
   onPositionChange: func,
@@ -94,6 +124,26 @@ Dashboard.propTypes = {
   }).isRequired,
   autoRefresh: number.isRequired,
   timeRange: shape({}).isRequired,
+  onOpenTemplateManager: func.isRequired,
+  onSelectTemplate: func.isRequired,
+  templates: arrayOf(
+    shape({
+      type: string.isRequired,
+      tempVar: string.isRequired,
+      query: shape({
+        db: string,
+        rp: string,
+        influxql: string,
+      }),
+      values: arrayOf(
+        shape({
+          type: string.isRequired,
+          value: string.isRequired,
+          selected: bool,
+        })
+      ).isRequired,
+    })
+  ),
 }
 
 export default Dashboard
