@@ -6,6 +6,8 @@ import {
 } from 'src/shared/apis'
 import {publishNotification} from './notifications'
 
+import {HTTP_NOT_FOUND} from 'src/shared/constants'
+
 export const loadSources = sources => ({
   type: 'LOAD_SOURCES',
   payload: {
@@ -51,7 +53,7 @@ export const removeAndLoadSources = source => async dispatch => {
     } catch (err) {
       // A 404 means that either a concurrent write occurred or the source
       // passed to this action creator doesn't exist (or is undefined)
-      if (err.status !== 404) {
+      if (err.status !== HTTP_NOT_FOUND) {
         // eslint-disable-line no-magic-numbers
         throw err
       }

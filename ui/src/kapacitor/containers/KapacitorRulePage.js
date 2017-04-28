@@ -76,7 +76,7 @@ export const KapacitorRulePage = React.createClass({
         .catch(() => {
           addFlashMessage({
             type: 'error',
-            text: "We couldn't find a configured Kapacitor for this source",
+            text: 'We couldn\'t find a configured Kapacitor for this source',
           })
         })
     })
