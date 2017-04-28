@@ -14,7 +14,9 @@ export const handleSuccess = (data, query, editQueryStatus) => {
   const series = _.get(results, ['0', 'series'], false)
   // 200 from server and no results = warn
   if (!series && !error) {
-    editQueryStatus(query.id, {warn: 'Your query is syntactically correct but returned no results'})
+    editQueryStatus(query.id, {
+      warn: 'Your query is syntactically correct but returned no results',
+    })
     return data
   }
 
@@ -37,10 +39,19 @@ export const handleError = (error, query, editQueryStatus) => {
   console.error(error)
 }
 
-export const fetchTimeSeriesAsync = async ({source, db, rp, query, templates}, editQueryStatus = noop) => {
+export const fetchTimeSeriesAsync = async (
+  {source, db, rp, query, tempVars},
+  editQueryStatus = noop
+) => {
   handleLoading(query, editQueryStatus)
   try {
-    const {data} = await proxy({source, db, rp, query: query.text, templates})
+    const {data} = await proxy({
+      source,
+      db,
+      rp,
+      query: query.text,
+      tempVars,
+    })
     return handleSuccess(data, query, editQueryStatus)
   } catch (error) {
     errorThrown(error)

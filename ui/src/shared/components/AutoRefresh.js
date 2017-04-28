@@ -105,10 +105,21 @@ const AutoRefresh = ComposedComponent => {
 
       this.setState({isFetching: true})
 
+      const selectedTempVarTemplates = templates.map(template => {
+        const selectedValues = template.values.filter(value => value.selected)
+        return {...template, values: selectedValues}
+      })
+
       const timeSeriesPromises = queries.map(query => {
         const {host, database, rp} = query
         return fetchTimeSeriesAsync(
-          {source: host, db: database, rp, query, templates},
+          {
+            source: host,
+            db: database,
+            rp,
+            query,
+            tempVars: selectedTempVarTemplates,
+          },
           editQueryStatus
         )
       })
