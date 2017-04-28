@@ -12,7 +12,7 @@ $tvmp-table-gutter: 8px;
 
 .template-variable-manager {
   max-width: $tvmp-panel-max-width;
-  margin: 0 $tvmp-gutter;
+  margin: 0 auto;
 }
 .template-variable-manager--header {
   height: $chronograf-page-header-height;

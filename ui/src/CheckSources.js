@@ -28,7 +28,6 @@ const CheckSources = React.createClass({
         }).isRequired,
       })
     ),
-    addFlashMessage: func,
     children: node,
     params: shape({
       sourceID: string,

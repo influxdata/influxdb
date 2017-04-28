@@ -36,9 +36,6 @@ class Dropdown extends Component {
     if (e) {
       e.stopPropagation()
     }
-    if (this.props.onClick) {
-      this.props.onClick(e)
-    }
     this.setState({isOpen: !this.state.isOpen})
   }
 

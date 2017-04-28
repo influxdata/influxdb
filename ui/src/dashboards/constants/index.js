@@ -70,3 +70,5 @@ export const TEMPLATE_VARIABLE_QUERIES = {
   tagKeys: 'SHOW TAG KEYS ON :database: FROM :measurement:',
   tagValues: 'SHOW TAG VALUES ON :database: FROM :measurement: WITH KEY=:tagKey:',
 }
+
+export const TEMPLATE_MATCHER = /\B:\B|:\w+\b(?!:)/g

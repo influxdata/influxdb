@@ -14,7 +14,8 @@ $overlay-z: 100;
   left: 0;
   right: 0;
   z-index: $overlay-z;
-  
+  padding: 0 30px;
+
   &:before {
     content: '';
     display: block;

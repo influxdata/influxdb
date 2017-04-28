@@ -95,8 +95,8 @@ const AutoRefresh = ComposedComponent => {
       )
     },
 
-    async executeQueries(queries) {
-      const {templates, editQueryStatus} = this.props
+    executeQueries(queries) {
+      const {templates = [], editQueryStatus} = this.props
 
       if (!queries.length) {
         this.setState({timeSeries: []})
