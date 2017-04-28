@@ -41,25 +41,6 @@ $dash-graph-options-arrow: 8px;
 }
 
 .dashboard {
-  .template-control-bar {
-    height: 50px;
-    font-size: 18px;
-    font-weight: 400;
-    color: $g14-chromium;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 4px;
-    padding: 10px 15px;
-    @extend .cell-shell;
-    .dropdown {
-      flex: 0 1 auto;
-      min-width: 100px;
-    }
-    .dropdown-toggle {
-      width: 100%;
-    }
-  }
   .react-grid-item {
     @extend .cell-shell;
   }
@@ -375,6 +356,12 @@ $dash-graph-options-arrow: 8px;
     }
   }
 }
+
+/*
+  Template Control Bar
+  ------------------------------------------------------
+*/
+@import '../components/template-control-bar';
 
 /*
   Overylay Technology (Cell Edit Mode)

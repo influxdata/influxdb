@@ -51,35 +51,37 @@ const Dashboard = ({
       )}
     >
       <div className="template-control-bar">
-        <div className="page-header__left">
-          Template Variables
-        </div>
-        <div className="page-header__right">
-          {templates.map(({id, values}) => {
-            const items = values.map(value => ({...value, text: value.value}))
-            const selectedItem = items.find(item => item.selected) || items[0]
-            const selectedText = selectedItem && selectedItem.text
+        <h1 className="template-control--heading">Template Variables</h1>
+        {templates.map(({id, values, tempVar}) => {
+          const items = values.map(value => ({...value, text: value.value}))
+          const selectedItem = items.find(item => item.selected) || items[0]
+          const selectedText = selectedItem && selectedItem.text
 
-            // TODO: change Dropdown to a MultiSelectDropdown, `selected` to
-            // the full array, and [item] to all `selected` values when we update
-            // this component to support multiple values
-            return (
+          // TODO: change Dropdown to a MultiSelectDropdown, `selected` to
+          // the full array, and [item] to all `selected` values when we update
+          // this component to support multiple values
+          return (
+            <div key={id} className="template-control--dropdown">
               <Dropdown
-                key={id}
                 items={items}
+                buttonSize="btn-xs"
                 selected={selectedText || 'Loading...'}
                 onChoose={item =>
                   onSelectTemplate(id, [item].map(x => omit(x, 'text')))}
               />
-            )
-          })}
-          <button
-            className="btn btn-primary btn-sm"
-            onClick={onOpenTemplateManager}
-          >
-            Manage
-          </button>
-        </div>
+              <label className="template-control--label">
+                {tempVar}
+              </label>
+            </div>
+          )
+        })}
+        <button
+          className="btn btn-primary btn-sm template-control--manage"
+          onClick={onOpenTemplateManager}
+        >
+          <span className="icon cog-thick" />
+           Manage
+        </button>
       </div>
       {cells.length
         ? <LayoutRenderer

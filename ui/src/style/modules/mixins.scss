@@ -70,7 +70,9 @@ $scrollbar-offset: 3px;
   &::-webkit-scrollbar {
     width: $scrollbar-width;
     border-top-right-radius: $radius;
+    border-top-left-radius: $radius;
     border-bottom-right-radius: $radius;
+    border-bottom-left-radius: $radius;
 
     &-button {
       background-color: $trackColor;
