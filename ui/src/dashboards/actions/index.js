@@ -98,9 +98,10 @@ export const renameDashboardCell = (dashboard, x, y, name) => ({
   },
 })
 
-export const deleteDashboardCell = cell => ({
+export const deleteDashboardCell = (dashboard, cell) => ({
   type: 'DELETE_DASHBOARD_CELL',
   payload: {
+    dashboard,
     cell,
   },
 })
@@ -185,10 +186,10 @@ export const addDashboardCellAsync = dashboard => async dispatch => {
   }
 }
 
-export const deleteDashboardCellAsync = cell => async dispatch => {
+export const deleteDashboardCellAsync = (dashboard, cell) => async dispatch => {
   try {
     await deleteDashboardCellAJAX(cell)
-    dispatch(deleteDashboardCell(cell))
+    dispatch(deleteDashboardCell(dashboard, cell))
   } catch (error) {
     console.error(error)
     dispatch(errorThrown(error))

@@ -151,7 +151,8 @@ class DashboardPage extends Component {
   }
 
   handleDeleteDashboardCell(cell) {
-    this.props.dashboardActions.deleteDashboardCellAsync(cell)
+    const dashboard = this.getActiveDashboard()
+    this.props.dashboardActions.deleteDashboardCellAsync(dashboard, cell)
   }
 
   handleSelectTemplate(templateID, values) {

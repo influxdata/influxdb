@@ -113,8 +113,7 @@ export default function ui(state = initialState, action) {
     }
 
     case 'DELETE_DASHBOARD_CELL': {
-      const {cell} = action.payload
-      const {dashboard} = state
+      const {dashboard, cell} = action.payload
 
       const newCells = dashboard.cells.filter(
         c => !(c.x === cell.x && c.y === cell.y)
