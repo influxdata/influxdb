@@ -1,4 +1,4 @@
-## v1.1.5 [unreleased]
+## v1.1.5 [2017-04-28]
 
 - [#8190](https://github.com/influxdata/influxdb/issues/8190): History file should redact passwords before saving to history.
 - [#8187](https://github.com/influxdata/influxdb/pull/8187): Several statements were missing the DefaultDatabase method
