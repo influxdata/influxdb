@@ -57,7 +57,7 @@ const Dashboard = ({
         <div className="page-header__right">
           {templates.map(({id, values}) => {
             const items = values.map(value => ({...value, text: value.value}))
-            const selectedItem = items.filter(item => item.selected) || items[0]
+            const selectedItem = items.find(item => item.selected) || items[0]
             const selectedText = selectedItem && selectedItem.text
 
             // TODO: change Dropdown to a MultiSelectDropdown, `selected` to
