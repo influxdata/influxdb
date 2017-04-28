@@ -34,7 +34,6 @@ $tvmp-table-gutter: 8px;
   max-height: $tvmp-max-height;
   @include gradient-v($g2-kevlar,$g0-obsidian);
   @include custom-scrollbar-round($g0-obsidian,$g3-castle);
-  overflow: auto;
 }
 .template-variable-manager--table,
 .template-variable-manager--table-container {
