@@ -9,7 +9,7 @@ const NoKapacitorError = React.createClass({
   },
 
   render() {
-    const path = `/sources/${this.props.source.id}/kapacitor-config`
+    const path = `/sources/${this.props.source.id}/kapacitors/new`
     return (
       <div>
         <p>The current source does not have an associated Kapacitor instance, please configure one.</p>
