@@ -66,9 +66,10 @@ Chronograf's graphing tool that allows you to dig in and create personalized vis
 
 ### Dashboards
 
-Version 1.2.0-beta6 introduces a UI for creating and editing dashboards. The dashboards support several visualization types including line graphs, stacked graphs, step plots, single statistic graphs, and line-single-statistic graphs.
+Create and edit customized dashboards. The dashboards support several visualization types including line graphs, stacked graphs, step plots, single statistic graphs, and line-single-statistic graphs.
 
-This feature is new in version 1.2.0-beta6. We recommend using dashboards in a non-production environment only. Please see the [known issues](#known-issues) section for known bugs, and, should you come across any bugs or unexpected behavior please open [an issue](https://github.com/influxdata/chronograf/issues/new). We appreciate the feedback!
+In version 1.2.0-beta10, Chronograf introduces dashboard template variables.
+Use template variables to easily adjust the data that appear in your graphs and gain deeper insight into your data.
 
 ### Kapacitor UI
 
@@ -112,7 +113,7 @@ Change the default root path of the Chronograf server with the `--basepath` opti
 
 ## Versions
 
-Chronograf v1.2.0-beta9 is a beta release.
+Chronograf v1.2.0-beta10 is a beta release.
 We will be iterating quickly based on user feedback and recommend using the [nightly builds](https://www.influxdata.com/downloads/) for the time being.
 
 Spotted a bug or have a feature request?
