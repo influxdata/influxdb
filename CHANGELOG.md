@@ -1,19 +1,27 @@
 ## v1.2.0 [unreleased]
 
 ### Bug Fixes
-  1. [#1337](https://github.com/influxdata/chronograf/pull/1337): Fix no apps for hosts false negative
-  1. [#1340](https://github.com/influxdata/chronograf/pull/1340): Fix no active query in DE and Cell editing
+### Features
+### UI Improvements
+
+## v1.2.0-beta10 [2017-04-28]
+
+### Bug Fixes
+  1. [#1337](https://github.com/influxdata/chronograf/pull/1337): Add support for blank hostnames on the Host List page
+  1. [#1340](https://github.com/influxdata/chronograf/pull/1340): Fix case where the Explorer and cell editor falsely assumed there was no active query
   1. [#1338](https://github.com/influxdata/chronograf/pull/1338): Require url and name when adding a new source
-  1. [#1348](https://github.com/influxdata/chronograf/pull/1348): Fix broken 'Add Kapacitor' Link
-  1. [#1351](https://github.com/influxdata/chronograf/pull/1350): Add a canned dashboard for phpfpm
+  1. [#1348](https://github.com/influxdata/chronograf/pull/1348): Fix broken `Add Kapacitor` link on the Alerts page - thank you, @nickysemenza
 
 ### Features
 
+  1. [#1154](https://github.com/influxdata/chronograf/issues/1154): Add template variables to Chronograf's customized dashboards
+  1. [#1351](https://github.com/influxdata/chronograf/pull/1351): Add a canned dashboard for [phpfpm](https://github.com/influxdata/telegraf/tree/master/plugins/inputs/phpfpm) - thank you, @nickysemenza 
+
 ### UI Improvements
-  1. [#1335](https://github.com/influxdata/chronograf/pull/1335): Improve UX for sanitized kapacitor settings
-  1. [#1342](https://github.com/influxdata/chronograf/pull/1342): No more sort-as-you-type in DB admin
-  1. [#1344](https://github.com/influxdata/chronograf/pull/1344): Remove K8 dashboard
-  1. [#1340](https://github.com/influxdata/chronograf/pull/1340): Automatically switch to table view if meta query
+  1. [#1335](https://github.com/influxdata/chronograf/pull/1335): Improve UX for sanitized Kapacitor event handler settings
+  1. [#1342](https://github.com/influxdata/chronograf/pull/1342): Fix DB Management's abrupt database sort; only sort databases after refresh/returning to page
+  1. [#1344](https://github.com/influxdata/chronograf/pull/1344): Remove the empty, default Kubernetes dashboard
+  1. [#1340](https://github.com/influxdata/chronograf/pull/1340): Automatically switch to table view the query is a meta query
 
 ## v1.2.0-beta9 [2017-04-21]
 

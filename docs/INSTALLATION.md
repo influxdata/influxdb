@@ -195,8 +195,8 @@ Now that we are collecting data with Telegraf and storing data with InfluxDB, it
 
 #### 1. Download and Install Chronograf
 ```
-wget https://dl.influxdata.com/chronograf/releases/chronograf_1.2.0~beta9_amd64.deb
-sudo dpkg -i chronograf_1.2.0~beta9_amd64.deb
+wget https://dl.influxdata.com/chronograf/releases/chronograf_1.2.0~beta10_amd64.deb
+sudo dpkg -i chronograf_1.2.0~beta10_amd64.deb
 ```
 
 #### 2. Start Chronograf
