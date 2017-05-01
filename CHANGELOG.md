@@ -1,6 +1,7 @@
 ## v1.2.0 [unreleased]
 
 ### Bug Fixes
+  1. [#1364](https://github.com/influxdata/chronograf/pull/1364): Fix link to home when using the --basepath option
 ### Features
 ### UI Improvements
 
@@ -15,7 +16,7 @@
 ### Features
 
   1. [#1154](https://github.com/influxdata/chronograf/issues/1154): Add template variables to Chronograf's customized dashboards
-  1. [#1351](https://github.com/influxdata/chronograf/pull/1351): Add a canned dashboard for [phpfpm](https://github.com/influxdata/telegraf/tree/master/plugins/inputs/phpfpm) - thank you, @nickysemenza 
+  1. [#1351](https://github.com/influxdata/chronograf/pull/1351): Add a canned dashboard for [phpfpm](https://github.com/influxdata/telegraf/tree/master/plugins/inputs/phpfpm) - thank you, @nickysemenza
 
 ### UI Improvements
   1. [#1335](https://github.com/influxdata/chronograf/pull/1335): Improve UX for sanitized Kapacitor event handler settings

@@ -1,5 +1,5 @@
 import React, {PropTypes} from 'react'
-import {withRouter} from 'react-router'
+import {withRouter, Link} from 'react-router'
 import {connect} from 'react-redux'
 
 import {
@@ -41,7 +41,7 @@ const SideNav = React.createClass({
       ? null
       : <NavBar location={location}>
           <div className="sidebar__logo">
-            <a href="/"><span className="icon cubo-uniform" /></a>
+            <Link to="/"><span className="icon cubo-uniform" /></Link>
           </div>
           <NavBlock icon="cubo-node" link={`${sourcePrefix}/hosts`}>
             <NavHeader link={`${sourcePrefix}/hosts`} title="Host List" />
