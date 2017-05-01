@@ -23,6 +23,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/pkg/estimator"
+	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/tsdb"
 	_ "github.com/influxdata/influxdb/tsdb/index"
 	"github.com/uber-go/zap"
@@ -132,6 +133,9 @@ type Engine struct {
 	enableCompactionsOnOpen bool
 
 	stats *EngineStatistics
+
+	// The limiter for concurrent compactions
+	compactionLimiter limiter.Fixed
 }
 
 // NewEngine returns a new instance of Engine.
@@ -171,7 +175,8 @@ func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, opt tsdb.
 		CacheFlushMemorySizeThreshold: opt.Config.CacheSnapshotMemorySize,
 		CacheFlushWriteColdDuration:   time.Duration(opt.Config.CacheSnapshotWriteColdDuration),
 		enableCompactionsOnOpen:       true,
-		stats: &EngineStatistics{},
+		stats:             &EngineStatistics{},
+		compactionLimiter: opt.CompactionLimiter,
 	}
 
 	// Attach fieldset to index.
@@ -1205,6 +1210,7 @@ type compactionStrategy struct {
 	logger    zap.Logger
 	compactor *Compactor
 	fileStore *FileStore
+	limiter   limiter.Fixed
 }
 
 // Apply concurrently compacts all the groups in a compaction strategy.
@@ -1226,6 +1232,12 @@ func (s *compactionStrategy) Apply() {
 
 // compactGroup executes the compaction strategy against a single CompactionGroup.
 func (s *compactionStrategy) compactGroup(groupNum int) {
+	// Limit concurrent compactions if we have a limiter
+	if cap(s.limiter) > 0 {
+		s.limiter.Take()
+		defer s.limiter.Release()
+	}
+
 	group := s.compactionGroups[groupNum]
 	start := time.Now()
 	s.logger.Info(fmt.Sprintf("beginning %s compaction of group %d, %d TSM files", s.description, groupNum, len(group)))
@@ -1290,6 +1302,7 @@ func (e *Engine) levelCompactionStrategy(fast bool, level int) *compactionStrate
 		fileStore:        e.FileStore,
 		compactor:        e.Compactor,
 		fast:             fast,
+		limiter:          e.compactionLimiter,
 
 		description:  fmt.Sprintf("level %d", level),
 		activeStat:   &e.stats.TSMCompactionsActive[level-1],
@@ -1320,6 +1333,7 @@ func (e *Engine) fullCompactionStrategy() *compactionStrategy {
 		fileStore:        e.FileStore,
 		compactor:        e.Compactor,
 		fast:             optimize,
+		limiter:          e.compactionLimiter,
 	}
 
 	if optimize {

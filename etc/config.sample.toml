@@ -89,6 +89,11 @@
   # write or delete
   # compact-full-write-cold-duration = "4h"
 
+  # The maximum number of concurrent full and level compactions that can run at one time.  A
+  # value of 0 results in runtime.GOMAXPROCS(0) used at runtime.  This setting does not apply
+  # to cache snapshotting.
+  # max-concurrent-compactions = 0
+
   # The maximum series allowed per database before writes are dropped.  This limit can prevent
   # high cardinality issues at the database level.  This limit can be disabled by setting it to
   # 0.

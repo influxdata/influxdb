@@ -12,6 +12,7 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/estimator"
+	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/uber-go/zap"
 )
 
@@ -136,10 +137,11 @@ func NewEngine(id uint64, i Index, path string, walPath string, options EngineOp
 
 // EngineOptions represents the options used to initialize the engine.
 type EngineOptions struct {
-	EngineVersion string
-	IndexVersion  string
-	ShardID       uint64
-	InmemIndex    interface{} // shared in-memory index
+	EngineVersion     string
+	IndexVersion      string
+	ShardID           uint64
+	InmemIndex        interface{} // shared in-memory index
+	CompactionLimiter limiter.Fixed
 
 	Config Config
 }

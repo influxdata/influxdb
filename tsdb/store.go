@@ -158,6 +158,13 @@ func (s *Store) loadShards() error {
 
 	t := limiter.NewFixed(runtime.GOMAXPROCS(0))
 
+	// Setup a shared limiter for compactions
+	lim := s.EngineOptions.Config.MaxConcurrentCompactions
+	if lim == 0 {
+		lim = runtime.GOMAXPROCS(0)
+	}
+	s.EngineOptions.CompactionLimiter = limiter.NewFixed(lim)
+
 	resC := make(chan *res)
 	var n int
 
