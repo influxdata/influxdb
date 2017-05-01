@@ -64,17 +64,12 @@ const DatabaseDropdown = React.createClass({
     const {namespaces} = this.state
 
     return (
-      <div className="query-builder--column">
-        <div className="query-builder--heading">Databases</div>
-        <div className="query-builder--list">
-          <Dropdown
-            className="dropdown-160 query-builder--db-dropdown"
-            items={namespaces.map(n => ({...n, text: `${n.database}.${n.retentionPolicy}`}))}
-            onChoose={onChooseNamespace}
-            selected={(query.database && query.retentionPolicy) ? `${query.database}.${query.retentionPolicy}` : 'Choose a DB & RP'}
-          />
-        </div>
-      </div>
+      <Dropdown
+        className="dropdown-160 query-builder--db-dropdown"
+        items={namespaces.map(n => ({...n, text: `${n.database}.${n.retentionPolicy}`}))}
+        onChoose={onChooseNamespace}
+        selected={(query.database && query.retentionPolicy) ? `${query.database}.${query.retentionPolicy}` : 'Choose a DB & RP'}
+      />
     )
   },
 })
