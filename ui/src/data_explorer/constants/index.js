@@ -42,7 +42,7 @@ export const QUERY_TEMPLATES = [
   },
   {text: `${SEPARATOR}`},
   {
-    text: 'Show Continuos Queries',
+    text: 'Show Continuous Queries',
     query: 'SHOW CONTINUOUS QUERIES',
   },
   {
