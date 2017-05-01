@@ -145,6 +145,11 @@ func (w *csvFormatter) WriteResponse(resp Response) (n int, err error) {
 			}
 			for _, values := range row.Values {
 				for i, value := range values {
+					if value == nil {
+						w.columns[i+2] = ""
+						continue
+					}
+
 					switch v := value.(type) {
 					case float64:
 						w.columns[i+2] = strconv.FormatFloat(v, 'f', -1, 64)
@@ -160,6 +165,8 @@ func (w *csvFormatter) WriteResponse(resp Response) (n int, err error) {
 						}
 					case time.Time:
 						w.columns[i+2] = strconv.FormatInt(v.UnixNano(), 10)
+					case *float64, *int64, *string, *bool:
+						w.columns[i+2] = ""
 					}
 				}
 				csv.Write(w.columns)
