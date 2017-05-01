@@ -4,6 +4,7 @@
   1. [#1364](https://github.com/influxdata/chronograf/pull/1364): Fix link to home when using the --basepath option
 ### Features
 ### UI Improvements
+  1. [#1365](https://github.com/influxdata/chronograf/pull/1365): Show red indicator on Hosts Page for an offline host
 
 ## v1.2.0-beta10 [2017-04-28]
 

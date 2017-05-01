@@ -1,6 +1,9 @@
 import React, {PropTypes} from 'react'
-import shallowCompare from 'react-addons-shallow-compare'
 import {Link} from 'react-router'
+
+import shallowCompare from 'react-addons-shallow-compare'
+import classnames from 'classnames'
+
 import _ from 'lodash'
 
 const {arrayOf, bool, number, shape, string} = PropTypes
@@ -187,19 +190,19 @@ const HostRow = React.createClass({
     const {host, source} = this.props
     const {name, cpu, load, apps = []} = host
 
-    let stateStr = ''
-    if (host.deltaUptime < 0) {
-      stateStr = 'table-dot dot-critical'
-    } else if (host.deltaUptime > 0) {
-      stateStr = 'table-dot dot-success'
-    }
-
     return (
       <tr>
         <td className="monotype">
           <Link to={`/sources/${source.id}/hosts/${name}`}>{name}</Link>
         </td>
-        <td style={{width: '74px'}}><div className={stateStr} /></td>
+        <td style={{width: '74px'}}>
+          <div
+            className={classnames(
+              'table-dot',
+              host.deltaUptime > 0 ? 'dot-success' : 'dot-critical'
+            )}
+          />
+        </td>
         <td className="monotype" style={{width: '70px'}}>
           {isNaN(cpu) ? 'N/A' : `${cpu.toFixed(2)}%`}
         </td>
