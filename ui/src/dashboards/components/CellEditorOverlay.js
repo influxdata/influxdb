@@ -184,6 +184,7 @@ class CellEditorOverlay extends Component {
                 setActiveQueryIndex={this.handleSetActiveQueryIndex}
                 onDeleteQuery={this.handleDeleteQuery}
                 activeQueryIndex={activeQueryIndex}
+                layout="panel"
               />
             </div>
           </ResizeBottom>

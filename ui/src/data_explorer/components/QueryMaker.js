@@ -3,6 +3,7 @@ import React, {PropTypes} from 'react'
 import QueryBuilder from './QueryBuilder'
 import QueryMakerTab from './QueryMakerTab'
 import buildInfluxQLQuery from 'utils/influxql'
+import classNames from 'classnames'
 
 const {arrayOf, func, node, number, shape, string} = PropTypes
 
@@ -41,6 +42,7 @@ const QueryMaker = React.createClass({
     onDeleteQuery: func.isRequired,
     activeQueryIndex: number,
     children: node,
+    layout: string,
   },
 
   handleAddQuery() {
@@ -64,9 +66,9 @@ const QueryMaker = React.createClass({
   },
 
   render() {
-    const {height, top} = this.props
+    const {height, top, layout} = this.props
     return (
-      <div className="query-maker" style={{height, top}}>
+      <div className={classNames('query-maker', {'query-maker--panel': layout === 'panel'})} style={{height, top}}>
         {this.renderQueryTabList()}
         {this.renderQueryBuilder()}
       </div>
@@ -74,7 +76,7 @@ const QueryMaker = React.createClass({
   },
 
   renderQueryBuilder() {
-    const {timeRange, actions, source, templates} = this.props
+    const {timeRange, actions, source, templates, layout} = this.props
     const query = this.getActiveQuery()
 
     if (!query) {
@@ -101,6 +103,7 @@ const QueryMaker = React.createClass({
         query={query}
         actions={actions}
         onAddQuery={this.handleAddQuery}
+        layout={layout}
       />
     )
   },
@@ -145,4 +148,7 @@ const QueryMaker = React.createClass({
   },
 })
 
+QueryMaker.defaultProps = {
+  layout: 'default',
+}
 export default QueryMaker
