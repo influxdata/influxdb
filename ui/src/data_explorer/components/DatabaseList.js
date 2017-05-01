@@ -1,9 +1,10 @@
 import React, {PropTypes} from 'react'
+import classNames from 'classnames'
+import _ from 'lodash'
 
 import {showDatabases, showRetentionPolicies} from 'shared/apis/metaQuery'
 import showDatabasesParser from 'shared/parsing/showDatabases'
 import showRetentionPoliciesParser from 'shared/parsing/showRetentionPolicies'
-import Dropdown from 'shared/components/Dropdown'
 
 const {func, shape, string} = PropTypes
 
@@ -61,7 +62,6 @@ const DatabaseList = React.createClass({
 
   render() {
     const {query, onChooseNamespace} = this.props
-    const {namespaces} = this.state
 
     return (
       <div className="query-builder--column">
