@@ -18,17 +18,19 @@ export default async function AJAX({
     url = `${basepath}${url}`
 
     if (!links) {
-      const linksRes = response = await axios({
+      const linksRes = (response = await axios({
         url: `${basepath}/chronograf/v1`,
         method: 'GET',
-      })
+      }))
       links = linksRes.data
     }
 
     const {auth} = links
 
     if (resource) {
-      url = id ? `${basepath}${links[resource]}/${id}` : `${basepath}${links[resource]}`
+      url = id
+        ? `${basepath}${links[resource]}/${id}`
+        : `${basepath}${links[resource]}`
     }
 
     response = await axios({

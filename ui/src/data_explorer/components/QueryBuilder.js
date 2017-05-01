@@ -6,11 +6,7 @@ import FieldList from './FieldList'
 import QueryEditor from './QueryEditor'
 import buildInfluxQLQuery from 'utils/influxql'
 
-const {
-  string,
-  shape,
-  func,
-} = PropTypes
+const {arrayOf, func, shape, string} = PropTypes
 
 const QueryBuilder = React.createClass({
   propTypes: {
@@ -26,6 +22,11 @@ const QueryBuilder = React.createClass({
       upper: string,
       lower: string,
     }).isRequired,
+    templates: arrayOf(
+      shape({
+        tempVar: string.isRequired,
+      })
+    ),
     actions: shape({
       chooseNamespace: func.isRequired,
       chooseMeasurement: func.isRequired,
@@ -77,17 +78,21 @@ const QueryBuilder = React.createClass({
   },
 
   render() {
-    const {query, timeRange} = this.props
+    const {query, timeRange, templates} = this.props
     const q = query.rawText || buildInfluxQLQuery(timeRange, query) || ''
 
     return (
       <div className="query-maker--tab-contents">
-        <QueryEditor query={q} config={query} onUpdate={this.handleEditRawText} />
+        <QueryEditor
+          query={q}
+          config={query}
+          onUpdate={this.handleEditRawText}
+          templates={templates}
+        />
         {this.renderLists()}
       </div>
     )
   },
-
 
   renderLists() {
     const {query} = this.props

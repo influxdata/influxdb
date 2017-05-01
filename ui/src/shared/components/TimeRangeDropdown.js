@@ -22,11 +22,12 @@ const TimeRangeDropdown = React.createClass({
 
   findTimeRangeInputValue({upper, lower}) {
     if (upper && lower) {
-      const format = (t) => moment(t.replace(/\'/g, '')).format('YYYY-MM-DD HH:mm')
+      const format = t =>
+        moment(t.replace(/\'/g, '')).format('YYYY-MM-DD HH:mm')
       return `${format(lower)} - ${format(upper)}`
     }
 
-    const selected = timeRanges.find((range) => range.lower === lower)
+    const selected = timeRanges.find(range => range.lower === lower)
     return selected ? selected.inputValue : 'Custom'
   },
 
@@ -55,14 +56,19 @@ const TimeRangeDropdown = React.createClass({
 
     return (
       <div className="dropdown dropdown-160">
-        <div className="btn btn-sm btn-info dropdown-toggle" onClick={() => self.toggleMenu()}>
-          <span className="icon clock"></span>
-          <span className="selected-time-range">{self.findTimeRangeInputValue(selected)}</span>
+        <div
+          className="btn btn-sm btn-info dropdown-toggle"
+          onClick={() => self.toggleMenu()}
+        >
+          <span className="icon clock" />
+          <span className="selected-time-range">
+            {self.findTimeRangeInputValue(selected)}
+          </span>
           <span className="caret" />
         </div>
         <ul className={classnames('dropdown-menu', {show: isOpen})}>
           <li className="dropdown-header">Time Range</li>
-          {timeRanges.map((item) => {
+          {timeRanges.map(item => {
             return (
               <li key={item.menuOption}>
                 <a href="#" onClick={() => self.handleSelection(item)}>

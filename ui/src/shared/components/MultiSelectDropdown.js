@@ -7,7 +7,7 @@ const labelText = ({localSelectedItems, isOpen, label}) => {
   if (label) {
     return label
   } else if (localSelectedItems.length) {
-    return localSelectedItems.map((s) => s).join(', ')
+    return localSelectedItems.map(s => s).join(', ')
   }
 
   // TODO: be smarter about the text displayed here
@@ -46,7 +46,7 @@ class MultiSelectDropdown extends Component {
 
     let nextItems
     if (this.isSelected(item)) {
-      nextItems = localSelectedItems.filter((i) => i !== item)
+      nextItems = localSelectedItems.filter(i => i !== item)
     } else {
       nextItems = localSelectedItems.concat(item)
     }
@@ -70,14 +70,18 @@ class MultiSelectDropdown extends Component {
     const {label} = this.props
 
     return (
-      <div className={classNames('dropdown multi-select-dropdown', {open: isOpen})}>
-        <div onClick={::this.toggleMenu} className="btn btn-xs btn-info dropdown-toggle" type="button">
+      <div
+        className={classNames('dropdown multi-select-dropdown', {open: isOpen})}
+      >
+        <div
+          onClick={::this.toggleMenu}
+          className="btn btn-xs btn-info dropdown-toggle"
+          type="button"
+        >
           <div className="multi-select-dropdown__label">
-            {
-              labelText({localSelectedItems, isOpen, label})
-            }
+            {labelText({localSelectedItems, isOpen, label})}
           </div>
-          <span className="caret"></span>
+          <span className="caret" />
         </div>
         {this.renderMenu()}
       </div>
@@ -89,15 +93,24 @@ class MultiSelectDropdown extends Component {
 
     return (
       <div className="dropdown-options">
-        <div className="multi-select-dropdown__apply" onClick={this.onApplyFunctions} style={{listStyle: 'none'}}>
+        <div
+          className="multi-select-dropdown__apply"
+          onClick={this.onApplyFunctions}
+          style={{listStyle: 'none'}}
+        >
           <div className="btn btn-xs btn-info btn-block">Apply</div>
         </div>
-        <ul className="dropdown-menu multi-select-dropdown__menu" aria-labelledby="dropdownMenu1">
+        <ul
+          className="dropdown-menu multi-select-dropdown__menu"
+          aria-labelledby="dropdownMenu1"
+        >
           {items.map((listItem, i) => {
             return (
               <li
                 key={i}
-                className={classNames('multi-select-dropdown__item', {active: this.isSelected(listItem)})}
+                className={classNames('multi-select-dropdown__item', {
+                  active: this.isSelected(listItem),
+                })}
                 onClick={_.wrap(listItem, this.onSelect)}
               >
                 <a href="#">{listItem}</a>
@@ -110,11 +123,7 @@ class MultiSelectDropdown extends Component {
   }
 }
 
-const {
-  arrayOf,
-  func,
-  string,
-} = PropTypes
+const {arrayOf, func, string} = PropTypes
 
 MultiSelectDropdown.propTypes = {
   onApply: func.isRequired,

@@ -24,7 +24,6 @@ class DatabaseManagerPage extends Component {
   render() {
     const {source, databases, actions, notify} = this.props
     return (
-
       <DatabaseManager
         databases={databases}
         notify={notify}
@@ -95,14 +94,7 @@ class DatabaseManagerPage extends Component {
   }
 }
 
-const {
-  arrayOf,
-  bool,
-  func,
-  number,
-  shape,
-  string,
-} = PropTypes
+const {arrayOf, bool, func, number, shape, string} = PropTypes
 
 DatabaseManagerPage.propTypes = {
   source: shape({
@@ -110,16 +102,22 @@ DatabaseManagerPage.propTypes = {
       proxy: string,
     }),
   }),
-  databases: arrayOf(shape({
-    name: string,
-    isEditing: bool,
-  })),
-  retentionPolicies: arrayOf(arrayOf(shape({
-    name: string,
-    duration: string,
-    replication: number,
-    isDefault: bool,
-  }))),
+  databases: arrayOf(
+    shape({
+      name: string,
+      isEditing: bool,
+    })
+  ),
+  retentionPolicies: arrayOf(
+    arrayOf(
+      shape({
+        name: string,
+        duration: string,
+        replication: number,
+        isDefault: bool,
+      })
+    )
+  ),
   actions: shape({
     addRetentionPolicy: func,
     loadDBsAndRPsAsync: func,
@@ -140,7 +138,7 @@ const mapStateToProps = ({admin: {databases, retentionPolicies}}) => ({
   retentionPolicies,
 })
 
-const mapDispatchToProps = (dispatch) => ({
+const mapDispatchToProps = dispatch => ({
   actions: bindActionCreators(adminActionCreators, dispatch),
   notify: bindActionCreators(publishAutoDismissingNotification, dispatch),
 })

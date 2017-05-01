@@ -2,19 +2,12 @@ import React, {PropTypes} from 'react'
 import classnames from 'classnames'
 import ReactTooltip from 'react-tooltip'
 
-import RuleMessageAlertConfig from 'src/kapacitor/components/RuleMessageAlertConfig'
+import RuleMessageAlertConfig
+  from 'src/kapacitor/components/RuleMessageAlertConfig'
 
-import {
-  RULE_MESSAGE_TEMPLATES as templates,
-  DEFAULT_ALERTS,
-} from '../constants'
+import {RULE_MESSAGE_TEMPLATES as templates, DEFAULT_ALERTS} from '../constants'
 
-const {
-  arrayOf,
-  func,
-  shape,
-  string,
-} = PropTypes
+const {arrayOf, func, shape, string} = PropTypes
 
 export const RuleMessage = React.createClass({
   propTypes: {
@@ -47,13 +40,15 @@ export const RuleMessage = React.createClass({
 
   render() {
     const {rule, actions, enabledAlerts} = this.props
-    const defaultAlertEndpoints = DEFAULT_ALERTS.map((text) => {
+    const defaultAlertEndpoints = DEFAULT_ALERTS.map(text => {
       return {text, ruleID: rule.id}
     })
 
-    const alerts = enabledAlerts.map((text) => {
-      return {text, ruleID: rule.id}
-    }).concat(defaultAlertEndpoints)
+    const alerts = enabledAlerts
+      .map(text => {
+        return {text, ruleID: rule.id}
+      })
+      .concat(defaultAlertEndpoints)
 
     const selectedAlert = rule.alerts[0] || alerts[0].text
 
@@ -64,15 +59,17 @@ export const RuleMessage = React.createClass({
           <div className="kapacitor-values-tabs">
             <p>Send this Alert to:</p>
             <ul className="btn-group btn-group-lg tab-group">
-              {alerts.map(alert =>
+              {alerts.map(alert => (
                 <li
                   key={alert.text}
-                  className={classnames('btn tab', {active: alert.text === selectedAlert})}
+                  className={classnames('btn tab', {
+                    active: alert.text === selectedAlert,
+                  })}
                   onClick={() => this.handleChooseAlert(alert)}
                 >
                   {alert.text}
                 </li>
-              )}
+              ))}
             </ul>
           </div>
           <RuleMessageAlertConfig
@@ -80,39 +77,46 @@ export const RuleMessage = React.createClass({
             alert={selectedAlert}
             rule={rule}
           />
-          {
-            selectedAlert === 'smtp' ?
-            <div className="alert-message--email-body">
-              <textarea
-                className="alert-text details"
-                placeholder="Email body text goes here"
-                ref={(r) => this.details = r}
-                onChange={() => actions.updateDetails(rule.id, this.details.value)}
-                value={rule.details}
-              />
-            </div> : null
-          }
+          {selectedAlert === 'smtp'
+            ? <div className="alert-message--email-body">
+                <textarea
+                  className="alert-text details"
+                  placeholder="Email body text goes here"
+                  ref={r => (this.details = r)}
+                  onChange={() =>
+                    actions.updateDetails(rule.id, this.details.value)}
+                  value={rule.details}
+                />
+              </div>
+            : null}
           <textarea
             className="alert-text message"
-            ref={(r) => this.message = r}
+            ref={r => (this.message = r)}
             onChange={() => actions.updateMessage(rule.id, this.message.value)}
-            placeholder='Example: {{ .ID }} is {{ .Level }} value: {{ index .Fields "value" }}'
+            placeholder="Example: {{ .ID }} is {{ .Level }} value: {{ index .Fields &quot;value&quot; }}"
             value={rule.message}
           />
           <div className="alert-message--formatting">
             <p>Templates:</p>
-            {
-              Object.keys(templates).map(t => {
-                return (
+            {Object.keys(templates).map(t => {
+              return (
                 <CodeData
                   key={t}
                   template={templates[t]}
-                  onClickTemplate={() => actions.updateMessage(rule.id, `${this.message.value} ${templates[t].label}`)}
+                  onClickTemplate={() =>
+                    actions.updateMessage(
+                      rule.id,
+                      `${this.message.value} ${templates[t].label}`
+                    )}
                 />
-                )
-              })
-            }
-            <ReactTooltip effect="solid" html={true} offset={{top: -4}} class="influx-tooltip kapacitor-tooltip" />
+              )
+            })}
+            <ReactTooltip
+              effect="solid"
+              html={true}
+              offset={{top: -4}}
+              class="influx-tooltip kapacitor-tooltip"
+            />
           </div>
         </div>
       </div>
@@ -133,9 +137,7 @@ const CodeData = React.createClass({
     const {onClickTemplate, template} = this.props
     const {label, text} = template
 
-    return (
-      <code data-tip={text} onClick={onClickTemplate}>{label}</code>
-    )
+    return <code data-tip={text} onClick={onClickTemplate}>{label}</code>
   },
 })
 

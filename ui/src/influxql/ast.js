@@ -23,7 +23,7 @@ const exprStr = ({expr, val, type}) => {
   }
 }
 
-const recurse = (root) => {
+const recurse = root => {
   const {expr} = root
 
   if (expr === 'binary') {
@@ -40,15 +40,8 @@ const recurse = (root) => {
   return exprStr(root)
 }
 
-export const toString = (ast) => {
-  const {
-    fields,
-    sources,
-    condition,
-    groupBy,
-    orderbys,
-    limits,
-  } = ast
+export const toString = ast => {
+  const {fields, sources, condition, groupBy, orderbys, limits} = ast
 
   const strs = ['SELECT']
 
@@ -108,9 +101,13 @@ export const toString = (ast) => {
   // ORDER BY
   if (orderbys && orderbys.length) {
     strs.push('ORDER BY')
-    strs.push(orderbys.map(({name, order}) => {
-      return `${name} ${order === 'descending' ? 'DESC' : 'ASC'}`
-    }).join(','))
+    strs.push(
+      orderbys
+        .map(({name, order}) => {
+          return `${name} ${order === 'descending' ? 'DESC' : 'ASC'}`
+        })
+        .join(',')
+    )
   }
 
   // LIMIT

@@ -13,14 +13,7 @@ const GridLayout = WidthProvider(ReactGridLayout)
 const RefreshingLineGraph = AutoRefresh(LineGraph)
 const RefreshingSingleStat = AutoRefresh(SingleStat)
 
-const {
-  arrayOf,
-  bool,
-  func,
-  number,
-  shape,
-  string,
-} = PropTypes
+const {arrayOf, bool, func, number, shape, string} = PropTypes
 
 export const LayoutRenderer = React.createClass({
   propTypes: {
@@ -46,6 +39,7 @@ export const LayoutRenderer = React.createClass({
         type: string.isRequired,
       }).isRequired
     ),
+    templates: arrayOf(shape()).isRequired,
     host: string,
     source: string,
     onPositionChange: func,
@@ -59,7 +53,7 @@ export const LayoutRenderer = React.createClass({
 
   buildQueryForOldQuerySchema(q) {
     const {timeRange: {lower}, host} = this.props
-    const {defaultGroupBy} = timeRanges.find((range) => range.lower === lower)
+    const {defaultGroupBy} = timeRanges.find(range => range.lower === lower)
     const {wheres, groupbys} = q
 
     let text = q.text
@@ -75,7 +69,7 @@ export const LayoutRenderer = React.createClass({
     }
 
     if (groupbys) {
-      if (groupbys.find((g) => g.includes('time'))) {
+      if (groupbys.find(g => g.includes('time'))) {
         text += ` group by ${groupbys.join(',')}`
       } else if (groupbys.length > 0) {
         text += ` group by time(${defaultGroupBy}),${groupbys.join(',')}`
@@ -89,11 +83,50 @@ export const LayoutRenderer = React.createClass({
     return text
   },
 
-  generateVisualizations() {
-    const {autoRefresh, timeRange, source, cells, onEditCell, onRenameCell, onUpdateCell, onDeleteCell, onSummonOverlayTechnologies, shouldNotBeEditable} = this.props
+  renderRefreshingGraph(type, queries) {
+    const {autoRefresh, templates} = this.props
 
-    return cells.map((cell) => {
-      const qs = cell.queries.map((query) => {
+    if (type === 'single-stat') {
+      return (
+        <RefreshingSingleStat
+          queries={[queries[0]]}
+          templates={templates}
+          autoRefresh={autoRefresh}
+        />
+      )
+    }
+
+    const displayOptions = {
+      stepPlot: type === 'line-stepplot',
+      stackedGraph: type === 'line-stacked',
+    }
+
+    return (
+      <RefreshingLineGraph
+        queries={queries}
+        templates={templates}
+        autoRefresh={autoRefresh}
+        showSingleStat={type === 'line-plus-single-stat'}
+        displayOptions={displayOptions}
+      />
+    )
+  },
+
+  generateVisualizations() {
+    const {
+      timeRange,
+      source,
+      cells,
+      onEditCell,
+      onRenameCell,
+      onUpdateCell,
+      onDeleteCell,
+      onSummonOverlayTechnologies,
+      shouldNotBeEditable,
+    } = this.props
+
+    return cells.map(cell => {
+      const queries = cell.queries.map(query => {
         // TODO: Canned dashboards (and possibly Kubernetes dashboard) use an old query schema,
         // which does not have enough information for the new `buildInfluxQLQuery` function
         // to operate on. We will use `buildQueryForOldQuerySchema` until we conform
@@ -101,7 +134,8 @@ export const LayoutRenderer = React.createClass({
         let queryText
         if (query.queryConfig) {
           const {queryConfig: {rawText}} = query
-          queryText = rawText || buildInfluxQLQuery(timeRange, query.queryConfig)
+          queryText =
+            rawText || buildInfluxQLQuery(timeRange, query.queryConfig)
         } else {
           queryText = this.buildQueryForOldQuerySchema(query)
         }
@@ -111,29 +145,6 @@ export const LayoutRenderer = React.createClass({
           text: queryText,
         })
       })
-
-      if (cell.type === 'single-stat') {
-        return (
-          <div key={cell.i}>
-            <NameableGraph
-              onEditCell={onEditCell}
-              onRenameCell={onRenameCell}
-              onUpdateCell={onUpdateCell}
-              onDeleteCell={onDeleteCell}
-              onSummonOverlayTechnologies={onSummonOverlayTechnologies}
-              shouldNotBeEditable={shouldNotBeEditable}
-              cell={cell}
-            >
-              <RefreshingSingleStat queries={[qs[0]]} autoRefresh={autoRefresh} />
-            </NameableGraph>
-          </div>
-        )
-      }
-
-      const displayOptions = {
-        stepPlot: cell.type === 'line-stepplot',
-        stackedGraph: cell.type === 'line-stacked',
-      }
 
       return (
         <div key={cell.i}>
@@ -146,12 +157,7 @@ export const LayoutRenderer = React.createClass({
             shouldNotBeEditable={shouldNotBeEditable}
             cell={cell}
           >
-            <RefreshingLineGraph
-              queries={qs}
-              autoRefresh={autoRefresh}
-              showSingleStat={cell.type === 'line-plus-single-stat'}
-              displayOptions={displayOptions}
-            />
+            {this.renderRefreshingGraph(cell.type, queries)}
           </NameableGraph>
         </div>
       )
@@ -165,8 +171,8 @@ export const LayoutRenderer = React.createClass({
       return
     }
 
-    const newCells = this.props.cells.map((cell) => {
-      const l = layout.find((ly) => ly.i === cell.i)
+    const newCells = this.props.cells.map(cell => {
+      const l = layout.find(ly => ly.i === cell.i)
       const newLayout = {x: l.x, y: l.y, h: l.h, w: l.w}
       return {...cell, ...newLayout}
     })
@@ -197,10 +203,9 @@ export const LayoutRenderer = React.createClass({
     )
   },
 
-
   triggerWindowResize() {
     // Hack to get dygraphs to fit properly during and after resize (dispatchEvent is a global method on window).
-    const evt = document.createEvent('CustomEvent')  // MUST be 'CustomEvent'
+    const evt = document.createEvent('CustomEvent') // MUST be 'CustomEvent'
     evt.initCustomEvent('resize', false, false, null)
     dispatchEvent(evt)
   },

@@ -44,8 +44,13 @@ class Notifications extends Component {
     const {dismissNotification} = this.props
 
     return (
-      <button className="close" data-dismiss="alert" aria-label="Close" onClick={() => dismissNotification(type)}>
-        <span className="icon remove"></span>
+      <button
+        className="close"
+        data-dismiss="alert"
+        aria-label="Close"
+        onClick={() => dismissNotification(type)}
+      >
+        <span className="icon remove" />
       </button>
     )
   }
@@ -66,11 +71,7 @@ class Notifications extends Component {
   }
 }
 
-const {
-  func,
-  shape,
-  string,
-} = PropTypes
+const {func, shape, string} = PropTypes
 
 Notifications.propTypes = {
   location: shape({
@@ -90,10 +91,15 @@ const mapStateToProps = ({notifications}) => ({
   notifications,
 })
 
-const mapDispatchToProps = (dispatch) => ({
+const mapDispatchToProps = dispatch => ({
   publishNotification: bindActionCreators(publishNotificationAction, dispatch),
   dismissNotification: bindActionCreators(dismissNotificationAction, dispatch),
-  dismissAllNotifications: bindActionCreators(dismissAllNotificationsAction, dispatch),
+  dismissAllNotifications: bindActionCreators(
+    dismissAllNotificationsAction,
+    dispatch
+  ),
 })
 
-export default connect(mapStateToProps, mapDispatchToProps)(withRouter(Notifications))
+export default connect(mapStateToProps, mapDispatchToProps)(
+  withRouter(Notifications)
+)

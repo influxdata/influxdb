@@ -18,14 +18,14 @@ class ManageSources extends Component {
   }
 
   componentDidMount() {
-    this.props.sources.forEach((source) => {
+    this.props.sources.forEach(source => {
       this.props.fetchKapacitors(source)
     })
   }
 
   componentDidUpdate(prevProps) {
     if (prevProps.sources.length !== this.props.sources.length) {
-      this.props.sources.forEach((source) => {
+      this.props.sources.forEach(source => {
         this.props.fetchKapacitors(source)
       })
     }
@@ -37,7 +37,10 @@ class ManageSources extends Component {
     try {
       this.props.removeAndLoadSources(source)
     } catch (e) {
-      addFlashMessage({type: 'error', text: 'Could not remove source from Chronograf'})
+      addFlashMessage({
+        type: 'error',
+        text: 'Could not remove source from Chronograf',
+      })
     }
   }
 
@@ -49,7 +52,7 @@ class ManageSources extends Component {
         <div className="page-header">
           <div className="page-header__container">
             <div className="page-header__left">
-              <h1>Configuration</h1>
+              <h1 className="page-header__title">Configuration</h1>
             </div>
           </div>
         </div>
@@ -68,12 +71,7 @@ class ManageSources extends Component {
   }
 }
 
-const {
-  array,
-  func,
-  shape,
-  string,
-} = PropTypes
+const {array, func, shape, string} = PropTypes
 
 ManageSources.propTypes = {
   source: shape({
@@ -94,7 +92,7 @@ const mapStateToProps = ({sources}) => ({
   sources,
 })
 
-const mapDispatchToProps = (dispatch) => ({
+const mapDispatchToProps = dispatch => ({
   removeAndLoadSources: bindActionCreators(removeAndLoadSources, dispatch),
   fetchKapacitors: bindActionCreators(fetchKapacitorsAsync, dispatch),
   setActiveKapacitor: bindActionCreators(setActiveKapacitorAsync, dispatch),

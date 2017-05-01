@@ -19,60 +19,66 @@ const DashboardHeader = ({
   source,
   onAddCell,
   onEditDashboard,
-}) => isHidden ? null : (
-  <div className="page-header full-width">
-    <div className="page-header__container">
-      <div className="page-header__left">
-        {buttonText &&
-          <div className="dropdown page-header-dropdown">
-            <button className="dropdown-toggle" type="button" data-toggle="dropdown">
-              <span className="button-text">{buttonText}</span>
-              <span className="caret"></span>
-            </button>
-            <ul className="dropdown-menu" aria-labelledby="dropdownMenu1">
-              {children}
-            </ul>
+}) =>
+  (isHidden
+    ? null
+    : <div className="page-header full-width">
+        <div className="page-header__container">
+          <div className="page-header__left">
+            {buttonText &&
+              <div className="dropdown page-header-dropdown">
+                <button
+                  className="dropdown-toggle"
+                  type="button"
+                  data-toggle="dropdown"
+                >
+                  <span className="button-text">{buttonText}</span>
+                  <span className="caret" />
+                </button>
+                <ul className="dropdown-menu" aria-labelledby="dropdownMenu1">
+                  {children}
+                </ul>
+              </div>}
+            {headerText}
           </div>
-        }
-        {headerText &&
-          <h1>Kubernetes Dashboard</h1>
-        }
-      </div>
-      <div className="page-header__right">
-        <GraphTips />
-        <SourceIndicator sourceName={source.name} />
-        {
-          dashboard ?
-            <button className="btn btn-primary btn-sm" onClick={onAddCell}>
-              <span className="icon plus" />
-              Add Cell
-            </button> : null
-        }
-        {
-          dashboard ?
-            <button className="btn btn-info btn-sm" onClick={onEditDashboard}>
-              <span className="icon pencil" />
-              Rename
-            </button> : null
-        }
-        <AutoRefreshDropdown onChoose={handleChooseAutoRefresh} selected={autoRefresh} iconName="refresh" />
-        <TimeRangeDropdown onChooseTimeRange={handleChooseTimeRange} selected={timeRange} />
-        <div className="btn btn-info btn-sm" onClick={handleClickPresentationButton}>
-          <span className="icon expand-a" style={{margin: 0}}></span>
+          <div className="page-header__right">
+            <GraphTips />
+            <SourceIndicator sourceName={source.name} />
+            {dashboard
+              ? <button className="btn btn-primary btn-sm" onClick={onAddCell}>
+                  <span className="icon plus" />
+                  Add Cell
+                </button>
+              : null}
+            {dashboard
+              ? <button
+                  className="btn btn-info btn-sm"
+                  onClick={onEditDashboard}
+                >
+                  <span className="icon pencil" />
+                  Rename
+                </button>
+              : null}
+            <AutoRefreshDropdown
+              onChoose={handleChooseAutoRefresh}
+              selected={autoRefresh}
+              iconName="refresh"
+            />
+            <TimeRangeDropdown
+              onChooseTimeRange={handleChooseTimeRange}
+              selected={timeRange}
+            />
+            <div
+              className="btn btn-info btn-sm"
+              onClick={handleClickPresentationButton}
+            >
+              <span className="icon expand-a" style={{margin: 0}} />
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-  </div>
-)
+      </div>)
 
-const {
-  array,
-  bool,
-  func,
-  number,
-  shape,
-  string,
-} = PropTypes
+const {array, bool, func, number, shape, string} = PropTypes
 
 DashboardHeader.propTypes = {
   sourceID: string,

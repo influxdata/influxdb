@@ -52,20 +52,30 @@ const TagListItem = React.createClass({
       return <div>no tag values</div>
     }
 
-    const filtered = tagValues.filter((v) => v.match(this.state.filterText))
+    const filtered = tagValues.filter(v => v.match(this.state.filterText))
 
     return (
       <div className="query-builder--sub-list">
         <div className="query-builder--filter">
-          <input className="form-control input-sm" ref="filterText" placeholder={`Filter within ${this.props.tagKey}`} type="text" value={this.state.filterText} onChange={this.handleFilterText} onKeyUp={this.handleEscape} />
-          <span className="icon search"></span>
+          <input
+            className="form-control input-sm"
+            ref="filterText"
+            placeholder={`Filter within ${this.props.tagKey}`}
+            type="text"
+            value={this.state.filterText}
+            onChange={this.handleFilterText}
+            onKeyUp={this.handleEscape}
+          />
+          <span className="icon search" />
         </div>
-        {filtered.map((v) => {
-          const cx = classNames('query-builder--list-item', {active: selectedTagValues.indexOf(v) > -1})
+        {filtered.map(v => {
+          const cx = classNames('query-builder--list-item', {
+            active: selectedTagValues.indexOf(v) > -1,
+          })
           return (
             <div className={cx} onClick={_.wrap(v, this.handleChoose)} key={v}>
               <span>
-                <div className="query-builder--checkbox"></div>
+                <div className="query-builder--checkbox" />
                 {v}
               </span>
             </div>
@@ -87,14 +97,21 @@ const TagListItem = React.createClass({
 
     return (
       <div>
-        <div className={classNames('query-builder--list-item', {active: isOpen})} onClick={this.handleClickKey}>
+        <div
+          className={classNames('query-builder--list-item', {active: isOpen})}
+          onClick={this.handleClickKey}
+        >
           <span>
-            <div className="query-builder--caret icon caret-right"></div>
+            <div className="query-builder--caret icon caret-right" />
             {tagItemLabel}
           </span>
           <div
-            className={classNames('btn btn-info btn-xs group-by-tag', {active: this.props.isUsingGroupBy})}
-            onClick={this.handleGroupBy}>Group By {tagKey}
+            className={classNames('btn btn-info btn-xs group-by-tag', {
+              active: this.props.isUsingGroupBy,
+            })}
+            onClick={this.handleGroupBy}
+          >
+            Group By {tagKey}
           </div>
         </div>
         {isOpen ? this.renderTagValues() : null}

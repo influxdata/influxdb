@@ -15,11 +15,7 @@ import {
 } from 'src/shared/actions/sources'
 import {publishNotification} from 'src/shared/actions/notifications'
 
-const {
-  func,
-  shape,
-  string,
-} = PropTypes
+const {func, shape, string} = PropTypes
 
 export const CreateSource = React.createClass({
   propTypes: {
@@ -48,14 +44,17 @@ export const CreateSource = React.createClass({
       return this.props.router.push(`/sources/${source.id}/hosts`)
     }
 
-    const fixedPath = redirectPath.replace(/\/sources\/[^/]*/, `/sources/${source.id}`)
+    const fixedPath = redirectPath.replace(
+      /\/sources\/[^/]*/,
+      `/sources/${source.id}`
+    )
     return this.props.router.push(fixedPath)
   },
 
   handleInputChange(e) {
     const val = e.target.value
     const name = e.target.name
-    this.setState((prevState) => {
+    this.setState(prevState => {
       const newSource = Object.assign({}, prevState.source, {
         [name]: val,
       })
@@ -77,12 +76,14 @@ export const CreateSource = React.createClass({
       return
     }
 
-    createSourceAJAX(newSource).then(({data: sourceFromServer}) => {
-      this.props.addSource(sourceFromServer)
-      this.setState({source: sourceFromServer, error: null})
-    }).catch(({data: error}) => {
-      this.setState({error: error.message})
-    })
+    createSourceAJAX(newSource)
+      .then(({data: sourceFromServer}) => {
+        this.props.addSource(sourceFromServer)
+        this.setState({source: sourceFromServer, error: null})
+      })
+      .catch(({data: error}) => {
+        this.setState({error: error.message})
+      })
   },
 
   handleSubmit(newSource) {
@@ -93,12 +94,17 @@ export const CreateSource = React.createClass({
       return notify('error', error)
     }
 
-    updateSourceAJAX(newSource).then(({data: sourceFromServer}) => {
-      updateSource(sourceFromServer)
-      this.redirectToApp(sourceFromServer)
-    }).catch(() => {
-      notify('error', 'There was a problem updating the source. Check the settings')
-    })
+    updateSourceAJAX(newSource)
+      .then(({data: sourceFromServer}) => {
+        updateSource(sourceFromServer)
+        this.redirectToApp(sourceFromServer)
+      })
+      .catch(() => {
+        notify(
+          'error',
+          'There was a problem updating the source. Check the settings'
+        )
+      })
   },
 
   render() {

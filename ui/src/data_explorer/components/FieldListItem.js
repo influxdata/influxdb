@@ -34,21 +34,33 @@ const FieldListItem = React.createClass({
   render() {
     const {isKapacitorRule, fieldFunc, isSelected} = this.props
     const {field: fieldText} = fieldFunc
-    const items = INFLUXQL_FUNCTIONS.map((text) => {
+    const items = INFLUXQL_FUNCTIONS.map(text => {
       return {text}
     })
 
     return (
-      <div className={classNames('query-builder--list-item', {active: isSelected})} key={fieldFunc} onClick={_.wrap(fieldFunc, this.handleToggleField)}>
+      <div
+        className={classNames('query-builder--list-item', {active: isSelected})}
+        key={fieldFunc}
+        onClick={_.wrap(fieldFunc, this.handleToggleField)}
+      >
         <span>
-          <div className="query-builder--checkbox"></div>
+          <div className="query-builder--checkbox" />
           {fieldText}
         </span>
-        {
-          isKapacitorRule ?
-            <Dropdown items={items} onChoose={this.handleApplyFunctions} selected={fieldFunc.funcs.length ? fieldFunc.funcs[0] : 'Function'} /> :
-            <MultiSelectDropdown items={INFLUXQL_FUNCTIONS} onApply={this.handleApplyFunctions} selectedItems={fieldFunc.funcs || []} />
-        }
+        {isKapacitorRule
+          ? <Dropdown
+              items={items}
+              onChoose={this.handleApplyFunctions}
+              selected={
+                fieldFunc.funcs.length ? fieldFunc.funcs[0] : 'Function'
+              }
+            />
+          : <MultiSelectDropdown
+              items={INFLUXQL_FUNCTIONS}
+              onApply={this.handleApplyFunctions}
+              selectedItems={fieldFunc.funcs || []}
+            />}
       </div>
     )
   },

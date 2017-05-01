@@ -384,12 +384,13 @@ export const HEARTBEAT_INTERVAL = 10000 // ms
 export const PRESENTATION_MODE_ANIMATION_DELAY = 0 // In milliseconds.
 export const PRESENTATION_MODE_NOTIFICATION_DELAY = 2000 // In milliseconds.
 
-export const SHORT_NOTIFICATION_DISMISS_DELAY = 1500 // in milliseconds
+export const SHORT_NOTIFICATION_DISMISS_DELAY = 2000 // in milliseconds
 
 export const REVERT_STATE_DELAY = 1500 // ms
 
 export const HTTP_UNAUTHORIZED = 401
 export const HTTP_FORBIDDEN = 403
+export const HTTP_NOT_FOUND = 404
 
 export const AUTOREFRESH_DEFAULT = 15000 // in milliseconds
 

@@ -21,7 +21,12 @@ const UsersTable = ({
   onUpdatePassword,
 }) => (
   <div className="panel panel-info">
-    <FilterBar type="users" onFilter={onFilter} isEditing={isEditing} onClickCreate={onClickCreate} />
+    <FilterBar
+      type="users"
+      onFilter={onFilter}
+      isEditing={isEditing}
+      onClickCreate={onClickCreate}
+    />
     <div className="panel-body">
       <table className="table v-center admin-table">
         <thead>
@@ -29,57 +34,58 @@ const UsersTable = ({
             <th>User</th>
             {hasRoles && <th>Roles</th>}
             <th>Permissions</th>
-            <th></th>
-            <th></th>
+            <th />
+            <th />
           </tr>
         </thead>
         <tbody>
-          {
-            users.length ?
-              users.filter(u => !u.hidden).map(user =>
-                <UserRow
-                  key={user.links.self}
-                  user={user}
-                  onEdit={onEdit}
-                  onSave={onSave}
-                  onCancel={onCancel}
-                  onDelete={onDelete}
-                  isEditing={user.isEditing}
-                  isNew={user.isNew}
-                  allRoles={allRoles}
-                  hasRoles={hasRoles}
-                  allPermissions={permissions}
-                  onUpdatePermissions={onUpdatePermissions}
-                  onUpdateRoles={onUpdateRoles}
-                  onUpdatePassword={onUpdatePassword}
-                />) :
-              <EmptyRow tableName={'Users'} />
-          }
+          {users.length
+            ? users
+                .filter(u => !u.hidden)
+                .map(user => (
+                  <UserRow
+                    key={user.links.self}
+                    user={user}
+                    onEdit={onEdit}
+                    onSave={onSave}
+                    onCancel={onCancel}
+                    onDelete={onDelete}
+                    isEditing={user.isEditing}
+                    isNew={user.isNew}
+                    allRoles={allRoles}
+                    hasRoles={hasRoles}
+                    allPermissions={permissions}
+                    onUpdatePermissions={onUpdatePermissions}
+                    onUpdateRoles={onUpdateRoles}
+                    onUpdatePassword={onUpdatePassword}
+                  />
+                ))
+            : <EmptyRow tableName={'Users'} />}
         </tbody>
       </table>
     </div>
   </div>
 )
 
-const {
-  arrayOf,
-  bool,
-  func,
-  shape,
-  string,
-} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 UsersTable.propTypes = {
-  users: arrayOf(shape({
-    name: string.isRequired,
-    roles: arrayOf(shape({
-      name: string,
-    })),
-    permissions: arrayOf(shape({
-      name: string,
-      scope: string.isRequired,
-    })),
-  })),
+  users: arrayOf(
+    shape({
+      name: string.isRequired,
+      roles: arrayOf(
+        shape({
+          name: string,
+        })
+      ),
+      permissions: arrayOf(
+        shape({
+          name: string,
+          scope: string.isRequired,
+        })
+      ),
+    })
+  ),
   isEditing: bool,
   onClickCreate: func.isRequired,
   onEdit: func.isRequired,

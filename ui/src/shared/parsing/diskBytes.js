@@ -16,8 +16,8 @@ export function diskBytesFromShard(response) {
   }
 
   let sumBytes = 0
-  response.results.forEach((result) => {
-    result.series.forEach((series) => {
+  response.results.forEach(result => {
+    result.series.forEach(series => {
       const bytesIndex = series.columns.indexOf('last')
       sumBytes += series.values[0][bytesIndex]
     })
@@ -55,7 +55,7 @@ export function diskBytesFromShardForDatabase(response) {
     //
 
     if (data[shardID]) {
-      const index = _.findIndex(data[shardID], (shard) => shard.nodeID === nodeID)
+      const index = _.findIndex(data[shardID], shard => shard.nodeID === nodeID)
       if (index > -1) {
         data[shardID][index].diskUsage += diskUsage
       } else {
@@ -70,4 +70,3 @@ export function diskBytesFromShardForDatabase(response) {
 
   return {errors: [], shardData}
 }
-

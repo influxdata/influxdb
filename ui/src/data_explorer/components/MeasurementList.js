@@ -85,12 +85,20 @@ const MeasurementList = React.createClass({
       <div className="query-builder--column">
         <div className="query-builder--heading">
           <span>Measurements</span>
-          {this.props.query.database ?
-            <div className="query-builder--filter">
-              <input className="form-control input-sm" ref="filterText" placeholder="Filter" type="text" value={this.state.filterText} onChange={this.handleFilterText} onKeyUp={this.handleEscape} />
-              <span className="icon search"></span>
-            </div>
-          : null }
+          {this.props.query.database
+            ? <div className="query-builder--filter">
+                <input
+                  className="form-control input-sm"
+                  ref="filterText"
+                  placeholder="Filter"
+                  type="text"
+                  value={this.state.filterText}
+                  onChange={this.handleFilterText}
+                  onKeyUp={this.handleEscape}
+                />
+                <span className="icon search" />
+              </div>
+            : null}
         </div>
         {this.renderList()}
       </div>
@@ -106,11 +114,13 @@ const MeasurementList = React.createClass({
       )
     }
 
-    const measurements = this.state.measurements.filter((m) => m.match(this.state.filterText))
+    const measurements = this.state.measurements.filter(m =>
+      m.match(this.state.filterText)
+    )
 
     return (
       <div className="query-builder--list">
-        {measurements.map((measurement) => {
+        {measurements.map(measurement => {
           const isActive = measurement === this.props.query.measurement
           const numTagsActive = Object.keys(this.props.query.tags).length
           return (
@@ -152,7 +162,7 @@ const MeasurementList = React.createClass({
   _getMeasurements() {
     const {source} = this.context
     const proxy = source.links.proxy
-    showMeasurements(proxy, this.props.query.database).then((resp) => {
+    showMeasurements(proxy, this.props.query.database).then(resp => {
       const {errors, measurementSets} = showMeasurementsParser(resp.data)
       if (errors.length) {
         // TODO: display errors in the UI.
@@ -164,7 +174,6 @@ const MeasurementList = React.createClass({
       })
     })
   },
-
 })
 
 export default MeasurementList

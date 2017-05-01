@@ -73,7 +73,7 @@ const OpsGenieConfig = React.createClass({
           <RedactedInput
             defaultValue={apiKey}
             id="api-key"
-            refFunc={r => this.apiKey = r}
+            refFunc={r => (this.apiKey = r)}
           />
           <label className="form-helper">
             Note: a value of
@@ -145,7 +145,7 @@ const TagInput = React.createClass({
           className="form-control"
           id={title}
           type="text"
-          ref={r => this.input = r}
+          ref={r => (this.input = r)}
           onKeyDown={this.handleAddTag}
         />
         <Tags tags={tags} onDeleteTag={onDeleteTag} />

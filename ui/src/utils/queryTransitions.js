@@ -17,9 +17,9 @@ export function chooseMeasurement(query, measurement) {
 }
 
 export function toggleField(query, {field, funcs}, isKapacitorRule = false) {
-  const isSelected = query.fields.find((f) => f.field === field)
+  const isSelected = query.fields.find(f => f.field === field)
   if (isSelected) {
-    const nextFields = query.fields.filter((f) => f.field !== field)
+    const nextFields = query.fields.filter(f => f.field !== field)
     if (!nextFields.length) {
       const nextGroupBy = Object.assign({}, query.groupBy, {time: null})
       return Object.assign({}, query, {
@@ -59,7 +59,7 @@ export function toggleTagAcceptance(query) {
 
 export function applyFuncsToField(query, {field, funcs}) {
   const shouldRemoveFuncs = funcs.length === 0
-  const nextFields = query.fields.map((f) => {
+  const nextFields = query.fields.map(f => {
     // If one field has no funcs, all fields must have no funcs
     if (shouldRemoveFuncs) {
       return Object.assign({}, f, {funcs: []})
@@ -111,7 +111,8 @@ export function groupByTag(query, tagKey) {
 
 export function chooseTag(query, tag) {
   const tagValues = query.tags[tag.key]
-  const shouldRemoveTag = tagValues && tagValues.length === 1 && tagValues[0] === tag.value
+  const shouldRemoveTag =
+    tagValues && tagValues.length === 1 && tagValues[0] === tag.value
   if (shouldRemoveTag) {
     const newTags = Object.assign({}, query.tags)
     delete newTags[tag.key]

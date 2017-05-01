@@ -24,9 +24,14 @@ const QueryMakerTab = React.createClass({
 
   render() {
     return (
-      <div className={classNames('query-maker--tab', {active: this.props.isActive})} onClick={this.handleSelect}>
+      <div
+        className={classNames('query-maker--tab', {
+          active: this.props.isActive,
+        })}
+        onClick={this.handleSelect}
+      >
         <label>{this.props.queryTabText}</label>
-        <span className="query-maker--delete" onClick={this.handleDelete}></span>
+        <span className="query-maker--delete" onClick={this.handleDelete} />
       </div>
     )
   },

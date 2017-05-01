@@ -1,4 +1,5 @@
 import AJAX from 'utils/ajax'
+import {proxy} from 'utils/queryUrlGenerator'
 
 export function getDashboards() {
   return AJAX({
@@ -23,7 +24,7 @@ export function updateDashboardCell(cell) {
   })
 }
 
-export const createDashboard = async (dashboard) => {
+export const createDashboard = async dashboard => {
   try {
     return await AJAX({
       method: 'POST',
@@ -36,7 +37,7 @@ export const createDashboard = async (dashboard) => {
   }
 }
 
-export const deleteDashboard = async (dashboard) => {
+export const deleteDashboard = async dashboard => {
   try {
     return await AJAX({
       method: 'DELETE',
@@ -61,12 +62,43 @@ export const addDashboardCell = async (dashboard, cell) => {
   }
 }
 
-export const deleteDashboardCell = async (cell) => {
+export const deleteDashboardCell = async cell => {
   try {
     return await AJAX({
       method: 'DELETE',
       url: cell.links.self,
     })
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}
+
+export const editTemplateVariables = async templateVariable => {
+  try {
+    return await AJAX({
+      method: 'PUT',
+      url: templateVariable.links.self,
+      data: templateVariable,
+    })
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}
+
+export const runTemplateVariableQuery = async (
+  source,
+  {
+    query,
+    db,
+    // rp, TODO
+    tempVars,
+  }
+) => {
+  try {
+    // TODO: add rp as argument to proxy
+    return await proxy({source: source.links.proxy, query, db, tempVars})
   } catch (error) {
     console.error(error)
     throw error

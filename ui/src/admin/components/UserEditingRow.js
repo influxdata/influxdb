@@ -9,7 +9,7 @@ class UserEditingRow extends Component {
   }
 
   handleKeyPress(user) {
-    return (e) => {
+    return e => {
       if (e.key === 'Enter') {
         this.props.onSave(user)
       }
@@ -17,7 +17,7 @@ class UserEditingRow extends Component {
   }
 
   handleEdit(user) {
-    return (e) => {
+    return e => {
       this.props.onEdit(user, {[e.target.name]: e.target.value})
     }
   }
@@ -37,9 +37,8 @@ class UserEditingRow extends Component {
             onKeyPress={this.handleKeyPress(user)}
             autoFocus={true}
           />
-          {
-            isNew ?
-              <input
+          {isNew
+            ? <input
                 className="form-control"
                 name="password"
                 type="password"
@@ -47,20 +46,15 @@ class UserEditingRow extends Component {
                 placeholder="Password"
                 onChange={this.handleEdit(user)}
                 onKeyPress={this.handleKeyPress(user)}
-              /> :
-              null
-          }
+              />
+            : null}
         </div>
       </td>
     )
   }
 }
 
-const {
-  bool,
-  func,
-  shape,
-} = PropTypes
+const {bool, func, shape} = PropTypes
 
 UserEditingRow.propTypes = {
   user: shape().isRequired,

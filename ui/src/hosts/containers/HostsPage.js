@@ -31,38 +31,43 @@ export const HostsPage = React.createClass({
     Promise.all([
       getCpuAndLoadForHosts(source.links.proxy, source.telegraf),
       getMappings(),
-      new Promise((resolve) => {
+      new Promise(resolve => {
         this.setState({hostsLoading: true})
         resolve()
       }),
-    ]).then(([hosts, {data: {mappings}}]) => {
-      this.setState({
-        hosts,
-        hostsLoading: false,
-      })
-      getAppsForHosts(source.links.proxy, hosts, mappings, source.telegraf).then((newHosts) => {
+    ])
+      .then(([hosts, {data: {mappings}}]) => {
         this.setState({
-          hosts: newHosts,
-          hostsError: '',
+          hosts,
           hostsLoading: false,
         })
-      }).catch(() => {
-        const reason = 'Unable to get apps for hosts'
-        addFlashMessage({type: 'error', text: reason})
+        getAppsForHosts(source.links.proxy, hosts, mappings, source.telegraf)
+          .then(newHosts => {
+            this.setState({
+              hosts: newHosts,
+              hostsError: '',
+              hostsLoading: false,
+            })
+          })
+          .catch(error => {
+            console.error(error)
+            const reason = 'Unable to get apps for hosts'
+            addFlashMessage({type: 'error', text: reason})
+            this.setState({
+              hostsError: reason,
+              hostsLoading: false,
+            })
+          })
+      })
+      .catch(reason => {
         this.setState({
-          hostsError: reason,
+          hostsError: reason.toString(),
           hostsLoading: false,
         })
+        // TODO: this isn't reachable at the moment, because getCpuAndLoadForHosts doesn't fail when it should.
+        // (like with a bogus proxy link). We should provide better messaging to the user in this catch after that's fixed.
+        console.error(reason) // eslint-disable-line no-console
       })
-    }).catch((reason) => {
-      this.setState({
-        hostsError: reason.toString(),
-        hostsLoading: false,
-      })
-      // TODO: this isn't reachable at the moment, because getCpuAndLoadForHosts doesn't fail when it should.
-      // (like with a bogus proxy link). We should provide better messaging to the user in this catch after that's fixed.
-      console.error(reason) // eslint-disable-line no-console
-    })
   },
 
   render() {
@@ -73,7 +78,7 @@ export const HostsPage = React.createClass({
         <div className="page-header">
           <div className="page-header__container">
             <div className="page-header__left">
-              <h1>
+              <h1 className="page-header__title">
                 Host List
               </h1>
             </div>

@@ -12,6 +12,8 @@ import {errorThrown} from 'shared/actions/errors'
 
 import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants'
 
+import {TEMPLATE_VARIABLE_SELECTED} from 'shared/constants/actionTypes'
+
 export const loadDashboards = (dashboards, dashboardID) => ({
   type: 'LOAD_DASHBOARDS',
   payload: {
@@ -20,28 +22,28 @@ export const loadDashboards = (dashboards, dashboardID) => ({
   },
 })
 
-export const setTimeRange = (timeRange) => ({
+export const setTimeRange = timeRange => ({
   type: 'SET_DASHBOARD_TIME_RANGE',
   payload: {
     timeRange,
   },
 })
 
-export const updateDashboard = (dashboard) => ({
+export const updateDashboard = dashboard => ({
   type: 'UPDATE_DASHBOARD',
   payload: {
     dashboard,
   },
 })
 
-export const deleteDashboard = (dashboard) => ({
+export const deleteDashboard = dashboard => ({
   type: 'DELETE_DASHBOARD',
   payload: {
     dashboard,
   },
 })
 
-export const deleteDashboardFailed = (dashboard) => ({
+export const deleteDashboardFailed = dashboard => ({
   type: 'DELETE_DASHBOARD_FAILED',
   payload: {
     dashboard,
@@ -80,8 +82,8 @@ export const editDashboardCell = (dashboard, x, y, isEditing) => ({
   // as a suitable id
   payload: {
     dashboard,
-    x,  // x-coord of the cell to be edited
-    y,  // y-coord of the cell to be edited
+    x, // x-coord of the cell to be edited
+    y, // y-coord of the cell to be edited
     isEditing,
   },
 })
@@ -90,15 +92,16 @@ export const renameDashboardCell = (dashboard, x, y, name) => ({
   type: 'RENAME_DASHBOARD_CELL',
   payload: {
     dashboard,
-    x,  // x-coord of the cell to be renamed
-    y,  // y-coord of the cell to be renamed
+    x, // x-coord of the cell to be renamed
+    y, // y-coord of the cell to be renamed
     name,
   },
 })
 
-export const deleteDashboardCell = (cell) => ({
+export const deleteDashboardCell = (dashboard, cell) => ({
   type: 'DELETE_DASHBOARD_CELL',
   payload: {
+    dashboard,
     cell,
   },
 })
@@ -111,65 +114,84 @@ export const editCellQueryStatus = (queryID, status) => ({
   },
 })
 
+export const templateVariableSelected = (dashboardID, templateID, values) => ({
+  type: TEMPLATE_VARIABLE_SELECTED,
+  payload: {
+    dashboardID,
+    templateID,
+    values,
+  },
+})
+
 // Async Action Creators
 
-export const getDashboardsAsync = (dashboardID) => async (dispatch) => {
+export const getDashboardsAsync = () => async dispatch => {
   try {
     const {data: {dashboards}} = await getDashboardsAJAX()
-    dispatch(loadDashboards(dashboards, dashboardID))
+    dispatch(loadDashboards(dashboards))
   } catch (error) {
-    dispatch(errorThrown(error))
     console.error(error)
-    throw error
+    dispatch(errorThrown(error))
   }
 }
 
-export const putDashboard = (dashboard) => async (dispatch) => {
+export const putDashboard = dashboard => async dispatch => {
   try {
     const {data} = await updateDashboardAJAX(dashboard)
     dispatch(updateDashboard(data))
   } catch (error) {
+    console.error(error)
     dispatch(errorThrown(error))
   }
 }
 
-export const updateDashboardCell = (dashboard, cell) => async (dispatch) => {
+export const updateDashboardCell = (dashboard, cell) => async dispatch => {
   try {
     const {data} = await updateDashboardCellAJAX(cell)
     dispatch(syncDashboardCell(dashboard, data))
   } catch (error) {
+    console.error(error)
     dispatch(errorThrown(error))
   }
 }
 
-export const deleteDashboardAsync = (dashboard) => async (dispatch) => {
+export const deleteDashboardAsync = dashboard => async dispatch => {
   dispatch(deleteDashboard(dashboard))
   try {
     await deleteDashboardAJAX(dashboard)
-    dispatch(publishAutoDismissingNotification('success', 'Dashboard deleted successfully.'))
+    dispatch(
+      publishAutoDismissingNotification(
+        'success',
+        'Dashboard deleted successfully.'
+      )
+    )
   } catch (error) {
-    dispatch(errorThrown(error, `Failed to delete dashboard: ${error.data.message}.`))
+    dispatch(
+      errorThrown(error, `Failed to delete dashboard: ${error.data.message}.`)
+    )
     dispatch(deleteDashboardFailed(dashboard))
   }
 }
 
-export const addDashboardCellAsync = (dashboard) => async (dispatch) => {
+export const addDashboardCellAsync = dashboard => async dispatch => {
   try {
-    const {data} = await addDashboardCellAJAX(dashboard, NEW_DEFAULT_DASHBOARD_CELL)
+    const {data} = await addDashboardCellAJAX(
+      dashboard,
+      NEW_DEFAULT_DASHBOARD_CELL
+    )
     dispatch(addDashboardCell(dashboard, data))
   } catch (error) {
-    dispatch(errorThrown(error))
     console.error(error)
-    throw error
+    dispatch(errorThrown(error))
   }
 }
 
-export const deleteDashboardCellAsync = (cell) => async (dispatch) => {
+export const deleteDashboardCellAsync = (dashboard, cell) => async dispatch => {
   try {
     await deleteDashboardCellAJAX(cell)
-    dispatch(deleteDashboardCell(cell))
+    dispatch(deleteDashboardCell(dashboard, cell))
   } catch (error) {
+    console.error(error)
     dispatch(errorThrown(error))
-    throw error
   }
 }

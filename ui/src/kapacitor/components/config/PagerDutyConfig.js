@@ -35,7 +35,7 @@ const PagerDutyConfig = React.createClass({
             className="form-control"
             id="service-key"
             type="text"
-            ref={r => this.serviceKey = r}
+            ref={r => (this.serviceKey = r)}
             defaultValue={serviceKey || ''}
           />
           <label className="form-helper">
@@ -53,7 +53,7 @@ const PagerDutyConfig = React.createClass({
             className="form-control"
             id="url"
             type="text"
-            ref={r => this.url = r}
+            ref={r => (this.url = r)}
             defaultValue={url || ''}
           />
         </div>

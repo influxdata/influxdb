@@ -4,14 +4,17 @@ import ReactTooltip from 'react-tooltip'
 const Tooltip = ({tip, children}) => (
   <div>
     <div data-tip={tip}>{children}</div>
-    <ReactTooltip effect="solid" html={true} offset={{top: 2}} place="bottom" class="influx-tooltip place-bottom" />
+    <ReactTooltip
+      effect="solid"
+      html={true}
+      offset={{top: 2}}
+      place="bottom"
+      class="influx-tooltip place-bottom"
+    />
   </div>
 )
 
-const {
-  shape,
-  string,
-} = PropTypes
+const {shape, string} = PropTypes
 
 Tooltip.propTypes = {
   tip: string,

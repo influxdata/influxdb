@@ -27,7 +27,7 @@ class DashboardEditHeader extends Component {
               autoFocus={true}
               value={name}
               placeholder="Name this Dashboard"
-              onChange={(e) => this.handleChange(e.target.value)}
+              onChange={e => this.handleChange(e.target.value)}
             />
           </div>
           <ConfirmButtons item={name} onConfirm={onSave} onCancel={onCancel} />
@@ -37,10 +37,7 @@ class DashboardEditHeader extends Component {
   }
 }
 
-const {
-  shape,
-  func,
-} = PropTypes
+const {shape, func} = PropTypes
 
 DashboardEditHeader.propTypes = {
   dashboard: shape({}),

@@ -60,19 +60,25 @@ const Header = ({
 
   const buttons = (
     <div className="text-right db-manager-header--actions">
-      <button className="btn btn-xs btn-primary" disabled={isAddRPDisabled} onClick={() => onAddRetentionPolicy(database)}>
+      <button
+        className="btn btn-xs btn-primary"
+        disabled={isAddRPDisabled}
+        onClick={() => onAddRetentionPolicy(database)}
+      >
         Add Retention Policy
       </button>
-      {
-        database.name === '_internal' ? null :
-          <button className="btn btn-xs btn-danger" onClick={() => onStartDelete(database)}>
+      {database.name === '_internal'
+        ? null
+        : <button
+            className="btn btn-xs btn-danger"
+            onClick={() => onStartDelete(database)}
+          >
             Delete
-          </button>
-      }
+          </button>}
     </div>
   )
 
-  const onConfirm = (db) => {
+  const onConfirm = db => {
     if (database.deleteCode !== `DELETE ${database.name}`) {
       return notify('error', `Type DELETE ${database.name} to confirm`)
     }
@@ -89,12 +95,16 @@ const Header = ({
           type="text"
           value={database.deleteCode || ''}
           placeholder={`DELETE ${database.name}`}
-          onChange={(e) => onDatabaseDeleteConfirm(database, e)}
-          onKeyDown={(e) => onDatabaseDeleteConfirm(database, e)}
+          onChange={e => onDatabaseDeleteConfirm(database, e)}
+          onKeyDown={e => onDatabaseDeleteConfirm(database, e)}
           autoFocus={true}
         />
       </div>
-      <ConfirmButtons item={database} onConfirm={onConfirm} onCancel={onCancel} />
+      <ConfirmButtons
+        item={database}
+        onConfirm={onConfirm}
+        onCancel={onCancel}
+      />
     </div>
   )
 
@@ -114,19 +124,15 @@ const EditHeader = ({database, onEdit, onKeyDown, onConfirm, onCancel}) => (
       type="text"
       value={database.name}
       placeholder="Name this database"
-      onChange={(e) => onEdit(database, {name: e.target.value})}
-      onKeyDown={(e) => onKeyDown(e, database)}
+      onChange={e => onEdit(database, {name: e.target.value})}
+      onKeyDown={e => onKeyDown(e, database)}
       autoFocus={true}
     />
     <ConfirmButtons item={database} onConfirm={onConfirm} onCancel={onCancel} />
   </div>
 )
 
-const {
-  func,
-  shape,
-  bool,
-} = PropTypes
+const {func, shape, bool} = PropTypes
 
 DatabaseTableHeader.propTypes = {
   onEdit: func,
@@ -142,7 +148,6 @@ DatabaseTableHeader.propTypes = {
   onAddRetentionPolicy: func,
   isAddRPDisabled: bool,
 }
-
 
 Header.propTypes = {
   notify: func,

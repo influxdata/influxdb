@@ -9,9 +9,13 @@ import App from 'src/App'
 import AlertsApp from 'src/alerts'
 import CheckSources from 'src/CheckSources'
 import {HostsPage, HostPage} from 'src/hosts'
-import {KubernetesPage} from 'src/kubernetes'
 import {Login, UserIsAuthenticated, UserIsNotAuthenticated} from 'src/auth'
-import {KapacitorPage, KapacitorRulePage, KapacitorRulesPage, KapacitorTasksPage} from 'src/kapacitor'
+import {
+  KapacitorPage,
+  KapacitorRulePage,
+  KapacitorRulesPage,
+  KapacitorTasksPage,
+} from 'src/kapacitor'
 import DataExplorer from 'src/data_explorer'
 import {DashboardsPage, DashboardPage} from 'src/dashboards'
 import {CreateSource, SourcePage, ManageSources} from 'src/sources'
@@ -23,7 +27,12 @@ import {loadLocalStorage} from './localStorage'
 import {getMe} from 'shared/apis'
 
 import {disablePresentationMode} from 'shared/actions/app'
-import {authRequested, authReceived, meRequested, meReceived} from 'shared/actions/auth'
+import {
+  authRequested,
+  authReceived,
+  meRequested,
+  meReceived,
+} from 'shared/actions/auth'
 import {errorThrown} from 'shared/actions/errors'
 
 import 'src/style/chronograf.scss'
@@ -52,7 +61,7 @@ browserHistory.listen(() => {
   dispatch(disablePresentationMode())
 })
 
-window.addEventListener('keyup', (event) => {
+window.addEventListener('keyup', event => {
   if (event.key === 'Escape') {
     dispatch(disablePresentationMode())
   }
@@ -99,7 +108,10 @@ const Root = React.createClass({
         <Router history={history}>
           <Route path="/" component={UserIsAuthenticated(CheckSources)} />
           <Route path="login" component={UserIsNotAuthenticated(Login)} />
-          <Route path="sources/new" component={UserIsAuthenticated(CreateSource)} />
+          <Route
+            path="sources/new"
+            component={UserIsAuthenticated(CreateSource)}
+          />
           <Route path="sources/:sourceID" component={UserIsAuthenticated(App)}>
             <Route component={CheckSources}>
               <Route path="manage-sources" component={ManageSources} />
@@ -108,7 +120,6 @@ const Root = React.createClass({
               <Route path="chronograf/data-explorer" component={DataExplorer} />
               <Route path="hosts" component={HostsPage} />
               <Route path="hosts/:hostID" component={HostPage} />
-              <Route path="kubernetes" component={KubernetesPage} />
               <Route path="kapacitors/new" component={KapacitorPage} />
               <Route path="kapacitors/:id/edit" component={KapacitorPage} />
               <Route path="kapacitor-tasks" component={KapacitorTasksPage} />

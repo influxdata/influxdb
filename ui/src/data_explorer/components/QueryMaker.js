@@ -4,14 +4,7 @@ import QueryBuilder from './QueryBuilder'
 import QueryMakerTab from './QueryMakerTab'
 import buildInfluxQLQuery from 'utils/influxql'
 
-const {
-  arrayOf,
-  func,
-  node,
-  number,
-  shape,
-  string,
-} = PropTypes
+const {arrayOf, func, node, number, shape, string} = PropTypes
 
 const QueryMaker = React.createClass({
   propTypes: {
@@ -25,6 +18,11 @@ const QueryMaker = React.createClass({
       upper: string,
       lower: string,
     }).isRequired,
+    templates: arrayOf(
+      shape({
+        tempVar: string.isRequired,
+      })
+    ),
     actions: shape({
       chooseNamespace: func.isRequired,
       chooseMeasurement: func.isRequired,
@@ -76,15 +74,21 @@ const QueryMaker = React.createClass({
   },
 
   renderQueryBuilder() {
-    const {timeRange, actions, source} = this.props
+    const {timeRange, actions, source, templates} = this.props
     const query = this.getActiveQuery()
 
     if (!query) {
       return (
         <div className="query-maker--empty">
           <h5>This Graph has no Queries</h5>
-          <br/>
-          <div className="btn btn-primary" role="button" onClick={this.handleAddQuery}>Add a Query</div>
+          <br />
+          <div
+            className="btn btn-primary"
+            role="button"
+            onClick={this.handleAddQuery}
+          >
+            Add a Query
+          </div>
         </div>
       )
     }
@@ -93,6 +97,7 @@ const QueryMaker = React.createClass({
       <QueryBuilder
         source={source}
         timeRange={timeRange}
+        templates={templates}
         query={query}
         actions={actions}
         onAddQuery={this.handleAddQuery}
@@ -101,7 +106,13 @@ const QueryMaker = React.createClass({
   },
 
   renderQueryTabList() {
-    const {queries, activeQueryIndex, onDeleteQuery, timeRange, setActiveQueryIndex} = this.props
+    const {
+      queries,
+      activeQueryIndex,
+      onDeleteQuery,
+      timeRange,
+      setActiveQueryIndex,
+    } = this.props
 
     return (
       <div className="query-maker--tabs">
@@ -114,13 +125,20 @@ const QueryMaker = React.createClass({
               query={q}
               onSelect={setActiveQueryIndex}
               onDelete={onDeleteQuery}
-              queryTabText={q.rawText || buildInfluxQLQuery(timeRange, q) || `Query ${i + 1}`}
+              queryTabText={
+                q.rawText ||
+                  buildInfluxQLQuery(timeRange, q) ||
+                  `Query ${i + 1}`
+              }
             />
           )
         })}
         {this.props.children}
-        <div className="query-maker--new btn btn-sm btn-primary" onClick={this.handleAddQuery}>
-          <span className="icon plus"></span>
+        <div
+          className="query-maker--new btn btn-sm btn-primary"
+          onClick={this.handleAddQuery}
+        >
+          <span className="icon plus" />
         </div>
       </div>
     )

@@ -77,7 +77,10 @@ export const DataSection = React.createClass({
 
   render() {
     const {query, timeRange: {lower}} = this.props
-    const statement = query.rawText || buildInfluxQLQuery({lower}, query) || 'Build a query below'
+    const statement =
+      query.rawText ||
+      buildInfluxQLQuery({lower}, query) ||
+      'Build a query below'
 
     return (
       <div className="kapacitor-rule-section kapacitor-metric-selector">

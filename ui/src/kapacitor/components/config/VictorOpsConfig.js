@@ -39,7 +39,7 @@ const VictorOpsConfig = React.createClass({
           <RedactedInput
             defaultValue={apiKey}
             id="api-key"
-            refFunc={r => this.apiKey = r}
+            refFunc={r => (this.apiKey = r)}
           />
         </div>
 
@@ -49,7 +49,7 @@ const VictorOpsConfig = React.createClass({
             className="form-control"
             id="routing-key"
             type="text"
-            ref={r => this.routingKey = r}
+            ref={r => (this.routingKey = r)}
             defaultValue={routingKey || ''}
           />
         </div>
@@ -60,7 +60,7 @@ const VictorOpsConfig = React.createClass({
             className="form-control"
             id="url"
             type="text"
-            ref={r => this.url = r}
+            ref={r => (this.url = r)}
             defaultValue={url || ''}
           />
         </div>

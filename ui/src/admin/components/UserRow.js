@@ -24,12 +24,15 @@ const UserRow = ({
   onUpdateRoles,
   onUpdatePassword,
 }) => {
-  const handleUpdatePermissions = (allowed) => {
+  const handleUpdatePermissions = allowed => {
     onUpdatePermissions(user, [{scope: 'all', allowed}])
   }
 
-  const handleUpdateRoles = (roleNames) => {
-    onUpdateRoles(user, allRoles.filter(r => roleNames.find(rn => rn === r.name)))
+  const handleUpdateRoles = roleNames => {
+    onUpdateRoles(
+      user,
+      allRoles.filter(r => roleNames.find(rn => rn === r.name))
+    )
   }
 
   const handleUpdatePassword = () => {
@@ -39,9 +42,14 @@ const UserRow = ({
   if (isEditing) {
     return (
       <tr className="admin-table--edit-row">
-        <UserEditingRow user={user} onEdit={onEdit} onSave={onSave} isNew={isNew} />
-        {hasRoles ? <td></td> : null}
-        <td></td>
+        <UserEditingRow
+          user={user}
+          onEdit={onEdit}
+          onSave={onSave}
+          isNew={isNew}
+        />
+        {hasRoles ? <td /> : null}
+        <td />
         <td className="text-right" style={{width: '85px'}}>
           <ConfirmButtons item={user} onConfirm={onSave} onCancel={onCancel} />
         </td>
@@ -52,54 +60,59 @@ const UserRow = ({
   return (
     <tr>
       <td>{name}</td>
-      {
-        hasRoles ?
-          <td>
+      {hasRoles
+        ? <td>
             <MultiSelectDropdown
-              items={allRoles.map((r) => r.name)}
-              selectedItems={roles ? roles.map((r) => r.name) : []/* TODO remove check when server returns empty list */}
+              items={allRoles.map(r => r.name)}
+              selectedItems={
+                roles
+                  ? roles.map(r => r.name)
+                  : [] /* TODO remove check when server returns empty list */
+              }
               label={roles && roles.length ? '' : 'Select Roles'}
               onApply={handleUpdateRoles}
             />
-          </td> :
-          null
-      }
+          </td>
+        : null}
       <td>
-        {
-          allPermissions && allPermissions.length ?
-            <MultiSelectDropdown
+        {allPermissions && allPermissions.length
+          ? <MultiSelectDropdown
               items={allPermissions}
               selectedItems={_.get(permissions, ['0', 'allowed'], [])}
-              label={permissions && permissions.length ? '' : 'Select Permissions'}
+              label={
+                permissions && permissions.length ? '' : 'Select Permissions'
+              }
               onApply={handleUpdatePermissions}
-            /> : null
-        }
+            />
+          : null}
       </td>
       <td className="text-right" style={{width: '300px'}}>
-        <ChangePassRow onEdit={onEdit} onApply={handleUpdatePassword} user={user} />
+        <ChangePassRow
+          onEdit={onEdit}
+          onApply={handleUpdatePassword}
+          user={user}
+        />
       </td>
       <DeleteConfirmTableCell onDelete={onDelete} item={user} />
     </tr>
   )
 }
 
-const {
-  arrayOf,
-  bool,
-  func,
-  shape,
-  string,
-} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 UserRow.propTypes = {
   user: shape({
     name: string,
-    roles: arrayOf(shape({
-      name: string,
-    })),
-    permissions: arrayOf(shape({
-      name: string,
-    })),
+    roles: arrayOf(
+      shape({
+        name: string,
+      })
+    ),
+    permissions: arrayOf(
+      shape({
+        name: string,
+      })
+    ),
     password: string,
   }).isRequired,
   allRoles: arrayOf(shape()),

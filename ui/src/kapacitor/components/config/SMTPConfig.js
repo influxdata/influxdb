@@ -39,7 +39,7 @@ const SMTPConfig = React.createClass({
             className="form-control"
             id="smtp-host"
             type="text"
-            ref={r => this.host = r}
+            ref={r => (this.host = r)}
             defaultValue={host || ''}
           />
         </div>
@@ -50,7 +50,7 @@ const SMTPConfig = React.createClass({
             className="form-control"
             id="smtp-port"
             type="text"
-            ref={r => this.port = r}
+            ref={r => (this.port = r)}
             defaultValue={port || ''}
           />
         </div>
@@ -62,7 +62,7 @@ const SMTPConfig = React.createClass({
             id="smtp-from"
             placeholder="email@domain.com"
             type="text"
-            ref={r => this.from = r}
+            ref={r => (this.from = r)}
             defaultValue={from || ''}
           />
         </div>
@@ -73,7 +73,7 @@ const SMTPConfig = React.createClass({
             className="form-control"
             id="smtp-user"
             type="text"
-            ref={r => this.username = r}
+            ref={r => (this.username = r)}
             defaultValue={username || ''}
           />
         </div>
@@ -84,7 +84,7 @@ const SMTPConfig = React.createClass({
             className="form-control"
             id="smtp-password"
             type="password"
-            ref={r => this.password = r}
+            ref={r => (this.password = r)}
             defaultValue={`${password}`}
           />
         </div>
