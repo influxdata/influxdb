@@ -1,11 +1,6 @@
 package influxql
 
-type iteratorMapper struct {
-	e         *Emitter
-	buf       []interface{}
-	fields    []IteratorMap // which iterator to use for an aux field
-	auxFields []interface{}
-}
+import "fmt"
 
 type IteratorMap interface {
 	Value(tags Tags, buf []interface{}) interface{}
@@ -19,43 +14,31 @@ type TagMap string
 
 func (s TagMap) Value(tags Tags, buf []interface{}) interface{} { return tags.Value(string(s)) }
 
-func NewIteratorMapper(itrs []Iterator, fields []IteratorMap, opt IteratorOptions) Iterator {
-	e := NewEmitter(itrs, opt.Ascending, 0)
-	e.OmitTime = true
-	return &iteratorMapper{
-		e:         e,
-		buf:       make([]interface{}, len(itrs)),
-		fields:    fields,
-		auxFields: make([]interface{}, len(fields)),
-	}
-}
+type NullMap struct{}
 
-func (itr *iteratorMapper) Next() (*FloatPoint, error) {
-	t, name, tags, err := itr.e.loadBuf()
-	if err != nil || t == ZeroTime {
-		return nil, err
-	}
+func (NullMap) Value(tags Tags, buf []interface{}) interface{} { return nil }
 
-	itr.e.readInto(t, name, tags, itr.buf)
-	for i, f := range itr.fields {
-		itr.auxFields[i] = f.Value(tags, itr.buf)
+func NewIteratorMapper(itrs []Iterator, driver IteratorMap, fields []IteratorMap, opt IteratorOptions) Iterator {
+	if driver != nil {
+		switch driver := driver.(type) {
+		case FieldMap:
+			switch itrs[int(driver)].(type) {
+			case FloatIterator:
+				return newFloatIteratorMapper(itrs, driver, fields, opt)
+			case IntegerIterator:
+				return newIntegerIteratorMapper(itrs, driver, fields, opt)
+			case StringIterator:
+				return newStringIteratorMapper(itrs, driver, fields, opt)
+			case BooleanIterator:
+				return newBooleanIteratorMapper(itrs, driver, fields, opt)
+			default:
+				panic(fmt.Sprintf("unable to map iterator type: %T", itrs[int(driver)]))
+			}
+		case TagMap:
+			return newStringIteratorMapper(itrs, driver, fields, opt)
+		default:
+			panic(fmt.Sprintf("unable to create iterator mapper with driveression type: %T", driver))
+		}
 	}
-	return &FloatPoint{
-		Name: name,
-		Tags: tags,
-		Time: t,
-		Aux:  itr.auxFields,
-	}, nil
-}
-
-func (itr *iteratorMapper) Stats() IteratorStats {
-	stats := IteratorStats{}
-	for _, itr := range itr.e.itrs {
-		stats.Add(itr.Stats())
-	}
-	return stats
-}
-
-func (itr *iteratorMapper) Close() error {
-	return itr.e.Close()
+	return newFloatIteratorMapper(itrs, nil, fields, opt)
 }

@@ -31,7 +31,7 @@ func TestIteratorMapper(t *testing.T) {
 			{Val: "val2", Type: influxql.String},
 		},
 	}
-	itr := influxql.NewIteratorMapper(inputs, []influxql.IteratorMap{
+	itr := influxql.NewIteratorMapper(inputs, nil, []influxql.IteratorMap{
 		influxql.FieldMap(0),
 		influxql.FieldMap(1),
 		influxql.TagMap("host"),
