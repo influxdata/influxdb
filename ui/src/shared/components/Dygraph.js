@@ -3,14 +3,7 @@ import React, {PropTypes} from 'react'
 import Dygraph from '../../external/dygraph'
 import getRange from 'src/shared/parsing/getRangeForDygraph'
 
-const {
-  array,
-  arrayOf,
-  number,
-  bool,
-  shape,
-  string,
-} = PropTypes
+const {array, arrayOf, number, bool, shape, string} = PropTypes
 
 const LINE_COLORS = [
   '#00C9FF',
@@ -112,12 +105,12 @@ export default React.createClass({
         const legendRect = legendContainerNode.getBoundingClientRect()
         const graphWidth = graphRect.width + 32 // Factoring in padding from parent
         const legendWidth = legendRect.width
-        const legendMaxLeft = graphWidth - (legendWidth / 2)
-        const trueGraphX = (e.pageX - graphRect.left)
+        const legendMaxLeft = graphWidth - legendWidth / 2
+        const trueGraphX = e.pageX - graphRect.left
         const legendTop = graphRect.height + 0
         let legendLeft = trueGraphX
         // Enforcing max & min legend offsets
-        if (trueGraphX < (legendWidth / 2)) {
+        if (trueGraphX < legendWidth / 2) {
           legendLeft = legendWidth / 2
         } else if (trueGraphX > legendMaxLeft) {
           legendLeft = legendMaxLeft
@@ -159,7 +152,9 @@ export default React.createClass({
   componentDidUpdate() {
     const dygraph = this.dygraph
     if (!dygraph) {
-      throw new Error('Dygraph not configured in time; this should not be possible!')
+      throw new Error(
+        'Dygraph not configured in time; this should not be possible!'
+      )
     }
 
     const timeSeries = this.getTimeSeries()

@@ -55,7 +55,10 @@ class AlertsApp extends Component {
   }
 
   fetchAlerts() {
-    getAlerts(this.props.source.links.proxy, this.state.timeRange).then((resp) => {
+    getAlerts(
+      this.props.source.links.proxy,
+      this.state.timeRange
+    ).then(resp => {
       const results = []
 
       const alertSeries = _.get(resp, ['data', 'results', '0', 'series'], [])
@@ -64,13 +67,19 @@ class AlertsApp extends Component {
         return
       }
 
-      const timeIndex = alertSeries[0].columns.findIndex((col) => col === 'time')
-      const hostIndex = alertSeries[0].columns.findIndex((col) => col === 'host')
-      const valueIndex = alertSeries[0].columns.findIndex((col) => col === 'value')
-      const levelIndex = alertSeries[0].columns.findIndex((col) => col === 'level')
-      const nameIndex = alertSeries[0].columns.findIndex((col) => col === 'alertName')
+      const timeIndex = alertSeries[0].columns.findIndex(col => col === 'time')
+      const hostIndex = alertSeries[0].columns.findIndex(col => col === 'host')
+      const valueIndex = alertSeries[0].columns.findIndex(
+        col => col === 'value'
+      )
+      const levelIndex = alertSeries[0].columns.findIndex(
+        col => col === 'level'
+      )
+      const nameIndex = alertSeries[0].columns.findIndex(
+        col => col === 'alertName'
+      )
 
-      alertSeries[0].values.forEach((s) => {
+      alertSeries[0].values.forEach(s => {
         results.push({
           time: `${s[timeIndex]}`,
           host: s[hostIndex],
@@ -86,13 +95,11 @@ class AlertsApp extends Component {
   renderSubComponents() {
     let component
     if (this.state.loading) {
-      component = (<p>Loading...</p>)
+      component = <p>Loading...</p>
     } else {
       const {source} = this.props
       if (this.state.hasKapacitor) {
-        component = (
-          <AlertsTable source={source} alerts={this.state.alerts} />
-        )
+        component = <AlertsTable source={source} alerts={this.state.alerts} />
       } else {
         component = <NoKapacitorError source={source} />
       }
@@ -125,7 +132,7 @@ class AlertsApp extends Component {
         <div className="page-header">
           <div className="page-header__container">
             <div className="page-header__left">
-              <h1>
+              <h1 className="page-header__title">
                 Alert History
               </h1>
             </div>
@@ -155,11 +162,7 @@ class AlertsApp extends Component {
   }
 }
 
-const {
-  func,
-  shape,
-  string,
-} = PropTypes
+const {func, shape, string} = PropTypes
 
 AlertsApp.propTypes = {
   source: shape({

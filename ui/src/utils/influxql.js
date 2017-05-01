@@ -30,16 +30,22 @@ export function buildSelectStatement(config) {
 }
 
 function _buildFields(fieldFuncs) {
-  const hasAggregate = fieldFuncs.some((f) => f.funcs && f.funcs.length)
+  const hasAggregate = fieldFuncs.some(f => f.funcs && f.funcs.length)
   if (hasAggregate) {
-    return fieldFuncs.map((f) => {
-      return f.funcs.map((func) => `${func}("${f.field}") AS "${func}_${f.field}"`).join(', ')
-    }).join(', ')
+    return fieldFuncs
+      .map(f => {
+        return f.funcs
+          .map(func => `${func}("${f.field}") AS "${func}_${f.field}"`)
+          .join(', ')
+      })
+      .join(', ')
   }
 
-  return fieldFuncs.map((f) => {
-    return f.field === '*' ? '*' : `"${f.field}"`
-  }).join(', ')
+  return fieldFuncs
+    .map(f => {
+      return f.field === '*' ? '*' : `"${f.field}"`
+    })
+    .join(', ')
 }
 
 function _buildWhereClause({lower, upper, tags, areTagsAccepted}) {
@@ -54,11 +60,13 @@ function _buildWhereClause({lower, upper, tags, areTagsAccepted}) {
 
   // If a tag key has more than one value, * e.g. cpu=cpu1, cpu=cpu2, combine
   // them with OR instead of AND for the final query.
-  const tagClauses = Object.keys(tags).map((k) => {
+  const tagClauses = Object.keys(tags).map(k => {
     const operator = areTagsAccepted ? '=' : '!='
 
     if (tags[k].length > 1) {
-      const joinedOnOr = tags[k].map((v) => `"${k}"${operator}'${v}'`).join(' OR ')
+      const joinedOnOr = tags[k]
+        .map(v => `"${k}"${operator}'${v}'`)
+        .join(' OR ')
       return `(${joinedOnOr})`
     }
 
@@ -90,7 +98,7 @@ function _buildGroupByTags(groupBy) {
     return ''
   }
 
-  const tags = groupBy.tags.map((t) => `"${t}"`).join(', ')
+  const tags = groupBy.tags.map(t => `"${t}"`).join(', ')
 
   if (groupBy.time) {
     return `, ${tags}`

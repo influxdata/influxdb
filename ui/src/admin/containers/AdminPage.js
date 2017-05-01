@@ -28,14 +28,14 @@ import AdminTabs from 'src/admin/components/AdminTabs'
 
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
-const isValidUser = (user) => {
+const isValidUser = user => {
   const minLen = 3
-  return (user.name.length >= minLen && user.password.length >= minLen)
+  return user.name.length >= minLen && user.password.length >= minLen
 }
 
-const isValidRole = (role) => {
+const isValidRole = role => {
   const minLen = 3
-  return (role.name.length >= minLen)
+  return role.name.length >= minLen
 }
 
 class AdminPage extends Component {
@@ -147,9 +147,16 @@ class AdminPage extends Component {
   }
 
   render() {
-    const {users, roles, source, permissions, filterUsers, filterRoles} = this.props
+    const {
+      users,
+      roles,
+      source,
+      permissions,
+      filterUsers,
+      filterRoles,
+    } = this.props
     const hasRoles = !!source.links.roles
-    const globalPermissions = permissions.find((p) => p.scope === 'all')
+    const globalPermissions = permissions.find(p => p.scope === 'all')
     const allowed = globalPermissions ? globalPermissions.allowed : []
 
     return (
@@ -157,7 +164,7 @@ class AdminPage extends Component {
         <div className="page-header">
           <div className="page-header__container">
             <div className="page-header__left">
-              <h1>
+              <h1 className="page-header__title">
                 Admin
               </h1>
             </div>
@@ -166,9 +173,8 @@ class AdminPage extends Component {
         <div className="page-contents">
           <div className="container-fluid">
             <div className="row">
-                {
-                  users ?
-                  <AdminTabs
+              {users
+                ? <AdminTabs
                     users={users}
                     roles={roles}
                     source={source}
@@ -192,9 +198,8 @@ class AdminPage extends Component {
                     onUpdateUserPermissions={this.handleUpdateUserPermissions}
                     onUpdateUserRoles={this.handleUpdateUserRoles}
                     onUpdateUserPassword={this.handleUpdateUserPassword}
-                  /> :
-                  <span>Loading...</span>
-                }
+                  />
+                : <span>Loading...</span>}
             </div>
           </div>
         </div>
@@ -203,12 +208,7 @@ class AdminPage extends Component {
   }
 }
 
-const {
-  arrayOf,
-  func,
-  shape,
-  string,
-} = PropTypes
+const {arrayOf, func, shape, string} = PropTypes
 
 AdminPage.propTypes = {
   source: shape({
@@ -249,7 +249,7 @@ const mapStateToProps = ({admin: {users, roles, permissions}}) => ({
   permissions,
 })
 
-const mapDispatchToProps = (dispatch) => ({
+const mapDispatchToProps = dispatch => ({
   loadUsers: bindActionCreators(loadUsersAsync, dispatch),
   loadRoles: bindActionCreators(loadRolesAsync, dispatch),
   loadPermissions: bindActionCreators(loadPermissionsAsync, dispatch),
@@ -266,8 +266,14 @@ const mapDispatchToProps = (dispatch) => ({
   filterUsers: bindActionCreators(filterUsersAction, dispatch),
   filterRoles: bindActionCreators(filterRolesAction, dispatch),
   updateRoleUsers: bindActionCreators(updateRoleUsersAsync, dispatch),
-  updateRolePermissions: bindActionCreators(updateRolePermissionsAsync, dispatch),
-  updateUserPermissions: bindActionCreators(updateUserPermissionsAsync, dispatch),
+  updateRolePermissions: bindActionCreators(
+    updateRolePermissionsAsync,
+    dispatch
+  ),
+  updateUserPermissions: bindActionCreators(
+    updateUserPermissionsAsync,
+    dispatch
+  ),
   updateUserRoles: bindActionCreators(updateUserRolesAsync, dispatch),
   updateUserPassword: bindActionCreators(updateUserPasswordAsync, dispatch),
   notify: bindActionCreators(publishAutoDismissingNotification, dispatch),

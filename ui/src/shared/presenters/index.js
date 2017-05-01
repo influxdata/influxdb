@@ -13,7 +13,7 @@ export function buildRoles(roles) {
 function buildPermissionsWithResources(rawPermissions) {
   const nextPermissions = {}
   _.each(rawPermissions, (permissions, resource) => {
-    permissions.forEach((p) => {
+    permissions.forEach(p => {
       if (nextPermissions[p]) {
         nextPermissions[p].push(resource)
       } else {
@@ -79,10 +79,14 @@ export function buildPermission(permissionName, resources) {
     }
   }
 
-  return Object.assign({}, {
-    name: permissionName,
-    resources,
-  }, PERMISSIONS[permissionName])
+  return Object.assign(
+    {},
+    {
+      name: permissionName,
+      resources,
+    },
+    PERMISSIONS[permissionName]
+  )
 }
 
 export function buildClusterAccounts(users = [], roles = []) {

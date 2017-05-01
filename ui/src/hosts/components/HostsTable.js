@@ -3,22 +3,18 @@ import shallowCompare from 'react-addons-shallow-compare'
 import {Link} from 'react-router'
 import _ from 'lodash'
 
-const {
-  arrayOf,
-  bool,
-  number,
-  shape,
-  string,
-} = PropTypes
+const {arrayOf, bool, number, shape, string} = PropTypes
 
 const HostsTable = React.createClass({
   propTypes: {
-    hosts: arrayOf(shape({
-      name: string,
-      cpu: number,
-      load: number,
-      apps: arrayOf(string.isRequired),
-    })),
+    hosts: arrayOf(
+      shape({
+        name: string,
+        cpu: number,
+        load: number,
+        apps: arrayOf(string.isRequired),
+      })
+    ),
     hostsLoading: bool,
     hostsError: string,
     source: shape({
@@ -36,7 +32,7 @@ const HostsTable = React.createClass({
   },
 
   filter(allHosts, searchTerm) {
-    return allHosts.filter((h) => {
+    return allHosts.filter(h => {
       const apps = h.apps ? h.apps.join(', ') : ''
       // search each tag for the presence of the search term
       let tagResult = false
@@ -58,9 +54,9 @@ const HostsTable = React.createClass({
   sort(hosts, key, direction) {
     switch (direction) {
       case 'asc':
-        return _.sortBy(hosts, (e) => e[key])
+        return _.sortBy(hosts, e => e[key])
       case 'desc':
-        return _.sortBy(hosts, (e) => e[key]).reverse()
+        return _.sortBy(hosts, e => e[key]).reverse()
       default:
         return hosts
     }
@@ -73,7 +69,9 @@ const HostsTable = React.createClass({
   updateSort(key) {
     // if we're using the key, reverse order; otherwise, set it with ascending
     if (this.state.sortKey === key) {
-      const reverseDirection = (this.state.sortDirection === 'asc' ? 'desc' : 'asc')
+      const reverseDirection = this.state.sortDirection === 'asc'
+        ? 'desc'
+        : 'asc'
       this.setState({sortDirection: reverseDirection})
     } else {
       this.setState({sortKey: key, sortDirection: 'asc'})
@@ -93,7 +91,11 @@ const HostsTable = React.createClass({
   render() {
     const {searchTerm, sortKey, sortDirection} = this.state
     const {hosts, hostsLoading, hostsError, source} = this.props
-    const sortedHosts = this.sort(this.filter(hosts, searchTerm), sortKey, sortDirection)
+    const sortedHosts = this.sort(
+      this.filter(hosts, searchTerm),
+      sortKey,
+      sortDirection
+    )
     const hostCount = sortedHosts.length
 
     let hostsTitle
@@ -120,19 +122,40 @@ const HostsTable = React.createClass({
           <table className="table v-center">
             <thead>
               <tr>
-                <th onClick={() => this.updateSort('name')} className={this.sortableClasses('name')}>Hostname</th>
-                <th onClick={() => this.updateSort('deltaUptime')} className={this.sortableClasses('deltaUptime')} style={{width: '74px'}}>Status</th>
-                <th onClick={() => this.updateSort('cpu')} className={this.sortableClasses('cpu')} style={{width: '70px'}}>CPU</th>
-                <th onClick={() => this.updateSort('load')} className={this.sortableClasses('load')} style={{width: '68px'}}>Load</th>
+                <th
+                  onClick={() => this.updateSort('name')}
+                  className={this.sortableClasses('name')}
+                >
+                  Hostname
+                </th>
+                <th
+                  onClick={() => this.updateSort('deltaUptime')}
+                  className={this.sortableClasses('deltaUptime')}
+                  style={{width: '74px'}}
+                >
+                  Status
+                </th>
+                <th
+                  onClick={() => this.updateSort('cpu')}
+                  className={this.sortableClasses('cpu')}
+                  style={{width: '70px'}}
+                >
+                  CPU
+                </th>
+                <th
+                  onClick={() => this.updateSort('load')}
+                  className={this.sortableClasses('load')}
+                  style={{width: '68px'}}
+                >
+                  Load
+                </th>
                 <th>Apps</th>
               </tr>
             </thead>
             <tbody>
-              {
-                sortedHosts.map((h) => {
-                  return <HostRow key={h.name} host={h} source={source} />
-                })
-              }
+              {sortedHosts.map(h => {
+                return <HostRow key={h.name} host={h} source={source} />
+              })}
             </tbody>
           </table>
         </div>
@@ -173,17 +196,27 @@ const HostRow = React.createClass({
 
     return (
       <tr>
-        <td className="monotype"><Link to={`/sources/${source.id}/hosts/${name}`}>{name}</Link></td>
-        <td style={{width: '74px'}}><div className={stateStr}></div></td>
-        <td className="monotype" style={{width: '70px'}}>{isNaN(cpu) ? 'N/A' : `${cpu.toFixed(2)}%`}</td>
-        <td className="monotype" style={{width: '68px'}}>{isNaN(load) ? 'N/A' : `${load.toFixed(2)}`}</td>
+        <td className="monotype">
+          <Link to={`/sources/${source.id}/hosts/${name}`}>{name}</Link>
+        </td>
+        <td style={{width: '74px'}}><div className={stateStr} /></td>
+        <td className="monotype" style={{width: '70px'}}>
+          {isNaN(cpu) ? 'N/A' : `${cpu.toFixed(2)}%`}
+        </td>
+        <td className="monotype" style={{width: '68px'}}>
+          {isNaN(load) ? 'N/A' : `${load.toFixed(2)}`}
+        </td>
         <td className="monotype">
           {apps.map((app, index) => {
             return (
               <span key={app}>
                 <Link
                   style={{marginLeft: '2px'}}
-                  to={{pathname: `/sources/${source.id}/hosts/${name}`, query: {app}}}>
+                  to={{
+                    pathname: `/sources/${source.id}/hosts/${name}`,
+                    query: {app},
+                  }}
+                >
                   {app}
                 </Link>
                 {index === apps.length - 1 ? null : ', '}
@@ -231,7 +264,7 @@ const SearchBar = React.createClass({
           onChange={this.handleChange}
         />
         <div className="input-group-addon">
-          <span className="icon search" aria-hidden="true"></span>
+          <span className="icon search" aria-hidden="true" />
         </div>
       </div>
     )

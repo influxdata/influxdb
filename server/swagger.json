@@ -3055,10 +3055,20 @@
 		"Proxy": {
 			"type": "object",
 			"example": {
-				"query": "select * from cpu where time > now() - 10m",
+				"query": "select $myfield from cpu where time > now() - 10m",
 				"db": "telegraf",
 				"rp": "autogen",
-				"format": "raw"
+				"tempVars": [
+					{
+						"tempVar": "$myfield",
+						"values": [
+							{
+								"type": "fieldKey",
+								"value": "usage_user"
+							}
+						]
+					}
+				]
 			},
 			"required": [
 				"query"
@@ -3073,12 +3083,49 @@
 				"rp": {
 					"type": "string"
 				},
-				"format": {
+				"tempVars": {
+					"type": "array",
+					"description": "Template variables to replace within an InfluxQL query",
+					"items": {
+						"$ref": "#/definitions/TemplateVariable"
+					}
+				}
+			}
+		},
+		"TemplateVariable": {
+			"type": "object",
+			"description": "Named variable within an InfluxQL query to be replaced with values",
+			"properties": {
+				"tempVar": {
+					"type": "string",
+					"description": "String to replace within an InfluxQL statement"
+				},
+				"values": {
+					"type": "array",
+					"description": "Values used to replace tempVar.",
+					"items": {
+						"$ref": "#/definitions/TemplateValue"
+					}
+				}
+			}
+		},
+		"TemplateValue": {
+			"type": "object",
+			"description": "Value use to replace a template in an InfluxQL query.  The type governs the output format",
+			"properties": {
+				"value": {
+					"type": "string",
+					"description": "Specific value that will be encoded based on type"
+				},
+				"type": {
 					"type": "string",
 					"enum": [
-						"raw"
+						"csv",
+						"tagKey",
+						"tagValue",
+						"fieldKey"
 					],
-					"default": "raw"
+					"description": "The type will change the format of the output value. tagKey/fieldKey are double quoted; tagValue are single quoted; csv are not quoted."
 				}
 			}
 		},

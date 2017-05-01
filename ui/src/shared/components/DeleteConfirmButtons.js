@@ -4,7 +4,10 @@ import OnClickOutside from 'shared/components/OnClickOutside'
 import ConfirmButtons from 'shared/components/ConfirmButtons'
 
 const DeleteButton = ({onClickDelete}) => (
-  <button className="btn btn-xs btn-danger admin-table--hidden" onClick={onClickDelete}>
+  <button
+    className="btn btn-xs btn-danger admin-table--hidden"
+    onClick={onClickDelete}
+  >
     Delete
   </button>
 )
@@ -35,23 +38,24 @@ class DeleteConfirmButtons extends Component {
     const {onDelete, item} = this.props
     const {isConfirming} = this.state
 
-    return isConfirming ?
-      <ConfirmButtons onConfirm={onDelete} item={item} onCancel={this.handleCancel} /> :
-      <DeleteButton onClickDelete={this.handleClickDelete} />
+    return isConfirming
+      ? <ConfirmButtons
+          onConfirm={onDelete}
+          item={item}
+          onCancel={this.handleCancel}
+        />
+      : <DeleteButton onClickDelete={this.handleClickDelete} />
   }
 }
 
-const {
-  func,
-  shape,
-} = PropTypes
+const {func, oneOfType, shape, string} = PropTypes
 
 DeleteButton.propTypes = {
   onClickDelete: func.isRequired,
 }
 
 DeleteConfirmButtons.propTypes = {
-  item: shape({}),
+  item: oneOfType([(string, shape())]),
   onDelete: func.isRequired,
 }
 

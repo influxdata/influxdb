@@ -1,4 +1,4 @@
-const parseShowDatabases = (response) => {
+const parseShowDatabases = response => {
   const results = response.results[0]
   if (results.error) {
     return {errors: [results.error], databases: []}
@@ -9,7 +9,7 @@ const parseShowDatabases = (response) => {
     return {errors: [], databases: []}
   }
 
-  const databases = series.values.map((s) => {
+  const databases = series.values.map(s => {
     return s[0]
   })
 

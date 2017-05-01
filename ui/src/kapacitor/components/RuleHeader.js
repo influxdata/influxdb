@@ -58,19 +58,41 @@ export const RuleHeader = React.createClass({
   },
 
   renderSave() {
-    const {validationError, onSave, timeRange, onChooseTimeRange, source} = this.props
-    const saveButton = validationError ?
-      (<button className="btn btn-success btn-sm disabled" data-for="save-kapacitor-tooltip" data-tip={validationError}>
-        Save Rule
-      </button>) :
-      <button className="btn btn-success btn-sm" onClick={onSave}>Save Rule</button>
+    const {
+      validationError,
+      onSave,
+      timeRange,
+      onChooseTimeRange,
+      source,
+    } = this.props
+    const saveButton = validationError
+      ? <button
+          className="btn btn-success btn-sm disabled"
+          data-for="save-kapacitor-tooltip"
+          data-tip={validationError}
+        >
+          Save Rule
+        </button>
+      : <button className="btn btn-success btn-sm" onClick={onSave}>
+          Save Rule
+        </button>
 
     return (
       <div className="page-header__right">
         <SourceIndicator sourceName={source.name} />
-        <TimeRangeDropdown onChooseTimeRange={onChooseTimeRange} selected={timeRange} />
+        <TimeRangeDropdown
+          onChooseTimeRange={onChooseTimeRange}
+          selected={timeRange}
+        />
         {saveButton}
-        <ReactTooltip id="save-kapacitor-tooltip" effect="solid" html={true} offset={{top: 2}} place="bottom" class="influx-tooltip kapacitor-tooltip place-bottom" />
+        <ReactTooltip
+          id="save-kapacitor-tooltip"
+          effect="solid"
+          html={true}
+          offset={{top: 2}}
+          place="bottom"
+          class="influx-tooltip kapacitor-tooltip place-bottom"
+        />
       </div>
     )
   },
@@ -79,21 +101,34 @@ export const RuleHeader = React.createClass({
     const {rule} = this.props
     const {isEditingName} = this.state
 
-    const name = isEditingName ?
-      (<input
-        className="page-header--editing kapacitor-theme"
-        autoFocus={true}
-        defaultValue={rule.name}
-        ref={r => this.ruleName = r}
-        onKeyDown={(e) => this.handleEditName(e, rule)}
-        onBlur={() => this.handleEditNameBlur(rule)}
-        placeholder="Name your rule"
-      />) :
-      (<h1 className="page-header--editable kapacitor-theme" onClick={this.toggleEditName} data-for="rename-kapacitor-tooltip" data-tip="Click to Rename">
-        {rule.name}
-        <span className="icon pencil"></span>
-        <ReactTooltip id="rename-kapacitor-tooltip" delayShow={200} effect="solid" html={true} offset={{top: 2}} place="bottom" class="influx-tooltip kapacitor-tooltip place-bottom" />
-      </h1>)
+    const name = isEditingName
+      ? <input
+          className="page-header--editing kapacitor-theme"
+          autoFocus={true}
+          defaultValue={rule.name}
+          ref={r => (this.ruleName = r)}
+          onKeyDown={e => this.handleEditName(e, rule)}
+          onBlur={() => this.handleEditNameBlur(rule)}
+          placeholder="Name your rule"
+        />
+      : <h1
+          className="page-header--editable kapacitor-theme"
+          onClick={this.toggleEditName}
+          data-for="rename-kapacitor-tooltip"
+          data-tip="Click to Rename"
+        >
+          {rule.name}
+          <span className="icon pencil" />
+          <ReactTooltip
+            id="rename-kapacitor-tooltip"
+            delayShow={200}
+            effect="solid"
+            html={true}
+            offset={{top: 2}}
+            place="bottom"
+            class="influx-tooltip kapacitor-tooltip place-bottom"
+          />
+        </h1>
 
     return (
       <div className="page-header__left">
@@ -101,7 +136,6 @@ export const RuleHeader = React.createClass({
       </div>
     )
   },
-
 })
 
 export default RuleHeader

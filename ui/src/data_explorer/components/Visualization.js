@@ -14,6 +14,7 @@ const Visualization = React.createClass({
     cellName: string,
     cellType: string,
     autoRefresh: number.isRequired,
+    templates: arrayOf(shape()),
     timeRange: shape({
       upper: string,
       lower: string,
@@ -79,14 +80,14 @@ const Visualization = React.createClass({
       cellType,
       cellName,
       timeRange,
+      templates,
       autoRefresh,
       heightPixels,
       queryConfigs,
       editQueryStatus,
       activeQueryIndex,
     } = this.props
-    const {source} = this.context
-    const proxyLink = source.links.proxy
+    const {source: {links: {proxy}}} = this.context
     const {view} = this.state
 
     const statements = queryConfigs.map(query => {
@@ -94,7 +95,7 @@ const Visualization = React.createClass({
       return {text, id: query.id}
     })
     const queries = statements.filter(s => s.text !== null).map(s => {
-      return {host: [proxyLink], text: s.text, id: s.id}
+      return {host: [proxy], text: s.text, id: s.id}
     })
 
     return (
@@ -114,6 +115,7 @@ const Visualization = React.createClass({
           <VisView
             view={view}
             queries={queries}
+            templates={templates}
             cellType={cellType}
             autoRefresh={autoRefresh}
             heightPixels={heightPixels}

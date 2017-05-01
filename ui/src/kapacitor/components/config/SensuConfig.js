@@ -33,7 +33,7 @@ const SensuConfig = React.createClass({
             className="form-control"
             id="source"
             type="text"
-            ref={r => this.source = r}
+            ref={r => (this.source = r)}
             defaultValue={source || ''}
           />
         </div>
@@ -44,7 +44,7 @@ const SensuConfig = React.createClass({
             className="form-control"
             id="address"
             type="text"
-            ref={r => this.addr = r}
+            ref={r => (this.addr = r)}
             defaultValue={addr || ''}
           />
         </div>

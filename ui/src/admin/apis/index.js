@@ -1,6 +1,6 @@
 import AJAX from 'src/utils/ajax'
 
-export const getUsers = async (url) => {
+export const getUsers = async url => {
   try {
     return await AJAX({
       method: 'GET',
@@ -12,7 +12,7 @@ export const getUsers = async (url) => {
   }
 }
 
-export const getRoles = async (url) => {
+export const getRoles = async url => {
   try {
     return await AJAX({
       method: 'GET',
@@ -24,7 +24,7 @@ export const getRoles = async (url) => {
   }
 }
 
-export const getPermissions = async (url) => {
+export const getPermissions = async url => {
   try {
     return await AJAX({
       method: 'GET',
@@ -36,7 +36,7 @@ export const getPermissions = async (url) => {
   }
 }
 
-export const getDbsAndRps = async (url) => {
+export const getDbsAndRps = async url => {
   try {
     return await AJAX({
       method: 'GET',
@@ -96,7 +96,7 @@ export const createRetentionPolicy = async (url, retentionPolicy) => {
   }
 }
 
-export const deleteRetentionPolicy = async (url) => {
+export const deleteRetentionPolicy = async url => {
   try {
     return await AJAX({
       method: 'DELETE',
@@ -107,19 +107,7 @@ export const deleteRetentionPolicy = async (url) => {
   }
 }
 
-export const deleteRole = async (url) => {
-  try {
-    return await AJAX({
-      method: 'DELETE',
-      url,
-    })
-  } catch (error) {
-    console.error(error)
-    throw error
-  }
-}
-
-export const deleteUser = async (url) => {
+export const deleteRole = async url => {
   try {
     return await AJAX({
       method: 'DELETE',
@@ -131,7 +119,19 @@ export const deleteUser = async (url) => {
   }
 }
 
-export const deleteDatabase = async (url) => {
+export const deleteUser = async url => {
+  try {
+    return await AJAX({
+      method: 'DELETE',
+      url,
+    })
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}
+
+export const deleteDatabase = async url => {
   try {
     return await AJAX({
       method: 'DELETE',

@@ -36,7 +36,7 @@ const TalkConfig = React.createClass({
           <RedactedInput
             defaultValue={url}
             id="url"
-            refFunc={r => this.url = r}
+            refFunc={r => (this.url = r)}
           />
         </div>
 
@@ -46,7 +46,7 @@ const TalkConfig = React.createClass({
             className="form-control"
             id="author"
             type="text"
-            ref={r => this.author = r}
+            ref={r => (this.author = r)}
             defaultValue={author || ''}
           />
         </div>

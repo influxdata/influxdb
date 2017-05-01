@@ -5,7 +5,7 @@ import ConfirmButtons from 'shared/components/ConfirmButtons'
 
 import graphTypes from 'hson!shared/data/graphTypes.hson'
 
-const OverlayControls = (props) => {
+const OverlayControls = props => {
   const {onCancel, onSave, selectedGraphType, onSelectGraphType} = props
   return (
     <div className="overlay-controls">
@@ -13,15 +13,17 @@ const OverlayControls = (props) => {
       <div className="overlay-controls--right">
         <p>Visualization Type:</p>
         <ul className="toggle toggle-sm">
-          {graphTypes.map(graphType =>
+          {graphTypes.map(graphType => (
             <li
               key={graphType.type}
-              className={classnames('toggle-btn', {active: graphType.type === selectedGraphType})}
+              className={classnames('toggle-btn', {
+                active: graphType.type === selectedGraphType,
+              })}
               onClick={() => onSelectGraphType(graphType.type)}
             >
               {graphType.menuOption}
             </li>
-          )}
+          ))}
         </ul>
         <ConfirmButtons onCancel={onCancel} onConfirm={onSave} />
       </div>
@@ -29,10 +31,7 @@ const OverlayControls = (props) => {
   )
 }
 
-const {
-  func,
-  string,
-} = PropTypes
+const {func, string} = PropTypes
 
 OverlayControls.propTypes = {
   onCancel: func.isRequired,

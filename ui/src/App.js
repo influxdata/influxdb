@@ -7,10 +7,7 @@ import Notifications from 'shared/components/Notifications'
 
 import {publishNotification} from 'src/shared/actions/notifications'
 
-const {
-  func,
-  node,
-} = PropTypes
+const {func, node} = PropTypes
 
 const App = React.createClass({
   propTypes: {
@@ -29,15 +26,16 @@ const App = React.createClass({
       <div className="chronograf-root">
         <SideNav />
         <Notifications />
-        {this.props.children && React.cloneElement(this.props.children, {
-          addFlashMessage: this.handleAddFlashMessage,
-        })}
+        {this.props.children &&
+          React.cloneElement(this.props.children, {
+            addFlashMessage: this.handleAddFlashMessage,
+          })}
       </div>
     )
   },
 })
 
-const mapDispatchToProps = (dispatch) => ({
+const mapDispatchToProps = dispatch => ({
   notify: bindActionCreators(publishNotification, dispatch),
 })
 
