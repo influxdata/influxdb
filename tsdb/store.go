@@ -224,6 +224,9 @@ func (s *Store) loadShards() error {
 
 					// Open engine.
 					shard := NewShard(shardID, path, walPath, opt)
+
+					// Disable compactions, writes and queries until all shards are loaded
+					shard.EnableOnOpen = false
 					shard.WithLogger(s.baseLogger)
 
 					err = shard.Open()
@@ -251,6 +254,12 @@ func (s *Store) loadShards() error {
 		s.databases[res.s.database] = struct{}{}
 	}
 	close(resC)
+
+	// Enable all shards
+	for _, sh := range s.shards {
+		sh.SetEnabled(true)
+	}
+
 	return nil
 }
 
