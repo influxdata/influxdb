@@ -165,12 +165,9 @@ func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, opt tsdb.
 		WAL:   w,
 		Cache: cache,
 
-		FileStore: fs,
-		Compactor: c,
-		CompactionPlan: &DefaultPlanner{
-			FileStore:                    fs,
-			CompactFullWriteColdDuration: time.Duration(opt.Config.CompactFullWriteColdDuration),
-		},
+		FileStore:      fs,
+		Compactor:      c,
+		CompactionPlan: NewDefaultPlanner(fs, time.Duration(opt.Config.CompactFullWriteColdDuration)),
 
 		CacheFlushMemorySizeThreshold: opt.Config.CacheSnapshotMemorySize,
 		CacheFlushWriteColdDuration:   time.Duration(opt.Config.CacheSnapshotWriteColdDuration),
@@ -1170,8 +1167,12 @@ func (e *Engine) compactTSMLevel(fast bool, level int, quit <-chan struct{}) {
 		case <-t.C:
 			s := e.levelCompactionStrategy(fast, level)
 			if s != nil {
+				// Release the files in the compaction plan
+				defer e.CompactionPlan.Release(s.compactionGroups)
+
 				s.Apply()
 			}
+
 		}
 	}
 }
@@ -1188,6 +1189,8 @@ func (e *Engine) compactTSMFull(quit <-chan struct{}) {
 		case <-t.C:
 			s := e.fullCompactionStrategy()
 			if s != nil {
+				// Release the files in the compaction plan
+				defer e.CompactionPlan.Release(s.compactionGroups)
 				s.Apply()
 			}
 

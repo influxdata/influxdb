@@ -53,6 +53,7 @@ type CompactionPlanner interface {
 	Plan(lastWrite time.Time) []CompactionGroup
 	PlanLevel(level int) []CompactionGroup
 	PlanOptimize() []CompactionGroup
+	Release(group []CompactionGroup)
 }
 
 // DefaultPlanner implements CompactionPlanner using a strategy to roll up
@@ -60,17 +61,13 @@ type CompactionPlanner interface {
 // to minimize the number of TSM files on disk while rolling up a bounder number
 // of files.
 type DefaultPlanner struct {
-	FileStore interface {
-		Stats() []FileStat
-		LastModified() time.Time
-		BlockCount(path string, idx int) int
-	}
+	FileStore fileStore
 
-	// CompactFullWriteColdDuration specifies the length of time after
+	// compactFullWriteColdDuration specifies the length of time after
 	// which if no writes have been committed to the WAL, the engine will
 	// do a full compaction of the TSM files in this shard. This duration
 	// should always be greater than the CacheFlushWriteColdDuraion
-	CompactFullWriteColdDuration time.Duration
+	compactFullWriteColdDuration time.Duration
 
 	// lastPlanCheck is the last time Plan was called
 	lastPlanCheck time.Time
@@ -81,6 +78,24 @@ type DefaultPlanner struct {
 
 	// lastGenerations is the last set of generations found by findGenerations
 	lastGenerations tsmGenerations
+
+	// filesInUse is the set of files that have been returned as part of a plan and might
+	// be being compacted.  Two plans should not return the same file at any given time.
+	filesInUse map[string]struct{}
+}
+
+type fileStore interface {
+	Stats() []FileStat
+	LastModified() time.Time
+	BlockCount(path string, idx int) int
+}
+
+func NewDefaultPlanner(fs fileStore, writeColdDuration time.Duration) *DefaultPlanner {
+	return &DefaultPlanner{
+		FileStore:                    fs,
+		compactFullWriteColdDuration: writeColdDuration,
+		filesInUse:                   make(map[string]struct{}),
+	}
 }
 
 // tsmGeneration represents the TSM files within a generation.
@@ -205,6 +220,10 @@ func (c *DefaultPlanner) PlanLevel(level int) []CompactionGroup {
 		}
 	}
 
+	if !c.acquire(cGroups) {
+		return nil
+	}
+
 	return cGroups
 }
 
@@ -270,6 +289,10 @@ func (c *DefaultPlanner) PlanOptimize() []CompactionGroup {
 		cGroups = append(cGroups, cGroup)
 	}
 
+	if !c.acquire(cGroups) {
+		return nil
+	}
+
 	return cGroups
 }
 
@@ -279,7 +302,7 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []CompactionGroup {
 	generations := c.findGenerations()
 
 	// first check if we should be doing a full compaction because nothing has been written in a long time
-	if c.CompactFullWriteColdDuration > 0 && time.Since(lastWrite) > c.CompactFullWriteColdDuration && len(generations) > 1 {
+	if c.compactFullWriteColdDuration > 0 && time.Since(lastWrite) > c.compactFullWriteColdDuration && len(generations) > 1 {
 		var tsmFiles []string
 		var genCount int
 		for i, group := range generations {
@@ -316,7 +339,11 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []CompactionGroup {
 			return nil
 		}
 
-		return []CompactionGroup{tsmFiles}
+		group := []CompactionGroup{tsmFiles}
+		if !c.acquire(group) {
+			return nil
+		}
+		return group
 	}
 
 	// don't plan if nothing has changed in the filestore
@@ -449,6 +476,9 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []CompactionGroup {
 		tsmFiles = append(tsmFiles, cGroup)
 	}
 
+	if !c.acquire(tsmFiles) {
+		return nil
+	}
 	return tsmFiles
 }
 
@@ -494,6 +524,40 @@ func (c *DefaultPlanner) findGenerations() tsmGenerations {
 	c.mu.Unlock()
 
 	return orderedGenerations
+}
+
+func (c *DefaultPlanner) acquire(groups []CompactionGroup) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// See if the new files are already in use
+	for _, g := range groups {
+		for _, f := range g {
+			if _, ok := c.filesInUse[f]; ok {
+				return false
+			}
+		}
+	}
+
+	// Mark all the new files in use
+	for _, g := range groups {
+		for _, f := range g {
+			c.filesInUse[f] = struct{}{}
+		}
+	}
+	return true
+}
+
+// Release removes the files reference in each compaction group allowing new plans
+// to be able to use them.
+func (c *DefaultPlanner) Release(groups []CompactionGroup) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, g := range groups {
+		for _, f := range g {
+			delete(c.filesInUse, f)
+		}
+	}
 }
 
 // Compactor merges multiple TSM files into new files or
