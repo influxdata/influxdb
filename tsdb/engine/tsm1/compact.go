@@ -800,10 +800,15 @@ func (c *Compactor) writeNewFiles(generation, sequence int, iter KeyIterator) ([
 				return nil, err
 			}
 			break
-		}
-
-		// We hit an error but didn't finish the compaction.  Remove the temp file and abort.
-		if err != nil {
+		} else if err == errCompactionInProgress {
+			// Don't clean up the file as another compaction is using it.  This should not happen as the
+			// planner keeps track of which files are assigned to compaction plans now.
+			return nil, err
+		} else if err != nil {
+			// We hit an error and didn't finish the compaction.  Remove the temp file and abort.
+			if err := os.RemoveAll(fileName); err != nil {
+				return nil, err
+			}
 			return nil, err
 		}
 
