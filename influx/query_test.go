@@ -151,6 +151,26 @@ func TestConvert(t *testing.T) {
 			},
 		},
 		{
+			name:     "Test with no where clauses",
+			influxQL: `SELECT usage_user from telegraf.autogen.cpu`,
+			want: chronograf.QueryConfig{
+				Database:        "telegraf",
+				Measurement:     "cpu",
+				RetentionPolicy: "autogen",
+				Fields: []chronograf.Field{
+					chronograf.Field{
+						Field: "usage_user",
+						Funcs: []string{},
+					},
+				},
+				Tags: map[string][]string{},
+				GroupBy: chronograf.GroupBy{
+					Time: "",
+					Tags: []string{},
+				},
+			},
+		},
+		{
 			name:     "Test tags accepted",
 			influxQL: `SELECT usage_user from telegraf.autogen.cpu where "host" = 'myhost' and time > now() - 15m`,
 			want: chronograf.QueryConfig{
