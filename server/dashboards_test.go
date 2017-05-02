@@ -283,6 +283,10 @@ func Test_newDashboardResponse(t *testing.T) {
 										},
 										Tags:            make(map[string][]string, 0),
 										AreTagsAccepted: false,
+										Range: &chronograf.DurationRange{
+											Lower: "15m",
+											Upper: "now",
+										},
 									},
 								},
 							},
@@ -299,7 +303,7 @@ func Test_newDashboardResponse(t *testing.T) {
 	}
 	for _, tt := range tests {
 		if got := newDashboardResponse(tt.d); !reflect.DeepEqual(got, tt.want) {
-			t.Errorf("%q. newDashboardResponse() = \n%+v\n\n, want\n\n%+v", tt.name, got, tt.want)
+			t.Errorf("%q. newDashboardResponse() = \n%#v\n\n, want\n\n%#v", tt.name, got, tt.want)
 		}
 	}
 }
