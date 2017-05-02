@@ -2,6 +2,7 @@ package influx
 
 import (
 	"strings"
+	"time"
 
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/influxdb/influxql"
@@ -174,6 +175,14 @@ func Convert(influxQL string) (chronograf.QueryConfig, error) {
 		}
 	}
 
+	// If the condition has a time range we report back its duration
+	if dur, ok := hasTimeRange(stmt.Condition); ok {
+		qc.Range = &chronograf.DurationRange{
+			Lower: shortDur(dur),
+			Upper: "now",
+		}
+	}
+
 	return qc, nil
 }
 
@@ -202,31 +211,36 @@ func isNow(exp influxql.Expr) bool {
 	return false
 }
 
-func isDuration(exp influxql.Expr) bool {
+func isDuration(exp influxql.Expr) (time.Duration, bool) {
 	switch e := exp.(type) {
 	case *influxql.ParenExpr:
 		return isDuration(e.Expr)
-	case *influxql.DurationLiteral, *influxql.NumberLiteral, *influxql.IntegerLiteral, *influxql.TimeLiteral:
-		return true
+	case *influxql.DurationLiteral:
+		return e.Val, true
+	case *influxql.NumberLiteral, *influxql.IntegerLiteral, *influxql.TimeLiteral:
+		return 0, false
 	}
-	return false
+	return 0, false
 }
 
-func isPreviousTime(exp influxql.Expr) bool {
+func isPreviousTime(exp influxql.Expr) (time.Duration, bool) {
 	if p, ok := exp.(*influxql.ParenExpr); ok {
 		return isPreviousTime(p.Expr)
 	} else if bin, ok := exp.(*influxql.BinaryExpr); ok {
 		now := isNow(bin.LHS) || isNow(bin.RHS) // either side can be now
 		op := bin.Op == influxql.SUB
-		dur := isDuration(bin.LHS) || isDuration(bin.RHS) // either side can be a isDuration
-		return now && op && dur
+		dur, hasDur := isDuration(bin.LHS)
+		if !hasDur {
+			dur, hasDur = isDuration(bin.RHS)
+		}
+		return dur, now && op && hasDur
 	} else if isNow(exp) { // just comparing to now
-		return true
+		return 0, true
 	}
-	return false
+	return 0, false
 }
 
-func isTimeRange(exp influxql.Expr) bool {
+func isTimeRange(exp influxql.Expr) (time.Duration, bool) {
 	if p, ok := exp.(*influxql.ParenExpr); ok {
 		return isTimeRange(p.Expr)
 	} else if bin, ok := exp.(*influxql.BinaryExpr); ok {
@@ -236,21 +250,28 @@ func isTimeRange(exp influxql.Expr) bool {
 		case influxql.LT, influxql.LTE, influxql.GT, influxql.GTE:
 			op = true
 		}
-		prev := isPreviousTime(bin.LHS) || isPreviousTime(bin.RHS)
-		return tm && op && prev
+		dur, prev := isPreviousTime(bin.LHS)
+		if !prev {
+			dur, prev = isPreviousTime(bin.RHS)
+		}
+		return dur, tm && op && prev
 	}
-	return false
+	return 0, false
 }
 
-func hasTimeRange(exp influxql.Expr) bool {
+func hasTimeRange(exp influxql.Expr) (time.Duration, bool) {
 	if p, ok := exp.(*influxql.ParenExpr); ok {
 		return hasTimeRange(p.Expr)
-	} else if isTimeRange(exp) {
-		return true
+	} else if dur, ok := isTimeRange(exp); ok {
+		return dur, true
 	} else if bin, ok := exp.(*influxql.BinaryExpr); ok {
-		return isTimeRange(bin.LHS) || isTimeRange(bin.RHS)
+		dur, ok := isTimeRange(bin.LHS)
+		if !ok {
+			dur, ok = isTimeRange(bin.RHS)
+		}
+		return dur, ok
 	}
-	return false
+	return 0, false
 }
 
 func isTagLogic(exp influxql.Expr) ([]tagFilter, bool) {
@@ -258,7 +279,7 @@ func isTagLogic(exp influxql.Expr) ([]tagFilter, bool) {
 		return isTagLogic(p.Expr)
 	}
 
-	if isTimeRange(exp) {
+	if _, ok := isTimeRange(exp); ok {
 		return nil, true
 	} else if tf, ok := isTagFilter(exp); ok {
 		return []tagFilter{tf}, true
@@ -280,7 +301,10 @@ func isTagLogic(exp influxql.Expr) ([]tagFilter, bool) {
 		return nil, false
 	}
 
-	tm := isTimeRange(bin.LHS) || isTimeRange(bin.RHS)
+	_, tm := isTimeRange(bin.LHS)
+	if !tm {
+		_, tm = isTimeRange(bin.RHS)
+	}
 	tf := lhsOK || rhsOK
 	if tm && tf {
 		if lhsOK {
@@ -305,35 +329,6 @@ func isTagLogic(exp influxql.Expr) ([]tagFilter, bool) {
 		return append(tlLHS, tlRHS...), true
 	}
 	return nil, false
-}
-
-func hasTagFilter(exp influxql.Expr) bool {
-	if _, ok := isTagFilter(exp); ok {
-		return true
-	} else if p, ok := exp.(*influxql.ParenExpr); ok {
-		return hasTagFilter(p.Expr)
-	} else if bin, ok := exp.(*influxql.BinaryExpr); ok {
-		or := bin.Op == influxql.OR
-		and := bin.Op == influxql.AND
-		op := or || and
-		return op && (hasTagFilter(bin.LHS) || hasTagFilter(bin.RHS))
-	}
-	return false
-}
-
-func singleTagFilter(exp influxql.Expr) (tagFilter, bool) {
-	if p, ok := exp.(*influxql.ParenExpr); ok {
-		return singleTagFilter(p.Expr)
-	} else if tf, ok := isTagFilter(exp); ok {
-		return tf, true
-	} else if bin, ok := exp.(*influxql.BinaryExpr); ok && bin.Op == influxql.OR {
-		lhs, lhsOK := singleTagFilter(bin.LHS)
-		rhs, rhsOK := singleTagFilter(bin.RHS)
-		if lhsOK && rhsOK && lhs.Op == rhs.Op && lhs.Tag == rhs.Tag {
-			return lhs, true
-		}
-	}
-	return tagFilter{}, false
 }
 
 func isVarRef(exp influxql.Expr) bool {
@@ -410,4 +405,16 @@ var supportedFuncs = map[string]bool{
 	"last":   true,
 	"spread": true,
 	"stddev": true,
+}
+
+// shortDur converts duration into the queryConfig duration format
+func shortDur(d time.Duration) string {
+	s := d.String()
+	if strings.HasSuffix(s, "m0s") {
+		s = s[:len(s)-2]
+	}
+	if strings.HasSuffix(s, "h0m") {
+		s = s[:len(s)-2]
+	}
+	return s
 }
