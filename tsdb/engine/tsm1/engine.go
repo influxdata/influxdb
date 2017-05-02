@@ -528,6 +528,21 @@ func (e *Engine) LoadMetadataIndex(shardID uint64, index tsdb.Index) error {
 	return nil
 }
 
+// IsIdle returns true if the cache is empty, there are no running compactions and the
+// shard is fully compacted.
+func (e *Engine) IsIdle() bool {
+	cacheEmpty := e.Cache.Size() == 0
+
+	runningCompactions := atomic.LoadInt64(&e.stats.CacheCompactionsActive)
+	runningCompactions += atomic.LoadInt64(&e.stats.TSMCompactionsActive[0])
+	runningCompactions += atomic.LoadInt64(&e.stats.TSMCompactionsActive[1])
+	runningCompactions += atomic.LoadInt64(&e.stats.TSMCompactionsActive[2])
+	runningCompactions += atomic.LoadInt64(&e.stats.TSMFullCompactionsActive)
+	runningCompactions += atomic.LoadInt64(&e.stats.TSMOptimizeCompactionsActive)
+
+	return cacheEmpty && runningCompactions == 0 && e.CompactionPlan.FullyCompacted()
+}
+
 // Backup writes a tar archive of any TSM files modified since the passed
 // in time to the passed in writer. The basePath will be prepended to the names
 // of the files in the archive. It will force a snapshot of the WAL first

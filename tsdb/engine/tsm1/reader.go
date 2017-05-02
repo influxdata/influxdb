@@ -465,6 +465,11 @@ func (t *TSMReader) Size() uint32 {
 func (t *TSMReader) LastModified() int64 {
 	t.mu.RLock()
 	lm := t.lastModified
+	for _, ts := range t.tombstoner.TombstoneFiles() {
+		if ts.LastModified > lm {
+			lm = ts.LastModified
+		}
+	}
 	t.mu.RUnlock()
 	return lm
 }

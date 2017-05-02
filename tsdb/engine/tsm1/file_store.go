@@ -317,13 +317,17 @@ func (f *FileStore) Delete(keys []string) error {
 
 // DeleteRange removes the values for keys between timestamps min and max.
 func (f *FileStore) DeleteRange(keys []string, min, max int64) error {
+	if err := f.walkFiles(func(tsm TSMFile) error {
+		return tsm.DeleteRange(keys, min, max)
+	}); err != nil {
+		return err
+	}
+
 	f.mu.Lock()
 	f.lastModified = time.Now().UTC()
+	f.lastFileStats = nil
 	f.mu.Unlock()
-
-	return f.walkFiles(func(tsm TSMFile) error {
-		return tsm.DeleteRange(keys, min, max)
-	})
+	return nil
 }
 
 // Open loads all the TSM files in the configured directory.
@@ -382,15 +386,6 @@ func (f *FileStore) Open() error {
 			return fmt.Errorf("error opening file %s: %v", fn, err)
 		}
 
-		// Accumulate file store size stat
-		fi, err := file.Stat()
-		if err == nil {
-			atomic.AddInt64(&f.stats.DiskBytes, fi.Size())
-			if fi.ModTime().UTC().After(f.lastModified) {
-				f.lastModified = fi.ModTime().UTC()
-			}
-		}
-
 		go func(idx int, file *os.File) {
 			start := time.Now()
 			df, err := NewTSMReader(file)
@@ -404,6 +399,7 @@ func (f *FileStore) Open() error {
 		}(i, file)
 	}
 
+	var lm int64
 	for range files {
 		res := <-readerC
 		if res.err != nil {
@@ -411,7 +407,16 @@ func (f *FileStore) Open() error {
 			return res.err
 		}
 		f.files = append(f.files, res.r)
+		// Accumulate file store size stats
+		atomic.AddInt64(&f.stats.DiskBytes, int64(res.r.Size()))
+
+		// Re-initialize the lastModified time for the file store
+		if res.r.LastModified() > lm {
+			lm = res.r.LastModified()
+		}
+
 	}
+	f.lastModified = time.Unix(0, lm)
 	close(readerC)
 
 	sort.Sort(tsmReaders(f.files))

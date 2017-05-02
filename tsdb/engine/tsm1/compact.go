@@ -54,6 +54,7 @@ type CompactionPlanner interface {
 	PlanLevel(level int) []CompactionGroup
 	PlanOptimize() []CompactionGroup
 	Release(group []CompactionGroup)
+	FullyCompacted() bool
 }
 
 // DefaultPlanner implements CompactionPlanner using a strategy to roll up
@@ -142,6 +143,12 @@ func (t *tsmGeneration) hasTombstones() bool {
 		}
 	}
 	return false
+}
+
+// FullyCompacted returns true if the shard is fully compacted.
+func (c *DefaultPlanner) FullyCompacted() bool {
+	gens := c.findGenerations()
+	return len(gens) <= 1 && !gens.hasTombstones()
 }
 
 // PlanLevel returns a set of TSM files to rewrite for a specific level.

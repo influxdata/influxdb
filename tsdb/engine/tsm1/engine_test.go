@@ -1060,6 +1060,7 @@ func (m *mockPlanner) Plan(lastWrite time.Time) []tsm1.CompactionGroup { return 
 func (m *mockPlanner) PlanLevel(level int) []tsm1.CompactionGroup      { return nil }
 func (m *mockPlanner) PlanOptimize() []tsm1.CompactionGroup            { return nil }
 func (m *mockPlanner) Release(groups []tsm1.CompactionGroup)           {}
+func (m *mockPlanner) FullyCompacted() bool                            { return false }
 
 // ParseTags returns an instance of Tags for a comma-delimited list of key/values.
 func ParseTags(s string) influxql.Tags {

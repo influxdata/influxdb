@@ -145,6 +145,8 @@ func (s *Store) Open() error {
 	}
 
 	s.opened = true
+	s.wg.Add(1)
+	go s.monitorShards()
 
 	return nil
 }
@@ -265,6 +267,9 @@ func (s *Store) loadShards() error {
 	// Enable all shards
 	for _, sh := range s.shards {
 		sh.SetEnabled(true)
+		if sh.IsIdle() {
+			sh.SetCompactionsEnabled(false)
+		}
 	}
 
 	return nil
@@ -1044,6 +1049,28 @@ func (s *Store) TagValues(database string, cond influxql.Expr) ([]TagValues, err
 	}
 
 	return tagValues, nil
+}
+
+func (s *Store) monitorShards() {
+	defer s.wg.Done()
+	t := time.NewTicker(10 * time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-s.closing:
+			return
+		case <-t.C:
+			s.mu.RLock()
+			for _, sh := range s.shards {
+				if sh.IsIdle() {
+					sh.SetCompactionsEnabled(false)
+				} else {
+					sh.SetCompactionsEnabled(true)
+				}
+			}
+			s.mu.RUnlock()
+		}
+	}
 }
 
 // KeyValue holds a string key and a string value.

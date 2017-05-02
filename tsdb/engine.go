@@ -31,6 +31,8 @@ type Engine interface {
 	Open() error
 	Close() error
 	SetEnabled(enabled bool)
+	SetCompactionsEnabled(enabled bool)
+
 	WithLogger(zap.Logger)
 
 	LoadMetadataIndex(shardID uint64, index Index) error
@@ -72,6 +74,7 @@ type Engine interface {
 	// Statistics will return statistics relevant to this engine.
 	Statistics(tags map[string]string) []models.Statistic
 	LastModified() time.Time
+	IsIdle() bool
 
 	io.WriterTo
 }

@@ -110,6 +110,7 @@ type Shard struct {
 	path    string
 	walPath string
 	id      uint64
+	wg      sync.WaitGroup
 
 	database        string
 	retentionPolicy string
@@ -288,6 +289,7 @@ func (s *Shard) Open() error {
 		}
 		s.engine = e
 
+		s.wg.Add(1)
 		go s.monitor()
 
 		return nil
@@ -335,6 +337,7 @@ func (s *Shard) close(clean bool) error {
 	default:
 		close(s.closing)
 	}
+	s.wg.Wait()
 
 	if clean {
 		// Don't leak our shard ID and series keys in the index
@@ -378,6 +381,23 @@ func (s *Shard) LastModified() time.Time {
 // UnloadIndex removes all references to this shard from the DatabaseIndex
 func (s *Shard) UnloadIndex() {
 	s.index.RemoveShard(s.id)
+}
+
+// IsIdle return true if the shard is not receiving writes and is fully compacted.
+func (s *Shard) IsIdle() bool {
+	if err := s.ready(); err != nil {
+		return true
+	}
+
+	return s.engine.IsIdle()
+}
+
+// SetCompactionsEnabled enables or disable shard background compactions.
+func (s *Shard) SetCompactionsEnabled(enabled bool) {
+	if err := s.ready(); err != nil {
+		return
+	}
+	s.engine.SetCompactionsEnabled(enabled)
 }
 
 // DiskSize returns the size on disk of this shard
@@ -965,6 +985,8 @@ func (s *Shard) CreateSnapshot() (string, error) {
 }
 
 func (s *Shard) monitor() {
+	defer s.wg.Done()
+
 	t := time.NewTicker(monitorStatInterval)
 	defer t.Stop()
 	t2 := time.NewTicker(time.Minute)
@@ -976,7 +998,6 @@ func (s *Shard) monitor() {
 		case <-s.closing:
 			return
 		case <-t.C:
-
 			// Checking DiskSize can be expensive with a lot of shards and TSM files, only
 			// check if something has changed.
 			lm := s.LastModified()
