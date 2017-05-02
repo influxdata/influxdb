@@ -2,7 +2,7 @@ import React, {PropTypes} from 'react'
 import classNames from 'classnames'
 import _ from 'lodash'
 
-import MultiSelectDropdown from 'src/shared/components/MultiSelectDropdown'
+import FunctionSelector from 'src/shared/components/FunctionSelector'
 import Dropdown from 'src/shared/components/Dropdown'
 
 import {INFLUXQL_FUNCTIONS} from '../constants'
@@ -20,6 +20,19 @@ const FieldListItem = React.createClass({
     isKapacitorRule: bool.isRequired,
   },
 
+  getInitialState() {
+    return {
+      isOpen: false,
+    }
+  },
+
+  toggleFunctionsMenu(e) {
+    if (e) {
+      e.stopPropagation()
+    }
+    this.setState({isOpen: !this.state.isOpen})
+  },
+
   handleToggleField() {
     this.props.onToggleField(this.props.fieldFunc)
   },
@@ -29,6 +42,7 @@ const FieldListItem = React.createClass({
       field: this.props.fieldFunc.field,
       funcs: this.props.isKapacitorRule ? [selectedFuncs.text] : selectedFuncs,
     })
+    this.setState({isOpen: false})
   },
 
   render() {
@@ -38,29 +52,54 @@ const FieldListItem = React.createClass({
       return {text}
     })
 
+    if (isKapacitorRule) {
+      return (
+        <div
+          className={classNames('query-builder--list-item', {active: isSelected})}
+          key={fieldFunc}
+          onClick={_.wrap(fieldFunc, this.handleToggleField)}
+        >
+          <span>
+            <div className="query-builder--checkbox" />
+            {fieldText}
+          </span>
+          {isSelected
+            ? <Dropdown
+                items={items}
+                onChoose={this.handleApplyFunctions}
+                selected={
+                  fieldFunc.funcs.length ? fieldFunc.funcs[0] : 'Function'
+                }
+              />
+            : null
+          }
+        </div>
+      )
+    }
+
     return (
-      <div
-        className={classNames('query-builder--list-item', {active: isSelected})}
-        key={fieldFunc}
-        onClick={_.wrap(fieldFunc, this.handleToggleField)}
-      >
-        <span>
-          <div className="query-builder--checkbox" />
-          {fieldText}
-        </span>
-        {isKapacitorRule
-          ? <Dropdown
-              items={items}
-              onChoose={this.handleApplyFunctions}
-              selected={
-                fieldFunc.funcs.length ? fieldFunc.funcs[0] : 'Function'
-              }
-            />
-          : <MultiSelectDropdown
-              items={INFLUXQL_FUNCTIONS}
+      <div key={fieldFunc}>
+        <div
+          className={classNames('query-builder--list-item', {active: isSelected})}
+          onClick={_.wrap(fieldFunc, this.handleToggleField)}
+        >
+          <span>
+            <div className="query-builder--checkbox" />
+            {fieldText}
+          </span>
+          {isSelected
+            ? <div className="btn btn-xs btn-info" onClick={this.toggleFunctionsMenu}>
+                Functions
+              </div>
+            : null
+          }
+        </div>
+        {this.state.isOpen
+          ? <FunctionSelector
               onApply={this.handleApplyFunctions}
               selectedItems={fieldFunc.funcs || []}
-            />}
+            />
+          : null}
       </div>
     )
   },
