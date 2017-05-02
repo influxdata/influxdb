@@ -2,6 +2,8 @@
 
 ### Bug Fixes
   1. [#1364](https://github.com/influxdata/chronograf/pull/1364): Fix link to home when using the --basepath option
+  1. [#1370](https://github.com/influxdata/chronograf/pull/1370): Remove notification to login outside of session timeout
+
 ### Features
 ### UI Improvements
   1. [#1365](https://github.com/influxdata/chronograf/pull/1365): Show red indicator on Hosts Page for an offline host

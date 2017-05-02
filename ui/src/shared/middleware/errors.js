@@ -33,8 +33,6 @@ const errorsMiddleware = store => next => action => {
         setTimeout(() => {
           allowNotifications = true
         }, notificationsBlackoutDuration)
-      } else {
-        store.dispatch(notify('error', 'Please login to use Chronograf.'))
       }
     } else if (altText) {
       store.dispatch(notify('error', altText))
