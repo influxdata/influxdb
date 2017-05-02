@@ -27,6 +27,18 @@ func TestConvert(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:     "Test math",
+			influxQL: `SELECT count("event_id")/3 as "event_count_id" from discource.autogen.discourse_events where time > now() - 7d group by time(1d), "event_type"`,
+			RawText:  `SELECT count("event_id")/3 as "event_count_id" from discource.autogen.discourse_events where time > now() - 7d group by time(1d), "event_type"`,
+			want: chronograf.QueryConfig{
+				Fields: []chronograf.Field{},
+				Tags:   map[string][]string{},
+				GroupBy: chronograf.GroupBy{
+					Tags: []string{},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
