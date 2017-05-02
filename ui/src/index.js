@@ -1,8 +1,8 @@
 import React from 'react'
 import {render} from 'react-dom'
 import {Provider} from 'react-redux'
-import {Router, Route, useRouterHistory} from 'react-router'
-import {createHistory} from 'history'
+import {Router, Route} from 'react-router'
+import {createHistory, useBasename} from 'history'
 import {syncHistoryWithStore} from 'react-router-redux'
 
 import App from 'src/App'
@@ -41,9 +41,9 @@ import {HEARTBEAT_INTERVAL} from 'shared/constants'
 
 const rootNode = document.getElementById('react-root')
 
-const basepath = rootNode.dataset.basepath
+const basepath = rootNode.dataset.basepath || ''
 window.basepath = basepath
-const browserHistory = useRouterHistory(createHistory)({
+const browserHistory = useBasename(createHistory)({
   basename: basepath, // basepath is written in when available by the URL prefixer middleware
 })
 
@@ -100,12 +100,12 @@ const Root = React.createClass({
       <Provider store={store}>
         <Router history={history}>
           <Route path="/" component={UserIsAuthenticated(CheckSources)} />
-          <Route path="login" component={UserIsNotAuthenticated(Login)} />
+          <Route path="/login" component={UserIsNotAuthenticated(Login)} />
           <Route
-            path="sources/new"
+            path="/sources/new"
             component={UserIsAuthenticated(CreateSource)}
           />
-          <Route path="sources/:sourceID" component={UserIsAuthenticated(App)}>
+          <Route path="/sources/:sourceID" component={UserIsAuthenticated(App)}>
             <Route component={CheckSources}>
               <Route path="manage-sources" component={ManageSources} />
               <Route path="manage-sources/new" component={SourcePage} />
