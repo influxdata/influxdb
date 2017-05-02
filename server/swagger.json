@@ -2536,7 +2536,11 @@
 					"time": "10m",
 					"tags": []
 				},
-				"areTagsAccepted": true
+				"areTagsAccepted": true,
+				"range": {
+					"lower": "15m",
+					"upper": "now"
+				}
 			},
 			"properties": {
 				"id": {
@@ -2598,6 +2602,21 @@
 							"funcs"
 						]
 					}
+				},
+				"range": {
+					"type": "object",
+					"properties": {
+						"lower": {
+							"type": "string"
+						},
+						"upper": {
+							"type": "string"
+						}
+					},
+					"required": [
+						"lower",
+						"upper"
+					]
 				}
 			},
 			"required": [
