@@ -102,6 +102,8 @@ func Convert(influxQL string) (chronograf.QueryConfig, error) {
 	fields := map[string][]string{}
 	for _, fld := range stmt.Fields {
 		switch f := fld.Expr.(type) {
+		default:
+			return raw, nil
 		case *influxql.Call:
 			// only support certain query config functions
 			if _, ok := supportedFuncs[f.Name]; !ok {
