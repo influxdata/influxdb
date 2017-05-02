@@ -16,7 +16,7 @@ $resizer-color-active: $c-pool;
   margin-top: -$resizer-click-area/2;
   margin-bottom: -$resizer-click-area/2;
   width: 100%;
-  z-index: 2;
+  z-index: 1;
   user-select: none;
   -webkit-user-select: none;
   position: absolute;
