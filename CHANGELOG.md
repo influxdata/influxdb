@@ -7,6 +7,7 @@
 ### Features
 ### UI Improvements
   1. [#1365](https://github.com/influxdata/chronograf/pull/1365): Show red indicator on Hosts Page for an offline host
+  1. [#1373](https://github.com/influxdata/chronograf/pull/1373): Re-address dashboard cell stacking contexts
 
 ## v1.2.0-beta10 [2017-04-28]
 
