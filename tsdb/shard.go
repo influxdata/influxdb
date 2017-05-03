@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -207,6 +206,9 @@ func (s *Shard) Statistics(tags map[string]string) []models.Statistic {
 		return nil
 	}
 
+	// Refresh our disk size stat
+	_, _ = s.DiskSize()
+
 	// TODO(edd): Should statSeriesCreate be the current number of series in the
 	// shard, or the total number of series ever created?
 	sSketch, tSketch, err := s.engine.SeriesSketches()
@@ -289,9 +291,6 @@ func (s *Shard) Open() error {
 		}
 		s.engine = e
 
-		s.wg.Add(1)
-		go s.monitor()
-
 		return nil
 	}(); err != nil {
 		s.close(true)
@@ -355,6 +354,12 @@ func (s *Shard) close(clean bool) error {
 	return err
 }
 
+func (s *Shard) IndexType() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.index.Type()
+}
+
 // ready determines if the Shard is ready for queries or writes.
 // It returns nil if ready, otherwise ErrShardClosed or ErrShardDiabled
 func (s *Shard) ready() error {
@@ -402,33 +407,9 @@ func (s *Shard) SetCompactionsEnabled(enabled bool) {
 
 // DiskSize returns the size on disk of this shard
 func (s *Shard) DiskSize() (int64, error) {
-	var size int64
-	err := filepath.Walk(s.path, func(_ string, fi os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if !fi.IsDir() {
-			size += fi.Size()
-		}
-		return err
-	})
-	if err != nil {
-		return 0, err
-	}
-
-	err = filepath.Walk(s.walPath, func(_ string, fi os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if !fi.IsDir() {
-			size += fi.Size()
-		}
-		return err
-	})
-
-	return size, err
+	size := s.engine.DiskSize()
+	atomic.StoreInt64(&s.stats.DiskBytes, size)
+	return size, nil
 }
 
 // FieldCreate holds information for a field to create on a measurement.
@@ -984,63 +965,12 @@ func (s *Shard) CreateSnapshot() (string, error) {
 	return s.engine.CreateSnapshot()
 }
 
-func (s *Shard) monitor() {
-	defer s.wg.Done()
+func (s *Shard) ForEachMeasurementTagKey(name []byte, fn func(key []byte) error) error {
+	return s.engine.ForEachMeasurementTagKey(name, fn)
+}
 
-	t := time.NewTicker(monitorStatInterval)
-	defer t.Stop()
-	t2 := time.NewTicker(time.Minute)
-	defer t2.Stop()
-	var changed time.Time
-
-	for {
-		select {
-		case <-s.closing:
-			return
-		case <-t.C:
-			// Checking DiskSize can be expensive with a lot of shards and TSM files, only
-			// check if something has changed.
-			lm := s.LastModified()
-			if lm.Equal(changed) {
-				continue
-			}
-
-			size, err := s.DiskSize()
-			if err != nil {
-				s.logger.Info(fmt.Sprintf("Error collecting shard size: %v", err))
-				continue
-			}
-			atomic.StoreInt64(&s.stats.DiskBytes, size)
-			changed = lm
-		case <-t2.C:
-			if s.options.Config.MaxValuesPerTag == 0 {
-				continue
-			}
-
-			names, err := s.MeasurementNamesByExpr(nil)
-			if err != nil {
-				s.logger.Warn("cannot retrieve measurement names", zap.Error(err))
-				continue
-			}
-
-			for _, name := range names {
-				s.engine.ForEachMeasurementTagKey(name, func(k []byte) error {
-					n := s.engine.TagKeyCardinality(name, k)
-					perc := int(float64(n) / float64(s.options.Config.MaxValuesPerTag) * 100)
-					if perc > 100 {
-						perc = 100
-					}
-
-					// Log at 80, 85, 90-100% levels
-					if perc == 80 || perc == 85 || perc >= 90 {
-						s.logger.Info(fmt.Sprintf("WARN: %d%% of max-values-per-tag limit exceeded: (%d/%d), db=%s shard=%d measurement=%s tag=%s",
-							perc, n, s.options.Config.MaxValuesPerTag, s.database, s.id, name, k))
-					}
-					return nil
-				})
-			}
-		}
-	}
+func (s *Shard) TagKeyCardinality(name, key []byte) int {
+	return s.engine.TagKeyCardinality(name, key)
 }
 
 type ShardGroup interface {

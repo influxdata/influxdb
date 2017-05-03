@@ -375,6 +375,10 @@ func (l *WAL) LastWriteTime() time.Time {
 	return l.lastWriteTime
 }
 
+func (l *WAL) DiskSizeBytes() int64 {
+	return atomic.LoadInt64(&l.stats.OldBytes) + atomic.LoadInt64(&l.stats.CurrentBytes)
+}
+
 func (l *WAL) writeToLog(entry WALEntry) (int, error) {
 	// limit how many concurrent encodings can be in flight.  Since we can only
 	// write one at a time to disk, a slow disk can cause the allocations below

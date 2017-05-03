@@ -409,6 +409,9 @@ func (f *FileStore) Open() error {
 		f.files = append(f.files, res.r)
 		// Accumulate file store size stats
 		atomic.AddInt64(&f.stats.DiskBytes, int64(res.r.Size()))
+		for _, ts := range res.r.TombstoneFiles() {
+			atomic.AddInt64(&f.stats.DiskBytes, int64(ts.Size))
+		}
 
 		// Re-initialize the lastModified time for the file store
 		if res.r.LastModified() > lm {
@@ -437,6 +440,10 @@ func (f *FileStore) Close() error {
 	f.files = nil
 	atomic.StoreInt64(&f.stats.FileCount, 0)
 	return nil
+}
+
+func (f *FileStore) DiskSizeBytes() int64 {
+	return atomic.LoadInt64(&f.stats.DiskBytes)
 }
 
 // Read returns the slice of values for the given key and the given timestamp,
@@ -628,6 +635,10 @@ func (f *FileStore) Replace(oldFiles, newFiles []string) error {
 	var totalSize int64
 	for _, file := range f.files {
 		totalSize += int64(file.Size())
+		for _, ts := range file.TombstoneFiles() {
+			totalSize += int64(ts.Size)
+		}
+
 	}
 	atomic.StoreInt64(&f.stats.DiskBytes, totalSize)
 
