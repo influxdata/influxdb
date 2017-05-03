@@ -23,8 +23,8 @@ func NewAuthMux(p Provider, a Authenticator, t Tokenizer, basepath string, l chr
 		Tokens:     t,
 		SuccessURL: path.Join(basepath, "/"),
 		FailureURL: path.Join(basepath, "/login"),
-		Now:        DefaultNowTime,
-		Logger:     l,
+		Now:    DefaultNowTime,
+		Logger: l,
 	}
 }
 
