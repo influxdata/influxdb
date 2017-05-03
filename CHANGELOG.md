@@ -2,9 +2,14 @@
 
 ### Bug Fixes
   1. [#1364](https://github.com/influxdata/chronograf/pull/1364): Fix link to home when using the --basepath option
+  1. [#1370](https://github.com/influxdata/chronograf/pull/1370): Remove notification to login outside of session timeout
+  1. [#1376](https://github.com/influxdata/chronograf/pull/1376): Fix queries built in query builder with math functions in fields
+
 ### Features
 ### UI Improvements
+  1. [#1378](https://github.com/influxdata/chronograf/pull/1378): Save query time range for dashboards
   1. [#1365](https://github.com/influxdata/chronograf/pull/1365): Show red indicator on Hosts Page for an offline host
+  1. [#1373](https://github.com/influxdata/chronograf/pull/1373): Re-address dashboard cell stacking contexts
 
 ## v1.2.0-beta10 [2017-04-28]
 
