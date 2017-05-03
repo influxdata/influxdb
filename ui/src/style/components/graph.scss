@@ -10,14 +10,15 @@ $graph-heading-height: 44px;
   ---------------------------------------------
 */
 .graph {
-  position: absolute;
-  top: 0;
-  width: calc(100% - #{($page-wrapper-padding * 2)});
-  left: $page-wrapper-padding;
+  position: relative;
+  margin: 0 $page-wrapper-padding;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 16px 0;
 }
 .graph-heading {
-  position: relative;
-  top: 16px;
   background-color: $g3-castle;
   border-radius: $radius $radius 0 0;
   display: flex;
@@ -28,8 +29,7 @@ $graph-heading-height: 44px;
   transition:
     background-color 0.25s ease;
 
-  .toggle {
-    margin: 0;
+  .toggle-btn {
     text-transform: capitalize;
   }
 }
@@ -41,10 +41,6 @@ $graph-heading-height: 44px;
   @include no-user-select();
   transition:
     color 0.25s ease;
-}
-.graph-actions {
-  display: flex;
-  align-items: center;
 }
 .graph .table-container {
   background-color: $g3-castle;
@@ -76,11 +72,10 @@ $graph-heading-height: 44px;
   background-color: $g3-castle;
   border-radius: 0 0 $radius $radius;
   position: relative;
-  height: 316px;
+  flex: 1 0 0;
   transition:
     background-color 0.25s ease;
-  top: 16px;
-  height: calc(100% - #{$graph-heading-height + 32px});
+  // height: calc(100% - #{$graph-heading-height + 32px});
 }
 .data-explorer .graph-container {
   & > div:not(.graph-panel__refreshing) {

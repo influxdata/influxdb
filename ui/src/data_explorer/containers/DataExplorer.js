@@ -7,9 +7,7 @@ import _ from 'lodash'
 import QueryMaker from '../components/QueryMaker'
 import Visualization from '../components/Visualization'
 import Header from '../containers/Header'
-import ResizeContainer, {
-  ResizeBottom,
-} from 'src/shared/components/ResizeContainer'
+import ResizeContainer from 'src/shared/components/ResizeContainer'
 
 import {VIS_VIEWS} from 'src/shared/constants'
 import {setAutoRefresh} from 'shared/actions/app'
@@ -90,7 +88,7 @@ const DataExplorer = React.createClass({
           autoRefresh={autoRefresh}
           timeRange={timeRange}
         />
-        <ResizeContainer>
+        <ResizeContainer containerClass="page-contents">
           <QueryMaker
             source={source}
             queries={queryConfigs}
@@ -101,16 +99,14 @@ const DataExplorer = React.createClass({
             onDeleteQuery={this.handleDeleteQuery}
             activeQueryIndex={activeQueryIndex}
           />
-          <ResizeBottom>
-            <Visualization
-              autoRefresh={autoRefresh}
-              timeRange={timeRange}
-              queryConfigs={queryConfigs}
-              activeQueryIndex={activeQueryIndex}
-              editQueryStatus={queryConfigActions.editQueryStatus}
-              views={VIS_VIEWS}
-            />
-          </ResizeBottom>
+          <Visualization
+            autoRefresh={autoRefresh}
+            timeRange={timeRange}
+            queryConfigs={queryConfigs}
+            activeQueryIndex={activeQueryIndex}
+            editQueryStatus={queryConfigActions.editQueryStatus}
+            views={VIS_VIEWS}
+          />
         </ResizeContainer>
       </div>
     )
