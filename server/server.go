@@ -236,6 +236,11 @@ func (s *Server) Serve(ctx context.Context) error {
 	}
 	service := openService(ctx, s.BoltPath, layoutBuilder, sourcesBuilder, kapacitorBuilder, logger, s.useAuth())
 	basepath = s.Basepath
+	if basepath != "" && s.PrefixRoutes == false {
+		logger.
+			WithField("component", "server").
+			Info("Note: you may want to use --prefix-routes with --basepath. Try `./chronograf --help` for more info.")
+	}
 
 	providerFuncs := []func(func(oauth2.Provider, oauth2.Mux)){}
 
