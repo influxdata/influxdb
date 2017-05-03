@@ -66,6 +66,7 @@ class QueryEditor extends Component {
 
     if (isTemplating) {
       switch (e.key) {
+        case 'Tab':
         case 'ArrowRight':
         case 'ArrowDown':
           e.preventDefault()
