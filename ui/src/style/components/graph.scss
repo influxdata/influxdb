@@ -3,20 +3,21 @@
   ---------------------------------------------
 */
 $graph-heading-height: 44px;
-
+$graph-gutter: 16px;
 
 /*
   Graph Styles
   ---------------------------------------------
 */
-.graph {
+.graph,
+.graph-heading,
+.graph-container,
+.graph > .table-container {
   position: relative;
+}
+.graph {
   margin: 0 $page-wrapper-padding;
   height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  padding: 16px 0;
 }
 .graph-heading {
   background-color: $g3-castle;
@@ -25,6 +26,7 @@ $graph-heading-height: 44px;
   align-items: center;
   justify-content: space-between;
   height: $graph-heading-height;
+  top: $graph-gutter;
   padding: 0 16px;
   transition:
     background-color 0.25s ease;
@@ -37,18 +39,19 @@ $graph-heading-height: 44px;
   font-size: 14px;
   color: $g13-mist;
   font-weight: 600;
-  margin-right: 16px;
   @include no-user-select();
   transition:
     color 0.25s ease;
 }
-.graph .table-container {
+.graph .table-container,
+.graph-container {
+  top: $graph-gutter;
   background-color: $g3-castle;
   border-radius: 0 0 $radius $radius;
+  height: calc(100% - #{($graph-heading-height + ($graph-gutter * 2))});
+}
+.graph .table-container {
   padding: 8px 16px;
-  position: relative;
-  top: 16px;
-  height: calc(100% - #{($graph-heading-height + 32px)});
 
   & > div > div:last-child {
     position: absolute;
@@ -69,15 +72,7 @@ $graph-heading-height: 44px;
 }
 .graph-container {
   @include no-user-select();
-  background-color: $g3-castle;
-  border-radius: 0 0 $radius $radius;
-  position: relative;
-  flex: 1 0 0;
-  transition:
-    background-color 0.25s ease;
-  // height: calc(100% - #{$graph-heading-height + 32px});
-}
-.data-explorer .graph-container {
+
   & > div:not(.graph-panel__refreshing) {
     position: absolute;
     width: 100%;

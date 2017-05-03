@@ -88,7 +88,7 @@ const DataExplorer = React.createClass({
           autoRefresh={autoRefresh}
           timeRange={timeRange}
         />
-        <ResizeContainer containerClass="page-contents">
+        <ResizeContainer containerClass="page-contents" minTopHeight={350}>
           <QueryMaker
             source={source}
             queries={queryConfigs}
