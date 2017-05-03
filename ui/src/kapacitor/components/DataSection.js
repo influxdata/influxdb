@@ -105,6 +105,9 @@ export const DataSection = React.createClass({
         <MeasurementList
           query={query}
           onChooseMeasurement={this.handleChooseMeasurement}
+          onChooseTag={this.handleChooseTag}
+          onGroupByTag={this.handleGroupByTag}
+          onToggleTagAcceptance={this.handleToggleTagAcceptance}
         />
         <FieldList
           query={query}
@@ -112,12 +115,6 @@ export const DataSection = React.createClass({
           onGroupByTime={this.handleGroupByTime}
           applyFuncsToField={this.handleApplyFuncsToField}
           isKapacitorRule={true}
-        />
-        <TagList
-          query={query}
-          onChooseTag={this.handleChooseTag}
-          onGroupByTag={this.handleGroupByTag}
-          onToggleTagAcceptance={this.handleToggleTagAcceptance}
         />
       </div>
     )
