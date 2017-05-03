@@ -23,7 +23,7 @@ export const ValuesSection = React.createClass({
 
     return (
       <div className="kapacitor-rule-section">
-        <h3 className="rule-section-heading">Values</h3>
+        <h3 className="rule-section-heading">Rule Conditions</h3>
         <div className="rule-section-body">
           <Tabs initialIndex={initialIndex} onSelect={this.handleChooseTrigger}>
             <TabList isKapacitorTabs="true">
