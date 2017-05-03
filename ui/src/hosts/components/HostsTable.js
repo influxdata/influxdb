@@ -262,7 +262,7 @@ const SearchBar = React.createClass({
         <input
           type="text"
           className="form-control"
-          placeholder="Filter by Hostname..."
+          placeholder="Filter by Host..."
           ref="searchInput"
           onChange={this.handleChange}
         />
