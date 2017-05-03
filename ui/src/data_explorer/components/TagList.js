@@ -99,7 +99,7 @@ const TagList = React.createClass({
     const {query} = this.props
 
     return (
-      <div style={{paddingLeft: '20px', backgroundColor: '#31313d'}}>
+      <div className="query-builder--sub-list">
         {_.map(this.state.tags, (tagValues, tagKey) => {
           return (
             <TagListItem

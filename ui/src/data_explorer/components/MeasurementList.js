@@ -125,13 +125,10 @@ const MeasurementList = React.createClass({
           const numTagsActive = Object.keys(this.props.query.tags).length
           return (
             <div key={measurement}>
-              <div
-                className={classNames('query-builder--list-item', {active: isActive})}
-                onClick={isActive ? _.wrap(null, this.props.onChooseMeasurement) : _.wrap(measurement, this.props.onChooseMeasurement)}
-              >
-                <span>
-                  <div className="query-builder--checkbox"></div>
-                  {measurement}
+              <div className={classNames('query-builder--list-item', {active: isActive})}>
+                <div className="query-builder--caret icon caret-right"></div>
+                <span style={{flex: '1 0 0'}} onClick={isActive ? _.wrap(null, this.props.onChooseMeasurement) : _.wrap(measurement, this.props.onChooseMeasurement)}>
+                  {measurement} — 7
                 </span>
                 {(isActive && numTagsActive >= 1)
                   ? <div className={classNames('flip-toggle', {flipped: this.props.query.areTagsAccepted})} onClick={this.handleAcceptReject}>
