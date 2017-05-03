@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path"
 	"strconv"
 	"strings"
 
@@ -178,10 +179,14 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 
 	router.PUT("/chronograf/v1/sources/:id/dbs/:dbid/rps/:rpid", service.UpdateRetentionPolicy)
 	router.DELETE("/chronograf/v1/sources/:id/dbs/:dbid/rps/:rpid", service.DropRetentionPolicy)
-
 	var authRoutes AuthRoutes
 	var out http.Handler
 	/* Authentication */
+	logout := "/oauth/logout"
+	basepath := ""
+	if opts.PrefixRoutes {
+		basepath = opts.Basepath
+	}
 	if opts.UseAuth {
 		// Encapsulate the router with OAuth2
 		var auth http.Handler
@@ -189,15 +194,13 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 
 		// Create middleware to redirect to the appropriate provider logout
 		targetURL := "/"
-		router.GET("/oauth/logout", Logout(targetURL, authRoutes))
-
+		router.GET(logout, Logout(targetURL, basepath, authRoutes))
 		out = Logger(opts.Logger, auth)
 	} else {
 		out = Logger(opts.Logger, router)
 	}
 
-	router.GET("/chronograf/v1/", AllRoutes(authRoutes, opts.Logger))
-	router.GET("/chronograf/v1", AllRoutes(authRoutes, opts.Logger))
+	router.GET("/chronograf/v1/", AllRoutes(authRoutes, path.Join(basepath, logout), opts.Logger))
 
 	return out
 }
@@ -208,26 +211,36 @@ func AuthAPI(opts MuxOpts, router chronograf.Router) (http.Handler, AuthRoutes) 
 	for _, pf := range opts.ProviderFuncs {
 		pf(func(p oauth2.Provider, m oauth2.Mux) {
 			urlName := PathEscape(strings.ToLower(p.Name()))
-			loginPath := fmt.Sprintf("%s/oauth/%s/login", opts.Basepath, urlName)
-			logoutPath := fmt.Sprintf("%s/oauth/%s/logout", opts.Basepath, urlName)
-			callbackPath := fmt.Sprintf("%s/oauth/%s/callback", opts.Basepath, urlName)
+
+			loginPath := path.Join("oauth", urlName, "login")
+			logoutPath := path.Join("oauth", urlName, "logout")
+			callbackPath := path.Join("oauth", urlName, "callback")
+
+			basepath := ""
+			if opts.PrefixRoutes {
+				basepath = opts.Basepath
+			}
+
 			router.Handler("GET", loginPath, m.Login())
 			router.Handler("GET", logoutPath, m.Logout())
 			router.Handler("GET", callbackPath, m.Callback())
 			routes = append(routes, AuthRoute{
 				Name:     p.Name(),
 				Label:    strings.Title(p.Name()),
-				Login:    loginPath,
-				Logout:   logoutPath,
-				Callback: callbackPath,
+				Login:    path.Join(basepath, loginPath),
+				Logout:   path.Join(basepath, logoutPath),
+				Callback: path.Join(basepath, callbackPath),
 			})
 		})
 	}
 
+	rootPath := path.Join(opts.Basepath, "/chronograf/v1/")
+	logoutPath := path.Join(opts.Basepath, "/oauth/logout")
+
 	tokenMiddleware := AuthorizedToken(opts.Auth, opts.Logger, router)
 	// Wrap the API with token validation middleware.
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/chronograf/v1/") || r.URL.Path == "/oauth/logout" {
+		if strings.HasPrefix(r.URL.Path, rootPath) || r.URL.Path == logoutPath {
 			tokenMiddleware.ServeHTTP(w, r)
 			return
 		}

@@ -18,6 +18,8 @@ export GH_ORGS=biffs-gang                                         # Restrict to 
 To use authentication in Chronograf, both the OAuth provider and JWT signature
 need to be configured.
 
+**Note:** If you're using the `--basepath` option when starting Chronograf, you will need to add the same basepath to the callback URL of any OAuth provider that you configure.
+
 #### Configuring JWT signature
 
 Set a [JWT](https://tools.ietf.org/html/rfc7519) signature to a random string. This is needed for all OAuth2 providers that you choose to configure. *Keep this random string around!*

@@ -32,6 +32,7 @@ import {
   authReceived,
   meRequested,
   meReceived,
+  logoutLinkReceived,
 } from 'shared/actions/auth'
 import {errorThrown} from 'shared/actions/errors'
 
@@ -79,10 +80,11 @@ const Root = React.createClass({
 
   async startHeartbeat({shouldDispatchResponse}) {
     try {
-      const {data: me, auth} = await getMe()
+      const {data: me, auth, logoutLink} = await getMe()
       if (shouldDispatchResponse) {
         dispatch(authReceived(auth))
         dispatch(meReceived(me))
+        dispatch(logoutLinkReceived(logoutLink))
       }
 
       setTimeout(() => {

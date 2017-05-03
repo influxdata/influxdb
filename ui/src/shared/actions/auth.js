@@ -26,3 +26,10 @@ export const meReceived = me => ({
     me,
   },
 })
+
+export const logoutLinkReceived = logoutLink => ({
+  type: 'LOGOUT_LINK_RECEIVED',
+  payload: {
+    logoutLink,
+  },
+})
