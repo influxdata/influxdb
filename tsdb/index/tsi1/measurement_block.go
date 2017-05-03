@@ -338,6 +338,9 @@ func (e *MeasurementBlockElem) SeriesID(i int) uint64 {
 }
 
 // SeriesIDs returns a list of decoded series ids.
+//
+// NOTE: This should be used for testing and diagnostics purposes only.
+// It requires loading the entire list of series in-memory.
 func (e *MeasurementBlockElem) SeriesIDs() []uint64 {
 	a := make([]uint64, 0, e.series.n)
 	var prev uint64
