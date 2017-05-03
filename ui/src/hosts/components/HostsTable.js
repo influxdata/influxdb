@@ -129,7 +129,7 @@ const HostsTable = React.createClass({
                   onClick={() => this.updateSort('name')}
                   className={this.sortableClasses('name')}
                 >
-                  Hostname
+                  Host
                 </th>
                 <th
                   onClick={() => this.updateSort('deltaUptime')}
