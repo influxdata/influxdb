@@ -25,8 +25,6 @@ export default async function AJAX({
       links = linksRes.data
     }
 
-    const {auth} = links
-
     if (resource) {
       url = id
         ? `${basepath}${links[resource]}/${id}`
@@ -41,9 +39,11 @@ export default async function AJAX({
       headers,
     })
 
+    const {auth} = links
+
     return {
-      auth,
       ...response,
+      auth: {links: auth},
     }
   } catch (error) {
     const {response} = error
