@@ -23,7 +23,11 @@ const VisView = ({
 
   if (view === 'table') {
     if (!query) {
-      return <div className="generic-empty-state">Enter your query above</div>
+      return (
+        <div className="graph-empty">
+          <p>Build a Query above</p>
+        </div>
+      )
     }
 
     return (
