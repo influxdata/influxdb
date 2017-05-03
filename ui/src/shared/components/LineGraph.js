@@ -91,7 +91,7 @@ export default React.createClass({
     if (isFetchingInitially) {
       return (
         <div className="graph-fetching">
-          <h3 className="graph-spinner" />
+          <div className="graph-spinner" />
         </div>
       )
     }

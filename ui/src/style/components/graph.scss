@@ -62,13 +62,6 @@ $graph-gutter: 16px;
   .fixedDataTableLayout_main {
     height: 100% !important;
   }
-  .generic-empty-state {
-    background-color: transparent;
-    padding: 50px 0;
-    height: 100%;
-    font-size: 22px;
-    @include no-user-select();
-  }
 }
 .graph-container {
   @include no-user-select();
