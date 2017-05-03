@@ -4,7 +4,6 @@ import buildInfluxQLQuery from 'utils/influxql'
 import DatabaseList from '../../data_explorer/components/DatabaseList'
 import MeasurementList from '../../data_explorer/components/MeasurementList'
 import FieldList from '../../data_explorer/components/FieldList'
-import TagList from '../../data_explorer/components/TagList'
 
 export const DataSection = React.createClass({
   propTypes: {
