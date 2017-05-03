@@ -1,11 +1,22 @@
 import React, {PropTypes} from 'react'
 import ResizeHandle from 'shared/components/ResizeHandle'
+import classNames from 'classnames'
 
-const {node, string} = PropTypes
+const {node, number, string} = PropTypes
 
 const ResizeContainer = React.createClass({
   propTypes: {
     children: node.isRequired,
+    containerClass: string.isRequired,
+    minTopHeight: number,
+    minBottomHeight: number,
+  },
+
+  getDefaultProps() {
+    return {
+      minTopHeight: 200,
+      minBottomHeight: 200,
+    }
   },
 
   getInitialState() {
@@ -33,17 +44,18 @@ const ResizeContainer = React.createClass({
       return
     }
 
-    const appHeight = parseInt(
+    const {minTopHeight, minBottomHeight} = this.props
+    const oneHundred = 100
+    const containerHeight = parseInt(
       getComputedStyle(this.refs.resizeContainer).height,
       10
     )
-    // headingOffset moves the resize handle as many pixels as the page-heading is taking up.
-    const headingOffset = window.innerHeight - appHeight
-    const turnToPercent = 100
+    // verticalOffset moves the resize handle as many pixels as the page-heading is taking up.
+    const verticalOffset = window.innerHeight - containerHeight
     const newTopPanelPercent = Math.ceil(
-      (e.pageY - headingOffset) / appHeight * turnToPercent
+      (e.pageY - verticalOffset) / containerHeight * oneHundred
     )
-    const newBottomPanelPercent = turnToPercent - newTopPanelPercent
+    const newBottomPanelPercent = oneHundred - newTopPanelPercent
 
     // Don't trigger a resize unless the change in size is greater than minResizePercentage
     const minResizePercentage = 0.5
@@ -54,15 +66,13 @@ const ResizeContainer = React.createClass({
       return
     }
 
-    // Don't trigger a resize if the new sizes are too small
-    const minTopPanelHeight = 200
-    const minBottomPanelHeight = 200
-    const topHeightPixels = newTopPanelPercent / turnToPercent * appHeight
-    const bottomHeightPixels = newBottomPanelPercent / turnToPercent * appHeight
+    const topHeightPixels = newTopPanelPercent / oneHundred * containerHeight
+    const bottomHeightPixels = newBottomPanelPercent / oneHundred * containerHeight
 
+    // Don't trigger a resize if the new sizes are too small
     if (
-      topHeightPixels < minTopPanelHeight ||
-      bottomHeightPixels < minBottomPanelHeight
+      topHeightPixels < minTopHeight ||
+      bottomHeightPixels < minBottomHeight
     ) {
       return
     }
@@ -70,8 +80,6 @@ const ResizeContainer = React.createClass({
     this.setState({
       topHeight: `${newTopPanelPercent}%`,
       bottomHeight: `${newBottomPanelPercent}%`,
-      topHeightPixels,
-      bottomHeightPixels,
     })
   },
 
@@ -87,42 +95,27 @@ const ResizeContainer = React.createClass({
   },
 
   render() {
-    const {topHeight, topHeightPixels, bottomHeightPixels} = this.state
-    const top = React.cloneElement(this.props.children[0], {
-      height: topHeight,
-      heightPixels: topHeightPixels,
-    })
-    const bottom = React.cloneElement(this.props.children[1], {
-      height: `${bottomHeightPixels}px`,
-    })
+    const {topHeight, bottomHeight, isDragging} = this.state
+    const {containerClass, children} = this.props
+
     return (
       <div
-        className="resize-container page-contents"
+        className={classNames(`resize--container ${containerClass}`, {'resize--dragging': isDragging})}
         onMouseLeave={this.handleMouseLeave}
         onMouseUp={this.handleStopDrag}
         onMouseMove={this.handleDrag}
         ref="resizeContainer"
       >
-        {top}
+        <div className="resize--top" style={{height: topHeight}}>
+          {React.cloneElement(children[0])}
+        </div>
         {this.renderHandle()}
-        {bottom}
+        <div className="resize--bottom" style={{height: bottomHeight, top: topHeight}}>
+          {React.cloneElement(children[1])}
+        </div>
       </div>
     )
   },
 })
-
-export const ResizeBottom = ({height, children}) => {
-  const child = React.cloneElement(children, {height})
-  return (
-    <div className="resize-bottom" style={{height}}>
-      {child}
-    </div>
-  )
-}
-
-ResizeBottom.propTypes = {
-  children: node.isRequired,
-  height: string,
-}
 
 export default ResizeContainer

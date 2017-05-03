@@ -14,7 +14,7 @@ const ResizeHandle = React.createClass({
 
     return (
       <div
-        className={cx('resizer__handle', {dragging: isDragging})}
+        className={cx('resizer--handle', {dragging: isDragging})}
         onMouseDown={onHandleStartDrag}
         style={{top}}
       />
