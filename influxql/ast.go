@@ -4300,7 +4300,15 @@ func Rewrite(r Rewriter, node Node) Node {
 		n.Fields = Rewrite(r, n.Fields).(Fields)
 		n.Dimensions = Rewrite(r, n.Dimensions).(Dimensions)
 		n.Sources = Rewrite(r, n.Sources).(Sources)
-		n.Condition = Rewrite(r, n.Condition).(Expr)
+
+		// Rewrite may return nil. Nil does not satisfy the Expr
+		// interface. We only assert the rewritten result to be an
+		// Expr if it is not nil:
+		if cond := Rewrite(r, n.Condition); cond != nil {
+			n.Condition = cond.(Expr)
+		} else {
+			n.Condition = nil
+		}
 
 	case *SubQuery:
 		n.Statement = Rewrite(r, n.Statement).(*SelectStatement)
