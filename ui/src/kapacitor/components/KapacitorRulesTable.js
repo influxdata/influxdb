@@ -8,7 +8,7 @@ const KapacitorRulesTable = ({source, rules, onDelete, onChangeRuleStatus}) => {
         <thead>
           <tr>
             <th>Name</th>
-            <th>Trigger</th>
+            <th>Rule Type</th>
             <th>Message</th>
             <th>Alerts</th>
             <th className="text-center">Enabled</th>
