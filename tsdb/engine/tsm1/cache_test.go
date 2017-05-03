@@ -448,7 +448,7 @@ func TestCache_Snapshot_Stats(t *testing.T) {
 	}
 
 	// Store size should have been reset.
-	if got, exp := c.Size(), uint64(0); got != exp {
+	if got, exp := c.Size(), uint64(16); got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
 	}
 

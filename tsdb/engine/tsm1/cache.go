@@ -260,7 +260,7 @@ func (c *Cache) Write(key string, values []Value) error {
 
 	// Enough room in the cache?
 	limit := c.maxSize
-	n := c.Size() + atomic.LoadUint64(&c.snapshotSize) + addedSize
+	n := c.Size() + addedSize
 
 	if limit > 0 && n > limit {
 		atomic.AddInt64(&c.stats.WriteErr, 1)
@@ -293,7 +293,7 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 
 	// Enough room in the cache?
 	limit := c.maxSize // maxSize is safe for reading without a lock.
-	n := c.Size() + atomic.LoadUint64(&c.snapshotSize) + addedSize
+	n := c.Size() + addedSize
 	if limit > 0 && n > limit {
 		atomic.AddInt64(&c.stats.WriteErr, 1)
 		return ErrCacheMemorySizeLimitExceeded(n, limit)
@@ -416,7 +416,7 @@ func (c *Cache) ClearSnapshot(success bool) {
 
 // Size returns the number of point-calcuated bytes the cache currently uses.
 func (c *Cache) Size() uint64 {
-	return atomic.LoadUint64(&c.size)
+	return atomic.LoadUint64(&c.size) + atomic.LoadUint64(&c.snapshotSize)
 }
 
 // increaseSize increases size by delta.
