@@ -45,8 +45,10 @@ func NewMeasurement(name string) *Measurement {
 	}
 }
 
-func (m *Measurement) hasField(name string) bool {
+func (m *Measurement) HasField(name string) bool {
+	m.mu.RLock()
 	_, hasField := m.fieldNames[name]
+	m.mu.RUnlock()
 	return hasField
 }
 
@@ -279,14 +281,14 @@ func (m *Measurement) filters(condition influxql.Expr) ([]uint64, map[uint64]inf
 
 // ForEachSeriesByExpr iterates over all series filtered by condition.
 func (m *Measurement) ForEachSeriesByExpr(condition influxql.Expr, fn func(tags models.Tags) error) error {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
 	// Retrieve matching series ids.
 	ids, _, err := m.filters(condition)
 	if err != nil {
 		return err
 	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 
 	// Iterate over each series.
 	for _, id := range ids {
@@ -308,15 +310,13 @@ func (m *Measurement) ForEachSeriesByExpr(condition influxql.Expr, fn func(tags 
 // influx filter expression that goes with the series
 // TODO: this shouldn't be exported. However, until tx.go and the engine get refactored into tsdb, we need it.
 func (m *Measurement) TagSets(shardID uint64, opt influxql.IteratorOptions) ([]*influxql.TagSet, error) {
-	m.mu.RLock()
-
 	// get the unique set of series ids and the filters that should be applied to each
 	ids, filters, err := m.filters(opt.Condition)
 	if err != nil {
-		m.mu.RUnlock()
 		return nil, err
 	}
 
+	m.mu.RLock()
 	// For every series, get the tag values for the requested tag keys i.e. dimensions. This is the
 	// TagSet for that series. Series with the same TagSet are then grouped together, because for the
 	// purpose of GROUP BY they are part of the same composite series.
@@ -557,11 +557,11 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (SeriesIDs, influxql.Ex
 
 	// For fields, return all series IDs from this measurement and return
 	// the expression passed in, as the filter.
-	if name.Val != "_name" && ((name.Type == influxql.Unknown && m.hasField(name.Val)) || name.Type == influxql.AnyField || (name.Type != influxql.Tag && name.Type != influxql.Unknown)) {
+	if name.Val != "_name" && ((name.Type == influxql.Unknown && m.HasField(name.Val)) || name.Type == influxql.AnyField || (name.Type != influxql.Tag && name.Type != influxql.Unknown)) {
 		return m.SeriesIDs(), n, nil
 	} else if value, ok := value.(*influxql.VarRef); ok {
 		// Check if the RHS is a variable and if it is a field.
-		if value.Val != "_name" && ((value.Type == influxql.Unknown && m.hasField(value.Val)) || name.Type == influxql.AnyField || (value.Type != influxql.Tag && value.Type != influxql.Unknown)) {
+		if value.Val != "_name" && ((value.Type == influxql.Unknown && m.HasField(value.Val)) || name.Type == influxql.AnyField || (value.Type != influxql.Tag && value.Type != influxql.Unknown)) {
 			return m.SeriesIDs(), n, nil
 		}
 	}
