@@ -63,3 +63,10 @@ $function-selector--text-active: $g20-white;
     color: $function-selector--text-active;
   }
 }
+
+.btn.function-selector--toggled {
+  &, &:hover, &:active, &:hover:active {
+    background-color: $g7-graphite !important;
+    color: $g20-white !important;
+  }
+}

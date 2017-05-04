@@ -47,6 +47,7 @@ const FieldListItem = React.createClass({
 
   render() {
     const {isKapacitorRule, fieldFunc, isSelected} = this.props
+    const {isOpen} = this.state
     const {field: fieldText} = fieldFunc
     const items = INFLUXQL_FUNCTIONS.map(text => {
       return {text}
@@ -88,13 +89,13 @@ const FieldListItem = React.createClass({
             {fieldText}
           </span>
           {isSelected
-            ? <div className="btn btn-xs btn-info" onClick={this.toggleFunctionsMenu}>
+            ? <div className={classNames('btn btn-xs btn-info', {'function-selector--toggled': isOpen})} onClick={this.toggleFunctionsMenu}>
                 Functions
               </div>
             : null
           }
         </div>
-        {this.state.isOpen
+        {(isSelected && isOpen)
           ? <FunctionSelector
               onApply={this.handleApplyFunctions}
               selectedItems={fieldFunc.funcs || []}
