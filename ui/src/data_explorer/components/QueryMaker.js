@@ -100,7 +100,7 @@ const QueryMaker = React.createClass({
     // the layout will be horizontal by default
     // vertical layout is known as "panel" layout as it will be used to build
     // a "cell editor panel" though that term might change
-    // Currently, if set to "panel" the only noticeable difference is that the 
+    // Currently, if set to "panel" the only noticeable difference is that the
     // DatabaseList becomes DatabaseDropdown (more space efficient in vertical layout)
     // and is outside the container with measurements/tags/fields
     //
