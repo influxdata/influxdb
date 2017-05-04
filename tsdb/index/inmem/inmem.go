@@ -92,7 +92,10 @@ func (i *Index) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
 // Since indexes are not shared across shards, the count returned by SeriesN
 // cannot be combined with other shards' counts.
 func (i *Index) SeriesN() int64 {
-	return int64(len(i.series))
+	i.mu.RLock()
+	n := int64(len(i.series))
+	i.mu.RUnlock()
+	return n
 }
 
 // Measurement returns the measurement object from the index by the name
