@@ -208,15 +208,7 @@ func (s *Shard) Statistics(tags map[string]string) []models.Statistic {
 
 	// Refresh our disk size stat
 	_, _ = s.DiskSize()
-
-	// TODO(edd): Should statSeriesCreate be the current number of series in the
-	// shard, or the total number of series ever created?
-	sSketch, tSketch, err := s.engine.SeriesSketches()
-	seriesN := int64(sSketch.Count() - tSketch.Count())
-	if err != nil {
-		s.logger.Error("cannot compute series sketch", zap.Error(err))
-		seriesN = 0
-	}
+	seriesN := s.engine.SeriesN()
 
 	tags = s.defaultTags.Merge(tags)
 	statistics := []models.Statistic{{
