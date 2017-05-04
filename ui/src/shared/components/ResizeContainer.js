@@ -4,6 +4,8 @@ import classnames from 'classnames'
 
 const {node, number, string} = PropTypes
 
+const maximumNumChildren = 2
+
 const ResizeContainer = React.createClass({
   propTypes: {
     children: node.isRequired,
@@ -97,6 +99,11 @@ const ResizeContainer = React.createClass({
   render() {
     const {topHeight, bottomHeight, isDragging} = this.state
     const {containerClass, children} = this.props
+
+    if (children.length > maximumNumChildren) {
+      console.error(`There cannot be more than ${maximumNumChildren}' children in ResizeContainer`)
+      return
+    }
 
     return (
       <div
