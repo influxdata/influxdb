@@ -289,6 +289,12 @@ type GroupBy struct {
 	Tags []string `json:"tags"`
 }
 
+// DurationRange represents the lower and upper durations of the query config
+type DurationRange struct {
+	Upper string `json:"upper"`
+	Lower string `json:"lower"`
+}
+
 // QueryConfig represents UI query from the data explorer
 type QueryConfig struct {
 	ID              string              `json:"id,omitempty"`
@@ -300,6 +306,7 @@ type QueryConfig struct {
 	GroupBy         GroupBy             `json:"groupBy"`
 	AreTagsAccepted bool                `json:"areTagsAccepted"`
 	RawText         *string             `json:"rawText"`
+	Range           *DurationRange      `json:"range"`
 }
 
 // KapacitorNode adds arguments and properties to an alert

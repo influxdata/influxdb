@@ -28,11 +28,11 @@ const KapacitorRules = ({
       </PageContents>
     )
   }
-
+  const tableHeader = rules.length === 1 ? '1 Alert Rule' : `${rules.length} Alert Rules`
   return (
     <PageContents source={source}>
       <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-        <h2 className="panel-title">Alert Rules</h2>
+        <h2 className="panel-title">{tableHeader}</h2>
         <Link
           to={`/sources/${source.id}/alert-rules/new`}
           className="btn btn-sm btn-primary"
@@ -55,7 +55,7 @@ const PageContents = ({children, source}) => (
     <div className="page-header">
       <div className="page-header__container">
         <div className="page-header__left">
-          <h1 className="page-header__title">Kapacitor Rules</h1>
+          <h1 className="page-header__title">Alert Rules</h1>
         </div>
         <div className="page-header__right">
           <SourceIndicator sourceName={source && source.name} />
