@@ -12,6 +12,7 @@
   1. [#1373](https://github.com/influxdata/chronograf/pull/1373): Re-address dashboard cell stacking contexts
   1. [#602](https://github.com/influxdata/chronograf/pull/602): Normalize terminology in app
   1. [#1392](https://github.com/influxdata/chronograf/pull/1392): Overlays are now full screen
+  1. [#1395](https://github.com/influxdata/chronograf/pull/1395): Change default global time range to past 1 hour
 
 ## v1.2.0-beta10 [2017-04-28]
 

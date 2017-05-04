@@ -59,8 +59,7 @@ func TestConvert(t *testing.T) {
 				},
 				AreTagsAccepted: false,
 				Range: &chronograf.DurationRange{
-					Lower: "15m",
-					Upper: "now",
+					Lower: "now() - 15m",
 				},
 			},
 		},
@@ -96,8 +95,7 @@ func TestConvert(t *testing.T) {
 				},
 				AreTagsAccepted: false,
 				Range: &chronograf.DurationRange{
-					Lower: "0s",
-					Upper: "now",
+					Lower: "now() - 0s",
 				},
 			},
 		},
@@ -121,8 +119,7 @@ func TestConvert(t *testing.T) {
 				},
 				AreTagsAccepted: false,
 				Range: &chronograf.DurationRange{
-					Lower: "15m",
-					Upper: "now",
+					Lower: "now() - 15m",
 				},
 			},
 		},
@@ -190,8 +187,8 @@ func TestConvert(t *testing.T) {
 				},
 				AreTagsAccepted: true,
 				Range: &chronograf.DurationRange{
-					Lower: "15m",
-					Upper: "now",
+					Lower: "now() - 15m",
+					Upper: "",
 				},
 			},
 		},
@@ -230,8 +227,7 @@ func TestConvert(t *testing.T) {
 				},
 				AreTagsAccepted: true,
 				Range: &chronograf.DurationRange{
-					Lower: "15m",
-					Upper: "now",
+					Lower: "now() - 15m",
 				},
 			},
 		},
