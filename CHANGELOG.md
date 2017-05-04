@@ -4,6 +4,7 @@
   1. [#1364](https://github.com/influxdata/chronograf/pull/1364): Fix link to home when using the --basepath option
   1. [#1370](https://github.com/influxdata/chronograf/pull/1370): Remove notification to login outside of session timeout
   1. [#1376](https://github.com/influxdata/chronograf/pull/1376): Fix queries built in query builder with math functions in fields
+  1. [#1399](https://github.com/influxdata/chronograf/pull/1399): User can no longer create a blank template variable by clicking outside a newly added one
 
 ### Features
 ### UI Improvements
