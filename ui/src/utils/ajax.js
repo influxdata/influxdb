@@ -44,7 +44,7 @@ export default async function AJAX({
     return {
       ...response,
       auth: {links: auth},
-      logout: links.logout,
+      logoutLink: links.logout,
     }
   } catch (error) {
     const {response} = error
