@@ -21,7 +21,6 @@ const AutoRefresh = ComposedComponent => {
       templates: arrayOf(
         shape({
           type: string.isRequired,
-          label: string.isRequired,
           tempVar: string.isRequired,
           query: shape({
             db: string,

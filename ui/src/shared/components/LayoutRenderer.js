@@ -20,7 +20,7 @@ export const LayoutRenderer = React.createClass({
     autoRefresh: number.isRequired,
     timeRange: shape({
       lower: string.isRequired,
-    }).isRequired,
+    }),
     cells: arrayOf(
       shape({
         queries: arrayOf(
@@ -114,7 +114,6 @@ export const LayoutRenderer = React.createClass({
 
   generateVisualizations() {
     const {
-      timeRange,
       source,
       cells,
       onEditCell,
@@ -133,7 +132,8 @@ export const LayoutRenderer = React.createClass({
         // on a stable query representation.
         let queryText
         if (query.queryConfig) {
-          const {queryConfig: {rawText}} = query
+          const {queryConfig: {rawText, range}} = query
+          const timeRange = range || {upper: null, lower: ':dashboardTime:'}
           queryText =
             rawText || buildInfluxQLQuery(timeRange, query.queryConfig)
         } else {
