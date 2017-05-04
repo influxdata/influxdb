@@ -245,6 +245,7 @@ func (e *Engine) disableLevelCompactions(wait bool) {
 		e.levelWorkers += 1
 	}
 
+	var cleanup bool
 	if old == 0 && e.done != nil {
 		// Prevent new compactions from starting
 		e.Compactor.DisableCompactions()
@@ -252,12 +253,13 @@ func (e *Engine) disableLevelCompactions(wait bool) {
 		// Stop all background compaction goroutines
 		close(e.done)
 		e.done = nil
+		cleanup = true
 	}
 
 	e.mu.Unlock()
 	e.wg.Wait()
 
-	if old == 0 { // first to disable should cleanup
+	if cleanup { // first to disable should cleanup
 		if err := e.cleanup(); err != nil {
 			e.logger.Info(fmt.Sprintf("error cleaning up temp file: %v", err))
 		}
