@@ -3,7 +3,7 @@ import React, {PropTypes} from 'react'
 import QueryBuilder from './QueryBuilder'
 import QueryMakerTab from './QueryMakerTab'
 import buildInfluxQLQuery from 'utils/influxql'
-import classNames from 'classnames'
+import classnames from 'classnames'
 
 const {arrayOf, func, node, number, shape, string} = PropTypes
 
@@ -68,7 +68,7 @@ const QueryMaker = React.createClass({
   render() {
     const {height, top, layout} = this.props
     return (
-      <div className={classNames('query-maker', {'query-maker--panel': layout === 'panel'})} style={{height, top}}>
+      <div className={classnames('query-maker', {'query-maker--panel': layout === 'panel'})} style={{height, top}}>
         {this.renderQueryTabList()}
         {this.renderQueryBuilder()}
       </div>

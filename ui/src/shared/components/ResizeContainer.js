@@ -1,6 +1,6 @@
 import React, {PropTypes} from 'react'
 import ResizeHandle from 'shared/components/ResizeHandle'
-import classNames from 'classnames'
+import classnames from 'classnames'
 
 const {node, number, string} = PropTypes
 
@@ -100,7 +100,7 @@ const ResizeContainer = React.createClass({
 
     return (
       <div
-        className={classNames(`resize--container ${containerClass}`, {'resize--dragging': isDragging})}
+        className={classnames(`resize--container ${containerClass}`, {'resize--dragging': isDragging})}
         onMouseLeave={this.handleMouseLeave}
         onMouseUp={this.handleStopDrag}
         onMouseMove={this.handleDrag}

@@ -1,5 +1,5 @@
 import React, {Component, PropTypes} from 'react'
-import classNames from 'classnames'
+import classnames from 'classnames'
 import _ from 'lodash'
 import {INFLUXQL_FUNCTIONS} from 'src/data_explorer/constants'
 
@@ -59,7 +59,7 @@ class FunctionSelector extends Component {
             return (
               <div
                 key={i}
-                className={classNames('function-selector--item', {
+                className={classnames('function-selector--item', {
                   active: this.isSelected(f),
                 })}
                 onClick={_.wrap(f, this.onSelect)}

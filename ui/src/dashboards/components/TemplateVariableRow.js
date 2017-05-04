@@ -3,7 +3,7 @@ import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
 import OnClickOutside from 'react-onclickoutside'
-import classNames from 'classnames'
+import classnames from 'classnames'
 
 import Dropdown from 'shared/components/Dropdown'
 import DeleteConfirmButtons from 'shared/components/DeleteConfirmButtons'
@@ -115,7 +115,7 @@ const TemplateVariableRow = ({
   onErrorThrown,
 }) => (
   <form
-    className={classNames('template-variable-manager--table-row', {
+    className={classnames('template-variable-manager--table-row', {
       editing: isEditing,
     })}
     onSubmit={onSubmit({

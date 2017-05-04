@@ -1,5 +1,5 @@
 import React, {PropTypes} from 'react'
-import classNames from 'classnames'
+import classnames from 'classnames'
 import _ from 'lodash'
 
 import {showMeasurements} from 'shared/apis/metaQuery'
@@ -126,13 +126,13 @@ const MeasurementList = React.createClass({
 
           return (
             <div key={measurement}>
-              <div className={classNames('query-builder--list-item', {active: isActive})}>
+              <div className={classnames('query-builder--list-item', {active: isActive})}>
                 <div className="query-builder--caret icon caret-right"></div>
                 <span style={{flex: '1 0 0'}} onClick={isActive ? _.wrap(null, this.props.onChooseMeasurement) : _.wrap(measurement, this.props.onChooseMeasurement)}>
                   {measurement}
                 </span>
                 {(isActive && numTagsActive >= 1)
-                  ? <div className={classNames('flip-toggle', {flipped: this.props.query.areTagsAccepted})} onClick={this.handleAcceptReject}>
+                  ? <div className={classnames('flip-toggle', {flipped: this.props.query.areTagsAccepted})} onClick={this.handleAcceptReject}>
                       <div className="flip-toggle--container">
                         <div className="flip-toggle--front">!=</div>
                         <div className="flip-toggle--back">=</div>

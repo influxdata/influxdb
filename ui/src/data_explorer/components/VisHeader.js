@@ -1,5 +1,5 @@
 import React, {PropTypes} from 'react'
-import classNames from 'classnames'
+import classnames from 'classnames'
 
 const VisHeader = ({views, view, onToggleView, name}) => (
   <div className="graph-heading">
@@ -9,7 +9,7 @@ const VisHeader = ({views, view, onToggleView, name}) => (
             <li
               key={v}
               onClick={() => onToggleView(v)}
-              className={classNames('toggle-btn ', {active: view === v})}
+              className={classnames('toggle-btn ', {active: view === v})}
             >
               {v}
             </li>

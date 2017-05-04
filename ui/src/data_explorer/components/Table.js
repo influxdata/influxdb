@@ -3,7 +3,7 @@ import React, {PropTypes} from 'react'
 import Dimensions from 'react-dimensions'
 import _ from 'lodash'
 import moment from 'moment'
-import classNames from 'classnames'
+import classnames from 'classnames'
 
 import Dropdown from 'shared/components/Dropdown'
 import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
@@ -212,7 +212,7 @@ const ChronoTable = React.createClass({
 
 const TabItem = ({name, index, onClickTab, isActive}) => (
   <div
-    className={classNames('table--tab', {active: isActive})}
+    className={classnames('table--tab', {active: isActive})}
     onClick={() => onClickTab(index)}
   >
     {name}

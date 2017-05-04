@@ -1,5 +1,5 @@
 import React, {PropTypes} from 'react'
-import classNames from 'classnames'
+import classnames from 'classnames'
 import _ from 'lodash'
 
 import FunctionSelector from 'src/shared/components/FunctionSelector'
@@ -56,7 +56,7 @@ const FieldListItem = React.createClass({
     if (isKapacitorRule) {
       return (
         <div
-          className={classNames('query-builder--list-item', {active: isSelected})}
+          className={classnames('query-builder--list-item', {active: isSelected})}
           key={fieldFunc}
           onClick={_.wrap(fieldFunc, this.handleToggleField)}
         >
@@ -81,7 +81,7 @@ const FieldListItem = React.createClass({
     return (
       <div key={fieldFunc}>
         <div
-          className={classNames('query-builder--list-item', {active: isSelected})}
+          className={classnames('query-builder--list-item', {active: isSelected})}
           onClick={_.wrap(fieldFunc, this.handleToggleField)}
         >
           <span>
@@ -89,7 +89,7 @@ const FieldListItem = React.createClass({
             {fieldText}
           </span>
           {isSelected
-            ? <div className={classNames('btn btn-xs btn-info', {'function-selector--toggled': isOpen})} onClick={this.toggleFunctionsMenu}>
+            ? <div className={classnames('btn btn-xs btn-info', {'function-selector--toggled': isOpen})} onClick={this.toggleFunctionsMenu}>
                 Functions
               </div>
             : null

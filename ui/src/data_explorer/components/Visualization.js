@@ -1,6 +1,6 @@
 import React, {PropTypes} from 'react'
 import buildInfluxQLQuery from 'utils/influxql'
-import classNames from 'classnames'
+import classnames from 'classnames'
 import VisHeader from 'src/data_explorer/components/VisHeader'
 import VisView from 'src/data_explorer/components/VisView'
 import {GRAPH, TABLE} from 'src/shared/constants'
@@ -107,7 +107,7 @@ const Visualization = React.createClass({
           name={cellName}
         />
         <div
-          className={classNames({
+          className={classnames({
             'graph-container': view === GRAPH,
             'table-container': view === TABLE,
           })}

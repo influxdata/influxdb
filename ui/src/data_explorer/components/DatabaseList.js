@@ -1,5 +1,5 @@
 import React, {PropTypes} from 'react'
-import classNames from 'classnames'
+import classnames from 'classnames'
 import _ from 'lodash'
 
 import {showDatabases, showRetentionPolicies} from 'shared/apis/metaQuery'
@@ -75,7 +75,7 @@ const DatabaseList = React.createClass({
 
             return (
               <div
-                className={classNames('query-builder--list-item', {
+                className={classnames('query-builder--list-item', {
                   active: isActive,
                 })}
                 key={`${database}..${retentionPolicy}`}
