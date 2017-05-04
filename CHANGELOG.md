@@ -13,6 +13,7 @@
   1. [#602](https://github.com/influxdata/chronograf/pull/602): Normalize terminology in app
   1. [#1392](https://github.com/influxdata/chronograf/pull/1392): Overlays are now full screen
   1. [#1395](https://github.com/influxdata/chronograf/pull/1395): Change default global time range to past 1 hour
+  1. [#1379](https://github.com/influxdata/chronograf/pull/1379): Re-add alert level colors on the alerts page
 
 ## v1.2.0-beta10 [2017-04-28]
 
