@@ -22,6 +22,7 @@ The admin UI is removed and unusable in this release. The `[admin]` configuratio
 - [#8302](https://github.com/influxdata/influxdb/pull/8302): Write throughput/concurrency improvements
 - [#8273](https://github.com/influxdata/influxdb/issues/8273): Remove the admin UI.
 - [#8327](https://github.com/influxdata/influxdb/pull/8327): Update to go1.8.1
+- [#8348](https://github.com/influxdata/influxdb/pull/8348): Add max concurrent compaction limits
 
 ### Bugfixes
 
@@ -54,6 +55,8 @@ The admin UI is removed and unusable in this release. The `[admin]` configuratio
 - [#8315](https://github.com/influxdata/influxdb/issues/8315): Remove default upper time bound on DELETE queries.
 - [#8066](https://github.com/influxdata/influxdb/issues/8066): Fix LIMIT and OFFSET for certain aggregate queries.
 - [#8045](https://github.com/influxdata/influxdb/issues/8045): Refactor the subquery code and fix outer condition queries.
+- [#7425](https://github.com/influxdata/influxdb/issues/7425): Fix compaction aborted log messages
+- [#8123](https://github.com/influxdata/influxdb/issues/8123): TSM compaction does not remove .tmp on error
 
 ## v1.2.3 [unreleased]
 

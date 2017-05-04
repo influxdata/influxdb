@@ -145,6 +145,8 @@ func (s *Store) Open() error {
 	}
 
 	s.opened = true
+	s.wg.Add(1)
+	go s.monitorShards()
 
 	return nil
 }
@@ -157,6 +159,13 @@ func (s *Store) loadShards() error {
 	}
 
 	t := limiter.NewFixed(runtime.GOMAXPROCS(0))
+
+	// Setup a shared limiter for compactions
+	lim := s.EngineOptions.Config.MaxConcurrentCompactions
+	if lim == 0 {
+		lim = runtime.GOMAXPROCS(0)
+	}
+	s.EngineOptions.CompactionLimiter = limiter.NewFixed(lim)
 
 	resC := make(chan *res)
 	var n int
@@ -224,6 +233,9 @@ func (s *Store) loadShards() error {
 
 					// Open engine.
 					shard := NewShard(shardID, path, walPath, opt)
+
+					// Disable compactions, writes and queries until all shards are loaded
+					shard.EnableOnOpen = false
 					shard.WithLogger(s.baseLogger)
 
 					err = shard.Open()
@@ -251,6 +263,15 @@ func (s *Store) loadShards() error {
 		s.databases[res.s.database] = struct{}{}
 	}
 	close(resC)
+
+	// Enable all shards
+	for _, sh := range s.shards {
+		sh.SetEnabled(true)
+		if sh.IsIdle() {
+			sh.SetCompactionsEnabled(false)
+		}
+	}
+
 	return nil
 }
 
@@ -1028,6 +1049,69 @@ func (s *Store) TagValues(database string, cond influxql.Expr) ([]TagValues, err
 	}
 
 	return tagValues, nil
+}
+
+func (s *Store) monitorShards() {
+	defer s.wg.Done()
+	t := time.NewTicker(10 * time.Second)
+	defer t.Stop()
+	t2 := time.NewTicker(time.Minute)
+	defer t2.Stop()
+	for {
+		select {
+		case <-s.closing:
+			return
+		case <-t.C:
+			s.mu.RLock()
+			for _, sh := range s.shards {
+				if sh.IsIdle() {
+					sh.SetCompactionsEnabled(false)
+				} else {
+					sh.SetCompactionsEnabled(true)
+				}
+			}
+			s.mu.RUnlock()
+		case <-t2.C:
+			if s.EngineOptions.Config.MaxValuesPerTag == 0 {
+				continue
+			}
+
+			s.mu.RLock()
+			shards := s.filterShards(func(sh *Shard) bool {
+				return sh.IndexType() == "inmem"
+			})
+			s.mu.RUnlock()
+
+			s.walkShards(shards, func(sh *Shard) error {
+				db := sh.database
+				id := sh.id
+
+				names, err := sh.MeasurementNamesByExpr(nil)
+				if err != nil {
+					s.Logger.Warn("cannot retrieve measurement names", zap.Error(err))
+					return nil
+				}
+
+				for _, name := range names {
+					sh.ForEachMeasurementTagKey(name, func(k []byte) error {
+						n := sh.TagKeyCardinality(name, k)
+						perc := int(float64(n) / float64(s.EngineOptions.Config.MaxValuesPerTag) * 100)
+						if perc > 100 {
+							perc = 100
+						}
+
+						// Log at 80, 85, 90-100% levels
+						if perc == 80 || perc == 85 || perc >= 90 {
+							s.Logger.Info(fmt.Sprintf("WARN: %d%% of max-values-per-tag limit exceeded: (%d/%d), db=%s shard=%d measurement=%s tag=%s",
+								perc, n, s.EngineOptions.Config.MaxValuesPerTag, db, id, name, k))
+						}
+						return nil
+					})
+				}
+				return nil
+			})
+		}
+	}
 }
 
 // KeyValue holds a string key and a string value.

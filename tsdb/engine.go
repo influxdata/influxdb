@@ -12,6 +12,7 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/estimator"
+	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/uber-go/zap"
 )
 
@@ -30,6 +31,8 @@ type Engine interface {
 	Open() error
 	Close() error
 	SetEnabled(enabled bool)
+	SetCompactionsEnabled(enabled bool)
+
 	WithLogger(zap.Logger)
 
 	LoadMetadataIndex(shardID uint64, index Index) error
@@ -71,6 +74,8 @@ type Engine interface {
 	// Statistics will return statistics relevant to this engine.
 	Statistics(tags map[string]string) []models.Statistic
 	LastModified() time.Time
+	DiskSize() int64
+	IsIdle() bool
 
 	io.WriterTo
 }
@@ -136,10 +141,11 @@ func NewEngine(id uint64, i Index, path string, walPath string, options EngineOp
 
 // EngineOptions represents the options used to initialize the engine.
 type EngineOptions struct {
-	EngineVersion string
-	IndexVersion  string
-	ShardID       uint64
-	InmemIndex    interface{} // shared in-memory index
+	EngineVersion     string
+	IndexVersion      string
+	ShardID           uint64
+	InmemIndex        interface{} // shared in-memory index
+	CompactionLimiter limiter.Fixed
 
 	Config Config
 }

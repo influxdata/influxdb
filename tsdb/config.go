@@ -47,6 +47,10 @@ const (
 
 	// DefaultMaxValuesPerTag is the maximum number of values a tag can have within a measurement.
 	DefaultMaxValuesPerTag = 100000
+
+	// DefaultMaxConcurrentCompactions is the maximum number of concurrent full and level compactions
+	// that can run at one time.  A value of results in runtime.GOMAXPROCS(0) used at runtime.
+	DefaultMaxConcurrentCompactions = 0
 )
 
 // Config holds the configuration for the tsbd package.
@@ -84,6 +88,12 @@ type Config struct {
 	// A value of 0 disables the limit.
 	MaxValuesPerTag int `toml:"max-values-per-tag"`
 
+	// MaxConcurrentCompactions is the maximum number of concurrent level and full compactions
+	// that can be running at one time across all shards.  Compactions scheduled to run when the
+	// limit is reached are blocked until a running compaction completes.  Snapshot compactions are
+	// not affected by this limit.  A value of 0 limits compactions to runtime.GOMAXPROCS(0).
+	MaxConcurrentCompactions int `toml:"max-concurrent-compactions"`
+
 	TraceLoggingEnabled bool `toml:"trace-logging-enabled"`
 }
 
@@ -100,8 +110,9 @@ func NewConfig() Config {
 		CacheSnapshotWriteColdDuration: toml.Duration(DefaultCacheSnapshotWriteColdDuration),
 		CompactFullWriteColdDuration:   toml.Duration(DefaultCompactFullWriteColdDuration),
 
-		MaxSeriesPerDatabase: DefaultMaxSeriesPerDatabase,
-		MaxValuesPerTag:      DefaultMaxValuesPerTag,
+		MaxSeriesPerDatabase:     DefaultMaxSeriesPerDatabase,
+		MaxValuesPerTag:          DefaultMaxValuesPerTag,
+		MaxConcurrentCompactions: DefaultMaxConcurrentCompactions,
 
 		TraceLoggingEnabled: false,
 	}
@@ -113,6 +124,10 @@ func (c *Config) Validate() error {
 		return errors.New("Data.Dir must be specified")
 	} else if c.WALDir == "" {
 		return errors.New("Data.WALDir must be specified")
+	}
+
+	if c.MaxConcurrentCompactions < 0 {
+		return errors.New("max-concurrent-compactions must be greater than 0")
 	}
 
 	valid := false
@@ -152,5 +167,6 @@ func (c Config) Diagnostics() (*diagnostics.Diagnostics, error) {
 		"compact-full-write-cold-duration":   c.CompactFullWriteColdDuration,
 		"max-series-per-database":            c.MaxSeriesPerDatabase,
 		"max-values-per-tag":                 c.MaxValuesPerTag,
+		"max-concurrent-compactions":         c.MaxConcurrentCompactions,
 	}), nil
 }
