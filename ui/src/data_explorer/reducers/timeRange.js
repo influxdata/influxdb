@@ -1,23 +1,18 @@
 import timeRanges from 'hson!../../shared/data/timeRanges.hson'
 
-const initialLower = timeRanges[1].lower
-const initialUpper = timeRanges[1].upper
+const {lower, upper} = timeRanges[2]
 
 const initialState = {
-  upper: initialUpper,
-  lower: initialLower,
+  upper,
+  lower,
 }
 
 export default function timeRange(state = initialState, action) {
   switch (action.type) {
     case 'SET_TIME_RANGE': {
-      const {upper, lower} = action.payload
-      const newState = {
-        upper,
-        lower,
-      }
+      const {bounds} = action.payload
 
-      return {...state, ...newState}
+      return {...state, ...bounds}
     }
   }
   return state

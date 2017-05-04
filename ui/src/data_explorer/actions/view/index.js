@@ -97,10 +97,12 @@ export function editRawText(queryId, rawText) {
   }
 }
 
-export function setTimeRange(range) {
+export function setTimeRange(bounds) {
   return {
     type: 'SET_TIME_RANGE',
-    payload: range,
+    payload: {
+      bounds,
+    },
   }
 }
 

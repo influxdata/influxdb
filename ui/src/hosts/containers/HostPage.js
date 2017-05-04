@@ -45,12 +45,12 @@ export const HostPage = React.createClass({
   },
 
   getInitialState() {
-    const fifteenMinutesIndex = 1
+    const timeRange = timeRanges[2]
 
     return {
       layouts: [],
       hosts: [],
-      timeRange: timeRanges[fifteenMinutesIndex],
+      timeRange,
     }
   },
 
