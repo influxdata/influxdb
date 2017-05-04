@@ -234,16 +234,13 @@ func AuthAPI(opts MuxOpts, router chronograf.Router) (http.Handler, AuthRoutes) 
 		})
 	}
 
-	// Y U NO WORKY WITH PATH JOIN?
-	//rootPath := path.Join(opts.Basepath, "/chronograf/v1/")
-	//logoutPath := path.Join(opts.Basepath, "/oauth/logout")
-	rootPath := opts.Basepath + "/chronograf/v1/"
-	logoutPath := opts.Basepath + "/oauth/logout"
+	rootPath := path.Join(opts.Basepath, "/chronograf/v1/")
+	logoutPath := path.Join(opts.Basepath, "/oauth/logout")
 
 	tokenMiddleware := AuthorizedToken(opts.Auth, opts.Logger, router)
 	// Wrap the API with token validation middleware.
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, rootPath) || r.URL.Path == logoutPath {
+		if (strings.HasPrefix(r.URL.Path, rootPath) && len(r.URL.Path) > len(rootPath)) || r.URL.Path == logoutPath {
 			tokenMiddleware.ServeHTTP(w, r)
 			return
 		}
