@@ -263,10 +263,13 @@ func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[s
 
 // ForEachMeasurementTagKey iterates over all tag keys for a measurement.
 func (i *Index) ForEachMeasurementTagKey(name []byte, fn func(key []byte) error) error {
+	// Ensure we do not hold a lock on the index while fn executes in case fn tries
+	// to acquire a lock on the index again.  If another goroutine has Lock, this will
+	// deadlock.
 	i.mu.RLock()
-	defer i.mu.RUnlock()
-
 	mm := i.measurements[string(name)]
+	i.mu.RUnlock()
+
 	if mm == nil {
 		return nil
 	}
@@ -537,9 +540,9 @@ func (i *Index) DropSeries(key []byte) error {
 // ForEachMeasurementSeriesByExpr iterates over all series in a measurement filtered by an expression.
 func (i *Index) ForEachMeasurementSeriesByExpr(name []byte, expr influxql.Expr, fn func(tags models.Tags) error) error {
 	i.mu.RLock()
-	defer i.mu.RUnlock()
-
 	mm := i.measurements[string(name)]
+	i.mu.RUnlock()
+
 	if mm == nil {
 		return nil
 	}
@@ -731,7 +734,6 @@ type ShardIndex struct {
 
 // CreateSeriesListIfNotExists creates a list of series if they doesn't exist in bulk.
 func (idx *ShardIndex) CreateSeriesListIfNotExists(keys, names [][]byte, tagsSlice []models.Tags) error {
-
 	keys, names, tagsSlice = idx.assignExistingSeries(idx.id, keys, names, tagsSlice)
 	if len(keys) == 0 {
 		return nil

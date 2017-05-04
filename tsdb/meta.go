@@ -287,12 +287,9 @@ func (m *Measurement) ForEachSeriesByExpr(condition influxql.Expr, fn func(tags 
 		return err
 	}
 
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
 	// Iterate over each series.
 	for _, id := range ids {
-		s := m.seriesByID[id]
+		s := m.SeriesByID(id)
 		if err := fn(s.Tags()); err != nil {
 			return err
 		}
