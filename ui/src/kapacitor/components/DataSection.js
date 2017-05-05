@@ -4,7 +4,6 @@ import buildInfluxQLQuery from 'utils/influxql'
 import DatabaseList from '../../data_explorer/components/DatabaseList'
 import MeasurementList from '../../data_explorer/components/MeasurementList'
 import FieldList from '../../data_explorer/components/FieldList'
-import TagList from '../../data_explorer/components/TagList'
 
 export const DataSection = React.createClass({
   propTypes: {
@@ -105,6 +104,9 @@ export const DataSection = React.createClass({
         <MeasurementList
           query={query}
           onChooseMeasurement={this.handleChooseMeasurement}
+          onChooseTag={this.handleChooseTag}
+          onGroupByTag={this.handleGroupByTag}
+          onToggleTagAcceptance={this.handleToggleTagAcceptance}
         />
         <FieldList
           query={query}
@@ -112,12 +114,6 @@ export const DataSection = React.createClass({
           onGroupByTime={this.handleGroupByTime}
           applyFuncsToField={this.handleApplyFuncsToField}
           isKapacitorRule={true}
-        />
-        <TagList
-          query={query}
-          onChooseTag={this.handleChooseTag}
-          onGroupByTag={this.handleGroupByTag}
-          onToggleTagAcceptance={this.handleToggleTagAcceptance}
         />
       </div>
     )

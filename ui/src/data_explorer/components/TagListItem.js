@@ -1,6 +1,6 @@
 import React, {PropTypes} from 'react'
 import _ from 'lodash'
-import classNames from 'classnames'
+import classnames from 'classnames'
 
 const {string, arrayOf, func, bool} = PropTypes
 const TagListItem = React.createClass({
@@ -69,7 +69,7 @@ const TagListItem = React.createClass({
           <span className="icon search" />
         </div>
         {filtered.map(v => {
-          const cx = classNames('query-builder--list-item', {
+          const cx = classnames('query-builder--list-item', {
             active: selectedTagValues.indexOf(v) > -1,
           })
           return (
@@ -98,7 +98,7 @@ const TagListItem = React.createClass({
     return (
       <div>
         <div
-          className={classNames('query-builder--list-item', {active: isOpen})}
+          className={classnames('query-builder--list-item', {active: isOpen})}
           onClick={this.handleClickKey}
         >
           <span>
@@ -106,7 +106,7 @@ const TagListItem = React.createClass({
             {tagItemLabel}
           </span>
           <div
-            className={classNames('btn btn-info btn-xs group-by-tag', {
+            className={classnames('btn btn-info btn-xs group-by-tag', {
               active: this.props.isUsingGroupBy,
             })}
             onClick={this.handleGroupBy}

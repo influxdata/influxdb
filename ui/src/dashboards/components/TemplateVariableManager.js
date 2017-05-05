@@ -1,5 +1,5 @@
 import React, {Component, PropTypes} from 'react'
-import classNames from 'classnames'
+import classnames from 'classnames'
 import uuid from 'node-uuid'
 
 import TemplateVariableTable
@@ -34,7 +34,7 @@ const TemplateVariableManager = ({
           Add Variable
         </button>
         <button
-          className={classNames('btn btn-success btn-sm', {
+          className={classnames('btn btn-success btn-sm', {
             disabled: !isEdited,
           })}
           type="button"

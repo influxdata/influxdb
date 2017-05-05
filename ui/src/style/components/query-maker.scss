@@ -7,9 +7,8 @@
 */
 
 .query-maker {
-  position: relative;
-  left: $explorer-page-padding;
-  width: calc(100% - #{($explorer-page-padding * 2)});
+  height: 100%;
+  margin: 0 $explorer-page-padding;
   display: flex;
   flex-direction: column;
   align-items: stretch;

@@ -11,6 +11,11 @@ export const INFLUXQL_FUNCTIONS = [
   'stddev',
 ]
 
+export const MINIMUM_HEIGHTS = {
+  queryMaker: 350,
+  visualization: 200,
+}
+
 const SEPARATOR = 'SEPARATOR'
 
 export const QUERY_TEMPLATES = [

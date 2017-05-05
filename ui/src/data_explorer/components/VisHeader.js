@@ -1,23 +1,21 @@
 import React, {PropTypes} from 'react'
-import classNames from 'classnames'
+import classnames from 'classnames'
 
 const VisHeader = ({views, view, onToggleView, name}) => (
   <div className="graph-heading">
-    <div className="graph-actions">
-      {views.length
-        ? <ul className="toggle toggle-sm">
-            {views.map(v => (
-              <li
-                key={v}
-                onClick={() => onToggleView(v)}
-                className={classNames('toggle-btn ', {active: view === v})}
-              >
-                {v}
-              </li>
-            ))}
-          </ul>
-        : null}
-    </div>
+    {views.length
+      ? <ul className="toggle toggle-sm">
+          {views.map(v => (
+            <li
+              key={v}
+              onClick={() => onToggleView(v)}
+              className={classnames('toggle-btn ', {active: view === v})}
+            >
+              {v}
+            </li>
+          ))}
+        </ul>
+      : null}
     <div className="graph-title">{name}</div>
   </div>
 )

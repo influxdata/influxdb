@@ -3,9 +3,7 @@ import React, {Component, PropTypes} from 'react'
 import _ from 'lodash'
 import uuid from 'node-uuid'
 
-import ResizeContainer, {
-  ResizeBottom,
-} from 'src/shared/components/ResizeContainer'
+import ResizeContainer from 'src/shared/components/ResizeContainer'
 import QueryMaker from 'src/data_explorer/components/QueryMaker'
 import Visualization from 'src/data_explorer/components/Visualization'
 import OverlayControls from 'src/dashboards/components/OverlayControls'
@@ -14,6 +12,7 @@ import * as queryModifiers from 'src/utils/queryTransitions'
 import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 import buildInfluxQLQuery from 'utils/influxql'
 import {getQueryConfig} from 'shared/apis'
+import {MINIMUM_HEIGHTS} from 'src/data_explorer/constants'
 
 class CellEditorOverlay extends Component {
   constructor(props) {
@@ -152,8 +151,12 @@ class CellEditorOverlay extends Component {
     }
 
     return (
-      <div className="data-explorer overlay-technology">
-        <ResizeContainer>
+      <div className="overlay-technology">
+        <ResizeContainer
+          containerClass="resizer--full-size"
+          minTopHeight={MINIMUM_HEIGHTS.visualization}
+          minBottomHeight={MINIMUM_HEIGHTS.queryMaker}
+        >
           <Visualization
             autoRefresh={autoRefresh}
             timeRange={timeRange}
@@ -165,29 +168,25 @@ class CellEditorOverlay extends Component {
             editQueryStatus={editQueryStatus}
             views={[]}
           />
-          <ResizeBottom>
-            <div
-              style={{display: 'flex', flexDirection: 'column', height: '100%'}}
-            >
-              <OverlayControls
-                selectedGraphType={cellWorkingType}
-                onSelectGraphType={this.handleSelectGraphType}
-                onCancel={onCancel}
-                onSave={this.handleSaveCell}
-              />
-              <QueryMaker
-                source={source}
-                templates={templates}
-                queries={queriesWorkingDraft}
-                actions={queryActions}
-                autoRefresh={autoRefresh}
-                timeRange={timeRange}
-                setActiveQueryIndex={this.handleSetActiveQueryIndex}
-                onDeleteQuery={this.handleDeleteQuery}
-                activeQueryIndex={activeQueryIndex}
-              />
-            </div>
-          </ResizeBottom>
+          <div className="overlay-technology--editor">
+            <OverlayControls
+              selectedGraphType={cellWorkingType}
+              onSelectGraphType={this.handleSelectGraphType}
+              onCancel={onCancel}
+              onSave={this.handleSaveCell}
+            />
+            <QueryMaker
+              source={source}
+              templates={templates}
+              queries={queriesWorkingDraft}
+              actions={queryActions}
+              autoRefresh={autoRefresh}
+              timeRange={timeRange}
+              setActiveQueryIndex={this.handleSetActiveQueryIndex}
+              onDeleteQuery={this.handleDeleteQuery}
+              activeQueryIndex={activeQueryIndex}
+            />
+          </div>
         </ResizeContainer>
       </div>
     )

@@ -1,14 +1,13 @@
 import React, {PropTypes} from 'react'
-import classnames from 'classnames'
-import _ from 'lodash'
 
 import {showDatabases, showRetentionPolicies} from 'shared/apis/metaQuery'
 import showDatabasesParser from 'shared/parsing/showDatabases'
 import showRetentionPoliciesParser from 'shared/parsing/showRetentionPolicies'
+import Dropdown from 'shared/components/Dropdown'
 
 const {func, shape, string} = PropTypes
 
-const DatabaseList = React.createClass({
+const DatabaseDropdown = React.createClass({
   propTypes: {
     query: shape({}).isRequired,
     onChooseNamespace: func.isRequired,
@@ -62,33 +61,17 @@ const DatabaseList = React.createClass({
 
   render() {
     const {query, onChooseNamespace} = this.props
+    const {namespaces} = this.state
 
     return (
-      <div className="query-builder--column query-builder--column-db">
-        <div className="query-builder--heading">Databases</div>
-        <div className="query-builder--list">
-          {this.state.namespaces.map(namespace => {
-            const {database, retentionPolicy} = namespace
-            const isActive =
-              database === query.database &&
-              retentionPolicy === query.retentionPolicy
-
-            return (
-              <div
-                className={classnames('query-builder--list-item', {
-                  active: isActive,
-                })}
-                key={`${database}..${retentionPolicy}`}
-                onClick={_.wrap(namespace, onChooseNamespace)}
-              >
-                {database}.{retentionPolicy}
-              </div>
-            )
-          })}
-        </div>
-      </div>
+      <Dropdown
+        className="dropdown-160 query-builder--db-dropdown"
+        items={namespaces.map(n => ({...n, text: `${n.database}.${n.retentionPolicy}`}))}
+        onChoose={onChooseNamespace}
+        selected={(query.database && query.retentionPolicy) ? `${query.database}.${query.retentionPolicy}` : 'Choose a DB & RP'}
+      />
     )
   },
 })
 
-export default DatabaseList
+export default DatabaseDropdown

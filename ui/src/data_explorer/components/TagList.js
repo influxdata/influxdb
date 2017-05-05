@@ -1,6 +1,5 @@
 import React, {PropTypes} from 'react'
 import _ from 'lodash'
-import cx from 'classnames'
 
 import TagListItem from './TagListItem'
 
@@ -18,7 +17,6 @@ const TagList = React.createClass({
       areTagsAccepted: bool.isRequired,
     }).isRequired,
     onChooseTag: func.isRequired,
-    onToggleTagAcceptance: func.isRequired,
     onGroupByTag: func.isRequired,
   },
 
@@ -97,57 +95,19 @@ const TagList = React.createClass({
     this._getTags()
   },
 
-  handleAcceptReject(e) {
-    e.stopPropagation()
-    this.props.onToggleTagAcceptance()
-  },
-
   render() {
     const {query} = this.props
 
     return (
-      <div className="query-builder--column">
-        <div className="query-builder--heading">
-          <span>Tags</span>
-          {!query.database || !query.measurement || !query.retentionPolicy
-            ? null
-            : <div
-                className={cx('flip-toggle', {flipped: query.areTagsAccepted})}
-                onClick={this.handleAcceptReject}
-              >
-                <div className="flip-toggle--container">
-                  <div className="flip-toggle--front">!=</div>
-                  <div className="flip-toggle--back">=</div>
-                </div>
-              </div>}
-        </div>
-        {this.renderList()}
-      </div>
-    )
-  },
-
-  renderList() {
-    const {database, measurement, retentionPolicy} = this.props.query
-    if (!database || !measurement || !retentionPolicy) {
-      return (
-        <div className="query-builder--list-empty">
-          <span>No <strong>Measurement</strong> selected</span>
-        </div>
-      )
-    }
-
-    return (
-      <div className="query-builder--list">
+      <div className="query-builder--sub-list">
         {_.map(this.state.tags, (tagValues, tagKey) => {
           return (
             <TagListItem
               key={tagKey}
               tagKey={tagKey}
               tagValues={tagValues}
-              selectedTagValues={this.props.query.tags[tagKey] || []}
-              isUsingGroupBy={
-                this.props.query.groupBy.tags.indexOf(tagKey) > -1
-              }
+              selectedTagValues={query.tags[tagKey] || []}
+              isUsingGroupBy={query.groupBy.tags.indexOf(tagKey) > -1}
               onChooseTag={this.props.onChooseTag}
               onGroupByTag={this.props.onGroupByTag}
             />

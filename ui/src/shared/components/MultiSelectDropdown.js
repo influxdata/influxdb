@@ -1,6 +1,6 @@
 import React, {Component, PropTypes} from 'react'
 import OnClickOutside from 'shared/components/OnClickOutside'
-import classNames from 'classnames'
+import classnames from 'classnames'
 import _ from 'lodash'
 
 const labelText = ({localSelectedItems, isOpen, label}) => {
@@ -48,14 +48,14 @@ class MultiSelectDropdown extends Component {
     if (this.isSelected(item)) {
       nextItems = localSelectedItems.filter(i => i !== item)
     } else {
-      nextItems = localSelectedItems.concat(item)
+      nextItems = [...localSelectedItems, item]
     }
 
     this.setState({localSelectedItems: nextItems})
   }
 
   isSelected(item) {
-    return this.state.localSelectedItems.indexOf(item) > -1
+    return !!this.state.localSelectedItems.find(text => text === item)
   }
 
   onApplyFunctions(e) {
@@ -71,7 +71,7 @@ class MultiSelectDropdown extends Component {
 
     return (
       <div
-        className={classNames('dropdown multi-select-dropdown', {open: isOpen})}
+        className={classnames('dropdown multi-select-dropdown', {open: isOpen})}
       >
         <div
           onClick={::this.toggleMenu}
@@ -108,7 +108,7 @@ class MultiSelectDropdown extends Component {
             return (
               <li
                 key={i}
-                className={classNames('multi-select-dropdown__item', {
+                className={classnames('multi-select-dropdown__item', {
                   active: this.isSelected(listItem),
                 })}
                 onClick={_.wrap(listItem, this.onSelect)}

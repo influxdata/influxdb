@@ -14,6 +14,7 @@
   1. [#1378](https://github.com/influxdata/chronograf/pull/1378): Save query time range for dashboards
   1. [#1365](https://github.com/influxdata/chronograf/pull/1365): Show red indicator on Hosts Page for an offline host
   1. [#1373](https://github.com/influxdata/chronograf/pull/1373): Re-address dashboard cell stacking contexts
+  1. [#1385](https://github.com/influxdata/chronograf/pull/1385): Combined Measurements & Tags columns within the Data Explorer, feels more spacious and intuitive. New design for applying functions to Fields.
   1. [#602](https://github.com/influxdata/chronograf/pull/602): Normalize terminology in app
   1. [#1392](https://github.com/influxdata/chronograf/pull/1392): Overlays are now full screen
   1. [#1395](https://github.com/influxdata/chronograf/pull/1395): Change default global time range to past 1 hour

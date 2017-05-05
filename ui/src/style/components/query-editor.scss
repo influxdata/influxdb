@@ -11,7 +11,7 @@
   border-radius: 0 $radius 0 0;
   background-color: $query-editor--bg;
   position: relative;
-  z-index: 2; /* Minimum amount to obcure the toggle flip within Query Builder. Will fix later */
+  z-index: 3; /* Minimum amount to obcure the toggle flip within Query Builder. Will fix later */
 }
 .query-editor--field {
   font-family: $code-font;
