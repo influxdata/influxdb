@@ -147,25 +147,29 @@ export const KapacitorRule = React.createClass({
   },
 
   validationError() {
-    if (!buildInfluxQLQuery({}, this.props.query)) {
+    const {rule, query} = this.props
+    if (rule.trigger === 'deadman') {
+      return this.deadmanValidation()
+    }
+
+    if (!buildInfluxQLQuery({}, query)) {
       return 'Please select a database, measurement, and field'
     }
 
-    if (this.thresholdValueEmpty() || this.relativeValueEmpty()) {
+    if (!rule.values.value) {
       return 'Please enter a value in the Rule Conditions section'
     }
 
     return ''
   },
 
-  thresholdValueEmpty() {
-    const {rule} = this.props
-    return rule.trigger === 'threshold' && rule.values.value === ''
-  },
+  deadmanValidation() {
+    const {query} = this.props
+    if (query && (!query.database || !query.measurement)) {
+      return 'Deadman requires a database and measurement'
+    }
 
-  relativeValueEmpty() {
-    const {rule} = this.props
-    return rule.trigger === 'relative' && rule.values.value === ''
+    return ''
   },
 })
 
