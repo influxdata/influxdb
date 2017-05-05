@@ -54,6 +54,18 @@ const sourcesReducer = (state = initialState, action) => {
       })
       return updatedSources
     }
+
+    case 'DELETE_KAPACITOR': {
+      const {kapacitor} = action.payload
+      const updatedSources = _.cloneDeep(state)
+      updatedSources.forEach(source => {
+        const index = _.findIndex(source.kapacitors, k => k.id === kapacitor.id)
+        if (index >= 0) {
+          source.kapacitors.splice(index, 1)
+        }
+      })
+      return updatedSources
+    }
   }
 
   return state
