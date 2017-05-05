@@ -32,7 +32,8 @@ $function-selector--text-active: $g20-white;
 .function-selector--grid {
   display: flex;
   flex-wrap: wrap;
-  padding: 0 $function-selector--gutter $function-selector--gutter $function-selector--gutter;
+  padding: $function-selector--gutter;
+  padding-top: 0;
   border-radius: 0 0 $radius $radius;
   background-color: $function-selector--bg;
 }
