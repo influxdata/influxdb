@@ -37,7 +37,7 @@ const FieldListItem = React.createClass({
     this.props.onToggleField(this.props.fieldFunc)
   },
 
-  handleApplyFunctions(selectedFuncs) {
+  onApplyFunctions(selectedFuncs) {
     this.props.onApplyFuncsToField({
       field: this.props.fieldFunc.field,
       funcs: this.props.isKapacitorRule ? [selectedFuncs.text] : selectedFuncs,
@@ -67,7 +67,7 @@ const FieldListItem = React.createClass({
           {isSelected
             ? <Dropdown
                 items={items}
-                onChoose={this.handleApplyFunctions}
+                onChoose={this.onApplyFunctions}
                 selected={
                   fieldFunc.funcs.length ? fieldFunc.funcs[0] : 'Function'
                 }
@@ -97,7 +97,7 @@ const FieldListItem = React.createClass({
         </div>
         {(isSelected && isOpen)
           ? <FunctionSelector
-              onApply={this.handleApplyFunctions}
+              onApply={this.onApplyFunctions}
               selectedItems={fieldFunc.funcs || []}
             />
           : null}
