@@ -185,6 +185,7 @@ func (c *Client) All(ctx context.Context) (map[string]chronograf.AlertRule, erro
 			}
 		} else {
 			rule.ID = task.ID
+			rule.Query = nil
 			rule.TICKScript = script
 			alerts[task.ID] = rule
 		}
@@ -210,6 +211,7 @@ func (c *Client) Get(ctx context.Context, id string) (chronograf.AlertRule, erro
 		return chronograf.AlertRule{
 			ID:         task.ID,
 			Name:       task.ID,
+			Query:      nil,
 			TICKScript: script,
 		}, nil
 	}
@@ -278,8 +280,8 @@ func (c *Client) kapaClient(ctx context.Context) (*client.Client, error) {
 	})
 }
 
-func toTask(q chronograf.QueryConfig) client.TaskType {
-	if q.RawText == nil || *q.RawText == "" {
+func toTask(q *chronograf.QueryConfig) client.TaskType {
+	if q == nil || q.RawText == nil || *q.RawText == "" {
 		return client.StreamTask
 	}
 	return client.BatchTask

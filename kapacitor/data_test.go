@@ -45,7 +45,7 @@ func TestData(t *testing.T) {
 	}
 	alert := chronograf.AlertRule{
 		Trigger: "deadman",
-		Query:   q,
+		Query:   &q,
 	}
 	if tick, err := Data(alert); err != nil {
 		t.Errorf("Error creating tick %v", err)

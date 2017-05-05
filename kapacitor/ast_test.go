@@ -84,7 +84,7 @@ func TestReverse(t *testing.T) {
 				Every:   "30s",
 				Message: "message",
 				Details: "details",
-				Query: chronograf.QueryConfig{
+				Query: &chronograf.QueryConfig{
 					Database:        "telegraf",
 					RetentionPolicy: "autogen",
 					Measurement:     "cpu",
@@ -193,7 +193,7 @@ func TestReverse(t *testing.T) {
 		trigger
 		    |httpOut('output')`,
 			want: chronograf.AlertRule{
-				Query: chronograf.QueryConfig{
+				Query: &chronograf.QueryConfig{
 					Database:        "telegraf",
 					Measurement:     "cpu",
 					RetentionPolicy: "autogen",
@@ -332,7 +332,7 @@ func TestReverse(t *testing.T) {
 				Every:   "10s",
 				Message: `Haproxy monitor : {{.ID}} : {{ index .Tags "server" }} : {{ index .Tags "pxname" }} is {{ .Level }} `,
 				Details: "Email template",
-				Query: chronograf.QueryConfig{
+				Query: &chronograf.QueryConfig{
 					Database:        "influxdb",
 					RetentionPolicy: "autogen",
 					Measurement:     "haproxy",
@@ -447,7 +447,7 @@ func TestReverse(t *testing.T) {
 				Every:   "10s",
 				Message: `Haproxy monitor : {{.ID}} : {{ index .Tags "server" }} : {{ index .Tags "pxname" }} is {{ .Level }} `,
 				Details: "Email template",
-				Query: chronograf.QueryConfig{
+				Query: &chronograf.QueryConfig{
 					Database:        "influxdb",
 					RetentionPolicy: "autogen",
 					Measurement:     "haproxy",
@@ -564,7 +564,7 @@ func TestReverse(t *testing.T) {
 				Every:   "30s",
 				Message: "message",
 				Details: "details",
-				Query: chronograf.QueryConfig{
+				Query: &chronograf.QueryConfig{
 					Database:        "telegraf",
 					Measurement:     "cpu",
 					RetentionPolicy: "autogen",
@@ -588,7 +588,6 @@ func TestReverse(t *testing.T) {
 						Tags: []string{"host", "cluster_id"},
 					},
 					AreTagsAccepted: true,
-					RawText:         "",
 				},
 			},
 		},
@@ -690,7 +689,7 @@ func TestReverse(t *testing.T) {
 				},
 				Every:   "30s",
 				Message: "message",
-				Query: chronograf.QueryConfig{
+				Query: &chronograf.QueryConfig{
 					Database:        "telegraf",
 					Measurement:     "cpu",
 					RetentionPolicy: "autogen",
@@ -714,7 +713,6 @@ func TestReverse(t *testing.T) {
 						Tags: []string{"host", "cluster_id"},
 					},
 					AreTagsAccepted: true,
-					RawText:         "",
 				},
 			},
 		},
@@ -816,7 +814,7 @@ func TestReverse(t *testing.T) {
 				},
 				Every:   "30s",
 				Message: "message",
-				Query: chronograf.QueryConfig{
+				Query: &chronograf.QueryConfig{
 					Database:        "telegraf",
 					Measurement:     "cpu",
 					RetentionPolicy: "autogen",
@@ -840,7 +838,6 @@ func TestReverse(t *testing.T) {
 						Tags: []string{"host", "cluster_id"},
 					},
 					AreTagsAccepted: true,
-					RawText:         "",
 				},
 			},
 		},
@@ -930,7 +927,7 @@ func TestReverse(t *testing.T) {
 					Value:    "90",
 				},
 				Message: "message",
-				Query: chronograf.QueryConfig{
+				Query: &chronograf.QueryConfig{
 					Database:        "telegraf",
 					Measurement:     "cpu",
 					RetentionPolicy: "autogen",
@@ -953,7 +950,6 @@ func TestReverse(t *testing.T) {
 						Tags: []string{"host", "cluster_id"},
 					},
 					AreTagsAccepted: true,
-					RawText:         "",
 				},
 			},
 		},
@@ -1066,7 +1062,7 @@ trigger
 				},
 				Every:   "30s",
 				Message: "message",
-				Query: chronograf.QueryConfig{
+				Query: &chronograf.QueryConfig{
 					Database:        "telegraf",
 					Measurement:     "cpu",
 					RetentionPolicy: "autogen",
@@ -1090,7 +1086,6 @@ trigger
 						Tags: []string{"host", "cluster_id"},
 					},
 					AreTagsAccepted: true,
-					RawText:         "",
 				},
 			},
 		},
@@ -1203,7 +1198,7 @@ trigger
 				},
 				Every:   "30s",
 				Message: "message",
-				Query: chronograf.QueryConfig{
+				Query: &chronograf.QueryConfig{
 					Database:        "telegraf",
 					Measurement:     "cpu",
 					RetentionPolicy: "autogen",
@@ -1227,7 +1222,6 @@ trigger
 						Tags: []string{"host", "cluster_id"},
 					},
 					AreTagsAccepted: true,
-					RawText:         "",
 				},
 			},
 		},
@@ -1318,7 +1312,7 @@ trigger
 					Period: "10m0s",
 				},
 				Message: "message",
-				Query: chronograf.QueryConfig{
+				Query: &chronograf.QueryConfig{
 					Database:        "telegraf",
 					Measurement:     "cpu",
 					RetentionPolicy: "autogen",
@@ -1336,7 +1330,6 @@ trigger
 						Tags: []string{"host", "cluster_id"},
 					},
 					AreTagsAccepted: true,
-					RawText:         "",
 				},
 			},
 		},

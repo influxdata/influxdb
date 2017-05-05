@@ -357,19 +357,15 @@ func newAlertResponse(rule chronograf.AlertRule, tickScript chronograf.TICKScrip
 		Status:     status,
 	}
 
-	if res.Query.ID == "" {
-		res.Query.ID = res.ID
+	if res.Alerts == nil {
+		res.Alerts = make([]string, 0)
 	}
 
-	if res.AlertRule.Alerts == nil {
-		res.AlertRule.Alerts = make([]string, 0)
+	if res.AlertNodes == nil {
+		res.AlertNodes = make([]chronograf.KapacitorNode, 0)
 	}
 
-	if res.AlertRule.AlertNodes == nil {
-		res.AlertRule.AlertNodes = make([]chronograf.KapacitorNode, 0)
-	}
-
-	for _, n := range res.AlertRule.AlertNodes {
+	for _, n := range res.AlertNodes {
 		if n.Args == nil {
 			n.Args = make([]string, 0)
 		}
@@ -383,22 +379,28 @@ func newAlertResponse(rule chronograf.AlertRule, tickScript chronograf.TICKScrip
 		}
 	}
 
-	if res.AlertRule.Query.Fields == nil {
-		res.AlertRule.Query.Fields = make([]chronograf.Field, 0)
-
-	}
-	for _, f := range res.AlertRule.Query.Fields {
-		if f.Funcs == nil {
-			f.Funcs = make([]string, 0)
+	if res.Query != nil {
+		if res.Query.ID == "" {
+			res.Query.ID = res.ID
 		}
-	}
 
-	if res.AlertRule.Query.GroupBy.Tags == nil {
-		res.AlertRule.Query.GroupBy.Tags = make([]string, 0)
-	}
+		if res.Query.Fields == nil {
+			res.Query.Fields = make([]chronograf.Field, 0)
+		}
 
-	if res.AlertRule.Query.Tags == nil {
-		res.AlertRule.Query.Tags = make(map[string][]string)
+		for _, f := range res.Query.Fields {
+			if f.Funcs == nil {
+				f.Funcs = make([]string, 0)
+			}
+		}
+
+		if res.Query.GroupBy.Tags == nil {
+			res.Query.GroupBy.Tags = make([]string, 0)
+		}
+
+		if res.Query.Tags == nil {
+			res.Query.Tags = make(map[string][]string)
+		}
 	}
 	return res
 }

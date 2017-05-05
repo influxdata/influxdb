@@ -368,6 +368,7 @@ func alertType(script chronograf.TICKScript) (string, error) {
 func Reverse(script chronograf.TICKScript) (chronograf.AlertRule, error) {
 	rule := chronograf.AlertRule{
 		Alerts: []string{},
+		Query:  &chronograf.QueryConfig{},
 	}
 	t, err := alertType(script)
 	if err != nil {

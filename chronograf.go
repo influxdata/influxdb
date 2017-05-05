@@ -234,7 +234,7 @@ type SourcesStore interface {
 type AlertRule struct {
 	ID            string          `json:"id,omitempty"`         // ID is the unique ID of the alert
 	TICKScript    TICKScript      `json:"tickscript"`           // TICKScript is the raw tickscript associated with this Alert
-	Query         QueryConfig     `json:"query"`                // Query is the filter of data for the alert.
+	Query         *QueryConfig    `json:"query"`                // Query is the filter of data for the alert.
 	Every         string          `json:"every"`                // Every how often to check for the alerting criteria
 	Alerts        []string        `json:"alerts"`               // Alerts name all the services to notify (e.g. pagerduty)
 	AlertNodes    []KapacitorNode `json:"alertNodes,omitempty"` // AlertNodes define additional arguments to alerts
