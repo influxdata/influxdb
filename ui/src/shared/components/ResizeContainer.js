@@ -5,6 +5,8 @@ import classnames from 'classnames'
 const {node, number, string} = PropTypes
 
 const maximumNumChildren = 2
+const minimumTopHeight = 200
+const minimumBottomHeight = 200
 
 const ResizeContainer = React.createClass({
   propTypes: {
@@ -16,8 +18,8 @@ const ResizeContainer = React.createClass({
 
   getDefaultProps() {
     return {
-      minTopHeight: 200,
-      minBottomHeight: 200,
+      minTopHeight: minimumTopHeight,
+      minBottomHeight: minimumBottomHeight,
     }
   },
 
