@@ -57,6 +57,7 @@ The admin UI is removed and unusable in this release. The `[admin]` configuratio
 - [#8045](https://github.com/influxdata/influxdb/issues/8045): Refactor the subquery code and fix outer condition queries.
 - [#7425](https://github.com/influxdata/influxdb/issues/7425): Fix compaction aborted log messages
 - [#8123](https://github.com/influxdata/influxdb/issues/8123): TSM compaction does not remove .tmp on error
+- [#8343](https://github.com/influxdata/influxdb/issues/8343): Set the CSV output to an empty string for null values.
 
 ## v1.2.3 [unreleased]
 
