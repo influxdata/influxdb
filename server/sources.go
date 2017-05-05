@@ -201,18 +201,6 @@ func (h *Service) removeSrcsKapa(ctx context.Context, srcID int) error {
 		if err := h.ServersStore.Delete(ctx, kapa); err != nil {
 			return err
 		}
-		// Now delete all the associated rules
-		rules, err := h.AlertRulesStore.All(ctx, srcID, kapaID)
-		if err != nil {
-			return err
-		}
-
-		for _, rule := range rules {
-			h.Logger.Debug("Deleting kapacitor rule resource id ", rule.ID)
-			if err := h.AlertRulesStore.Delete(ctx, srcID, kapaID, rule); err != nil {
-				return err
-			}
-		}
 	}
 
 	return nil

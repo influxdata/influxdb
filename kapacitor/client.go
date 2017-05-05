@@ -27,6 +27,7 @@ type Task struct {
 	ID         string                // Kapacitor ID
 	Href       string                // Kapacitor relative URI
 	HrefOutput string                // Kapacitor relative URI to HTTPOutNode
+	Rule       chronograf.AlertRule  // Rule is the rule that represents this Task
 	TICKScript chronograf.TICKScript // TICKScript is the running script
 }
 
@@ -58,6 +59,7 @@ func (c *Client) Create(ctx context.Context, rule chronograf.AlertRule) (*Task, 
 	}
 
 	kapaID := Prefix + id
+	rule.ID = kapaID
 	task, err := kapa.CreateTask(client.CreateTaskOptions{
 		ID:         kapaID,
 		Type:       toTask(rule.Query),
@@ -74,6 +76,7 @@ func (c *Client) Create(ctx context.Context, rule chronograf.AlertRule) (*Task, 
 		Href:       task.Link.Href,
 		HrefOutput: c.HrefOutput(kapaID),
 		TICKScript: script,
+		Rule:       rule,
 	}, nil
 }
 
@@ -157,6 +160,64 @@ func (c *Client) Status(ctx context.Context, href string) (string, error) {
 	return task.Status.String(), nil
 }
 
+// All returns all tasks in kapacitor
+func (c *Client) All(ctx context.Context) (map[string]chronograf.AlertRule, error) {
+	kapa, err := c.kapaClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Only get the status, id and link section back
+	opts := &client.ListTasksOptions{}
+	tasks, err := kapa.ListTasks(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	alerts := map[string]chronograf.AlertRule{}
+	for _, task := range tasks {
+		script := chronograf.TICKScript(task.TICKscript)
+		if rule, err := Reverse(script); err != nil {
+			alerts[task.ID] = chronograf.AlertRule{
+				ID:         task.ID,
+				Name:       task.ID,
+				TICKScript: script,
+			}
+		} else {
+			rule.ID = task.ID
+			rule.TICKScript = script
+			alerts[task.ID] = rule
+		}
+	}
+	return alerts, nil
+}
+
+// Get returns a single alert in kapacitor
+func (c *Client) Get(ctx context.Context, id string) (chronograf.AlertRule, error) {
+	kapa, err := c.kapaClient(ctx)
+	if err != nil {
+		return chronograf.AlertRule{}, err
+	}
+	href := c.Href(id)
+	task, err := kapa.Task(client.Link{Href: href}, nil)
+	if err != nil {
+		return chronograf.AlertRule{}, chronograf.ErrAlertNotFound
+	}
+
+	script := chronograf.TICKScript(task.TICKscript)
+	rule, err := Reverse(script)
+	if err != nil {
+		return chronograf.AlertRule{
+			ID:         task.ID,
+			Name:       task.ID,
+			TICKScript: script,
+		}, nil
+	}
+	rule.ID = task.ID
+	rule.TICKScript = script
+	return rule, nil
+}
+
 // Update changes the tickscript of a given id.
 func (c *Client) Update(ctx context.Context, href string, rule chronograf.AlertRule) (*Task, error) {
 	kapa, err := c.kapaClient(ctx)
@@ -197,6 +258,7 @@ func (c *Client) Update(ctx context.Context, href string, rule chronograf.AlertR
 		Href:       task.Link.Href,
 		HrefOutput: c.HrefOutput(task.ID),
 		TICKScript: script,
+		Rule:       rule,
 	}, nil
 }
 

@@ -233,6 +233,7 @@ type SourcesStore interface {
 // AlertRule represents rules for building a tickscript alerting task
 type AlertRule struct {
 	ID            string          `json:"id,omitempty"`         // ID is the unique ID of the alert
+	TICKScript    TICKScript      `json:"tickscript"`           // TICKScript is the raw tickscript associated with this Alert
 	Query         QueryConfig     `json:"query"`                // Query is the filter of data for the alert.
 	Every         string          `json:"every"`                // Every how often to check for the alerting criteria
 	Alerts        []string        `json:"alerts"`               // Alerts name all the services to notify (e.g. pagerduty)
@@ -242,20 +243,6 @@ type AlertRule struct {
 	Trigger       string          `json:"trigger"`              // Trigger is a type that defines when to trigger the alert
 	TriggerValues TriggerValues   `json:"values"`               // Defines the values that cause the alert to trigger
 	Name          string          `json:"name"`                 // Name is the user-defined name for the alert
-}
-
-// AlertRulesStore stores rules for building tickscript alerting tasks
-type AlertRulesStore interface {
-	// All returns all rules in the store for the given source and kapacitor id
-	All(ctx context.Context, sourceID, kapaID int) ([]AlertRule, error)
-	// Add creates a new rule in the AlertRulesStore and returns AlertRule with ID for a given source and kapacitor id
-	Add(ctx context.Context, sourceID, kapaID int, rule AlertRule) (AlertRule, error)
-	// Delete the AlertRule from the store for a given source and kapacitor ID
-	Delete(ctx context.Context, sourceID, kapaID int, rule AlertRule) error
-	// Get retrieves AlertRule if `ID` exists within a given source and kapacitor id
-	Get(ctx context.Context, sourceID, kapaID int, ID string) (AlertRule, error)
-	// Update the AlertRule in the store within a given source and kapacitor id
-	Update(ctx context.Context, sourceID, kapaID int, rule AlertRule) error
 }
 
 // TICKScript task to be used by kapacitor
