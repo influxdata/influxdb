@@ -9,12 +9,13 @@
   display: flex;
   align-items: stretch;
   flex-wrap: nowrap;
-  overflow-x: auto;
-  @include custom-scrollbar($query-builder--list-bg,$c-pool);
 }
 .query-builder--column {
   display: flex;
   flex-direction: column;
+  flex: 2 0 0;
+}
+.query-builder--column-db {
   flex: 1 0 0;
 }
 .query-builder--heading {
@@ -200,4 +201,10 @@
 .query-builder--list-item:hover .group-by-tag,
 .query-builder--list-item.active .group-by-tag {
   visibility: visible;
+}
+
+
+
+.query-builder--db-dropdown {
+  display: inline-block;
 }

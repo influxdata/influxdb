@@ -15,6 +15,10 @@ $overlay-z: 100;
   z-index: $overlay-z;
   padding: 0 30px;
 
+  /*
+    Semi-transparent gradient in background
+    Makes it possible to leave opacity alone
+  */
   &:before {
     content: '';
     display: block;
@@ -37,7 +41,6 @@ $overlay-z: 100;
     flex: 0 0 $overlay-controls-height;
     width: calc(100% - #{($explorer-page-padding * 2)});
     left: $explorer-page-padding;
-    margin-top: 16px;
     border: 0;
     background-color: $g2-kevlar;
     border-radius: $radius $radius 0 0;
@@ -64,6 +67,13 @@ $overlay-z: 100;
     text-transform: uppercase;
     @include no-user-select;
   }
+}
+.overlay-technology--editor {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  height: 100%;
+  padding: 16px 0;
 }
 .overlay-controls .confirm-buttons {
   margin-left: 32px;
@@ -92,30 +102,12 @@ $overlay-z: 100;
 }
 
 /* Graph editing in Dashboards is a little smaller so the dash can be seen in the background */
-.overlay-technology .resize-container.page-contents {
-  background-image: none !important;
-  overflow: visible;
-}
 .overlay-technology .graph {
-  width: 70%;
-  left: 15%;
-}
-.overlay-technology .graph-heading,
-.overlay-technology .graph-container,
-.overlay-technology .table-container {
-  top: -24px;
-}
-.overlay-technology .graph-heading .graph-actions {
-  order: 2;
-}
-.overlay-technology .graph-container,
-.overlay-technology .table-container {
-  height: calc(100% - 38px);
+  margin: 0 15%;
 }
 .overlay-technology .query-maker {
   flex: 1 0 0;
   padding: 0 8px;
-  margin-bottom: 8px;
   border-radius: 0 0 $radius $radius;
   background-color: $g2-kevlar;
 }

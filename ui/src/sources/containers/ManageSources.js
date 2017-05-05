@@ -6,6 +6,7 @@ import {
   removeAndLoadSources,
   fetchKapacitorsAsync,
   setActiveKapacitorAsync,
+  deleteKapacitorAsync,
 } from 'src/shared/actions/sources'
 
 import InfluxTable from '../components/InfluxTable'
@@ -45,7 +46,7 @@ class ManageSources extends Component {
   }
 
   render() {
-    const {sources, source, setActiveKapacitor} = this.props
+    const {sources, source, setActiveKapacitor, deleteKapacitor} = this.props
 
     return (
       <div className="page" id="manage-sources-page">
@@ -63,6 +64,7 @@ class ManageSources extends Component {
               source={source}
               sources={sources}
               setActiveKapacitor={setActiveKapacitor}
+              handleDeleteKapacitor={deleteKapacitor}
             />
           </div>
         </div>
@@ -86,6 +88,7 @@ ManageSources.propTypes = {
   removeAndLoadSources: func.isRequired,
   fetchKapacitors: func.isRequired,
   setActiveKapacitor: func.isRequired,
+  deleteKapacitor: func.isRequired,
 }
 
 const mapStateToProps = ({sources}) => ({
@@ -96,6 +99,7 @@ const mapDispatchToProps = dispatch => ({
   removeAndLoadSources: bindActionCreators(removeAndLoadSources, dispatch),
   fetchKapacitors: bindActionCreators(fetchKapacitorsAsync, dispatch),
   setActiveKapacitor: bindActionCreators(setActiveKapacitorAsync, dispatch),
+  deleteKapacitor: bindActionCreators(deleteKapacitorAsync, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(ManageSources)

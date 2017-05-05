@@ -1,5 +1,5 @@
 import React, {PropTypes} from 'react'
-import classNames from 'classnames'
+import classnames from 'classnames'
 import {insecureSkipVerifyText} from 'src/shared/copy/tooltipText'
 import _ from 'lodash'
 
@@ -166,7 +166,7 @@ export const SourceForm = React.createClass({
             : null}
           <div className="form-group form-group-submit col-xs-12 col-sm-6 col-sm-offset-3">
             <button
-              className={classNames('btn btn-block', {
+              className={classnames('btn btn-block', {
                 'btn-primary': editMode,
                 'btn-success': !editMode,
               })}

@@ -1,9 +1,9 @@
 import React, {PropTypes} from 'react'
 
 import DatabaseList from './DatabaseList'
+import DatabaseDropdown from './DatabaseDropdown'
 import MeasurementList from './MeasurementList'
 import FieldList from './FieldList'
-import TagList from './TagList'
 import QueryEditor from './QueryEditor'
 import buildInfluxQLQuery from 'utils/influxql'
 
@@ -40,6 +40,7 @@ const QueryBuilder = React.createClass({
       toggleTagAcceptance: func.isRequired,
       editRawTextAsync: func.isRequired,
     }).isRequired,
+    layout: string,
   },
 
   handleChooseNamespace(namespace) {
@@ -107,7 +108,37 @@ const QueryBuilder = React.createClass({
   },
 
   renderLists() {
-    const {query} = this.props
+    const {query, layout} = this.props
+
+    // Panel layout uses a dropdown instead of a list for database selection
+    // Also groups measurements & fields into their own container so they
+    // can be stacked vertically.
+    // TODO: Styles to make all this look proper
+    if (layout === 'panel') {
+      return (
+        <div className="query-builder--panel">
+          <DatabaseDropdown
+            query={query}
+            onChooseNamespace={this.handleChooseNamespace}
+          />
+          <div className="query-builder">
+            <MeasurementList
+              query={query}
+              onChooseMeasurement={this.handleChooseMeasurement}
+              onChooseTag={this.handleChooseTag}
+              onToggleTagAcceptance={this.handleToggleTagAcceptance}
+              onGroupByTag={this.handleGroupByTag}
+            />
+            <FieldList
+              query={query}
+              onToggleField={this.handleToggleField}
+              onGroupByTime={this.handleGroupByTime}
+              applyFuncsToField={this.handleApplyFuncsToField}
+            />
+          </div>
+        </div>
+      )
+    }
 
     return (
       <div className="query-builder">
@@ -118,18 +149,15 @@ const QueryBuilder = React.createClass({
         <MeasurementList
           query={query}
           onChooseMeasurement={this.handleChooseMeasurement}
+          onChooseTag={this.handleChooseTag}
+          onToggleTagAcceptance={this.handleToggleTagAcceptance}
+          onGroupByTag={this.handleGroupByTag}
         />
         <FieldList
           query={query}
           onToggleField={this.handleToggleField}
           onGroupByTime={this.handleGroupByTime}
           applyFuncsToField={this.handleApplyFuncsToField}
-        />
-        <TagList
-          query={query}
-          onChooseTag={this.handleChooseTag}
-          onGroupByTag={this.handleGroupByTag}
-          onToggleTagAcceptance={this.handleToggleTagAcceptance}
         />
       </div>
     )

@@ -3,7 +3,13 @@ import {Link, withRouter} from 'react-router'
 
 import Dropdown from 'shared/components/Dropdown'
 
-const kapacitorDropdown = (kapacitors, source, router, setActiveKapacitor) => {
+const kapacitorDropdown = (
+  kapacitors,
+  source,
+  router,
+  setActiveKapacitor,
+  handleDeleteKapacitor
+) => {
   if (!kapacitors || kapacitors.length === 0) {
     return (
       <Link to={`/sources/${source.id}/kapacitors/new`}>Add Kapacitor</Link>
@@ -45,6 +51,14 @@ const kapacitorDropdown = (kapacitors, source, router, setActiveKapacitor) => {
             router.push(`${item.resource}/edit`)
           },
         },
+        {
+          icon: 'trash',
+          text: 'delete',
+          handler: item => {
+            handleDeleteKapacitor(item.kapacitor)
+          },
+          confirmable: true,
+        },
       ]}
       selected={selected}
     />
@@ -58,6 +72,7 @@ const InfluxTable = ({
   location,
   router,
   setActiveKapacitor,
+  handleDeleteKapacitor,
 }) => (
   <div className="row">
     <div className="col-md-12">
@@ -100,7 +115,8 @@ const InfluxTable = ({
                         s.kapacitors,
                         s,
                         router,
-                        setActiveKapacitor
+                        setActiveKapacitor,
+                        handleDeleteKapacitor
                       )}
                     </td>
                     <td className="text-right">
@@ -147,6 +163,7 @@ InfluxTable.propTypes = {
   }),
   sources: array.isRequired,
   setActiveKapacitor: func.isRequired,
+  handleDeleteKapacitor: func.isRequired,
 }
 
 export default withRouter(InfluxTable)

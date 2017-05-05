@@ -1,6 +1,6 @@
 import React, {PropTypes} from 'react'
 import {Link} from 'react-router'
-import cx from 'classnames'
+import classnames from 'classnames'
 
 const {node, string} = PropTypes
 
@@ -16,7 +16,7 @@ const NavListItem = React.createClass({
     const isActive = location.startsWith(link)
 
     return (
-      <Link className={cx('sidebar__menu-item', {active: isActive})} to={link}>
+      <Link className={classnames('sidebar__menu-item', {active: isActive})} to={link}>
         {children}
       </Link>
     )
@@ -63,7 +63,7 @@ const NavBlock = React.createClass({
     })
 
     return (
-      <div className={cx('sidebar__square', className, {active: isActive})}>
+      <div className={classnames('sidebar__square', className, {active: isActive})}>
         {this.renderLink()}
         <div className={wrapperClassName || 'sidebar__menu-wrapper'}>
           <div className="sidebar__menu">

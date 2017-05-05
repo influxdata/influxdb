@@ -1,5 +1,5 @@
 import React, {PropTypes} from 'react'
-import classNames from 'classnames'
+import classnames from 'classnames'
 
 import groupByTimeOptions from 'hson!../data/groupByTimes.hson'
 
@@ -17,7 +17,7 @@ const GroupByTimeDropdown = React.createClass({
 
     return (
       <div
-        className={classNames('dropdown group-by-time-dropdown', {
+        className={classnames('dropdown group-by-time-dropdown', {
           open: isOpen,
         })}
       >

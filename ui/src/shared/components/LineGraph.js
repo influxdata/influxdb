@@ -1,6 +1,6 @@
 import React, {PropTypes} from 'react'
 import Dygraph from 'shared/components/Dygraph'
-import classNames from 'classnames'
+import classnames from 'classnames'
 import shallowCompare from 'react-addons-shallow-compare'
 import _ from 'lodash'
 
@@ -91,7 +91,7 @@ export default React.createClass({
     if (isFetchingInitially) {
       return (
         <div className="graph-fetching">
-          <h3 className="graph-spinner" />
+          <div className="graph-spinner" />
         </div>
       )
     }
@@ -126,7 +126,7 @@ export default React.createClass({
 
     return (
       <div
-        className={classNames('dygraph', {
+        className={classnames('dygraph', {
           'graph--hasYLabel': !!(options.ylabel || options.y2label),
         })}
         style={{height: '100%'}}
