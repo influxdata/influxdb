@@ -2,7 +2,7 @@ import React, {PropTypes, Component} from 'react'
 import SourceIndicator from '../../shared/components/SourceIndicator'
 import AlertsTable from '../components/AlertsTable'
 import NoKapacitorError from '../../shared/components/NoKapacitorError'
-import CustomTimeRange from '../../shared/components/CustomTimeRange'
+import CustomTimeRangeDropdown from 'shared/components/CustomTimeRangeDropdown'
 
 import {getAlerts} from '../apis'
 import AJAX from 'utils/ajax'
@@ -138,7 +138,7 @@ class AlertsApp extends Component {
             </div>
             <div className="page-header__right">
               <SourceIndicator sourceName={source.name} />
-              <CustomTimeRange
+              <CustomTimeRangeDropdown
                 isVisible={this.state.isTimeOpen}
                 onToggle={this.handleToggleTime}
                 onClose={this.handleCloseTime}

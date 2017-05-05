@@ -4,7 +4,7 @@ import moment from 'moment'
 import classnames from 'classnames'
 import OnClickOutside from 'react-onclickoutside'
 
-class CustomTimeRange extends Component {
+class CustomTimeRangeDropdown extends Component {
   constructor(props) {
     super(props)
 
@@ -104,7 +104,7 @@ class CustomTimeRange extends Component {
 
 const {bool, func, shape, string} = PropTypes
 
-CustomTimeRange.propTypes = {
+CustomTimeRangeDropdown.propTypes = {
   onApplyTimeRange: func.isRequired,
   timeRange: shape({
     lower: string.isRequired,
@@ -115,4 +115,4 @@ CustomTimeRange.propTypes = {
   onClose: func.isRequired,
 }
 
-export default OnClickOutside(CustomTimeRange)
+export default OnClickOutside(CustomTimeRangeDropdown)

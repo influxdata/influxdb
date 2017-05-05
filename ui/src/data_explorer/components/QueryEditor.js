@@ -6,7 +6,12 @@ import Dropdown from 'src/shared/components/Dropdown'
 import LoadingDots from 'src/shared/components/LoadingDots'
 import TemplateDrawer from 'src/shared/components/TemplateDrawer'
 import {QUERY_TEMPLATES} from 'src/data_explorer/constants'
-import {TEMPLATE_MATCHER} from 'src/dashboards/constants'
+import {
+  MATCH_INCOMPLETE_TEMPLATES,
+  applyMasks,
+  insertTempVar,
+  unMask,
+} from 'src/dashboards/constants'
 
 class QueryEditor extends Component {
   constructor(props) {
@@ -48,7 +53,7 @@ class QueryEditor extends Component {
 
   handleClickTempVar(template) {
     // Clicking a tempVar does the same thing as hitting 'Enter'
-    this.handleTemplateReplace(template, 'Enter')
+    this.handleTemplateReplace(template, true)
     this.closeDrawer()
   }
 
@@ -77,7 +82,7 @@ class QueryEditor extends Component {
           return this.handleTemplateReplace(this.findTempVar('previous'))
         case 'Enter':
           e.preventDefault()
-          this.handleTemplateReplace(this.state.selectedTemplate, e.key)
+          this.handleTemplateReplace(this.state.selectedTemplate, true)
           return this.closeDrawer()
         case 'Escape':
           e.preventDefault()
@@ -92,22 +97,26 @@ class QueryEditor extends Component {
     }
   }
 
-  handleTemplateReplace(selectedTemplate, key) {
+  handleTemplateReplace(selectedTemplate, replaceWholeTemplate) {
     const {selectionStart, value} = this.editor
-    const isEnter = key === 'Enter'
     const {tempVar} = selectedTemplate
+    const newTempVar = replaceWholeTemplate
+      ? tempVar
+      : tempVar.substring(0, tempVar.length - 1)
+
+    // mask matches that will confuse our regex
+    const masked = applyMasks(value)
+    const matched = masked.match(MATCH_INCOMPLETE_TEMPLATES)
 
     let templatedValue
-    const matched = value.match(TEMPLATE_MATCHER)
     if (matched) {
-      const newTempVar = isEnter
-        ? tempVar
-        : tempVar.substring(0, tempVar.length - 1)
-      templatedValue = value.replace(TEMPLATE_MATCHER, newTempVar)
+      templatedValue = insertTempVar(masked, newTempVar)
+      templatedValue = unMask(templatedValue)
     }
 
-    const enterModifier = isEnter ? 0 : -1
-    const diffInLength = tempVar.length - matched[0].length + enterModifier
+    const enterModifier = replaceWholeTemplate ? 0 : -1
+    const diffInLength =
+      tempVar.length - _.get(matched, '0', []).length + enterModifier
 
     this.setState({value: templatedValue, selectedTemplate}, () =>
       this.editor.setSelectionRange(
@@ -145,14 +154,17 @@ class QueryEditor extends Component {
     const {templates} = this.props
     const {selectedTemplate} = this.state
     const value = this.editor.value
-    const matches = value.match(TEMPLATE_MATCHER)
 
-    if (matches && !_.isEmpty(templates)) {
+    // mask matches that will confuse our regex
+    const masked = applyMasks(value)
+    const matched = masked.match(MATCH_INCOMPLETE_TEMPLATES)
+
+    if (matched && !_.isEmpty(templates)) {
       // maintain cursor poition
       const start = this.editor.selectionStart
       const end = this.editor.selectionEnd
       const filteredTemplates = templates.filter(t =>
-        t.tempVar.includes(matches[0].substring(1))
+        t.tempVar.includes(matched[0].substring(1))
       )
 
       const found = filteredTemplates.find(
