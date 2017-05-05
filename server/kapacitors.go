@@ -9,7 +9,6 @@ import (
 	"github.com/bouk/httprouter"
 	"github.com/influxdata/chronograf"
 	kapa "github.com/influxdata/chronograf/kapacitor"
-	"github.com/influxdata/chronograf/uuid"
 )
 
 type postKapacitorRequest struct {
@@ -300,13 +299,7 @@ func (h *Service) KapacitorRulesPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	c := kapa.Client{
-		URL:      srv.URL,
-		Username: srv.Username,
-		Password: srv.Password,
-		Ticker:   &kapa.Alert{},
-		ID:       &uuid.V4{},
-	}
+	c := kapa.NewClient(srv.URL, srv.Username, srv.Password)
 
 	var req chronograf.AlertRule
 	if err = json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -427,12 +420,7 @@ func (h *Service) KapacitorRulesPut(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tid := httprouter.GetParamFromContext(ctx, "tid")
-	c := kapa.Client{
-		URL:      srv.URL,
-		Username: srv.Username,
-		Password: srv.Password,
-		Ticker:   &kapa.Alert{},
-	}
+	c := kapa.NewClient(srv.URL, srv.Username, srv.Password)
 	var req chronograf.AlertRule
 	if err = json.NewDecoder(r.Body).Decode(&req); err != nil {
 		invalidJSON(w, h.Logger)
@@ -503,12 +491,8 @@ func (h *Service) KapacitorRulesStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tid := httprouter.GetParamFromContext(ctx, "tid")
-	c := kapa.Client{
-		URL:      srv.URL,
-		Username: srv.Username,
-		Password: srv.Password,
-		Ticker:   &kapa.Alert{},
-	}
+	c := kapa.NewClient(srv.URL, srv.Username, srv.Password)
+
 	var req KapacitorStatus
 	if err = json.NewDecoder(r.Body).Decode(&req); err != nil {
 		invalidJSON(w, h.Logger)
@@ -567,13 +551,7 @@ func (h *Service) KapacitorRulesGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ticker := &kapa.Alert{}
-	c := kapa.Client{
-		URL:      srv.URL,
-		Username: srv.Username,
-		Password: srv.Password,
-		Ticker:   ticker,
-	}
+	c := kapa.NewClient(srv.URL, srv.Username, srv.Password)
 	rules, err := c.All(ctx)
 	if err != nil {
 		Error(w, http.StatusInternalServerError, err.Error(), h.Logger)
@@ -627,13 +605,7 @@ func (h *Service) KapacitorRulesID(w http.ResponseWriter, r *http.Request) {
 	}
 	tid := httprouter.GetParamFromContext(ctx, "tid")
 
-	ticker := &kapa.Alert{}
-	c := kapa.Client{
-		URL:      srv.URL,
-		Username: srv.Username,
-		Password: srv.Password,
-		Ticker:   ticker,
-	}
+	c := kapa.NewClient(srv.URL, srv.Username, srv.Password)
 
 	// Check if the rule exists within scope
 	rule, err := c.Get(ctx, tid)
@@ -676,11 +648,7 @@ func (h *Service) KapacitorRulesDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	c := kapa.Client{
-		URL:      srv.URL,
-		Username: srv.Username,
-		Password: srv.Password,
-	}
+	c := kapa.NewClient(srv.URL, srv.Username, srv.Password)
 
 	tid := httprouter.GetParamFromContext(ctx, "tid")
 	// Check if the rule is linked to this server and kapacitor

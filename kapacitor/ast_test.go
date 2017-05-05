@@ -1333,6 +1333,103 @@ trigger
 				},
 			},
 		},
+		{
+			name: "Test threshold lambda",
+			script: `var db = '_internal'
+
+var rp = 'monitor'
+
+var measurement = 'cq'
+
+var groupBy = []
+
+var whereFilter = lambda: TRUE
+
+var name = 'rule 1'
+
+var idVar = name + ':{{.Group}}'
+
+var message = ''
+
+var idTag = 'alertID'
+
+var levelTag = 'level'
+
+var messageField = 'message'
+
+var durationField = 'duration'
+
+var outputDB = 'chronograf'
+
+var outputRP = 'autogen'
+
+var outputMeasurement = 'alerts'
+
+var triggerType = 'threshold'
+
+var crit = 90000
+
+var data = stream
+    |from()
+        .database(db)
+        .retentionPolicy(rp)
+        .measurement(measurement)
+        .groupBy(groupBy)
+        .where(whereFilter)
+    |eval(lambda: "queryOk")
+        .as('value')
+
+var trigger = data
+    |alert()
+        .crit(lambda: "value" > crit)
+        .stateChangesOnly()
+        .message(message)
+        .id(idVar)
+        .idTag(idTag)
+        .levelTag(levelTag)
+        .messageField(messageField)
+        .durationField(durationField)
+
+trigger
+    |influxDBOut()
+        .create()
+        .database(outputDB)
+        .retentionPolicy(outputRP)
+        .measurement(outputMeasurement)
+        .tag('alertName', name)
+        .tag('triggerType', triggerType)
+
+trigger
+    |httpOut('output')
+`,
+			want: chronograf.AlertRule{
+				Name:    "rule 1",
+				Trigger: "threshold",
+				Alerts:  []string{},
+				TriggerValues: chronograf.TriggerValues{
+					Operator: "greater than",
+					Value:    "90000",
+				},
+				Every:   "",
+				Message: "",
+				Details: "",
+				Query: &chronograf.QueryConfig{
+					Database:        "_internal",
+					RetentionPolicy: "monitor",
+					Measurement:     "cq",
+					Fields: []chronograf.Field{
+						{
+							Field: "queryOk",
+							Funcs: []string{},
+						},
+					},
+					GroupBy: chronograf.GroupBy{
+						Tags: []string{},
+					},
+					AreTagsAccepted: false,
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1343,6 +1440,13 @@ trigger
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("Reverse() = \n%#v\n, want \n%#v\n", got, tt.want)
+				if tt.want.Query != nil {
+					if got.Query == nil {
+						t.Errorf("Reverse() = got nil QueryConfig")
+					} else if !reflect.DeepEqual(*got.Query, *tt.want.Query) {
+						t.Errorf("Reverse() = QueryConfig not equal\n%#v\n, want \n%#v\n", *got.Query, *tt.want.Query)
+					}
+				}
 			}
 		})
 	}
