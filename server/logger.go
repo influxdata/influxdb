@@ -7,6 +7,17 @@ import (
 	"github.com/influxdata/chronograf"
 )
 
+type logResponseWriter struct {
+	http.ResponseWriter
+
+	responseCode int
+}
+
+func (l *logResponseWriter) WriteHeader(status int) {
+	l.responseCode = status
+	l.ResponseWriter.WriteHeader(status)
+}
+
 // Logger is middleware that logs the request
 func Logger(logger chronograf.Logger, next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
@@ -17,7 +28,9 @@ func Logger(logger chronograf.Logger, next http.Handler) http.Handler {
 			WithField("method", r.Method).
 			WithField("url", r.URL).
 			Info("Request")
-		next.ServeHTTP(w, r)
+
+		lrr := &logResponseWriter{w, 0}
+		next.ServeHTTP(lrr, r)
 		later := time.Now()
 		elapsed := later.Sub(now)
 
@@ -25,7 +38,8 @@ func Logger(logger chronograf.Logger, next http.Handler) http.Handler {
 			WithField("component", "server").
 			WithField("remote_addr", r.RemoteAddr).
 			WithField("response_time", elapsed.String()).
-			Info("Success")
+			WithField("code", lrr.responseCode).
+			Info("Response: ", http.StatusText(lrr.responseCode))
 	}
 	return http.HandlerFunc(fn)
 }
