@@ -15,6 +15,9 @@
   flex-direction: column;
   flex: 2 0 0;
 }
+.query-builder--column-db {
+  flex: 1 0 0;
+}
 .query-builder--heading {
   @include no-user-select();
   width: 100%;

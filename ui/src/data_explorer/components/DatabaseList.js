@@ -64,7 +64,7 @@ const DatabaseList = React.createClass({
     const {query, onChooseNamespace} = this.props
 
     return (
-      <div className="query-builder--column" style={{flex: '1 0 0'}}>
+      <div className="query-builder--column query-builder--column-db">
         <div className="query-builder--heading">Databases</div>
         <div className="query-builder--list">
           {this.state.namespaces.map(namespace => {
