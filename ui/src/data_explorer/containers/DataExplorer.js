@@ -95,11 +95,13 @@ const DataExplorer = React.createClass({
             actions={queryConfigActions}
             autoRefresh={autoRefresh}
             timeRange={timeRange}
+            isInDataExplorer={true}
             setActiveQueryIndex={this.handleSetActiveQueryIndex}
             onDeleteQuery={this.handleDeleteQuery}
             activeQueryIndex={activeQueryIndex}
           />
           <Visualization
+            isInDataExplorer={true}
             autoRefresh={autoRefresh}
             timeRange={timeRange}
             queryConfigs={queryConfigs}

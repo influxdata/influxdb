@@ -16,6 +16,7 @@ const VisView = ({
   heightPixels,
   editQueryStatus,
   activeQueryIndex,
+  isInDataExplorer,
 }) => {
   const activeQuery = queries[activeQueryIndex]
   const defaultQuery = queries[0]
@@ -60,7 +61,7 @@ const VisView = ({
       autoRefresh={autoRefresh}
       templates={templates}
       activeQueryIndex={activeQueryIndex}
-      isInDataExplorer={true}
+      isInDataExplorer={isInDataExplorer}
       showSingleStat={cellType === 'line-plus-single-stat'}
       displayOptions={displayOptions}
       editQueryStatus={editQueryStatus}
@@ -68,7 +69,7 @@ const VisView = ({
   )
 }
 
-const {arrayOf, func, number, shape, string} = PropTypes
+const {arrayOf, bool, func, number, shape, string} = PropTypes
 
 VisView.propTypes = {
   view: string.isRequired,
@@ -79,6 +80,7 @@ VisView.propTypes = {
   heightPixels: number,
   editQueryStatus: func.isRequired,
   activeQueryIndex: number,
+  isInDataExplorer: bool,
 }
 
 export default VisView

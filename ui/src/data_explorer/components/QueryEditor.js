@@ -146,7 +146,8 @@ class QueryEditor extends Component {
     const {selectedTemplate} = this.state
     const value = this.editor.value
     const matches = value.match(TEMPLATE_MATCHER)
-    if (matches) {
+
+    if (matches && !_.isEmpty(templates)) {
       // maintain cursor poition
       const start = this.editor.selectionStart
       const end = this.editor.selectionEnd

@@ -4,14 +4,20 @@
   1. [#1364](https://github.com/influxdata/chronograf/pull/1364): Fix link to home when using the --basepath option
   1. [#1370](https://github.com/influxdata/chronograf/pull/1370): Remove notification to login outside of session timeout
   1. [#1376](https://github.com/influxdata/chronograf/pull/1376): Fix queries built in query builder with math functions in fields
+  1. [#1399](https://github.com/influxdata/chronograf/pull/1399): User can no longer create a blank template variable by clicking outside a newly added one
 
 ### Features
+  1. [#1391](https://github.com/influxdata/chronograf/pull/1391): :dashboardTime: - Support cell-specific time ranges
+
 ### UI Improvements
   1. [#1378](https://github.com/influxdata/chronograf/pull/1378): Save query time range for dashboards
   1. [#1365](https://github.com/influxdata/chronograf/pull/1365): Show red indicator on Hosts Page for an offline host
   1. [#1373](https://github.com/influxdata/chronograf/pull/1373): Re-address dashboard cell stacking contexts
   1. [#1385](https://github.com/influxdata/chronograf/pull/1385): Combined Measurements & Tags columns within the Data Explorer, feels more spacious and intuitive. New design for applying functions to Fields.
   1. [#602](https://github.com/influxdata/chronograf/pull/602): Normalize terminology in app
+  1. [#1392](https://github.com/influxdata/chronograf/pull/1392): Overlays are now full screen
+  1. [#1395](https://github.com/influxdata/chronograf/pull/1395): Change default global time range to past 1 hour
+  1. [#1379](https://github.com/influxdata/chronograf/pull/1379): Re-add alert level colors on the alerts page
 
 ## v1.2.0-beta10 [2017-04-28]
 

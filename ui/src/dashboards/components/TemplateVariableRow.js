@@ -301,7 +301,7 @@ class RowWrapper extends Component {
   }
 
   handleClickOutside() {
-    this.setState({isEditing: false})
+    this.handleCancelEdit()
   }
 
   handleStartEdit(name) {

@@ -41,6 +41,18 @@ $dash-graph-options-arrow: 8px;
 }
 
 .dashboard {
+  &.container-fluid.full-width.page-contents {
+    padding-top: 8px;
+  }
+  &.presentation-mode {
+    top: 0;
+    height: 100%;
+    padding: 12px;
+
+    .template-control--manage {
+      display: none;
+    }
+  }
   .react-grid-item {
     @extend .cell-shell;
   }

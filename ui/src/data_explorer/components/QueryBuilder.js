@@ -7,7 +7,7 @@ import FieldList from './FieldList'
 import QueryEditor from './QueryEditor'
 import buildInfluxQLQuery from 'utils/influxql'
 
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 const QueryBuilder = React.createClass({
   propTypes: {
@@ -28,6 +28,7 @@ const QueryBuilder = React.createClass({
         tempVar: string.isRequired,
       })
     ),
+    isInDataExplorer: bool,
     actions: shape({
       chooseNamespace: func.isRequired,
       chooseMeasurement: func.isRequired,
@@ -80,7 +81,17 @@ const QueryBuilder = React.createClass({
   },
 
   render() {
-    const {query, timeRange, templates} = this.props
+    const {query, templates, isInDataExplorer} = this.props
+
+    // DE does not understand templating. :dashboardTime: is specific to dashboards
+    let timeRange
+
+    if (isInDataExplorer) {
+      timeRange = this.props.timeRange
+    } else {
+      timeRange = query.range || {upper: null, lower: ':dashboardTime:'}
+    }
+
     const q = query.rawText || buildInfluxQLQuery(timeRange, query) || ''
 
     return (
