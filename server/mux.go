@@ -201,7 +201,7 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 		out = Logger(opts.Logger, PrefixedRedirect(opts.Basepath, router))
 	}
 
-	router.GET("/chronograf/v1/", AllRoutes(authRoutes, path.Join(basepath, logout), opts.Logger))
+	router.GET("/chronograf/v1/", AllRoutes(authRoutes, path.Join(opts.Basepath, logout), opts.Logger))
 
 	return out
 }
@@ -213,35 +213,40 @@ func AuthAPI(opts MuxOpts, router chronograf.Router) (http.Handler, AuthRoutes) 
 		pf(func(p oauth2.Provider, m oauth2.Mux) {
 			urlName := PathEscape(strings.ToLower(p.Name()))
 
-			loginPath := path.Join("oauth", urlName, "login")
-			logoutPath := path.Join("oauth", urlName, "logout")
-			callbackPath := path.Join("oauth", urlName, "callback")
-
-			basepath := ""
-			if opts.PrefixRoutes {
-				basepath = opts.Basepath
-			}
+			loginPath := path.Join("/oauth", urlName, "login")
+			logoutPath := path.Join("/oauth", urlName, "logout")
+			callbackPath := path.Join("/oauth", urlName, "callback")
 
 			router.Handler("GET", loginPath, m.Login())
 			router.Handler("GET", logoutPath, m.Logout())
 			router.Handler("GET", callbackPath, m.Callback())
 			routes = append(routes, AuthRoute{
-				Name:     p.Name(),
-				Label:    strings.Title(p.Name()),
-				Login:    path.Join(basepath, loginPath),
-				Logout:   path.Join(basepath, logoutPath),
-				Callback: path.Join(basepath, callbackPath),
+				Name:  p.Name(),
+				Label: strings.Title(p.Name()),
+				// AuthRoutes are content served to the page. When Basepath is set, it
+				// says that all content served to the page will be prefixed with the
+				// basepath. Since these routes are consumed by JS, it will need the
+				// basepath set to traverse a proxy correctly
+				Login:    path.Join(opts.Basepath, loginPath),
+				Logout:   path.Join(opts.Basepath, logoutPath),
+				Callback: path.Join(opts.Basepath, callbackPath),
 			})
 		})
 	}
 
-	rootPath := path.Join(opts.Basepath, "/chronograf/v1/")
-	logoutPath := path.Join(opts.Basepath, "/oauth/logout")
+	rootPath := "/chronograf/v1"
+	logoutPath := "/oauth/logout"
+
+	if opts.PrefixRoutes {
+		rootPath = path.Join(opts.Basepath, rootPath)
+		logoutPath = path.Join(opts.Basepath, logoutPath)
+	}
 
 	tokenMiddleware := AuthorizedToken(opts.Auth, opts.Logger, router)
 	// Wrap the API with token validation middleware.
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if (strings.HasPrefix(r.URL.Path, rootPath) && len(r.URL.Path) > len(rootPath)) || r.URL.Path == logoutPath {
+		cleanPath := path.Clean(r.URL.Path) // compare ignoring path garbage, trailing slashes, etc.
+		if (strings.HasPrefix(cleanPath, rootPath) && len(cleanPath) > len(rootPath)) || cleanPath == logoutPath {
 			tokenMiddleware.ServeHTTP(w, r)
 			return
 		}
