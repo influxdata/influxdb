@@ -178,8 +178,7 @@ func Convert(influxQL string) (chronograf.QueryConfig, error) {
 	// If the condition has a time range we report back its duration
 	if dur, ok := hasTimeRange(stmt.Condition); ok {
 		qc.Range = &chronograf.DurationRange{
-			Lower: shortDur(dur),
-			Upper: "now",
+			Lower: "now() - " + shortDur(dur),
 		}
 	}
 

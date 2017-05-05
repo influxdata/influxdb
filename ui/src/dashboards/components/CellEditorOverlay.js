@@ -86,12 +86,13 @@ class CellEditorOverlay extends Component {
 
   handleSaveCell() {
     const {queriesWorkingDraft, cellWorkingType, cellWorkingName} = this.state
-    const {cell, timeRange} = this.props
+    const {cell} = this.props
 
     const newCell = _.cloneDeep(cell)
     newCell.name = cellWorkingName
     newCell.type = cellWorkingType
     newCell.queries = queriesWorkingDraft.map(q => {
+      const timeRange = q.range || {upper: null, lower: ':dashboardTime:'}
       const query = q.rawText || buildInfluxQLQuery(timeRange, q)
       const label = q.rawText ? '' : `${q.measurement}.${q.fields[0].field}`
 

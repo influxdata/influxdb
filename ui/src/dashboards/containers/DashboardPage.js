@@ -226,6 +226,21 @@ class DashboardPage extends Component {
     } = this.props
 
     const dashboard = dashboards.find(d => d.id === +dashboardID)
+    const dashboardTime = {
+      id: 'dashtime',
+      tempVar: ':dashboardTime:',
+      type: 'constant',
+      values: [
+        {
+          value: timeRange.lower,
+          type: 'constant',
+          selected: true,
+        },
+      ],
+    }
+
+    const templatesIncludingDashTime = (dashboard &&
+      dashboard.templates.concat(dashboardTime)) || []
 
     const {selectedCell, isEditMode, isTemplating} = this.state
 
@@ -245,7 +260,7 @@ class DashboardPage extends Component {
         {selectedCell
           ? <CellEditorOverlay
               source={source}
-              templates={dashboard.templates}
+              templates={templatesIncludingDashTime}
               cell={selectedCell}
               timeRange={timeRange}
               autoRefresh={autoRefresh}
@@ -302,6 +317,7 @@ class DashboardPage extends Component {
               onRenameCell={this.handleRenameDashboardCell}
               onUpdateCell={this.handleUpdateDashboardCell}
               onOpenTemplateManager={this.handleOpenTemplateManager}
+              templatesIncludingDashTime={templatesIncludingDashTime}
               onSummonOverlayTechnologies={this.handleSummonOverlayTechnologies}
               onSelectTemplate={this.handleSelectTemplate}
             />

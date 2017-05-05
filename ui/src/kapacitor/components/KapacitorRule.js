@@ -152,7 +152,7 @@ export const KapacitorRule = React.createClass({
     }
 
     if (this.thresholdValueEmpty() || this.relativeValueEmpty()) {
-      return 'Please enter a value in the Values section'
+      return 'Please enter a value in the Rule Conditions section'
     }
 
     return ''

@@ -13,9 +13,7 @@
   color: $g17-whisper;
 }
 .page {
-  position: relative;
   flex-grow: 1;
-  overflow: hidden;
 }
 .page-contents {
   position: absolute;
@@ -34,15 +32,6 @@
   }
   &--purple-scrollbar {
     @include custom-scrollbar($g2-kevlar,$c-comet);
-  }
-
-  &.presentation-mode {
-    top: 0;
-    height: 100%;
-
-    .dashboard {
-      padding: 12px;
-    }
   }
 }
 .container-fluid {

@@ -284,8 +284,7 @@ func Test_newDashboardResponse(t *testing.T) {
 										Tags:            make(map[string][]string, 0),
 										AreTagsAccepted: false,
 										Range: &chronograf.DurationRange{
-											Lower: "15m",
-											Upper: "now",
+											Lower: "now() - 15m",
 										},
 									},
 								},

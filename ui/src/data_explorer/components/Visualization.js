@@ -6,7 +6,7 @@ import VisView from 'src/data_explorer/components/VisView'
 import {GRAPH, TABLE} from 'src/shared/constants'
 import _ from 'lodash'
 
-const {arrayOf, func, number, shape, string} = PropTypes
+const {arrayOf, bool, func, number, shape, string} = PropTypes
 const META_QUERY_REGEX = /^show/i
 
 const Visualization = React.createClass({
@@ -15,6 +15,7 @@ const Visualization = React.createClass({
     cellType: string,
     autoRefresh: number.isRequired,
     templates: arrayOf(shape()),
+    isInDataExplorer: bool,
     timeRange: shape({
       upper: string,
       lower: string,
@@ -86,6 +87,7 @@ const Visualization = React.createClass({
       queryConfigs,
       editQueryStatus,
       activeQueryIndex,
+      isInDataExplorer,
     } = this.props
     const {source: {links: {proxy}}} = this.context
     const {view} = this.state
@@ -121,6 +123,7 @@ const Visualization = React.createClass({
             heightPixels={heightPixels}
             editQueryStatus={editQueryStatus}
             activeQueryIndex={activeQueryIndex}
+            isInDataExplorer={isInDataExplorer}
           />
         </div>
       </div>

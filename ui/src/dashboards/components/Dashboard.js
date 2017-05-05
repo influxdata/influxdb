@@ -1,14 +1,11 @@
 import React, {PropTypes} from 'react'
 import classnames from 'classnames'
 
-import omit from 'lodash/omit'
-
+import TemplateControlBar from 'src/dashboards/components/TemplateControlBar'
 import LayoutRenderer from 'shared/components/LayoutRenderer'
-import Dropdown from 'shared/components/Dropdown'
 
 const Dashboard = ({
   source,
-  timeRange,
   dashboard,
   onAddCell,
   onEditCell,
@@ -19,14 +16,13 @@ const Dashboard = ({
   onPositionChange,
   inPresentationMode,
   onOpenTemplateManager,
+  templatesIncludingDashTime,
   onSummonOverlayTechnologies,
   onSelectTemplate,
 }) => {
   if (dashboard.id === 0) {
     return null
   }
-
-  const {templates} = dashboard
 
   const cells = dashboard.cells.map(cell => {
     const dashboardCell = {...cell}
@@ -50,43 +46,14 @@ const Dashboard = ({
         {'presentation-mode': inPresentationMode}
       )}
     >
-      <div className="template-control-bar">
-        <h1 className="template-control--heading">Template Variables</h1>
-        {templates.map(({id, values, tempVar}) => {
-          const items = values.map(value => ({...value, text: value.value}))
-          const selectedItem = items.find(item => item.selected) || items[0]
-          const selectedText = selectedItem && selectedItem.text
-
-          // TODO: change Dropdown to a MultiSelectDropdown, `selected` to
-          // the full array, and [item] to all `selected` values when we update
-          // this component to support multiple values
-          return (
-            <div key={id} className="template-control--dropdown">
-              <Dropdown
-                items={items}
-                buttonSize="btn-xs"
-                selected={selectedText || 'Loading...'}
-                onChoose={item =>
-                  onSelectTemplate(id, [item].map(x => omit(x, 'text')))}
-              />
-              <label className="template-control--label">
-                {tempVar}
-              </label>
-            </div>
-          )
-        })}
-        <button
-          className="btn btn-primary btn-sm template-control--manage"
-          onClick={onOpenTemplateManager}
-        >
-          <span className="icon cog-thick" />
-           Manage
-        </button>
-      </div>
+      <TemplateControlBar
+        templates={dashboard.templates}
+        onSelectTemplate={onSelectTemplate}
+        onOpenTemplateManager={onOpenTemplateManager}
+      />
       {cells.length
         ? <LayoutRenderer
-            timeRange={timeRange}
-            templates={templates}
+            templates={templatesIncludingDashTime}
             cells={cells}
             autoRefresh={autoRefresh}
             source={source.links.proxy}
@@ -110,7 +77,27 @@ const Dashboard = ({
 const {arrayOf, bool, func, shape, string, number} = PropTypes
 
 Dashboard.propTypes = {
-  dashboard: shape({}).isRequired,
+  dashboard: shape({
+    templates: arrayOf(
+      shape({
+        type: string.isRequired,
+        tempVar: string.isRequired,
+        query: shape({
+          db: string,
+          rp: string,
+          influxql: string,
+        }),
+        values: arrayOf(
+          shape({
+            type: string.isRequired,
+            value: string.isRequired,
+            selected: bool,
+          })
+        ).isRequired,
+      })
+    ).isRequired,
+  }).isRequired,
+  templatesIncludingDashTime: arrayOf(shape()).isRequired,
   inPresentationMode: bool,
   onAddCell: func,
   onPositionChange: func,
@@ -128,24 +115,6 @@ Dashboard.propTypes = {
   timeRange: shape({}).isRequired,
   onOpenTemplateManager: func.isRequired,
   onSelectTemplate: func.isRequired,
-  templates: arrayOf(
-    shape({
-      type: string.isRequired,
-      tempVar: string.isRequired,
-      query: shape({
-        db: string,
-        rp: string,
-        influxql: string,
-      }),
-      values: arrayOf(
-        shape({
-          type: string.isRequired,
-          value: string.isRequired,
-          selected: bool,
-        })
-      ).isRequired,
-    })
-  ),
 }
 
 export default Dashboard
