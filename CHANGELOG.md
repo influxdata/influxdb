@@ -7,6 +7,7 @@
   1. [#1399](https://github.com/influxdata/chronograf/pull/1399): User can no longer create a blank template variable by clicking outside a newly added one
 
 ### Features
+  1. [#1382](https://github.com/influxdata/chronograf/pull/1382): Add line-protocol proxy for InfluxDB data sources
   1. [#1391](https://github.com/influxdata/chronograf/pull/1391): :dashboardTime: - Support cell-specific time ranges
 
 ### UI Improvements

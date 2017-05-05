@@ -81,6 +81,9 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	influx := gziphandler.GzipHandler(http.HandlerFunc(service.Influx))
 	router.Handler("POST", "/chronograf/v1/sources/:id/proxy", influx)
 
+	// Write proxies line protocol write requests to InfluxDB
+	router.POST("/chronograf/v1/sources/:id/write", service.Write)
+
 	// Queries is used to analyze a specific queries
 	router.POST("/chronograf/v1/sources/:id/queries", service.Queries)
 
