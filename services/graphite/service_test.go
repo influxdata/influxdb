@@ -304,6 +304,6 @@ func NewTestService(c *Config) *TestService {
 	return service
 }
 
-func (s *TestService) WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
+func (s *TestService) WritePointsPrivileged(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
 	return s.WritePointsFn(database, retentionPolicy, consistencyLevel, points)
 }

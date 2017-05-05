@@ -596,15 +596,15 @@ func TestMetaClient_CreateUser(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if exp, got := "fred", u.Name; exp != got {
+	if exp, got := "fred", u.ID(); exp != got {
 		t.Fatalf("unexpected user name: exp: %s got: %s", exp, got)
 	}
-	if !u.Admin {
+	if !u.IsAdmin() {
 		t.Fatalf("expected user to be admin")
 	}
 
 	u, err = c.Authenticate("fred", "supersecure")
-	if u == nil || err != nil || u.Name != "fred" {
+	if u == nil || err != nil || u.ID() != "fred" {
 		t.Fatalf("failed to authenticate")
 	}
 
@@ -633,7 +633,7 @@ func TestMetaClient_CreateUser(t *testing.T) {
 
 	// Auth for new password should succeed.
 	u, err = c.Authenticate("fred", "moresupersecure")
-	if u == nil || err != nil || u.Name != "fred" {
+	if u == nil || err != nil || u.ID() != "fred" {
 		t.Fatalf("failed to authenticate")
 	}
 
@@ -647,10 +647,10 @@ func TestMetaClient_CreateUser(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if exp, got := "wilma", u.Name; exp != got {
+	if exp, got := "wilma", u.ID(); exp != got {
 		t.Fatalf("unexpected user name: exp: %s got: %s", exp, got)
 	}
-	if u.Admin {
+	if u.IsAdmin() {
 		t.Fatalf("expected user not to be an admin")
 	}
 
@@ -667,10 +667,10 @@ func TestMetaClient_CreateUser(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if exp, got := "wilma", u.Name; exp != got {
+	if exp, got := "wilma", u.ID(); exp != got {
 		t.Fatalf("unexpected user name: exp: %s got: %s", exp, got)
 	}
-	if !u.Admin {
+	if !u.IsAdmin() {
 		t.Fatalf("expected user to be an admin")
 	}
 
@@ -683,10 +683,10 @@ func TestMetaClient_CreateUser(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if exp, got := "wilma", u.Name; exp != got {
+	if exp, got := "wilma", u.ID(); exp != got {
 		t.Fatalf("unexpected user name: exp: %s got: %s", exp, got)
 	}
-	if u.Admin {
+	if u.IsAdmin() {
 		t.Fatalf("expected user not to be an admin")
 	}
 

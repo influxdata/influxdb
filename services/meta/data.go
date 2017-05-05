@@ -519,14 +519,23 @@ func (data *Data) DropSubscription(database, rp, name string) error {
 	return ErrSubscriptionNotFound
 }
 
-// User returns a user by username.
-func (data *Data) User(username string) *UserInfo {
+func (data *Data) user(username string) *UserInfo {
 	for i := range data.Users {
 		if data.Users[i].Name == username {
 			return &data.Users[i]
 		}
 	}
 	return nil
+}
+
+// User returns a user by username.
+func (data *Data) User(username string) User {
+	u := data.user(username)
+	if u == nil {
+		// prevent non-nil interface with nil pointer
+		return nil
+	}
+	return u
 }
 
 // CreateUser creates a new user.
@@ -597,7 +606,7 @@ func (data *Data) CloneUsers() []UserInfo {
 
 // SetPrivilege sets a privilege for a user on a database.
 func (data *Data) SetPrivilege(name, database string, p influxql.Privilege) error {
-	ui := data.User(name)
+	ui := data.user(name)
 	if ui == nil {
 		return ErrUserNotFound
 	}
@@ -612,7 +621,7 @@ func (data *Data) SetPrivilege(name, database string, p influxql.Privilege) erro
 
 // SetAdminPrivilege sets the admin privilege for a user.
 func (data *Data) SetAdminPrivilege(name string, admin bool) error {
-	ui := data.User(name)
+	ui := data.user(name)
 	if ui == nil {
 		return ErrUserNotFound
 	}
@@ -632,7 +641,7 @@ func (data Data) AdminUserExists() bool {
 
 // UserPrivileges gets the privileges for a user.
 func (data *Data) UserPrivileges(name string) (map[string]influxql.Privilege, error) {
-	ui := data.User(name)
+	ui := data.user(name)
 	if ui == nil {
 		return nil, ErrUserNotFound
 	}
@@ -642,7 +651,7 @@ func (data *Data) UserPrivileges(name string) (map[string]influxql.Privilege, er
 
 // UserPrivilege gets the privilege for a user on a database.
 func (data *Data) UserPrivilege(name, database string) (*influxql.Privilege, error) {
-	ui := data.User(name)
+	ui := data.user(name)
 	if ui == nil {
 		return nil, ErrUserNotFound
 	}
@@ -1419,6 +1428,8 @@ func (cqi *ContinuousQueryInfo) unmarshal(pb *internal.ContinuousQueryInfo) {
 	cqi.Query = pb.GetQuery()
 }
 
+var _ influxql.Authorizer = (*UserInfo)(nil)
+
 // UserInfo represents metadata about a user in the system.
 type UserInfo struct {
 	// User's name.
@@ -1434,7 +1445,19 @@ type UserInfo struct {
 	Privileges map[string]influxql.Privilege
 }
 
-var _ influxql.Authorizer = (*UserInfo)(nil)
+type User interface {
+	influxql.Authorizer
+	ID() string
+	IsAdmin() bool
+}
+
+func (u *UserInfo) ID() string {
+	return u.Name
+}
+
+func (u *UserInfo) IsAdmin() bool {
+	return u.Admin
+}
 
 // AuthorizeDatabase returns true if the user is authorized for the given privilege on the given database.
 func (ui *UserInfo) AuthorizeDatabase(privilege influxql.Privilege, database string) bool {
@@ -1443,6 +1466,16 @@ func (ui *UserInfo) AuthorizeDatabase(privilege influxql.Privilege, database str
 	}
 	p, ok := ui.Privileges[database]
 	return ok && (p == privilege || p == influxql.AllPrivileges)
+}
+
+// AuthorizeSeriesRead is used to limit access per-series (enterprise only)
+func (u *UserInfo) AuthorizeSeriesRead(database string, series string) bool {
+	return true
+}
+
+// AuthorizeSeriesWrite is used to limit access per-series (enterprise only)
+func (u *UserInfo) AuthorizeSeriesWrite(database string, series string) bool {
+	return true
 }
 
 // clone returns a deep copy of si.

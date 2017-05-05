@@ -201,6 +201,18 @@ func (a *mockAuthorizer) AuthorizeDatabase(p influxql.Privilege, name string) bo
 	return a.AuthorizeDatabaseFn(p, name)
 }
 
+func (m *mockAuthorizer) AuthorizeQuery(database string, query *influxql.Query) error {
+	panic("fail")
+}
+
+func (m *mockAuthorizer) AuthorizeSeriesRead(database string, series string) bool {
+	panic("fail")
+}
+
+func (m *mockAuthorizer) AuthorizeSeriesWrite(database string, series string) bool {
+	panic("fail")
+}
+
 func TestQueryExecutor_ExecuteQuery_ShowDatabases(t *testing.T) {
 	qe := influxql.NewQueryExecutor()
 	qe.StatementExecutor = &coordinator.StatementExecutor{

@@ -370,7 +370,7 @@ func (c *Client) Users() []UserInfo {
 }
 
 // User returns the user with the given name, or ErrUserNotFound.
-func (c *Client) User(name string) (*UserInfo, error) {
+func (c *Client) User(name string) (User, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -406,14 +406,14 @@ func (c *Client) saltedHash(password string) (salt, hash []byte, err error) {
 }
 
 // CreateUser adds a user with the given name and password and admin status.
-func (c *Client) CreateUser(name, password string, admin bool) (*UserInfo, error) {
+func (c *Client) CreateUser(name, password string, admin bool) (User, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	data := c.cacheData.Clone()
 
 	// See if the user already exists.
-	if u := data.User(name); u != nil {
+	if u := data.user(name); u != nil {
 		if err := bcrypt.CompareHashAndPassword([]byte(u.Hash), []byte(password)); err != nil || u.Admin != admin {
 			return nil, ErrUserExists
 		}
@@ -430,7 +430,7 @@ func (c *Client) CreateUser(name, password string, admin bool) (*UserInfo, error
 		return nil, err
 	}
 
-	u := data.User(name)
+	u := data.user(name)
 
 	if err := c.commit(data); err != nil {
 		return nil, err
@@ -551,10 +551,10 @@ func (c *Client) AdminUserExists() bool {
 }
 
 // Authenticate returns a UserInfo if the username and password match an existing entry.
-func (c *Client) Authenticate(username, password string) (*UserInfo, error) {
+func (c *Client) Authenticate(username, password string) (User, error) {
 	// Find user.
 	c.mu.RLock()
-	userInfo := c.cacheData.User(username)
+	userInfo := c.cacheData.user(username)
 	c.mu.RUnlock()
 	if userInfo == nil {
 		return nil, ErrUserNotFound

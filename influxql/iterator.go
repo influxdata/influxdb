@@ -643,6 +643,12 @@ type FieldMapper interface {
 	TypeMapper
 }
 
+// SeriesAuthorizer can be used to limit access on a per-series basis
+type SeriesAuthorizer interface {
+	AuthorizeSeriesRead(database, series string) bool
+	AuthorizeSeriesWrite(database, series string) bool
+}
+
 // IteratorOptions is an object passed to CreateIterator to specify creation options.
 type IteratorOptions struct {
 	// Expression to iterate for.
@@ -694,10 +700,14 @@ type IteratorOptions struct {
 	// If this channel is set and is closed, the iterator should try to exit
 	// and close as soon as possible.
 	InterruptCh <-chan struct{}
+
+	// Authorizer can limit acccess to data
+	Authorizer Authorizer
 }
 
 // newIteratorOptionsStmt creates the iterator options from stmt.
 func newIteratorOptionsStmt(stmt *SelectStatement, sopt *SelectOptions) (opt IteratorOptions, err error) {
+
 	// Determine time range from the condition.
 	startTime, endTime, err := TimeRange(stmt.Condition)
 	if err != nil {
@@ -769,6 +779,7 @@ func newIteratorOptionsStmt(stmt *SelectStatement, sopt *SelectOptions) (opt Ite
 	if sopt != nil {
 		opt.MaxSeriesN = sopt.MaxSeriesN
 		opt.InterruptCh = sopt.InterruptCh
+		opt.Authorizer = sopt.Authorizer
 	}
 
 	return opt, nil

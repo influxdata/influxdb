@@ -22,7 +22,7 @@ func NewQueryAuthorizer(c *Client) *QueryAuthorizer {
 // Database can be "" for queries that do not require a database.
 // If no user is provided it will return an error unless the query's first statement is to create
 // a root user.
-func (a *QueryAuthorizer) AuthorizeQuery(u *UserInfo, query *influxql.Query, database string) error {
+func (a *QueryAuthorizer) AuthorizeQuery(u User, query *influxql.Query, database string) error {
 	// Special case if no users exist.
 	if n := a.Client.UserCount(); n == 0 {
 		// Ensure there is at least one statement.
@@ -47,6 +47,11 @@ func (a *QueryAuthorizer) AuthorizeQuery(u *UserInfo, query *influxql.Query, dat
 			Message:  "no user provided",
 		}
 	}
+
+	return u.AuthorizeQuery(database, query)
+}
+
+func (u *UserInfo) AuthorizeQuery(database string, query *influxql.Query) error {
 
 	// Admin privilege allows the user to execute all statements.
 	if u.Admin {

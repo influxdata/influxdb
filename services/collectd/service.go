@@ -35,7 +35,7 @@ const (
 
 // pointsWriter is an internal interface to make testing easier.
 type pointsWriter interface {
-	WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error
+	WritePointsPrivileged(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error
 }
 
 // metaClient is an internal interface to make testing easier.
@@ -374,7 +374,7 @@ func (s *Service) writePoints() {
 				continue
 			}
 
-			if err := s.PointsWriter.WritePoints(s.Config.Database, s.Config.RetentionPolicy, models.ConsistencyLevelAny, batch); err == nil {
+			if err := s.PointsWriter.WritePointsPrivileged(s.Config.Database, s.Config.RetentionPolicy, models.ConsistencyLevelAny, batch); err == nil {
 				atomic.AddInt64(&s.stats.BatchesTransmitted, 1)
 				atomic.AddInt64(&s.stats.PointsTransmitted, int64(len(batch)))
 			} else {

@@ -16,7 +16,7 @@ type MetaClientMock struct {
 	CreateRetentionPolicyFn             func(database string, spec *meta.RetentionPolicySpec, makeDefault bool) (*meta.RetentionPolicyInfo, error)
 	CreateShardGroupFn                  func(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error)
 	CreateSubscriptionFn                func(database, rp, name, mode string, destinations []string) error
-	CreateUserFn                        func(name, password string, admin bool) (*meta.UserInfo, error)
+	CreateUserFn                        func(name, password string, admin bool) (meta.User, error)
 
 	DatabaseFn  func(name string) *meta.DatabaseInfo
 	DatabasesFn func() []meta.DatabaseInfo
@@ -34,7 +34,7 @@ type MetaClientMock struct {
 
 	RetentionPolicyFn func(database, name string) (rpi *meta.RetentionPolicyInfo, err error)
 
-	AuthenticateFn           func(username, password string) (ui *meta.UserInfo, err error)
+	AuthenticateFn           func(username, password string) (ui meta.User, err error)
 	AdminUserExistsFn        func() bool
 	SetAdminPrivilegeFn      func(username string, admin bool) error
 	SetDataFn                func(*meta.Data) error
@@ -45,7 +45,7 @@ type MetaClientMock struct {
 	UpdateUserFn             func(name, password string) error
 	UserPrivilegeFn          func(username, database string) (*influxql.Privilege, error)
 	UserPrivilegesFn         func(username string) (map[string]influxql.Privilege, error)
-	UserFn                   func(username string) (*meta.UserInfo, error)
+	UserFn                   func(username string) (meta.User, error)
 	UsersFn                  func() []meta.UserInfo
 }
 
@@ -77,7 +77,7 @@ func (c *MetaClientMock) CreateSubscription(database, rp, name, mode string, des
 	return c.CreateSubscriptionFn(database, rp, name, mode, destinations)
 }
 
-func (c *MetaClientMock) CreateUser(name, password string, admin bool) (*meta.UserInfo, error) {
+func (c *MetaClientMock) CreateUser(name, password string, admin bool) (meta.User, error) {
 	return c.CreateUserFn(name, password, admin)
 }
 
@@ -153,13 +153,13 @@ func (c *MetaClientMock) UserPrivileges(username string) (map[string]influxql.Pr
 	return c.UserPrivilegesFn(username)
 }
 
-func (c *MetaClientMock) Authenticate(username, password string) (*meta.UserInfo, error) {
+func (c *MetaClientMock) Authenticate(username, password string) (meta.User, error) {
 	return c.AuthenticateFn(username, password)
 }
 func (c *MetaClientMock) AdminUserExists() bool { return c.AdminUserExistsFn() }
 
-func (c *MetaClientMock) User(username string) (*meta.UserInfo, error) { return c.UserFn(username) }
-func (c *MetaClientMock) Users() []meta.UserInfo                       { return c.UsersFn() }
+func (c *MetaClientMock) User(username string) (meta.User, error) { return c.UserFn(username) }
+func (c *MetaClientMock) Users() []meta.UserInfo                  { return c.UsersFn() }
 
 func (c *MetaClientMock) Open() error                { return c.OpenFn() }
 func (c *MetaClientMock) Data() meta.Data            { return c.DataFn() }

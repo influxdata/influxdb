@@ -1747,7 +1747,7 @@ func (e *Engine) createTagSetGroupIterators(ref *influxql.VarRef, name string, s
 
 // createVarRefSeriesIterator creates an iterator for a variable reference for a series.
 func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, name string, seriesKey string, t *influxql.TagSet, filter influxql.Expr, conditionFields []influxql.VarRef, opt influxql.IteratorOptions) (influxql.Iterator, error) {
-	_, tfs, _ := models.ParseKey([]byte(seriesKey))
+	_, tfs := models.ParseKey([]byte(seriesKey))
 	tags := influxql.NewTags(tfs.Map())
 
 	// Create options specific for this series.

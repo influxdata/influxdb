@@ -530,6 +530,7 @@ func (e *StatementExecutor) createIterators(stmt *influxql.SelectStatement, ctx 
 		InterruptCh: ctx.InterruptCh,
 		NodeID:      ctx.ExecutionOptions.NodeID,
 		MaxSeriesN:  e.MaxSelectSeriesN,
+		Authorizer:  ctx.Authorizer,
 	}
 
 	// Replace instances of "now()" with the current time, and check the resultant times.

@@ -109,7 +109,7 @@ func (rt *RequestTracker) TrackRequests() *RequestProfile {
 	return profile
 }
 
-func (rt *RequestTracker) Add(req *http.Request, user *meta.UserInfo) {
+func (rt *RequestTracker) Add(req *http.Request, user meta.User) {
 	rt.mu.RLock()
 	if rt.profiles.Len() == 0 {
 		rt.mu.RUnlock()
@@ -125,7 +125,7 @@ func (rt *RequestTracker) Add(req *http.Request, user *meta.UserInfo) {
 
 	info.IPAddr = host
 	if user != nil {
-		info.Username = user.Name
+		info.Username = user.ID()
 	}
 
 	// Add the request info to the profiles.

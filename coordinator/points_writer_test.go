@@ -346,25 +346,25 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 		c.Open()
 		defer c.Close()
 
-		err := c.WritePoints(pr.Database, pr.RetentionPolicy, models.ConsistencyLevelOne, pr.Points)
+		err := c.WritePointsPrivileged(pr.Database, pr.RetentionPolicy, models.ConsistencyLevelOne, pr.Points)
 		if err == nil && test.expErr != nil {
-			t.Errorf("PointsWriter.WritePoints(): '%s' error: got %v, exp %v", test.name, err, test.expErr)
+			t.Errorf("PointsWriter.WritePointsPrivileged(): '%s' error: got %v, exp %v", test.name, err, test.expErr)
 		}
 
 		if err != nil && test.expErr == nil {
-			t.Errorf("PointsWriter.WritePoints(): '%s' error: got %v, exp %v", test.name, err, test.expErr)
+			t.Errorf("PointsWriter.WritePointsPrivileged(): '%s' error: got %v, exp %v", test.name, err, test.expErr)
 		}
 		if err != nil && test.expErr != nil && err.Error() != test.expErr.Error() {
-			t.Errorf("PointsWriter.WritePoints(): '%s' error: got %v, exp %v", test.name, err, test.expErr)
+			t.Errorf("PointsWriter.WritePointsPrivileged(): '%s' error: got %v, exp %v", test.name, err, test.expErr)
 		}
 		if test.expErr == nil {
 			select {
 			case p := <-subPoints:
 				if !reflect.DeepEqual(p, pr) {
-					t.Errorf("PointsWriter.WritePoints(): '%s' error: unexpected WritePointsRequest got %v, exp %v", test.name, p, pr)
+					t.Errorf("PointsWriter.WritePointsPrivileged(): '%s' error: unexpected WritePointsRequest got %v, exp %v", test.name, p, pr)
 				}
 			default:
-				t.Errorf("PointsWriter.WritePoints(): '%s' error: Subscriber.Points not called", test.name)
+				t.Errorf("PointsWriter.WritePointsPrivileged(): '%s' error: Subscriber.Points not called", test.name)
 			}
 		}
 	}

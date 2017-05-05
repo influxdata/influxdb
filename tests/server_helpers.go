@@ -41,7 +41,7 @@ type Server interface {
 
 	Write(db, rp, body string, params url.Values) (results string, err error)
 	MustWrite(db, rp, body string, params url.Values) string
-	WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error
+	WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user string, points []models.Point) error
 }
 
 // RemoteServer is a Server that is accessed remotely via the HTTP API
@@ -154,7 +154,7 @@ func (s *RemoteServer) Reset() error {
 
 }
 
-func (s *RemoteServer) WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
+func (s *RemoteServer) WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user string, points []models.Point) error {
 	panic("WritePoints not implemented")
 }
 
@@ -328,10 +328,10 @@ func (s *LocalServer) Reset() error {
 	return nil
 }
 
-func (s *LocalServer) WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
+func (s *LocalServer) WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user string, points []models.Point) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.PointsWriter.WritePoints(database, retentionPolicy, consistencyLevel, points)
+	return s.PointsWriter.WritePoints(database, retentionPolicy, consistencyLevel, user, points)
 }
 
 // client abstract querying and writing to a Server using HTTP

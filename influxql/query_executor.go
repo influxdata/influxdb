@@ -60,6 +60,15 @@ func ErrMaxConcurrentQueriesLimitExceeded(n, limit int) error {
 type Authorizer interface {
 	// AuthorizeDatabase indicates whether the given Privilege is authorized on the database with the given name.
 	AuthorizeDatabase(p Privilege, name string) bool
+
+	// AuthorizeQuery returns an error if the query cannot be executed
+	AuthorizeQuery(database string, query *Query) error
+
+	// AuthorizeSeriesRead determines if a series is authorized for reading
+	AuthorizeSeriesRead(database, series string) bool
+
+	// AuthorizeSeriesWrite determines if a series is authorized for writing
+	AuthorizeSeriesWrite(database, series string) bool
 }
 
 // OpenAuthorizer is the Authorizer used when authorization is disabled.
@@ -69,7 +78,13 @@ type OpenAuthorizer struct{}
 var _ Authorizer = OpenAuthorizer{}
 
 // AuthorizeDatabase returns true to allow any operation on a database.
-func (OpenAuthorizer) AuthorizeDatabase(Privilege, string) bool { return true }
+func (_ OpenAuthorizer) AuthorizeDatabase(Privilege, string) bool { return true }
+
+func (_ OpenAuthorizer) AuthorizeSeriesRead(database string, series string) bool { return true }
+
+func (_ OpenAuthorizer) AuthorizeSeriesWrite(database string, series string) bool { return true }
+
+func (_ OpenAuthorizer) AuthorizeQuery(_ string, _ *Query) error { return nil }
 
 // ExecutionOptions contains the options for executing a query.
 type ExecutionOptions struct {

@@ -92,7 +92,7 @@ func TestHandler_Query_Auth(t *testing.T) {
 	// Set mock meta client functions for the handler to use.
 	h.MetaClient.AdminUserExistsFn = func() bool { return true }
 
-	h.MetaClient.UserFn = func(username string) (*meta.UserInfo, error) {
+	h.MetaClient.UserFn = func(username string) (meta.User, error) {
 		if username != "user1" {
 			return nil, meta.ErrUserNotFound
 		}
@@ -103,7 +103,7 @@ func TestHandler_Query_Auth(t *testing.T) {
 		}, nil
 	}
 
-	h.MetaClient.AuthenticateFn = func(u, p string) (*meta.UserInfo, error) {
+	h.MetaClient.AuthenticateFn = func(u, p string) (meta.User, error) {
 		if u != "user1" {
 			return nil, fmt.Errorf("unexpected user: exp: user1, got: %s", u)
 		} else if p != "abcd" {
@@ -113,7 +113,7 @@ func TestHandler_Query_Auth(t *testing.T) {
 	}
 
 	// Set mock query authorizer for handler to use.
-	h.QueryAuthorizer.AuthorizeQueryFn = func(u *meta.UserInfo, query *influxql.Query, database string) error {
+	h.QueryAuthorizer.AuthorizeQueryFn = func(u meta.User, query *influxql.Query, database string) error {
 		return nil
 	}
 
@@ -345,11 +345,11 @@ func TestHandler_Query_ErrInvalidQuery(t *testing.T) {
 // Ensure the handler returns an appropriate 401 or 403 status when authentication or authorization fails.
 func TestHandler_Query_ErrAuthorize(t *testing.T) {
 	h := NewHandler(true)
-	h.QueryAuthorizer.AuthorizeQueryFn = func(u *meta.UserInfo, q *influxql.Query, db string) error {
+	h.QueryAuthorizer.AuthorizeQueryFn = func(u meta.User, q *influxql.Query, db string) error {
 		return errors.New("marker")
 	}
 	h.MetaClient.AdminUserExistsFn = func() bool { return true }
-	h.MetaClient.AuthenticateFn = func(u, p string) (*meta.UserInfo, error) {
+	h.MetaClient.AuthenticateFn = func(u, p string) (meta.User, error) {
 
 		users := []meta.UserInfo{
 			{
@@ -643,10 +643,10 @@ func (e *HandlerStatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx
 
 // HandlerQueryAuthorizer is a mock implementation of Handler.QueryAuthorizer.
 type HandlerQueryAuthorizer struct {
-	AuthorizeQueryFn func(u *meta.UserInfo, query *influxql.Query, database string) error
+	AuthorizeQueryFn func(u meta.User, query *influxql.Query, database string) error
 }
 
-func (a *HandlerQueryAuthorizer) AuthorizeQuery(u *meta.UserInfo, query *influxql.Query, database string) error {
+func (a *HandlerQueryAuthorizer) AuthorizeQuery(u meta.User, query *influxql.Query, database string) error {
 	return a.AuthorizeQueryFn(u, query, database)
 }
 

@@ -529,10 +529,7 @@ func (i *Index) DropSeries(key []byte) error {
 		i.mu.RLock()
 		defer i.mu.RUnlock()
 
-		name, tags, err := models.ParseKey(key)
-		if err != nil {
-			return err
-		}
+		name, tags := models.ParseKey(key)
 
 		mname := []byte(name)
 		if err := i.activeLogFile.DeleteSeries(mname, tags); err != nil {
