@@ -127,8 +127,8 @@ const MeasurementList = React.createClass({
           return (
             <div key={measurement}>
               <div className={classnames('query-builder--list-item', {active: isActive})}>
-                <div className="query-builder--caret icon caret-right"></div>
-                <span style={{flex: '1 0 0'}} onClick={isActive ? _.wrap(null, this.props.onChooseMeasurement) : _.wrap(measurement, this.props.onChooseMeasurement)}>
+                <span onClick={isActive ? _.wrap(null, this.props.onChooseMeasurement) : _.wrap(measurement, this.props.onChooseMeasurement)}>
+                  <div className="query-builder--caret icon caret-right"></div>
                   {measurement}
                 </span>
                 {(isActive && numTagsActive >= 1)
