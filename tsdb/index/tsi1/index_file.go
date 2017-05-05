@@ -195,6 +195,15 @@ func (f *IndexFile) Measurement(name []byte) MeasurementElem {
 	return &e
 }
 
+// MeasurementN returns the number of measurements in the file.
+func (f *IndexFile) MeasurementN() (n uint64) {
+	mitr := f.mblk.Iterator()
+	for me := mitr.Next(); me != nil; me = mitr.Next() {
+		n++
+	}
+	return n
+}
+
 // TagValueIterator returns a value iterator for a tag key and a flag
 // indicating if a tombstone exists on the measurement or key.
 func (f *IndexFile) TagValueIterator(name, key []byte) TagValueIterator {

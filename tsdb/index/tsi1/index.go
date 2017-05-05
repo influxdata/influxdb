@@ -83,6 +83,7 @@ type Index struct {
 	CompactionFactor float64
 
 	// Frequency of compaction checks.
+	CompactionEnabled         bool
 	CompactionMonitorInterval time.Duration
 }
 
@@ -92,8 +93,9 @@ func NewIndex() *Index {
 		closing: make(chan struct{}),
 
 		// Default compaction thresholds.
-		MaxLogFileSize:   DefaultMaxLogFileSize,
-		CompactionFactor: DefaultCompactionFactor,
+		MaxLogFileSize:    DefaultMaxLogFileSize,
+		CompactionEnabled: true,
+		CompactionFactor:  DefaultCompactionFactor,
 	}
 }
 
@@ -753,6 +755,10 @@ func (i *Index) Compact() {
 
 // compact compacts continguous groups of files that are not currently compacting.
 func (i *Index) compact() {
+	if !i.CompactionEnabled {
+		return
+	}
+
 	fs := i.retainFileSet()
 	defer fs.Release()
 

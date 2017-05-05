@@ -321,6 +321,12 @@ func (e *MeasurementBlockElem) TagBlockOffset() int64 { return e.tagBlock.offset
 // TagBlockSize returns the size of the measurement's tag block.
 func (e *MeasurementBlockElem) TagBlockSize() int64 { return e.tagBlock.size }
 
+// SeriesData returns the raw series data.
+func (e *MeasurementBlockElem) SeriesData() []byte { return e.series.data }
+
+// SeriesN returns the number of series associated with the measurement.
+func (e *MeasurementBlockElem) SeriesN() uint64 { return e.series.n }
+
 // SeriesID returns series ID at an index.
 func (e *MeasurementBlockElem) SeriesID(i int) uint64 {
 	return binary.BigEndian.Uint64(e.series.data[i*SeriesIDSize:])
@@ -334,6 +340,9 @@ func (e *MeasurementBlockElem) SeriesIDs() []uint64 {
 	}
 	return a
 }
+
+// Size returns the size of the element.
+func (e *MeasurementBlockElem) Size() int { return e.size }
 
 // UnmarshalBinary unmarshals data into e.
 func (e *MeasurementBlockElem) UnmarshalBinary(data []byte) error {
