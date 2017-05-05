@@ -8,6 +8,7 @@
 
 ### Features
   1. [#1391](https://github.com/influxdata/chronograf/pull/1391): :dashboardTime: - Support cell-specific time ranges
+  1. [#1401](https://github.com/influxdata/chronograf/pull/1401): Add support for kapacitor config deletion.
 
 ### UI Improvements
   1. [#1378](https://github.com/influxdata/chronograf/pull/1378): Save query time range for dashboards
