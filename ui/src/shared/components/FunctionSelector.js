@@ -12,7 +12,7 @@ class FunctionSelector extends Component {
     }
 
     this.onSelect = ::this.onSelect
-    this.onApplyFunctions = ::this.onApplyFunctions
+    this.handleApplyFunctions = ::this.handleApplyFunctions
   }
 
   onSelect(item, e) {
@@ -34,7 +34,7 @@ class FunctionSelector extends Component {
     return !!this.state.localSelectedItems.find(text => text === item)
   }
 
-  onApplyFunctions(e) {
+  handleApplyFunctions(e) {
     e.stopPropagation()
 
     this.props.onApply(this.state.localSelectedItems)
@@ -52,7 +52,7 @@ class FunctionSelector extends Component {
               : 'Select functions below'
             }
           </span>
-          <div className="btn btn-xs btn-primary" onClick={this.onApplyFunctions}>Apply</div>
+          <div className="btn btn-xs btn-primary" onClick={this.handleApplyFunctions}>Apply</div>
         </div>
         <div className="function-selector--grid">
           {INFLUXQL_FUNCTIONS.map((f, i) => {
