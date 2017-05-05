@@ -100,7 +100,7 @@ const ResizeContainer = React.createClass({
     const {topHeight, bottomHeight, isDragging} = this.state
     const {containerClass, children} = this.props
 
-    if (children.length > maximumNumChildren) {
+    if (React.Children.count(children) > maximumNumChildren) {
       console.error(`There cannot be more than ${maximumNumChildren}' children in ResizeContainer`)
       return
     }
