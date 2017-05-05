@@ -79,7 +79,7 @@ ifndef GOBINDATA
 	@echo "Installing go-bindata"
 	go get -u github.com/jteeuwen/go-bindata/...
 endif
-	#gdm restore
+	gdm restore
 	@touch .godep
 
 .jsdep: ui/yarn.lock
