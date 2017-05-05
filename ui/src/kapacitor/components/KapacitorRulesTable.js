@@ -1,7 +1,7 @@
 import React, {PropTypes} from 'react'
 import {Link} from 'react-router'
 
-const KapacitorRulesTable = ({rules, onDelete, onChangeRuleStatus}) => (
+const KapacitorRulesTable = ({rules, source, onDelete, onChangeRuleStatus}) => (
   <div className="panel-body">
     <table className="table v-center">
       <thead>
@@ -20,6 +20,7 @@ const KapacitorRulesTable = ({rules, onDelete, onChangeRuleStatus}) => (
             <RuleRow
               key={rule.id}
               rule={rule}
+              source={source}
               onDelete={onDelete}
               onChangeRuleStatus={onChangeRuleStatus}
             />
@@ -30,10 +31,10 @@ const KapacitorRulesTable = ({rules, onDelete, onChangeRuleStatus}) => (
   </div>
 )
 
-const RuleRow = ({rule, onDelete, onChangeRuleStatus}) => (
+const RuleRow = ({rule, source, onDelete, onChangeRuleStatus}) => (
   <tr key={rule.id}>
     <td className="monotype">
-      <RuleTitle rule={rule} />
+      <RuleTitle rule={rule} source={source} />
     </td>
     <td className="monotype">{rule.trigger}</td>
     <td className="monotype">{rule.message}</td>
@@ -58,13 +59,13 @@ const RuleRow = ({rule, onDelete, onChangeRuleStatus}) => (
   </tr>
 )
 
-const RuleTitle = ({rule: {name, links, query}}) => {
+const RuleTitle = ({rule: {id, name, query}, source}) => {
   // no queryConfig means the rule was manually created outside of Chronograf
   if (!query) {
     return <i>{name}</i>
   }
 
-  return <Link to={links.self}>{name}</Link>
+  return <Link to={`/sources/${source.id}/alert-rules/${id}`}>{name}</Link>
 }
 
 const {arrayOf, func, shape, string} = PropTypes
@@ -73,6 +74,9 @@ KapacitorRulesTable.propTypes = {
   rules: arrayOf(shape()),
   onChangeRuleStatus: func,
   onDelete: func,
+  source: shape({
+    id: string.isRequired,
+  }).isRequired,
 }
 
 RuleRow.propTypes = {
@@ -90,6 +94,9 @@ RuleTitle.propTypes = {
       self: string.isRequired,
     }).isRequired,
   }),
+  source: shape({
+    id: string.isRequired,
+  }).isRequired,
 }
 
 export default KapacitorRulesTable
