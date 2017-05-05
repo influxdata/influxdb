@@ -24,14 +24,14 @@ class FunctionSelector extends Component {
     if (this.isSelected(item)) {
       nextItems = localSelectedItems.filter(i => i !== item)
     } else {
-      nextItems = localSelectedItems.concat(item)
+      nextItems = [...localSelectedItems, item]
     }
 
     this.setState({localSelectedItems: nextItems})
   }
 
   isSelected(item) {
-    return this.state.localSelectedItems.indexOf(item) > -1
+    return !!this.state.localSelectedItems.find(text => text === item)
   }
 
   onApplyFunctions(e) {
