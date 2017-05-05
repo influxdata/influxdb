@@ -5,6 +5,7 @@
   1. [#1370](https://github.com/influxdata/chronograf/pull/1370): Remove notification to login outside of session timeout
   1. [#1376](https://github.com/influxdata/chronograf/pull/1376): Fix queries built in query builder with math functions in fields
   1. [#1399](https://github.com/influxdata/chronograf/pull/1399): User can no longer create a blank template variable by clicking outside a newly added one
+  1. [#1406](https://github.com/influxdata/chronograf/pull/1406): Ensure thresholds for Kapacitor Rule Alerts appear on page load
 
 ### Features
   1. [#1382](https://github.com/influxdata/chronograf/pull/1382): Add line-protocol proxy for InfluxDB data sources
