@@ -181,6 +181,7 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.DELETE("/chronograf/v1/sources/:id/dbs/:dbid/rps/:rpid", service.DropRetentionPolicy)
 	var authRoutes AuthRoutes
 	var out http.Handler
+
 	/* Authentication */
 	logout := "/oauth/logout"
 	basepath := ""
@@ -195,9 +196,9 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 		// Create middleware to redirect to the appropriate provider logout
 		targetURL := "/"
 		router.GET(logout, Logout(targetURL, basepath, authRoutes))
-		out = Logger(opts.Logger, auth)
+		out = Logger(opts.Logger, PrefixedRedirect(opts.Basepath, auth))
 	} else {
-		out = Logger(opts.Logger, router)
+		out = Logger(opts.Logger, PrefixedRedirect(opts.Basepath, router))
 	}
 
 	router.GET("/chronograf/v1/", AllRoutes(authRoutes, path.Join(basepath, logout), opts.Logger))
