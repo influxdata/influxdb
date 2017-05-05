@@ -3,6 +3,7 @@ import {
   getSources,
   getKapacitors as getKapacitorsAJAX,
   updateKapacitor as updateKapacitorAJAX,
+  deleteKapacitor as deleteKapacitorAJAX,
 } from 'src/shared/apis'
 import {publishNotification} from './notifications'
 
@@ -39,6 +40,13 @@ export const fetchKapacitors = (source, kapacitors) => ({
 
 export const setActiveKapacitor = kapacitor => ({
   type: 'SET_ACTIVE_KAPACITOR',
+  payload: {
+    kapacitor,
+  },
+})
+
+export const deleteKapacitor = kapacitor => ({
+  type: 'DELETE_KAPACITOR',
   payload: {
     kapacitor,
   },
@@ -87,4 +95,18 @@ export const setActiveKapacitorAsync = kapacitor => async dispatch => {
   dispatch(setActiveKapacitor(kapacitor))
   const kapacitorPost = {...kapacitor, active: true}
   await updateKapacitorAJAX(kapacitorPost)
+}
+
+export const deleteKapacitorAsync = kapacitor => async dispatch => {
+  try {
+    await deleteKapacitorAJAX(kapacitor)
+    dispatch(deleteKapacitor(kapacitor))
+  } catch (err) {
+    dispatch(
+      publishNotification(
+        'error',
+        'Internal Server Error. Could not delete Kapacitor config.'
+      )
+    )
+  }
 }
