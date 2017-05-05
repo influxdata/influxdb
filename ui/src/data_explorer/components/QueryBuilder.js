@@ -110,6 +110,10 @@ const QueryBuilder = React.createClass({
   renderLists() {
     const {query, layout} = this.props
 
+    // Panel layout uses a dropdown instead of a list for database selection
+    // Also groups measurements & fields into their own container so they
+    // can be stacked vertically.
+    // TODO: Styles to make all this look proper
     if (layout === 'panel') {
       return (
         <div className="query-builder--panel">
