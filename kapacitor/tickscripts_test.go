@@ -20,7 +20,7 @@ func TestGenerate(t *testing.T) {
 			Value:    "90",
 		},
 		Every: "30s",
-		Query: chronograf.QueryConfig{
+		Query: &chronograf.QueryConfig{
 			Database:        "telegraf",
 			Measurement:     "cpu",
 			RetentionPolicy: "autogen",
@@ -65,7 +65,7 @@ func TestThreshold(t *testing.T) {
 		},
 		Every:   "30s",
 		Message: "message",
-		Query: chronograf.QueryConfig{
+		Query: &chronograf.QueryConfig{
 			Database:        "telegraf",
 			Measurement:     "cpu",
 			RetentionPolicy: "autogen",
@@ -209,7 +209,7 @@ func TestThresholdStringCrit(t *testing.T) {
 		Every:   "10s",
 		Message: `Haproxy monitor : {{.ID}} : {{ index .Tags "server" }} : {{ index .Tags "pxname" }} is {{ .Level }} `,
 		Details: "Email template",
-		Query: chronograf.QueryConfig{
+		Query: &chronograf.QueryConfig{
 			Database:        "influxdb",
 			RetentionPolicy: "autogen",
 			Measurement:     "haproxy",
@@ -347,7 +347,7 @@ func TestThresholdStringCritGreater(t *testing.T) {
 		Every:   "10s",
 		Message: `Haproxy monitor : {{.ID}} : {{ index .Tags "server" }} : {{ index .Tags "pxname" }} is {{ .Level }} `,
 		Details: "Email template",
-		Query: chronograf.QueryConfig{
+		Query: &chronograf.QueryConfig{
 			Database:        "influxdb",
 			RetentionPolicy: "autogen",
 			Measurement:     "haproxy",
@@ -483,7 +483,7 @@ func TestThresholdDetail(t *testing.T) {
 		Every:   "30s",
 		Message: "message",
 		Details: "details",
-		Query: chronograf.QueryConfig{
+		Query: &chronograf.QueryConfig{
 			Database:        "telegraf",
 			Measurement:     "cpu",
 			RetentionPolicy: "autogen",
@@ -630,7 +630,7 @@ func TestThresholdInsideRange(t *testing.T) {
 		},
 		Every:   "30s",
 		Message: "message",
-		Query: chronograf.QueryConfig{
+		Query: &chronograf.QueryConfig{
 			Database:        "telegraf",
 			Measurement:     "cpu",
 			RetentionPolicy: "autogen",
@@ -776,7 +776,7 @@ func TestThresholdOutsideRange(t *testing.T) {
 		},
 		Every:   "30s",
 		Message: "message",
-		Query: chronograf.QueryConfig{
+		Query: &chronograf.QueryConfig{
 			Database:        "telegraf",
 			Measurement:     "cpu",
 			RetentionPolicy: "autogen",
@@ -921,7 +921,7 @@ func TestThresholdNoAggregate(t *testing.T) {
 		},
 		Every:   "30s",
 		Message: "message",
-		Query: chronograf.QueryConfig{
+		Query: &chronograf.QueryConfig{
 			Database:        "telegraf",
 			Measurement:     "cpu",
 			RetentionPolicy: "autogen",
@@ -1058,7 +1058,7 @@ func TestRelative(t *testing.T) {
 		},
 		Every:   "30s",
 		Message: "message",
-		Query: chronograf.QueryConfig{
+		Query: &chronograf.QueryConfig{
 			Database:        "telegraf",
 			Measurement:     "cpu",
 			RetentionPolicy: "autogen",
@@ -1215,7 +1215,7 @@ func TestRelativeChange(t *testing.T) {
 		},
 		Every:   "30s",
 		Message: "message",
-		Query: chronograf.QueryConfig{
+		Query: &chronograf.QueryConfig{
 			Database:        "telegraf",
 			Measurement:     "cpu",
 			RetentionPolicy: "autogen",
@@ -1369,7 +1369,7 @@ func TestDeadman(t *testing.T) {
 		},
 		Every:   "30s",
 		Message: "message",
-		Query: chronograf.QueryConfig{
+		Query: &chronograf.QueryConfig{
 			Database:        "telegraf",
 			Measurement:     "cpu",
 			RetentionPolicy: "autogen",

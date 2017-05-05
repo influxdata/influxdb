@@ -16,7 +16,7 @@ func TestVarsCritStringEqual(t *testing.T) {
 			Value:    "DOWN",
 		},
 		Every: "30s",
-		Query: chronograf.QueryConfig{
+		Query: &chronograf.QueryConfig{
 			Database:        "telegraf",
 			Measurement:     "haproxy",
 			RetentionPolicy: "autogen",

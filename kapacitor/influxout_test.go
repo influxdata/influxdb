@@ -28,7 +28,7 @@ func TestInfluxOut(t *testing.T) {
 		got, err := InfluxOut(chronograf.AlertRule{
 			Name:    "name",
 			Trigger: "deadman",
-			Query: chronograf.QueryConfig{
+			Query: &chronograf.QueryConfig{
 				Fields: []chronograf.Field{
 					{
 						Field: "usage_user",

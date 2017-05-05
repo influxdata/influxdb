@@ -140,40 +140,45 @@ func window(rule chronograf.AlertRule) string {
 	return ""
 }
 
-func groupBy(q chronograf.QueryConfig) string {
+func groupBy(q *chronograf.QueryConfig) string {
 	groups := []string{}
-	for _, tag := range q.GroupBy.Tags {
-		groups = append(groups, fmt.Sprintf("'%s'", tag))
+	if q != nil {
+		for _, tag := range q.GroupBy.Tags {
+			groups = append(groups, fmt.Sprintf("'%s'", tag))
+		}
 	}
 	return "[" + strings.Join(groups, ",") + "]"
 }
 
-func field(q chronograf.QueryConfig) (string, error) {
-	for _, field := range q.Fields {
-		return field.Field, nil
+func field(q *chronograf.QueryConfig) (string, error) {
+	if q != nil {
+		for _, field := range q.Fields {
+			return field.Field, nil
+		}
 	}
 	return "", fmt.Errorf("No fields set in query")
 }
 
-func whereFilter(q chronograf.QueryConfig) string {
-	operator := "=="
-	if !q.AreTagsAccepted {
-		operator = "!="
-	}
-
-	outer := []string{}
-	for tag, values := range q.Tags {
-		inner := []string{}
-		for _, value := range values {
-			inner = append(inner, fmt.Sprintf(`"%s" %s '%s'`, tag, operator, value))
+func whereFilter(q *chronograf.QueryConfig) string {
+	if q != nil {
+		operator := "=="
+		if !q.AreTagsAccepted {
+			operator = "!="
 		}
-		outer = append(outer, "("+strings.Join(inner, " OR ")+")")
-	}
-	if len(outer) > 0 {
-		sort.Strings(outer)
-		return "lambda: " + strings.Join(outer, " AND ")
-	}
 
+		outer := []string{}
+		for tag, values := range q.Tags {
+			inner := []string{}
+			for _, value := range values {
+				inner = append(inner, fmt.Sprintf(`"%s" %s '%s'`, tag, operator, value))
+			}
+			outer = append(outer, "("+strings.Join(inner, " OR ")+")")
+		}
+		if len(outer) > 0 {
+			sort.Strings(outer)
+			return "lambda: " + strings.Join(outer, " AND ")
+		}
+	}
 	return "lambda: TRUE"
 }
 

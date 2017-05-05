@@ -9,6 +9,7 @@
 ### Features
   1. [#1382](https://github.com/influxdata/chronograf/pull/1382): Add line-protocol proxy for InfluxDB data sources
   1. [#1391](https://github.com/influxdata/chronograf/pull/1391): :dashboardTime: - Support cell-specific time ranges
+  1. [#1201](https://github.com/influxdata/chronograf/pull/1201): Allow chronograf to enable/disable all tickscripts.
   1. [#1401](https://github.com/influxdata/chronograf/pull/1401): Add support for kapacitor config deletion.
 
 ### UI Improvements
