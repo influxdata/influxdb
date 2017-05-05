@@ -97,9 +97,9 @@ export const setActiveKapacitorAsync = kapacitor => async dispatch => {
   await updateKapacitorAJAX(kapacitorPost)
 }
 
-export const deleteKapacitorAsync = (source, kapacitor) => async dispatch => {
+export const deleteKapacitorAsync = kapacitor => async dispatch => {
   try {
-    await deleteKapacitorAJAX(source, kapacitor.id)
+    await deleteKapacitorAJAX(kapacitor)
     dispatch(deleteKapacitor(kapacitor))
   } catch (err) {
     dispatch(

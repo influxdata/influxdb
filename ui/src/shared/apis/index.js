@@ -89,11 +89,11 @@ export const getKapacitors = async source => {
   }
 }
 
-export const deleteKapacitor = async (source, kapacitorID) => {
+export const deleteKapacitor = async kapacitor => {
   try {
     return await AJAX({
       method: 'DELETE',
-      url: `${source.links.kapacitors}/${kapacitorID}`,
+      url: kapacitor.links.self,
     })
   } catch (error) {
     console.error(error)

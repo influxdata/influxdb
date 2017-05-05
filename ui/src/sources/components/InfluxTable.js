@@ -55,7 +55,7 @@ const kapacitorDropdown = (
           icon: 'trash',
           text: 'delete',
           handler: item => {
-            handleDeleteKapacitor(source, item.kapacitor)
+            handleDeleteKapacitor(item.kapacitor)
           },
           confirmable: true,
         },
