@@ -163,9 +163,11 @@ export function updateKapacitorConfigSection(kapacitor, section, properties) {
 }
 
 export function testAlertOutput(kapacitor, outputName, properties) {
-  return kapacitorProxy(kapacitor, 'GET', '/kapacitor/v1/service-tests').then(({
-    data: {services},
-  }) => {
+  return kapacitorProxy(
+    kapacitor,
+    'GET',
+    '/kapacitor/v1/service-tests'
+  ).then(({data: {services}}) => {
     const service = services.find(s => s.name === outputName)
     return kapacitorProxy(
       kapacitor,
@@ -213,9 +215,9 @@ export function kapacitorProxy(kapacitor, method, path, body) {
   })
 }
 
-export const getQueryConfig = (url, queries) =>
+export const getQueryConfig = (url, queries, tempVars) =>
   AJAX({
     url,
     method: 'POST',
-    data: {queries},
+    data: {queries, tempVars},
   })

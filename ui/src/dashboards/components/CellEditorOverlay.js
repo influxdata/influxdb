@@ -13,6 +13,7 @@ import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 import buildInfluxQLQuery from 'utils/influxql'
 import {getQueryConfig} from 'shared/apis'
 import {MINIMUM_HEIGHTS} from 'src/data_explorer/constants'
+import {removeUnselectedTemplateValues} from 'src/dashboards/constants'
 
 class CellEditorOverlay extends Component {
   constructor(props) {
@@ -114,9 +115,11 @@ class CellEditorOverlay extends Component {
   }
 
   async handleEditRawText(url, id, text) {
+    const templates = removeUnselectedTemplateValues(this.props.templates)
+
     // use this as the handler passed into fetchTimeSeries to update a query status
     try {
-      const {data} = await getQueryConfig(url, [{query: text, id}])
+      const {data} = await getQueryConfig(url, [{query: text, id}], templates)
       const config = data.queries.find(q => q.id === id)
       const nextQueries = this.state.queriesWorkingDraft.map(
         q => (q.id === id ? config.queryConfig : q)
