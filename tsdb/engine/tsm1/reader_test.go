@@ -404,6 +404,135 @@ func TestTSMReader_MMAP_TombstoneRange(t *testing.T) {
 	}
 }
 
+func TestTSMReader_MMAP_TombstoneOutsideTimeRange(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	f := MustTempFile(dir)
+	defer f.Close()
+
+	w, err := tsm1.NewTSMWriter(f)
+	if err != nil {
+		t.Fatalf("unexpected error creating writer: %v", err)
+	}
+
+	expValues := []tsm1.Value{
+		tsm1.NewValue(1, 1.0),
+		tsm1.NewValue(2, 2.0),
+		tsm1.NewValue(3, 3.0),
+	}
+	if err := w.Write("cpu", expValues); err != nil {
+		t.Fatalf("unexpected error writing: %v", err)
+	}
+
+	if err := w.WriteIndex(); err != nil {
+		t.Fatalf("unexpected error writing index: %v", err)
+	}
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("unexpected error closing: %v", err)
+	}
+
+	f, err = os.Open(f.Name())
+	if err != nil {
+		t.Fatalf("unexpected error open file: %v", err)
+	}
+
+	r, err := tsm1.NewTSMReader(f)
+	if err != nil {
+		t.Fatalf("unexpected error created reader: %v", err)
+	}
+
+	if err := r.DeleteRange([]string{"cpu"}, 0, 0); err != nil {
+		t.Fatalf("unexpected error deleting: %v", err)
+	}
+	defer r.Close()
+
+	if got, exp := r.ContainsValue("cpu", 1), true; got != exp {
+		t.Fatalf("ContainsValue mismatch: got %v, exp %v", got, exp)
+	}
+
+	if got, exp := r.ContainsValue("cpu", 2), true; got != exp {
+		t.Fatalf("ContainsValue mismatch: got %v, exp %v", got, exp)
+	}
+
+	if got, exp := r.ContainsValue("cpu", 3), true; got != exp {
+		t.Fatalf("ContainsValue mismatch: got %v, exp %v", got, exp)
+	}
+
+	if got, exp := r.HasTombstones(), false; got != exp {
+		t.Fatalf("HasTombstones mismatch: got %v, exp %v", got, exp)
+	}
+
+	if got, exp := len(r.TombstoneFiles()), 0; got != exp {
+		t.Fatalf("TombstoneFiles len mismatch: got %v, exp %v", got, exp)
+	}
+}
+
+func TestTSMReader_MMAP_TombstoneOutsideKeyRange(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	f := MustTempFile(dir)
+	defer f.Close()
+
+	w, err := tsm1.NewTSMWriter(f)
+	if err != nil {
+		t.Fatalf("unexpected error creating writer: %v", err)
+	}
+
+	expValues := []tsm1.Value{
+		tsm1.NewValue(1, 1.0),
+		tsm1.NewValue(2, 2.0),
+		tsm1.NewValue(3, 3.0),
+	}
+	if err := w.Write("cpu", expValues); err != nil {
+		t.Fatalf("unexpected error writing: %v", err)
+	}
+
+	if err := w.WriteIndex(); err != nil {
+		t.Fatalf("unexpected error writing index: %v", err)
+	}
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("unexpected error closing: %v", err)
+	}
+
+	f, err = os.Open(f.Name())
+	if err != nil {
+		t.Fatalf("unexpected error open file: %v", err)
+	}
+
+	r, err := tsm1.NewTSMReader(f)
+	if err != nil {
+		t.Fatalf("unexpected error created reader: %v", err)
+	}
+
+	if err := r.DeleteRange([]string{"mem"}, 0, 3); err != nil {
+		t.Fatalf("unexpected error deleting: %v", err)
+	}
+	defer r.Close()
+
+	if got, exp := r.ContainsValue("cpu", 1), true; got != exp {
+		t.Fatalf("ContainsValue mismatch: got %v, exp %v", got, exp)
+	}
+
+	if got, exp := r.ContainsValue("cpu", 2), true; got != exp {
+		t.Fatalf("ContainsValue mismatch: got %v, exp %v", got, exp)
+	}
+
+	if got, exp := r.ContainsValue("cpu", 3), true; got != exp {
+		t.Fatalf("ContainsValue mismatch: got %v, exp %v", got, exp)
+	}
+
+	if got, exp := r.HasTombstones(), false; got != exp {
+		t.Fatalf("HasTombstones mismatch: got %v, exp %v", got, exp)
+	}
+
+	if got, exp := len(r.TombstoneFiles()), 0; got != exp {
+		t.Fatalf("TombstoneFiles len mismatch: got %v, exp %v", got, exp)
+
+	}
+}
+
 func TestTSMReader_MMAP_TombstoneFullRange(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)

@@ -74,6 +74,12 @@ type TSMIndex interface {
 	// KeyCount returns the count of unique keys in the index.
 	KeyCount() int
 
+	// OverlapsTimeRange returns true if the time range of the file intersect min and max.
+	OverlapsTimeRange(min, max int64) bool
+
+	// OverlapsKeyRange returns true if the min and max keys of the file overlap the arguments min and max.
+	OverlapsKeyRange(min, max string) bool
+
 	// Size returns the size of the current index in bytes.
 	Size() uint32
 
@@ -403,8 +409,24 @@ func (t *TSMReader) ContainsValue(key string, ts int64) bool {
 	return t.index.ContainsValue(key, ts)
 }
 
-// DeleteRange removes the given points for keys between minTime and maxTime.
+// DeleteRange removes the given points for keys between minTime and maxTime.   The series
+// keys passed in must be sorted.
 func (t *TSMReader) DeleteRange(keys []string, minTime, maxTime int64) error {
+	if len(keys) == 0 {
+		return nil
+	}
+
+	// If the keys can't exist in this TSM file, skip it.
+	minKey, maxKey := keys[0], keys[len(keys)-1]
+	if !t.index.OverlapsKeyRange(minKey, maxKey) {
+		return nil
+	}
+
+	// If the timerange can't exist in this TSM file, skip it.
+	if !t.index.OverlapsTimeRange(minTime, maxTime) {
+		return nil
+	}
+
 	if err := t.tombstoner.AddRange(keys, minTime, maxTime); err != nil {
 		return err
 	}
@@ -864,6 +886,16 @@ func (d *indirectIndex) Type(key string) (byte, error) {
 		return d.b[ofs], nil
 	}
 	return 0, fmt.Errorf("key does not exist: %v", key)
+}
+
+// OverlapsTimeRange returns true if the time range of the file intersect min and max.
+func (d *indirectIndex) OverlapsTimeRange(min, max int64) bool {
+	return d.minTime <= max && d.maxTime >= min
+}
+
+// OverlapsKeyRange returns true if the min and max keys of the file overlap the arguments min and max.
+func (d *indirectIndex) OverlapsKeyRange(min, max string) bool {
+	return d.minKey <= max && d.maxKey >= max
 }
 
 // KeyRange returns the min and max keys in the index.
