@@ -57,7 +57,7 @@ browserHistory.listen(() => {
 
 window.addEventListener('keyup', event => {
   const escapeKeyCode = 27
-  if (event.key === 'Escape' || event.which === escapeKeyCode) {
+  if (event.key === 'Escape' || event.keyCode === escapeKeyCode) {
     dispatch(disablePresentationMode())
   }
 })
