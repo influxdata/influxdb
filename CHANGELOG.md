@@ -1,4 +1,4 @@
-## v1.2.4 [unreleased]
+## v1.2.4 [2017-05-08]
 
 ### Bugfixes
 
