@@ -1,4 +1,4 @@
-## v1.2.0 [unreleased]
+## v1.3.0~rc1 [2017-05-08]
 
 ### Bug Fixes
   1. [#1364](https://github.com/influxdata/chronograf/pull/1364): Fix link to home when using the --basepath option

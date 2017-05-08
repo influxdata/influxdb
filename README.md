@@ -113,7 +113,7 @@ Change the default root path of the Chronograf server with the `--basepath` opti
 
 ## Versions
 
-Chronograf v1.2.0-beta10 is a beta release.
+The most recent version of Chronograf is v1.3.0~rc1.
 We will be iterating quickly based on user feedback and recommend using the [nightly builds](https://www.influxdata.com/downloads/) for the time being.
 
 Spotted a bug or have a feature request?
