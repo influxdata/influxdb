@@ -958,10 +958,14 @@ func (s *Shard) CreateSnapshot() (string, error) {
 }
 
 func (s *Shard) ForEachMeasurementTagKey(name []byte, fn func(key []byte) error) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.engine.ForEachMeasurementTagKey(name, fn)
 }
 
 func (s *Shard) TagKeyCardinality(name, key []byte) int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.engine.TagKeyCardinality(name, key)
 }
 
