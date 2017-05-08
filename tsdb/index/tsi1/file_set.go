@@ -17,6 +17,17 @@ import (
 // FileSet represents a collection of files.
 type FileSet []File
 
+// Close closes all the files in the file set.
+func (p FileSet) Close() error {
+	var err error
+	for _, f := range p {
+		if e := f.Close(); e != nil && err == nil {
+			err = e
+		}
+	}
+	return err
+}
+
 // Retain adds a reference count to all files.
 func (p FileSet) Retain() {
 	for _, f := range p {

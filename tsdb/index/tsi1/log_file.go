@@ -372,6 +372,35 @@ func (f *LogFile) TagValueSeriesIterator(name, key, value []byte) SeriesIterator
 	return newLogSeriesIterator(tv.series)
 }
 
+// MeasurementN returns the total number of measurements.
+func (f *LogFile) MeasurementN() (n uint64) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	return uint64(len(f.mms))
+}
+
+// TagKeyN returns the total number of keys.
+func (f *LogFile) TagKeyN() (n uint64) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	for _, mm := range f.mms {
+		n += uint64(len(mm.tagSet))
+	}
+	return n
+}
+
+// TagValueN returns the total number of values.
+func (f *LogFile) TagValueN() (n uint64) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	for _, mm := range f.mms {
+		for _, k := range mm.tagSet {
+			n += uint64(len(k.tagValues))
+		}
+	}
+	return n
+}
+
 // DeleteTagValue adds a tombstone for a tag value to the log file.
 func (f *LogFile) DeleteTagValue(name, key, value []byte) error {
 	f.mu.Lock()

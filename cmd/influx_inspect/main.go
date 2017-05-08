@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/influxdata/influxdb/cmd"
+	"github.com/influxdata/influxdb/cmd/influx_inspect/dumptsi"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/dumptsm"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/export"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/help"
@@ -52,6 +53,11 @@ func (m *Main) Run(args ...string) error {
 	case "", "help":
 		if err := help.NewCommand().Run(args...); err != nil {
 			return fmt.Errorf("help: %s", err)
+		}
+	case "dumptsi":
+		name := dumptsi.NewCommand()
+		if err := name.Run(args...); err != nil {
+			return fmt.Errorf("dumptsi: %s", err)
 		}
 	case "dumptsmdev":
 		fmt.Fprintf(m.Stderr, "warning: dumptsmdev is deprecated, use dumptsm instead.\n")

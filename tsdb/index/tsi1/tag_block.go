@@ -316,6 +316,9 @@ func (e *TagBlockValueElem) Value() []byte { return e.value }
 // SeriesN returns the series count.
 func (e *TagBlockValueElem) SeriesN() uint64 { return e.series.n }
 
+// SeriesData returns the raw series data.
+func (e *TagBlockValueElem) SeriesData() []byte { return e.series.data }
+
 // SeriesID returns series ID at an index.
 func (e *TagBlockValueElem) SeriesID(i int) uint64 {
 	return binary.BigEndian.Uint64(e.series.data[i*SeriesIDSize:])
@@ -329,6 +332,9 @@ func (e *TagBlockValueElem) SeriesIDs() []uint64 {
 	}
 	return a
 }
+
+// Size returns the size of the element.
+func (e *TagBlockValueElem) Size() int { return e.size }
 
 // unmarshal unmarshals buf into e.
 func (e *TagBlockValueElem) unmarshal(buf []byte) {
