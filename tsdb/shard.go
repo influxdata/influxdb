@@ -347,6 +347,10 @@ func (s *Shard) close(clean bool) error {
 }
 
 func (s *Shard) IndexType() string {
+	if err := s.ready(); err != nil {
+		return ""
+	}
+
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.index.Type()
