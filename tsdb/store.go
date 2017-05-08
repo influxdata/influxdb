@@ -1082,15 +1082,23 @@ func (s *Store) monitorShards() {
 			})
 			s.mu.RUnlock()
 
+			// No inmem shards...
+			if len(shards) == 0 {
+				continue
+			}
+
+			// inmem shards share the same index instance so just use the first one to avoid
+			// allocating the same measurements repeatedly
+			first := shards[0]
+			names, err := first.MeasurementNamesByExpr(nil)
+			if err != nil {
+				s.Logger.Warn("cannot retrieve measurement names", zap.Error(err))
+				continue
+			}
+
 			s.walkShards(shards, func(sh *Shard) error {
 				db := sh.database
 				id := sh.id
-
-				names, err := sh.MeasurementNamesByExpr(nil)
-				if err != nil {
-					s.Logger.Warn("cannot retrieve measurement names", zap.Error(err))
-					return nil
-				}
 
 				for _, name := range names {
 					sh.ForEachMeasurementTagKey(name, func(k []byte) error {
