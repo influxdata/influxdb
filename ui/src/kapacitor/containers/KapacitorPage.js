@@ -39,22 +39,22 @@ class KapacitorPage extends Component {
     }
 
     getKapacitor(source, id).then(kapacitor => {
-      this.setState({kapacitor}, () => this.checkKapacitorConnection(kapacitor))
+      this.setState({kapacitor})
+      this.checkKapacitorConnection(kapacitor)
     })
   }
 
-  checkKapacitorConnection(kapacitor) {
-    pingKapacitor(kapacitor)
-      .then(() => {
-        this.setState({exists: true})
+  async checkKapacitorConnection(kapacitor) {
+    try {
+      await pingKapacitor(kapacitor)
+      this.setState({exists: true})
+    } catch (error) {
+      this.setState({exists: false})
+      this.props.addFlashMessage({
+        type: 'error',
+        text: 'Could not connect to Kapacitor. Check settings.',
       })
-      .catch(() => {
-        this.setState({exists: false})
-        this.props.addFlashMessage({
-          type: 'error',
-          text: 'Could not connect to Kapacitor. Check settings.',
-        })
-      })
+    }
   }
 
   handleInputChange(e) {
