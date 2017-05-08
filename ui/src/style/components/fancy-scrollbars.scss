@@ -6,6 +6,9 @@
 $scrollbar-track-size: 12px;
 $scrollbar-thumb-size: 6px;
 
+$scrollbar-color-a: $c-pool;
+$scrollbar-color-b: $c-comet;
+
 /* Horizontal Scrollbar Styles */
 .fancy-scroll--track-h {
   padding: ($scrollbar-track-size - $scrollbar-thumb-size) / 2;
@@ -17,7 +20,7 @@ $scrollbar-thumb-size: 6px;
 .fancy-scroll--thumb-h {
   height: $scrollbar-thumb-size !important;
   border-radius: ($scrollbar-thumb-size / 2);
-  @include gradient-h($c-pool,$c-comet);
+  @include gradient-h($scrollbar-color-a,$scrollbar-color-b);
 }
 /* Vertical Scrollbar Styles */
 .fancy-scroll--track-v {
@@ -30,5 +33,14 @@ $scrollbar-thumb-size: 6px;
 .fancy-scroll--thumb-v {
   width: $scrollbar-thumb-size !important;
   border-radius: ($scrollbar-thumb-size / 2);
-  @include gradient-v($c-pool,$c-comet);
+  @include gradient-v($scrollbar-color-a,$scrollbar-color-b);
+}
+
+/* Kapacitor Theme Scrollbars */
+$scrollbar-color-kap-a: $c-rainforest;
+$scrollbar-color-kap-b: $c-pool;
+
+.fancy-scroll--kapacitor {
+  .fancy-scroll--thumb-h { @include gradient-h($scrollbar-color-kap-a,$scrollbar-color-kap-b); }
+  .fancy-scroll--thumb-v { @include gradient-v($scrollbar-color-kap-a,$scrollbar-color-kap-b); }
 }

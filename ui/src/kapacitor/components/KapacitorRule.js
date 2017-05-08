@@ -58,7 +58,7 @@ export const KapacitorRule = React.createClass({
           timeRange={timeRange}
           source={source}
         />
-        <FancyScrollbox className="page-contents">
+        <FancyScrollbox className="page-contents fancy-scroll--kapacitor">
           <div className="container-fluid">
             <div className="row">
               <div className="col-xs-12">

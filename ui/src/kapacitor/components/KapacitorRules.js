@@ -63,7 +63,7 @@ const PageContents = ({children, source}) => (
         </div>
       </div>
     </div>
-    <FancyScrollbox className="page-contents">
+    <FancyScrollbox className="page-contents fancy-scroll--kapacitor">
       <div className="container-fluid">
         <div className="row">
           <div className="col-md-12">
