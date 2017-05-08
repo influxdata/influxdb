@@ -6,10 +6,6 @@ class FancyScrollbox extends Component {
     super(props)
   }
 
-  // static defaultProps = {
-  //   className: 'fancy-scroll--container',
-  // }
-
   render() {
     const {children, className} = this.props
 
