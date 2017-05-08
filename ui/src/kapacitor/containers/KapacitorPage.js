@@ -72,9 +72,8 @@ class KapacitorPage extends Component {
     if (exists) {
       updateKapacitor(kapacitor)
         .then(({data}) => {
-          this.setState({kapacitor: data}, () =>
-            this.checkKapacitorConnection(data)
-          )
+          this.setState({kapacitor: data})
+          this.checkKapacitorConnection(data)
           addFlashMessage({type: 'success', text: 'Kapacitor Updated!'})
         })
         .catch(() => {
@@ -87,9 +86,8 @@ class KapacitorPage extends Component {
       createKapacitor(source, kapacitor)
         .then(({data}) => {
           // need up update kapacitor with info from server to AlertOutputs
-          this.setState({kapacitor: data}, () =>
-            this.checkKapacitorConnection(data)
-          )
+          this.setState({kapacitor: data})
+          this.checkKapacitorConnection(data)
           addFlashMessage({type: 'success', text: 'Kapacitor Created!'})
         })
         .catch(() => {
