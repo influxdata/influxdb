@@ -127,7 +127,7 @@ class KapacitorForm extends Component {
         <div className="panel-body">
           <br />
           <p className="text-center">
-            Set your Kapacitor connection info to configure alerting endpoints.
+            Connect to an active Kapacitor instance to configure alerting endpoints.
           </p>
         </div>
       </div>
