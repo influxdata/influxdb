@@ -124,7 +124,7 @@ func (s *Server) githubOAuth(logger chronograf.Logger, auth oauth2.Authenticator
 		Logger:       logger,
 	}
 	jwt := oauth2.NewJWT(s.TokenSecret)
-	ghMux := oauth2.NewAuthMux(&gh, auth, jwt, logger)
+	ghMux := oauth2.NewAuthMux(&gh, auth, jwt, s.Basepath, logger)
 	return &gh, ghMux, s.UseGithub
 }
 
@@ -138,7 +138,7 @@ func (s *Server) googleOAuth(logger chronograf.Logger, auth oauth2.Authenticator
 		Logger:       logger,
 	}
 	jwt := oauth2.NewJWT(s.TokenSecret)
-	goMux := oauth2.NewAuthMux(&google, auth, jwt, logger)
+	goMux := oauth2.NewAuthMux(&google, auth, jwt, s.Basepath, logger)
 	return &google, goMux, s.UseGoogle
 }
 
@@ -150,7 +150,7 @@ func (s *Server) herokuOAuth(logger chronograf.Logger, auth oauth2.Authenticator
 		Logger:        logger,
 	}
 	jwt := oauth2.NewJWT(s.TokenSecret)
-	hMux := oauth2.NewAuthMux(&heroku, auth, jwt, logger)
+	hMux := oauth2.NewAuthMux(&heroku, auth, jwt, s.Basepath, logger)
 	return &heroku, hMux, s.UseHeroku
 }
 
@@ -167,7 +167,7 @@ func (s *Server) genericOAuth(logger chronograf.Logger, auth oauth2.Authenticato
 		Logger:         logger,
 	}
 	jwt := oauth2.NewJWT(s.TokenSecret)
-	genMux := oauth2.NewAuthMux(&gen, auth, jwt, logger)
+	genMux := oauth2.NewAuthMux(&gen, auth, jwt, s.Basepath, logger)
 	return &gen, genMux, s.UseGenericOAuth2
 }
 
@@ -236,6 +236,11 @@ func (s *Server) Serve(ctx context.Context) error {
 	}
 	service := openService(ctx, s.BoltPath, layoutBuilder, sourcesBuilder, kapacitorBuilder, logger, s.useAuth())
 	basepath = s.Basepath
+	if basepath != "" && s.PrefixRoutes == false {
+		logger.
+			WithField("component", "server").
+			Info("Note: you may want to use --prefix-routes with --basepath. Try `./chronograf --help` for more info.")
+	}
 
 	providerFuncs := []func(func(oauth2.Provider, oauth2.Mux)){}
 

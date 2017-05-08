@@ -29,16 +29,17 @@ func (r *AuthRoutes) Lookup(provider string) (AuthRoute, bool) {
 }
 
 type getRoutesResponse struct {
-	Layouts    string      `json:"layouts"`    // Location of the layouts endpoint
-	Mappings   string      `json:"mappings"`   // Location of the application mappings endpoint
-	Sources    string      `json:"sources"`    // Location of the sources endpoint
-	Me         string      `json:"me"`         // Location of the me endpoint
-	Dashboards string      `json:"dashboards"` // Location of the dashboards endpoint
-	Auth       []AuthRoute `json:"auth"`       // Location of all auth routes.
+	Layouts    string      `json:"layouts"`          // Location of the layouts endpoint
+	Mappings   string      `json:"mappings"`         // Location of the application mappings endpoint
+	Sources    string      `json:"sources"`          // Location of the sources endpoint
+	Me         string      `json:"me"`               // Location of the me endpoint
+	Dashboards string      `json:"dashboards"`       // Location of the dashboards endpoint
+	Auth       []AuthRoute `json:"auth"`             // Location of all auth routes.
+	Logout     *string     `json:"logout,omitempty"` // Location of the logout route for all auth routes
 }
 
 // AllRoutes returns all top level routes within chronograf
-func AllRoutes(authRoutes []AuthRoute, logger chronograf.Logger) http.HandlerFunc {
+func AllRoutes(authRoutes []AuthRoute, logout string, logger chronograf.Logger) http.HandlerFunc {
 	routes := getRoutesResponse{
 		Sources:    "/chronograf/v1/sources",
 		Layouts:    "/chronograf/v1/layouts",
@@ -46,6 +47,9 @@ func AllRoutes(authRoutes []AuthRoute, logger chronograf.Logger) http.HandlerFun
 		Mappings:   "/chronograf/v1/mappings",
 		Dashboards: "/chronograf/v1/dashboards",
 		Auth:       make([]AuthRoute, len(authRoutes)),
+	}
+	if logout != "" {
+		routes.Logout = &logout
 	}
 
 	for i, route := range authRoutes {
