@@ -146,8 +146,8 @@ KapacitorPage.propTypes = {
   params: shape({
     id: string,
   }).isRequired,
-  router: PropTypes.shape({
-    push: PropTypes.func.isRequired,
+  router: shape({
+    push: func.isRequired,
   }).isRequired,
   source: shape({
     id: string.isRequired,
