@@ -8,6 +8,7 @@ import {
 } from 'shared/actions/sources'
 import {connect} from 'react-redux'
 import SourceForm from 'src/sources/components/SourceForm'
+import FancyScrollbox from 'src/shared/components/FancyScrollbar'
 
 const {func, shape, string} = PropTypes
 
@@ -123,7 +124,7 @@ export const SourcePage = React.createClass({
             </div>
           </div>
         </div>
-        <div className="page-contents">
+        <FancyScrollbox className="page-contents">
           <div className="container-fluid">
             <div className="row">
               <div className="col-md-8 col-md-offset-2">
@@ -139,7 +140,7 @@ export const SourcePage = React.createClass({
               </div>
             </div>
           </div>
-        </div>
+        </FancyScrollbox>
       </div>
     )
   },

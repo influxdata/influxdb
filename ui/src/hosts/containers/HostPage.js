@@ -18,6 +18,7 @@ import {fetchLayouts} from 'shared/apis'
 
 import {setAutoRefresh} from 'shared/actions/app'
 import {presentationButtonDispatcher} from 'shared/dispatchers'
+import FancyScrollbox from 'src/shared/components/FancyScrollbar'
 
 const {shape, string, bool, func, number} = PropTypes
 
@@ -199,16 +200,14 @@ export const HostPage = React.createClass({
             )
           })}
         </DashboardHeader>
-        <div
-          className={classnames({
-            'page-contents': true,
-            'presentation-mode': inPresentationMode,
-          })}
-        >
+        <FancyScrollbox className={classnames({
+          'page-contents': true,
+          'presentation-mode': inPresentationMode,
+        })}>
           <div className="container-fluid full-width dashboard">
             {layouts.length > 0 ? this.renderLayouts(layouts) : ''}
           </div>
-        </div>
+        </FancyScrollbox>
       </div>
     )
   },

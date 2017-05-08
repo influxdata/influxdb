@@ -3,6 +3,7 @@ import classnames from 'classnames'
 
 import TemplateControlBar from 'src/dashboards/components/TemplateControlBar'
 import LayoutRenderer from 'shared/components/LayoutRenderer'
+import FancyScrollbox from 'src/shared/components/FancyScrollbar'
 
 const Dashboard = ({
   source,
@@ -40,37 +41,37 @@ const Dashboard = ({
   })
 
   return (
-    <div
-      className={classnames(
-        'dashboard container-fluid full-width page-contents',
-        {'presentation-mode': inPresentationMode}
-      )}
-    >
-      <TemplateControlBar
-        templates={dashboard.templates}
-        onSelectTemplate={onSelectTemplate}
-        onOpenTemplateManager={onOpenTemplateManager}
-      />
-      {cells.length
-        ? <LayoutRenderer
-            templates={templatesIncludingDashTime}
-            cells={cells}
-            autoRefresh={autoRefresh}
-            source={source.links.proxy}
-            onPositionChange={onPositionChange}
-            onEditCell={onEditCell}
-            onRenameCell={onRenameCell}
-            onUpdateCell={onUpdateCell}
-            onDeleteCell={onDeleteCell}
-            onSummonOverlayTechnologies={onSummonOverlayTechnologies}
-          />
-        : <div className="dashboard__empty">
-            <p>This Dashboard has no Graphs</p>
-            <button className="btn btn-primary btn-m" onClick={onAddCell}>
-              Add Graph
-            </button>
-          </div>}
-    </div>
+    <FancyScrollbox className={classnames(
+      'page-contents',
+      {'presentation-mode': inPresentationMode}
+    )}>
+      <div className="dashboard container-fluid full-width">
+        <TemplateControlBar
+          templates={dashboard.templates}
+          onSelectTemplate={onSelectTemplate}
+          onOpenTemplateManager={onOpenTemplateManager}
+        />
+        {cells.length
+          ? <LayoutRenderer
+              templates={templatesIncludingDashTime}
+              cells={cells}
+              autoRefresh={autoRefresh}
+              source={source.links.proxy}
+              onPositionChange={onPositionChange}
+              onEditCell={onEditCell}
+              onRenameCell={onRenameCell}
+              onUpdateCell={onUpdateCell}
+              onDeleteCell={onDeleteCell}
+              onSummonOverlayTechnologies={onSummonOverlayTechnologies}
+            />
+          : <div className="dashboard__empty">
+              <p>This Dashboard has no Graphs</p>
+              <button className="btn btn-primary btn-m" onClick={onAddCell}>
+                Add Graph
+              </button>
+            </div>}
+      </div>
+    </FancyScrollbox>
   )
 }
 

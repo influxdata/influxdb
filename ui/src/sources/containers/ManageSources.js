@@ -1,6 +1,7 @@
 import React, {Component, PropTypes} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
+import FancyScrollbox from 'src/shared/components/FancyScrollbar'
 
 import {
   removeAndLoadSources,
@@ -57,7 +58,7 @@ class ManageSources extends Component {
             </div>
           </div>
         </div>
-        <div className="page-contents">
+        <FancyScrollbox className="page-contents">
           <div className="container-fluid">
             <InfluxTable
               handleDeleteSource={this.handleDeleteSource}
@@ -67,7 +68,7 @@ class ManageSources extends Component {
               handleDeleteKapacitor={deleteKapacitor}
             />
           </div>
-        </div>
+        </FancyScrollbox>
       </div>
     )
   }

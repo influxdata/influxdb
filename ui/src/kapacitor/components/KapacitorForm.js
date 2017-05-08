@@ -1,5 +1,6 @@
 import React, {Component, PropTypes} from 'react'
 import AlertTabs from './AlertTabs'
+import FancyScrollbox from 'src/shared/components/FancyScrollbar'
 
 class KapacitorForm extends Component {
   render() {
@@ -17,7 +18,7 @@ class KapacitorForm extends Component {
             </div>
           </div>
         </div>
-        <div className="page-contents">
+        <FancyScrollbox className="page-contents">
           <div className="container-fluid">
             <div className="row">
               <div className="col-md-3">
@@ -100,7 +101,7 @@ class KapacitorForm extends Component {
               </div>
             </div>
           </div>
-        </div>
+        </FancyScrollbox>
       </div>
     )
   }

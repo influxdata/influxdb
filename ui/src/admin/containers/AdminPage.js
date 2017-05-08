@@ -27,6 +27,7 @@ import {
 import AdminTabs from 'src/admin/components/AdminTabs'
 
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
+import FancyScrollbox from 'src/shared/components/FancyScrollbar'
 
 const isValidUser = user => {
   const minLen = 3
@@ -170,7 +171,7 @@ class AdminPage extends Component {
             </div>
           </div>
         </div>
-        <div className="page-contents">
+        <FancyScrollbox className="page-contents">
           <div className="container-fluid">
             <div className="row">
               {users
@@ -202,7 +203,7 @@ class AdminPage extends Component {
                 : <span>Loading...</span>}
             </div>
           </div>
-        </div>
+        </FancyScrollbox>
       </div>
     )
   }
