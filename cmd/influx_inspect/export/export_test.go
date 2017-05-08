@@ -290,6 +290,9 @@ func writeCorpusToWALFile(c corpus) *os.File {
 		panic(err)
 	}
 
+	if err := w.Flush(); err != nil {
+		panic(err)
+	}
 	// (*tsm1.WALSegmentWriter).sync isn't exported, but it only Syncs the file anyway.
 	if err := walFile.Sync(); err != nil {
 		panic(err)
