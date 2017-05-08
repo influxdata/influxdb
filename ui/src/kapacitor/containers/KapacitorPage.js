@@ -27,6 +27,7 @@ class KapacitorPage extends Component {
     this.handleSubmit = ::this.handleSubmit
     this.handleResetToDefaults = ::this.handleResetToDefaults
     this._parseKapacitorURL = ::this._parseKapacitorURL
+    this.checkKapacitorConnection = ::this.checkKapacitorConnection
   }
 
   componentDidMount() {
@@ -36,15 +37,22 @@ class KapacitorPage extends Component {
     }
 
     getKapacitor(source, id).then(kapacitor => {
-      this.setState({kapacitor, exists: true}, () => {
-        pingKapacitor(kapacitor).catch(() => {
-          this.props.addFlashMessage({
-            type: 'error',
-            text: 'Could not connect to Kapacitor. Check settings.',
-          })
+      this.setState({kapacitor}, () => this.checkKapacitorConnection(kapacitor))
+    })
+  }
+
+  checkKapacitorConnection(kapacitor) {
+    pingKapacitor(kapacitor)
+      .then(() => {
+        this.setState({exists: true})
+      })
+      .catch(() => {
+        this.setState({exists: false})
+        this.props.addFlashMessage({
+          type: 'error',
+          text: 'Could not connect to Kapacitor. Check settings.',
         })
       })
-    })
   }
 
   handleInputChange(e) {
@@ -63,7 +71,10 @@ class KapacitorPage extends Component {
 
     if (exists) {
       updateKapacitor(kapacitor)
-        .then(() => {
+        .then(({data}) => {
+          this.setState({kapacitor: data}, () =>
+            this.checkKapacitorConnection(data)
+          )
           addFlashMessage({type: 'success', text: 'Kapacitor Updated!'})
         })
         .catch(() => {
@@ -76,7 +87,10 @@ class KapacitorPage extends Component {
       createKapacitor(source, kapacitor)
         .then(({data}) => {
           // need up update kapacitor with info from server to AlertOutputs
-          this.setState({kapacitor: data, exists: true})
+          router.push(`/sources/${source.id}/kapacitors/${data.id}/edit`)
+          this.setState({kapacitor: data}, () =>
+            this.checkKapacitorConnection(data)
+          )
           addFlashMessage({type: 'success', text: 'Kapacitor Created!'})
         })
         .catch(() => {
