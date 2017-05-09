@@ -597,6 +597,10 @@ func BenchmarkIntegerEncoderPackedSimple(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		enc.Bytes()
+		enc.Reset()
+		for i := 0; i < len(x); i++ {
+			enc.Write(x[i])
+		}
 	}
 }
 
