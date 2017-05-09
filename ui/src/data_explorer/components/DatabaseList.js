@@ -1,6 +1,7 @@
 import React, {PropTypes} from 'react'
 import classnames from 'classnames'
 import _ from 'lodash'
+import FancyScrollbox from 'src/shared/components/FancyScrollbar'
 
 import {showDatabases, showRetentionPolicies} from 'shared/apis/metaQuery'
 import showDatabasesParser from 'shared/parsing/showDatabases'
@@ -67,24 +68,26 @@ const DatabaseList = React.createClass({
       <div className="query-builder--column query-builder--column-db">
         <div className="query-builder--heading">Databases</div>
         <div className="query-builder--list">
-          {this.state.namespaces.map(namespace => {
-            const {database, retentionPolicy} = namespace
-            const isActive =
-              database === query.database &&
-              retentionPolicy === query.retentionPolicy
+          <FancyScrollbox>
+            {this.state.namespaces.map(namespace => {
+              const {database, retentionPolicy} = namespace
+              const isActive =
+                database === query.database &&
+                retentionPolicy === query.retentionPolicy
 
-            return (
-              <div
-                className={classnames('query-builder--list-item', {
-                  active: isActive,
-                })}
-                key={`${database}..${retentionPolicy}`}
-                onClick={_.wrap(namespace, onChooseNamespace)}
-              >
-                {database}.{retentionPolicy}
-              </div>
-            )
-          })}
+              return (
+                <div
+                  className={classnames('query-builder--list-item', {
+                    active: isActive,
+                  })}
+                  key={`${database}..${retentionPolicy}`}
+                  onClick={_.wrap(namespace, onChooseNamespace)}
+                >
+                  {database}.{retentionPolicy}
+                </div>
+              )
+            })}
+          </FancyScrollbox>
         </div>
       </div>
     )

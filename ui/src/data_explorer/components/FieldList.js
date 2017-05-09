@@ -2,6 +2,7 @@ import React, {PropTypes} from 'react'
 
 import FieldListItem from './FieldListItem'
 import GroupByTimeDropdown from './GroupByTimeDropdown'
+import FancyScrollbox from 'src/shared/components/FancyScrollbar'
 
 import {showFieldKeys} from 'shared/apis/metaQuery'
 import showFieldKeysParser from 'shared/parsing/showFieldKeys'
@@ -109,21 +110,23 @@ const FieldList = React.createClass({
 
     return (
       <div className="query-builder--list">
-        {this.state.fields.map(fieldFunc => {
-          const selectedField = this.props.query.fields.find(
-            f => f.field === fieldFunc.field
-          )
-          return (
-            <FieldListItem
-              key={fieldFunc.field}
-              onToggleField={this.props.onToggleField}
-              onApplyFuncsToField={this.props.applyFuncsToField}
-              isSelected={!!selectedField}
-              fieldFunc={selectedField || fieldFunc}
-              isKapacitorRule={this.props.isKapacitorRule}
-            />
-          )
-        })}
+        <FancyScrollbox>
+          {this.state.fields.map(fieldFunc => {
+            const selectedField = this.props.query.fields.find(
+              f => f.field === fieldFunc.field
+            )
+            return (
+              <FieldListItem
+                key={fieldFunc.field}
+                onToggleField={this.props.onToggleField}
+                onApplyFuncsToField={this.props.applyFuncsToField}
+                isSelected={!!selectedField}
+                fieldFunc={selectedField || fieldFunc}
+                isKapacitorRule={this.props.isKapacitorRule}
+              />
+            )
+          })}
+        </FancyScrollbox>
       </div>
     )
   },
