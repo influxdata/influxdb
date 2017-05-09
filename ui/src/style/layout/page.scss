@@ -22,7 +22,6 @@
   width: 100%;
   height: calc(100% - #{$chronograf-page-header-height}) !important;
   @include gradient-v($g2-kevlar,$g0-obsidian);
-
 }
 .container-fluid {
   padding: ($chronograf-page-header-height / 2) $page-wrapper-padding;
@@ -31,4 +30,13 @@
   &.full-width {
     max-width: 100%;
   }
+}
+
+/* Presentation Mode */
+.page-contents.presentation-mode {
+  top: 0;
+  height: 100% !important;
+  
+  .container-fluid {padding: 8px !important;}
+  .template-control--manage {display: none;}
 }
