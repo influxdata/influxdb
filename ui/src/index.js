@@ -42,18 +42,11 @@ import {HEARTBEAT_INTERVAL} from 'shared/constants'
 
 const rootNode = document.getElementById('react-root')
 
-let browserHistory
 const basepath = rootNode.dataset.basepath || ''
 window.basepath = basepath
-if (basepath) {
-  browserHistory = useRouterHistory(createHistory)({
-    basename: basepath, // this is written in when available by the URL prefixer middleware
-  })
-} else {
-  browserHistory = useRouterHistory(createHistory)({
-    basename: '',
-  })
-}
+const browserHistory = useRouterHistory(createHistory)({
+  basename: basepath, // this is written in when available by the URL prefixer middleware
+})
 
 const store = configureStore(loadLocalStorage(), browserHistory)
 const {dispatch} = store
