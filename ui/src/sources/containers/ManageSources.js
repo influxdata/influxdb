@@ -9,6 +9,7 @@ import {
   deleteKapacitorAsync,
 } from 'src/shared/actions/sources'
 
+import SourceIndicator from '../../shared/components/SourceIndicator'
 import InfluxTable from '../components/InfluxTable'
 
 class ManageSources extends Component {
@@ -54,6 +55,9 @@ class ManageSources extends Component {
           <div className="page-header__container">
             <div className="page-header__left">
               <h1 className="page-header__title">Configuration</h1>
+            </div>
+            <div className="page-header__right">
+              <SourceIndicator sourceName={source.name} />
             </div>
           </div>
         </div>

@@ -7,7 +7,9 @@ import {
   updateSource as updateSourceAction,
 } from 'shared/actions/sources'
 import {connect} from 'react-redux'
+
 import SourceForm from 'src/sources/components/SourceForm'
+import SourceIndicator from '../../shared/components/SourceIndicator'
 
 const {func, shape, string} = PropTypes
 
@@ -120,6 +122,9 @@ export const SourcePage = React.createClass({
               <h1 className="page-header__title">
                 {editMode ? 'Edit Source' : 'Add a New Source'}
               </h1>
+            </div>
+            <div className="page-header__right">
+              <SourceIndicator sourceName={source.name} />
             </div>
           </div>
         </div>

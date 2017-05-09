@@ -25,6 +25,7 @@ import {
 } from 'src/admin/actions'
 
 import AdminTabs from 'src/admin/components/AdminTabs'
+import SourceIndicator from '../../shared/components/SourceIndicator'
 
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
@@ -167,6 +168,9 @@ class AdminPage extends Component {
               <h1 className="page-header__title">
                 Admin
               </h1>
+            </div>
+            <div className="page-header__right">
+              <SourceIndicator sourceName={source.name} />
             </div>
           </div>
         </div>

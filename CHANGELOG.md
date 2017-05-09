@@ -6,6 +6,9 @@
   1. [#1436](https://github.com/influxdata/chronograf/pull/1436): Queries including :dashboardTime: no longer break the query builder
 
 
+### UI Improvements
+  1. [#1439](https://github.com/influxdata/chronograf/pull/1439): Add Source Indicator to Configuration and Admin pages
+
 ## v1.3.0~rc1 [2017-05-08]
 
 ### Bug Fixes
