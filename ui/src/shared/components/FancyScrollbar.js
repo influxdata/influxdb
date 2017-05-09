@@ -1,4 +1,5 @@
 import React, {Component, PropTypes} from 'react'
+import classnames from 'classnames'
 import {Scrollbars} from 'react-custom-scrollbars'
 
 class FancyScrollbox extends Component {
@@ -6,13 +7,17 @@ class FancyScrollbox extends Component {
     super(props)
   }
 
+  static defaultProps = {
+    autoHide: true,
+  }
+
   render() {
-    const {children, className} = this.props
+    const {autoHide, children, className} = this.props
 
     return (
       <Scrollbars
-        className={`fancy-scroll--container ${className}`}
-        autoHide={true}
+        className={classnames('fancy-scroll--container', {[className]: className})}
+        autoHide={autoHide}
         autoHideTimeout={1000}
         autoHideDuration={250}
         renderTrackHorizontal={props => <div {...props} className="fancy-scroll--track-h"/>}
@@ -26,11 +31,12 @@ class FancyScrollbox extends Component {
   }
 }
 
-const {node, string} = PropTypes
+const {bool, node, string} = PropTypes
 
 FancyScrollbox.propTypes = {
   children: node.isRequired,
-  className: string.isRequired,
+  className: string,
+  autoHide: bool,
 }
 
 export default FancyScrollbox
