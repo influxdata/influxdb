@@ -1,3 +1,12 @@
+## v1.3.1 [unreleased]
+
+### Bug Fixes
+  1. [#1450](https://github.com/influxdata/chronograf/pull/1450): Fix infinite spinner when using "/chronograf" as a basepath
+
+### Features
+
+### UI Improvements
+
 ## v1.3.0 [2017-05-09]
 
 ### Bug Fixes
