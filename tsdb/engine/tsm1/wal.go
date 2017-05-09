@@ -20,6 +20,7 @@ import (
 	"github.com/golang/snappy"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/limiter"
+	"github.com/influxdata/influxdb/pkg/pool"
 	"github.com/uber-go/zap"
 )
 
@@ -66,6 +67,9 @@ var (
 	ErrWALCorrupt = fmt.Errorf("corrupted WAL entry")
 
 	defaultWaitingWALWrites = runtime.GOMAXPROCS(0) * 2
+
+	// bytePool is a shared bytes pool buffer re-cycle []byte slices to reduce allocations.
+	bytesPool = pool.NewLimitedBytes(256, walEncodeBufSize*2)
 )
 
 // Statistics gathered by the WAL.
@@ -383,20 +387,17 @@ func (l *WAL) writeToLog(entry WALEntry) (int, error) {
 	// limit how many concurrent encodings can be in flight.  Since we can only
 	// write one at a time to disk, a slow disk can cause the allocations below
 	// to increase quickly.  If we're backed up, wait until others have completed.
-	//l.limiter.Take()
-	//defer l.limiter.Release()
-
-	// encode and compress the entry while we're not locked
-	bytes := *(getBuf(walEncodeBufSize))
-	defer putBuf(&bytes)
+	bytes := bytesPool.Get(walEncodeBufSize)
+	defer bytesPool.Put(bytes)
 
 	b, err := entry.Encode(bytes)
 	if err != nil {
 		return -1, err
 	}
 
-	encBuf := *(getBuf(snappy.MaxEncodedLen(len(b))))
-	defer putBuf(&encBuf)
+	encBuf := bytesPool.Get(snappy.MaxEncodedLen(len(b)))
+	defer bytesPool.Put(encBuf)
+
 	compressed := snappy.Encode(encBuf, b)
 	syncErr := make(chan error)
 
