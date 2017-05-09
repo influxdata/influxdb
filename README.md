@@ -68,8 +68,7 @@ Chronograf's graphing tool that allows you to dig in and create personalized vis
 
 Create and edit customized dashboards. The dashboards support several visualization types including line graphs, stacked graphs, step plots, single statistic graphs, and line-single-statistic graphs.
 
-In version 1.2.0-beta10, Chronograf introduces dashboard template variables.
-Use template variables to easily adjust the data that appear in your graphs and gain deeper insight into your data.
+Use Chronograf's template variables to easily adjust the data that appear in your graphs and gain deeper insight into your data.
 
 ### Kapacitor UI
 
@@ -100,8 +99,6 @@ A UI for [Kapacitor](https://github.com/influxdata/kapacitor) alert creation and
 Manage users, roles, permissions for [OSS InfluxDB](https://github.com/influxdata/influxdb) and InfluxData's [Enterprise](https://docs.influxdata.com/enterprise/v1.2/) product.
 View actively running queries and stop expensive queries on the Query Management page.
 
-These features are new as of Chronograf version 1.2.0-beta5. We recommend using them in a non-production environment only. Should you come across any bugs or unexpected behavior please open [an issue](https://github.com/influxdata/chronograf/issues/new). We appreciate the feedback as we work to finalize and improve the user and query management features!
-
 ### TLS/HTTPS Support
 See [Chronograf with TLS](https://github.com/influxdata/chronograf/blob/master/docs/tls.md) for more information.
 
@@ -113,7 +110,7 @@ Change the default root path of the Chronograf server with the `--basepath` opti
 
 ## Versions
 
-The most recent version of Chronograf is v1.3.0~rc1.
+The most recent version of Chronograf is v1.3.0.
 We will be iterating quickly based on user feedback and recommend using the [nightly builds](https://www.influxdata.com/downloads/) for the time being.
 
 Spotted a bug or have a feature request?
@@ -161,8 +158,8 @@ docker pull quay.io/influxdb/chronograf:latest
 
 ## Documentation
 
-[INSTALLATION](https://docs.influxdata.com/chronograf/v1.3/introduction/installation/) will get you up and running with Chronograf with as little configuration and code as possible.
-See the [GETTING STARTED](https://docs.influxdata.com/chronograf/v1.3/introduction/getting-started/) guide to get familiar with Chronograf's main features.
+[INSTALLATION](https://docs.influxdata.com/chronograf/v1.3/introduction/getting-started/) will get you up and running with Chronograf with as little configuration and code as possible.
+See our [guides](https://docs.influxdata.com/chronograf/v1.3/guides/) to get familiar with Chronograf's main features.
 
 Documentation for Telegraf, InfluxDB, and Kapacitor are available at https://docs.influxdata.com/.
 
