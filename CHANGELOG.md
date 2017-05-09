@@ -1,8 +1,10 @@
 ## v1.3.0~rc2 [unreleased]
 
 ### Bug Fixes
-  1. [#1433](https://github.com/influxdata/chronograf/pull/1433): Fix router bug introduced by upgrading to react-router v3.0.
-  1. [#1436](https://github.com/influxdata/chronograf/pull/1436): Queries including :dashboardTime: no longer break the query builder.
+  1. [#1433](https://github.com/influxdata/chronograf/pull/1433): Fix router bug introduced by upgrading to react-router v3.0
+  1. [#1435](https://github.com/influxdata/chronograf/pull/1435): Fix no legend on graph-plus-single-stat visualization
+  1. [#1436](https://github.com/influxdata/chronograf/pull/1436): Queries including :dashboardTime: no longer break the query builder
+
 
 ## v1.3.0~rc1 [2017-05-08]
 

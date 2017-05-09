@@ -1,6 +1,5 @@
 import React, {PropTypes} from 'react'
 import classnames from 'classnames'
-import _ from 'lodash'
 
 import {showMeasurements} from 'shared/apis/metaQuery'
 import showMeasurementsParser from 'shared/parsing/showMeasurements'
@@ -125,31 +124,44 @@ const MeasurementList = React.createClass({
           const numTagsActive = Object.keys(this.props.query.tags).length
 
           return (
-            <div key={measurement}>
-              <div className={classnames('query-builder--list-item', {active: isActive})}>
-                <span onClick={isActive ? _.wrap(null, this.props.onChooseMeasurement) : _.wrap(measurement, this.props.onChooseMeasurement)}>
-                  <div className="query-builder--caret icon caret-right"></div>
+            <div
+              key={measurement}
+              onClick={
+                isActive
+                  ? () => {}
+                  : () => this.props.onChooseMeasurement(measurement)
+              }
+            >
+              <div
+                className={classnames('query-builder--list-item', {
+                  active: isActive,
+                })}
+              >
+                <span>
+                  <div className="query-builder--caret icon caret-right" />
                   {measurement}
                 </span>
-                {(isActive && numTagsActive >= 1)
-                  ? <div className={classnames('flip-toggle', {flipped: this.props.query.areTagsAccepted})} onClick={this.handleAcceptReject}>
+                {isActive && numTagsActive >= 1
+                  ? <div
+                      className={classnames('flip-toggle', {
+                        flipped: this.props.query.areTagsAccepted,
+                      })}
+                      onClick={this.handleAcceptReject}
+                    >
                       <div className="flip-toggle--container">
                         <div className="flip-toggle--front">!=</div>
                         <div className="flip-toggle--back">=</div>
                       </div>
                     </div>
-                  : null
-                }
+                  : null}
               </div>
-              {
-                isActive ?
-                <TagList
-                  query={this.props.query}
-                  onChooseTag={this.props.onChooseTag}
-                  onGroupByTag={this.props.onGroupByTag}
-                />
-                : null
-              }
+              {isActive
+                ? <TagList
+                    query={this.props.query}
+                    onChooseTag={this.props.onChooseTag}
+                    onGroupByTag={this.props.onGroupByTag}
+                  />
+                : null}
             </div>
           )
         })}
