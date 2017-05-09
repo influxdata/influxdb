@@ -127,7 +127,7 @@ The Chronograf team has identified and is working on the following issues:
 
 ## Installation
 
-Check out the [INSTALLATION](https://github.com/influxdata/chronograf/blob/master/docs/INSTALLATION.md) guide to get up and running with Chronograf with as little configuration and code as possible.
+Check out the [INSTALLATION](https://docs.influxdata.com/chronograf/v1.3/introduction/installation/) guide to get up and running with Chronograf with as little configuration and code as possible.
 
 We recommend installing Chronograf using one of the [pre-built packages](https://influxdata.com/downloads/#chronograf). Then start Chronograf using:
 
@@ -161,8 +161,8 @@ docker pull quay.io/influxdb/chronograf:latest
 
 ## Documentation
 
-[INSTALLATION](https://github.com/influxdata/chronograf/blob/master/docs/INSTALLATION.md) will get you up and running with Chronograf with as little configuration and code as possible.
-See the [GETTING STARTED](https://github.com/influxdata/chronograf/blob/master/docs/GETTING_STARTED.md) guide to get familiar with Chronograf's main features.
+[INSTALLATION](https://docs.influxdata.com/chronograf/v1.3/introduction/installation/) will get you up and running with Chronograf with as little configuration and code as possible.
+See the [GETTING STARTED](https://docs.influxdata.com/chronograf/v1.3/introduction/getting-started/) guide to get familiar with Chronograf's main features.
 
 Documentation for Telegraf, InfluxDB, and Kapacitor are available at https://docs.influxdata.com/.
 
