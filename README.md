@@ -158,7 +158,7 @@ docker pull quay.io/influxdb/chronograf:latest
 
 ## Documentation
 
-[INSTALLATION](https://docs.influxdata.com/chronograf/v1.3/introduction/getting-started/) will get you up and running with Chronograf with as little configuration and code as possible.
+[Getting Started](https://docs.influxdata.com/chronograf/v1.3/introduction/getting-started/) will get you up and running with Chronograf with as little configuration and code as possible.
 See our [guides](https://docs.influxdata.com/chronograf/v1.3/guides/) to get familiar with Chronograf's main features.
 
 Documentation for Telegraf, InfluxDB, and Kapacitor are available at https://docs.influxdata.com/.
