@@ -16,7 +16,8 @@ func (i *interceptingResponseWriter) WriteHeader(status int) {
 	if status >= 300 && status < 400 {
 		location := i.ResponseWriter.Header().Get("Location")
 		if u, err := url.Parse(location); err == nil && !u.IsAbs() {
-			if !strings.HasPrefix(location, i.Prefix) {
+			hasPrefix := strings.HasPrefix(u.Path, i.Prefix)
+			if !hasPrefix || (hasPrefix && !strings.HasPrefix(u.Path[len(i.Prefix):], i.Prefix)) {
 				i.ResponseWriter.Header().Set("Location", path.Join(i.Prefix, location)+"/")
 			}
 		}
