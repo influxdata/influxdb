@@ -730,9 +730,9 @@ func (i *Index) SnapshotTo(path string) error {
 	return nil
 }
 
-func (i *Index) SetFieldName(measurement, name string) {}
-func (i *Index) RemoveShard(shardID uint64)            {}
-func (i *Index) AssignShard(k string, shardID uint64)  {}
+func (i *Index) SetFieldName(measurement []byte, name string) {}
+func (i *Index) RemoveShard(shardID uint64)                   {}
+func (i *Index) AssignShard(k string, shardID uint64)         {}
 
 func (i *Index) UnassignShard(k string, shardID uint64) error {
 	// This can be called directly once inmem is gone.

@@ -1631,10 +1631,10 @@ func filter(a []uint64, v uint64) []uint64 {
 
 // MeasurementFromSeriesKey returns the name of the measurement from a key that
 // contains a measurement name.
-func MeasurementFromSeriesKey(key string) string {
+func MeasurementFromSeriesKey(key []byte) []byte {
 	// Ignoring the error because the func returns "missing fields"
-	k, _, _ := models.ParseKey([]byte(key))
-	return escape.UnescapeString(k)
+	k, _ := models.ParseName(key)
+	return escape.Unescape(k)
 }
 
 type uint64Slice []uint64

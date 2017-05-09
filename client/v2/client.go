@@ -324,7 +324,7 @@ func (p *Point) PrecisionString(precison string) string {
 
 // Name returns the measurement name of the point.
 func (p *Point) Name() string {
-	return p.pt.Name()
+	return string(p.pt.Name())
 }
 
 // Tags returns the tags associated with the point.

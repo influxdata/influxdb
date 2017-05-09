@@ -147,7 +147,7 @@ func setMapValues(m map[string]interface{}, p models.Point) {
 		panic(err)
 	}
 	m["%f"] = getRandomFieldKey(fields)
-	m["%m"] = p.Name()
+	m["%m"] = string(p.Name())
 	m["%t"] = getRandomTagPair(p.Tags())
 	m["%a"] = p.UnixNano()
 }

@@ -222,8 +222,8 @@ func TestParse(t *testing.T) {
 			// If we erred out,it was intended and the following tests won't work
 			continue
 		}
-		if point.Name() != test.measurement {
-			t.Fatalf("name parse failer.  expected %v, got %v", test.measurement, point.Name())
+		if string(point.Name()) != test.measurement {
+			t.Fatalf("name parse failer.  expected %v, got %v", test.measurement, string(point.Name()))
 		}
 		if len(point.Tags()) != len(test.tags) {
 			t.Fatalf("tags len mismatch.  expected %d, got %d", len(test.tags), len(point.Tags()))

@@ -147,7 +147,7 @@ func (i *Index) CreateSeriesIfNotExists(shardID uint64, key, name []byte, tags m
 	}
 
 	// get or create the measurement index
-	m := i.CreateMeasurementIndexIfNotExists(string(name))
+	m := i.CreateMeasurementIndexIfNotExists(name)
 
 	i.mu.Lock()
 	// Check for the series again under a write lock
@@ -187,12 +187,12 @@ func (i *Index) CreateSeriesIfNotExists(shardID uint64, key, name []byte, tags m
 
 // CreateMeasurementIndexIfNotExists creates or retrieves an in memory index
 // object for the measurement
-func (i *Index) CreateMeasurementIndexIfNotExists(name string) *tsdb.Measurement {
-	name = escape.UnescapeString(name)
+func (i *Index) CreateMeasurementIndexIfNotExists(name []byte) *tsdb.Measurement {
+	name = escape.Unescape(name)
 
 	// See if the measurement exists using a read-lock
 	i.mu.RLock()
-	m := i.measurements[name]
+	m := i.measurements[string(name)]
 	if m != nil {
 		i.mu.RUnlock()
 		return m
@@ -205,10 +205,10 @@ func (i *Index) CreateMeasurementIndexIfNotExists(name string) *tsdb.Measurement
 
 	// Make sure it was created in between the time we released our read-lock
 	// and acquire the write lock
-	m = i.measurements[name]
+	m = i.measurements[string(name)]
 	if m == nil {
-		m = tsdb.NewMeasurement(name)
-		i.measurements[name] = m
+		m = tsdb.NewMeasurement(string(name))
+		i.measurements[string(name)] = m
 
 		// Add the measurement to the measurements sketch.
 		i.measurementsSketch.Add([]byte(name))
@@ -589,7 +589,7 @@ func (i *Index) SeriesKeys() []string {
 func (i *Index) SetFieldSet(*tsdb.MeasurementFieldSet) {}
 
 // SetFieldName adds a field name to a measurement.
-func (i *Index) SetFieldName(measurement, name string) {
+func (i *Index) SetFieldName(measurement []byte, name string) {
 	m := i.CreateMeasurementIndexIfNotExists(measurement)
 	m.SetFieldName(name)
 }

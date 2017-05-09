@@ -56,7 +56,7 @@ type Engine interface {
 	MeasurementExists(name []byte) (bool, error)
 	MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error)
 	MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error)
-	MeasurementFields(measurement string) *MeasurementFields
+	MeasurementFields(measurement []byte) *MeasurementFields
 	ForEachMeasurementName(fn func(name []byte) error) error
 	DeleteMeasurement(name []byte) error
 

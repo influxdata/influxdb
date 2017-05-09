@@ -42,7 +42,8 @@ var (
 	// Ensure Engine implements the interface.
 	_ tsdb.Engine = &Engine{}
 	// Static objects to prevent small allocs.
-	timeBytes = []byte("time")
+	timeBytes              = []byte("time")
+	keyFieldSeparatorBytes = []byte(keyFieldSeparator)
 )
 
 const (
@@ -296,7 +297,7 @@ func (e *Engine) disableSnapshotCompactions() {
 // Path returns the path the engine was opened with.
 func (e *Engine) Path() string { return e.path }
 
-func (e *Engine) SetFieldName(measurement, name string) {
+func (e *Engine) SetFieldName(measurement []byte, name string) {
 	e.index.SetFieldName(measurement, name)
 }
 
@@ -313,7 +314,7 @@ func (e *Engine) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
 }
 
 // MeasurementFields returns the measurement fields for a measurement.
-func (e *Engine) MeasurementFields(measurement string) *tsdb.MeasurementFields {
+func (e *Engine) MeasurementFields(measurement []byte) *tsdb.MeasurementFields {
 	return e.fieldset.CreateFieldsIfNotExists(measurement)
 }
 
@@ -780,7 +781,7 @@ func (e *Engine) readFileFromBackup(tr *tar.Reader, shardRelativePath string, as
 // database index and measurement fields
 func (e *Engine) addToIndexFromKey(key []byte, fieldType influxql.DataType, index tsdb.Index) error {
 	seriesKey, field := SeriesAndFieldFromCompositeKey(key)
-	name := tsdb.MeasurementFromSeriesKey(string(seriesKey))
+	name := tsdb.MeasurementFromSeriesKey(seriesKey)
 
 	mf := e.fieldset.CreateFieldsIfNotExists(name)
 	if err := mf.CreateFieldIfNotExists(field, fieldType, false); err != nil {
@@ -789,8 +790,8 @@ func (e *Engine) addToIndexFromKey(key []byte, fieldType influxql.DataType, inde
 
 	// Build in-memory index, if necessary.
 	if e.index.Type() == inmem.IndexName {
-		_, tags, _ := models.ParseKey(seriesKey)
-		if err := e.index.InitializeSeries(seriesKey, []byte(name), tags); err != nil {
+		tags, _ := models.ParseTags(seriesKey)
+		if err := e.index.InitializeSeries(seriesKey, name, tags); err != nil {
 			return err
 		}
 	}
@@ -1956,13 +1957,13 @@ func tsmFieldTypeToInfluxQLDataType(typ byte) (influxql.DataType, error) {
 }
 
 // SeriesAndFieldFromCompositeKey returns the series key and the field key extracted from the composite key.
-func SeriesAndFieldFromCompositeKey(key []byte) ([]byte, string) {
-	sep := bytes.Index(key, []byte(keyFieldSeparator))
+func SeriesAndFieldFromCompositeKey(key []byte) ([]byte, []byte) {
+	sep := bytes.Index(key, keyFieldSeparatorBytes)
 	if sep == -1 {
 		// No field???
-		return key, ""
+		return key, nil
 	}
-	return key[:sep], string(key[sep+len(keyFieldSeparator):])
+	return key[:sep], key[sep+len(keyFieldSeparator):]
 }
 
 // readDir recursively reads all files from a path.

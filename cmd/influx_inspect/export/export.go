@@ -284,9 +284,9 @@ func (cmd *Command) exportTSMFile(tsmFilePath string, w io.Writer) error {
 			continue
 		}
 		measurement, field := tsm1.SeriesAndFieldFromCompositeKey(key)
-		field = escape.String(field)
+		field = escape.Bytes(field)
 
-		if err := cmd.writeValues(w, measurement, field, values); err != nil {
+		if err := cmd.writeValues(w, measurement, string(field), values); err != nil {
 			// An error from writeValues indicates an IO error, which should be returned.
 			return err
 		}
@@ -348,9 +348,9 @@ func (cmd *Command) exportWALFile(walFilePath string, w io.Writer, warnDelete fu
 			for key, values := range t.Values {
 				measurement, field := tsm1.SeriesAndFieldFromCompositeKey([]byte(key))
 				// measurements are stored escaped, field names are not
-				field = escape.String(field)
+				field = escape.Bytes(field)
 
-				if err := cmd.writeValues(w, measurement, field, values); err != nil {
+				if err := cmd.writeValues(w, measurement, string(field), values); err != nil {
 					// An error from writeValues indicates an IO error, which should be returned.
 					return err
 				}
