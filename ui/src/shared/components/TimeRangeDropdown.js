@@ -1,9 +1,9 @@
 import React from 'react'
 import classnames from 'classnames'
-import OnClickOutside from 'shared/components/OnClickOutside'
-import FancyScrollbox from 'src/shared/components/FancyScrollbar'
-
 import moment from 'moment'
+
+import OnClickOutside from 'src/shared/components/OnClickOutside'
+import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 
 import timeRanges from 'hson!../data/timeRanges.hson'
 
@@ -68,7 +68,7 @@ const TimeRangeDropdown = React.createClass({
           <span className="caret" />
         </div>
         <ul className="dropdown-menu" style={{height: '270px'}}>
-          <FancyScrollbox>
+          <FancyScrollbar>
             <li className="dropdown-header">Time Range</li>
             {timeRanges.map(item => {
               return (
@@ -79,7 +79,7 @@ const TimeRangeDropdown = React.createClass({
                 </li>
               )
             })}
-          </FancyScrollbox>
+          </FancyScrollbar>
         </ul>
       </div>
     )

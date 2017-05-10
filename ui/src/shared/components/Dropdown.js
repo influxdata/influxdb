@@ -2,7 +2,7 @@ import React, {Component, PropTypes} from 'react'
 import {Link} from 'react-router'
 import classnames from 'classnames'
 import OnClickOutside from 'shared/components/OnClickOutside'
-import FancyScrollbox from 'shared/components/FancyScrollbar'
+import FancyScrollbar from 'shared/components/FancyScrollbar'
 import {DROPDOWN_MENU_MAX_HEIGHT, DROPDOWN_MENU_ITEM_THRESHOLD} from 'shared/constants/index'
 
 class Dropdown extends Component {
@@ -108,7 +108,7 @@ class Dropdown extends Component {
     const {actions, addNew, items, menuWidth, menuLabel} = this.props
     return (
       <ul className="dropdown-menu" style={{width: menuWidth, height: DROPDOWN_MENU_MAX_HEIGHT}}>
-        <FancyScrollbox autoHide={false}>
+        <FancyScrollbar autoHide={false}>
           {menuLabel
             ? <li className="dropdown-header">{menuLabel}</li>
             : null
@@ -151,7 +151,7 @@ class Dropdown extends Component {
                 </Link>
               </li>
             : null}
-        </FancyScrollbox>
+        </FancyScrollbar>
       </ul>
     )
   }

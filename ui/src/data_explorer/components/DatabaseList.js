@@ -1,11 +1,12 @@
 import React, {PropTypes} from 'react'
 import classnames from 'classnames'
 import _ from 'lodash'
-import FancyScrollbox from 'src/shared/components/FancyScrollbar'
 
 import {showDatabases, showRetentionPolicies} from 'shared/apis/metaQuery'
 import showDatabasesParser from 'shared/parsing/showDatabases'
 import showRetentionPoliciesParser from 'shared/parsing/showRetentionPolicies'
+
+import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 
 const {func, shape, string} = PropTypes
 
@@ -68,7 +69,7 @@ const DatabaseList = React.createClass({
       <div className="query-builder--column query-builder--column-db">
         <div className="query-builder--heading">Databases</div>
         <div className="query-builder--list">
-          <FancyScrollbox>
+          <FancyScrollbar>
             {this.state.namespaces.map(namespace => {
               const {database, retentionPolicy} = namespace
               const isActive =
@@ -87,7 +88,7 @@ const DatabaseList = React.createClass({
                 </div>
               )
             })}
-          </FancyScrollbox>
+          </FancyScrollbar>
         </div>
       </div>
     )

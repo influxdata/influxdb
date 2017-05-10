@@ -1,8 +1,8 @@
 import React, {PropTypes} from 'react'
 
-import FieldListItem from './FieldListItem'
-import GroupByTimeDropdown from './GroupByTimeDropdown'
-import FancyScrollbox from 'src/shared/components/FancyScrollbar'
+import FieldListItem from 'src/data_explorer/components/FieldListItem'
+import GroupByTimeDropdown from 'src/data_explorer/components/GroupByTimeDropdown'
+import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 
 import {showFieldKeys} from 'shared/apis/metaQuery'
 import showFieldKeysParser from 'shared/parsing/showFieldKeys'
@@ -110,7 +110,7 @@ const FieldList = React.createClass({
 
     return (
       <div className="query-builder--list">
-        <FancyScrollbox>
+        <FancyScrollbar>
           {this.state.fields.map(fieldFunc => {
             const selectedField = this.props.query.fields.find(
               f => f.field === fieldFunc.field
@@ -126,7 +126,7 @@ const FieldList = React.createClass({
               />
             )
           })}
-        </FancyScrollbox>
+        </FancyScrollbar>
       </div>
     )
   },

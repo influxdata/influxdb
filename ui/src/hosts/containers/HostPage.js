@@ -7,6 +7,8 @@ import classnames from 'classnames'
 
 import LayoutRenderer from 'shared/components/LayoutRenderer'
 import DashboardHeader from 'src/dashboards/components/DashboardHeader'
+import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+
 import timeRanges from 'hson!../../shared/data/timeRanges.hson'
 import {
   getMappings,
@@ -18,7 +20,6 @@ import {fetchLayouts} from 'shared/apis'
 
 import {setAutoRefresh} from 'shared/actions/app'
 import {presentationButtonDispatcher} from 'shared/dispatchers'
-import FancyScrollbox from 'src/shared/components/FancyScrollbar'
 
 const {shape, string, bool, func, number} = PropTypes
 
@@ -200,14 +201,14 @@ export const HostPage = React.createClass({
             )
           })}
         </DashboardHeader>
-        <FancyScrollbox className={classnames({
+        <FancyScrollbar className={classnames({
           'page-contents': true,
           'presentation-mode': inPresentationMode,
         })}>
           <div className="container-fluid full-width dashboard">
             {layouts.length > 0 ? this.renderLayouts(layouts) : ''}
           </div>
-        </FancyScrollbox>
+        </FancyScrollbar>
       </div>
     )
   },

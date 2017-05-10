@@ -3,7 +3,7 @@ import classnames from 'classnames'
 
 import TemplateControlBar from 'src/dashboards/components/TemplateControlBar'
 import LayoutRenderer from 'shared/components/LayoutRenderer'
-import FancyScrollbox from 'src/shared/components/FancyScrollbar'
+import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 
 const Dashboard = ({
   source,
@@ -41,7 +41,7 @@ const Dashboard = ({
   })
 
   return (
-    <FancyScrollbox className={classnames(
+    <FancyScrollbar className={classnames(
       'page-contents',
       {'presentation-mode': inPresentationMode}
     )}>
@@ -71,7 +71,7 @@ const Dashboard = ({
               </button>
             </div>}
       </div>
-    </FancyScrollbox>
+    </FancyScrollbar>
   )
 }
 

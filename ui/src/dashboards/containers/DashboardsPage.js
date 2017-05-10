@@ -5,12 +5,12 @@ import {bindActionCreators} from 'redux'
 
 import SourceIndicator from 'shared/components/SourceIndicator'
 import DeleteConfirmTableCell from 'shared/components/DeleteConfirmTableCell'
+import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 
 import {createDashboard} from 'src/dashboards/apis'
 import {getDashboardsAsync, deleteDashboardAsync} from 'src/dashboards/actions'
 
 import {NEW_DASHBOARD} from 'src/dashboards/constants'
-import FancyScrollbox from 'src/shared/components/FancyScrollbar'
 
 const {arrayOf, func, string, shape} = PropTypes
 
@@ -73,7 +73,7 @@ const DashboardsPage = React.createClass({
             </div>
           </div>
         </div>
-        <FancyScrollbox className="page-contents">
+        <FancyScrollbar className="page-contents">
           <div className="container-fluid">
             <div className="row">
               <div className="col-md-12">
@@ -131,7 +131,7 @@ const DashboardsPage = React.createClass({
               </div>
             </div>
           </div>
-        </FancyScrollbox>
+        </FancyScrollbar>
       </div>
     )
   },

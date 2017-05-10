@@ -25,10 +25,10 @@ import {
 } from 'src/admin/actions'
 
 import AdminTabs from 'src/admin/components/AdminTabs'
-import SourceIndicator from '../../shared/components/SourceIndicator'
+import SourceIndicator from 'src/shared/components/SourceIndicator'
+import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
-import FancyScrollbox from 'src/shared/components/FancyScrollbar'
 
 const isValidUser = user => {
   const minLen = 3
@@ -175,7 +175,7 @@ class AdminPage extends Component {
             </div>
           </div>
         </div>
-        <FancyScrollbox className="page-contents">
+        <FancyScrollbar className="page-contents">
           <div className="container-fluid">
             <div className="row">
               {users
@@ -207,7 +207,7 @@ class AdminPage extends Component {
                 : <span>Loading...</span>}
             </div>
           </div>
-        </FancyScrollbox>
+        </FancyScrollbar>
       </div>
     )
   }

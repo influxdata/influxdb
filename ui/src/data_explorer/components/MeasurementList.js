@@ -1,10 +1,11 @@
 import React, {PropTypes} from 'react'
 import classnames from 'classnames'
-import FancyScrollbox from 'src/shared/components/FancyScrollbar'
 
 import {showMeasurements} from 'shared/apis/metaQuery'
 import showMeasurementsParser from 'shared/parsing/showMeasurements'
-import TagList from './TagList'
+
+import TagList from 'src/data_explorer/components/TagList'
+import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 
 const {func, shape, string} = PropTypes
 
@@ -120,7 +121,7 @@ const MeasurementList = React.createClass({
 
     return (
       <div className="query-builder--list">
-        <FancyScrollbox>
+        <FancyScrollbar>
           {measurements.map(measurement => {
             const isActive = measurement === this.props.query.measurement
             const numTagsActive = Object.keys(this.props.query.tags).length
@@ -167,7 +168,7 @@ const MeasurementList = React.createClass({
               </div>
             )
           })}
-        </FancyScrollbox>
+        </FancyScrollbar>
       </div>
     )
   },

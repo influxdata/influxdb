@@ -2,7 +2,7 @@ import React, {Component, PropTypes} from 'react'
 import classnames from 'classnames'
 import {Scrollbars} from 'react-custom-scrollbars'
 
-class FancyScrollbox extends Component {
+class FancyScrollbar extends Component {
   constructor(props) {
     super(props)
   }
@@ -33,10 +33,10 @@ class FancyScrollbox extends Component {
 
 const {bool, node, string} = PropTypes
 
-FancyScrollbox.propTypes = {
+FancyScrollbar.propTypes = {
   children: node.isRequired,
   className: string,
   autoHide: bool,
 }
 
-export default FancyScrollbox
+export default FancyScrollbar
