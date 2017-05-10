@@ -2,7 +2,7 @@ import React from 'react'
 import classnames from 'classnames'
 import moment from 'moment'
 
-import OnClickOutside from 'src/shared/components/OnClickOutside'
+import OnClickOutside from 'shared/components/OnClickOutside'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 import timeRanges from 'hson!../data/timeRanges.hson'
