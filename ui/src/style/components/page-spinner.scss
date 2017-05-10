@@ -12,15 +12,15 @@
   right: 0;
 
   /* This is a hack to tell the browser to use the GPU when rendering the spinner. */
-  transform: translate3d(0,0,0,0);
+  transform: translateZ(0);
   animation: spinner 0.6s infinite linear;
 }
 
 @keyframes spinner {
   0% {
-    transform: rotate(0deg) translate3d(0,0,0,0);
+    transform: rotate(0deg);
   }
   100% {
-    transform: rotate(360deg) translate3d(0,0,0,0);
+    transform: rotate(360deg);
   }
 }
