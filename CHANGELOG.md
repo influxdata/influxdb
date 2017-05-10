@@ -6,6 +6,7 @@
 ### Features
 
 ### UI Improvements
+  1. [#1453](https://github.com/influxdata/chronograf/pull/1453): Initial height of QueryMaker is 2/3 of the screen when in ResizeContainer, improved usability
 
 ## v1.3.0 [2017-05-09]
 
