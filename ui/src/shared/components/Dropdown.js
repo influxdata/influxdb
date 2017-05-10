@@ -94,7 +94,7 @@ class Dropdown extends Component {
           )
         })}
         {addNew
-          ? <li>
+          ? <li className="dropdown-item">
               <Link to={addNew.url}>
                 {addNew.text}
               </Link>
