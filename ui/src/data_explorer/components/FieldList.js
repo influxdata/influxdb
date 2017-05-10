@@ -2,7 +2,7 @@ import React, {PropTypes} from 'react'
 
 import FieldListItem from 'src/data_explorer/components/FieldListItem'
 import GroupByTimeDropdown from 'src/data_explorer/components/GroupByTimeDropdown'
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 import {showFieldKeys} from 'shared/apis/metaQuery'
 import showFieldKeysParser from 'shared/parsing/showFieldKeys'

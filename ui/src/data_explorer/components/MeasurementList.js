@@ -5,7 +5,7 @@ import {showMeasurements} from 'shared/apis/metaQuery'
 import showMeasurementsParser from 'shared/parsing/showMeasurements'
 
 import TagList from 'src/data_explorer/components/TagList'
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 const {func, shape, string} = PropTypes
 

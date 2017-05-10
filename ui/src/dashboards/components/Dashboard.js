@@ -3,7 +3,7 @@ import classnames from 'classnames'
 
 import TemplateControlBar from 'src/dashboards/components/TemplateControlBar'
 import LayoutRenderer from 'shared/components/LayoutRenderer'
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 const Dashboard = ({
   source,

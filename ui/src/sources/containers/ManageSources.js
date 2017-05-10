@@ -9,7 +9,7 @@ import {
   deleteKapacitorAsync,
 } from 'src/shared/actions/sources'
 
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import FancyScrollbar from 'shared/components/FancyScrollbar'
 import SourceIndicator from 'src/shared/components/SourceIndicator'
 import InfluxTable from 'src/sources/components/InfluxTable'
 

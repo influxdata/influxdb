@@ -1,7 +1,7 @@
 import React, {Component, PropTypes} from 'react'
 
 import AlertTabs from 'src/kapacitor/components/AlertTabs'
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 class KapacitorForm extends Component {
   render() {

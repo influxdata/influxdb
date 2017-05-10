@@ -4,7 +4,7 @@ import {Link} from 'react-router'
 import NoKapacitorError from 'src/shared/components/NoKapacitorError'
 import SourceIndicator from 'src/shared/components/SourceIndicator'
 import KapacitorRulesTable from 'src/kapacitor/components/KapacitorRulesTable'
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 const KapacitorRules = ({
   source,

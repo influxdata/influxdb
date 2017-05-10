@@ -2,7 +2,7 @@ import React, {PropTypes} from 'react'
 import _ from 'lodash'
 
 import HostsTable from 'src/hosts/components/HostsTable'
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import FancyScrollbar from 'shared/components/FancyScrollbar'
 import SourceIndicator from 'src/shared/components/SourceIndicator'
 
 import {getCpuAndLoadForHosts, getMappings, getAppsForHosts} from '../apis'

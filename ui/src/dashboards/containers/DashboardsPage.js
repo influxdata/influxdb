@@ -5,7 +5,7 @@ import {bindActionCreators} from 'redux'
 
 import SourceIndicator from 'shared/components/SourceIndicator'
 import DeleteConfirmTableCell from 'shared/components/DeleteConfirmTableCell'
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 import {createDashboard} from 'src/dashboards/apis'
 import {getDashboardsAsync, deleteDashboardAsync} from 'src/dashboards/actions'
