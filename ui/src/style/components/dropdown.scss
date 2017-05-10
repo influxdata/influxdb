@@ -39,6 +39,8 @@ $dropdown-menu-max-height: 290px;
 .dropdown-toggle {
   position: relative;
   text-align: left;
+  display: flex;
+  align-items: center;
 
   .caret {
     position: absolute;
@@ -47,13 +49,23 @@ $dropdown-menu-max-height: 290px;
     transform: translateY(-50%);
   }
   > .icon {
-    font-size: 16px;
     display: inline-block;
     vertical-align: middle;
     margin-right: 6px;
-    position: relative;
-    top: -1px;
   }
+  .dropdown-selected {
+    display: inline-block;
+    flex: 1 0 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-right: 15px;
+  }
+}
+.dropdown .dropdown-toggle.btn-xs {
+  height: 22px !important;
+  line-height: 22px !important;
+  padding: 0 9px !important;
 }
 
 /*

@@ -156,29 +156,6 @@
 
 
 /*
-    Kapacitor selector dropdown
-    ----------------------------------------------
-*/
-.dropdown .dropdown-toggle.btn-xs {
-  height: 22px !important;
-  line-height: 22px !important;
-  padding: 0 9px !important;
-}
-.dropdown-selected {
-  display: inline-block;
-  width: 100%;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  padding-right: 15px;
-}
-.dropdown.sources--kapacitor-selector {
-  .dropdown-toggle {
-    width: 160px;
-  }
-}
-
-/*
     Custom Tabs
     ----------------------------------------------
 */

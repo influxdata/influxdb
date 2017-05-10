@@ -34,7 +34,7 @@ const kapacitorDropdown = (
 
   return (
     <Dropdown
-      className="sources--kapacitor-selector"
+      className="dropdown-160"
       buttonColor="btn-info"
       buttonSize="btn-xs"
       items={kapacitorItems}
