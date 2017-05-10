@@ -82,7 +82,7 @@ const AlertsTable = React.createClass({
       <div className="panel panel-minimal">
         <div className="panel-heading u-flex u-ai-center u-jc-space-between">
           <h2 className="panel-title">{this.props.alerts.length} Alerts</h2>
-          <SearchBar onSearch={this.filterAlerts} />
+          {alerts.length > 0 ? <SearchBar onSearch={this.filterAlerts} /> : null}
         </div>
         <div className="panel-body">
           <table className="table v-center">
