@@ -104,11 +104,8 @@ func (e *encoder) reduce() (max, divisor uint64, rle bool, deltas []uint64) {
 			max = v
 		}
 
-		for {
-			// If our value is divisible by 10, break.  Otherwise, try the next smallest divisor.
-			if v%divisor == 0 {
-				break
-			}
+		// If our value is divisible by 10, break.  Otherwise, try the next smallest divisor.
+		for divisor > 1 && v%divisor != 0 {
 			divisor /= 10
 		}
 
@@ -142,9 +139,18 @@ func (e *encoder) Bytes() ([]byte, error) {
 }
 
 func (e *encoder) encodePacked(div uint64, dts []uint64) ([]byte, error) {
-	for _, v := range dts[1:] {
-		if err := e.enc.Write(uint64(v) / div); err != nil {
-			return nil, err
+	// Only apply the divisor if it's greater than 1 since division is expensive.
+	if div > 1 {
+		for _, v := range dts[1:] {
+			if err := e.enc.Write(v / div); err != nil {
+				return nil, err
+			}
+		}
+	} else {
+		for _, v := range dts[1:] {
+			if err := e.enc.Write(v); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -299,14 +305,24 @@ func (d *TimeDecoder) decodePacked(b []byte) {
 	d.i = 0
 	deltas := d.ts[:0]
 	deltas = append(deltas, first)
+
 	for d.dec.Next() {
 		deltas = append(deltas, d.dec.Read())
 	}
 
 	// Compute the prefix sum and scale the deltas back up
-	for i := 1; i < len(deltas); i++ {
-		dgap := deltas[i] * div
-		deltas[i] = deltas[i-1] + dgap
+	last := deltas[0]
+	if div > 1 {
+		for i := 1; i < len(deltas); i++ {
+			dgap := deltas[i] * div
+			deltas[i] = last + dgap
+			last = deltas[i]
+		}
+	} else {
+		for i := 1; i < len(deltas); i++ {
+			deltas[i] += last
+			last = deltas[i]
+		}
 	}
 
 	d.i = 0
