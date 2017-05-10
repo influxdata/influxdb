@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -67,14 +68,14 @@ func (cmd *Command) Run(args ...string) error {
 	}
 
 	if len(files) == 0 {
-		return fmt.Errorf("no tsm files at %v\n", cmd.dir)
+		return fmt.Errorf("no tsm files at %v", cmd.dir)
 	}
 
 	tw := tabwriter.NewWriter(cmd.Stdout, 8, 8, 1, '\t', 0)
 	fmt.Fprintln(tw, strings.Join([]string{"File", "Series", "Load Time"}, "\t"))
 
 	totalSeries := hllpp.New()
-	tagCardialities := map[string]*hllpp.HLLPP{}
+	tagCardinalities := map[string]*hllpp.HLLPP{}
 	measCardinalities := map[string]*hllpp.HLLPP{}
 	fieldCardinalities := map[string]*hllpp.HLLPP{}
 
@@ -118,10 +119,10 @@ func (cmd *Command) Run(args ...string) error {
 				fieldCount.Add([]byte(field))
 
 				for _, t := range tags {
-					tagCount, ok := tagCardialities[string(t.Key)]
+					tagCount, ok := tagCardinalities[string(t.Key)]
 					if !ok {
 						tagCount = hllpp.New()
-						tagCardialities[string(t.Key)] = tagCount
+						tagCardinalities[string(t.Key)] = tagCount
 					}
 					tagCount.Add(t.Value)
 				}
@@ -140,27 +141,38 @@ func (cmd *Command) Run(args ...string) error {
 	tw.Flush()
 	println()
 	fmt.Printf("Statistics\n")
-	fmt.Printf("  Series:\n")
-	fmt.Printf("    Total (est): %d\n", totalSeries.Count())
+	fmt.Printf("\tSeries:\n")
+	fmt.Printf("\t\tTotal (est): %d\n", totalSeries.Count())
+
 	if cmd.detailed {
-		fmt.Printf("  Measurements (est):\n")
-		for t, card := range measCardinalities {
-			fmt.Printf("    %v: %d (%d%%)\n", t, card.Count(), int((float64(card.Count())/float64(totalSeries.Count()))*100))
+		fmt.Printf("\tMeasurements (est):\n")
+		for _, t := range sortKeys(measCardinalities) {
+			fmt.Printf("\t\t%v: %d (%d%%)\n", t, measCardinalities[t].Count(), int((float64(measCardinalities[t].Count())/float64(totalSeries.Count()))*100))
 		}
 
-		fmt.Printf("  Fields (est):\n")
-		for t, card := range fieldCardinalities {
-			fmt.Printf("    %v: %d\n", t, card.Count())
+		fmt.Printf("\tFields (est):\n")
+		for _, t := range sortKeys(fieldCardinalities) {
+			fmt.Printf("\t\t%v: %d\n", t, fieldCardinalities[t].Count())
 		}
 
-		fmt.Printf("  Tags (est):\n")
-		for t, card := range tagCardialities {
-			fmt.Printf("    %v: %d\n", t, card.Count())
+		fmt.Printf("\tTags (est):\n")
+		for _, t := range sortKeys(tagCardinalities) {
+			fmt.Printf("\t\t%v: %d\n", t, tagCardinalities[t].Count())
 		}
 	}
 
 	fmt.Printf("Completed in %s\n", time.Since(start))
 	return nil
+}
+
+// sortKeys is a quick helper to return the sorted set of a map's keys
+func sortKeys(vals map[string]*hllpp.HLLPP) (keys []string) {
+	for k := range vals {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	return keys
 }
 
 // printUsage prints the usage message to STDERR.
