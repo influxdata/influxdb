@@ -93,18 +93,23 @@ class AlertsApp extends Component {
   }
 
   renderSubComponents() {
-    let component
     if (this.state.loading) {
-      component = <p>Loading...</p>
-    } else {
-      const {source} = this.props
-      if (this.state.hasKapacitor) {
-        component = <AlertsTable source={source} alerts={this.state.alerts} />
-      } else {
-        component = <NoKapacitorError source={source} />
-      }
+      return <div className="page-spinner"/>
     }
-    return component
+
+    const {source} = this.props
+    return (
+      <div className="container-fluid">
+        <div className="row">
+          <div className="col-md-12">
+            {this.state.hasKapacitor
+              ? <AlertsTable source={source} alerts={this.state.alerts} />
+              : <NoKapacitorError source={source} />
+            }
+          </div>
+        </div>
+      </div>
+    )
   }
 
   handleToggleTime() {
@@ -149,13 +154,7 @@ class AlertsApp extends Component {
           </div>
         </div>
         <div className="page-contents">
-          <div className="container-fluid">
-            <div className="row">
-              <div className="col-md-12">
-                {this.renderSubComponents()}
-              </div>
-            </div>
-          </div>
+          {this.renderSubComponents()}
         </div>
       </div>
     )
