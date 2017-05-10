@@ -6,14 +6,15 @@ import ResizeHandle from 'shared/components/ResizeHandle'
 const maximumNumChildren = 2
 const minimumTopHeight = 200
 const minimumBottomHeight = 200
+const initialHeight = '50%'
 
 class ResizeContainer extends Component {
   constructor(props) {
     super(props)
     this.state = {
       isDragging: false,
-      topHeight: '60%',
-      bottomHeight: '40%',
+      topHeight: this.props.initialTopHeight,
+      bottomHeight: this.props.initialBottomHeight,
     }
 
     this.handleStartDrag = ::this.handleStartDrag
@@ -25,12 +26,14 @@ class ResizeContainer extends Component {
   static defaultProps = {
     minTopHeight: minimumTopHeight,
     minBottomHeight: minimumBottomHeight,
+    initialTopHeight: initialHeight,
+    initialBottomHeight: initialHeight,
   }
 
   handleStartDrag() {
     this.setState({isDragging: true})
   }
-  
+
   handleStopDrag() {
     this.setState({isDragging: false})
   }
@@ -130,6 +133,8 @@ ResizeContainer.propTypes = {
   containerClass: string.isRequired,
   minTopHeight: number,
   minBottomHeight: number,
+  initialTopHeight: string,
+  initialBottomHeight: string,
 }
 
 export default ResizeContainer
