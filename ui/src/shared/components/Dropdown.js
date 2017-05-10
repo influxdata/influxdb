@@ -2,6 +2,8 @@ import React, {Component, PropTypes} from 'react'
 import {Link} from 'react-router'
 import classnames from 'classnames'
 import OnClickOutside from 'shared/components/OnClickOutside'
+import FancyScrollbox from 'shared/components/FancyScrollbar'
+import {DROPDOWN_MENU_MAX_HEIGHT, DROPDOWN_MENU_ITEM_THRESHOLD} from 'shared/constants/index'
 
 class Dropdown extends Component {
   constructor(props) {
@@ -52,17 +54,116 @@ class Dropdown extends Component {
     action.handler(item)
   }
 
+  renderShortMenu() {
+    const {actions, addNew, items, menuWidth, menuLabel} = this.props
+    return (
+      <ul className="dropdown-menu" style={{width: menuWidth}}>
+        {menuLabel
+          ? <li className="dropdown-header">{menuLabel}</li>
+          : null
+        }
+        {items.map((item, i) => {
+          if (item.text === 'SEPARATOR') {
+            return <li key={i} role="separator" className="divider" />
+          }
+          return (
+            <li className="dropdown-item" key={i}>
+              <a href="#" onClick={() => this.handleSelection(item)}>
+                {item.text}
+              </a>
+              {actions.length > 0
+                ? <div className="dropdown-item__actions">
+                    {actions.map(action => {
+                      return (
+                        <button
+                          key={action.text}
+                          className="dropdown-item__action"
+                          onClick={e =>
+                            this.handleAction(e, action, item)}
+                        >
+                          <span
+                            title={action.text}
+                            className={`icon ${action.icon}`}
+                          />
+                        </button>
+                      )
+                    })}
+                  </div>
+                : null}
+            </li>
+          )
+        })}
+        {addNew
+          ? <li>
+              <Link to={addNew.url}>
+                {addNew.text}
+              </Link>
+            </li>
+          : null}
+      </ul>
+    )
+  }
+
+  renderLongMenu() {
+    const {actions, addNew, items, menuWidth, menuLabel} = this.props
+    return (
+      <ul className="dropdown-menu" style={{width: menuWidth, height: DROPDOWN_MENU_MAX_HEIGHT}}>
+        <FancyScrollbox autoHide={false}>
+          {menuLabel
+            ? <li className="dropdown-header">{menuLabel}</li>
+            : null
+          }
+          {items.map((item, i) => {
+            if (item.text === 'SEPARATOR') {
+              return <li key={i} role="separator" className="divider" />
+            }
+            return (
+              <li className="dropdown-item" key={i}>
+                <a href="#" onClick={() => this.handleSelection(item)}>
+                  {item.text}
+                </a>
+                {actions.length > 0
+                  ? <div className="dropdown-item__actions">
+                      {actions.map(action => {
+                        return (
+                          <button
+                            key={action.text}
+                            className="dropdown-item__action"
+                            onClick={e =>
+                              this.handleAction(e, action, item)}
+                          >
+                            <span
+                              title={action.text}
+                              className={`icon ${action.icon}`}
+                            />
+                          </button>
+                        )
+                      })}
+                    </div>
+                  : null}
+              </li>
+            )
+          })}
+          {addNew
+            ? <li>
+                <Link to={addNew.url}>
+                  {addNew.text}
+                </Link>
+              </li>
+            : null}
+        </FancyScrollbox>
+      </ul>
+    )
+  }
+
   render() {
     const {
       items,
       selected,
       className,
       iconName,
-      actions,
-      addNew,
       buttonSize,
       buttonColor,
-      menuWidth,
     } = this.props
     const {isOpen} = this.state
 
@@ -78,47 +179,11 @@ class Dropdown extends Component {
           <span className="dropdown-selected">{selected}</span>
           <span className="caret" />
         </div>
-        {isOpen
-          ? <ul className="dropdown-menu" style={{width: menuWidth}}>
-              {items.map((item, i) => {
-                if (item.text === 'SEPARATOR') {
-                  return <li key={i} role="separator" className="divider" />
-                }
-                return (
-                  <li className="dropdown-item" key={i}>
-                    <a href="#" onClick={() => this.handleSelection(item)}>
-                      {item.text}
-                    </a>
-                    {actions.length > 0
-                      ? <div className="dropdown-item__actions">
-                          {actions.map(action => {
-                            return (
-                              <button
-                                key={action.text}
-                                className="dropdown-item__action"
-                                onClick={e =>
-                                  this.handleAction(e, action, item)}
-                              >
-                                <span
-                                  title={action.text}
-                                  className={`icon ${action.icon}`}
-                                />
-                              </button>
-                            )
-                          })}
-                        </div>
-                      : null}
-                  </li>
-                )
-              })}
-              {addNew
-                ? <li>
-                    <Link to={addNew.url}>
-                      {addNew.text}
-                    </Link>
-                  </li>
-                : null}
-            </ul>
+        {(isOpen && items.length < DROPDOWN_MENU_ITEM_THRESHOLD)
+          ? this.renderShortMenu()
+          : null}
+        {(isOpen && items.length >= DROPDOWN_MENU_ITEM_THRESHOLD)
+          ? this.renderLongMenu()
           : null}
       </div>
     )
@@ -152,6 +217,7 @@ Dropdown.propTypes = {
   buttonSize: string,
   buttonColor: string,
   menuWidth: string,
+  menuLabel: string,
 }
 
 export default OnClickOutside(Dropdown)

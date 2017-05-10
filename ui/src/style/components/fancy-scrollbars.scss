@@ -48,3 +48,9 @@ $scrollbar-color-kap-b: $c-pool;
   .fancy-scroll--thumb-h { @include gradient-h($scrollbar-color-kap-a,$scrollbar-color-kap-b); }
   .fancy-scroll--thumb-v { @include gradient-v($scrollbar-color-kap-a,$scrollbar-color-kap-b); }
 }
+
+/* Dropdown Theme Scrollbars */
+ul.dropdown-menu {
+  .fancy-scroll--thumb-h { @include gradient-h($c-neutrino,$c-laser); }
+  .fancy-scroll--thumb-v { @include gradient-v($c-neutrino,$c-laser); }
+}

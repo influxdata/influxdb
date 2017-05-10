@@ -6,7 +6,7 @@
 */
 
 $dropdown-menu-default-width: 100%;
-$dropdown-menu-max-height: 290px;
+$dropdown-menu-max-height: 270px;
 
 /*
     Generic width modifiers
@@ -73,27 +73,26 @@ $dropdown-menu-max-height: 290px;
     ----------------------------------------------
 */
 .dropdown-menu {
-  float: none !important;
   width: $dropdown-menu-default-width;
-  min-width: $dropdown-menu-default-width;
-  max-width: $dropdown-menu-default-width;
-  margin: 0 !important;
-  padding: 0 !important;
+  min-width: initial;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
   max-height: $dropdown-menu-max-height;
-  overflow: auto;
-  @include custom-scrollbar-round($c-pool, $c-laser);
   @include gradient-h($c-ocean, $c-pool);
   box-shadow: 0 2px 5px 0.6px fade-out($g0-obsidian, 0.8);
 
-  > li {
+  li.dropdown-item {
+    position: relative;
     width: 100%;
-    font-size: 0px;
 
     &:hover {
       @include gradient-h($c-laser, $c-pool);
     }
   }
-  > li > a {
+  li.dropdown-item > a {
+    position: relative;
+    @include no-user-select();
     width: 100%;
     border-radius: 0 !important;
     display: inline-block;
@@ -119,12 +118,6 @@ $dropdown-menu-max-height: 290px;
       @include gradient-h($c-ocean, $c-pool);
     }
   }
-  > li:last-child a {
-    border-radius: 0 0 3px 3px;
-  }
-  > li:first-child a {
-    border-radius: 3px 3px 0 0;
-  }
 }
 .dropdown.dropdown-kapacitor .dropdown-toggle {
   color: $c-rainforest !important;
@@ -135,10 +128,10 @@ $dropdown-menu-max-height: 290px;
   @include custom-scrollbar($c-rainforest, $c-honeydew);
   @include gradient-h($c-pool, $c-rainforest);
 
-  > li:hover {
+  li.dropdown-item:hover {
     @include gradient-h($c-laser, $c-rainforest);
   }
-  > li > a {
+  li.dropdown-item > a {
     color: $c-mint !important;
     &:hover {
       color: $g20-white !important;
@@ -149,10 +142,10 @@ $dropdown-menu-max-height: 290px;
   @include custom-scrollbar($c-comet, $c-potassium);
   @include gradient-h($c-ocean, $c-comet);
 
-  > li:hover {
+  li.dropdown-item:hover {
     @include gradient-h($c-laser, $c-comet);
   }
-  > li > a {
+  li.dropdown-item > a {
     color: $c-twilight !important;
     &:hover {
       color: $g20-white !important;
@@ -187,14 +180,6 @@ $dropdown-menu-max-height: 290px;
     Dropdown Actions
     ----------------------------------------------
 */
-.dropdown-item {
-  position: relative;
-
-  > a {
-    position: relative;
-    z-index: 1;
-  }
-}
 .dropdown-item__actions {
   z-index: 2;
   position: absolute;
