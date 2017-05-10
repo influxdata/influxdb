@@ -16,7 +16,7 @@
   flex-grow: 1;
 }
 .page-contents {
-  position: absolute;
+  position: absolute !important;
   top: $chronograf-page-header-height;
   left: 0;
   width: 100%;

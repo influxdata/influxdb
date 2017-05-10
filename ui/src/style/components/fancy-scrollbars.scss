@@ -54,3 +54,12 @@ ul.dropdown-menu {
   .fancy-scroll--thumb-h { @include gradient-h($c-neutrino,$c-laser); }
   .fancy-scroll--thumb-v { @include gradient-v($c-neutrino,$c-laser); }
 }
+
+/* Hacky Fix to make this work in Safari */
+.query-builder--list {
+  position: relative;
+
+  .fancy-scroll--container {
+    position: absolute !important;
+  }
+}
