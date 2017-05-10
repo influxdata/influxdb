@@ -23,6 +23,7 @@ const SideNav = React.createClass({
       email: string,
     }),
     isHidden: bool.isRequired,
+    logoutLink: string,
   },
 
   render() {
@@ -31,6 +32,7 @@ const SideNav = React.createClass({
       params: {sourceID},
       location: {pathname: location},
       isHidden,
+      logoutLink,
     } = this.props
 
     const sourcePrefix = `/sources/${sourceID}`
@@ -79,7 +81,7 @@ const SideNav = React.createClass({
           </NavBlock>
           {showLogout
             ? <NavBlock icon="user-outline" className="sidebar__square-last">
-                <a className="sidebar__menu-item" href="/oauth/logout">
+                <a className="sidebar__menu-item" href={logoutLink}>
                   Logout
                 </a>
               </NavBlock>
@@ -89,11 +91,12 @@ const SideNav = React.createClass({
 })
 
 const mapStateToProps = ({
-  auth: {me},
+  auth: {me, logoutLink},
   app: {ephemeral: {inPresentationMode}},
 }) => ({
   me,
   isHidden: inPresentationMode,
+  logoutLink,
 })
 
 export default connect(mapStateToProps)(withRouter(SideNav))

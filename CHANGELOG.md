@@ -1,28 +1,43 @@
-## v1.2.0 [unreleased]
+## v1.3.1 [unreleased]
 
 ### Bug Fixes
-  1. [#1364](https://github.com/influxdata/chronograf/pull/1364): Fix link to home when using the --basepath option
-  1. [#1370](https://github.com/influxdata/chronograf/pull/1370): Remove notification to login outside of session timeout
-  1. [#1376](https://github.com/influxdata/chronograf/pull/1376): Fix queries built in query builder with math functions in fields
-  1. [#1399](https://github.com/influxdata/chronograf/pull/1399): User can no longer create a blank template variable by clicking outside a newly added one
-  1. [#1406](https://github.com/influxdata/chronograf/pull/1406): Ensure thresholds for Kapacitor Rule Alerts appear on page load
-  1. [#1412](https://github.com/influxdata/chronograf/pull/1412): Check kapacitor status on configuration update
+  1. [#1450](https://github.com/influxdata/chronograf/pull/1450): Fix infinite spinner when using "/chronograf" as a basepath
 
 ### Features
-  1. [#1382](https://github.com/influxdata/chronograf/pull/1382): Add line-protocol proxy for InfluxDB data sources
-  1. [#1391](https://github.com/influxdata/chronograf/pull/1391): :dashboardTime: - Support cell-specific time ranges
-  1. [#1201](https://github.com/influxdata/chronograf/pull/1201): Allow chronograf to enable/disable all tickscripts.
-  1. [#1401](https://github.com/influxdata/chronograf/pull/1401): Add support for kapacitor config deletion.
 
 ### UI Improvements
-  1. [#1378](https://github.com/influxdata/chronograf/pull/1378): Save query time range for dashboards
+
+## v1.3.0 [2017-05-09]
+
+### Bug Fixes
+  1. [#1364](https://github.com/influxdata/chronograf/pull/1364): Fix the link to home when using the `--basepath` option
+  1. [#1370](https://github.com/influxdata/chronograf/pull/1370): Remove the notification to login on the login page
+  1. [#1376](https://github.com/influxdata/chronograf/pull/1376): Support queries that perform math on functions
+  1. [#1399](https://github.com/influxdata/chronograf/pull/1399): Prevent the creation of blank template variables
+  1. [#1406](https://github.com/influxdata/chronograf/pull/1406): Ensure thresholds for Kapacitor Rule Alerts appear on page load
+  1. [#1412](https://github.com/influxdata/chronograf/pull/1412): Update the Kapacitor configuration page when the configuration changes
+  1. [#1407](https://github.com/influxdata/chronograf/pull/1407): Fix Authentication when using Chronograf with a set `basepath`
+  1. [#1417](https://github.com/influxdata/chronograf/pull/1417): Support escaping from presentation mode in Safari
   1. [#1365](https://github.com/influxdata/chronograf/pull/1365): Show red indicator on Hosts Page for an offline host
-  1. [#1373](https://github.com/influxdata/chronograf/pull/1373): Re-address dashboard cell stacking contexts
-  1. [#1385](https://github.com/influxdata/chronograf/pull/1385): Combined Measurements & Tags columns within the Data Explorer, feels more spacious and intuitive. New design for applying functions to Fields.
-  1. [#602](https://github.com/influxdata/chronograf/pull/602): Normalize terminology in app
-  1. [#1392](https://github.com/influxdata/chronograf/pull/1392): Overlays are now full screen
-  1. [#1395](https://github.com/influxdata/chronograf/pull/1395): Change default global time range to past 1 hour
-  1. [#1379](https://github.com/influxdata/chronograf/pull/1379): Re-add alert level colors on the alerts page
+  1. [#1379](https://github.com/influxdata/chronograf/pull/1379): Re-implement level colors on the alerts page
+  1. [#1433](https://github.com/influxdata/chronograf/pull/1433): Fix router bug introduced by upgrading to react-router v3.0
+  1. [#1435](https://github.com/influxdata/chronograf/pull/1435): Show legend on Line+Stat visualization type
+  1. [#1436](https://github.com/influxdata/chronograf/pull/1436): Prevent queries with `:dashboardTime:` from breaking the query builder
+
+### Features
+  1. [#1382](https://github.com/influxdata/chronograf/pull/1382): Add line-protocol proxy for InfluxDB/InfluxEnterprise Cluster data sources
+  1. [#1391](https://github.com/influxdata/chronograf/pull/1391): Add `:dashboardTime:` to support cell-specific time ranges on dashboards
+  1. [#1201](https://github.com/influxdata/chronograf/pull/1201): Add support for enabling and disabling TICKscripts that were created outside Chronograf
+  1. [#1401](https://github.com/influxdata/chronograf/pull/1401): Allow users to delete Kapacitor configurations
+
+### UI Improvements
+  1. [#1378](https://github.com/influxdata/chronograf/pull/1378): Save user-provided relative time ranges in cells
+  1. [#1373](https://github.com/influxdata/chronograf/pull/1373): Improve how cell legends and options appear on dashboards
+  1. [#1385](https://github.com/influxdata/chronograf/pull/1385): Combine the measurements and tags columns in the Data Explorer and implement a new design for applying functions to fields
+  1. [#602](https://github.com/influxdata/chronograf/pull/602): Normalize the terminology in Chronograf
+  1. [#1392](https://github.com/influxdata/chronograf/pull/1392): Make overlays full-screen
+  1. [#1395](https://github.com/influxdata/chronograf/pull/1395):Change the default global time range to past 1 hour
+  1. [#1439](https://github.com/influxdata/chronograf/pull/1439): Add Source Indicator icon to the Configuration and Admin pages
 
 ## v1.2.0-beta10 [2017-04-28]
 

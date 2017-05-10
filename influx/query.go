@@ -10,6 +10,12 @@ import (
 
 // Convert changes an InfluxQL query to a QueryConfig
 func Convert(influxQL string) (chronograf.QueryConfig, error) {
+	itsDashboardTime := false
+	if strings.Contains(influxQL, ":dashboardTime:") {
+		influxQL = strings.Replace(influxQL, ":dashboardTime:", "now() - 15m", 1)
+		itsDashboardTime = true
+	}
+
 	query, err := influxql.ParseQuery(influxQL)
 	if err != nil {
 		return chronograf.QueryConfig{}, err
@@ -177,8 +183,12 @@ func Convert(influxQL string) (chronograf.QueryConfig, error) {
 
 	// If the condition has a time range we report back its duration
 	if dur, ok := hasTimeRange(stmt.Condition); ok {
-		qc.Range = &chronograf.DurationRange{
-			Lower: "now() - " + shortDur(dur),
+		if !itsDashboardTime {
+			qc.Range = &chronograf.DurationRange{
+				Lower: "now() - " + shortDur(dur),
+			}
+		} else {
+			strings.Replace(influxQL, "now() - 15m", ":dashboardTime:", 1)
 		}
 	}
 

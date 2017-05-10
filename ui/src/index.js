@@ -32,6 +32,7 @@ import {
   authReceived,
   meRequested,
   meReceived,
+  logoutLinkReceived,
 } from 'shared/actions/auth'
 import {errorThrown} from 'shared/actions/errors'
 
@@ -41,18 +42,11 @@ import {HEARTBEAT_INTERVAL} from 'shared/constants'
 
 const rootNode = document.getElementById('react-root')
 
-let browserHistory
-const basepath = rootNode.dataset.basepath
+const basepath = rootNode.dataset.basepath || ''
 window.basepath = basepath
-if (basepath) {
-  browserHistory = useRouterHistory(createHistory)({
-    basename: basepath, // this is written in when available by the URL prefixer middleware
-  })
-} else {
-  browserHistory = useRouterHistory(createHistory)({
-    basename: '',
-  })
-}
+const browserHistory = useRouterHistory(createHistory)({
+  basename: basepath, // this is written in when available by the URL prefixer middleware
+})
 
 const store = configureStore(loadLocalStorage(), browserHistory)
 const {dispatch} = store
@@ -62,7 +56,9 @@ browserHistory.listen(() => {
 })
 
 window.addEventListener('keyup', event => {
-  if (event.key === 'Escape') {
+  const escapeKeyCode = 27
+  // fallback for browsers that don't support event.key
+  if (event.key === 'Escape' || event.keyCode === escapeKeyCode) {
     dispatch(disablePresentationMode())
   }
 })
@@ -86,10 +82,11 @@ const Root = React.createClass({
 
   async startHeartbeat({shouldDispatchResponse}) {
     try {
-      const {data: me, auth} = await getMe()
+      const {data: me, auth, logoutLink} = await getMe()
       if (shouldDispatchResponse) {
         dispatch(authReceived(auth))
         dispatch(meReceived(me))
+        dispatch(logoutLinkReceived(logoutLink))
       }
 
       setTimeout(() => {
@@ -107,12 +104,12 @@ const Root = React.createClass({
       <Provider store={store}>
         <Router history={history}>
           <Route path="/" component={UserIsAuthenticated(CheckSources)} />
-          <Route path="login" component={UserIsNotAuthenticated(Login)} />
+          <Route path="/login" component={UserIsNotAuthenticated(Login)} />
           <Route
-            path="sources/new"
+            path="/sources/new"
             component={UserIsAuthenticated(CreateSource)}
           />
-          <Route path="sources/:sourceID" component={UserIsAuthenticated(App)}>
+          <Route path="/sources/:sourceID" component={UserIsAuthenticated(App)}>
             <Route component={CheckSources}>
               <Route path="manage-sources" component={ManageSources} />
               <Route path="manage-sources/new" component={SourcePage} />

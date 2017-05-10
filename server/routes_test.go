@@ -11,7 +11,7 @@ import (
 
 func TestAllRoutes(t *testing.T) {
 	logger := log.New(log.DebugLevel)
-	handler := AllRoutes([]AuthRoute{}, logger)
+	handler := AllRoutes([]AuthRoute{}, "", logger)
 	req := httptest.NewRequest("GET", "http://docbrowns-inventions.com", nil)
 	w := httptest.NewRecorder()
 	handler(w, req)
