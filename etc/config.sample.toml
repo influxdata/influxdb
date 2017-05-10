@@ -133,9 +133,6 @@
 
   # The maximum number of series a SELECT can run.  A value of 0 will make the maximum series
   # count unlimited.
-
-  # The maximum number of series a SELECT can run. A value of zero will make the maximum series
-  # count unlimited.
   # max-select-series = 0
 
   # The maxium number of group by time bucket a SELECt can create.  A value of zero will max the maximum
@@ -207,13 +204,13 @@
   # The bind address used by the HTTP service.
   # bind-address = ":8086"
 
-  # Determines whether HTTP authentication is enabled.
+  # Determines whether user authentication is enabled over HTTP/HTTPS.
   # auth-enabled = false
 
   # The default realm sent back when issuing a basic auth challenge.
   # realm = "InfluxDB"
 
-  # Determines whether HTTP request logging is enable.d
+  # Determines whether HTTP request logging is enabled.
   # log-enabled = true
 
   # Determines whether detailed write logging is enabled.
