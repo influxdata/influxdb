@@ -175,10 +175,10 @@ class AdminPage extends Component {
           </div>
         </div>
         <div className="page-contents">
-          <div className="container-fluid">
-            <div className="row">
-              {users
-                ? <AdminTabs
+          {users
+            ? <div className="container-fluid">
+                <div className="row">
+                  <AdminTabs
                     users={users}
                     roles={roles}
                     source={source}
@@ -203,9 +203,9 @@ class AdminPage extends Component {
                     onUpdateUserRoles={this.handleUpdateUserRoles}
                     onUpdateUserPassword={this.handleUpdateUserPassword}
                   />
-                : <span>Loading...</span>}
-            </div>
-          </div>
+                </div>
+              </div>
+            : <div className="page-spinner"/>}
         </div>
       </div>
     )
