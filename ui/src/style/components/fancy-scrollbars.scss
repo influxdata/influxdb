@@ -9,6 +9,10 @@ $scrollbar-thumb-size: 6px;
 $scrollbar-color-a: $c-pool;
 $scrollbar-color-b: $c-comet;
 
+.fancy-scroll--track-h,
+.fancy-scroll--track-v {
+  &:hover {cursor: pointer;}
+}
 /* Horizontal Scrollbar Styles */
 .fancy-scroll--track-h {
   padding: ($scrollbar-track-size - $scrollbar-thumb-size) / 2;
