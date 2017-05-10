@@ -5,11 +5,10 @@
 $page-header-size: 19px;
 $page-header-weight: 400 !important;
 
-
 .page-header {
   height: $chronograf-page-header-height;
   width: 100%;
-  padding: 0 ($page-wrapper-padding + $scrollbar-width) 0 $page-wrapper-padding;
+  padding: 0 $page-wrapper-padding;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -19,6 +18,9 @@ $page-header-weight: 400 !important;
   background-color: $g0-obsidian;
   border: none;
   margin: 0;
+}
+.page-header.full-width .page-header__container {
+  max-width: 100%;
 }
 .page-header__container {
   width: 100%;
@@ -48,16 +50,6 @@ $page-header-weight: 400 !important;
   justify-content: flex-end;
   > * {
     margin: 0 0 0 4px;
-  }
-}
-.page-header.full-width .page-header__container {
-  max-width: 100%;
-}
-.page-header.full-width-no-scrollbar {
-  padding-right: $page-wrapper-padding;
-
-  .page-header__container {
-    max-width: 100%;
   }
 }
 .page-header__title {

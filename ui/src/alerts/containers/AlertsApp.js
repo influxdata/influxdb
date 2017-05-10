@@ -1,8 +1,10 @@
 import React, {PropTypes, Component} from 'react'
-import SourceIndicator from '../../shared/components/SourceIndicator'
-import AlertsTable from '../components/AlertsTable'
-import NoKapacitorError from '../../shared/components/NoKapacitorError'
+
+import SourceIndicator from 'src/shared/components/SourceIndicator'
+import AlertsTable from 'src/alerts/components/AlertsTable'
+import NoKapacitorError from 'src/shared/components/NoKapacitorError'
 import CustomTimeRangeDropdown from 'shared/components/CustomTimeRangeDropdown'
+import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 import {getAlerts} from '../apis'
 import AJAX from 'utils/ajax'
@@ -148,7 +150,7 @@ class AlertsApp extends Component {
             </div>
           </div>
         </div>
-        <div className="page-contents">
+        <FancyScrollbar className="page-contents">
           <div className="container-fluid">
             <div className="row">
               <div className="col-md-12">
@@ -156,7 +158,7 @@ class AlertsApp extends Component {
               </div>
             </div>
           </div>
-        </div>
+        </FancyScrollbar>
       </div>
     )
   }

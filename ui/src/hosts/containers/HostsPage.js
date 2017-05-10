@@ -1,7 +1,10 @@
 import React, {PropTypes} from 'react'
 import _ from 'lodash'
-import HostsTable from '../components/HostsTable'
-import SourceIndicator from '../../shared/components/SourceIndicator'
+
+import HostsTable from 'src/hosts/components/HostsTable'
+import FancyScrollbar from 'shared/components/FancyScrollbar'
+import SourceIndicator from 'src/shared/components/SourceIndicator'
+
 import {getCpuAndLoadForHosts, getMappings, getAppsForHosts} from '../apis'
 
 export const HostsPage = React.createClass({
@@ -87,7 +90,7 @@ export const HostsPage = React.createClass({
             </div>
           </div>
         </div>
-        <div className="page-contents">
+        <FancyScrollbar className="page-contents">
           <div className="container-fluid">
             <div className="row">
               <div className="col-md-12">
@@ -100,7 +103,7 @@ export const HostsPage = React.createClass({
               </div>
             </div>
           </div>
-        </div>
+        </FancyScrollbar>
       </div>
     )
   },

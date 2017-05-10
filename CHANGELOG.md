@@ -6,6 +6,7 @@
 ### Features
 
 ### UI Improvements
+  1. [#1451](https://github.com/influxdata/chronograf/pull/1451): Using cross browser aesthetically pleasing scrollbars in place of browser defaults
 
 ## v1.3.0 [2017-05-09]
 
