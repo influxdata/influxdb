@@ -41,9 +41,6 @@ $dash-graph-options-arrow: 8px;
 }
 
 .dashboard {
-  &.container-fluid.full-width {
-    padding-top: 8px;
-  }
   .react-grid-item {
     @extend .cell-shell;
   }
