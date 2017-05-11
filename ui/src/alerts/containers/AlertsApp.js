@@ -93,10 +93,6 @@ class AlertsApp extends Component {
   }
 
   renderSubComponents() {
-    if (this.state.loading) {
-      return <div className="page-spinner"/>
-    }
-
     const {source} = this.props
     return (
       <div className="container-fluid">
@@ -104,8 +100,7 @@ class AlertsApp extends Component {
           <div className="col-md-12">
             {this.state.hasKapacitor
               ? <AlertsTable source={source} alerts={this.state.alerts} />
-              : <NoKapacitorError source={source} />
-            }
+              : <NoKapacitorError source={source} />}
           </div>
         </div>
       </div>
