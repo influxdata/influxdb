@@ -9,8 +9,9 @@ import {
   deleteKapacitorAsync,
 } from 'src/shared/actions/sources'
 
-import SourceIndicator from '../../shared/components/SourceIndicator'
-import InfluxTable from '../components/InfluxTable'
+import FancyScrollbar from 'shared/components/FancyScrollbar'
+import SourceIndicator from 'src/shared/components/SourceIndicator'
+import InfluxTable from 'src/sources/components/InfluxTable'
 
 class ManageSources extends Component {
   constructor(props) {
@@ -61,7 +62,7 @@ class ManageSources extends Component {
             </div>
           </div>
         </div>
-        <div className="page-contents">
+        <FancyScrollbar className="page-contents">
           <div className="container-fluid">
             <InfluxTable
               handleDeleteSource={this.handleDeleteSource}
@@ -71,7 +72,7 @@ class ManageSources extends Component {
               handleDeleteKapacitor={deleteKapacitor}
             />
           </div>
-        </div>
+        </FancyScrollbar>
       </div>
     )
   }

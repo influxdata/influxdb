@@ -1,9 +1,10 @@
 import React, {PropTypes} from 'react'
 import {Link} from 'react-router'
 
-import NoKapacitorError from '../../shared/components/NoKapacitorError'
-import SourceIndicator from '../../shared/components/SourceIndicator'
+import NoKapacitorError from 'src/shared/components/NoKapacitorError'
+import SourceIndicator from 'src/shared/components/SourceIndicator'
 import KapacitorRulesTable from 'src/kapacitor/components/KapacitorRulesTable'
+import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 const KapacitorRules = ({
   source,
@@ -62,7 +63,7 @@ const PageContents = ({children, source}) => (
         </div>
       </div>
     </div>
-    <div className="page-contents">
+    <FancyScrollbar className="page-contents fancy-scroll--kapacitor">
       <div className="container-fluid">
         <div className="row">
           <div className="col-md-12">
@@ -72,7 +73,7 @@ const PageContents = ({children, source}) => (
           </div>
         </div>
       </div>
-    </div>
+    </FancyScrollbar>
   </div>
 )
 

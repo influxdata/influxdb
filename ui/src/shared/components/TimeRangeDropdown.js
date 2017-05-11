@@ -1,8 +1,9 @@
 import React from 'react'
 import classnames from 'classnames'
-import OnClickOutside from 'shared/components/OnClickOutside'
-
 import moment from 'moment'
+
+import OnClickOutside from 'shared/components/OnClickOutside'
+import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 import timeRanges from 'hson!../data/timeRanges.hson'
 
@@ -55,28 +56,30 @@ const TimeRangeDropdown = React.createClass({
     const {isOpen} = self.state
 
     return (
-      <div className="dropdown dropdown-160">
+      <div className={classnames('dropdown dropdown-160', {open: isOpen})}>
         <div
           className="btn btn-sm btn-info dropdown-toggle"
           onClick={() => self.toggleMenu()}
         >
           <span className="icon clock" />
-          <span className="selected-time-range">
+          <span className="dropdown-selected">
             {self.findTimeRangeInputValue(selected)}
           </span>
           <span className="caret" />
         </div>
-        <ul className={classnames('dropdown-menu', {show: isOpen})}>
-          <li className="dropdown-header">Time Range</li>
-          {timeRanges.map(item => {
-            return (
-              <li key={item.menuOption}>
-                <a href="#" onClick={() => self.handleSelection(item)}>
-                  {item.menuOption}
-                </a>
-              </li>
-            )
-          })}
+        <ul className="dropdown-menu" style={{height: '270px'}}>
+          <FancyScrollbar>
+            <li className="dropdown-header">Time Range</li>
+            {timeRanges.map(item => {
+              return (
+                <li className="dropdown-item" key={item.menuOption}>
+                  <a href="#" onClick={() => self.handleSelection(item)}>
+                    {item.menuOption}
+                  </a>
+                </li>
+              )
+            })}
+          </FancyScrollbar>
         </ul>
       </div>
     )

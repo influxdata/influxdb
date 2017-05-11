@@ -6,6 +6,8 @@
 ### Features
 
 ### UI Improvements
+  1. [#1451](https://github.com/influxdata/chronograf/pull/1451): Refactor scrollbars to support non-webkit browsers
+  1. [#1453](https://github.com/influxdata/chronograf/pull/1453): Give QueryMaker a greater initial height than Visualization
 
 ## v1.3.0 [2017-05-09]
 

@@ -156,25 +156,45 @@
 
 
 /*
-    Kapacitor selector dropdown
+    Custom Tabs
     ----------------------------------------------
 */
-.dropdown .dropdown-toggle.btn-xs {
-  height: 22px !important;
-  line-height: 22px !important;
-  padding: 0 9px !important;
-}
-.dropdown-selected {
+.tab-group {
+  display: flex;
+  justify-content: flex-start;
   display: inline-block;
-  width: 100%;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  padding-right: 15px;
-}
-.dropdown.sources--kapacitor-selector {
-  .dropdown-toggle {
-    width: 160px;
+
+  .btn.tab {
+    border: 2px solid $g17-whisper;
+    border-right-width: 0;
+    padding: 10px 20px;
+    margin: 0 !important;
+    font-weight: 400;
+    color: $g11-sidewalk;
+    background-color: $g17-whisper;
+    box-shadow: none;
+    transition:
+      color 0.25s ease,
+      background-color 0.25s ease;
+
+    &:hover {
+      cursor: pointer;
+      background-color: $g18-cloud;
+      color: $g9-mountain;
+    }
+
+    &:first-child {
+      border-radius: 5px 0 0 5px;
+    }
+
+    &:last-child {
+      border-radius: 0 5px 5px 0;
+      border-right-width: 2px;
+    }
+    &.active {
+      background-color: white;
+      color: $g8-storm;
+    }
   }
 }
 
@@ -186,3 +206,15 @@
   @include no-user-select();
 }
 
+
+
+.select-source-page {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  @include custom-scrollbar($g2-kevlar, $c-pool);
+  @include gradient-v($g2-kevlar, $g0-obsidian);
+}
