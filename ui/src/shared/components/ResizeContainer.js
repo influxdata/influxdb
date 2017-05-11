@@ -70,7 +70,8 @@ class ResizeContainer extends Component {
     }
 
     const topHeightPixels = newTopPanelPercent / oneHundred * containerHeight
-    const bottomHeightPixels = newBottomPanelPercent / oneHundred * containerHeight
+    const bottomHeightPixels =
+      newBottomPanelPercent / oneHundred * containerHeight
 
     // Don't trigger a resize if the new sizes are too small
     if (
@@ -102,13 +103,17 @@ class ResizeContainer extends Component {
     const {containerClass, children} = this.props
 
     if (React.Children.count(children) > maximumNumChildren) {
-      console.error(`There cannot be more than ${maximumNumChildren}' children in ResizeContainer`)
+      console.error(
+        `There cannot be more than ${maximumNumChildren}' children in ResizeContainer`
+      )
       return
     }
 
     return (
       <div
-        className={classnames(`resize--container ${containerClass}`, {'resize--dragging': isDragging})}
+        className={classnames(`resize--container ${containerClass}`, {
+          'resize--dragging': isDragging,
+        })}
         onMouseLeave={this.handleMouseLeave}
         onMouseUp={this.handleStopDrag}
         onMouseMove={this.handleDrag}
@@ -118,7 +123,10 @@ class ResizeContainer extends Component {
           {React.cloneElement(children[0])}
         </div>
         {this.renderHandle()}
-        <div className="resize--bottom" style={{height: bottomHeight, top: topHeight}}>
+        <div
+          className="resize--bottom"
+          style={{height: bottomHeight, top: topHeight}}
+        >
           {React.cloneElement(children[1])}
         </div>
       </div>
