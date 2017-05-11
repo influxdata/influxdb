@@ -555,6 +555,10 @@ func BenchmarkTimeEncoder(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		enc.Bytes()
+		enc.Reset()
+		for i := 0; i < len(x); i++ {
+			enc.Write(x[i])
+		}
 	}
 }
 
@@ -569,10 +573,7 @@ func BenchmarkTimeDecoder_Packed(b *testing.B) {
 
 	b.ResetTimer()
 
-	b.StopTimer()
 	var dec TimeDecoder
-	b.StartTimer()
-
 	for i := 0; i < b.N; i++ {
 		dec.Init(bytes)
 		for dec.Next() {
