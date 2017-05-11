@@ -22,11 +22,12 @@ The admin UI is removed and unusable in this release. The `[admin]` configuratio
 - [#8302](https://github.com/influxdata/influxdb/pull/8302): Write throughput/concurrency improvements
 - [#8273](https://github.com/influxdata/influxdb/issues/8273): Remove the admin UI.
 - [#8327](https://github.com/influxdata/influxdb/pull/8327): Update to go1.8.1
-- [#8348](https://github.com/influxd	ata/influxdb/pull/8348): Add max concurrent compaction limits
+- [#8348](https://github.com/influxdata/influxdb/pull/8348): Add max concurrent compaction limits
 - [#8366](https://github.com/influxdata/influxdb/pull/8366): Add TSI support tooling.
 - [#8350](https://github.com/influxdata/influxdb/pull/8350): Track HTTP client requests for /write and /query with /debug/requests.
+<<<<<<< 8f8ff0ec612e6e77ff618f572b302e069de8e5c3
 - [#8384](https://github.com/influxdata/influxdb/pull/8384): Write and compaction stability
-- [#7862](https://github.com/influxdata/influxdb/pull/7861): Add new profile endpoint for gathering all debug profiles single in archive.
+- [#7862](https://github.com/influxdata/influxdb/pull/7861): Add new profile endpoint for gathering all debug profiles and querues in single archive.
 
 ### Bugfixes
 

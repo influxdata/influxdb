@@ -74,6 +74,7 @@ type Handler struct {
 
 	MetaClient interface {
 		Database(name string) *meta.DatabaseInfo
+		Databases() []meta.DatabaseInfo
 		Authenticate(username, password string) (ui *meta.UserInfo, err error)
 		User(username string) (*meta.UserInfo, error)
 		AdminUserExists() bool
@@ -251,7 +252,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("X-Influxdb-Version", h.Version)
 
 	if strings.HasPrefix(r.URL.Path, "/debug/pprof") && h.Config.PprofEnabled {
-		handleProfiles(w, r)
+		h.handleProfiles(w, r)
 	} else if strings.HasPrefix(r.URL.Path, "/debug/vars") {
 		h.serveExpvar(w, r)
 	} else if strings.HasPrefix(r.URL.Path, "/debug/requests") {

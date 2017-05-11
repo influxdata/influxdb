@@ -34,6 +34,8 @@ type MetaClientMock struct {
 
 	RetentionPolicyFn func(database, name string) (rpi *meta.RetentionPolicyInfo, err error)
 
+	AuthenticateFn           func(username, password string) (ui *meta.UserInfo, err error)
+	AdminUserExistsFn        func() bool
 	SetAdminPrivilegeFn      func(username string, admin bool) error
 	SetDataFn                func(*meta.Data) error
 	SetPrivilegeFn           func(username, database string, p influxql.Privilege) error
@@ -43,6 +45,7 @@ type MetaClientMock struct {
 	UpdateUserFn             func(name, password string) error
 	UserPrivilegeFn          func(username, database string) (*influxql.Privilege, error)
 	UserPrivilegesFn         func(username string) (map[string]influxql.Privilege, error)
+	UserFn                   func(username string) (*meta.UserInfo, error)
 	UsersFn                  func() []meta.UserInfo
 }
 
@@ -150,7 +153,13 @@ func (c *MetaClientMock) UserPrivileges(username string) (map[string]influxql.Pr
 	return c.UserPrivilegesFn(username)
 }
 
-func (c *MetaClientMock) Users() []meta.UserInfo { return c.UsersFn() }
+func (c *MetaClientMock) Authenticate(username, password string) (*meta.UserInfo, error) {
+	return c.AuthenticateFn(username, password)
+}
+func (c *MetaClientMock) AdminUserExists() bool { return c.AdminUserExistsFn() }
+
+func (c *MetaClientMock) User(username string) (*meta.UserInfo, error) { return c.UserFn(username) }
+func (c *MetaClientMock) Users() []meta.UserInfo                       { return c.UsersFn() }
 
 func (c *MetaClientMock) Open() error                { return c.OpenFn() }
 func (c *MetaClientMock) Data() meta.Data            { return c.DataFn() }
