@@ -1,5 +1,6 @@
 import React, {PropTypes} from 'react'
 import buildInfluxQLQuery from 'utils/influxql'
+import classnames from 'classnames'
 
 import DatabaseList from '../../data_explorer/components/DatabaseList'
 import MeasurementList from '../../data_explorer/components/MeasurementList'
@@ -76,16 +77,21 @@ export const DataSection = React.createClass({
 
   render() {
     const {query, timeRange: {lower}} = this.props
-    const statement =
-      query.rawText ||
-      buildInfluxQLQuery({lower}, query) ||
-      'Build a query below'
+    const statement = query.rawText || buildInfluxQLQuery({lower}, query)
 
     return (
       <div className="kapacitor-rule-section kapacitor-metric-selector">
         <h3 className="rule-section-heading">Select a Time Series</h3>
         <div className="rule-section-body">
-          <pre><code>{statement}</code></pre>
+          <pre>
+            <code
+              className={classnames({
+                'kapacitor-metric-placeholder': !statement,
+              })}
+            >
+              {statement || 'Build a query below'}
+            </code>
+          </pre>
           {this.renderQueryBuilder()}
         </div>
       </div>
