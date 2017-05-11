@@ -43,10 +43,6 @@
 }
 .query-builder--list {
   padding: 0;
-  overflow: auto;
-  overflow-x: hidden;
-  overflow-y: scroll;
-  @include custom-scrollbar($query-builder--list-bg,$c-pool);
   background-color: $query-builder--list-bg;
 }
 .query-builder--list-empty {

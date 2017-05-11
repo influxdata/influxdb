@@ -7,6 +7,8 @@ import classnames from 'classnames'
 
 import LayoutRenderer from 'shared/components/LayoutRenderer'
 import DashboardHeader from 'src/dashboards/components/DashboardHeader'
+import FancyScrollbar from 'shared/components/FancyScrollbar'
+
 import timeRanges from 'hson!../../shared/data/timeRanges.hson'
 import {
   getMappings,
@@ -199,16 +201,14 @@ export const HostPage = React.createClass({
             )
           })}
         </DashboardHeader>
-        <div
-          className={classnames({
-            'page-contents': true,
-            'presentation-mode': inPresentationMode,
-          })}
-        >
+        <FancyScrollbar className={classnames({
+          'page-contents': true,
+          'presentation-mode': inPresentationMode,
+        })}>
           <div className="container-fluid full-width dashboard">
             {layouts.length > 0 ? this.renderLayouts(layouts) : ''}
           </div>
-        </div>
+        </FancyScrollbar>
       </div>
     )
   },

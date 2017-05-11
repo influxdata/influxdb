@@ -39,7 +39,7 @@ const Header = React.createClass({
     } = this.props
 
     return (
-      <div className="page-header full-width-no-scrollbar">
+      <div className="page-header full-width">
         <div className="page-header__container">
           <div className="page-header__left">
             <h1 className="page-header__title">

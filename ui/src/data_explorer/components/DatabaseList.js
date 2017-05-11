@@ -6,6 +6,8 @@ import {showDatabases, showRetentionPolicies} from 'shared/apis/metaQuery'
 import showDatabasesParser from 'shared/parsing/showDatabases'
 import showRetentionPoliciesParser from 'shared/parsing/showRetentionPolicies'
 
+import FancyScrollbar from 'shared/components/FancyScrollbar'
+
 const {func, shape, string} = PropTypes
 
 const DatabaseList = React.createClass({
@@ -67,24 +69,26 @@ const DatabaseList = React.createClass({
       <div className="query-builder--column query-builder--column-db">
         <div className="query-builder--heading">Databases</div>
         <div className="query-builder--list">
-          {this.state.namespaces.map(namespace => {
-            const {database, retentionPolicy} = namespace
-            const isActive =
-              database === query.database &&
-              retentionPolicy === query.retentionPolicy
+          <FancyScrollbar>
+            {this.state.namespaces.map(namespace => {
+              const {database, retentionPolicy} = namespace
+              const isActive =
+                database === query.database &&
+                retentionPolicy === query.retentionPolicy
 
-            return (
-              <div
-                className={classnames('query-builder--list-item', {
-                  active: isActive,
-                })}
-                key={`${database}..${retentionPolicy}`}
-                onClick={_.wrap(namespace, onChooseNamespace)}
-              >
-                {database}.{retentionPolicy}
-              </div>
-            )
-          })}
+              return (
+                <div
+                  className={classnames('query-builder--list-item', {
+                    active: isActive,
+                  })}
+                  key={`${database}..${retentionPolicy}`}
+                  onClick={_.wrap(namespace, onChooseNamespace)}
+                >
+                  {database}.{retentionPolicy}
+                </div>
+              )
+            })}
+          </FancyScrollbar>
         </div>
       </div>
     )
