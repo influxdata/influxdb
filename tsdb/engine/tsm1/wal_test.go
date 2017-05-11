@@ -37,6 +37,10 @@ func TestWALWriter_WriteMulti_Single(t *testing.T) {
 		fatal(t, "write points", err)
 	}
 
+	if err := w.Flush(); err != nil {
+		fatal(t, "flush", err)
+	}
+
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		fatal(t, "seek", err)
 	}
@@ -92,6 +96,10 @@ func TestWALWriter_WriteMulti_LargeBatch(t *testing.T) {
 
 	if err := w.Write(mustMarshalEntry(entry)); err != nil {
 		fatal(t, "write points", err)
+	}
+
+	if err := w.Flush(); err != nil {
+		fatal(t, "flush", err)
 	}
 
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
@@ -150,6 +158,9 @@ func TestWALWriter_WriteMulti_Multiple(t *testing.T) {
 
 		if err := w.Write(mustMarshalEntry(entry)); err != nil {
 			fatal(t, "write points", err)
+		}
+		if err := w.Flush(); err != nil {
+			fatal(t, "flush", err)
 		}
 	}
 
@@ -211,6 +222,10 @@ func TestWALWriter_WriteDelete_Single(t *testing.T) {
 		fatal(t, "write points", err)
 	}
 
+	if err := w.Flush(); err != nil {
+		fatal(t, "flush", err)
+	}
+
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		fatal(t, "seek", err)
 	}
@@ -259,6 +274,10 @@ func TestWALWriter_WriteMultiDelete_Multiple(t *testing.T) {
 		fatal(t, "write points", err)
 	}
 
+	if err := w.Flush(); err != nil {
+		fatal(t, "flush", err)
+	}
+
 	// Write the delete entry
 	deleteEntry := &tsm1.DeleteWALEntry{
 		Keys: []string{"cpu,host=A#!~value"},
@@ -266,6 +285,10 @@ func TestWALWriter_WriteMultiDelete_Multiple(t *testing.T) {
 
 	if err := w.Write(mustMarshalEntry(deleteEntry)); err != nil {
 		fatal(t, "write points", err)
+	}
+
+	if err := w.Flush(); err != nil {
+		fatal(t, "flush", err)
 	}
 
 	// Seek back to the beinning of the file for reading
@@ -348,6 +371,10 @@ func TestWALWriter_WriteMultiDeleteRange_Multiple(t *testing.T) {
 		fatal(t, "write points", err)
 	}
 
+	if err := w.Flush(); err != nil {
+		fatal(t, "flush", err)
+	}
+
 	// Write the delete entry
 	deleteEntry := &tsm1.DeleteRangeWALEntry{
 		Keys: []string{"cpu,host=A#!~value"},
@@ -357,6 +384,10 @@ func TestWALWriter_WriteMultiDeleteRange_Multiple(t *testing.T) {
 
 	if err := w.Write(mustMarshalEntry(deleteEntry)); err != nil {
 		fatal(t, "write points", err)
+	}
+
+	if err := w.Flush(); err != nil {
+		fatal(t, "flush", err)
 	}
 
 	// Seek back to the beinning of the file for reading
@@ -531,6 +562,10 @@ func TestWALWriter_Corrupt(t *testing.T) {
 	}
 	if err := w.Write(mustMarshalEntry(entry)); err != nil {
 		fatal(t, "write points", err)
+	}
+
+	if err := w.Flush(); err != nil {
+		fatal(t, "flush", err)
 	}
 
 	// Write some random bytes to the file to simulate corruption.

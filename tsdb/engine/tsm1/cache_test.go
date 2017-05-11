@@ -579,6 +579,10 @@ func TestCacheLoader_LoadSingle(t *testing.T) {
 		t.Fatal("write points", err)
 	}
 
+	if err := w.Flush(); err != nil {
+		t.Fatalf("flush error: %v", err)
+	}
+
 	// Load the cache using the segment.
 	cache := NewCache(1024, "")
 	loader := NewCacheLoader([]string{f.Name()})
@@ -642,6 +646,9 @@ func TestCacheLoader_LoadDouble(t *testing.T) {
 		}
 		if err := w1.Write(mustMarshalEntry(entry)); err != nil {
 			t.Fatal("write points", err)
+		}
+		if err := w1.Flush(); err != nil {
+			t.Fatalf("flush error: %v", err)
 		}
 	}
 
@@ -707,6 +714,10 @@ func TestCacheLoader_LoadDeleted(t *testing.T) {
 		t.Fatal("write points", err)
 	}
 
+	if err := w.Flush(); err != nil {
+		t.Fatalf("flush error: %v", err)
+	}
+
 	dentry := &DeleteRangeWALEntry{
 		Keys: []string{"foo"},
 		Min:  2,
@@ -715,6 +726,10 @@ func TestCacheLoader_LoadDeleted(t *testing.T) {
 
 	if err := w.Write(mustMarshalEntry(dentry)); err != nil {
 		t.Fatal("write points", err)
+	}
+
+	if err := w.Flush(); err != nil {
+		t.Fatalf("flush error: %v", err)
 	}
 
 	// Load the cache using the segment.

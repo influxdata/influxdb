@@ -944,6 +944,7 @@ func (w *DeleteRangeWALEntry) Type() WalEntryType {
 
 // WALSegmentWriter writes WAL segments.
 type WALSegmentWriter struct {
+	bw   *bufio.Writer
 	w    io.WriteCloser
 	size int
 }
@@ -951,7 +952,8 @@ type WALSegmentWriter struct {
 // NewWALSegmentWriter returns a new WALSegmentWriter writing to w.
 func NewWALSegmentWriter(w io.WriteCloser) *WALSegmentWriter {
 	return &WALSegmentWriter{
-		w: w,
+		bw: bufio.NewWriter(w),
+		w:  w,
 	}
 }
 
@@ -968,11 +970,11 @@ func (w *WALSegmentWriter) Write(entryType WalEntryType, compressed []byte) erro
 	buf[0] = byte(entryType)
 	binary.BigEndian.PutUint32(buf[1:5], uint32(len(compressed)))
 
-	if _, err := w.w.Write(buf[:]); err != nil {
+	if _, err := w.bw.Write(buf[:]); err != nil {
 		return err
 	}
 
-	if _, err := w.w.Write(compressed); err != nil {
+	if _, err := w.bw.Write(compressed); err != nil {
 		return err
 	}
 
@@ -984,13 +986,24 @@ func (w *WALSegmentWriter) Write(entryType WalEntryType, compressed []byte) erro
 // Sync flushes the file systems in-memory copy of recently written data to disk,
 // if w is writing to an os.File.
 func (w *WALSegmentWriter) sync() error {
+	if err := w.bw.Flush(); err != nil {
+		return err
+	}
+
 	if f, ok := w.w.(*os.File); ok {
 		return f.Sync()
 	}
 	return nil
 }
 
+func (w *WALSegmentWriter) Flush() error {
+	return w.bw.Flush()
+}
+
 func (w *WALSegmentWriter) close() error {
+	if err := w.Flush(); err != nil {
+		return err
+	}
 	return w.w.Close()
 }
 
