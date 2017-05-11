@@ -4,9 +4,10 @@ import classnames from 'classnames'
 import ResizeHandle from 'shared/components/ResizeHandle'
 
 const maximumNumChildren = 2
-const minimumTopHeight = 200
-const minimumBottomHeight = 200
-const initialHeight = '50%'
+const defaultMinTopHeight = 200
+const defaultMinBottomHeight = 200
+const defaultInitialTopHeight = '50%'
+const defaultInitialBottomHeight = '50%'
 
 class ResizeContainer extends Component {
   constructor(props) {
@@ -24,10 +25,10 @@ class ResizeContainer extends Component {
   }
 
   static defaultProps = {
-    minTopHeight: minimumTopHeight,
-    minBottomHeight: minimumBottomHeight,
-    initialTopHeight: initialHeight,
-    initialBottomHeight: initialHeight,
+    minTopHeight: defaultMinTopHeight,
+    minBottomHeight: defaultMinBottomHeight,
+    initialTopHeight: defaultInitialTopHeight,
+    initialBottomHeight: defaultInitialBottomHeight,
   }
 
   handleStartDrag() {
