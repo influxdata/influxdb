@@ -120,12 +120,14 @@ const InfluxTable = ({
                       )}
                     </td>
                     <td className="text-right">
-                      <Link
-                        className="btn btn-success btn-xs"
-                        to={`/sources/${s.id}/hosts`}
-                      >
-                        Connect
-                      </Link>
+                      {s.id === source.id
+                        ? <span className="currently-connected-source">Connected</span>
+                        : <Link
+                            className="btn btn-success btn-xs"
+                            to={`/sources/${s.id}/hosts`}
+                          >
+                            Connect
+                          </Link>}
                       <button
                         className="btn btn-danger btn-xs"
                         onClick={() => handleDeleteSource(s)}

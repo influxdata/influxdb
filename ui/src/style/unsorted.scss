@@ -178,4 +178,11 @@
   }
 }
 
+.currently-connected-source {
+  color: $c-rainforest;
+  font-weight: 600;
+  font-size: 12px;
+  margin: 0 4px;
+  @include no-user-select();
+}
 
