@@ -1223,6 +1223,10 @@ func (e *Engine) compactTSMFull(quit <-chan struct{}) {
 type compactionStrategy struct {
 	compactionGroups []CompactionGroup
 
+	// concurrency determines how many compactions groups will be started
+	// concurrently.  These groups may be limited by the global limiter if
+	// enabled.
+	concurrency int
 	fast        bool
 	description string
 
@@ -1241,11 +1245,23 @@ type compactionStrategy struct {
 func (s *compactionStrategy) Apply() {
 	start := time.Now()
 
+	// cap concurrent compaction groups to no more than 4 at a time.
+	concurrency := s.concurrency
+	if concurrency == 0 {
+		concurrency = 4
+	}
+
+	throttle := limiter.NewFixed(concurrency)
 	var wg sync.WaitGroup
 	for i := range s.compactionGroups {
 		wg.Add(1)
 		go func(groupNum int) {
 			defer wg.Done()
+
+			// limit concurrent compaction groups
+			throttle.Take()
+			defer throttle.Release()
+
 			s.compactGroup(groupNum)
 		}(i)
 	}
@@ -1321,6 +1337,7 @@ func (e *Engine) levelCompactionStrategy(fast bool, level int) *compactionStrate
 	}
 
 	return &compactionStrategy{
+		concurrency:      4,
 		compactionGroups: compactionGroups,
 		logger:           e.logger,
 		fileStore:        e.FileStore,
@@ -1352,6 +1369,7 @@ func (e *Engine) fullCompactionStrategy() *compactionStrategy {
 	}
 
 	s := &compactionStrategy{
+		concurrency:      1,
 		compactionGroups: compactionGroups,
 		logger:           e.logger,
 		fileStore:        e.FileStore,
