@@ -12,7 +12,7 @@ import * as queryModifiers from 'src/utils/queryTransitions'
 import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 import buildInfluxQLQuery from 'utils/influxql'
 import {getQueryConfig} from 'shared/apis'
-import {MINIMUM_HEIGHTS} from 'src/data_explorer/constants'
+import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from 'src/data_explorer/constants'
 import {removeUnselectedTemplateValues} from 'src/dashboards/constants'
 
 class CellEditorOverlay extends Component {
@@ -159,6 +159,8 @@ class CellEditorOverlay extends Component {
           containerClass="resizer--full-size"
           minTopHeight={MINIMUM_HEIGHTS.visualization}
           minBottomHeight={MINIMUM_HEIGHTS.queryMaker}
+          initialTopHeight={INITIAL_HEIGHTS.visualization}
+          initialBottomHeight={INITIAL_HEIGHTS.queryMaker}
         >
           <Visualization
             autoRefresh={autoRefresh}

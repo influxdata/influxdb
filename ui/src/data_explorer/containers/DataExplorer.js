@@ -10,7 +10,7 @@ import Header from '../containers/Header'
 import ResizeContainer from 'src/shared/components/ResizeContainer'
 
 import {VIS_VIEWS} from 'src/shared/constants'
-import {MINIMUM_HEIGHTS} from '../constants'
+import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from '../constants'
 import {setAutoRefresh} from 'shared/actions/app'
 import * as viewActions from 'src/data_explorer/actions/view'
 
@@ -93,6 +93,8 @@ const DataExplorer = React.createClass({
           containerClass="page-contents"
           minTopHeight={MINIMUM_HEIGHTS.queryMaker}
           minBottomHeight={MINIMUM_HEIGHTS.visualization}
+          initialTopHeight={INITIAL_HEIGHTS.queryMaker}
+          initialBottomHeight={INITIAL_HEIGHTS.visualization}
         >
           <QueryMaker
             source={source}
