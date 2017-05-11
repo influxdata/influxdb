@@ -121,7 +121,9 @@ const InfluxTable = ({
                     </td>
                     <td className="text-right">
                       {s.id === source.id
-                        ? <span className="currently-connected-source">Connected</span>
+                        ? <span className="currently-connected-source">
+                            <span className="icon checkmark" /> Connected
+                          </span>
                         : <Link
                             className="btn btn-success btn-xs"
                             to={`/sources/${s.id}/hosts`}
