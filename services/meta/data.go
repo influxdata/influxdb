@@ -50,10 +50,10 @@ type Data struct {
 	MaxShardID      uint64
 }
 
-// NewShardOwner sets the owner of the provided shard to the data node
-// that currently owns the fewest number of shards. If multiple nodes
-// own the same (fewest) number of shards, then one of those nodes
-// becomes the new shard owner.
+// NewShardOwner returns the ID of a data node that the shard should be
+// reassigned to based on which node currently owns the fewest shards.
+// If multiple nodes own the same (fewest) number of shards, one of those
+// nodes is chosen as the new shard owner.
 func NewShardOwner(s ShardInfo, ownerFreqs map[int]int) (uint64, error) {
 	var (
 		minId   = -1
@@ -62,6 +62,11 @@ func NewShardOwner(s ShardInfo, ownerFreqs map[int]int) (uint64, error) {
 
 	for id, freq := range ownerFreqs {
 		if minId == -1 || freq < minFreq {
+			// If the node is already an owner of this shard,
+			// it's not a candidate to be the new owner.
+			if s.OwnedBy(uint64(id)) {
+				continue
+			}
 			minId, minFreq = int(id), freq
 		}
 	}
