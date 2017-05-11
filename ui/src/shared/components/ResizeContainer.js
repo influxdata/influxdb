@@ -14,8 +14,8 @@ class ResizeContainer extends Component {
     super(props)
     this.state = {
       isDragging: false,
-      topHeight: this.props.initialTopHeight,
-      bottomHeight: this.props.initialBottomHeight,
+      topHeight: props.initialTopHeight,
+      bottomHeight: props.initialBottomHeight,
     }
 
     this.handleStartDrag = ::this.handleStartDrag
@@ -88,17 +88,6 @@ class ResizeContainer extends Component {
     })
   }
 
-  renderHandle() {
-    const {isDragging, topHeight} = this.state
-    return (
-      <ResizeHandle
-        isDragging={isDragging}
-        onHandleStartDrag={this.handleStartDrag}
-        top={topHeight}
-      />
-    )
-  }
-
   render() {
     const {topHeight, bottomHeight, isDragging} = this.state
     const {containerClass, children} = this.props
@@ -123,7 +112,11 @@ class ResizeContainer extends Component {
         <div className="resize--top" style={{height: topHeight}}>
           {React.cloneElement(children[0])}
         </div>
-        {this.renderHandle()}
+        <ResizeHandle
+          isDragging={isDragging}
+          onHandleStartDrag={this.handleStartDrag}
+          top={topHeight}
+        />
         <div
           className="resize--bottom"
           style={{height: bottomHeight, top: topHeight}}
