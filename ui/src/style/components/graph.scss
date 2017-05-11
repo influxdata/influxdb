@@ -107,8 +107,8 @@ $graph-gutter: 16px;
   justify-content: center;
 }
 .graph-spinner {
-  width: 121px;
-  height: 121px;
+  width: 121px !important;
+  height: 121px !important;
   background-image: url(assets/images/laser-spinner.png);
   background-size: 100% 100%;
   background-position: center center;
