@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math"
 	"math/rand"
@@ -193,14 +194,30 @@ func TestEngine_Backup(t *testing.T) {
 		t.Fatalf("file count wrong: exp: %d, got: %d", 2, len(e.FileStore.Files()))
 	}
 
+	fileNames := map[string]bool{}
 	for _, f := range e.FileStore.Files() {
-		th, err := tr.Next()
-		if err != nil {
-			t.Fatalf("failed reading header: %s", err.Error())
+		fileNames[filepath.Base(f.Path())] = true
+	}
+
+	th, err := tr.Next()
+	for err == nil {
+		if !fileNames[th.Name] {
+			t.Errorf("Extra file in backup: %q", th.Name)
 		}
-		if !strings.Contains(f.Path(), th.Name) || th.Name == "" {
-			t.Fatalf("file name doesn't match:\n\tgot: %s\n\texp: %s", th.Name, f.Path())
-		}
+		delete(fileNames, th.Name)
+		th, err = tr.Next()
+	}
+
+	if err != nil && err != io.EOF {
+		t.Fatalf("Problem reading tar header: %s", err)
+	}
+
+	for f := range fileNames {
+		t.Errorf("File missing from backup: %s", f)
+	}
+
+	if t.Failed() {
+		t.FailNow()
 	}
 
 	lastBackup := time.Now()
@@ -219,7 +236,7 @@ func TestEngine_Backup(t *testing.T) {
 	}
 
 	tr = tar.NewReader(b)
-	th, err := tr.Next()
+	th, err = tr.Next()
 	if err != nil {
 		t.Fatalf("error getting next tar header: %s", err.Error())
 	}
