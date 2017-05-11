@@ -125,13 +125,9 @@ table .monotype {
     cursor: pointer;
     color: $g19-ghost;
     background-color: $g5-pepper;
-
-    &:after {
-      opacity: 1;
-    }
   }
-  &.sorting-down,
-  &.sorting-up {
+  &.sorting-ascending,
+  &.sorting-descending {
     background-color: $g5-pepper;
     color: $g19-ghost;
 
@@ -139,11 +135,11 @@ table .monotype {
       opacity: 1;
     }
   }
-  &.sorting-down {
-
-    &:after {
-      transform: translateY(-50%) rotate(180deg);
-    }
+  &.sorting-ascending:after {
+    transform: translateY(-50%) rotate(180deg);
+  }
+  &.sorting-descending:after {
+    transform: translateY(-50%) rotate(0deg);
   }
 }
 
