@@ -175,19 +175,11 @@ class AdminPage extends Component {
             </div>
           </div>
         </div>
-<<<<<<< HEAD
-        <div className="page-contents">
+        <FancyScrollbar className="page-contents">
           {users
             ? <div className="container-fluid">
                 <div className="row">
                   <AdminTabs
-=======
-        <FancyScrollbar className="page-contents">
-          <div className="container-fluid">
-            <div className="row">
-              {users
-                ? <AdminTabs
->>>>>>> master
                     users={users}
                     roles={roles}
                     source={source}
@@ -212,17 +204,10 @@ class AdminPage extends Component {
                     onUpdateUserRoles={this.handleUpdateUserRoles}
                     onUpdateUserPassword={this.handleUpdateUserPassword}
                   />
-<<<<<<< HEAD
                 </div>
               </div>
-            : <div className="page-spinner"/>}
-        </div>
-=======
-                : <span>Loading...</span>}
-            </div>
-          </div>
+            : <div className="page-spinner" />}
         </FancyScrollbar>
->>>>>>> master
       </div>
     )
   }

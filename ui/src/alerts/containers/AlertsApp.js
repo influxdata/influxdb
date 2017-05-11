@@ -150,21 +150,9 @@ class AlertsApp extends Component {
             </div>
           </div>
         </div>
-<<<<<<< HEAD
-        <div className="page-contents">
-          {this.renderSubComponents()}
-        </div>
-=======
         <FancyScrollbar className="page-contents">
-          <div className="container-fluid">
-            <div className="row">
-              <div className="col-md-12">
-                {this.renderSubComponents()}
-              </div>
-            </div>
-          </div>
+          {this.renderSubComponents()}
         </FancyScrollbar>
->>>>>>> master
       </div>
     )
   }
