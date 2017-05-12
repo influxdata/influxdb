@@ -2,6 +2,7 @@
 
 ### Bug Fixes
   1. [#1450](https://github.com/influxdata/chronograf/pull/1450): Fix infinite spinner when using "/chronograf" as a basepath
+  1. [#1428](https://github.com/influxdata/chronograf/issues/1428): Prevent Meta Queries dropdown from appearing in the Cell Editor Overlay
 
 ### Features
 
