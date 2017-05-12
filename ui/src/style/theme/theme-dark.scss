@@ -165,6 +165,14 @@ button.btn.btn-sm > span.icon {
   }
 }
 
+/* Active state for buttons */
+.btn-info.active {
+  &, &:hover, &:active, &:focus {
+    background-color: $g7-graphite;
+    color: $g20-white;
+  }
+}
+
 
 
 /*

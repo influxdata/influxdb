@@ -306,6 +306,7 @@ class DashboardPage extends Component {
               onAddCell={this.handleAddCell}
               onEditDashboard={this.handleEditDashboard}
               onToggleTempVarControls={this.handleTempVarsControlsToggle}
+              isTempVarsControlsOpen={isTempVarsControlsOpen}
             >
               {dashboards
                 ? dashboards.map((d, i) => (
