@@ -25,17 +25,19 @@ __Additional info:__ [Include gist of relevant config, logs, etc.]
 Also, if this is an issue of for performance, locking, etc the following commands are useful to create debug information for the team.
 
 ```
-curl -o block.txt "http://localhost:8086/debug/pprof/block?debug=1" 
-curl -o goroutine.txt "http://localhost:8086/debug/pprof/goroutine?debug=1" 
-curl -o heap.txt "http://localhost:8086/debug/pprof/heap?debug=1" 
-curl -o vars.txt "http://localhost:8086/debug/vars" 
+curl -o profiles.tar.gz "http://localhost:8086/debug/pprof/all?cpu=true"
+
+curl -o vars.txt "http://localhost:8086/debug/vars"
 iostat -xd 1 30 > iostat.txt
-influx -execute "show shards" > shards.txt
-influx -execute "show stats" > stats.txt
-influx -execute "show diagnostics" > diagnostics.txt
 ```
 
-Please run those if possible and link them from a [gist](http://gist.github.com).
+**Please note** It will take at least 30 seconds for the first cURL command above to return a response.
+This is because it will run a CPU profile as part of its information gathering, which takes 30 seconds to collect.
+Ideally you should run these commands when you're experiencing problems, so we can capture the state of the system at that time.
+
+If you're concerned about running a CPU profile (which only has a small, temporary impact on performance), then you can set `?cpu=false` or omit `?cpu=true` altogether.
+
+Please run those if possible and link them from a [gist](http://gist.github.com) or simply attach them as a comment to the issue.
 
 *Please note, the quickest way to fix a bug is to open a Pull Request.*
 
