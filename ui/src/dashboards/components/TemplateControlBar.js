@@ -12,7 +12,7 @@ const TemplateControlBar = ({
   onOpenTemplateManager,
   isOpen,
 }) => (
-  <div className={classnames('template-control-bar', {open: isOpen})}>
+  <div className={classnames('template-control-bar', {show: isOpen})}>
     <div className="template-control--container">
       <div className="template-control--controls">
         {templates.map(({id, values, tempVar}) => {
