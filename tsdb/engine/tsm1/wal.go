@@ -33,8 +33,6 @@ const (
 	// WALFilePrefix is the prefix on all wal segment files.
 	WALFilePrefix = "_"
 
-	defaultBufLen = 1024 << 10 // 1MB (sized for batches of 5000 points)
-
 	// walEncodeBufSize is the size of the wal entry encoding buffer
 	walEncodeBufSize = 4 * 1024 * 1024
 
@@ -585,9 +583,14 @@ type WALEntry interface {
 // WriteWALEntry represents a write of points.
 type WriteWALEntry struct {
 	Values map[string][]Value
+	sz     int
 }
 
 func (w *WriteWALEntry) MarshalSize() int {
+	if w.sz > 0 || len(w.Values) == 0 {
+		return w.sz
+	}
+
 	encLen := 7 * len(w.Values) // Type (1), Key Length (2), and Count (4) for each key
 
 	// determine required length
@@ -617,7 +620,9 @@ func (w *WriteWALEntry) MarshalSize() int {
 		}
 	}
 
-	return encLen
+	w.sz = encLen
+
+	return w.sz
 }
 
 // Encode converts the WriteWALEntry into a byte stream using dst if it
@@ -848,6 +853,7 @@ func (w *WriteWALEntry) Type() WalEntryType {
 // DeleteWALEntry represents the deletion of multiple series.
 type DeleteWALEntry struct {
 	Keys []string
+	sz   int
 }
 
 // MarshalBinary returns a binary representation of the entry in a new byte slice.
@@ -863,10 +869,17 @@ func (w *DeleteWALEntry) UnmarshalBinary(b []byte) error {
 }
 
 func (w *DeleteWALEntry) MarshalSize() int {
+	if w.sz > 0 || len(w.Keys) == 0 {
+		return w.sz
+	}
+
 	encLen := len(w.Keys) // newlines
 	for _, k := range w.Keys {
 		encLen += len(k)
 	}
+
+	w.sz = encLen
+
 	return encLen
 }
 
@@ -898,6 +911,7 @@ func (w *DeleteWALEntry) Type() WalEntryType {
 type DeleteRangeWALEntry struct {
 	Keys     []string
 	Min, Max int64
+	sz       int
 }
 
 // MarshalBinary returns a binary representation of the entry in a new byte slice.
@@ -933,10 +947,17 @@ func (w *DeleteRangeWALEntry) UnmarshalBinary(b []byte) error {
 }
 
 func (w *DeleteRangeWALEntry) MarshalSize() int {
+	if w.sz > 0 {
+		return w.sz
+	}
+
 	sz := 16 + len(w.Keys)*4
 	for _, k := range w.Keys {
 		sz += len(k)
 	}
+
+	w.sz = sz
+
 	return sz
 }
 
