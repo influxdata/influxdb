@@ -118,8 +118,10 @@
   border-bottom: 2px solid $g4-onyx !important;
 }
 .dygraph-ylabel {
+  transform: rotate(-90deg);
 }
 .dygraph-y2label {
+  transform: rotate(90deg);
 }
 
 .graph--hasYLabel {
