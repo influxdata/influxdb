@@ -2,23 +2,24 @@ import React, {PropTypes} from 'react'
 import {withRouter} from 'react-router'
 
 import AutoRefreshDropdown from 'shared/components/AutoRefreshDropdown'
-import TimeRangeDropdown from '../../shared/components/TimeRangeDropdown'
-import SourceIndicator from '../../shared/components/SourceIndicator'
-import GraphTips from '../../shared/components/GraphTips'
+import TimeRangeDropdown from 'shared/components/TimeRangeDropdown'
+import SourceIndicator from 'shared/components/SourceIndicator'
+import GraphTips from 'shared/components/GraphTips'
 
 const {func, number, shape, string} = PropTypes
 
 const Header = React.createClass({
   propTypes: {
-    autoRefresh: number.isRequired,
-    timeRange: shape({
-      upper: string,
-      lower: string,
-    }).isRequired,
     actions: shape({
       handleChooseAutoRefresh: func.isRequired,
       setTimeRange: func.isRequired,
     }),
+    autoRefresh: number.isRequired,
+    onSummonOverlayTechnologies: func,
+    timeRange: shape({
+      lower: string,
+      upper: string,
+    }).isRequired,
   },
 
   contextTypes: {
@@ -35,6 +36,7 @@ const Header = React.createClass({
     const {
       autoRefresh,
       actions: {handleChooseAutoRefresh},
+      onSummonOverlayTechnologies,
       timeRange,
     } = this.props
 
@@ -49,7 +51,10 @@ const Header = React.createClass({
           <div className="page-header__right">
             <GraphTips />
             <SourceIndicator sourceName={this.context.source.name} />
-            <div className="btn btn-sm btn-info">
+            <div
+              className="btn btn-sm btn-info"
+              onClick={onSummonOverlayTechnologies}
+            >
               <span className="icon pencil" />
               Write Data
             </div>

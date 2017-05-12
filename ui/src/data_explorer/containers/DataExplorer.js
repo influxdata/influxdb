@@ -1,4 +1,4 @@
-import React, {PropTypes} from 'react'
+import React, {Component, PropTypes} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
@@ -7,7 +7,8 @@ import _ from 'lodash'
 import QueryMaker from '../components/QueryMaker'
 import Visualization from '../components/Visualization'
 import Header from '../containers/Header'
-import ResizeContainer from 'src/shared/components/ResizeContainer'
+import ResizeContainer from 'shared/components/ResizeContainer'
+import OverlayTechnologies from 'shared/components/OverlayTechnologies'
 
 import {VIS_VIEWS} from 'src/shared/constants'
 import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from '../constants'
@@ -57,6 +58,7 @@ const DataExplorer = React.createClass({
   getInitialState() {
     return {
       activeQueryIndex: 0,
+      isWriting: false,
     }
   },
 
@@ -70,6 +72,10 @@ const DataExplorer = React.createClass({
     this.props.queryConfigActions.deleteQuery(query.id)
   },
 
+  summonOverlayTechnologies() {
+    this.setState({isWriting: true})
+  },
+
   render() {
     const {
       autoRefresh,
@@ -80,14 +86,16 @@ const DataExplorer = React.createClass({
       queryConfigActions,
       source,
     } = this.props
-    const {activeQueryIndex} = this.state
+    const {activeQueryIndex, isWriting} = this.state
 
     return (
       <div className="data-explorer">
+        {isWriting ? <OverlayTechnologies><Foo /></OverlayTechnologies> : null}
         <Header
           actions={{handleChooseAutoRefresh, setTimeRange}}
           autoRefresh={autoRefresh}
           timeRange={timeRange}
+          onSummonOverlayTechnologies={this.summonOverlayTechnologies}
         />
         <ResizeContainer
           containerClass="page-contents"
@@ -144,6 +152,16 @@ function mapDispatchToProps(dispatch) {
     handleChooseAutoRefresh: bindActionCreators(setAutoRefresh, dispatch),
     setTimeRange: bindActionCreators(viewActions.setTimeRange, dispatch),
     queryConfigActions: bindActionCreators(viewActions, dispatch),
+  }
+}
+
+class Foo extends Component {
+  constructor(props) {
+    super(props)
+  }
+
+  render() {
+    return <div />
   }
 }
 
