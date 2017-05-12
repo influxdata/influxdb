@@ -872,13 +872,14 @@ func (w *DeleteWALEntry) MarshalSize() int {
 
 // Encode converts the DeleteWALEntry into a byte slice, appending to dst.
 func (w *DeleteWALEntry) Encode(dst []byte) ([]byte, error) {
+	sz := w.MarshalSize()
+
+	if len(dst) < sz {
+		dst = make([]byte, sz)
+	}
+
 	var n int
 	for _, k := range w.Keys {
-		if len(dst[:n])+1+len(k) > len(dst) {
-			grow := make([]byte, len(dst)*2)
-			dst = append(dst, grow...)
-		}
-
 		n += copy(dst[n:], k)
 		n += copy(dst[n:], "\n")
 	}
