@@ -84,9 +84,9 @@ const HostsTable = React.createClass({
   sortableClasses(key) {
     if (this.state.sortKey === key) {
       if (this.state.sortDirection === 'asc') {
-        return 'sortable-header sorting-up'
+        return 'sortable-header sorting-ascending'
       }
-      return 'sortable-header sorting-down'
+      return 'sortable-header sorting-descending'
     }
     return 'sortable-header'
   },

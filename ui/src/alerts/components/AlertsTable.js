@@ -82,68 +82,83 @@ const AlertsTable = React.createClass({
       <div className="panel panel-minimal">
         <div className="panel-heading u-flex u-ai-center u-jc-space-between">
           <h2 className="panel-title">{this.props.alerts.length} Alerts</h2>
-          <SearchBar onSearch={this.filterAlerts} />
+          {this.props.alerts.length
+            ? <SearchBar onSearch={this.filterAlerts} />
+            : null}
         </div>
         <div className="panel-body">
-          <table className="table v-center">
-            <thead>
-              <tr>
-                <th
-                  onClick={() => this.changeSort('name')}
-                  className="sortable-header"
-                >
-                  Name
-                </th>
-                <th
-                  onClick={() => this.changeSort('level')}
-                  className="sortable-header"
-                >
-                  Level
-                </th>
-                <th
-                  onClick={() => this.changeSort('time')}
-                  className="sortable-header"
-                >
-                  Time
-                </th>
-                <th
-                  onClick={() => this.changeSort('host')}
-                  className="sortable-header"
-                >
-                  Host
-                </th>
-                <th
-                  onClick={() => this.changeSort('value')}
-                  className="sortable-header"
-                >
-                  Value
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {alerts.map(({name, level, time, host, value}) => {
-                return (
-                  <tr key={`${name}-${level}-${time}-${host}-${value}`}>
-                    <td className="monotype">{name}</td>
-                    <td
-                      className={`monotype alert-level-${level.toLowerCase()}`}
+          {this.props.alerts.length
+            ? <table className="table v-center">
+                <thead>
+                  <tr>
+                    <th
+                      onClick={() => this.changeSort('name')}
+                      className="sortable-header"
                     >
-                      {level}
-                    </td>
-                    <td className="monotype">
-                      {new Date(Number(time)).toISOString()}
-                    </td>
-                    <td className="monotype">
-                      <Link to={`/sources/${id}/hosts/${host}`}>
-                        {host}
-                      </Link>
-                    </td>
-                    <td className="monotype">{value}</td>
+                      Name
+                    </th>
+                    <th
+                      onClick={() => this.changeSort('level')}
+                      className="sortable-header"
+                    >
+                      Level
+                    </th>
+                    <th
+                      onClick={() => this.changeSort('time')}
+                      className="sortable-header"
+                    >
+                      Time
+                    </th>
+                    <th
+                      onClick={() => this.changeSort('host')}
+                      className="sortable-header"
+                    >
+                      Host
+                    </th>
+                    <th
+                      onClick={() => this.changeSort('value')}
+                      className="sortable-header"
+                    >
+                      Value
+                    </th>
                   </tr>
-                )
-              })}
-            </tbody>
-          </table>
+                </thead>
+                <tbody>
+                  {alerts.map(({name, level, time, host, value}) => {
+                    return (
+                      <tr key={`${name}-${level}-${time}-${host}-${value}`}>
+                        <td className="monotype">{name}</td>
+                        <td
+                          className={`monotype alert-level-${level.toLowerCase()}`}
+                        >
+                          {level}
+                        </td>
+                        <td className="monotype">
+                          {new Date(Number(time)).toISOString()}
+                        </td>
+                        <td className="monotype">
+                          <Link to={`/sources/${id}/hosts/${host}`}>
+                            {host}
+                          </Link>
+                        </td>
+                        <td className="monotype">{value}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            : <div className="generic-empty-state">
+                <h4 className="no-user-select">
+                  Alerts appear here when you have Rules
+                </h4>
+                <br />
+                <Link
+                  to={`/sources/${id}/alert-rules/new`}
+                  className="btn btn-primary"
+                >
+                  Create a Rule
+                </Link>
+              </div>}
         </div>
       </div>
     )

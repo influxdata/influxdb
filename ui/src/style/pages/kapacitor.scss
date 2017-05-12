@@ -185,6 +185,11 @@ $kapacitor-font-sm: 13px;
   pre code {
     line-height: ($kapacitor-font-sm + 3px);
     white-space: pre-wrap;
+
+    &.kapacitor-metric-placeholder {
+      color: $g8-storm;
+      font-style: italic;
+    }
   }
   .query-builder {
     height: 240px;
