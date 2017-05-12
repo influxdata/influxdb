@@ -15,7 +15,7 @@ const Header = React.createClass({
       setTimeRange: func.isRequired,
     }),
     autoRefresh: number.isRequired,
-    onSummonOverlayTechnologies: func,
+    showWriteFormAction: func.isRequired,
     timeRange: shape({
       lower: string,
       upper: string,
@@ -36,7 +36,7 @@ const Header = React.createClass({
     const {
       autoRefresh,
       actions: {handleChooseAutoRefresh},
-      onSummonOverlayTechnologies,
+      showWriteFormAction,
       timeRange,
     } = this.props
 
@@ -51,10 +51,7 @@ const Header = React.createClass({
           <div className="page-header__right">
             <GraphTips />
             <SourceIndicator sourceName={this.context.source.name} />
-            <div
-              className="btn btn-sm btn-info"
-              onClick={onSummonOverlayTechnologies}
-            >
+            <div className="btn btn-sm btn-info" onClick={showWriteFormAction}>
               <span className="icon pencil" />
               Write Data
             </div>

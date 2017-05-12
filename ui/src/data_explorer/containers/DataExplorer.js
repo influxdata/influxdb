@@ -1,4 +1,4 @@
-import React, {Component, PropTypes} from 'react'
+import React, {PropTypes} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
@@ -6,6 +6,7 @@ import _ from 'lodash'
 
 import QueryMaker from '../components/QueryMaker'
 import Visualization from '../components/Visualization'
+import WriteDataForm from '../components/WriteDataForm'
 import Header from '../containers/Header'
 import ResizeContainer from 'shared/components/ResizeContainer'
 import OverlayTechnologies from 'shared/components/OverlayTechnologies'
@@ -15,7 +16,7 @@ import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from '../constants'
 import {setAutoRefresh} from 'shared/actions/app'
 import * as viewActions from 'src/data_explorer/actions/view'
 
-const {arrayOf, func, number, shape, string} = PropTypes
+const {arrayOf, bool, func, number, shape, string} = PropTypes
 
 const DataExplorer = React.createClass({
   propTypes: {
@@ -37,7 +38,10 @@ const DataExplorer = React.createClass({
       lower: string,
     }).isRequired,
     setTimeRange: func.isRequired,
+    hideWriteFormAction: func.isRequired,
+    showWriteFormAction: func.isRequired,
     dataExplorer: shape({
+      showWriteForm: bool.isRequired,
       queryIDs: arrayOf(string).isRequired,
     }).isRequired,
   },
@@ -58,7 +62,6 @@ const DataExplorer = React.createClass({
   getInitialState() {
     return {
       activeQueryIndex: 0,
-      isWriting: false,
     }
   },
 
@@ -72,10 +75,6 @@ const DataExplorer = React.createClass({
     this.props.queryConfigActions.deleteQuery(query.id)
   },
 
-  summonOverlayTechnologies() {
-    this.setState({isWriting: true})
-  },
-
   render() {
     const {
       autoRefresh,
@@ -85,17 +84,24 @@ const DataExplorer = React.createClass({
       queryConfigs,
       queryConfigActions,
       source,
+      hideWriteFormAction,
+      showWriteFormAction,
+      dataExplorer: {showWriteForm},
     } = this.props
-    const {activeQueryIndex, isWriting} = this.state
+    const {activeQueryIndex} = this.state
 
     return (
       <div className="data-explorer">
-        {isWriting ? <OverlayTechnologies><Foo /></OverlayTechnologies> : null}
+        {showWriteForm
+          ? <OverlayTechnologies>
+              <WriteDataForm onClose={hideWriteFormAction} />
+            </OverlayTechnologies>
+          : null}
         <Header
           actions={{handleChooseAutoRefresh, setTimeRange}}
           autoRefresh={autoRefresh}
           timeRange={timeRange}
-          onSummonOverlayTechnologies={this.summonOverlayTechnologies}
+          showWriteFormAction={showWriteFormAction}
         />
         <ResizeContainer
           containerClass="page-contents"
@@ -133,17 +139,17 @@ const DataExplorer = React.createClass({
 function mapStateToProps(state) {
   const {
     app: {persisted: {autoRefresh}},
-    timeRange,
-    queryConfigs,
     dataExplorer,
+    queryConfigs,
+    timeRange,
   } = state
   const queryConfigValues = _.values(queryConfigs)
 
   return {
     autoRefresh,
-    timeRange,
-    queryConfigs: queryConfigValues,
     dataExplorer,
+    queryConfigs: queryConfigValues,
+    timeRange,
   }
 }
 
@@ -151,17 +157,15 @@ function mapDispatchToProps(dispatch) {
   return {
     handleChooseAutoRefresh: bindActionCreators(setAutoRefresh, dispatch),
     setTimeRange: bindActionCreators(viewActions.setTimeRange, dispatch),
+    showWriteFormAction: bindActionCreators(
+      viewActions.showWriteForm,
+      dispatch
+    ),
+    hideWriteFormAction: bindActionCreators(
+      viewActions.hideWriteForm,
+      dispatch
+    ),
     queryConfigActions: bindActionCreators(viewActions, dispatch),
-  }
-}
-
-class Foo extends Component {
-  constructor(props) {
-    super(props)
-  }
-
-  render() {
-    return <div />
   }
 }
 

@@ -23,6 +23,14 @@ export function deleteQuery(queryID) {
   }
 }
 
+export function showWriteForm() {
+  return {type: 'SHOW_WRITE_FORM'}
+}
+
+export function hideWriteForm() {
+  return {type: 'HIDE_WRITE_FORM'}
+}
+
 export function toggleField(queryId, fieldFunc, isKapacitorRule) {
   return {
     type: 'TOGGLE_FIELD',
