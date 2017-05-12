@@ -2,7 +2,6 @@ import React, {PropTypes} from 'react'
 import classnames from 'classnames'
 
 import Dropdown from 'shared/components/Dropdown'
-import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 import omit from 'lodash/omit'
 
@@ -15,36 +14,40 @@ const TemplateControlBar = ({
   <div className={classnames('template-control-bar', {show: isOpen})}>
     <div className="template-control--container">
       <div className="template-control--controls">
-        {templates.map(({id, values, tempVar}) => {
-          const items = values.map(value => ({...value, text: value.value}))
-          const selectedItem = items.find(item => item.selected) || items[0]
-          const selectedText = selectedItem && selectedItem.text
+        {templates.length
+          ? templates.map(({id, values, tempVar}) => {
+              const items = values.map(value => ({...value, text: value.value}))
+              const selectedItem = items.find(item => item.selected) || items[0]
+              const selectedText = selectedItem && selectedItem.text
 
-          // TODO: change Dropdown to a MultiSelectDropdown, `selected` to
-          // the full array, and [item] to all `selected` values when we update
-          // this component to support multiple values
-          return (
-            <div key={id} className="template-control--dropdown">
-              <Dropdown
-                items={items}
-                buttonSize="btn-xs"
-                selected={selectedText || 'Loading...'}
-                onChoose={item =>
-                  onSelectTemplate(id, [item].map(x => omit(x, 'text')))}
-              />
-              <label className="template-control--label">
-                {tempVar}
-              </label>
-            </div>
-          )
-        })}
+              // TODO: change Dropdown to a MultiSelectDropdown, `selected` to
+              // the full array, and [item] to all `selected` values when we update
+              // this component to support multiple values
+              return (
+                <div key={id} className="template-control--dropdown">
+                  <Dropdown
+                    items={items}
+                    buttonSize="btn-xs"
+                    selected={selectedText || 'Loading...'}
+                    onChoose={item =>
+                      onSelectTemplate(id, [item].map(x => omit(x, 'text')))}
+                  />
+                  <label className="template-control--label">
+                    {tempVar}
+                  </label>
+                </div>
+              )
+            })
+          : <div className="template-control--empty">
+              This dashboard does not have any Template Variables
+            </div>}
       </div>
       <button
         className="btn btn-primary btn-sm template-control--manage"
         onClick={onOpenTemplateManager}
       >
         <span className="icon cog-thick" />
-        Templates
+        Manage
       </button>
     </div>
   </div>

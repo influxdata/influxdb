@@ -51,6 +51,13 @@ $template-control-dropdown-min-width: 118px;
   flex: 1 0 0;
   flex-wrap: wrap;
 }
+.template-control--empty {
+  color: $g11-sidewalk;
+  font-size: 14px;
+  font-weight: 500;
+  margin-left: 18px;
+  @include no-user-select();
+}
 .template-control--dropdown {
   flex: 0 1 auto;
   min-width: $template-control-dropdown-min-width;
