@@ -3,7 +3,6 @@ package tsm1
 import (
 	"bufio"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -387,18 +386,19 @@ func (l *WAL) writeToLog(entry WALEntry) (int, error) {
 	// limit how many concurrent encodings can be in flight.  Since we can only
 	// write one at a time to disk, a slow disk can cause the allocations below
 	// to increase quickly.  If we're backed up, wait until others have completed.
-	bytes := bytesPool.Get(walEncodeBufSize)
-	defer bytesPool.Put(bytes)
+	bytes := bytesPool.Get(entry.MarshalSize())
 
 	b, err := entry.Encode(bytes)
 	if err != nil {
+		bytesPool.Put(bytes)
 		return -1, err
 	}
 
 	encBuf := bytesPool.Get(snappy.MaxEncodedLen(len(b)))
-	defer bytesPool.Put(encBuf)
 
 	compressed := snappy.Encode(encBuf, b)
+	bytesPool.Put(bytes)
+
 	syncErr := make(chan error)
 
 	segID, err := func() (int, error) {
@@ -437,6 +437,9 @@ func (l *WAL) writeToLog(entry WALEntry) (int, error) {
 		return l.currentSegmentID, nil
 
 	}()
+
+	bytesPool.Put(encBuf)
+
 	if err != nil {
 		return segID, err
 	}
@@ -576,11 +579,45 @@ type WALEntry interface {
 	Encode(dst []byte) ([]byte, error)
 	MarshalBinary() ([]byte, error)
 	UnmarshalBinary(b []byte) error
+	MarshalSize() int
 }
 
 // WriteWALEntry represents a write of points.
 type WriteWALEntry struct {
 	Values map[string][]Value
+}
+
+func (w *WriteWALEntry) MarshalSize() int {
+	encLen := 7 * len(w.Values) // Type (1), Key Length (2), and Count (4) for each key
+
+	// determine required length
+	for k, v := range w.Values {
+		encLen += len(k)
+		if len(v) == 0 {
+			return 0
+		}
+
+		encLen += 8 * len(v) // timestamps (8)
+
+		switch v[0].(type) {
+		case FloatValue, IntegerValue:
+			encLen += 8 * len(v)
+		case BooleanValue:
+			encLen += 1 * len(v)
+		case StringValue:
+			for _, vv := range v {
+				str, ok := vv.(StringValue)
+				if !ok {
+					return 0
+				}
+				encLen += 4 + len(str.value)
+			}
+		default:
+			return 0
+		}
+	}
+
+	return encLen
 }
 
 // Encode converts the WriteWALEntry into a byte stream using dst if it
@@ -605,34 +642,7 @@ func (w *WriteWALEntry) Encode(dst []byte) ([]byte, error) {
 	// │1 byte│ 2 bytes │ N bytes│4 bytes│ 8 bytes │ N bytes │   │1 byte│   │
 	// └──────┴─────────┴────────┴───────┴─────────┴─────────┴───┴──────┴───┘
 
-	encLen := 7 * len(w.Values) // Type (1), Key Length (2), and Count (4) for each key
-
-	// determine required length
-	for k, v := range w.Values {
-		encLen += len(k)
-		if len(v) == 0 {
-			return nil, errors.New("empty value slice in WAL entry")
-		}
-
-		encLen += 8 * len(v) // timestamps (8)
-
-		switch v[0].(type) {
-		case FloatValue, IntegerValue:
-			encLen += 8 * len(v)
-		case BooleanValue:
-			encLen += 1 * len(v)
-		case StringValue:
-			for _, vv := range v {
-				str, ok := vv.(StringValue)
-				if !ok {
-					return nil, fmt.Errorf("non-string found in string value slice: %T", vv)
-				}
-				encLen += 4 + len(str.value)
-			}
-		default:
-			return nil, fmt.Errorf("unsupported value type: %T", v[0])
-		}
-	}
+	encLen := w.MarshalSize() // Type (1), Key Length (2), and Count (4) for each key
 
 	// allocate or re-slice to correct size
 	if len(dst) < encLen {
@@ -714,7 +724,7 @@ func (w *WriteWALEntry) Encode(dst []byte) ([]byte, error) {
 // MarshalBinary returns a binary representation of the entry in a new byte slice.
 func (w *WriteWALEntry) MarshalBinary() ([]byte, error) {
 	// Temp buffer to write marshaled points into
-	b := make([]byte, defaultBufLen)
+	b := make([]byte, w.MarshalSize())
 	return w.Encode(b)
 }
 
@@ -842,7 +852,7 @@ type DeleteWALEntry struct {
 
 // MarshalBinary returns a binary representation of the entry in a new byte slice.
 func (w *DeleteWALEntry) MarshalBinary() ([]byte, error) {
-	b := make([]byte, defaultBufLen)
+	b := make([]byte, w.MarshalSize())
 	return w.Encode(b)
 }
 
@@ -850,6 +860,14 @@ func (w *DeleteWALEntry) MarshalBinary() ([]byte, error) {
 func (w *DeleteWALEntry) UnmarshalBinary(b []byte) error {
 	w.Keys = strings.Split(string(b), "\n")
 	return nil
+}
+
+func (w *DeleteWALEntry) MarshalSize() int {
+	encLen := len(w.Keys) // newlines
+	for _, k := range w.Keys {
+		encLen += len(k)
+	}
+	return encLen
 }
 
 // Encode converts the DeleteWALEntry into a byte slice, appending to dst.
@@ -883,7 +901,7 @@ type DeleteRangeWALEntry struct {
 
 // MarshalBinary returns a binary representation of the entry in a new byte slice.
 func (w *DeleteRangeWALEntry) MarshalBinary() ([]byte, error) {
-	b := make([]byte, defaultBufLen)
+	b := make([]byte, w.MarshalSize())
 	return w.Encode(b)
 }
 
@@ -913,13 +931,17 @@ func (w *DeleteRangeWALEntry) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
-// Encode converts the DeleteRangeWALEntry into a byte slice, appending to b.
-func (w *DeleteRangeWALEntry) Encode(b []byte) ([]byte, error) {
-	sz := 16
+func (w *DeleteRangeWALEntry) MarshalSize() int {
+	sz := 16 + len(w.Keys)*4
 	for _, k := range w.Keys {
 		sz += len(k)
-		sz += 4
 	}
+	return sz
+}
+
+// Encode converts the DeleteRangeWALEntry into a byte slice, appending to b.
+func (w *DeleteRangeWALEntry) Encode(b []byte) ([]byte, error) {
+	sz := w.MarshalSize()
 
 	if len(b) < sz {
 		b = make([]byte, sz)
