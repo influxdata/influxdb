@@ -26,6 +26,7 @@ class DashboardPage extends Component {
       selectedCell: null,
       isEditMode: false,
       isTemplating: false,
+      isTempVarsControlsOpen: false,
     }
 
     this.handleAddCell = ::this.handleAddCell
@@ -48,6 +49,7 @@ class DashboardPage extends Component {
     this.handleSelectTemplate = ::this.handleSelectTemplate
     this.handleEditTemplateVariables = ::this.handleEditTemplateVariables
     this.handleRunQueryFailure = ::this.handleRunQueryFailure
+    this.handleTempVarsControlsToggle = ::this.handleTempVarsControlsToggle
   }
 
   componentDidMount() {
@@ -206,6 +208,15 @@ class DashboardPage extends Component {
     this.props.errorThrown(error)
   }
 
+  handleTempVarsControlsToggle(e) {
+    const {isTempVarsControlsOpen} = this.state
+
+    if (e) {
+      e.stopPropagation()
+    }
+    this.setState({isTempVarsControlsOpen: !isTempVarsControlsOpen})
+  }
+
   getActiveDashboard() {
     const {params: {dashboardID}, dashboards} = this.props
     return dashboards.find(d => d.id === +dashboardID)
@@ -242,7 +253,12 @@ class DashboardPage extends Component {
     const templatesIncludingDashTime = (dashboard &&
       dashboard.templates.concat(dashboardTime)) || []
 
-    const {selectedCell, isEditMode, isTemplating} = this.state
+    const {
+      selectedCell,
+      isEditMode,
+      isTemplating,
+      isTempVarsControlsOpen,
+    } = this.state
 
     return (
       <div className="page">
@@ -289,6 +305,7 @@ class DashboardPage extends Component {
               source={source}
               onAddCell={this.handleAddCell}
               onEditDashboard={this.handleEditDashboard}
+              onToggleTempVarControls={this.handleTempVarsControlsToggle}
             >
               {dashboards
                 ? dashboards.map((d, i) => (
@@ -320,6 +337,7 @@ class DashboardPage extends Component {
               templatesIncludingDashTime={templatesIncludingDashTime}
               onSummonOverlayTechnologies={this.handleSummonOverlayTechnologies}
               onSelectTemplate={this.handleSelectTemplate}
+              isTempVarsControlsOpen={isTempVarsControlsOpen}
             />
           : null}
       </div>
