@@ -9,8 +9,8 @@ func TestCommunePoint(t *testing.T) {
 	pt := "write,tag=tagVal fooField=5 1460912595"
 	comm.ch <- pt
 	point := comm.point("s")
-	if point.Name() != "write" {
-		t.Errorf("expected: write\ngot: %v", point.Name())
+	if string(point.Name()) != "write" {
+		t.Errorf("expected: write\ngot: %v", string(point.Name()))
 	}
 	if point.Tags().GetString("tag") != "tagVal" {
 		t.Errorf("expected: tagVal\ngot: %v", point.Tags().GetString("tag"))
@@ -25,8 +25,8 @@ func TestCommunePoint(t *testing.T) {
 	// Make sure commune returns the prev point
 	comm.ch <- ""
 	point = comm.point("s")
-	if point.Name() != "write" {
-		t.Errorf("expected: write\ngot: %v", point.Name())
+	if string(point.Name()) != "write" {
+		t.Errorf("expected: write\ngot: %v", string(point.Name()))
 	}
 	if point.Tags().GetString("tag") != "tagVal" {
 		t.Errorf("expected: tagVal\ngot: %v", point.Tags().GetString("tag"))
@@ -41,8 +41,8 @@ func TestSetCommune(t *testing.T) {
 	ch := sf.SetCommune("foo_name")
 	ch <- "write,tag=tagVal fooField=5 1460912595"
 	pt := sf.GetPoint("foo_name", "s")
-	if pt.Name() != "write" {
-		t.Errorf("expected: write\ngot: %v", pt.Name())
+	if string(pt.Name()) != "write" {
+		t.Errorf("expected: write\ngot: %v", string(pt.Name()))
 	}
 	if pt.Tags().GetString("tag") != "tagVal" {
 		t.Errorf("expected: tagVal\ngot: %v", pt.Tags().GetString("tag"))

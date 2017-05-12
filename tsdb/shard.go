@@ -410,7 +410,7 @@ func (s *Shard) DiskSize() (int64, error) {
 
 // FieldCreate holds information for a field to create on a measurement.
 type FieldCreate struct {
-	Measurement string
+	Measurement []byte
 	Field       *Field
 }
 
@@ -520,7 +520,7 @@ func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) error
 	// add fields
 	for _, f := range fieldsToCreate {
 		mf := s.engine.MeasurementFields(f.Measurement)
-		if err := mf.CreateFieldIfNotExists(f.Field.Name, f.Field.Type, false); err != nil {
+		if err := mf.CreateFieldIfNotExists([]byte(f.Field.Name), f.Field.Type, false); err != nil {
 			return err
 		}
 
@@ -551,12 +551,12 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 		if v := tags.Get(timeBytes); v != nil {
 			dropped++
 			if reason == "" {
-				reason = fmt.Sprintf("invalid tag key: input tag \"%s\" on measurement \"%s\" is invalid", "time", p.Name())
+				reason = fmt.Sprintf("invalid tag key: input tag \"%s\" on measurement \"%s\" is invalid", "time", string(p.Name()))
 			}
 			continue
 		}
 		keys[j] = p.Key()
-		names[j] = []byte(p.Name())
+		names[j] = p.Name()
 		tagsSlice[j] = tags
 		points[j] = points[i]
 		j++
@@ -598,7 +598,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 		if !validField {
 			dropped++
 			if reason == "" {
-				reason = fmt.Sprintf("invalid field name: input field \"%s\" on measurement \"%s\" is invalid", "time", p.Name())
+				reason = fmt.Sprintf("invalid field name: input field \"%s\" on measurement \"%s\" is invalid", "time", string(p.Name()))
 			}
 			continue
 		}
@@ -615,10 +615,10 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 
 		name := p.Name()
 		// see if the field definitions need to be saved to the shard
-		mf := mfCache[name]
+		mf := mfCache[string(name)]
 		if mf == nil {
 			mf = s.engine.MeasurementFields(name).Clone()
-			mfCache[name] = mf
+			mfCache[string(name)] = mf
 		}
 		iter.Reset()
 
@@ -685,7 +685,7 @@ func (s *Shard) MeasurementNamesByExpr(cond influxql.Expr) ([][]byte, error) {
 
 // MeasurementFields returns fields for a measurement.
 func (s *Shard) MeasurementFields(name []byte) *MeasurementFields {
-	return s.engine.MeasurementFields(string(name))
+	return s.engine.MeasurementFields(name)
 }
 
 func (s *Shard) MeasurementExists(name []byte) (bool, error) {
@@ -796,7 +796,7 @@ func (s *Shard) FieldDimensions(measurements []string) (fields map[string]influx
 		}
 
 		// Append fields and dimensions.
-		mf := s.engine.MeasurementFields(name)
+		mf := s.engine.MeasurementFields([]byte(name))
 		if mf != nil {
 			for k, typ := range mf.FieldSet() {
 				if _, ok := fields[k]; !ok || typ < fields[k] {
@@ -854,7 +854,7 @@ func (s *Shard) MapType(measurement, field string) influxql.DataType {
 		return influxql.Unknown
 	}
 
-	mf := s.engine.MeasurementFields(measurement)
+	mf := s.engine.MeasurementFields([]byte(measurement))
 	if mf != nil {
 		f := mf.Field(field)
 		if f != nil {
@@ -1158,11 +1158,11 @@ func (m *MeasurementFields) UnmarshalBinary(buf []byte) error {
 // CreateFieldIfNotExists creates a new field with an autoincrementing ID.
 // Returns an error if 255 fields have already been created on the measurement or
 // the fields already exists with a different type.
-func (m *MeasurementFields) CreateFieldIfNotExists(name string, typ influxql.DataType, limitCount bool) error {
+func (m *MeasurementFields) CreateFieldIfNotExists(name []byte, typ influxql.DataType, limitCount bool) error {
 	m.mu.RLock()
 
 	// Ignore if the field already exists.
-	if f := m.fields[name]; f != nil {
+	if f := m.fields[string(name)]; f != nil {
 		if f.Type != typ {
 			m.mu.RUnlock()
 			return ErrFieldTypeConflict
@@ -1176,7 +1176,7 @@ func (m *MeasurementFields) CreateFieldIfNotExists(name string, typ influxql.Dat
 	defer m.mu.Unlock()
 
 	// Re-check field and type under write lock.
-	if f := m.fields[name]; f != nil {
+	if f := m.fields[string(name)]; f != nil {
 		if f.Type != typ {
 			return ErrFieldTypeConflict
 		}
@@ -1186,10 +1186,10 @@ func (m *MeasurementFields) CreateFieldIfNotExists(name string, typ influxql.Dat
 	// Create and append a new field.
 	f := &Field{
 		ID:   uint8(len(m.fields) + 1),
-		Name: name,
+		Name: string(name),
 		Type: typ,
 	}
-	m.fields[name] = f
+	m.fields[string(name)] = f
 
 	return nil
 }
@@ -1275,9 +1275,9 @@ func (fs *MeasurementFieldSet) Fields(name string) *MeasurementFields {
 }
 
 // CreateFieldsIfNotExists returns fields for a measurement by name.
-func (fs *MeasurementFieldSet) CreateFieldsIfNotExists(name string) *MeasurementFields {
+func (fs *MeasurementFieldSet) CreateFieldsIfNotExists(name []byte) *MeasurementFields {
 	fs.mu.RLock()
-	mf := fs.fields[name]
+	mf := fs.fields[string(name)]
 	fs.mu.RUnlock()
 
 	if mf != nil {
@@ -1285,10 +1285,10 @@ func (fs *MeasurementFieldSet) CreateFieldsIfNotExists(name string) *Measurement
 	}
 
 	fs.mu.Lock()
-	mf = fs.fields[name]
+	mf = fs.fields[string(name)]
 	if mf == nil {
 		mf = NewMeasurementFields()
-		fs.fields[name] = mf
+		fs.fields[string(name)] = mf
 	}
 	fs.mu.Unlock()
 	return mf
@@ -1362,7 +1362,7 @@ func (itr *fieldKeysIterator) Next() (*influxql.FloatPoint, error) {
 			}
 
 			itr.buf.name = itr.names[0]
-			mf := itr.sh.engine.MeasurementFields(string(itr.buf.name))
+			mf := itr.sh.engine.MeasurementFields(itr.buf.name)
 			if mf != nil {
 				fset := mf.FieldSet()
 				if len(fset) == 0 {

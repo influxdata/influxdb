@@ -771,7 +771,7 @@ func TestParsePointWhitespace(t *testing.T) {
 			t.Fatalf("[Example %d] got %d points, expected %d", i, got, exp)
 		}
 
-		if got, exp := pts[0].Name(), expPoint.Name(); got != exp {
+		if got, exp := string(pts[0].Name()), string(expPoint.Name()); got != exp {
 			t.Fatalf("[Example %d] got %v measurement, expected %v", i, got, exp)
 		}
 

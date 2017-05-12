@@ -46,7 +46,7 @@ const (
 // Point defines the values that will be written to the database.
 type Point interface {
 	// Name return the measurement name for the point.
-	Name() string
+	Name() []byte
 
 	// SetName updates the measurement name for the point.
 	SetName(string)
@@ -59,6 +59,9 @@ type Point interface {
 
 	// SetTags replaces the tags for the point.
 	SetTags(tags Tags)
+
+	// HasTag returns true if the tag exists for the point.
+	HasTag(tag []byte) bool
 
 	// Fields returns the fields for the point.
 	Fields() (Fields, error)
@@ -246,6 +249,20 @@ func ParseKey(buf []byte) (string, Tags, error) {
 		return string(buf[:i-1]), tags, nil
 	}
 	return string(buf[:i]), tags, nil
+}
+
+func ParseTags(buf []byte) (Tags, error) {
+	return parseTags(buf), nil
+}
+
+func ParseName(buf []byte) ([]byte, error) {
+	// Ignore the error because scanMeasurement returns "missing fields" which we ignore
+	// when just parsing a key
+	state, i, _ := scanMeasurement(buf, 0)
+	if state == tagKeyState {
+		return buf[:i-1], nil
+	}
+	return buf[:i], nil
 }
 
 // ParsePointsWithPrecision is similar to ParsePoints, but allows the
@@ -1313,13 +1330,8 @@ func (p *point) name() []byte {
 	return name
 }
 
-// Name return the measurement name for the point.
-func (p *point) Name() string {
-	if p.cachedName != "" {
-		return p.cachedName
-	}
-	p.cachedName = string(escape.Unescape(p.name()))
-	return p.cachedName
+func (p *point) Name() []byte {
+	return escape.Unescape(p.name())
 }
 
 // SetName updates the measurement name for the point.
@@ -1352,21 +1364,36 @@ func (p *point) Tags() Tags {
 	return p.cachedTags
 }
 
-func parseTags(buf []byte) Tags {
+func (p *point) HasTag(tag []byte) bool {
+	if len(p.key) == 0 {
+		return false
+	}
+
+	var exists bool
+	walkTags(p.key, func(key, value []byte) bool {
+		if bytes.Equal(tag, key) {
+			exists = true
+			return false
+		}
+		return true
+	})
+
+	return exists
+}
+
+func walkTags(buf []byte, fn func(key, value []byte) bool) {
 	if len(buf) == 0 {
-		return nil
+		return
 	}
 
 	pos, name := scanTo(buf, 0, ',')
 
 	// it's an empty key, so there are no tags
 	if len(name) == 0 {
-		return nil
+		return
 	}
 
-	tags := make(Tags, 0, bytes.Count(buf, []byte(",")))
 	hasEscape := bytes.IndexByte(buf, '\\') != -1
-
 	i := pos + 1
 	var key, value []byte
 	for {
@@ -1381,14 +1408,29 @@ func parseTags(buf []byte) Tags {
 		}
 
 		if hasEscape {
-			tags = append(tags, NewTag(unescapeTag(key), unescapeTag(value)))
+			if !fn(unescapeTag(key), unescapeTag(value)) {
+				return
+			}
 		} else {
-			tags = append(tags, NewTag(key, value))
+			if !fn(key, value) {
+				return
+			}
 		}
 
 		i++
 	}
+}
 
+func parseTags(buf []byte) Tags {
+	if len(buf) == 0 {
+		return nil
+	}
+
+	tags := make(Tags, 0, bytes.Count(buf, []byte(",")))
+	walkTags(buf, func(key, value []byte) bool {
+		tags = append(tags, NewTag(key, value))
+		return true
+	})
 	return tags
 }
 
@@ -1401,7 +1443,7 @@ func MakeKey(name []byte, tags Tags) []byte {
 
 // SetTags replaces the tags for the point.
 func (p *point) SetTags(tags Tags) {
-	p.key = MakeKey([]byte(p.Name()), tags)
+	p.key = MakeKey(p.Name(), tags)
 	p.cachedTags = tags
 }
 
@@ -1411,7 +1453,7 @@ func (p *point) AddTag(key, value string) {
 	tags = append(tags, Tag{Key: []byte(key), Value: []byte(value)})
 	sort.Sort(tags)
 	p.cachedTags = tags
-	p.key = MakeKey([]byte(p.Name()), tags)
+	p.key = MakeKey(p.Name(), tags)
 }
 
 // Fields returns the fields for the point.

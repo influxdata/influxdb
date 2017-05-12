@@ -600,7 +600,7 @@ func (fs FileSet) MeasurementSeriesByExprIterator(name []byte, expr influxql.Exp
 	if expr == nil || influxql.OnlyTimeExpr(expr) {
 		return fs.MeasurementSeriesIterator(name), nil
 	}
-	return fs.seriesByExprIterator(name, expr, fieldset.CreateFieldsIfNotExists(string(name)))
+	return fs.seriesByExprIterator(name, expr, fieldset.CreateFieldsIfNotExists(name))
 }
 
 // MeasurementSeriesKeysByExpr returns a list of series keys matching expr.
