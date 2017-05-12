@@ -1,0 +1,133 @@
+memo = "81da70d0116bb84637d4c78287ad22ec4af9ba1aa6076dc43ffb8dd8c9a5c4ff"
+
+[[projects]]
+  name = "github.com/NYTimes/gziphandler"
+  packages = ["."]
+  revision = "6710af535839f57c687b62c4c23d649f9545d885"
+
+[[projects]]
+  name = "github.com/Sirupsen/logrus"
+  packages = ["."]
+  revision = "3ec0642a7fb6488f65b06f9040adc67e3990296a"
+
+[[projects]]
+  name = "github.com/boltdb/bolt"
+  packages = ["."]
+  revision = "5cc10bbbc5c141029940133bb33c9e969512a698"
+
+[[projects]]
+  name = "github.com/bouk/httprouter"
+  packages = ["."]
+  revision = "ee8b3818a7f51fbc94cc709b5744b52c2c725e91"
+
+[[projects]]
+  name = "github.com/dgrijalva/jwt-go"
+  packages = ["."]
+  revision = "24c63f56522a87ec5339cc3567883f1039378fdb"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/dustin/go-humanize"
+  packages = ["."]
+  revision = "259d2a102b871d17f30e3cd9881a642961a1e486"
+
+[[projects]]
+  name = "github.com/elazarl/go-bindata-assetfs"
+  packages = ["."]
+  revision = "9a6736ed45b44bf3835afeebb3034b57ed329f3e"
+
+[[projects]]
+  name = "github.com/gogo/protobuf"
+  packages = ["gogoproto","jsonpb","plugin/compare","plugin/defaultcheck","plugin/description","plugin/embedcheck","plugin/enumstringer","plugin/equal","plugin/face","plugin/gostring","plugin/marshalto","plugin/oneofcheck","plugin/populate","plugin/size","plugin/stringer","plugin/testgen","plugin/union","plugin/unmarshal","proto","protoc-gen-gogo","protoc-gen-gogo/descriptor","protoc-gen-gogo/generator","protoc-gen-gogo/grpc","protoc-gen-gogo/plugin","vanity","vanity/command"]
+  revision = "6abcf94fd4c97dcb423fdafd42fe9f96ca7e421b"
+
+[[projects]]
+  name = "github.com/golang/protobuf"
+  packages = ["proto"]
+  revision = "8ee79997227bf9b34611aee7946ae64735e6fd93"
+
+[[projects]]
+  name = "github.com/google/go-github"
+  packages = ["github"]
+  revision = "1bc362c7737e51014af7299e016444b654095ad9"
+
+[[projects]]
+  name = "github.com/google/go-querystring"
+  packages = ["query"]
+  revision = "9235644dd9e52eeae6fa48efd539fdc351a0af53"
+
+[[projects]]
+  name = "github.com/influxdata/influxdb"
+  packages = ["influxql","influxql/internal","influxql/neldermead","models","pkg/escape"]
+  revision = "af72d9b0e4ebe95be30e89b160f43eabaf0529ed"
+
+[[projects]]
+  name = "github.com/influxdata/kapacitor"
+  packages = ["client/v1","influxdb","models","pipeline","services/k8s/client","tick","tick/ast","tick/stateful","udf"]
+  revision = "5408057e5a3493d3b5bd38d5d535ea45b587f8ff"
+  version = "v1.2.0"
+
+[[projects]]
+  name = "github.com/influxdata/usage-client"
+  packages = ["v1"]
+  revision = "6d3895376368aa52a3a81d2a16e90f0f52371967"
+
+[[projects]]
+  name = "github.com/jessevdk/go-flags"
+  packages = ["."]
+  revision = "4cc2832a6e6d1d3b815e2b9d544b2a4dfb3ce8fa"
+
+[[projects]]
+  name = "github.com/jteeuwen/go-bindata"
+  packages = ["."]
+  revision = "bbd0c6e271208dce66d8fda4bc536453cd27fc4a"
+  version = "v3.0.7"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/pkg/errors"
+  packages = ["."]
+  revision = "ff09b135c25aae272398c51a07235b90a75aa4f0"
+
+[[projects]]
+  name = "github.com/satori/go.uuid"
+  packages = ["."]
+  revision = "b061729afc07e77a8aa4fad0a2fd840958f1942a"
+
+[[projects]]
+  name = "github.com/sergi/go-diff"
+  packages = ["diffmatchpatch"]
+  revision = "1d28411638c1e67fe1930830df207bef72496ae9"
+
+[[projects]]
+  name = "github.com/tylerb/graceful"
+  packages = ["."]
+  revision = "50a48b6e73fcc75b45e22c05b79629a67c79e938"
+  version = "v1.2.13"
+
+[[projects]]
+  name = "golang.org/x/net"
+  packages = ["context","context/ctxhttp"]
+  revision = "749a502dd1eaf3e5bfd4f8956748c502357c0bbe"
+
+[[projects]]
+  name = "golang.org/x/oauth2"
+  packages = [".","github","heroku","internal"]
+  revision = "1e695b1c8febf17aad3bfa7bf0a819ef94b98ad5"
+
+[[projects]]
+  branch = "master"
+  name = "golang.org/x/sys"
+  packages = ["unix"]
+  revision = "f3918c30c5c2cb527c0b071a27c35120a6c0719a"
+
+[[projects]]
+  name = "google.golang.org/api"
+  packages = ["gensupport","googleapi","googleapi/internal/uritemplates","oauth2/v2"]
+  revision = "bc20c61134e1d25265dd60049f5735381e79b631"
+
+[[projects]]
+  name = "google.golang.org/appengine"
+  packages = ["internal","internal/base","internal/datastore","internal/log","internal/remote_api","internal/urlfetch","urlfetch"]
+  revision = "150dc57a1b433e64154302bdc40b6bb8aefa313a"
+  version = "v1.0.0"
