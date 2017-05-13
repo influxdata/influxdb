@@ -32,6 +32,7 @@ export default React.createClass({
     activeQueryIndex: number,
     ruleValues: shape({}),
     isInDataExplorer: bool,
+    synchronizer: func,
   },
 
   getDefaultProps() {
@@ -84,6 +85,7 @@ export default React.createClass({
       displayOptions,
       ruleValues,
       isInDataExplorer,
+      synchronizer,
     } = this.props
     const {labels, timeSeries, dygraphSeries} = this._timeSeries
 
@@ -143,6 +145,7 @@ export default React.createClass({
           ranges={ranges || this.getRanges()}
           ruleValues={ruleValues}
           legendOnBottom={isInDataExplorer}
+          synchronizer={synchronizer}
         />
         {showSingleStat
           ? <div className="graph-single-stat single-stat">{roundedValue}</div>

@@ -3,6 +3,8 @@ import {Link} from 'react-router'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
+import Dygraph from 'src/external/dygraph'
+
 import OverlayTechnologies from 'src/shared/components/OverlayTechnologies'
 import CellEditorOverlay from 'src/dashboards/components/CellEditorOverlay'
 import DashboardHeader from 'src/dashboards/components/DashboardHeader'
@@ -26,6 +28,7 @@ class DashboardPage extends Component {
       selectedCell: null,
       isEditMode: false,
       isTemplating: false,
+      dygraphs: [],
     }
 
     this.handleAddCell = ::this.handleAddCell
@@ -48,6 +51,7 @@ class DashboardPage extends Component {
     this.handleSelectTemplate = ::this.handleSelectTemplate
     this.handleEditTemplateVariables = ::this.handleEditTemplateVariables
     this.handleRunQueryFailure = ::this.handleRunQueryFailure
+    this.synchronizer = ::this.synchronizer
   }
 
   componentDidMount() {
@@ -206,6 +210,14 @@ class DashboardPage extends Component {
     this.props.errorThrown(error)
   }
 
+  synchronizer(dygraph) {
+    const dygraphs = [...this.state.dygraphs, dygraph]
+    if (dygraphs.length > 1) {
+      Dygraph.synchronize(dygraphs)
+    }
+    this.setState({dygraphs})
+  }
+
   getActiveDashboard() {
     const {params: {dashboardID}, dashboards} = this.props
     return dashboards.find(d => d.id === +dashboardID)
@@ -303,25 +315,24 @@ class DashboardPage extends Component {
                   ))
                 : null}
             </DashboardHeader>}
-        {dashboard
-          ? <Dashboard
-              source={source}
-              dashboard={dashboard}
-              timeRange={timeRange}
-              autoRefresh={autoRefresh}
-              onAddCell={this.handleAddCell}
-              inPresentationMode={inPresentationMode}
-              onEditCell={this.handleEditDashboardCell}
-              onPositionChange={this.handleUpdatePosition}
-              onDeleteCell={this.handleDeleteDashboardCell}
-              onRenameCell={this.handleRenameDashboardCell}
-              onUpdateCell={this.handleUpdateDashboardCell}
-              onOpenTemplateManager={this.handleOpenTemplateManager}
-              templatesIncludingDashTime={templatesIncludingDashTime}
-              onSummonOverlayTechnologies={this.handleSummonOverlayTechnologies}
-              onSelectTemplate={this.handleSelectTemplate}
-            />
-          : null}
+        <Dashboard
+          source={source}
+          dashboard={dashboard}
+          timeRange={timeRange}
+          autoRefresh={autoRefresh}
+          synchronizer={this.synchronizer}
+          onAddCell={this.handleAddCell}
+          inPresentationMode={inPresentationMode}
+          onEditCell={this.handleEditDashboardCell}
+          onPositionChange={this.handleUpdatePosition}
+          onDeleteCell={this.handleDeleteDashboardCell}
+          onRenameCell={this.handleRenameDashboardCell}
+          onUpdateCell={this.handleUpdateDashboardCell}
+          onOpenTemplateManager={this.handleOpenTemplateManager}
+          templatesIncludingDashTime={templatesIncludingDashTime}
+          onSummonOverlayTechnologies={this.handleSummonOverlayTechnologies}
+          onSelectTemplate={this.handleSelectTemplate}
+        />
       </div>
     )
   }

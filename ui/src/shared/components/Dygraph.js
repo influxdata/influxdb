@@ -1,9 +1,7 @@
 /* eslint-disable no-magic-numbers */
-import React, {PropTypes} from 'react'
-import Dygraph from '../../external/dygraph'
+import React, {Component, PropTypes} from 'react'
+import Dygraphs from 'src/external/dygraph'
 import getRange from 'src/shared/parsing/getRangeForDygraph'
-
-const {array, arrayOf, number, bool, shape, string} = PropTypes
 
 const LINE_COLORS = [
   '#00C9FF',
@@ -21,70 +19,69 @@ const LINE_COLORS = [
   '#a0725b',
 ]
 
-export default React.createClass({
-  displayName: 'Dygraph',
-
-  propTypes: {
-    ranges: shape({
-      y: arrayOf(number),
-      y2: arrayOf(number),
-    }),
-    timeSeries: array.isRequired,
-    labels: array.isRequired,
-    options: shape({}),
-    containerStyle: shape({}),
-    isGraphFilled: bool,
-    overrideLineColors: array,
-    dygraphSeries: shape({}).isRequired,
-    ruleValues: shape({
-      operator: string,
-      value: string,
-      rangeValue: string,
-    }),
-    legendOnBottom: bool,
-  },
-
-  getDefaultProps() {
-    return {
-      containerStyle: {},
-      isGraphFilled: true,
-      overrideLineColors: null,
-      legendOnBottom: false,
+export default class Dygraph extends Component {
+  constructor(props) {
+    super(props)
+    this.state = {
+      synced: false,
     }
-  },
+
+    this.getTimeSeries = ::this.getTimeSeries
+    this.foo = ::this.foo
+  }
+
+  static defaultProps = {
+    containerStyle: {},
+    isGraphFilled: true,
+    overrideLineColors: null,
+    legendOnBottom: false,
+  }
 
   getTimeSeries() {
+    const {timeSeries} = this.props
     // Avoid 'Can't plot empty data set' errors by falling back to a
     // default dataset that's valid for Dygraph.
-    return this.props.timeSeries.length ? this.props.timeSeries : [[0]]
-  },
+    return timeSeries.length ? timeSeries : [[0]]
+  }
 
   componentDidMount() {
     const timeSeries = this.getTimeSeries()
     // dygraphSeries is a legend label and its corresponding y-axis e.g. {legendLabel1: 'y', legendLabel2: 'y2'};
-    const {ranges, dygraphSeries, ruleValues, legendOnBottom} = this.props
+    const {
+      ranges,
+      dygraphSeries,
+      ruleValues,
+      legendOnBottom,
+      overrideLineColors,
+      isGraphFilled,
+      options,
+    } = this.props
 
-    const refs = this.refs
-    const graphContainerNode = refs.graphContainer
-    const legendContainerNode = refs.legendContainer
-    const markerNode = refs.graphVerticalMarker
-    let finalLineColors = this.props.overrideLineColors
+    const graphContainerNode = this.graphContainer
+    const legendContainerNode = this.legendContainer
+    let finalLineColors = overrideLineColors
 
     if (finalLineColors === null) {
       finalLineColors = LINE_COLORS
     }
 
     const defaultOptions = {
+      plugins: [
+        new Dygraphs.Plugins.Crosshair({
+          direction: 'vertical',
+        }),
+      ],
       labelsSeparateLines: false,
       labelsDiv: legendContainerNode,
       labelsKMB: true,
       rightGap: 0,
-      leftGap: 0,
-      highlightSeriesBackgroundAlpha: 1,
-      fillGraph: this.props.isGraphFilled,
+      highlightSeriesBackgroundAlpha: 1.0,
+      highlightSeriesBackgroundColor: 'rgb(41, 41, 51)',
+      fillGraph: isGraphFilled,
       axisLineWidth: 2,
       gridLineWidth: 1,
       highlightCircleSize: 3,
+      animatedZooms: true,
       colors: finalLineColors,
       series: dygraphSeries,
       axes: {
@@ -99,7 +96,7 @@ export default React.createClass({
         strokeWidth: 2,
         highlightCircleSize: 5,
       },
-      highlightCallback(e, x, points) {
+      highlightCallback(e) {
         // Move the Legend on hover
         const graphRect = graphContainerNode.getBoundingClientRect()
         const legendRect = legendContainerNode.getBoundingClientRect()
@@ -122,34 +119,24 @@ export default React.createClass({
         } else {
           legendContainerNode.style.top = `${legendTop}px`
         }
-
-        setMarker(points)
-      },
-      unhighlightCallback() {
-        removeMarker()
       },
     }
 
-    const options = Object.assign({}, defaultOptions, this.props.options)
+    this.dygraph = new Dygraphs(graphContainerNode, timeSeries, {
+      ...defaultOptions,
+      ...options,
+    })
 
-    this.dygraph = new Dygraph(graphContainerNode, timeSeries, options)
-
-    function setMarker(points) {
-      markerNode.style.left = `${points[0].canvasx}px`
-      markerNode.style.display = 'block'
-    }
-
-    function removeMarker() {
-      markerNode.style.display = 'none'
-    }
-  },
+    this.foo()
+  }
 
   componentWillUnmount() {
     this.dygraph.destroy()
     delete this.dygraph
-  },
+  }
 
   componentDidUpdate() {
+    const {labels, ranges, options, dygraphSeries, ruleValues} = this.props
     const dygraph = this.dygraph
     if (!dygraph) {
       throw new Error(
@@ -158,7 +145,6 @@ export default React.createClass({
     }
 
     const timeSeries = this.getTimeSeries()
-    const {labels, ranges, options, dygraphSeries, ruleValues} = this.props
 
     dygraph.updateOptions({
       labels,
@@ -178,15 +164,54 @@ export default React.createClass({
     })
 
     dygraph.resize()
-  },
+  }
+  //
+  // componentWillUpdate() {
+  //   this.foo()
+  // }
+
+  foo() {
+    if (this.props.synchronizer && !this.state.synced) {
+      this.props.synchronizer(this.dygraph)
+      this.setState({synced: true})
+    }
+  }
 
   render() {
     return (
-      <div ref="self" style={{height: '100%'}}>
-        <div ref="graphContainer" style={this.props.containerStyle} />
-        <div className="container--dygraph-legend" ref="legendContainer" />
-        <div className="graph-vertical-marker" ref="graphVerticalMarker" />
+      <div style={{height: '100%'}}>
+        <div
+          ref={r => (this.graphContainer = r)}
+          style={this.props.containerStyle}
+        />
+        <div
+          className="container--dygraph-legend"
+          ref={r => (this.legendContainer = r)}
+        />
       </div>
     )
-  },
-})
+  }
+}
+
+const {array, arrayOf, func, number, bool, shape, string} = PropTypes
+
+Dygraph.propTypes = {
+  ranges: shape({
+    y: arrayOf(number),
+    y2: arrayOf(number),
+  }),
+  timeSeries: array.isRequired,
+  labels: array.isRequired,
+  options: shape({}),
+  containerStyle: shape({}),
+  isGraphFilled: bool,
+  overrideLineColors: array,
+  dygraphSeries: shape({}).isRequired,
+  ruleValues: shape({
+    operator: string,
+    value: string,
+    rangeValue: string,
+  }),
+  legendOnBottom: bool,
+  synchronizer: func,
+}
