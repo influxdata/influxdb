@@ -27,7 +27,7 @@ export default class Dygraph extends Component {
     }
 
     this.getTimeSeries = ::this.getTimeSeries
-    this.foo = ::this.foo
+    this.sync = ::this.sync
   }
 
   static defaultProps = {
@@ -127,7 +127,7 @@ export default class Dygraph extends Component {
       ...options,
     })
 
-    this.foo()
+    this.sync()
   }
 
   componentWillUnmount() {
@@ -165,12 +165,8 @@ export default class Dygraph extends Component {
 
     dygraph.resize()
   }
-  //
-  // componentWillUpdate() {
-  //   this.foo()
-  // }
 
-  foo() {
+  sync() {
     if (this.props.synchronizer && !this.state.synced) {
       this.props.synchronizer(this.dygraph)
       this.setState({synced: true})
