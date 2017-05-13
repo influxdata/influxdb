@@ -108,6 +108,7 @@ $tvmp-table-gutter: 8px;
   border-radius: $radius;
   border: 2px solid $g5-pepper;
   background-color: $g2-kevlar;
+  overflow: hidden;
   transition:
     border-color 0.25s ease;
 

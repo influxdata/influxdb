@@ -2,6 +2,9 @@
 
 ### Bug Fixes
   1. [#1450](https://github.com/influxdata/chronograf/pull/1450): Fix infinite spinner when using "/chronograf" as a basepath
+  1. [#1455](https://github.com/influxdata/chronograf/issues/1455): Fix backwards sort arrows in tables
+  1. [#1423](https://github.com/influxdata/chronograf/issues/1423): Make logout nav item consistent with design
+  1. [#1426](https://github.com/influxdata/chronograf/issues/1426): Fix graph loading spinner
 
 ### Features
 
@@ -9,6 +12,9 @@
   1. [#1451](https://github.com/influxdata/chronograf/pull/1451): Refactor scrollbars to support non-webkit browsers
   1. [#1453](https://github.com/influxdata/chronograf/pull/1453): Give QueryMaker a greater initial height than Visualization
   1. [#1475](https://github.com/influxdata/chronograf/pull/1475): Add ability to toggle visibility of the Template Control Bar
+  1. [#1464](https://github.com/influxdata/chronograf/pull/1464): Make Template Variables Manager more space efficient
+  1. [#1464](https://github.com/influxdata/chronograf/pull/1464): Add page spinners to pages that did not have them
+  1. [#1464](https://github.com/influxdata/chronograf/pull/1464): Denote which source is connected in the Sources table
 
 ## v1.3.0 [2017-05-09]
 
