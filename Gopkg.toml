@@ -49,6 +49,10 @@ required = ["github.com/jteeuwen/go-bindata","github.com/gogo/protobuf/proto","g
   revision = "4cc2832a6e6d1d3b815e2b9d544b2a4dfb3ce8fa"
 
 [[dependencies]]
+  name = "github.com/jteeuwen/go-bindata"
+  revision = "a0ff2567cfb70903282db057e799fd826784d41d"
+
+[[dependencies]]
   name = "github.com/satori/go.uuid"
   revision = "b061729afc07e77a8aa4fad0a2fd840958f1942a"
 

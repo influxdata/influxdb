@@ -1,4 +1,4 @@
-memo = "81da70d0116bb84637d4c78287ad22ec4af9ba1aa6076dc43ffb8dd8c9a5c4ff"
+memo = "bac138180cd86a0ae604cd3aa7b6ba300673478c880882bd58a4bd7f8bff518d"
 
 [[projects]]
   name = "github.com/NYTimes/gziphandler"
@@ -80,8 +80,7 @@ memo = "81da70d0116bb84637d4c78287ad22ec4af9ba1aa6076dc43ffb8dd8c9a5c4ff"
 [[projects]]
   name = "github.com/jteeuwen/go-bindata"
   packages = ["."]
-  revision = "bbd0c6e271208dce66d8fda4bc536453cd27fc4a"
-  version = "v3.0.7"
+  revision = "a0ff2567cfb70903282db057e799fd826784d41d"
 
 [[projects]]
   branch = "master"

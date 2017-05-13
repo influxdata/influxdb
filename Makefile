@@ -2,7 +2,6 @@
 
 VERSION ?= $(shell git describe --always --tags)
 COMMIT ?= $(shell git rev-parse --short=8 HEAD)
-GDM := $(shell command -v gdm 2> /dev/null)
 GOBINDATA := $(shell go list -f {{.Root}}  github.com/jteeuwen/go-bindata 2> /dev/null)
 YARN := $(shell command -v yarn 2> /dev/null)
 
@@ -70,16 +69,11 @@ canned/bin_gen.go: canned/*.json
 
 dep: .jsdep .godep
 
-.godep: Godeps
-ifndef GDM
-	@echo "Installing GDM"
-	go get github.com/sparrc/gdm
-endif
+.godep:
 ifndef GOBINDATA
 	@echo "Installing go-bindata"
-	go get -u github.com/jteeuwen/go-bindata/...
+	go install ./vendor/github.com/jteeuwen/go-bindata/...
 endif
-	gdm restore
 	@touch .godep
 
 .jsdep: ui/yarn.lock
@@ -90,7 +84,9 @@ else
 	@touch .jsdep
 endif
 
-gen: bolt/internal/internal.proto
+gen: internal.pb.go
+
+internal.pb.go: bolt/internal/internal.proto
 	go generate -x ./bolt/internal
 
 test: jstest gotest gotestrace
@@ -116,9 +112,6 @@ clean:
 	cd ui && rm -rf node_modules
 	rm -f dist/dist_gen.go canned/bin_gen.go server/swagger_gen.go
 	@rm -f .godep .jsdep .jssrc .dev-jssrc .bindata
-
-continuous:
-	while true; do if fswatch -e "\.git" -r --one-event .; then echo "#-> Starting build: `date`"; make dev; pkill -9 chronograf; make run-dev & echo "#-> Build complete."; fi; sleep 0.5; done
 
 ctags:
 	ctags -R --languages="Go" --exclude=.git --exclude=ui .
