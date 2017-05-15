@@ -81,6 +81,7 @@ export default function rules(state = {}, action) {
       switch (alertType) {
         case 'http':
         case 'tcp':
+        case 'log':
           alertNodesByType = [
             {
               name: alertType,
