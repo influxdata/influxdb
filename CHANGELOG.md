@@ -7,6 +7,7 @@
   1. [#1426](https://github.com/influxdata/chronograf/issues/1426): Fix graph loading spinner
 
 ### Features
+  1. [#1477](https://github.com/influxdata/chronograf/pull/1477): Add ability to log alerts
 
 ### UI Improvements
   1. [#1451](https://github.com/influxdata/chronograf/pull/1451): Refactor scrollbars to support non-webkit browsers
