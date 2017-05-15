@@ -4,6 +4,11 @@
 
 The admin UI is removed and unusable in this release. The `[admin]` configuration section will be ignored.
 
+### Configuration Changes
+
+* The top-level config `bind-address` now defaults to `localhost:8088`.
+  The previous default was just `:8088`, causing the backup and restore port to be bound on all available interfaces (i.e. including interfaces on the public internet).
+
 ### Features
 
 - [#8143](https://github.com/influxdata/influxdb/pull/8143): Add WAL sync delay
@@ -38,6 +43,7 @@ The admin UI is removed and unusable in this release. The `[admin]` configuratio
 - [#8064](https://github.com/influxdata/influxdb/issues/8064): Forbid wildcards in binary expressions.
 - [#8148](https://github.com/influxdata/influxdb/issues/8148): Fix fill(linear) when multiple series exist and there are null values.
 - [#7995](https://github.com/influxdata/influxdb/issues/7995): Update liner dependency to handle docker exec.
+- [#7835](https://github.com/influxdata/influxdb/pull/7835): Bind backup and restore port to localhost by default
 - [#7811](https://github.com/influxdata/influxdb/issues/7811): Kill query not killing query
 - [#7457](https://github.com/influxdata/influxdb/issues/7457): KILL QUERY should work during all phases of a query
 - [#8155](https://github.com/influxdata/influxdb/pull/8155): Simplify admin user check.

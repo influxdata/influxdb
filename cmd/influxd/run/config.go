@@ -33,7 +33,7 @@ import (
 
 const (
 	// DefaultBindAddress is the default address for various RPC services.
-	DefaultBindAddress = ":8088"
+	DefaultBindAddress = "127.0.0.1:8088"
 )
 
 // Config represents the configuration format for the influxd binary.
