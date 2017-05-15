@@ -159,7 +159,7 @@ func (h *Handler) archiveProfilesAndQueries(w http.ResponseWriter, r *http.Reque
 			for _, col := range row.Columns {
 				out = append(out, []byte(col+"\t")...)
 			}
-			out = append(out, []byte("\n")...)
+			out = append(out, '\n')
 			if _, err := tabW.Write(out); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
@@ -170,7 +170,7 @@ func (h *Handler) archiveProfilesAndQueries(w http.ResponseWriter, r *http.Reque
 				for _, v := range val {
 					out = append(out, []byte(fmt.Sprintf("%v\t", v))...)
 				}
-				out = append(out, []byte("\n")...)
+				out = append(out, '\n')
 				if _, err := tabW.Write(out); err != nil {
 					http.Error(w, err.Error(), http.StatusInternalServerError)
 				}
@@ -313,14 +313,14 @@ func (h *Handler) showStats() ([]*models.Row, error) {
 
 // joinUint64 returns a comma-delimited string of uint64 numbers.
 func joinUint64(a []uint64) string {
-	var buf bytes.Buffer
+	var buf []byte // Could take a guess at initial size here.
 	for i, x := range a {
-		buf.WriteString(strconv.FormatUint(x, 10))
-		if i < len(a)-1 {
-			buf.WriteRune(',')
+		if i != 0 {
+			buf = append(buf, ',')
 		}
+		buf = strconv.AppendUint(buf, x, 10)
 	}
-	return buf.String()
+	return string(buf)
 }
 
 // Taken from net/http/pprof/pprof.go
