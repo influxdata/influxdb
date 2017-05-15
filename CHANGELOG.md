@@ -2,6 +2,7 @@
 
 ### Bug Fixes
   1. [#1450](https://github.com/influxdata/chronograf/pull/1450): Fix infinite spinner when using "/chronograf" as a basepath
+  1. [#1458](https://github.com/influxdata/chronograf/pull/1458): New versions of Chronograf will automatically clear localStorage settings until further notice.
 
 ### Features
 
