@@ -1,6 +1,6 @@
 import React, {Component, PropTypes} from 'react'
 
-import DatabaseDropdown from 'src/dashboards/components/DatabaseDropdown'
+import DatabaseDropdown from 'shared/components/DatabaseDropdown'
 
 class WriteDataForm extends Component {
   constructor(props) {
@@ -31,6 +31,12 @@ class WriteDataForm extends Component {
         <div className="template-variable-manager--header">
           <div className="page-header__left">
             <h1 className="page-header__title">Write Data To</h1>
+            <DatabaseDropdown
+              onSelectDatabase={this.handleSelectDatabase}
+              database={selectedDatabase}
+              onStartEdit={this.handleStartEdit}
+              onErrorThrown={this.handleError}
+            />
           </div>
           <div className="page-header__right">
             <span className="page-header__dismiss" onClick={onClose} />
