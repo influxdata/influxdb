@@ -1,21 +1,46 @@
-import React, {PropTypes} from 'react'
+import React, {Component, PropTypes} from 'react'
 
-import Dropdown from 'shared/components/Dropdown'
+import DatabaseDropdown from 'src/dashboards/components/DatabaseDropdown'
 
-const WriteDataForm = ({onClose}) => (
-  <div className="template-variable-manager">
-    <div className="template-variable-manager--header">
-      <div className="page-header__left">
-        <h1 className="page-header__title">Write Data To</h1>
-        <button className="btn btn-default btn-sm">Name</button>
+class WriteDataForm extends Component {
+  constructor(props) {
+    super(props)
+    this.state = {
+      selectedDatabase: null,
+    }
+
+    this.handleSelectDatabase = ::this.handleSelectDatabase
+    this.handleStartEdit = ::this.handleStartEdit
+    this.handleError = ::this.handleError
+  }
+
+  handleSelectDatabase(item) {
+    this.setState({selectedDatabase: item.text})
+  }
+
+  handleStartEdit() {}
+
+  handleError() {}
+
+  render() {
+    const {onClose} = this.props
+    const {selectedDatabase} = this.state
+
+    return (
+      <div className="template-variable-manager">
+        <div className="template-variable-manager--header">
+          <div className="page-header__left">
+            <h1 className="page-header__title">Write Data To</h1>
+          </div>
+          <div className="page-header__right">
+            <span className="page-header__dismiss" onClick={onClose} />
+          </div>
+        </div>
+        <div className="template-variable-manager--body" />
       </div>
-      <div className="page-header__right">
-        <span className="page-header__dismiss" onClick={onClose} />
-      </div>
-    </div>
-    <div className="template-variable-manager--body" />
-  </div>
-)
+    )
+  }
+}
 
 const {func} = PropTypes
 
