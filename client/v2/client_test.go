@@ -520,16 +520,57 @@ func TestBatchPoints_PrecisionError(t *testing.T) {
 	}
 }
 
+func TestBatchPoints_PrecisionSetterGetter(t *testing.T) {
+	precisionTestCases := [][]string{
+		{"ns"},
+		{"u", "us", "µs", "µ"},
+		{"ms"},
+		{"s"},
+		{"m"},
+		{"h"},
+	}
+
+	for _, testCase := range precisionTestCases {
+		expected := testCase[0]
+
+		for _, alias := range testCase {
+			bp, err := NewBatchPoints(BatchPointsConfig{
+				Precision: alias,
+			})
+			if err != nil {
+				t.Errorf("Alias %q: Did not expect error: %s", alias, err.Error())
+			}
+			if bp.Precision() != expected {
+				t.Errorf("Alias %q: expected: %s, got %s", alias, expected, bp.Precision())
+			}
+
+			err = bp.SetPrecision(alias)
+			if err != nil {
+				t.Errorf("Alias %q: Did not expect error: %s", alias, err.Error())
+			}
+
+			if bp.Precision() != expected {
+				t.Errorf("Alias %q: Expected: %s, got %s", alias, expected, bp.Precision())
+			}
+		}
+	}
+
+	bp, err := NewBatchPoints(BatchPointsConfig{})
+	if err != nil {
+		t.Errorf("Did not expect error: %s", err.Error())
+	}
+
+	if bp.Precision() != "ns" {
+		t.Errorf("Expected %s, got %s", "ns", bp.Precision())
+	}
+}
+
 func TestBatchPoints_SettersGetters(t *testing.T) {
 	bp, _ := NewBatchPoints(BatchPointsConfig{
-		Precision:        "ns",
 		Database:         "db",
 		RetentionPolicy:  "rp",
 		WriteConsistency: "wc",
 	})
-	if bp.Precision() != "ns" {
-		t.Errorf("Expected: %s, got %s", bp.Precision(), "ns")
-	}
 	if bp.Database() != "db" {
 		t.Errorf("Expected: %s, got %s", bp.Database(), "db")
 	}
@@ -543,14 +584,7 @@ func TestBatchPoints_SettersGetters(t *testing.T) {
 	bp.SetDatabase("db2")
 	bp.SetRetentionPolicy("rp2")
 	bp.SetWriteConsistency("wc2")
-	err := bp.SetPrecision("s")
-	if err != nil {
-		t.Errorf("Did not expect error: %s", err.Error())
-	}
 
-	if bp.Precision() != "s" {
-		t.Errorf("Expected: %s, got %s", bp.Precision(), "s")
-	}
 	if bp.Database() != "db2" {
 		t.Errorf("Expected: %s, got %s", bp.Database(), "db2")
 	}

@@ -211,10 +211,10 @@ type BatchPoints interface {
 
 // NewBatchPoints returns a BatchPoints interface based on the given config.
 func NewBatchPoints(conf BatchPointsConfig) (BatchPoints, error) {
+	var err error
 	if conf.Precision == "" {
 		conf.Precision = "ns"
-	}
-	if _, err := time.ParseDuration("1" + conf.Precision); err != nil {
+	} else if conf.Precision, err = parsePrecision(conf.Precision); err != nil {
 		return nil, err
 	}
 	bp := &batchpoints{
@@ -224,6 +224,18 @@ func NewBatchPoints(conf BatchPointsConfig) (BatchPoints, error) {
 		writeConsistency: conf.WriteConsistency,
 	}
 	return bp, nil
+}
+
+func parsePrecision(p string) (string, error) {
+	switch p {
+	case "ns", "u", "ms", "s", "m", "h":
+		return p, nil
+
+	case "us", "µ", "µs":
+		return "u", nil
+	}
+
+	return "", fmt.Errorf("unknown precision %s", p)
 }
 
 type batchpoints struct {
@@ -263,7 +275,8 @@ func (bp *batchpoints) RetentionPolicy() string {
 }
 
 func (bp *batchpoints) SetPrecision(p string) error {
-	if _, err := time.ParseDuration("1" + p); err != nil {
+	var err error
+	if p, err = parsePrecision(p); err != nil {
 		return err
 	}
 	bp.precision = p
