@@ -10,6 +10,7 @@
 ### Features
   1. [#1477](https://github.com/influxdata/chronograf/pull/1477): Add ability to log alerts
   1. [#1474](https://github.com/influxdata/chronograf/pull/1474): Change behavior of template variable autocomplete to filter by exact match from front of string
+  1. [#1491](https://github.com/influxdata/chronograf/pull/1491): Update go vendoring to dep and committed vendor directory
 
 ### UI Improvements
   1. [#1451](https://github.com/influxdata/chronograf/pull/1451): Refactor scrollbars to support non-webkit browsers
