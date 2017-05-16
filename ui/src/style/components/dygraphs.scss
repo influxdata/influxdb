@@ -24,7 +24,7 @@
 .container--dygraph-legend {
   transform: translateX(-50%);
   background-color: $g0-obsidian;
-  display: block;
+  display: block !important;
   position: absolute;
   padding: 11px;
   z-index: 500;
@@ -36,7 +36,7 @@
   pointer-events: none;
 
   &.hidden {
-    display: none;
+    display: none !important;
   }
 
   /*

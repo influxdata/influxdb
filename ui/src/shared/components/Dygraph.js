@@ -2,6 +2,8 @@
 import React, {Component, PropTypes} from 'react'
 import Dygraphs from 'src/external/dygraph'
 import getRange from 'src/shared/parsing/getRangeForDygraph'
+import uuid from 'node-uuid'
+import classnames from 'classnames'
 
 const LINE_COLORS = [
   '#00C9FF',
@@ -24,8 +26,10 @@ export default class Dygraph extends Component {
     super(props)
     this.state = {
       synced: false,
+      legendHidden: true,
     }
-
+    this.id = uuid.v4()
+    console.log(this.id)
     this.getTimeSeries = ::this.getTimeSeries
     this.sync = ::this.sync
   }
@@ -74,6 +78,7 @@ export default class Dygraph extends Component {
       labelsSeparateLines: false,
       labelsDiv: legendContainerNode,
       labelsKMB: true,
+      hideOverlayOnMouseOut: false,
       rightGap: 0,
       highlightSeriesBackgroundAlpha: 1.0,
       highlightSeriesBackgroundColor: 'rgb(41, 41, 51)',
@@ -96,37 +101,56 @@ export default class Dygraph extends Component {
         strokeWidth: 2,
         highlightCircleSize: 5,
       },
-      highlightCallback(e) {
-        // Move the Legend on hover
-        const graphRect = graphContainerNode.getBoundingClientRect()
-        const legendRect = legendContainerNode.getBoundingClientRect()
-        const graphWidth = graphRect.width + 32 // Factoring in padding from parent
-        const legendWidth = legendRect.width
-        const legendHeight = legendRect.height
-        const screenHeight = window.innerHeight
-        const legendMaxLeft = graphWidth - legendWidth / 2
-        const trueGraphX = e.pageX - graphRect.left
-        let legendTop = graphRect.height + 0
-        let legendLeft = trueGraphX
+      unhighlightCallback: e => {
+        // console.log('hey on', e)
+        this.setState({legendHidden: true}, () => {
+          console.log(
+            'unhighlightCallback. legendHidden:',
+            this.state.legendHidden,
+            this.id
+          )
+        })
+      },
+      highlightCallback: (e, x, points, row, seriesName) => {
+        console.log('seriesName', seriesName)
+        this.setState({legendHidden: false}, () => {
+          console.log(
+            'highlightCallback. legendHidden:',
+            this.state.legendHidden,
+            this.id
+          )
+          // Move the Legend on hover
+          const graphRect = graphContainerNode.getBoundingClientRect()
+          const legendRect = legendContainerNode.getBoundingClientRect()
+          const graphWidth = graphRect.width + 32 // Factoring in padding from parent
+          const legendWidth = legendRect.width
+          const legendHeight = legendRect.height
+          const screenHeight = window.innerHeight
+          const legendMaxLeft = graphWidth - legendWidth / 2
+          const trueGraphX = e.pageX - graphRect.left
+          let legendTop = graphRect.height + 0
+          let legendLeft = trueGraphX
+          console.log('graphRect.top', graphRect.top)
 
-        // Enforcing max & min legend offsets
-        if (trueGraphX < legendWidth / 2) {
-          legendLeft = legendWidth / 2
-        } else if (trueGraphX > legendMaxLeft) {
-          legendLeft = legendMaxLeft
-        }
+          // Enforcing max & min legend offsets
+          if (trueGraphX < legendWidth / 2) {
+            legendLeft = legendWidth / 2
+          } else if (trueGraphX > legendMaxLeft) {
+            legendLeft = legendMaxLeft
+          }
 
-        // Enforcing overflow of legend contents
-        if (graphRect.bottom + legendHeight > screenHeight) {
-          legendTop = graphRect.top - legendHeight
-        }
+          // Enforcing overflow of legend contents
+          if (graphRect.bottom + legendHeight > screenHeight) {
+            legendTop = graphRect.top - legendHeight
+          }
 
-        legendContainerNode.style.left = `${legendLeft}px`
-        if (legendOnBottom) {
-          legendContainerNode.style.bottom = '4px'
-        } else {
-          legendContainerNode.style.top = `${legendTop}px`
-        }
+          legendContainerNode.style.left = `${legendLeft}px`
+          if (legendOnBottom) {
+            legendContainerNode.style.bottom = '4px'
+          } else {
+            legendContainerNode.style.top = `${legendTop}px`
+          }
+        })
       },
     }
 
@@ -182,15 +206,24 @@ export default class Dygraph extends Component {
   }
 
   render() {
+    console.log('render. legendHidden:', this.state.legendHidden, this.id)
+    // const display = this.state.legendHidden ? 'block' : 'none'
     return (
       <div style={{height: '100%'}}>
         <div
-          ref={r => (this.graphContainer = r)}
+          ref={r => {
+            this.graphContainer = r
+          }}
           style={this.props.containerStyle}
         />
         <div
-          className="container--dygraph-legend"
-          ref={r => (this.legendContainer = r)}
+          className={classnames({
+            'container--dygraph-legend': true,
+            hidden: this.state.legendHidden,
+          })}
+          ref={r => {
+            this.legendContainer = r
+          }}
         />
       </div>
     )
