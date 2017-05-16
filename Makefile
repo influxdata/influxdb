@@ -72,7 +72,7 @@ dep: .jsdep .godep
 .godep:
 ifndef GOBINDATA
 	@echo "Installing go-bindata"
-	go install ./vendor/github.com/jteeuwen/go-bindata/...
+	go get -u github.com/jteeuwen/go-bindata/...
 endif
 	@touch .godep
 
