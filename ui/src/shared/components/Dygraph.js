@@ -102,15 +102,23 @@ export default class Dygraph extends Component {
         const legendRect = legendContainerNode.getBoundingClientRect()
         const graphWidth = graphRect.width + 32 // Factoring in padding from parent
         const legendWidth = legendRect.width
+        const legendHeight = legendRect.height
+        const screenHeight = window.innerHeight
         const legendMaxLeft = graphWidth - legendWidth / 2
         const trueGraphX = e.pageX - graphRect.left
-        const legendTop = graphRect.height + 0
+        let legendTop = graphRect.height + 0
         let legendLeft = trueGraphX
+
         // Enforcing max & min legend offsets
         if (trueGraphX < legendWidth / 2) {
           legendLeft = legendWidth / 2
         } else if (trueGraphX > legendMaxLeft) {
           legendLeft = legendMaxLeft
+        }
+
+        // Enforcing overflow of legend contents
+        if (graphRect.bottom + legendHeight > screenHeight) {
+          legendTop = graphRect.top - legendHeight
         }
 
         legendContainerNode.style.left = `${legendLeft}px`
