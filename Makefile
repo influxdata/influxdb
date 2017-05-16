@@ -5,7 +5,7 @@ COMMIT ?= $(shell git rev-parse --short=8 HEAD)
 GOBINDATA := $(shell go list -f {{.Root}}  github.com/jteeuwen/go-bindata 2> /dev/null)
 YARN := $(shell command -v yarn 2> /dev/null)
 
-SOURCES := $(shell find . -name '*.go' ! -name '*_gen.go')
+SOURCES := $(shell find . -name '*.go' ! -name '*_gen.go' -not -path "./vendor/*" )
 UISOURCES := $(shell find ui -type f -not \( -path ui/build/\* -o -path ui/node_modules/\* -prune \) )
 
 LDFLAGS=-ldflags "-s -X main.version=${VERSION} -X main.commit=${COMMIT}"
@@ -92,10 +92,10 @@ internal.pb.go: bolt/internal/internal.proto
 test: jstest gotest gotestrace
 
 gotest:
-	go test ./...
+	go test `go list ./... | grep -v /vendor/`
 
 gotestrace:
-	go test -race ./...
+	go test -race `go list ./... | grep -v /vendor/`
 
 jstest:
 	cd ui && npm test
