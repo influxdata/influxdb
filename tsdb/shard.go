@@ -187,6 +187,21 @@ func (s *Shard) SetEnabled(enabled bool) {
 	s.mu.Unlock()
 }
 
+// ID returns the shards ID.
+func (s *Shard) ID() uint64 {
+	return s.id
+}
+
+// Database returns the database of the shard.
+func (s *Shard) Database() string {
+	return s.database
+}
+
+// RetentionPolicy returns the retention policy of the shard.
+func (s *Shard) RetentionPolicy() string {
+	return s.retentionPolicy
+}
+
 // ShardStatistics maintains statistics for a shard.
 type ShardStatistics struct {
 	WriteReq           int64
