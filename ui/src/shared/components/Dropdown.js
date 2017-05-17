@@ -3,13 +3,18 @@ import {Link} from 'react-router'
 import classnames from 'classnames'
 import OnClickOutside from 'shared/components/OnClickOutside'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
-import {DROPDOWN_MENU_MAX_HEIGHT, DROPDOWN_MENU_ITEM_THRESHOLD} from 'shared/constants/index'
+import {
+  DROPDOWN_MENU_MAX_HEIGHT,
+  DROPDOWN_MENU_ITEM_THRESHOLD,
+} from 'shared/constants/index'
 
 class Dropdown extends Component {
   constructor(props) {
     super(props)
     this.state = {
       isOpen: false,
+      searchTerm: '',
+      filteredItems: this.props.items,
     }
 
     this.handleClickOutside = ::this.handleClickOutside
@@ -17,6 +22,9 @@ class Dropdown extends Component {
     this.handleSelection = ::this.handleSelection
     this.toggleMenu = ::this.toggleMenu
     this.handleAction = ::this.handleAction
+    this.handleFilterChange = ::this.handleFilterChange
+    this.applyFilter = ::this.applyFilter
+    this.handleFilterKeyPress = ::this.handleFilterKeyPress
   }
 
   static defaultProps = {
@@ -24,6 +32,7 @@ class Dropdown extends Component {
     buttonSize: 'btn-sm',
     buttonColor: 'btn-info',
     menuWidth: '100%',
+    hasAutoComplete: false,
   }
 
   handleClickOutside() {
@@ -54,20 +63,74 @@ class Dropdown extends Component {
     action.handler(item)
   }
 
+  handleFilterKeyPress(e) {
+    console.log(e)
+    if (e.key === 'Enter') {
+      this.setState({isOpen: false})
+      this.props.onChoose('choosy')
+    }
+    if (e.key === 'Escape') {
+      this.setState({isOpen: false})
+    }
+    if (e.keyCode === 38) {
+      console.log('Pressed up arrow')
+    }
+    if (e.keyCode === 40) {
+      console.log('Pressed down arrow')
+    }
+  }
+
+  handleFilterChange(e) {
+    if (e.target.value === null || e.target.value === '') {
+      this.setState({
+        searchTerm: '',
+        filteredItems: this.props.items,
+      })
+    } else {
+      this.setState({searchTerm: e.target.value}, () =>
+        this.applyFilter(this.state.searchTerm)
+      )
+    }
+  }
+
+  applyFilter(searchTerm) {
+    const {items} = this.props
+    const matchingItems = items.filter(item => {
+      if (item.text === null) {
+        return false
+      }
+      return item.text.toLowerCase().search(searchTerm.toLowerCase()) !== -1
+    })
+    this.setState({filteredItems: matchingItems})
+  }
+
   renderShortMenu() {
-    const {actions, addNew, items, menuWidth, menuLabel} = this.props
+    const {
+      actions,
+      addNew,
+      items,
+      menuWidth,
+      menuLabel,
+      selected,
+      hasAutoComplete,
+    } = this.props
+    const {filteredItems} = this.state
+    const menuItems = hasAutoComplete ? filteredItems : items
+
     return (
       <ul className="dropdown-menu" style={{width: menuWidth}}>
-        {menuLabel
-          ? <li className="dropdown-header">{menuLabel}</li>
-          : null
-        }
-        {items.map((item, i) => {
+        {menuLabel ? <li className="dropdown-header">{menuLabel}</li> : null}
+        {menuItems.map((item, i) => {
           if (item.text === 'SEPARATOR') {
             return <li key={i} role="separator" className="divider" />
           }
           return (
-            <li className="dropdown-item" key={i}>
+            <li
+              className={classnames('dropdown-item', {
+                active: item.text === selected,
+              })}
+              key={i}
+            >
               <a href="#" onClick={() => this.handleSelection(item)}>
                 {item.text}
               </a>
@@ -78,8 +141,7 @@ class Dropdown extends Component {
                         <button
                           key={action.text}
                           className="dropdown-item__action"
-                          onClick={e =>
-                            this.handleAction(e, action, item)}
+                          onClick={e => this.handleAction(e, action, item)}
                         >
                           <span
                             title={action.text}
@@ -105,20 +167,36 @@ class Dropdown extends Component {
   }
 
   renderLongMenu() {
-    const {actions, addNew, items, menuWidth, menuLabel} = this.props
+    const {
+      actions,
+      addNew,
+      items,
+      menuWidth,
+      menuLabel,
+      selected,
+      hasAutoComplete,
+    } = this.props
+    const {filteredItems} = this.state
+    const menuItems = hasAutoComplete ? filteredItems : items
+
     return (
-      <ul className="dropdown-menu" style={{width: menuWidth, height: DROPDOWN_MENU_MAX_HEIGHT}}>
+      <ul
+        className="dropdown-menu"
+        style={{width: menuWidth, height: DROPDOWN_MENU_MAX_HEIGHT}}
+      >
         <FancyScrollbar autoHide={false}>
-          {menuLabel
-            ? <li className="dropdown-header">{menuLabel}</li>
-            : null
-          }
-          {items.map((item, i) => {
+          {menuLabel ? <li className="dropdown-header">{menuLabel}</li> : null}
+          {menuItems.map((item, i) => {
             if (item.text === 'SEPARATOR') {
               return <li key={i} role="separator" className="divider" />
             }
             return (
-              <li className="dropdown-item" key={i}>
+              <li
+                className={classnames('dropdown-item', {
+                  active: item.text === selected,
+                })}
+                key={i}
+              >
                 <a href="#" onClick={() => this.handleSelection(item)}>
                   {item.text}
                 </a>
@@ -129,8 +207,7 @@ class Dropdown extends Component {
                           <button
                             key={action.text}
                             className="dropdown-item__action"
-                            onClick={e =>
-                              this.handleAction(e, action, item)}
+                            onClick={e => this.handleAction(e, action, item)}
                           >
                             <span
                               title={action.text}
@@ -164,33 +241,57 @@ class Dropdown extends Component {
       iconName,
       buttonSize,
       buttonColor,
+      hasAutoComplete,
     } = this.props
-    const {isOpen} = this.state
+    const {isOpen, searchTerm, filteredItems} = this.state
+    const menuItems = hasAutoComplete ? filteredItems : items
 
     return (
       <div
         onClick={this.handleClick}
         className={classnames(`dropdown ${className}`, {open: isOpen})}
       >
-        <div className={`btn dropdown-toggle ${buttonSize} ${buttonColor}`}>
-          {iconName
-            ? <span className={classnames('icon', {[iconName]: true})} />
-            : null}
-          <span className="dropdown-selected">{selected}</span>
-          <span className="caret" />
-        </div>
-        {(isOpen && items.length < DROPDOWN_MENU_ITEM_THRESHOLD)
+        {hasAutoComplete && isOpen
+          ? <div
+              className={`dropdown-autocomplete dropdown-toggle ${buttonSize} ${buttonColor}`}
+            >
+              <input
+                ref="dropdownAutoComplete"
+                className="dropdown-autocomplete--input"
+                type="text"
+                autoFocus={true}
+                placeholder="Filter items..."
+                spellCheck={false}
+                onChange={this.handleFilterChange}
+                onKeyDown={this.handleFilterKeyPress}
+                value={searchTerm}
+              />
+              <span className="caret" />
+            </div>
+          : <div className={`btn dropdown-toggle ${buttonSize} ${buttonColor}`}>
+              {iconName
+                ? <span className={classnames('icon', {[iconName]: true})} />
+                : null}
+              <span className="dropdown-selected">{selected}</span>
+              <span className="caret" />
+            </div>}
+        {isOpen && menuItems.length < DROPDOWN_MENU_ITEM_THRESHOLD
           ? this.renderShortMenu()
           : null}
-        {(isOpen && items.length >= DROPDOWN_MENU_ITEM_THRESHOLD)
+        {isOpen && menuItems.length >= DROPDOWN_MENU_ITEM_THRESHOLD
           ? this.renderLongMenu()
+          : null}
+        {isOpen && menuItems.length === 0
+          ? <ul className="dropdown-menu">
+              <li className="dropdown-empty">No matching items</li>
+            </ul>
           : null}
       </div>
     )
   }
 }
 
-const {arrayOf, shape, string, func} = PropTypes
+const {arrayOf, bool, shape, string, func} = PropTypes
 
 Dropdown.propTypes = {
   actions: arrayOf(
@@ -218,6 +319,7 @@ Dropdown.propTypes = {
   buttonColor: string,
   menuWidth: string,
   menuLabel: string,
+  hasAutoComplete: bool,
 }
 
 export default OnClickOutside(Dropdown)

@@ -68,6 +68,14 @@ $template-control--min-height: 52px;
       font-size: 12px;
       font-family: $code-font;
     }
+    li.dropdown-item.active {
+      &, &:hover {@include gradient-h($c-comet,$c-pool);}
+      > a {
+        color: $g20-white;
+        background: none;
+        background-color: transparent;
+      }
+    }
   }
 }
 .template-control--label {
