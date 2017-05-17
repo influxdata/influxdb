@@ -10,7 +10,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/http/pprof"
 	"os"
 	"runtime/debug"
 	"strconv"
@@ -75,6 +74,7 @@ type Handler struct {
 
 	MetaClient interface {
 		Database(name string) *meta.DatabaseInfo
+		Databases() []meta.DatabaseInfo
 		Authenticate(username, password string) (ui *meta.UserInfo, err error)
 		User(username string) (*meta.UserInfo, error)
 		AdminUserExists() bool
@@ -252,16 +252,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("X-Influxdb-Version", h.Version)
 
 	if strings.HasPrefix(r.URL.Path, "/debug/pprof") && h.Config.PprofEnabled {
-		switch r.URL.Path {
-		case "/debug/pprof/cmdline":
-			pprof.Cmdline(w, r)
-		case "/debug/pprof/profile":
-			pprof.Profile(w, r)
-		case "/debug/pprof/symbol":
-			pprof.Symbol(w, r)
-		default:
-			pprof.Index(w, r)
-		}
+		h.handleProfiles(w, r)
 	} else if strings.HasPrefix(r.URL.Path, "/debug/vars") {
 		h.serveExpvar(w, r)
 	} else if strings.HasPrefix(r.URL.Path, "/debug/requests") {

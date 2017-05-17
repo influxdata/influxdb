@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/internal"
+
 	"github.com/dgrijalva/jwt-go"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
@@ -605,7 +607,7 @@ func TestHandler_XForwardedFor(t *testing.T) {
 // NewHandler represents a test wrapper for httpd.Handler.
 type Handler struct {
 	*httpd.Handler
-	MetaClient        HandlerMetaStore
+	MetaClient        *internal.MetaClientMock
 	StatementExecutor HandlerStatementExecutor
 	QueryAuthorizer   HandlerQueryAuthorizer
 }
@@ -619,45 +621,15 @@ func NewHandler(requireAuthentication bool) *Handler {
 	h := &Handler{
 		Handler: httpd.NewHandler(config),
 	}
-	h.Handler.MetaClient = &h.MetaClient
+
+	h.MetaClient = &internal.MetaClientMock{}
+
+	h.Handler.MetaClient = h.MetaClient
 	h.Handler.QueryExecutor = influxql.NewQueryExecutor()
 	h.Handler.QueryExecutor.StatementExecutor = &h.StatementExecutor
 	h.Handler.QueryAuthorizer = &h.QueryAuthorizer
 	h.Handler.Version = "0.0.0"
 	return h
-}
-
-// HandlerMetaStore is a mock implementation of Handler.MetaClient.
-type HandlerMetaStore struct {
-	PingFn            func(d time.Duration) error
-	DatabaseFn        func(name string) *meta.DatabaseInfo
-	AuthenticateFn    func(username, password string) (ui *meta.UserInfo, err error)
-	UserFn            func(username string) (*meta.UserInfo, error)
-	AdminUserExistsFn func() bool
-}
-
-func (s *HandlerMetaStore) Ping(b bool) error {
-	if s.PingFn == nil {
-		// Default behaviour is to assume there is a leader.
-		return nil
-	}
-	return s.Ping(b)
-}
-
-func (s *HandlerMetaStore) Database(name string) *meta.DatabaseInfo {
-	return s.DatabaseFn(name)
-}
-
-func (s *HandlerMetaStore) Authenticate(username, password string) (ui *meta.UserInfo, err error) {
-	return s.AuthenticateFn(username, password)
-}
-
-func (s *HandlerMetaStore) AdminUserExists() bool {
-	return s.AdminUserExistsFn()
-}
-
-func (s *HandlerMetaStore) User(username string) (*meta.UserInfo, error) {
-	return s.UserFn(username)
 }
 
 // HandlerStatementExecutor is a mock implementation of Handler.StatementExecutor.
