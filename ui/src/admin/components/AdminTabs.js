@@ -38,7 +38,7 @@ const AdminTabs = ({
 }) => {
   let tabs = [
     {
-      type: 'DB Management',
+      type: 'Databases',
       component: <DatabaseManagerPage source={source} />,
     },
     {

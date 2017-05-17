@@ -2,6 +2,8 @@ import React, {PropTypes, Component} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
+import uniq from 'lodash/uniq'
+
 import OnClickOutside from 'react-onclickoutside'
 import classnames from 'classnames'
 
@@ -30,7 +32,9 @@ const RowValues = ({
   onStartEdit,
   autoFocusTarget,
 }) => {
-  const _values = values.map(({value}) => value).join(', ')
+  const _values = uniq(values.map(({value}) => value))
+    .filter(value => /\S/.test(value))
+    .join(', ')
 
   if (selectedType === 'csv') {
     return (

@@ -59,12 +59,13 @@ func TestReverse(t *testing.T) {
 															.slack()
 															.victorOps()
 															.email('howdy@howdy.com')
+															.log('/tmp/alerts.log')
 															`),
 
 			want: chronograf.AlertRule{
 				Name:    "name",
 				Trigger: "threshold",
-				Alerts:  []string{"victorops", "smtp", "slack"},
+				Alerts:  []string{"victorops", "smtp", "slack", "log"},
 				AlertNodes: []chronograf.KapacitorNode{
 					{
 						Name: "victorops",
@@ -75,6 +76,10 @@ func TestReverse(t *testing.T) {
 					},
 					{
 						Name: "slack",
+					},
+					{
+						Name: "log",
+						Args: []string{"/tmp/alerts.log"},
 					},
 				},
 				TriggerValues: chronograf.TriggerValues{
