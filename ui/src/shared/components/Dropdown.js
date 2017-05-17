@@ -8,12 +8,6 @@ import {
   DROPDOWN_MENU_ITEM_THRESHOLD,
 } from 'shared/constants/index'
 
-// State for index of highlighted item
-// If there are filtered items, set highlighted item index to 0, otherwise set to null
-// Arrow keys will increment or decrement the highlighted item index (without going out of bounds)
-// Hitting enter will pass the highlighted item to this.props.onChoose
-// Hitting escape will reset highlightedItemIndex to null
-
 class Dropdown extends Component {
   constructor(props) {
     super(props)
