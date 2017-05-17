@@ -19,6 +19,7 @@
   1. [#1464](https://github.com/influxdata/chronograf/pull/1464): Add page spinners to pages that did not have them
   1. [#1464](https://github.com/influxdata/chronograf/pull/1464): Denote which source is connected in the Sources table
   1. [#1478](https://github.com/influxdata/chronograf/pull/1478): InfluxDB dashboard uses milliseconds rather than nanoseconds
+  1. [#1500](https://github.com/influxdata/chronograf/pull/1500): Add autocomplete functionality to Template Variable dropdowns
 
 ## v1.3.0 [2017-05-09]
 
