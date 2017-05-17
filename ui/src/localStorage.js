@@ -2,9 +2,22 @@ export const loadLocalStorage = () => {
   try {
     const serializedState = localStorage.getItem('state')
 
-    return JSON.parse(serializedState) || {}
+    const state = JSON.parse(serializedState)
+
+    // eslint-disable-next-line no-undef
+    if (state.VERSION !== VERSION) {
+      // eslint-disable-next-line no-console
+      console.log('New version detected. Clearing old settings.')
+      window.localStorage.removeItem('state')
+      return {}
+    }
+
+    delete state.VERSION
+
+    return state || {}
   } catch (err) {
-    console.error(`Loading persisted state failed: ${err}`) // eslint-disable-line no-console
+    // eslint-disable-line no-console
+    console.error(`Loading persisted state failed: ${err}`)
     return {}
   }
 }
@@ -25,6 +38,7 @@ export const saveToLocalStorage = ({
         queryConfigs,
         timeRange,
         dataExplorer,
+        VERSION, // eslint-disable-line no-undef
       })
     )
   } catch (err) {

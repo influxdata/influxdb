@@ -2,6 +2,7 @@
 
 ### Bug Fixes
   1. [#1450](https://github.com/influxdata/chronograf/pull/1450): Fix infinite spinner when using "/chronograf" as a basepath
+  1. [#1458](https://github.com/influxdata/chronograf/pull/1458): New versions of Chronograf will automatically clear localStorage settings until further notice.
   1. [#1455](https://github.com/influxdata/chronograf/issues/1455): Fix backwards sort arrows in tables
   1. [#1423](https://github.com/influxdata/chronograf/issues/1423): Make logout nav item consistent with design
   1. [#1426](https://github.com/influxdata/chronograf/issues/1426): Fix graph loading spinner
