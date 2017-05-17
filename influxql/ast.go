@@ -1519,7 +1519,7 @@ func (s *SelectStatement) ColumnNames() []string {
 
 		switch f := field.Expr.(type) {
 		case *Call:
-			if f.Name == "top" || f.Name == "bottom" {
+			if s.Target == nil && (f.Name == "top" || f.Name == "bottom") {
 				for _, arg := range f.Args[1:] {
 					ref, ok := arg.(*VarRef)
 					if ok {
