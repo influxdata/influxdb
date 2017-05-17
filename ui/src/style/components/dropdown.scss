@@ -84,7 +84,7 @@ $dropdown-menu-max-height: 270px;
 .dropdown .dropdown-toggle.btn-xs {
   height: 22px !important;
   line-height: 22px !important;
-  padding: 0 9px !important;
+  padding: 0 9px;
 }
 
 /*
@@ -93,7 +93,7 @@ $dropdown-menu-max-height: 270px;
 */
 .dropdown-autocomplete {
   position: relative;
-  padding: 0;
+  padding: 0 !important;
 
   &.btn-xs {height: 22px;}
   &.btn-sm {height: 30px;}
@@ -125,6 +125,14 @@ $dropdown-menu-max-height: 270px;
   &:focus {
     color: $g20-white;
   }
+}
+.dropdown-empty {
+  padding: 7px 9px;
+  font-size: 13px;
+  color: rgba(255,255,255,0.4);
+  font-weight: 500;
+  line-height: 15px;
+  @include no-user-select();
 }
 
 /*
@@ -242,6 +250,24 @@ $dropdown-menu-max-height: 270px;
   }
 }
 
+/*
+    Dropdown Menu (only js highlighting, works with autocomplete feature)
+    ----------------------------------------------
+*/
+.dropdown-menu.dropdown-menu--no-highlight {
+  li.dropdown-item {
+
+    &:hover {
+      background: none;
+      background-color: transparent;
+    }
+  }
+  li.dropdown-item.active {
+    &, &:hover {
+      @include gradient-h($c-laser, $c-pool);
+    }
+  }
+}
 /*
     Dropdown Header
     ----------------------------------------------

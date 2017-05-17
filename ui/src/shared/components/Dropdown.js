@@ -8,6 +8,12 @@ import {
   DROPDOWN_MENU_ITEM_THRESHOLD,
 } from 'shared/constants/index'
 
+// State for index of highlighted item
+// If there are filtered items, set highlighted item index to 0, otherwise set to null
+// Arrow keys will increment or decrement the highlighted item index (without going out of bounds)
+// Hitting enter will pass the highlighted item to this.props.onChoose
+// Hitting escape will reset highlightedItemIndex to null
+
 class Dropdown extends Component {
   constructor(props) {
     super(props)
@@ -15,6 +21,7 @@ class Dropdown extends Component {
       isOpen: false,
       searchTerm: '',
       filteredItems: this.props.items,
+      highlightedItemIndex: null,
     }
 
     this.handleClickOutside = ::this.handleClickOutside
@@ -25,6 +32,7 @@ class Dropdown extends Component {
     this.handleFilterChange = ::this.handleFilterChange
     this.applyFilter = ::this.applyFilter
     this.handleFilterKeyPress = ::this.handleFilterKeyPress
+    this.handleHighlight = ::this.handleHighlight
   }
 
   static defaultProps = {
@@ -51,9 +59,20 @@ class Dropdown extends Component {
     this.props.onChoose(item)
   }
 
+  handleHighlight(itemIndex) {
+    this.setState({highlightedItemIndex: itemIndex})
+  }
+
   toggleMenu(e) {
     if (e) {
       e.stopPropagation()
+    }
+    if (!this.state.isOpen) {
+      this.setState({
+        searchTerm: '',
+        filteredItems: this.props.items,
+        highlightedItemIndex: null,
+      })
     }
     this.setState({isOpen: !this.state.isOpen})
   }
@@ -64,19 +83,30 @@ class Dropdown extends Component {
   }
 
   handleFilterKeyPress(e) {
-    console.log(e)
-    if (e.key === 'Enter') {
+    const {filteredItems, highlightedItemIndex} = this.state
+
+    if (e.key === 'Enter' && filteredItems.length > 0) {
       this.setState({isOpen: false})
-      this.props.onChoose('choosy')
+      this.props.onChoose(filteredItems[highlightedItemIndex])
     }
     if (e.key === 'Escape') {
       this.setState({isOpen: false})
     }
-    if (e.keyCode === 38) {
-      console.log('Pressed up arrow')
+    if (e.key === 'ArrowUp' && highlightedItemIndex > 0) {
+      this.setState({highlightedItemIndex: highlightedItemIndex - 1})
     }
-    if (e.keyCode === 40) {
-      console.log('Pressed down arrow')
+    if (
+      e.key === 'ArrowDown' &&
+      highlightedItemIndex < filteredItems.length - 1
+    ) {
+      this.setState({highlightedItemIndex: highlightedItemIndex + 1})
+    }
+    if (
+      e.key === 'ArrowDown' &&
+      highlightedItemIndex === null &&
+      filteredItems.length
+    ) {
+      this.setState({highlightedItemIndex: 0})
     }
   }
 
@@ -85,6 +115,7 @@ class Dropdown extends Component {
       this.setState({
         searchTerm: '',
         filteredItems: this.props.items,
+        highlightedItemIndex: null,
       })
     } else {
       this.setState({searchTerm: e.target.value}, () =>
@@ -102,6 +133,7 @@ class Dropdown extends Component {
       return item.text.toLowerCase().search(searchTerm.toLowerCase()) !== -1
     })
     this.setState({filteredItems: matchingItems})
+    this.setState({highlightedItemIndex: 0})
   }
 
   renderShortMenu() {
@@ -111,14 +143,18 @@ class Dropdown extends Component {
       items,
       menuWidth,
       menuLabel,
-      selected,
       hasAutoComplete,
     } = this.props
-    const {filteredItems} = this.state
+    const {filteredItems, highlightedItemIndex} = this.state
     const menuItems = hasAutoComplete ? filteredItems : items
 
     return (
-      <ul className="dropdown-menu" style={{width: menuWidth}}>
+      <ul
+        className={classnames('dropdown-menu', {
+          'dropdown-menu--no-highlight': hasAutoComplete,
+        })}
+        style={{width: menuWidth}}
+      >
         {menuLabel ? <li className="dropdown-header">{menuLabel}</li> : null}
         {menuItems.map((item, i) => {
           if (item.text === 'SEPARATOR') {
@@ -127,11 +163,15 @@ class Dropdown extends Component {
           return (
             <li
               className={classnames('dropdown-item', {
-                active: item.text === selected,
+                active: i === highlightedItemIndex,
               })}
               key={i}
             >
-              <a href="#" onClick={() => this.handleSelection(item)}>
+              <a
+                href="#"
+                onClick={() => this.handleSelection(item)}
+                onMouseOver={() => this.handleHighlight(i)}
+              >
                 {item.text}
               </a>
               {actions.length > 0
@@ -173,15 +213,16 @@ class Dropdown extends Component {
       items,
       menuWidth,
       menuLabel,
-      selected,
       hasAutoComplete,
     } = this.props
-    const {filteredItems} = this.state
+    const {filteredItems, highlightedItemIndex} = this.state
     const menuItems = hasAutoComplete ? filteredItems : items
 
     return (
       <ul
-        className="dropdown-menu"
+        className={classnames('dropdown-menu', {
+          'dropdown-menu--no-highlight': hasAutoComplete,
+        })}
         style={{width: menuWidth, height: DROPDOWN_MENU_MAX_HEIGHT}}
       >
         <FancyScrollbar autoHide={false}>
@@ -193,11 +234,15 @@ class Dropdown extends Component {
             return (
               <li
                 className={classnames('dropdown-item', {
-                  active: item.text === selected,
+                  active: i === highlightedItemIndex,
                 })}
                 key={i}
               >
-                <a href="#" onClick={() => this.handleSelection(item)}>
+                <a
+                  href="#"
+                  onClick={() => this.handleSelection(item)}
+                  onMouseOver={() => this.handleHighlight(i)}
+                >
                   {item.text}
                 </a>
                 {actions.length > 0

@@ -60,7 +60,10 @@ $template-control--min-height: 52px;
     @include custom-scrollbar-round($c-pool,$c-laser);
 
     li.dropdown-item {
-      &:hover {@include gradient-h($c-comet,$c-pool);}
+      &, &:hover {
+        background: none;
+        background-color: transparent;
+      }
     }
     li.dropdown-item > a {
       &, &:focus {background: none;}
