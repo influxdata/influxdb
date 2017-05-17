@@ -2,8 +2,6 @@
 import React, {Component, PropTypes} from 'react'
 import Dygraphs from 'src/external/dygraph'
 import getRange from 'src/shared/parsing/getRangeForDygraph'
-import uuid from 'node-uuid'
-import classnames from 'classnames'
 
 const LINE_COLORS = [
   '#00C9FF',
@@ -28,7 +26,10 @@ export default class Dygraph extends Component {
       synced: false,
     }
 
-    this.id = uuid.v4()
+    // workaround for dygraph.updateOptions breaking legends
+    // a la http://stackoverflow.com/questions/38371876/dygraph-dynamic-update-legend-values-disappear
+    // this.lastMouseMoveEvent = null
+    // this.isMouseOverGraph = false
 
     this.getTimeSeries = ::this.getTimeSeries
     this.sync = ::this.sync
@@ -101,8 +102,9 @@ export default class Dygraph extends Component {
         highlightCircleSize: 5,
       },
       unhighlightCallback: e => {
-        legendContainerNode.style.display = 'none'
-        legendContainerNode.className = 'container--dygraph-legend hidden'
+        legendContainerNode.className = 'container--dygraph-legend hidden' // hide
+
+        // this.isMouseOverGraph = false
       },
       highlightCallback: (e, x, points, row, seriesName) => {
         // Move the Legend on hover
@@ -135,8 +137,10 @@ export default class Dygraph extends Component {
         } else {
           legendContainerNode.style.top = `${legendTop}px`
         }
-        legendContainerNode.style.display = 'block'
-        legendContainerNode.className = 'container--dygraph-legend'
+        legendContainerNode.className = 'container--dygraph-legend' // show
+
+        // this.isMouseOverGraph = true
+        // this.lastMouseMoveEvent = e
       },
     }
 
@@ -164,6 +168,9 @@ export default class Dygraph extends Component {
 
     const timeSeries = this.getTimeSeries()
 
+    const legendContainerNode = this.legendContainer
+    legendContainerNode.className = 'container--dygraph-legend hidden' // hide
+
     dygraph.updateOptions({
       labels,
       file: timeSeries,
@@ -180,6 +187,9 @@ export default class Dygraph extends Component {
       underlayCallback: options.underlayCallback,
       series: dygraphSeries,
     })
+    // if (this.lastMouseMoveEvent) {
+    //   dygraph.mouseMove_(this.lastMouseMoveEvent)
+    // }
 
     dygraph.resize()
   }
@@ -204,10 +214,7 @@ export default class Dygraph extends Component {
           ref={r => {
             this.legendContainer = r
           }}
-          className={classnames({
-            'container--dygraph-legend': true,
-            hidden: true,
-          })}
+          className={'container--dygraph-legend hidden'}
         />
       </div>
     )
