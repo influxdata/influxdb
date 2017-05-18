@@ -162,9 +162,12 @@ class QueryEditor extends Component {
     if (matched && !_.isEmpty(templates)) {
       // maintain cursor poition
       const start = this.editor.selectionStart
+
       const end = this.editor.selectionEnd
+      const filterText = matched[0].substr(1).toLowerCase()
+
       const filteredTemplates = templates.filter(t =>
-        t.tempVar.startsWith(matched[0])
+        t.tempVar.toLowerCase().includes(filterText)
       )
 
       const found = filteredTemplates.find(
