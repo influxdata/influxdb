@@ -79,7 +79,7 @@ class Dropdown extends Component {
   handleFilterKeyPress(e) {
     const {filteredItems, highlightedItemIndex} = this.state
 
-    if (e.key === 'Enter' && filteredItems.length > 0) {
+    if (e.key === 'Enter' && filteredItems.length) {
       this.setState({isOpen: false})
       this.props.onChoose(filteredItems[highlightedItemIndex])
     }
@@ -89,18 +89,13 @@ class Dropdown extends Component {
     if (e.key === 'ArrowUp' && highlightedItemIndex > 0) {
       this.setState({highlightedItemIndex: highlightedItemIndex - 1})
     }
-    if (
-      e.key === 'ArrowDown' &&
-      highlightedItemIndex < filteredItems.length - 1
-    ) {
-      this.setState({highlightedItemIndex: highlightedItemIndex + 1})
-    }
-    if (
-      e.key === 'ArrowDown' &&
-      highlightedItemIndex === null &&
-      filteredItems.length
-    ) {
-      this.setState({highlightedItemIndex: 0})
+    if (e.key === 'ArrowDown') {
+      if (highlightedItemIndex < filteredItems.length - 1) {
+        this.setState({highlightedItemIndex: highlightedItemIndex + 1})
+      }
+      if (highlightedItemIndex === null && filteredItems.length) {
+        this.setState({highlightedItemIndex: 0})
+      }
     }
   }
 
@@ -325,7 +320,7 @@ class Dropdown extends Component {
         {isOpen && menuItems.length >= DROPDOWN_MENU_ITEM_THRESHOLD
           ? this.renderLongMenu()
           : null}
-        {isOpen && menuItems.length === 0
+        {isOpen && !menuItems.length
           ? <ul className="dropdown-menu">
               <li className="dropdown-empty">No matching items</li>
             </ul>
