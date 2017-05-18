@@ -25,6 +25,8 @@ import generateTemplateVariableQuery
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
+const compact = values => uniq(values).filter(value => /\S/.test(value))
+
 const RowValues = ({
   selectedType,
   values = [],
@@ -296,10 +298,7 @@ class RowWrapper extends Component {
           parsedData = await this.runTemplateVariableQuery(source, queryConfig)
         }
 
-        const sanitize = values =>
-          uniq(values).filter(value => /\S/.test(value))
-
-        onRunQuerySuccess(template, queryConfig, sanitize(parsedData), tempVar)
+        onRunQuerySuccess(template, queryConfig, compact(parsedData), tempVar)
       } catch (error) {
         onRunQueryFailure(error)
       }
