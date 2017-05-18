@@ -16,43 +16,9 @@ $dropdown-menu-max-height: 270px;
 .dropdown .dropdown-autocomplete {
   width: 120px; /* Default width */
 }
-.dropdown {
-  &-80 .dropdown-toggle,
-  &-80 .dropdown-autocomplete {width: 80px;}
-  &-90 .dropdown-toggle,
-  &-90 .dropdown-autocomplete {width: 90px;}
-  &-100 .dropdown-toggle,
-  &-100 .dropdown-autocomplete {width: 100px;}
-  &-110 .dropdown-toggle,
-  &-110 .dropdown-autocomplete {width: 110px;}
-  &-120 .dropdown-toggle,
-  &-120 .dropdown-autocomplete {width: 120px;}
-  &-130 .dropdown-toggle,
-  &-130 .dropdown-autocomplete {width: 130px;}
-  &-140 .dropdown-toggle,
-  &-140 .dropdown-autocomplete {width: 140px;}
-  &-150 .dropdown-toggle,
-  &-150 .dropdown-autocomplete {width: 150px;}
-  &-160 .dropdown-toggle,
-  &-160 .dropdown-autocomplete {width: 160px;}
-  &-170 .dropdown-toggle,
-  &-170 .dropdown-autocomplete {width: 170px;}
-  &-180 .dropdown-toggle,
-  &-180 .dropdown-autocomplete {width: 180px;}
-  &-190 .dropdown-toggle,
-  &-190 .dropdown-autocomplete {width: 190px;}
-  &-200 .dropdown-toggle,
-  &-200 .dropdown-autocomplete {width: 200px;}
-  &-210 .dropdown-toggle,
-  &-210 .dropdown-autocomplete {width: 210px;}
-  &-220 .dropdown-toggle,
-  &-220 .dropdown-autocomplete {width: 220px;}
-  &-230 .dropdown-toggle,
-  &-230 .dropdown-autocomplete {width: 230px;}
-  &-240 .dropdown-toggle,
-  &-240 .dropdown-autocomplete {width: 240px;}
-  &-250 .dropdown-toggle,
-  &-250 .dropdown-autocomplete {width: 250px;}
+@for $i from 8 through 30 {
+  &-#{$i * 10} .dropdown-toggle,
+  &-#{$i * 10} .dropdown-autocomplete { width: #{$i * 10}px; }
 }
 
 .dropdown-toggle {
@@ -109,13 +75,12 @@ $dropdown-menu-max-height: 270px;
   border: 0;
   color: $g20-white;
   padding: 0;
-  font-size: inherit;
   font-weight: 600;
 
-  .btn-xs & {padding: 0 18px 0 9px;}
-  .btn-sm & {padding: 0 18px 0 9px;}
-  .btn-md & {padding: 0 34px 0 17px;}
-  .btn-lg & {padding: 0 48px 0 24px;}
+  .btn-xs & {padding: 0 18px 0 9px; font-size: 12px;}
+  .btn-sm & {padding: 0 18px 0 9px; font-size: 13px;}
+  .btn-md & {padding: 0 34px 0 17px; font-size: 14px;}
+  .btn-lg & {padding: 0 48px 0 24px; font-size: 18px;}
 
   &::-webkit-input-placeholder { color: rgba(255,255,255,0.5); font-weight: 600 !important; }
   &::-moz-placeholder { color: rgba(255,255,255,0.5); font-weight: 600 !important; }
