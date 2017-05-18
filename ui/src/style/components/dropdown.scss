@@ -75,17 +75,17 @@ $dropdown-menu-max-height: 270px;
   border: 0;
   color: $g20-white;
   padding: 0;
-  font-weight: 600;
+  font-weight: 500;
 
   .btn-xs & {padding: 0 18px 0 9px; font-size: 12px;}
   .btn-sm & {padding: 0 18px 0 9px; font-size: 13px;}
   .btn-md & {padding: 0 34px 0 17px; font-size: 14px;}
   .btn-lg & {padding: 0 48px 0 24px; font-size: 18px;}
 
-  &::-webkit-input-placeholder { color: rgba(255,255,255,0.5); font-weight: 600 !important; }
-  &::-moz-placeholder { color: rgba(255,255,255,0.5); font-weight: 600 !important; }
-  &:-ms-input-placeholder { color: rgba(255,255,255,0.5); font-weight: 600 !important; }
-  &:-moz-placeholder { color: rgba(255,255,255,0.5); font-weight: 600 !important; }
+  &::-webkit-input-placeholder { color: rgba(255,255,255,0.5); font-weight: 500 !important; }
+  &::-moz-placeholder { color: rgba(255,255,255,0.5); font-weight: 500 !important; }
+  &:-ms-input-placeholder { color: rgba(255,255,255,0.5); font-weight: 500 !important; }
+  &:-moz-placeholder { color: rgba(255,255,255,0.5); font-weight: 500 !important; }
 
   &:focus {
     color: $g20-white;
@@ -118,6 +118,9 @@ $dropdown-menu-max-height: 270px;
     position: relative;
     width: 100%;
 
+    &.active {
+      @include gradient-h($c-sapphire, $c-pool);
+    }
     &:hover {
       @include gradient-h($c-laser, $c-pool);
     }
@@ -150,7 +153,7 @@ $dropdown-menu-max-height: 270px;
       @include gradient-h($c-ocean, $c-pool);
     }
   }
-  li.dropdown-item.active {
+  li.dropdown-item.highlight {
     &, &:hover {
       @include gradient-h($c-laser, $c-pool);
     }
@@ -179,7 +182,7 @@ $dropdown-menu-max-height: 270px;
       color: $g20-white !important;
     }
   }
-  li.dropdown-item.active {
+  li.dropdown-item.highlight {
     &, &:hover {
       @include gradient-h($c-laser, $c-rainforest);
     }
@@ -203,7 +206,7 @@ $dropdown-menu-max-height: 270px;
       color: $g20-white !important;
     }
   }
-  li.dropdown-item.active {
+  li.dropdown-item.highlight {
     &, &:hover {
       @include gradient-h($c-laser, $c-comet);
     }
@@ -227,7 +230,7 @@ $dropdown-menu-max-height: 270px;
       background-color: transparent;
     }
   }
-  li.dropdown-item.active {
+  li.dropdown-item.highlight {
     &, &:hover {
       @include gradient-h($c-laser, $c-pool);
     }

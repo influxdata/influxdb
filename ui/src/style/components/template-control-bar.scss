@@ -57,13 +57,13 @@ $template-control--min-height: 52px;
   }
   .dropdown-menu {
     @include gradient-h($c-star,$c-pool);
-    @include custom-scrollbar-round($c-pool,$c-laser);
 
     li.dropdown-item {
       &, &:hover {
         background: none;
         background-color: transparent;
       }
+      &.active {@include gradient-h($c-amethyst,$c-pool);}
     }
     li.dropdown-item > a {
       &, &:focus {background: none;}
@@ -71,7 +71,7 @@ $template-control--min-height: 52px;
       font-size: 12px;
       font-family: $code-font;
     }
-    li.dropdown-item.active {
+    li.dropdown-item.highlight {
       &, &:hover {@include gradient-h($c-comet,$c-pool);}
       > a {
         color: $g20-white;

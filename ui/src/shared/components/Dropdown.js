@@ -138,6 +138,7 @@ class Dropdown extends Component {
       menuWidth,
       menuLabel,
       useAutoComplete,
+      selected,
     } = this.props
     const {filteredItems, highlightedItemIndex} = this.state
     const menuItems = useAutoComplete ? filteredItems : items
@@ -157,7 +158,8 @@ class Dropdown extends Component {
           return (
             <li
               className={classnames('dropdown-item', {
-                active: i === highlightedItemIndex,
+                highlight: i === highlightedItemIndex,
+                active: item.text === selected,
               })}
               key={i}
             >
@@ -208,6 +210,7 @@ class Dropdown extends Component {
       menuWidth,
       menuLabel,
       useAutoComplete,
+      selected,
     } = this.props
     const {filteredItems, highlightedItemIndex} = this.state
     const menuItems = useAutoComplete ? filteredItems : items
@@ -228,7 +231,8 @@ class Dropdown extends Component {
             return (
               <li
                 className={classnames('dropdown-item', {
-                  active: i === highlightedItemIndex,
+                  highlight: i === highlightedItemIndex,
+                  active: item.text === selected,
                 })}
                 key={i}
               >
