@@ -9,8 +9,8 @@
 
 ### Features
   1. [#1477](https://github.com/influxdata/chronograf/pull/1477): Add ability to log alerts
-  1. [#1474](https://github.com/influxdata/chronograf/pull/1474): Change behavior of template variable autocomplete to filter by exact match from front of string
   1. [#1491](https://github.com/influxdata/chronograf/pull/1491): Update go vendoring to dep and committed vendor directory
+  1. [#1500](https://github.com/influxdata/chronograf/pull/1500): Add autocomplete functionality to Template Variable dropdowns
 
 ### UI Improvements
   1. [#1451](https://github.com/influxdata/chronograf/pull/1451): Refactor scrollbars to support non-webkit browsers
@@ -19,7 +19,6 @@
   1. [#1464](https://github.com/influxdata/chronograf/pull/1464): Add page spinners to pages that did not have them
   1. [#1464](https://github.com/influxdata/chronograf/pull/1464): Denote which source is connected in the Sources table
   1. [#1478](https://github.com/influxdata/chronograf/pull/1478): InfluxDB dashboard uses milliseconds rather than nanoseconds
-  1. [#1500](https://github.com/influxdata/chronograf/pull/1500): Add autocomplete functionality to Template Variable dropdowns
 
 ## v1.3.0 [2017-05-09]
 
