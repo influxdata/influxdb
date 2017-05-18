@@ -74,12 +74,13 @@ export const RULE_MESSAGE_TEMPLATES = {
   },
 }
 
-export const DEFAULT_ALERTS = ['http', 'tcp', 'exec']
+export const DEFAULT_ALERTS = ['http', 'tcp', 'exec', 'log']
 
 export const DEFAULT_ALERT_LABELS = {
   http: 'URL:',
   tcp: 'Address:',
   exec: 'Add Command (Arguments separated by Spaces):',
+  log: 'File',
   smtp: 'Email Addresses (Separated by Spaces):',
   slack: 'Send alerts to Slack channel:',
   alerta: 'Paste Alerta TICKscript:',
@@ -88,6 +89,7 @@ export const DEFAULT_ALERT_PLACEHOLDERS = {
   http: 'Ex: http://example.com/api/alert',
   tcp: 'Ex: exampleendpoint.com:5678',
   exec: 'Ex: woogie boogie',
+  log: 'Ex: /tmp/alerts.log',
   smtp: 'Ex: benedict@domain.com delaney@domain.com susan@domain.com',
   slack: '#alerts',
   alerta: 'alerta()',
@@ -97,6 +99,7 @@ export const ALERT_NODES_ACCESSORS = {
   http: rule => _.get(rule, 'alertNodes[0].args[0]', ''),
   tcp: rule => _.get(rule, 'alertNodes[0].args[0]', ''),
   exec: rule => _.get(rule, 'alertNodes[0].args', []).join(' '),
+  log: rule => _.get(rule, 'alertNodes[0].args[0]', ''),
   smtp: rule => _.get(rule, 'alertNodes[0].args', []).join(' '),
   slack: rule => _.get(rule, 'alertNodes[0].properties[0].args', ''),
   alerta: rule =>

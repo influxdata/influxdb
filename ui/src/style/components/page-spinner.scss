@@ -13,7 +13,7 @@
 
   /* This is a hack to tell the browser to use the GPU when rendering the spinner. */
   transform: translateZ(0);
-  animation: spinner 0.5s infinite linear;
+  animation: spinner 0.6s infinite linear;
 }
 
 @keyframes spinner {

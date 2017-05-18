@@ -17,7 +17,7 @@ const errorsMiddleware = store => next => action => {
   const {auth: {me}} = store.getState()
 
   if (action.type === 'ERROR_THROWN') {
-    const {error: {status, auth}, altText} = action
+    const {error: {status, auth}, altText, alertType = 'error'} = action
 
     if (status === HTTP_FORBIDDEN) {
       const wasSessionTimeout = me !== null
@@ -26,7 +26,7 @@ const errorsMiddleware = store => next => action => {
 
       if (wasSessionTimeout) {
         store.dispatch(
-          notify('error', 'Session timed out. Please login again.')
+          notify(alertType, 'Session timed out. Please login again.')
         )
 
         allowNotifications = false
@@ -35,9 +35,9 @@ const errorsMiddleware = store => next => action => {
         }, notificationsBlackoutDuration)
       }
     } else if (altText) {
-      store.dispatch(notify('error', altText))
+      store.dispatch(notify(alertType, altText))
     } else {
-      store.dispatch(notify('error', 'Cannot communicate with server.'))
+      store.dispatch(notify(alertType, 'Cannot communicate with server.'))
     }
   }
 

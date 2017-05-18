@@ -493,6 +493,7 @@ func extractAlertNodes(p *pipeline.Pipeline, rule *chronograf.AlertRule) {
 			extractTalk(t, rule)
 			extractTelegram(t, rule)
 			extractTCP(t, rule)
+			extractLog(t, rule)
 			extractExec(t, rule)
 		}
 		return nil
@@ -796,6 +797,23 @@ func extractTCP(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
 
 	if t.Address != "" {
 		alert.Args = []string{t.Address}
+	}
+
+	rule.AlertNodes = append(rule.AlertNodes, alert)
+}
+
+func extractLog(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
+	if node.LogHandlers == nil {
+		return
+	}
+	rule.Alerts = append(rule.Alerts, "log")
+	log := node.LogHandlers[0]
+	alert := chronograf.KapacitorNode{
+		Name: "log",
+	}
+
+	if log.FilePath != "" {
+		alert.Args = []string{log.FilePath}
 	}
 
 	rule.AlertNodes = append(rule.AlertNodes, alert)

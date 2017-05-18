@@ -21,6 +21,10 @@ func Convert(influxQL string) (chronograf.QueryConfig, error) {
 		return chronograf.QueryConfig{}, err
 	}
 
+	if itsDashboardTime {
+		influxQL = strings.Replace(influxQL, "now() - 15m", ":dashboardTime:", 1)
+	}
+
 	raw := chronograf.QueryConfig{
 		RawText: &influxQL,
 		Fields:  []chronograf.Field{},

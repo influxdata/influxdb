@@ -2,11 +2,10 @@
 
 VERSION ?= $(shell git describe --always --tags)
 COMMIT ?= $(shell git rev-parse --short=8 HEAD)
-GDM := $(shell command -v gdm 2> /dev/null)
 GOBINDATA := $(shell go list -f {{.Root}}  github.com/jteeuwen/go-bindata 2> /dev/null)
 YARN := $(shell command -v yarn 2> /dev/null)
 
-SOURCES := $(shell find . -name '*.go' ! -name '*_gen.go')
+SOURCES := $(shell find . -name '*.go' ! -name '*_gen.go' -not -path "./vendor/*" )
 UISOURCES := $(shell find ui -type f -not \( -path ui/build/\* -o -path ui/node_modules/\* -prune \) )
 
 LDFLAGS=-ldflags "-s -X main.version=${VERSION} -X main.commit=${COMMIT}"
@@ -70,16 +69,11 @@ canned/bin_gen.go: canned/*.json
 
 dep: .jsdep .godep
 
-.godep: Godeps
-ifndef GDM
-	@echo "Installing GDM"
-	go get github.com/sparrc/gdm
-endif
+.godep:
 ifndef GOBINDATA
 	@echo "Installing go-bindata"
 	go get -u github.com/jteeuwen/go-bindata/...
 endif
-	gdm restore
 	@touch .godep
 
 .jsdep: ui/yarn.lock
@@ -90,16 +84,18 @@ else
 	@touch .jsdep
 endif
 
-gen: bolt/internal/internal.proto
+gen: internal.pb.go
+
+internal.pb.go: bolt/internal/internal.proto
 	go generate -x ./bolt/internal
 
 test: jstest gotest gotestrace
 
 gotest:
-	go test ./...
+	go test `go list ./... | grep -v /vendor/`
 
 gotestrace:
-	go test -race ./...
+	go test -race `go list ./... | grep -v /vendor/`
 
 jstest:
 	cd ui && npm test
@@ -116,9 +112,6 @@ clean:
 	cd ui && rm -rf node_modules
 	rm -f dist/dist_gen.go canned/bin_gen.go server/swagger_gen.go
 	@rm -f .godep .jsdep .jssrc .dev-jssrc .bindata
-
-continuous:
-	while true; do if fswatch -e "\.git" -r --one-event .; then echo "#-> Starting build: `date`"; make dev; pkill -9 chronograf; make run-dev & echo "#-> Build complete."; fi; sleep 0.5; done
 
 ctags:
 	ctags -R --languages="Go" --exclude=.git --exclude=ui .

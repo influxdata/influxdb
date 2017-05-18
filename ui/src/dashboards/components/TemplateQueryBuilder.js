@@ -16,7 +16,7 @@ const TemplateQueryBuilder = ({
 }) => {
   switch (selectedType) {
     case 'csv':
-      return <div className="tvm-csv-instructions">Enter values below</div>
+      return null
     case 'databases':
       return <div className="tvm-query-builder--text">SHOW DATABASES</div>
     case 'measurements':

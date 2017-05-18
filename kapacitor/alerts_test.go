@@ -96,6 +96,31 @@ func TestAlertServices(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "Test log",
+			rule: chronograf.AlertRule{
+				AlertNodes: []chronograf.KapacitorNode{
+					{
+						Name: "log",
+						Args: []string{"/tmp/alerts.log"},
+					},
+				},
+			},
+			want: `alert()
+        .log('/tmp/alerts.log')
+`,
+		},
+		{
+			name: "Test log no argument",
+			rule: chronograf.AlertRule{
+				AlertNodes: []chronograf.KapacitorNode{
+					{
+						Name: "log",
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
 			name: "Test tcp no argument with other services",
 			rule: chronograf.AlertRule{
 				Alerts: []string{"slack", "tcp", "email"},

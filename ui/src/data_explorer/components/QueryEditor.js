@@ -164,7 +164,7 @@ class QueryEditor extends Component {
       const start = this.editor.selectionStart
       const end = this.editor.selectionEnd
       const filteredTemplates = templates.filter(t =>
-        t.tempVar.includes(matched[0].substring(1))
+        t.tempVar.startsWith(matched[0])
       )
 
       const found = filteredTemplates.find(
