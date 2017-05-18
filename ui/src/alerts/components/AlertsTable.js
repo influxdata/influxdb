@@ -34,15 +34,16 @@ const AlertsTable = React.createClass({
 
   filterAlerts(searchTerm, newAlerts) {
     const alerts = newAlerts || this.props.alerts
+    const filterText = searchTerm.toLowerCase()
     const filteredAlerts = alerts.filter(h => {
       if (h.host === null || h.name === null || h.level === null) {
         return false
       }
 
       return (
-        h.name.toLowerCase().search(searchTerm.toLowerCase()) !== -1 ||
-        h.host.toLowerCase().search(searchTerm.toLowerCase()) !== -1 ||
-        h.level.toLowerCase().search(searchTerm.toLowerCase()) !== -1
+        h.name.toLowerCase().includes(filterText) ||
+        h.host.toLowerCase().includes(filterText) ||
+        h.level.toLowerCase().includes(filterText)
       )
     })
     this.setState({searchTerm, filteredAlerts})

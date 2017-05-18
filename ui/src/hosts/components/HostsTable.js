@@ -35,20 +35,21 @@ const HostsTable = React.createClass({
   },
 
   filter(allHosts, searchTerm) {
+    const filterText = searchTerm.toLowerCase()
     return allHosts.filter(h => {
       const apps = h.apps ? h.apps.join(', ') : ''
       // search each tag for the presence of the search term
       let tagResult = false
       if (h.tags) {
         tagResult = Object.keys(h.tags).reduce((acc, key) => {
-          return acc || h.tags[key].search(searchTerm) !== -1
+          return acc || h.tags[key].toLowerCase().includes(filterText)
         }, false)
       } else {
         tagResult = false
       }
       return (
-        h.name.search(searchTerm) !== -1 ||
-        apps.search(searchTerm) !== -1 ||
+        h.name.toLowerCase().includes(filterText) ||
+        apps.toLowerCase().includes(filterText) ||
         tagResult
       )
     })
