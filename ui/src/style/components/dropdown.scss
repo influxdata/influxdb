@@ -16,11 +16,12 @@ $dropdown-menu-max-height: 270px;
 .dropdown .dropdown-autocomplete {
   width: 120px; /* Default width */
 }
-@for $i from 8 through 30 {
-  &-#{$i * 10} .dropdown-toggle,
-  &-#{$i * 10} .dropdown-autocomplete { width: #{$i * 10}px; }
+.dropdown {
+  @for $i from 8 through 30 {
+    &-#{$i * 10} .dropdown-toggle,
+    &-#{$i * 10} .dropdown-autocomplete { width: #{$i * 10}px; }
+  }
 }
-
 .dropdown-toggle {
   position: relative;
   text-align: left;
