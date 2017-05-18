@@ -42,7 +42,15 @@ class WriteDataForm extends Component {
             <span className="page-header__dismiss" onClick={onClose} />
           </div>
         </div>
-        <div className="template-variable-manager--body" />
+        <div className="template-variable-manager--body">
+          <textarea
+            className="query-editor--field"
+            autoComplete="off"
+            spellCheck="false"
+            placeholder="<tag_key>=<tag_value>,<tag_key>=<tag_value>"
+            ref={editor => this.editor = editor}
+          />
+        </div>
       </div>
     )
   }
