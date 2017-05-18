@@ -34,7 +34,7 @@ class Dropdown extends Component {
     buttonSize: 'btn-sm',
     buttonColor: 'btn-info',
     menuWidth: '100%',
-    hasAutoComplete: false,
+    useAutoComplete: false,
   }
 
   handleClickOutside() {
@@ -137,15 +137,15 @@ class Dropdown extends Component {
       items,
       menuWidth,
       menuLabel,
-      hasAutoComplete,
+      useAutoComplete,
     } = this.props
     const {filteredItems, highlightedItemIndex} = this.state
-    const menuItems = hasAutoComplete ? filteredItems : items
+    const menuItems = useAutoComplete ? filteredItems : items
 
     return (
       <ul
         className={classnames('dropdown-menu', {
-          'dropdown-menu--no-highlight': hasAutoComplete,
+          'dropdown-menu--no-highlight': useAutoComplete,
         })}
         style={{width: menuWidth}}
       >
@@ -207,15 +207,15 @@ class Dropdown extends Component {
       items,
       menuWidth,
       menuLabel,
-      hasAutoComplete,
+      useAutoComplete,
     } = this.props
     const {filteredItems, highlightedItemIndex} = this.state
-    const menuItems = hasAutoComplete ? filteredItems : items
+    const menuItems = useAutoComplete ? filteredItems : items
 
     return (
       <ul
         className={classnames('dropdown-menu', {
-          'dropdown-menu--no-highlight': hasAutoComplete,
+          'dropdown-menu--no-highlight': useAutoComplete,
         })}
         style={{width: menuWidth, height: DROPDOWN_MENU_MAX_HEIGHT}}
       >
@@ -280,17 +280,17 @@ class Dropdown extends Component {
       iconName,
       buttonSize,
       buttonColor,
-      hasAutoComplete,
+      useAutoComplete,
     } = this.props
     const {isOpen, searchTerm, filteredItems} = this.state
-    const menuItems = hasAutoComplete ? filteredItems : items
+    const menuItems = useAutoComplete ? filteredItems : items
 
     return (
       <div
         onClick={this.handleClick}
         className={classnames(`dropdown ${className}`, {open: isOpen})}
       >
-        {hasAutoComplete && isOpen
+        {useAutoComplete && isOpen
           ? <div
               className={`dropdown-autocomplete dropdown-toggle ${buttonSize} ${buttonColor}`}
             >
@@ -358,7 +358,7 @@ Dropdown.propTypes = {
   buttonColor: string,
   menuWidth: string,
   menuLabel: string,
-  hasAutoComplete: bool,
+  useAutoComplete: bool,
 }
 
 export default OnClickOutside(Dropdown)
