@@ -125,9 +125,10 @@ class Dropdown extends Component {
       item.text.toLowerCase().includes(filterText)
     )
 
+    this.setState({
+      filteredItems: matchingItems,
+      highlightedItemIndex: 0,
     })
-    this.setState({filteredItems: matchingItems})
-    this.setState({highlightedItemIndex: 0})
   }
 
   renderShortMenu() {
