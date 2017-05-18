@@ -241,15 +241,19 @@ class QueryEditor extends Component {
   }
 
   renderStatus(status) {
+    const {isInDataExplorer} = this.props
+
     if (!status) {
       return (
         <div className="query-editor--status">
-          <Dropdown
-            items={QUERY_TEMPLATES}
-            selected={'Query Templates'}
-            onChoose={this.handleChooseTemplate}
-            className="query-editor--templates"
-          />
+          {isInDataExplorer
+            ? <Dropdown
+                items={QUERY_TEMPLATES}
+                selected={'Query Templates'}
+                onChoose={this.handleChooseTemplate}
+                className="query-editor--templates"
+              />
+            : null}
         </div>
       )
     }
@@ -258,12 +262,14 @@ class QueryEditor extends Component {
       return (
         <div className="query-editor--status">
           <LoadingDots />
-          <Dropdown
-            items={QUERY_TEMPLATES}
-            selected={'Query Templates'}
-            onChoose={this.handleChooseTemplate}
-            className="query-editor--templates"
-          />
+          {isInDataExplorer
+            ? <Dropdown
+                items={QUERY_TEMPLATES}
+                selected={'Query Templates'}
+                onChoose={this.handleChooseTemplate}
+                className="query-editor--templates"
+              />
+            : null}
         </div>
       )
     }
@@ -286,23 +292,26 @@ class QueryEditor extends Component {
           />
           {status.error || status.warn || status.success}
         </span>
-        <Dropdown
-          items={QUERY_TEMPLATES}
-          selected={'Query Templates'}
-          onChoose={this.handleChooseTemplate}
-          className="query-editor--templates"
-        />
+        {isInDataExplorer
+          ? <Dropdown
+              items={QUERY_TEMPLATES}
+              selected={'Query Templates'}
+              onChoose={this.handleChooseTemplate}
+              className="query-editor--templates"
+            />
+          : null}
       </div>
     )
   }
 }
 
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 QueryEditor.propTypes = {
   query: string.isRequired,
   onUpdate: func.isRequired,
   config: shape().isRequired,
+  isInDataExplorer: bool,
   templates: arrayOf(
     shape({
       tempVar: string.isRequired,

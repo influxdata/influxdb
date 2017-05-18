@@ -101,6 +101,7 @@ const QueryBuilder = React.createClass({
           config={query}
           onUpdate={this.handleEditRawText}
           templates={templates}
+          isInDataExplorer={isInDataExplorer}
         />
         {this.renderLists()}
       </div>
