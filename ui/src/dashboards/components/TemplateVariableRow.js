@@ -32,9 +32,7 @@ const RowValues = ({
   onStartEdit,
   autoFocusTarget,
 }) => {
-  const _values = uniq(values.map(({value}) => value))
-    .filter(value => /\S/.test(value))
-    .join(', ')
+  const _values = values.map(v => v.value).join(', ')
 
   if (selectedType === 'csv') {
     return (
@@ -297,7 +295,11 @@ class RowWrapper extends Component {
         } else {
           parsedData = await this.runTemplateVariableQuery(source, queryConfig)
         }
-        onRunQuerySuccess(template, queryConfig, parsedData, tempVar)
+
+        const sanitize = values =>
+          uniq(values).filter(value => /\S/.test(value))
+
+        onRunQuerySuccess(template, queryConfig, sanitize(parsedData), tempVar)
       } catch (error) {
         onRunQueryFailure(error)
       }
