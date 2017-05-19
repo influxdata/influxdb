@@ -5,14 +5,13 @@ import _ from 'lodash'
 export function getCpuAndLoadForHosts(proxyLink, telegrafDB) {
   return proxy({
     source: proxyLink,
-    query: [
-      'select mean(usage_user) from cpu where cpu = \'cpu-total\' and time > now() - 10m group by host',
-      'select mean("load1") from "system" where time > now() - 10m group by host',
-      'select non_negative_derivative(mean(uptime)) as deltaUptime from "system" where time > now() - 10m group by host, time(1m) fill(0)',
-      'select mean("Percent_Processor_Time") from win_cpu where time > now() - 10m group by host',
-      'select mean("Processor_Queue_Length") from win_system where time > now() - 10s group by host',
-      'select non_negative_derivative(mean("System_Up_Time")) as deltaUptime from "telegraf"."autogen"."win_uptime" where time > now() - 10m group by host, time(1m) fill(0)',
-      'show tag values from /win_system|system/ with key = "host"'].join('; '),
+    query: `select mean(usage_user) from cpu where cpu = "cpu-total" and time > now() - 10m group by host;
+      select mean("load1") from "system" where time > now() - 10m group by host;
+      select non_negative_derivative(mean(uptime)) as deltaUptime from "system" where time > now() - 10m group by host, time(1m) fill(0);
+      select mean("Percent_Processor_Time") from win_cpu where time > now() - 10m group by host;
+      select mean("Processor_Queue_Length") from win_system where time > now() - 10s group by host;
+      select non_negative_derivative(mean("System_Up_Time")) as deltaUptime from "telegraf"."autogen"."win_uptime" where time > now() - 10m group by host, time(1m) fill(0);
+      show tag values from /win_system|system/ with key = "host"`,
     db: telegrafDB,
   }).then(resp => {
     const hosts = {}
