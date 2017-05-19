@@ -9,6 +9,7 @@
   1. [#1426](https://github.com/influxdata/chronograf/issues/1426): Fix graph loading spinner
   1. [#1485](https://github.com/influxdata/chronograf/pull/1485): Filter out any template variable values that are empty, whitespace, or duplicates
   1. [#1484](https://github.com/influxdata/chronograf/pull/1484): Allow user to select SingleStat as Visualization Type before adding any queries and continue to be able to click Add Query
+  1. [#1349](https://github.com/influxdata/chronograf/pull/1349): Add query for windows uptime
 
 ### Features
   1. [#1477](https://github.com/influxdata/chronograf/pull/1477): Add ability to log alerts
