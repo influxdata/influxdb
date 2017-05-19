@@ -46,6 +46,7 @@ class DashboardEditHeader extends Component {
               placeholder="Name this Dashboard"
               onChange={e => this.handleChange(e.target.value)}
               onKeyUp={this.handleKeyUp}
+              autoComplete="off"
             />
           </form>
           <ConfirmButtons item={name} onConfirm={onSave} onCancel={onCancel} />
