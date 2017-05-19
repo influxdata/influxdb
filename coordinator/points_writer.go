@@ -98,9 +98,10 @@ func NewPointsWriter() *PointsWriter {
 
 // ShardMapping contains a mapping of shards to points.
 type ShardMapping struct {
-	n      int
-	Points map[uint64][]models.Point  // The points associated with a shard ID
-	Shards map[uint64]*meta.ShardInfo // The shards that have been mapped, keyed by shard ID
+	n       int
+	Points  map[uint64][]models.Point  // The points associated with a shard ID
+	Shards  map[uint64]*meta.ShardInfo // The shards that have been mapped, keyed by shard ID
+	Dropped []models.Point             // Points that were dropped
 }
 
 // NewShardMapping creates an empty ShardMapping.
@@ -229,6 +230,7 @@ func (w *PointsWriter) MapShards(wp *WritePointsRequest) (*ShardMapping, error) 
 		if sg == nil {
 			// We didn't create a shard group because the point was outside the
 			// scope of the RP.
+			mapping.Dropped = append(mapping.Dropped, p)
 			atomic.AddInt64(&w.stats.WriteDropped, 1)
 			continue
 		}
@@ -324,6 +326,10 @@ func (w *PointsWriter) WritePoints(database, retentionPolicy string, consistency
 		atomic.AddInt64(&w.stats.SubWriteDrop, 1)
 	}
 
+	if err == nil && len(shardMappings.Dropped) > 0 {
+		err = tsdb.PartialWriteError{Reason: "points beyond retention policy", Dropped: len(shardMappings.Dropped)}
+
+	}
 	timeout := time.NewTimer(w.WriteTimeout)
 	defer timeout.Stop()
 	for range shardMappings.Points {
@@ -340,7 +346,7 @@ func (w *PointsWriter) WritePoints(database, retentionPolicy string, consistency
 			}
 		}
 	}
-	return nil
+	return err
 }
 
 // writeToShards writes points to a shard.
