@@ -42,10 +42,11 @@ const Dashboard = ({
   })
 
   return (
-    <FancyScrollbar className={classnames(
-      'page-contents',
-      {'presentation-mode': inPresentationMode}
-    )}>
+    <FancyScrollbar
+      className={classnames('page-contents', {
+        'presentation-mode': inPresentationMode,
+      })}
+    >
       <div className="dashboard container-fluid full-width">
         <TemplateControlBar
           templates={dashboard.templates}
@@ -108,6 +109,7 @@ Dashboard.propTypes = {
   onRenameCell: func,
   onUpdateCell: func,
   onDeleteCell: func,
+  onSummonOverlayTechnologies: func,
   synchronizer: func,
   source: shape({
     links: shape({
