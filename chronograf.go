@@ -233,7 +233,8 @@ type SourcesStore interface {
 // AlertRule represents rules for building a tickscript alerting task
 type AlertRule struct {
 	ID            string          `json:"id,omitempty"`         // ID is the unique ID of the alert
-	Query         QueryConfig     `json:"query"`                // Query is the filter of data for the alert.
+	TICKScript    TICKScript      `json:"tickscript"`           // TICKScript is the raw tickscript associated with this Alert
+	Query         *QueryConfig    `json:"query"`                // Query is the filter of data for the alert.
 	Every         string          `json:"every"`                // Every how often to check for the alerting criteria
 	Alerts        []string        `json:"alerts"`               // Alerts name all the services to notify (e.g. pagerduty)
 	AlertNodes    []KapacitorNode `json:"alertNodes,omitempty"` // AlertNodes define additional arguments to alerts
@@ -242,20 +243,6 @@ type AlertRule struct {
 	Trigger       string          `json:"trigger"`              // Trigger is a type that defines when to trigger the alert
 	TriggerValues TriggerValues   `json:"values"`               // Defines the values that cause the alert to trigger
 	Name          string          `json:"name"`                 // Name is the user-defined name for the alert
-}
-
-// AlertRulesStore stores rules for building tickscript alerting tasks
-type AlertRulesStore interface {
-	// All returns all rules in the store for the given source and kapacitor id
-	All(ctx context.Context, sourceID, kapaID int) ([]AlertRule, error)
-	// Add creates a new rule in the AlertRulesStore and returns AlertRule with ID for a given source and kapacitor id
-	Add(ctx context.Context, sourceID, kapaID int, rule AlertRule) (AlertRule, error)
-	// Delete the AlertRule from the store for a given source and kapacitor ID
-	Delete(ctx context.Context, sourceID, kapaID int, rule AlertRule) error
-	// Get retrieves AlertRule if `ID` exists within a given source and kapacitor id
-	Get(ctx context.Context, sourceID, kapaID int, ID string) (AlertRule, error)
-	// Update the AlertRule in the store within a given source and kapacitor id
-	Update(ctx context.Context, sourceID, kapaID int, rule AlertRule) error
 }
 
 // TICKScript task to be used by kapacitor
@@ -269,12 +256,12 @@ type Ticker interface {
 
 // TriggerValues specifies the alerting logic for a specific trigger type
 type TriggerValues struct {
-	Change     string `json:"change,omitempty"`     // Change specifies if the change is a percent or absolute
-	Period     string `json:"period,omitempty"`     // Period length of time before deadman is alerted
-	Shift      string `json:"shift,omitempty"`      // Shift is the amount of time to look into the past for the alert to compare to the present
-	Operator   string `json:"operator,omitempty"`   // Operator for alert comparison
-	Value      string `json:"value,omitempty"`      // Value is the boundary value when alert goes critical
-	RangeValue string `json:"rangeValue,omitempty"` // RangeValue is an optional value for range comparisons
+	Change     string `json:"change,omitempty"`   // Change specifies if the change is a percent or absolute
+	Period     string `json:"period,omitempty"`   // Period length of time before deadman is alerted
+	Shift      string `json:"shift,omitempty"`    // Shift is the amount of time to look into the past for the alert to compare to the present
+	Operator   string `json:"operator,omitempty"` // Operator for alert comparison
+	Value      string `json:"value,omitempty"`    // Value is the boundary value when alert goes critical
+	RangeValue string `json:"rangeValue"`         // RangeValue is an optional value for range comparisons
 }
 
 // Field represent influxql fields and functions from the UI
@@ -289,6 +276,12 @@ type GroupBy struct {
 	Tags []string `json:"tags"`
 }
 
+// DurationRange represents the lower and upper durations of the query config
+type DurationRange struct {
+	Upper string `json:"upper"`
+	Lower string `json:"lower"`
+}
+
 // QueryConfig represents UI query from the data explorer
 type QueryConfig struct {
 	ID              string              `json:"id,omitempty"`
@@ -300,6 +293,7 @@ type QueryConfig struct {
 	GroupBy         GroupBy             `json:"groupBy"`
 	AreTagsAccepted bool                `json:"areTagsAccepted"`
 	RawText         *string             `json:"rawText"`
+	Range           *DurationRange      `json:"range"`
 }
 
 // KapacitorNode adds arguments and properties to an alert

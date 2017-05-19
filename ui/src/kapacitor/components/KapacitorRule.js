@@ -1,9 +1,12 @@
 import React, {PropTypes} from 'react'
-import DataSection from '../components/DataSection'
-import ValuesSection from '../components/ValuesSection'
+
+import DataSection from 'src/kapacitor/components/DataSection'
+import ValuesSection from 'src/kapacitor/components/ValuesSection'
 import RuleHeader from 'src/kapacitor/components/RuleHeader'
 import RuleGraph from 'src/kapacitor/components/RuleGraph'
 import RuleMessage from 'src/kapacitor/components/RuleMessage'
+import FancyScrollbar from 'shared/components/FancyScrollbar'
+
 import {createRule, editRule} from 'src/kapacitor/apis'
 import buildInfluxQLQuery from 'utils/influxql'
 import timeRanges from 'hson!../../shared/data/timeRanges.hson'
@@ -57,7 +60,7 @@ export const KapacitorRule = React.createClass({
           timeRange={timeRange}
           source={source}
         />
-        <div className="page-contents page-contents--green-scrollbar">
+        <FancyScrollbar className="page-contents fancy-scroll--kapacitor">
           <div className="container-fluid">
             <div className="row">
               <div className="col-xs-12">
@@ -89,7 +92,7 @@ export const KapacitorRule = React.createClass({
               </div>
             </div>
           </div>
-        </div>
+        </FancyScrollbar>
       </div>
     )
   },
@@ -147,25 +150,29 @@ export const KapacitorRule = React.createClass({
   },
 
   validationError() {
-    if (!buildInfluxQLQuery({}, this.props.query)) {
+    const {rule, query} = this.props
+    if (rule.trigger === 'deadman') {
+      return this.deadmanValidation()
+    }
+
+    if (!buildInfluxQLQuery({}, query)) {
       return 'Please select a database, measurement, and field'
     }
 
-    if (this.thresholdValueEmpty() || this.relativeValueEmpty()) {
-      return 'Please enter a value in the Values section'
+    if (!rule.values.value) {
+      return 'Please enter a value in the Rule Conditions section'
     }
 
     return ''
   },
 
-  thresholdValueEmpty() {
-    const {rule} = this.props
-    return rule.trigger === 'threshold' && rule.values.value === ''
-  },
+  deadmanValidation() {
+    const {query} = this.props
+    if (query && (!query.database || !query.measurement)) {
+      return 'Deadman requires a database and measurement'
+    }
 
-  relativeValueEmpty() {
-    const {rule} = this.props
-    return rule.trigger === 'relative' && rule.values.value === ''
+    return ''
   },
 })
 

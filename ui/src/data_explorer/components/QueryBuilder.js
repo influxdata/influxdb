@@ -1,13 +1,13 @@
 import React, {PropTypes} from 'react'
 
 import DatabaseList from './DatabaseList'
+import DatabaseDropdown from './DatabaseDropdown'
 import MeasurementList from './MeasurementList'
 import FieldList from './FieldList'
-import TagList from './TagList'
 import QueryEditor from './QueryEditor'
 import buildInfluxQLQuery from 'utils/influxql'
 
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 const QueryBuilder = React.createClass({
   propTypes: {
@@ -28,6 +28,7 @@ const QueryBuilder = React.createClass({
         tempVar: string.isRequired,
       })
     ),
+    isInDataExplorer: bool,
     actions: shape({
       chooseNamespace: func.isRequired,
       chooseMeasurement: func.isRequired,
@@ -39,6 +40,7 @@ const QueryBuilder = React.createClass({
       toggleTagAcceptance: func.isRequired,
       editRawTextAsync: func.isRequired,
     }).isRequired,
+    layout: string,
   },
 
   handleChooseNamespace(namespace) {
@@ -79,7 +81,17 @@ const QueryBuilder = React.createClass({
   },
 
   render() {
-    const {query, timeRange, templates} = this.props
+    const {query, templates, isInDataExplorer} = this.props
+
+    // DE does not understand templating. :dashboardTime: is specific to dashboards
+    let timeRange
+
+    if (isInDataExplorer) {
+      timeRange = this.props.timeRange
+    } else {
+      timeRange = query.range || {upper: null, lower: ':dashboardTime:'}
+    }
+
     const q = query.rawText || buildInfluxQLQuery(timeRange, query) || ''
 
     return (
@@ -89,6 +101,7 @@ const QueryBuilder = React.createClass({
           config={query}
           onUpdate={this.handleEditRawText}
           templates={templates}
+          isInDataExplorer={isInDataExplorer}
         />
         {this.renderLists()}
       </div>
@@ -96,7 +109,37 @@ const QueryBuilder = React.createClass({
   },
 
   renderLists() {
-    const {query} = this.props
+    const {query, layout} = this.props
+
+    // Panel layout uses a dropdown instead of a list for database selection
+    // Also groups measurements & fields into their own container so they
+    // can be stacked vertically.
+    // TODO: Styles to make all this look proper
+    if (layout === 'panel') {
+      return (
+        <div className="query-builder--panel">
+          <DatabaseDropdown
+            query={query}
+            onChooseNamespace={this.handleChooseNamespace}
+          />
+          <div className="query-builder">
+            <MeasurementList
+              query={query}
+              onChooseMeasurement={this.handleChooseMeasurement}
+              onChooseTag={this.handleChooseTag}
+              onToggleTagAcceptance={this.handleToggleTagAcceptance}
+              onGroupByTag={this.handleGroupByTag}
+            />
+            <FieldList
+              query={query}
+              onToggleField={this.handleToggleField}
+              onGroupByTime={this.handleGroupByTime}
+              applyFuncsToField={this.handleApplyFuncsToField}
+            />
+          </div>
+        </div>
+      )
+    }
 
     return (
       <div className="query-builder">
@@ -107,18 +150,15 @@ const QueryBuilder = React.createClass({
         <MeasurementList
           query={query}
           onChooseMeasurement={this.handleChooseMeasurement}
+          onChooseTag={this.handleChooseTag}
+          onToggleTagAcceptance={this.handleToggleTagAcceptance}
+          onGroupByTag={this.handleGroupByTag}
         />
         <FieldList
           query={query}
           onToggleField={this.handleToggleField}
           onGroupByTime={this.handleGroupByTime}
           applyFuncsToField={this.handleApplyFuncsToField}
-        />
-        <TagList
-          query={query}
-          onChooseTag={this.handleChooseTag}
-          onGroupByTag={this.handleGroupByTag}
-          onToggleTagAcceptance={this.handleToggleTagAcceptance}
         />
       </div>
     )

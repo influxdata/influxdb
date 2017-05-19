@@ -1,5 +1,5 @@
 import React, {PropTypes} from 'react'
-import cx from 'classnames'
+import classnames from 'classnames'
 
 const {node, func, bool, number, string} = PropTypes
 export const Tab = React.createClass({
@@ -13,7 +13,7 @@ export const Tab = React.createClass({
   render() {
     return (
       <div
-        className={cx('btn tab', {active: this.props.isActive})}
+        className={classnames('btn tab', {active: this.props.isActive})}
         onClick={this.props.isDisabled ? null : this.props.onClick}
       >
         {this.props.children}

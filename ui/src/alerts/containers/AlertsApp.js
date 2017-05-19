@@ -1,8 +1,10 @@
 import React, {PropTypes, Component} from 'react'
-import SourceIndicator from '../../shared/components/SourceIndicator'
-import AlertsTable from '../components/AlertsTable'
-import NoKapacitorError from '../../shared/components/NoKapacitorError'
-import CustomTimeRange from '../../shared/components/CustomTimeRange'
+
+import SourceIndicator from 'src/shared/components/SourceIndicator'
+import AlertsTable from 'src/alerts/components/AlertsTable'
+import NoKapacitorError from 'src/shared/components/NoKapacitorError'
+import CustomTimeRangeDropdown from 'shared/components/CustomTimeRangeDropdown'
+import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 import {getAlerts} from '../apis'
 import AJAX from 'utils/ajax'
@@ -93,18 +95,18 @@ class AlertsApp extends Component {
   }
 
   renderSubComponents() {
-    let component
-    if (this.state.loading) {
-      component = <p>Loading...</p>
-    } else {
-      const {source} = this.props
-      if (this.state.hasKapacitor) {
-        component = <AlertsTable source={source} alerts={this.state.alerts} />
-      } else {
-        component = <NoKapacitorError source={source} />
-      }
-    }
-    return component
+    const {source} = this.props
+    return (
+      <div className="container-fluid">
+        <div className="row">
+          <div className="col-md-12">
+            {this.state.hasKapacitor
+              ? <AlertsTable source={source} alerts={this.state.alerts} />
+              : <NoKapacitorError source={source} />}
+          </div>
+        </div>
+      </div>
+    )
   }
 
   handleToggleTime() {
@@ -138,7 +140,7 @@ class AlertsApp extends Component {
             </div>
             <div className="page-header__right">
               <SourceIndicator sourceName={source.name} />
-              <CustomTimeRange
+              <CustomTimeRangeDropdown
                 isVisible={this.state.isTimeOpen}
                 onToggle={this.handleToggleTime}
                 onClose={this.handleCloseTime}
@@ -148,15 +150,9 @@ class AlertsApp extends Component {
             </div>
           </div>
         </div>
-        <div className="page-contents">
-          <div className="container-fluid">
-            <div className="row">
-              <div className="col-md-12">
-                {this.renderSubComponents()}
-              </div>
-            </div>
-          </div>
-        </div>
+        <FancyScrollbar className="page-contents">
+          {this.renderSubComponents()}
+        </FancyScrollbar>
       </div>
     )
   }

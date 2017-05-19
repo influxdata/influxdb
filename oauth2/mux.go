@@ -2,6 +2,7 @@ package oauth2
 
 import (
 	"net/http"
+	"path"
 	"time"
 
 	"github.com/influxdata/chronograf"
@@ -15,15 +16,15 @@ var _ Mux = &AuthMux{}
 const TenMinutes = 10 * time.Minute
 
 // NewAuthMux constructs a Mux handler that checks a cookie against the authenticator
-func NewAuthMux(p Provider, a Authenticator, t Tokenizer, l chronograf.Logger) *AuthMux {
+func NewAuthMux(p Provider, a Authenticator, t Tokenizer, basepath string, l chronograf.Logger) *AuthMux {
 	return &AuthMux{
 		Provider:   p,
 		Auth:       a,
 		Tokens:     t,
-		Logger:     l,
-		SuccessURL: "/",
-		FailureURL: "/login",
-		Now:        DefaultNowTime,
+		SuccessURL: path.Join(basepath, "/"),
+		FailureURL: path.Join(basepath, "/login"),
+		Now:    DefaultNowTime,
+		Logger: l,
 	}
 }
 

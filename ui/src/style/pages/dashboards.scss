@@ -86,7 +86,6 @@ $dash-graph-options-arrow: 8px;
   top: $dash-graph-heading;
   left: 0;
   padding: 0;
-  z-index: 0;
 
   & > div:not(.graph-empty) {
     position: absolute;
@@ -164,7 +163,7 @@ $dash-graph-options-arrow: 8px;
 .dash-graph--options {
   width: $dash-graph-heading;
   position: absolute;
-  z-index: 1;
+  z-index: 11;
   right: 0px;
   top: 0px;
 

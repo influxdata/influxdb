@@ -22,6 +22,7 @@
 @import 'layout/page';
 @import 'layout/page-header';
 @import 'layout/sidebar';
+@import 'layout/overlay';
 
 // Components
 @import 'components/confirm-buttons';
@@ -44,6 +45,8 @@
 @import 'components/search-widget';
 @import 'components/source-indicator';
 @import 'components/tables';
+@import 'components/function-selector';
+@import 'components/fancy-scrollbars';
 
 // Pages
 

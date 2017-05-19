@@ -1,5 +1,5 @@
 import React, {PropTypes} from 'react'
-import {withRouter} from 'react-router'
+import {withRouter, Link} from 'react-router'
 import {connect} from 'react-redux'
 
 import {
@@ -23,6 +23,7 @@ const SideNav = React.createClass({
       email: string,
     }),
     isHidden: bool.isRequired,
+    logoutLink: string,
   },
 
   render() {
@@ -31,6 +32,7 @@ const SideNav = React.createClass({
       params: {sourceID},
       location: {pathname: location},
       isHidden,
+      logoutLink,
     } = this.props
 
     const sourcePrefix = `/sources/${sourceID}`
@@ -41,7 +43,7 @@ const SideNav = React.createClass({
       ? null
       : <NavBar location={location}>
           <div className="sidebar__logo">
-            <a href="/"><span className="icon cubo-uniform" /></a>
+            <Link to="/"><span className="icon cubo-uniform" /></Link>
           </div>
           <NavBlock icon="cubo-node" link={`${sourcePrefix}/hosts`}>
             <NavHeader link={`${sourcePrefix}/hosts`} title="Host List" />
@@ -65,7 +67,7 @@ const SideNav = React.createClass({
               Alert History
             </NavListItem>
             <NavListItem link={`${sourcePrefix}/alert-rules`}>
-              Kapacitor Rules
+              Alert Rules
             </NavListItem>
           </NavBlock>
           <NavBlock icon="crown2" link={`${sourcePrefix}/admin`}>
@@ -79,9 +81,7 @@ const SideNav = React.createClass({
           </NavBlock>
           {showLogout
             ? <NavBlock icon="user-outline" className="sidebar__square-last">
-                <a className="sidebar__menu-item" href="/oauth/logout">
-                  Logout
-                </a>
+                <NavHeader link={logoutLink} title="Logout" />
               </NavBlock>
             : null}
         </NavBar>
@@ -89,11 +89,12 @@ const SideNav = React.createClass({
 })
 
 const mapStateToProps = ({
-  auth: {me},
+  auth: {me, logoutLink},
   app: {ephemeral: {inPresentationMode}},
 }) => ({
   me,
   isHidden: inPresentationMode,
+  logoutLink,
 })
 
 export default connect(mapStateToProps)(withRouter(SideNav))

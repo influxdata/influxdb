@@ -2,8 +2,10 @@ import React, {PropTypes, Component} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
+import uniq from 'lodash/uniq'
+
 import OnClickOutside from 'react-onclickoutside'
-import classNames from 'classnames'
+import classnames from 'classnames'
 
 import Dropdown from 'shared/components/Dropdown'
 import DeleteConfirmButtons from 'shared/components/DeleteConfirmButtons'
@@ -23,6 +25,8 @@ import generateTemplateVariableQuery
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
+const compact = values => uniq(values).filter(value => /\S/.test(value))
+
 const RowValues = ({
   selectedType,
   values = [],
@@ -30,7 +34,7 @@ const RowValues = ({
   onStartEdit,
   autoFocusTarget,
 }) => {
-  const _values = values.map(({value}) => value).join(', ')
+  const _values = values.map(v => v.value).join(', ')
 
   if (selectedType === 'csv') {
     return (
@@ -115,7 +119,7 @@ const TemplateVariableRow = ({
   onErrorThrown,
 }) => (
   <form
-    className={classNames('template-variable-manager--table-row', {
+    className={classnames('template-variable-manager--table-row', {
       editing: isEditing,
     })}
     onSubmit={onSubmit({
@@ -293,7 +297,8 @@ class RowWrapper extends Component {
         } else {
           parsedData = await this.runTemplateVariableQuery(source, queryConfig)
         }
-        onRunQuerySuccess(template, queryConfig, parsedData, tempVar)
+
+        onRunQuerySuccess(template, queryConfig, compact(parsedData), tempVar)
       } catch (error) {
         onRunQueryFailure(error)
       }
@@ -301,7 +306,7 @@ class RowWrapper extends Component {
   }
 
   handleClickOutside() {
-    this.setState({isEditing: false})
+    this.handleCancelEdit()
   }
 
   handleStartEdit(name) {

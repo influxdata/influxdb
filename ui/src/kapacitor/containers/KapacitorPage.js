@@ -1,4 +1,6 @@
 import React, {Component, PropTypes} from 'react'
+import {withRouter} from 'react-router'
+
 import {
   getKapacitor,
   createKapacitor,
@@ -27,6 +29,7 @@ class KapacitorPage extends Component {
     this.handleSubmit = ::this.handleSubmit
     this.handleResetToDefaults = ::this.handleResetToDefaults
     this._parseKapacitorURL = ::this._parseKapacitorURL
+    this.checkKapacitorConnection = ::this.checkKapacitorConnection
   }
 
   componentDidMount() {
@@ -36,15 +39,22 @@ class KapacitorPage extends Component {
     }
 
     getKapacitor(source, id).then(kapacitor => {
-      this.setState({kapacitor, exists: true}, () => {
-        pingKapacitor(kapacitor).catch(() => {
-          this.props.addFlashMessage({
-            type: 'error',
-            text: 'Could not connect to Kapacitor. Check settings.',
-          })
-        })
-      })
+      this.setState({kapacitor})
+      this.checkKapacitorConnection(kapacitor)
     })
+  }
+
+  async checkKapacitorConnection(kapacitor) {
+    try {
+      await pingKapacitor(kapacitor)
+      this.setState({exists: true})
+    } catch (error) {
+      this.setState({exists: false})
+      this.props.addFlashMessage({
+        type: 'error',
+        text: 'Could not connect to Kapacitor. Check settings.',
+      })
+    }
   }
 
   handleInputChange(e) {
@@ -58,12 +68,14 @@ class KapacitorPage extends Component {
 
   handleSubmit(e) {
     e.preventDefault()
-    const {addFlashMessage, source} = this.props
-    const {kapacitor, exists} = this.state
+    const {addFlashMessage, source, params, router} = this.props
+    const {kapacitor} = this.state
 
-    if (exists) {
+    if (params.id) {
       updateKapacitor(kapacitor)
-        .then(() => {
+        .then(({data}) => {
+          this.setState({kapacitor: data})
+          this.checkKapacitorConnection(data)
           addFlashMessage({type: 'success', text: 'Kapacitor Updated!'})
         })
         .catch(() => {
@@ -76,7 +88,9 @@ class KapacitorPage extends Component {
       createKapacitor(source, kapacitor)
         .then(({data}) => {
           // need up update kapacitor with info from server to AlertOutputs
-          this.setState({kapacitor: data, exists: true})
+          this.setState({kapacitor: data})
+          this.checkKapacitorConnection(data)
+          router.push(`/sources/${source.id}/kapacitors/${data.id}/edit`)
           addFlashMessage({type: 'success', text: 'Kapacitor Created!'})
         })
         .catch(() => {
@@ -132,10 +146,13 @@ KapacitorPage.propTypes = {
   params: shape({
     id: string,
   }).isRequired,
+  router: shape({
+    push: func.isRequired,
+  }).isRequired,
   source: shape({
     id: string.isRequired,
     url: string.isRequired,
   }),
 }
 
-export default KapacitorPage
+export default withRouter(KapacitorPage)

@@ -3,8 +3,9 @@ import React, {PropTypes} from 'react'
 import QueryBuilder from './QueryBuilder'
 import QueryMakerTab from './QueryMakerTab'
 import buildInfluxQLQuery from 'utils/influxql'
+import classnames from 'classnames'
 
-const {arrayOf, func, node, number, shape, string} = PropTypes
+const {arrayOf, bool, func, node, number, shape, string} = PropTypes
 
 const QueryMaker = React.createClass({
   propTypes: {
@@ -23,6 +24,7 @@ const QueryMaker = React.createClass({
         tempVar: string.isRequired,
       })
     ),
+    isInDataExplorer: bool,
     actions: shape({
       chooseNamespace: func.isRequired,
       chooseMeasurement: func.isRequired,
@@ -41,6 +43,7 @@ const QueryMaker = React.createClass({
     onDeleteQuery: func.isRequired,
     activeQueryIndex: number,
     children: node,
+    layout: string,
   },
 
   handleAddQuery() {
@@ -64,9 +67,9 @@ const QueryMaker = React.createClass({
   },
 
   render() {
-    const {height, top} = this.props
+    const {height, top, layout} = this.props
     return (
-      <div className="query-maker" style={{height, top}}>
+      <div className={classnames('query-maker', {'query-maker--panel': layout === 'panel'})} style={{height, top}}>
         {this.renderQueryTabList()}
         {this.renderQueryBuilder()}
       </div>
@@ -74,7 +77,7 @@ const QueryMaker = React.createClass({
   },
 
   renderQueryBuilder() {
-    const {timeRange, actions, source, templates} = this.props
+    const {timeRange, actions, source, templates, layout, isInDataExplorer} = this.props
     const query = this.getActiveQuery()
 
     if (!query) {
@@ -93,6 +96,19 @@ const QueryMaker = React.createClass({
       )
     }
 
+    // NOTE
+    // the layout prop is intended to toggle between a horizontal and vertical layout
+    // the layout will be horizontal by default
+    // vertical layout is known as "panel" layout as it will be used to build
+    // a "cell editor panel" though that term might change
+    // Currently, if set to "panel" the only noticeable difference is that the
+    // DatabaseList becomes DatabaseDropdown (more space efficient in vertical layout)
+    // and is outside the container with measurements/tags/fields
+    //
+    // TODO:
+    // - perhaps switch to something like "isVertical" and accept boolean instead of string
+    // - more css/markup work to make the alternate appearance look good
+
     return (
       <QueryBuilder
         source={source}
@@ -101,6 +117,8 @@ const QueryMaker = React.createClass({
         query={query}
         actions={actions}
         onAddQuery={this.handleAddQuery}
+        layout={layout}
+        isInDataExplorer={isInDataExplorer}
       />
     )
   },
@@ -145,4 +163,7 @@ const QueryMaker = React.createClass({
   },
 })
 
+QueryMaker.defaultProps = {
+  layout: 'default',
+}
 export default QueryMaker

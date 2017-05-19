@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 
 	"github.com/influxdata/chronograf"
 )
@@ -20,7 +22,7 @@ type postInfluxResponse struct {
 	Results interface{} `json:"results"` // results from influx
 }
 
-// Influx proxies requests to infludb.
+// Influx proxies requests to influxdb.
 func (h *Service) Influx(w http.ResponseWriter, r *http.Request) {
 	id, err := paramID("id", r)
 	if err != nil {
@@ -74,4 +76,43 @@ func (h *Service) Influx(w http.ResponseWriter, r *http.Request) {
 		Results: response,
 	}
 	encodeJSON(w, http.StatusOK, res, h.Logger)
+}
+
+func (h *Service) Write(w http.ResponseWriter, r *http.Request) {
+	id, err := paramID("id", r)
+	if err != nil {
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
+		return
+	}
+
+	ctx := r.Context()
+	src, err := h.SourcesStore.Get(ctx, id)
+	if err != nil {
+		notFound(w, id, h.Logger)
+		return
+	}
+
+	u, err := url.Parse(src.URL)
+	if err != nil {
+		msg := fmt.Sprintf("Error parsing source url: %v", err)
+		Error(w, http.StatusUnprocessableEntity, msg, h.Logger)
+		return
+	}
+	u.Path = "/write"
+	u.RawQuery = r.URL.RawQuery
+
+	director := func(req *http.Request) {
+		// Set the Host header of the original source URL
+		req.Host = u.Host
+		req.URL = u
+		// Because we are acting as a proxy, influxdb needs to have the
+		// basic auth information set as a header directly
+		if src.Username != "" && src.Password != "" {
+			req.SetBasicAuth(src.Username, src.Password)
+		}
+	}
+	proxy := &httputil.ReverseProxy{
+		Director: director,
+	}
+	proxy.ServeHTTP(w, r)
 }

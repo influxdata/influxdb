@@ -1,5 +1,5 @@
 import React, {PropTypes} from 'react'
-import classNames from 'classnames'
+import classnames from 'classnames'
 
 const QueryMakerTab = React.createClass({
   propTypes: {
@@ -25,7 +25,7 @@ const QueryMakerTab = React.createClass({
   render() {
     return (
       <div
-        className={classNames('query-maker--tab', {
+        className={classnames('query-maker--tab', {
           active: this.props.isActive,
         })}
         onClick={this.handleSelect}

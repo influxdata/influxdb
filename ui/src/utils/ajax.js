@@ -25,8 +25,6 @@ export default async function AJAX({
       links = linksRes.data
     }
 
-    const {auth} = links
-
     if (resource) {
       url = id
         ? `${basepath}${links[resource]}/${id}`
@@ -41,14 +39,17 @@ export default async function AJAX({
       headers,
     })
 
+    const {auth} = links
+
     return {
-      auth,
       ...response,
+      auth: {links: auth},
+      logoutLink: links.logout,
     }
   } catch (error) {
     const {response} = error
 
     const {auth} = links
-    throw {...response, auth: {links: auth}} // eslint-disable-line no-throw-literal
+    throw {...response, auth: {links: auth}, logout: links.logout} // eslint-disable-line no-throw-literal
   }
 }

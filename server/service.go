@@ -14,7 +14,6 @@ type Service struct {
 	SourcesStore     chronograf.SourcesStore
 	ServersStore     chronograf.ServersStore
 	LayoutStore      chronograf.LayoutStore
-	AlertRulesStore  chronograf.AlertRulesStore
 	UsersStore       chronograf.UsersStore
 	DashboardsStore  chronograf.DashboardsStore
 	TimeSeriesClient TimeSeriesClient

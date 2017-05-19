@@ -3,7 +3,13 @@ import {Link, withRouter} from 'react-router'
 
 import Dropdown from 'shared/components/Dropdown'
 
-const kapacitorDropdown = (kapacitors, source, router, setActiveKapacitor) => {
+const kapacitorDropdown = (
+  kapacitors,
+  source,
+  router,
+  setActiveKapacitor,
+  handleDeleteKapacitor
+) => {
   if (!kapacitors || kapacitors.length === 0) {
     return (
       <Link to={`/sources/${source.id}/kapacitors/new`}>Add Kapacitor</Link>
@@ -28,7 +34,7 @@ const kapacitorDropdown = (kapacitors, source, router, setActiveKapacitor) => {
 
   return (
     <Dropdown
-      className="sources--kapacitor-selector"
+      className="dropdown-160"
       buttonColor="btn-info"
       buttonSize="btn-xs"
       items={kapacitorItems}
@@ -45,6 +51,14 @@ const kapacitorDropdown = (kapacitors, source, router, setActiveKapacitor) => {
             router.push(`${item.resource}/edit`)
           },
         },
+        {
+          icon: 'trash',
+          text: 'delete',
+          handler: item => {
+            handleDeleteKapacitor(item.kapacitor)
+          },
+          confirmable: true,
+        },
       ]}
       selected={selected}
     />
@@ -58,6 +72,7 @@ const InfluxTable = ({
   location,
   router,
   setActiveKapacitor,
+  handleDeleteKapacitor,
 }) => (
   <div className="row">
     <div className="col-md-12">
@@ -100,16 +115,21 @@ const InfluxTable = ({
                         s.kapacitors,
                         s,
                         router,
-                        setActiveKapacitor
+                        setActiveKapacitor,
+                        handleDeleteKapacitor
                       )}
                     </td>
                     <td className="text-right">
-                      <Link
-                        className="btn btn-success btn-xs"
-                        to={`/sources/${s.id}/hosts`}
-                      >
-                        Connect
-                      </Link>
+                      {s.id === source.id
+                        ? <span className="currently-connected-source">
+                            <span className="icon checkmark" /> Connected
+                          </span>
+                        : <Link
+                            className="btn btn-success btn-xs"
+                            to={`/sources/${s.id}/hosts`}
+                          >
+                            Connect
+                          </Link>}
                       <button
                         className="btn btn-danger btn-xs"
                         onClick={() => handleDeleteSource(s)}
@@ -147,6 +167,7 @@ InfluxTable.propTypes = {
   }),
   sources: array.isRequired,
   setActiveKapacitor: func.isRequired,
+  handleDeleteKapacitor: func.isRequired,
 }
 
 export default withRouter(InfluxTable)

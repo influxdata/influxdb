@@ -1,49 +1,65 @@
-import React, {PropTypes} from 'react'
+import React, {Component, PropTypes} from 'react'
+import classnames from 'classnames'
+
 import ResizeHandle from 'shared/components/ResizeHandle'
 
-const {node, string} = PropTypes
+const maximumNumChildren = 2
+const defaultMinTopHeight = 200
+const defaultMinBottomHeight = 200
+const defaultInitialTopHeight = '50%'
+const defaultInitialBottomHeight = '50%'
 
-const ResizeContainer = React.createClass({
-  propTypes: {
-    children: node.isRequired,
-  },
-
-  getInitialState() {
-    return {
-      topHeight: '60%',
-      bottomHeight: '40%',
+class ResizeContainer extends Component {
+  constructor(props) {
+    super(props)
+    this.state = {
       isDragging: false,
+      topHeight: props.initialTopHeight,
+      bottomHeight: props.initialBottomHeight,
     }
-  },
 
-  handleStopDrag() {
-    this.setState({isDragging: false})
-  },
+    this.handleStartDrag = ::this.handleStartDrag
+    this.handleStopDrag = ::this.handleStopDrag
+    this.handleMouseLeave = ::this.handleMouseLeave
+    this.handleDrag = ::this.handleDrag
+  }
+
+  static defaultProps = {
+    minTopHeight: defaultMinTopHeight,
+    minBottomHeight: defaultMinBottomHeight,
+    initialTopHeight: defaultInitialTopHeight,
+    initialBottomHeight: defaultInitialBottomHeight,
+  }
 
   handleStartDrag() {
     this.setState({isDragging: true})
-  },
+  }
+
+  handleStopDrag() {
+    this.setState({isDragging: false})
+  }
 
   handleMouseLeave() {
     this.setState({isDragging: false})
-  },
+  }
 
   handleDrag(e) {
     if (!this.state.isDragging) {
       return
     }
 
-    const appHeight = parseInt(
+    const {minTopHeight, minBottomHeight} = this.props
+    const oneHundred = 100
+    const containerHeight = parseInt(
       getComputedStyle(this.refs.resizeContainer).height,
       10
     )
-    // headingOffset moves the resize handle as many pixels as the page-heading is taking up.
-    const headingOffset = window.innerHeight - appHeight
-    const turnToPercent = 100
+    // verticalOffset moves the resize handle as many pixels as the page-heading is taking up.
+    const verticalOffset = window.innerHeight - containerHeight
     const newTopPanelPercent = Math.ceil(
-      (e.pageY - headingOffset) / appHeight * turnToPercent
+      (e.pageY - verticalOffset) / containerHeight * oneHundred
     )
-    const newBottomPanelPercent = turnToPercent - newTopPanelPercent
+    const newBottomPanelPercent = oneHundred - newTopPanelPercent
 
     // Don't trigger a resize unless the change in size is greater than minResizePercentage
     const minResizePercentage = 0.5
@@ -54,15 +70,14 @@ const ResizeContainer = React.createClass({
       return
     }
 
-    // Don't trigger a resize if the new sizes are too small
-    const minTopPanelHeight = 200
-    const minBottomPanelHeight = 200
-    const topHeightPixels = newTopPanelPercent / turnToPercent * appHeight
-    const bottomHeightPixels = newBottomPanelPercent / turnToPercent * appHeight
+    const topHeightPixels = newTopPanelPercent / oneHundred * containerHeight
+    const bottomHeightPixels =
+      newBottomPanelPercent / oneHundred * containerHeight
 
+    // Don't trigger a resize if the new sizes are too small
     if (
-      topHeightPixels < minTopPanelHeight ||
-      bottomHeightPixels < minBottomPanelHeight
+      topHeightPixels < minTopHeight ||
+      bottomHeightPixels < minBottomHeight
     ) {
       return
     }
@@ -70,59 +85,58 @@ const ResizeContainer = React.createClass({
     this.setState({
       topHeight: `${newTopPanelPercent}%`,
       bottomHeight: `${newBottomPanelPercent}%`,
-      topHeightPixels,
-      bottomHeightPixels,
     })
-  },
-
-  renderHandle() {
-    const {isDragging, topHeight} = this.state
-    return (
-      <ResizeHandle
-        isDragging={isDragging}
-        onHandleStartDrag={this.handleStartDrag}
-        top={topHeight}
-      />
-    )
-  },
+  }
 
   render() {
-    const {topHeight, topHeightPixels, bottomHeightPixels} = this.state
-    const top = React.cloneElement(this.props.children[0], {
-      height: topHeight,
-      heightPixels: topHeightPixels,
-    })
-    const bottom = React.cloneElement(this.props.children[1], {
-      height: `${bottomHeightPixels}px`,
-    })
+    const {topHeight, bottomHeight, isDragging} = this.state
+    const {containerClass, children} = this.props
+
+    if (React.Children.count(children) > maximumNumChildren) {
+      console.error(
+        `There cannot be more than ${maximumNumChildren}' children in ResizeContainer`
+      )
+      return
+    }
+
     return (
       <div
-        className="resize-container page-contents"
+        className={classnames(`resize--container ${containerClass}`, {
+          'resize--dragging': isDragging,
+        })}
         onMouseLeave={this.handleMouseLeave}
         onMouseUp={this.handleStopDrag}
         onMouseMove={this.handleDrag}
         ref="resizeContainer"
       >
-        {top}
-        {this.renderHandle()}
-        {bottom}
+        <div className="resize--top" style={{height: topHeight}}>
+          {React.cloneElement(children[0])}
+        </div>
+        <ResizeHandle
+          isDragging={isDragging}
+          onHandleStartDrag={this.handleStartDrag}
+          top={topHeight}
+        />
+        <div
+          className="resize--bottom"
+          style={{height: bottomHeight, top: topHeight}}
+        >
+          {React.cloneElement(children[1])}
+        </div>
       </div>
     )
-  },
-})
-
-export const ResizeBottom = ({height, children}) => {
-  const child = React.cloneElement(children, {height})
-  return (
-    <div className="resize-bottom" style={{height}}>
-      {child}
-    </div>
-  )
+  }
 }
 
-ResizeBottom.propTypes = {
+const {node, number, string} = PropTypes
+
+ResizeContainer.propTypes = {
   children: node.isRequired,
-  height: string,
+  containerClass: string.isRequired,
+  minTopHeight: number,
+  minBottomHeight: number,
+  initialTopHeight: string,
+  initialBottomHeight: string,
 }
 
 export default ResizeContainer

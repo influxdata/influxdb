@@ -3,7 +3,7 @@
 	"info": {
 		"title": "Chronograf",
 		"description": "API endpoints for Chronograf",
-		"version": "1.2.0"
+		"version": "1.3.0"
 	},
 	"schemes": [
 		"http"
@@ -291,6 +291,94 @@
 						"schema": {
 							"$ref": "#/definitions/ProxyResponse"
 						}
+					},
+					"400": {
+						"description": "Any query that results in a data source error (syntax error, etc) will cause this response.  The error message will be passed back in the body",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					},
+					"404": {
+						"description": "Data source id does not exist.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					},
+					"408": {
+						"description": "Timeout trying to query data source.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					},
+					"default": {
+						"description": "Unexpected internal service error",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					}
+				}
+			}
+		},
+		"/sources/{id}/write": {
+			"post": {
+				"tags": [
+					"sources",
+					"write"
+				],
+				"description": "Write points to the backend time series data source",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the data source",
+						"required": true
+					},
+					{
+						"name": "query",
+						"in": "body",
+						"description": "Write Parameters",
+						"schema": {
+							"type": "string",
+							"format": "byte"
+						},
+						"required": true
+					},
+					{
+						"name": "db",
+						"in": "query",
+						"description": "Sets the target database for the write.",
+						"type": "string",
+						"required": true
+					},
+					{
+						"name": "rp",
+						"in": "query",
+						"description": "Sets the target retention policy for the write. InfluxDB writes to the DEFAULT retention policy if you do not specify a retention policy.",
+						"type": "string"
+					},
+					{
+						"name": "precision",
+						"in": "query",
+						"description": "Sets the precision for the supplied Unix time values. InfluxDB assumes that timestamps are in nanoseconds if you do not specify precision.",
+						"type": "string",
+						"enum": [
+							"ns","u","ms","s","m","h"
+						]
+					},
+					{
+						"name": "consistency",
+						"in": "query",
+						"description": "Sets the write consistency for the point. InfluxDB assumes that the write consistency is one if you do not specify consistency. See the InfluxEnterprise documentation for detailed descriptions of each consistency option.",
+						"type": "string",
+						"enum": [
+							"any","one","quorum","all"
+						]
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "Points written successfuly to database."
 					},
 					"400": {
 						"description": "Any query that results in a data source error (syntax error, etc) will cause this response.  The error message will be passed back in the body",
@@ -2536,7 +2624,11 @@
 					"time": "10m",
 					"tags": []
 				},
-				"areTagsAccepted": true
+				"areTagsAccepted": true,
+				"range": {
+					"lower": "15m",
+					"upper": "now"
+				}
 			},
 			"properties": {
 				"id": {
@@ -2598,6 +2690,21 @@
 							"funcs"
 						]
 					}
+				},
+				"range": {
+					"type": "object",
+					"properties": {
+						"lower": {
+							"type": "string"
+						},
+						"upper": {
+							"type": "string"
+						}
+					},
+					"required": [
+						"lower",
+						"upper"
+					]
 				}
 			},
 			"required": [
@@ -2950,6 +3057,7 @@
 					"self": "/chronograf/v1/sources/4",
 					"kapacitors": "/chronograf/v1/sources/4/kapacitors",
 					"proxy": "/chronograf/v1/sources/4/proxy",
+					"write": "/chronograf/v1/sources/4/write",
 					"queries": "/chronograf/v1/sources/4/queries",
 					"permissions": "/chronograf/v1/sources/4/permissions",
 					"users": "/chronograf/v1/sources/4/users",
@@ -3021,6 +3129,11 @@
 						"proxy": {
 							"type": "string",
 							"description": "URL location of proxy endpoint for this source",
+							"format": "url"
+						},
+						"write": {
+							"type": "string",
+							"description": "URL location of write endpoint for this source",
 							"format": "url"
 						},
 						"queries": {

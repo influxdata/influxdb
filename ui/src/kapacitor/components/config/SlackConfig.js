@@ -61,7 +61,7 @@ const SlackConfig = React.createClass({
           <RedactedInput
             defaultValue={url}
             id="url"
-            refFunc={r => (this.url = r)}
+            refFunc={r => this.url = r}
           />
         </div>
 
@@ -72,20 +72,15 @@ const SlackConfig = React.createClass({
             id="slack-channel"
             type="text"
             placeholder="#alerts"
-            ref={r => (this.channel = r)}
+            ref={r => this.channel = r}
             defaultValue={channel || ''}
           />
         </div>
 
-        <div className="form-group form-group-submit col-xs-12 text-center">
-          <a
-            className="btn btn-warning"
-            onClick={this.handleTest}
-            disabled={!this.state.testEnabled}
-          >
-            Send Test Message
-          </a>
-          <button className="btn btn-primary" type="submit">Save</button>
+        <div className="form-group form-group-submit col-xs-12 col-sm-6 col-sm-offset-3">
+          <button className="btn btn-block btn-primary" type="submit">
+            Save
+          </button>
         </div>
       </form>
     )

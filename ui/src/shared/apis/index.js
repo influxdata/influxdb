@@ -89,6 +89,18 @@ export const getKapacitors = async source => {
   }
 }
 
+export const deleteKapacitor = async kapacitor => {
+  try {
+    return await AJAX({
+      method: 'DELETE',
+      url: kapacitor.links.self,
+    })
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}
+
 export function createKapacitor(
   source,
   {url, name = 'My Kapacitor', username, password}
@@ -203,9 +215,9 @@ export function kapacitorProxy(kapacitor, method, path, body) {
   })
 }
 
-export const getQueryConfig = (url, queries) =>
+export const getQueryConfig = (url, queries, tempVars) =>
   AJAX({
     url,
     method: 'POST',
-    data: {queries},
+    data: {queries, tempVars},
   })

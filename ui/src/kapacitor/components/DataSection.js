@@ -1,10 +1,10 @@
 import React, {PropTypes} from 'react'
 import buildInfluxQLQuery from 'utils/influxql'
+import classnames from 'classnames'
 
 import DatabaseList from '../../data_explorer/components/DatabaseList'
 import MeasurementList from '../../data_explorer/components/MeasurementList'
 import FieldList from '../../data_explorer/components/FieldList'
-import TagList from '../../data_explorer/components/TagList'
 
 export const DataSection = React.createClass({
   propTypes: {
@@ -77,16 +77,21 @@ export const DataSection = React.createClass({
 
   render() {
     const {query, timeRange: {lower}} = this.props
-    const statement =
-      query.rawText ||
-      buildInfluxQLQuery({lower}, query) ||
-      'Build a query below'
+    const statement = query.rawText || buildInfluxQLQuery({lower}, query)
 
     return (
       <div className="kapacitor-rule-section kapacitor-metric-selector">
         <h3 className="rule-section-heading">Select a Time Series</h3>
         <div className="rule-section-body">
-          <pre><code>{statement}</code></pre>
+          <pre>
+            <code
+              className={classnames({
+                'kapacitor-metric-placeholder': !statement,
+              })}
+            >
+              {statement || 'Build a query below'}
+            </code>
+          </pre>
           {this.renderQueryBuilder()}
         </div>
       </div>
@@ -105,6 +110,9 @@ export const DataSection = React.createClass({
         <MeasurementList
           query={query}
           onChooseMeasurement={this.handleChooseMeasurement}
+          onChooseTag={this.handleChooseTag}
+          onGroupByTag={this.handleGroupByTag}
+          onToggleTagAcceptance={this.handleToggleTagAcceptance}
         />
         <FieldList
           query={query}
@@ -112,12 +120,6 @@ export const DataSection = React.createClass({
           onGroupByTime={this.handleGroupByTime}
           applyFuncsToField={this.handleApplyFuncsToField}
           isKapacitorRule={true}
-        />
-        <TagList
-          query={query}
-          onChooseTag={this.handleChooseTag}
-          onGroupByTag={this.handleGroupByTag}
-          onToggleTagAcceptance={this.handleToggleTagAcceptance}
         />
       </div>
     )

@@ -3,6 +3,7 @@ const getInitialState = () => ({
   me: null,
   isMeLoading: false,
   isAuthLoading: false,
+  logoutLink: null,
 })
 
 export const initialState = getInitialState()
@@ -26,6 +27,10 @@ const authReducer = (state = initialState, action) => {
     case 'ME_RECEIVED': {
       const {me} = action.payload
       return {...state, me, isMeLoading: false}
+    }
+    case 'LOGOUT_LINK_RECEIVED': {
+      const {logoutLink} = action.payload
+      return {...state, logoutLink}
     }
   }
 

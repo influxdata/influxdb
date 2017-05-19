@@ -1,5 +1,5 @@
 import React from 'react'
-import cx from 'classnames'
+import classnames from 'classnames'
 
 const {func, bool, string} = React.PropTypes
 const ResizeHandle = React.createClass({
@@ -14,7 +14,7 @@ const ResizeHandle = React.createClass({
 
     return (
       <div
-        className={cx('resizer__handle', {dragging: isDragging})}
+        className={classnames('resizer--handle', {dragging: isDragging})}
         onMouseDown={onHandleStartDrag}
         style={{top}}
       />

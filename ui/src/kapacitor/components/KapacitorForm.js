@@ -1,5 +1,7 @@
 import React, {Component, PropTypes} from 'react'
-import AlertTabs from './AlertTabs'
+
+import AlertTabs from 'src/kapacitor/components/AlertTabs'
+import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 class KapacitorForm extends Component {
   render() {
@@ -17,7 +19,7 @@ class KapacitorForm extends Component {
             </div>
           </div>
         </div>
-        <div className="page-contents">
+        <FancyScrollbar className="page-contents">
           <div className="container-fluid">
             <div className="row">
               <div className="col-md-3">
@@ -100,7 +102,7 @@ class KapacitorForm extends Component {
               </div>
             </div>
           </div>
-        </div>
+        </FancyScrollbar>
       </div>
     )
   }
@@ -125,10 +127,11 @@ class KapacitorForm extends Component {
           <h2 className="panel-title">Configure Alert Endpoints</h2>
         </div>
         <div className="panel-body">
-          <br />
-          <p className="text-center">
-            Set your Kapacitor connection info to configure alerting endpoints.
-          </p>
+          <div className="generic-empty-state">
+            <h4 className="no-user-select">
+              Connect to an active Kapacitor instance to configure alerting endpoints
+            </h4>
+          </div>
         </div>
       </div>
     )

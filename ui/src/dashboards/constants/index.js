@@ -71,4 +71,25 @@ export const TEMPLATE_VARIABLE_QUERIES = {
   tagValues: 'SHOW TAG VALUES ON :database: FROM :measurement: WITH KEY=:tagKey:',
 }
 
-export const TEMPLATE_MATCHER = /\B:\B|:\w+\b(?!:)/g
+export const MATCH_INCOMPLETE_TEMPLATES = /:[\w-]*/g
+
+export const applyMasks = query => {
+  const matchWholeTemplates = /:([\w-]*):/g
+  const maskForWholeTemplates = '😸$1😸'
+  return query.replace(matchWholeTemplates, maskForWholeTemplates)
+}
+
+export const insertTempVar = (query, tempVar) => {
+  return query.replace(MATCH_INCOMPLETE_TEMPLATES, tempVar)
+}
+
+export const unMask = query => {
+  return query.replace(/😸/g, ':')
+}
+
+export const removeUnselectedTemplateValues = templates => {
+  return templates.map(template => {
+    const selectedValues = template.values.filter(value => value.selected)
+    return {...template, values: selectedValues}
+  })
+}

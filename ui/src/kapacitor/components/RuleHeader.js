@@ -112,7 +112,7 @@ export const RuleHeader = React.createClass({
           placeholder="Name your rule"
         />
       : <h1
-          className="page-header--editable kapacitor-theme"
+          className="page-header__title page-header--editable kapacitor-theme"
           onClick={this.toggleEditName}
           data-for="rename-kapacitor-tooltip"
           data-tip="Click to Rename"

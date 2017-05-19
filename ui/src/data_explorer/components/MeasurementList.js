@@ -1,23 +1,30 @@
 import React, {PropTypes} from 'react'
-import classNames from 'classnames'
-import _ from 'lodash'
+import classnames from 'classnames'
 
 import {showMeasurements} from 'shared/apis/metaQuery'
 import showMeasurementsParser from 'shared/parsing/showMeasurements'
 
+import TagList from 'src/data_explorer/components/TagList'
+import FancyScrollbar from 'shared/components/FancyScrollbar'
+
+const {func, shape, string} = PropTypes
+
 const MeasurementList = React.createClass({
   propTypes: {
-    query: PropTypes.shape({
-      database: PropTypes.string,
-      measurement: PropTypes.string,
+    query: shape({
+      database: string,
+      measurement: string,
     }).isRequired,
-    onChooseMeasurement: PropTypes.func.isRequired,
+    onChooseMeasurement: func.isRequired,
+    onChooseTag: func.isRequired,
+    onToggleTagAcceptance: func.isRequired,
+    onGroupByTag: func.isRequired,
   },
 
   contextTypes: {
-    source: PropTypes.shape({
-      links: PropTypes.shape({
-        proxy: PropTypes.string.isRequired,
+    source: shape({
+      links: shape({
+        proxy: string.isRequired,
       }).isRequired,
     }).isRequired,
   },
@@ -69,6 +76,11 @@ const MeasurementList = React.createClass({
     })
   },
 
+  handleAcceptReject(e) {
+    e.stopPropagation()
+    this.props.onToggleTagAcceptance()
+  },
+
   render() {
     return (
       <div className="query-builder--column">
@@ -103,26 +115,61 @@ const MeasurementList = React.createClass({
       )
     }
 
+    const filterText = this.state.filterText.toLowerCase()
     const measurements = this.state.measurements.filter(m =>
-      m.match(this.state.filterText)
+      m.toLowerCase().includes(filterText)
     )
 
     return (
       <div className="query-builder--list">
-        {measurements.map(measurement => {
-          const isActive = measurement === this.props.query.measurement
-          return (
-            <div
-              className={classNames('query-builder--list-item', {
-                active: isActive,
-              })}
-              key={measurement}
-              onClick={_.wrap(measurement, this.props.onChooseMeasurement)}
-            >
-              {measurement}
-            </div>
-          )
-        })}
+        <FancyScrollbar>
+          {measurements.map(measurement => {
+            const isActive = measurement === this.props.query.measurement
+            const numTagsActive = Object.keys(this.props.query.tags).length
+
+            return (
+              <div
+                key={measurement}
+                onClick={
+                  isActive
+                    ? () => {}
+                    : () => this.props.onChooseMeasurement(measurement)
+                }
+              >
+                <div
+                  className={classnames('query-builder--list-item', {
+                    active: isActive,
+                  })}
+                >
+                  <span>
+                    <div className="query-builder--caret icon caret-right" />
+                    {measurement}
+                  </span>
+                  {isActive && numTagsActive >= 1
+                    ? <div
+                        className={classnames('flip-toggle', {
+                          flipped: this.props.query.areTagsAccepted,
+                        })}
+                        onClick={this.handleAcceptReject}
+                      >
+                        <div className="flip-toggle--container">
+                          <div className="flip-toggle--front">!=</div>
+                          <div className="flip-toggle--back">=</div>
+                        </div>
+                      </div>
+                    : null}
+                </div>
+                {isActive
+                  ? <TagList
+                      query={this.props.query}
+                      onChooseTag={this.props.onChooseTag}
+                      onGroupByTag={this.props.onGroupByTag}
+                    />
+                  : null}
+              </div>
+            )
+          })}
+        </FancyScrollbar>
       </div>
     )
   },

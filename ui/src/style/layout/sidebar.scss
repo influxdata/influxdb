@@ -58,11 +58,7 @@ $sidebar-logo-color: $g8-storm;
   display: flex;
   flex-direction: column;
   width: $sidebar-width;
-  background: $sidebar-light;
-  background: -moz-linear-gradient(top,  $sidebar-light 0%, $sidebar-dark 100%);
-  background: -webkit-linear-gradient(top,  $sidebar-light 0%,$sidebar-dark 100%);
-  background: linear-gradient(to bottom,  $sidebar-light 0%,$sidebar-dark 100%);
-  filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='$sidebar-light', endColorstr='$sidebar-dark',GradientType=0 );
+  @include gradient-v($sidebar-light,$sidebar-dark);
 
   &__logo {
     width: $sidebar-width;
@@ -283,11 +279,7 @@ $sidebar-logo-color: $g8-storm;
       }
     }
     &.active {
-      background: $sidebar-active-bg;
-      background: -moz-linear-gradient(left,  $sidebar-active-bg 0%, $sidebar-active-accent 100%);
-      background: -webkit-linear-gradient(left,  $sidebar-active-bg 0%,$sidebar-active-accent 100%);
-      background: linear-gradient(to right,  $sidebar-active-bg 0%,$sidebar-active-accent 100%);
-      filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='$sidebar-active-bg', endColorstr='$sidebar-active-accent',GradientType=1 );
+      @include gradient-h($sidebar-active-bg,$sidebar-active-accent);
       color: $sidebar-icon-hover;
 
       &:link,

@@ -6,15 +6,18 @@
 */
 
 $template-control--margin: 2px;
+$template-control--min-height: 52px;
 
 .template-control-bar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: space-between;
   margin-bottom: 8px;
   padding: $template-control--margin;
   @extend .cell-shell;
   background-color: $g0-obsidian;
+  min-height: $template-control--min-height;
 }
 .template-control--heading {
   font-size: 16px;
@@ -25,7 +28,12 @@ $template-control--margin: 2px;
   white-space: nowrap;
 }
 .template-control--manage {
-  margin: $template-control--margin 8px;
+  margin: 7px 8px;
+}
+.template-control--controls {
+  display: flex;
+  flex: 1 0 0;
+  flex-wrap: wrap;
 }
 .template-control--dropdown {
   flex: 0 1 auto;
@@ -49,18 +57,30 @@ $template-control--margin: 2px;
   }
   .dropdown-menu {
     @include gradient-h($c-star,$c-pool);
-    @include custom-scrollbar-round($c-pool,$c-laser);
 
-    > li > a {
-      &, &:active {background-color: transparent !important;}
+    li.dropdown-item {
+      &, &:hover {
+        background: none;
+        background-color: transparent;
+      }
+      &.active {@include gradient-h($c-amethyst,$c-pool);}
+    }
+    li.dropdown-item > a {
+      &, &:focus {background: none;}
+      &:active, &:active:focus {@include gradient-h($c-amethyst,$c-pool);}
       font-size: 12px;
       font-family: $code-font;
     }
-    > li {
-      &:hover {@include gradient-h($c-comet,$c-pool);}
+    li.dropdown-item.highlight {
+      &, &:hover {@include gradient-h($c-comet,$c-pool);}
+      > a {
+        color: $g20-white;
+        background: none;
+        background-color: transparent;
+      }
     }
   }
-} 
+}
 .template-control--label {
   @include no-user-select();
   order: 1;

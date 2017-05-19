@@ -1,12 +1,17 @@
 import React, {PropTypes, Component} from 'react'
 import _ from 'lodash'
-import classNames from 'classnames'
+import classnames from 'classnames'
 
 import Dropdown from 'src/shared/components/Dropdown'
 import LoadingDots from 'src/shared/components/LoadingDots'
 import TemplateDrawer from 'src/shared/components/TemplateDrawer'
 import {QUERY_TEMPLATES} from 'src/data_explorer/constants'
-import {TEMPLATE_MATCHER} from 'src/dashboards/constants'
+import {
+  MATCH_INCOMPLETE_TEMPLATES,
+  applyMasks,
+  insertTempVar,
+  unMask,
+} from 'src/dashboards/constants'
 
 class QueryEditor extends Component {
   constructor(props) {
@@ -48,7 +53,7 @@ class QueryEditor extends Component {
 
   handleClickTempVar(template) {
     // Clicking a tempVar does the same thing as hitting 'Enter'
-    this.handleTemplateReplace(template, 'Enter')
+    this.handleTemplateReplace(template, true)
     this.closeDrawer()
   }
 
@@ -66,6 +71,7 @@ class QueryEditor extends Component {
 
     if (isTemplating) {
       switch (e.key) {
+        case 'Tab':
         case 'ArrowRight':
         case 'ArrowDown':
           e.preventDefault()
@@ -76,7 +82,7 @@ class QueryEditor extends Component {
           return this.handleTemplateReplace(this.findTempVar('previous'))
         case 'Enter':
           e.preventDefault()
-          this.handleTemplateReplace(this.state.selectedTemplate, e.key)
+          this.handleTemplateReplace(this.state.selectedTemplate, true)
           return this.closeDrawer()
         case 'Escape':
           e.preventDefault()
@@ -91,22 +97,26 @@ class QueryEditor extends Component {
     }
   }
 
-  handleTemplateReplace(selectedTemplate, key) {
+  handleTemplateReplace(selectedTemplate, replaceWholeTemplate) {
     const {selectionStart, value} = this.editor
-    const isEnter = key === 'Enter'
     const {tempVar} = selectedTemplate
+    const newTempVar = replaceWholeTemplate
+      ? tempVar
+      : tempVar.substring(0, tempVar.length - 1)
+
+    // mask matches that will confuse our regex
+    const masked = applyMasks(value)
+    const matched = masked.match(MATCH_INCOMPLETE_TEMPLATES)
 
     let templatedValue
-    const matched = value.match(TEMPLATE_MATCHER)
     if (matched) {
-      const newTempVar = isEnter
-        ? tempVar
-        : tempVar.substring(0, tempVar.length - 1)
-      templatedValue = value.replace(TEMPLATE_MATCHER, newTempVar)
+      templatedValue = insertTempVar(masked, newTempVar)
+      templatedValue = unMask(templatedValue)
     }
 
-    const enterModifier = isEnter ? 0 : -1
-    const diffInLength = tempVar.length - matched[0].length + enterModifier
+    const enterModifier = replaceWholeTemplate ? 0 : -1
+    const diffInLength =
+      tempVar.length - _.get(matched, '0', []).length + enterModifier
 
     this.setState({value: templatedValue, selectedTemplate}, () =>
       this.editor.setSelectionRange(
@@ -144,13 +154,20 @@ class QueryEditor extends Component {
     const {templates} = this.props
     const {selectedTemplate} = this.state
     const value = this.editor.value
-    const matches = value.match(TEMPLATE_MATCHER)
-    if (matches) {
+
+    // mask matches that will confuse our regex
+    const masked = applyMasks(value)
+    const matched = masked.match(MATCH_INCOMPLETE_TEMPLATES)
+
+    if (matched && !_.isEmpty(templates)) {
       // maintain cursor poition
       const start = this.editor.selectionStart
+
       const end = this.editor.selectionEnd
+      const filterText = matched[0].substr(1).toLowerCase()
+
       const filteredTemplates = templates.filter(t =>
-        t.tempVar.includes(matches[0].substring(1))
+        t.tempVar.toLowerCase().includes(filterText)
       )
 
       const found = filteredTemplates.find(
@@ -205,7 +222,7 @@ class QueryEditor extends Component {
           spellCheck="false"
         />
         <div
-          className={classNames('varmoji', {'varmoji-rotated': isTemplating})}
+          className={classnames('varmoji', {'varmoji-rotated': isTemplating})}
         >
           <div className="varmoji-container">
             <div className="varmoji-front">{this.renderStatus(status)}</div>
@@ -227,15 +244,19 @@ class QueryEditor extends Component {
   }
 
   renderStatus(status) {
+    const {isInDataExplorer} = this.props
+
     if (!status) {
       return (
         <div className="query-editor--status">
-          <Dropdown
-            items={QUERY_TEMPLATES}
-            selected={'Query Templates'}
-            onChoose={this.handleChooseTemplate}
-            className="query-editor--templates"
-          />
+          {isInDataExplorer
+            ? <Dropdown
+                items={QUERY_TEMPLATES}
+                selected={'Query Templates'}
+                onChoose={this.handleChooseTemplate}
+                className="query-editor--templates"
+              />
+            : null}
         </div>
       )
     }
@@ -244,12 +265,14 @@ class QueryEditor extends Component {
       return (
         <div className="query-editor--status">
           <LoadingDots />
-          <Dropdown
-            items={QUERY_TEMPLATES}
-            selected={'Query Templates'}
-            onChoose={this.handleChooseTemplate}
-            className="query-editor--templates"
-          />
+          {isInDataExplorer
+            ? <Dropdown
+                items={QUERY_TEMPLATES}
+                selected={'Query Templates'}
+                onChoose={this.handleChooseTemplate}
+                className="query-editor--templates"
+              />
+            : null}
         </div>
       )
     }
@@ -257,14 +280,14 @@ class QueryEditor extends Component {
     return (
       <div className="query-editor--status">
         <span
-          className={classNames('query-status-output', {
+          className={classnames('query-status-output', {
             'query-status-output--error': status.error,
             'query-status-output--success': status.success,
             'query-status-output--warning': status.warn,
           })}
         >
           <span
-            className={classNames('icon', {
+            className={classnames('icon', {
               stop: status.error,
               checkmark: status.success,
               'alert-triangle': status.warn,
@@ -272,23 +295,26 @@ class QueryEditor extends Component {
           />
           {status.error || status.warn || status.success}
         </span>
-        <Dropdown
-          items={QUERY_TEMPLATES}
-          selected={'Query Templates'}
-          onChoose={this.handleChooseTemplate}
-          className="query-editor--templates"
-        />
+        {isInDataExplorer
+          ? <Dropdown
+              items={QUERY_TEMPLATES}
+              selected={'Query Templates'}
+              onChoose={this.handleChooseTemplate}
+              className="query-editor--templates"
+            />
+          : null}
       </div>
     )
   }
 }
 
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 QueryEditor.propTypes = {
   query: string.isRequired,
   onUpdate: func.isRequired,
   config: shape().isRequired,
+  isInDataExplorer: bool,
   templates: arrayOf(
     shape({
       tempVar: string.isRequired,

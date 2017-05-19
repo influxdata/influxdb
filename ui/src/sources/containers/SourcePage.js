@@ -7,7 +7,10 @@ import {
   updateSource as updateSourceAction,
 } from 'shared/actions/sources'
 import {connect} from 'react-redux'
+
 import SourceForm from 'src/sources/components/SourceForm'
+import FancyScrollbar from 'shared/components/FancyScrollbar'
+import SourceIndicator from 'src/shared/components/SourceIndicator'
 
 const {func, shape, string} = PropTypes
 
@@ -121,9 +124,12 @@ export const SourcePage = React.createClass({
                 {editMode ? 'Edit Source' : 'Add a New Source'}
               </h1>
             </div>
+            <div className="page-header__right">
+              <SourceIndicator sourceName={source.name} />
+            </div>
           </div>
         </div>
-        <div className="page-contents">
+        <FancyScrollbar className="page-contents">
           <div className="container-fluid">
             <div className="row">
               <div className="col-md-8 col-md-offset-2">
@@ -139,7 +145,7 @@ export const SourcePage = React.createClass({
               </div>
             </div>
           </div>
-        </div>
+        </FancyScrollbar>
       </div>
     )
   },

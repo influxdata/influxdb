@@ -5,6 +5,7 @@ import {bindActionCreators} from 'redux'
 
 import SourceIndicator from 'shared/components/SourceIndicator'
 import DeleteConfirmTableCell from 'shared/components/DeleteConfirmTableCell'
+import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 import {createDashboard} from 'src/dashboards/apis'
 import {getDashboardsAsync, deleteDashboardAsync} from 'src/dashboards/actions'
@@ -63,7 +64,7 @@ const DashboardsPage = React.createClass({
         <div className="page-header">
           <div className="page-header__container">
             <div className="page-header__left">
-              <h1>
+              <h1 className="page-header__title">
                 Dashboards
               </h1>
             </div>
@@ -72,7 +73,7 @@ const DashboardsPage = React.createClass({
             </div>
           </div>
         </div>
-        <div className="page-contents">
+        <FancyScrollbar className="page-contents">
           <div className="container-fluid">
             <div className="row">
               <div className="col-md-12">
@@ -130,7 +131,7 @@ const DashboardsPage = React.createClass({
               </div>
             </div>
           </div>
-        </div>
+        </FancyScrollbar>
       </div>
     )
   },

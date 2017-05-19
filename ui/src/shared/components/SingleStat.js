@@ -20,8 +20,8 @@ export default React.createClass({
     // If data for this graph is being fetched for the first time, show a graph-wide spinner.
     if (this.props.isFetchingInitially) {
       return (
-        <div className="graph-panel__graph-fetching">
-          <h3 className="graph-panel__spinner" />
+        <div className="graph-empty">
+          <h3 className="graph-spinner" />
         </div>
       )
     }

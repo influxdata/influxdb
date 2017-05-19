@@ -6,39 +6,27 @@
 */
 
 $dropdown-menu-default-width: 100%;
-$dropdown-menu-max-height: 290px;
+$dropdown-menu-max-height: 270px;
 
 /*
     Generic width modifiers
     Use instead of creating new classes if possible
 */
-.dropdown .dropdown-toggle {
+.dropdown .dropdown-toggle,
+.dropdown .dropdown-autocomplete {
   width: 120px; /* Default width */
 }
 .dropdown {
-  &-80 .dropdown-toggle {width: 80px;}
-  &-90 .dropdown-toggle {width: 90px;}
-  &-100 .dropdown-toggle {width: 100px;}
-  &-110 .dropdown-toggle {width: 110px;}
-  &-120 .dropdown-toggle {width: 120px;}
-  &-130 .dropdown-toggle {width: 130px;}
-  &-140 .dropdown-toggle {width: 140px;}
-  &-150 .dropdown-toggle {width: 150px;}
-  &-160 .dropdown-toggle {width: 160px;}
-  &-170 .dropdown-toggle {width: 170px;}
-  &-180 .dropdown-toggle {width: 180px;}
-  &-190 .dropdown-toggle {width: 190px;}
-  &-200 .dropdown-toggle {width: 200px;}
-  &-210 .dropdown-toggle {width: 210px;}
-  &-220 .dropdown-toggle {width: 220px;}
-  &-230 .dropdown-toggle {width: 230px;}
-  &-240 .dropdown-toggle {width: 240px;}
-  &-250 .dropdown-toggle {width: 250px;}
+  @for $i from 8 through 30 {
+    &-#{$i * 10} .dropdown-toggle,
+    &-#{$i * 10} .dropdown-autocomplete { width: #{$i * 10}px; }
+  }
 }
-
 .dropdown-toggle {
   position: relative;
   text-align: left;
+  display: flex;
+  align-items: center;
 
   .caret {
     position: absolute;
@@ -47,13 +35,70 @@ $dropdown-menu-max-height: 290px;
     transform: translateY(-50%);
   }
   > .icon {
-    font-size: 16px;
     display: inline-block;
     vertical-align: middle;
     margin-right: 6px;
-    position: relative;
-    top: -1px;
   }
+  .dropdown-selected {
+    display: inline-block;
+    flex: 1 0 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-right: 15px;
+  }
+}
+.dropdown .dropdown-toggle.btn-xs {
+  height: 22px !important;
+  line-height: 22px !important;
+  padding: 0 9px;
+}
+
+/*
+    AutoComplete Field
+    ----------------------------------------------
+*/
+.dropdown-autocomplete {
+  position: relative;
+  padding: 0 !important;
+
+  &.btn-xs {height: 22px;}
+  &.btn-sm {height: 30px;}
+  &.btn-md {height: 36px;}
+  &.btn-lg {height: 50px;}
+}
+.dropdown-autocomplete--input {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  outline: none;
+  background-color: transparent;
+  border: 0;
+  color: $g20-white;
+  padding: 0;
+  font-weight: 500;
+
+  .btn-xs & {padding: 0 18px 0 9px; font-size: 12px;}
+  .btn-sm & {padding: 0 18px 0 9px; font-size: 13px;}
+  .btn-md & {padding: 0 34px 0 17px; font-size: 14px;}
+  .btn-lg & {padding: 0 48px 0 24px; font-size: 18px;}
+
+  &::-webkit-input-placeholder { color: rgba(255,255,255,0.5); font-weight: 500 !important; }
+  &::-moz-placeholder { color: rgba(255,255,255,0.5); font-weight: 500 !important; }
+  &:-ms-input-placeholder { color: rgba(255,255,255,0.5); font-weight: 500 !important; }
+  &:-moz-placeholder { color: rgba(255,255,255,0.5); font-weight: 500 !important; }
+
+  &:focus {
+    color: $g20-white;
+  }
+}
+.dropdown-empty {
+  padding: 7px 9px;
+  font-size: 13px;
+  color: rgba(255,255,255,0.4);
+  font-weight: 500;
+  line-height: 15px;
+  @include no-user-select();
 }
 
 /*
@@ -61,34 +106,36 @@ $dropdown-menu-max-height: 290px;
     ----------------------------------------------
 */
 .dropdown-menu {
-  float: none !important;
   width: $dropdown-menu-default-width;
-  min-width: $dropdown-menu-default-width;
-  max-width: $dropdown-menu-default-width;
-  margin: 0 !important;
-  padding: 0 !important;
+  min-width: initial;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
   max-height: $dropdown-menu-max-height;
-  overflow: auto;
-  @include custom-scrollbar-round($c-pool, $c-laser);
   @include gradient-h($c-ocean, $c-pool);
   box-shadow: 0 2px 5px 0.6px fade-out($g0-obsidian, 0.8);
 
-  > li {
+  li.dropdown-item {
+    position: relative;
     width: 100%;
-    font-size: 0px;
 
+    &.active {
+      @include gradient-h($c-sapphire, $c-pool);
+    }
     &:hover {
       @include gradient-h($c-laser, $c-pool);
     }
   }
-  > li > a {
+  li.dropdown-item > a {
+    position: relative;
+    @include no-user-select();
     width: 100%;
     border-radius: 0 !important;
     display: inline-block;
     padding: 7px 9px;
     font-size: 13px;
     line-height: 15px;
-    font-weight: 500;
+    font-weight: 500 !important;
     color: $c-yeti !important;
     background-color: transparent;
     transition:
@@ -107,11 +154,15 @@ $dropdown-menu-max-height: 290px;
       @include gradient-h($c-ocean, $c-pool);
     }
   }
-  > li:last-child a {
-    border-radius: 0 0 3px 3px;
-  }
-  > li:first-child a {
-    border-radius: 3px 3px 0 0;
+  li.dropdown-item.highlight {
+    &, &:hover {
+      @include gradient-h($c-laser, $c-pool);
+    }
+    > a {
+      background: none;
+      background-color: transparent;
+      color: $g20-white;
+    }
   }
 }
 .dropdown.dropdown-kapacitor .dropdown-toggle {
@@ -123,13 +174,23 @@ $dropdown-menu-max-height: 290px;
   @include custom-scrollbar($c-rainforest, $c-honeydew);
   @include gradient-h($c-pool, $c-rainforest);
 
-  > li:hover {
+  li.dropdown-item:hover {
     @include gradient-h($c-laser, $c-rainforest);
   }
-  > li > a {
+  li.dropdown-item > a {
     color: $c-mint !important;
     &:hover {
       color: $g20-white !important;
+    }
+  }
+  li.dropdown-item.highlight {
+    &, &:hover {
+      @include gradient-h($c-laser, $c-rainforest);
+    }
+    > a {
+      background: none;
+      background-color: transparent;
+      color: $g20-white;
     }
   }
 }
@@ -137,17 +198,45 @@ $dropdown-menu-max-height: 290px;
   @include custom-scrollbar($c-comet, $c-potassium);
   @include gradient-h($c-ocean, $c-comet);
 
-  > li:hover {
+  li.dropdown-item:hover {
     @include gradient-h($c-laser, $c-comet);
   }
-  > li > a {
+  li.dropdown-item > a {
     color: $c-twilight !important;
     &:hover {
       color: $g20-white !important;
     }
   }
+  li.dropdown-item.highlight {
+    &, &:hover {
+      @include gradient-h($c-laser, $c-comet);
+    }
+    > a {
+      background: none;
+      background-color: transparent;
+      color: $g20-white;
+    }
+  }
 }
 
+/*
+    Dropdown Menu (only js highlighting, works with autocomplete feature)
+    ----------------------------------------------
+*/
+.dropdown-menu.dropdown-menu--no-highlight {
+  li.dropdown-item {
+
+    &:hover {
+      background: none;
+      background-color: transparent;
+    }
+  }
+  li.dropdown-item.highlight {
+    &, &:hover {
+      @include gradient-h($c-laser, $c-pool);
+    }
+  }
+}
 /*
     Dropdown Header
     ----------------------------------------------
@@ -175,14 +264,6 @@ $dropdown-menu-max-height: 290px;
     Dropdown Actions
     ----------------------------------------------
 */
-.dropdown-item {
-  position: relative;
-
-  > a {
-    position: relative;
-    z-index: 1;
-  }
-}
 .dropdown-item__actions {
   z-index: 2;
   position: absolute;

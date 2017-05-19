@@ -1,6 +1,7 @@
 import React, {PropTypes} from 'react'
 import _ from 'lodash'
 import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
+import {removeUnselectedTemplateValues} from 'src/dashboards/constants'
 
 const {
   arrayOf,
@@ -21,7 +22,6 @@ const AutoRefresh = ComposedComponent => {
       templates: arrayOf(
         shape({
           type: string.isRequired,
-          label: string.isRequired,
           tempVar: string.isRequired,
           query: shape({
             db: string,
@@ -112,11 +112,6 @@ const AutoRefresh = ComposedComponent => {
 
       this.setState({isFetching: true})
 
-      const selectedTempVarTemplates = templates.map(template => {
-        const selectedValues = template.values.filter(value => value.selected)
-        return {...template, values: selectedValues}
-      })
-
       const timeSeriesPromises = queries.map(query => {
         const {host, database, rp} = query
         return fetchTimeSeriesAsync(
@@ -125,7 +120,7 @@ const AutoRefresh = ComposedComponent => {
             db: database,
             rp,
             query,
-            tempVars: selectedTempVarTemplates,
+            tempVars: removeUnselectedTemplateValues(templates),
           },
           editQueryStatus
         )

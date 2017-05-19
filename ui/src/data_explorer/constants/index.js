@@ -11,6 +11,15 @@ export const INFLUXQL_FUNCTIONS = [
   'stddev',
 ]
 
+export const MINIMUM_HEIGHTS = {
+  queryMaker: 350,
+  visualization: 200,
+}
+export const INITIAL_HEIGHTS = {
+  queryMaker: '66.666%',
+  visualization: '33.334%',
+}
+
 const SEPARATOR = 'SEPARATOR'
 
 export const QUERY_TEMPLATES = [
@@ -42,7 +51,7 @@ export const QUERY_TEMPLATES = [
   },
   {text: `${SEPARATOR}`},
   {
-    text: 'Show Continuos Queries',
+    text: 'Show Continuous Queries',
     query: 'SHOW CONTINUOUS QUERIES',
   },
   {

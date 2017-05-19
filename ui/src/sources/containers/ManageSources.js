@@ -6,9 +6,12 @@ import {
   removeAndLoadSources,
   fetchKapacitorsAsync,
   setActiveKapacitorAsync,
+  deleteKapacitorAsync,
 } from 'src/shared/actions/sources'
 
-import InfluxTable from '../components/InfluxTable'
+import FancyScrollbar from 'shared/components/FancyScrollbar'
+import SourceIndicator from 'src/shared/components/SourceIndicator'
+import InfluxTable from 'src/sources/components/InfluxTable'
 
 class ManageSources extends Component {
   constructor(props) {
@@ -45,7 +48,7 @@ class ManageSources extends Component {
   }
 
   render() {
-    const {sources, source, setActiveKapacitor} = this.props
+    const {sources, source, setActiveKapacitor, deleteKapacitor} = this.props
 
     return (
       <div className="page" id="manage-sources-page">
@@ -54,18 +57,22 @@ class ManageSources extends Component {
             <div className="page-header__left">
               <h1 className="page-header__title">Configuration</h1>
             </div>
+            <div className="page-header__right">
+              <SourceIndicator sourceName={source.name} />
+            </div>
           </div>
         </div>
-        <div className="page-contents">
+        <FancyScrollbar className="page-contents">
           <div className="container-fluid">
             <InfluxTable
               handleDeleteSource={this.handleDeleteSource}
               source={source}
               sources={sources}
               setActiveKapacitor={setActiveKapacitor}
+              handleDeleteKapacitor={deleteKapacitor}
             />
           </div>
-        </div>
+        </FancyScrollbar>
       </div>
     )
   }
@@ -86,6 +93,7 @@ ManageSources.propTypes = {
   removeAndLoadSources: func.isRequired,
   fetchKapacitors: func.isRequired,
   setActiveKapacitor: func.isRequired,
+  deleteKapacitor: func.isRequired,
 }
 
 const mapStateToProps = ({sources}) => ({
@@ -96,6 +104,7 @@ const mapDispatchToProps = dispatch => ({
   removeAndLoadSources: bindActionCreators(removeAndLoadSources, dispatch),
   fetchKapacitors: bindActionCreators(fetchKapacitorsAsync, dispatch),
   setActiveKapacitor: bindActionCreators(setActiveKapacitorAsync, dispatch),
+  deleteKapacitor: bindActionCreators(deleteKapacitorAsync, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(ManageSources)

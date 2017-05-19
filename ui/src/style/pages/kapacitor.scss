@@ -185,6 +185,11 @@ $kapacitor-font-sm: 13px;
   pre code {
     line-height: ($kapacitor-font-sm + 3px);
     white-space: pre-wrap;
+
+    &.kapacitor-metric-placeholder {
+      color: $g8-storm;
+      font-style: italic;
+    }
   }
   .query-builder {
     height: 240px;
@@ -462,3 +467,13 @@ input.size-49 {width: 49px;}
 .dropdown.size-106 .dropdown-toggle {width: 106px;}
 .dropdown.size-66 .dropdown-toggle {width: 66px;}
 .dropdown.size-49 .dropdown-toggle {width: 49px;}
+
+.alert-level-ok {
+  &, &:hover {color: $c-rainforest !important;}
+}
+.alert-level-warning {
+  &, &:hover {color: $c-pineapple !important;}
+}
+.alert-level-critical {
+  &, &:hover {color: $c-dreamsicle !important;}
+}

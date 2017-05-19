@@ -1,6 +1,9 @@
 import React, {PropTypes} from 'react'
-import shallowCompare from 'react-addons-shallow-compare'
 import {Link} from 'react-router'
+
+import shallowCompare from 'react-addons-shallow-compare'
+import classnames from 'classnames'
+
 import _ from 'lodash'
 
 const {arrayOf, bool, number, shape, string} = PropTypes
@@ -32,20 +35,21 @@ const HostsTable = React.createClass({
   },
 
   filter(allHosts, searchTerm) {
+    const filterText = searchTerm.toLowerCase()
     return allHosts.filter(h => {
       const apps = h.apps ? h.apps.join(', ') : ''
       // search each tag for the presence of the search term
       let tagResult = false
       if (h.tags) {
         tagResult = Object.keys(h.tags).reduce((acc, key) => {
-          return acc || h.tags[key].search(searchTerm) !== -1
+          return acc || h.tags[key].toLowerCase().includes(filterText)
         }, false)
       } else {
         tagResult = false
       }
       return (
-        h.name.search(searchTerm) !== -1 ||
-        apps.search(searchTerm) !== -1 ||
+        h.name.toLowerCase().includes(filterText) ||
+        apps.toLowerCase().includes(filterText) ||
         tagResult
       )
     })
@@ -81,9 +85,9 @@ const HostsTable = React.createClass({
   sortableClasses(key) {
     if (this.state.sortKey === key) {
       if (this.state.sortDirection === 'asc') {
-        return 'sortable-header sorting-up'
+        return 'sortable-header sorting-ascending'
       }
-      return 'sortable-header sorting-down'
+      return 'sortable-header sorting-descending'
     }
     return 'sortable-header'
   },
@@ -126,7 +130,7 @@ const HostsTable = React.createClass({
                   onClick={() => this.updateSort('name')}
                   className={this.sortableClasses('name')}
                 >
-                  Hostname
+                  Host
                 </th>
                 <th
                   onClick={() => this.updateSort('deltaUptime')}
@@ -187,19 +191,19 @@ const HostRow = React.createClass({
     const {host, source} = this.props
     const {name, cpu, load, apps = []} = host
 
-    let stateStr = ''
-    if (host.deltaUptime < 0) {
-      stateStr = 'table-dot dot-critical'
-    } else if (host.deltaUptime > 0) {
-      stateStr = 'table-dot dot-success'
-    }
-
     return (
       <tr>
         <td className="monotype">
           <Link to={`/sources/${source.id}/hosts/${name}`}>{name}</Link>
         </td>
-        <td style={{width: '74px'}}><div className={stateStr} /></td>
+        <td style={{width: '74px'}}>
+          <div
+            className={classnames(
+              'table-dot',
+              host.deltaUptime > 0 ? 'dot-success' : 'dot-critical'
+            )}
+          />
+        </td>
         <td className="monotype" style={{width: '70px'}}>
           {isNaN(cpu) ? 'N/A' : `${cpu.toFixed(2)}%`}
         </td>
@@ -259,7 +263,7 @@ const SearchBar = React.createClass({
         <input
           type="text"
           className="form-control"
-          placeholder="Filter by Hostname..."
+          placeholder="Filter by Host..."
           ref="searchInput"
           onChange={this.handleChange}
         />

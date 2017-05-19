@@ -16,6 +16,7 @@ const VisView = ({
   heightPixels,
   editQueryStatus,
   activeQueryIndex,
+  isInDataExplorer,
 }) => {
   const activeQuery = queries[activeQueryIndex]
   const defaultQuery = queries[0]
@@ -23,7 +24,11 @@ const VisView = ({
 
   if (view === 'table') {
     if (!query) {
-      return <div className="generic-empty-state">Enter your query above</div>
+      return (
+        <div className="graph-empty">
+          <p>Build a Query above</p>
+        </div>
+      )
     }
 
     return (
@@ -38,7 +43,7 @@ const VisView = ({
   if (cellType === 'single-stat') {
     return (
       <RefreshingSingleStat
-        queries={[queries[0]]}
+        queries={queries.length ? [queries[0]] : []}
         autoRefresh={autoRefresh}
         templates={templates}
       />
@@ -56,7 +61,7 @@ const VisView = ({
       autoRefresh={autoRefresh}
       templates={templates}
       activeQueryIndex={activeQueryIndex}
-      isInDataExplorer={true}
+      isInDataExplorer={isInDataExplorer}
       showSingleStat={cellType === 'line-plus-single-stat'}
       displayOptions={displayOptions}
       editQueryStatus={editQueryStatus}
@@ -64,7 +69,7 @@ const VisView = ({
   )
 }
 
-const {arrayOf, func, number, shape, string} = PropTypes
+const {arrayOf, bool, func, number, shape, string} = PropTypes
 
 VisView.propTypes = {
   view: string.isRequired,
@@ -75,6 +80,7 @@ VisView.propTypes = {
   heightPixels: number,
   editQueryStatus: func.isRequired,
   activeQueryIndex: number,
+  isInDataExplorer: bool,
 }
 
 export default VisView
