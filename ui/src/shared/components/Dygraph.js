@@ -56,7 +56,6 @@ export default class Dygraph extends Component {
       ranges,
       dygraphSeries,
       ruleValues,
-      legendOnBottom,
       overrideLineColors,
       isGraphFilled,
       options,
@@ -111,12 +110,14 @@ export default class Dygraph extends Component {
         const graphRect = graphContainerNode.getBoundingClientRect()
         const legendRect = legendContainerNode.getBoundingClientRect()
         const graphWidth = graphRect.width + 32 // Factoring in padding from parent
+        const graphHeight = graphRect.height
+        const graphBottom = graphRect.bottom
         const legendWidth = legendRect.width
         const legendHeight = legendRect.height
         const screenHeight = window.innerHeight
         const legendMaxLeft = graphWidth - legendWidth / 2
         const trueGraphX = e.pageX - graphRect.left
-        let legendTop = graphRect.height + 0
+
         let legendLeft = trueGraphX
 
         // Enforcing max & min legend offsets
@@ -126,18 +127,17 @@ export default class Dygraph extends Component {
           legendLeft = legendMaxLeft
         }
 
-        // Enforcing overflow of legend contents
-        if (graphRect.bottom + legendHeight > screenHeight) {
-          legendTop = graphRect.top - legendHeight
-        }
+        // Disallow screen overflow of legend
+        const legendBottomExceedsScreen =
+          graphBottom + legendHeight > screenHeight
+
+        const legendTop = legendBottomExceedsScreen
+          ? graphHeight + 8 - legendHeight
+          : graphHeight + 8
 
         legendContainerNode.style.left = `${legendLeft}px`
-        if (legendOnBottom) {
-          legendContainerNode.style.bottom = '4px'
-        } else {
-          legendContainerNode.style.top = `${legendTop}px`
-        }
-        legendContainerNode.className = 'container--dygraph-legend' // show
+        legendContainerNode.style.top = `${legendTop}px`
+        legendContainerNode.className = 'container--dygraph-legend'
 
         // this.isMouseOverGraph = true
         // this.lastMouseMoveEvent = e

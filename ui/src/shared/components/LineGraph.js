@@ -84,7 +84,6 @@ export default React.createClass({
       showSingleStat,
       displayOptions,
       ruleValues,
-      isInDataExplorer,
       synchronizer,
     } = this.props
     const {labels, timeSeries, dygraphSeries} = this._timeSeries
@@ -144,7 +143,6 @@ export default React.createClass({
           dygraphSeries={dygraphSeries}
           ranges={ranges || this.getRanges()}
           ruleValues={ruleValues}
-          legendOnBottom={isInDataExplorer}
           synchronizer={synchronizer}
         />
         {showSingleStat
