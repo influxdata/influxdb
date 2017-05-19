@@ -9,6 +9,7 @@
   1. [#1426](https://github.com/influxdata/chronograf/issues/1426): Fix graph loading spinner
   1. [#1485](https://github.com/influxdata/chronograf/pull/1485): Filter out any template variable values that are empty, whitespace, or duplicates
   1. [#1484](https://github.com/influxdata/chronograf/pull/1484): Allow user to select SingleStat as Visualization Type before adding any queries and continue to be able to click Add Query
+  1. [#1349](https://github.com/influxdata/chronograf/pull/1349): Add query for windows uptime
 
 ### Features
   1. [#1477](https://github.com/influxdata/chronograf/pull/1477): Add ability to log alerts
@@ -62,7 +63,6 @@
   1. [#1337](https://github.com/influxdata/chronograf/pull/1337): Add support for blank hostnames on the Host List page
   1. [#1340](https://github.com/influxdata/chronograf/pull/1340): Fix case where the Explorer and cell editor falsely assumed there was no active query
   1. [#1338](https://github.com/influxdata/chronograf/pull/1338): Require url and name when adding a new source
-  1. [#1349](https://github.com/influxdata/chronograf/pull/1349): Add query for windows uptime
   1. [#1348](https://github.com/influxdata/chronograf/pull/1348): Fix broken `Add Kapacitor` link on the Alerts page - thank you, @nickysemenza
 
 ### Features
