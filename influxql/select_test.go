@@ -2,6 +2,7 @@ package influxql_test
 
 import (
 	"fmt"
+	"math/rand"
 	"reflect"
 	"testing"
 	"time"
@@ -766,24 +767,27 @@ func TestSelect_Top_Tags_Float(t *testing.T) {
 		if m.Name != "cpu" {
 			t.Fatalf("unexpected source: %s", m.Name)
 		}
+		if !reflect.DeepEqual(opt.Expr, MustParseExpr(`max(value::float)`)) {
+			t.Fatalf("unexpected expr: %s", spew.Sdump(opt.Expr))
+		}
 		return influxql.Iterators{
-			&FloatIterator{Points: []influxql.FloatPoint{
+			MustCallIterator(&FloatIterator{Points: []influxql.FloatPoint{
 				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3, Aux: []interface{}{"A"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
-			}},
-			&FloatIterator{Points: []influxql.FloatPoint{
+			}}, opt),
+			MustCallIterator(&FloatIterator{Points: []influxql.FloatPoint{
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2, Aux: []interface{}{"B"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3, Aux: []interface{}{"B"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4, Aux: []interface{}{"B"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5, Aux: []interface{}{"B"}},
-			}},
-			&FloatIterator{Points: []influxql.FloatPoint{
+			}}, opt),
+			MustCallIterator(&FloatIterator{Points: []influxql.FloatPoint{
 				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19, Aux: []interface{}{"A"}},
 				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
-			}},
+			}}, opt),
 		}.Merge(opt)
 	}
 
@@ -878,24 +882,27 @@ func TestSelect_Top_GroupByTags_Float(t *testing.T) {
 		if m.Name != "cpu" {
 			t.Fatalf("unexpected source: %s", m.Name)
 		}
+		if !reflect.DeepEqual(opt.Expr, MustParseExpr(`max(value::float)`)) {
+			t.Fatalf("unexpected expr: %s", spew.Sdump(opt.Expr))
+		}
 		return influxql.Iterators{
-			&FloatIterator{Points: []influxql.FloatPoint{
+			MustCallIterator(&FloatIterator{Points: []influxql.FloatPoint{
 				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3, Aux: []interface{}{"A"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
-			}},
-			&FloatIterator{Points: []influxql.FloatPoint{
+			}}, opt),
+			MustCallIterator(&FloatIterator{Points: []influxql.FloatPoint{
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2, Aux: []interface{}{"B"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3, Aux: []interface{}{"B"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4, Aux: []interface{}{"B"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5, Aux: []interface{}{"B"}},
-			}},
-			&FloatIterator{Points: []influxql.FloatPoint{
+			}}, opt),
+			MustCallIterator(&FloatIterator{Points: []influxql.FloatPoint{
 				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19, Aux: []interface{}{"A"}},
 				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
-			}},
+			}}, opt),
 		}.Merge(opt)
 	}
 
@@ -930,24 +937,27 @@ func TestSelect_Top_GroupByTags_Integer(t *testing.T) {
 		if m.Name != "cpu" {
 			t.Fatalf("unexpected source: %s", m.Name)
 		}
+		if !reflect.DeepEqual(opt.Expr, MustParseExpr(`max(value::integer)`)) {
+			t.Fatalf("unexpected expr: %s", spew.Sdump(opt.Expr))
+		}
 		return influxql.Iterators{
-			&IntegerIterator{Points: []influxql.IntegerPoint{
+			MustCallIterator(&IntegerIterator{Points: []influxql.IntegerPoint{
 				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3, Aux: []interface{}{"A"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
-			}},
-			&IntegerIterator{Points: []influxql.IntegerPoint{
+			}}, opt),
+			MustCallIterator(&IntegerIterator{Points: []influxql.IntegerPoint{
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2, Aux: []interface{}{"B"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3, Aux: []interface{}{"B"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4, Aux: []interface{}{"B"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5, Aux: []interface{}{"B"}},
-			}},
-			&IntegerIterator{Points: []influxql.IntegerPoint{
+			}}, opt),
+			MustCallIterator(&IntegerIterator{Points: []influxql.IntegerPoint{
 				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19, Aux: []interface{}{"A"}},
 				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
-			}},
+			}}, opt),
 		}.Merge(opt)
 	}
 
@@ -1074,24 +1084,27 @@ func TestSelect_Bottom_Tags_Float(t *testing.T) {
 		if m.Name != "cpu" {
 			t.Fatalf("unexpected source: %s", m.Name)
 		}
+		if !reflect.DeepEqual(opt.Expr, MustParseExpr(`min(value::float)`)) {
+			t.Fatalf("unexpected expr: %s", spew.Sdump(opt.Expr))
+		}
 		return influxql.Iterators{
-			&FloatIterator{Points: []influxql.FloatPoint{
+			MustCallIterator(&FloatIterator{Points: []influxql.FloatPoint{
 				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3, Aux: []interface{}{"A"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
-			}},
-			&FloatIterator{Points: []influxql.FloatPoint{
+			}}, opt),
+			MustCallIterator(&FloatIterator{Points: []influxql.FloatPoint{
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2, Aux: []interface{}{"B"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3, Aux: []interface{}{"B"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4, Aux: []interface{}{"B"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5, Aux: []interface{}{"B"}},
-			}},
-			&FloatIterator{Points: []influxql.FloatPoint{
+			}}, opt),
+			MustCallIterator(&FloatIterator{Points: []influxql.FloatPoint{
 				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19, Aux: []interface{}{"A"}},
 				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
-			}},
+			}}, opt),
 		}.Merge(opt)
 	}
 
@@ -1130,24 +1143,27 @@ func TestSelect_Bottom_Tags_Integer(t *testing.T) {
 		if m.Name != "cpu" {
 			t.Fatalf("unexpected source: %s", m.Name)
 		}
+		if !reflect.DeepEqual(opt.Expr, MustParseExpr(`min(value::integer)`)) {
+			t.Fatalf("unexpected expr: %s", spew.Sdump(opt.Expr))
+		}
 		return influxql.Iterators{
-			&IntegerIterator{Points: []influxql.IntegerPoint{
+			MustCallIterator(&IntegerIterator{Points: []influxql.IntegerPoint{
 				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3, Aux: []interface{}{"A"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
-			}},
-			&IntegerIterator{Points: []influxql.IntegerPoint{
+			}}, opt),
+			MustCallIterator(&IntegerIterator{Points: []influxql.IntegerPoint{
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2, Aux: []interface{}{"B"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3, Aux: []interface{}{"B"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4, Aux: []interface{}{"B"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5, Aux: []interface{}{"B"}},
-			}},
-			&IntegerIterator{Points: []influxql.IntegerPoint{
+			}}, opt),
+			MustCallIterator(&IntegerIterator{Points: []influxql.IntegerPoint{
 				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19, Aux: []interface{}{"A"}},
 				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
-			}},
+			}}, opt),
 		}.Merge(opt)
 	}
 
@@ -1186,24 +1202,27 @@ func TestSelect_Bottom_GroupByTags_Float(t *testing.T) {
 		if m.Name != "cpu" {
 			t.Fatalf("unexpected source: %s", m.Name)
 		}
+		if !reflect.DeepEqual(opt.Expr, MustParseExpr(`min(value::float)`)) {
+			t.Fatalf("unexpected expr: %s", spew.Sdump(opt.Expr))
+		}
 		return influxql.Iterators{
-			&FloatIterator{Points: []influxql.FloatPoint{
+			MustCallIterator(&FloatIterator{Points: []influxql.FloatPoint{
 				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3, Aux: []interface{}{"A"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
-			}},
-			&FloatIterator{Points: []influxql.FloatPoint{
+			}}, opt),
+			MustCallIterator(&FloatIterator{Points: []influxql.FloatPoint{
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2, Aux: []interface{}{"B"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3, Aux: []interface{}{"B"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4, Aux: []interface{}{"B"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5, Aux: []interface{}{"B"}},
-			}},
-			&FloatIterator{Points: []influxql.FloatPoint{
+			}}, opt),
+			MustCallIterator(&FloatIterator{Points: []influxql.FloatPoint{
 				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19, Aux: []interface{}{"A"}},
 				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
-			}},
+			}}, opt),
 		}.Merge(opt)
 	}
 
@@ -1238,24 +1257,27 @@ func TestSelect_Bottom_GroupByTags_Integer(t *testing.T) {
 		if m.Name != "cpu" {
 			t.Fatalf("unexpected source: %s", m.Name)
 		}
+		if !reflect.DeepEqual(opt.Expr, MustParseExpr(`min(value::float)`)) {
+			t.Fatalf("unexpected expr: %s", spew.Sdump(opt.Expr))
+		}
 		return influxql.Iterators{
-			&IntegerIterator{Points: []influxql.IntegerPoint{
+			MustCallIterator(&IntegerIterator{Points: []influxql.IntegerPoint{
 				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3, Aux: []interface{}{"A"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
-			}},
-			&IntegerIterator{Points: []influxql.IntegerPoint{
+			}}, opt),
+			MustCallIterator(&IntegerIterator{Points: []influxql.IntegerPoint{
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2, Aux: []interface{}{"B"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3, Aux: []interface{}{"B"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4, Aux: []interface{}{"B"}},
 				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5, Aux: []interface{}{"B"}},
-			}},
-			&IntegerIterator{Points: []influxql.IntegerPoint{
+			}}, opt),
+			MustCallIterator(&IntegerIterator{Points: []influxql.IntegerPoint{
 				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19, Aux: []interface{}{"A"}},
 				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
-			}},
+			}}, opt),
 		}.Merge(opt)
 	}
 
@@ -3866,3 +3888,32 @@ func benchmarkSelectDedupe(b *testing.B, seriesN, pointsPerSeries int) {
 }
 
 func BenchmarkSelect_Dedupe_1K(b *testing.B) { benchmarkSelectDedupe(b, 1000, 100) }
+
+func benchmarkSelectTop(b *testing.B, seriesN, pointsPerSeries int) {
+	stmt := MustParseSelectStatement(`SELECT top(sval, 10) FROM cpu`)
+
+	var ic IteratorCreator
+	ic.CreateIteratorFn = func(m *influxql.Measurement, opt influxql.IteratorOptions) (influxql.Iterator, error) {
+		if m.Name != "cpu" {
+			b.Fatalf("unexpected source: %s", m.Name)
+		}
+		if !reflect.DeepEqual(opt.Expr, MustParseExpr(`sval`)) {
+			b.Fatalf("unexpected expr: %s", spew.Sdump(opt.Expr))
+		}
+
+		p := influxql.FloatPoint{
+			Name: "cpu",
+		}
+
+		return &FloatPointGenerator{N: seriesN * pointsPerSeries, Fn: func(i int) *influxql.FloatPoint {
+			p.Value = float64(rand.Int63())
+			p.Time = int64(time.Duration(i) * (10 * time.Second))
+			return &p
+		}}, nil
+	}
+
+	b.ResetTimer()
+	benchmarkSelect(b, stmt, &ic)
+}
+
+func BenchmarkSelect_Top_1K(b *testing.B) { benchmarkSelectTop(b, 1000, 1000) }

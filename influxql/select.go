@@ -474,57 +474,107 @@ func (b *exprIteratorBuilder) buildCallIterator(expr *Call) (Iterator, error) {
 		interval := opt.IntegralInterval()
 		return newIntegralIterator(input, opt, interval)
 	case "top":
-		var tags []int
 		if len(expr.Args) < 2 {
 			return nil, fmt.Errorf("top() requires 2 or more arguments, got %d", len(expr.Args))
-		} else if len(expr.Args) > 2 {
-			// We need to find the indices of where the tag values are stored in Aux
-			// This section is O(n^2), but for what should be a low value.
-			for i := 1; i < len(expr.Args)-1; i++ {
-				ref := expr.Args[i].(*VarRef)
-				for index, aux := range b.opt.Aux {
-					if aux.Val == ref.Val {
-						tags = append(tags, index)
-						break
-					}
-				}
-			}
 		}
 
-		opt := b.opt
-		opt.Ordered = true
-		input, err := buildExprIterator(expr.Args[0].(*VarRef), b.ic, b.sources, opt, false)
-		if err != nil {
-			return nil, err
+		var input Iterator
+		if len(expr.Args) > 2 {
+			// Create a max iterator using the groupings in the arguments.
+			dims := make(map[string]struct{}, len(expr.Args)-2)
+			for i := 1; i < len(expr.Args)-1; i++ {
+				ref := expr.Args[i].(*VarRef)
+				dims[ref.Val] = struct{}{}
+			}
+			for dim := range opt.GroupBy {
+				dims[dim] = struct{}{}
+			}
+
+			call := &Call{
+				Name: "max",
+				Args: expr.Args[:1],
+			}
+			callOpt := opt
+			callOpt.Expr = call
+			callOpt.GroupBy = dims
+			callOpt.Fill = NoFill
+
+			builder := *b
+			builder.opt = callOpt
+			builder.selector = true
+
+			i, err := builder.callIterator(call, callOpt)
+			if err != nil {
+				return nil, err
+			}
+			input = i
+		} else {
+			// There are no arguments so do not organize the points by tags.
+			builder := *b
+			builder.opt.Expr = expr.Args[0]
+			builder.selector = true
+
+			ref := expr.Args[0].(*VarRef)
+			i, err := builder.buildVarRefIterator(ref)
+			if err != nil {
+				return nil, err
+			}
+			input = i
 		}
+
 		n := expr.Args[len(expr.Args)-1].(*IntegerLiteral)
-		return newTopIterator(input, opt, n, tags)
+		return newTopIterator(input, opt, int(n.Val))
 	case "bottom":
-		var tags []int
 		if len(expr.Args) < 2 {
 			return nil, fmt.Errorf("bottom() requires 2 or more arguments, got %d", len(expr.Args))
-		} else if len(expr.Args) > 2 {
-			// We need to find the indices of where the tag values are stored in Aux
-			// This section is O(n^2), but for what should be a low value.
-			for i := 1; i < len(expr.Args)-1; i++ {
-				ref := expr.Args[i].(*VarRef)
-				for index, aux := range b.opt.Aux {
-					if aux.Val == ref.Val {
-						tags = append(tags, index)
-						break
-					}
-				}
-			}
 		}
 
-		opt := b.opt
-		opt.Ordered = true
-		input, err := buildExprIterator(expr.Args[0].(*VarRef), b.ic, b.sources, opt, false)
-		if err != nil {
-			return nil, err
+		var input Iterator
+		if len(expr.Args) > 2 {
+			// Create a max iterator using the groupings in the arguments.
+			dims := make(map[string]struct{}, len(expr.Args)-2)
+			for i := 1; i < len(expr.Args)-1; i++ {
+				ref := expr.Args[i].(*VarRef)
+				dims[ref.Val] = struct{}{}
+			}
+			for dim := range opt.GroupBy {
+				dims[dim] = struct{}{}
+			}
+
+			call := &Call{
+				Name: "min",
+				Args: expr.Args[:1],
+			}
+			callOpt := opt
+			callOpt.Expr = call
+			callOpt.GroupBy = dims
+			callOpt.Fill = NoFill
+
+			builder := *b
+			builder.opt = callOpt
+			builder.selector = true
+
+			i, err := builder.callIterator(call, callOpt)
+			if err != nil {
+				return nil, err
+			}
+			input = i
+		} else {
+			// There are no arguments so do not organize the points by tags.
+			builder := *b
+			builder.opt.Expr = nil
+			builder.selector = true
+
+			ref := expr.Args[0].(*VarRef)
+			i, err := builder.buildVarRefIterator(ref)
+			if err != nil {
+				return nil, err
+			}
+			input = i
 		}
+
 		n := expr.Args[len(expr.Args)-1].(*IntegerLiteral)
-		return newBottomIterator(input, b.opt, n, tags)
+		return newBottomIterator(input, b.opt, int(n.Val))
 	}
 
 	itr, err := func() (Iterator, error) {
@@ -542,48 +592,7 @@ func (b *exprIteratorBuilder) buildCallIterator(expr *Call) (Iterator, error) {
 			}
 			fallthrough
 		case "min", "max", "sum", "first", "last", "mean":
-			inputs := make([]Iterator, 0, len(b.sources))
-			if err := func() error {
-				for _, source := range b.sources {
-					switch source := source.(type) {
-					case *Measurement:
-						input, err := b.ic.CreateIterator(source, opt)
-						if err != nil {
-							return err
-						}
-						inputs = append(inputs, input)
-					case *SubQuery:
-						// Identify the name of the field we are using.
-						arg0 := expr.Args[0].(*VarRef)
-
-						input, err := buildExprIterator(arg0, b.ic, []Source{source}, opt, b.selector)
-						if err != nil {
-							return err
-						}
-
-						// Wrap the result in a call iterator.
-						i, err := NewCallIterator(input, opt)
-						if err != nil {
-							input.Close()
-							return err
-						}
-						inputs = append(inputs, i)
-					}
-				}
-				return nil
-			}(); err != nil {
-				Iterators(inputs).Close()
-				return nil, err
-			}
-
-			itr, err := Iterators(inputs).Merge(opt)
-			if err != nil {
-				Iterators(inputs).Close()
-				return nil, err
-			} else if itr == nil {
-				itr = &nilFloatIterator{}
-			}
-			return itr, nil
+			return b.callIterator(expr, opt)
 		case "median":
 			opt.Ordered = true
 			input, err := buildExprIterator(expr.Args[0].(*VarRef), b.ic, b.sources, opt, false)
@@ -677,6 +686,51 @@ func (b *exprIteratorBuilder) buildBinaryExprIterator(expr *BinaryExpr) (Iterato
 		}
 		return buildTransformIterator(lhs, rhs, expr.Op, b.opt)
 	}
+}
+
+func (b *exprIteratorBuilder) callIterator(expr *Call, opt IteratorOptions) (Iterator, error) {
+	inputs := make([]Iterator, 0, len(b.sources))
+	if err := func() error {
+		for _, source := range b.sources {
+			switch source := source.(type) {
+			case *Measurement:
+				input, err := b.ic.CreateIterator(source, opt)
+				if err != nil {
+					return err
+				}
+				inputs = append(inputs, input)
+			case *SubQuery:
+				// Identify the name of the field we are using.
+				arg0 := expr.Args[0].(*VarRef)
+
+				input, err := buildExprIterator(arg0, b.ic, []Source{source}, opt, b.selector)
+				if err != nil {
+					return err
+				}
+
+				// Wrap the result in a call iterator.
+				i, err := NewCallIterator(input, opt)
+				if err != nil {
+					input.Close()
+					return err
+				}
+				inputs = append(inputs, i)
+			}
+		}
+		return nil
+	}(); err != nil {
+		Iterators(inputs).Close()
+		return nil, err
+	}
+
+	itr, err := Iterators(inputs).Merge(opt)
+	if err != nil {
+		Iterators(inputs).Close()
+		return nil, err
+	} else if itr == nil {
+		itr = &nilFloatIterator{}
+	}
+	return itr, nil
 }
 
 func buildRHSTransformIterator(lhs Iterator, rhs Literal, op Token, opt IteratorOptions) (Iterator, error) {

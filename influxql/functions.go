@@ -1,7 +1,9 @@
 package influxql
 
 import (
+	"container/heap"
 	"math"
+	"sort"
 	"time"
 
 	"github.com/influxdata/influxdb/influxql/neldermead"
@@ -986,4 +988,176 @@ func (r *IntegerIntegralReducer) Close() error {
 	}
 	close(r.ch)
 	return nil
+}
+
+type FloatTopReducer struct {
+	h *floatPointsByFunc
+}
+
+func NewFloatTopReducer(n int) *FloatTopReducer {
+	return &FloatTopReducer{
+		h: floatPointsSortBy(make([]FloatPoint, 0, n), func(a, b *FloatPoint) bool {
+			if a.Value != b.Value {
+				return a.Value < b.Value
+			}
+			return a.Time > b.Time
+		}),
+	}
+}
+
+func (r *FloatTopReducer) AggregateFloat(p *FloatPoint) {
+	if r.h.Len() == cap(r.h.points) {
+		// Compare the minimum point and the aggregated point. If our value is
+		// larger, replace the current min value.
+		if !r.h.cmp(&r.h.points[0], p) {
+			return
+		}
+		r.h.points[0] = *p
+		heap.Fix(r.h, 0)
+		return
+	}
+	heap.Push(r.h, *p)
+}
+
+func (r *FloatTopReducer) Emit() []FloatPoint {
+	// Ensure the points are sorted with the maximum value last. While the
+	// first point may be the minimum value, the rest is not guaranteed to be
+	// in any particular order while it is a heap.
+	points := make([]FloatPoint, len(r.h.points))
+	for i, p := range r.h.points {
+		p.Aggregated = 0
+		points[i] = p
+	}
+	h := floatPointsByFunc{points: points, cmp: r.h.cmp}
+	sort.Sort(sort.Reverse(&h))
+	return points
+}
+
+type IntegerTopReducer struct {
+	h *integerPointsByFunc
+}
+
+func NewIntegerTopReducer(n int) *IntegerTopReducer {
+	return &IntegerTopReducer{
+		h: integerPointsSortBy(make([]IntegerPoint, 0, n), func(a, b *IntegerPoint) bool {
+			if a.Value != b.Value {
+				return a.Value < b.Value
+			}
+			return a.Time > b.Time
+		}),
+	}
+}
+
+func (r *IntegerTopReducer) AggregateInteger(p *IntegerPoint) {
+	if r.h.Len() == cap(r.h.points) {
+		// Compare the minimum point and the aggregated point. If our value is
+		// larger, replace the current min value.
+		if !r.h.cmp(&r.h.points[0], p) {
+			return
+		}
+		r.h.points[0] = *p
+		heap.Fix(r.h, 0)
+		return
+	}
+	heap.Push(r.h, *p)
+}
+
+func (r *IntegerTopReducer) Emit() []IntegerPoint {
+	// Ensure the points are sorted with the maximum value last. While the
+	// first point may be the minimum value, the rest is not guaranteed to be
+	// in any particular order while it is a heap.
+	points := make([]IntegerPoint, len(r.h.points))
+	for i, p := range r.h.points {
+		p.Aggregated = 0
+		points[i] = p
+	}
+	h := integerPointsByFunc{points: points, cmp: r.h.cmp}
+	sort.Sort(sort.Reverse(&h))
+	return points
+}
+
+type FloatBottomReducer struct {
+	h *floatPointsByFunc
+}
+
+func NewFloatBottomReducer(n int) *FloatBottomReducer {
+	return &FloatBottomReducer{
+		h: floatPointsSortBy(make([]FloatPoint, 0, n), func(a, b *FloatPoint) bool {
+			if a.Value != b.Value {
+				return a.Value > b.Value
+			}
+			return a.Time > b.Time
+		}),
+	}
+}
+
+func (r *FloatBottomReducer) AggregateFloat(p *FloatPoint) {
+	if r.h.Len() == cap(r.h.points) {
+		// Compare the minimum point and the aggregated point. If our value is
+		// larger, replace the current min value.
+		if !r.h.cmp(&r.h.points[0], p) {
+			return
+		}
+		r.h.points[0] = *p
+		heap.Fix(r.h, 0)
+		return
+	}
+	heap.Push(r.h, *p)
+}
+
+func (r *FloatBottomReducer) Emit() []FloatPoint {
+	// Ensure the points are sorted with the maximum value last. While the
+	// first point may be the minimum value, the rest is not guaranteed to be
+	// in any particular order while it is a heap.
+	points := make([]FloatPoint, len(r.h.points))
+	for i, p := range r.h.points {
+		p.Aggregated = 0
+		points[i] = p
+	}
+	h := floatPointsByFunc{points: points, cmp: r.h.cmp}
+	sort.Sort(sort.Reverse(&h))
+	return points
+}
+
+type IntegerBottomReducer struct {
+	h *integerPointsByFunc
+}
+
+func NewIntegerBottomReducer(n int) *IntegerBottomReducer {
+	return &IntegerBottomReducer{
+		h: integerPointsSortBy(make([]IntegerPoint, 0, n), func(a, b *IntegerPoint) bool {
+			if a.Value != b.Value {
+				return a.Value > b.Value
+			}
+			return a.Time > b.Time
+		}),
+	}
+}
+
+func (r *IntegerBottomReducer) AggregateInteger(p *IntegerPoint) {
+	if r.h.Len() == cap(r.h.points) {
+		// Compare the minimum point and the aggregated point. If our value is
+		// larger, replace the current min value.
+		if !r.h.cmp(&r.h.points[0], p) {
+			return
+		}
+		r.h.points[0] = *p
+		heap.Fix(r.h, 0)
+		return
+	}
+	heap.Push(r.h, *p)
+}
+
+func (r *IntegerBottomReducer) Emit() []IntegerPoint {
+	// Ensure the points are sorted with the maximum value last. While the
+	// first point may be the minimum value, the rest is not guaranteed to be
+	// in any particular order while it is a heap.
+	points := make([]IntegerPoint, len(r.h.points))
+	for i, p := range r.h.points {
+		p.Aggregated = 0
+		points[i] = p
+	}
+	h := integerPointsByFunc{points: points, cmp: r.h.cmp}
+	sort.Sort(sort.Reverse(&h))
+	return points
 }

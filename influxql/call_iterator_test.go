@@ -973,3 +973,11 @@ func (g *FloatPointGenerator) Next() (*influxql.FloatPoint, error) {
 	g.i++
 	return p, nil
 }
+
+func MustCallIterator(input influxql.Iterator, opt influxql.IteratorOptions) influxql.Iterator {
+	itr, err := influxql.NewCallIterator(input, opt)
+	if err != nil {
+		panic(err)
+	}
+	return itr
+}

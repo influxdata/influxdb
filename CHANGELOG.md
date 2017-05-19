@@ -33,6 +33,7 @@ The admin UI is removed and unusable in this release. The `[admin]` configuratio
 - [#8384](https://github.com/influxdata/influxdb/pull/8384): Write and compaction stability
 - [#7862](https://github.com/influxdata/influxdb/pull/7861): Add new profile endpoint for gathering all debug profiles and querues in single archive.
 - [#8390](https://github.com/influxdata/influxdb/issues/8390): Add nanosecond duration literal support.
+- [#8394](https://github.com/influxdata/influxdb/pull/8394): Optimize top() and bottom() using an incremental aggregator.
 
 ### Bugfixes
 
