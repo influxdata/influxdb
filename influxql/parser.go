@@ -2838,6 +2838,14 @@ func ParseDuration(s string) (time.Duration, error) {
 		// Otherwise just use the last character as the unit of measure.
 		unit = string(a[i])
 		switch a[i] {
+		case 'n':
+			if i+1 < len(a) && a[i+1] == 's' {
+				unit = string(a[i : i+2])
+				d += time.Duration(n)
+				i += 2
+				continue
+			}
+			return 0, ErrInvalidDuration
 		case 'u', 'µ':
 			d += time.Duration(n) * time.Microsecond
 		case 'm':

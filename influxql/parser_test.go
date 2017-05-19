@@ -3252,6 +3252,7 @@ func TestParseDuration(t *testing.T) {
 		d   time.Duration
 		err string
 	}{
+		{s: `10ns`, d: 10},
 		{s: `10u`, d: 10 * time.Microsecond},
 		{s: `10µ`, d: 10 * time.Microsecond},
 		{s: `15ms`, d: 15 * time.Millisecond},
@@ -3272,6 +3273,7 @@ func TestParseDuration(t *testing.T) {
 		{s: `ms`, err: "invalid duration"},
 		{s: `1.2w`, err: "invalid duration"},
 		{s: `10x`, err: "invalid duration"},
+		{s: `10n`, err: "invalid duration"},
 	}
 
 	for i, tt := range tests {
