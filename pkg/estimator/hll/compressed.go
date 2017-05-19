@@ -82,16 +82,16 @@ func (v *compressedList) MarshalBinary() (data []byte, err error) {
 
 func (v *compressedList) UnmarshalBinary(data []byte) error {
 	// Set the count.
-	v.count = binary.BigEndian.Uint32(data[:4])
+	v.count, data = binary.BigEndian.Uint32(data[:4]), data[4:]
 
 	// Set the last value.
-	v.last = binary.BigEndian.Uint32(data[4:8])
+	v.last, data = binary.BigEndian.Uint32(data[:4]), data[4:]
 
 	// Set the list.
-	sz := int(data[8]) | int(data[9]) | int(data[10]) | int(data[11])
-	v.b = make([]uint8, 0, sz)
-	for i := 12; i < sz+12; i++ {
-		v.b = append(v.b, uint8(data[i]))
+	sz, data := binary.BigEndian.Uint32(data[:4]), data[4:]
+	v.b = make([]uint8, sz)
+	for i := uint32(0); i < sz; i++ {
+		v.b[i] = uint8(data[i])
 	}
 	return nil
 }
