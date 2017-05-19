@@ -118,7 +118,10 @@ func (b *PointBatcher) Stop() {
 	}
 
 	close(b.stop)
+	close(b.in)
+	close(b.flush)
 	b.wg.Wait()
+	close(b.out)
 }
 
 // In returns the channel to which points should be written.
