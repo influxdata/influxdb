@@ -857,7 +857,10 @@ func isCompactableGroup(files []*IndexFile, factor float64) bool {
 // compactGroup compacts files into a new file. Replaces old files with
 // compacted file on successful completion. This runs in a separate goroutine.
 func (i *Index) compactGroup(files []*IndexFile) {
-	assert(len(files) >= 2, "at least two index files are required for compaction")
+	if len(files) < 2 {
+		log.Printf("at least two index files are required for compaction")
+		return
+	}
 
 	// Files have already been retained by caller.
 	// Ensure files are released only once.
@@ -986,7 +989,10 @@ func (i *Index) compactLogFile(logFile *LogFile) {
 
 	// Retrieve identifier from current path.
 	id := ParseFileID(logFile.Path())
-	assert(id != 0, "cannot parse log file id: %s", logFile.Path())
+	if id == 0 {
+		log.Printf("cannot parse log file id: %s", logFile.Path())
+		return
+	}
 
 	// Create new index file.
 	path := filepath.Join(i.Path, FormatIndexFileName(id))
