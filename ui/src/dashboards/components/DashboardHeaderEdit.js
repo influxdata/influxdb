@@ -23,9 +23,8 @@ class DashboardEditHeader extends Component {
   }
 
   handleKeyUp(e) {
-    const {dashboard: {name}, onCancel} = this.props
+    const {onCancel} = this.props
     if (e.key === 'Escape') {
-      this.setState({name})
       onCancel()
     }
   }
