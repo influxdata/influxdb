@@ -11,6 +11,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/estimator"
 )
 
+// Index interface
 type Index interface {
 	Open() error
 	Close() error
@@ -81,7 +82,7 @@ func RegisterIndex(name string, fn NewIndexFunc) {
 	newIndexFuncs[name] = fn
 }
 
-// RegisteredIndexs returns the slice of currently registered indexes.
+// RegisteredIndexes returns the slice of currently registered indexes.
 func RegisteredIndexes() []string {
 	a := make([]string, 0, len(newIndexFuncs))
 	for k := range newIndexFuncs {
@@ -114,6 +115,7 @@ func NewIndex(id uint64, path string, options EngineOptions) (Index, error) {
 	return fn(id, path, options), nil
 }
 
+// MustOpenIndex returns an instance of an open index based on its format.
 func MustOpenIndex(id uint64, path string, options EngineOptions) Index {
 	idx, err := NewIndex(id, path, options)
 	if err != nil {

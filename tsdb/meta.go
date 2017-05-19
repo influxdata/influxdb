@@ -115,6 +115,7 @@ func (m *Measurement) SeriesKeys() [][]byte {
 	return keys
 }
 
+// SeriesIDs returns all series ids in a measurement
 func (m *Measurement) SeriesIDs() SeriesIDs {
 	m.mu.RLock()
 	if len(m.sortedSeriesIDs) == len(m.seriesByID) {
@@ -151,6 +152,8 @@ func (m *Measurement) HasTagKey(k string) bool {
 	return hasTag
 }
 
+// HasTagKeyValue returns true if at least on series in this measurement has a written value for the passed in tag key
+// and value
 func (m *Measurement) HasTagKeyValue(k, v []byte) bool {
 	m.mu.RLock()
 	if vals, ok := m.seriesByTagKeyValue[string(k)]; ok {
@@ -761,10 +764,10 @@ func (m *Measurement) WalkWhereForSeriesIds(expr influxql.Expr) (SeriesIDs, Filt
 			if n.Op == influxql.AND {
 				ids, filters := intersectSeriesFilters(lids, rids, lfilters, rfilters)
 				return ids, filters, nil
-			} else {
-				ids, filters := unionSeriesFilters(lids, rids, lfilters, rfilters)
-				return ids, filters, nil
 			}
+
+			ids, filters := unionSeriesFilters(lids, rids, lfilters, rfilters)
+			return ids, filters, nil
 		}
 
 		ids, _, err := m.idsForExpr(n)
@@ -860,7 +863,7 @@ func (m *Measurement) SeriesIDsAllOrByExpr(expr influxql.Expr) (SeriesIDs, error
 	return ids, nil
 }
 
-// tagKeysByExpr extracts the tag keys wanted by the expression.
+// TagKeysByExpr extracts the tag keys wanted by the expression.
 func (m *Measurement) TagKeysByExpr(expr influxql.Expr) (map[string]struct{}, error) {
 	switch e := expr.(type) {
 	case *influxql.BinaryExpr:
@@ -1041,6 +1044,7 @@ func (a Measurements) Less(i, j int) bool { return a[i].Name < a[j].Name }
 // Swap implements sort.Interface.
 func (a Measurements) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 
+// Intersect returns the intersection, based on Name, between two list of measurements
 func (a Measurements) Intersect(other Measurements) Measurements {
 	l := a
 	r := other
@@ -1071,6 +1075,7 @@ func (a Measurements) Intersect(other Measurements) Measurements {
 	return result
 }
 
+// Union returns the union between two list of measurements
 func (a Measurements) Union(other Measurements) Measurements {
 	result := make(Measurements, 0, len(a)+len(other))
 	var i, j int
@@ -1117,6 +1122,7 @@ func NewSeries(key []byte, tags models.Tags) *Series {
 	}
 }
 
+// AssignShard assigns a shard with the passed in shard id
 func (s *Series) AssignShard(shardID uint64) {
 	s.mu.RLock()
 	_, ok := s.shardIDs[shardID]
@@ -1133,12 +1139,14 @@ func (s *Series) AssignShard(shardID uint64) {
 	s.mu.Unlock()
 }
 
+// UnassignShard removes a shard
 func (s *Series) UnassignShard(shardID uint64) {
 	s.mu.Lock()
 	delete(s.shardIDs, shardID)
 	s.mu.Unlock()
 }
 
+// Assigned returns true if the passed in shard id has been assigned
 func (s *Series) Assigned(shardID uint64) bool {
 	s.mu.RLock()
 	_, ok := s.shardIDs[shardID]
@@ -1146,6 +1154,7 @@ func (s *Series) Assigned(shardID uint64) bool {
 	return ok
 }
 
+// ShardN returns the number of shards in the series
 func (s *Series) ShardN() int {
 	s.mu.RLock()
 	n := len(s.shardIDs)
@@ -1555,6 +1564,7 @@ func (m *Measurement) tagValuesByKeyAndSeriesID(tagKeys []string, ids SeriesIDs)
 	return tagValues
 }
 
+// SeriesByTagKeyValue returns the series ids for series with the passed in tag
 func (m *Measurement) SeriesByTagKeyValue(key string) map[string]SeriesIDs {
 	m.mu.RLock()
 	ret := m.seriesByTagKeyValue[key]
