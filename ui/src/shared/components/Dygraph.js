@@ -137,10 +137,13 @@ export default class Dygraph extends Component {
 
         legendContainerNode.style.left = `${legendLeft}px`
         legendContainerNode.style.top = `${legendTop}px`
-        legendContainerNode.className = 'container--dygraph-legend'
+        legendContainerNode.className = 'container--dygraph-legend' // show
 
         // this.isMouseOverGraph = true
         // this.lastMouseMoveEvent = e
+      },
+      drawCallback: () => {
+        legendContainerNode.className = 'container--dygraph-legend hidden' // hide
       },
     }
 
