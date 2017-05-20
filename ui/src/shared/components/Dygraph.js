@@ -100,12 +100,12 @@ export default class Dygraph extends Component {
         strokeWidth: 2,
         highlightCircleSize: 5,
       },
-      unhighlightCallback: e => {
+      unhighlightCallback: () => {
         legendContainerNode.className = 'container--dygraph-legend hidden' // hide
 
         // this.isMouseOverGraph = false
       },
-      highlightCallback: (e, x, points, row, seriesName) => {
+      highlightCallback: e => {
         // Move the Legend on hover
         const graphRect = graphContainerNode.getBoundingClientRect()
         const legendRect = legendContainerNode.getBoundingClientRect()
