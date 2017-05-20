@@ -94,7 +94,7 @@ const DataExplorer = React.createClass({
       <div className="data-explorer">
         {showWriteForm
           ? <OverlayTechnologies>
-              <WriteDataForm onClose={hideWriteFormAction} />
+              <WriteDataForm onClose={hideWriteFormAction} source={source} />
             </OverlayTechnologies>
           : null}
         <Header

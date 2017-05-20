@@ -1,0 +1,130 @@
+/*
+  Styles for the Template Variables Manager Panel
+  ------------------------------------------------------
+  Accessed via Dashboards
+*/
+
+$tvmp-panel-max-width: 1300px;
+$tvmp-gutter: 30px;
+$tvmp-min-height: 150px;
+$tvmp-max-height: calc(100% - 90px);
+$tvmp-table-gutter: 8px;
+
+.write-data-form {
+  max-width: $tvmp-panel-max-width;
+  margin: 0 auto;
+}
+.write-data-form--header {
+  height: $chronograf-page-header-height;
+  background: $g0-obsidian;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 $tvmp-gutter;
+
+  .page-header__dismiss {
+    margin-left: 10px;
+    margin-right: -20px;
+  }
+}
+.write-data-form--body {
+  padding: 18px ($tvmp-gutter - $tvmp-table-gutter) $tvmp-gutter ($tvmp-gutter - $tvmp-table-gutter);
+  border-radius: 0 0 $radius $radius;
+  min-height: $tvmp-min-height;
+  max-height: $tvmp-max-height;
+  @include gradient-v($g2-kevlar,$g0-obsidian);
+  @include custom-scrollbar-round($g0-obsidian,$g3-castle);
+
+  textarea {
+    border-bottom: 2px solid #383846;
+  }
+}
+.write-data-form--table,
+.write-data-form--table-container {
+  width: 100%;
+}
+/* Column Widths */
+.tvm--col-1 {flex: 0 0 140px;}
+.tvm--col-2 {flex: 0 0 140px;}
+.tvm--col-3 {flex: 1 0 500px;}
+.tvm--col-4 {flex: 0 0 160px;}
+
+/* Table Column Labels */
+.write-data-form--table-heading {
+  padding: 0 $tvmp-table-gutter;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  font-weight: 600;
+  font-size: 12px;
+  color: $g11-sidewalk;
+
+  > * {
+    @include no-user-select();
+    padding-left: 6px;
+    margin-right: $tvmp-table-gutter;
+    &:last-child {margin-right: 0;}
+  }
+}
+
+/* Table Body */
+.write-data-form--table-rows {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+.write-data-form--table-row {
+  border-radius: 4px;
+  display: flex;
+  align-items: flex-start;
+  padding: $tvmp-table-gutter;
+  transition: background-color 0.25s ease;
+
+  &.editing {
+    background-color: $g3-castle;
+  }
+
+  > * {
+    margin-right: $tvmp-table-gutter;
+    &:last-child {margin-right: 0;}
+  }
+}
+
+.tvm-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+
+  .btn-edit {
+    order: 1;
+    width: 30px;
+    text-align: center;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    > span.icon {margin: 0 !important;}
+  }
+
+  > .btn {margin-left: $tvmp-table-gutter;}
+
+  /* Override confirm buttons styles */
+  /* Janky, but doing this quick & dirty for now  */
+  .btn-danger {
+    order: 2;
+    height: 30px !important;
+    line-height: 30px !important;
+    padding: 0 9px !important;
+    font-size: 13px;
+  }
+  .confirm-buttons > .btn {
+    height: 30px !important;
+    width: 30px !important;
+    margin-left: $tvmp-table-gutter !important;
+    font-size: 13px;
+    padding: 0 !important;
+  }
+  /* Hide the edit button when confirming a delete */
+  .confirm-buttons + .btn-edit {
+    display: none;
+  }
+}
