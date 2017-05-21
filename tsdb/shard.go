@@ -429,12 +429,6 @@ type FieldCreate struct {
 	Field       *Field
 }
 
-// SeriesCreate holds information for a series to create.
-type SeriesCreate struct {
-	Measurement string
-	Series      *Series
-}
-
 // WritePoints will write the raw data points and any new metadata to the index in the shard.
 func (s *Shard) WritePoints(points []models.Point) error {
 	if err := s.ready(); err != nil {
