@@ -89,9 +89,9 @@ const SMTPConfig = React.createClass({
           />
         </div>
 
-        <div className="form-group form-group-submit col-xs-12 col-sm-6 col-sm-offset-3">
-          <button className="btn btn-block btn-primary" type="submit">
-            Save
+        <div className="form-group-submit col-xs-12 text-center">
+          <button className="btn btn-primary" type="submit">
+            Update SMTP Config
           </button>
         </div>
       </form>
