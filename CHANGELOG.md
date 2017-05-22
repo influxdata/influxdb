@@ -1,4 +1,4 @@
-## v1.3.1 [2017-05-22]
+## v1.3.1.0 [2017-05-22]
 
 ### Release notes
 
@@ -6,11 +6,10 @@ In versions 1.3.1+, installing a new version of Chronograf automatically clears 
 
 ### Bug Fixes
   1. [#1450](https://github.com/influxdata/chronograf/pull/1450): Fix infinite spinner when `/chronograf` is a [basepath](https://docs.influxdata.com/chronograf/v1.3/administration/configuration/#p-basepath)
-  1. [#1428](https://github.com/influxdata/chronograf/issues/1428): Remove the query templates dropdown from dashboard cell editor mode
+  1. [#1472](https://github.com/influxdata/chronograf/pull/1472): Remove the query templates dropdown from dashboard cell editor mode
   1. [#1458](https://github.com/influxdata/chronograf/pull/1458): New versions of Chronograf automatically clear localStorage settings
-  1. [#1455](https://github.com/influxdata/chronograf/issues/1455): Fix the backwards sort arrows in table column headers
-  1. [#1423](https://github.com/influxdata/chronograf/issues/1423): Make the logout button consistent with design
-  1. [#1426](https://github.com/influxdata/chronograf/issues/1426): Fix the loading spinner on graphs
+  1. [#1464](https://github.com/influxdata/chronograf/pull/1464): Fix the backwards sort arrows in table column headers
+  1. [#1464](https://github.com/influxdata/chronograf/pull/1464): Fix the loading spinner on graphs
   1. [#1485](https://github.com/influxdata/chronograf/pull/1485): Filter out any template variable values that are empty, whitespace, or duplicates
   1. [#1484](https://github.com/influxdata/chronograf/pull/1484): Allow users to click the add query button after selecting singleStat as the [visualization type](https://docs.influxdata.com/chronograf/v1.3/troubleshooting/frequently-asked-questions/#what-visualization-types-does-chronograf-support)
   1. [#1349](https://github.com/influxdata/chronograf/pull/1349): Add a query for windows uptime - thank you, @brianbaker!
@@ -26,9 +25,10 @@ In versions 1.3.1+, installing a new version of Chronograf automatically clears 
   1. [#1464](https://github.com/influxdata/chronograf/pull/1464): Make the [template variables](https://docs.influxdata.com/chronograf/v1.3/guides/dashboard-template-variables/) manager more space efficient
   1. [#1464](https://github.com/influxdata/chronograf/pull/1464): Add page spinners to pages that did not have them
   1. [#1464](https://github.com/influxdata/chronograf/pull/1464): Denote which source is connected in the sources table
+  1. [#1464](https://github.com/influxdata/chronograf/pull/1464): Make the logout button consistent with design
   1. [#1478](https://github.com/influxdata/chronograf/pull/1478): Use milliseconds in the InfluxDB dashboard instead of nanoseconds
   1. [#1498](https://github.com/influxdata/chronograf/pull/1498): Notify users when local settings are cleared
-  
+
 ## v1.3.0 [2017-05-09]
 
 ### Bug Fixes
