@@ -97,7 +97,6 @@ func NewIndex() *Index {
 		// Default compaction thresholds.
 		MaxLogFileSize:    DefaultMaxLogFileSize,
 		CompactionEnabled: true,
-		CompactionFactor:  DefaultCompactionFactor,
 	}
 }
 
@@ -157,7 +156,11 @@ func (i *Index) Open() error {
 			files = append(files, f)
 		}
 	}
-	i.fileSet = NewFileSet(i.levels, files)
+	fs, err := NewFileSet(i.levels, files)
+	if err != nil {
+		return err
+	}
+	i.fileSet = fs
 
 	// Set initial sequnce number.
 	i.seq = i.fileSet.MaxID()
@@ -319,7 +322,11 @@ func (i *Index) prependActiveLogFile() error {
 	i.activeLogFile = f
 
 	// Prepend and generate new fileset.
-	i.fileSet = i.fileSet.Prepend(f)
+	fs, err := i.fileSet.Prepend(f)
+	if err != nil {
+		return err
+	}
+	i.fileSet = fs
 
 	// Write new manifest.
 	if err := i.writeManifestFile(); err != nil {
@@ -796,7 +803,6 @@ func (i *Index) compact() {
 			size += f.Size()
 		}
 		if size < i.levels[level+1].MinSize {
-			// log.Printf("tsi1: SKIP, too small: level=%d, size=%d, target=%d", level, size, i.levels[level+1].MinSize)
 			continue
 		}
 

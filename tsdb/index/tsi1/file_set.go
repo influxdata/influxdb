@@ -23,16 +23,18 @@ type FileSet struct {
 }
 
 // NewFileSet returns a new instance of FileSet.
-func NewFileSet(levels []CompactionLevel, files []File) *FileSet {
+func NewFileSet(levels []CompactionLevel, files []File) (*FileSet, error) {
 	fs := &FileSet{levels: levels, files: files}
-	fs.buildFilters()
-	return fs
+	if err := fs.buildFilters(); err != nil {
+		return nil, err
+	}
+	return fs, nil
 }
 
 // Close closes all the files in the file set.
 func (p FileSet) Close() error {
 	var err error
-	for _, f := range p {
+	for _, f := range p.files {
 		if e := f.Close(); e != nil && err == nil {
 			err = e
 		}
@@ -55,7 +57,7 @@ func (fs *FileSet) Release() {
 }
 
 // Prepend returns a new file set with f added at the beginning.
-func (fs *FileSet) Prepend(f File) *FileSet {
+func (fs *FileSet) Prepend(f File) (*FileSet, error) {
 	return NewFileSet(fs.levels, append([]File{f}, fs.files...))
 }
 
@@ -87,7 +89,11 @@ func (fs *FileSet) MustReplace(oldFiles []File, newFile File) *FileSet {
 	other[i] = newFile
 	copy(other[i+1:], fs.files[i+len(oldFiles):])
 
-	return NewFileSet(fs.levels, other)
+	fs, err := NewFileSet(fs.levels, other)
+	if err != nil {
+		panic("cannot build file set: " + err.Error())
+	}
+	return fs
 }
 
 // MaxID returns the highest file identifier.
@@ -99,6 +105,11 @@ func (fs *FileSet) MaxID() int {
 		}
 	}
 	return max
+}
+
+// Files returns all files in the set.
+func (fs *FileSet) Files() []File {
+	return fs.files
 }
 
 // LogFiles returns all log files from the file set.
@@ -849,10 +860,10 @@ func (fs *FileSet) seriesByBinaryExprVarRefIterator(name, key []byte, value *inf
 }
 
 // buildFilters builds a series existence filter for each compaction level.
-func (fs *FileSet) buildFilters() {
+func (fs *FileSet) buildFilters() error {
 	if len(fs.levels) == 0 {
 		fs.filters = nil
-		return
+		return nil
 	}
 
 	// Generate filters for each level.
@@ -875,9 +886,11 @@ func (fs *FileSet) buildFilters() {
 
 		// Merge filter.
 		if err := fs.filters[level].Merge(f.Filter()); err != nil {
-			panic(err)
+			return err
 		}
 	}
+
+	return nil
 }
 
 // File represents a log or index file.
