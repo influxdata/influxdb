@@ -12,30 +12,16 @@ $dropdown-menu-max-height: 270px;
     Generic width modifiers
     Use instead of creating new classes if possible
 */
-.dropdown .dropdown-toggle {
+.dropdown .dropdown-toggle,
+.dropdown .dropdown-autocomplete {
   width: 120px; /* Default width */
 }
 .dropdown {
-  &-80 .dropdown-toggle {width: 80px;}
-  &-90 .dropdown-toggle {width: 90px;}
-  &-100 .dropdown-toggle {width: 100px;}
-  &-110 .dropdown-toggle {width: 110px;}
-  &-120 .dropdown-toggle {width: 120px;}
-  &-130 .dropdown-toggle {width: 130px;}
-  &-140 .dropdown-toggle {width: 140px;}
-  &-150 .dropdown-toggle {width: 150px;}
-  &-160 .dropdown-toggle {width: 160px;}
-  &-170 .dropdown-toggle {width: 170px;}
-  &-180 .dropdown-toggle {width: 180px;}
-  &-190 .dropdown-toggle {width: 190px;}
-  &-200 .dropdown-toggle {width: 200px;}
-  &-210 .dropdown-toggle {width: 210px;}
-  &-220 .dropdown-toggle {width: 220px;}
-  &-230 .dropdown-toggle {width: 230px;}
-  &-240 .dropdown-toggle {width: 240px;}
-  &-250 .dropdown-toggle {width: 250px;}
+  @for $i from 8 through 30 {
+    &-#{$i * 10} .dropdown-toggle,
+    &-#{$i * 10} .dropdown-autocomplete { width: #{$i * 10}px; }
+  }
 }
-
 .dropdown-toggle {
   position: relative;
   text-align: left;
@@ -65,7 +51,54 @@ $dropdown-menu-max-height: 270px;
 .dropdown .dropdown-toggle.btn-xs {
   height: 22px !important;
   line-height: 22px !important;
-  padding: 0 9px !important;
+  padding: 0 9px;
+}
+
+/*
+    AutoComplete Field
+    ----------------------------------------------
+*/
+.dropdown-autocomplete {
+  position: relative;
+  padding: 0 !important;
+
+  &.btn-xs {height: 22px;}
+  &.btn-sm {height: 30px;}
+  &.btn-md {height: 36px;}
+  &.btn-lg {height: 50px;}
+}
+.dropdown-autocomplete--input {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  outline: none;
+  background-color: transparent;
+  border: 0;
+  color: $g20-white;
+  padding: 0;
+  font-weight: 500;
+
+  .btn-xs & {padding: 0 18px 0 9px; font-size: 12px;}
+  .btn-sm & {padding: 0 18px 0 9px; font-size: 13px;}
+  .btn-md & {padding: 0 34px 0 17px; font-size: 14px;}
+  .btn-lg & {padding: 0 48px 0 24px; font-size: 18px;}
+
+  &::-webkit-input-placeholder { color: rgba(255,255,255,0.5); font-weight: 500 !important; }
+  &::-moz-placeholder { color: rgba(255,255,255,0.5); font-weight: 500 !important; }
+  &:-ms-input-placeholder { color: rgba(255,255,255,0.5); font-weight: 500 !important; }
+  &:-moz-placeholder { color: rgba(255,255,255,0.5); font-weight: 500 !important; }
+
+  &:focus {
+    color: $g20-white;
+  }
+}
+.dropdown-empty {
+  padding: 7px 9px;
+  font-size: 13px;
+  color: rgba(255,255,255,0.4);
+  font-weight: 500;
+  line-height: 15px;
+  @include no-user-select();
 }
 
 /*
@@ -86,6 +119,9 @@ $dropdown-menu-max-height: 270px;
     position: relative;
     width: 100%;
 
+    &.active {
+      @include gradient-h($c-sapphire, $c-pool);
+    }
     &:hover {
       @include gradient-h($c-laser, $c-pool);
     }
@@ -99,7 +135,7 @@ $dropdown-menu-max-height: 270px;
     padding: 7px 9px;
     font-size: 13px;
     line-height: 15px;
-    font-weight: 500;
+    font-weight: 500 !important;
     color: $c-yeti !important;
     background-color: transparent;
     transition:
@@ -116,6 +152,16 @@ $dropdown-menu-max-height: 270px;
     }
     &:focus {
       @include gradient-h($c-ocean, $c-pool);
+    }
+  }
+  li.dropdown-item.highlight {
+    &, &:hover {
+      @include gradient-h($c-laser, $c-pool);
+    }
+    > a {
+      background: none;
+      background-color: transparent;
+      color: $g20-white;
     }
   }
 }
@@ -137,6 +183,16 @@ $dropdown-menu-max-height: 270px;
       color: $g20-white !important;
     }
   }
+  li.dropdown-item.highlight {
+    &, &:hover {
+      @include gradient-h($c-laser, $c-rainforest);
+    }
+    > a {
+      background: none;
+      background-color: transparent;
+      color: $g20-white;
+    }
+  }
 }
 .dropdown.dropdown-chronograf .dropdown-menu {
   @include custom-scrollbar($c-comet, $c-potassium);
@@ -151,8 +207,36 @@ $dropdown-menu-max-height: 270px;
       color: $g20-white !important;
     }
   }
+  li.dropdown-item.highlight {
+    &, &:hover {
+      @include gradient-h($c-laser, $c-comet);
+    }
+    > a {
+      background: none;
+      background-color: transparent;
+      color: $g20-white;
+    }
+  }
 }
 
+/*
+    Dropdown Menu (only js highlighting, works with autocomplete feature)
+    ----------------------------------------------
+*/
+.dropdown-menu.dropdown-menu--no-highlight {
+  li.dropdown-item {
+
+    &:hover {
+      background: none;
+      background-color: transparent;
+    }
+  }
+  li.dropdown-item.highlight {
+    &, &:hover {
+      @include gradient-h($c-laser, $c-pool);
+    }
+  }
+}
 /*
     Dropdown Header
     ----------------------------------------------

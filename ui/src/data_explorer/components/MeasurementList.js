@@ -115,8 +115,9 @@ const MeasurementList = React.createClass({
       )
     }
 
+    const filterText = this.state.filterText.toLowerCase()
     const measurements = this.state.measurements.filter(m =>
-      m.match(this.state.filterText)
+      m.toLowerCase().includes(filterText)
     )
 
     return (

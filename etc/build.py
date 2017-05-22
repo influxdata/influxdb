@@ -39,7 +39,7 @@ CONFIGURATION_FILES = [
     LOGROTATE_DIR + '/chronograf',
 ]
 
-PACKAGE_LICENSE = "MIT"
+PACKAGE_LICENSE = "AGPLv3"
 PACKAGE_URL = "https://github.com/influxdata/chronograf"
 MAINTAINER = "contact@influxdb.com"
 VENDOR = "InfluxData"

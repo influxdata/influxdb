@@ -28,7 +28,8 @@ const TemplateControlBar = ({
                   <Dropdown
                     items={items}
                     buttonSize="btn-xs"
-                    selected={selectedText || 'Loading...'}
+                    useAutoComplete={true}
+                    selected={selectedText || '(No values)'}
                     onChoose={item =>
                       onSelectTemplate(id, [item].map(x => omit(x, 'text')))}
                   />
