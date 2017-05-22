@@ -90,7 +90,7 @@ class KapacitorForm extends Component {
                           Reset
                         </button>
                         <button className="btn btn-success" type="submit">
-                          {exists ? 'Connect' : 'Update'}
+                          {exists ? 'Update' : 'Connect'}
                         </button>
                       </div>
                     </form>
