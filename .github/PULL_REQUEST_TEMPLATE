@@ -1,5 +1,5 @@
 
-  - [ ] CHANGELOG.md updated
+  - [ ] CHANGELOG.md updated with a link to the PR (not the Issue)
   - [ ] Rebased/mergable
   - [ ] Tests pass
   - [ ] Sign [CLA](https://influxdata.com/community/cla/) (if not already signed)

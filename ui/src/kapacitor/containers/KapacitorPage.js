@@ -91,7 +91,10 @@ class KapacitorPage extends Component {
           this.setState({kapacitor: data})
           this.checkKapacitorConnection(data)
           router.push(`/sources/${source.id}/kapacitors/${data.id}/edit`)
-          addFlashMessage({type: 'success', text: 'Kapacitor Created!'})
+          addFlashMessage({
+            type: 'success',
+            text: 'Kapacitor Created! Configuring endpoints is optional.',
+          })
         })
         .catch(() => {
           addFlashMessage({
