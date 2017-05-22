@@ -1,4 +1,4 @@
-## v1.3.2 [unreleased]
+## v1.3.2.0 [unreleased]
 
 ### Bug Fixes
 
@@ -7,7 +7,6 @@
 ### UI Improvements
   1. [#1508](https://github.com/influxdata/chronograf/pull/1508): The enter and escape keys now perform as expected when renaming dashboard headers.
 
-## v1.3.1 [unreleased]
 ## v1.3.1.0 [2017-05-22]
 
 ### Release notes
