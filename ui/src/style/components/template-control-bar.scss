@@ -10,20 +10,13 @@ $template-control--min-height: 52px;
 $template-control-dropdown-min-width: 118px;
 
 .template-control-bar {
-  opacity: 0;
-  height: 0;
-  overflow: hidden;
-  transition:
-    opacity 0.25s ease,
-    max-height 0.25s ease,
-    margin-bottom 0.25s ease;
-}
-.template-control-bar.show {
-  overflow: visible;
+  display: none;
   height: auto;
-  opacity: 1;
   margin-bottom: 8px;
-  max-height: 96px;
+
+  &.show {
+    display: block;
+  }
 }
 .template-control--container {
   display: flex;
