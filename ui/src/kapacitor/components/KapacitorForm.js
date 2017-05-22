@@ -5,7 +5,7 @@ import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 class KapacitorForm extends Component {
   render() {
-    const {onInputChange, onReset, kapacitor, onSubmit} = this.props
+    const {onInputChange, onReset, kapacitor, onSubmit, exists} = this.props
     const {url, name, username, password} = kapacitor
 
     return (
@@ -90,7 +90,7 @@ class KapacitorForm extends Component {
                           Reset
                         </button>
                         <button className="btn btn-success" type="submit">
-                          Connect
+                          {exists ? 'Connect' : 'Update'}
                         </button>
                       </div>
                     </form>
