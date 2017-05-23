@@ -151,7 +151,7 @@ $dash-graph-options-arrow: 8px;
     background-color 0.25s ease,
     border-color 0.25s ease;
 }
-.dash-graph--name-edit {
+input.form-control.dash-graph--name-edit {
   margin-left: 8px;
   padding: 0 6px;
   width: calc(100% - 42px);
