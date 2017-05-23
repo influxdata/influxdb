@@ -1290,10 +1290,11 @@ func (s *compactionStrategy) compactGroup(groupNum int) {
 	}()
 
 	if err != nil {
-		if err == errCompactionsDisabled || err == errCompactionInProgress {
+		_, inProgress := err.(errCompactionInProgress)
+		if err == errCompactionsDisabled || inProgress {
 			s.logger.Info(fmt.Sprintf("aborted %s compaction group (%d). %v", s.description, groupNum, err))
 
-			if err == errCompactionInProgress {
+			if _, ok := err.(errCompactionInProgress); ok {
 				time.Sleep(time.Second)
 			}
 			return

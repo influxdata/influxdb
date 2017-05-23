@@ -37,12 +37,23 @@ const (
 )
 
 var (
-	errMaxFileExceeded      = fmt.Errorf("max file exceeded")
-	errSnapshotsDisabled    = fmt.Errorf("snapshots disabled")
-	errCompactionsDisabled  = fmt.Errorf("compactions disabled")
-	errCompactionAborted    = fmt.Errorf("compaction aborted")
-	errCompactionInProgress = fmt.Errorf("compaction in progress")
+	errMaxFileExceeded     = fmt.Errorf("max file exceeded")
+	errSnapshotsDisabled   = fmt.Errorf("snapshots disabled")
+	errCompactionsDisabled = fmt.Errorf("compactions disabled")
+	errCompactionAborted   = fmt.Errorf("compaction aborted")
 )
+
+type errCompactionInProgress struct {
+	err error
+}
+
+// Error returns the string representation of the error, to satisfy the error interface.
+func (e errCompactionInProgress) Error() string {
+	if e.err != nil {
+		return fmt.Sprintf("compaction in progress: %s", e.err)
+	}
+	return "compaction in progress"
+}
 
 // CompactionGroup represents a list of files eligible to be compacted together.
 type CompactionGroup []string
@@ -725,7 +736,7 @@ func (c *Compactor) CompactFull(tsmFiles []string) ([]string, error) {
 	}
 
 	if !c.add(tsmFiles) {
-		return nil, errCompactionInProgress
+		return nil, errCompactionInProgress{}
 	}
 	defer c.remove(tsmFiles)
 
@@ -754,7 +765,7 @@ func (c *Compactor) CompactFast(tsmFiles []string) ([]string, error) {
 	}
 
 	if !c.add(tsmFiles) {
-		return nil, errCompactionInProgress
+		return nil, errCompactionInProgress{}
 	}
 	defer c.remove(tsmFiles)
 
@@ -799,7 +810,7 @@ func (c *Compactor) writeNewFiles(generation, sequence int, iter KeyIterator) ([
 				return nil, err
 			}
 			break
-		} else if err == errCompactionInProgress {
+		} else if _, ok := err.(errCompactionInProgress); ok {
 			// Don't clean up the file as another compaction is using it.  This should not happen as the
 			// planner keeps track of which files are assigned to compaction plans now.
 			return nil, err
@@ -821,7 +832,7 @@ func (c *Compactor) writeNewFiles(generation, sequence int, iter KeyIterator) ([
 func (c *Compactor) write(path string, iter KeyIterator) (err error) {
 	fd, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_EXCL, 0666)
 	if err != nil {
-		return errCompactionInProgress
+		return errCompactionInProgress{err: err}
 	}
 
 	// Create the write for the new TSM file.
