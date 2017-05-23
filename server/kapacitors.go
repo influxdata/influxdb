@@ -451,8 +451,7 @@ func (h *Service) KapacitorRulesPut(w http.ResponseWriter, r *http.Request) {
 		Error(w, http.StatusInternalServerError, err.Error(), h.Logger)
 		return
 	}
-
-	res := newAlertResponse(req, task.TICKScript, task.Href, task.HrefOutput, "enabled", srv.SrcID, srv.ID)
+	res := newAlertResponse(task.Rule, task.TICKScript, task.Href, task.HrefOutput, "enabled", srv.SrcID, srv.ID)
 	encodeJSON(w, http.StatusOK, res, h.Logger)
 }
 
