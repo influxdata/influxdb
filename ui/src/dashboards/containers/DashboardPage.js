@@ -15,7 +15,10 @@ import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 
 import * as dashboardActionCreators from 'src/dashboards/actions'
 
-import {setAutoRefresh} from 'shared/actions/app'
+import {
+  setAutoRefresh,
+  templateControlBarVisibilityToggled as templateControlBarVisibilityToggledAction,
+} from 'shared/actions/app'
 import {presentationButtonDispatcher} from 'shared/dispatchers'
 
 class DashboardPage extends Component {
@@ -48,6 +51,7 @@ class DashboardPage extends Component {
     this.handleSelectTemplate = ::this.handleSelectTemplate
     this.handleEditTemplateVariables = ::this.handleEditTemplateVariables
     this.handleRunQueryFailure = ::this.handleRunQueryFailure
+    this.handleToggleTempVarControls = ::this.handleToggleTempVarControls
   }
 
   componentDidMount() {
@@ -206,6 +210,10 @@ class DashboardPage extends Component {
     this.props.errorThrown(error)
   }
 
+  handleToggleTempVarControls() {
+    this.props.templateControlBarVisibilityToggled()
+  }
+
   getActiveDashboard() {
     const {params: {dashboardID}, dashboards} = this.props
     return dashboards.find(d => d.id === +dashboardID)
@@ -215,6 +223,7 @@ class DashboardPage extends Component {
     const {
       source,
       timeRange,
+      showTemplateControlBar,
       dashboards,
       autoRefresh,
       cellQueryStatus,
@@ -289,6 +298,8 @@ class DashboardPage extends Component {
               source={source}
               onAddCell={this.handleAddCell}
               onEditDashboard={this.handleEditDashboard}
+              onToggleTempVarControls={this.handleToggleTempVarControls}
+              showTemplateControlBar={showTemplateControlBar}
             >
               {dashboards
                 ? dashboards.map((d, i) => (
@@ -317,6 +328,7 @@ class DashboardPage extends Component {
               templatesIncludingDashTime={templatesIncludingDashTime}
               onSummonOverlayTechnologies={this.handleSummonOverlayTechnologies}
               onSelectTemplate={this.handleSelectTemplate}
+              showTemplateControlBar={showTemplateControlBar}
             />
           : null}
       </div>
@@ -374,7 +386,9 @@ DashboardPage.propTypes = {
   ),
   handleChooseAutoRefresh: func.isRequired,
   autoRefresh: number.isRequired,
+  templateControlBarVisibilityToggled: func.isRequired,
   timeRange: shape({}).isRequired,
+  showTemplateControlBar: bool.isRequired,
   inPresentationMode: bool.isRequired,
   handleClickPresentationButton: func,
   cellQueryStatus: shape({
@@ -386,7 +400,10 @@ DashboardPage.propTypes = {
 
 const mapStateToProps = state => {
   const {
-    app: {ephemeral: {inPresentationMode}, persisted: {autoRefresh}},
+    app: {
+      ephemeral: {inPresentationMode},
+      persisted: {autoRefresh, showTemplateControlBar},
+    },
     dashboardUI: {dashboards, timeRange, cellQueryStatus},
   } = state
 
@@ -394,6 +411,7 @@ const mapStateToProps = state => {
     dashboards,
     autoRefresh,
     timeRange,
+    showTemplateControlBar,
     inPresentationMode,
     cellQueryStatus,
   }
@@ -401,6 +419,10 @@ const mapStateToProps = state => {
 
 const mapDispatchToProps = dispatch => ({
   handleChooseAutoRefresh: bindActionCreators(setAutoRefresh, dispatch),
+  templateControlBarVisibilityToggled: bindActionCreators(
+    templateControlBarVisibilityToggledAction,
+    dispatch
+  ),
   handleClickPresentationButton: presentationButtonDispatcher(dispatch),
   dashboardActions: bindActionCreators(dashboardActionCreators, dispatch),
   errorThrown: bindActionCreators(errorThrownAction, dispatch),

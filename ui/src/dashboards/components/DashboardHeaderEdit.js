@@ -44,6 +44,7 @@ class DashboardEditHeader extends Component {
             <input
               className="page-header--editing"
               name="name"
+              value={name}
               placeholder="Name this Dashboard"
               value={name}
               onChange={e => this.handleChange(e.target.value)}

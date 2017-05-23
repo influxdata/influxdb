@@ -8,6 +8,7 @@ const initialState = {
   },
   persisted: {
     autoRefresh: AUTOREFRESH_DEFAULT,
+    showTemplateControlBar: false,
   },
 }
 
@@ -44,6 +45,12 @@ const appPersistedReducer = (state = initialAppPersistedState, action) => {
         ...state,
         autoRefresh: action.payload.milliseconds,
       }
+    }
+
+    case 'TEMPLATE_CONTROL_BAR_VISIBILITY_TOGGLED': {
+      const {showTemplateControlBar} = state
+
+      return {...state, showTemplateControlBar: !showTemplateControlBar}
     }
 
     default:

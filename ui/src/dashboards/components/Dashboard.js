@@ -20,6 +20,7 @@ const Dashboard = ({
   templatesIncludingDashTime,
   onSummonOverlayTechnologies,
   onSelectTemplate,
+  showTemplateControlBar,
 }) => {
   if (dashboard.id === 0) {
     return null
@@ -41,16 +42,20 @@ const Dashboard = ({
   })
 
   return (
-    <FancyScrollbar className={classnames(
-      'page-contents',
-      {'presentation-mode': inPresentationMode}
-    )}>
+    <FancyScrollbar
+      className={classnames('page-contents', {
+        'presentation-mode': inPresentationMode,
+      })}
+    >
       <div className="dashboard container-fluid full-width">
-        <TemplateControlBar
-          templates={dashboard.templates}
-          onSelectTemplate={onSelectTemplate}
-          onOpenTemplateManager={onOpenTemplateManager}
-        />
+        {inPresentationMode
+          ? null
+          : <TemplateControlBar
+              templates={dashboard.templates}
+              onSelectTemplate={onSelectTemplate}
+              onOpenTemplateManager={onOpenTemplateManager}
+              isOpen={showTemplateControlBar}
+            />}
         {cells.length
           ? <LayoutRenderer
               templates={templatesIncludingDashTime}
@@ -116,6 +121,7 @@ Dashboard.propTypes = {
   timeRange: shape({}).isRequired,
   onOpenTemplateManager: func.isRequired,
   onSelectTemplate: func.isRequired,
+  showTemplateControlBar: bool,
 }
 
 export default Dashboard
