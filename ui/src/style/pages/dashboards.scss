@@ -145,7 +145,7 @@ $dash-graph-options-arrow: 8px;
   height: $dash-graph-heading;
   line-height: $dash-graph-heading;
   width: calc(100% - 50px);
-  margin-left: 16px;
+  padding-left: 16px;
   transition:
     color 0.25s ease,
     background-color 0.25s ease,
