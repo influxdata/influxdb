@@ -4407,7 +4407,7 @@ p .label {
 .dropdown .dropdown-menu .dropdown-actions {
   position: absolute;
   top: 50%;
-  right: 4px;
+  right: 0;
   z-index: 2;
   display: -webkit-box;
   display: -webkit-flex;
@@ -4440,6 +4440,7 @@ p .label {
   color: #326bba;
   text-align: center;
   background-color: transparent;
+  border: 0;
   outline: none;
   -webkit-transition: color .25s ease;
        -o-transition: color .25s ease;
@@ -5459,6 +5460,10 @@ a.list-group-item p {
   font-size: 15px;
   font-weight: 600;
   color: #999dab;
+  -webkit-user-select: none;
+     -moz-user-select: none;
+      -ms-user-select: none;
+          user-select: none;
   background-color: #202028;
   -webkit-transition: background-color .25s ease, color .25s ease;
        -o-transition: background-color .25s ease, color .25s ease;
@@ -6542,50 +6547,175 @@ input.form-control.input-lg {
        -o-transform: translate(-50%, -50%) scale(1, 1);
           transform: translate(-50%, -50%) scale(1, 1);
 }
-input.form-control.form-plutonium {
+input.form-control.form-plutonium,
+textarea.form-control.form-plutonium {
   color: #22adf6;
 }
-input.form-control.form-plutonium:focus {
+input.form-control.form-plutonium:focus,
+textarea.form-control.form-plutonium:focus {
   color: #fff;
 }
-input.form-control.form-malachite {
+input.form-control.form-malachite,
+textarea.form-control.form-malachite {
   color: #4ed8a0;
 }
-input.form-control.form-malachite:focus {
+input.form-control.form-malachite:focus,
+textarea.form-control.form-malachite:focus {
   color: #fff;
   border-color: #4ed8a0;
   -webkit-box-shadow: 0 0 8px #4ed8a0;
           box-shadow: 0 0 8px #4ed8a0;
 }
-input.form-control.form-malachite::-moz-selection {
+input.form-control.form-malachite::-moz-selection,
+textarea.form-control.form-malachite::-moz-selection {
   background-color: #4ed8a0;
 }
-input.form-control.form-malachite::selection {
+input.form-control.form-malachite::selection,
+textarea.form-control.form-malachite::selection {
   background-color: #4ed8a0;
 }
-input.form-control.form-malachite::-moz-selection {
+input.form-control.form-malachite::-moz-selection,
+textarea.form-control.form-malachite::-moz-selection {
   background-color: #4ed8a0;
 }
-input.form-control.form-astronaut {
+input.form-control.form-astronaut,
+textarea.form-control.form-astronaut {
   color: #9394ff;
 }
-input.form-control.form-astronaut:focus {
+input.form-control.form-astronaut:focus,
+textarea.form-control.form-astronaut:focus {
   color: #fff;
   border-color: #7a65f2;
   -webkit-box-shadow: 0 0 8px #7a65f2;
           box-shadow: 0 0 8px #7a65f2;
 }
-input.form-control.form-astronaut::-moz-selection {
+input.form-control.form-astronaut::-moz-selection,
+textarea.form-control.form-astronaut::-moz-selection {
   background-color: #9394ff;
 }
-input.form-control.form-astronaut::selection {
+input.form-control.form-astronaut::selection,
+textarea.form-control.form-astronaut::selection {
   background-color: #9394ff;
 }
-input.form-control.form-astronaut::-moz-selection {
+input.form-control.form-astronaut::-moz-selection,
+textarea.form-control.form-astronaut::-moz-selection {
   background-color: #9394ff;
 }
 .form-control.monotype {
   font-family: "Roboto Mono", monospace;
+}
+label.form-helper {
+  font-style: italic;
+  line-height: 16px;
+  -webkit-user-select: none;
+     -moz-user-select: none;
+      -ms-user-select: none;
+          user-select: none;
+}
+.form-group-submit {
+  margin-top: 30px;
+}
+.dark-checkbox input {
+  position: absolute;
+  left: -9999px;
+  visibility: hidden;
+}
+.dark-checkbox label {
+  position: relative;
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  vertical-align: middle;
+  background-color: #1c1c21;
+  border-radius: 3px;
+  -webkit-transition: background-color .25s ease;
+       -o-transition: background-color .25s ease;
+          transition: background-color .25s ease;
+}
+.dark-checkbox label:hover {
+  cursor: pointer;
+  background-color: #202028;
+}
+.dark-checkbox label:after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 3;
+  width: 6px;
+  height: 6px;
+  content: '';
+  background-color: #22adf6;
+  border-radius: 50%;
+  opacity: 0;
+  -webkit-transition: opacity .25s ease,
+  -webkit-transform .25s ease;
+       -o-transition: opacity .25s ease,
+  -o-transform .25s ease;
+          transition: opacity .25s ease,
+  transform .25s ease;
+  -webkit-transform: translate(-50%, -50%) scale(2, 2);
+      -ms-transform: translate(-50%, -50%) scale(2, 2);
+       -o-transform: translate(-50%, -50%) scale(2, 2);
+          transform: translate(-50%, -50%) scale(2, 2);
+}
+.dark-checkbox input:checked + label:after {
+  opacity: 1;
+  -webkit-transform: translate(-50%, -50%) scale(1, 1);
+      -ms-transform: translate(-50%, -50%) scale(1, 1);
+       -o-transform: translate(-50%, -50%) scale(1, 1);
+          transform: translate(-50%, -50%) scale(1, 1);
+}
+.dark-radio input {
+  position: absolute;
+  left: -9999px;
+  visibility: hidden;
+}
+.dark-radio label {
+  position: relative;
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  vertical-align: middle;
+  background-color: #1c1c21;
+  border-radius: 50%;
+  -webkit-transition: background-color .25s ease;
+       -o-transition: background-color .25s ease;
+          transition: background-color .25s ease;
+}
+.dark-radio label:hover {
+  cursor: pointer;
+  background-color: #202028;
+}
+.dark-radio label:after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 3;
+  width: 6px;
+  height: 6px;
+  content: '';
+  background-color: #22adf6;
+  border-radius: 50%;
+  opacity: 0;
+  -webkit-transition: opacity .25s ease,
+  -webkit-transform .25s ease;
+       -o-transition: opacity .25s ease,
+  -o-transform .25s ease;
+          transition: opacity .25s ease,
+  transform .25s ease;
+  -webkit-transform: translate(-50%, -50%) scale(2, 2);
+      -ms-transform: translate(-50%, -50%) scale(2, 2);
+       -o-transform: translate(-50%, -50%) scale(2, 2);
+          transform: translate(-50%, -50%) scale(2, 2);
+}
+.dark-radio input:checked + label:after {
+  opacity: 1;
+  -webkit-transform: translate(-50%, -50%) scale(1, 1);
+      -ms-transform: translate(-50%, -50%) scale(1, 1);
+       -o-transform: translate(-50%, -50%) scale(1, 1);
+          transform: translate(-50%, -50%) scale(1, 1);
 }
 .badge {
   color: #fff;
@@ -8543,4 +8673,3 @@ body.modal-open nav.navbar {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
-/*# sourceMappingURL=bootstrap-theme.css.map */
