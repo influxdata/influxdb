@@ -20,7 +20,7 @@ const Dashboard = ({
   templatesIncludingDashTime,
   onSummonOverlayTechnologies,
   onSelectTemplate,
-  showTempVarControls,
+  showTemplateControlBar,
 }) => {
   if (dashboard.id === 0) {
     return null
@@ -54,7 +54,7 @@ const Dashboard = ({
               templates={dashboard.templates}
               onSelectTemplate={onSelectTemplate}
               onOpenTemplateManager={onOpenTemplateManager}
-              isOpen={showTempVarControls}
+              isOpen={showTemplateControlBar}
             />}
         {cells.length
           ? <LayoutRenderer
@@ -121,7 +121,7 @@ Dashboard.propTypes = {
   timeRange: shape({}).isRequired,
   onOpenTemplateManager: func.isRequired,
   onSelectTemplate: func.isRequired,
-  showTempVarControls: bool,
+  showTemplateControlBar: bool,
 }
 
 export default Dashboard

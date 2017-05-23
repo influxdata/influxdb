@@ -17,7 +17,7 @@ import * as dashboardActionCreators from 'src/dashboards/actions'
 
 import {
   setAutoRefresh,
-  tempVarControlsToggled as tempVarControlsToggledAction,
+  templateControlBarVisibilityToggled as templateControlBarVisibilityToggledAction,
 } from 'shared/actions/app'
 import {presentationButtonDispatcher} from 'shared/dispatchers'
 
@@ -211,7 +211,7 @@ class DashboardPage extends Component {
   }
 
   handleToggleTempVarControls() {
-    this.props.tempVarControlsToggled()
+    this.props.templateControlBarVisibilityToggled()
   }
 
   getActiveDashboard() {
@@ -223,7 +223,7 @@ class DashboardPage extends Component {
     const {
       source,
       timeRange,
-      showTempVarControls,
+      showTemplateControlBar,
       dashboards,
       autoRefresh,
       cellQueryStatus,
@@ -299,7 +299,7 @@ class DashboardPage extends Component {
               onAddCell={this.handleAddCell}
               onEditDashboard={this.handleEditDashboard}
               onToggleTempVarControls={this.handleToggleTempVarControls}
-              showTempVarControls={showTempVarControls}
+              showTemplateControlBar={showTemplateControlBar}
             >
               {dashboards
                 ? dashboards.map((d, i) => (
@@ -331,7 +331,7 @@ class DashboardPage extends Component {
               templatesIncludingDashTime={templatesIncludingDashTime}
               onSummonOverlayTechnologies={this.handleSummonOverlayTechnologies}
               onSelectTemplate={this.handleSelectTemplate}
-              showTempVarControls={showTempVarControls}
+              showTemplateControlBar={showTemplateControlBar}
             />
           : null}
       </div>
@@ -389,9 +389,9 @@ DashboardPage.propTypes = {
   ),
   handleChooseAutoRefresh: func.isRequired,
   autoRefresh: number.isRequired,
-  tempVarControlsToggled: func.isRequired,
+  templateControlBarVisibilityToggled: func.isRequired,
   timeRange: shape({}).isRequired,
-  showTempVarControls: bool.isRequired,
+  showTemplateControlBar: bool.isRequired,
   inPresentationMode: bool.isRequired,
   handleClickPresentationButton: func,
   cellQueryStatus: shape({
@@ -405,7 +405,7 @@ const mapStateToProps = state => {
   const {
     app: {
       ephemeral: {inPresentationMode},
-      persisted: {autoRefresh, showTempVarControls},
+      persisted: {autoRefresh, showTemplateControlBar},
     },
     dashboardUI: {dashboards, timeRange, cellQueryStatus},
   } = state
@@ -414,7 +414,7 @@ const mapStateToProps = state => {
     dashboards,
     autoRefresh,
     timeRange,
-    showTempVarControls,
+    showTemplateControlBar,
     inPresentationMode,
     cellQueryStatus,
   }
@@ -422,8 +422,8 @@ const mapStateToProps = state => {
 
 const mapDispatchToProps = dispatch => ({
   handleChooseAutoRefresh: bindActionCreators(setAutoRefresh, dispatch),
-  tempVarControlsToggled: bindActionCreators(
-    tempVarControlsToggledAction,
+  templateControlBarVisibilityToggled: bindActionCreators(
+    templateControlBarVisibilityToggledAction,
     dispatch
   ),
   handleClickPresentationButton: presentationButtonDispatcher(dispatch),
