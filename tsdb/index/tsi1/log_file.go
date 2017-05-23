@@ -755,8 +755,8 @@ func (f *LogFile) MeasurementSeriesIterator(name []byte) SeriesIterator {
 	return newLogSeriesIterator(mm.series)
 }
 
-// WriteTo compacts the log file and writes it to w.
-func (f *LogFile) WriteTo(w io.Writer, m, k uint64) (n int64, err error) {
+// CompactTo compacts the log file and writes it to w.
+func (f *LogFile) CompactTo(w io.Writer, m, k uint64) (n int64, err error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
