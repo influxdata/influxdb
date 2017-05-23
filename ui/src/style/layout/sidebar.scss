@@ -21,38 +21,6 @@ $sidebar-active-accent: $c-laser;
 $sidebar-logo-bg: $g17-whisper;
 $sidebar-logo-color: $g8-storm;
 
-
-// Rename button
-.js-open-rename-cluster-modal {
-  display: inline-block;
-  height: 20px;
-  width: 20px;
-  border: none;
-  background-color: $g8-storm;
-  vertical-align: middle;
-  border-radius: 3px;
-  margin-left: 11px;
-  margin-right: -25px;
-  position: relative;
-  font-size: 13px;
-  color: $g20-white;
-  opacity: 0.4;
-  transition:
-    background-color 0.25s ease,
-    opacity 0.25s ease;
-
-  .icon.pencil {
-    position: absolute;
-    top: 3px;
-    left: 4px;
-  }
-
-  &:hover {
-    background-color: $g9-mountain;
-    cursor: pointer;
-  }
-}
-
 // Sidebar styles
 .sidebar {
   display: flex;
