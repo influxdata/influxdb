@@ -166,6 +166,7 @@ $dash-graph-options-arrow: 8px;
   z-index: 11;
   right: 0px;
   top: 0px;
+  text-align: center;
 
   > .btn {
     background-color: transparent !important;
@@ -197,6 +198,7 @@ $dash-graph-options-arrow: 8px;
   display: block;
   list-style: none;
   padding: 0;
+  margin: 0;
   width: 90px;
   visibility: hidden;
   transition-property: all;
@@ -208,6 +210,8 @@ $dash-graph-options-arrow: 8px;
     line-height: 28px;
     background-color: $g5-pepper;
     padding: 0 11px;
+    margin: 0;
+    text-align: left;
     color: $g15-platinum;
     opacity: 0;
     transition:
