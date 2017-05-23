@@ -492,10 +492,11 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []CompactionGroup {
 // findGenerations groups all the TSM files by generation based
 // on their filename, then returns the generations in descending order (newest first).
 func (c *DefaultPlanner) findGenerations() tsmGenerations {
-	c.mu.RLock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	last := c.lastFindGenerations
 	lastGen := c.lastGenerations
-	c.mu.RUnlock()
 
 	if !last.IsZero() && c.FileStore.LastModified().Equal(last) {
 		return lastGen
@@ -525,10 +526,8 @@ func (c *DefaultPlanner) findGenerations() tsmGenerations {
 		sort.Sort(orderedGenerations)
 	}
 
-	c.mu.Lock()
 	c.lastFindGenerations = genTime
 	c.lastGenerations = orderedGenerations
-	c.mu.Unlock()
 
 	return orderedGenerations
 }
