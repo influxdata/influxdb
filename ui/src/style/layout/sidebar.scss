@@ -6,7 +6,6 @@
 $sidebar-width: 60px;
 $sidebar-menu-gutter: 30px;
 $sidebar-menu-indent: 13px;
-$sidebar-radius: 4px;
 
 $sidebar-hover: $g8-storm;
 $sidebar-item-hover: $g7-graphite;
@@ -145,7 +144,7 @@ $sidebar-logo-color: $g8-storm;
   }
 
   &__menu {
-    border-radius: 0 $sidebar-radius $sidebar-radius 0;
+    border-radius: 0 $radius $radius 0;
     background: $sidebar-hover;
     opacity: 0;
     transition: opacity 0.25s ease;
@@ -206,12 +205,12 @@ $sidebar-logo-color: $g8-storm;
 
     // Rounding top outside corner to match container
     &:first-child {
-      border-top-right-radius: $sidebar-radius;
+      border-top-right-radius: $radius;
     }
 
     // Rounding bottom outside corner of match container
     &:last-child {
-      border-bottom-right-radius: $sidebar-radius;
+      border-bottom-right-radius: $radius;
     }
 
     // Used for sub-navigation
