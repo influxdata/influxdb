@@ -87,7 +87,7 @@ const InfluxTable = ({
           </Link>
         </div>
         <div className="panel-body">
-          <table className="table v-center margin-bottom-zero">
+          <table className="table v-center margin-bottom-zero table-highlight">
             <thead>
               <tr>
                 <th>Name</th>
@@ -131,7 +131,7 @@ const InfluxTable = ({
                             Connect
                           </Link>}
                       <button
-                        className="btn btn-danger btn-xs"
+                        className="btn btn-danger btn-xs btn-square"
                         onClick={() => handleDeleteSource(s)}
                       >
                         <span className="icon trash" />
