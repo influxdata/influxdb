@@ -12,11 +12,11 @@ const OverlayControls = props => {
       <h3 className="overlay--graph-name">Cell Editor</h3>
       <div className="overlay-controls--right">
         <p>Visualization Type:</p>
-        <ul className="toggle toggle-sm">
+        <ul className="nav nav-tablist nav-tablist-sm">
           {graphTypes.map(graphType => (
             <li
               key={graphType.type}
-              className={classnames('toggle-btn', {
+              className={classnames({
                 active: graphType.type === selectedGraphType,
               })}
               onClick={() => onSelectGraphType(graphType.type)}
