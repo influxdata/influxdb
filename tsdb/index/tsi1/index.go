@@ -790,7 +790,6 @@ func (i *Index) compact() {
 	for level := minLevel; level <= maxLevel; level++ {
 		// Skip level if it is currently compacting.
 		if i.levelCompacting[level] {
-			// log.Printf("tsi1: SKIP, already compacting: level=%d", level)
 			continue
 		}
 
