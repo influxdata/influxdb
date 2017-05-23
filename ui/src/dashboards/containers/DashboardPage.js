@@ -293,10 +293,7 @@ class DashboardPage extends Component {
               {dashboards
                 ? dashboards.map((d, i) => (
                     <li className="dropdown-item" key={i}>
-                      <Link
-                        to={`/sources/${sourceID}/dashboards/${d.id}`}
-                        className="role-option"
-                      >
+                      <Link to={`/sources/${sourceID}/dashboards/${d.id}`}>
                         {d.name}
                       </Link>
                     </li>

@@ -46,15 +46,15 @@ class CustomTimeRangeDropdown extends Component {
 
     return (
       <div
-        className={classnames('custom-time-range', {show: isVisible})}
+        className={classnames('custom-time-range', {open: isVisible})}
         style={{display: 'flex'}}
       >
         <button
-          className="btn btn-sm btn-info custom-time-range--btn"
+          className="btn btn-sm btn-default dropdown-toggle"
           onClick={onToggle}
         >
           <span className="icon clock" />
-          {`${moment(lower).format('MMM Do HH:mm')} — ${moment(upper).format('MMM Do HH:mm')}`}
+          <span className="dropdown-selected">{`${moment(lower).format('MMM Do HH:mm')} — ${moment(upper).format('MMM Do HH:mm')}`}</span>
           <span className="caret" />
         </button>
         <div className="custom-time--container">

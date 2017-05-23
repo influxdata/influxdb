@@ -32,10 +32,10 @@ const DashboardHeader = ({
                   type="button"
                   data-toggle="dropdown"
                 >
-                  <span className="button-text">{buttonText}</span>
+                  <span>{buttonText}</span>
                   <span className="caret" />
                 </button>
-                <ul className="dropdown-menu" aria-labelledby="dropdownMenu1">
+                <ul className="dropdown-menu">
                   {children}
                 </ul>
               </div>}

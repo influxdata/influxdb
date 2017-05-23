@@ -3,7 +3,10 @@ import {Link} from 'react-router'
 import classnames from 'classnames'
 import OnClickOutside from 'shared/components/OnClickOutside'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
-import {DROPDOWN_MENU_MAX_HEIGHT, DROPDOWN_MENU_ITEM_THRESHOLD} from 'shared/constants/index'
+import {
+  DROPDOWN_MENU_MAX_HEIGHT,
+  DROPDOWN_MENU_ITEM_THRESHOLD,
+} from 'shared/constants/index'
 
 class Dropdown extends Component {
   constructor(props) {
@@ -22,7 +25,7 @@ class Dropdown extends Component {
   static defaultProps = {
     actions: [],
     buttonSize: 'btn-sm',
-    buttonColor: 'btn-info',
+    buttonColor: 'btn-default',
     menuWidth: '100%',
   }
 
@@ -55,13 +58,14 @@ class Dropdown extends Component {
   }
 
   renderShortMenu() {
-    const {actions, addNew, items, menuWidth, menuLabel} = this.props
+    const {actions, addNew, items, menuWidth, menuLabel, menuClass} = this.props
+
     return (
-      <ul className="dropdown-menu" style={{width: menuWidth}}>
-        {menuLabel
-          ? <li className="dropdown-header">{menuLabel}</li>
-          : null
-        }
+      <ul
+        className={classnames('dropdown-menu', {[menuClass]: menuClass})}
+        style={{width: menuWidth}}
+      >
+        {menuLabel ? <li className="dropdown-header">{menuLabel}</li> : null}
         {items.map((item, i) => {
           if (item.text === 'SEPARATOR') {
             return <li key={i} role="separator" className="divider" />
@@ -72,14 +76,13 @@ class Dropdown extends Component {
                 {item.text}
               </a>
               {actions.length > 0
-                ? <div className="dropdown-item__actions">
+                ? <div className="dropdown-actions">
                     {actions.map(action => {
                       return (
                         <button
                           key={action.text}
-                          className="dropdown-item__action"
-                          onClick={e =>
-                            this.handleAction(e, action, item)}
+                          className="dropdown-action"
+                          onClick={e => this.handleAction(e, action, item)}
                         >
                           <span
                             title={action.text}
@@ -105,17 +108,17 @@ class Dropdown extends Component {
   }
 
   renderLongMenu() {
-    const {actions, addNew, items, menuWidth, menuLabel} = this.props
+    const {actions, addNew, items, menuWidth, menuLabel, menuClass} = this.props
     return (
-      <ul className="dropdown-menu" style={{width: menuWidth, height: DROPDOWN_MENU_MAX_HEIGHT}}>
+      <ul
+        className={classnames('dropdown-menu', {[menuClass]: menuClass})}
+        style={{width: menuWidth, height: DROPDOWN_MENU_MAX_HEIGHT}}
+      >
         <FancyScrollbar autoHide={false}>
-          {menuLabel
-            ? <li className="dropdown-header">{menuLabel}</li>
-            : null
-          }
+          {menuLabel ? <li className="dropdown-header">{menuLabel}</li> : null}
           {items.map((item, i) => {
             if (item.text === 'SEPARATOR') {
-              return <li key={i} role="separator" className="divider" />
+              return <li key={i} className="dropdown-divider" />
             }
             return (
               <li className="dropdown-item" key={i}>
@@ -123,14 +126,13 @@ class Dropdown extends Component {
                   {item.text}
                 </a>
                 {actions.length > 0
-                  ? <div className="dropdown-item__actions">
+                  ? <div className="dropdown-actions">
                       {actions.map(action => {
                         return (
                           <button
                             key={action.text}
-                            className="dropdown-item__action"
-                            onClick={e =>
-                              this.handleAction(e, action, item)}
+                            className="dropdown-action"
+                            onClick={e => this.handleAction(e, action, item)}
                           >
                             <span
                               title={action.text}
@@ -179,10 +181,10 @@ class Dropdown extends Component {
           <span className="dropdown-selected">{selected}</span>
           <span className="caret" />
         </div>
-        {(isOpen && items.length < DROPDOWN_MENU_ITEM_THRESHOLD)
+        {isOpen && items.length < DROPDOWN_MENU_ITEM_THRESHOLD
           ? this.renderShortMenu()
           : null}
-        {(isOpen && items.length >= DROPDOWN_MENU_ITEM_THRESHOLD)
+        {isOpen && items.length >= DROPDOWN_MENU_ITEM_THRESHOLD
           ? this.renderLongMenu()
           : null}
       </div>
@@ -218,6 +220,7 @@ Dropdown.propTypes = {
   buttonColor: string,
   menuWidth: string,
   menuLabel: string,
+  menuClass: string,
 }
 
 export default OnClickOutside(Dropdown)
