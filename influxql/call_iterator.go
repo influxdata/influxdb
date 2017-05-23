@@ -781,39 +781,47 @@ func IntegerSpreadReduceSlice(a []IntegerPoint) []IntegerPoint {
 	return []IntegerPoint{{Time: ZeroTime, Value: max - min}}
 }
 
-func newTopIterator(input Iterator, opt IteratorOptions, n int) (Iterator, error) {
+func newTopIterator(input Iterator, opt IteratorOptions, n int, keepTags bool) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
 		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
 			fn := NewFloatTopReducer(n)
 			return fn, fn
 		}
-		return newFloatReduceFloatIterator(input, opt, createFn), nil
+		itr := newFloatReduceFloatIterator(input, opt, createFn)
+		itr.keepTags = keepTags
+		return itr, nil
 	case IntegerIterator:
 		createFn := func() (IntegerPointAggregator, IntegerPointEmitter) {
 			fn := NewIntegerTopReducer(n)
 			return fn, fn
 		}
-		return newIntegerReduceIntegerIterator(input, opt, createFn), nil
+		itr := newIntegerReduceIntegerIterator(input, opt, createFn)
+		itr.keepTags = keepTags
+		return itr, nil
 	default:
 		return nil, fmt.Errorf("unsupported top iterator type: %T", input)
 	}
 }
 
-func newBottomIterator(input Iterator, opt IteratorOptions, n int) (Iterator, error) {
+func newBottomIterator(input Iterator, opt IteratorOptions, n int, keepTags bool) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
 		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
 			fn := NewFloatBottomReducer(n)
 			return fn, fn
 		}
-		return newFloatReduceFloatIterator(input, opt, createFn), nil
+		itr := newFloatReduceFloatIterator(input, opt, createFn)
+		itr.keepTags = keepTags
+		return itr, nil
 	case IntegerIterator:
 		createFn := func() (IntegerPointAggregator, IntegerPointEmitter) {
 			fn := NewIntegerBottomReducer(n)
 			return fn, fn
 		}
-		return newIntegerReduceIntegerIterator(input, opt, createFn), nil
+		itr := newIntegerReduceIntegerIterator(input, opt, createFn)
+		itr.keepTags = keepTags
+		return itr, nil
 	default:
 		return nil, fmt.Errorf("unsupported bottom iterator type: %T", input)
 	}
