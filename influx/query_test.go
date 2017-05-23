@@ -16,6 +16,66 @@ func TestConvert(t *testing.T) {
 		wantErr  bool
 	}{
 		{
+			name:     "Test field order",
+			influxQL: `SELECT "usage_idle", "usage_guest_nice", "usage_system", "usage_guest" FROM "telegraf"."autogen"."cpu" WHERE time > :dashboardTime:`,
+			want: chronograf.QueryConfig{
+				Database:        "telegraf",
+				Measurement:     "cpu",
+				RetentionPolicy: "autogen",
+				Fields: []chronograf.Field{
+					chronograf.Field{
+						Field: "usage_idle",
+						Funcs: []string{},
+					},
+					chronograf.Field{
+						Field: "usage_guest_nice",
+						Funcs: []string{},
+					},
+					chronograf.Field{
+						Field: "usage_system",
+						Funcs: []string{},
+					},
+					chronograf.Field{
+						Field: "usage_guest",
+						Funcs: []string{},
+					},
+				},
+				Tags: map[string][]string{},
+				GroupBy: chronograf.GroupBy{
+					Tags: []string{},
+				},
+			},
+		},
+		{
+			name:     "Test field function order",
+			influxQL: `SELECT mean("usage_idle"), median("usage_idle"), count("usage_guest_nice"), mean("usage_guest_nice") FROM "telegraf"."autogen"."cpu" WHERE time > :dashboardTime:`,
+			want: chronograf.QueryConfig{
+				Database:        "telegraf",
+				Measurement:     "cpu",
+				RetentionPolicy: "autogen",
+				Fields: []chronograf.Field{
+					chronograf.Field{
+						Field: "usage_idle",
+						Funcs: []string{
+							"mean",
+							"median",
+						},
+					},
+					chronograf.Field{
+						Field: "usage_guest_nice",
+						Funcs: []string{
+							"count",
+							"mean",
+						},
+					},
+				},
+				Tags: map[string][]string{},
+				GroupBy: chronograf.GroupBy{
+					Tags: []string{},
+				},
+			},
+		},
+		{
 			name:     "Test named count field",
 			influxQL: `SELECT moving_average(mean("count"),14) FROM "usage_computed"."autogen".unique_clusters_by_day WHERE time > now() - 90d AND product = 'influxdb' group by time(1d)`,
 			RawText:  `SELECT moving_average(mean("count"),14) FROM "usage_computed"."autogen".unique_clusters_by_day WHERE time > now() - 90d AND product = 'influxdb' group by time(1d)`,
@@ -248,7 +308,7 @@ func TestConvert(t *testing.T) {
 				}
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Convert() = %#v, want %#v", got, tt.want)
+				t.Errorf("Convert() = \n%#v\n want \n%#v\n", got, tt.want)
 			}
 		})
 	}
