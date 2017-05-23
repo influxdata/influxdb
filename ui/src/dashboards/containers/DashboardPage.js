@@ -26,7 +26,7 @@ class DashboardPage extends Component {
       selectedCell: null,
       isEditMode: false,
       isTemplating: false,
-      isTempVarsControlsOpen: false,
+      showTempVarControls: false,
     }
 
     this.handleAddCell = ::this.handleAddCell
@@ -209,12 +209,12 @@ class DashboardPage extends Component {
   }
 
   handleTempVarsControlsToggle(e) {
-    const {isTempVarsControlsOpen} = this.state
+    const {showTempVarControls} = this.state
 
     if (e) {
       e.stopPropagation()
     }
-    this.setState({isTempVarsControlsOpen: !isTempVarsControlsOpen})
+    this.setState({showTempVarControls: !showTempVarControls})
   }
 
   getActiveDashboard() {
@@ -257,7 +257,7 @@ class DashboardPage extends Component {
       selectedCell,
       isEditMode,
       isTemplating,
-      isTempVarsControlsOpen,
+      showTempVarControls,
     } = this.state
 
     return (
@@ -306,7 +306,7 @@ class DashboardPage extends Component {
               onAddCell={this.handleAddCell}
               onEditDashboard={this.handleEditDashboard}
               onToggleTempVarControls={this.handleTempVarsControlsToggle}
-              isTempVarsControlsOpen={isTempVarsControlsOpen}
+              showTempVarControls={showTempVarControls}
             >
               {dashboards
                 ? dashboards.map((d, i) => (
@@ -338,7 +338,7 @@ class DashboardPage extends Component {
               templatesIncludingDashTime={templatesIncludingDashTime}
               onSummonOverlayTechnologies={this.handleSummonOverlayTechnologies}
               onSelectTemplate={this.handleSelectTemplate}
-              isTempVarsControlsOpen={isTempVarsControlsOpen}
+              showTempVarControls={showTempVarControls}
             />
           : null}
       </div>

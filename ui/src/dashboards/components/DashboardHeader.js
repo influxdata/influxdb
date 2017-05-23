@@ -21,7 +21,7 @@ const DashboardHeader = ({
   onAddCell,
   onEditDashboard,
   onToggleTempVarControls,
-  isTempVarsControlsOpen,
+  showTempVarControls,
 }) =>
   isHidden
     ? null
@@ -65,7 +65,7 @@ const DashboardHeader = ({
             {dashboard
               ? <div
                   className={classnames('btn btn-info btn-sm', {
-                    active: isTempVarsControlsOpen,
+                    active: showTempVarControls,
                   })}
                   onClick={onToggleTempVarControls}
                 >
@@ -109,7 +109,7 @@ DashboardHeader.propTypes = {
   onAddCell: func,
   onEditDashboard: func,
   onToggleTempVarControls: func,
-  isTempVarsControlsOpen: bool,
+  showTempVarControls: bool,
 }
 
 export default DashboardHeader
