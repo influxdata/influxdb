@@ -24,6 +24,7 @@ const TemplateControlBar = ({
             <Dropdown
               items={items}
               buttonSize="btn-xs"
+              menuClass="dropdown-astronaut"
               useAutoComplete={true}
               selected={selectedText || '(No values)'}
               onChoose={item =>

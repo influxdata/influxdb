@@ -4319,6 +4319,87 @@ p .label {
 .dropdown-toggle.btn-lg .dropdown-selected {
   padding-right: 17px;
 }
+/*
+    AutoComplete Field
+    ----------------------------------------------
+*/
+.dropdown-autocomplete {
+  position: relative;
+  padding: 0 !important;
+}
+.dropdown-autocomplete.btn-xs {
+  height: 22px;
+}
+.dropdown-autocomplete.btn-sm {
+  height: 30px;
+}
+.dropdown-autocomplete.btn-md {
+  height: 38px;
+}
+.dropdown-autocomplete.btn-lg {
+  height: 46px;
+}
+.dropdown-autocomplete--input {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  font-weight: 500;
+  color: #fff;
+  background-color: transparent;
+  border: 0;
+  outline: none;
+}
+.btn-xs .dropdown-autocomplete--input {
+  padding: 0 14px 0 7px;
+  font-size: 12px;
+}
+.btn-sm .dropdown-autocomplete--input {
+  padding: 0 22px 0 11px;
+  font-size: 13px;
+}
+.btn-md .dropdown-autocomplete--input {
+  padding: 0 28px 0 14px;
+  font-size: 15px;
+}
+.btn-lg .dropdown-autocomplete--input {
+  padding: 0 34px 0 17px;
+  font-size: 17px;
+}
+.dropdown-autocomplete--input::-webkit-input-placeholder {
+  font-weight: 500 !important;
+  color: rgba(255, 255, 255, .5);
+}
+.dropdown-autocomplete--input::-moz-placeholder {
+  font-weight: 500 !important;
+  color: rgba(255, 255, 255, .5);
+}
+.dropdown-autocomplete--input:-ms-input-placeholder {
+  font-weight: 500 !important;
+  color: rgba(255, 255, 255, .5);
+}
+.dropdown-autocomplete--input:-moz-placeholder {
+  font-weight: 500 !important;
+  color: rgba(255, 255, 255, .5);
+}
+.dropdown-autocomplete--input:focus {
+  color: #fff;
+}
+.dropdown-empty {
+  padding: 7px 9px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 15px;
+  color: rgba(255, 255, 255, .4);
+  -webkit-user-select: none;
+     -moz-user-select: none;
+      -ms-user-select: none;
+          user-select: none;
+}
+/*
+    Dropdown Menu
+    ----------------------------------------------
+*/
 .dropdown .dropdown-menu {
   min-width: 100%;
   padding: 0;
@@ -4331,8 +4412,8 @@ p .label {
   background:         linear-gradient(to right, #4591ed 0%, #22adf6 100%);
   filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='@color1', endColorstr='@color2', GradientType=1);
   border: 0;
-  -webkit-box-shadow: 0 2px 5px .6px rgba(15, 14, 21, .992);
-          box-shadow: 0 2px 5px .6px rgba(15, 14, 21, .992);
+  -webkit-box-shadow: 0 2px 5px .6px rgba(15, 14, 21, .2);
+          box-shadow: 0 2px 5px .6px rgba(15, 14, 21, .2);
 }
 .dropdown-menu li.dropdown-item {
   position: relative;
@@ -4357,7 +4438,9 @@ p .label {
   -ms-flex-pack: justify;
           justify-content: space-between;
 }
-.dropdown-menu li.dropdown-item:hover {
+.dropdown-menu li.dropdown-item:hover,
+.dropdown-menu li.dropdown-item.highlight,
+.dropdown-menu li.dropdown-item.highlight:hover {
   background: #00c9ff;
   background: -webkit-linear-gradient(left, #00c9ff 0%, #22adf6 100%);
   background: -webkit-gradient(linear, left top, right top, from(#00c9ff), to(#22adf6));
@@ -4397,17 +4480,26 @@ p .label {
 .dropdown-menu li.dropdown-item > a:focus:active,
 .dropdown-menu li.dropdown-item > a:focus:active:hover {
   color: #fff;
-  background: #6bdfff;
-  background: -webkit-linear-gradient(left, #6bdfff 0%, #22adf6 100%);
-  background: -webkit-gradient(linear, left top, right top, from(#6bdfff), to(#22adf6));
-  background:      -o-linear-gradient(left, #6bdfff 0%, #22adf6 100%);
-  background:         linear-gradient(to right, #6bdfff 0%, #22adf6 100%);
+  background: #326bba;
+  background: -webkit-linear-gradient(left, #326bba 0%, #22adf6 100%);
+  background: -webkit-gradient(linear, left top, right top, from(#326bba), to(#22adf6));
+  background:      -o-linear-gradient(left, #326bba 0%, #22adf6 100%);
+  background:         linear-gradient(to right, #326bba 0%, #22adf6 100%);
+  filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='@color1', endColorstr='@color2', GradientType=1);
+}
+.dropdown-menu li.dropdown-item.active {
+  color: #fff;
+  background: #326bba;
+  background: -webkit-linear-gradient(left, #326bba 0%, #22adf6 100%);
+  background: -webkit-gradient(linear, left top, right top, from(#326bba), to(#22adf6));
+  background:      -o-linear-gradient(left, #326bba 0%, #22adf6 100%);
+  background:         linear-gradient(to right, #326bba 0%, #22adf6 100%);
   filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='@color1', endColorstr='@color2', GradientType=1);
 }
 .dropdown .dropdown-menu .dropdown-actions {
   position: absolute;
   top: 50%;
-  right: 0;
+  right: 4px;
   z-index: 2;
   display: -webkit-box;
   display: -webkit-flex;
@@ -4432,7 +4524,7 @@ p .label {
   opacity: 1;
 }
 .dropdown .dropdown-menu .dropdown-action {
-  width: 27px;
+  width: 20px;
   height: 27px;
   padding: 0;
   margin: 0;
@@ -4470,22 +4562,41 @@ p .label {
   background-color: #22adf6;
 }
 /*
+    Dropdown Menu (only js highlighting, works with autocomplete feature)
+    ----------------------------------------------
+*/
+.dropdown .dropdown-menu.dropdown-menu--no-highlight li.dropdown-item:hover {
+  background: none;
+  background-color: transparent;
+}
+.dropdown .dropdown-menu.dropdown-menu--no-highlight li.dropdown-item.highlight,
+.dropdown .dropdown-menu.dropdown-menu--no-highlight li.dropdown-item.highlight:hover {
+  background: #00c9ff;
+  background: -webkit-linear-gradient(left, #00c9ff 0%, #22adf6 100%);
+  background: -webkit-gradient(linear, left top, right top, from(#00c9ff), to(#22adf6));
+  background:      -o-linear-gradient(left, #00c9ff 0%, #22adf6 100%);
+  background:         linear-gradient(to right, #00c9ff 0%, #22adf6 100%);
+  filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='@color1', endColorstr='@color2', GradientType=1);
+}
+/*
   Kapacitor Theme Dropdowns
 */
 .dropdown .dropdown-menu.dropdown-malachite {
-  background: #22adf6;
-  background: -webkit-linear-gradient(left, #22adf6 0%, #4ed8a0 100%);
-  background: -webkit-gradient(linear, left top, right top, from(#22adf6), to(#4ed8a0));
-  background:      -o-linear-gradient(left, #22adf6 0%, #4ed8a0 100%);
-  background:         linear-gradient(to right, #22adf6 0%, #4ed8a0 100%);
+  background: #4ed8a0;
+  background: -webkit-linear-gradient(left, #4ed8a0 0%, #22adf6 100%);
+  background: -webkit-gradient(linear, left top, right top, from(#4ed8a0), to(#22adf6));
+  background:      -o-linear-gradient(left, #4ed8a0 0%, #22adf6 100%);
+  background:         linear-gradient(to right, #4ed8a0 0%, #22adf6 100%);
   filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='@color1', endColorstr='@color2', GradientType=1);
 }
-.dropdown .dropdown-menu.dropdown-malachite li.dropdown-item:hover {
-  background: #00c9ff;
-  background: -webkit-linear-gradient(left, #00c9ff 0%, #4ed8a0 100%);
-  background: -webkit-gradient(linear, left top, right top, from(#00c9ff), to(#4ed8a0));
-  background:      -o-linear-gradient(left, #00c9ff 0%, #4ed8a0 100%);
-  background:         linear-gradient(to right, #00c9ff 0%, #4ed8a0 100%);
+.dropdown .dropdown-menu.dropdown-malachite li.dropdown-item:hover,
+.dropdown .dropdown-menu.dropdown-malachite li.dropdown-item.highlight,
+.dropdown .dropdown-menu.dropdown-malachite li.dropdown-item.highlight:hover {
+  background: #7ce490;
+  background: -webkit-linear-gradient(left, #7ce490 0%, #22adf6 100%);
+  background: -webkit-gradient(linear, left top, right top, from(#7ce490), to(#22adf6));
+  background:      -o-linear-gradient(left, #7ce490 0%, #22adf6 100%);
+  background:         linear-gradient(to right, #7ce490 0%, #22adf6 100%);
   filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='@color1', endColorstr='@color2', GradientType=1);
 }
 .dropdown .dropdown-menu.dropdown-malachite li.dropdown-item > a {
@@ -4501,43 +4612,72 @@ p .label {
 .dropdown .dropdown-menu.dropdown-malachite li.dropdown-item > a:focus:active,
 .dropdown .dropdown-menu.dropdown-malachite li.dropdown-item > a:focus:active:hover {
   color: #fff;
-  background: #6bdfff;
-  background: -webkit-linear-gradient(left, #6bdfff 0%, #4ed8a0 100%);
-  background: -webkit-gradient(linear, left top, right top, from(#6bdfff), to(#4ed8a0));
-  background:      -o-linear-gradient(left, #6bdfff 0%, #4ed8a0 100%);
-  background:         linear-gradient(to right, #6bdfff 0%, #4ed8a0 100%);
+  background: #32b08c;
+  background: -webkit-linear-gradient(left, #32b08c 0%, #22adf6 100%);
+  background: -webkit-gradient(linear, left top, right top, from(#32b08c), to(#22adf6));
+  background:      -o-linear-gradient(left, #32b08c 0%, #22adf6 100%);
+  background:         linear-gradient(to right, #32b08c 0%, #22adf6 100%);
   filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='@color1', endColorstr='@color2', GradientType=1);
 }
 .dropdown .dropdown-menu.dropdown-malachite li.dropdown-item .dropdown-action {
-  color: #108174;
+  color: #326bba;
 }
 .dropdown .dropdown-menu.dropdown-malachite li.dropdown-item .dropdown-action:hover {
   color: #fff;
 }
+.dropdown .dropdown-menu.dropdown-malachite li.dropdown-item.active {
+  background: #32b08c;
+  background: -webkit-linear-gradient(left, #32b08c 0%, #22adf6 100%);
+  background: -webkit-gradient(linear, left top, right top, from(#32b08c), to(#22adf6));
+  background:      -o-linear-gradient(left, #32b08c 0%, #22adf6 100%);
+  background:         linear-gradient(to right, #32b08c 0%, #22adf6 100%);
+  filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='@color1', endColorstr='@color2', GradientType=1);
+}
 .dropdown .dropdown-menu.dropdown-malachite li.dropdown-divider {
-  background-color: #4ed8a0;
+  background: #32b08c;
+  background: -webkit-linear-gradient(left, #32b08c 0%, #4591ed 100%);
+  background: -webkit-gradient(linear, left top, right top, from(#32b08c), to(#4591ed));
+  background:      -o-linear-gradient(left, #32b08c 0%, #4591ed 100%);
+  background:         linear-gradient(to right, #32b08c 0%, #4591ed 100%);
+  filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='@color1', endColorstr='@color2', GradientType=1);
 }
 .dropdown .dropdown-menu.dropdown-malachite li.dropdown-header {
-  color: #108174;
-  background-color: #4ed8a0;
+  color: #c6ffd0;
+  background: #32b08c;
+  background: -webkit-linear-gradient(left, #32b08c 0%, #4591ed 100%);
+  background: -webkit-gradient(linear, left top, right top, from(#32b08c), to(#4591ed));
+  background:      -o-linear-gradient(left, #32b08c 0%, #4591ed 100%);
+  background:         linear-gradient(to right, #32b08c 0%, #4591ed 100%);
+  filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='@color1', endColorstr='@color2', GradientType=1);
+}
+.dropdown .dropdown-menu.dropdown-malachite.dropdown-menu--no-highlight li.dropdown-item.highlight,
+.dropdown .dropdown-menu.dropdown-malachite.dropdown-menu--no-highlight li.dropdown-item.highlight:hover {
+  background: #7ce490;
+  background: -webkit-linear-gradient(left, #7ce490 0%, #22adf6 100%);
+  background: -webkit-gradient(linear, left top, right top, from(#7ce490), to(#22adf6));
+  background:      -o-linear-gradient(left, #7ce490 0%, #22adf6 100%);
+  background:         linear-gradient(to right, #7ce490 0%, #22adf6 100%);
+  filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='@color1', endColorstr='@color2', GradientType=1);
 }
 /*
   Purple Theme Dropdowns
 */
 .dropdown .dropdown-menu.dropdown-astronaut {
-  background: #4591ed;
-  background: -webkit-linear-gradient(left, #4591ed 0%, #9394ff 100%);
-  background: -webkit-gradient(linear, left top, right top, from(#4591ed), to(#9394ff));
-  background:      -o-linear-gradient(left, #4591ed 0%, #9394ff 100%);
-  background:         linear-gradient(to right, #4591ed 0%, #9394ff 100%);
+  background: #7a65f2;
+  background: -webkit-linear-gradient(left, #7a65f2 0%, #22adf6 100%);
+  background: -webkit-gradient(linear, left top, right top, from(#7a65f2), to(#22adf6));
+  background:      -o-linear-gradient(left, #7a65f2 0%, #22adf6 100%);
+  background:         linear-gradient(to right, #7a65f2 0%, #22adf6 100%);
   filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='@color1', endColorstr='@color2', GradientType=1);
 }
-.dropdown .dropdown-menu.dropdown-astronaut li.dropdown-item:hover {
-  background: #22adf6;
-  background: -webkit-linear-gradient(left, #22adf6 0%, #9394ff 100%);
-  background: -webkit-gradient(linear, left top, right top, from(#22adf6), to(#9394ff));
-  background:      -o-linear-gradient(left, #22adf6 0%, #9394ff 100%);
-  background:         linear-gradient(to right, #22adf6 0%, #9394ff 100%);
+.dropdown .dropdown-menu.dropdown-astronaut li.dropdown-item:hover,
+.dropdown .dropdown-menu.dropdown-astronaut li.dropdown-item.highlight,
+.dropdown .dropdown-menu.dropdown-astronaut li.dropdown-item.highlight:hover {
+  background: #9394ff;
+  background: -webkit-linear-gradient(left, #9394ff 0%, #22adf6 100%);
+  background: -webkit-gradient(linear, left top, right top, from(#9394ff), to(#22adf6));
+  background:      -o-linear-gradient(left, #9394ff 0%, #22adf6 100%);
+  background:         linear-gradient(to right, #9394ff 0%, #22adf6 100%);
   filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='@color1', endColorstr='@color2', GradientType=1);
 }
 .dropdown .dropdown-menu.dropdown-astronaut li.dropdown-item > a {
@@ -4553,11 +4693,19 @@ p .label {
 .dropdown .dropdown-menu.dropdown-astronaut li.dropdown-item > a:focus:active,
 .dropdown .dropdown-menu.dropdown-astronaut li.dropdown-item > a:focus:active:hover {
   color: #fff;
-  background: #00c9ff;
-  background: -webkit-linear-gradient(left, #00c9ff 0%, #9394ff 100%);
-  background: -webkit-gradient(linear, left top, right top, from(#00c9ff), to(#9394ff));
-  background:      -o-linear-gradient(left, #00c9ff 0%, #9394ff 100%);
-  background:         linear-gradient(to right, #00c9ff 0%, #9394ff 100%);
+  background: #513cc6;
+  background: -webkit-linear-gradient(left, #513cc6 0%, #22adf6 100%);
+  background: -webkit-gradient(linear, left top, right top, from(#513cc6), to(#22adf6));
+  background:      -o-linear-gradient(left, #513cc6 0%, #22adf6 100%);
+  background:         linear-gradient(to right, #513cc6 0%, #22adf6 100%);
+  filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='@color1', endColorstr='@color2', GradientType=1);
+}
+.dropdown .dropdown-menu.dropdown-astronaut li.dropdown-item.active {
+  background: #513cc6;
+  background: -webkit-linear-gradient(left, #513cc6 0%, #22adf6 100%);
+  background: -webkit-gradient(linear, left top, right top, from(#513cc6), to(#22adf6));
+  background:      -o-linear-gradient(left, #513cc6 0%, #22adf6 100%);
+  background:         linear-gradient(to right, #513cc6 0%, #22adf6 100%);
   filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='@color1', endColorstr='@color2', GradientType=1);
 }
 .dropdown .dropdown-menu.dropdown-astronaut li.dropdown-item .dropdown-action {
@@ -4567,11 +4715,30 @@ p .label {
   color: #fff;
 }
 .dropdown .dropdown-menu.dropdown-astronaut li.dropdown-divider {
-  background-color: #9394ff;
+  background: #513cc6;
+  background: -webkit-linear-gradient(left, #513cc6 0%, #4591ed 100%);
+  background: -webkit-gradient(linear, left top, right top, from(#513cc6), to(#4591ed));
+  background:      -o-linear-gradient(left, #513cc6 0%, #4591ed 100%);
+  background:         linear-gradient(to right, #513cc6 0%, #4591ed 100%);
+  filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='@color1', endColorstr='@color2', GradientType=1);
 }
 .dropdown .dropdown-menu.dropdown-astronaut li.dropdown-header {
-  color: #513cc6;
-  background-color: #9394ff;
+  color: #b1b6ff;
+  background: #513cc6;
+  background: -webkit-linear-gradient(left, #513cc6 0%, #4591ed 100%);
+  background: -webkit-gradient(linear, left top, right top, from(#513cc6), to(#4591ed));
+  background:      -o-linear-gradient(left, #513cc6 0%, #4591ed 100%);
+  background:         linear-gradient(to right, #513cc6 0%, #4591ed 100%);
+  filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='@color1', endColorstr='@color2', GradientType=1);
+}
+.dropdown .dropdown-menu.dropdown-astronaut.dropdown-menu--no-highlight li.dropdown-item.highlight,
+.dropdown .dropdown-menu.dropdown-astronaut.dropdown-menu--no-highlight li.dropdown-item.highlight:hover {
+  background: #9394ff;
+  background: -webkit-linear-gradient(left, #9394ff 0%, #22adf6 100%);
+  background: -webkit-gradient(linear, left top, right top, from(#9394ff), to(#22adf6));
+  background:      -o-linear-gradient(left, #9394ff 0%, #22adf6 100%);
+  background:         linear-gradient(to right, #9394ff 0%, #22adf6 100%);
+  filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='@color1', endColorstr='@color2', GradientType=1);
 }
 .alert {
   position: relative;
