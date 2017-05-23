@@ -75,7 +75,14 @@ The admin UI is removed and unusable in this release. The `[admin]` configuratio
 - [#8392](https://github.com/influxdata/influxdb/issues/8393): Points beyond retention policy scope are dropped silently
 - [#8387](https://github.com/influxdata/influxdb/issues/8387): Fix TSM tmp file leaked on disk
 
-## v1.2.3 [unreleased]
+
+## v1.2.4 [2017-05-08]
+
+### Bugfixes
+
+- [#8338](https://github.com/influxdata/influxdb/pull/8338): Prefix partial write errors with `partial write:` to generalize identification in other subsystems
+
+## v1.2.3 [2017-04-17]
 
 ### Bugfixes
 
@@ -190,6 +197,14 @@ The stress tool `influx_stress` will be removed in a subsequent release. We reco
 - [#7563](https://github.com/influxdata/influxdb/issues/7563): RP should not allow `INF` or `0` as a shard duration.
 - [#7396](https://github.com/influxdata/influxdb/issues/7396): CLI should use spaces for alignment, not tabs.
 - [#6527](https://github.com/influxdata/influxdb/issues/6527): 0.12.2 Influx CLI client PRECISION returns "Unknown precision....
+
+
+## v1.1.5 [2017-04-28]
+
+### Bugfixes
+
+- [#8190](https://github.com/influxdata/influxdb/issues/8190): History file should redact passwords before saving to history.
+- [#8187](https://github.com/influxdata/influxdb/pull/8187): Several statements were missing the DefaultDatabase method
 
 ## v1.1.4 [2017-02-27]
 
