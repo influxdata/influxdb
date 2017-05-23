@@ -293,7 +293,10 @@ class Dropdown extends Component {
     return (
       <div
         onClick={this.handleClick}
-        className={classnames(`dropdown ${className}`, {open: isOpen})}
+        className={classnames('dropdown', {
+          open: isOpen,
+          [className]: className,
+        })}
       >
         {useAutoComplete && isOpen
           ? <div
