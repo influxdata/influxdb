@@ -4,6 +4,7 @@ import {
   disablePresentationMode,
   // delayEnablePresentationMode,
   setAutoRefresh,
+  tempVarControlsToggled,
 } from 'src/shared/actions/app'
 
 describe('Shared.Reducers.appReducer', () => {
@@ -13,6 +14,7 @@ describe('Shared.Reducers.appReducer', () => {
     },
     persisted: {
       autoRefresh: 0,
+      showTempVarControls: false,
     },
   }
 
@@ -36,5 +38,15 @@ describe('Shared.Reducers.appReducer', () => {
     const reducedState = appReducer(initialState, setAutoRefresh(expectedMs))
 
     expect(reducedState.persisted.autoRefresh).to.equal(expectedMs)
+  })
+
+  it('should handle TEMP_VAR_CONTROLS_TOGGLED', () => {
+    const reducedState = appReducer(initialState, tempVarControlsToggled())
+
+    const expectedTestState = !reducedState.persisted.showTempVarControls
+
+    expect(initialState.persisted.showTempVarControls).to.equal(
+      expectedTestState
+    )
   })
 })
