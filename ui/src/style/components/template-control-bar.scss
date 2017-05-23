@@ -27,7 +27,7 @@ $template-control--min-height: 52px;
   @include no-user-select();
   white-space: nowrap;
 }
-.template-control--manage {
+button.btn.template-control--manage {
   margin: 7px 8px;
 }
 .template-control--controls {
