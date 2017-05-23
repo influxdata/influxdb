@@ -822,9 +822,9 @@ func (f *LogFile) WriteTo(w io.Writer, m, k uint64) (n int64, err error) {
 
 func (f *LogFile) writeSeriesBlockTo(w io.Writer, names []string, m, k uint64, info *logFileCompactInfo, n *int64) error {
 	// Determine series count.
-	var seriesN uint64
+	var seriesN uint32
 	for _, mm := range f.mms {
-		seriesN += uint64(len(mm.series))
+		seriesN += uint32(len(mm.series))
 	}
 
 	// Write all series.
@@ -851,7 +851,7 @@ func (f *LogFile) writeSeriesBlockTo(w io.Writer, names []string, m, k uint64, i
 
 	// Close and flush series block.
 	err := enc.Close()
-	*n += enc.N()
+	*n += int64(enc.N())
 	if err != nil {
 		return err
 	}
@@ -874,7 +874,7 @@ func (f *LogFile) updateSeriesOffsets(w io.Writer, names []string, info *logFile
 	for _, name := range names {
 		mm := f.mms[name]
 		mmInfo := info.createMeasurementInfoIfNotExists(name)
-		mmInfo.seriesIDs = make([]uint64, 0, len(mm.series))
+		mmInfo.seriesIDs = make([]uint32, 0, len(mm.series))
 
 		for _, serie := range mm.series {
 			// Lookup series offset.
@@ -930,7 +930,7 @@ func (f *LogFile) writeTagsetTo(w io.Writer, name string, info *logFileCompactIn
 		// Add each value.
 		for v, value := range tag.tagValues {
 			tagValueInfo := tagSetInfo.tagValues[v]
-			sort.Sort(uint64Slice(tagValueInfo.seriesIDs))
+			sort.Sort(uint32Slice(tagValueInfo.seriesIDs))
 
 			if err := enc.EncodeValue(value.name, value.deleted, tagValueInfo.seriesIDs); err != nil {
 				return err
@@ -963,7 +963,7 @@ func (f *LogFile) writeMeasurementBlockTo(w io.Writer, names []string, info *log
 		mmInfo := info.mms[name]
 		assert(mmInfo != nil, "measurement info not found")
 
-		sort.Sort(uint64Slice(mmInfo.seriesIDs))
+		sort.Sort(uint32Slice(mmInfo.seriesIDs))
 		mw.Add(mm.name, mm.deleted, mmInfo.offset, mmInfo.size, mmInfo.seriesIDs)
 	}
 
@@ -999,7 +999,7 @@ func (info *logFileCompactInfo) createMeasurementInfoIfNotExists(name string) *l
 type logFileMeasurementCompactInfo struct {
 	offset    int64
 	size      int64
-	seriesIDs []uint64
+	seriesIDs []uint32
 
 	tagSet map[string]*logFileTagSetCompactInfo
 }
@@ -1027,7 +1027,7 @@ func (info *logFileTagSetCompactInfo) createTagValueInfoIfNotExists(value []byte
 }
 
 type logFileTagValueCompactInfo struct {
-	seriesIDs []uint64
+	seriesIDs []uint32
 }
 
 // MergeSeriesSketches merges the series sketches belonging to this LogFile
