@@ -35,7 +35,7 @@ const kapacitorDropdown = (
   return (
     <Dropdown
       className="dropdown-160"
-      buttonColor="btn-info"
+      buttonColor="btn-default"
       buttonSize="btn-xs"
       items={kapacitorItems}
       onChoose={item => setActiveKapacitor(item.kapacitor)}

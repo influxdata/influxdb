@@ -108,7 +108,7 @@ const TagListItem = React.createClass({
             {tagItemLabel}
           </span>
           <div
-            className={classnames('btn btn-info btn-xs group-by-tag', {
+            className={classnames('btn btn-default btn-xs group-by-tag', {
               active: this.props.isUsingGroupBy,
             })}
             onClick={this.handleGroupBy}
