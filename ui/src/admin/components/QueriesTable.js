@@ -4,9 +4,9 @@ import QueryRow from 'src/admin/components/QueryRow'
 
 const QueriesTable = ({queries, onKillQuery}) => (
   <div>
-    <div className="panel panel-minimal">
+    <div className="panel panel-default">
       <div className="panel-body">
-        <table className="table v-center admin-table">
+        <table className="table v-center admin-table table-highlight">
           <thead>
             <tr>
               <th>Database</th>

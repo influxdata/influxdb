@@ -25,10 +25,10 @@ class UserEditingRow extends Component {
   render() {
     const {user, isNew} = this.props
     return (
-      <td>
+      <td style={{width: '240px'}}>
         <div className="admin-table--edit-cell">
           <input
-            className="form-control"
+            className="form-control input-sm"
             name="name"
             type="text"
             value={user.name || ''}
@@ -36,16 +36,20 @@ class UserEditingRow extends Component {
             onChange={this.handleEdit(user)}
             onKeyPress={this.handleKeyPress(user)}
             autoFocus={true}
+            spellCheck={false}
+            autoComplete={false}
           />
           {isNew
             ? <input
-                className="form-control"
+                className="form-control input-sm"
                 name="password"
                 type="password"
                 value={user.password || ''}
                 placeholder="Password"
                 onChange={this.handleEdit(user)}
                 onKeyPress={this.handleKeyPress(user)}
+                spellCheck={false}
+                autoComplete={false}
               />
             : null}
         </div>

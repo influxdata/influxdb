@@ -48,13 +48,15 @@ class DatabaseRow extends Component {
             {isNew
               ? <div className="admin-table--edit-cell">
                   <input
-                    className="form-control"
+                    className="form-control input-sm"
                     type="text"
                     defaultValue={name}
                     placeholder="Name this RP"
                     onKeyDown={e => this.handleKeyDown(e, database)}
                     ref={r => (this.name = r)}
                     autoFocus={true}
+                    spellCheck={false}
+                    autoComplete={false}
                   />
                 </div>
               : <div className="admin-table--edit-cell">
@@ -64,7 +66,7 @@ class DatabaseRow extends Component {
           <td>
             <div className="admin-table--edit-cell">
               <input
-                className="form-control"
+                className="form-control input-sm"
                 name="name"
                 type="text"
                 defaultValue={formattedDuration}
@@ -72,13 +74,15 @@ class DatabaseRow extends Component {
                 onKeyDown={e => this.handleKeyDown(e, database)}
                 ref={r => (this.duration = r)}
                 autoFocus={!isNew}
+                spellCheck={false}
+                autoComplete={false}
               />
             </div>
           </td>
           <td style={isRFDisplayed ? {} : {display: 'none'}}>
             <div className="admin-table--edit-cell">
               <input
-                className="form-control"
+                className="form-control input-sm"
                 name="name"
                 type="number"
                 min="1"
@@ -86,6 +90,8 @@ class DatabaseRow extends Component {
                 placeholder="# of Nodes"
                 onKeyDown={e => this.handleKeyDown(e, database)}
                 ref={r => (this.replication = r)}
+                spellCheck={false}
+                autoComplete={false}
               />
             </div>
           </td>
@@ -121,6 +127,7 @@ class DatabaseRow extends Component {
             ? <YesNoButtons
                 onConfirm={() => onDelete(database, retentionPolicy)}
                 onCancel={this.handleEndDelete}
+                buttonSize="btn-xs"
               />
             : <button
                 className="btn btn-xs btn-danger admin-table--hidden"

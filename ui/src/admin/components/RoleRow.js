@@ -72,7 +72,11 @@ const RoleRow = ({
             />
           : null}
       </td>
-      <DeleteConfirmTableCell onDelete={onDelete} item={role} />
+      <DeleteConfirmTableCell
+        onDelete={onDelete}
+        item={role}
+        buttonSize="btn-xs"
+      />
     </tr>
   )
 }

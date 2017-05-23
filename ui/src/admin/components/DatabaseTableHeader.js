@@ -90,7 +90,7 @@ const Header = ({
     <div style={confirmStyle}>
       <div className="admin-table--delete-cell">
         <input
-          className="form-control"
+          className="form-control input-xs"
           name="name"
           type="text"
           value={database.deleteCode || ''}
@@ -98,12 +98,15 @@ const Header = ({
           onChange={e => onDatabaseDeleteConfirm(database, e)}
           onKeyDown={e => onDatabaseDeleteConfirm(database, e)}
           autoFocus={true}
+          autoComplete={false}
+          spellCheck={false}
         />
       </div>
       <ConfirmButtons
         item={database}
         onConfirm={onConfirm}
         onCancel={onCancel}
+        buttonSize="btn-xs"
       />
     </div>
   )
@@ -119,14 +122,16 @@ const Header = ({
 const EditHeader = ({database, onEdit, onKeyDown, onConfirm, onCancel}) => (
   <div className="db-manager-header db-manager-header--edit">
     <input
-      className="form-control"
+      className="form-control input-sm"
       name="name"
       type="text"
       value={database.name}
-      placeholder="Name this database"
+      placeholder="Name this Database"
       onChange={e => onEdit(database, {name: e.target.value})}
       onKeyDown={e => onKeyDown(e, database)}
       autoFocus={true}
+      spellCheck={false}
+      autoComplete={false}
     />
     <ConfirmButtons item={database} onConfirm={onConfirm} onCancel={onCancel} />
   </div>

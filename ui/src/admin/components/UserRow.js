@@ -48,8 +48,9 @@ const UserRow = ({
           onSave={onSave}
           isNew={isNew}
         />
-        {hasRoles ? <td /> : null}
-        <td />
+        {hasRoles ? <td>--</td> : null}
+        <td>--</td>
+        <td style={{width: '190px'}} />
         <td className="text-right" style={{width: '85px'}}>
           <ConfirmButtons item={user} onConfirm={onSave} onCancel={onCancel} />
         </td>
@@ -59,7 +60,7 @@ const UserRow = ({
 
   return (
     <tr>
-      <td>{name}</td>
+      <td style={{width: '240px'}}>{name}</td>
       {hasRoles
         ? <td>
             <MultiSelectDropdown
@@ -74,6 +75,7 @@ const UserRow = ({
             />
           </td>
         : null}
+
       <td>
         {allPermissions && allPermissions.length
           ? <MultiSelectDropdown
@@ -86,14 +88,19 @@ const UserRow = ({
             />
           : null}
       </td>
-      <td className="text-right" style={{width: '300px'}}>
+      <td className="text-right" style={{width: '190px'}}>
         <ChangePassRow
           onEdit={onEdit}
           onApply={handleUpdatePassword}
           user={user}
+          buttonSize="btn-xs"
         />
       </td>
-      <DeleteConfirmTableCell onDelete={onDelete} item={user} />
+      <DeleteConfirmTableCell
+        onDelete={onDelete}
+        item={user}
+        buttonSize="btn-xs"
+      />
     </tr>
   )
 }

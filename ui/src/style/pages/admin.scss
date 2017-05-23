@@ -12,22 +12,7 @@
 */
 .admin-tabs {
   padding-right: 0;
-
-  & + div {
-    padding-left: 0;
-
-    .panel {
-      border-top-left-radius: 0;
-    }
-    .panel-body {
-      min-height: 300px;
-    }
-    .panel-title {
-      font-size: 17px;
-      font-weight: 400 !important;
-      color: $g12-forge;
-    }
-  }
+  & + div {padding-left: 0;}
 }
 .admin-tabs .btn-group {
   margin: 0;
@@ -64,8 +49,26 @@
     }
   }
 }
-
-
+.admin-tabs--content {
+  .panel {
+    border-top-left-radius: 0;
+  }
+  .panel-heading {
+    height: 60px;
+  }
+  .panel-title {
+    font-size: 17px;
+    font-weight: 400 !important;
+    color: $g12-forge;
+    padding: 0;
+  }
+  .panel-body {
+    min-height: 300px;
+  }
+  .panel-heading + .panel-body {
+    padding-top: 0;
+  }
+}
 /*
     Admin Table
     ----------------------------------------------
@@ -184,21 +187,18 @@
   h4 {
     margin: 0px;
     color: $c-potassium;
-    font-size: 17px;
+    font-size: 16px;
     font-family: $code-font;
     padding-left: 6px;
+    width: auto;
   }
 }
 .db-manager-header--edit {
   justify-content: flex-start;
 
   .form-control {
-    height: 22px;
-    padding: 0 6px;
-    margin: 0 4px 0 0;
-    min-width: 110px;
-    font-size: 12px;
-    width: 50%;
+    margin: 0 8px 0 0;
+    flex: 1 0 0;
   }
 }
 
@@ -215,11 +215,7 @@
   flex-wrap: nowrap;
 
   .form-control {
-    height: 22px;
-    padding: 0 6px;
     margin: 0 4px 0 0;
-    min-width: 110px;
-    font-size: 12px;
     width: 120px;
   }
 }

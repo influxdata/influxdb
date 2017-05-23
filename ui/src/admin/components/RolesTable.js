@@ -17,7 +17,7 @@ const RolesTable = ({
   onUpdateRoleUsers,
   onUpdateRolePermissions,
 }) => (
-  <div className="panel panel-info">
+  <div className="panel panel-default">
     <FilterBar
       type="roles"
       onFilter={onFilter}
@@ -25,7 +25,7 @@ const RolesTable = ({
       onClickCreate={onClickCreate}
     />
     <div className="panel-body">
-      <table className="table v-center admin-table">
+      <table className="table v-center admin-table table-highlight">
         <thead>
           <tr>
             <th>Name</th>
