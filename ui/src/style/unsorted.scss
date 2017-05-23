@@ -71,10 +71,15 @@
 .generic-empty-state {
   display: flex;
   flex-direction: column;
+  text-align: center;
   align-items: center;
   justify-content: center;
   color: $g12-forge;
   padding: 20px 0;
+
+  h4, h5 {
+    font-weight: 400;
+  }
 
   .icon {
     margin-bottom: 11px;
@@ -131,7 +136,6 @@
     Loading Dots
     ----------------------------------------------
 */
-
 .loading-dots {
   position: absolute;
   transform: translate(0,0);
@@ -153,7 +157,6 @@
   div:nth-child(2) {left: 50%; animation: refreshingSpinnerB 0.8s cubic-bezier(0.645, 0.045, 0.355, 1) infinite;}
   div:nth-child(3) {left: 100%; animation: refreshingSpinnerC 0.8s cubic-bezier(0.645, 0.045, 0.355, 1) infinite;}
 }
-
 
 /*
     Custom Tabs
@@ -206,7 +209,9 @@
   @include no-user-select();
 }
 
-
+br {
+  @include no-user-select();
+}
 
 .select-source-page {
   position: absolute;
