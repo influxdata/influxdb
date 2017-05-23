@@ -20,7 +20,7 @@ const DashboardHeader = ({
   onAddCell,
   onEditDashboard,
 }) =>
-  (isHidden
+  isHidden
     ? null
     : <div className="page-header full-width">
         <div className="page-header__container">
@@ -52,7 +52,7 @@ const DashboardHeader = ({
               : null}
             {dashboard
               ? <button
-                  className="btn btn-info btn-sm"
+                  className="btn btn-default btn-sm"
                   onClick={onEditDashboard}
                 >
                   <span className="icon pencil" />
@@ -69,14 +69,14 @@ const DashboardHeader = ({
               selected={timeRange}
             />
             <div
-              className="btn btn-info btn-sm"
+              className="btn btn-default btn-sm btn-square"
               onClick={handleClickPresentationButton}
             >
               <span className="icon expand-a" style={{margin: 0}} />
             </div>
           </div>
         </div>
-      </div>)
+      </div>
 
 const {array, bool, func, number, shape, string} = PropTypes
 

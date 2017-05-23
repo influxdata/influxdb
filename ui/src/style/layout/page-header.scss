@@ -45,10 +45,10 @@ $page-header-weight: 400 !important;
 .page-header__right {
   justify-content: flex-end;
   > * {
-    margin: 0 0 0 4px;
+    margin: 0 0 0 4px !important;
 
     &:only-child {
-      margin-right: 0;
+      margin-right: 0 !important;
     }
   }
 }

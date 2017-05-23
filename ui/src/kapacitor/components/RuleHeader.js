@@ -89,7 +89,7 @@ export const RuleHeader = React.createClass({
           id="save-kapacitor-tooltip"
           effect="solid"
           html={true}
-          offset={{top: 2}}
+          offset={{bottom: 4}}
           place="bottom"
           class="influx-tooltip kapacitor-tooltip place-bottom"
         />
