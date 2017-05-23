@@ -48,12 +48,14 @@ const Dashboard = ({
       })}
     >
       <div className="dashboard container-fluid full-width">
-        <TemplateControlBar
-          templates={dashboard.templates}
-          onSelectTemplate={onSelectTemplate}
-          onOpenTemplateManager={onOpenTemplateManager}
-          isOpen={showTempVarControls}
-        />
+        {inPresentationMode
+          ? null
+          : <TemplateControlBar
+              templates={dashboard.templates}
+              onSelectTemplate={onSelectTemplate}
+              onOpenTemplateManager={onOpenTemplateManager}
+              isOpen={showTempVarControls}
+            />}
         {cells.length
           ? <LayoutRenderer
               templates={templatesIncludingDashTime}
