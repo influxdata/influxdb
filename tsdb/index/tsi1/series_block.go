@@ -11,6 +11,7 @@ import (
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/bloom"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/estimator/hll"
 	"github.com/influxdata/influxdb/pkg/mmap"
@@ -24,16 +25,17 @@ var ErrSeriesOverflow = errors.New("series overflow")
 const (
 	// Series list trailer field sizes.
 	SeriesBlockTrailerSize = 0 +
-		8 + 8 + // series data offset/size
-		8 + 8 + 8 + // series index offset/size/capacity
-		8 + 8 + // series sketch offset/size
-		8 + 8 + // tombstone series sketch offset/size
-		8 + 8 + // series count and tombstone count
+		4 + 4 + // series data offset/size
+		4 + 4 + 4 + // series index offset/size/capacity
+		8 + 4 + 4 + // bloom filter false positive rate, offset/size
+		4 + 4 + // series sketch offset/size
+		4 + 4 + // tombstone series sketch offset/size
+		4 + 4 + // series count and tombstone count
 		0
 
 	// Other field sizes
-	SeriesCountSize = 8
-	SeriesIDSize    = 8
+	SeriesCountSize = 4
+	SeriesIDSize    = 4
 )
 
 // Series flag constants.
@@ -58,8 +60,11 @@ type SeriesBlock struct {
 	seriesIndexes []seriesBlockIndex
 
 	// Exact series counts for this block.
-	seriesN    int64
-	tombstoneN int64
+	seriesN    int32
+	tombstoneN int32
+
+	// Bloom filter used for fast series existence check.
+	filter *bloom.Filter
 
 	// Series block sketch and tombstone sketch for cardinality estimation.
 	// While we have exact counts for the block, these sketches allow us to
@@ -87,7 +92,7 @@ func (blk *SeriesBlock) Series(name []byte, tags models.Tags) SeriesElem {
 }
 
 // Offset returns the byte offset of the series within the block.
-func (blk *SeriesBlock) Offset(name []byte, tags models.Tags, buf []byte) (offset uint64, tombstoned bool) {
+func (blk *SeriesBlock) Offset(name []byte, tags models.Tags, buf []byte) (offset uint32, tombstoned bool) {
 	// Exit if no series indexes exist.
 	if len(blk.seriesIndexes) == 0 {
 		return 0, false
@@ -95,7 +100,15 @@ func (blk *SeriesBlock) Offset(name []byte, tags models.Tags, buf []byte) (offse
 
 	// Compute series key.
 	buf = AppendSeriesKey(buf[:0], name, tags)
-	bufN := uint64(len(buf))
+	bufN := uint32(len(buf))
+
+	// Quickly check the bloom filter.
+	// If the key doesn't exist then we know for sure that it doesn't exist.
+	// If it does exist then we need to do a hash index check to verify. False
+	// positives are possible with a bloom filter.
+	if !blk.filter.Contains(buf) {
+		return 0, false
+	}
 
 	// Find the correct partition.
 	// Use previous index unless an exact match on the min value.
@@ -108,7 +121,7 @@ func (blk *SeriesBlock) Offset(name []byte, tags models.Tags, buf []byte) (offse
 	seriesIndex := blk.seriesIndexes[i]
 
 	// Search within partition.
-	n := seriesIndex.capacity
+	n := int64(seriesIndex.capacity)
 	hash := rhh.HashKey(buf)
 	pos := hash % n
 
@@ -116,7 +129,7 @@ func (blk *SeriesBlock) Offset(name []byte, tags models.Tags, buf []byte) (offse
 	var d int64
 	for {
 		// Find offset of series.
-		offset := binary.BigEndian.Uint64(seriesIndex.data[pos*SeriesIDSize:])
+		offset := binary.BigEndian.Uint32(seriesIndex.data[pos*SeriesIDSize:])
 		if offset == 0 {
 			return 0, false
 		}
@@ -144,8 +157,8 @@ func (blk *SeriesBlock) Offset(name []byte, tags models.Tags, buf []byte) (offse
 }
 
 // SeriesCount returns the number of series.
-func (blk *SeriesBlock) SeriesCount() uint64 {
-	return uint64(blk.seriesN + blk.tombstoneN)
+func (blk *SeriesBlock) SeriesCount() uint32 {
+	return uint32(blk.seriesN + blk.tombstoneN)
 }
 
 // SeriesIterator returns an iterator over all the series.
@@ -179,22 +192,29 @@ func (blk *SeriesBlock) UnmarshalBinary(data []byte) error {
 		idx := &blk.seriesIndexes[i]
 
 		// Read data block.
-		var offset, size uint64
-		offset, buf = binary.BigEndian.Uint64(buf[:8]), buf[8:]
-		size, buf = binary.BigEndian.Uint64(buf[:8]), buf[8:]
+		var offset, size uint32
+		offset, buf = binary.BigEndian.Uint32(buf[:4]), buf[4:]
+		size, buf = binary.BigEndian.Uint32(buf[:4]), buf[4:]
 		idx.data = blk.data[offset : offset+size]
 
 		// Read block capacity.
-		idx.capacity, buf = int64(binary.BigEndian.Uint64(buf[:8])), buf[8:]
+		idx.capacity, buf = int32(binary.BigEndian.Uint32(buf[:4])), buf[4:]
 
 		// Read min key.
-		var n uint64
-		n, buf = binary.BigEndian.Uint64(buf[:8]), buf[8:]
+		var n uint32
+		n, buf = binary.BigEndian.Uint32(buf[:4]), buf[4:]
 		idx.min, buf = buf[:n], buf[n:]
 	}
 	if len(buf) != 0 {
 		return fmt.Errorf("data remaining in index list buffer: %d", len(buf))
 	}
+
+	// Initialize bloom filter.
+	filter, err := bloom.NewFilterBuffer(data[t.Bloom.Offset:][:t.Bloom.Size], t.Bloom.K)
+	if err != nil {
+		return err
+	}
+	blk.filter = filter
 
 	// Initialise sketches. We're currently using HLL+.
 	var s, ts = hll.NewDefaultPlus(), hll.NewDefaultPlus()
@@ -218,13 +238,13 @@ func (blk *SeriesBlock) UnmarshalBinary(data []byte) error {
 type seriesBlockIndex struct {
 	data     []byte
 	min      []byte
-	capacity int64
+	capacity int32
 }
 
 // seriesBlockIterator is an iterator over a series ids in a series list.
 type seriesBlockIterator struct {
-	i, n   uint64
-	offset uint64
+	i, n   uint32
+	offset uint32
 	sblk   *SeriesBlock
 	e      SeriesBlockElem // buffer
 }
@@ -243,8 +263,8 @@ func (itr *seriesBlockIterator) Next() SeriesElem {
 			itr.offset++
 
 			// Read index capacity.
-			n := binary.BigEndian.Uint64(itr.sblk.data[itr.offset:])
-			itr.offset += 8
+			n := binary.BigEndian.Uint32(itr.sblk.data[itr.offset:])
+			itr.offset += 4
 
 			// Skip over index.
 			itr.offset += n * SeriesIDSize
@@ -256,7 +276,7 @@ func (itr *seriesBlockIterator) Next() SeriesElem {
 
 		// Move iterator and offset forward.
 		itr.i++
-		itr.offset += uint64(itr.e.size)
+		itr.offset += uint32(itr.e.size)
 
 		return &itr.e
 	}
@@ -355,12 +375,12 @@ func AppendSeriesElem(dst []byte, flag byte, name []byte, tags models.Tags) []by
 // AppendSeriesKey serializes name and tags to a byte slice.
 // The total length is prepended as a uvarint.
 func AppendSeriesKey(dst []byte, name []byte, tags models.Tags) []byte {
-	buf := make([]byte, binary.MaxVarintLen64)
+	buf := make([]byte, binary.MaxVarintLen32)
 	origLen := len(dst)
 
 	// The tag count is variable encoded, so we need to know ahead of time what
 	// the size of the tag count value will be.
-	tcBuf := make([]byte, binary.MaxVarintLen64)
+	tcBuf := make([]byte, binary.MaxVarintLen32)
 	tcSz := binary.PutUvarint(tcBuf, uint64(len(tags)))
 
 	// Size of name/tags. Does not include total length.
@@ -510,13 +530,16 @@ type SeriesBlockEncoder struct {
 	indexMin []byte
 	indexes  []seriesBlockIndexEncodeInfo
 
+	// Bloom filter to check for series existance.
+	filter *bloom.Filter
+
 	// Series sketch and tombstoned series sketch. These must be
 	// set before calling WriteTo.
 	sketch, tSketch estimator.Sketch
 }
 
 // NewSeriesBlockEncoder returns a new instance of SeriesBlockEncoder.
-func NewSeriesBlockEncoder(w io.Writer) *SeriesBlockEncoder {
+func NewSeriesBlockEncoder(w io.Writer, n uint32, m, k uint64) *SeriesBlockEncoder {
 	return &SeriesBlockEncoder{
 		w: w,
 
@@ -524,6 +547,8 @@ func NewSeriesBlockEncoder(w io.Writer) *SeriesBlockEncoder {
 			Capacity:   MaxSeriesBlockHashSize,
 			LoadFactor: LoadFactor,
 		}),
+
+		filter: bloom.NewFilter(m, k),
 
 		sketch:  hll.NewDefaultPlus(),
 		tSketch: hll.NewDefaultPlus(),
@@ -572,7 +597,10 @@ func (enc *SeriesBlockEncoder) Encode(name []byte, tags models.Tags, deleted boo
 
 	// Save offset to generate index later.
 	// Key is copied by the RHH map.
-	enc.offsets.Put(buf[1:], uint64(offset))
+	enc.offsets.Put(buf[1:], uint32(offset))
+
+	// Update bloom filter.
+	enc.filter.Insert(buf[1:])
 
 	// Update sketches & trailer.
 	if deleted {
@@ -600,27 +628,35 @@ func (enc *SeriesBlockEncoder) Close() error {
 
 	// Write dictionary-encoded series list.
 	enc.trailer.Series.Data.Offset = 1
-	enc.trailer.Series.Data.Size = enc.n - enc.trailer.Series.Data.Offset
+	enc.trailer.Series.Data.Size = int32(enc.n) - enc.trailer.Series.Data.Offset
 
 	// Write dictionary-encoded series hash index.
-	enc.trailer.Series.Index.Offset = enc.n
+	enc.trailer.Series.Index.Offset = int32(enc.n)
 	if err := enc.writeIndexEntries(); err != nil {
 		return err
 	}
-	enc.trailer.Series.Index.Size = enc.n - enc.trailer.Series.Index.Offset
+	enc.trailer.Series.Index.Size = int32(enc.n) - enc.trailer.Series.Index.Offset
+
+	// Flush bloom filter.
+	enc.trailer.Bloom.K = enc.filter.K()
+	enc.trailer.Bloom.Offset = int32(enc.n)
+	if err := writeTo(enc.w, enc.filter.Bytes(), &enc.n); err != nil {
+		return err
+	}
+	enc.trailer.Bloom.Size = int32(enc.n) - enc.trailer.Bloom.Offset
 
 	// Write the sketches out.
-	enc.trailer.Sketch.Offset = enc.n
+	enc.trailer.Sketch.Offset = int32(enc.n)
 	if err := writeSketchTo(enc.w, enc.sketch, &enc.n); err != nil {
 		return err
 	}
-	enc.trailer.Sketch.Size = enc.n - enc.trailer.Sketch.Offset
+	enc.trailer.Sketch.Size = int32(enc.n) - enc.trailer.Sketch.Offset
 
-	enc.trailer.TSketch.Offset = enc.n
+	enc.trailer.TSketch.Offset = int32(enc.n)
 	if err := writeSketchTo(enc.w, enc.tSketch, &enc.n); err != nil {
 		return err
 	}
-	enc.trailer.TSketch.Size = enc.n - enc.trailer.TSketch.Offset
+	enc.trailer.TSketch.Size = int32(enc.n) - enc.trailer.TSketch.Offset
 
 	// Write trailer.
 	nn, err := enc.trailer.WriteTo(enc.w)
@@ -634,23 +670,23 @@ func (enc *SeriesBlockEncoder) Close() error {
 
 // writeIndexEntries writes a list of series hash index entries.
 func (enc *SeriesBlockEncoder) writeIndexEntries() error {
-	enc.trailer.Series.Index.N = int64(len(enc.indexes))
+	enc.trailer.Series.Index.N = int32(len(enc.indexes))
 
 	for _, idx := range enc.indexes {
 		// Write offset/size.
-		if err := writeUint64To(enc.w, uint64(idx.offset), &enc.n); err != nil {
+		if err := writeUint32To(enc.w, uint32(idx.offset), &enc.n); err != nil {
 			return err
-		} else if err := writeUint64To(enc.w, uint64(idx.size), &enc.n); err != nil {
+		} else if err := writeUint32To(enc.w, uint32(idx.size), &enc.n); err != nil {
 			return err
 		}
 
 		// Write capacity.
-		if err := writeUint64To(enc.w, uint64(idx.capacity), &enc.n); err != nil {
+		if err := writeUint32To(enc.w, uint32(idx.capacity), &enc.n); err != nil {
 			return err
 		}
 
 		// Write min key.
-		if err := writeUint64To(enc.w, uint64(len(idx.min)), &enc.n); err != nil {
+		if err := writeUint32To(enc.w, uint32(len(idx.min)), &enc.n); err != nil {
 			return err
 		} else if err := writeTo(enc.w, idx.min, &enc.n); err != nil {
 			return err
@@ -708,12 +744,12 @@ func (enc *SeriesBlockEncoder) flushIndex() error {
 	}
 	// Write index capacity.
 	// This is used for skipping over when iterating sequentially.
-	if err := writeUint64To(enc.w, uint64(enc.offsets.Cap()), &enc.n); err != nil {
+	if err := writeUint32To(enc.w, uint32(enc.offsets.Cap()), &enc.n); err != nil {
 		return err
 	}
 
 	// Determine size.
-	var sz int64 = enc.offsets.Cap() * 8
+	var sz int64 = enc.offsets.Cap() * 4
 
 	// Save current position to ensure size is correct by the end.
 	offset := enc.n
@@ -721,9 +757,9 @@ func (enc *SeriesBlockEncoder) flushIndex() error {
 	// Encode hash map offset entries.
 	for i := int64(0); i < enc.offsets.Cap(); i++ {
 		_, v := enc.offsets.Elem(i)
-		seriesOffset, _ := v.(uint64)
+		seriesOffset, _ := v.(uint32)
 
-		if err := writeUint64To(enc.w, uint64(seriesOffset), &enc.n); err != nil {
+		if err := writeUint32To(enc.w, uint32(seriesOffset), &enc.n); err != nil {
 			return err
 		}
 	}
@@ -738,9 +774,9 @@ func (enc *SeriesBlockEncoder) flushIndex() error {
 
 	// Add to index entries.
 	enc.indexes = append(enc.indexes, seriesBlockIndexEncodeInfo{
-		offset:   offset,
-		size:     size,
-		capacity: uint64(enc.offsets.Cap()),
+		offset:   uint32(offset),
+		size:     uint32(size),
+		capacity: uint32(enc.offsets.Cap()),
 		min:      enc.indexMin,
 	})
 
@@ -752,9 +788,9 @@ func (enc *SeriesBlockEncoder) flushIndex() error {
 
 // seriesBlockIndexEncodeInfo stores offset information for seriesBlockIndex structures.
 type seriesBlockIndexEncodeInfo struct {
-	offset   int64
-	size     int64
-	capacity uint64
+	offset   uint32
+	size     uint32
+	capacity uint32
 	min      []byte
 }
 
@@ -766,25 +802,30 @@ func ReadSeriesBlockTrailer(data []byte) SeriesBlockTrailer {
 	buf := data[len(data)-SeriesBlockTrailerSize:]
 
 	// Read series data info.
-	t.Series.Data.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
-	t.Series.Data.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
+	t.Series.Data.Offset, buf = int32(binary.BigEndian.Uint32(buf[0:4])), buf[4:]
+	t.Series.Data.Size, buf = int32(binary.BigEndian.Uint32(buf[0:4])), buf[4:]
 
 	// Read series hash index info.
-	t.Series.Index.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
-	t.Series.Index.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
-	t.Series.Index.N, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
+	t.Series.Index.Offset, buf = int32(binary.BigEndian.Uint32(buf[0:4])), buf[4:]
+	t.Series.Index.Size, buf = int32(binary.BigEndian.Uint32(buf[0:4])), buf[4:]
+	t.Series.Index.N, buf = int32(binary.BigEndian.Uint32(buf[0:4])), buf[4:]
+
+	// Read bloom filter info.
+	t.Bloom.K, buf = binary.BigEndian.Uint64(buf[0:8]), buf[8:]
+	t.Bloom.Offset, buf = int32(binary.BigEndian.Uint32(buf[0:4])), buf[4:]
+	t.Bloom.Size, buf = int32(binary.BigEndian.Uint32(buf[0:4])), buf[4:]
 
 	// Read series sketch info.
-	t.Sketch.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
-	t.Sketch.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
+	t.Sketch.Offset, buf = int32(binary.BigEndian.Uint32(buf[0:4])), buf[4:]
+	t.Sketch.Size, buf = int32(binary.BigEndian.Uint32(buf[0:4])), buf[4:]
 
 	// Read tombstone series sketch info.
-	t.TSketch.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
-	t.TSketch.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
+	t.TSketch.Offset, buf = int32(binary.BigEndian.Uint32(buf[0:4])), buf[4:]
+	t.TSketch.Size, buf = int32(binary.BigEndian.Uint32(buf[0:4])), buf[4:]
 
 	// Read series & tombstone count.
-	t.SeriesN, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
-	t.TombstoneN, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
+	t.SeriesN, buf = int32(binary.BigEndian.Uint32(buf[0:4])), buf[4:]
+	t.TombstoneN, buf = int32(binary.BigEndian.Uint32(buf[0:4])), buf[4:]
 
 	return t
 }
@@ -793,65 +834,81 @@ func ReadSeriesBlockTrailer(data []byte) SeriesBlockTrailer {
 type SeriesBlockTrailer struct {
 	Series struct {
 		Data struct {
-			Offset int64
-			Size   int64
+			Offset int32
+			Size   int32
 		}
 		Index struct {
-			Offset int64
-			Size   int64
-			N      int64
+			Offset int32
+			Size   int32
+			N      int32
 		}
+	}
+
+	// Bloom filter info.
+	Bloom struct {
+		K      uint64
+		Offset int32
+		Size   int32
 	}
 
 	// Offset and size of cardinality sketch for measurements.
 	Sketch struct {
-		Offset int64
-		Size   int64
+		Offset int32
+		Size   int32
 	}
 
 	// Offset and size of cardinality sketch for tombstoned measurements.
 	TSketch struct {
-		Offset int64
-		Size   int64
+		Offset int32
+		Size   int32
 	}
 
-	SeriesN    int64
-	TombstoneN int64
+	SeriesN    int32
+	TombstoneN int32
 }
 
 func (t SeriesBlockTrailer) WriteTo(w io.Writer) (n int64, err error) {
-	if err := writeUint64To(w, uint64(t.Series.Data.Offset), &n); err != nil {
+	if err := writeUint32To(w, uint32(t.Series.Data.Offset), &n); err != nil {
 		return n, err
-	} else if err := writeUint64To(w, uint64(t.Series.Data.Size), &n); err != nil {
+	} else if err := writeUint32To(w, uint32(t.Series.Data.Size), &n); err != nil {
 		return n, err
 	}
 
-	if err := writeUint64To(w, uint64(t.Series.Index.Offset), &n); err != nil {
+	if err := writeUint32To(w, uint32(t.Series.Index.Offset), &n); err != nil {
 		return n, err
-	} else if err := writeUint64To(w, uint64(t.Series.Index.Size), &n); err != nil {
+	} else if err := writeUint32To(w, uint32(t.Series.Index.Size), &n); err != nil {
 		return n, err
-	} else if err := writeUint64To(w, uint64(t.Series.Index.N), &n); err != nil {
+	} else if err := writeUint32To(w, uint32(t.Series.Index.N), &n); err != nil {
+		return n, err
+	}
+
+	// Write bloom filter info.
+	if err := writeUint64To(w, t.Bloom.K, &n); err != nil {
+		return n, err
+	} else if err := writeUint32To(w, uint32(t.Bloom.Offset), &n); err != nil {
+		return n, err
+	} else if err := writeUint32To(w, uint32(t.Bloom.Size), &n); err != nil {
 		return n, err
 	}
 
 	// Write measurement sketch info.
-	if err := writeUint64To(w, uint64(t.Sketch.Offset), &n); err != nil {
+	if err := writeUint32To(w, uint32(t.Sketch.Offset), &n); err != nil {
 		return n, err
-	} else if err := writeUint64To(w, uint64(t.Sketch.Size), &n); err != nil {
+	} else if err := writeUint32To(w, uint32(t.Sketch.Size), &n); err != nil {
 		return n, err
 	}
 
 	// Write tombstone measurement sketch info.
-	if err := writeUint64To(w, uint64(t.TSketch.Offset), &n); err != nil {
+	if err := writeUint32To(w, uint32(t.TSketch.Offset), &n); err != nil {
 		return n, err
-	} else if err := writeUint64To(w, uint64(t.TSketch.Size), &n); err != nil {
+	} else if err := writeUint32To(w, uint32(t.TSketch.Size), &n); err != nil {
 		return n, err
 	}
 
 	// Write series and tombstone count.
-	if err := writeUint64To(w, uint64(t.SeriesN), &n); err != nil {
+	if err := writeUint32To(w, uint32(t.SeriesN), &n); err != nil {
 		return n, err
-	} else if err := writeUint64To(w, uint64(t.TombstoneN), &n); err != nil {
+	} else if err := writeUint32To(w, uint32(t.TombstoneN), &n); err != nil {
 		return n, err
 	}
 
@@ -862,7 +919,7 @@ type serie struct {
 	name    []byte
 	tags    models.Tags
 	deleted bool
-	offset  uint64
+	offset  uint32
 }
 
 func (s *serie) flag() uint8 { return encodeSerieFlag(s.deleted) }

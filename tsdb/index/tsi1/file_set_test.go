@@ -2,12 +2,9 @@ package tsi1_test
 
 import (
 	"fmt"
-	"reflect"
 	"testing"
 
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/tsdb/index/internal"
-	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 )
 
 // Ensure fileset can return an iterator over all series in the index.
@@ -268,9 +265,10 @@ func TestFileSet_TagKeyIterator(t *testing.T) {
 	})
 }
 
+/*
 func TestFileSet_FilterNamesTags(t *testing.T) {
 	var mf internal.File
-	fs := tsi1.FileSet{&mf}
+	fs := tsi1.NewFileSet(nil, []tsi1.File{&mf})
 
 	var (
 		names [][]byte
@@ -361,6 +359,7 @@ func TestFileSet_FilterNamesTags(t *testing.T) {
 		t.Fatalf("got %v, expected %v", got, exp)
 	}
 }
+*/
 
 var (
 	byteSliceResult [][]byte

@@ -720,7 +720,7 @@ func (itr *seriesExprIterator) Next() SeriesElem {
 
 // seriesIDIterator represents a iterator over a list of series ids.
 type seriesIDIterator interface {
-	next() uint64
+	next() uint32
 }
 
 // writeTo writes write v into w. Updates n.
@@ -772,6 +772,12 @@ func writeUvarintTo(w io.Writer, v uint64, n *int64) error {
 	*n += int64(nn)
 	return err
 }
+
+type uint32Slice []uint32
+
+func (a uint32Slice) Len() int           { return len(a) }
+func (a uint32Slice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a uint32Slice) Less(i, j int) bool { return a[i] < a[j] }
 
 type uint64Slice []uint64
 
