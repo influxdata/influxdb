@@ -70,7 +70,7 @@ const (
 )
 
 // NewIndexFunc creates a new index.
-type NewIndexFunc func(id uint64, path string, options EngineOptions) Index
+type NewIndexFunc func(id uint64, database, path string, options EngineOptions) Index
 
 // newIndexFuncs is a lookup of index constructors by name.
 var newIndexFuncs = make(map[string]NewIndexFunc)
@@ -95,7 +95,7 @@ func RegisteredIndexes() []string {
 
 // NewIndex returns an instance of an index based on its format.
 // If the path does not exist then the DefaultFormat is used.
-func NewIndex(id uint64, path string, options EngineOptions) (Index, error) {
+func NewIndex(id uint64, database, path string, options EngineOptions) (Index, error) {
 	format := options.IndexVersion
 
 	// Use default format unless existing directory exists.
@@ -113,11 +113,11 @@ func NewIndex(id uint64, path string, options EngineOptions) (Index, error) {
 	if fn == nil {
 		return nil, fmt.Errorf("invalid index format: %q", format)
 	}
-	return fn(id, path, options), nil
+	return fn(id, database, path, options), nil
 }
 
-func MustOpenIndex(id uint64, path string, options EngineOptions) Index {
-	idx, err := NewIndex(id, path, options)
+func MustOpenIndex(id uint64, database, path string, options EngineOptions) Index {
+	idx, err := NewIndex(id, database, path, options)
 	if err != nil {
 		panic(err)
 	} else if err := idx.Open(); err != nil {

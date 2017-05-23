@@ -17,6 +17,8 @@ import (
 	"testing"
 	"time"
 
+	"path"
+
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/deep"
@@ -159,12 +161,13 @@ func TestEngine_Backup(t *testing.T) {
 	p3 := MustParsePointString("cpu,host=C value=1.3 3000000000")
 
 	// Write those points to the engine.
+	db := path.Base(f.Name())
 	opt := tsdb.NewEngineOptions()
-	opt.InmemIndex = inmem.NewIndex()
-	idx := tsdb.MustOpenIndex(1, filepath.Join(f.Name(), "index"), opt)
+	opt.InmemIndex = inmem.NewIndex(db)
+	idx := tsdb.MustOpenIndex(1, db, filepath.Join(f.Name(), "index"), opt)
 	defer idx.Close()
 
-	e := tsm1.NewEngine(1, idx, f.Name(), walPath, opt).(*tsm1.Engine)
+	e := tsm1.NewEngine(1, idx, db, f.Name(), walPath, opt).(*tsm1.Engine)
 
 	// mock the planner so compactions don't run during the test
 	e.CompactionPlan = &mockPlanner{}
@@ -589,11 +592,12 @@ func TestEngine_DeleteSeries(t *testing.T) {
 	p3 := MustParsePointString("cpu,host=A sum=1.3 3000000000")
 
 	// Write those points to the engine.
+	db := path.Base(f.Name())
 	opt := tsdb.NewEngineOptions()
-	opt.InmemIndex = inmem.NewIndex()
-	idx := tsdb.MustOpenIndex(1, filepath.Join(f.Name(), "index"), opt)
+	opt.InmemIndex = inmem.NewIndex(db)
+	idx := tsdb.MustOpenIndex(1, db, filepath.Join(f.Name(), "index"), opt)
 	defer idx.Close()
-	e := tsm1.NewEngine(1, idx, f.Name(), walPath, opt).(*tsm1.Engine)
+	e := tsm1.NewEngine(1, idx, db, f.Name(), walPath, opt).(*tsm1.Engine)
 	// e.LoadMetadataIndex(1, MustNewDatabaseIndex("db0")) // Initialise an index
 
 	// mock the planner so compactions don't run during the test
@@ -644,12 +648,13 @@ func TestEngine_LastModified(t *testing.T) {
 	p3 := MustParsePointString("cpu,host=A sum=1.3 3000000000")
 
 	// Write those points to the engine.
+	db := path.Base(dir)
 	opt := tsdb.NewEngineOptions()
-	opt.InmemIndex = inmem.NewIndex()
-	idx := tsdb.MustOpenIndex(1, filepath.Join(dir, "index"), opt)
+	opt.InmemIndex = inmem.NewIndex(db)
+	idx := tsdb.MustOpenIndex(1, db, filepath.Join(dir, "index"), opt)
 	defer idx.Close()
 
-	e := tsm1.NewEngine(1, idx, dir, walPath, opt).(*tsm1.Engine)
+	e := tsm1.NewEngine(1, idx, db, dir, walPath, opt).(*tsm1.Engine)
 
 	// mock the planner so compactions don't run during the test
 	e.CompactionPlan = &mockPlanner{}
@@ -985,14 +990,16 @@ func NewEngine() *Engine {
 		panic(err)
 	}
 
+	db := path.Base(root)
 	opt := tsdb.NewEngineOptions()
-	opt.InmemIndex = inmem.NewIndex()
+	opt.InmemIndex = inmem.NewIndex(db)
 
-	idx := tsdb.MustOpenIndex(1, filepath.Join(root, "data", "index"), opt)
+	idx := tsdb.MustOpenIndex(1, db, filepath.Join(root, "data", "index"), opt)
 
 	return &Engine{
 		Engine: tsm1.NewEngine(1,
 			idx,
+			db,
 			filepath.Join(root, "data"),
 			filepath.Join(root, "wal"),
 			opt).(*tsm1.Engine),
@@ -1030,13 +1037,15 @@ func (e *Engine) Reopen() error {
 		return err
 	}
 
+	db := path.Base(e.root)
 	opt := tsdb.NewEngineOptions()
-	opt.InmemIndex = inmem.NewIndex()
+	opt.InmemIndex = inmem.NewIndex(db)
 
-	e.index = tsdb.MustOpenIndex(1, filepath.Join(e.root, "data", "index"), opt)
+	e.index = tsdb.MustOpenIndex(1, db, filepath.Join(e.root, "data", "index"), opt)
 
 	e.Engine = tsm1.NewEngine(1,
 		e.index,
+		db,
 		filepath.Join(e.root, "data"),
 		filepath.Join(e.root, "wal"),
 		opt).(*tsm1.Engine)

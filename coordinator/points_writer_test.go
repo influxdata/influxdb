@@ -422,7 +422,7 @@ func TestPointsWriter_WritePoints_Dropped(t *testing.T) {
 	c.Open()
 	defer c.Close()
 
-	err := c.WritePoints(pr.Database, pr.RetentionPolicy, models.ConsistencyLevelOne, pr.Points)
+	err := c.WritePointsPrivileged(pr.Database, pr.RetentionPolicy, models.ConsistencyLevelOne, pr.Points)
 	if _, ok := err.(tsdb.PartialWriteError); !ok {
 		t.Errorf("PointsWriter.WritePoints(): got %v, exp %v", err, tsdb.PartialWriteError{})
 	}

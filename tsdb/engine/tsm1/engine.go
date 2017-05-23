@@ -105,6 +105,7 @@ type Engine struct {
 	snapWG   sync.WaitGroup // waitgroup for running snapshot compactions
 
 	id           uint64
+	database     string
 	path         string
 	logger       zap.Logger // Logger to be used for important messages
 	traceLogger  zap.Logger // Logger to be used when trace-logging is on.
@@ -140,7 +141,7 @@ type Engine struct {
 }
 
 // NewEngine returns a new instance of Engine.
-func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine {
+func NewEngine(id uint64, idx tsdb.Index, database, path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine {
 	w := NewWAL(walPath)
 	w.syncDelay = time.Duration(opt.Config.WALFsyncDelay)
 
@@ -155,6 +156,7 @@ func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, opt tsdb.
 	logger := zap.New(zap.NullEncoder())
 	e := &Engine{
 		id:           id,
+		database:     database,
 		path:         path,
 		index:        idx,
 		logger:       logger,

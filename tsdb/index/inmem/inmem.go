@@ -33,10 +33,10 @@ import (
 const IndexName = "inmem"
 
 func init() {
-	tsdb.NewInmemIndex = func(name string) (interface{}, error) { return NewIndex(), nil }
+	tsdb.NewInmemIndex = func(name string) (interface{}, error) { return NewIndex(name), nil }
 
-	tsdb.RegisterIndex(IndexName, func(id uint64, path string, opt tsdb.EngineOptions) tsdb.Index {
-		return NewShardIndex(id, path, opt)
+	tsdb.RegisterIndex(IndexName, func(id uint64, database, path string, opt tsdb.EngineOptions) tsdb.Index {
+		return NewShardIndex(id, database, path, opt)
 	})
 }
 
@@ -45,6 +45,8 @@ func init() {
 // un-exported functions assume the caller will use the appropriate locks.
 type Index struct {
 	mu sync.RWMutex
+
+	database string
 
 	// In-memory metadata index, built on load and updated when new series come in
 	measurements map[string]*Measurement // measurement name to object and index
@@ -56,8 +58,9 @@ type Index struct {
 }
 
 // NewIndex returns a new initialized Index.
-func NewIndex() *Index {
+func NewIndex(database string) *Index {
 	index := &Index{
+		database:     database,
 		measurements: make(map[string]*Measurement),
 		series:       make(map[string]*Series),
 	}
@@ -210,7 +213,7 @@ func (i *Index) CreateMeasurementIndexIfNotExists(name []byte) *Measurement {
 	// and acquire the write lock
 	m = i.measurements[string(name)]
 	if m == nil {
-		m = NewMeasurement(string(name))
+		m = NewMeasurement(i.database, string(name))
 		i.measurements[string(name)] = m
 
 		// Add the measurement to the measurements sketch.
@@ -831,7 +834,7 @@ func (i *ShardIndex) TagSets(name []byte, opt influxql.IteratorOptions) ([]*infl
 }
 
 // NewShardIndex returns a new index for a shard.
-func NewShardIndex(id uint64, path string, opt tsdb.EngineOptions) tsdb.Index {
+func NewShardIndex(id uint64, database, path string, opt tsdb.EngineOptions) tsdb.Index {
 	return &ShardIndex{
 		Index: opt.InmemIndex.(*Index),
 		id:    id,

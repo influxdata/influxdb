@@ -17,8 +17,10 @@ import (
 // goroutine safe while un-exported functions assume the caller will use the
 // appropriate locks.
 type Measurement struct {
+	database string
+	Name     string `json:"name,omitempty"`
+
 	mu         sync.RWMutex
-	Name       string `json:"name,omitempty"`
 	fieldNames map[string]struct{}
 
 	// in-memory index fields
@@ -30,8 +32,9 @@ type Measurement struct {
 }
 
 // NewMeasurement allocates and initializes a new Measurement.
-func NewMeasurement(name string) *Measurement {
+func NewMeasurement(database, name string) *Measurement {
 	return &Measurement{
+		database:   database,
 		Name:       name,
 		fieldNames: make(map[string]struct{}),
 
@@ -338,6 +341,10 @@ func (m *Measurement) TagSets(shardID uint64, opt influxql.IteratorOptions) ([]*
 			continue
 		}
 
+		if opt.Authorizer != nil && !opt.Authorizer.AuthorizeSeriesRead(m.database, s.Key) {
+			continue
+		}
+
 		var tagsAsKey []byte
 		if len(dims) > 0 {
 			tagsAsKey = tsdb.MakeTagsKey(dims, s.Tags())
@@ -353,7 +360,7 @@ func (m *Measurement) TagSets(shardID uint64, opt influxql.IteratorOptions) ([]*
 			tagSets[string(tagsAsKey)] = tagSet
 		}
 		// Associate the series and filter with the Tagset.
-		tagSet.AddFilter(m.seriesByID[id].Key, filters[id])
+		tagSet.AddFilter(s.Key, filters[id])
 		seriesN++
 	}
 	// Release the lock while we sort all the tags

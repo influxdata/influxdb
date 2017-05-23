@@ -265,7 +265,7 @@ func (s *Shard) Open() error {
 
 		// Initialize underlying index.
 		ipath := filepath.Join(s.path, "index")
-		idx, err := NewIndex(s.id, ipath, s.options)
+		idx, err := NewIndex(s.id, s.database, ipath, s.options)
 		if err != nil {
 			return err
 		}
@@ -278,7 +278,7 @@ func (s *Shard) Open() error {
 		idx.WithLogger(s.baseLogger)
 
 		// Initialize underlying engine.
-		e, err := NewEngine(s.id, idx, s.path, s.walPath, s.options)
+		e, err := NewEngine(s.id, idx, s.database, s.path, s.walPath, s.options)
 		if err != nil {
 			return err
 		}
