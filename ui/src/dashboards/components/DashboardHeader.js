@@ -64,7 +64,7 @@ const DashboardHeader = ({
               : null}
             {dashboard
               ? <div
-                  className={classnames('btn btn-info btn-sm', {
+                  className={classnames('btn btn-default btn-sm', {
                     active: showTemplateControlBar,
                   })}
                   onClick={onToggleTempVarControls}

@@ -20,28 +20,6 @@ const TemplateControlBar = ({
               const selectedItem = items.find(item => item.selected) || items[0]
               const selectedText = selectedItem && selectedItem.text
 
-<<<<<<< HEAD
-        // TODO: change Dropdown to a MultiSelectDropdown, `selected` to
-        // the full array, and [item] to all `selected` values when we update
-        // this component to support multiple values
-        return (
-          <div key={id} className="template-control--dropdown">
-            <Dropdown
-              items={items}
-              buttonSize="btn-xs"
-              menuClass="dropdown-astronaut"
-              useAutoComplete={true}
-              selected={selectedText || '(No values)'}
-              onChoose={item =>
-                onSelectTemplate(id, [item].map(x => omit(x, 'text')))}
-            />
-            <label className="template-control--label">
-              {tempVar}
-            </label>
-          </div>
-        )
-      })}
-=======
               // TODO: change Dropdown to a MultiSelectDropdown, `selected` to
               // the full array, and [item] to all `selected` values when we update
               // this component to support multiple values
@@ -50,6 +28,7 @@ const TemplateControlBar = ({
                   <Dropdown
                     items={items}
                     buttonSize="btn-xs"
+                    menuClass="dropdown-astronaut"
                     useAutoComplete={true}
                     selected={selectedText || '(No values)'}
                     onChoose={item =>
@@ -72,7 +51,6 @@ const TemplateControlBar = ({
         <span className="icon cog-thick" />
         Manage
       </button>
->>>>>>> master
     </div>
   </div>
 )

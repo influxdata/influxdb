@@ -70,6 +70,7 @@ button.btn.template-control--manage {
     font-size: 12px;
     font-family: $code-font;
   }
+}
 .template-control--label {
   @include no-user-select();
   order: 1;

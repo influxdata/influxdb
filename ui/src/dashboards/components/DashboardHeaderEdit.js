@@ -46,7 +46,6 @@ class DashboardEditHeader extends Component {
               name="name"
               value={name}
               placeholder="Name this Dashboard"
-              value={name}
               onChange={e => this.handleChange(e.target.value)}
               onKeyUp={this.handleKeyUp}
               autoFocus={true}
