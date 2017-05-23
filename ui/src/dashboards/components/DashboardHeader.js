@@ -1,4 +1,5 @@
 import React, {PropTypes} from 'react'
+import classnames from 'classnames'
 
 import AutoRefreshDropdown from 'shared/components/AutoRefreshDropdown'
 import TimeRangeDropdown from 'shared/components/TimeRangeDropdown'
@@ -19,8 +20,10 @@ const DashboardHeader = ({
   source,
   onAddCell,
   onEditDashboard,
+  onToggleTempVarControls,
+  showTemplateControlBar,
 }) =>
-  (isHidden
+  isHidden
     ? null
     : <div className="page-header full-width">
         <div className="page-header__container">
@@ -59,6 +62,16 @@ const DashboardHeader = ({
                   Rename
                 </button>
               : null}
+            {dashboard
+              ? <div
+                  className={classnames('btn btn-info btn-sm', {
+                    active: showTemplateControlBar,
+                  })}
+                  onClick={onToggleTempVarControls}
+                >
+                  <span className="icon cube" />Template Variables
+                </div>
+              : null}
             <AutoRefreshDropdown
               onChoose={handleChooseAutoRefresh}
               selected={autoRefresh}
@@ -76,7 +89,7 @@ const DashboardHeader = ({
             </div>
           </div>
         </div>
-      </div>)
+      </div>
 
 const {array, bool, func, number, shape, string} = PropTypes
 
@@ -95,6 +108,8 @@ DashboardHeader.propTypes = {
   source: shape({}),
   onAddCell: func,
   onEditDashboard: func,
+  onToggleTempVarControls: func,
+  showTemplateControlBar: bool,
 }
 
 export default DashboardHeader

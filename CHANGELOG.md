@@ -34,7 +34,8 @@ In versions 1.3.1+, installing a new version of Chronograf automatically clears 
 
 ### UI Improvements
   1. [#1451](https://github.com/influxdata/chronograf/pull/1451): Refactor scrollbars to support non-webkit browsers
-  1. [#1453](https://github.com/influxdata/chronograf/pull/1453): Increase the query builder's default height in cell editor mode and in the data explorer
+  1. [#1453](https://github.com/influxdata/chronograf/pull/1453): Give QueryMaker a greater initial height than Visualization
+  1. [#1475](https://github.com/influxdata/chronograf/pull/1475): Add ability to toggle visibility of the Template Control Bar
   1. [#1464](https://github.com/influxdata/chronograf/pull/1464): Make the [template variables](https://docs.influxdata.com/chronograf/v1.3/guides/dashboard-template-variables/) manager more space efficient
   1. [#1464](https://github.com/influxdata/chronograf/pull/1464): Add page spinners to pages that did not have them
   1. [#1464](https://github.com/influxdata/chronograf/pull/1464): Denote which source is connected in the sources table
