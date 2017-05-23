@@ -1,11 +1,14 @@
 import React, {PropTypes, Component} from 'react'
+import classnames from 'classnames'
 
 import OnClickOutside from 'shared/components/OnClickOutside'
 import ConfirmButtons from 'shared/components/ConfirmButtons'
 
-const DeleteButton = ({onClickDelete}) => (
+const DeleteButton = ({onClickDelete, buttonSize}) => (
   <button
-    className="btn btn-xs btn-danger admin-table--hidden"
+    className={classnames('btn btn-danger admin-table--hidden', {
+      [buttonSize]: buttonSize,
+    })}
     onClick={onClickDelete}
   >
     Delete
@@ -35,7 +38,7 @@ class DeleteConfirmButtons extends Component {
   }
 
   render() {
-    const {onDelete, item} = this.props
+    const {onDelete, item, buttonSize} = this.props
     const {isConfirming} = this.state
 
     return isConfirming
@@ -43,8 +46,12 @@ class DeleteConfirmButtons extends Component {
           onConfirm={onDelete}
           item={item}
           onCancel={this.handleCancel}
+          buttonSize={buttonSize}
         />
-      : <DeleteButton onClickDelete={this.handleClickDelete} />
+      : <DeleteButton
+          onClickDelete={this.handleClickDelete}
+          buttonSize={buttonSize}
+        />
   }
 }
 
@@ -52,11 +59,17 @@ const {func, oneOfType, shape, string} = PropTypes
 
 DeleteButton.propTypes = {
   onClickDelete: func.isRequired,
+  buttonSize: string,
 }
 
 DeleteConfirmButtons.propTypes = {
   item: oneOfType([(string, shape())]),
   onDelete: func.isRequired,
+  buttonSize: string,
+}
+
+DeleteConfirmButtons.defaultProps = {
+  buttonSize: 'btn-sm',
 }
 
 export default OnClickOutside(DeleteConfirmButtons)
