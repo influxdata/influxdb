@@ -281,6 +281,7 @@ class Dropdown extends Component {
       items,
       selected,
       className,
+      menuClass,
       iconName,
       buttonSize,
       buttonColor,
@@ -318,14 +319,23 @@ class Dropdown extends Component {
               <span className="dropdown-selected">{selected}</span>
               <span className="caret" />
             </div>}
-        {isOpen && menuItems.length < DROPDOWN_MENU_ITEM_THRESHOLD
+        {isOpen &&
+          menuItems.length &&
+          menuItems.length < DROPDOWN_MENU_ITEM_THRESHOLD
           ? this.renderShortMenu()
           : null}
-        {isOpen && menuItems.length >= DROPDOWN_MENU_ITEM_THRESHOLD
+        {isOpen &&
+          menuItems.length &&
+          menuItems.length >= DROPDOWN_MENU_ITEM_THRESHOLD
           ? this.renderLongMenu()
           : null}
         {isOpen && !menuItems.length
-          ? <ul className="dropdown-menu">
+          ? <ul
+              className={classnames('dropdown-menu', {
+                'dropdown-menu--no-highlight': useAutoComplete,
+                [menuClass]: menuClass,
+              })}
+            >
               <li className="dropdown-empty">No matching items</li>
             </ul>
           : null}
