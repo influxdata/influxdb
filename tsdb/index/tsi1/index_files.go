@@ -122,8 +122,8 @@ func (p IndexFiles) TagValueSeriesIterator(name, key, value []byte) SeriesIterat
 	return MergeSeriesIterators(a...)
 }
 
-// WriteTo merges all index files and writes them to w.
-func (p IndexFiles) WriteTo(w io.Writer, m, k uint64) (n int64, err error) {
+// CompactTo merges all index files and writes them to w.
+func (p IndexFiles) CompactTo(w io.Writer, m, k uint64) (n int64, err error) {
 	var t IndexFileTrailer
 
 	// Wrap writer in buffered I/O.

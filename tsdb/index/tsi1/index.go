@@ -866,7 +866,7 @@ func (i *Index) compactToLevel(files []*IndexFile, level int) {
 
 	// Compact all index files to new index file.
 	lvl := i.levels[level]
-	n, err := IndexFiles(files).WriteTo(f, lvl.M, lvl.K)
+	n, err := IndexFiles(files).CompactTo(f, lvl.M, lvl.K)
 	if err != nil {
 		log.Printf("%s: error compacting index files: src=%s, path=%s, err=%s", IndexName, srcIDs, path, err)
 		return
@@ -984,7 +984,7 @@ func (i *Index) compactLogFile(logFile *LogFile) {
 
 	// Compact log file to new index file.
 	lvl := i.levels[1]
-	if _, err := logFile.WriteTo(f, lvl.M, lvl.K); err != nil {
+	if _, err := logFile.CompactTo(f, lvl.M, lvl.K); err != nil {
 		log.Printf("%s: error compacting log file: path=%s, err=%s", IndexName, logFile.Path(), err)
 		return
 	}
@@ -1155,7 +1155,7 @@ func ParseFilename(name string) (level, id int) {
 // Manifest represents the list of log & index files that make up the index.
 // The files are listed in time order, not necessarily ID order.
 type Manifest struct {
-	Levels []CompactionLevel `json:"levels,omitempty`
+	Levels []CompactionLevel `json:"levels,omitempty"`
 	Files  []string          `json:"files,omitempty"`
 }
 
