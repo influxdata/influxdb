@@ -22,12 +22,12 @@
 @import 'layout/page-header';
 @import 'layout/sidebar';
 @import 'layout/overlay';
+@import 'layout/flash-messages';
 
 // Components
 @import 'components/confirm-buttons';
 @import 'components/custom-time-range';
 @import 'components/dygraphs';
-@import 'components/flash-messages';
 @import 'components/flip-toggle';
 @import 'components/graph-tips';
 @import 'components/graph';
