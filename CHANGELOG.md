@@ -1,6 +1,7 @@
 ## v1.3.2.0 [unreleased]
 
 ### Bug Fixes
+1. [#1530](https://github.com/influxdata/chronograf/pull/1530): Update query config field ordering to always match input query
 
 ### Features
 
