@@ -110,31 +110,31 @@ export const RuleHeader = React.createClass({
           onKeyDown={e => this.handleEditName(e, rule)}
           onBlur={() => this.handleEditNameBlur(rule)}
           placeholder="Name your rule"
+          spellCheck={false}
+          autoComplete={false}
         />
-      : <h1
-          className="page-header__title page-header--editable kapacitor-theme"
-          onClick={this.toggleEditName}
-          data-for="rename-kapacitor-tooltip"
-          data-tip="Click to Rename"
-        >
-          {rule.name}
-          <span className="icon pencil" />
-          <ReactTooltip
-            id="rename-kapacitor-tooltip"
-            delayShow={200}
-            effect="solid"
-            html={true}
-            offset={{top: 2}}
-            place="bottom"
-            class="influx-tooltip kapacitor-tooltip place-bottom"
-          />
-        </h1>
+      : <div className="page-header__left">
+          <h1
+            className="page-header__title page-header--editable kapacitor-theme"
+            onClick={this.toggleEditName}
+            data-for="rename-kapacitor-tooltip"
+            data-tip="Click to Rename"
+          >
+            {rule.name}
+            <span className="icon pencil" />
+            <ReactTooltip
+              id="rename-kapacitor-tooltip"
+              delayShow={200}
+              effect="solid"
+              html={true}
+              offset={{top: 2}}
+              place="bottom"
+              class="influx-tooltip kapacitor-tooltip place-bottom"
+            />
+          </h1>
+        </div>
 
-    return (
-      <div className="page-header__left">
-        {name}
-      </div>
-    )
+    return name
   },
 })
 

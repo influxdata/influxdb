@@ -21,15 +21,15 @@ class DashboardEditHeader extends Component {
     return (
       <div className="page-header full-width">
         <div className="page-header__container">
-          <div className="page-header__left">
-            <input
-              className="page-header--editing"
-              autoFocus={true}
-              value={name}
-              placeholder="Name this Dashboard"
-              onChange={e => this.handleChange(e.target.value)}
-            />
-          </div>
+          <input
+            className="page-header--editing"
+            autoFocus={true}
+            value={name}
+            onChange={e => this.handleChange(e.target.value)}
+            placeholder="Name this Dashboard"
+            spellCheck={false}
+            autoComplete={false}
+          />
           <ConfirmButtons item={name} onConfirm={onSave} onCancel={onCancel} />
         </div>
       </div>
