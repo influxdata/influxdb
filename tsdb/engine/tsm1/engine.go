@@ -1181,10 +1181,9 @@ func (e *Engine) compactTSMLevel(fast bool, level int, quit <-chan struct{}) {
 		case <-t.C:
 			s := e.levelCompactionStrategy(fast, level)
 			if s != nil {
-				// Release the files in the compaction plan
-				defer e.CompactionPlan.Release(s.compactionGroups)
-
 				s.Apply()
+				// Release the files in the compaction plan
+				e.CompactionPlan.Release(s.compactionGroups)
 			}
 
 		}
@@ -1203,9 +1202,9 @@ func (e *Engine) compactTSMFull(quit <-chan struct{}) {
 		case <-t.C:
 			s := e.fullCompactionStrategy()
 			if s != nil {
-				// Release the files in the compaction plan
-				defer e.CompactionPlan.Release(s.compactionGroups)
 				s.Apply()
+				// Release the files in the compaction plan
+				e.CompactionPlan.Release(s.compactionGroups)
 			}
 
 		}
