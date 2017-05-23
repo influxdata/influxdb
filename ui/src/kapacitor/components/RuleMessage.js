@@ -58,12 +58,13 @@ export const RuleMessage = React.createClass({
         <div className="rule-section-body">
           <div className="kapacitor-values-tabs">
             <p>Send this Alert to:</p>
-            <ul className="btn-group btn-group-lg tab-group">
+            <ul className="nav nav-tablist nav-tablist-sm nav-tablist-malachite">
               {alerts.map(alert => (
                 <li
-                  key={alert.text}
-                  className={classnames('btn tab', {
-                    active: alert.text === selectedAlert,
+                  key={alert.text.toLowerCase()}
+                  className={classnames({
+                    active: alert.text.toLowerCase() ===
+                      selectedAlert.toLowerCase(),
                   })}
                   onClick={() => this.handleChooseAlert(alert)}
                 >

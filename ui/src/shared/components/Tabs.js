@@ -8,9 +8,20 @@ export const Tab = React.createClass({
     onClick: func,
     isDisabled: bool,
     isActive: bool,
+    isKapacitorTab: bool,
   },
 
   render() {
+    if (this.props.isKapacitorTab) {
+      return (
+        <li
+          className={classnames({active: this.props.isActive})}
+          onClick={this.props.isDisabled ? null : this.props.onClick}
+        >
+          {this.props.children}
+        </li>
+      )
+    }
     return (
       <div
         className={classnames('btn tab', {active: this.props.isActive})}
@@ -49,7 +60,9 @@ export const TabList = React.createClass({
       return (
         <div className="kapacitor-values-tabs">
           <p>Alert Type</p>
-          <div className="btn-group btn-group-lg tab-group">{children}</div>
+          <div className="nav nav-tablist nav-tablist-sm nav-tablist-malachite">
+            {children}
+          </div>
         </div>
       )
     }

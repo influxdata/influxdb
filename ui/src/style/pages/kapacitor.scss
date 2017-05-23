@@ -419,33 +419,6 @@ $kapacitor-font-sm: 13px;
 .kapacitor-alert-message, {
   border-radius: $kap-radius-lg $kap-radius-lg 0 0;
   border-bottom: 2px solid $kapacitor-divider-color;
-
-  .tab-group {
-    padding: 0;
-
-    > .btn.tab {
-      padding: 0 $kap-padding-md;
-      height: $kap-input-height;
-      line-height: ($kap-input-height - 4px);
-      font-size: $kapacitor-font-sm;
-      font-weight: 700;
-      background-color: $kapacitor-graphic-color;
-      border-color: $g5-pepper;
-      color: $g11-sidewalk;
-
-      &:hover {
-        background-color: $g4-onyx;
-        color: $g20-white;
-      }
-      &.active {
-        background-color: $g5-pepper;
-        color: $kapacitor-accent;
-      }
-    }
-  }
-}
-.rule-builder .form-control--green {
-  font-weight: 600 !important;
 }
 
 input.size-486 {width: 486px;}

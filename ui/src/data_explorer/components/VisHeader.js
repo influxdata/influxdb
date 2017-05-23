@@ -4,14 +4,14 @@ import classnames from 'classnames'
 const VisHeader = ({views, view, onToggleView, name}) => (
   <div className="graph-heading">
     {views.length
-      ? <ul className="toggle toggle-sm">
+      ? <ul className="nav nav-tablist nav-tablist-sm">
           {views.map(v => (
             <li
               key={v}
               onClick={() => onToggleView(v)}
-              className={classnames('toggle-btn ', {active: view === v})}
+              className={classnames({active: view === v})}
             >
-              {v}
+              {v.charAt(0).toUpperCase() + v.slice(1)}
             </li>
           ))}
         </ul>
