@@ -43,7 +43,7 @@ const VisView = ({
   if (cellType === 'single-stat') {
     return (
       <RefreshingSingleStat
-        queries={[queries[0]]}
+        queries={queries.length ? [queries[0]] : []}
         autoRefresh={autoRefresh}
         templates={templates}
       />

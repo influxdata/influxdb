@@ -25,6 +25,8 @@ import generateTemplateVariableQuery
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
+const compact = values => uniq(values).filter(value => /\S/.test(value))
+
 const RowValues = ({
   selectedType,
   values = [],
@@ -32,9 +34,7 @@ const RowValues = ({
   onStartEdit,
   autoFocusTarget,
 }) => {
-  const _values = uniq(values.map(({value}) => value))
-    .filter(value => /\S/.test(value))
-    .join(', ')
+  const _values = values.map(v => v.value).join(', ')
 
   if (selectedType === 'csv') {
     return (
@@ -297,7 +297,8 @@ class RowWrapper extends Component {
         } else {
           parsedData = await this.runTemplateVariableQuery(source, queryConfig)
         }
-        onRunQuerySuccess(template, queryConfig, parsedData, tempVar)
+
+        onRunQuerySuccess(template, queryConfig, compact(parsedData), tempVar)
       } catch (error) {
         onRunQueryFailure(error)
       }

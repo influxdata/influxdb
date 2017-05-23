@@ -5,17 +5,24 @@ import _ from 'lodash'
 export function getCpuAndLoadForHosts(proxyLink, telegrafDB) {
   return proxy({
     source: proxyLink,
-    query: 'select mean(usage_user) from cpu where cpu = \'cpu-total\' and time > now() - 10m group by host; select mean("load1") from "system" where time > now() - 10m group by host;  select mean("Percent_Processor_Time") from win_cpu where time > now() - 10m group by host; select mean("Processor_Queue_Length") from win_system where time > now() - 10s group by host; select non_negative_derivative(mean(uptime)) as deltaUptime from "system" where time > now() - 10m group by host, time(1m) fill(0); show tag values from /win_system|system/ with key = "host"',
+    query: `select mean(usage_user) from cpu where cpu = "cpu-total" and time > now() - 10m group by host;
+      select mean("load1") from "system" where time > now() - 10m group by host;
+      select non_negative_derivative(mean(uptime)) as deltaUptime from "system" where time > now() - 10m group by host, time(1m) fill(0);
+      select mean("Percent_Processor_Time") from win_cpu where time > now() - 10m group by host;
+      select mean("Processor_Queue_Length") from win_system where time > now() - 10s group by host;
+      select non_negative_derivative(mean("System_Up_Time")) as deltaUptime from "telegraf"."autogen"."win_uptime" where time > now() - 10m group by host, time(1m) fill(0);
+      show tag values from /win_system|system/ with key = "host"`,
     db: telegrafDB,
   }).then(resp => {
     const hosts = {}
     const precision = 100
     const cpuSeries = _.get(resp, ['data', 'results', '0', 'series'], [])
     const loadSeries = _.get(resp, ['data', 'results', '1', 'series'], [])
-    const winCPUSeries = _.get(resp, ['data', 'results', '2', 'series'], [])
-    const winLoadSeries = _.get(resp, ['data', 'results', '3', 'series'], [])
-    const uptimeSeries = _.get(resp, ['data', 'results', '4', 'series'], [])
-    const allHostsSeries = _.get(resp, ['data', 'results', '5', 'series'], [])
+    const uptimeSeries = _.get(resp, ['data', 'results', '2', 'series'], [])
+    const winCPUSeries = _.get(resp, ['data', 'results', '3', 'series'], [])
+    const winLoadSeries = _.get(resp, ['data', 'results', '4', 'series'], [])
+    const winUptimeSeries = _.get(resp, ['data', 'results', '5', 'series'], [])
+    const allHostsSeries = _.get(resp, ['data', 'results', '6', 'series'], [])
 
     allHostsSeries.forEach(s => {
       const hostnameIndex = s.columns.findIndex(col => col === 'value')
@@ -62,6 +69,12 @@ export function getCpuAndLoadForHosts(proxyLink, telegrafDB) {
       const meanIndex = s.columns.findIndex(col => col === 'mean')
       hosts[s.tags.host].load =
         Math.round(s.values[0][meanIndex] * precision) / precision
+    })
+
+    winUptimeSeries.forEach(s => {
+      const uptimeIndex = s.columns.findIndex(col => col === 'deltaUptime')
+      hosts[s.tags.host].deltaUptime =
+        s.values[s.values.length - 1][uptimeIndex]
     })
 
     return hosts

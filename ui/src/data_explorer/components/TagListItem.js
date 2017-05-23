@@ -52,7 +52,8 @@ const TagListItem = React.createClass({
       return <div>no tag values</div>
     }
 
-    const filtered = tagValues.filter(v => v.match(this.state.filterText))
+    const filterText = this.state.filterText.toLowerCase()
+    const filtered = tagValues.filter(v => v.toLowerCase().includes(filterText))
 
     return (
       <div className="query-builder--sub-list">

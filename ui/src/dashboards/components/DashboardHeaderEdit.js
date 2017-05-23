@@ -8,10 +8,25 @@ class DashboardEditHeader extends Component {
     const {dashboard: {name}} = props
     this.state = {name}
     this.handleChange = ::this.handleChange
+    this.handleFormSubmit = ::this.handleFormSubmit
+    this.handleKeyUp = ::this.handleKeyUp
   }
 
   handleChange(name) {
     this.setState({name})
+  }
+
+  handleFormSubmit(e) {
+    e.preventDefault()
+    const name = e.target.name.value
+    this.props.onSave(name)
+  }
+
+  handleKeyUp(e) {
+    const {onCancel} = this.props
+    if (e.key === 'Escape') {
+      onCancel()
+    }
   }
 
   render() {
@@ -21,15 +36,23 @@ class DashboardEditHeader extends Component {
     return (
       <div className="page-header full-width">
         <div className="page-header__container">
-          <input
-            className="page-header--editing"
-            autoFocus={true}
-            value={name}
-            onChange={e => this.handleChange(e.target.value)}
-            placeholder="Name this Dashboard"
-            spellCheck={false}
-            autoComplete={false}
-          />
+          <form
+            className="page-header__left"
+            style={{flex: '1 0 0'}}
+            onSubmit={this.handleFormSubmit}
+          >
+            <input
+              className="page-header--editing"
+              name="name"
+              placeholder="Name this Dashboard"
+              value={name}
+              onChange={e => this.handleChange(e.target.value)}
+              onKeyUp={this.handleKeyUp}
+              autoFocus={true}
+              spellCheck={false}
+              autoComplete="off"
+            />
+          </form>
           <ConfirmButtons item={name} onConfirm={onSave} onCancel={onCancel} />
         </div>
       </div>
