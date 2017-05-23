@@ -65,6 +65,8 @@ const TagListItem = React.createClass({
             value={this.state.filterText}
             onChange={this.handleFilterText}
             onKeyUp={this.handleEscape}
+            spellCheck={false}
+            autoComplete={false}
           />
           <span className="icon search" />
         </div>

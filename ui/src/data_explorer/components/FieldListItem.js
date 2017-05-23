@@ -70,6 +70,7 @@ const FieldListItem = React.createClass({
             ? <Dropdown
                 className="dropdown-110"
                 menuClass="dropdown-malachite"
+                buttonSize="btn-xs"
                 items={items}
                 onChoose={this.handleApplyFunctions}
                 selected={

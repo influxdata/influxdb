@@ -58,7 +58,7 @@ export const TabList = React.createClass({
 
     if (this.props.isKapacitorTabs === 'true') {
       return (
-        <div className="kapacitor-values-tabs">
+        <div className="rule-section--row rule-section--row-first rule-section--border-bottom">
           <p>Alert Type</p>
           <div className="nav nav-tablist nav-tablist-sm nav-tablist-malachite">
             {children}

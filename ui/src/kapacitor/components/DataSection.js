@@ -80,13 +80,13 @@ export const DataSection = React.createClass({
     const statement = query.rawText || buildInfluxQLQuery({lower}, query)
 
     return (
-      <div className="kapacitor-rule-section kapacitor-metric-selector">
-        <h3 className="rule-section-heading">Select a Time Series</h3>
-        <div className="rule-section-body">
-          <pre>
+      <div className="rule-section">
+        <h3 className="rule-section--heading">Select a Time Series</h3>
+        <div className="rule-section--body">
+          <pre className="rule-section--border-bottom">
             <code
               className={classnames({
-                'kapacitor-metric-placeholder': !statement,
+                'metric-placeholder': !statement,
               })}
             >
               {statement || 'Build a query below'}
