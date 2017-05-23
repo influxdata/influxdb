@@ -15,7 +15,10 @@ import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 
 import * as dashboardActionCreators from 'src/dashboards/actions'
 
-import {setAutoRefresh} from 'shared/actions/app'
+import {
+  setAutoRefresh,
+  tempVarControlsToggled as tempVarControlsToggledAction,
+} from 'shared/actions/app'
 import {presentationButtonDispatcher} from 'shared/dispatchers'
 
 class DashboardPage extends Component {
@@ -26,7 +29,6 @@ class DashboardPage extends Component {
       selectedCell: null,
       isEditMode: false,
       isTemplating: false,
-      showTempVarControls: false,
     }
 
     this.handleAddCell = ::this.handleAddCell
@@ -49,7 +51,7 @@ class DashboardPage extends Component {
     this.handleSelectTemplate = ::this.handleSelectTemplate
     this.handleEditTemplateVariables = ::this.handleEditTemplateVariables
     this.handleRunQueryFailure = ::this.handleRunQueryFailure
-    this.handleTempVarsControlsToggle = ::this.handleTempVarsControlsToggle
+    this.handleToggleTempVarControls = ::this.handleToggleTempVarControls
   }
 
   componentDidMount() {
@@ -208,13 +210,8 @@ class DashboardPage extends Component {
     this.props.errorThrown(error)
   }
 
-  handleTempVarsControlsToggle(e) {
-    const {showTempVarControls} = this.state
-
-    if (e) {
-      e.stopPropagation()
-    }
-    this.setState({showTempVarControls: !showTempVarControls})
+  handleToggleTempVarControls() {
+    this.props.tempVarControlsToggled()
   }
 
   getActiveDashboard() {
@@ -226,6 +223,7 @@ class DashboardPage extends Component {
     const {
       source,
       timeRange,
+      showTempVarControls,
       dashboards,
       autoRefresh,
       cellQueryStatus,
@@ -253,12 +251,7 @@ class DashboardPage extends Component {
     const templatesIncludingDashTime = (dashboard &&
       dashboard.templates.concat(dashboardTime)) || []
 
-    const {
-      selectedCell,
-      isEditMode,
-      isTemplating,
-      showTempVarControls,
-    } = this.state
+    const {selectedCell, isEditMode, isTemplating} = this.state
 
     return (
       <div className="page">
@@ -305,7 +298,7 @@ class DashboardPage extends Component {
               source={source}
               onAddCell={this.handleAddCell}
               onEditDashboard={this.handleEditDashboard}
-              onToggleTempVarControls={this.handleTempVarsControlsToggle}
+              onToggleTempVarControls={this.handleToggleTempVarControls}
               showTempVarControls={showTempVarControls}
             >
               {dashboards
@@ -396,7 +389,9 @@ DashboardPage.propTypes = {
   ),
   handleChooseAutoRefresh: func.isRequired,
   autoRefresh: number.isRequired,
+  tempVarControlsToggled: func.isRequired,
   timeRange: shape({}).isRequired,
+  showTempVarControls: bool.isRequired,
   inPresentationMode: bool.isRequired,
   handleClickPresentationButton: func,
   cellQueryStatus: shape({
@@ -408,7 +403,10 @@ DashboardPage.propTypes = {
 
 const mapStateToProps = state => {
   const {
-    app: {ephemeral: {inPresentationMode}, persisted: {autoRefresh}},
+    app: {
+      ephemeral: {inPresentationMode},
+      persisted: {autoRefresh, showTempVarControls},
+    },
     dashboardUI: {dashboards, timeRange, cellQueryStatus},
   } = state
 
@@ -416,6 +414,7 @@ const mapStateToProps = state => {
     dashboards,
     autoRefresh,
     timeRange,
+    showTempVarControls,
     inPresentationMode,
     cellQueryStatus,
   }
@@ -423,6 +422,10 @@ const mapStateToProps = state => {
 
 const mapDispatchToProps = dispatch => ({
   handleChooseAutoRefresh: bindActionCreators(setAutoRefresh, dispatch),
+  tempVarControlsToggled: bindActionCreators(
+    tempVarControlsToggledAction,
+    dispatch
+  ),
   handleClickPresentationButton: presentationButtonDispatcher(dispatch),
   dashboardActions: bindActionCreators(dashboardActionCreators, dispatch),
   errorThrown: bindActionCreators(errorThrownAction, dispatch),

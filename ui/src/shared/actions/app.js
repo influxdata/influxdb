@@ -24,6 +24,10 @@ export const setAutoRefresh = milliseconds => ({
   },
 })
 
+export const tempVarControlsToggled = () => ({
+  type: 'TEMP_VAR_CONTROLS_TOGGLED',
+})
+
 export const noop = () => ({
   type: 'NOOP',
   payload: {},

@@ -8,6 +8,7 @@ const initialState = {
   },
   persisted: {
     autoRefresh: AUTOREFRESH_DEFAULT,
+    showTempVarControls: false,
   },
 }
 
@@ -44,6 +45,12 @@ const appPersistedReducer = (state = initialAppPersistedState, action) => {
         ...state,
         autoRefresh: action.payload.milliseconds,
       }
+    }
+
+    case 'TEMP_VAR_CONTROLS_TOGGLED': {
+      const {showTempVarControls} = state
+
+      return {...state, showTempVarControls: !showTempVarControls}
     }
 
     default:
