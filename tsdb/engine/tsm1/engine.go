@@ -246,7 +246,6 @@ func (e *Engine) disableLevelCompactions(wait bool) {
 		e.levelWorkers += 1
 	}
 
-	var cleanup bool
 	if old == 0 && e.done != nil {
 		// Prevent new compactions from starting
 		e.Compactor.DisableCompactions()
@@ -254,17 +253,11 @@ func (e *Engine) disableLevelCompactions(wait bool) {
 		// Stop all background compaction goroutines
 		close(e.done)
 		e.done = nil
-		cleanup = true
+
 	}
 
 	e.mu.Unlock()
 	e.wg.Wait()
-
-	if cleanup { // first to disable should cleanup
-		if err := e.cleanup(); err != nil {
-			e.logger.Info(fmt.Sprintf("error cleaning up temp file: %v", err))
-		}
-	}
 }
 
 func (e *Engine) enableSnapshotCompactions() {
@@ -1421,6 +1414,8 @@ func (e *Engine) reloadCache() error {
 	return nil
 }
 
+// cleanup removes all temp files and dirs that exist on disk.  This is should only be run at startup to avoid
+// removing tmp files that are still in use.
 func (e *Engine) cleanup() error {
 	allfiles, err := ioutil.ReadDir(e.path)
 	if os.IsNotExist(err) {
