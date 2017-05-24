@@ -9,6 +9,7 @@ import MultiSelectDropdown from 'shared/components/MultiSelectDropdown'
 import ConfirmButtons from 'shared/components/ConfirmButtons'
 import DeleteConfirmTableCell from 'shared/components/DeleteConfirmTableCell'
 import ChangePassRow from 'src/admin/components/ChangePassRow'
+import {USERS_TABLE} from 'src/admin/constants/tableSizing'
 
 const UserRow = ({
   user: {name, roles, permissions, password},
@@ -53,7 +54,10 @@ const UserRow = ({
         />
         {hasRoles ? <td className="admin-table--left-offset">--</td> : null}
         <td className="admin-table--left-offset">--</td>
-        <td className="text-right" style={{width: '85px'}}>
+        <td
+          className="text-right"
+          style={{width: `${USERS_TABLE.colDelete}px`}}
+        >
           <ConfirmButtons
             item={user}
             onConfirm={onSave}
@@ -67,8 +71,8 @@ const UserRow = ({
 
   return (
     <tr>
-      <td style={{width: '240px'}}>{name}</td>
-      <td style={{width: '186px'}}>
+      <td style={{width: `${USERS_TABLE.colUsername}px`}}>{name}</td>
+      <td style={{width: `${USERS_TABLE.colPassword}px`}}>
         <ChangePassRow
           onEdit={onEdit}
           onApply={handleUpdatePassword}
@@ -89,9 +93,12 @@ const UserRow = ({
               onApply={handleUpdateRoles}
               buttonSize="btn-xs"
               buttonColor="btn-primary"
-              customClass={classnames('dropdown-190', {
-                'admin-table--multi-select-empty': !roles.length,
-              })}
+              customClass={classnames(
+                `dropdown-${USERS_TABLE.colRoles}`,
+                {
+                  'admin-table--multi-select-empty': !roles.length,
+                }
+              )}
             />
           </td>
         : null}
@@ -106,9 +113,12 @@ const UserRow = ({
               onApply={handleUpdatePermissions}
               buttonSize="btn-xs"
               buttonColor="btn-primary"
-              customClass={classnames('dropdown-190', {
-                'admin-table--multi-select-empty': !permissions.length,
-              })}
+              customClass={classnames(
+                `dropdown-${USERS_TABLE.colPermissions}`,
+                {
+                  'admin-table--multi-select-empty': !permissions.length,
+                }
+              )}
             />
           : null}
       </td>

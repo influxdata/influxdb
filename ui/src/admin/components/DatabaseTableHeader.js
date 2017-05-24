@@ -57,7 +57,10 @@ const Header = ({
     justifyContent: 'space-between',
     alignItems: 'center',
   }
-
+  const confirmInputStyle = {
+    flex: '1 0 0',
+    marginRight: '4px',
+  }
   const buttons = (
     <div className="text-right db-manager-header--actions">
       <button
@@ -88,20 +91,19 @@ const Header = ({
 
   const deleteConfirmation = (
     <div style={confirmStyle}>
-      <div className="admin-table--delete-cell">
-        <input
-          className="form-control input-xs"
-          name="name"
-          type="text"
-          value={database.deleteCode || ''}
-          placeholder={`DELETE ${database.name}`}
-          onChange={e => onDatabaseDeleteConfirm(database, e)}
-          onKeyDown={e => onDatabaseDeleteConfirm(database, e)}
-          autoFocus={true}
-          autoComplete={false}
-          spellCheck={false}
-        />
-      </div>
+      <input
+        className="form-control input-xs"
+        name="name"
+        type="text"
+        value={database.deleteCode || ''}
+        placeholder={`DELETE ${database.name}`}
+        onChange={e => onDatabaseDeleteConfirm(database, e)}
+        onKeyDown={e => onDatabaseDeleteConfirm(database, e)}
+        autoFocus={true}
+        autoComplete={false}
+        spellCheck={false}
+        style={confirmInputStyle}
+      />
       <ConfirmButtons
         item={database}
         onConfirm={onConfirm}

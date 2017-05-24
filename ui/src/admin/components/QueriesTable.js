@@ -1,6 +1,7 @@
 import React, {PropTypes} from 'react'
 
 import QueryRow from 'src/admin/components/QueryRow'
+import {QUERIES_TABLE} from 'src/admin/constants/tableSizing'
 
 const QueriesTable = ({queries, onKillQuery}) => (
   <div>
@@ -9,10 +10,14 @@ const QueriesTable = ({queries, onKillQuery}) => (
         <table className="table v-center admin-table table-highlight">
           <thead>
             <tr>
-              <th>Database</th>
+              <th style={{width: `${QUERIES_TABLE.colDatabase}px`}}>
+                Database
+              </th>
               <th>Query</th>
-              <th>Running</th>
-              <th />
+              <th style={{width: `${QUERIES_TABLE.colRunning}px`}}>
+                Running
+              </th>
+              <th style={{width: `${QUERIES_TABLE.colKillQuery}px`}} />
             </tr>
           </thead>
           <tbody>

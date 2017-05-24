@@ -19,3 +19,9 @@ export const QUERIES_TABLE = {
 export const ADMIN_TABLE = {
   colDelete: 70,
 }
+export const DATABASE_TABLE = {
+  colRetentionPolicy: 140,
+  colDuration: 80,
+  colReplication: 122,
+  colDelete: 160,
+}

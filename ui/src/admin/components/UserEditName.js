@@ -1,5 +1,7 @@
 import React, {Component, PropTypes} from 'react'
 
+import {USERS_TABLE} from 'src/admin/constants/tableSizing'
+
 class UserEditName extends Component {
   constructor(props) {
     super(props)
@@ -25,7 +27,7 @@ class UserEditName extends Component {
   render() {
     const {user} = this.props
     return (
-      <td style={{width: '240px'}}>
+      <td style={{width: `${USERS_TABLE.colUsername}px`}}>
         <input
           className="form-control input-xs"
           name="name"

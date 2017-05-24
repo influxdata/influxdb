@@ -1,5 +1,7 @@
 import React, {Component, PropTypes} from 'react'
 
+import {USERS_TABLE} from 'src/admin/constants/tableSizing'
+
 class UserNewPassword extends Component {
   constructor(props) {
     super(props)
@@ -25,7 +27,7 @@ class UserNewPassword extends Component {
   render() {
     const {user, isNew} = this.props
     return (
-      <td style={{width: '186px'}}>
+      <td style={{width: `${USERS_TABLE.colPassword}px`}}>
         {isNew
           ? <input
               className="form-control input-xs"

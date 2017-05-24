@@ -29,8 +29,8 @@ const RolesTable = ({
         <thead>
           <tr>
             <th>Name</th>
-            <th>Permissions</th>
-            <th>Users</th>
+            <th className="admin-table--left-offset">Permissions</th>
+            <th className="admin-table--left-offset">Users</th>
             <th />
           </tr>
         </thead>

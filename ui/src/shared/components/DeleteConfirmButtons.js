@@ -6,7 +6,7 @@ import ConfirmButtons from 'shared/components/ConfirmButtons'
 
 const DeleteButton = ({onClickDelete, buttonSize}) => (
   <button
-    className={classnames('btn btn-danger admin-table--hidden', {
+    className={classnames('btn btn-danger table--show-on-row-hover', {
       [buttonSize]: buttonSize,
     })}
     onClick={onClickDelete}
