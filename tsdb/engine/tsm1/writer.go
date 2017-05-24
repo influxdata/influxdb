@@ -455,13 +455,13 @@ func (t *tsmWriter) writeHeader() error {
 
 // Write writes a new block containing key and values.
 func (t *tsmWriter) Write(key string, values Values) error {
+	if len(key) > maxKeyLength {
+		return ErrMaxKeyLengthExceeded
+	}
+
 	// Nothing to write
 	if len(values) == 0 {
 		return nil
-	}
-
-	if len(key) > maxKeyLength {
-		return ErrMaxKeyLengthExceeded
 	}
 
 	// Write header only after we have some data to write.
@@ -507,6 +507,10 @@ func (t *tsmWriter) Write(key string, values Values) error {
 // exceeds max entries for a given key, ErrMaxBlocksExceeded is returned.  This indicates
 // that the index is now full for this key and no future writes to this key will succeed.
 func (t *tsmWriter) WriteBlock(key string, minTime, maxTime int64, block []byte) error {
+	if len(key) > maxKeyLength {
+		return ErrMaxKeyLengthExceeded
+	}
+
 	// Nothing to write
 	if len(block) == 0 {
 		return nil
