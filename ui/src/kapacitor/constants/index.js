@@ -19,6 +19,8 @@ export const defaultRuleConfigs = {
   },
 }
 
+export const defaultEveryFrequency = '30s'
+
 export const OPERATORS = [
   'greater than',
   'equal to or greater',

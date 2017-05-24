@@ -15,7 +15,7 @@ export default function rules(state = {}, action) {
           message: '',
           alerts: [],
           alertNodes: [],
-          every: '30s',
+          every: null,
           name: 'Untitled Rule',
         },
       })
@@ -43,6 +43,16 @@ export default function rules(state = {}, action) {
           values: defaultRuleConfigs[trigger.toLowerCase()],
         }),
       })
+    }
+
+    case 'EVERY_ADDED': {
+      const {ruleID, frequency} = action.payload
+      return {...state, [ruleID]: {...state[ruleID], every: frequency}}
+    }
+
+    case 'EVERY_REMOVED': {
+      const {ruleID} = action.payload
+      return {...state, [ruleID]: {...state[ruleID], every: null}}
     }
 
     case 'UPDATE_RULE_VALUES': {

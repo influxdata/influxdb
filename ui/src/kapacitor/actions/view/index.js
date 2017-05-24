@@ -71,6 +71,21 @@ export function chooseTrigger(ruleID, trigger) {
   }
 }
 
+export const everyAdded = (ruleID, frequency) => ({
+  type: 'EVERY_ADDED',
+  payload: {
+    ruleID,
+    frequency,
+  },
+})
+
+export const everyRemoved = ruleID => ({
+  type: 'EVERY_REMOVED',
+  payload: {
+    ruleID,
+  },
+})
+
 export function updateRuleValues(ruleID, trigger, values) {
   return {
     type: 'UPDATE_RULE_VALUES',

@@ -1,8 +1,14 @@
 import React, {PropTypes} from 'react'
 import {connect} from 'react-redux'
 import _ from 'lodash'
+
 import * as kapacitorActionCreators from '../actions/view'
 import * as queryActionCreators from '../../data_explorer/actions/view'
+import {
+  everyAdded as everyAddedAction,
+  everyRemoved as everyRemovedAction,
+} from 'src/kapacitor/actions/view'
+
 import {bindActionCreators} from 'redux'
 import {getActiveKapacitor, getKapacitorConfig} from 'shared/apis/index'
 import {ALERTS, DEFAULT_RULE_ID} from 'src/kapacitor/constants'
@@ -29,6 +35,8 @@ export const KapacitorRulePage = React.createClass({
       updateRuleName: PropTypes.func.isRequired,
     }).isRequired,
     queryActions: PropTypes.shape({}).isRequired,
+    everyAdded: PropTypes.func.isRequired,
+    everyRemoved: PropTypes.func.isRequired,
     params: PropTypes.shape({
       ruleID: PropTypes.string,
     }).isRequired,
@@ -90,6 +98,8 @@ export const KapacitorRulePage = React.createClass({
       kapacitorActions,
       source,
       queryActions,
+      everyAdded,
+      everyRemoved,
       addFlashMessage,
       router,
     } = this.props
@@ -110,7 +120,7 @@ export const KapacitorRulePage = React.createClass({
         rule={rule}
         query={query}
         queryConfigs={queryConfigs}
-        queryActions={queryActions}
+        queryActions={{...queryActions, everyAdded, everyRemoved}}
         kapacitorActions={kapacitorActions}
         addFlashMessage={addFlashMessage}
         enabledAlerts={enabledAlerts}
@@ -138,6 +148,8 @@ function mapDispatchToProps(dispatch) {
   return {
     kapacitorActions: bindActionCreators(kapacitorActionCreators, dispatch),
     queryActions: bindActionCreators(queryActionCreators, dispatch),
+    everyAdded: bindActionCreators(everyAddedAction, dispatch),
+    everyRemoved: bindActionCreators(everyRemovedAction, dispatch),
   }
 }
 
