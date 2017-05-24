@@ -67,7 +67,7 @@ class WriteDataForm extends Component {
             className="query-editor--field"
             autoComplete="off"
             spellCheck="false"
-            placeholder="<tag_key>=<tag_value>,<tag_key>=<tag_value>"
+            placeholder="<measurement>,<tag_key>=<tag_value> <field_key>=<field_value>"
             ref={editor => this.editor = editor}
           />
           <span>
