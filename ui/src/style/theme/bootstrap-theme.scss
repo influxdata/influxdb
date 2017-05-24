@@ -4873,6 +4873,7 @@ p .label {
 .alert {
   position: relative;
   padding: 16px;
+  font-weight: 500;
   -webkit-user-select: none;
      -moz-user-select: none;
       -ms-user-select: none;
@@ -5499,9 +5500,6 @@ p .label {
   vertical-align: middle;
 }
 .table.v-center td > * {
-  display: inline-block;
-  margin-top: 2px;
-  margin-bottom: 2px;
   vertical-align: middle;
 }
 .table-bordered {
@@ -5521,13 +5519,14 @@ p .label {
 .table-striped > tbody > tr:nth-child(even) {
   background-color: transparent;
 }
-.table-highlight > tbody > tr {
-  -webkit-transition: background-color .25s ease;
-       -o-transition: background-color .25s ease;
-          transition: background-color .25s ease;
-}
 .table-highlight > tbody > tr:hover {
   background-color: #31313d;
+}
+.table .table--show-on-row-hover {
+  visibility: hidden;
+}
+.table > tbody > tr:hover .table--show-on-row-hover {
+  visibility: visible;
 }
 .table-responsive {
   border: 2px solid #31313d;
