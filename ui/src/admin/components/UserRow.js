@@ -107,7 +107,7 @@ const UserRow = ({
               buttonSize="btn-xs"
               buttonColor="btn-primary"
               customClass={classnames('dropdown-190', {
-                'admin-table--multi-select-empty': !roles.length,
+                'admin-table--multi-select-empty': !permissions.length,
               })}
             />
           : null}
