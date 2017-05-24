@@ -6,6 +6,7 @@ import DatabaseDropdown from 'shared/components/DatabaseDropdown'
 
 import {writeData} from 'src/data_explorer/apis'
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
+import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 
 class WriteDataForm extends Component {
   constructor(props) {
@@ -26,7 +27,10 @@ class WriteDataForm extends Component {
 
   handleStartEdit() {}
 
-  handleError() {}
+  handleError(error) {
+    const {errorThrown} = this.props
+    errorThrown(error)
+  }
 
   handleWrite() {
     const {onClose, source, notify} = this.props
@@ -96,11 +100,13 @@ WriteDataForm.propTypes = {
     }).isRequired,
   }).isRequired,
   notify: func.isRequired,
+  errorThrown: func.isRequired,
   onClose: func.isRequired,
 }
 
 const mapDispatchToProps = dispatch => ({
   notify: bindActionCreators(publishAutoDismissingNotification, dispatch),
+  errorThrown: bindActionCreators(errorThrownAction, dispatch),
 })
 
 export default connect(null, mapDispatchToProps)(WriteDataForm)
