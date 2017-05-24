@@ -106,7 +106,9 @@ table > thead > tr > th.admin-table--left-offset {padding-left: 15px;}
 }
 pre.admin-table--query {
   width: 100%;
-  padding: 6px;
+  padding: 0;
+  border-radius: 0;
+  background-color: transparent;
   margin-bottom: 0;
 }
 
