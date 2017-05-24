@@ -16,6 +16,10 @@
       -ms-user-select: none;
           user-select: none;
 }
+.user-select-none,
+.user-select-none:hover {
+  cursor: default;
+}
 .u-flex {
   display: -webkit-box;
   display: -webkit-flex;
@@ -561,6 +565,10 @@ html {
       -ms-user-select: none;
           user-select: none;
   background-color: #0f0e15;
+}
+.ix-app-heading,
+.ix-app-heading:hover {
+  cursor: default;
 }
 .ix-app-heading:after {
   position: absolute;
@@ -1453,6 +1461,10 @@ br {
      -moz-user-select: none;
       -ms-user-select: none;
           user-select: none;
+}
+br,
+br:hover {
+  cursor: default;
 }
 .btn,
 a.btn,
@@ -3634,6 +3646,10 @@ fieldset[disabled] button.btn-link-alert:after {
       -ms-user-select: none;
           user-select: none;
 }
+.panel-title,
+.panel-title:hover {
+  cursor: default;
+}
 .panel-title .icon:first-child {
   margin-right: 7px;
 }
@@ -4249,8 +4265,14 @@ p .label {
 .dropdown-300 .dropdown-toggle {
   width: 300px;
 }
+.dropdown-310 .dropdown-toggle {
+  width: 310px;
+}
 .dropdown-320 .dropdown-toggle {
   width: 320px;
+}
+.dropdown-330 .dropdown-toggle {
+  width: 330px;
 }
 .dropdown-340 .dropdown-toggle {
   width: 340px;
@@ -4389,12 +4411,16 @@ p .label {
   padding: 7px 9px;
   font-size: 13px;
   font-weight: 500;
-  line-height: 15px;
+  line-height: 13px;
   color: rgba(255, 255, 255, .4);
   -webkit-user-select: none;
      -moz-user-select: none;
       -ms-user-select: none;
           user-select: none;
+}
+.dropdown-empty,
+.dropdown-empty:hover {
+  cursor: default;
 }
 /*
     Dropdown Menu
@@ -4437,6 +4463,10 @@ p .label {
   -webkit-justify-content: space-between;
   -ms-flex-pack: justify;
           justify-content: space-between;
+}
+.dropdown-menu li.dropdown-item,
+.dropdown-menu li.dropdown-item:hover {
+  cursor: default;
 }
 .dropdown-menu li.dropdown-item:hover,
 .dropdown-menu li.dropdown-item.highlight,
@@ -4555,6 +4585,10 @@ p .label {
           user-select: none;
   background-color: #22adf6;
 }
+.dropdown .dropdown-menu li.dropdown-header,
+.dropdown .dropdown-menu li.dropdown-header:hover {
+  cursor: default;
+}
 .dropdown .dropdown-menu li.dropdown-divider {
   width: 100%;
   height: 2px;
@@ -4577,6 +4611,102 @@ p .label {
   background:      -o-linear-gradient(left, #00c9ff 0%, #22adf6 100%);
   background:         linear-gradient(to right, #00c9ff 0%, #22adf6 100%);
   filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='@color1', endColorstr='@color2', GradientType=1);
+}
+/*
+    Multi-Select Dropdowns
+    ----------------------------------------------
+*/
+.multi-select--item,
+.multi-select--apply {
+  padding: 7px 9px;
+  margin: 0;
+  -webkit-user-select: none;
+     -moz-user-select: none;
+      -ms-user-select: none;
+          user-select: none;
+}
+.multi-select--item,
+.multi-select--apply,
+.multi-select--item:hover,
+.multi-select--apply:hover {
+  cursor: default;
+}
+.multi-select--checkbox {
+  position: relative;
+  width: 14px;
+  height: 14px;
+  margin-right: 7px;
+  background-color: #326bba;
+  border-radius: 3px;
+}
+.multi-select--checkbox:after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  content: '';
+  background-color: #fff;
+  border-radius: 50%;
+  opacity: 0;
+  -webkit-transition: -webkit-transform .25s ease,
+  opacity .25s ease;
+       -o-transition:      -o-transform .25s ease,
+  opacity .25s ease;
+          transition:         transform .25s ease,
+  opacity .25s ease;
+  -webkit-transform: translate(-50%, -50%) scale(2, 2);
+      -ms-transform: translate(-50%, -50%) scale(2, 2);
+       -o-transform: translate(-50%, -50%) scale(2, 2);
+          transform: translate(-50%, -50%) scale(2, 2);
+}
+.multi-select--item {
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display:         flex;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 13px;
+  color: #bef0ff;
+  -webkit-transition: color .25s ease;
+       -o-transition: color .25s ease;
+          transition: color .25s ease;
+
+  -webkit-box-align: center;
+  -webkit-align-items: center;
+  -ms-flex-align: center;
+          align-items: center;
+}
+.multi-select--item > span {
+  width: -webkit-calc(100% - 21px);
+  width:         calc(100% - 21px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.multi-select--item:hover {
+  color: #fff;
+  cursor: pointer;
+  background: #00c9ff;
+  background: -webkit-linear-gradient(left, #00c9ff 0%, #22adf6 100%);
+  background: -webkit-gradient(linear, left top, right top, from(#00c9ff), to(#22adf6));
+  background:      -o-linear-gradient(left, #00c9ff 0%, #22adf6 100%);
+  background:         linear-gradient(to right, #00c9ff 0%, #22adf6 100%);
+  filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='@color1', endColorstr='@color2', GradientType=1);
+}
+.multi-select--item.checked {
+  color: #fff;
+}
+.multi-select--item.checked .multi-select--checkbox:after {
+  opacity: 1;
+  -webkit-transform: translate(-50%, -50%) scale(1, 1);
+      -ms-transform: translate(-50%, -50%) scale(1, 1);
+       -o-transform: translate(-50%, -50%) scale(1, 1);
+          transform: translate(-50%, -50%) scale(1, 1);
+}
+.multi-select--apply .btn {
+  width: 100%;
 }
 /*
   Kapacitor Theme Dropdowns
@@ -4751,6 +4881,10 @@ p .label {
   border-width: 0;
   border-radius: 4px;
 }
+.alert,
+.alert:hover {
+  cursor: default;
+}
 .alert button.close {
   position: absolute;
   top: 50%;
@@ -4915,6 +5049,32 @@ p .label {
 }
 .alert-info span.icon {
   color: #676978;
+}
+.alert-dark {
+  font-size: 16px;
+  color: #c9d0ff;
+  background: #326bba;
+  background: -webkit-linear-gradient(left, #326bba 0%, #1f2039 100%);
+  background: -webkit-gradient(linear, left top, right top, from(#326bba), to(#1f2039));
+  background:      -o-linear-gradient(left, #326bba 0%, #1f2039 100%);
+  background:         linear-gradient(to right, #326bba 0%, #1f2039 100%);
+  filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='@color1', endColorstr='@color2', GradientType=1);
+}
+.alert-dark a:link,
+.alert-dark a:visited {
+  font-weight: 700;
+  color: #22adf6;
+  text-decoration: underline;
+  -webkit-transition: color .25s ease;
+       -o-transition: color .25s ease;
+          transition: color .25s ease;
+}
+.alert-dark a:hover {
+  color: #00c9ff;
+  border-color: #00c9ff;
+}
+.alert-dark span.icon {
+  color: #c9d0ff;
 }
 .progress,
 .progress-bar {
@@ -5141,6 +5301,10 @@ p .label {
      -moz-user-select: none;
       -ms-user-select: none;
           user-select: none;
+}
+.table th,
+.table th:hover {
+  cursor: default;
 }
 .table td {
   padding: 4px 8px;
@@ -5618,6 +5782,10 @@ p .label {
   -webkit-align-items: center;
   -ms-flex-align: center;
           align-items: center;
+}
+.nav-tablist > li,
+.nav-tablist > li:hover {
+  cursor: default;
 }
 .nav-tablist > li:hover {
   color: #d4d7dd;
@@ -6365,6 +6533,10 @@ input:-moz-placeholder {
   background-color: #31313d;
   border: 2px solid #383846;
 }
+.input-group-addon,
+.input-group-addon:hover {
+  cursor: default;
+}
 .has-error .input-group-addon {
   color: #ff8564;
   background-color: #31313d;
@@ -6418,6 +6590,24 @@ fieldset[disabled] .form-control:hover,
           user-select: none;
   background-color: #292933 !important;
   border-color: #383846;
+}
+.form-control[disabled],
+.form-control[readonly],
+fieldset[disabled] .form-control,
+.form-control.disabled,
+.form-control[disabled]:hover,
+.form-control[readonly]:hover,
+fieldset[disabled] .form-control:hover,
+.form-control.disabled:hover,
+.form-control[disabled]:hover,
+.form-control[readonly]:hover,
+fieldset[disabled] .form-control:hover,
+.form-control.disabled:hover,
+.form-control[disabled]:hover:hover,
+.form-control[readonly]:hover:hover,
+fieldset[disabled] .form-control:hover:hover,
+.form-control.disabled:hover:hover {
+  cursor: default;
 }
 .has-error .form-control,
 .has-success .form-control,
@@ -6521,6 +6711,10 @@ input.form-control.input-lg {
       -ms-user-select: none;
           user-select: none;
 }
+.form-group > label,
+.form-group > label:hover {
+  cursor: default;
+}
 .form-control-static {
   display: -webkit-box;
   display: -webkit-flex;
@@ -6546,6 +6740,10 @@ input.form-control.input-lg {
      -moz-user-select: none;
       -ms-user-select: none;
           user-select: none;
+}
+.form-control-static label,
+.form-control-static label:hover {
+  cursor: default;
 }
 .form-control-static input[type="checkbox"] {
   position: relative;
@@ -6756,6 +6954,10 @@ label.form-helper {
      -moz-user-select: none;
       -ms-user-select: none;
           user-select: none;
+}
+label.form-helper,
+label.form-helper:hover {
+  cursor: default;
 }
 .form-group-submit {
   margin-top: 30px;
@@ -7330,6 +7532,10 @@ section.docs-section .page-header {
       -ms-user-select: none;
           user-select: none;
   border-bottom: 0;
+}
+section.docs-section .page-header,
+section.docs-section .page-header:hover {
+  cursor: default;
 }
 .panel.docs-example {
   background-color: #eeeff2;
