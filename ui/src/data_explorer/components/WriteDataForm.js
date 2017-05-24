@@ -35,7 +35,7 @@ class WriteDataForm extends Component {
   handleWrite() {
     const {onClose, source, notify} = this.props
     const {selectedDatabase} = this.state
-    writeData(source, selectedDatabase.text, this.editor.value).then(() => {
+    writeData(source, selectedDatabase, this.editor.value).then(() => {
       notify('success', 'Data was written successfully')
       onClose()
     })
