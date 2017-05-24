@@ -3,6 +3,8 @@ import reducer from 'src/data_explorer/reducers/ui'
 import {
   addQuery,
   deleteQuery,
+  showWriteForm,
+  hideWriteForm,
 } from 'src/data_explorer/actions/view'
 
 const noopAction = () => {
@@ -36,5 +38,15 @@ describe('DataExplorer.Reducers.UI', () => {
     }
 
     expect(actual).to.deep.equal(expected)
+  })
+
+  it('can show the write data overlay', () => {
+    const actual = reducer(state, showWriteForm())
+    expect(actual.showWriteForm).to.equal(true)
+  })
+
+  it('can hide the write data overlay', () => {
+    const actual = reducer(state, hideWriteForm())
+    expect(actual.showWriteForm).to.equal(false)
   })
 })
