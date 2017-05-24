@@ -67,20 +67,18 @@ class MultiSelectDropdown extends Component {
 
   render() {
     const {localSelectedItems, isOpen} = this.state
-    const {label} = this.props
+    const {label, buttonSize, buttonColor, customClass, iconName} = this.props
 
     return (
-      <div
-        className={classnames('dropdown multi-select-dropdown', {open: isOpen})}
-      >
+      <div className={classnames(`dropdown ${customClass}`, {open: isOpen})}>
         <div
           onClick={::this.toggleMenu}
-          className="btn btn-xs btn-info dropdown-toggle"
-          type="button"
+          className={`dropdown-toggle btn ${buttonSize} ${buttonColor}`}
         >
-          <div className="multi-select-dropdown__label">
+          {iconName ? <span className={`icon ${iconName}`} /> : null}
+          <span className="dropdown-selected">
             {labelText({localSelectedItems, isOpen, label})}
-          </div>
+          </span>
           <span className="caret" />
         </div>
         {this.renderMenu()}
@@ -92,33 +90,30 @@ class MultiSelectDropdown extends Component {
     const {items} = this.props
 
     return (
-      <div className="dropdown-options">
-        <div
-          className="multi-select-dropdown__apply"
-          onClick={this.onApplyFunctions}
-          style={{listStyle: 'none'}}
-        >
-          <div className="btn btn-xs btn-info btn-block">Apply</div>
-        </div>
-        <ul
-          className="dropdown-menu multi-select-dropdown__menu"
-          aria-labelledby="dropdownMenu1"
-        >
-          {items.map((listItem, i) => {
-            return (
-              <li
-                key={i}
-                className={classnames('multi-select-dropdown__item', {
-                  active: this.isSelected(listItem),
-                })}
-                onClick={_.wrap(listItem, this.onSelect)}
-              >
-                <a href="#">{listItem}</a>
-              </li>
-            )
-          })}
-        </ul>
-      </div>
+      <ul className="dropdown-menu">
+        <li className="multi-select--apply">
+          <button
+            className="btn btn-xs btn-info"
+            onClick={this.onApplyFunctions}
+          >
+            Apply
+          </button>
+        </li>
+        {items.map((listItem, i) => {
+          return (
+            <li
+              key={i}
+              className={classnames('multi-select--item', {
+                checked: this.isSelected(listItem),
+              })}
+              onClick={_.wrap(listItem, this.onSelect)}
+            >
+              <div className="multi-select--checkbox" />
+              <span>{listItem}</span>
+            </li>
+          )
+        })}
+      </ul>
     )
   }
 }
@@ -130,6 +125,15 @@ MultiSelectDropdown.propTypes = {
   items: arrayOf(string.isRequired).isRequired,
   selectedItems: arrayOf(string.isRequired).isRequired,
   label: string,
+  buttonSize: string,
+  buttonColor: string,
+  customClass: string,
+  iconName: string,
+}
+MultiSelectDropdown.defaultProps = {
+  buttonSize: 'btn-sm',
+  buttonColor: 'btn-default',
+  customClass: 'dropdown-160',
 }
 
 export default OnClickOutside(MultiSelectDropdown)
