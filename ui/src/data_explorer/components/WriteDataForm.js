@@ -16,7 +16,6 @@ class WriteDataForm extends Component {
     }
 
     this.handleSelectDatabase = ::this.handleSelectDatabase
-    this.handleStartEdit = ::this.handleStartEdit
     this.handleError = ::this.handleError
     this.handleWrite = ::this.handleWrite
   }
@@ -24,8 +23,6 @@ class WriteDataForm extends Component {
   handleSelectDatabase(item) {
     this.setState({selectedDatabase: item.text})
   }
-
-  handleStartEdit() {}
 
   handleError(error) {
     const {errorThrown} = this.props
@@ -53,7 +50,7 @@ class WriteDataForm extends Component {
             <DatabaseDropdown
               onSelectDatabase={this.handleSelectDatabase}
               database={selectedDatabase}
-              onStartEdit={this.handleStartEdit}
+              onStartEdit={() => {}}
               onErrorThrown={this.handleError}
             />
           </div>
