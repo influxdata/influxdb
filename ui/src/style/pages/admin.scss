@@ -77,11 +77,14 @@ table > thead > tr > th.admin-table--left-offset {padding-left: 15px;}
   }
   .dropdown-toggle {
     background-color: transparent;
-    font-weight: 500;
+    font-weight: 600;
     color: $g14-chromium;
     transition: none !important;
 
     .caret {opacity: 0;}
+  }
+  .admin-table--multi-select-empty .dropdown-toggle {
+    color: $g8-storm;
   }
   tbody tr:hover {
     .admin-table--hidden {
@@ -90,7 +93,6 @@ table > thead > tr > th.admin-table--left-offset {padding-left: 15px;}
     .dropdown-toggle {
       color: $g20-white !important;
       background-color: $c-pool;
-      font-weight: 600;
 
       .caret {opacity: 1;}
 

@@ -1,6 +1,7 @@
 import React, {PropTypes} from 'react'
 
 import _ from 'lodash'
+import classnames from 'classnames'
 
 import UserEditName from 'src/admin/components/UserEditName'
 import UserNewPassword from 'src/admin/components/UserNewPassword'
@@ -88,7 +89,9 @@ const UserRow = ({
               onApply={handleUpdateRoles}
               buttonSize="btn-xs"
               buttonColor="btn-primary"
-              customClass="dropdown-190"
+              customClass={classnames('dropdown-190', {
+                'admin-table--multi-select-empty': !roles.length,
+              })}
             />
           </td>
         : null}
@@ -103,7 +106,9 @@ const UserRow = ({
               onApply={handleUpdatePermissions}
               buttonSize="btn-xs"
               buttonColor="btn-primary"
-              customClass="dropdown-190"
+              customClass={classnames('dropdown-190', {
+                'admin-table--multi-select-empty': !roles.length,
+              })}
             />
           : null}
       </td>
