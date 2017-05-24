@@ -29,17 +29,16 @@ class WriteDataForm extends Component {
     errorThrown(error)
   }
 
-  handleWrite() {
+  async handleWrite() {
     const {onClose, source, notify, errorThrown} = this.props
     const {selectedDatabase} = this.state
-    writeData(source, selectedDatabase, this.editor.value)
-      .then(() => {
-        notify('success', 'Data was written successfully')
-        onClose()
-      })
-      .catch(response => {
-        errorThrown(response, response.data.error)
-      })
+    try {
+      await writeData(source, selectedDatabase, this.editor.value)
+      notify('success', 'Data was written successfully')
+      onClose()
+    } catch (response) {
+      errorThrown(response, response.data.error)
+    }
   }
 
   render() {
