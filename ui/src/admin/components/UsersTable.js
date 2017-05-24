@@ -32,9 +32,9 @@ const UsersTable = ({
         <thead>
           <tr>
             <th>User</th>
-            {hasRoles && <th>Roles</th>}
-            <th>Permissions</th>
-            <th />
+            <th>Password</th>
+            {hasRoles && <th className="admin-table--left-offset">Roles</th>}
+            <th className="admin-table--left-offset">Permissions</th>
             <th />
           </tr>
         </thead>

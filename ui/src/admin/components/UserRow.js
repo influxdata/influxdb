@@ -2,7 +2,8 @@ import React, {PropTypes} from 'react'
 
 import _ from 'lodash'
 
-import UserEditingRow from 'src/admin/components/UserEditingRow'
+import UserEditName from 'src/admin/components/UserEditName'
+import UserNewPassword from 'src/admin/components/UserNewPassword'
 import MultiSelectDropdown from 'shared/components/MultiSelectDropdown'
 import ConfirmButtons from 'shared/components/ConfirmButtons'
 import DeleteConfirmTableCell from 'shared/components/DeleteConfirmTableCell'
@@ -42,17 +43,22 @@ const UserRow = ({
   if (isEditing) {
     return (
       <tr className="admin-table--edit-row">
-        <UserEditingRow
+        <UserEditName user={user} onEdit={onEdit} onSave={onSave} />
+        <UserNewPassword
           user={user}
           onEdit={onEdit}
           onSave={onSave}
           isNew={isNew}
         />
-        {hasRoles ? <td>--</td> : null}
-        <td>--</td>
-        <td style={{width: '190px'}} />
+        {hasRoles ? <td className="admin-table--left-offset">--</td> : null}
+        <td className="admin-table--left-offset">--</td>
         <td className="text-right" style={{width: '85px'}}>
-          <ConfirmButtons item={user} onConfirm={onSave} onCancel={onCancel} />
+          <ConfirmButtons
+            item={user}
+            onConfirm={onSave}
+            onCancel={onCancel}
+            buttonSize="btn-xs"
+          />
         </td>
       </tr>
     )
@@ -61,6 +67,14 @@ const UserRow = ({
   return (
     <tr>
       <td style={{width: '240px'}}>{name}</td>
+      <td style={{width: '186px'}}>
+        <ChangePassRow
+          onEdit={onEdit}
+          onApply={handleUpdatePassword}
+          user={user}
+          buttonSize="btn-xs"
+        />
+      </td>
       {hasRoles
         ? <td>
             <MultiSelectDropdown
@@ -72,10 +86,12 @@ const UserRow = ({
               }
               label={roles && roles.length ? '' : 'Select Roles'}
               onApply={handleUpdateRoles}
+              buttonSize="btn-xs"
+              buttonColor="btn-primary"
+              customClass="dropdown-190"
             />
           </td>
         : null}
-
       <td>
         {allPermissions && allPermissions.length
           ? <MultiSelectDropdown
@@ -85,16 +101,11 @@ const UserRow = ({
                 permissions && permissions.length ? '' : 'Select Permissions'
               }
               onApply={handleUpdatePermissions}
+              buttonSize="btn-xs"
+              buttonColor="btn-primary"
+              customClass="dropdown-190"
             />
           : null}
-      </td>
-      <td className="text-right" style={{width: '190px'}}>
-        <ChangePassRow
-          onEdit={onEdit}
-          onApply={handleUpdatePassword}
-          user={user}
-          buttonSize="btn-xs"
-        />
       </td>
       <DeleteConfirmTableCell
         onDelete={onDelete}

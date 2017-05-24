@@ -52,13 +52,13 @@ class ChangePassRow extends Component {
 
     if (this.state.showForm) {
       return (
-        <div className="admin-change-pw">
+        <div className="admin-table--change-pw">
           <input
             className="form-control input-xs"
             name="password"
             type="password"
             value={user.password || ''}
-            placeholder="Password"
+            placeholder="New password"
             onChange={this.handleEdit(user)}
             onKeyPress={this.handleKeyPress(user)}
             autoFocus={true}
@@ -74,12 +74,11 @@ class ChangePassRow extends Component {
     }
 
     return (
-      <button
-        className="btn btn-xs btn-info admin-table--hidden"
-        onClick={this.showForm}
-      >
-        Change Password
-      </button>
+      <div className="admin-table--change-pw">
+        <a href="#" onClick={this.showForm}>
+          Change
+        </a>
+      </div>
     )
   }
 }
