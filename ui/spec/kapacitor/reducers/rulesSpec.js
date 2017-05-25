@@ -53,7 +53,7 @@ describe('Kapacitor.Reducers.rules', () => {
     let newState = reducer(initialState, addEvery(ruleID, '30s'))
     expect(newState[ruleID].every).to.equal('30s')
 
-    newState = reducer(initialState, removeEvery(ruleID))
+    newState = reducer(newState, removeEvery(ruleID))
     expect(newState[ruleID].every).to.equal(null)
   })
 
