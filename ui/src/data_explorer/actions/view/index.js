@@ -23,11 +23,11 @@ export function deleteQuery(queryID) {
   }
 }
 
-export function showWriteForm() {
+export const showWriteForm = () => {
   return {type: 'SHOW_WRITE_FORM'}
 }
 
-export function hideWriteForm() {
+export const hideWriteForm = () => {
   return {type: 'HIDE_WRITE_FORM'}
 }
 
