@@ -138,10 +138,10 @@
   position: absolute;
   width: 100%;
   height: 100%;
+  @include no-user-select();
 
   &.graph-single-stat {
     top: 0;
-    pointer-events: none;
   }
 }
 .single-stat--value {
