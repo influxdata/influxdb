@@ -2,7 +2,6 @@ package meta
 
 import (
 	"errors"
-	"fmt"
 	"net"
 	"net/url"
 	"sort"
@@ -48,32 +47,6 @@ type Data struct {
 
 	MaxShardGroupID uint64
 	MaxShardID      uint64
-}
-
-// NewShardOwner sets the owner of the provided shard to the data node
-// that currently owns the fewest number of shards. If multiple nodes
-// own the same (fewest) number of shards, then one of those nodes
-// becomes the new shard owner.
-func NewShardOwner(s ShardInfo, ownerFreqs map[int]int) (uint64, error) {
-	var (
-		minId   = -1
-		minFreq int
-	)
-
-	for id, freq := range ownerFreqs {
-		if minId == -1 || freq < minFreq {
-			minId, minFreq = int(id), freq
-		}
-	}
-
-	if minId < 0 {
-		return 0, fmt.Errorf("cannot reassign shard %d due to lack of data nodes", s.ID)
-	}
-
-	// Update the shard owner frequencies and set the new owner on the
-	// shard.
-	ownerFreqs[minId]++
-	return uint64(minId), nil
 }
 
 // Database returns a DatabaseInfo by the database name.
