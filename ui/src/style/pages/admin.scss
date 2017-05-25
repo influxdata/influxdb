@@ -91,8 +91,10 @@
 table > tbody > tr > td.admin-table--left-offset,
 table > thead > tr > th.admin-table--left-offset {padding-left: 15px;}
 
-.admin-table--edit-row,
-.admin-table--edit-row:hover {
+table > tbody > tr.admin-table--edit-row,
+table > tbody > tr.admin-table--edit-row:hover,
+table.table-highlight > tbody > tr.admin-table--edit-row,
+table.table-highlight > tbody > tr.admin-table--edit-row:hover {
   background-color: $g5-pepper;
 }
 .admin-table--change-pw {
