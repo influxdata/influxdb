@@ -39,7 +39,7 @@ class QueryRow extends Component {
         >
           {database}
         </td>
-        <td><pre className="admin-table--query"><code>{query}</code></pre></td>
+        <td><code>{query}</code></td>
         <td
           style={{width: `${QUERIES_TABLE.colRunning}px`}}
           className="monotype"
