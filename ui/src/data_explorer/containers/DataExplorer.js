@@ -6,7 +6,7 @@ import _ from 'lodash'
 
 import QueryMaker from '../components/QueryMaker'
 import Visualization from '../components/Visualization'
-import WriteDataForm from '../components/WriteDataForm'
+import WriteDataForm from 'src/data_explorer/components/WriteDataForm'
 import Header from '../containers/Header'
 import ResizeContainer from 'shared/components/ResizeContainer'
 import OverlayTechnologies from 'shared/components/OverlayTechnologies'
