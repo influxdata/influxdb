@@ -36,6 +36,7 @@ $tvmp-table-gutter: 8px;
   @include custom-scrollbar-round($g0-obsidian,$g3-castle);
 
   textarea {
+    height: 120px;
     border-bottom: 2px solid #383846;
   }
 }
