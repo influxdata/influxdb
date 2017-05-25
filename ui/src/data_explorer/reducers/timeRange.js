@@ -1,4 +1,4 @@
-import timeRanges from 'hson!../../shared/data/timeRanges.hson'
+import timeRanges from 'hson!shared/data/timeRanges.hson'
 
 const {lower, upper} = timeRanges[2]
 
