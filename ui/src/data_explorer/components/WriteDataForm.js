@@ -53,7 +53,6 @@ class WriteDataForm extends Component {
             <DatabaseDropdown
               onSelectDatabase={this.handleSelectDatabase}
               database={selectedDatabase}
-              onStartEdit={() => {}}
               onErrorThrown={this.handleError}
             />
           </div>
