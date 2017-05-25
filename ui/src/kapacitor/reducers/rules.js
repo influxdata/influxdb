@@ -45,12 +45,12 @@ export default function rules(state = {}, action) {
       })
     }
 
-    case 'EVERY_ADDED': {
+    case 'ADD_EVERY': {
       const {ruleID, frequency} = action.payload
       return {...state, [ruleID]: {...state[ruleID], every: frequency}}
     }
 
-    case 'EVERY_REMOVED': {
+    case 'REMOVE_EVERY': {
       const {ruleID} = action.payload
       return {...state, [ruleID]: {...state[ruleID], every: null}}
     }

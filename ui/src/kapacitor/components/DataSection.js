@@ -23,14 +23,14 @@ export const DataSection = React.createClass({
       chooseNamespace: PropTypes.func.isRequired,
       chooseMeasurement: PropTypes.func.isRequired,
       applyFuncsToField: PropTypes.func.isRequired,
-      everyAdded: PropTypes.func.isRequired,
-      everyRemoved: PropTypes.func.isRequired,
       chooseTag: PropTypes.func.isRequired,
       groupByTag: PropTypes.func.isRequired,
       toggleField: PropTypes.func.isRequired,
       groupByTime: PropTypes.func.isRequired,
       toggleTagAcceptance: PropTypes.func.isRequired,
     }).isRequired,
+    onAddEvery: PropTypes.func.isRequired,
+    onRemoveEvery: PropTypes.func.isRequired,
     timeRange: PropTypes.shape({}).isRequired,
   },
 
@@ -59,7 +59,7 @@ export const DataSection = React.createClass({
     this.props.actions.toggleField(this.props.query.id, field, true)
     // Every is only added when a function has been added to a field.
     // Here, the field is selected without a function.
-    this.props.actions.everyRemoved(this.props.query.id)
+    this.props.onRemoveEvery()
     // Because there are no functions there is no group by time.
     this.props.actions.groupByTime(this.props.query.id, null)
   },
@@ -70,7 +70,7 @@ export const DataSection = React.createClass({
 
   handleApplyFuncsToField(fieldFunc) {
     this.props.actions.applyFuncsToField(this.props.query.id, fieldFunc)
-    this.props.actions.everyAdded(this.props.query.id, defaultEveryFrequency)
+    this.props.onAddEvery(defaultEveryFrequency)
   },
 
   handleChooseTag(tag) {

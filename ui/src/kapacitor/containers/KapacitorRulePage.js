@@ -2,12 +2,8 @@ import React, {PropTypes} from 'react'
 import {connect} from 'react-redux'
 import _ from 'lodash'
 
-import * as kapacitorActionCreators from '../actions/view'
-import * as queryActionCreators from '../../data_explorer/actions/view'
-import {
-  everyAdded as everyAddedAction,
-  everyRemoved as everyRemovedAction,
-} from 'src/kapacitor/actions/view'
+import * as kapacitorActionCreators from 'src/kapacitor/actions/view'
+import * as queryActionCreators from 'src/data_explorer/actions/view'
 
 import {bindActionCreators} from 'redux'
 import {getActiveKapacitor, getKapacitorConfig} from 'shared/apis/index'
@@ -29,14 +25,16 @@ export const KapacitorRulePage = React.createClass({
       loadDefaultRule: PropTypes.func.isRequired,
       fetchRule: PropTypes.func.isRequired,
       chooseTrigger: PropTypes.func.isRequired,
+      addEvery: PropTypes.func.isRequired,
+      removeEvery: PropTypes.func.isRequired,
       updateRuleValues: PropTypes.func.isRequired,
       updateMessage: PropTypes.func.isRequired,
       updateAlerts: PropTypes.func.isRequired,
       updateRuleName: PropTypes.func.isRequired,
     }).isRequired,
     queryActions: PropTypes.shape({}).isRequired,
-    everyAdded: PropTypes.func.isRequired,
-    everyRemoved: PropTypes.func.isRequired,
+    addEvery: PropTypes.func.isRequired,
+    removeEvery: PropTypes.func.isRequired,
     params: PropTypes.shape({
       ruleID: PropTypes.string,
     }).isRequired,
@@ -84,7 +82,7 @@ export const KapacitorRulePage = React.createClass({
         .catch(() => {
           addFlashMessage({
             type: 'error',
-            text: 'We couldn\'t find a configured Kapacitor for this source',
+            text: "We couldn't find a configured Kapacitor for this source", // eslint-disable-line quotes
           })
         })
     })
@@ -98,8 +96,6 @@ export const KapacitorRulePage = React.createClass({
       kapacitorActions,
       source,
       queryActions,
-      everyAdded,
-      everyRemoved,
       addFlashMessage,
       router,
     } = this.props
@@ -120,7 +116,7 @@ export const KapacitorRulePage = React.createClass({
         rule={rule}
         query={query}
         queryConfigs={queryConfigs}
-        queryActions={{...queryActions, everyAdded, everyRemoved}}
+        queryActions={queryActions}
         kapacitorActions={kapacitorActions}
         addFlashMessage={addFlashMessage}
         enabledAlerts={enabledAlerts}
@@ -148,8 +144,6 @@ function mapDispatchToProps(dispatch) {
   return {
     kapacitorActions: bindActionCreators(kapacitorActionCreators, dispatch),
     queryActions: bindActionCreators(queryActionCreators, dispatch),
-    everyAdded: bindActionCreators(everyAddedAction, dispatch),
-    everyRemoved: bindActionCreators(everyRemovedAction, dispatch),
   }
 }
 

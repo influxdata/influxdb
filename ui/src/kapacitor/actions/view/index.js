@@ -71,16 +71,16 @@ export function chooseTrigger(ruleID, trigger) {
   }
 }
 
-export const everyAdded = (ruleID, frequency) => ({
-  type: 'EVERY_ADDED',
+export const addEvery = (ruleID, frequency) => ({
+  type: 'ADD_EVERY',
   payload: {
     ruleID,
     frequency,
   },
 })
 
-export const everyRemoved = ruleID => ({
-  type: 'EVERY_REMOVED',
+export const removeEvery = ruleID => ({
+  type: 'REMOVE_EVERY',
   payload: {
     ruleID,
   },
