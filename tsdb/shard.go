@@ -170,6 +170,7 @@ func (s *Shard) WithLogger(log zap.Logger) {
 	s.baseLogger = log
 	if err := s.ready(); err == nil {
 		s.engine.WithLogger(s.baseLogger)
+		s.index.WithLogger(s.baseLogger)
 	}
 	s.logger = s.baseLogger.With(zap.String("service", "shard"))
 }
@@ -274,6 +275,7 @@ func (s *Shard) Open() error {
 			return err
 		}
 		s.index = idx
+		idx.WithLogger(s.baseLogger)
 
 		// Initialize underlying engine.
 		e, err := NewEngine(s.id, idx, s.path, s.walPath, s.options)
