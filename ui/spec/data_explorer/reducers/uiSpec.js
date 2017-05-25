@@ -39,14 +39,4 @@ describe('DataExplorer.Reducers.UI', () => {
 
     expect(actual).to.deep.equal(expected)
   })
-
-  it('can summon the overlay technology to write data', () => {
-    const actual = reducer(state, showWriteForm())
-    expect(actual.showWriteForm).to.equal(true)
-  })
-
-  it('can banish overlay technology', () => {
-    const actual = reducer(state, hideWriteForm())
-    expect(actual.showWriteForm).to.equal(false)
-  })
 })
