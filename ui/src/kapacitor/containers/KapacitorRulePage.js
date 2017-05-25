@@ -33,8 +33,6 @@ export const KapacitorRulePage = React.createClass({
       updateRuleName: PropTypes.func.isRequired,
     }).isRequired,
     queryActions: PropTypes.shape({}).isRequired,
-    addEvery: PropTypes.func.isRequired,
-    removeEvery: PropTypes.func.isRequired,
     params: PropTypes.shape({
       ruleID: PropTypes.string,
     }).isRequired,
