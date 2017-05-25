@@ -4,6 +4,8 @@ import {ALERT_NODES_ACCESSORS} from 'src/kapacitor/constants'
 
 import {
   chooseTrigger,
+  addEvery,
+  removeEvery,
   updateRuleValues,
   updateDetails,
   updateMessage,
@@ -38,6 +40,23 @@ describe('Kapacitor.Reducers.rules', () => {
     expect(newState[ruleID].values).to.equal(defaultRuleConfigs.threshold)
   })
 
+  it('can update the every', () => {
+    const ruleID = 1
+    const initialState = {
+      [ruleID]: {
+        id: ruleID,
+        queryID: 988,
+        every: null,
+      },
+    }
+
+    let newState = reducer(initialState, addEvery(ruleID, '30s'))
+    expect(newState[ruleID].every).to.equal('30s')
+
+    newState = reducer(initialState, removeEvery(ruleID))
+    expect(newState[ruleID].every).to.equal(null)
+  })
+
   it('can update the values', () => {
     const ruleID = 1
     const initialState = {
@@ -50,11 +69,17 @@ describe('Kapacitor.Reducers.rules', () => {
     }
 
     const newDeadmanValues = {duration: '5m'}
-    const newState = reducer(initialState, updateRuleValues(ruleID, 'deadman', newDeadmanValues))
+    const newState = reducer(
+      initialState,
+      updateRuleValues(ruleID, 'deadman', newDeadmanValues)
+    )
     expect(newState[ruleID].values).to.equal(newDeadmanValues)
 
     const newRelativeValues = {func: 'max', change: 'change'}
-    const finalState = reducer(newState, updateRuleValues(ruleID, 'relative', newRelativeValues))
+    const finalState = reducer(
+      newState,
+      updateRuleValues(ruleID, 'relative', newRelativeValues)
+    )
     expect(finalState[ruleID].trigger).to.equal('relative')
     expect(finalState[ruleID].values).to.equal(newRelativeValues)
   })
@@ -110,7 +135,10 @@ describe('Kapacitor.Reducers.rules', () => {
           .services('a b c')
     `
 
-    let newState = reducer(initialState, updateAlertNodes(ruleID, 'alerta', tickScript))
+    let newState = reducer(
+      initialState,
+      updateAlertNodes(ruleID, 'alerta', tickScript)
+    )
     const expectedStr = `alerta().resource('Hostname or service').event('Something went wrong').environment('Development').group('Dev. Servers').services('a b c')`
     let actualStr = ALERT_NODES_ACCESSORS.alerta(newState[ruleID])
 
@@ -184,7 +212,10 @@ describe('Kapacitor.Reducers.rules', () => {
       },
     }
 
-    const newState = reducer(initialState, updateRuleStatusSuccess(ruleID, status))
+    const newState = reducer(
+      initialState,
+      updateRuleStatusSuccess(ruleID, status)
+    )
     expect(newState[ruleID].status).to.equal(status)
   })
 })
