@@ -192,8 +192,8 @@ class Dropdown extends Component {
             )
           })}
           {addNew
-            ? <li>
-                <Link to={addNew.url}>
+            ? <li className="multi-select--apply">
+                <Link className="btn btn-xs btn-default" to={addNew.url}>
                   {addNew.text}
                 </Link>
               </li>
