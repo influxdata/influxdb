@@ -39,7 +39,7 @@ const DataExplorer = React.createClass({
     }).isRequired,
     setTimeRange: func.isRequired,
     hideWriteFormAction: func.isRequired,
-    showWriteFormAction: func.isRequired,
+    showWriteForm: func.isRequired,
     dataExplorer: shape({
       showWriteForm: bool.isRequired,
       queryIDs: arrayOf(string).isRequired,
@@ -62,6 +62,7 @@ const DataExplorer = React.createClass({
   getInitialState() {
     return {
       activeQueryIndex: 0,
+      showWriteForm: false,
     }
   },
 
@@ -84,24 +85,24 @@ const DataExplorer = React.createClass({
       queryConfigs,
       queryConfigActions,
       source,
-      hideWriteFormAction,
-      showWriteFormAction,
-      dataExplorer: {showWriteForm},
     } = this.props
-    const {activeQueryIndex} = this.state
+    const {activeQueryIndex, showWriteForm} = this.state
 
     return (
       <div className="data-explorer">
         {showWriteForm
           ? <OverlayTechnologies>
-              <WriteDataForm onClose={hideWriteFormAction} source={source} />
+              <WriteDataForm
+                onClose={() => this.setState({showWriteForm: false})}
+                source={source}
+              />
             </OverlayTechnologies>
           : null}
         <Header
           actions={{handleChooseAutoRefresh, setTimeRange}}
           autoRefresh={autoRefresh}
           timeRange={timeRange}
-          showWriteFormAction={showWriteFormAction}
+          showWriteForm={() => this.setState({showWriteForm: true})}
         />
         <ResizeContainer
           containerClass="page-contents"
@@ -157,14 +158,6 @@ function mapDispatchToProps(dispatch) {
   return {
     handleChooseAutoRefresh: bindActionCreators(setAutoRefresh, dispatch),
     setTimeRange: bindActionCreators(viewActions.setTimeRange, dispatch),
-    showWriteFormAction: bindActionCreators(
-      viewActions.showWriteForm,
-      dispatch
-    ),
-    hideWriteFormAction: bindActionCreators(
-      viewActions.hideWriteForm,
-      dispatch
-    ),
     queryConfigActions: bindActionCreators(viewActions, dispatch),
   }
 }

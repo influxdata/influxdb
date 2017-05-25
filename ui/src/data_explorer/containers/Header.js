@@ -15,7 +15,7 @@ const Header = React.createClass({
       setTimeRange: func.isRequired,
     }),
     autoRefresh: number.isRequired,
-    showWriteFormAction: func.isRequired,
+    showWriteForm: func.isRequired,
     timeRange: shape({
       lower: string,
       upper: string,
@@ -36,7 +36,7 @@ const Header = React.createClass({
     const {
       autoRefresh,
       actions: {handleChooseAutoRefresh},
-      showWriteFormAction,
+      showWriteForm,
       timeRange,
     } = this.props
 
@@ -51,7 +51,7 @@ const Header = React.createClass({
           <div className="page-header__right">
             <GraphTips />
             <SourceIndicator sourceName={this.context.source.name} />
-            <div className="btn btn-sm btn-info" onClick={showWriteFormAction}>
+            <div className="btn btn-sm btn-info" onClick={showWriteForm}>
               <span className="icon pencil" />
               Write Data
             </div>

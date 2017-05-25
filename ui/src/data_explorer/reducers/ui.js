@@ -21,14 +21,6 @@ export default function ui(state = initialState, action) {
 
       return {...state, ...newState}
     }
-
-    case 'SHOW_WRITE_FORM': {
-      return {...state, showWriteForm: true}
-    }
-
-    case 'HIDE_WRITE_FORM': {
-      return {...state, showWriteForm: false}
-    }
   }
 
   return state
