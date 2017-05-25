@@ -6,6 +6,7 @@ import OnClickOutside from 'shared/components/OnClickOutside'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 import timeRanges from 'hson!../data/timeRanges.hson'
+import {DROPDOWN_MENU_MAX_HEIGHT} from 'shared/constants/index'
 
 const TimeRangeDropdown = React.createClass({
   autobind: false,
@@ -67,8 +68,12 @@ const TimeRangeDropdown = React.createClass({
           </span>
           <span className="caret" />
         </div>
-        <ul className="dropdown-menu" style={{height: '270px'}}>
-          <FancyScrollbar>
+        <ul className="dropdown-menu">
+          <FancyScrollbar
+            autoHide={false}
+            autoHeight={true}
+            maxHeight={DROPDOWN_MENU_MAX_HEIGHT}
+          >
             <li className="dropdown-header">Time Range</li>
             {timeRanges.map(item => {
               return (
