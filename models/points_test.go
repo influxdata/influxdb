@@ -2062,17 +2062,30 @@ func TestNewPointsRejectsEmptyFieldNames(t *testing.T) {
 
 func TestNewPointsRejectsMaxKey(t *testing.T) {
 	var key string
-	for i := 0; i < 65536; i++ {
+	// tsm field key is point key, separator (4 bytes) and field
+	for i := 0; i < models.MaxKeyLength-len("value")-4; i++ {
 		key += "a"
 	}
 
-	if _, err := models.NewPoint(key, nil, models.Fields{"value": 1}, time.Now()); err == nil {
+	// Test max key len
+	if _, err := models.NewPoint(key, nil, models.Fields{"value": 1, "ok": 2.0}, time.Now()); err != nil {
+		t.Fatalf("new point with max key. got: %v, expected: nil", err)
+	}
+
+	if _, err := models.ParsePointsString(fmt.Sprintf("%v value=1,ok=2.0", key)); err != nil {
+		t.Fatalf("parse point with max key. got: %v, expected: nil", err)
+	}
+
+	// Test 1 byte over max key len
+	key += "a"
+	if _, err := models.NewPoint(key, nil, models.Fields{"value": 1, "ok": 2.0}, time.Now()); err == nil {
 		t.Fatalf("new point with max key. got: nil, expected: error")
 	}
 
-	if _, err := models.ParsePointsString(fmt.Sprintf("%v value=1", key)); err == nil {
+	if _, err := models.ParsePointsString(fmt.Sprintf("%v value=1,ok=2.0", key)); err == nil {
 		t.Fatalf("parse point with max key. got: nil, expected: error")
 	}
+
 }
 
 func TestParseKeyEmpty(t *testing.T) {
