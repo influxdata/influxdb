@@ -15,19 +15,26 @@ func Test_newShardOwner(t *testing.T) {
 		t.Error("got no error, but expected one")
 	}
 
-	ownerFreqs := map[int]int{1: 15, 2: 11, 3: 12}
-	id, err := NewShardOwner(ShardInfo{ID: 4}, ownerFreqs)
+	ownerFreqs := map[int]int{1: 15, 2: 11, 3: 12, 4: 10}
+	shard := ShardInfo{
+		ID: 4,
+		Owners: []ShardOwner{
+			{NodeID: 4},
+		},
+	}
+	id, err := NewShardOwner(shard, ownerFreqs)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// The ID that owns the fewest shards is returned.
+	// The ID that owns the fewest shards and is not
+	// currently an owner of this shard is returned.
 	if got, exp := id, uint64(2); got != exp {
 		t.Errorf("got id %d, expected id %d", got, exp)
 	}
 
 	// The ownership frequencies are updated.
-	if got, exp := ownerFreqs, map[int]int{1: 15, 2: 12, 3: 12}; !reflect.DeepEqual(got, exp) {
+	if got, exp := ownerFreqs, map[int]int{1: 15, 2: 12, 3: 12, 4: 10}; !reflect.DeepEqual(got, exp) {
 		t.Errorf("got owner frequencies %v, expected %v", got, exp)
 	}
 }
