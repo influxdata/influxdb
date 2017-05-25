@@ -13,6 +13,7 @@ import OverlayTechnologies from 'shared/components/OverlayTechnologies'
 
 import {VIS_VIEWS} from 'shared/constants'
 import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from '../constants'
+import {errorThrown} from 'shared/actions/errors'
 import {setAutoRefresh} from 'shared/actions/app'
 import * as viewActions from 'src/data_explorer/actions/view'
 
@@ -42,6 +43,8 @@ const DataExplorer = React.createClass({
       showWriteForm: bool.isRequired,
       queryIDs: arrayOf(string).isRequired,
     }).isRequired,
+    writeData: func.isRequired,
+    errorThrownAction: func.isRequired,
   },
 
   childContextTypes: {
@@ -77,12 +80,14 @@ const DataExplorer = React.createClass({
   render() {
     const {
       autoRefresh,
+      errorThrownAction,
       handleChooseAutoRefresh,
       timeRange,
       setTimeRange,
       queryConfigs,
       queryConfigActions,
       source,
+      writeData,
     } = this.props
     const {activeQueryIndex, showWriteForm} = this.state
 
@@ -91,8 +96,10 @@ const DataExplorer = React.createClass({
         {showWriteForm
           ? <OverlayTechnologies>
               <WriteDataForm
+                errorThrown={errorThrownAction}
                 onClose={() => this.setState({showWriteForm: false})}
                 source={source}
+                writeData={writeData}
               />
             </OverlayTechnologies>
           : null}
@@ -155,7 +162,9 @@ function mapStateToProps(state) {
 function mapDispatchToProps(dispatch) {
   return {
     handleChooseAutoRefresh: bindActionCreators(setAutoRefresh, dispatch),
+    errorThrownAction: bindActionCreators(errorThrown, dispatch),
     setTimeRange: bindActionCreators(viewActions.setTimeRange, dispatch),
+    writeData: bindActionCreators(viewActions.writeDataAsync, dispatch),
     queryConfigActions: bindActionCreators(viewActions, dispatch),
   }
 }

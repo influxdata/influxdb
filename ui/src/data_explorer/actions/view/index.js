@@ -1,8 +1,10 @@
 import uuid from 'node-uuid'
 
 import {getQueryConfig} from 'shared/apis'
+import {writeData} from 'src/data_explorer/apis'
 
 import {errorThrown} from 'shared/actions/errors'
+import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
 export function addQuery(options = {}) {
   return {
@@ -158,5 +160,20 @@ export const editRawTextAsync = (url, id, text) => async dispatch => {
     dispatch(updateQueryConfig(config.queryConfig))
   } catch (error) {
     dispatch(errorThrown(error))
+  }
+}
+
+export const writeDataAsync = (source, db, data) => async dispatch => {
+  try {
+    await writeData(source, db, data)
+    dispatch(
+      publishAutoDismissingNotification(
+        'success',
+        'Data was written successfully'
+      )
+    )
+  } catch (response) {
+    dispatch(errorThrown(response, response.data.error))
+    throw response
   }
 }

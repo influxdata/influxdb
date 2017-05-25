@@ -1,13 +1,7 @@
 import React, {Component, PropTypes} from 'react'
-import {connect} from 'react-redux'
-import {bindActionCreators} from 'redux'
 
 import DatabaseDropdown from 'shared/components/DatabaseDropdown'
 import OnClickOutside from 'shared/components/OnClickOutside'
-
-import {writeData} from 'src/data_explorer/apis'
-import {publishAutoDismissingNotification} from 'shared/dispatchers'
-import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 
 class WriteDataForm extends Component {
   constructor(props) {
@@ -17,7 +11,6 @@ class WriteDataForm extends Component {
     }
 
     this.handleSelectDatabase = ::this.handleSelectDatabase
-    this.handleError = ::this.handleError
     this.handleWrite = ::this.handleWrite
     this.handleClickOutside = ::this.handleClickOutside
   }
@@ -26,30 +19,19 @@ class WriteDataForm extends Component {
     this.setState({selectedDatabase: item.text})
   }
 
-  handleError(error) {
-    const {errorThrown} = this.props
-    errorThrown(error)
-  }
-
   handleClickOutside() {
     const {onClose} = this.props
     onClose()
   }
 
-  async handleWrite() {
-    const {onClose, source, notify, errorThrown} = this.props
+  handleWrite() {
+    const {onClose, source, writeData} = this.props
     const {selectedDatabase} = this.state
-    try {
-      await writeData(source, selectedDatabase, this.editor.value)
-      notify('success', 'Data was written successfully')
-      onClose()
-    } catch (response) {
-      errorThrown(response, response.data.error)
-    }
+    writeData(source, selectedDatabase, this.editor.value).then(() => onClose())
   }
 
   render() {
-    const {onClose} = this.props
+    const {onClose, errorThrown} = this.props
     const {selectedDatabase} = this.state
 
     return (
@@ -60,7 +42,7 @@ class WriteDataForm extends Component {
             <DatabaseDropdown
               onSelectDatabase={this.handleSelectDatabase}
               database={selectedDatabase}
-              onErrorThrown={this.handleError}
+              onErrorThrown={errorThrown}
             />
           </div>
           <div className="page-header__right">
@@ -105,14 +87,9 @@ WriteDataForm.propTypes = {
       queries: string.isRequired,
     }).isRequired,
   }).isRequired,
-  notify: func.isRequired,
-  errorThrown: func.isRequired,
   onClose: func.isRequired,
+  writeData: func.isRequired,
+  errorThrown: func.isRequired,
 }
 
-const mapDispatchToProps = dispatch => ({
-  notify: bindActionCreators(publishAutoDismissingNotification, dispatch),
-  errorThrown: bindActionCreators(errorThrownAction, dispatch),
-})
-
-export default connect(null, mapDispatchToProps)(OnClickOutside(WriteDataForm))
+export default OnClickOutside(WriteDataForm)
