@@ -7,10 +7,10 @@ import {
   fetchKapacitorsAsync,
   setActiveKapacitorAsync,
   deleteKapacitorAsync,
-} from 'src/shared/actions/sources'
+} from 'shared/actions/sources'
 
 import FancyScrollbar from 'shared/components/FancyScrollbar'
-import SourceIndicator from 'src/shared/components/SourceIndicator'
+import SourceIndicator from 'shared/components/SourceIndicator'
 import InfluxTable from 'src/sources/components/InfluxTable'
 
 class ManageSources extends Component {

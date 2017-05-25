@@ -1,6 +1,6 @@
 import {combineReducers} from 'redux'
 
-import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
+import {AUTOREFRESH_DEFAULT} from 'shared/constants'
 
 const initialState = {
   ephemeral: {

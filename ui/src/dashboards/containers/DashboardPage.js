@@ -3,7 +3,7 @@ import {Link} from 'react-router'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
-import OverlayTechnologies from 'src/shared/components/OverlayTechnologies'
+import OverlayTechnologies from 'shared/components/OverlayTechnologies'
 import CellEditorOverlay from 'src/dashboards/components/CellEditorOverlay'
 import DashboardHeader from 'src/dashboards/components/DashboardHeader'
 import DashboardHeaderEdit from 'src/dashboards/components/DashboardHeaderEdit'

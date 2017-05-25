@@ -11,7 +11,7 @@ import Header from '../containers/Header'
 import ResizeContainer from 'shared/components/ResizeContainer'
 import OverlayTechnologies from 'shared/components/OverlayTechnologies'
 
-import {VIS_VIEWS} from 'src/shared/constants'
+import {VIS_VIEWS} from 'shared/constants'
 import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from '../constants'
 import {setAutoRefresh} from 'shared/actions/app'
 import * as viewActions from 'src/data_explorer/actions/view'

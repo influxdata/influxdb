@@ -3,7 +3,7 @@ import React, {Component, PropTypes} from 'react'
 import _ from 'lodash'
 import uuid from 'node-uuid'
 
-import ResizeContainer from 'src/shared/components/ResizeContainer'
+import ResizeContainer from 'shared/components/ResizeContainer'
 import QueryMaker from 'src/data_explorer/components/QueryMaker'
 import Visualization from 'src/data_explorer/components/Visualization'
 import OverlayControls from 'src/dashboards/components/OverlayControls'
