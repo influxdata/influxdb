@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -43,6 +44,12 @@ type HTTPConfig struct {
 	// TLSConfig allows the user to set their own TLS config for the HTTP
 	// Client. If set, this option overrides InsecureSkipVerify.
 	TLSConfig *tls.Config
+
+	// InsecureFollowRedirect if true, will result in Ping() being called before
+	// any query is sent, and if a redirect is given it will use the default
+	// behavior of net/http to follow up to 10 redirects max, and set the
+	// URL for influx to the last found redirect.
+	InsecureFollowRedirect bool
 }
 
 // BatchPointsConfig is the config data needed to create an instance of the BatchPoints struct.
@@ -73,6 +80,8 @@ type Client interface {
 	// the UDP client.
 	Query(q Query) (*Response, error)
 
+	CheckHTTPRedirect() (bool, error)
+
 	// Close releases any resources a Client may be using.
 	Close() error
 }
@@ -102,16 +111,58 @@ func NewHTTPClient(conf HTTPConfig) (Client, error) {
 		tr.TLSClientConfig = conf.TLSConfig
 	}
 	return &client{
-		url:       *u,
-		username:  conf.Username,
-		password:  conf.Password,
-		useragent: conf.UserAgent,
+		url:            *u,
+		username:       conf.Username,
+		password:       conf.Password,
+		useragent:      conf.UserAgent,
+		followredirect: conf.InsecureFollowRedirect,
 		httpClient: &http.Client{
 			Timeout:   conf.Timeout,
 			Transport: tr,
 		},
 		transport: tr,
 	}, nil
+}
+
+// CheckHTTPRedirect will make an initial GET call to influxDB server and check for
+//  redirects. If any are found it will follow the redirects and update the
+//  client with the address of the last redirct.
+
+func (c *client) CheckHTTPRedirect() (bool, error) {
+	u := c.url
+
+	// Set net/http CheckRedirect function which will get called on a redirect.
+	c.httpClient.CheckRedirect = func(nextRequest *http.Request, previousRequests []*http.Request) error {
+		log.Printf("W! InfluxDB being redirected from : %s -> %s\n", c.url.String(), nextRequest.URL.String())
+		c.url = *nextRequest.URL
+		return errors.New("HTTP REDIRECT FOUND") // Need to return non-nil else doesn't return 301 error code in resp
+	}
+
+	// Setup HTTP call
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return false, err
+	}
+	req.Header.Set("User-Agent", c.useragent)
+
+	if c.username != "" {
+		req.SetBasicAuth(c.username, c.password)
+	}
+
+	// Make the HTTP call
+	resp, err := c.httpClient.Do(req)
+	// Look for redirect first, CheckRedirect will return an error
+	if resp.StatusCode == 301 {
+		return true, nil
+	}
+	// If did not get a redirect then look for an error
+	if err != nil {
+		return false, err
+	}
+	defer resp.Body.Close()
+
+	// No redirect and no error
+	return false, nil
 }
 
 // Ping will check to see if the server is up with an optional timeout on waiting for leader.
@@ -169,12 +220,13 @@ func (c *client) Close() error {
 type client struct {
 	// N.B - if url.UserInfo is accessed in future modifications to the
 	// methods on client, you will need to syncronise access to url.
-	url        url.URL
-	username   string
-	password   string
-	useragent  string
-	httpClient *http.Client
-	transport  *http.Transport
+	url            url.URL
+	username       string
+	password       string
+	useragent      string
+	followredirect bool
+	httpClient     *http.Client
+	transport      *http.Transport
 }
 
 // BatchPoints is an interface into a batched grouping of points to write into

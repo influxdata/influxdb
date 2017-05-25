@@ -110,3 +110,8 @@ func (uc *udpclient) Query(q Query) (*Response, error) {
 func (uc *udpclient) Ping(timeout time.Duration) (time.Duration, string, error) {
 	return 0, "", nil
 }
+
+// This is a noop function which should never be called.
+func (uc *udpclient) CheckHTTPRedirect() (bool, error) {
+	return false, nil
+}
