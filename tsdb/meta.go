@@ -98,7 +98,6 @@ func MakeTagsKey(keys []string, tags models.Tags) []byte {
 	return b
 }
 
-
 // MeasurementFromSeriesKey returns the name of the measurement from a key that
 // contains a measurement name.
 func MeasurementFromSeriesKey(key []byte) []byte {

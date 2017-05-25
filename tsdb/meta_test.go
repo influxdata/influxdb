@@ -140,7 +140,6 @@ func benchmarkMakeTagsKey(b *testing.B, keyN int) {
 	}
 }
 
-
 type TestSeries struct {
 	Measurement string
 	Series      *inmem.Series

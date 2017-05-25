@@ -224,7 +224,7 @@ func BenchmarkMeasurement_SeriesIDForExp_NERegex(b *testing.B) {
 func benchmarkTagSets(b *testing.B, n int, opt influxql.IteratorOptions) {
 	m := inmem.NewMeasurement("m")
 	for i := 0; i < n; i++ {
-		tags := map[string]string{"tag1":"value1", "tag2": "value2"}
+		tags := map[string]string{"tag1": "value1", "tag2": "value2"}
 		s := inmem.NewSeries([]byte(fmt.Sprintf("m,tag1=value1,tag2=value2")), models.NewTags(tags))
 		s.ID = uint64(i)
 		s.AssignShard(0)
@@ -246,7 +246,7 @@ func BenchmarkMeasurement_TagSetsNoDimensions_1000(b *testing.B) {
 }
 
 func BenchmarkMeasurement_TagSetsDimensions_1000(b *testing.B) {
-	benchmarkTagSets(b, 1000, influxql.IteratorOptions{Dimensions:[]string{"tag1", "tag2"}})
+	benchmarkTagSets(b, 1000, influxql.IteratorOptions{Dimensions: []string{"tag1", "tag2"}})
 }
 
 func BenchmarkMeasurement_TagSetsNoDimensions_100000(b *testing.B) {
@@ -254,5 +254,5 @@ func BenchmarkMeasurement_TagSetsNoDimensions_100000(b *testing.B) {
 }
 
 func BenchmarkMeasurement_TagSetsDimensions_100000(b *testing.B) {
-	benchmarkTagSets(b, 100000, influxql.IteratorOptions{Dimensions:[]string{"tag1", "tag2"}})
+	benchmarkTagSets(b, 100000, influxql.IteratorOptions{Dimensions: []string{"tag1", "tag2"}})
 }
