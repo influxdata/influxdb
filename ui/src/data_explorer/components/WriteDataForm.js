@@ -3,6 +3,7 @@ import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
 import DatabaseDropdown from 'shared/components/DatabaseDropdown'
+import OnClickOutside from 'shared/components/OnClickOutside'
 
 import {writeData} from 'src/data_explorer/apis'
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
@@ -18,6 +19,7 @@ class WriteDataForm extends Component {
     this.handleSelectDatabase = ::this.handleSelectDatabase
     this.handleError = ::this.handleError
     this.handleWrite = ::this.handleWrite
+    this.handleClickOutside = ::this.handleClickOutside
   }
 
   handleSelectDatabase(item) {
@@ -27,6 +29,11 @@ class WriteDataForm extends Component {
   handleError(error) {
     const {errorThrown} = this.props
     errorThrown(error)
+  }
+
+  handleClickOutside() {
+    const {onClose} = this.props
+    onClose()
   }
 
   async handleWrite() {
@@ -108,4 +115,4 @@ const mapDispatchToProps = dispatch => ({
   errorThrown: bindActionCreators(errorThrownAction, dispatch),
 })
 
-export default connect(null, mapDispatchToProps)(WriteDataForm)
+export default connect(null, mapDispatchToProps)(OnClickOutside(WriteDataForm))
