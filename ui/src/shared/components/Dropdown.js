@@ -3,10 +3,7 @@ import {Link} from 'react-router'
 import classnames from 'classnames'
 import OnClickOutside from 'shared/components/OnClickOutside'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
-import {
-  DROPDOWN_MENU_MAX_HEIGHT,
-  DROPDOWN_MENU_ITEM_THRESHOLD,
-} from 'shared/constants/index'
+import {DROPDOWN_MENU_MAX_HEIGHT} from 'shared/constants/index'
 
 class Dropdown extends Component {
   constructor(props) {
@@ -126,7 +123,7 @@ class Dropdown extends Component {
     })
   }
 
-  renderShortMenu() {
+  renderMenu() {
     const {
       actions,
       addNew,
@@ -148,81 +145,11 @@ class Dropdown extends Component {
         })}
         style={{width: menuWidth}}
       >
-        {menuLabel ? <li className="dropdown-header">{menuLabel}</li> : null}
-        {menuItems.map((item, i) => {
-          if (item.text === 'SEPARATOR') {
-            return <li key={i} role="separator" className="divider" />
-          }
-          return (
-            <li
-              className={classnames('dropdown-item', {
-                highlight: i === highlightedItemIndex,
-                active: item.text === selected,
-              })}
-              key={i}
-            >
-              <a
-                href="#"
-                onClick={() => this.handleSelection(item)}
-                onMouseOver={() => this.handleHighlight(i)}
-              >
-                {item.text}
-              </a>
-              {actions.length > 0
-                ? <div className="dropdown-actions">
-                    {actions.map(action => {
-                      return (
-                        <button
-                          key={action.text}
-                          className="dropdown-action"
-                          onClick={e => this.handleAction(e, action, item)}
-                        >
-                          <span
-                            title={action.text}
-                            className={`icon ${action.icon}`}
-                          />
-                        </button>
-                      )
-                    })}
-                  </div>
-                : null}
-            </li>
-          )
-        })}
-        {addNew
-          ? <li className="dropdown-item">
-              <Link to={addNew.url}>
-                {addNew.text}
-              </Link>
-            </li>
-          : null}
-      </ul>
-    )
-  }
-
-  renderLongMenu() {
-    const {
-      actions,
-      addNew,
-      items,
-      menuWidth,
-      menuLabel,
-      menuClass,
-      useAutoComplete,
-      selected,
-    } = this.props
-    const {filteredItems, highlightedItemIndex} = this.state
-    const menuItems = useAutoComplete ? filteredItems : items
-
-    return (
-      <ul
-        className={classnames('dropdown-menu', {
-          'dropdown-menu--no-highlight': useAutoComplete,
-          [menuClass]: menuClass,
-        })}
-        style={{width: menuWidth, height: DROPDOWN_MENU_MAX_HEIGHT}}
-      >
-        <FancyScrollbar autoHide={false}>
+        <FancyScrollbar
+          autoHide={false}
+          autoHeight={true}
+          maxHeight={DROPDOWN_MENU_MAX_HEIGHT}
+        >
           {menuLabel ? <li className="dropdown-header">{menuLabel}</li> : null}
           {menuItems.map((item, i) => {
             if (item.text === 'SEPARATOR') {
@@ -322,16 +249,7 @@ class Dropdown extends Component {
               <span className="dropdown-selected">{selected}</span>
               <span className="caret" />
             </div>}
-        {isOpen &&
-          menuItems.length &&
-          menuItems.length < DROPDOWN_MENU_ITEM_THRESHOLD
-          ? this.renderShortMenu()
-          : null}
-        {isOpen &&
-          menuItems.length &&
-          menuItems.length >= DROPDOWN_MENU_ITEM_THRESHOLD
-          ? this.renderLongMenu()
-          : null}
+        {isOpen && menuItems.length ? this.renderMenu() : null}
         {isOpen && !menuItems.length
           ? <ul
               className={classnames('dropdown-menu', {

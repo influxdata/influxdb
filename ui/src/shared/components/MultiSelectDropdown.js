@@ -1,7 +1,11 @@
 import React, {Component, PropTypes} from 'react'
-import OnClickOutside from 'shared/components/OnClickOutside'
+
 import classnames from 'classnames'
 import _ from 'lodash'
+
+import OnClickOutside from 'shared/components/OnClickOutside'
+import FancyScrollbar from 'shared/components/FancyScrollbar'
+import {DROPDOWN_MENU_MAX_HEIGHT} from 'shared/constants/index'
 
 const labelText = ({localSelectedItems, isOpen, label}) => {
   if (label) {
@@ -99,20 +103,26 @@ class MultiSelectDropdown extends Component {
             Apply
           </button>
         </li>
-        {items.map((listItem, i) => {
-          return (
-            <li
-              key={i}
-              className={classnames('multi-select--item', {
-                checked: this.isSelected(listItem),
-              })}
-              onClick={_.wrap(listItem, this.onSelect)}
-            >
-              <div className="multi-select--checkbox" />
-              <span>{listItem}</span>
-            </li>
-          )
-        })}
+        <FancyScrollbar
+          autoHide={false}
+          autoHeight={true}
+          maxHeight={DROPDOWN_MENU_MAX_HEIGHT}
+        >
+          {items.map((listItem, i) => {
+            return (
+              <li
+                key={i}
+                className={classnames('multi-select--item', {
+                  checked: this.isSelected(listItem),
+                })}
+                onClick={_.wrap(listItem, this.onSelect)}
+              >
+                <div className="multi-select--checkbox" />
+                <span>{listItem}</span>
+              </li>
+            )
+          })}
+        </FancyScrollbar>
       </ul>
     )
   }
