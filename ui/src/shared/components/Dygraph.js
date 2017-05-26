@@ -63,6 +63,8 @@ export default React.createClass({
   },
 
   componentDidMount() {
+    const self = this
+
     const timeSeries = this.getTimeSeries()
     // dygraphSeries is a legend label and its corresponding y-axis e.g. {legendLabel1: 'y', legendLabel2: 'y2'};
     const {ranges, dygraphSeries, ruleValues, legendOnBottom} = this.props
@@ -101,6 +103,13 @@ export default React.createClass({
       highlightSeriesOpts: {
         strokeWidth: 2,
         highlightCircleSize: 5,
+      },
+      drawCallback(dygraph) {
+        if (dygraph.isZoomed('x') && self.shouldResetZoom) {
+          console.log('resetZoom()')
+          dygraph.resetZoom()
+          self.shouldResetZoom = false
+        }
       },
       highlightCallback(e, x, points) {
         // Move the Legend on hover
@@ -152,17 +161,7 @@ export default React.createClass({
     delete this.dygraph
   },
 
-  componentWillUpdate(nextProps) {
-    const {timeRange} = this.props
-    if (
-      timeRange.lower !== nextProps.timeRange.lower ||
-      timeRange.upper !== nextProps.timeRange.upper
-    ) {
-      this.dygraph.resetZoom()
-    }
-  },
-
-  componentDidUpdate() {
+  componentDidUpdate(prevProps) {
     const dygraph = this.dygraph
     if (!dygraph) {
       throw new Error(
@@ -171,7 +170,29 @@ export default React.createClass({
     }
 
     const timeSeries = this.getTimeSeries()
-    const {labels, ranges, options, dygraphSeries, ruleValues} = this.props
+    const {
+      labels,
+      ranges,
+      options,
+      dygraphSeries,
+      ruleValues,
+      timeRange,
+    } = this.props
+
+    const yRangeChanged =
+      getRange(
+        prevProps.timeSeries,
+        prevProps.ranges.y,
+        prevProps.ruleValues
+      )[1] -
+        getRange(timeSeries, ranges.y, ruleValues)[1] !==
+      0
+    const y2RangeChanged =
+      getRange(prevProps.timeSeries, prevProps.ranges.y2)[1] -
+        getRange(timeSeries, ranges.y2)[1] !==
+      0
+
+    this.shouldResetZoom = yRangeChanged || y2RangeChanged
 
     dygraph.updateOptions({
       labels,
