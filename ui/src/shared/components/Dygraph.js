@@ -1,5 +1,6 @@
 /* eslint-disable no-magic-numbers */
 import React, {PropTypes} from 'react'
+import _ from 'lodash'
 import Dygraph from '../../external/dygraph'
 import getRange from 'src/shared/parsing/getRangeForDygraph'
 
@@ -63,8 +64,6 @@ export default React.createClass({
   },
 
   componentDidMount() {
-    const self = this
-
     const timeSeries = this.getTimeSeries()
     // dygraphSeries is a legend label and its corresponding y-axis e.g. {legendLabel1: 'y', legendLabel2: 'y2'};
     const {ranges, dygraphSeries, ruleValues, legendOnBottom} = this.props
@@ -103,12 +102,6 @@ export default React.createClass({
       highlightSeriesOpts: {
         strokeWidth: 2,
         highlightCircleSize: 5,
-      },
-      drawCallback(dygraph) {
-        if (dygraph.isZoomed() && self.timeRangeChanged) {
-          dygraph.resetZoom()
-          self.timeRangeChanged = false
-        }
       },
       highlightCallback(e, x, points) {
         // Move the Legend on hover
@@ -160,7 +153,40 @@ export default React.createClass({
     delete this.dygraph
   },
 
-  componentDidUpdate(prevProps) {
+  // Only update the component if props other than timeRange have updateDashboard.
+  // If only timeRange has changed, only reset the zoom.
+  // TODO: possibly try to use dateWindow and a zoomCallback to updateOptions
+  // in comonentDidUpdate so that zoom and redraw happen at the same time
+  shouldComponentUpdate(nextProps) {
+    const timeRangeChanged =
+      nextProps.timeRange.lower !== this.props.timeRange.lower ||
+      nextProps.timeRange.upper !== this.props.timeRange.upper
+
+    if (this.dygraph.isZoomed() && timeRangeChanged) {
+      this.dygraph.resetZoom()
+    }
+
+    const propsChanged = []
+
+    _.mergeWith(this.props, nextProps, (objectValue, sourceValue, key) => {
+      if (
+        !_.isEqual(objectValue, sourceValue) &&
+        Object(objectValue) !== objectValue
+      ) {
+        propsChanged.push(key)
+      }
+    })
+
+    const propsChangedWithoutTimeRange = _.without(
+      propsChanged,
+      'lower',
+      'upper'
+    )
+
+    return propsChangedWithoutTimeRange.length
+  },
+
+  componentDidUpdate() {
     const dygraph = this.dygraph
     if (!dygraph) {
       throw new Error(
@@ -169,18 +195,7 @@ export default React.createClass({
     }
 
     const timeSeries = this.getTimeSeries()
-    const {
-      labels,
-      ranges,
-      options,
-      dygraphSeries,
-      ruleValues,
-      timeRange,
-    } = this.props
-
-    this.timeRangeChanged =
-      prevProps.timeRange.lower !== timeRange.lower ||
-      prevProps.timeRange.upper !== timeRange.upper
+    const {labels, ranges, options, dygraphSeries, ruleValues} = this.props
 
     dygraph.updateOptions({
       labels,
