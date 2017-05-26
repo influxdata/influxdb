@@ -144,7 +144,7 @@
 ###
 
 [retention]
-  # Determines whether retention policy enforcment enabled.
+  # Determines whether retention policy enforcement enabled.
   # enabled = true
 
   # The interval of time when retention policy enforcement checks run.
@@ -420,7 +420,7 @@
 ###
 
 [continuous_queries]
-  # Determiens whether the continuous query service is enabled.
+  # Determines whether the continuous query service is enabled.
   # enabled = true
 
   # Controls whether queries are logged when executed by the CQ service.
