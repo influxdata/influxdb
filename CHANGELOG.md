@@ -8,6 +8,7 @@
 ### UI Improvements
   1. [#1508](https://github.com/influxdata/chronograf/pull/1508): The enter and escape keys now perform as expected when renaming dashboard headers.
   1. [#1524](https://github.com/influxdata/chronograf/pull/1524): Rewrite UI copy in Kapacitor Node configuration to be more clear
+  1. [#1549](https://github.com/influxdata/chronograf/pull/1549): Reset graph zoom when a new time range is selected
 
 ## v1.3.1.0 [2017-05-22]
 
