@@ -60,7 +60,7 @@ class WriteDataForm extends Component {
         </div>
         <div className="write-data-form--body">
           <textarea
-            className="query-editor--field"
+            className="form-control write-data-form--input"
             autoComplete="off"
             spellCheck="false"
             placeholder="<measurement>,<tag_key>=<tag_value> <field_key>=<field_value>"
@@ -68,17 +68,20 @@ class WriteDataForm extends Component {
             onKeyUp={this.handleKeyUp}
             autoFocus={true}
           />
-          <span>
-            Uses InfluxDB Line Protocol -&nbsp;
-            <a
-              href="https://docs.influxdata.com/influxdb/v1.2/write_protocols/line_protocol_tutorial/"
-              target="_blank"
+          <div className="write-data-form--footer">
+            <span className="write-data-form--helper">
+              Need help writing InfluxDB Line Protocol? -&nbsp;
+              <a
+                href="https://docs.influxdata.com/influxdb/v1.2/write_protocols/line_protocol_tutorial/"
+                target="_blank"
+              >
+                See Documentation
+              </a>
+            </span>
+            <button
+              className="btn btn-sm btn-primary write-data-form--submit"
+              onClick={this.handleWrite}
             >
-              Docs
-            </a>
-          </span>
-          <div className="page-header__right">
-            <button className="btn btn-primary" onClick={this.handleWrite}>
               Write
             </button>
           </div>
