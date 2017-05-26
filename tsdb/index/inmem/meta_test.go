@@ -222,7 +222,7 @@ func BenchmarkMeasurement_SeriesIDForExp_NERegex(b *testing.B) {
 }
 
 func benchmarkTagSets(b *testing.B, n int, opt influxql.IteratorOptions) {
-	m := inmem.NewMeasurement("m")
+	m := inmem.NewMeasurement("foo", "m")
 	for i := 0; i < n; i++ {
 		tags := map[string]string{"tag1": "value1", "tag2": "value2"}
 		s := inmem.NewSeries([]byte(fmt.Sprintf("m,tag1=value1,tag2=value2")), models.NewTags(tags))
