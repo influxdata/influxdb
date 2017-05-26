@@ -168,6 +168,7 @@ export default React.createClass({
 
     const propsChanged = []
 
+    // perform a deep diff on props objects to see what keys have changed
     _.mergeWith(this.props, nextProps, (objectValue, sourceValue, key) => {
       if (
         !_.isEqual(objectValue, sourceValue) &&
