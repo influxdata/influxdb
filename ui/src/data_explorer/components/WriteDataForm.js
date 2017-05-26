@@ -26,8 +26,7 @@ class WriteDataForm extends Component {
   }
 
   handleKeyUp(e) {
-    const escapeKeyCode = 27
-    if (e.which === escapeKeyCode) {
+    if (e.key === 'Escape') {
       const {onClose} = this.props
       onClose()
     }

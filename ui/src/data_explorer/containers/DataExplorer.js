@@ -40,7 +40,6 @@ const DataExplorer = React.createClass({
     }).isRequired,
     setTimeRange: func.isRequired,
     dataExplorer: shape({
-      showWriteForm: bool.isRequired,
       queryIDs: arrayOf(string).isRequired,
     }).isRequired,
     writeData: func.isRequired,
