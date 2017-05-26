@@ -308,6 +308,13 @@ func (m *Measurement) TagSets(shardID uint64, opt influxql.IteratorOptions) ([]*
 		return nil, err
 	}
 
+	var dims []string
+	if len(opt.Dimensions) > 0 {
+		dims = make([]string, len(opt.Dimensions))
+		copy(dims, opt.Dimensions)
+		sort.Strings(dims)
+	}
+
 	m.mu.RLock()
 	// For every series, get the tag values for the requested tag keys i.e. dimensions. This is the
 	// TagSet for that series. Series with the same TagSet are then grouped together, because for the
@@ -330,30 +337,24 @@ func (m *Measurement) TagSets(shardID uint64, opt influxql.IteratorOptions) ([]*
 		if !s.Assigned(shardID) {
 			continue
 		}
-		tags := make(map[string]string, len(opt.Dimensions))
 
-		// Build the TagSet for this series.
-		for _, dim := range opt.Dimensions {
-			tags[dim] = s.GetTagString(dim)
+		var tagsAsKey []byte
+		if len(dims) > 0 {
+			tagsAsKey = tsdb.MakeTagsKey(dims, s.Tags())
 		}
 
-		// Convert the TagSet to a string, so it can be added to a map allowing TagSets to be handled
-		// as a set.
-		tagsAsKey := tsdb.MarshalTags(tags)
 		tagSet, ok := tagSets[string(tagsAsKey)]
 		if !ok {
 			// This TagSet is new, create a new entry for it.
 			tagSet = &influxql.TagSet{
-				Tags: tags,
+				Tags: nil,
 				Key:  tagsAsKey,
 			}
+			tagSets[string(tagsAsKey)] = tagSet
 		}
 		// Associate the series and filter with the Tagset.
 		tagSet.AddFilter(m.seriesByID[id].Key, filters[id])
 		seriesN++
-
-		// Ensure it's back in the map.
-		tagSets[string(tagsAsKey)] = tagSet
 	}
 	// Release the lock while we sort all the tags
 	m.mu.RUnlock()
