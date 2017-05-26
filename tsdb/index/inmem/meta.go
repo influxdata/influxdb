@@ -19,6 +19,7 @@ import (
 type Measurement struct {
 	database string
 	Name     string `json:"name,omitempty"`
+	name     []byte // cached version as []byte
 
 	mu         sync.RWMutex
 	fieldNames map[string]struct{}
@@ -36,6 +37,7 @@ func NewMeasurement(database, name string) *Measurement {
 	return &Measurement{
 		database:   database,
 		Name:       name,
+		name:       []byte(name),
 		fieldNames: make(map[string]struct{}),
 
 		seriesByID:          make(map[uint64]*Series),
@@ -341,7 +343,7 @@ func (m *Measurement) TagSets(shardID uint64, opt influxql.IteratorOptions) ([]*
 			continue
 		}
 
-		if opt.Authorizer != nil && !opt.Authorizer.AuthorizeSeriesRead(m.database, s.Key) {
+		if opt.Authorizer != nil && !opt.Authorizer.AuthorizeSeriesRead(m.database, m.name, s.Tags()) {
 			continue
 		}
 

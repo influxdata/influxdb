@@ -1469,12 +1469,12 @@ func (ui *UserInfo) AuthorizeDatabase(privilege influxql.Privilege, database str
 }
 
 // AuthorizeSeriesRead is used to limit access per-series (enterprise only)
-func (u *UserInfo) AuthorizeSeriesRead(database string, series string) bool {
+func (u *UserInfo) AuthorizeSeriesRead(database string, measurement []byte, tags models.Tags) bool {
 	return true
 }
 
 // AuthorizeSeriesWrite is used to limit access per-series (enterprise only)
-func (u *UserInfo) AuthorizeSeriesWrite(database string, series string) bool {
+func (u *UserInfo) AuthorizeSeriesWrite(database string, measurement []byte, tags models.Tags) bool {
 	return true
 }
 

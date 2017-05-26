@@ -205,11 +205,11 @@ func (m *mockAuthorizer) AuthorizeQuery(database string, query *influxql.Query) 
 	panic("fail")
 }
 
-func (m *mockAuthorizer) AuthorizeSeriesRead(database string, series string) bool {
+func (m *mockAuthorizer) AuthorizeSeriesRead(database string, measurement []byte, tags models.Tags) bool {
 	panic("fail")
 }
 
-func (m *mockAuthorizer) AuthorizeSeriesWrite(database string, series string) bool {
+func (m *mockAuthorizer) AuthorizeSeriesWrite(database string, measurement []byte, tags models.Tags) bool {
 	panic("fail")
 }
 

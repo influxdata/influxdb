@@ -65,10 +65,10 @@ type Authorizer interface {
 	AuthorizeQuery(database string, query *Query) error
 
 	// AuthorizeSeriesRead determines if a series is authorized for reading
-	AuthorizeSeriesRead(database, series string) bool
+	AuthorizeSeriesRead(database string, measurement []byte, tags models.Tags) bool
 
 	// AuthorizeSeriesWrite determines if a series is authorized for writing
-	AuthorizeSeriesWrite(database, series string) bool
+	AuthorizeSeriesWrite(database string, measurement []byte, tags models.Tags) bool
 }
 
 // OpenAuthorizer is the Authorizer used when authorization is disabled.
@@ -80,9 +80,13 @@ var _ Authorizer = OpenAuthorizer{}
 // AuthorizeDatabase returns true to allow any operation on a database.
 func (_ OpenAuthorizer) AuthorizeDatabase(Privilege, string) bool { return true }
 
-func (_ OpenAuthorizer) AuthorizeSeriesRead(database string, series string) bool { return true }
+func (_ OpenAuthorizer) AuthorizeSeriesRead(database string, measurement []byte, tags models.Tags) bool {
+	return true
+}
 
-func (_ OpenAuthorizer) AuthorizeSeriesWrite(database string, series string) bool { return true }
+func (_ OpenAuthorizer) AuthorizeSeriesWrite(database string, measurement []byte, tags models.Tags) bool {
+	return true
+}
 
 func (_ OpenAuthorizer) AuthorizeQuery(_ string, _ *Query) error { return nil }
 

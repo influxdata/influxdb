@@ -643,12 +643,6 @@ type FieldMapper interface {
 	TypeMapper
 }
 
-// SeriesAuthorizer can be used to limit access on a per-series basis
-type SeriesAuthorizer interface {
-	AuthorizeSeriesRead(database, series string) bool
-	AuthorizeSeriesWrite(database, series string) bool
-}
-
 // IteratorOptions is an object passed to CreateIterator to specify creation options.
 type IteratorOptions struct {
 	// Expression to iterate for.
