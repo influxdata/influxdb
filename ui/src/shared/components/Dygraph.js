@@ -42,6 +42,9 @@ export default React.createClass({
       rangeValue: string,
     }),
     legendOnBottom: bool,
+    timeRange: shape({
+      lower: string.isRequired,
+    }),
   },
 
   getDefaultProps() {
@@ -147,6 +150,16 @@ export default React.createClass({
   componentWillUnmount() {
     this.dygraph.destroy()
     delete this.dygraph
+  },
+
+  componentWillUpdate(nextProps) {
+    const {timeRange} = this.props
+    if (
+      timeRange.lower !== nextProps.timeRange.lower ||
+      timeRange.upper !== nextProps.timeRange.upper
+    ) {
+      this.dygraph.resetZoom()
+    }
   },
 
   componentDidUpdate() {
