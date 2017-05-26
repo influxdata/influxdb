@@ -13,6 +13,7 @@ class WriteDataForm extends Component {
     this.handleSelectDatabase = ::this.handleSelectDatabase
     this.handleWrite = ::this.handleWrite
     this.handleClickOutside = ::this.handleClickOutside
+    this.handleKeyUp = ::this.handleKeyUp
   }
 
   handleSelectDatabase(item) {
@@ -22,6 +23,14 @@ class WriteDataForm extends Component {
   handleClickOutside() {
     const {onClose} = this.props
     onClose()
+  }
+
+  handleKeyUp(e) {
+    const escapeKeyCode = 27
+    if (e.which === escapeKeyCode) {
+      const {onClose} = this.props
+      onClose()
+    }
   }
 
   handleWrite() {
@@ -56,6 +65,8 @@ class WriteDataForm extends Component {
             spellCheck="false"
             placeholder="<measurement>,<tag_key>=<tag_value> <field_key>=<field_value>"
             ref={editor => this.editor = editor}
+            onKeyUp={this.handleKeyUp}
+            autoFocus={true}
           />
           <span>
             Uses InfluxDB Line Protocol -&nbsp;
