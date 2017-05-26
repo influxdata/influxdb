@@ -20,6 +20,14 @@ func ErrRetentionPolicyNotFound(name string) error {
 	return fmt.Errorf("retention policy not found: %s", name)
 }
 
+// IsAuthorizationError indicates whether an error is due to an authorization failure
+func IsAuthorizationError(err error) bool {
+	e, ok := err.(interface {
+		AuthorizationFailed() bool
+	})
+	return ok && e.AuthorizationFailed()
+}
+
 // IsClientError indicates whether an error is a known client error.
 func IsClientError(err error) bool {
 	if err == nil {

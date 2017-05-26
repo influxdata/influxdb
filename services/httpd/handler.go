@@ -678,6 +678,10 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user meta.U
 		atomic.AddInt64(&h.stats.PointsWrittenFail, int64(len(points)))
 		h.httpError(w, err.Error(), http.StatusBadRequest)
 		return
+	} else if influxdb.IsAuthorizationError(err) {
+		atomic.AddInt64(&h.stats.PointsWrittenFail, int64(len(points)))
+		h.httpError(w, err.Error(), http.StatusForbidden)
+		return
 	} else if werr, ok := err.(tsdb.PartialWriteError); ok {
 		atomic.AddInt64(&h.stats.PointsWrittenOK, int64(len(points)-werr.Dropped))
 		atomic.AddInt64(&h.stats.PointsWrittenDropped, int64(werr.Dropped))
