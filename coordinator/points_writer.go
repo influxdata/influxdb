@@ -285,7 +285,7 @@ func (w *PointsWriter) WritePointsInto(p *IntoWriteRequest) error {
 }
 
 // WritePoints writes the data to the underlying storage. consitencyLevel and user are only used for clustered scenarios
-func (w *PointsWriter) WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user string, points []models.Point) error {
+func (w *PointsWriter) WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point) error {
 	return w.WritePointsPrivileged(database, retentionPolicy, consistencyLevel, points)
 }
 
