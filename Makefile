@@ -1,11 +1,31 @@
 PACKAGES=$(shell find . -name '*.go' -print0 | xargs -0 -n1 dirname | sort --unique)
 
-default:
+default: test build install
 
 metalint: deadcode cyclo aligncheck defercheck structcheck lint errcheck
 
 deadcode:
 	@deadcode $(PACKAGES) 2>&1
+
+quick:
+	@go clean ./...
+	@go install ./...
+
+build: tools setup
+	@go clean ./...
+	@go build ./...
+
+install: build
+	@go install ./...
+
+test: tools setup
+	@go test ./...
+
+quicktest:
+	@go test ./...
+
+setup:
+	@gdm restore
 
 cyclo:
 	@gocyclo -over 10 $(PACKAGES)
@@ -15,7 +35,6 @@ aligncheck:
 
 defercheck:
 	@defercheck $(PACKAGES)
-
 
 structcheck:
 	@structcheck $(PACKAGES)
@@ -36,4 +55,4 @@ tools:
 	go get github.com/kisielk/errcheck
 	go get github.com/sparrc/gdm
 
-.PHONY: default,metalint,deadcode,cyclo,aligncheck,defercheck,structcheck,lint,errcheck,tools
+.PHONY: default metalint deadcode cyclo aligncheck defercheck structcheck lint errcheck tools dev build test quicktest quick quicktest install
