@@ -105,10 +105,9 @@ export default React.createClass({
         highlightCircleSize: 5,
       },
       drawCallback(dygraph) {
-        if (dygraph.isZoomed('x') && self.shouldResetZoom) {
-          console.log('resetZoom()')
+        if (dygraph.isZoomed() && self.timeRangeChanged) {
           dygraph.resetZoom()
-          self.shouldResetZoom = false
+          self.timeRangeChanged = false
         }
       },
       highlightCallback(e, x, points) {
@@ -179,20 +178,9 @@ export default React.createClass({
       timeRange,
     } = this.props
 
-    const yRangeChanged =
-      getRange(
-        prevProps.timeSeries,
-        prevProps.ranges.y,
-        prevProps.ruleValues
-      )[1] -
-        getRange(timeSeries, ranges.y, ruleValues)[1] !==
-      0
-    const y2RangeChanged =
-      getRange(prevProps.timeSeries, prevProps.ranges.y2)[1] -
-        getRange(timeSeries, ranges.y2)[1] !==
-      0
-
-    this.shouldResetZoom = yRangeChanged || y2RangeChanged
+    this.timeRangeChanged =
+      prevProps.timeRange.lower !== timeRange.lower ||
+      prevProps.timeRange.upper !== timeRange.upper
 
     dygraph.updateOptions({
       labels,
