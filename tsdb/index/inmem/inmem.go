@@ -26,6 +26,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/estimator/hll"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/uber-go/zap"
 )
 
 // IndexName is the name of this index.
@@ -72,6 +73,8 @@ func NewIndex() *Index {
 func (i *Index) Type() string      { return IndexName }
 func (i *Index) Open() (err error) { return nil }
 func (i *Index) Close() error      { return nil }
+
+func (i *Index) WithLogger(zap.Logger) {}
 
 // Series returns a series by key.
 func (i *Index) Series(key []byte) (*Series, error) {

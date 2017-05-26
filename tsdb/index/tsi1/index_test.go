@@ -12,6 +12,9 @@ import (
 	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 )
 
+// Bloom filter settings used in tests.
+const M, K = 4096, 6
+
 // Ensure index can iterate over all measurement names.
 func TestIndex_ForEachMeasurementName(t *testing.T) {
 	idx := MustOpenIndex()

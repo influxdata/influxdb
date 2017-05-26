@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/bloom"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/mmap"
 )
@@ -52,7 +53,8 @@ type IndexFile struct {
 	mblk  MeasurementBlock
 
 	// Sortable identifier & filepath to the log file.
-	ID int
+	level int
+	id    int
 
 	// Counters
 	seriesN int64 // Number of unique series in this indexFile.
@@ -72,10 +74,8 @@ func NewIndexFile() *IndexFile {
 
 // Open memory maps the data file at the file's path.
 func (f *IndexFile) Open() error {
-	// Extract identifier from path name, if possible.
-	if id := ParseFileID(f.Path()); id > 0 {
-		f.ID = id
-	}
+	// Extract identifier from path name.
+	f.id, f.level = ParseFilename(f.Path())
 
 	data, err := mmap.Map(f.Path())
 	if err != nil {
@@ -97,11 +97,20 @@ func (f *IndexFile) Close() error {
 	return mmap.Unmap(f.data)
 }
 
+// ID returns the file sequence identifier.
+func (f *IndexFile) ID() int { return f.id }
+
 // Path returns the file path.
 func (f *IndexFile) Path() string { return f.path }
 
 // SetPath sets the file's path.
 func (f *IndexFile) SetPath(path string) { f.path = path }
+
+// Level returns the compaction level for the file.
+func (f *IndexFile) Level() int { return f.level }
+
+// Filter returns the series existence filter for the file.
+func (f *IndexFile) Filter() *bloom.Filter { return f.sblk.filter }
 
 // Retain adds a reference count to the file.
 func (f *IndexFile) Retain() { f.wg.Add(1) }
@@ -265,6 +274,7 @@ func (f *IndexFile) TagValueSeriesIterator(name, key, value []byte) SeriesIterat
 	return newSeriesDecodeIterator(
 		&f.sblk,
 		&rawSeriesIDIterator{
+			n:    ve.(*TagBlockValueElem).series.n,
 			data: ve.(*TagBlockValueElem).series.data,
 		},
 	)
@@ -358,20 +368,6 @@ func (f *IndexFile) MergeSeriesSketches(s, t estimator.Sketch) error {
 	return t.Merge(f.sblk.tsketch)
 }
 
-// FilterNamesTags filters out any series which already exist. It modifies the
-// provided slices of names and tags.
-func (f *IndexFile) FilterNamesTags(names [][]byte, tagsSlice []models.Tags) ([][]byte, []models.Tags) {
-	buf := make([]byte, 1024)
-	newNames, newTagsSlice := names[:0], tagsSlice[:0]
-	for i := range names {
-		if exists, tombstoned := f.HasSeries(names[i], tagsSlice[i], buf); !exists || tombstoned {
-			newNames = append(newNames, names[i])
-			newTagsSlice = append(newTagsSlice, tagsSlice[i])
-		}
-	}
-	return newNames, newTagsSlice
-}
-
 // ReadIndexFileTrailer returns the index file trailer from data.
 func ReadIndexFileTrailer(data []byte) (IndexFileTrailer, error) {
 	var t IndexFileTrailer
@@ -438,6 +434,6 @@ func (t *IndexFileTrailer) WriteTo(w io.Writer) (n int64, err error) {
 }
 
 // FormatIndexFileName generates an index filename for the given index.
-func FormatIndexFileName(i int) string {
-	return fmt.Sprintf("%08d%s", i, IndexFileExt)
+func FormatIndexFileName(id, level int) string {
+	return fmt.Sprintf("L%d-%08d%s", level, id, IndexFileExt)
 }

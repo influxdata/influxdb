@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/bloom"
 	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 )
 
@@ -290,6 +291,9 @@ func BenchmarkLogFile_WriteTo(b *testing.B) {
 			f := MustOpenLogFile()
 			defer f.Close()
 
+			// Estimate bloom filter size.
+			m, k := bloom.Estimate(uint64(seriesN), 0.02)
+
 			// Initialize log file with series data.
 			for i := 0; i < seriesN; i++ {
 				if err := f.AddSeries(
@@ -311,7 +315,7 @@ func BenchmarkLogFile_WriteTo(b *testing.B) {
 			// Compact log file.
 			for i := 0; i < b.N; i++ {
 				buf := bytes.NewBuffer(make([]byte, 0, 150*seriesN))
-				if _, err := f.WriteTo(buf); err != nil {
+				if _, err := f.CompactTo(buf, m, k); err != nil {
 					b.Fatal(err)
 				}
 				b.Logf("sz=%db", buf.Len())

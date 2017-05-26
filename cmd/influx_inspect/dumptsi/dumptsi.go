@@ -131,7 +131,7 @@ func (cmd *Command) run() error {
 	return nil
 }
 
-func (cmd *Command) readFileSet() (*tsi1.Index, tsi1.FileSet, error) {
+func (cmd *Command) readFileSet() (*tsi1.Index, *tsi1.FileSet, error) {
 	// If only one path exists and it's a directory then open as an index.
 	if len(cmd.paths) == 1 {
 		fi, err := os.Stat(cmd.paths[0])
@@ -149,7 +149,7 @@ func (cmd *Command) readFileSet() (*tsi1.Index, tsi1.FileSet, error) {
 	}
 
 	// Open each file and group into a fileset.
-	var fs tsi1.FileSet
+	var files []tsi1.File
 	for _, path := range cmd.paths {
 		switch ext := filepath.Ext(path); ext {
 		case tsi1.LogFileExt:
@@ -157,7 +157,7 @@ func (cmd *Command) readFileSet() (*tsi1.Index, tsi1.FileSet, error) {
 			if err := f.Open(); err != nil {
 				return nil, nil, err
 			}
-			fs = append(fs, f)
+			files = append(files, f)
 
 		case tsi1.IndexFileExt:
 			f := tsi1.NewIndexFile()
@@ -165,18 +165,23 @@ func (cmd *Command) readFileSet() (*tsi1.Index, tsi1.FileSet, error) {
 			if err := f.Open(); err != nil {
 				return nil, nil, err
 			}
-			fs = append(fs, f)
+			files = append(files, f)
 
 		default:
 			return nil, nil, fmt.Errorf("unexpected file extension: %s", ext)
 		}
 	}
 
+	fs, err := tsi1.NewFileSet(nil, files)
+	if err != nil {
+		return nil, nil, err
+	}
 	fs.Retain()
+
 	return nil, fs, nil
 }
 
-func (cmd *Command) printMerged(fs tsi1.FileSet) error {
+func (cmd *Command) printMerged(fs *tsi1.FileSet) error {
 	if err := cmd.printSeries(fs); err != nil {
 		return err
 	} else if err := cmd.printMeasurements(fs); err != nil {
@@ -185,7 +190,7 @@ func (cmd *Command) printMerged(fs tsi1.FileSet) error {
 	return nil
 }
 
-func (cmd *Command) printSeries(fs tsi1.FileSet) error {
+func (cmd *Command) printSeries(fs *tsi1.FileSet) error {
 	if !cmd.showSeries {
 		return nil
 	}
@@ -215,7 +220,7 @@ func (cmd *Command) printSeries(fs tsi1.FileSet) error {
 	return nil
 }
 
-func (cmd *Command) printMeasurements(fs tsi1.FileSet) error {
+func (cmd *Command) printMeasurements(fs *tsi1.FileSet) error {
 	if !cmd.showMeasurements {
 		return nil
 	}
@@ -245,7 +250,7 @@ func (cmd *Command) printMeasurements(fs tsi1.FileSet) error {
 	return nil
 }
 
-func (cmd *Command) printTagKeys(fs tsi1.FileSet, name []byte) error {
+func (cmd *Command) printTagKeys(fs *tsi1.FileSet, name []byte) error {
 	if !cmd.showTagKeys {
 		return nil
 	}
@@ -272,7 +277,7 @@ func (cmd *Command) printTagKeys(fs tsi1.FileSet, name []byte) error {
 	return nil
 }
 
-func (cmd *Command) printTagValues(fs tsi1.FileSet, name, key []byte) error {
+func (cmd *Command) printTagValues(fs *tsi1.FileSet, name, key []byte) error {
 	if !cmd.showTagValues {
 		return nil
 	}
@@ -299,7 +304,7 @@ func (cmd *Command) printTagValues(fs tsi1.FileSet, name, key []byte) error {
 	return nil
 }
 
-func (cmd *Command) printTagValueSeries(fs tsi1.FileSet, name, key, value []byte) error {
+func (cmd *Command) printTagValueSeries(fs *tsi1.FileSet, name, key, value []byte) error {
 	if !cmd.showTagValueSeries {
 		return nil
 	}
@@ -322,8 +327,8 @@ func (cmd *Command) printTagValueSeries(fs tsi1.FileSet, name, key, value []byte
 	return nil
 }
 
-func (cmd *Command) printFileSummaries(fs tsi1.FileSet) error {
-	for _, f := range fs {
+func (cmd *Command) printFileSummaries(fs *tsi1.FileSet) error {
+	for _, f := range fs.Files() {
 		switch f := f.(type) {
 		case *tsi1.LogFile:
 			if err := cmd.printLogFileSummary(f); err != nil {

@@ -34,6 +34,7 @@ The admin UI is removed and unusable in this release. The `[admin]` configuratio
 - [#7862](https://github.com/influxdata/influxdb/pull/7861): Add new profile endpoint for gathering all debug profiles and querues in single archive.
 - [#8390](https://github.com/influxdata/influxdb/issues/8390): Add nanosecond duration literal support.
 - [#8394](https://github.com/influxdata/influxdb/pull/8394): Optimize top() and bottom() using an incremental aggregator.
+- [#7129](https://github.com/influxdata/influxdb/issues/7129): Maintain the tags of points selected by top() or bottom() when writing the results.
 
 ### Bugfixes
 
@@ -73,8 +74,17 @@ The admin UI is removed and unusable in this release. The `[admin]` configuratio
 - [#8368](https://github.com/influxdata/influxdb/issues/8368): Compaction exhausting disk resources in InfluxDB
 - [#8358](https://github.com/influxdata/influxdb/issues/8358): Small edits to the etc/config.sample.toml file.
 - [#8392](https://github.com/influxdata/influxdb/issues/8393): Points beyond retention policy scope are dropped silently
+- [#8387](https://github.com/influxdata/influxdb/issues/8387): Fix TSM tmp file leaked on disk
+- [#8417](https://github.com/influxdata/influxdb/issues/8417): Fix large field keys preventing snapshot compactions
 
-## v1.2.3 [unreleased]
+
+## v1.2.4 [2017-05-08]
+
+### Bugfixes
+
+- [#8338](https://github.com/influxdata/influxdb/pull/8338): Prefix partial write errors with `partial write:` to generalize identification in other subsystems
+
+## v1.2.3 [2017-04-17]
 
 ### Bugfixes
 
@@ -189,6 +199,14 @@ The stress tool `influx_stress` will be removed in a subsequent release. We reco
 - [#7563](https://github.com/influxdata/influxdb/issues/7563): RP should not allow `INF` or `0` as a shard duration.
 - [#7396](https://github.com/influxdata/influxdb/issues/7396): CLI should use spaces for alignment, not tabs.
 - [#6527](https://github.com/influxdata/influxdb/issues/6527): 0.12.2 Influx CLI client PRECISION returns "Unknown precision....
+
+
+## v1.1.5 [2017-04-28]
+
+### Bugfixes
+
+- [#8190](https://github.com/influxdata/influxdb/issues/8190): History file should redact passwords before saving to history.
+- [#8187](https://github.com/influxdata/influxdb/pull/8187): Several statements were missing the DefaultDatabase method
 
 ## v1.1.4 [2017-02-27]
 

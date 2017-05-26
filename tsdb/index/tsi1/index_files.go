@@ -8,6 +8,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/influxdata/influxdb/pkg/estimator/hll"
 	"github.com/influxdata/influxdb/pkg/mmap"
 )
 
@@ -18,7 +19,7 @@ type IndexFiles []*IndexFile
 func (p IndexFiles) IDs() []int {
 	a := make([]int, len(p))
 	for i, f := range p {
-		a[i] = f.ID
+		a[i] = f.ID()
 	}
 	return a
 }
@@ -121,8 +122,8 @@ func (p IndexFiles) TagValueSeriesIterator(name, key, value []byte) SeriesIterat
 	return MergeSeriesIterators(a...)
 }
 
-// WriteTo merges all index files and writes them to w.
-func (p IndexFiles) WriteTo(w io.Writer) (n int64, err error) {
+// CompactTo merges all index files and writes them to w.
+func (p IndexFiles) CompactTo(w io.Writer, m, k uint64) (n int64, err error) {
 	var t IndexFileTrailer
 
 	// Wrap writer in buffered I/O.
@@ -139,7 +140,7 @@ func (p IndexFiles) WriteTo(w io.Writer) (n int64, err error) {
 
 	// Write combined series list.
 	t.SeriesBlock.Offset = n
-	if err := p.writeSeriesBlockTo(bw, &info, &n); err != nil {
+	if err := p.writeSeriesBlockTo(bw, m, k, &info, &n); err != nil {
 		return n, err
 	}
 	t.SeriesBlock.Size = n - t.SeriesBlock.Offset
@@ -186,9 +187,17 @@ func (p IndexFiles) WriteTo(w io.Writer) (n int64, err error) {
 	return n, nil
 }
 
-func (p IndexFiles) writeSeriesBlockTo(w io.Writer, info *indexCompactInfo, n *int64) error {
+func (p IndexFiles) writeSeriesBlockTo(w io.Writer, m, k uint64, info *indexCompactInfo, n *int64) error {
+	// Estimate series cardinality.
+	sketch := hll.NewDefaultPlus()
+	for _, f := range p {
+		if err := f.MergeSeriesSketches(sketch, sketch); err != nil {
+			return err
+		}
+	}
+
 	itr := p.SeriesIterator()
-	enc := NewSeriesBlockEncoder(w)
+	enc := NewSeriesBlockEncoder(w, uint32(sketch.Count()), m, k)
 
 	// Write all series.
 	for e := itr.Next(); e != nil; e = itr.Next() {
@@ -199,7 +208,7 @@ func (p IndexFiles) writeSeriesBlockTo(w io.Writer, info *indexCompactInfo, n *i
 
 	// Close and flush block.
 	err := enc.Close()
-	*n += enc.N()
+	*n += int64(enc.N())
 	if err != nil {
 		return err
 	}
@@ -238,7 +247,7 @@ func (p IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactIn
 		for ve := vitr.Next(); ve != nil; ve = vitr.Next() {
 			// Merge all series together.
 			sitr := p.TagValueSeriesIterator(name, ke.Key(), ve.Value())
-			var seriesIDs []uint64
+			var seriesIDs []uint32
 			for se := sitr.Next(); se != nil; se = sitr.Next() {
 				seriesID, _ := info.sblk.Offset(se.Name(), se.Tags(), seriesKey[:0])
 				if seriesID == 0 {
@@ -246,7 +255,7 @@ func (p IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactIn
 				}
 				seriesIDs = append(seriesIDs, seriesID)
 			}
-			sort.Sort(uint64Slice(seriesIDs))
+			sort.Sort(uint32Slice(seriesIDs))
 
 			// Encode value.
 			if err := enc.EncodeValue(ve.Value(), ve.Deleted(), seriesIDs); err != nil {
@@ -285,7 +294,7 @@ func (p IndexFiles) writeMeasurementBlockTo(w io.Writer, info *indexCompactInfo,
 
 		// Look-up series ids.
 		itr := p.MeasurementSeriesIterator(name)
-		var seriesIDs []uint64
+		var seriesIDs []uint32
 		for e := itr.Next(); e != nil; e = itr.Next() {
 			seriesID, _ := info.sblk.Offset(e.Name(), e.Tags(), seriesKey[:0])
 			if seriesID == 0 {
@@ -293,7 +302,7 @@ func (p IndexFiles) writeMeasurementBlockTo(w io.Writer, info *indexCompactInfo,
 			}
 			seriesIDs = append(seriesIDs, seriesID)
 		}
-		sort.Sort(uint64Slice(seriesIDs))
+		sort.Sort(uint32Slice(seriesIDs))
 
 		// Add measurement to writer.
 		pos := info.tagSets[string(name)]

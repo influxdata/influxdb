@@ -1011,11 +1011,12 @@ func (itr *floatChanIterator) Next() (*FloatPoint, error) {
 
 // floatReduceFloatIterator executes a reducer for every interval and buffers the result.
 type floatReduceFloatIterator struct {
-	input  *bufFloatIterator
-	create func() (FloatPointAggregator, FloatPointEmitter)
-	dims   []string
-	opt    IteratorOptions
-	points []FloatPoint
+	input    *bufFloatIterator
+	create   func() (FloatPointAggregator, FloatPointEmitter)
+	dims     []string
+	opt      IteratorOptions
+	points   []FloatPoint
+	keepTags bool
 }
 
 func newFloatReduceFloatIterator(input FloatIterator, opt IteratorOptions, createFn func() (FloatPointAggregator, FloatPointEmitter)) *floatReduceFloatIterator {
@@ -1147,7 +1148,9 @@ func (itr *floatReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		points := rp.Emitter.Emit()
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
-			points[i].Tags = rp.Tags
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
@@ -1423,11 +1426,12 @@ type floatExprFunc func(a, b float64) float64
 
 // floatReduceIntegerIterator executes a reducer for every interval and buffers the result.
 type floatReduceIntegerIterator struct {
-	input  *bufFloatIterator
-	create func() (FloatPointAggregator, IntegerPointEmitter)
-	dims   []string
-	opt    IteratorOptions
-	points []IntegerPoint
+	input    *bufFloatIterator
+	create   func() (FloatPointAggregator, IntegerPointEmitter)
+	dims     []string
+	opt      IteratorOptions
+	points   []IntegerPoint
+	keepTags bool
 }
 
 func newFloatReduceIntegerIterator(input FloatIterator, opt IteratorOptions, createFn func() (FloatPointAggregator, IntegerPointEmitter)) *floatReduceIntegerIterator {
@@ -1559,7 +1563,9 @@ func (itr *floatReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		points := rp.Emitter.Emit()
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
-			points[i].Tags = rp.Tags
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
@@ -1839,11 +1845,12 @@ type floatIntegerExprFunc func(a, b float64) int64
 
 // floatReduceStringIterator executes a reducer for every interval and buffers the result.
 type floatReduceStringIterator struct {
-	input  *bufFloatIterator
-	create func() (FloatPointAggregator, StringPointEmitter)
-	dims   []string
-	opt    IteratorOptions
-	points []StringPoint
+	input    *bufFloatIterator
+	create   func() (FloatPointAggregator, StringPointEmitter)
+	dims     []string
+	opt      IteratorOptions
+	points   []StringPoint
+	keepTags bool
 }
 
 func newFloatReduceStringIterator(input FloatIterator, opt IteratorOptions, createFn func() (FloatPointAggregator, StringPointEmitter)) *floatReduceStringIterator {
@@ -1975,7 +1982,9 @@ func (itr *floatReduceStringIterator) reduce() ([]StringPoint, error) {
 		points := rp.Emitter.Emit()
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
-			points[i].Tags = rp.Tags
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
@@ -2255,11 +2264,12 @@ type floatStringExprFunc func(a, b float64) string
 
 // floatReduceBooleanIterator executes a reducer for every interval and buffers the result.
 type floatReduceBooleanIterator struct {
-	input  *bufFloatIterator
-	create func() (FloatPointAggregator, BooleanPointEmitter)
-	dims   []string
-	opt    IteratorOptions
-	points []BooleanPoint
+	input    *bufFloatIterator
+	create   func() (FloatPointAggregator, BooleanPointEmitter)
+	dims     []string
+	opt      IteratorOptions
+	points   []BooleanPoint
+	keepTags bool
 }
 
 func newFloatReduceBooleanIterator(input FloatIterator, opt IteratorOptions, createFn func() (FloatPointAggregator, BooleanPointEmitter)) *floatReduceBooleanIterator {
@@ -2391,7 +2401,9 @@ func (itr *floatReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		points := rp.Emitter.Emit()
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
-			points[i].Tags = rp.Tags
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
@@ -3924,11 +3936,12 @@ func (itr *integerChanIterator) Next() (*IntegerPoint, error) {
 
 // integerReduceFloatIterator executes a reducer for every interval and buffers the result.
 type integerReduceFloatIterator struct {
-	input  *bufIntegerIterator
-	create func() (IntegerPointAggregator, FloatPointEmitter)
-	dims   []string
-	opt    IteratorOptions
-	points []FloatPoint
+	input    *bufIntegerIterator
+	create   func() (IntegerPointAggregator, FloatPointEmitter)
+	dims     []string
+	opt      IteratorOptions
+	points   []FloatPoint
+	keepTags bool
 }
 
 func newIntegerReduceFloatIterator(input IntegerIterator, opt IteratorOptions, createFn func() (IntegerPointAggregator, FloatPointEmitter)) *integerReduceFloatIterator {
@@ -4060,7 +4073,9 @@ func (itr *integerReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		points := rp.Emitter.Emit()
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
-			points[i].Tags = rp.Tags
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
@@ -4340,11 +4355,12 @@ type integerFloatExprFunc func(a, b int64) float64
 
 // integerReduceIntegerIterator executes a reducer for every interval and buffers the result.
 type integerReduceIntegerIterator struct {
-	input  *bufIntegerIterator
-	create func() (IntegerPointAggregator, IntegerPointEmitter)
-	dims   []string
-	opt    IteratorOptions
-	points []IntegerPoint
+	input    *bufIntegerIterator
+	create   func() (IntegerPointAggregator, IntegerPointEmitter)
+	dims     []string
+	opt      IteratorOptions
+	points   []IntegerPoint
+	keepTags bool
 }
 
 func newIntegerReduceIntegerIterator(input IntegerIterator, opt IteratorOptions, createFn func() (IntegerPointAggregator, IntegerPointEmitter)) *integerReduceIntegerIterator {
@@ -4476,7 +4492,9 @@ func (itr *integerReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		points := rp.Emitter.Emit()
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
-			points[i].Tags = rp.Tags
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
@@ -4752,11 +4770,12 @@ type integerExprFunc func(a, b int64) int64
 
 // integerReduceStringIterator executes a reducer for every interval and buffers the result.
 type integerReduceStringIterator struct {
-	input  *bufIntegerIterator
-	create func() (IntegerPointAggregator, StringPointEmitter)
-	dims   []string
-	opt    IteratorOptions
-	points []StringPoint
+	input    *bufIntegerIterator
+	create   func() (IntegerPointAggregator, StringPointEmitter)
+	dims     []string
+	opt      IteratorOptions
+	points   []StringPoint
+	keepTags bool
 }
 
 func newIntegerReduceStringIterator(input IntegerIterator, opt IteratorOptions, createFn func() (IntegerPointAggregator, StringPointEmitter)) *integerReduceStringIterator {
@@ -4888,7 +4907,9 @@ func (itr *integerReduceStringIterator) reduce() ([]StringPoint, error) {
 		points := rp.Emitter.Emit()
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
-			points[i].Tags = rp.Tags
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
@@ -5168,11 +5189,12 @@ type integerStringExprFunc func(a, b int64) string
 
 // integerReduceBooleanIterator executes a reducer for every interval and buffers the result.
 type integerReduceBooleanIterator struct {
-	input  *bufIntegerIterator
-	create func() (IntegerPointAggregator, BooleanPointEmitter)
-	dims   []string
-	opt    IteratorOptions
-	points []BooleanPoint
+	input    *bufIntegerIterator
+	create   func() (IntegerPointAggregator, BooleanPointEmitter)
+	dims     []string
+	opt      IteratorOptions
+	points   []BooleanPoint
+	keepTags bool
 }
 
 func newIntegerReduceBooleanIterator(input IntegerIterator, opt IteratorOptions, createFn func() (IntegerPointAggregator, BooleanPointEmitter)) *integerReduceBooleanIterator {
@@ -5304,7 +5326,9 @@ func (itr *integerReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		points := rp.Emitter.Emit()
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
-			points[i].Tags = rp.Tags
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
@@ -6823,11 +6847,12 @@ func (itr *stringChanIterator) Next() (*StringPoint, error) {
 
 // stringReduceFloatIterator executes a reducer for every interval and buffers the result.
 type stringReduceFloatIterator struct {
-	input  *bufStringIterator
-	create func() (StringPointAggregator, FloatPointEmitter)
-	dims   []string
-	opt    IteratorOptions
-	points []FloatPoint
+	input    *bufStringIterator
+	create   func() (StringPointAggregator, FloatPointEmitter)
+	dims     []string
+	opt      IteratorOptions
+	points   []FloatPoint
+	keepTags bool
 }
 
 func newStringReduceFloatIterator(input StringIterator, opt IteratorOptions, createFn func() (StringPointAggregator, FloatPointEmitter)) *stringReduceFloatIterator {
@@ -6959,7 +6984,9 @@ func (itr *stringReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		points := rp.Emitter.Emit()
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
-			points[i].Tags = rp.Tags
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
@@ -7239,11 +7266,12 @@ type stringFloatExprFunc func(a, b string) float64
 
 // stringReduceIntegerIterator executes a reducer for every interval and buffers the result.
 type stringReduceIntegerIterator struct {
-	input  *bufStringIterator
-	create func() (StringPointAggregator, IntegerPointEmitter)
-	dims   []string
-	opt    IteratorOptions
-	points []IntegerPoint
+	input    *bufStringIterator
+	create   func() (StringPointAggregator, IntegerPointEmitter)
+	dims     []string
+	opt      IteratorOptions
+	points   []IntegerPoint
+	keepTags bool
 }
 
 func newStringReduceIntegerIterator(input StringIterator, opt IteratorOptions, createFn func() (StringPointAggregator, IntegerPointEmitter)) *stringReduceIntegerIterator {
@@ -7375,7 +7403,9 @@ func (itr *stringReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		points := rp.Emitter.Emit()
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
-			points[i].Tags = rp.Tags
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
@@ -7655,11 +7685,12 @@ type stringIntegerExprFunc func(a, b string) int64
 
 // stringReduceStringIterator executes a reducer for every interval and buffers the result.
 type stringReduceStringIterator struct {
-	input  *bufStringIterator
-	create func() (StringPointAggregator, StringPointEmitter)
-	dims   []string
-	opt    IteratorOptions
-	points []StringPoint
+	input    *bufStringIterator
+	create   func() (StringPointAggregator, StringPointEmitter)
+	dims     []string
+	opt      IteratorOptions
+	points   []StringPoint
+	keepTags bool
 }
 
 func newStringReduceStringIterator(input StringIterator, opt IteratorOptions, createFn func() (StringPointAggregator, StringPointEmitter)) *stringReduceStringIterator {
@@ -7791,7 +7822,9 @@ func (itr *stringReduceStringIterator) reduce() ([]StringPoint, error) {
 		points := rp.Emitter.Emit()
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
-			points[i].Tags = rp.Tags
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
@@ -8067,11 +8100,12 @@ type stringExprFunc func(a, b string) string
 
 // stringReduceBooleanIterator executes a reducer for every interval and buffers the result.
 type stringReduceBooleanIterator struct {
-	input  *bufStringIterator
-	create func() (StringPointAggregator, BooleanPointEmitter)
-	dims   []string
-	opt    IteratorOptions
-	points []BooleanPoint
+	input    *bufStringIterator
+	create   func() (StringPointAggregator, BooleanPointEmitter)
+	dims     []string
+	opt      IteratorOptions
+	points   []BooleanPoint
+	keepTags bool
 }
 
 func newStringReduceBooleanIterator(input StringIterator, opt IteratorOptions, createFn func() (StringPointAggregator, BooleanPointEmitter)) *stringReduceBooleanIterator {
@@ -8203,7 +8237,9 @@ func (itr *stringReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		points := rp.Emitter.Emit()
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
-			points[i].Tags = rp.Tags
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
@@ -9722,11 +9758,12 @@ func (itr *booleanChanIterator) Next() (*BooleanPoint, error) {
 
 // booleanReduceFloatIterator executes a reducer for every interval and buffers the result.
 type booleanReduceFloatIterator struct {
-	input  *bufBooleanIterator
-	create func() (BooleanPointAggregator, FloatPointEmitter)
-	dims   []string
-	opt    IteratorOptions
-	points []FloatPoint
+	input    *bufBooleanIterator
+	create   func() (BooleanPointAggregator, FloatPointEmitter)
+	dims     []string
+	opt      IteratorOptions
+	points   []FloatPoint
+	keepTags bool
 }
 
 func newBooleanReduceFloatIterator(input BooleanIterator, opt IteratorOptions, createFn func() (BooleanPointAggregator, FloatPointEmitter)) *booleanReduceFloatIterator {
@@ -9858,7 +9895,9 @@ func (itr *booleanReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		points := rp.Emitter.Emit()
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
-			points[i].Tags = rp.Tags
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
@@ -10138,11 +10177,12 @@ type booleanFloatExprFunc func(a, b bool) float64
 
 // booleanReduceIntegerIterator executes a reducer for every interval and buffers the result.
 type booleanReduceIntegerIterator struct {
-	input  *bufBooleanIterator
-	create func() (BooleanPointAggregator, IntegerPointEmitter)
-	dims   []string
-	opt    IteratorOptions
-	points []IntegerPoint
+	input    *bufBooleanIterator
+	create   func() (BooleanPointAggregator, IntegerPointEmitter)
+	dims     []string
+	opt      IteratorOptions
+	points   []IntegerPoint
+	keepTags bool
 }
 
 func newBooleanReduceIntegerIterator(input BooleanIterator, opt IteratorOptions, createFn func() (BooleanPointAggregator, IntegerPointEmitter)) *booleanReduceIntegerIterator {
@@ -10274,7 +10314,9 @@ func (itr *booleanReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		points := rp.Emitter.Emit()
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
-			points[i].Tags = rp.Tags
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
@@ -10554,11 +10596,12 @@ type booleanIntegerExprFunc func(a, b bool) int64
 
 // booleanReduceStringIterator executes a reducer for every interval and buffers the result.
 type booleanReduceStringIterator struct {
-	input  *bufBooleanIterator
-	create func() (BooleanPointAggregator, StringPointEmitter)
-	dims   []string
-	opt    IteratorOptions
-	points []StringPoint
+	input    *bufBooleanIterator
+	create   func() (BooleanPointAggregator, StringPointEmitter)
+	dims     []string
+	opt      IteratorOptions
+	points   []StringPoint
+	keepTags bool
 }
 
 func newBooleanReduceStringIterator(input BooleanIterator, opt IteratorOptions, createFn func() (BooleanPointAggregator, StringPointEmitter)) *booleanReduceStringIterator {
@@ -10690,7 +10733,9 @@ func (itr *booleanReduceStringIterator) reduce() ([]StringPoint, error) {
 		points := rp.Emitter.Emit()
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
-			points[i].Tags = rp.Tags
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
@@ -10970,11 +11015,12 @@ type booleanStringExprFunc func(a, b bool) string
 
 // booleanReduceBooleanIterator executes a reducer for every interval and buffers the result.
 type booleanReduceBooleanIterator struct {
-	input  *bufBooleanIterator
-	create func() (BooleanPointAggregator, BooleanPointEmitter)
-	dims   []string
-	opt    IteratorOptions
-	points []BooleanPoint
+	input    *bufBooleanIterator
+	create   func() (BooleanPointAggregator, BooleanPointEmitter)
+	dims     []string
+	opt      IteratorOptions
+	points   []BooleanPoint
+	keepTags bool
 }
 
 func newBooleanReduceBooleanIterator(input BooleanIterator, opt IteratorOptions, createFn func() (BooleanPointAggregator, BooleanPointEmitter)) *booleanReduceBooleanIterator {
@@ -11106,7 +11152,9 @@ func (itr *booleanReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		points := rp.Emitter.Emit()
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
-			points[i].Tags = rp.Tags
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
