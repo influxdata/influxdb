@@ -8,12 +8,14 @@ class WriteDataForm extends Component {
     super(props)
     this.state = {
       selectedDatabase: null,
+      inputContent: '',
     }
 
     this.handleSelectDatabase = ::this.handleSelectDatabase
-    this.handleWrite = ::this.handleWrite
+    this.handleSubmit = ::this.handleSubmit
     this.handleClickOutside = ::this.handleClickOutside
     this.handleKeyUp = ::this.handleKeyUp
+    this.handleEdit = ::this.handleEdit
   }
 
   handleSelectDatabase(item) {
@@ -32,15 +34,19 @@ class WriteDataForm extends Component {
     }
   }
 
-  handleWrite() {
+  handleSubmit() {
     const {onClose, source, writeData} = this.props
-    const {selectedDatabase} = this.state
-    writeData(source, selectedDatabase, this.editor.value).then(() => onClose())
+    const {inputContent, selectedDatabase} = this.state
+    writeData(source, selectedDatabase, inputContent).then(() => onClose())
+  }
+
+  handleEdit(e) {
+    this.setState({inputContent: e.target.value.trim()})
   }
 
   render() {
     const {onClose, errorThrown} = this.props
-    const {selectedDatabase} = this.state
+    const {inputContent, selectedDatabase} = this.state
 
     return (
       <div className="write-data-form">
@@ -63,8 +69,8 @@ class WriteDataForm extends Component {
             autoComplete="off"
             spellCheck="false"
             placeholder="<measurement>,<tag_key>=<tag_value> <field_key>=<field_value>"
-            ref={editor => this.editor = editor}
             onKeyUp={this.handleKeyUp}
+            onChange={this.handleEdit}
             autoFocus={true}
           />
           <div className="write-data-form--footer">
@@ -79,7 +85,8 @@ class WriteDataForm extends Component {
             </span>
             <button
               className="btn btn-sm btn-primary write-data-form--submit"
-              onClick={this.handleWrite}
+              onClick={this.handleSubmit}
+              disabled={!inputContent}
             >
               Write
             </button>
