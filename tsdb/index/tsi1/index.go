@@ -1014,7 +1014,6 @@ func (i *Index) compactLogFile(logFile *LogFile) {
 	lvl := i.levels[1]
 	n, err := logFile.CompactTo(f, lvl.M, lvl.K)
 	if err != nil {
-		log.Printf("%s: error compacting log file: path=%s, err=%s", IndexName, logFile.Path(), err)
 		logger.Error("cannot compact log file", zap.Error(err), zap.String("path", logFile.Path()))
 		return
 	}
