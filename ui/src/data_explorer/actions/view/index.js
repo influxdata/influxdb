@@ -173,7 +173,8 @@ export const writeDataAsync = (source, db, data) => async dispatch => {
       )
     )
   } catch (response) {
-    dispatch(errorThrown(response, response.data.error))
+    const errorMessage = `Write Failed: ${response.data.error}`
+    dispatch(errorThrown(response, errorMessage))
     throw response
   }
 }
