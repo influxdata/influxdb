@@ -52,15 +52,6 @@ const Header = ({
   onAddRetentionPolicy,
   onDatabaseDeleteConfirm,
 }) => {
-  const confirmStyle = {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  }
-  const confirmInputStyle = {
-    flex: '1 0 0',
-    marginRight: '4px',
-  }
   const buttons = (
     <div className="text-right db-manager-header--actions">
       <button
@@ -90,7 +81,7 @@ const Header = ({
   }
 
   const deleteConfirmation = (
-    <div style={confirmStyle}>
+    <div className="admin-table--delete-db">
       <input
         className="form-control input-xs"
         name="name"
@@ -102,7 +93,6 @@ const Header = ({
         autoFocus={true}
         autoComplete={false}
         spellCheck={false}
-        style={confirmInputStyle}
       />
       <ConfirmButtons
         item={database}

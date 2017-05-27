@@ -113,6 +113,15 @@ pre.admin-table--query {
   background-color: transparent;
   margin-bottom: 0;
 }
+.admin-table--delete-db {
+  display: flex;
+  align-items: center;
+
+  > .form-control {
+    flex: 1 0 0;
+    margin-right: 4px;
+  }
+}
 
 /*
     Database Manager
