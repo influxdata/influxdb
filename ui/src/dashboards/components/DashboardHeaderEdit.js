@@ -36,15 +36,20 @@ class DashboardEditHeader extends Component {
     return (
       <div className="page-header full-width">
         <div className="page-header__container">
-          <form className="page-header__left" onSubmit={this.handleFormSubmit}>
+          <form
+            className="page-header__left"
+            style={{flex: '1 0 0'}}
+            onSubmit={this.handleFormSubmit}
+          >
             <input
               className="page-header--editing"
               name="name"
-              autoFocus={true}
               value={name}
               placeholder="Name this Dashboard"
               onChange={e => this.handleChange(e.target.value)}
               onKeyUp={this.handleKeyUp}
+              autoFocus={true}
+              spellCheck={false}
               autoComplete="off"
             />
           </form>

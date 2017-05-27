@@ -9,7 +9,6 @@
 // Base Theme
 @import 'theme/bootstrap';
 @import 'theme/bootstrap-theme';
-@import 'theme/theme-dark';
 @import 'theme/reset';
 
 // External
@@ -23,18 +22,16 @@
 @import 'layout/page-header';
 @import 'layout/sidebar';
 @import 'layout/overlay';
+@import 'layout/flash-messages';
 
 // Components
 @import 'components/confirm-buttons';
 @import 'components/custom-time-range';
-@import 'components/dropdown';
 @import 'components/dygraphs';
-@import 'components/flash-messages';
 @import 'components/flip-toggle';
 @import 'components/graph-tips';
 @import 'components/graph';
 @import 'components/input-tag-list';
-@import 'components/multi-select-dropdown';
 @import 'components/page-header-dropdown';
 @import 'components/page-header-editable';
 @import 'components/page-spinner';

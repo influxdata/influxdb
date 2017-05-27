@@ -1,6 +1,7 @@
 import React, {PropTypes, Component} from 'react'
 
 import ConfirmButtons from 'src/shared/components/ConfirmButtons'
+import {QUERIES_TABLE} from 'src/admin/constants/tableSizing'
 
 class QueryRow extends Component {
   constructor(props) {
@@ -32,17 +33,31 @@ class QueryRow extends Component {
 
     return (
       <tr>
-        <td>{database}</td>
+        <td
+          style={{width: `${QUERIES_TABLE.colDatabase}px`}}
+          className="monotype"
+        >
+          {database}
+        </td>
         <td><code>{query}</code></td>
-        <td>{duration}</td>
-        <td className="admin-table--kill-button text-right">
+        <td
+          style={{width: `${QUERIES_TABLE.colRunning}px`}}
+          className="monotype"
+        >
+          {duration}
+        </td>
+        <td
+          style={{width: `${QUERIES_TABLE.colKillQuery}px`}}
+          className="text-right"
+        >
           {this.state.confirmingKill
             ? <ConfirmButtons
                 onConfirm={this.handleFinishHim}
                 onCancel={this.handleShowMercy}
+                buttonSize="btn-xs"
               />
             : <button
-                className="btn btn-xs btn-danger admin-table--hidden"
+                className="btn btn-xs btn-danger table--show-on-row-hover"
                 onClick={this.handleInitiateKill}
               >
                 Kill

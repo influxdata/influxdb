@@ -6,16 +6,6 @@
 .custom-time-range {
   position: relative;
 }
-.btn.btn-sm.btn-info.custom-time-range--btn {
-  padding: 0 30px 0 9px !important;
-
-  .caret {
-    position: absolute;
-    right: 9px;
-    top: calc(50% + 1px);
-    transform: translateY(-50%);
-  }
-}
 .custom-time--container {
   display: none;
   position: absolute;
@@ -242,8 +232,8 @@ $rd-cell-size: 30px;
 }
 
 
-/* Show State */
-.custom-time-range.show {
+/* Open State */
+.custom-time-range.open {
   .custom-time--container {
     display: flex;
   }

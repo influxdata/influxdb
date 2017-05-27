@@ -36,7 +36,7 @@ $template-control-dropdown-min-width: 146px;
   @include no-user-select();
   white-space: nowrap;
 }
-.template-control--manage {
+button.btn.template-control--manage {
   margin: 7px 8px;
 }
 .template-control--controls {
@@ -64,37 +64,11 @@ $template-control-dropdown-min-width: 146px;
     margin: 0;
     flex: 1 0 0;
   }
-
   .dropdown-toggle {
     border-radius: 0 0 $radius-small $radius-small;
     width: 100%;
     font-size: 12px;
     font-family: $code-font;
-  }
-  .dropdown-menu {
-    @include gradient-h($c-star,$c-pool);
-
-    li.dropdown-item {
-      &, &:hover {
-        background: none;
-        background-color: transparent;
-      }
-      &.active {@include gradient-h($c-amethyst,$c-pool);}
-    }
-    li.dropdown-item > a {
-      &, &:focus {background: none;}
-      &:active, &:active:focus {@include gradient-h($c-amethyst,$c-pool);}
-      font-size: 12px;
-      font-family: $code-font;
-    }
-    li.dropdown-item.highlight {
-      &, &:hover {@include gradient-h($c-comet,$c-pool);}
-      > a {
-        color: $g20-white;
-        background: none;
-        background-color: transparent;
-      }
-    }
   }
 }
 .template-control--label {

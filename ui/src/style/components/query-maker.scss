@@ -8,7 +8,7 @@
 
 .query-maker {
   height: 100%;
-  margin: 0 $explorer-page-padding;
+  margin: 0 $page-wrapper-padding;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -90,7 +90,7 @@ $query-editor-tab-active: $g3-castle;
   margin: 0 !important;
 }
 .query-maker--tab {
-  border-radius: $radius $radius 0 0;  
+  border-radius: $radius $radius 0 0;
   height: $query-maker--tabs-height;
   margin: 0 2px 0 0;
   max-width: $query-maker--tab-width;

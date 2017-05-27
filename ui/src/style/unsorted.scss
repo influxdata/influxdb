@@ -29,21 +29,6 @@
     color: $g8-storm;
   }
 }
-.btn-block.dropdown-toggle {
-  text-align: left;
-  position: relative;
-
-  .caret {
-    position: absolute;
-    top: 50%;
-    right: 18px;
-    transform: translateY(-50%);
-  }
-
-  & + .dropdown-menu {
-    width: 100%;
-  }
-}
 .modal {
   form {
     padding: 0;
@@ -59,10 +44,6 @@
     }
   }
 }
-.form-group label,
-.form-group label:hover {
-  cursor: default;
-}
 
 /*
     Generic Empty State
@@ -71,59 +52,18 @@
 .generic-empty-state {
   display: flex;
   flex-direction: column;
+  text-align: center;
   align-items: center;
   justify-content: center;
   color: $g12-forge;
   padding: 20px 0;
 
+  h4, h5 {
+    font-weight: 400;
+  }
+
   .icon {
     margin-bottom: 11px;
-  }
-}
-
-// Tabs for switching between queries
-.qeditor--tabs {
-  display: flex;
-  width: 100%;
-  justify-content: flex-start;
-  padding: 8px 9px 0 9px;
-  background-color: $query-editor-tab-inactive;
-  flex-wrap: wrap;
-
-  &-heading {
-    flex-basis: 100%;
-    width: 100%;
-    font-size: 12px;
-    color: $g9-mountain;
-    font-weight: 500;
-    margin-bottom: 8px;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-  }
-}
-.qeditor--tab {
-  text-align: center;
-  background-color: $query-editor-tab-inactive;
-  color: $g13-mist;
-  height: 28px;
-  padding: 0 9px;
-  line-height: 28px;
-  font-size: 12px;
-  font-weight: 600;
-  border-radius: $radius-small $radius-small 0 0;
-  margin-right: 2px;
-  @include no-user-select();
-  transition:
-    color 0.25s ease,
-    background-color 0.25s ease;
-
-  &:hover {
-    cursor: pointer;
-    color: $g20-white;
-  }
-  &.active {
-    background-color: $query-editor-tab-active;
-    color: $g20-white;
   }
 }
 
@@ -131,7 +71,6 @@
     Loading Dots
     ----------------------------------------------
 */
-
 .loading-dots {
   position: absolute;
   transform: translate(0,0);
@@ -153,7 +92,6 @@
   div:nth-child(2) {left: 50%; animation: refreshingSpinnerB 0.8s cubic-bezier(0.645, 0.045, 0.355, 1) infinite;}
   div:nth-child(3) {left: 100%; animation: refreshingSpinnerC 0.8s cubic-bezier(0.645, 0.045, 0.355, 1) infinite;}
 }
-
 
 /*
     Custom Tabs
@@ -206,7 +144,9 @@
   @include no-user-select();
 }
 
-
+br {
+  @include no-user-select();
+}
 
 .select-source-page {
   position: absolute;

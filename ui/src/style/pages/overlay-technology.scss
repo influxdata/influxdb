@@ -39,8 +39,8 @@ $overlay-z: 100;
     align-items: center;
     justify-content: space-between;
     flex: 0 0 $overlay-controls-height;
-    width: calc(100% - #{($explorer-page-padding * 2)});
-    left: $explorer-page-padding;
+    width: calc(100% - #{($page-wrapper-padding * 2)});
+    left: $page-wrapper-padding;
     border: 0;
     background-color: $g2-kevlar;
     border-radius: $radius $radius 0 0;
@@ -54,13 +54,16 @@ $overlay-z: 100;
       margin: 0 0 0 5px;
     }
     p {
+      width: auto;
       font-weight: 600;
       color: $g13-mist;
-      margin: 0;
+      margin: 0 6px 0 0;
       @include no-user-select;
+      white-space: nowrap;
     }
   }
   .overlay--graph-name {
+    width: auto;
     margin: 0;
     font-size: 17px;
     font-weight: 400;
@@ -77,28 +80,6 @@ $overlay-z: 100;
 }
 .overlay-controls .confirm-buttons {
   margin-left: 32px;
-}
-.overlay-controls .confirm-buttons .btn {
-  height: 30px;
-  line-height: 30px;
-  padding: 0 9px;
-
-  & > span.icon {
-    font-size: 16px;
-  }
-}
-.overlay-controls .toggle {
-
-  .toggle-btn {
-    background-color: $overlay-controls-bg;
-
-    &:hover {
-      background-color: $g4-onyx;
-    }
-    &.active {
-      background-color: $g5-pepper;
-    }
-  }
 }
 
 /* Graph editing in Dashboards is a little smaller so the dash can be seen in the background */

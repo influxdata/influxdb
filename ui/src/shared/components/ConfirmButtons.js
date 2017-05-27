@@ -1,11 +1,22 @@
 import React, {PropTypes} from 'react'
+import classnames from 'classnames'
 
-const ConfirmButtons = ({onConfirm, item, onCancel}) => (
+const ConfirmButtons = ({onConfirm, item, onCancel, buttonSize}) => (
   <div className="confirm-buttons">
-    <button className="btn btn-xs btn-info" onClick={() => onCancel(item)}>
+    <button
+      className={classnames('btn btn-info btn-square', {
+        [buttonSize]: buttonSize,
+      })}
+      onClick={() => onCancel(item)}
+    >
       <span className="icon remove" />
     </button>
-    <button className="btn btn-xs btn-success" onClick={() => onConfirm(item)}>
+    <button
+      className={classnames('btn btn-success btn-square', {
+        [buttonSize]: buttonSize,
+      })}
+      onClick={() => onConfirm(item)}
+    >
       <span className="icon checkmark" />
     </button>
   </div>
@@ -17,6 +28,10 @@ ConfirmButtons.propTypes = {
   onConfirm: func.isRequired,
   item: oneOfType([shape(), string]),
   onCancel: func.isRequired,
+  buttonSize: string,
 }
 
+ConfirmButtons.defaultProps = {
+  buttonSize: 'btn-sm',
+}
 export default ConfirmButtons

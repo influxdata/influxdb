@@ -1,0 +1,12 @@
+/*
+    Styles for Flash Messages
+    ----------------------------------------------
+*/
+.flash-messages {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 570px;
+  top: 36px;
+  z-index: 9999;
+}

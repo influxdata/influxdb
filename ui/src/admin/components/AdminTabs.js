@@ -96,7 +96,7 @@ const AdminTabs = ({
       <TabList customClass="col-md-2 admin-tabs">
         {tabs.map((t, i) => <Tab key={tabs[i].type}>{tabs[i].type}</Tab>)}
       </TabList>
-      <TabPanels customClass="col-md-10">
+      <TabPanels customClass="col-md-10 admin-tabs--content">
         {tabs.map((t, i) => (
           <TabPanel key={tabs[i].type}>{t.component}</TabPanel>
         ))}

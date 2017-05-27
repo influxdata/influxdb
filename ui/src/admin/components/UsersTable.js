@@ -20,7 +20,7 @@ const UsersTable = ({
   onUpdateRoles,
   onUpdatePassword,
 }) => (
-  <div className="panel panel-info">
+  <div className="panel panel-default">
     <FilterBar
       type="users"
       onFilter={onFilter}
@@ -28,13 +28,13 @@ const UsersTable = ({
       onClickCreate={onClickCreate}
     />
     <div className="panel-body">
-      <table className="table v-center admin-table">
+      <table className="table v-center admin-table table-highlight">
         <thead>
           <tr>
             <th>User</th>
-            {hasRoles && <th>Roles</th>}
-            <th>Permissions</th>
-            <th />
+            <th>Password</th>
+            {hasRoles && <th className="admin-table--left-offset">Roles</th>}
+            <th className="admin-table--left-offset">Permissions</th>
             <th />
           </tr>
         </thead>

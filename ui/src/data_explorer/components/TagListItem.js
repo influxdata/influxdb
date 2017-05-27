@@ -66,6 +66,8 @@ const TagListItem = React.createClass({
             value={this.state.filterText}
             onChange={this.handleFilterText}
             onKeyUp={this.handleEscape}
+            spellCheck={false}
+            autoComplete={false}
           />
           <span className="icon search" />
         </div>
@@ -107,7 +109,7 @@ const TagListItem = React.createClass({
             {tagItemLabel}
           </span>
           <div
-            className={classnames('btn btn-info btn-xs group-by-tag', {
+            className={classnames('btn btn-default btn-xs group-by-tag', {
               active: this.props.isUsingGroupBy,
             })}
             onClick={this.handleGroupBy}

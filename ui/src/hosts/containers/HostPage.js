@@ -190,21 +190,20 @@ export const HostPage = React.createClass({
         >
           {Object.keys(hosts).map((host, i) => {
             return (
-              <li key={i}>
-                <Link
-                  to={`/sources/${id}/hosts/${host + appParam}`}
-                  className="role-option"
-                >
+              <li className="dropdown-item" key={i}>
+                <Link to={`/sources/${id}/hosts/${host + appParam}`}>
                   {host}
                 </Link>
               </li>
             )
           })}
         </DashboardHeader>
-        <FancyScrollbar className={classnames({
-          'page-contents': true,
-          'presentation-mode': inPresentationMode,
-        })}>
+        <FancyScrollbar
+          className={classnames({
+            'page-contents': true,
+            'presentation-mode': inPresentationMode,
+          })}
+        >
           <div className="container-fluid full-width dashboard">
             {layouts.length > 0 ? this.renderLayouts(layouts) : ''}
           </div>

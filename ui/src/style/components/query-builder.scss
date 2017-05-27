@@ -114,9 +114,9 @@
     transition: color 0.25s ease;
     color: $g9-mountain;
   }
-  & > input {
+  & > input.form-control {
     order: 2;
-    padding: 0 8px 0 24px;
+    padding-left: 24px;
     border-color: $g6-smoke !important;
 
     &:hover {border-color: $g7-graphite !important;}
@@ -172,13 +172,6 @@
   .query-builder--list-item {padding: 0;}
   .query-builder--filter {margin-bottom: 4px;}
 }
-/* Dropdowns inside query builder list items are forced to "xs" size */
-.query-builder--list-item .dropdown-toggle {
-  height: 22px !important;
-  line-height: 22px !important;
-  font-size: 12px !important;
-  width: 110px !important;
-}
 /* Toggle for grouping by tags in tags list */
 .group-by-tag {
   visibility: hidden;
@@ -198,9 +191,6 @@
 .query-builder--list-item.active .group-by-tag {
   visibility: visible;
 }
-
-
-
 .query-builder--db-dropdown {
   display: inline-block;
 }
