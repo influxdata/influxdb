@@ -1,6 +1,9 @@
 /* eslint-disable no-magic-numbers */
 import React, {PropTypes} from 'react'
+
 import _ from 'lodash'
+import {deepDiffByKeys} from 'utils/deepDiff.js'
+
 import Dygraph from '../../external/dygraph'
 import getRange from 'src/shared/parsing/getRangeForDygraph'
 
@@ -158,34 +161,17 @@ export default React.createClass({
   // TODO: possibly try to use dateWindow and a zoomCallback to updateOptions
   // in comonentDidUpdate so that zoom and redraw happen at the same time
   shouldComponentUpdate(nextProps) {
-    const timeRangeChanged =
-      nextProps.timeRange.lower !== this.props.timeRange.lower ||
-      nextProps.timeRange.upper !== this.props.timeRange.upper
+    const changedProps = deepDiffByKeys(this.props, nextProps)
+    const testProps = ['lower', 'upper']
+
+    const timeRangeChanged = !!_.intersection(changedProps, testProps).length
+    const shouldUpdate = !!_.difference(changedProps, testProps).length
 
     if (this.dygraph.isZoomed() && timeRangeChanged) {
       this.dygraph.resetZoom()
     }
 
-    const propsChanged = []
-
-    // perform a deep diff on props objects to see what keys have changed
-    // from https://stackoverflow.com/questions/8572826/generic-deep-diff-between-two-objects
-    _.mergeWith(this.props, nextProps, (objectValue, sourceValue, key) => {
-      if (
-        !_.isEqual(objectValue, sourceValue) &&
-        Object(objectValue) !== objectValue
-      ) {
-        propsChanged.push(key)
-      }
-    })
-
-    const propsChangedWithoutTimeRange = _.without(
-      propsChanged,
-      'lower',
-      'upper'
-    )
-
-    return propsChangedWithoutTimeRange.length
+    return shouldUpdate
   },
 
   componentDidUpdate() {
