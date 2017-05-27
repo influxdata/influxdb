@@ -22,9 +22,12 @@ class WriteDataForm extends Component {
     this.setState({selectedDatabase: item.text})
   }
 
-  handleClickOutside() {
-    const {onClose} = this.props
-    onClose()
+  handleClickOutside(e) {
+    // guard against clicking to close error notification
+    if (e.target.className === 'overlay-technology') {
+      const {onClose} = this.props
+      onClose()
+    }
   }
 
   handleKeyUp(e) {
