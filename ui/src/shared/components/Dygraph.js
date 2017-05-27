@@ -1,8 +1,8 @@
 /* eslint-disable no-magic-numbers */
 import React, {PropTypes} from 'react'
+import shallowCompare from 'react-addons-shallow-compare'
 
 import _ from 'lodash'
-import {deepDiffByKeys} from 'utils/deepDiff.js'
 
 import Dygraph from '../../external/dygraph'
 import getRange from 'src/shared/parsing/getRangeForDygraph'
@@ -160,18 +160,17 @@ export default React.createClass({
   // If only timeRange has changed, only reset the zoom.
   // TODO: possibly try to use dateWindow and a zoomCallback to updateOptions
   // in comonentDidUpdate so that zoom and redraw happen at the same time
-  shouldComponentUpdate(nextProps) {
-    const changedProps = deepDiffByKeys(this.props, nextProps)
-    const testProps = ['lower', 'upper']
-
-    const timeRangeChanged = !!_.intersection(changedProps, testProps).length
-    const shouldUpdate = !!_.difference(changedProps, testProps).length
+  shouldComponentUpdate(nextProps, nextState) {
+    const timeRangeChanged = !_.isEqual(
+      nextProps.timeRange,
+      this.props.timeRange
+    )
 
     if (this.dygraph.isZoomed() && timeRangeChanged) {
       this.dygraph.resetZoom()
     }
 
-    return shouldUpdate
+    return shallowCompare(this, nextProps, nextState)
   },
 
   componentDidUpdate() {
