@@ -6,6 +6,8 @@ import DatabaseList from '../../data_explorer/components/DatabaseList'
 import MeasurementList from '../../data_explorer/components/MeasurementList'
 import FieldList from '../../data_explorer/components/FieldList'
 
+import {defaultEveryFrequency} from 'src/kapacitor/constants'
+
 export const DataSection = React.createClass({
   propTypes: {
     source: PropTypes.shape({
@@ -27,6 +29,8 @@ export const DataSection = React.createClass({
       groupByTime: PropTypes.func.isRequired,
       toggleTagAcceptance: PropTypes.func.isRequired,
     }).isRequired,
+    onAddEvery: PropTypes.func.isRequired,
+    onRemoveEvery: PropTypes.func.isRequired,
     timeRange: PropTypes.shape({}).isRequired,
   },
 
@@ -53,6 +57,11 @@ export const DataSection = React.createClass({
 
   handleToggleField(field) {
     this.props.actions.toggleField(this.props.query.id, field, true)
+    // Every is only added when a function has been added to a field.
+    // Here, the field is selected without a function.
+    this.props.onRemoveEvery()
+    // Because there are no functions there is no group by time.
+    this.props.actions.groupByTime(this.props.query.id, null)
   },
 
   handleGroupByTime(time) {
@@ -61,6 +70,7 @@ export const DataSection = React.createClass({
 
   handleApplyFuncsToField(fieldFunc) {
     this.props.actions.applyFuncsToField(this.props.query.id, fieldFunc)
+    this.props.onAddEvery(defaultEveryFrequency)
   },
 
   handleChooseTag(tag) {

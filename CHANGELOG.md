@@ -2,6 +2,7 @@
 
 ### Bug Fixes
 1. [#1530](https://github.com/influxdata/chronograf/pull/1530): Update query config field ordering to always match input query
+1. [#1535](https://github.com/influxdata/chronograf/pull/1535): Fix add field functions to existing Kapacitor rules
 
 ### Features
 

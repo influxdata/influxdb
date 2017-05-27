@@ -99,7 +99,7 @@ func (c *Client) Create(ctx context.Context, rule chronograf.AlertRule) (*Task, 
 		Href:       task.Link.Href,
 		HrefOutput: c.HrefOutput(kapaID),
 		TICKScript: script,
-		Rule:       rule,
+		Rule:       c.Reverse(kapaID, script),
 	}, nil
 }
 
@@ -215,6 +215,22 @@ func (c *Client) All(ctx context.Context) (map[string]chronograf.AlertRule, erro
 	return alerts, nil
 }
 
+// Reverse builds a chronograf.AlertRule and its QueryConfig from a tickscript
+func (c *Client) Reverse(id string, script chronograf.TICKScript) chronograf.AlertRule {
+	rule, err := Reverse(script)
+	if err != nil {
+		return chronograf.AlertRule{
+			ID:         id,
+			Name:       id,
+			Query:      nil,
+			TICKScript: script,
+		}
+	}
+	rule.ID = id
+	rule.TICKScript = script
+	return rule
+}
+
 // Get returns a single alert in kapacitor
 func (c *Client) Get(ctx context.Context, id string) (chronograf.AlertRule, error) {
 	kapa, err := c.kapaClient(c.URL, c.Username, c.Password)
@@ -228,18 +244,7 @@ func (c *Client) Get(ctx context.Context, id string) (chronograf.AlertRule, erro
 	}
 
 	script := chronograf.TICKScript(task.TICKscript)
-	rule, err := Reverse(script)
-	if err != nil {
-		return chronograf.AlertRule{
-			ID:         task.ID,
-			Name:       task.ID,
-			Query:      nil,
-			TICKScript: script,
-		}, nil
-	}
-	rule.ID = task.ID
-	rule.TICKScript = script
-	return rule, nil
+	return c.Reverse(task.ID, script), nil
 }
 
 // Update changes the tickscript of a given id.
@@ -282,7 +287,7 @@ func (c *Client) Update(ctx context.Context, href string, rule chronograf.AlertR
 		Href:       task.Link.Href,
 		HrefOutput: c.HrefOutput(task.ID),
 		TICKScript: script,
-		Rule:       rule,
+		Rule:       c.Reverse(task.ID, script),
 	}, nil
 }
 
