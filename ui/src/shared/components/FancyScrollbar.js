@@ -24,7 +24,7 @@ class FancyScrollbar extends Component {
         autoHideTimeout={1000}
         autoHideDuration={250}
         autoHeight={autoHeight}
-        autoHeightMax={maxHeight ? maxHeight : null}
+        autoHeightMax={maxHeight}
         renderTrackHorizontal={props => (
           <div {...props} className="fancy-scroll--track-h" />
         )}
