@@ -1,5 +1,6 @@
 import React, {PropTypes} from 'react'
 import classnames from 'classnames'
+import _ from 'lodash'
 
 const VisHeader = ({views, view, onToggleView, name}) => (
   <div className="graph-heading">
@@ -11,7 +12,7 @@ const VisHeader = ({views, view, onToggleView, name}) => (
               onClick={() => onToggleView(v)}
               className={classnames({active: view === v})}
             >
-              {v.charAt(0).toUpperCase() + v.slice(1)}
+              {_.upperFirst(v)}
             </li>
           ))}
         </ul>
