@@ -156,10 +156,6 @@ export default React.createClass({
     delete this.dygraph
   },
 
-  // Only update the component if props other than timeRange have updateDashboard.
-  // If only timeRange has changed, only reset the zoom.
-  // TODO: possibly try to use dateWindow and a zoomCallback to updateOptions
-  // in comonentDidUpdate so that zoom and redraw happen at the same time
   shouldComponentUpdate(nextProps, nextState) {
     const timeRangeChanged = !_.isEqual(
       nextProps.timeRange,
@@ -170,6 +166,10 @@ export default React.createClass({
       this.dygraph.resetZoom()
     }
 
+    // Will cause componentDidUpdate to fire twice, currently. This could
+    // be reduced by returning false from within the reset conditional above,
+    // though that would be based on the assumption that props for timeRange
+    // will always change before those for data.
     return shallowCompare(this, nextProps, nextState)
   },
 
