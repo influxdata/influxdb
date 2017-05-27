@@ -52,18 +52,21 @@ const TelegramConfig = React.createClass({
 
     return (
       <form onSubmit={this.handleSaveAlert}>
-        <p className="no-user-select">
-          You need a
-          {' '}
-          <a
-            href="https://docs.influxdata.com/kapacitor/v1.2/guides/event-handler-setup/#telegram-bot"
-            target="_blank"
-          >
-            Telegram Bot
-          </a>
-          {' '}
-          to use this endpoint
-        </p>
+        <div className="form-group col-xs-12">
+          <div className="alert alert-warning alert-icon no-user-select">
+            <span className="icon triangle" />
+            You need a
+            {' '}
+            <a
+              href="https://docs.influxdata.com/kapacitor/v1.2/guides/event-handler-setup/#telegram-bot"
+              target="_blank"
+            >
+              Telegram Bot
+            </a>
+            {' '}
+            to use this endpoint
+          </div>
+        </div>
         <div className="form-group col-xs-12">
           <label htmlFor="token">
             Token
@@ -100,7 +103,7 @@ const TelegramConfig = React.createClass({
         <div className="form-group col-xs-12">
           <label htmlFor="parseMode">Select the alert message format</label>
           <div className="form-control-static">
-            <div className="radio">
+            <div className="radio-item">
               <input
                 id="parseModeMarkdown"
                 type="radio"
@@ -111,7 +114,7 @@ const TelegramConfig = React.createClass({
               />
               <label htmlFor="parseModeMarkdown">Markdown</label>
             </div>
-            <div className="radio">
+            <div className="radio-item">
               <input
                 id="parseModeHTML"
                 type="radio"

@@ -1,49 +1,33 @@
 import React, {PropTypes} from 'react'
-import classnames from 'classnames'
 
 import groupByTimeOptions from 'hson!../data/groupByTimes.hson'
 
-const {bool, string, func} = PropTypes
+import Dropdown from 'shared/components/Dropdown'
+
+const {bool, func, string} = PropTypes
 
 const GroupByTimeDropdown = React.createClass({
   propTypes: {
-    isOpen: bool,
     selected: string,
     onChooseGroupByTime: func.isRequired,
+    isInRuleBuilder: bool,
   },
 
   render() {
-    const {isOpen, selected, onChooseGroupByTime} = this.props
+    const {selected, onChooseGroupByTime, isInRuleBuilder} = this.props
 
     return (
-      <div
-        className={classnames('dropdown group-by-time-dropdown', {
-          open: isOpen,
-        })}
-      >
-        <div
-          className="btn btn-sm btn-info dropdown-toggle"
-          data-toggle="dropdown"
-        >
-          <span>Group by {selected || 'time'}</span>
-          <span className="caret" />
-        </div>
-        <ul className="dropdown-menu">
-          {groupByTimeOptions.map(groupBy => {
-            return (
-              <li
-                className="dropdown-item"
-                key={groupBy.menuOption}
-                onClick={() => onChooseGroupByTime(groupBy)}
-              >
-                <a href="#">
-                  {groupBy.menuOption}
-                </a>
-              </li>
-            )
-          })}
-        </ul>
-      </div>
+      <Dropdown
+        className="dropdown-130"
+        menuClass={isInRuleBuilder ? 'dropdown-malachite' : null}
+        buttonColor={isInRuleBuilder ? 'btn-default' : 'btn-info'}
+        items={groupByTimeOptions.map(groupBy => ({
+          ...groupBy,
+          text: groupBy.menuOption,
+        }))}
+        onChoose={onChooseGroupByTime}
+        selected={selected ? `Group by ${selected}` : 'Group by Time'}
+      />
     )
   },
 })

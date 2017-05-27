@@ -83,7 +83,7 @@ class KapacitorForm extends Component {
 
                       <div className="form-group form-group-submit col-xs-12 text-center">
                         <button
-                          className="btn btn-info"
+                          className="btn btn-default"
                           type="button"
                           onClick={onReset}
                         >

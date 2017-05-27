@@ -1,7 +1,9 @@
 import React, {PropTypes, Component} from 'react'
+import onClickOutside from 'react-onclickoutside'
+
 import {formatRPDuration} from 'utils/formatting'
 import YesNoButtons from 'src/shared/components/YesNoButtons'
-import onClickOutside from 'react-onclickoutside'
+import {DATABASE_TABLE} from 'src/admin/constants/tableSizing'
 
 class DatabaseRow extends Component {
   constructor(props) {
@@ -46,51 +48,55 @@ class DatabaseRow extends Component {
         <tr>
           <td>
             {isNew
-              ? <div className="admin-table--edit-cell">
-                  <input
-                    className="form-control"
-                    type="text"
-                    defaultValue={name}
-                    placeholder="Name this RP"
-                    onKeyDown={e => this.handleKeyDown(e, database)}
-                    ref={r => (this.name = r)}
-                    autoFocus={true}
-                  />
-                </div>
-              : <div className="admin-table--edit-cell">
-                  {name}
-                </div>}
+              ? <input
+                  className="form-control input-xs"
+                  type="text"
+                  defaultValue={name}
+                  placeholder="Name this RP"
+                  onKeyDown={e => this.handleKeyDown(e, database)}
+                  ref={r => (this.name = r)}
+                  autoFocus={true}
+                  spellCheck={false}
+                  autoComplete={false}
+                />
+              : name}
           </td>
-          <td>
-            <div className="admin-table--edit-cell">
-              <input
-                className="form-control"
-                name="name"
-                type="text"
-                defaultValue={formattedDuration}
-                placeholder="How long should Data last"
-                onKeyDown={e => this.handleKeyDown(e, database)}
-                ref={r => (this.duration = r)}
-                autoFocus={!isNew}
-              />
-            </div>
+          <td style={{width: `${DATABASE_TABLE.colDuration}px`}}>
+            <input
+              className="form-control input-xs"
+              name="name"
+              type="text"
+              defaultValue={formattedDuration}
+              placeholder="How long should Data last"
+              onKeyDown={e => this.handleKeyDown(e, database)}
+              ref={r => (this.duration = r)}
+              autoFocus={!isNew}
+              spellCheck={false}
+              autoComplete={false}
+            />
           </td>
-          <td style={isRFDisplayed ? {} : {display: 'none'}}>
-            <div className="admin-table--edit-cell">
-              <input
-                className="form-control"
-                name="name"
-                type="number"
-                min="1"
-                defaultValue={replication || 1}
-                placeholder="# of Nodes"
-                onKeyDown={e => this.handleKeyDown(e, database)}
-                ref={r => (this.replication = r)}
-              />
-            </div>
-          </td>
-          <td className="text-right">
+          {isRFDisplayed
+            ? <td style={{width: `${DATABASE_TABLE.colReplication}px`}}>
+                <input
+                  className="form-control input-xs"
+                  name="name"
+                  type="number"
+                  min="1"
+                  defaultValue={replication || 1}
+                  placeholder="# of Nodes"
+                  onKeyDown={e => this.handleKeyDown(e, database)}
+                  ref={r => (this.replication = r)}
+                  spellCheck={false}
+                  autoComplete={false}
+                />
+              </td>
+            : null}
+          <td
+            className="text-right"
+            style={{width: `${DATABASE_TABLE.colDelete}px`}}
+          >
             <YesNoButtons
+              buttonSize="btn-xs"
               onConfirm={isNew ? this.handleCreate : this.handleUpdate}
               onCancel={
                 isNew
@@ -106,24 +112,37 @@ class DatabaseRow extends Component {
     return (
       <tr>
         <td>
-          {name}
-          {' '}
+          {`${name} `}
           {isDefault
             ? <span className="default-source-label">default</span>
             : null}
         </td>
-        <td onClick={this.handleStartEdit}>{formattedDuration}</td>
+        <td
+          onClick={this.handleStartEdit}
+          style={{width: `${DATABASE_TABLE.colDuration}px`}}
+        >
+          {formattedDuration}
+        </td>
         {isRFDisplayed
-          ? <td onClick={this.handleStartEdit}>{replication}</td>
+          ? <td
+              onClick={this.handleStartEdit}
+              style={{width: `${DATABASE_TABLE.colReplication}px`}}
+            >
+              {replication}
+            </td>
           : null}
-        <td className="text-right">
+        <td
+          className="text-right"
+          style={{width: `${DATABASE_TABLE.colDelete}px`}}
+        >
           {isDeleting
             ? <YesNoButtons
                 onConfirm={() => onDelete(database, retentionPolicy)}
                 onCancel={this.handleEndDelete}
+                buttonSize="btn-xs"
               />
             : <button
-                className="btn btn-xs btn-danger admin-table--hidden"
+                className="btn btn-danger btn-xs table--show-on-row-hover"
                 style={isDeletable ? {} : {visibility: 'hidden'}}
                 onClick={this.handleStartDelete}
               >

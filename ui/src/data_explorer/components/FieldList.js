@@ -1,7 +1,8 @@
 import React, {PropTypes} from 'react'
 
 import FieldListItem from 'src/data_explorer/components/FieldListItem'
-import GroupByTimeDropdown from 'src/data_explorer/components/GroupByTimeDropdown'
+import GroupByTimeDropdown
+  from 'src/data_explorer/components/GroupByTimeDropdown'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 import {showFieldKeys} from 'shared/apis/metaQuery'
@@ -77,7 +78,7 @@ const FieldList = React.createClass({
   },
 
   render() {
-    const {query} = this.props
+    const {query, isKapacitorRule} = this.props
     const hasAggregates = query.fields.some(f => f.funcs && f.funcs.length)
     const hasGroupByTime = query.groupBy.time
 
@@ -90,6 +91,7 @@ const FieldList = React.createClass({
                 isOpen={!hasGroupByTime}
                 selected={query.groupBy.time}
                 onChooseGroupByTime={this.handleGroupByTime}
+                isInRuleBuilder={isKapacitorRule}
               />
             : null}
         </div>

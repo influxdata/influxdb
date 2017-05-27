@@ -14,18 +14,18 @@ class RedactedInput extends Component {
 
     if (defaultValue === true && !editing) {
       return (
-        <div className="alert-value-set">
-          <span>
-            value set
-            <a
-              href="#"
-              onClick={() => {
-                this.setState({editing: true})
-              }}
-            >
-              (change it)
-            </a>
+        <div className="form-control-static redacted-input">
+          <span className="alert-value-set">
+            <span className="icon checkmark" /> Value set
           </span>
+          <button
+            className="btn btn-xs btn-link"
+            onClick={() => {
+              this.setState({editing: true})
+            }}
+          >
+            Change
+          </button>
           <input
             className="form-control"
             id={id}

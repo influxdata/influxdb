@@ -31,7 +31,7 @@ class FilterBar extends Component {
         <div className="users__search-widget input-group admin__search-widget">
           <input
             type="text"
-            className="form-control"
+            className="form-control input-sm"
             placeholder={`Filter ${placeholderText}...`}
             value={this.state.filterText}
             onChange={this.handleText}

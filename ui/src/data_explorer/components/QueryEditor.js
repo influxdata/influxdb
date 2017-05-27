@@ -254,7 +254,8 @@ class QueryEditor extends Component {
                 items={QUERY_TEMPLATES}
                 selected={'Query Templates'}
                 onChoose={this.handleChooseTemplate}
-                className="query-editor--templates"
+                className="dropdown-140 query-editor--templates"
+                buttonSize="btn-xs"
               />
             : null}
         </div>
@@ -270,7 +271,8 @@ class QueryEditor extends Component {
                 items={QUERY_TEMPLATES}
                 selected={'Query Templates'}
                 onChoose={this.handleChooseTemplate}
-                className="query-editor--templates"
+                className="dropdown-140 query-editor--templates"
+                buttonSize="btn-xs"
               />
             : null}
         </div>
@@ -300,7 +302,8 @@ class QueryEditor extends Component {
               items={QUERY_TEMPLATES}
               selected={'Query Templates'}
               onChoose={this.handleChooseTemplate}
-              className="query-editor--templates"
+              className="dropdown-140 query-editor--templates"
+              buttonSize="btn-xs"
             />
           : null}
       </div>

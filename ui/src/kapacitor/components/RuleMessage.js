@@ -53,16 +53,16 @@ export const RuleMessage = React.createClass({
     const selectedAlert = rule.alerts[0] || alerts[0].text
 
     return (
-      <div className="kapacitor-rule-section">
-        <h3 className="rule-section-heading">Alert Message</h3>
-        <div className="rule-section-body">
-          <div className="kapacitor-values-tabs">
+      <div className="rule-section">
+        <h3 className="rule-section--heading">Alert Message</h3>
+        <div className="rule-section--body">
+          <div className="rule-section--row rule-section--row-first rule-section--border-bottom">
             <p>Send this Alert to:</p>
-            <ul className="btn-group btn-group-lg tab-group">
+            <ul className="nav nav-tablist nav-tablist-sm nav-tablist-malachite">
               {alerts.map(alert => (
                 <li
                   key={alert.text}
-                  className={classnames('btn tab', {
+                  className={classnames({
                     active: alert.text === selectedAlert,
                   })}
                   onClick={() => this.handleChooseAlert(alert)}
@@ -78,25 +78,27 @@ export const RuleMessage = React.createClass({
             rule={rule}
           />
           {selectedAlert === 'smtp'
-            ? <div className="alert-message--email-body">
+            ? <div className="rule-section--border-bottom">
                 <textarea
-                  className="alert-text details"
+                  className="form-control form-malachite monotype rule-builder--message"
                   placeholder="Email body text goes here"
                   ref={r => (this.details = r)}
                   onChange={() =>
                     actions.updateDetails(rule.id, this.details.value)}
                   value={rule.details}
+                  spellCheck={false}
                 />
               </div>
             : null}
           <textarea
-            className="alert-text message"
+            className="form-control form-malachite monotype rule-builder--message"
             ref={r => (this.message = r)}
             onChange={() => actions.updateMessage(rule.id, this.message.value)}
             placeholder="Example: {{ .ID }} is {{ .Level }} value: {{ index .Fields &quot;value&quot; }}"
             value={rule.message}
+            spellCheck={false}
           />
-          <div className="alert-message--formatting">
+          <div className="rule-section--row rule-section--row-last rule-section--border-top">
             <p>Templates:</p>
             {Object.keys(templates).map(t => {
               return (
@@ -137,7 +139,15 @@ const CodeData = React.createClass({
     const {onClickTemplate, template} = this.props
     const {label, text} = template
 
-    return <code data-tip={text} onClick={onClickTemplate}>{label}</code>
+    return (
+      <code
+        className="rule-builder--message-template"
+        data-tip={text}
+        onClick={onClickTemplate}
+      >
+        {label}
+      </code>
+    )
   },
 })
 

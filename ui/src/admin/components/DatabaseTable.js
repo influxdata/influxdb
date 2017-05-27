@@ -1,9 +1,11 @@
 import React, {PropTypes} from 'react'
 
 import _ from 'lodash'
+import classnames from 'classnames'
 
 import DatabaseRow from 'src/admin/components/DatabaseRow'
 import DatabaseTableHeader from 'src/admin/components/DatabaseTableHeader'
+import {DATABASE_TABLE} from 'src/admin/constants/tableSizing'
 
 const {func, shape, bool} = PropTypes
 
@@ -26,7 +28,11 @@ const DatabaseTable = ({
   onDeleteRetentionPolicy,
 }) => {
   return (
-    <div className="db-manager">
+    <div
+      className={classnames('db-manager', {
+        'db-manager--edit': database.isEditing,
+      })}
+    >
       <DatabaseTableHeader
         database={database}
         notify={notify}
@@ -43,13 +49,21 @@ const DatabaseTable = ({
         isAddRPDisabled={!!database.retentionPolicies.some(rp => rp.isNew)}
       />
       <div className="db-manager-table">
-        <table className="table v-center admin-table">
+        <table className="table v-center table-highlight">
           <thead>
             <tr>
-              <th>Retention Policy</th>
-              <th>Duration</th>
-              {isRFDisplayed ? <th>Replication Factor</th> : null}
-              <th />
+              <th>
+                Retention Policy
+              </th>
+              <th style={{width: `${DATABASE_TABLE.colDuration}px`}}>
+                Duration
+              </th>
+              {isRFDisplayed
+                ? <th style={{width: `${DATABASE_TABLE.colReplication}px`}}>
+                    Replication Factor
+                  </th>
+                : null}
+              <th style={{width: `${DATABASE_TABLE.colDelete}px`}} />
             </tr>
           </thead>
           <tbody>

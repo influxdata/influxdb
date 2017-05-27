@@ -14,11 +14,12 @@ const RuleMessageAlertConfig = ({updateAlertNodes, alert, rule}) => {
     return null
   }
   return (
-    <div className="rule-section--item alert-message--config">
+    <div className="rule-section--row rule-section--border-bottom">
       <p>{DEFAULT_ALERT_LABELS[alert]}</p>
       <input
         id="alert-input"
-        className="form-control size-486 form-control--green input-sm"
+        className="form-control input-sm form-malachite"
+        style={{flex: '1 0 0'}}
         type="text"
         placeholder={DEFAULT_ALERT_PLACEHOLDERS[alert]}
         onChange={e => updateAlertNodes(rule.id, alert, e.target.value)}

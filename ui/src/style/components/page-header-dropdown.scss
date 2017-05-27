@@ -2,12 +2,14 @@
   .dropdown-toggle {
     height: 38px;
     padding-left: 0;
+    padding-right: (11px + 12px); // caret width + offset
+    padding-top: 0;
+    padding-bottom: 0;
     min-width: 50px;
     width: auto;
     border: 0;
     background-color: transparent;
     text-transform: none;
-    padding-right: (11px + 12px); // caret width + offset
     font-size: $page-header-size;
     font-weight: $page-header-weight;
     transition: color 0.25s ease;

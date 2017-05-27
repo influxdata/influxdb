@@ -19,6 +19,8 @@ export const defaultRuleConfigs = {
   },
 }
 
+export const defaultEveryFrequency = '30s'
+
 export const OPERATORS = [
   'greater than',
   'equal to or greater',
@@ -80,7 +82,7 @@ export const DEFAULT_ALERT_LABELS = {
   http: 'URL:',
   tcp: 'Address:',
   exec: 'Add Command (Arguments separated by Spaces):',
-  log: 'File',
+  log: 'File:',
   smtp: 'Email Addresses (Separated by Spaces):',
   slack: 'Send alerts to Slack channel:',
   alerta: 'Paste Alerta TICKscript:',

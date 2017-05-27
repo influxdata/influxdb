@@ -89,7 +89,7 @@ const AlertsTable = React.createClass({
         </div>
         <div className="panel-body">
           {this.props.alerts.length
-            ? <table className="table v-center">
+            ? <table className="table v-center table-highlight">
                 <thead>
                   <tr>
                     <th
@@ -149,9 +149,9 @@ const AlertsTable = React.createClass({
                 </tbody>
               </table>
             : <div className="generic-empty-state">
-                <h4 className="no-user-select">
+                <h5 className="no-user-select">
                   Alerts appear here when you have Rules
-                </h4>
+                </h5>
                 <br />
                 <Link
                   to={`/sources/${id}/alert-rules/new`}
@@ -201,7 +201,7 @@ const SearchBar = React.createClass({
           value={this.state.searchTerm}
         />
         <div className="input-group-addon">
-          <span className="icon search" aria-hidden="true" />
+          <span className="icon search" />
         </div>
       </div>
     )

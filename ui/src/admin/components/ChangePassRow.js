@@ -48,17 +48,17 @@ class ChangePassRow extends Component {
   }
 
   render() {
-    const {user} = this.props
+    const {user, buttonSize} = this.props
 
     if (this.state.showForm) {
       return (
-        <div className="admin-change-pw">
+        <div className="admin-table--change-pw">
           <input
-            className="form-control"
+            className="form-control input-xs"
             name="password"
             type="password"
             value={user.password || ''}
-            placeholder="Password"
+            placeholder="New password"
             onChange={this.handleEdit(user)}
             onKeyPress={this.handleKeyPress(user)}
             autoFocus={true}
@@ -67,28 +67,29 @@ class ChangePassRow extends Component {
             onConfirm={this.handleSubmit}
             item={user}
             onCancel={this.handleCancel}
+            buttonSize={buttonSize}
           />
         </div>
       )
     }
 
     return (
-      <button
-        className="btn btn-xs btn-info admin-table--hidden"
-        onClick={this.showForm}
-      >
-        Change Password
-      </button>
+      <div className="admin-table--change-pw">
+        <a href="#" onClick={this.showForm}>
+          Change
+        </a>
+      </div>
     )
   }
 }
 
-const {shape, func} = PropTypes
+const {func, shape, string} = PropTypes
 
 ChangePassRow.propTypes = {
   user: shape().isRequired,
   onApply: func.isRequired,
   onEdit: func.isRequired,
+  buttonSize: string,
 }
 
 export default OnClickOutside(ChangePassRow)

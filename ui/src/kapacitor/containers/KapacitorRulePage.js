@@ -1,8 +1,10 @@
 import React, {PropTypes} from 'react'
 import {connect} from 'react-redux'
 import _ from 'lodash'
-import * as kapacitorActionCreators from '../actions/view'
-import * as queryActionCreators from '../../data_explorer/actions/view'
+
+import * as kapacitorActionCreators from 'src/kapacitor/actions/view'
+import * as queryActionCreators from 'src/data_explorer/actions/view'
+
 import {bindActionCreators} from 'redux'
 import {getActiveKapacitor, getKapacitorConfig} from 'shared/apis/index'
 import {ALERTS, DEFAULT_RULE_ID} from 'src/kapacitor/constants'
@@ -23,6 +25,8 @@ export const KapacitorRulePage = React.createClass({
       loadDefaultRule: PropTypes.func.isRequired,
       fetchRule: PropTypes.func.isRequired,
       chooseTrigger: PropTypes.func.isRequired,
+      addEvery: PropTypes.func.isRequired,
+      removeEvery: PropTypes.func.isRequired,
       updateRuleValues: PropTypes.func.isRequired,
       updateMessage: PropTypes.func.isRequired,
       updateAlerts: PropTypes.func.isRequired,
@@ -76,7 +80,7 @@ export const KapacitorRulePage = React.createClass({
         .catch(() => {
           addFlashMessage({
             type: 'error',
-            text: 'We couldn\'t find a configured Kapacitor for this source',
+            text: "We couldn't find a configured Kapacitor for this source", // eslint-disable-line quotes
           })
         })
     })

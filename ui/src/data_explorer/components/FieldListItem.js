@@ -56,7 +56,9 @@ const FieldListItem = React.createClass({
     if (isKapacitorRule) {
       return (
         <div
-          className={classnames('query-builder--list-item', {active: isSelected})}
+          className={classnames('query-builder--list-item', {
+            active: isSelected,
+          })}
           key={fieldFunc}
           onClick={_.wrap(fieldFunc, this.handleToggleField)}
         >
@@ -66,14 +68,16 @@ const FieldListItem = React.createClass({
           </span>
           {isSelected
             ? <Dropdown
+                className="dropdown-110"
+                menuClass="dropdown-malachite"
+                buttonSize="btn-xs"
                 items={items}
                 onChoose={this.handleApplyFunctions}
                 selected={
                   fieldFunc.funcs.length ? fieldFunc.funcs[0] : 'Function'
                 }
               />
-            : null
-          }
+            : null}
         </div>
       )
     }
@@ -81,7 +85,9 @@ const FieldListItem = React.createClass({
     return (
       <div key={fieldFunc}>
         <div
-          className={classnames('query-builder--list-item', {active: isSelected})}
+          className={classnames('query-builder--list-item', {
+            active: isSelected,
+          })}
           onClick={_.wrap(fieldFunc, this.handleToggleField)}
         >
           <span>
@@ -89,13 +95,17 @@ const FieldListItem = React.createClass({
             {fieldText}
           </span>
           {isSelected
-            ? <div className={classnames('btn btn-xs btn-info', {'function-selector--toggled': isOpen})} onClick={this.toggleFunctionsMenu}>
+            ? <div
+                className={classnames('btn btn-xs btn-default', {
+                  'function-selector--toggled': isOpen,
+                })}
+                onClick={this.toggleFunctionsMenu}
+              >
                 Functions
               </div>
-            : null
-          }
+            : null}
         </div>
-        {(isSelected && isOpen)
+        {isSelected && isOpen
           ? <FunctionSelector
               onApply={this.handleApplyFunctions}
               selectedItems={fieldFunc.funcs || []}

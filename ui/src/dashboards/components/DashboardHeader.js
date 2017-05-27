@@ -35,10 +35,10 @@ const DashboardHeader = ({
                   type="button"
                   data-toggle="dropdown"
                 >
-                  <span className="button-text">{buttonText}</span>
+                  <span>{buttonText}</span>
                   <span className="caret" />
                 </button>
-                <ul className="dropdown-menu" aria-labelledby="dropdownMenu1">
+                <ul className="dropdown-menu">
                   {children}
                 </ul>
               </div>}
@@ -55,7 +55,7 @@ const DashboardHeader = ({
               : null}
             {dashboard
               ? <button
-                  className="btn btn-info btn-sm"
+                  className="btn btn-default btn-sm"
                   onClick={onEditDashboard}
                 >
                   <span className="icon pencil" />
@@ -64,7 +64,7 @@ const DashboardHeader = ({
               : null}
             {dashboard
               ? <div
-                  className={classnames('btn btn-info btn-sm', {
+                  className={classnames('btn btn-default btn-sm', {
                     active: showTemplateControlBar,
                   })}
                   onClick={onToggleTempVarControls}
@@ -82,7 +82,7 @@ const DashboardHeader = ({
               selected={timeRange}
             />
             <div
-              className="btn btn-info btn-sm"
+              className="btn btn-default btn-sm btn-square"
               onClick={handleClickPresentationButton}
             >
               <span className="icon expand-a" style={{margin: 0}} />

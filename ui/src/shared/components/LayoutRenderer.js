@@ -83,7 +83,7 @@ export const LayoutRenderer = React.createClass({
     return text
   },
 
-  renderRefreshingGraph(type, queries) {
+  renderRefreshingGraph(type, queries, cellHeight) {
     const {timeRange, autoRefresh, templates} = this.props
 
     if (type === 'single-stat') {
@@ -92,6 +92,7 @@ export const LayoutRenderer = React.createClass({
           queries={[queries[0]]}
           templates={templates}
           autoRefresh={autoRefresh}
+          cellHeight={cellHeight}
         />
       )
     }
@@ -158,7 +159,7 @@ export const LayoutRenderer = React.createClass({
             shouldNotBeEditable={shouldNotBeEditable}
             cell={cell}
           >
-            {this.renderRefreshingGraph(cell.type, queries)}
+            {this.renderRefreshingGraph(cell.type, queries, cell.h)}
           </NameableGraph>
         </div>
       )

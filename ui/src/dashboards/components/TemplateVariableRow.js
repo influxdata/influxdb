@@ -84,7 +84,7 @@ const RowButtons = ({
     <div className="tvm-actions">
       <DeleteConfirmButtons onDelete={() => onDelete(id)} />
       <button
-        className="btn btn-sm btn-info btn-edit"
+        className="btn btn-sm btn-info btn-edit btn-square"
         type="button"
         onClick={e => {
           // prevent subsequent 'onSubmit' that is caused by an unknown source,

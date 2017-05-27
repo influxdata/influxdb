@@ -191,11 +191,6 @@ $tvmp-table-gutter: 8px;
 
   .btn-edit {
     order: 1;
-    width: 30px;
-    text-align: center;
-    padding-left: 0 !important;
-    padding-right: 0 !important;
-    > span.icon {margin: 0 !important;}
   }
 
   > .btn {margin-left: $tvmp-table-gutter;}
@@ -204,17 +199,9 @@ $tvmp-table-gutter: 8px;
   /* Janky, but doing this quick & dirty for now  */
   .btn-danger {
     order: 2;
-    height: 30px !important;
-    line-height: 30px !important;
-    padding: 0 9px !important;
-    font-size: 13px;
   }
   .confirm-buttons > .btn {
-    height: 30px !important;
-    width: 30px !important;
     margin-left: $tvmp-table-gutter !important;
-    font-size: 13px;
-    padding: 0 !important;
   }
   /* Hide the edit button when confirming a delete */
   .confirm-buttons + .btn-edit {

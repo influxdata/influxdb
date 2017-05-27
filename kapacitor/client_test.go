@@ -15,15 +15,15 @@ type MockKapa struct {
 	ResTasks []client.Task
 	Error    error
 
-	client.CreateTaskOptions
+	*client.CreateTaskOptions
 	client.Link
 	*client.TaskOptions
 	*client.ListTasksOptions
-	client.UpdateTaskOptions
+	*client.UpdateTaskOptions
 }
 
 func (m *MockKapa) CreateTask(opt client.CreateTaskOptions) (client.Task, error) {
-	m.CreateTaskOptions = opt
+	m.CreateTaskOptions = &opt
 	return m.ResTask, m.Error
 }
 
@@ -40,7 +40,9 @@ func (m *MockKapa) ListTasks(opt *client.ListTasksOptions) ([]client.Task, error
 
 func (m *MockKapa) UpdateTask(link client.Link, opt client.UpdateTaskOptions) (client.Task, error) {
 	m.Link = link
-	m.UpdateTaskOptions = opt
+	if m.UpdateTaskOptions == nil {
+		m.UpdateTaskOptions = &opt
+	}
 	return m.ResTask, m.Error
 }
 
@@ -49,6 +51,13 @@ func (m *MockKapa) DeleteTask(link client.Link) error {
 	return m.Error
 }
 
+type MockID struct {
+	ID string
+}
+
+func (m *MockID) Generate() (string, error) {
+	return m.ID, nil
+}
 func TestClient_AllStatus(t *testing.T) {
 	type fields struct {
 		URL        string
@@ -159,9 +168,6 @@ func TestClient_AllStatus(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("Client.AllStatus() = %v, want %v", got, tt.want)
-			}
-			if !reflect.DeepEqual(kapa.CreateTaskOptions, tt.createTaskOptions) {
-				t.Errorf("Client.AllStatus() = createTaskOptions  %v, want %v", kapa.CreateTaskOptions, tt.createTaskOptions)
 			}
 			if !reflect.DeepEqual(kapa.ListTasksOptions, tt.listTasksOptions) {
 				t.Errorf("Client.AllStatus() = listTasksOptions  %v, want %v", kapa.ListTasksOptions, tt.listTasksOptions)
@@ -437,9 +443,6 @@ trigger
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("Client.All() = %#v, want %#v", got, tt.want)
-			}
-			if !reflect.DeepEqual(kapa.CreateTaskOptions, tt.createTaskOptions) {
-				t.Errorf("Client.All() = createTaskOptions  %v, want %v", kapa.CreateTaskOptions, tt.createTaskOptions)
 			}
 			if !reflect.DeepEqual(kapa.ListTasksOptions, tt.listTasksOptions) {
 				t.Errorf("Client.All() = listTasksOptions  %v, want %v", kapa.ListTasksOptions, tt.listTasksOptions)
@@ -725,9 +728,6 @@ trigger
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("Client.Get() =\n%#v\nwant\n%#v", got, tt.want)
 			}
-			if !reflect.DeepEqual(kapa.CreateTaskOptions, tt.createTaskOptions) {
-				t.Errorf("Client.Get() = createTaskOptions  %v, want %v", kapa.CreateTaskOptions, tt.createTaskOptions)
-			}
 			if !reflect.DeepEqual(kapa.ListTasksOptions, tt.listTasksOptions) {
 				t.Errorf("Client.Get() = listTasksOptions  %v, want %v", kapa.ListTasksOptions, tt.listTasksOptions)
 			}
@@ -739,6 +739,413 @@ trigger
 			}
 			if !reflect.DeepEqual(kapa.Link, tt.link) {
 				t.Errorf("Client.Get() = Link  %v, want %v", kapa.Link, tt.link)
+			}
+		})
+	}
+}
+
+func TestClient_updateStatus(t *testing.T) {
+	type fields struct {
+		URL        string
+		Username   string
+		Password   string
+		ID         chronograf.ID
+		Ticker     chronograf.Ticker
+		kapaClient func(url, username, password string) (KapaClient, error)
+	}
+	type args struct {
+		ctx    context.Context
+		href   string
+		status client.TaskStatus
+	}
+	kapa := &MockKapa{}
+	tests := []struct {
+		name              string
+		fields            fields
+		args              args
+		resTask           client.Task
+		want              *Task
+		resError          error
+		wantErr           bool
+		updateTaskOptions *client.UpdateTaskOptions
+	}{
+		{
+			name: "disable alert rule",
+			fields: fields{
+				kapaClient: func(url, username, password string) (KapaClient, error) {
+					return kapa, nil
+				},
+				Ticker: &Alert{},
+			},
+			args: args{
+				ctx:    context.Background(),
+				href:   "/kapacitor/v1/tasks/howdy",
+				status: client.Disabled,
+			},
+			resTask: client.Task{
+				ID:     "howdy",
+				Status: client.Disabled,
+				Link: client.Link{
+					Href: "/kapacitor/v1/tasks/howdy",
+				},
+			},
+			updateTaskOptions: &client.UpdateTaskOptions{
+				TICKscript: "",
+				Status:     client.Disabled,
+			},
+			want: &Task{
+				ID:         "howdy",
+				Href:       "/kapacitor/v1/tasks/howdy",
+				HrefOutput: "/kapacitor/v1/tasks/howdy/output",
+				Rule:       chronograf.AlertRule{},
+			},
+		},
+		{
+			name: "fail to enable alert rule",
+			fields: fields{
+				kapaClient: func(url, username, password string) (KapaClient, error) {
+					return kapa, nil
+				},
+				Ticker: &Alert{},
+			},
+			args: args{
+				ctx:    context.Background(),
+				href:   "/kapacitor/v1/tasks/howdy",
+				status: client.Enabled,
+			},
+			updateTaskOptions: &client.UpdateTaskOptions{
+				TICKscript: "",
+				Status:     client.Enabled,
+			},
+			resError: fmt.Errorf("error"),
+			wantErr:  true,
+		},
+		{
+			name: "enable alert rule",
+			fields: fields{
+				kapaClient: func(url, username, password string) (KapaClient, error) {
+					return kapa, nil
+				},
+				Ticker: &Alert{},
+			},
+			args: args{
+				ctx:    context.Background(),
+				href:   "/kapacitor/v1/tasks/howdy",
+				status: client.Enabled,
+			},
+			resTask: client.Task{
+				ID:     "howdy",
+				Status: client.Enabled,
+				Link: client.Link{
+					Href: "/kapacitor/v1/tasks/howdy",
+				},
+			},
+			updateTaskOptions: &client.UpdateTaskOptions{
+				TICKscript: "",
+				Status:     client.Enabled,
+			},
+			want: &Task{
+				ID:         "howdy",
+				Href:       "/kapacitor/v1/tasks/howdy",
+				HrefOutput: "/kapacitor/v1/tasks/howdy/output",
+				Rule:       chronograf.AlertRule{},
+			},
+		},
+	}
+	for _, tt := range tests {
+		kapa.ResTask = tt.resTask
+		kapa.Error = tt.resError
+		kapa.UpdateTaskOptions = nil
+		t.Run(tt.name, func(t *testing.T) {
+			c := &Client{
+				URL:        tt.fields.URL,
+				Username:   tt.fields.Username,
+				Password:   tt.fields.Password,
+				ID:         tt.fields.ID,
+				Ticker:     tt.fields.Ticker,
+				kapaClient: tt.fields.kapaClient,
+			}
+			got, err := c.updateStatus(tt.args.ctx, tt.args.href, tt.args.status)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Client.updateStatus() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Client.updateStatus() = %v, want %v", got, tt.want)
+			}
+			if !reflect.DeepEqual(kapa.UpdateTaskOptions, tt.updateTaskOptions) {
+				t.Errorf("Client.updateStatus() = %v, want %v", kapa.UpdateTaskOptions, tt.updateTaskOptions)
+			}
+		})
+	}
+}
+
+func TestClient_Update(t *testing.T) {
+	type fields struct {
+		URL        string
+		Username   string
+		Password   string
+		ID         chronograf.ID
+		Ticker     chronograf.Ticker
+		kapaClient func(url, username, password string) (KapaClient, error)
+	}
+	type args struct {
+		ctx  context.Context
+		href string
+		rule chronograf.AlertRule
+	}
+	kapa := &MockKapa{}
+	tests := []struct {
+		name              string
+		fields            fields
+		args              args
+		resTask           client.Task
+		want              *Task
+		resError          error
+		wantErr           bool
+		updateTaskOptions *client.UpdateTaskOptions
+	}{
+		{
+			name: "update alert rule error",
+			fields: fields{
+				kapaClient: func(url, username, password string) (KapaClient, error) {
+					return kapa, nil
+				},
+				Ticker: &Alert{},
+			},
+			args: args{
+				ctx:  context.Background(),
+				href: "/kapacitor/v1/tasks/howdy",
+				rule: chronograf.AlertRule{
+					ID: "howdy",
+					Query: &chronograf.QueryConfig{
+						Database:        "db",
+						RetentionPolicy: "rp",
+					},
+				},
+			},
+			resError: fmt.Errorf("error"),
+			updateTaskOptions: &client.UpdateTaskOptions{
+				TICKscript: "",
+				Type:       client.StreamTask,
+				Status:     client.Disabled,
+				DBRPs: []client.DBRP{
+					{
+						Database:        "db",
+						RetentionPolicy: "rp",
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "update alert rule",
+			fields: fields{
+				kapaClient: func(url, username, password string) (KapaClient, error) {
+					return kapa, nil
+				},
+				Ticker: &Alert{},
+			},
+			args: args{
+				ctx:  context.Background(),
+				href: "/kapacitor/v1/tasks/howdy",
+				rule: chronograf.AlertRule{
+					ID: "howdy",
+					Query: &chronograf.QueryConfig{
+						Database:        "db",
+						RetentionPolicy: "rp",
+					},
+				},
+			},
+			resTask: client.Task{
+				ID:     "howdy",
+				Status: client.Enabled,
+				Link: client.Link{
+					Href: "/kapacitor/v1/tasks/howdy",
+				},
+			},
+			updateTaskOptions: &client.UpdateTaskOptions{
+				TICKscript: "",
+				Type:       client.StreamTask,
+				Status:     client.Disabled,
+				DBRPs: []client.DBRP{
+					{
+						Database:        "db",
+						RetentionPolicy: "rp",
+					},
+				},
+			},
+			want: &Task{
+				ID:         "howdy",
+				Href:       "/kapacitor/v1/tasks/howdy",
+				HrefOutput: "/kapacitor/v1/tasks/howdy/output",
+				Rule: chronograf.AlertRule{
+					ID:   "howdy",
+					Name: "howdy",
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		kapa.ResTask = tt.resTask
+		kapa.Error = tt.resError
+		t.Run(tt.name, func(t *testing.T) {
+			c := &Client{
+				URL:        tt.fields.URL,
+				Username:   tt.fields.Username,
+				Password:   tt.fields.Password,
+				ID:         tt.fields.ID,
+				Ticker:     tt.fields.Ticker,
+				kapaClient: tt.fields.kapaClient,
+			}
+			got, err := c.Update(tt.args.ctx, tt.args.href, tt.args.rule)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Client.Update() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Client.Update() =\n%#+v\n, want\n%#+v\n", got, tt.want)
+			}
+			if !reflect.DeepEqual(kapa.UpdateTaskOptions, tt.updateTaskOptions) {
+				t.Errorf("Client.Update() = %v, want %v", kapa.UpdateTaskOptions, tt.updateTaskOptions)
+			}
+		})
+	}
+}
+
+func TestClient_Create(t *testing.T) {
+	type fields struct {
+		URL        string
+		Username   string
+		Password   string
+		ID         chronograf.ID
+		Ticker     chronograf.Ticker
+		kapaClient func(url, username, password string) (KapaClient, error)
+	}
+	type args struct {
+		ctx  context.Context
+		rule chronograf.AlertRule
+	}
+	kapa := &MockKapa{}
+	tests := []struct {
+		name              string
+		fields            fields
+		args              args
+		resTask           client.Task
+		want              *Task
+		resError          error
+		wantErr           bool
+		createTaskOptions *client.CreateTaskOptions
+	}{
+		{
+			name: "create alert rule",
+			fields: fields{
+				kapaClient: func(url, username, password string) (KapaClient, error) {
+					return kapa, nil
+				},
+				Ticker: &Alert{},
+				ID: &MockID{
+					ID: "howdy",
+				},
+			},
+			args: args{
+				ctx: context.Background(),
+				rule: chronograf.AlertRule{
+					ID: "howdy",
+					Query: &chronograf.QueryConfig{
+						Database:        "db",
+						RetentionPolicy: "rp",
+					},
+				},
+			},
+			resTask: client.Task{
+				ID:     "chronograf-v1-howdy",
+				Status: client.Enabled,
+				Link: client.Link{
+					Href: "/kapacitor/v1/tasks/chronograf-v1-howdy",
+				},
+			},
+			createTaskOptions: &client.CreateTaskOptions{
+				TICKscript: "",
+				ID:         "chronograf-v1-howdy",
+				Type:       client.StreamTask,
+				Status:     client.Enabled,
+				DBRPs: []client.DBRP{
+					{
+						Database:        "db",
+						RetentionPolicy: "rp",
+					},
+				},
+			},
+			want: &Task{
+				ID:         "chronograf-v1-howdy",
+				Href:       "/kapacitor/v1/tasks/chronograf-v1-howdy",
+				HrefOutput: "/kapacitor/v1/tasks/chronograf-v1-howdy/output",
+				Rule: chronograf.AlertRule{
+					ID:   "chronograf-v1-howdy",
+					Name: "chronograf-v1-howdy",
+				},
+			},
+		},
+		{
+			name: "create alert rule",
+			fields: fields{
+				kapaClient: func(url, username, password string) (KapaClient, error) {
+					return kapa, nil
+				},
+				Ticker: &Alert{},
+				ID: &MockID{
+					ID: "howdy",
+				},
+			},
+			args: args{
+				ctx: context.Background(),
+				rule: chronograf.AlertRule{
+					ID: "howdy",
+					Query: &chronograf.QueryConfig{
+						Database:        "db",
+						RetentionPolicy: "rp",
+					},
+				},
+			},
+			resError: fmt.Errorf("error"),
+			createTaskOptions: &client.CreateTaskOptions{
+				TICKscript: "",
+				ID:         "chronograf-v1-howdy",
+				Type:       client.StreamTask,
+				Status:     client.Enabled,
+				DBRPs: []client.DBRP{
+					{
+						Database:        "db",
+						RetentionPolicy: "rp",
+					},
+				},
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		kapa.ResTask = tt.resTask
+		kapa.Error = tt.resError
+		t.Run(tt.name, func(t *testing.T) {
+			c := &Client{
+				URL:        tt.fields.URL,
+				Username:   tt.fields.Username,
+				Password:   tt.fields.Password,
+				ID:         tt.fields.ID,
+				Ticker:     tt.fields.Ticker,
+				kapaClient: tt.fields.kapaClient,
+			}
+			got, err := c.Create(tt.args.ctx, tt.args.rule)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Client.Create() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Client.Create() =\n%v\n, want\n%v\n", got, tt.want)
+			}
+			if !reflect.DeepEqual(kapa.CreateTaskOptions, tt.createTaskOptions) {
+				t.Errorf("Client.Create() =  %v, want %v", kapa.CreateTaskOptions, tt.createTaskOptions)
 			}
 		})
 	}

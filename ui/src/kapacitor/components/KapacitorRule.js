@@ -70,6 +70,8 @@ export const KapacitorRule = React.createClass({
                     source={source}
                     query={query}
                     actions={queryActions}
+                    onAddEvery={this.handleAddEvery}
+                    onRemoveEvery={this.handleRemoveEvery}
                   />
                   <ValuesSection
                     rule={rule}
@@ -147,6 +149,16 @@ export const KapacitorRule = React.createClass({
           text: 'There was a problem updating the rule',
         })
       })
+  },
+
+  handleAddEvery(frequency) {
+    const {rule: {id: ruleID}, kapacitorActions: {addEvery}} = this.props
+    addEvery(ruleID, frequency)
+  },
+
+  handleRemoveEvery() {
+    const {rule: {id: ruleID}, kapacitorActions: {removeEvery}} = this.props
+    removeEvery(ruleID)
   },
 
   validationError() {

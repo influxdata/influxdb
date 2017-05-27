@@ -109,6 +109,9 @@ $scrollbar-offset: 3px;
   -webkit-user-select: none !important;
   -ms-user-select: none !important;
   -o-user-select: none !important;
+  &, &:hover {
+    cursor: default;
+  }
 }
 .no-user-select {
   user-select: none !important;
@@ -116,4 +119,7 @@ $scrollbar-offset: 3px;
   -webkit-user-select: none !important;
   -ms-user-select: none !important;
   -o-user-select: none !important;
+  &, &:hover {
+    cursor: default;
+  }
 }
