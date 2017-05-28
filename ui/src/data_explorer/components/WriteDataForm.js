@@ -40,7 +40,7 @@ class WriteDataForm extends Component {
   handleSubmit() {
     const {onClose, source, writeData} = this.props
     const {inputContent, selectedDatabase} = this.state
-    writeData(source, selectedDatabase, inputContent).then(() => onClose())
+    onWriteData(source, selectedDatabase, inputContent).then(() => onClose())
   }
 
   handleEdit(e) {
@@ -111,7 +111,7 @@ WriteDataForm.propTypes = {
     }).isRequired,
   }).isRequired,
   onClose: func.isRequired,
-  writeData: func.isRequired,
+  onWriteData: func.isRequired,
   errorThrown: func.isRequired,
 }
 

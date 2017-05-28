@@ -98,7 +98,7 @@ const DataExplorer = React.createClass({
                 errorThrown={errorThrownAction}
                 onClose={() => this.setState({showWriteForm: false})}
                 source={source}
-                writeData={writeData}
+                onWriteData={writeData}
               />
             </OverlayTechnologies>
           : null}
