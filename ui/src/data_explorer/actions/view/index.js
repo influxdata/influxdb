@@ -1,10 +1,8 @@
 import uuid from 'node-uuid'
 
 import {getQueryConfig} from 'shared/apis'
-import {writeLineProtocol} from 'src/data_explorer/apis'
 
 import {errorThrown} from 'shared/actions/errors'
-import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
 export function addQuery(options = {}) {
   return {
@@ -160,22 +158,5 @@ export const editRawTextAsync = (url, id, text) => async dispatch => {
     dispatch(updateQueryConfig(config.queryConfig))
   } catch (error) {
     dispatch(errorThrown(error))
-  }
-}
-
-export const writeLineProtocolThunk = (source, db, data) => async dispatch => {
-  try {
-    dispatch(publishAutoDismissingNotification('success', 'Writing data...'))
-    await writeLineProtocol(source, db, data)
-    dispatch(
-      publishAutoDismissingNotification(
-        'success',
-        'Data was written successfully'
-      )
-    )
-  } catch (response) {
-    const errorMessage = `Write failed: ${response.data.error}`
-    dispatch(errorThrown(response, errorMessage))
-    throw response
   }
 }

@@ -39,12 +39,15 @@ class WriteDataForm extends Component {
     }
   }
 
-  handleSubmit() {
-    const {onClose, source, onWriteLineProtocol} = this.props
+  async handleSubmit() {
+    const {onClose, source, writeLineProtocol} = this.props
     const {inputContent, selectedDatabase} = this.state
-    onWriteLineProtocol(source, selectedDatabase, inputContent).then(() =>
+    try {
+      await writeLineProtocol(source, selectedDatabase, inputContent)
       onClose()
-    )
+    } catch (error) {
+      console.error(error.data.error)
+    }
   }
 
   handleEdit(e) {
@@ -115,7 +118,7 @@ WriteDataForm.propTypes = {
     }).isRequired,
   }).isRequired,
   onClose: func.isRequired,
-  onWriteLineProtocol: func.isRequired,
+  writeLineProtocol: func.isRequired,
   errorThrown: func.isRequired,
 }
 

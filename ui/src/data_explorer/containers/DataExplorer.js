@@ -16,6 +16,7 @@ import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from '../constants'
 import {errorThrown} from 'shared/actions/errors'
 import {setAutoRefresh} from 'shared/actions/app'
 import * as viewActions from 'src/data_explorer/actions/view'
+import {writeLineProtocolAsync} from 'src/data_explorer/actions/view/write'
 
 const {arrayOf, func, number, shape, string} = PropTypes
 
@@ -98,7 +99,7 @@ const DataExplorer = React.createClass({
                 errorThrown={errorThrownAction}
                 onClose={() => this.setState({showWriteForm: false})}
                 source={source}
-                onWriteLineProtocol={writeLineProtocol}
+                writeLineProtocol={writeLineProtocol}
               />
             </OverlayTechnologies>
           : null}
@@ -163,10 +164,7 @@ function mapDispatchToProps(dispatch) {
     handleChooseAutoRefresh: bindActionCreators(setAutoRefresh, dispatch),
     errorThrownAction: bindActionCreators(errorThrown, dispatch),
     setTimeRange: bindActionCreators(viewActions.setTimeRange, dispatch),
-    writeLineProtocol: bindActionCreators(
-      viewActions.writeLineProtocolThunk,
-      dispatch
-    ),
+    writeLineProtocol: bindActionCreators(writeLineProtocolAsync, dispatch),
     queryConfigActions: bindActionCreators(viewActions, dispatch),
   }
 }
