@@ -34,6 +34,9 @@ const NavHeader = React.createClass({
   },
   render() {
     const {link, title, useAnchor} = this.props
+
+    // Some nav items, such as Logout, need to hit an external link rather
+    // than simply route to an internal page. Anchor tags serve that purpose.
     return useAnchor
       ? <a className="sidebar__menu-route" href={link}>
           <h3 className="sidebar__menu-heading">{title}</h3>
