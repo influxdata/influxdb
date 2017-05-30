@@ -569,7 +569,7 @@ func (b *exprIteratorBuilder) buildCallIterator(expr *Call) (Iterator, error) {
 		} else {
 			// There are no arguments so do not organize the points by tags.
 			builder := *b
-			builder.opt.Expr = nil
+			builder.opt.Expr = expr.Args[0]
 			builder.selector = true
 			builder.writeMode = false
 
