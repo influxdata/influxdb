@@ -76,6 +76,7 @@ The admin UI is removed and unusable in this release. The `[admin]` configuratio
 - [#8392](https://github.com/influxdata/influxdb/issues/8393): Points beyond retention policy scope are dropped silently
 - [#8387](https://github.com/influxdata/influxdb/issues/8387): Fix TSM tmp file leaked on disk
 - [#8417](https://github.com/influxdata/influxdb/issues/8417): Fix large field keys preventing snapshot compactions
+- [#7957](https://github.com/influxdata/influxdb/issues/7957): URL query parameter credentials take priority over Authentication header.
 
 
 ## v1.2.4 [2017-05-08]
