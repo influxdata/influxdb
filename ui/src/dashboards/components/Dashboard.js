@@ -10,6 +10,7 @@ const Dashboard = ({
   dashboard,
   onAddCell,
   onEditCell,
+  timeRange,
   autoRefresh,
   onRenameCell,
   onUpdateCell,
@@ -60,6 +61,7 @@ const Dashboard = ({
           ? <LayoutRenderer
               templates={templatesIncludingDashTime}
               cells={cells}
+              timeRange={timeRange}
               autoRefresh={autoRefresh}
               source={source.links.proxy}
               onPositionChange={onPositionChange}

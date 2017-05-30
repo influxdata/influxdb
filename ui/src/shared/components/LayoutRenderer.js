@@ -84,7 +84,7 @@ export const LayoutRenderer = React.createClass({
   },
 
   renderRefreshingGraph(type, queries, cellHeight) {
-    const {autoRefresh, templates} = this.props
+    const {timeRange, autoRefresh, templates} = this.props
 
     if (type === 'single-stat') {
       return (
@@ -106,6 +106,7 @@ export const LayoutRenderer = React.createClass({
       <RefreshingLineGraph
         queries={queries}
         templates={templates}
+        timeRange={timeRange}
         autoRefresh={autoRefresh}
         showSingleStat={type === 'line-plus-single-stat'}
         displayOptions={displayOptions}
