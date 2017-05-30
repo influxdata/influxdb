@@ -5,6 +5,7 @@
 1. [#1535](https://github.com/influxdata/chronograf/pull/1535): Fix add field functions to existing Kapacitor rules
 
 ### Features
+  1. [#1537](https://github.com/influxdata/chronograf/pull/1537): Add UI for writing data to influxdb.
 
 ### UI Improvements
   1. [#1508](https://github.com/influxdata/chronograf/pull/1508): The enter and escape keys now perform as expected when renaming dashboard headers.

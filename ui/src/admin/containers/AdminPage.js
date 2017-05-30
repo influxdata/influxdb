@@ -25,7 +25,7 @@ import {
 } from 'src/admin/actions'
 
 import AdminTabs from 'src/admin/components/AdminTabs'
-import SourceIndicator from 'src/shared/components/SourceIndicator'
+import SourceIndicator from 'shared/components/SourceIndicator'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 import {publishAutoDismissingNotification} from 'shared/dispatchers'

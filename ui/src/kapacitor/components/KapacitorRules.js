@@ -1,8 +1,8 @@
 import React, {PropTypes} from 'react'
 import {Link} from 'react-router'
 
-import NoKapacitorError from 'src/shared/components/NoKapacitorError'
-import SourceIndicator from 'src/shared/components/SourceIndicator'
+import NoKapacitorError from 'shared/components/NoKapacitorError'
+import SourceIndicator from 'shared/components/SourceIndicator'
 import KapacitorRulesTable from 'src/kapacitor/components/KapacitorRulesTable'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 

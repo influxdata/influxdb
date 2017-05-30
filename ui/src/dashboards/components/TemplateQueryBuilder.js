@@ -1,5 +1,5 @@
 import React, {PropTypes} from 'react'
-import DatabaseDropdown from 'src/dashboards/components/DatabaseDropdown'
+import DatabaseDropdown from 'shared/components/DatabaseDropdown'
 import MeasurementDropdown from 'src/dashboards/components/MeasurementDropdown'
 import TagKeyDropdown from 'src/dashboards/components/TagKeyDropdown'
 

@@ -1,7 +1,7 @@
 import React, {PropTypes, Component} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
-import {getActiveKapacitor} from 'src/shared/apis'
+import {getActiveKapacitor} from 'shared/apis'
 import * as kapacitorActionCreators from '../actions/view'
 import KapacitorRules from 'src/kapacitor/components/KapacitorRules'
 
