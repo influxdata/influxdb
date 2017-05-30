@@ -163,8 +163,9 @@ export const editRawTextAsync = (url, id, text) => async dispatch => {
   }
 }
 
-export const writeLineProtocolAsync = (source, db, data) => async dispatch => {
+export const writeLineProtocolThunk = (source, db, data) => async dispatch => {
   try {
+    dispatch(publishAutoDismissingNotification('success', 'Writing data...'))
     await writeLineProtocol(source, db, data)
     dispatch(
       publishAutoDismissingNotification(

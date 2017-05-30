@@ -164,7 +164,7 @@ function mapDispatchToProps(dispatch) {
     errorThrownAction: bindActionCreators(errorThrown, dispatch),
     setTimeRange: bindActionCreators(viewActions.setTimeRange, dispatch),
     writeLineProtocol: bindActionCreators(
-      viewActions.writeLineProtocolAsync,
+      viewActions.writeLineProtocolThunk,
       dispatch
     ),
     queryConfigActions: bindActionCreators(viewActions, dispatch),
