@@ -31,6 +31,7 @@ class WriteDataForm extends Component {
   }
 
   handleKeyUp(e) {
+    e.stopPropagation()
     if (e.key === 'Escape') {
       const {onClose} = this.props
       onClose()
