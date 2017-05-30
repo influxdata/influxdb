@@ -1,11 +1,6 @@
 import reducer from 'src/data_explorer/reducers/ui'
 
-import {
-  addQuery,
-  deleteQuery,
-  showWriteForm,
-  hideWriteForm,
-} from 'src/data_explorer/actions/view'
+import {addQuery, deleteQuery} from 'src/data_explorer/actions/view'
 
 const noopAction = () => {
   return {type: 'NOOP'}
