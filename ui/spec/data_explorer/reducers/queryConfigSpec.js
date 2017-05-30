@@ -43,10 +43,13 @@ describe('Chronograf.Reducers.queryConfig', () => {
     })
 
     it('sets the db and rp', () => {
-      const newState = reducer(state, chooseNamespace(queryId, {
-        database: 'telegraf',
-        retentionPolicy: 'monitor',
-      }))
+      const newState = reducer(
+        state,
+        chooseNamespace(queryId, {
+          database: 'telegraf',
+          retentionPolicy: 'monitor',
+        })
+      )
 
       expect(newState[queryId].database).to.equal('telegraf')
       expect(newState[queryId].retentionPolicy).to.equal('monitor')
@@ -63,23 +66,33 @@ describe('Chronograf.Reducers.queryConfig', () => {
     let state
     beforeEach(() => {
       const one = reducer({}, fakeAddQueryAction('any', queryId))
-      const two = reducer(one, chooseNamespace(queryId, {
-        database: '_internal',
-        retentionPolicy: 'daily',
-      }))
+      const two = reducer(
+        one,
+        chooseNamespace(queryId, {
+          database: '_internal',
+          retentionPolicy: 'daily',
+        })
+      )
       const three = reducer(two, chooseMeasurement(queryId, 'disk'))
-      state = reducer(three, toggleField(queryId, {field: 'a great field', funcs: []}))
+      state = reducer(
+        three,
+        toggleField(queryId, {field: 'a great field', funcs: []})
+      )
     })
 
     describe('choosing a new namespace', () => {
-      it('clears out the old measurement and fields', () => { // what about tags?
+      it('clears out the old measurement and fields', () => {
+        // what about tags?
         expect(state[queryId].measurement).to.exist
         expect(state[queryId].fields.length).to.equal(1)
 
-        const newState = reducer(state, chooseNamespace(queryId, {
-          database: 'newdb',
-          retentionPolicy: 'newrp',
-        }))
+        const newState = reducer(
+          state,
+          chooseNamespace(queryId, {
+            database: 'newdb',
+            retentionPolicy: 'newrp',
+          })
+        )
 
         expect(newState[queryId].measurement).not.to.exist
         expect(newState[queryId].fields.length).to.equal(0)
@@ -87,13 +100,19 @@ describe('Chronograf.Reducers.queryConfig', () => {
     })
 
     describe('choosing a new measurement', () => {
-      it('leaves the namespace and clears out the old fields', () => { // what about tags?
+      it('leaves the namespace and clears out the old fields', () => {
+        // what about tags?
         expect(state[queryId].fields.length).to.equal(1)
 
-        const newState = reducer(state, chooseMeasurement(queryId, 'newmeasurement'))
+        const newState = reducer(
+          state,
+          chooseMeasurement(queryId, 'newmeasurement')
+        )
 
         expect(state[queryId].database).to.equal(newState[queryId].database)
-        expect(state[queryId].retentionPolicy).to.equal(newState[queryId].retentionPolicy)
+        expect(state[queryId].retentionPolicy).to.equal(
+          newState[queryId].retentionPolicy
+        )
         expect(newState[queryId].fields.length).to.equal(0)
       })
     })
@@ -230,7 +249,7 @@ describe('Chronograf.Reducers.queryConfig', () => {
       })
     })
 
-    it('creates a new entry if it\'s the first key', () => {
+    it("creates a new entry if it's the first key", () => {
       const initialState = {
         [queryId]: buildInitialState(queryId, {
           tags: {},
@@ -321,7 +340,9 @@ describe('Chronograf.Reducers.queryConfig', () => {
 
       const nextState = reducer(initialState, action)
 
-      expect(nextState[queryId].areTagsAccepted).to.equal(!initialState[queryId].areTagsAccepted)
+      expect(nextState[queryId].areTagsAccepted).to.equal(
+        !initialState[queryId].areTagsAccepted
+      )
     })
   })
 
@@ -352,7 +373,7 @@ describe('Chronograf.Reducers.queryConfig', () => {
     expect(nextState[queryId]).to.deep.equal(expected)
   })
 
-  it('updates a query\'s raw text', () => {
+  it("updates a query's raw text", () => {
     const initialState = {
       [queryId]: buildInitialState(queryId),
     }
@@ -364,7 +385,7 @@ describe('Chronograf.Reducers.queryConfig', () => {
     expect(nextState[queryId].rawText).to.equal('foo')
   })
 
-  it('updates a query\'s raw status', () => {
+  it("updates a query's raw status", () => {
     const initialState = {
       [queryId]: buildInitialState(queryId),
     }
