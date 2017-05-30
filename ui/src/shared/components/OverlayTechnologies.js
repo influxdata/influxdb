@@ -1,7 +1,9 @@
 import React, {PropTypes} from 'react'
 
+import {OVERLAY_CLASS} from 'shared/constants'
+
 const OverlayTechnologies = ({children}) => (
-  <div className="overlay-technology">{children}</div>
+  <div className={OVERLAY_CLASS}>{children}</div>
 )
 
 const {node} = PropTypes

@@ -2,6 +2,7 @@ import React, {Component, PropTypes} from 'react'
 
 import DatabaseDropdown from 'shared/components/DatabaseDropdown'
 import OnClickOutside from 'shared/components/OnClickOutside'
+import {OVERLAY_CLASS} from 'shared/constants'
 
 class WriteDataForm extends Component {
   constructor(props) {
@@ -24,7 +25,7 @@ class WriteDataForm extends Component {
 
   handleClickOutside(e) {
     // guard against clicking to close error notification
-    if (e.target.className === 'overlay-technology') {
+    if (e.target.className === OVERLAY_CLASS) {
       const {onClose} = this.props
       onClose()
     }
