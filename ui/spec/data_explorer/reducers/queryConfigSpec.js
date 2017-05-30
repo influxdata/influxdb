@@ -103,10 +103,48 @@ describe('Chronograf.Reducers.queryConfig', () => {
         expect(state[queryId].fields.length).to.equal(1)
 
         const isKapacitorRule = true
-        const newState = reducer(state, toggleField(queryId, {field: 'a different field', funcs: []}, isKapacitorRule))
+        const newState = reducer(
+          state,
+          toggleField(
+            queryId,
+            {field: 'a different field', funcs: []},
+            isKapacitorRule
+          )
+        )
 
         expect(newState[queryId].fields.length).to.equal(1)
         expect(newState[queryId].fields[0].field).to.equal('a different field')
+      })
+    })
+
+    describe('TOGGLE_FIELDS', () => {
+      it('can toggle multiple fields', () => {
+        expect(state[queryId].fields.length).to.equal(1)
+
+        const newState = reducer(
+          state,
+          toggleField(queryId, {field: 'a different field', funcs: []})
+        )
+
+        expect(newState[queryId].fields.length).to.equal(2)
+        expect(newState[queryId].fields[1].field).to.equal('a different field')
+      })
+
+      it('applies a func to a field if the there are funcs on previously selected fields', () => {
+        expect(state[queryId].fields.length).to.equal(1)
+
+        const oneFieldOneFunc = reducer(
+          state,
+          applyFuncsToField(queryId, {field: 'a great field', funcs: ['func1']})
+        )
+
+        const newState = reducer(
+          oneFieldOneFunc,
+          toggleField(queryId, {field: 'a different field', funcs: []})
+        )
+
+        expect(newState[queryId].fields[1].funcs.length).to.equal(1)
+        expect(newState[queryId].fields[1].funcs[0]).to.equal('func1')
       })
     })
   })

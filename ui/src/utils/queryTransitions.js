@@ -38,9 +38,20 @@ export function toggleField(query, {field, funcs}, isKapacitorRule = false) {
       fields: [{field, funcs}],
     })
   }
-  return Object.assign({}, query, {
-    fields: query.fields.concat({field, funcs}),
-  })
+
+  const hasFuncs = query.fields.find(f => f.funcs.length)
+  let newFuncs = []
+  if (hasFuncs) {
+    newFuncs = hasFuncs.funcs
+  }
+
+  return {
+    ...query,
+    fields: query.fields.concat({
+      field,
+      funcs: newFuncs,
+    }),
+  }
 }
 
 export function groupByTime(query, time) {
