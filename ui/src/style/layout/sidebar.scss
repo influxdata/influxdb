@@ -179,6 +179,9 @@ $sidebar-logo-color: $g8-storm;
     margin: 0;
     display: block;
     @include no-user-select();
+    &:hover {
+      cursor: pointer;
+    }
   }
 
   &__menu-item {
@@ -234,7 +237,6 @@ $sidebar-logo-color: $g8-storm;
       transform: translate(-50%,-50%);
     }
     &:hover {
-      cursor: pointer;
       background-color: $sidebar-item-hover;
       color: $sidebar-icon-hover;
 
