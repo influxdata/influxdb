@@ -1,7 +1,7 @@
 import React, {PropTypes} from 'react'
 import classnames from 'classnames'
 
-const ConfirmButtons = ({onConfirm, item, onCancel, buttonSize}) => (
+const ConfirmButtons = ({onConfirm, item, onCancel, buttonSize, isSavable}) => (
   <div className="confirm-buttons">
     <button
       className={classnames('btn btn-info btn-square', {
@@ -15,6 +15,8 @@ const ConfirmButtons = ({onConfirm, item, onCancel, buttonSize}) => (
       className={classnames('btn btn-success btn-square', {
         [buttonSize]: buttonSize,
       })}
+      disabled={!isSavable}
+      title={isSavable ? 'Save' : 'Cannot save'}
       onClick={() => onConfirm(item)}
     >
       <span className="icon checkmark" />
@@ -22,13 +24,14 @@ const ConfirmButtons = ({onConfirm, item, onCancel, buttonSize}) => (
   </div>
 )
 
-const {func, oneOfType, shape, string} = PropTypes
+const {func, oneOfType, shape, string, bool} = PropTypes
 
 ConfirmButtons.propTypes = {
   onConfirm: func.isRequired,
   item: oneOfType([shape(), string]),
   onCancel: func.isRequired,
   buttonSize: string,
+  isSavable: bool,
 }
 
 ConfirmButtons.defaultProps = {

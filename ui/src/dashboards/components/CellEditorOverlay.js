@@ -153,6 +153,10 @@ class CellEditorOverlay extends Component {
       ..._.mapValues(queryModifiers, qm => this.queryStateReducer(qm)),
     }
 
+    const querySavable = query =>
+      (!!query.measurement && !!query.database && !!query.fields.length) ||
+      !!query.rawText
+
     return (
       <div className="overlay-technology">
         <ResizeContainer
@@ -179,6 +183,7 @@ class CellEditorOverlay extends Component {
               onSelectGraphType={this.handleSelectGraphType}
               onCancel={onCancel}
               onSave={this.handleSaveCell}
+              isSavable={queriesWorkingDraft.every(querySavable)}
             />
             <QueryMaker
               source={source}
