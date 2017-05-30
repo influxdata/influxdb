@@ -1,7 +1,7 @@
 import uuid from 'node-uuid'
 
 import {getQueryConfig} from 'shared/apis'
-import {writeData} from 'src/data_explorer/apis'
+import {writeLineProtocol} from 'src/data_explorer/apis'
 
 import {errorThrown} from 'shared/actions/errors'
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
@@ -163,9 +163,9 @@ export const editRawTextAsync = (url, id, text) => async dispatch => {
   }
 }
 
-export const writeDataAsync = (source, db, data) => async dispatch => {
+export const writeLineProtocolAsync = (source, db, data) => async dispatch => {
   try {
-    await writeData(source, db, data)
+    await writeLineProtocol(source, db, data)
     dispatch(
       publishAutoDismissingNotification(
         'success',

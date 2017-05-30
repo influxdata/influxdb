@@ -42,7 +42,7 @@ const DataExplorer = React.createClass({
     dataExplorer: shape({
       queryIDs: arrayOf(string).isRequired,
     }).isRequired,
-    writeData: func.isRequired,
+    writeLineProtocol: func.isRequired,
     errorThrownAction: func.isRequired,
   },
 
@@ -86,7 +86,7 @@ const DataExplorer = React.createClass({
       queryConfigs,
       queryConfigActions,
       source,
-      writeData,
+      writeLineProtocol,
     } = this.props
     const {activeQueryIndex, showWriteForm} = this.state
 
@@ -98,7 +98,7 @@ const DataExplorer = React.createClass({
                 errorThrown={errorThrownAction}
                 onClose={() => this.setState({showWriteForm: false})}
                 source={source}
-                onWriteData={writeData}
+                onWriteLineProtocol={writeLineProtocol}
               />
             </OverlayTechnologies>
           : null}
@@ -163,7 +163,10 @@ function mapDispatchToProps(dispatch) {
     handleChooseAutoRefresh: bindActionCreators(setAutoRefresh, dispatch),
     errorThrownAction: bindActionCreators(errorThrown, dispatch),
     setTimeRange: bindActionCreators(viewActions.setTimeRange, dispatch),
-    writeData: bindActionCreators(viewActions.writeDataAsync, dispatch),
+    writeLineProtocol: bindActionCreators(
+      viewActions.writeLineProtocolAsync,
+      dispatch
+    ),
     queryConfigActions: bindActionCreators(viewActions, dispatch),
   }
 }
