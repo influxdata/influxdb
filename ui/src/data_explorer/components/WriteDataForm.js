@@ -38,7 +38,7 @@ class WriteDataForm extends Component {
   }
 
   handleSubmit() {
-    const {onClose, source, writeData} = this.props
+    const {onClose, source, onWriteData} = this.props
     const {inputContent, selectedDatabase} = this.state
     onWriteData(source, selectedDatabase, inputContent).then(() => onClose())
   }
