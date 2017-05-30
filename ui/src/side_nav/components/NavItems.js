@@ -2,7 +2,7 @@ import React, {PropTypes} from 'react'
 import {Link} from 'react-router'
 import classnames from 'classnames'
 
-const {node, string} = PropTypes
+const {bool, node, string} = PropTypes
 
 const NavListItem = React.createClass({
   propTypes: {
@@ -16,7 +16,10 @@ const NavListItem = React.createClass({
     const isActive = location.startsWith(link)
 
     return (
-      <Link className={classnames('sidebar__menu-item', {active: isActive})} to={link}>
+      <Link
+        className={classnames('sidebar__menu-item', {active: isActive})}
+        to={link}
+      >
         {children}
       </Link>
     )
@@ -27,13 +30,17 @@ const NavHeader = React.createClass({
   propTypes: {
     link: string,
     title: string,
+    useAnchor: bool,
   },
   render() {
-    return (
-      <Link className="sidebar__menu-route" to={this.props.link}>
-        <h3 className="sidebar__menu-heading">{this.props.title}</h3>
-      </Link>
-    )
+    const {link, title, useAnchor} = this.props
+    return useAnchor
+      ? <a className="sidebar__menu-route" href={link}>
+          <h3 className="sidebar__menu-heading">{title}</h3>
+        </a>
+      : <Link className="sidebar__menu-route" to={link}>
+          <h3 className="sidebar__menu-heading">{title}</h3>
+        </Link>
   },
 })
 
@@ -63,7 +70,9 @@ const NavBlock = React.createClass({
     })
 
     return (
-      <div className={classnames('sidebar__square', className, {active: isActive})}>
+      <div
+        className={classnames('sidebar__square', className, {active: isActive})}
+      >
         {this.renderLink()}
         <div className={wrapperClassName || 'sidebar__menu-wrapper'}>
           <div className="sidebar__menu">
