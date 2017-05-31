@@ -79,9 +79,11 @@ const SideNav = React.createClass({
               title="Configuration"
             />
           </NavBlock>
-          <NavBlock icon="user" className="sidebar__square-last">
-            <NavHeader link={logoutLink} title="Logout" />
-          </NavBlock>
+          {showLogout
+            ? <NavBlock icon="user" className="sidebar__square-last">
+                <NavHeader link={logoutLink} title="Logout" />
+              </NavBlock>
+            : null}
         </NavBar>
   },
 })
