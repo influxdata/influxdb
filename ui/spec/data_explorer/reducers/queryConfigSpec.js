@@ -149,7 +149,7 @@ describe('Chronograf.Reducers.queryConfig', () => {
         expect(newState[queryId].fields[1].field).to.equal('a different field')
       })
 
-      it('applies a func to a field if the there are funcs on previously selected fields', () => {
+      it('applies a funcs to newly selected fields', () => {
         expect(state[queryId].fields.length).to.equal(1)
 
         const oneFieldOneFunc = reducer(
