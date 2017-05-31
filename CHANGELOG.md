@@ -11,6 +11,7 @@
   1. [#1524](https://github.com/influxdata/chronograf/pull/1524): Rewrite UI copy in Kapacitor Node configuration to be more clear
   1. [#1549](https://github.com/influxdata/chronograf/pull/1549): Reset graph zoom when a new time range is selected
   1. [#1544](https://github.com/influxdata/chronograf/pull/1544): Upgrade to new version of Influx Theme, remove excess stylesheets
+  1. [#1567](https://github.com/influxdata/chronograf/pull/1567): Replace outline style User icon with solid style
 
 ## v1.3.1.0 [2017-05-22]
 
