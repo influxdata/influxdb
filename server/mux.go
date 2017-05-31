@@ -179,29 +179,33 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 
 	router.PUT("/chronograf/v1/sources/:id/dbs/:dbid/rps/:rpid", service.UpdateRetentionPolicy)
 	router.DELETE("/chronograf/v1/sources/:id/dbs/:dbid/rps/:rpid", service.DropRetentionPolicy)
-	var authRoutes AuthRoutes
+
+	allRoutes := &AllRoutes{
+		Logger: opts.Logger,
+	}
+
+	router.Handler("GET", "/chronograf/v1/", allRoutes)
+
 	var out http.Handler
 
-	/* Authentication */
-	logout := "/oauth/logout"
 	basepath := ""
 	if opts.PrefixRoutes {
 		basepath = opts.Basepath
 	}
+
+	/* Authentication */
 	if opts.UseAuth {
 		// Encapsulate the router with OAuth2
 		var auth http.Handler
-		auth, authRoutes = AuthAPI(opts, router)
+		auth, allRoutes.AuthRoutes = AuthAPI(opts, router)
+		allRoutes.LogoutLink = "/oauth/logout"
 
-		// Create middleware to redirect to the appropriate provider logout
-		targetURL := "/"
-		router.GET(logout, Logout(targetURL, basepath, authRoutes))
+		// Create middleware that redirects to the appropriate provider logout
+		router.GET(allRoutes.LogoutLink, Logout("/", basepath, allRoutes.AuthRoutes))
 		out = Logger(opts.Logger, PrefixedRedirect(opts.Basepath, auth))
 	} else {
 		out = Logger(opts.Logger, PrefixedRedirect(opts.Basepath, router))
 	}
-
-	router.GET("/chronograf/v1/", AllRoutes(authRoutes, path.Join(opts.Basepath, logout), opts.Logger))
 
 	return out
 }
