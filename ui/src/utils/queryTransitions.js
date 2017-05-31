@@ -16,27 +16,30 @@ export function chooseMeasurement(query, measurement) {
   })
 }
 
-export function toggleField(query, {field, funcs}, isKapacitorRule = false) {
+export const toggleField = (query, {field, funcs}, isKapacitorRule = false) => {
   const isSelected = query.fields.find(f => f.field === field)
   if (isSelected) {
     const nextFields = query.fields.filter(f => f.field !== field)
     if (!nextFields.length) {
-      const nextGroupBy = Object.assign({}, query.groupBy, {time: null})
-      return Object.assign({}, query, {
+      const nextGroupBy = {...query.groupBy, time: null}
+      return {
+        ...query,
         fields: nextFields,
         groupBy: nextGroupBy,
-      })
+      }
     }
 
-    return Object.assign({}, query, {
+    return {
+      ...query,
       fields: nextFields,
-    })
+    }
   }
 
   if (isKapacitorRule) {
-    return Object.assign({}, query, {
+    return {
+      ...query,
       fields: [{field, funcs}],
-    })
+    }
   }
 
   const hasFuncs = query.fields.find(f => f.funcs.length)
