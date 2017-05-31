@@ -31,9 +31,10 @@ const (
 )
 
 func init() {
-	tsdb.RegisterIndex(IndexName, func(id uint64, path string, opt tsdb.EngineOptions) tsdb.Index {
+	tsdb.RegisterIndex(IndexName, func(id uint64, database, path string, opt tsdb.EngineOptions) tsdb.Index {
 		idx := NewIndex()
 		idx.ShardID = id
+		idx.Database = database
 		idx.Path = path
 		idx.options = opt
 		return idx
@@ -78,6 +79,9 @@ type Index struct {
 
 	// Associated shard info.
 	ShardID uint64
+
+	// Name of database.
+	Database string
 
 	// Root directory of the index files.
 	Path string
@@ -529,10 +533,7 @@ func (i *Index) DropSeries(key []byte) error {
 		i.mu.RLock()
 		defer i.mu.RUnlock()
 
-		name, tags, err := models.ParseKey(key)
-		if err != nil {
-			return err
-		}
+		name, tags := models.ParseKey(key)
 
 		mname := []byte(name)
 		if err := i.activeLogFile.DeleteSeries(mname, tags); err != nil {

@@ -30,7 +30,7 @@ func TestShardWriteAndIndex(t *testing.T) {
 
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
-	opts.InmemIndex = inmem.NewIndex()
+	opts.InmemIndex = inmem.NewIndex(path.Base(tmpDir))
 
 	sh := tsdb.NewShard(1, tmpShard, tmpWal, opts)
 
@@ -98,7 +98,7 @@ func TestMaxSeriesLimit(t *testing.T) {
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
 	opts.Config.MaxSeriesPerDatabase = 1000
-	opts.InmemIndex = inmem.NewIndex()
+	opts.InmemIndex = inmem.NewIndex(path.Base(tmpDir))
 
 	sh := tsdb.NewShard(1, tmpShard, tmpWal, opts)
 
@@ -151,7 +151,7 @@ func TestShard_MaxTagValuesLimit(t *testing.T) {
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
 	opts.Config.MaxValuesPerTag = 1000
-	opts.InmemIndex = inmem.NewIndex()
+	opts.InmemIndex = inmem.NewIndex(path.Base(tmpDir))
 
 	sh := tsdb.NewShard(1, tmpShard, tmpWal, opts)
 
@@ -203,7 +203,7 @@ func TestWriteTimeTag(t *testing.T) {
 
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
-	opts.InmemIndex = inmem.NewIndex()
+	opts.InmemIndex = inmem.NewIndex(path.Base(tmpDir))
 
 	sh := tsdb.NewShard(1, tmpShard, tmpWal, opts)
 	if err := sh.Open(); err != nil {
@@ -251,7 +251,7 @@ func TestWriteTimeField(t *testing.T) {
 
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
-	opts.InmemIndex = inmem.NewIndex()
+	opts.InmemIndex = inmem.NewIndex(path.Base(tmpDir))
 
 	sh := tsdb.NewShard(1, tmpShard, tmpWal, opts)
 	if err := sh.Open(); err != nil {
@@ -284,7 +284,7 @@ func TestShardWriteAddNewField(t *testing.T) {
 
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
-	opts.InmemIndex = inmem.NewIndex()
+	opts.InmemIndex = inmem.NewIndex(path.Base(tmpDir))
 
 	sh := tsdb.NewShard(1, tmpShard, tmpWal, opts)
 	if err := sh.Open(); err != nil {
@@ -334,7 +334,7 @@ func TestShard_WritePoints_FieldConflictConcurrent(t *testing.T) {
 
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
-	opts.InmemIndex = inmem.NewIndex()
+	opts.InmemIndex = inmem.NewIndex(path.Base(tmpDir))
 
 	sh := tsdb.NewShard(1, tmpShard, tmpWal, opts)
 	if err := sh.Open(); err != nil {
@@ -418,7 +418,7 @@ func TestShard_WritePoints_FieldConflictConcurrentQuery(t *testing.T) {
 
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
-	opts.InmemIndex = inmem.NewIndex()
+	opts.InmemIndex = inmem.NewIndex(path.Base(tmpDir))
 
 	sh := tsdb.NewShard(1, tmpShard, tmpWal, opts)
 	if err := sh.Open(); err != nil {
@@ -563,7 +563,7 @@ func TestShard_Close_RemoveIndex(t *testing.T) {
 
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
-	opts.InmemIndex = inmem.NewIndex()
+	opts.InmemIndex = inmem.NewIndex(path.Base(tmpDir))
 
 	sh := tsdb.NewShard(1, tmpShard, tmpWal, opts)
 	if err := sh.Open(); err != nil {
@@ -1089,23 +1089,23 @@ type Shard struct {
 // NewShard returns a new instance of Shard with temp paths.
 func NewShard() *Shard {
 	// Create temporary path for data and WAL.
-	path, err := ioutil.TempDir("", "influxdb-tsdb-")
+	dir, err := ioutil.TempDir("", "influxdb-tsdb-")
 	if err != nil {
 		panic(err)
 	}
 
 	// Build engine options.
 	opt := tsdb.NewEngineOptions()
-	opt.Config.WALDir = filepath.Join(path, "wal")
-	opt.InmemIndex = inmem.NewIndex()
+	opt.Config.WALDir = filepath.Join(dir, "wal")
+	opt.InmemIndex = inmem.NewIndex(path.Base(dir))
 
 	return &Shard{
 		Shard: tsdb.NewShard(0,
-			filepath.Join(path, "data", "db0", "rp0", "1"),
-			filepath.Join(path, "wal", "db0", "rp0", "1"),
+			filepath.Join(dir, "data", "db0", "rp0", "1"),
+			filepath.Join(dir, "wal", "db0", "rp0", "1"),
 			opt,
 		),
-		path: path,
+		path: dir,
 	}
 }
 

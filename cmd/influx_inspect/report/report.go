@@ -102,7 +102,7 @@ func (cmd *Command) Run(args ...string) error {
 			if cmd.detailed {
 				sep := strings.Index(string(key), "#!~#")
 				seriesKey, field := key[:sep], key[sep+4:]
-				measurement, tags, _ := models.ParseKey(seriesKey)
+				measurement, tags := models.ParseKey(seriesKey)
 
 				measCount, ok := measCardinalities[measurement]
 				if !ok {

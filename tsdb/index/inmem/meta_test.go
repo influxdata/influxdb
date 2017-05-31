@@ -93,7 +93,7 @@ func TestSeriesIDs_Reject(t *testing.T) {
 }
 
 func TestMeasurement_AppendSeriesKeysByID_Missing(t *testing.T) {
-	m := inmem.NewMeasurement("cpu")
+	m := inmem.NewMeasurement("foo", "cpu")
 	var dst []string
 	dst = m.AppendSeriesKeysByID(dst, []uint64{1})
 	if exp, got := 0, len(dst); exp != got {
@@ -102,7 +102,7 @@ func TestMeasurement_AppendSeriesKeysByID_Missing(t *testing.T) {
 }
 
 func TestMeasurement_AppendSeriesKeysByID_Exists(t *testing.T) {
-	m := inmem.NewMeasurement("cpu")
+	m := inmem.NewMeasurement("foo", "cpu")
 	s := inmem.NewSeries([]byte("cpu,host=foo"), models.Tags{models.NewTag([]byte("host"), []byte("foo"))})
 	s.ID = 1
 	m.AddSeries(s)
@@ -119,7 +119,7 @@ func TestMeasurement_AppendSeriesKeysByID_Exists(t *testing.T) {
 }
 
 func TestMeasurement_TagsSet_Deadlock(t *testing.T) {
-	m := inmem.NewMeasurement("cpu")
+	m := inmem.NewMeasurement("foo", "cpu")
 	s1 := inmem.NewSeries([]byte("cpu,host=foo"), models.Tags{models.NewTag([]byte("host"), []byte("foo"))})
 	s1.ID = 1
 	m.AddSeries(s1)
@@ -138,7 +138,7 @@ func TestMeasurement_TagsSet_Deadlock(t *testing.T) {
 }
 
 func TestMeasurement_ForEachSeriesByExpr_Deadlock(t *testing.T) {
-	m := inmem.NewMeasurement("cpu")
+	m := inmem.NewMeasurement("foo", "cpu")
 	s1 := inmem.NewSeries([]byte("cpu,host=foo"), models.Tags{models.NewTag([]byte("host"), []byte("foo"))})
 	s1.ID = 1
 	m.AddSeries(s1)
@@ -159,7 +159,7 @@ func TestMeasurement_ForEachSeriesByExpr_Deadlock(t *testing.T) {
 }
 
 func BenchmarkMeasurement_SeriesIDForExp_EQRegex(b *testing.B) {
-	m := inmem.NewMeasurement("cpu")
+	m := inmem.NewMeasurement("foo", "cpu")
 	for i := 0; i < 100000; i++ {
 		s := inmem.NewSeries([]byte("cpu"), models.Tags{models.NewTag(
 			[]byte("host"),
@@ -190,7 +190,7 @@ func BenchmarkMeasurement_SeriesIDForExp_EQRegex(b *testing.B) {
 }
 
 func BenchmarkMeasurement_SeriesIDForExp_NERegex(b *testing.B) {
-	m := inmem.NewMeasurement("cpu")
+	m := inmem.NewMeasurement("foo", "cpu")
 	for i := 0; i < 100000; i++ {
 		s := inmem.NewSeries([]byte("cpu"), models.Tags{models.Tag{
 			Key:   []byte("host"),
@@ -222,7 +222,7 @@ func BenchmarkMeasurement_SeriesIDForExp_NERegex(b *testing.B) {
 }
 
 func benchmarkTagSets(b *testing.B, n int, opt influxql.IteratorOptions) {
-	m := inmem.NewMeasurement("m")
+	m := inmem.NewMeasurement("foo", "m")
 	for i := 0; i < n; i++ {
 		tags := map[string]string{"tag1": "value1", "tag2": "value2"}
 		s := inmem.NewSeries([]byte(fmt.Sprintf("m,tag1=value1,tag2=value2")), models.NewTags(tags))

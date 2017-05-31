@@ -14,7 +14,7 @@ type MetaClient struct {
 	CreateDatabaseWithRetentionPolicyFn func(name string, spec *meta.RetentionPolicySpec) (*meta.DatabaseInfo, error)
 	CreateRetentionPolicyFn             func(database string, spec *meta.RetentionPolicySpec, makeDefault bool) (*meta.RetentionPolicyInfo, error)
 	CreateSubscriptionFn                func(database, rp, name, mode string, destinations []string) error
-	CreateUserFn                        func(name, password string, admin bool) (*meta.UserInfo, error)
+	CreateUserFn                        func(name, password string, admin bool) (meta.User, error)
 	DatabaseFn                          func(name string) *meta.DatabaseInfo
 	DatabasesFn                         func() []meta.DatabaseInfo
 	DataNodeFn                          func(id uint64) (*meta.NodeInfo, error)
@@ -63,7 +63,7 @@ func (c *MetaClient) CreateSubscription(database, rp, name, mode string, destina
 	return c.CreateSubscriptionFn(database, rp, name, mode, destinations)
 }
 
-func (c *MetaClient) CreateUser(name, password string, admin bool) (*meta.UserInfo, error) {
+func (c *MetaClient) CreateUser(name, password string, admin bool) (meta.User, error) {
 	return c.CreateUserFn(name, password, admin)
 }
 

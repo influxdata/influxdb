@@ -2088,18 +2088,6 @@ func TestNewPointsRejectsMaxKey(t *testing.T) {
 
 }
 
-func TestParseKeyEmpty(t *testing.T) {
-	if _, _, err := models.ParseKey(nil); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
-func TestParseKeyMissingValue(t *testing.T) {
-	if _, _, err := models.ParseKey([]byte("cpu,foo ")); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
 func TestPoint_FieldIterator_Simple(t *testing.T) {
 
 	p, err := models.ParsePoints([]byte(`m v=42i,f=42 36`))

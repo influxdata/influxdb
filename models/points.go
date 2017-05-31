@@ -237,7 +237,7 @@ func ParsePointsString(buf string) ([]Point, error) {
 //
 // NOTE: to minimize heap allocations, the returned Tags will refer to subslices of buf.
 // This can have the unintended effect preventing buf from being garbage collected.
-func ParseKey(buf []byte) (string, Tags, error) {
+func ParseKey(buf []byte) (string, Tags) {
 	// Ignore the error because scanMeasurement returns "missing fields" which we ignore
 	// when just parsing a key
 	state, i, _ := scanMeasurement(buf, 0)
@@ -246,9 +246,9 @@ func ParseKey(buf []byte) (string, Tags, error) {
 	if state == tagKeyState {
 		tags = parseTags(buf)
 		// scanMeasurement returns the location of the comma if there are tags, strip that off
-		return string(buf[:i-1]), tags, nil
+		return string(buf[:i-1]), tags
 	}
-	return string(buf[:i]), tags, nil
+	return string(buf[:i]), tags
 }
 
 func ParseTags(buf []byte) (Tags, error) {

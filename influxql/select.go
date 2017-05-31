@@ -10,6 +10,9 @@ import (
 
 // SelectOptions are options that customize the select call.
 type SelectOptions struct {
+	// Authorizer is used to limit access to data
+	Authorizer Authorizer
+
 	// The lower bound for a select call.
 	MinTime time.Time
 
