@@ -1,5 +1,7 @@
 # InfluxDB [![Circle CI](https://circleci.com/gh/influxdata/influxdb/tree/master.svg?style=svg)](https://circleci.com/gh/influxdata/influxdb/tree/master) [![Go Report Card](https://goreportcard.com/badge/github.com/influxdata/influxdb)](https://goreportcard.com/report/github.com/influxdata/influxdb) [![Docker pulls](https://img.shields.io/docker/pulls/library/influxdb.svg)](https://hub.docker.com/_/influxdb/)
 
+**Note**: The master branch may be in an unstable or even broken state during development. Please use one of the [pre-built packages](https://influxdata.com/downloads/#influxdb) instead of the master branch in order to get stable binaries.
+
 ## An Open-Source Time Series Database
 
 InfluxDB is an open source **time series database** with
