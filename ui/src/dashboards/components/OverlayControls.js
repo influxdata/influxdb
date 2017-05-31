@@ -34,7 +34,7 @@ const OverlayControls = props => {
         <ConfirmButtons
           onCancel={onCancel}
           onConfirm={onSave}
-          isSavable={isSavable}
+          isDisabled={!isSavable}
         />
       </div>
     </div>
