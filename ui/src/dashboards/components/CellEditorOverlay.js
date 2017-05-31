@@ -153,7 +153,7 @@ class CellEditorOverlay extends Component {
       ..._.mapValues(queryModifiers, qm => this.queryStateReducer(qm)),
     }
 
-    const querySavable = query =>
+    const isQuerySavable = query =>
       (!!query.measurement && !!query.database && !!query.fields.length) ||
       !!query.rawText
 
@@ -183,7 +183,7 @@ class CellEditorOverlay extends Component {
               onSelectGraphType={this.handleSelectGraphType}
               onCancel={onCancel}
               onSave={this.handleSaveCell}
-              isSavable={queriesWorkingDraft.every(querySavable)}
+              isSavable={queriesWorkingDraft.every(isQuerySavable)}
             />
             <QueryMaker
               source={source}
