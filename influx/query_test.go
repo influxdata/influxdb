@@ -253,7 +253,7 @@ func TestConvert(t *testing.T) {
 			},
 		},
 		{
-			name:     "Test multipel tags not accepted",
+			name:     "Test multible tags not accepted",
 			influxQL: `SELECT usage_user from telegraf.autogen.cpu where time > now() - 15m and "host" != 'myhost' and "cpu" != 'cpu-total'`,
 			want: chronograf.QueryConfig{
 				Database:        "telegraf",
