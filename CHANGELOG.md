@@ -3,6 +3,7 @@
 ### Bug Fixes
 1. [#1530](https://github.com/influxdata/chronograf/pull/1530): Update query config field ordering to always match input query
 1. [#1535](https://github.com/influxdata/chronograf/pull/1535): Fix add field functions to existing Kapacitor rules
+1. [#1564](https://github.com/influxdata/chronograf/pull/1564): Fix regression of logout menu item functionality
 1. [#1562](https://github.com/influxdata/chronograf/pull/1562): Fix InfluxQL parsing with multiple tag values for a tag key
 
 ### Features
@@ -13,6 +14,7 @@
   1. [#1524](https://github.com/influxdata/chronograf/pull/1524): Rewrite UI copy in Kapacitor Node configuration to be more clear
   1. [#1549](https://github.com/influxdata/chronograf/pull/1549): Reset graph zoom when a new time range is selected
   1. [#1544](https://github.com/influxdata/chronograf/pull/1544): Upgrade to new version of Influx Theme, remove excess stylesheets
+  1. [#1560](https://github.com/influxdata/chronograf/pull/1560): Apply mean to fields by default
   1. [#1561](https://github.com/influxdata/chronograf/pull/1561): Disable query save in dashboard editing if the query does not have a database, measurement, and field
   1. [#1575](https://github.com/influxdata/chronograf/pull/1575): Improve UX of applying math functions to Fields in Query Maker
 

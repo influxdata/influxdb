@@ -900,11 +900,11 @@ def main(args):
             lines.sort()
 
             print ("## Docker")
-            print("docker pull quay.io/influxdb/chronograf:"+get_current_version_tag())
+            print("`docker pull quay.io/influxdb/chronograf:"+get_current_version_tag() + "`")
             print("")
             print("## Packages")
             print("")
-            print("Arch | Package | SHA256")
+            print("Platform | Package | SHA256")
             print("--- | --- | ---")
             for line in lines:
                 print(line)
