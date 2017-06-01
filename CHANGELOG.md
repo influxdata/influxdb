@@ -5,6 +5,7 @@
 1. [#1535](https://github.com/influxdata/chronograf/pull/1535): Fix add field functions to existing Kapacitor rules
 1. [#1564](https://github.com/influxdata/chronograf/pull/1564): Fix regression of logout menu item functionality
 1. [#1562](https://github.com/influxdata/chronograf/pull/1562): Fix InfluxQL parsing with multiple tag values for a tag key
+1. [#1584](https://github.com/influxdata/chronograf/pull/1584): Fix submenus not appearing when alert notification was on screen
 
 ### Features
   1. [#1537](https://github.com/influxdata/chronograf/pull/1537): Add UI for writing data to influxdb.
