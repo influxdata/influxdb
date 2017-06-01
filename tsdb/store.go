@@ -948,6 +948,12 @@ type TagValues struct {
 	Values      []KeyValue
 }
 
+type TagValuesSlice []TagValues
+
+func (a TagValuesSlice) Len() int           { return len(a) }
+func (a TagValuesSlice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a TagValuesSlice) Less(i, j int) bool { return a[i].Measurement < a[j].Measurement }
+
 // TagValues returns the tag keys and values in the given database, matching the condition.
 func (s *Store) TagValues(database string, cond influxql.Expr) ([]TagValues, error) {
 	if cond == nil {
@@ -989,7 +995,7 @@ func (s *Store) TagValues(database string, cond influxql.Expr) ([]TagValues, err
 	shards := s.filterShards(byDatabase(database))
 	s.mu.RUnlock()
 
-	var tagValues []TagValues
+	m := make(map[string]map[KeyValue]struct{})
 	for _, sh := range shards {
 		names, err := sh.MeasurementNamesByExpr(measurementExpr)
 		if err != nil {
@@ -1004,50 +1010,37 @@ func (s *Store) TagValues(database string, cond influxql.Expr) ([]TagValues, err
 			}
 
 			// Loop over all keys for each series.
-			m := make(map[KeyValue]struct{})
 			if err := sh.engine.ForEachMeasurementSeriesByExpr(name, filterExpr, func(tags models.Tags) error {
 				for _, t := range tags {
 					if _, ok := keySet[string(t.Key)]; ok {
-						m[KeyValue{string(t.Key), string(t.Value)}] = struct{}{}
+						if m[string(name)] == nil {
+							m[string(name)] = make(map[KeyValue]struct{})
+						}
+						m[string(name)][KeyValue{string(t.Key), string(t.Value)}] = struct{}{}
 					}
 				}
 				return nil
 			}); err != nil {
 				return nil, err
 			}
-
-			/*
-				// Loop over all keys for each series.
-				m := make(map[KeyValue]struct{}, len(ss))
-				for _, series := range ss {
-					series.ForEachTag(func(t models.Tag) {
-						if !ok {
-							// nop
-						} else if _, exists := keySet[string(t.Key)]; !exists {
-							return
-						}
-						m[KeyValue{string(t.Key), string(t.Value)}] = struct{}{}
-					})
-				}
-			*/
-
-			// Sort key/value set.
-			var a []KeyValue
-			if len(m) > 0 {
-				a = make([]KeyValue, 0, len(m))
-				for kv := range m {
-					a = append(a, kv)
-				}
-				sort.Sort(KeyValues(a))
-			}
-
-			tagValues = append(tagValues, TagValues{
-				Measurement: string(name),
-				Values:      a,
-			})
 		}
 	}
 
+	// Sort key/value set.
+	var tagValues []TagValues
+	for name, kvs := range m {
+		a := make([]KeyValue, 0, len(kvs))
+		for kv := range kvs {
+			a = append(a, kv)
+		}
+		sort.Sort(KeyValues(a))
+
+		tagValues = append(tagValues, TagValues{
+			Measurement: name,
+			Values:      a,
+		})
+	}
+	sort.Sort(TagValuesSlice(tagValues))
 	return tagValues, nil
 }
 
