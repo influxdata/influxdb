@@ -82,6 +82,15 @@ const FieldListItem = React.createClass({
       )
     }
 
+    let fieldFuncsLabel
+    if (!fieldFunc.funcs.length) {
+      fieldFuncsLabel = 'Functions'
+    } else if (fieldFunc.funcs.length === 1) {
+      fieldFuncsLabel = `${fieldFunc.funcs.length} Function`
+    } else if (fieldFunc.funcs.length > 1) {
+      fieldFuncsLabel = `${fieldFunc.funcs.length} Functions`
+    }
+
     return (
       <div key={fieldFunc}>
         <div
@@ -101,7 +110,7 @@ const FieldListItem = React.createClass({
                 })}
                 onClick={this.toggleFunctionsMenu}
               >
-                Functions
+                {fieldFuncsLabel}
               </div>
             : null}
         </div>
