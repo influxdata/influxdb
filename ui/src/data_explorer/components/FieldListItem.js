@@ -35,6 +35,7 @@ const FieldListItem = React.createClass({
 
   handleToggleField() {
     this.props.onToggleField(this.props.fieldFunc)
+    this.setState({isOpen: false})
   },
 
   handleApplyFunctions(selectedFuncs) {
