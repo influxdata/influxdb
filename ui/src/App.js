@@ -5,7 +5,7 @@ import {bindActionCreators} from 'redux'
 import SideNav from 'src/side_nav'
 import Notifications from 'shared/components/Notifications'
 
-import {publishNotification} from 'src/shared/actions/notifications'
+import {publishNotification} from 'shared/actions/notifications'
 
 const {func, node} = PropTypes
 

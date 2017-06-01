@@ -1,6 +1,6 @@
 import React, {PropTypes, Component} from 'react'
 
-import ConfirmButtons from 'src/shared/components/ConfirmButtons'
+import ConfirmButtons from 'shared/components/ConfirmButtons'
 import {QUERIES_TABLE} from 'src/admin/constants/tableSizing'
 
 class QueryRow extends Component {

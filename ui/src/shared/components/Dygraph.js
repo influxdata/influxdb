@@ -5,7 +5,7 @@ import shallowCompare from 'react-addons-shallow-compare'
 import _ from 'lodash'
 
 import Dygraph from '../../external/dygraph'
-import getRange from 'src/shared/parsing/getRangeForDygraph'
+import getRange from 'shared/parsing/getRangeForDygraph'
 
 const {array, arrayOf, number, bool, shape, string} = PropTypes
 

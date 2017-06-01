@@ -32,7 +32,7 @@ class DatabaseDropdown extends Component {
         items={databases.map(text => ({text}))}
         selected={database || 'Loading...'}
         onChoose={onSelectDatabase}
-        onClick={() => onStartEdit(null)}
+        onClick={onStartEdit ? () => onStartEdit(null) : null}
       />
     )
   }
@@ -70,7 +70,7 @@ DatabaseDropdown.contextTypes = {
 DatabaseDropdown.propTypes = {
   database: string,
   onSelectDatabase: func.isRequired,
-  onStartEdit: func.isRequired,
+  onStartEdit: func,
   onErrorThrown: func.isRequired,
 }
 

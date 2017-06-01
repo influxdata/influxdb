@@ -3,8 +3,8 @@ import classnames from 'classnames'
 
 import AutoRefreshDropdown from 'shared/components/AutoRefreshDropdown'
 import TimeRangeDropdown from 'shared/components/TimeRangeDropdown'
-import SourceIndicator from '../../shared/components/SourceIndicator'
-import GraphTips from '../../shared/components/GraphTips'
+import SourceIndicator from 'shared/components/SourceIndicator'
+import GraphTips from 'shared/components/GraphTips'
 
 const DashboardHeader = ({
   children,

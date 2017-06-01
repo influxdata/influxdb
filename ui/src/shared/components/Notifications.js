@@ -8,7 +8,7 @@ import {
   publishNotification as publishNotificationAction,
   dismissNotification as dismissNotificationAction,
   dismissAllNotifications as dismissAllNotificationsAction,
-} from 'src/shared/actions/notifications'
+} from 'shared/actions/notifications'
 
 class Notifications extends Component {
   constructor(props) {

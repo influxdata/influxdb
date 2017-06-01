@@ -3,7 +3,7 @@ import _ from 'lodash'
 
 import HostsTable from 'src/hosts/components/HostsTable'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
-import SourceIndicator from 'src/shared/components/SourceIndicator'
+import SourceIndicator from 'shared/components/SourceIndicator'
 
 import {getCpuAndLoadForHosts, getMappings, getAppsForHosts} from '../apis'
 

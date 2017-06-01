@@ -1,6 +1,6 @@
 import uuid from 'node-uuid'
-import {getActiveKapacitor} from 'src/shared/apis'
-import {publishNotification} from 'src/shared/actions/notifications'
+import {getActiveKapacitor} from 'shared/apis'
+import {publishNotification} from 'shared/actions/notifications'
 import {
   getRules,
   getRule,

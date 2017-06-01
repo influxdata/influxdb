@@ -1,7 +1,7 @@
 import {
   buildRoles,
   buildClusterAccounts,
-} from 'src/shared/presenters'
+} from 'shared/presenters'
 
 describe('Presenters', function() {
   describe('roles utils', function() {

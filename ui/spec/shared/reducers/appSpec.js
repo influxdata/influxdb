@@ -1,11 +1,11 @@
-import appReducer from 'src/shared/reducers/app'
+import appReducer from 'shared/reducers/app'
 import {
   enablePresentationMode,
   disablePresentationMode,
   // delayEnablePresentationMode,
   setAutoRefresh,
   templateControlBarVisibilityToggled,
-} from 'src/shared/actions/app'
+} from 'shared/actions/app'
 
 describe('Shared.Reducers.appReducer', () => {
   const initialState = {

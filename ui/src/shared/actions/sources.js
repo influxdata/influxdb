@@ -4,10 +4,10 @@ import {
   getKapacitors as getKapacitorsAJAX,
   updateKapacitor as updateKapacitorAJAX,
   deleteKapacitor as deleteKapacitorAJAX,
-} from 'src/shared/apis'
+} from 'shared/apis'
 import {publishNotification} from './notifications'
 
-import {HTTP_NOT_FOUND} from 'src/shared/constants'
+import {HTTP_NOT_FOUND} from 'shared/constants'
 
 export const loadSources = sources => ({
   type: 'LOAD_SOURCES',

@@ -1,7 +1,7 @@
 import React, {PropTypes} from 'react'
 import ReactTooltip from 'react-tooltip'
-import TimeRangeDropdown from '../../shared/components/TimeRangeDropdown'
-import SourceIndicator from '../../shared/components/SourceIndicator'
+import TimeRangeDropdown from 'shared/components/TimeRangeDropdown'
+import SourceIndicator from 'shared/components/SourceIndicator'
 
 export const RuleHeader = React.createClass({
   propTypes: {

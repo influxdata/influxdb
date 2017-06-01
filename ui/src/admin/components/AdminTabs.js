@@ -5,7 +5,7 @@ import {
   TabPanel,
   TabPanels,
   TabList,
-} from 'src/shared/components/Tabs'
+} from 'shared/components/Tabs'
 import UsersTable from 'src/admin/components/UsersTable'
 import RolesTable from 'src/admin/components/RolesTable'
 import QueriesPage from 'src/admin/containers/QueriesPage'
