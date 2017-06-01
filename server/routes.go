@@ -38,26 +38,33 @@ type getRoutesResponse struct {
 	Logout     *string     `json:"logout,omitempty"` // Location of the logout route for all auth routes
 }
 
-// AllRoutes returns all top level routes within chronograf
-func AllRoutes(authRoutes []AuthRoute, logout string, logger chronograf.Logger) http.HandlerFunc {
+// AllRoutes is a handler that returns all links to resources in Chronograf server.
+// Optionally, routes for authentication can be returned.
+type AllRoutes struct {
+	AuthRoutes []AuthRoute // Location of all auth routes. If no auth, this can be empty.
+	LogoutLink string      // Location of the logout route for all auth routes. If no auth, this can be empty.
+	Logger     chronograf.Logger
+}
+
+// ServeHTTP returns all top level routes within chronograf
+func (a *AllRoutes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	routes := getRoutesResponse{
 		Sources:    "/chronograf/v1/sources",
 		Layouts:    "/chronograf/v1/layouts",
 		Me:         "/chronograf/v1/me",
 		Mappings:   "/chronograf/v1/mappings",
 		Dashboards: "/chronograf/v1/dashboards",
-		Auth:       make([]AuthRoute, len(authRoutes)),
-	}
-	if logout != "" {
-		routes.Logout = &logout
+		Auth:       make([]AuthRoute, len(a.AuthRoutes)), // We want to return at least an empty array, rather than null
 	}
 
-	for i, route := range authRoutes {
+	// The JSON response will have no field present for the LogoutLink if there is no logout link.
+	if a.LogoutLink != "" {
+		routes.Logout = &a.LogoutLink
+	}
+
+	for i, route := range a.AuthRoutes {
 		routes.Auth[i] = route
 	}
 
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		encodeJSON(w, http.StatusOK, routes, logger)
-		return
-	})
+	encodeJSON(w, http.StatusOK, routes, a.Logger)
 }
