@@ -105,8 +105,10 @@ const FieldListItem = React.createClass({
           </span>
           {isSelected
             ? <div
-                className={classnames('btn btn-xs btn-default', {
+                className={classnames('btn btn-xs', {
                   active: isOpen,
+                  'btn-default': !fieldFunc.funcs.length,
+                  'btn-primary': fieldFunc.funcs.length,
                 })}
                 onClick={this.toggleFunctionsMenu}
               >
