@@ -128,6 +128,13 @@ func NewOutputConfig() *outputConfig {
 
 }
 
+func NewOutputConfigAlt(db, addr string, tags map[string]string) *outputConfig {
+	var o outputConfig
+	o.tags = tags
+	o.SetParams(addr, db)
+	return &o
+}
+
 func (t *outputConfig) String() string {
 	var s string
 	for k, v := range t.tags {
