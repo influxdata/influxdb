@@ -97,7 +97,7 @@ const FieldListItem = React.createClass({
           {isSelected
             ? <div
                 className={classnames('btn btn-xs btn-default', {
-                  'function-selector--toggled': isOpen,
+                  active: isOpen,
                 })}
                 onClick={this.toggleFunctionsMenu}
               >
