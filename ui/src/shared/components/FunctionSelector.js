@@ -15,6 +15,12 @@ class FunctionSelector extends Component {
     this.handleApplyFunctions = ::this.handleApplyFunctions
   }
 
+  componentWillUpdate(nextProps) {
+    if (!_.isEqual(this.props.selectedItems, nextProps.selectedItems)) {
+      this.setState({localSelectedItems: nextProps.selectedItems})
+    }
+  }
+
   onSelect(item, e) {
     e.stopPropagation()
 
