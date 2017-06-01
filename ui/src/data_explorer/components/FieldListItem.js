@@ -84,7 +84,7 @@ const FieldListItem = React.createClass({
 
     let fieldFuncsLabel
     if (!fieldFunc.funcs.length) {
-      fieldFuncsLabel = 'Functions'
+      fieldFuncsLabel = '0 Functions'
     } else if (fieldFunc.funcs.length === 1) {
       fieldFuncsLabel = `${fieldFunc.funcs.length} Function`
     } else if (fieldFunc.funcs.length > 1) {
