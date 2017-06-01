@@ -61,7 +61,7 @@ class ControlBarWrapper extends Component {
     super(props)
   }
 
-  async componentDidMount() {
+  componentDidMount() {
     const {source, dashboard, updateTempVarValues} = this.props
     updateTempVarValues(source, dashboard)
   }

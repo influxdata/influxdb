@@ -57,7 +57,7 @@ class DashboardPage extends Component {
     this.synchronizer = ::this.synchronizer
   }
 
-  async componentDidMount() {
+  componentDidMount() {
     const {
       params: {dashboardID},
       dashboardActions: {getDashboardsAsync},
