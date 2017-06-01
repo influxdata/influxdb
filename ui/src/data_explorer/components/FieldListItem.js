@@ -35,6 +35,7 @@ const FieldListItem = React.createClass({
 
   handleToggleField() {
     this.props.onToggleField(this.props.fieldFunc)
+    this.setState({isOpen: false})
   },
 
   handleApplyFunctions(selectedFuncs) {
@@ -82,6 +83,15 @@ const FieldListItem = React.createClass({
       )
     }
 
+    let fieldFuncsLabel
+    if (!fieldFunc.funcs.length) {
+      fieldFuncsLabel = '0 Functions'
+    } else if (fieldFunc.funcs.length === 1) {
+      fieldFuncsLabel = `${fieldFunc.funcs.length} Function`
+    } else if (fieldFunc.funcs.length > 1) {
+      fieldFuncsLabel = `${fieldFunc.funcs.length} Functions`
+    }
+
     return (
       <div key={fieldFunc}>
         <div
@@ -96,12 +106,14 @@ const FieldListItem = React.createClass({
           </span>
           {isSelected
             ? <div
-                className={classnames('btn btn-xs btn-default', {
-                  'function-selector--toggled': isOpen,
+                className={classnames('btn btn-xs', {
+                  active: isOpen,
+                  'btn-default': !fieldFunc.funcs.length,
+                  'btn-primary': fieldFunc.funcs.length,
                 })}
                 onClick={this.toggleFunctionsMenu}
               >
-                Functions
+                {fieldFuncsLabel}
               </div>
             : null}
         </div>
