@@ -9,7 +9,7 @@ import LayoutRenderer from 'shared/components/LayoutRenderer'
 import DashboardHeader from 'src/dashboards/components/DashboardHeader'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
-import timeRanges from 'hson!../../shared/data/timeRanges.hson'
+import timeRanges from 'hson!shared/data/timeRanges.hson'
 import {
   getMappings,
   getAppsForHosts,

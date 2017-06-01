@@ -6,13 +6,17 @@ import _ from 'lodash'
 
 import QueryMaker from '../components/QueryMaker'
 import Visualization from '../components/Visualization'
+import WriteDataForm from 'src/data_explorer/components/WriteDataForm'
 import Header from '../containers/Header'
-import ResizeContainer from 'src/shared/components/ResizeContainer'
+import ResizeContainer from 'shared/components/ResizeContainer'
+import OverlayTechnologies from 'shared/components/OverlayTechnologies'
 
-import {VIS_VIEWS} from 'src/shared/constants'
+import {VIS_VIEWS} from 'shared/constants'
 import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from '../constants'
+import {errorThrown} from 'shared/actions/errors'
 import {setAutoRefresh} from 'shared/actions/app'
 import * as viewActions from 'src/data_explorer/actions/view'
+import {writeLineProtocolAsync} from 'src/data_explorer/actions/view/write'
 
 const {arrayOf, func, number, shape, string} = PropTypes
 
@@ -39,6 +43,8 @@ const DataExplorer = React.createClass({
     dataExplorer: shape({
       queryIDs: arrayOf(string).isRequired,
     }).isRequired,
+    writeLineProtocol: func.isRequired,
+    errorThrownAction: func.isRequired,
   },
 
   childContextTypes: {
@@ -57,6 +63,7 @@ const DataExplorer = React.createClass({
   getInitialState() {
     return {
       activeQueryIndex: 0,
+      showWriteForm: false,
     }
   },
 
@@ -73,21 +80,34 @@ const DataExplorer = React.createClass({
   render() {
     const {
       autoRefresh,
+      errorThrownAction,
       handleChooseAutoRefresh,
       timeRange,
       setTimeRange,
       queryConfigs,
       queryConfigActions,
       source,
+      writeLineProtocol,
     } = this.props
-    const {activeQueryIndex} = this.state
+    const {activeQueryIndex, showWriteForm} = this.state
 
     return (
       <div className="data-explorer">
+        {showWriteForm
+          ? <OverlayTechnologies>
+              <WriteDataForm
+                errorThrown={errorThrownAction}
+                onClose={() => this.setState({showWriteForm: false})}
+                source={source}
+                writeLineProtocol={writeLineProtocol}
+              />
+            </OverlayTechnologies>
+          : null}
         <Header
           actions={{handleChooseAutoRefresh, setTimeRange}}
           autoRefresh={autoRefresh}
           timeRange={timeRange}
+          showWriteForm={() => this.setState({showWriteForm: true})}
         />
         <ResizeContainer
           containerClass="page-contents"
@@ -125,24 +145,26 @@ const DataExplorer = React.createClass({
 function mapStateToProps(state) {
   const {
     app: {persisted: {autoRefresh}},
-    timeRange,
-    queryConfigs,
     dataExplorer,
+    queryConfigs,
+    timeRange,
   } = state
   const queryConfigValues = _.values(queryConfigs)
 
   return {
     autoRefresh,
-    timeRange,
-    queryConfigs: queryConfigValues,
     dataExplorer,
+    queryConfigs: queryConfigValues,
+    timeRange,
   }
 }
 
 function mapDispatchToProps(dispatch) {
   return {
     handleChooseAutoRefresh: bindActionCreators(setAutoRefresh, dispatch),
+    errorThrownAction: bindActionCreators(errorThrown, dispatch),
     setTimeRange: bindActionCreators(viewActions.setTimeRange, dispatch),
+    writeLineProtocol: bindActionCreators(writeLineProtocolAsync, dispatch),
     queryConfigActions: bindActionCreators(viewActions, dispatch),
   }
 }

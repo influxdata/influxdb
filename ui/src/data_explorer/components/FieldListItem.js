@@ -2,8 +2,8 @@ import React, {PropTypes} from 'react'
 import classnames from 'classnames'
 import _ from 'lodash'
 
-import FunctionSelector from 'src/shared/components/FunctionSelector'
-import Dropdown from 'src/shared/components/Dropdown'
+import FunctionSelector from 'shared/components/FunctionSelector'
+import Dropdown from 'shared/components/Dropdown'
 
 import {INFLUXQL_FUNCTIONS} from '../constants'
 

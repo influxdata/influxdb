@@ -253,6 +253,38 @@ func TestConvert(t *testing.T) {
 			},
 		},
 		{
+			name:     "Test multible tags not accepted",
+			influxQL: `SELECT usage_user from telegraf.autogen.cpu where time > now() - 15m and "host" != 'myhost' and "cpu" != 'cpu-total'`,
+			want: chronograf.QueryConfig{
+				Database:        "telegraf",
+				Measurement:     "cpu",
+				RetentionPolicy: "autogen",
+				Fields: []chronograf.Field{
+					chronograf.Field{
+						Field: "usage_user",
+						Funcs: []string{},
+					},
+				},
+				Tags: map[string][]string{
+					"host": []string{
+						"myhost",
+					},
+					"cpu": []string{
+						"cpu-total",
+					},
+				},
+				GroupBy: chronograf.GroupBy{
+					Time: "",
+					Tags: []string{},
+				},
+				AreTagsAccepted: false,
+				Range: &chronograf.DurationRange{
+					Lower: "now() - 15m",
+					Upper: "",
+				},
+			},
+		},
+		{
 			name:     "Test mixed tag logic",
 			influxQL: `SELECT usage_user from telegraf.autogen.cpu where ("host" = 'myhost' or "this" = 'those') and ("howdy" != 'doody') and time > now() - 15m`,
 			RawText:  `SELECT usage_user from telegraf.autogen.cpu where ("host" = 'myhost' or "this" = 'those') and ("howdy" != 'doody') and time > now() - 15m`,
@@ -280,6 +312,100 @@ func TestConvert(t *testing.T) {
 				Tags: map[string][]string{
 					"host":  []string{"myhost", "yourhost"},
 					"these": []string{"those"},
+				},
+				GroupBy: chronograf.GroupBy{
+					Time: "",
+					Tags: []string{},
+				},
+				AreTagsAccepted: true,
+				Range: &chronograf.DurationRange{
+					Lower: "now() - 15m",
+				},
+			},
+		},
+		{
+			name:     "Complex Logic with tags not accepted",
+			influxQL: `SELECT "usage_idle", "usage_guest_nice", "usage_system", "usage_guest" FROM "telegraf"."autogen"."cpu" WHERE time > now() - 15m AND ("cpu"!='cpu-total' OR "cpu"!='cpu0') AND ("host"!='dev-052978d6-us-east-2-meta-0' OR "host"!='dev-052978d6-us-east-2-data-5' OR "host"!='dev-052978d6-us-east-2-data-4' OR "host"!='dev-052978d6-us-east-2-data-3')`,
+			want: chronograf.QueryConfig{
+				Database:        "telegraf",
+				Measurement:     "cpu",
+				RetentionPolicy: "autogen",
+				Fields: []chronograf.Field{
+					chronograf.Field{
+						Field: "usage_idle",
+						Funcs: []string{},
+					},
+					chronograf.Field{
+						Field: "usage_guest_nice",
+						Funcs: []string{},
+					},
+					chronograf.Field{
+						Field: "usage_system",
+						Funcs: []string{},
+					},
+					chronograf.Field{
+						Field: "usage_guest",
+						Funcs: []string{},
+					},
+				},
+				Tags: map[string][]string{
+					"host": []string{
+						"dev-052978d6-us-east-2-meta-0",
+						"dev-052978d6-us-east-2-data-5",
+						"dev-052978d6-us-east-2-data-4",
+						"dev-052978d6-us-east-2-data-3",
+					},
+					"cpu": []string{
+						"cpu-total",
+						"cpu0",
+					},
+				},
+				GroupBy: chronograf.GroupBy{
+					Time: "",
+					Tags: []string{},
+				},
+				AreTagsAccepted: false,
+				Range: &chronograf.DurationRange{
+					Lower: "now() - 15m",
+				},
+			},
+		},
+		{
+			name:     "Complex Logic with tags accepted",
+			influxQL: `SELECT "usage_idle", "usage_guest_nice", "usage_system", "usage_guest" FROM "telegraf"."autogen"."cpu" WHERE time > now() - 15m AND ("cpu" = 'cpu-total' OR "cpu" = 'cpu0') AND ("host" = 'dev-052978d6-us-east-2-meta-0' OR "host" = 'dev-052978d6-us-east-2-data-5' OR "host" = 'dev-052978d6-us-east-2-data-4' OR "host" = 'dev-052978d6-us-east-2-data-3')`,
+			want: chronograf.QueryConfig{
+				Database:        "telegraf",
+				Measurement:     "cpu",
+				RetentionPolicy: "autogen",
+				Fields: []chronograf.Field{
+					chronograf.Field{
+						Field: "usage_idle",
+						Funcs: []string{},
+					},
+					chronograf.Field{
+						Field: "usage_guest_nice",
+						Funcs: []string{},
+					},
+					chronograf.Field{
+						Field: "usage_system",
+						Funcs: []string{},
+					},
+					chronograf.Field{
+						Field: "usage_guest",
+						Funcs: []string{},
+					},
+				},
+				Tags: map[string][]string{
+					"host": []string{
+						"dev-052978d6-us-east-2-meta-0",
+						"dev-052978d6-us-east-2-data-5",
+						"dev-052978d6-us-east-2-data-4",
+						"dev-052978d6-us-east-2-data-3",
+					},
+					"cpu": []string{
+						"cpu-total",
+						"cpu0",
+					},
 				},
 				GroupBy: chronograf.GroupBy{
 					Time: "",

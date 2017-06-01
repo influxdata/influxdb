@@ -10,7 +10,7 @@ import {connect} from 'react-redux'
 
 import SourceForm from 'src/sources/components/SourceForm'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
-import SourceIndicator from 'src/shared/components/SourceIndicator'
+import SourceIndicator from 'shared/components/SourceIndicator'
 
 const {func, shape, string} = PropTypes
 

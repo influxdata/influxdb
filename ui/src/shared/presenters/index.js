@@ -1,5 +1,5 @@
 import _ from 'lodash'
-import {PERMISSIONS} from 'src/shared/constants'
+import {PERMISSIONS} from 'shared/constants'
 
 export function buildRoles(roles) {
   return roles.map(role => {

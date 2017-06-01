@@ -1,4 +1,4 @@
-import {parseAlerta} from 'src/shared/parsing/parseAlerta'
+import {parseAlerta} from 'shared/parsing/parseAlerta'
 
 it('can parse an alerta tick script', () => {
   const tickScript = `stream

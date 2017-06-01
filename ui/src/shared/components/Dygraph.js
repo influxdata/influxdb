@@ -1,7 +1,11 @@
 /* eslint-disable no-magic-numbers */
 import React, {PropTypes} from 'react'
+import shallowCompare from 'react-addons-shallow-compare'
+
+import _ from 'lodash'
+
 import Dygraph from '../../external/dygraph'
-import getRange from 'src/shared/parsing/getRangeForDygraph'
+import getRange from 'shared/parsing/getRangeForDygraph'
 
 const {array, arrayOf, number, bool, shape, string} = PropTypes
 
@@ -42,6 +46,9 @@ export default React.createClass({
       rangeValue: string,
     }),
     legendOnBottom: bool,
+    timeRange: shape({
+      lower: string.isRequired,
+    }),
   },
 
   getDefaultProps() {
@@ -147,6 +154,23 @@ export default React.createClass({
   componentWillUnmount() {
     this.dygraph.destroy()
     delete this.dygraph
+  },
+
+  shouldComponentUpdate(nextProps, nextState) {
+    const timeRangeChanged = !_.isEqual(
+      nextProps.timeRange,
+      this.props.timeRange
+    )
+
+    if (this.dygraph.isZoomed() && timeRangeChanged) {
+      this.dygraph.resetZoom()
+    }
+
+    // Will cause componentDidUpdate to fire twice, currently. This could
+    // be reduced by returning false from within the reset conditional above,
+    // though that would be based on the assumption that props for timeRange
+    // will always change before those for data.
+    return shallowCompare(this, nextProps, nextState)
   },
 
   componentDidUpdate() {

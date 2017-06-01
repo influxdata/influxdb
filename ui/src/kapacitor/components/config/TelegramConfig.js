@@ -1,5 +1,5 @@
 import React, {PropTypes} from 'react'
-import QuestionMarkTooltip from 'src/shared/components/QuestionMarkTooltip'
+import QuestionMarkTooltip from 'shared/components/QuestionMarkTooltip'
 import {TELEGRAM_CHAT_ID_TIP, TELEGRAM_TOKEN_TIP} from 'src/kapacitor/copy'
 
 import RedactedInput from './RedactedInput'
