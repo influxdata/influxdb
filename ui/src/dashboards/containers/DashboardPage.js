@@ -57,7 +57,7 @@ class DashboardPage extends Component {
     this.synchronizer = ::this.synchronizer
   }
 
-  componentDidMount() {
+  async componentDidMount() {
     const {
       params: {dashboardID},
       dashboardActions: {getDashboardsAsync},
@@ -72,8 +72,7 @@ class DashboardPage extends Component {
 
   handleCloseTemplateManager(isEdited) {
     if (
-      !isEdited ||
-      (isEdited && confirm('Do you want to close without saving?')) // eslint-disable-line no-alert
+      !isEdited || (isEdited && confirm('Do you want to close without saving?')) // eslint-disable-line no-alert
     ) {
       this.setState({isTemplating: false})
     }
@@ -353,6 +352,7 @@ class DashboardPage extends Component {
               onUpdateCell={this.handleUpdateDashboardCell}
               onOpenTemplateManager={this.handleOpenTemplateManager}
               templatesIncludingDashTime={templatesIncludingDashTime}
+              updateTempVarValues={dashboardActions.updateTempVarValues}
               onSummonOverlayTechnologies={this.handleSummonOverlayTechnologies}
               onSelectTemplate={this.handleSelectTemplate}
               showTemplateControlBar={showTemplateControlBar}
