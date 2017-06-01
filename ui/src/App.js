@@ -24,8 +24,8 @@ const App = React.createClass({
   render() {
     return (
       <div className="chronograf-root">
-        <SideNav />
         <Notifications />
+        <SideNav />
         {this.props.children &&
           React.cloneElement(this.props.children, {
             addFlashMessage: this.handleAddFlashMessage,
