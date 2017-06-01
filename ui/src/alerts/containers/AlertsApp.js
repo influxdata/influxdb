@@ -1,8 +1,8 @@
 import React, {PropTypes, Component} from 'react'
 
-import SourceIndicator from 'src/shared/components/SourceIndicator'
+import SourceIndicator from 'shared/components/SourceIndicator'
 import AlertsTable from 'src/alerts/components/AlertsTable'
-import NoKapacitorError from 'src/shared/components/NoKapacitorError'
+import NoKapacitorError from 'shared/components/NoKapacitorError'
 import CustomTimeRangeDropdown from 'shared/components/CustomTimeRangeDropdown'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 

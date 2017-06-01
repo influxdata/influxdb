@@ -1,7 +1,7 @@
 import React, {PropTypes} from 'react'
 
 import DatabaseList from './DatabaseList'
-import DatabaseDropdown from './DatabaseDropdown'
+import DatabaseDropdown from 'shared/components/DatabaseDropdown'
 import MeasurementList from './MeasurementList'
 import FieldList from './FieldList'
 import QueryEditor from './QueryEditor'

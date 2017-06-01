@@ -12,8 +12,8 @@ import Notifications from 'shared/components/Notifications'
 import {
   addSource as addSourceAction,
   updateSource as updateSourceAction,
-} from 'src/shared/actions/sources'
-import {publishNotification} from 'src/shared/actions/notifications'
+} from 'shared/actions/sources'
+import {publishNotification} from 'shared/actions/notifications'
 
 const {func, shape, string} = PropTypes
 

@@ -1,7 +1,7 @@
 import React, {PropTypes} from 'react'
 import classnames from 'classnames'
 import shallowCompare from 'react-addons-shallow-compare'
-import lastValues from 'src/shared/parsing/lastValues'
+import lastValues from 'shared/parsing/lastValues'
 
 const SMALL_CELL_HEIGHT = 1
 

@@ -1,0 +1,63 @@
+/*
+  Styles for the Write Data overlay
+  ------------------------------------------------------
+  Accessed via Data Explorer
+*/
+
+$write-data--max-width: 960px;
+$write-data--gutter: 30px;
+$write-data--margin: 18px;
+$write-data--input-height: 120px;
+
+.write-data-form {
+  max-width: $write-data--max-width;
+  margin: 0 auto;
+}
+.write-data-form--header {
+  height: $chronograf-page-header-height;
+  background: $g0-obsidian;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 $write-data--gutter;
+
+  .page-header__dismiss {
+    margin-left: 10px;
+    margin-right: -10px;
+  }
+  .dropdown {
+    margin-left: 8px;
+    & > .dropdown-toggle {
+      width: 180px;
+    }
+  }
+}
+.write-data-form--body {
+  padding: $write-data--margin $write-data--gutter;
+  border-radius: 0 0 $radius $radius;
+  @include gradient-v($g2-kevlar,$g0-obsidian);
+}
+textarea.form-control.write-data-form--input {
+  height: $write-data--input-height;
+  padding: $write-data--margin;
+  max-width: 100%;
+  min-width: 100%;
+  font-family: $code-font;
+  resize: none;
+}
+.write-data-form--footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: $write-data--margin;
+}
+.write-data-form--helper {
+  font-size: 13px;
+  font-style: italic;
+  font-weight: 600;
+  color: $g9-mountain;
+  padding-left: $write-data--margin + 2px;
+}
+.write-data-form--submit {
+  width: 140px;
+}

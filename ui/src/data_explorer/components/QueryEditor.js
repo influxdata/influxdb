@@ -2,9 +2,9 @@ import React, {PropTypes, Component} from 'react'
 import _ from 'lodash'
 import classnames from 'classnames'
 
-import Dropdown from 'src/shared/components/Dropdown'
-import LoadingDots from 'src/shared/components/LoadingDots'
-import TemplateDrawer from 'src/shared/components/TemplateDrawer'
+import Dropdown from 'shared/components/Dropdown'
+import LoadingDots from 'shared/components/LoadingDots'
+import TemplateDrawer from 'shared/components/TemplateDrawer'
 import {QUERY_TEMPLATES} from 'src/data_explorer/constants'
 import {
   MATCH_INCOMPLETE_TEMPLATES,

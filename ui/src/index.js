@@ -20,7 +20,7 @@ import DataExplorer from 'src/data_explorer'
 import {DashboardsPage, DashboardPage} from 'src/dashboards'
 import {CreateSource, SourcePage, ManageSources} from 'src/sources'
 import {AdminPage} from 'src/admin'
-import NotFound from 'src/shared/components/NotFound'
+import NotFound from 'shared/components/NotFound'
 import configureStore from 'src/store/configureStore'
 import {loadLocalStorage} from './localStorage'
 

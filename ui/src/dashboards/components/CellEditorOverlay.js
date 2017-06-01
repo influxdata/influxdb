@@ -3,7 +3,7 @@ import React, {Component, PropTypes} from 'react'
 import _ from 'lodash'
 import uuid from 'node-uuid'
 
-import ResizeContainer from 'src/shared/components/ResizeContainer'
+import ResizeContainer from 'shared/components/ResizeContainer'
 import QueryMaker from 'src/data_explorer/components/QueryMaker'
 import Visualization from 'src/data_explorer/components/Visualization'
 import OverlayControls from 'src/dashboards/components/OverlayControls'
@@ -12,8 +12,10 @@ import * as queryModifiers from 'src/utils/queryTransitions'
 import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 import buildInfluxQLQuery from 'utils/influxql'
 import {getQueryConfig} from 'shared/apis'
-import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from 'src/data_explorer/constants'
+
 import {removeUnselectedTemplateValues} from 'src/dashboards/constants'
+import {OVERLAY_TECHNOLOGY} from 'shared/constants/classNames'
+import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from 'src/data_explorer/constants'
 
 class CellEditorOverlay extends Component {
   constructor(props) {
@@ -153,8 +155,12 @@ class CellEditorOverlay extends Component {
       ..._.mapValues(queryModifiers, qm => this.queryStateReducer(qm)),
     }
 
+    const isQuerySavable = query =>
+      (!!query.measurement && !!query.database && !!query.fields.length) ||
+      !!query.rawText
+
     return (
-      <div className="overlay-technology">
+      <div className={OVERLAY_TECHNOLOGY}>
         <ResizeContainer
           containerClass="resizer--full-size"
           minTopHeight={MINIMUM_HEIGHTS.visualization}
@@ -179,6 +185,7 @@ class CellEditorOverlay extends Component {
               onSelectGraphType={this.handleSelectGraphType}
               onCancel={onCancel}
               onSave={this.handleSaveCell}
+              isSavable={queriesWorkingDraft.every(isQuerySavable)}
             />
             <QueryMaker
               source={source}

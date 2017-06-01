@@ -2,7 +2,7 @@ import React, {PropTypes, Component} from 'react'
 import onClickOutside from 'react-onclickoutside'
 
 import {formatRPDuration} from 'utils/formatting'
-import YesNoButtons from 'src/shared/components/YesNoButtons'
+import YesNoButtons from 'shared/components/YesNoButtons'
 import {DATABASE_TABLE} from 'src/admin/constants/tableSizing'
 
 class DatabaseRow extends Component {
@@ -54,7 +54,7 @@ class DatabaseRow extends Component {
                   defaultValue={name}
                   placeholder="Name this RP"
                   onKeyDown={e => this.handleKeyDown(e, database)}
-                  ref={r => (this.name = r)}
+                  ref={r => this.name = r}
                   autoFocus={true}
                   spellCheck={false}
                   autoComplete={false}
@@ -69,7 +69,7 @@ class DatabaseRow extends Component {
               defaultValue={formattedDuration}
               placeholder="How long should Data last"
               onKeyDown={e => this.handleKeyDown(e, database)}
-              ref={r => (this.duration = r)}
+              ref={r => this.duration = r}
               autoFocus={!isNew}
               spellCheck={false}
               autoComplete={false}
@@ -85,7 +85,7 @@ class DatabaseRow extends Component {
                   defaultValue={replication || 1}
                   placeholder="# of Nodes"
                   onKeyDown={e => this.handleKeyDown(e, database)}
-                  ref={r => (this.replication = r)}
+                  ref={r => this.replication = r}
                   spellCheck={false}
                   autoComplete={false}
                 />

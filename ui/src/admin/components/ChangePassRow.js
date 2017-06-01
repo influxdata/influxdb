@@ -1,7 +1,7 @@
 import React, {Component, PropTypes} from 'react'
 
 import OnClickOutside from 'shared/components/OnClickOutside'
-import ConfirmButtons from 'src/shared/components/ConfirmButtons'
+import ConfirmButtons from 'shared/components/ConfirmButtons'
 
 class ChangePassRow extends Component {
   constructor(props) {
