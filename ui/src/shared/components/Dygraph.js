@@ -1,7 +1,11 @@
 /* eslint-disable no-magic-numbers */
 import React, {Component, PropTypes} from 'react'
+import shallowCompare from 'react-addons-shallow-compare'
+
+import _ from 'lodash'
+
 import Dygraphs from 'src/external/dygraph'
-import getRange from 'src/shared/parsing/getRangeForDygraph'
+import getRange from 'shared/parsing/getRangeForDygraph'
 
 const LINE_COLORS = [
   '#00C9FF',
@@ -39,7 +43,6 @@ export default class Dygraph extends Component {
     containerStyle: {},
     isGraphFilled: true,
     overrideLineColors: null,
-    legendOnBottom: false,
   }
 
   getTimeSeries() {
@@ -161,6 +164,23 @@ export default class Dygraph extends Component {
     delete this.dygraph
   }
 
+  shouldComponentUpdate(nextProps, nextState) {
+    const timeRangeChanged = !_.isEqual(
+      nextProps.timeRange,
+      this.props.timeRange
+    )
+
+    if (this.dygraph.isZoomed() && timeRangeChanged) {
+      this.dygraph.resetZoom()
+    }
+
+    // Will cause componentDidUpdate to fire twice, currently. This could
+    // be reduced by returning false from within the reset conditional above,
+    // though that would be based on the assumption that props for timeRange
+    // will always change before those for data.
+    return shallowCompare(this, nextProps, nextState)
+  }
+
   componentDidUpdate() {
     const {labels, ranges, options, dygraphSeries, ruleValues} = this.props
     const dygraph = this.dygraph
@@ -244,6 +264,8 @@ Dygraph.propTypes = {
     value: string,
     rangeValue: string,
   }),
-  legendOnBottom: bool,
+  timeRange: shape({
+    lower: string.isRequired,
+  }),
   synchronizer: func,
 }

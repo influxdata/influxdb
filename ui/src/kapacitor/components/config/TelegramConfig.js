@@ -1,5 +1,5 @@
 import React, {PropTypes} from 'react'
-import QuestionMarkTooltip from 'src/shared/components/QuestionMarkTooltip'
+import QuestionMarkTooltip from 'shared/components/QuestionMarkTooltip'
 import {TELEGRAM_CHAT_ID_TIP, TELEGRAM_TOKEN_TIP} from 'src/kapacitor/copy'
 
 import RedactedInput from './RedactedInput'
@@ -52,18 +52,21 @@ const TelegramConfig = React.createClass({
 
     return (
       <form onSubmit={this.handleSaveAlert}>
-        <p className="no-user-select">
-          You need a
-          {' '}
-          <a
-            href="https://docs.influxdata.com/kapacitor/v1.2/guides/event-handler-setup/#telegram-bot"
-            target="_blank"
-          >
-            Telegram Bot
-          </a>
-          {' '}
-          to use this endpoint
-        </p>
+        <div className="form-group col-xs-12">
+          <div className="alert alert-warning alert-icon no-user-select">
+            <span className="icon triangle" />
+            You need a
+            {' '}
+            <a
+              href="https://docs.influxdata.com/kapacitor/v1.2/guides/event-handler-setup/#telegram-bot"
+              target="_blank"
+            >
+              Telegram Bot
+            </a>
+            {' '}
+            to use this endpoint
+          </div>
+        </div>
         <div className="form-group col-xs-12">
           <label htmlFor="token">
             Token
@@ -100,7 +103,7 @@ const TelegramConfig = React.createClass({
         <div className="form-group col-xs-12">
           <label htmlFor="parseMode">Select the alert message format</label>
           <div className="form-control-static">
-            <div className="radio">
+            <div className="radio-item">
               <input
                 id="parseModeMarkdown"
                 type="radio"
@@ -111,7 +114,7 @@ const TelegramConfig = React.createClass({
               />
               <label htmlFor="parseModeMarkdown">Markdown</label>
             </div>
-            <div className="radio">
+            <div className="radio-item">
               <input
                 id="parseModeHTML"
                 type="radio"
@@ -159,9 +162,9 @@ const TelegramConfig = React.createClass({
           </div>
         </div>
 
-        <div className="form-group form-group-submit col-xs-12 col-sm-6 col-sm-offset-3">
-          <button className="btn btn-block btn-primary" type="submit">
-            Save
+        <div className="form-group-submit col-xs-12 text-center">
+          <button className="btn btn-primary" type="submit">
+            Update Telegram Config
           </button>
         </div>
       </form>

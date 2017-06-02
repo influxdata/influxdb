@@ -1,7 +1,13 @@
+.redacted-input {
+  height: 38px;
+  align-items: center;
+  justify-content: space-between;
+}
 .alert-value-set {
-  padding: 6px 13px 0;
+  font-weight: 700;
+  font-size: 13px;
+  color: $c-rainforest;
+  @include no-user-select();
 
-  span a {
-    margin-left: 10px;
-  }
+  .icon {margin-right: 5px;}
 }

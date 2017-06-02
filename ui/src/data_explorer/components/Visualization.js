@@ -3,7 +3,7 @@ import buildInfluxQLQuery from 'utils/influxql'
 import classnames from 'classnames'
 import VisHeader from 'src/data_explorer/components/VisHeader'
 import VisView from 'src/data_explorer/components/VisView'
-import {GRAPH, TABLE} from 'src/shared/constants'
+import {GRAPH, TABLE} from 'shared/constants'
 import _ from 'lodash'
 
 const {arrayOf, bool, func, number, shape, string} = PropTypes

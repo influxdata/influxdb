@@ -5,7 +5,7 @@ import {bindActionCreators} from 'redux'
 
 import Dygraph from 'src/external/dygraph'
 
-import OverlayTechnologies from 'src/shared/components/OverlayTechnologies'
+import OverlayTechnologies from 'shared/components/OverlayTechnologies'
 import CellEditorOverlay from 'src/dashboards/components/CellEditorOverlay'
 import DashboardHeader from 'src/dashboards/components/DashboardHeader'
 import DashboardHeaderEdit from 'src/dashboards/components/DashboardHeaderEdit'
@@ -17,7 +17,10 @@ import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 
 import * as dashboardActionCreators from 'src/dashboards/actions'
 
-import {setAutoRefresh} from 'shared/actions/app'
+import {
+  setAutoRefresh,
+  templateControlBarVisibilityToggled as templateControlBarVisibilityToggledAction,
+} from 'shared/actions/app'
 import {presentationButtonDispatcher} from 'shared/dispatchers'
 
 class DashboardPage extends Component {
@@ -51,6 +54,7 @@ class DashboardPage extends Component {
     this.handleSelectTemplate = ::this.handleSelectTemplate
     this.handleEditTemplateVariables = ::this.handleEditTemplateVariables
     this.handleRunQueryFailure = ::this.handleRunQueryFailure
+    this.handleToggleTempVarControls = ::this.handleToggleTempVarControls
     this.synchronizer = ::this.synchronizer
   }
 
@@ -218,6 +222,10 @@ class DashboardPage extends Component {
     this.setState({dygraphs})
   }
 
+  handleToggleTempVarControls() {
+    this.props.templateControlBarVisibilityToggled()
+  }
+
   getActiveDashboard() {
     const {params: {dashboardID}, dashboards} = this.props
     return dashboards.find(d => d.id === +dashboardID)
@@ -227,6 +235,7 @@ class DashboardPage extends Component {
     const {
       source,
       timeRange,
+      showTemplateControlBar,
       dashboards,
       autoRefresh,
       cellQueryStatus,
@@ -301,38 +310,40 @@ class DashboardPage extends Component {
               source={source}
               onAddCell={this.handleAddCell}
               onEditDashboard={this.handleEditDashboard}
+              onToggleTempVarControls={this.handleToggleTempVarControls}
+              showTemplateControlBar={showTemplateControlBar}
             >
               {dashboards
                 ? dashboards.map((d, i) => (
                     <li className="dropdown-item" key={i}>
-                      <Link
-                        to={`/sources/${sourceID}/dashboards/${d.id}`}
-                        className="role-option"
-                      >
+                      <Link to={`/sources/${sourceID}/dashboards/${d.id}`}>
                         {d.name}
                       </Link>
                     </li>
                   ))
                 : null}
             </DashboardHeader>}
-        <Dashboard
-          source={source}
-          dashboard={dashboard}
-          timeRange={timeRange}
-          autoRefresh={autoRefresh}
-          synchronizer={this.synchronizer}
-          onAddCell={this.handleAddCell}
-          inPresentationMode={inPresentationMode}
-          onEditCell={this.handleEditDashboardCell}
-          onPositionChange={this.handleUpdatePosition}
-          onDeleteCell={this.handleDeleteDashboardCell}
-          onRenameCell={this.handleRenameDashboardCell}
-          onUpdateCell={this.handleUpdateDashboardCell}
-          onOpenTemplateManager={this.handleOpenTemplateManager}
-          templatesIncludingDashTime={templatesIncludingDashTime}
-          onSummonOverlayTechnologies={this.handleSummonOverlayTechnologies}
-          onSelectTemplate={this.handleSelectTemplate}
-        />
+        {dashboard
+          ? <Dashboard
+              source={source}
+              dashboard={dashboard}
+              timeRange={timeRange}
+              autoRefresh={autoRefresh}
+              synchronizer={this.synchronizer}
+              onAddCell={this.handleAddCell}
+              inPresentationMode={inPresentationMode}
+              onEditCell={this.handleEditDashboardCell}
+              onPositionChange={this.handleUpdatePosition}
+              onDeleteCell={this.handleDeleteDashboardCell}
+              onRenameCell={this.handleRenameDashboardCell}
+              onUpdateCell={this.handleUpdateDashboardCell}
+              onOpenTemplateManager={this.handleOpenTemplateManager}
+              templatesIncludingDashTime={templatesIncludingDashTime}
+              onSummonOverlayTechnologies={this.handleSummonOverlayTechnologies}
+              onSelectTemplate={this.handleSelectTemplate}
+              showTemplateControlBar={showTemplateControlBar}
+            />
+          : null}
       </div>
     )
   }
@@ -388,7 +399,9 @@ DashboardPage.propTypes = {
   ),
   handleChooseAutoRefresh: func.isRequired,
   autoRefresh: number.isRequired,
+  templateControlBarVisibilityToggled: func.isRequired,
   timeRange: shape({}).isRequired,
+  showTemplateControlBar: bool.isRequired,
   inPresentationMode: bool.isRequired,
   handleClickPresentationButton: func,
   cellQueryStatus: shape({
@@ -400,7 +413,10 @@ DashboardPage.propTypes = {
 
 const mapStateToProps = state => {
   const {
-    app: {ephemeral: {inPresentationMode}, persisted: {autoRefresh}},
+    app: {
+      ephemeral: {inPresentationMode},
+      persisted: {autoRefresh, showTemplateControlBar},
+    },
     dashboardUI: {dashboards, timeRange, cellQueryStatus},
   } = state
 
@@ -408,6 +424,7 @@ const mapStateToProps = state => {
     dashboards,
     autoRefresh,
     timeRange,
+    showTemplateControlBar,
     inPresentationMode,
     cellQueryStatus,
   }
@@ -415,6 +432,10 @@ const mapStateToProps = state => {
 
 const mapDispatchToProps = dispatch => ({
   handleChooseAutoRefresh: bindActionCreators(setAutoRefresh, dispatch),
+  templateControlBarVisibilityToggled: bindActionCreators(
+    templateControlBarVisibilityToggledAction,
+    dispatch
+  ),
   handleClickPresentationButton: presentationButtonDispatcher(dispatch),
   dashboardActions: bindActionCreators(dashboardActionCreators, dispatch),
   errorThrown: bindActionCreators(errorThrownAction, dispatch),

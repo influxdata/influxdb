@@ -1,10 +1,30 @@
-export const loadLocalStorage = () => {
+export const loadLocalStorage = errorsQueue => {
   try {
     const serializedState = localStorage.getItem('state')
 
-    return JSON.parse(serializedState) || {}
-  } catch (err) {
-    console.error(`Loading persisted state failed: ${err}`) // eslint-disable-line no-console
+    const state = JSON.parse(serializedState) || {}
+
+    // eslint-disable-next-line no-undef
+    if (state.VERSION && state.VERSION !== VERSION) {
+      const errorText =
+        'New version of Chronograf detected. Local settings cleared.'
+
+      console.log(errorText) // eslint-disable-line no-console
+      errorsQueue.push(errorText)
+
+      window.localStorage.removeItem('state')
+      return {}
+    }
+
+    delete state.VERSION
+
+    return state
+  } catch (error) {
+    const errorText = `Loading local settings failed: ${error}`
+
+    console.error(errorText) // eslint-disable-line no-console
+    errorsQueue.push(errorText)
+
     return {}
   }
 }
@@ -25,6 +45,7 @@ export const saveToLocalStorage = ({
         queryConfigs,
         timeRange,
         dataExplorer,
+        VERSION, // eslint-disable-line no-undef
       })
     )
   } catch (err) {

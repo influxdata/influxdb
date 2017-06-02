@@ -9,21 +9,34 @@ class FancyScrollbar extends Component {
 
   static defaultProps = {
     autoHide: true,
+    autoHeight: false,
   }
 
   render() {
-    const {autoHide, children, className} = this.props
+    const {autoHide, autoHeight, children, className, maxHeight} = this.props
 
     return (
       <Scrollbars
-        className={classnames('fancy-scroll--container', {[className]: className})}
+        className={classnames('fancy-scroll--container', {
+          [className]: className,
+        })}
         autoHide={autoHide}
         autoHideTimeout={1000}
         autoHideDuration={250}
-        renderTrackHorizontal={props => <div {...props} className="fancy-scroll--track-h"/>}
-        renderTrackVertical={props => <div {...props} className="fancy-scroll--track-v"/>}
-        renderThumbHorizontal={props => <div {...props} className="fancy-scroll--thumb-h"/>}
-        renderThumbVertical={props => <div {...props} className="fancy-scroll--thumb-v"/>}
+        autoHeight={autoHeight}
+        autoHeightMax={maxHeight}
+        renderTrackHorizontal={props => (
+          <div {...props} className="fancy-scroll--track-h" />
+        )}
+        renderTrackVertical={props => (
+          <div {...props} className="fancy-scroll--track-v" />
+        )}
+        renderThumbHorizontal={props => (
+          <div {...props} className="fancy-scroll--thumb-h" />
+        )}
+        renderThumbVertical={props => (
+          <div {...props} className="fancy-scroll--thumb-v" />
+        )}
       >
         {children}
       </Scrollbars>
@@ -31,12 +44,14 @@ class FancyScrollbar extends Component {
   }
 }
 
-const {bool, node, string} = PropTypes
+const {bool, node, number, string} = PropTypes
 
 FancyScrollbar.propTypes = {
   children: node.isRequired,
   className: string,
   autoHide: bool,
+  autoHeight: bool,
+  maxHeight: number,
 }
 
 export default FancyScrollbar

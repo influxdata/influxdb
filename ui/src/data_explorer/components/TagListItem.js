@@ -52,7 +52,8 @@ const TagListItem = React.createClass({
       return <div>no tag values</div>
     }
 
-    const filtered = tagValues.filter(v => v.match(this.state.filterText))
+    const filterText = this.state.filterText.toLowerCase()
+    const filtered = tagValues.filter(v => v.toLowerCase().includes(filterText))
 
     return (
       <div className="query-builder--sub-list">
@@ -65,6 +66,8 @@ const TagListItem = React.createClass({
             value={this.state.filterText}
             onChange={this.handleFilterText}
             onKeyUp={this.handleEscape}
+            spellCheck={false}
+            autoComplete={false}
           />
           <span className="icon search" />
         </div>
@@ -106,7 +109,7 @@ const TagListItem = React.createClass({
             {tagItemLabel}
           </span>
           <div
-            className={classnames('btn btn-info btn-xs group-by-tag', {
+            className={classnames('btn btn-default btn-xs group-by-tag', {
               active: this.props.isUsingGroupBy,
             })}
             onClick={this.handleGroupBy}

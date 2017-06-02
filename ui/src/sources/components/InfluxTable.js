@@ -34,8 +34,8 @@ const kapacitorDropdown = (
 
   return (
     <Dropdown
-      className="dropdown-160"
-      buttonColor="btn-info"
+      className="dropdown-260"
+      buttonColor="btn-default"
       buttonSize="btn-xs"
       items={kapacitorItems}
       onChoose={item => setActiveKapacitor(item.kapacitor)}
@@ -87,7 +87,7 @@ const InfluxTable = ({
           </Link>
         </div>
         <div className="panel-body">
-          <table className="table v-center margin-bottom-zero">
+          <table className="table v-center margin-bottom-zero table-highlight">
             <thead>
               <tr>
                 <th>Name</th>
@@ -120,14 +120,18 @@ const InfluxTable = ({
                       )}
                     </td>
                     <td className="text-right">
-                      <Link
-                        className="btn btn-success btn-xs"
-                        to={`/sources/${s.id}/hosts`}
-                      >
-                        Connect
-                      </Link>
+                      {s.id === source.id
+                        ? <span className="currently-connected-source">
+                            <span className="icon checkmark" /> Connected
+                          </span>
+                        : <Link
+                            className="btn btn-success btn-xs"
+                            to={`/sources/${s.id}/hosts`}
+                          >
+                            Connect
+                          </Link>}
                       <button
-                        className="btn btn-danger btn-xs"
+                        className="btn btn-danger btn-xs btn-square"
                         onClick={() => handleDeleteSource(s)}
                       >
                         <span className="icon trash" />

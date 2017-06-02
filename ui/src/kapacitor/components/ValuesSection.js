@@ -1,5 +1,5 @@
 import React, {PropTypes} from 'react'
-import Dropdown from 'src/shared/components/Dropdown'
+import Dropdown from 'shared/components/Dropdown'
 import {Tab, TabList, TabPanels, TabPanel, Tabs} from 'shared/components/Tabs'
 import {OPERATORS, PERIODS, CHANGES, SHIFTS} from 'src/kapacitor/constants'
 import _ from 'lodash'
@@ -22,12 +22,14 @@ export const ValuesSection = React.createClass({
     const initialIndex = TABS.indexOf(_.startCase(rule.trigger))
 
     return (
-      <div className="kapacitor-rule-section">
-        <h3 className="rule-section-heading">Rule Conditions</h3>
-        <div className="rule-section-body">
+      <div className="rule-section">
+        <h3 className="rule-section--heading">Rule Conditions</h3>
+        <div className="rule-section--body">
           <Tabs initialIndex={initialIndex} onSelect={this.handleChooseTrigger}>
             <TabList isKapacitorTabs="true">
-              {TABS.map(tab => <Tab key={tab}>{tab}</Tab>)}
+              {TABS.map(tab => (
+                <Tab key={tab} isKapacitorTab={true}>{tab}</Tab>
+              ))}
             </TabList>
 
             <TabPanels>
@@ -99,29 +101,38 @@ const Threshold = React.createClass({
     const operators = mapToItems(OPERATORS, 'operator')
 
     return (
-      <div className="value-selector">
+      <div className="rule-section--row rule-section--border-bottom">
         <p>Send Alert where</p>
-        <span>
+        <span className="rule-builder--metric">
           {query.fields.length ? query.fields[0].field : 'Select a Time-Series'}
         </span>
         <p>is</p>
         <Dropdown
-          className="size-176 dropdown-kapacitor"
+          className="dropdown-180"
+          menuClass="dropdown-malachite"
           items={operators}
           selected={operator}
           onChoose={this.handleDropdownChange}
         />
         <input
-          className="form-control input-sm size-166 form-control--green"
+          className="form-control input-sm form-malachite monotype"
+          style={{width: '160px'}}
           type="text"
           spellCheck="false"
           ref={r => (this.valueInput = r)}
           defaultValue={value}
           onKeyUp={this.handleInputChange}
+          placeholder={
+            operator === 'inside range' || operator === 'outside range'
+              ? 'Lower'
+              : null
+          }
         />
         {(operator === 'inside range' || operator === 'outside range') &&
           <input
-            className="form-control input-sm size-166 form-control--green"
+            className="form-control input-sm form-malachite monotype"
+            style={{width: '160px'}}
+            placeholder="Upper"
             type="text"
             spellCheck="false"
             ref={r => (this.valueRangeInput = r)}
@@ -162,30 +173,34 @@ const Relative = React.createClass({
     const operators = mapToItems(OPERATORS, 'operator')
 
     return (
-      <div className="value-selector">
+      <div className="rule-section--row rule-section--border-bottom">
         <p>Send Alert when</p>
         <Dropdown
-          className="size-106 dropdown-kapacitor"
+          className="dropdown-110"
+          menuClass="dropdown-malachite"
           items={changes}
           selected={change}
           onChoose={this.handleDropdownChange}
         />
         <p>compared to previous</p>
         <Dropdown
-          className="size-66 dropdown-kapacitor"
+          className="dropdown-80"
+          menuClass="dropdown-malachite"
           items={shifts}
           selected={shift}
           onChoose={this.handleDropdownChange}
         />
         <p>is</p>
         <Dropdown
-          className="size-176 dropdown-kapacitor"
+          className="dropdown-160"
+          menuClass="dropdown-malachite"
           items={operators}
           selected={operator}
           onChoose={this.handleDropdownChange}
         />
         <input
-          className="form-control input-sm size-166 form-control--green"
+          className="form-control input-sm form-malachite monotype"
+          style={{width: '160px'}}
           ref={r => (this.input = r)}
           defaultValue={value}
           onKeyUp={this.handleInputChange}
@@ -193,7 +208,7 @@ const Relative = React.createClass({
           type="text"
           spellCheck="false"
         />
-        <p>{change === CHANGES[1] ? '%' : ''}</p>
+        {change === CHANGES[1] ? <p>%</p> : null}
       </div>
     )
   },
@@ -219,10 +234,11 @@ const Deadman = React.createClass({
     })
 
     return (
-      <div className="value-selector">
+      <div className="rule-section--row">
         <p>Send Alert if Data is missing for</p>
         <Dropdown
-          className="size-66 dropdown-kapacitor"
+          className="dropdown-80"
+          menuClass="dropdown-malachite"
           items={periods}
           selected={this.props.rule.values.period}
           onChoose={this.handleChange}

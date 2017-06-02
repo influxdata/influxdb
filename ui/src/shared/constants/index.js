@@ -379,8 +379,7 @@ export const STROKE_WIDTH = {
   light: 1.5,
 }
 
-export const DROPDOWN_MENU_MAX_HEIGHT = '270px'
-export const DROPDOWN_MENU_ITEM_THRESHOLD = 10
+export const DROPDOWN_MENU_MAX_HEIGHT = 240
 
 export const HEARTBEAT_INTERVAL = 10000 // ms
 

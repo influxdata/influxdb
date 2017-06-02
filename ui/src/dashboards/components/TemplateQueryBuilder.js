@@ -1,5 +1,5 @@
 import React, {PropTypes} from 'react'
-import DatabaseDropdown from 'src/dashboards/components/DatabaseDropdown'
+import DatabaseDropdown from 'shared/components/DatabaseDropdown'
 import MeasurementDropdown from 'src/dashboards/components/MeasurementDropdown'
 import TagKeyDropdown from 'src/dashboards/components/TagKeyDropdown'
 
@@ -16,7 +16,7 @@ const TemplateQueryBuilder = ({
 }) => {
   switch (selectedType) {
     case 'csv':
-      return <div className="tvm-csv-instructions">Enter values below</div>
+      return null
     case 'databases':
       return <div className="tvm-query-builder--text">SHOW DATABASES</div>
     case 'measurements':

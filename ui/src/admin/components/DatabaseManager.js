@@ -25,7 +25,7 @@ const DatabaseManager = ({
   onDeleteRetentionPolicy,
 }) => {
   return (
-    <div className="panel panel-info">
+    <div className="panel panel-default">
       <div className="panel-heading u-flex u-ai-center u-jc-space-between">
         <h2 className="panel-title">
           {databases.length === 1

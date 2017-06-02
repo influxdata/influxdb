@@ -1,10 +1,11 @@
-import appReducer from 'src/shared/reducers/app'
+import appReducer from 'shared/reducers/app'
 import {
   enablePresentationMode,
   disablePresentationMode,
   // delayEnablePresentationMode,
   setAutoRefresh,
-} from 'src/shared/actions/app'
+  templateControlBarVisibilityToggled,
+} from 'shared/actions/app'
 
 describe('Shared.Reducers.appReducer', () => {
   const initialState = {
@@ -13,6 +14,7 @@ describe('Shared.Reducers.appReducer', () => {
     },
     persisted: {
       autoRefresh: 0,
+      showTemplateControlBar: false,
     },
   }
 
@@ -36,5 +38,18 @@ describe('Shared.Reducers.appReducer', () => {
     const reducedState = appReducer(initialState, setAutoRefresh(expectedMs))
 
     expect(reducedState.persisted.autoRefresh).to.equal(expectedMs)
+  })
+
+  it('should handle TEMPLATE_CONTROL_BAR_VISIBILITY_TOGGLED', () => {
+    const reducedState = appReducer(
+      initialState,
+      templateControlBarVisibilityToggled()
+    )
+
+    const expectedTestState = !reducedState.persisted.showTemplateControlBar
+
+    expect(initialState.persisted.showTemplateControlBar).to.equal(
+      expectedTestState
+    )
   })
 })

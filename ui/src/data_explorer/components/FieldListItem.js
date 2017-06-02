@@ -2,8 +2,8 @@ import React, {PropTypes} from 'react'
 import classnames from 'classnames'
 import _ from 'lodash'
 
-import FunctionSelector from 'src/shared/components/FunctionSelector'
-import Dropdown from 'src/shared/components/Dropdown'
+import FunctionSelector from 'shared/components/FunctionSelector'
+import Dropdown from 'shared/components/Dropdown'
 
 import {INFLUXQL_FUNCTIONS} from '../constants'
 
@@ -35,6 +35,7 @@ const FieldListItem = React.createClass({
 
   handleToggleField() {
     this.props.onToggleField(this.props.fieldFunc)
+    this.setState({isOpen: false})
   },
 
   handleApplyFunctions(selectedFuncs) {
@@ -56,7 +57,9 @@ const FieldListItem = React.createClass({
     if (isKapacitorRule) {
       return (
         <div
-          className={classnames('query-builder--list-item', {active: isSelected})}
+          className={classnames('query-builder--list-item', {
+            active: isSelected,
+          })}
           key={fieldFunc}
           onClick={_.wrap(fieldFunc, this.handleToggleField)}
         >
@@ -66,22 +69,35 @@ const FieldListItem = React.createClass({
           </span>
           {isSelected
             ? <Dropdown
+                className="dropdown-110"
+                menuClass="dropdown-malachite"
+                buttonSize="btn-xs"
                 items={items}
                 onChoose={this.handleApplyFunctions}
                 selected={
                   fieldFunc.funcs.length ? fieldFunc.funcs[0] : 'Function'
                 }
               />
-            : null
-          }
+            : null}
         </div>
       )
+    }
+
+    let fieldFuncsLabel
+    if (!fieldFunc.funcs.length) {
+      fieldFuncsLabel = '0 Functions'
+    } else if (fieldFunc.funcs.length === 1) {
+      fieldFuncsLabel = `${fieldFunc.funcs.length} Function`
+    } else if (fieldFunc.funcs.length > 1) {
+      fieldFuncsLabel = `${fieldFunc.funcs.length} Functions`
     }
 
     return (
       <div key={fieldFunc}>
         <div
-          className={classnames('query-builder--list-item', {active: isSelected})}
+          className={classnames('query-builder--list-item', {
+            active: isSelected,
+          })}
           onClick={_.wrap(fieldFunc, this.handleToggleField)}
         >
           <span>
@@ -89,13 +105,19 @@ const FieldListItem = React.createClass({
             {fieldText}
           </span>
           {isSelected
-            ? <div className={classnames('btn btn-xs btn-info', {'function-selector--toggled': isOpen})} onClick={this.toggleFunctionsMenu}>
-                Functions
+            ? <div
+                className={classnames('btn btn-xs', {
+                  active: isOpen,
+                  'btn-default': !fieldFunc.funcs.length,
+                  'btn-primary': fieldFunc.funcs.length,
+                })}
+                onClick={this.toggleFunctionsMenu}
+              >
+                {fieldFuncsLabel}
               </div>
-            : null
-          }
+            : null}
         </div>
-        {(isSelected && isOpen)
+        {isSelected && isOpen
           ? <FunctionSelector
               onApply={this.handleApplyFunctions}
               selectedItems={fieldFunc.funcs || []}

@@ -1,9 +1,12 @@
 import React, {PropTypes} from 'react'
 import buildInfluxQLQuery from 'utils/influxql'
+import classnames from 'classnames'
 
 import DatabaseList from '../../data_explorer/components/DatabaseList'
 import MeasurementList from '../../data_explorer/components/MeasurementList'
 import FieldList from '../../data_explorer/components/FieldList'
+
+import {defaultEveryFrequency} from 'src/kapacitor/constants'
 
 export const DataSection = React.createClass({
   propTypes: {
@@ -26,6 +29,8 @@ export const DataSection = React.createClass({
       groupByTime: PropTypes.func.isRequired,
       toggleTagAcceptance: PropTypes.func.isRequired,
     }).isRequired,
+    onAddEvery: PropTypes.func.isRequired,
+    onRemoveEvery: PropTypes.func.isRequired,
     timeRange: PropTypes.shape({}).isRequired,
   },
 
@@ -52,6 +57,11 @@ export const DataSection = React.createClass({
 
   handleToggleField(field) {
     this.props.actions.toggleField(this.props.query.id, field, true)
+    // Every is only added when a function has been added to a field.
+    // Here, the field is selected without a function.
+    this.props.onRemoveEvery()
+    // Because there are no functions there is no group by time.
+    this.props.actions.groupByTime(this.props.query.id, null)
   },
 
   handleGroupByTime(time) {
@@ -60,6 +70,7 @@ export const DataSection = React.createClass({
 
   handleApplyFuncsToField(fieldFunc) {
     this.props.actions.applyFuncsToField(this.props.query.id, fieldFunc)
+    this.props.onAddEvery(defaultEveryFrequency)
   },
 
   handleChooseTag(tag) {
@@ -76,16 +87,21 @@ export const DataSection = React.createClass({
 
   render() {
     const {query, timeRange: {lower}} = this.props
-    const statement =
-      query.rawText ||
-      buildInfluxQLQuery({lower}, query) ||
-      'Build a query below'
+    const statement = query.rawText || buildInfluxQLQuery({lower}, query)
 
     return (
-      <div className="kapacitor-rule-section kapacitor-metric-selector">
-        <h3 className="rule-section-heading">Select a Time Series</h3>
-        <div className="rule-section-body">
-          <pre><code>{statement}</code></pre>
+      <div className="rule-section">
+        <h3 className="rule-section--heading">Select a Time Series</h3>
+        <div className="rule-section--body">
+          <pre className="rule-section--border-bottom">
+            <code
+              className={classnames({
+                'metric-placeholder': !statement,
+              })}
+            >
+              {statement || 'Build a query below'}
+            </code>
+          </pre>
           {this.renderQueryBuilder()}
         </div>
       </div>

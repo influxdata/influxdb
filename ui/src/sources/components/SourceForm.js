@@ -1,6 +1,6 @@
 import React, {PropTypes} from 'react'
 import classnames from 'classnames'
-import {insecureSkipVerifyText} from 'src/shared/copy/tooltipText'
+import {insecureSkipVerifyText} from 'shared/copy/tooltipText'
 import _ from 'lodash'
 
 const {bool, func, shape} = PropTypes

@@ -13,12 +13,14 @@
       "name": "InfluxDB - Query Performance",
       "queries": [
         {
-          "query": "SELECT non_negative_derivative(max(\"queryDurationNs\"), 1s) AS \"duration\" FROM \"influxdb_queryExecutor\"",
+          "query": "SELECT non_negative_derivative(max(\"queryDurationNs\"), 1s) / 1000000 AS \"duration_ms\" FROM \"influxdb_queryExecutor\"",
+          "label": "ms",
           "groupbys": [],
           "wheres": []
         },
         {
-          "query": "SELECT non_negative_derivative(max(\"queriesExecuted\"), 1s) AS \"queries_executed\" FROM \"influxdb_queryExecutor\"",
+          "query": "SELECT non_negative_derivative(max(\"queriesExecuted\"), 1s) / 1000000 AS \"queries_executed_ms\" FROM \"influxdb_queryExecutor\"",
+          "label": "ms",
           "groupbys": [],
           "wheres": []
         }

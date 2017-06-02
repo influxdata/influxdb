@@ -25,7 +25,7 @@ import {
 } from 'src/admin/actions'
 
 import AdminTabs from 'src/admin/components/AdminTabs'
-import SourceIndicator from 'src/shared/components/SourceIndicator'
+import SourceIndicator from 'shared/components/SourceIndicator'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
@@ -176,10 +176,10 @@ class AdminPage extends Component {
           </div>
         </div>
         <FancyScrollbar className="page-contents">
-          <div className="container-fluid">
-            <div className="row">
-              {users
-                ? <AdminTabs
+          {users
+            ? <div className="container-fluid">
+                <div className="row">
+                  <AdminTabs
                     users={users}
                     roles={roles}
                     source={source}
@@ -204,9 +204,9 @@ class AdminPage extends Component {
                     onUpdateUserRoles={this.handleUpdateUserRoles}
                     onUpdateUserPassword={this.handleUpdateUserPassword}
                   />
-                : <span>Loading...</span>}
-            </div>
-          </div>
+                </div>
+              </div>
+            : <div className="page-spinner" />}
         </FancyScrollbar>
       </div>
     )

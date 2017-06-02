@@ -32,7 +32,7 @@ export const handleSuccess = (data, query, editQueryStatus) => {
 }
 
 export const handleError = (error, query, editQueryStatus) => {
-  const message = _.get(error, ['data', 'message'], error)
+  const message = _.get(error, ['data', 'message'], error.toString())
 
   // 400 from chrono server = fail
   editQueryStatus(query.id, {error: message})

@@ -5,7 +5,7 @@ import {
   TabPanel,
   TabPanels,
   TabList,
-} from 'src/shared/components/Tabs'
+} from 'shared/components/Tabs'
 import UsersTable from 'src/admin/components/UsersTable'
 import RolesTable from 'src/admin/components/RolesTable'
 import QueriesPage from 'src/admin/containers/QueriesPage'
@@ -38,7 +38,7 @@ const AdminTabs = ({
 }) => {
   let tabs = [
     {
-      type: 'DB Management',
+      type: 'Databases',
       component: <DatabaseManagerPage source={source} />,
     },
     {
@@ -96,7 +96,7 @@ const AdminTabs = ({
       <TabList customClass="col-md-2 admin-tabs">
         {tabs.map((t, i) => <Tab key={tabs[i].type}>{tabs[i].type}</Tab>)}
       </TabList>
-      <TabPanels customClass="col-md-10">
+      <TabPanels customClass="col-md-10 admin-tabs--content">
         {tabs.map((t, i) => (
           <TabPanel key={tabs[i].type}>{t.component}</TabPanel>
         ))}

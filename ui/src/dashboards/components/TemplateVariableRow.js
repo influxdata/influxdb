@@ -2,6 +2,8 @@ import React, {PropTypes, Component} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
+import uniq from 'lodash/uniq'
+
 import OnClickOutside from 'react-onclickoutside'
 import classnames from 'classnames'
 
@@ -23,6 +25,8 @@ import generateTemplateVariableQuery
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
+const compact = values => uniq(values).filter(value => /\S/.test(value))
+
 const RowValues = ({
   selectedType,
   values = [],
@@ -30,7 +34,7 @@ const RowValues = ({
   onStartEdit,
   autoFocusTarget,
 }) => {
-  const _values = values.map(({value}) => value).join(', ')
+  const _values = values.map(v => v.value).join(', ')
 
   if (selectedType === 'csv') {
     return (
@@ -80,7 +84,7 @@ const RowButtons = ({
     <div className="tvm-actions">
       <DeleteConfirmButtons onDelete={() => onDelete(id)} />
       <button
-        className="btn btn-sm btn-info btn-edit"
+        className="btn btn-sm btn-info btn-edit btn-square"
         type="button"
         onClick={e => {
           // prevent subsequent 'onSubmit' that is caused by an unknown source,
@@ -293,7 +297,8 @@ class RowWrapper extends Component {
         } else {
           parsedData = await this.runTemplateVariableQuery(source, queryConfig)
         }
-        onRunQuerySuccess(template, queryConfig, parsedData, tempVar)
+
+        onRunQuerySuccess(template, queryConfig, compact(parsedData), tempVar)
       } catch (error) {
         onRunQueryFailure(error)
       }

@@ -110,8 +110,7 @@ Change the default root path of the Chronograf server with the `--basepath` opti
 
 ## Versions
 
-The most recent version of Chronograf is v1.3.0.
-We will be iterating quickly based on user feedback and recommend using the [nightly builds](https://www.influxdata.com/downloads/) for the time being.
+The most recent version of Chronograf is [v1.3.1.0](https://www.influxdata.com/downloads/).
 
 Spotted a bug or have a feature request?
 Please open [an issue](https://github.com/influxdata/chronograf/issues/new)!
@@ -136,16 +135,16 @@ By default, chronograf runs on port `8888`.
 
 
 ### With Docker
-To get started right away with Docker, you can pull down our latest alpha:
+To get started right away with Docker, you can pull down our latest release:
 
 ```sh
-docker pull quay.io/influxdb/chronograf:latest
+docker pull chronograf:1.3.1.0
 ```
 
 ### From Source
 
-* Chronograf works with go 1.7.x, node 6.x/7.x, and yarn 0.18+.
-* Chronograf requires [Kapacitor](https://github.com/influxdata/kapacitor) 1.1.x+ to create and store alerts.
+* Chronograf works with go 1.8.x, node 6.x/7.x, and yarn 0.18+.
+* Chronograf requires [Kapacitor](https://github.com/influxdata/kapacitor) 1.2.x+ to create and store alerts.
 
 1. [Install Go](https://golang.org/doc/install)
 1. [Install Node and NPM](https://nodejs.org/en/download/)

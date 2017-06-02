@@ -1,10 +1,10 @@
-import reducer from 'src/shared/reducers/sources'
+import reducer from 'shared/reducers/sources'
 
 import {
   loadSources,
   updateSource,
   addSource,
-} from 'src/shared/actions/sources'
+} from 'shared/actions/sources'
 
 describe('Shared.Reducers.sources', () => {
   it('can correctly show default sources when adding a source', () => {

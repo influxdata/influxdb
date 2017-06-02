@@ -1,6 +1,6 @@
 import React, {PropTypes} from 'react'
 
-import QuestionMarkTooltip from 'src/shared/components/QuestionMarkTooltip'
+import QuestionMarkTooltip from 'shared/components/QuestionMarkTooltip'
 import {HIPCHAT_TOKEN_TIP} from 'src/kapacitor/copy'
 import RedactedInput from './RedactedInput'
 
@@ -76,9 +76,9 @@ const HipchatConfig = React.createClass({
           />
         </div>
 
-        <div className="form-group form-group-submit col-xs-12 col-sm-6 col-sm-offset-3">
-          <button className="btn btn-block btn-primary" type="submit">
-            Save
+        <div className="form-group-submit col-xs-12 text-center">
+          <button className="btn btn-primary" type="submit">
+            Update HipChat Config
           </button>
         </div>
       </form>

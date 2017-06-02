@@ -1,13 +1,59 @@
-## v1.3.1 [unreleased]
+## v1.3.2.0 [unreleased]
 
 ### Bug Fixes
-  1. [#1450](https://github.com/influxdata/chronograf/pull/1450): Fix infinite spinner when using "/chronograf" as a basepath
+1. [#1530](https://github.com/influxdata/chronograf/pull/1530): Update query config field ordering to always match input query
+1. [#1535](https://github.com/influxdata/chronograf/pull/1535): Fix add field functions to existing Kapacitor rules
+1. [#1564](https://github.com/influxdata/chronograf/pull/1564): Fix regression of logout menu item functionality
+1. [#1562](https://github.com/influxdata/chronograf/pull/1562): Fix InfluxQL parsing with multiple tag values for a tag key
+1. [#1582](https://github.com/influxdata/chronograf/pull/1582): Fix load localStorage and warning UX on fresh Chronograf install
+1. [#1584](https://github.com/influxdata/chronograf/pull/1584): Fix submenus not appearing when alert notification was on screen
 
 ### Features
+  1. [#1537](https://github.com/influxdata/chronograf/pull/1537): Add UI for writing data to influxdb.
+
+### UI Improvements
+  1. [#1508](https://github.com/influxdata/chronograf/pull/1508): The enter and escape keys now perform as expected when renaming dashboard headers
+  1. [#1524](https://github.com/influxdata/chronograf/pull/1524): Rewrite UI copy in Kapacitor Node configuration to be more clear
+  1. [#1549](https://github.com/influxdata/chronograf/pull/1549): Reset graph zoom when a new time range is selected
+  1. [#1544](https://github.com/influxdata/chronograf/pull/1544): Upgrade to new version of Influx Theme, remove excess stylesheets
+  1. [#1567](https://github.com/influxdata/chronograf/pull/1567): Replace outline style User icon with solid style
+  1. [#1561](https://github.com/influxdata/chronograf/pull/1561): Disable query save in dashboard editing if the query does not have a database, measurement, and field
+  1. [#1575](https://github.com/influxdata/chronograf/pull/1575): Improve UX of applying aggregator functions to Fields in Query Maker
+
+## v1.3.1.0 [2017-05-22]
+
+### Release notes
+
+In versions 1.3.1+, installing a new version of Chronograf automatically clears the localStorage settings.
+
+### Bug Fixes
+  1. [#1450](https://github.com/influxdata/chronograf/pull/1450): Fix infinite spinner when `/chronograf` is a [basepath](https://docs.influxdata.com/chronograf/v1.3/administration/configuration/#p-basepath)
+  1. [#1472](https://github.com/influxdata/chronograf/pull/1472): Remove the query templates dropdown from dashboard cell editor mode
+  1. [#1458](https://github.com/influxdata/chronograf/pull/1458): New versions of Chronograf automatically clear localStorage settings
+  1. [#1464](https://github.com/influxdata/chronograf/pull/1464): Fix the backwards sort arrows in table column headers
+  1. [#1464](https://github.com/influxdata/chronograf/pull/1464): Fix the loading spinner on graphs
+  1. [#1485](https://github.com/influxdata/chronograf/pull/1485): Filter out any template variable values that are empty, whitespace, or duplicates
+  1. [#1484](https://github.com/influxdata/chronograf/pull/1484): Allow user to select SingleStat as Visualization Type before adding any queries and continue to be able to click Add Query
+  1. [#1349](https://github.com/influxdata/chronograf/pull/1349): Add query for windows uptime
+  1. [#1484](https://github.com/influxdata/chronograf/pull/1484): Allow users to click the add query button after selecting singleStat as the [visualization type](https://docs.influxdata.com/chronograf/v1.3/troubleshooting/frequently-asked-questions/#what-visualization-types-does-chronograf-support)
+  1. [#1349](https://github.com/influxdata/chronograf/pull/1349): Add a query for windows uptime - thank you, @brianbaker!
+
+### Features
+  1. [#1477](https://github.com/influxdata/chronograf/pull/1477): Add log [event handler](https://docs.influxdata.com/chronograf/v1.3/troubleshooting/frequently-asked-questions/#what-kapacitor-event-handlers-are-supported-in-chronograf) - thank you, @mpchadwick!
+  1. [#1491](https://github.com/influxdata/chronograf/pull/1491): Update Go (golang) vendoring to dep and committed vendor directory
+  1. [#1500](https://github.com/influxdata/chronograf/pull/1500): Add autocomplete functionality to [template variable](https://docs.influxdata.com/chronograf/v1.3/guides/dashboard-template-variables/) dropdowns
 
 ### UI Improvements
   1. [#1451](https://github.com/influxdata/chronograf/pull/1451): Refactor scrollbars to support non-webkit browsers
+  1. [#1453](https://github.com/influxdata/chronograf/pull/1453): Increase the query builder's default height in cell editor mode and in the data explorer
   1. [#1453](https://github.com/influxdata/chronograf/pull/1453): Give QueryMaker a greater initial height than Visualization
+  1. [#1475](https://github.com/influxdata/chronograf/pull/1475): Add ability to toggle visibility of the Template Control Bar
+  1. [#1464](https://github.com/influxdata/chronograf/pull/1464): Make the [template variables](https://docs.influxdata.com/chronograf/v1.3/guides/dashboard-template-variables/) manager more space efficient
+  1. [#1464](https://github.com/influxdata/chronograf/pull/1464): Add page spinners to pages that did not have them
+  1. [#1464](https://github.com/influxdata/chronograf/pull/1464): Denote which source is connected in the sources table
+  1. [#1464](https://github.com/influxdata/chronograf/pull/1464): Make the logout button consistent with design
+  1. [#1478](https://github.com/influxdata/chronograf/pull/1478): Use milliseconds in the InfluxDB dashboard instead of nanoseconds
+  1. [#1498](https://github.com/influxdata/chronograf/pull/1498): Notify users when local settings are cleared
 
 ## v1.3.0 [2017-05-09]
 

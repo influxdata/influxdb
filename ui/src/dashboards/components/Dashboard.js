@@ -10,6 +10,7 @@ const Dashboard = ({
   dashboard,
   onAddCell,
   onEditCell,
+  timeRange,
   autoRefresh,
   onRenameCell,
   onUpdateCell,
@@ -21,6 +22,7 @@ const Dashboard = ({
   templatesIncludingDashTime,
   onSummonOverlayTechnologies,
   onSelectTemplate,
+  showTemplateControlBar,
 }) => {
   if (!dashboard) {
     return null
@@ -48,15 +50,19 @@ const Dashboard = ({
       })}
     >
       <div className="dashboard container-fluid full-width">
-        <TemplateControlBar
-          templates={dashboard.templates}
-          onSelectTemplate={onSelectTemplate}
-          onOpenTemplateManager={onOpenTemplateManager}
-        />
+        {inPresentationMode
+          ? null
+          : <TemplateControlBar
+              templates={dashboard.templates}
+              onSelectTemplate={onSelectTemplate}
+              onOpenTemplateManager={onOpenTemplateManager}
+              isOpen={showTemplateControlBar}
+            />}
         {cells.length
           ? <LayoutRenderer
               templates={templatesIncludingDashTime}
               cells={cells}
+              timeRange={timeRange}
               autoRefresh={autoRefresh}
               source={source.links.proxy}
               onPositionChange={onPositionChange}
@@ -120,6 +126,7 @@ Dashboard.propTypes = {
   timeRange: shape({}).isRequired,
   onOpenTemplateManager: func.isRequired,
   onSelectTemplate: func.isRequired,
+  showTemplateControlBar: bool,
 }
 
 export default Dashboard

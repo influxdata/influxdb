@@ -7,13 +7,22 @@
 
 $template-control--margin: 2px;
 $template-control--min-height: 52px;
+$template-control-dropdown-min-width: 146px;
 
 .template-control-bar {
+  display: none;
+  height: auto;
+  margin-bottom: 8px;
+
+  &.show {
+    display: block;
+  }
+}
+.template-control--container {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 8px;
   padding: $template-control--margin;
   @extend .cell-shell;
   background-color: $g0-obsidian;
@@ -27,7 +36,7 @@ $template-control--min-height: 52px;
   @include no-user-select();
   white-space: nowrap;
 }
-.template-control--manage {
+button.btn.template-control--manage {
   margin: 7px 8px;
 }
 .template-control--controls {
@@ -35,9 +44,16 @@ $template-control--min-height: 52px;
   flex: 1 0 0;
   flex-wrap: wrap;
 }
+.template-control--empty {
+  color: $g11-sidewalk;
+  font-size: 14px;
+  font-weight: 500;
+  margin-left: 18px;
+  @include no-user-select();
+}
 .template-control--dropdown {
   flex: 0 1 auto;
-  min-width: 150px;
+  min-width: $template-control-dropdown-min-width;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -48,26 +64,11 @@ $template-control--min-height: 52px;
     margin: 0;
     flex: 1 0 0;
   }
-
   .dropdown-toggle {
     border-radius: 0 0 $radius-small $radius-small;
     width: 100%;
     font-size: 12px;
     font-family: $code-font;
-  }
-  .dropdown-menu {
-    @include gradient-h($c-star,$c-pool);
-    @include custom-scrollbar-round($c-pool,$c-laser);
-
-    li.dropdown-item {
-      &:hover {@include gradient-h($c-comet,$c-pool);}
-    }
-    li.dropdown-item > a {
-      &, &:focus {background: none;}
-      &:active, &:active:focus {@include gradient-h($c-amethyst,$c-pool);}
-      font-size: 12px;
-      font-family: $code-font;
-    }
   }
 }
 .template-control--label {

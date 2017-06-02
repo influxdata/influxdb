@@ -15,6 +15,12 @@ class FunctionSelector extends Component {
     this.handleApplyFunctions = ::this.handleApplyFunctions
   }
 
+  componentWillUpdate(nextProps) {
+    if (!_.isEqual(this.props.selectedItems, nextProps.selectedItems)) {
+      this.setState({localSelectedItems: nextProps.selectedItems})
+    }
+  }
+
   onSelect(item, e) {
     e.stopPropagation()
 
@@ -49,10 +55,14 @@ class FunctionSelector extends Component {
           <span>
             {localSelectedItems.length > 0
               ? `${localSelectedItems.length} Selected`
-              : 'Select functions below'
-            }
+              : 'Select functions below'}
           </span>
-          <div className="btn btn-xs btn-primary" onClick={this.handleApplyFunctions}>Apply</div>
+          <div
+            className="btn btn-xs btn-success"
+            onClick={this.handleApplyFunctions}
+          >
+            Apply
+          </div>
         </div>
         <div className="function-selector--grid">
           {INFLUXQL_FUNCTIONS.map((f, i) => {
@@ -63,7 +73,9 @@ class FunctionSelector extends Component {
                   active: this.isSelected(f),
                 })}
                 onClick={_.wrap(f, this.onSelect)}
-              >{f}</div>
+              >
+                {f}
+              </div>
             )
           })}
         </div>

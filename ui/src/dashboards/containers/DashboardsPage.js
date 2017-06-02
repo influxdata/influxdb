@@ -89,7 +89,7 @@ const DashboardsPage = React.createClass({
                   </div>
                   <div className="panel-body">
                     {dashboards && dashboards.length
-                      ? <table className="table v-center admin-table">
+                      ? <table className="table v-center admin-table table-highlight">
                           <thead>
                             <tr>
                               <th>Name</th>
@@ -109,6 +109,7 @@ const DashboardsPage = React.createClass({
                                 <DeleteConfirmTableCell
                                   onDelete={this.handleDeleteDashboard}
                                   item={dashboard}
+                                  buttonSize="btn-xs"
                                 />
                               </tr>
                             ))}

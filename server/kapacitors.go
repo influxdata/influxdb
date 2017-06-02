@@ -398,6 +398,26 @@ func newAlertResponse(rule chronograf.AlertRule, tickScript chronograf.TICKScrip
 	return res
 }
 
+// ValidRuleRequest checks if the requested rule change is valid
+func ValidRuleRequest(rule chronograf.AlertRule) error {
+	if rule.Query == nil {
+		return fmt.Errorf("invalid alert rule: no query defined")
+	}
+	var hasFuncs bool
+	for _, f := range rule.Query.Fields {
+		if len(f.Funcs) > 0 {
+			hasFuncs = true
+			break
+		}
+	}
+	// All kapacitor rules with functions must have a window that is applied
+	// every amount of time
+	if rule.Every == "" && hasFuncs {
+		return fmt.Errorf(`invalid alert rule: functions require an "every" window`)
+	}
+	return nil
+}
+
 // KapacitorRulesPut proxies PATCH to kapacitor
 func (h *Service) KapacitorRulesPut(w http.ResponseWriter, r *http.Request) {
 	id, err := paramID("kid", r)
@@ -451,8 +471,7 @@ func (h *Service) KapacitorRulesPut(w http.ResponseWriter, r *http.Request) {
 		Error(w, http.StatusInternalServerError, err.Error(), h.Logger)
 		return
 	}
-
-	res := newAlertResponse(req, task.TICKScript, task.Href, task.HrefOutput, "enabled", srv.SrcID, srv.ID)
+	res := newAlertResponse(task.Rule, task.TICKScript, task.Href, task.HrefOutput, "enabled", srv.SrcID, srv.ID)
 	encodeJSON(w, http.StatusOK, res, h.Logger)
 }
 

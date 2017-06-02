@@ -12,22 +12,7 @@
 */
 .admin-tabs {
   padding-right: 0;
-
-  & + div {
-    padding-left: 0;
-
-    .panel {
-      border-top-left-radius: 0;
-    }
-    .panel-body {
-      min-height: 300px;
-    }
-    .panel-title {
-      font-size: 17px;
-      font-weight: 400 !important;
-      color: $g12-forge;
-    }
-  }
+  & + div {padding-left: 0;}
 }
 .admin-tabs .btn-group {
   margin: 0;
@@ -64,113 +49,90 @@
     }
   }
 }
-
+.admin-tabs--content {
+  .panel {border-top-left-radius: 0;}
+  .panel-heading {height: 60px;}
+  .panel-title {
+    font-size: 17px;
+    font-weight: 400 !important;
+    color: $g12-forge;
+    padding: 0;
+  }
+  .panel-body {min-height: 300px;}
+  .panel-heading + .panel-body {padding-top: 0;}
+}
 
 /*
     Admin Table
     ----------------------------------------------
 */
-.admin-table {
-  .multi-select-dropdown {
-    width: 100%;
-    min-width: 150px;
-  }
-  .admin-table--kill-button {
-    width: 70px;
-  }
-  .admin-table--hidden {
-    visibility: hidden;
-  }
-  .dropdown-toggle {
-    background-color: transparent;
-    font-size: 14px;
-    font-weight: 500;
-    color: $g14-chromium;
-    width: 100%;
-    transition: none !important;
+.admin-table .dropdown-toggle {
+  background-color: transparent;
+  font-weight: 600;
+  color: $g14-chromium;
+  transition: none !important;
 
-    .caret {opacity: 0;}
-    .multi-select-dropdown__label {left: 0;}
-  }
-  .open .dropdown-toggle .multi-select-dropdown__label {left: 9px;}
-  tbody tr:hover {
-    .admin-table--hidden {
-      visibility: visible;
-    }
-    .dropdown-toggle {
-      color: $g20-white !important;
-      background-color: $c-pool;
-      font-weight: 600;
+  .caret {opacity: 0;}
+}
+.admin-table--multi-select-empty .dropdown-toggle {
+  color: $g8-storm;
+}
+.admin-table tbody tr:hover .dropdown-toggle {
+  color: $g20-white !important;
+  background-color: $c-pool;
 
-      .caret {opacity: 1;}
-      .multi-select-dropdown__label {left: 9px;}
+  .caret {opacity: 1;}
 
-      &:hover {
-        transition: background-color 0.25s ease;
-        background-color: $c-laser;
-      }
-    }
-  }
-  .multi-select-dropdown.open .dropdown-toggle {
-    color: $g20-white !important;
-    background-color: $c-laser !important;
-    font-weight: 600;
-    .multi-select-dropdown__label {left: 9x !important;}
+  &:hover {
+    transition: background-color 0.25s ease;
+    background-color: $c-laser;
   }
 }
-.admin-table--edit-row {
-  background-color: $g4-onyx;
+table > tbody > tr > td.admin-table--left-offset,
+table > thead > tr > th.admin-table--left-offset {padding-left: 15px;}
+
+table > tbody > tr.admin-table--edit-row,
+table > tbody > tr.admin-table--edit-row:hover,
+table.table-highlight > tbody > tr.admin-table--edit-row,
+table.table-highlight > tbody > tr.admin-table--edit-row:hover {
+  background-color: $g5-pepper;
 }
-.admin-table--edit-cell {
-  width: 100%;
-  margin: 0 !important;
-  display: flex !important;
-  justify-content: space-between;
+.admin-table--change-pw {
+  display: flex;
+  flex-wrap: nowrap;
 
-  > input {
-    height: 30px;
-    padding: 0 9px;
-    flex-grow: 1;
-    margin: 0 2px;
-    min-width: 110px;
-
-    &:first-child {margin-left: 0;}
-    &:last-child {margin-right: 0;}
-  }
-}
-
-.admin-table--delete-cell {
-  margin: 0 !important;
-  display: flex !important;
-  justify-content: space-between;
-
-  > input {
-    height: 22px;
-    padding: 0 6px;
-    flex-grow: 1;
+  .form-control {
     margin: 0 4px 0 0;
-    min-width: 110px;
-    font-size: 12px;
+    flex: 1 0 0;
   }
+}
+pre.admin-table--query {
+  width: 100%;
+  padding: 0;
+  border-radius: 0;
+  background-color: transparent;
+  margin-bottom: 0;
+}
+.admin-table--delete-db {
+  display: flex;
+  align-items: center;
 
-  & + .confirm-buttons .btn {
-    display: block !important;
+  > .form-control {
+    flex: 1 0 0;
+    margin-right: 4px;
   }
 }
 
+/*
+    Database Manager
+    ----------------------------------------------
+*/
 .db-manager {
   margin-bottom: 8px;
 
-  .db-manager-header--actions {
-    display: none;
-  }
-
-  &:last-child {
-    margin-bottom: 0;
-  }
-  &:hover .db-manager-header--actions {
-    display: block;
-  }
+  &:last-child {margin-bottom: 0;}
+  .db-manager-header--actions {display: none;}
+  &:hover .db-manager-header--actions {display: block;}
 }
 .db-manager-header {
   padding: 0 11px;
@@ -184,21 +146,18 @@
   h4 {
     margin: 0px;
     color: $c-potassium;
-    font-size: 17px;
+    font-size: 16px;
     font-family: $code-font;
     padding-left: 6px;
+    width: auto;
   }
 }
 .db-manager-header--edit {
   justify-content: flex-start;
 
   .form-control {
-    height: 22px;
-    padding: 0 6px;
-    margin: 0 4px 0 0;
-    min-width: 110px;
-    font-size: 12px;
-    width: 50%;
+    margin: 0 8px 0 0;
+    flex: 1 0 0;
   }
 }
 
@@ -206,20 +165,6 @@
   background-color: $g4-onyx;
   padding: 9px 11px;
   border-radius: 0 0 $radius-small $radius-small;
-}
 
-
-.admin-change-pw {
-  float: right;
-  display: flex !important;
-  flex-wrap: nowrap;
-
-  .form-control {
-    height: 22px;
-    padding: 0 6px;
-    margin: 0 4px 0 0;
-    min-width: 110px;
-    font-size: 12px;
-    width: 120px;
-  }
+  .table-highlight > tbody > tr:hover {background-color: $g5-pepper;}
 }

@@ -5,7 +5,7 @@ import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 class KapacitorForm extends Component {
   render() {
-    const {onInputChange, onReset, kapacitor, onSubmit} = this.props
+    const {onInputChange, onReset, kapacitor, onSubmit, exists} = this.props
     const {url, name, username, password} = kapacitor
 
     return (
@@ -83,14 +83,14 @@ class KapacitorForm extends Component {
 
                       <div className="form-group form-group-submit col-xs-12 text-center">
                         <button
-                          className="btn btn-info"
+                          className="btn btn-default"
                           type="button"
                           onClick={onReset}
                         >
                           Reset
                         </button>
                         <button className="btn btn-success" type="submit">
-                          Connect
+                          {exists ? 'Update' : 'Connect'}
                         </button>
                       </div>
                     </form>
@@ -127,10 +127,11 @@ class KapacitorForm extends Component {
           <h2 className="panel-title">Configure Alert Endpoints</h2>
         </div>
         <div className="panel-body">
-          <br />
-          <p className="text-center">
-            Connect to an active Kapacitor instance to configure alerting endpoints.
-          </p>
+          <div className="generic-empty-state">
+            <h4 className="no-user-select">
+              Connect to an active Kapacitor instance to configure alerting endpoints
+            </h4>
+          </div>
         </div>
       </div>
     )

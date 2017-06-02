@@ -1,9 +1,10 @@
 import React, {PropTypes} from 'react'
+import classnames from 'classnames'
 
 import AutoRefreshDropdown from 'shared/components/AutoRefreshDropdown'
 import TimeRangeDropdown from 'shared/components/TimeRangeDropdown'
-import SourceIndicator from '../../shared/components/SourceIndicator'
-import GraphTips from '../../shared/components/GraphTips'
+import SourceIndicator from 'shared/components/SourceIndicator'
+import GraphTips from 'shared/components/GraphTips'
 
 const DashboardHeader = ({
   children,
@@ -19,8 +20,10 @@ const DashboardHeader = ({
   source,
   onAddCell,
   onEditDashboard,
+  onToggleTempVarControls,
+  showTemplateControlBar,
 }) =>
-  (isHidden
+  isHidden
     ? null
     : <div className="page-header full-width">
         <div className="page-header__container">
@@ -32,10 +35,10 @@ const DashboardHeader = ({
                   type="button"
                   data-toggle="dropdown"
                 >
-                  <span className="button-text">{buttonText}</span>
+                  <span>{buttonText}</span>
                   <span className="caret" />
                 </button>
-                <ul className="dropdown-menu" aria-labelledby="dropdownMenu1">
+                <ul className="dropdown-menu">
                   {children}
                 </ul>
               </div>}
@@ -52,12 +55,22 @@ const DashboardHeader = ({
               : null}
             {dashboard
               ? <button
-                  className="btn btn-info btn-sm"
+                  className="btn btn-default btn-sm"
                   onClick={onEditDashboard}
                 >
                   <span className="icon pencil" />
                   Rename
                 </button>
+              : null}
+            {dashboard
+              ? <div
+                  className={classnames('btn btn-default btn-sm', {
+                    active: showTemplateControlBar,
+                  })}
+                  onClick={onToggleTempVarControls}
+                >
+                  <span className="icon cube" />Template Variables
+                </div>
               : null}
             <AutoRefreshDropdown
               onChoose={handleChooseAutoRefresh}
@@ -69,14 +82,14 @@ const DashboardHeader = ({
               selected={timeRange}
             />
             <div
-              className="btn btn-info btn-sm"
+              className="btn btn-default btn-sm btn-square"
               onClick={handleClickPresentationButton}
             >
               <span className="icon expand-a" style={{margin: 0}} />
             </div>
           </div>
         </div>
-      </div>)
+      </div>
 
 const {array, bool, func, number, shape, string} = PropTypes
 
@@ -95,6 +108,8 @@ DashboardHeader.propTypes = {
   source: shape({}),
   onAddCell: func,
   onEditDashboard: func,
+  onToggleTempVarControls: func,
+  showTemplateControlBar: bool,
 }
 
 export default DashboardHeader

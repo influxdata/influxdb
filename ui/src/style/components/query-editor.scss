@@ -88,14 +88,6 @@
 .dropdown.query-editor--templates {
   margin: 0 4px 0 0 ;
 
-  div.dropdown-toggle.btn.btn-sm {
-    width: $query-editor--templates-width;
-    padding: 0 9px !important;
-    height: $query-editor--templates-height !important;
-    line-height: $query-editor--templates-height !important;
-    font-size: 12px;
-    border-radius: $radius-small;
-  }
   .dropdown-menu {
     left: initial;
     right: 0;

@@ -35,10 +35,6 @@ $page-header-weight: 400 !important;
 .page-header__right {
   display: flex;
   align-items: center;
-
-  > *:only-child {
-    margin: 0;
-  }
 }
 .page-header__left {
   justify-content: flex-start;
@@ -49,10 +45,15 @@ $page-header-weight: 400 !important;
 .page-header__right {
   justify-content: flex-end;
   > * {
-    margin: 0 0 0 4px;
+    margin: 0 0 0 4px !important;
+
+    &:only-child {
+      margin-right: 0 !important;
+    }
   }
 }
 .page-header__title {
+  letter-spacing: 0;
   text-transform: none;
   font-size: $page-header-size;
   font-weight: $page-header-weight;

@@ -3,9 +3,9 @@
     ----------------------------------------------
 */
 
+$sidebar-width: 60px;
 $sidebar-menu-gutter: 30px;
 $sidebar-menu-indent: 13px;
-$sidebar-radius: 4px;
 
 $sidebar-hover: $g8-storm;
 $sidebar-item-hover: $g7-graphite;
@@ -20,38 +20,6 @@ $sidebar-active-bg: $c-pool;
 $sidebar-active-accent: $c-laser;
 $sidebar-logo-bg: $g17-whisper;
 $sidebar-logo-color: $g8-storm;
-
-
-// Rename button
-.js-open-rename-cluster-modal {
-  display: inline-block;
-  height: 20px;
-  width: 20px;
-  border: none;
-  background-color: $g8-storm;
-  vertical-align: middle;
-  border-radius: 3px;
-  margin-left: 11px;
-  margin-right: -25px;
-  position: relative;
-  font-size: 13px;
-  color: $g20-white;
-  opacity: 0.4;
-  transition:
-    background-color 0.25s ease,
-    opacity 0.25s ease;
-
-  .icon.pencil {
-    position: absolute;
-    top: 3px;
-    left: 4px;
-  }
-
-  &:hover {
-    background-color: $g9-mountain;
-    cursor: pointer;
-  }
-}
 
 // Sidebar styles
 .sidebar {
@@ -176,7 +144,7 @@ $sidebar-logo-color: $g8-storm;
   }
 
   &__menu {
-    border-radius: 0 $sidebar-radius $sidebar-radius 0;
+    border-radius: 0 $radius $radius 0;
     background: $sidebar-hover;
     opacity: 0;
     transition: opacity 0.25s ease;
@@ -211,6 +179,9 @@ $sidebar-logo-color: $g8-storm;
     margin: 0;
     display: block;
     @include no-user-select();
+    &:hover {
+      cursor: pointer;
+    }
   }
 
   &__menu-item {
@@ -237,12 +208,12 @@ $sidebar-logo-color: $g8-storm;
 
     // Rounding top outside corner to match container
     &:first-child {
-      border-top-right-radius: $sidebar-radius;
+      border-top-right-radius: $radius;
     }
 
     // Rounding bottom outside corner of match container
     &:last-child {
-      border-bottom-right-radius: $sidebar-radius;
+      border-bottom-right-radius: $radius;
     }
 
     // Used for sub-navigation
@@ -266,7 +237,6 @@ $sidebar-logo-color: $g8-storm;
       transform: translate(-50%,-50%);
     }
     &:hover {
-      cursor: pointer;
       background-color: $sidebar-item-hover;
       color: $sidebar-icon-hover;
 
@@ -314,5 +284,4 @@ $sidebar-logo-color: $g8-storm;
     font-weight: 400;
     padding: 0px $sidebar-menu-gutter;
   }
-
 }

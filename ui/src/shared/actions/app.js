@@ -24,6 +24,10 @@ export const setAutoRefresh = milliseconds => ({
   },
 })
 
+export const templateControlBarVisibilityToggled = () => ({
+  type: 'TEMPLATE_CONTROL_BAR_VISIBILITY_TOGGLED',
+})
+
 export const noop = () => ({
   type: 'NOOP',
   payload: {},

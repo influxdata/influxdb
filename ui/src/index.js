@@ -20,7 +20,7 @@ import DataExplorer from 'src/data_explorer'
 import {DashboardsPage, DashboardPage} from 'src/dashboards'
 import {CreateSource, SourcePage, ManageSources} from 'src/sources'
 import {AdminPage} from 'src/admin'
-import NotFound from 'src/shared/components/NotFound'
+import NotFound from 'shared/components/NotFound'
 import configureStore from 'src/store/configureStore'
 import {loadLocalStorage} from './localStorage'
 
@@ -40,6 +40,8 @@ import 'src/style/chronograf.scss'
 
 import {HEARTBEAT_INTERVAL} from 'shared/constants'
 
+const errorsQueue = []
+
 const rootNode = document.getElementById('react-root')
 
 const basepath = rootNode.dataset.basepath || ''
@@ -48,7 +50,7 @@ const browserHistory = useRouterHistory(createHistory)({
   basename: basepath, // this is written in when available by the URL prefixer middleware
 })
 
-const store = configureStore(loadLocalStorage(), browserHistory)
+const store = configureStore(loadLocalStorage(errorsQueue), browserHistory)
 const {dispatch} = store
 
 browserHistory.listen(() => {
@@ -67,6 +69,7 @@ const history = syncHistoryWithStore(browserHistory, store)
 
 const Root = React.createClass({
   componentWillMount() {
+    this.flushErrorsQueue()
     this.checkAuth()
   },
 
@@ -96,6 +99,14 @@ const Root = React.createClass({
       }, HEARTBEAT_INTERVAL)
     } catch (error) {
       dispatch(errorThrown(error))
+    }
+  },
+
+  flushErrorsQueue() {
+    if (errorsQueue.length) {
+      errorsQueue.forEach(errorText => {
+        dispatch(errorThrown({status: 0, auth: null}, errorText, 'warning'))
+      })
     }
   },
 

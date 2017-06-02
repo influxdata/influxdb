@@ -145,13 +145,13 @@ $dash-graph-options-arrow: 8px;
   height: $dash-graph-heading;
   line-height: $dash-graph-heading;
   width: calc(100% - 50px);
-  margin-left: 16px;
+  padding-left: 16px;
   transition:
     color 0.25s ease,
     background-color 0.25s ease,
     border-color 0.25s ease;
 }
-.dash-graph--name-edit {
+input.form-control.dash-graph--name-edit {
   margin-left: 8px;
   padding: 0 6px;
   width: calc(100% - 42px);
@@ -166,6 +166,7 @@ $dash-graph-options-arrow: 8px;
   z-index: 11;
   right: 0px;
   top: 0px;
+  text-align: center;
 
   > .btn {
     background-color: transparent !important;
@@ -197,6 +198,7 @@ $dash-graph-options-arrow: 8px;
   display: block;
   list-style: none;
   padding: 0;
+  margin: 0;
   width: 90px;
   visibility: hidden;
   transition-property: all;
@@ -208,6 +210,8 @@ $dash-graph-options-arrow: 8px;
     line-height: 28px;
     background-color: $g5-pepper;
     padding: 0 11px;
+    margin: 0;
+    text-align: left;
     color: $g15-platinum;
     opacity: 0;
     transition:
@@ -373,3 +377,9 @@ $dash-graph-options-arrow: 8px;
   ------------------------------------------------------
 */
 @import '../components/template-variables-manager';
+
+/*
+  Write Data Form
+  ------------------------------------------------------
+*/
+@import '../components/write-data-form';

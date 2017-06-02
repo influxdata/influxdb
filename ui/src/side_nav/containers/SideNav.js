@@ -19,16 +19,12 @@ const SideNav = React.createClass({
     location: shape({
       pathname: string.isRequired,
     }).isRequired,
-    me: shape({
-      email: string,
-    }),
     isHidden: bool.isRequired,
     logoutLink: string,
   },
 
   render() {
     const {
-      me,
       params: {sourceID},
       location: {pathname: location},
       isHidden,
@@ -37,7 +33,7 @@ const SideNav = React.createClass({
 
     const sourcePrefix = `/sources/${sourceID}`
     const dataExplorerLink = `${sourcePrefix}/chronograf/data-explorer`
-    const showLogout = !!(me && me.name)
+    const showLogout = !!logoutLink
 
     return isHidden
       ? null
@@ -80,10 +76,8 @@ const SideNav = React.createClass({
             />
           </NavBlock>
           {showLogout
-            ? <NavBlock icon="user-outline" className="sidebar__square-last">
-                <a className="sidebar__menu-item" href={logoutLink}>
-                  Logout
-                </a>
+            ? <NavBlock icon="user" className="sidebar__square-last">
+                <NavHeader useAnchor={true} link={logoutLink} title="Logout" />
               </NavBlock>
             : null}
         </NavBar>
@@ -91,10 +85,9 @@ const SideNav = React.createClass({
 })
 
 const mapStateToProps = ({
-  auth: {me, logoutLink},
+  auth: {logoutLink},
   app: {ephemeral: {inPresentationMode}},
 }) => ({
-  me,
   isHidden: inPresentationMode,
   logoutLink,
 })

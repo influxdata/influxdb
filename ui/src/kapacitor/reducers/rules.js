@@ -1,6 +1,6 @@
 import {defaultRuleConfigs, DEFAULT_RULE_ID} from 'src/kapacitor/constants'
 import _ from 'lodash'
-import {parseAlerta} from 'src/shared/parsing/parseAlerta'
+import {parseAlerta} from 'shared/parsing/parseAlerta'
 
 export default function rules(state = {}, action) {
   switch (action.type) {
@@ -15,7 +15,7 @@ export default function rules(state = {}, action) {
           message: '',
           alerts: [],
           alertNodes: [],
-          every: '30s',
+          every: null,
           name: 'Untitled Rule',
         },
       })
@@ -43,6 +43,16 @@ export default function rules(state = {}, action) {
           values: defaultRuleConfigs[trigger.toLowerCase()],
         }),
       })
+    }
+
+    case 'ADD_EVERY': {
+      const {ruleID, frequency} = action.payload
+      return {...state, [ruleID]: {...state[ruleID], every: frequency}}
+    }
+
+    case 'REMOVE_EVERY': {
+      const {ruleID} = action.payload
+      return {...state, [ruleID]: {...state[ruleID], every: null}}
     }
 
     case 'UPDATE_RULE_VALUES': {
@@ -81,6 +91,7 @@ export default function rules(state = {}, action) {
       switch (alertType) {
         case 'http':
         case 'tcp':
+        case 'log':
           alertNodesByType = [
             {
               name: alertType,

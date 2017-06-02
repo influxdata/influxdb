@@ -5,7 +5,7 @@ import {bindActionCreators} from 'redux'
 import SideNav from 'src/side_nav'
 import Notifications from 'shared/components/Notifications'
 
-import {publishNotification} from 'src/shared/actions/notifications'
+import {publishNotification} from 'shared/actions/notifications'
 
 const {func, node} = PropTypes
 
@@ -24,8 +24,8 @@ const App = React.createClass({
   render() {
     return (
       <div className="chronograf-root">
-        <SideNav />
         <Notifications />
+        <SideNav />
         {this.props.children &&
           React.cloneElement(this.props.children, {
             addFlashMessage: this.handleAddFlashMessage,

@@ -21,6 +21,10 @@ func Convert(influxQL string) (chronograf.QueryConfig, error) {
 		return chronograf.QueryConfig{}, err
 	}
 
+	if itsDashboardTime {
+		influxQL = strings.Replace(influxQL, "now() - 15m", ":dashboardTime:", 1)
+	}
+
 	raw := chronograf.QueryConfig{
 		RawText: &influxQL,
 		Fields:  []chronograf.Field{},
@@ -106,14 +110,15 @@ func Convert(influxQL string) (chronograf.QueryConfig, error) {
 		}
 	}
 
-	fields := map[string][]string{}
+	fields := make(map[string][]string)
+	order := make(map[string]int)
 	for _, fld := range stmt.Fields {
 		switch f := fld.Expr.(type) {
 		default:
 			return raw, nil
 		case *influxql.Call:
 			// only support certain query config functions
-			if _, ok := supportedFuncs[f.Name]; !ok {
+			if _, ok = supportedFuncs[f.Name]; !ok {
 				return raw, nil
 			}
 			// Query configs only support single argument functions
@@ -130,6 +135,7 @@ func Convert(influxQL string) (chronograf.QueryConfig, error) {
 				return raw, nil
 			}
 			if call, ok := fields[ref.Val]; !ok {
+				order[ref.Val] = len(fields)
 				fields[ref.Val] = []string{f.Name}
 			} else {
 				fields[ref.Val] = append(call, f.Name)
@@ -139,16 +145,19 @@ func Convert(influxQL string) (chronograf.QueryConfig, error) {
 				return raw, nil
 			}
 			if _, ok := fields[f.Val]; !ok {
+				order[f.Val] = len(fields)
 				fields[f.Val] = []string{}
 			}
 		}
 	}
 
+	qc.Fields = make([]chronograf.Field, len(fields))
 	for fld, funcs := range fields {
-		qc.Fields = append(qc.Fields, chronograf.Field{
+		i := order[fld]
+		qc.Fields[i] = chronograf.Field{
 			Field: fld,
 			Funcs: funcs,
-		})
+		}
 	}
 
 	if stmt.Condition == nil {
@@ -269,18 +278,26 @@ func isTimeRange(exp influxql.Expr) (time.Duration, bool) {
 }
 
 func hasTimeRange(exp influxql.Expr) (time.Duration, bool) {
-	if p, ok := exp.(*influxql.ParenExpr); ok {
-		return hasTimeRange(p.Expr)
+	v := &timeRangeVisitor{}
+	influxql.Walk(v, exp)
+	return v.Duration, v.Ok
+}
+
+// timeRangeVisitor implements influxql.Visitor to search for time ranges
+type timeRangeVisitor struct {
+	Duration time.Duration
+	Ok       bool
+}
+
+func (v *timeRangeVisitor) Visit(n influxql.Node) influxql.Visitor {
+	if exp, ok := n.(influxql.Expr); !ok {
+		return nil
 	} else if dur, ok := isTimeRange(exp); ok {
-		return dur, true
-	} else if bin, ok := exp.(*influxql.BinaryExpr); ok {
-		dur, ok := isTimeRange(bin.LHS)
-		if !ok {
-			dur, ok = isTimeRange(bin.RHS)
-		}
-		return dur, ok
+		v.Duration = dur
+		v.Ok = ok
+		return nil
 	}
-	return 0, false
+	return v
 }
 
 func isTagLogic(exp influxql.Expr) ([]tagFilter, bool) {
@@ -306,7 +323,7 @@ func isTagLogic(exp influxql.Expr) ([]tagFilter, bool) {
 		return []tagFilter{lhs, rhs}, true
 	}
 
-	if bin.Op != influxql.AND {
+	if bin.Op != influxql.AND && bin.Op != influxql.OR {
 		return nil, false
 	}
 
