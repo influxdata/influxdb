@@ -170,9 +170,10 @@ function attachZoomHandlers(gs, syncOpts, prevCallbacks) {
         drawCallback: function(me, initial) {
           if (block || initial) return
           block = true
-          var opts = {
-            dateWindow: me.xAxisRange(),
-          }
+          // In the original code, the following assignment was originally
+          // var opts = {dateWindow: me.xAxisRange()}, but this assumed that
+          // all graphs shared the same time range and thus enforced that.
+          var opts = {}
           if (syncOpts.range) opts.valueRange = me.yAxisRange()
 
           for (var j = 0; j < gs.length; j++) {
@@ -303,25 +304,30 @@ Dygraph.Plugins.Crosshair = (function() {
 
     ctx.strokeStyle = gradient
     ctx.lineWidth = 2
-    ctx.beginPath()
 
-    var canvasx = Math.floor(e.dygraph.selPoints_[0].canvasx) + 0.5 // crisper rendering
+    // If graphs have different time ranges, it's possible to select a point on
+    // one graph that doesn't exist in another, resulting in an exception.
+    if (e.dygraph.selPoints_.length) {
+      ctx.beginPath()
 
-    if (this.direction_ === 'vertical' || this.direction_ === 'both') {
-      ctx.moveTo(canvasx, 0)
-      ctx.lineTo(canvasx, height)
-    }
+      var canvasx = Math.floor(e.dygraph.selPoints_[0].canvasx) + 0.5 // crisper rendering
 
-    if (this.direction_ === 'horizontal' || this.direction_ === 'both') {
-      for (var i = 0; i < e.dygraph.selPoints_.length; i++) {
-        var canvasy = Math.floor(e.dygraph.selPoints_[i].canvasy) + 0.5 // crisper rendering
-        ctx.moveTo(0, canvasy)
-        ctx.lineTo(width, canvasy)
+      if (this.direction_ === 'vertical' || this.direction_ === 'both') {
+        ctx.moveTo(canvasx, 0)
+        ctx.lineTo(canvasx, height)
       }
-    }
 
-    ctx.stroke()
-    ctx.closePath()
+      if (this.direction_ === 'horizontal' || this.direction_ === 'both') {
+        for (var i = 0; i < e.dygraph.selPoints_.length; i++) {
+          var canvasy = Math.floor(e.dygraph.selPoints_[i].canvasy) + 0.5 // crisper rendering
+          ctx.moveTo(0, canvasy)
+          ctx.lineTo(width, canvasy)
+        }
+      }
+
+      ctx.stroke()
+      ctx.closePath()
+    }
   }
 
   crosshair.prototype.deselect = function(e) {
