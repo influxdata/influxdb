@@ -35,6 +35,7 @@ The admin UI is removed and unusable in this release. The `[admin]` configuratio
 - [#8390](https://github.com/influxdata/influxdb/issues/8390): Add nanosecond duration literal support.
 - [#8394](https://github.com/influxdata/influxdb/pull/8394): Optimize top() and bottom() using an incremental aggregator.
 - [#7129](https://github.com/influxdata/influxdb/issues/7129): Maintain the tags of points selected by top() or bottom() when writing the results.
+- [#7154](https://github.com/influxdata/influxdb/pull/7154): Add msgpack handler for smart JSON encoding.
 
 ### Bugfixes
 
