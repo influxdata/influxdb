@@ -14,7 +14,6 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -1110,68 +1109,6 @@ func authenticate(inner func(http.ResponseWriter, *http.Request, meta.User), h *
 	})
 }
 
-type gzipResponseWriter struct {
-	io.Writer
-	http.ResponseWriter
-}
-
-// WriteHeader sets the provided code as the response status. If the
-// specified status is 204 No Content, then the Content-Encoding header
-// is removed from the response, to prevent clients expecting gzipped
-// encoded bodies from trying to deflate an empty response.
-func (w gzipResponseWriter) WriteHeader(code int) {
-	if code != http.StatusNoContent {
-		w.Header().Set("Content-Encoding", "gzip")
-	}
-	w.ResponseWriter.WriteHeader(code)
-}
-
-func (w gzipResponseWriter) Write(b []byte) (int, error) {
-	return w.Writer.Write(b)
-}
-
-func (w gzipResponseWriter) Flush() {
-	w.Writer.(*gzip.Writer).Flush()
-	if w, ok := w.ResponseWriter.(http.Flusher); ok {
-		w.Flush()
-	}
-}
-
-func (w gzipResponseWriter) CloseNotify() <-chan bool {
-	return w.ResponseWriter.(http.CloseNotifier).CloseNotify()
-}
-
-// gzipFilter determines if the client can accept compressed responses, and encodes accordingly.
-func gzipFilter(inner http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
-			inner.ServeHTTP(w, r)
-			return
-		}
-		gz := getGzipWriter(w)
-		defer putGzipWriter(gz)
-		gzw := gzipResponseWriter{Writer: gz, ResponseWriter: w}
-		inner.ServeHTTP(gzw, r)
-	})
-}
-
-var gzipWriterPool = sync.Pool{
-	New: func() interface{} {
-		return gzip.NewWriter(nil)
-	},
-}
-
-func getGzipWriter(w io.Writer) *gzip.Writer {
-	gz := gzipWriterPool.Get().(*gzip.Writer)
-	gz.Reset(w)
-	return gz
-}
-
-func putGzipWriter(gz *gzip.Writer) {
-	gz.Close()
-	gzipWriterPool.Put(gz)
-}
-
 // cors responds to incoming requests and adds the appropriate cors headers
 // TODO: corylanou: add the ability to configure this in our config
 func cors(inner http.Handler) http.Handler {
@@ -1246,6 +1183,7 @@ func (h *Handler) recovery(inner http.Handler, name string) http.Handler {
 				logLine := buildLogLine(l, r, start)
 				logLine = fmt.Sprintf("%s [panic:%s] %s", logLine, err, debug.Stack())
 				h.CLFLogger.Println(logLine)
+				http.Error(w, http.StatusText(http.StatusInternalServerError), 500)
 			}
 		}()
 
