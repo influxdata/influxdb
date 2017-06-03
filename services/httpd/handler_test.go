@@ -197,13 +197,13 @@ func TestHandler_Query_Auth(t *testing.T) {
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("unexpected status: %d: %s", w.Code, w.Body.String())
-	} else if !strings.Contains(w.Body.String(), `{"error":"Token is expired`) {
+	} else if !strings.Contains(w.Body.String(), `{"error":"token is expired`) {
 		t.Fatalf("unexpected body: %s", w.Body.String())
 	}
 
 	// Test handler with JWT token that has no expiration set.
 	token, _ := MustJWTToken("user1", h.Config.SharedSecret, false)
-	delete(token.Claims.(jwt.MapClaims), "exp")
+	delete(token.Claims, "exp")
 	signedToken, err := token.SignedString([]byte(h.Config.SharedSecret))
 	if err != nil {
 		t.Fatal(err)
@@ -692,11 +692,11 @@ func MustNewJSONRequest(method, urlStr string, body io.Reader) *http.Request {
 // MustJWTToken returns a new JWT token and signed string or panics trying.
 func MustJWTToken(username, secret string, expired bool) (*jwt.Token, string) {
 	token := jwt.New(jwt.GetSigningMethod("HS512"))
-	token.Claims.(jwt.MapClaims)["username"] = username
+	token.Claims["username"] = username
 	if expired {
-		token.Claims.(jwt.MapClaims)["exp"] = time.Now().Add(-time.Second).Unix()
+		token.Claims["exp"] = time.Now().Add(-time.Second).Unix()
 	} else {
-		token.Claims.(jwt.MapClaims)["exp"] = time.Now().Add(time.Minute * 10).Unix()
+		token.Claims["exp"] = time.Now().Add(time.Minute * 10).Unix()
 	}
 	signed, err := token.SignedString([]byte(secret))
 	if err != nil {

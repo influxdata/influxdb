@@ -1070,21 +1070,14 @@ func authenticate(inner func(http.ResponseWriter, *http.Request, meta.User), h *
 					return
 				}
 
-				claims, ok := token.Claims.(jwt.MapClaims)
-				if !ok {
-					h.httpError(w, "problem authenticating token", http.StatusInternalServerError)
-					h.Logger.Info("Could not assert JWT token claims as jwt.MapClaims")
-					return
-				}
-
 				// Make sure an expiration was set on the token.
-				if exp, ok := claims["exp"].(float64); !ok || exp <= 0.0 {
+				if exp, ok := token.Claims["exp"].(float64); !ok || exp <= 0.0 {
 					h.httpError(w, "token expiration required", http.StatusUnauthorized)
 					return
 				}
 
 				// Get the username from the token.
-				username, ok := claims["username"].(string)
+				username, ok := token.Claims["username"].(string)
 				if !ok {
 					h.httpError(w, "username in token must be a string", http.StatusUnauthorized)
 					return
