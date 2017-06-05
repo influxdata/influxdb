@@ -609,8 +609,12 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user meta.U
 		}
 	}
 
-	// Handle gzip decoding of the body
 	body := r.Body
+	if h.Config.MaxBodySize > 0 {
+		body = truncateReader(body, int64(h.Config.MaxBodySize))
+	}
+
+	// Handle gzip decoding of the body
 	if r.Header.Get("Content-Encoding") == "gzip" {
 		b, err := gzip.NewReader(r.Body)
 		if err != nil {
@@ -622,17 +626,25 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user meta.U
 	}
 
 	var bs []byte
-	if clStr := r.Header.Get("Content-Length"); clStr != "" {
-		if length, err := strconv.Atoi(clStr); err == nil {
-			// This will just be an initial hint for the gzip reader, as the
-			// bytes.Buffer will grow as needed when ReadFrom is called
-			bs = make([]byte, 0, length)
+	if r.ContentLength > 0 {
+		if h.Config.MaxBodySize > 0 && r.ContentLength > int64(h.Config.MaxBodySize) {
+			h.httpError(w, http.StatusText(http.StatusRequestEntityTooLarge), http.StatusRequestEntityTooLarge)
+			return
 		}
+
+		// This will just be an initial hint for the gzip reader, as the
+		// bytes.Buffer will grow as needed when ReadFrom is called
+		bs = make([]byte, 0, r.ContentLength)
 	}
 	buf := bytes.NewBuffer(bs)
 
 	_, err := buf.ReadFrom(body)
 	if err != nil {
+		if err == errTruncated {
+			h.httpError(w, http.StatusText(http.StatusRequestEntityTooLarge), http.StatusRequestEntityTooLarge)
+			return
+		}
+
 		if h.Config.WriteTracing {
 			h.Logger.Info("Write handler unable to read bytes from request body")
 		}

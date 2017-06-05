@@ -11,6 +11,9 @@ const (
 
 	// DefaultBindSocket is the default unix socket to bind to.
 	DefaultBindSocket = "/var/run/influxdb.sock"
+
+	// DefaultMaxBodySize is the default maximum size of a client request body, in bytes. Specify 0 for no limit.
+	DefaultMaxBodySize = 25e6
 )
 
 // Config represents a configuration for a HTTP service.
@@ -30,6 +33,7 @@ type Config struct {
 	Realm              string `toml:"realm"`
 	UnixSocketEnabled  bool   `toml:"unix-socket-enabled"`
 	BindSocket         string `toml:"bind-socket"`
+	MaxBodySize        int    `toml:"max-body-size"`
 }
 
 // NewConfig returns a new Config with default settings.
@@ -45,6 +49,7 @@ func NewConfig() Config {
 		Realm:             DefaultRealm,
 		UnixSocketEnabled: false,
 		BindSocket:        DefaultBindSocket,
+		MaxBodySize:       DefaultMaxBodySize,
 	}
 }
 

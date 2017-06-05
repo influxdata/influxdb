@@ -610,6 +610,45 @@ func TestHandler_HandleBadRequestBody(t *testing.T) {
 	}
 }
 
+func TestHandler_Write_EntityTooLarge_ContentLength(t *testing.T) {
+	b := bytes.NewReader(make([]byte, 100))
+	h := NewHandler(false)
+	h.Config.MaxBodySize = 5
+	h.MetaClient.DatabaseFn = func(name string) *meta.DatabaseInfo {
+		return &meta.DatabaseInfo{}
+	}
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, MustNewRequest("POST", "/write?db=foo", b))
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("unexpected status: %d", w.Code)
+	}
+}
+
+// onlyReader implements io.Reader only to ensure Request.ContentLength is not set
+type onlyReader struct {
+	r io.Reader
+}
+
+func (o onlyReader) Read(p []byte) (n int, err error) {
+	return o.r.Read(p)
+}
+
+func TestHandler_Write_EntityTooLarge_NoContentLength(t *testing.T) {
+	b := onlyReader{bytes.NewReader(make([]byte, 100))}
+	h := NewHandler(false)
+	h.Config.MaxBodySize = 5
+	h.MetaClient.DatabaseFn = func(name string) *meta.DatabaseInfo {
+		return &meta.DatabaseInfo{}
+	}
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, MustNewRequest("POST", "/write?db=foo", b))
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("unexpected status: %d", w.Code)
+	}
+}
+
 // Ensure X-Forwarded-For header writes the correct log message.
 func TestHandler_XForwardedFor(t *testing.T) {
 	var buf bytes.Buffer
