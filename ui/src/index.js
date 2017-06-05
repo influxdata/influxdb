@@ -5,24 +5,25 @@ import {Router, Route, useRouterHistory} from 'react-router'
 import {createHistory} from 'history'
 import {syncHistoryWithStore} from 'react-router-redux'
 
+import configureStore from 'src/store/configureStore'
+import {loadLocalStorage} from 'src/localStorage'
+
 import App from 'src/App'
-import AlertsApp from 'src/alerts'
+import {Login, UserIsAuthenticated, UserIsNotAuthenticated} from 'src/auth'
 import CheckSources from 'src/CheckSources'
 import {HostsPage, HostPage} from 'src/hosts'
-import {Login, UserIsAuthenticated, UserIsNotAuthenticated} from 'src/auth'
+import DataExplorer from 'src/data_explorer'
+import {DashboardsPage, DashboardPage} from 'src/dashboards'
+import AlertsApp from 'src/alerts'
 import {
   KapacitorPage,
   KapacitorRulePage,
   KapacitorRulesPage,
   KapacitorTasksPage,
 } from 'src/kapacitor'
-import DataExplorer from 'src/data_explorer'
-import {DashboardsPage, DashboardPage} from 'src/dashboards'
-import {CreateSource, SourcePage, ManageSources} from 'src/sources'
 import {AdminPage} from 'src/admin'
+import {CreateSource, SourcePage, ManageSources} from 'src/sources'
 import NotFound from 'shared/components/NotFound'
-import configureStore from 'src/store/configureStore'
-import {loadLocalStorage} from './localStorage'
 
 import {getMe} from 'shared/apis'
 
