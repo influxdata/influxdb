@@ -6,7 +6,7 @@ import NoKapacitorError from 'shared/components/NoKapacitorError'
 import CustomTimeRangeDropdown from 'shared/components/CustomTimeRangeDropdown'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
-import {getAlerts} from '../apis'
+import {getAlerts} from 'src/alerts/apis'
 import AJAX from 'utils/ajax'
 
 import _ from 'lodash'
