@@ -13,9 +13,9 @@ import (
 )
 
 type QueryRequest struct {
-	ID           string                   `json:"id"`
-	Query        string                   `json:"query"`
-	TemplateVars []chronograf.TemplateVar `json:"tempVars,omitempty"`
+	ID           string                  `json:"id"`
+	Query        string                  `json:"query"`
+	TemplateVars chronograf.TemplateVars `json:"tempVars,omitempty"`
 }
 
 type QueriesRequest struct {
