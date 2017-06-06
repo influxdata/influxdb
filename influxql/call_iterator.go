@@ -657,8 +657,8 @@ func BooleanModeReduceSlice(a []BooleanPoint) []BooleanPoint {
 	return []BooleanPoint{{Time: ZeroTime, Value: mostMode}}
 }
 
-// newStddevIterator returns an iterator for operating on a stddev() call.
-func newStddevIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
+// NewStddevIterator returns an iterator for operating on a stddev() call.
+func NewStddevIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
 		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
@@ -735,8 +735,8 @@ func IntegerStddevReduceSlice(a []IntegerPoint) []FloatPoint {
 	}}
 }
 
-// newSpreadIterator returns an iterator for operating on a spread() call.
-func newSpreadIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
+// NewSpreadIterator returns an iterator for operating on a spread() call.
+func NewSpreadIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
 		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
@@ -781,7 +781,7 @@ func IntegerSpreadReduceSlice(a []IntegerPoint) []IntegerPoint {
 	return []IntegerPoint{{Time: ZeroTime, Value: max - min}}
 }
 
-func newTopIterator(input Iterator, opt IteratorOptions, n int, keepTags bool) (Iterator, error) {
+func NewTopIterator(input Iterator, opt IteratorOptions, n int, keepTags bool) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
 		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
@@ -804,7 +804,7 @@ func newTopIterator(input Iterator, opt IteratorOptions, n int, keepTags bool) (
 	}
 }
 
-func newBottomIterator(input Iterator, opt IteratorOptions, n int, keepTags bool) (Iterator, error) {
+func NewBottomIterator(input Iterator, opt IteratorOptions, n int, keepTags bool) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
 		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
@@ -827,8 +827,8 @@ func newBottomIterator(input Iterator, opt IteratorOptions, n int, keepTags bool
 	}
 }
 
-// newPercentileIterator returns an iterator for operating on a percentile() call.
-func newPercentileIterator(input Iterator, opt IteratorOptions, percentile float64) (Iterator, error) {
+// NewPercentileIterator returns an iterator for operating on a percentile() call.
+func NewPercentileIterator(input Iterator, opt IteratorOptions, percentile float64) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
 		floatPercentileReduceSlice := NewFloatPercentileReduceSliceFunc(percentile)
@@ -879,8 +879,8 @@ func NewIntegerPercentileReduceSliceFunc(percentile float64) IntegerReduceSliceF
 	}
 }
 
-// newDerivativeIterator returns an iterator for operating on a derivative() call.
-func newDerivativeIterator(input Iterator, opt IteratorOptions, interval Interval, isNonNegative bool) (Iterator, error) {
+// NewDerivativeIterator returns an iterator for operating on a derivative() call.
+func NewDerivativeIterator(input Iterator, opt IteratorOptions, interval Interval, isNonNegative bool) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
 		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
@@ -899,8 +899,8 @@ func newDerivativeIterator(input Iterator, opt IteratorOptions, interval Interva
 	}
 }
 
-// newDifferenceIterator returns an iterator for operating on a difference() call.
-func newDifferenceIterator(input Iterator, opt IteratorOptions, isNonNegative bool) (Iterator, error) {
+// NewDifferenceIterator returns an iterator for operating on a difference() call.
+func NewDifferenceIterator(input Iterator, opt IteratorOptions, isNonNegative bool) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
 		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
@@ -919,8 +919,8 @@ func newDifferenceIterator(input Iterator, opt IteratorOptions, isNonNegative bo
 	}
 }
 
-// newElapsedIterator returns an iterator for operating on a elapsed() call.
-func newElapsedIterator(input Iterator, opt IteratorOptions, interval Interval) (Iterator, error) {
+// NewElapsedIterator returns an iterator for operating on a elapsed() call.
+func NewElapsedIterator(input Iterator, opt IteratorOptions, interval Interval) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
 		createFn := func() (FloatPointAggregator, IntegerPointEmitter) {
@@ -951,8 +951,8 @@ func newElapsedIterator(input Iterator, opt IteratorOptions, interval Interval) 
 	}
 }
 
-// newMovingAverageIterator returns an iterator for operating on a moving_average() call.
-func newMovingAverageIterator(input Iterator, n int, opt IteratorOptions) (Iterator, error) {
+// NewMovingAverageIterator returns an iterator for operating on a moving_average() call.
+func NewMovingAverageIterator(input Iterator, n int, opt IteratorOptions) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
 		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
@@ -971,8 +971,8 @@ func newMovingAverageIterator(input Iterator, n int, opt IteratorOptions) (Itera
 	}
 }
 
-// newCumulativeSumIterator returns an iterator for operating on a cumulative_sum() call.
-func newCumulativeSumIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
+// NewCumulativeSumIterator returns an iterator for operating on a cumulative_sum() call.
+func NewCumulativeSumIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
 		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
@@ -991,8 +991,8 @@ func newCumulativeSumIterator(input Iterator, opt IteratorOptions) (Iterator, er
 	}
 }
 
-// newHoltWintersIterator returns an iterator for operating on a holt_winters() call.
-func newHoltWintersIterator(input Iterator, opt IteratorOptions, h, m int, includeFitData bool, interval time.Duration) (Iterator, error) {
+// NewHoltWintersIterator returns an iterator for operating on a holt_winters() call.
+func NewHoltWintersIterator(input Iterator, opt IteratorOptions, h, m int, includeFitData bool, interval time.Duration) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
 		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
@@ -1048,8 +1048,8 @@ func newSampleIterator(input Iterator, opt IteratorOptions, size int) (Iterator,
 	}
 }
 
-// newIntegralIterator returns an iterator for operating on a integral() call.
-func newIntegralIterator(input Iterator, opt IteratorOptions, interval Interval) (Iterator, error) {
+// NewIntegralIterator returns an iterator for operating on a integral() call.
+func NewIntegralIterator(input Iterator, opt IteratorOptions, interval Interval) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
 		createFn := func() (FloatPointAggregator, FloatPointEmitter) {

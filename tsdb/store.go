@@ -20,6 +20,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/limiter"
+	"github.com/influxdata/influxdb/query"
 	"github.com/uber-go/zap"
 )
 
@@ -344,7 +345,7 @@ func (s *Store) Shards(ids []uint64) []*Shard {
 }
 
 // ShardGroup returns a ShardGroup with a list of shards by id.
-func (s *Store) ShardGroup(ids []uint64) ShardGroup {
+func (s *Store) ShardGroup(ids []uint64) query.ShardGroup {
 	return Shards(s.Shards(ids))
 }
 
@@ -829,9 +830,21 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 	sources = a
 
 	// Determine deletion time range.
-	min, max, err := influxql.TimeRangeAsEpochNano(condition)
+	_, timeRange, err := query.ParseCondition(condition, nil)
 	if err != nil {
 		return err
+	}
+
+	var min, max int64
+	if timeRange.Min.IsZero() {
+		min = influxql.MinTime
+	} else {
+		min = timeRange.Min.UnixNano()
+	}
+	if timeRange.Max.IsZero() {
+		max = influxql.MaxTime
+	} else {
+		max = timeRange.Max.UnixNano()
 	}
 
 	s.mu.RLock()

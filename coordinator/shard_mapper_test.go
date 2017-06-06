@@ -7,8 +7,8 @@ import (
 
 	"github.com/influxdata/influxdb/coordinator"
 	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/meta"
-	"github.com/influxdata/influxdb/tsdb"
 )
 
 func TestLocalShardMapper(t *testing.T) {
@@ -33,7 +33,7 @@ func TestLocalShardMapper(t *testing.T) {
 	}
 
 	var tsdbStore TSDBStore
-	tsdbStore.ShardGroupFn = func(ids []uint64) tsdb.ShardGroup {
+	tsdbStore.ShardGroupFn = func(ids []uint64) query.ShardGroup {
 		if !reflect.DeepEqual(ids, []uint64{1, 2, 3, 4}) {
 			t.Errorf("unexpected shard ids: %#v", ids)
 		}
@@ -60,43 +60,17 @@ func TestLocalShardMapper(t *testing.T) {
 		RetentionPolicy: "rp0",
 		Name:            "cpu",
 	}
-	ic, err := shardMapper.MapShards([]influxql.Source{measurement}, &influxql.SelectOptions{})
+	ic, err := shardMapper.MapShards(measurement, &influxql.SelectOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
 
 	// This should be a LocalShardMapping.
-	m, ok := ic.(*coordinator.LocalShardMapping)
-	if !ok {
+	if _, ok := ic.(*coordinator.LocalShardMapping); !ok {
 		t.Fatalf("unexpected mapping type: %T", ic)
-	} else if len(m.ShardMap) != 1 {
-		t.Fatalf("unexpected number of shard mappings: %d", len(m.ShardMap))
 	}
 
-	if _, err := ic.CreateIterator(measurement, influxql.IteratorOptions{}); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
-
-	// Subquery.
-	subquery := &influxql.SubQuery{
-		Statement: &influxql.SelectStatement{
-			Sources: []influxql.Source{measurement},
-		},
-	}
-	ic, err = shardMapper.MapShards([]influxql.Source{subquery}, &influxql.SelectOptions{})
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
-
-	// This should be a LocalShardMapping.
-	m, ok = ic.(*coordinator.LocalShardMapping)
-	if !ok {
-		t.Fatalf("unexpected mapping type: %T", ic)
-	} else if len(m.ShardMap) != 1 {
-		t.Fatalf("unexpected number of shard mappings: %d", len(m.ShardMap))
-	}
-
-	if _, err := ic.CreateIterator(measurement, influxql.IteratorOptions{}); err != nil {
+	if _, err := ic.CreateIterator(influxql.IteratorOptions{}); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }

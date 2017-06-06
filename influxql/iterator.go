@@ -356,7 +356,7 @@ func NewIntervalIterator(input Iterator, opt IteratorOptions) Iterator {
 	case BooleanIterator:
 		return newBooleanIntervalIterator(input, opt)
 	default:
-		panic(fmt.Sprintf("unsupported fill iterator type: %T", input))
+		panic(fmt.Sprintf("unsupported interval iterator type: %T", input))
 	}
 }
 
@@ -471,7 +471,7 @@ func (a *auxIteratorFields) close() {
 	}
 }
 
-// iterator creates a new iterator for a named auxilary field.
+// iterator creates a new iterator for a named auxiliary field.
 func (a *auxIteratorFields) iterator(name string, typ DataType) Iterator {
 	for _, f := range a.fields {
 		// Skip field if it's name doesn't match.
@@ -523,13 +523,13 @@ func (a *auxIteratorFields) send(p Point) (ok bool) {
 		for _, itr := range f.itrs {
 			switch itr := itr.(type) {
 			case *floatChanIterator:
-				ok = itr.setBuf(p.name(), tags, p.time(), v) || ok
+				ok = itr.setBuf(p.name(), tags, p.time(), v, nil) || ok
 			case *integerChanIterator:
-				ok = itr.setBuf(p.name(), tags, p.time(), v) || ok
+				ok = itr.setBuf(p.name(), tags, p.time(), v, nil) || ok
 			case *stringChanIterator:
-				ok = itr.setBuf(p.name(), tags, p.time(), v) || ok
+				ok = itr.setBuf(p.name(), tags, p.time(), v, nil) || ok
 			case *booleanChanIterator:
-				ok = itr.setBuf(p.name(), tags, p.time(), v) || ok
+				ok = itr.setBuf(p.name(), tags, p.time(), v, nil) || ok
 			default:
 				panic(fmt.Sprintf("invalid aux itr type: %T", itr))
 			}
@@ -554,6 +554,68 @@ func (a *auxIteratorFields) sendError(err error) {
 				panic(fmt.Sprintf("invalid aux itr type: %T", itr))
 			}
 		}
+	}
+}
+
+type IteratorMapper interface {
+	Iterator(driver IteratorMap, typ DataType) Iterator
+	Start()
+}
+
+type iteratorMapFields struct {
+	drivers []IteratorMap
+	itrs    []Iterator
+}
+
+func (f *iteratorMapFields) send(p Point) (ok bool) {
+	t, name, tags, aux := p.time(), p.name(), p.tags(), p.aux()
+	for i, driver := range f.drivers {
+		value := driver.Value(tags, aux)
+		switch itr := f.itrs[i].(type) {
+		case *floatChanIterator:
+			ok = itr.setBuf(name, tags, t, value, aux) || ok
+		case *integerChanIterator:
+			ok = itr.setBuf(name, tags, t, value, aux) || ok
+		case *stringChanIterator:
+			ok = itr.setBuf(name, tags, t, value, aux) || ok
+		case *booleanChanIterator:
+			ok = itr.setBuf(name, tags, t, value, aux) || ok
+		default:
+			panic(fmt.Sprintf("invalid aux itr type: %T", itr))
+		}
+	}
+	return ok
+}
+
+func (f *iteratorMapFields) sendError(err error) {
+	for _, itr := range f.itrs {
+		switch itr := itr.(type) {
+		case *floatChanIterator:
+			itr.setErr(err)
+		case *integerChanIterator:
+			itr.setErr(err)
+		case *stringChanIterator:
+			itr.setErr(err)
+		case *booleanChanIterator:
+			itr.setErr(err)
+		default:
+			panic(fmt.Sprintf("invalid aux itr type: %T", itr))
+		}
+	}
+}
+
+func NewIteratorMapper(input Iterator, drivers []IteratorMap, dimensions []string) IteratorMapper {
+	switch input := input.(type) {
+	case FloatIterator:
+		return newFloatIteratorMapper(input, drivers, dimensions)
+	case IntegerIterator:
+		return newIntegerIteratorMapper(input, drivers, dimensions)
+	case StringIterator:
+		return newStringIteratorMapper(input, drivers, dimensions)
+	case BooleanIterator:
+		return newBooleanIteratorMapper(input, drivers, dimensions)
+	default:
+		panic(fmt.Sprintf("unsupported map iterator type: %T", input))
 	}
 }
 
@@ -636,13 +698,6 @@ type IteratorCreator interface {
 	CreateIterator(source *Measurement, opt IteratorOptions) (Iterator, error)
 }
 
-// FieldMapper returns the data type for the field inside of the measurement.
-type FieldMapper interface {
-	FieldDimensions(m *Measurement) (fields map[string]DataType, dimensions map[string]struct{}, err error)
-
-	TypeMapper
-}
-
 // IteratorOptions is an object passed to CreateIterator to specify creation options.
 type IteratorOptions struct {
 	// Expression to iterate for.
@@ -697,132 +752,6 @@ type IteratorOptions struct {
 
 	// Authorizer can limit acccess to data
 	Authorizer Authorizer
-}
-
-// newIteratorOptionsStmt creates the iterator options from stmt.
-func newIteratorOptionsStmt(stmt *SelectStatement, sopt *SelectOptions) (opt IteratorOptions, err error) {
-
-	// Determine time range from the condition.
-	startTime, endTime, err := TimeRange(stmt.Condition, stmt.Location)
-	if err != nil {
-		return IteratorOptions{}, err
-	}
-
-	if !startTime.IsZero() {
-		opt.StartTime = startTime.UnixNano()
-	} else {
-		if sopt != nil {
-			opt.StartTime = sopt.MinTime.UnixNano()
-		} else {
-			opt.StartTime = MinTime
-		}
-	}
-	if !endTime.IsZero() {
-		opt.EndTime = endTime.UnixNano()
-	} else {
-		if sopt != nil {
-			opt.EndTime = sopt.MaxTime.UnixNano()
-		} else {
-			opt.EndTime = MaxTime
-		}
-	}
-	opt.Location = stmt.Location
-
-	// Determine group by interval.
-	interval, err := stmt.GroupByInterval()
-	if err != nil {
-		return opt, err
-	}
-	// Set duration to zero if a negative interval has been used.
-	if interval < 0 {
-		interval = 0
-	} else if interval > 0 {
-		opt.Interval.Offset, err = stmt.GroupByOffset()
-		if err != nil {
-			return opt, err
-		}
-	}
-	opt.Interval.Duration = interval
-
-	// Always request an ordered output for the top level iterators.
-	// The emitter will always emit points as ordered.
-	opt.Ordered = true
-
-	// Determine dimensions.
-	opt.GroupBy = make(map[string]struct{}, len(opt.Dimensions))
-	for _, d := range stmt.Dimensions {
-		if d, ok := d.Expr.(*VarRef); ok {
-			opt.Dimensions = append(opt.Dimensions, d.Val)
-			opt.GroupBy[d.Val] = struct{}{}
-		}
-	}
-
-	opt.Condition = stmt.Condition
-	opt.Ascending = stmt.TimeAscending()
-	opt.Dedupe = stmt.Dedupe
-
-	opt.Fill, opt.FillValue = stmt.Fill, stmt.FillValue
-	if opt.Fill == NullFill && stmt.Target != nil {
-		// Set the fill option to none if a target has been given.
-		// Null values will get ignored when being written to the target
-		// so fill(null) wouldn't write any null values to begin with.
-		opt.Fill = NoFill
-	}
-	opt.Limit, opt.Offset = stmt.Limit, stmt.Offset
-	opt.SLimit, opt.SOffset = stmt.SLimit, stmt.SOffset
-	if sopt != nil {
-		opt.MaxSeriesN = sopt.MaxSeriesN
-		opt.InterruptCh = sopt.InterruptCh
-		opt.Authorizer = sopt.Authorizer
-	}
-
-	return opt, nil
-}
-
-func newIteratorOptionsSubstatement(stmt *SelectStatement, opt IteratorOptions) (IteratorOptions, error) {
-	subOpt, err := newIteratorOptionsStmt(stmt, nil)
-	if err != nil {
-		return IteratorOptions{}, err
-	}
-
-	if subOpt.StartTime < opt.StartTime {
-		subOpt.StartTime = opt.StartTime
-	}
-	if subOpt.EndTime > opt.EndTime {
-		subOpt.EndTime = opt.EndTime
-	}
-	// Propagate the dimensions to the inner subquery.
-	subOpt.Dimensions = opt.Dimensions
-	for d := range opt.GroupBy {
-		subOpt.GroupBy[d] = struct{}{}
-	}
-	subOpt.InterruptCh = opt.InterruptCh
-
-	// Propagate the SLIMIT and SOFFSET from the outer query.
-	subOpt.SLimit += opt.SLimit
-	subOpt.SOffset += opt.SOffset
-
-	// If the inner query uses a null fill option, switch it to none so we
-	// don't hit an unnecessary penalty from the fill iterator. Null values
-	// will end up getting stripped by an outer query anyway so there's no
-	// point in having them here. We still need all other types of fill
-	// iterators because they can affect the result of the outer query.
-	if subOpt.Fill == NullFill {
-		subOpt.Fill = NoFill
-	}
-
-	// Inherit the ordering method from the outer query.
-	subOpt.Ordered = opt.Ordered
-
-	// If there is no interval for this subquery, but the outer query has an
-	// interval, inherit the parent interval.
-	interval, err := stmt.GroupByInterval()
-	if err != nil {
-		return IteratorOptions{}, err
-	} else if interval == 0 {
-		subOpt.Interval = opt.Interval
-	}
-	return subOpt, nil
 }
 
 // MergeSorted returns true if the options require a sorted merge.
@@ -916,41 +845,6 @@ func (opt IteratorOptions) Window(t int64) (start, end int64) {
 	}
 	end += int64(opt.Interval.Offset)
 	return
-}
-
-// DerivativeInterval returns the time interval for the derivative function.
-func (opt IteratorOptions) DerivativeInterval() Interval {
-	// Use the interval on the derivative() call, if specified.
-	if expr, ok := opt.Expr.(*Call); ok && len(expr.Args) == 2 {
-		return Interval{Duration: expr.Args[1].(*DurationLiteral).Val}
-	}
-
-	// Otherwise use the group by interval, if specified.
-	if opt.Interval.Duration > 0 {
-		return Interval{Duration: opt.Interval.Duration}
-	}
-
-	return Interval{Duration: time.Second}
-}
-
-// ElapsedInterval returns the time interval for the elapsed function.
-func (opt IteratorOptions) ElapsedInterval() Interval {
-	// Use the interval on the elapsed() call, if specified.
-	if expr, ok := opt.Expr.(*Call); ok && len(expr.Args) == 2 {
-		return Interval{Duration: expr.Args[1].(*DurationLiteral).Val}
-	}
-
-	return Interval{Duration: time.Nanosecond}
-}
-
-// IntegralInterval returns the time interval for the integral function.
-func (opt IteratorOptions) IntegralInterval() Interval {
-	// Use the interval on the integral() call, if specified.
-	if expr, ok := opt.Expr.(*Call); ok && len(expr.Args) == 2 {
-		return Interval{Duration: expr.Args[1].(*DurationLiteral).Val}
-	}
-
-	return Interval{Duration: time.Second}
 }
 
 // GetDimensions retrieves the dimensions for this query.
@@ -1146,50 +1040,6 @@ func decodeIteratorOptions(pb *internal.IteratorOptions) (*IteratorOptions, erro
 	return opt, nil
 }
 
-// selectInfo represents an object that stores info about select fields.
-type selectInfo struct {
-	calls map[*Call]struct{}
-	refs  map[*VarRef]struct{}
-}
-
-// newSelectInfo creates a object with call and var ref info from stmt.
-func newSelectInfo(stmt *SelectStatement) *selectInfo {
-	info := &selectInfo{
-		calls: make(map[*Call]struct{}),
-		refs:  make(map[*VarRef]struct{}),
-	}
-	Walk(info, stmt.Fields)
-	return info
-}
-
-func (v *selectInfo) Visit(n Node) Visitor {
-	switch n := n.(type) {
-	case *Call:
-		v.calls[n] = struct{}{}
-		return nil
-	case *VarRef:
-		v.refs[n] = struct{}{}
-		return nil
-	}
-	return v
-}
-
-// FindSelector returns a selector from the selectInfo. This will only
-// return a selector if the Call is a selector and it's the only function
-// in the selectInfo.
-func (v *selectInfo) FindSelector() *Call {
-	if len(v.calls) != 1 {
-		return nil
-	}
-
-	for s := range v.calls {
-		if IsSelector(s) {
-			return s
-		}
-	}
-	return nil
-}
-
 // Interval represents a repeating interval for a query.
 type Interval struct {
 	Duration time.Duration
@@ -1232,6 +1082,8 @@ type nilFloatIterator struct{}
 func (*nilFloatIterator) Stats() IteratorStats       { return IteratorStats{} }
 func (*nilFloatIterator) Close() error               { return nil }
 func (*nilFloatIterator) Next() (*FloatPoint, error) { return nil, nil }
+
+var NilIterator Iterator = (*nilFloatIterator)(nil)
 
 type nilFloatReaderIterator struct {
 	r io.Reader
@@ -1333,7 +1185,7 @@ type floatFastDedupeIterator struct {
 }
 
 // newFloatFastDedupeIterator returns a new instance of floatFastDedupeIterator.
-func newFloatFastDedupeIterator(input FloatIterator) *floatFastDedupeIterator {
+func NewFloatFastDedupeIterator(input FloatIterator) *floatFastDedupeIterator {
 	return &floatFastDedupeIterator{
 		input: input,
 		m:     make(map[fastDedupeKey]struct{}),

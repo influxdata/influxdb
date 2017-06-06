@@ -142,7 +142,7 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// SELECT statement
 		{
-			s: fmt.Sprintf(`SELECT mean(field1), sum(field2) ,count(field3) AS field_x FROM myseries WHERE host = 'hosta.influxdb.org' and time > '%s' GROUP BY time(10h) ORDER BY DESC LIMIT 20 OFFSET 10;`, now.UTC().Format(time.RFC3339Nano)),
+			s: fmt.Sprintf(`SELECT mean(field1), sum(field2), count(field3) AS field_x FROM myseries WHERE host = 'hosta.influxdb.org' and time > '%s' GROUP BY time(10h) ORDER BY DESC LIMIT 20 OFFSET 10;`, now.UTC().Format(time.RFC3339Nano)),
 			stmt: &influxql.SelectStatement{
 				IsRawQuery: false,
 				Fields: []*influxql.Field{
@@ -2237,6 +2237,22 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: &influxql.DropUserStatement{Name: "jdoe"},
 		},
 
+		// EXPLAIN SELECT ...
+		{
+			s: `EXPLAIN SELECT * FROM cpu`,
+			stmt: &influxql.ExplainStatement{
+				Statement: &influxql.SelectStatement{
+					Fields: []*influxql.Field{{
+						Expr: &influxql.Wildcard{},
+					}},
+					Sources: []influxql.Source{
+						&influxql.Measurement{Name: "cpu"},
+					},
+					IsRawQuery: true,
+				},
+			},
+		},
+
 		// GRANT READ
 		{
 			s: `GRANT READ ON testdb TO jdoe`,
@@ -2537,49 +2553,14 @@ func TestParser_ParseStatement(t *testing.T) {
 		},
 
 		// Errors
-		{s: ``, err: `found EOF, expected SELECT, DELETE, SHOW, CREATE, DROP, GRANT, REVOKE, ALTER, SET, KILL at line 1, char 1`},
+		{s: ``, err: `found EOF, expected SELECT, DELETE, SHOW, CREATE, DROP, GRANT, REVOKE, ALTER, SET, KILL, EXPLAIN at line 1, char 1`},
 		{s: `SELECT`, err: `found EOF, expected identifier, string, number, bool at line 1, char 8`},
-		{s: `SELECT time FROM myseries`, err: `at least 1 non-time field must be queried`},
-		{s: `blah blah`, err: `found blah, expected SELECT, DELETE, SHOW, CREATE, DROP, GRANT, REVOKE, ALTER, SET, KILL at line 1, char 1`},
+		{s: `blah blah`, err: `found blah, expected SELECT, DELETE, SHOW, CREATE, DROP, GRANT, REVOKE, ALTER, SET, KILL, EXPLAIN at line 1, char 1`},
 		{s: `SELECT field1 X`, err: `found X, expected FROM at line 1, char 15`},
 		{s: `SELECT field1 FROM "series" WHERE X +;`, err: `found ;, expected identifier, string, number, bool at line 1, char 38`},
 		{s: `SELECT field1 FROM myseries GROUP`, err: `found EOF, expected BY at line 1, char 35`},
 		{s: `SELECT field1 FROM myseries LIMIT`, err: `found EOF, expected integer at line 1, char 35`},
 		{s: `SELECT field1 FROM myseries LIMIT 10.5`, err: `found 10.5, expected integer at line 1, char 35`},
-		{s: `SELECT count(max(value)) FROM myseries`, err: `expected field argument in count()`},
-		{s: `SELECT count(distinct('value')) FROM myseries`, err: `expected field argument in distinct()`},
-		{s: `SELECT distinct('value') FROM myseries`, err: `expected field argument in distinct()`},
-		{s: `SELECT min(max(value)) FROM myseries`, err: `expected field argument in min()`},
-		{s: `SELECT min(distinct(value)) FROM myseries`, err: `expected field argument in min()`},
-		{s: `SELECT max(max(value)) FROM myseries`, err: `expected field argument in max()`},
-		{s: `SELECT sum(max(value)) FROM myseries`, err: `expected field argument in sum()`},
-		{s: `SELECT first(max(value)) FROM myseries`, err: `expected field argument in first()`},
-		{s: `SELECT last(max(value)) FROM myseries`, err: `expected field argument in last()`},
-		{s: `SELECT mean(max(value)) FROM myseries`, err: `expected field argument in mean()`},
-		{s: `SELECT median(max(value)) FROM myseries`, err: `expected field argument in median()`},
-		{s: `SELECT mode(max(value)) FROM myseries`, err: `expected field argument in mode()`},
-		{s: `SELECT stddev(max(value)) FROM myseries`, err: `expected field argument in stddev()`},
-		{s: `SELECT spread(max(value)) FROM myseries`, err: `expected field argument in spread()`},
-		{s: `SELECT top() FROM myseries`, err: `invalid number of arguments for top, expected at least 2, got 0`},
-		{s: `SELECT top(field1) FROM myseries`, err: `invalid number of arguments for top, expected at least 2, got 1`},
-		{s: `SELECT top(field1,foo) FROM myseries`, err: `expected integer as last argument in top(), found foo`},
-		{s: `SELECT top(field1,host,'server',foo) FROM myseries`, err: `expected integer as last argument in top(), found foo`},
-		{s: `SELECT top(field1,5,'server',2) FROM myseries`, err: `only fields or tags are allowed in top(), found 5`},
-		{s: `SELECT top(field1,max(foo),'server',2) FROM myseries`, err: `only fields or tags are allowed in top(), found max(foo)`},
-		{s: `SELECT top(value, 10) + count(value) FROM myseries`, err: `cannot use top() inside of a binary expression`},
-		{s: `SELECT top(max(value), 10) FROM myseries`, err: `only fields or tags are allowed in top(), found max(value)`},
-		{s: `SELECT bottom() FROM myseries`, err: `invalid number of arguments for bottom, expected at least 2, got 0`},
-		{s: `SELECT bottom(field1) FROM myseries`, err: `invalid number of arguments for bottom, expected at least 2, got 1`},
-		{s: `SELECT bottom(field1,foo) FROM myseries`, err: `expected integer as last argument in bottom(), found foo`},
-		{s: `SELECT bottom(field1,host,'server',foo) FROM myseries`, err: `expected integer as last argument in bottom(), found foo`},
-		{s: `SELECT bottom(field1,5,'server',2) FROM myseries`, err: `only fields or tags are allowed in bottom(), found 5`},
-		{s: `SELECT bottom(field1,max(foo),'server',2) FROM myseries`, err: `only fields or tags are allowed in bottom(), found max(foo)`},
-		{s: `SELECT bottom(value, 10) + count(value) FROM myseries`, err: `cannot use bottom() inside of a binary expression`},
-		{s: `SELECT bottom(max(value), 10) FROM myseries`, err: `only fields or tags are allowed in bottom(), found max(value)`},
-		{s: `SELECT percentile() FROM myseries`, err: `invalid number of arguments for percentile, expected 2, got 0`},
-		{s: `SELECT percentile(field1) FROM myseries`, err: `invalid number of arguments for percentile, expected 2, got 1`},
-		{s: `SELECT percentile(field1, foo) FROM myseries`, err: `expected float argument in percentile()`},
-		{s: `SELECT percentile(max(field1), 75) FROM myseries`, err: `expected field argument in percentile()`},
 		{s: `SELECT field1 FROM myseries OFFSET`, err: `found EOF, expected integer at line 1, char 36`},
 		{s: `SELECT field1 FROM myseries OFFSET 10.5`, err: `found 10.5, expected integer at line 1, char 36`},
 		{s: `SELECT field1 FROM myseries ORDER`, err: `found EOF, expected BY at line 1, char 35`},
@@ -2589,99 +2570,16 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SELECT field1 FROM myseries ORDER BY time ASC,`, err: `found EOF, expected identifier at line 1, char 47`},
 		{s: `SELECT field1 FROM myseries ORDER BY time, field1`, err: `only ORDER BY time supported at this time`},
 		{s: `SELECT field1 AS`, err: `found EOF, expected identifier at line 1, char 18`},
-		{s: `SELECT field1 FROM foo group by time(1s)`, err: `GROUP BY requires at least one aggregate function`},
-		{s: `SELECT field1 FROM foo fill(none)`, err: `fill(none) must be used with a function`},
-		{s: `SELECT field1 FROM foo fill(linear)`, err: `fill(linear) must be used with a function`},
-		{s: `SELECT count(value), value FROM foo`, err: `mixing aggregate and non-aggregate queries is not supported`},
-		{s: `SELECT count(value)/10, value FROM foo`, err: `mixing aggregate and non-aggregate queries is not supported`},
-		{s: `SELECT count(value) FROM foo group by time(1s)`, err: `aggregate functions with GROUP BY time require a WHERE time clause`},
-		{s: `SELECT count(value) FROM foo group by time(500ms)`, err: `aggregate functions with GROUP BY time require a WHERE time clause`},
-		{s: `SELECT count(value) FROM foo group by time(1s) where host = 'hosta.influxdb.org'`, err: `aggregate functions with GROUP BY time require a WHERE time clause`},
-		{s: `SELECT count(value) FROM foo group by time`, err: `time() is a function and expects at least one argument`},
-		{s: `SELECT count(value) FROM foo group by 'time'`, err: `only time and tag dimensions allowed`},
-		{s: `SELECT count(value) FROM foo where time > now() and time < now() group by time()`, err: `time dimension expected 1 or 2 arguments`},
-		{s: `SELECT count(value) FROM foo where time > now() and time < now() group by time(b)`, err: `time dimension must have duration argument`},
-		{s: `SELECT count(value) FROM foo where time > now() and time < now() group by time(1s), time(2s)`, err: `multiple time dimensions not allowed`},
-		{s: `SELECT count(value) FROM foo where time > now() and time < now() group by time(1s, b)`, err: `time dimension offset must be duration or now()`},
 		{s: `SELECT field1 FROM 12`, err: `found 12, expected identifier at line 1, char 20`},
 		{s: `SELECT 1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 FROM myseries`, err: `unable to parse integer at line 1, char 8`},
 		{s: `SELECT 10.5h FROM myseries`, err: `found h, expected FROM at line 1, char 12`},
-		{s: `SELECT distinct(field1), sum(field1) FROM myseries`, err: `aggregate function distinct() cannot be combined with other functions or fields`},
-		{s: `SELECT distinct(field1), field2 FROM myseries`, err: `aggregate function distinct() cannot be combined with other functions or fields`},
-		{s: `SELECT distinct(field1, field2) FROM myseries`, err: `distinct function can only have one argument`},
-		{s: `SELECT distinct() FROM myseries`, err: `distinct function requires at least one argument`},
 		{s: `SELECT distinct FROM myseries`, err: `found FROM, expected identifier at line 1, char 17`},
-		{s: `SELECT distinct field1, field2 FROM myseries`, err: `aggregate function distinct() cannot be combined with other functions or fields`},
 		{s: `SELECT count(distinct) FROM myseries`, err: `found ), expected (, identifier at line 1, char 22`},
-		{s: `SELECT count(distinct field1, field2) FROM myseries`, err: `count(distinct <field>) can only have one argument`},
-		{s: `select count(distinct(too, many, arguments)) from myseries`, err: `count(distinct <field>) can only have one argument`},
-		{s: `select count() from myseries`, err: `invalid number of arguments for count, expected 1, got 0`},
-		{s: `SELECT derivative(), field1 FROM myseries`, err: `mixing aggregate and non-aggregate queries is not supported`},
-		{s: `select derivative() from myseries`, err: `invalid number of arguments for derivative, expected at least 1 but no more than 2, got 0`},
-		{s: `select derivative(mean(value), 1h, 3) from myseries`, err: `invalid number of arguments for derivative, expected at least 1 but no more than 2, got 3`},
-		{s: `SELECT derivative(value) FROM myseries group by time(1h)`, err: `aggregate function required inside the call to derivative`},
-		{s: `SELECT derivative(top(value)) FROM myseries where time < now() and time > now() - 1d group by time(1h)`, err: `invalid number of arguments for top, expected at least 2, got 1`},
-		{s: `SELECT derivative(bottom(value)) FROM myseries where time < now() and time > now() - 1d group by time(1h)`, err: `invalid number of arguments for bottom, expected at least 2, got 1`},
-		{s: `SELECT derivative(max()) FROM myseries where time < now() and time > now() - 1d group by time(1h)`, err: `invalid number of arguments for max, expected 1, got 0`},
-		{s: `SELECT derivative(percentile(value)) FROM myseries where time < now() and time > now() - 1d group by time(1h)`, err: `invalid number of arguments for percentile, expected 2, got 1`},
-		{s: `SELECT derivative(mean(value), 1h) FROM myseries where time < now() and time > now() - 1d`, err: `derivative aggregate requires a GROUP BY interval`},
-		{s: `SELECT min(derivative) FROM (SELECT derivative(mean(value), 1h) FROM myseries) where time < now() and time > now() - 1d`, err: `derivative aggregate requires a GROUP BY interval`},
-		{s: `SELECT non_negative_derivative(), field1 FROM myseries`, err: `mixing aggregate and non-aggregate queries is not supported`},
-		{s: `select non_negative_derivative() from myseries`, err: `invalid number of arguments for non_negative_derivative, expected at least 1 but no more than 2, got 0`},
-		{s: `select non_negative_derivative(mean(value), 1h, 3) from myseries`, err: `invalid number of arguments for non_negative_derivative, expected at least 1 but no more than 2, got 3`},
-		{s: `SELECT non_negative_derivative(value) FROM myseries group by time(1h)`, err: `aggregate function required inside the call to non_negative_derivative`},
-		{s: `SELECT non_negative_derivative(top(value)) FROM myseries where time < now() and time > now() - 1d group by time(1h)`, err: `invalid number of arguments for top, expected at least 2, got 1`},
-		{s: `SELECT non_negative_derivative(bottom(value)) FROM myseries where time < now() and time > now() - 1d group by time(1h)`, err: `invalid number of arguments for bottom, expected at least 2, got 1`},
-		{s: `SELECT non_negative_derivative(max()) FROM myseries where time < now() and time > now() - 1d group by time(1h)`, err: `invalid number of arguments for max, expected 1, got 0`},
-		{s: `SELECT non_negative_derivative(mean(value), 1h) FROM myseries where time < now() and time > now() - 1d`, err: `non_negative_derivative aggregate requires a GROUP BY interval`},
-		{s: `SELECT non_negative_derivative(percentile(value)) FROM myseries where time < now() and time > now() - 1d group by time(1h)`, err: `invalid number of arguments for percentile, expected 2, got 1`},
-		{s: `SELECT difference(), field1 FROM myseries`, err: `mixing aggregate and non-aggregate queries is not supported`},
-		{s: `SELECT difference() from myseries`, err: `invalid number of arguments for difference, expected 1, got 0`},
-		{s: `SELECT difference(value) FROM myseries group by time(1h)`, err: `aggregate function required inside the call to difference`},
-		{s: `SELECT difference(top(value)) FROM myseries where time < now() and time > now() - 1d group by time(1h)`, err: `invalid number of arguments for top, expected at least 2, got 1`},
-		{s: `SELECT difference(bottom(value)) FROM myseries where time < now() and time > now() - 1d group by time(1h)`, err: `invalid number of arguments for bottom, expected at least 2, got 1`},
-		{s: `SELECT difference(max()) FROM myseries where time < now() and time > now() - 1d group by time(1h)`, err: `invalid number of arguments for max, expected 1, got 0`},
-		{s: `SELECT difference(percentile(value)) FROM myseries where time < now() and time > now() - 1d group by time(1h)`, err: `invalid number of arguments for percentile, expected 2, got 1`},
-		{s: `SELECT difference(mean(value)) FROM myseries where time < now() and time > now() - 1d`, err: `difference aggregate requires a GROUP BY interval`},
-		{s: `SELECT moving_average(), field1 FROM myseries`, err: `mixing aggregate and non-aggregate queries is not supported`},
-		{s: `SELECT moving_average() from myseries`, err: `invalid number of arguments for moving_average, expected 2, got 0`},
-		{s: `SELECT moving_average(value) FROM myseries`, err: `invalid number of arguments for moving_average, expected 2, got 1`},
-		{s: `SELECT moving_average(value, 2) FROM myseries group by time(1h)`, err: `aggregate function required inside the call to moving_average`},
-		{s: `SELECT moving_average(top(value), 2) FROM myseries where time < now() and time > now() - 1d group by time(1h)`, err: `invalid number of arguments for top, expected at least 2, got 1`},
-		{s: `SELECT moving_average(bottom(value), 2) FROM myseries where time < now() and time > now() - 1d group by time(1h)`, err: `invalid number of arguments for bottom, expected at least 2, got 1`},
-		{s: `SELECT moving_average(max(), 2) FROM myseries where time < now() and time > now() - 1d group by time(1h)`, err: `invalid number of arguments for max, expected 1, got 0`},
-		{s: `SELECT moving_average(percentile(value), 2) FROM myseries where time < now() and time > now() - 1d group by time(1h)`, err: `invalid number of arguments for percentile, expected 2, got 1`},
-		{s: `SELECT moving_average(mean(value), 2) FROM myseries where time < now() and time > now() - 1d`, err: `moving_average aggregate requires a GROUP BY interval`},
-		{s: `SELECT cumulative_sum(), field1 FROM myseries`, err: `mixing aggregate and non-aggregate queries is not supported`},
-		{s: `SELECT cumulative_sum() from myseries`, err: `invalid number of arguments for cumulative_sum, expected 1, got 0`},
-		{s: `SELECT cumulative_sum(value) FROM myseries group by time(1h)`, err: `aggregate function required inside the call to cumulative_sum`},
-		{s: `SELECT cumulative_sum(top(value)) FROM myseries where time < now() and time > now() - 1d group by time(1h)`, err: `invalid number of arguments for top, expected at least 2, got 1`},
-		{s: `SELECT cumulative_sum(bottom(value)) FROM myseries where time < now() and time > now() - 1d group by time(1h)`, err: `invalid number of arguments for bottom, expected at least 2, got 1`},
-		{s: `SELECT cumulative_sum(max()) FROM myseries where time < now() and time > now() - 1d group by time(1h)`, err: `invalid number of arguments for max, expected 1, got 0`},
-		{s: `SELECT cumulative_sum(percentile(value)) FROM myseries where time < now() and time > now() - 1d group by time(1h)`, err: `invalid number of arguments for percentile, expected 2, got 1`},
-		{s: `SELECT cumulative_sum(mean(value)) FROM myseries where time < now() and time > now() - 1d`, err: `cumulative_sum aggregate requires a GROUP BY interval`},
-		{s: `SELECT holt_winters(value) FROM myseries where time < now() and time > now() - 1d`, err: `invalid number of arguments for holt_winters, expected 3, got 1`},
-		{s: `SELECT holt_winters(value, 10, 2) FROM myseries where time < now() and time > now() - 1d`, err: `must use aggregate function with holt_winters`},
-		{s: `SELECT holt_winters(min(value), 10, 2) FROM myseries where time < now() and time > now() - 1d`, err: `holt_winters aggregate requires a GROUP BY interval`},
-		{s: `SELECT holt_winters(min(value), 0, 2) FROM myseries where time < now() and time > now() - 1d GROUP BY time(1d)`, err: `second arg to holt_winters must be greater than 0, got 0`},
-		{s: `SELECT holt_winters(min(value), false, 2) FROM myseries where time < now() and time > now() - 1d GROUP BY time(1d)`, err: `expected integer argument as second arg in holt_winters`},
-		{s: `SELECT holt_winters(min(value), 10, 'string') FROM myseries where time < now() and time > now() - 1d GROUP BY time(1d)`, err: `expected integer argument as third arg in holt_winters`},
 		{s: `SELECT field1 from myseries WHERE host =~ 'asd' LIMIT 1`, err: `found asd, expected regex at line 1, char 42`},
 		{s: `SELECT value > 2 FROM cpu`, err: `invalid operator > in SELECT clause at line 1, char 8; operator is intended for WHERE clause`},
 		{s: `SELECT value = 2 FROM cpu`, err: `invalid operator = in SELECT clause at line 1, char 8; operator is intended for WHERE clause`},
 		{s: `SELECT s =~ /foo/ FROM cpu`, err: `invalid operator =~ in SELECT clause at line 1, char 8; operator is intended for WHERE clause`},
-		{s: `SELECT mean(value) + value FROM cpu WHERE time < now() and time > now() - 1h GROUP BY time(10m)`, err: `binary expressions cannot mix aggregates and raw fields`},
-		// TODO: Remove this restriction in the future: https://github.com/influxdata/influxdb/issues/5968
-		{s: `SELECT mean(cpu_total - cpu_idle) FROM cpu`, err: `expected field argument in mean()`},
-		{s: `SELECT derivative(mean(cpu_total - cpu_idle), 1s) FROM cpu WHERE time < now() AND time > now() - 1d GROUP BY time(1h)`, err: `expected field argument in mean()`},
-		// TODO: The error message will change when math is allowed inside an aggregate: https://github.com/influxdata/influxdb/pull/5990#issuecomment-195565870
-		{s: `SELECT count(foo + sum(bar)) FROM cpu`, err: `expected field argument in count()`},
-		{s: `SELECT (count(foo + sum(bar))) FROM cpu`, err: `expected field argument in count()`},
-		{s: `SELECT sum(value) + count(foo + sum(bar)) FROM cpu`, err: `binary expressions cannot mix aggregates and raw fields`},
 		{s: `SELECT mean(value) FROM cpu FILL + value`, err: `fill must be a function call`},
-		{s: `SELECT sum(mean) FROM (SELECT mean(value) FROM cpu GROUP BY time(1h))`, err: `aggregate functions with GROUP BY time require a WHERE time clause`},
-		{s: `SELECT top(value, 2), max(value) FROM cpu`, err: `selector function top() cannot be combined with other functions`},
-		{s: `SELECT bottom(value, 2), max(value) FROM cpu`, err: `selector function bottom() cannot be combined with other functions`},
 		// See issues https://github.com/influxdata/influxdb/issues/1647
 		// and https://github.com/influxdata/influxdb/issues/4404
 		//{s: `DELETE`, err: `found EOF, expected FROM at line 1, char 8`},
@@ -2843,7 +2741,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SET PASSWORD FOR dejan`, err: `found EOF, expected = at line 1, char 24`},
 		{s: `SET PASSWORD FOR dejan =`, err: `found EOF, expected string at line 1, char 25`},
 		{s: `SET PASSWORD FOR dejan = bla`, err: `found bla, expected string at line 1, char 26`},
-		{s: `$SHOW$DATABASES`, err: `found $SHOW, expected SELECT, DELETE, SHOW, CREATE, DROP, GRANT, REVOKE, ALTER, SET, KILL at line 1, char 1`},
+		{s: `$SHOW$DATABASES`, err: `found $SHOW, expected SELECT, DELETE, SHOW, CREATE, DROP, GRANT, REVOKE, ALTER, SET, KILL, EXPLAIN at line 1, char 1`},
 		{s: `SELECT * FROM cpu WHERE "tagkey" = $$`, err: `empty bound parameter`},
 	}
 
@@ -2857,16 +2755,8 @@ func TestParser_ParseStatement(t *testing.T) {
 		}
 		stmt, err := p.ParseStatement()
 
-		// We are memoizing a field so for testing we need to...
-		if s, ok := tt.stmt.(*influxql.SelectStatement); ok {
-			s.GroupByInterval()
-			for _, source := range s.Sources {
-				switch source := source.(type) {
-				case *influxql.SubQuery:
-					source.Statement.GroupByInterval()
-				}
-			}
-		} else if st, ok := stmt.(*influxql.CreateContinuousQueryStatement); ok { // if it's a CQ, there is a non-exported field that gets memoized during parsing that needs to be set
+		// if it's a CQ, there is a non-exported field that gets memoized during parsing that needs to be set
+		if st, ok := stmt.(*influxql.CreateContinuousQueryStatement); ok {
 			if st != nil && st.Source != nil {
 				tt.stmt.(*influxql.CreateContinuousQueryStatement).Source.GroupByInterval()
 			}

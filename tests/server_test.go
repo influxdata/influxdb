@@ -1064,7 +1064,7 @@ func TestServer_Query_Count(t *testing.T) {
 		&Query{
 			name:    "selecting count(2) should error",
 			command: `SELECT count(2) FROM db0.rp0.cpu`,
-			exp:     `{"error":"error parsing query: expected field argument in count()"}`,
+			exp:     `{"results":[{"statement_id":0,"error":"expected field argument in count()"}]}`,
 		},
 	}...)
 
@@ -4289,13 +4289,13 @@ func TestServer_Query_AggregateSelectors(t *testing.T) {
 			name:    "count - time",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT time, count(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"network","columns":["time","count"],"values":[["2000-01-01T00:00:00Z",3],["2000-01-01T00:00:30Z",3],["2000-01-01T00:01:00Z",3]]}]}]}`,
 		},
 		&Query{
 			name:    "count - tx",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT tx, count(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
+			exp:     `{"results":[{"statement_id":0,"error":"mixing aggregate and non-aggregate queries is not supported"}]}`,
 		},
 		&Query{
 			name:    "distinct - baseline 30s",
@@ -4307,13 +4307,13 @@ func TestServer_Query_AggregateSelectors(t *testing.T) {
 			name:    "distinct - time",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT time, distinct(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"error":"error parsing query: aggregate function distinct() cannot be combined with other functions or fields"}`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"network","columns":["time","distinct"],"values":[["2000-01-01T00:00:00Z",10],["2000-01-01T00:00:00Z",40],["2000-01-01T00:00:30Z",40],["2000-01-01T00:00:30Z",50],["2000-01-01T00:01:00Z",70],["2000-01-01T00:01:00Z",90],["2000-01-01T00:01:00Z",5]]}]}]}`,
 		},
 		&Query{
 			name:    "distinct - tx",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT tx, distinct(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"error":"error parsing query: aggregate function distinct() cannot be combined with other functions or fields"}`,
+			exp:     `{"results":[{"statement_id":0,"error":"aggregate function distinct() cannot be combined with other functions or fields"}]}`,
 		},
 		&Query{
 			name:    "mean - baseline 30s",
@@ -4325,13 +4325,13 @@ func TestServer_Query_AggregateSelectors(t *testing.T) {
 			name:    "mean - time",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT time, mean(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"network","columns":["time","mean"],"values":[["2000-01-01T00:00:00Z",30],["2000-01-01T00:00:30Z",46.666666666666664],["2000-01-01T00:01:00Z",55]]}]}]}`,
 		},
 		&Query{
 			name:    "mean - tx",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT tx, mean(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
+			exp:     `{"results":[{"statement_id":0,"error":"mixing aggregate and non-aggregate queries is not supported"}]}`,
 		},
 		&Query{
 			name:    "median - baseline 30s",
@@ -4343,13 +4343,13 @@ func TestServer_Query_AggregateSelectors(t *testing.T) {
 			name:    "median - time",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT time, median(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"network","columns":["time","median"],"values":[["2000-01-01T00:00:00Z",40],["2000-01-01T00:00:30Z",50],["2000-01-01T00:01:00Z",70]]}]}]}`,
 		},
 		&Query{
 			name:    "median - tx",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT tx, median(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
+			exp:     `{"results":[{"statement_id":0,"error":"mixing aggregate and non-aggregate queries is not supported"}]}`,
 		},
 		&Query{
 			name:    "mode - baseline 30s",
@@ -4361,31 +4361,13 @@ func TestServer_Query_AggregateSelectors(t *testing.T) {
 			name:    "mode - time",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT time, mode(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
-		},
-		&Query{
-			name:    "mode - tx",
-			params:  url.Values{"db": []string{"db0"}},
-			command: `SELECT tx, mode(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
-		},
-		&Query{
-			name:    "mode - baseline 30s",
-			params:  url.Values{"db": []string{"db0"}},
-			command: `SELECT mode(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"network","columns":["time","mode"],"values":[["2000-01-01T00:00:00Z",40],["2000-01-01T00:00:30Z",50],["2000-01-01T00:01:00Z",5]]}]}]}`,
 		},
 		&Query{
-			name:    "mode - time",
-			params:  url.Values{"db": []string{"db0"}},
-			command: `SELECT time, mode(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
-		},
-		&Query{
 			name:    "mode - tx",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT tx, mode(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
+			exp:     `{"results":[{"statement_id":0,"error":"mixing aggregate and non-aggregate queries is not supported"}]}`,
 		},
 		&Query{
 			name:    "spread - baseline 30s",
@@ -4397,13 +4379,13 @@ func TestServer_Query_AggregateSelectors(t *testing.T) {
 			name:    "spread - time",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT time, spread(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"network","columns":["time","spread"],"values":[["2000-01-01T00:00:00Z",30],["2000-01-01T00:00:30Z",10],["2000-01-01T00:01:00Z",85]]}]}]}`,
 		},
 		&Query{
 			name:    "spread - tx",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT tx, spread(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
+			exp:     `{"results":[{"statement_id":0,"error":"mixing aggregate and non-aggregate queries is not supported"}]}`,
 		},
 		&Query{
 			name:    "stddev - baseline 30s",
@@ -4415,13 +4397,13 @@ func TestServer_Query_AggregateSelectors(t *testing.T) {
 			name:    "stddev - time",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT time, stddev(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"network","columns":["time","stddev"],"values":[["2000-01-01T00:00:00Z",17.320508075688775],["2000-01-01T00:00:30Z",5.773502691896258],["2000-01-01T00:01:00Z",44.44097208657794]]}]}]}`,
 		},
 		&Query{
 			name:    "stddev - tx",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT tx, stddev(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
+			exp:     `{"results":[{"statement_id":0,"error":"mixing aggregate and non-aggregate queries is not supported"}]}`,
 		},
 		&Query{
 			name:    "percentile - baseline 30s",
@@ -4690,13 +4672,13 @@ func TestServer_Query_TopBottomInt(t *testing.T) {
 			name:    "top - cpu - 3 values with limit 2",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT TOP(value, 3) FROM cpu limit 2`,
-			exp:     `{"error":"error parsing query: limit (3) in top function can not be larger than the LIMIT (2) in the select statement"}`,
+			exp:     `{"results":[{"statement_id":0,"error":"limit (3) in top function can not be larger than the LIMIT (2) in the select statement"}]}`,
 		},
 		&Query{
 			name:    "bottom - cpu - 3 values with limit 2",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT BOTTOM(value, 3) FROM cpu limit 2`,
-			exp:     `{"error":"error parsing query: limit (3) in bottom function can not be larger than the LIMIT (2) in the select statement"}`,
+			exp:     `{"results":[{"statement_id":0,"error":"limit (3) in bottom function can not be larger than the LIMIT (2) in the select statement"}]}`,
 		},
 		&Query{
 			name:    "top - cpu - hourly",
