@@ -74,6 +74,9 @@ func TestTSMReader_MMAP_ReadAll(t *testing.T) {
 		{"int", []tsm1.Value{
 			tsm1.NewValue(1, int64(1))},
 		},
+		{"uint", []tsm1.Value{
+			tsm1.NewValue(1, ^uint64(0))},
+		},
 		{"bool", []tsm1.Value{
 			tsm1.NewValue(1, true)},
 		},
@@ -152,6 +155,9 @@ func TestTSMReader_MMAP_Read(t *testing.T) {
 		{"int", []tsm1.Value{
 			tsm1.NewValue(1, int64(1))},
 		},
+		{"uint", []tsm1.Value{
+			tsm1.NewValue(1, ^uint64(0))},
+		},
 		{"bool", []tsm1.Value{
 			tsm1.NewValue(1, true)},
 		},
@@ -228,6 +234,9 @@ func TestTSMReader_MMAP_Keys(t *testing.T) {
 		},
 		{"int", []tsm1.Value{
 			tsm1.NewValue(1, int64(1))},
+		},
+		{"uint", []tsm1.Value{
+			tsm1.NewValue(1, ^uint64(0))},
 		},
 		{"bool", []tsm1.Value{
 			tsm1.NewValue(1, true)},
@@ -1160,10 +1169,11 @@ func TestBlockIterator_Sorted(t *testing.T) {
 	}
 
 	values := map[string][]tsm1.Value{
-		"mem":  []tsm1.Value{tsm1.NewValue(0, int64(1))},
-		"cpu":  []tsm1.Value{tsm1.NewValue(1, float64(2))},
-		"disk": []tsm1.Value{tsm1.NewValue(1, true)},
-		"load": []tsm1.Value{tsm1.NewValue(1, "string")},
+		"mem":    []tsm1.Value{tsm1.NewValue(0, int64(1))},
+		"cycles": []tsm1.Value{tsm1.NewValue(0, ^uint64(0))},
+		"cpu":    []tsm1.Value{tsm1.NewValue(1, float64(2))},
+		"disk":   []tsm1.Value{tsm1.NewValue(1, true)},
+		"load":   []tsm1.Value{tsm1.NewValue(1, "string")},
 	}
 
 	for k, v := range values {
@@ -1323,6 +1333,9 @@ func TestTSMReader_File_ReadAll(t *testing.T) {
 		{"int", []tsm1.Value{
 			tsm1.NewValue(1, int64(1))},
 		},
+		{"uint", []tsm1.Value{
+			tsm1.NewValue(1, ^uint64(0))},
+		},
 		{"bool", []tsm1.Value{
 			tsm1.NewValue(1, true)},
 		},
@@ -1470,6 +1483,9 @@ func TestTSMReader_File_Read(t *testing.T) {
 		{"int", []tsm1.Value{
 			tsm1.NewValue(1, int64(1))},
 		},
+		{"uint", []tsm1.Value{
+			tsm1.NewValue(1, ^uint64(0))},
+		},
 		{"bool", []tsm1.Value{
 			tsm1.NewValue(1, true)},
 		},
@@ -1546,6 +1562,9 @@ func TestTSMReader_References(t *testing.T) {
 		},
 		{"int", []tsm1.Value{
 			tsm1.NewValue(1, int64(1))},
+		},
+		{"uint", []tsm1.Value{
+			tsm1.NewValue(1, ^uint64(0))},
 		},
 		{"bool", []tsm1.Value{
 			tsm1.NewValue(1, true)},

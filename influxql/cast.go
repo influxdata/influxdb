@@ -6,6 +6,8 @@ func castToFloat(v interface{}) float64 {
 		return v
 	case int64:
 		return float64(v)
+	case uint64:
+		return float64(v)
 	default:
 		return float64(0)
 	}
@@ -17,8 +19,23 @@ func castToInteger(v interface{}) int64 {
 		return int64(v)
 	case int64:
 		return v
+	case uint64:
+		return int64(v)
 	default:
 		return int64(0)
+	}
+}
+
+func castToUnsigned(v interface{}) uint64 {
+	switch v := v.(type) {
+	case float64:
+		return uint64(v)
+	case uint64:
+		return v
+	case int64:
+		return uint64(v)
+	default:
+		return uint64(0)
 	}
 }
 

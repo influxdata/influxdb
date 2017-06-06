@@ -549,6 +549,200 @@ func (a IntegerValues) Len() int           { return len(a) }
 func (a IntegerValues) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a IntegerValues) Less(i, j int) bool { return a[i].UnixNano() < a[j].UnixNano() }
 
+// UnsignedValues represents a slice of Unsigned values.
+type UnsignedValues []UnsignedValue
+
+func (a UnsignedValues) MinTime() int64 {
+	return a[0].UnixNano()
+}
+
+func (a UnsignedValues) MaxTime() int64 {
+	return a[len(a)-1].UnixNano()
+}
+
+func (a UnsignedValues) Size() int {
+	sz := 0
+	for _, v := range a {
+		sz += v.Size()
+	}
+	return sz
+}
+
+func (a UnsignedValues) ordered() bool {
+	if len(a) <= 1 {
+		return true
+	}
+	for i := 1; i < len(a); i++ {
+		if av, ab := a[i-1].UnixNano(), a[i].UnixNano(); av >= ab {
+			return false
+		}
+	}
+	return true
+}
+
+func (a UnsignedValues) assertOrdered() {
+	if len(a) <= 1 {
+		return
+	}
+	for i := 1; i < len(a); i++ {
+		if av, ab := a[i-1].UnixNano(), a[i].UnixNano(); av >= ab {
+			panic(fmt.Sprintf("not ordered: %d %d >= %d", i, av, ab))
+		}
+	}
+}
+
+// Deduplicate returns a new slice with any values that have the same timestamp removed.
+// The Value that appears last in the slice is the one that is kept.
+func (a UnsignedValues) Deduplicate() UnsignedValues {
+	if len(a) == 0 {
+		return a
+	}
+
+	// See if we're already sorted and deduped
+	var needSort bool
+	for i := 1; i < len(a); i++ {
+		if a[i-1].UnixNano() >= a[i].UnixNano() {
+			needSort = true
+			break
+		}
+	}
+
+	if !needSort {
+		return a
+	}
+
+	sort.Stable(a)
+	var i int
+	for j := 1; j < len(a); j++ {
+		v := a[j]
+		if v.UnixNano() != a[i].UnixNano() {
+			i++
+		}
+		a[i] = v
+
+	}
+	return a[:i+1]
+}
+
+//  Exclude returns the subset of values not in [min, max]
+func (a UnsignedValues) Exclude(min, max int64) UnsignedValues {
+	var i int
+	for j := 0; j < len(a); j++ {
+		if a[j].UnixNano() >= min && a[j].UnixNano() <= max {
+			continue
+		}
+
+		a[i] = a[j]
+		i++
+	}
+	return a[:i]
+}
+
+// Include returns the subset values between min and max inclusive.
+func (a UnsignedValues) Include(min, max int64) UnsignedValues {
+	var i int
+	for j := 0; j < len(a); j++ {
+		if a[j].UnixNano() < min || a[j].UnixNano() > max {
+			continue
+		}
+
+		a[i] = a[j]
+		i++
+	}
+	return a[:i]
+}
+
+// Merge overlays b to top of a.  If two values conflict with
+// the same timestamp, b is used.  Both a and b must be sorted
+// in ascending order.
+func (a UnsignedValues) Merge(b UnsignedValues) UnsignedValues {
+	if len(a) == 0 {
+		return b
+	}
+
+	if len(b) == 0 {
+		return a
+	}
+
+	// Normally, both a and b should not contain duplicates.  Due to a bug in older versions, it's
+	// possible stored blocks might contain duplicate values.  Remove them if they exists before
+	// merging.
+	a = a.Deduplicate()
+	b = b.Deduplicate()
+
+	if a[len(a)-1].UnixNano() < b[0].UnixNano() {
+		return append(a, b...)
+	}
+
+	if b[len(b)-1].UnixNano() < a[0].UnixNano() {
+		return append(b, a...)
+	}
+
+	out := make(UnsignedValues, 0, len(a)+len(b))
+	for len(a) > 0 && len(b) > 0 {
+		if a[0].UnixNano() < b[0].UnixNano() {
+			out, a = append(out, a[0]), a[1:]
+		} else if len(b) > 0 && a[0].UnixNano() == b[0].UnixNano() {
+			a = a[1:]
+		} else {
+			out, b = append(out, b[0]), b[1:]
+		}
+	}
+	if len(a) > 0 {
+		return append(out, a...)
+	}
+	return append(out, b...)
+}
+
+func (a UnsignedValues) Encode(buf []byte) ([]byte, error) {
+	return encodeUnsignedValuesBlock(buf, a)
+}
+
+func encodeUnsignedValuesBlock(buf []byte, values []UnsignedValue) ([]byte, error) {
+	if len(values) == 0 {
+		return nil, nil
+	}
+
+	venc := getUnsignedEncoder(len(values))
+	tsenc := getTimeEncoder(len(values))
+
+	var b []byte
+	err := func() error {
+		for _, v := range values {
+			tsenc.Write(v.unixnano)
+			venc.Write(int64(v.value))
+		}
+		venc.Flush()
+
+		// Encoded timestamp values
+		tb, err := tsenc.Bytes()
+		if err != nil {
+			return err
+		}
+		// Encoded values
+		vb, err := venc.Bytes()
+		if err != nil {
+			return err
+		}
+
+		// Prepend the first timestamp of the block in the first 8 bytes and the block
+		// in the next byte, followed by the block
+		b = packBlock(buf, BlockUnsigned, tb, vb)
+
+		return nil
+	}()
+
+	putTimeEncoder(tsenc)
+	putUnsignedEncoder(venc)
+
+	return b, err
+}
+
+// Sort methods
+func (a UnsignedValues) Len() int           { return len(a) }
+func (a UnsignedValues) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a UnsignedValues) Less(i, j int) bool { return a[i].UnixNano() < a[j].UnixNano() }
+
 // StringValues represents a slice of String values.
 type StringValues []StringValue
 

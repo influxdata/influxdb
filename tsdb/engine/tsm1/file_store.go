@@ -31,6 +31,7 @@ type TSMFile interface {
 	ReadAt(entry *IndexEntry, values []Value) ([]Value, error)
 	ReadFloatBlockAt(entry *IndexEntry, values *[]FloatValue) ([]FloatValue, error)
 	ReadIntegerBlockAt(entry *IndexEntry, values *[]IntegerValue) ([]IntegerValue, error)
+	ReadUnsignedBlockAt(entry *IndexEntry, values *[]UnsignedValue) ([]UnsignedValue, error)
 	ReadStringBlockAt(entry *IndexEntry, values *[]StringValue) ([]StringValue, error)
 	ReadBooleanBlockAt(entry *IndexEntry, values *[]BooleanValue) ([]BooleanValue, error)
 
@@ -1137,6 +1138,13 @@ func (c *KeyCursor) filterFloatValues(tombstones []TimeRange, values FloatValues
 }
 
 func (c *KeyCursor) filterIntegerValues(tombstones []TimeRange, values IntegerValues) IntegerValues {
+	for _, t := range tombstones {
+		values = values.Exclude(t.Min, t.Max)
+	}
+	return values
+}
+
+func (c *KeyCursor) filterUnsignedValues(tombstones []TimeRange, values UnsignedValues) UnsignedValues {
 	for _, t := range tombstones {
 		values = values.Exclude(t.Min, t.Max)
 	}

@@ -176,6 +176,7 @@ type blockAccessor interface {
 	readBlock(entry *IndexEntry, values []Value) ([]Value, error)
 	readFloatBlock(entry *IndexEntry, values *[]FloatValue) ([]FloatValue, error)
 	readIntegerBlock(entry *IndexEntry, values *[]IntegerValue) ([]IntegerValue, error)
+	readUnsignedBlock(entry *IndexEntry, values *[]UnsignedValue) ([]UnsignedValue, error)
 	readStringBlock(entry *IndexEntry, values *[]StringValue) ([]StringValue, error)
 	readBooleanBlock(entry *IndexEntry, values *[]BooleanValue) ([]BooleanValue, error)
 	readBytes(entry *IndexEntry, buf []byte) (uint32, []byte, error)
@@ -281,6 +282,14 @@ func (t *TSMReader) ReadFloatBlockAt(entry *IndexEntry, vals *[]FloatValue) ([]F
 func (t *TSMReader) ReadIntegerBlockAt(entry *IndexEntry, vals *[]IntegerValue) ([]IntegerValue, error) {
 	t.mu.RLock()
 	v, err := t.accessor.readIntegerBlock(entry, vals)
+	t.mu.RUnlock()
+	return v, err
+}
+
+// ReadUnsignedBlockAt returns the unsigned integer values corresponding to the given index entry.
+func (t *TSMReader) ReadUnsignedBlockAt(entry *IndexEntry, vals *[]UnsignedValue) ([]UnsignedValue, error) {
+	t.mu.RLock()
+	v, err := t.accessor.readUnsignedBlock(entry, vals)
 	t.mu.RUnlock()
 	return v, err
 }
@@ -1149,6 +1158,24 @@ func (m *mmapAccessor) readIntegerBlock(entry *IndexEntry, values *[]IntegerValu
 	}
 
 	a, err := DecodeIntegerBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
+	m.mu.RUnlock()
+
+	if err != nil {
+		return nil, err
+	}
+
+	return a, nil
+}
+
+func (m *mmapAccessor) readUnsignedBlock(entry *IndexEntry, values *[]UnsignedValue) ([]UnsignedValue, error) {
+	m.mu.RLock()
+
+	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
+		m.mu.RUnlock()
+		return nil, ErrTSMClosed
+	}
+
+	a, err := DecodeUnsignedBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
 	m.mu.RUnlock()
 
 	if err != nil {

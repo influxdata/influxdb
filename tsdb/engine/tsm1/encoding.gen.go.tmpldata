@@ -2,26 +2,37 @@
 	{
 		"Name":"",
 		"name":"",
-		"Type":""
+		"Type":"",
+        "CastType":""
 	},
 	{
 		"Name":"Float",
 		"name":"float",
-		"Type":"BlockFloat64"
+		"Type":"BlockFloat64",
+        "CastType":""
 	},
 	{
 		"Name":"Integer",
 		"name":"integer",
-		"Type":"BlockInteger"
+		"Type":"BlockInteger",
+        "CastType":""
+	},
+	{
+		"Name":"Unsigned",
+		"name":"unsigned",
+		"Type":"BlockUnsigned",
+		"CastType":"int64"
 	},
 	{
 		"Name":"String",
 		"name":"string",
-		"Type":"BlockString"
+		"Type":"BlockString",
+        "CastType":""
 	},
 	{
 		"Name":"Boolean",
 		"name":"boolean",
-		"Type":"BlockBoolean"
+		"Type":"BlockBoolean",
+        "CastType":""
 	}
 ]

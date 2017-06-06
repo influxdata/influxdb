@@ -848,6 +848,12 @@ func (e *Engine) WritePoints(points []models.Point) error {
 					return err
 				}
 				v = NewIntegerValue(t, iv)
+			case models.Unsigned:
+				iv, err := iter.UnsignedValue()
+				if err != nil {
+					return err
+				}
+				v = NewUnsignedValue(t, iv)
 			case models.String:
 				v = NewStringValue(t, iter.StringValue())
 			case models.Boolean:
@@ -1849,6 +1855,9 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, name string, s
 				case influxql.Integer:
 					aux[i] = &integerNilLiteralCursor{}
 					continue
+				case influxql.Unsigned:
+					aux[i] = &unsignedNilLiteralCursor{}
+					continue
 				case influxql.String:
 					aux[i] = &stringNilLiteralCursor{}
 					continue
@@ -1889,6 +1898,9 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, name string, s
 					continue
 				case influxql.Integer:
 					conds[i] = &integerNilLiteralCursor{}
+					continue
+				case influxql.Unsigned:
+					conds[i] = &unsignedNilLiteralCursor{}
 					continue
 				case influxql.String:
 					conds[i] = &stringNilLiteralCursor{}
@@ -1932,6 +1944,8 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, name string, s
 		return newFloatIterator(name, tags, itrOpt, cur, aux, conds, condNames), nil
 	case integerCursor:
 		return newIntegerIterator(name, tags, itrOpt, cur, aux, conds, condNames), nil
+	case unsignedCursor:
+		return newUnsignedIterator(name, tags, itrOpt, cur, aux, conds, condNames), nil
 	case stringCursor:
 		return newStringIterator(name, tags, itrOpt, cur, aux, conds, condNames), nil
 	case booleanCursor:
@@ -1964,12 +1978,27 @@ func (e *Engine) buildCursor(measurement, seriesKey string, ref *influxql.VarRef
 			case influxql.Integer:
 				cur := e.buildIntegerCursor(measurement, seriesKey, ref.Val, opt)
 				return &floatCastIntegerCursor{cursor: cur}
+			case influxql.Unsigned:
+				cur := e.buildUnsignedCursor(measurement, seriesKey, ref.Val, opt)
+				return &floatCastUnsignedCursor{cursor: cur}
 			}
 		case influxql.Integer:
 			switch f.Type {
 			case influxql.Float:
 				cur := e.buildFloatCursor(measurement, seriesKey, ref.Val, opt)
 				return &integerCastFloatCursor{cursor: cur}
+			case influxql.Unsigned:
+				cur := e.buildUnsignedCursor(measurement, seriesKey, ref.Val, opt)
+				return &integerCastUnsignedCursor{cursor: cur}
+			}
+		case influxql.Unsigned:
+			switch f.Type {
+			case influxql.Float:
+				cur := e.buildFloatCursor(measurement, seriesKey, ref.Val, opt)
+				return &unsignedCastFloatCursor{cursor: cur}
+			case influxql.Integer:
+				cur := e.buildIntegerCursor(measurement, seriesKey, ref.Val, opt)
+				return &unsignedCastIntegerCursor{cursor: cur}
 			}
 		}
 		return nil
@@ -1981,6 +2010,8 @@ func (e *Engine) buildCursor(measurement, seriesKey string, ref *influxql.VarRef
 		return e.buildFloatCursor(measurement, seriesKey, ref.Val, opt)
 	case influxql.Integer:
 		return e.buildIntegerCursor(measurement, seriesKey, ref.Val, opt)
+	case influxql.Unsigned:
+		return e.buildUnsignedCursor(measurement, seriesKey, ref.Val, opt)
 	case influxql.String:
 		return e.buildStringCursor(measurement, seriesKey, ref.Val, opt)
 	case influxql.Boolean:
@@ -2002,6 +2033,13 @@ func (e *Engine) buildIntegerCursor(measurement, seriesKey, field string, opt in
 	cacheValues := e.Cache.Values(SeriesFieldKey(seriesKey, field))
 	keyCursor := e.KeyCursor(SeriesFieldKey(seriesKey, field), opt.SeekTime(), opt.Ascending)
 	return newIntegerCursor(opt.SeekTime(), opt.Ascending, cacheValues, keyCursor)
+}
+
+// buildUnsignedCursor creates a cursor for an unsigned field.
+func (e *Engine) buildUnsignedCursor(measurement, seriesKey, field string, opt influxql.IteratorOptions) unsignedCursor {
+	cacheValues := e.Cache.Values(SeriesFieldKey(seriesKey, field))
+	keyCursor := e.KeyCursor(SeriesFieldKey(seriesKey, field), opt.SeekTime(), opt.Ascending)
+	return newUnsignedCursor(opt.SeekTime(), opt.Ascending, cacheValues, keyCursor)
 }
 
 // buildStringCursor creates a cursor for a string field.
@@ -2033,6 +2071,8 @@ func tsmFieldTypeToInfluxQLDataType(typ byte) (influxql.DataType, error) {
 		return influxql.Float, nil
 	case BlockInteger:
 		return influxql.Integer, nil
+	case BlockUnsigned:
+		return influxql.Unsigned, nil
 	case BlockBoolean:
 		return influxql.Boolean, nil
 	case BlockString:

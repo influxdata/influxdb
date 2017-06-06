@@ -1843,6 +1843,425 @@ func (itr *floatIntegerExprIterator) next() (a, b *FloatPoint, err error) {
 // least one of the points will be non-nil.
 type floatIntegerExprFunc func(a, b float64) int64
 
+// floatReduceUnsignedIterator executes a reducer for every interval and buffers the result.
+type floatReduceUnsignedIterator struct {
+	input    *bufFloatIterator
+	create   func() (FloatPointAggregator, UnsignedPointEmitter)
+	dims     []string
+	opt      IteratorOptions
+	points   []UnsignedPoint
+	keepTags bool
+}
+
+func newFloatReduceUnsignedIterator(input FloatIterator, opt IteratorOptions, createFn func() (FloatPointAggregator, UnsignedPointEmitter)) *floatReduceUnsignedIterator {
+	return &floatReduceUnsignedIterator{
+		input:  newBufFloatIterator(input),
+		create: createFn,
+		dims:   opt.GetDimensions(),
+		opt:    opt,
+	}
+}
+
+// Stats returns stats from the input iterator.
+func (itr *floatReduceUnsignedIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *floatReduceUnsignedIterator) Close() error { return itr.input.Close() }
+
+// Next returns the minimum value for the next available interval.
+func (itr *floatReduceUnsignedIterator) Next() (*UnsignedPoint, error) {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		var err error
+		itr.points, err = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil, err
+		}
+	}
+
+	// Pop next point off the stack.
+	p := &itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p, nil
+}
+
+// floatReduceUnsignedPoint stores the reduced data for a name/tag combination.
+type floatReduceUnsignedPoint struct {
+	Name       string
+	Tags       Tags
+	Aggregator FloatPointAggregator
+	Emitter    UnsignedPointEmitter
+}
+
+// reduce executes fn once for every point in the next window.
+// The previous value for the dimension is passed to fn.
+func (itr *floatReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
+	// Calculate next window.
+	var (
+		startTime, endTime int64
+		window             struct {
+			name string
+			tags string
+		}
+	)
+	for {
+		p, err := itr.input.Next()
+		if err != nil || p == nil {
+			return nil, err
+		} else if p.Nil {
+			continue
+		}
+
+		// Unread the point so it can be processed.
+		itr.input.unread(p)
+		startTime, endTime = itr.opt.Window(p.Time)
+		window.name, window.tags = p.Name, p.Tags.Subset(itr.opt.Dimensions).ID()
+		break
+	}
+
+	// Create points by tags.
+	m := make(map[string]*floatReduceUnsignedPoint)
+	for {
+		// Read next point.
+		curr, err := itr.input.NextInWindow(startTime, endTime)
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
+			break
+		} else if curr.Nil {
+			continue
+		} else if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Ensure this point is within the same final window.
+		if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != window.tags {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
+
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &floatReduceUnsignedPoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			m[id] = rp
+		}
+		rp.Aggregator.AggregateFloat(curr)
+	}
+
+	// Reverse sort points by name & tag if our output is supposed to be ordered.
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	if len(keys) > 1 && itr.opt.Ordered {
+		sort.Sort(reverseStringSlice(keys))
+	}
+
+	// Assume the points are already sorted until proven otherwise.
+	sortedByTime := true
+	// Emit the points for each name & tag combination.
+	a := make([]UnsignedPoint, 0, len(m))
+	for _, k := range keys {
+		rp := m[k]
+		points := rp.Emitter.Emit()
+		for i := len(points) - 1; i >= 0; i-- {
+			points[i].Name = rp.Name
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
+			// Set the points time to the interval time if the reducer didn't provide one.
+			if points[i].Time == ZeroTime {
+				points[i].Time = startTime
+			} else {
+				sortedByTime = false
+			}
+			a = append(a, points[i])
+		}
+	}
+
+	// Points may be out of order. Perform a stable sort by time if requested.
+	if !sortedByTime && itr.opt.Ordered {
+		sort.Stable(sort.Reverse(unsignedPointsByTime(a)))
+	}
+
+	return a, nil
+}
+
+// floatStreamUnsignedIterator streams inputs into the iterator and emits points gradually.
+type floatStreamUnsignedIterator struct {
+	input  *bufFloatIterator
+	create func() (FloatPointAggregator, UnsignedPointEmitter)
+	dims   []string
+	opt    IteratorOptions
+	m      map[string]*floatReduceUnsignedPoint
+	points []UnsignedPoint
+}
+
+// newFloatStreamUnsignedIterator returns a new instance of floatStreamUnsignedIterator.
+func newFloatStreamUnsignedIterator(input FloatIterator, createFn func() (FloatPointAggregator, UnsignedPointEmitter), opt IteratorOptions) *floatStreamUnsignedIterator {
+	return &floatStreamUnsignedIterator{
+		input:  newBufFloatIterator(input),
+		create: createFn,
+		dims:   opt.GetDimensions(),
+		opt:    opt,
+		m:      make(map[string]*floatReduceUnsignedPoint),
+	}
+}
+
+// Stats returns stats from the input iterator.
+func (itr *floatStreamUnsignedIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *floatStreamUnsignedIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next value for the stream iterator.
+func (itr *floatStreamUnsignedIterator) Next() (*UnsignedPoint, error) {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		var err error
+		itr.points, err = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil, err
+		}
+	}
+
+	// Pop next point off the stack.
+	p := &itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p, nil
+}
+
+// reduce creates and manages aggregators for every point from the input.
+// After aggregating a point, it always tries to emit a value using the emitter.
+func (itr *floatStreamUnsignedIterator) reduce() ([]UnsignedPoint, error) {
+	for {
+		// Read next point.
+		curr, err := itr.input.Next()
+		if curr == nil {
+			// Close all of the aggregators to flush any remaining points to emit.
+			var points []UnsignedPoint
+			for _, rp := range itr.m {
+				if aggregator, ok := rp.Aggregator.(io.Closer); ok {
+					if err := aggregator.Close(); err != nil {
+						return nil, err
+					}
+
+					pts := rp.Emitter.Emit()
+					if len(pts) == 0 {
+						continue
+					}
+
+					for i := range pts {
+						pts[i].Name = rp.Name
+						pts[i].Tags = rp.Tags
+					}
+					points = append(points, pts...)
+				}
+			}
+
+			// Eliminate the aggregators and emitters.
+			itr.m = nil
+			return points, nil
+		} else if err != nil {
+			return nil, err
+		} else if curr.Nil {
+			continue
+		}
+		tags := curr.Tags.Subset(itr.dims)
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
+
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := itr.m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &floatReduceUnsignedPoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			itr.m[id] = rp
+		}
+		rp.Aggregator.AggregateFloat(curr)
+
+		// Attempt to emit points from the aggregator.
+		points := rp.Emitter.Emit()
+		if len(points) == 0 {
+			continue
+		}
+
+		for i := range points {
+			points[i].Name = rp.Name
+			points[i].Tags = rp.Tags
+		}
+		return points, nil
+	}
+}
+
+// floatUnsignedExprIterator executes a function to modify an existing point
+// for every output of the input iterator.
+type floatUnsignedExprIterator struct {
+	left      *bufFloatIterator
+	right     *bufFloatIterator
+	fn        floatUnsignedExprFunc
+	points    []FloatPoint // must be size 2
+	storePrev bool
+}
+
+func newFloatUnsignedExprIterator(left, right FloatIterator, opt IteratorOptions, fn func(a, b float64) uint64) *floatUnsignedExprIterator {
+	var points []FloatPoint
+	switch opt.Fill {
+	case NullFill, PreviousFill:
+		points = []FloatPoint{{Nil: true}, {Nil: true}}
+	case NumberFill:
+		value := castToFloat(opt.FillValue)
+		points = []FloatPoint{{Value: value}, {Value: value}}
+	}
+	return &floatUnsignedExprIterator{
+		left:      newBufFloatIterator(left),
+		right:     newBufFloatIterator(right),
+		points:    points,
+		fn:        fn,
+		storePrev: opt.Fill == PreviousFill,
+	}
+}
+
+func (itr *floatUnsignedExprIterator) Stats() IteratorStats {
+	stats := itr.left.Stats()
+	stats.Add(itr.right.Stats())
+	return stats
+}
+
+func (itr *floatUnsignedExprIterator) Close() error {
+	itr.left.Close()
+	itr.right.Close()
+	return nil
+}
+
+func (itr *floatUnsignedExprIterator) Next() (*UnsignedPoint, error) {
+	for {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
+			return nil, err
+		}
+
+		// If any of these are nil and we are using fill(none), skip these points.
+		if (a == nil || a.Nil || b == nil || b.Nil) && itr.points == nil {
+			continue
+		}
+
+		// If one of the two points is nil, we need to fill it with a fake nil
+		// point that has the same name, tags, and time as the other point.
+		// There should never be a time when both of these are nil.
+		if a == nil {
+			p := *b
+			a = &p
+			a.Value = 0
+			a.Nil = true
+		} else if b == nil {
+			p := *a
+			b = &p
+			b.Value = 0
+			b.Nil = true
+		}
+
+		// If a value is nil, use the fill values if the fill value is non-nil.
+		if a.Nil && !itr.points[0].Nil {
+			a.Value = itr.points[0].Value
+			a.Nil = false
+		}
+		if b.Nil && !itr.points[1].Nil {
+			b.Value = itr.points[1].Value
+			b.Nil = false
+		}
+
+		if itr.storePrev {
+			itr.points[0], itr.points[1] = *a, *b
+		}
+
+		p := &UnsignedPoint{
+			Name:       a.Name,
+			Tags:       a.Tags,
+			Time:       a.Time,
+			Nil:        a.Nil || b.Nil,
+			Aggregated: a.Aggregated,
+		}
+		if !p.Nil {
+			p.Value = itr.fn(a.Value, b.Value)
+		}
+		return p, nil
+
+	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *floatUnsignedExprIterator) next() (a, b *FloatPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
+}
+
+// floatUnsignedExprFunc creates or modifies a point by combining two
+// points. The point passed in may be modified and returned rather than
+// allocating a new point if possible. One of the points may be nil, but at
+// least one of the points will be non-nil.
+type floatUnsignedExprFunc func(a, b float64) uint64
+
 // floatReduceStringIterator executes a reducer for every interval and buffers the result.
 type floatReduceStringIterator struct {
 	input    *bufFloatIterator
@@ -4768,6 +5187,425 @@ func (itr *integerExprIterator) next() (a, b *IntegerPoint, err error) {
 // least one of the points will be non-nil.
 type integerExprFunc func(a, b int64) int64
 
+// integerReduceUnsignedIterator executes a reducer for every interval and buffers the result.
+type integerReduceUnsignedIterator struct {
+	input    *bufIntegerIterator
+	create   func() (IntegerPointAggregator, UnsignedPointEmitter)
+	dims     []string
+	opt      IteratorOptions
+	points   []UnsignedPoint
+	keepTags bool
+}
+
+func newIntegerReduceUnsignedIterator(input IntegerIterator, opt IteratorOptions, createFn func() (IntegerPointAggregator, UnsignedPointEmitter)) *integerReduceUnsignedIterator {
+	return &integerReduceUnsignedIterator{
+		input:  newBufIntegerIterator(input),
+		create: createFn,
+		dims:   opt.GetDimensions(),
+		opt:    opt,
+	}
+}
+
+// Stats returns stats from the input iterator.
+func (itr *integerReduceUnsignedIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *integerReduceUnsignedIterator) Close() error { return itr.input.Close() }
+
+// Next returns the minimum value for the next available interval.
+func (itr *integerReduceUnsignedIterator) Next() (*UnsignedPoint, error) {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		var err error
+		itr.points, err = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil, err
+		}
+	}
+
+	// Pop next point off the stack.
+	p := &itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p, nil
+}
+
+// integerReduceUnsignedPoint stores the reduced data for a name/tag combination.
+type integerReduceUnsignedPoint struct {
+	Name       string
+	Tags       Tags
+	Aggregator IntegerPointAggregator
+	Emitter    UnsignedPointEmitter
+}
+
+// reduce executes fn once for every point in the next window.
+// The previous value for the dimension is passed to fn.
+func (itr *integerReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
+	// Calculate next window.
+	var (
+		startTime, endTime int64
+		window             struct {
+			name string
+			tags string
+		}
+	)
+	for {
+		p, err := itr.input.Next()
+		if err != nil || p == nil {
+			return nil, err
+		} else if p.Nil {
+			continue
+		}
+
+		// Unread the point so it can be processed.
+		itr.input.unread(p)
+		startTime, endTime = itr.opt.Window(p.Time)
+		window.name, window.tags = p.Name, p.Tags.Subset(itr.opt.Dimensions).ID()
+		break
+	}
+
+	// Create points by tags.
+	m := make(map[string]*integerReduceUnsignedPoint)
+	for {
+		// Read next point.
+		curr, err := itr.input.NextInWindow(startTime, endTime)
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
+			break
+		} else if curr.Nil {
+			continue
+		} else if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Ensure this point is within the same final window.
+		if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != window.tags {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
+
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &integerReduceUnsignedPoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			m[id] = rp
+		}
+		rp.Aggregator.AggregateInteger(curr)
+	}
+
+	// Reverse sort points by name & tag if our output is supposed to be ordered.
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	if len(keys) > 1 && itr.opt.Ordered {
+		sort.Sort(reverseStringSlice(keys))
+	}
+
+	// Assume the points are already sorted until proven otherwise.
+	sortedByTime := true
+	// Emit the points for each name & tag combination.
+	a := make([]UnsignedPoint, 0, len(m))
+	for _, k := range keys {
+		rp := m[k]
+		points := rp.Emitter.Emit()
+		for i := len(points) - 1; i >= 0; i-- {
+			points[i].Name = rp.Name
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
+			// Set the points time to the interval time if the reducer didn't provide one.
+			if points[i].Time == ZeroTime {
+				points[i].Time = startTime
+			} else {
+				sortedByTime = false
+			}
+			a = append(a, points[i])
+		}
+	}
+
+	// Points may be out of order. Perform a stable sort by time if requested.
+	if !sortedByTime && itr.opt.Ordered {
+		sort.Stable(sort.Reverse(unsignedPointsByTime(a)))
+	}
+
+	return a, nil
+}
+
+// integerStreamUnsignedIterator streams inputs into the iterator and emits points gradually.
+type integerStreamUnsignedIterator struct {
+	input  *bufIntegerIterator
+	create func() (IntegerPointAggregator, UnsignedPointEmitter)
+	dims   []string
+	opt    IteratorOptions
+	m      map[string]*integerReduceUnsignedPoint
+	points []UnsignedPoint
+}
+
+// newIntegerStreamUnsignedIterator returns a new instance of integerStreamUnsignedIterator.
+func newIntegerStreamUnsignedIterator(input IntegerIterator, createFn func() (IntegerPointAggregator, UnsignedPointEmitter), opt IteratorOptions) *integerStreamUnsignedIterator {
+	return &integerStreamUnsignedIterator{
+		input:  newBufIntegerIterator(input),
+		create: createFn,
+		dims:   opt.GetDimensions(),
+		opt:    opt,
+		m:      make(map[string]*integerReduceUnsignedPoint),
+	}
+}
+
+// Stats returns stats from the input iterator.
+func (itr *integerStreamUnsignedIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *integerStreamUnsignedIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next value for the stream iterator.
+func (itr *integerStreamUnsignedIterator) Next() (*UnsignedPoint, error) {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		var err error
+		itr.points, err = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil, err
+		}
+	}
+
+	// Pop next point off the stack.
+	p := &itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p, nil
+}
+
+// reduce creates and manages aggregators for every point from the input.
+// After aggregating a point, it always tries to emit a value using the emitter.
+func (itr *integerStreamUnsignedIterator) reduce() ([]UnsignedPoint, error) {
+	for {
+		// Read next point.
+		curr, err := itr.input.Next()
+		if curr == nil {
+			// Close all of the aggregators to flush any remaining points to emit.
+			var points []UnsignedPoint
+			for _, rp := range itr.m {
+				if aggregator, ok := rp.Aggregator.(io.Closer); ok {
+					if err := aggregator.Close(); err != nil {
+						return nil, err
+					}
+
+					pts := rp.Emitter.Emit()
+					if len(pts) == 0 {
+						continue
+					}
+
+					for i := range pts {
+						pts[i].Name = rp.Name
+						pts[i].Tags = rp.Tags
+					}
+					points = append(points, pts...)
+				}
+			}
+
+			// Eliminate the aggregators and emitters.
+			itr.m = nil
+			return points, nil
+		} else if err != nil {
+			return nil, err
+		} else if curr.Nil {
+			continue
+		}
+		tags := curr.Tags.Subset(itr.dims)
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
+
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := itr.m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &integerReduceUnsignedPoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			itr.m[id] = rp
+		}
+		rp.Aggregator.AggregateInteger(curr)
+
+		// Attempt to emit points from the aggregator.
+		points := rp.Emitter.Emit()
+		if len(points) == 0 {
+			continue
+		}
+
+		for i := range points {
+			points[i].Name = rp.Name
+			points[i].Tags = rp.Tags
+		}
+		return points, nil
+	}
+}
+
+// integerUnsignedExprIterator executes a function to modify an existing point
+// for every output of the input iterator.
+type integerUnsignedExprIterator struct {
+	left      *bufIntegerIterator
+	right     *bufIntegerIterator
+	fn        integerUnsignedExprFunc
+	points    []IntegerPoint // must be size 2
+	storePrev bool
+}
+
+func newIntegerUnsignedExprIterator(left, right IntegerIterator, opt IteratorOptions, fn func(a, b int64) uint64) *integerUnsignedExprIterator {
+	var points []IntegerPoint
+	switch opt.Fill {
+	case NullFill, PreviousFill:
+		points = []IntegerPoint{{Nil: true}, {Nil: true}}
+	case NumberFill:
+		value := castToInteger(opt.FillValue)
+		points = []IntegerPoint{{Value: value}, {Value: value}}
+	}
+	return &integerUnsignedExprIterator{
+		left:      newBufIntegerIterator(left),
+		right:     newBufIntegerIterator(right),
+		points:    points,
+		fn:        fn,
+		storePrev: opt.Fill == PreviousFill,
+	}
+}
+
+func (itr *integerUnsignedExprIterator) Stats() IteratorStats {
+	stats := itr.left.Stats()
+	stats.Add(itr.right.Stats())
+	return stats
+}
+
+func (itr *integerUnsignedExprIterator) Close() error {
+	itr.left.Close()
+	itr.right.Close()
+	return nil
+}
+
+func (itr *integerUnsignedExprIterator) Next() (*UnsignedPoint, error) {
+	for {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
+			return nil, err
+		}
+
+		// If any of these are nil and we are using fill(none), skip these points.
+		if (a == nil || a.Nil || b == nil || b.Nil) && itr.points == nil {
+			continue
+		}
+
+		// If one of the two points is nil, we need to fill it with a fake nil
+		// point that has the same name, tags, and time as the other point.
+		// There should never be a time when both of these are nil.
+		if a == nil {
+			p := *b
+			a = &p
+			a.Value = 0
+			a.Nil = true
+		} else if b == nil {
+			p := *a
+			b = &p
+			b.Value = 0
+			b.Nil = true
+		}
+
+		// If a value is nil, use the fill values if the fill value is non-nil.
+		if a.Nil && !itr.points[0].Nil {
+			a.Value = itr.points[0].Value
+			a.Nil = false
+		}
+		if b.Nil && !itr.points[1].Nil {
+			b.Value = itr.points[1].Value
+			b.Nil = false
+		}
+
+		if itr.storePrev {
+			itr.points[0], itr.points[1] = *a, *b
+		}
+
+		p := &UnsignedPoint{
+			Name:       a.Name,
+			Tags:       a.Tags,
+			Time:       a.Time,
+			Nil:        a.Nil || b.Nil,
+			Aggregated: a.Aggregated,
+		}
+		if !p.Nil {
+			p.Value = itr.fn(a.Value, b.Value)
+		}
+		return p, nil
+
+	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *integerUnsignedExprIterator) next() (a, b *IntegerPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
+}
+
+// integerUnsignedExprFunc creates or modifies a point by combining two
+// points. The point passed in may be modified and returned rather than
+// allocating a new point if possible. One of the points may be nil, but at
+// least one of the points will be non-nil.
+type integerUnsignedExprFunc func(a, b int64) uint64
+
 // integerReduceStringIterator executes a reducer for every interval and buffers the result.
 type integerReduceStringIterator struct {
 	input    *bufIntegerIterator
@@ -5871,6 +6709,3336 @@ func (itr *integerReaderIterator) Next() (*IntegerPoint, error) {
 	// Unmarshal next point.
 	p := &IntegerPoint{}
 	if err := itr.dec.DecodeIntegerPoint(p); err == io.EOF {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
+	return p, nil
+}
+
+// UnsignedIterator represents a stream of unsigned points.
+type UnsignedIterator interface {
+	Iterator
+	Next() (*UnsignedPoint, error)
+}
+
+// newUnsignedIterators converts a slice of Iterator to a slice of UnsignedIterator.
+// Drop and closes any iterator in itrs that is not a UnsignedIterator and cannot
+// be cast to a UnsignedIterator.
+func newUnsignedIterators(itrs []Iterator) []UnsignedIterator {
+	a := make([]UnsignedIterator, 0, len(itrs))
+	for _, itr := range itrs {
+		switch itr := itr.(type) {
+		case UnsignedIterator:
+			a = append(a, itr)
+
+		default:
+			itr.Close()
+		}
+	}
+	return a
+}
+
+// bufUnsignedIterator represents a buffered UnsignedIterator.
+type bufUnsignedIterator struct {
+	itr UnsignedIterator
+	buf *UnsignedPoint
+}
+
+// newBufUnsignedIterator returns a buffered UnsignedIterator.
+func newBufUnsignedIterator(itr UnsignedIterator) *bufUnsignedIterator {
+	return &bufUnsignedIterator{itr: itr}
+}
+
+// Stats returns statistics from the input iterator.
+func (itr *bufUnsignedIterator) Stats() IteratorStats { return itr.itr.Stats() }
+
+// Close closes the underlying iterator.
+func (itr *bufUnsignedIterator) Close() error { return itr.itr.Close() }
+
+// peek returns the next point without removing it from the iterator.
+func (itr *bufUnsignedIterator) peek() (*UnsignedPoint, error) {
+	p, err := itr.Next()
+	if err != nil {
+		return nil, err
+	}
+	itr.unread(p)
+	return p, nil
+}
+
+// peekTime returns the time of the next point.
+// Returns zero time if no more points available.
+func (itr *bufUnsignedIterator) peekTime() (int64, error) {
+	p, err := itr.peek()
+	if p == nil || err != nil {
+		return ZeroTime, err
+	}
+	return p.Time, nil
+}
+
+// Next returns the current buffer, if exists, or calls the underlying iterator.
+func (itr *bufUnsignedIterator) Next() (*UnsignedPoint, error) {
+	buf := itr.buf
+	if buf != nil {
+		itr.buf = nil
+		return buf, nil
+	}
+	return itr.itr.Next()
+}
+
+// NextInWindow returns the next value if it is between [startTime, endTime).
+// If the next value is outside the range then it is moved to the buffer.
+func (itr *bufUnsignedIterator) NextInWindow(startTime, endTime int64) (*UnsignedPoint, error) {
+	v, err := itr.Next()
+	if v == nil || err != nil {
+		return nil, err
+	} else if t := v.Time; t >= endTime || t < startTime {
+		itr.unread(v)
+		return nil, nil
+	}
+	return v, nil
+}
+
+// unread sets v to the buffer. It is read on the next call to Next().
+func (itr *bufUnsignedIterator) unread(v *UnsignedPoint) { itr.buf = v }
+
+// unsignedMergeIterator represents an iterator that combines multiple unsigned iterators.
+type unsignedMergeIterator struct {
+	inputs []UnsignedIterator
+	heap   *unsignedMergeHeap
+	init   bool
+
+	// Current iterator and window.
+	curr   *unsignedMergeHeapItem
+	window struct {
+		name      string
+		tags      string
+		startTime int64
+		endTime   int64
+	}
+}
+
+// newUnsignedMergeIterator returns a new instance of unsignedMergeIterator.
+func newUnsignedMergeIterator(inputs []UnsignedIterator, opt IteratorOptions) *unsignedMergeIterator {
+	itr := &unsignedMergeIterator{
+		inputs: inputs,
+		heap: &unsignedMergeHeap{
+			items: make([]*unsignedMergeHeapItem, 0, len(inputs)),
+			opt:   opt,
+		},
+	}
+
+	// Initialize heap items.
+	for _, input := range inputs {
+		// Wrap in buffer, ignore any inputs without anymore points.
+		bufInput := newBufUnsignedIterator(input)
+
+		// Append to the heap.
+		itr.heap.items = append(itr.heap.items, &unsignedMergeHeapItem{itr: bufInput})
+	}
+
+	return itr
+}
+
+// Stats returns an aggregation of stats from the underlying iterators.
+func (itr *unsignedMergeIterator) Stats() IteratorStats {
+	var stats IteratorStats
+	for _, input := range itr.inputs {
+		stats.Add(input.Stats())
+	}
+	return stats
+}
+
+// Close closes the underlying iterators.
+func (itr *unsignedMergeIterator) Close() error {
+	for _, input := range itr.inputs {
+		input.Close()
+	}
+	itr.curr = nil
+	itr.inputs = nil
+	itr.heap.items = nil
+	return nil
+}
+
+// Next returns the next point from the iterator.
+func (itr *unsignedMergeIterator) Next() (*UnsignedPoint, error) {
+	// Initialize the heap. This needs to be done lazily on the first call to this iterator
+	// so that iterator initialization done through the Select() call returns quickly.
+	// Queries can only be interrupted after the Select() call completes so any operations
+	// done during iterator creation cannot be interrupted, which is why we do it here
+	// instead so an interrupt can happen while initializing the heap.
+	if !itr.init {
+		items := itr.heap.items
+		itr.heap.items = make([]*unsignedMergeHeapItem, 0, len(items))
+		for _, item := range items {
+			if p, err := item.itr.peek(); err != nil {
+				return nil, err
+			} else if p == nil {
+				continue
+			}
+			itr.heap.items = append(itr.heap.items, item)
+		}
+		heap.Init(itr.heap)
+		itr.init = true
+	}
+
+	for {
+		// Retrieve the next iterator if we don't have one.
+		if itr.curr == nil {
+			if len(itr.heap.items) == 0 {
+				return nil, nil
+			}
+			itr.curr = heap.Pop(itr.heap).(*unsignedMergeHeapItem)
+
+			// Read point and set current window.
+			p, err := itr.curr.itr.Next()
+			if err != nil {
+				return nil, err
+			}
+			tags := p.Tags.Subset(itr.heap.opt.Dimensions)
+			itr.window.name, itr.window.tags = p.Name, tags.ID()
+			itr.window.startTime, itr.window.endTime = itr.heap.opt.Window(p.Time)
+			return p, nil
+		}
+
+		// Read the next point from the current iterator.
+		p, err := itr.curr.itr.Next()
+		if err != nil {
+			return nil, err
+		}
+
+		// If there are no more points then remove iterator from heap and find next.
+		if p == nil {
+			itr.curr = nil
+			continue
+		}
+
+		// Check if the point is inside of our current window.
+		inWindow := true
+		if window := itr.window; window.name != p.Name {
+			inWindow = false
+		} else if tags := p.Tags.Subset(itr.heap.opt.Dimensions); window.tags != tags.ID() {
+			inWindow = false
+		} else if opt := itr.heap.opt; opt.Ascending && p.Time >= window.endTime {
+			inWindow = false
+		} else if !opt.Ascending && p.Time < window.startTime {
+			inWindow = false
+		}
+
+		// If it's outside our window then push iterator back on the heap and find new iterator.
+		if !inWindow {
+			itr.curr.itr.unread(p)
+			heap.Push(itr.heap, itr.curr)
+			itr.curr = nil
+			continue
+		}
+
+		return p, nil
+	}
+}
+
+// unsignedMergeHeap represents a heap of unsignedMergeHeapItems.
+// Items are sorted by their next window and then by name/tags.
+type unsignedMergeHeap struct {
+	opt   IteratorOptions
+	items []*unsignedMergeHeapItem
+}
+
+func (h *unsignedMergeHeap) Len() int      { return len(h.items) }
+func (h *unsignedMergeHeap) Swap(i, j int) { h.items[i], h.items[j] = h.items[j], h.items[i] }
+func (h *unsignedMergeHeap) Less(i, j int) bool {
+	x, err := h.items[i].itr.peek()
+	if err != nil {
+		return true
+	}
+	y, err := h.items[j].itr.peek()
+	if err != nil {
+		return false
+	}
+
+	if h.opt.Ascending {
+		if x.Name != y.Name {
+			return x.Name < y.Name
+		} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); xTags.ID() != yTags.ID() {
+			return xTags.ID() < yTags.ID()
+		}
+	} else {
+		if x.Name != y.Name {
+			return x.Name > y.Name
+		} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); xTags.ID() != yTags.ID() {
+			return xTags.ID() > yTags.ID()
+		}
+	}
+
+	xt, _ := h.opt.Window(x.Time)
+	yt, _ := h.opt.Window(y.Time)
+
+	if h.opt.Ascending {
+		return xt < yt
+	}
+	return xt > yt
+}
+
+func (h *unsignedMergeHeap) Push(x interface{}) {
+	h.items = append(h.items, x.(*unsignedMergeHeapItem))
+}
+
+func (h *unsignedMergeHeap) Pop() interface{} {
+	old := h.items
+	n := len(old)
+	item := old[n-1]
+	h.items = old[0 : n-1]
+	return item
+}
+
+type unsignedMergeHeapItem struct {
+	itr *bufUnsignedIterator
+}
+
+// unsignedSortedMergeIterator is an iterator that sorts and merges multiple iterators into one.
+type unsignedSortedMergeIterator struct {
+	inputs []UnsignedIterator
+	heap   *unsignedSortedMergeHeap
+	init   bool
+}
+
+// newUnsignedSortedMergeIterator returns an instance of unsignedSortedMergeIterator.
+func newUnsignedSortedMergeIterator(inputs []UnsignedIterator, opt IteratorOptions) Iterator {
+	itr := &unsignedSortedMergeIterator{
+		inputs: inputs,
+		heap: &unsignedSortedMergeHeap{
+			items: make([]*unsignedSortedMergeHeapItem, 0, len(inputs)),
+			opt:   opt,
+		},
+	}
+
+	// Initialize heap items.
+	for _, input := range inputs {
+		// Append to the heap.
+		itr.heap.items = append(itr.heap.items, &unsignedSortedMergeHeapItem{itr: input})
+	}
+
+	return itr
+}
+
+// Stats returns an aggregation of stats from the underlying iterators.
+func (itr *unsignedSortedMergeIterator) Stats() IteratorStats {
+	var stats IteratorStats
+	for _, input := range itr.inputs {
+		stats.Add(input.Stats())
+	}
+	return stats
+}
+
+// Close closes the underlying iterators.
+func (itr *unsignedSortedMergeIterator) Close() error {
+	for _, input := range itr.inputs {
+		input.Close()
+	}
+	return nil
+}
+
+// Next returns the next points from the iterator.
+func (itr *unsignedSortedMergeIterator) Next() (*UnsignedPoint, error) { return itr.pop() }
+
+// pop returns the next point from the heap.
+// Reads the next point from item's cursor and puts it back on the heap.
+func (itr *unsignedSortedMergeIterator) pop() (*UnsignedPoint, error) {
+	// Initialize the heap. See the MergeIterator to see why this has to be done lazily.
+	if !itr.init {
+		items := itr.heap.items
+		itr.heap.items = make([]*unsignedSortedMergeHeapItem, 0, len(items))
+		for _, item := range items {
+			var err error
+			if item.point, err = item.itr.Next(); err != nil {
+				return nil, err
+			} else if item.point == nil {
+				continue
+			}
+			itr.heap.items = append(itr.heap.items, item)
+		}
+		heap.Init(itr.heap)
+		itr.init = true
+	}
+
+	if len(itr.heap.items) == 0 {
+		return nil, nil
+	}
+
+	// Read the next item from the heap.
+	item := heap.Pop(itr.heap).(*unsignedSortedMergeHeapItem)
+	if item.err != nil {
+		return nil, item.err
+	} else if item.point == nil {
+		return nil, nil
+	}
+
+	// Copy the point for return.
+	p := item.point.Clone()
+
+	// Read the next item from the cursor. Push back to heap if one exists.
+	if item.point, item.err = item.itr.Next(); item.point != nil {
+		heap.Push(itr.heap, item)
+	}
+
+	return p, nil
+}
+
+// unsignedSortedMergeHeap represents a heap of unsignedSortedMergeHeapItems.
+type unsignedSortedMergeHeap struct {
+	opt   IteratorOptions
+	items []*unsignedSortedMergeHeapItem
+}
+
+func (h *unsignedSortedMergeHeap) Len() int      { return len(h.items) }
+func (h *unsignedSortedMergeHeap) Swap(i, j int) { h.items[i], h.items[j] = h.items[j], h.items[i] }
+func (h *unsignedSortedMergeHeap) Less(i, j int) bool {
+	x, y := h.items[i].point, h.items[j].point
+
+	if h.opt.Ascending {
+		if x.Name != y.Name {
+			return x.Name < y.Name
+		} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); !xTags.Equals(&yTags) {
+			return xTags.ID() < yTags.ID()
+		}
+		return x.Time < y.Time
+	}
+
+	if x.Name != y.Name {
+		return x.Name > y.Name
+	} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); !xTags.Equals(&yTags) {
+		return xTags.ID() > yTags.ID()
+	}
+	return x.Time > y.Time
+}
+
+func (h *unsignedSortedMergeHeap) Push(x interface{}) {
+	h.items = append(h.items, x.(*unsignedSortedMergeHeapItem))
+}
+
+func (h *unsignedSortedMergeHeap) Pop() interface{} {
+	old := h.items
+	n := len(old)
+	item := old[n-1]
+	h.items = old[0 : n-1]
+	return item
+}
+
+type unsignedSortedMergeHeapItem struct {
+	point *UnsignedPoint
+	err   error
+	itr   UnsignedIterator
+}
+
+// unsignedParallelIterator represents an iterator that pulls data in a separate goroutine.
+type unsignedParallelIterator struct {
+	input UnsignedIterator
+	ch    chan unsignedPointError
+
+	once    sync.Once
+	closing chan struct{}
+	wg      sync.WaitGroup
+}
+
+// newUnsignedParallelIterator returns a new instance of unsignedParallelIterator.
+func newUnsignedParallelIterator(input UnsignedIterator) *unsignedParallelIterator {
+	itr := &unsignedParallelIterator{
+		input:   input,
+		ch:      make(chan unsignedPointError, 256),
+		closing: make(chan struct{}),
+	}
+	itr.wg.Add(1)
+	go itr.monitor()
+	return itr
+}
+
+// Stats returns stats from the underlying iterator.
+func (itr *unsignedParallelIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the underlying iterators.
+func (itr *unsignedParallelIterator) Close() error {
+	itr.once.Do(func() { close(itr.closing) })
+	itr.wg.Wait()
+	return itr.input.Close()
+}
+
+// Next returns the next point from the iterator.
+func (itr *unsignedParallelIterator) Next() (*UnsignedPoint, error) {
+	v, ok := <-itr.ch
+	if !ok {
+		return nil, io.EOF
+	}
+	return v.point, v.err
+}
+
+// monitor runs in a separate goroutine and actively pulls the next point.
+func (itr *unsignedParallelIterator) monitor() {
+	defer close(itr.ch)
+	defer itr.wg.Done()
+
+	for {
+		// Read next point.
+		p, err := itr.input.Next()
+		if p != nil {
+			p = p.Clone()
+		}
+
+		select {
+		case <-itr.closing:
+			return
+		case itr.ch <- unsignedPointError{point: p, err: err}:
+		}
+	}
+}
+
+type unsignedPointError struct {
+	point *UnsignedPoint
+	err   error
+}
+
+// unsignedLimitIterator represents an iterator that limits points per group.
+type unsignedLimitIterator struct {
+	input UnsignedIterator
+	opt   IteratorOptions
+	n     int
+
+	prev struct {
+		name string
+		tags Tags
+	}
+}
+
+// newUnsignedLimitIterator returns a new instance of unsignedLimitIterator.
+func newUnsignedLimitIterator(input UnsignedIterator, opt IteratorOptions) *unsignedLimitIterator {
+	return &unsignedLimitIterator{
+		input: input,
+		opt:   opt,
+	}
+}
+
+// Stats returns stats from the underlying iterator.
+func (itr *unsignedLimitIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the underlying iterators.
+func (itr *unsignedLimitIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next point from the iterator.
+func (itr *unsignedLimitIterator) Next() (*UnsignedPoint, error) {
+	for {
+		p, err := itr.input.Next()
+		if p == nil || err != nil {
+			return nil, err
+		}
+
+		// Reset window and counter if a new window is encountered.
+		if p.Name != itr.prev.name || !p.Tags.Equals(&itr.prev.tags) {
+			itr.prev.name = p.Name
+			itr.prev.tags = p.Tags
+			itr.n = 0
+		}
+
+		// Increment counter.
+		itr.n++
+
+		// Read next point if not beyond the offset.
+		if itr.n <= itr.opt.Offset {
+			continue
+		}
+
+		// Read next point if we're beyond the limit.
+		if itr.opt.Limit > 0 && (itr.n-itr.opt.Offset) > itr.opt.Limit {
+			continue
+		}
+
+		return p, nil
+	}
+}
+
+type unsignedFillIterator struct {
+	input     *bufUnsignedIterator
+	prev      UnsignedPoint
+	startTime int64
+	endTime   int64
+	auxFields []interface{}
+	init      bool
+	opt       IteratorOptions
+
+	window struct {
+		name   string
+		tags   Tags
+		time   int64
+		offset int64
+	}
+}
+
+func newUnsignedFillIterator(input UnsignedIterator, expr Expr, opt IteratorOptions) *unsignedFillIterator {
+	if opt.Fill == NullFill {
+		if expr, ok := expr.(*Call); ok && expr.Name == "count" {
+			opt.Fill = NumberFill
+			opt.FillValue = uint64(0)
+		}
+	}
+
+	var startTime, endTime int64
+	if opt.Ascending {
+		startTime, _ = opt.Window(opt.StartTime)
+		endTime, _ = opt.Window(opt.EndTime)
+	} else {
+		startTime, _ = opt.Window(opt.EndTime)
+		endTime, _ = opt.Window(opt.StartTime)
+	}
+
+	var auxFields []interface{}
+	if len(opt.Aux) > 0 {
+		auxFields = make([]interface{}, len(opt.Aux))
+	}
+
+	return &unsignedFillIterator{
+		input:     newBufUnsignedIterator(input),
+		prev:      UnsignedPoint{Nil: true},
+		startTime: startTime,
+		endTime:   endTime,
+		auxFields: auxFields,
+		opt:       opt,
+	}
+}
+
+func (itr *unsignedFillIterator) Stats() IteratorStats { return itr.input.Stats() }
+func (itr *unsignedFillIterator) Close() error         { return itr.input.Close() }
+
+func (itr *unsignedFillIterator) Next() (*UnsignedPoint, error) {
+	if !itr.init {
+		p, err := itr.input.peek()
+		if p == nil || err != nil {
+			return nil, err
+		}
+		itr.window.name, itr.window.tags = p.Name, p.Tags
+		itr.window.time = itr.startTime
+		if itr.opt.Location != nil {
+			_, itr.window.offset = itr.opt.Zone(itr.window.time)
+		}
+		itr.init = true
+	}
+
+	p, err := itr.input.Next()
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if the next point is outside of our window or is nil.
+	for p == nil || p.Name != itr.window.name || p.Tags.ID() != itr.window.tags.ID() {
+		// If we are inside of an interval, unread the point and continue below to
+		// constructing a new point.
+		if itr.opt.Ascending {
+			if itr.window.time <= itr.endTime {
+				itr.input.unread(p)
+				p = nil
+				break
+			}
+		} else {
+			if itr.window.time >= itr.endTime {
+				itr.input.unread(p)
+				p = nil
+				break
+			}
+		}
+
+		// We are *not* in a current interval. If there is no next point,
+		// we are at the end of all intervals.
+		if p == nil {
+			return nil, nil
+		}
+
+		// Set the new interval.
+		itr.window.name, itr.window.tags = p.Name, p.Tags
+		itr.window.time = itr.startTime
+		if itr.opt.Location != nil {
+			_, itr.window.offset = itr.opt.Zone(itr.window.time)
+		}
+		itr.prev = UnsignedPoint{Nil: true}
+		break
+	}
+
+	// Check if the point is our next expected point.
+	if p == nil || (itr.opt.Ascending && p.Time > itr.window.time) || (!itr.opt.Ascending && p.Time < itr.window.time) {
+		if p != nil {
+			itr.input.unread(p)
+		}
+
+		p = &UnsignedPoint{
+			Name: itr.window.name,
+			Tags: itr.window.tags,
+			Time: itr.window.time,
+			Aux:  itr.auxFields,
+		}
+
+		switch itr.opt.Fill {
+		case LinearFill:
+			fallthrough
+		case NullFill:
+			p.Nil = true
+		case NumberFill:
+			p.Value = castToUnsigned(itr.opt.FillValue)
+		case PreviousFill:
+			if !itr.prev.Nil {
+				p.Value = itr.prev.Value
+				p.Nil = itr.prev.Nil
+			} else {
+				p.Nil = true
+			}
+		}
+	} else {
+		itr.prev = *p
+	}
+
+	// Advance the expected time. Do not advance to a new window here
+	// as there may be lingering points with the same timestamp in the previous
+	// window.
+	if itr.opt.Ascending {
+		itr.window.time += int64(itr.opt.Interval.Duration)
+	} else {
+		itr.window.time -= int64(itr.opt.Interval.Duration)
+	}
+
+	// Check to see if we have passed over an offset change and adjust the time
+	// to account for this new offset.
+	if itr.opt.Location != nil {
+		if _, offset := itr.opt.Zone(itr.window.time); offset != itr.window.offset {
+			diff := itr.window.offset - offset
+			if abs(diff) < int64(itr.opt.Interval.Duration) {
+				itr.window.time += diff
+			}
+			itr.window.offset = offset
+		}
+	}
+	return p, nil
+}
+
+// unsignedIntervalIterator represents a unsigned implementation of IntervalIterator.
+type unsignedIntervalIterator struct {
+	input UnsignedIterator
+	opt   IteratorOptions
+}
+
+func newUnsignedIntervalIterator(input UnsignedIterator, opt IteratorOptions) *unsignedIntervalIterator {
+	return &unsignedIntervalIterator{input: input, opt: opt}
+}
+
+func (itr *unsignedIntervalIterator) Stats() IteratorStats { return itr.input.Stats() }
+func (itr *unsignedIntervalIterator) Close() error         { return itr.input.Close() }
+
+func (itr *unsignedIntervalIterator) Next() (*UnsignedPoint, error) {
+	p, err := itr.input.Next()
+	if p == nil || err != nil {
+		return nil, err
+	}
+	p.Time, _ = itr.opt.Window(p.Time)
+	// If we see the minimum allowable time, set the time to zero so we don't
+	// break the default returned time for aggregate queries without times.
+	if p.Time == MinTime {
+		p.Time = 0
+	}
+	return p, nil
+}
+
+// unsignedInterruptIterator represents a unsigned implementation of InterruptIterator.
+type unsignedInterruptIterator struct {
+	input   UnsignedIterator
+	closing <-chan struct{}
+	count   int
+}
+
+func newUnsignedInterruptIterator(input UnsignedIterator, closing <-chan struct{}) *unsignedInterruptIterator {
+	return &unsignedInterruptIterator{input: input, closing: closing}
+}
+
+func (itr *unsignedInterruptIterator) Stats() IteratorStats { return itr.input.Stats() }
+func (itr *unsignedInterruptIterator) Close() error         { return itr.input.Close() }
+
+func (itr *unsignedInterruptIterator) Next() (*UnsignedPoint, error) {
+	// Only check if the channel is closed every N points. This
+	// intentionally checks on both 0 and N so that if the iterator
+	// has been interrupted before the first point is emitted it will
+	// not emit any points.
+	if itr.count&0xFF == 0xFF {
+		select {
+		case <-itr.closing:
+			return nil, itr.Close()
+		default:
+			// Reset iterator count to zero and fall through to emit the next point.
+			itr.count = 0
+		}
+	}
+
+	// Increment the counter for every point read.
+	itr.count++
+	return itr.input.Next()
+}
+
+// unsignedCloseInterruptIterator represents a unsigned implementation of CloseInterruptIterator.
+type unsignedCloseInterruptIterator struct {
+	input   UnsignedIterator
+	closing <-chan struct{}
+	done    chan struct{}
+	once    sync.Once
+}
+
+func newUnsignedCloseInterruptIterator(input UnsignedIterator, closing <-chan struct{}) *unsignedCloseInterruptIterator {
+	itr := &unsignedCloseInterruptIterator{
+		input:   input,
+		closing: closing,
+		done:    make(chan struct{}),
+	}
+	go itr.monitor()
+	return itr
+}
+
+func (itr *unsignedCloseInterruptIterator) monitor() {
+	select {
+	case <-itr.closing:
+		itr.Close()
+	case <-itr.done:
+	}
+}
+
+func (itr *unsignedCloseInterruptIterator) Stats() IteratorStats {
+	return itr.input.Stats()
+}
+
+func (itr *unsignedCloseInterruptIterator) Close() error {
+	itr.once.Do(func() {
+		close(itr.done)
+		itr.input.Close()
+	})
+	return nil
+}
+
+func (itr *unsignedCloseInterruptIterator) Next() (*UnsignedPoint, error) {
+	p, err := itr.input.Next()
+	if err != nil {
+		// Check if the iterator was closed.
+		select {
+		case <-itr.done:
+			return nil, nil
+		default:
+			return nil, err
+		}
+	}
+	return p, nil
+}
+
+// auxUnsignedPoint represents a combination of a point and an error for the AuxIterator.
+type auxUnsignedPoint struct {
+	point *UnsignedPoint
+	err   error
+}
+
+// unsignedAuxIterator represents a unsigned implementation of AuxIterator.
+type unsignedAuxIterator struct {
+	input      *bufUnsignedIterator
+	output     chan auxUnsignedPoint
+	fields     *auxIteratorFields
+	background bool
+}
+
+func newUnsignedAuxIterator(input UnsignedIterator, opt IteratorOptions) *unsignedAuxIterator {
+	return &unsignedAuxIterator{
+		input:  newBufUnsignedIterator(input),
+		output: make(chan auxUnsignedPoint, 1),
+		fields: newAuxIteratorFields(opt),
+	}
+}
+
+func (itr *unsignedAuxIterator) Background() {
+	itr.background = true
+	itr.Start()
+	go DrainIterator(itr)
+}
+
+func (itr *unsignedAuxIterator) Start()               { go itr.stream() }
+func (itr *unsignedAuxIterator) Stats() IteratorStats { return itr.input.Stats() }
+func (itr *unsignedAuxIterator) Close() error         { return itr.input.Close() }
+func (itr *unsignedAuxIterator) Next() (*UnsignedPoint, error) {
+	p := <-itr.output
+	return p.point, p.err
+}
+func (itr *unsignedAuxIterator) Iterator(name string, typ DataType) Iterator {
+	return itr.fields.iterator(name, typ)
+}
+
+func (itr *unsignedAuxIterator) stream() {
+	for {
+		// Read next point.
+		p, err := itr.input.Next()
+		if err != nil {
+			itr.output <- auxUnsignedPoint{err: err}
+			itr.fields.sendError(err)
+			break
+		} else if p == nil {
+			break
+		}
+
+		// Send point to output and to each field iterator.
+		itr.output <- auxUnsignedPoint{point: p}
+		if ok := itr.fields.send(p); !ok && itr.background {
+			break
+		}
+	}
+
+	close(itr.output)
+	itr.fields.close()
+}
+
+// unsignedChanIterator represents a new instance of unsignedChanIterator.
+type unsignedChanIterator struct {
+	buf struct {
+		i      int
+		filled bool
+		points [2]UnsignedPoint
+	}
+	err  error
+	cond *sync.Cond
+	done bool
+}
+
+func (itr *unsignedChanIterator) Stats() IteratorStats { return IteratorStats{} }
+
+func (itr *unsignedChanIterator) Close() error {
+	itr.cond.L.Lock()
+	// Mark the channel iterator as done and signal all waiting goroutines to start again.
+	itr.done = true
+	itr.cond.Broadcast()
+	// Do not defer the unlock so we don't create an unnecessary allocation.
+	itr.cond.L.Unlock()
+	return nil
+}
+
+func (itr *unsignedChanIterator) setBuf(name string, tags Tags, time int64, value interface{}) bool {
+	itr.cond.L.Lock()
+	defer itr.cond.L.Unlock()
+
+	// Wait for either the iterator to be done (so we don't have to set the value)
+	// or for the buffer to have been read and ready for another write.
+	for !itr.done && itr.buf.filled {
+		itr.cond.Wait()
+	}
+
+	// Do not set the value and return false to signal that the iterator is closed.
+	// Do this after the above wait as the above for loop may have exited because
+	// the iterator was closed.
+	if itr.done {
+		return false
+	}
+
+	switch v := value.(type) {
+	case uint64:
+		itr.buf.points[itr.buf.i] = UnsignedPoint{Name: name, Tags: tags, Time: time, Value: v}
+
+	default:
+		itr.buf.points[itr.buf.i] = UnsignedPoint{Name: name, Tags: tags, Time: time, Nil: true}
+	}
+	itr.buf.filled = true
+
+	// Signal to all waiting goroutines that a new value is ready to read.
+	itr.cond.Signal()
+	return true
+}
+
+func (itr *unsignedChanIterator) setErr(err error) {
+	itr.cond.L.Lock()
+	defer itr.cond.L.Unlock()
+	itr.err = err
+
+	// Signal to all waiting goroutines that a new value is ready to read.
+	itr.cond.Signal()
+}
+
+func (itr *unsignedChanIterator) Next() (*UnsignedPoint, error) {
+	itr.cond.L.Lock()
+	defer itr.cond.L.Unlock()
+
+	// Check for an error and return one if there.
+	if itr.err != nil {
+		return nil, itr.err
+	}
+
+	// Wait until either a value is available in the buffer or
+	// the iterator is closed.
+	for !itr.done && !itr.buf.filled {
+		itr.cond.Wait()
+	}
+
+	// Return nil once the channel is done and the buffer is empty.
+	if itr.done && !itr.buf.filled {
+		return nil, nil
+	}
+
+	// Always read from the buffer if it exists, even if the iterator
+	// is closed. This prevents the last value from being truncated by
+	// the parent iterator.
+	p := &itr.buf.points[itr.buf.i]
+	itr.buf.i = (itr.buf.i + 1) % len(itr.buf.points)
+	itr.buf.filled = false
+	itr.cond.Signal()
+	return p, nil
+}
+
+// unsignedReduceFloatIterator executes a reducer for every interval and buffers the result.
+type unsignedReduceFloatIterator struct {
+	input    *bufUnsignedIterator
+	create   func() (UnsignedPointAggregator, FloatPointEmitter)
+	dims     []string
+	opt      IteratorOptions
+	points   []FloatPoint
+	keepTags bool
+}
+
+func newUnsignedReduceFloatIterator(input UnsignedIterator, opt IteratorOptions, createFn func() (UnsignedPointAggregator, FloatPointEmitter)) *unsignedReduceFloatIterator {
+	return &unsignedReduceFloatIterator{
+		input:  newBufUnsignedIterator(input),
+		create: createFn,
+		dims:   opt.GetDimensions(),
+		opt:    opt,
+	}
+}
+
+// Stats returns stats from the input iterator.
+func (itr *unsignedReduceFloatIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *unsignedReduceFloatIterator) Close() error { return itr.input.Close() }
+
+// Next returns the minimum value for the next available interval.
+func (itr *unsignedReduceFloatIterator) Next() (*FloatPoint, error) {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		var err error
+		itr.points, err = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil, err
+		}
+	}
+
+	// Pop next point off the stack.
+	p := &itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p, nil
+}
+
+// unsignedReduceFloatPoint stores the reduced data for a name/tag combination.
+type unsignedReduceFloatPoint struct {
+	Name       string
+	Tags       Tags
+	Aggregator UnsignedPointAggregator
+	Emitter    FloatPointEmitter
+}
+
+// reduce executes fn once for every point in the next window.
+// The previous value for the dimension is passed to fn.
+func (itr *unsignedReduceFloatIterator) reduce() ([]FloatPoint, error) {
+	// Calculate next window.
+	var (
+		startTime, endTime int64
+		window             struct {
+			name string
+			tags string
+		}
+	)
+	for {
+		p, err := itr.input.Next()
+		if err != nil || p == nil {
+			return nil, err
+		} else if p.Nil {
+			continue
+		}
+
+		// Unread the point so it can be processed.
+		itr.input.unread(p)
+		startTime, endTime = itr.opt.Window(p.Time)
+		window.name, window.tags = p.Name, p.Tags.Subset(itr.opt.Dimensions).ID()
+		break
+	}
+
+	// Create points by tags.
+	m := make(map[string]*unsignedReduceFloatPoint)
+	for {
+		// Read next point.
+		curr, err := itr.input.NextInWindow(startTime, endTime)
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
+			break
+		} else if curr.Nil {
+			continue
+		} else if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Ensure this point is within the same final window.
+		if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != window.tags {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
+
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &unsignedReduceFloatPoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			m[id] = rp
+		}
+		rp.Aggregator.AggregateUnsigned(curr)
+	}
+
+	// Reverse sort points by name & tag if our output is supposed to be ordered.
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	if len(keys) > 1 && itr.opt.Ordered {
+		sort.Sort(reverseStringSlice(keys))
+	}
+
+	// Assume the points are already sorted until proven otherwise.
+	sortedByTime := true
+	// Emit the points for each name & tag combination.
+	a := make([]FloatPoint, 0, len(m))
+	for _, k := range keys {
+		rp := m[k]
+		points := rp.Emitter.Emit()
+		for i := len(points) - 1; i >= 0; i-- {
+			points[i].Name = rp.Name
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
+			// Set the points time to the interval time if the reducer didn't provide one.
+			if points[i].Time == ZeroTime {
+				points[i].Time = startTime
+			} else {
+				sortedByTime = false
+			}
+			a = append(a, points[i])
+		}
+	}
+
+	// Points may be out of order. Perform a stable sort by time if requested.
+	if !sortedByTime && itr.opt.Ordered {
+		sort.Stable(sort.Reverse(floatPointsByTime(a)))
+	}
+
+	return a, nil
+}
+
+// unsignedStreamFloatIterator streams inputs into the iterator and emits points gradually.
+type unsignedStreamFloatIterator struct {
+	input  *bufUnsignedIterator
+	create func() (UnsignedPointAggregator, FloatPointEmitter)
+	dims   []string
+	opt    IteratorOptions
+	m      map[string]*unsignedReduceFloatPoint
+	points []FloatPoint
+}
+
+// newUnsignedStreamFloatIterator returns a new instance of unsignedStreamFloatIterator.
+func newUnsignedStreamFloatIterator(input UnsignedIterator, createFn func() (UnsignedPointAggregator, FloatPointEmitter), opt IteratorOptions) *unsignedStreamFloatIterator {
+	return &unsignedStreamFloatIterator{
+		input:  newBufUnsignedIterator(input),
+		create: createFn,
+		dims:   opt.GetDimensions(),
+		opt:    opt,
+		m:      make(map[string]*unsignedReduceFloatPoint),
+	}
+}
+
+// Stats returns stats from the input iterator.
+func (itr *unsignedStreamFloatIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *unsignedStreamFloatIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next value for the stream iterator.
+func (itr *unsignedStreamFloatIterator) Next() (*FloatPoint, error) {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		var err error
+		itr.points, err = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil, err
+		}
+	}
+
+	// Pop next point off the stack.
+	p := &itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p, nil
+}
+
+// reduce creates and manages aggregators for every point from the input.
+// After aggregating a point, it always tries to emit a value using the emitter.
+func (itr *unsignedStreamFloatIterator) reduce() ([]FloatPoint, error) {
+	for {
+		// Read next point.
+		curr, err := itr.input.Next()
+		if curr == nil {
+			// Close all of the aggregators to flush any remaining points to emit.
+			var points []FloatPoint
+			for _, rp := range itr.m {
+				if aggregator, ok := rp.Aggregator.(io.Closer); ok {
+					if err := aggregator.Close(); err != nil {
+						return nil, err
+					}
+
+					pts := rp.Emitter.Emit()
+					if len(pts) == 0 {
+						continue
+					}
+
+					for i := range pts {
+						pts[i].Name = rp.Name
+						pts[i].Tags = rp.Tags
+					}
+					points = append(points, pts...)
+				}
+			}
+
+			// Eliminate the aggregators and emitters.
+			itr.m = nil
+			return points, nil
+		} else if err != nil {
+			return nil, err
+		} else if curr.Nil {
+			continue
+		}
+		tags := curr.Tags.Subset(itr.dims)
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
+
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := itr.m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &unsignedReduceFloatPoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			itr.m[id] = rp
+		}
+		rp.Aggregator.AggregateUnsigned(curr)
+
+		// Attempt to emit points from the aggregator.
+		points := rp.Emitter.Emit()
+		if len(points) == 0 {
+			continue
+		}
+
+		for i := range points {
+			points[i].Name = rp.Name
+			points[i].Tags = rp.Tags
+		}
+		return points, nil
+	}
+}
+
+// unsignedFloatExprIterator executes a function to modify an existing point
+// for every output of the input iterator.
+type unsignedFloatExprIterator struct {
+	left      *bufUnsignedIterator
+	right     *bufUnsignedIterator
+	fn        unsignedFloatExprFunc
+	points    []UnsignedPoint // must be size 2
+	storePrev bool
+}
+
+func newUnsignedFloatExprIterator(left, right UnsignedIterator, opt IteratorOptions, fn func(a, b uint64) float64) *unsignedFloatExprIterator {
+	var points []UnsignedPoint
+	switch opt.Fill {
+	case NullFill, PreviousFill:
+		points = []UnsignedPoint{{Nil: true}, {Nil: true}}
+	case NumberFill:
+		value := castToUnsigned(opt.FillValue)
+		points = []UnsignedPoint{{Value: value}, {Value: value}}
+	}
+	return &unsignedFloatExprIterator{
+		left:      newBufUnsignedIterator(left),
+		right:     newBufUnsignedIterator(right),
+		points:    points,
+		fn:        fn,
+		storePrev: opt.Fill == PreviousFill,
+	}
+}
+
+func (itr *unsignedFloatExprIterator) Stats() IteratorStats {
+	stats := itr.left.Stats()
+	stats.Add(itr.right.Stats())
+	return stats
+}
+
+func (itr *unsignedFloatExprIterator) Close() error {
+	itr.left.Close()
+	itr.right.Close()
+	return nil
+}
+
+func (itr *unsignedFloatExprIterator) Next() (*FloatPoint, error) {
+	for {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
+			return nil, err
+		}
+
+		// If any of these are nil and we are using fill(none), skip these points.
+		if (a == nil || a.Nil || b == nil || b.Nil) && itr.points == nil {
+			continue
+		}
+
+		// If one of the two points is nil, we need to fill it with a fake nil
+		// point that has the same name, tags, and time as the other point.
+		// There should never be a time when both of these are nil.
+		if a == nil {
+			p := *b
+			a = &p
+			a.Value = 0
+			a.Nil = true
+		} else if b == nil {
+			p := *a
+			b = &p
+			b.Value = 0
+			b.Nil = true
+		}
+
+		// If a value is nil, use the fill values if the fill value is non-nil.
+		if a.Nil && !itr.points[0].Nil {
+			a.Value = itr.points[0].Value
+			a.Nil = false
+		}
+		if b.Nil && !itr.points[1].Nil {
+			b.Value = itr.points[1].Value
+			b.Nil = false
+		}
+
+		if itr.storePrev {
+			itr.points[0], itr.points[1] = *a, *b
+		}
+
+		p := &FloatPoint{
+			Name:       a.Name,
+			Tags:       a.Tags,
+			Time:       a.Time,
+			Nil:        a.Nil || b.Nil,
+			Aggregated: a.Aggregated,
+		}
+		if !p.Nil {
+			p.Value = itr.fn(a.Value, b.Value)
+		}
+		return p, nil
+
+	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *unsignedFloatExprIterator) next() (a, b *UnsignedPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
+}
+
+// unsignedFloatExprFunc creates or modifies a point by combining two
+// points. The point passed in may be modified and returned rather than
+// allocating a new point if possible. One of the points may be nil, but at
+// least one of the points will be non-nil.
+type unsignedFloatExprFunc func(a, b uint64) float64
+
+// unsignedReduceIntegerIterator executes a reducer for every interval and buffers the result.
+type unsignedReduceIntegerIterator struct {
+	input    *bufUnsignedIterator
+	create   func() (UnsignedPointAggregator, IntegerPointEmitter)
+	dims     []string
+	opt      IteratorOptions
+	points   []IntegerPoint
+	keepTags bool
+}
+
+func newUnsignedReduceIntegerIterator(input UnsignedIterator, opt IteratorOptions, createFn func() (UnsignedPointAggregator, IntegerPointEmitter)) *unsignedReduceIntegerIterator {
+	return &unsignedReduceIntegerIterator{
+		input:  newBufUnsignedIterator(input),
+		create: createFn,
+		dims:   opt.GetDimensions(),
+		opt:    opt,
+	}
+}
+
+// Stats returns stats from the input iterator.
+func (itr *unsignedReduceIntegerIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *unsignedReduceIntegerIterator) Close() error { return itr.input.Close() }
+
+// Next returns the minimum value for the next available interval.
+func (itr *unsignedReduceIntegerIterator) Next() (*IntegerPoint, error) {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		var err error
+		itr.points, err = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil, err
+		}
+	}
+
+	// Pop next point off the stack.
+	p := &itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p, nil
+}
+
+// unsignedReduceIntegerPoint stores the reduced data for a name/tag combination.
+type unsignedReduceIntegerPoint struct {
+	Name       string
+	Tags       Tags
+	Aggregator UnsignedPointAggregator
+	Emitter    IntegerPointEmitter
+}
+
+// reduce executes fn once for every point in the next window.
+// The previous value for the dimension is passed to fn.
+func (itr *unsignedReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
+	// Calculate next window.
+	var (
+		startTime, endTime int64
+		window             struct {
+			name string
+			tags string
+		}
+	)
+	for {
+		p, err := itr.input.Next()
+		if err != nil || p == nil {
+			return nil, err
+		} else if p.Nil {
+			continue
+		}
+
+		// Unread the point so it can be processed.
+		itr.input.unread(p)
+		startTime, endTime = itr.opt.Window(p.Time)
+		window.name, window.tags = p.Name, p.Tags.Subset(itr.opt.Dimensions).ID()
+		break
+	}
+
+	// Create points by tags.
+	m := make(map[string]*unsignedReduceIntegerPoint)
+	for {
+		// Read next point.
+		curr, err := itr.input.NextInWindow(startTime, endTime)
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
+			break
+		} else if curr.Nil {
+			continue
+		} else if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Ensure this point is within the same final window.
+		if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != window.tags {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
+
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &unsignedReduceIntegerPoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			m[id] = rp
+		}
+		rp.Aggregator.AggregateUnsigned(curr)
+	}
+
+	// Reverse sort points by name & tag if our output is supposed to be ordered.
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	if len(keys) > 1 && itr.opt.Ordered {
+		sort.Sort(reverseStringSlice(keys))
+	}
+
+	// Assume the points are already sorted until proven otherwise.
+	sortedByTime := true
+	// Emit the points for each name & tag combination.
+	a := make([]IntegerPoint, 0, len(m))
+	for _, k := range keys {
+		rp := m[k]
+		points := rp.Emitter.Emit()
+		for i := len(points) - 1; i >= 0; i-- {
+			points[i].Name = rp.Name
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
+			// Set the points time to the interval time if the reducer didn't provide one.
+			if points[i].Time == ZeroTime {
+				points[i].Time = startTime
+			} else {
+				sortedByTime = false
+			}
+			a = append(a, points[i])
+		}
+	}
+
+	// Points may be out of order. Perform a stable sort by time if requested.
+	if !sortedByTime && itr.opt.Ordered {
+		sort.Stable(sort.Reverse(integerPointsByTime(a)))
+	}
+
+	return a, nil
+}
+
+// unsignedStreamIntegerIterator streams inputs into the iterator and emits points gradually.
+type unsignedStreamIntegerIterator struct {
+	input  *bufUnsignedIterator
+	create func() (UnsignedPointAggregator, IntegerPointEmitter)
+	dims   []string
+	opt    IteratorOptions
+	m      map[string]*unsignedReduceIntegerPoint
+	points []IntegerPoint
+}
+
+// newUnsignedStreamIntegerIterator returns a new instance of unsignedStreamIntegerIterator.
+func newUnsignedStreamIntegerIterator(input UnsignedIterator, createFn func() (UnsignedPointAggregator, IntegerPointEmitter), opt IteratorOptions) *unsignedStreamIntegerIterator {
+	return &unsignedStreamIntegerIterator{
+		input:  newBufUnsignedIterator(input),
+		create: createFn,
+		dims:   opt.GetDimensions(),
+		opt:    opt,
+		m:      make(map[string]*unsignedReduceIntegerPoint),
+	}
+}
+
+// Stats returns stats from the input iterator.
+func (itr *unsignedStreamIntegerIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *unsignedStreamIntegerIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next value for the stream iterator.
+func (itr *unsignedStreamIntegerIterator) Next() (*IntegerPoint, error) {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		var err error
+		itr.points, err = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil, err
+		}
+	}
+
+	// Pop next point off the stack.
+	p := &itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p, nil
+}
+
+// reduce creates and manages aggregators for every point from the input.
+// After aggregating a point, it always tries to emit a value using the emitter.
+func (itr *unsignedStreamIntegerIterator) reduce() ([]IntegerPoint, error) {
+	for {
+		// Read next point.
+		curr, err := itr.input.Next()
+		if curr == nil {
+			// Close all of the aggregators to flush any remaining points to emit.
+			var points []IntegerPoint
+			for _, rp := range itr.m {
+				if aggregator, ok := rp.Aggregator.(io.Closer); ok {
+					if err := aggregator.Close(); err != nil {
+						return nil, err
+					}
+
+					pts := rp.Emitter.Emit()
+					if len(pts) == 0 {
+						continue
+					}
+
+					for i := range pts {
+						pts[i].Name = rp.Name
+						pts[i].Tags = rp.Tags
+					}
+					points = append(points, pts...)
+				}
+			}
+
+			// Eliminate the aggregators and emitters.
+			itr.m = nil
+			return points, nil
+		} else if err != nil {
+			return nil, err
+		} else if curr.Nil {
+			continue
+		}
+		tags := curr.Tags.Subset(itr.dims)
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
+
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := itr.m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &unsignedReduceIntegerPoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			itr.m[id] = rp
+		}
+		rp.Aggregator.AggregateUnsigned(curr)
+
+		// Attempt to emit points from the aggregator.
+		points := rp.Emitter.Emit()
+		if len(points) == 0 {
+			continue
+		}
+
+		for i := range points {
+			points[i].Name = rp.Name
+			points[i].Tags = rp.Tags
+		}
+		return points, nil
+	}
+}
+
+// unsignedIntegerExprIterator executes a function to modify an existing point
+// for every output of the input iterator.
+type unsignedIntegerExprIterator struct {
+	left      *bufUnsignedIterator
+	right     *bufUnsignedIterator
+	fn        unsignedIntegerExprFunc
+	points    []UnsignedPoint // must be size 2
+	storePrev bool
+}
+
+func newUnsignedIntegerExprIterator(left, right UnsignedIterator, opt IteratorOptions, fn func(a, b uint64) int64) *unsignedIntegerExprIterator {
+	var points []UnsignedPoint
+	switch opt.Fill {
+	case NullFill, PreviousFill:
+		points = []UnsignedPoint{{Nil: true}, {Nil: true}}
+	case NumberFill:
+		value := castToUnsigned(opt.FillValue)
+		points = []UnsignedPoint{{Value: value}, {Value: value}}
+	}
+	return &unsignedIntegerExprIterator{
+		left:      newBufUnsignedIterator(left),
+		right:     newBufUnsignedIterator(right),
+		points:    points,
+		fn:        fn,
+		storePrev: opt.Fill == PreviousFill,
+	}
+}
+
+func (itr *unsignedIntegerExprIterator) Stats() IteratorStats {
+	stats := itr.left.Stats()
+	stats.Add(itr.right.Stats())
+	return stats
+}
+
+func (itr *unsignedIntegerExprIterator) Close() error {
+	itr.left.Close()
+	itr.right.Close()
+	return nil
+}
+
+func (itr *unsignedIntegerExprIterator) Next() (*IntegerPoint, error) {
+	for {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
+			return nil, err
+		}
+
+		// If any of these are nil and we are using fill(none), skip these points.
+		if (a == nil || a.Nil || b == nil || b.Nil) && itr.points == nil {
+			continue
+		}
+
+		// If one of the two points is nil, we need to fill it with a fake nil
+		// point that has the same name, tags, and time as the other point.
+		// There should never be a time when both of these are nil.
+		if a == nil {
+			p := *b
+			a = &p
+			a.Value = 0
+			a.Nil = true
+		} else if b == nil {
+			p := *a
+			b = &p
+			b.Value = 0
+			b.Nil = true
+		}
+
+		// If a value is nil, use the fill values if the fill value is non-nil.
+		if a.Nil && !itr.points[0].Nil {
+			a.Value = itr.points[0].Value
+			a.Nil = false
+		}
+		if b.Nil && !itr.points[1].Nil {
+			b.Value = itr.points[1].Value
+			b.Nil = false
+		}
+
+		if itr.storePrev {
+			itr.points[0], itr.points[1] = *a, *b
+		}
+
+		p := &IntegerPoint{
+			Name:       a.Name,
+			Tags:       a.Tags,
+			Time:       a.Time,
+			Nil:        a.Nil || b.Nil,
+			Aggregated: a.Aggregated,
+		}
+		if !p.Nil {
+			p.Value = itr.fn(a.Value, b.Value)
+		}
+		return p, nil
+
+	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *unsignedIntegerExprIterator) next() (a, b *UnsignedPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
+}
+
+// unsignedIntegerExprFunc creates or modifies a point by combining two
+// points. The point passed in may be modified and returned rather than
+// allocating a new point if possible. One of the points may be nil, but at
+// least one of the points will be non-nil.
+type unsignedIntegerExprFunc func(a, b uint64) int64
+
+// unsignedReduceUnsignedIterator executes a reducer for every interval and buffers the result.
+type unsignedReduceUnsignedIterator struct {
+	input    *bufUnsignedIterator
+	create   func() (UnsignedPointAggregator, UnsignedPointEmitter)
+	dims     []string
+	opt      IteratorOptions
+	points   []UnsignedPoint
+	keepTags bool
+}
+
+func newUnsignedReduceUnsignedIterator(input UnsignedIterator, opt IteratorOptions, createFn func() (UnsignedPointAggregator, UnsignedPointEmitter)) *unsignedReduceUnsignedIterator {
+	return &unsignedReduceUnsignedIterator{
+		input:  newBufUnsignedIterator(input),
+		create: createFn,
+		dims:   opt.GetDimensions(),
+		opt:    opt,
+	}
+}
+
+// Stats returns stats from the input iterator.
+func (itr *unsignedReduceUnsignedIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *unsignedReduceUnsignedIterator) Close() error { return itr.input.Close() }
+
+// Next returns the minimum value for the next available interval.
+func (itr *unsignedReduceUnsignedIterator) Next() (*UnsignedPoint, error) {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		var err error
+		itr.points, err = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil, err
+		}
+	}
+
+	// Pop next point off the stack.
+	p := &itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p, nil
+}
+
+// unsignedReduceUnsignedPoint stores the reduced data for a name/tag combination.
+type unsignedReduceUnsignedPoint struct {
+	Name       string
+	Tags       Tags
+	Aggregator UnsignedPointAggregator
+	Emitter    UnsignedPointEmitter
+}
+
+// reduce executes fn once for every point in the next window.
+// The previous value for the dimension is passed to fn.
+func (itr *unsignedReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
+	// Calculate next window.
+	var (
+		startTime, endTime int64
+		window             struct {
+			name string
+			tags string
+		}
+	)
+	for {
+		p, err := itr.input.Next()
+		if err != nil || p == nil {
+			return nil, err
+		} else if p.Nil {
+			continue
+		}
+
+		// Unread the point so it can be processed.
+		itr.input.unread(p)
+		startTime, endTime = itr.opt.Window(p.Time)
+		window.name, window.tags = p.Name, p.Tags.Subset(itr.opt.Dimensions).ID()
+		break
+	}
+
+	// Create points by tags.
+	m := make(map[string]*unsignedReduceUnsignedPoint)
+	for {
+		// Read next point.
+		curr, err := itr.input.NextInWindow(startTime, endTime)
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
+			break
+		} else if curr.Nil {
+			continue
+		} else if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Ensure this point is within the same final window.
+		if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != window.tags {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
+
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &unsignedReduceUnsignedPoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			m[id] = rp
+		}
+		rp.Aggregator.AggregateUnsigned(curr)
+	}
+
+	// Reverse sort points by name & tag if our output is supposed to be ordered.
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	if len(keys) > 1 && itr.opt.Ordered {
+		sort.Sort(reverseStringSlice(keys))
+	}
+
+	// Assume the points are already sorted until proven otherwise.
+	sortedByTime := true
+	// Emit the points for each name & tag combination.
+	a := make([]UnsignedPoint, 0, len(m))
+	for _, k := range keys {
+		rp := m[k]
+		points := rp.Emitter.Emit()
+		for i := len(points) - 1; i >= 0; i-- {
+			points[i].Name = rp.Name
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
+			// Set the points time to the interval time if the reducer didn't provide one.
+			if points[i].Time == ZeroTime {
+				points[i].Time = startTime
+			} else {
+				sortedByTime = false
+			}
+			a = append(a, points[i])
+		}
+	}
+
+	// Points may be out of order. Perform a stable sort by time if requested.
+	if !sortedByTime && itr.opt.Ordered {
+		sort.Stable(sort.Reverse(unsignedPointsByTime(a)))
+	}
+
+	return a, nil
+}
+
+// unsignedStreamUnsignedIterator streams inputs into the iterator and emits points gradually.
+type unsignedStreamUnsignedIterator struct {
+	input  *bufUnsignedIterator
+	create func() (UnsignedPointAggregator, UnsignedPointEmitter)
+	dims   []string
+	opt    IteratorOptions
+	m      map[string]*unsignedReduceUnsignedPoint
+	points []UnsignedPoint
+}
+
+// newUnsignedStreamUnsignedIterator returns a new instance of unsignedStreamUnsignedIterator.
+func newUnsignedStreamUnsignedIterator(input UnsignedIterator, createFn func() (UnsignedPointAggregator, UnsignedPointEmitter), opt IteratorOptions) *unsignedStreamUnsignedIterator {
+	return &unsignedStreamUnsignedIterator{
+		input:  newBufUnsignedIterator(input),
+		create: createFn,
+		dims:   opt.GetDimensions(),
+		opt:    opt,
+		m:      make(map[string]*unsignedReduceUnsignedPoint),
+	}
+}
+
+// Stats returns stats from the input iterator.
+func (itr *unsignedStreamUnsignedIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *unsignedStreamUnsignedIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next value for the stream iterator.
+func (itr *unsignedStreamUnsignedIterator) Next() (*UnsignedPoint, error) {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		var err error
+		itr.points, err = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil, err
+		}
+	}
+
+	// Pop next point off the stack.
+	p := &itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p, nil
+}
+
+// reduce creates and manages aggregators for every point from the input.
+// After aggregating a point, it always tries to emit a value using the emitter.
+func (itr *unsignedStreamUnsignedIterator) reduce() ([]UnsignedPoint, error) {
+	for {
+		// Read next point.
+		curr, err := itr.input.Next()
+		if curr == nil {
+			// Close all of the aggregators to flush any remaining points to emit.
+			var points []UnsignedPoint
+			for _, rp := range itr.m {
+				if aggregator, ok := rp.Aggregator.(io.Closer); ok {
+					if err := aggregator.Close(); err != nil {
+						return nil, err
+					}
+
+					pts := rp.Emitter.Emit()
+					if len(pts) == 0 {
+						continue
+					}
+
+					for i := range pts {
+						pts[i].Name = rp.Name
+						pts[i].Tags = rp.Tags
+					}
+					points = append(points, pts...)
+				}
+			}
+
+			// Eliminate the aggregators and emitters.
+			itr.m = nil
+			return points, nil
+		} else if err != nil {
+			return nil, err
+		} else if curr.Nil {
+			continue
+		}
+		tags := curr.Tags.Subset(itr.dims)
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
+
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := itr.m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &unsignedReduceUnsignedPoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			itr.m[id] = rp
+		}
+		rp.Aggregator.AggregateUnsigned(curr)
+
+		// Attempt to emit points from the aggregator.
+		points := rp.Emitter.Emit()
+		if len(points) == 0 {
+			continue
+		}
+
+		for i := range points {
+			points[i].Name = rp.Name
+			points[i].Tags = rp.Tags
+		}
+		return points, nil
+	}
+}
+
+// unsignedExprIterator executes a function to modify an existing point
+// for every output of the input iterator.
+type unsignedExprIterator struct {
+	left      *bufUnsignedIterator
+	right     *bufUnsignedIterator
+	fn        unsignedExprFunc
+	points    []UnsignedPoint // must be size 2
+	storePrev bool
+}
+
+func newUnsignedExprIterator(left, right UnsignedIterator, opt IteratorOptions, fn func(a, b uint64) uint64) *unsignedExprIterator {
+	var points []UnsignedPoint
+	switch opt.Fill {
+	case NullFill, PreviousFill:
+		points = []UnsignedPoint{{Nil: true}, {Nil: true}}
+	case NumberFill:
+		value := castToUnsigned(opt.FillValue)
+		points = []UnsignedPoint{{Value: value}, {Value: value}}
+	}
+	return &unsignedExprIterator{
+		left:      newBufUnsignedIterator(left),
+		right:     newBufUnsignedIterator(right),
+		points:    points,
+		fn:        fn,
+		storePrev: opt.Fill == PreviousFill,
+	}
+}
+
+func (itr *unsignedExprIterator) Stats() IteratorStats {
+	stats := itr.left.Stats()
+	stats.Add(itr.right.Stats())
+	return stats
+}
+
+func (itr *unsignedExprIterator) Close() error {
+	itr.left.Close()
+	itr.right.Close()
+	return nil
+}
+
+func (itr *unsignedExprIterator) Next() (*UnsignedPoint, error) {
+	for {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
+			return nil, err
+		}
+
+		// If any of these are nil and we are using fill(none), skip these points.
+		if (a == nil || a.Nil || b == nil || b.Nil) && itr.points == nil {
+			continue
+		}
+
+		// If one of the two points is nil, we need to fill it with a fake nil
+		// point that has the same name, tags, and time as the other point.
+		// There should never be a time when both of these are nil.
+		if a == nil {
+			p := *b
+			a = &p
+			a.Value = 0
+			a.Nil = true
+		} else if b == nil {
+			p := *a
+			b = &p
+			b.Value = 0
+			b.Nil = true
+		}
+
+		// If a value is nil, use the fill values if the fill value is non-nil.
+		if a.Nil && !itr.points[0].Nil {
+			a.Value = itr.points[0].Value
+			a.Nil = false
+		}
+		if b.Nil && !itr.points[1].Nil {
+			b.Value = itr.points[1].Value
+			b.Nil = false
+		}
+
+		if itr.storePrev {
+			itr.points[0], itr.points[1] = *a, *b
+		}
+
+		if a.Nil {
+			return a, nil
+		} else if b.Nil {
+			return b, nil
+		}
+		a.Value = itr.fn(a.Value, b.Value)
+		return a, nil
+
+	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *unsignedExprIterator) next() (a, b *UnsignedPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
+}
+
+// unsignedExprFunc creates or modifies a point by combining two
+// points. The point passed in may be modified and returned rather than
+// allocating a new point if possible. One of the points may be nil, but at
+// least one of the points will be non-nil.
+type unsignedExprFunc func(a, b uint64) uint64
+
+// unsignedReduceStringIterator executes a reducer for every interval and buffers the result.
+type unsignedReduceStringIterator struct {
+	input    *bufUnsignedIterator
+	create   func() (UnsignedPointAggregator, StringPointEmitter)
+	dims     []string
+	opt      IteratorOptions
+	points   []StringPoint
+	keepTags bool
+}
+
+func newUnsignedReduceStringIterator(input UnsignedIterator, opt IteratorOptions, createFn func() (UnsignedPointAggregator, StringPointEmitter)) *unsignedReduceStringIterator {
+	return &unsignedReduceStringIterator{
+		input:  newBufUnsignedIterator(input),
+		create: createFn,
+		dims:   opt.GetDimensions(),
+		opt:    opt,
+	}
+}
+
+// Stats returns stats from the input iterator.
+func (itr *unsignedReduceStringIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *unsignedReduceStringIterator) Close() error { return itr.input.Close() }
+
+// Next returns the minimum value for the next available interval.
+func (itr *unsignedReduceStringIterator) Next() (*StringPoint, error) {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		var err error
+		itr.points, err = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil, err
+		}
+	}
+
+	// Pop next point off the stack.
+	p := &itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p, nil
+}
+
+// unsignedReduceStringPoint stores the reduced data for a name/tag combination.
+type unsignedReduceStringPoint struct {
+	Name       string
+	Tags       Tags
+	Aggregator UnsignedPointAggregator
+	Emitter    StringPointEmitter
+}
+
+// reduce executes fn once for every point in the next window.
+// The previous value for the dimension is passed to fn.
+func (itr *unsignedReduceStringIterator) reduce() ([]StringPoint, error) {
+	// Calculate next window.
+	var (
+		startTime, endTime int64
+		window             struct {
+			name string
+			tags string
+		}
+	)
+	for {
+		p, err := itr.input.Next()
+		if err != nil || p == nil {
+			return nil, err
+		} else if p.Nil {
+			continue
+		}
+
+		// Unread the point so it can be processed.
+		itr.input.unread(p)
+		startTime, endTime = itr.opt.Window(p.Time)
+		window.name, window.tags = p.Name, p.Tags.Subset(itr.opt.Dimensions).ID()
+		break
+	}
+
+	// Create points by tags.
+	m := make(map[string]*unsignedReduceStringPoint)
+	for {
+		// Read next point.
+		curr, err := itr.input.NextInWindow(startTime, endTime)
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
+			break
+		} else if curr.Nil {
+			continue
+		} else if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Ensure this point is within the same final window.
+		if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != window.tags {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
+
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &unsignedReduceStringPoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			m[id] = rp
+		}
+		rp.Aggregator.AggregateUnsigned(curr)
+	}
+
+	// Reverse sort points by name & tag if our output is supposed to be ordered.
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	if len(keys) > 1 && itr.opt.Ordered {
+		sort.Sort(reverseStringSlice(keys))
+	}
+
+	// Assume the points are already sorted until proven otherwise.
+	sortedByTime := true
+	// Emit the points for each name & tag combination.
+	a := make([]StringPoint, 0, len(m))
+	for _, k := range keys {
+		rp := m[k]
+		points := rp.Emitter.Emit()
+		for i := len(points) - 1; i >= 0; i-- {
+			points[i].Name = rp.Name
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
+			// Set the points time to the interval time if the reducer didn't provide one.
+			if points[i].Time == ZeroTime {
+				points[i].Time = startTime
+			} else {
+				sortedByTime = false
+			}
+			a = append(a, points[i])
+		}
+	}
+
+	// Points may be out of order. Perform a stable sort by time if requested.
+	if !sortedByTime && itr.opt.Ordered {
+		sort.Stable(sort.Reverse(stringPointsByTime(a)))
+	}
+
+	return a, nil
+}
+
+// unsignedStreamStringIterator streams inputs into the iterator and emits points gradually.
+type unsignedStreamStringIterator struct {
+	input  *bufUnsignedIterator
+	create func() (UnsignedPointAggregator, StringPointEmitter)
+	dims   []string
+	opt    IteratorOptions
+	m      map[string]*unsignedReduceStringPoint
+	points []StringPoint
+}
+
+// newUnsignedStreamStringIterator returns a new instance of unsignedStreamStringIterator.
+func newUnsignedStreamStringIterator(input UnsignedIterator, createFn func() (UnsignedPointAggregator, StringPointEmitter), opt IteratorOptions) *unsignedStreamStringIterator {
+	return &unsignedStreamStringIterator{
+		input:  newBufUnsignedIterator(input),
+		create: createFn,
+		dims:   opt.GetDimensions(),
+		opt:    opt,
+		m:      make(map[string]*unsignedReduceStringPoint),
+	}
+}
+
+// Stats returns stats from the input iterator.
+func (itr *unsignedStreamStringIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *unsignedStreamStringIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next value for the stream iterator.
+func (itr *unsignedStreamStringIterator) Next() (*StringPoint, error) {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		var err error
+		itr.points, err = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil, err
+		}
+	}
+
+	// Pop next point off the stack.
+	p := &itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p, nil
+}
+
+// reduce creates and manages aggregators for every point from the input.
+// After aggregating a point, it always tries to emit a value using the emitter.
+func (itr *unsignedStreamStringIterator) reduce() ([]StringPoint, error) {
+	for {
+		// Read next point.
+		curr, err := itr.input.Next()
+		if curr == nil {
+			// Close all of the aggregators to flush any remaining points to emit.
+			var points []StringPoint
+			for _, rp := range itr.m {
+				if aggregator, ok := rp.Aggregator.(io.Closer); ok {
+					if err := aggregator.Close(); err != nil {
+						return nil, err
+					}
+
+					pts := rp.Emitter.Emit()
+					if len(pts) == 0 {
+						continue
+					}
+
+					for i := range pts {
+						pts[i].Name = rp.Name
+						pts[i].Tags = rp.Tags
+					}
+					points = append(points, pts...)
+				}
+			}
+
+			// Eliminate the aggregators and emitters.
+			itr.m = nil
+			return points, nil
+		} else if err != nil {
+			return nil, err
+		} else if curr.Nil {
+			continue
+		}
+		tags := curr.Tags.Subset(itr.dims)
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
+
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := itr.m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &unsignedReduceStringPoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			itr.m[id] = rp
+		}
+		rp.Aggregator.AggregateUnsigned(curr)
+
+		// Attempt to emit points from the aggregator.
+		points := rp.Emitter.Emit()
+		if len(points) == 0 {
+			continue
+		}
+
+		for i := range points {
+			points[i].Name = rp.Name
+			points[i].Tags = rp.Tags
+		}
+		return points, nil
+	}
+}
+
+// unsignedStringExprIterator executes a function to modify an existing point
+// for every output of the input iterator.
+type unsignedStringExprIterator struct {
+	left      *bufUnsignedIterator
+	right     *bufUnsignedIterator
+	fn        unsignedStringExprFunc
+	points    []UnsignedPoint // must be size 2
+	storePrev bool
+}
+
+func newUnsignedStringExprIterator(left, right UnsignedIterator, opt IteratorOptions, fn func(a, b uint64) string) *unsignedStringExprIterator {
+	var points []UnsignedPoint
+	switch opt.Fill {
+	case NullFill, PreviousFill:
+		points = []UnsignedPoint{{Nil: true}, {Nil: true}}
+	case NumberFill:
+		value := castToUnsigned(opt.FillValue)
+		points = []UnsignedPoint{{Value: value}, {Value: value}}
+	}
+	return &unsignedStringExprIterator{
+		left:      newBufUnsignedIterator(left),
+		right:     newBufUnsignedIterator(right),
+		points:    points,
+		fn:        fn,
+		storePrev: opt.Fill == PreviousFill,
+	}
+}
+
+func (itr *unsignedStringExprIterator) Stats() IteratorStats {
+	stats := itr.left.Stats()
+	stats.Add(itr.right.Stats())
+	return stats
+}
+
+func (itr *unsignedStringExprIterator) Close() error {
+	itr.left.Close()
+	itr.right.Close()
+	return nil
+}
+
+func (itr *unsignedStringExprIterator) Next() (*StringPoint, error) {
+	for {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
+			return nil, err
+		}
+
+		// If any of these are nil and we are using fill(none), skip these points.
+		if (a == nil || a.Nil || b == nil || b.Nil) && itr.points == nil {
+			continue
+		}
+
+		// If one of the two points is nil, we need to fill it with a fake nil
+		// point that has the same name, tags, and time as the other point.
+		// There should never be a time when both of these are nil.
+		if a == nil {
+			p := *b
+			a = &p
+			a.Value = 0
+			a.Nil = true
+		} else if b == nil {
+			p := *a
+			b = &p
+			b.Value = 0
+			b.Nil = true
+		}
+
+		// If a value is nil, use the fill values if the fill value is non-nil.
+		if a.Nil && !itr.points[0].Nil {
+			a.Value = itr.points[0].Value
+			a.Nil = false
+		}
+		if b.Nil && !itr.points[1].Nil {
+			b.Value = itr.points[1].Value
+			b.Nil = false
+		}
+
+		if itr.storePrev {
+			itr.points[0], itr.points[1] = *a, *b
+		}
+
+		p := &StringPoint{
+			Name:       a.Name,
+			Tags:       a.Tags,
+			Time:       a.Time,
+			Nil:        a.Nil || b.Nil,
+			Aggregated: a.Aggregated,
+		}
+		if !p.Nil {
+			p.Value = itr.fn(a.Value, b.Value)
+		}
+		return p, nil
+
+	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *unsignedStringExprIterator) next() (a, b *UnsignedPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
+}
+
+// unsignedStringExprFunc creates or modifies a point by combining two
+// points. The point passed in may be modified and returned rather than
+// allocating a new point if possible. One of the points may be nil, but at
+// least one of the points will be non-nil.
+type unsignedStringExprFunc func(a, b uint64) string
+
+// unsignedReduceBooleanIterator executes a reducer for every interval and buffers the result.
+type unsignedReduceBooleanIterator struct {
+	input    *bufUnsignedIterator
+	create   func() (UnsignedPointAggregator, BooleanPointEmitter)
+	dims     []string
+	opt      IteratorOptions
+	points   []BooleanPoint
+	keepTags bool
+}
+
+func newUnsignedReduceBooleanIterator(input UnsignedIterator, opt IteratorOptions, createFn func() (UnsignedPointAggregator, BooleanPointEmitter)) *unsignedReduceBooleanIterator {
+	return &unsignedReduceBooleanIterator{
+		input:  newBufUnsignedIterator(input),
+		create: createFn,
+		dims:   opt.GetDimensions(),
+		opt:    opt,
+	}
+}
+
+// Stats returns stats from the input iterator.
+func (itr *unsignedReduceBooleanIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *unsignedReduceBooleanIterator) Close() error { return itr.input.Close() }
+
+// Next returns the minimum value for the next available interval.
+func (itr *unsignedReduceBooleanIterator) Next() (*BooleanPoint, error) {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		var err error
+		itr.points, err = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil, err
+		}
+	}
+
+	// Pop next point off the stack.
+	p := &itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p, nil
+}
+
+// unsignedReduceBooleanPoint stores the reduced data for a name/tag combination.
+type unsignedReduceBooleanPoint struct {
+	Name       string
+	Tags       Tags
+	Aggregator UnsignedPointAggregator
+	Emitter    BooleanPointEmitter
+}
+
+// reduce executes fn once for every point in the next window.
+// The previous value for the dimension is passed to fn.
+func (itr *unsignedReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
+	// Calculate next window.
+	var (
+		startTime, endTime int64
+		window             struct {
+			name string
+			tags string
+		}
+	)
+	for {
+		p, err := itr.input.Next()
+		if err != nil || p == nil {
+			return nil, err
+		} else if p.Nil {
+			continue
+		}
+
+		// Unread the point so it can be processed.
+		itr.input.unread(p)
+		startTime, endTime = itr.opt.Window(p.Time)
+		window.name, window.tags = p.Name, p.Tags.Subset(itr.opt.Dimensions).ID()
+		break
+	}
+
+	// Create points by tags.
+	m := make(map[string]*unsignedReduceBooleanPoint)
+	for {
+		// Read next point.
+		curr, err := itr.input.NextInWindow(startTime, endTime)
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
+			break
+		} else if curr.Nil {
+			continue
+		} else if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Ensure this point is within the same final window.
+		if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != window.tags {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
+
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &unsignedReduceBooleanPoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			m[id] = rp
+		}
+		rp.Aggregator.AggregateUnsigned(curr)
+	}
+
+	// Reverse sort points by name & tag if our output is supposed to be ordered.
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	if len(keys) > 1 && itr.opt.Ordered {
+		sort.Sort(reverseStringSlice(keys))
+	}
+
+	// Assume the points are already sorted until proven otherwise.
+	sortedByTime := true
+	// Emit the points for each name & tag combination.
+	a := make([]BooleanPoint, 0, len(m))
+	for _, k := range keys {
+		rp := m[k]
+		points := rp.Emitter.Emit()
+		for i := len(points) - 1; i >= 0; i-- {
+			points[i].Name = rp.Name
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
+			// Set the points time to the interval time if the reducer didn't provide one.
+			if points[i].Time == ZeroTime {
+				points[i].Time = startTime
+			} else {
+				sortedByTime = false
+			}
+			a = append(a, points[i])
+		}
+	}
+
+	// Points may be out of order. Perform a stable sort by time if requested.
+	if !sortedByTime && itr.opt.Ordered {
+		sort.Stable(sort.Reverse(booleanPointsByTime(a)))
+	}
+
+	return a, nil
+}
+
+// unsignedStreamBooleanIterator streams inputs into the iterator and emits points gradually.
+type unsignedStreamBooleanIterator struct {
+	input  *bufUnsignedIterator
+	create func() (UnsignedPointAggregator, BooleanPointEmitter)
+	dims   []string
+	opt    IteratorOptions
+	m      map[string]*unsignedReduceBooleanPoint
+	points []BooleanPoint
+}
+
+// newUnsignedStreamBooleanIterator returns a new instance of unsignedStreamBooleanIterator.
+func newUnsignedStreamBooleanIterator(input UnsignedIterator, createFn func() (UnsignedPointAggregator, BooleanPointEmitter), opt IteratorOptions) *unsignedStreamBooleanIterator {
+	return &unsignedStreamBooleanIterator{
+		input:  newBufUnsignedIterator(input),
+		create: createFn,
+		dims:   opt.GetDimensions(),
+		opt:    opt,
+		m:      make(map[string]*unsignedReduceBooleanPoint),
+	}
+}
+
+// Stats returns stats from the input iterator.
+func (itr *unsignedStreamBooleanIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *unsignedStreamBooleanIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next value for the stream iterator.
+func (itr *unsignedStreamBooleanIterator) Next() (*BooleanPoint, error) {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		var err error
+		itr.points, err = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil, err
+		}
+	}
+
+	// Pop next point off the stack.
+	p := &itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p, nil
+}
+
+// reduce creates and manages aggregators for every point from the input.
+// After aggregating a point, it always tries to emit a value using the emitter.
+func (itr *unsignedStreamBooleanIterator) reduce() ([]BooleanPoint, error) {
+	for {
+		// Read next point.
+		curr, err := itr.input.Next()
+		if curr == nil {
+			// Close all of the aggregators to flush any remaining points to emit.
+			var points []BooleanPoint
+			for _, rp := range itr.m {
+				if aggregator, ok := rp.Aggregator.(io.Closer); ok {
+					if err := aggregator.Close(); err != nil {
+						return nil, err
+					}
+
+					pts := rp.Emitter.Emit()
+					if len(pts) == 0 {
+						continue
+					}
+
+					for i := range pts {
+						pts[i].Name = rp.Name
+						pts[i].Tags = rp.Tags
+					}
+					points = append(points, pts...)
+				}
+			}
+
+			// Eliminate the aggregators and emitters.
+			itr.m = nil
+			return points, nil
+		} else if err != nil {
+			return nil, err
+		} else if curr.Nil {
+			continue
+		}
+		tags := curr.Tags.Subset(itr.dims)
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
+
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := itr.m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &unsignedReduceBooleanPoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			itr.m[id] = rp
+		}
+		rp.Aggregator.AggregateUnsigned(curr)
+
+		// Attempt to emit points from the aggregator.
+		points := rp.Emitter.Emit()
+		if len(points) == 0 {
+			continue
+		}
+
+		for i := range points {
+			points[i].Name = rp.Name
+			points[i].Tags = rp.Tags
+		}
+		return points, nil
+	}
+}
+
+// unsignedBooleanExprIterator executes a function to modify an existing point
+// for every output of the input iterator.
+type unsignedBooleanExprIterator struct {
+	left      *bufUnsignedIterator
+	right     *bufUnsignedIterator
+	fn        unsignedBooleanExprFunc
+	points    []UnsignedPoint // must be size 2
+	storePrev bool
+}
+
+func newUnsignedBooleanExprIterator(left, right UnsignedIterator, opt IteratorOptions, fn func(a, b uint64) bool) *unsignedBooleanExprIterator {
+	var points []UnsignedPoint
+	switch opt.Fill {
+	case NullFill, PreviousFill:
+		points = []UnsignedPoint{{Nil: true}, {Nil: true}}
+	case NumberFill:
+		value := castToUnsigned(opt.FillValue)
+		points = []UnsignedPoint{{Value: value}, {Value: value}}
+	}
+	return &unsignedBooleanExprIterator{
+		left:      newBufUnsignedIterator(left),
+		right:     newBufUnsignedIterator(right),
+		points:    points,
+		fn:        fn,
+		storePrev: opt.Fill == PreviousFill,
+	}
+}
+
+func (itr *unsignedBooleanExprIterator) Stats() IteratorStats {
+	stats := itr.left.Stats()
+	stats.Add(itr.right.Stats())
+	return stats
+}
+
+func (itr *unsignedBooleanExprIterator) Close() error {
+	itr.left.Close()
+	itr.right.Close()
+	return nil
+}
+
+func (itr *unsignedBooleanExprIterator) Next() (*BooleanPoint, error) {
+	for {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
+			return nil, err
+		}
+
+		// If any of these are nil and we are using fill(none), skip these points.
+		if (a == nil || a.Nil || b == nil || b.Nil) && itr.points == nil {
+			continue
+		}
+
+		// If one of the two points is nil, we need to fill it with a fake nil
+		// point that has the same name, tags, and time as the other point.
+		// There should never be a time when both of these are nil.
+		if a == nil {
+			p := *b
+			a = &p
+			a.Value = 0
+			a.Nil = true
+		} else if b == nil {
+			p := *a
+			b = &p
+			b.Value = 0
+			b.Nil = true
+		}
+
+		// If a value is nil, use the fill values if the fill value is non-nil.
+		if a.Nil && !itr.points[0].Nil {
+			a.Value = itr.points[0].Value
+			a.Nil = false
+		}
+		if b.Nil && !itr.points[1].Nil {
+			b.Value = itr.points[1].Value
+			b.Nil = false
+		}
+
+		if itr.storePrev {
+			itr.points[0], itr.points[1] = *a, *b
+		}
+
+		p := &BooleanPoint{
+			Name:       a.Name,
+			Tags:       a.Tags,
+			Time:       a.Time,
+			Nil:        a.Nil || b.Nil,
+			Aggregated: a.Aggregated,
+		}
+		if !p.Nil {
+			p.Value = itr.fn(a.Value, b.Value)
+		}
+		return p, nil
+
+	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *unsignedBooleanExprIterator) next() (a, b *UnsignedPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
+}
+
+// unsignedBooleanExprFunc creates or modifies a point by combining two
+// points. The point passed in may be modified and returned rather than
+// allocating a new point if possible. One of the points may be nil, but at
+// least one of the points will be non-nil.
+type unsignedBooleanExprFunc func(a, b uint64) bool
+
+// unsignedTransformIterator executes a function to modify an existing point for every
+// output of the input iterator.
+type unsignedTransformIterator struct {
+	input UnsignedIterator
+	fn    unsignedTransformFunc
+}
+
+// Stats returns stats from the input iterator.
+func (itr *unsignedTransformIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *unsignedTransformIterator) Close() error { return itr.input.Close() }
+
+// Next returns the minimum value for the next available interval.
+func (itr *unsignedTransformIterator) Next() (*UnsignedPoint, error) {
+	p, err := itr.input.Next()
+	if err != nil {
+		return nil, err
+	} else if p != nil {
+		p = itr.fn(p)
+	}
+	return p, nil
+}
+
+// unsignedTransformFunc creates or modifies a point.
+// The point passed in may be modified and returned rather than allocating a
+// new point if possible.
+type unsignedTransformFunc func(p *UnsignedPoint) *UnsignedPoint
+
+// unsignedBoolTransformIterator executes a function to modify an existing point for every
+// output of the input iterator.
+type unsignedBoolTransformIterator struct {
+	input UnsignedIterator
+	fn    unsignedBoolTransformFunc
+}
+
+// Stats returns stats from the input iterator.
+func (itr *unsignedBoolTransformIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *unsignedBoolTransformIterator) Close() error { return itr.input.Close() }
+
+// Next returns the minimum value for the next available interval.
+func (itr *unsignedBoolTransformIterator) Next() (*BooleanPoint, error) {
+	p, err := itr.input.Next()
+	if err != nil {
+		return nil, err
+	} else if p != nil {
+		return itr.fn(p), nil
+	}
+	return nil, nil
+}
+
+// unsignedBoolTransformFunc creates or modifies a point.
+// The point passed in may be modified and returned rather than allocating a
+// new point if possible.
+type unsignedBoolTransformFunc func(p *UnsignedPoint) *BooleanPoint
+
+// unsignedDedupeIterator only outputs unique points.
+// This differs from the DistinctIterator in that it compares all aux fields too.
+// This iterator is relatively inefficient and should only be used on small
+// datasets such as meta query results.
+type unsignedDedupeIterator struct {
+	input UnsignedIterator
+	m     map[string]struct{} // lookup of points already sent
+}
+
+type unsignedIteratorMapper struct {
+	e      *Emitter
+	buf    []interface{}
+	driver IteratorMap   // which iterator to use for the primary value, can be nil
+	fields []IteratorMap // which iterator to use for an aux field
+	point  UnsignedPoint
+}
+
+func newUnsignedIteratorMapper(itrs []Iterator, driver IteratorMap, fields []IteratorMap, opt IteratorOptions) *unsignedIteratorMapper {
+	e := NewEmitter(itrs, opt.Ascending, 0)
+	e.OmitTime = true
+	return &unsignedIteratorMapper{
+		e:      e,
+		buf:    make([]interface{}, len(itrs)),
+		driver: driver,
+		fields: fields,
+		point: UnsignedPoint{
+			Aux: make([]interface{}, len(fields)),
+		},
+	}
+}
+
+func (itr *unsignedIteratorMapper) Next() (*UnsignedPoint, error) {
+	t, name, tags, err := itr.e.loadBuf()
+	if err != nil || t == ZeroTime {
+		return nil, err
+	}
+	itr.point.Time = t
+	itr.point.Name = name
+	itr.point.Tags = tags
+
+	itr.e.readInto(t, name, tags, itr.buf)
+	if itr.driver != nil {
+		if v := itr.driver.Value(tags, itr.buf); v != nil {
+			if v, ok := v.(uint64); ok {
+				itr.point.Value = v
+				itr.point.Nil = false
+			} else {
+				itr.point.Value = 0
+				itr.point.Nil = true
+			}
+		} else {
+			itr.point.Value = 0
+			itr.point.Nil = true
+		}
+	}
+	for i, f := range itr.fields {
+		itr.point.Aux[i] = f.Value(tags, itr.buf)
+	}
+	return &itr.point, nil
+}
+
+func (itr *unsignedIteratorMapper) Stats() IteratorStats {
+	stats := IteratorStats{}
+	for _, itr := range itr.e.itrs {
+		stats.Add(itr.Stats())
+	}
+	return stats
+}
+
+func (itr *unsignedIteratorMapper) Close() error {
+	return itr.e.Close()
+}
+
+type unsignedFilterIterator struct {
+	input UnsignedIterator
+	cond  Expr
+	opt   IteratorOptions
+	m     map[string]interface{}
+}
+
+func newUnsignedFilterIterator(input UnsignedIterator, cond Expr, opt IteratorOptions) UnsignedIterator {
+	// Strip out time conditions from the WHERE clause.
+	// TODO(jsternberg): This should really be done for us when creating the IteratorOptions struct.
+	n := RewriteFunc(CloneExpr(cond), func(n Node) Node {
+		switch n := n.(type) {
+		case *BinaryExpr:
+			if n.LHS.String() == "time" {
+				return &BooleanLiteral{Val: true}
+			}
+		}
+		return n
+	})
+
+	cond, _ = n.(Expr)
+	if cond == nil {
+		return input
+	} else if n, ok := cond.(*BooleanLiteral); ok && n.Val {
+		return input
+	}
+
+	return &unsignedFilterIterator{
+		input: input,
+		cond:  cond,
+		opt:   opt,
+		m:     make(map[string]interface{}),
+	}
+}
+
+func (itr *unsignedFilterIterator) Stats() IteratorStats { return itr.input.Stats() }
+func (itr *unsignedFilterIterator) Close() error         { return itr.input.Close() }
+
+func (itr *unsignedFilterIterator) Next() (*UnsignedPoint, error) {
+	for {
+		p, err := itr.input.Next()
+		if err != nil || p == nil {
+			return nil, err
+		}
+
+		for i, ref := range itr.opt.Aux {
+			itr.m[ref.Val] = p.Aux[i]
+		}
+		for k, v := range p.Tags.KeyValues() {
+			itr.m[k] = v
+		}
+
+		if !EvalBool(itr.cond, itr.m) {
+			continue
+		}
+		return p, nil
+	}
+}
+
+// newUnsignedDedupeIterator returns a new instance of unsignedDedupeIterator.
+func newUnsignedDedupeIterator(input UnsignedIterator) *unsignedDedupeIterator {
+	return &unsignedDedupeIterator{
+		input: input,
+		m:     make(map[string]struct{}),
+	}
+}
+
+// Stats returns stats from the input iterator.
+func (itr *unsignedDedupeIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *unsignedDedupeIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next unique point from the input iterator.
+func (itr *unsignedDedupeIterator) Next() (*UnsignedPoint, error) {
+	for {
+		// Read next point.
+		p, err := itr.input.Next()
+		if p == nil || err != nil {
+			return nil, err
+		}
+
+		// Serialize to bytes to store in lookup.
+		buf, err := proto.Marshal(encodeUnsignedPoint(p))
+		if err != nil {
+			return nil, err
+		}
+
+		// If the point has already been output then move to the next point.
+		if _, ok := itr.m[string(buf)]; ok {
+			continue
+		}
+
+		// Otherwise mark it as emitted and return point.
+		itr.m[string(buf)] = struct{}{}
+		return p, nil
+	}
+}
+
+// unsignedReaderIterator represents an iterator that streams from a reader.
+type unsignedReaderIterator struct {
+	r   io.Reader
+	dec *UnsignedPointDecoder
+}
+
+// newUnsignedReaderIterator returns a new instance of unsignedReaderIterator.
+func newUnsignedReaderIterator(r io.Reader, stats IteratorStats) *unsignedReaderIterator {
+	dec := NewUnsignedPointDecoder(r)
+	dec.stats = stats
+
+	return &unsignedReaderIterator{
+		r:   r,
+		dec: dec,
+	}
+}
+
+// Stats returns stats about points processed.
+func (itr *unsignedReaderIterator) Stats() IteratorStats { return itr.dec.stats }
+
+// Close closes the underlying reader, if applicable.
+func (itr *unsignedReaderIterator) Close() error {
+	if r, ok := itr.r.(io.ReadCloser); ok {
+		return r.Close()
+	}
+	return nil
+}
+
+// Next returns the next point from the iterator.
+func (itr *unsignedReaderIterator) Next() (*UnsignedPoint, error) {
+	// OPTIMIZE(benbjohnson): Reuse point on iterator.
+
+	// Unmarshal next point.
+	p := &UnsignedPoint{}
+	if err := itr.dec.DecodeUnsignedPoint(p); err == io.EOF {
 		return nil, nil
 	} else if err != nil {
 		return nil, err
@@ -7682,6 +11850,425 @@ func (itr *stringIntegerExprIterator) next() (a, b *StringPoint, err error) {
 // allocating a new point if possible. One of the points may be nil, but at
 // least one of the points will be non-nil.
 type stringIntegerExprFunc func(a, b string) int64
+
+// stringReduceUnsignedIterator executes a reducer for every interval and buffers the result.
+type stringReduceUnsignedIterator struct {
+	input    *bufStringIterator
+	create   func() (StringPointAggregator, UnsignedPointEmitter)
+	dims     []string
+	opt      IteratorOptions
+	points   []UnsignedPoint
+	keepTags bool
+}
+
+func newStringReduceUnsignedIterator(input StringIterator, opt IteratorOptions, createFn func() (StringPointAggregator, UnsignedPointEmitter)) *stringReduceUnsignedIterator {
+	return &stringReduceUnsignedIterator{
+		input:  newBufStringIterator(input),
+		create: createFn,
+		dims:   opt.GetDimensions(),
+		opt:    opt,
+	}
+}
+
+// Stats returns stats from the input iterator.
+func (itr *stringReduceUnsignedIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *stringReduceUnsignedIterator) Close() error { return itr.input.Close() }
+
+// Next returns the minimum value for the next available interval.
+func (itr *stringReduceUnsignedIterator) Next() (*UnsignedPoint, error) {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		var err error
+		itr.points, err = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil, err
+		}
+	}
+
+	// Pop next point off the stack.
+	p := &itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p, nil
+}
+
+// stringReduceUnsignedPoint stores the reduced data for a name/tag combination.
+type stringReduceUnsignedPoint struct {
+	Name       string
+	Tags       Tags
+	Aggregator StringPointAggregator
+	Emitter    UnsignedPointEmitter
+}
+
+// reduce executes fn once for every point in the next window.
+// The previous value for the dimension is passed to fn.
+func (itr *stringReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
+	// Calculate next window.
+	var (
+		startTime, endTime int64
+		window             struct {
+			name string
+			tags string
+		}
+	)
+	for {
+		p, err := itr.input.Next()
+		if err != nil || p == nil {
+			return nil, err
+		} else if p.Nil {
+			continue
+		}
+
+		// Unread the point so it can be processed.
+		itr.input.unread(p)
+		startTime, endTime = itr.opt.Window(p.Time)
+		window.name, window.tags = p.Name, p.Tags.Subset(itr.opt.Dimensions).ID()
+		break
+	}
+
+	// Create points by tags.
+	m := make(map[string]*stringReduceUnsignedPoint)
+	for {
+		// Read next point.
+		curr, err := itr.input.NextInWindow(startTime, endTime)
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
+			break
+		} else if curr.Nil {
+			continue
+		} else if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Ensure this point is within the same final window.
+		if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != window.tags {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
+
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &stringReduceUnsignedPoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			m[id] = rp
+		}
+		rp.Aggregator.AggregateString(curr)
+	}
+
+	// Reverse sort points by name & tag if our output is supposed to be ordered.
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	if len(keys) > 1 && itr.opt.Ordered {
+		sort.Sort(reverseStringSlice(keys))
+	}
+
+	// Assume the points are already sorted until proven otherwise.
+	sortedByTime := true
+	// Emit the points for each name & tag combination.
+	a := make([]UnsignedPoint, 0, len(m))
+	for _, k := range keys {
+		rp := m[k]
+		points := rp.Emitter.Emit()
+		for i := len(points) - 1; i >= 0; i-- {
+			points[i].Name = rp.Name
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
+			// Set the points time to the interval time if the reducer didn't provide one.
+			if points[i].Time == ZeroTime {
+				points[i].Time = startTime
+			} else {
+				sortedByTime = false
+			}
+			a = append(a, points[i])
+		}
+	}
+
+	// Points may be out of order. Perform a stable sort by time if requested.
+	if !sortedByTime && itr.opt.Ordered {
+		sort.Stable(sort.Reverse(unsignedPointsByTime(a)))
+	}
+
+	return a, nil
+}
+
+// stringStreamUnsignedIterator streams inputs into the iterator and emits points gradually.
+type stringStreamUnsignedIterator struct {
+	input  *bufStringIterator
+	create func() (StringPointAggregator, UnsignedPointEmitter)
+	dims   []string
+	opt    IteratorOptions
+	m      map[string]*stringReduceUnsignedPoint
+	points []UnsignedPoint
+}
+
+// newStringStreamUnsignedIterator returns a new instance of stringStreamUnsignedIterator.
+func newStringStreamUnsignedIterator(input StringIterator, createFn func() (StringPointAggregator, UnsignedPointEmitter), opt IteratorOptions) *stringStreamUnsignedIterator {
+	return &stringStreamUnsignedIterator{
+		input:  newBufStringIterator(input),
+		create: createFn,
+		dims:   opt.GetDimensions(),
+		opt:    opt,
+		m:      make(map[string]*stringReduceUnsignedPoint),
+	}
+}
+
+// Stats returns stats from the input iterator.
+func (itr *stringStreamUnsignedIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *stringStreamUnsignedIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next value for the stream iterator.
+func (itr *stringStreamUnsignedIterator) Next() (*UnsignedPoint, error) {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		var err error
+		itr.points, err = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil, err
+		}
+	}
+
+	// Pop next point off the stack.
+	p := &itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p, nil
+}
+
+// reduce creates and manages aggregators for every point from the input.
+// After aggregating a point, it always tries to emit a value using the emitter.
+func (itr *stringStreamUnsignedIterator) reduce() ([]UnsignedPoint, error) {
+	for {
+		// Read next point.
+		curr, err := itr.input.Next()
+		if curr == nil {
+			// Close all of the aggregators to flush any remaining points to emit.
+			var points []UnsignedPoint
+			for _, rp := range itr.m {
+				if aggregator, ok := rp.Aggregator.(io.Closer); ok {
+					if err := aggregator.Close(); err != nil {
+						return nil, err
+					}
+
+					pts := rp.Emitter.Emit()
+					if len(pts) == 0 {
+						continue
+					}
+
+					for i := range pts {
+						pts[i].Name = rp.Name
+						pts[i].Tags = rp.Tags
+					}
+					points = append(points, pts...)
+				}
+			}
+
+			// Eliminate the aggregators and emitters.
+			itr.m = nil
+			return points, nil
+		} else if err != nil {
+			return nil, err
+		} else if curr.Nil {
+			continue
+		}
+		tags := curr.Tags.Subset(itr.dims)
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
+
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := itr.m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &stringReduceUnsignedPoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			itr.m[id] = rp
+		}
+		rp.Aggregator.AggregateString(curr)
+
+		// Attempt to emit points from the aggregator.
+		points := rp.Emitter.Emit()
+		if len(points) == 0 {
+			continue
+		}
+
+		for i := range points {
+			points[i].Name = rp.Name
+			points[i].Tags = rp.Tags
+		}
+		return points, nil
+	}
+}
+
+// stringUnsignedExprIterator executes a function to modify an existing point
+// for every output of the input iterator.
+type stringUnsignedExprIterator struct {
+	left      *bufStringIterator
+	right     *bufStringIterator
+	fn        stringUnsignedExprFunc
+	points    []StringPoint // must be size 2
+	storePrev bool
+}
+
+func newStringUnsignedExprIterator(left, right StringIterator, opt IteratorOptions, fn func(a, b string) uint64) *stringUnsignedExprIterator {
+	var points []StringPoint
+	switch opt.Fill {
+	case NullFill, PreviousFill:
+		points = []StringPoint{{Nil: true}, {Nil: true}}
+	case NumberFill:
+		value := castToString(opt.FillValue)
+		points = []StringPoint{{Value: value}, {Value: value}}
+	}
+	return &stringUnsignedExprIterator{
+		left:      newBufStringIterator(left),
+		right:     newBufStringIterator(right),
+		points:    points,
+		fn:        fn,
+		storePrev: opt.Fill == PreviousFill,
+	}
+}
+
+func (itr *stringUnsignedExprIterator) Stats() IteratorStats {
+	stats := itr.left.Stats()
+	stats.Add(itr.right.Stats())
+	return stats
+}
+
+func (itr *stringUnsignedExprIterator) Close() error {
+	itr.left.Close()
+	itr.right.Close()
+	return nil
+}
+
+func (itr *stringUnsignedExprIterator) Next() (*UnsignedPoint, error) {
+	for {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
+			return nil, err
+		}
+
+		// If any of these are nil and we are using fill(none), skip these points.
+		if (a == nil || a.Nil || b == nil || b.Nil) && itr.points == nil {
+			continue
+		}
+
+		// If one of the two points is nil, we need to fill it with a fake nil
+		// point that has the same name, tags, and time as the other point.
+		// There should never be a time when both of these are nil.
+		if a == nil {
+			p := *b
+			a = &p
+			a.Value = ""
+			a.Nil = true
+		} else if b == nil {
+			p := *a
+			b = &p
+			b.Value = ""
+			b.Nil = true
+		}
+
+		// If a value is nil, use the fill values if the fill value is non-nil.
+		if a.Nil && !itr.points[0].Nil {
+			a.Value = itr.points[0].Value
+			a.Nil = false
+		}
+		if b.Nil && !itr.points[1].Nil {
+			b.Value = itr.points[1].Value
+			b.Nil = false
+		}
+
+		if itr.storePrev {
+			itr.points[0], itr.points[1] = *a, *b
+		}
+
+		p := &UnsignedPoint{
+			Name:       a.Name,
+			Tags:       a.Tags,
+			Time:       a.Time,
+			Nil:        a.Nil || b.Nil,
+			Aggregated: a.Aggregated,
+		}
+		if !p.Nil {
+			p.Value = itr.fn(a.Value, b.Value)
+		}
+		return p, nil
+
+	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *stringUnsignedExprIterator) next() (a, b *StringPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
+}
+
+// stringUnsignedExprFunc creates or modifies a point by combining two
+// points. The point passed in may be modified and returned rather than
+// allocating a new point if possible. One of the points may be nil, but at
+// least one of the points will be non-nil.
+type stringUnsignedExprFunc func(a, b string) uint64
 
 // stringReduceStringIterator executes a reducer for every interval and buffers the result.
 type stringReduceStringIterator struct {
@@ -10594,6 +15181,425 @@ func (itr *booleanIntegerExprIterator) next() (a, b *BooleanPoint, err error) {
 // least one of the points will be non-nil.
 type booleanIntegerExprFunc func(a, b bool) int64
 
+// booleanReduceUnsignedIterator executes a reducer for every interval and buffers the result.
+type booleanReduceUnsignedIterator struct {
+	input    *bufBooleanIterator
+	create   func() (BooleanPointAggregator, UnsignedPointEmitter)
+	dims     []string
+	opt      IteratorOptions
+	points   []UnsignedPoint
+	keepTags bool
+}
+
+func newBooleanReduceUnsignedIterator(input BooleanIterator, opt IteratorOptions, createFn func() (BooleanPointAggregator, UnsignedPointEmitter)) *booleanReduceUnsignedIterator {
+	return &booleanReduceUnsignedIterator{
+		input:  newBufBooleanIterator(input),
+		create: createFn,
+		dims:   opt.GetDimensions(),
+		opt:    opt,
+	}
+}
+
+// Stats returns stats from the input iterator.
+func (itr *booleanReduceUnsignedIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *booleanReduceUnsignedIterator) Close() error { return itr.input.Close() }
+
+// Next returns the minimum value for the next available interval.
+func (itr *booleanReduceUnsignedIterator) Next() (*UnsignedPoint, error) {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		var err error
+		itr.points, err = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil, err
+		}
+	}
+
+	// Pop next point off the stack.
+	p := &itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p, nil
+}
+
+// booleanReduceUnsignedPoint stores the reduced data for a name/tag combination.
+type booleanReduceUnsignedPoint struct {
+	Name       string
+	Tags       Tags
+	Aggregator BooleanPointAggregator
+	Emitter    UnsignedPointEmitter
+}
+
+// reduce executes fn once for every point in the next window.
+// The previous value for the dimension is passed to fn.
+func (itr *booleanReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
+	// Calculate next window.
+	var (
+		startTime, endTime int64
+		window             struct {
+			name string
+			tags string
+		}
+	)
+	for {
+		p, err := itr.input.Next()
+		if err != nil || p == nil {
+			return nil, err
+		} else if p.Nil {
+			continue
+		}
+
+		// Unread the point so it can be processed.
+		itr.input.unread(p)
+		startTime, endTime = itr.opt.Window(p.Time)
+		window.name, window.tags = p.Name, p.Tags.Subset(itr.opt.Dimensions).ID()
+		break
+	}
+
+	// Create points by tags.
+	m := make(map[string]*booleanReduceUnsignedPoint)
+	for {
+		// Read next point.
+		curr, err := itr.input.NextInWindow(startTime, endTime)
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
+			break
+		} else if curr.Nil {
+			continue
+		} else if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Ensure this point is within the same final window.
+		if curr.Name != window.name {
+			itr.input.unread(curr)
+			break
+		} else if tags := curr.Tags.Subset(itr.opt.Dimensions); tags.ID() != window.tags {
+			itr.input.unread(curr)
+			break
+		}
+
+		// Retrieve the tags on this point for this level of the query.
+		// This may be different than the bucket dimensions.
+		tags := curr.Tags.Subset(itr.dims)
+		id := tags.ID()
+
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &booleanReduceUnsignedPoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			m[id] = rp
+		}
+		rp.Aggregator.AggregateBoolean(curr)
+	}
+
+	// Reverse sort points by name & tag if our output is supposed to be ordered.
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	if len(keys) > 1 && itr.opt.Ordered {
+		sort.Sort(reverseStringSlice(keys))
+	}
+
+	// Assume the points are already sorted until proven otherwise.
+	sortedByTime := true
+	// Emit the points for each name & tag combination.
+	a := make([]UnsignedPoint, 0, len(m))
+	for _, k := range keys {
+		rp := m[k]
+		points := rp.Emitter.Emit()
+		for i := len(points) - 1; i >= 0; i-- {
+			points[i].Name = rp.Name
+			if !itr.keepTags {
+				points[i].Tags = rp.Tags
+			}
+			// Set the points time to the interval time if the reducer didn't provide one.
+			if points[i].Time == ZeroTime {
+				points[i].Time = startTime
+			} else {
+				sortedByTime = false
+			}
+			a = append(a, points[i])
+		}
+	}
+
+	// Points may be out of order. Perform a stable sort by time if requested.
+	if !sortedByTime && itr.opt.Ordered {
+		sort.Stable(sort.Reverse(unsignedPointsByTime(a)))
+	}
+
+	return a, nil
+}
+
+// booleanStreamUnsignedIterator streams inputs into the iterator and emits points gradually.
+type booleanStreamUnsignedIterator struct {
+	input  *bufBooleanIterator
+	create func() (BooleanPointAggregator, UnsignedPointEmitter)
+	dims   []string
+	opt    IteratorOptions
+	m      map[string]*booleanReduceUnsignedPoint
+	points []UnsignedPoint
+}
+
+// newBooleanStreamUnsignedIterator returns a new instance of booleanStreamUnsignedIterator.
+func newBooleanStreamUnsignedIterator(input BooleanIterator, createFn func() (BooleanPointAggregator, UnsignedPointEmitter), opt IteratorOptions) *booleanStreamUnsignedIterator {
+	return &booleanStreamUnsignedIterator{
+		input:  newBufBooleanIterator(input),
+		create: createFn,
+		dims:   opt.GetDimensions(),
+		opt:    opt,
+		m:      make(map[string]*booleanReduceUnsignedPoint),
+	}
+}
+
+// Stats returns stats from the input iterator.
+func (itr *booleanStreamUnsignedIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *booleanStreamUnsignedIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next value for the stream iterator.
+func (itr *booleanStreamUnsignedIterator) Next() (*UnsignedPoint, error) {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		var err error
+		itr.points, err = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil, err
+		}
+	}
+
+	// Pop next point off the stack.
+	p := &itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p, nil
+}
+
+// reduce creates and manages aggregators for every point from the input.
+// After aggregating a point, it always tries to emit a value using the emitter.
+func (itr *booleanStreamUnsignedIterator) reduce() ([]UnsignedPoint, error) {
+	for {
+		// Read next point.
+		curr, err := itr.input.Next()
+		if curr == nil {
+			// Close all of the aggregators to flush any remaining points to emit.
+			var points []UnsignedPoint
+			for _, rp := range itr.m {
+				if aggregator, ok := rp.Aggregator.(io.Closer); ok {
+					if err := aggregator.Close(); err != nil {
+						return nil, err
+					}
+
+					pts := rp.Emitter.Emit()
+					if len(pts) == 0 {
+						continue
+					}
+
+					for i := range pts {
+						pts[i].Name = rp.Name
+						pts[i].Tags = rp.Tags
+					}
+					points = append(points, pts...)
+				}
+			}
+
+			// Eliminate the aggregators and emitters.
+			itr.m = nil
+			return points, nil
+		} else if err != nil {
+			return nil, err
+		} else if curr.Nil {
+			continue
+		}
+		tags := curr.Tags.Subset(itr.dims)
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
+
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := itr.m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &booleanReduceUnsignedPoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			itr.m[id] = rp
+		}
+		rp.Aggregator.AggregateBoolean(curr)
+
+		// Attempt to emit points from the aggregator.
+		points := rp.Emitter.Emit()
+		if len(points) == 0 {
+			continue
+		}
+
+		for i := range points {
+			points[i].Name = rp.Name
+			points[i].Tags = rp.Tags
+		}
+		return points, nil
+	}
+}
+
+// booleanUnsignedExprIterator executes a function to modify an existing point
+// for every output of the input iterator.
+type booleanUnsignedExprIterator struct {
+	left      *bufBooleanIterator
+	right     *bufBooleanIterator
+	fn        booleanUnsignedExprFunc
+	points    []BooleanPoint // must be size 2
+	storePrev bool
+}
+
+func newBooleanUnsignedExprIterator(left, right BooleanIterator, opt IteratorOptions, fn func(a, b bool) uint64) *booleanUnsignedExprIterator {
+	var points []BooleanPoint
+	switch opt.Fill {
+	case NullFill, PreviousFill:
+		points = []BooleanPoint{{Nil: true}, {Nil: true}}
+	case NumberFill:
+		value := castToBoolean(opt.FillValue)
+		points = []BooleanPoint{{Value: value}, {Value: value}}
+	}
+	return &booleanUnsignedExprIterator{
+		left:      newBufBooleanIterator(left),
+		right:     newBufBooleanIterator(right),
+		points:    points,
+		fn:        fn,
+		storePrev: opt.Fill == PreviousFill,
+	}
+}
+
+func (itr *booleanUnsignedExprIterator) Stats() IteratorStats {
+	stats := itr.left.Stats()
+	stats.Add(itr.right.Stats())
+	return stats
+}
+
+func (itr *booleanUnsignedExprIterator) Close() error {
+	itr.left.Close()
+	itr.right.Close()
+	return nil
+}
+
+func (itr *booleanUnsignedExprIterator) Next() (*UnsignedPoint, error) {
+	for {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
+			return nil, err
+		}
+
+		// If any of these are nil and we are using fill(none), skip these points.
+		if (a == nil || a.Nil || b == nil || b.Nil) && itr.points == nil {
+			continue
+		}
+
+		// If one of the two points is nil, we need to fill it with a fake nil
+		// point that has the same name, tags, and time as the other point.
+		// There should never be a time when both of these are nil.
+		if a == nil {
+			p := *b
+			a = &p
+			a.Value = false
+			a.Nil = true
+		} else if b == nil {
+			p := *a
+			b = &p
+			b.Value = false
+			b.Nil = true
+		}
+
+		// If a value is nil, use the fill values if the fill value is non-nil.
+		if a.Nil && !itr.points[0].Nil {
+			a.Value = itr.points[0].Value
+			a.Nil = false
+		}
+		if b.Nil && !itr.points[1].Nil {
+			b.Value = itr.points[1].Value
+			b.Nil = false
+		}
+
+		if itr.storePrev {
+			itr.points[0], itr.points[1] = *a, *b
+		}
+
+		p := &UnsignedPoint{
+			Name:       a.Name,
+			Tags:       a.Tags,
+			Time:       a.Time,
+			Nil:        a.Nil || b.Nil,
+			Aggregated: a.Aggregated,
+		}
+		if !p.Nil {
+			p.Value = itr.fn(a.Value, b.Value)
+		}
+		return p, nil
+
+	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *booleanUnsignedExprIterator) next() (a, b *BooleanPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
+}
+
+// booleanUnsignedExprFunc creates or modifies a point by combining two
+// points. The point passed in may be modified and returned rather than
+// allocating a new point if possible. One of the points may be nil, but at
+// least one of the points will be non-nil.
+type booleanUnsignedExprFunc func(a, b bool) uint64
+
 // booleanReduceStringIterator executes a reducer for every interval and buffers the result.
 type booleanReduceStringIterator struct {
 	input    *bufBooleanIterator
@@ -11808,6 +16814,49 @@ func (enc *IteratorEncoder) encodeIntegerIterator(itr IntegerIterator) error {
 
 		// Write the point to the point encoder.
 		if err := penc.EncodeIntegerPoint(p); err != nil {
+			return err
+		}
+	}
+
+	// Emit final stats.
+	if err := enc.encodeStats(itr.Stats()); err != nil {
+		return err
+	}
+	return nil
+}
+
+// encodeUnsignedIterator encodes all points from itr to the underlying writer.
+func (enc *IteratorEncoder) encodeUnsignedIterator(itr UnsignedIterator) error {
+	ticker := time.NewTicker(enc.StatsInterval)
+	defer ticker.Stop()
+
+	// Emit initial stats.
+	if err := enc.encodeStats(itr.Stats()); err != nil {
+		return err
+	}
+
+	// Continually stream points from the iterator into the encoder.
+	penc := NewUnsignedPointEncoder(enc.w)
+	for {
+		// Emit stats periodically.
+		select {
+		case <-ticker.C:
+			if err := enc.encodeStats(itr.Stats()); err != nil {
+				return err
+			}
+		default:
+		}
+
+		// Retrieve the next point from the iterator.
+		p, err := itr.Next()
+		if err != nil {
+			return err
+		} else if p == nil {
+			break
+		}
+
+		// Write the point to the point encoder.
+		if err := penc.EncodeUnsignedPoint(p); err != nil {
 			return err
 		}
 	}

@@ -36,10 +36,11 @@ const (
 	// walEncodeBufSize is the size of the wal entry encoding buffer
 	walEncodeBufSize = 4 * 1024 * 1024
 
-	float64EntryType = 1
-	integerEntryType = 2
-	booleanEntryType = 3
-	stringEntryType  = 4
+	float64EntryType  = 1
+	integerEntryType  = 2
+	booleanEntryType  = 3
+	stringEntryType   = 4
+	unsignedEntryType = 5
 )
 
 // WalEntryType is a byte written to a wal segment file that indicates what the following compressed block contains.
@@ -604,7 +605,7 @@ func (w *WriteWALEntry) MarshalSize() int {
 		encLen += 8 * len(v) // timestamps (8)
 
 		switch v[0].(type) {
-		case FloatValue, IntegerValue:
+		case FloatValue, IntegerValue, UnsignedValue:
 			encLen += 8 * len(v)
 		case BooleanValue:
 			encLen += 1 * len(v)
@@ -667,6 +668,8 @@ func (w *WriteWALEntry) Encode(dst []byte) ([]byte, error) {
 			curType = float64EntryType
 		case IntegerValue:
 			curType = integerEntryType
+		case UnsignedValue:
+			curType = unsignedEntryType
 		case BooleanValue:
 			curType = booleanEntryType
 		case StringValue:
@@ -697,6 +700,12 @@ func (w *WriteWALEntry) Encode(dst []byte) ([]byte, error) {
 				n += 8
 			case IntegerValue:
 				if curType != integerEntryType {
+					return nil, fmt.Errorf("incorrect value found in %T slice: %T", v[0].Value(), vv)
+				}
+				binary.BigEndian.PutUint64(dst[n:n+8], uint64(vv.value))
+				n += 8
+			case UnsignedValue:
+				if curType != unsignedEntryType {
 					return nil, fmt.Errorf("incorrect value found in %T slice: %T", v[0].Value(), vv)
 				}
 				binary.BigEndian.PutUint64(dst[n:n+8], uint64(vv.value))
@@ -789,6 +798,21 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 				v := int64(binary.BigEndian.Uint64(b[i : i+8]))
 				i += 8
 				values = append(values, NewIntegerValue(un, v))
+			}
+			w.Values[k] = values
+
+		case unsignedEntryType:
+			if i+16*nvals > len(b) {
+				return ErrWALCorrupt
+			}
+
+			values := make([]Value, 0, nvals)
+			for j := 0; j < nvals; j++ {
+				un := int64(binary.BigEndian.Uint64(b[i : i+8]))
+				i += 8
+				v := binary.BigEndian.Uint64(b[i : i+8])
+				i += 8
+				values = append(values, NewUnsignedValue(un, v))
 			}
 			w.Values[k] = values
 

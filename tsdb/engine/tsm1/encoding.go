@@ -24,6 +24,9 @@ const (
 	// BlockString designates a block encodes string values.
 	BlockString = byte(3)
 
+	// BlockUnsigned designates a block encodes uint64 values.
+	BlockUnsigned = byte(4)
+
 	// encodedBlockHeaderSize is the size of the header for an encoded block.  There is one
 	// byte encoding the type of the block.
 	encodedBlockHeaderSize = 1
@@ -114,6 +117,8 @@ func NewValue(t int64, value interface{}) Value {
 	switch v := value.(type) {
 	case int64:
 		return IntegerValue{unixnano: t, value: v}
+	case uint64:
+		return UnsignedValue{unixnano: t, value: v}
 	case float64:
 		return FloatValue{unixnano: t, value: v}
 	case bool:
@@ -127,6 +132,11 @@ func NewValue(t int64, value interface{}) Value {
 // NewIntegerValue returns a new integer value.
 func NewIntegerValue(t int64, v int64) Value {
 	return IntegerValue{unixnano: t, value: v}
+}
+
+// NewUnsignedValue returns a new unsigned integer value.
+func NewUnsignedValue(t int64, v uint64) Value {
+	return UnsignedValue{unixnano: t, value: v}
 }
 
 // NewFloatValue returns a new float value.
@@ -159,11 +169,12 @@ func (e EmptyValue) Size() int { return 0 }
 // String returns the empty string.
 func (e EmptyValue) String() string { return "" }
 
-func (_ EmptyValue) internalOnly()   {}
-func (_ StringValue) internalOnly()  {}
-func (_ IntegerValue) internalOnly() {}
-func (_ BooleanValue) internalOnly() {}
-func (_ FloatValue) internalOnly()   {}
+func (_ EmptyValue) internalOnly()    {}
+func (_ StringValue) internalOnly()   {}
+func (_ IntegerValue) internalOnly()  {}
+func (_ UnsignedValue) internalOnly() {}
+func (_ BooleanValue) internalOnly()  {}
+func (_ FloatValue) internalOnly()    {}
 
 // Encode converts the values to a byte slice.  If there are no values,
 // this function panics.
@@ -177,6 +188,8 @@ func (a Values) Encode(buf []byte) ([]byte, error) {
 		return encodeFloatBlock(buf, a)
 	case IntegerValue:
 		return encodeIntegerBlock(buf, a)
+	case UnsignedValue:
+		return encodeUnsignedBlock(buf, a)
 	case BooleanValue:
 		return encodeBooleanBlock(buf, a)
 	case StringValue:
@@ -197,6 +210,8 @@ func (a Values) InfluxQLType() (influxql.DataType, error) {
 		return influxql.Float, nil
 	case IntegerValue:
 		return influxql.Integer, nil
+	case UnsignedValue:
+		return influxql.Unsigned, nil
 	case BooleanValue:
 		return influxql.Boolean, nil
 	case StringValue:
@@ -211,7 +226,7 @@ func (a Values) InfluxQLType() (influxql.DataType, error) {
 func BlockType(block []byte) (byte, error) {
 	blockType := block[0]
 	switch blockType {
-	case BlockFloat64, BlockInteger, BlockBoolean, BlockString:
+	case BlockFloat64, BlockInteger, BlockUnsigned, BlockBoolean, BlockString:
 		return blockType, nil
 	default:
 		return 0, fmt.Errorf("unknown block type: %d", blockType)
@@ -257,6 +272,17 @@ func DecodeBlock(block []byte, vals []Value) ([]Value, error) {
 	case BlockInteger:
 		var buf []IntegerValue
 		decoded, err := DecodeIntegerBlock(block, &buf)
+		if len(vals) < len(decoded) {
+			vals = make([]Value, len(decoded))
+		}
+		for i := range decoded {
+			vals[i] = decoded[i]
+		}
+		return vals[:len(decoded)], err
+
+	case BlockUnsigned:
+		var buf []UnsignedValue
+		decoded, err := DecodeUnsignedBlock(block, &buf)
 		if len(vals) < len(decoded) {
 			vals = make([]Value, len(decoded))
 		}
@@ -553,7 +579,7 @@ func DecodeBooleanBlock(block []byte, a *[]BooleanValue) ([]BooleanValue, error)
 	return (*a)[:i], err
 }
 
-// FloatValue represents an int64 value.
+// IntegerValue represents an int64 value.
 type IntegerValue struct {
 	unixnano int64
 	value    int64
@@ -648,6 +674,124 @@ func DecodeIntegerBlock(block []byte, a *[]IntegerValue) ([]IntegerValue, error)
 				elem.value = v
 			} else {
 				*a = append(*a, IntegerValue{ts, v})
+			}
+			i++
+		}
+
+		// Did timestamp decoding have an error?
+		err = tdec.Error()
+		if err != nil {
+			return err
+		}
+		// Did int64 decoding have an error?
+		err = vdec.Error()
+		if err != nil {
+			return err
+		}
+		return nil
+	}()
+
+	timeDecoderPool.Put(tdec)
+	integerDecoderPool.Put(vdec)
+
+	return (*a)[:i], err
+}
+
+// UnsignedValue represents an int64 value.
+type UnsignedValue struct {
+	unixnano int64
+	value    uint64
+}
+
+// Value returns the underlying int64 value.
+func (v UnsignedValue) Value() interface{} {
+	return v.value
+}
+
+// UnixNano returns the timestamp of the value.
+func (v UnsignedValue) UnixNano() int64 {
+	return v.unixnano
+}
+
+// Size returns the number of bytes necessary to represent the value and its timestamp.
+func (v UnsignedValue) Size() int {
+	return 16
+}
+
+// String returns the string representation of the value and its timestamp.
+func (v UnsignedValue) String() string {
+	return fmt.Sprintf("%v %v", time.Unix(0, v.unixnano), v.Value())
+}
+
+func encodeUnsignedBlock(buf []byte, values []Value) ([]byte, error) {
+	tsEnc := getTimeEncoder(len(values))
+	vEnc := getUnsignedEncoder(len(values))
+
+	var b []byte
+	err := func() error {
+		for _, v := range values {
+			vv := v.(UnsignedValue)
+			tsEnc.Write(vv.unixnano)
+			vEnc.Write(int64(vv.value))
+		}
+
+		// Encoded timestamp values
+		tb, err := tsEnc.Bytes()
+		if err != nil {
+			return err
+		}
+		// Encoded int64 values
+		vb, err := vEnc.Bytes()
+		if err != nil {
+			return err
+		}
+
+		// Prepend the first timestamp of the block in the first 8 bytes
+		b = packBlock(buf, BlockUnsigned, tb, vb)
+		return nil
+	}()
+
+	putTimeEncoder(tsEnc)
+	putUnsignedEncoder(vEnc)
+
+	return b, err
+}
+
+// DecodeUnsignedBlock decodes the unsigned integer block from the byte slice
+// and appends the unsigned integer values to a.
+func DecodeUnsignedBlock(block []byte, a *[]UnsignedValue) ([]UnsignedValue, error) {
+	blockType := block[0]
+	if blockType != BlockUnsigned {
+		return nil, fmt.Errorf("invalid block type: exp %d, got %d", BlockUnsigned, blockType)
+	}
+
+	block = block[1:]
+
+	// The first 8 bytes is the minimum timestamp of the block
+	tb, vb, err := unpackBlock(block)
+	if err != nil {
+		return nil, err
+	}
+
+	tdec := timeDecoderPool.Get(0).(*TimeDecoder)
+	vdec := integerDecoderPool.Get(0).(*IntegerDecoder)
+
+	var i int
+	err = func() error {
+		// Setup our timestamp and value decoders
+		tdec.Init(tb)
+		vdec.SetBytes(vb)
+
+		// Decode both a timestamp and value
+		for tdec.Next() && vdec.Next() {
+			ts := tdec.Read()
+			v := uint64(vdec.Read())
+			if i < len(*a) {
+				elem := &(*a)[i]
+				elem.unixnano = ts
+				elem.value = v
+			} else {
+				*a = append(*a, UnsignedValue{ts, v})
 			}
 			i++
 		}
@@ -857,6 +1001,13 @@ func getIntegerEncoder(sz int) IntegerEncoder {
 	return x
 }
 func putIntegerEncoder(enc IntegerEncoder) { integerEncoderPool.Put(enc) }
+
+func getUnsignedEncoder(sz int) IntegerEncoder {
+	x := integerEncoderPool.Get(sz).(IntegerEncoder)
+	x.Reset()
+	return x
+}
+func putUnsignedEncoder(enc IntegerEncoder) { integerEncoderPool.Put(enc) }
 
 func getFloatEncoder(sz int) *FloatEncoder {
 	x := floatEncoderPool.Get(sz).(*FloatEncoder)
