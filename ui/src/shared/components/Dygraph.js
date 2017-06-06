@@ -27,7 +27,7 @@ export default class Dygraph extends Component {
   constructor(props) {
     super(props)
     this.state = {
-      synced: false,
+      isSynced: false,
     }
 
     // workaround for dygraph.updateOptions breaking legends
@@ -134,9 +134,9 @@ export default class Dygraph extends Component {
         }
 
         // Disallow screen overflow of legend
-        const legendBottomClipped = graphBottom + legendHeight > screenHeight
+        const isLegendBottomClipped = graphBottom + legendHeight > screenHeight
 
-        const legendTop = legendBottomClipped
+        const legendTop = isLegendBottomClipped
           ? graphHeight + 8 - legendHeight
           : graphHeight + 8
 
@@ -219,9 +219,9 @@ export default class Dygraph extends Component {
   }
 
   sync() {
-    if (this.props.synchronizer && !this.state.synced) {
+    if (this.props.synchronizer && !this.state.isSynced) {
       this.props.synchronizer(this.dygraph)
-      this.setState({synced: true})
+      this.setState({isSynced: true})
     }
   }
 
