@@ -6,6 +6,11 @@
 
 ### UI Improvements
 
+## v1.3.2.1 [2017-06-06]
+
+### Bug Fixes
+1. [#1594](https://github.com/influxdata/chronograf/pull/1594): Restore Line + Single Stat styles
+
 ## v1.3.2.0 [2017-06-05]
 
 ### Bug Fixes

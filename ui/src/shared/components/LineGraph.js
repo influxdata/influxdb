@@ -151,7 +151,9 @@ export default React.createClass({
           timeRange={timeRange}
         />
         {showSingleStat
-          ? <div className="graph-single-stat single-stat">{roundedValue}</div>
+          ? <div className="graph-single-stat single-stat">
+              <span className="single-stat--value">{roundedValue}</span>
+            </div>
           : null}
       </div>
     )
