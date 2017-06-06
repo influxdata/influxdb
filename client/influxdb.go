@@ -706,6 +706,27 @@ type BatchPoints struct {
 	WriteConsistency string            `json:"-"`
 }
 
+// MarshallStrings creates a slice of line-protocol strings from the BatchPoints
+// object. Any tag in the BatchPoints object will overwrite a duplicate tag in
+// an individual Point.
+func (bp *BatchPoints) MarshalStrings() []string {
+	var sbp []string
+	for _, p := range bp.Points {
+		if p.Raw != "" {
+			sbp = append(sbp, p.Raw)
+		} else {
+			for k, v := range bp.Tags {
+				if p.Tags == nil {
+					p.Tags = make(map[string]string, len(bp.Tags))
+				}
+				p.Tags[k] = v
+			}
+			sbp = append(sbp, p.MarshalString())
+		}
+	}
+	return sbp
+}
+
 // UnmarshalJSON decodes the data into the BatchPoints struct
 func (bp *BatchPoints) UnmarshalJSON(b []byte) error {
 	var normal struct {
