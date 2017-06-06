@@ -11,6 +11,7 @@ import {loadLocalStorage} from 'src/localStorage'
 import App from 'src/App'
 import {Login, UserIsAuthenticated, UserIsNotAuthenticated} from 'src/auth'
 import CheckSources from 'src/CheckSources'
+import {StatusPage} from 'src/status'
 import {HostsPage, HostPage} from 'src/hosts'
 import DataExplorer from 'src/data_explorer'
 import {DashboardsPage, DashboardPage} from 'src/dashboards'
@@ -123,6 +124,7 @@ const Root = React.createClass({
           />
           <Route path="/sources/:sourceID" component={UserIsAuthenticated(App)}>
             <Route component={CheckSources}>
+              <Route path="status" component={StatusPage} />
               <Route path="hosts" component={HostsPage} />
               <Route path="hosts/:hostID" component={HostPage} />
               <Route path="chronograf/data-explorer" component={DataExplorer} />
