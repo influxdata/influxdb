@@ -610,6 +610,69 @@ func TestHandler_HandleBadRequestBody(t *testing.T) {
 	}
 }
 
+func TestHandler_Write_EntityTooLarge_ContentLength(t *testing.T) {
+	b := bytes.NewReader(make([]byte, 100))
+	h := NewHandler(false)
+	h.Config.MaxBodySize = 5
+	h.MetaClient.DatabaseFn = func(name string) *meta.DatabaseInfo {
+		return &meta.DatabaseInfo{}
+	}
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, MustNewRequest("POST", "/write?db=foo", b))
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("unexpected status: %d", w.Code)
+	}
+}
+
+// onlyReader implements io.Reader only to ensure Request.ContentLength is not set
+type onlyReader struct {
+	r io.Reader
+}
+
+func (o onlyReader) Read(p []byte) (n int, err error) {
+	return o.r.Read(p)
+}
+
+func TestHandler_Write_EntityTooLarge_NoContentLength(t *testing.T) {
+	b := onlyReader{bytes.NewReader(make([]byte, 100))}
+	h := NewHandler(false)
+	h.Config.MaxBodySize = 5
+	h.MetaClient.DatabaseFn = func(name string) *meta.DatabaseInfo {
+		return &meta.DatabaseInfo{}
+	}
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, MustNewRequest("POST", "/write?db=foo", b))
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("unexpected status: %d", w.Code)
+	}
+}
+
+// TestHandler_Write_NegativeMaxBodySize verifies no error occurs if MaxBodySize is < 0
+func TestHandler_Write_NegativeMaxBodySize(t *testing.T) {
+	b := bytes.NewReader([]byte(`foo n=1`))
+	h := NewHandler(false)
+	h.Config.MaxBodySize = -1
+	h.MetaClient.DatabaseFn = func(name string) *meta.DatabaseInfo {
+		return &meta.DatabaseInfo{}
+	}
+	called := false
+	h.PointsWriter.WritePointsFn = func(_, _ string, _ models.ConsistencyLevel, _ meta.User, _ []models.Point) error {
+		called = true
+		return nil
+	}
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, MustNewRequest("POST", "/write?db=foo", b))
+	if !called {
+		t.Fatal("WritePoints: expected call")
+	}
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("unexpected status: %d", w.Code)
+	}
+}
+
 // Ensure X-Forwarded-For header writes the correct log message.
 func TestHandler_XForwardedFor(t *testing.T) {
 	var buf bytes.Buffer
@@ -633,6 +696,7 @@ type Handler struct {
 	MetaClient        *internal.MetaClientMock
 	StatementExecutor HandlerStatementExecutor
 	QueryAuthorizer   HandlerQueryAuthorizer
+	PointsWriter      HandlerPointsWriter
 }
 
 // NewHandler returns a new instance of Handler.
@@ -651,6 +715,7 @@ func NewHandler(requireAuthentication bool) *Handler {
 	h.Handler.QueryExecutor = influxql.NewQueryExecutor()
 	h.Handler.QueryExecutor.StatementExecutor = &h.StatementExecutor
 	h.Handler.QueryAuthorizer = &h.QueryAuthorizer
+	h.Handler.PointsWriter = &h.PointsWriter
 	h.Handler.Version = "0.0.0"
 	return h
 }
@@ -671,6 +736,14 @@ type HandlerQueryAuthorizer struct {
 
 func (a *HandlerQueryAuthorizer) AuthorizeQuery(u meta.User, query *influxql.Query, database string) error {
 	return a.AuthorizeQueryFn(u, query, database)
+}
+
+type HandlerPointsWriter struct {
+	WritePointsFn func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point) error
+}
+
+func (h *HandlerPointsWriter) WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point) error {
+	return h.WritePointsFn(database, retentionPolicy, consistencyLevel, user, points)
 }
 
 // MustNewRequest returns a new HTTP request. Panic on error.
