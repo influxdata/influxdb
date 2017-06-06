@@ -7,12 +7,12 @@ import (
 )
 
 // TemplateReplace replaces templates with values within the query string
-func TemplateReplace(query string, templates []chronograf.TemplateVar) string {
+func TemplateReplace(query string, templates chronograf.TemplateVars) string {
 	replacements := []string{}
 	for _, v := range templates {
 		newVal := v.String()
 		if newVal != "" {
-			replacements = append(replacements, v.Var, newVal)
+			replacements = append(replacements, v.Name(), newVal)
 		}
 	}
 
