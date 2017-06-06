@@ -21,8 +21,7 @@ func truncateReader(r io.Reader, n int64) io.ReadCloser {
 	return tr
 }
 
-// A truncatedReader reads limits the amount of
-// data returned to a maximum of r.N bytes.
+// A truncatedReader limits the amount of data returned to a maximum of r.N bytes.
 type truncatedReader struct {
 	r *io.LimitedReader
 	io.Closer
