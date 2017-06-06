@@ -78,7 +78,7 @@ The admin UI is removed and unusable in this release. The `[admin]` configuratio
 - [#8417](https://github.com/influxdata/influxdb/issues/8417): Fix large field keys preventing snapshot compactions
 - [#7957](https://github.com/influxdata/influxdb/issues/7957): URL query parameter credentials take priority over Authentication header.
 - [#8443](https://github.com/influxdata/influxdb/issues/8443): TSI branch has duplicate tag values.
-
+- [#8455](https://github.com/influxdata/influxdb/pull/8455): Check file count before attempting a TSI level compaction.
 
 ## v1.2.4 [2017-05-08]
 
