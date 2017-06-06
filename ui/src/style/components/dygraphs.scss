@@ -43,8 +43,8 @@
    * Only animate position that's controlled during rendering.
    * See http://stackoverflow.com/a/17117992
    */
-  transition: all 0.25s ease;
-  transition-property: top, right, bottom, left;
+  // transition: all 0.1s ease;
+  // transition-property: top, right, bottom, left;
 
   /* Row */
   /* Styles for Key go here, get overrided by > b */

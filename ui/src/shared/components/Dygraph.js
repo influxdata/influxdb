@@ -110,8 +110,9 @@ export default class Dygraph extends Component {
         // this.isMouseOverGraph = false
       },
       highlightCallback: e => {
-        // must show before drawing so that dimension calcs below work
-        legendContainerNode.className = 'container--dygraph-legend' // show
+        // don't make visible yet, but render on DOM to capture position for calcs
+        legendContainerNode.style.visibility = 'hidden'
+        legendContainerNode.className = 'container--dygraph-legend'
 
         // Move the Legend on hover
         const graphRect = graphContainerNode.getBoundingClientRect()
@@ -141,6 +142,7 @@ export default class Dygraph extends Component {
           ? graphHeight + 8 - legendHeight
           : graphHeight + 8
 
+        legendContainerNode.style.visibility = 'visible' // show
         legendContainerNode.style.left = `${legendLeft}px`
         legendContainerNode.style.top = `${legendTop}px`
 
