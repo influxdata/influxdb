@@ -156,7 +156,10 @@ export default class Dygraph extends Component {
       ...options,
     })
 
-    this.sync()
+    // Simple opt-out for now, if a graph should not be synced
+    if (this.props.synchronizer) {
+      this.sync()
+    }
   }
 
   componentWillUnmount() {
@@ -219,7 +222,7 @@ export default class Dygraph extends Component {
   }
 
   sync() {
-    if (this.props.synchronizer && !this.state.isSynced) {
+    if (!this.state.isSynced) {
       this.props.synchronizer(this.dygraph)
       this.setState({isSynced: true})
     }
