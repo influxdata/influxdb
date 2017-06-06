@@ -30,7 +30,7 @@ export default class Dygraph extends Component {
       isSynced: false,
     }
 
-    // workaround for dygraph.updateOptions breaking legends
+    // optional workaround for dygraph.updateOptions breaking legends
     // a la http://stackoverflow.com/questions/38371876/dygraph-dynamic-update-legend-values-disappear
     // this.lastMouseMoveEvent = null
     // this.isMouseOverGraph = false
@@ -106,6 +106,7 @@ export default class Dygraph extends Component {
       unhighlightCallback: () => {
         legendContainerNode.className = 'container--dygraph-legend hidden' // hide
 
+        // part of optional workaround for preventing updateOptions from breaking legend
         // this.isMouseOverGraph = false
       },
       highlightCallback: e => {
@@ -143,6 +144,7 @@ export default class Dygraph extends Component {
         legendContainerNode.style.left = `${legendLeft}px`
         legendContainerNode.style.top = `${legendTop}px`
 
+        // part of optional workaround for preventing updateOptions from breaking legend
         // this.isMouseOverGraph = true
         // this.lastMouseMoveEvent = e
       },
@@ -214,6 +216,7 @@ export default class Dygraph extends Component {
       underlayCallback: options.underlayCallback,
       series: dygraphSeries,
     })
+    // part of optional workaround for preventing updateOptions from breaking legend
     // if (this.lastMouseMoveEvent) {
     //   dygraph.mouseMove_(this.lastMouseMoveEvent)
     // }
