@@ -2451,9 +2451,9 @@ dot-prop@^3.0.0:
   dependencies:
     is-obj "^1.0.0"
 
-dygraphs@^1.1.1:
-  version "1.1.1"
-  resolved "https://registry.yarnpkg.com/dygraphs/-/dygraphs-1.1.1.tgz#daab3e277f8b2c4d6dd19b6c8bafe6d0160a3c4e"
+dygraphs@^2.0.0:
+  version "2.0.0"
+  resolved "https://registry.yarnpkg.com/dygraphs/-/dygraphs-2.0.0.tgz#30be283c7e32aa7536d4ea9da61ebe9f363d7c98"
 
 ecc-jsbn@~0.1.1:
   version "0.1.1"

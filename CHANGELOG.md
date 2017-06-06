@@ -1,10 +1,18 @@
 ## v1.3.3.0 [unreleased]
 
 ### Bug Fixes
+1. [#1512](https://github.com/influxdata/chronograf/pull/1512): Prevent legend from flowing over window bottom bound
 
 ### Features
+1. [#1512](https://github.com/influxdata/chronograf/pull/1512): Synchronize vertical crosshair at same time across all graphs in a dashboard
 
 ### UI Improvements
+1. [#1512](https://github.com/influxdata/chronograf/pull/1512): When dashboard time range is changed, reset graphs that are zoomed in
+
+## v1.3.2.1 [2017-06-06]
+
+### Bug Fixes
+1. [#1594](https://github.com/influxdata/chronograf/pull/1594): Restore Line + Single Stat styles
 
 ## v1.3.2.0 [2017-06-05]
 

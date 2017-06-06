@@ -49,6 +49,7 @@ export const LayoutRenderer = React.createClass({
     onDeleteCell: func,
     onSummonOverlayTechnologies: func,
     shouldNotBeEditable: bool,
+    synchronizer: func,
   },
 
   buildQueryForOldQuerySchema(q) {
@@ -84,7 +85,7 @@ export const LayoutRenderer = React.createClass({
   },
 
   renderRefreshingGraph(type, queries, cellHeight) {
-    const {timeRange, autoRefresh, templates} = this.props
+    const {timeRange, autoRefresh, templates, synchronizer} = this.props
 
     if (type === 'single-stat') {
       return (
@@ -110,6 +111,7 @@ export const LayoutRenderer = React.createClass({
         autoRefresh={autoRefresh}
         showSingleStat={type === 'line-plus-single-stat'}
         displayOptions={displayOptions}
+        synchronizer={synchronizer}
       />
     )
   },

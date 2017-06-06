@@ -15,6 +15,7 @@ const Dashboard = ({
   onRenameCell,
   onUpdateCell,
   onDeleteCell,
+  synchronizer,
   onPositionChange,
   inPresentationMode,
   onOpenTemplateManager,
@@ -23,7 +24,7 @@ const Dashboard = ({
   onSelectTemplate,
   showTemplateControlBar,
 }) => {
-  if (dashboard.id === 0) {
+  if (!dashboard) {
     return null
   }
 
@@ -70,6 +71,7 @@ const Dashboard = ({
               onUpdateCell={onUpdateCell}
               onDeleteCell={onDeleteCell}
               onSummonOverlayTechnologies={onSummonOverlayTechnologies}
+              synchronizer={synchronizer}
             />
           : <div className="dashboard__empty">
               <p>This Dashboard has no Graphs</p>
@@ -104,7 +106,7 @@ Dashboard.propTypes = {
         ).isRequired,
       })
     ).isRequired,
-  }).isRequired,
+  }),
   templatesIncludingDashTime: arrayOf(shape()).isRequired,
   inPresentationMode: bool,
   onAddCell: func,
@@ -114,6 +116,7 @@ Dashboard.propTypes = {
   onUpdateCell: func,
   onDeleteCell: func,
   onSummonOverlayTechnologies: func,
+  synchronizer: func,
   source: shape({
     links: shape({
       proxy: string,
