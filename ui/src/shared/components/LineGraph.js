@@ -37,6 +37,7 @@ export default React.createClass({
     }),
     isInDataExplorer: bool,
     synchronizer: func,
+    setResolution: func,
   },
 
   getDefaultProps() {
@@ -149,6 +150,7 @@ export default React.createClass({
           ruleValues={ruleValues}
           synchronizer={synchronizer}
           timeRange={timeRange}
+          setResolution={this.props.setResolution}
         />
         {showSingleStat
           ? <div className="graph-single-stat single-stat">

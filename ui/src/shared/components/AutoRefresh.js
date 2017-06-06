@@ -50,6 +50,7 @@ const AutoRefresh = ComposedComponent => {
       return {
         lastQuerySuccessful: false,
         timeSeries: [],
+        resolution: null,
       }
     },
 
@@ -104,6 +105,7 @@ const AutoRefresh = ComposedComponent => {
 
     executeQueries(queries, templates = []) {
       const {editQueryStatus} = this.props
+      const {resolution} = this.state
 
       if (!queries.length) {
         this.setState({timeSeries: []})
@@ -121,6 +123,7 @@ const AutoRefresh = ComposedComponent => {
             rp,
             query,
             tempVars: removeUnselectedTemplateValues(templates),
+            resolution,
           },
           editQueryStatus
         )
@@ -143,6 +146,10 @@ const AutoRefresh = ComposedComponent => {
       this.intervalID = false
     },
 
+    setResolution(resolution) {
+      this.setState({resolution})
+    },
+
     render() {
       const {timeSeries} = this.state
 
@@ -157,7 +164,7 @@ const AutoRefresh = ComposedComponent => {
         return this.renderNoResults()
       }
 
-      return <ComposedComponent {...this.props} data={timeSeries} />
+      return <ComposedComponent {...this.props} data={timeSeries} setResolution={this.setResolution} />
     },
 
     /**
