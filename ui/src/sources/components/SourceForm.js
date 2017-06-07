@@ -22,7 +22,7 @@ export const SourceForm = React.createClass({
       name: this.sourceName.value,
       username: this.sourceUsername.value,
       password: this.sourcePassword.value,
-      'default': this.sourceDefault.checked,
+      default: this.sourceDefault.checked,
       telegraf: this.sourceTelegraf.value,
       insecureSkipVerify: this.sourceInsecureSkipVerify
         ? this.sourceInsecureSkipVerify.checked

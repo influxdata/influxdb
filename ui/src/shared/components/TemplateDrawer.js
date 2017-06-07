@@ -7,9 +7,9 @@ const TemplateDrawer = ({
   selected,
   onMouseOverTempVar,
   onClickTempVar,
-}) => (
+}) =>
   <div className="template-drawer">
-    {templates.map(t => (
+    {templates.map(t =>
       <div
         className={classnames('template-drawer--item', {
           'template-drawer--selected': t.tempVar === selected.tempVar,
@@ -22,9 +22,8 @@ const TemplateDrawer = ({
       >
         {' '}{t.tempVar}{' '}
       </div>
-    ))}
+    )}
   </div>
-)
 
 const {arrayOf, func, shape, string} = PropTypes
 

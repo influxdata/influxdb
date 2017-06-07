@@ -68,7 +68,8 @@ export const TEMPLATE_VARIABLE_QUERIES = {
   measurements: 'SHOW MEASUREMENTS ON :database:',
   fieldKeys: 'SHOW FIELD KEYS ON :database: FROM :measurement:',
   tagKeys: 'SHOW TAG KEYS ON :database: FROM :measurement:',
-  tagValues: 'SHOW TAG VALUES ON :database: FROM :measurement: WITH KEY=:tagKey:',
+  tagValues:
+    'SHOW TAG VALUES ON :database: FROM :measurement: WITH KEY=:tagKey:',
 }
 
 export const MATCH_INCOMPLETE_TEMPLATES = /:[\w-]*/g

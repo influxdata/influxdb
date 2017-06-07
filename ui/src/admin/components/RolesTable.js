@@ -16,7 +16,7 @@ const RolesTable = ({
   onFilter,
   onUpdateRoleUsers,
   onUpdateRolePermissions,
-}) => (
+}) =>
   <div className="panel panel-default">
     <FilterBar
       type="roles"
@@ -38,7 +38,7 @@ const RolesTable = ({
           {roles.length
             ? roles
                 .filter(r => !r.hidden)
-                .map(role => (
+                .map(role =>
                   <RoleRow
                     key={role.links.self}
                     allUsers={allUsers}
@@ -53,13 +53,12 @@ const RolesTable = ({
                     isEditing={role.isEditing}
                     isNew={role.isNew}
                   />
-                ))
+                )
             : <EmptyRow tableName={'Roles'} />}
         </tbody>
       </table>
     </div>
   </div>
-)
 
 const {arrayOf, bool, func, shape, string} = PropTypes
 

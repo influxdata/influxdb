@@ -62,7 +62,7 @@ export default function admin(state = initialState, action) {
       const {database} = action.payload
       const databases = state.databases.map(
         db =>
-          (db.links.self === database.links.self
+          db.links.self === database.links.self
             ? {
                 ...database,
                 retentionPolicies: [
@@ -70,7 +70,7 @@ export default function admin(state = initialState, action) {
                   ...database.retentionPolicies,
                 ],
               }
-            : db)
+            : db
       )
 
       return {...state, databases}
@@ -112,15 +112,15 @@ export default function admin(state = initialState, action) {
       const newState = {
         databases: state.databases.map(
           db =>
-            (db.links.self === database.links.self
+            db.links.self === database.links.self
               ? {
                   ...db,
                   retentionPolicies: db.retentionPolicies.map(
                     rp =>
-                      (rp.links.self === stale.links.self ? {...synced} : rp)
+                      rp.links.self === stale.links.self ? {...synced} : rp
                   ),
                 }
-              : db)
+              : db
         ),
       }
 
@@ -152,7 +152,7 @@ export default function admin(state = initialState, action) {
       const newState = {
         databases: state.databases.map(
           db =>
-            (db.links.self === database.links.self ? {...db, ...updates} : db)
+            db.links.self === database.links.self ? {...db, ...updates} : db
         ),
       }
 
@@ -165,17 +165,17 @@ export default function admin(state = initialState, action) {
       const newState = {
         databases: state.databases.map(
           db =>
-            (db.links.self === database.links.self
+            db.links.self === database.links.self
               ? {
                   ...db,
                   retentionPolicies: db.retentionPolicies.map(
                     rp =>
-                      (rp.links.self === retentionPolicy.links.self
+                      rp.links.self === retentionPolicy.links.self
                         ? {...rp, ...updates}
-                        : rp)
+                        : rp
                   ),
                 }
-              : db)
+              : db
         ),
       }
 
@@ -216,14 +216,14 @@ export default function admin(state = initialState, action) {
       const newState = {
         databases: state.databases.map(
           db =>
-            (db.links.self === database.links.self
+            db.links.self === database.links.self
               ? {
                   ...db,
                   retentionPolicies: db.retentionPolicies.filter(
                     rp => rp.links.self !== retentionPolicy.links.self
                   ),
                 }
-              : db)
+              : db
         ),
       }
 
@@ -235,9 +235,7 @@ export default function admin(state = initialState, action) {
       const newState = {
         databases: state.databases.map(
           db =>
-            (db.links.self === database.links.self
-              ? {...db, deleteCode: ''}
-              : db)
+            db.links.self === database.links.self ? {...db, deleteCode: ''} : db
         ),
       }
 
