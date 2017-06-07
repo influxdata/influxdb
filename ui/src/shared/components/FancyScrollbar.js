@@ -25,18 +25,14 @@ class FancyScrollbar extends Component {
         autoHideDuration={250}
         autoHeight={autoHeight}
         autoHeightMax={maxHeight}
-        renderTrackHorizontal={props => (
-          <div {...props} className="fancy-scroll--track-h" />
-        )}
-        renderTrackVertical={props => (
-          <div {...props} className="fancy-scroll--track-v" />
-        )}
-        renderThumbHorizontal={props => (
-          <div {...props} className="fancy-scroll--thumb-h" />
-        )}
-        renderThumbVertical={props => (
-          <div {...props} className="fancy-scroll--thumb-v" />
-        )}
+        renderTrackHorizontal={props =>
+          <div {...props} className="fancy-scroll--track-h" />}
+        renderTrackVertical={props =>
+          <div {...props} className="fancy-scroll--track-v" />}
+        renderThumbHorizontal={props =>
+          <div {...props} className="fancy-scroll--thumb-h" />}
+        renderThumbVertical={props =>
+          <div {...props} className="fancy-scroll--thumb-v" />}
       >
         {children}
       </Scrollbars>

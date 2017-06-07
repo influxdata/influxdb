@@ -179,7 +179,7 @@
     'one-var': 0,
     'operator-assignment': [2, 'always'],
     'padded-blocks': [2, 'never'],
-    'quote-props': [2, 'as-needed', {keywords: true, numbers: false }],
+    'quote-props': [2, 'as-needed', {keywords: false, numbers: false }],
     'require-jsdoc': 0,
     'semi-spacing': [2, {before: false, after: true}],
     'semi': [2, 'never'],
@@ -234,6 +234,5 @@
     'react/require-extension': 0,
     'react/self-closing-comp': 0, // TODO: we can re-enable this if some brave soul wants to update the code (mostly spans acting as icons)
     'react/sort-comp': 0, // TODO: 2
-    'react/jsx-wrap-multilines': ['error', {'declaration': false, 'assignment': false}],
   },
 }

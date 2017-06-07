@@ -1,20 +1,15 @@
-import {
-  buildRoles,
-  buildClusterAccounts,
-} from 'shared/presenters'
+import {buildRoles, buildClusterAccounts} from 'shared/presenters'
 
 describe('Presenters', function() {
   describe('roles utils', function() {
     describe('buildRoles', function() {
       describe('when a role has no users', function() {
-        it('sets a role\'s users as an empty array', function() {
+        it("sets a role's users as an empty array", function() {
           const roles = [
             {
-              name: "Marketing",
+              name: 'Marketing',
               permissions: {
-                "": [
-                  "ViewAdmin",
-                ],
+                '': ['ViewAdmin'],
               },
             },
           ]
@@ -26,14 +21,11 @@ describe('Presenters', function() {
       })
 
       describe('when a role has no permissions', function() {
-        it('set\'s a roles permission as an empty array', function() {
+        it("set's a roles permission as an empty array", function() {
           const roles = [
             {
-              name: "Marketing",
-              users: [
-                "roley@influxdb.com",
-                "will@influxdb.com",
-              ],
+              name: 'Marketing',
+              users: ['roley@influxdb.com', 'will@influxdb.com'],
             },
           ]
 
@@ -47,23 +39,13 @@ describe('Presenters', function() {
         beforeEach(function() {
           const roles = [
             {
-              name: "Marketing",
+              name: 'Marketing',
               permissions: {
-                "": [
-                  "ViewAdmin",
-                ],
-                db1: [
-                  "ReadData",
-                ],
-                db2: [
-                  "ReadData",
-                  "AddRemoveNode",
-                ],
+                '': ['ViewAdmin'],
+                db1: ['ReadData'],
+                db2: ['ReadData', 'AddRemoveNode'],
               },
-              users: [
-                "roley@influxdb.com",
-                "will@influxdb.com",
-              ],
+              users: ['roley@influxdb.com', 'will@influxdb.com'],
             },
           ]
 
@@ -73,8 +55,8 @@ describe('Presenters', function() {
         it('each role has a name and a list of users (if they exist)', function() {
           const role = this.roles[0]
           expect(role.name).to.equal('Marketing')
-          expect(role.users).to.contain("roley@influxdb.com")
-          expect(role.users).to.contain("will@influxdb.com")
+          expect(role.users).to.contain('roley@influxdb.com')
+          expect(role.users).to.contain('will@influxdb.com')
         })
 
         it('transforms permissions into a list of objects and each permission has a list of resources', function() {
@@ -109,46 +91,33 @@ describe('Presenters', function() {
       it('adds role information to each cluster account and parses permissions', function() {
         const users = [
           {
-            name: "jon@example.com",
-            hash: "xxxxx",
+            name: 'jon@example.com',
+            hash: 'xxxxx',
             permissions: {
-              "": [
-                "ViewAdmin",
-              ],
-              db1: [
-                "ReadData",
-              ],
+              '': ['ViewAdmin'],
+              db1: ['ReadData'],
             },
           },
           {
-            name: "ned@example.com",
-            hash: "xxxxx",
+            name: 'ned@example.com',
+            hash: 'xxxxx',
           },
         ]
 
         const roles = [
           {
-            name: "Admin",
+            name: 'Admin',
             permissions: {
-              db2: [
-                "ViewAdmin",
-              ],
+              db2: ['ViewAdmin'],
             },
-            users: [
-              "jon@example.com",
-              "ned@example.com",
-            ],
+            users: ['jon@example.com', 'ned@example.com'],
           },
           {
-            name: "Marketing",
+            name: 'Marketing',
             permissions: {
-              db3: [
-                "ReadData",
-              ],
+              db3: ['ReadData'],
             },
-            users: [
-              "jon@example.com",
-            ],
+            users: ['jon@example.com'],
           },
         ]
 
@@ -156,8 +125,8 @@ describe('Presenters', function() {
 
         const expected = [
           {
-            name: "jon@example.com",
-            hash: "xxxxx",
+            name: 'jon@example.com',
+            hash: 'xxxxx',
             permissions: [
               {
                 name: 'ViewAdmin',
@@ -174,7 +143,7 @@ describe('Presenters', function() {
             ],
             roles: [
               {
-                name: "Admin",
+                name: 'Admin',
                 permissions: [
                   {
                     name: 'ViewAdmin',
@@ -183,13 +152,10 @@ describe('Presenters', function() {
                     resources: ['db2'],
                   },
                 ],
-                users: [
-                  "jon@example.com",
-                  "ned@example.com",
-                ],
+                users: ['jon@example.com', 'ned@example.com'],
               },
               {
-                name: "Marketing",
+                name: 'Marketing',
                 permissions: [
                   {
                     name: 'ReadData',
@@ -198,19 +164,17 @@ describe('Presenters', function() {
                     resources: ['db3'],
                   },
                 ],
-                users: [
-                  "jon@example.com",
-                ],
+                users: ['jon@example.com'],
               },
             ],
           },
           {
-            name: "ned@example.com",
-            hash: "xxxxx",
+            name: 'ned@example.com',
+            hash: 'xxxxx',
             permissions: [],
             roles: [
               {
-                name: "Admin",
+                name: 'Admin',
                 permissions: [
                   {
                     name: 'ViewAdmin',
@@ -219,10 +183,7 @@ describe('Presenters', function() {
                     resources: ['db2'],
                   },
                 ],
-                users: [
-                  "jon@example.com",
-                  "ned@example.com",
-                ],
+                users: ['jon@example.com', 'ned@example.com'],
               },
             ],
           },
@@ -241,10 +202,12 @@ describe('Presenters', function() {
       })
 
       it('sets roles to an empty array if a user has no roles', function() {
-        const users = [{
-          name: "ned@example.com",
-          hash: "xxxxx",
-        }]
+        const users = [
+          {
+            name: 'ned@example.com',
+            hash: 'xxxxx',
+          },
+        ]
         const roles = []
 
         const actual = buildClusterAccounts(users, roles)

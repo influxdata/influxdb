@@ -13,7 +13,8 @@ const NoKapacitorError = React.createClass({
     return (
       <div>
         <p>
-          The current source does not have an associated Kapacitor instance, please configure one.
+          The current source does not have an associated Kapacitor instance,
+          please configure one.
         </p>
         <Link to={path}>Add Kapacitor</Link>
       </div>

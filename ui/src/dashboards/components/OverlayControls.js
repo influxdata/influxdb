@@ -19,7 +19,7 @@ const OverlayControls = props => {
       <div className="overlay-controls--right">
         <p>Visualization Type:</p>
         <ul className="nav nav-tablist nav-tablist-sm">
-          {graphTypes.map(graphType => (
+          {graphTypes.map(graphType =>
             <li
               key={graphType.type}
               className={classnames({
@@ -29,7 +29,7 @@ const OverlayControls = props => {
             >
               {graphType.menuOption}
             </li>
-          ))}
+          )}
         </ul>
         <ConfirmButtons
           onCancel={onCancel}

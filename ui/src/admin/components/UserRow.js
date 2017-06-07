@@ -93,12 +93,9 @@ const UserRow = ({
               onApply={handleUpdateRoles}
               buttonSize="btn-xs"
               buttonColor="btn-primary"
-              customClass={classnames(
-                `dropdown-${USERS_TABLE.colRoles}`,
-                {
-                  'admin-table--multi-select-empty': !roles.length,
-                }
-              )}
+              customClass={classnames(`dropdown-${USERS_TABLE.colRoles}`, {
+                'admin-table--multi-select-empty': !roles.length,
+              })}
             />
           </td>
         : null}

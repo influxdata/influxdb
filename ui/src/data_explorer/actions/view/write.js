@@ -1,6 +1,4 @@
-import {
-  writeLineProtocol as writeLineProtocolAJAX,
-} from 'src/data_explorer/apis'
+import {writeLineProtocol as writeLineProtocolAJAX} from 'src/data_explorer/apis'
 
 import {errorThrown} from 'shared/actions/errors'
 import {publishAutoDismissingNotification} from 'shared/dispatchers'

@@ -2,8 +2,7 @@ import React, {PropTypes} from 'react'
 import classnames from 'classnames'
 import ReactTooltip from 'react-tooltip'
 
-import RuleMessageAlertConfig
-  from 'src/kapacitor/components/RuleMessageAlertConfig'
+import RuleMessageAlertConfig from 'src/kapacitor/components/RuleMessageAlertConfig'
 
 import {RULE_MESSAGE_TEMPLATES as templates, DEFAULT_ALERTS} from '../constants'
 
@@ -59,7 +58,7 @@ export const RuleMessage = React.createClass({
           <div className="rule-section--row rule-section--row-first rule-section--border-bottom">
             <p>Send this Alert to:</p>
             <ul className="nav nav-tablist nav-tablist-sm nav-tablist-malachite">
-              {alerts.map(alert => (
+              {alerts.map(alert =>
                 <li
                   key={alert.text}
                   className={classnames({
@@ -69,7 +68,7 @@ export const RuleMessage = React.createClass({
                 >
                   {alert.text}
                 </li>
-              ))}
+              )}
             </ul>
           </div>
           <RuleMessageAlertConfig

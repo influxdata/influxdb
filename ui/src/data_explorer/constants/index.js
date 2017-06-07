@@ -34,7 +34,8 @@ export const QUERY_TEMPLATES = [
   },
   {
     text: 'Show Tag Values',
-    query: 'SHOW TAG VALUES ON "db_name" FROM "measurement_name" WITH KEY = "tag_key"',
+    query:
+      'SHOW TAG VALUES ON "db_name" FROM "measurement_name" WITH KEY = "tag_key"',
   },
   {text: `${SEPARATOR}`},
   {
@@ -43,7 +44,8 @@ export const QUERY_TEMPLATES = [
   },
   {
     text: 'Create Retention Policy',
-    query: 'CREATE RETENTION POLICY "rp_name" ON "db_name" DURATION 30d REPLICATION 1 DEFAULT',
+    query:
+      'CREATE RETENTION POLICY "rp_name" ON "db_name" DURATION 30d REPLICATION 1 DEFAULT',
   },
   {
     text: 'Drop Retention Policy',
@@ -56,7 +58,8 @@ export const QUERY_TEMPLATES = [
   },
   {
     text: 'Create Continuous Query',
-    query: 'CREATE CONTINUOUS QUERY "cq_name" ON "db_name" BEGIN SELECT min("field") INTO "target_measurement" FROM "current_measurement" GROUP BY time(30m) END',
+    query:
+      'CREATE CONTINUOUS QUERY "cq_name" ON "db_name" BEGIN SELECT min("field") INTO "target_measurement" FROM "current_measurement" GROUP BY time(30m) END',
   },
   {
     text: 'Drop Continuous Query',
@@ -70,7 +73,8 @@ export const QUERY_TEMPLATES = [
   },
   {
     text: 'Create Admin User',
-    query: 'CREATE USER "username" WITH PASSWORD \'password\' WITH ALL PRIVILEGES',
+    query:
+      'CREATE USER "username" WITH PASSWORD \'password\' WITH ALL PRIVILEGES',
   },
   {text: 'Drop User', query: 'DROP USER "username"'},
   {text: `${SEPARATOR}`},

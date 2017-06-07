@@ -153,7 +153,7 @@ const ChronoTable = React.createClass({
       <div style={{width: '100%', height: '100%', position: 'relative'}}>
         {series.length < maximumTabsCount
           ? <div className="table--tabs">
-              {series.map(({name}, i) => (
+              {series.map(({name}, i) =>
                 <TabItem
                   isActive={i === activeSeriesIndex}
                   key={i}
@@ -161,7 +161,7 @@ const ChronoTable = React.createClass({
                   index={i}
                   onClickTab={this.handleClickTab}
                 />
-              ))}
+              )}
             </div>
           : <Dropdown
               className="dropdown-160 table--tabs-dropdown"
@@ -192,12 +192,11 @@ const ChronoTable = React.createClass({
                       key={columnName}
                       columnKey={columnName}
                       header={<Cell>{columnName}</Cell>}
-                      cell={({rowIndex}) => (
+                      cell={({rowIndex}) =>
                         <CustomCell
                           columnName={columnName}
                           data={values[rowIndex][colIndex]}
-                        />
-                      )}
+                        />}
                       width={columnWidths[columnName] || width}
                       minWidth={minWidth}
                     />
@@ -210,14 +209,13 @@ const ChronoTable = React.createClass({
   },
 })
 
-const TabItem = ({name, index, onClickTab, isActive}) => (
+const TabItem = ({name, index, onClickTab, isActive}) =>
   <div
     className={classnames('table--tab', {active: isActive})}
     onClick={() => onClickTab(index)}
   >
     {name}
   </div>
-)
 
 TabItem.propTypes = {
   name: string,

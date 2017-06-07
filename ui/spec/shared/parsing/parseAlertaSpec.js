@@ -15,36 +15,24 @@ it('can parse an alerta tick script', () => {
 
   const expectedObj = [
     {
-      name: "resource",
-      args: [
-        "Hostname or service",
-      ],
+      name: 'resource',
+      args: ['Hostname or service'],
     },
     {
-      name: "event",
-      args: [
-        "Something went wrong",
-      ],
+      name: 'event',
+      args: ['Something went wrong'],
     },
     {
-      name: "environment",
-      args: [
-        "Development",
-      ],
+      name: 'environment',
+      args: ['Development'],
     },
     {
-      name: "group",
-      args: [
-        "Dev. Servers",
-      ],
+      name: 'group',
+      args: ['Dev. Servers'],
     },
     {
-      name: "services",
-      args: [
-        "a",
-        "b",
-        "c",
-      ],
+      name: 'services',
+      args: ['a', 'b', 'c'],
     },
   ]
 

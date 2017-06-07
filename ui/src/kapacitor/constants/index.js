@@ -56,19 +56,23 @@ export const RULE_MESSAGE_TEMPLATES = {
   taskName: {label: '{{.TaskName}}', text: 'The name of the task'},
   group: {
     label: '{{.Group}}',
-    text: 'Concatenation of all group-by tags of the form <code>&#91;key=value,&#93;+</code>. If no groupBy is performed equal to literal &quot;nil&quot;',
+    text:
+      'Concatenation of all group-by tags of the form <code>&#91;key=value,&#93;+</code>. If no groupBy is performed equal to literal &quot;nil&quot;',
   },
   tags: {
     label: '{{.Tags}}',
-    text: 'Map of tags. Use <code>&#123;&#123; index .Tags &quot;key&quot; &#125;&#125;</code> to get a specific tag value',
+    text:
+      'Map of tags. Use <code>&#123;&#123; index .Tags &quot;key&quot; &#125;&#125;</code> to get a specific tag value',
   },
   level: {
     label: '{{.Level}}',
-    text: 'Alert Level, one of: <code>INFO</code><code>WARNING</code><code>CRITICAL</code>',
+    text:
+      'Alert Level, one of: <code>INFO</code><code>WARNING</code><code>CRITICAL</code>',
   },
   fields: {
     label: '{{ index .Fields "value" }}',
-    text: 'Map of fields. Use <code>&#123;&#123; index .Fields &quot;key&quot; &#125;&#125;</code> to get a specific field value',
+    text:
+      'Map of fields. Use <code>&#123;&#123; index .Fields &quot;key&quot; &#125;&#125;</code> to get a specific field value',
   },
   time: {
     label: '{{.Time}}',

@@ -2,7 +2,11 @@ import showDatabases from 'shared/parsing/showDatabases'
 
 describe('showDatabases', () => {
   it('exposes all the database properties', () => {
-    const response = {results: [{series: [{columns: ["name"], values: [["mydb1"], ["mydb2"]]}]}]}
+    const response = {
+      results: [
+        {series: [{columns: ['name'], values: [['mydb1'], ['mydb2']]}]},
+      ],
+    }
 
     const result = showDatabases(response)
 
@@ -13,7 +17,7 @@ describe('showDatabases', () => {
   })
 
   it('returns an empty array when there are no databases', () => {
-    const response = {results: [{series: [{columns: ["name"]}]}]}
+    const response = {results: [{series: [{columns: ['name']}]}]}
 
     const result = showDatabases(response)
 
@@ -22,7 +26,7 @@ describe('showDatabases', () => {
   })
 
   it('exposes the server error', () => {
-    const response = {results: [{error: "internal server error?"}]}
+    const response = {results: [{error: 'internal server error?'}]}
 
     const result = showDatabases(response)
 
