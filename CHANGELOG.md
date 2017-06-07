@@ -87,7 +87,7 @@ The following new configuration options are available.
 - [#7957](https://github.com/influxdata/influxdb/issues/7957): URL query parameter credentials take priority over Authentication header.
 - [#8443](https://github.com/influxdata/influxdb/issues/8443): TSI branch has duplicate tag values.
 - [#8299](https://github.com/influxdata/influxdb/issues/8299): Out of memory when using HTTP API
-
+- [#8455](https://github.com/influxdata/influxdb/pull/8455): Check file count before attempting a TSI level compaction.
 
 ## v1.2.4 [2017-05-08]
 

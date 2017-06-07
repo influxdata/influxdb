@@ -805,7 +805,11 @@ func (i *Index) compact() {
 		}
 
 		// Collect files for the level.
+		// Skip if we don't have enough files in the level.
 		files := fs.IndexFilesByLevel(level)
+		if len(files) < 2 {
+			continue
+		}
 
 		// Calculate total size. Skip level if it doesn't meet min size of next level.
 		var size int64
