@@ -57,7 +57,7 @@ func NewCommand() *Command {
 // Run executes the program.
 func (cmd *Command) Run(args ...string) error {
 	// Set up logger.
-	cmd.Logger = log.New(cmd.Stderr, "", log.LstdFlags)
+	cmd.Logger = log.New(cmd.Stdout, "", log.LstdFlags)
 
 	// Parse command line arguments.
 	retentionPolicy, shardID, since, err := cmd.parseFlags(args)
