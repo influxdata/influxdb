@@ -84,8 +84,50 @@ export const LayoutRenderer = React.createClass({
     return text
   },
 
+  conformQueries(cell, source) {
+    return cell.queries.map(query => {
+      // TODO: Canned dashboards (and possibly Kubernetes dashboard) use an old query schema,
+      // which does not have enough information for the new `buildInfluxQLQuery` function
+      // to operate on. We will use `buildQueryForOldQuerySchema` until we conform
+      // on a stable query representation.
+      let queryText
+      if (query.queryConfig) {
+        const {queryConfig: {rawText, range}} = query
+        const timeRange = range || {upper: null, lower: ':dashboardTime:'}
+        queryText = rawText || buildInfluxQLQuery(timeRange, query.queryConfig)
+      } else {
+        queryText = this.buildQueryForOldQuerySchema(query)
+      }
+
+      return Object.assign({}, query, {
+        host: source,
+        text: queryText,
+      })
+    })
+  },
+
+  isGraph(cell) {
+    // TODO: get this list from server
+    const GRAPH_TYPES = [
+      'line',
+      'line-stepplot',
+      'line-stacked',
+      'single-stat',
+      'line-plus-single-stat',
+    ]
+    return GRAPH_TYPES.includes(cell.type)
+  },
+
   renderRefreshingGraph(type, queries, cellHeight) {
     const {timeRange, autoRefresh, templates, synchronizer} = this.props
+
+    if (type === 'bar') {
+      return (
+        <div className="graph-empty">
+          <p>Coming soon: Bar graph</p>
+        </div>
+      )
+    }
 
     if (type === 'single-stat') {
       return (
@@ -116,6 +158,37 @@ export const LayoutRenderer = React.createClass({
     )
   },
 
+  renderRefreshingComponent(type, component) {
+    if (type === 'alerts') {
+      return (
+        <div className="graph-empty">
+          <p>Coming soon: Alerts list</p>
+        </div>
+      )
+    }
+    if (type === 'news') {
+      return (
+        <div className="graph-empty">
+          <p>Coming soon: Newsfeed</p>
+        </div>
+      )
+    }
+    if (type === 'guide') {
+      return (
+        <div className="graph-empty">
+          <p>Coming soon: Markdown-based guide</p>
+        </div>
+      )
+    }
+
+    return (
+      <div className="graph-empty">
+        <p>No Results</p>
+      </div>
+    )
+  },
+
+  // Generates cell contents based on cell type, i.e. graphs, news feeds, etc.
   generateVisualizations() {
     const {
       source,
@@ -128,44 +201,27 @@ export const LayoutRenderer = React.createClass({
       shouldNotBeEditable,
     } = this.props
 
-    return cells.map(cell => {
-      const queries = cell.queries.map(query => {
-        // TODO: Canned dashboards (and possibly Kubernetes dashboard) use an old query schema,
-        // which does not have enough information for the new `buildInfluxQLQuery` function
-        // to operate on. We will use `buildQueryForOldQuerySchema` until we conform
-        // on a stable query representation.
-        let queryText
-        if (query.queryConfig) {
-          const {queryConfig: {rawText, range}} = query
-          const timeRange = range || {upper: null, lower: ':dashboardTime:'}
-          queryText =
-            rawText || buildInfluxQLQuery(timeRange, query.queryConfig)
-        } else {
-          queryText = this.buildQueryForOldQuerySchema(query)
-        }
-
-        return Object.assign({}, query, {
-          host: source,
-          text: queryText,
-        })
-      })
-
-      return (
-        <div key={cell.i}>
-          <NameableGraph
-            onEditCell={onEditCell}
-            onRenameCell={onRenameCell}
-            onUpdateCell={onUpdateCell}
-            onDeleteCell={onDeleteCell}
-            onSummonOverlayTechnologies={onSummonOverlayTechnologies}
-            shouldNotBeEditable={shouldNotBeEditable}
-            cell={cell}
-          >
-            {this.renderRefreshingGraph(cell.type, queries, cell.h)}
-          </NameableGraph>
-        </div>
-      )
-    })
+    return cells.map(cell => (
+      <div key={cell.i}>
+        <NameableGraph
+          onEditCell={onEditCell}
+          onRenameCell={onRenameCell}
+          onUpdateCell={onUpdateCell}
+          onDeleteCell={onDeleteCell}
+          onSummonOverlayTechnologies={onSummonOverlayTechnologies}
+          shouldNotBeEditable={shouldNotBeEditable}
+          cell={cell}
+        >
+          {this.isGraph(cell)
+            ? this.renderRefreshingGraph(
+                cell.type,
+                this.conformQueries(cell, source),
+                cell.h
+              )
+            : this.renderRefreshingComponent(cell.type, cell.component)}
+        </NameableGraph>
+      </div>
+    ))
   },
 
   handleLayoutChange(layout) {
