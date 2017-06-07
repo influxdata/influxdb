@@ -1,13 +1,15 @@
 import React, {Component, PropTypes} from 'react'
+import {connect} from 'react-redux'
 import ReactGridLayout, {WidthProvider} from 'react-grid-layout'
 
 import SourceIndicator from 'shared/components/SourceIndicator'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
+import RefreshingGraph from 'shared/components/RefreshingGraph'
 import NameableGraph from 'shared/components/NameableGraph'
 
 const GridLayout = WidthProvider(ReactGridLayout)
 
-const mockStatusPageCells = [
+const fixtureGraphCells = [
   {
     name: 'Alerts',
     type: 'bar',
@@ -17,6 +19,8 @@ const mockStatusPageCells = [
     h: 4,
     i: 'bar',
   },
+]
+const fixtureNonGraphCells = [
   {
     name: 'Recent Alerts',
     type: 'alerts',
@@ -51,23 +55,16 @@ class StatusPage extends Component {
     super(props)
 
     this.state = {
-      cells: mockStatusPageCells,
+      graphCells: fixtureGraphCells,
+      nonGraphCells: fixtureNonGraphCells,
     }
 
-    this.generateStatusPageCell = ::this.generateStatusPageCell
-    this.renderStatusPageCells = ::this.renderStatusPageCells
+    this.generateLayoutCells = ::this.generateLayoutCells
     this.triggerWindowResize = ::this.triggerWindowResize
   }
 
-  generateStatusPageCell(cell) {
+  generateNonGraphCell(cell) {
     switch (cell.type) {
-      case 'bar': {
-        return (
-          <div className="graph-empty">
-            <p>Coming soon: Bar graph</p>
-          </div>
-        )
-      }
       case 'alerts': {
         return (
           <div className="graph-empty">
@@ -97,23 +94,41 @@ class StatusPage extends Component {
     )
   }
 
-  renderStatusPageCells(cells) {
-    return cells.map(cell => {
-      return (
-        <div key={cell.i}>
-          <NameableGraph
-            cell={{
-              name: cell.name,
-              x: cell.x,
-              y: cell.y,
-            }}
-            shouldNotBeEditable={true}
-          >
-            {this.generateStatusPageCell(cell)}
-          </NameableGraph>
-        </div>
-      )
-    })
+  generateLayoutCells(graphCells, nonGraphCells) {
+    return [
+      ...graphCells.map(cell => {
+        return (
+          <div key={cell.i}>
+            <NameableGraph
+              cell={{
+                name: cell.name,
+                x: cell.x,
+                y: cell.y,
+              }}
+              shouldNotBeEditable={true}
+            >
+              <RefreshingGraph />
+            </NameableGraph>
+          </div>
+        )
+      }),
+      ...nonGraphCells.map(cell => {
+        return (
+          <div key={cell.i}>
+            <NameableGraph
+              cell={{
+                name: cell.name,
+                x: cell.x,
+                y: cell.y,
+              }}
+              shouldNotBeEditable={true}
+            >
+              {this.generateNonGraphCell(cell)}
+            </NameableGraph>
+          </div>
+        )
+      }),
+    ]
   }
 
   triggerWindowResize() {
@@ -125,7 +140,7 @@ class StatusPage extends Component {
 
   render() {
     const {source} = this.props
-    const {cells} = this.state
+    const {graphCells, nonGraphCells} = this.state
 
     const layoutMargin = 4
 
@@ -145,9 +160,9 @@ class StatusPage extends Component {
         </div>
         <FancyScrollbar className={'page-contents'}>
           <div className="dashboard container-fluid full-width">
-            {cells.length
+            {graphCells.length && nonGraphCells.length
               ? <GridLayout
-                  layout={cells}
+                  layout={[...graphCells, ...nonGraphCells]}
                   cols={12}
                   rowHeight={83.5}
                   margin={[layoutMargin, layoutMargin]}
@@ -159,7 +174,7 @@ class StatusPage extends Component {
                   isDraggable={false}
                   isResizable={false}
                 >
-                  {this.renderStatusPageCells(cells)}
+                  {this.generateLayoutCells(graphCells, nonGraphCells)}
                 </GridLayout>
               : <span>Loading status...</span>}
           </div>
@@ -177,4 +192,4 @@ StatusPage.propTypes = {
   }).isRequired,
 }
 
-export default StatusPage
+export default connect(null)(StatusPage)
