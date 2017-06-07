@@ -1,17 +1,14 @@
 import React, {PropTypes} from 'react'
-import AutoRefresh from 'shared/components/AutoRefresh'
-import LineGraph from 'shared/components/LineGraph'
-import SingleStat from 'shared/components/SingleStat'
-import NameableGraph from 'shared/components/NameableGraph'
+
 import ReactGridLayout, {WidthProvider} from 'react-grid-layout'
+
+import NameableGraph from 'shared/components/NameableGraph'
+import RefreshingGraph from 'shared/components/RefreshingGraph'
 
 import timeRanges from 'hson!../data/timeRanges.hson'
 import buildInfluxQLQuery from 'utils/influxql'
 
 const GridLayout = WidthProvider(ReactGridLayout)
-
-const RefreshingLineGraph = AutoRefresh(LineGraph)
-const RefreshingSingleStat = AutoRefresh(SingleStat)
 
 const {arrayOf, bool, func, number, shape, string} = PropTypes
 
@@ -118,46 +115,6 @@ export const LayoutRenderer = React.createClass({
     return GRAPH_TYPES.includes(cell.type)
   },
 
-  renderRefreshingGraph(type, queries, cellHeight) {
-    const {timeRange, autoRefresh, templates, synchronizer} = this.props
-
-    if (type === 'bar') {
-      return (
-        <div className="graph-empty">
-          <p>Coming soon: Bar graph</p>
-        </div>
-      )
-    }
-
-    if (type === 'single-stat') {
-      return (
-        <RefreshingSingleStat
-          queries={[queries[0]]}
-          templates={templates}
-          autoRefresh={autoRefresh}
-          cellHeight={cellHeight}
-        />
-      )
-    }
-
-    const displayOptions = {
-      stepPlot: type === 'line-stepplot',
-      stackedGraph: type === 'line-stacked',
-    }
-
-    return (
-      <RefreshingLineGraph
-        queries={queries}
-        templates={templates}
-        timeRange={timeRange}
-        autoRefresh={autoRefresh}
-        showSingleStat={type === 'line-plus-single-stat'}
-        displayOptions={displayOptions}
-        synchronizer={synchronizer}
-      />
-    )
-  },
-
   renderRefreshingComponent(type) {
     if (type === 'alerts') {
       return (
@@ -199,29 +156,42 @@ export const LayoutRenderer = React.createClass({
       onDeleteCell,
       onSummonOverlayTechnologies,
       shouldNotBeEditable,
+      timeRange,
+      autoRefresh,
+      templates,
+      synchronizer,
     } = this.props
 
-    return cells.map(cell =>
-      <div key={cell.i}>
-        <NameableGraph
-          onEditCell={onEditCell}
-          onRenameCell={onRenameCell}
-          onUpdateCell={onUpdateCell}
-          onDeleteCell={onDeleteCell}
-          onSummonOverlayTechnologies={onSummonOverlayTechnologies}
-          shouldNotBeEditable={shouldNotBeEditable}
-          cell={cell}
-        >
-          {this.isGraph(cell)
-            ? this.renderRefreshingGraph(
-                cell.type,
-                this.conformQueries(cell, source),
-                cell.h
-              )
-            : this.renderRefreshingComponent(cell.type)}
-        </NameableGraph>
-      </div>
-    )
+    return cells.map(cell => {
+      const {type, h} = cell
+      const queries = this.conformQueries(cell, source)
+
+      return (
+        <div key={cell.i}>
+          <NameableGraph
+            onEditCell={onEditCell}
+            onRenameCell={onRenameCell}
+            onUpdateCell={onUpdateCell}
+            onDeleteCell={onDeleteCell}
+            onSummonOverlayTechnologies={onSummonOverlayTechnologies}
+            shouldNotBeEditable={shouldNotBeEditable}
+            cell={cell}
+          >
+            {this.isGraph(cell)
+              ? <RefreshingGraph
+                  timeRange={timeRange}
+                  autoRefresh={autoRefresh}
+                  templates={templates}
+                  synchronizer={synchronizer}
+                  type={type}
+                  queries={queries}
+                  cellHeight={h}
+                />
+              : this.renderRefreshingComponent(cell.type)}
+          </NameableGraph>
+        </div>
+      )
+    })
   },
 
   handleLayoutChange(layout) {
