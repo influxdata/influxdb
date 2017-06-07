@@ -2,7 +2,15 @@ import parseShowTagKeys from 'shared/parsing/showTagKeys'
 
 describe('parseShowTagKeys', () => {
   it('parses the tag keys', () => {
-    const response = {results: [{series: [{name: "cpu", columns: ["tagKey"], values: [["cpu"], ["host"]]}]}]}
+    const response = {
+      results: [
+        {
+          series: [
+            {name: 'cpu', columns: ['tagKey'], values: [['cpu'], ['host']]},
+          ],
+        },
+      ],
+    }
 
     const result = parseShowTagKeys(response)
     expect(result.errors).to.eql([])
@@ -18,7 +26,7 @@ describe('parseShowTagKeys', () => {
   })
 
   it('handles errors', () => {
-    const response = {results: [{error: "influxdb error"}]}
+    const response = {results: [{error: 'influxdb error'}]}
 
     const result = parseShowTagKeys(response)
     expect(result.errors).to.eql([response.results[0].error])
