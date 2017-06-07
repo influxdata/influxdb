@@ -191,13 +191,18 @@ func (c *CommandLine) Run() error {
 	c.Version()
 
 	// Only load/write history if HOME environment variable is set.
-	if homeDir := os.Getenv("HOME"); homeDir != "" {
-		// Attempt to load the history file.
-		c.historyFilePath = filepath.Join(homeDir, ".influx_history")
-		if historyFile, err := os.Open(c.historyFilePath); err == nil {
-			c.Line.ReadHistory(historyFile)
-			historyFile.Close()
+	homeDir := os.Getenv("HOME")
+	if homeDir == "" {
+		if homeDir = os.Getenv("HOMEPATH"); homeDir == "" {
+			homeDir = "~"
 		}
+	}
+
+	// Attempt to load the history file.
+	c.historyFilePath = filepath.Join(homeDir, ".influx_history")
+	if historyFile, err := os.Open(c.historyFilePath); err == nil {
+		c.Line.ReadHistory(historyFile)
+		historyFile.Close()
 	}
 
 	// read from prompt until exit is run
