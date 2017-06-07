@@ -158,7 +158,7 @@ export const LayoutRenderer = React.createClass({
     )
   },
 
-  renderRefreshingComponent(type, component) {
+  renderRefreshingComponent(type) {
     if (type === 'alerts') {
       return (
         <div className="graph-empty">
@@ -201,7 +201,7 @@ export const LayoutRenderer = React.createClass({
       shouldNotBeEditable,
     } = this.props
 
-    return cells.map(cell => (
+    return cells.map(cell =>
       <div key={cell.i}>
         <NameableGraph
           onEditCell={onEditCell}
@@ -218,10 +218,10 @@ export const LayoutRenderer = React.createClass({
                 this.conformQueries(cell, source),
                 cell.h
               )
-            : this.renderRefreshingComponent(cell.type, cell.component)}
+            : this.renderRefreshingComponent(cell.type)}
         </NameableGraph>
       </div>
-    ))
+    )
   },
 
   handleLayoutChange(layout) {
