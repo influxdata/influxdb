@@ -19,7 +19,7 @@ const UsersTable = ({
   onUpdatePermissions,
   onUpdateRoles,
   onUpdatePassword,
-}) => (
+}) =>
   <div className="panel panel-default">
     <FilterBar
       type="users"
@@ -42,7 +42,7 @@ const UsersTable = ({
           {users.length
             ? users
                 .filter(u => !u.hidden)
-                .map(user => (
+                .map(user =>
                   <UserRow
                     key={user.links.self}
                     user={user}
@@ -59,13 +59,12 @@ const UsersTable = ({
                     onUpdateRoles={onUpdateRoles}
                     onUpdatePassword={onUpdatePassword}
                   />
-                ))
+                )
             : <EmptyRow tableName={'Users'} />}
         </tbody>
       </table>
     </div>
   </div>
-)
 
 const {arrayOf, bool, func, shape, string} = PropTypes
 

@@ -2,11 +2,11 @@ import React, {PropTypes} from 'react'
 import classnames from 'classnames'
 import _ from 'lodash'
 
-const VisHeader = ({views, view, onToggleView, name}) => (
+const VisHeader = ({views, view, onToggleView, name}) =>
   <div className="graph-heading">
     {views.length
       ? <ul className="nav nav-tablist nav-tablist-sm">
-          {views.map(v => (
+          {views.map(v =>
             <li
               key={v}
               onClick={() => onToggleView(v)}
@@ -14,12 +14,11 @@ const VisHeader = ({views, view, onToggleView, name}) => (
             >
               {_.upperFirst(v)}
             </li>
-          ))}
+          )}
         </ul>
       : null}
     <div className="graph-title">{name}</div>
   </div>
-)
 
 const {arrayOf, func, string} = PropTypes
 

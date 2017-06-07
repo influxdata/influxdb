@@ -2,8 +2,7 @@ import React, {Component, PropTypes} from 'react'
 import classnames from 'classnames'
 import uuid from 'node-uuid'
 
-import TemplateVariableTable
-  from 'src/dashboards/components/TemplateVariableTable'
+import TemplateVariableTable from 'src/dashboards/components/TemplateVariableTable'
 
 import {TEMPLATE_VARIABLE_TYPES} from 'src/dashboards/constants'
 
@@ -19,7 +18,7 @@ const TemplateVariableManager = ({
   onDelete,
   tempVarAlreadyExists,
   isEdited,
-}) => (
+}) =>
   <div className="template-variable-manager">
     <div className="template-variable-manager--header">
       <div className="page-header__left">
@@ -59,7 +58,6 @@ const TemplateVariableManager = ({
       />
     </div>
   </div>
-)
 
 class TemplateVariableManagerWrapper extends Component {
   constructor(props) {

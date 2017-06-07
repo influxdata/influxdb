@@ -4,14 +4,13 @@ describe('timeSeriesToDygraph', () => {
   it('parses a raw InfluxDB response into a dygraph friendly data format', () => {
     const influxResponse = [
       {
-        response:
-        {
+        response: {
           results: [
             {
               series: [
                 {
-                  name: "m1",
-                  columns: ["time", "f1"],
+                  name: 'm1',
+                  columns: ['time', 'f1'],
                   values: [[1000, 1], [2000, 2]],
                 },
               ],
@@ -19,8 +18,8 @@ describe('timeSeriesToDygraph', () => {
             {
               series: [
                 {
-                  name: "m1",
-                  columns: ["time", "f2"],
+                  name: 'm1',
+                  columns: ['time', 'f2'],
                   values: [[2000, 3], [4000, 4]],
                 },
               ],
@@ -33,11 +32,7 @@ describe('timeSeriesToDygraph', () => {
     const actual = timeSeriesToDygraph(influxResponse)
 
     const expected = {
-      labels: [
-        'time',
-        `m1.f1`,
-        `m1.f2`,
-      ],
+      labels: ['time', `m1.f1`, `m1.f2`],
       timeSeries: [
         [new Date(1000), 1, null],
         [new Date(2000), 2, 3],
@@ -59,14 +54,13 @@ describe('timeSeriesToDygraph', () => {
   it('can sort numerical timestamps correctly', () => {
     const influxResponse = [
       {
-        response:
-        {
+        response: {
           results: [
             {
               series: [
                 {
-                  name: "m1",
-                  columns: ["time", "f1"],
+                  name: 'm1',
+                  columns: ['time', 'f1'],
                   values: [[100, 1], [3000, 3], [200, 2]],
                 },
               ],
@@ -76,19 +70,11 @@ describe('timeSeriesToDygraph', () => {
       },
     ]
 
-
     const actual = timeSeriesToDygraph(influxResponse)
 
     const expected = {
-      labels: [
-        'time',
-        'm1.f1',
-      ],
-      timeSeries: [
-        [new Date(100), 1],
-        [new Date(200), 2],
-        [new Date(3000), 3],
-      ],
+      labels: ['time', 'm1.f1'],
+      timeSeries: [[new Date(100), 1], [new Date(200), 2], [new Date(3000), 3]],
     }
 
     expect(actual.timeSeries).to.deep.equal(expected.timeSeries)
@@ -97,14 +83,13 @@ describe('timeSeriesToDygraph', () => {
   it('can parse multiple responses into two axes', () => {
     const influxResponse = [
       {
-        response:
-        {
+        response: {
           results: [
             {
               series: [
                 {
-                  name: "m1",
-                  columns: ["time", "f1"],
+                  name: 'm1',
+                  columns: ['time', 'f1'],
                   values: [[1000, 1], [2000, 2]],
                 },
               ],
@@ -112,8 +97,8 @@ describe('timeSeriesToDygraph', () => {
             {
               series: [
                 {
-                  name: "m1",
-                  columns: ["time", "f2"],
+                  name: 'm1',
+                  columns: ['time', 'f2'],
                   values: [[2000, 3], [4000, 4]],
                 },
               ],
@@ -122,14 +107,13 @@ describe('timeSeriesToDygraph', () => {
         },
       },
       {
-        response:
-        {
+        response: {
           results: [
             {
               series: [
                 {
-                  name: "m3",
-                  columns: ["time", "f3"],
+                  name: 'm3',
+                  columns: ['time', 'f3'],
                   values: [[1000, 1], [2000, 2]],
                 },
               ],
@@ -159,14 +143,13 @@ describe('timeSeriesToDygraph', () => {
   it('can parse multiple responses with the same field and measurement', () => {
     const influxResponse = [
       {
-        response:
-        {
+        response: {
           results: [
             {
               series: [
                 {
-                  name: "m1",
-                  columns: ["time", "f1"],
+                  name: 'm1',
+                  columns: ['time', 'f1'],
                   values: [[1000, 1], [2000, 2]],
                 },
               ],
@@ -175,14 +158,13 @@ describe('timeSeriesToDygraph', () => {
         },
       },
       {
-        response:
-        {
+        response: {
           results: [
             {
               series: [
                 {
-                  name: "m1",
-                  columns: ["time", "f1"],
+                  name: 'm1',
+                  columns: ['time', 'f1'],
                   values: [[2000, 3], [4000, 4]],
                 },
               ],
@@ -195,11 +177,7 @@ describe('timeSeriesToDygraph', () => {
     const actual = timeSeriesToDygraph(influxResponse)
 
     const expected = {
-      labels: [
-        'time',
-        `m1.f1`,
-        `m1.f1`,
-      ],
+      labels: ['time', `m1.f1`, `m1.f1`],
       timeSeries: [
         [new Date(1000), 1, null],
         [new Date(2000), 2, 3],
@@ -218,14 +196,13 @@ describe('timeSeriesToDygraph', () => {
   it('it does not use multiple axes if being used for the DataExplorer', () => {
     const influxResponse = [
       {
-        response:
-        {
+        response: {
           results: [
             {
               series: [
                 {
-                  name: "m1",
-                  columns: ["time", "f1"],
+                  name: 'm1',
+                  columns: ['time', 'f1'],
                   values: [[1000, 1], [2000, 2]],
                 },
               ],
@@ -234,14 +211,13 @@ describe('timeSeriesToDygraph', () => {
         },
       },
       {
-        response:
-        {
+        response: {
           results: [
             {
               series: [
                 {
-                  name: "m1",
-                  columns: ["time", "f2"],
+                  name: 'm1',
+                  columns: ['time', 'f2'],
                   values: [[2000, 3], [4000, 4]],
                 },
               ],
@@ -252,7 +228,11 @@ describe('timeSeriesToDygraph', () => {
     ]
 
     const isInDataExplorer = true
-    const actual = timeSeriesToDygraph(influxResponse, undefined, isInDataExplorer)
+    const actual = timeSeriesToDygraph(
+      influxResponse,
+      undefined,
+      isInDataExplorer
+    )
 
     const expected = {}
 
@@ -262,14 +242,13 @@ describe('timeSeriesToDygraph', () => {
   it('parses a raw InfluxDB response into a dygraph friendly data format', () => {
     const influxResponse = [
       {
-        response:
-        {
+        response: {
           results: [
             {
               series: [
                 {
-                  name: "mb",
-                  columns: ["time", "f1"],
+                  name: 'mb',
+                  columns: ['time', 'f1'],
                   values: [[1000, 1], [2000, 2]],
                 },
               ],
@@ -277,8 +256,8 @@ describe('timeSeriesToDygraph', () => {
             {
               series: [
                 {
-                  name: "ma",
-                  columns: ["time", "f1"],
+                  name: 'ma',
+                  columns: ['time', 'f1'],
                   values: [[1000, 1], [2000, 2]],
                 },
               ],
@@ -286,8 +265,8 @@ describe('timeSeriesToDygraph', () => {
             {
               series: [
                 {
-                  name: "mc",
-                  columns: ["time", "f2"],
+                  name: 'mc',
+                  columns: ['time', 'f2'],
                   values: [[2000, 3], [4000, 4]],
                 },
               ],
@@ -295,8 +274,8 @@ describe('timeSeriesToDygraph', () => {
             {
               series: [
                 {
-                  name: "mc",
-                  columns: ["time", "f1"],
+                  name: 'mc',
+                  columns: ['time', 'f1'],
                   values: [[2000, 3], [4000, 4]],
                 },
               ],
@@ -308,13 +287,7 @@ describe('timeSeriesToDygraph', () => {
 
     const actual = timeSeriesToDygraph(influxResponse)
 
-    const expected = [
-      'time',
-      `ma.f1`,
-      `mb.f1`,
-      `mc.f1`,
-      `mc.f2`,
-    ]
+    const expected = ['time', `ma.f1`, `mb.f1`, `mc.f1`, `mc.f2`]
 
     expect(actual.labels).to.deep.equal(expected)
   })

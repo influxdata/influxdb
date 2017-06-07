@@ -73,7 +73,7 @@ const InfluxTable = ({
   router,
   setActiveKapacitor,
   handleDeleteKapacitor,
-}) => (
+}) =>
   <div className="row">
     <div className="col-md-12">
       <div className="panel panel-minimal">
@@ -146,7 +146,6 @@ const InfluxTable = ({
       </div>
     </div>
   </div>
-)
 
 const {array, func, shape, string} = PropTypes
 

@@ -69,7 +69,12 @@ const QueryMaker = React.createClass({
   render() {
     const {height, top, layout} = this.props
     return (
-      <div className={classnames('query-maker', {'query-maker--panel': layout === 'panel'})} style={{height, top}}>
+      <div
+        className={classnames('query-maker', {
+          'query-maker--panel': layout === 'panel',
+        })}
+        style={{height, top}}
+      >
         {this.renderQueryTabList()}
         {this.renderQueryBuilder()}
       </div>
@@ -77,7 +82,14 @@ const QueryMaker = React.createClass({
   },
 
   renderQueryBuilder() {
-    const {timeRange, actions, source, templates, layout, isInDataExplorer} = this.props
+    const {
+      timeRange,
+      actions,
+      source,
+      templates,
+      layout,
+      isInDataExplorer,
+    } = this.props
     const query = this.getActiveQuery()
 
     if (!query) {
@@ -145,8 +157,8 @@ const QueryMaker = React.createClass({
               onDelete={onDeleteQuery}
               queryTabText={
                 q.rawText ||
-                  buildInfluxQLQuery(timeRange, q) ||
-                  `Query ${i + 1}`
+                buildInfluxQLQuery(timeRange, q) ||
+                `Query ${i + 1}`
               }
             />
           )

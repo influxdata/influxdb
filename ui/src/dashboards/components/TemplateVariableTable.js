@@ -9,7 +9,7 @@ const TemplateVariableTable = ({
   onRunQueryFailure,
   onDelete,
   tempVarAlreadyExists,
-}) => (
+}) =>
   <div className="template-variable-manager--table">
     {templates.length
       ? <div className="template-variable-manager--table-container">
@@ -20,7 +20,7 @@ const TemplateVariableTable = ({
             <div className="tvm--col-4" />
           </div>
           <div className="template-variable-manager--table-rows">
-            {templates.map(t => (
+            {templates.map(t =>
               <TemplateVariableRow
                 key={t.id}
                 source={source}
@@ -30,7 +30,7 @@ const TemplateVariableTable = ({
                 onDelete={onDelete}
                 tempVarAlreadyExists={tempVarAlreadyExists}
               />
-            ))}
+            )}
           </div>
         </div>
       : <div className="generic-empty-state">
@@ -39,7 +39,6 @@ const TemplateVariableTable = ({
           </h4>
         </div>}
   </div>
-)
 
 const {arrayOf, bool, func, shape, string} = PropTypes
 

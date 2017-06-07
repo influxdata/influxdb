@@ -41,7 +41,7 @@ const DatabaseManager = ({
         </button>
       </div>
       <div className="panel-body">
-        {databases.map(db => (
+        {databases.map(db =>
           <DatabaseTable
             key={db.links.self}
             database={db}
@@ -63,7 +63,7 @@ const DatabaseManager = ({
             onRemoveRetentionPolicy={onRemoveRetentionPolicy}
             onDeleteRetentionPolicy={onDeleteRetentionPolicy}
           />
-        ))}
+        )}
       </div>
     </div>
   )

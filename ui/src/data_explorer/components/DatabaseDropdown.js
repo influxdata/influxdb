@@ -66,9 +66,16 @@ const DatabaseDropdown = React.createClass({
     return (
       <Dropdown
         className="dropdown-160 query-builder--db-dropdown"
-        items={namespaces.map(n => ({...n, text: `${n.database}.${n.retentionPolicy}`}))}
+        items={namespaces.map(n => ({
+          ...n,
+          text: `${n.database}.${n.retentionPolicy}`,
+        }))}
         onChoose={onChooseNamespace}
-        selected={(query.database && query.retentionPolicy) ? `${query.database}.${query.retentionPolicy}` : 'Choose a DB & RP'}
+        selected={
+          query.database && query.retentionPolicy
+            ? `${query.database}.${query.retentionPolicy}`
+            : 'Choose a DB & RP'
+        }
       />
     )
   },

@@ -14,7 +14,7 @@ describe('Formatting helpers', () => {
       expect(actual).to.equal('0 Bytes')
     })
 
-    it('converts a raw byte value into it\'s most appropriate unit', () => {
+    it("converts a raw byte value into it's most appropriate unit", () => {
       expect(formatBytes(1000)).to.equal('1 KB')
       expect(formatBytes(1000000)).to.equal('1 MB')
       expect(formatBytes(1000000000)).to.equal('1 GB')

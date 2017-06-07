@@ -2,7 +2,21 @@ import showQueriesParser from 'shared/parsing/showQueries'
 
 describe('showQueriesParser', () => {
   it('exposes all currently running queries', () => {
-    const response = {results: [{series: [{columns: ["qid", "query", "database", "duration"], values: [[1, "SHOW QUERIES", "db1", "1s"], [2, "SELECT foo FROM bar", "db1", "2s"]]}]}]}
+    const response = {
+      results: [
+        {
+          series: [
+            {
+              columns: ['qid', 'query', 'database', 'duration'],
+              values: [
+                [1, 'SHOW QUERIES', 'db1', '1s'],
+                [2, 'SELECT foo FROM bar', 'db1', '2s'],
+              ],
+            },
+          ],
+        },
+      ],
+    }
 
     const result = showQueriesParser(response)
 
@@ -24,7 +38,7 @@ describe('showQueriesParser', () => {
   })
 
   it('exposes the server error', () => {
-    const response = {results: [{error: "internal server error?"}]}
+    const response = {results: [{error: 'internal server error?'}]}
 
     const result = showQueriesParser(response)
 

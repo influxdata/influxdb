@@ -144,11 +144,7 @@ describe('Admin.Reducers', () => {
 
     it('can add a database', () => {
       const actual = reducer(state, addDatabase())
-      const expected = [
-        {...NEW_DEFAULT_DATABASE, isEditing: true},
-        db1,
-        db2,
-      ]
+      const expected = [{...NEW_DEFAULT_DATABASE, isEditing: true}, db1, db2]
 
       expect(actual.databases).to.deep.equal(expected)
     })
@@ -170,10 +166,7 @@ describe('Admin.Reducers', () => {
 
     it('can add a database delete code', () => {
       const actual = reducer(state, addDatabaseDeleteCode(db1))
-      const expected = [
-        {...db1, deleteCode: ''},
-        db2,
-      ]
+      const expected = [{...db1, deleteCode: ''}, db2]
 
       expect(actual.databases).to.deep.equal(expected)
     })
@@ -181,10 +174,7 @@ describe('Admin.Reducers', () => {
     it('can remove the delete code', () => {
       const actual = reducer(state, removeDatabaseDeleteCode(db2))
       delete db2.deleteCode
-      const expected = [
-        db1,
-        db2,
-      ]
+      const expected = [db1, db2]
 
       expect(actual.databases).to.deep.equal(expected)
     })
@@ -195,18 +185,14 @@ describe('Admin.Reducers', () => {
 
     it('can add a retention policy', () => {
       const actual = reducer(state, addRetentionPolicy(db1))
-      const expected = [
-        {...db1, retentionPolicies: [NEW_EMPTY_RP, rp1]},
-      ]
+      const expected = [{...db1, retentionPolicies: [NEW_EMPTY_RP, rp1]}]
 
       expect(actual.databases).to.deep.equal(expected)
     })
 
     it('can remove a retention policy', () => {
       const actual = reducer(state, removeRetentionPolicy(db1, rp1))
-      const expected = [
-        {...db1, retentionPolicies: []},
-      ]
+      const expected = [{...db1, retentionPolicies: []}]
 
       expect(actual.databases).to.deep.equal(expected)
     })
@@ -214,9 +200,7 @@ describe('Admin.Reducers', () => {
     it('can edit a retention policy', () => {
       const updates = {name: 'rpOne', duration: '100y', replication: '42'}
       const actual = reducer(state, editRetentionPolicy(db1, rp1, updates))
-      const expected = [
-        {...db1, retentionPolicies: [{...rp1, ...updates}]},
-      ]
+      const expected = [{...db1, retentionPolicies: [{...rp1, ...updates}]}]
 
       expect(actual.databases).to.deep.equal(expected)
     })
@@ -224,17 +208,12 @@ describe('Admin.Reducers', () => {
 
   it('it can add a user', () => {
     state = {
-      users: [
-        u1,
-      ],
+      users: [u1],
     }
 
     const actual = reducer(state, addUser())
     const expected = {
-      users: [
-        {...NEW_DEFAULT_USER, isEditing: true},
-        u1,
-      ],
+      users: [{...NEW_DEFAULT_USER, isEditing: true}, u1],
     }
 
     expect(actual.users).to.deep.equal(expected.users)
@@ -268,17 +247,12 @@ describe('Admin.Reducers', () => {
 
   it('it can add a role', () => {
     state = {
-      roles: [
-        r1,
-      ],
+      roles: [r1],
     }
 
     const actual = reducer(state, addRole())
     const expected = {
-      roles: [
-        {...NEW_DEFAULT_ROLE, isEditing: true},
-        r1,
-      ],
+      roles: [{...NEW_DEFAULT_ROLE, isEditing: true}, r1],
     }
 
     expect(actual.roles).to.deep.equal(expected.roles)
@@ -321,9 +295,7 @@ describe('Admin.Reducers', () => {
 
   it('it can delete a role', () => {
     state = {
-      roles: [
-        r1,
-      ],
+      roles: [r1],
     }
 
     const actual = reducer(state, deleteRole(r1))
@@ -336,9 +308,7 @@ describe('Admin.Reducers', () => {
 
   it('it can delete a user', () => {
     state = {
-      users: [
-        u1,
-      ],
+      users: [u1],
     }
 
     const actual = reducer(state, deleteUser(u1))
@@ -358,10 +328,7 @@ describe('Admin.Reducers', () => {
 
     const actual = reducer(state, filterRoles(text))
     const expected = {
-      roles: [
-        {...r1, hidden: false},
-        {...r2, hidden: true},
-      ],
+      roles: [{...r1, hidden: false}, {...r2, hidden: true}],
     }
 
     expect(actual.roles).to.deep.equal(expected.roles)
@@ -376,10 +343,7 @@ describe('Admin.Reducers', () => {
 
     const actual = reducer(state, filterUsers(text))
     const expected = {
-      users: [
-        {...u1, hidden: true},
-        {...u2, hidden: false},
-      ],
+      users: [{...u1, hidden: true}, {...u2, hidden: false}],
     }
 
     expect(actual.users).to.deep.equal(expected.users)

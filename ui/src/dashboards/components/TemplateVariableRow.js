@@ -9,18 +9,14 @@ import classnames from 'classnames'
 
 import Dropdown from 'shared/components/Dropdown'
 import DeleteConfirmButtons from 'shared/components/DeleteConfirmButtons'
-import TemplateQueryBuilder
-  from 'src/dashboards/components/TemplateQueryBuilder'
+import TemplateQueryBuilder from 'src/dashboards/components/TemplateQueryBuilder'
 
-import {
-  runTemplateVariableQuery as runTemplateVariableQueryAJAX,
-} from 'src/dashboards/apis'
+import {runTemplateVariableQuery as runTemplateVariableQueryAJAX} from 'src/dashboards/apis'
 
 import parsers from 'shared/parsing'
 
 import {TEMPLATE_TYPES} from 'src/dashboards/constants'
-import generateTemplateVariableQuery
-  from 'src/dashboards/utils/templateVariableQueryGenerator'
+import generateTemplateVariableQuery from 'src/dashboards/utils/templateVariableQueryGenerator'
 
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
@@ -117,7 +113,7 @@ const TemplateVariableRow = ({
   onSubmit,
   onDelete,
   onErrorThrown,
-}) => (
+}) =>
   <form
     className={classnames('template-variable-manager--table-row', {
       editing: isEditing,
@@ -178,7 +174,6 @@ const TemplateVariableRow = ({
       />
     </div>
   </form>
-)
 
 const TableInput = ({
   name,

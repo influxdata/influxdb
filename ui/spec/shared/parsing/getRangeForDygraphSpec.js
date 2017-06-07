@@ -43,14 +43,20 @@ describe('getRangeForDygraphSpec', () => {
     const timeSeries = [[date, max], [date, mid], [date, min]]
 
     it('can pad positive values', () => {
-      const [actualMin, actualMax] = getRange(timeSeries, undefined, {...kapacitor, value: 20})
+      const [actualMin, actualMax] = getRange(timeSeries, undefined, {
+        ...kapacitor,
+        value: 20,
+      })
 
       expect(actualMin).to.equal(min)
       expect(actualMax).to.be.above(max)
     })
 
     it('can pad negative values', () => {
-      const [actualMin, actualMax] = getRange(timeSeries, undefined, {...kapacitor, value: -10})
+      const [actualMin, actualMax] = getRange(timeSeries, undefined, {
+        ...kapacitor,
+        value: -10,
+      })
 
       expect(actualMin).to.be.below(min)
       expect(actualMax).to.equal(max)
@@ -60,7 +66,10 @@ describe('getRangeForDygraphSpec', () => {
       it('subtracts from a positive value', () => {
         const value = 2
         const opAndValue = {operator: 'less than', value}
-        const [actualMin, actualMax] = getRange(timeSeries, undefined, {...kapacitor, ...opAndValue})
+        const [actualMin, actualMax] = getRange(timeSeries, undefined, {
+          ...kapacitor,
+          ...opAndValue,
+        })
 
         expect(actualMin).to.be.lessThan(value)
         expect(actualMax).to.equal(max)
@@ -72,14 +81,20 @@ describe('getRangeForDygraphSpec', () => {
     const timeSeries = [[date, max], [date, min], [date, mid]]
 
     it('can pad positive values', () => {
-      const [actualMin, actualMax] = getRange(timeSeries, undefined, {...kapacitor, rangeValue: 20})
+      const [actualMin, actualMax] = getRange(timeSeries, undefined, {
+        ...kapacitor,
+        rangeValue: 20,
+      })
 
       expect(actualMin).to.equal(min)
       expect(actualMax).to.be.above(max)
     })
 
     it('can pad negative values', () => {
-      const [actualMin, actualMax] = getRange(timeSeries, undefined, {...kapacitor, rangeValue: -10})
+      const [actualMin, actualMax] = getRange(timeSeries, undefined, {
+        ...kapacitor,
+        rangeValue: -10,
+      })
 
       expect(actualMin).to.be.below(min)
       expect(actualMax).to.equal(max)

@@ -41,7 +41,8 @@ const RenameCluster = React.createClass({
                 <div className="row">
                   <div className="col-md-8 col-md-offset-2 text-center">
                     <p>
-                      A cluster can have an alias that replaces its ID in the interface.
+                      A cluster can have an alias that replaces its ID in the
+                      interface.
                       <br />
                       This does not affect the cluster ID.
                     </p>
