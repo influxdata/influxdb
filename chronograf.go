@@ -1,6 +1,7 @@
 package chronograf
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -171,10 +172,10 @@ func (t BasicTemplateVar) String() string {
 }
 
 type GroupByVar struct {
-	Var               string        // the name of the variable as present in the query
-	Duration          time.Duration // the Duration supplied by the query
-	Resolution        uint          // the available screen resolution to render the results of this query
-	ReportingInterval time.Duration // the interval at which data is reported to this series
+	Var               string        `json:"tempVar"`           // the name of the variable as present in the query
+	Duration          time.Duration `json:"duration"`          // the Duration supplied by the query
+	Resolution        uint          `json:"resolution"`        // the available screen resolution to render the results of this query
+	ReportingInterval time.Duration `json:"reportingInterval"` // the interval at which data is reported to this series
 }
 
 func (g *GroupByVar) String() string {
@@ -218,26 +219,48 @@ type Query struct {
 type TemplateVars []TemplateVariable
 
 func (t *TemplateVars) UnmarshalJSON(text []byte) error {
-	var rawVars []interface{}
-	err := json.Unmarshal(text, &rawVars)
+	rawVars := bytes.NewReader(text)
+	dec := json.NewDecoder(rawVars)
+
+	// read open bracket
+	rawTok, err := dec.Token()
 	if err != nil {
 		return err
 	}
-	for _, rawVar := range rawVars {
-		halfBakedVar, ok := rawVar.(map[string]interface{})
-		if !ok {
-			return errors.New("error decoding template variables. Expected a map")
+
+	tok, isDelim := rawTok.(json.Delim)
+	if !isDelim || tok != '[' {
+		return errors.New("Expected JSON array, but found " + tok.String())
+	}
+
+	for dec.More() {
+		var halfBakedVar json.RawMessage
+		err := dec.Decode(&halfBakedVar)
+		if err != nil {
+			return err
 		}
 
-		switch halfBakedVar["tempVar"] {
-		case "autoGroupBy":
-			(*t) = append(*t, &GroupByVar{
-				Duration:          180 * 24 * time.Hour,
-				Resolution:        1000,
-				ReportingInterval: 10 * time.Second,
-			})
-		default:
-			(*t) = append(*t, &BasicTemplateVar{})
+		var agb GroupByVar
+		err = json.Unmarshal(halfBakedVar, &agb)
+		if err != nil {
+			return err
+		}
+
+		// ensure that we really have a GroupByVar
+		if agb.Resolution != 0 {
+			(*t) = append(*t, &agb)
+			continue
+		}
+
+		var tvar BasicTemplateVar
+		err = json.Unmarshal(halfBakedVar, &tvar)
+		if err != nil {
+			return err
+		}
+
+		// ensure that we really have a BasicTemplateVar
+		if len(tvar.Values) != 0 {
+			(*t) = append(*t, tvar)
 		}
 	}
 	return nil

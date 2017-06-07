@@ -160,7 +160,8 @@ func Test_TemplateVarsUnmarshalling(t *testing.T) {
 		"values": [
 			{
 				"type": "tagValue",
-				"value": "cpu-total"
+				"value": "cpu-total",
+				"selected": false
 			}
 		]
 	}
@@ -175,6 +176,10 @@ func Test_TemplateVarsUnmarshalling(t *testing.T) {
 	err := json.Unmarshal([]byte(req), &tvars)
 	if err != nil {
 		t.Fatal("Err unmarshaling:", err)
+	}
+
+	if len(tvars) != len(expected) {
+		t.Fatal("Expected", len(expected), "vars but found", len(tvars))
 	}
 
 	for idx, tvar := range tvars {
