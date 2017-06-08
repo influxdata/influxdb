@@ -141,16 +141,20 @@ class AlertsTable extends Component {
           </p>
         </div>
       : <div className="generic-empty-state">
-          <h5 className="no-user-select">
-            Alerts appear here when you have Rules
-          </h5>
+          <h4 className="no-user-select">
+            There are no Alerts to display
+          </h4>
           <br />
-          <Link
-            to={`/sources/${id}/alert-rules/new`}
-            className="btn btn-primary"
-          >
-            Create a Rule
-          </Link>
+          <h6 className="no-user-select">
+            Try changing the Time Range or
+            <Link
+              style={{marginLeft: '10px'}}
+              to={`/sources/${id}/alert-rules/new`}
+              className="btn btn-primary btn-sm"
+            >
+              Create an Alert Rule
+            </Link>
+          </h6>
         </div>
   }
 
