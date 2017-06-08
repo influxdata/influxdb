@@ -5,6 +5,7 @@ import thunkMiddleware from 'redux-thunk'
 
 import errorsMiddleware from 'shared/middleware/errors'
 import resizeLayout from 'shared/middleware/resizeLayout'
+import statusReducer from 'src/status/reducers/status'
 import adminReducer from 'src/admin/reducers/admin'
 import sharedReducers from 'shared/reducers'
 import dataExplorerReducers from 'src/data_explorer/reducers'
@@ -13,6 +14,7 @@ import dashboardUI from 'src/dashboards/reducers/ui'
 import persistStateEnhancer from './persistStateEnhancer'
 
 const rootReducer = combineReducers({
+  status: statusReducer,
   ...sharedReducers,
   ...dataExplorerReducers,
   admin: adminReducer,
