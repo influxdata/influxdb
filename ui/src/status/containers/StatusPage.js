@@ -5,77 +5,7 @@ import SourceIndicator from 'shared/components/SourceIndicator'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 import LayoutRenderer from 'shared/components/LayoutRenderer'
 
-const fixtureStatusPageCells = [
-  {
-    i: 'c-bar-graphs-fly',
-    isWidget: false,
-    x: 0,
-    y: 0,
-    w: 12,
-    h: 4,
-    name: 'Alerts – Aspiring Bar Graph',
-    queries: [
-      {
-        query:
-          'SELECT "usage_user" FROM "telegraf"."autogen"."cpu" WHERE time > :dashboardTime:',
-        label: 'cpu.usage_user',
-        queryConfig: {
-          database: 'telegraf',
-          measurement: 'cpu',
-          retentionPolicy: 'autogen',
-          fields: [
-            {
-              field: 'usage_user',
-              funcs: [],
-            },
-          ],
-          tags: {},
-          groupBy: {
-            time: '',
-            tags: [],
-          },
-          areTagsAccepted: false,
-          rawText: null,
-          range: null,
-        },
-      },
-    ],
-    type: 'line',
-    links: {
-      self: '/chronograf/v1/status/23/cells/c-bar-graphs-fly',
-    },
-  },
-  {
-    i: 'recent-alerts',
-    isWidget: true,
-    name: 'Recent Alerts',
-    type: 'alerts',
-    x: 0,
-    y: 5,
-    w: 5,
-    h: 5,
-  },
-  {
-    i: 'news-feed',
-    isWidget: true,
-    name: 'News Feed',
-    type: 'news',
-    x: 5,
-    y: 5,
-    w: 3.5,
-    h: 5,
-  },
-  {
-    i: 'getting-started',
-    isWidget: true,
-    name: 'Getting Started',
-    type: 'guide',
-    x: 8.5,
-    y: 5,
-    w: 3.5,
-    h: 5,
-  },
-]
+import {fixtureStatusPageCells} from 'src/status/fixtures'
 
 class StatusPage extends Component {
   constructor(props) {
