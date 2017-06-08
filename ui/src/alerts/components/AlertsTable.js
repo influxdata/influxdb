@@ -62,99 +62,118 @@ class AlertsTable extends Component {
     }
   }
 
-  render() {
-    const {source: {id}, shouldNotBeFilterable} = this.props
+  renderTable() {
+    const {source: {id}} = this.props
     const alerts = this.sort(
       this.state.filteredAlerts,
       this.state.sortKey,
       this.state.sortDirection
     )
-    return (
-      <div className="panel panel-minimal">
-        {shouldNotBeFilterable
-          ? null
-          : <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-              <h2 className="panel-title">{this.props.alerts.length} Alerts</h2>
-              {this.props.alerts.length
-                ? <SearchBar onSearch={this.filterAlerts} />
-                : null}
-            </div>}
-        <div className="panel-body">
-          {this.props.alerts.length
-            ? <table className="table v-center table-highlight">
-                <thead>
-                  <tr>
-                    <th
-                      onClick={() => this.changeSort('name')}
-                      className="sortable-header"
-                    >
-                      Name
-                    </th>
-                    <th
-                      onClick={() => this.changeSort('level')}
-                      className="sortable-header"
-                    >
-                      Level
-                    </th>
-                    <th
-                      onClick={() => this.changeSort('time')}
-                      className="sortable-header"
-                    >
-                      Time
-                    </th>
-                    <th
-                      onClick={() => this.changeSort('host')}
-                      className="sortable-header"
-                    >
-                      Host
-                    </th>
-                    <th
-                      onClick={() => this.changeSort('value')}
-                      className="sortable-header"
-                    >
-                      Value
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {alerts.map(({name, level, time, host, value}) => {
-                    return (
-                      <tr key={`${name}-${level}-${time}-${host}-${value}`}>
-                        <td className="monotype">{name}</td>
-                        <td
-                          className={`monotype alert-level-${level.toLowerCase()}`}
-                        >
-                          {level}
-                        </td>
-                        <td className="monotype">
-                          {new Date(Number(time)).toISOString()}
-                        </td>
-                        <td className="monotype">
-                          <Link to={`/sources/${id}/hosts/${host}`}>
-                            {host}
-                          </Link>
-                        </td>
-                        <td className="monotype">{value}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            : <div className="generic-empty-state">
-                <h5 className="no-user-select">
-                  Alerts appear here when you have Rules
-                </h5>
-                <br />
-                <Link
-                  to={`/sources/${id}/alert-rules/new`}
-                  className="btn btn-primary"
-                >
-                  Create a Rule
-                </Link>
-              </div>}
+    return this.props.alerts.length
+      ? <table className="table v-center table-highlight">
+          <thead>
+            <tr>
+              <th
+                onClick={() => this.changeSort('name')}
+                className="sortable-header"
+              >
+                Name
+              </th>
+              <th
+                onClick={() => this.changeSort('level')}
+                className="sortable-header"
+              >
+                Level
+              </th>
+              <th
+                onClick={() => this.changeSort('time')}
+                className="sortable-header"
+              >
+                Time
+              </th>
+              <th
+                onClick={() => this.changeSort('host')}
+                className="sortable-header"
+              >
+                Host
+              </th>
+              <th
+                onClick={() => this.changeSort('value')}
+                className="sortable-header"
+              >
+                Value
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {alerts.map(({name, level, time, host, value}) => {
+              return (
+                <tr key={`${name}-${level}-${time}-${host}-${value}`}>
+                  <td className="monotype">{name}</td>
+                  <td className={`monotype alert-level-${level.toLowerCase()}`}>
+                    {level}
+                  </td>
+                  <td className="monotype">
+                    {new Date(Number(time)).toISOString()}
+                  </td>
+                  <td className="monotype">
+                    <Link to={`/sources/${id}/hosts/${host}`}>
+                      {host}
+                    </Link>
+                  </td>
+                  <td className="monotype">{value}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      : this.renderTableEmpty()
+  }
+
+  renderTableEmpty() {
+    const {source: {id}, shouldNotBeFilterable} = this.props
+
+    return shouldNotBeFilterable
+      ? <div className="graph-empty">
+          <p>
+            Learn how to configure your first <strong>Rule</strong> in<br />
+            the <em>Getting Started</em> guide
+          </p>
         </div>
-      </div>
-    )
+      : <div className="generic-empty-state">
+          <h4 className="no-user-select">
+            There are no Alerts to display
+          </h4>
+          <br />
+          <h6 className="no-user-select">
+            Try changing the Time Range or
+            <Link
+              style={{marginLeft: '10px'}}
+              to={`/sources/${id}/alert-rules/new`}
+              className="btn btn-primary btn-sm"
+            >
+              Create an Alert Rule
+            </Link>
+          </h6>
+        </div>
+  }
+
+  render() {
+    const {shouldNotBeFilterable} = this.props
+
+    return shouldNotBeFilterable
+      ? this.renderTable()
+      : <div className="panel panel-minimal">
+          <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+            <h2 className="panel-title">{this.props.alerts.length} Alerts</h2>
+            {this.props.alerts.length
+              ? <SearchBar onSearch={this.filterAlerts} />
+              : null}
+          </div>
+          <div className="panel-body">
+            {this.renderTable()}
+          </div>
+        </div>
   }
 }
 
