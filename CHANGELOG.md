@@ -89,6 +89,7 @@ The following new configuration options are available.
 - [#8299](https://github.com/influxdata/influxdb/issues/8299): Out of memory when using HTTP API
 - [#8455](https://github.com/influxdata/influxdb/pull/8455): Check file count before attempting a TSI level compaction.
 - [#8470](https://github.com/influxdata/influxdb/issues/8470): index file fd leak in tsi branch
+- [#8468](https://github.com/influxdata/influxdb/pull/8468): Fix TSI non-contiguous compaction panic.
 
 ## v1.2.4 [2017-05-08]
 
