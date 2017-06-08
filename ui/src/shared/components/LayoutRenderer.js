@@ -4,6 +4,7 @@ import ReactGridLayout, {WidthProvider} from 'react-grid-layout'
 
 import NameableGraph from 'shared/components/NameableGraph'
 import RefreshingGraph from 'shared/components/RefreshingGraph'
+import AlertsApp from 'src/alerts/containers/AlertsApp'
 
 import timeRanges from 'hson!shared/data/timeRanges.hson'
 import buildInfluxQLQuery from 'utils/influxql'
@@ -20,7 +21,7 @@ export const LayoutRenderer = React.createClass({
     }),
     cells: arrayOf(
       shape({
-        // isNonGraph cells will not have queries
+        // isWidget cells will not have queries
         queries: arrayOf(
           shape({
             label: string,
@@ -39,7 +40,11 @@ export const LayoutRenderer = React.createClass({
     ),
     templates: arrayOf(shape()),
     host: string,
-    source: string,
+    source: shape({
+      links: shape({
+        proxy: string.isRequired,
+      }).isRequired,
+    }).isRequired,
     onPositionChange: func,
     onEditCell: func,
     onRenameCell: func,
@@ -98,19 +103,19 @@ export const LayoutRenderer = React.createClass({
       }
 
       return Object.assign({}, query, {
-        host: source,
+        host: source.links.proxy,
         text: queryText,
       })
     })
   },
 
-  generateNonGraphCell(cell) {
+  generateWidgetCell(cell) {
+    const {source, timeRange} = this.props
+
     switch (cell.type) {
       case 'alerts': {
         return (
-          <div className="graph-empty">
-            <p>Coming soon: Alerts list</p>
-          </div>
+          <AlertsApp source={source} timeRange={timeRange} isWidget={true} />
         )
       }
       case 'news': {
@@ -166,8 +171,8 @@ export const LayoutRenderer = React.createClass({
             shouldNotBeEditable={shouldNotBeEditable}
             cell={cell}
           >
-            {cell.isNonGraph
-              ? this.generateNonGraphCell(cell)
+            {cell.isWidget
+              ? this.generateWidgetCell(cell)
               : <RefreshingGraph
                   timeRange={timeRange}
                   autoRefresh={autoRefresh}

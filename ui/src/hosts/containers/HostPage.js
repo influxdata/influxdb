@@ -153,7 +153,7 @@ export const HostPage = React.createClass({
         timeRange={timeRange}
         cells={layoutCells}
         autoRefresh={autoRefresh}
-        source={source.links.proxy}
+        source={source}
         host={this.props.params.hostID}
         shouldNotBeEditable={true}
       />

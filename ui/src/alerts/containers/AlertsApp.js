@@ -12,9 +12,18 @@ import AJAX from 'utils/ajax'
 import _ from 'lodash'
 import moment from 'moment'
 
+import timeRanges from 'hson!shared/data/timeRanges.hson'
+
 class AlertsApp extends Component {
   constructor(props) {
     super(props)
+
+    const lowerInSec = props.timeRange
+      ? timeRanges.find(tr => tr.lower === props.timeRange.lower).seconds
+      : undefined
+
+    const oneDayInSec = 86400
+
     this.state = {
       loading: true,
       hasKapacitor: false,
@@ -22,7 +31,7 @@ class AlertsApp extends Component {
       isTimeOpen: false,
       timeRange: {
         upper: moment().format(),
-        lower: moment().subtract(1, 'd').format(),
+        lower: moment().subtract(lowerInSec || oneDayInSec, 'seconds').format(),
       },
     }
 
@@ -95,13 +104,17 @@ class AlertsApp extends Component {
   }
 
   renderSubComponents() {
-    const {source} = this.props
+    const {source, isWidget} = this.props
     return (
       <div className="container-fluid">
         <div className="row">
           <div className="col-md-12">
             {this.state.hasKapacitor
-              ? <AlertsTable source={source} alerts={this.state.alerts} />
+              ? <AlertsTable
+                  source={source}
+                  alerts={this.state.alerts}
+                  shouldNotBeFilterable={isWidget}
+                />
               : <NoKapacitorError source={source} />}
           </div>
         </div>
@@ -122,43 +135,45 @@ class AlertsApp extends Component {
   }
 
   render() {
-    const {source} = this.props
+    const {isWidget, source} = this.props
     const {loading, timeRange} = this.state
 
     if (loading || !source) {
       return <div className="page-spinner" />
     }
 
-    return (
-      <div className="page">
-        <div className="page-header">
-          <div className="page-header__container">
-            <div className="page-header__left">
-              <h1 className="page-header__title">
-                Alert History
-              </h1>
-            </div>
-            <div className="page-header__right">
-              <SourceIndicator sourceName={source.name} />
-              <CustomTimeRangeDropdown
-                isVisible={this.state.isTimeOpen}
-                onToggle={this.handleToggleTime}
-                onClose={this.handleCloseTime}
-                onApplyTimeRange={this.handleApplyTime}
-                timeRange={timeRange}
-              />
-            </div>
-          </div>
-        </div>
-        <FancyScrollbar className="page-contents">
+    return isWidget
+      ? <FancyScrollbar className="page-contents">
           {this.renderSubComponents()}
         </FancyScrollbar>
-      </div>
-    )
+      : <div className="page">
+          <div className="page-header">
+            <div className="page-header__container">
+              <div className="page-header__left">
+                <h1 className="page-header__title">
+                  Alert History
+                </h1>
+              </div>
+              <div className="page-header__right">
+                <SourceIndicator sourceName={source.name} />
+                <CustomTimeRangeDropdown
+                  isVisible={this.state.isTimeOpen}
+                  onToggle={this.handleToggleTime}
+                  onClose={this.handleCloseTime}
+                  onApplyTimeRange={this.handleApplyTime}
+                  timeRange={timeRange}
+                />
+              </div>
+            </div>
+          </div>
+          <FancyScrollbar className="page-contents">
+            {this.renderSubComponents()}
+          </FancyScrollbar>
+        </div>
   }
 }
 
-const {func, shape, string} = PropTypes
+const {bool, oneOfType, shape, string} = PropTypes
 
 AlertsApp.propTypes = {
   source: shape({
@@ -169,7 +184,11 @@ AlertsApp.propTypes = {
       proxy: string.isRequired,
     }).isRequired,
   }),
-  addFlashMessage: func,
+  timeRange: shape({
+    lower: string.isRequired,
+    upper: oneOfType([shape(), string]),
+  }),
+  isWidget: bool,
 }
 
 export default AlertsApp

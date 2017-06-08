@@ -8,7 +8,7 @@ import LayoutRenderer from 'shared/components/LayoutRenderer'
 const fixtureStatusPageCells = [
   {
     i: 'c-bar-graphs-fly',
-    isNonGraph: false,
+    isWidget: false,
     x: 0,
     y: 0,
     w: 12,
@@ -47,32 +47,32 @@ const fixtureStatusPageCells = [
   },
   {
     i: 'recent-alerts',
-    isNonGraph: true,
+    isWidget: true,
     name: 'Recent Alerts',
     type: 'alerts',
     x: 0,
     y: 5,
-    w: 4,
+    w: 5,
     h: 5,
   },
   {
     i: 'news-feed',
-    isNonGraph: true,
+    isWidget: true,
     name: 'News Feed',
     type: 'news',
-    x: 4,
+    x: 5,
     y: 5,
-    w: 4,
+    w: 3.5,
     h: 5,
   },
   {
     i: 'getting-started',
-    isNonGraph: true,
+    isWidget: true,
     name: 'Getting Started',
     type: 'guide',
-    x: 8,
+    x: 8.5,
     y: 5,
-    w: 4,
+    w: 3.5,
     h: 5,
   },
 ]
@@ -126,7 +126,7 @@ class StatusPage extends Component {
                   timeRange={timeRange}
                   cells={cells}
                   templates={templates}
-                  source={source.links.proxy}
+                  source={source}
                   shouldNotBeEditable={true}
                 />
               : <span>Loading Status Page...</span>}
@@ -142,6 +142,9 @@ const {number, shape, string} = PropTypes
 StatusPage.propTypes = {
   source: shape({
     name: string.isRequired,
+    links: shape({
+      proxy: string.isRequired,
+    }).isRequired,
   }).isRequired,
   autoRefresh: number.isRequired,
   timeRange: shape({
