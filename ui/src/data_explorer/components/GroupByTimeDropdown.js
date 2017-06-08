@@ -1,6 +1,6 @@
 import React, {PropTypes} from 'react'
 
-import groupByTimeOptions from 'hson!../data/groupByTimes.hson'
+import groupByTimeOptions from 'hson!src/data_explorer/data/groupByTimes.hson'
 
 import Dropdown from 'shared/components/Dropdown'
 

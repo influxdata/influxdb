@@ -5,7 +5,7 @@ import ReactGridLayout, {WidthProvider} from 'react-grid-layout'
 import NameableGraph from 'shared/components/NameableGraph'
 import RefreshingGraph from 'shared/components/RefreshingGraph'
 
-import timeRanges from 'hson!../data/timeRanges.hson'
+import timeRanges from 'hson!shared/data/timeRanges.hson'
 import buildInfluxQLQuery from 'utils/influxql'
 
 const GridLayout = WidthProvider(ReactGridLayout)
