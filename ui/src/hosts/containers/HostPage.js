@@ -47,12 +47,10 @@ export const HostPage = React.createClass({
   },
 
   getInitialState() {
-    const timeRange = timeRanges[2]
-
     return {
       layouts: [],
       hosts: [],
-      timeRange,
+      timeRange: timeRanges.find(tr => tr.lower === 'now() - 1h'),
     }
   },
 
