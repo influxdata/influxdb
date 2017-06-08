@@ -1,36 +1,26 @@
-import React, {PropTypes} from 'react'
+import React, {Component, PropTypes} from 'react'
 import _ from 'lodash'
 import {Link} from 'react-router'
 
-const AlertsTable = React.createClass({
-  propTypes: {
-    alerts: PropTypes.arrayOf(
-      PropTypes.shape({
-        name: PropTypes.string,
-        time: PropTypes.string,
-        value: PropTypes.string,
-        host: PropTypes.string,
-        level: PropTypes.string,
-      })
-    ),
-    source: PropTypes.shape({
-      id: PropTypes.string.isRequired,
-      name: PropTypes.string.isRequired,
-    }).isRequired,
-  },
+class AlertsTable extends Component {
+  constructor(props) {
+    super(props)
 
-  getInitialState() {
-    return {
+    this.state = {
       searchTerm: '',
       filteredAlerts: this.props.alerts,
       sortDirection: null,
       sortKey: null,
     }
-  },
+
+    this.filterAlerts = ::this.filterAlerts
+    this.changeSort = ::this.changeSort
+    this.sort = ::this.sort
+  }
 
   componentWillReceiveProps(newProps) {
     this.filterAlerts(this.state.searchTerm, newProps.alerts)
-  },
+  }
 
   filterAlerts(searchTerm, newAlerts) {
     const alerts = newAlerts || this.props.alerts
@@ -47,7 +37,7 @@ const AlertsTable = React.createClass({
       )
     })
     this.setState({searchTerm, filteredAlerts})
-  },
+  }
 
   changeSort(key) {
     // if we're using the key, reverse order; otherwise, set it with ascending
@@ -59,7 +49,7 @@ const AlertsTable = React.createClass({
     } else {
       this.setState({sortKey: key, sortDirection: 'asc'})
     }
-  },
+  }
 
   sort(alerts, key, direction) {
     switch (direction) {
@@ -70,7 +60,7 @@ const AlertsTable = React.createClass({
       default:
         return alerts
     }
-  },
+  }
 
   render() {
     const {id} = this.props.source
@@ -163,32 +153,33 @@ const AlertsTable = React.createClass({
         </div>
       </div>
     )
-  },
-})
+  }
+}
 
-const SearchBar = React.createClass({
-  propTypes: {
-    onSearch: PropTypes.func.isRequired,
-  },
+class SearchBar extends Component {
+  constructor(props) {
+    super(props)
 
-  getInitialState() {
-    return {
+    this.state = {
       searchTerm: '',
     }
-  },
+
+    this.handleSearch = ::this.handleSearch
+    this.handleChange = ::this.handleChange
+  }
 
   componentWillMount() {
     const waitPeriod = 300
     this.handleSearch = _.debounce(this.handleSearch, waitPeriod)
-  },
+  }
 
   handleSearch() {
     this.props.onSearch(this.state.searchTerm)
-  },
+  }
 
   handleChange(e) {
     this.setState({searchTerm: e.target.value}, this.handleSearch)
-  },
+  }
 
   render() {
     return (
@@ -205,7 +196,29 @@ const SearchBar = React.createClass({
         </div>
       </div>
     )
-  },
-})
+  }
+}
+
+const {arrayOf, func, shape, string} = PropTypes
+
+AlertsTable.propTypes = {
+  alerts: arrayOf(
+    shape({
+      name: string,
+      time: string,
+      value: string,
+      host: string,
+      level: string,
+    })
+  ),
+  source: shape({
+    id: string.isRequired,
+    name: string.isRequired,
+  }).isRequired,
+}
+
+SearchBar.propTypes = {
+  onSearch: func.isRequired,
+}
 
 export default AlertsTable
