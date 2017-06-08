@@ -16,8 +16,7 @@ const fixtureStatusPageCells = [
     name: 'Alerts – Aspiring Bar Graph',
     queries: [
       {
-        query:
-          'SELECT "usage_user" FROM "telegraf"."autogen"."cpu" WHERE time > :dashboardTime:',
+        query: 'SELECT "usage_user" FROM "telegraf"."autogen"."cpu" WHERE time > :dashboardTime:',
         label: 'cpu.usage_user',
         queryConfig: {
           database: 'telegraf',
@@ -106,7 +105,7 @@ class StatusPage extends Component {
 
     return (
       <div className="page">
-        <div className="page-header">
+        <div className="page-header full-width">
           <div className="page-header__container">
             <div className="page-header__left">
               <h1 className="page-header__title">
