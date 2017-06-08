@@ -63,7 +63,7 @@ class AlertsTable extends Component {
   }
 
   render() {
-    const {id} = this.props.source
+    const {source: {id}, shouldNotBeFilterable} = this.props
     const alerts = this.sort(
       this.state.filteredAlerts,
       this.state.sortKey,
@@ -71,12 +71,14 @@ class AlertsTable extends Component {
     )
     return (
       <div className="panel panel-minimal">
-        <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-          <h2 className="panel-title">{this.props.alerts.length} Alerts</h2>
-          {this.props.alerts.length
-            ? <SearchBar onSearch={this.filterAlerts} />
-            : null}
-        </div>
+        {shouldNotBeFilterable
+          ? null
+          : <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+              <h2 className="panel-title">{this.props.alerts.length} Alerts</h2>
+              {this.props.alerts.length
+                ? <SearchBar onSearch={this.filterAlerts} />
+                : null}
+            </div>}
         <div className="panel-body">
           {this.props.alerts.length
             ? <table className="table v-center table-highlight">
@@ -199,7 +201,7 @@ class SearchBar extends Component {
   }
 }
 
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 AlertsTable.propTypes = {
   alerts: arrayOf(
@@ -215,6 +217,7 @@ AlertsTable.propTypes = {
     id: string.isRequired,
     name: string.isRequired,
   }).isRequired,
+  shouldNotBeFilterable: bool,
 }
 
 SearchBar.propTypes = {
