@@ -106,18 +106,14 @@ class AlertsApp extends Component {
   renderSubComponents() {
     const {source, isWidget} = this.props
     return (
-      <div className="container-fluid">
-        <div className="row">
-          <div className="col-md-12">
-            {this.state.hasKapacitor
-              ? <AlertsTable
-                  source={source}
-                  alerts={this.state.alerts}
-                  shouldNotBeFilterable={isWidget}
-                />
-              : <NoKapacitorError source={source} />}
-          </div>
-        </div>
+      <div>
+        {this.state.hasKapacitor
+          ? <AlertsTable
+              source={source}
+              alerts={this.state.alerts}
+              shouldNotBeFilterable={isWidget}
+            />
+          : <NoKapacitorError source={source} />}
       </div>
     )
   }
@@ -143,7 +139,7 @@ class AlertsApp extends Component {
     }
 
     return isWidget
-      ? <FancyScrollbar className="page-contents">
+      ? <FancyScrollbar>
           {this.renderSubComponents()}
         </FancyScrollbar>
       : <div className="page">
@@ -167,7 +163,13 @@ class AlertsApp extends Component {
             </div>
           </div>
           <FancyScrollbar className="page-contents">
-            {this.renderSubComponents()}
+            <div className="container-fluid">
+              <div className="row">
+                <div className="col-md-12">
+                  {this.renderSubComponents()}
+                </div>
+              </div>
+            </div>
           </FancyScrollbar>
         </div>
   }
