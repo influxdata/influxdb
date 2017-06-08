@@ -20,13 +20,14 @@ export const LayoutRenderer = React.createClass({
     }),
     cells: arrayOf(
       shape({
+        // isNonGraph cells will not have queries
         queries: arrayOf(
           shape({
             label: string,
             text: string,
             query: string,
           }).isRequired
-        ).isRequired,
+        ),
         x: number.isRequired,
         y: number.isRequired,
         w: number.isRequired,
@@ -81,7 +82,7 @@ export const LayoutRenderer = React.createClass({
     return text
   },
 
-  conformQueries(cell, source) {
+  standardizeQueries(cell, source) {
     return cell.queries.map(query => {
       // TODO: Canned dashboards (and possibly Kubernetes dashboard) use an old query schema,
       // which does not have enough information for the new `buildInfluxQLQuery` function
@@ -103,41 +104,30 @@ export const LayoutRenderer = React.createClass({
     })
   },
 
-  isGraph(cell) {
-    // TODO: get this list from server
-    const GRAPH_TYPES = [
-      'line',
-      'line-stepplot',
-      'line-stacked',
-      'single-stat',
-      'line-plus-single-stat',
-    ]
-    return GRAPH_TYPES.includes(cell.type)
-  },
-
-  renderRefreshingComponent(type) {
-    if (type === 'alerts') {
-      return (
-        <div className="graph-empty">
-          <p>Coming soon: Alerts list</p>
-        </div>
-      )
+  generateNonGraphCell(cell) {
+    switch (cell.type) {
+      case 'alerts': {
+        return (
+          <div className="graph-empty">
+            <p>Coming soon: Alerts list</p>
+          </div>
+        )
+      }
+      case 'news': {
+        return (
+          <div className="graph-empty">
+            <p>Coming soon: Newsfeed</p>
+          </div>
+        )
+      }
+      case 'guide': {
+        return (
+          <div className="graph-empty">
+            <p>Coming soon: Markdown-based guide</p>
+          </div>
+        )
+      }
     }
-    if (type === 'news') {
-      return (
-        <div className="graph-empty">
-          <p>Coming soon: Newsfeed</p>
-        </div>
-      )
-    }
-    if (type === 'guide') {
-      return (
-        <div className="graph-empty">
-          <p>Coming soon: Markdown-based guide</p>
-        </div>
-      )
-    }
-
     return (
       <div className="graph-empty">
         <p>No Results</p>
@@ -164,7 +154,6 @@ export const LayoutRenderer = React.createClass({
 
     return cells.map(cell => {
       const {type, h} = cell
-      const queries = this.conformQueries(cell, source)
 
       return (
         <div key={cell.i}>
@@ -177,17 +166,17 @@ export const LayoutRenderer = React.createClass({
             shouldNotBeEditable={shouldNotBeEditable}
             cell={cell}
           >
-            {this.isGraph(cell)
-              ? <RefreshingGraph
+            {cell.isNonGraph
+              ? this.generateNonGraphCell(cell)
+              : <RefreshingGraph
                   timeRange={timeRange}
                   autoRefresh={autoRefresh}
                   templates={templates}
                   synchronizer={synchronizer}
                   type={type}
-                  queries={queries}
+                  queries={this.standardizeQueries(cell, source)}
                   cellHeight={h}
-                />
-              : this.renderRefreshingComponent(cell.type)}
+                />}
           </NameableGraph>
         </div>
       )
