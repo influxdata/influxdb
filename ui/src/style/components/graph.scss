@@ -66,18 +66,18 @@ $graph-gutter: 16px;
 .graph-container {
   @include no-user-select();
 
-  & > div:not(.graph-panel__refreshing) {
+  & > .dygraph {
     position: absolute;
     width: 100%;
     height: 100%;
   }
-  & > div:not(.graph-panel__refreshing) > div:not(.graph-panel__refreshing) {
+  & > .dygraph > .dygraph-child {
     position: absolute;
     width: 100%;
     height: 100%;
     padding: 8px 16px;
   }
-  & > div:not(.graph-panel__refreshing) > div:not(.graph-panel__refreshing) > div:first-child {
+  & > .dygraph > .dygraph-child > .dygraph-child-container {
     height: 100% !important;
   }
 }

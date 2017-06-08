@@ -36,7 +36,7 @@ class StatusPage extends Component {
 
     return (
       <div className="page">
-        <div className="page-header">
+        <div className="page-header full-width">
           <div className="page-header__container">
             <div className="page-header__left">
               <h1 className="page-header__title">
