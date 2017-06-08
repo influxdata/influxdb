@@ -53,3 +53,15 @@ export default async function AJAX({
     throw {...response, auth: {links: auth}, logout: links.logout} // eslint-disable-line no-throw-literal
   }
 }
+
+export const get = async url => {
+  try {
+    return await AJAX({
+      method: 'GET',
+      url,
+    })
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}
