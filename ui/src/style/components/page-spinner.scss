@@ -1,26 +1,36 @@
 .page-spinner {
-  border: 0.3em solid rgba(51, 51, 51, 0.4);
+  border: 4px solid rgba(51, 51, 51, 0.4);
   border-left-color: $c-pool;
   border-radius: 50%;
-  width: 8em;
-  height: 8em;
-  position: fixed;
-  margin: auto;
-  top: 0;
-  left: $sidebar-width; // Center the spinner based on the main content window, not the entire screen
-  bottom: 0;
-  right: 0;
-
-  /* This is a hack to tell the browser to use the GPU when rendering the spinner. */
-  transform: translateZ(0);
-  animation: spinner 0.6s infinite linear;
+  width: 100px;
+  height: 100px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%,-50%);
+  animation: pageSpinner 0.8s infinite linear;
+}
+.chronograf-root > .page-spinner {
+   // Center the spinner based on the main content window, not the entire screen
+  left: calc(50% + #{$sidebar-width});
 }
 
-@keyframes spinner {
+@keyframes pageSpinner {
   0% {
-    transform: rotate(0deg);
+    transform: translate(-50%,-50%) rotate(0deg);
+    border-left-color: $c-pool;
+  }
+  25% {
+    border-left-color: $c-comet;
+  }
+  50% {
+    border-left-color: $c-pool;
+  }
+  75% {
+    border-left-color: $c-rainforest;
   }
   100% {
-    transform: rotate(360deg);
+    transform: translate(-50%,-50%) rotate(360deg);
+    border-left-color: $c-pool;
   }
 }
