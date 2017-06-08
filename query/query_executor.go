@@ -29,6 +29,11 @@ var (
 	// ErrQueryAborted is an error returned when the query is aborted.
 	ErrQueryAborted = errors.New("query aborted")
 
+	// ErrQueryCanceled is an error that signals the query was canceled during
+	// execution by the query engine itself due to another error that was
+	// already reported. This error should never be emitted to the user.
+	ErrQueryCanceled = errors.New("query canceled")
+
 	// ErrQueryEngineShutdown is an error sent when the query cannot be
 	// created because the query engine was shutdown.
 	ErrQueryEngineShutdown = errors.New("query engine shutdown")
@@ -107,9 +112,6 @@ type ExecutionOptions struct {
 	// what resources can be returned in SHOW queries, etc.
 	Authorizer Authorizer
 
-	// The requested maximum number of points to return in each result.
-	ChunkSize int
-
 	// If this query is being executed in a read-only context.
 	ReadOnly bool
 
@@ -135,7 +137,7 @@ type ExecutionContext struct {
 	Query *QueryTask
 
 	// Output channel where results and errors should be sent.
-	Results chan *Result
+	Results chan *ResultSet
 
 	// Hold the query executor's logger.
 	Log zap.Logger
@@ -147,28 +149,45 @@ type ExecutionContext struct {
 	ExecutionOptions
 }
 
-// send sends a Result to the Results channel and will exit if the query has
-// been aborted.
-func (ctx *ExecutionContext) send(result *Result) error {
-	select {
-	case <-ctx.AbortCh:
-		return ErrQueryAborted
-	case ctx.Results <- result:
+// Send sends a Result to the Results channel and will exit if the query has
+// been interrupted or aborted.
+func (ctx *ExecutionContext) CreateResult(messages ...*Message) (*ResultSet, error) {
+	result := &ResultSet{
+		ID:       ctx.StatementID,
+		Messages: messages,
+		AbortCh:  ctx.AbortCh,
 	}
+	select {
+	case <-ctx.InterruptCh:
+		return nil, ErrQueryInterrupted
+	case <-ctx.AbortCh:
+		return nil, ErrQueryAborted
+	case ctx.Results <- result.Init():
+		return result, nil
+	}
+}
+
+// Ok returns a result with no content (it is immediately closed).
+func (ctx *ExecutionContext) Ok(messages ...*Message) error {
+	result, err := ctx.CreateResult(messages...)
+	if err != nil {
+		return err
+	}
+	result.Close()
 	return nil
 }
 
-// Send sends a Result to the Results channel and will exit if the query has
-// been interrupted or aborted.
-func (ctx *ExecutionContext) Send(result *Result) error {
+func (ctx *ExecutionContext) Error(err error) bool {
 	select {
-	case <-ctx.InterruptCh:
-		return ErrQueryInterrupted
 	case <-ctx.AbortCh:
-		return ErrQueryAborted
-	case ctx.Results <- result:
+		return false
+	case ctx.Results <- &ResultSet{ID: ctx.StatementID, Err: err}:
+		return true
 	}
-	return nil
+}
+
+func (ctx *ExecutionContext) Errorf(format string, a ...interface{}) bool {
+	return ctx.Error(fmt.Errorf(format, a...))
 }
 
 // StatementExecutor executes a statement within the QueryExecutor.
@@ -247,15 +266,15 @@ func (e *QueryExecutor) WithLogger(log zap.Logger) {
 }
 
 // ExecuteQuery executes each statement within a query.
-func (e *QueryExecutor) ExecuteQuery(query *influxql.Query, opt ExecutionOptions, closing chan struct{}) <-chan *Result {
-	results := make(chan *Result)
+func (e *QueryExecutor) ExecuteQuery(query *influxql.Query, opt ExecutionOptions, closing chan struct{}) <-chan *ResultSet {
+	results := make(chan *ResultSet)
 	go e.executeQuery(query, opt, closing, results)
 	return results
 }
 
-func (e *QueryExecutor) executeQuery(query *influxql.Query, opt ExecutionOptions, closing <-chan struct{}, results chan *Result) {
+func (e *QueryExecutor) executeQuery(query *influxql.Query, opt ExecutionOptions, closing <-chan struct{}, results chan *ResultSet) {
 	defer close(results)
-	defer e.recover(query, results)
+	defer e.recover(query, results, opt.AbortCh)
 
 	atomic.AddInt64(&e.stats.ActiveQueries, 1)
 	atomic.AddInt64(&e.stats.ExecutedQueries, 1)
@@ -268,7 +287,7 @@ func (e *QueryExecutor) executeQuery(query *influxql.Query, opt ExecutionOptions
 	qid, task, err := e.TaskManager.AttachQuery(query, opt.Database, closing)
 	if err != nil {
 		select {
-		case results <- &Result{Err: err}:
+		case results <- &ResultSet{Err: err}:
 		case <-opt.AbortCh:
 		}
 		return
@@ -320,9 +339,7 @@ LOOP:
 						case "_tags":
 							command = "SHOW TAG VALUES"
 						}
-						results <- &Result{
-							Err: fmt.Errorf("unable to use system source '%s': use %s instead", s.Name, command),
-						}
+						ctx.Errorf("unable to use system source '%s': use %s instead", s.Name, command)
 						break LOOP
 					}
 				}
@@ -333,7 +350,7 @@ LOOP:
 		// This can occur on meta read statements which convert to SELECT statements.
 		newStmt, err := influxql.RewriteStatement(stmt)
 		if err != nil {
-			results <- &Result{Err: err}
+			ctx.Error(err)
 			break
 		}
 		stmt = newStmt
@@ -341,7 +358,7 @@ LOOP:
 		// Normalize each statement if possible.
 		if normalizer, ok := e.StatementExecutor.(StatementNormalizer); ok {
 			if err := normalizer.NormalizeStatement(stmt, defaultDB); err != nil {
-				if err := ctx.send(&Result{Err: err}); err == ErrQueryAborted {
+				if ok := ctx.Error(err); !ok {
 					return
 				}
 				break
@@ -361,14 +378,17 @@ LOOP:
 			if qerr := task.Error(); qerr != nil {
 				err = qerr
 			}
+		} else if err == ErrQueryCanceled {
+			// The query was canceled while it was running so the result has
+			// already been sent and the error has already been reported
+			// through a series or a row. Break out of the main loop so we can
+			// report ErrNotExecuted for the remaining statements.
+			break
 		}
 
 		// Send an error for this result if it failed for some reason.
 		if err != nil {
-			if err := ctx.send(&Result{
-				StatementID: i,
-				Err:         err,
-			}); err == ErrQueryAborted {
+			if ok := ctx.Error(err); !ok {
 				return
 			}
 			// Stop after the first error.
@@ -393,10 +413,8 @@ LOOP:
 
 	// Send error results for any statements which were not executed.
 	for ; i < len(query.Statements)-1; i++ {
-		if err := ctx.send(&Result{
-			StatementID: i,
-			Err:         ErrNotExecuted,
-		}); err == ErrQueryAborted {
+		ctx.StatementID = i
+		if ok := ctx.Error(ErrNotExecuted); !ok {
 			return
 		}
 	}
@@ -413,13 +431,17 @@ func init() {
 	}
 }
 
-func (e *QueryExecutor) recover(query *influxql.Query, results chan *Result) {
+func (e *QueryExecutor) recover(query *influxql.Query, results chan *ResultSet, abortCh <-chan struct{}) {
 	if err := recover(); err != nil {
 		atomic.AddInt64(&e.stats.RecoveredPanics, 1) // Capture the panic in _internal stats.
 		e.Logger.Error(fmt.Sprintf("%s [panic:%s] %s", query.String(), err, debug.Stack()))
-		results <- &Result{
-			StatementID: -1,
-			Err:         fmt.Errorf("%s [panic:%s]", query.String(), err),
+		result := &ResultSet{
+			ID:  -1,
+			Err: fmt.Errorf("%s [panic:%s]", query.String(), err),
+		}
+		select {
+		case <-abortCh:
+		case results <- result:
 		}
 
 		if willCrash {

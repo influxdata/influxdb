@@ -14,6 +14,110 @@ const (
 	WarningLevel = "warning"
 )
 
+type Row struct {
+	Values []interface{}
+	Err    error
+}
+
+type Series struct {
+	Name    string
+	Tags    Tags
+	Columns []string
+	Err     error
+	AbortCh <-chan struct{}
+
+	rowCh chan Row
+}
+
+func (s *Series) Emit(values []interface{}) (ok bool) {
+	row := Row{Values: values}
+	select {
+	case <-s.AbortCh:
+		return false
+	case s.rowCh <- row:
+		return true
+	}
+}
+
+func (s *Series) Error(err error) (ok bool) {
+	row := Row{Err: err}
+	select {
+	case <-s.AbortCh:
+		return false
+	case s.rowCh <- row:
+		return true
+	}
+}
+
+func (s *Series) RowCh() <-chan Row {
+	return s.rowCh
+}
+
+func (s *Series) Close() error {
+	close(s.rowCh)
+	return nil
+}
+
+type ResultSet struct {
+	ID       int
+	Messages []*Message
+	Err      error
+	AbortCh  <-chan struct{}
+
+	seriesCh chan *Series
+	columns  []string
+}
+
+func (rs *ResultSet) Init() *ResultSet {
+	rs.seriesCh = make(chan *Series)
+	return rs
+}
+
+func (rs *ResultSet) WithColumns(columns ...string) *ResultSet {
+	dup := *rs
+	dup.columns = columns
+	return &dup
+}
+
+func (rs *ResultSet) CreateSeries(name string) (*Series, bool) {
+	return rs.CreateSeriesWithTags(name, Tags{})
+}
+
+func (rs *ResultSet) CreateSeriesWithTags(name string, tags Tags) (*Series, bool) {
+	series := &Series{
+		Name:    name,
+		Tags:    tags,
+		Columns: rs.columns,
+		rowCh:   make(chan Row),
+		AbortCh: rs.AbortCh,
+	}
+	select {
+	case <-rs.AbortCh:
+		return nil, false
+	case rs.seriesCh <- series:
+		return series, true
+	}
+}
+
+func (rs *ResultSet) Error(err error) (ok bool) {
+	series := &Series{Err: err}
+	select {
+	case <-rs.AbortCh:
+		return false
+	case rs.seriesCh <- series:
+		return true
+	}
+}
+
+func (rs *ResultSet) SeriesCh() <-chan *Series {
+	return rs.seriesCh
+}
+
+func (rs *ResultSet) Close() error {
+	close(rs.seriesCh)
+	return nil
+}
+
 // TagSet is a fundamental concept within the query system. It represents a composite series,
 // composed of multiple individual series that share a set of tag attributes.
 type TagSet struct {
@@ -72,7 +176,7 @@ type Message struct {
 // ReadOnlyWarning generates a warning message that tells the user the command
 // they are using is being used for writing in a read only context.
 //
-// This is a temporary method while to be used while transitioning to read only
+// This is a temporary method to be used while transitioning to read only
 // operations for issue #6290.
 func ReadOnlyWarning(stmt string) *Message {
 	return &Message{
