@@ -9,7 +9,10 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 )
 
 // General errors.
@@ -134,6 +137,10 @@ type TemplateVariable interface {
 	Name() string // returns the variable name
 }
 
+type ExecutableVar interface {
+	Exec(string)
+}
+
 // TemplateValue is a value use to replace a template in an InfluxQL query
 type BasicTemplateValue struct {
 	Value    string `json:"value"`    // Value is the specific value used to replace a template in an InfluxQL query
@@ -176,6 +183,36 @@ type GroupByVar struct {
 	Duration          time.Duration `json:"duration"`          // the Duration supplied by the query
 	Resolution        uint          `json:"resolution"`        // the available screen resolution to render the results of this query
 	ReportingInterval time.Duration `json:"reportingInterval"` // the interval at which data is reported to this series
+}
+
+// Exec is responsible for extracting the Duration from the query
+func (g *GroupByVar) Exec(query string) {
+	whereClause := "where time > now() - "
+	start := strings.Index(query, whereClause)
+	if start == -1 {
+		// no where clause
+		return
+	}
+
+	// reposition start to the END of the where clause
+	durStr := query[start+len(whereClause):]
+
+	// advance to next space
+	pos := 0
+	for {
+		rn, _ := utf8.DecodeRuneInString(durStr[pos:])
+		if unicode.IsSpace(rn) {
+			break
+		}
+		pos++
+	}
+
+	dur, err := time.ParseDuration(durStr[:pos])
+	if err != nil {
+		return
+	}
+
+	g.Duration = dur
 }
 
 func (g *GroupByVar) String() string {
