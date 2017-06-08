@@ -105,17 +105,13 @@ class AlertsApp extends Component {
 
   renderSubComponents() {
     const {source, isWidget} = this.props
-    return (
-      <div>
-        {this.state.hasKapacitor
-          ? <AlertsTable
-              source={source}
-              alerts={this.state.alerts}
-              shouldNotBeFilterable={isWidget}
-            />
-          : <NoKapacitorError source={source} />}
-      </div>
-    )
+    return this.state.hasKapacitor
+      ? <AlertsTable
+          source={source}
+          alerts={this.state.alerts}
+          shouldNotBeFilterable={isWidget}
+        />
+      : <NoKapacitorError source={source} />
   }
 
   handleToggleTime() {
