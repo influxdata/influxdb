@@ -1,7 +1,7 @@
 import React, {PropTypes} from 'react'
 import ReactTooltip from 'react-tooltip'
 
-const Tooltip = ({tip, children}) => (
+const Tooltip = ({tip, children}) =>
   <div>
     <div data-tip={tip}>{children}</div>
     <ReactTooltip
@@ -12,7 +12,6 @@ const Tooltip = ({tip, children}) => (
       class="influx-tooltip place-bottom"
     />
   </div>
-)
 
 const {shape, string} = PropTypes
 

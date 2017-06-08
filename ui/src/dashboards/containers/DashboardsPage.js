@@ -97,7 +97,7 @@ const DashboardsPage = React.createClass({
                             </tr>
                           </thead>
                           <tbody>
-                            {dashboards.map(dashboard => (
+                            {dashboards.map(dashboard =>
                               <tr key={dashboard.id} className="">
                                 <td className="monotype">
                                   <Link
@@ -112,7 +112,7 @@ const DashboardsPage = React.createClass({
                                   buttonSize="btn-xs"
                                 />
                               </tr>
-                            ))}
+                            )}
                           </tbody>
                         </table>
                       : <div className="generic-empty-state">

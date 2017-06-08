@@ -3,13 +3,14 @@ import {Link} from 'react-router'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
+import Dygraph from 'src/external/dygraph'
+
 import OverlayTechnologies from 'shared/components/OverlayTechnologies'
 import CellEditorOverlay from 'src/dashboards/components/CellEditorOverlay'
 import DashboardHeader from 'src/dashboards/components/DashboardHeader'
 import DashboardHeaderEdit from 'src/dashboards/components/DashboardHeaderEdit'
 import Dashboard from 'src/dashboards/components/Dashboard'
-import TemplateVariableManager
-  from 'src/dashboards/components/TemplateVariableManager'
+import TemplateVariableManager from 'src/dashboards/components/TemplateVariableManager'
 
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 
@@ -29,6 +30,7 @@ class DashboardPage extends Component {
       selectedCell: null,
       isEditMode: false,
       isTemplating: false,
+      dygraphs: [],
     }
 
     this.handleAddCell = ::this.handleAddCell
@@ -52,6 +54,7 @@ class DashboardPage extends Component {
     this.handleEditTemplateVariables = ::this.handleEditTemplateVariables
     this.handleRunQueryFailure = ::this.handleRunQueryFailure
     this.handleToggleTempVarControls = ::this.handleToggleTempVarControls
+    this.synchronizer = ::this.synchronizer
   }
 
   componentDidMount() {
@@ -210,6 +213,14 @@ class DashboardPage extends Component {
     this.props.errorThrown(error)
   }
 
+  synchronizer(dygraph) {
+    const dygraphs = [...this.state.dygraphs, dygraph]
+    if (dygraphs.length > 1) {
+      Dygraph.synchronize(dygraphs)
+    }
+    this.setState({dygraphs})
+  }
+
   handleToggleTempVarControls() {
     this.props.templateControlBarVisibilityToggled()
   }
@@ -248,8 +259,8 @@ class DashboardPage extends Component {
       ],
     }
 
-    const templatesIncludingDashTime = (dashboard &&
-      dashboard.templates.concat(dashboardTime)) || []
+    const templatesIncludingDashTime =
+      (dashboard && dashboard.templates.concat(dashboardTime)) || []
 
     const {selectedCell, isEditMode, isTemplating} = this.state
 
@@ -302,13 +313,13 @@ class DashboardPage extends Component {
               showTemplateControlBar={showTemplateControlBar}
             >
               {dashboards
-                ? dashboards.map((d, i) => (
+                ? dashboards.map((d, i) =>
                     <li className="dropdown-item" key={i}>
                       <Link to={`/sources/${sourceID}/dashboards/${d.id}`}>
                         {d.name}
                       </Link>
                     </li>
-                  ))
+                  )
                 : null}
             </DashboardHeader>}
         {dashboard
@@ -317,6 +328,7 @@ class DashboardPage extends Component {
               dashboard={dashboard}
               timeRange={timeRange}
               autoRefresh={autoRefresh}
+              synchronizer={this.synchronizer}
               onAddCell={this.handleAddCell}
               inPresentationMode={inPresentationMode}
               onEditCell={this.handleEditDashboardCell}

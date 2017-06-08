@@ -129,7 +129,8 @@ class KapacitorForm extends Component {
         <div className="panel-body">
           <div className="generic-empty-state">
             <h4 className="no-user-select">
-              Connect to an active Kapacitor instance to configure alerting endpoints
+              Connect to an active Kapacitor instance to configure alerting
+              endpoints
             </h4>
           </div>
         </div>

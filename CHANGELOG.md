@@ -1,22 +1,40 @@
-## v1.3.2.0 [unreleased]
+## v1.3.3.0 [unreleased]
 
 ### Bug Fixes
-1. [#1530](https://github.com/influxdata/chronograf/pull/1530): Update query config field ordering to always match input query
-1. [#1535](https://github.com/influxdata/chronograf/pull/1535): Fix add field functions to existing Kapacitor rules
-1. [#1564](https://github.com/influxdata/chronograf/pull/1564): Fix regression of logout menu item functionality
-1. [#1562](https://github.com/influxdata/chronograf/pull/1562): Fix InfluxQL parsing with multiple tag values for a tag key
+1. [#1512](https://github.com/influxdata/chronograf/pull/1512): Prevent legend from flowing over window bottom bound
 
 ### Features
-  1. [#1537](https://github.com/influxdata/chronograf/pull/1537): Add UI for writing data to influxdb.
+1. [#1512](https://github.com/influxdata/chronograf/pull/1512): Synchronize vertical crosshair at same time across all graphs in a dashboard
 
 ### UI Improvements
-  1. [#1508](https://github.com/influxdata/chronograf/pull/1508): The enter and escape keys now perform as expected when renaming dashboard headers
-  1. [#1524](https://github.com/influxdata/chronograf/pull/1524): Rewrite UI copy in Kapacitor Node configuration to be more clear
-  1. [#1549](https://github.com/influxdata/chronograf/pull/1549): Reset graph zoom when a new time range is selected
-  1. [#1544](https://github.com/influxdata/chronograf/pull/1544): Upgrade to new version of Influx Theme, remove excess stylesheets
-  1. [#1567](https://github.com/influxdata/chronograf/pull/1567): Replace outline style User icon with solid style
-  1. [#1560](https://github.com/influxdata/chronograf/pull/1560): Apply mean to fields by default
-  1. [#1561](https://github.com/influxdata/chronograf/pull/1561): Disable query save in dashboard editing if the query does not have a database, measurement, and field
+1. [#1512](https://github.com/influxdata/chronograf/pull/1512): When dashboard time range is changed, reset graphs that are zoomed in
+
+## v1.3.2.1 [2017-06-06]
+
+### Bug Fixes
+1. [#1594](https://github.com/influxdata/chronograf/pull/1594): Restore Line + Single Stat styles
+
+## v1.3.2.0 [2017-06-05]
+
+### Bug Fixes
+1. [#1530](https://github.com/influxdata/chronograf/pull/1530): Update the query config's field ordering to always match the input query
+1. [#1535](https://github.com/influxdata/chronograf/pull/1535): Allow users to add functions to existing Kapacitor rules
+1. [#1564](https://github.com/influxdata/chronograf/pull/1564): Fix logout menu item regression
+1. [#1562](https://github.com/influxdata/chronograf/pull/1562): Fix InfluxQL parsing with multiple tag values for a tag key
+1. [#1582](https://github.com/influxdata/chronograf/pull/1582): Fix load localStorage and warning UX on fresh Chronograf install
+1. [#1584](https://github.com/influxdata/chronograf/pull/1584): Show submenus when the alert notification is present
+
+### Features
+  1. [#1537](https://github.com/influxdata/chronograf/pull/1537): Add UI to the Data Explorer for [writing data to InfluxDB](https://docs.influxdata.com/chronograf/latest/guides/transition-web-admin-interface/#writing-data)
+
+### UI Improvements
+  1. [#1508](https://github.com/influxdata/chronograf/pull/1508): Make the enter and escape keys perform as expected when renaming dashboards
+  1. [#1524](https://github.com/influxdata/chronograf/pull/1524): Improve copy on the Kapacitor configuration page
+  1. [#1549](https://github.com/influxdata/chronograf/pull/1549): Reset graph zoom when the user selects a new time range
+  1. [#1544](https://github.com/influxdata/chronograf/pull/1544): Upgrade to new version of Influx Theme, and remove excess stylesheets
+  1. [#1567](https://github.com/influxdata/chronograf/pull/1567): Replace the user icon with a solid style
+  1. [#1561](https://github.com/influxdata/chronograf/pull/1561): Disable query save in cell editor mode if the query does not have a database, measurement, and field
+  1. [#1575](https://github.com/influxdata/chronograf/pull/1575): Improve UX of applying functions to fields in the query builder
 
 ## v1.3.1.0 [2017-05-22]
 

@@ -24,7 +24,7 @@
 .container--dygraph-legend {
   transform: translateX(-50%);
   background-color: $g0-obsidian;
-  display: block;
+  display: block !important;
   position: absolute;
   padding: 11px;
   z-index: 500;
@@ -33,17 +33,18 @@
   border-radius: 3px;
   font-weight: 600;
   line-height: 13px;
+  pointer-events: none;
 
   &.hidden {
-    display: none;
+    display: none !important;
   }
 
   /*
    * Only animate position that's controlled during rendering.
    * See http://stackoverflow.com/a/17117992
    */
-  transition: all 0.25s ease;
-  transition-property: top, right, bottom, left;
+  // transition: all 0.1s ease;
+  // transition-property: top, right, bottom, left;
 
   /* Row */
   /* Styles for Key go here, get overrided by > b */
@@ -118,8 +119,10 @@
   border-bottom: 2px solid $g4-onyx !important;
 }
 .dygraph-ylabel {
+  transform: rotate(-90deg);
 }
 .dygraph-y2label {
+  transform: rotate(90deg);
 }
 
 .graph--hasYLabel {
@@ -138,6 +141,7 @@
   position: absolute;
   width: 100%;
   height: 100%;
+  pointer-events: none;
   @include no-user-select();
 
   &.graph-single-stat {

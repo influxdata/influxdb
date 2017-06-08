@@ -1,11 +1,5 @@
 import React, {PropTypes} from 'react'
-import {
-  Tab,
-  Tabs,
-  TabPanel,
-  TabPanels,
-  TabList,
-} from 'shared/components/Tabs'
+import {Tab, Tabs, TabPanel, TabPanels, TabList} from 'shared/components/Tabs'
 import UsersTable from 'src/admin/components/UsersTable'
 import RolesTable from 'src/admin/components/RolesTable'
 import QueriesPage from 'src/admin/containers/QueriesPage'
@@ -97,9 +91,9 @@ const AdminTabs = ({
         {tabs.map((t, i) => <Tab key={tabs[i].type}>{tabs[i].type}</Tab>)}
       </TabList>
       <TabPanels customClass="col-md-10 admin-tabs--content">
-        {tabs.map((t, i) => (
+        {tabs.map((t, i) =>
           <TabPanel key={tabs[i].type}>{t.component}</TabPanel>
-        ))}
+        )}
       </TabPanels>
     </Tabs>
   )

@@ -111,7 +111,7 @@ const Header = ({
   )
 }
 
-const EditHeader = ({database, onEdit, onKeyDown, onConfirm, onCancel}) => (
+const EditHeader = ({database, onEdit, onKeyDown, onConfirm, onCancel}) =>
   <div className="db-manager-header db-manager-header--edit">
     <input
       className="form-control input-sm"
@@ -127,7 +127,6 @@ const EditHeader = ({database, onEdit, onKeyDown, onConfirm, onCancel}) => (
     />
     <ConfirmButtons item={database} onConfirm={onConfirm} onCancel={onCancel} />
   </div>
-)
 
 const {func, shape, bool} = PropTypes
 

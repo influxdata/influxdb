@@ -54,7 +54,9 @@ class CustomTimeRangeDropdown extends Component {
           onClick={onToggle}
         >
           <span className="icon clock" />
-          <span className="dropdown-selected">{`${moment(lower).format('MMM Do HH:mm')} — ${moment(upper).format('MMM Do HH:mm')}`}</span>
+          <span className="dropdown-selected">{`${moment(lower).format(
+            'MMM Do HH:mm'
+          )} — ${moment(upper).format('MMM Do HH:mm')}`}</span>
           <span className="caret" />
         </button>
         <div className="custom-time--container">

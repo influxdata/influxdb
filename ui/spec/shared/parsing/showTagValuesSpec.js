@@ -16,13 +16,13 @@ describe('showTagValuesParser', () => {
         {
           series: [
             {
-              name: "measurementA",
-              columns: ["key", "value"],
+              name: 'measurementA',
+              columns: ['key', 'value'],
               values: [
-                ["host", "hostA"],
-                ["host", "hostB"],
-                ["cpu", "cpu0"],
-                ["cpu", "cpu1"],
+                ['host', 'hostA'],
+                ['host', 'hostB'],
+                ['cpu', 'cpu0'],
+                ['cpu', 'cpu1'],
               ],
             },
           ],
@@ -34,14 +34,8 @@ describe('showTagValuesParser', () => {
 
     expect(result.errors).to.eql([])
     expect(result.tags).to.eql({
-      host: [
-        'hostA',
-        'hostB',
-      ],
-      cpu: [
-        'cpu0',
-        'cpu1',
-      ],
+      host: ['hostA', 'hostB'],
+      cpu: ['cpu0', 'cpu1'],
     })
   })
 })

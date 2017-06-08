@@ -1,7 +1,7 @@
 ## Creating a release
 The release process is handled via our [circle.yml](https://github.com/influxdata/chronograf/blob/master/circle.yml).
 
-A release tag of the format `1.3.0` needs to be added.  Afterwhich, circle
+A release tag of the format `1.3.0.0` needs to be added.  Afterwhich, circle
 will build our packages for all of our platforms.
 
 ### Bumpversion
@@ -14,17 +14,17 @@ To install:
 pip install --upgrade bumpversion
 ```
 
-To use to increment third number (e.g. 1.3.0 -> 1.3.1):
+To use to increment third number (e.g. 1.3.1.0 -> 1.3.2.0):
 
 ```sh
-bumpversion patch
+bumpversion --allow-dirty   --new-version=1.3.2.0 patch
 ```
 
 
-To increment minor number (e.g. 1.3.5 -> 1.4.0):
+To increment minor number (e.g. 1.3.1.0 -> 1.4.0.0):
 
 ```sh
-bumpversion minor
+bumpversion --allow-dirty   --new-version=1.4.0.0 minor
 ```
 
 The behavior of `bumpversion` is controlled by .bumpversion.cfg
@@ -34,7 +34,7 @@ You can create a release tag from [Github](https://github.com/influxdata/chronog
 or create an annotated tag:
 
 ```sh
-git tag -a 1.3.0 -m "Release 1.3.0"
+git tag -a 1.3.0.0 -m "Release 1.3.0.0"
 git push --tags
 ```
 

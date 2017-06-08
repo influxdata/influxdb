@@ -1,7 +1,7 @@
 import React, {PropTypes} from 'react'
 import {Link} from 'react-router'
 
-const KapacitorRulesTable = ({rules, source, onDelete, onChangeRuleStatus}) => (
+const KapacitorRulesTable = ({rules, source, onDelete, onChangeRuleStatus}) =>
   <div className="panel-body">
     <table className="table v-center">
       <thead>
@@ -29,9 +29,8 @@ const KapacitorRulesTable = ({rules, source, onDelete, onChangeRuleStatus}) => (
       </tbody>
     </table>
   </div>
-)
 
-const RuleRow = ({rule, source, onDelete, onChangeRuleStatus}) => (
+const RuleRow = ({rule, source, onDelete, onChangeRuleStatus}) =>
   <tr key={rule.id}>
     <td className="monotype">
       <RuleTitle rule={rule} source={source} />
@@ -57,7 +56,6 @@ const RuleRow = ({rule, source, onDelete, onChangeRuleStatus}) => (
       </button>
     </td>
   </tr>
-)
 
 const RuleTitle = ({rule: {id, name, query}, source}) => {
   // no queryConfig means the rule was manually created outside of Chronograf

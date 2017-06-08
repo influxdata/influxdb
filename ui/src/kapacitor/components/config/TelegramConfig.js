@@ -157,7 +157,8 @@ const TelegramConfig = React.createClass({
               ref={r => (this.disableNotification = r)}
             />
             <label htmlFor="disableNotification">
-              Disable notifications on iOS devices and disable sounds on Android devices. Android users continue to receive notifications.
+              Disable notifications on iOS devices and disable sounds on Android
+              devices. Android users continue to receive notifications.
             </label>
           </div>
         </div>

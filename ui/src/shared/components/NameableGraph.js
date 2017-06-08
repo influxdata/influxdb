@@ -116,7 +116,7 @@ const NameableGraph = React.createClass({
 })
 
 const ContextMenu = OnClickOutside(
-  ({isOpen, toggleMenu, onEdit, onRename, onDelete, cell}) => (
+  ({isOpen, toggleMenu, onEdit, onRename, onDelete, cell}) =>
     <div
       className={classnames('dash-graph--options', {
         'dash-graph--options-show': isOpen,
@@ -132,6 +132,5 @@ const ContextMenu = OnClickOutside(
         <li onClick={() => onDelete(cell)}>Delete</li>
       </ul>
     </div>
-  )
 )
 export default NameableGraph

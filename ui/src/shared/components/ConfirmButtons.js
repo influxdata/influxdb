@@ -1,13 +1,7 @@
 import React, {PropTypes} from 'react'
 import classnames from 'classnames'
 
-const ConfirmButtons = ({
-  onConfirm,
-  item,
-  onCancel,
-  buttonSize,
-  isDisabled,
-}) => (
+const ConfirmButtons = ({onConfirm, item, onCancel, buttonSize, isDisabled}) =>
   <div className="confirm-buttons">
     <button
       className={classnames('btn btn-info btn-square', {
@@ -28,7 +22,6 @@ const ConfirmButtons = ({
       <span className="icon checkmark" />
     </button>
   </div>
-)
 
 const {func, oneOfType, shape, string, bool} = PropTypes
 

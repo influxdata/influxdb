@@ -1,13 +1,11 @@
 /* eslint-disable no-magic-numbers */
-import React, {PropTypes} from 'react'
+import React, {Component, PropTypes} from 'react'
 import shallowCompare from 'react-addons-shallow-compare'
 
 import _ from 'lodash'
 
-import Dygraph from '../../external/dygraph'
+import Dygraphs from 'src/external/dygraph'
 import getRange from 'shared/parsing/getRangeForDygraph'
-
-const {array, arrayOf, number, bool, shape, string} = PropTypes
 
 const LINE_COLORS = [
   '#00C9FF',
@@ -25,73 +23,72 @@ const LINE_COLORS = [
   '#a0725b',
 ]
 
-export default React.createClass({
-  displayName: 'Dygraph',
-
-  propTypes: {
-    ranges: shape({
-      y: arrayOf(number),
-      y2: arrayOf(number),
-    }),
-    timeSeries: array.isRequired,
-    labels: array.isRequired,
-    options: shape({}),
-    containerStyle: shape({}),
-    isGraphFilled: bool,
-    overrideLineColors: array,
-    dygraphSeries: shape({}).isRequired,
-    ruleValues: shape({
-      operator: string,
-      value: string,
-      rangeValue: string,
-    }),
-    legendOnBottom: bool,
-    timeRange: shape({
-      lower: string.isRequired,
-    }),
-  },
-
-  getDefaultProps() {
-    return {
-      containerStyle: {},
-      isGraphFilled: true,
-      overrideLineColors: null,
-      legendOnBottom: false,
+export default class Dygraph extends Component {
+  constructor(props) {
+    super(props)
+    this.state = {
+      isSynced: false,
     }
-  },
+
+    // optional workaround for dygraph.updateOptions breaking legends
+    // a la http://stackoverflow.com/questions/38371876/dygraph-dynamic-update-legend-values-disappear
+    // this.lastMouseMoveEvent = null
+    // this.isMouseOverGraph = false
+
+    this.getTimeSeries = ::this.getTimeSeries
+    this.sync = ::this.sync
+  }
+
+  static defaultProps = {
+    containerStyle: {},
+    isGraphFilled: true,
+    overrideLineColors: null,
+  }
 
   getTimeSeries() {
+    const {timeSeries} = this.props
     // Avoid 'Can't plot empty data set' errors by falling back to a
     // default dataset that's valid for Dygraph.
-    return this.props.timeSeries.length ? this.props.timeSeries : [[0]]
-  },
+    return timeSeries.length ? timeSeries : [[0]]
+  }
 
   componentDidMount() {
     const timeSeries = this.getTimeSeries()
     // dygraphSeries is a legend label and its corresponding y-axis e.g. {legendLabel1: 'y', legendLabel2: 'y2'};
-    const {ranges, dygraphSeries, ruleValues, legendOnBottom} = this.props
+    const {
+      ranges,
+      dygraphSeries,
+      ruleValues,
+      overrideLineColors,
+      isGraphFilled,
+      options,
+    } = this.props
 
-    const refs = this.refs
-    const graphContainerNode = refs.graphContainer
-    const legendContainerNode = refs.legendContainer
-    const markerNode = refs.graphVerticalMarker
-    let finalLineColors = this.props.overrideLineColors
+    const graphContainerNode = this.graphContainer
+    const legendContainerNode = this.legendContainer
+    let finalLineColors = overrideLineColors
 
     if (finalLineColors === null) {
       finalLineColors = LINE_COLORS
     }
 
     const defaultOptions = {
+      plugins: [
+        new Dygraphs.Plugins.Crosshair({
+          direction: 'vertical',
+        }),
+      ],
       labelsSeparateLines: false,
       labelsDiv: legendContainerNode,
       labelsKMB: true,
       rightGap: 0,
-      leftGap: 0,
-      highlightSeriesBackgroundAlpha: 1,
-      fillGraph: this.props.isGraphFilled,
+      highlightSeriesBackgroundAlpha: 1.0,
+      highlightSeriesBackgroundColor: 'rgb(41, 41, 51)',
+      fillGraph: isGraphFilled,
       axisLineWidth: 2,
       gridLineWidth: 1,
       highlightCircleSize: 3,
+      animatedZooms: true,
       colors: finalLineColors,
       series: dygraphSeries,
       axes: {
@@ -106,16 +103,31 @@ export default React.createClass({
         strokeWidth: 2,
         highlightCircleSize: 5,
       },
-      highlightCallback(e, x, points) {
+      unhighlightCallback: () => {
+        legendContainerNode.className = 'container--dygraph-legend hidden' // hide
+
+        // part of optional workaround for preventing updateOptions from breaking legend
+        // this.isMouseOverGraph = false
+      },
+      highlightCallback: e => {
+        // don't make visible yet, but render on DOM to capture position for calcs
+        legendContainerNode.style.visibility = 'hidden'
+        legendContainerNode.className = 'container--dygraph-legend'
+
         // Move the Legend on hover
         const graphRect = graphContainerNode.getBoundingClientRect()
         const legendRect = legendContainerNode.getBoundingClientRect()
         const graphWidth = graphRect.width + 32 // Factoring in padding from parent
+        const graphHeight = graphRect.height
+        const graphBottom = graphRect.bottom
         const legendWidth = legendRect.width
+        const legendHeight = legendRect.height
+        const screenHeight = window.innerHeight
         const legendMaxLeft = graphWidth - legendWidth / 2
         const trueGraphX = e.pageX - graphRect.left
-        const legendTop = graphRect.height + 0
+
         let legendLeft = trueGraphX
+
         // Enforcing max & min legend offsets
         if (trueGraphX < legendWidth / 2) {
           legendLeft = legendWidth / 2
@@ -123,38 +135,41 @@ export default React.createClass({
           legendLeft = legendMaxLeft
         }
 
+        // Disallow screen overflow of legend
+        const isLegendBottomClipped = graphBottom + legendHeight > screenHeight
+
+        const legendTop = isLegendBottomClipped
+          ? graphHeight + 8 - legendHeight
+          : graphHeight + 8
+
+        legendContainerNode.style.visibility = 'visible' // show
         legendContainerNode.style.left = `${legendLeft}px`
-        if (legendOnBottom) {
-          legendContainerNode.style.bottom = '4px'
-        } else {
-          legendContainerNode.style.top = `${legendTop}px`
-        }
+        legendContainerNode.style.top = `${legendTop}px`
 
-        setMarker(points)
+        // part of optional workaround for preventing updateOptions from breaking legend
+        // this.isMouseOverGraph = true
+        // this.lastMouseMoveEvent = e
       },
-      unhighlightCallback() {
-        removeMarker()
+      drawCallback: () => {
+        legendContainerNode.className = 'container--dygraph-legend hidden' // hide
       },
     }
 
-    const options = Object.assign({}, defaultOptions, this.props.options)
+    this.dygraph = new Dygraphs(graphContainerNode, timeSeries, {
+      ...defaultOptions,
+      ...options,
+    })
 
-    this.dygraph = new Dygraph(graphContainerNode, timeSeries, options)
-
-    function setMarker(points) {
-      markerNode.style.left = `${points[0].canvasx}px`
-      markerNode.style.display = 'block'
+    // Simple opt-out for now, if a graph should not be synced
+    if (this.props.synchronizer) {
+      this.sync()
     }
-
-    function removeMarker() {
-      markerNode.style.display = 'none'
-    }
-  },
+  }
 
   componentWillUnmount() {
     this.dygraph.destroy()
     delete this.dygraph
-  },
+  }
 
   shouldComponentUpdate(nextProps, nextState) {
     const timeRangeChanged = !_.isEqual(
@@ -171,9 +186,10 @@ export default React.createClass({
     // though that would be based on the assumption that props for timeRange
     // will always change before those for data.
     return shallowCompare(this, nextProps, nextState)
-  },
+  }
 
   componentDidUpdate() {
+    const {labels, ranges, options, dygraphSeries, ruleValues} = this.props
     const dygraph = this.dygraph
     if (!dygraph) {
       throw new Error(
@@ -182,7 +198,9 @@ export default React.createClass({
     }
 
     const timeSeries = this.getTimeSeries()
-    const {labels, ranges, options, dygraphSeries, ruleValues} = this.props
+
+    const legendContainerNode = this.legendContainer
+    legendContainerNode.className = 'container--dygraph-legend hidden' // hide
 
     dygraph.updateOptions({
       labels,
@@ -200,17 +218,62 @@ export default React.createClass({
       underlayCallback: options.underlayCallback,
       series: dygraphSeries,
     })
+    // part of optional workaround for preventing updateOptions from breaking legend
+    // if (this.lastMouseMoveEvent) {
+    //   dygraph.mouseMove_(this.lastMouseMoveEvent)
+    // }
 
     dygraph.resize()
-  },
+  }
+
+  sync() {
+    if (!this.state.isSynced) {
+      this.props.synchronizer(this.dygraph)
+      this.setState({isSynced: true})
+    }
+  }
 
   render() {
     return (
-      <div ref="self" style={{height: '100%'}}>
-        <div ref="graphContainer" style={this.props.containerStyle} />
-        <div className="container--dygraph-legend" ref="legendContainer" />
-        <div className="graph-vertical-marker" ref="graphVerticalMarker" />
+      <div style={{height: '100%'}}>
+        <div
+          ref={r => {
+            this.graphContainer = r
+          }}
+          style={this.props.containerStyle}
+        />
+        <div
+          ref={r => {
+            this.legendContainer = r
+          }}
+          className={'container--dygraph-legend hidden'}
+        />
       </div>
     )
-  },
-})
+  }
+}
+
+const {array, arrayOf, func, number, bool, shape, string} = PropTypes
+
+Dygraph.propTypes = {
+  ranges: shape({
+    y: arrayOf(number),
+    y2: arrayOf(number),
+  }),
+  timeSeries: array.isRequired,
+  labels: array.isRequired,
+  options: shape({}),
+  containerStyle: shape({}),
+  isGraphFilled: bool,
+  overrideLineColors: array,
+  dygraphSeries: shape({}).isRequired,
+  ruleValues: shape({
+    operator: string,
+    value: string,
+    rangeValue: string,
+  }),
+  timeRange: shape({
+    lower: string.isRequired,
+  }),
+  synchronizer: func,
+}

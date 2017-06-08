@@ -2,10 +2,10 @@ export const loadLocalStorage = errorsQueue => {
   try {
     const serializedState = localStorage.getItem('state')
 
-    const state = JSON.parse(serializedState)
+    const state = JSON.parse(serializedState) || {}
 
     // eslint-disable-next-line no-undef
-    if (state.VERSION !== VERSION) {
+    if (state.VERSION && state.VERSION !== VERSION) {
       const errorText =
         'New version of Chronograf detected. Local settings cleared.'
 
@@ -18,7 +18,7 @@ export const loadLocalStorage = errorsQueue => {
 
     delete state.VERSION
 
-    return state || {}
+    return state
   } catch (error) {
     const errorText = `Loading local settings failed: ${error}`
 
