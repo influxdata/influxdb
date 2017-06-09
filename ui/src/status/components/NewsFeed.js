@@ -4,6 +4,7 @@ import {bindActionCreators} from 'redux'
 
 import {fetchJSONFeedAsync} from 'src/status/actions'
 
+import FancyScrollbar from 'shared/components/FancyScrollbar'
 import JSONFeedReader from 'src/status/components/JSONFeedReader'
 
 class NewsFeed extends Component {
@@ -26,7 +27,7 @@ class NewsFeed extends Component {
     }
 
     return (
-      <div>
+      <FancyScrollbar>
         {isFetching
           ? // TODO: Factor this out of here and AutoRefresh
             <div className="graph-panel__refreshing">
@@ -37,7 +38,7 @@ class NewsFeed extends Component {
           : null}
         {isFailed ? <span>Failed to refresh NewsFeed</span> : null}
         <JSONFeedReader data={data} />
-      </div>
+      </FancyScrollbar>
     )
   }
 
