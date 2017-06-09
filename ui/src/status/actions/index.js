@@ -23,8 +23,10 @@ export const fetchJSONFeedAsync = url => async dispatch => {
     const {data} = await fetchJSONFeedAJAX(url)
     dispatch(fetchJSONFeedCompleted(data))
   } catch (error) {
+    console.error(error)
     dispatch(fetchJSONFeedFailed())
-    // TODO: consider error.data.message instead of url in error message
-    dispatch(errorThrown(error, `Failed to fetch NewsFeed from ${url}`))
+    dispatch(
+      errorThrown(error, `Failed to fetch NewsFeed: ${error.data.message}`)
+    )
   }
 }
