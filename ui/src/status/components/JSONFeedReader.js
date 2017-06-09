@@ -1,13 +1,18 @@
 import React, {PropTypes} from 'react'
 
-const JSONFeedReader = ({data}) => {
-  console.log('JSONFeedReader data', data)
-  return (
-    <div>
-      <p>{JSON.stringify(data)}</p>
-    </div>
-  )
-}
+import FancyScrollbar from 'shared/components/FancyScrollbar'
+
+const JSONFeedReader = ({data}) =>
+  <FancyScrollbar>
+    {data
+      ? data.items.map(({date_published, title, content_html}, i) =>
+          <div key={i}>
+            <span>{`${new Date(date_published)}`}</span><h6>{title}</h6>
+            <div dangerouslySetInnerHTML={{__html: content_html}} />
+          </div>
+        )
+      : null}
+  </FancyScrollbar>
 
 const {shape} = PropTypes
 
