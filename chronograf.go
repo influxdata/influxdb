@@ -179,15 +179,15 @@ func (t BasicTemplateVar) String() string {
 }
 
 type GroupByVar struct {
-	Var               string        `json:"tempVar"`           // the name of the variable as present in the query
-	Duration          time.Duration `json:"duration"`          // the Duration supplied by the query
-	Resolution        uint          `json:"resolution"`        // the available screen resolution to render the results of this query
-	ReportingInterval time.Duration `json:"reportingInterval"` // the interval at which data is reported to this series
+	Var               string        `json:"tempVar"`                     // the name of the variable as present in the query
+	Duration          time.Duration `json:"duration,omitempty"`          // the Duration supplied by the query
+	Resolution        uint          `json:"resolution"`                  // the available screen resolution to render the results of this query
+	ReportingInterval time.Duration `json:"reportingInterval,omitempty"` // the interval at which data is reported to this series
 }
 
 // Exec is responsible for extracting the Duration from the query
 func (g *GroupByVar) Exec(query string) {
-	whereClause := "where time > now() - "
+	whereClause := "WHERE time > now() - "
 	start := strings.Index(query, whereClause)
 	if start == -1 {
 		// no where clause
@@ -216,6 +216,12 @@ func (g *GroupByVar) Exec(query string) {
 }
 
 func (g *GroupByVar) String() string {
+	intervalNS := g.ReportingInterval.Nanoseconds()
+	// prevent division by zero
+	if intervalNS == 0 || g.Resolution == 0 {
+		return " "
+	}
+
 	//TODO(timraymond): ascertain group by resolution
 	duration := g.Duration.Nanoseconds() / g.ReportingInterval.Nanoseconds() * int64(g.Resolution)
 	return "group by time(" + strconv.Itoa(int(duration)/1000000) + "s)"
@@ -285,6 +291,7 @@ func (t *TemplateVars) UnmarshalJSON(text []byte) error {
 
 		// ensure that we really have a GroupByVar
 		if agb.Resolution != 0 {
+			agb.ReportingInterval = 10 * time.Second
 			(*t) = append(*t, &agb)
 			continue
 		}

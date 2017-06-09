@@ -259,8 +259,17 @@ class DashboardPage extends Component {
       ],
     }
 
-    const templatesIncludingDashTime =
-      (dashboard && dashboard.templates.concat(dashboardTime)) || []
+    const autoGroupBy = {
+      id: 'autoGroupBy',
+      type: 'constant',
+      tempVar: ':autoGroupBy:',
+      resolution: 1000,
+      values: [],
+    }
+
+    const templatesIncludingDashTime = (dashboard &&
+      dashboard.templates.concat(dashboardTime) &&
+      dashboard.templates.concat(autoGroupBy)) || []
 
     const {selectedCell, isEditMode, isTemplating} = this.state
 

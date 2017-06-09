@@ -116,13 +116,24 @@ const AutoRefresh = ComposedComponent => {
 
       const timeSeriesPromises = queries.map(query => {
         const {host, database, rp} = query
+
+        const templatesWithResolution = templates.map((temp) => {
+          if (temp.tempVar === ':autoGroupBy:') {
+            if (resolution) {
+              return {...temp, resolution}
+            }
+            return {...temp, resolution: 1000}
+          }
+          return {...temp}
+        })
+
         return fetchTimeSeriesAsync(
           {
             source: host,
             db: database,
             rp,
             query,
-            tempVars: removeUnselectedTemplateValues(templates),
+            tempVars: removeUnselectedTemplateValues(templatesWithResolution),
             resolution,
           },
           editQueryStatus
