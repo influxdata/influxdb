@@ -2,30 +2,29 @@ import {getJSONFeed as getJSONFeedAJAX} from 'src/status/apis'
 
 import {errorThrown} from 'shared/actions/errors'
 
-import {actionTypes} from 'src/status/constants'
+import * as actionTypes from 'src/status/constants/actionTypes'
 
-const getJSONFeedRequested = url => ({
+const getJSONFeedRequested = () => ({
   type: actionTypes.GET_JSON_FEED_REQUESTED,
-  payload: {url},
 })
 
-const getJSONFeedCompleted = (url, data) => ({
+const getJSONFeedCompleted = data => ({
   type: actionTypes.GET_JSON_FEED_COMPLETED,
-  payload: {url, data},
+  payload: {data},
 })
 
-const getJSONFeedFailed = url => ({
+const getJSONFeedFailed = () => ({
   type: actionTypes.GET_JSON_FEED_FAILED,
-  payload: {url},
 })
 
 export const getJSONFeedAsync = url => async dispatch => {
-  dispatch(getJSONFeedRequested(url))
+  console.log('JSONFeed getJSONFeedAsync', url)
+  dispatch(getJSONFeedRequested())
   try {
     const {data} = await getJSONFeedAJAX(url)
-    dispatch(getJSONFeedCompleted(url, data))
+    dispatch(getJSONFeedCompleted(data))
   } catch (error) {
-    dispatch(getJSONFeedFailed(url))
+    dispatch(getJSONFeedFailed())
     dispatch(errorThrown(error, `Failed to get news feed from ${url}`))
   }
 }
