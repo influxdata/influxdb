@@ -25,15 +25,6 @@ class NewsFeed extends Component {
           </div>
     }
 
-    if (isFailed) {
-      return (
-        <div>
-          <span>Failed to refresh NewsFeed</span>
-          <JSONFeedReader data={data} />
-        </div>
-      )
-    }
-
     return (
       <div>
         {isFetching
@@ -44,6 +35,7 @@ class NewsFeed extends Component {
               <div />
             </div>
           : null}
+        {isFailed ? <span>Failed to refresh NewsFeed</span> : null}
         <JSONFeedReader data={data} />
       </div>
     )
