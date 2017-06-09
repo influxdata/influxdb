@@ -10,21 +10,21 @@ export const fixtureStatusPageCells = [
     queries: [
       {
         query:
-          'SELECT sum("value") AS "sum_value" FROM "chronograf"."autogen"."alerts" WHERE time > :dashboardTime GROUP BY time(1d)',
-        label: 'cpu.usage_user',
+          'SELECT sum("usage_idle") AS "sum_usage_idle" FROM "telegraf"."autogen"."cpu" WHERE time > :dashboardTime: GROUP BY time(1d)',
+        label: 'sum_cpu.usage_idle',
         queryConfig: {
           database: 'telegraf',
           measurement: 'cpu',
           retentionPolicy: 'autogen',
           fields: [
             {
-              field: 'usage_user',
-              funcs: [],
+              field: 'usage_idle',
+              funcs: ['sum'],
             },
           ],
           tags: {},
           groupBy: {
-            time: '',
+            time: '1d',
             tags: [],
           },
           areTagsAccepted: false,
