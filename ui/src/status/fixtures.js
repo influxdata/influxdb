@@ -10,7 +10,7 @@ export const fixtureStatusPageCells = [
     queries: [
       {
         query:
-          'SELECT "usage_user" FROM "telegraf"."autogen"."cpu" WHERE time > :dashboardTime:',
+          'SELECT sum("value") AS "sum_value" FROM "chronograf"."autogen"."alerts" WHERE time > :dashboardTime GROUP BY time(1d)',
         label: 'cpu.usage_user',
         queryConfig: {
           database: 'telegraf',
@@ -70,7 +70,7 @@ export const fixtureStatusPageCells = [
   },
 ]
 
-export const newsFeed = {
+export const fixtureJSONFeed = {
   version: 'https://jsonfeed.org/version/1',
   title: 'Daring Fireball',
   home_page_url: 'https://daringfireball.net/',
