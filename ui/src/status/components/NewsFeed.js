@@ -17,12 +17,12 @@ class NewsFeed extends Component {
     const {hasCompletedFetchOnce, isFetching, isFailed, data} = this.props
 
     if (!hasCompletedFetchOnce) {
-      return !isFailed
-        ? // TODO: Factor this out of here and AutoRefresh
+      return isFailed
+        ? <span>Failed to load NewsFeed.</span>
+        : // TODO: Factor this out of here and AutoRefresh
           <div className="graph-fetching">
             <div className="graph-spinner" />
           </div>
-        : <span>Failed to load NewsFeed.</span>
     }
 
     if (isFailed) {
