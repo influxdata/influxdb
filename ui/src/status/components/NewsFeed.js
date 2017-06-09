@@ -4,6 +4,8 @@ import {bindActionCreators} from 'redux'
 
 import {fetchJSONFeedAsync} from 'src/status/actions'
 
+import JSONFeedReader from 'src/status/components/JSONFeedReader'
+
 class NewsFeed extends Component {
   constructor(props) {
     super(props)
@@ -28,7 +30,7 @@ class NewsFeed extends Component {
         ? <span>Failed to load NewsFeed.</span>
         : <div>
             <span>Failed to refresh NewsFeed</span>
-            <div data={data} />
+            <JSONFeedReader data={data} />
           </div>
     }
 
@@ -42,7 +44,7 @@ class NewsFeed extends Component {
               <div />
             </div>
           : null}
-        <div data={data} />
+        <JSONFeedReader data={data} />
       </div>
     )
   }
