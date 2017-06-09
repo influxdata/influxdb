@@ -9,6 +9,8 @@ class NewsFeed extends Component {
     super(props)
   }
 
+  // TODO: implement shouldComponentUpdate based on fetching conditions
+
   render() {
     const {hasCompletedFetchOnce, isFetching, isFailed, data} = this.props
 
@@ -45,6 +47,7 @@ class NewsFeed extends Component {
     )
   }
 
+  // TODO: implement interval polling a la AutoRefresh
   componentDidMount() {
     const {source, fetchJSONFeed} = this.props
 
