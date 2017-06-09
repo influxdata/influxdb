@@ -10,19 +10,37 @@ class NewsFeed extends Component {
   }
 
   render() {
-    const {isFetching, isFailed, data} = this.props
+    const {isFirstFetch, isFetching, isFailed, data} = this.props
 
-    if (isFetching) {
-      return <span>Loading...</span>
+    // TODO: Use AutoRefresh style 'initialFetch' + spinner approach
+    if (isFirstFetch && isFetching) {
+      return (
+        // TODO: Factor this out of here and AutoRefresh
+        <div className="graph-fetching">
+          <div className="graph-spinner" />
+        </div>
+      )
     }
 
     if (isFailed) {
-      return <span>Failed to load NewsFeed.</span>
+      return isFirstFetch
+        ? <span>Failed to load NewsFeed.</span>
+        : <div>
+            <span>Failed to refresh NewsFeed</span><div data={data} />
+          </div>
     }
-    console.log('data', data)
+
     return (
       <div>
-        {data}
+        {isFetching
+          ? // TODO: Factor this out of here and AutoRefresh
+            <div className="graph-panel__refreshing">
+              <div />
+              <div />
+              <div />
+            </div>
+          : null}
+        <div data={data} />
       </div>
     )
   }
@@ -41,13 +59,17 @@ NewsFeed.propTypes = {
       status: string.isRequired,
     }).isRequired,
   }).isRequired,
+  isFirstFetch: bool.isRequired,
   isFetching: bool.isRequired,
   isFailed: bool.isRequired,
   data: shape(),
   getJSONFeed: func.isRequired,
 }
 
-const mapStateToProps = ({JSONFeed: {isFetching, isFailed, data}}) => ({
+const mapStateToProps = ({
+  JSONFeed: {isFirstFetch, isFetching, isFailed, data},
+}) => ({
+  isFirstFetch,
   isFetching,
   isFailed,
   data,

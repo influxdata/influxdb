@@ -1,6 +1,7 @@
 import * as actionTypes from 'src/status/constants/actionTypes'
 
 const initialState = {
+  isFirstFetch: true,
   isFetching: false,
   isFailed: false,
   data: null,
@@ -15,7 +16,13 @@ const JSONFeedReducer = (state = initialState, action) => {
     case actionTypes.GET_JSON_FEED_COMPLETED: {
       const {data} = action.payload
 
-      return {...state, isFetching: false, isFailed: false, data}
+      return {
+        ...state,
+        isFirstFetch: false,
+        isFetching: false,
+        isFailed: false,
+        data,
+      }
     }
 
     case actionTypes.GET_JSON_FEED_FAILED: {
