@@ -2,7 +2,7 @@ import axios from 'axios'
 
 let links
 
-export default async function AJAX({
+const AJAX = async ({
   url,
   resource,
   id,
@@ -10,7 +10,7 @@ export default async function AJAX({
   data = {},
   params = {},
   headers = {},
-}) {
+}) => {
   try {
     const basepath = window.basepath || ''
     let response
@@ -66,3 +66,5 @@ export const get = async url => {
     throw error
   }
 }
+
+export default AJAX
