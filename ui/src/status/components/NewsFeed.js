@@ -28,34 +28,29 @@ class NewsFeed extends Component {
   }
 
   componentDidMount() {
-    const {url, getJSONFeed} = this.props
-    console.log('componentDidMount', url)
-    if (url) {
-      getJSONFeed(url)
-    }
+    const {source, getJSONFeed} = this.props
+    getJSONFeed(source.links.status)
   }
 }
 
 const {bool, func, shape, string} = PropTypes
 
 NewsFeed.propTypes = {
+  source: shape({
+    links: shape({
+      status: string.isRequired,
+    }).isRequired,
+  }).isRequired,
   isFetching: bool.isRequired,
   isFailed: bool.isRequired,
   data: shape(),
-  url: string.isRequired,
   getJSONFeed: func.isRequired,
 }
 
-const mapStateToProps = ({
-  JSONFeed: {isFetching, isFailed, data},
-  auth: {
-    me: {links: {jsonFeed: url = 'https://daringfireball.net/feeds/json'}},
-  },
-}) => ({
+const mapStateToProps = ({JSONFeed: {isFetching, isFailed, data}}) => ({
   isFetching,
   isFailed,
   data,
-  url,
 })
 
 const mapDispatchToProps = dispatch => ({

@@ -120,7 +120,7 @@ export const LayoutRenderer = React.createClass({
         )
       }
       case 'news': {
-        return <NewsFeed />
+        return <NewsFeed source={source} />
       }
       case 'guide': {
         return (
