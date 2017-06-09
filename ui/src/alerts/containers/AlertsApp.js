@@ -135,7 +135,7 @@ class AlertsApp extends Component {
     }
 
     return isWidget
-      ? <FancyScrollbar>
+      ? <FancyScrollbar autoHide={false}>
           {this.renderSubComponents()}
         </FancyScrollbar>
       : <div className="page">
