@@ -50,7 +50,7 @@
     Sortable Tables
     ----------------------------------------------
 */
-.sortable-header {
+table.table thead th.sortable-header {
   transition:
     color 0.25s ease,
     background-color 0.25s ease;
@@ -82,9 +82,7 @@
     background-color: $g5-pepper;
     color: $g19-ghost;
 
-    &:after {
-      opacity: 1;
-    }
+    &:after {opacity: 1;}
   }
   &.sorting-ascending:after {
     transform: translateY(-50%) rotate(180deg);

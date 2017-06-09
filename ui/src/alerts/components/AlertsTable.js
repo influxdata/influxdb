@@ -15,6 +15,7 @@ class AlertsTable extends Component {
 
     this.filterAlerts = ::this.filterAlerts
     this.changeSort = ::this.changeSort
+    this.sortableClasses = ::this.sortableClasses
     this.sort = ::this.sort
   }
 
@@ -51,6 +52,16 @@ class AlertsTable extends Component {
     }
   }
 
+  sortableClasses(key) {
+    if (this.state.sortKey === key) {
+      if (this.state.sortDirection === 'asc') {
+        return 'sortable-header sorting-ascending'
+      }
+      return 'sortable-header sorting-descending'
+    }
+    return 'sortable-header'
+  }
+
   sort(alerts, key, direction) {
     switch (direction) {
       case 'asc':
@@ -75,31 +86,31 @@ class AlertsTable extends Component {
             <tr>
               <th
                 onClick={() => this.changeSort('name')}
-                className="sortable-header"
+                className={this.sortableClasses('name')}
               >
                 Name
               </th>
               <th
                 onClick={() => this.changeSort('level')}
-                className="sortable-header"
+                className={this.sortableClasses('level')}
               >
                 Level
               </th>
               <th
                 onClick={() => this.changeSort('time')}
-                className="sortable-header"
+                className={this.sortableClasses('time')}
               >
                 Time
               </th>
               <th
                 onClick={() => this.changeSort('host')}
-                className="sortable-header"
+                className={this.sortableClasses('host')}
               >
                 Host
               </th>
               <th
                 onClick={() => this.changeSort('value')}
-                className="sortable-header"
+                className={this.sortableClasses('value')}
               >
                 Value
               </th>
