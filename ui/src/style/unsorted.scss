@@ -135,7 +135,9 @@
     }
   }
 }
-
+.alerts-widget {
+  padding: 0 16px;
+}
 .currently-connected-source {
   color: $c-rainforest;
   font-weight: 600;

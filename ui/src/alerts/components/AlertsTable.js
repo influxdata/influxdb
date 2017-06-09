@@ -173,7 +173,7 @@ class AlertsTable extends Component {
     const {shouldNotBeFilterable} = this.props
 
     return shouldNotBeFilterable
-      ? this.renderTable()
+      ? <div className="alerts-widget">{this.renderTable()}</div>
       : <div className="panel panel-minimal">
           <div className="panel-heading u-flex u-ai-center u-jc-space-between">
             <h2 className="panel-title">{this.props.alerts.length} Alerts</h2>
