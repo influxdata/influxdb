@@ -2,7 +2,7 @@ import React, {Component, PropTypes} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
-import {getJSONFeedAsync} from 'src/status/actions'
+import {fetchJSONFeedAsync} from 'src/status/actions'
 
 class NewsFeed extends Component {
   constructor(props) {
@@ -10,10 +10,9 @@ class NewsFeed extends Component {
   }
 
   render() {
-    const {isFirstFetch, isFetching, isFailed, data} = this.props
+    const {hasCompletedFetchOnce, isFetching, isFailed, data} = this.props
 
-    // TODO: Use AutoRefresh style 'initialFetch' + spinner approach
-    if (isFirstFetch && isFetching) {
+    if (hasCompletedFetchOnce) {
       return (
         // TODO: Factor this out of here and AutoRefresh
         <div className="graph-fetching">
@@ -23,10 +22,11 @@ class NewsFeed extends Component {
     }
 
     if (isFailed) {
-      return isFirstFetch
+      return hasCompletedFetchOnce
         ? <span>Failed to load NewsFeed.</span>
         : <div>
-            <span>Failed to refresh NewsFeed</span><div data={data} />
+            <span>Failed to refresh NewsFeed</span>
+            <div data={data} />
           </div>
     }
 
@@ -46,8 +46,9 @@ class NewsFeed extends Component {
   }
 
   componentDidMount() {
-    const {source, getJSONFeed} = this.props
-    getJSONFeed(source.links.status)
+    const {source, fetchJSONFeed} = this.props
+
+    fetchJSONFeed(source.links.status)
   }
 }
 
@@ -59,24 +60,24 @@ NewsFeed.propTypes = {
       status: string.isRequired,
     }).isRequired,
   }).isRequired,
-  isFirstFetch: bool.isRequired,
+  hasCompletedFetchOnce: bool.isRequired,
   isFetching: bool.isRequired,
   isFailed: bool.isRequired,
   data: shape(),
-  getJSONFeed: func.isRequired,
+  fetchJSONFeed: func.isRequired,
 }
 
 const mapStateToProps = ({
-  JSONFeed: {isFirstFetch, isFetching, isFailed, data},
+  JSONFeed: {hasCompletedFetchOnce, isFetching, isFailed, data},
 }) => ({
-  isFirstFetch,
+  hasCompletedFetchOnce,
   isFetching,
   isFailed,
   data,
 })
 
 const mapDispatchToProps = dispatch => ({
-  getJSONFeed: bindActionCreators(getJSONFeedAsync, dispatch),
+  fetchJSONFeed: bindActionCreators(fetchJSONFeedAsync, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(NewsFeed)
