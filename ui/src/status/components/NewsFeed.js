@@ -27,7 +27,7 @@ class NewsFeed extends Component {
     }
 
     return (
-      <FancyScrollbar>
+      <FancyScrollbar autoHide={false} className="newsfeed--container">
         {isFetching
           ? // TODO: Factor this out of here and AutoRefresh
             <div className="graph-panel__refreshing">
