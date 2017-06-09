@@ -18,7 +18,6 @@ const getJSONFeedFailed = () => ({
 })
 
 export const getJSONFeedAsync = url => async dispatch => {
-  console.log('JSONFeed getJSONFeedAsync url', url)
   dispatch(getJSONFeedRequested())
   try {
     const {data} = await getJSONFeedAJAX(url)
