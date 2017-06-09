@@ -50,7 +50,8 @@ export default async function AJAX({
     const {response} = error
 
     const {auth} = links
-    throw {...response, auth: {links: auth}, logout: links.logout} // eslint-disable-line no-throw-literal
+
+    throw {...response, auth: {links: auth}, logoutLink: links.logout} // eslint-disable-line no-throw-literal
   }
 }
 
