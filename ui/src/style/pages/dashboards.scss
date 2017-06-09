@@ -204,6 +204,7 @@ input.form-control.dash-graph--name-edit {
   transition-property: all;
 
   > li {
+    @include no-user-select;
     position: relative;
     width: 100%;
     height: 28px;
