@@ -1,10 +1,10 @@
 import React, {PropTypes} from 'react'
 import {Link} from 'react-router'
+import _ from 'lodash'
 
 import shallowCompare from 'react-addons-shallow-compare'
 import classnames from 'classnames'
-
-import _ from 'lodash'
+import {HOSTS_TABLE} from 'src/hosts/constants/tableSizing'
 
 const {arrayOf, bool, number, shape, string} = PropTypes
 
@@ -101,6 +101,7 @@ const HostsTable = React.createClass({
       sortDirection
     )
     const hostCount = sortedHosts.length
+    const {colName, colStatus, colCPU, colLoad} = HOSTS_TABLE
 
     let hostsTitle
 
@@ -128,27 +129,28 @@ const HostsTable = React.createClass({
                     <th
                       onClick={() => this.updateSort('name')}
                       className={this.sortableClasses('name')}
+                      style={{width: colName}}
                     >
                       Host
                     </th>
                     <th
                       onClick={() => this.updateSort('deltaUptime')}
                       className={this.sortableClasses('deltaUptime')}
-                      style={{width: '74px'}}
+                      style={{width: colStatus}}
                     >
                       Status
                     </th>
                     <th
                       onClick={() => this.updateSort('cpu')}
                       className={this.sortableClasses('cpu')}
-                      style={{width: '70px'}}
+                      style={{width: colCPU}}
                     >
                       CPU
                     </th>
                     <th
                       onClick={() => this.updateSort('load')}
                       className={this.sortableClasses('load')}
-                      style={{width: '68px'}}
+                      style={{width: colLoad}}
                     >
                       Load
                     </th>
@@ -195,13 +197,14 @@ const HostRow = React.createClass({
   render() {
     const {host, source} = this.props
     const {name, cpu, load, apps = []} = host
+    const {colName, colStatus, colCPU, colLoad} = HOSTS_TABLE
 
     return (
       <tr>
-        <td className="monotype">
+        <td style={{width: colName}}>
           <Link to={`/sources/${source.id}/hosts/${name}`}>{name}</Link>
         </td>
-        <td style={{width: '74px'}}>
+        <td style={{width: colStatus}}>
           <div
             className={classnames(
               'table-dot',
@@ -209,13 +212,13 @@ const HostRow = React.createClass({
             )}
           />
         </td>
-        <td className="monotype" style={{width: '70px'}}>
+        <td style={{width: colCPU}} className="monotype">
           {isNaN(cpu) ? 'N/A' : `${cpu.toFixed(2)}%`}
         </td>
-        <td className="monotype" style={{width: '68px'}}>
+        <td style={{width: colLoad}} className="monotype">
           {isNaN(load) ? 'N/A' : `${load.toFixed(2)}`}
         </td>
-        <td className="monotype">
+        <td>
           {apps.map((app, index) => {
             return (
               <span key={app}>
