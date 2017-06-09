@@ -5,6 +5,7 @@ import ReactGridLayout, {WidthProvider} from 'react-grid-layout'
 import NameableGraph from 'shared/components/NameableGraph'
 import RefreshingGraph from 'shared/components/RefreshingGraph'
 import AlertsApp from 'src/alerts/containers/AlertsApp'
+import NewsFeed from 'src/status/components/NewsFeed'
 
 import timeRanges from 'hson!shared/data/timeRanges.hson'
 import buildInfluxQLQuery from 'utils/influxql'
@@ -119,11 +120,7 @@ export const LayoutRenderer = React.createClass({
         )
       }
       case 'news': {
-        return (
-          <div className="graph-empty">
-            <p>Coming soon: Newsfeed</p>
-          </div>
-        )
+        return <NewsFeed />
       }
       case 'guide': {
         return (
