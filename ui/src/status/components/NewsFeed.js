@@ -16,22 +16,22 @@ class NewsFeed extends Component {
   render() {
     const {hasCompletedFetchOnce, isFetching, isFailed, data} = this.props
 
-    if (hasCompletedFetchOnce) {
-      return (
-        // TODO: Factor this out of here and AutoRefresh
-        <div className="graph-fetching">
-          <div className="graph-spinner" />
-        </div>
-      )
+    if (!hasCompletedFetchOnce) {
+      return !isFailed
+        ? // TODO: Factor this out of here and AutoRefresh
+          <div className="graph-fetching">
+            <div className="graph-spinner" />
+          </div>
+        : <span>Failed to load NewsFeed.</span>
     }
 
     if (isFailed) {
-      return hasCompletedFetchOnce
-        ? <span>Failed to load NewsFeed.</span>
-        : <div>
-            <span>Failed to refresh NewsFeed</span>
-            <JSONFeedReader data={data} />
-          </div>
+      return (
+        <div>
+          <span>Failed to refresh NewsFeed</span>
+          <JSONFeedReader data={data} />
+        </div>
+      )
     }
 
     return (

@@ -1,7 +1,7 @@
 import * as actionTypes from 'src/status/constants/actionTypes'
 
 const initialState = {
-  hasCompletedFetchOnce: true,
+  hasCompletedFetchOnce: false,
   isFetching: false,
   isFailed: false,
   data: null,
@@ -18,7 +18,7 @@ const JSONFeedReducer = (state = initialState, action) => {
 
       return {
         ...state,
-        hasCompletedFetchOnce: false,
+        hasCompletedFetchOnce: true,
         isFetching: false,
         isFailed: false,
         data,
