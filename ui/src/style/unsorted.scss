@@ -135,9 +135,6 @@
     }
   }
 }
-.alerts-widget {
-  padding: 0 16px;
-}
 .currently-connected-source {
   color: $c-rainforest;
   font-weight: 600;
@@ -159,4 +156,28 @@ br {
   overflow: auto;
   @include custom-scrollbar($g2-kevlar, $c-pool);
   @include gradient-v($g2-kevlar, $g0-obsidian);
+}
+
+/*
+  Styles for the Status Dashboard
+  -----------------------------------------------------------------------------
+  Not enough of these to merit their own page, will organize later
+*/
+.alerts-widget,
+.getting-started {
+  padding: 0 16px;
+}
+.getting-started--cell {
+  color: $g11-sidewalk;
+  background-color: $g2-kevlar;
+  border-radius: 3px;
+  padding: 12px;
+  margin-bottom: 4px;
+
+  &.intro {
+    @include gradient-h($c-pool,$c-star);
+    color: $g20-white;
+  }
+
+  p {font-size: 13px;}
 }

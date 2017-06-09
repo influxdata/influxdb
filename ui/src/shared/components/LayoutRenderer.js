@@ -6,6 +6,7 @@ import NameableGraph from 'shared/components/NameableGraph'
 import RefreshingGraph from 'shared/components/RefreshingGraph'
 import AlertsApp from 'src/alerts/containers/AlertsApp'
 import NewsFeed from 'src/status/components/NewsFeed'
+import GettingStarted from 'src/status/components/GettingStarted'
 
 import timeRanges from 'hson!shared/data/timeRanges.hson'
 import buildInfluxQLQuery from 'utils/influxql'
@@ -123,11 +124,7 @@ export const LayoutRenderer = React.createClass({
         return <NewsFeed source={source} />
       }
       case 'guide': {
-        return (
-          <div className="graph-empty">
-            <p>Coming soon: Markdown-based guide</p>
-          </div>
-        )
+        return <GettingStarted />
       }
     }
     return (
