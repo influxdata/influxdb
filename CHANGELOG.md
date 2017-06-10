@@ -1,5 +1,24 @@
 ## v1.3.0 [unreleased]
 
+### Release Notes
+
+#### Continuous Query Statistics
+
+When enabled, each time a continuous query is completed, a number of details regarding the execution are written to the `cq_query` measurement of the internal monitor database (`_internal` by default). The tags and fields of interest are
+
+| tag / field | description                                           |
+|:----------- |:----------------------------------------------------- |
+| `db`        | name of database                                      |
+| `cq`        | name of continuous query                              |
+| `duration`  | query execution time in nanoseconds                   |
+| `startTime` | lower bound of time range                             |
+| `endTime`   | upper bound of time range                             |
+| `written`   | number of points written to the target measurement    |
+
+
+* `startTime` and `endTime` are UNIX timestamps, in nanoseconds.
+* The number of points written is also included in CQ log messages.
+
 ### Removals
 
 The admin UI is removed and unusable in this release. The `[admin]` configuration section will be ignored.
@@ -16,6 +35,10 @@ The following new configuration options are available.
 * `max-body-size` was added with a default of 25,000,000, but can be disabled by setting it to 0. 
   Specifies the maximum size (in bytes) of a client request body. When a client sends data that exceeds
   the configured maximum size, a `413 Request Entity Too Large` HTTP response is returned. 
+  
+#### `[continuous_queries]` Section
+
+* `query-stats-enabled` was added with a default of `false`. When set to `true`, continuous query execution statistics are written to the default monitor store.
 
 ### Features
 
@@ -43,6 +66,7 @@ The following new configuration options are available.
 - [#8390](https://github.com/influxdata/influxdb/issues/8390): Add nanosecond duration literal support.
 - [#8394](https://github.com/influxdata/influxdb/pull/8394): Optimize top() and bottom() using an incremental aggregator.
 - [#7129](https://github.com/influxdata/influxdb/issues/7129): Maintain the tags of points selected by top() or bottom() when writing the results.
+- [#8188](https://github.com/influxdata/influxdb/issues/8188): Write CQ stats to _internal
 
 ### Bugfixes
 

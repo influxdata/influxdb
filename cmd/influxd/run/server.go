@@ -338,6 +338,7 @@ func (s *Server) appendContinuousQueryService(c continuous_querier.Config) {
 	srv := continuous_querier.NewService(c)
 	srv.MetaClient = s.MetaClient
 	srv.QueryExecutor = s.QueryExecutor
+	srv.Monitor = s.Monitor
 	s.Services = append(s.Services, srv)
 }
 

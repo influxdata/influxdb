@@ -429,5 +429,8 @@
   # Controls whether queries are logged when executed by the CQ service.
   # log-enabled = true
 
+  # Controls whether queries are logged to the self-monitoring data store.
+  # query-stats-enabled = false
+
   # interval for how often continuous queries will be checked if they need to run
   # run-interval = "1s"
