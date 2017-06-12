@@ -97,8 +97,8 @@ const InfluxTable = ({
               <tr>
                 <th className="source-table--connect-col" />
                 <th>Source Name & Host</th>
-                <th>Active Kapacitor</th>
                 <th className="text-right" />
+                <th>Active Kapacitor</th>
               </tr>
             </thead>
             <tbody>
@@ -129,7 +129,16 @@ const InfluxTable = ({
                       </h5>
                       <span>{s.url}</span>
                     </td>
-                    <td>
+                    <td className="text-right">
+                      <a
+                        className="btn btn-xs btn-danger table--show-on-row-hover"
+                        href="#"
+                        onClick={() => handleDeleteSource(s)}
+                      >
+                        Delete Source
+                      </a>
+                    </td>
+                    <td className="source-table--kapacitor">
                       {kapacitorDropdown(
                         s.kapacitors,
                         s,
@@ -137,15 +146,6 @@ const InfluxTable = ({
                         setActiveKapacitor,
                         handleDeleteKapacitor
                       )}
-                    </td>
-                    <td className="text-right">
-                      <a
-                        className="link-danger"
-                        href="#"
-                        onClick={() => handleDeleteSource(s)}
-                      >
-                        Delete Source
-                      </a>
                     </td>
                   </tr>
                 )
