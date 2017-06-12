@@ -6,20 +6,20 @@ export const fixtureStatusPageCells = [
     y: 0,
     w: 12,
     h: 4,
-    name: 'Alerts – Aspiring Bar Graph',
+    name: 'Alerts – Last 30 Days – Aspiring Bar Graph',
     queries: [
       {
         query:
-          'SELECT sum("usage_idle") AS "sum_usage_idle" FROM "telegraf"."autogen"."cpu" WHERE time > :dashboardTime: GROUP BY time(1d)',
-        label: 'sum_cpu.usage_idle',
+          'SELECT count("value") AS "count_value" FROM "chronograf"."autogen"."alerts" WHERE time > :dashboardTime: GROUP BY time(1d)',
+        label: 'count.value',
         queryConfig: {
-          database: 'telegraf',
-          measurement: 'cpu',
+          database: 'chronograf',
+          measurement: 'alerts',
           retentionPolicy: 'autogen',
           fields: [
             {
-              field: 'usage_idle',
-              funcs: ['sum'],
+              field: 'value',
+              funcs: ['count'],
             },
           ],
           tags: {},
