@@ -41,35 +41,35 @@ class GettingStarted extends Component {
               <br />
               <a
                 href="https://docs.influxdata.com/chronograf/v1.3/guides/create-a-kapacitor-alert/"
-                taret="_blank"
+                target="_blank"
               >
                 Create a Kapacitor Alert
               </a>
               <br />
               <a
                 href="https://docs.influxdata.com/chronograf/v1.3/guides/configure-kapacitor-event-handlers/"
-                taret="_blank"
+                target="_blank"
               >
                 Configure Kapacitor Event Handlers
               </a>
               <br />
               <a
                 href="https://docs.influxdata.com/chronograf/v1.3/guides/transition-web-admin-interface/"
-                taret="_blank"
+                target="_blank"
               >
                 Transition from InfluxDB's Web Admin Interface
               </a>
               <br />
               <a
                 href="https://docs.influxdata.com/chronograf/v1.3/guides/dashboard-template-variables/"
-                taret="_blank"
+                target="_blank"
               >
                 Dashboard Template Variables
               </a>
               <br />
               <a
                 href="https://docs.influxdata.com/chronograf/v1.3/guides/advanced-kapacitor/"
-                taret="_blank"
+                target="_blank"
               >
                 Advanced Kapacitor Usage
               </a>
