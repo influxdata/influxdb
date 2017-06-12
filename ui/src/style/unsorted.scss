@@ -158,3 +158,10 @@ br {
   @include custom-scrollbar($g2-kevlar, $c-pool);
   @include gradient-v($g2-kevlar, $g0-obsidian);
 }
+
+.source-table--connect {
+  width: 74px;
+}
+.source-table--connect-col {
+  width: 90px;
+}

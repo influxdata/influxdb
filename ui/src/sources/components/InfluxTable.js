@@ -12,7 +12,12 @@ const kapacitorDropdown = (
 ) => {
   if (!kapacitors || kapacitors.length === 0) {
     return (
-      <Link to={`/sources/${source.id}/kapacitors/new`}>Add Kapacitor</Link>
+      <Link
+        to={`/sources/${source.id}/kapacitors/new`}
+        className="btn btn-xs btn-primary"
+      >
+        Add Config
+      </Link>
     )
   }
   const kapacitorItems = kapacitors.map(k => {
@@ -90,26 +95,40 @@ const InfluxTable = ({
           <table className="table v-center margin-bottom-zero table-highlight">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Host</th>
-                <th>Kapacitor</th>
+                <th className="source-table--connect-col" />
+                <th>Source Name & Host</th>
+                <th>Active Kapacitor</th>
                 <th className="text-right" />
               </tr>
             </thead>
             <tbody>
               {sources.map(s => {
                 return (
-                  <tr key={s.id}>
+                  <tr
+                    key={s.id}
+                    className={s.id === source.id ? 'highlight' : null}
+                  >
                     <td>
-                      <Link to={`${location.pathname}/${s.id}/edit`}>
-                        {s.name}
-                      </Link>
-                      {' '}
-                      {s.default
-                        ? <span className="default-source-label">Default</span>
-                        : null}
+                      {s.id === source.id
+                        ? <div className="btn btn-success btn-xs source-table--connect">
+                            Connected
+                          </div>
+                        : <Link
+                            className="btn btn-info btn-xs source-table--connect"
+                            to={`/sources/${s.id}/hosts`}
+                          >
+                            Connect
+                          </Link>}
                     </td>
-                    <td className="monotype">{s.url}</td>
+                    <td>
+                      <h5 className="margin-zero">
+                        <Link to={`${location.pathname}/${s.id}/edit`}>
+                          <strong>{s.name}</strong>
+                          {s.default ? ' (Default)' : null}
+                        </Link>
+                      </h5>
+                      <span>{s.url}</span>
+                    </td>
                     <td>
                       {kapacitorDropdown(
                         s.kapacitors,
@@ -120,22 +139,13 @@ const InfluxTable = ({
                       )}
                     </td>
                     <td className="text-right">
-                      {s.id === source.id
-                        ? <span className="currently-connected-source">
-                            <span className="icon checkmark" /> Connected
-                          </span>
-                        : <Link
-                            className="btn btn-success btn-xs"
-                            to={`/sources/${s.id}/hosts`}
-                          >
-                            Connect
-                          </Link>}
-                      <button
-                        className="btn btn-danger btn-xs btn-square"
+                      <a
+                        className="link-danger"
+                        href="#"
                         onClick={() => handleDeleteSource(s)}
                       >
-                        <span className="icon trash" />
-                      </button>
+                        Delete Source
+                      </a>
                     </td>
                   </tr>
                 )
