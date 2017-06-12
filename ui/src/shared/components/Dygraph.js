@@ -55,6 +55,7 @@ const multiColumnBarPlotter = e => {
       }
     }
   }
+
   const barWidth = Math.floor(2.0 / 3 * minSep)
 
   const fillColors = []
@@ -69,7 +70,9 @@ const multiColumnBarPlotter = e => {
     for (let i = 0; i < sets[j].length; i++) {
       const p = sets[j][i]
       const centerX = p.canvasx
-      const xLeft = centerX - barWidth / 2 * (1 - j / (sets.length - 1))
+      const xLeft = sets.length === 1
+        ? centerX - barWidth / 2
+        : centerX - barWidth / 2 * (1 - j / (sets.length - 1))
 
       ctx.fillRect(
         xLeft,
