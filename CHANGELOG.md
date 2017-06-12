@@ -1,3 +1,9 @@
+## v1.4.0 [unreleased]
+
+### Bugfixes
+
+- [#8480](https://github.com/influxdata/influxdb/pull/8480): Change the default stats interval to 1 second instead of 10 seconds.
+
 ## v1.3.0 [unreleased]
 
 ### Removals
