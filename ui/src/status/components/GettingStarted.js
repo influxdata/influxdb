@@ -33,42 +33,42 @@ class GettingStarted extends Component {
             <p><strong>Guides</strong></p>
             <p>
               <a
-                href="https://docs.influxdata.com/chronograf/v1.3/guides/create-a-dashboard/"
+                href="https://docs.influxdata.com/chronograf/latest/guides/create-a-dashboard/"
                 target="_blank"
               >
                 Create a Dashboard
               </a>
               <br />
               <a
-                href="https://docs.influxdata.com/chronograf/v1.3/guides/create-a-kapacitor-alert/"
+                href="https://docs.influxdata.com/chronograf/latest/guides/create-a-kapacitor-alert/"
                 target="_blank"
               >
                 Create a Kapacitor Alert
               </a>
               <br />
               <a
-                href="https://docs.influxdata.com/chronograf/v1.3/guides/configure-kapacitor-event-handlers/"
+                href="https://docs.influxdata.com/chronograf/latest/guides/configure-kapacitor-event-handlers/"
                 target="_blank"
               >
                 Configure Kapacitor Event Handlers
               </a>
               <br />
               <a
-                href="https://docs.influxdata.com/chronograf/v1.3/guides/transition-web-admin-interface/"
+                href="https://docs.influxdata.com/chronograf/latest/guides/transition-web-admin-interface/"
                 target="_blank"
               >
                 Transition from InfluxDB's Web Admin Interface
               </a>
               <br />
               <a
-                href="https://docs.influxdata.com/chronograf/v1.3/guides/dashboard-template-variables/"
+                href="https://docs.influxdata.com/chronograf/latest/guides/dashboard-template-variables/"
                 target="_blank"
               >
                 Dashboard Template Variables
               </a>
               <br />
               <a
-                href="https://docs.influxdata.com/chronograf/v1.3/guides/advanced-kapacitor/"
+                href="https://docs.influxdata.com/chronograf/latest/guides/advanced-kapacitor/"
                 target="_blank"
               >
                 Advanced Kapacitor Usage
