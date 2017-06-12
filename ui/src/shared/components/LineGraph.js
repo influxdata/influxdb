@@ -22,6 +22,7 @@ export default React.createClass({
     isRefreshing: bool,
     underlayCallback: func,
     isGraphFilled: bool,
+    isBarChart: bool,
     overrideLineColors: array,
     queries: arrayOf(shape({}).isRequired).isRequired,
     showSingleStat: bool,
@@ -80,6 +81,7 @@ export default React.createClass({
       isFetchingInitially,
       isRefreshing,
       isGraphFilled,
+      isBarChart,
       overrideLineColors,
       title,
       underlayCallback,
@@ -101,25 +103,22 @@ export default React.createClass({
       )
     }
 
-    const options = Object.assign(
-      {},
-      {
-        labels,
-        connectSeparatedPoints: true,
-        labelsKMB: true,
-        axisLineColor: '#383846',
-        gridLineColor: '#383846',
-        title,
-        rightGap: 0,
-        yRangePad: 10,
-        axisLabelWidth: 38,
-        drawAxesAtZero: true,
-        underlayCallback,
-        ylabel: _.get(queries, ['0', 'label'], ''),
-        y2label: _.get(queries, ['1', 'label'], ''),
-      },
-      displayOptions
-    )
+    const options = {
+      labels,
+      connectSeparatedPoints: true,
+      labelsKMB: true,
+      axisLineColor: '#383846',
+      gridLineColor: '#383846',
+      title,
+      rightGap: 0,
+      yRangePad: 10,
+      axisLabelWidth: 38,
+      drawAxesAtZero: true,
+      underlayCallback,
+      ylabel: _.get(queries, ['0', 'label'], ''),
+      y2label: _.get(queries, ['1', 'label'], ''),
+      ...displayOptions,
+    }
 
     let roundedValue
     if (showSingleStat) {
@@ -141,6 +140,7 @@ export default React.createClass({
           containerStyle={{width: '100%', height: '100%'}}
           overrideLineColors={overrideLineColors}
           isGraphFilled={isGraphFilled}
+          isBarChart={isBarChart}
           timeSeries={timeSeries}
           labels={labels}
           options={options}
