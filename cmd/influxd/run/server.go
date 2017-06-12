@@ -177,7 +177,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	s.PointsWriter = coordinator.NewPointsWriter()
 	s.PointsWriter.WriteTimeout = time.Duration(c.Coordinator.WriteTimeout)
 	s.PointsWriter.TSDBStore = s.TSDBStore
-	s.PointsWriter.Subscriber = s.Subscriber
+	s.PointsWriter.AddWriteSubscriber(s.Subscriber.Points())
 
 	// Initialize query executor.
 	s.QueryExecutor = influxql.NewQueryExecutor()
