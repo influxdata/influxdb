@@ -125,8 +125,9 @@
   # discover slow or resource intensive queries.  Setting the value to 0 disables the slow query logging.
   # log-queries-after = "0s"
 
-  # The maximum number of points a SELECT can process.  A value of 0 will make the maximum
-  # point count unlimited.
+  # The maximum number of points a SELECT can process.  A value of 0 will make
+  # the maximum point count unlimited.  This will only be checked every 10 seconds so queries will not
+  # be aborted immediately when hitting the limit.
   # max-select-point = 0
 
   # The maximum number of series a SELECT can run.  A value of 0 will make the maximum series
