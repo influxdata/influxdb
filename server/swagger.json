@@ -4006,7 +4006,8 @@
 									"line",
 									"line-plus-single-stat",
 									"line-stacked",
-									"line-stepplot"
+									"line-stepplot",
+									"bar"
 								],
 								"default": "line"
 							},
