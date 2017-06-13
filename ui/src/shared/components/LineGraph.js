@@ -116,7 +116,7 @@ export default React.createClass({
       title,
       rightGap: 0,
       yRangePad: 10,
-      axisLabelWidth: 38,
+      axisLabelWidth: 60,
       drawAxesAtZero: true,
       underlayCallback,
       ylabel: _.get(queries, ['0', 'label'], ''),
