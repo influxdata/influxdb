@@ -63,6 +63,7 @@ const VisView = ({
       activeQueryIndex={activeQueryIndex}
       isInDataExplorer={isInDataExplorer}
       showSingleStat={cellType === 'line-plus-single-stat'}
+      isBarGraph={cellType === 'bar'}
       displayOptions={displayOptions}
       editQueryStatus={editQueryStatus}
     />

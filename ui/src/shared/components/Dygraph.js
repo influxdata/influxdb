@@ -23,6 +23,74 @@ const LINE_COLORS = [
   '#a0725b',
 ]
 
+const darkenColor = colorStr => {
+  // Defined in dygraph-utils.js
+  const color = Dygraphs.toRGB_(colorStr)
+  color.r = Math.floor((255 + color.r) / 2)
+  color.g = Math.floor((255 + color.g) / 2)
+  color.b = Math.floor((255 + color.b) / 2)
+  return `rgb(${color.r},${color.g},${color.b})`
+}
+// Bar Graph code below is from http://dygraphs.com/tests/plotters.html
+const multiColumnBarPlotter = e => {
+  // We need to handle all the series simultaneously.
+  if (e.seriesIndex !== 0) {
+    return
+  }
+
+  const g = e.dygraph
+  const ctx = e.drawingContext
+  const sets = e.allSeriesPoints
+  const yBottom = e.dygraph.toDomYCoord(0)
+
+  // Find the minimum separation between x-values.
+  // This determines the bar width.
+  let minSep = Infinity
+  for (let j = 0; j < sets.length; j++) {
+    const points = sets[j]
+    for (let i = 1; i < points.length; i++) {
+      const sep = points[i].canvasx - points[i - 1].canvasx
+      if (sep < minSep) {
+        minSep = sep
+      }
+    }
+  }
+
+  const barWidth = Math.floor(2.0 / 3 * minSep)
+
+  const fillColors = []
+  const strokeColors = g.getColors()
+  for (let i = 0; i < strokeColors.length; i++) {
+    fillColors.push(darkenColor(strokeColors[i]))
+  }
+
+  for (let j = 0; j < sets.length; j++) {
+    ctx.fillStyle = fillColors[j]
+    ctx.strokeStyle = strokeColors[j]
+    for (let i = 0; i < sets[j].length; i++) {
+      const p = sets[j][i]
+      const centerX = p.canvasx
+      const xLeft = sets.length === 1
+        ? centerX - barWidth / 2
+        : centerX - barWidth / 2 * (1 - j / (sets.length - 1))
+
+      ctx.fillRect(
+        xLeft,
+        p.canvasy,
+        barWidth / sets.length,
+        yBottom - p.canvasy
+      )
+
+      ctx.strokeRect(
+        xLeft,
+        p.canvasy,
+        barWidth / sets.length,
+        yBottom - p.canvasy
+      )
+    }
+  }
+}
+
 export default class Dygraph extends Component {
   constructor(props) {
     super(props)
@@ -61,6 +129,7 @@ export default class Dygraph extends Component {
       ruleValues,
       overrideLineColors,
       isGraphFilled,
+      isBarGraph,
       options,
     } = this.props
 
@@ -155,6 +224,10 @@ export default class Dygraph extends Component {
       },
     }
 
+    if (isBarGraph) {
+      defaultOptions.plotter = multiColumnBarPlotter
+    }
+
     this.dygraph = new Dygraphs(graphContainerNode, timeSeries, {
       ...defaultOptions,
       ...options,
@@ -189,7 +262,14 @@ export default class Dygraph extends Component {
   }
 
   componentDidUpdate() {
-    const {labels, ranges, options, dygraphSeries, ruleValues} = this.props
+    const {
+      labels,
+      ranges,
+      options,
+      dygraphSeries,
+      ruleValues,
+      isBarGraph,
+    } = this.props
     const dygraph = this.dygraph
     if (!dygraph) {
       throw new Error(
@@ -217,6 +297,7 @@ export default class Dygraph extends Component {
       stackedGraph: options.stackedGraph,
       underlayCallback: options.underlayCallback,
       series: dygraphSeries,
+      plotter: isBarGraph ? multiColumnBarPlotter : null,
     })
     // part of optional workaround for preventing updateOptions from breaking legend
     // if (this.lastMouseMoveEvent) {
@@ -266,6 +347,7 @@ Dygraph.propTypes = {
   options: shape({}),
   containerStyle: shape({}),
   isGraphFilled: bool,
+  isBarGraph: bool,
   overrideLineColors: array,
   dygraphSeries: shape({}).isRequired,
   ruleValues: shape({

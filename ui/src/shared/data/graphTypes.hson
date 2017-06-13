@@ -4,4 +4,5 @@
   {type: "line-stepplot", menuOption: "Step-Plot"},
   {type: "single-stat", menuOption: "SingleStat"},
   {type: "line-plus-single-stat", menuOption: "Line + Stat"},
+  {type: "bar", menuOption: "Bar"},
 ]
