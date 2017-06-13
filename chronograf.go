@@ -206,7 +206,7 @@ func (g *GroupByVar) Exec(query string) {
 
 	// advance to next space
 	pos := 0
-	for {
+	for pos < len(durStr) {
 		rn, _ := utf8.DecodeRuneInString(durStr[pos:])
 		if unicode.IsSpace(rn) {
 			break
