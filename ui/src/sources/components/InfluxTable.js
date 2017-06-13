@@ -2,6 +2,7 @@ import React, {PropTypes} from 'react'
 import {Link, withRouter} from 'react-router'
 
 import Dropdown from 'shared/components/Dropdown'
+import QuestionMarkTooltip from 'shared/components/QuestionMarkTooltip'
 
 const kapacitorDropdown = (
   kapacitors,
@@ -14,7 +15,7 @@ const kapacitorDropdown = (
     return (
       <Link
         to={`/sources/${source.id}/kapacitors/new`}
-        className="btn btn-xs btn-primary"
+        className="btn btn-xs btn-default"
       >
         Add Config
       </Link>
@@ -40,7 +41,7 @@ const kapacitorDropdown = (
   return (
     <Dropdown
       className="dropdown-260"
-      buttonColor="btn-default"
+      buttonColor="btn-primary"
       buttonSize="btn-xs"
       items={kapacitorItems}
       onChoose={item => setActiveKapacitor(item.kapacitor)}
@@ -98,7 +99,13 @@ const InfluxTable = ({
                 <th className="source-table--connect-col" />
                 <th>Source Name & Host</th>
                 <th className="text-right" />
-                <th>Active Kapacitor</th>
+                <th>
+                  Active Kapacitor{' '}
+                  <QuestionMarkTooltip
+                    tipID="kapacitor-node-helper"
+                    tipContent="Kapacitor Configurations are scoped per InfluxDB Source. Only one can be active at a time"
+                  />
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -114,7 +121,7 @@ const InfluxTable = ({
                             Connected
                           </div>
                         : <Link
-                            className="btn btn-info btn-xs source-table--connect"
+                            className="btn btn-default btn-xs source-table--connect"
                             to={`/sources/${s.id}/hosts`}
                           >
                             Connect
@@ -122,7 +129,10 @@ const InfluxTable = ({
                     </td>
                     <td>
                       <h5 className="margin-zero">
-                        <Link to={`${location.pathname}/${s.id}/edit`}>
+                        <Link
+                          to={`${location.pathname}/${s.id}/edit`}
+                          className={s.id === source.id ? 'link-success' : null}
+                        >
                           <strong>{s.name}</strong>
                           {s.default ? ' (Default)' : null}
                         </Link>
