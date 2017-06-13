@@ -181,8 +181,14 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.PUT("/chronograf/v1/sources/:id/dbs/:dbid/rps/:rpid", service.UpdateRetentionPolicy)
 	router.DELETE("/chronograf/v1/sources/:id/dbs/:dbid/rps/:rpid", service.DropRetentionPolicy)
 
+	// Set statusFeedURL to a default InfluxData JSON feed if not explicitly set by user
+	statusFeedURL := opts.StatusFeedURL
+	if statusFeedURL == "" {
+		statusFeedURL = "http://news.influxdata.com/feed.json"
+	}
+
 	externalLinks := getExternalLinksResponse{
-		StatusFeed: &opts.StatusFeedURL,
+		StatusFeed: &statusFeedURL,
 	}
 
 	allRoutes := &AllRoutes{
