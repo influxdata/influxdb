@@ -31,7 +31,7 @@ const darkenColor = colorStr => {
   color.b = Math.floor((255 + color.b) / 2)
   return `rgb(${color.r},${color.g},${color.b})`
 }
-
+// Bar Graph code below is from http://dygraphs.com/tests/plotters.html
 const multiColumnBarPlotter = e => {
   // We need to handle all the series simultaneously.
   if (e.seriesIndex !== 0) {
