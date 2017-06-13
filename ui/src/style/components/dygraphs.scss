@@ -169,17 +169,21 @@
     line-height: 34px;
   }
 }
-.single-stat-line .single-stat--value:after {
+.single-stat--shadow {
+  position: relative;
+  display: inline-block;
+}
+.single-stat--shadow:after {
   content: '';
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 50%;
+  width: 110%;
   height: 0;
   transform: translate(-50%,-50%);
   box-shadow: fade-out($g2-kevlar, 0.3) 0 0 50px 30px;
   z-index: -1;
 }
-.single-stat-line .single-stat--value.single-stat--small:after {
+.single-stat--small .single-stat--shadow:after {
   box-shadow: fade-out($g2-kevlar, 0.3) 0 0 30px 10px;
 }
