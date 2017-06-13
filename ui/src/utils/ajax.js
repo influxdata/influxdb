@@ -2,6 +2,13 @@ import axios from 'axios'
 
 let links
 
+const generateResponseWithLinks = (response, {auth, logout, external}) => ({
+  ...response,
+  auth: {links: auth},
+  logoutLink: logout,
+  external,
+})
+
 const AJAX = async ({
   url,
   resource,
@@ -39,19 +46,11 @@ const AJAX = async ({
       headers,
     })
 
-    const {auth} = links
-
-    return {
-      ...response,
-      auth: {links: auth},
-      logoutLink: links.logout,
-    }
+    return generateResponseWithLinks(response, links)
   } catch (error) {
     const {response} = error
 
-    const {auth} = links
-
-    throw {...response, auth: {links: auth}, logoutLink: links.logout} // eslint-disable-line no-throw-literal
+    throw generateResponseWithLinks(response, links) // eslint-disable-line no-throw-literal
   }
 }
 

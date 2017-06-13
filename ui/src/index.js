@@ -36,6 +36,7 @@ import {
   meReceived,
   logoutLinkReceived,
 } from 'shared/actions/auth'
+import {linksReceived} from 'shared/actions/links'
 import {errorThrown} from 'shared/actions/errors'
 
 import 'src/style/chronograf.scss'
@@ -87,11 +88,13 @@ const Root = React.createClass({
 
   async startHeartbeat({shouldDispatchResponse}) {
     try {
-      const {data: me, auth, logoutLink} = await getMe()
+      // These non-me objects are added to every response by some AJAX trickery
+      const {data: me, auth, logoutLink, external} = await getMe()
       if (shouldDispatchResponse) {
         dispatch(authReceived(auth))
         dispatch(meReceived(me))
         dispatch(logoutLinkReceived(logoutLink))
+        dispatch(linksReceived({external}))
       }
 
       setTimeout(() => {
