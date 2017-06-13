@@ -13,6 +13,8 @@ import (
 	"time"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/influxdata/influxdb/influxql"
 )
 
 // General errors.
@@ -212,7 +214,7 @@ func (g *GroupByVar) Exec(query string) {
 		pos++
 	}
 
-	dur, err := time.ParseDuration(durStr[:pos])
+	dur, err := influxql.ParseDuration(durStr[:pos])
 	if err != nil {
 		return
 	}
