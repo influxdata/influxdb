@@ -171,12 +171,9 @@
     font-weight: 200;
   }
 }
-.single-stat-line .single-stat--value {
-  // color: $g20-white;
-  // font-weight: 900;
-  text-shadow:
-   -2px -2px 0 $g3-castle,
-    2px -2px 0 $g3-castle,
-    -2px 2px 0 $g3-castle,
-     2px 2px 0 $g3-castle;
+.single-stat--overlay {
+  background-color: fade-out($g2-kevlar, 0.5);
+  padding: 10px 12px;
+  border-radius: 3px;
+  display: inline-block;
 }

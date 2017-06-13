@@ -148,7 +148,7 @@ export default React.createClass({
         strokeWidth: 1.5,
       },
     }
-    const singleStatLineColor = ['#757888']
+    const singleStatLineColor = ['#7A65F2']
 
     let roundedValue
     if (showSingleStat) {
@@ -189,7 +189,7 @@ export default React.createClass({
                   'single-stat--small': cellHeight === SMALL_CELL_HEIGHT,
                 })}
               >
-                {roundedValue}
+                <span className="single-stat--overlay">{roundedValue}</span>
               </span>
             </div>
           : null}
