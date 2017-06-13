@@ -134,7 +134,8 @@ type Range struct {
 
 type TemplateVariable interface {
 	fmt.Stringer
-	Name() string // returns the variable name
+	Name() string     // returns the variable name
+	Precedence() uint // ordinal indicating precedence level for replacement
 }
 
 type ExecutableVar interface {
@@ -176,6 +177,10 @@ func (t BasicTemplateVar) String() string {
 	default:
 		return ""
 	}
+}
+
+func (t BasicTemplateVar) Precedence() uint {
+	return 0
 }
 
 type GroupByVar struct {
@@ -229,6 +234,10 @@ func (g *GroupByVar) String() string {
 
 func (g *GroupByVar) Name() string {
 	return g.Var
+}
+
+func (g *GroupByVar) Precedence() uint {
+	return 1
 }
 
 // TemplateID is the unique ID used to identify a template

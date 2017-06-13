@@ -147,7 +147,29 @@ func TestTemplateReplace(t *testing.T) {
 					ReportingInterval: 10 * time.Second,
 				},
 			},
-			want: `SELECT mean(usage_idle) from "cpu" where time > now() - 4320h group by time(1555s)`,
+			want: `SELECT mean(usage_idle) from "cpu" WHERE time > now() - 4320h group by time(1555s)`,
+		},
+		{
+			name:  "auto group by with :dashboardTime:",
+			query: `SELECT mean(usage_idle) from "cpu" WHERE time > :dashboardTime: :autoGroupBy:`,
+			vars: chronograf.TemplateVars{
+				&chronograf.GroupByVar{
+					Var:               ":autoGroupBy:",
+					Duration:          0 * time.Minute,
+					Resolution:        1000,
+					ReportingInterval: 10 * time.Second,
+				},
+				&chronograf.BasicTemplateVar{
+					Var: ":dashboardTime:",
+					Values: []chronograf.BasicTemplateValue{
+						{
+							Type:  "constant",
+							Value: "now() - 4320h",
+						},
+					},
+				},
+			},
+			want: `SELECT mean(usage_idle) from "cpu" WHERE time > now() - 4320h group by time(1555s)`,
 		},
 	}
 	for _, tt := range tests {
