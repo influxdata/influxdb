@@ -16,14 +16,6 @@ const RefreshingGraph = ({
   queries,
   cellHeight,
 }) => {
-  if (type === 'bar') {
-    return (
-      <div className="graph-empty">
-        <p>Coming soon: Bar graph</p>
-      </div>
-    )
-  }
-
   if (type === 'single-stat') {
     return (
       <RefreshingSingleStat
@@ -47,6 +39,7 @@ const RefreshingGraph = ({
       timeRange={timeRange}
       autoRefresh={autoRefresh}
       showSingleStat={type === 'line-plus-single-stat'}
+      isBarGraph={type === 'bar'}
       displayOptions={displayOptions}
       synchronizer={synchronizer}
     />
