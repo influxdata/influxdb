@@ -976,11 +976,11 @@ func mapIndexFileSeriesBlockFile(f *os.File) (*SeriesBlock, []byte, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	data = data[len(FileSignature):] // Skip file signature.
+	sblk_data := data[len(FileSignature):] // Skip file signature.
 
 	// Unmarshal block on top of mmap.
 	var sblk SeriesBlock
-	if err := sblk.UnmarshalBinary(data); err != nil {
+	if err := sblk.UnmarshalBinary(sblk_data); err != nil {
 		mmap.Unmap(data)
 		return nil, nil, err
 	}
