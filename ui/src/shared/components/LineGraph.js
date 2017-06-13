@@ -124,6 +124,32 @@ export default React.createClass({
       ...displayOptions,
     }
 
+    const singleStatOptions = {
+      labels,
+      connectSeparatedPoints: true,
+      labelsKMB: true,
+      axes: {
+        x: {
+          drawGrid: false,
+          drawAxis: false,
+        },
+        y: {
+          drawGrid: false,
+          drawAxis: false,
+        },
+      },
+      title,
+      rightGap: 0,
+      strokeWidth: 1.5,
+      drawAxesAtZero: true,
+      underlayCallback,
+      ...displayOptions,
+      highlightSeriesOpts: {
+        strokeWidth: 1.5,
+      },
+    }
+    const singleStatLineColor = ['#757888']
+
     let roundedValue
     if (showSingleStat) {
       const lastValue = lastValues(data)[1]
@@ -142,12 +168,14 @@ export default React.createClass({
         {isRefreshing ? this.renderSpinner() : null}
         <Dygraph
           containerStyle={{width: '100%', height: '100%'}}
-          overrideLineColors={overrideLineColors}
-          isGraphFilled={isGraphFilled}
+          overrideLineColors={
+            showSingleStat ? singleStatLineColor : overrideLineColors
+          }
+          isGraphFilled={showSingleStat ? false : isGraphFilled}
           isBarGraph={isBarGraph}
           timeSeries={timeSeries}
           labels={labels}
-          options={options}
+          options={showSingleStat ? singleStatOptions : options}
           dygraphSeries={dygraphSeries}
           ranges={ranges || this.getRanges()}
           ruleValues={ruleValues}

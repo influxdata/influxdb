@@ -153,13 +153,30 @@
   top: calc(50% - 15px);
   left: 50%;
   transform: translate(-50%,-50%);
+  width: calc(100% - 32px);
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
   font-size: 54px;
   line-height: 54px;
   font-weight: 300;
-  color: $c-pool;
+  color: $c-laser;
 
   &.single-stat--small {
-    font-size: 38px;
-    line-height: 38px;
+    font-weight: 400;
+    font-size: 34px;
+    line-height: 34px;
   }
+  &.single-stat-huge {
+    font-weight: 200;
+  }
+}
+.single-stat-line .single-stat--value {
+  // color: $g20-white;
+  // font-weight: 900;
+  text-shadow:
+   -2px -2px 0 $g3-castle,
+    2px -2px 0 $g3-castle,
+    -2px 2px 0 $g3-castle,
+     2px 2px 0 $g3-castle;
 }
