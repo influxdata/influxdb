@@ -23,6 +23,11 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	// The extension used to describe temporary snapshot files.
+	TmpTSMFileExtension = "tmp"
+)
+
 // TSMFile represents an on-disk TSM file.
 type TSMFile interface {
 	// Path returns the underlying file path for the TSMFile.  If the file
@@ -433,8 +438,9 @@ func (f *FileStore) Open() error {
 	if err != nil {
 		return err
 	}
+	ext := fmt.Sprintf(".%s", TmpTSMFileExtension)
 	for _, fi := range tmpfiles {
-		if fi.IsDir() && strings.HasSuffix(fi.Name(), ".tmp") {
+		if fi.IsDir() && strings.HasSuffix(fi.Name(), ext) {
 			ss := strings.Split(filepath.Base(fi.Name()), ".")
 			if len(ss) == 2 {
 				if i, err := strconv.Atoi(ss[0]); err != nil {
@@ -635,16 +641,20 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 	f.mu.RUnlock()
 
 	updated := make([]TSMFile, 0, len(newFiles))
+	tsmTmpExt := fmt.Sprintf("%s.%s", TSMFileExtension, TmpTSMFileExtension)
 
 	// Rename all the new files to make them live on restart
 	for _, file := range newFiles {
 		var newName = file
-		if strings.HasSuffix(file, ".tmp") {
+		if strings.HasSuffix(file, tsmTmpExt) {
 			// The new TSM files have a tmp extension.  First rename them.
 			newName = file[:len(file)-4]
 			if err := os.Rename(file, newName); err != nil {
 				return err
 			}
+		} else if !strings.HasSuffix(file, TSMFileExtension) {
+			// This isn't a .tsm or .tsm.tmp file.
+			continue
 		}
 
 		fd, err := os.Open(newName)
@@ -701,7 +711,7 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 					deletes = append(deletes, file.Path())
 
 					// Rename the TSM file used by this reader
-					tempPath := file.Path() + ".tmp"
+					tempPath := fmt.Sprintf("%s.%s", file.Path(), TmpTSMFileExtension)
 					if err := file.Rename(tempPath); err != nil {
 						return err
 					}
@@ -958,7 +968,7 @@ func (f *FileStore) CreateSnapshot() (string, error) {
 	defer f.mu.RUnlock()
 
 	// get a tmp directory name
-	tmpPath := fmt.Sprintf("%s/%d.tmp", f.dir, f.currentTempDirID)
+	tmpPath := fmt.Sprintf("%s/%d.%s", f.dir, f.currentTempDirID, TmpTSMFileExtension)
 	err := os.Mkdir(tmpPath, 0777)
 	if err != nil {
 		return "", err

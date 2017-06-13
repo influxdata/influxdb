@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -141,9 +142,9 @@ func (i *Index) Open() error {
 	}
 
 	// Read manifest file.
-	m, err := ReadManifestFile(filepath.Join(i.Path, ManifestFileName))
+	m, err := ReadManifestFile(i.ManifestPath())
 	if os.IsNotExist(err) {
-		m = NewManifest()
+		m = NewManifest(i.ManifestPath())
 	} else if err != nil {
 		return err
 	}
@@ -189,6 +190,7 @@ func (i *Index) Open() error {
 	if err != nil {
 		return err
 	}
+	fs.manifestSize = m.size
 	i.fileSet = fs
 
 	// Set initial sequnce number.
@@ -213,6 +215,28 @@ func (i *Index) Open() error {
 	i.compact()
 
 	return nil
+}
+
+// ReplaceIndex returns a new index built using the provided file paths.
+func (i *Index) ReplaceIndex(newFiles []string) (*Index, error) {
+	var base string
+	for _, pth := range newFiles {
+		if !strings.Contains(pth, "/index") {
+			continue // Not a tsi1 file path.
+		}
+
+		if base == "" {
+			base = path.Dir(pth)
+		}
+		if err := os.Rename(pth, strings.TrimSuffix(pth, ".tmp")); err != nil {
+			return nil, err
+		}
+	}
+
+	// Create, open and return the new index.
+	idx := NewIndex()
+	idx.Path = base
+	return idx, idx.Open()
 }
 
 // openLogFile opens a log file and appends it to the index.
@@ -309,6 +333,7 @@ func (i *Index) Manifest() *Manifest {
 		Levels:  i.levels,
 		Files:   make([]string, len(i.fileSet.files)),
 		Version: i.version,
+		path:    i.ManifestPath(),
 	}
 
 	for j, f := range i.fileSet.files {
@@ -319,8 +344,18 @@ func (i *Index) Manifest() *Manifest {
 }
 
 // writeManifestFile writes the manifest to the appropriate file path.
-func (i *Index) writeManifestFile() error {
-	return WriteManifestFile(i.ManifestPath(), i.Manifest())
+func (i *Index) writeManifestFile(m *Manifest) error {
+	buf, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		return err
+	}
+	buf = append(buf, '\n')
+
+	if err := ioutil.WriteFile(i.ManifestPath(), buf, 0666); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // WithLogger sets the logger for the index.
@@ -365,10 +400,12 @@ func (i *Index) prependActiveLogFile() error {
 	i.fileSet = i.fileSet.PrependLogFile(f)
 
 	// Write new manifest.
-	if err := i.writeManifestFile(); err != nil {
+	m := i.Manifest()
+	if err = m.Write(); err != nil {
 		// TODO: Close index if write fails.
 		return err
 	}
+	i.fileSet.manifestSize = m.size
 
 	return nil
 }
@@ -863,6 +900,13 @@ func (i *Index) TagSets(name []byte, opt query.IteratorOptions) ([]*query.TagSet
 	return sortedTagsSets, nil
 }
 
+// DiskSizeBytes returns the size of the index on disk.
+func (i *Index) DiskSizeBytes() int64 {
+	fs := i.RetainFileSet()
+	defer fs.Release()
+	return fs.Size()
+}
+
 // SnapshotTo creates hard links to the file set into path.
 func (i *Index) SnapshotTo(path string) error {
 	i.mu.Lock()
@@ -1035,10 +1079,13 @@ func (i *Index) compactToLevel(files []*IndexFile, level int) {
 		i.fileSet = i.fileSet.MustReplace(IndexFiles(files).Files(), file)
 
 		// Write new manifest.
-		if err := i.writeManifestFile(); err != nil {
+		var err error
+		m := i.Manifest()
+		if err = m.Write(); err != nil {
 			// TODO: Close index if write fails.
 			return err
 		}
+		i.fileSet.manifestSize = m.size
 		return nil
 	}(); err != nil {
 		logger.Error("cannot write manifest", zap.Error(err))
@@ -1168,10 +1215,13 @@ func (i *Index) compactLogFile(logFile *LogFile) {
 		i.fileSet = i.fileSet.MustReplace([]File{logFile}, file)
 
 		// Write new manifest.
-		if err := i.writeManifestFile(); err != nil {
+		var err error
+		m := i.Manifest()
+		if err = m.Write(); err != nil {
 			// TODO: Close index if write fails.
 			return err
 		}
+		i.fileSet.manifestSize = m.size
 		return nil
 	}(); err != nil {
 		logger.Error("cannot update manifest", zap.Error(err))
@@ -1329,18 +1379,20 @@ func ParseFilename(name string) (level, id int) {
 // Manifest represents the list of log & index files that make up the index.
 // The files are listed in time order, not necessarily ID order.
 type Manifest struct {
-	Levels []CompactionLevel `json:"levels,omitempty"`
-	Files  []string          `json:"files,omitempty"`
+	Levels  []CompactionLevel `json:"levels,omitempty"`
+	Files   []string          `json:"files,omitempty"`
+	Version int               `json:"version,omitempty"` // Version should be updated whenever the TSI format has changed.
 
-	// Version should be updated whenever the TSI format has changed.
-	Version int `json:"version,omitempty"`
+	size int64  // Holds the on-disk size of the manifest.
+	path string // location on disk of the manifest.
 }
 
 // NewManifest returns a new instance of Manifest with default compaction levels.
-func NewManifest() *Manifest {
+func NewManifest(path string) *Manifest {
 	m := &Manifest{
 		Levels:  make([]CompactionLevel, len(DefaultCompactionLevels)),
 		Version: Version,
+		path:    path,
 	}
 	copy(m.Levels, DefaultCompactionLevels[:])
 	return m
@@ -1368,6 +1420,19 @@ func (m *Manifest) Validate() error {
 }
 
 // ReadManifestFile reads a manifest from a file path.
+// Write writes the manifest file to the provided path.
+func (m *Manifest) Write() error {
+	buf, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		return err
+	}
+	buf = append(buf, '\n')
+	m.size = int64(len(buf))
+	return ioutil.WriteFile(m.path, buf, 0666)
+}
+
+// ReadManifestFile reads a manifest from a file path and returns the manifest
+// along with its size and any error.
 func ReadManifestFile(path string) (*Manifest, error) {
 	buf, err := ioutil.ReadFile(path)
 	if err != nil {
@@ -1379,23 +1444,11 @@ func ReadManifestFile(path string) (*Manifest, error) {
 	if err := json.Unmarshal(buf, &m); err != nil {
 		return nil, err
 	}
+	// Set the size of the manifest.
+	m.size = int64(len(buf))
+	m.path = path
 
 	return &m, nil
-}
-
-// WriteManifestFile writes a manifest to a file path.
-func WriteManifestFile(path string, m *Manifest) error {
-	buf, err := json.MarshalIndent(m, "", "  ")
-	if err != nil {
-		return err
-	}
-	buf = append(buf, '\n')
-
-	if err := ioutil.WriteFile(path, buf, 0666); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func joinIntSlice(a []int, sep string) string {

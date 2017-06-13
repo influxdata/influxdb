@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/influxdata/influxdb/models"
@@ -220,10 +221,10 @@ func TestIndex_Open(t *testing.T) {
 			idx = NewIndex()
 			// Manually create a MANIFEST file for an incompatible index version.
 			mpath := filepath.Join(idx.Path, tsi1.ManifestFileName)
-			m := tsi1.NewManifest()
+			m := tsi1.NewManifest(mpath)
 			m.Levels = nil
 			m.Version = v // Set example MANIFEST version.
-			if err := tsi1.WriteManifestFile(mpath, m); err != nil {
+			if err := m.Write(); err != nil {
 				t.Fatal(err)
 			}
 
@@ -250,6 +251,87 @@ func TestIndex_Manifest(t *testing.T) {
 		idx := MustOpenIndex()
 		if got, exp := idx.Manifest().Version, tsi1.Version; got != exp {
 			t.Fatalf("got MANIFEST version %d, expected %d", got, exp)
+		}
+	})
+}
+
+func TestIndex_ReplaceIndex(t *testing.T) {
+	idx := MustOpenIndex()
+	defer idx.Close()
+
+	tmpBase := os.TempDir()
+	if err := os.MkdirAll(filepath.Join(tmpBase, "index"), 0777); err != nil {
+		t.Fatal(err)
+	}
+
+	names := []string{"a.tsi.tmp", "b.tsl.tmp", "c.tsi.tmp", "not_a_tsi_file.tsm.tmp"}
+	newFiles := make([]string, 0, len(names))
+	for i, name := range names {
+		var inIndex string
+		if i < len(names)-1 {
+			// First three files are in the index directory.
+			inIndex = "index"
+		}
+
+		fullPath := filepath.Join(tmpBase, inIndex, name)
+		fd, err := os.Create(fullPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fd.Close()
+		newFiles = append(newFiles, fullPath)
+	}
+
+	idx2, err := idx.ReplaceIndex(newFiles)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { os.RemoveAll(idx2.Path); idx2.Close() }()
+
+	if got, exp := idx2.Path, filepath.Join(tmpBase, "index"); got != exp {
+		t.Fatalf("got index path of %s, expected %s", got, exp)
+	}
+
+	for _, nf := range newFiles {
+		// Remove tmp extension as would be done when creating the index.
+		nf = strings.TrimSuffix(nf, ".tmp")
+
+		// Determine existence.
+		_, err := os.Stat(nf)
+		if strings.Contains(nf, "not_a_tsi_file.tsm") {
+			// This file should not exist in the index.
+			if !os.IsNotExist(err) {
+				t.Fatalf("got %v, expected %v", err, os.ErrNotExist)
+			}
+		} else {
+			// This file should exist in the index
+			if err != nil {
+				t.Fatalf("got %v, expected <nil> for file %s", err, nf)
+			}
+		}
+
+	}
+}
+
+// Ensure index can delete a measurement and all related keys, values, & series.
+func TestIndex_DiskSizeBytes(t *testing.T) {
+	idx := MustOpenIndex()
+	defer idx.Close()
+
+	// Add series to index.
+	if err := idx.CreateSeriesSliceIfNotExists([]Series{
+		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "east"})},
+		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "west"})},
+		{Name: []byte("disk"), Tags: models.NewTags(map[string]string{"region": "north"})},
+		{Name: []byte("mem"), Tags: models.NewTags(map[string]string{"region": "west", "country": "us"})},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify on disk size is the same in each stage.
+	idx.Run(t, func(t *testing.T) {
+		if got, exp := idx.DiskSizeBytes(), int64(464); got != exp {
+			t.Fatalf("got %d bytes, expected %d", got, exp)
 		}
 	})
 }

@@ -53,6 +53,9 @@ type Index interface {
 	// Creates hard links inside path for snapshotting.
 	SnapshotTo(path string) error
 
+	// Size of the index on disk, if applicable.
+	DiskSizeBytes() int64
+
 	// To be removed w/ tsi1.
 	SetFieldName(measurement []byte, name string)
 	AssignShard(k string, shardID uint64)

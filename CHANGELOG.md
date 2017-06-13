@@ -9,6 +9,7 @@
 - [#8495](https://github.com/influxdata/influxdb/pull/8495): Improve CLI connection warnings
 - [#9084](https://github.com/influxdata/influxdb/pull/9084): Handle high cardinality deletes in TSM engine
 - [#9162](https://github.com/influxdata/influxdb/pull/9162): Improve inmem index startup performance for high cardinality.
+- [#8491](https://github.com/influxdata/influxdb/pull/8491): Add further tsi support for streaming/copying shards.
 
 ### Bugfixes
 
@@ -93,8 +94,7 @@ refuse to open, and will most likely see the following error message:
 - [#8897](https://github.com/influxdata/influxdb/pull/8897): Add message pack format for query responses.
 - [#8886](https://github.com/influxdata/influxdb/pull/8886): Improved compaction scheduling
 - [#8690](https://github.com/influxdata/influxdb/issues/8690): Implicitly decide on a lower limit for fill queries when none is present.
-- [#8947](https://github.com/influxdata/influxdb/pull/8947): Add `EXPLAIN ANALYZE` command, which produces a detailed execution plan of a `SELECT` statement.
-- [#8963](https://github.com/influxdata/influxdb/pull/8963): Streaming inmem2tsi conversion.
+- [#8947](https://github.com/influxdata/influxdb/pull/8947): Add `EXPLAIN ANALYZE` command, which produces a detailed execution plan of a `SELECT` statement.- [#8963](https://github.com/influxdata/influxdb/pull/8963): Streaming inmem2tsi conversion.
 - [#8995](https://github.com/influxdata/influxdb/pull/8995): Sort & validate TSI key value insertion. 
 - [#8968](https://github.com/influxdata/influxdb/issues/8968): Make client errors more helpful on downstream errs. Thanks @darkliquid!
 - [#8984](https://github.com/influxdata/influxdb/pull/8984): EXACT and estimated CARDINALITY queries.
