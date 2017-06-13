@@ -394,7 +394,7 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 
 	if s.queryStatsEnabled && s.Monitor.Enabled() {
 		tags := map[string]string{"db": dbi.Name, "cq": cq.Info.Name}
-		fields := map[string]interface{}{"duration": int64(execDuration), "written": written, "startTime": startTime.UnixNano(), "endTime": endTime.UnixNano()}
+		fields := map[string]interface{}{"durationNs": int64(execDuration), "pointsWrittenOK": written, "startTime": startTime.UnixNano(), "endTime": endTime.UnixNano()}
 		p, _ := models.NewPoint("cq_query", models.NewTags(tags), fields, time.Now())
 		s.Monitor.WritePoints(models.Points{p})
 	}

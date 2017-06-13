@@ -420,7 +420,7 @@ func TestService_ExecuteContinuousQuery_LogsToMonitor(t *testing.T) {
 	}
 
 	f, _ := point.Fields()
-	if got, ok := f["written"].(int64); !ok || got != writeN {
+	if got, ok := f["pointsWrittenOK"].(int64); !ok || got != writeN {
 		t.Errorf("unexpected value for written; exp=%d, got=%d", writeN, got)
 	}
 }
