@@ -44,34 +44,32 @@ class NewsFeed extends Component {
 
   // TODO: implement interval polling a la AutoRefresh
   componentDidMount() {
-    const {source, fetchJSONFeed} = this.props
+    const {statusFeedURL, fetchJSONFeed} = this.props
 
-    fetchJSONFeed(source.links.status)
+    fetchJSONFeed(statusFeedURL)
   }
 }
 
 const {bool, func, shape, string} = PropTypes
 
 NewsFeed.propTypes = {
-  source: shape({
-    links: shape({
-      status: string.isRequired,
-    }).isRequired,
-  }).isRequired,
   hasCompletedFetchOnce: bool.isRequired,
   isFetching: bool.isRequired,
   isFailed: bool.isRequired,
   data: shape(),
   fetchJSONFeed: func.isRequired,
+  statusFeedURL: string,
 }
 
 const mapStateToProps = ({
+  links: {external: {statusFeed: statusFeedURL}},
   JSONFeed: {hasCompletedFetchOnce, isFetching, isFailed, data},
 }) => ({
   hasCompletedFetchOnce,
   isFetching,
   isFailed,
   data,
+  statusFeedURL,
 })
 
 const mapDispatchToProps = dispatch => ({
