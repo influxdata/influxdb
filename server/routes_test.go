@@ -29,7 +29,7 @@ func TestAllRoutes(t *testing.T) {
 	if err := json.Unmarshal(body, &routes); err != nil {
 		t.Error("TestAllRoutes not able to unmarshal JSON response")
 	}
-	want := `{"layouts":"/chronograf/v1/layouts","mappings":"/chronograf/v1/mappings","sources":"/chronograf/v1/sources","me":"/chronograf/v1/me","dashboards":"/chronograf/v1/dashboards","auth":[]}
+	want := `{"layouts":"/chronograf/v1/layouts","mappings":"/chronograf/v1/mappings","sources":"/chronograf/v1/sources","me":"/chronograf/v1/me","dashboards":"/chronograf/v1/dashboards","auth":[],"external":{}}
 `
 	if want != string(body) {
 		t.Errorf("TestAllRoutes\nwanted\n*%s*\ngot\n*%s*", want, string(body))
@@ -67,7 +67,7 @@ func TestAllRoutesWithAuth(t *testing.T) {
 	if err := json.Unmarshal(body, &routes); err != nil {
 		t.Error("TestAllRoutesWithAuth not able to unmarshal JSON response")
 	}
-	want := `{"layouts":"/chronograf/v1/layouts","mappings":"/chronograf/v1/mappings","sources":"/chronograf/v1/sources","me":"/chronograf/v1/me","dashboards":"/chronograf/v1/dashboards","auth":[{"name":"github","label":"GitHub","login":"/oauth/github/login","logout":"/oauth/github/logout","callback":"/oauth/github/callback"}],"logout":"/oauth/logout"}
+	want := `{"layouts":"/chronograf/v1/layouts","mappings":"/chronograf/v1/mappings","sources":"/chronograf/v1/sources","me":"/chronograf/v1/me","dashboards":"/chronograf/v1/dashboards","auth":[{"name":"github","label":"GitHub","login":"/oauth/github/login","logout":"/oauth/github/logout","callback":"/oauth/github/callback"}],"logout":"/oauth/logout","external":{}}
 `
 	if want != string(body) {
 		t.Errorf("TestAllRoutesWithAuth\nwanted\n*%s*\ngot\n*%s*", want, string(body))

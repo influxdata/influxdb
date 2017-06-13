@@ -28,6 +28,7 @@ type MuxOpts struct {
 	UseAuth       bool                 // UseAuth turns on Github OAuth and JWT
 	Auth          oauth2.Authenticator // Auth is used to authenticate and authorize
 	ProviderFuncs []func(func(oauth2.Provider, oauth2.Mux))
+	StatusFeedURL string // JSON Feed URL for the client Status page News Feed
 }
 
 // NewMux attaches all the route handlers; handler returned servers chronograf.
@@ -180,8 +181,13 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.PUT("/chronograf/v1/sources/:id/dbs/:dbid/rps/:rpid", service.UpdateRetentionPolicy)
 	router.DELETE("/chronograf/v1/sources/:id/dbs/:dbid/rps/:rpid", service.DropRetentionPolicy)
 
+	externalLinks := getExternalLinksResponse{
+		StatusFeed: &opts.StatusFeedURL,
+	}
+
 	allRoutes := &AllRoutes{
-		Logger: opts.Logger,
+		Logger:        opts.Logger,
+		ExternalLinks: externalLinks,
 	}
 
 	router.Handler("GET", "/chronograf/v1/", allRoutes)
