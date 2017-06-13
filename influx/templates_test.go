@@ -138,7 +138,7 @@ func TestTemplateReplace(t *testing.T) {
 		},
 		{
 			name:  "auto group by without duration",
-			query: `SELECT mean(usage_idle) from "cpu" where time > now() - 4320h :autoGroupBy:`,
+			query: `SELECT mean(usage_idle) from "cpu" WHERE time > now() - 4320h :autoGroupBy:`,
 			vars: chronograf.TemplateVars{
 				&chronograf.GroupByVar{
 					Var:               ":autoGroupBy:",
@@ -185,7 +185,7 @@ func TestTemplateReplace(t *testing.T) {
 func Test_TemplateVarsUnmarshalling(t *testing.T) {
 	req := `[
 	{
-		"tempVar": "autoGroupBy",
+		"tempVar": ":autoGroupBy:",
 		"duration": 15552000,
 		"resolution": 1000,
 		"reportingInterval": 10
