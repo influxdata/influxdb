@@ -8,6 +8,7 @@
 
 ### UI Improvements
 1. [#1512](https://github.com/influxdata/chronograf/pull/1512): When dashboard time range is changed, reset graphs that are zoomed in
+1. [#1599](https://github.com/influxdata/chronograf/pull/1599): Bar graph option added to dashboard
 
 ## v1.3.2.1 [2017-06-06]
 
