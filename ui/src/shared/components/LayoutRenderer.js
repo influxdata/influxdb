@@ -110,7 +110,7 @@ export const LayoutRenderer = React.createClass({
         timeRange={timeRange}
         autoRefresh={autoRefresh}
         showSingleStat={type === 'line-plus-single-stat'}
-        isBarChart={type === 'bar'}
+        isBarGraph={type === 'bar'}
         displayOptions={displayOptions}
         synchronizer={synchronizer}
       />

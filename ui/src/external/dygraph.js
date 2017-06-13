@@ -9,9 +9,9 @@ import Dygraph from 'dygraphs/src-es5/dygraph'
  *       g2 = new Dygraph(...),
  *       ...;
  *   var sync = Dygraph.synchronize(g1, g2, ...);
- *   // charts are now synchronized
+ *   // graphs are now synchronized
  *   sync.detach();
- *   // charts are no longer synchronized
+ *   // graphs are no longer synchronized
  *
  * You can set options using the last parameter, for example:
  *

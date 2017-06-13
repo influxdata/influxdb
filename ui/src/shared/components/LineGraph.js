@@ -22,7 +22,7 @@ export default React.createClass({
     isRefreshing: bool,
     underlayCallback: func,
     isGraphFilled: bool,
-    isBarChart: bool,
+    isBarGraph: bool,
     overrideLineColors: array,
     queries: arrayOf(shape({}).isRequired).isRequired,
     showSingleStat: bool,
@@ -81,7 +81,7 @@ export default React.createClass({
       isFetchingInitially,
       isRefreshing,
       isGraphFilled,
-      isBarChart,
+      isBarGraph,
       overrideLineColors,
       title,
       underlayCallback,
@@ -140,7 +140,7 @@ export default React.createClass({
           containerStyle={{width: '100%', height: '100%'}}
           overrideLineColors={overrideLineColors}
           isGraphFilled={isGraphFilled}
-          isBarChart={isBarChart}
+          isBarGraph={isBarGraph}
           timeSeries={timeSeries}
           labels={labels}
           options={options}

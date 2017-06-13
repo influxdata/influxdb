@@ -129,7 +129,7 @@ export default class Dygraph extends Component {
       ruleValues,
       overrideLineColors,
       isGraphFilled,
-      isBarChart,
+      isBarGraph,
       options,
     } = this.props
 
@@ -224,7 +224,7 @@ export default class Dygraph extends Component {
       },
     }
 
-    if (isBarChart) {
+    if (isBarGraph) {
       defaultOptions.plotter = multiColumnBarPlotter
     }
 
@@ -268,7 +268,7 @@ export default class Dygraph extends Component {
       options,
       dygraphSeries,
       ruleValues,
-      isBarChart,
+      isBarGraph,
     } = this.props
     const dygraph = this.dygraph
     if (!dygraph) {
@@ -297,7 +297,7 @@ export default class Dygraph extends Component {
       stackedGraph: options.stackedGraph,
       underlayCallback: options.underlayCallback,
       series: dygraphSeries,
-      plotter: isBarChart ? multiColumnBarPlotter : null,
+      plotter: isBarGraph ? multiColumnBarPlotter : null,
     })
     // part of optional workaround for preventing updateOptions from breaking legend
     // if (this.lastMouseMoveEvent) {
@@ -346,7 +346,7 @@ Dygraph.propTypes = {
   options: shape({}),
   containerStyle: shape({}),
   isGraphFilled: bool,
-  isBarChart: bool,
+  isBarGraph: bool,
   overrideLineColors: array,
   dygraphSeries: shape({}).isRequired,
   ruleValues: shape({
