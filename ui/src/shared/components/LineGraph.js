@@ -9,6 +9,8 @@ import lastValues from 'shared/parsing/lastValues'
 
 const {array, arrayOf, bool, func, number, shape, string} = PropTypes
 
+const SMALL_CELL_HEIGHT = 1
+
 export default React.createClass({
   displayName: 'LineGraph',
   propTypes: {
@@ -37,6 +39,7 @@ export default React.createClass({
     }),
     isInDataExplorer: bool,
     synchronizer: func,
+    cellHeight: number,
   },
 
   getDefaultProps() {
@@ -91,6 +94,7 @@ export default React.createClass({
       ruleValues,
       synchronizer,
       timeRange,
+      cellHeight,
     } = this.props
     const {labels, timeSeries, dygraphSeries} = this._timeSeries
 
@@ -151,8 +155,14 @@ export default React.createClass({
           timeRange={timeRange}
         />
         {showSingleStat
-          ? <div className="graph-single-stat single-stat">
-              <span className="single-stat--value">{roundedValue}</span>
+          ? <div className="single-stat single-stat-line">
+              <span
+                className={classnames('single-stat--value', {
+                  'single-stat--small': cellHeight === SMALL_CELL_HEIGHT,
+                })}
+              >
+                {roundedValue}
+              </span>
             </div>
           : null}
       </div>
