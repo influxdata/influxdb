@@ -264,6 +264,7 @@ class DashboardPage extends Component {
       type: 'constant',
       tempVar: ':autoGroupBy:',
       resolution: 1000,
+      reportingInterval: 10000000000,
       values: [],
     }
 

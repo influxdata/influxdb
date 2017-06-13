@@ -302,7 +302,6 @@ func (t *TemplateVars) UnmarshalJSON(text []byte) error {
 
 		// ensure that we really have a GroupByVar
 		if agb.Resolution != 0 {
-			agb.ReportingInterval = 10 * time.Second
 			(*t) = append(*t, &agb)
 			continue
 		}
