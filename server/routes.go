@@ -53,11 +53,6 @@ type AllRoutes struct {
 	Logger        chronograf.Logger
 }
 
-// AllExternalLinks returns
-type AllExternalLinks struct {
-	StatusFeed string // Location of the JSON Feed for consumption by the News Feed on the client Status page.
-}
-
 // ServeHTTP returns all top level routes within chronograf
 func (a *AllRoutes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	routes := getRoutesResponse{
