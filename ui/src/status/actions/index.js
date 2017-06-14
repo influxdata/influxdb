@@ -4,6 +4,8 @@ import {errorThrown} from 'shared/actions/errors'
 
 import * as actionTypes from 'src/status/constants/actionTypes'
 
+import {HTTP_NOT_FOUND} from 'shared/constants'
+
 const fetchJSONFeedRequested = () => ({
   type: actionTypes.FETCH_JSON_FEED_REQUESTED,
 })
@@ -25,8 +27,15 @@ export const fetchJSONFeedAsync = url => async dispatch => {
   } catch (error) {
     console.error(error)
     dispatch(fetchJSONFeedFailed())
-    dispatch(
-      errorThrown(error, `Failed to fetch NewsFeed: ${error.data.message}`)
-    )
+    if (error.status === HTTP_NOT_FOUND) {
+      dispatch(
+        errorThrown(
+          error,
+          `Failed to fetch News Feed. JSON Feed at '${url}' returned 404 (Not Found)`
+        )
+      )
+    } else {
+      dispatch(errorThrown(error, 'Failed to fetch NewsFeed'))
+    }
   }
 }
