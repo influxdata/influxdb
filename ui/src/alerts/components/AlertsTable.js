@@ -183,13 +183,14 @@ class AlertsTable extends Component {
           {this.renderTable()}
           {limit && alertsCount
             ? <button
-                className="btn btn-xs btn-primary"
+                className="btn btn-sm btn-default btn-block"
                 onClick={onGetMoreAlerts}
                 disabled={isAlertsMaxedOut}
+                style={{marginBottom: '20px'}}
               >
                 {isAlertsMaxedOut
-                  ? `All ${alertsCount} alerts displayed`
-                  : 'Get More'}
+                  ? `All ${alertsCount} Alerts displayed`
+                  : 'Load next 30 Alerts'}
               </button>
             : null}
         </div>
