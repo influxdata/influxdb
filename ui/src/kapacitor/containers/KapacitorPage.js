@@ -71,6 +71,23 @@ class KapacitorPage extends Component {
     const {addFlashMessage, source, params, router} = this.props
     const {kapacitor} = this.state
 
+    let doesKapacitorNameAlreadyExist = false
+
+    if (source && source.kapacitors) {
+      source.kapacitors.map(existingKapacitor => {
+        if (existingKapacitor.name === kapacitor.name) {
+          doesKapacitorNameAlreadyExist = true
+        }
+      })
+    }
+    if (doesKapacitorNameAlreadyExist === true) {
+      addFlashMessage({
+        type: 'error',
+        text: `There is already a Kapacitor configuration named "${kapacitor.name}"`,
+      })
+      return
+    }
+
     if (params.id) {
       updateKapacitor(kapacitor)
         .then(({data}) => {
