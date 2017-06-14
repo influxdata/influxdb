@@ -1,7 +1,7 @@
-import statusPage from './statusPage'
+import statusUI from './ui'
 import JSONFeed from './JSONFeed'
 
 export default {
-  statusPage,
+  statusUI,
   JSONFeed,
 }

@@ -34,7 +34,7 @@ const JSONFeedReader = ({data}) =>
       </div>
     : null
 
-const {arrayOf, instanceOf, shape, string} = PropTypes
+const {arrayOf, shape, string} = PropTypes
 
 JSONFeedReader.propTypes = {
   data: shape({
@@ -44,7 +44,7 @@ JSONFeedReader.propTypes = {
           name: string.isRequired,
         }).isRequired,
         content_text: string.isRequired,
-        date_published: instanceOf(Date),
+        date_published: string.isRequired,
         id: string.isRequired,
         image: string,
         title: string.isRequired,

@@ -10,7 +10,7 @@ const initialState = {
   timeRange: {lower, upper},
 }
 
-const statusPageReducer = (state = initialState, action) => {
+const statusUI = (state = initialState, action) => {
   switch (action.type) {
     case actionTypes.SET_STATUS_PAGE_AUTOREFRESH: {
       const {milliseconds} = action.payload
@@ -33,4 +33,4 @@ const statusPageReducer = (state = initialState, action) => {
   }
 }
 
-export default statusPageReducer
+export default statusUI

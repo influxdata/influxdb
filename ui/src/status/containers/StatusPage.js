@@ -82,7 +82,7 @@ StatusPage.propTypes = {
   }).isRequired,
 }
 
-const mapStateToProps = ({statusPage: {autoRefresh, timeRange}}) => ({
+const mapStateToProps = ({statusUI: {autoRefresh, timeRange}}) => ({
   autoRefresh,
   timeRange,
 })
