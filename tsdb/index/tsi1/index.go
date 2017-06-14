@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -219,14 +218,19 @@ func (i *Index) Open() error {
 
 // ReplaceIndex returns a new index built using the provided file paths.
 func (i *Index) ReplaceIndex(newFiles []string) (*Index, error) {
-	var base string
+	var (
+		base       string
+		indexMatch = fmt.Sprintf("%[1]s%s%[1]s", string(os.PathSeparator), "index")
+	)
+
 	for _, pth := range newFiles {
-		if !strings.Contains(pth, "/index") {
+		if !strings.Contains(pth, indexMatch) ||
+			(!strings.Contains(pth, LogFileExt) && !strings.Contains(pth, IndexFileExt)) {
 			continue // Not a tsi1 file path.
 		}
 
 		if base == "" {
-			base = path.Dir(pth)
+			base = filepath.Dir(pth)
 		}
 		if err := os.Rename(pth, strings.TrimSuffix(pth, ".tmp")); err != nil {
 			return nil, err
