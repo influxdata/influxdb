@@ -78,8 +78,9 @@ func (fs *FileSet) MustReplace(oldFiles []File, newFile File) *FileSet {
 
 	// Ensure all old files are contiguous.
 	for j := range oldFiles {
+		println("dbg/replace", len(fs.files), "//", i, j)
 		if fs.files[i+j] != oldFiles[j] {
-			panic("cannot replace non-contiguous files")
+			panic(fmt.Sprintf("cannot replace non-contiguous files: subset=%+v, fileset=%+v", Files(oldFiles).IDs(), Files(fs.files).IDs()))
 		}
 	}
 
@@ -134,13 +135,25 @@ func (fs *FileSet) IndexFiles() []*IndexFile {
 	return a
 }
 
-// IndexFilesByLevel returns all index files for a given level.
-func (fs *FileSet) IndexFilesByLevel(level int) []*IndexFile {
+// LastContiguousIndexFilesByLevel returns the last contiguous files by level.
+// These can be used by the compaction scheduler.
+func (fs *FileSet) LastContiguousIndexFilesByLevel(level int) []*IndexFile {
+	if level == 0 {
+		return nil
+	}
+
 	var a []*IndexFile
-	for _, f := range fs.files {
-		if f, ok := f.(*IndexFile); ok && f.Level() == level {
-			a = append(a, f)
+	for i := len(fs.files) - 1; i >= 0; i-- {
+		f := fs.files[i]
+
+		// Ignore files above level, stop on files below level.
+		if level < f.Level() {
+			continue
+		} else if level > f.Level() {
+			break
 		}
+
+		a = append([]*IndexFile{f.(*IndexFile)}, a...)
 	}
 	return a
 }
@@ -929,4 +942,14 @@ type File interface {
 	// Reference counting.
 	Retain()
 	Release()
+}
+
+type Files []File
+
+func (a Files) IDs() []int {
+	ids := make([]int, len(a))
+	for i := range a {
+		ids[i] = a[i].ID()
+	}
+	return ids
 }

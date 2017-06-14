@@ -177,7 +177,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	s.PointsWriter = coordinator.NewPointsWriter()
 	s.PointsWriter.WriteTimeout = time.Duration(c.Coordinator.WriteTimeout)
 	s.PointsWriter.TSDBStore = s.TSDBStore
-	s.PointsWriter.Subscriber = s.Subscriber
+	s.PointsWriter.AddWriteSubscriber(s.Subscriber.Points())
 
 	// Initialize query executor.
 	s.QueryExecutor = influxql.NewQueryExecutor()
@@ -385,7 +385,6 @@ func (s *Server) Open() error {
 		s.appendUDPService(i)
 	}
 
-	s.Subscriber.MetaClient = s.MetaClient
 	s.Subscriber.MetaClient = s.MetaClient
 	s.PointsWriter.MetaClient = s.MetaClient
 	s.Monitor.MetaClient = s.MetaClient
