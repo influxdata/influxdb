@@ -16,11 +16,15 @@ const (
 
 // Config represents a configuration for the continuous query service.
 type Config struct {
-	// Enables logging in CQ service to display when CQ's are processed and how many points are wrote.
+	// Enables logging in CQ service to display when CQ's are processed and how many points were written.
 	LogEnabled bool `toml:"log-enabled"`
 
 	// If this flag is set to false, both the brokers and data nodes should ignore any CQ processing.
 	Enabled bool `toml:"enabled"`
+
+	// QueryStatsEnabled enables logging of individual query execution statistics to the self-monitoring data
+	// store. The default is false.
+	QueryStatsEnabled bool `toml:"query-stats-enabled"`
 
 	// Run interval for checking continuous queries. This should be set to the least common factor
 	// of the interval for running continuous queries. If you only aggregate continuous queries
@@ -32,9 +36,10 @@ type Config struct {
 // NewConfig returns a new instance of Config with defaults.
 func NewConfig() Config {
 	return Config{
-		LogEnabled:  true,
-		Enabled:     true,
-		RunInterval: toml.Duration(DefaultRunInterval),
+		LogEnabled:        true,
+		Enabled:           true,
+		QueryStatsEnabled: false,
+		RunInterval:       toml.Duration(DefaultRunInterval),
 	}
 }
 
@@ -62,7 +67,8 @@ func (c Config) Diagnostics() (*diagnostics.Diagnostics, error) {
 	}
 
 	return diagnostics.RowFromMap(map[string]interface{}{
-		"enabled":      true,
-		"run-interval": c.RunInterval,
+		"enabled":             true,
+		"query-stats-enabled": c.QueryStatsEnabled,
+		"run-interval":        c.RunInterval,
 	}), nil
 }

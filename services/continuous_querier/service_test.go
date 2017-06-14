@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/uber-go/zap"
 )
@@ -376,6 +377,80 @@ func TestExecuteContinuousQuery_QueryExecutor_Error(t *testing.T) {
 	}
 }
 
+func TestService_ExecuteContinuousQuery_LogsToMonitor(t *testing.T) {
+	s := NewTestService(t)
+	const writeN = int64(50)
+
+	s.QueryExecutor.StatementExecutor = &StatementExecutor{
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
+			ctx.Results <- &influxql.Result{
+				Series: []*models.Row{{
+					Name:    "result",
+					Columns: []string{"time", "written"},
+					Values:  [][]interface{}{{time.Time{}, writeN}},
+				}},
+			}
+			return nil
+		},
+	}
+	s.queryStatsEnabled = true
+	var point models.Point
+	s.Monitor = &monitor{
+		EnabledFn: func() bool { return true },
+		WritePointsFn: func(p models.Points) error {
+			if len(p) != 1 {
+				t.Fatalf("expected point")
+			}
+			point = p[0]
+			return nil
+		},
+	}
+
+	dbis := s.MetaClient.Databases()
+	dbi := dbis[0]
+	cqi := dbi.ContinuousQueries[0]
+
+	now := time.Now().Truncate(10 * time.Minute)
+	if ok, err := s.ExecuteContinuousQuery(&dbi, &cqi, now); !ok || err != nil {
+		t.Fatalf("ExecuteContinuousQuery failed, ok=%t, err=%v", ok, err)
+	}
+
+	if point == nil {
+		t.Fatal("expected Monitor.WritePoints call")
+	}
+
+	f, _ := point.Fields()
+	if got, ok := f["pointsWrittenOK"].(int64); !ok || got != writeN {
+		t.Errorf("unexpected value for written; exp=%d, got=%d", writeN, got)
+	}
+}
+
+func TestService_ExecuteContinuousQuery_LogToMonitor_DisabledByDefault(t *testing.T) {
+	s := NewTestService(t)
+	s.QueryExecutor.StatementExecutor = &StatementExecutor{
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
+			ctx.Results <- &influxql.Result{}
+			return nil
+		},
+	}
+	s.Monitor = &monitor{
+		EnabledFn: func() bool { return true },
+		WritePointsFn: func(p models.Points) error {
+			t.Fatalf("unexpected Monitor.WritePoints call")
+			return nil
+		},
+	}
+
+	dbis := s.MetaClient.Databases()
+	dbi := dbis[0]
+	cqi := dbi.ContinuousQueries[0]
+
+	now := time.Now().Truncate(10 * time.Minute)
+	if ok, err := s.ExecuteContinuousQuery(&dbi, &cqi, now); !ok || err != nil {
+		t.Fatalf("ExecuteContinuousQuery failed, ok=%t, err=%v", ok, err)
+	}
+}
+
 // NewTestService returns a new *Service with default mock object members.
 func NewTestService(t *testing.T) *Service {
 	s := NewService(NewConfig())
@@ -534,3 +609,11 @@ func wait(c chan struct{}, d time.Duration) (err error) {
 	}
 	return
 }
+
+type monitor struct {
+	EnabledFn     func() bool
+	WritePointsFn func(models.Points) error
+}
+
+func (m *monitor) Enabled() bool                     { return m.EnabledFn() }
+func (m *monitor) WritePoints(p models.Points) error { return m.WritePointsFn(p) }
