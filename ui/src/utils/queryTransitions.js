@@ -42,9 +42,17 @@ export const toggleField = (query, {field, funcs}, isKapacitorRule = false) => {
     }
   }
 
+  let newFuncs = ['mean']
+  if (query.fields.length) {
+    newFuncs = query.fields.find(f => f.funcs).funcs
+  }
+
   return {
     ...query,
-    fields: query.fields.concat({field, funcs}),
+    fields: query.fields.concat({
+      field,
+      funcs: newFuncs,
+    }),
   }
 }
 
