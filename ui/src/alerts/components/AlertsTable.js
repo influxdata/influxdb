@@ -170,10 +170,29 @@ class AlertsTable extends Component {
   }
 
   render() {
-    const {shouldNotBeFilterable} = this.props
+    const {
+      shouldNotBeFilterable,
+      limit,
+      onGetMoreAlerts,
+      isAlertsMaxedOut,
+      alertsCount,
+    } = this.props
 
     return shouldNotBeFilterable
-      ? <div className="alerts-widget">{this.renderTable()}</div>
+      ? <div className="alerts-widget">
+          {this.renderTable()}
+          {limit
+            ? <button
+                className="btn btn-xs btn-primary"
+                onClick={onGetMoreAlerts}
+                disabled={isAlertsMaxedOut}
+              >
+                {isAlertsMaxedOut
+                  ? `All ${alertsCount} alerts displayed`
+                  : 'Get More'}
+              </button>
+            : null}
+        </div>
       : <div className="panel panel-minimal">
           <div className="panel-heading u-flex u-ai-center u-jc-space-between">
             <h2 className="panel-title">{this.props.alerts.length} Alerts</h2>
@@ -231,7 +250,7 @@ class SearchBar extends Component {
   }
 }
 
-const {arrayOf, bool, func, shape, string} = PropTypes
+const {arrayOf, bool, func, number, shape, string} = PropTypes
 
 AlertsTable.propTypes = {
   alerts: arrayOf(
@@ -248,6 +267,10 @@ AlertsTable.propTypes = {
     name: string.isRequired,
   }).isRequired,
   shouldNotBeFilterable: bool,
+  limit: number,
+  onGetMoreAlerts: func,
+  isAlertsMaxedOut: bool,
+  alertsCount: number,
 }
 
 SearchBar.propTypes = {

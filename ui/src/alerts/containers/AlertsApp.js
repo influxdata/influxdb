@@ -33,10 +33,14 @@ class AlertsApp extends Component {
         upper: moment().format(),
         lower: moment().subtract(lowerInSec || oneDayInSec, 'seconds').format(),
       },
+      limit: props.limit || 0, // only used if AlertsApp receives a limit prop
+      limitMultiplier: 1, // only used if AlertsApp receives a limit prop
+      isAlertsMaxedOut: false, // only used if AlertsApp receives a limit prop
     }
 
     this.fetchAlerts = ::this.fetchAlerts
     this.renderSubComponents = ::this.renderSubComponents
+    this.handleGetMoreAlerts = ::this.handleGetMoreAlerts
     this.handleToggleTime = ::this.handleToggleTime
     this.handleCloseTime = ::this.handleCloseTime
     this.handleApplyTime = ::this.handleApplyTime
@@ -68,7 +72,8 @@ class AlertsApp extends Component {
   fetchAlerts() {
     getAlerts(
       this.props.source.links.proxy,
-      this.state.timeRange
+      this.state.timeRange,
+      this.state.limit * this.state.limitMultiplier
     ).then(resp => {
       const results = []
 
@@ -99,17 +104,37 @@ class AlertsApp extends Component {
           name: `${s[nameIndex]}`,
         })
       })
-      this.setState({loading: false, alerts: results})
+
+      // TODO: factor these setStates out to make a pure function and implement true limit & offset
+      this.setState({
+        loading: false,
+        alerts: results,
+        // this.state.alerts.length === results.length ||
+        isAlertsMaxedOut:
+          results.length !== this.props.limit * this.state.limitMultiplier,
+      })
+    })
+  }
+
+  handleGetMoreAlerts() {
+    this.setState({limitMultiplier: this.state.limitMultiplier + 1}, () => {
+      this.fetchAlerts(this.state.limitMultiplier)
     })
   }
 
   renderSubComponents() {
-    const {source, isWidget} = this.props
+    const {source, isWidget, limit} = this.props
+    const {isAlertsMaxedOut, alerts} = this.state
+
     return this.state.hasKapacitor
       ? <AlertsTable
           source={source}
           alerts={this.state.alerts}
           shouldNotBeFilterable={isWidget}
+          limit={limit}
+          onGetMoreAlerts={this.handleGetMoreAlerts}
+          isAlertsMaxedOut={isAlertsMaxedOut}
+          alertsCount={alerts.length}
         />
       : <NoKapacitorError source={source} />
   }
@@ -171,7 +196,7 @@ class AlertsApp extends Component {
   }
 }
 
-const {bool, oneOfType, shape, string} = PropTypes
+const {bool, number, oneOfType, shape, string} = PropTypes
 
 AlertsApp.propTypes = {
   source: shape({
@@ -187,6 +212,7 @@ AlertsApp.propTypes = {
     upper: oneOfType([shape(), string]),
   }),
   isWidget: bool,
+  limit: number,
 }
 
 export default AlertsApp

@@ -11,6 +11,8 @@ import GettingStarted from 'src/status/components/GettingStarted'
 import timeRanges from 'hson!shared/data/timeRanges.hson'
 import buildInfluxQLQuery from 'utils/influxql'
 
+import {RECENT_ALERTS_LIMIT} from 'src/status/constants'
+
 const GridLayout = WidthProvider(ReactGridLayout)
 
 const {arrayOf, bool, func, number, shape, string} = PropTypes
@@ -117,7 +119,12 @@ export const LayoutRenderer = React.createClass({
     switch (cell.type) {
       case 'alerts': {
         return (
-          <AlertsApp source={source} timeRange={timeRange} isWidget={true} />
+          <AlertsApp
+            source={source}
+            timeRange={timeRange}
+            isWidget={true}
+            limit={RECENT_ALERTS_LIMIT}
+          />
         )
       }
       case 'news': {
