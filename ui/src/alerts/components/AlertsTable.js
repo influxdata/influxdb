@@ -181,7 +181,7 @@ class AlertsTable extends Component {
     return shouldNotBeFilterable
       ? <div className="alerts-widget">
           {this.renderTable()}
-          {limit
+          {limit && alertsCount
             ? <button
                 className="btn btn-xs btn-primary"
                 onClick={onGetMoreAlerts}
