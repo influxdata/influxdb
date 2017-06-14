@@ -6,14 +6,14 @@
 
 When enabled, each time a continuous query is completed, a number of details regarding the execution are written to the `cq_query` measurement of the internal monitor database (`_internal` by default). The tags and fields of interest are
 
-| tag / field | description                                           |
-|:----------- |:----------------------------------------------------- |
-| `db`        | name of database                                      |
-| `cq`        | name of continuous query                              |
-| `duration`  | query execution time in nanoseconds                   |
-| `startTime` | lower bound of time range                             |
-| `endTime`   | upper bound of time range                             |
-| `written`   | number of points written to the target measurement    |
+| tag / field       | description                                        |
+|:----------------- |:-------------------------------------------------- |
+| `db`              | name of database                                   |
+| `cq`              | name of continuous query                           |
+| `durationNS`      | query execution time in nanoseconds                |
+| `startTime`       | lower bound of time range                          |
+| `endTime`         | upper bound of time range                          |
+| `pointsWrittenOK` | number of points written to the target measurement |
 
 
 * `startTime` and `endTime` are UNIX timestamps, in nanoseconds.
