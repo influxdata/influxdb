@@ -399,3 +399,5 @@ export const AUTOREFRESH_DEFAULT = 15000 // in milliseconds
 export const GRAPH = 'graph'
 export const TABLE = 'table'
 export const VIS_VIEWS = [GRAPH, TABLE]
+
+export const DEFAULT_HOME_PAGE = 'status'
