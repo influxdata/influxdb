@@ -43,12 +43,18 @@ class DatabaseDropdown extends Component {
     const proxy = source.links.proxy
     try {
       const {data} = await showDatabases(proxy)
-      const {databases} = showDatabasesParser(data)
+      const {databases, errors} = showDatabasesParser(data)
+      if (errors.length > 0) {
+        throw errors[0] // only one error can come back from this, but it's returned as an array
+      }
 
-      this.setState({databases})
-      const selectedDatabaseText = databases.includes(database)
+      // system databases are those preceded with an '_'
+      const nonSystemDatabases = databases.filter((name) => name[0] !== '_')
+
+      this.setState({databases: nonSystemDatabases})
+      const selectedDatabaseText = nonSystemDatabases.includes(database)
         ? database
-        : databases[0] || 'No databases'
+        : nonSystemDatabases[0] || 'No databases'
       onSelectDatabase({text: selectedDatabaseText})
     } catch (error) {
       console.error(error)
