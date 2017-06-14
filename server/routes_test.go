@@ -73,3 +73,34 @@ func TestAllRoutesWithAuth(t *testing.T) {
 		t.Errorf("TestAllRoutesWithAuth\nwanted\n*%s*\ngot\n*%s*", want, string(body))
 	}
 }
+
+func TestAllRoutesWithExternalLinks(t *testing.T) {
+	statusFeedURL := "http://pineapple.life/feed.json"
+	logger := log.New(log.DebugLevel)
+	handler := &AllRoutes{
+		ExternalLinks: getExternalLinksResponse{
+			StatusFeed: &statusFeedURL,
+		},
+		Logger: logger,
+	}
+	req := httptest.NewRequest("GET", "http://docbrowns-inventions.com", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	resp := w.Result()
+	body, err := ioutil.ReadAll(resp.Body)
+	defer resp.Body.Close()
+
+	if err != nil {
+		t.Error("TestAllRoutesWithExternalLinks not able to retrieve body")
+	}
+	var routes getRoutesResponse
+	if err := json.Unmarshal(body, &routes); err != nil {
+		t.Error("TestAllRoutesWithExternalLinks not able to unmarshal JSON response")
+	}
+	want := `{"layouts":"/chronograf/v1/layouts","mappings":"/chronograf/v1/mappings","sources":"/chronograf/v1/sources","me":"/chronograf/v1/me","dashboards":"/chronograf/v1/dashboards","auth":[],"external":{"statusFeed":"http://pineapple.life/feed.json"}}
+`
+	if want != string(body) {
+		t.Errorf("TestAllRoutesWithExternalLinks\nwanted\n*%s*\ngot\n*%s*", want, string(body))
+	}
+}
