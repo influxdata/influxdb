@@ -298,12 +298,12 @@ Dygraph.Plugins.Crosshair = (function() {
 
     const gradient = ctx.createLinearGradient(0, 0, 0, height)
     gradient.addColorStop(0, 'rgba(255, 255, 255, 0.0)')
-    gradient.addColorStop(0.2, 'rgba(255, 255, 255, 1.0)')
-    gradient.addColorStop(0.8, 'rgba(255, 255, 255, 1.0)')
+    gradient.addColorStop(0.11, 'rgba(255, 255, 255, 1.0)')
+    gradient.addColorStop(0.89, 'rgba(255, 255, 255, 1.0)')
     gradient.addColorStop(1, 'rgba(255, 255, 255, 0.0)')
 
     ctx.strokeStyle = gradient
-    ctx.lineWidth = 2
+    ctx.lineWidth = 1.5
 
     // If graphs have different time ranges, it's possible to select a point on
     // one graph that doesn't exist in another, resulting in an exception.

@@ -169,6 +169,11 @@ $table-tab-scrollbar-height: 6px;
   border-radius: 0 $radius-small $radius-small $radius-small;
 }
 
+
+.table > tbody > tr.highlight,
+.table.table-highlight > tbody > tr.highlight {
+  background-color: $g4-onyx;
+}
 /*
     Responsive Tables
     ----------------------------------------------

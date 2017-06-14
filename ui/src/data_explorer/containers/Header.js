@@ -51,7 +51,7 @@ const Header = React.createClass({
           <div className="page-header__right">
             <GraphTips />
             <SourceIndicator sourceName={this.context.source.name} />
-            <div className="btn btn-sm btn-info" onClick={showWriteForm}>
+            <div className="btn btn-sm btn-default" onClick={showWriteForm}>
               <span className="icon pencil" />
               Write Data
             </div>
