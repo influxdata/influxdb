@@ -1,12 +1,12 @@
 export const fixtureStatusPageCells = [
   {
-    i: 'c-bar-graphs-fly',
+    i: 'alerts-bar-graph',
     isWidget: false,
     x: 0,
     y: 0,
     w: 12,
     h: 4,
-    name: 'Alerts – Last 30 Days – Aspiring Bar Graph',
+    name: 'Alerts – Last 30 Days',
     queries: [
       {
         query:
@@ -33,7 +33,7 @@ export const fixtureStatusPageCells = [
         },
       },
     ],
-    type: 'line',
+    type: 'bar',
     links: {
       self: '/chronograf/v1/status/23/cells/c-bar-graphs-fly',
     },
