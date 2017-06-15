@@ -23,7 +23,12 @@ export const fetchJSONFeedAsync = url => async dispatch => {
   dispatch(fetchJSONFeedRequested())
   try {
     const {data} = await fetchJSONFeedAJAX(url)
-    dispatch(fetchJSONFeedCompleted(data))
+    // data could be from a webpage, and thus would be HTML
+    if (typeof data === 'string' || !data) {
+      dispatch(fetchJSONFeedFailed())
+    } else {
+      dispatch(fetchJSONFeedCompleted(data))
+    }
   } catch (error) {
     console.error(error)
     dispatch(fetchJSONFeedFailed())
