@@ -2,6 +2,8 @@
 
 ### Bug Fixes
 1. [#1512](https://github.com/influxdata/chronograf/pull/1512): Prevent legend from flowing over window bottom bound
+1. [#1600](https://github.com/influxdata/chronograf/pull/1600): Prevent Kapacitor configurations from having the same name
+1. [#1600](https://github.com/influxdata/chronograf/pull/1600): Limit Kapacitor configuration names to 33 characters to fix display bug
 
 ### Features
 1. [#1512](https://github.com/influxdata/chronograf/pull/1512): Synchronize vertical crosshair at same time across all graphs in a dashboard
@@ -10,6 +12,8 @@
 ### UI Improvements
 1. [#1512](https://github.com/influxdata/chronograf/pull/1512): When dashboard time range is changed, reset graphs that are zoomed in
 1. [#1599](https://github.com/influxdata/chronograf/pull/1599): Bar graph option added to dashboard
+1. [#1600](https://github.com/influxdata/chronograf/pull/1600): Redesign source management table to be more intuitive
+1. [#1600](https://github.com/influxdata/chronograf/pull/1600): Redesign Line + Single Stat cells to appear more like a sparkline, and improve legibility
 
 ## v1.3.2.1 [2017-06-06]
 

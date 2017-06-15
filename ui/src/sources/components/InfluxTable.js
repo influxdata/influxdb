@@ -2,6 +2,7 @@ import React, {PropTypes} from 'react'
 import {Link, withRouter} from 'react-router'
 
 import Dropdown from 'shared/components/Dropdown'
+import QuestionMarkTooltip from 'shared/components/QuestionMarkTooltip'
 
 const kapacitorDropdown = (
   kapacitors,
@@ -12,7 +13,12 @@ const kapacitorDropdown = (
 ) => {
   if (!kapacitors || kapacitors.length === 0) {
     return (
-      <Link to={`/sources/${source.id}/kapacitors/new`}>Add Kapacitor</Link>
+      <Link
+        to={`/sources/${source.id}/kapacitors/new`}
+        className="btn btn-xs btn-default"
+      >
+        Add Config
+      </Link>
     )
   }
   const kapacitorItems = kapacitors.map(k => {
@@ -35,7 +41,7 @@ const kapacitorDropdown = (
   return (
     <Dropdown
       className="dropdown-260"
-      buttonColor="btn-default"
+      buttonColor="btn-primary"
       buttonSize="btn-xs"
       items={kapacitorItems}
       onChoose={item => setActiveKapacitor(item.kapacitor)}
@@ -90,27 +96,59 @@ const InfluxTable = ({
           <table className="table v-center margin-bottom-zero table-highlight">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Host</th>
-                <th>Kapacitor</th>
+                <th className="source-table--connect-col" />
+                <th>Source Name & Host</th>
                 <th className="text-right" />
+                <th>
+                  Active Kapacitor{' '}
+                  <QuestionMarkTooltip
+                    tipID="kapacitor-node-helper"
+                    tipContent="Kapacitor Configurations are scoped per InfluxDB Source. Only one can be active at a time"
+                  />
+                </th>
               </tr>
             </thead>
             <tbody>
               {sources.map(s => {
                 return (
-                  <tr key={s.id}>
+                  <tr
+                    key={s.id}
+                    className={s.id === source.id ? 'highlight' : null}
+                  >
                     <td>
-                      <Link to={`${location.pathname}/${s.id}/edit`}>
-                        {s.name}
-                      </Link>
-                      {' '}
-                      {s.default
-                        ? <span className="default-source-label">Default</span>
-                        : null}
+                      {s.id === source.id
+                        ? <div className="btn btn-success btn-xs source-table--connect">
+                            Connected
+                          </div>
+                        : <Link
+                            className="btn btn-default btn-xs source-table--connect"
+                            to={`/sources/${s.id}/hosts`}
+                          >
+                            Connect
+                          </Link>}
                     </td>
-                    <td className="monotype">{s.url}</td>
                     <td>
+                      <h5 className="margin-zero">
+                        <Link
+                          to={`${location.pathname}/${s.id}/edit`}
+                          className={s.id === source.id ? 'link-success' : null}
+                        >
+                          <strong>{s.name}</strong>
+                          {s.default ? ' (Default)' : null}
+                        </Link>
+                      </h5>
+                      <span>{s.url}</span>
+                    </td>
+                    <td className="text-right">
+                      <a
+                        className="btn btn-xs btn-danger table--show-on-row-hover"
+                        href="#"
+                        onClick={() => handleDeleteSource(s)}
+                      >
+                        Delete Source
+                      </a>
+                    </td>
+                    <td className="source-table--kapacitor">
                       {kapacitorDropdown(
                         s.kapacitors,
                         s,
@@ -118,24 +156,6 @@ const InfluxTable = ({
                         setActiveKapacitor,
                         handleDeleteKapacitor
                       )}
-                    </td>
-                    <td className="text-right">
-                      {s.id === source.id
-                        ? <span className="currently-connected-source">
-                            <span className="icon checkmark" /> Connected
-                          </span>
-                        : <Link
-                            className="btn btn-success btn-xs"
-                            to={`/sources/${s.id}/hosts`}
-                          >
-                            Connect
-                          </Link>}
-                      <button
-                        className="btn btn-danger btn-xs btn-square"
-                        onClick={() => handleDeleteSource(s)}
-                      >
-                        <span className="icon trash" />
-                      </button>
                     </td>
                   </tr>
                 )

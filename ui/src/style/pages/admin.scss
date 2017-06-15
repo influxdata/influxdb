@@ -149,7 +149,7 @@ pre.admin-table--query {
     font-size: 16px;
     font-family: $code-font;
     padding-left: 6px;
-    width: auto;
+    @include no-user-select();
   }
 }
 .db-manager-header--edit {

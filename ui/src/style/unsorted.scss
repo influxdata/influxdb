@@ -158,6 +158,17 @@ br {
   @include gradient-v($g2-kevlar, $g0-obsidian);
 }
 
+.source-table--connect {
+  width: 74px;
+}
+.source-table--connect-col {
+  width: 90px;
+}
+.source-table--kapacitor {
+  border-left: 2px solid $g5-pepper;
+  width: 278px;
+}
+
 /*
   Styles for the Status Dashboard
   -----------------------------------------------------------------------------

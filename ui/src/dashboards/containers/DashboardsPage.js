@@ -99,7 +99,7 @@ const DashboardsPage = React.createClass({
                           <tbody>
                             {dashboards.map(dashboard =>
                               <tr key={dashboard.id} className="">
-                                <td className="monotype">
+                                <td>
                                   <Link
                                     to={`${dashboardLink}/dashboards/${dashboard.id}`}
                                   >

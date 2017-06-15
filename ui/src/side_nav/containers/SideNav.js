@@ -9,6 +9,8 @@ import {
   NavListItem,
 } from 'src/side_nav/components/NavItems'
 
+import {DEFAULT_HOME_PAGE} from 'shared/constants'
+
 const {bool, shape, string} = PropTypes
 
 const SideNav = React.createClass({
@@ -39,7 +41,7 @@ const SideNav = React.createClass({
       ? null
       : <NavBar location={location}>
           <div className="sidebar__logo">
-            <Link to={`${sourcePrefix}/status`}>
+            <Link to={`${sourcePrefix}/${DEFAULT_HOME_PAGE}`}>
               <span className="icon cubo-uniform" />
             </Link>
           </div>

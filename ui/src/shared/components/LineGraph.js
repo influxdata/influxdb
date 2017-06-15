@@ -9,6 +9,8 @@ import lastValues from 'shared/parsing/lastValues'
 
 const {array, arrayOf, bool, func, number, shape, string} = PropTypes
 
+const SMALL_CELL_HEIGHT = 1
+
 export default React.createClass({
   displayName: 'LineGraph',
   propTypes: {
@@ -37,6 +39,7 @@ export default React.createClass({
     }),
     isInDataExplorer: bool,
     synchronizer: func,
+    cellHeight: number,
   },
 
   getDefaultProps() {
@@ -91,6 +94,7 @@ export default React.createClass({
       ruleValues,
       synchronizer,
       timeRange,
+      cellHeight,
     } = this.props
     const {labels, timeSeries, dygraphSeries} = this._timeSeries
 
@@ -112,13 +116,39 @@ export default React.createClass({
       title,
       rightGap: 0,
       yRangePad: 10,
-      axisLabelWidth: 38,
+      axisLabelWidth: 60,
       drawAxesAtZero: true,
       underlayCallback,
       ylabel: _.get(queries, ['0', 'label'], ''),
       y2label: _.get(queries, ['1', 'label'], ''),
       ...displayOptions,
     }
+
+    const singleStatOptions = {
+      labels,
+      connectSeparatedPoints: true,
+      labelsKMB: true,
+      axes: {
+        x: {
+          drawGrid: false,
+          drawAxis: false,
+        },
+        y: {
+          drawGrid: false,
+          drawAxis: false,
+        },
+      },
+      title,
+      rightGap: 0,
+      strokeWidth: 1.5,
+      drawAxesAtZero: true,
+      underlayCallback,
+      ...displayOptions,
+      highlightSeriesOpts: {
+        strokeWidth: 1.5,
+      },
+    }
+    const singleStatLineColor = ['#7A65F2']
 
     let roundedValue
     if (showSingleStat) {
@@ -138,12 +168,14 @@ export default React.createClass({
         {isRefreshing ? this.renderSpinner() : null}
         <Dygraph
           containerStyle={{width: '100%', height: '100%'}}
-          overrideLineColors={overrideLineColors}
-          isGraphFilled={isGraphFilled}
+          overrideLineColors={
+            showSingleStat ? singleStatLineColor : overrideLineColors
+          }
+          isGraphFilled={showSingleStat ? false : isGraphFilled}
           isBarGraph={isBarGraph}
           timeSeries={timeSeries}
           labels={labels}
-          options={options}
+          options={showSingleStat ? singleStatOptions : options}
           dygraphSeries={dygraphSeries}
           ranges={ranges || this.getRanges()}
           ruleValues={ruleValues}
@@ -151,8 +183,14 @@ export default React.createClass({
           timeRange={timeRange}
         />
         {showSingleStat
-          ? <div className="graph-single-stat single-stat">
-              <span className="single-stat--value">{roundedValue}</span>
+          ? <div className="single-stat single-stat-line">
+              <span
+                className={classnames('single-stat--value', {
+                  'single-stat--small': cellHeight === SMALL_CELL_HEIGHT,
+                })}
+              >
+                <span className="single-stat--shadow">{roundedValue}</span>
+              </span>
             </div>
           : null}
       </div>
