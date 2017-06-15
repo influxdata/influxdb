@@ -88,7 +88,7 @@ class WriteDataForm extends Component {
             <span className="write-data-form--helper">
               Need help writing InfluxDB Line Protocol? -&nbsp;
               <a
-                href="https://docs.influxdata.com/influxdb/v1.2/write_protocols/line_protocol_tutorial/"
+                href="https://docs.influxdata.com/influxdb/latest/write_protocols/line_protocol_tutorial/"
                 target="_blank"
               >
                 See Documentation
