@@ -174,8 +174,6 @@ func (t BasicTemplateVar) String() string {
 		return `'` + t.Values[0].Value + `'`
 	case "csv", "constant":
 		return t.Values[0].Value
-	case "autoGroupBy":
-		return "group by time(1555s)"
 	default:
 		return ""
 	}
