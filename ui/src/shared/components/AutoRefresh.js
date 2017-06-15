@@ -118,7 +118,7 @@ const AutoRefresh = ComposedComponent => {
         const {host, database, rp} = query
 
         const templatesWithResolution = templates.map((temp) => {
-          if (temp.tempVar === ':autoGroupBy:') {
+          if (temp.tempVar === ':interval:') {
             if (resolution) {
               return {...temp, resolution}
             }

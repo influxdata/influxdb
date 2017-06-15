@@ -401,4 +401,4 @@ export const TABLE = 'table'
 export const VIS_VIEWS = [GRAPH, TABLE]
 
 // InfluxQL Macros
-export const AUTO_GROUP_BY = ':autoGroupBy:'
+export const AUTO_GROUP_BY = ':interval:'

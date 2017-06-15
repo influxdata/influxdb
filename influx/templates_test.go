@@ -125,10 +125,10 @@ func TestTemplateReplace(t *testing.T) {
 		},
 		{
 			name:  "auto group by",
-			query: `SELECT mean(usage_idle) from "cpu" where time > now() - 4320h :autoGroupBy:`,
+			query: `SELECT mean(usage_idle) from "cpu" where time > now() - 4320h group by :interval:`,
 			vars: chronograf.TemplateVars{
 				&chronograf.GroupByVar{
-					Var:               ":autoGroupBy:",
+					Var:               ":interval:",
 					Duration:          180 * 24 * time.Hour,
 					Resolution:        1000,
 					ReportingInterval: 10 * time.Second,
@@ -138,10 +138,10 @@ func TestTemplateReplace(t *testing.T) {
 		},
 		{
 			name:  "auto group by without duration",
-			query: `SELECT mean(usage_idle) from "cpu" WHERE time > now() - 4320h :autoGroupBy:`,
+			query: `SELECT mean(usage_idle) from "cpu" WHERE time > now() - 4320h group by :interval:`,
 			vars: chronograf.TemplateVars{
 				&chronograf.GroupByVar{
-					Var:               ":autoGroupBy:",
+					Var:               ":interval:",
 					Duration:          0 * time.Minute,
 					Resolution:        1000,
 					ReportingInterval: 10 * time.Second,
@@ -151,10 +151,10 @@ func TestTemplateReplace(t *testing.T) {
 		},
 		{
 			name:  "auto group by with :dashboardTime:",
-			query: `SELECT mean(usage_idle) from "cpu" WHERE time > :dashboardTime: :autoGroupBy:`,
+			query: `SELECT mean(usage_idle) from "cpu" WHERE time > :dashboardTime: group by :interval:`,
 			vars: chronograf.TemplateVars{
 				&chronograf.GroupByVar{
-					Var:               ":autoGroupBy:",
+					Var:               ":interval:",
 					Duration:          0 * time.Minute,
 					Resolution:        1000,
 					ReportingInterval: 10 * time.Second,
@@ -185,7 +185,7 @@ func TestTemplateReplace(t *testing.T) {
 func Test_TemplateVarsUnmarshalling(t *testing.T) {
 	req := `[
 	{
-		"tempVar": ":autoGroupBy:",
+		"tempVar": ":interval:",
 		"duration": 15552000,
 		"resolution": 1000,
 		"reportingInterval": 10
@@ -203,7 +203,7 @@ func Test_TemplateVarsUnmarshalling(t *testing.T) {
 	]`
 
 	expected := []string{
-		"group by time(1555s)",
+		"time(1555s)",
 		"'cpu-total'",
 	}
 
