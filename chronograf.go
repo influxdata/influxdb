@@ -231,7 +231,7 @@ func (g *GroupByVar) String() string {
 
 	//TODO(timraymond): ascertain group by resolution
 	duration := g.Duration.Nanoseconds() / g.ReportingInterval.Nanoseconds() * int64(g.Resolution)
-	return "group by time(" + strconv.Itoa(int(duration)/1000000) + "s)"
+	return "time(" + strconv.Itoa(int(duration)/1000000) + "s)"
 }
 
 func (g *GroupByVar) Name() string {

@@ -1,5 +1,7 @@
 import _ from 'lodash'
 
+import {AUTO_GROUP_BY} from 'shared/constants'
+
 export default function buildInfluxQLQuery(timeBounds, config) {
   const {groupBy, tags, areTagsAccepted} = config
   const {upper, lower} = timeBounds
@@ -92,7 +94,7 @@ function _buildGroupByTime(groupBy) {
     return ''
   }
 
-  return ` GROUP BY time(${groupBy.time})`
+  return ` GROUP BY ${groupBy.time === 'auto' ? AUTO_GROUP_BY : `time(${groupBy.time})`}`
 }
 
 function _buildGroupByTags(groupBy) {
