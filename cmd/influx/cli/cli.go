@@ -187,7 +187,12 @@ func (c *CommandLine) Run() error {
 
 	c.Line.SetMultiLineMode(true)
 
-	fmt.Printf("Connected to %s version %s\n", c.Client.Addr(), c.ServerVersion)
+	if len(c.ServerVersion) == 0 {
+		fmt.Printf("WARN: Connected to %s, but found no server version.\n", c.Client.Addr())
+		fmt.Printf("Are you sure an InfluxDB server is listening at the given address?\n")
+	} else {
+		fmt.Printf("Connected to %s version %s\n", c.Client.Addr(), c.ServerVersion)
+	}
 
 	c.Version()
 

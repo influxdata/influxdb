@@ -7,6 +7,7 @@
 ### Features
 
 - [#9088](https://github.com/influxdata/influxdb/pull/9084): Handle high cardinality deletes in TSM engine
+- [#8495](https://github.com/influxdata/influxdb/pull/8495): Improve CLI connection warnings
 
 ### Bugfixes
 
