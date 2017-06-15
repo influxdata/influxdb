@@ -48,7 +48,7 @@ class StatusPage extends Component {
             </div>
           </div>
         </div>
-        <FancyScrollbar className={'page-contents'}>
+        <FancyScrollbar className="page-contents">
           <div className="dashboard container-fluid full-width">
             {cells.length
               ? <LayoutRenderer
