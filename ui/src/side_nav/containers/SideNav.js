@@ -39,7 +39,9 @@ const SideNav = React.createClass({
       ? null
       : <NavBar location={location}>
           <div className="sidebar__logo">
-            <Link to="/"><span className="icon cubo-uniform" /></Link>
+            <Link to={`${sourcePrefix}/status`}>
+              <span className="icon cubo-uniform" />
+            </Link>
           </div>
           <NavBlock icon="cubo-node" link={`${sourcePrefix}/hosts`}>
             <NavHeader link={`${sourcePrefix}/hosts`} title="Host List" />
