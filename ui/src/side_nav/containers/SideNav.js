@@ -40,11 +40,12 @@ const SideNav = React.createClass({
     return isHidden
       ? null
       : <NavBar location={location}>
-          <div className="sidebar__logo">
-            <Link to={`${sourcePrefix}/${DEFAULT_HOME_PAGE}`}>
-              <span className="icon cubo-uniform" />
-            </Link>
-          </div>
+          <Link
+            to={`${sourcePrefix}/${DEFAULT_HOME_PAGE}`}
+            className="sidebar__logo"
+          >
+            <span className="icon cubo-uniform" />
+          </Link>
           <NavBlock icon="cubo-node" link={`${sourcePrefix}/hosts`}>
             <NavHeader link={`${sourcePrefix}/hosts`} title="Host List" />
           </NavBlock>
