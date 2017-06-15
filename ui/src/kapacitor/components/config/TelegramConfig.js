@@ -58,7 +58,7 @@ const TelegramConfig = React.createClass({
             You need a
             {' '}
             <a
-              href="https://docs.influxdata.com/kapacitor/v1.2/guides/event-handler-setup/#telegram-bot"
+              href="https://docs.influxdata.com/kapacitor/v1.3/guides/event-handler-setup/#telegram-setup"
               target="_blank"
             >
               Telegram Bot
