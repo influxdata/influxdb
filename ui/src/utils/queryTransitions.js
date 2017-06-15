@@ -1,4 +1,5 @@
 import defaultQueryConfig from './defaultQueryConfig'
+import {DEFAULT_DASHBOARD_GROUP_BY_INTERVAL} from 'shared/constants'
 
 export function editRawText(query, rawText) {
   return Object.assign({}, query, {rawText})
@@ -54,6 +55,13 @@ export const toggleField = (query, {field, funcs}, isKapacitorRule = false) => {
       funcs: newFuncs,
     }),
   }
+}
+
+// all fields implicitly have a function applied to them, so consequently
+// we need to set the auto group by time
+export const toggleFieldWithGroupByInterval = (query, {field, funcs}, isKapacitorRule) => {
+  const queryWithField = toggleField(query, {field, funcs}, isKapacitorRule)
+  return groupByTime(queryWithField, DEFAULT_DASHBOARD_GROUP_BY_INTERVAL)
 }
 
 export function groupByTime(query, time) {
