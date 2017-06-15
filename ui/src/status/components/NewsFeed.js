@@ -19,7 +19,9 @@ class NewsFeed extends Component {
 
     if (!hasCompletedFetchOnce) {
       return isFailed
-        ? <span>Failed to load NewsFeed.</span>
+        ? <div className="graph-empty">
+            <p>Failed to load News Feed</p>
+          </div>
         : // TODO: Factor this out of here and AutoRefresh
           <div className="graph-fetching">
             <div className="graph-spinner" />
@@ -36,7 +38,11 @@ class NewsFeed extends Component {
               <div />
             </div>
           : null}
-        {isFailed ? <span>Failed to refresh NewsFeed</span> : null}
+        {isFailed
+          ? <div className="graph-empty">
+              <p>Failed to refresh News Feed</p>
+            </div>
+          : null}
         <JSONFeedReader data={data} />
       </FancyScrollbar>
     )
