@@ -4,6 +4,7 @@
 1. [#1512](https://github.com/influxdata/chronograf/pull/1512): Prevent legend from flowing over window bottom bound
 1. [#1600](https://github.com/influxdata/chronograf/pull/1600): Prevent Kapacitor configurations from having the same name
 1. [#1600](https://github.com/influxdata/chronograf/pull/1600): Limit Kapacitor configuration names to 33 characters to fix display bug
+1. [#1622](https://github.com/influxdata/chronograf/pull/1622): Use function selector grid in Kapacitor rule builder query maker instead of dropdown
 
 ### Features
 1. [#1512](https://github.com/influxdata/chronograf/pull/1512): Synchronize vertical crosshair at same time across all graphs in a dashboard
