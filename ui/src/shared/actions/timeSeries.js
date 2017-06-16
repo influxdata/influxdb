@@ -40,7 +40,7 @@ export const handleError = (error, query, editQueryStatus) => {
 }
 
 export const fetchTimeSeriesAsync = async (
-  {source, db, rp, query, tempVars},
+  {source, db, rp, query, tempVars, resolution},
   editQueryStatus = noop
 ) => {
   handleLoading(query, editQueryStatus)
@@ -51,6 +51,7 @@ export const fetchTimeSeriesAsync = async (
       rp,
       query: query.text,
       tempVars,
+      resolution,
     })
     return handleSuccess(data, query, editQueryStatus)
   } catch (error) {

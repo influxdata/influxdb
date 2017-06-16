@@ -399,3 +399,7 @@ export const AUTOREFRESH_DEFAULT = 15000 // in milliseconds
 export const GRAPH = 'graph'
 export const TABLE = 'table'
 export const VIS_VIEWS = [GRAPH, TABLE]
+
+// InfluxQL Macros
+export const TEMP_VAR_INTERVAL = ':interval:'
+export const DEFAULT_DASHBOARD_GROUP_BY_INTERVAL = 'auto'
