@@ -26,6 +26,7 @@ export const LayoutRenderer = React.createClass({
     cells: arrayOf(
       shape({
         // isWidget cells will not have queries
+        isWidget: bool,
         queries: arrayOf(
           shape({
             label: string,
