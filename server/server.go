@@ -61,7 +61,7 @@ type Server struct {
 	GoogleClientID     string   `long:"google-client-id" description:"Google Client ID for OAuth 2 support" env:"GOOGLE_CLIENT_ID"`
 	GoogleClientSecret string   `long:"google-client-secret" description:"Google Client Secret for OAuth 2 support" env:"GOOGLE_CLIENT_SECRET"`
 	GoogleDomains      []string `long:"google-domains" description:"Google email domain user is required to have active membership" env:"GOOGLE_DOMAINS" env-delim:","`
-	PublicURL          string   `long:"public-url" description:"Full public URL used to access Chronograf from a web browser. Used for Google OAuth2 authentication. (http://localhost:8888)" env:"PUBLIC_URL"`
+	PublicURL          string   `long:"public-url" description:"Full public URL used to access Chronograf from a web browser. Used for OAuth2 authentication. (http://localhost:8888)" env:"PUBLIC_URL"`
 
 	HerokuClientID      string   `long:"heroku-client-id" description:"Heroku Client ID for OAuth 2 support" env:"HEROKU_CLIENT_ID"`
 	HerokuSecret        string   `long:"heroku-secret" description:"Heroku Secret for OAuth 2 support" env:"HEROKU_SECRET"`
@@ -155,12 +155,19 @@ func (s *Server) herokuOAuth(logger chronograf.Logger, auth oauth2.Authenticator
 }
 
 func (s *Server) genericOAuth(logger chronograf.Logger, auth oauth2.Authenticator) (oauth2.Provider, oauth2.Mux, func() bool) {
+	name := "generic"
+	if s.GenericName != "" {
+		name = s.GenericName
+	}
+
+	redirectURL := s.PublicURL + s.Basepath + "/oauth/" + name + "/callback"
 	gen := oauth2.Generic{
 		PageName:       s.GenericName,
 		ClientID:       s.GenericClientID,
 		ClientSecret:   s.GenericClientSecret,
 		RequiredScopes: s.GenericScopes,
 		Domains:        s.GenericDomains,
+		RedirectURL:    redirectURL,
 		AuthURL:        s.GenericAuthURL,
 		TokenURL:       s.GenericTokenURL,
 		APIURL:         s.GenericAPIURL,
