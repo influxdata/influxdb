@@ -76,7 +76,7 @@ type Server struct {
 	GenericTokenURL     string   `long:"generic-token-url" description:"OAuth 2.0 provider's token endpoint URL" env:"GENERIC_TOKEN_URL"`
 	GenericAPIURL       string   `long:"generic-api-url" description:"URL that returns OpenID UserInfo compatible information." env:"GENERIC_API_URL"`
 
-	StatusFeedURL string `long:"status-feed-url" description:"URL of a JSON Feed to display as a News Feed on the client Status page." default:"http://news.influxdata.com/feed.json" env:"STATUS_FEED_URL"`
+	StatusFeedURL string `long:"status-feed-url" description:"URL of a JSON Feed to display as a News Feed on the client Status page." default:"https://www.influxdata.com/feed/json" env:"STATUS_FEED_URL"`
 
 	ReportingDisabled bool   `short:"r" long:"reporting-disabled" description:"Disable reporting of usage stats (os,arch,version,cluster_id,uptime) once every 24hr" env:"REPORTING_DISABLED"`
 	LogLevel          string `short:"l" long:"log-level" value-name:"choice" choice:"debug" choice:"info" choice:"error" default:"info" description:"Set the logging level" env:"LOG_LEVEL"`
