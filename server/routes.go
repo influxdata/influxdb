@@ -49,7 +49,7 @@ type getExternalLinksResponse struct {
 type AllRoutes struct {
 	AuthRoutes []AuthRoute // Location of all auth routes. If no auth, this can be empty.
 	LogoutLink string      // Location of the logout route for all auth routes. If no auth, this can be empty.
-	StatusFeed string
+	StatusFeed string      // External link to the JSON Feed for the News Feed on the client's Status Page
 	Logger     chronograf.Logger
 }
 
