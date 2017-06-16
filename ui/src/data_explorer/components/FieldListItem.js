@@ -3,9 +3,6 @@ import classnames from 'classnames'
 import _ from 'lodash'
 
 import FunctionSelector from 'shared/components/FunctionSelector'
-import Dropdown from 'shared/components/Dropdown'
-
-import {INFLUXQL_FUNCTIONS} from '../constants'
 
 const {string, shape, func, arrayOf, bool} = PropTypes
 const FieldListItem = React.createClass({
@@ -41,7 +38,7 @@ const FieldListItem = React.createClass({
   handleApplyFunctions(selectedFuncs) {
     this.props.onApplyFuncsToField({
       field: this.props.fieldFunc.field,
-      funcs: this.props.isKapacitorRule ? [selectedFuncs.text] : selectedFuncs,
+      funcs: selectedFuncs,
     })
     this.setState({isOpen: false})
   },
@@ -50,38 +47,6 @@ const FieldListItem = React.createClass({
     const {isKapacitorRule, fieldFunc, isSelected} = this.props
     const {isOpen} = this.state
     const {field: fieldText} = fieldFunc
-    const items = INFLUXQL_FUNCTIONS.map(text => {
-      return {text}
-    })
-
-    if (isKapacitorRule) {
-      return (
-        <div
-          className={classnames('query-builder--list-item', {
-            active: isSelected,
-          })}
-          key={fieldFunc}
-          onClick={_.wrap(fieldFunc, this.handleToggleField)}
-        >
-          <span>
-            <div className="query-builder--checkbox" />
-            {fieldText}
-          </span>
-          {isSelected
-            ? <Dropdown
-                className="dropdown-110"
-                menuClass="dropdown-malachite"
-                buttonSize="btn-xs"
-                items={items}
-                onChoose={this.handleApplyFunctions}
-                selected={
-                  fieldFunc.funcs.length ? fieldFunc.funcs[0] : 'Function'
-                }
-              />
-            : null}
-        </div>
-      )
-    }
 
     let fieldFuncsLabel
     if (!fieldFunc.funcs.length) {
@@ -121,6 +86,7 @@ const FieldListItem = React.createClass({
           ? <FunctionSelector
               onApply={this.handleApplyFunctions}
               selectedItems={fieldFunc.funcs || []}
+              singleSelect={isKapacitorRule}
             />
           : null}
       </div>

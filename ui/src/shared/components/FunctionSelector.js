@@ -12,6 +12,7 @@ class FunctionSelector extends Component {
     }
 
     this.onSelect = ::this.onSelect
+    this.onSingleSelect = ::this.onSingleSelect
     this.handleApplyFunctions = ::this.handleApplyFunctions
   }
 
@@ -36,6 +37,11 @@ class FunctionSelector extends Component {
     this.setState({localSelectedItems: nextItems})
   }
 
+  onSingleSelect(item) {
+    this.props.onApply([item])
+    this.setState({localSelectedItems: [item]})
+  }
+
   isSelected(item) {
     return !!this.state.localSelectedItems.find(text => text === item)
   }
@@ -48,47 +54,65 @@ class FunctionSelector extends Component {
 
   render() {
     const {localSelectedItems} = this.state
+    const {singleSelect} = this.props
 
     return (
       <div className="function-selector">
-        <div className="function-selector--header">
-          <span>
-            {localSelectedItems.length > 0
-              ? `${localSelectedItems.length} Selected`
-              : 'Select functions below'}
-          </span>
-          <div
-            className="btn btn-xs btn-success"
-            onClick={this.handleApplyFunctions}
-          >
-            Apply
-          </div>
-        </div>
-        <div className="function-selector--grid">
-          {INFLUXQL_FUNCTIONS.map((f, i) => {
-            return (
+        {singleSelect
+          ? null
+          : <div className="function-selector--header">
+              <span>
+                {localSelectedItems.length > 0
+                  ? `${localSelectedItems.length} Selected`
+                  : 'Select functions below'}
+              </span>
               <div
-                key={i}
-                className={classnames('function-selector--item', {
-                  active: this.isSelected(f),
-                })}
-                onClick={_.wrap(f, this.onSelect)}
+                className="btn btn-xs btn-success"
+                onClick={this.handleApplyFunctions}
               >
-                {f}
+                Apply
               </div>
-            )
-          })}
+            </div>}
+        <div className="function-selector--grid">
+          {singleSelect
+            ? INFLUXQL_FUNCTIONS.map((f, i) => {
+                return (
+                  <div
+                    key={i}
+                    className={classnames('function-selector--item', {
+                      active: this.isSelected(f),
+                    })}
+                    onClick={_.wrap(f, this.onSingleSelect)}
+                  >
+                    {f}
+                  </div>
+                )
+              })
+            : INFLUXQL_FUNCTIONS.map((f, i) => {
+                return (
+                  <div
+                    key={i}
+                    className={classnames('function-selector--item', {
+                      active: this.isSelected(f),
+                    })}
+                    onClick={_.wrap(f, this.onSelect)}
+                  >
+                    {f}
+                  </div>
+                )
+              })}
         </div>
       </div>
     )
   }
 }
 
-const {arrayOf, func, string} = PropTypes
+const {arrayOf, bool, func, string} = PropTypes
 
 FunctionSelector.propTypes = {
   onApply: func.isRequired,
   selectedItems: arrayOf(string.isRequired).isRequired,
+  singleSelect: bool,
 }
 
 export default FunctionSelector
