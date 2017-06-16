@@ -6,12 +6,12 @@ export const fixtureStatusPageCells = [
     y: 0,
     w: 12,
     h: 4,
-    name: 'Alerts – Last 30 Days',
+    name: 'Alert Events per Day – Last 30 Days',
     queries: [
       {
         query:
           'SELECT count("value") AS "count_value" FROM "chronograf"."autogen"."alerts" WHERE time > :dashboardTime: GROUP BY time(1d)',
-        label: 'count.value',
+        label: 'Events',
         queryConfig: {
           database: 'chronograf',
           measurement: 'alerts',
@@ -41,7 +41,7 @@ export const fixtureStatusPageCells = [
   {
     i: 'recent-alerts',
     isWidget: true,
-    name: 'Recent Alerts',
+    name: 'Alerts – Last 30 Days',
     type: 'alerts',
     x: 0,
     y: 5,
