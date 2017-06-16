@@ -4106,6 +4106,17 @@
 					"description": "location of the dashboards endpoint",
 					"type": "string",
 					"format": "url"
+				},
+				"external": {
+					"description": "external links provided to client, ex. status feed URL",
+					"type": "object",
+					"properties": {
+						"statusFeed": {
+							"description": "link to a JSON Feed for the News Feed on client's Status Page",
+							"type": "string",
+							"format": "url"
+						}
+					}
 				}
 			},
 			"example": {
@@ -4113,7 +4124,10 @@
 				"mappings": "/chronograf/v1/mappings",
 				"sources": "/chronograf/v1/sources",
 				"me": "/chronograf/v1/me",
-				"dashboards": "/chronograf/v1/dashboards"
+				"dashboards": "/chronograf/v1/dashboards",
+				"external": {
+					"statusFeed": "http://news.influxdata.com/feed.json"
+				}
 			}
 		},
 		"Link": {
