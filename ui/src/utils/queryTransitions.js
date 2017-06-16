@@ -79,7 +79,7 @@ export function toggleTagAcceptance(query) {
   })
 }
 
-export function applyFuncsToField(query, {field, funcs}) {
+export function applyFuncsToField(query, {field, funcs}, isInDataExplorer = false) {
   const shouldRemoveFuncs = funcs.length === 0
   const nextFields = query.fields.map(f => {
     // If one field has no funcs, all fields must have no funcs
@@ -95,8 +95,9 @@ export function applyFuncsToField(query, {field, funcs}) {
     return f
   })
 
+  const defaultGroupBy = isInDataExplorer ? DEFAULT_DATA_EXPLORER_GROUP_BY_INTERVAL : DEFAULT_DASHBOARD_GROUP_BY_INTERVAL
   // If there are no functions, then there should be no GROUP BY time
-  const nextGroupBy = Object.assign({}, query.groupBy, {time: shouldRemoveFuncs ? null : DEFAULT_DATA_EXPLORER_GROUP_BY_INTERVAL})
+  const nextGroupBy = Object.assign({}, query.groupBy, {time: shouldRemoveFuncs ? null : defaultGroupBy})
 
   return Object.assign({}, query, {
     fields: nextFields,

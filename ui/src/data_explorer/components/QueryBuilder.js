@@ -60,7 +60,7 @@ const QueryBuilder = React.createClass({
   },
 
   handleApplyFuncsToField(fieldFunc) {
-    this.props.actions.applyFuncsToField(this.props.query.id, fieldFunc)
+    this.props.actions.applyFuncsToField(this.props.query.id, fieldFunc, this.props.isInDataExplorer)
   },
 
   handleChooseTag(tag) {

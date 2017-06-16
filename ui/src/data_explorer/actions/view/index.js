@@ -54,12 +54,13 @@ export function groupByTime(queryId, time) {
   }
 }
 
-export function applyFuncsToField(queryId, fieldFunc) {
+export function applyFuncsToField(queryId, fieldFunc, isInDataExplorer) {
   return {
     type: 'APPLY_FUNCS_TO_FIELD',
     payload: {
       queryId,
       fieldFunc,
+      isInDataExplorer,
     },
   }
 }
