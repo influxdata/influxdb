@@ -254,18 +254,18 @@ type Template struct {
 
 // Query retrieves a Response from a TimeSeries.
 type Query struct {
-	Command      string       `json:"query"`              // Command is the query itself
-	DB           string       `json:"db,omitempty"`       // DB is optional and if empty will not be used.
-	RP           string       `json:"rp,omitempty"`       // RP is a retention policy and optional; if empty will not be used.
-	TemplateVars TemplateVars `json:"tempVars,omitempty"` // TemplateVars are template variables to replace within an InfluxQL query
-	Wheres       []string     `json:"wheres,omitempty"`   // Wheres restricts the query to certain attributes
-	GroupBys     []string     `json:"groupbys,omitempty"` // GroupBys collate the query by these tags
-	Resolution   uint         `json:"resolution,omitempty"`
-	Label        string       `json:"label,omitempty"` // Label is the Y-Axis label for the data
-	Range        *Range       `json:"range,omitempty"` // Range is the default Y-Axis range for the data
+	Command      string       `json:"query"`                // Command is the query itself
+	DB           string       `json:"db,omitempty"`         // DB is optional and if empty will not be used.
+	RP           string       `json:"rp,omitempty"`         // RP is a retention policy and optional; if empty will not be used.
+	TemplateVars TemplateVars `json:"tempVars,omitempty"`   // TemplateVars are template variables to replace within an InfluxQL query
+	Wheres       []string     `json:"wheres,omitempty"`     // Wheres restricts the query to certain attributes
+	GroupBys     []string     `json:"groupbys,omitempty"`   // GroupBys collate the query by these tags
+	Resolution   uint         `json:"resolution,omitempty"` // Resolution is the available screen resolution to render query results
+	Label        string       `json:"label,omitempty"`      // Label is the Y-Axis label for the data
+	Range        *Range       `json:"range,omitempty"`      // Range is the default Y-Axis range for the data
 }
 
-// TemplateVars are a hetergenous collection of different TemplateVariables
+// TemplateVars are a heterogeneous collection of different TemplateVariables
 // with the capability to decode arbitrary JSON into the appropriate template
 // variable type
 type TemplateVars []TemplateVariable
