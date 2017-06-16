@@ -71,6 +71,15 @@ class KapacitorPage extends Component {
     const {addFlashMessage, source, params, router} = this.props
     const {kapacitor} = this.state
 
+    const kapNames = source.kapacitors.map(k => k.name)
+    if (kapNames.includes(kapacitor.name)) {
+      addFlashMessage({
+        type: 'error',
+        text: `There is already a Kapacitor configuration named "${kapacitor.name}"`,
+      })
+      return
+    }
+
     if (params.id) {
       updateKapacitor(kapacitor)
         .then(({data}) => {
@@ -142,7 +151,7 @@ class KapacitorPage extends Component {
   }
 }
 
-const {func, shape, string} = PropTypes
+const {array, func, shape, string} = PropTypes
 
 KapacitorPage.propTypes = {
   addFlashMessage: func,
@@ -155,6 +164,7 @@ KapacitorPage.propTypes = {
   source: shape({
     id: string.isRequired,
     url: string.isRequired,
+    kapacitors: array.isRequired,
   }),
 }
 

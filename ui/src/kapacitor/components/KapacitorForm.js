@@ -52,6 +52,7 @@ class KapacitorForm extends Component {
                             value={name}
                             onChange={onInputChange}
                             spellCheck="false"
+                            maxLength="33"
                           />
                         </div>
                         <div className="form-group">

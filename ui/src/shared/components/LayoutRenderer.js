@@ -113,6 +113,7 @@ export const LayoutRenderer = React.createClass({
         isBarGraph={type === 'bar'}
         displayOptions={displayOptions}
         synchronizer={synchronizer}
+        cellHeight={cellHeight}
       />
     )
   },
