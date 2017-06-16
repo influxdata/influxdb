@@ -1,3 +1,6 @@
+// he is a library for safely encoding and decoding HTML Entities
+import he from 'he'
+
 import {fetchJSONFeed as fetchJSONFeedAJAX} from 'src/status/apis'
 
 import {errorThrown} from 'shared/actions/errors'
@@ -27,7 +30,17 @@ export const fetchJSONFeedAsync = url => async dispatch => {
     if (typeof data === 'string' || !data) {
       dispatch(fetchJSONFeedFailed())
     } else {
-      dispatch(fetchJSONFeedCompleted(data))
+      // decode HTML entities from response text
+      const decodedData = {
+        ...data,
+        items: data.items.map(item => {
+          item.title = he.decode(item.title)
+          item.content_text = he.decode(item.content_text)
+          return item
+        }),
+      }
+
+      dispatch(fetchJSONFeedCompleted(decodedData))
     }
   } catch (error) {
     console.error(error)
