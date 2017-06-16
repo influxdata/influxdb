@@ -7,7 +7,6 @@ import _ from 'lodash'
 import Dygraphs from 'src/external/dygraph'
 import getRange from 'shared/parsing/getRangeForDygraph'
 
-
 const LINE_COLORS = [
   '#00C9FF',
   '#9394FF',
@@ -309,6 +308,8 @@ export default class Dygraph extends Component {
     // }
 
     dygraph.resize()
+    const {w} = this.dygraph.getArea()
+    this.props.setResolution(w)
   }
 
   sync() {

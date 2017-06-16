@@ -117,7 +117,7 @@ const AutoRefresh = ComposedComponent => {
       const timeSeriesPromises = queries.map(query => {
         const {host, database, rp} = query
 
-        const templatesWithResolution = templates.map((temp) => {
+        const templatesWithResolution = templates.map(temp => {
           if (temp.tempVar === ':interval:') {
             if (resolution) {
               return {...temp, resolution}
@@ -175,7 +175,13 @@ const AutoRefresh = ComposedComponent => {
         return this.renderNoResults()
       }
 
-      return <ComposedComponent {...this.props} data={timeSeries} setResolution={this.setResolution} />
+      return (
+        <ComposedComponent
+          {...this.props}
+          data={timeSeries}
+          setResolution={this.setResolution}
+        />
+      )
     },
 
     /**
@@ -188,6 +194,7 @@ const AutoRefresh = ComposedComponent => {
         <ComposedComponent
           {...this.props}
           data={data}
+          setResolution={this.setResolution}
           isFetchingInitially={isFirstFetch}
           isRefreshing={!isFirstFetch}
         />
