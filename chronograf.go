@@ -221,15 +221,11 @@ func (g *GroupByVar) Exec(query string) {
 }
 
 func (g *GroupByVar) String() string {
-	intervalNS := g.ReportingInterval.Nanoseconds()
-	// prevent division by zero
-	if intervalNS == 0 || g.Resolution == 0 {
-		return " "
+	duration := g.Duration.Nanoseconds() / (g.ReportingInterval.Nanoseconds() * int64(g.Resolution))
+	if duration == 0 {
+		duration = 1
 	}
-
-	//TODO(timraymond): ascertain group by resolution
-	duration := g.Duration.Nanoseconds() / g.ReportingInterval.Nanoseconds() * int64(g.Resolution)
-	return "time(" + strconv.Itoa(int(duration)/1000000) + "s)"
+	return "time(" + strconv.Itoa(int(duration)) + "s)"
 }
 
 func (g *GroupByVar) Name() string {
@@ -271,6 +267,7 @@ type Query struct {
 type TemplateVars []TemplateVariable
 
 func (t *TemplateVars) UnmarshalJSON(text []byte) error {
+	// TODO: Need to test that server throws an error when :interval:'s Resolution or ReportingInterval or zero-value
 	rawVars := bytes.NewReader(text)
 	dec := json.NewDecoder(rawVars)
 
