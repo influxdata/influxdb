@@ -1,5 +1,6 @@
 import defaultQueryConfig from './defaultQueryConfig'
 import {DEFAULT_DASHBOARD_GROUP_BY_INTERVAL} from 'shared/constants'
+import {DEFAULT_DATA_EXPLORER_GROUP_BY_INTERVAL} from 'src/data_explorer/constants'
 
 export function editRawText(query, rawText) {
   return Object.assign({}, query, {rawText})
@@ -95,15 +96,12 @@ export function applyFuncsToField(query, {field, funcs}) {
   })
 
   // If there are no functions, then there should be no GROUP BY time
-  if (shouldRemoveFuncs) {
-    const nextGroupBy = Object.assign({}, query.groupBy, {time: null})
-    return Object.assign({}, query, {
-      fields: nextFields,
-      groupBy: nextGroupBy,
-    })
-  }
+  const nextGroupBy = Object.assign({}, query.groupBy, {time: shouldRemoveFuncs ? null : DEFAULT_DATA_EXPLORER_GROUP_BY_INTERVAL})
 
-  return Object.assign({}, query, {fields: nextFields})
+  return Object.assign({}, query, {
+    fields: nextFields,
+    groupBy: nextGroupBy,
+  })
 }
 
 export function updateRawQuery(query, rawText) {
