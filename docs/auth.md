@@ -1,1 +1,1 @@
-**We've moved our documentation!** Check out the latest [authentication content](https://docs.influxdata.com/chronograf/v1.3/administration/security-best-practices/#chronograf-with-oauth-2-0-authentication) on InfluxData's [main docs site](https://docs.influxdata.com/chronograf/v1.3/).
+**We've moved our documentation!** Check out the latest [authentication content](https://docs.influxdata.com/chronograf/latest/administration/security-best-practices/#chronograf-with-oauth-2-0-authentication) on InfluxData's [main docs site](https://docs.influxdata.com/chronograf/latest/).

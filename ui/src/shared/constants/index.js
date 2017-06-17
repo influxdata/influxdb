@@ -400,6 +400,10 @@ export const GRAPH = 'graph'
 export const TABLE = 'table'
 export const VIS_VIEWS = [GRAPH, TABLE]
 
+// InfluxQL Macros
+export const TEMP_VAR_INTERVAL = ':interval:'
+export const DEFAULT_DASHBOARD_GROUP_BY_INTERVAL = 'auto'
+
 export const DEFAULT_HOME_PAGE = 'status'
 
 export const STATUS_PAGE_ROW_COUNT = 10 // TODO: calculate based on actual Status Page cells

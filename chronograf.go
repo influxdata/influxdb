@@ -1,9 +1,20 @@
 package chronograf
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"strconv"
+	"strings"
+	"time"
+	"unicode"
+	"unicode/utf8"
+
+	"github.com/influxdata/influxdb/influxql"
 )
 
 // General errors.
@@ -123,22 +134,36 @@ type Range struct {
 	Lower int64 `json:"lower"` // Lower is the lower bound
 }
 
+type TemplateVariable interface {
+	fmt.Stringer
+	Name() string     // returns the variable name
+	Precedence() uint // ordinal indicating precedence level for replacement
+}
+
+type ExecutableVar interface {
+	Exec(string)
+}
+
 // TemplateValue is a value use to replace a template in an InfluxQL query
-type TemplateValue struct {
+type BasicTemplateValue struct {
 	Value    string `json:"value"`    // Value is the specific value used to replace a template in an InfluxQL query
 	Type     string `json:"type"`     // Type can be tagKey, tagValue, fieldKey, csv, measurement, database, constant
 	Selected bool   `json:"selected"` // Selected states that this variable has been picked to use for replacement
 }
 
 // TemplateVar is a named variable within an InfluxQL query to be replaced with Values
-type TemplateVar struct {
-	Var    string          `json:"tempVar"` // Var is the string to replace within InfluxQL
-	Values []TemplateValue `json:"values"`  // Values are the replacement values within InfluxQL
+type BasicTemplateVar struct {
+	Var    string               `json:"tempVar"` // Var is the string to replace within InfluxQL
+	Values []BasicTemplateValue `json:"values"`  // Values are the replacement values within InfluxQL
+}
+
+func (t BasicTemplateVar) Name() string {
+	return t.Var
 }
 
 // String converts the template variable into a correct InfluxQL string based
 // on its type
-func (t TemplateVar) String() string {
+func (t BasicTemplateVar) String() string {
 	if len(t.Values) == 0 {
 		return ""
 	}
@@ -154,12 +179,69 @@ func (t TemplateVar) String() string {
 	}
 }
 
+func (t BasicTemplateVar) Precedence() uint {
+	return 0
+}
+
+type GroupByVar struct {
+	Var               string        `json:"tempVar"`                     // the name of the variable as present in the query
+	Duration          time.Duration `json:"duration,omitempty"`          // the Duration supplied by the query
+	Resolution        uint          `json:"resolution"`                  // the available screen resolution to render the results of this query
+	ReportingInterval time.Duration `json:"reportingInterval,omitempty"` // the interval at which data is reported to this series
+}
+
+// Exec is responsible for extracting the Duration from the query
+func (g *GroupByVar) Exec(query string) {
+	whereClause := "WHERE time > now() - "
+	start := strings.Index(query, whereClause)
+	if start == -1 {
+		// no where clause
+		return
+	}
+
+	// reposition start to the END of the where clause
+	durStr := query[start+len(whereClause):]
+
+	// advance to next space
+	pos := 0
+	for pos < len(durStr) {
+		rn, _ := utf8.DecodeRuneInString(durStr[pos:])
+		if unicode.IsSpace(rn) {
+			break
+		}
+		pos++
+	}
+
+	dur, err := influxql.ParseDuration(durStr[:pos])
+	if err != nil {
+		return
+	}
+
+	g.Duration = dur
+}
+
+func (g *GroupByVar) String() string {
+	duration := g.Duration.Nanoseconds() / (g.ReportingInterval.Nanoseconds() * int64(g.Resolution))
+	if duration == 0 {
+		duration = 1
+	}
+	return "time(" + strconv.Itoa(int(duration)) + "s)"
+}
+
+func (g *GroupByVar) Name() string {
+	return g.Var
+}
+
+func (g *GroupByVar) Precedence() uint {
+	return 1
+}
+
 // TemplateID is the unique ID used to identify a template
 type TemplateID string
 
 // Template represents a series of choices to replace TemplateVars within InfluxQL
 type Template struct {
-	TemplateVar
+	BasicTemplateVar
 	ID    TemplateID     `json:"id"`              // ID is the unique ID associated with this template
 	Type  string         `json:"type"`            // Type can be fieldKeys, tagKeys, tagValues, CSV, constant, query, measurements, databases
 	Label string         `json:"label"`           // Label is a user-facing description of the Template
@@ -168,14 +250,69 @@ type Template struct {
 
 // Query retrieves a Response from a TimeSeries.
 type Query struct {
-	Command      string        `json:"query"`              // Command is the query itself
-	DB           string        `json:"db,omitempty"`       // DB is optional and if empty will not be used.
-	RP           string        `json:"rp,omitempty"`       // RP is a retention policy and optional; if empty will not be used.
-	TemplateVars []TemplateVar `json:"tempVars,omitempty"` // TemplateVars are template variables to replace within an InfluxQL query
-	Wheres       []string      `json:"wheres,omitempty"`   // Wheres restricts the query to certain attributes
-	GroupBys     []string      `json:"groupbys,omitempty"` // GroupBys collate the query by these tags
-	Label        string        `json:"label,omitempty"`    // Label is the Y-Axis label for the data
-	Range        *Range        `json:"range,omitempty"`    // Range is the default Y-Axis range for the data
+	Command      string       `json:"query"`                // Command is the query itself
+	DB           string       `json:"db,omitempty"`         // DB is optional and if empty will not be used.
+	RP           string       `json:"rp,omitempty"`         // RP is a retention policy and optional; if empty will not be used.
+	TemplateVars TemplateVars `json:"tempVars,omitempty"`   // TemplateVars are template variables to replace within an InfluxQL query
+	Wheres       []string     `json:"wheres,omitempty"`     // Wheres restricts the query to certain attributes
+	GroupBys     []string     `json:"groupbys,omitempty"`   // GroupBys collate the query by these tags
+	Resolution   uint         `json:"resolution,omitempty"` // Resolution is the available screen resolution to render query results
+	Label        string       `json:"label,omitempty"`      // Label is the Y-Axis label for the data
+	Range        *Range       `json:"range,omitempty"`      // Range is the default Y-Axis range for the data
+}
+
+// TemplateVars are a heterogeneous collection of different TemplateVariables
+// with the capability to decode arbitrary JSON into the appropriate template
+// variable type
+type TemplateVars []TemplateVariable
+
+func (t *TemplateVars) UnmarshalJSON(text []byte) error {
+	// TODO: Need to test that server throws an error when :interval:'s Resolution or ReportingInterval or zero-value
+	rawVars := bytes.NewReader(text)
+	dec := json.NewDecoder(rawVars)
+
+	// read open bracket
+	rawTok, err := dec.Token()
+	if err != nil {
+		return err
+	}
+
+	tok, isDelim := rawTok.(json.Delim)
+	if !isDelim || tok != '[' {
+		return errors.New("Expected JSON array, but found " + tok.String())
+	}
+
+	for dec.More() {
+		var halfBakedVar json.RawMessage
+		err := dec.Decode(&halfBakedVar)
+		if err != nil {
+			return err
+		}
+
+		var agb GroupByVar
+		err = json.Unmarshal(halfBakedVar, &agb)
+		if err != nil {
+			return err
+		}
+
+		// ensure that we really have a GroupByVar
+		if agb.Resolution != 0 {
+			(*t) = append(*t, &agb)
+			continue
+		}
+
+		var tvar BasicTemplateVar
+		err = json.Unmarshal(halfBakedVar, &tvar)
+		if err != nil {
+			return err
+		}
+
+		// ensure that we really have a BasicTemplateVar
+		if len(tvar.Values) != 0 {
+			(*t) = append(*t, tvar)
+		}
+	}
+	return nil
 }
 
 // DashboardQuery includes state for the query builder.  This is a transition

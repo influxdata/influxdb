@@ -265,9 +265,9 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 
 	templates := make([]chronograf.Template, len(pb.Templates))
 	for i, t := range pb.Templates {
-		vals := make([]chronograf.TemplateValue, len(t.Values))
+		vals := make([]chronograf.BasicTemplateValue, len(t.Values))
 		for j, v := range t.Values {
-			vals[j] = chronograf.TemplateValue{
+			vals[j] = chronograf.BasicTemplateValue{
 				Selected: v.Selected,
 				Type:     v.Type,
 				Value:    v.Value,
@@ -276,7 +276,7 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 
 		template := chronograf.Template{
 			ID: chronograf.TemplateID(t.ID),
-			TemplateVar: chronograf.TemplateVar{
+			BasicTemplateVar: chronograf.BasicTemplateVar{
 				Var:    t.TempVar,
 				Values: vals,
 			},

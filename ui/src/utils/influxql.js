@@ -1,5 +1,7 @@
 import _ from 'lodash'
 
+import {TEMP_VAR_INTERVAL, DEFAULT_DASHBOARD_GROUP_BY_INTERVAL} from 'shared/constants'
+
 export default function buildInfluxQLQuery(timeBounds, config) {
   const {groupBy, tags, areTagsAccepted} = config
   const {upper, lower} = timeBounds
@@ -92,7 +94,7 @@ function _buildGroupByTime(groupBy) {
     return ''
   }
 
-  return ` GROUP BY time(${groupBy.time})`
+  return ` GROUP BY ${groupBy.time === DEFAULT_DASHBOARD_GROUP_BY_INTERVAL ? TEMP_VAR_INTERVAL : `time(${groupBy.time})`}`
 }
 
 function _buildGroupByTags(groupBy) {

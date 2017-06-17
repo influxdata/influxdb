@@ -11,6 +11,12 @@ import (
 // Convert changes an InfluxQL query to a QueryConfig
 func Convert(influxQL string) (chronograf.QueryConfig, error) {
 	itsDashboardTime := false
+	intervalTime := false
+	if strings.Contains(influxQL, ":interval:") {
+		influxQL = strings.Replace(influxQL, ":interval:", "time(1234s)", 1)
+		intervalTime = true
+	}
+
 	if strings.Contains(influxQL, ":dashboardTime:") {
 		influxQL = strings.Replace(influxQL, ":dashboardTime:", "now() - 15m", 1)
 		itsDashboardTime = true
@@ -23,6 +29,10 @@ func Convert(influxQL string) (chronograf.QueryConfig, error) {
 
 	if itsDashboardTime {
 		influxQL = strings.Replace(influxQL, "now() - 15m", ":dashboardTime:", 1)
+	}
+
+	if intervalTime {
+		influxQL = strings.Replace(influxQL, "time(1234s)", ":interval:", 1)
 	}
 
 	raw := chronograf.QueryConfig{
@@ -104,7 +114,11 @@ func Convert(influxQL string) (chronograf.QueryConfig, error) {
 			if !ok {
 				return raw, nil
 			}
-			qc.GroupBy.Time = lit.String()
+			if intervalTime {
+				qc.GroupBy.Time = "auto"
+			} else {
+				qc.GroupBy.Time = lit.String()
+			}
 		case *influxql.VarRef:
 			qc.GroupBy.Tags = append(qc.GroupBy.Tags, v.Val)
 		}

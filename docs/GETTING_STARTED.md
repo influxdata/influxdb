@@ -1,1 +1,1 @@
-**We've moved our documentation!** Check out the latest [getting started guide](https://docs.influxdata.com/chronograf/v1.3/introduction/getting-started/) on InfluxData's [main docs site](https://docs.influxdata.com/chronograf/v1.3/).
+**We've moved our documentation!** Check out the latest [getting started guide](https://docs.influxdata.com/chronograf/latest/introduction/getting-started/) on InfluxData's [main docs site](https://docs.influxdata.com/chronograf/latest/).

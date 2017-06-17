@@ -256,8 +256,18 @@ class DashboardPage extends Component {
       ],
     }
 
-    const templatesIncludingDashTime =
-      (dashboard && dashboard.templates.concat(dashboardTime)) || []
+    // this controls the auto group by behavior
+    const interval = {
+      id: 'interval',
+      type: 'constant',
+      tempVar: ':interval:',
+      resolution: 1000,
+      reportingInterval: 10000000000,
+      values: [],
+    }
+
+    const templatesIncludingDashTime = (dashboard &&
+      dashboard.templates.concat(dashboardTime).concat(interval)) || []
 
     const {selectedCell, isEditMode, isTemplating} = this.state
 

@@ -41,6 +41,7 @@
   1. [#1567](https://github.com/influxdata/chronograf/pull/1567): Replace the user icon with a solid style
   1. [#1561](https://github.com/influxdata/chronograf/pull/1561): Disable query save in cell editor mode if the query does not have a database, measurement, and field
   1. [#1575](https://github.com/influxdata/chronograf/pull/1575): Improve UX of applying functions to fields in the query builder
+  1. [#1560](https://github.com/influxdata/chronograf/pull/1560): Apply mean to fields by default
 
 ## v1.3.1.0 [2017-05-22]
 

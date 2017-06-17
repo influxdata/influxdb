@@ -1,4 +1,6 @@
 import defaultQueryConfig from './defaultQueryConfig'
+import {DEFAULT_DASHBOARD_GROUP_BY_INTERVAL} from 'shared/constants'
+import {DEFAULT_DATA_EXPLORER_GROUP_BY_INTERVAL} from 'src/data_explorer/constants'
 
 export function editRawText(query, rawText) {
   return Object.assign({}, query, {rawText})
@@ -42,10 +44,25 @@ export const toggleField = (query, {field, funcs}, isKapacitorRule = false) => {
     }
   }
 
+  let newFuncs = ['mean']
+  if (query.fields.length) {
+    newFuncs = query.fields.find(f => f.funcs).funcs
+  }
+
   return {
     ...query,
-    fields: query.fields.concat({field, funcs}),
+    fields: query.fields.concat({
+      field,
+      funcs: newFuncs,
+    }),
   }
+}
+
+// all fields implicitly have a function applied to them, so consequently
+// we need to set the auto group by time
+export const toggleFieldWithGroupByInterval = (query, {field, funcs}, isKapacitorRule) => {
+  const queryWithField = toggleField(query, {field, funcs}, isKapacitorRule)
+  return groupByTime(queryWithField, DEFAULT_DASHBOARD_GROUP_BY_INTERVAL)
 }
 
 export function groupByTime(query, time) {
@@ -62,7 +79,7 @@ export function toggleTagAcceptance(query) {
   })
 }
 
-export function applyFuncsToField(query, {field, funcs}) {
+export function applyFuncsToField(query, {field, funcs}, isInDataExplorer = false) {
   const shouldRemoveFuncs = funcs.length === 0
   const nextFields = query.fields.map(f => {
     // If one field has no funcs, all fields must have no funcs
@@ -78,16 +95,14 @@ export function applyFuncsToField(query, {field, funcs}) {
     return f
   })
 
+  const defaultGroupBy = isInDataExplorer ? DEFAULT_DATA_EXPLORER_GROUP_BY_INTERVAL : DEFAULT_DASHBOARD_GROUP_BY_INTERVAL
   // If there are no functions, then there should be no GROUP BY time
-  if (shouldRemoveFuncs) {
-    const nextGroupBy = Object.assign({}, query.groupBy, {time: null})
-    return Object.assign({}, query, {
-      fields: nextFields,
-      groupBy: nextGroupBy,
-    })
-  }
+  const nextGroupBy = Object.assign({}, query.groupBy, {time: shouldRemoveFuncs ? null : defaultGroupBy})
 
-  return Object.assign({}, query, {fields: nextFields})
+  return Object.assign({}, query, {
+    fields: nextFields,
+    groupBy: nextGroupBy,
+  })
 }
 
 export function updateRawQuery(query, rawText) {

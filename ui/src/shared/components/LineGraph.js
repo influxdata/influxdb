@@ -39,6 +39,7 @@ export default React.createClass({
     }),
     isInDataExplorer: bool,
     synchronizer: func,
+    setResolution: func,
     cellHeight: number,
   },
 
@@ -181,6 +182,7 @@ export default React.createClass({
           ruleValues={ruleValues}
           synchronizer={synchronizer}
           timeRange={timeRange}
+          setResolution={this.props.setResolution}
         />
         {showSingleStat
           ? <div className="single-stat single-stat-line">

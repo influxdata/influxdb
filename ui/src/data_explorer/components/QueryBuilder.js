@@ -52,7 +52,7 @@ const QueryBuilder = React.createClass({
   },
 
   handleToggleField(field) {
-    this.props.actions.toggleField(this.props.query.id, field)
+    this.props.actions.toggleFieldWithGroupByInterval(this.props.query.id, field)
   },
 
   handleGroupByTime(time) {
@@ -60,7 +60,7 @@ const QueryBuilder = React.createClass({
   },
 
   handleApplyFuncsToField(fieldFunc) {
-    this.props.actions.applyFuncsToField(this.props.query.id, fieldFunc)
+    this.props.actions.applyFuncsToField(this.props.query.id, fieldFunc, this.props.isInDataExplorer)
   },
 
   handleChooseTag(tag) {
@@ -109,7 +109,7 @@ const QueryBuilder = React.createClass({
   },
 
   renderLists() {
-    const {query, layout} = this.props
+    const {query, layout, isInDataExplorer} = this.props
 
     // Panel layout uses a dropdown instead of a list for database selection
     // Also groups measurements & fields into their own container so they
@@ -135,6 +135,7 @@ const QueryBuilder = React.createClass({
               onToggleField={this.handleToggleField}
               onGroupByTime={this.handleGroupByTime}
               applyFuncsToField={this.handleApplyFuncsToField}
+              isInDataExplorer={isInDataExplorer}
             />
           </div>
         </div>
@@ -159,6 +160,7 @@ const QueryBuilder = React.createClass({
           onToggleField={this.handleToggleField}
           onGroupByTime={this.handleGroupByTime}
           applyFuncsToField={this.handleApplyFuncsToField}
+          isInDataExplorer={isInDataExplorer}
         />
       </div>
     )
