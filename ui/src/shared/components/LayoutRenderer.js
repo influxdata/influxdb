@@ -1,4 +1,4 @@
-import React, {PropTypes} from 'react'
+import React, {Component, PropTypes} from 'react'
 
 import ReactGridLayout, {WidthProvider} from 'react-grid-layout'
 
@@ -22,51 +22,17 @@ import {RECENT_ALERTS_LIMIT} from 'src/status/constants'
 
 const GridLayout = WidthProvider(ReactGridLayout)
 
-const {arrayOf, bool, func, number, shape, string} = PropTypes
+class LayoutRenderer extends Component {
+  constructor(props) {
+    super(props)
 
-export const LayoutRenderer = React.createClass({
-  propTypes: {
-    autoRefresh: number.isRequired,
-    timeRange: shape({
-      lower: string.isRequired,
-    }),
-    cells: arrayOf(
-      shape({
-        // isWidget cells will not have queries
-        isWidget: bool,
-        queries: arrayOf(
-          shape({
-            label: string,
-            text: string,
-            query: string,
-          }).isRequired
-        ),
-        x: number.isRequired,
-        y: number.isRequired,
-        w: number.isRequired,
-        h: number.isRequired,
-        i: string.isRequired,
-        name: string.isRequired,
-        type: string.isRequired,
-      }).isRequired
-    ),
-    templates: arrayOf(shape()),
-    host: string,
-    source: shape({
-      links: shape({
-        proxy: string.isRequired,
-      }).isRequired,
-    }).isRequired,
-    onPositionChange: func,
-    onEditCell: func,
-    onRenameCell: func,
-    onUpdateCell: func,
-    onDeleteCell: func,
-    onSummonOverlayTechnologies: func,
-    shouldNotBeEditable: bool,
-    synchronizer: func,
-    isStatusPage: bool,
-  },
+    this.buildQueryForOldQuerySchema = ::this.buildQueryForOldQuerySchema
+    this.standardizeQueries = ::this.standardizeQueries
+    this.generateWidgetCell = ::this.generateWidgetCell
+    this.generateVisualizations = ::this.generateVisualizations
+    this.handleLayoutChange = ::this.handleLayoutChange
+    this.triggerWindowResize = ::this.triggerWindowResize
+  }
 
   buildQueryForOldQuerySchema(q) {
     const {timeRange: {lower}, host} = this.props
@@ -98,7 +64,7 @@ export const LayoutRenderer = React.createClass({
     }
 
     return text
-  },
+  }
 
   standardizeQueries(cell, source) {
     return cell.queries.map(query => {
@@ -120,7 +86,7 @@ export const LayoutRenderer = React.createClass({
         text: queryText,
       })
     })
-  },
+  }
 
   generateWidgetCell(cell) {
     const {source, timeRange} = this.props
@@ -148,7 +114,7 @@ export const LayoutRenderer = React.createClass({
         <p>No Results</p>
       </div>
     )
-  },
+  }
 
   // Generates cell contents based on cell type, i.e. graphs, news feeds, etc.
   generateVisualizations() {
@@ -196,7 +162,7 @@ export const LayoutRenderer = React.createClass({
         </div>
       )
     })
-  },
+  }
 
   handleLayoutChange(layout) {
     this.triggerWindowResize()
@@ -212,7 +178,14 @@ export const LayoutRenderer = React.createClass({
     })
 
     this.props.onPositionChange(newCells)
-  },
+  }
+
+  triggerWindowResize() {
+    // Hack to get dygraphs to fit properly during and after resize (dispatchEvent is a global method on window).
+    const evt = document.createEvent('CustomEvent') // MUST be 'CustomEvent'
+    evt.initCustomEvent('resize', false, false, null)
+    dispatchEvent(evt)
+  }
 
   render() {
     const {cells, isStatusPage} = this.props
@@ -248,14 +221,52 @@ export const LayoutRenderer = React.createClass({
         {this.generateVisualizations()}
       </GridLayout>
     )
-  },
+  }
+}
 
-  triggerWindowResize() {
-    // Hack to get dygraphs to fit properly during and after resize (dispatchEvent is a global method on window).
-    const evt = document.createEvent('CustomEvent') // MUST be 'CustomEvent'
-    evt.initCustomEvent('resize', false, false, null)
-    dispatchEvent(evt)
-  },
-})
+const {arrayOf, bool, func, number, shape, string} = PropTypes
+
+LayoutRenderer.propTypes = {
+  autoRefresh: number.isRequired,
+  timeRange: shape({
+    lower: string.isRequired,
+  }),
+  cells: arrayOf(
+    shape({
+      // isWidget cells will not have queries
+      isWidget: bool,
+      queries: arrayOf(
+        shape({
+          label: string,
+          text: string,
+          query: string,
+        }).isRequired
+      ),
+      x: number.isRequired,
+      y: number.isRequired,
+      w: number.isRequired,
+      h: number.isRequired,
+      i: string.isRequired,
+      name: string.isRequired,
+      type: string.isRequired,
+    }).isRequired
+  ),
+  templates: arrayOf(shape()),
+  host: string,
+  source: shape({
+    links: shape({
+      proxy: string.isRequired,
+    }).isRequired,
+  }).isRequired,
+  onPositionChange: func,
+  onEditCell: func,
+  onRenameCell: func,
+  onUpdateCell: func,
+  onDeleteCell: func,
+  onSummonOverlayTechnologies: func,
+  shouldNotBeEditable: bool,
+  synchronizer: func,
+  isStatusPage: bool,
+}
 
 export default LayoutRenderer
