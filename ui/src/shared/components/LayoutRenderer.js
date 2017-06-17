@@ -11,6 +11,13 @@ import GettingStarted from 'src/status/components/GettingStarted'
 import timeRanges from 'hson!shared/data/timeRanges.hson'
 import buildInfluxQLQuery from 'utils/influxql'
 
+import {
+  STATUS_PAGE_ROW_COUNT,
+  PAGE_HEADER_HEIGHT,
+  PAGE_CONTAINER_MARGIN,
+  LAYOUT_MARGIN,
+  DASHBOARD_LAYOUT_ROW_HEIGHT,
+} from 'shared/constants'
 import {RECENT_ALERTS_LIMIT} from 'src/status/constants'
 
 const GridLayout = WidthProvider(ReactGridLayout)
@@ -58,6 +65,7 @@ export const LayoutRenderer = React.createClass({
     onSummonOverlayTechnologies: func,
     shouldNotBeEditable: bool,
     synchronizer: func,
+    isStatusPage: bool,
   },
 
   buildQueryForOldQuerySchema(q) {
@@ -207,15 +215,28 @@ export const LayoutRenderer = React.createClass({
   },
 
   render() {
-    const layoutMargin = 4
+    const {cells, isStatusPage} = this.props
+
     const isDashboard = !!this.props.onPositionChange
+
+    const STATUS_PAGE_LAYOUT_ROW_HEIGHT =
+      (window.innerHeight -
+        STATUS_PAGE_ROW_COUNT * LAYOUT_MARGIN -
+        PAGE_HEADER_HEIGHT -
+        PAGE_CONTAINER_MARGIN -
+        PAGE_CONTAINER_MARGIN) /
+      STATUS_PAGE_ROW_COUNT
 
     return (
       <GridLayout
-        layout={this.props.cells}
+        layout={cells}
         cols={12}
-        rowHeight={83.5}
-        margin={[layoutMargin, layoutMargin]}
+        rowHeight={
+          isStatusPage
+            ? STATUS_PAGE_LAYOUT_ROW_HEIGHT
+            : DASHBOARD_LAYOUT_ROW_HEIGHT
+        }
+        margin={[LAYOUT_MARGIN, LAYOUT_MARGIN]}
         containerPadding={[0, 0]}
         useCSSTransforms={false}
         onResize={this.triggerWindowResize}

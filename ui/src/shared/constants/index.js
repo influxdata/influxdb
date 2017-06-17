@@ -401,3 +401,9 @@ export const TABLE = 'table'
 export const VIS_VIEWS = [GRAPH, TABLE]
 
 export const DEFAULT_HOME_PAGE = 'status'
+
+export const STATUS_PAGE_ROW_COUNT = 10 // TODO: calculate based on actual Status Page cells
+export const PAGE_HEADER_HEIGHT = 60 // TODO: get this dynamically to ensure longevity
+export const PAGE_CONTAINER_MARGIN = 30 // TODO: get this dynamically to ensure longevity
+export const LAYOUT_MARGIN = 4
+export const DASHBOARD_LAYOUT_ROW_HEIGHT = 83.5

@@ -46,7 +46,7 @@ export const fixtureStatusPageCells = [
     x: 0,
     y: 5,
     w: 6.5,
-    h: 7,
+    h: 6,
   },
   {
     i: 'news-feed',
@@ -56,7 +56,7 @@ export const fixtureStatusPageCells = [
     x: 6.5,
     y: 5,
     w: 3,
-    h: 7,
+    h: 6,
   },
   {
     i: 'getting-started',
@@ -66,6 +66,6 @@ export const fixtureStatusPageCells = [
     x: 9.5,
     y: 5,
     w: 2.5,
-    h: 7,
+    h: 6,
   },
 ]

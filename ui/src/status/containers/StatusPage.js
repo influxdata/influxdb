@@ -58,6 +58,7 @@ class StatusPage extends Component {
                   templates={templates}
                   source={source}
                   shouldNotBeEditable={true}
+                  isStatusPage={true}
                 />
               : <span>Loading Status Page...</span>}
           </div>
