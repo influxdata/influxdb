@@ -12,6 +12,7 @@ import timeRanges from 'hson!shared/data/timeRanges.hson'
 import buildInfluxQLQuery from 'utils/influxql'
 
 import {
+  // TODO: get these const values dynamically
   STATUS_PAGE_ROW_COUNT,
   PAGE_HEADER_HEIGHT,
   PAGE_CONTAINER_MARGIN,
@@ -26,12 +27,18 @@ class LayoutRenderer extends Component {
   constructor(props) {
     super(props)
 
+    this.state = {
+      rowHeight: this.calculateRowHeight(),
+    }
+
     this.buildQueryForOldQuerySchema = ::this.buildQueryForOldQuerySchema
     this.standardizeQueries = ::this.standardizeQueries
     this.generateWidgetCell = ::this.generateWidgetCell
     this.generateVisualizations = ::this.generateVisualizations
     this.handleLayoutChange = ::this.handleLayoutChange
     this.triggerWindowResize = ::this.triggerWindowResize
+    this.calculateRowHeight = ::this.calculateRowHeight
+    this.updateWindowDimensions = ::this.updateWindowDimensions
   }
 
   buildQueryForOldQuerySchema(q) {
@@ -187,28 +194,36 @@ class LayoutRenderer extends Component {
     dispatchEvent(evt)
   }
 
+  // ensures that Status Page height fits the window
+  calculateRowHeight() {
+    const {isStatusPage} = this.props
+
+    return isStatusPage
+      ? (window.innerHeight -
+          STATUS_PAGE_ROW_COUNT * LAYOUT_MARGIN -
+          PAGE_HEADER_HEIGHT -
+          PAGE_CONTAINER_MARGIN -
+          PAGE_CONTAINER_MARGIN) /
+          STATUS_PAGE_ROW_COUNT
+      : DASHBOARD_LAYOUT_ROW_HEIGHT
+  }
+
+  // idea adopted from https://stackoverflow.com/questions/36862334/get-viewport-window-height-in-reactjs
+  updateWindowDimensions() {
+    this.setState({rowHeight: this.calculateRowHeight()})
+  }
+
   render() {
-    const {cells, isStatusPage} = this.props
+    const {cells} = this.props
+    const {rowHeight} = this.state
 
     const isDashboard = !!this.props.onPositionChange
-
-    const STATUS_PAGE_LAYOUT_ROW_HEIGHT =
-      (window.innerHeight -
-        STATUS_PAGE_ROW_COUNT * LAYOUT_MARGIN -
-        PAGE_HEADER_HEIGHT -
-        PAGE_CONTAINER_MARGIN -
-        PAGE_CONTAINER_MARGIN) /
-      STATUS_PAGE_ROW_COUNT
 
     return (
       <GridLayout
         layout={cells}
         cols={12}
-        rowHeight={
-          isStatusPage
-            ? STATUS_PAGE_LAYOUT_ROW_HEIGHT
-            : DASHBOARD_LAYOUT_ROW_HEIGHT
-        }
+        rowHeight={rowHeight}
         margin={[LAYOUT_MARGIN, LAYOUT_MARGIN]}
         containerPadding={[0, 0]}
         useCSSTransforms={false}
@@ -221,6 +236,14 @@ class LayoutRenderer extends Component {
         {this.generateVisualizations()}
       </GridLayout>
     )
+  }
+
+  componentDidMount() {
+    window.addEventListener('resize', this.updateWindowDimensions)
+  }
+
+  componentWillUnmount() {
+    window.removeEventListener('resize', this.updateWindowDimensions)
   }
 }
 
