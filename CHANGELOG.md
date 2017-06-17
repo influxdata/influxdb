@@ -7,6 +7,7 @@
 
 ### Features
 1. [#1512](https://github.com/influxdata/chronograf/pull/1512): Synchronize vertical crosshair at same time across all graphs in a dashboard
+1. [#1608](https://github.com/influxdata/chronograf/pull/1608): Add a Status Page with Recent Alerts bar graph, Recent Alerts table, News Feed, and Getting Started widgets
 
 ### UI Improvements
 1. [#1512](https://github.com/influxdata/chronograf/pull/1512): When dashboard time range is changed, reset graphs that are zoomed in

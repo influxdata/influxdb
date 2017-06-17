@@ -321,12 +321,13 @@ export default class Dygraph extends Component {
 
   render() {
     return (
-      <div style={{height: '100%'}}>
+      <div className="dygraph-child">
         <div
           ref={r => {
             this.graphContainer = r
           }}
           style={this.props.containerStyle}
+          className="dygraph-child-container"
         />
         <div
           ref={r => {

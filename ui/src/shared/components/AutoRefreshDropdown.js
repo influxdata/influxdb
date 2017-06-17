@@ -2,7 +2,7 @@ import React, {PropTypes} from 'react'
 import classnames from 'classnames'
 import OnClickOutside from 'shared/components/OnClickOutside'
 
-import autoRefreshItems from 'hson!../data/autoRefreshes.hson'
+import autoRefreshItems from 'hson!shared/data/autoRefreshes.hson'
 
 const {number, func} = PropTypes
 

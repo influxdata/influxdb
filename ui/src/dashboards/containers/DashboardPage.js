@@ -193,12 +193,9 @@ class DashboardPage extends Component {
 
   handleEditTemplateVariables(templates, onSaveTemplatesSuccess) {
     return async () => {
-      const {params: {dashboardID}, dashboards} = this.props
-      const currentDashboard = dashboards.find(({id}) => id === +dashboardID)
-
       try {
         await this.props.dashboardActions.putDashboard({
-          ...currentDashboard,
+          ...this.getActiveDashboard(),
           templates,
         })
         onSaveTemplatesSuccess()
@@ -242,10 +239,10 @@ class DashboardPage extends Component {
       inPresentationMode,
       handleChooseAutoRefresh,
       handleClickPresentationButton,
-      params: {sourceID, dashboardID},
+      params: {sourceID},
     } = this.props
 
-    const dashboard = dashboards.find(d => d.id === +dashboardID)
+    const dashboard = this.getActiveDashboard()
     const dashboardTime = {
       id: 'dashtime',
       tempVar: ':dashboardTime:',

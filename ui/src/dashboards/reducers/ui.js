@@ -1,7 +1,7 @@
 import _ from 'lodash'
 import timeRanges from 'hson!shared/data/timeRanges.hson'
 
-const {lower, upper} = timeRanges[2]
+const {lower, upper} = timeRanges.find(tr => tr.lower === 'now() - 1h')
 
 const initialState = {
   dashboards: [],

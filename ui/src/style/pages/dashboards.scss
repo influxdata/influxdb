@@ -87,19 +87,19 @@ $dash-graph-options-arrow: 8px;
   left: 0;
   padding: 0;
 
-  & > div:not(.graph-empty) {
+  & > .dygraph {
     position: absolute;
     left: 0;
     top: 0;
     width: 100%;
     height: 100%;
 
-    & > div:not(.graph-panel__refreshing) {
-      position: absolute;
-      width: 100%;
-      height: 100%;
-      padding: 8px 16px;
-    }
+  }
+  & > .dygraph > .dygraph-child {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    padding: 8px 16px;
   }
   .graph-panel__refreshing {
     top: (-$dash-graph-heading + 5px) !important;
