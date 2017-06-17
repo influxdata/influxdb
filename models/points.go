@@ -251,10 +251,12 @@ func ParseKey(buf []byte) (string, Tags) {
 	return string(buf[:i]), tags
 }
 
+// ParseTags returns Tags from inputed buffer
 func ParseTags(buf []byte) (Tags, error) {
 	return parseTags(buf), nil
 }
 
+// ParseName returns metric name from inputed buffer
 func ParseName(buf []byte) ([]byte, error) {
 	// Ignore the error because scanMeasurement returns "missing fields" which we ignore
 	// when just parsing a key

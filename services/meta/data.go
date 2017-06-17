@@ -1445,18 +1445,21 @@ type UserInfo struct {
 	Privileges map[string]influxql.Privilege
 }
 
+// User interface defines method for UserInfo
 type User interface {
 	influxql.Authorizer
 	ID() string
 	IsAdmin() bool
 }
 
-func (u *UserInfo) ID() string {
-	return u.Name
+// ID returns User name
+func (ui *UserInfo) ID() string {
+	return ui.Name
 }
 
-func (u *UserInfo) IsAdmin() bool {
-	return u.Admin
+// IsAdmin returns true if user is authorized as admin
+func (ui *UserInfo) IsAdmin() bool {
+	return ui.Admin
 }
 
 // AuthorizeDatabase returns true if the user is authorized for the given privilege on the given database.
@@ -1469,12 +1472,12 @@ func (ui *UserInfo) AuthorizeDatabase(privilege influxql.Privilege, database str
 }
 
 // AuthorizeSeriesRead is used to limit access per-series (enterprise only)
-func (u *UserInfo) AuthorizeSeriesRead(database string, measurement []byte, tags models.Tags) bool {
+func (ui *UserInfo) AuthorizeSeriesRead(database string, measurement []byte, tags models.Tags) bool {
 	return true
 }
 
 // AuthorizeSeriesWrite is used to limit access per-series (enterprise only)
-func (u *UserInfo) AuthorizeSeriesWrite(database string, measurement []byte, tags models.Tags) bool {
+func (ui *UserInfo) AuthorizeSeriesWrite(database string, measurement []byte, tags models.Tags) bool {
 	return true
 }
 

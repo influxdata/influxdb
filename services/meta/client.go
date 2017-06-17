@@ -999,9 +999,8 @@ func snapshot(path string, data *Data) error {
 	var d []byte
 	if b, err := data.MarshalBinary(); err != nil {
 		return err
-	} else {
-		d = b
 	}
+	d = b
 
 	if _, err := f.Write(d); err != nil {
 		return err
