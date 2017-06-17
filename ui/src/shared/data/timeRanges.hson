@@ -8,5 +8,4 @@
   {defaultGroupBy: '30m', seconds: 172800, inputValue: 'Past 2 days', lower: 'now() - 2d', upper: null, menuOption: 'Past 2 days'},
   {defaultGroupBy: '1h', seconds: 604800, inputValue: 'Past 7 days', lower: 'now() - 7d', upper: null, menuOption: 'Past 7 days'},
   {defaultGroupBy: '6h', seconds: 2592000, inputValue: 'Past 30 days', lower: 'now() - 30d', upper: null, menuOption: 'Past 30 days'},
-  {defaultGroupBy: '12h', seconds: 7776000, inputValue: 'Past 90 days', lower: 'now() - 90d', upper: null, menuOption: 'Past 90 days'},
 ]

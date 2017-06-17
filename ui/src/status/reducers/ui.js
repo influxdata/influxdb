@@ -3,7 +3,7 @@ import timeRanges from 'hson!shared/data/timeRanges.hson'
 
 import * as actionTypes from 'src/status/constants/actionTypes'
 
-const {lower, upper} = timeRanges.find(tr => tr.lower === 'now() - 90d')
+const {lower, upper} = timeRanges.find(tr => tr.lower === 'now() - 30d')
 
 const initialState = {
   autoRefresh: AUTOREFRESH_DEFAULT,
