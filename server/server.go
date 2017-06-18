@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path"
 	"runtime"
 	"strconv"
 	"time"
@@ -182,7 +183,7 @@ func (s *Server) genericRedirectURL() string {
 		genericName = s.GenericName
 	}
 
-	return s.PublicURL + s.Basepath + "/oauth/" + genericName + "/callback"
+	return path.Join(s.PublicURL, s.Basepath, "oauth", genericName, "callback")
 }
 
 // BuildInfo is sent to the usage client to track versions and commits
