@@ -155,19 +155,13 @@ func (s *Server) herokuOAuth(logger chronograf.Logger, auth oauth2.Authenticator
 }
 
 func (s *Server) genericOAuth(logger chronograf.Logger, auth oauth2.Authenticator) (oauth2.Provider, oauth2.Mux, func() bool) {
-	name := "generic"
-	if s.GenericName != "" {
-		name = s.GenericName
-	}
-
-	redirectURL := s.PublicURL + s.Basepath + "/oauth/" + name + "/callback"
 	gen := oauth2.Generic{
 		PageName:       s.GenericName,
 		ClientID:       s.GenericClientID,
 		ClientSecret:   s.GenericClientSecret,
 		RequiredScopes: s.GenericScopes,
 		Domains:        s.GenericDomains,
-		RedirectURL:    redirectURL,
+		RedirectURL:    s.genericRedirectURL(),
 		AuthURL:        s.GenericAuthURL,
 		TokenURL:       s.GenericTokenURL,
 		APIURL:         s.GenericAPIURL,
@@ -176,6 +170,19 @@ func (s *Server) genericOAuth(logger chronograf.Logger, auth oauth2.Authenticato
 	jwt := oauth2.NewJWT(s.TokenSecret)
 	genMux := oauth2.NewAuthMux(&gen, auth, jwt, s.Basepath, logger)
 	return &gen, genMux, s.UseGenericOAuth2
+}
+
+func (s *Server) genericRedirectURL() string {
+	if s.PublicURL == "" {
+		return ""
+	}
+
+	genericName := "generic"
+	if s.GenericName != "" {
+		genericName = s.GenericName
+	}
+
+	return s.PublicURL + s.Basepath + "/oauth/" + genericName + "/callback"
 }
 
 // BuildInfo is sent to the usage client to track versions and commits
