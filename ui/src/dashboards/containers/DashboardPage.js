@@ -270,8 +270,10 @@ class DashboardPage extends Component {
       values: [],
     }
 
-    const templatesIncludingDashTime = (dashboard &&
-      dashboard.templates.concat(dashboardTime).concat(interval)) || []
+    const templatesIncludingDashTime =
+      (dashboard &&
+        dashboard.templates.concat(dashboardTime).concat(interval)) ||
+      []
 
     const {selectedCell, isEditMode, isTemplating} = this.state
 
