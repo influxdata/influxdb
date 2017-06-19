@@ -5,6 +5,8 @@ import {bindActionCreators} from 'redux'
 import _ from 'lodash'
 import classnames from 'classnames'
 
+import Dygraph from 'src/external/dygraph'
+
 import LayoutRenderer from 'shared/components/LayoutRenderer'
 import DashboardHeader from 'src/dashboards/components/DashboardHeader'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
@@ -51,6 +53,7 @@ export const HostPage = React.createClass({
       layouts: [],
       hosts: [],
       timeRange: timeRanges.find(tr => tr.lower === 'now() - 1h'),
+      dygraphs: [],
     }
   },
 
@@ -98,6 +101,22 @@ export const HostPage = React.createClass({
   handleChooseTimeRange({lower}) {
     const timeRange = timeRanges.find(range => range.lower === lower)
     this.setState({timeRange})
+  },
+
+  synchronizer(dygraph) {
+    const dygraphs = [...this.state.dygraphs, dygraph]
+    const numGraphs = this.state.layouts.reduce((acc, {cells}) => {
+      return acc + cells.length
+    }, 0)
+
+    if (dygraphs.length === numGraphs) {
+      Dygraph.synchronize(dygraphs, {
+        selection: true,
+        zoom: false,
+        range: false,
+      })
+    }
+    this.setState({dygraphs})
   },
 
   renderLayouts(layouts) {
@@ -156,6 +175,7 @@ export const HostPage = React.createClass({
         source={source}
         host={this.props.params.hostID}
         shouldNotBeEditable={true}
+        synchronizer={this.synchronizer}
       />
     )
   },
