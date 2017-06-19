@@ -38,8 +38,13 @@ class FunctionSelector extends Component {
   }
 
   onSingleSelect(item) {
-    this.props.onApply([item])
-    this.setState({localSelectedItems: [item]})
+    if (item === this.state.localSelectedItems[0]) {
+      this.props.onApply([])
+      this.setState({localSelectedItems: []})
+    } else {
+      this.props.onApply([item])
+      this.setState({localSelectedItems: [item]})
+    }
   }
 
   isSelected(item) {
