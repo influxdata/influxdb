@@ -74,33 +74,22 @@ class FunctionSelector extends Component {
               </div>
             </div>}
         <div className="function-selector--grid">
-          {singleSelect
-            ? INFLUXQL_FUNCTIONS.map((f, i) => {
-                return (
-                  <div
-                    key={i}
-                    className={classnames('function-selector--item', {
-                      active: this.isSelected(f),
-                    })}
-                    onClick={_.wrap(f, this.onSingleSelect)}
-                  >
-                    {f}
-                  </div>
-                )
-              })
-            : INFLUXQL_FUNCTIONS.map((f, i) => {
-                return (
-                  <div
-                    key={i}
-                    className={classnames('function-selector--item', {
-                      active: this.isSelected(f),
-                    })}
-                    onClick={_.wrap(f, this.onSelect)}
-                  >
-                    {f}
-                  </div>
-                )
-              })}
+          {INFLUXQL_FUNCTIONS.map((f, i) => {
+            return (
+              <div
+                key={i}
+                className={classnames('function-selector--item', {
+                  active: this.isSelected(f),
+                })}
+                onClick={_.wrap(
+                  f,
+                  singleSelect ? this.onSingleSelect : this.onSelect
+                )}
+              >
+                {f}
+              </div>
+            )
+          })}
         </div>
       </div>
     )
