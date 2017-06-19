@@ -1,4 +1,10 @@
-## v1.3.3.0 [unreleased]
+## v1.3.4.0 [unreleased]
+
+### Bug Fixes
+### Features
+### UI Improvements
+
+## v1.3.3.0 [2017-06-19]
 
 ### Bug Fixes
 1. [#1512](https://github.com/influxdata/chronograf/pull/1512): Prevent legend from flowing over window bottom bound
