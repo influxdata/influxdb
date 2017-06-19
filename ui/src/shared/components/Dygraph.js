@@ -233,6 +233,9 @@ export default class Dygraph extends Component {
       ...options,
     })
 
+    const {w} = this.dygraph.getArea()
+    this.props.setResolution(w)
+
     // Simple opt-out for now, if a graph should not be synced
     if (this.props.synchronizer) {
       this.sync()
@@ -305,6 +308,8 @@ export default class Dygraph extends Component {
     // }
 
     dygraph.resize()
+    const {w} = this.dygraph.getArea()
+    this.props.setResolution(w)
   }
 
   sync() {
@@ -316,12 +321,13 @@ export default class Dygraph extends Component {
 
   render() {
     return (
-      <div style={{height: '100%'}}>
+      <div className="dygraph-child">
         <div
           ref={r => {
             this.graphContainer = r
           }}
           style={this.props.containerStyle}
+          className="dygraph-child-container"
         />
         <div
           ref={r => {
@@ -358,4 +364,5 @@ Dygraph.propTypes = {
     lower: string.isRequired,
   }),
   synchronizer: func,
+  setResolution: func,
 }

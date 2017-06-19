@@ -5,7 +5,7 @@ import moment from 'moment'
 import OnClickOutside from 'shared/components/OnClickOutside'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
-import timeRanges from 'hson!../data/timeRanges.hson'
+import timeRanges from 'hson!shared/data/timeRanges.hson'
 import {DROPDOWN_MENU_MAX_HEIGHT} from 'shared/constants/index'
 
 const TimeRangeDropdown = React.createClass({

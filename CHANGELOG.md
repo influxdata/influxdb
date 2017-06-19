@@ -1,4 +1,10 @@
-## v1.3.3.0 [unreleased]
+## v1.3.4.0 [unreleased]
+
+### Bug Fixes
+### Features
+### UI Improvements
+
+## v1.3.3.0 [2017-06-19]
 
 ### Bug Fixes
 1. [#1512](https://github.com/influxdata/chronograf/pull/1512): Prevent legend from flowing over window bottom bound
@@ -8,6 +14,8 @@
 
 ### Features
 1. [#1512](https://github.com/influxdata/chronograf/pull/1512): Synchronize vertical crosshair at same time across all graphs in a dashboard
+1. [#1609](https://github.com/influxdata/chronograf/pull/1609): Add automatic GROUP BY (time) functionality to dashboards
+1. [#1608](https://github.com/influxdata/chronograf/pull/1608): Add a Status Page with Recent Alerts bar graph, Recent Alerts table, News Feed, and Getting Started widgets
 
 ### UI Improvements
 1. [#1512](https://github.com/influxdata/chronograf/pull/1512): When dashboard time range is changed, reset graphs that are zoomed in
@@ -41,6 +49,7 @@
   1. [#1567](https://github.com/influxdata/chronograf/pull/1567): Replace the user icon with a solid style
   1. [#1561](https://github.com/influxdata/chronograf/pull/1561): Disable query save in cell editor mode if the query does not have a database, measurement, and field
   1. [#1575](https://github.com/influxdata/chronograf/pull/1575): Improve UX of applying functions to fields in the query builder
+  1. [#1560](https://github.com/influxdata/chronograf/pull/1560): Apply mean to fields by default
 
 ## v1.3.1.0 [2017-05-22]
 

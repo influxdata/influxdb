@@ -193,12 +193,9 @@ class DashboardPage extends Component {
 
   handleEditTemplateVariables(templates, onSaveTemplatesSuccess) {
     return async () => {
-      const {params: {dashboardID}, dashboards} = this.props
-      const currentDashboard = dashboards.find(({id}) => id === +dashboardID)
-
       try {
         await this.props.dashboardActions.putDashboard({
-          ...currentDashboard,
+          ...this.getActiveDashboard(),
           templates,
         })
         onSaveTemplatesSuccess()
@@ -242,10 +239,10 @@ class DashboardPage extends Component {
       inPresentationMode,
       handleChooseAutoRefresh,
       handleClickPresentationButton,
-      params: {sourceID, dashboardID},
+      params: {sourceID},
     } = this.props
 
-    const dashboard = dashboards.find(d => d.id === +dashboardID)
+    const dashboard = this.getActiveDashboard()
     const dashboardTime = {
       id: 'dashtime',
       tempVar: ':dashboardTime:',
@@ -259,8 +256,18 @@ class DashboardPage extends Component {
       ],
     }
 
-    const templatesIncludingDashTime =
-      (dashboard && dashboard.templates.concat(dashboardTime)) || []
+    // this controls the auto group by behavior
+    const interval = {
+      id: 'interval',
+      type: 'constant',
+      tempVar: ':interval:',
+      resolution: 1000,
+      reportingInterval: 10000000000,
+      values: [],
+    }
+
+    const templatesIncludingDashTime = (dashboard &&
+      dashboard.templates.concat(dashboardTime).concat(interval)) || []
 
     const {selectedCell, isEditMode, isTemplating} = this.state
 

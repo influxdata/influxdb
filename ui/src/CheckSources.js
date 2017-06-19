@@ -9,6 +9,8 @@ import {showDatabases} from 'shared/apis/metaQuery'
 import {loadSources as loadSourcesAction} from 'shared/actions/sources'
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 
+import {DEFAULT_HOME_PAGE} from 'shared/constants'
+
 // Acts as a 'router middleware'. The main `App` component is responsible for
 // getting the list of data nodes, but not every page requires them to function.
 // Routes that do require data nodes can be nested under this component.
@@ -88,7 +90,7 @@ const CheckSources = React.createClass({
 
     if (!isFetching && !source) {
       const rest = location.pathname.match(/\/sources\/\d+?\/(.+)/)
-      const restString = rest === null ? 'hosts' : rest[1]
+      const restString = rest === null ? DEFAULT_HOME_PAGE : rest[1]
 
       if (defaultSource) {
         return router.push(`/sources/${defaultSource.id}/${restString}`)

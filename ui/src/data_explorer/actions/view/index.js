@@ -3,6 +3,7 @@ import uuid from 'node-uuid'
 import {getQueryConfig} from 'shared/apis'
 
 import {errorThrown} from 'shared/actions/errors'
+import {DEFAULT_DATA_EXPLORER_GROUP_BY_INTERVAL} from 'src/data_explorer/constants'
 
 export function addQuery(options = {}) {
   return {
@@ -36,6 +37,13 @@ export function toggleField(queryId, fieldFunc, isKapacitorRule) {
   }
 }
 
+// all fields implicitly have a function applied to them, so consequently
+// we need to set the auto group by time
+export const toggleFieldWithGroupByInterval = (queryID, fieldFunc, isKapacitorRule) => (dispatch) => {
+  dispatch(toggleField(queryID, fieldFunc, isKapacitorRule))
+  dispatch(groupByTime(queryID, DEFAULT_DATA_EXPLORER_GROUP_BY_INTERVAL))
+}
+
 export function groupByTime(queryId, time) {
   return {
     type: 'GROUP_BY_TIME',
@@ -46,12 +54,13 @@ export function groupByTime(queryId, time) {
   }
 }
 
-export function applyFuncsToField(queryId, fieldFunc) {
+export function applyFuncsToField(queryId, fieldFunc, isInDataExplorer) {
   return {
     type: 'APPLY_FUNCS_TO_FIELD',
     payload: {
       queryId,
       fieldFunc,
+      isInDataExplorer,
     },
   }
 }

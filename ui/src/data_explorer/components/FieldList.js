@@ -7,7 +7,13 @@ import FancyScrollbar from 'shared/components/FancyScrollbar'
 import {showFieldKeys} from 'shared/apis/metaQuery'
 import showFieldKeysParser from 'shared/parsing/showFieldKeys'
 
-const {string, shape, func} = PropTypes
+const {
+  bool,
+  func,
+  shape,
+  string,
+} = PropTypes
+
 const FieldList = React.createClass({
   propTypes: {
     query: shape({
@@ -18,7 +24,8 @@ const FieldList = React.createClass({
     onToggleField: func.isRequired,
     onGroupByTime: func.isRequired,
     applyFuncsToField: func.isRequired,
-    isKapacitorRule: PropTypes.bool,
+    isKapacitorRule: bool,
+    isInDataExplorer: bool,
   },
 
   getDefaultProps() {
@@ -28,9 +35,9 @@ const FieldList = React.createClass({
   },
 
   contextTypes: {
-    source: PropTypes.shape({
-      links: PropTypes.shape({
-        proxy: PropTypes.string.isRequired,
+    source: shape({
+      links: shape({
+        proxy: string.isRequired,
       }).isRequired,
     }).isRequired,
   },
@@ -77,7 +84,7 @@ const FieldList = React.createClass({
   },
 
   render() {
-    const {query, isKapacitorRule} = this.props
+    const {query, isKapacitorRule, isInDataExplorer} = this.props
     const hasAggregates = query.fields.some(f => f.funcs && f.funcs.length)
     const hasGroupByTime = query.groupBy.time
 
@@ -91,6 +98,7 @@ const FieldList = React.createClass({
                 selected={query.groupBy.time}
                 onChooseGroupByTime={this.handleGroupByTime}
                 isInRuleBuilder={isKapacitorRule}
+                isInDataExplorer={isInDataExplorer}
               />
             : null}
         </div>

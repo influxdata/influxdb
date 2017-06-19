@@ -1,56 +1,45 @@
-import React, {PropTypes} from 'react'
-import AutoRefresh from 'shared/components/AutoRefresh'
-import LineGraph from 'shared/components/LineGraph'
-import SingleStat from 'shared/components/SingleStat'
-import NameableGraph from 'shared/components/NameableGraph'
+import React, {Component, PropTypes} from 'react'
+
 import ReactGridLayout, {WidthProvider} from 'react-grid-layout'
 
-import timeRanges from 'hson!../data/timeRanges.hson'
+import NameableGraph from 'shared/components/NameableGraph'
+import RefreshingGraph from 'shared/components/RefreshingGraph'
+import AlertsApp from 'src/alerts/containers/AlertsApp'
+import NewsFeed from 'src/status/components/NewsFeed'
+import GettingStarted from 'src/status/components/GettingStarted'
+
+import timeRanges from 'hson!shared/data/timeRanges.hson'
 import buildInfluxQLQuery from 'utils/influxql'
+
+import {
+  // TODO: get these const values dynamically
+  STATUS_PAGE_ROW_COUNT,
+  PAGE_HEADER_HEIGHT,
+  PAGE_CONTAINER_MARGIN,
+  LAYOUT_MARGIN,
+  DASHBOARD_LAYOUT_ROW_HEIGHT,
+} from 'shared/constants'
+import {RECENT_ALERTS_LIMIT} from 'src/status/constants'
 
 const GridLayout = WidthProvider(ReactGridLayout)
 
-const RefreshingLineGraph = AutoRefresh(LineGraph)
-const RefreshingSingleStat = AutoRefresh(SingleStat)
+class LayoutRenderer extends Component {
+  constructor(props) {
+    super(props)
 
-const {arrayOf, bool, func, number, shape, string} = PropTypes
+    this.state = {
+      rowHeight: this.calculateRowHeight(),
+    }
 
-export const LayoutRenderer = React.createClass({
-  propTypes: {
-    autoRefresh: number.isRequired,
-    timeRange: shape({
-      lower: string.isRequired,
-    }),
-    cells: arrayOf(
-      shape({
-        queries: arrayOf(
-          shape({
-            label: string,
-            text: string,
-            query: string,
-          }).isRequired
-        ).isRequired,
-        x: number.isRequired,
-        y: number.isRequired,
-        w: number.isRequired,
-        h: number.isRequired,
-        i: string.isRequired,
-        name: string.isRequired,
-        type: string.isRequired,
-      }).isRequired
-    ),
-    templates: arrayOf(shape()),
-    host: string,
-    source: string,
-    onPositionChange: func,
-    onEditCell: func,
-    onRenameCell: func,
-    onUpdateCell: func,
-    onDeleteCell: func,
-    onSummonOverlayTechnologies: func,
-    shouldNotBeEditable: bool,
-    synchronizer: func,
-  },
+    this.buildQueryForOldQuerySchema = ::this.buildQueryForOldQuerySchema
+    this.standardizeQueries = ::this.standardizeQueries
+    this.generateWidgetCell = ::this.generateWidgetCell
+    this.generateVisualizations = ::this.generateVisualizations
+    this.handleLayoutChange = ::this.handleLayoutChange
+    this.triggerWindowResize = ::this.triggerWindowResize
+    this.calculateRowHeight = ::this.calculateRowHeight
+    this.updateWindowDimensions = ::this.updateWindowDimensions
+  }
 
   buildQueryForOldQuerySchema(q) {
     const {timeRange: {lower}, host} = this.props
@@ -82,42 +71,59 @@ export const LayoutRenderer = React.createClass({
     }
 
     return text
-  },
+  }
 
-  renderRefreshingGraph(type, queries, cellHeight) {
-    const {timeRange, autoRefresh, templates, synchronizer} = this.props
+  standardizeQueries(cell, source) {
+    return cell.queries.map(query => {
+      // TODO: Canned dashboards (and possibly Kubernetes dashboard) use an old query schema,
+      // which does not have enough information for the new `buildInfluxQLQuery` function
+      // to operate on. We will use `buildQueryForOldQuerySchema` until we conform
+      // on a stable query representation.
+      let queryText
+      if (query.queryConfig) {
+        const {queryConfig: {rawText, range}} = query
+        const timeRange = range || {upper: null, lower: ':dashboardTime:'}
+        queryText = rawText || buildInfluxQLQuery(timeRange, query.queryConfig)
+      } else {
+        queryText = this.buildQueryForOldQuerySchema(query)
+      }
 
-    if (type === 'single-stat') {
-      return (
-        <RefreshingSingleStat
-          queries={[queries[0]]}
-          templates={templates}
-          autoRefresh={autoRefresh}
-          cellHeight={cellHeight}
-        />
-      )
+      return Object.assign({}, query, {
+        host: source.links.proxy,
+        text: queryText,
+      })
+    })
+  }
+
+  generateWidgetCell(cell) {
+    const {source, timeRange} = this.props
+
+    switch (cell.type) {
+      case 'alerts': {
+        return (
+          <AlertsApp
+            source={source}
+            timeRange={timeRange}
+            isWidget={true}
+            limit={RECENT_ALERTS_LIMIT}
+          />
+        )
+      }
+      case 'news': {
+        return <NewsFeed source={source} />
+      }
+      case 'guide': {
+        return <GettingStarted />
+      }
     }
-
-    const displayOptions = {
-      stepPlot: type === 'line-stepplot',
-      stackedGraph: type === 'line-stacked',
-    }
-
     return (
-      <RefreshingLineGraph
-        queries={queries}
-        templates={templates}
-        timeRange={timeRange}
-        autoRefresh={autoRefresh}
-        showSingleStat={type === 'line-plus-single-stat'}
-        isBarGraph={type === 'bar'}
-        displayOptions={displayOptions}
-        synchronizer={synchronizer}
-        cellHeight={cellHeight}
-      />
+      <div className="graph-empty">
+        <p>No Results</p>
+      </div>
     )
-  },
+  }
 
+  // Generates cell contents based on cell type, i.e. graphs, news feeds, etc.
   generateVisualizations() {
     const {
       source,
@@ -128,29 +134,14 @@ export const LayoutRenderer = React.createClass({
       onDeleteCell,
       onSummonOverlayTechnologies,
       shouldNotBeEditable,
+      timeRange,
+      autoRefresh,
+      templates,
+      synchronizer,
     } = this.props
 
     return cells.map(cell => {
-      const queries = cell.queries.map(query => {
-        // TODO: Canned dashboards (and possibly Kubernetes dashboard) use an old query schema,
-        // which does not have enough information for the new `buildInfluxQLQuery` function
-        // to operate on. We will use `buildQueryForOldQuerySchema` until we conform
-        // on a stable query representation.
-        let queryText
-        if (query.queryConfig) {
-          const {queryConfig: {rawText, range}} = query
-          const timeRange = range || {upper: null, lower: ':dashboardTime:'}
-          queryText =
-            rawText || buildInfluxQLQuery(timeRange, query.queryConfig)
-        } else {
-          queryText = this.buildQueryForOldQuerySchema(query)
-        }
-
-        return Object.assign({}, query, {
-          host: source,
-          text: queryText,
-        })
-      })
+      const {type, h} = cell
 
       return (
         <div key={cell.i}>
@@ -163,12 +154,22 @@ export const LayoutRenderer = React.createClass({
             shouldNotBeEditable={shouldNotBeEditable}
             cell={cell}
           >
-            {this.renderRefreshingGraph(cell.type, queries, cell.h)}
+            {cell.isWidget
+              ? this.generateWidgetCell(cell)
+              : <RefreshingGraph
+                  timeRange={timeRange}
+                  autoRefresh={autoRefresh}
+                  templates={templates}
+                  synchronizer={synchronizer}
+                  type={type}
+                  queries={this.standardizeQueries(cell, source)}
+                  cellHeight={h}
+                />}
           </NameableGraph>
         </div>
       )
     })
-  },
+  }
 
   handleLayoutChange(layout) {
     this.triggerWindowResize()
@@ -184,18 +185,46 @@ export const LayoutRenderer = React.createClass({
     })
 
     this.props.onPositionChange(newCells)
-  },
+  }
+
+  triggerWindowResize() {
+    // Hack to get dygraphs to fit properly during and after resize (dispatchEvent is a global method on window).
+    const evt = document.createEvent('CustomEvent') // MUST be 'CustomEvent'
+    evt.initCustomEvent('resize', false, false, null)
+    dispatchEvent(evt)
+  }
+
+  // ensures that Status Page height fits the window
+  calculateRowHeight() {
+    const {isStatusPage} = this.props
+
+    return isStatusPage
+      ? (window.innerHeight -
+          STATUS_PAGE_ROW_COUNT * LAYOUT_MARGIN -
+          PAGE_HEADER_HEIGHT -
+          PAGE_CONTAINER_MARGIN -
+          PAGE_CONTAINER_MARGIN) /
+          STATUS_PAGE_ROW_COUNT
+      : DASHBOARD_LAYOUT_ROW_HEIGHT
+  }
+
+  // idea adopted from https://stackoverflow.com/questions/36862334/get-viewport-window-height-in-reactjs
+  updateWindowDimensions() {
+    this.setState({rowHeight: this.calculateRowHeight()})
+  }
 
   render() {
-    const layoutMargin = 4
+    const {cells} = this.props
+    const {rowHeight} = this.state
+
     const isDashboard = !!this.props.onPositionChange
 
     return (
       <GridLayout
-        layout={this.props.cells}
+        layout={cells}
         cols={12}
-        rowHeight={83.5}
-        margin={[layoutMargin, layoutMargin]}
+        rowHeight={rowHeight}
+        margin={[LAYOUT_MARGIN, LAYOUT_MARGIN]}
         containerPadding={[0, 0]}
         useCSSTransforms={false}
         onResize={this.triggerWindowResize}
@@ -207,14 +236,60 @@ export const LayoutRenderer = React.createClass({
         {this.generateVisualizations()}
       </GridLayout>
     )
-  },
+  }
 
-  triggerWindowResize() {
-    // Hack to get dygraphs to fit properly during and after resize (dispatchEvent is a global method on window).
-    const evt = document.createEvent('CustomEvent') // MUST be 'CustomEvent'
-    evt.initCustomEvent('resize', false, false, null)
-    dispatchEvent(evt)
-  },
-})
+  componentDidMount() {
+    window.addEventListener('resize', this.updateWindowDimensions)
+  }
+
+  componentWillUnmount() {
+    window.removeEventListener('resize', this.updateWindowDimensions)
+  }
+}
+
+const {arrayOf, bool, func, number, shape, string} = PropTypes
+
+LayoutRenderer.propTypes = {
+  autoRefresh: number.isRequired,
+  timeRange: shape({
+    lower: string.isRequired,
+  }),
+  cells: arrayOf(
+    shape({
+      // isWidget cells will not have queries
+      isWidget: bool,
+      queries: arrayOf(
+        shape({
+          label: string,
+          text: string,
+          query: string,
+        }).isRequired
+      ),
+      x: number.isRequired,
+      y: number.isRequired,
+      w: number.isRequired,
+      h: number.isRequired,
+      i: string.isRequired,
+      name: string.isRequired,
+      type: string.isRequired,
+    }).isRequired
+  ),
+  templates: arrayOf(shape()),
+  host: string,
+  source: shape({
+    links: shape({
+      proxy: string.isRequired,
+    }).isRequired,
+  }).isRequired,
+  onPositionChange: func,
+  onEditCell: func,
+  onRenameCell: func,
+  onUpdateCell: func,
+  onDeleteCell: func,
+  onSummonOverlayTechnologies: func,
+  shouldNotBeEditable: bool,
+  synchronizer: func,
+  isStatusPage: bool,
+}
 
 export default LayoutRenderer

@@ -1,6 +1,6 @@
 import AJAX from 'utils/ajax'
 
-export const proxy = async ({source, query, db, rp, tempVars}) => {
+export const proxy = async ({source, query, db, rp, tempVars, resolution}) => {
   try {
     return await AJAX({
       method: 'POST',
@@ -8,6 +8,7 @@ export const proxy = async ({source, query, db, rp, tempVars}) => {
       data: {
         tempVars,
         query,
+        resolution,
         db,
         rp,
       },

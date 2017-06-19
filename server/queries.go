@@ -13,9 +13,9 @@ import (
 )
 
 type QueryRequest struct {
-	ID           string                   `json:"id"`
-	Query        string                   `json:"query"`
-	TemplateVars []chronograf.TemplateVar `json:"tempVars,omitempty"`
+	ID           string                  `json:"id"`
+	Query        string                  `json:"query"`
+	TemplateVars chronograf.TemplateVars `json:"tempVars,omitempty"`
 }
 
 type QueriesRequest struct {
@@ -28,7 +28,7 @@ type QueryResponse struct {
 	QueryConfig    chronograf.QueryConfig   `json:"queryConfig"`
 	QueryAST       *queries.SelectStatement `json:"queryAST,omitempty"`
 	QueryTemplated *string                  `json:"queryTemplated,omitempty"`
-	TemplateVars   []chronograf.TemplateVar `json:"tempVars,omitempty"`
+	TemplateVars   chronograf.TemplateVars  `json:"tempVars,omitempty"`
 }
 
 type QueriesResponse struct {

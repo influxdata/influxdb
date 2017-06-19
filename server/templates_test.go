@@ -16,8 +16,8 @@ func TestValidTemplateRequest(t *testing.T) {
 			name: "Valid Template",
 			template: &chronograf.Template{
 				Type: "fieldKeys",
-				TemplateVar: chronograf.TemplateVar{
-					Values: []chronograf.TemplateValue{
+				BasicTemplateVar: chronograf.BasicTemplateVar{
+					Values: []chronograf.BasicTemplateValue{
 						{
 							Type: "fieldKey",
 						},
@@ -30,8 +30,8 @@ func TestValidTemplateRequest(t *testing.T) {
 			wantErr: true,
 			template: &chronograf.Template{
 				Type: "Unknown Type",
-				TemplateVar: chronograf.TemplateVar{
-					Values: []chronograf.TemplateValue{
+				BasicTemplateVar: chronograf.BasicTemplateVar{
+					Values: []chronograf.BasicTemplateValue{
 						{
 							Type: "fieldKey",
 						},
@@ -44,8 +44,8 @@ func TestValidTemplateRequest(t *testing.T) {
 			wantErr: true,
 			template: &chronograf.Template{
 				Type: "csv",
-				TemplateVar: chronograf.TemplateVar{
-					Values: []chronograf.TemplateValue{
+				BasicTemplateVar: chronograf.BasicTemplateVar{
+					Values: []chronograf.BasicTemplateValue{
 						{
 							Type: "unknown value",
 						},

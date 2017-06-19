@@ -29,9 +29,8 @@ export const KapacitorRule = React.createClass({
   },
 
   getInitialState() {
-    const fifteenMinutesIndex = 1
     return {
-      timeRange: timeRanges[fifteenMinutesIndex],
+      timeRange: timeRanges.find(tr => tr.lower === 'now() - 15m'),
     }
   },
 

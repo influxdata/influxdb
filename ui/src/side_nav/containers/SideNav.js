@@ -9,6 +9,8 @@ import {
   NavListItem,
 } from 'src/side_nav/components/NavItems'
 
+import {DEFAULT_HOME_PAGE} from 'shared/constants'
+
 const {bool, shape, string} = PropTypes
 
 const SideNav = React.createClass({
@@ -38,9 +40,12 @@ const SideNav = React.createClass({
     return isHidden
       ? null
       : <NavBar location={location}>
-          <div className="sidebar__logo">
-            <Link to="/"><span className="icon cubo-uniform" /></Link>
-          </div>
+          <Link
+            to={`${sourcePrefix}/${DEFAULT_HOME_PAGE}`}
+            className="sidebar__logo"
+          >
+            <span className="icon cubo-uniform" />
+          </Link>
           <NavBlock icon="cubo-node" link={`${sourcePrefix}/hosts`}>
             <NavHeader link={`${sourcePrefix}/hosts`} title="Host List" />
           </NavBlock>

@@ -47,12 +47,10 @@ export const HostPage = React.createClass({
   },
 
   getInitialState() {
-    const timeRange = timeRanges[2]
-
     return {
       layouts: [],
       hosts: [],
-      timeRange,
+      timeRange: timeRanges.find(tr => tr.lower === 'now() - 1h'),
     }
   },
 
@@ -155,7 +153,7 @@ export const HostPage = React.createClass({
         timeRange={timeRange}
         cells={layoutCells}
         autoRefresh={autoRefresh}
-        source={source.links.proxy}
+        source={source}
         host={this.props.params.hostID}
         shouldNotBeEditable={true}
       />

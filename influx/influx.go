@@ -69,6 +69,7 @@ func (c *Client) query(u *url.URL, q chronograf.Query) (chronograf.Response, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	command := q.Command
+	// TODO(timraymond): move this upper Query() function
 	if len(q.TemplateVars) > 0 {
 		command = TemplateReplace(q.Command, q.TemplateVars)
 	}
@@ -84,7 +85,7 @@ func (c *Client) query(u *url.URL, q chronograf.Query) (chronograf.Response, err
 	params.Set("q", command)
 	params.Set("db", q.DB)
 	params.Set("rp", q.RP)
-	params.Set("epoch", "ms")
+	params.Set("epoch", "ms") // TODO(timraymond): set this based on analysis
 	req.URL.RawQuery = params.Encode()
 
 	hc := &http.Client{}

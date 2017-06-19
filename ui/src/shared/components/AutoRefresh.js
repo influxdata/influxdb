@@ -50,6 +50,7 @@ const AutoRefresh = ComposedComponent => {
       return {
         lastQuerySuccessful: false,
         timeSeries: [],
+        resolution: null,
       }
     },
 
@@ -104,6 +105,7 @@ const AutoRefresh = ComposedComponent => {
 
     executeQueries(queries, templates = []) {
       const {editQueryStatus} = this.props
+      const {resolution} = this.state
 
       if (!queries.length) {
         this.setState({timeSeries: []})
@@ -114,13 +116,25 @@ const AutoRefresh = ComposedComponent => {
 
       const timeSeriesPromises = queries.map(query => {
         const {host, database, rp} = query
+
+        const templatesWithResolution = templates.map(temp => {
+          if (temp.tempVar === ':interval:') {
+            if (resolution) {
+              return {...temp, resolution}
+            }
+            return {...temp, resolution: 1000}
+          }
+          return {...temp}
+        })
+
         return fetchTimeSeriesAsync(
           {
             source: host,
             db: database,
             rp,
             query,
-            tempVars: removeUnselectedTemplateValues(templates),
+            tempVars: removeUnselectedTemplateValues(templatesWithResolution),
+            resolution,
           },
           editQueryStatus
         )
@@ -143,6 +157,10 @@ const AutoRefresh = ComposedComponent => {
       this.intervalID = false
     },
 
+    setResolution(resolution) {
+      this.setState({resolution})
+    },
+
     render() {
       const {timeSeries} = this.state
 
@@ -157,7 +175,13 @@ const AutoRefresh = ComposedComponent => {
         return this.renderNoResults()
       }
 
-      return <ComposedComponent {...this.props} data={timeSeries} />
+      return (
+        <ComposedComponent
+          {...this.props}
+          data={timeSeries}
+          setResolution={this.setResolution}
+        />
+      )
     },
 
     /**
@@ -170,6 +194,7 @@ const AutoRefresh = ComposedComponent => {
         <ComposedComponent
           {...this.props}
           data={data}
+          setResolution={this.setResolution}
           isFetchingInitially={isFirstFetch}
           isRefreshing={!isFirstFetch}
         />

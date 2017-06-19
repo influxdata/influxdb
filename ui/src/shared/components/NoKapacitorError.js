@@ -11,12 +11,14 @@ const NoKapacitorError = React.createClass({
   render() {
     const path = `/sources/${this.props.source.id}/kapacitors/new`
     return (
-      <div>
+      <div className="graph-empty">
         <p>
-          The current source does not have an associated Kapacitor instance,
-          please configure one.
+          The current source does not have an associated Kapacitor instance
+          <br /><br />
+          <Link to={path} className="btn btn-sm btn-primary">
+            Configure Kapacitor
+          </Link>
         </p>
-        <Link to={path}>Add Kapacitor</Link>
       </div>
     )
   },

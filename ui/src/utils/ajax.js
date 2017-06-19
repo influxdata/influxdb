@@ -2,7 +2,14 @@ import axios from 'axios'
 
 let links
 
-export default async function AJAX({
+const generateResponseWithLinks = (response, {auth, logout, external}) => ({
+  ...response,
+  auth: {links: auth},
+  logoutLink: logout,
+  external,
+})
+
+const AJAX = async ({
   url,
   resource,
   id,
@@ -10,7 +17,7 @@ export default async function AJAX({
   data = {},
   params = {},
   headers = {},
-}) {
+}) => {
   try {
     const basepath = window.basepath || ''
     let response
@@ -39,17 +46,24 @@ export default async function AJAX({
       headers,
     })
 
-    const {auth} = links
-
-    return {
-      ...response,
-      auth: {links: auth},
-      logoutLink: links.logout,
-    }
+    return generateResponseWithLinks(response, links)
   } catch (error) {
     const {response} = error
 
-    const {auth} = links
-    throw {...response, auth: {links: auth}, logout: links.logout} // eslint-disable-line no-throw-literal
+    throw generateResponseWithLinks(response, links) // eslint-disable-line no-throw-literal
   }
 }
+
+export const get = async url => {
+  try {
+    return await AJAX({
+      method: 'GET',
+      url,
+    })
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}
+
+export default AJAX

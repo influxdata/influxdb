@@ -5,24 +5,26 @@ import {Router, Route, useRouterHistory} from 'react-router'
 import {createHistory} from 'history'
 import {syncHistoryWithStore} from 'react-router-redux'
 
+import configureStore from 'src/store/configureStore'
+import {loadLocalStorage} from 'src/localStorage'
+
 import App from 'src/App'
-import AlertsApp from 'src/alerts'
-import CheckSources from 'src/CheckSources'
-import {HostsPage, HostPage} from 'src/hosts'
 import {Login, UserIsAuthenticated, UserIsNotAuthenticated} from 'src/auth'
+import CheckSources from 'src/CheckSources'
+import {StatusPage} from 'src/status'
+import {HostsPage, HostPage} from 'src/hosts'
+import DataExplorer from 'src/data_explorer'
+import {DashboardsPage, DashboardPage} from 'src/dashboards'
+import AlertsApp from 'src/alerts'
 import {
   KapacitorPage,
   KapacitorRulePage,
   KapacitorRulesPage,
   KapacitorTasksPage,
 } from 'src/kapacitor'
-import DataExplorer from 'src/data_explorer'
-import {DashboardsPage, DashboardPage} from 'src/dashboards'
-import {CreateSource, SourcePage, ManageSources} from 'src/sources'
 import {AdminPage} from 'src/admin'
+import {CreateSource, SourcePage, ManageSources} from 'src/sources'
 import NotFound from 'shared/components/NotFound'
-import configureStore from 'src/store/configureStore'
-import {loadLocalStorage} from './localStorage'
 
 import {getMe} from 'shared/apis'
 
@@ -34,6 +36,7 @@ import {
   meReceived,
   logoutLinkReceived,
 } from 'shared/actions/auth'
+import {linksReceived} from 'shared/actions/links'
 import {errorThrown} from 'shared/actions/errors'
 
 import 'src/style/chronograf.scss'
@@ -85,11 +88,13 @@ const Root = React.createClass({
 
   async startHeartbeat({shouldDispatchResponse}) {
     try {
-      const {data: me, auth, logoutLink} = await getMe()
+      // These non-me objects are added to every response by some AJAX trickery
+      const {data: me, auth, logoutLink, external} = await getMe()
       if (shouldDispatchResponse) {
         dispatch(authReceived(auth))
         dispatch(meReceived(me))
         dispatch(logoutLinkReceived(logoutLink))
+        dispatch(linksReceived({external}))
       }
 
       setTimeout(() => {
@@ -122,22 +127,23 @@ const Root = React.createClass({
           />
           <Route path="/sources/:sourceID" component={UserIsAuthenticated(App)}>
             <Route component={CheckSources}>
-              <Route path="manage-sources" component={ManageSources} />
-              <Route path="manage-sources/new" component={SourcePage} />
-              <Route path="manage-sources/:id/edit" component={SourcePage} />
-              <Route path="chronograf/data-explorer" component={DataExplorer} />
+              <Route path="status" component={StatusPage} />
               <Route path="hosts" component={HostsPage} />
               <Route path="hosts/:hostID" component={HostPage} />
-              <Route path="kapacitors/new" component={KapacitorPage} />
-              <Route path="kapacitors/:id/edit" component={KapacitorPage} />
-              <Route path="kapacitor-tasks" component={KapacitorTasksPage} />
-              <Route path="alerts" component={AlertsApp} />
+              <Route path="chronograf/data-explorer" component={DataExplorer} />
               <Route path="dashboards" component={DashboardsPage} />
               <Route path="dashboards/:dashboardID" component={DashboardPage} />
+              <Route path="alerts" component={AlertsApp} />
               <Route path="alert-rules" component={KapacitorRulesPage} />
               <Route path="alert-rules/:ruleID" component={KapacitorRulePage} />
               <Route path="alert-rules/new" component={KapacitorRulePage} />
+              <Route path="kapacitors/new" component={KapacitorPage} />
+              <Route path="kapacitors/:id/edit" component={KapacitorPage} />
+              <Route path="kapacitor-tasks" component={KapacitorTasksPage} />
               <Route path="admin" component={AdminPage} />
+              <Route path="manage-sources" component={ManageSources} />
+              <Route path="manage-sources/new" component={SourcePage} />
+              <Route path="manage-sources/:id/edit" component={SourcePage} />
             </Route>
           </Route>
           <Route path="*" component={NotFound} />
