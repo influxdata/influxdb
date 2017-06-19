@@ -213,7 +213,11 @@ class DashboardPage extends Component {
   synchronizer(dygraph) {
     const dygraphs = [...this.state.dygraphs, dygraph]
     if (dygraphs.length > 1) {
-      Dygraph.synchronize(dygraphs)
+      Dygraph.synchronize(dygraphs, {
+        selection: true,
+        zoom: false,
+        range: false,
+      })
     }
     this.setState({dygraphs})
   }
