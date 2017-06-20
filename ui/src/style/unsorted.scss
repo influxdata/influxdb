@@ -192,3 +192,15 @@ br {
 
   p {font-size: 13px;}
 }
+.alerts-widget {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+
+  > .btn {margin: 20px 0;}
+
+  .alert-history-table {
+    flex: 1 0 0;
+  }
+}
