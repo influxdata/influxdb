@@ -269,7 +269,7 @@ class SearchBar extends Component {
         <input
           type="text"
           className="form-control"
-          placeholder="Filter Alerts by Name..."
+          placeholder="Filter Alerts..."
           onChange={this.handleChange}
           value={this.state.searchTerm}
         />
