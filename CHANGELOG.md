@@ -1,6 +1,8 @@
 ## v1.3.4.0 [unreleased]
 
 ### Bug Fixes
+1. [#1641](https://github.com/influxdata/chronograf/pull/1641): Fix enable / disable being out of sync on Kapacitor Rules Page
+
 ### Features
 ### UI Improvements
 
