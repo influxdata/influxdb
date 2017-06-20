@@ -1,10 +1,10 @@
-## v1.3.4.0 [unreleased]
-
+## v1.3.3.1 [2017-06-20]
 ### Bug Fixes
 1. [#1641](https://github.com/influxdata/chronograf/pull/1641): Fix enable / disable being out of sync on Kapacitor Rules Page
 
 ### Features
 ### UI Improvements
+1. [#1642](https://github.com/influxdata/chronograf/pull/1642): Do not prefix basepath to external link for news feed
 
 ## v1.3.3.0 [2017-06-19]
 
@@ -12,6 +12,7 @@
 1. [#1512](https://github.com/influxdata/chronograf/pull/1512): Prevent legend from flowing over window bottom bound
 1. [#1600](https://github.com/influxdata/chronograf/pull/1600): Prevent Kapacitor configurations from having the same name
 1. [#1600](https://github.com/influxdata/chronograf/pull/1600): Limit Kapacitor configuration names to 33 characters to fix display bug
+1. [#1622](https://github.com/influxdata/chronograf/pull/1622): Use function selector grid in Kapacitor rule builder query maker instead of dropdown
 
 ### Features
 1. [#1512](https://github.com/influxdata/chronograf/pull/1512): Synchronize vertical crosshair at same time across all graphs in a dashboard
@@ -23,6 +24,7 @@
 1. [#1599](https://github.com/influxdata/chronograf/pull/1599): Bar graph option added to dashboard
 1. [#1600](https://github.com/influxdata/chronograf/pull/1600): Redesign source management table to be more intuitive
 1. [#1600](https://github.com/influxdata/chronograf/pull/1600): Redesign Line + Single Stat cells to appear more like a sparkline, and improve legibility
+1. [#1639](https://github.com/influxdata/chronograf/pull/1639): Improve graph synchronization performance
 
 ## v1.3.2.1 [2017-06-06]
 

@@ -12,6 +12,7 @@ class FunctionSelector extends Component {
     }
 
     this.onSelect = ::this.onSelect
+    this.onSingleSelect = ::this.onSingleSelect
     this.handleApplyFunctions = ::this.handleApplyFunctions
   }
 
@@ -36,6 +37,16 @@ class FunctionSelector extends Component {
     this.setState({localSelectedItems: nextItems})
   }
 
+  onSingleSelect(item) {
+    if (item === this.state.localSelectedItems[0]) {
+      this.props.onApply([])
+      this.setState({localSelectedItems: []})
+    } else {
+      this.props.onApply([item])
+      this.setState({localSelectedItems: [item]})
+    }
+  }
+
   isSelected(item) {
     return !!this.state.localSelectedItems.find(text => text === item)
   }
@@ -48,22 +59,25 @@ class FunctionSelector extends Component {
 
   render() {
     const {localSelectedItems} = this.state
+    const {singleSelect} = this.props
 
     return (
       <div className="function-selector">
-        <div className="function-selector--header">
-          <span>
-            {localSelectedItems.length > 0
-              ? `${localSelectedItems.length} Selected`
-              : 'Select functions below'}
-          </span>
-          <div
-            className="btn btn-xs btn-success"
-            onClick={this.handleApplyFunctions}
-          >
-            Apply
-          </div>
-        </div>
+        {singleSelect
+          ? null
+          : <div className="function-selector--header">
+              <span>
+                {localSelectedItems.length > 0
+                  ? `${localSelectedItems.length} Selected`
+                  : 'Select functions below'}
+              </span>
+              <div
+                className="btn btn-xs btn-success"
+                onClick={this.handleApplyFunctions}
+              >
+                Apply
+              </div>
+            </div>}
         <div className="function-selector--grid">
           {INFLUXQL_FUNCTIONS.map((f, i) => {
             return (
@@ -72,7 +86,10 @@ class FunctionSelector extends Component {
                 className={classnames('function-selector--item', {
                   active: this.isSelected(f),
                 })}
-                onClick={_.wrap(f, this.onSelect)}
+                onClick={_.wrap(
+                  f,
+                  singleSelect ? this.onSingleSelect : this.onSelect
+                )}
               >
                 {f}
               </div>
@@ -84,11 +101,12 @@ class FunctionSelector extends Component {
   }
 }
 
-const {arrayOf, func, string} = PropTypes
+const {arrayOf, bool, func, string} = PropTypes
 
 FunctionSelector.propTypes = {
   onApply: func.isRequired,
   selectedItems: arrayOf(string.isRequired).isRequired,
+  singleSelect: bool,
 }
 
 export default FunctionSelector
