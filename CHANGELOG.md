@@ -3,6 +3,7 @@
 ### Bug Fixes
 ### Features
 ### UI Improvements
+1. [#1644](https://github.com/influxdata/chronograf/pull/1644): Redesign Alerts History table to have sticky headers
 
 ## v1.3.3.0 [2017-06-19]
 
