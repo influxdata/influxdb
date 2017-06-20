@@ -172,15 +172,60 @@ $table-tab-scrollbar-height: 6px;
 .table.table-highlight > tbody > tr.highlight {
   background-color: $g4-onyx;
 }
+
 /*
-    Responsive Tables
+    Alert History "Table"
     ----------------------------------------------
 */
 
-@media screen and (max-width: 767px) {
-  .table-responsive {
-    border-radius: 3px;
-    border-color: $g5-pepper;
-    @include custom-scrollbar($g5-pepper, $c-pool);
+.alert-history-table {
+
+}
+.alert-history-table--thead {
+  display: flex;
+  width: 100%;
+  border-bottom: 2px solid $g5-pepper;
+}
+.alert-history-table--th {
+  @include no-user-select();
+  padding: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: $g17-whisper;
+  transition:
+    color 0.25s ease,
+    background-color 0.25s ease;
+
+  &:hover {
+    background-color: $g5-pepper;
+    color: $g19-ghost;
+    cursor: pointer;
   }
+
+  &.col-name {width: 20%;}
+  &.col-level {width: 20%;}
+  &.col-time {width: 20%;}
+  &.col-host {width: 20%;}
+  &.col-value {width: 20%;}
+}
+.alert-history-table--tbody {
+  width: 100%;
+  height: 500px !important;
+}
+.alert-history-table--tr {
+  display: flex;
+  width: 100%;
+  &:hover {
+    background-color: $g4-onyx;
+  }
+}
+.alert-history-table--td {
+  font-size: 12px;
+  font-family: $code-font;
+  font-weight: 500;
+  padding: 4px 8px;
+  line-height: 1.42857143em;
+  color: $g13-mist;
+  white-space: pre-wrap;
+  word-break: break-all;
 }

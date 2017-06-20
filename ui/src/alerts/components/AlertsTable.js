@@ -2,6 +2,8 @@ import React, {Component, PropTypes} from 'react'
 import _ from 'lodash'
 import {Link} from 'react-router'
 
+import FancyScrollbar from 'shared/components/FancyScrollbar'
+
 class AlertsTable extends Component {
   constructor(props) {
     super(props)
@@ -55,11 +57,11 @@ class AlertsTable extends Component {
   sortableClasses(key) {
     if (this.state.sortKey === key) {
       if (this.state.sortDirection === 'asc') {
-        return 'sortable-header sorting-ascending'
+        return 'alert-history-table--th sortable-header sorting-ascending'
       }
-      return 'sortable-header sorting-descending'
+      return 'alert-history-table--th sortable-header sorting-descending'
     }
-    return 'sortable-header'
+    return 'alert-history-table--th sortable-header'
   }
 
   sort(alerts, key, direction) {
@@ -81,63 +83,91 @@ class AlertsTable extends Component {
       this.state.sortDirection
     )
     return this.props.alerts.length
-      ? <table className="table v-center table-highlight">
-          <thead>
-            <tr>
-              <th
-                onClick={() => this.changeSort('name')}
-                className={this.sortableClasses('name')}
-              >
-                Name
-              </th>
-              <th
-                onClick={() => this.changeSort('level')}
-                className={this.sortableClasses('level')}
-              >
-                Level
-              </th>
-              <th
-                onClick={() => this.changeSort('time')}
-                className={this.sortableClasses('time')}
-              >
-                Time
-              </th>
-              <th
-                onClick={() => this.changeSort('host')}
-                className={this.sortableClasses('host')}
-              >
-                Host
-              </th>
-              <th
-                onClick={() => this.changeSort('value')}
-                className={this.sortableClasses('value')}
-              >
-                Value
-              </th>
-            </tr>
-          </thead>
-          <tbody>
+      ? <div className="alert-history-table">
+          <div className="alert-history-table--thead">
+            <div
+              onClick={() => this.changeSort('name')}
+              className={this.sortableClasses('name')}
+              style={{width: '15%'}}
+            >
+              Name
+            </div>
+            <div
+              onClick={() => this.changeSort('level')}
+              className={this.sortableClasses('level')}
+              style={{width: '10%'}}
+            >
+              Level
+            </div>
+            <div
+              onClick={() => this.changeSort('time')}
+              className={this.sortableClasses('time')}
+              style={{width: '25%'}}
+            >
+              Time
+            </div>
+            <div
+              onClick={() => this.changeSort('host')}
+              className={this.sortableClasses('host')}
+              style={{width: '25%'}}
+            >
+              Host
+            </div>
+            <div
+              onClick={() => this.changeSort('value')}
+              className={this.sortableClasses('value')}
+              style={{width: '25%'}}
+            >
+              Value
+            </div>
+          </div>
+          <FancyScrollbar
+            className="alert-history-table--tbody"
+            autoHide={false}
+          >
             {alerts.map(({name, level, time, host, value}) => {
               return (
-                <tr key={`${name}-${level}-${time}-${host}-${value}`}>
-                  <td className="monotype">{name}</td>
-                  <td className={`monotype alert-level-${level.toLowerCase()}`}>
+                <div
+                  className="alert-history-table--tr"
+                  key={`${name}-${level}-${time}-${host}-${value}`}
+                >
+                  <div
+                    className="alert-history-table--td"
+                    style={{width: '15%'}}
+                  >
+                    {name}
+                  </div>
+                  <div
+                    className={`alert-history-table--td alert-level-${level.toLowerCase()}`}
+                    style={{width: '10%'}}
+                  >
                     {level}
-                  </td>
-                  <td className="monotype">
+                  </div>
+                  <div
+                    className="alert-history-table--td"
+                    style={{width: '25%'}}
+                  >
                     {new Date(Number(time)).toISOString()}
-                  </td>
-                  <td className="monotype">
+                  </div>
+                  <div
+                    className="alert-history-table--td"
+                    style={{width: '25%'}}
+                  >
                     <Link to={`/sources/${id}/hosts/${host}`}>
                       {host}
                     </Link>
-                  </td>
-                  <td className="monotype">{value}</td>
-                </tr>
+                  </div>
+                  <div
+                    className="alert-history-table--td"
+                    style={{width: '25%'}}
+                  >
+                    {value}
+                  </div>
+                </div>
               )
             })}
-          </tbody>
-        </table>
+          </FancyScrollbar>
+        </div>
       : this.renderTableEmpty()
   }
 
