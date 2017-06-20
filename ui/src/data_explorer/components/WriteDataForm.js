@@ -18,6 +18,7 @@ class WriteDataForm extends Component {
     this.handleClickOutside = ::this.handleClickOutside
     this.handleKeyUp = ::this.handleKeyUp
     this.handleEdit = ::this.handleEdit
+    this.handleFile = ::this.handleFile
   }
 
   handleSelectDatabase(item) {
@@ -55,6 +56,26 @@ class WriteDataForm extends Component {
     this.setState({inputContent: e.target.value.trim()})
   }
 
+  handleFile(e) {
+    const file = e.target.files[0]
+    const reader = new FileReader()
+    reader.readAsText(file)
+
+    // async function run when loading of file is complete
+    reader.onload = loadEvent => {
+      console.log('loading')
+      this.setState({inputContent: loadEvent.target.result})
+    }
+
+    reader.onloadstart = () => {
+      console.log('loading started')
+    }
+
+    reader.onloadend = () => {
+      console.log('loading complete')
+    }
+  }
+
   render() {
     const {onClose, errorThrown} = this.props
     const {inputContent, selectedDatabase} = this.state
@@ -83,6 +104,7 @@ class WriteDataForm extends Component {
             onKeyUp={this.handleKeyUp}
             onChange={this.handleEdit}
             autoFocus={true}
+            value={this.state.inputContent}
           />
           <div className="write-data-form--footer">
             <span className="write-data-form--helper">
@@ -94,6 +116,7 @@ class WriteDataForm extends Component {
                 See Documentation
               </a>
             </span>
+            <input type="file" onChange={this.handleFile} />
             <button
               className="btn btn-sm btn-primary write-data-form--submit"
               onClick={this.handleSubmit}
