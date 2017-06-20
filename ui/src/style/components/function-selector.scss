@@ -33,9 +33,11 @@ $function-selector--text-active: $g20-white;
   display: flex;
   flex-wrap: wrap;
   padding: $function-selector--gutter;
-  padding-top: 0;
   border-radius: 0 0 $radius $radius;
   background-color: $function-selector--bg;
+}
+.function-selector--header + .function-selector--grid {
+  padding-top: 0;
 }
 .function-selector--item {
   @include no-user-select();
