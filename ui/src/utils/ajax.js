@@ -2,6 +2,13 @@ import axios from 'axios'
 
 let links
 
+// do not prefix route with basepath, ex. for external links
+const addBasepath = (url, excludeBasepath) => {
+  const basepath = window.basepath || ''
+
+  return excludeBasepath ? url : `${basepath}${url}`
+}
+
 const generateResponseWithLinks = (response, {auth, logout, external}) => ({
   ...response,
   auth: {links: auth},
@@ -9,24 +16,18 @@ const generateResponseWithLinks = (response, {auth, logout, external}) => ({
   external,
 })
 
-const AJAX = async ({
-  url,
-  resource,
-  id,
-  method = 'GET',
-  data = {},
-  params = {},
-  headers = {},
-}) => {
+const AJAX = async (
+  {url, resource, id, method = 'GET', data = {}, params = {}, headers = {}},
+  excludeBasepath
+) => {
   try {
-    const basepath = window.basepath || ''
     let response
 
-    url = `${basepath}${url}`
+    url = addBasepath(url, excludeBasepath)
 
     if (!links) {
       const linksRes = (response = await axios({
-        url: `${basepath}/chronograf/v1`,
+        url: addBasepath('/chronograf/v1', excludeBasepath),
         method: 'GET',
       }))
       links = linksRes.data
@@ -34,8 +35,8 @@ const AJAX = async ({
 
     if (resource) {
       url = id
-        ? `${basepath}${links[resource]}/${id}`
-        : `${basepath}${links[resource]}`
+        ? addBasepath(`${links[resource]}/${id}`, excludeBasepath)
+        : addBasepath(`${links[resource]}`, excludeBasepath)
     }
 
     response = await axios({
