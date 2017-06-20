@@ -131,20 +131,6 @@ func TestHLLPP_toNormal(t *testing.T) {
 	}
 }
 
-func TestHLLPP_estimateBias(t *testing.T) {
-	h := NewTestPlus(4)
-	b := h.estimateBias(14.0988)
-	if math.Abs(b-7.5988) > 0.00001 {
-		t.Error(b)
-	}
-
-	h = NewTestPlus(16)
-	b = h.estimateBias(55391.4373)
-	if math.Abs(b-39416.9373) > 0.00001 {
-		t.Error(b)
-	}
-}
-
 func TestHLLPPCount(t *testing.T) {
 	h := NewTestPlus(16)
 
@@ -449,7 +435,7 @@ func TestHLLPP_Marshal_Unmarshal_Sparse(t *testing.T) {
 	}
 
 	// Peeking at the first byte should reveal the version.
-	if got, exp := data[0], byte(1); got != exp {
+	if got, exp := data[0], byte(2); got != exp {
 		t.Fatalf("got byte %v, expected %v", got, exp)
 	}
 
@@ -481,7 +467,7 @@ func TestHLLPP_Marshal_Unmarshal_Dense(t *testing.T) {
 	}
 
 	// Peeking at the first byte should reveal the version.
-	if got, exp := data[0], byte(1); got != exp {
+	if got, exp := data[0], byte(2); got != exp {
 		t.Fatalf("got byte %v, expected %v", got, exp)
 	}
 
