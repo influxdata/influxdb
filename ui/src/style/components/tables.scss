@@ -50,7 +50,8 @@
     Sortable Tables
     ----------------------------------------------
 */
-table.table thead th.sortable-header {
+table.table thead th.sortable-header,
+.alert-history-table--th.sortable-header {
   transition:
     color 0.25s ease,
     background-color 0.25s ease;
@@ -216,15 +217,6 @@ $table-tab-scrollbar-height: 6px;
   font-size: 13px;
   font-weight: 500;
   color: $g17-whisper;
-  transition:
-    color 0.25s ease,
-    background-color 0.25s ease;
-
-  &:hover {
-    background-color: $g5-pepper;
-    color: $g19-ghost;
-    cursor: pointer;
-  }
 }
 .alert-history-table--tbody {
   flex: 1 0 0;
