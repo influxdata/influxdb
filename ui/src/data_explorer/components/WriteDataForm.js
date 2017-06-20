@@ -2,6 +2,7 @@ import React, {Component, PropTypes} from 'react'
 
 import DatabaseDropdown from 'shared/components/DatabaseDropdown'
 import OnClickOutside from 'shared/components/OnClickOutside'
+import WriteData from 'src/data_explorer/components/WriteData'
 
 import {OVERLAY_TECHNOLOGY} from 'shared/constants/classNames'
 
@@ -10,7 +11,10 @@ class WriteDataForm extends Component {
     super(props)
     this.state = {
       selectedDatabase: null,
-      inputContent: '',
+      inputContent: null,
+      uploadContent: '',
+      progress: '',
+      isManual: false,
     }
 
     this.handleSelectDatabase = ::this.handleSelectDatabase
@@ -19,6 +23,11 @@ class WriteDataForm extends Component {
     this.handleKeyUp = ::this.handleKeyUp
     this.handleEdit = ::this.handleEdit
     this.handleFile = ::this.handleFile
+    this.toggleWriteView = ::this.toggleWriteView
+  }
+
+  toggleWriteView(isManual) {
+    this.setState({isManual})
   }
 
   handleSelectDatabase(item) {
@@ -57,28 +66,20 @@ class WriteDataForm extends Component {
   }
 
   handleFile(e) {
+    // todo: expect this to be a File or Blob
     const file = e.target.files[0]
     const reader = new FileReader()
     reader.readAsText(file)
 
     // async function run when loading of file is complete
     reader.onload = loadEvent => {
-      console.log('loading')
       this.setState({inputContent: loadEvent.target.result})
-    }
-
-    reader.onloadstart = () => {
-      console.log('loading started')
-    }
-
-    reader.onloadend = () => {
-      console.log('loading complete')
     }
   }
 
   render() {
     const {onClose, errorThrown} = this.props
-    const {inputContent, selectedDatabase} = this.state
+    const {inputContent, selectedDatabase, isManual} = this.state
 
     return (
       <div className="write-data-form">
@@ -90,42 +91,33 @@ class WriteDataForm extends Component {
               database={selectedDatabase}
               onErrorThrown={errorThrown}
             />
+            <ul className="nav nav-tablist nav-tablist-sm">
+              <li
+                onClick={() => this.toggleWriteView(false)}
+                className={isManual ? '' : 'active'}
+              >
+                File Upload
+              </li>
+              <li
+                onClick={() => this.toggleWriteView(true)}
+                className={isManual ? 'active' : ''}
+              >
+                Manual Entry
+              </li>
+            </ul>
           </div>
           <div className="page-header__right">
             <span className="page-header__dismiss" onClick={onClose} />
           </div>
         </div>
-        <div className="write-data-form--body">
-          <textarea
-            className="form-control write-data-form--input"
-            autoComplete="off"
-            spellCheck="false"
-            placeholder="<measurement>,<tag_key>=<tag_value> <field_key>=<field_value>"
-            onKeyUp={this.handleKeyUp}
-            onChange={this.handleEdit}
-            autoFocus={true}
-            value={this.state.inputContent}
-          />
-          <div className="write-data-form--footer">
-            <span className="write-data-form--helper">
-              Need help writing InfluxDB Line Protocol? -&nbsp;
-              <a
-                href="https://docs.influxdata.com/influxdb/latest/write_protocols/line_protocol_tutorial/"
-                target="_blank"
-              >
-                See Documentation
-              </a>
-            </span>
-            <input type="file" onChange={this.handleFile} />
-            <button
-              className="btn btn-sm btn-primary write-data-form--submit"
-              onClick={this.handleSubmit}
-              disabled={!inputContent}
-            >
-              Write
-            </button>
-          </div>
-        </div>
+        <WriteData
+          isManual={isManual}
+          inputContent={inputContent}
+          handleEdit={this.handleEdit}
+          handleFile={this.handleFile}
+          handleKeyUp={this.handleKeyUp}
+          handleSubmit={this.handleSubmit}
+        />
       </div>
     )
   }
