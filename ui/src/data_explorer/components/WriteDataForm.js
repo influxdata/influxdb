@@ -1,8 +1,8 @@
 import React, {Component, PropTypes} from 'react'
 
-import DatabaseDropdown from 'shared/components/DatabaseDropdown'
 import OnClickOutside from 'shared/components/OnClickOutside'
-import WriteData from 'src/data_explorer/components/WriteData'
+import WriteDataBody from 'src/data_explorer/components/WriteDataBody'
+import WriteDataHeader from 'src/data_explorer/components/WriteDataHeader'
 
 import {OVERLAY_TECHNOLOGY} from 'shared/constants/classNames'
 
@@ -83,34 +83,15 @@ class WriteDataForm extends Component {
 
     return (
       <div className="write-data-form">
-        <div className="write-data-form--header">
-          <div className="page-header__left">
-            <h1 className="page-header__title">Write Data To</h1>
-            <DatabaseDropdown
-              onSelectDatabase={this.handleSelectDatabase}
-              database={selectedDatabase}
-              onErrorThrown={errorThrown}
-            />
-            <ul className="nav nav-tablist nav-tablist-sm">
-              <li
-                onClick={() => this.toggleWriteView(false)}
-                className={isManual ? '' : 'active'}
-              >
-                File Upload
-              </li>
-              <li
-                onClick={() => this.toggleWriteView(true)}
-                className={isManual ? 'active' : ''}
-              >
-                Manual Entry
-              </li>
-            </ul>
-          </div>
-          <div className="page-header__right">
-            <span className="page-header__dismiss" onClick={onClose} />
-          </div>
-        </div>
-        <WriteData
+        <WriteDataHeader
+          handleSelectDatabase={this.handleSelectDatabase}
+          selectedDatabase={selectedDatabase}
+          errorThrown={errorThrown}
+          toggleWriteView={this.toggleWriteView}
+          isManual={isManual}
+          onClose={onClose}
+        />
+        <WriteDataBody
           isManual={isManual}
           inputContent={inputContent}
           handleEdit={this.handleEdit}

@@ -1,6 +1,6 @@
 import React, {PropTypes} from 'react'
 
-const WriteData = ({
+const WriteDataBody = ({
   handleKeyUp,
   handleFile,
   handleEdit,
@@ -43,7 +43,7 @@ const WriteData = ({
 
 const {func, string, bool} = PropTypes
 
-WriteData.propTypes = {
+WriteDataBody.propTypes = {
   handleKeyUp: func.isRequired,
   handleEdit: func.isRequired,
   handleFile: func.isRequired,
@@ -52,4 +52,4 @@ WriteData.propTypes = {
   isManual: bool,
 }
 
-export default WriteData
+export default WriteDataBody
