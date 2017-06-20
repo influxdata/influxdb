@@ -1708,7 +1708,7 @@ func (p *point) UnixNano() int64 {
 // string representations are no longer than size. Points with a single field or
 // a point without a timestamp may exceed the requested size.
 func (p *point) Split(size int) []Point {
-	if p.time.IsZero() || len(p.String()) <= size {
+	if p.time.IsZero() || p.StringSize() <= size {
 		return []Point{p}
 	}
 
