@@ -5,6 +5,10 @@
 ### UI Improvements
 1. [#1644](https://github.com/influxdata/chronograf/pull/1644): Redesign Alerts History table to have sticky headers
 
+## v1.3.3.1 [2017-06-20]
+### Bug Fixes
+1. [#1642](https://github.com/influxdata/chronograf/pull/1642): Do not prefix basepath to external link for news feed
+
 ## v1.3.3.0 [2017-06-19]
 
 ### Bug Fixes
@@ -23,6 +27,7 @@
 1. [#1599](https://github.com/influxdata/chronograf/pull/1599): Bar graph option added to dashboard
 1. [#1600](https://github.com/influxdata/chronograf/pull/1600): Redesign source management table to be more intuitive
 1. [#1600](https://github.com/influxdata/chronograf/pull/1600): Redesign Line + Single Stat cells to appear more like a sparkline, and improve legibility
+1. [#1639](https://github.com/influxdata/chronograf/pull/1639): Improve graph synchronization performance
 
 ## v1.3.2.1 [2017-06-06]
 
