@@ -10,7 +10,8 @@ import CellEditorOverlay from 'src/dashboards/components/CellEditorOverlay'
 import DashboardHeader from 'src/dashboards/components/DashboardHeader'
 import DashboardHeaderEdit from 'src/dashboards/components/DashboardHeaderEdit'
 import Dashboard from 'src/dashboards/components/Dashboard'
-import TemplateVariableManager from 'src/dashboards/components/TemplateVariableManager'
+import TemplateVariableManager
+  from 'src/dashboards/components/TemplateVariableManager'
 
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 
@@ -282,10 +283,8 @@ class DashboardPage extends Component {
       values: [],
     }
 
-    const templatesIncludingDashTime =
-      (dashboard &&
-        dashboard.templates.concat(dashboardTime).concat(interval)) ||
-      []
+    const templatesIncludingDashTime = (dashboard &&
+      dashboard.templates.concat(dashboardTime)) || []
 
     const {selectedCell, isEditMode, isTemplating} = this.state
 
@@ -338,13 +337,13 @@ class DashboardPage extends Component {
               showTemplateControlBar={showTemplateControlBar}
             >
               {dashboards
-                ? dashboards.map((d, i) =>
+                ? dashboards.map((d, i) => (
                     <li className="dropdown-item" key={i}>
                       <Link to={`/sources/${sourceID}/dashboards/${d.id}`}>
                         {d.name}
                       </Link>
                     </li>
-                  )
+                  ))
                 : null}
             </DashboardHeader>}
         {dashboard
@@ -363,7 +362,6 @@ class DashboardPage extends Component {
               onUpdateCell={this.handleUpdateDashboardCell}
               onOpenTemplateManager={this.handleOpenTemplateManager}
               templatesIncludingDashTime={templatesIncludingDashTime}
-              updateTempVarValues={dashboardActions.updateTempVarValues}
               onSummonOverlayTechnologies={this.handleSummonOverlayTechnologies}
               onSelectTemplate={this.handleSelectTemplate}
               showTemplateControlBar={showTemplateControlBar}

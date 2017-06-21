@@ -22,7 +22,6 @@ const Dashboard = ({
   templatesIncludingDashTime,
   onSummonOverlayTechnologies,
   onSelectTemplate,
-  updateTempVarValues,
   showTemplateControlBar,
 }) => {
   const cells = dashboard.cells.map(cell => {
@@ -50,11 +49,9 @@ const Dashboard = ({
         {inPresentationMode
           ? null
           : <TemplateControlBar
-              source={source}
-              dashboard={dashboard}
+              dashboard={dashboard.templates}
               onSelectTemplate={onSelectTemplate}
               onOpenTemplateManager={onOpenTemplateManager}
-              updateTempVarValues={updateTempVarValues}
               isOpen={showTemplateControlBar}
             />}
         {cells.length

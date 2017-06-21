@@ -1,4 +1,4 @@
-import React, {PropTypes, Component} from 'react'
+import React, {PropTypes} from 'react'
 import classnames from 'classnames'
 
 import Dropdown from 'shared/components/Dropdown'
@@ -10,7 +10,7 @@ const TemplateControlBar = ({
   onSelectTemplate,
   onOpenTemplateManager,
   isOpen,
-}) =>
+}) => (
   <div className={classnames('template-control-bar', {show: isOpen})}>
     <div className="template-control--container">
       <div className="template-control--controls">
@@ -53,41 +53,9 @@ const TemplateControlBar = ({
       </button>
     </div>
   </div>
+)
 
 const {arrayOf, bool, func, shape, string} = PropTypes
-
-class ControlBarWrapper extends Component {
-  constructor(props) {
-    super(props)
-  }
-
-  render() {
-    const {
-      isOpen,
-      dashboard,
-      onSelectTemplate,
-      onOpenTemplateManager,
-    } = this.props
-
-    return (
-      <TemplateControlBar
-        isOpen={isOpen}
-        templates={dashboard.templates}
-        onSelectTemplate={onSelectTemplate}
-        onOpenTemplateManager={onOpenTemplateManager}
-      />
-    )
-  }
-}
-
-ControlBarWrapper.propTypes = {
-  isOpen: bool,
-  source: shape().isRequired,
-  dashboard: shape().isRequired,
-  onSelectTemplate: func.isRequired,
-  updateTempVarValues: func.isRequired,
-  onOpenTemplateManager: func.isRequired,
-}
 
 TemplateControlBar.propTypes = {
   templates: arrayOf(
@@ -106,4 +74,4 @@ TemplateControlBar.propTypes = {
   isOpen: bool,
 }
 
-export default ControlBarWrapper
+export default TemplateControlBar
