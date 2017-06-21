@@ -46,15 +46,24 @@ const WriteDataBody = ({
                 </span>}
           </div>}
       <div className="write-data-form--footer">
-        <span className="write-data-form--helper">
-          Need help writing InfluxDB Line Protocol? -&nbsp;
-          <a
-            href="https://docs.influxdata.com/influxdb/latest/write_protocols/line_protocol_tutorial/"
-            target="_blank"
-          >
-            See Documentation
-          </a>
-        </span>
+        {isManual
+          ? <span className="write-data-form--helper">
+              Need help writing InfluxDB Line Protocol? -&nbsp;
+              <a
+                href="https://docs.influxdata.com/influxdb/latest/write_protocols/line_protocol_tutorial/"
+                target="_blank"
+              >
+                See Documentation
+              </a>
+            </span>
+          : <span className="write-data-form--helper">
+              <a
+                href="https://docs.influxdata.com/influxdb/v1.2//tools/shell/#import-data-from-a-file-with-import"
+                target="_blank"
+              >
+                File Upload Documentation
+              </a>
+            </span>}
         <button
           className="btn btn-sm btn-primary write-data-form--submit"
           onClick={handleSubmit}
