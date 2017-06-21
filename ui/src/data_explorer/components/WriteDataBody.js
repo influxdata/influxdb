@@ -65,7 +65,7 @@ const WriteDataBody = ({
               </a>
             </span>}
         <button
-          className="btn btn-sm btn-primary write-data-form--submit"
+          className="btn btn-sm btn-success write-data-form--submit"
           onClick={handleSubmit}
           disabled={
             (!inputContent && isManual) || (!uploadContent && !isManual)
