@@ -29,6 +29,7 @@ const WriteDataBody = ({
               onChange={handleFile}
               className="write-data-form--upload"
               ref={r => (inputRef = r)}
+              accept="text/*"
             />
             <button
               className="btn btn-sm btn-primary"
