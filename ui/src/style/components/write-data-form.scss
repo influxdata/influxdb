@@ -61,3 +61,15 @@ textarea.form-control.write-data-form--input {
 .write-data-form--submit {
   width: 140px;
 }
+.write-data-form--file {
+  height: $write-data--input-height;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: $g2-kevlar;
+  border: 2px solid $g4-onyx;
+  border-radius: 3px;
+}
+.write-data-form--upload {
+  display: none;
+}
