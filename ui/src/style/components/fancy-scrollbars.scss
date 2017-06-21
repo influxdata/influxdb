@@ -55,6 +55,10 @@ ul.dropdown-menu {
   .fancy-scroll--thumb-v { @include gradient-v($c-neutrino,$c-laser); }
 }
 
+.fancy-scroll--view::-webkit-scrollbar,
+.fancy-scroll--container::-webkit-scrollbar {
+    display: none;
+}
 /* Hacky Fix to make this work in Safari */
 .query-builder--list {
   position: relative;
