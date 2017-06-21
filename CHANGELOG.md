@@ -3,6 +3,7 @@
 ### Bug Fixes
 ### Features
 ### UI Improvements
+1. [#1581](https://github.com/influxdata/chronograf/pull/1581): Refresh template variable values on dashboard page load
 
 ## v1.3.3.1 [2017-06-20]
 ### Bug Fixes
