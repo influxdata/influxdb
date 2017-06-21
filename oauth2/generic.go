@@ -23,6 +23,7 @@ type Generic struct {
 	ClientSecret   string
 	RequiredScopes []string
 	Domains        []string // Optional email domain checking
+	RedirectURL    string
 	AuthURL        string
 	TokenURL       string
 	APIURL         string // APIURL returns OpenID Userinfo
@@ -58,6 +59,7 @@ func (g *Generic) Config() *oauth2.Config {
 		ClientID:     g.ID(),
 		ClientSecret: g.Secret(),
 		Scopes:       g.Scopes(),
+		RedirectURL:  g.RedirectURL,
 		Endpoint: oauth2.Endpoint{
 			AuthURL:  g.AuthURL,
 			TokenURL: g.TokenURL,
