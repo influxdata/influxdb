@@ -8,6 +8,7 @@ const WriteDataBody = ({
   handleSubmit,
   inputContent,
   uploadContent,
+  fileName,
   isManual,
 }) => {
   let inputRef
@@ -40,7 +41,8 @@ const WriteDataBody = ({
             </button>
             {uploadContent
               ? <span className="write-data-form--filepath_selected">
-                  <span className="icon checkmark" />1 file selected
+                  <span className="icon checkmark" />
+                  {fileName}
                 </span>
               : <span className="write-data-form--filepath_empty">
                   No file selected
@@ -65,6 +67,7 @@ WriteDataBody.propTypes = {
   handleSubmit: func.isRequired,
   inputContent: string,
   uploadContent: string,
+  fileName: string,
   isManual: bool,
 }
 
