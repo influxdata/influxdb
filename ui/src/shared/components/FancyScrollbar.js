@@ -33,6 +33,7 @@ class FancyScrollbar extends Component {
           <div {...props} className="fancy-scroll--thumb-h" />}
         renderThumbVertical={props =>
           <div {...props} className="fancy-scroll--thumb-v" />}
+        renderView={props => <div {...props} className="fancy-scroll--view" />}
       >
         {children}
       </Scrollbars>
