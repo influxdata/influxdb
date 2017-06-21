@@ -225,9 +225,9 @@ func (i *Index) CreateMeasurementIndexIfNotExists(name []byte) *Measurement {
 // HasTagKey returns true if tag key exists.
 func (i *Index) HasTagKey(name, key []byte) (bool, error) {
 	i.mu.RLock()
-	defer i.mu.RUnlock()
-
 	mm := i.measurements[string(name)]
+	i.mu.RUnlock()
+
 	if mm == nil {
 		return false, nil
 	}
@@ -249,9 +249,9 @@ func (i *Index) HasTagValue(name, key, value []byte) bool {
 // TagValueN returns the cardinality of a tag value.
 func (i *Index) TagValueN(name, key []byte) int {
 	i.mu.RLock()
-	defer i.mu.RUnlock()
-
 	mm := i.measurements[string(name)]
+	i.mu.RUnlock()
+
 	if mm == nil {
 		return 0
 	}
@@ -261,9 +261,9 @@ func (i *Index) TagValueN(name, key []byte) int {
 // MeasurementTagKeysByExpr returns an ordered set of tag keys filtered by an expression.
 func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error) {
 	i.mu.RLock()
-	defer i.mu.RUnlock()
-
 	mm := i.measurements[string(name)]
+	i.mu.RUnlock()
+
 	if mm == nil {
 		return nil, nil
 	}
@@ -295,9 +295,9 @@ func (i *Index) ForEachMeasurementTagKey(name []byte, fn func(key []byte) error)
 // TagKeyCardinality returns the number of values for a measurement/tag key.
 func (i *Index) TagKeyCardinality(name, key []byte) int {
 	i.mu.RLock()
-	defer i.mu.RUnlock()
-
 	mm := i.measurements[string(name)]
+	i.mu.RUnlock()
+
 	if mm == nil {
 		return 0
 	}
@@ -307,9 +307,9 @@ func (i *Index) TagKeyCardinality(name, key []byte) int {
 // TagsForSeries returns the tag map for the passed in series
 func (i *Index) TagsForSeries(key string) (models.Tags, error) {
 	i.mu.RLock()
-	defer i.mu.RUnlock()
-
 	ss := i.series[key]
+	i.mu.RUnlock()
+
 	if ss == nil {
 		return nil, nil
 	}
