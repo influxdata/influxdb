@@ -11,7 +11,7 @@ import {
 
 import {DEFAULT_HOME_PAGE} from 'shared/constants'
 
-const {bool, shape, string} = PropTypes
+const {arrayOf, bool, shape, string} = PropTypes
 
 const SideNav = React.createClass({
   propTypes: {
@@ -23,6 +23,12 @@ const SideNav = React.createClass({
     }).isRequired,
     isHidden: bool.isRequired,
     logoutLink: string,
+    customLinks: arrayOf(
+      shape({
+        name: string.isRequired,
+        url: string.isRequired,
+      })
+    ),
   },
 
   render() {
@@ -31,6 +37,7 @@ const SideNav = React.createClass({
       location: {pathname: location},
       isHidden,
       logoutLink,
+      customLinks,
     } = this.props
 
     const sourcePrefix = `/sources/${sourceID}`
@@ -83,6 +90,11 @@ const SideNav = React.createClass({
           {showLogout
             ? <NavBlock icon="user" className="sidebar__square-last">
                 <NavHeader useAnchor={true} link={logoutLink} title="Logout" />
+                {customLinks.map(({name, url}) =>
+                  <NavListItem useAnchor={true} link={url}>
+                    {name}
+                  </NavListItem>
+                )}
               </NavBlock>
             : null}
         </NavBar>
@@ -95,6 +107,7 @@ const mapStateToProps = ({
 }) => ({
   isHidden: inPresentationMode,
   logoutLink,
+  customLinks,
 })
 
 export default connect(mapStateToProps)(withRouter(SideNav))
