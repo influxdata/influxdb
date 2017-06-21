@@ -53,9 +53,11 @@ class WriteDataForm extends Component {
 
   async handleSubmit() {
     const {onClose, source, writeLineProtocol} = this.props
-    const {inputContent, selectedDatabase} = this.state
+    const {inputContent, uploadContent, selectedDatabase, isManual} = this.state
+    const content = isManual ? inputContent : uploadContent
+
     try {
-      await writeLineProtocol(source, selectedDatabase, inputContent)
+      await writeLineProtocol(source, selectedDatabase, content)
       onClose()
     } catch (error) {
       console.error(error.data.error)
