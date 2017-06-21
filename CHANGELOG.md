@@ -2,6 +2,7 @@
 
 ### Bug Fixes
 ### Features
+1. [#1647](https://github.com/influxdata/chronograf/pull/1647): Add file uploader to Data Explorer for write protocol
 ### UI Improvements
 
 ## v1.3.3.0 [2017-06-19]
