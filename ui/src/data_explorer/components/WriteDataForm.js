@@ -10,7 +10,7 @@ class WriteDataForm extends Component {
   constructor(props) {
     super(props)
     this.state = {
-      selectedDatabase: null,
+      selectedDatabase: props.selectedDatabase,
       inputContent: null,
       uploadContent: '',
       fileName: '',
@@ -120,6 +120,7 @@ WriteDataForm.propTypes = {
   onClose: func.isRequired,
   writeLineProtocol: func.isRequired,
   errorThrown: func.isRequired,
+  selectedDatabase: string,
 }
 
 export default OnClickOutside(WriteDataForm)
