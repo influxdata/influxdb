@@ -73,13 +73,13 @@ class WriteDataForm extends Component {
 
     // async function run when loading of file is complete
     reader.onload = loadEvent => {
-      this.setState({inputContent: loadEvent.target.result})
+      this.setState({uploadContent: loadEvent.target.result})
     }
   }
 
   render() {
     const {onClose, errorThrown} = this.props
-    const {inputContent, selectedDatabase, isManual} = this.state
+    const {inputContent, uploadContent, selectedDatabase, isManual} = this.state
 
     return (
       <div className="write-data-form">
@@ -94,6 +94,7 @@ class WriteDataForm extends Component {
         <WriteDataBody
           isManual={isManual}
           inputContent={inputContent}
+          uploadContent={uploadContent}
           handleEdit={this.handleEdit}
           handleFile={this.handleFile}
           handleKeyUp={this.handleKeyUp}

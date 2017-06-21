@@ -6,6 +6,7 @@ const WriteDataBody = ({
   handleEdit,
   handleSubmit,
   inputContent,
+  uploadContent,
   isManual,
 }) => {
   let inputRef
@@ -27,7 +28,7 @@ const WriteDataBody = ({
               type="file"
               onChange={handleFile}
               className="write-data-form--upload"
-              ref={r => inputRef = r}
+              ref={r => (inputRef = r)}
             />
             <button
               className="btn btn-sm btn-primary"
@@ -49,7 +50,9 @@ const WriteDataBody = ({
         <button
           className="btn btn-sm btn-primary write-data-form--submit"
           onClick={handleSubmit}
-          disabled={!inputContent}
+          disabled={
+            (!inputContent && isManual) || (!uploadContent && !isManual)
+          }
         >
           Write
         </button>
@@ -66,6 +69,7 @@ WriteDataBody.propTypes = {
   handleFile: func.isRequired,
   handleSubmit: func.isRequired,
   inputContent: string,
+  uploadContent: string,
   isManual: bool,
 }
 
