@@ -59,6 +59,7 @@ class WriteDataForm extends Component {
     try {
       await writeLineProtocol(source, selectedDatabase, content)
       onClose()
+      window.location.reload()
     } catch (error) {
       console.error(error.data.error)
     }
