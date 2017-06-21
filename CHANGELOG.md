@@ -1,4 +1,4 @@
-## v1.3.0 [unreleased]
+## v1.3.0 [2017-06-21]
 
 ### Removals
 
