@@ -34,8 +34,15 @@ const WriteDataBody = ({
               className="btn btn-sm btn-primary"
               onClick={() => inputRef.click()}
             >
-              Upload File
+              {uploadContent ? 'Upload a Different File' : 'Upload a File'}
             </button>
+            {uploadContent
+              ? <span className="write-data-form--filepath_selected">
+                  <span className="icon checkmark" />1 file selected
+                </span>
+              : <span className="write-data-form--filepath_empty">
+                  No file selected
+                </span>}
           </div>}
       <div className="write-data-form--footer">
         <span className="write-data-form--helper">

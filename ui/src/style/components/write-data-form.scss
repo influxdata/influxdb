@@ -65,11 +65,27 @@ textarea.form-control.write-data-form--input {
   height: $write-data--input-height;
   display: flex;
   align-items: center;
+  flex-direction: column;
   justify-content: center;
   background-color: $g2-kevlar;
   border: 2px solid $g4-onyx;
   border-radius: 3px;
 }
-.write-data-form--upload {
+input[type="file"].write-data-form--upload {
   display: none;
+}
+.write-data-form--filepath_selected,
+.write-data-form--filepath_empty {
+  @include no-user-select();
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 15px;
+}
+.write-data-form--filepath_empty {
+  color: $g13-mist;
+  font-style: italic;
+}
+.write-data-form--filepath_selected {
+  color: $c-rainforest;
+  .icon {margin-right: 4px;}
 }
