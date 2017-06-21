@@ -3,6 +3,7 @@
 ### Bugfixes
 
 - [#8480](https://github.com/influxdata/influxdb/pull/8480): Change the default stats interval to 1 second instead of 10 seconds.
+- [#8466](https://github.com/influxdata/influxdb/issues/8466): illumos build broken on syscall.Mmap
 
 ## v1.3.0 [unreleased]
 
