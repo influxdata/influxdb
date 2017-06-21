@@ -147,6 +147,7 @@ export const getDashboardsAsync = () => async dispatch => {
   try {
     const {data: {dashboards}} = await getDashboardsAJAX()
     dispatch(loadDashboards(dashboards))
+    return dashboards
   } catch (error) {
     console.error(error)
     dispatch(errorThrown(error))
@@ -157,6 +158,17 @@ export const putDashboard = dashboard => async dispatch => {
   try {
     const {data} = await updateDashboardAJAX(dashboard)
     dispatch(updateDashboard(data))
+  } catch (error) {
+    console.error(error)
+    dispatch(errorThrown(error))
+  }
+}
+
+export const putDashboardByID = dashboardID => async (dispatch, getState) => {
+  try {
+    const {dashboardUI: {dashboards}} = getState()
+    const dashboard = dashboards.find(d => d.id === +dashboardID)
+    await updateDashboardAJAX(dashboard)
   } catch (error) {
     console.error(error)
     dispatch(errorThrown(error))
@@ -222,6 +234,7 @@ export const updateTempVarValues = (source, dashboard) => async dispatch => {
     )
 
     const results = await Promise.all(asyncQueries)
+
     results.forEach(({data}, i) => {
       const {type, query, id} = tempsWithQueries[i]
       const vals = parsers[type](data, query.tagKey || query.measurement)[type]

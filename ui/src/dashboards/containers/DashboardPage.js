@@ -57,13 +57,23 @@ class DashboardPage extends Component {
     this.synchronizer = ::this.synchronizer
   }
 
-  componentDidMount() {
+  async componentDidMount() {
     const {
       params: {dashboardID},
-      dashboardActions: {getDashboardsAsync},
+      dashboardActions: {
+        getDashboardsAsync,
+        updateTempVarValues,
+        putDashboardByID,
+      },
+      source,
     } = this.props
 
-    getDashboardsAsync(dashboardID)
+    const dashboards = await getDashboardsAsync(dashboardID)
+    const dashboard = dashboards.find(d => d.id === +dashboardID)
+
+    // Refresh and persists template variable values on dashboard mount
+    await updateTempVarValues(source, dashboard)
+    await putDashboardByID(dashboardID)
   }
 
   handleOpenTemplateManager() {
@@ -72,7 +82,8 @@ class DashboardPage extends Component {
 
   handleCloseTemplateManager(isEdited) {
     if (
-      !isEdited || (isEdited && confirm('Do you want to close without saving?')) // eslint-disable-line no-alert
+      !isEdited ||
+      (isEdited && confirm('Do you want to close without saving?')) // eslint-disable-line no-alert
     ) {
       this.setState({isTemplating: false})
     }
