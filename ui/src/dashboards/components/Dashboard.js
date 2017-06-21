@@ -49,7 +49,7 @@ const Dashboard = ({
         {inPresentationMode
           ? null
           : <TemplateControlBar
-              dashboard={dashboard.templates}
+              templates={dashboard.templates}
               onSelectTemplate={onSelectTemplate}
               onOpenTemplateManager={onOpenTemplateManager}
               isOpen={showTemplateControlBar}
@@ -122,7 +122,6 @@ Dashboard.propTypes = {
   timeRange: shape({}).isRequired,
   onOpenTemplateManager: func.isRequired,
   onSelectTemplate: func.isRequired,
-  updateTempVarValues: func.isRequired,
   showTemplateControlBar: bool,
 }
 
