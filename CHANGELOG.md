@@ -1,6 +1,7 @@
 ## v1.3.4.0 [unreleased]
 
 ### Bug Fixes
+1. [1650](https://github.com/influxdata/chronograf/pull/1650): Fixed the broken cpu reporting on hosts page and normalize InfluxQL
 ### Features
 ### UI Improvements
 
