@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"runtime"
@@ -183,7 +184,13 @@ func (s *Server) genericRedirectURL() string {
 		genericName = s.GenericName
 	}
 
-	return path.Join(s.PublicURL, s.Basepath, "oauth", genericName, "callback")
+	publicURL, err := url.Parse(s.PublicURL)
+	if err != nil {
+		return ""
+	}
+
+	publicURL.Path = path.Join(publicURL.Path, s.Basepath, "oauth", genericName, "callback")
+	return publicURL.String()
 }
 
 // BuildInfo is sent to the usage client to track versions and commits
