@@ -29,7 +29,7 @@ const WriteDataBody = ({
               onChange={handleFile}
               className="write-data-form--upload"
               ref={r => (inputRef = r)}
-              accept="text/*"
+              accept="text/*, application/gzip"
             />
             <button
               className="btn btn-sm btn-primary"
