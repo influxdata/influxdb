@@ -843,11 +843,22 @@ func (i *Index) compact() {
 // compactToLevel compacts a set of files into a new file. Replaces old files with
 // compacted file on successful completion. This runs in a separate goroutine.
 func (i *Index) compactToLevel(files []*IndexFile, level int) {
-	assert(len(files) >= 2, "at least two index files are required for compaction")
-	assert(level > 0, "cannot compact level zero")
-
 	// Build a logger for this compaction.
 	logger := i.logger.With(zap.String("token", generateCompactionToken()))
+
+	if len(files) < 2 {
+		logger.Error("at least two index files are required for compaction",
+			zap.Int("count", len(files)),
+		)
+		return
+	}
+
+	if level <= 0 {
+		logger.Error("cannot compact level zero",
+			zap.Int("level", level),
+		)
+		return
+	}
 
 	// Files have already been retained by caller.
 	// Ensure files are released only once.
@@ -983,13 +994,20 @@ func (i *Index) checkLogFile() error {
 func (i *Index) compactLogFile(logFile *LogFile) {
 	start := time.Now()
 
-	// Retrieve identifier from current path.
-	id := logFile.ID()
-	assert(id != 0, "cannot parse log file id: %s", logFile.Path())
-
 	// Build a logger for this compaction.
 	logger := i.logger.With(
 		zap.String("token", generateCompactionToken()),
+	)
+	// Retrieve identifier from current path.
+	id := logFile.ID()
+	if id == 0 {
+		logger.Error("cannot parse log file id",
+			zap.String("logpath", logFile.Path()),
+		)
+		return
+	}
+
+	logger = logger.With(
 		zap.Int("id", id),
 	)
 
