@@ -83,62 +83,6 @@ const DashboardsPage = React.createClass({
                       onCreateDashboard={this.handleCreateDashbord}
                       dashboardLink={dashboardLink}
                     />
-                    {/* {dashboards && dashboards.length
-                      ? <table className="table v-center admin-table table-highlight">
-                          <thead>
-                            <tr>
-                              <th>Name</th>
-                              <th>Template Variables</th>
-                              <th />
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {_.sortBy(dashboards, d =>
-                              d.name.toLowerCase()
-                            ).map(dashboard =>
-                              <tr key={dashboard.id}>
-                                <td>
-                                  <Link
-                                    to={`${dashboardLink}/dashboards/${dashboard.id}`}
-                                  >
-                                    {dashboard.name}
-                                  </Link>
-                                </td>
-                                <td>
-                                  {dashboard.templates.length
-                                    ? dashboard.templates.map(tv =>
-                                        <code
-                                          className="table--temp-var"
-                                          key={tv.id}
-                                        >
-                                          {tv.tempVar}
-                                        </code>
-                                      )
-                                    : <span className="empty-string">
-                                        None
-                                      </span>}
-                                </td>
-                                <DeleteConfirmTableCell
-                                  onDelete={this.handleDeleteDashboard}
-                                  item={dashboard}
-                                  buttonSize="btn-xs"
-                                />
-                              </tr>
-                            )}
-                          </tbody>
-                        </table>
-                      : <div className="generic-empty-state">
-                          <h4 style={{marginTop: '90px'}}>
-                            Looks like you dont have any dashboards
-                          </h4>
-                          <button
-                            className="btn btn-sm btn-primary"
-                            onClick={this.handleCreateDashbord}
-                            style={{marginBottom: '90px'}}
-                          >
-                            Create Dashboard
-                          </button>
-                        </div>} */}
                   </div>
                 </div>
               </div>
