@@ -353,8 +353,13 @@ func (s *Service) handleMessage(buffer []byte) {
 		s.Logger.Info(fmt.Sprintf("Collectd parse error: %s", err))
 		return
 	}
+	var points []models.Point
 	for _, valueList := range valueLists {
-		points := s.UnmarshalValueList(valueList)
+		if s.Config.UsePluginTuple {
+			points = s.UnmarshalValueListPacked(valueList)
+		} else {
+			points = s.UnmarshalValueList(valueList)
+		}
 		for _, p := range points {
 			s.batcher.In() <- p
 		}
@@ -383,6 +388,53 @@ func (s *Service) writePoints() {
 			}
 		}
 	}
+}
+
+// UnmarshalValueListPacked is an alternative to the original UnmarshalValueList
+// The difference is that the original provided measurements like (PLUGIN_DSNAME, ["value",xxx])
+// while this one will provide measurements like (PLUGIN, {["DSNAME",xxx]})
+// this effectively joins collectd data that should go together, such as:
+//  (df, {["used",1000],["free",2500]})
+func (s *Service) UnmarshalValueListPacked(vl *api.ValueList) []models.Point {
+	timestamp := vl.Time.UTC()
+
+	var name = vl.Identifier.Plugin
+	tags := make(map[string]string)
+	fields := make(map[string]interface{})
+
+	if vl.Identifier.Host != "" {
+		tags["host"] = vl.Identifier.Host
+	}
+	if vl.Identifier.PluginInstance != "" {
+		tags["instance"] = vl.Identifier.PluginInstance
+	}
+	if vl.Identifier.Type != "" {
+		tags["type"] = vl.Identifier.Type
+	}
+	if vl.Identifier.TypeInstance != "" {
+		tags["type_instance"] = vl.Identifier.TypeInstance
+	}
+
+	for i := range vl.Values {
+		fieldName := vl.DSName(i)
+		switch value := vl.Values[i].(type) {
+		case api.Gauge:
+			fields[fieldName] = float64(value)
+		case api.Derive:
+			fields[fieldName] = float64(value)
+		case api.Counter:
+			fields[fieldName] = float64(value)
+		}
+	}
+	// Drop invalid points
+	p, err := models.NewPoint(name, models.NewTags(tags), fields, timestamp)
+	if err != nil {
+		s.Logger.Info(fmt.Sprintf("Dropping point %v: %v", name, err))
+		atomic.AddInt64(&s.stats.InvalidDroppedPoints, 1)
+	}
+
+	// return as an array for compatability with rest of API
+	return []models.Point{p}
 }
 
 // UnmarshalValueList translates a ValueList into InfluxDB data points.

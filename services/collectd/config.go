@@ -48,6 +48,9 @@ const (
 
 	// DefaultAuthFile is the default location of the user/password file.
 	DefaultAuthFile = "/etc/collectd/auth_file"
+
+	// DefaultUsePluginTuple is false, defaulting to version <1.2 where plugin values were split into separate rows
+	DefaultUsePluginTuple = false
 )
 
 // Config represents a configuration for the collectd service.
@@ -63,6 +66,7 @@ type Config struct {
 	TypesDB         string        `toml:"typesdb"`
 	SecurityLevel   string        `toml:"security-level"`
 	AuthFile        string        `toml:"auth-file"`
+	UsePluginTuple  bool          `toml:"use-plugin-tuple"`
 }
 
 // NewConfig returns a new instance of Config with defaults.
@@ -78,6 +82,7 @@ func NewConfig() Config {
 		TypesDB:         DefaultTypesDB,
 		SecurityLevel:   DefaultSecurityLevel,
 		AuthFile:        DefaultAuthFile,
+		UsePluginTuple:  DefaultUsePluginTuple,
 	}
 }
 
@@ -115,6 +120,7 @@ func (c *Config) WithDefaults() *Config {
 	if d.AuthFile == "" {
 		d.AuthFile = DefaultAuthFile
 	}
+	// UsePluginTuple will default to false if unassigned so no need to change anything here.
 
 	return &d
 }
