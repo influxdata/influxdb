@@ -69,7 +69,7 @@ class DashboardPage extends Component {
       source,
     } = this.props
 
-    const dashboards = await getDashboardsAsync(dashboardID)
+    const dashboards = await getDashboardsAsync()
     const dashboard = dashboards.find(d => d.id === +dashboardID)
 
     // Refresh and persists template variable values on dashboard mount
