@@ -92,19 +92,36 @@ const DashboardsPage = React.createClass({
                       ? <table className="table v-center admin-table table-highlight">
                           <thead>
                             <tr>
+                              <th style={{width: '40px'}}>ID</th>
                               <th>Name</th>
+                              <th>Template Variables</th>
                               <th />
                             </tr>
                           </thead>
                           <tbody>
                             {dashboards.map(dashboard =>
                               <tr key={dashboard.id} className="">
+                                <td style={{width: '40px'}}>{dashboard.id}</td>
                                 <td>
                                   <Link
                                     to={`${dashboardLink}/dashboards/${dashboard.id}`}
                                   >
                                     {dashboard.name}
                                   </Link>
+                                </td>
+                                <td>
+                                  {dashboard.templates.length
+                                    ? dashboard.templates.map(tv =>
+                                        <code
+                                          className="table--temp-var"
+                                          key={tv.id}
+                                        >
+                                          {tv.tempVar}
+                                        </code>
+                                      )
+                                    : <span className="empty-string">
+                                        None present
+                                      </span>}
                                 </td>
                                 <DeleteConfirmTableCell
                                   onDelete={this.handleDeleteDashboard}

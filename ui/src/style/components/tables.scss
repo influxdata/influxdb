@@ -172,6 +172,8 @@ $table-tab-scrollbar-height: 6px;
 .table.table-highlight > tbody > tr.highlight {
   background-color: $g4-onyx;
 }
+
+
 /*
     Responsive Tables
     ----------------------------------------------
@@ -183,4 +185,18 @@ $table-tab-scrollbar-height: 6px;
     border-color: $g5-pepper;
     @include custom-scrollbar($g5-pepper, $c-pool);
   }
+}
+
+/*
+    Misc
+    ----------------------------------------------
+*/
+.table .empty-string {
+  font-weight: 500;
+  color: $g8-storm;
+  font-style: italic;
+}
+.table .table--temp-var {
+  color: $c-comet;
+  font-weight: 600;
 }
