@@ -31,6 +31,27 @@ const SideNav = React.createClass({
     ),
   },
 
+  renderUserMenuBlockWithCustomLinks(customLinks, logoutLink) {
+    return [<NavHeader key={0} title="User" />].concat(
+      customLinks
+        .map(({name, url}, i) =>
+          <NavListItem
+            key={i + 1}
+            useAnchor={true}
+            isExternal={true}
+            link={url}
+          >
+            {name}
+          </NavListItem>
+        )
+        .concat(
+          <NavListItem useAnchor={true} link={logoutLink}>
+            Logout
+          </NavListItem>
+        )
+    )
+  },
+
   render() {
     const {
       params: {sourceID},
@@ -42,7 +63,7 @@ const SideNav = React.createClass({
 
     const sourcePrefix = `/sources/${sourceID}`
     const dataExplorerLink = `${sourcePrefix}/chronograf/data-explorer`
-    const showLogout = !!logoutLink
+    const isUsingAuth = !!logoutLink
 
     return isHidden
       ? null
@@ -87,14 +108,18 @@ const SideNav = React.createClass({
               title="Configuration"
             />
           </NavBlock>
-          {showLogout
+          {isUsingAuth
             ? <NavBlock icon="user" className="sidebar__square-last">
-                <NavHeader useAnchor={true} link={logoutLink} title="Logout" />
-                {customLinks.map(({name, url}) =>
-                  <NavListItem useAnchor={true} link={url}>
-                    {name}
-                  </NavListItem>
-                )}
+                {customLinks
+                  ? this.renderUserMenuBlockWithCustomLinks(
+                      customLinks,
+                      logoutLink
+                    )
+                  : <NavHeader
+                      useAnchor={true}
+                      link={logoutLink}
+                      title="Logout"
+                    />}
               </NavBlock>
             : null}
         </NavBar>
@@ -104,6 +129,7 @@ const SideNav = React.createClass({
 const mapStateToProps = ({
   auth: {logoutLink},
   app: {ephemeral: {inPresentationMode}},
+  links: {custom: customLinks},
 }) => ({
   isHidden: inPresentationMode,
   logoutLink,
