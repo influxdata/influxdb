@@ -103,7 +103,7 @@ const DashboardsPage = React.createClass({
                             {_.sortBy(dashboards, d =>
                               d.name.toLowerCase()
                             ).map(dashboard =>
-                              <tr key={dashboard.id} className="">
+                              <tr key={dashboard.id}>
                                 <td>
                                   <Link
                                     to={`${dashboardLink}/dashboards/${dashboard.id}`}
