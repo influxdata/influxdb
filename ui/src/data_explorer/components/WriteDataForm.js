@@ -76,6 +76,9 @@ class WriteDataForm extends Component {
     let file
     if (drop) {
       file = e.dataTransfer.files[0]
+      this.setState({
+        dragClass: 'drag-none',
+      })
     } else {
       file = e.target.files[0]
     }
@@ -141,6 +144,9 @@ class WriteDataForm extends Component {
             handleKeyUp={this.handleKeyUp}
             handleSubmit={this.handleSubmit}
           />
+        </div>
+        <div className="write-data-form--drag-here">
+          Drag & Drop a File to Upload
         </div>
       </div>
     )
