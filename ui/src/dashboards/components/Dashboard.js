@@ -24,10 +24,6 @@ const Dashboard = ({
   onSelectTemplate,
   showTemplateControlBar,
 }) => {
-  if (!dashboard) {
-    return null
-  }
-
   const cells = dashboard.cells.map(cell => {
     const dashboardCell = {...cell}
     dashboardCell.queries = dashboardCell.queries.map(
