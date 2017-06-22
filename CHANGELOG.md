@@ -4,6 +4,7 @@
 1. [#1645](https://github.com/influxdata/chronograf/pull/1645): Add Auth0 as a supported OAuth2 provider
 
 ### UI Improvements
+1. [#1644](https://github.com/influxdata/chronograf/pull/1644): Redesign Alerts History table to have sticky headers
 1. [#1581](https://github.com/influxdata/chronograf/pull/1581): Refresh template variable values on dashboard page load
 
 ## v1.3.3.3 [2017-06-21]
