@@ -40,12 +40,14 @@ const SideNav = React.createClass({
     return isHidden
       ? null
       : <NavBar location={location}>
-          <Link
-            to={`${sourcePrefix}/${DEFAULT_HOME_PAGE}`}
-            className="sidebar__logo"
-          >
-            <span className="icon cubo-uniform" />
-          </Link>
+          <div className="sidebar--item">
+            <Link
+              to={`${sourcePrefix}/${DEFAULT_HOME_PAGE}`}
+              className="sidebar--square sidebar--logo"
+            >
+              <span className="sidebar--icon icon cubo-uniform" />
+            </Link>
+          </div>
           <NavBlock icon="cubo-node" link={`${sourcePrefix}/hosts`}>
             <NavHeader link={`${sourcePrefix}/hosts`} title="Host List" />
           </NavBlock>
@@ -80,11 +82,20 @@ const SideNav = React.createClass({
               title="Configuration"
             />
           </NavBlock>
-          {showLogout
-            ? <NavBlock icon="user" className="sidebar__square-last">
-                <NavHeader useAnchor={true} link={logoutLink} title="Logout" />
-              </NavBlock>
-            : null}
+          <div className="sidebar--bottom">
+            <NavBlock icon="heart">
+              <NavHeader title="Woogles" />
+            </NavBlock>
+            {showLogout
+              ? <NavBlock icon="user" className="sidebar--item-last">
+                  <NavHeader
+                    useAnchor={true}
+                    link={logoutLink}
+                    title="Logout"
+                  />
+                </NavBlock>
+              : null}
+          </div>
         </NavBar>
   },
 })

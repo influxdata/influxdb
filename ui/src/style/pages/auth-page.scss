@@ -11,7 +11,7 @@
   overflow: auto;
   @include custom-scrollbar($g3-castle, $c-pool);
   @include gradient-v($g3-castle, $g0-obsidian);
-  padding: $sidebar-width;
+  padding: $sidebar--width;
 }
 .auth-image {
   background-image: url(assets/images/auth-bg.svg);
@@ -47,8 +47,8 @@
   }
 
   .btn {
-    margin-top: ($sidebar-width / 2);
-    margin-bottom: $sidebar-width;
+    margin-top: ($sidebar--width / 2);
+    margin-bottom: $sidebar--width;
 
     > .icon {
       font-size: 20px;
@@ -67,7 +67,7 @@
 .auth-credits {
   z-index: 90;
   position: absolute;
-  bottom: ($sidebar-width / 4);
+  bottom: ($sidebar--width / 4);
   left: 50%;
   transform: translateX(-50%);
   font-size: 12px;
