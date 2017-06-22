@@ -27,6 +27,7 @@ class WriteDataForm extends Component {
     this.handleEdit = ::this.handleEdit
     this.handleFile = ::this.handleFile
     this.toggleWriteView = ::this.toggleWriteView
+    this.handleFileOpen = ::this.handleFileOpen
   }
 
   toggleWriteView(isManual) {
@@ -139,10 +140,12 @@ class WriteDataForm extends Component {
           />
           <WriteDataBody
             {...this.state}
+            fileInput={el => this.fileInput = el}
             handleEdit={this.handleEdit}
             handleFile={this.handleFile}
             handleKeyUp={this.handleKeyUp}
             handleSubmit={this.handleSubmit}
+            handleFileOpen={this.handleFileOpen}
           />
         </div>
         <div className="write-data-form--drag-here">
