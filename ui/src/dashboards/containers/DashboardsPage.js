@@ -5,7 +5,7 @@ import {bindActionCreators} from 'redux'
 
 import _ from 'lodash'
 
-import SourceIndicator from 'shared/components/SourceIndicator'
+import DashboardsHeader from 'src/dashboards/components/DashboardsHeader'
 import DeleteConfirmTableCell from 'shared/components/DeleteConfirmTableCell'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
@@ -63,18 +63,7 @@ const DashboardsPage = React.createClass({
 
     return (
       <div className="page">
-        <div className="page-header">
-          <div className="page-header__container">
-            <div className="page-header__left">
-              <h1 className="page-header__title">
-                Dashboards
-              </h1>
-            </div>
-            <div className="page-header__right">
-              <SourceIndicator sourceName={this.props.source.name} />
-            </div>
-          </div>
-        </div>
+        <DashboardsHeader sourceName={this.props.source.name} />
         <FancyScrollbar className="page-contents">
           <div className="container-fluid">
             <div className="row">
