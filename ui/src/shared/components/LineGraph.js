@@ -126,17 +126,7 @@ export default React.createClass({
     }
 
     const singleStatOptions = {
-      labels,
-      connectSeparatedPoints: true,
-      labelsKMB: true,
-      title,
-      rightGap: 0,
-      strokeWidth: 1.5,
-      drawAxesAtZero: true,
-      underlayCallback,
-      ylabel: _.get(queries, ['0', 'label'], ''),
-      y2label: _.get(queries, ['1', 'label'], ''),
-      ...displayOptions,
+      ...options,
       highlightSeriesOpts: {
         strokeWidth: 1.5,
       },
