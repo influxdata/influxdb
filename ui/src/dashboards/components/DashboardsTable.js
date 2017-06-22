@@ -61,10 +61,10 @@ const DashboardsTable = ({
       </div>
 }
 
-const {func, shape, string} = PropTypes
+const {arrayOf, func, shape, string} = PropTypes
 
 DashboardsTable.propTypes = {
-  dashboards: shape.isRequired,
+  dashboards: arrayOf(shape()),
   onDeleteDashboard: func.isRequired,
   onCreateDashboard: func.isRequired,
   dashboardLink: string.isRequired,
