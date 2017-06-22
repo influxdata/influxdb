@@ -94,7 +94,6 @@ const DashboardsPage = React.createClass({
                       ? <table className="table v-center admin-table table-highlight">
                           <thead>
                             <tr>
-                              <th style={{width: '40px'}}>ID</th>
                               <th>Name</th>
                               <th>Template Variables</th>
                               <th />
@@ -105,7 +104,6 @@ const DashboardsPage = React.createClass({
                               d.name.toLowerCase()
                             ).map(dashboard =>
                               <tr key={dashboard.id} className="">
-                                <td style={{width: '40px'}}>{dashboard.id}</td>
                                 <td>
                                   <Link
                                     to={`${dashboardLink}/dashboards/${dashboard.id}`}
