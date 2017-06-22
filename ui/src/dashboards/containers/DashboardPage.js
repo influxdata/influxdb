@@ -72,7 +72,7 @@ class DashboardPage extends Component {
     const dashboards = await getDashboardsAsync()
     const dashboard = dashboards.find(d => d.id === +dashboardID)
 
-    // Refresh and persists template variable values on dashboard mount
+    // Refresh and persists influxql generated template variable values
     await updateTempVarValues(source, dashboard)
     await putDashboardByID(dashboardID)
   }
