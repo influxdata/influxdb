@@ -6,6 +6,7 @@ import WriteDataBody from 'src/data_explorer/components/WriteDataBody'
 import WriteDataHeader from 'src/data_explorer/components/WriteDataHeader'
 
 import {OVERLAY_TECHNOLOGY} from 'shared/constants/classNames'
+let dragCounter = 0
 
 class WriteDataForm extends Component {
   constructor(props) {
@@ -118,6 +119,24 @@ class WriteDataForm extends Component {
     }
   }
 
+  handleDragEnter(e) {
+    dragCounter += 1
+    e.preventDefault()
+    this.setState({dragClass: 'drag-over'})
+  }
+
+  handleDragLeave(e) {
+    dragCounter -= 1
+    e.preventDefault()
+    if (dragCounter === 0) {
+      this.setState({dragClass: 'drag-none'})
+    }
+  }
+
+  handleFileOpen() {
+    this.fileInput.click()
+  }
+
   render() {
     const {onClose, errorThrown} = this.props
     const {dragClass} = this.state
@@ -126,8 +145,8 @@ class WriteDataForm extends Component {
       <div
         onDrop={e => this.handleFile(e, true)}
         onDragOver={this.handleDragOver}
-        onDragEnter={this.handleDragClass(true)}
-        onDragLeave={this.handleDragClass(false)}
+        onDragEnter={e => this.handleDragEnter(e)}
+        onDragLeave={e => this.handleDragLeave(e)}
         className={classnames(OVERLAY_TECHNOLOGY, dragClass)}
       >
         <div className="write-data-form">
