@@ -74,7 +74,6 @@ class WriteDataForm extends Component {
   }
 
   handleFile(e, drop) {
-    // todo: expect this to be a File or Blob
     let file
     if (drop) {
       file = e.dataTransfer.files[0]
@@ -88,7 +87,6 @@ class WriteDataForm extends Component {
     e.preventDefault()
     e.stopPropagation()
 
-    // async function run when loading of file is complete
     const reader = new FileReader()
     reader.readAsText(file)
     reader.onload = loadEvent => {
