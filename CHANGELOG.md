@@ -1,6 +1,8 @@
 ## v1.3.4.0 [unreleased]
 ### Bug Fixes
 ### Features
+1. [#1645](https://github.com/influxdata/chronograf/pull/1645): Add Auth0 as a supported OAuth2 provider
+
 ### UI Improvements
 
 ## v1.3.3.3 [2017-06-21]
