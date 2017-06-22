@@ -1,12 +1,10 @@
 import React, {PropTypes} from 'react'
-import {Link, withRouter} from 'react-router'
+import {withRouter} from 'react-router'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
-import _ from 'lodash'
-
 import DashboardsHeader from 'src/dashboards/components/DashboardsHeader'
-import DeleteConfirmTableCell from 'shared/components/DeleteConfirmTableCell'
+import DashboardsTable from 'src/dashboards/components/DashboardsTable'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 import {createDashboard} from 'src/dashboards/apis'
@@ -79,7 +77,13 @@ const DashboardsPage = React.createClass({
                     </button>
                   </div>
                   <div className="panel-body">
-                    {dashboards && dashboards.length
+                    <DashboardsTable
+                      dashboards={dashboards}
+                      onDeleteDashboard={this.handleDeleteDashboard}
+                      onCreateDashboard={this.handleCreateDashbord}
+                      dashboardLink={dashboardLink}
+                    />
+                    {/* {dashboards && dashboards.length
                       ? <table className="table v-center admin-table table-highlight">
                           <thead>
                             <tr>
@@ -134,7 +138,7 @@ const DashboardsPage = React.createClass({
                           >
                             Create Dashboard
                           </button>
-                        </div>}
+                        </div>} */}
                   </div>
                 </div>
               </div>
