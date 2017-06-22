@@ -11,6 +11,7 @@ const initialState = {
 }
 
 import {TEMPLATE_VARIABLE_SELECTED} from 'shared/constants/actionTypes'
+import {TEMPLATE_VARIABLE_TYPES} from 'src/dashboards/constants'
 
 export default function ui(state = initialState, action) {
   switch (action.type) {
@@ -209,6 +210,34 @@ export default function ui(state = initialState, action) {
         return dashboard
       })
       return {...state, dashboards: newDashboards}
+    }
+
+    case 'EDIT_TEMPLATE_VARIABLE_VALUES': {
+      const {dashboardID, templateID, values} = action.payload
+
+      const dashboards = state.dashboards.map(
+        dashboard =>
+          (dashboard.id === dashboardID
+            ? {
+                ...dashboard,
+                templates: dashboard.templates.map(
+                  template =>
+                    (template.id === templateID
+                      ? {
+                          ...template,
+                          values: values.map((value, i) => ({
+                            selected: i === 0,
+                            value,
+                            type: TEMPLATE_VARIABLE_TYPES[template.type],
+                          })),
+                        }
+                      : template)
+                ),
+              }
+            : dashboard)
+      )
+
+      return {...state, dashboards}
     }
   }
 
