@@ -129,21 +129,13 @@ export default React.createClass({
       labels,
       connectSeparatedPoints: true,
       labelsKMB: true,
-      axes: {
-        x: {
-          drawGrid: false,
-          drawAxis: false,
-        },
-        y: {
-          drawGrid: false,
-          drawAxis: false,
-        },
-      },
       title,
       rightGap: 0,
       strokeWidth: 1.5,
       drawAxesAtZero: true,
       underlayCallback,
+      ylabel: _.get(queries, ['0', 'label'], ''),
+      y2label: _.get(queries, ['1', 'label'], ''),
       ...displayOptions,
       highlightSeriesOpts: {
         strokeWidth: 1.5,
