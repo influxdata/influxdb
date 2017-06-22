@@ -120,7 +120,7 @@ const DashboardsPage = React.createClass({
                                         </code>
                                       )
                                     : <span className="empty-string">
-                                        None present
+                                        None
                                       </span>}
                                 </td>
                                 <DeleteConfirmTableCell
