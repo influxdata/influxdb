@@ -3,6 +3,8 @@ import {Link, withRouter} from 'react-router'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
+import _ from 'lodash'
+
 import SourceIndicator from 'shared/components/SourceIndicator'
 import DeleteConfirmTableCell from 'shared/components/DeleteConfirmTableCell'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
@@ -99,7 +101,9 @@ const DashboardsPage = React.createClass({
                             </tr>
                           </thead>
                           <tbody>
-                            {dashboards.map(dashboard =>
+                            {_.sortBy(dashboards, d =>
+                              d.name.toLowerCase()
+                            ).map(dashboard =>
                               <tr key={dashboard.id} className="">
                                 <td style={{width: '40px'}}>{dashboard.id}</td>
                                 <td>
