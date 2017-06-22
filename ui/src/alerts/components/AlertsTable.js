@@ -4,6 +4,8 @@ import {Link} from 'react-router'
 
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
+import {ALERTS_TABLE} from 'src/alerts/constants/tableSizing'
+
 class AlertsTable extends Component {
   constructor(props) {
     super(props)
@@ -82,41 +84,42 @@ class AlertsTable extends Component {
       this.state.sortKey,
       this.state.sortDirection
     )
+    const {colName, colLevel, colTime, colHost, colValue} = ALERTS_TABLE
     return this.props.alerts.length
       ? <div className="alert-history-table">
           <div className="alert-history-table--thead">
             <div
               onClick={() => this.changeSort('name')}
               className={this.sortableClasses('name')}
-              style={{width: '15%'}}
+              style={{width: colName}}
             >
               Name
             </div>
             <div
               onClick={() => this.changeSort('level')}
               className={this.sortableClasses('level')}
-              style={{width: '10%'}}
+              style={{width: colLevel}}
             >
               Level
             </div>
             <div
               onClick={() => this.changeSort('time')}
               className={this.sortableClasses('time')}
-              style={{width: '25%'}}
+              style={{width: colTime}}
             >
               Time
             </div>
             <div
               onClick={() => this.changeSort('host')}
               className={this.sortableClasses('host')}
-              style={{width: '25%'}}
+              style={{width: colHost}}
             >
               Host
             </div>
             <div
               onClick={() => this.changeSort('value')}
               className={this.sortableClasses('value')}
-              style={{width: '25%'}}
+              style={{width: colValue}}
             >
               Value
             </div>
@@ -133,25 +136,25 @@ class AlertsTable extends Component {
                 >
                   <div
                     className="alert-history-table--td"
-                    style={{width: '15%'}}
+                    style={{width: colName}}
                   >
                     {name}
                   </div>
                   <div
                     className={`alert-history-table--td alert-level-${level.toLowerCase()}`}
-                    style={{width: '10%'}}
+                    style={{width: colLevel}}
                   >
                     {level}
                   </div>
                   <div
                     className="alert-history-table--td"
-                    style={{width: '25%'}}
+                    style={{width: colTime}}
                   >
                     {new Date(Number(time)).toISOString()}
                   </div>
                   <div
                     className="alert-history-table--td"
-                    style={{width: '25%'}}
+                    style={{width: colHost}}
                   >
                     <Link to={`/sources/${id}/hosts/${host}`}>
                       {host}
@@ -159,7 +162,7 @@ class AlertsTable extends Component {
                   </div>
                   <div
                     className="alert-history-table--td"
-                    style={{width: '25%'}}
+                    style={{width: colValue}}
                   >
                     {value}
                   </div>
