@@ -1,11 +1,26 @@
 ## v1.3.4.0 [unreleased]
-
 ### Bug Fixes
 ### Features
-### UI Improvements
+1. [#1645](https://github.com/influxdata/chronograf/pull/1645): Add Auth0 as a supported OAuth2 provider
 
-## v1.3.3.1 [2017-06-20]
+### UI Improvements
+1. [#1644](https://github.com/influxdata/chronograf/pull/1644): Redesign Alerts History table to have sticky headers
+1. [#1581](https://github.com/influxdata/chronograf/pull/1581): Refresh template variable values on dashboard page load
+
+## v1.3.3.3 [2017-06-21]
 ### Bug Fixes
+1. [1651](https://github.com/influxdata/chronograf/pull/1651): Add back in x and y axes and revert some style changes on Line + Single Stat graphs
+
+## v1.3.3.2 [2017-06-21]
+### Bug Fixes
+1. [1650](https://github.com/influxdata/chronograf/pull/1650): Fix broken cpu reporting on hosts page and normalize InfluxQL
+
+## v1.3.3.1 [2017-06-21]
+### Bug Fixes
+1. [#1641](https://github.com/influxdata/chronograf/pull/1641): Fix enable / disable being out of sync on Kapacitor Rules Page
+
+### Features
+### UI Improvements
 1. [#1642](https://github.com/influxdata/chronograf/pull/1642): Do not prefix basepath to external link for news feed
 
 ## v1.3.3.0 [2017-06-19]

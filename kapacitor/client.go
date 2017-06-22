@@ -171,16 +171,25 @@ func (c *Client) AllStatus(ctx context.Context) (map[string]string, error) {
 
 // Status returns the status of a task in kapacitor
 func (c *Client) Status(ctx context.Context, href string) (string, error) {
-	kapa, err := c.kapaClient(c.URL, c.Username, c.Password)
-	if err != nil {
-		return "", err
-	}
-	task, err := kapa.Task(client.Link{Href: href}, nil)
+	s, err := c.status(ctx, href)
 	if err != nil {
 		return "", err
 	}
 
-	return task.Status.String(), nil
+	return s.String(), nil
+}
+
+func (c *Client) status(ctx context.Context, href string) (client.TaskStatus, error) {
+	kapa, err := c.kapaClient(c.URL, c.Username, c.Password)
+	if err != nil {
+		return 0, err
+	}
+	task, err := kapa.Task(client.Link{Href: href}, nil)
+	if err != nil {
+		return 0, err
+	}
+
+	return task.Status, nil
 }
 
 // All returns all tasks in kapacitor
@@ -259,6 +268,11 @@ func (c *Client) Update(ctx context.Context, href string, rule chronograf.AlertR
 		return nil, err
 	}
 
+	prevStatus, err := c.status(ctx, href)
+	if err != nil {
+		return nil, err
+	}
+
 	// We need to disable the kapacitor task followed by enabling it during update.
 	opts := client.UpdateTaskOptions{
 		TICKscript: string(script),
@@ -277,9 +291,11 @@ func (c *Client) Update(ctx context.Context, href string, rule chronograf.AlertR
 		return nil, err
 	}
 
-	// Now enable the task.
-	if _, err := c.Enable(ctx, href); err != nil {
-		return nil, err
+	// Now enable the task if previously enabled
+	if prevStatus == client.Enabled {
+		if _, err := c.Enable(ctx, href); err != nil {
+			return nil, err
+		}
 	}
 
 	return &Task{
