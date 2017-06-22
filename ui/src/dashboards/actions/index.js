@@ -5,6 +5,7 @@ import {
   updateDashboardCell as updateDashboardCellAJAX,
   addDashboardCell as addDashboardCellAJAX,
   deleteDashboardCell as deleteDashboardCellAJAX,
+  runTemplateVariableQuery,
 } from 'src/dashboards/apis'
 
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
@@ -13,6 +14,10 @@ import {errorThrown} from 'shared/actions/errors'
 import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants'
 
 import {TEMPLATE_VARIABLE_SELECTED} from 'shared/constants/actionTypes'
+import {
+  makeQueryForTemplate,
+} from 'src/dashboards/utils/templateVariableQueryGenerator'
+import parsers from 'shared/parsing'
 
 export const loadDashboards = (dashboards, dashboardID) => ({
   type: 'LOAD_DASHBOARDS',
@@ -123,12 +128,26 @@ export const templateVariableSelected = (dashboardID, templateID, values) => ({
   },
 })
 
+export const editTemplateVariableValues = (
+  dashboardID,
+  templateID,
+  values
+) => ({
+  type: 'EDIT_TEMPLATE_VARIABLE_VALUES',
+  payload: {
+    dashboardID,
+    templateID,
+    values,
+  },
+})
+
 // Async Action Creators
 
 export const getDashboardsAsync = () => async dispatch => {
   try {
     const {data: {dashboards}} = await getDashboardsAJAX()
     dispatch(loadDashboards(dashboards))
+    return dashboards
   } catch (error) {
     console.error(error)
     dispatch(errorThrown(error))
@@ -139,6 +158,17 @@ export const putDashboard = dashboard => async dispatch => {
   try {
     const {data} = await updateDashboardAJAX(dashboard)
     dispatch(updateDashboard(data))
+  } catch (error) {
+    console.error(error)
+    dispatch(errorThrown(error))
+  }
+}
+
+export const putDashboardByID = dashboardID => async (dispatch, getState) => {
+  try {
+    const {dashboardUI: {dashboards}} = getState()
+    const dashboard = dashboards.find(d => d.id === +dashboardID)
+    await updateDashboardAJAX(dashboard)
   } catch (error) {
     console.error(error)
     dispatch(errorThrown(error))
@@ -190,6 +220,26 @@ export const deleteDashboardCellAsync = (dashboard, cell) => async dispatch => {
   try {
     await deleteDashboardCellAJAX(cell)
     dispatch(deleteDashboardCell(dashboard, cell))
+  } catch (error) {
+    console.error(error)
+    dispatch(errorThrown(error))
+  }
+}
+
+export const updateTempVarValues = (source, dashboard) => async dispatch => {
+  try {
+    const tempsWithQueries = dashboard.templates.filter(t => !!t.query.influxql)
+    const asyncQueries = tempsWithQueries.map(({query}) =>
+      runTemplateVariableQuery(source, {query: makeQueryForTemplate(query)})
+    )
+
+    const results = await Promise.all(asyncQueries)
+
+    results.forEach(({data}, i) => {
+      const {type, query, id} = tempsWithQueries[i]
+      const vals = parsers[type](data, query.tagKey || query.measurement)[type]
+      dispatch(editTemplateVariableValues(dashboard.id, id, vals))
+    })
   } catch (error) {
     console.error(error)
     dispatch(errorThrown(error))

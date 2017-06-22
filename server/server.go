@@ -7,7 +7,9 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
+	"path"
 	"runtime"
 	"strconv"
 	"time"
@@ -61,7 +63,7 @@ type Server struct {
 	GoogleClientID     string   `long:"google-client-id" description:"Google Client ID for OAuth 2 support" env:"GOOGLE_CLIENT_ID"`
 	GoogleClientSecret string   `long:"google-client-secret" description:"Google Client Secret for OAuth 2 support" env:"GOOGLE_CLIENT_SECRET"`
 	GoogleDomains      []string `long:"google-domains" description:"Google email domain user is required to have active membership" env:"GOOGLE_DOMAINS" env-delim:","`
-	PublicURL          string   `long:"public-url" description:"Full public URL used to access Chronograf from a web browser. Used for Google OAuth2 authentication. (http://localhost:8888)" env:"PUBLIC_URL"`
+	PublicURL          string   `long:"public-url" description:"Full public URL used to access Chronograf from a web browser. Used for OAuth2 authentication. (http://localhost:8888)" env:"PUBLIC_URL"`
 
 	HerokuClientID      string   `long:"heroku-client-id" description:"Heroku Client ID for OAuth 2 support" env:"HEROKU_CLIENT_ID"`
 	HerokuSecret        string   `long:"heroku-secret" description:"Heroku Secret for OAuth 2 support" env:"HEROKU_SECRET"`
@@ -77,6 +79,10 @@ type Server struct {
 	GenericAPIURL       string   `long:"generic-api-url" description:"URL that returns OpenID UserInfo compatible information." env:"GENERIC_API_URL"`
 
 	StatusFeedURL string `long:"status-feed-url" description:"URL of a JSON Feed to display as a News Feed on the client Status page." default:"https://www.influxdata.com/feed/json" env:"STATUS_FEED_URL"`
+
+	Auth0Domain       string `long:"auth0-domain" description:"Subdomain of auth0.com used for Auth0 OAuth2 authentication" env:"AUTH0_DOMAIN"`
+	Auth0ClientID     string `long:"auth0-client-id" description:"Auth0 Client ID for OAuth2 support" env:"AUTH0_CLIENT_ID"`
+	Auth0ClientSecret string `long:"auth0-client-secret" description:"Auth0 Client Secret for OAuth2 support" env:"AUTH0_CLIENT_SECRET"`
 
 	ReportingDisabled bool   `short:"r" long:"reporting-disabled" description:"Disable reporting of usage stats (os,arch,version,cluster_id,uptime) once every 24hr" env:"REPORTING_DISABLED"`
 	LogLevel          string `short:"l" long:"log-level" value-name:"choice" choice:"debug" choice:"info" choice:"error" default:"info" description:"Set the logging level" env:"LOG_LEVEL"`
@@ -109,6 +115,10 @@ func (s *Server) UseGoogle() bool {
 // UseHeroku validates the CLI parameters to enable heroku oauth support
 func (s *Server) UseHeroku() bool {
 	return s.TokenSecret != "" && s.HerokuClientID != "" && s.HerokuSecret != ""
+}
+
+func (s *Server) UseAuth0() bool {
+	return s.Auth0ClientID != "" && s.Auth0ClientSecret != ""
 }
 
 // UseGenericOAuth2 validates the CLI parameters to enable generic oauth support
@@ -163,6 +173,7 @@ func (s *Server) genericOAuth(logger chronograf.Logger, auth oauth2.Authenticato
 		ClientSecret:   s.GenericClientSecret,
 		RequiredScopes: s.GenericScopes,
 		Domains:        s.GenericDomains,
+		RedirectURL:    s.genericRedirectURL(),
 		AuthURL:        s.GenericAuthURL,
 		TokenURL:       s.GenericTokenURL,
 		APIURL:         s.GenericAPIURL,
@@ -173,6 +184,46 @@ func (s *Server) genericOAuth(logger chronograf.Logger, auth oauth2.Authenticato
 	return &gen, genMux, s.UseGenericOAuth2
 }
 
+func (s *Server) auth0OAuth(logger chronograf.Logger, auth oauth2.Authenticator) (oauth2.Provider, oauth2.Mux, func() bool) {
+	redirectPath := path.Join(s.Basepath, "oauth", "auth0", "callback")
+	redirectURL, err := url.Parse(s.PublicURL)
+	if err != nil {
+		logger.Error("Error parsing public URL: err:", err)
+		return &oauth2.Auth0{}, &oauth2.AuthMux{}, func() bool { return false }
+	}
+	redirectURL.Path = redirectPath
+
+	auth0, err := oauth2.NewAuth0(s.Auth0Domain, s.Auth0ClientID, s.Auth0ClientSecret, redirectURL.String(), logger)
+
+	jwt := oauth2.NewJWT(s.TokenSecret)
+	genMux := oauth2.NewAuthMux(&auth0, auth, jwt, s.Basepath, logger)
+
+	if err != nil {
+		logger.Error("Error parsing Auth0 domain: err:", err)
+		return &auth0, genMux, func() bool { return false }
+	}
+	return &auth0, genMux, s.UseAuth0
+}
+
+func (s *Server) genericRedirectURL() string {
+	if s.PublicURL == "" {
+		return ""
+	}
+
+	genericName := "generic"
+	if s.GenericName != "" {
+		genericName = s.GenericName
+	}
+
+	publicURL, err := url.Parse(s.PublicURL)
+	if err != nil {
+		return ""
+	}
+
+	publicURL.Path = path.Join(publicURL.Path, s.Basepath, "oauth", genericName, "callback")
+	return publicURL.String()
+}
+
 // BuildInfo is sent to the usage client to track versions and commits
 type BuildInfo struct {
 	Version string
@@ -180,7 +231,7 @@ type BuildInfo struct {
 }
 
 func (s *Server) useAuth() bool {
-	return s.UseGithub() || s.UseGoogle() || s.UseHeroku() || s.UseGenericOAuth2()
+	return s.UseGithub() || s.UseGoogle() || s.UseHeroku() || s.UseGenericOAuth2() || s.UseAuth0()
 }
 
 func (s *Server) useTLS() bool {
@@ -251,6 +302,7 @@ func (s *Server) Serve(ctx context.Context) error {
 	providerFuncs = append(providerFuncs, provide(s.googleOAuth(logger, auth)))
 	providerFuncs = append(providerFuncs, provide(s.herokuOAuth(logger, auth)))
 	providerFuncs = append(providerFuncs, provide(s.genericOAuth(logger, auth)))
+	providerFuncs = append(providerFuncs, provide(s.auth0OAuth(logger, auth)))
 
 	s.handler = NewMux(MuxOpts{
 		Develop:       s.Develop,

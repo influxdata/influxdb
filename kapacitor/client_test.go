@@ -11,9 +11,14 @@ import (
 )
 
 type MockKapa struct {
-	ResTask  client.Task
-	ResTasks []client.Task
-	Error    error
+	ResTask     client.Task
+	ResTasks    []client.Task
+	TaskError   error
+	UpdateError error
+	CreateError error
+	ListError   error
+	DeleteError error
+	LastStatus  client.TaskStatus
 
 	*client.CreateTaskOptions
 	client.Link
@@ -24,31 +29,34 @@ type MockKapa struct {
 
 func (m *MockKapa) CreateTask(opt client.CreateTaskOptions) (client.Task, error) {
 	m.CreateTaskOptions = &opt
-	return m.ResTask, m.Error
+	return m.ResTask, m.CreateError
 }
 
 func (m *MockKapa) Task(link client.Link, opt *client.TaskOptions) (client.Task, error) {
 	m.Link = link
 	m.TaskOptions = opt
-	return m.ResTask, m.Error
+	return m.ResTask, m.TaskError
 }
 
 func (m *MockKapa) ListTasks(opt *client.ListTasksOptions) ([]client.Task, error) {
 	m.ListTasksOptions = opt
-	return m.ResTasks, m.Error
+	return m.ResTasks, m.ListError
 }
 
 func (m *MockKapa) UpdateTask(link client.Link, opt client.UpdateTaskOptions) (client.Task, error) {
 	m.Link = link
+	m.LastStatus = opt.Status
+
 	if m.UpdateTaskOptions == nil {
 		m.UpdateTaskOptions = &opt
 	}
-	return m.ResTask, m.Error
+
+	return m.ResTask, m.UpdateError
 }
 
 func (m *MockKapa) DeleteTask(link client.Link) error {
 	m.Link = link
-	return m.Error
+	return m.DeleteError
 }
 
 type MockID struct {
@@ -150,7 +158,7 @@ func TestClient_AllStatus(t *testing.T) {
 	for _, tt := range tests {
 		kapa.ResTask = tt.resTask
 		kapa.ResTasks = tt.resTasks
-		kapa.Error = tt.resError
+		kapa.ListError = tt.resError
 
 		t.Run(tt.name, func(t *testing.T) {
 			c := &Client{
@@ -426,7 +434,7 @@ trigger
 	for _, tt := range tests {
 		kapa.ResTask = tt.resTask
 		kapa.ResTasks = tt.resTasks
-		kapa.Error = tt.resError
+		kapa.ListError = tt.resError
 		t.Run(tt.name, func(t *testing.T) {
 			c := &Client{
 				URL:        tt.fields.URL,
@@ -710,7 +718,7 @@ trigger
 	for _, tt := range tests {
 		kapa.ResTask = tt.resTask
 		kapa.ResTasks = tt.resTasks
-		kapa.Error = tt.resError
+		kapa.TaskError = tt.resError
 		t.Run(tt.name, func(t *testing.T) {
 			c := &Client{
 				URL:        tt.fields.URL,
@@ -854,7 +862,7 @@ func TestClient_updateStatus(t *testing.T) {
 	}
 	for _, tt := range tests {
 		kapa.ResTask = tt.resTask
-		kapa.Error = tt.resError
+		kapa.UpdateError = tt.resError
 		kapa.UpdateTaskOptions = nil
 		t.Run(tt.name, func(t *testing.T) {
 			c := &Client{
@@ -904,6 +912,7 @@ func TestClient_Update(t *testing.T) {
 		resError          error
 		wantErr           bool
 		updateTaskOptions *client.UpdateTaskOptions
+		wantStatus        client.TaskStatus
 	}{
 		{
 			name: "update alert rule error",
@@ -936,7 +945,8 @@ func TestClient_Update(t *testing.T) {
 					},
 				},
 			},
-			wantErr: true,
+			wantErr:    true,
+			wantStatus: client.Disabled,
 		},
 		{
 			name: "update alert rule",
@@ -984,11 +994,60 @@ func TestClient_Update(t *testing.T) {
 					Name: "howdy",
 				},
 			},
+			wantStatus: client.Enabled,
+		},
+		{
+			name: "stays disabled when already disabled",
+			fields: fields{
+				kapaClient: func(url, username, password string) (KapaClient, error) {
+					return kapa, nil
+				},
+				Ticker: &Alert{},
+			},
+			args: args{
+				ctx:  context.Background(),
+				href: "/kapacitor/v1/tasks/howdy",
+				rule: chronograf.AlertRule{
+					ID: "howdy",
+					Query: &chronograf.QueryConfig{
+						Database:        "db",
+						RetentionPolicy: "rp",
+					},
+				},
+			},
+			resTask: client.Task{
+				ID:     "howdy",
+				Status: client.Disabled,
+				Link: client.Link{
+					Href: "/kapacitor/v1/tasks/howdy",
+				},
+			},
+			updateTaskOptions: &client.UpdateTaskOptions{
+				TICKscript: "",
+				Type:       client.StreamTask,
+				Status:     client.Disabled,
+				DBRPs: []client.DBRP{
+					{
+						Database:        "db",
+						RetentionPolicy: "rp",
+					},
+				},
+			},
+			want: &Task{
+				ID:         "howdy",
+				Href:       "/kapacitor/v1/tasks/howdy",
+				HrefOutput: "/kapacitor/v1/tasks/howdy/output",
+				Rule: chronograf.AlertRule{
+					ID:   "howdy",
+					Name: "howdy",
+				},
+			},
+			wantStatus: client.Disabled,
 		},
 	}
 	for _, tt := range tests {
 		kapa.ResTask = tt.resTask
-		kapa.Error = tt.resError
+		kapa.UpdateError = tt.resError
 		t.Run(tt.name, func(t *testing.T) {
 			c := &Client{
 				URL:        tt.fields.URL,
@@ -1008,6 +1067,9 @@ func TestClient_Update(t *testing.T) {
 			}
 			if !reflect.DeepEqual(kapa.UpdateTaskOptions, tt.updateTaskOptions) {
 				t.Errorf("Client.Update() = %v, want %v", kapa.UpdateTaskOptions, tt.updateTaskOptions)
+			}
+			if tt.wantStatus != kapa.LastStatus {
+				t.Errorf("Client.Update() = %v, want %v", kapa.LastStatus, tt.wantStatus)
 			}
 		})
 	}
@@ -1126,7 +1188,7 @@ func TestClient_Create(t *testing.T) {
 	}
 	for _, tt := range tests {
 		kapa.ResTask = tt.resTask
-		kapa.Error = tt.resError
+		kapa.CreateError = tt.resError
 		t.Run(tt.name, func(t *testing.T) {
 			c := &Client{
 				URL:        tt.fields.URL,

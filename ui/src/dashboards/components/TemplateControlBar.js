@@ -10,7 +10,7 @@ const TemplateControlBar = ({
   onSelectTemplate,
   onOpenTemplateManager,
   isOpen,
-}) =>
+}) => (
   <div className={classnames('template-control-bar', {show: isOpen})}>
     <div className="template-control--container">
       <div className="template-control--controls">
@@ -53,6 +53,7 @@ const TemplateControlBar = ({
       </button>
     </div>
   </div>
+)
 
 const {arrayOf, bool, func, shape, string} = PropTypes
 
