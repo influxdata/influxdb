@@ -83,9 +83,16 @@ const SideNav = React.createClass({
             />
           </NavBlock>
           <div className="sidebar--bottom">
-            <NavBlock icon="heart">
-              <NavHeader title="Woogles" />
-            </NavBlock>
+            <div className="sidebar--item">
+              <div className="sidebar--square">
+                <span className="sidebar--icon icon zap" />
+              </div>
+              <div className="sidebar-menu">
+                <div className="sidebar-menu--heading">
+                  Version: {VERSION}{/* eslint no-undef */}
+                </div>
+              </div>
+            </div>
             {showLogout
               ? <NavBlock icon="user" className="sidebar--item-last">
                   <NavHeader

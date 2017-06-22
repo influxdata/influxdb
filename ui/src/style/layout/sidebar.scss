@@ -151,6 +151,7 @@ $sidebar-menu--gutter: 18px;
   @include gradient-h($sidebar-menu--item-bg-hover,$sidebar-menu--item-bg-hover-accent);
   color: $sidebar-menu--item-text-hover;
 }
+.sidebar-menu--heading,
 .sidebar-menu--heading:link,
 .sidebar-menu--heading:visited,
 .sidebar-menu--heading:active,
