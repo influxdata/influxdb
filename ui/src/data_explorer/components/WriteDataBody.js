@@ -28,9 +28,9 @@ const WriteDataBody = ({
         : <div className="write-data-form--file">
             <input
               type="file"
-              onChange={handleFile}
+              onChange={e => handleFile(e, false)}
               className="write-data-form--upload"
-              ref={r => inputRef = r}
+              ref={r => (inputRef = r)}
               accept="text/*, application/gzip"
             />
             <button
