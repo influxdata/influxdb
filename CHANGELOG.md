@@ -4,7 +4,7 @@
 
 - [#8480](https://github.com/influxdata/influxdb/pull/8480): Change the default stats interval to 1 second instead of 10 seconds.
 - [#8466](https://github.com/influxdata/influxdb/issues/8466): illumos build broken on syscall.Mmap
-
+- [#8426](https://github.com/influxdata/influxdb/issues/8426): some collectd information that was split into separate measurements can now be grouped
 ## v1.3.0 [unreleased]
 
 ### Release Notes
