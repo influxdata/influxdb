@@ -45,8 +45,8 @@ type getExternalLinksResponse struct {
 }
 
 type CustomLink struct {
-	Name *string
-	Url  *string
+	Name string `json:"name,omitempty"`
+	Url  string `json:"url,omitempty"`
 }
 
 // AllRoutes is a handler that returns all links to resources in Chronograf server, as well as

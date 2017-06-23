@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
 	"log"
 	"math/rand"
 	"net"
@@ -81,7 +80,7 @@ type Server struct {
 
 	StatusFeedURL string `long:"status-feed-url" description:"URL of a JSON Feed to display as a News Feed on the client Status page." default:"https://www.influxdata.com/feed/json" env:"STATUS_FEED_URL"`
 
-	CustomLinks []string `long:"custom-links" description:"Custom links to be added to the client User menu" default:"foo:foo.com" default:"bar:bar.com" env:"CUSTOM_LINKS" env-delim:","`
+	CustomLinks map[string]string `long:"custom-link" description:"Custom link to be added to the client User menu" env:"CUSTOM_LINKS" env-delim:","`
 
 	Auth0Domain       string `long:"auth0-domain" description:"Subdomain of auth0.com used for Auth0 OAuth2 authentication" env:"AUTH0_DOMAIN"`
 	Auth0ClientID     string `long:"auth0-client-id" description:"Auth0 Client ID for OAuth2 support" env:"AUTH0_CLIENT_ID"`
@@ -97,49 +96,16 @@ type Server struct {
 	handler           http.Handler
 }
 
-type CustomLinkOption struct {
-	CustomLink map[string]string
-}
-
-type x struct {
-	CustomLink string
-}
-
-type CustomLinksOptions struct {
-	CustomLinks []CustomLinkOption
-}
-
-func parseCustomLinks(options []string) []CustomLink {
-	var customLinkOption CustomLinkOption
-	for i, customLink := range options {
-		customLinkOption.CustomLink = customLink
-		parser := flags.NewParser(&customLinkOption, flags.Default)
-		parser.Parse()
-		// 	customLinkOption := CustomLinkOption{}
-		fmt.Println(i, customLink)
-		// 	// var customLinks CustomLinks
-		//
-		// 	// // CustomLink{
-		// 	// // 	Name: "foo",
-		// 	// // 	Url:  "foo.com",
-		// 	// // }
-	}
-	fmt.Printf("%#+v", options)
-	// customLink := 		CustomLink{
-	// 		Name: "foo",
-	// 		Url:  "foo.com",
-	// 	}
-	// foo := "foo"
-	// foocom := "foo.com"
+// generateCustomLinks transforms CLI CustomLinks into a data structure that the client will expect
+func generateCustomLinks(links map[string]string) ([]CustomLink, error) {
 	var customLinks []CustomLink
-	// customLinks[0] = CustomLink
-	// 	{
-	// 		Name: &foo,
-	// 		Url:  &foocom,
-	// 	}
-
-	return customLinks
-
+	for name, link := range links {
+		customLinks = append(customLinks, CustomLink{
+			Name: name,
+			Url:  link,
+		})
+	}
+	return customLinks, nil
 }
 
 func provide(p oauth2.Provider, m oauth2.Mux, ok func() bool) func(func(oauth2.Provider, oauth2.Mux)) {
@@ -352,7 +318,10 @@ func (s *Server) Serve(ctx context.Context) error {
 	providerFuncs = append(providerFuncs, provide(s.genericOAuth(logger, auth)))
 	providerFuncs = append(providerFuncs, provide(s.auth0OAuth(logger, auth)))
 
-	customLinks := parseCustomLinks(s.CustomLinks)
+	customLinks, err := generateCustomLinks(s.CustomLinks)
+	if err != nil {
+		return err
+	}
 
 	s.handler = NewMux(MuxOpts{
 		Develop:       s.Develop,
