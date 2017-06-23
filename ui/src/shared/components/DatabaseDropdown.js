@@ -49,7 +49,7 @@ class DatabaseDropdown extends Component {
       }
 
       // system databases are those preceded with an '_'
-      const nonSystemDatabases = databases.filter((name) => !name.startsWith('_'))
+      const nonSystemDatabases = databases.filter((name) => name !== '_internal')
 
       this.setState({databases: nonSystemDatabases})
       const selectedDatabaseText = nonSystemDatabases.includes(database)
