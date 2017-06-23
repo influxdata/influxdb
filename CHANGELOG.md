@@ -1,5 +1,7 @@
 ## v1.3.4.0 [unreleased]
 ### Bug Fixes
+1. [#1612](https://github.com/influxdata/chronograf/pull/1612): Prevent users from being able to write to internal system databases
+
 ### Features
 1. [#1645](https://github.com/influxdata/chronograf/pull/1645): Add Auth0 as a supported OAuth2 provider
 
