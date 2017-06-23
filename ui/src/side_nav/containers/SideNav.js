@@ -13,7 +13,7 @@ import {DEFAULT_HOME_PAGE} from 'shared/constants'
 
 const {bool, shape, string} = PropTypes
 
-const V_NUMBER = VERSION /* eslint-disable no-undef */
+const V_NUMBER = VERSION // eslint-disable-line no-undef
 
 const SideNav = React.createClass({
   propTypes: {
