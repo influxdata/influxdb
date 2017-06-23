@@ -19,7 +19,7 @@ import (
 )
 
 func TestService_OpenClose(t *testing.T) {
-	service := NewTestService(1, time.Second, false)
+	service := NewTestService(1, time.Second, "split")
 
 	// Closing a closed service is fine.
 	if err := service.Service.Close(); err != nil {
@@ -114,7 +114,7 @@ func TestService_Open_TypesDBDir(t *testing.T) {
 func TestService_CreatesDatabase(t *testing.T) {
 	t.Parallel()
 
-	s := NewTestService(1, time.Second, false)
+	s := NewTestService(1, time.Second, "split")
 
 	s.WritePointsFn = func(string, string, models.ConsistencyLevel, []models.Point) error {
 		return nil
@@ -198,7 +198,7 @@ func TestService_BatchSize(t *testing.T) {
 
 	for _, batchSize := range batchSizes {
 		func() {
-			s := NewTestService(batchSize, time.Second, false)
+			s := NewTestService(batchSize, time.Second, "split")
 
 			pointCh := make(chan models.Point)
 			s.WritePointsFn = func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
@@ -261,12 +261,12 @@ func TestService_BatchSize(t *testing.T) {
 }
 
 // Test that the collectd service correctly batches points by BatchSize.
-func TestService_PluginTuple(t *testing.T) {
+func TestService_ParseMultiValuePlugin(t *testing.T) {
 	t.Parallel()
 
 	totalPoints := len(expPointsTupled)
 
-	s := NewTestService(1, time.Second, true)
+	s := NewTestService(1, time.Second, "join")
 
 	pointCh := make(chan models.Point, 1000)
 	s.WritePointsFn = func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
@@ -326,7 +326,7 @@ func TestService_BatchDuration(t *testing.T) {
 
 	totalPoints := len(expPoints)
 
-	s := NewTestService(5000, 250*time.Millisecond, false)
+	s := NewTestService(5000, 250*time.Millisecond, "split")
 
 	pointCh := make(chan models.Point, 1000)
 	s.WritePointsFn = func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
@@ -389,13 +389,13 @@ type TestService struct {
 	WritePointsFn func(string, string, models.ConsistencyLevel, []models.Point) error
 }
 
-func NewTestService(batchSize int, batchDuration time.Duration, useTuple bool) *TestService {
+func NewTestService(batchSize int, batchDuration time.Duration, parseOpt string) *TestService {
 	c := Config{
-		BindAddress:    "127.0.0.1:0",
-		Database:       "collectd_test",
-		BatchSize:      batchSize,
-		BatchDuration:  toml.Duration(batchDuration),
-		UsePluginTuple: useTuple,
+		BindAddress:           "127.0.0.1:0",
+		Database:              "collectd_test",
+		BatchSize:             batchSize,
+		BatchDuration:         toml.Duration(batchDuration),
+		ParseMultiValuePlugin: parseOpt,
 	}
 
 	s := &TestService{

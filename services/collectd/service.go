@@ -355,7 +355,7 @@ func (s *Service) handleMessage(buffer []byte) {
 	}
 	var points []models.Point
 	for _, valueList := range valueLists {
-		if s.Config.UsePluginTuple {
+		if s.Config.ParseMultiValuePlugin == "join" {
 			points = s.UnmarshalValueListPacked(valueList)
 		} else {
 			points = s.UnmarshalValueList(valueList)
