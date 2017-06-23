@@ -140,6 +140,14 @@ $sidebar-logo-color: $g8-storm;
     &-last {
       position: absolute;
       bottom: 0;
+
+      .sidebar__menu-wrapper {
+        bottom: 0;
+        top: initial;
+      }
+      .sidebar__menu-route {
+        order: 1;
+      }
     }
   }
 
