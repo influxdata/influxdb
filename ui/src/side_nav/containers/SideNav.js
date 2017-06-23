@@ -13,6 +13,8 @@ import {DEFAULT_HOME_PAGE} from 'shared/constants'
 
 const {bool, shape, string} = PropTypes
 
+const V_NUMBER = VERSION /* eslint-disable no-undef */
+
 const SideNav = React.createClass({
   propTypes: {
     params: shape({
@@ -89,7 +91,7 @@ const SideNav = React.createClass({
               </div>
               <div className="sidebar-menu">
                 <div className="sidebar-menu--heading">
-                  Version: {VERSION}{/* eslint no-undef */}
+                  Version: {V_NUMBER}
                 </div>
               </div>
             </div>
