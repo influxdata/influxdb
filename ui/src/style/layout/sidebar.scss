@@ -15,7 +15,7 @@ $sidebar--logo-color-hover: $c-laser;
 
 $sidebar--item-bg: transparent;
 $sidebar--item-bg-hover: $c-pool;
-$sidebar--item-bg-active: $g3-castle;
+$sidebar--item-bg-active: $g4-onyx;
 $sidebar--icon: $g11-sidewalk;
 $sidebar--icon-hover: $g20-white;
 $sidebar--icon-active: $g20-white;
@@ -71,13 +71,21 @@ $sidebar-menu--gutter: 18px;
   left: 50%;
   transform: translate(-50%,-50%);
   font-size: $sidebar--width * 0.4222;
+  transition:
+    text-shadow 0.4s ease;
 }
 /*
   Sidebar Item Active State
 */
 .sidebar--item.active {
   .sidebar--square {background-color: $sidebar--item-bg-active;}
-  .sidebar--icon {color: $sidebar--icon-active;}
+  .sidebar--icon {
+    color: $sidebar--icon-active;
+    text-shadow:
+      0 0 9px $c-laser,
+      0 0 15px $c-ocean,
+      0 0 20px $c-amethyst;
+  }
 }
 
 /*
@@ -89,6 +97,12 @@ $sidebar-menu--gutter: 18px;
   .sidebar--square {background-color: $sidebar--item-bg-hover;}
   .sidebar--icon {color: $sidebar--icon-hover;}
   .sidebar-menu {display: flex;}
+}
+.sidebar--item.active:hover .sidebar--icon {
+  text-shadow:
+    0 0 9px $c-yeti,
+    0 0 15px $c-hydrogen,
+    0 0 20px $c-laser;
 }
 /*
   Sidebar Logo Square
