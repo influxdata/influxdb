@@ -358,6 +358,11 @@
   # UDP Read buffer size, 0 means OS default. UDP listener will fail if set above OS max.
   # read-buffer = 0
 
+  # Multi-value plugins can be handled two ways.  
+  # "split" will parse and store the multi-value plugin data into separate measurements
+  # "join" will parse and store the multi-value plugin as a single multi-value measurement.  
+  # "split" is the default behavior for backward compatability with previous versions of influxdb.  
+  # parse-multivalue-plugin = "split"
 ###
 ### [opentsdb]
 ###

@@ -13,6 +13,8 @@ Each collectd input allows the binding address, target database, and target rete
 
 Each collectd input also performs internal batching of the points it receives, as batched writes to the database are more efficient. The default batch size is 1000, pending batch factor is 5, with a batch timeout of 1 second. This means the input will write batches of maximum size 1000, but if a batch has not reached 1000 points within 1 second of the first point being added to a batch, it will emit that batch regardless of size. The pending batch factor controls how many batches can be in memory at once, allowing the input to transmit a batch, while still building other batches.
 
+Multi-value plugins can be handled two ways.  Setting parse-multivalue-plugin to "split" will parse and store the multi-value plugin data (e.g., df free:5000,used:1000) into separate measurements (e.g., (df_free, value=5000) (df_used, value=1000)), while "join" will parse and store the multi-value plugin as a single multi-value measurement (e.g., (df, free=5000,used=1000)).  "split" is the default behavior for backward compatability with previous versions of influxdb.   
+
 The path to the collectd types database file may also be set.
 
 ## Large UDP packets
@@ -34,4 +36,5 @@ Please note that UDP packets larger than the standard size of 1452 are dropped a
   typesdb = "/usr/share/collectd/types.db"
   security-level = "none" # "none", "sign", or "encrypt"
   auth-file = "/etc/collectd/auth_file"
+  parse-multivalue-plugin = "split"  # "split" or "join"
 ```
