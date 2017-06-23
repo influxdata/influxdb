@@ -231,16 +231,18 @@ func TestService_BatchSize(t *testing.T) {
 				t.Fatalf("only sent %d of %d bytes", n, len(testData))
 			}
 
-			points := []models.Point{}
+			var points []models.Point
+			timer := time.NewTimer(time.Second)
 		Loop:
 			for {
+				timer.Reset(time.Second)
 				select {
 				case p := <-pointCh:
 					points = append(points, p)
 					if len(points) == totalPoints {
 						break Loop
 					}
-				case <-time.After(time.Second):
+				case <-timer.C:
 					t.Logf("exp %d points, got %d", totalPoints, len(points))
 					t.Fatal("timed out waiting for points from collectd service")
 				}
@@ -260,7 +262,8 @@ func TestService_BatchSize(t *testing.T) {
 	}
 }
 
-// Test that the collectd service correctly batches points by BatchSize.
+// Test that the parse-multi-value-plugin config works properly.
+// The other tests already verify the 'split' config, so this only runs the 'join' test.
 func TestService_ParseMultiValuePlugin(t *testing.T) {
 	t.Parallel()
 
@@ -295,17 +298,19 @@ func TestService_ParseMultiValuePlugin(t *testing.T) {
 		t.Fatalf("only sent %d of %d bytes", n, len(testData))
 	}
 
-	points := []models.Point{}
+	var points []models.Point
 
+	timer := time.NewTimer(time.Second)
 Loop:
 	for {
+		timer.Reset(time.Second)
 		select {
 		case p := <-pointCh:
 			points = append(points, p)
 			if len(points) == totalPoints {
 				break Loop
 			}
-		case <-time.After(time.Second):
+		case <-timer.C:
 			t.Logf("exp %d points, got %d", totalPoints, len(points))
 			t.Fatal("timed out waiting for points from collectd service")
 		}
@@ -355,16 +360,18 @@ func TestService_BatchDuration(t *testing.T) {
 		t.Fatalf("only sent %d of %d bytes", n, len(testData))
 	}
 
-	points := []models.Point{}
+	var points []models.Point
+	timer := time.NewTimer(time.Second)
 Loop:
 	for {
+		timer.Reset(time.Second)
 		select {
 		case p := <-pointCh:
 			points = append(points, p)
 			if len(points) == totalPoints {
 				break Loop
 			}
-		case <-time.After(time.Second):
+		case <-timer.C:
 			t.Logf("exp %d points, got %d", totalPoints, len(points))
 			t.Fatal("timed out waiting for points from collectd service")
 		}

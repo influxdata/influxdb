@@ -390,17 +390,17 @@ func (s *Service) writePoints() {
 	}
 }
 
-// UnmarshalValueListPacked is an alternative to the original UnmarshalValueList
+// UnmarshalValueListPacked is an alternative to the original UnmarshalValueList.
 // The difference is that the original provided measurements like (PLUGIN_DSNAME, ["value",xxx])
-// while this one will provide measurements like (PLUGIN, {["DSNAME",xxx]})
-// this effectively joins collectd data that should go together, such as:
-//  (df, {["used",1000],["free",2500]})
+// while this one will provide measurements like (PLUGIN, {["DSNAME",xxx]}).
+// This effectively joins collectd data that should go together, such as:
+// (df, {["used",1000],["free",2500]}).
 func (s *Service) UnmarshalValueListPacked(vl *api.ValueList) []models.Point {
 	timestamp := vl.Time.UTC()
 
 	var name = vl.Identifier.Plugin
-	tags := make(map[string]string)
-	fields := make(map[string]interface{})
+	tags := make(map[string]string, 4)
+	fields := make(map[string]interface{}, len(vl.Values))
 
 	if vl.Identifier.Host != "" {
 		tags["host"] = vl.Identifier.Host
@@ -415,9 +415,9 @@ func (s *Service) UnmarshalValueListPacked(vl *api.ValueList) []models.Point {
 		tags["type_instance"] = vl.Identifier.TypeInstance
 	}
 
-	for i := range vl.Values {
+	for i, v := range vl.Values {
 		fieldName := vl.DSName(i)
-		switch value := vl.Values[i].(type) {
+		switch value := v.(type) {
 		case api.Gauge:
 			fields[fieldName] = float64(value)
 		case api.Derive:
@@ -431,9 +431,9 @@ func (s *Service) UnmarshalValueListPacked(vl *api.ValueList) []models.Point {
 	if err != nil {
 		s.Logger.Info(fmt.Sprintf("Dropping point %v: %v", name, err))
 		atomic.AddInt64(&s.stats.InvalidDroppedPoints, 1)
+		return nil
 	}
 
-	// return as an array for compatability with rest of API
 	return []models.Point{p}
 }
 
@@ -445,8 +445,8 @@ func (s *Service) UnmarshalValueList(vl *api.ValueList) []models.Point {
 	for i := range vl.Values {
 		var name string
 		name = fmt.Sprintf("%s_%s", vl.Identifier.Plugin, vl.DSName(i))
-		tags := make(map[string]string)
-		fields := make(map[string]interface{})
+		tags := make(map[string]string, 4)
+		fields := make(map[string]interface{}, 1)
 
 		// Convert interface back to actual type, then to float64
 		switch value := vl.Values[i].(type) {

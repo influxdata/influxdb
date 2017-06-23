@@ -4,11 +4,11 @@
 
 #### `[collectd]` Section
 
-* `parse-multivalue-plugin` was added with a default of `split`.  When set to `split`, multivalue plugin data will be split into separate measurements.  When set to `join`, multivalue plugin will be stored as a single multi-value measurement.  
+* `parse-multivalue-plugin` was added with a default of `split`.  When set to `split`, multivalue plugin data (e.g. df free:5000,used:1000) will be split into separate measurements (e.g., (df_free, value=5000) (df_used, value=1000)).  When set to `join`, multivalue plugin will be stored as a single multi-value measurement (e.g., (df, free=5000,used=1000)).  
 
 ### Features
 
-- [#8426] (https://github.com/influxdata/influxdb/issues/8426): Add `parse-multivalue-plugin` to allow users to choose how multivalue plugins should be handled by the collectd service.  
+- [#8426](https://github.com/influxdata/influxdb/issues/8426): Add `parse-multivalue-plugin` to allow users to choose how multivalue plugins should be handled by the collectd service.  
 
 ### Bugfixes
 
@@ -56,10 +56,6 @@ The following new configuration options are available.
 #### `[continuous_queries]` Section
 
 * `query-stats-enabled` was added with a default of `false`. When set to `true`, continuous query execution statistics are written to the default monitor store.
-
-#### `[collectd]` Section
-
-* `parse-multivalue-plugin` was added with a default of `split`.  When set to `split`, multivalue plugin data will be split into separate measurements.  When set to `join`, multivalue plugin will be stored as a single multi-value measurement.  
 
 ### Features
 

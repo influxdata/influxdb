@@ -49,7 +49,7 @@ const (
 	// DefaultAuthFile is the default location of the user/password file.
 	DefaultAuthFile = "/etc/collectd/auth_file"
 
-	// DefaultParseMultiValuePlugin is false, defaulting to version <1.2 where plugin values were split into separate rows
+	// DefaultParseMultiValuePlugin is "split", defaulting to version <1.2 where plugin values were split into separate rows
 	DefaultParseMultiValuePlugin = "split"
 )
 
@@ -138,7 +138,7 @@ func (c *Config) Validate() error {
 	switch c.ParseMultiValuePlugin {
 	case "split", "join":
 	default:
-		return errors.New("Invalid value for parse-multivalue-plugin. Valid options are \"split\" and \"join\"")
+		return errors.New(`Invalid value for parse-multivalue-plugin. Valid options are "split" and "join"`)
 	}
 
 	return nil
