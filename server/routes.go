@@ -40,17 +40,24 @@ type getRoutesResponse struct {
 }
 
 type getExternalLinksResponse struct {
-	StatusFeed *string `json:"statusFeed,omitempty"` // Location of the a JSON Feed for client's Status page News Feed
+	StatusFeed  *string      `json:"statusFeed,omitempty"` // Location of the a JSON Feed for client's Status page News Feed
+	CustomLinks []CustomLink `json:"custom,omitempty"`     // Any custom external links for client's User menu
+}
+
+type CustomLink struct {
+	Name *string
+	Url  *string
 }
 
 // AllRoutes is a handler that returns all links to resources in Chronograf server, as well as
 // external links for the client to know about, such as for JSON feeds or custom side nav buttons.
 // Optionally, routes for authentication can be returned.
 type AllRoutes struct {
-	AuthRoutes []AuthRoute // Location of all auth routes. If no auth, this can be empty.
-	LogoutLink string      // Location of the logout route for all auth routes. If no auth, this can be empty.
-	StatusFeed string      // External link to the JSON Feed for the News Feed on the client's Status Page
-	Logger     chronograf.Logger
+	AuthRoutes  []AuthRoute  // Location of all auth routes. If no auth, this can be empty.
+	LogoutLink  string       // Location of the logout route for all auth routes. If no auth, this can be empty.
+	StatusFeed  string       // External link to the JSON Feed for the News Feed on the client's Status Page
+	CustomLinks []CustomLink // Any custom external links for client's User menu
+	Logger      chronograf.Logger
 }
 
 // ServeHTTP returns all top level routes within chronograf
@@ -63,7 +70,8 @@ func (a *AllRoutes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Dashboards: "/chronograf/v1/dashboards",
 		Auth:       make([]AuthRoute, len(a.AuthRoutes)), // We want to return at least an empty array, rather than null
 		ExternalLinks: getExternalLinksResponse{
-			StatusFeed: &a.StatusFeed,
+			StatusFeed:  &a.StatusFeed,
+			CustomLinks: a.CustomLinks,
 		},
 	}
 

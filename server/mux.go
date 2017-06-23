@@ -29,6 +29,7 @@ type MuxOpts struct {
 	Auth          oauth2.Authenticator // Auth is used to authenticate and authorize
 	ProviderFuncs []func(func(oauth2.Provider, oauth2.Mux))
 	StatusFeedURL string // JSON Feed URL for the client Status page News Feed
+	CustomLinks   []CustomLink
 }
 
 // NewMux attaches all the route handlers; handler returned servers chronograf.
