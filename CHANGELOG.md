@@ -1,10 +1,20 @@
 ## v1.4.0 [unreleased]
 
+### Configuration Changes
+
+#### `[collectd]` Section
+
+* `parse-multivalue-plugin` was added with a default of `split`.  When set to `split`, multivalue plugin data will be split into separate measurements.  When set to `join`, multivalue plugin will be stored as a single multi-value measurement.  
+
+### Features
+
+- [#8426] (https://github.com/influxdata/influxdb/issues/8426): Add `parse-multivalue-plugin` to allow users to choose how multivalue plugins should be handled by the collectd service.  
+
 ### Bugfixes
 
 - [#8480](https://github.com/influxdata/influxdb/pull/8480): Change the default stats interval to 1 second instead of 10 seconds.
 - [#8466](https://github.com/influxdata/influxdb/issues/8466): illumos build broken on syscall.Mmap
-- [#8426](https://github.com/influxdata/influxdb/issues/8426): some collectd information that was split into separate measurements can now be grouped
+
 ## v1.3.0 [unreleased]
 
 ### Release Notes
@@ -46,6 +56,10 @@ The following new configuration options are available.
 #### `[continuous_queries]` Section
 
 * `query-stats-enabled` was added with a default of `false`. When set to `true`, continuous query execution statistics are written to the default monitor store.
+
+#### `[collectd]` Section
+
+* `parse-multivalue-plugin` was added with a default of `split`.  When set to `split`, multivalue plugin data will be split into separate measurements.  When set to `join`, multivalue plugin will be stored as a single multi-value measurement.  
 
 ### Features
 
