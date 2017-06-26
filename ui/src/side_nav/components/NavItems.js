@@ -17,7 +17,7 @@ const NavListItem = React.createClass({
 
     return (
       <Link
-        className={classnames('sidebar__menu-item', {active: isActive})}
+        className={classnames('sidebar-menu--item', {active: isActive})}
         to={link}
       >
         {children}
@@ -38,11 +38,11 @@ const NavHeader = React.createClass({
     // Some nav items, such as Logout, need to hit an external link rather
     // than simply route to an internal page. Anchor tags serve that purpose.
     return useAnchor
-      ? <a className="sidebar__menu-route" href={link}>
-          <h3 className="sidebar__menu-heading">{title}</h3>
+      ? <a className="sidebar-menu--heading" href={link}>
+          {title}
         </a>
-      : <Link className="sidebar__menu-route" to={link}>
-          <h3 className="sidebar__menu-heading">{title}</h3>
+      : <Link className="sidebar-menu--heading" to={link}>
+          {title}
         </Link>
   },
 })
@@ -54,11 +54,10 @@ const NavBlock = React.createClass({
     icon: string.isRequired,
     location: string,
     className: string,
-    wrapperClassName: string,
   },
 
   render() {
-    const {location, className, wrapperClassName} = this.props
+    const {location, className} = this.props
 
     const isActive = React.Children.toArray(this.props.children).find(child => {
       return location.startsWith(child.props.link)
@@ -74,34 +73,30 @@ const NavBlock = React.createClass({
 
     return (
       <div
-        className={classnames('sidebar__square', className, {active: isActive})}
+        className={classnames('sidebar--item', className, {active: isActive})}
       >
-        {this.renderLink()}
-        <div className={wrapperClassName || 'sidebar__menu-wrapper'}>
-          <div className="sidebar__menu">
-            {children}
-          </div>
+        {this.renderSquare()}
+        <div className="sidebar-menu">
+          {children}
         </div>
       </div>
     )
   },
 
-  renderLink() {
+  renderSquare() {
     const {link, icon} = this.props
 
     if (!link) {
       return (
-        <div className="sidebar__icon">
-          <span className={`icon ${icon}`} />
+        <div className="sidebar--square">
+          <div className={`sidebar--icon icon ${icon}`} />
         </div>
       )
     }
 
     return (
-      <Link className="sidebar__menu-route" to={link}>
-        <div className="sidebar__icon">
-          <span className={`icon ${icon}`} />
-        </div>
+      <Link className="sidebar--square" to={link}>
+        <div className={`sidebar--icon icon ${icon}`} />
       </Link>
     )
   },
@@ -123,7 +118,7 @@ const NavBar = React.createClass({
 
       return child
     })
-    return <aside className="sidebar">{children}</aside>
+    return <nav className="sidebar">{children}</nav>
   },
 })
 

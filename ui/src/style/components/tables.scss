@@ -195,6 +195,21 @@ $table-tab-scrollbar-height: 6px;
     .generic-empty-state {height: 100%;}
   }
 }
+
+/*
+    Misc
+    ----------------------------------------------
+*/
+.table .empty-string {
+  font-weight: 500;
+  color: $g8-storm;
+  font-style: italic;
+}
+.table .table--temp-var {
+  color: $c-comet;
+  font-weight: 600;
+}
+
 /*
     Alert History "Table"
     ----------------------------------------------

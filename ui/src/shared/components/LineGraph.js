@@ -131,7 +131,17 @@ export default React.createClass({
         strokeWidth: 1.5,
       },
     }
-    const singleStatLineColor = ['#7A65F2']
+    const singleStatLineColors = [
+      '#7A65F2',
+      '#FFD255',
+      '#7CE490',
+      '#F95F53',
+      '#4591ED',
+      '#B1B6FF',
+      '#FFF6B8',
+      '#C6FFD0',
+      '#6BDFFF',
+    ]
 
     let roundedValue
     if (showSingleStat) {
@@ -152,7 +162,7 @@ export default React.createClass({
         <Dygraph
           containerStyle={{width: '100%', height: '100%'}}
           overrideLineColors={
-            showSingleStat ? singleStatLineColor : overrideLineColors
+            showSingleStat ? singleStatLineColors : overrideLineColors
           }
           isGraphFilled={showSingleStat ? false : isGraphFilled}
           isBarGraph={isBarGraph}

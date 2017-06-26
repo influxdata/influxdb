@@ -55,7 +55,11 @@ ul.dropdown-menu {
   .fancy-scroll--thumb-v { @include gradient-v($c-neutrino,$c-laser); }
 }
 
-/* Hacky Fix to make this work in Safari */
+/* Hacky fix to hide strange white lines in chrome */
+.fancy-scroll--view {
+  margin-right: -16px !important
+}
+/* Hacky Fix to make fancy scrollbars work in Safari */
 .query-builder--list {
   position: relative;
 

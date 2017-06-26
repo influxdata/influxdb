@@ -12,7 +12,7 @@
 }
 .chronograf-root > .page-spinner {
    // Center the spinner based on the main content window, not the entire screen
-  left: calc(50% + #{$sidebar-width});
+  left: calc(50% + #{$sidebar--width});
 }
 
 @keyframes pageSpinner {

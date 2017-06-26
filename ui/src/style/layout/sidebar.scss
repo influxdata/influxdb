@@ -3,285 +3,177 @@
     ----------------------------------------------
 */
 
-$sidebar-width: 60px;
-$sidebar-menu-gutter: 30px;
-$sidebar-menu-indent: 13px;
+$sidebar--width: 60px;
 
-$sidebar-hover: $g8-storm;
-$sidebar-item-hover: $g7-graphite;
-$sidebar-lighter: $g8-storm;
-$sidebar-light: $g7-graphite;
-$sidebar-dark: $g4-onyx;
-$sidebar-icon: $g11-sidewalk;
-$sidebar-text: $g13-mist;
-$sidebar-icon-hover: $g20-white;
-$sidebar-icon-active: $g20-white;
-$sidebar-active-bg: $c-pool;
-$sidebar-active-accent: $c-laser;
-$sidebar-logo-bg: $g17-whisper;
-$sidebar-logo-color: $g8-storm;
+$sidebar--gradient-start: $g7-graphite;
+$sidebar--gradient-end: $g4-onyx;
 
-// Sidebar styles
+$sidebar--logo-bg: $g19-ghost;
+$sidebar--logo-color: $c-pool;
+$sidebar--logo-bg-hover: $g20-white;
+$sidebar--logo-color-hover: $c-laser;
+
+$sidebar--item-bg: transparent;
+$sidebar--item-bg-hover: $c-pool;
+$sidebar--item-bg-active: $g4-onyx;
+$sidebar--icon: $g11-sidewalk;
+$sidebar--icon-hover: $g20-white;
+$sidebar--icon-active: $g20-white;
+
+$sidebar-menu--bg: $c-pool;
+$sidebar-menu--bg-accent: $c-comet;
+$sidebar-menu--item-bg: $c-ocean;
+$sidebar-menu--item-bg-accent: $c-star;
+$sidebar-menu--item-bg-hover: $c-laser;
+$sidebar-menu--item-bg-hover-accent: $c-potassium;
+$sidebar-menu--item-text: $c-neutrino;
+$sidebar-menu--item-text-hover: $g20-white;
+$sidebar-menu--item-text-active: $g20-white;
+$sidebar-menu--gutter: 18px;
+
 .sidebar {
   display: flex;
   flex-direction: column;
-  width: $sidebar-width;
-  @include gradient-v($sidebar-light,$sidebar-dark);
+  width: $sidebar--width;
+  @include gradient-v($sidebar--gradient-start,$sidebar--gradient-end);
+}
+.sidebar--bottom {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  width: $sidebar--width;
+}
 
-  &__logo {
-    width: $sidebar-width;
-    height: $sidebar-width;
-    background-color: $sidebar-logo-bg;
-    position: relative;
-    color: $sidebar-logo-color;
-
-    span.icon {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%,-50%);
-      font-size: $sidebar-width * 0.4222;
-    }
+/*
+    Sidebar Items
+    ----------------------------------------------
+*/
+.sidebar--item {
+  width: $sidebar--width;
+  height: $sidebar--width;
+  position: relative;
+}
+.sidebar--square {
+  display: block;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background-color: $sidebar--item-bg;
+  transition: none;
+}
+.sidebar--icon {
+  position: absolute;
+  color: $sidebar--icon;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%,-50%);
+  font-size: $sidebar--width * 0.4222;
+  transition:
+    text-shadow 0.4s ease;
+}
+/*
+  Sidebar Item Active State
+*/
+.sidebar--item.active {
+  .sidebar--square {background-color: $sidebar--item-bg-active;}
+  .sidebar--icon {
+    color: $sidebar--icon-active;
+    text-shadow:
+      0 0 9px $c-laser,
+      0 0 15px $c-ocean,
+      0 0 20px $c-amethyst;
   }
+}
 
-  &__icon {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    transition:
-      background-color 0.25s ease,
-      color 0.25s ease;
-    color: $sidebar-icon;
+/*
+  Sidebar Item Hover State
+*/
+.sidebar--item:hover {
+  cursor: pointer;
 
-    span.icon {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%,-50%);
-      font-size: $sidebar-width * 0.4222;
-    }
+  .sidebar--square {background-color: $sidebar--item-bg-hover;}
+  .sidebar--icon {color: $sidebar--icon-hover;}
+  .sidebar-menu {display: flex;}
+}
+.sidebar--item.active:hover .sidebar--icon {
+  text-shadow:
+    0 0 9px $c-yeti,
+    0 0 15px $c-hydrogen,
+    0 0 20px $c-laser;
+}
+/*
+  Sidebar Logo Square
+*/
+.sidebar--square.sidebar--logo {
+  background-color: $sidebar--logo-bg;
+  .sidebar--icon {color: $sidebar--logo-color;}
+}
+.sidebar--item:hover .sidebar--square.sidebar--logo {
+  background-color: $sidebar--logo-bg-hover;
+  .sidebar--icon {color: $sidebar--logo-color-hover;}
+}
+
+/*
+    Sidebar Sub Menus
+    ----------------------------------------------
+*/
+.sidebar-menu {
+  position: absolute;
+  top: 0;
+  left: 100%;
+  border-radius: 0 $radius $radius 0;
+  @include gradient-h($sidebar-menu--bg,$sidebar-menu--bg-accent);
+  transition: opacity 0.25s ease;
+  display: none;
+  flex-direction: column;
+}
+.sidebar-menu--heading,
+.sidebar-menu--item {
+  width: 100%;
+  white-space: nowrap;
+  display: block;
+  @include no-user-select();
+  &:hover {
+    cursor: pointer;
   }
+}
+.sidebar-menu--item:link,
+.sidebar-menu--item:active,
+.sidebar-menu--item:visited {
+  color: $sidebar-menu--item-text;
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 500;
+  position: relative;
+  padding: 4px $sidebar-menu--gutter;
+  transition: none;
 
-  &__square {
-    z-index: 999;
-    width: $sidebar-width;
-    height: $sidebar-width;
-    background-color: transparent;
-    position: relative;
-    color: $sidebar-icon;
-
-    /* Here for specificity issues */
-    .sidebar__icon {
-      &:link,
-      &:active,
-      &:visited {
-        transition:
-          background-color 0.25s ease,
-          color 0.25s ease;
-        color: $sidebar-icon;
-      }
-    }
-
-    &:hover {
-      cursor: pointer;
-
-      .sidebar__icon {
-        color: $sidebar-icon-hover;
-        background-color: $sidebar-hover;
-      }
-
-      /* Show menu on hover */
-      .sidebar__menu-wrapper,
-      .sidebar__menu-wrapper-bottom {
-        visibility: visible;
-      }
-      .sidebar__menu {
-        opacity: 1;
-      }
-    }
-
-    /* Active Indicator */
-    &:after {
-      content: '';
-      position: absolute;
-      top: 50%;
-      left: 0;
-      width: 4px;
-      height: 100%;
-      transform: translateY(-50%) scale(1,0);
-      background-color: $c-pool;
-      z-index: 999;
-      backface-visibility: hidden;
-      transition:
-        transform 0.4s ease;
-    }
-
-    /* Active State Styles */
-    &.active {
-      &:after {
-        transform: translateY(-50%) scale(1,1);
-        transition:
-          transform 0.31s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-      }
-
-      .sidebar__icon {
-        color: $sidebar-icon-active;
-
-        &:link,
-        &:active,
-        &:visited,
-        &:hover {
-          color: $sidebar-icon-active;
-        }
-      }
-    }
-    &-last {
-      position: absolute;
-      bottom: 0;
-    }
-  }
-
-  &__menu {
-    border-radius: 0 $radius $radius 0;
-    background: $sidebar-hover;
-    opacity: 0;
-    transition: opacity 0.25s ease;
-    display: flex;
-    flex-direction: column;
-    list-style: none;
-
-    &-wrapper {
-      position: absolute;
-      top: 0;
-      left: 100%;
-      z-index: 999;
-      visibility: hidden;
-      display: flex;
-      transition: all 0.25s ease;
-    }
-    &-wrapper-bottom {
-      position: absolute;
-      bottom: 0;
-      left: 100%;
-      z-index: 999;
-      visibility: hidden;
-      display: flex;
-      transition: all 0.25s ease;
-    }
-  }
-
-  &__menu-heading,
-  &__menu-item {
-    width: 100%;
-    white-space: nowrap;
-    margin: 0;
-    display: block;
-    @include no-user-select();
-    &:hover {
-      cursor: pointer;
-    }
-  }
-
-  &__menu-item {
-    color: $sidebar-text;
-    font-size: 15px;
-    line-height: 22px;
-    font-weight: 500;
-    position: relative;
-    padding: 4px $sidebar-menu-gutter;
-    transition:
-          color 0.25s ease,
-          background-color 0.25s ease;
-
-    // Overriding link styles
-    &:link,
-    &:active,
-    &:visited {
-      color: $sidebar-text;
-      font-weight: 500;
-      transition:
-          color 0.25s ease,
-          background-color 0.25s ease;
-    }
-
-    // Rounding top outside corner to match container
-    &:first-child {
-      border-top-right-radius: $radius;
-    }
-
-    // Rounding bottom outside corner of match container
-    &:last-child {
-      border-bottom-right-radius: $radius;
-    }
-
-    // Used for sub-navigation
-    small {
-      font-size: 13px;
-      border-left: 2px solid $sidebar-icon;
-      padding-left: $sidebar-menu-indent;
-      display: inline-block;
-      transition: border-color 0.25s ease;
-    }
-    // Invisible until item is active, indicates active item
-    &:after {
-      position: absolute;
-      top: 50%;
-      left: $sidebar-menu-gutter /2;
-      content: '';
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background-color: transparent;
-      transform: translate(-50%,-50%);
-    }
-    &:hover {
-      background-color: $sidebar-item-hover;
-      color: $sidebar-icon-hover;
-
-      small {
-        border-color: $sidebar-icon-hover;
-      }
-      // Emphasize rename icon on hover
-      .js-open-rename-cluster-modal {
-        opacity: 1;
-      }
-    }
-    &.active {
-      @include gradient-h($sidebar-active-bg,$sidebar-active-accent);
-      color: $sidebar-icon-hover;
-
-      &:link,
-      &:active,
-      &:visited {
-        color: $sidebar-icon-hover;
-      }
-
-      // Show indicator
-      &:after {
-        background-color: $sidebar-icon-active;
-      }
-
-      // Show rename icon when active
-      .js-open-rename-cluster-modal {
-        background-color: $c-laser;
-        opacity: 1;
-
-        &:hover {
-          background-color: $c-hydrogen;
-        }
-      }
-    }
-  }
-
-  &__menu-heading {
-    color: $g20-white;
-    height: $sidebar-width;
-    line-height: $sidebar-width;
-    font-size: 17px;
-    text-transform: uppercase;
-    font-weight: 400;
-    padding: 0px $sidebar-menu-gutter;
-  }
+  // Rounding bottom outside corner of match container
+  &:last-child {border-bottom-right-radius: $radius;}
+}
+.sidebar-menu--item.active:link,
+.sidebar-menu--item.active:active,
+.sidebar-menu--item.active:visited {
+  @include gradient-h($sidebar-menu--item-bg,$sidebar-menu--item-bg-accent);
+  color: $sidebar-menu--item-text-active;
+}
+.sidebar-menu--item:hover,
+.sidebar-menu--item.active:hover {
+  @include gradient-h($sidebar-menu--item-bg-hover,$sidebar-menu--item-bg-hover-accent);
+  color: $sidebar-menu--item-text-hover;
+}
+.sidebar-menu--heading,
+.sidebar-menu--heading:link,
+.sidebar-menu--heading:visited,
+.sidebar-menu--heading:active,
+.sidebar-menu--heading:hover, {
+  color: $g20-white;
+  height: $sidebar--width;
+  line-height: $sidebar--width;
+  font-size: 19px;
+  font-weight: 400;
+  padding: 0px $sidebar-menu--gutter;
 }
