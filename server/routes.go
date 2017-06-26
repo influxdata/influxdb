@@ -1,7 +1,6 @@
 package server
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/influxdata/chronograf"
@@ -55,8 +54,7 @@ type AllRoutes struct {
 func (a *AllRoutes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	customLinks, err := NewCustomLinks(a.CustomLinks)
 	if err != nil {
-		msg := fmt.Sprintf("Invalid CustomLinks input: %v", customLinks)
-		Error(w, http.StatusInternalServerError, msg, a.Logger)
+		Error(w, http.StatusInternalServerError, err.Error(), a.Logger)
 		return
 	}
 
