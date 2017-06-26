@@ -1,6 +1,8 @@
 package oauth2
 
 import (
+	"encoding/json"
+	"net/http"
 	"net/url"
 
 	"github.com/influxdata/chronograf"
@@ -8,9 +10,38 @@ import (
 
 type Auth0 struct {
 	Generic
+	Organizations map[string]bool // the set of allowed organizations users may belong to
 }
 
-func NewAuth0(auth0Domain, clientID, clientSecret, redirectURL string, logger chronograf.Logger) (Auth0, error) {
+func (a *Auth0) PrincipalID(provider *http.Client) (string, error) {
+	type Account struct {
+		Email        string `json:"email"`
+		Organization string `json:"organization"`
+	}
+
+	resp, err := provider.Get(a.Generic.APIURL)
+	if err != nil {
+		return "", err
+	}
+
+	defer resp.Body.Close()
+	act := Account{}
+	if err = json.NewDecoder(resp.Body).Decode(&act); err != nil {
+		return "", err
+	}
+
+	// check for organization membership if required
+	if len(a.Organizations) > 0 && !a.Organizations[act.Organization] {
+		a.Logger.
+			WithField("org", act.Organization).
+			Error(ErrOrgMembership)
+
+		return "", ErrOrgMembership
+	}
+	return act.Email, nil
+}
+
+func NewAuth0(auth0Domain, clientID, clientSecret, redirectURL string, organizations []string, logger chronograf.Logger) (Auth0, error) {
 	domain, err := url.Parse(auth0Domain)
 	if err != nil {
 		return Auth0{}, err
@@ -27,7 +58,7 @@ func NewAuth0(auth0Domain, clientID, clientSecret, redirectURL string, logger ch
 	domain.Path = "/userinfo"
 	apiURL := domain.String()
 
-	return Auth0{
+	a0 := Auth0{
 		Generic: Generic{
 			PageName: "auth0",
 
@@ -43,5 +74,11 @@ func NewAuth0(auth0Domain, clientID, clientSecret, redirectURL string, logger ch
 
 			Logger: logger,
 		},
-	}, nil
+		Organizations: make(map[string]bool, len(organizations)),
+	}
+
+	for _, org := range organizations {
+		a0.Organizations[org] = true
+	}
+	return a0, nil
 }
