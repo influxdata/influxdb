@@ -28,23 +28,18 @@
   position: absolute;
   padding: 11px;
   z-index: 500;
-  font-size: 13px;
-  color: $g12-forge;
   border-radius: 3px;
-  font-weight: 600;
-  line-height: 13px;
 
   &.hidden {
     display: none !important;
   }
-
-  /*
-   * Only animate position that's controlled during rendering.
-   * See http://stackoverflow.com/a/17117992
-   */
-  // transition: all 0.1s ease;
-  // transition-property: top, right, bottom, left;
-
+}
+.dygraph-legend--contents {
+  font-size: 13px;
+  color: $g12-forge;
+  font-weight: 600;
+  line-height: 13px;
+  
   /* Row */
   /* Styles for Key go here, get overrided by > b */
   > span {
@@ -82,7 +77,6 @@
     }
   }
 }
-
 
 /* Axis Labels */
 .dygraph-axis-label {

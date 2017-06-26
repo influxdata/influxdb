@@ -104,6 +104,7 @@ export default class Dygraph extends Component {
     // this.isMouseOverGraph = false
 
     this.getTimeSeries = ::this.getTimeSeries
+    this.handleSortLegend = ::this.handleSortLegend
     this.sync = ::this.sync
   }
 
@@ -135,6 +136,7 @@ export default class Dygraph extends Component {
 
     const graphContainerNode = this.graphContainer
     const legendContainerNode = this.legendContainer
+    const legendContentsNode = this.legendContents
     let finalLineColors = overrideLineColors
 
     if (finalLineColors === null) {
@@ -148,7 +150,7 @@ export default class Dygraph extends Component {
         }),
       ],
       labelsSeparateLines: false,
-      labelsDiv: legendContainerNode,
+      labelsDiv: legendContentsNode,
       labelsKMB: true,
       rightGap: 0,
       highlightSeriesBackgroundAlpha: 1.0,
@@ -335,6 +337,39 @@ export default class Dygraph extends Component {
     }
   }
 
+  handleSortLegend() {
+    const legend = this.legendContents
+    const legendValues = legend.children
+    const sortOrder = legend.getAttribute('data-sort')
+
+    const list = []
+    for (let i = 0; i < legendValues.length; i++) {
+      list.push(legendValues[i])
+    }
+
+    list.sort((a, b) => {
+      // const text = legendValues[i].textContent
+      // const [string, number] = text.split(':')
+      const [aText, aNum] = a.textContent.split(':')
+      const [bText, bNum] = b.textContent.split(':')
+
+      if (sortOrder === 'asc') {
+        return +aNum - +bNum
+      }
+
+      if (sortOrder === 'desc') {
+        return +bNum - +aNum
+      }
+    })
+
+    for (let i = 0; i < legendValues.length; i++) {
+      legend.appendChild(list[i])
+    }
+
+    const newOrder = sortOrder === 'asc' ? 'desc' : 'asc'
+    legend.setAttribute('data-sort', newOrder)
+  }
+
   render() {
     return (
       <div className="dygraph-child">
@@ -344,7 +379,30 @@ export default class Dygraph extends Component {
             this.legendContainer = r
           }}
           className={'container--dygraph-legend hidden'}
-        />
+        >
+          <div className="dygraph-legend--header">
+            <input className="form-control input-xs" type="text" />
+            <button
+              className="btn btn-primary btn-xs"
+              onClick={this.handleSortLegend}
+            >
+              A-Z
+            </button>
+            <button
+              className="btn btn-primary btn-xs"
+              onClick={this.handleSortLegend}
+            >
+              0-9
+            </button>
+          </div>
+          <div
+            data-sort="asc"
+            ref={r => {
+              this.legendContents = r
+            }}
+            className="dygraph-legend--contents"
+          />
+        </div>
         <div
           ref={r => {
             this.graphContainer = r
