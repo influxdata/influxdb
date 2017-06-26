@@ -67,7 +67,7 @@ func (a *AllRoutes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	customLinks, err := NewCustomLinks(a.CustomLinks)
 	if err != nil {
 		msg := fmt.Sprintf("Invalid CustomLinks input: %v", customLinks)
-		Error(w, http.StatusUnprocessableEntity, msg, a.Logger)
+		Error(w, http.StatusInternalServerError, msg, a.Logger)
 		return
 	}
 
