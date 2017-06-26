@@ -158,6 +158,7 @@ export default class Dygraph extends Component {
       gridLineWidth: 1,
       highlightCircleSize: 3,
       animatedZooms: true,
+      hideOverlayOnMouseOut: false,
       colors: finalLineColors,
       series: dygraphSeries,
       axes: {
@@ -172,16 +173,31 @@ export default class Dygraph extends Component {
         strokeWidth: 2,
         highlightCircleSize: 5,
       },
-      unhighlightCallback: () => {
-        legendContainerNode.className = 'container--dygraph-legend hidden' // hide
+      unhighlightCallback: e => {
+        const {
+          top,
+          bottom,
+          left,
+          right,
+        } = legendContainerNode.getBoundingClientRect()
 
-        // part of optional workaround for preventing updateOptions from breaking legend
-        // this.isMouseOverGraph = false
+        const mouseY = e.clientY
+        const mouseX = e.clientX
+
+        const mouseInLegendY = mouseY <= bottom && mouseY >= top
+        const mouseInLegendX = mouseX <= right && mouseX >= left
+        const isMouseHoveringLegend = mouseInLegendY && mouseInLegendX
+
+        if (!isMouseHoveringLegend) {
+          legendContainerNode.className = 'container--dygraph-legend hidden' // hide
+        }
       },
       highlightCallback: e => {
         // don't make visible yet, but render on DOM to capture position for calcs
         legendContainerNode.style.visibility = 'hidden'
         legendContainerNode.className = 'container--dygraph-legend'
+        legendContainerNode.onmouseleave = () =>
+          legendContainerNode.className = 'container--dygraph-legend hidden'
 
         // Move the Legend on hover
         const graphRect = graphContainerNode.getBoundingClientRect()
@@ -323,17 +339,18 @@ export default class Dygraph extends Component {
     return (
       <div className="dygraph-child">
         <div
+          style={{userSelect: 'text'}}
+          ref={r => {
+            this.legendContainer = r
+          }}
+          className={'container--dygraph-legend hidden'}
+        />
+        <div
           ref={r => {
             this.graphContainer = r
           }}
           style={this.props.containerStyle}
           className="dygraph-child-container"
-        />
-        <div
-          ref={r => {
-            this.legendContainer = r
-          }}
-          className={'container--dygraph-legend hidden'}
         />
       </div>
     )
