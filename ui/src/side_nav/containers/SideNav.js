@@ -129,7 +129,7 @@ const SideNav = React.createClass({
 const mapStateToProps = ({
   auth: {logoutLink},
   app: {ephemeral: {inPresentationMode}},
-  links: {custom: customLinks},
+  links: {external: {custom: customLinks}},
 }) => ({
   isHidden: inPresentationMode,
   logoutLink,
