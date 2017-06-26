@@ -40,17 +40,6 @@ type getRoutesResponse struct {
 	ExternalLinks getExternalLinksResponse `json:"external"`         // All external links for the client to use
 }
 
-type getExternalLinksResponse struct {
-	StatusFeed  *string      `json:"statusFeed,omitempty"` // Location of the a JSON Feed for client's Status page News Feed
-	CustomLinks []CustomLink `json:"custom,omitempty"`     // Any custom external links for client's User menu
-}
-
-// CustomLink is a handler that returns a custom link to be used in server's routes response, within ExternalLinks
-type CustomLink struct {
-	Name string `json:"name,omitempty"`
-	URL  string `json:"url,omitempty"`
-}
-
 // AllRoutes is a handler that returns all links to resources in Chronograf server, as well as
 // external links for the client to know about, such as for JSON feeds or custom side nav buttons.
 // Optionally, routes for authentication can be returned.
@@ -58,7 +47,7 @@ type AllRoutes struct {
 	AuthRoutes  []AuthRoute       // Location of all auth routes. If no auth, this can be empty.
 	LogoutLink  string            // Location of the logout route for all auth routes. If no auth, this can be empty.
 	StatusFeed  string            // External link to the JSON Feed for the News Feed on the client's Status Page
-	CustomLinks map[string]string // Any custom external links for client's User menu passed in via CLI/ENV
+	CustomLinks map[string]string // Custom external links for client's User menu, as passed in via CLI/ENV
 	Logger      chronograf.Logger
 }
 
