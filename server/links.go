@@ -7,7 +7,7 @@ func NewCustomLinks(links map[string]string) ([]CustomLink, error) {
 	for name, link := range links {
 		customLinks = append(customLinks, CustomLink{
 			Name: name,
-			Url:  link,
+			URL:  link,
 		})
 	}
 	return customLinks, nil
