@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/influxdata/chronograf"
@@ -53,15 +54,22 @@ type CustomLink struct {
 // external links for the client to know about, such as for JSON feeds or custom side nav buttons.
 // Optionally, routes for authentication can be returned.
 type AllRoutes struct {
-	AuthRoutes  []AuthRoute  // Location of all auth routes. If no auth, this can be empty.
-	LogoutLink  string       // Location of the logout route for all auth routes. If no auth, this can be empty.
-	StatusFeed  string       // External link to the JSON Feed for the News Feed on the client's Status Page
-	CustomLinks []CustomLink // Any custom external links for client's User menu
+	AuthRoutes  []AuthRoute       // Location of all auth routes. If no auth, this can be empty.
+	LogoutLink  string            // Location of the logout route for all auth routes. If no auth, this can be empty.
+	StatusFeed  string            // External link to the JSON Feed for the News Feed on the client's Status Page
+	CustomLinks map[string]string // Any custom external links for client's User menu passed in via CLI/ENV
 	Logger      chronograf.Logger
 }
 
 // ServeHTTP returns all top level routes within chronograf
 func (a *AllRoutes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	customLinks, err := NewCustomLinks(a.CustomLinks)
+	if err != nil {
+		msg := fmt.Sprintf("Invalid CustomLinks input: %v", customLinks)
+		Error(w, http.StatusUnprocessableEntity, msg, a.Logger)
+		return
+	}
+
 	routes := getRoutesResponse{
 		Sources:    "/chronograf/v1/sources",
 		Layouts:    "/chronograf/v1/layouts",
@@ -71,7 +79,7 @@ func (a *AllRoutes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Auth:       make([]AuthRoute, len(a.AuthRoutes)), // We want to return at least an empty array, rather than null
 		ExternalLinks: getExternalLinksResponse{
 			StatusFeed:  &a.StatusFeed,
-			CustomLinks: a.CustomLinks,
+			CustomLinks: customLinks,
 		},
 	}
 

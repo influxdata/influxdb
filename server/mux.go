@@ -28,8 +28,8 @@ type MuxOpts struct {
 	UseAuth       bool                 // UseAuth turns on Github OAuth and JWT
 	Auth          oauth2.Authenticator // Auth is used to authenticate and authorize
 	ProviderFuncs []func(func(oauth2.Provider, oauth2.Mux))
-	StatusFeedURL string       // JSON Feed URL for the client Status page News Feed
-	CustomLinks   []CustomLink // Any custom external links for client's User menu
+	StatusFeedURL string            // JSON Feed URL for the client Status page News Feed
+	CustomLinks   map[string]string // Any custom external links for client's User menu
 }
 
 // NewMux attaches all the route handlers; handler returned servers chronograf.

@@ -96,18 +96,6 @@ type Server struct {
 	handler           http.Handler
 }
 
-// generateCustomLinks transforms CLI CustomLinks into a data structure that the client will expect
-func generateCustomLinks(links map[string]string) ([]CustomLink, error) {
-	var customLinks []CustomLink
-	for name, link := range links {
-		customLinks = append(customLinks, CustomLink{
-			Name: name,
-			Url:  link,
-		})
-	}
-	return customLinks, nil
-}
-
 func provide(p oauth2.Provider, m oauth2.Mux, ok func() bool) func(func(oauth2.Provider, oauth2.Mux)) {
 	return func(configure func(oauth2.Provider, oauth2.Mux)) {
 		if ok() {
@@ -318,11 +306,6 @@ func (s *Server) Serve(ctx context.Context) error {
 	providerFuncs = append(providerFuncs, provide(s.genericOAuth(logger, auth)))
 	providerFuncs = append(providerFuncs, provide(s.auth0OAuth(logger, auth)))
 
-	customLinks, err := generateCustomLinks(s.CustomLinks)
-	if err != nil {
-		return err
-	}
-
 	s.handler = NewMux(MuxOpts{
 		Develop:       s.Develop,
 		Auth:          auth,
@@ -332,7 +315,7 @@ func (s *Server) Serve(ctx context.Context) error {
 		Basepath:      basepath,
 		PrefixRoutes:  s.PrefixRoutes,
 		StatusFeedURL: s.StatusFeedURL,
-		CustomLinks:   customLinks,
+		CustomLinks:   s.CustomLinks,
 	}, service)
 
 	// Add chronograf's version header to all requests
