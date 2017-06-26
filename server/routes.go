@@ -61,7 +61,7 @@ type AllRoutes struct {
 	Logger      chronograf.Logger
 }
 
-// ServeHTTP returns all top level routes within chronograf
+// ServeHTTP returns all top level routes and external links within chronograf
 func (a *AllRoutes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	customLinks, err := NewCustomLinks(a.CustomLinks)
 	if err != nil {
