@@ -13,6 +13,8 @@ import {DEFAULT_HOME_PAGE} from 'shared/constants'
 
 const {arrayOf, bool, shape, string} = PropTypes
 
+const V_NUMBER = VERSION // eslint-disable-line no-undef
+
 const SideNav = React.createClass({
   propTypes: {
     params: shape({
@@ -45,7 +47,11 @@ const SideNav = React.createClass({
           </NavListItem>
         )
         .concat(
-          <NavListItem useAnchor={true} link={logoutLink}>
+          <NavListItem
+            key={customLinks.length + 1}
+            useAnchor={true}
+            link={logoutLink}
+          >
             Logout
           </NavListItem>
         )
@@ -68,12 +74,14 @@ const SideNav = React.createClass({
     return isHidden
       ? null
       : <NavBar location={location}>
-          <Link
-            to={`${sourcePrefix}/${DEFAULT_HOME_PAGE}`}
-            className="sidebar__logo"
-          >
-            <span className="icon cubo-uniform" />
-          </Link>
+          <div className="sidebar--item">
+            <Link
+              to={`${sourcePrefix}/${DEFAULT_HOME_PAGE}`}
+              className="sidebar--square sidebar--logo"
+            >
+              <span className="sidebar--icon icon cubo-uniform" />
+            </Link>
+          </div>
           <NavBlock icon="cubo-node" link={`${sourcePrefix}/hosts`}>
             <NavHeader link={`${sourcePrefix}/hosts`} title="Host List" />
           </NavBlock>
@@ -108,8 +116,20 @@ const SideNav = React.createClass({
               title="Configuration"
             />
           </NavBlock>
+          <div className="sidebar--bottom">
+            <div className="sidebar--item">
+              <div className="sidebar--square">
+                <span className="sidebar--icon icon zap" />
+              </div>
+              <div className="sidebar-menu">
+                <div className="sidebar-menu--heading">
+                  Version: {V_NUMBER}
+                </div>
+              </div>
+            </div>
+          </div>
           {isUsingAuth
-            ? <NavBlock icon="user" className="sidebar__square-last">
+            ? <NavBlock icon="user" className="sidebar--item-last">
                 {customLinks
                   ? this.renderUserMenuBlockWithCustomLinks(
                       customLinks,

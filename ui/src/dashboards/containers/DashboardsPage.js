@@ -1,11 +1,10 @@
 import React, {PropTypes} from 'react'
-import {Link, withRouter} from 'react-router'
+import {withRouter} from 'react-router'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
-import SourceIndicator from 'shared/components/SourceIndicator'
-import DeleteConfirmTableCell from 'shared/components/DeleteConfirmTableCell'
-import FancyScrollbar from 'shared/components/FancyScrollbar'
+import DashboardsHeader from 'src/dashboards/components/DashboardsHeader'
+import DashboardsContents from 'src/dashboards/components/DashboardsPageContents'
 
 import {createDashboard} from 'src/dashboards/apis'
 import {getDashboardsAsync, deleteDashboardAsync} from 'src/dashboards/actions'
@@ -50,89 +49,16 @@ const DashboardsPage = React.createClass({
   render() {
     const {dashboards} = this.props
     const dashboardLink = `/sources/${this.props.source.id}`
-    let tableHeader
-    if (dashboards === null) {
-      tableHeader = 'Loading Dashboards...'
-    } else if (dashboards.length === 1) {
-      tableHeader = '1 Dashboard'
-    } else {
-      tableHeader = `${dashboards.length} Dashboards`
-    }
 
     return (
       <div className="page">
-        <div className="page-header">
-          <div className="page-header__container">
-            <div className="page-header__left">
-              <h1 className="page-header__title">
-                Dashboards
-              </h1>
-            </div>
-            <div className="page-header__right">
-              <SourceIndicator sourceName={this.props.source.name} />
-            </div>
-          </div>
-        </div>
-        <FancyScrollbar className="page-contents">
-          <div className="container-fluid">
-            <div className="row">
-              <div className="col-md-12">
-                <div className="panel panel-minimal">
-                  <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-                    <h2 className="panel-title">{tableHeader}</h2>
-                    <button
-                      className="btn btn-sm btn-primary"
-                      onClick={this.handleCreateDashbord}
-                    >
-                      Create Dashboard
-                    </button>
-                  </div>
-                  <div className="panel-body">
-                    {dashboards && dashboards.length
-                      ? <table className="table v-center admin-table table-highlight">
-                          <thead>
-                            <tr>
-                              <th>Name</th>
-                              <th />
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {dashboards.map(dashboard =>
-                              <tr key={dashboard.id} className="">
-                                <td>
-                                  <Link
-                                    to={`${dashboardLink}/dashboards/${dashboard.id}`}
-                                  >
-                                    {dashboard.name}
-                                  </Link>
-                                </td>
-                                <DeleteConfirmTableCell
-                                  onDelete={this.handleDeleteDashboard}
-                                  item={dashboard}
-                                  buttonSize="btn-xs"
-                                />
-                              </tr>
-                            )}
-                          </tbody>
-                        </table>
-                      : <div className="generic-empty-state">
-                          <h4 style={{marginTop: '90px'}}>
-                            Looks like you dont have any dashboards
-                          </h4>
-                          <button
-                            className="btn btn-sm btn-primary"
-                            onClick={this.handleCreateDashbord}
-                            style={{marginBottom: '90px'}}
-                          >
-                            Create Dashboard
-                          </button>
-                        </div>}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </FancyScrollbar>
+        <DashboardsHeader sourceName={this.props.source.name} />
+        <DashboardsContents
+          dashboardLink={dashboardLink}
+          dashboards={dashboards}
+          onDeleteDashboard={this.handleDeleteDashboard}
+          onCreateDashboard={this.handleCreateDashbord}
+        />
       </div>
     )
   },

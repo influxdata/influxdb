@@ -4,7 +4,6 @@ import SourceIndicator from 'shared/components/SourceIndicator'
 import AlertsTable from 'src/alerts/components/AlertsTable'
 import NoKapacitorError from 'shared/components/NoKapacitorError'
 import CustomTimeRangeDropdown from 'shared/components/CustomTimeRangeDropdown'
-import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 import {getAlerts} from 'src/alerts/apis'
 import AJAX from 'utils/ajax'
@@ -160,10 +159,8 @@ class AlertsApp extends Component {
     }
 
     return isWidget
-      ? <FancyScrollbar autoHide={false}>
-          {this.renderSubComponents()}
-        </FancyScrollbar>
-      : <div className="page">
+      ? this.renderSubComponents()
+      : <div className="page alert-history-page">
           <div className="page-header">
             <div className="page-header__container">
               <div className="page-header__left">
@@ -183,7 +180,7 @@ class AlertsApp extends Component {
               </div>
             </div>
           </div>
-          <FancyScrollbar className="page-contents">
+          <div className="page-contents">
             <div className="container-fluid">
               <div className="row">
                 <div className="col-md-12">
@@ -191,7 +188,7 @@ class AlertsApp extends Component {
                 </div>
               </div>
             </div>
-          </FancyScrollbar>
+          </div>
         </div>
   }
 }
