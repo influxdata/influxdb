@@ -19,7 +19,7 @@ type CustomLink struct {
 // NewCustomLinks transforms `--custom-link` CLI flag data or `CUSTOM_LINKS` ENV
 // var data into a data structure that the Chronograf client will expect
 func NewCustomLinks(links map[string]string) ([]CustomLink, error) {
-	var customLinks []CustomLink
+	customLinks := make([]CustomLink, 0, len(links))
 	for name, link := range links {
 		if name == "" {
 			return nil, errors.New("CustomLink missing key for Name")
@@ -32,10 +32,12 @@ func NewCustomLinks(links map[string]string) ([]CustomLink, error) {
 			return nil, err
 		}
 
-		customLinks = append(customLinks, CustomLink{
+		customLink := CustomLink{
 			Name: name,
 			URL:  link,
-		})
+		}
+		customLinks = append(customLinks, customLink)
 	}
+
 	return customLinks, nil
 }
