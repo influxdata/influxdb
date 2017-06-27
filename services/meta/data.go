@@ -611,6 +611,10 @@ func (data *Data) SetPrivilege(name, database string, p influxql.Privilege) erro
 		return ErrUserNotFound
 	}
 
+	if data.Database(database) == nil {
+		return influxdb.ErrDatabaseNotFound(database)
+	}
+
 	if ui.Privileges == nil {
 		ui.Privileges = make(map[string]influxql.Privilege)
 	}

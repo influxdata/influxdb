@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/influxql"
 
 	"github.com/influxdata/influxdb/services/meta"
@@ -185,6 +186,32 @@ func TestData_AdminUserExists(t *testing.T) {
 	}
 	if got, exp := data.AdminUserExists(), false; got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
+	}
+}
+
+func TestData_SetPrivilege(t *testing.T) {
+	data := meta.Data{}
+	if err := data.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := data.CreateUser("user1", "", false); err != nil {
+		t.Fatal(err)
+	}
+
+	// When the user does not exist, SetPrivilege returns an error.
+	if got, exp := data.SetPrivilege("not a user", "db0", influxql.AllPrivileges), meta.ErrUserNotFound; got != exp {
+		t.Fatalf("got %v, expected %v", got, exp)
+	}
+
+	// When the database does not exist, SetPrivilege returns an error.
+	if got, exp := data.SetPrivilege("user1", "db1", influxql.AllPrivileges), influxdb.ErrDatabaseNotFound("db1"); got == nil || got.Error() != exp.Error() {
+		t.Fatalf("got %v, expected %v", got, exp)
+	}
+
+	// Otherwise, SetPrivilege sets the expected privileges.
+	if got := data.SetPrivilege("user1", "db0", influxql.AllPrivileges); got != nil {
+		t.Fatalf("got %v, expected %v", got, nil)
 	}
 }
 
