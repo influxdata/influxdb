@@ -10,7 +10,7 @@
 1. [#1644](https://github.com/influxdata/chronograf/pull/1644): Redesign Alerts History table to have sticky headers
 1. [#1581](https://github.com/influxdata/chronograf/pull/1581): Refresh template variable values on dashboard page load
 1. [#1612](https://github.com/influxdata/chronograf/pull/1612): Prevent users from being able to write to internal system databases
-1. [#1655](https://github.com/influxdata/chronograf/pull/1655): Add version number item to the navbar
+1. [#1655](https://github.com/influxdata/chronograf/pull/1655): Add version number to Configuration page
 1. [#1655](https://github.com/influxdata/chronograf/pull/1655): Redesign dashboards table and sort alphabetically by name
 1. [#1655](https://github.com/influxdata/chronograf/pull/1655): Redesign navbar to be consistent with navbar in Branding Documentation
 
