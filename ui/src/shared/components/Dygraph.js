@@ -19,10 +19,13 @@ export default class Dygraph extends Component {
         x: null,
         series: [],
       },
+      sortType: null,
+      legendOrder: 'asc',
     }
 
     this.getTimeSeries = ::this.getTimeSeries
     this.sync = ::this.sync
+    this.handleSortLegend = ::this.handleSortLegend
   }
 
   static defaultProps = {
@@ -36,6 +39,35 @@ export default class Dygraph extends Component {
     // Avoid 'Can't plot empty data set' errors by falling back to a
     // default dataset that's valid for Dygraph.
     return timeSeries.length ? timeSeries : [[0]]
+  }
+
+  handleSortLegend(sortType) {
+    const {legend, legendOrder} = this.state
+    const ascending = this.sortByType(legend.series, sortType)
+
+    if (legendOrder === 'asc') {
+      return this.setState({
+        legend: {...legend, series: ascending},
+        sortType,
+        legendOrder: 'desc',
+      })
+    }
+
+    this.setState({
+      legend: {...legend, series: ascending.reverse()},
+      sortType,
+      legendOrder: 'asc',
+    })
+  }
+
+  sortByType(list, sortType) {
+    return _.sortBy(list, ({y, label}) => {
+      if (sortType === 'numeric') {
+        return y
+      }
+
+      return label
+    })
   }
 
   componentDidMount() {
@@ -201,7 +233,7 @@ export default class Dygraph extends Component {
 
     return (
       <div className="dygraph-child">
-        <DygraphLegend {...legend} />
+        <DygraphLegend {...legend} onSort={this.handleSortLegend} />
         <div
           ref={r => {
             this.graphContainer = r
