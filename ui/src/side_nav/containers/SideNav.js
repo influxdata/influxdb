@@ -13,8 +13,6 @@ import {DEFAULT_HOME_PAGE} from 'shared/constants'
 
 const {bool, shape, string} = PropTypes
 
-const V_NUMBER = VERSION // eslint-disable-line no-undef
-
 const SideNav = React.createClass({
   propTypes: {
     params: shape({
@@ -84,27 +82,11 @@ const SideNav = React.createClass({
               title="Configuration"
             />
           </NavBlock>
-          <div className="sidebar--bottom">
-            <div className="sidebar--item">
-              <div className="sidebar--square">
-                <span className="sidebar--icon icon zap" />
-              </div>
-              <div className="sidebar-menu">
-                <div className="sidebar-menu--heading">
-                  Version: {V_NUMBER}
-                </div>
-              </div>
-            </div>
-            {showLogout
-              ? <NavBlock icon="user" className="sidebar--item-last">
-                  <NavHeader
-                    useAnchor={true}
-                    link={logoutLink}
-                    title="Logout"
-                  />
-                </NavBlock>
-              : null}
-          </div>
+          {showLogout
+            ? <NavBlock icon="user" className="sidebar--item-last">
+                <NavHeader useAnchor={true} link={logoutLink} title="Logout" />
+              </NavBlock>
+            : null}
         </NavBar>
   },
 })
