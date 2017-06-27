@@ -80,6 +80,8 @@ type Server struct {
 
 	StatusFeedURL string `long:"status-feed-url" description:"URL of a JSON Feed to display as a News Feed on the client Status page." default:"https://www.influxdata.com/feed/json" env:"STATUS_FEED_URL"`
 
+	CustomLinks map[string]string `long:"custom-link" description:"Custom link to be added to the client User menu" env:"CUSTOM_LINKS" env-delim:","`
+
 	Auth0Domain       string `long:"auth0-domain" description:"Subdomain of auth0.com used for Auth0 OAuth2 authentication" env:"AUTH0_DOMAIN"`
 	Auth0ClientID     string `long:"auth0-client-id" description:"Auth0 Client ID for OAuth2 support" env:"AUTH0_CLIENT_ID"`
 	Auth0ClientSecret string `long:"auth0-client-secret" description:"Auth0 Client Secret for OAuth2 support" env:"AUTH0_CLIENT_SECRET"`
@@ -287,6 +289,14 @@ func (s *Server) Serve(ctx context.Context) error {
 		KapacitorUsername: s.KapacitorUsername,
 		KapacitorPassword: s.KapacitorPassword,
 	}
+	_, err := NewCustomLinks(s.CustomLinks)
+	if err != nil {
+		logger.
+			WithField("component", "server").
+			WithField("CustomLink", "invalid").
+			Error(err)
+		return err
+	}
 	service := openService(ctx, s.BoltPath, layoutBuilder, sourcesBuilder, kapacitorBuilder, logger, s.useAuth())
 	basepath = s.Basepath
 	if basepath != "" && s.PrefixRoutes == false {
@@ -313,6 +323,7 @@ func (s *Server) Serve(ctx context.Context) error {
 		Basepath:      basepath,
 		PrefixRoutes:  s.PrefixRoutes,
 		StatusFeedURL: s.StatusFeedURL,
+		CustomLinks:   s.CustomLinks,
 	}, service)
 
 	// Add chronograf's version header to all requests

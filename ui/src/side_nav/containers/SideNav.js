@@ -11,7 +11,7 @@ import {
 
 import {DEFAULT_HOME_PAGE} from 'shared/constants'
 
-const {bool, shape, string} = PropTypes
+const {arrayOf, bool, shape, string} = PropTypes
 
 const SideNav = React.createClass({
   propTypes: {
@@ -23,6 +23,37 @@ const SideNav = React.createClass({
     }).isRequired,
     isHidden: bool.isRequired,
     logoutLink: string,
+    customLinks: arrayOf(
+      shape({
+        name: string.isRequired,
+        url: string.isRequired,
+      })
+    ),
+  },
+
+  renderUserMenuBlockWithCustomLinks(customLinks, logoutLink) {
+    return [
+      <NavHeader key={0} title="User" />,
+      ...customLinks
+        .sort((a, b) => a.name.toLowerCase() > b.name.toLowerCase())
+        .map(({name, url}, i) =>
+          <NavListItem
+            key={i + 1}
+            useAnchor={true}
+            isExternal={true}
+            link={url}
+          >
+            {name}
+          </NavListItem>
+        ),
+      <NavListItem
+        key={customLinks.length + 1}
+        useAnchor={true}
+        link={logoutLink}
+      >
+        Logout
+      </NavListItem>,
+    ]
   },
 
   render() {
@@ -31,11 +62,12 @@ const SideNav = React.createClass({
       location: {pathname: location},
       isHidden,
       logoutLink,
+      customLinks,
     } = this.props
 
     const sourcePrefix = `/sources/${sourceID}`
     const dataExplorerLink = `${sourcePrefix}/chronograf/data-explorer`
-    const showLogout = !!logoutLink
+    const isUsingAuth = !!logoutLink
 
     return isHidden
       ? null
@@ -82,9 +114,18 @@ const SideNav = React.createClass({
               title="Configuration"
             />
           </NavBlock>
-          {showLogout
-            ? <NavBlock icon="user" className="sidebar--item-last">
-                <NavHeader useAnchor={true} link={logoutLink} title="Logout" />
+          {isUsingAuth
+            ? <NavBlock icon="user">
+                {customLinks
+                  ? this.renderUserMenuBlockWithCustomLinks(
+                      customLinks,
+                      logoutLink
+                    )
+                  : <NavHeader
+                      useAnchor={true}
+                      link={logoutLink}
+                      title="Logout"
+                    />}
               </NavBlock>
             : null}
         </NavBar>
@@ -94,9 +135,11 @@ const SideNav = React.createClass({
 const mapStateToProps = ({
   auth: {logoutLink},
   app: {ephemeral: {inPresentationMode}},
+  links: {external: {custom: customLinks}},
 }) => ({
   isHidden: inPresentationMode,
   logoutLink,
+  customLinks,
 })
 
 export default connect(mapStateToProps)(withRouter(SideNav))

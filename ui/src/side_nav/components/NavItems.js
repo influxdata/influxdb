@@ -9,20 +9,28 @@ const NavListItem = React.createClass({
     link: string.isRequired,
     children: node,
     location: string,
+    useAnchor: bool,
+    isExternal: bool,
   },
 
   render() {
-    const {link, children, location} = this.props
+    const {link, children, location, useAnchor, isExternal} = this.props
     const isActive = location.startsWith(link)
 
-    return (
-      <Link
-        className={classnames('sidebar-menu--item', {active: isActive})}
-        to={link}
-      >
-        {children}
-      </Link>
-    )
+    return useAnchor
+      ? <a
+          className={classnames('sidebar-menu--item', {active: isActive})}
+          href={link}
+          target={isExternal ? '_blank' : '_self'}
+        >
+          {children}
+        </a>
+      : <Link
+          className={classnames('sidebar-menu--item', {active: isActive})}
+          to={link}
+        >
+          {children}
+        </Link>
   },
 })
 

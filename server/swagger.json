@@ -4115,6 +4115,22 @@
 							"description": "link to a JSON Feed for the News Feed on client's Status Page",
 							"type": "string",
 							"format": "url"
+						},
+						"custom": {
+							"description": "a collection of custom links set by the user to be rendered in the client User menu",
+							"type": "array",
+							"items": {
+								"type": "object",
+								"properties": {
+									"name": {
+										"type": "string"
+									},
+									"url": {
+										"type": "string",
+										"format": "url"
+									}
+								}
+							},
 						}
 					}
 				}
@@ -4126,7 +4142,13 @@
 				"me": "/chronograf/v1/me",
 				"dashboards": "/chronograf/v1/dashboards",
 				"external": {
-					"statusFeed": "http://news.influxdata.com/feed.json"
+					"statusFeed": "http://news.influxdata.com/feed.json",
+					"custom": [
+						{
+							"name": "InfluxData",
+							"url": "https://www.influxdata.com"
+						}
+					]
 				}
 			}
 		},
