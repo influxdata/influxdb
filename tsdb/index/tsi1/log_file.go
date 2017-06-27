@@ -925,8 +925,9 @@ func (f *LogFile) writeTagsetTo(w io.Writer, name string, info *logFileCompactIn
 
 		// Lookup compaction info.
 		tagSetInfo := mmInfo.tagSet[k]
-		assert(tagSetInfo != nil, "tag set info not found")
-
+		if tagSetInfo == nil {
+			return fmt.Errorf("tag set info not found")
+		}
 		// Add each value.
 		for v, value := range tag.tagValues {
 			tagValueInfo := tagSetInfo.tagValues[v]
@@ -961,8 +962,9 @@ func (f *LogFile) writeMeasurementBlockTo(w io.Writer, names []string, info *log
 	for _, name := range names {
 		mm := f.mms[name]
 		mmInfo := info.mms[name]
-		assert(mmInfo != nil, "measurement info not found")
-
+		if mmInfo == nil {
+			return fmt.Errorf("measurement info not found")
+		}
 		sort.Sort(uint32Slice(mmInfo.seriesIDs))
 		mw.Add(mm.name, mm.deleted, mmInfo.offset, mmInfo.size, mmInfo.seriesIDs)
 	}
