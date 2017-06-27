@@ -116,20 +116,8 @@ const SideNav = React.createClass({
               title="Configuration"
             />
           </NavBlock>
-          <div className="sidebar--bottom">
-            <div className="sidebar--item">
-              <div className="sidebar--square">
-                <span className="sidebar--icon icon zap" />
-              </div>
-              <div className="sidebar-menu">
-                <div className="sidebar-menu--heading">
-                  Version: {V_NUMBER}
-                </div>
-              </div>
-            </div>
-          </div>
           {isUsingAuth
-            ? <NavBlock icon="user" className="sidebar--item-last">
+            ? <NavBlock icon="user">
                 {customLinks
                   ? this.renderUserMenuBlockWithCustomLinks(
                       customLinks,
@@ -142,6 +130,9 @@ const SideNav = React.createClass({
                     />}
               </NavBlock>
             : null}
+          <NavBlock icon="zap">
+            <NavHeader title={`Version: ${V_NUMBER}`} />
+          </NavBlock>
         </NavBar>
   },
 })
