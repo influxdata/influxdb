@@ -12,8 +12,8 @@ type getExternalLinksResponse struct {
 
 // CustomLink is a handler that returns a custom link to be used in server's routes response, within ExternalLinks
 type CustomLink struct {
-	Name string `json:"name,omitempty"`
-	URL  string `json:"url,omitempty"`
+	Name string `json:"name"`
+	URL  string `json:"url"`
 }
 
 // NewCustomLinks transforms `--custom-link` CLI flag data or `CUSTOM_LINKS` ENV
