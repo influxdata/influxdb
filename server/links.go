@@ -22,14 +22,14 @@ func NewCustomLinks(links map[string]string) ([]CustomLink, error) {
 	var customLinks []CustomLink
 	for name, link := range links {
 		if name == "" {
-			return customLinks, errors.New("CustomLink missing key for Name")
+			return nil, errors.New("CustomLink missing key for Name")
 		}
 		if link == "" {
-			return customLinks, errors.New("CustomLink missing value for URL")
+			return nil, errors.New("CustomLink missing value for URL")
 		}
 		_, err := url.Parse(link)
 		if err != nil {
-			return customLinks, err
+			return nil, err
 		}
 
 		customLinks = append(customLinks, CustomLink{
