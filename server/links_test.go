@@ -25,14 +25,14 @@ func TestNewCustomLinks(t *testing.T) {
 			},
 		},
 		{
-			name: "CustomLink missing key for Name",
+			name: "CustomLink missing Name",
 			args: map[string]string{
 				"": "https://cube.apple",
 			},
 			wantErr: true,
 		},
 		{
-			name: "CustomLink missing value for URL",
+			name: "CustomLink missing URL",
 			args: map[string]string{
 				"cubeapple": "",
 			},
