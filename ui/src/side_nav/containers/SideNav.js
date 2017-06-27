@@ -36,11 +36,18 @@ const SideNav = React.createClass({
   renderUserMenuBlockWithCustomLinks(customLinks, logoutLink) {
     return [
       <NavHeader key={0} title="User" />,
-      ...customLinks.map(({name, url}, i) =>
-        <NavListItem key={i + 1} useAnchor={true} isExternal={true} link={url}>
-          {name}
-        </NavListItem>
-      ),
+      ...customLinks
+        .sort((a, b) => a.name.toLowerCase() > b.name.toLowerCase())
+        .map(({name, url}, i) =>
+          <NavListItem
+            key={i + 1}
+            useAnchor={true}
+            isExternal={true}
+            link={url}
+          >
+            {name}
+          </NavListItem>
+        ),
       <NavListItem
         key={customLinks.length + 1}
         useAnchor={true}
