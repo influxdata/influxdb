@@ -289,6 +289,14 @@ func (s *Server) Serve(ctx context.Context) error {
 		KapacitorUsername: s.KapacitorUsername,
 		KapacitorPassword: s.KapacitorPassword,
 	}
+	_, err := NewCustomLinks(s.CustomLinks)
+	if err != nil {
+		logger.
+			WithField("component", "server").
+			WithField("CustomLink", "invalid").
+			Error(err)
+		return err
+	}
 	service := openService(ctx, s.BoltPath, layoutBuilder, sourcesBuilder, kapacitorBuilder, logger, s.useAuth())
 	basepath = s.Basepath
 	if basepath != "" && s.PrefixRoutes == false {
