@@ -8,21 +8,20 @@ import Dygraphs from 'src/external/dygraph'
 import getRange from 'shared/parsing/getRangeForDygraph'
 
 import {LINE_COLORS, multiColumnBarPlotter} from 'src/shared/graphs/helpers'
+import DygraphLegend from 'src/shared/components/DygraphLegend'
 
 export default class Dygraph extends Component {
   constructor(props) {
     super(props)
     this.state = {
       isSynced: false,
+      legend: {
+        x: null,
+        series: [],
+      },
     }
 
-    // optional workaround for dygraph.updateOptions breaking legends
-    // a la http://stackoverflow.com/questions/38371876/dygraph-dynamic-update-legend-values-disappear
-    // this.lastMouseMoveEvent = null
-    // this.isMouseOverGraph = false
-
     this.getTimeSeries = ::this.getTimeSeries
-    this.handleSortLegend = ::this.handleSortLegend
     this.sync = ::this.sync
   }
 
@@ -53,13 +52,13 @@ export default class Dygraph extends Component {
     } = this.props
 
     const graphContainerNode = this.graphContainer
-    const legendContainerNode = this.legendContainer
-    const legendContentsNode = this.legendContents
     let finalLineColors = overrideLineColors
 
     if (finalLineColors === null) {
       finalLineColors = LINE_COLORS
     }
+
+    const dygraphComponent = this // eslint-disable-line consistent-this
 
     const defaultOptions = {
       plugins: [
@@ -68,7 +67,6 @@ export default class Dygraph extends Component {
         }),
       ],
       labelsSeparateLines: false,
-      labelsDiv: legendContentsNode,
       labelsKMB: true,
       rightGap: 0,
       highlightSeriesBackgroundAlpha: 1.0,
@@ -93,70 +91,16 @@ export default class Dygraph extends Component {
         strokeWidth: 2,
         highlightCircleSize: 5,
       },
-      unhighlightCallback: e => {
-        const {
-          top,
-          bottom,
-          left,
-          right,
-        } = legendContainerNode.getBoundingClientRect()
-
-        const mouseY = e.clientY
-        const mouseX = e.clientX
-
-        const mouseInLegendY = mouseY <= bottom && mouseY >= top
-        const mouseInLegendX = mouseX <= right && mouseX >= left
-        const isMouseHoveringLegend = mouseInLegendY && mouseInLegendX
-
-        if (!isMouseHoveringLegend) {
-          legendContainerNode.className = 'container--dygraph-legend hidden' // hide
-        }
-      },
-      highlightCallback: e => {
-        // don't make visible yet, but render on DOM to capture position for calcs
-        legendContainerNode.style.visibility = 'hidden'
-        legendContainerNode.className = 'container--dygraph-legend'
-        legendContainerNode.onmouseleave = () =>
-          legendContainerNode.className = 'container--dygraph-legend hidden'
-
-        // Move the Legend on hover
-        const graphRect = graphContainerNode.getBoundingClientRect()
-        const legendRect = legendContainerNode.getBoundingClientRect()
-        const graphWidth = graphRect.width + 32 // Factoring in padding from parent
-        const graphHeight = graphRect.height
-        const graphBottom = graphRect.bottom
-        const legendWidth = legendRect.width
-        const legendHeight = legendRect.height
-        const screenHeight = window.innerHeight
-        const legendMaxLeft = graphWidth - legendWidth / 2
-        const trueGraphX = e.pageX - graphRect.left
-
-        let legendLeft = trueGraphX
-
-        // Enforcing max & min legend offsets
-        if (trueGraphX < legendWidth / 2) {
-          legendLeft = legendWidth / 2
-        } else if (trueGraphX > legendMaxLeft) {
-          legendLeft = legendMaxLeft
+      legendFormatter: legend => {
+        if (!legend.x) {
+          return
         }
 
-        // Disallow screen overflow of legend
-        const isLegendBottomClipped = graphBottom + legendHeight > screenHeight
+        if (legend.x !== dygraphComponent.state.legend.x) {
+          dygraphComponent.setState({legend})
+        }
 
-        const legendTop = isLegendBottomClipped
-          ? graphHeight + 8 - legendHeight
-          : graphHeight + 8
-
-        legendContainerNode.style.visibility = 'visible' // show
-        legendContainerNode.style.left = `${legendLeft}px`
-        legendContainerNode.style.top = `${legendTop}px`
-
-        // part of optional workaround for preventing updateOptions from breaking legend
-        // this.isMouseOverGraph = true
-        // this.lastMouseMoveEvent = e
-      },
-      drawCallback: () => {
-        legendContainerNode.className = 'container--dygraph-legend hidden' // hide
+        return '<div style="display:none"/>'
       },
     }
 
@@ -218,9 +162,6 @@ export default class Dygraph extends Component {
 
     const timeSeries = this.getTimeSeries()
 
-    const legendContainerNode = this.legendContainer
-    legendContainerNode.className = 'container--dygraph-legend hidden' // hide
-
     dygraph.updateOptions({
       labels,
       file: timeSeries,
@@ -255,72 +196,12 @@ export default class Dygraph extends Component {
     }
   }
 
-  handleSortLegend() {
-    const legend = this.legendContents
-    const legendValues = legend.children
-    const sortOrder = legend.getAttribute('data-sort')
-
-    const list = []
-    for (let i = 0; i < legendValues.length; i++) {
-      list.push(legendValues[i])
-    }
-
-    list.sort((a, b) => {
-      // const text = legendValues[i].textContent
-      // const [string, number] = text.split(':')
-      const [aText, aNum] = a.textContent.split(':')
-      const [bText, bNum] = b.textContent.split(':')
-
-      if (sortOrder === 'asc') {
-        return +aNum - +bNum
-      }
-
-      if (sortOrder === 'desc') {
-        return +bNum - +aNum
-      }
-    })
-
-    for (let i = 0; i < legendValues.length; i++) {
-      legend.appendChild(list[i])
-    }
-
-    const newOrder = sortOrder === 'asc' ? 'desc' : 'asc'
-    legend.setAttribute('data-sort', newOrder)
-  }
-
   render() {
+    const {legend} = this.state
+
     return (
       <div className="dygraph-child">
-        <div
-          style={{userSelect: 'text'}}
-          ref={r => {
-            this.legendContainer = r
-          }}
-          className={'container--dygraph-legend hidden'}
-        >
-          <div className="dygraph-legend--header">
-            <input className="form-control input-xs" type="text" />
-            <button
-              className="btn btn-primary btn-xs"
-              onClick={this.handleSortLegend}
-            >
-              A-Z
-            </button>
-            <button
-              className="btn btn-primary btn-xs"
-              onClick={this.handleSortLegend}
-            >
-              0-9
-            </button>
-          </div>
-          <div
-            data-sort="asc"
-            ref={r => {
-              this.legendContents = r
-            }}
-            className="dygraph-legend--contents"
-          />
-        </div>
+        <DygraphLegend {...legend} />
         <div
           ref={r => {
             this.graphContainer = r
