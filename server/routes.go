@@ -39,22 +39,25 @@ type getRoutesResponse struct {
 	ExternalLinks getExternalLinksResponse `json:"external"`         // All external links for the client to use
 }
 
-type getExternalLinksResponse struct {
-	StatusFeed *string `json:"statusFeed,omitempty"` // Location of the a JSON Feed for client's Status page News Feed
-}
-
 // AllRoutes is a handler that returns all links to resources in Chronograf server, as well as
 // external links for the client to know about, such as for JSON feeds or custom side nav buttons.
 // Optionally, routes for authentication can be returned.
 type AllRoutes struct {
-	AuthRoutes []AuthRoute // Location of all auth routes. If no auth, this can be empty.
-	LogoutLink string      // Location of the logout route for all auth routes. If no auth, this can be empty.
-	StatusFeed string      // External link to the JSON Feed for the News Feed on the client's Status Page
-	Logger     chronograf.Logger
+	AuthRoutes  []AuthRoute       // Location of all auth routes. If no auth, this can be empty.
+	LogoutLink  string            // Location of the logout route for all auth routes. If no auth, this can be empty.
+	StatusFeed  string            // External link to the JSON Feed for the News Feed on the client's Status Page
+	CustomLinks map[string]string // Custom external links for client's User menu, as passed in via CLI/ENV
+	Logger      chronograf.Logger
 }
 
-// ServeHTTP returns all top level routes within chronograf
+// ServeHTTP returns all top level routes and external links within chronograf
 func (a *AllRoutes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	customLinks, err := NewCustomLinks(a.CustomLinks)
+	if err != nil {
+		Error(w, http.StatusInternalServerError, err.Error(), a.Logger)
+		return
+	}
+
 	routes := getRoutesResponse{
 		Sources:    "/chronograf/v1/sources",
 		Layouts:    "/chronograf/v1/layouts",
@@ -63,7 +66,8 @@ func (a *AllRoutes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Dashboards: "/chronograf/v1/dashboards",
 		Auth:       make([]AuthRoute, len(a.AuthRoutes)), // We want to return at least an empty array, rather than null
 		ExternalLinks: getExternalLinksResponse{
-			StatusFeed: &a.StatusFeed,
+			StatusFeed:  &a.StatusFeed,
+			CustomLinks: customLinks,
 		},
 	}
 

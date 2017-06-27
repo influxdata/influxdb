@@ -2,6 +2,7 @@ import * as actionTypes from 'shared/constants/actionTypes'
 
 const initialState = {
   external: {statusFeed: ''},
+  custom: [],
 }
 
 const linksReducer = (state = initialState, action) => {

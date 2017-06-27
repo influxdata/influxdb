@@ -76,10 +76,14 @@ func TestAllRoutesWithAuth(t *testing.T) {
 
 func TestAllRoutesWithExternalLinks(t *testing.T) {
 	statusFeedURL := "http://pineapple.life/feed.json"
+	customLinks := map[string]string{
+		"cubeapple": "https://cube.apple",
+	}
 	logger := log.New(log.DebugLevel)
 	handler := &AllRoutes{
-		StatusFeed: statusFeedURL,
-		Logger:     logger,
+		StatusFeed:  statusFeedURL,
+		CustomLinks: customLinks,
+		Logger:      logger,
 	}
 	req := httptest.NewRequest("GET", "http://docbrowns-inventions.com", nil)
 	w := httptest.NewRecorder()
@@ -96,7 +100,7 @@ func TestAllRoutesWithExternalLinks(t *testing.T) {
 	if err := json.Unmarshal(body, &routes); err != nil {
 		t.Error("TestAllRoutesWithExternalLinks not able to unmarshal JSON response")
 	}
-	want := `{"layouts":"/chronograf/v1/layouts","mappings":"/chronograf/v1/mappings","sources":"/chronograf/v1/sources","me":"/chronograf/v1/me","dashboards":"/chronograf/v1/dashboards","auth":[],"external":{"statusFeed":"http://pineapple.life/feed.json"}}
+	want := `{"layouts":"/chronograf/v1/layouts","mappings":"/chronograf/v1/mappings","sources":"/chronograf/v1/sources","me":"/chronograf/v1/me","dashboards":"/chronograf/v1/dashboards","auth":[],"external":{"statusFeed":"http://pineapple.life/feed.json","custom":[{"name":"cubeapple","url":"https://cube.apple"}]}}
 `
 	if want != string(body) {
 		t.Errorf("TestAllRoutesWithExternalLinks\nwanted\n*%s*\ngot\n*%s*", want, string(body))
