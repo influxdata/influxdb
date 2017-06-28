@@ -1,9 +1,14 @@
 import React, {PropTypes} from 'react'
 
-const DygraphLegend = ({series, onSort}) => (
+const DygraphLegend = ({series, onSort, filterText, onInputChange}) => (
   <div style={{userSelect: 'text'}} className="container--dygraph-legend">
     <div className="dygraph-legend--header">
-      <input className="form-control input-xs" type="text" />
+      <input
+        className="form-control input-xs"
+        type="text"
+        value={filterText}
+        onChange={onInputChange}
+      />
       <button
         className="btn btn-primary btn-xs"
         onClick={() => onSort('alphabetic')}
@@ -18,7 +23,12 @@ const DygraphLegend = ({series, onSort}) => (
       </button>
     </div>
     <div className="dygraph-legend--contents">
-      {series.map(({label, color, yHTML, isHighlighted}) => {
+      {series.filter(s => s.label.match(filterText)).map(({
+        label,
+        color,
+        yHTML,
+        isHighlighted,
+      }) => {
         return (
           <span key={label + color}>
             <b>
@@ -52,6 +62,8 @@ DygraphLegend.propTypes = {
   ),
   dygraph: shape(),
   onSort: func.isRequired,
+  onInputChange: func.isRequired,
+  filterText: string.isRequired,
 }
 
 export default DygraphLegend

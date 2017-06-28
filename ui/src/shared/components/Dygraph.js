@@ -21,11 +21,13 @@ export default class Dygraph extends Component {
       },
       sortType: null,
       legendOrder: 'asc',
+      filterText: '',
     }
 
     this.getTimeSeries = ::this.getTimeSeries
     this.sync = ::this.sync
     this.handleSortLegend = ::this.handleSortLegend
+    this.handleLegendInputChange = ::this.handleLegendInputChange
   }
 
   static defaultProps = {
@@ -58,6 +60,10 @@ export default class Dygraph extends Component {
       sortType,
       legendOrder: 'asc',
     })
+  }
+
+  handleLegendInputChange(e) {
+    this.setState({filterText: e.target.value})
   }
 
   sortByType(list, sortType, order) {
@@ -238,11 +244,11 @@ export default class Dygraph extends Component {
         return ''
       },
     })
+
     // part of optional workaround for preventing updateOptions from breaking legend
     // if (this.lastMouseMoveEvent) {
     //   dygraph.mouseMove_(this.lastMouseMoveEvent)
     // }
-
     dygraph.resize()
     const {w} = this.dygraph.getArea()
     this.props.setResolution(w)
@@ -256,11 +262,16 @@ export default class Dygraph extends Component {
   }
 
   render() {
-    const {legend} = this.state
+    const {legend, filterText} = this.state
 
     return (
       <div className="dygraph-child">
-        <DygraphLegend {...legend} onSort={this.handleSortLegend} />
+        <DygraphLegend
+          {...legend}
+          onSort={this.handleSortLegend}
+          onInputChange={this.handleLegendInputChange}
+          filterText={filterText}
+        />
         <div
           ref={r => {
             this.graphContainer = r
