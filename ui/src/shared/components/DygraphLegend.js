@@ -1,49 +1,61 @@
 import React, {PropTypes} from 'react'
+import _ from 'lodash'
 
-const DygraphLegend = ({series, onSort, filterText, onInputChange}) => (
-  <div style={{userSelect: 'text'}} className="container--dygraph-legend">
-    <div className="dygraph-legend--header">
-      <input
-        className="form-control input-xs"
-        type="text"
-        value={filterText}
-        onChange={onInputChange}
-      />
-      <button
-        className="btn btn-primary btn-xs"
-        onClick={() => onSort('alphabetic')}
-      >
-        A-Z
-      </button>
-      <button
-        className="btn btn-primary btn-xs"
-        onClick={() => onSort('numeric')}
-      >
-        0-9
-      </button>
+const DygraphLegend = ({
+  series,
+  onSort,
+  filterText,
+  onInputChange,
+  sortOrder,
+  sortType,
+}) => {
+  const sorted = _.sortBy(
+    series,
+    ({y, label}) => (sortType === 'numeric' ? y : label)
+  )
+  const ordered = sortOrder === 'desc' ? sorted.reverse() : sorted
+  const filtered = ordered.filter(s => s.label.match(filterText))
+
+  return (
+    <div style={{userSelect: 'text'}} className="container--dygraph-legend">
+      <div className="dygraph-legend--header">
+        <input
+          className="form-control input-xs"
+          type="text"
+          value={filterText}
+          onChange={onInputChange}
+        />
+        <button
+          className="btn btn-primary btn-xs"
+          onClick={() => onSort('alphabetic')}
+        >
+          A-Z
+        </button>
+        <button
+          className="btn btn-primary btn-xs"
+          onClick={() => onSort('numeric')}
+        >
+          0-9
+        </button>
+      </div>
+      <div className="dygraph-legend--contents">
+        {filtered.map(({label, color, yHTML, isHighlighted}) => {
+          return (
+            <span key={label + color}>
+              <b>
+                <span
+                  style={{color, fontWeight: isHighlighted ? 'bold' : 'normal'}}
+                >
+                  {label}: {yHTML || 'no value'}
+                </span>
+              </b>
+            </span>
+          )
+        })}
+      </div>
     </div>
-    <div className="dygraph-legend--contents">
-      {series.filter(s => s.label.match(filterText)).map(({
-        label,
-        color,
-        yHTML,
-        isHighlighted,
-      }) => {
-        return (
-          <span key={label + color}>
-            <b>
-              <span
-                style={{color, fontWeight: isHighlighted ? 'bold' : 'normal'}}
-              >
-                {label}: {yHTML}
-              </span>
-            </b>
-          </span>
-        )
-      })}
-    </div>
-  </div>
-)
+  )
+}
 
 const {arrayOf, bool, func, number, shape, string} = PropTypes
 
@@ -64,6 +76,8 @@ DygraphLegend.propTypes = {
   onSort: func.isRequired,
   onInputChange: func.isRequired,
   filterText: string.isRequired,
+  sortOrder: string.isRequired,
+  sortType: string.isRequired,
 }
 
 export default DygraphLegend
