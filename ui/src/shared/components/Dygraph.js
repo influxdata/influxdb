@@ -130,6 +130,7 @@ export default class Dygraph extends Component {
 
         if (legend.x !== dygraphComponent.state.legend.x) {
           dygraphComponent.setState({legend})
+          return '<div style="display:none"/>'
         }
 
         return '<div style="display:none"/>'

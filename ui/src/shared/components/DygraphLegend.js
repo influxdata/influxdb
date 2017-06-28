@@ -22,7 +22,9 @@ const DygraphLegend = ({series, onSort}) => (
         return (
           <span key={label + color}>
             <b>
-              <span style={{color}}>
+              <span
+                style={{color, fontWeight: isHighlighted ? 'bold' : 'normal'}}
+              >
                 {label}: {yHTML}
               </span>
             </b>
