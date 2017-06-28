@@ -35,6 +35,7 @@
 1. [#1641](https://github.com/influxdata/chronograf/pull/1641): Fix enable / disable being out of sync on Kapacitor Rules Page
 
 ### Features
+1. [#1647](https://github.com/influxdata/chronograf/pull/1647): Add file uploader to Data Explorer for write protocol
 ### UI Improvements
 1. [#1642](https://github.com/influxdata/chronograf/pull/1642): Do not prefix basepath to external link for news feed
 
