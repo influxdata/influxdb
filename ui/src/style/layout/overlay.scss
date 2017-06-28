@@ -20,4 +20,12 @@
 // Make Overlay Technology full screen
 .overlay-technology {
   left: -($sidebar--width) !important;
+
+  // Hacky way to ensure proper appearance of file upload modal
+  // Needed to have a this div nested inside of itself for the
+  // Drag & drop feature to work correctly
+  .overlay-technology {
+    left: 0 !important;
+    &:before {display: none;}
+  }
 }
