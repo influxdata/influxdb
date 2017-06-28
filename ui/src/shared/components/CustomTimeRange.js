@@ -38,7 +38,7 @@ class CustomTimeRange extends Component {
 
   render() {
     return (
-      <div className="custom-time--container">
+      <div>
         <div className="custom-time--dates">
           <div className="custom-time--lower" ref={r => (this.lower = r)} />
           <div className="custom-time--upper" ref={r => (this.upper = r)} />
