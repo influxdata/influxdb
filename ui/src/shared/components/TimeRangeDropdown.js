@@ -4,6 +4,7 @@ import moment from 'moment'
 
 import OnClickOutside from 'shared/components/OnClickOutside'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
+import CustomTimeRangeOverlay from 'shared/components/CustomTimeRangeOverlay'
 
 import timeRanges from 'hson!shared/data/timeRanges.hson'
 import {DROPDOWN_MENU_MAX_HEIGHT} from 'shared/constants/index'
@@ -14,11 +15,19 @@ class TimeRangeDropdown extends Component {
     this.state = {
       autobind: false,
       isOpen: false,
+      isCustomTimeRangeOpen: false,
+      customTimeRange: {
+        lower: '',
+        upper: '',
+      },
     }
     this.findTimeRangeInputValue = ::this.findTimeRangeInputValue
     this.handleSelection = ::this.handleSelection
     this.toggleMenu = ::this.toggleMenu
     this.showCustomTimeRange = ::this.showCustomTimeRange
+    this.handleApplyCustomTimeRange = ::this.handleApplyCustomTimeRange
+    this.handleToggleCustomTimeRange = ::this.handleToggleCustomTimeRange
+    this.handleCloseCustomTimeRange = ::this.handleCloseCustomTimeRange
   }
 
   findTimeRangeInputValue({upper, lower}) {
@@ -50,47 +59,72 @@ class TimeRangeDropdown extends Component {
     this.setState({isOpen: !this.state.isOpen})
   }
 
-  showCustomTimeRange() {}
+  showCustomTimeRange() {
+    this.setState({isCustomTimeRangeOpen: true})
+  }
+
+  handleApplyCustomTimeRange(timeRange) {
+    this.setState({timeRange})
+  }
+
+  handleToggleCustomTimeRange() {
+    this.setState({isCustomTimeRangeOpen: !this.state.isCustomTimeRangeOpen})
+  }
+
+  handleCloseCustomTimeRange() {
+    this.setState({isCustomTimeRangeOpen: false})
+  }
 
   render() {
     const {selected} = this.props
-    const {isOpen} = this.state
+    const {isOpen, customTimeRange, isCustomTimeRangeOpen} = this.state
 
     return (
-      <div className={classnames('dropdown dropdown-160', {open: isOpen})}>
-        <div
-          className="btn btn-sm btn-default dropdown-toggle"
-          onClick={() => this.toggleMenu()}
-        >
-          <span className="icon clock" />
-          <span className="dropdown-selected">
-            {this.findTimeRangeInputValue(selected)}
-          </span>
-          <span className="caret" />
-        </div>
-        <ul className="dropdown-menu">
-          <FancyScrollbar
-            autoHide={false}
-            autoHeight={true}
-            maxHeight={DROPDOWN_MENU_MAX_HEIGHT}
+      <div>
+        <div className={classnames('dropdown dropdown-160', {open: isOpen})}>
+          <div
+            className="btn btn-sm btn-default dropdown-toggle"
+            onClick={() => this.toggleMenu()}
           >
-            <li className="dropdown-header">Time Range</li>
-            <li className="custom-timerange">
-              <a href="#" onClick={this.showCustomTimeRange}>
-                Custom Time Range
-              </a>
-            </li>
-            {timeRanges.map(item => {
-              return (
-                <li className="dropdown-item" key={item.menuOption}>
-                  <a href="#" onClick={() => this.handleSelection(item)}>
-                    {item.menuOption}
-                  </a>
-                </li>
-              )
-            })}
-          </FancyScrollbar>
-        </ul>
+            <span className="icon clock" />
+            <span className="dropdown-selected">
+              {this.findTimeRangeInputValue(selected)}
+            </span>
+            <span className="caret" />
+          </div>
+          <ul className="dropdown-menu">
+            <FancyScrollbar
+              autoHide={false}
+              autoHeight={true}
+              maxHeight={DROPDOWN_MENU_MAX_HEIGHT}
+            >
+              <li className="dropdown-header">Time Range</li>
+              <li className="custom-timerange">
+                <a href="#" onClick={this.showCustomTimeRange}>
+                  Custom Time Range
+                </a>
+              </li>
+              {timeRanges.map(item => {
+                return (
+                  <li className="dropdown-item" key={item.menuOption}>
+                    <a href="#" onClick={() => this.handleSelection(item)}>
+                      {item.menuOption}
+                    </a>
+                  </li>
+                )
+              })}
+            </FancyScrollbar>
+          </ul>
+        </div>
+        {isCustomTimeRangeOpen
+          ? <CustomTimeRangeOverlay
+              onApplyTimeRange={this.handleApplyCustomTimeRange}
+              timeRange={customTimeRange}
+              isVisible={isCustomTimeRangeOpen}
+              onToggle={this.handleToggleCustomTimeRange}
+              onClose={this.handleCloseCustomTimeRange}
+            />
+          : null}
       </div>
     )
   }
