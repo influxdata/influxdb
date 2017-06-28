@@ -6,7 +6,6 @@
   }
 }
 
-
 .graph-vertical-marker {
   top: 0;
   bottom: 0;
@@ -22,7 +21,6 @@
   filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='fade-out($g20-white, 0.71)', endColorstr='fade-out($g20-white, 0.71)',GradientType=0 );
 }
 .container--dygraph-legend {
-  transform: translateX(-50%);
   background-color: $g0-obsidian;
   display: block !important;
   position: absolute;
