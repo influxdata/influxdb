@@ -13,8 +13,6 @@ import {DEFAULT_HOME_PAGE} from 'shared/constants'
 
 const {arrayOf, bool, shape, string} = PropTypes
 
-const V_NUMBER = VERSION // eslint-disable-line no-undef
-
 const SideNav = React.createClass({
   propTypes: {
     params: shape({
@@ -130,9 +128,6 @@ const SideNav = React.createClass({
                     />}
               </NavBlock>
             : null}
-          <NavBlock icon="zap">
-            <NavHeader title={`Version: ${V_NUMBER}`} />
-          </NavBlock>
         </NavBar>
   },
 })

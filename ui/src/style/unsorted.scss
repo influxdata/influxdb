@@ -204,3 +204,16 @@ br {
     flex: 1 0 0;
   }
 }
+
+
+/*
+  Version Number
+  -----------------------------------------------------------------------------
+*/
+.version-number {
+  text-align: center;
+  margin: 20px 0;
+  font-family: $code-font;
+  color: $g11-sidewalk;
+  font-size: 13px;
+}
