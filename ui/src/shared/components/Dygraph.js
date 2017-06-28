@@ -19,7 +19,7 @@ export default class Dygraph extends Component {
         x: null,
         series: [],
       },
-      sortType: null,
+      sortType: '',
       legendOrder: 'asc',
       filterText: '',
     }
@@ -44,19 +44,14 @@ export default class Dygraph extends Component {
   }
 
   handleSortLegend(sortType) {
-    const {legend, legendOrder} = this.state
-    const series = this.sortByType(legend.series, sortType)
-
-    if (legendOrder === 'asc') {
+    if (this.state.legendOrder === 'asc') {
       return this.setState({
-        legend: {...legend, series: series.reverse()},
         sortType,
         legendOrder: 'desc',
       })
     }
 
     this.setState({
-      legend: {...legend, series},
       sortType,
       legendOrder: 'asc',
     })
@@ -64,21 +59,6 @@ export default class Dygraph extends Component {
 
   handleLegendInputChange(e) {
     this.setState({filterText: e.target.value})
-  }
-
-  sortByType(list, sortType, order) {
-    if (!sortType) {
-      return list
-    }
-
-    const orderFunc = ({y, label}) => (sortType === 'numeric' ? y : label)
-    const orderedList = _.sortBy(list, orderFunc)
-
-    if (order === 'desc') {
-      return orderedList.reverse()
-    }
-
-    return orderedList
   }
 
   componentDidMount() {
@@ -139,14 +119,11 @@ export default class Dygraph extends Component {
           return ''
         }
 
-        const {state, sortByType} = dygraphComponent
-        const {legendOrder, sortType} = state
-        if (legend.x === state.legend.x) {
+        if (legend.x === dygraphComponent.state.legend.x) {
           return ''
         }
 
-        const orderedSeries = sortByType(legend.series, sortType, legendOrder)
-        dygraphComponent.setState({legend: {...legend, series: orderedSeries}})
+        dygraphComponent.setState({legend})
         return ''
       },
     }
@@ -208,7 +185,6 @@ export default class Dygraph extends Component {
     }
 
     const timeSeries = this.getTimeSeries()
-    const dygraphComponent = this // eslint-disable-line consistent-this
 
     dygraph.updateOptions({
       labels,
@@ -226,23 +202,6 @@ export default class Dygraph extends Component {
       underlayCallback: options.underlayCallback,
       series: dygraphSeries,
       plotter: isBarGraph ? multiColumnBarPlotter : null,
-      legendFormatter: legend => {
-        if (!legend.x) {
-          return ''
-        }
-
-        const {state, sortByType} = dygraphComponent
-        const {sortType, legendOrder} = state
-        if (legend.x === state.legend.x) {
-          return ''
-        }
-
-        const orderedSeries = sortByType(legend.series, sortType, legendOrder)
-        dygraphComponent.setState({
-          legend: {...legend, series: orderedSeries},
-        })
-        return ''
-      },
     })
 
     // part of optional workaround for preventing updateOptions from breaking legend
@@ -262,7 +221,7 @@ export default class Dygraph extends Component {
   }
 
   render() {
-    const {legend, filterText} = this.state
+    const {legend, filterText, legendOrder, sortType} = this.state
 
     return (
       <div className="dygraph-child">
@@ -271,6 +230,8 @@ export default class Dygraph extends Component {
           onSort={this.handleSortLegend}
           onInputChange={this.handleLegendInputChange}
           filterText={filterText}
+          sortOrder={legendOrder}
+          sortType={sortType}
         />
         <div
           ref={r => {
