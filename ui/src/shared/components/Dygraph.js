@@ -26,8 +26,8 @@ export default class Dygraph extends Component {
       isSnipped: false,
     }
 
-    this.getTimeSeries = ::this.getTimeSeries
     this.sync = ::this.sync
+    this.getTimeSeries = ::this.getTimeSeries
     this.handleSortLegend = ::this.handleSortLegend
     this.handleLegendInputChange = ::this.handleLegendInputChange
     this.handleSnipLabel = ::this.handleSnipLabel
@@ -67,8 +67,6 @@ export default class Dygraph extends Component {
     if (finalLineColors === null) {
       finalLineColors = LINE_COLORS
     }
-
-    const dygraphComponent = this // eslint-disable-line consistent-this
 
     const defaultOptions = {
       plugins: [
@@ -221,6 +219,8 @@ export default class Dygraph extends Component {
       ruleValues,
       isBarGraph,
     } = this.props
+    const {filterText, legend} = this.state
+
     const dygraph = this.dygraph
     if (!dygraph) {
       throw new Error(
@@ -229,8 +229,15 @@ export default class Dygraph extends Component {
     }
 
     const timeSeries = this.getTimeSeries()
+    const visibility = timeSeries.map(() => true).map((b, i) => {
+      if (!legend.series[i]) {
+        return b
+      }
 
-    dygraph.updateOptions({
+      return !!legend.series[i].label.match(filterText)
+    })
+
+    const updateOptions = {
       labels,
       file: timeSeries,
       axes: {
@@ -246,12 +253,10 @@ export default class Dygraph extends Component {
       underlayCallback: options.underlayCallback,
       series: dygraphSeries,
       plotter: isBarGraph ? multiColumnBarPlotter : null,
-    })
+      visibility,
+    }
 
-    // part of optional workaround for preventing updateOptions from breaking legend
-    // if (this.lastMouseMoveEvent) {
-    //   dygraph.mouseMove_(this.lastMouseMoveEvent)
-    // }
+    dygraph.updateOptions(updateOptions)
     dygraph.resize()
     const {w} = this.dygraph.getArea()
     this.props.setResolution(w)
