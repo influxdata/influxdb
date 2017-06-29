@@ -144,7 +144,7 @@ $dash-graph-options-arrow: 8px;
 .dash-graph--name {
   height: $dash-graph-heading;
   line-height: $dash-graph-heading;
-  width: calc(100% - 50px);
+  width: calc(100% - 30px);
   padding-left: 16px;
   transition:
     color 0.25s ease,
@@ -159,6 +159,19 @@ input.form-control.dash-graph--name-edit {
   line-height: (26px - 4px) !important;
   position: relative;
   top: -1px; // Fix for slight offset
+}
+.dash-graph--custom-time {
+  font-family: $code-font;
+  color: $c-pool;
+  background-color: $g2-kevlar;
+  height: 24px;
+  font-size: 10px;
+  line-height: 24px;
+  border-radius: 3px;
+  padding: 0 7px;
+  position: absolute;
+  top: 3px;
+  right: 30px;
 }
 .dash-graph--options {
   width: $dash-graph-heading;
