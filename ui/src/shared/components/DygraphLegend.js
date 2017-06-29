@@ -10,6 +10,7 @@ const DygraphLegend = ({
   series,
   onSort,
   onSnip,
+  onHide,
   isHidden,
   isSnipped,
   sortType,
@@ -34,6 +35,7 @@ const DygraphLegend = ({
       }}
       className={`container--dygraph-legend ${hidden}`}
       ref={legendRef}
+      onMouseLeave={onHide}
     >
       <div className="dygraph-legend--header">
         <input
@@ -96,6 +98,8 @@ DygraphLegend.propTypes = {
     })
   ),
   dygraph: shape(),
+  onSnip: func.isRequired,
+  onHide: func.isRequired,
   onSort: func.isRequired,
   onInputChange: func.isRequired,
   filterText: string.isRequired,
@@ -103,7 +107,6 @@ DygraphLegend.propTypes = {
   sortType: string.isRequired,
   isHidden: bool.isRequired,
   legendRef: func.isRequired,
-  onSnip: func.isRequired,
   isSnipped: bool.isRequired,
 }
 
