@@ -14,21 +14,23 @@ export default class Dygraph extends Component {
   constructor(props) {
     super(props)
     this.state = {
-      isSynced: false,
-      isHidden: true,
       legend: {
         x: null,
         series: [],
       },
       sortType: '',
       filterText: '',
+      isSynced: false,
+      isHidden: true,
       isAscending: true,
+      isSnipped: false,
     }
 
     this.getTimeSeries = ::this.getTimeSeries
     this.sync = ::this.sync
     this.handleSortLegend = ::this.handleSortLegend
     this.handleLegendInputChange = ::this.handleLegendInputChange
+    this.handleSnipLabel = ::this.handleSnipLabel
   }
 
   static defaultProps = {
@@ -50,6 +52,10 @@ export default class Dygraph extends Component {
 
   handleLegendInputChange(e) {
     this.setState({filterText: e.target.value})
+  }
+
+  handleSnipLabel() {
+    this.setState({isSnipped: !this.state.isSnipped})
   }
 
   componentDidMount() {
@@ -270,19 +276,28 @@ export default class Dygraph extends Component {
   }
 
   render() {
-    const {legend, filterText, isAscending, sortType, isHidden} = this.state
+    const {
+      legend,
+      filterText,
+      isAscending,
+      sortType,
+      isHidden,
+      isSnipped,
+    } = this.state
 
     return (
       <div className="dygraph-child">
         <DygraphLegend
           {...legend}
-          onSort={this.handleSortLegend}
-          onInputChange={this.handleLegendInputChange}
+          sortType={sortType}
+          isHidden={isHidden}
+          isSnipped={isSnipped}
           filterText={filterText}
           isAscending={isAscending}
-          sortType={sortType}
+          onSnip={this.handleSnipLabel}
+          onSort={this.handleSortLegend}
           legendRef={el => this.legendRef = el}
-          isHidden={isHidden}
+          onInputChange={this.handleLegendInputChange}
         />
         <div
           ref={r => {

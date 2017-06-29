@@ -1,15 +1,22 @@
 import React, {PropTypes} from 'react'
 import _ from 'lodash'
 
+const removeMeasurement = (label = '') => {
+  const [measurement] = label.match(/^(.*)[.]/g) || ['']
+  return label.replace(measurement, '')
+}
+
 const DygraphLegend = ({
   series,
   onSort,
+  onSnip,
   isHidden,
+  isSnipped,
+  sortType,
   legendRef,
   filterText,
-  onInputChange,
   isAscending,
-  sortType,
+  onInputChange,
 }) => {
   const sorted = _.sortBy(
     series,
@@ -24,7 +31,6 @@ const DygraphLegend = ({
       style={{
         userSelect: 'text',
         transform: 'translate(-50%)',
-        overflowY: 'scroll',
       }}
       className={`container--dygraph-legend ${hidden}`}
       ref={legendRef}
@@ -48,6 +54,9 @@ const DygraphLegend = ({
         >
           0-9
         </button>
+        <button className="btn btn-primary btn-xs" onClick={onSnip}>
+          Snip Measurement
+        </button>
       </div>
       <div className="dygraph-legend--contents">
         {filtered.map(({label, color, yHTML, isHighlighted}) => {
@@ -57,7 +66,10 @@ const DygraphLegend = ({
                 <span
                   style={{color, fontWeight: isHighlighted ? 'bold' : 'normal'}}
                 >
-                  {label}: {yHTML || 'no value'}
+                  {isSnipped ? removeMeasurement(label) : label}
+                  :
+                  {' '}
+                  {yHTML || 'no value'}
                 </span>
               </b>
             </span>
@@ -91,6 +103,8 @@ DygraphLegend.propTypes = {
   sortType: string.isRequired,
   isHidden: bool.isRequired,
   legendRef: func.isRequired,
+  onSnip: func.isRequired,
+  isSnipped: bool.isRequired,
 }
 
 export default DygraphLegend
