@@ -156,10 +156,11 @@ func (i *Index) CreateSeriesIfNotExists(shardID uint64, key, name []byte, tags m
 	m := i.CreateMeasurementIndexIfNotExists(name)
 
 	i.mu.Lock()
+	defer i.mu.Unlock()
+
 	// Check for the series again under a write lock
 	ss = i.series[string(key)]
 	if ss != nil {
-		i.mu.Unlock()
 		ss.AssignShard(shardID)
 		return nil
 	}
@@ -167,7 +168,6 @@ func (i *Index) CreateSeriesIfNotExists(shardID uint64, key, name []byte, tags m
 	// Verify that the series will not exceed limit.
 	if !ignoreLimits {
 		if max := opt.Config.MaxSeriesPerDatabase; max > 0 && len(i.series)+1 > max {
-			i.mu.Unlock()
 			return errMaxSeriesPerDatabaseExceeded
 		}
 	}
@@ -186,7 +186,6 @@ func (i *Index) CreateSeriesIfNotExists(shardID uint64, key, name []byte, tags m
 
 	// Add the series to the series sketch.
 	i.seriesSketch.Add(key)
-	i.mu.Unlock()
 
 	return nil
 }
@@ -521,10 +520,11 @@ func (i *Index) DropSeries(key []byte) error {
 	}
 
 	i.mu.Lock()
+	defer i.mu.Unlock()
+
 	k := string(key)
 	series := i.series[k]
 	if series == nil {
-		i.mu.Unlock()
 		return nil
 	}
 
@@ -541,7 +541,6 @@ func (i *Index) DropSeries(key []byte) error {
 	if !series.Measurement().HasSeries() {
 		i.dropMeasurement(series.Measurement().Name)
 	}
-	i.mu.Unlock()
 
 	return nil
 }
