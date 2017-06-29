@@ -34,7 +34,7 @@ func NewAuth0(auth0Domain, clientID, clientSecret, redirectURL string, logger ch
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
 
-			RequiredScopes: []string{"openid"},
+			RequiredScopes: []string{"openid", "email"},
 
 			RedirectURL: redirectURL,
 			AuthURL:     authURL,
