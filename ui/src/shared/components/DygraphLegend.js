@@ -4,6 +4,8 @@ import _ from 'lodash'
 const DygraphLegend = ({
   series,
   onSort,
+  isHidden,
+  legendRef,
   filterText,
   onInputChange,
   sortOrder,
@@ -15,9 +17,18 @@ const DygraphLegend = ({
   )
   const ordered = sortOrder === 'desc' ? sorted.reverse() : sorted
   const filtered = ordered.filter(s => s.label.match(filterText))
+  const hidden = isHidden ? 'hidden' : ''
 
   return (
-    <div style={{userSelect: 'text'}} className="container--dygraph-legend">
+    <div
+      style={{
+        userSelect: 'text',
+        transform: 'translate(-50%)',
+        overflowY: 'scroll',
+      }}
+      className={`container--dygraph-legend ${hidden}`}
+      ref={legendRef}
+    >
       <div className="dygraph-legend--header">
         <input
           className="form-control input-xs"
@@ -78,6 +89,8 @@ DygraphLegend.propTypes = {
   filterText: string.isRequired,
   sortOrder: string.isRequired,
   sortType: string.isRequired,
+  isHidden: bool.isRequired,
+  legendRef: func.isRequired,
 }
 
 export default DygraphLegend

@@ -15,13 +15,14 @@ export default class Dygraph extends Component {
     super(props)
     this.state = {
       isSynced: false,
+      isHidden: true,
       legend: {
         x: null,
         series: [],
       },
       sortType: '',
-      legendOrder: 'asc',
       filterText: '',
+      legendOrder: 'asc',
     }
 
     this.getTimeSeries = ::this.getTimeSeries
@@ -74,7 +75,8 @@ export default class Dygraph extends Component {
       options,
     } = this.props
 
-    const graphContainerNode = this.graphContainer
+    const graphRef = this.graphRef
+    const legendRef = this.legendRef
     let finalLineColors = overrideLineColors
 
     if (finalLineColors === null) {
@@ -119,12 +121,69 @@ export default class Dygraph extends Component {
           return ''
         }
 
-        if (legend.x === dygraphComponent.state.legend.x) {
+        const oldState = dygraphComponent.state
+
+        const newHighlighted = legend.series.find(s => s.isHighlighted)
+        const highlighted = oldState.legend.series.find(s => s.isHighlighted)
+
+        const isSame =
+          legend.x === oldState.legend.x && newHighlighted.y === highlighted.y
+
+        if (isSame) {
           return ''
         }
 
         dygraphComponent.setState({legend})
         return ''
+      },
+      highlightCallback: e => {
+        // Move the Legend on hover
+        const graphRect = graphRef.getBoundingClientRect()
+        const legendRect = legendRef.getBoundingClientRect()
+
+        const graphWidth = graphRect.width + 32 // Factoring in padding from parent
+        const graphHeight = graphRect.height
+        const graphBottom = graphRect.bottom
+        const legendWidth = legendRect.width
+        const legendHeight = legendRect.height
+        const screenHeight = window.innerHeight
+        const legendMaxLeft = graphWidth - legendWidth / 2
+        const trueGraphX = e.pageX - graphRect.left
+
+        let legendLeft = trueGraphX
+
+        // Enforcing max & min legend offsets
+        if (trueGraphX < legendWidth / 2) {
+          legendLeft = legendWidth / 2
+        } else if (trueGraphX > legendMaxLeft) {
+          legendLeft = legendMaxLeft
+        }
+
+        // Disallow screen overflow of legend
+        const isLegendBottomClipped = graphBottom + legendHeight > screenHeight
+
+        const legendTop = isLegendBottomClipped
+          ? graphHeight + 8 - legendHeight
+          : graphHeight + 8
+
+        legendRef.style.left = `${legendLeft}px`
+        legendRef.style.top = `${legendTop}px`
+
+        this.setState({isHidden: false})
+      },
+      unhighlightCallback: e => {
+        const {top, bottom, left, right} = legendRef.getBoundingClientRect()
+
+        const mouseY = e.clientY
+        const mouseX = e.clientX
+
+        const mouseInLegendY = mouseY <= bottom && mouseY >= top
+        const mouseInLegendX = mouseX <= right && mouseX >= left
+        const isMouseHoveringLegend = mouseInLegendY && mouseInLegendX
+
+        if (!isMouseHoveringLegend) {
+          this.setState({isHidden: true})
+        }
       },
     }
 
@@ -132,7 +191,7 @@ export default class Dygraph extends Component {
       defaultOptions.plotter = multiColumnBarPlotter
     }
 
-    this.dygraph = new Dygraphs(graphContainerNode, timeSeries, {
+    this.dygraph = new Dygraphs(graphRef, timeSeries, {
       ...defaultOptions,
       ...options,
     })
@@ -221,7 +280,7 @@ export default class Dygraph extends Component {
   }
 
   render() {
-    const {legend, filterText, legendOrder, sortType} = this.state
+    const {legend, filterText, legendOrder, sortType, isHidden} = this.state
 
     return (
       <div className="dygraph-child">
@@ -232,10 +291,12 @@ export default class Dygraph extends Component {
           filterText={filterText}
           sortOrder={legendOrder}
           sortType={sortType}
+          legendRef={el => this.legendRef = el}
+          isHidden={isHidden}
         />
         <div
           ref={r => {
-            this.graphContainer = r
+            this.graphRef = r
           }}
           style={this.props.containerStyle}
           className="dygraph-child-container"
