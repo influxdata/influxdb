@@ -50,6 +50,8 @@ type Server struct {
 	KapacitorUsername string `long:"kapacitor-username" description:"Username of your Kapacitor instance" env:"KAPACITOR_USERNAME"`
 	KapacitorPassword string `long:"kapacitor-password" description:"Password of your Kapacitor instance" env:"KAPACITOR_PASSWORD"`
 
+	NewSource map[string]string `long:"new-source" description:"Config for adding a new InfluxDb source and Kapacitor server" env:"NEW_SOURCE"`
+
 	Develop      bool          `short:"d" long:"develop" description:"Run server in develop mode."`
 	BoltPath     string        `short:"b" long:"bolt-path" description:"Full path to boltDB file (/var/lib/chronograf/chronograf-v1.db)" env:"BOLT_PATH" default:"chronograf-v1.db"`
 	CannedPath   string        `short:"c" long:"canned-path" description:"Path to directory of pre-canned application layouts (/usr/share/chronograf/canned)" env:"CANNED_PATH" default:"canned"`
