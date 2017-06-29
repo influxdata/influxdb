@@ -8,14 +8,14 @@ const DygraphLegend = ({
   legendRef,
   filterText,
   onInputChange,
-  sortOrder,
+  isAscending,
   sortType,
 }) => {
   const sorted = _.sortBy(
     series,
     ({y, label}) => (sortType === 'numeric' ? y : label)
   )
-  const ordered = sortOrder === 'desc' ? sorted.reverse() : sorted
+  const ordered = isAscending ? sorted : sorted.reverse()
   const filtered = ordered.filter(s => s.label.match(filterText))
   const hidden = isHidden ? 'hidden' : ''
 
@@ -87,7 +87,7 @@ DygraphLegend.propTypes = {
   onSort: func.isRequired,
   onInputChange: func.isRequired,
   filterText: string.isRequired,
-  sortOrder: string.isRequired,
+  isAscending: bool.isRequired,
   sortType: string.isRequired,
   isHidden: bool.isRequired,
   legendRef: func.isRequired,

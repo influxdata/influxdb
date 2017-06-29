@@ -22,7 +22,7 @@ export default class Dygraph extends Component {
       },
       sortType: '',
       filterText: '',
-      legendOrder: 'asc',
+      isAscending: true,
     }
 
     this.getTimeSeries = ::this.getTimeSeries
@@ -45,17 +45,7 @@ export default class Dygraph extends Component {
   }
 
   handleSortLegend(sortType) {
-    if (this.state.legendOrder === 'asc') {
-      return this.setState({
-        sortType,
-        legendOrder: 'desc',
-      })
-    }
-
-    this.setState({
-      sortType,
-      legendOrder: 'asc',
-    })
+    this.setState({sortType, isAscending: !this.state.isAscending})
   }
 
   handleLegendInputChange(e) {
@@ -280,7 +270,7 @@ export default class Dygraph extends Component {
   }
 
   render() {
-    const {legend, filterText, legendOrder, sortType, isHidden} = this.state
+    const {legend, filterText, isAscending, sortType, isHidden} = this.state
 
     return (
       <div className="dygraph-child">
@@ -289,7 +279,7 @@ export default class Dygraph extends Component {
           onSort={this.handleSortLegend}
           onInputChange={this.handleLegendInputChange}
           filterText={filterText}
-          sortOrder={legendOrder}
+          isAscending={isAscending}
           sortType={sortType}
           legendRef={el => this.legendRef = el}
           isHidden={isHidden}
