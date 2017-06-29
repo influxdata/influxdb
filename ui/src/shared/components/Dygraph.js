@@ -104,19 +104,17 @@ export default class Dygraph extends Component {
           return ''
         }
 
-        const oldState = dygraphComponent.state
-
         const newHighlighted = legend.series.find(s => s.isHighlighted)
-        const highlighted = oldState.legend.series.find(s => s.isHighlighted)
+        const highlighted = this.state.legend.series.find(s => s.isHighlighted)
 
         const isSame =
-          legend.x === oldState.legend.x && newHighlighted.y === highlighted.y
+          legend.x === this.state.legend.x && newHighlighted.y === highlighted.y
 
         if (isSame) {
           return ''
         }
 
-        dygraphComponent.setState({legend})
+        this.setState({legend})
         return ''
       },
       highlightCallback: e => {
