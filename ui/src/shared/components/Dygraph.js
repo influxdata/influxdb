@@ -31,6 +31,7 @@ export default class Dygraph extends Component {
     this.handleSortLegend = ::this.handleSortLegend
     this.handleLegendInputChange = ::this.handleLegendInputChange
     this.handleSnipLabel = ::this.handleSnipLabel
+    this.handleHideLegend = ::this.handleHideLegend
   }
 
   static defaultProps = {
@@ -44,18 +45,6 @@ export default class Dygraph extends Component {
     // Avoid 'Can't plot empty data set' errors by falling back to a
     // default dataset that's valid for Dygraph.
     return timeSeries.length ? timeSeries : [[0]]
-  }
-
-  handleSortLegend(sortType) {
-    this.setState({sortType, isAscending: !this.state.isAscending})
-  }
-
-  handleLegendInputChange(e) {
-    this.setState({filterText: e.target.value})
-  }
-
-  handleSnipLabel() {
-    this.setState({isSnipped: !this.state.isSnipped})
   }
 
   componentDidMount() {
@@ -275,6 +264,33 @@ export default class Dygraph extends Component {
     }
   }
 
+  handleSortLegend(sortType) {
+    this.setState({sortType, isAscending: !this.state.isAscending})
+  }
+
+  handleLegendInputChange(e) {
+    this.setState({filterText: e.target.value})
+  }
+
+  handleSnipLabel() {
+    this.setState({isSnipped: !this.state.isSnipped})
+  }
+
+  handleHideLegend(e) {
+    const {top, bottom, left, right} = this.graphRef.getBoundingClientRect()
+
+    const mouseY = e.clientY
+    const mouseX = e.clientX
+
+    const mouseInGraphY = mouseY <= bottom && mouseY >= top
+    const mouseInGraphX = mouseX <= right && mouseX >= left
+    const isMouseHoveringGraph = mouseInGraphY && mouseInGraphX
+
+    if (!isMouseHoveringGraph) {
+      this.setState({isHidden: true})
+    }
+  }
+
   render() {
     const {
       legend,
@@ -290,6 +306,7 @@ export default class Dygraph extends Component {
         <DygraphLegend
           {...legend}
           sortType={sortType}
+          onHide={this.handleHideLegend}
           isHidden={isHidden}
           isSnipped={isSnipped}
           filterText={filterText}
