@@ -2,7 +2,6 @@ import React, {PropTypes, Component} from 'react'
 import OnClickOutside from 'react-onclickoutside'
 
 import CustomTimeRange from 'shared/components/CustomTimeRange'
-import OverlayTechnologies from 'shared/components/OverlayTechnologies'
 
 class CustomTimeRangeOverlay extends Component {
   constructor(props) {
@@ -17,15 +16,13 @@ class CustomTimeRangeOverlay extends Component {
     const {onClose, timeRange, onApplyTimeRange} = this.props
 
     return (
-      <OverlayTechnologies>
-        <div className="custom-time--overlay-container">
-          <CustomTimeRange
-            onApplyTimeRange={onApplyTimeRange}
-            timeRange={timeRange}
-            onClose={onClose}
-          />
-        </div>
-      </OverlayTechnologies>
+      <div className="custom-time--overlay">
+        <CustomTimeRange
+          onApplyTimeRange={onApplyTimeRange}
+          timeRange={timeRange}
+          onClose={onClose}
+        />
+      </div>
     )
   }
 }
