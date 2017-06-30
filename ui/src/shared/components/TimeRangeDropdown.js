@@ -45,13 +45,8 @@ class TimeRangeDropdown extends Component {
     this.setState({isOpen: false})
   }
 
-  handleSelection(params) {
-    const {lower, upper, menuOption} = params
-    if (menuOption.toLowerCase() === 'custom') {
-      this.props.onChooseTimeRange({custom: true})
-    } else {
-      this.props.onChooseTimeRange({lower, upper})
-    }
+  handleSelection(timeRange) {
+    this.props.onChooseTimeRange(timeRange)
     this.setState({isOpen: false})
   }
 
@@ -65,6 +60,7 @@ class TimeRangeDropdown extends Component {
 
   handleApplyCustomTimeRange(timeRange) {
     this.setState({timeRange})
+    this.handleSelection({...timeRange})
   }
 
   handleToggleCustomTimeRange() {

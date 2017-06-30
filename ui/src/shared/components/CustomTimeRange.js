@@ -75,11 +75,14 @@ class CustomTimeRange extends Component {
   }
 
   handleClick() {
+    const {onApplyTimeRange, onClose} = this.props
     const lower = this.lowerCal.getDate().toISOString()
     const upper = this.upperCal.getDate().toISOString()
 
-    this.props.onApplyTimeRange({lower, upper})
-    this.props.onClose()
+    onApplyTimeRange({lower, upper})
+    if (onClose) {
+      onClose()
+    }
   }
 }
 
@@ -91,7 +94,7 @@ CustomTimeRange.propTypes = {
     lower: string.isRequired,
     upper: string.isRequired,
   }).isRequired,
-  onClose: func.isRequired,
+  onClose: func,
 }
 
 export default CustomTimeRange

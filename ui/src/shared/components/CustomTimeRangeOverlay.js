@@ -30,7 +30,7 @@ class CustomTimeRangeOverlay extends Component {
   }
 }
 
-const {bool, func, shape, string} = PropTypes
+const {func, shape, string} = PropTypes
 
 CustomTimeRangeOverlay.propTypes = {
   onApplyTimeRange: func.isRequired,
@@ -38,9 +38,7 @@ CustomTimeRangeOverlay.propTypes = {
     lower: string.isRequired,
     upper: string.isRequired,
   }).isRequired,
-  isVisible: bool.isRequired,
-  onToggle: func.isRequired,
-  onClose: func.isRequired,
+  onClose: func,
 }
 
 export default OnClickOutside(CustomTimeRangeOverlay)

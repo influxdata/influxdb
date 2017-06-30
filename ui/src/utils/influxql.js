@@ -1,6 +1,9 @@
 import _ from 'lodash'
 
-import {TEMP_VAR_INTERVAL, DEFAULT_DASHBOARD_GROUP_BY_INTERVAL} from 'shared/constants'
+import {
+  TEMP_VAR_INTERVAL,
+  DEFAULT_DASHBOARD_GROUP_BY_INTERVAL,
+} from 'shared/constants'
 
 export default function buildInfluxQLQuery(timeBounds, config) {
   const {groupBy, tags, areTagsAccepted} = config
@@ -54,6 +57,15 @@ function _buildFields(fieldFuncs) {
 
 function _buildWhereClause({lower, upper, tags, areTagsAccepted}) {
   const timeClauses = []
+
+  if (lower && lower.includes('Z')) {
+    lower = `'${lower}'`
+  }
+
+  if (upper && upper.includes('Z')) {
+    upper = `'${upper}'`
+  }
+
   if (lower) {
     timeClauses.push(`time > ${lower}`)
   }
@@ -94,7 +106,9 @@ function _buildGroupByTime(groupBy) {
     return ''
   }
 
-  return ` GROUP BY ${groupBy.time === DEFAULT_DASHBOARD_GROUP_BY_INTERVAL ? TEMP_VAR_INTERVAL : `time(${groupBy.time})`}`
+  return ` GROUP BY ${groupBy.time === DEFAULT_DASHBOARD_GROUP_BY_INTERVAL
+    ? TEMP_VAR_INTERVAL
+    : `time(${groupBy.time})`}`
 }
 
 function _buildGroupByTags(groupBy) {
