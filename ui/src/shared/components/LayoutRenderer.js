@@ -42,13 +42,19 @@ class LayoutRenderer extends Component {
   }
 
   buildQueryForOldQuerySchema(q) {
-    const {timeRange: {lower}, host} = this.props
-    const {defaultGroupBy} = timeRanges.find(range => range.lower === lower)
+    const {timeRange: {lower, upper}, host} = this.props
+    const {defaultGroupBy} = timeRanges.find(
+      range => range.lower === lower
+    ) || {defaultGroupBy: '5m'}
     const {wheres, groupbys} = q
 
     let text = q.text
 
-    text += ` where time > ${lower}`
+    if (upper) {
+      text += ` where time > '${lower}' AND time < '${upper}'`
+    } else {
+      text += ` where time > ${lower}`
+    }
 
     if (host) {
       text += ` and \"host\" = '${host}'`
