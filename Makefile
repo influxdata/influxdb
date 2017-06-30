@@ -1,6 +1,25 @@
+VERSION := $(shell git describe --exact-match --tags 2>/dev/null)
+BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
+COMMIT := $(shell git rev-parse --short HEAD)
 PACKAGES=$(shell find . -name '*.go' -print0 | xargs -0 -n1 dirname | sort --unique)
 
-default:
+LDFLAGS := -X main.commit=$(COMMIT) -X main.branch=$(BRANCH)
+ifdef VERSION
+	LDFLAGS += -X main.version=$(VERSION)
+endif
+
+default: prepare build
+
+build:
+	go install -ldflags "$(LDFLAGS)" ./...
+
+clean:
+	go clean ./...
+
+# Get dependencies and use gdm to checkout changesets
+prepare:
+	go get github.com/sparrc/gdm
+	gdm restore
 
 metalint: deadcode cyclo aligncheck defercheck structcheck lint errcheck
 
