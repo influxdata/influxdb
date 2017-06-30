@@ -1,5 +1,6 @@
 import React, {PropTypes} from 'react'
 import _ from 'lodash'
+import classnames from 'classnames'
 
 const removeMeasurement = (label = '') => {
   const [measurement] = label.match(/^(.*)[.]/g) || ['']
@@ -27,54 +28,69 @@ const DygraphLegend = ({
   const filtered = ordered.filter(s => s.label.match(filterText))
   const hidden = isHidden ? 'hidden' : ''
 
+  const renderSortAlpha = (
+    <div
+      className={classnames('sort-btn btn btn-sm btn-square', {
+        'btn-primary': sortType !== 'numeric',
+        'btn-default': sortType === 'numeric',
+        'sort-btn--asc': isAscending && sortType !== 'numeric',
+        'sort-btn--desc': !isAscending && sortType !== 'numeric',
+      })}
+      onClick={() => onSort('alphabetic')}
+    >
+      <div className="sort-btn--arrow" />
+      <div className="sort-btn--top">A</div>
+      <div className="sort-btn--bottom">Z</div>
+    </div>
+  )
+  const renderSortNum = (
+    <button
+      className={classnames('sort-btn btn btn-sm btn-square', {
+        'btn-primary': sortType === 'numeric',
+        'btn-default': sortType !== 'numeric',
+        'sort-btn--asc': isAscending && sortType === 'numeric',
+        'sort-btn--desc': !isAscending && sortType === 'numeric',
+      })}
+      onClick={() => onSort('numeric')}
+    >
+      <div className="sort-btn--arrow" />
+      <div className="sort-btn--top">0</div>
+      <div className="sort-btn--bottom">9</div>
+    </button>
+  )
+
   return (
     <div
-      style={{
-        userSelect: 'text',
-        transform: 'translate(-50%)',
-      }}
-      className={`container--dygraph-legend ${hidden}`}
+      className={`dygraph-legend ${hidden}`}
       ref={legendRef}
       onMouseLeave={onHide}
     >
       <div className="dygraph-legend--header">
         <input
-          className="form-control input-xs"
+          className="dygraph-legend--filter form-control input-sm"
           type="text"
           value={filterText}
           onChange={onInputChange}
+          placeholder="Filter items..."
         />
-        <button
-          className="btn btn-primary btn-xs"
-          onClick={() => onSort('alphabetic')}
-        >
-          A-Z
-        </button>
-        <button
-          className="btn btn-primary btn-xs"
-          onClick={() => onSort('numeric')}
-        >
-          0-9
-        </button>
-        <button className="btn btn-primary btn-xs" onClick={onSnip}>
-          Snip Measurement
+        {renderSortAlpha}
+        {renderSortNum}
+        <button className="btn btn-default btn-sm" onClick={onSnip}>
+          Snip
         </button>
       </div>
       <div className="dygraph-legend--contents">
         {filtered.map(({label, color, yHTML, isHighlighted}) => {
+          const seriesClass = isHighlighted
+            ? 'dygraph-legend--row highlight'
+            : 'dygraph-legend--row'
           return (
-            <span key={label + color}>
-              <b>
-                <span
-                  style={{color, fontWeight: isHighlighted ? 'bold' : 'normal'}}
-                >
-                  {isSnipped ? removeMeasurement(label) : label}
-                  :
-                  {' '}
-                  {yHTML || 'no value'}
-                </span>
-              </b>
-            </span>
+            <div key={label + color} className={seriesClass}>
+              <caption style={{color}}>
+                {isSnipped ? removeMeasurement(label) : label}
+              </caption>
+              <figure>{yHTML || 'no value'}</figure>
+            </div>
           )
         })}
       </div>
