@@ -157,6 +157,12 @@
 
   > .btn { margin-left: 4px; }
 }
+.dygraph-legend--timestamp {
+  margin-right: 8px;
+  height: 30px;
+  font-weight: 600;
+  color: $g13-mist;
+}
 .dygraph-legend--filter {
   flex: 1 0 0;
 }
