@@ -104,13 +104,14 @@ export default class Dygraph extends Component {
           return ''
         }
 
-        const newHighlighted = legend.series.find(s => s.isHighlighted)
-        const highlighted = this.state.legend.series.find(s => s.isHighlighted)
+        const {state: {legend: prevLegend}} = this
+        const highlighted = legend.series.find(s => s.isHighlighted)
+        const prevHighlighted = prevLegend.series.find(s => s.isHighlighted)
 
-        const isSame =
-          legend.x === this.state.legend.x && newHighlighted.y === highlighted.y
+        const y = highlighted && highlighted.y
+        const prevY = prevHighlighted && prevHighlighted.y
 
-        if (isSame) {
+        if (legend.x === prevLegend.x && y === prevY) {
           return ''
         }
 
