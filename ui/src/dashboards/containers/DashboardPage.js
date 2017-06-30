@@ -259,16 +259,26 @@ class DashboardPage extends Component {
       params: {sourceID},
     } = this.props
 
-    const value = upper ? `'${lower}' AND time < '${upper}'` : lower
-
-    const dashboard = this.getActiveDashboard()
     const dashboardTime = {
       id: 'dashtime',
       tempVar: ':dashboardTime:',
       type: 'constant',
       values: [
         {
-          value,
+          value: `'${lower}'`,
+          type: 'constant',
+          selected: true,
+        },
+      ],
+    }
+
+    const upperDashboardTime = {
+      id: 'upperdashtime',
+      tempVar: ':upperDashboardTime:',
+      type: 'constant',
+      values: [
+        {
+          value: `'${upper}'`,
           type: 'constant',
           selected: true,
         },
@@ -285,10 +295,10 @@ class DashboardPage extends Component {
       values: [],
     }
 
-    const templatesIncludingDashTime =
-      (dashboard &&
-        dashboard.templates.concat(dashboardTime).concat(interval)) ||
-      []
+    const dashboard = this.getActiveDashboard()
+    const templatesIncludingDashTime = dashboard
+      ? [...dashboard.templates, dashboardTime, upperDashboardTime, interval]
+      : []
 
     const {selectedCell, isEditMode, isTemplating} = this.state
 
