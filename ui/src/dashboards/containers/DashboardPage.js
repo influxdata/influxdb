@@ -246,6 +246,7 @@ class DashboardPage extends Component {
   render() {
     const {
       source,
+      timeRange: {lower, upper},
       timeRange,
       showTemplateControlBar,
       dashboards,
@@ -258,6 +259,8 @@ class DashboardPage extends Component {
       params: {sourceID},
     } = this.props
 
+    const value = upper ? `'${lower}' AND time < '${upper}'` : lower
+
     const dashboard = this.getActiveDashboard()
     const dashboardTime = {
       id: 'dashtime',
@@ -265,7 +268,7 @@ class DashboardPage extends Component {
       type: 'constant',
       values: [
         {
-          value: timeRange.lower,
+          value,
           type: 'constant',
           selected: true,
         },
