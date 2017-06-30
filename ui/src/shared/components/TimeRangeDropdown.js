@@ -58,9 +58,9 @@ class TimeRangeDropdown extends Component {
     this.setState({isCustomTimeRangeOpen: true})
   }
 
-  handleApplyCustomTimeRange(timeRange) {
-    this.setState({timeRange})
-    this.handleSelection({...timeRange})
+  handleApplyCustomTimeRange(customTimeRange) {
+    this.setState({customTimeRange})
+    this.handleSelection({...customTimeRange})
   }
 
   handleToggleCustomTimeRange() {
@@ -126,10 +126,13 @@ class TimeRangeDropdown extends Component {
   }
 }
 
-const {shape, func} = PropTypes
+const {shape, string, func} = PropTypes
 
 TimeRangeDropdown.propTypes = {
-  selected: shape().isRequired,
+  selected: shape({
+    lower: string,
+    upper: string,
+  }).isRequired,
   onChooseTimeRange: func.isRequired,
 }
 

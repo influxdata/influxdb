@@ -92,7 +92,7 @@ CustomTimeRange.propTypes = {
   onApplyTimeRange: func.isRequired,
   timeRange: shape({
     lower: string.isRequired,
-    upper: string.isRequired,
+    upper: string,
   }).isRequired,
   onClose: func,
 }

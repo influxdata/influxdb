@@ -99,7 +99,10 @@ DashboardHeader.propTypes = {
   buttonText: string,
   dashboard: shape({}),
   headerText: string,
-  timeRange: shape({}).isRequired,
+  timeRange: shape({
+    lower: string,
+    upper: string,
+  }).isRequired,
   autoRefresh: number.isRequired,
   isHidden: bool.isRequired,
   handleChooseTimeRange: func.isRequired,
