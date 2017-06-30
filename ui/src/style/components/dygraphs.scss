@@ -142,6 +142,7 @@
   min-width: 350px;
   user-select: text;
   transform: translateX(-50%);
+  box-shadow: 0 0 10px 2px $g2-kevlar;
 
   &.hidden {
     display: none !important;
@@ -160,6 +161,7 @@
 .dygraph-legend--timestamp {
   margin-right: 8px;
   height: 30px;
+  line-height: 30px;
   font-weight: 600;
   color: $g13-mist;
 }
@@ -172,7 +174,8 @@
   font-weight: 600;
   line-height: 13px;
   max-height: 123px;
-  overflow-y: scroll;
+  overflow-y: auto;
+  @include custom-scrollbar-round($g0-obsidian,$g3-castle);
 }
 .dygraph-legend--row {
   display: flex;
