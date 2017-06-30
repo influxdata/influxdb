@@ -19,6 +19,7 @@ const DygraphLegend = ({
   filterText,
   isAscending,
   onInputChange,
+  xHTML,
 }) => {
   const sorted = _.sortBy(
     series,
@@ -66,6 +67,7 @@ const DygraphLegend = ({
       onMouseLeave={onHide}
     >
       <div className="dygraph-legend--header">
+        <div className="dygraph-legend--timestamp">{xHTML}</div>
         <input
           className="dygraph-legend--filter form-control input-sm"
           type="text"
