@@ -49,13 +49,11 @@ class CustomTimeRangeDropdown extends Component {
           )} — ${moment(upper).format('MMM Do HH:mm')}`}</span>
           <span className="caret" />
         </button>
-        <div className="custom-time--container">
-          <CustomTimeRange
-            onApplyTimeRange={onApplyTimeRange}
-            timeRange={timeRange}
-            onClose={this.handleCloseDropdown}
-          />
-        </div>
+        <CustomTimeRange
+          onApplyTimeRange={onApplyTimeRange}
+          timeRange={timeRange}
+          onClose={this.handleCloseDropdown}
+        />
       </div>
     )
   }

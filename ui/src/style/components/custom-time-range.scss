@@ -242,3 +242,15 @@ $rd-cell-size: 30px;
     background-color: $g6-smoke;
   }
 }
+/* Custom positioning for dashboard use */
+.time-range-dropdown {
+  position: relative;
+}
+.custom-time--overlay {
+  position: absolute;
+  top: 0;
+  right: calc(100% + 4px);
+  z-index: 2;
+  
+  .custom-time--container {display: flex;}
+}

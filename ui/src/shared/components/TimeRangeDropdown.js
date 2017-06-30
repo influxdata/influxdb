@@ -76,7 +76,7 @@ class TimeRangeDropdown extends Component {
     const {isOpen, customTimeRange, isCustomTimeRangeOpen} = this.state
 
     return (
-      <div>
+      <div className="time-range-dropdown">
         <div className={classnames('dropdown dropdown-160', {open: isOpen})}>
           <div
             className="btn btn-sm btn-default dropdown-toggle"
@@ -95,7 +95,13 @@ class TimeRangeDropdown extends Component {
               maxHeight={DROPDOWN_MENU_MAX_HEIGHT}
             >
               <li className="dropdown-header">Time Range</li>
-              <li className="custom-timerange">
+              <li
+                className={
+                  isCustomTimeRangeOpen
+                    ? 'active dropdown-item custom-timerange'
+                    : 'dropdown-item custom-timerange'
+                }
+              >
                 <a href="#" onClick={this.showCustomTimeRange}>
                   Custom Time Range
                 </a>
