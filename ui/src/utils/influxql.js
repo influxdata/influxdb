@@ -58,11 +58,11 @@ function _buildFields(fieldFuncs) {
 function _buildWhereClause({lower, upper, tags, areTagsAccepted}) {
   const timeClauses = []
 
-  if (lower && lower.includes('Z')) {
+  if (lower && lower.includes('Z') && !lower.includes('\'')) {
     lower = `'${lower}'`
   }
 
-  if (upper && upper.includes('Z')) {
+  if (upper && upper.includes('Z') && !upper.includes('\'')) {
     upper = `'${upper}'`
   }
 
