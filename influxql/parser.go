@@ -7,7 +7,6 @@ import (
 	"io"
 	"math"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -93,186 +92,13 @@ func (p *Parser) ParseQuery() (*Query, error) {
 
 // ParseStatement parses an InfluxQL string and returns a Statement AST object.
 func (p *Parser) ParseStatement() (Statement, error) {
-	// Inspect the first token.
-	tok, pos, lit := p.scanIgnoreWhitespace()
-	switch tok {
-	case SELECT:
-		return p.parseSelectStatement(targetNotRequired)
-	case DELETE:
-		return p.parseDeleteStatement()
-	case SHOW:
-		return p.parseShowStatement()
-	case CREATE:
-		return p.parseCreateStatement()
-	case DROP:
-		return p.parseDropStatement()
-	case GRANT:
-		return p.parseGrantStatement()
-	case REVOKE:
-		return p.parseRevokeStatement()
-	case ALTER:
-		return p.parseAlterStatement()
-	case SET:
-		return p.parseSetPasswordUserStatement()
-	case KILL:
-		return p.parseKillQueryStatement()
-	default:
-		return nil, newParseError(tokstr(tok, lit), []string{"SELECT", "DELETE", "SHOW", "CREATE", "DROP", "GRANT", "REVOKE", "ALTER", "SET", "KILL"}, pos)
-	}
-}
-
-// parseShowStatement parses a string and returns a list statement.
-// This function assumes the SHOW token has already been consumed.
-func (p *Parser) parseShowStatement() (Statement, error) {
-	tok, pos, lit := p.scanIgnoreWhitespace()
-	switch tok {
-	case CONTINUOUS:
-		return p.parseShowContinuousQueriesStatement()
-	case GRANTS:
-		return p.parseGrantsForUserStatement()
-	case DATABASES:
-		return p.parseShowDatabasesStatement()
-	case FIELD:
-		tok, pos, lit := p.scanIgnoreWhitespace()
-		if tok == KEYS {
-			return p.parseShowFieldKeysStatement()
-		}
-		return nil, newParseError(tokstr(tok, lit), []string{"KEYS"}, pos)
-	case MEASUREMENTS:
-		return p.parseShowMeasurementsStatement()
-	case QUERIES:
-		return p.parseShowQueriesStatement()
-	case RETENTION:
-		tok, pos, lit := p.scanIgnoreWhitespace()
-		if tok == POLICIES {
-			return p.parseShowRetentionPoliciesStatement()
-		}
-		return nil, newParseError(tokstr(tok, lit), []string{"POLICIES"}, pos)
-	case SERIES:
-		return p.parseShowSeriesStatement()
-	case SHARD:
-		tok, pos, lit := p.scanIgnoreWhitespace()
-		if tok == GROUPS {
-			return p.parseShowShardGroupsStatement()
-		}
-		return nil, newParseError(tokstr(tok, lit), []string{"GROUPS"}, pos)
-	case SHARDS:
-		return p.parseShowShardsStatement()
-	case STATS:
-		return p.parseShowStatsStatement()
-	case DIAGNOSTICS:
-		return p.parseShowDiagnosticsStatement()
-	case TAG:
-		tok, pos, lit := p.scanIgnoreWhitespace()
-		if tok == KEYS {
-			return p.parseShowTagKeysStatement()
-		} else if tok == VALUES {
-			return p.parseShowTagValuesStatement()
-		}
-		return nil, newParseError(tokstr(tok, lit), []string{"KEYS", "VALUES"}, pos)
-	case USERS:
-		return p.parseShowUsersStatement()
-	case SUBSCRIPTIONS:
-		return p.parseShowSubscriptionsStatement()
-	}
-
-	showQueryKeywords := []string{
-		"CONTINUOUS",
-		"DATABASES",
-		"FIELD",
-		"GRANTS",
-		"MEASUREMENTS",
-		"QUERIES",
-		"RETENTION",
-		"SERIES",
-		"TAG",
-		"USERS",
-		"STATS",
-		"DIAGNOSTICS",
-		"SHARD",
-		"SHARDS",
-		"SUBSCRIPTIONS",
-	}
-	sort.Strings(showQueryKeywords)
-
-	return nil, newParseError(tokstr(tok, lit), showQueryKeywords, pos)
-}
-
-// parseCreateStatement parses a string and returns a create statement.
-// This function assumes the CREATE token has already been consumed.
-func (p *Parser) parseCreateStatement() (Statement, error) {
-	tok, pos, lit := p.scanIgnoreWhitespace()
-	if tok == CONTINUOUS {
-		return p.parseCreateContinuousQueryStatement()
-	} else if tok == DATABASE {
-		return p.parseCreateDatabaseStatement()
-	} else if tok == USER {
-		return p.parseCreateUserStatement()
-	} else if tok == RETENTION {
-		tok, pos, lit = p.scanIgnoreWhitespace()
-		if tok != POLICY {
-			return nil, newParseError(tokstr(tok, lit), []string{"POLICY"}, pos)
-		}
-		return p.parseCreateRetentionPolicyStatement()
-	} else if tok == SUBSCRIPTION {
-		return p.parseCreateSubscriptionStatement()
-	}
-
-	return nil, newParseError(tokstr(tok, lit), []string{"CONTINUOUS", "DATABASE", "USER", "RETENTION", "SUBSCRIPTION"}, pos)
-}
-
-// parseDropStatement parses a string and returns a drop statement.
-// This function assumes the DROP token has already been consumed.
-func (p *Parser) parseDropStatement() (Statement, error) {
-	tok, pos, lit := p.scanIgnoreWhitespace()
-	switch tok {
-	case CONTINUOUS:
-		return p.parseDropContinuousQueryStatement()
-	case DATABASE:
-		return p.parseDropDatabaseStatement()
-	case MEASUREMENT:
-		return p.parseDropMeasurementStatement()
-	case RETENTION:
-		if tok, pos, lit := p.scanIgnoreWhitespace(); tok != POLICY {
-			return nil, newParseError(tokstr(tok, lit), []string{"POLICY"}, pos)
-		}
-		return p.parseDropRetentionPolicyStatement()
-	case SERIES:
-		return p.parseDropSeriesStatement()
-	case SHARD:
-		return p.parseDropShardStatement()
-	case SUBSCRIPTION:
-		return p.parseDropSubscriptionStatement()
-	case USER:
-		return p.parseDropUserStatement()
-	default:
-		return nil, newParseError(tokstr(tok, lit), []string{"CONTINUOUS", "MEASUREMENT", "RETENTION", "SERIES", "SHARD", "SUBSCRIPTION", "USER"}, pos)
-	}
-}
-
-// parseAlterStatement parses a string and returns an alter statement.
-// This function assumes the ALTER token has already been consumed.
-func (p *Parser) parseAlterStatement() (Statement, error) {
-	tok, pos, lit := p.scanIgnoreWhitespace()
-	if tok == RETENTION {
-		if tok, pos, lit = p.scanIgnoreWhitespace(); tok != POLICY {
-			return nil, newParseError(tokstr(tok, lit), []string{"POLICY"}, pos)
-		}
-		return p.parseAlterRetentionPolicyStatement()
-	}
-
-	return nil, newParseError(tokstr(tok, lit), []string{"RETENTION"}, pos)
+	return Language.Parse(p)
 }
 
 // parseSetPasswordUserStatement parses a string and returns a set statement.
 // This function assumes the SET token has already been consumed.
 func (p *Parser) parseSetPasswordUserStatement() (*SetPasswordUserStatement, error) {
 	stmt := &SetPasswordUserStatement{}
-
-	// Consume the required PASSWORD FOR tokens.
-	if err := p.parseTokens([]Token{PASSWORD, FOR}); err != nil {
-		return nil, err
-	}
 
 	// Parse username
 	ident, err := p.parseIdent()
@@ -299,10 +125,6 @@ func (p *Parser) parseSetPasswordUserStatement() (*SetPasswordUserStatement, err
 // parseKillQueryStatement parses a string and returns a kill statement.
 // This function assumes the KILL token has already been consumed.
 func (p *Parser) parseKillQueryStatement() (*KillQueryStatement, error) {
-	if err := p.parseTokens([]Token{QUERY}); err != nil {
-		return nil, err
-	}
-
 	qid, err := p.parseUInt64()
 	if err != nil {
 		return nil, err
@@ -1515,25 +1337,13 @@ func (p *Parser) parseDropShardStatement() (*DropShardStatement, error) {
 // parseShowContinuousQueriesStatement parses a string and returns a ShowContinuousQueriesStatement.
 // This function assumes the "SHOW CONTINUOUS" tokens have already been consumed.
 func (p *Parser) parseShowContinuousQueriesStatement() (*ShowContinuousQueriesStatement, error) {
-	stmt := &ShowContinuousQueriesStatement{}
-
-	// Expect a "QUERIES" token.
-	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != QUERIES {
-		return nil, newParseError(tokstr(tok, lit), []string{"QUERIES"}, pos)
-	}
-
-	return stmt, nil
+	return &ShowContinuousQueriesStatement{}, nil
 }
 
 // parseGrantsForUserStatement parses a string and returns a ShowGrantsForUserStatement.
 // This function assumes the "SHOW GRANTS" tokens have already been consumed.
 func (p *Parser) parseGrantsForUserStatement() (*ShowGrantsForUserStatement, error) {
 	stmt := &ShowGrantsForUserStatement{}
-
-	// Expect a "FOR" token.
-	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != FOR {
-		return nil, newParseError(tokstr(tok, lit), []string{"FOR"}, pos)
-	}
 
 	// Parse the name of the user to be displayed.
 	lit, err := p.parseIdent()
@@ -1548,19 +1358,13 @@ func (p *Parser) parseGrantsForUserStatement() (*ShowGrantsForUserStatement, err
 // parseShowDatabasesStatement parses a string and returns a ShowDatabasesStatement.
 // This function assumes the "SHOW DATABASE" tokens have already been consumed.
 func (p *Parser) parseShowDatabasesStatement() (*ShowDatabasesStatement, error) {
-	stmt := &ShowDatabasesStatement{}
-	return stmt, nil
+	return &ShowDatabasesStatement{}, nil
 }
 
 // parseCreateContinuousQueriesStatement parses a string and returns a CreateContinuousQueryStatement.
 // This function assumes the "CREATE CONTINUOUS" tokens have already been consumed.
 func (p *Parser) parseCreateContinuousQueryStatement() (*CreateContinuousQueryStatement, error) {
 	stmt := &CreateContinuousQueryStatement{}
-
-	// Expect a "QUERY" token.
-	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != QUERY {
-		return nil, newParseError(tokstr(tok, lit), []string{"QUERY"}, pos)
-	}
 
 	// Read the id of the query to create.
 	ident, err := p.parseIdent()
@@ -1879,11 +1683,6 @@ func (p *Parser) parseShowDiagnosticsStatement() (*ShowDiagnosticsStatement, err
 // This function assumes the "DROP CONTINUOUS" tokens have already been consumed.
 func (p *Parser) parseDropContinuousQueryStatement() (*DropContinuousQueryStatement, error) {
 	stmt := &DropContinuousQueryStatement{}
-
-	// Expect a "QUERY" token.
-	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != QUERY {
-		return nil, newParseError(tokstr(tok, lit), []string{"QUERY"}, pos)
-	}
 
 	// Read the id of the query to drop.
 	ident, err := p.parseIdent()
