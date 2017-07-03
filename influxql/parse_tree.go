@@ -64,7 +64,7 @@ func (t *ParseTree) Handle(tok Token, fn func(*Parser) (Statement, error)) {
 // Parse parses a statement using the language defined in the parse tree.
 func (t *ParseTree) Parse(p *Parser) (Statement, error) {
 	for {
-		tok, pos, lit := p.scanIgnoreWhitespace()
+		tok, pos, lit := p.ScanIgnoreWhitespace()
 		if subtree, ok := t.Tokens[tok]; ok {
 			t = subtree
 			continue
