@@ -1384,11 +1384,13 @@ func (p *Parser) parseCreateContinuousQueryStatement() (*CreateContinuousQuerySt
 	}
 	stmt.Database = ident
 
-	if p.parseTokenMaybe(RESAMPLE) {
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == RESAMPLE {
 		stmt.ResampleEvery, stmt.ResampleFor, err = p.parseResample()
 		if err != nil {
 			return nil, err
 		}
+	} else {
+		p.unscan()
 	}
 
 	// Expect a "BEGIN SELECT" tokens.
@@ -2525,7 +2527,7 @@ func (p *Parser) parseCall(name string) (*Call, error) {
 // EVERY and FOR are optional, but at least one of the two has to be used.
 func (p *Parser) parseResample() (time.Duration, time.Duration, error) {
 	var interval time.Duration
-	if p.parseTokenMaybe(EVERY) {
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == EVERY {
 		tok, pos, lit := p.scanIgnoreWhitespace()
 		if tok != DURATIONVAL {
 			return 0, 0, newParseError(tokstr(tok, lit), []string{"duration"}, pos)
@@ -2536,10 +2538,12 @@ func (p *Parser) parseResample() (time.Duration, time.Duration, error) {
 			return 0, 0, &ParseError{Message: err.Error(), Pos: pos}
 		}
 		interval = d
+	} else {
+		p.unscan()
 	}
 
 	var maxDuration time.Duration
-	if p.parseTokenMaybe(FOR) {
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == FOR {
 		tok, pos, lit := p.scanIgnoreWhitespace()
 		if tok != DURATIONVAL {
 			return 0, 0, newParseError(tokstr(tok, lit), []string{"duration"}, pos)
@@ -2550,6 +2554,8 @@ func (p *Parser) parseResample() (time.Duration, time.Duration, error) {
 			return 0, 0, &ParseError{Message: err.Error(), Pos: pos}
 		}
 		maxDuration = d
+	} else {
+		p.unscan()
 	}
 
 	// Neither EVERY or FOR were read, so read the next token again
@@ -2711,17 +2717,6 @@ func (p *Parser) parseTokens(toks []Token) error {
 		}
 	}
 	return nil
-}
-
-// parseTokenMaybe consumes the next token if it matches the expected one and
-// does nothing if the next token is not the next one.
-func (p *Parser) parseTokenMaybe(expected Token) bool {
-	tok, _, _ := p.scanIgnoreWhitespace()
-	if tok != expected {
-		p.unscan()
-		return false
-	}
-	return true
 }
 
 var (
