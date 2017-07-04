@@ -748,6 +748,9 @@ func (c *Compactor) CompactFull(tsmFiles []string) ([]string, error) {
 	c.mu.RUnlock()
 
 	if !enabled {
+		if err := c.removeTmpFiles(files); err != nil {
+			return nil, err
+		}
 		return nil, errCompactionsDisabled
 	}
 
@@ -777,11 +780,25 @@ func (c *Compactor) CompactFast(tsmFiles []string) ([]string, error) {
 	c.mu.RUnlock()
 
 	if !enabled {
+		if err := c.removeTmpFiles(files); err != nil {
+			return nil, err
+		}
 		return nil, errCompactionsDisabled
 	}
 
 	return files, err
 
+}
+
+// removeTmpFiles is responsible for cleaning up a compaction that
+// was started, but then abandoned before the temporary files were dealt with.
+func (c *Compactor) removeTmpFiles(files []string) error {
+	for _, f := range files {
+		if err := os.Remove(f); err != nil {
+			return fmt.Errorf("error removing temp compaction file: %v", err)
+		}
+	}
+	return nil
 }
 
 // writeNewFiles writes from the iterator into new TSM files, rotating
