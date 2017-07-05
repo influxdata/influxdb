@@ -76,6 +76,8 @@ button.btn.template-control--manage {
     white-space: pre-wrap;
     word-break: break-all;
     overflow: hidden;
+    font-family: $code-font;
+    font-size: 12px;
   }
 }
 .template-control--label {
