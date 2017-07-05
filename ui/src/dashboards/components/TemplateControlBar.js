@@ -5,26 +5,48 @@ import Dropdown from 'shared/components/Dropdown'
 
 import omit from 'lodash/omit'
 
+const pixelsPerCharacter = 9
+const minTempVarDropdownWidth = 146
+
 const TemplateControlBar = ({
   templates,
   onSelectTemplate,
   onOpenTemplateManager,
   isOpen,
-}) => (
+}) =>
   <div className={classnames('template-control-bar', {show: isOpen})}>
     <div className="template-control--container">
       <div className="template-control--controls">
         {templates.length
           ? templates.map(({id, values, tempVar}) => {
               const items = values.map(value => ({...value, text: value.value}))
+              const itemValues = values.map(value => value.value)
               const selectedItem = items.find(item => item.selected) || items[0]
               const selectedText = selectedItem && selectedItem.text
+              let customDropdownWidth = 0
+              if (itemValues.length > 1) {
+                const longest = itemValues.reduce(function(a, b) {
+                  return a.length > b.length ? a : b
+                })
+                const longestLengthPixels = longest.length * pixelsPerCharacter
+                if (longestLengthPixels > minTempVarDropdownWidth) {
+                  customDropdownWidth = longestLengthPixels
+                }
+              }
 
               // TODO: change Dropdown to a MultiSelectDropdown, `selected` to
               // the full array, and [item] to all `selected` values when we update
               // this component to support multiple values
               return (
-                <div key={id} className="template-control--dropdown">
+                <div
+                  key={id}
+                  className="template-control--dropdown"
+                  style={
+                    customDropdownWidth > 0
+                      ? {minWidth: customDropdownWidth}
+                      : null
+                  }
+                >
                   <Dropdown
                     items={items}
                     buttonSize="btn-xs"
@@ -53,7 +75,6 @@ const TemplateControlBar = ({
       </button>
     </div>
   </div>
-)
 
 const {arrayOf, bool, func, shape, string} = PropTypes
 
