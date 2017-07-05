@@ -2,6 +2,7 @@
 ### Bug Fixes
 1. [#1612](https://github.com/influxdata/chronograf/pull/1612): Prevent users from being able to write to internal system databases
 1. [#1655](https://github.com/influxdata/chronograf/pull/1655): Add more than one color to Line+Stat graphs
+1. [#1688](https://github.com/influxdata/chronograf/pull/1688): Fix updating retention policies on single-node instances.
 
 ### Features
 1. [#1645](https://github.com/influxdata/chronograf/pull/1645): Add Auth0 as a supported OAuth2 provider
