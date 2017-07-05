@@ -1,12 +1,14 @@
 import React, {PropTypes} from 'react'
 import classnames from 'classnames'
+import calculateSize from 'calculate-size'
 
 import Dropdown from 'shared/components/Dropdown'
 
 import omit from 'lodash/omit'
 
-const pixelsPerCharacter = 9
 const minTempVarDropdownWidth = 146
+const maxTempVarDropdownWidth = 300
+const tempVarDropdownPadding = 30
 
 const TemplateControlBar = ({
   templates,
@@ -25,12 +27,22 @@ const TemplateControlBar = ({
               const selectedText = selectedItem && selectedItem.text
               let customDropdownWidth = 0
               if (itemValues.length > 1) {
-                const longest = itemValues.reduce(function(a, b) {
-                  return a.length > b.length ? a : b
-                })
-                const longestLengthPixels = longest.length * pixelsPerCharacter
-                if (longestLengthPixels > minTempVarDropdownWidth) {
+                const longest = itemValues.reduce(
+                  (a, b) => (a.length > b.length ? a : b)
+                )
+                const longestLengthPixels =
+                  calculateSize(longest, {
+                    font: 'Monospace',
+                    fontSize: '12px',
+                  }).width + tempVarDropdownPadding
+
+                if (
+                  longestLengthPixels > minTempVarDropdownWidth &&
+                  longestLengthPixels < maxTempVarDropdownWidth
+                ) {
                   customDropdownWidth = longestLengthPixels
+                } else if (longestLengthPixels > maxTempVarDropdownWidth) {
+                  customDropdownWidth = maxTempVarDropdownWidth
                 }
               }
 
