@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 
+	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/server"
 	flags "github.com/jessevdk/go-flags"
 )
@@ -43,6 +46,16 @@ func main() {
 	}
 
 	if srv.NewSource != "" {
+		type SourceServer struct {
+			Source    chronograf.Source `json:"influxdb"`
+			Kapacitor chronograf.Server `json:"kapacitor"`
+		}
+		var sourceServers []SourceServer
+		err := json.Unmarshal([]byte(srv.NewSource), &sourceServers)
+		if err != nil {
+			fmt.Print(err)
+		}
+
 		/*
 			// parse influxdb key from newsource into chronograf.Source struct from chronograf.go
 			// parse kapacitor key from newsource into chronograf.Server struct from chronograf.go
