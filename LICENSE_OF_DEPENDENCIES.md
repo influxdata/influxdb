@@ -23,4 +23,3 @@
 - glyphicons [LICENSE](http://glyphicons.com/license/)
 - golang.org/x/crypto [BSD LICENSE](https://github.com/golang/crypto/blob/master/LICENSE)
 - jquery 2.1.4 [MIT LICENSE](https://github.com/jquery/jquery/blob/master/LICENSE.txt)
-- react 0.13.3 [BSD LICENSE](https://github.com/facebook/react/blob/master/LICENSE)
