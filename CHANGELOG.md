@@ -16,7 +16,14 @@
 - [#8466](https://github.com/influxdata/influxdb/issues/8466): illumos build broken on syscall.Mmap
 - [#8124](https://github.com/influxdata/influxdb/issues/8124): Prevent privileges on non-existent databases from being set.
 
-## v1.3.0 [unreleased]
+## v1.3.1 [unreleased]
+
+### Bugfixes
+
+- [#8559](https://github.com/influxdata/influxdb/issues/8559): Ensure temporary TSM files get cleaned up when compaction aborted.
+
+
+## v1.3.0 [2017-06-21]
 
 ### Release Notes
 

@@ -748,9 +748,7 @@ func (c *Compactor) CompactFull(tsmFiles []string) ([]string, error) {
 	c.mu.RUnlock()
 
 	if !enabled {
-		c.mu.Lock()
-		defer c.mu.Unlock()
-		if err := c.cleanupDisabledCompaction(tsmFiles); err != nil {
+		if err := c.removeTmpFiles(files); err != nil {
 			return nil, err
 		}
 		return nil, errCompactionsDisabled
@@ -782,9 +780,7 @@ func (c *Compactor) CompactFast(tsmFiles []string) ([]string, error) {
 	c.mu.RUnlock()
 
 	if !enabled {
-		c.mu.Lock()
-		defer c.mu.Unlock()
-		if err := c.cleanupDisabledCompaction(tsmFiles); err != nil {
+		if err := c.removeTmpFiles(files); err != nil {
 			return nil, err
 		}
 		return nil, errCompactionsDisabled
@@ -794,19 +790,12 @@ func (c *Compactor) CompactFast(tsmFiles []string) ([]string, error) {
 
 }
 
-// cleanupDisabledCompaction is responsible for cleaning up a compaction that
+// removeTmpFiles is responsible for cleaning up a compaction that
 // was started, but then abandoned before the temporary files were dealt with.
-func (c *Compactor) cleanupDisabledCompaction(tsmFiles []string) error {
-	for _, f := range tsmFiles {
-		files, err := filepath.Glob(filepath.Join(filepath.Dir(f), fmt.Sprintf("*.%s", CompactionTempExtension)))
-		if err != nil {
-			return fmt.Errorf("error cleaning up compaction temp files: %s", err.Error())
-		}
-
-		for _, f := range files {
-			if err := os.Remove(f); err != nil {
-				return fmt.Errorf("error removing temp compaction file: %v", err)
-			}
+func (c *Compactor) removeTmpFiles(files []string) error {
+	for _, f := range files {
+		if err := os.Remove(f); err != nil {
+			return fmt.Errorf("error removing temp compaction file: %v", err)
 		}
 	}
 	return nil
