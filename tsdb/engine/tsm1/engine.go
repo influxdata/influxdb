@@ -213,6 +213,16 @@ func (e *Engine) SetCompactionsEnabled(enabled bool) {
 // 'wait' signifies that a corresponding call to disableLevelCompactions(true) was made at some
 // point, and the associated task that required disabled compactions is now complete
 func (e *Engine) enableLevelCompactions(wait bool) {
+	// If we don't need to wait, see if we're already enabled
+	if !wait {
+		e.mu.RLock()
+		if e.done != nil {
+			e.mu.RUnlock()
+			return
+		}
+		e.mu.RUnlock()
+	}
+
 	e.mu.Lock()
 	if wait {
 		e.levelWorkers -= 1
@@ -263,6 +273,15 @@ func (e *Engine) disableLevelCompactions(wait bool) {
 }
 
 func (e *Engine) enableSnapshotCompactions() {
+	// Check if already enabled under read lock
+	e.mu.RLock()
+	if e.snapDone != nil {
+		e.mu.RUnlock()
+		return
+	}
+	e.mu.RUnlock()
+
+	// Check again under write lock
 	e.mu.Lock()
 	if e.snapDone != nil {
 		e.mu.Unlock()
