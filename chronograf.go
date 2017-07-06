@@ -646,44 +646,29 @@ func NewSources(ctx context.Context, sourcesStore SourcesStore, serversStore Ser
 	if err != nil {
 		return err
 	}
-	kaps, err := serversStore.All(ctx)
-	if err != nil {
-		return err
-	}
 
+SourceLoop:
 	for _, srcKap := range srcsKaps {
-		isNewSource := true
 		for _, src := range srcs {
+			// If source already exists, do nothing
 			if src.Name == srcKap.Source.Name {
-				isNewSource = false
 				logger.
 					WithField("component", "server").
 					WithField("NewSources", src.Name).
 					Info("Source already exists")
-				break
+				continue SourceLoop
 			}
 		}
-		if isNewSource == true {
-			src, err := sourcesStore.Add(ctx, srcKap.Source)
-			if err != nil {
-				return err
-			}
 
-			isNewKapacitor := true
-			for _, kap := range kaps {
-				if kap.Name == srcKap.Kapacitor.Name {
-					isNewKapacitor = false
-					break
-				}
-			}
-			if isNewKapacitor == true {
-				srcKap.Kapacitor.SrcID = src.ID
-				_, err := serversStore.Add(ctx, srcKap.Kapacitor)
-				if err != nil {
-					return err
-				}
-			}
-			// TODO: if Kapa is not new, should it be updated to point to this source ID?
+		src, err := sourcesStore.Add(ctx, srcKap.Source)
+		if err != nil {
+			return err
+		}
+
+		srcKap.Kapacitor.SrcID = src.ID
+		_, err = serversStore.Add(ctx, srcKap.Kapacitor)
+		if err != nil {
+			return err
 		}
 	}
 
