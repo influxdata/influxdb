@@ -191,6 +191,7 @@ $rd-cell-size: 30px;
 }
 .rd-time-list {
   position: absolute;
+  z-index: 1;
   top: 50%;
   left: 50%;
   width: 120px;
@@ -226,7 +227,7 @@ $rd-cell-size: 30px;
   }
 }
 
-.custom-time--apply {
+.custom-time--container .btn.custom-time--apply {
   margin-top: 8px;
   width: 120px;
 }
@@ -251,6 +252,6 @@ $rd-cell-size: 30px;
   top: 0;
   right: calc(100% + 4px);
   z-index: 2;
-  
+
   .custom-time--container {display: flex;}
 }
