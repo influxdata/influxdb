@@ -136,6 +136,9 @@ type FileStore struct {
 	purger *purger
 
 	currentTempDirID int
+
+	// Callback of files that are being added to the filestore
+	OnReplace func(r []TSMFile)
 }
 
 // FileStat holds information about a TSM file on disk.
@@ -544,6 +547,10 @@ func (f *FileStore) Replace(oldFiles, newFiles []string) error {
 			return err
 		}
 		updated = append(updated, tsm)
+	}
+
+	if f.OnReplace != nil {
+		f.OnReplace(updated)
 	}
 
 	f.mu.Lock()
