@@ -8,6 +8,7 @@
 $template-control--margin: 2px;
 $template-control--min-height: 52px;
 $template-control-dropdown-min-width: 146px;
+$template-control-dropdown-max-width: 300px;
 
 .template-control-bar {
   display: none;
@@ -54,6 +55,7 @@ button.btn.template-control--manage {
 .template-control--dropdown {
   flex: 0 1 auto;
   min-width: $template-control-dropdown-min-width;
+  max-width: $template-control-dropdown-max-width;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -69,6 +71,13 @@ button.btn.template-control--manage {
     width: 100%;
     font-size: 12px;
     font-family: $code-font;
+  }
+  .dropdown .dropdown-menu .fancy-scroll--view li.dropdown-item a {
+    white-space: pre-wrap;
+    word-break: break-all;
+    overflow: hidden;
+    font-family: $code-font;
+    font-size: 12px;
   }
 }
 .template-control--label {
