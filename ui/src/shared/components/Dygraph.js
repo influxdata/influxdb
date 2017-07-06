@@ -24,6 +24,7 @@ export default class Dygraph extends Component {
       isHidden: true,
       isAscending: true,
       isSnipped: false,
+      isFilterVisible: false,
     }
 
     this.sync = ::this.sync
@@ -32,6 +33,7 @@ export default class Dygraph extends Component {
     this.handleLegendInputChange = ::this.handleLegendInputChange
     this.handleSnipLabel = ::this.handleSnipLabel
     this.handleHideLegend = ::this.handleHideLegend
+    this.handleToggleFilter = ::this.handleToggleFilter
   }
 
   static defaultProps = {
@@ -280,6 +282,13 @@ export default class Dygraph extends Component {
     this.setState({isSnipped: !this.state.isSnipped})
   }
 
+  handleToggleFilter() {
+    this.setState({
+      isFilterVisible: !this.state.isFilterVisible,
+      filterText: '',
+    })
+  }
+
   handleHideLegend(e) {
     const {top, bottom, left, right} = this.graphRef.getBoundingClientRect()
 
@@ -303,6 +312,7 @@ export default class Dygraph extends Component {
       sortType,
       isHidden,
       isSnipped,
+      isFilterVisible,
     } = this.state
 
     return (
@@ -312,13 +322,15 @@ export default class Dygraph extends Component {
           sortType={sortType}
           onHide={this.handleHideLegend}
           isHidden={isHidden}
+          isFilterVisible={isFilterVisible}
           isSnipped={isSnipped}
           filterText={filterText}
           isAscending={isAscending}
           onSnip={this.handleSnipLabel}
           onSort={this.handleSortLegend}
-          legendRef={el => this.legendRef = el}
+          legendRef={el => (this.legendRef = el)}
           onInputChange={this.handleLegendInputChange}
+          onToggleFilter={this.handleToggleFilter}
         />
         <div
           ref={r => {

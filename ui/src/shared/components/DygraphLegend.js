@@ -13,12 +13,14 @@ const DygraphLegend = ({
   onSnip,
   onHide,
   isHidden,
+  isFilterVisible,
   isSnipped,
   sortType,
   legendRef,
   filterText,
   isAscending,
   onInputChange,
+  onToggleFilter,
   xHTML,
 }) => {
   const sorted = _.sortBy(
@@ -68,19 +70,32 @@ const DygraphLegend = ({
     >
       <div className="dygraph-legend--header">
         <div className="dygraph-legend--timestamp">{xHTML}</div>
-        <input
-          className="dygraph-legend--filter form-control input-sm"
-          type="text"
-          value={filterText}
-          onChange={onInputChange}
-          placeholder="Filter items..."
-        />
         {renderSortAlpha}
         {renderSortNum}
+        <button
+          className={classnames('btn btn-square btn-sm', {
+            'btn-default': !isFilterVisible,
+            'btn-primary': isFilterVisible,
+          })}
+          onClick={onToggleFilter}
+        >
+          <span className="icon search" />
+        </button>
         <button className="btn btn-default btn-sm" onClick={onSnip}>
           Snip
         </button>
       </div>
+      {isFilterVisible
+        ? <input
+            className="dygraph-legend--filter form-control input-sm"
+            type="text"
+            value={filterText}
+            onChange={onInputChange}
+            placeholder="Filter items..."
+            autoFocus={true}
+          />
+        : null}
+      <div className="dygraph-legend--divider" />
       <div className="dygraph-legend--contents">
         {filtered.map(({label, color, yHTML, isHighlighted}) => {
           const seriesClass = isHighlighted
@@ -88,9 +103,9 @@ const DygraphLegend = ({
             : 'dygraph-legend--row'
           return (
             <div key={label + color} className={seriesClass}>
-              <caption style={{color}}>
+              <span style={{color}}>
                 {isSnipped ? removeMeasurement(label) : label}
-              </caption>
+              </span>
               <figure>{yHTML || 'no value'}</figure>
             </div>
           )
@@ -120,12 +135,14 @@ DygraphLegend.propTypes = {
   onHide: func.isRequired,
   onSort: func.isRequired,
   onInputChange: func.isRequired,
+  onToggleFilter: func.isRequired,
   filterText: string.isRequired,
   isAscending: bool.isRequired,
   sortType: string.isRequired,
   isHidden: bool.isRequired,
   legendRef: func.isRequired,
   isSnipped: bool.isRequired,
+  isFilterVisible: bool.isRequired,
 }
 
 export default DygraphLegend
