@@ -11,7 +11,7 @@ const NameableGraph = React.createClass({
       isEditing: bool,
       x: number.isRequired,
       y: number.isRequired,
-      queries: array.isRequired,
+      queries: array,
     }).isRequired,
     children: node.isRequired,
     onEditCell: func,
@@ -44,14 +44,22 @@ const NameableGraph = React.createClass({
     const {cell} = this.props
     let customTimeRange = null
 
+    if (!cell.queries) {
+      return
+    }
+
     cell.queries.map(q => {
       if (!q.query.includes(':dashboardTime:')) {
-        customTimeRange = q.queryConfig.range.lower.split(' ').reverse()[0]
+        if (q.queryConfig) {
+          customTimeRange = q.queryConfig.range.lower.split(' ').reverse()[0]
+        }
       }
     })
 
     return customTimeRange
-      ? <span className="dash-graph--custom-time">{customTimeRange}</span>
+      ? <span className="dash-graph--custom-time">
+          {customTimeRange}
+        </span>
       : null
   },
 
