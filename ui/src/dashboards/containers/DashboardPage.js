@@ -13,6 +13,7 @@ import Dashboard from 'src/dashboards/components/Dashboard'
 import TemplateVariableManager from 'src/dashboards/components/TemplateVariableManager'
 
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
+import {quoteIfTimestamp} from 'src/utils/influxql'
 
 import * as dashboardActionCreators from 'src/dashboards/actions'
 
@@ -246,7 +247,6 @@ class DashboardPage extends Component {
   render() {
     const {
       source,
-      timeRange: {lower, upper},
       timeRange,
       showTemplateControlBar,
       dashboards,
@@ -259,13 +259,15 @@ class DashboardPage extends Component {
       params: {sourceID},
     } = this.props
 
+    const {lower, upper} = quoteIfTimestamp(timeRange)
+
     const dashboardTime = {
       id: 'dashtime',
       tempVar: ':dashboardTime:',
       type: 'constant',
       values: [
         {
-          value: `'${lower}'`,
+          value: lower,
           type: 'constant',
           selected: true,
         },
@@ -278,7 +280,7 @@ class DashboardPage extends Component {
       type: 'constant',
       values: [
         {
-          value: `'${upper}'`,
+          value: upper,
           type: 'constant',
           selected: true,
         },
@@ -296,9 +298,26 @@ class DashboardPage extends Component {
     }
 
     const dashboard = this.getActiveDashboard()
-    const templatesIncludingDashTime = dashboard
-      ? [...dashboard.templates, dashboardTime, upperDashboardTime, interval]
-      : []
+
+    let templatesIncludingDashTime
+    if (dashboard) {
+      if (upper) {
+        templatesIncludingDashTime = [
+          ...dashboard.templates,
+          dashboardTime,
+          upperDashboardTime,
+          interval,
+        ]
+      } else {
+        templatesIncludingDashTime = [
+          ...dashboard.templates,
+          dashboardTime,
+          interval,
+        ]
+      }
+    } else {
+      templatesIncludingDashTime = []
+    }
 
     const {selectedCell, isEditMode, isTemplating} = this.state
 

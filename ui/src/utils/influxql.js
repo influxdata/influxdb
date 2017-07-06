@@ -5,6 +5,18 @@ import {
   DEFAULT_DASHBOARD_GROUP_BY_INTERVAL,
 } from 'shared/constants'
 
+export const quoteIfTimestamp = ({lower, upper}) => {
+  if (lower && lower.includes('Z') && !lower.includes('\'')) {
+    lower = `'${lower}'`
+  }
+
+  if (upper && upper.includes('Z') && !upper.includes('\'')) {
+    upper = `'${upper}'`
+  }
+
+  return {lower, upper}
+}
+
 export default function buildInfluxQLQuery(timeBounds, config) {
   const {groupBy, tags, areTagsAccepted} = config
   const {upper, lower} = timeBounds
@@ -58,19 +70,13 @@ function _buildFields(fieldFuncs) {
 function _buildWhereClause({lower, upper, tags, areTagsAccepted}) {
   const timeClauses = []
 
-  if (lower && lower.includes('Z') && !lower.includes('\'')) {
-    lower = `'${lower}'`
-  }
+  const timeClause = quoteIfTimestamp({lower, upper})
 
-  if (upper && upper.includes('Z') && !upper.includes('\'')) {
-    upper = `'${upper}'`
-  }
-
-  if (lower) {
+  if (timeClause.lower) {
     timeClauses.push(`time > ${lower}`)
   }
 
-  if (upper) {
+  if (timeClause.upper) {
     timeClauses.push(`time < ${upper}`)
   }
 
