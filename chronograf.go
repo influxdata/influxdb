@@ -626,7 +626,7 @@ type LayoutStore interface {
 	Update(context.Context, Layout) error
 }
 
-// NewSources adds sources and respective kapacitors to BoltDb idempotently by name
+// NewSources adds sources to BoltDb idempotently by name, as well as respective kapacitors
 func NewSources(ctx context.Context, sourcesStore SourcesStore, serversStore ServersStore, newSources string, logger Logger) error {
 	if newSources == "" {
 		return nil
