@@ -5,7 +5,6 @@ import graphTypes from 'hson!shared/data/graphTypes.hson'
 
 const GraphTypeSelector = ({selectedGraphType, onSelectGraphType}) =>
   <div className="overlay-controls">
-    <h3 className="overlay--graph-name">Cell Editor</h3>
     <div className="overlay-controls--right">
       <p>Visualization Type</p>
       <ul className="nav nav-tablist nav-tablist-sm">

@@ -29,6 +29,7 @@ class CellEditorOverlay extends Component {
 
     this.handleSaveCell = ::this.handleSaveCell
 
+    this.handleSelectGraphType = ::this.handleSelectGraphType
     this.handleSelectDisplayOptions = ::this.handleSelectDisplayOptions
     this.handleSetActiveQueryIndex = ::this.handleSetActiveQueryIndex
     this.handleEditRawText = ::this.handleEditRawText
@@ -197,7 +198,10 @@ class CellEditorOverlay extends Component {
               isSavable={queriesWorkingDraft.every(isQuerySavable)}
             />
             {isDisplayOptionsTabOpen
-              ? <DisplayOptions />
+              ? <DisplayOptions
+                  selectedGraphType={cellWorkingType}
+                  onSelectGraphType={this.handleSelectGraphType}
+                />
               : <QueryMaker
                   source={source}
                   templates={templates}

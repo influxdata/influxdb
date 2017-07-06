@@ -1,8 +1,20 @@
 import React, {PropTypes} from 'react'
 
-const DisplayOptions = () =>
-  <div className="display-options">Display Options</div>
+import GraphTypeSelector from 'src/dashboards/components/GraphTypeSelector'
 
-DisplayOptions.propTypes = {}
+const DisplayOptions = ({selectedGraphType, onSelectGraphType}) =>
+  <div className="display-options">
+    <GraphTypeSelector
+      selectedGraphType={selectedGraphType}
+      onSelectGraphType={onSelectGraphType}
+    />
+  </div>
+
+const {func, string} = PropTypes
+
+DisplayOptions.propTypes = {
+  selectedGraphType: string.isRequired,
+  onSelectGraphType: func.isRequired,
+}
 
 export default DisplayOptions
