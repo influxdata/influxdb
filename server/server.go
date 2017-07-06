@@ -50,7 +50,7 @@ type Server struct {
 	KapacitorUsername string `long:"kapacitor-username" description:"Username of your Kapacitor instance" env:"KAPACITOR_USERNAME"`
 	KapacitorPassword string `long:"kapacitor-password" description:"Password of your Kapacitor instance" env:"KAPACITOR_PASSWORD"`
 
-	NewSource string `long:"new-source" description:"Config for adding a new InfluxDb source and Kapacitor server, in JSON and surrounded by single quotes" env:"NEW_SOURCE"`
+	NewSources string `long:"new-source" description:"Config for adding a new InfluxDb source and Kapacitor server, in JSON and surrounded by single quotes" env:"NEW_SOURCES"`
 
 	Develop      bool          `short:"d" long:"develop" description:"Run server in develop mode."`
 	BoltPath     string        `short:"b" long:"bolt-path" description:"Full path to boltDB file (/var/lib/chronograf/chronograf-v1.db)" env:"BOLT_PATH" default:"chronograf-v1.db"`
@@ -299,6 +299,16 @@ func (s *Server) Serve(ctx context.Context) error {
 		return err
 	}
 	service := openService(ctx, s.BoltPath, layoutBuilder, sourcesBuilder, kapacitorBuilder, logger, s.useAuth())
+
+	// Add any new sources and kapacitors as specified via server flag
+	if err := chronograf.NewSources(ctx, service.SourcesStore, service.ServersStore, s.NewSources, logger); err != nil {
+		logger.
+			WithField("component", "server").
+			WithField("NewSource", "invalid").
+			Error(err)
+		return err
+	}
+
 	basepath = s.Basepath
 	if basepath != "" && s.PrefixRoutes == false {
 		logger.

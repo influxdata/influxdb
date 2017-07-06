@@ -625,3 +625,66 @@ type LayoutStore interface {
 	// Update the dashboard in the store.
 	Update(context.Context, Layout) error
 }
+
+// SourceAndKapacitor allows a --new-source to be parsed into a source and a kapacitor
+type SourceAndKapacitor struct {
+	Source    Source `json:"influxdb"`
+	Kapacitor Server `json:"kapacitor"`
+}
+
+// NewSources adds sources and respective kapacitors to BoltDb idempotently by name
+func NewSources(ctx context.Context, sourcesStore SourcesStore, serversStore ServersStore, newSources string, logger Logger) error {
+	// Once a bolt connection is created, try to add any new sources with respective kapacitor servers
+	if newSources != "" {
+		var srcsKaps []SourceAndKapacitor
+		// On JSON unmarshal error, continue server process without new source and write error to log
+		if err := json.Unmarshal([]byte(newSources), &srcsKaps); err != nil {
+			logger.
+				WithField("component", "server").
+				WithField("NewSource", "invalid").
+				Error(err)
+		} else {
+			srcs, err := sourcesStore.All(ctx)
+			if err != nil {
+				return err
+			}
+			kaps, err := serversStore.All(ctx)
+			if err != nil {
+				return err
+			}
+
+			for _, srcKap := range srcsKaps {
+				isNewSource := true
+				for _, src := range srcs {
+					if src.Name == srcKap.Source.Name {
+						isNewSource = false
+						break
+					}
+				}
+				if isNewSource == true {
+					src, err := sourcesStore.Add(ctx, srcKap.Source)
+					if err != nil {
+						return err
+					}
+
+					isNewKapacitor := true
+					for _, kap := range kaps {
+						if kap.Name == srcKap.Kapacitor.Name {
+							isNewKapacitor = false
+							break
+						}
+					}
+					if isNewKapacitor == true {
+						srcKap.Kapacitor.SrcID = src.ID
+						_, err := serversStore.Add(ctx, srcKap.Kapacitor)
+						if err != nil {
+							return err
+						}
+					}
+					// TODO: if Kapa is not new, should it be updated to point to this source ID?
+				}
+			}
+		}
+	}
+	return nil
+}
