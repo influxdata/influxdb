@@ -641,7 +641,7 @@ func NewSources(ctx context.Context, sourcesStore SourcesStore, serversStore Ser
 		if err := json.Unmarshal([]byte(newSources), &srcsKaps); err != nil {
 			logger.
 				WithField("component", "server").
-				WithField("NewSource", "invalid").
+				WithField("NewSources", "invalid").
 				Error(err)
 		} else {
 			srcs, err := sourcesStore.All(ctx)
@@ -660,7 +660,7 @@ func NewSources(ctx context.Context, sourcesStore SourcesStore, serversStore Ser
 						isNewSource = false
 						logger.
 							WithField("component", "server").
-							WithField("NewSource", src.Name).
+							WithField("NewSources", src.Name).
 							Info("Source already exists")
 						break
 					}

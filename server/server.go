@@ -304,7 +304,7 @@ func (s *Server) Serve(ctx context.Context) error {
 	if err := chronograf.NewSources(ctx, service.SourcesStore, service.ServersStore, s.NewSources, logger); err != nil {
 		logger.
 			WithField("component", "server").
-			WithField("NewSource", "invalid").
+			WithField("NewSources", "invalid").
 			Error(err)
 		return err
 	}
