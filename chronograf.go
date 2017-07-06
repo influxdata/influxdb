@@ -658,6 +658,10 @@ func NewSources(ctx context.Context, sourcesStore SourcesStore, serversStore Ser
 				for _, src := range srcs {
 					if src.Name == srcKap.Source.Name {
 						isNewSource = false
+						logger.
+							WithField("component", "server").
+							WithField("NewSource", src.Name).
+							Info("Source already exists")
 						break
 					}
 				}
