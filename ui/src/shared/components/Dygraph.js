@@ -34,6 +34,7 @@ export default class Dygraph extends Component {
     this.handleSnipLabel = ::this.handleSnipLabel
     this.handleHideLegend = ::this.handleHideLegend
     this.handleToggleFilter = ::this.handleToggleFilter
+    this.visibility = ::this.visibility
   }
 
   static defaultProps = {
@@ -167,6 +168,10 @@ export default class Dygraph extends Component {
 
         if (!isMouseHoveringLegend) {
           this.setState({isHidden: true})
+
+          if (!this.visibility().find(bool => bool === true)) {
+            this.setState({filterText: ''})
+          }
         }
       },
     }
@@ -211,6 +216,22 @@ export default class Dygraph extends Component {
     return shallowCompare(this, nextProps, nextState)
   }
 
+  visibility() {
+    const timeSeries = this.getTimeSeries()
+    const {filterText, legend} = this.state
+    const series = _.get(timeSeries, '0', [])
+    const numSeries = series.length
+    return Array(numSeries ? numSeries - 1 : numSeries)
+      .fill(true)
+      .map((s, i) => {
+        if (!legend.series[i]) {
+          return true
+        }
+
+        return !!legend.series[i].label.match(filterText)
+      })
+  }
+
   componentDidUpdate() {
     const {
       labels,
@@ -220,7 +241,6 @@ export default class Dygraph extends Component {
       ruleValues,
       isBarGraph,
     } = this.props
-    const {filterText, legend} = this.state
 
     const dygraph = this.dygraph
     if (!dygraph) {
@@ -230,14 +250,6 @@ export default class Dygraph extends Component {
     }
 
     const timeSeries = this.getTimeSeries()
-    const visibility = timeSeries.map(() => true).map((b, i) => {
-      if (!legend.series[i]) {
-        return b
-      }
-
-      return !!legend.series[i].label.match(filterText)
-    })
-
     const updateOptions = {
       labels,
       file: timeSeries,
@@ -254,7 +266,7 @@ export default class Dygraph extends Component {
       underlayCallback: options.underlayCallback,
       series: dygraphSeries,
       plotter: isBarGraph ? multiColumnBarPlotter : null,
-      visibility,
+      visibility: this.visibility(),
     }
 
     dygraph.updateOptions(updateOptions)
@@ -301,6 +313,9 @@ export default class Dygraph extends Component {
 
     if (!isMouseHoveringGraph) {
       this.setState({isHidden: true})
+      if (!this.visibility().find(bool => bool === true)) {
+        this.setState({filterText: ''})
+      }
     }
   }
 
