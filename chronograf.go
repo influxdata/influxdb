@@ -626,22 +626,14 @@ type LayoutStore interface {
 	Update(context.Context, Layout) error
 }
 
+// SourceAndKapacitor is used to parse any NewSources server flag arguments
+type SourceAndKapacitor struct {
+	Source    Source `json:"influxdb"`
+	Kapacitor Server `json:"kapacitor"`
+}
+
 // NewSources adds sources to BoltDb idempotently by name, as well as respective kapacitors
-func NewSources(ctx context.Context, sourcesStore SourcesStore, serversStore ServersStore, newSources string, logger Logger) error {
-	if newSources == "" {
-		return nil
-	}
-
-	type SourceAndKapacitor struct {
-		Source    Source `json:"influxdb"`
-		Kapacitor Server `json:"kapacitor"`
-	}
-	var srcsKaps []SourceAndKapacitor
-	// On JSON unmarshal error, continue server process without new source and write error to log
-	if err := json.Unmarshal([]byte(newSources), &srcsKaps); err != nil {
-		return err
-	}
-
+func NewSources(ctx context.Context, sourcesStore SourcesStore, serversStore ServersStore, srcsKaps []SourceAndKapacitor, logger Logger) error {
 	srcs, err := sourcesStore.All(ctx)
 	if err != nil {
 		return err

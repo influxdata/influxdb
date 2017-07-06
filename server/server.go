@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"log"
 	"math/rand"
 	"net"
@@ -300,14 +301,29 @@ func (s *Server) Serve(ctx context.Context) error {
 	}
 	service := openService(ctx, s.BoltPath, layoutBuilder, sourcesBuilder, kapacitorBuilder, logger, s.useAuth())
 
-	// Add any new sources and kapacitors as specified via server flag
-	if err = chronograf.NewSources(ctx, service.SourcesStore, service.ServersStore, s.NewSources, logger); err != nil {
-		// Continue with server run even if adding NewSources fails
-		logger.
-			WithField("component", "server").
-			WithField("NewSources", "invalid").
-			Error(err)
-	}
+	go func() {
+		if s.NewSources == "" {
+			return
+		}
+
+		var srcsKaps []chronograf.SourceAndKapacitor
+		// On JSON unmarshal error, continue server process without new source and write error to log
+		if err := json.Unmarshal([]byte(s.NewSources), &srcsKaps); err != nil {
+			logger.
+				WithField("component", "server").
+				WithField("NewSources", "invalid").
+				Error(err)
+		}
+
+		// Add any new sources and kapacitors as specified via server flag
+		if err = chronograf.NewSources(ctx, service.SourcesStore, service.ServersStore, srcsKaps, logger); err != nil {
+			// Continue with server run even if adding NewSources fails
+			logger.
+				WithField("component", "server").
+				WithField("NewSources", "invalid").
+				Error(err)
+		}
+	}()
 
 	basepath = s.Basepath
 	if basepath != "" && s.PrefixRoutes == false {
