@@ -163,7 +163,7 @@ input.form-control.dash-graph--name-edit {
 .dash-graph--options {
   width: $dash-graph-heading;
   position: absolute;
-  z-index: 11;
+  z-index: 1;
   right: 0px;
   top: 0px;
   text-align: center;
@@ -250,6 +250,7 @@ input.form-control.dash-graph--name-edit {
 
 /* Menu Open State */
 .dash-graph--options.dash-graph--options-show {
+  z-index: 11;
   > .btn {
     color: $g20-white;
     background-color: $g5-pepper !important;
