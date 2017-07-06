@@ -7,6 +7,7 @@ import ResizeContainer from 'shared/components/ResizeContainer'
 import QueryMaker from 'src/data_explorer/components/QueryMaker'
 import Visualization from 'src/data_explorer/components/Visualization'
 import OverlayControls from 'src/dashboards/components/OverlayControls'
+import DisplayOptions from 'src/dashboards/components/DisplayOptions'
 import * as queryModifiers from 'src/utils/queryTransitions'
 
 import defaultQueryConfig from 'src/utils/defaultQueryConfig'
@@ -28,7 +29,7 @@ class CellEditorOverlay extends Component {
 
     this.handleSaveCell = ::this.handleSaveCell
 
-    this.handleSelectGraphType = ::this.handleSelectGraphType
+    this.handleSelectDisplayOptions = ::this.handleSelectDisplayOptions
     this.handleSetActiveQueryIndex = ::this.handleSetActiveQueryIndex
     this.handleEditRawText = ::this.handleEditRawText
 
@@ -43,6 +44,7 @@ class CellEditorOverlay extends Component {
       cellWorkingType: type,
       queriesWorkingDraft,
       activeQueryIndex: 0,
+      isDisplayOptionsTabOpen: false,
     }
   }
 
@@ -112,6 +114,12 @@ class CellEditorOverlay extends Component {
     this.setState({cellWorkingType: graphType})
   }
 
+  handleSelectDisplayOptions(isDisplayOptionsTabOpen) {
+    return () => {
+      this.setState({isDisplayOptionsTabOpen})
+    }
+  }
+
   handleSetActiveQueryIndex(activeQueryIndex) {
     this.setState({activeQueryIndex})
   }
@@ -146,6 +154,7 @@ class CellEditorOverlay extends Component {
       activeQueryIndex,
       cellWorkingName,
       cellWorkingType,
+      isDisplayOptionsTabOpen,
       queriesWorkingDraft,
     } = this.state
 
@@ -181,23 +190,25 @@ class CellEditorOverlay extends Component {
           />
           <div className="overlay-technology--editor">
             <OverlayControls
-              selectedGraphType={cellWorkingType}
-              onSelectGraphType={this.handleSelectGraphType}
+              isDisplayOptionsTabOpen={isDisplayOptionsTabOpen}
+              onSelectDisplayOptions={this.handleSelectDisplayOptions}
               onCancel={onCancel}
               onSave={this.handleSaveCell}
               isSavable={queriesWorkingDraft.every(isQuerySavable)}
             />
-            <QueryMaker
-              source={source}
-              templates={templates}
-              queries={queriesWorkingDraft}
-              actions={queryActions}
-              autoRefresh={autoRefresh}
-              timeRange={timeRange}
-              setActiveQueryIndex={this.handleSetActiveQueryIndex}
-              onDeleteQuery={this.handleDeleteQuery}
-              activeQueryIndex={activeQueryIndex}
-            />
+            {isDisplayOptionsTabOpen
+              ? <DisplayOptions />
+              : <QueryMaker
+                  source={source}
+                  templates={templates}
+                  queries={queriesWorkingDraft}
+                  actions={queryActions}
+                  autoRefresh={autoRefresh}
+                  timeRange={timeRange}
+                  setActiveQueryIndex={this.handleSetActiveQueryIndex}
+                  onDeleteQuery={this.handleDeleteQuery}
+                  activeQueryIndex={activeQueryIndex}
+                />}
           </div>
         </ResizeContainer>
       </div>
