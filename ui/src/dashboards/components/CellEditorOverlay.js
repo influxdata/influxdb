@@ -33,6 +33,7 @@ class CellEditorOverlay extends Component {
     this.handleSelectDisplayOptions = ::this.handleSelectDisplayOptions
     this.handleSetActiveQueryIndex = ::this.handleSetActiveQueryIndex
     this.handleEditRawText = ::this.handleEditRawText
+    this.handleSetRange = ::this.handleSetRange
 
     const {cell: {name, type, queries}} = props
 
@@ -46,6 +47,10 @@ class CellEditorOverlay extends Component {
       queriesWorkingDraft,
       activeQueryIndex: 0,
       isDisplayOptionsTabOpen: false,
+      yRange: {
+        min: 'auto',
+        max: 'auto',
+      },
     }
   }
 
@@ -121,6 +126,17 @@ class CellEditorOverlay extends Component {
     }
   }
 
+  handleSetRange(e) {
+    const {min, max} = e.target.form
+    this.setState({
+      yRange: {
+        min: min.value,
+        max: max.value,
+      },
+    })
+    e.preventDefault()
+  }
+
   handleSetActiveQueryIndex(activeQueryIndex) {
     this.setState({activeQueryIndex})
   }
@@ -157,6 +173,7 @@ class CellEditorOverlay extends Component {
       cellWorkingType,
       isDisplayOptionsTabOpen,
       queriesWorkingDraft,
+      yRange,
     } = this.state
 
     const queryActions = {
@@ -187,6 +204,7 @@ class CellEditorOverlay extends Component {
             cellType={cellWorkingType}
             cellName={cellWorkingName}
             editQueryStatus={editQueryStatus}
+            yRange={yRange}
             views={[]}
           />
           <div className="overlay-technology--editor">
@@ -201,6 +219,8 @@ class CellEditorOverlay extends Component {
               ? <DisplayOptions
                   selectedGraphType={cellWorkingType}
                   onSelectGraphType={this.handleSelectGraphType}
+                  onSetRange={this.handleSetRange}
+                  yRange={yRange}
                 />
               : <QueryMaker
                   source={source}
