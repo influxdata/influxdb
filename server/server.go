@@ -436,8 +436,7 @@ func openService(ctx context.Context, boltPath string, lBuilder LayoutBuilder, s
 	}
 }
 
-// processNewSources parses and persists new sources passed in via server flag.
-// It's used within a goroutine so its return is negligible.
+// processNewSources parses and persists new sources passed in via server flag
 func processNewSources(ctx context.Context, service Service, newSources string, logger chronograf.Logger) error {
 	if newSources == "" {
 		return nil
