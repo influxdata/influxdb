@@ -301,12 +301,12 @@ func (s *Server) Serve(ctx context.Context) error {
 	service := openService(ctx, s.BoltPath, layoutBuilder, sourcesBuilder, kapacitorBuilder, logger, s.useAuth())
 
 	// Add any new sources and kapacitors as specified via server flag
-	if err := chronograf.NewSources(ctx, service.SourcesStore, service.ServersStore, s.NewSources, logger); err != nil {
+	if err = chronograf.NewSources(ctx, service.SourcesStore, service.ServersStore, s.NewSources, logger); err != nil {
+		// Continue with server run even if adding NewSources fails
 		logger.
 			WithField("component", "server").
 			WithField("NewSources", "invalid").
 			Error(err)
-		return err
 	}
 
 	basepath = s.Basepath
