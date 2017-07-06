@@ -2,7 +2,7 @@ import React, {PropTypes} from 'react'
 import classnames from 'classnames'
 import OnClickOutside from 'react-onclickoutside'
 
-const {bool, func, node, number, shape, string} = PropTypes
+const {array, bool, func, node, number, shape, string} = PropTypes
 
 const NameableGraph = React.createClass({
   propTypes: {
@@ -11,6 +11,7 @@ const NameableGraph = React.createClass({
       isEditing: bool,
       x: number.isRequired,
       y: number.isRequired,
+      queries: array.isRequired,
     }).isRequired,
     children: node.isRequired,
     onEditCell: func,
@@ -37,6 +38,21 @@ const NameableGraph = React.createClass({
     this.setState({
       isMenuOpen: false,
     })
+  },
+
+  renderCustomTimeIndicator() {
+    const {cell} = this.props
+    let customTimeRange = null
+
+    cell.queries.map(q => {
+      if (!q.query.includes(':dashboardTime:')) {
+        customTimeRange = q.queryConfig.range.lower.split(' ').reverse()[0]
+      }
+    })
+
+    return customTimeRange
+      ? <span className="dash-graph--custom-time">{customTimeRange}</span>
+      : null
   },
 
   render() {
@@ -75,7 +91,12 @@ const NameableGraph = React.createClass({
         />
       )
     } else {
-      nameOrField = <span className="dash-graph--name">{name}</span>
+      nameOrField = (
+        <span className="dash-graph--name">
+          {name}
+          {this.renderCustomTimeIndicator()}
+        </span>
+      )
     }
 
     let onStartRenaming
