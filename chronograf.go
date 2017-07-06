@@ -628,66 +628,64 @@ type LayoutStore interface {
 
 // NewSources adds sources and respective kapacitors to BoltDb idempotently by name
 func NewSources(ctx context.Context, sourcesStore SourcesStore, serversStore ServersStore, newSources string, logger Logger) error {
-	// Once a bolt connection is created, try to add any new sources with respective kapacitor servers
-	if newSources != "" {
-		type SourceAndKapacitor struct {
-			Source    Source `json:"influxdb"`
-			Kapacitor Server `json:"kapacitor"`
+	if newSources == "" {
+		return nil
+	}
+
+	type SourceAndKapacitor struct {
+		Source    Source `json:"influxdb"`
+		Kapacitor Server `json:"kapacitor"`
+	}
+	var srcsKaps []SourceAndKapacitor
+	// On JSON unmarshal error, continue server process without new source and write error to log
+	if err := json.Unmarshal([]byte(newSources), &srcsKaps); err != nil {
+		return err
+	}
+
+	srcs, err := sourcesStore.All(ctx)
+	if err != nil {
+		return err
+	}
+	kaps, err := serversStore.All(ctx)
+	if err != nil {
+		return err
+	}
+
+	for _, srcKap := range srcsKaps {
+		isNewSource := true
+		for _, src := range srcs {
+			if src.Name == srcKap.Source.Name {
+				isNewSource = false
+				logger.
+					WithField("component", "server").
+					WithField("NewSources", src.Name).
+					Info("Source already exists")
+				break
+			}
 		}
-		var srcsKaps []SourceAndKapacitor
-
-		// On JSON unmarshal error, continue server process without new source and write error to log
-		if err := json.Unmarshal([]byte(newSources), &srcsKaps); err != nil {
-			logger.
-				WithField("component", "server").
-				WithField("NewSources", "invalid").
-				Error(err)
-		} else {
-			srcs, err := sourcesStore.All(ctx)
-			if err != nil {
-				return err
-			}
-			kaps, err := serversStore.All(ctx)
+		if isNewSource == true {
+			src, err := sourcesStore.Add(ctx, srcKap.Source)
 			if err != nil {
 				return err
 			}
 
-			for _, srcKap := range srcsKaps {
-				isNewSource := true
-				for _, src := range srcs {
-					if src.Name == srcKap.Source.Name {
-						isNewSource = false
-						logger.
-							WithField("component", "server").
-							WithField("NewSources", src.Name).
-							Info("Source already exists")
-						break
-					}
-				}
-				if isNewSource == true {
-					src, err := sourcesStore.Add(ctx, srcKap.Source)
-					if err != nil {
-						return err
-					}
-
-					isNewKapacitor := true
-					for _, kap := range kaps {
-						if kap.Name == srcKap.Kapacitor.Name {
-							isNewKapacitor = false
-							break
-						}
-					}
-					if isNewKapacitor == true {
-						srcKap.Kapacitor.SrcID = src.ID
-						_, err := serversStore.Add(ctx, srcKap.Kapacitor)
-						if err != nil {
-							return err
-						}
-					}
-					// TODO: if Kapa is not new, should it be updated to point to this source ID?
+			isNewKapacitor := true
+			for _, kap := range kaps {
+				if kap.Name == srcKap.Kapacitor.Name {
+					isNewKapacitor = false
+					break
 				}
 			}
+			if isNewKapacitor == true {
+				srcKap.Kapacitor.SrcID = src.ID
+				_, err := serversStore.Add(ctx, srcKap.Kapacitor)
+				if err != nil {
+					return err
+				}
+			}
+			// TODO: if Kapa is not new, should it be updated to point to this source ID?
 		}
 	}
+
 	return nil
 }
