@@ -301,29 +301,7 @@ func (s *Server) Serve(ctx context.Context) error {
 	}
 	service := openService(ctx, s.BoltPath, layoutBuilder, sourcesBuilder, kapacitorBuilder, logger, s.useAuth())
 
-	go func() {
-		if s.NewSources == "" {
-			return
-		}
-
-		var srcsKaps []chronograf.SourceAndKapacitor
-		// On JSON unmarshal error, continue server process without new source and write error to log
-		if err := json.Unmarshal([]byte(s.NewSources), &srcsKaps); err != nil {
-			logger.
-				WithField("component", "server").
-				WithField("NewSources", "invalid").
-				Error(err)
-		}
-
-		// Add any new sources and kapacitors as specified via server flag
-		if err = chronograf.NewSources(ctx, service.SourcesStore, service.ServersStore, srcsKaps, logger); err != nil {
-			// Continue with server run even if adding NewSources fails
-			logger.
-				WithField("component", "server").
-				WithField("NewSources", "invalid").
-				Error(err)
-		}
-	}()
+	go processNewSources(ctx, service, s.NewSources, logger)
 
 	basepath = s.Basepath
 	if basepath != "" && s.PrefixRoutes == false {
@@ -456,6 +434,34 @@ func openService(ctx context.Context, boltPath string, lBuilder LayoutBuilder, s
 		UseAuth:          useAuth,
 		Databases:        &influx.Client{Logger: logger},
 	}
+}
+
+// processNewSources parses and persists new sources passed in via server flag.
+// It's used within a goroutine so its return is negligible.
+func processNewSources(ctx context.Context, service Service, newSources string, logger chronograf.Logger) error {
+	if newSources == "" {
+		return nil
+	}
+
+	var srcsKaps []chronograf.SourceAndKapacitor
+	// On JSON unmarshal error, continue server process without new source and write error to log
+	if err := json.Unmarshal([]byte(newSources), &srcsKaps); err != nil {
+		logger.
+			WithField("component", "server").
+			WithField("NewSources", "invalid").
+			Error(err)
+	}
+
+	// Add any new sources and kapacitors as specified via server flag
+	if err := chronograf.NewSources(ctx, service.SourcesStore, service.ServersStore, srcsKaps, logger); err != nil {
+		// Continue with server run even if adding NewSources fails
+		logger.
+			WithField("component", "server").
+			WithField("NewSources", "invalid").
+			Error(err)
+	}
+
+	return nil
 }
 
 // reportUsageStats starts periodic server reporting.
