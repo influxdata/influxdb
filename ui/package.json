@@ -70,7 +70,7 @@
     "mocha": "^2.4.5",
     "mocha-loader": "^0.7.1",
     "mustache": "^2.2.1",
-    "node-sass": "^4.5.2",
+    "node-sass": "^4.5.3",
     "postcss-browser-reporter": "^0.4.0",
     "postcss-calc": "^5.2.0",
     "postcss-loader": "^0.8.0",
@@ -90,6 +90,7 @@
   "dependencies": {
     "axios": "^0.13.1",
     "bootstrap": "^3.3.7",
+    "calculate-size": "^1.1.1",
     "classnames": "^2.2.3",
     "dygraphs": "^2.0.0",
     "fast.js": "^0.1.1",
