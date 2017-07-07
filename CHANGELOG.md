@@ -86,7 +86,7 @@ The admin UI is removed and unusable in this release. The `[admin]` configuratio
 - [#8443](https://github.com/influxdata/influxdb/issues/8443): TSI branch has duplicate tag values.
 - [#8470](https://github.com/influxdata/influxdb/issues/8470): index file fd leak in tsi branch
 - [#8468](https://github.com/influxdata/influxdb/pull/8468): Fix TSI non-contiguous compaction panic.
-
+- [#8500](https://github.com/influxdata/influxdb/issues/8500): InfluxDB goes unresponsive
 ## v1.2.4 [2017-05-08]
 
 ### Bugfixes
