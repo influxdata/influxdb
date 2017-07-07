@@ -68,8 +68,9 @@ type Route struct {
 
 // Handler represents an HTTP handler for the InfluxDB server.
 type Handler struct {
-	mux     *pat.PatternServeMux
-	Version string
+	mux       *pat.PatternServeMux
+	Version   string
+	BuildType string
 
 	MetaClient interface {
 		Database(name string) *meta.DatabaseInfo
@@ -249,8 +250,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer atomic.AddInt64(&h.stats.ActiveRequests, -1)
 	start := time.Now()
 
-	// Add version header to all InfluxDB requests.
+	// Add version and build header to all InfluxDB requests.
 	w.Header().Add("X-Influxdb-Version", h.Version)
+	w.Header().Add("X-Influxdb-Build", h.BuildType)
 
 	if strings.HasPrefix(r.URL.Path, "/debug/pprof") && h.Config.PprofEnabled {
 		h.handleProfiles(w, r)
@@ -1150,6 +1152,7 @@ func cors(inner http.Handler) http.Handler {
 			w.Header().Set(`Access-Control-Expose-Headers`, strings.Join([]string{
 				`Date`,
 				`X-InfluxDB-Version`,
+				`X-InfluxDB-Build`,
 			}, ", "))
 		}
 

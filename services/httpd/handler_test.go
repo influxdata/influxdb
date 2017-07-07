@@ -582,6 +582,14 @@ func TestHandler_Version(t *testing.T) {
 		} else {
 			t.Fatalf("Header entry 'X-Influxdb-Version' not present")
 		}
+
+		if v, ok := w.HeaderMap["X-Influxdb-Build"]; ok {
+			if v[0] != "OSS" {
+				t.Fatalf("unexpected BuildType: %s", v)
+			}
+		} else {
+			t.Fatalf("Header entry 'X-Influxdb-Build' not present")
+		}
 	}
 }
 
@@ -717,6 +725,7 @@ func NewHandler(requireAuthentication bool) *Handler {
 	h.Handler.QueryAuthorizer = &h.QueryAuthorizer
 	h.Handler.PointsWriter = &h.PointsWriter
 	h.Handler.Version = "0.0.0"
+	h.Handler.BuildType = "OSS"
 	return h
 }
 
