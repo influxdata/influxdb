@@ -1,6 +1,7 @@
 import React, {PropTypes} from 'react'
-import CustomTimeIndicator from 'src/shared/components/CustomTimeIndicator'
 import classnames from 'classnames'
+
+import CustomTimeIndicator from 'shared/components/CustomTimeIndicator'
 
 const NameableGraphHeader = ({
   isEditable,
@@ -47,21 +48,20 @@ NameableGraphHeader.propTypes = {
   isEditable: bool,
 }
 
-const GraphName = ({name, queries}) => (
+const GraphName = ({name, queries}) =>
   <span className="dash-graph--name">
     {name}
     {queries && queries.length
       ? <CustomTimeIndicator queries={queries} />
       : null}
   </span>
-)
 
 GraphName.propTypes = {
   name: string,
   queries: arrayOf(shape()),
 }
 
-const GraphNameInput = ({value, onKeyUp, onChange, onBlur}) => (
+const GraphNameInput = ({value, onKeyUp, onChange, onBlur}) =>
   <input
     className="form-control input-sm dash-graph--name-edit"
     type="text"
@@ -71,7 +71,6 @@ const GraphNameInput = ({value, onKeyUp, onChange, onBlur}) => (
     onBlur={onBlur}
     onKeyUp={onKeyUp}
   />
-)
 
 GraphNameInput.propTypes = {
   value: string,

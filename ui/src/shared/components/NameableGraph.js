@@ -1,6 +1,7 @@
-import React, {PropTypes, Component} from 'react'
-import ContextMenu from 'src/shared/components/ContextMenu'
-import NameableGraphHeader from 'src/shared/components/NameableGraphHeader'
+import React, {Component, PropTypes} from 'react'
+
+import NameableGraphHeader from 'shared/components/NameableGraphHeader'
+import ContextMenu from 'shared/components/ContextMenu'
 
 class NameableGraph extends Component {
   constructor(props) {
