@@ -68,6 +68,7 @@ The following new configuration options are available.
 
 ### Features
 
+- [#8512](https://github.com/influxdata/influxdb/pull/8512): Switch to LogLog-Beta Cardinality estimation 
 - [#8143](https://github.com/influxdata/influxdb/pull/8143): Add WAL sync delay
 - [#7977](https://github.com/influxdata/influxdb/issues/7977): Add chunked request processing back into the Go client v2
 - [#7974](https://github.com/influxdata/influxdb/pull/7974): Allow non-admin users to execute SHOW DATABASES.
