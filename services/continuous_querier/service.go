@@ -67,17 +67,29 @@ func (rr *RunRequest) matches(cq *meta.ContinuousQueryInfo) bool {
 	return false
 }
 
+type Monitor interface {
+	Enabled() bool
+	WritePoints(models.Points) error
+}
+
+type nullMonitor int
+
+func (nullMonitor) Enabled() bool                   { return false }
+func (nullMonitor) WritePoints(models.Points) error { return nil }
+
 // Service manages continuous query execution.
 type Service struct {
 	MetaClient    metaClient
 	QueryExecutor *influxql.QueryExecutor
+	Monitor       Monitor
 	Config        *Config
 	RunInterval   time.Duration
 	// RunCh can be used by clients to signal service to run CQs.
-	RunCh          chan *RunRequest
-	Logger         zap.Logger
-	loggingEnabled bool
-	stats          *Statistics
+	RunCh             chan *RunRequest
+	Logger            zap.Logger
+	loggingEnabled    bool
+	queryStatsEnabled bool
+	stats             *Statistics
 	// lastRuns maps CQ name to last time it was run.
 	mu       sync.RWMutex
 	lastRuns map[string]time.Time
@@ -88,13 +100,15 @@ type Service struct {
 // NewService returns a new instance of Service.
 func NewService(c Config) *Service {
 	s := &Service{
-		Config:         &c,
-		RunInterval:    time.Duration(c.RunInterval),
-		RunCh:          make(chan *RunRequest),
-		loggingEnabled: c.LogEnabled,
-		Logger:         zap.New(zap.NullEncoder()),
-		stats:          &Statistics{},
-		lastRuns:       map[string]time.Time{},
+		Config:            &c,
+		Monitor:           nullMonitor(0),
+		RunInterval:       time.Duration(c.RunInterval),
+		RunCh:             make(chan *RunRequest),
+		loggingEnabled:    c.LogEnabled,
+		queryStatsEnabled: c.QueryStatsEnabled,
+		Logger:            zap.New(zap.NullEncoder()),
+		stats:             &Statistics{},
+		lastRuns:          map[string]time.Time{},
 	}
 
 	return s
@@ -139,6 +153,11 @@ func (s *Service) WithLogger(log zap.Logger) {
 type Statistics struct {
 	QueryOK   int64
 	QueryFail int64
+}
+
+type statistic struct {
+	ok   uint64
+	fail uint64
 }
 
 // Statistics returns statistics for periodic monitoring.
@@ -342,25 +361,49 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 	}
 
 	var start time.Time
-	if s.loggingEnabled {
-		s.Logger.Info(fmt.Sprintf("executing continuous query %s (%v to %v)", cq.Info.Name, startTime, endTime))
+	if s.loggingEnabled || s.queryStatsEnabled {
 		start = time.Now()
 	}
 
+	if s.loggingEnabled {
+		s.Logger.Info(fmt.Sprintf("executing continuous query %s (%v to %v)", cq.Info.Name, startTime, endTime))
+	}
+
 	// Do the actual processing of the query & writing of results.
-	if err := s.runContinuousQueryAndWriteResult(cq); err != nil {
-		s.Logger.Info(fmt.Sprintf("error: %s. running: %s\n", err, cq.q.String()))
-		return false, err
+	res := s.runContinuousQueryAndWriteResult(cq)
+	if res.Err != nil {
+		s.Logger.Info(fmt.Sprintf("error: %s. running: %s\n", res.Err, cq.q.String()))
+		return false, res.Err
+	}
+
+	var execDuration time.Duration
+	if s.loggingEnabled || s.queryStatsEnabled {
+		execDuration = time.Since(start)
+	}
+
+	// extract number of points written from SELECT ... INTO result
+	var written int64 = -1
+	if len(res.Series) == 1 && len(res.Series[0].Values) == 1 {
+		s := res.Series[0]
+		written = s.Values[0][1].(int64)
 	}
 
 	if s.loggingEnabled {
-		s.Logger.Info(fmt.Sprintf("finished continuous query %s (%v to %v) in %s", cq.Info.Name, startTime, endTime, time.Since(start)))
+		s.Logger.Info(fmt.Sprintf("finished continuous query %s, %d points(s) written (%v to %v) in %s", cq.Info.Name, written, startTime, endTime, execDuration))
 	}
+
+	if s.queryStatsEnabled && s.Monitor.Enabled() {
+		tags := map[string]string{"db": dbi.Name, "cq": cq.Info.Name}
+		fields := map[string]interface{}{"durationNs": int64(execDuration), "pointsWrittenOK": written, "startTime": startTime.UnixNano(), "endTime": endTime.UnixNano()}
+		p, _ := models.NewPoint("cq_query", models.NewTags(tags), fields, time.Now())
+		s.Monitor.WritePoints(models.Points{p})
+	}
+
 	return true, nil
 }
 
 // runContinuousQueryAndWriteResult will run the query against the cluster and write the results back in
-func (s *Service) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
+func (s *Service) runContinuousQueryAndWriteResult(cq *ContinuousQuery) *influxql.Result {
 	// Wrap the CQ's inner SELECT statement in a Query for the QueryExecutor.
 	q := &influxql.Query{
 		Statements: influxql.Statements([]influxql.Statement{cq.q}),
@@ -379,10 +422,7 @@ func (s *Service) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
 	if !ok {
 		panic("result channel was closed")
 	}
-	if res.Err != nil {
-		return res.Err
-	}
-	return nil
+	return res
 }
 
 // ContinuousQuery is a local wrapper / helper around continuous queries.

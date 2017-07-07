@@ -48,36 +48,41 @@ const (
 
 	// DefaultAuthFile is the default location of the user/password file.
 	DefaultAuthFile = "/etc/collectd/auth_file"
+
+	// DefaultParseMultiValuePlugin is "split", defaulting to version <1.2 where plugin values were split into separate rows
+	DefaultParseMultiValuePlugin = "split"
 )
 
 // Config represents a configuration for the collectd service.
 type Config struct {
-	Enabled         bool          `toml:"enabled"`
-	BindAddress     string        `toml:"bind-address"`
-	Database        string        `toml:"database"`
-	RetentionPolicy string        `toml:"retention-policy"`
-	BatchSize       int           `toml:"batch-size"`
-	BatchPending    int           `toml:"batch-pending"`
-	BatchDuration   toml.Duration `toml:"batch-timeout"`
-	ReadBuffer      int           `toml:"read-buffer"`
-	TypesDB         string        `toml:"typesdb"`
-	SecurityLevel   string        `toml:"security-level"`
-	AuthFile        string        `toml:"auth-file"`
+	Enabled               bool          `toml:"enabled"`
+	BindAddress           string        `toml:"bind-address"`
+	Database              string        `toml:"database"`
+	RetentionPolicy       string        `toml:"retention-policy"`
+	BatchSize             int           `toml:"batch-size"`
+	BatchPending          int           `toml:"batch-pending"`
+	BatchDuration         toml.Duration `toml:"batch-timeout"`
+	ReadBuffer            int           `toml:"read-buffer"`
+	TypesDB               string        `toml:"typesdb"`
+	SecurityLevel         string        `toml:"security-level"`
+	AuthFile              string        `toml:"auth-file"`
+	ParseMultiValuePlugin string        `toml:"parse-multivalue-plugin"`
 }
 
 // NewConfig returns a new instance of Config with defaults.
 func NewConfig() Config {
 	return Config{
-		BindAddress:     DefaultBindAddress,
-		Database:        DefaultDatabase,
-		RetentionPolicy: DefaultRetentionPolicy,
-		ReadBuffer:      DefaultReadBuffer,
-		BatchSize:       DefaultBatchSize,
-		BatchPending:    DefaultBatchPending,
-		BatchDuration:   DefaultBatchDuration,
-		TypesDB:         DefaultTypesDB,
-		SecurityLevel:   DefaultSecurityLevel,
-		AuthFile:        DefaultAuthFile,
+		BindAddress:           DefaultBindAddress,
+		Database:              DefaultDatabase,
+		RetentionPolicy:       DefaultRetentionPolicy,
+		ReadBuffer:            DefaultReadBuffer,
+		BatchSize:             DefaultBatchSize,
+		BatchPending:          DefaultBatchPending,
+		BatchDuration:         DefaultBatchDuration,
+		TypesDB:               DefaultTypesDB,
+		SecurityLevel:         DefaultSecurityLevel,
+		AuthFile:              DefaultAuthFile,
+		ParseMultiValuePlugin: DefaultParseMultiValuePlugin,
 	}
 }
 
@@ -115,6 +120,9 @@ func (c *Config) WithDefaults() *Config {
 	if d.AuthFile == "" {
 		d.AuthFile = DefaultAuthFile
 	}
+	if d.ParseMultiValuePlugin == "" {
+		d.ParseMultiValuePlugin = DefaultParseMultiValuePlugin
+	}
 
 	return &d
 }
@@ -125,6 +133,12 @@ func (c *Config) Validate() error {
 	case "none", "sign", "encrypt":
 	default:
 		return errors.New("Invalid security level")
+	}
+
+	switch c.ParseMultiValuePlugin {
+	case "split", "join":
+	default:
+		return errors.New(`Invalid value for parse-multivalue-plugin. Valid options are "split" and "join"`)
 	}
 
 	return nil

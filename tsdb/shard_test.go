@@ -789,6 +789,39 @@ func TestShard_Disabled_WriteQuery(t *testing.T) {
 	}
 }
 
+func TestShard_Closed_Functions(t *testing.T) {
+	sh := NewShard()
+	if err := sh.Open(); err != nil {
+		t.Fatal(err)
+	}
+	defer sh.Close()
+
+	pt := models.MustNewPoint(
+		"cpu",
+		models.NewTags(map[string]string{"host": "server"}),
+		map[string]interface{}{"value": 1.0},
+		time.Unix(1, 2),
+	)
+
+	if err := sh.WritePoints([]models.Point{pt}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	sh.Close()
+
+	// Should not panic, just a no-op when shard is closed
+	if err := sh.ForEachMeasurementTagKey([]byte("cpu"), func(k []byte) error {
+		return nil
+	}); err != nil {
+		t.Fatalf("expected nil: got %v", err)
+	}
+
+	// Should not panic, just a no-op when shard is closed
+	if exp, got := 0, sh.TagKeyCardinality([]byte("cpu"), []byte("host")); exp != got {
+		t.Fatalf("expected nil: exp %v, got %v", exp, got)
+	}
+}
+
 func TestShard_FieldDimensions(t *testing.T) {
 	sh := NewShard()
 

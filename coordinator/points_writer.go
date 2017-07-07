@@ -60,10 +60,7 @@ type PointsWriter struct {
 		WriteToShard(shardID uint64, points []models.Point) error
 	}
 
-	Subscriber interface {
-		Points() chan<- *WritePointsRequest
-	}
-	subPoints chan<- *WritePointsRequest
+	subPoints []chan<- *WritePointsRequest
 
 	stats *WriteStatistics
 }
@@ -127,9 +124,6 @@ func (w *PointsWriter) Open() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.closing = make(chan struct{})
-	if w.Subscriber != nil {
-		w.subPoints = w.Subscriber.Points()
-	}
 	return nil
 }
 
@@ -147,6 +141,10 @@ func (w *PointsWriter) Close() error {
 		w.subPoints = nil
 	}
 	return nil
+}
+
+func (w *PointsWriter) AddWriteSubscriber(c chan<- *WritePointsRequest) {
+	w.subPoints = append(w.subPoints, c)
 }
 
 // WithLogger sets the Logger on w.
@@ -316,19 +314,26 @@ func (w *PointsWriter) WritePointsPrivileged(database, retentionPolicy string, c
 	}
 
 	// Send points to subscriptions if possible.
-	ok := false
+	var ok, dropped int64
+	pts := &WritePointsRequest{Database: database, RetentionPolicy: retentionPolicy, Points: points}
 	// We need to lock just in case the channel is about to be nil'ed
 	w.mu.RLock()
-	select {
-	case w.subPoints <- &WritePointsRequest{Database: database, RetentionPolicy: retentionPolicy, Points: points}:
-		ok = true
-	default:
+	for _, ch := range w.subPoints {
+		select {
+		case ch <- pts:
+			ok++
+		default:
+			dropped++
+		}
 	}
 	w.mu.RUnlock()
-	if ok {
-		atomic.AddInt64(&w.stats.SubWriteOK, 1)
-	} else {
-		atomic.AddInt64(&w.stats.SubWriteDrop, 1)
+
+	if ok > 0 {
+		atomic.AddInt64(&w.stats.SubWriteOK, ok)
+	}
+
+	if dropped > 0 {
+		atomic.AddInt64(&w.stats.SubWriteDrop, dropped)
 	}
 
 	if err == nil && len(shardMappings.Dropped) > 0 {

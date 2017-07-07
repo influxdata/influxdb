@@ -14,7 +14,7 @@ import (
 )
 
 // DefaultStatsInterval is the default value for IteratorEncoder.StatsInterval.
-const DefaultStatsInterval = 10 * time.Second
+const DefaultStatsInterval = time.Second
 
 {{with $types := .}}{{range $k := $types}}
 

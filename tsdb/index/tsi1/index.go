@@ -707,7 +707,7 @@ func (i *Index) TagSets(name []byte, opt influxql.IteratorOptions) ([]*influxql.
 				}
 			}
 			// Associate the series and filter with the Tagset.
-			tagSet.AddFilter(string(SeriesElemKey(e)), e.Expr())
+			tagSet.AddFilter(string(models.MakeKey(e.Name(), e.Tags())), e.Expr())
 
 			// Ensure it's back in the map.
 			tagSets[string(tagsAsKey)] = tagSet
@@ -804,20 +804,11 @@ func (i *Index) compact() {
 			continue
 		}
 
-		// Collect files for the level.
-		files := fs.IndexFilesByLevel(level)
-
-		// Calculate total size. Skip level if it doesn't meet min size of next level.
-		var size int64
-		for _, f := range files {
-			size += f.Size()
-		}
-		if size < i.levels[level+1].MinSize {
+		// Collect contiguous files from the end of the level.
+		files := fs.LastContiguousIndexFilesByLevel(level)
+		if len(files) < 2 {
 			continue
-		}
-
-		// Limit the number of files that can be merged at once.
-		if len(files) > MaxIndexMergeCount {
+		} else if len(files) > MaxIndexMergeCount {
 			files = files[len(files)-MaxIndexMergeCount:]
 		}
 
@@ -1253,13 +1244,10 @@ func joinIntSlice(a []int, sep string) string {
 	return strings.Join(other, sep)
 }
 
-// CompactionLevel represents a grouping of index files based on size and
-// bloom filter settings. By having the same bloom filter settings, the filters
+// CompactionLevel represents a grouping of index files based on bloom filter
+// settings. By having the same bloom filter settings, the filters
 // can be merged and evaluated at a higher level.
 type CompactionLevel struct {
-	// Minimum expected index size
-	MinSize int64 `json:"minSize,omitempty"`
-
 	// Bloom filter bit size & hash count
 	M uint64 `json:"m,omitempty"`
 	K uint64 `json:"k,omitempty"`
@@ -1267,57 +1255,14 @@ type CompactionLevel struct {
 
 // DefaultCompactionLevels is the default settings used by the index.
 var DefaultCompactionLevels = []CompactionLevel{
-	// Log files, no filter.
-	{M: 0, K: 0},
-
-	// Initial compaction, 4MB filter
-	{
-		MinSize: 0,
-		M:       1 << 25,
-		K:       6,
-	},
-
-	// 24MB min file, 4MB filter
-	{
-		MinSize: 24 * (1 << 20),
-		M:       1 << 25,
-		K:       6,
-	},
-
-	// 48MB min file, 8MB filter
-	{
-		MinSize: 48 * (1 << 20),
-		M:       1 << 26,
-		K:       6,
-	},
-
-	// 96MB min file, 8MB filter
-	{
-		MinSize: 96 * (1 << 20),
-		M:       1 << 27,
-		K:       6,
-	},
-
-	// 192MB min file, 33MB filter
-	{
-		MinSize: 192 * (1 << 20),
-		M:       1 << 28,
-		K:       6,
-	},
-
-	// 768MB min file, 66MB filter
-	{
-		MinSize: 768 * (1 << 20),
-		M:       1 << 29,
-		K:       6,
-	},
-
-	// 2GB min file, 134MB filter
-	{
-		MinSize: 2 * (1 << 30),
-		M:       1 << 30,
-		K:       6,
-	},
+	{M: 0, K: 0},       // L0: Log files, no filter.
+	{M: 1 << 25, K: 6}, // L1: Initial compaction
+	{M: 1 << 25, K: 6}, // L2
+	{M: 1 << 26, K: 6}, // L3
+	{M: 1 << 27, K: 6}, // L4
+	{M: 1 << 28, K: 6}, // L5
+	{M: 1 << 29, K: 6}, // L6
+	{M: 1 << 30, K: 6}, // L7
 }
 
 // MaxIndexMergeCount is the maximum number of files that can be merged together at once.

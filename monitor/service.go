@@ -117,11 +117,40 @@ func (m *Monitor) Open() error {
 
 	// If enabled, record stats in a InfluxDB system.
 	if m.storeEnabled {
+		hostname, _ := os.Hostname()
+		m.SetGlobalTag("hostname", hostname)
+
 		// Start periodic writes to system.
 		m.wg.Add(1)
 		go m.storeStatistics()
 	}
 
+	return nil
+}
+
+func (m *Monitor) Enabled() bool { return m.storeEnabled }
+
+func (m *Monitor) WritePoints(p models.Points) error {
+	if !m.storeEnabled {
+		return nil
+	}
+
+	if len(m.globalTags) > 0 {
+		for _, pp := range p {
+			pp.SetTags(pp.Tags().Merge(m.globalTags))
+		}
+	}
+
+	return m.writePoints(p)
+}
+
+func (m *Monitor) writePoints(p models.Points) error {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if err := m.PointsWriter.WritePoints(m.storeDatabase, m.storeRetentionPolicy, p); err != nil {
+		m.Logger.Info(fmt.Sprintf("failed to store statistics: %s", err))
+	}
 	return nil
 }
 
@@ -386,9 +415,6 @@ func (m *Monitor) storeStatistics() {
 	m.Logger.Info(fmt.Sprintf("Storing statistics in database '%s' retention policy '%s', at interval %s",
 		m.storeDatabase, m.storeRetentionPolicy, m.storeInterval))
 
-	hostname, _ := os.Hostname()
-	m.SetGlobalTag("hostname", hostname)
-
 	// Wait until an even interval to start recording monitor statistics.
 	// If we are interrupted before the interval for some reason, exit early.
 	if err := m.waitUntilInterval(m.storeInterval); err != nil {
@@ -424,14 +450,7 @@ func (m *Monitor) storeStatistics() {
 				points = append(points, pt)
 			}
 
-			func() {
-				m.mu.RLock()
-				defer m.mu.RUnlock()
-
-				if err := m.PointsWriter.WritePoints(m.storeDatabase, m.storeRetentionPolicy, points); err != nil {
-					m.Logger.Info(fmt.Sprintf("failed to store statistics: %s", err))
-				}
-			}()
+			m.writePoints(points)
 		case <-m.done:
 			m.Logger.Info(fmt.Sprintf("terminating storage of statistics"))
 			return

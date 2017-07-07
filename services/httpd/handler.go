@@ -180,6 +180,7 @@ type Statistics struct {
 	ActiveWriteRequests          int64
 	ClientErrors                 int64
 	ServerErrors                 int64
+	RecoveredPanics              int64
 }
 
 // Statistics returns statistics for periodic monitoring.
@@ -206,6 +207,7 @@ func (h *Handler) Statistics(tags map[string]string) []models.Statistic {
 			statWriteRequestsActive:          atomic.LoadInt64(&h.stats.ActiveWriteRequests),
 			statClientError:                  atomic.LoadInt64(&h.stats.ClientErrors),
 			statServerError:                  atomic.LoadInt64(&h.stats.ServerErrors),
+			statRecoveredPanics:              atomic.LoadInt64(&h.stats.RecoveredPanics),
 		},
 	}}
 }
@@ -1185,6 +1187,17 @@ func (h *Handler) responseWriter(inner http.Handler) http.Handler {
 	})
 }
 
+// if the env var is set, and the value is truthy, then we will *not*
+// recover from a panic.
+var willCrash bool
+
+func init() {
+	var err error
+	if willCrash, err = strconv.ParseBool(os.Getenv(influxql.PanicCrashEnv)); err != nil {
+		willCrash = false
+	}
+}
+
 func (h *Handler) recovery(inner http.Handler, name string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
@@ -1196,6 +1209,14 @@ func (h *Handler) recovery(inner http.Handler, name string) http.Handler {
 				logLine = fmt.Sprintf("%s [panic:%s] %s", logLine, err, debug.Stack())
 				h.CLFLogger.Println(logLine)
 				http.Error(w, http.StatusText(http.StatusInternalServerError), 500)
+				atomic.AddInt64(&h.stats.RecoveredPanics, 1) // Capture the panic in _internal stats.
+
+				if willCrash {
+					h.CLFLogger.Println("\n\n=====\nAll goroutines now follow:")
+					buf := debug.Stack()
+					h.CLFLogger.Printf("%s\n", buf)
+					os.Exit(1) // If we panic then the Go server will recover.
+				}
 			}
 		}()
 

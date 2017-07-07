@@ -125,8 +125,9 @@
   # discover slow or resource intensive queries.  Setting the value to 0 disables the slow query logging.
   # log-queries-after = "0s"
 
-  # The maximum number of points a SELECT can process.  A value of 0 will make the maximum
-  # point count unlimited.
+  # The maximum number of points a SELECT can process.  A value of 0 will make
+  # the maximum point count unlimited.  This will only be checked every second so queries will not
+  # be aborted immediately when hitting the limit.
   # max-select-point = 0
 
   # The maximum number of series a SELECT can run.  A value of 0 will make the maximum series
@@ -357,6 +358,11 @@
   # UDP Read buffer size, 0 means OS default. UDP listener will fail if set above OS max.
   # read-buffer = 0
 
+  # Multi-value plugins can be handled two ways.  
+  # "split" will parse and store the multi-value plugin data into separate measurements
+  # "join" will parse and store the multi-value plugin as a single multi-value measurement.  
+  # "split" is the default behavior for backward compatability with previous versions of influxdb.  
+  # parse-multivalue-plugin = "split"
 ###
 ### [opentsdb]
 ###
@@ -428,6 +434,9 @@
 
   # Controls whether queries are logged when executed by the CQ service.
   # log-enabled = true
+
+  # Controls whether queries are logged to the self-monitoring data store.
+  # query-stats-enabled = false
 
   # interval for how often continuous queries will be checked if they need to run
   # run-interval = "1s"

@@ -370,7 +370,7 @@ Usage: influxd backup [flags] PATH
             Optional. The retention policy to backup.
     -shard <id>
             Optional. The shard id to backup. If specified, retention is required.
-    -since <2015-12-24T08:12:23>
+    -since <2015-12-24T08:12:23Z>
             Optional. Do an incremental backup since the passed in RFC3339
             formatted time.
 

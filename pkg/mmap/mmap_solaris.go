@@ -1,18 +1,14 @@
-// +build darwin dragonfly freebsd linux nacl netbsd openbsd
+// +build solaris
 
-// Copyright 2015 The Go Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
-
-// Package mmap provides a way to memory-map a file.
 package mmap
 
 import (
 	"os"
 	"syscall"
+
+	"golang.org/x/sys/unix"
 )
 
-// Map memory-maps a file.
 func Map(path string) ([]byte, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -27,10 +23,11 @@ func Map(path string) ([]byte, error) {
 		return nil, nil
 	}
 
-	data, err := syscall.Mmap(int(f.Fd()), 0, int(fi.Size()), syscall.PROT_READ, syscall.MAP_SHARED)
+	data, err := unix.Mmap(int(f.Fd()), 0, int(fi.Size()), syscall.PROT_READ, syscall.MAP_SHARED)
 	if err != nil {
 		return nil, err
 	}
+
 	return data, nil
 }
 
@@ -39,5 +36,5 @@ func Unmap(data []byte) error {
 	if data == nil {
 		return nil
 	}
-	return syscall.Munmap(data)
+	return unix.Munmap(data)
 }

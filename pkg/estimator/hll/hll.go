@@ -1,4 +1,4 @@
-// Package hll contains a HyperLogLog++ implementation that is adapted (mostly
+// Package hll contains a HyperLogLog++ with a LogLog-Beta bias correction implementation that is adapted (mostly
 // copied) from an implementation provided by Clark DuVall
 // github.com/clarkduvall/hyperloglog.
 //
@@ -26,10 +26,22 @@ import (
 )
 
 // Current version of HLL implementation.
-const version uint8 = 1
+const version uint8 = 2
 
 // DefaultPrecision is the default precision.
 const DefaultPrecision = 16
+
+func beta(ez float64) float64 {
+	zl := math.Log(ez + 1)
+	return -0.37331876643753059*ez +
+		-1.41704077448122989*zl +
+		0.40729184796612533*math.Pow(zl, 2) +
+		1.56152033906584164*math.Pow(zl, 3) +
+		-0.99242233534286128*math.Pow(zl, 4) +
+		0.26064681399483092*math.Pow(zl, 5) +
+		-0.03053811369682807*math.Pow(zl, 6) +
+		0.00155770210179105*math.Pow(zl, 7)
+}
 
 // Plus implements the Hyperloglog++ algorithm, described in the following
 // paper: http://static.googleusercontent.com/media/research.google.com/en//pubs/archive/40671.pdf
@@ -155,19 +167,17 @@ func (h *Plus) Count() uint64 {
 		h.mergeSparse()
 		return uint64(h.linearCount(h.mp, h.mp-uint32(h.sparseList.count)))
 	}
-
-	est, zeros := h.e()
-	if est <= 5.0*float64(h.m) {
-		est -= h.estimateBias(est)
-	}
-
-	if zeros > 0 {
-		lc := h.linearCount(h.m, zeros)
-		if lc <= threshold[h.p-4] {
-			return uint64(lc)
+	sum := 0.0
+	m := float64(h.m)
+	var count float64
+	for _, val := range h.denseList {
+		sum += 1.0 / float64(uint32(1)<<val)
+		if val == 0 {
+			count++
 		}
 	}
-	return uint64(est)
+	// Use LogLog-Beta bias estimation
+	return uint64((h.alpha * m * (m - count) / (beta(count) + sum)) + 0.5)
 }
 
 // Merge takes another HyperLogLogPlus and combines it with HyperLogLogPlus h.
@@ -401,44 +411,6 @@ func (h *Plus) getIndex(k uint32) uint32 {
 func (h *Plus) linearCount(m uint32, v uint32) float64 {
 	fm := float64(m)
 	return fm * math.Log(fm/float64(v))
-}
-
-// E calculates the raw estimate. It also returns the number of zero registers
-// which is useful for later on in a cardinality estimate.
-func (h *Plus) e() (float64, uint32) {
-	sum := 0.0
-	var count uint32
-	for _, val := range h.denseList {
-		sum += 1.0 / float64(uint32(1)<<val)
-		if val == 0 {
-			count++
-		}
-	}
-	return h.alpha * float64(h.m) * float64(h.m) / sum, count
-}
-
-// Estimates the bias using empirically determined values.
-func (h *Plus) estimateBias(est float64) float64 {
-	estTable, biasTable := rawEstimateData[h.p-4], biasData[h.p-4]
-
-	if estTable[0] > est {
-		return estTable[0] - biasTable[0]
-	}
-
-	lastEstimate := estTable[len(estTable)-1]
-	if lastEstimate < est {
-		return lastEstimate - biasTable[len(biasTable)-1]
-	}
-
-	var i int
-	for i = 0; i < len(estTable) && estTable[i] < est; i++ {
-	}
-
-	e1, b1 := estTable[i-1], biasTable[i-1]
-	e2, b2 := estTable[i], biasTable[i]
-
-	c := (est - e1) / (e2 - e1)
-	return b1*(1-c) + b2*c
 }
 
 type uint64Slice []uint32

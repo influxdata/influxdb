@@ -177,7 +177,6 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	s.PointsWriter = coordinator.NewPointsWriter()
 	s.PointsWriter.WriteTimeout = time.Duration(c.Coordinator.WriteTimeout)
 	s.PointsWriter.TSDBStore = s.TSDBStore
-	s.PointsWriter.Subscriber = s.Subscriber
 
 	// Initialize query executor.
 	s.QueryExecutor = influxql.NewQueryExecutor()
@@ -338,6 +337,7 @@ func (s *Server) appendContinuousQueryService(c continuous_querier.Config) {
 	srv := continuous_querier.NewService(c)
 	srv.MetaClient = s.MetaClient
 	srv.QueryExecutor = s.QueryExecutor
+	srv.Monitor = s.Monitor
 	s.Services = append(s.Services, srv)
 }
 
@@ -385,7 +385,6 @@ func (s *Server) Open() error {
 	}
 
 	s.Subscriber.MetaClient = s.MetaClient
-	s.Subscriber.MetaClient = s.MetaClient
 	s.PointsWriter.MetaClient = s.MetaClient
 	s.Monitor.MetaClient = s.MetaClient
 
@@ -421,6 +420,8 @@ func (s *Server) Open() error {
 	if err := s.PointsWriter.Open(); err != nil {
 		return fmt.Errorf("open points writer: %s", err)
 	}
+
+	s.PointsWriter.AddWriteSubscriber(s.Subscriber.Points())
 
 	for _, service := range s.Services {
 		if err := service.Open(); err != nil {
