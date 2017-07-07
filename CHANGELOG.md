@@ -8,6 +8,7 @@
 ### Features
 1. [#1645](https://github.com/influxdata/chronograf/pull/1645): Add Auth0 as a supported OAuth2 provider
 1. [#1660](https://github.com/influxdata/chronograf/pull/1660): Add ability to add custom links to User menu via server CLI or ENV vars
+1. [#1674](https://github.com/influxdata/chronograf/pull/1674): Add support for organizations in Auth0
 
 ### UI Improvements
 1. [#1644](https://github.com/influxdata/chronograf/pull/1644): Redesign Alerts History table to have sticky headers
