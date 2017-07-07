@@ -246,7 +246,6 @@ func (l *WAL) scheduleSync() {
 
 	// Fsync the wal and notify all pending waiters
 	go func() {
-		defer atomic.StoreUint64(&l.syncCount, 0)
 		var timerCh <-chan time.Time
 
 		// time.NewTicker requires a > 0 delay, since 0 indicates no delay, use a closed
@@ -267,6 +266,7 @@ func (l *WAL) scheduleSync() {
 			case <-timerCh:
 				l.mu.Lock()
 				if len(l.syncWaiters) == 0 {
+					atomic.StoreUint64(&l.syncCount, 0)
 					l.mu.Unlock()
 					return
 				}
@@ -274,6 +274,7 @@ func (l *WAL) scheduleSync() {
 				l.sync()
 				l.mu.Unlock()
 			case <-l.closing:
+				atomic.StoreUint64(&l.syncCount, 0)
 				return
 			}
 		}
