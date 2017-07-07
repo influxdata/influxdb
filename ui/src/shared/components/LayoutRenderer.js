@@ -138,6 +138,7 @@ class LayoutRenderer extends Component {
       autoRefresh,
       templates,
       synchronizer,
+      isEditable,
     } = this.props
 
     return cells.map(cell => {
@@ -146,6 +147,7 @@ class LayoutRenderer extends Component {
       return (
         <div key={cell.i}>
           <NameableGraph
+            isEditable={isEditable}
             onEditCell={onEditCell}
             onRenameCell={onRenameCell}
             onUpdateCell={onUpdateCell}
@@ -290,6 +292,7 @@ LayoutRenderer.propTypes = {
   shouldNotBeEditable: bool,
   synchronizer: func,
   isStatusPage: bool,
+  isEditable: bool,
 }
 
 export default LayoutRenderer

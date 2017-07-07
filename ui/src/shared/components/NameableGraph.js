@@ -1,7 +1,6 @@
 import React, {PropTypes, Component} from 'react'
-import classnames from 'classnames'
-import OnClickOutside from 'react-onclickoutside'
-import CustomTimeIndicator from 'src/shared/components/CustomTimeIndicator'
+import ContextMenu from 'src/shared/components/ContextMenu'
+import NameableGraphHeader from 'src/shared/components/NameableGraphHeader'
 
 class NameableGraph extends Component {
   constructor(props) {
@@ -29,76 +28,34 @@ class NameableGraph extends Component {
   render() {
     const {
       cell,
-      cell: {x, y, name, isEditing, queries},
       onEditCell,
       onRenameCell,
       onUpdateCell,
       onDeleteCell,
       onSummonOverlayTechnologies,
-      shouldNotBeEditable,
+      isEditable,
       children,
     } = this.props
 
-    const isEditable = !!(onEditCell || onRenameCell || onUpdateCell)
-
-    let nameOrField
-    if (isEditing && isEditable) {
-      nameOrField = (
-        <input
-          className="form-control input-sm dash-graph--name-edit"
-          type="text"
-          value={name}
-          autoFocus={true}
-          onChange={onRenameCell(x, y)}
-          onBlur={onUpdateCell(cell)}
-          onKeyUp={evt => {
-            if (evt.key === 'Enter') {
-              onUpdateCell(cell)()
-            }
-            if (evt.key === 'Escape') {
-              onEditCell(x, y, true)()
-            }
-          }}
-        />
-      )
-    } else {
-      nameOrField = (
-        <span className="dash-graph--name">
-          {name}
-          <CustomTimeIndicator queries={queries} />
-        </span>
-      )
-    }
-
-    let onStartRenaming
-    if (!isEditing && isEditable) {
-      onStartRenaming = onEditCell
-    } else {
-      onStartRenaming = () => {
-        // no-op
-      }
-    }
-
     return (
       <div className="dash-graph">
-        <div
-          className={classnames('dash-graph--heading', {
-            'dash-graph--heading-draggable': !shouldNotBeEditable,
-          })}
-        >
-          {nameOrField}
-        </div>
-        {shouldNotBeEditable
-          ? null
-          : <ContextMenu
-              isOpen={this.state.isMenuOpen}
-              toggleMenu={this.toggleMenu}
-              onEdit={onSummonOverlayTechnologies}
-              onRename={onStartRenaming}
-              onDelete={onDeleteCell}
-              cell={cell}
-              handleClickOutside={this.closeMenu}
-            />}
+        <NameableGraphHeader
+          cell={cell}
+          isEditable={isEditable}
+          onEditCell={onEditCell}
+          onRenameCell={onRenameCell}
+          onUpdateCell={onUpdateCell}
+        />
+        <ContextMenu
+          cell={cell}
+          onDelete={onDeleteCell}
+          onRename={!cell.isEditing && isEditable ? onEditCell : () => {}}
+          toggleMenu={this.toggleMenu}
+          isOpen={this.state.isMenuOpen}
+          isEditable={isEditable}
+          handleClickOutside={this.closeMenu}
+          onEdit={onSummonOverlayTechnologies}
+        />
         <div className="dash-graph--container">
           {children}
         </div>
@@ -124,31 +81,7 @@ NameableGraph.propTypes = {
   onDeleteCell: func,
   onSummonOverlayTechnologies: func,
   shouldNotBeEditable: bool,
+  isEditable: bool,
 }
-
-const ContextMenu = OnClickOutside(({
-  isOpen,
-  toggleMenu,
-  onEdit,
-  onRename,
-  onDelete,
-  cell,
-}) => (
-  <div
-    className={classnames('dash-graph--options', {
-      'dash-graph--options-show': isOpen,
-    })}
-    onClick={toggleMenu}
-  >
-    <button className="btn btn-info btn-xs">
-      <span className="icon caret-down" />
-    </button>
-    <ul className="dash-graph--options-menu">
-      <li onClick={() => onEdit(cell)}>Edit</li>
-      <li onClick={onRename(cell.x, cell.y, cell.isEditing)}>Rename</li>
-      <li onClick={() => onDelete(cell)}>Delete</li>
-    </ul>
-  </div>
-))
 
 export default NameableGraph
