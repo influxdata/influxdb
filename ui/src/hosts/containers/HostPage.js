@@ -174,7 +174,7 @@ export const HostPage = React.createClass({
         autoRefresh={autoRefresh}
         source={source}
         host={this.props.params.hostID}
-        shouldNotBeEditable={true}
+        isEditable={false}
         synchronizer={this.synchronizer}
       />
     )
