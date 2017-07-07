@@ -88,7 +88,10 @@ class LayoutRenderer extends Component {
       let queryText
       if (query.queryConfig) {
         const {queryConfig: {rawText, range}} = query
-        const timeRange = range || {upper: null, lower: ':dashboardTime:'}
+        const timeRange = range || {
+          upper: ':upperDashboardTime:',
+          lower: ':dashboardTime:',
+        }
         queryText = rawText || buildInfluxQLQuery(timeRange, query.queryConfig)
       } else {
         queryText = this.buildQueryForOldQuerySchema(query)
@@ -210,7 +213,7 @@ class LayoutRenderer extends Component {
           PAGE_HEADER_HEIGHT -
           PAGE_CONTAINER_MARGIN -
           PAGE_CONTAINER_MARGIN) /
-          STATUS_PAGE_ROW_COUNT
+        STATUS_PAGE_ROW_COUNT
       : DASHBOARD_LAYOUT_ROW_HEIGHT
   }
 

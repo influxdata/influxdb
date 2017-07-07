@@ -280,7 +280,7 @@ class DashboardPage extends Component {
       type: 'constant',
       values: [
         {
-          value: upper,
+          value: upper || 'now()',
           type: 'constant',
           selected: true,
         },
@@ -301,20 +301,12 @@ class DashboardPage extends Component {
 
     let templatesIncludingDashTime
     if (dashboard) {
-      if (upper) {
-        templatesIncludingDashTime = [
-          ...dashboard.templates,
-          dashboardTime,
-          upperDashboardTime,
-          interval,
-        ]
-      } else {
-        templatesIncludingDashTime = [
-          ...dashboard.templates,
-          dashboardTime,
-          interval,
-        ]
-      }
+      templatesIncludingDashTime = [
+        ...dashboard.templates,
+        dashboardTime,
+        upperDashboardTime,
+        interval,
+      ]
     } else {
       templatesIncludingDashTime = []
     }
