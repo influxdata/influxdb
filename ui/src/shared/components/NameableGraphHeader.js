@@ -50,7 +50,9 @@ NameableGraphHeader.propTypes = {
 const GraphName = ({name, queries}) => (
   <span className="dash-graph--name">
     {name}
-    <CustomTimeIndicator queries={queries} />
+    {queries && queries.length
+      ? <CustomTimeIndicator queries={queries} />
+      : null}
   </span>
 )
 
