@@ -7,104 +7,34 @@ import _ from 'lodash'
 import Dygraphs from 'src/external/dygraph'
 import getRange from 'shared/parsing/getRangeForDygraph'
 
-const LINE_COLORS = [
-  '#00C9FF',
-  '#9394FF',
-  '#4ED8A0',
-  '#ff0054',
-  '#ffcc00',
-  '#33aa99',
-  '#9dfc5d',
-  '#92bcc3',
-  '#ca96fb',
-  '#ff00f0',
-  '#38b94a',
-  '#3844b9',
-  '#a0725b',
-]
-
-const darkenColor = colorStr => {
-  // Defined in dygraph-utils.js
-  const color = Dygraphs.toRGB_(colorStr)
-  color.r = Math.floor((255 + color.r) / 2)
-  color.g = Math.floor((255 + color.g) / 2)
-  color.b = Math.floor((255 + color.b) / 2)
-  return `rgb(${color.r},${color.g},${color.b})`
-}
-// Bar Graph code below is from http://dygraphs.com/tests/plotters.html
-const multiColumnBarPlotter = e => {
-  // We need to handle all the series simultaneously.
-  if (e.seriesIndex !== 0) {
-    return
-  }
-
-  const g = e.dygraph
-  const ctx = e.drawingContext
-  const sets = e.allSeriesPoints
-  const yBottom = e.dygraph.toDomYCoord(0)
-
-  // Find the minimum separation between x-values.
-  // This determines the bar width.
-  let minSep = Infinity
-  for (let j = 0; j < sets.length; j++) {
-    const points = sets[j]
-    for (let i = 1; i < points.length; i++) {
-      const sep = points[i].canvasx - points[i - 1].canvasx
-      if (sep < minSep) {
-        minSep = sep
-      }
-    }
-  }
-
-  const barWidth = Math.floor(2.0 / 3 * minSep)
-
-  const fillColors = []
-  const strokeColors = g.getColors()
-  for (let i = 0; i < strokeColors.length; i++) {
-    fillColors.push(darkenColor(strokeColors[i]))
-  }
-
-  for (let j = 0; j < sets.length; j++) {
-    ctx.fillStyle = fillColors[j]
-    ctx.strokeStyle = strokeColors[j]
-    for (let i = 0; i < sets[j].length; i++) {
-      const p = sets[j][i]
-      const centerX = p.canvasx
-      const xLeft = sets.length === 1
-        ? centerX - barWidth / 2
-        : centerX - barWidth / 2 * (1 - j / (sets.length - 1))
-
-      ctx.fillRect(
-        xLeft,
-        p.canvasy,
-        barWidth / sets.length,
-        yBottom - p.canvasy
-      )
-
-      ctx.strokeRect(
-        xLeft,
-        p.canvasy,
-        barWidth / sets.length,
-        yBottom - p.canvasy
-      )
-    }
-  }
-}
+import {LINE_COLORS, multiColumnBarPlotter} from 'src/shared/graphs/helpers'
+import DygraphLegend from 'src/shared/components/DygraphLegend'
 
 export default class Dygraph extends Component {
   constructor(props) {
     super(props)
     this.state = {
+      legend: {
+        x: null,
+        series: [],
+      },
+      sortType: '',
+      filterText: '',
       isSynced: false,
+      isHidden: true,
+      isAscending: true,
+      isSnipped: false,
+      isFilterVisible: false,
     }
 
-    // optional workaround for dygraph.updateOptions breaking legends
-    // a la http://stackoverflow.com/questions/38371876/dygraph-dynamic-update-legend-values-disappear
-    // this.lastMouseMoveEvent = null
-    // this.isMouseOverGraph = false
-
-    this.getTimeSeries = ::this.getTimeSeries
     this.sync = ::this.sync
+    this.getTimeSeries = ::this.getTimeSeries
+    this.handleSortLegend = ::this.handleSortLegend
+    this.handleLegendInputChange = ::this.handleLegendInputChange
+    this.handleSnipLabel = ::this.handleSnipLabel
+    this.handleHideLegend = ::this.handleHideLegend
+    this.handleToggleFilter = ::this.handleToggleFilter
+    this.visibility = ::this.visibility
   }
 
   static defaultProps = {
@@ -133,8 +63,8 @@ export default class Dygraph extends Component {
       options,
     } = this.props
 
-    const graphContainerNode = this.graphContainer
-    const legendContainerNode = this.legendContainer
+    const graphRef = this.graphRef
+    const legendRef = this.legendRef
     let finalLineColors = overrideLineColors
 
     if (finalLineColors === null) {
@@ -148,7 +78,6 @@ export default class Dygraph extends Component {
         }),
       ],
       labelsSeparateLines: false,
-      labelsDiv: legendContainerNode,
       labelsKMB: true,
       rightGap: 0,
       highlightSeriesBackgroundAlpha: 1.0,
@@ -158,6 +87,7 @@ export default class Dygraph extends Component {
       gridLineWidth: 1,
       highlightCircleSize: 3,
       animatedZooms: true,
+      hideOverlayOnMouseOut: false,
       colors: finalLineColors,
       series: dygraphSeries,
       axes: {
@@ -172,20 +102,30 @@ export default class Dygraph extends Component {
         strokeWidth: 2,
         highlightCircleSize: 5,
       },
-      unhighlightCallback: () => {
-        legendContainerNode.className = 'container--dygraph-legend hidden' // hide
+      legendFormatter: legend => {
+        if (!legend.x) {
+          return ''
+        }
 
-        // part of optional workaround for preventing updateOptions from breaking legend
-        // this.isMouseOverGraph = false
+        const {state: {legend: prevLegend}} = this
+        const highlighted = legend.series.find(s => s.isHighlighted)
+        const prevHighlighted = prevLegend.series.find(s => s.isHighlighted)
+
+        const y = highlighted && highlighted.y
+        const prevY = prevHighlighted && prevHighlighted.y
+
+        if (legend.x === prevLegend.x && y === prevY) {
+          return ''
+        }
+
+        this.setState({legend})
+        return ''
       },
       highlightCallback: e => {
-        // don't make visible yet, but render on DOM to capture position for calcs
-        legendContainerNode.style.visibility = 'hidden'
-        legendContainerNode.className = 'container--dygraph-legend'
-
         // Move the Legend on hover
-        const graphRect = graphContainerNode.getBoundingClientRect()
-        const legendRect = legendContainerNode.getBoundingClientRect()
+        const graphRect = graphRef.getBoundingClientRect()
+        const legendRect = legendRef.getBoundingClientRect()
+
         const graphWidth = graphRect.width + 32 // Factoring in padding from parent
         const graphHeight = graphRect.height
         const graphBottom = graphRect.bottom
@@ -211,16 +151,28 @@ export default class Dygraph extends Component {
           ? graphHeight + 8 - legendHeight
           : graphHeight + 8
 
-        legendContainerNode.style.visibility = 'visible' // show
-        legendContainerNode.style.left = `${legendLeft}px`
-        legendContainerNode.style.top = `${legendTop}px`
+        legendRef.style.left = `${legendLeft}px`
+        legendRef.style.top = `${legendTop}px`
 
-        // part of optional workaround for preventing updateOptions from breaking legend
-        // this.isMouseOverGraph = true
-        // this.lastMouseMoveEvent = e
+        this.setState({isHidden: false})
       },
-      drawCallback: () => {
-        legendContainerNode.className = 'container--dygraph-legend hidden' // hide
+      unhighlightCallback: e => {
+        const {top, bottom, left, right} = legendRef.getBoundingClientRect()
+
+        const mouseY = e.clientY
+        const mouseX = e.clientX
+
+        const mouseInLegendY = mouseY <= bottom && mouseY >= top
+        const mouseInLegendX = mouseX <= right && mouseX >= left
+        const isMouseHoveringLegend = mouseInLegendY && mouseInLegendX
+
+        if (!isMouseHoveringLegend) {
+          this.setState({isHidden: true})
+
+          if (!this.visibility().find(bool => bool === true)) {
+            this.setState({filterText: ''})
+          }
+        }
       },
     }
 
@@ -228,7 +180,7 @@ export default class Dygraph extends Component {
       defaultOptions.plotter = multiColumnBarPlotter
     }
 
-    this.dygraph = new Dygraphs(graphContainerNode, timeSeries, {
+    this.dygraph = new Dygraphs(graphRef, timeSeries, {
       ...defaultOptions,
       ...options,
     })
@@ -264,6 +216,22 @@ export default class Dygraph extends Component {
     return shallowCompare(this, nextProps, nextState)
   }
 
+  visibility() {
+    const timeSeries = this.getTimeSeries()
+    const {filterText, legend} = this.state
+    const series = _.get(timeSeries, '0', [])
+    const numSeries = series.length
+    return Array(numSeries ? numSeries - 1 : numSeries)
+      .fill(true)
+      .map((s, i) => {
+        if (!legend.series[i]) {
+          return true
+        }
+
+        return !!legend.series[i].label.match(filterText)
+      })
+  }
+
   componentDidUpdate() {
     const {
       labels,
@@ -273,6 +241,7 @@ export default class Dygraph extends Component {
       ruleValues,
       isBarGraph,
     } = this.props
+
     const dygraph = this.dygraph
     if (!dygraph) {
       throw new Error(
@@ -281,11 +250,7 @@ export default class Dygraph extends Component {
     }
 
     const timeSeries = this.getTimeSeries()
-
-    const legendContainerNode = this.legendContainer
-    legendContainerNode.className = 'container--dygraph-legend hidden' // hide
-
-    dygraph.updateOptions({
+    const updateOptions = {
       labels,
       file: timeSeries,
       axes: {
@@ -301,12 +266,10 @@ export default class Dygraph extends Component {
       underlayCallback: options.underlayCallback,
       series: dygraphSeries,
       plotter: isBarGraph ? multiColumnBarPlotter : null,
-    })
-    // part of optional workaround for preventing updateOptions from breaking legend
-    // if (this.lastMouseMoveEvent) {
-    //   dygraph.mouseMove_(this.lastMouseMoveEvent)
-    // }
+      visibility: this.visibility(),
+    }
 
+    dygraph.updateOptions(updateOptions)
     dygraph.resize()
     const {w} = this.dygraph.getArea()
     this.props.setResolution(w)
@@ -319,21 +282,77 @@ export default class Dygraph extends Component {
     }
   }
 
+  handleSortLegend(sortType) {
+    this.setState({sortType, isAscending: !this.state.isAscending})
+  }
+
+  handleLegendInputChange(e) {
+    this.setState({filterText: e.target.value})
+  }
+
+  handleSnipLabel() {
+    this.setState({isSnipped: !this.state.isSnipped})
+  }
+
+  handleToggleFilter() {
+    this.setState({
+      isFilterVisible: !this.state.isFilterVisible,
+      filterText: '',
+    })
+  }
+
+  handleHideLegend(e) {
+    const {top, bottom, left, right} = this.graphRef.getBoundingClientRect()
+
+    const mouseY = e.clientY
+    const mouseX = e.clientX
+
+    const mouseInGraphY = mouseY <= bottom && mouseY >= top
+    const mouseInGraphX = mouseX <= right && mouseX >= left
+    const isMouseHoveringGraph = mouseInGraphY && mouseInGraphX
+
+    if (!isMouseHoveringGraph) {
+      this.setState({isHidden: true})
+      if (!this.visibility().find(bool => bool === true)) {
+        this.setState({filterText: ''})
+      }
+    }
+  }
+
   render() {
+    const {
+      legend,
+      filterText,
+      isAscending,
+      sortType,
+      isHidden,
+      isSnipped,
+      isFilterVisible,
+    } = this.state
+
     return (
       <div className="dygraph-child">
-        <div
-          ref={r => {
-            this.graphContainer = r
-          }}
-          style={this.props.containerStyle}
-          className="dygraph-child-container"
+        <DygraphLegend
+          {...legend}
+          sortType={sortType}
+          onHide={this.handleHideLegend}
+          isHidden={isHidden}
+          isFilterVisible={isFilterVisible}
+          isSnipped={isSnipped}
+          filterText={filterText}
+          isAscending={isAscending}
+          onSnip={this.handleSnipLabel}
+          onSort={this.handleSortLegend}
+          legendRef={el => (this.legendRef = el)}
+          onInputChange={this.handleLegendInputChange}
+          onToggleFilter={this.handleToggleFilter}
         />
         <div
           ref={r => {
-            this.legendContainer = r
+            this.graphRef = r
           }}
-          className={'container--dygraph-legend hidden'}
+          style={this.props.containerStyle}
+          className="dygraph-child-container"
         />
       </div>
     )

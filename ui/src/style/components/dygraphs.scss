@@ -6,7 +6,6 @@
   }
 }
 
-
 .graph-vertical-marker {
   top: 0;
   bottom: 0;
@@ -21,69 +20,6 @@
   background: linear-gradient(to bottom,  fade-out($g20-white, 1) 0%,fade-out($g20-white, 0.71) 6%,fade-out($g20-white, 0.71) 80%,fade-out($g20-white, 1) 100%);
   filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='fade-out($g20-white, 0.71)', endColorstr='fade-out($g20-white, 0.71)',GradientType=0 );
 }
-.container--dygraph-legend {
-  transform: translateX(-50%);
-  background-color: $g0-obsidian;
-  display: block !important;
-  position: absolute;
-  padding: 11px;
-  z-index: 500;
-  font-size: 13px;
-  color: $g12-forge;
-  border-radius: 3px;
-  font-weight: 600;
-  line-height: 13px;
-  pointer-events: none;
-
-  &.hidden {
-    display: none !important;
-  }
-
-  /*
-   * Only animate position that's controlled during rendering.
-   * See http://stackoverflow.com/a/17117992
-   */
-  // transition: all 0.1s ease;
-  // transition-property: top, right, bottom, left;
-
-  /* Row */
-  /* Styles for Key go here, get overrided by > b */
-  > span {
-    width: 100%;
-    justify-content: space-between;
-    align-items: center;
-    display: flex;
-    opacity: 0.5;
-    padding-top: 4px;
-    font-size: 13px;
-    line-height: 13px;
-    font-weight: 600 !important;
-    color: $g19-ghost;
-    margin: 0;
-
-    /* Border on top of first row */
-    &:first-child {
-      border-top: 2px solid $g4-onyx;
-      padding-top: 6px;
-      margin-top: 6px;
-    }
-
-    /* Legend Key */
-    > b {
-      font-weight: 600 !important;
-    }
-  }
-
-  .highlight {
-    font-weight: 600;
-    opacity: 1;
-
-    > b {
-     font-weight: 600;
-    }
-  }
-}
-
 
 /* Axis Labels */
 .dygraph-axis-label {
@@ -136,7 +72,7 @@
 }
 
 
-
+/* Single Stat Cells */
 .single-stat {
   position: absolute;
   width: 100%;
@@ -186,4 +122,136 @@
 }
 .single-stat--small .single-stat--shadow:after {
   box-shadow: fade-out($g2-kevlar, 0.3) 0 0 30px 10px;
+}
+
+
+/*
+  Legend Styles
+  ------------------------------------------------------------------------------
+*/
+.dygraph-child-container .dygraph-legend {
+  display: none !important; // hide default legend
+}
+.dygraph-legend {
+  background-color: $g0-obsidian;
+  display: block !important;
+  position: absolute;
+  padding: 11px;
+  z-index: 500;
+  border-radius: 3px;
+  min-width: 350px;
+  user-select: text;
+  transform: translateX(-50%);
+  box-shadow: 0 0 10px 2px $g2-kevlar;
+
+  &.hidden {
+    display: none !important;
+  }
+}
+.dygraph-legend--header {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+
+  > .btn { margin-left: 4px; }
+}
+.dygraph-legend--timestamp {
+  margin-right: 8px;
+  height: 30px;
+  line-height: 30px;
+  font-weight: 600;
+  color: $g13-mist;
+  flex: 1 0 0;
+}
+.dygraph-legend--filter {
+  flex: 1 0 0;
+  margin-top: 8px;
+}
+.dygraph-legend--divider {
+  width: 100%;
+  margin: 8px 0;
+  height: 2px;
+  background-color: $g5-pepper;
+}
+.dygraph-legend--contents {
+  font-size: 13px;
+  color: $g15-platinum;
+  font-weight: 600;
+  line-height: 13px;
+  max-height: 123px;
+  overflow-y: auto;
+  @include custom-scrollbar-round($g0-obsidian,$g3-castle);
+}
+.dygraph-legend--row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  opacity: 0.5;
+  font-size: 13px;
+  line-height: 13px;
+  padding: 3px 0;
+
+  span {
+    font-weight: 600;
+    padding: 0;
+    white-space: nowrap;
+  }
+  figure {
+    padding-left: 10px;
+    font-family: $code-font;
+  }
+
+  &.highlight {
+    opacity: 1;
+    background-color: $g3-castle;
+    figure {color: $g20-white;}
+  }
+  &.highlight:only-child {
+    background-color: transparent;
+  }
+}
+
+/* Sorting Buttons */
+.sort-btn {
+  position: relative;
+}
+.sort-btn--arrow {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  height: calc(100% - 16px);
+  width: 2px;
+  background-color: $g20-white;
+  transform: rotate(0deg);
+  transition: transform 0.25s ease;
+
+  &:after {
+    content: '';
+    position: absolute;
+    top: -8px;
+    left: 50%;
+    transform: translateX(-50%) scaleX(0.7);
+    border-style: solid;
+    border-width: 6px;
+    border-color: transparent;
+    border-bottom-color: $g20-white;
+  }
+}
+.sort-btn--asc .sort-btn--arrow {
+  transform: rotate(180deg);
+}
+.sort-btn--top,
+.sort-btn--bottom {
+  position: absolute;
+  font-size: 10px;
+  font-weight: 900;
+  color: $g20-white;
+  left: 6px;
+}
+.sort-btn--top {
+  top: -5px;
+}
+.sort-btn--bottom {
+  bottom: -6px;
 }

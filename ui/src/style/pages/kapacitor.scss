@@ -246,6 +246,7 @@ $rule-builder--radius-lg: 5px;
     left: (($rule-builder--dot / 2) - $rule-builder--left-gutter);
   }
   .container--dygraph-legend {
+    transform: translateX(-50%);
     background-color: $g5-pepper;
 
     > span:first-child {
