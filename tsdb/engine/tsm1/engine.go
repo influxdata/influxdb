@@ -179,6 +179,8 @@ func NewEngine(id uint64, idx tsdb.Index, database, path string, walPath string,
 		compactionLimiter: opt.CompactionLimiter,
 	}
 
+	fs.OnReplace = e.onFileStoreReplace
+
 	// Attach fieldset to index.
 	e.index.SetFieldSet(e.fieldset)
 
@@ -213,6 +215,16 @@ func (e *Engine) SetCompactionsEnabled(enabled bool) {
 // 'wait' signifies that a corresponding call to disableLevelCompactions(true) was made at some
 // point, and the associated task that required disabled compactions is now complete
 func (e *Engine) enableLevelCompactions(wait bool) {
+	// If we don't need to wait, see if we're already enabled
+	if !wait {
+		e.mu.RLock()
+		if e.done != nil {
+			e.mu.RUnlock()
+			return
+		}
+		e.mu.RUnlock()
+	}
+
 	e.mu.Lock()
 	if wait {
 		e.levelWorkers -= 1
@@ -263,6 +275,15 @@ func (e *Engine) disableLevelCompactions(wait bool) {
 }
 
 func (e *Engine) enableSnapshotCompactions() {
+	// Check if already enabled under read lock
+	e.mu.RLock()
+	if e.snapDone != nil {
+		e.mu.RUnlock()
+		return
+	}
+	e.mu.RUnlock()
+
+	// Check again under write lock
 	e.mu.Lock()
 	if e.snapDone != nil {
 		e.mu.Unlock()
@@ -502,7 +523,7 @@ func (e *Engine) LoadMetadataIndex(shardID uint64, index tsdb.Index) error {
 			return err
 		}
 
-		if err := e.addToIndexFromKey(key, fieldType, index); err != nil {
+		if err := e.addToIndexFromKey(key, fieldType); err != nil {
 			return err
 		}
 		return nil
@@ -517,7 +538,7 @@ func (e *Engine) LoadMetadataIndex(shardID uint64, index tsdb.Index) error {
 			e.logger.Info(fmt.Sprintf("error getting the data type of values for key %s: %s", key, err.Error()))
 		}
 
-		if err := e.addToIndexFromKey([]byte(key), fieldType, index); err != nil {
+		if err := e.addToIndexFromKey([]byte(key), fieldType); err != nil {
 			return err
 		}
 		return nil
@@ -716,7 +737,7 @@ func (e *Engine) overlay(r io.Reader, basePath string, asNew bool) error {
 			return err
 		}
 
-		if err := e.addToIndexFromKey(v.key, fieldType, e.index); err != nil {
+		if err := e.addToIndexFromKey(v.key, fieldType); err != nil {
 			return err
 		}
 	}
@@ -774,7 +795,7 @@ func (e *Engine) readFileFromBackup(tr *tar.Reader, shardRelativePath string, as
 
 // addToIndexFromKey will pull the measurement name, series key, and field name from a composite key and add it to the
 // database index and measurement fields
-func (e *Engine) addToIndexFromKey(key []byte, fieldType influxql.DataType, index tsdb.Index) error {
+func (e *Engine) addToIndexFromKey(key []byte, fieldType influxql.DataType) error {
 	seriesKey, field := SeriesAndFieldFromCompositeKey(key)
 	name := tsdb.MeasurementFromSeriesKey(seriesKey)
 
@@ -1208,9 +1229,59 @@ func (e *Engine) compactTSMFull(quit <-chan struct{}) {
 				// Release the files in the compaction plan
 				e.CompactionPlan.Release(s.compactionGroups)
 			}
-
 		}
 	}
+}
+
+// onFileStoreReplace is callback handler invoked when the FileStore
+// has replaced one set of TSM files with a new set.
+func (e *Engine) onFileStoreReplace(newFiles []TSMFile) {
+	// Load any new series keys to the index
+	readers := make([]chan seriesKey, 0, len(newFiles))
+	for _, r := range newFiles {
+		ch := make(chan seriesKey, 1)
+		readers = append(readers, ch)
+
+		go func(c chan seriesKey, r TSMFile) {
+			n := r.KeyCount()
+			for i := 0; i < n; i++ {
+				key, typ := r.KeyAt(i)
+				c <- seriesKey{key, typ}
+			}
+			close(c)
+		}(ch, r)
+	}
+
+	// Merge and dedup all the series keys across each reader to reduce
+	// lock contention on the index.
+	merged := merge(readers...)
+	for v := range merged {
+		fieldType, err := tsmFieldTypeToInfluxQLDataType(v.typ)
+		if err != nil {
+			e.logger.Error(fmt.Sprintf("refresh index (1): %v", err))
+			continue
+		}
+
+		if err := e.addToIndexFromKey(v.key, fieldType); err != nil {
+			e.logger.Error(fmt.Sprintf("refresh index (2): %v", err))
+			continue
+		}
+	}
+
+	// load metadata from the Cache
+	e.Cache.ApplyEntryFn(func(key string, entry *entry) error {
+		fieldType, err := entry.values.InfluxQLType()
+		if err != nil {
+			e.logger.Error(fmt.Sprintf("refresh index (3): %v", err))
+			return nil
+		}
+
+		if err := e.addToIndexFromKey([]byte(key), fieldType); err != nil {
+			e.logger.Error(fmt.Sprintf("refresh index (4): %v", err))
+			return nil
+		}
+		return nil
+	})
 }
 
 // compactionStrategy holds the details of what to do in a compaction.

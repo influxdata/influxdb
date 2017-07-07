@@ -895,7 +895,7 @@ func (d *indirectIndex) OverlapsTimeRange(min, max int64) bool {
 
 // OverlapsKeyRange returns true if the min and max keys of the file overlap the arguments min and max.
 func (d *indirectIndex) OverlapsKeyRange(min, max string) bool {
-	return d.minKey <= max && d.maxKey >= max
+	return d.minKey <= max && d.maxKey >= min
 }
 
 // KeyRange returns the min and max keys in the index.
