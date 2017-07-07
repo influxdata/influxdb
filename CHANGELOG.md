@@ -1,3 +1,9 @@
+## v1.4.0 [unreleased]
+
+### Bugfixes
+
+ - [#8461](https://github.com/influxdata/influxdb/issues/8461) influxd backup tool will now separate out its logging to stdout and stderr. Thanks @xginn8!
+
 ## v1.3.0 [unreleased]
 
 ### Removals
@@ -8,14 +14,14 @@ The admin UI is removed and unusable in this release. The `[admin]` configuratio
 
 * The top-level config `bind-address` now defaults to `localhost:8088`.
   The previous default was just `:8088`, causing the backup and restore port to be bound on all available interfaces (i.e. including interfaces on the public internet).
-  
+
 The following new configuration options are available.
 
 #### `[http]` Section
 
-* `max-body-size` was added with a default of 25,000,000, but can be disabled by setting it to 0. 
+* `max-body-size` was added with a default of 25,000,000, but can be disabled by setting it to 0.
   Specifies the maximum size (in bytes) of a client request body. When a client sends data that exceeds
-  the configured maximum size, a `413 Request Entity Too Large` HTTP response is returned. 
+  the configured maximum size, a `413 Request Entity Too Large` HTTP response is returned.
 
 ### Features
 
