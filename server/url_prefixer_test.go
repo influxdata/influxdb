@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/influxdata/chronograf/mocks"
 	"github.com/influxdata/chronograf/server"
 )
 
@@ -138,7 +139,7 @@ func Test_Server_Prefixer_NoPrefixingWithoutFlusther(t *testing.T) {
 		})
 	}
 
-	tl := &TestLogger{}
+	tl := &mocks.TestLogger{}
 	pfx := &server.URLPrefixer{
 		Prefix: "/hill",
 		Next:   backend,

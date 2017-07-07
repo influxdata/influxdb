@@ -625,3 +625,44 @@ type LayoutStore interface {
 	// Update the dashboard in the store.
 	Update(context.Context, Layout) error
 }
+
+// SourceAndKapacitor is used to parse any NewSources server flag arguments
+type SourceAndKapacitor struct {
+	Source    Source `json:"influxdb"`
+	Kapacitor Server `json:"kapacitor"`
+}
+
+// NewSources adds sources to BoltDb idempotently by name, as well as respective kapacitors
+func NewSources(ctx context.Context, sourcesStore SourcesStore, serversStore ServersStore, srcsKaps []SourceAndKapacitor, logger Logger) error {
+	srcs, err := sourcesStore.All(ctx)
+	if err != nil {
+		return err
+	}
+
+SourceLoop:
+	for _, srcKap := range srcsKaps {
+		for _, src := range srcs {
+			// If source already exists, do nothing
+			if src.Name == srcKap.Source.Name {
+				logger.
+					WithField("component", "server").
+					WithField("NewSources", src.Name).
+					Info("Source already exists")
+				continue SourceLoop
+			}
+		}
+
+		src, err := sourcesStore.Add(ctx, srcKap.Source)
+		if err != nil {
+			return err
+		}
+
+		srcKap.Kapacitor.SrcID = src.ID
+		_, err = serversStore.Add(ctx, srcKap.Kapacitor)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
