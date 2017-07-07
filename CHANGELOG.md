@@ -1,3 +1,9 @@
+## v1.3.1 [unreleased]
+
+### Bugfixes
+
+- [#8559](https://github.com/influxdata/influxdb/issues/8559): Ensure temporary TSM files get cleaned up when compaction aborted.
+
 ## v1.3.0 [2017-06-21]
 
 ### Removals
