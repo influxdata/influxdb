@@ -262,6 +262,7 @@ func (l *WAL) scheduleSync() {
 			defer t.Stop()
 			timerCh = t.C
 		}
+
 		for {
 			select {
 			case <-timerCh:
@@ -274,6 +275,21 @@ func (l *WAL) scheduleSync() {
 				l.sync()
 				l.mu.Unlock()
 			case <-l.closing:
+				// If the WAL is closed, then it may be possible there are
+				// outstanding syncWriters. Since goroutines will be waiting on
+				// the <-syncErr channel in writeToLog, closing the WAL in between
+				// the call to scheduleSync and a timerCh event may cause things
+				// to block.
+
+				// fsync any remaining writers.
+				l.mu.Lock()
+				if len(l.syncWaiters) == 0 {
+					l.mu.Unlock()
+					return
+				}
+
+				l.sync()
+				l.mu.Unlock()
 				return
 			}
 		}
