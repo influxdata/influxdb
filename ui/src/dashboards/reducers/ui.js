@@ -239,6 +239,30 @@ export default function ui(state = initialState, action) {
 
       return {...state, dashboards}
     }
+
+    case 'EDIT_CELL_RANGES': {
+      const {dashboard, cell, ranges} = action.payload
+
+      const dashboards = state.dashboards.map(
+        d =>
+          (d.id === dashboard.id
+            ? {
+                ...d,
+                cells: d.cells.map(
+                  c =>
+                    (c.i === cell.i
+                      ? {
+                          ...c,
+                          ranges,
+                        }
+                      : c)
+                ),
+              }
+            : d)
+      )
+
+      return {...state, dashboards}
+    }
   }
 
   return state

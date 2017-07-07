@@ -11,6 +11,7 @@ import {
   renameDashboardCell,
   syncDashboardCell,
   templateVariableSelected,
+  editCellRanges,
 } from 'src/dashboards/actions'
 
 let state
@@ -59,22 +60,11 @@ const c1 = {
   w: 4,
   h: 4,
   id: 1,
+  i: 'im-a-cell-id-index',
   isEditing: false,
   name: 'Gigawatts',
 }
 const cells = [c1]
-const tempVar = {
-  ...d1.templates[0],
-  id: '1',
-  type: 'measurement',
-  label: 'test query',
-  tempVar: '$HOSTS',
-  query: {
-    db: 'db1',
-    text: 'SHOW TAGS WHERE HUNTER = "coo"',
-  },
-  values: ['h1', 'h2', 'h3'],
-}
 
 describe('DataExplorer.Reducers.UI', () => {
   it('can load the dashboards', () => {
@@ -179,5 +169,21 @@ describe('DataExplorer.Reducers.UI', () => {
     expect(actual.dashboards[0].templates[0].values[0].selected).to.equal(false)
     expect(actual.dashboards[0].templates[0].values[1].selected).to.equal(false)
     expect(actual.dashboards[0].templates[0].values[2].selected).to.equal(true)
+  })
+
+  it('an set the range', () => {
+    const dash = {..._.cloneDeep(d1), cells: [c1]}
+
+    state = {
+      dashboards: [dash],
+    }
+
+    const y = [1, 2]
+    const y2 = [null, null]
+
+    const actual = reducer(state, editCellRanges(dash, c1, {y, y2}))
+
+    expect(actual.dashboards[0].cells[0].ranges.y).to.deep.equal(y)
+    expect(actual.dashboards[0].cells[0].ranges.y2).to.deep.equal(y2)
   })
 })

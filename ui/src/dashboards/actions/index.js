@@ -79,6 +79,15 @@ export const addDashboardCell = (dashboard, cell) => ({
   },
 })
 
+export const editCellRanges = (dashboard, cell, ranges) => ({
+  type: 'EDIT_CELL_RANGES',
+  payload: {
+    dashboard,
+    cell,
+    ranges,
+  },
+})
+
 export const editDashboardCell = (dashboard, x, y, isEditing) => ({
   type: 'EDIT_DASHBOARD_CELL',
   // x and y coords are used as a alternative to cell ids, which are not
