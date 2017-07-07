@@ -707,7 +707,7 @@ func (i *Index) TagSets(name []byte, opt influxql.IteratorOptions) ([]*influxql.
 				}
 			}
 			// Associate the series and filter with the Tagset.
-			tagSet.AddFilter(string(SeriesElemKey(e)), e.Expr())
+			tagSet.AddFilter(string(models.MakeKey(e.Name(), e.Tags())), e.Expr())
 
 			// Ensure it's back in the map.
 			tagSets[string(tagsAsKey)] = tagSet
