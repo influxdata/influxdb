@@ -533,6 +533,74 @@ func TestTSMReader_MMAP_TombstoneOutsideKeyRange(t *testing.T) {
 	}
 }
 
+func TestTSMReader_MMAP_TombstoneOverlapKeyRange(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	f := MustTempFile(dir)
+	defer f.Close()
+
+	w, err := tsm1.NewTSMWriter(f)
+	if err != nil {
+		t.Fatalf("unexpected error creating writer: %v", err)
+	}
+
+	expValues := []tsm1.Value{
+		tsm1.NewValue(1, 1.0),
+		tsm1.NewValue(2, 2.0),
+		tsm1.NewValue(3, 3.0),
+	}
+	if err := w.Write("cpu,app=foo,host=server-0#!~#value", expValues); err != nil {
+		t.Fatalf("unexpected error writing: %v", err)
+	}
+
+	if err := w.Write("cpu,app=foo,host=server-73379#!~#value", expValues); err != nil {
+		t.Fatalf("unexpected error writing: %v", err)
+	}
+
+	if err := w.WriteIndex(); err != nil {
+		t.Fatalf("unexpected error writing index: %v", err)
+	}
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("unexpected error closing: %v", err)
+	}
+
+	f, err = os.Open(f.Name())
+	if err != nil {
+		t.Fatalf("unexpected error open file: %v", err)
+	}
+
+	r, err := tsm1.NewTSMReader(f)
+	if err != nil {
+		t.Fatalf("unexpected error created reader: %v", err)
+	}
+
+	if err := r.DeleteRange([]string{
+		"cpu,app=foo,host=server-0#!~#value",
+		"cpu,app=foo,host=server-73379#!~#value",
+		"cpu,app=foo,host=server-99999#!~#value"},
+		math.MinInt64, math.MaxInt64); err != nil {
+		t.Fatalf("unexpected error deleting: %v", err)
+	}
+	defer r.Close()
+
+	if got, exp := r.Contains("cpu,app=foo,host=server-0#!~#value"), false; got != exp {
+		t.Fatalf("ContainsValue mismatch: got %v, exp %v", got, exp)
+	}
+
+	if got, exp := r.Contains("cpu,app=foo,host=server-73379#!~#value"), false; got != exp {
+		t.Fatalf("ContainsValue mismatch: got %v, exp %v", got, exp)
+	}
+
+	if got, exp := r.HasTombstones(), true; got != exp {
+		t.Fatalf("HasTombstones mismatch: got %v, exp %v", got, exp)
+	}
+
+	if got, exp := len(r.TombstoneFiles()), 1; got != exp {
+		t.Fatalf("TombstoneFiles len mismatch: got %v, exp %v", got, exp)
+	}
+}
+
 func TestTSMReader_MMAP_TombstoneFullRange(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
