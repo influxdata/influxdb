@@ -2,7 +2,7 @@ import React, {PropTypes} from 'react'
 import _ from 'lodash'
 
 const CustomTimeIndicator = ({queries}) => {
-  if (!queries && !queries.length) {
+  if (!queries || !queries.length) {
     return null
   }
 
