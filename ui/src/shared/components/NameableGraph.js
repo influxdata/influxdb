@@ -1,45 +1,30 @@
-import React, {PropTypes} from 'react'
+import React, {PropTypes, Component} from 'react'
 import classnames from 'classnames'
 import OnClickOutside from 'react-onclickoutside'
 import CustomTimeIndicator from 'src/shared/components/CustomTimeIndicator'
 
-const {array, bool, func, node, number, shape, string} = PropTypes
-
-const NameableGraph = React.createClass({
-  propTypes: {
-    cell: shape({
-      name: string.isRequired,
-      isEditing: bool,
-      x: number.isRequired,
-      y: number.isRequired,
-      queries: array,
-    }).isRequired,
-    children: node.isRequired,
-    onEditCell: func,
-    onRenameCell: func,
-    onUpdateCell: func,
-    onDeleteCell: func,
-    onSummonOverlayTechnologies: func,
-    shouldNotBeEditable: bool,
-  },
-
-  getInitialState() {
-    return {
+class NameableGraph extends Component {
+  constructor(props) {
+    super(props)
+    this.state = {
       isMenuOpen: false,
     }
-  },
+
+    this.toggleMenu = ::this.toggleMenu
+    this.closeMenu = ::this.closeMenu
+  }
 
   toggleMenu() {
     this.setState({
       isMenuOpen: !this.state.isMenuOpen,
     })
-  },
+  }
 
   closeMenu() {
     this.setState({
       isMenuOpen: false,
     })
-  },
+  }
 
   render() {
     const {
@@ -119,8 +104,27 @@ const NameableGraph = React.createClass({
         </div>
       </div>
     )
-  },
-})
+  }
+}
+
+const {array, bool, func, node, number, shape, string} = PropTypes
+
+NameableGraph.propTypes = {
+  cell: shape({
+    name: string.isRequired,
+    isEditing: bool,
+    x: number.isRequired,
+    y: number.isRequired,
+    queries: array,
+  }).isRequired,
+  children: node.isRequired,
+  onEditCell: func,
+  onRenameCell: func,
+  onUpdateCell: func,
+  onDeleteCell: func,
+  onSummonOverlayTechnologies: func,
+  shouldNotBeEditable: bool,
+}
 
 const ContextMenu = OnClickOutside(({
   isOpen,
