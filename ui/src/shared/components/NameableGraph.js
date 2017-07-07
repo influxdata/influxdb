@@ -1,6 +1,7 @@
 import React, {PropTypes} from 'react'
 import classnames from 'classnames'
 import OnClickOutside from 'react-onclickoutside'
+import CustomTimeIndicator from 'src/shared/components/CustomTimeIndicator'
 
 const {array, bool, func, node, number, shape, string} = PropTypes
 
@@ -40,33 +41,10 @@ const NameableGraph = React.createClass({
     })
   },
 
-  renderCustomTimeIndicator() {
-    const {cell} = this.props
-    let customTimeRange = null
-
-    if (!cell.queries) {
-      return
-    }
-
-    cell.queries.map(q => {
-      if (!q.query.includes(':dashboardTime:')) {
-        if (q.queryConfig) {
-          customTimeRange = q.queryConfig.range.lower.split(' ').reverse()[0]
-        }
-      }
-    })
-
-    return customTimeRange
-      ? <span className="dash-graph--custom-time">
-          {customTimeRange}
-        </span>
-      : null
-  },
-
   render() {
     const {
       cell,
-      cell: {x, y, name, isEditing},
+      cell: {x, y, name, isEditing, queries},
       onEditCell,
       onRenameCell,
       onUpdateCell,
@@ -102,7 +80,7 @@ const NameableGraph = React.createClass({
       nameOrField = (
         <span className="dash-graph--name">
           {name}
-          {this.renderCustomTimeIndicator()}
+          <CustomTimeIndicator queries={queries} />
         </span>
       )
     }
@@ -144,22 +122,29 @@ const NameableGraph = React.createClass({
   },
 })
 
-const ContextMenu = OnClickOutside(
-  ({isOpen, toggleMenu, onEdit, onRename, onDelete, cell}) =>
-    <div
-      className={classnames('dash-graph--options', {
-        'dash-graph--options-show': isOpen,
-      })}
-      onClick={toggleMenu}
-    >
-      <button className="btn btn-info btn-xs">
-        <span className="icon caret-down" />
-      </button>
-      <ul className="dash-graph--options-menu">
-        <li onClick={() => onEdit(cell)}>Edit</li>
-        <li onClick={onRename(cell.x, cell.y, cell.isEditing)}>Rename</li>
-        <li onClick={() => onDelete(cell)}>Delete</li>
-      </ul>
-    </div>
-)
+const ContextMenu = OnClickOutside(({
+  isOpen,
+  toggleMenu,
+  onEdit,
+  onRename,
+  onDelete,
+  cell,
+}) => (
+  <div
+    className={classnames('dash-graph--options', {
+      'dash-graph--options-show': isOpen,
+    })}
+    onClick={toggleMenu}
+  >
+    <button className="btn btn-info btn-xs">
+      <span className="icon caret-down" />
+    </button>
+    <ul className="dash-graph--options-menu">
+      <li onClick={() => onEdit(cell)}>Edit</li>
+      <li onClick={onRename(cell.x, cell.y, cell.isEditing)}>Rename</li>
+      <li onClick={() => onDelete(cell)}>Delete</li>
+    </ul>
+  </div>
+))
+
 export default NameableGraph
