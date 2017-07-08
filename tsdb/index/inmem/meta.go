@@ -330,11 +330,13 @@ func (m *Measurement) TagSets(shardID uint64, opt influxql.IteratorOptions) ([]*
 		// Abort if the query was killed
 		select {
 		case <-opt.InterruptCh:
+			m.mu.RUnlock()
 			return nil, influxql.ErrQueryInterrupted
 		default:
 		}
 
 		if opt.MaxSeriesN > 0 && seriesN > opt.MaxSeriesN {
+			m.mu.RUnlock()
 			return nil, fmt.Errorf("max-select-series limit exceeded: (%d/%d)", seriesN, opt.MaxSeriesN)
 		}
 
