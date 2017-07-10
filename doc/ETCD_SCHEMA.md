@@ -35,4 +35,4 @@ In the following sections, the path is persitent path by default. If the path is
 | Function | Path | Schema | Ephemeral | Note |
 | -------- | ---- | ------ | --------- | ---- |
 | Naster path | $INFLUXDB/master | {"version": int,"nodeID": int, "time": int64} | yes | Used for leader election |
-| Master epoch | $INFLUXDB/master_epoch | int64 | | Increase 1 for every round of eleted leader |
+| Master epoch | $INFLUXDB/master_epoch | int64 | | Increase 1 for every round of elected leader |
