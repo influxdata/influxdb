@@ -176,7 +176,6 @@ input.form-control.dash-graph--name-edit {
 .dash-graph--options {
   width: $dash-graph-heading;
   position: absolute;
-  z-index: 11;
   right: 0px;
   top: 0px;
   text-align: center;
@@ -209,6 +208,7 @@ input.form-control.dash-graph--name-edit {
   left: 50%;
   transform: translateX(-50%);
   display: block;
+  z-index: 11;
   list-style: none;
   padding: 0;
   margin: 0;

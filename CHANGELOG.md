@@ -1,6 +1,8 @@
 ## v1.3.5.0 [unreleased]
 
 ### Bug Fixes
+1. [#1708](https://github.com/influxdata/chronograf/pull/1708): Fix z-index issue in dashboard cell context menu
+
 ### Features
 ### UI Improvements
 
