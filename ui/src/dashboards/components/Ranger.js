@@ -1,16 +1,17 @@
 import React, {PropTypes} from 'react'
 
-const Ranger = ({onSetRange, yRange}) => (
+const Ranger = ({onSetRange, yRanges, onEditCellRanges}) => (
   <div className="yRanger" style={{display: 'flex'}}>
-    <form onSubmit={onSetRange} autoComplete="off">
+    <form onSubmit={onEditCellRanges} autoComplete="off">
       <label htmlFor="min">Minimum</label>
       <input
         className="form-control input-sm"
         type="text"
         name="min"
         id="min"
-        value={yRange.min}
+        value={yRanges.y[0]}
         onChange={onSetRange}
+        placeholder="auto"
       />
       <label htmlFor="max">Maximum</label>
       <input
@@ -18,20 +19,25 @@ const Ranger = ({onSetRange, yRange}) => (
         type="text"
         name="max"
         id="max"
-        value={yRange.max}
+        value={yRanges.y[1]}
         onChange={onSetRange}
+        placeholder="auto"
       />
+      <button className="btn btn-primary btn-xs" type="submit">
+        Set Range
+      </button>
     </form>
   </div>
 )
 
-const {func, shape, string} = PropTypes
+const {array, func, shape} = PropTypes
 
 Ranger.propTypes = {
+  onEditCellRanges: func.isRequired,
   onSetRange: func.isRequired,
-  yRange: shape({
-    min: string,
-    max: string,
+  yRanges: shape({
+    y: array,
+    y2: array,
   }).isRequired,
 }
 

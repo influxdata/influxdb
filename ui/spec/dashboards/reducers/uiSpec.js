@@ -181,9 +181,9 @@ describe('DataExplorer.Reducers.UI', () => {
     const y = [1, 2]
     const y2 = [null, null]
 
-    const actual = reducer(state, editCellRanges(dash, c1, {y, y2}))
+    const actual = reducer(state, editCellRanges(dash.id, c1.i, {y, y2}))
 
-    expect(actual.dashboards[0].cells[0].ranges.y).to.deep.equal(y)
-    expect(actual.dashboards[0].cells[0].ranges.y2).to.deep.equal(y2)
+    expect(actual.dashboards[0].cells[0].yRanges.y).to.deep.equal(y)
+    expect(actual.dashboards[0].cells[0].yRanges.y2).to.deep.equal(y2)
   })
 })

@@ -12,29 +12,35 @@ const style = {
 }
 
 const DisplayOptions = ({
+  onEditCellRanges,
   selectedGraphType,
   onSelectGraphType,
   onSetRange,
-  yRange,
+  yRanges,
 }) => (
   <div className="display-options" style={style}>
     <GraphTypeSelector
       selectedGraphType={selectedGraphType}
       onSelectGraphType={onSelectGraphType}
     />
-    <Ranger onSetRange={onSetRange} yRange={yRange} />
+    <Ranger
+      onEditCellRanges={onEditCellRanges}
+      onSetRange={onSetRange}
+      yRanges={yRanges}
+    />
   </div>
 )
 
-const {func, shape, string} = PropTypes
+const {array, func, shape, string} = PropTypes
 
 DisplayOptions.propTypes = {
+  onEditCellRanges: func.isRequired,
   selectedGraphType: string.isRequired,
   onSelectGraphType: func.isRequired,
   onSetRange: func.isRequired,
-  yRange: shape({
-    min: string,
-    max: string,
+  yRanges: shape({
+    y: array,
+    y2: array,
   }).isRequired,
 }
 

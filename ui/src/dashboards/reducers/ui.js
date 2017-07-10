@@ -241,19 +241,19 @@ export default function ui(state = initialState, action) {
     }
 
     case 'EDIT_CELL_RANGES': {
-      const {dashboard, cell, ranges} = action.payload
+      const {dashboardID, cellID, yRanges} = action.payload
 
       const dashboards = state.dashboards.map(
         d =>
-          (d.id === dashboard.id
+          (d.id === dashboardID
             ? {
                 ...d,
                 cells: d.cells.map(
                   c =>
-                    (c.i === cell.i
+                    (c.i === cellID
                       ? {
                           ...c,
-                          ranges,
+                          yRanges,
                         }
                       : c)
                 ),

@@ -79,12 +79,12 @@ export const addDashboardCell = (dashboard, cell) => ({
   },
 })
 
-export const editCellRanges = (dashboard, cell, ranges) => ({
+export const editCellRanges = (dashboardID, cellID, yRanges) => ({
   type: 'EDIT_CELL_RANGES',
   payload: {
-    dashboard,
-    cell,
-    ranges,
+    dashboardID,
+    cellID,
+    yRanges,
   },
 })
 
