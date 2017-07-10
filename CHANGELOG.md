@@ -1,20 +1,32 @@
-## v1.3.4.0 [unreleased]
+## v1.3.5.0 [unreleased]
+
 ### Bug Fixes
-1. [#1612](https://github.com/influxdata/chronograf/pull/1612): Prevent users from being able to write to internal system databases
+1. [#1708](https://github.com/influxdata/chronograf/pull/1708): Fix z-index issue in dashboard cell context menu
+
+### Features
+### UI Improvements
+
+## v1.3.4.0 [2017-07-10]
+### Bug Fixes
+1. [#1612](https://github.com/influxdata/chronograf/pull/1612): Disallow writing to \_internal in the Data Explorer
 1. [#1655](https://github.com/influxdata/chronograf/pull/1655): Add more than one color to Line+Stat graphs
+1. [#1688](https://github.com/influxdata/chronograf/pull/1688): Fix updating Retention Policies in single-node InfluxDB instances
+1. [#1689](https://github.com/influxdata/chronograf/pull/1689): Lock the width of Template Variable dropdown menus to the size of their longest option
 
 ### Features
 1. [#1645](https://github.com/influxdata/chronograf/pull/1645): Add Auth0 as a supported OAuth2 provider
 1. [#1660](https://github.com/influxdata/chronograf/pull/1660): Add ability to add custom links to User menu via server CLI or ENV vars
 1. [#1681](https://github.com/influxdata/chronograf/pull/1681): Add the ability to select Custom Time Ranges in the Hostpages, Data Explorer, and Dashboards.
+1. [#1660](https://github.com/influxdata/chronograf/pull/1660): Allow users to configure custom links on startup that will appear under the User menu in the sidebar
+1. [#1674](https://github.com/influxdata/chronograf/pull/1674): Add support for Auth0 organizations
+1. [#1695](https://github.com/influxdata/chronograf/pull/1695): Allow users to configure InfluxDB and Kapacitor sources on startup
 
 ### UI Improvements
-1. [#1644](https://github.com/influxdata/chronograf/pull/1644): Redesign Alerts History table to have sticky headers
-1. [#1581](https://github.com/influxdata/chronograf/pull/1581): Refresh template variable values on dashboard page load
-1. [#1612](https://github.com/influxdata/chronograf/pull/1612): Prevent users from being able to write to internal system databases
-1. [#1655](https://github.com/influxdata/chronograf/pull/1655): Add version number item to the navbar
-1. [#1655](https://github.com/influxdata/chronograf/pull/1655): Redesign dashboards table and sort alphabetically by name
-1. [#1655](https://github.com/influxdata/chronograf/pull/1655): Redesign navbar to be consistent with navbar in Branding Documentation
+1. [#1644](https://github.com/influxdata/chronograf/pull/1644): Redesign Alerts History table on Status Page to have sticky headers
+1. [#1581](https://github.com/influxdata/chronograf/pull/1581): Refresh Template Variable values on Dashboard page load
+1. [#1655](https://github.com/influxdata/chronograf/pull/1655): Display current version of Chronograf at the bottom of Configuration page
+1. [#1655](https://github.com/influxdata/chronograf/pull/1655): Redesign Dashboards table and sort them alphabetically
+1. [#1655](https://github.com/influxdata/chronograf/pull/1655): Bring design of navigation sidebar in line with Branding Documentation
 
 ## v1.3.3.3 [2017-06-21]
 ### Bug Fixes
@@ -36,6 +48,7 @@
 1. [#1641](https://github.com/influxdata/chronograf/pull/1641): Fix enable / disable being out of sync on Kapacitor Rules Page
 
 ### Features
+1. [#1647](https://github.com/influxdata/chronograf/pull/1647): Add file uploader to Data Explorer for write protocol
 ### UI Improvements
 1. [#1642](https://github.com/influxdata/chronograf/pull/1642): Do not prefix basepath to external link for news feed
 

@@ -8,10 +8,12 @@ $write-data--max-width: 960px;
 $write-data--gutter: 30px;
 $write-data--margin: 18px;
 $write-data--input-height: 120px;
+$write-data--transition: opacity 0.4s ease;
 
 .write-data-form {
   max-width: $write-data--max-width;
   margin: 0 auto;
+  transition: $write-data--transition;
 }
 .write-data-form--header {
   height: $chronograf-page-header-height;
@@ -60,4 +62,55 @@ textarea.form-control.write-data-form--input {
 }
 .write-data-form--submit {
   width: 140px;
+}
+.write-data-form--file {
+  height: $write-data--input-height;
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  justify-content: center;
+  background-color: $g2-kevlar;
+  border: 2px solid $g4-onyx;
+  border-radius: 3px;
+}
+input[type="file"].write-data-form--upload {
+  display: none;
+}
+.write-data-form--filepath_selected,
+.write-data-form--filepath_empty {
+  @include no-user-select();
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 15px;
+}
+.write-data-form--filepath_empty {
+  color: $g13-mist;
+  font-style: italic;
+}
+.write-data-form--filepath_selected {
+  color: $c-rainforest;
+  .icon {margin-right: 4px;}
+}
+
+/* Drag File to Upload Styles */
+.write-data-form--drag-here {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%,-50%);
+  transition: $write-data--transition;
+  width: 520px;
+  height: 240px;
+  border-radius: 5px;
+  text-align: center;
+  line-height: 240px;
+  font-size: 30px;
+  font-weight: 400;
+  opacity: 0;
+  color: $g20-white;
+  border: 2px dashed fade-out($g20-white, 0.5);
+}
+.drag-over {
+  .write-data-form {opacity: 0;}
+  .write-data-form--drag-here {opacity: 1;}
 }

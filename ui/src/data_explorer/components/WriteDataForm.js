@@ -1,16 +1,24 @@
 import React, {Component, PropTypes} from 'react'
+import classnames from 'classnames'
 
-import DatabaseDropdown from 'shared/components/DatabaseDropdown'
 import OnClickOutside from 'shared/components/OnClickOutside'
+import WriteDataBody from 'src/data_explorer/components/WriteDataBody'
+import WriteDataHeader from 'src/data_explorer/components/WriteDataHeader'
 
 import {OVERLAY_TECHNOLOGY} from 'shared/constants/classNames'
+let dragCounter = 0
 
 class WriteDataForm extends Component {
   constructor(props) {
     super(props)
     this.state = {
-      selectedDatabase: null,
-      inputContent: '',
+      selectedDatabase: props.selectedDatabase,
+      inputContent: null,
+      uploadContent: '',
+      fileName: '',
+      progress: '',
+      isManual: false,
+      dragClass: 'drag-none',
     }
 
     this.handleSelectDatabase = ::this.handleSelectDatabase
@@ -18,6 +26,13 @@ class WriteDataForm extends Component {
     this.handleClickOutside = ::this.handleClickOutside
     this.handleKeyUp = ::this.handleKeyUp
     this.handleEdit = ::this.handleEdit
+    this.handleFile = ::this.handleFile
+    this.toggleWriteView = ::this.toggleWriteView
+    this.handleFileOpen = ::this.handleFileOpen
+  }
+
+  toggleWriteView(isManual) {
+    this.setState({isManual})
   }
 
   handleSelectDatabase(item) {
@@ -42,10 +57,13 @@ class WriteDataForm extends Component {
 
   async handleSubmit() {
     const {onClose, source, writeLineProtocol} = this.props
-    const {inputContent, selectedDatabase} = this.state
+    const {inputContent, uploadContent, selectedDatabase, isManual} = this.state
+    const content = isManual ? inputContent : uploadContent
+
     try {
-      await writeLineProtocol(source, selectedDatabase, inputContent)
+      await writeLineProtocol(source, selectedDatabase, content)
       onClose()
+      window.location.reload()
     } catch (error) {
       console.error(error.data.error)
     }
@@ -55,53 +73,100 @@ class WriteDataForm extends Component {
     this.setState({inputContent: e.target.value.trim()})
   }
 
+  handleFile(e, drop) {
+    let file
+    if (drop) {
+      file = e.dataTransfer.files[0]
+      this.setState({
+        dragClass: 'drag-none',
+      })
+    } else {
+      file = e.target.files[0]
+    }
+
+    e.preventDefault()
+    e.stopPropagation()
+
+    const reader = new FileReader()
+    reader.readAsText(file)
+    reader.onload = loadEvent => {
+      this.setState({
+        uploadContent: loadEvent.target.result,
+        fileName: file.name,
+      })
+    }
+  }
+
+  handleDragOver(e) {
+    e.preventDefault()
+    e.stopPropagation()
+  }
+
+  handleDragClass(entering) {
+    return e => {
+      e.preventDefault()
+      if (entering) {
+        this.setState({
+          dragClass: 'drag-over',
+        })
+      } else {
+        this.setState({
+          dragClass: 'drag-none',
+        })
+      }
+    }
+  }
+
+  handleDragEnter(e) {
+    dragCounter += 1
+    e.preventDefault()
+    this.setState({dragClass: 'drag-over'})
+  }
+
+  handleDragLeave(e) {
+    dragCounter -= 1
+    e.preventDefault()
+    if (dragCounter === 0) {
+      this.setState({dragClass: 'drag-none'})
+    }
+  }
+
+  handleFileOpen() {
+    this.fileInput.click()
+  }
+
   render() {
     const {onClose, errorThrown} = this.props
-    const {inputContent, selectedDatabase} = this.state
+    const {dragClass} = this.state
 
     return (
-      <div className="write-data-form">
-        <div className="write-data-form--header">
-          <div className="page-header__left">
-            <h1 className="page-header__title">Write Data To</h1>
-            <DatabaseDropdown
-              onSelectDatabase={this.handleSelectDatabase}
-              database={selectedDatabase}
-              onErrorThrown={errorThrown}
-            />
-          </div>
-          <div className="page-header__right">
-            <span className="page-header__dismiss" onClick={onClose} />
-          </div>
-        </div>
-        <div className="write-data-form--body">
-          <textarea
-            className="form-control write-data-form--input"
-            autoComplete="off"
-            spellCheck="false"
-            placeholder="<measurement>,<tag_key>=<tag_value> <field_key>=<field_value>"
-            onKeyUp={this.handleKeyUp}
-            onChange={this.handleEdit}
-            autoFocus={true}
+      <div
+        onDrop={e => this.handleFile(e, true)}
+        onDragOver={this.handleDragOver}
+        onDragEnter={e => this.handleDragEnter(e)}
+        onDragLeave={e => this.handleDragLeave(e)}
+        className={classnames(OVERLAY_TECHNOLOGY, dragClass)}
+      >
+        <div className="write-data-form">
+          <WriteDataHeader
+            {...this.state}
+            handleSelectDatabase={this.handleSelectDatabase}
+            errorThrown={errorThrown}
+            toggleWriteView={this.toggleWriteView}
+            onClose={onClose}
           />
-          <div className="write-data-form--footer">
-            <span className="write-data-form--helper">
-              Need help writing InfluxDB Line Protocol? -&nbsp;
-              <a
-                href="https://docs.influxdata.com/influxdb/latest/write_protocols/line_protocol_tutorial/"
-                target="_blank"
-              >
-                See Documentation
-              </a>
-            </span>
-            <button
-              className="btn btn-sm btn-primary write-data-form--submit"
-              onClick={this.handleSubmit}
-              disabled={!inputContent}
-            >
-              Write
-            </button>
-          </div>
+          <WriteDataBody
+            {...this.state}
+            fileInput={el => this.fileInput = el}
+            handleEdit={this.handleEdit}
+            handleFile={this.handleFile}
+            handleKeyUp={this.handleKeyUp}
+            handleSubmit={this.handleSubmit}
+            handleFileOpen={this.handleFileOpen}
+          />
+        </div>
+        <div className="write-data-form--drag-here">
+          Drag & Drop a File to Upload
         </div>
       </div>
     )
@@ -121,6 +186,7 @@ WriteDataForm.propTypes = {
   onClose: func.isRequired,
   writeLineProtocol: func.isRequired,
   errorThrown: func.isRequired,
+  selectedDatabase: string,
 }
 
 export default OnClickOutside(WriteDataForm)

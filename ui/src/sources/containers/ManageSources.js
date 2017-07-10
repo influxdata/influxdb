@@ -13,6 +13,8 @@ import FancyScrollbar from 'shared/components/FancyScrollbar'
 import SourceIndicator from 'shared/components/SourceIndicator'
 import InfluxTable from 'src/sources/components/InfluxTable'
 
+const V_NUMBER = VERSION // eslint-disable-line no-undef
+
 class ManageSources extends Component {
   constructor(props) {
     super(props)
@@ -71,6 +73,7 @@ class ManageSources extends Component {
               setActiveKapacitor={setActiveKapacitor}
               handleDeleteKapacitor={deleteKapacitor}
             />
+            <p className="version-number">Version: {V_NUMBER}</p>
           </div>
         </FancyScrollbar>
       </div>

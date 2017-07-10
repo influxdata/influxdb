@@ -90,12 +90,18 @@ const DataExplorer = React.createClass({
       writeLineProtocol,
     } = this.props
     const {activeQueryIndex, showWriteForm} = this.state
+    const selectedDatabase = _.get(
+      queryConfigs,
+      [`${activeQueryIndex}`, 'database'],
+      null
+    )
 
     return (
       <div className="data-explorer">
         {showWriteForm
           ? <OverlayTechnologies>
               <WriteDataForm
+                selectedDatabase={selectedDatabase}
                 errorThrown={errorThrownAction}
                 onClose={() => this.setState({showWriteForm: false})}
                 source={source}

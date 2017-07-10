@@ -225,12 +225,18 @@ class DatabaseRow extends Component {
   }
 
   getInputValues() {
-    const {notify, retentionPolicy: {name: currentName}} = this.props
+    const {
+      notify,
+      retentionPolicy: {name: currentName},
+      isRFDisplayed,
+    } = this.props
+
     const name = (this.name && this.name.value.trim()) || currentName
     let duration = this.duration.value.trim()
-    const replication = +this.replication.value.trim()
+    // Replication > 1 is only valid for Influx Enterprise
+    const replication = isRFDisplayed ? +this.replication.value.trim() : 1
 
-    if (!duration || !replication) {
+    if (!duration || (isRFDisplayed && !replication)) {
       notify('error', 'Fields cannot be empty')
       return
     }

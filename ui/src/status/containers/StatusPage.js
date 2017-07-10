@@ -71,6 +71,7 @@ class StatusPage extends Component {
                   source={source}
                   shouldNotBeEditable={true}
                   isStatusPage={true}
+                  isEditable={false}
                 />
               : <span>Loading Status Page...</span>}
           </div>

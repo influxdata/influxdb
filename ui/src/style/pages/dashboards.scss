@@ -144,7 +144,7 @@ $dash-graph-options-arrow: 8px;
 .dash-graph--name {
   height: $dash-graph-heading;
   line-height: $dash-graph-heading;
-  width: calc(100% - 50px);
+  width: calc(100% - 30px);
   padding-left: 16px;
   transition:
     color 0.25s ease,
@@ -160,10 +160,22 @@ input.form-control.dash-graph--name-edit {
   position: relative;
   top: -1px; // Fix for slight offset
 }
+.dash-graph--custom-time {
+  font-family: $code-font;
+  color: $c-pool;
+  background-color: $g2-kevlar;
+  height: 24px;
+  font-size: 10px;
+  line-height: 24px;
+  border-radius: 3px;
+  padding: 0 7px;
+  position: absolute;
+  top: 3px;
+  right: 30px;
+}
 .dash-graph--options {
   width: $dash-graph-heading;
   position: absolute;
-  z-index: 1;
   right: 0px;
   top: 0px;
   text-align: center;
@@ -196,6 +208,7 @@ input.form-control.dash-graph--name-edit {
   left: 50%;
   transform: translateX(-50%);
   display: block;
+  z-index: 11;
   list-style: none;
   padding: 0;
   margin: 0;
@@ -250,7 +263,6 @@ input.form-control.dash-graph--name-edit {
 
 /* Menu Open State */
 .dash-graph--options.dash-graph--options-show {
-  z-index: 11;
   > .btn {
     color: $g20-white;
     background-color: $g5-pepper !important;
