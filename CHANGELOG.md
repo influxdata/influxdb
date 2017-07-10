@@ -10,8 +10,6 @@
 ### Bug Fixes
 1. [#1612](https://github.com/influxdata/chronograf/pull/1612): Disallow writing to \_internal in the Data Explorer
 1. [#1655](https://github.com/influxdata/chronograf/pull/1655): Add more than one color to Line+Stat graphs
-1. [#1688](https://github.com/influxdata/chronograf/pull/1688): Fix updating retention policies on single-node instances.
-1. [#1689](https://github.com/influxdata/chronograf/pull/1689): Fix size jitter bug in Template Variable dropdown menus
 1. [#1688](https://github.com/influxdata/chronograf/pull/1688): Fix updating Retention Policies in single-node InfluxDB instances
 1. [#1689](https://github.com/influxdata/chronograf/pull/1689): Lock the width of Template Variable dropdown menus to the size of their longest option
 
