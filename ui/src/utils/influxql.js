@@ -19,7 +19,7 @@ export const quoteIfTimestamp = ({lower, upper}) => {
 
 export default function buildInfluxQLQuery(timeBounds, config) {
   const {groupBy, tags, areTagsAccepted} = config
-  const {upper, lower} = timeBounds
+  const {upper, lower} = quoteIfTimestamp(timeBounds)
 
   const select = _buildSelect(config)
   if (select === null) {

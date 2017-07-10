@@ -248,6 +248,7 @@ class DashboardPage extends Component {
     const {
       source,
       timeRange,
+      timeRange: {lower, upper},
       showTemplateControlBar,
       dashboards,
       autoRefresh,
@@ -259,16 +260,17 @@ class DashboardPage extends Component {
       params: {sourceID},
     } = this.props
 
-    const {lower, upper} = quoteIfTimestamp(timeRange)
+    const lowerType = lower && lower.includes('Z') ? 'timeStamp' : 'constant'
+    const upperType = upper && upper.includes('Z') ? 'timeStamp' : 'constant'
 
     const dashboardTime = {
       id: 'dashtime',
       tempVar: ':dashboardTime:',
-      type: 'constant',
+      type: lowerType,
       values: [
         {
           value: lower,
-          type: 'constant',
+          type: lowerType,
           selected: true,
         },
       ],
@@ -277,11 +279,11 @@ class DashboardPage extends Component {
     const upperDashboardTime = {
       id: 'upperdashtime',
       tempVar: ':upperDashboardTime:',
-      type: 'constant',
+      type: upperType,
       values: [
         {
           value: upper || 'now()',
-          type: 'constant',
+          type: upperType,
           selected: true,
         },
       ],

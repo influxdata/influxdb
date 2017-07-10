@@ -170,7 +170,7 @@ func (t BasicTemplateVar) String() string {
 	switch t.Values[0].Type {
 	case "tagKey", "fieldKey", "measurement", "database":
 		return `"` + t.Values[0].Value + `"`
-	case "tagValue":
+	case "tagValue", "timeStamp":
 		return `'` + t.Values[0].Value + `'`
 	case "csv", "constant":
 		return t.Values[0].Value
