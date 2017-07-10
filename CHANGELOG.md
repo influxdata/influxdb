@@ -4,7 +4,7 @@
 1. [#1655](https://github.com/influxdata/chronograf/pull/1655): Add more than one color to Line+Stat graphs
 1. [#1688](https://github.com/influxdata/chronograf/pull/1688): Fix updating retention policies on single-node instances.
 1. [#1689](https://github.com/influxdata/chronograf/pull/1689): Fix size jitter bug in Template Variable dropdown menus
-1. [#1708](https://github.com/influxdata/chronograf/pull/1708): Z-index for options context menu fixed
+1. [#1708](https://github.com/influxdata/chronograf/pull/1708): Fix Z-index for options context menu
 
 ### Features
 1. [#1645](https://github.com/influxdata/chronograf/pull/1645): Add Auth0 as a supported OAuth2 provider
