@@ -1,6 +1,8 @@
 ## v1.3.5.0 [unreleased]
 
 ### Bug Fixes
+1. [#1708](https://github.com/influxdata/chronograf/pull/1708): Fix Z-index for options context menu
+
 ### Features
 ### UI Improvements
 
@@ -10,7 +12,6 @@
 1. [#1655](https://github.com/influxdata/chronograf/pull/1655): Add more than one color to Line+Stat graphs
 1. [#1688](https://github.com/influxdata/chronograf/pull/1688): Fix updating retention policies on single-node instances.
 1. [#1689](https://github.com/influxdata/chronograf/pull/1689): Fix size jitter bug in Template Variable dropdown menus
-1. [#1708](https://github.com/influxdata/chronograf/pull/1708): Fix Z-index for options context menu
 1. [#1688](https://github.com/influxdata/chronograf/pull/1688): Fix updating Retention Policies in single-node InfluxDB instances
 1. [#1689](https://github.com/influxdata/chronograf/pull/1689): Lock the width of Template Variable dropdown menus to the size of their longest option
 
