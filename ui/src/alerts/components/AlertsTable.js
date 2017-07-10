@@ -1,5 +1,6 @@
 import React, {Component, PropTypes} from 'react'
 import _ from 'lodash'
+import classnames from 'classnames'
 import {Link} from 'react-router'
 
 import FancyScrollbar from 'shared/components/FancyScrollbar'
@@ -144,7 +145,13 @@ class AlertsTable extends Component {
                     className={`alert-history-table--td alert-level-${level.toLowerCase()}`}
                     style={{width: colLevel}}
                   >
-                    {level}
+                    <span
+                      className={classnames(
+                        'table-dot',
+                        {'dot-critical': level === 'CRITICAL'},
+                        {'dot-success': level === 'OK'}
+                      )}
+                    />
                   </div>
                   <div
                     className="alert-history-table--td"
@@ -153,10 +160,10 @@ class AlertsTable extends Component {
                     {new Date(Number(time)).toISOString()}
                   </div>
                   <div
-                    className="alert-history-table--td"
+                    className="alert-history-table--td alert-history-table--host"
                     style={{width: colHost}}
                   >
-                    <Link to={`/sources/${id}/hosts/${host}`}>
+                    <Link to={`/sources/${id}/hosts/${host}`} title={host}>
                       {host}
                     </Link>
                   </div>

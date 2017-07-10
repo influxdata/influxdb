@@ -253,4 +253,11 @@ $table-tab-scrollbar-height: 6px;
   color: $g13-mist;
   white-space: pre-wrap;
   word-break: break-all;
+
+  &.alert-history-table--host {
+    white-space: nowrap;
+    word-break: normal;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
