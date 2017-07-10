@@ -3,12 +3,12 @@ import classnames from 'classnames'
 
 import graphTypes from 'hson!shared/data/graphTypes.hson'
 
-const GraphTypeSelector = ({selectedGraphType, onSelectGraphType}) =>
-  <div className="overlay-controls">
-    <div className="overlay-controls--right">
+const GraphTypeSelector = ({selectedGraphType, onSelectGraphType}) => (
+  <div style={{display: 'flex'}}>
+    <div>
       <p>Visualization Type</p>
       <ul className="nav nav-tablist nav-tablist-sm">
-        {graphTypes.map(graphType =>
+        {graphTypes.map(graphType => (
           <li
             key={graphType.type}
             className={classnames({
@@ -18,10 +18,11 @@ const GraphTypeSelector = ({selectedGraphType, onSelectGraphType}) =>
           >
             {graphType.menuOption}
           </li>
-        )}
+        ))}
       </ul>
     </div>
   </div>
+)
 
 const {func, string} = PropTypes
 

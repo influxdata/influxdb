@@ -1,7 +1,7 @@
 import React, {PropTypes} from 'react'
 
-const Ranger = ({onSetRange, yRange}) =>
-  <div className="yRanger">
+const Ranger = ({onSetRange, yRange}) => (
+  <div className="yRanger" style={{display: 'flex'}}>
     <form onSubmit={onSetRange} autoComplete="off">
       <label htmlFor="min">Minimum</label>
       <input
@@ -23,6 +23,7 @@ const Ranger = ({onSetRange, yRange}) =>
       />
     </form>
   </div>
+)
 
 const {func, shape, string} = PropTypes
 

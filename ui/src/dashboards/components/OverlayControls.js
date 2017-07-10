@@ -9,7 +9,7 @@ const OverlayControls = ({
   isDisplayOptionsTabOpen,
   onSelectDisplayOptions,
   isSavable,
-}) =>
+}) => (
   <div className="overlay-controls">
     <h3 className="overlay--graph-name">Cell Editor</h3>
     <div className="overlay-controls--right">
@@ -40,6 +40,7 @@ const OverlayControls = ({
       />
     </div>
   </div>
+)
 
 const {func, bool} = PropTypes
 
