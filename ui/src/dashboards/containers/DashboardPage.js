@@ -13,7 +13,6 @@ import Dashboard from 'src/dashboards/components/Dashboard'
 import TemplateVariableManager from 'src/dashboards/components/TemplateVariableManager'
 
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
-import {quoteIfTimestamp} from 'src/utils/influxql'
 
 import * as dashboardActionCreators from 'src/dashboards/actions'
 
