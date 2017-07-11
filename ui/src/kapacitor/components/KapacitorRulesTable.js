@@ -1,7 +1,13 @@
 import React, {PropTypes} from 'react'
 import {Link} from 'react-router'
 
-const KapacitorRulesTable = ({rules, source, onDelete, onChangeRuleStatus}) =>
+const KapacitorRulesTable = ({
+  rules,
+  source,
+  onDelete,
+  onReadTickscript,
+  onChangeRuleStatus,
+}) => (
   <div className="panel-body">
     <table className="table v-center">
       <thead>
@@ -23,14 +29,16 @@ const KapacitorRulesTable = ({rules, source, onDelete, onChangeRuleStatus}) =>
               source={source}
               onDelete={onDelete}
               onChangeRuleStatus={onChangeRuleStatus}
+              onRead={onReadTickscript}
             />
           )
         })}
       </tbody>
     </table>
   </div>
+)
 
-const RuleRow = ({rule, source, onDelete, onChangeRuleStatus}) =>
+const RuleRow = ({rule, source, onRead, onDelete, onChangeRuleStatus}) => (
   <tr key={rule.id}>
     <td className="monotype">
       <RuleTitle rule={rule} source={source} />
@@ -50,12 +58,16 @@ const RuleRow = ({rule, source, onDelete, onChangeRuleStatus}) =>
         <label htmlFor={`kapacitor-enabled ${rule.id}`} />
       </div>
     </td>
-    <td className="text-right">
+    <td className="text-right" style={{display: 'flex'}}>
+      <button className="btn btn-info btn-xs" onClick={() => onRead(rule)}>
+        View TICKscript
+      </button>
       <button className="btn btn-danger btn-xs" onClick={() => onDelete(rule)}>
         Delete
       </button>
     </td>
   </tr>
+)
 
 const RuleTitle = ({rule: {id, name, query}, source}) => {
   // no queryConfig means the rule was manually created outside of Chronograf
@@ -75,6 +87,7 @@ KapacitorRulesTable.propTypes = {
   source: shape({
     id: string.isRequired,
   }).isRequired,
+  onReadTickscript: func,
 }
 
 RuleRow.propTypes = {
@@ -82,6 +95,7 @@ RuleRow.propTypes = {
   source: shape(),
   onChangeRuleStatus: func,
   onDelete: func,
+  onRead: func,
 }
 
 RuleTitle.propTypes = {
@@ -90,7 +104,7 @@ RuleTitle.propTypes = {
     query: shape(),
     links: shape({
       self: string.isRequired,
-    }).isRequired,
+    }),
   }),
   source: shape({
     id: string.isRequired,

@@ -5,6 +5,7 @@ import NoKapacitorError from 'shared/components/NoKapacitorError'
 import SourceIndicator from 'shared/components/SourceIndicator'
 import KapacitorRulesTable from 'src/kapacitor/components/KapacitorRulesTable'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
+import TICKscriptOverlay from 'src/kapacitor/components/TICKscriptOverlay'
 
 const KapacitorRules = ({
   source,
@@ -12,7 +13,10 @@ const KapacitorRules = ({
   hasKapacitor,
   loading,
   onDelete,
+  tickscript,
   onChangeRuleStatus,
+  onReadTickscript,
+  onCloseTickscript,
 }) => {
   if (!hasKapacitor) {
     return (
@@ -33,7 +37,12 @@ const KapacitorRules = ({
     ? '1 Alert Rule'
     : `${rules.length} Alert Rules`
   return (
-    <PageContents source={source}>
+    <PageContents
+      source={source}
+      tickscript={tickscript}
+      onReadTickscript={onReadTickscript}
+      onCloseTickscript={onCloseTickscript}
+    >
       <div className="panel-heading u-flex u-ai-center u-jc-space-between">
         <h2 className="panel-title">{tableHeader}</h2>
         <Link
@@ -47,14 +56,15 @@ const KapacitorRules = ({
         source={source}
         rules={rules}
         onDelete={onDelete}
+        onReadTickscript={onReadTickscript}
         onChangeRuleStatus={onChangeRuleStatus}
       />
     </PageContents>
   )
 }
 
-const PageContents = ({children, source}) =>
-  <div className="page">
+const PageContents = ({children, source, tickscript, onCloseTickscript}) => (
+  <div>
     <div className="page-header">
       <div className="page-header__container">
         <div className="page-header__left">
@@ -76,9 +86,16 @@ const PageContents = ({children, source}) =>
         </div>
       </div>
     </FancyScrollbar>
+    {tickscript
+      ? <TICKscriptOverlay
+          tickscript={tickscript}
+          onClose={onCloseTickscript}
+        />
+      : null}
   </div>
+)
 
-const {arrayOf, bool, func, shape, node} = PropTypes
+const {arrayOf, bool, func, node, shape, string} = PropTypes
 
 KapacitorRules.propTypes = {
   source: shape(),
@@ -87,11 +104,16 @@ KapacitorRules.propTypes = {
   loading: bool,
   onChangeRuleStatus: func,
   onDelete: func,
+  tickscript: string,
+  onReadTickscript: func,
+  onCloseTickscript: func,
 }
 
 PageContents.propTypes = {
   children: node,
   source: shape(),
+  tickscript: string,
+  onCloseTickscript: func,
 }
 
 export default KapacitorRules
