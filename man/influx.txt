@@ -78,4 +78,10 @@ OPTIONS
 -version::
   Outputs the version of the influx client.
 
+-retention-policy::
+    Set the retention policy when using -import. Ignores the DML and DDL sections of the import file.
+
+-destination-database::
+    Set the database when using -import. Ignores the DML and DDL sections of the import file.
+
 include::footer.txt[]

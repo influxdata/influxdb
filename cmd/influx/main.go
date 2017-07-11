@@ -56,6 +56,8 @@ func main() {
 	fs.IntVar(&c.ImporterConfig.PPS, "pps", defaultPPS, "How many points per second the import will allow.  By default it is zero and will not throttle importing.")
 	fs.StringVar(&c.ImporterConfig.Path, "path", "", "path to the file to import")
 	fs.BoolVar(&c.ImporterConfig.Compressed, "compressed", false, "set to true if the import file is compressed")
+	fs.StringVar(&c.ImporterConfig.RetentionPolicy, "retention-policy", "", "Writes the import data to the specified retention policy when using -import.")
+	fs.StringVar(&c.ImporterConfig.DestinationDatabase, "destination-database", "", "Writes the import data to the specified database when using -import.")
 
 	// Define our own custom usage to print
 	fs.Usage = func() {
@@ -96,6 +98,10 @@ func main() {
        Path to file to import
   -compressed
        Set to true if the import file is compressed
+  -retention-policy
+	  Set the retention policy when using -import. Ignores the DML and DDL sections of the import file.
+  -destination-database
+	  Set the database when using -import. Ignores the DML and DDL sections of the import file.
 
 Examples:
 

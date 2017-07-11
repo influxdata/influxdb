@@ -72,7 +72,7 @@ The following new configuration options are available.
 
 ### Features
 
-- [#8512](https://github.com/influxdata/influxdb/pull/8512): Switch to LogLog-Beta Cardinality estimation 
+- [#8512](https://github.com/influxdata/influxdb/pull/8512): Switch to LogLog-Beta Cardinality estimation
 - [#8143](https://github.com/influxdata/influxdb/pull/8143): Add WAL sync delay
 - [#7977](https://github.com/influxdata/influxdb/issues/7977): Add chunked request processing back into the Go client v2
 - [#7974](https://github.com/influxdata/influxdb/pull/7974): Allow non-admin users to execute SHOW DATABASES.
@@ -98,6 +98,7 @@ The following new configuration options are available.
 - [#8394](https://github.com/influxdata/influxdb/pull/8394): Optimize top() and bottom() using an incremental aggregator.
 - [#7129](https://github.com/influxdata/influxdb/issues/7129): Maintain the tags of points selected by top() or bottom() when writing the results.
 - [#8188](https://github.com/influxdata/influxdb/issues/8188): Write CQ stats to _internal
+- [#8352](https://github.com/influxdata/influxdb/pull/8352): Import, allow overrides for the database name and retention policy.
 
 ### Bugfixes
 

@@ -18,10 +18,12 @@ const batchSize = 5000
 
 // Config is the config used to initialize a Importer importer
 type Config struct {
-	Path       string // Path to import data.
-	Version    string
-	Compressed bool // Whether import data is gzipped.
-	PPS        int  // points per second importer imports with.
+	Path                string // Path to import data.
+	Version             string
+	Compressed          bool   // Whether import data is gzipped.
+	PPS                 int    // points per second importer imports with.
+	DestinationDatabase string // The name of the destination database override
+	RetentionPolicy     string // The name of the retention policy override
 
 	client.Config
 }
@@ -106,8 +108,7 @@ func (i *Importer) Import() error {
 	// Get our reader
 	scanner := bufio.NewScanner(r)
 
-	// Process the DDL
-	i.processDDL(scanner)
+	i.processDDL(scanner, i.config.DestinationDatabase, i.config.RetentionPolicy)
 
 	// Set up our throttle channel.  Since there is effectively no other activity at this point
 	// the smaller resolution gets us much closer to the requested PPS
@@ -118,7 +119,7 @@ func (i *Importer) Import() error {
 	i.lastWrite = time.Now()
 
 	// Process the DML
-	i.processDML(scanner)
+	i.processDML(scanner, i.config.DestinationDatabase, i.config.RetentionPolicy)
 
 	// Check if we had any errors scanning the file
 	if err := scanner.Err(); err != nil {
@@ -139,13 +140,14 @@ func (i *Importer) Import() error {
 	return nil
 }
 
-func (i *Importer) processDDL(scanner *bufio.Scanner) {
+func (i *Importer) processDDL(scanner *bufio.Scanner, dboverride string, rpoverride string) {
 	for scanner.Scan() {
 		line := scanner.Text()
 		// If we find the DML token, we are done with DDL
 		if strings.HasPrefix(line, "# DML") {
 			return
 		}
+		// Skip comments
 		if strings.HasPrefix(line, "#") {
 			continue
 		}
@@ -153,18 +155,37 @@ func (i *Importer) processDDL(scanner *bufio.Scanner) {
 		if strings.TrimSpace(line) == "" {
 			continue
 		}
+		// Skip processing DDL statements if overrides are specified
+		if dboverride != "" || rpoverride != "" {
+			continue
+		}
+
 		i.queryExecutor(line)
 	}
 }
 
-func (i *Importer) processDML(scanner *bufio.Scanner) {
+// processDML actually processes points. By default it reads the target database and retention policy settings
+// from the DML section of the file, however these setting can be overriden by the override parameters.
+func (i *Importer) processDML(scanner *bufio.Scanner, dboverride string, rpoverride string) {
+
+	// If a user specified a dboverride, override it.
+	if dboverride != "" {
+		i.database = dboverride
+	}
+
+	if rpoverride != "" {
+		i.retentionPolicy = rpoverride
+	}
+
 	start := time.Now()
 	for scanner.Scan() {
 		line := scanner.Text()
-		if strings.HasPrefix(line, "# CONTEXT-DATABASE:") {
+		//  Set the destination database name as per the dump file, unless an override is specified.
+		if dboverride == "" && strings.HasPrefix(line, "# CONTEXT-DATABASE:") {
 			i.database = strings.TrimSpace(strings.Split(line, ":")[1])
 		}
-		if strings.HasPrefix(line, "# CONTEXT-RETENTION-POLICY:") {
+		//  Set the retention police as per the dump file, unless an override is specified.
+		if rpoverride == "" && strings.HasPrefix(line, "# CONTEXT-RETENTION-POLICY:") {
 			i.retentionPolicy = strings.TrimSpace(strings.Split(line, ":")[1])
 		}
 		if strings.HasPrefix(line, "#") {
@@ -174,8 +195,10 @@ func (i *Importer) processDML(scanner *bufio.Scanner) {
 		if strings.TrimSpace(line) == "" {
 			continue
 		}
+
 		i.batchAccumulator(line, start)
 	}
+
 	// Call batchWrite one last time to flush anything out in the batch
 	i.batchWrite()
 }
