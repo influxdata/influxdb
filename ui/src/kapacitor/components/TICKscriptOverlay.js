@@ -17,21 +17,21 @@ const style = {
 const TICKscriptOverlay = ({tickscript, onClose}) => (
   <OverlayTechnologies>
     <div style={style}>
-      <div style={{display: 'flex', justifyContent: 'space-around'}}>
-        <h2>Generated TICKscript</h2>
+      <div style={{width: '100%', display: 'flex', justifyContent: 'flex-end'}}>
         <span
           style={{cursor: 'pointer'}}
           className="icon remove"
           onClick={onClose}
         />
       </div>
+      <h2>Generated TICKscript</h2>
       <pre
         style={{
           border: '1px solid white',
           borderRadius: '4px',
           overflow: 'auto',
           whiteSpace: 'pre',
-          color: '#4ed8a0',
+          color: '#FFB94A',
           fontSize: '14px',
           width: '95%',
         }}
