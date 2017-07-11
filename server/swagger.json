@@ -3236,9 +3236,10 @@
 						"csv",
 						"tagKey",
 						"tagValue",
-						"fieldKey"
+						"fieldKey",
+						"timeStamp"
 					],
-					"description": "The type will change the format of the output value. tagKey/fieldKey are double quoted; tagValue are single quoted; csv are not quoted."
+					"description": "The type will change the format of the output value. tagKey/fieldKey are double quoted; tagValue are single quoted; csv and timeStamp are not quoted."
 				}
 			}
 		},
@@ -4130,7 +4131,7 @@
 										"format": "url"
 									}
 								}
-							},
+							}
 						}
 					}
 				}

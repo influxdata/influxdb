@@ -10,8 +10,7 @@ import CellEditorOverlay from 'src/dashboards/components/CellEditorOverlay'
 import DashboardHeader from 'src/dashboards/components/DashboardHeader'
 import DashboardHeaderEdit from 'src/dashboards/components/DashboardHeaderEdit'
 import Dashboard from 'src/dashboards/components/Dashboard'
-import TemplateVariableManager
-  from 'src/dashboards/components/TemplateVariableManager'
+import TemplateVariableManager from 'src/dashboards/components/TemplateVariableManager'
 
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 
@@ -104,8 +103,8 @@ class DashboardPage extends Component {
     this.setState({selectedCell: cell})
   }
 
-  handleChooseTimeRange({lower}) {
-    this.props.dashboardActions.setTimeRange({lower, upper: null})
+  handleChooseTimeRange(timeRange) {
+    this.props.dashboardActions.setTimeRange(timeRange)
   }
 
   handleUpdatePosition(cells) {
@@ -248,6 +247,7 @@ class DashboardPage extends Component {
     const {
       source,
       timeRange,
+      timeRange: {lower, upper},
       showTemplateControlBar,
       dashboards,
       autoRefresh,
@@ -259,15 +259,30 @@ class DashboardPage extends Component {
       params: {sourceID},
     } = this.props
 
-    const dashboard = this.getActiveDashboard()
+    const lowerType = lower && lower.includes('Z') ? 'timeStamp' : 'constant'
+    const upperType = upper && upper.includes('Z') ? 'timeStamp' : 'constant'
+
     const dashboardTime = {
       id: 'dashtime',
       tempVar: ':dashboardTime:',
-      type: 'constant',
+      type: lowerType,
       values: [
         {
-          value: timeRange.lower,
-          type: 'constant',
+          value: lower,
+          type: lowerType,
+          selected: true,
+        },
+      ],
+    }
+
+    const upperDashboardTime = {
+      id: 'upperdashtime',
+      tempVar: ':upperDashboardTime:',
+      type: upperType,
+      values: [
+        {
+          value: upper || 'now()',
+          type: upperType,
           selected: true,
         },
       ],
@@ -283,8 +298,19 @@ class DashboardPage extends Component {
       values: [],
     }
 
-    const templatesIncludingDashTime = (dashboard &&
-      dashboard.templates.concat(dashboardTime).concat(interval)) || []
+    const dashboard = this.getActiveDashboard()
+
+    let templatesIncludingDashTime
+    if (dashboard) {
+      templatesIncludingDashTime = [
+        ...dashboard.templates,
+        dashboardTime,
+        upperDashboardTime,
+        interval,
+      ]
+    } else {
+      templatesIncludingDashTime = []
+    }
 
     const {selectedCell, isEditMode, isTemplating} = this.state
 
@@ -337,13 +363,13 @@ class DashboardPage extends Component {
               showTemplateControlBar={showTemplateControlBar}
             >
               {dashboards
-                ? dashboards.map((d, i) => (
+                ? dashboards.map((d, i) =>
                     <li className="dropdown-item" key={i}>
                       <Link to={`/sources/${sourceID}/dashboards/${d.id}`}>
                         {d.name}
                       </Link>
                     </li>
-                  ))
+                  )
                 : null}
             </DashboardHeader>}
         {dashboard
