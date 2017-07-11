@@ -2,13 +2,9 @@ const PADDING_FACTOR = 0.1
 
 export default function getRange(
   timeSeries,
-  override,
+  userSelectedRange = [null, null],
   ruleValues = {value: null, rangeValue: null}
 ) {
-  if (override) {
-    return override
-  }
-
   const {value, rangeValue, operator} = ruleValues
 
   const subtractPadding = val => +val - Math.abs(val * PADDING_FACTOR)
@@ -57,5 +53,8 @@ export default function getRange(
     return [null, null]
   }
 
-  return range
+  const [userMin, userMax] = userSelectedRange
+  const [min, max] = range
+
+  return [+userMin || min, +userMax || max]
 }

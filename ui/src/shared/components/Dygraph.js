@@ -92,10 +92,10 @@ export default class Dygraph extends Component {
       series: dygraphSeries,
       axes: {
         y: {
-          valueRange: getRange(timeSeries, ranges.y, ruleValues),
+          valueRange: getRange(timeSeries, ranges && ranges.y, ruleValues),
         },
         y2: {
-          valueRange: getRange(timeSeries, ranges.y2),
+          valueRange: getRange(timeSeries, ranges && ranges.y2),
         },
       },
       highlightSeriesOpts: {
@@ -255,10 +255,10 @@ export default class Dygraph extends Component {
       file: timeSeries,
       axes: {
         y: {
-          valueRange: getRange(timeSeries, ranges.y, ruleValues),
+          valueRange: getRange(timeSeries, ranges && ranges.y, ruleValues),
         },
         y2: {
-          valueRange: getRange(timeSeries, ranges.y2),
+          valueRange: getRange(timeSeries, ranges && ranges.y2),
         },
       },
       stepPlot: options.stepPlot,
@@ -343,7 +343,7 @@ export default class Dygraph extends Component {
           isAscending={isAscending}
           onSnip={this.handleSnipLabel}
           onSort={this.handleSortLegend}
-          legendRef={el => (this.legendRef = el)}
+          legendRef={el => this.legendRef = el}
           onInputChange={this.handleLegendInputChange}
           onToggleFilter={this.handleToggleFilter}
         />
@@ -359,12 +359,12 @@ export default class Dygraph extends Component {
   }
 }
 
-const {array, arrayOf, func, number, bool, shape, string} = PropTypes
+const {array, arrayOf, func, bool, shape, string} = PropTypes
 
 Dygraph.propTypes = {
   ranges: shape({
-    y: arrayOf(number),
-    y2: arrayOf(number),
+    y: arrayOf(string),
+    y2: arrayOf(string),
   }),
   timeSeries: array.isRequired,
   labels: array.isRequired,

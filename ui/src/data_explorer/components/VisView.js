@@ -10,6 +10,7 @@ const RefreshingSingleStat = AutoRefresh(SingleStat)
 const VisView = ({
   view,
   queries,
+  yRanges,
   cellType,
   templates,
   autoRefresh,
@@ -58,8 +59,9 @@ const VisView = ({
   return (
     <RefreshingLineGraph
       queries={queries}
-      autoRefresh={autoRefresh}
+      yRanges={yRanges}
       templates={templates}
+      autoRefresh={autoRefresh}
       activeQueryIndex={activeQueryIndex}
       isInDataExplorer={isInDataExplorer}
       showSingleStat={cellType === 'line-plus-single-stat'}
@@ -74,6 +76,7 @@ const {arrayOf, bool, func, number, shape, string} = PropTypes
 
 VisView.propTypes = {
   view: string.isRequired,
+  yRanges: shape(),
   queries: arrayOf(shape()).isRequired,
   cellType: string,
   templates: arrayOf(shape()),

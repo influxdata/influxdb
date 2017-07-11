@@ -11,7 +11,6 @@ import {
   renameDashboardCell,
   syncDashboardCell,
   templateVariableSelected,
-  editCellRanges,
 } from 'src/dashboards/actions'
 
 let state
@@ -169,21 +168,5 @@ describe('DataExplorer.Reducers.UI', () => {
     expect(actual.dashboards[0].templates[0].values[0].selected).to.equal(false)
     expect(actual.dashboards[0].templates[0].values[1].selected).to.equal(false)
     expect(actual.dashboards[0].templates[0].values[2].selected).to.equal(true)
-  })
-
-  it('an set the range', () => {
-    const dash = {..._.cloneDeep(d1), cells: [c1]}
-
-    state = {
-      dashboards: [dash],
-    }
-
-    const y = [1, 2]
-    const y2 = [null, null]
-
-    const actual = reducer(state, editCellRanges(dash.id, c1.i, {y, y2}))
-
-    expect(actual.dashboards[0].cells[0].yRanges.y).to.deep.equal(y)
-    expect(actual.dashboards[0].cells[0].yRanges.y2).to.deep.equal(y2)
   })
 })

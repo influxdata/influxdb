@@ -26,6 +26,7 @@ const Visualization = React.createClass({
     heightPixels: number,
     editQueryStatus: func.isRequired,
     views: arrayOf(string).isRequired,
+    yRanges: shape(),
   },
 
   contextTypes: {
@@ -78,6 +79,7 @@ const Visualization = React.createClass({
     const {
       views,
       height,
+      yRanges,
       cellType,
       cellName,
       timeRange,
@@ -116,6 +118,7 @@ const Visualization = React.createClass({
         >
           <VisView
             view={view}
+            yRanges={yRanges}
             queries={queries}
             templates={templates}
             cellType={cellType}

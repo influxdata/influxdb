@@ -15,9 +15,9 @@ export default React.createClass({
   displayName: 'LineGraph',
   propTypes: {
     data: arrayOf(shape({}).isRequired).isRequired,
-    ranges: shape({
-      y: arrayOf(number),
-      y2: arrayOf(number),
+    yRanges: shape({
+      y: arrayOf(string),
+      y2: arrayOf(string),
     }),
     title: string,
     isFetchingInitially: bool,
@@ -67,8 +67,7 @@ export default React.createClass({
   componentWillUpdate(nextProps) {
     const {data, activeQueryIndex} = this.props
     if (
-      data !== nextProps.data ||
-      activeQueryIndex !== nextProps.activeQueryIndex
+      data !== nextProps.data || activeQueryIndex !== nextProps.activeQueryIndex
     ) {
       this._timeSeries = timeSeriesToDygraph(
         nextProps.data,
@@ -81,7 +80,7 @@ export default React.createClass({
   render() {
     const {
       data,
-      ranges,
+      yRanges,
       isFetchingInitially,
       isRefreshing,
       isGraphFilled,
@@ -170,7 +169,7 @@ export default React.createClass({
           labels={labels}
           options={showSingleStat ? singleStatOptions : options}
           dygraphSeries={dygraphSeries}
-          ranges={ranges || this.getRanges()}
+          ranges={yRanges}
           ruleValues={ruleValues}
           synchronizer={synchronizer}
           timeRange={timeRange}
@@ -199,26 +198,5 @@ export default React.createClass({
         <div />
       </div>
     )
-  },
-
-  getRanges() {
-    const {queries} = this.props
-    if (!queries) {
-      return {}
-    }
-
-    const ranges = {}
-    const q0 = queries[0]
-    const q1 = queries[1]
-
-    if (q0 && q0.range) {
-      ranges.y = [q0.range.lower, q0.range.upper]
-    }
-
-    if (q1 && q1.range) {
-      ranges.y2 = [q1.range.lower, q1.range.upper]
-    }
-
-    return ranges
   },
 })

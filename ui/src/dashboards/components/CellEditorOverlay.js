@@ -28,7 +28,6 @@ class CellEditorOverlay extends Component {
     this.handleDeleteQuery = ::this.handleDeleteQuery
 
     this.handleSaveCell = ::this.handleSaveCell
-    this.handleEditCellRanges = ::this.handleEditCellRanges
 
     this.handleSelectGraphType = ::this.handleSelectGraphType
     this.handleSelectDisplayOptions = ::this.handleSelectDisplayOptions
@@ -81,14 +80,6 @@ class CellEditorOverlay extends Component {
     }
   }
 
-  handleEditCellRanges(e) {
-    e.preventDefault()
-    const {dashboardID, cell: {i}} = this.props
-    const {yRanges} = this.state
-
-    this.props.onEditCellRanges(+dashboardID, i, yRanges)
-  }
-
   handleSetRange(e) {
     const {min, max} = e.target.form
     this.setState({
@@ -113,13 +104,16 @@ class CellEditorOverlay extends Component {
   }
 
   handleSaveCell() {
-    const {queriesWorkingDraft, cellWorkingType, cellWorkingName} = this.state
+    const {
+      queriesWorkingDraft,
+      cellWorkingType: name,
+      cellWorkingName: type,
+      yRanges,
+    } = this.state
+
     const {cell} = this.props
 
-    const newCell = _.cloneDeep(cell)
-    newCell.name = cellWorkingName
-    newCell.type = cellWorkingType
-    newCell.queries = queriesWorkingDraft.map(q => {
+    const queries = queriesWorkingDraft.map(q => {
       const timeRange = q.range || {upper: null, lower: ':dashboardTime:'}
       const query = q.rawText || buildInfluxQLQuery(timeRange, q)
       const label = q.rawText ? '' : `${q.measurement}.${q.fields[0].field}`
@@ -131,7 +125,7 @@ class CellEditorOverlay extends Component {
       }
     })
 
-    this.props.onSave(newCell)
+    this.props.onSave({...cell, name, type, queries, yRanges})
   }
 
   handleSelectGraphType(graphType) {
@@ -224,7 +218,6 @@ class CellEditorOverlay extends Component {
             />
             {isDisplayOptionsTabOpen
               ? <DisplayOptions
-                  onEditCellRanges={this.handleEditCellRanges}
                   selectedGraphType={cellWorkingType}
                   onSelectGraphType={this.handleSelectGraphType}
                   onSetRange={this.handleSetRange}
@@ -271,7 +264,6 @@ CellEditorOverlay.propTypes = {
     }).isRequired,
   }).isRequired,
   editQueryStatus: func.isRequired,
-  onEditCellRanges: func.isRequired,
   queryStatus: shape({
     queryID: string,
     status: shape({}),
