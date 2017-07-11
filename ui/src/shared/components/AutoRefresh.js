@@ -43,6 +43,10 @@ const AutoRefresh = ComposedComponent => {
           text: string,
         }).isRequired
       ).isRequired,
+      yRanges: shape({
+        y: arrayOf(string),
+        y2: arrayOf(string),
+      }),
       editQueryStatus: func,
     },
 

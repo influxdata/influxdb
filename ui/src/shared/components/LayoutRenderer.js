@@ -151,7 +151,7 @@ class LayoutRenderer extends Component {
     } = this.props
 
     return cells.map(cell => {
-      const {type, h} = cell
+      const {type, h, yRanges} = cell
 
       return (
         <div key={cell.i}>
@@ -175,6 +175,7 @@ class LayoutRenderer extends Component {
                   type={type}
                   queries={this.standardizeQueries(cell, source)}
                   cellHeight={h}
+                  yRanges={yRanges}
                 />}
           </NameableGraph>
         </div>
