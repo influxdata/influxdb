@@ -81,7 +81,11 @@ const KapacitorRules = ({
   )
 }
 
+<<<<<<< HEAD
 const PageContents = ({children, source}) =>
+=======
+const PageContents = ({children, source, tickscript, onCloseTickscript}) => (
+>>>>>>> Display TICKscript on rules index
   <div className="page">
     <div className="page-header">
       <div className="page-header__container">
