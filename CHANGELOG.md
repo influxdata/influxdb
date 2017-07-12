@@ -13,6 +13,7 @@
 - [#8548](https://github.com/influxdata/influxdb/issues/8548): Allow panic recovery to be disabled when investigating server issues.
 - [#8525](https://github.com/influxdata/influxdb/issues/8525): Support http pipelining for /query endpoint.
 - [#8652](https://github.com/influxdata/influxdb/pull/8652): Reduce allocations when reading data
+- [#8592](https://github.com/influxdata/influxdb/pull/8592): Mutex profiles are now available.
 
 ### Bugfixes
 
@@ -87,7 +88,7 @@ The following new configuration options are available.
 
 ### Features
 
-- [#8512](https://github.com/influxdata/influxdb/pull/8512): Switch to LogLog-Beta Cardinality estimation 
+- [#8512](https://github.com/influxdata/influxdb/pull/8512): Switch to LogLog-Beta Cardinality estimation
 - [#8143](https://github.com/influxdata/influxdb/pull/8143): Add WAL sync delay
 - [#7977](https://github.com/influxdata/influxdb/issues/7977): Add chunked request processing back into the Go client v2
 - [#7974](https://github.com/influxdata/influxdb/pull/7974): Allow non-admin users to execute SHOW DATABASES.
