@@ -143,11 +143,11 @@ export function updateKapacitor({
   })
 }
 
-export function getKapacitorConfig(kapacitor) {
-  return kapacitorProxy(kapacitor, 'GET', '/kapacitor/v1/config', '')
+export const getKapacitorConfig = async kapacitor => {
+  return await kapacitorProxy(kapacitor, 'GET', '/kapacitor/v1/config', '')
 }
 
-export function getKapacitorConfigSection(kapacitor, section) {
+export const getKapacitorConfigSection = (kapacitor, section) => {
   return kapacitorProxy(kapacitor, 'GET', `/kapacitor/v1/config/${section}`, '')
 }
 

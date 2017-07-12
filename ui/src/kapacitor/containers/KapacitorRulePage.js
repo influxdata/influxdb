@@ -38,25 +38,27 @@ class KapacitorRulePage extends Component {
       })
     }
 
-    getKapacitorConfig(kapacitor)
-      .then(({data: {sections}}) => {
-        const enabledAlerts = Object.keys(sections).filter(section => {
-          return (
-            _.get(
-              sections,
-              [section, 'elements', '0', 'options', 'enabled'],
-              false
-            ) && ALERTS.includes(section)
-          )
-        })
-        this.setState({kapacitor, enabledAlerts})
+    try {
+      const {data: {sections}} = await getKapacitorConfig(kapacitor)
+      const enabledAlerts = Object.keys(sections).filter(section => {
+        return (
+          _.get(
+            sections,
+            [section, 'elements', '0', 'options', 'enabled'],
+            false
+          ) && ALERTS.includes(section)
+        )
       })
-      .catch(() => {
-        addFlashMessage({
-          type: 'error',
-          text: 'There was a problem communicating with Kapacitor',
-        })
+
+      this.setState({kapacitor, enabledAlerts})
+    } catch (error) {
+      addFlashMessage({
+        type: 'error',
+        text: 'There was a problem communicating with Kapacitor',
       })
+      console.error(error)
+      throw error
+    }
   }
 
   render() {
