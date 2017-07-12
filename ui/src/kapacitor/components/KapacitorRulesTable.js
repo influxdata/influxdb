@@ -12,6 +12,16 @@ const {
   colActions,
 } = KAPACITOR_RULES_TABLE
 
+import {KAPACITOR_RULES_TABLE} from 'src/kapacitor/constants/tableSizing'
+const {
+  colName,
+  colType,
+  colMessage,
+  colAlerts,
+  colEnabled,
+  colActions,
+} = KAPACITOR_RULES_TABLE
+
 const KapacitorRulesTable = ({
   rules,
   source,
