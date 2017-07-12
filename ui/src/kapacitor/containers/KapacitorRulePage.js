@@ -104,6 +104,38 @@ class KapacitorRulePage extends Component {
   }
 }
 
+const {func, shape, string} = PropTypes
+
+KapacitorRulePage.propTypes = {
+  source: shape({
+    links: shape({
+      proxy: string.isRequired,
+      self: string.isRequired,
+    }),
+  }),
+  addFlashMessage: func,
+  rules: shape({}).isRequired,
+  queryConfigs: shape({}).isRequired,
+  kapacitorActions: shape({
+    loadDefaultRule: func.isRequired,
+    fetchRule: func.isRequired,
+    chooseTrigger: func.isRequired,
+    addEvery: func.isRequired,
+    removeEvery: func.isRequired,
+    updateRuleValues: func.isRequired,
+    updateMessage: func.isRequired,
+    updateAlerts: func.isRequired,
+    updateRuleName: func.isRequired,
+  }).isRequired,
+  queryActions: shape({}).isRequired,
+  params: shape({
+    ruleID: string,
+  }).isRequired,
+  router: shape({
+    push: func.isRequired,
+  }).isRequired,
+}
+
 function mapStateToProps(state) {
   return {
     rules: state.rules,
@@ -116,36 +148,6 @@ function mapDispatchToProps(dispatch) {
     kapacitorActions: bindActionCreators(kapacitorActionCreators, dispatch),
     queryActions: bindActionCreators(queryActionCreators, dispatch),
   }
-}
-
-KapacitorRulePage.propTypes = {
-  source: PropTypes.shape({
-    links: PropTypes.shape({
-      proxy: PropTypes.string.isRequired,
-      self: PropTypes.string.isRequired,
-    }),
-  }),
-  addFlashMessage: PropTypes.func,
-  rules: PropTypes.shape({}).isRequired,
-  queryConfigs: PropTypes.shape({}).isRequired,
-  kapacitorActions: PropTypes.shape({
-    loadDefaultRule: PropTypes.func.isRequired,
-    fetchRule: PropTypes.func.isRequired,
-    chooseTrigger: PropTypes.func.isRequired,
-    addEvery: PropTypes.func.isRequired,
-    removeEvery: PropTypes.func.isRequired,
-    updateRuleValues: PropTypes.func.isRequired,
-    updateMessage: PropTypes.func.isRequired,
-    updateAlerts: PropTypes.func.isRequired,
-    updateRuleName: PropTypes.func.isRequired,
-  }).isRequired,
-  queryActions: PropTypes.shape({}).isRequired,
-  params: PropTypes.shape({
-    ruleID: PropTypes.string,
-  }).isRequired,
-  router: PropTypes.shape({
-    push: PropTypes.func.isRequired,
-  }).isRequired,
 }
 
 export default connect(mapStateToProps, mapDispatchToProps)(KapacitorRulePage)
