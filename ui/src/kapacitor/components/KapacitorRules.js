@@ -74,7 +74,7 @@ const KapacitorRules = ({
   )
 }
 
-const PageContents = ({children, source, tickscript, onCloseTickscript}) =>
+const PageContents = ({children, source, tickscript, onCloseTickscript}) => (
   <div className="page">
     <div className="page-header">
       <div className="page-header__container">
@@ -104,6 +104,7 @@ const PageContents = ({children, source, tickscript, onCloseTickscript}) =>
         />
       : null}
   </div>
+)
 
 const {arrayOf, bool, func, node, shape, string} = PropTypes
 
