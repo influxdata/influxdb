@@ -1,4 +1,4 @@
-import React, {PropTypes} from 'react'
+import React, {PropTypes, Component} from 'react'
 import {connect} from 'react-redux'
 import _ from 'lodash'
 
@@ -10,43 +10,17 @@ import {getActiveKapacitor, getKapacitorConfig} from 'shared/apis/index'
 import {ALERTS, DEFAULT_RULE_ID} from 'src/kapacitor/constants'
 import KapacitorRule from 'src/kapacitor/components/KapacitorRule'
 
-export const KapacitorRulePage = React.createClass({
-  propTypes: {
-    source: PropTypes.shape({
-      links: PropTypes.shape({
-        proxy: PropTypes.string.isRequired,
-        self: PropTypes.string.isRequired,
-      }),
-    }),
-    addFlashMessage: PropTypes.func,
-    rules: PropTypes.shape({}).isRequired,
-    queryConfigs: PropTypes.shape({}).isRequired,
-    kapacitorActions: PropTypes.shape({
-      loadDefaultRule: PropTypes.func.isRequired,
-      fetchRule: PropTypes.func.isRequired,
-      chooseTrigger: PropTypes.func.isRequired,
-      addEvery: PropTypes.func.isRequired,
-      removeEvery: PropTypes.func.isRequired,
-      updateRuleValues: PropTypes.func.isRequired,
-      updateMessage: PropTypes.func.isRequired,
-      updateAlerts: PropTypes.func.isRequired,
-      updateRuleName: PropTypes.func.isRequired,
-    }).isRequired,
-    queryActions: PropTypes.shape({}).isRequired,
-    params: PropTypes.shape({
-      ruleID: PropTypes.string,
-    }).isRequired,
-    router: PropTypes.shape({
-      push: PropTypes.func.isRequired,
-    }).isRequired,
-  },
+class KapacitorRulePage extends Component {
+  constructor(props) {
+    super(props)
 
-  getInitialState() {
-    return {
+    this.state = {
       enabledAlerts: [],
       kapacitor: {},
     }
-  },
+
+    this.isEditing = ::this.isEditing
+  }
 
   async componentDidMount() {
     const {params, source, kapacitorActions, addFlashMessage} = this.props
@@ -83,7 +57,7 @@ export const KapacitorRulePage = React.createClass({
           text: 'There was a problem communicating with Kapacitor',
         })
       })
-  },
+  }
 
   render() {
     const {
@@ -122,13 +96,13 @@ export const KapacitorRulePage = React.createClass({
         kapacitor={kapacitor}
       />
     )
-  },
+  }
 
   isEditing() {
     const {params} = this.props
     return params.ruleID && params.ruleID !== 'new'
-  },
-})
+  }
+}
 
 function mapStateToProps(state) {
   return {
@@ -142,6 +116,36 @@ function mapDispatchToProps(dispatch) {
     kapacitorActions: bindActionCreators(kapacitorActionCreators, dispatch),
     queryActions: bindActionCreators(queryActionCreators, dispatch),
   }
+}
+
+KapacitorRulePage.propTypes = {
+  source: PropTypes.shape({
+    links: PropTypes.shape({
+      proxy: PropTypes.string.isRequired,
+      self: PropTypes.string.isRequired,
+    }),
+  }),
+  addFlashMessage: PropTypes.func,
+  rules: PropTypes.shape({}).isRequired,
+  queryConfigs: PropTypes.shape({}).isRequired,
+  kapacitorActions: PropTypes.shape({
+    loadDefaultRule: PropTypes.func.isRequired,
+    fetchRule: PropTypes.func.isRequired,
+    chooseTrigger: PropTypes.func.isRequired,
+    addEvery: PropTypes.func.isRequired,
+    removeEvery: PropTypes.func.isRequired,
+    updateRuleValues: PropTypes.func.isRequired,
+    updateMessage: PropTypes.func.isRequired,
+    updateAlerts: PropTypes.func.isRequired,
+    updateRuleName: PropTypes.func.isRequired,
+  }).isRequired,
+  queryActions: PropTypes.shape({}).isRequired,
+  params: PropTypes.shape({
+    ruleID: PropTypes.string,
+  }).isRequired,
+  router: PropTypes.shape({
+    push: PropTypes.func.isRequired,
+  }).isRequired,
 }
 
 export default connect(mapStateToProps, mapDispatchToProps)(KapacitorRulePage)
