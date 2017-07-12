@@ -7,6 +7,7 @@ import {
   deleteRule as deleteRuleAPI,
   updateRuleStatus as updateRuleStatusAPI,
 } from 'src/kapacitor/apis'
+import {errorThrown} from 'shared/actions/errors'
 
 export function fetchRule(source, ruleID) {
   return dispatch => {
@@ -48,16 +49,12 @@ export function loadDefaultRule() {
   }
 }
 
-export function fetchRules(kapacitor) {
-  return dispatch => {
-    getRules(kapacitor).then(({data: {rules}}) => {
-      dispatch({
-        type: 'LOAD_RULES',
-        payload: {
-          rules,
-        },
-      })
-    })
+export const fetchRules = kapacitor => async dispatch => {
+  try {
+    const {data: {rules}} = await getRules(kapacitor)
+    dispatch({type: 'LOAD_RULES', payload: {rules}})
+  } catch (error) {
+    dispatch(errorThrown(error))
   }
 }
 

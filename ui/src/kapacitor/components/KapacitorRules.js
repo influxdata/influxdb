@@ -18,6 +18,14 @@ const KapacitorRules = ({
   onReadTickscript,
   onCloseTickscript,
 }) => {
+  if (loading) {
+    return (
+      <PageContents>
+        <h2>Loading...</h2>
+      </PageContents>
+    )
+  }
+
   if (!hasKapacitor) {
     return (
       <PageContents>
@@ -26,13 +34,6 @@ const KapacitorRules = ({
     )
   }
 
-  if (loading) {
-    return (
-      <PageContents>
-        <h2>Loading...</h2>
-      </PageContents>
-    )
-  }
   const tableHeader = rules.length === 1
     ? '1 Alert Rule'
     : `${rules.length} Alert Rules`

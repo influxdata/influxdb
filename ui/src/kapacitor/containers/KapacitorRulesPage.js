@@ -20,13 +20,14 @@ class KapacitorRulesPage extends Component {
     this.handleCloseTickscript = ::this.handleCloseTickscript
   }
 
-  componentDidMount() {
-    getActiveKapacitor(this.props.source).then(kapacitor => {
-      if (kapacitor) {
-        this.props.actions.fetchRules(kapacitor)
-      }
-      this.setState({loading: false, hasKapacitor: !!kapacitor})
-    })
+  async componentDidMount() {
+    const kapacitor = await getActiveKapacitor(this.props.source)
+    if (!kapacitor) {
+      return
+    }
+
+    await this.props.actions.fetchRules(kapacitor)
+    this.setState({loading: false, hasKapacitor: !!kapacitor})
   }
 
   handleDeleteRule(rule) {

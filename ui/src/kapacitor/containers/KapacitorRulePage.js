@@ -48,7 +48,7 @@ export const KapacitorRulePage = React.createClass({
     }
   },
 
-  componentDidMount() {
+  async componentDidMount() {
     const {params, source, kapacitorActions, addFlashMessage} = this.props
     if (this.isEditing()) {
       kapacitorActions.fetchRule(source, params.ruleID)
@@ -56,34 +56,33 @@ export const KapacitorRulePage = React.createClass({
       kapacitorActions.loadDefaultRule()
     }
 
-    getActiveKapacitor(source).then(kapacitor => {
-      this.setState({kapacitor})
-      getKapacitorConfig(kapacitor)
-        .then(({data: {sections}}) => {
-          const enabledAlerts = Object.keys(sections).filter(section => {
-            return (
-              _.get(
-                sections,
-                [section, 'elements', '0', 'options', 'enabled'],
-                false
-              ) && ALERTS.includes(section)
-            )
-          })
-          this.setState({enabledAlerts})
+    const kapacitor = await getActiveKapacitor(this.props.source)
+    if (!kapacitor) {
+      return addFlashMessage({
+        type: 'error',
+        text: "We couldn't find a configured Kapacitor for this source", // eslint-disable-line quotes
+      })
+    }
+
+    getKapacitorConfig(kapacitor)
+      .then(({data: {sections}}) => {
+        const enabledAlerts = Object.keys(sections).filter(section => {
+          return (
+            _.get(
+              sections,
+              [section, 'elements', '0', 'options', 'enabled'],
+              false
+            ) && ALERTS.includes(section)
+          )
         })
-        .catch(() => {
-          addFlashMessage({
-            type: 'error',
-            text: 'There was a problem communicating with Kapacitor',
-          })
+        this.setState({kapacitor, enabledAlerts})
+      })
+      .catch(() => {
+        addFlashMessage({
+          type: 'error',
+          text: 'There was a problem communicating with Kapacitor',
         })
-        .catch(() => {
-          addFlashMessage({
-            type: 'error',
-            text: "We couldn't find a configured Kapacitor for this source", // eslint-disable-line quotes
-          })
-        })
-    })
+      })
   },
 
   render() {
