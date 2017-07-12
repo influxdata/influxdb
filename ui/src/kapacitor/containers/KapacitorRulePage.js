@@ -136,14 +136,14 @@ KapacitorRulePage.propTypes = {
   }).isRequired,
 }
 
-function mapStateToProps(state) {
+const mapStateToProps = state => {
   return {
     rules: state.rules,
     queryConfigs: state.queryConfigs,
   }
 }
 
-function mapDispatchToProps(dispatch) {
+const mapDispatchToProps = dispatch => {
   return {
     kapacitorActions: bindActionCreators(kapacitorActionCreators, dispatch),
     queryActions: bindActionCreators(queryActionCreators, dispatch),
