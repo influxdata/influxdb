@@ -21,7 +21,17 @@ const KapacitorRules = ({
   if (loading) {
     return (
       <PageContents>
-        <h2>Loading...</h2>
+        <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+          <h2 className="panel-title">Alert Rules</h2>
+          <button className="btn btn-primary btn-sm disabled" disabled={true}>
+            Create Rule
+          </button>
+        </div>
+        <div className="panel-body">
+          <div className="generic-empty-state">
+            <p>Loading Rules...</p>
+          </div>
+        </div>
       </PageContents>
     )
   }
