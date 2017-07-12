@@ -1,5 +1,6 @@
 import React, {PropTypes} from 'react'
 import {Link} from 'react-router'
+import _ from 'lodash'
 
 import {KAPACITOR_RULES_TABLE} from 'src/kapacitor/constants/tableSizing'
 const {
@@ -31,7 +32,7 @@ const KapacitorRulesTable = ({
         </tr>
       </thead>
       <tbody>
-        {rules.map(rule => {
+        {_.sortBy(rules, r => r.name.toLowerCase()).map(rule => {
           return (
             <RuleRow
               key={rule.id}
