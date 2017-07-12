@@ -76,6 +76,45 @@ func TestRunCLI_ExecuteInsert(t *testing.T) {
 	}
 }
 
+func TestRunCLI_WithSignals(t *testing.T) {
+	t.Parallel()
+	ts := emptyTestServer()
+	defer ts.Close()
+
+	u, _ := url.Parse(ts.URL)
+	h, p, _ := net.SplitHostPort(u.Host)
+	c := cli.New(CLIENT_VERSION)
+	c.Host = h
+	c.Port, _ = strconv.Atoi(p)
+	c.IgnoreSignals = false
+	c.ForceTTY = true
+	go func() {
+		close(c.Quit)
+	}()
+	if err := c.Run(); err != nil {
+		t.Fatalf("Run failed with error: %s", err)
+	}
+}
+
+func TestRunCLI_ExecuteInsert_WithSignals(t *testing.T) {
+	t.Parallel()
+	ts := emptyTestServer()
+	defer ts.Close()
+
+	u, _ := url.Parse(ts.URL)
+	h, p, _ := net.SplitHostPort(u.Host)
+	c := cli.New(CLIENT_VERSION)
+	c.Host = h
+	c.Port, _ = strconv.Atoi(p)
+	c.ClientConfig.Precision = "ms"
+	c.Execute = "INSERT sensor,floor=1 value=2"
+	c.IgnoreSignals = false
+	c.ForceTTY = true
+	if err := c.Run(); err != nil {
+		t.Fatalf("Run failed with error: %s", err)
+	}
+}
+
 func TestSetAuth(t *testing.T) {
 	t.Parallel()
 	c := cli.New(CLIENT_VERSION)
