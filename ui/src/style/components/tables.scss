@@ -261,3 +261,14 @@ $table-tab-scrollbar-height: 6px;
     text-overflow: ellipsis;
   }
 }
+
+/*
+    No Wrap Cells
+    ----------------------------------------------
+*/
+
+table .table-cell-nowrap {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

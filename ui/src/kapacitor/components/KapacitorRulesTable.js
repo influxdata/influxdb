@@ -1,23 +1,33 @@
 import React, {PropTypes} from 'react'
 import {Link} from 'react-router'
 
+import {KAPACITOR_RULES_TABLE} from 'src/kapacitor/constants/tableSizing'
+const {
+  colName,
+  colType,
+  colMessage,
+  colAlerts,
+  colEnabled,
+  colActions,
+} = KAPACITOR_RULES_TABLE
+
 const KapacitorRulesTable = ({
   rules,
   source,
   onDelete,
   onReadTickscript,
   onChangeRuleStatus,
-}) => (
+}) =>
   <div className="panel-body">
     <table className="table v-center">
       <thead>
         <tr>
-          <th>Name</th>
-          <th>Rule Type</th>
-          <th>Message</th>
-          <th>Alerts</th>
-          <th className="text-center">Enabled</th>
-          <th />
+          <th style={{width: colName}}>Name</th>
+          <th style={{width: colType}}>Rule Type</th>
+          <th style={{width: colMessage}}>Message</th>
+          <th style={{width: colAlerts}}>Alerts</th>
+          <th style={{width: colEnabled}} className="text-center">Enabled</th>
+          <th style={{width: colActions}} />
         </tr>
       </thead>
       <tbody>
@@ -36,17 +46,25 @@ const KapacitorRulesTable = ({
       </tbody>
     </table>
   </div>
-)
 
-const RuleRow = ({rule, source, onRead, onDelete, onChangeRuleStatus}) => (
+const RuleRow = ({rule, source, onRead, onDelete, onChangeRuleStatus}) =>
   <tr key={rule.id}>
-    <td className="monotype">
+    <td style={{width: colName}} className="monotype">
       <RuleTitle rule={rule} source={source} />
     </td>
-    <td className="monotype">{rule.trigger}</td>
-    <td className="monotype">{rule.message}</td>
-    <td className="monotype">{rule.alerts.join(', ')}</td>
-    <td className="monotype text-center">
+    <td style={{width: colType}} className="monotype">{rule.trigger}</td>
+    <td className="monotype">
+      <span
+        className="table-cell-nowrap"
+        style={{display: 'inline-block', maxWidth: colMessage}}
+      >
+        {rule.message}
+      </span>
+    </td>
+    <td style={{width: colAlerts}} className="monotype">
+      {rule.alerts.join(', ')}
+    </td>
+    <td style={{width: colEnabled}} className="monotype text-center">
       <div className="dark-checkbox">
         <input
           id={`kapacitor-enabled ${rule.id}`}
@@ -58,7 +76,7 @@ const RuleRow = ({rule, source, onRead, onDelete, onChangeRuleStatus}) => (
         <label htmlFor={`kapacitor-enabled ${rule.id}`} />
       </div>
     </td>
-    <td className="text-right" style={{display: 'flex'}}>
+    <td style={{width: colActions}} className="text-right table-cell-nowrap">
       <button className="btn btn-info btn-xs" onClick={() => onRead(rule)}>
         View TICKscript
       </button>
@@ -67,7 +85,6 @@ const RuleRow = ({rule, source, onRead, onDelete, onChangeRuleStatus}) => (
       </button>
     </td>
   </tr>
-)
 
 const RuleTitle = ({rule: {id, name, query}, source}) => {
   // no queryConfig means the rule was manually created outside of Chronograf

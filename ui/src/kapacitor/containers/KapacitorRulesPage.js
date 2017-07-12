@@ -55,19 +55,17 @@ class KapacitorRulesPage extends Component {
     const {hasKapacitor, loading, tickscript} = this.state
 
     return (
-      <div>
-        <KapacitorRules
-          source={source}
-          rules={rules}
-          hasKapacitor={hasKapacitor}
-          loading={loading}
-          onDelete={this.handleDeleteRule}
-          onChangeRuleStatus={this.handleRuleStatus}
-          onReadTickscript={this.handleReadTickscript}
-          tickscript={tickscript}
-          onCloseTickscript={this.handleCloseTickscript}
-        />
-      </div>
+      <KapacitorRules
+        source={source}
+        rules={rules}
+        hasKapacitor={hasKapacitor}
+        loading={loading}
+        onDelete={this.handleDeleteRule}
+        onChangeRuleStatus={this.handleRuleStatus}
+        onReadTickscript={this.handleReadTickscript}
+        tickscript={tickscript}
+        onCloseTickscript={this.handleCloseTickscript}
+      />
     )
   }
 }
