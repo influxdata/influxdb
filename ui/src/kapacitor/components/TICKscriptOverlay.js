@@ -1,46 +1,24 @@
 import React, {PropTypes} from 'react'
 import OverlayTechnologies from 'shared/components/OverlayTechnologies'
 
-const style = {
-  padding: '8px',
-  borderRadius: '4px',
-  backgroundColor: '#202028',
-  margin: '0 15%',
-  top: '16px',
-  position: 'relative',
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  height: 'calc(100% - 76px)',
-}
-
-const TICKscriptOverlay = ({tickscript, onClose}) => (
+const TICKscriptOverlay = ({tickscript, onClose}) =>
   <OverlayTechnologies>
-    <div style={style}>
-      <div style={{width: '100%', display: 'flex', justifyContent: 'flex-end'}}>
-        <span
-          style={{cursor: 'pointer'}}
-          className="icon remove"
-          onClick={onClose}
-        />
+    <div className="tick-script-overlay">
+      <div className="write-data-form--header">
+        <div className="page-header__left">
+          <h1 className="page-header__title">Generated TICKscript</h1>
+        </div>
+        <div className="page-header__right">
+          <span className="page-header__dismiss" onClick={onClose} />
+        </div>
       </div>
-      <h2>Generated TICKscript</h2>
-      <pre
-        style={{
-          border: '1px solid white',
-          borderRadius: '4px',
-          overflow: 'auto',
-          whiteSpace: 'pre',
-          color: '#FFB94A',
-          fontSize: '14px',
-          width: '95%',
-        }}
-      >
-        {tickscript}
-      </pre>
+      <div className="write-data-form--body">
+        <pre className="tick-script-overlay--sample">
+          {tickscript}
+        </pre>
+      </div>
     </div>
   </OverlayTechnologies>
-)
 
 const {string, func} = PropTypes
 
