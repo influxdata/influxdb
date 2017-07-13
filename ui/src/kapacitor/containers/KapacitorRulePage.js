@@ -138,18 +138,14 @@ KapacitorRulePage.propTypes = {
   }).isRequired,
 }
 
-const mapStateToProps = state => {
-  return {
-    rules: state.rules,
-    queryConfigs: state.queryConfigs,
-  }
-}
+const mapStateToProps = ({rules, queryConfigs}) => ({
+  rules,
+  queryConfigs,
+})
 
-const mapDispatchToProps = dispatch => {
-  return {
-    kapacitorActions: bindActionCreators(kapacitorActionCreators, dispatch),
-    queryActions: bindActionCreators(queryActionCreators, dispatch),
-  }
-}
+const mapDispatchToProps = dispatch => ({
+  kapacitorActions: bindActionCreators(kapacitorActionCreators, dispatch),
+  queryActions: bindActionCreators(queryActionCreators, dispatch),
+})
 
 export default connect(mapStateToProps, mapDispatchToProps)(KapacitorRulePage)
