@@ -1,5 +1,6 @@
 import React, {Component} from 'react'
-import MonacoEditor from 'react-monaco-editor'
+import CodeMirror from 'react-codemirror'
+import 'src/external/codemirror'
 
 class TickscriptEditor extends Component {
   constructor(props) {
@@ -9,32 +10,20 @@ class TickscriptEditor extends Component {
     }
   }
 
-  editorDidMount(editor, monaco) {
-    console.log('editorDidMount', editor, monaco)
-    editor.focus()
-  }
-
-  onChange(newValue, e) {
-    console.log('onChange', newValue, e)
+  updateCode(code) {
+    this.setState({code})
   }
 
   render() {
     const {code} = this.state
 
     const options = {
-      selectOnLineNumbers: true,
+      lineNumbers: true,
+      theme: 'material',
     }
 
     return (
-      <MonacoEditor
-        width="800"
-        height="600"
-        language="javascript"
-        value={code}
-        options={options}
-        onChange={::this.onChange}
-        editorDidMount={::this.editorDidMount}
-      />
+      <CodeMirror value={code} onChange={::this.updateCode} options={options} />
     )
   }
 }

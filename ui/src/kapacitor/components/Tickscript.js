@@ -1,6 +1,7 @@
 import React, {PropTypes} from 'react'
 import TickscriptHeader from 'src/kapacitor/components/TickscriptHeader'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
+import TickscriptEditor from 'src/kapacitor/components/TickscriptEditor'
 
 const Tickscript = ({source, onSave}) => (
   <div className="page">
@@ -9,7 +10,7 @@ const Tickscript = ({source, onSave}) => (
       <div className="container-fluid">
         <div className="row">
           <div className="col-xs-12">
-            <div className="rule-builder" />
+            <TickscriptEditor />
           </div>
         </div>
       </div>
