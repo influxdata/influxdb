@@ -5,6 +5,8 @@
 
 ### Features
 1. [#1717](https://github.com/influxdata/chronograf/pull/1717): View server generated TICKscripts
+1. [#1681](https://github.com/influxdata/chronograf/pull/1681): Add the ability to select Custom Time Ranges in the Hostpages, Data Explorer, and Dashboards.
+
 
 ### UI Improvements
 1. [#1707](https://github.com/influxdata/chronograf/pull/1707): Polish alerts table in status page to wrap text less
@@ -18,6 +20,7 @@
 
 ### Features
 1. [#1645](https://github.com/influxdata/chronograf/pull/1645): Add Auth0 as a supported OAuth2 provider
+1. [#1660](https://github.com/influxdata/chronograf/pull/1660): Add ability to add custom links to User menu via server CLI or ENV vars
 1. [#1660](https://github.com/influxdata/chronograf/pull/1660): Allow users to configure custom links on startup that will appear under the User menu in the sidebar
 1. [#1674](https://github.com/influxdata/chronograf/pull/1674): Add support for Auth0 organizations
 1. [#1695](https://github.com/influxdata/chronograf/pull/1695): Allow users to configure InfluxDB and Kapacitor sources on startup

@@ -2,7 +2,7 @@ import React, {PropTypes} from 'react'
 import {withRouter} from 'react-router'
 
 import AutoRefreshDropdown from 'shared/components/AutoRefreshDropdown'
-import TimeRangeDropdown from 'shared/components/TimeRangeDropdown'
+import CustomTimeRangeDropdown from 'shared/components/CustomTimeRangeDropdown'
 import SourceIndicator from 'shared/components/SourceIndicator'
 import GraphTips from 'shared/components/GraphTips'
 
@@ -60,9 +60,9 @@ const Header = React.createClass({
               selected={autoRefresh}
               iconName="refresh"
             />
-            <TimeRangeDropdown
-              onChooseTimeRange={this.handleChooseTimeRange}
-              selected={timeRange}
+            <CustomTimeRangeDropdown
+              onApplyTimeRange={this.handleChooseTimeRange}
+              timeRange={timeRange}
             />
           </div>
         </div>

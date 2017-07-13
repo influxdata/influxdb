@@ -98,9 +98,13 @@ export const HostPage = React.createClass({
     this.setState({layouts: filteredLayouts, hosts: filteredHosts}) // eslint-disable-line react/no-did-mount-set-state
   },
 
-  handleChooseTimeRange({lower}) {
-    const timeRange = timeRanges.find(range => range.lower === lower)
-    this.setState({timeRange})
+  handleChooseTimeRange({lower, upper}) {
+    if (upper) {
+      this.setState({timeRange: {lower, upper}})
+    } else {
+      const timeRange = timeRanges.find(range => range.lower === lower)
+      this.setState({timeRange})
+    }
   },
 
   synchronizer(dygraph) {
