@@ -131,9 +131,11 @@ func (m *Measurement) SeriesIDs() SeriesIDs {
 		return s
 	}
 
+	m.sortedSeriesIDs = m.sortedSeriesIDs[:0]
 	if cap(m.sortedSeriesIDs) < len(m.seriesByID) {
 		m.sortedSeriesIDs = make(SeriesIDs, 0, len(m.seriesByID))
 	}
+
 	for k := range m.seriesByID {
 		m.sortedSeriesIDs = append(m.sortedSeriesIDs, k)
 	}
@@ -210,7 +212,7 @@ func (m *Measurement) AddSeries(s *Series) bool {
 
 	m.seriesByID[s.ID] = s
 
-	if len(m.sortedSeriesIDs) == 0 || s.ID > m.sortedSeriesIDs[len(m.sortedSeriesIDs)-1] {
+	if len(m.seriesByID) == 1 || (len(m.sortedSeriesIDs) == len(m.seriesByID)-1 && s.ID > m.sortedSeriesIDs[len(m.sortedSeriesIDs)-1]) {
 		m.sortedSeriesIDs = append(m.sortedSeriesIDs, s.ID)
 	}
 
@@ -330,11 +332,13 @@ func (m *Measurement) TagSets(shardID uint64, opt influxql.IteratorOptions) ([]*
 		// Abort if the query was killed
 		select {
 		case <-opt.InterruptCh:
+			m.mu.RUnlock()
 			return nil, influxql.ErrQueryInterrupted
 		default:
 		}
 
 		if opt.MaxSeriesN > 0 && seriesN > opt.MaxSeriesN {
+			m.mu.RUnlock()
 			return nil, fmt.Errorf("max-select-series limit exceeded: (%d/%d)", seriesN, opt.MaxSeriesN)
 		}
 

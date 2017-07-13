@@ -2,6 +2,7 @@ package tsm1
 
 import (
 	"bufio"
+	"compress/gzip"
 	"encoding/binary"
 	"io"
 	"io/ioutil"
@@ -13,8 +14,9 @@ import (
 )
 
 const (
-	v2header     = 0x1502
-	v2headerSize = 4
+	headerSize = 4
+	v2header   = 0x1502
+	v3header   = 0x1503
 )
 
 // Tombstoner records tombstones when entries are deleted.
@@ -164,7 +166,10 @@ func (t *Tombstoner) Walk(fn func(t Tombstone) error) error {
 		return err
 	}
 
-	if binary.BigEndian.Uint32(b[:]) == v2header {
+	header := binary.BigEndian.Uint32(b[:])
+	if header == v3header {
+		return t.readTombstoneV3(f, fn)
+	} else if header == v2header {
 		return t.readTombstoneV2(f, fn)
 	}
 	return t.readTombstoneV1(f, fn)
@@ -181,28 +186,34 @@ func (t *Tombstoner) writeTombstone(tombstones []Tombstone) error {
 
 	bw := bufio.NewWriterSize(tmp, 1024*1024)
 
-	binary.BigEndian.PutUint32(b[:4], v2header)
+	binary.BigEndian.PutUint32(b[:4], v3header)
 	if _, err := bw.Write(b[:4]); err != nil {
 		return err
 	}
 
+	gz := gzip.NewWriter(bw)
+
 	for _, t := range tombstones {
 		binary.BigEndian.PutUint32(b[:4], uint32(len(t.Key)))
-		if _, err := bw.Write(b[:4]); err != nil {
+		if _, err := gz.Write(b[:4]); err != nil {
 			return err
 		}
-		if _, err := bw.WriteString(t.Key); err != nil {
+		if _, err := gz.Write([]byte(t.Key)); err != nil {
 			return err
 		}
 		binary.BigEndian.PutUint64(b[:], uint64(t.Min))
-		if _, err := bw.Write(b[:]); err != nil {
+		if _, err := gz.Write(b[:]); err != nil {
 			return err
 		}
 
 		binary.BigEndian.PutUint64(b[:], uint64(t.Max))
-		if _, err := bw.Write(b[:]); err != nil {
+		if _, err := gz.Write(b[:]); err != nil {
 			return err
 		}
+	}
+
+	if err := gz.Close(); err != nil {
+		return err
 	}
 
 	if err := bw.Flush(); err != nil {
@@ -263,7 +274,7 @@ func (t *Tombstoner) readTombstoneV1(f *os.File, fn func(t Tombstone) error) err
 // format is binary.
 func (t *Tombstoner) readTombstoneV2(f *os.File, fn func(t Tombstone) error) error {
 	// Skip header, already checked earlier
-	if _, err := f.Seek(v2headerSize, io.SeekStart); err != nil {
+	if _, err := f.Seek(headerSize, io.SeekStart); err != nil {
 		return err
 	}
 	n := int64(4)
@@ -311,6 +322,66 @@ func (t *Tombstoner) readTombstoneV2(f *os.File, fn func(t Tombstone) error) err
 			return err
 		}
 		n += 8
+		max = int64(binary.BigEndian.Uint64(b[:8]))
+
+		if err := fn(Tombstone{
+			Key: key,
+			Min: min,
+			Max: max,
+		}); err != nil {
+			return err
+		}
+	}
+}
+
+// readTombstoneV3 reads the third version of tombstone files that are capable
+// of storing keys and the range of time for the key that points were deleted. This
+// format is a binary and compressed with gzip.
+func (t *Tombstoner) readTombstoneV3(f *os.File, fn func(t Tombstone) error) error {
+	// Skip header, already checked earlier
+	if _, err := f.Seek(headerSize, io.SeekStart); err != nil {
+		return err
+	}
+
+	var (
+		min, max int64
+		key      string
+	)
+
+	gr, err := gzip.NewReader(bufio.NewReader(f))
+	if err != nil {
+		return err
+	}
+	defer gr.Close()
+
+	b := make([]byte, 4096)
+	for {
+		if _, err = io.ReadFull(gr, b[:4]); err == io.EOF || err == io.ErrUnexpectedEOF {
+			return nil
+		} else if err != nil {
+			return err
+		}
+
+		keyLen := int(binary.BigEndian.Uint32(b[:4]))
+		if keyLen > len(b) {
+			b = make([]byte, keyLen)
+		}
+
+		if _, err := io.ReadFull(gr, b[:keyLen]); err != nil {
+			return err
+		}
+		key = string(b[:keyLen])
+
+		if _, err := io.ReadFull(gr, b[:8]); err != nil {
+			return err
+		}
+
+		min = int64(binary.BigEndian.Uint64(b[:8]))
+
+		if _, err := io.ReadFull(gr, b[:8]); err != nil {
+			return err
+		}
+
 		max = int64(binary.BigEndian.Uint64(b[:8]))
 
 		if err := fn(Tombstone{
