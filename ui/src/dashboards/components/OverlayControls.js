@@ -9,30 +9,30 @@ const OverlayControls = ({
   isDisplayOptionsTabOpen,
   onSelectDisplayOptions,
   isSavable,
-}) => (
+}) =>
   <div className="overlay-controls">
     <h3 className="overlay--graph-name">Cell Editor</h3>
+    <ul className="nav nav-tablist nav-tablist-sm">
+      <li
+        key="queries"
+        className={classnames({
+          active: !isDisplayOptionsTabOpen,
+        })}
+        onClick={onSelectDisplayOptions(false)}
+      >
+        Queries
+      </li>
+      <li
+        key="displayOptions"
+        className={classnames({
+          active: isDisplayOptionsTabOpen,
+        })}
+        onClick={onSelectDisplayOptions(true)}
+      >
+        Display Options
+      </li>
+    </ul>
     <div className="overlay-controls--right">
-      <ul className="nav nav-tablist nav-tablist-sm">
-        <li
-          key="queries"
-          className={classnames({
-            active: !isDisplayOptionsTabOpen,
-          })}
-          onClick={onSelectDisplayOptions(false)}
-        >
-          Queries
-        </li>
-        <li
-          key="displayOptions"
-          className={classnames({
-            active: isDisplayOptionsTabOpen,
-          })}
-          onClick={onSelectDisplayOptions(true)}
-        >
-          Display Options
-        </li>
-      </ul>
       <ConfirmButtons
         onCancel={onCancel}
         onConfirm={onSave}
@@ -40,7 +40,6 @@ const OverlayControls = ({
       />
     </div>
   </div>
-)
 
 const {func, bool} = PropTypes
 

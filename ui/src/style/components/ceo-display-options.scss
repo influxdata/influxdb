@@ -1,0 +1,140 @@
+/*
+  Cell Editor Overlay - Display Options
+  ------------------------------------------------------
+*/
+.display-options {
+  height: 100%;
+  margin: 0 60px;
+  display: flex;
+  background-color: $g2-kevlar;
+  padding: 0 8px 8px 8px;
+  border-radius: 0 0 4px 4px;
+  flex-wrap: nowrap;
+  align-items: stretch;
+}
+.display-options--cell {
+  border-radius: 3px;
+  background-color: $g3-castle;
+  padding: 30px;
+  flex: 1 0 0;
+  margin-right: 8px;
+
+  &:last-child { margin-right: 0; }
+}
+.display-options--cellx2 {
+  flex: 2 0 0;
+}
+.display-options--header {
+  margin: 0 0 12px 0;
+  font-weight: 400;
+  color: $g11-sidewalk;
+  @include no-user-select();
+}
+.display-options--row {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  margin-bottom: 8px;
+
+  label { margin: 0; }
+  input { flex: 1 0 0; }
+}
+
+
+.viz-type-selector {
+  display: flex;
+  flex-wrap: wrap;
+  height: calc(100% - 22px);
+  margin: -4px;
+}
+.viz-type-selector--option {
+  flex: 1 0 33.3333%;
+  height: 50%;
+  padding: 4px;
+
+  > div > p {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 900;
+    position: absolute;
+    bottom: 6.25%;
+    left: 50%;
+    transform: translate(-50%, 50%);
+    display: inline-block;
+  }
+
+  // Actual "card"
+  > div {
+    background-color: $g3-castle;
+    border: 2px solid $g4-onyx;
+    color: $g11-sidewalk;
+    border-radius: 3px;
+    width: 100%;
+    height: 100%;
+    display: block;
+    position: relative;
+    transition:
+      color 0.25s ease,
+      border-color 0.25s ease,
+      background-color 0.25s ease;
+
+    &:hover {
+      cursor: pointer;
+      background-color: $g4-onyx;
+      border-color: $g5-pepper;
+      color: $g15-platinum;
+    }
+  }
+}
+// Active state "card"
+.viz-type-selector--option.active > div,
+.viz-type-selector--option.active > div:hover {
+  background-color: $g5-pepper;
+  border-color: $g7-graphite;
+  color: $g18-cloud;
+}
+
+.viz-type-selector--graphic {
+  width: calc(100% - 48px);
+  height: 50%;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%,-50%);
+
+  > svg {
+    transform: translate3d(0,0,0);
+    width: 100%;
+    height: 100%;
+  }
+}
+.viz-type-selector--graphic-line {
+  stroke-width: 3px;
+  fill: none;
+  stroke-linecap: round;
+  stroke-miterlimit: 10;
+  transition: all 0.5s ease;
+
+  &.graphic-line-a {stroke: $g11-sidewalk;}
+  &.graphic-line-b {stroke: $g9-mountain;}
+  &.graphic-line-c {stroke: $g7-graphite;}
+}
+.viz-type-selector--graphic-fill {
+  opacity: 0.035;
+  transition: opacity 0.5s ease;
+
+  &.graphic-fill-a {fill: $g11-sidewalk;}
+  &.graphic-fill-b {fill: $g9-mountain;}
+  &.graphic-fill-c {fill: $g7-graphite;}
+}
+.viz-type-selector--option.active .viz-type-selector--graphic {
+  .viz-type-selector--graphic-line.graphic-line-a {stroke: $c-pool;}
+  .viz-type-selector--graphic-line.graphic-line-b {stroke: $c-dreamsicle;}
+  .viz-type-selector--graphic-line.graphic-line-c {stroke: $c-rainforest;}
+  .viz-type-selector--graphic-fill.graphic-fill-a {fill: $c-pool;}
+  .viz-type-selector--graphic-fill.graphic-fill-b {fill: $c-dreamsicle;}
+  .viz-type-selector--graphic-fill.graphic-fill-c {fill: $c-rainforest;}
+  .viz-type-selector--graphic-fill.graphic-fill-a,
+  .viz-type-selector--graphic-fill.graphic-fill-b,
+  .viz-type-selector--graphic-fill.graphic-fill-c {opacity: 0.18;}
+}

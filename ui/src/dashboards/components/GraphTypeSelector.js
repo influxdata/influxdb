@@ -1,28 +1,26 @@
 import React, {PropTypes} from 'react'
 import classnames from 'classnames'
+import {graphTypes} from 'src/dashboards/graphics/graph'
 
-import graphTypes from 'hson!shared/data/graphTypes.hson'
-
-const GraphTypeSelector = ({selectedGraphType, onSelectGraphType}) => (
-  <div style={{display: 'flex'}}>
-    <div>
-      <p>Visualization Type</p>
-      <ul className="nav nav-tablist nav-tablist-sm">
-        {graphTypes.map(graphType => (
-          <li
-            key={graphType.type}
-            className={classnames({
-              active: graphType.type === selectedGraphType,
-            })}
-            onClick={() => onSelectGraphType(graphType.type)}
-          >
-            {graphType.menuOption}
-          </li>
-        ))}
-      </ul>
+const GraphTypeSelector = ({selectedGraphType, onSelectGraphType}) =>
+  <div className="display-options--cell display-options--cellx2">
+    <h5 className="display-options--header">Visualization Type</h5>
+    <div className="viz-type-selector">
+      {graphTypes.map(graphType =>
+        <div
+          key={graphType.type}
+          className={classnames('viz-type-selector--option', {
+            active: graphType.type === selectedGraphType,
+          })}
+        >
+          <div onClick={() => onSelectGraphType(graphType.type)}>
+            {graphType.graphic}
+            <p>{graphType.menuOption}</p>
+          </div>
+        </div>
+      )}
     </div>
   </div>
-)
 
 const {func, string} = PropTypes
 

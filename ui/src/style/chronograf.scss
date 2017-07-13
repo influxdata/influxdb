@@ -25,6 +25,7 @@
 @import 'layout/flash-messages';
 
 // Components
+@import 'components/ceo-display-options';
 @import 'components/confirm-buttons';
 @import 'components/custom-time-range';
 @import 'components/dygraphs';
@@ -47,7 +48,6 @@
 @import 'components/tables';
 
 // Pages
-
 @import 'pages/config-endpoints';
 @import 'pages/signup';
 @import 'pages/auth-page';
