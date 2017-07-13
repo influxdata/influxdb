@@ -23,6 +23,7 @@ import {
   KapacitorRulePage,
   KapacitorRulesPage,
   KapacitorTasksPage,
+  TickscriptPage,
 } from 'src/kapacitor'
 import {AdminPage} from 'src/admin'
 import {CreateSource, SourcePage, ManageSources} from 'src/sources'
@@ -140,6 +141,8 @@ const Root = React.createClass({
               <Route path="alert-rules" component={KapacitorRulesPage} />
               <Route path="alert-rules/:ruleID" component={KapacitorRulePage} />
               <Route path="alert-rules/new" component={KapacitorRulePage} />
+              <Route path="tickscript/new" component={TickscriptPage} />
+              <Route path="tickscript/:ruleID" component={TickscriptPage} />
               <Route path="kapacitors/new" component={KapacitorPage} />
               <Route path="kapacitors/:id/edit" component={KapacitorPage} />
               <Route path="kapacitor-tasks" component={KapacitorTasksPage} />
