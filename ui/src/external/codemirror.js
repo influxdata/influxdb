@@ -144,7 +144,8 @@ function tokenFunction(states, config) {
 
       tok = state.local.mode.token(stream, state.localState)
       if (
-        state.local.endScan && (m = state.local.endScan.exec(stream.current()))
+        state.local.endScan &&
+        (m = state.local.endScan.exec(stream.current()))
       ) {
         stream.pos = stream.start + m.index
       }
@@ -304,9 +305,8 @@ CodeMirror.defineSimpleMode('tickscript', {
   // The start state contains the rules that are intially used
   start: [
     // The regex matches the token, the token property contains the type
-    {regex: /"(?:[^\\]|\\.)*?(?:"|$)/, token: 'string'},
-    // You can match multiple tokens at once. Note that the captured
-    // groups must span the whole string in this case
+    {regex: /"(?:[^\\]|\\.)*?(?:"|$)/, token: 'string.double'},
+    {regex: /'(?:[^\\]|\\.)*?(?:'|$)/, token: 'string.single'},
     {
       regex: /(function)(\s+)([a-z$][\w$]*)/,
       token: ['keyword', null, 'variable-2'],
@@ -314,10 +314,10 @@ CodeMirror.defineSimpleMode('tickscript', {
     // Rules are matched in the order in which they appear, so there is
     // no ambiguity between this one and the one above
     {
-      regex: /(?:function|var|return|if|for|while|else|do|this)\b/,
+      regex: /(?:function|var|return|if|for|while|else|do|this|stream|batch|influxql)\b/,
       token: 'keyword',
     },
-    {regex: /true|false|null|undefined/, token: 'atom'},
+    {regex: /true|false|null|undefined|TRUE|FALSE/, token: 'atom'},
     {
       regex: /0x[a-f\d]+|[-+]?(?:\.\d+|\d+\.?\d*)(?:e[-+]?\d+)?/i,
       token: 'number',
@@ -331,10 +331,6 @@ CodeMirror.defineSimpleMode('tickscript', {
     {regex: /[\{\[\(]/, indent: true},
     {regex: /[\}\]\)]/, dedent: true},
     {regex: /[a-z$][\w$]*/, token: 'variable'},
-    // You can embed other modes with the mode property. This rule
-    // causes all code between << and >> to be highlighted with the XML
-    // mode.
-    {regex: /<</, token: 'meta', mode: {spec: 'xml', end: />>/}},
   ],
   // The multi-line comment state.
   comment: [
