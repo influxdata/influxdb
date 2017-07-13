@@ -217,3 +217,30 @@ br {
   color: $g11-sidewalk;
   font-size: 13px;
 }
+
+
+
+/*
+  View TICKscript Overlay
+  -----------------------------------------------------------------------------
+*/
+$tick-script-overlay-margin: 30px;
+.tick-script-overlay {
+  max-width: 960px;
+  margin: 0 auto $tick-script-overlay-margin auto;
+  height: calc(100% - #{$tick-script-overlay-margin});
+  position: relative;
+
+  .write-data-form--body {
+    height: calc(100% - 60px);
+    display: flex;
+    flex-direction: column;
+  }
+}
+.tick-script-overlay--sample {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 14px;
+  padding: 20px;
+  border: 2px solid $g4-onyx;
+}
