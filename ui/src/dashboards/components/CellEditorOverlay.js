@@ -106,8 +106,8 @@ class CellEditorOverlay extends Component {
   handleSaveCell() {
     const {
       queriesWorkingDraft,
-      cellWorkingType: name,
-      cellWorkingName: type,
+      cellWorkingType: type,
+      cellWorkingName: name,
       yRanges,
     } = this.state
 
