@@ -180,7 +180,11 @@ func (cmd *Command) unpackMeta() error {
 		return err
 	}
 
-	client := meta.NewClient(c)
+	client, err := meta.NewClient(c)
+	if err != nil {
+		return err
+	}
+
 	if err := client.Open(); err != nil {
 		return err
 	}

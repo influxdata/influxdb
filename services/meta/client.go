@@ -9,11 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
-	"math/rand"
 	"net/http"
-	"os"
-	"path/filepath"
 	"sort"
 	"sync"
 	"time"
@@ -29,8 +25,6 @@ const (
 	// SaltBytes is the number of bytes used for salts.
 	SaltBytes = 32
 
-	metaFile = "meta.db"
-
 	// ShardGroupDeletedExpiration is the amount of time before a shard group info will be removed from cached
 	// data after it has been marked deleted (2 weeks).
 	ShardGroupDeletedExpiration = -2 * 7 * 24 * time.Hour
@@ -43,6 +37,11 @@ var (
 	// ErrService is returned when the meta service returns an error.
 	ErrService = errors.New("meta service error")
 )
+
+type StorageService interface {
+	Load() (*Data, error)
+	Snapshot(data *Data) error
+}
 
 // Client is used to execute commands on and read data from
 // a meta service cluster.
@@ -57,7 +56,8 @@ type Client struct {
 	// Authentication cache.
 	authCache map[string]authUser
 
-	path string
+	// metadata storage
+	storage StorageService
 
 	retentionAutoCreate bool
 }
@@ -69,19 +69,20 @@ type authUser struct {
 }
 
 // NewClient returns a new *Client.
-func NewClient(config *Config) *Client {
+func NewClient(config *Config) (*Client, error) {
+	storage, err := NewStorageService(config)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Client{
-		cacheData: &Data{
-			ClusterID: uint64(rand.Int63()),
-			Index:     1,
-		},
 		closing:             make(chan struct{}),
 		changed:             make(chan struct{}),
 		logger:              zap.New(zap.NullEncoder()),
 		authCache:           make(map[string]authUser, 0),
-		path:                config.Dir,
+		storage:             storage,
 		retentionAutoCreate: config.RetentionAutoCreate,
-	}
+	}, nil
 }
 
 // Open a connection to a meta service cluster.
@@ -89,14 +90,14 @@ func (c *Client) Open() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// Try to load from disk
+	// Try to load from storage service
 	if err := c.Load(); err != nil {
 		return err
 	}
 
 	// If this is a brand new instance, persist to disk immediatly.
-	if c.cacheData.Index == 1 {
-		if err := snapshot(c.path, c.cacheData); err != nil {
+	if c.cacheData.Index != 1 {
+		if err := c.storage.Snapshot(c.cacheData); err != nil {
 			return err
 		}
 	}
@@ -957,7 +958,7 @@ func (c *Client) commit(data *Data) error {
 	data.Index++
 
 	// try to write to disk before updating in memory
-	if err := snapshot(c.path, data); err != nil {
+	if err := c.storage.Snapshot(data); err != nil {
 		return err
 	}
 
@@ -985,61 +986,14 @@ func (c *Client) WithLogger(log zap.Logger) {
 	c.logger = log.With(zap.String("service", "metaclient"))
 }
 
-// snapshot saves the current meta data to disk.
-func snapshot(path string, data *Data) error {
-	file := filepath.Join(path, metaFile)
-	tmpFile := file + "tmp"
-
-	f, err := os.Create(tmpFile)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	var d []byte
-	if b, err := data.MarshalBinary(); err != nil {
-		return err
-	} else {
-		d = b
-	}
-
-	if _, err := f.Write(d); err != nil {
-		return err
-	}
-
-	if err = f.Sync(); err != nil {
-		return err
-	}
-
-	//close file handle before renaming to support Windows
-	if err = f.Close(); err != nil {
-		return err
-	}
-
-	return renameFile(tmpFile, file)
-}
-
 // Load loads the current meta data from disk.
 func (c *Client) Load() error {
-	file := filepath.Join(c.path, metaFile)
-
-	f, err := os.Open(file)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return err
-	}
-	defer f.Close()
-
-	data, err := ioutil.ReadAll(f)
+	data, err := c.storage.Load()
 	if err != nil {
 		return err
 	}
 
-	if err := c.cacheData.UnmarshalBinary(data); err != nil {
-		return err
-	}
+	c.cacheData = data
 	return nil
 }
 
