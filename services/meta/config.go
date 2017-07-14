@@ -13,11 +13,19 @@ const (
 
 	// DefaultLoggingEnabled determines if log messages are printed for the meta service.
 	DefaultLoggingEnabled = true
+
+	// Meta data storage type
+	Etcd = "etcd"
+	File = "file"
 )
 
 // Config represents the meta configuration.
 type Config struct {
-	Dir string `toml:"dir"`
+	StorageType string `toml:"storage-type"`
+
+	// FIXME, when storage-type is etcd, dir will be etcd API endpoints
+	// otherwise when storage-type is file, dir will be directory path
+	Dir         string `toml:"dir"`
 
 	RetentionAutoCreate bool `toml:"retention-autocreate"`
 	LoggingEnabled      bool `toml:"logging-enabled"`
@@ -33,6 +41,10 @@ func NewConfig() *Config {
 
 // Validate returns an error if the config is invalid.
 func (c *Config) Validate() error {
+	if len(c.StorageType) > 0 && c.StorageType != Etcd && c.StorageType != File {
+		return errors.New("Meta.StorageType is invalid")
+	}
+
 	if c.Dir == "" {
 		return errors.New("Meta.Dir must be specified")
 	}

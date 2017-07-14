@@ -134,6 +134,11 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	// The old location to keep things backwards compatible
 	bind := c.BindAddress
 
+	client, err := meta.NewClient(c.Meta)
+	if err != nil {
+		return nil, err
+	}
+
 	s := &Server{
 		buildInfo: *buildInfo,
 		err:       make(chan error),
@@ -146,7 +151,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 			zap.Output(os.Stderr),
 		),
 
-		MetaClient: meta.NewClient(c.Meta),
+		MetaClient: client,
 
 		reportingDisabled: c.ReportingDisabled,
 
