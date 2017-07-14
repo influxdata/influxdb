@@ -135,39 +135,11 @@ class AlertTabs extends Component {
         ),
       },
       {
-        type: 'SMTP',
+        type: 'HipChat',
         component: (
-          <SMTPConfig
-            onSave={p => this.handleSaveConfig('smtp', p)}
-            config={this.getSection(configSections, 'smtp')}
-          />
-        ),
-      },
-      {
-        type: 'Slack',
-        component: (
-          <SlackConfig
-            onSave={p => this.handleSaveConfig('slack', p)}
-            onTest={test}
-            config={this.getSection(configSections, 'slack')}
-          />
-        ),
-      },
-      {
-        type: 'VictorOps',
-        component: (
-          <VictorOpsConfig
-            onSave={p => this.handleSaveConfig('victorops', p)}
-            config={this.getSection(configSections, 'victorops')}
-          />
-        ),
-      },
-      {
-        type: 'Telegram',
-        component: (
-          <TelegramConfig
-            onSave={p => this.handleSaveConfig('telegram', p)}
-            config={this.getSection(configSections, 'telegram')}
+          <HipChatConfig
+            onSave={p => this.handleSaveConfig('hipchat', p)}
+            config={this.getSection(configSections, 'hipchat')}
           />
         ),
       },
@@ -190,15 +162,6 @@ class AlertTabs extends Component {
         ),
       },
       {
-        type: 'HipChat',
-        component: (
-          <HipChatConfig
-            onSave={p => this.handleSaveConfig('hipchat', p)}
-            config={this.getSection(configSections, 'hipchat')}
-          />
-        ),
-      },
-      {
         type: 'Sensu',
         component: (
           <SensuConfig
@@ -208,11 +171,48 @@ class AlertTabs extends Component {
         ),
       },
       {
+        type: 'Slack',
+        component: (
+          <SlackConfig
+            onSave={p => this.handleSaveConfig('slack', p)}
+            onTest={test}
+            config={this.getSection(configSections, 'slack')}
+          />
+        ),
+      },
+      {
+        type: 'SMTP',
+        component: (
+          <SMTPConfig
+            onSave={p => this.handleSaveConfig('smtp', p)}
+            config={this.getSection(configSections, 'smtp')}
+          />
+        ),
+      },
+      {
         type: 'Talk',
         component: (
           <TalkConfig
             onSave={p => this.handleSaveConfig('talk', p)}
             config={this.getSection(configSections, 'talk')}
+          />
+        ),
+      },
+      {
+        type: 'Telegram',
+        component: (
+          <TelegramConfig
+            onSave={p => this.handleSaveConfig('telegram', p)}
+            config={this.getSection(configSections, 'telegram')}
+          />
+        ),
+      },
+      {
+        type: 'VictorOps',
+        component: (
+          <VictorOpsConfig
+            onSave={p => this.handleSaveConfig('victorops', p)}
+            config={this.getSection(configSections, 'victorops')}
           />
         ),
       },
