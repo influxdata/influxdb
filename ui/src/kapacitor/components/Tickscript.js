@@ -3,14 +3,22 @@ import TickscriptHeader from 'src/kapacitor/components/TickscriptHeader'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 import TickscriptEditor from 'src/kapacitor/components/TickscriptEditor'
 
-const Tickscript = ({source, onSave}) => (
+const Tickscript = ({source, onSave, task, validation, onChangeScript}) => (
   <div className="page">
     <TickscriptHeader source={source} onSave={onSave} />
     <FancyScrollbar className="page-contents fancy-scroll--kapacitor">
       <div className="container-fluid">
         <div className="row">
           <div className="col-xs-12">
-            <TickscriptEditor />
+            {validation}
+          </div>
+        </div>
+        <div className="row">
+          <div className="col-xs-12">
+            <TickscriptEditor
+              script={task.script}
+              onChangeScript={onChangeScript}
+            />
           </div>
         </div>
       </div>
@@ -18,11 +26,18 @@ const Tickscript = ({source, onSave}) => (
   </div>
 )
 
-const {func, shape} = PropTypes
+const {arrayOf, func, shape, string} = PropTypes
 
 Tickscript.propTypes = {
-  onSave: func,
+  onSave: func.isRequired,
   source: shape(),
+  task: shape({
+    id: string,
+    script: string,
+    dbsrps: arrayOf(shape()),
+  }).isRequired,
+  onChangeScript: func.isRequired,
+  validation: string,
 }
 
 export default Tickscript

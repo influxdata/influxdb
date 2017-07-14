@@ -1,21 +1,18 @@
-import React, {Component} from 'react'
+import React, {PropTypes, Component} from 'react'
 import CodeMirror from 'react-codemirror'
 import 'src/external/codemirror'
 
 class TickscriptEditor extends Component {
   constructor(props) {
     super(props)
-    this.state = {
-      code: '',
-    }
   }
 
-  updateCode(code) {
-    this.setState({code})
+  updateCode(script) {
+    this.props.onChangeScript(script)
   }
 
   render() {
-    const {code} = this.state
+    const {script} = this.props
 
     const options = {
       lineNumbers: true,
@@ -23,9 +20,20 @@ class TickscriptEditor extends Component {
     }
 
     return (
-      <CodeMirror value={code} onChange={::this.updateCode} options={options} />
+      <CodeMirror
+        value={script}
+        onChange={::this.updateCode}
+        options={options}
+      />
     )
   }
+}
+
+const {func, string} = PropTypes
+
+TickscriptEditor.propTypes = {
+  onChangeScript: func,
+  script: string,
 }
 
 export default TickscriptEditor

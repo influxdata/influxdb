@@ -6,6 +6,7 @@ import {
   getRule,
   deleteRule as deleteRuleAPI,
   updateRuleStatus as updateRuleStatusAPI,
+  createTask as createTaskAJAX,
 } from 'src/kapacitor/apis'
 import {errorThrown} from 'shared/actions/errors'
 
@@ -206,5 +207,20 @@ export function updateRuleStatus(rule, status) {
           publishNotification('error', `${rule.name} could not be ${status}`)
         )
       })
+  }
+}
+
+export const createTask = (kapacitor, task) => async dispatch => {
+  try {
+    const {data} = await createTaskAJAX(kapacitor, task)
+    dispatch(publishNotification('success', 'We made a tick script!'))
+    return data
+  } catch (error) {
+    if (!error) {
+      dispatch(errorThrown('Could not communicate with server'))
+      return
+    }
+
+    return error.data
   }
 }
