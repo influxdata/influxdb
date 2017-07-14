@@ -4,8 +4,8 @@ import {bindActionCreators} from 'redux'
 
 import Tickscript from 'src/kapacitor/components/Tickscript'
 import * as kapactiorActionCreators from 'src/kapacitor/actions/view'
+import * as errorActionCreators from 'shared/actions/errors'
 import {getActiveKapacitor} from 'src/shared/apis'
-import {errorThrown as errorAction} from 'shared/actions/errors'
 
 class TickscriptPage extends Component {
   constructor(props) {
@@ -16,7 +16,7 @@ class TickscriptPage extends Component {
         id: 'testing',
         status: 'enabled',
         script: '',
-        dbsrps: [
+        dbrps: [
           {
             db: '_internal',
             rp: 'monitor',
@@ -29,11 +29,24 @@ class TickscriptPage extends Component {
   }
 
   async componentDidMount() {
-    const {source, errorThrown} = this.props
-    const kapacitor = await getActiveKapacitor(source)
+    const {
+      source,
+      errorActions,
+      kapacitorActions,
+      params: {ruleID},
+    } = this.props
 
+    const kapacitor = await getActiveKapacitor(source)
     if (!kapacitor) {
-      errorThrown('We could not find a configured Kapacitor for this source')
+      errorActions.errorThrown(
+        'We could not find a configured Kapacitor for this source'
+      )
+    }
+
+    if (this.isEditing()) {
+      await kapacitorActions.getRule(kapacitor, ruleID)
+      const activeRule = this.props.rules.find(r => r.id === ruleID)
+      this.setState({task: {...this.state.task, script: activeRule.tickscript}})
     }
 
     this.setState({kapacitor})
@@ -41,7 +54,7 @@ class TickscriptPage extends Component {
 
   async handleSave() {
     const {kapacitor, task} = this.state
-    const {source, router, kapactiorActions: {createTask}} = this.props
+    const {source, router, kapacitorActions: {createTask}} = this.props
 
     const response = await createTask(kapacitor, task)
     if (response && response.error) {
@@ -69,30 +82,44 @@ class TickscriptPage extends Component {
       />
     )
   }
+
+  isEditing() {
+    const {params} = this.props
+    return params.ruleID && params.ruleID !== 'new'
+  }
 }
 
-const {func, shape, string} = PropTypes
+const {arrayOf, func, shape, string} = PropTypes
 
 TickscriptPage.propTypes = {
   source: shape({
     name: string,
   }),
-  errorThrown: func.isRequired,
-  kapactiorActions: shape({
+  errorActions: shape({
+    errorThrown: func.isRequired,
+  }).isRequired,
+  kapacitorActions: shape({
     createTask: func.isRequired,
+    getRule: func.isRequired,
   }),
   router: shape({
     push: func.isRequired,
   }).isRequired,
+  params: shape({
+    ruleID: string.isRequired,
+  }).isRequired,
+  rules: arrayOf(shape()),
 }
 
-const mapStateToProps = () => {
-  return {}
+const mapStateToProps = state => {
+  return {
+    rules: Object.values(state.rules),
+  }
 }
 
 const mapDispatchToProps = dispatch => ({
-  errorThrown: bindActionCreators(errorAction, dispatch),
-  kapactiorActions: bindActionCreators(kapactiorActionCreators, dispatch),
+  kapacitorActions: bindActionCreators(kapactiorActionCreators, dispatch),
+  errorActions: bindActionCreators(errorActionCreators, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(TickscriptPage)

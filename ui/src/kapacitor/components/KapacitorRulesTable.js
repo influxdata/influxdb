@@ -92,9 +92,12 @@ const RuleRow = ({rule, source, onRead, onDelete, onChangeRuleStatus}) =>
       </div>
     </td>
     <td style={{width: colActions}} className="text-right table-cell-nowrap">
-      <button className="btn btn-info btn-xs" onClick={onRead(rule)}>
-        View TICKscript
-      </button>
+      <Link
+        className="btn btn-primary btn-xs"
+        to={`/sources/${source.id}/tickscript/${rule.id}`}
+      >
+        Edit TICKscript
+      </Link>
       <button className="btn btn-danger btn-xs" onClick={onDelete(rule)}>
         Delete
       </button>

@@ -26,11 +26,16 @@ export const getRules = kapacitor => {
   })
 }
 
-export const getRule = (kapacitor, ruleID) => {
-  return AJAX({
-    method: 'GET',
-    url: `${kapacitor.links.rules}/${ruleID}`,
-  })
+export const getRule = async (kapacitor, ruleID) => {
+  try {
+    return await AJAX({
+      method: 'GET',
+      url: `${kapacitor.links.rules}/${ruleID}`,
+    })
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
 }
 
 export const editRule = rule => {
@@ -57,7 +62,7 @@ export const updateRuleStatus = (rule, status) => {
 }
 
 // tickscript contains script, dbsrps, id, and type
-export const createTask = async (kapacitor, {id, dbsrps, script, type}) => {
+export const createTask = async (kapacitor, {id, dbrps, script, type}) => {
   try {
     return await AJAX({
       method: 'POST',
@@ -65,7 +70,7 @@ export const createTask = async (kapacitor, {id, dbsrps, script, type}) => {
       data: {
         id,
         type,
-        dbsrps,
+        dbrps,
         script,
       },
     })
