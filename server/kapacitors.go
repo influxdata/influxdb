@@ -39,6 +39,8 @@ type kapaLinks struct {
 	Proxy string `json:"proxy"` // URL location of proxy endpoint for this source
 	Self  string `json:"self"`  // Self link mapping to this resource
 	Rules string `json:"rules"` // Rules link for defining roles alerts for kapacitor
+	Tasks string `json:"tasks"` // Tasks link to define a task against the proxy
+	Ping  string `json:"ping"`  // Ping path to kapacitor
 }
 
 type kapacitor struct {
@@ -108,6 +110,8 @@ func newKapacitor(srv chronograf.Server) kapacitor {
 			Self:  fmt.Sprintf("%s/%d/kapacitors/%d", httpAPISrcs, srv.SrcID, srv.ID),
 			Proxy: fmt.Sprintf("%s/%d/kapacitors/%d/proxy", httpAPISrcs, srv.SrcID, srv.ID),
 			Rules: fmt.Sprintf("%s/%d/kapacitors/%d/rules", httpAPISrcs, srv.SrcID, srv.ID),
+			Tasks: fmt.Sprintf("%s/%d/kapacitors/%d/proxy?path=/kapacitor/v1/tasks", httpAPISrcs, srv.SrcID, srv.ID),
+			Ping:  fmt.Sprintf("%s/%d/kapacitors/%d/proxy?path=/kapacitor/v1/ping", httpAPISrcs, srv.SrcID, srv.ID),
 		},
 	}
 }
