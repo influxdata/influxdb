@@ -13,6 +13,7 @@ import {
   HipChatConfig,
   OpsGenieConfig,
   PagerDutyConfig,
+  PushoverConfig,
   SensuConfig,
   SlackConfig,
   SMTPConfig,
@@ -155,6 +156,14 @@ class AlertTabs extends Component {
           <PagerDutyConfig
             onSave={p => this.handleSaveConfig('pagerduty', p)}
             config={this.getSection(configSections, 'pagerduty')}
+          />,
+      },
+      pushover: {
+        type: 'Pushover',
+        renderComponent: () =>
+          <PushoverConfig
+            onSave={p => this.handleSaveConfig('pushover', p)}
+            config={this.getSection(configSections, 'pushover')}
           />,
       },
       sensu: {
