@@ -607,17 +607,33 @@ func extractEmail(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
 }
 
 func extractPost(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
-	if node.PostHandlers == nil {
+	if node.HTTPPostHandlers == nil {
 		return
 	}
 	rule.Alerts = append(rule.Alerts, "http")
-	p := node.PostHandlers[0]
+	p := node.HTTPPostHandlers[0]
 	alert := chronograf.KapacitorNode{
 		Name: "http",
 	}
 
 	if p.URL != "" {
 		alert.Args = []string{p.URL}
+	}
+
+	if p.Endpoint != "" {
+		alert.Properties = append(alert.Properties, chronograf.KapacitorProperty{
+			Name: "endpoint",
+			Args: []string{p.Endpoint},
+		})
+	}
+
+	if len(p.Headers) > 0 {
+		for k, v := range p.Headers {
+			alert.Properties = append(alert.Properties, chronograf.KapacitorProperty{
+				Name: "header",
+				Args: []string{k, v},
+			})
+		}
 	}
 
 	rule.AlertNodes = append(rule.AlertNodes, alert)
