@@ -64,9 +64,9 @@
 
 [[projects]]
   name = "github.com/influxdata/kapacitor"
-  packages = ["client/v1","influxdb","models","pipeline","services/k8s/client","tick","tick/ast","tick/stateful","udf"]
-  revision = "5408057e5a3493d3b5bd38d5d535ea45b587f8ff"
-  version = "v1.2.0"
+  packages = ["client/v1","pipeline","services/k8s/client","tick","tick/ast","tick/stateful","udf/agent"]
+  revision = "3b5512f7276483326577907803167e4bb213c613"
+  version = "v1.3.1"
 
 [[projects]]
   name = "github.com/influxdata/usage-client"
