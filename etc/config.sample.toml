@@ -219,6 +219,10 @@
   # troubleshooting and monitoring.
   # pprof-enabled = true
 
+  # Determines whether the debug endpoint is enabled.  This endpoint is used for
+  # gathering runtime statistics.
+  # pprof-enabled = true
+
   # Determines whether HTTPS is enabled.
   # https-enabled = false
 
