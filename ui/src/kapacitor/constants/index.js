@@ -40,6 +40,7 @@ export const ALERTS = [
   'hipchat',
   'opsgenie',
   'pagerduty',
+  'pushover',
   'sensu',
   'slack',
   'smtp',
