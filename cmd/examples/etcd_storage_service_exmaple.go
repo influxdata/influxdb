@@ -43,10 +43,6 @@ type EtcdStorageServiceExample struct {
 	all        bool
 }
 
-func (e *EtcdStorageServiceExample) deleteNode() (interface{}, error) {
-	return nil, nil
-}
-
 func (e *EtcdStorageServiceExample) deleteMaster() (interface{}, error) {
 	return nil, nil
 }
@@ -67,16 +63,62 @@ func (e *EtcdStorageServiceExample) handleDelete() (interface{}, error) {
 	return deleteHandlers[e.objectType]()
 }
 
-func (e *EtcdStorageServiceExample) addNode() (interface{}, error) {
-	return nil, nil
-}
-
 func (e *EtcdStorageServiceExample) addMaster() (interface{}, error) {
 	return nil, nil
 }
 
 func (e *EtcdStorageServiceExample) addMasterEpoch() (interface{}, error) {
 	return nil, nil
+}
+
+// Node
+func (e *EtcdStorageServiceExample) watchNode() (interface{}, error) {
+	var err error
+	var ch clientv3.WatchChan
+
+	if e.all {
+		ch, err = e.ess.WatchNodes()
+	} else {
+		ch, err = e.ess.WatchNode(e.key)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	for {
+		res := <-ch
+		data, _ := json.Marshal(res)
+		fmt.Printf("%s\n", data)
+	}
+	return nil, nil
+}
+
+func (e *EtcdStorageServiceExample) getNode() (interface{}, error) {
+	if e.all {
+		return e.ess.GetNodes()
+	}
+	return e.ess.GetNode(e.key)
+}
+
+func (e *EtcdStorageServiceExample) deleteNode() (interface{}, error) {
+	if e.all {
+		return nil, e.ess.DeleteNodes()
+	}
+	return nil, e.ess.DeleteNode(e.key)
+}
+
+func (e *EtcdStorageServiceExample) addNode() (interface{}, error) {
+	node := &meta.NodeInfo{
+		ID: uint64(time.Now().UnixNano()),
+		Host: "localhost",
+		TCPHost: "localhost",
+	}
+	err := e.ess.AddNode(node)
+	if err != nil {
+		return nil, err
+	}
+	return node, err
 }
 
 // Database
@@ -94,9 +136,12 @@ func (e *EtcdStorageServiceExample) watchDatabase() (interface{}, error) {
 		return nil, err
 	}
 
-	// Wait for one notification and return
-	res := <-ch
-	return res, nil
+	for {
+		res := <-ch
+		data, _ := json.Marshal(res)
+		fmt.Printf("%s\n", data)
+	}
+	return nil, nil
 }
 
 func (e *EtcdStorageServiceExample) getDatabase() (interface{}, error) {
@@ -140,9 +185,12 @@ func (e *EtcdStorageServiceExample) watchUser() (interface{}, error) {
 		return nil, err
 	}
 
-	// Wait for one notification and return
-	res := <-ch
-	return res, nil
+	for {
+		res := <-ch
+		data, _ := json.Marshal(res)
+		fmt.Printf("%s\n", data)
+	}
+	return nil, nil
 }
 
 func (e *EtcdStorageServiceExample) getUser() (interface{}, error) {
@@ -188,10 +236,6 @@ func (e *EtcdStorageServiceExample) handlePut() (interface{}, error) {
 	return putHandlers[e.objectType]()
 }
 
-func (e *EtcdStorageServiceExample) getNode() (interface{}, error) {
-	return nil, nil
-}
-
 func (e *EtcdStorageServiceExample) getMaster() (interface{}, error) {
 	return nil, nil
 }
@@ -212,12 +256,6 @@ func (e *EtcdStorageServiceExample) handleGet() (interface{}, error) {
 	}
 
 	return getHandlers[e.objectType]()
-}
-
-
-
-func (e *EtcdStorageServiceExample) watchNode() (interface{}, error) {
-	return nil, nil
 }
 
 func (e *EtcdStorageServiceExample) watchMaster() (interface{}, error) {
@@ -257,9 +295,8 @@ func (e *EtcdStorageServiceExample) Close() error {
 
 func main() {
 	cmd := kingpin.Parse()
-	config := &meta.Config{
-		Dir: *etcdEndpoints,
-	}
+	config := meta.NewConfig()
+	config.EtcdEndpoints = *etcdEndpoints
 
 	e, err := meta.NewEtcdStorageService(config)
 	if err != nil {

@@ -2,6 +2,7 @@ package meta
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -23,15 +24,18 @@ const (
 type EtcdStorageService struct {
 	client  *clientv3.Client
 	watcher clientv3.Watcher
-	lock    sync.RWMutex
-	nsKVs   map[string]clientv3.KV
+
+	lock  sync.RWMutex
+	nsKVs map[string]clientv3.KV
 
 	wlock      sync.RWMutex
 	nsWatchers map[string]clientv3.Watcher
+
+	config *Config
 }
 
 func NewEtcdStorageService(config *Config) (*EtcdStorageService, error) {
-	endpoints := strings.Split(config.Dir, ",")
+	endpoints := strings.Split(config.EtcdEndpoints, ",")
 	etcdConfig := clientv3.Config{
 		Endpoints:   endpoints,
 		DialTimeout: 5 * time.Second,
@@ -47,6 +51,7 @@ func NewEtcdStorageService(config *Config) (*EtcdStorageService, error) {
 		watcher:    clientv3.NewWatcher(client),
 		nsKVs:      make(map[string]clientv3.KV, 6),
 		nsWatchers: make(map[string]clientv3.Watcher, 6),
+		config:     config,
 	}, nil
 }
 
@@ -58,60 +63,8 @@ func (e *EtcdStorageService) Snapshot(data *Data) error {
 	return nil
 }
 
-// getKV returns namespace KV according to namespace passed in
-// if the corresponding namespace KV doesn't exist, create it
-func (e *EtcdStorageService) getKV(ns string) clientv3.KV {
-	e.lock.RLock()
-	if nsKV, ok := e.nsKVs[ns]; ok {
-		e.lock.RUnlock()
-		return nsKV
-	}
-
-	// Release read lock
-	e.lock.RUnlock()
-
-	// Hold write lock
-	e.lock.Lock()
-
-	// Re-evaluate
-	if _, ok := e.nsKVs[ns]; !ok {
-		e.nsKVs[ns] = namespace.NewKV(e.client.KV, ns)
-	}
-
-	nsKV := e.nsKVs[ns]
-	e.lock.Unlock()
-
-	return nsKV
-}
-
-// getWatcher returns namespace Watcher according to namespace passed in
-// if the corresponding namespace Watcher doesn't exist, create it
-func (e *EtcdStorageService) getWatcher(ns string) clientv3.Watcher {
-	e.wlock.RLock()
-	if nsWatcher, ok := e.nsWatchers[ns]; ok {
-		e.wlock.RUnlock()
-		return nsWatcher
-	}
-
-	// Release read lock
-	e.wlock.RUnlock()
-
-	// Hold write lock
-	e.wlock.Lock()
-
-	// Re-evaluate
-	if _, ok := e.nsWatchers[ns]; !ok {
-		e.nsWatchers[ns] = namespace.NewWatcher(e.watcher, ns)
-	}
-
-	nsWatcher := e.nsWatchers[ns]
-	e.lock.Unlock()
-
-	return nsWatcher
-}
-
 func (e *EtcdStorageService) AddUser(user *UserInfo) error {
-	return e.addKeyValue(userNS, user.Name, user)
+	return e.addKeyValue(userNS, user.Name, user, -1)
 }
 
 func (e *EtcdStorageService) DeleteUser(userName string) error {
@@ -179,7 +132,7 @@ func (e *EtcdStorageService) WatchUsers() (clientv3.WatchChan, error) {
 }
 
 func (e *EtcdStorageService) AddDatabase(db *DatabaseInfo) error {
-	return e.addKeyValue(dbNS, db.Name, db)
+	return e.addKeyValue(dbNS, db.Name, db, -1)
 }
 
 func (e *EtcdStorageService) DeleteDatabase(dbName string) error {
@@ -248,6 +201,76 @@ func (e *EtcdStorageService) WatchDatabases() (clientv3.WatchChan, error) {
 	return e.watchNS(dbNS)
 }
 
+func (e *EtcdStorageService) AddNode(node *NodeInfo) error {
+	return e.addKeyValue(nodeNS, fmt.Sprintf("%d", node.ID), node, e.config.LeaseDuration)
+}
+
+func (e *EtcdStorageService) DeleteNode(nodeID string) error {
+	return e.deleteKeyValue(nodeNS, nodeID)
+}
+
+func (e *EtcdStorageService) DeleteNodes() error {
+	return e.deleteKeyValues(nodeNS)
+}
+
+// GetNode get NodeInfo from etcd. If there is no error happened during the
+// query, return error directly. Otherwise if there is matching, returns non-nil
+// NodeInfo,  if there is no matching, return nil NodeInfo
+// End clients need check if returned NodeInfo is nil before use when err is nil
+func (e *EtcdStorageService) GetNode(nodeID string) (*NodeInfo, error) {
+	data, err := e.getKeyValue(nodeNS, nodeID)
+	if err != nil {
+		return nil, err
+	}
+
+	if data != nil {
+		var db NodeInfo
+		err := json.Unmarshal(data, &db)
+		if err != nil {
+			return nil, err
+		}
+		return &db, nil
+	}
+
+	// No match, return nil NodeInfo and nil error
+	return nil, nil
+}
+
+// GetNodes get all NodeInfo from etcd. If there is no error happened during the
+// query, return error directly. Otherwise if there is matching, returns non-nil
+// NodeInfo,  if there is no matching, return nil NodeInfo
+// End clients need check if returned NodeInfo is nil before use when err is nil
+func (e *EtcdStorageService) GetNodes() ([]*NodeInfo, error) {
+	results, err := e.getKeyValues(nodeNS)
+	if err != nil {
+		return nil, err
+	}
+
+	var nodes []*NodeInfo
+	for _, data := range results {
+		var db NodeInfo
+		err := json.Unmarshal(data, &db)
+		if err != nil {
+			return nil, err
+		}
+		nodes = append(nodes, &db)
+	}
+
+	return nodes, nil
+}
+
+func (e *EtcdStorageService) UpdateNode(db *NodeInfo) error {
+	return e.AddNode(db)
+}
+
+func (e *EtcdStorageService) WatchNode(nodeID string) (clientv3.WatchChan, error) {
+	return e.watchKey(nodeNS, nodeID)
+}
+
+func (e *EtcdStorageService) WatchNodes() (clientv3.WatchChan, error) {
+	return e.watchNS(nodeNS)
+}
+
 func (e *EtcdStorageService) Close() error {
 	err := e.watcher.Close()
 	if err != nil {
@@ -267,14 +290,30 @@ func (e *EtcdStorageService) Close() error {
 	return e.client.Close()
 }
 
-func (e *EtcdStorageService) addKeyValue(ns, k string, v interface{}) error {
+func (e *EtcdStorageService) addKeyValue(ns, k string, v interface{}, ttl int64) error {
 	nsKV := e.getKV(ns)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	data, err := json.Marshal(v)
 	if err != nil {
 		return err
 	}
-	_, err = nsKV.Put(ctx, k, string(data))
+
+	var opts []clientv3.OpOption
+	fmt.Printf("%d\n", ttl)
+	if ttl > 0 {
+		resp, err := e.client.Grant(context.TODO(), ttl)
+		if err != nil {
+			return err
+		}
+
+		opts = append(opts, clientv3.WithLease(resp.ID))
+		// FIXME, ignore the result chan, problem ?
+		if _, err := e.client.KeepAlive(context.TODO(), resp.ID); err != nil {
+			return err
+		}
+	}
+
+	_, err = nsKV.Put(ctx, k, string(data), opts...)
 	cancel()
 
 	return err
@@ -340,4 +379,56 @@ func (e *EtcdStorageService) watchKey(ns, key string) (clientv3.WatchChan, error
 func (e *EtcdStorageService) watchNS(ns string) (clientv3.WatchChan, error) {
 	ctx := context.Background()
 	return e.watcher.Watch(ctx, ns, clientv3.WithPrefix()), nil
+}
+
+// getKV returns namespace KV according to namespace passed in
+// if the corresponding namespace KV doesn't exist, create it
+func (e *EtcdStorageService) getKV(ns string) clientv3.KV {
+	e.lock.RLock()
+	if nsKV, ok := e.nsKVs[ns]; ok {
+		e.lock.RUnlock()
+		return nsKV
+	}
+
+	// Release read lock
+	e.lock.RUnlock()
+
+	// Hold write lock
+	e.lock.Lock()
+
+	// Re-evaluate
+	if _, ok := e.nsKVs[ns]; !ok {
+		e.nsKVs[ns] = namespace.NewKV(e.client.KV, ns)
+	}
+
+	nsKV := e.nsKVs[ns]
+	e.lock.Unlock()
+
+	return nsKV
+}
+
+// getWatcher returns namespace Watcher according to namespace passed in
+// if the corresponding namespace Watcher doesn't exist, create it
+func (e *EtcdStorageService) getWatcher(ns string) clientv3.Watcher {
+	e.wlock.RLock()
+	if nsWatcher, ok := e.nsWatchers[ns]; ok {
+		e.wlock.RUnlock()
+		return nsWatcher
+	}
+
+	// Release read lock
+	e.wlock.RUnlock()
+
+	// Hold write lock
+	e.wlock.Lock()
+
+	// Re-evaluate
+	if _, ok := e.nsWatchers[ns]; !ok {
+		e.nsWatchers[ns] = namespace.NewWatcher(e.watcher, ns)
+	}
+
+	nsWatcher := e.nsWatchers[ns]
+	e.lock.Unlock()
+
+	return nsWatcher
 }
