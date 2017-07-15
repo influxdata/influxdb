@@ -17,7 +17,7 @@ type fileStorageService struct {
 
 func NewStorageService(config *Config) (StorageService, error) {
 	if config.StorageType == Etcd {
-		return newEtcdStorageService(config)
+		return NewEtcdStorageService(config)
 	} else {
 		return newFileStorageService(config)
 	}

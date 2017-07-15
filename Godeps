@@ -29,3 +29,6 @@ google.golang.org/grpc/metadata v1.4.x
 github.com/golang/protobuf master
 golang.org/x/text master
 google.golang.org/genproto master
+gopkg.in/alecthomas/kingpin.v2 v2.2.4
+github.com/alecthomas/template master
+github.com/alecthomas/units master
