@@ -7,6 +7,7 @@ import * as kapactiorActionCreators from 'src/kapacitor/actions/view'
 import * as errorActionCreators from 'shared/actions/errors'
 import {getActiveKapacitor} from 'src/shared/apis'
 
+// TODO: collect dbsrps, stream, and name for tasks (needs design)
 class TickscriptPage extends Component {
   constructor(props) {
     super(props)
@@ -54,9 +55,20 @@ class TickscriptPage extends Component {
 
   async handleSave() {
     const {kapacitor, task} = this.state
-    const {source, router, kapacitorActions: {createTask}} = this.props
+    const {
+      source,
+      router,
+      kapacitorActions: {createTask, updateTask},
+      params: {ruleID},
+    } = this.props
 
-    const response = await createTask(kapacitor, task)
+    let response
+    if (this.isEditing()) {
+      response = await updateTask(kapacitor, task, ruleID)
+    } else {
+      response = await createTask(kapacitor, task)
+    }
+
     if (response && response.error) {
       return this.setState({validation: response.error})
     }
@@ -99,6 +111,7 @@ TickscriptPage.propTypes = {
     errorThrown: func.isRequired,
   }).isRequired,
   kapacitorActions: shape({
+    updateTask: func.isRequired,
     createTask: func.isRequired,
     getRule: func.isRequired,
   }),

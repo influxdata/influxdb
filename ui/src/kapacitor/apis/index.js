@@ -61,12 +61,33 @@ export const updateRuleStatus = (rule, status) => {
   })
 }
 
-// tickscript contains script, dbsrps, id, and type
 export const createTask = async (kapacitor, {id, dbrps, script, type}) => {
   try {
     return await AJAX({
       method: 'POST',
       url: kapacitor.links.tasks,
+      data: {
+        id,
+        type,
+        dbrps,
+        script,
+      },
+    })
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}
+
+export const updateTask = async (
+  kapacitor,
+  {id, dbrps, script, type},
+  ruleID
+) => {
+  try {
+    return await AJAX({
+      method: 'PATCH',
+      url: `${kapacitor.links.tasks}/${ruleID}`,
       data: {
         id,
         type,
