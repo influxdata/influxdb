@@ -763,6 +763,22 @@ type NodeInfo struct {
 	TCPHost string
 }
 
+func (ni NodeInfo) marshal() *internal.NodeInfo {
+	pb := &internal.NodeInfo{
+		ID:      proto.Uint64(ni.ID),
+		Host:    proto.String(ni.Host),
+		TCPHost: proto.String(ni.TCPHost),
+	}
+
+	return pb
+}
+
+func (ni *NodeInfo) unmarshal(pb *internal.NodeInfo) {
+	ni.ID = pb.GetID()
+	ni.Host = pb.GetHost()
+	ni.TCPHost = pb.GetTCPHost()
+}
+
 // NodeInfos is a slice of NodeInfo used for sorting
 type NodeInfos []NodeInfo
 
