@@ -41,6 +41,18 @@ var (
 type StorageService interface {
 	Load() (*Data, error)
 	Snapshot(data *Data) error
+
+	// Database
+	AddDatabase(db *DatabaseInfo) error
+	UpdateDatabase(db *DatabaseInfo) error
+	GetDatabase(dbName string) (*DatabaseInfo, error)
+	DeleteDatabase(dbName string) error
+
+	// User
+	AddUser(user *UserInfo) error
+	UpdateUser(user *UserInfo) error
+	GetUser(userName string) (*UserInfo, error)
+	DeleteUser(userName string) error
 }
 
 // Client is used to execute commands on and read data from
@@ -70,7 +82,7 @@ type authUser struct {
 
 // NewClient returns a new *Client.
 func NewClient(config *Config) (*Client, error) {
-	storage, err := NewStorageService(config)
+	storage, err := NewEtcdStorageService(config)
 	if err != nil {
 		return nil, err
 	}
@@ -173,27 +185,25 @@ func (c *Client) CreateDatabase(name string) (*DatabaseInfo, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	data := c.cacheData.Clone()
-
-	if db := data.Database(name); db != nil {
+	if db := c.cacheData.Database(name); db != nil {
 		return db, nil
 	}
 
-	if err := data.CreateDatabase(name); err != nil {
+	if err := c.cacheData.CreateDatabase(name); err != nil {
 		return nil, err
 	}
 
 	// create default retention policy
 	if c.retentionAutoCreate {
 		rpi := DefaultRetentionPolicyInfo()
-		if err := data.CreateRetentionPolicy(name, rpi, true); err != nil {
+		if err := c.cacheData.CreateRetentionPolicy(name, rpi, true); err != nil {
 			return nil, err
 		}
 	}
 
-	db := data.Database(name)
-
-	if err := c.commit(data); err != nil {
+	db := c.cacheData.Database(name)
+	if err := c.storage.AddDatabase(db); err != nil {
+		c.cacheData.DropDatabase(name)
 		return nil, err
 	}
 
@@ -411,12 +421,10 @@ func (c *Client) CreateUser(name, password string, admin bool) (User, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	data := c.cacheData.Clone()
-
 	// See if the user already exists.
-	if u := data.user(name); u != nil {
+	if u := c.cacheData.user(name); u != nil {
 		if err := bcrypt.CompareHashAndPassword([]byte(u.Hash), []byte(password)); err != nil || u.Admin != admin {
-			return nil, ErrUserExists
+			return nil, ErrUserNotFound
 		}
 		return u, nil
 	}
@@ -427,13 +435,15 @@ func (c *Client) CreateUser(name, password string, admin bool) (User, error) {
 		return nil, err
 	}
 
-	if err := data.CreateUser(name, string(hash), admin); err != nil {
+	// Commit in-memory cache first
+	if err := c.cacheData.CreateUser(name, string(hash), admin); err != nil {
 		return nil, err
 	}
 
-	u := data.user(name)
-
-	if err := c.commit(data); err != nil {
+	u := c.cacheData.user(name)
+	if err := c.storage.AddUser(u); err != nil {
+		// Since we first commit in memory cache, we will need remove it
+		c.cacheData.DropUser(name)
 		return nil, err
 	}
 
@@ -445,23 +455,30 @@ func (c *Client) UpdateUser(name, password string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	data := c.cacheData.Clone()
-
 	// Hash the password before serializing it.
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
 	if err != nil {
 		return err
 	}
 
-	if err := data.UpdateUser(name, string(hash)); err != nil {
+	u := c.cacheData.user(name)
+	if u != nil {
+		return ErrUserNotFound
+	}
+
+	// Work on a copy first
+	updated := *u
+	updated.Hash = string(hash)
+
+	if err := c.storage.UpdateUser(&updated); err != nil {
+		return err
+	}
+
+	if err := c.cacheData.UpdateUser(name, string(hash)); err != nil {
 		return err
 	}
 
 	delete(c.authCache, name)
-
-	if err := c.commit(data); err != nil {
-		return err
-	}
 
 	return nil
 }
@@ -471,13 +488,11 @@ func (c *Client) DropUser(name string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	data := c.cacheData.Clone()
-
-	if err := data.DropUser(name); err != nil {
+	if err := c.storage.DeleteUser(name); err != nil {
 		return err
 	}
 
-	if err := c.commit(data); err != nil {
+	if err := c.cacheData.DropUser(name); err != nil {
 		return err
 	}
 

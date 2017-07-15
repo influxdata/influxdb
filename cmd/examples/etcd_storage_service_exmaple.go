@@ -43,10 +43,6 @@ type EtcdStorageServiceExample struct {
 	all        bool
 }
 
-func (e *EtcdStorageServiceExample) deleteDB() (interface{}, error) {
-	return nil, nil
-}
-
 func (e *EtcdStorageServiceExample) deleteNode() (interface{}, error) {
 	return nil, nil
 }
@@ -59,27 +55,16 @@ func (e *EtcdStorageServiceExample) deleteMasterEpoch() (interface{}, error) {
 	return nil, nil
 }
 
-func (e *EtcdStorageServiceExample) deleteUser() (interface{}, error) {
-	if e.all {
-		return nil, e.ess.RemoveUsers()
-	}
-	return nil, e.ess.RemoveUser(e.key)
-}
-
 func (e *EtcdStorageServiceExample) handleDelete() (interface{}, error) {
 	deleteHandlers := map[string]func() (interface{}, error){
 		"user":          e.deleteUser,
-		"db":            e.deleteDB,
+		"db":            e.deleteDatabase,
 		"node":          e.deleteNode,
 		"master":        e.deleteMaster,
 		"master_epoche": e.deleteMasterEpoch,
 	}
 
 	return deleteHandlers[e.objectType]()
-}
-
-func (e *EtcdStorageServiceExample) addDB() (interface{}, error) {
-	return nil, nil
 }
 
 func (e *EtcdStorageServiceExample) addNode() (interface{}, error) {
@@ -92,6 +77,86 @@ func (e *EtcdStorageServiceExample) addMaster() (interface{}, error) {
 
 func (e *EtcdStorageServiceExample) addMasterEpoch() (interface{}, error) {
 	return nil, nil
+}
+
+// Database
+func (e *EtcdStorageServiceExample) watchDatabase() (interface{}, error) {
+	var err error
+	var ch clientv3.WatchChan
+
+	if e.all {
+		ch, err = e.ess.WatchDatabases()
+	} else {
+		ch, err = e.ess.WatchDatabase(e.key)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Wait for one notification and return
+	res := <-ch
+	return res, nil
+}
+
+func (e *EtcdStorageServiceExample) getDatabase() (interface{}, error) {
+	if e.all {
+		return e.ess.GetDatabases()
+	}
+	return e.ess.GetDatabase(e.key)
+}
+
+func (e *EtcdStorageServiceExample) deleteDatabase() (interface{}, error) {
+	if e.all {
+		return nil, e.ess.DeleteDatabases()
+	}
+	return nil, e.ess.DeleteDatabase(e.key)
+}
+
+func (e *EtcdStorageServiceExample) addDatabase() (interface{}, error) {
+	db := &meta.DatabaseInfo{
+		Name: fmt.Sprintf("db_%d", time.Now().UnixNano()),
+		DefaultRetentionPolicy: "rpt_7",
+	}
+	err := e.ess.AddDatabase(db)
+	if err != nil {
+		return nil, err
+	}
+	return db, err
+}
+
+// User
+func (e *EtcdStorageServiceExample) watchUser() (interface{}, error) {
+	var err error
+	var ch clientv3.WatchChan
+
+	if e.all {
+		ch, err = e.ess.WatchUsers()
+	} else {
+		ch, err = e.ess.WatchUser(e.key)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Wait for one notification and return
+	res := <-ch
+	return res, nil
+}
+
+func (e *EtcdStorageServiceExample) getUser() (interface{}, error) {
+	if e.all {
+		return e.ess.GetUsers()
+	}
+	return e.ess.GetUser(e.key)
+}
+
+func (e *EtcdStorageServiceExample) deleteUser() (interface{}, error) {
+	if e.all {
+		return nil, e.ess.DeleteUsers()
+	}
+	return nil, e.ess.DeleteUser(e.key)
 }
 
 func (e *EtcdStorageServiceExample) addUser() (interface{}, error) {
@@ -114,17 +179,13 @@ func (e *EtcdStorageServiceExample) addUser() (interface{}, error) {
 func (e *EtcdStorageServiceExample) handlePut() (interface{}, error) {
 	putHandlers := map[string]func() (interface{}, error){
 		"user":          e.addUser,
-		"db":            e.addDB,
+		"db":            e.addDatabase,
 		"node":          e.addNode,
 		"master":        e.addMaster,
 		"master_epoche": e.addMasterEpoch,
 	}
 
 	return putHandlers[e.objectType]()
-}
-
-func (e *EtcdStorageServiceExample) getDB() (interface{}, error) {
-	return nil, nil
 }
 
 func (e *EtcdStorageServiceExample) getNode() (interface{}, error) {
@@ -139,17 +200,12 @@ func (e *EtcdStorageServiceExample) getMasterEpoch() (interface{}, error) {
 	return nil, nil
 }
 
-func (e *EtcdStorageServiceExample) getUser() (interface{}, error) {
-	if e.all {
-		return e.ess.GetUsers()
-	}
-	return e.ess.GetUser(e.key)
-}
+
 
 func (e *EtcdStorageServiceExample) handleGet() (interface{}, error) {
 	getHandlers := map[string]func() (interface{}, error){
 		"user":          e.getUser,
-		"db":            e.getDB,
+		"db":            e.getDatabase,
 		"node":          e.getNode,
 		"master":        e.getMaster,
 		"master_epoche": e.getMasterEpoch,
@@ -158,9 +214,7 @@ func (e *EtcdStorageServiceExample) handleGet() (interface{}, error) {
 	return getHandlers[e.objectType]()
 }
 
-func (e *EtcdStorageServiceExample) watchDB() (interface{}, error) {
-	return nil, nil
-}
+
 
 func (e *EtcdStorageServiceExample) watchNode() (interface{}, error) {
 	return nil, nil
@@ -174,29 +228,10 @@ func (e *EtcdStorageServiceExample) watchMasterEpoch() (interface{}, error) {
 	return nil, nil
 }
 
-func (e *EtcdStorageServiceExample) watchUser() (interface{}, error) {
-	var err error
-	var ch clientv3.WatchChan
-
-	if e.all {
-		ch, err = e.ess.WatchUsers()
-	} else {
-		ch, err = e.ess.WatchUser(e.key)
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	// Wait for one notification and return
-	res := <-ch
-	return res, nil
-}
-
 func (e *EtcdStorageServiceExample) handleWatch() (interface{}, error) {
 	watchHandlers := map[string]func() (interface{}, error){
 		"user":          e.watchUser,
-		"db":            e.watchDB,
+		"db":            e.watchDatabase,
 		"node":          e.watchNode,
 		"master":        e.watchMaster,
 		"master_epoche": e.watchMasterEpoch,
@@ -298,7 +333,7 @@ func TestUser(e *meta.EtcdStorageService) {
 
 	assertEqual(u, &user)
 
-	err = e.RemoveUser(user.Name)
+	err = e.DeleteUser(user.Name)
 	if err != nil {
 		panic(err)
 	}
