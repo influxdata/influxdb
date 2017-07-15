@@ -1,35 +1,28 @@
 package meta
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/coreos/etcd/clientv3"
-	"github.com/coreos/etcd/clientv3/namespace"
+	"github.com/gogo/protobuf/proto"
+	internal "github.com/influxdata/influxdb/services/meta/internal"
 	"golang.org/x/net/context"
 )
 
 const (
-	rootNS        = "/influxdb/"
-	userNS        = rootNS + "users/"
-	dbNS          = rootNS + "dbs/"
-	nodeNS        = rootNS + "nodes/"
-	masterNS      = rootNS + "master/"
-	masterEpochNS = rootNS + "master_epoch/"
+	rootNS      = "/influxdb"
+	userNS      = rootNS + "/users"
+	dbNS        = rootNS + "/dbs"
+	nodeNS      = rootNS + "/nodes"
+	master      = rootNS + "/master"
+	masterEpoch = rootNS + "/master_epoch"
 )
 
 type EtcdStorageService struct {
 	client  *clientv3.Client
 	watcher clientv3.Watcher
-
-	lock  sync.RWMutex
-	nsKVs map[string]clientv3.KV
-
-	wlock      sync.RWMutex
-	nsWatchers map[string]clientv3.Watcher
 
 	config *Config
 }
@@ -47,11 +40,9 @@ func NewEtcdStorageService(config *Config) (*EtcdStorageService, error) {
 	}
 
 	return &EtcdStorageService{
-		client:     client,
-		watcher:    clientv3.NewWatcher(client),
-		nsKVs:      make(map[string]clientv3.KV, 6),
-		nsWatchers: make(map[string]clientv3.Watcher, 6),
-		config:     config,
+		client:  client,
+		watcher: clientv3.NewWatcher(client),
+		config:  config,
 	}, nil
 }
 
@@ -64,7 +55,7 @@ func (e *EtcdStorageService) Snapshot(data *Data) error {
 }
 
 func (e *EtcdStorageService) AddUser(user *UserInfo) error {
-	return e.addKeyValue(userNS, user.Name, user, -1)
+	return e.addKeyValue(userNS, user.Name, user.marshal(), -1)
 }
 
 func (e *EtcdStorageService) DeleteUser(userName string) error {
@@ -86,12 +77,14 @@ func (e *EtcdStorageService) GetUser(userName string) (*UserInfo, error) {
 	}
 
 	if data != nil {
-		var u UserInfo
-		err := json.Unmarshal(data, &u)
+		var iuser internal.UserInfo
+		err := proto.Unmarshal(data, &iuser)
 		if err != nil {
 			return nil, err
 		}
-		return &u, nil
+		var user UserInfo
+		user.unmarshal(&iuser)
+		return &user, nil
 	}
 	return nil, nil
 }
@@ -108,11 +101,14 @@ func (e *EtcdStorageService) GetUsers() ([]*UserInfo, error) {
 
 	var users []*UserInfo
 	for _, data := range results {
-		var user UserInfo
-		err := json.Unmarshal(data, &user)
+		var iuser internal.UserInfo
+		err := proto.Unmarshal(data, &iuser)
 		if err != nil {
 			return nil, err
 		}
+
+		var user UserInfo
+		user.unmarshal(&iuser)
 		users = append(users, &user)
 	}
 
@@ -132,7 +128,7 @@ func (e *EtcdStorageService) WatchUsers() (clientv3.WatchChan, error) {
 }
 
 func (e *EtcdStorageService) AddDatabase(db *DatabaseInfo) error {
-	return e.addKeyValue(dbNS, db.Name, db, -1)
+	return e.addKeyValue(dbNS, db.Name, db.marshal(), -1)
 }
 
 func (e *EtcdStorageService) DeleteDatabase(dbName string) error {
@@ -154,11 +150,14 @@ func (e *EtcdStorageService) GetDatabase(dbName string) (*DatabaseInfo, error) {
 	}
 
 	if data != nil {
-		var db DatabaseInfo
-		err := json.Unmarshal(data, &db)
+		var idb internal.DatabaseInfo
+		err := proto.Unmarshal(data, &idb)
 		if err != nil {
 			return nil, err
 		}
+
+		var db DatabaseInfo
+		db.unmarshal(&idb)
 		return &db, nil
 	}
 
@@ -178,11 +177,14 @@ func (e *EtcdStorageService) GetDatabases() ([]*DatabaseInfo, error) {
 
 	var dbs []*DatabaseInfo
 	for _, data := range results {
-		var db DatabaseInfo
-		err := json.Unmarshal(data, &db)
+		var idb internal.DatabaseInfo
+		err := proto.Unmarshal(data, &idb)
 		if err != nil {
 			return nil, err
 		}
+
+		var db DatabaseInfo
+		db.unmarshal(&idb)
 		dbs = append(dbs, &db)
 	}
 
@@ -201,8 +203,82 @@ func (e *EtcdStorageService) WatchDatabases() (clientv3.WatchChan, error) {
 	return e.watchNS(dbNS)
 }
 
+func (e *EtcdStorageService) AddRetentionPolicy(dbName string, rp *RetentionPolicyInfo) error {
+	return e.addKeyValue(getKey(dbNS, dbName), rp.Name, rp.marshal(), -1)
+}
+
+func (e *EtcdStorageService) DeleteRetentionPolicy(dbName, rpName string) error {
+	return e.deleteKeyValue(getKey(dbNS, dbName), rpName)
+}
+
+func (e *EtcdStorageService) DeleteRetentionPolicies(dbName string) error {
+	return e.deleteKeyValues(getKey(dbNS, dbName))
+}
+
+// GetRetentionPolicy get RetentionPolicyInfo from etcd. If there is no error happened during the
+// query, return error directly. Otherwise if there is matching, returns non-nil
+// RetentionPolicyInfo,  if there is no matching, return nil RetentionPolicyInfo
+// End clients need check if returned RetentionPolicyInfo is nil before use when err is nil
+func (e *EtcdStorageService) GetRetentionPolicy(dbName, rpName string) (*RetentionPolicyInfo, error) {
+	data, err := e.getKeyValue(getKey(dbNS, dbName), rpName)
+	if err != nil {
+		return nil, err
+	}
+
+	if data != nil {
+		var irp internal.RetentionPolicyInfo
+		err := proto.Unmarshal(data, &irp)
+		if err != nil {
+			return nil, err
+		}
+		var rp RetentionPolicyInfo
+		rp.unmarshal(&irp)
+		return &rp, nil
+	}
+
+	// No match, return nil RetentionPolicyInfo and nil error
+	return nil, nil
+}
+
+// GetRetentionPolicies get all RetentionPolicyInfo from etcd. If there is no error happened during the
+// query, return error directly. Otherwise if there is matching, returns non-nil
+// RetentionPolicyInfo,  if there is no matching, return nil RetentionPolicyInfo
+// End clients need check if returned RetentionPolicyInfo is nil before use when err is nil
+func (e *EtcdStorageService) GetRetentionPolicies(dbName string) ([]*RetentionPolicyInfo, error) {
+	results, err := e.getKeyValues(getKey(dbNS, dbName))
+	if err != nil {
+		return nil, err
+	}
+
+	var rps []*RetentionPolicyInfo
+	for _, data := range results {
+		var irp internal.RetentionPolicyInfo
+		err := proto.Unmarshal(data, &irp)
+		if err != nil {
+			return nil, err
+		}
+		var rp RetentionPolicyInfo
+		rp.unmarshal(&irp)
+		rps = append(rps, &rp)
+	}
+
+	return rps, nil
+}
+
+func (e *EtcdStorageService) UpdateRetentionPolicy(dbName string, rp *RetentionPolicyInfo) error {
+	return e.AddRetentionPolicy(dbName, rp)
+}
+
+func (e *EtcdStorageService) WatchRetentionPolicy(dbName, rpName string) (clientv3.WatchChan, error) {
+	return e.watchKey(getKey(dbNS, dbName), dbName)
+}
+
+func (e *EtcdStorageService) WatchRetentionPolicies(dbName string) (clientv3.WatchChan, error) {
+	return e.watchNS(getKey(dbNS, dbName))
+}
+
 func (e *EtcdStorageService) AddNode(node *NodeInfo) error {
-	return e.addKeyValue(nodeNS, fmt.Sprintf("%d", node.ID), node, e.config.LeaseDuration)
+	return e.addKeyValue(nodeNS, fmt.Sprintf("%d", node.ID), node.marshal(), e.config.LeaseDuration)
 }
 
 func (e *EtcdStorageService) DeleteNode(nodeID string) error {
@@ -224,12 +300,14 @@ func (e *EtcdStorageService) GetNode(nodeID string) (*NodeInfo, error) {
 	}
 
 	if data != nil {
-		var db NodeInfo
-		err := json.Unmarshal(data, &db)
+		var inode internal.NodeInfo
+		err := proto.Unmarshal(data, &inode)
 		if err != nil {
 			return nil, err
 		}
-		return &db, nil
+		var node NodeInfo
+		node.unmarshal(&inode)
+		return &node, nil
 	}
 
 	// No match, return nil NodeInfo and nil error
@@ -248,12 +326,14 @@ func (e *EtcdStorageService) GetNodes() ([]*NodeInfo, error) {
 
 	var nodes []*NodeInfo
 	for _, data := range results {
-		var db NodeInfo
-		err := json.Unmarshal(data, &db)
+		var inode internal.NodeInfo
+		err := proto.Unmarshal(data, &inode)
 		if err != nil {
 			return nil, err
 		}
-		nodes = append(nodes, &db)
+		var node NodeInfo
+		node.unmarshal(&inode)
+		nodes = append(nodes, &node)
 	}
 
 	return nodes, nil
@@ -277,29 +357,17 @@ func (e *EtcdStorageService) Close() error {
 		return err
 	}
 
-	e.wlock.Lock()
-	defer e.wlock.Unlock()
-
-	for _, w := range e.nsWatchers {
-		err := w.Close()
-		if err != nil {
-			return err
-		}
-	}
-
 	return e.client.Close()
 }
 
-func (e *EtcdStorageService) addKeyValue(ns, k string, v interface{}, ttl int64) error {
-	nsKV := e.getKV(ns)
+func (e *EtcdStorageService) addKeyValue(ns, k string, v proto.Message, ttl int64) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	data, err := json.Marshal(v)
+	data, err := proto.Marshal(v)
 	if err != nil {
 		return err
 	}
 
 	var opts []clientv3.OpOption
-	fmt.Printf("%d\n", ttl)
 	if ttl > 0 {
 		resp, err := e.client.Grant(context.TODO(), ttl)
 		if err != nil {
@@ -313,16 +381,15 @@ func (e *EtcdStorageService) addKeyValue(ns, k string, v interface{}, ttl int64)
 		}
 	}
 
-	_, err = nsKV.Put(ctx, k, string(data), opts...)
+	_, err = e.client.Put(ctx, getKey(ns, k), string(data), opts...)
 	cancel()
 
 	return err
 }
 
 func (e *EtcdStorageService) deleteKeyValue(ns, k string) error {
-	nsKV := e.getKV(ns)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	_, err := nsKV.Delete(ctx, k)
+	_, err := e.client.Delete(ctx, getKey(ns, k))
 	cancel()
 
 	return err
@@ -337,9 +404,8 @@ func (e *EtcdStorageService) deleteKeyValues(ns string) error {
 }
 
 func (e *EtcdStorageService) getKeyValue(ns, k string) ([]byte, error) {
-	nsKV := e.getKV(ns)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	resp, err := nsKV.Get(ctx, k)
+	resp, err := e.client.Get(ctx, getKey(ns, k))
 	cancel()
 
 	if err != nil {
@@ -372,8 +438,7 @@ func (e *EtcdStorageService) getKeyValues(ns string) ([][]byte, error) {
 
 func (e *EtcdStorageService) watchKey(ns, key string) (clientv3.WatchChan, error) {
 	ctx := context.Background()
-	watcher := e.getWatcher(ns)
-	return watcher.Watch(ctx, key), nil
+	return e.watcher.Watch(ctx, getKey(ns, key)), nil
 }
 
 func (e *EtcdStorageService) watchNS(ns string) (clientv3.WatchChan, error) {
@@ -381,54 +446,6 @@ func (e *EtcdStorageService) watchNS(ns string) (clientv3.WatchChan, error) {
 	return e.watcher.Watch(ctx, ns, clientv3.WithPrefix()), nil
 }
 
-// getKV returns namespace KV according to namespace passed in
-// if the corresponding namespace KV doesn't exist, create it
-func (e *EtcdStorageService) getKV(ns string) clientv3.KV {
-	e.lock.RLock()
-	if nsKV, ok := e.nsKVs[ns]; ok {
-		e.lock.RUnlock()
-		return nsKV
-	}
-
-	// Release read lock
-	e.lock.RUnlock()
-
-	// Hold write lock
-	e.lock.Lock()
-
-	// Re-evaluate
-	if _, ok := e.nsKVs[ns]; !ok {
-		e.nsKVs[ns] = namespace.NewKV(e.client.KV, ns)
-	}
-
-	nsKV := e.nsKVs[ns]
-	e.lock.Unlock()
-
-	return nsKV
-}
-
-// getWatcher returns namespace Watcher according to namespace passed in
-// if the corresponding namespace Watcher doesn't exist, create it
-func (e *EtcdStorageService) getWatcher(ns string) clientv3.Watcher {
-	e.wlock.RLock()
-	if nsWatcher, ok := e.nsWatchers[ns]; ok {
-		e.wlock.RUnlock()
-		return nsWatcher
-	}
-
-	// Release read lock
-	e.wlock.RUnlock()
-
-	// Hold write lock
-	e.wlock.Lock()
-
-	// Re-evaluate
-	if _, ok := e.nsWatchers[ns]; !ok {
-		e.nsWatchers[ns] = namespace.NewWatcher(e.watcher, ns)
-	}
-
-	nsWatcher := e.nsWatchers[ns]
-	e.lock.Unlock()
-
-	return nsWatcher
+func getKey(segments ...string) string {
+	return strings.Join(segments, "/")
 }

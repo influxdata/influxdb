@@ -42,11 +42,23 @@ type StorageService interface {
 	Load() (*Data, error)
 	Snapshot(data *Data) error
 
+	// Node
+	AddNode(node *NodeInfo) error
+	UpdateNode(node *NodeInfo) error
+	GetNode(nodeID string) (*NodeInfo, error)
+	DeleteNode(nodeID string) error
+
 	// Database
 	AddDatabase(db *DatabaseInfo) error
 	UpdateDatabase(db *DatabaseInfo) error
 	GetDatabase(dbName string) (*DatabaseInfo, error)
 	DeleteDatabase(dbName string) error
+
+	// Retention policy
+	AddRetentionPolicy(dbName string, rp *RetentionPolicyInfo) error
+	UpdateRetentionPolicy(dbName string, rp *RetentionPolicyInfo) error
+	GetRetentionPolicy(dbName, rpName string) (*RetentionPolicyInfo, error)
+	DeleteRetentionPolicy(dbName, rpName string) error
 
 	// User
 	AddUser(user *UserInfo) error
@@ -194,8 +206,8 @@ func (c *Client) CreateDatabase(name string) (*DatabaseInfo, error) {
 	}
 
 	// create default retention policy
+	rpi := DefaultRetentionPolicyInfo()
 	if c.retentionAutoCreate {
-		rpi := DefaultRetentionPolicyInfo()
 		if err := c.cacheData.CreateRetentionPolicy(name, rpi, true); err != nil {
 			return nil, err
 		}
@@ -203,7 +215,12 @@ func (c *Client) CreateDatabase(name string) (*DatabaseInfo, error) {
 
 	db := c.cacheData.Database(name)
 	if err := c.storage.AddDatabase(db); err != nil {
-		c.cacheData.DropDatabase(name)
+		// FIXME rollback
+		return nil, err
+	}
+
+	if err := c.storage.AddRetentionPolicy(name, rpi); err != nil {
+		// FIXME rollback
 		return nil, err
 	}
 
@@ -223,6 +240,7 @@ func (c *Client) CreateDatabase(name string) (*DatabaseInfo, error) {
 // database.
 //
 func (c *Client) CreateDatabaseWithRetentionPolicy(name string, spec *RetentionPolicySpec) (*DatabaseInfo, error) {
+	// FIXME, call create databse and then create retention policy
 	if spec == nil {
 		return nil, errors.New("CreateDatabaseWithRetentionPolicy called with nil spec")
 	}
@@ -230,26 +248,32 @@ func (c *Client) CreateDatabaseWithRetentionPolicy(name string, spec *RetentionP
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	data := c.cacheData.Clone()
-
 	if spec.Duration != nil && *spec.Duration < MinRetentionPolicyDuration && *spec.Duration != 0 {
 		return nil, ErrRetentionPolicyDurationTooLow
 	}
 
-	db := data.Database(name)
+	db := c.cacheData.Database(name)
 	if db == nil {
-		if err := data.CreateDatabase(name); err != nil {
+		if err := c.cacheData.CreateDatabase(name); err != nil {
 			return nil, err
 		}
-		db = data.Database(name)
+
+		db = c.cacheData.Database(name)
+		if err := c.storage.AddDatabase(db); err != nil {
+			// roll back
+			return nil, err
+		}
 	}
 
 	// No existing retention policies, so we can create the provided policy as
 	// the new default policy.
 	rpi := spec.NewRetentionPolicyInfo()
 	if len(db.RetentionPolicies) == 0 {
-		if err := data.CreateRetentionPolicy(name, rpi, true); err != nil {
+		if err := c.cacheData.CreateRetentionPolicy(name, rpi, true); err != nil {
 			return nil, err
+		}
+		if err := c.storage.AddRetentionPolicy(name, rpi); err != nil {
+			return nil, err;
 		}
 	} else if !spec.Matches(db.RetentionPolicy(rpi.Name)) {
 		// In this case we already have a retention policy on the database and
@@ -266,13 +290,8 @@ func (c *Client) CreateDatabaseWithRetentionPolicy(name string, spec *RetentionP
 		return nil, ErrRetentionPolicyConflict
 	}
 
-	// Commit the changes.
-	if err := c.commit(data); err != nil {
-		return nil, err
-	}
-
 	// Refresh the database info.
-	db = data.Database(name)
+	db = c.cacheData.Database(name)
 
 	return db, nil
 }
@@ -300,19 +319,25 @@ func (c *Client) CreateRetentionPolicy(database string, spec *RetentionPolicySpe
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	data := c.cacheData.Clone()
-
 	if spec.Duration != nil && *spec.Duration < MinRetentionPolicyDuration && *spec.Duration != 0 {
 		return nil, ErrRetentionPolicyDurationTooLow
 	}
 
+	// FIXME revisit cache Data design
 	rp := spec.NewRetentionPolicyInfo()
-	if err := data.CreateRetentionPolicy(database, rp, makeDefault); err != nil {
+	if err := c.cacheData.CreateRetentionPolicy(database, rp, makeDefault); err != nil {
 		return nil, err
 	}
 
-	if err := c.commit(data); err != nil {
+	if err := c.storage.AddRetentionPolicy(database, rp); err != nil {
 		return nil, err
+	}
+
+	if makeDefault {
+		// FIXME, roll back default
+		if err := c.storage.UpdateDatabase(c.cacheData.Database(database)); err != nil {
+			return nil, err
+		}
 	}
 
 	return rp, nil
