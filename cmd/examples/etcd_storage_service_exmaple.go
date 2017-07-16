@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"time"
 
@@ -40,6 +39,7 @@ func (e *EtcdStorageServiceExample) handleDelete() (interface{}, error) {
 		"db":            e.deleteDatabase,
 		"node":          e.deleteNode,
 		"rp":            e.deleteRetentionPolicy,
+		"sg":            e.deleteShardGroup,
 		"master":        e.deleteMaster,
 		"master_epoche": e.deleteMasterEpoch,
 	}
@@ -60,7 +60,7 @@ func (e *EtcdStorageServiceExample) watchNode() (interface{}, error) {
 	var err error
 	var ch clientv3.WatchChan
 
-	if e.all {
+	if e.key == "" {
 		ch, err = e.ess.WatchNodes()
 	} else {
 		ch, err = e.ess.WatchNode(e.key)
@@ -79,14 +79,14 @@ func (e *EtcdStorageServiceExample) watchNode() (interface{}, error) {
 }
 
 func (e *EtcdStorageServiceExample) getNode() (interface{}, error) {
-	if e.all {
+	if e.key == "" {
 		return e.ess.GetNodes()
 	}
 	return e.ess.GetNode(e.key)
 }
 
 func (e *EtcdStorageServiceExample) deleteNode() (interface{}, error) {
-	if e.all {
+	if e.key == "" {
 		return nil, e.ess.DeleteNodes()
 	}
 	return nil, e.ess.DeleteNode(e.key)
@@ -110,7 +110,7 @@ func (e *EtcdStorageServiceExample) watchDatabase() (interface{}, error) {
 	var err error
 	var ch clientv3.WatchChan
 
-	if e.all {
+	if e.key == "" {
 		ch, err = e.ess.WatchDatabases()
 	} else {
 		ch, err = e.ess.WatchDatabase(e.key)
@@ -129,14 +129,14 @@ func (e *EtcdStorageServiceExample) watchDatabase() (interface{}, error) {
 }
 
 func (e *EtcdStorageServiceExample) getDatabase() (interface{}, error) {
-	if e.all {
+	if e.key == "" {
 		return e.ess.GetDatabases()
 	}
 	return e.ess.GetDatabase(e.key)
 }
 
 func (e *EtcdStorageServiceExample) deleteDatabase() (interface{}, error) {
-	if e.all {
+	if e.key == "" {
 		return nil, e.ess.DeleteDatabases()
 	}
 	return nil, e.ess.DeleteDatabase(e.key)
@@ -154,16 +154,12 @@ func (e *EtcdStorageServiceExample) addDatabase() (interface{}, error) {
 	return db, err
 }
 
-// RententionPolicy
+// RetentionPolicy
 func (e *EtcdStorageServiceExample) watchRetentionPolicy() (interface{}, error) {
-	if e.database == "" {
-		return nil, errors.New("database should be specified")
-	}
-
 	var err error
 	var ch clientv3.WatchChan
 
-	if e.all {
+	if e.key == "" {
 		ch, err = e.ess.WatchRetentionPolicies(e.database)
 	} else {
 		ch, err = e.ess.WatchRetentionPolicy(e.database, e.key)
@@ -182,32 +178,20 @@ func (e *EtcdStorageServiceExample) watchRetentionPolicy() (interface{}, error) 
 }
 
 func (e *EtcdStorageServiceExample) getRetentionPolicy() (interface{}, error) {
-	if e.database == "" {
-		return nil, errors.New("database should be specified")
-	}
-
-	if e.all {
+	if e.key == "" {
 		return e.ess.GetRetentionPolicies(e.database)
 	}
 	return e.ess.GetRetentionPolicy(e.database, e.key)
 }
 
 func (e *EtcdStorageServiceExample) deleteRetentionPolicy() (interface{}, error) {
-	if e.database == "" {
-		return nil, errors.New("database should be specified")
-	}
-
-	if e.all {
+	if e.key == "" {
 		return nil, e.ess.DeleteRetentionPolicies(e.database)
 	}
 	return nil, e.ess.DeleteRetentionPolicy(e.database, e.key)
 }
 
 func (e *EtcdStorageServiceExample) addRetentionPolicy() (interface{}, error) {
-	if e.database == "" {
-		return nil, errors.New("database should be specified")
-	}
-
 	rp := &meta.RetentionPolicyInfo{
 		Name:               fmt.Sprintf("rp_%d", time.Now().UnixNano()),
 		ReplicaN:           3,
@@ -222,12 +206,83 @@ func (e *EtcdStorageServiceExample) addRetentionPolicy() (interface{}, error) {
 	return rp, err
 }
 
+// ShardGroup
+func (e *EtcdStorageServiceExample) watchShardGroup() (interface{}, error) {
+	var err error
+	var ch clientv3.WatchChan
+
+	if e.key == "" {
+		ch, err = e.ess.WatchShardGroups(e.database, e.retentionPolicy)
+	} else {
+		ch, err = e.ess.WatchShardGroup(e.database, e.retentionPolicy, e.key)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	for {
+		res := <-ch
+		data, _ := json.Marshal(res)
+		fmt.Printf("%s\n", data)
+	}
+	return nil, nil
+}
+
+func (e *EtcdStorageServiceExample) getShardGroup() (interface{}, error) {
+	if e.key == "" {
+		return e.ess.GetShardGroups(e.database, e.retentionPolicy)
+	}
+	return e.ess.GetShardGroup(e.database, e.retentionPolicy, e.key)
+}
+
+func (e *EtcdStorageServiceExample) deleteShardGroup() (interface{}, error) {
+	if e.key == "" {
+		return nil, e.ess.DeleteShardGroups(e.database, e.retentionPolicy)
+	}
+	return nil, e.ess.DeleteShardGroup(e.database, e.retentionPolicy, e.key)
+}
+
+func (e *EtcdStorageServiceExample) addShardGroup() (interface{}, error) {
+	sg := &meta.ShardGroupInfo{
+		ID:          uint64(time.Now().UnixNano()),
+		StartTime:   time.Now(),
+		EndTime:     time.Now(),
+		DeletedAt:   time.Now(),
+		TruncatedAt: time.Now(),
+		Shards: []meta.ShardInfo{
+			meta.ShardInfo{
+				ID: 1,
+				Owners: []meta.ShardOwner{
+					meta.ShardOwner{1},
+					meta.ShardOwner{2},
+					meta.ShardOwner{3},
+				},
+			},
+			meta.ShardInfo{
+				ID: 1,
+				Owners: []meta.ShardOwner{
+					meta.ShardOwner{1},
+					meta.ShardOwner{2},
+					meta.ShardOwner{3},
+				},
+			},
+		},
+	}
+
+	err := e.ess.AddShardGroup(e.database, e.retentionPolicy, sg)
+	if err != nil {
+		return nil, err
+	}
+	return sg, err
+}
+
 // User
 func (e *EtcdStorageServiceExample) watchUser() (interface{}, error) {
 	var err error
 	var ch clientv3.WatchChan
 
-	if e.all {
+	if e.key == "" {
 		ch, err = e.ess.WatchUsers()
 	} else {
 		ch, err = e.ess.WatchUser(e.key)
@@ -246,14 +301,14 @@ func (e *EtcdStorageServiceExample) watchUser() (interface{}, error) {
 }
 
 func (e *EtcdStorageServiceExample) getUser() (interface{}, error) {
-	if e.all {
+	if e.key == "" {
 		return e.ess.GetUsers()
 	}
 	return e.ess.GetUser(e.key)
 }
 
 func (e *EtcdStorageServiceExample) deleteUser() (interface{}, error) {
-	if e.all {
+	if e.key == "" {
 		return nil, e.ess.DeleteUsers()
 	}
 	return nil, e.ess.DeleteUser(e.key)
@@ -282,6 +337,7 @@ func (e *EtcdStorageServiceExample) handlePut() (interface{}, error) {
 		"db":            e.addDatabase,
 		"node":          e.addNode,
 		"rp":            e.addRetentionPolicy,
+		"sg":            e.addShardGroup,
 		"master":        e.addMaster,
 		"master_epoche": e.addMasterEpoch,
 	}
@@ -303,6 +359,7 @@ func (e *EtcdStorageServiceExample) handleGet() (interface{}, error) {
 		"db":            e.getDatabase,
 		"node":          e.getNode,
 		"rp":            e.getRetentionPolicy,
+		"sg":            e.getShardGroup,
 		"master":        e.getMaster,
 		"master_epoche": e.getMasterEpoch,
 	}
@@ -322,6 +379,8 @@ func (e *EtcdStorageServiceExample) handleWatch() (interface{}, error) {
 	watchHandlers := map[string]func() (interface{}, error){
 		"user":          e.watchUser,
 		"db":            e.watchDatabase,
+		"rp":            e.watchRetentionPolicy,
+		"sg":            e.watchShardGroup,
 		"node":          e.watchNode,
 		"master":        e.watchMaster,
 		"master_epoche": e.watchMasterEpoch,
@@ -348,26 +407,23 @@ func (e *EtcdStorageServiceExample) Close() error {
 var (
 	etcdEndpoints = kingpin.Flag("etcd-endpoints", "Etcd server endpoints").Default("localhost:2379").String()
 
-	objectTypes   = []string{"db", "user", "node", "rp", "sg", "master", "master_epoche", "all"}
-	objectType = kingpin.Flag("object-type", "Object to manipulate").Required().Enum(objectTypes...)
+	objectTypes = []string{"db", "user", "node", "rp", "sg", "master", "master_epoche", "all"}
+	objectType  = kingpin.Flag("object-type", "Object to manipulate").Required().Enum(objectTypes...)
 
 	// The following 2 flags are only used for creating rp and shard group
 	rpDB = kingpin.Flag("rp-db", "Database which the rp belongs to").String()
-	sgRP = kingpin.Flag("shard-sg-rp", "rp the shard group belongs to").String()
+	sgRP = kingpin.Flag("sg-rp", "rp the shard group belongs to").String()
 
-	putCmd        = kingpin.Command("put", "Create a new key/vaule")
+	putCmd = kingpin.Command("put", "Create a new key/vaule")
 
-	delCmd        = kingpin.Command("del", "Delete an existing key/vaule")
-	delObjectKey  = delCmd.Flag("key", "The key of a object").String()
-	delAll        = delCmd.Flag("all", "Delete all objects matched").Default("false").Bool()
+	delCmd       = kingpin.Command("del", "Delete an existing key/vaule")
+	delObjectKey = delCmd.Flag("key", "The key of a object").String()
 
-	getCmd         = kingpin.Command("get", "Get an existing key/vaule")
-	getObjectKey   = getCmd.Flag("key", "The key of a object").String()
-	getAll         = getCmd.Flag("all", "Get all objects matched").Default("false").Bool()
+	getCmd       = kingpin.Command("get", "Get an existing key/vaule")
+	getObjectKey = getCmd.Flag("key", "The key of a object").String()
 
-	watchCmd        = kingpin.Command("watch", "Watch changes to keys")
-	watchObjectKey  = watchCmd.Flag("key", "The key of a object").String()
-	watchAll        = watchCmd.Flag("all", "Watch all objects matched").Default("false").Bool()
+	watchCmd       = kingpin.Command("watch", "Watch changes to keys")
+	watchObjectKey = watchCmd.Flag("key", "The key of a object").String()
 )
 
 func main() {
@@ -386,12 +442,6 @@ func main() {
 		"watch": *watchObjectKey,
 	}[cmd]
 
-	all := map[string]bool{
-		"get":   *getAll,
-		"del":   *delAll,
-		"watch": *watchAll,
-	}[cmd]
-
 	esse := &EtcdStorageServiceExample{
 		ess:             e,
 		cmd:             cmd,
@@ -399,7 +449,6 @@ func main() {
 		key:             key,
 		database:        *rpDB,
 		retentionPolicy: *sgRP,
-		all:             all,
 	}
 
 	res, err := esse.Execute()
