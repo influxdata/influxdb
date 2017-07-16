@@ -12,10 +12,16 @@ import (
 )
 
 const (
-	rootNS      = "/influxdb"
-	userNS      = rootNS + "/users"
-	dbNS        = rootNS + "/dbs"
-	nodeNS      = rootNS + "/nodes"
+	nsSep  = "/"
+	rootNS = "/influxdb"
+	userNS = rootNS + "/users"
+	dbNS   = rootNS + "/dbs"
+	rpNS   = rootNS + "/rps"
+	sgNS   = rootNS + "/sgs"
+	subNS  = rootNS + "/subs"
+	cqNS   = rootNS + "/cqs"
+	nodeNS = rootNS + "/nodes"
+
 	master      = rootNS + "/master"
 	masterEpoch = rootNS + "/master_epoch"
 )
@@ -204,15 +210,15 @@ func (e *EtcdStorageService) WatchDatabases() (clientv3.WatchChan, error) {
 }
 
 func (e *EtcdStorageService) AddRetentionPolicy(dbName string, rp *RetentionPolicyInfo) error {
-	return e.addKeyValue(getKey(dbNS, dbName), rp.Name, rp.marshal(), -1)
+	return e.addKeyValue(getKey(rpNS, dbName), rp.Name, rp.marshal(), -1)
 }
 
 func (e *EtcdStorageService) DeleteRetentionPolicy(dbName, rpName string) error {
-	return e.deleteKeyValue(getKey(dbNS, dbName), rpName)
+	return e.deleteKeyValue(getKey(rpNS, dbName), rpName)
 }
 
 func (e *EtcdStorageService) DeleteRetentionPolicies(dbName string) error {
-	return e.deleteKeyValues(getKey(dbNS, dbName))
+	return e.deleteKeyValues(getKey(rpNS, dbName))
 }
 
 // GetRetentionPolicy get RetentionPolicyInfo from etcd. If there is no error happened during the
@@ -220,7 +226,7 @@ func (e *EtcdStorageService) DeleteRetentionPolicies(dbName string) error {
 // RetentionPolicyInfo,  if there is no matching, return nil RetentionPolicyInfo
 // End clients need check if returned RetentionPolicyInfo is nil before use when err is nil
 func (e *EtcdStorageService) GetRetentionPolicy(dbName, rpName string) (*RetentionPolicyInfo, error) {
-	data, err := e.getKeyValue(getKey(dbNS, dbName), rpName)
+	data, err := e.getKeyValue(getKey(rpNS, dbName), rpName)
 	if err != nil {
 		return nil, err
 	}
@@ -245,7 +251,7 @@ func (e *EtcdStorageService) GetRetentionPolicy(dbName, rpName string) (*Retenti
 // RetentionPolicyInfo,  if there is no matching, return nil RetentionPolicyInfo
 // End clients need check if returned RetentionPolicyInfo is nil before use when err is nil
 func (e *EtcdStorageService) GetRetentionPolicies(dbName string) ([]*RetentionPolicyInfo, error) {
-	results, err := e.getKeyValues(getKey(dbNS, dbName))
+	results, err := e.getKeyValues(getNSKey(rpNS, dbName))
 	if err != nil {
 		return nil, err
 	}
@@ -270,11 +276,159 @@ func (e *EtcdStorageService) UpdateRetentionPolicy(dbName string, rp *RetentionP
 }
 
 func (e *EtcdStorageService) WatchRetentionPolicy(dbName, rpName string) (clientv3.WatchChan, error) {
-	return e.watchKey(getKey(dbNS, dbName), dbName)
+	return e.watchKey(getKey(rpNS, dbName), rpName)
 }
 
 func (e *EtcdStorageService) WatchRetentionPolicies(dbName string) (clientv3.WatchChan, error) {
-	return e.watchNS(getKey(dbNS, dbName))
+	return e.watchNS(getNSKey(rpNS, dbName))
+}
+
+func (e *EtcdStorageService) AddShardGroup(dbName, rpName string, sg *ShardGroupInfo) error {
+	return e.addKeyValue(getKey(sgNS, dbName, rpName), fmt.Sprintf("%d", sg.ID), sg.marshal(), -1)
+}
+
+func (e *EtcdStorageService) DeleteShardGroup(dbName, rpName, sgID string) error {
+	return e.deleteKeyValue(getKey(sgNS, dbName, rpName), sgID)
+}
+
+func (e *EtcdStorageService) DeleteShardGroups(dbName, rpName string) error {
+	return e.deleteKeyValues(getNSKey(sgNS, dbName, rpName))
+}
+
+// GetShardGroup get ShardGroupInfo from etcd. If there is no error happened during the
+// query, return error directly. Otherwise if there is matching, returns non-nil
+// ShardGroupInfo,  if there is no matching, return nil ShardGroupInfo
+// End clients need check if returned ShardGroupInfo is nil before use when err is nil
+func (e *EtcdStorageService) GetShardGroup(dbName, rpName, sgID string) (*ShardGroupInfo, error) {
+	data, err := e.getKeyValue(getKey(sgNS, dbName, rpName), sgID)
+	if err != nil {
+		return nil, err
+	}
+
+	if data != nil {
+		var isg internal.ShardGroupInfo
+		err := proto.Unmarshal(data, &isg)
+		if err != nil {
+			return nil, err
+		}
+		var sg ShardGroupInfo
+		sg.unmarshal(&isg)
+		return &sg, nil
+	}
+
+	// No match, return nil ShardGroupInfo and nil error
+	return nil, nil
+}
+
+// GetRetentionPolicies get all ShardGroupInfo from etcd. If there is no error happened during the
+// query, return error directly. Otherwise if there is matching, returns non-nil
+// ShardGroupInfo,  if there is no matching, return nil ShardGroupInfo
+// End clients need check if returned ShardGroupInfo is nil before use when err is nil
+func (e *EtcdStorageService) GetShardGroups(dbName, rpName string) ([]*ShardGroupInfo, error) {
+	results, err := e.getKeyValues(getNSKey(sgNS, dbName, rpName))
+	if err != nil {
+		return nil, err
+	}
+
+	var sgs []*ShardGroupInfo
+	for _, data := range results {
+		var isg internal.ShardGroupInfo
+		err := proto.Unmarshal(data, &isg)
+		if err != nil {
+			return nil, err
+		}
+		var sg ShardGroupInfo
+		sg.unmarshal(&isg)
+		sgs = append(sgs, &sg)
+	}
+
+	return sgs, nil
+}
+
+func (e *EtcdStorageService) UpdateShardGroup(dbName, rpName string, sg *ShardGroupInfo) error {
+	return e.AddShardGroup(dbName, rpName, sg)
+}
+
+func (e *EtcdStorageService) WatchShardGroup(dbName, rpName, sgID string) (clientv3.WatchChan, error) {
+	return e.watchKey(getKey(sgNS, dbName, rpName), sgID)
+}
+
+func (e *EtcdStorageService) WatchShardGroups(dbName, rpName string) (clientv3.WatchChan, error) {
+	return e.watchNS(getNSKey(sgNS, dbName, rpName))
+}
+
+func (e *EtcdStorageService) AddSubscription(dbName, rpName string, sub *SubscriptionInfo) error {
+	return e.addKeyValue(getKey(subNS, dbName, rpName), sub.Name, sub.marshal(), -1)
+}
+
+func (e *EtcdStorageService) DeleteSubscription(dbName, rpName, subName string) error {
+	return e.deleteKeyValue(getKey(subNS, dbName, rpName), subName)
+}
+
+func (e *EtcdStorageService) DeleteSubscriptions(dbName, rpName string) error {
+	return e.deleteKeyValues(getNSKey(subNS, dbName, rpName))
+}
+
+// GetSubscription get SubscriptionInfo from etcd. If there is no error happened during the
+// query, return error directly. Otherwise if there is matching, returns non-nil
+// SubscriptionInfo,  if there is no matching, return nil SubscriptionInfo
+// End clients need check if returned SubscriptionInfo is nil before use when err is nil
+func (e *EtcdStorageService) GetSubscription(dbName, rpName, subName string) (*SubscriptionInfo, error) {
+	data, err := e.getKeyValue(getKey(subNS, dbName, rpName), subName)
+	if err != nil {
+		return nil, err
+	}
+
+	if data != nil {
+		var isub internal.SubscriptionInfo
+		err := proto.Unmarshal(data, &isub)
+		if err != nil {
+			return nil, err
+		}
+		var sub SubscriptionInfo
+		sub.unmarshal(&isub)
+		return &sub, nil
+	}
+
+	// No match, return nil SubscriptionInfo and nil error
+	return nil, nil
+}
+
+// GetRetentionPolicies get all SubscriptionInfo from etcd. If there is no error happened during the
+// query, return error directly. Otherwise if there is matching, returns non-nil
+// SubscriptionInfo,  if there is no matching, return nil SubscriptionInfo
+// End clients need check if returned SubscriptionInfo is nil before use when err is nil
+func (e *EtcdStorageService) GetSubscriptions(dbName, rpName string) ([]*SubscriptionInfo, error) {
+	results, err := e.getKeyValues(getNSKey(subNS, dbName, rpName))
+	if err != nil {
+		return nil, err
+	}
+
+	var subs []*SubscriptionInfo
+	for _, data := range results {
+		var isub internal.SubscriptionInfo
+		err := proto.Unmarshal(data, &isub)
+		if err != nil {
+			return nil, err
+		}
+		var sub SubscriptionInfo
+		sub.unmarshal(&isub)
+		subs = append(subs, &sub)
+	}
+
+	return subs, nil
+}
+
+func (e *EtcdStorageService) UpdateSubscription(dbName, rpName string, sub *SubscriptionInfo) error {
+	return e.AddSubscription(dbName, rpName, sub)
+}
+
+func (e *EtcdStorageService) WatchSubscription(dbName, rpName, subName string) (clientv3.WatchChan, error) {
+	return e.watchKey(getKey(subNS, dbName, rpName), subName)
+}
+
+func (e *EtcdStorageService) WatchSubscriptions(dbName, rpName string) (clientv3.WatchChan, error) {
+	return e.watchNS(getNSKey(subNS, dbName, rpName))
 }
 
 func (e *EtcdStorageService) AddNode(node *NodeInfo) error {
@@ -397,7 +551,7 @@ func (e *EtcdStorageService) deleteKeyValue(ns, k string) error {
 
 func (e *EtcdStorageService) deleteKeyValues(ns string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	_, err := e.client.Delete(ctx, ns, clientv3.WithPrefix())
+	_, err := e.client.Delete(ctx, getKey(ns, ""), clientv3.WithPrefix())
 	cancel()
 
 	return err
@@ -422,7 +576,7 @@ func (e *EtcdStorageService) getKeyValue(ns, k string) ([]byte, error) {
 
 func (e *EtcdStorageService) getKeyValues(ns string) ([][]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	resp, err := e.client.Get(ctx, ns, clientv3.WithPrefix())
+	resp, err := e.client.Get(ctx, getKey(ns, ""), clientv3.WithPrefix())
 	cancel()
 
 	if err != nil {
@@ -447,5 +601,19 @@ func (e *EtcdStorageService) watchNS(ns string) (clientv3.WatchChan, error) {
 }
 
 func getKey(segments ...string) string {
-	return strings.Join(segments, "/")
+	return strings.Join(segments, nsSep)
+}
+
+func getNSKey(ns string, segments ...string) string {
+	nonEmpties := []string{ns}
+	for _, k := range segments {
+		if k != "" {
+			nonEmpties = append(nonEmpties, k)
+		}
+	}
+
+	if len(nonEmpties) > 1 {
+		return getKey(nonEmpties...)
+	}
+	return ns
 }
