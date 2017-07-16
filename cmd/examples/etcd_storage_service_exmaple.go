@@ -38,6 +38,7 @@ func (e *EtcdStorageServiceExample) handleDelete() (interface{}, error) {
 		"user":          e.deleteUser,
 		"db":            e.deleteDatabase,
 		"node":          e.deleteNode,
+		"cq":            e.deleteContinuousQuery,
 		"rp":            e.deleteRetentionPolicy,
 		"sg":            e.deleteShardGroup,
 		"master":        e.deleteMaster,
@@ -152,6 +153,56 @@ func (e *EtcdStorageServiceExample) addDatabase() (interface{}, error) {
 		return nil, err
 	}
 	return db, err
+}
+
+// ContinuousQuery
+func (e *EtcdStorageServiceExample) watchContinuousQuery() (interface{}, error) {
+	var err error
+	var ch clientv3.WatchChan
+
+	if e.key == "" {
+		ch, err = e.ess.WatchContinuousQueries(e.database)
+	} else {
+		ch, err = e.ess.WatchContinuousQuery(e.database, e.key)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	for {
+		res := <-ch
+		data, _ := json.Marshal(res)
+		fmt.Printf("%s\n", data)
+	}
+	return nil, nil
+}
+
+func (e *EtcdStorageServiceExample) getContinuousQuery() (interface{}, error) {
+	if e.key == "" {
+		return e.ess.GetContinuousQueries(e.database)
+	}
+	return e.ess.GetContinuousQuery(e.database, e.key)
+}
+
+func (e *EtcdStorageServiceExample) deleteContinuousQuery() (interface{}, error) {
+	if e.key == "" {
+		return nil, e.ess.DeleteContinuousQueries(e.database)
+	}
+	return nil, e.ess.DeleteContinuousQuery(e.database, e.key)
+}
+
+func (e *EtcdStorageServiceExample) addContinuousQuery() (interface{}, error) {
+	cq := &meta.ContinuousQueryInfo{
+		Name:  fmt.Sprintf("cq_%d", time.Now().UnixNano()),
+		Query: "SELECT * FROM DUMMY",
+	}
+
+	err := e.ess.AddContinuousQuery(e.database, cq)
+	if err != nil {
+		return nil, err
+	}
+	return cq, err
 }
 
 // RetentionPolicy
@@ -336,6 +387,7 @@ func (e *EtcdStorageServiceExample) handlePut() (interface{}, error) {
 		"user":          e.addUser,
 		"db":            e.addDatabase,
 		"node":          e.addNode,
+		"cq":            e.addContinuousQuery,
 		"rp":            e.addRetentionPolicy,
 		"sg":            e.addShardGroup,
 		"master":        e.addMaster,
@@ -358,6 +410,7 @@ func (e *EtcdStorageServiceExample) handleGet() (interface{}, error) {
 		"user":          e.getUser,
 		"db":            e.getDatabase,
 		"node":          e.getNode,
+		"cq":            e.getContinuousQuery,
 		"rp":            e.getRetentionPolicy,
 		"sg":            e.getShardGroup,
 		"master":        e.getMaster,
@@ -379,6 +432,7 @@ func (e *EtcdStorageServiceExample) handleWatch() (interface{}, error) {
 	watchHandlers := map[string]func() (interface{}, error){
 		"user":          e.watchUser,
 		"db":            e.watchDatabase,
+		"cq":            e.watchContinuousQuery,
 		"rp":            e.watchRetentionPolicy,
 		"sg":            e.watchShardGroup,
 		"node":          e.watchNode,
@@ -407,12 +461,12 @@ func (e *EtcdStorageServiceExample) Close() error {
 var (
 	etcdEndpoints = kingpin.Flag("etcd-endpoints", "Etcd server endpoints").Default("localhost:2379").String()
 
-	objectTypes = []string{"db", "user", "node", "rp", "sg", "master", "master_epoche", "all"}
+	objectTypes = []string{"db", "user", "node", "cq", "rp", "sg", "master", "master_epoche", "all"}
 	objectType  = kingpin.Flag("object-type", "Object to manipulate").Required().Enum(objectTypes...)
 
 	// The following 2 flags are only used for creating rp and shard group
-	rpDB = kingpin.Flag("rp-db", "Database which the rp belongs to").String()
-	sgRP = kingpin.Flag("sg-rp", "rp the shard group belongs to").String()
+	db = kingpin.Flag("db", "Database which the rp belongs to").String()
+	rp = kingpin.Flag("rp", "rp the shard group belongs to").String()
 
 	putCmd = kingpin.Command("put", "Create a new key/vaule")
 
@@ -447,8 +501,8 @@ func main() {
 		cmd:             cmd,
 		objectType:      *objectType,
 		key:             key,
-		database:        *rpDB,
-		retentionPolicy: *sgRP,
+		database:        *db,
+		retentionPolicy: *rp,
 	}
 
 	res, err := esse.Execute()

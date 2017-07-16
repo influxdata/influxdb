@@ -209,6 +209,80 @@ func (e *EtcdStorageService) WatchDatabases() (clientv3.WatchChan, error) {
 	return e.watchNS(dbNS)
 }
 
+func (e *EtcdStorageService) AddContinuousQuery(dbName string, cq *ContinuousQueryInfo) error {
+	return e.addKeyValue(getKey(cqNS, dbName), cq.Name, cq.marshal(), -1)
+}
+
+func (e *EtcdStorageService) DeleteContinuousQuery(dbName, cqName string) error {
+	return e.deleteKeyValue(getKey(cqNS, dbName), cqName)
+}
+
+func (e *EtcdStorageService) DeleteContinuousQueries(dbName string) error {
+	return e.deleteKeyValues(getNSKey(cqNS, dbName))
+}
+
+// GetContinuousQuery get ContinuousQueryInfo from etcd. If there is no error happened during the
+// query, return error directly. Otherwise if there is matching, returns non-nil
+// ContinuousQueryInfo,  if there is no matching, return nil ContinuousQueryInfo
+// End clients need check if returned ContinuousQueryInfo is nil before use when err is nil
+func (e *EtcdStorageService) GetContinuousQuery(dbName, cqName string) (*ContinuousQueryInfo, error) {
+	data, err := e.getKeyValue(getKey(cqNS, dbName), cqName)
+	if err != nil {
+		return nil, err
+	}
+
+	if data != nil {
+		var icq internal.ContinuousQueryInfo
+		err := proto.Unmarshal(data, &icq)
+		if err != nil {
+			return nil, err
+		}
+		var cq ContinuousQueryInfo
+		cq.unmarshal(&icq)
+		return &cq, nil
+	}
+
+	// No match, return nil ContinuousQueryInfo and nil error
+	return nil, nil
+}
+
+// GetContinuousQueries get all ContinuousQueryInfo from etcd. If there is no error happened during the
+// query, return error directly. Otherwise if there is matching, returns non-nil
+// ContinuousQueryInfo,  if there is no matching, return nil ContinuousQueryInfo
+// End clients need check if returned ContinuousQueryInfo is nil before use when err is nil
+func (e *EtcdStorageService) GetContinuousQueries(dbName string) ([]*ContinuousQueryInfo, error) {
+	results, err := e.getKeyValues(getNSKey(cqNS, dbName))
+	if err != nil {
+		return nil, err
+	}
+
+	var cqs []*ContinuousQueryInfo
+	for _, data := range results {
+		var icq internal.ContinuousQueryInfo
+		err := proto.Unmarshal(data, &icq)
+		if err != nil {
+			return nil, err
+		}
+		var cq ContinuousQueryInfo
+		cq.unmarshal(&icq)
+		cqs = append(cqs, &cq)
+	}
+
+	return cqs, nil
+}
+
+func (e *EtcdStorageService) UpdateContinuousQuery(dbName string, cq *ContinuousQueryInfo) error {
+	return e.AddContinuousQuery(dbName, cq)
+}
+
+func (e *EtcdStorageService) WatchContinuousQuery(dbName, cqName string) (clientv3.WatchChan, error) {
+	return e.watchKey(getKey(cqNS, dbName), cqName)
+}
+
+func (e *EtcdStorageService) WatchContinuousQueries(dbName string) (clientv3.WatchChan, error) {
+	return e.watchNS(getNSKey(cqNS, dbName))
+}
+
 func (e *EtcdStorageService) AddRetentionPolicy(dbName string, rp *RetentionPolicyInfo) error {
 	return e.addKeyValue(getKey(rpNS, dbName), rp.Name, rp.marshal(), -1)
 }
@@ -218,7 +292,7 @@ func (e *EtcdStorageService) DeleteRetentionPolicy(dbName, rpName string) error 
 }
 
 func (e *EtcdStorageService) DeleteRetentionPolicies(dbName string) error {
-	return e.deleteKeyValues(getKey(rpNS, dbName))
+	return e.deleteKeyValues(getNSKey(rpNS, dbName))
 }
 
 // GetRetentionPolicy get RetentionPolicyInfo from etcd. If there is no error happened during the
