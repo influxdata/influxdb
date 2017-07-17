@@ -314,7 +314,7 @@ CodeMirror.defineSimpleMode('tickscript', {
     // Rules are matched in the order in which they appear, so there is
     // no ambiguity between this one and the one above
     {
-      regex: /(?:function|var|return|if|for|while|else|do|this|stream|batch|influxql)\b/,
+      regex: /(?:var|return|if|for|while|else|do|this|stream|batch|influxql|lambda)/,
       token: 'keyword',
     },
     {regex: /true|false|null|undefined|TRUE|FALSE/, token: 'atom'},
