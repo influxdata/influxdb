@@ -19,6 +19,7 @@
 - [#8124](https://github.com/influxdata/influxdb/issues/8124): Prevent privileges on non-existent databases from being set.
 - [#8558](https://github.com/influxdata/influxdb/issues/8558): Dropping measurement used several GB disk space
 - [#8569](https://github.com/influxdata/influxdb/issues/8569): Fix the cq start and end times to use unix timestamps.
+- [#8601](https://github.com/influxdata/influxdb/pull/8601): Fixed time boundaries for continuous queries with time zones.
 
 ## v1.3.1 [unreleased]
 
