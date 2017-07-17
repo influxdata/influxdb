@@ -1,3 +1,9 @@
+## v1.2.5 [unreleased]
+
+### Bugfixes
+
+- [#8569](https://github.com/influxdata/influxdb/issues/8569): Fix the cq start and end times to use unix timestamps.
+
 ## v1.2.4 [2017-05-08]
 
 ### Bugfixes
