@@ -17,12 +17,7 @@ class TickscriptPage extends Component {
         id: props.params.ruleID,
         status: 'enabled',
         script: '',
-        dbrps: [
-          {
-            db: '_internal',
-            rp: 'monitor',
-          },
-        ],
+        dbrps: [],
         type: 'stream',
       },
       validation: '',
@@ -80,6 +75,10 @@ class TickscriptPage extends Component {
     this.setState({task: {...this.state.task, script}})
   }
 
+  handleSelectDbrps(dbrps) {
+    this.setState({task: {...this.state.task, dbrps}})
+  }
+
   render() {
     const {source} = this.props
     const {task, validation} = this.state
@@ -89,6 +88,7 @@ class TickscriptPage extends Component {
         task={task}
         source={source}
         onSave={::this.handleSave}
+        onSelectDbrps={::this.handleSelectDbrps}
         onChangeScript={::this.handleChangeScript}
         validation={validation}
       />

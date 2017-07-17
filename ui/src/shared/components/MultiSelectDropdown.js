@@ -11,7 +11,7 @@ const labelText = ({localSelectedItems, isOpen, label}) => {
   if (label) {
     return label
   } else if (localSelectedItems.length) {
-    return localSelectedItems.map(s => s).join(', ')
+    return localSelectedItems.map(s => s.name).join(', ')
   }
 
   // TODO: be smarter about the text displayed here
@@ -50,7 +50,7 @@ class MultiSelectDropdown extends Component {
 
     let nextItems
     if (this.isSelected(item)) {
-      nextItems = localSelectedItems.filter(i => i !== item)
+      nextItems = localSelectedItems.filter(i => i.name !== item.name)
     } else {
       nextItems = [...localSelectedItems, item]
     }
@@ -59,7 +59,7 @@ class MultiSelectDropdown extends Component {
   }
 
   isSelected(item) {
-    return !!this.state.localSelectedItems.find(text => text === item)
+    return !!this.state.localSelectedItems.find(({name}) => name === item.name)
   }
 
   onApplyFunctions(e) {
@@ -119,7 +119,7 @@ class MultiSelectDropdown extends Component {
               >
                 <div className="multi-select--checkbox" />
                 <span>
-                  {listItem}
+                  {listItem.name}
                 </span>
               </li>
             )
@@ -130,22 +130,32 @@ class MultiSelectDropdown extends Component {
   }
 }
 
-const {arrayOf, func, string} = PropTypes
+const {arrayOf, func, shape, string} = PropTypes
 
 MultiSelectDropdown.propTypes = {
   onApply: func.isRequired,
-  items: arrayOf(string.isRequired).isRequired,
-  selectedItems: arrayOf(string.isRequired).isRequired,
+  items: arrayOf(
+    shape({
+      name: string.isRequired,
+    })
+  ).isRequired,
+  selectedItems: arrayOf(
+    shape({
+      name: string.isRequired,
+    })
+  ),
   label: string,
   buttonSize: string,
   buttonColor: string,
   customClass: string,
   iconName: string,
 }
+
 MultiSelectDropdown.defaultProps = {
   buttonSize: 'btn-sm',
   buttonColor: 'btn-default',
   customClass: 'dropdown-160',
+  selectedItems: [],
 }
 
 export default OnClickOutside(MultiSelectDropdown)

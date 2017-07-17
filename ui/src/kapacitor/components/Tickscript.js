@@ -3,9 +3,21 @@ import TickscriptHeader from 'src/kapacitor/components/TickscriptHeader'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 import TickscriptEditor from 'src/kapacitor/components/TickscriptEditor'
 
-const Tickscript = ({source, onSave, task, validation, onChangeScript}) => (
+const Tickscript = ({
+  source,
+  onSave,
+  task,
+  validation,
+  onSelectDbrps,
+  onChangeScript,
+}) => (
   <div className="page">
-    <TickscriptHeader source={source} onSave={onSave} />
+    <TickscriptHeader
+      task={task}
+      source={source}
+      onSelectDbrps={onSelectDbrps}
+      onSave={onSave}
+    />
     <FancyScrollbar className="page-contents fancy-scroll--kapacitor">
       <div className="container-fluid">
         <div className="row">
@@ -37,6 +49,7 @@ Tickscript.propTypes = {
     dbsrps: arrayOf(shape()),
   }).isRequired,
   onChangeScript: func.isRequired,
+  onSelectDbrps: func.isRequired,
   validation: string,
 }
 
