@@ -14,7 +14,7 @@ class TickscriptPage extends Component {
     this.state = {
       kapacitor: {},
       task: {
-        id: 'testing',
+        id: props.params.ruleID,
         status: 'enabled',
         script: '',
         dbrps: [
@@ -102,6 +102,12 @@ class TickscriptPage extends Component {
 }
 
 const {arrayOf, func, shape, string} = PropTypes
+
+TickscriptPage.defaultProps = {
+  params: {
+    ruleID: '',
+  },
+}
 
 TickscriptPage.propTypes = {
   source: shape({
