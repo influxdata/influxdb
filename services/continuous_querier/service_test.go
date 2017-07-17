@@ -460,6 +460,127 @@ func TestExecuteContinuousQuery_TimeRange(t *testing.T) {
 	}
 }
 
+// Test the time range for different CQ durations.
+func TestExecuteContinuousQuery_TimeZone(t *testing.T) {
+	type test struct {
+		now        time.Time
+		start, end time.Time
+	}
+
+	// Choose a start date that is not on an interval border for anyone.
+	for _, tt := range []struct {
+		name    string
+		d       string
+		options string
+		initial time.Time
+		tests   []test
+	}{
+		{
+			name:    "DaylightSavingsStart/1d",
+			d:       "1d",
+			initial: mustParseTime(t, "2000-04-02T00:00:00-05:00"),
+			tests: []test{
+				{
+					start: mustParseTime(t, "2000-04-02T00:00:00-05:00"),
+					end:   mustParseTime(t, "2000-04-03T00:00:00-04:00"),
+				},
+			},
+		},
+		{
+			name:    "DaylightSavingsStart/2h",
+			d:       "2h",
+			initial: mustParseTime(t, "2000-04-02T00:00:00-05:00"),
+			tests: []test{
+				{
+					start: mustParseTime(t, "2000-04-02T00:00:00-05:00"),
+					end:   mustParseTime(t, "2000-04-02T03:00:00-04:00"),
+				},
+				{
+					start: mustParseTime(t, "2000-04-02T03:00:00-04:00"),
+					end:   mustParseTime(t, "2000-04-02T04:00:00-04:00"),
+				},
+			},
+		},
+		{
+			name:    "DaylightSavingsEnd/1d",
+			d:       "1d",
+			initial: mustParseTime(t, "2000-10-29T00:00:00-04:00"),
+			tests: []test{
+				{
+					start: mustParseTime(t, "2000-10-29T00:00:00-04:00"),
+					end:   mustParseTime(t, "2000-10-30T00:00:00-05:00"),
+				},
+			},
+		},
+		{
+			name:    "DaylightSavingsEnd/2h",
+			d:       "2h",
+			initial: mustParseTime(t, "2000-10-29T00:00:00-04:00"),
+			tests: []test{
+				{
+					start: mustParseTime(t, "2000-10-29T00:00:00-04:00"),
+					end:   mustParseTime(t, "2000-10-29T02:00:00-05:00"),
+				},
+				{
+					start: mustParseTime(t, "2000-10-29T02:00:00-05:00"),
+					end:   mustParseTime(t, "2000-10-29T04:00:00-05:00"),
+				},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			s := NewTestService(t)
+			mc := NewMetaClient(t)
+			mc.CreateDatabase("db", "")
+			mc.CreateContinuousQuery("db", "cq",
+				fmt.Sprintf(`CREATE CONTINUOUS QUERY cq ON db %s BEGIN SELECT mean(value) INTO cpu_mean FROM cpu GROUP BY time(%s) TZ('America/New_York') END`, tt.options, tt.d))
+			s.MetaClient = mc
+
+			// Set RunInterval high so we can trigger using Run method.
+			s.RunInterval = 10 * time.Minute
+			done := make(chan struct{})
+
+			// Set a callback for ExecuteStatement.
+			tests := make(chan test, 1)
+			s.QueryExecutor.StatementExecutor = &StatementExecutor{
+				ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
+					test := <-tests
+					s := stmt.(*influxql.SelectStatement)
+					min, max, err := influxql.TimeRange(s.Condition)
+					max = max.Add(time.Nanosecond)
+					if err != nil {
+						t.Errorf("unexpected error parsing time range: %s", err)
+					} else if !test.start.Equal(min) || !test.end.Equal(max) {
+						t.Errorf("mismatched time range: got=(%s, %s) exp=(%s, %s)", min, max, test.start, test.end)
+					}
+					done <- struct{}{}
+					ctx.Results <- &influxql.Result{}
+					return nil
+				},
+			}
+
+			s.Open()
+			defer s.Close()
+
+			// Send an initial run request one nanosecond after the start to
+			// prime the last CQ map.
+			s.RunCh <- &RunRequest{Now: tt.initial.Add(time.Nanosecond)}
+			// Execute each of the tests and ensure the times are correct.
+			for i, test := range tt.tests {
+				tests <- test
+				now := test.now
+				if now.IsZero() {
+					now = test.end
+				}
+				s.RunCh <- &RunRequest{Now: now}
+				if err := wait(done, 100*time.Millisecond); err != nil {
+					t.Fatal(fmt.Errorf("%d. %s", i+1, err))
+				}
+			}
+		})
+	}
+}
+
 // Test ExecuteContinuousQuery when QueryExecutor returns an error.
 func TestExecuteContinuousQuery_QueryExecutor_Error(t *testing.T) {
 	s := NewTestService(t)
