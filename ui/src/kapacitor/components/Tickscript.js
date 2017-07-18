@@ -10,13 +10,15 @@ const Tickscript = ({
   validation,
   onSelectDbrps,
   onChangeScript,
+  onChangeType,
 }) => (
   <div className="page">
     <TickscriptHeader
       task={task}
       source={source}
-      onSelectDbrps={onSelectDbrps}
       onSave={onSave}
+      onChangeType={onChangeType}
+      onSelectDbrps={onSelectDbrps}
     />
     <FancyScrollbar className="page-contents fancy-scroll--kapacitor">
       <div className="container-fluid">
@@ -51,6 +53,7 @@ Tickscript.propTypes = {
   onChangeScript: func.isRequired,
   onSelectDbrps: func.isRequired,
   validation: string,
+  onChangeType: func.isRequired,
 }
 
 export default Tickscript

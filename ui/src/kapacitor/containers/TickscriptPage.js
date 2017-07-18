@@ -7,7 +7,6 @@ import * as kapactiorActionCreators from 'src/kapacitor/actions/view'
 import * as errorActionCreators from 'shared/actions/errors'
 import {getActiveKapacitor} from 'src/shared/apis'
 
-// TODO: collect dbsrps, stream, and name for tasks (needs design)
 class TickscriptPage extends Component {
   constructor(props) {
     super(props)
@@ -80,6 +79,10 @@ class TickscriptPage extends Component {
     this.setState({task: {...this.state.task, dbrps}})
   }
 
+  handleChangeType(type) {
+    return () => this.setState({task: {...this.state.task, type}})
+  }
+
   render() {
     const {source} = this.props
     const {task, validation} = this.state
@@ -91,6 +94,7 @@ class TickscriptPage extends Component {
         onSave={::this.handleSave}
         onSelectDbrps={::this.handleSelectDbrps}
         onChangeScript={::this.handleChangeScript}
+        onChangeType={::this.handleChangeType}
         validation={validation}
       />
     )
