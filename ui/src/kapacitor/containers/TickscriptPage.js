@@ -75,6 +75,7 @@ class TickscriptPage extends Component {
     this.setState({task: {...this.state.task, script}})
   }
 
+  // TODO: make this fire on every click so user doesn't have to 'apply'
   handleSelectDbrps(dbrps) {
     this.setState({task: {...this.state.task, dbrps}})
   }
