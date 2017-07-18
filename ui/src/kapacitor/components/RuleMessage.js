@@ -43,11 +43,12 @@ export const RuleMessage = React.createClass({
       return {text, ruleID: rule.id}
     })
 
-    const alerts = enabledAlerts
-      .map(text => {
+    const alerts = [
+      ...defaultAlertEndpoints,
+      ...enabledAlerts.map(text => {
         return {text, ruleID: rule.id}
-      })
-      .concat(defaultAlertEndpoints)
+      }),
+    ]
 
     const selectedAlert = rule.alerts[0] || alerts[0].text
 
