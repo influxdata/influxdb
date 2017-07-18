@@ -1,10 +1,10 @@
 import React, {PropTypes} from 'react'
 import classnames from 'classnames'
-import ReactTooltip from 'react-tooltip'
 
 import RuleMessageAlertConfig from 'src/kapacitor/components/RuleMessageAlertConfig'
+import RuleMessageTemplates from 'src/kapacitor/components/RuleMessageTemplates'
 
-import {RULE_MESSAGE_TEMPLATES as templates, DEFAULT_ALERTS} from '../constants'
+import {RULE_MESSAGE_TEMPLATES, DEFAULT_ALERTS} from '../constants'
 
 const {arrayOf, func, shape, string} = PropTypes
 
@@ -98,55 +98,13 @@ export const RuleMessage = React.createClass({
             value={rule.message}
             spellCheck={false}
           />
-          <div className="rule-section--row rule-section--row-last rule-section--border-top">
-            <p>Templates:</p>
-            {Object.keys(templates).map(t => {
-              return (
-                <CodeData
-                  key={t}
-                  template={templates[t]}
-                  onClickTemplate={() =>
-                    actions.updateMessage(
-                      rule.id,
-                      `${this.message.value} ${templates[t].label}`
-                    )}
-                />
-              )
-            })}
-            <ReactTooltip
-              effect="solid"
-              html={true}
-              offset={{top: -4}}
-              class="influx-tooltip kapacitor-tooltip"
-            />
-          </div>
+          <RuleMessageTemplates
+            templates={RULE_MESSAGE_TEMPLATES}
+            actions={actions}
+            rule={rule}
+          />
         </div>
       </div>
-    )
-  },
-})
-
-const CodeData = React.createClass({
-  propTypes: {
-    onClickTemplate: func,
-    template: shape({
-      label: string,
-      text: string,
-    }),
-  },
-
-  render() {
-    const {onClickTemplate, template} = this.props
-    const {label, text} = template
-
-    return (
-      <code
-        className="rule-builder--message-template"
-        data-tip={text}
-        onClick={onClickTemplate}
-      >
-        {label}
-      </code>
     )
   },
 })
