@@ -308,7 +308,7 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 
 	// We're about to run the query so store the current time closest to the nearest interval.
 	// If all is going well, this time should be the same as nextRun.
-	cq.LastRun = now.Add(-offset).Truncate(resampleEvery).Add(offset)
+	cq.LastRun = truncate(now.Add(-offset), resampleEvery).Add(offset)
 	s.lastRuns[id] = cq.LastRun
 
 	// Retrieve the oldest interval we should calculate based on the next time
@@ -329,8 +329,8 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 	}
 
 	// Calculate and set the time range for the query.
-	startTime := nextRun.Add(interval - resampleFor - offset - 1).Truncate(interval).Add(offset)
-	endTime := now.Add(interval - resampleEvery - offset).Truncate(interval).Add(offset)
+	startTime := truncate(nextRun.Add(interval-resampleFor-offset-1), interval).Add(offset)
+	endTime := truncate(now.Add(interval-resampleEvery-offset), interval).Add(offset)
 	if !endTime.After(startTime) {
 		// Exit early since there is no time interval.
 		return nil
@@ -459,7 +459,8 @@ func (cq *ContinuousQuery) shouldRunContinuousQuery(now time.Time) (bool, time.T
 		resampleEvery = cq.Resample.Every
 	}
 
-	// if we've passed the amount of time since the last run, or there was no last run, do it up
+	// Determine if we should run the continuous query based on the last time it ran.
+	// If the query never ran, execute it using the current time.
 	if cq.HasRun {
 		nextRun := cq.LastRun.Add(resampleEvery)
 		if nextRun.UnixNano() <= now.UnixNano() {
@@ -477,4 +478,18 @@ func assert(condition bool, msg string, v ...interface{}) {
 	if !condition {
 		panic(fmt.Sprintf("assert failed: "+msg, v...))
 	}
+}
+
+// truncate truncates the time based on the unix timestamp instead of the
+// Go time library. The Go time library has the start of the week on Monday
+// while the start of the week for the unix timestamp is a Thursday.
+func truncate(ts time.Time, d time.Duration) time.Time {
+	t := ts.UnixNano()
+	dt := t % int64(d)
+	if dt < 0 {
+		// Negative modulo rounds up instead of down, so offset
+		// with the duration.
+		dt += int64(d)
+	}
+	return time.Unix(0, t-dt).UTC()
 }
