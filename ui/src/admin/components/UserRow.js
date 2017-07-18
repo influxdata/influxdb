@@ -27,7 +27,8 @@ const UserRow = ({
   onUpdateRoles,
   onUpdatePassword,
 }) => {
-  const handleUpdatePermissions = allowed => {
+  const handleUpdatePermissions = perms => {
+    const allowed = perms.map(p => p.name)
     onUpdatePermissions(user, [{scope: 'all', allowed}])
   }
 
@@ -104,8 +105,12 @@ const UserRow = ({
       <td>
         {allPermissions && allPermissions.length
           ? <MultiSelectDropdown
-              items={allPermissions}
-              selectedItems={_.get(permissions, ['0', 'allowed'], [])}
+              items={allPermissions.map(p => ({name: p}))}
+              selectedItems={_.get(
+                permissions,
+                ['0', 'allowed'],
+                []
+              ).map(p => ({name: p}))}
               label={
                 permissions && permissions.length ? '' : 'Select Permissions'
               }
