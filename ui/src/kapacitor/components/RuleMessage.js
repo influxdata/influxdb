@@ -2,6 +2,7 @@ import React, {PropTypes} from 'react'
 import classnames from 'classnames'
 
 import RuleMessageAlertConfig from 'src/kapacitor/components/RuleMessageAlertConfig'
+import RuleMessageText from 'src/kapacitor/components/RuleMessageText'
 import RuleMessageTemplates from 'src/kapacitor/components/RuleMessageTemplates'
 
 import {RULE_MESSAGE_TEMPLATES, DEFAULT_ALERTS} from '../constants'
@@ -90,18 +91,11 @@ export const RuleMessage = React.createClass({
                 />
               </div>
             : null}
-          <textarea
-            className="form-control form-malachite monotype rule-builder--message"
-            ref={r => (this.message = r)}
-            onChange={() => actions.updateMessage(rule.id, this.message.value)}
-            placeholder="Example: {{ .ID }} is {{ .Level }} value: {{ index .Fields &quot;value&quot; }}"
-            value={rule.message}
-            spellCheck={false}
-          />
+          <RuleMessageText rule={rule} actions={actions} />
           <RuleMessageTemplates
-            templates={RULE_MESSAGE_TEMPLATES}
-            actions={actions}
             rule={rule}
+            actions={actions}
+            templates={RULE_MESSAGE_TEMPLATES}
           />
         </div>
       </div>
