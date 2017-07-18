@@ -168,6 +168,7 @@ func (cmd *Command) unpackMeta() error {
 
 	// Copy meta config and remove peers so it starts in single mode.
 	c := cmd.MetaConfig
+	// FIXME
 	c.Dir = cmd.metadir
 
 	// Create the meta dir

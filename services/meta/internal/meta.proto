@@ -33,8 +33,8 @@ message NodeInfo {
 message DatabaseInfo {
 	required string Name = 1;
 	required string DefaultRetentionPolicy = 2;
-	repeated RetentionPolicyInfo RetentionPolicies = 3;
-	repeated ContinuousQueryInfo ContinuousQueries = 4;
+	map<string, RetentionPolicyInfo> RetentionPolicies = 3;
+	map<string, ContinuousQueryInfo> ContinuousQueries = 4;
 }
 
 message RetentionPolicySpec {
@@ -50,7 +50,7 @@ message RetentionPolicyInfo {
 	required int64 ShardGroupDuration = 3;
 	required uint32 ReplicaN = 4;
 	repeated ShardGroupInfo ShardGroups = 5;
-	repeated SubscriptionInfo Subscriptions = 6;
+	map<string, SubscriptionInfo> Subscriptions = 6;
 }
 
 message ShardGroupInfo {

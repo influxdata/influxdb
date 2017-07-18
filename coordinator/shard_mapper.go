@@ -25,7 +25,7 @@ type ShardMapper interface {
 // LocalShardMapper implements a ShardMapper for local shards.
 type LocalShardMapper struct {
 	MetaClient interface {
-		ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
+		ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []*meta.ShardGroupInfo, err error)
 	}
 
 	TSDBStore interface {
@@ -68,7 +68,7 @@ func (e *LocalShardMapper) mapShards(a *LocalShardMapping, sources influxql.Sour
 					continue
 				}
 
-				shardIDs := make([]uint64, 0, len(groups[0].Shards)*len(groups))
+				shardIDs := make([]uint64, 0, len(groups))
 				for _, g := range groups {
 					for _, si := range g.Shards {
 						shardIDs = append(shardIDs, si.ID)

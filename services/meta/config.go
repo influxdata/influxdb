@@ -18,6 +18,9 @@ const (
 // Config represents the meta configuration.
 type Config struct {
 	EtcdEndpoints string `toml:"etdc-endpoints"`
+
+	Dir string `toml:"dir"`
+
 	// in Seconds
 	LeaseDuration int64 `toml:"lease-duration"`
 

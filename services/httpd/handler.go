@@ -74,7 +74,7 @@ type Handler struct {
 
 	MetaClient interface {
 		Database(name string) *meta.DatabaseInfo
-		Databases() []meta.DatabaseInfo
+		Databases() map[string]*meta.DatabaseInfo
 		Authenticate(username, password string) (ui meta.User, err error)
 		User(username string) (meta.User, error)
 		AdminUserExists() bool
