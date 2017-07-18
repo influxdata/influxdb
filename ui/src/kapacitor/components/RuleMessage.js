@@ -1,4 +1,4 @@
-import React, {PropTypes} from 'react'
+import React, {Component, PropTypes} from 'react'
 import classnames from 'classnames'
 
 import RuleMessageConfig from 'src/kapacitor/components/RuleMessageConfig'
@@ -7,36 +7,30 @@ import RuleMessageTemplates from 'src/kapacitor/components/RuleMessageTemplates'
 
 import {RULE_MESSAGE_TEMPLATES, DEFAULT_ALERTS} from '../constants'
 
-const {arrayOf, func, shape, string} = PropTypes
+class RuleMessage extends Component {
+  constructor(props) {
+    super(props)
 
-export const RuleMessage = React.createClass({
-  propTypes: {
-    rule: shape({}).isRequired,
-    actions: shape({
-      updateMessage: func.isRequired,
-      updateDetails: func.isRequired,
-    }).isRequired,
-    enabledAlerts: arrayOf(string.isRequired).isRequired,
-  },
-
-  getInitialState() {
-    return {
+    this.state = {
       selectedAlert: null,
       selectedAlertProperty: null,
     }
-  },
+
+    this.handleChangeMessage = ::this.handleChangeMessage
+    this.handleChooseAlert = ::this.handleChooseAlert
+  }
 
   handleChangeMessage() {
     const {actions, rule} = this.props
     actions.updateMessage(rule.id, this.message.value)
-  },
+  }
 
   handleChooseAlert(item) {
     const {actions} = this.props
     actions.updateAlerts(item.ruleID, [item.text])
     actions.updateAlertNodes(item.ruleID, item.text, '')
     this.setState({selectedAlert: item.text})
-  },
+  }
 
   render() {
     const {rule, actions, enabledAlerts} = this.props
@@ -100,7 +94,18 @@ export const RuleMessage = React.createClass({
         </div>
       </div>
     )
-  },
-})
+  }
+}
+
+const {arrayOf, func, shape, string} = PropTypes
+
+RuleMessage.propTypes = {
+  rule: shape({}).isRequired,
+  actions: shape({
+    updateMessage: func.isRequired,
+    updateDetails: func.isRequired,
+  }).isRequired,
+  enabledAlerts: arrayOf(string.isRequired).isRequired,
+}
 
 export default RuleMessage
