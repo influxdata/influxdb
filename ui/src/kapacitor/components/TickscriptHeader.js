@@ -2,28 +2,34 @@ import React, {PropTypes} from 'react'
 import SourceIndicator from 'shared/components/SourceIndicator'
 import TickscriptType from 'src/kapacitor/components/TickscriptType'
 import MultiSelectDBDropdown from 'shared/components/MultiSelectDBDropdown'
-
+import TickscrtiptID from 'src/kapacitor/components/TickscriptID'
 const addName = list => list.map(l => ({...l, name: `${l.db}.${l.rp}`}))
 
 const TickscriptHeader = ({
-  source,
-  onChangeType,
+  task: {id, type, dbrps},
+  source: {name},
   onSave,
-  task,
+  isEditing,
+  onStopEdit,
+  onStartEdit,
+  onChangeType,
   onSelectDbrps,
 }) => (
   <div className="page-header">
     <div className="page-header__container">
       <div className="page-header__left">
-        <h1 className="page-header__title kapacitor-theme">
-          TICKscript Editor
-        </h1>
+        <TickscrtiptID
+          id={id}
+          isEditing={isEditing}
+          onStopEdit={onStopEdit}
+          onStartEdit={onStartEdit}
+        />
       </div>
       <div className="page-header__right">
-        <SourceIndicator sourceName={source.name} />
-        <TickscriptType type={task.type} onChangeType={onChangeType} />
+        <SourceIndicator sourceName={name} />
+        <TickscriptType type={type} onChangeType={onChangeType} />
         <MultiSelectDBDropdown
-          selectedItems={addName(task.dbrps)}
+          selectedItems={addName(dbrps)}
           onApply={onSelectDbrps}
         />
         <button className="btn btn-success btn-sm" onClick={onSave}>
@@ -34,7 +40,7 @@ const TickscriptHeader = ({
   </div>
 )
 
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 TickscriptHeader.propTypes = {
   onSave: func,
@@ -49,6 +55,9 @@ TickscriptHeader.propTypes = {
     ),
   }),
   onChangeType: func.isRequired,
+  isEditing: bool.isRequired,
+  onStartEdit: func.isRequired,
+  onStopEdit: func.isRequired,
 }
 
 export default TickscriptHeader

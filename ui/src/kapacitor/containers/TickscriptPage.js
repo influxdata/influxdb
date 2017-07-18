@@ -20,6 +20,7 @@ class TickscriptPage extends Component {
         type: 'stream',
       },
       validation: '',
+      isEditingID: false,
     }
   }
 
@@ -83,9 +84,17 @@ class TickscriptPage extends Component {
     return () => this.setState({task: {...this.state.task, type}})
   }
 
+  handleStartEditID() {
+    this.setState({isEditingID: true})
+  }
+
+  handleStopEditID() {
+    this.setState({isEditingID: false})
+  }
+
   render() {
     const {source} = this.props
-    const {task, validation} = this.state
+    const {task, validation, isEditingID} = this.state
 
     return (
       <Tickscript
@@ -96,6 +105,9 @@ class TickscriptPage extends Component {
         onChangeScript={::this.handleChangeScript}
         onChangeType={::this.handleChangeType}
         validation={validation}
+        isEditingID={isEditingID}
+        onStartEditID={::this.handleStartEditID}
+        onStopEditID={::this.handleStopEditID}
       />
     )
   }
