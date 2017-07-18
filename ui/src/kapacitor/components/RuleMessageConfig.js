@@ -6,7 +6,7 @@ import {
   ALERT_NODES_ACCESSORS,
 } from '../constants'
 
-const RuleMessageAlertConfig = ({updateAlertNodes, alert, rule}) => {
+const RuleMessageConfig = ({updateAlertNodes, alert, rule}) => {
   if (!Object.keys(DEFAULT_ALERT_PLACEHOLDERS).find(a => a === alert)) {
     return null
   }
@@ -33,10 +33,10 @@ const RuleMessageAlertConfig = ({updateAlertNodes, alert, rule}) => {
 
 const {func, shape, string} = PropTypes
 
-RuleMessageAlertConfig.propTypes = {
+RuleMessageConfig.propTypes = {
   updateAlertNodes: func.isRequired,
   alert: string,
   rule: shape({}).isRequired,
 }
 
-export default RuleMessageAlertConfig
+export default RuleMessageConfig
