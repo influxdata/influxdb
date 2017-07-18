@@ -144,8 +144,7 @@ function tokenFunction(states, config) {
 
       tok = state.local.mode.token(stream, state.localState)
       if (
-        state.local.endScan &&
-        (m = state.local.endScan.exec(stream.current()))
+        state.local.endScan && (m = state.local.endScan.exec(stream.current()))
       ) {
         stream.pos = stream.start + m.index
       }
