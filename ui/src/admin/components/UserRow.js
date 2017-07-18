@@ -43,6 +43,8 @@ const UserRow = ({
     onUpdatePassword(user, password)
   }
 
+  const perms = _.get(permissions, ['0', 'allowed'], [])
+
   if (isEditing) {
     return (
       <tr className="admin-table--edit-row">
@@ -102,11 +104,7 @@ const UserRow = ({
         {allPermissions && allPermissions.length
           ? <MultiSelectDropdown
               items={allPermissions.map(p => ({name: p}))}
-              selectedItems={_.get(
-                permissions,
-                ['0', 'allowed'],
-                []
-              ).map(p => ({name: p}))}
+              selectedItems={perms.map(p => ({name: p}))}
               label={
                 permissions && permissions.length ? '' : 'Select Permissions'
               }
