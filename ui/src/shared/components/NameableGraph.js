@@ -81,7 +81,6 @@ NameableGraph.propTypes = {
   onUpdateCell: func,
   onDeleteCell: func,
   onSummonOverlayTechnologies: func,
-  shouldNotBeEditable: bool,
   isEditable: bool,
 }
 
