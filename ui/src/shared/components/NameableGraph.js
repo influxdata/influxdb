@@ -10,9 +10,6 @@ class NameableGraph extends Component {
       isMenuOpen: false,
       cellName: props.cell.name,
     }
-
-    this.toggleMenu = ::this.toggleMenu
-    this.closeMenu = ::this.closeMenu
   }
 
   toggleMenu() {
@@ -49,7 +46,7 @@ class NameableGraph extends Component {
       children,
     } = this.props
 
-    const {cellName} = this.state
+    const {cellName, isMenuOpen} = this.state
 
     return (
       <div className="dash-graph">
@@ -65,10 +62,10 @@ class NameableGraph extends Component {
           cell={cell}
           onDelete={onDeleteCell}
           onRename={!cell.isEditing && isEditable ? onEditCell : () => {}}
-          toggleMenu={this.toggleMenu}
-          isOpen={this.state.isMenuOpen}
+          toggleMenu={::this.toggleMenu}
+          isOpen={isMenuOpen}
           isEditable={isEditable}
-          handleClickOutside={this.closeMenu}
+          handleClickOutside={::this.closeMenu}
           onEdit={onSummonOverlayTechnologies}
         />
         <div className="dash-graph--container">
