@@ -6,18 +6,18 @@ import {
   ALERT_NODES_ACCESSORS,
 } from 'src/kapacitor/constants'
 
-const RuleMessageConfig = ({rule, alert, updateAlertNodes, updateDetails}) => {
-  const isConfigTypeDefault =
+const RuleMessageOptions = ({rule, alert, updateAlertNodes, updateDetails}) => {
+  const isDetailsTypeDefault =
     Object.keys(DEFAULT_ALERT_PLACEHOLDERS).find(a => a === alert) &&
     Object.keys(DEFAULT_ALERT_LABELS).find(a => a === alert)
 
-  return isConfigTypeDefault
-    ? <DefaultConfig
+  return isDetailsTypeDefault
+    ? <DefaultOptions
         rule={rule}
         alert={alert}
         updateAlertNodes={updateAlertNodes}
       />
-    : <NonDefaultConfig
+    : <NonDefaultOptions
         rule={rule}
         alert={alert}
         updateDetails={updateDetails}
@@ -26,14 +26,14 @@ const RuleMessageConfig = ({rule, alert, updateAlertNodes, updateDetails}) => {
 
 const {func, shape, string} = PropTypes
 
-RuleMessageConfig.propTypes = {
+RuleMessageOptions.propTypes = {
   rule: shape({}).isRequired,
   alert: string,
   updateAlertNodes: func.isRequired,
   updateDetails: func.isRequired,
 }
 
-class DefaultConfig extends Component {
+class DefaultOptions extends Component {
   constructor(props) {
     super(props)
   }
@@ -59,13 +59,13 @@ class DefaultConfig extends Component {
   }
 }
 
-DefaultConfig.propTypes = {
+DefaultOptions.propTypes = {
   rule: shape({}).isRequired,
   alert: string,
   updateAlertNodes: func.isRequired,
 }
 
-class NonDefaultConfig extends Component {
+class NonDefaultOptions extends Component {
   constructor(props) {
     super(props)
   }
@@ -93,10 +93,10 @@ class NonDefaultConfig extends Component {
   }
 }
 
-NonDefaultConfig.propTypes = {
+NonDefaultOptions.propTypes = {
   rule: shape({}).isRequired,
   alert: string,
   updateDetails: func.isRequired,
 }
 
-export default RuleMessageConfig
+export default RuleMessageOptions

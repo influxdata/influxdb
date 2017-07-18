@@ -1,7 +1,7 @@
 import React, {Component, PropTypes} from 'react'
 import classnames from 'classnames'
 
-import RuleMessageConfig from 'src/kapacitor/components/RuleMessageConfig'
+import RuleMessageOptions from 'src/kapacitor/components/RuleMessageOptions'
 import RuleMessageText from 'src/kapacitor/components/RuleMessageText'
 import RuleMessageTemplates from 'src/kapacitor/components/RuleMessageTemplates'
 
@@ -67,7 +67,7 @@ class RuleMessage extends Component {
               )}
             </ul>
           </div>
-          <RuleMessageConfig
+          <RuleMessageOptions
             rule={rule}
             alert={selectedAlert}
             updateAlertNodes={actions.updateAlertNodes}
