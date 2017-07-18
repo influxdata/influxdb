@@ -7,9 +7,9 @@
   position: relative;
 }
 .custom-time--container {
-  display: none;
+  display: flex;
   position: absolute;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   top: 35px;
   right: 0;
@@ -18,6 +18,10 @@
   padding: 8px;
   z-index: 1000;
   box-shadow: 0 2px 5px 0.6px rgba(15, 14, 21, 0.2);
+}
+.custom-time--wrap {
+  display: flex;
+  flex-direction: column;
 }
 .custom-time--dates {
   display: flex;
@@ -29,6 +33,13 @@
 }
 .custom-time--upper {
   margin-left: 4px;
+}
+.custom-time--moving-dates {
+  flex: 1;
+  width: 80px;
+  > div {
+    cursor: pointer;
+  }
 }
 
 $custom-time-arrow: 28px;
@@ -229,7 +240,7 @@ $rd-cell-size: 30px;
 
 .custom-time--container .btn.custom-time--apply {
   margin-top: 8px;
-  width: 120px;
+  width: 210px;
 }
 
 

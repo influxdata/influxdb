@@ -8,6 +8,7 @@ class CustomTimeRange extends Component {
 
     this.handleClick = ::this.handleClick
     this._formatTimeRange = ::this._formatTimeRange
+    this.handleMovingTimeRange = ::this.handleMovingTimeRange
   }
 
   componentDidMount() {
@@ -39,15 +40,29 @@ class CustomTimeRange extends Component {
   render() {
     return (
       <div className="custom-time--container">
-        <div className="custom-time--dates">
-          <div className="custom-time--lower" ref={r => (this.lower = r)} />
-          <div className="custom-time--upper" ref={r => (this.upper = r)} />
+        <div className="custom-time--moving-dates">
+          <div onClick={this.handleMovingTimeRange('pastWeek')}>Past week</div>
+          <div onClick={this.handleMovingTimeRange('pastMonth')}>
+            Past month
+          </div>
+          <div onClick={this.handleMovingTimeRange('pastYear')}>Past year</div>
+          <div onClick={this.handleMovingTimeRange('thisWeek')}>This week</div>
+          <div onClick={this.handleMovingTimeRange('thisMonth')}>
+            This month
+          </div>
+          <div onClick={this.handleMovingTimeRange('thisYear')}>This year</div>
         </div>
-        <div
-          className="custom-time--apply btn btn-sm btn-primary"
-          onClick={this.handleClick}
-        >
-          Apply
+        <div className="custom-time--wrap">
+          <div className="custom-time--dates">
+            <div className="custom-time--lower" ref={r => (this.lower = r)} />
+            <div className="custom-time--upper" ref={r => (this.upper = r)} />
+          </div>
+          <div
+            className="custom-time--apply btn btn-sm btn-primary"
+            onClick={this.handleClick}
+          >
+            Apply
+          </div>
         </div>
       </div>
     )
@@ -80,6 +95,41 @@ class CustomTimeRange extends Component {
     onApplyTimeRange({lower, upper})
     if (onClose) {
       onClose()
+    }
+  }
+
+  handleMovingTimeRange(movingTimeRange) {
+    return () => {
+      let lower
+
+      switch (movingTimeRange) {
+        case 'pastWeek': {
+          lower = moment().subtract(1, 'week')
+          break
+        }
+        case 'pastMonth': {
+          lower = moment().subtract(1, 'month')
+          break
+        }
+        case 'pastYear': {
+          lower = moment().subtract(1, 'year')
+          break
+        }
+        case 'thisWeek': {
+          lower = moment().startOf('week')
+          break
+        }
+        case 'thisMonth': {
+          lower = moment().startOf('month')
+          break
+        }
+        case 'thisYear': {
+          lower = moment().startOf('year')
+          break
+        }
+      }
+
+      this.lowerCal.setValue(lower)
     }
   }
 }
