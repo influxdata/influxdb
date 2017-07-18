@@ -93,6 +93,14 @@ export const editDashboardCell = (dashboard, x, y, isEditing) => ({
   },
 })
 
+export const cancelEditCell = (dashboardID, cellID) => ({
+  type: 'CANCEL_EDIT_CELL',
+  payload: {
+    dashboardID,
+    cellID,
+  },
+})
+
 export const renameDashboardCell = (dashboard, x, y, name) => ({
   type: 'RENAME_DASHBOARD_CELL',
   payload: {

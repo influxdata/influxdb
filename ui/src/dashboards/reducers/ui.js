@@ -132,6 +132,24 @@ export default function ui(state = initialState, action) {
       return {...state, ...newState}
     }
 
+    case 'CANCEL_EDIT_CELL': {
+      const {dashboardID, cellID} = action.payload
+
+      const dashboards = state.dashboards.map(
+        d =>
+          (d.id === dashboardID
+            ? {
+                ...d,
+                cells: d.cells.map(
+                  c => (c.i === cellID ? {...c, isEditing: false} : c)
+                ),
+              }
+            : d)
+      )
+
+      return {...state, dashboards}
+    }
+
     case 'SYNC_DASHBOARD_CELL': {
       const {cell, dashboard} = action.payload
 

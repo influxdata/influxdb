@@ -11,6 +11,7 @@ import {
   renameDashboardCell,
   syncDashboardCell,
   templateVariableSelected,
+  cancelEditCell,
 } from 'src/dashboards/actions'
 
 let state
@@ -62,6 +63,13 @@ const c1 = {
   isEditing: false,
   name: 'Gigawatts',
 }
+
+const editingCell = {
+  i: 1,
+  isEditing: true,
+  name: 'Edit me',
+}
+
 const cells = [c1]
 const tempVar = {
   ...d1.templates[0],
@@ -179,5 +187,18 @@ describe('DataExplorer.Reducers.UI', () => {
     expect(actual.dashboards[0].templates[0].values[0].selected).to.equal(false)
     expect(actual.dashboards[0].templates[0].values[1].selected).to.equal(false)
     expect(actual.dashboards[0].templates[0].values[2].selected).to.equal(true)
+  })
+
+  it('can cancel cell editing', () => {
+    const dash = _.cloneDeep(d1)
+    dash.cells = [editingCell]
+
+    const actual = reducer(
+      {dashboards: [dash]},
+      cancelEditCell(dash.id, editingCell.i)
+    )
+
+    expect(actual.dashboards[0].cells[0].isEditing).to.equal(false)
+    expect(actual.dashboards[0].cells[0].name).to.equal(editingCell.name)
   })
 })
