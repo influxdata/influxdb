@@ -4,12 +4,13 @@ import classnames from 'classnames'
 import CustomTimeIndicator from 'shared/components/CustomTimeIndicator'
 
 const NameableGraphHeader = ({
+  onCancelEditCell,
   isEditable,
-  onEditCell,
   onRenameCell,
   onUpdateCell,
   cell,
-  cell: {x, y, name, queries},
+  cellName,
+  cell: {i, name, queries},
 }) => {
   const isInputVisible = isEditable && cell.isEditing
   const className = classnames('dash-graph--heading', {
@@ -17,11 +18,11 @@ const NameableGraphHeader = ({
   })
   const onKeyUp = evt => {
     if (evt.key === 'Enter') {
-      onUpdateCell(cell)()
+      onUpdateCell({...cell, name: cellName})()
     }
 
     if (evt.key === 'Escape') {
-      onEditCell(x, y, true)()
+      onCancelEditCell(i)
     }
   }
 
@@ -29,9 +30,9 @@ const NameableGraphHeader = ({
     <div className={className}>
       {isInputVisible
         ? <GraphNameInput
-            value={name}
-            onChange={onRenameCell(x, y)}
-            onBlur={onUpdateCell(cell)}
+            value={cellName}
+            onChange={onRenameCell}
+            onBlur={onUpdateCell({...cell, name: cellName})}
             onKeyUp={onKeyUp}
           />
         : <GraphName name={name} queries={queries} />}
@@ -43,10 +44,11 @@ const {arrayOf, bool, func, string, shape} = PropTypes
 
 NameableGraphHeader.propTypes = {
   cell: shape(),
-  onEditCell: func,
+  cellName: string,
   onRenameCell: func,
   onUpdateCell: func,
   isEditable: bool,
+  onCancelEditCell: func,
 }
 
 const GraphName = ({name, queries}) => (

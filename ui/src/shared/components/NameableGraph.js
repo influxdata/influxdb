@@ -8,6 +8,7 @@ class NameableGraph extends Component {
     super(props)
     this.state = {
       isMenuOpen: false,
+      cellName: props.cell.name,
     }
 
     this.toggleMenu = ::this.toggleMenu
@@ -20,6 +21,17 @@ class NameableGraph extends Component {
     })
   }
 
+  handleRenameCell(e) {
+    const cellName = e.target.value
+    this.setState({cellName})
+  }
+
+  handleCancelEdit(cellID) {
+    const {cell, onCancelEditCell} = this.props
+    this.setState({cellName: cell.name})
+    onCancelEditCell(cellID)
+  }
+
   closeMenu() {
     this.setState({
       isMenuOpen: false,
@@ -30,7 +42,6 @@ class NameableGraph extends Component {
     const {
       cell,
       onEditCell,
-      onRenameCell,
       onUpdateCell,
       onDeleteCell,
       onSummonOverlayTechnologies,
@@ -38,14 +49,17 @@ class NameableGraph extends Component {
       children,
     } = this.props
 
+    const {cellName} = this.state
+
     return (
       <div className="dash-graph">
         <NameableGraphHeader
           cell={cell}
+          cellName={cellName}
           isEditable={isEditable}
-          onEditCell={onEditCell}
-          onRenameCell={onRenameCell}
           onUpdateCell={onUpdateCell}
+          onRenameCell={::this.handleRenameCell}
+          onCancelEditCell={::this.handleCancelEdit}
         />
         <ContextMenu
           cell={cell}
@@ -82,6 +96,7 @@ NameableGraph.propTypes = {
   onDeleteCell: func,
   onSummonOverlayTechnologies: func,
   isEditable: bool,
+  onCancelEditCell: func,
 }
 
 export default NameableGraph

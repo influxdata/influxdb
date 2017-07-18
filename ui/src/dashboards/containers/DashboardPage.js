@@ -44,7 +44,6 @@ class DashboardPage extends Component {
     this.handleCancelEditDashboard = ::this.handleCancelEditDashboard
     this.handleDeleteDashboardCell = ::this.handleDeleteDashboardCell
     this.handleOpenTemplateManager = ::this.handleOpenTemplateManager
-    this.handleRenameDashboardCell = ::this.handleRenameDashboardCell
     this.handleUpdateDashboardCell = ::this.handleUpdateDashboardCell
     this.handleCloseTemplateManager = ::this.handleCloseTemplateManager
     this.handleSummonOverlayTechnologies = ::this
@@ -144,26 +143,12 @@ class DashboardPage extends Component {
     }
   }
 
-  handleRenameDashboardCell(x, y) {
-    return evt => {
-      this.props.dashboardActions.renameDashboardCell(
-        this.getActiveDashboard(),
-        x,
-        y,
-        evt.target.value
-      )
-    }
-  }
-
   handleUpdateDashboardCell(newCell) {
     return () => {
-      this.props.dashboardActions.editDashboardCell(
+      this.props.dashboardActions.updateDashboardCell(
         this.getActiveDashboard(),
-        newCell.x,
-        newCell.y,
-        false
+        newCell
       )
-      this.props.dashboardActions.putDashboard(this.getActiveDashboard())
     }
   }
 
@@ -236,6 +221,13 @@ class DashboardPage extends Component {
 
   handleToggleTempVarControls() {
     this.props.templateControlBarVisibilityToggled()
+  }
+
+  handleCancelEditCell(cellID) {
+    this.props.dashboardActions.cancelEditCell(
+      this.getActiveDashboard().id,
+      cellID
+    )
   }
 
   getActiveDashboard() {
@@ -384,13 +376,13 @@ class DashboardPage extends Component {
               onEditCell={this.handleEditDashboardCell}
               onPositionChange={this.handleUpdatePosition}
               onDeleteCell={this.handleDeleteDashboardCell}
-              onRenameCell={this.handleRenameDashboardCell}
               onUpdateCell={this.handleUpdateDashboardCell}
               onOpenTemplateManager={this.handleOpenTemplateManager}
               templatesIncludingDashTime={templatesIncludingDashTime}
               onSummonOverlayTechnologies={this.handleSummonOverlayTechnologies}
               onSelectTemplate={this.handleSelectTemplate}
               showTemplateControlBar={showTemplateControlBar}
+              onCancelEditCell={::this.handleCancelEditCell}
             />
           : null}
       </div>
@@ -420,7 +412,7 @@ DashboardPage.propTypes = {
     setTimeRange: func.isRequired,
     addDashboardCellAsync: func.isRequired,
     editDashboardCell: func.isRequired,
-    renameDashboardCell: func.isRequired,
+    cancelEditCell: func.isRequired,
   }).isRequired,
   dashboards: arrayOf(
     shape({

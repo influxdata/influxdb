@@ -138,6 +138,7 @@ class LayoutRenderer extends Component {
       source,
       cells,
       onEditCell,
+      onCancelEditCell,
       onRenameCell,
       onUpdateCell,
       onDeleteCell,
@@ -155,6 +156,7 @@ class LayoutRenderer extends Component {
       return (
         <div key={cell.i}>
           <NameableGraph
+            onCancelEditCell={onCancelEditCell}
             isEditable={isEditable}
             onEditCell={onEditCell}
             onRenameCell={onRenameCell}
@@ -299,6 +301,7 @@ LayoutRenderer.propTypes = {
   synchronizer: func,
   isStatusPage: bool,
   isEditable: bool,
+  onCancelEditCell: func,
 }
 
 export default LayoutRenderer
