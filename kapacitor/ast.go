@@ -492,6 +492,7 @@ func extractAlertNodes(p *pipeline.Pipeline, rule *chronograf.AlertRule) {
 			extractSlack(t, rule)
 			extractTalk(t, rule)
 			extractTelegram(t, rule)
+			extractPushover(t, rule)
 			extractTCP(t, rule)
 			extractLog(t, rule)
 			extractExec(t, rule)
@@ -847,6 +848,61 @@ func extractExec(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
 
 	if len(exec.Command) != 0 {
 		alert.Args = exec.Command
+	}
+
+	rule.AlertNodes = append(rule.AlertNodes, alert)
+}
+
+func extractPushover(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
+	if node.PushoverHandlers == nil {
+		return
+	}
+	rule.Alerts = append(rule.Alerts, "pushover")
+	a := node.PushoverHandlers[0]
+	alert := chronograf.KapacitorNode{
+		Name: "pushover",
+	}
+
+	if a.UserKey != "" {
+		alert.Properties = append(alert.Properties, chronograf.KapacitorProperty{
+			Name: "user-key",
+			Args: []string{a.UserKey},
+		})
+	}
+
+	if a.Device != "" {
+		alert.Properties = append(alert.Properties, chronograf.KapacitorProperty{
+			Name: "device",
+			Args: []string{a.Device},
+		})
+	}
+
+	if a.Title != "" {
+		alert.Properties = append(alert.Properties, chronograf.KapacitorProperty{
+			Name: "title",
+			Args: []string{a.Title},
+		})
+	}
+
+	if a.URL != "" {
+		alert.Properties = append(alert.Properties, chronograf.KapacitorProperty{
+			Name: "url",
+			Args: []string{a.URL},
+		})
+	}
+
+	if a.URLTitle != "" {
+		alert.Properties = append(alert.Properties, chronograf.KapacitorProperty{
+			Name: "url-title",
+			Args: []string{a.URLTitle},
+		})
+	}
+
+	if a.Sound != "" {
+		alert.Properties = append(alert.Properties, chronograf.KapacitorProperty{
+			Name: "sound",
+			Args: []string{a.Sound},
+		})
 	}
 
 	rule.AlertNodes = append(rule.AlertNodes, alert)
