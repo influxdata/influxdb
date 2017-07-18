@@ -219,7 +219,7 @@ func (w *PointsWriter) MapShards(wp *WritePointsRequest) (*ShardMapping, error) 
 		if sg == nil {
 			return nil, errors.New("nil shard group")
 		}
-		list = list.Append(*sg)
+		list = list.Append(sg)
 	}
 
 	mapping := NewShardMapping(len(wp.Points))
@@ -266,11 +266,11 @@ func (l sgList) ShardGroupAt(t time.Time) *meta.ShardGroupInfo {
 	if idx == len(l) || t.Before(l[idx].StartTime) {
 		return nil
 	}
-	return &l[idx]
+	return l[idx]
 }
 
 // Append appends a shard group to the list, and returns a sorted list.
-func (l sgList) Append(sgi meta.ShardGroupInfo) sgList {
+func (l sgList) Append(sgi *meta.ShardGroupInfo) sgList {
 	next := append(l, sgi)
 	sort.Sort(meta.ShardGroupInfos(next))
 	return next

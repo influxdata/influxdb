@@ -43,7 +43,7 @@ type subEntry struct {
 // Subscriptions are defined per database and retention policy.
 type Service struct {
 	MetaClient interface {
-		Databases() []meta.DatabaseInfo
+		Databases() map[string]*meta.DatabaseInfo
 		WaitForDataChanged() chan struct{}
 	}
 	NewPointsWriter func(u url.URL) (PointsWriter, error)
