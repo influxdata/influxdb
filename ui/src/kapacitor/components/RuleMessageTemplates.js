@@ -10,7 +10,7 @@ class RuleMessageTemplates extends Component {
   }
 
   render() {
-    const {templates, actions, rule} = this.props
+    const {rule, actions, templates} = this.props
 
     return (
       <div className="rule-section--row rule-section--row-last rule-section--border-top">
@@ -42,9 +42,9 @@ class RuleMessageTemplates extends Component {
 const {shape} = PropTypes
 
 RuleMessageTemplates.propTypes = {
-  templates: shape().isRequired,
-  actions: shape().isRequired,
   rule: shape().isRequired,
+  actions: shape().isRequired,
+  templates: shape().isRequired,
 }
 
 export default RuleMessageTemplates
