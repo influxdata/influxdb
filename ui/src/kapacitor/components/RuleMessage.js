@@ -5,7 +5,7 @@ import RuleMessageConfig from 'src/kapacitor/components/RuleMessageConfig'
 import RuleMessageText from 'src/kapacitor/components/RuleMessageText'
 import RuleMessageTemplates from 'src/kapacitor/components/RuleMessageTemplates'
 
-import {RULE_MESSAGE_TEMPLATES, DEFAULT_ALERTS} from '../constants'
+import {DEFAULT_ALERTS} from 'src/kapacitor/constants'
 
 class RuleMessage extends Component {
   constructor(props) {
@@ -68,28 +68,15 @@ class RuleMessage extends Component {
             </ul>
           </div>
           <RuleMessageConfig
-            updateAlertNodes={actions.updateAlertNodes}
-            alert={selectedAlert}
             rule={rule}
+            alert={selectedAlert}
+            updateAlertNodes={actions.updateAlertNodes}
+            updateDetails={actions.updateDetails}
           />
-          {selectedAlert === 'smtp'
-            ? <div className="rule-section--border-bottom">
-                <textarea
-                  className="form-control form-malachite monotype rule-builder--message"
-                  placeholder="Email body text goes here"
-                  ref={r => (this.details = r)}
-                  onChange={() =>
-                    actions.updateDetails(rule.id, this.details.value)}
-                  value={rule.details}
-                  spellCheck={false}
-                />
-              </div>
-            : null}
-          <RuleMessageText rule={rule} actions={actions} />
+          <RuleMessageText rule={rule} updateMessage={actions.updateMessage} />
           <RuleMessageTemplates
             rule={rule}
-            actions={actions}
-            templates={RULE_MESSAGE_TEMPLATES}
+            updateMessage={actions.updateMessage}
           />
         </div>
       </div>

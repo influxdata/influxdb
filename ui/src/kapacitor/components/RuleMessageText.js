@@ -6,13 +6,13 @@ class RuleMessageText extends Component {
   }
 
   render() {
-    const {rule, actions} = this.props
+    const {rule, updateMessage} = this.props
 
     return (
       <textarea
         className="form-control form-malachite monotype rule-builder--message"
         ref={r => (this.message = r)}
-        onChange={() => actions.updateMessage(rule.id, this.message.value)}
+        onChange={() => updateMessage(rule.id, this.message.value)}
         placeholder="Example: {{ .ID }} is {{ .Level }} value: {{ index .Fields &quot;value&quot; }}"
         value={rule.message}
         spellCheck={false}
@@ -21,11 +21,11 @@ class RuleMessageText extends Component {
   }
 }
 
-const {shape} = PropTypes
+const {func, shape} = PropTypes
 
 RuleMessageText.propTypes = {
   rule: shape().isRequired,
-  actions: shape().isRequired,
+  updateMessage: func.isRequired,
 }
 
 export default RuleMessageText
