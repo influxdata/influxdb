@@ -23,7 +23,13 @@ class MultiSelectDBDropdown extends Component {
     const {dbrps} = this.state
     const {onApply} = this.props
 
-    return <MultiSelectDropdown items={dbrps} onApply={onApply} />
+    return (
+      <MultiSelectDropdown
+        items={dbrps}
+        onApply={onApply}
+        isApplyShown={false}
+      />
+    )
   }
 
   async _getDbRps() {

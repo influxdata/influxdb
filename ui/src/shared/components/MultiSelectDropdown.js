@@ -31,7 +31,7 @@ class MultiSelectDropdown extends Component {
     }
 
     this.onSelect = ::this.onSelect
-    this.onApplyFunctions = ::this.onApplyFunctions
+    this.handleApply = ::this.handleApply
   }
 
   handleClickOutside() {
@@ -46,6 +46,7 @@ class MultiSelectDropdown extends Component {
   onSelect(item, e) {
     e.stopPropagation()
 
+    const {onApply, isApplyShown} = this.props
     const {localSelectedItems} = this.state
 
     let nextItems
@@ -55,6 +56,10 @@ class MultiSelectDropdown extends Component {
       nextItems = [...localSelectedItems, item]
     }
 
+    if (!isApplyShown) {
+      onApply(nextItems)
+    }
+
     this.setState({localSelectedItems: nextItems})
   }
 
@@ -62,7 +67,7 @@ class MultiSelectDropdown extends Component {
     return !!this.state.localSelectedItems.find(({name}) => name === item.name)
   }
 
-  onApplyFunctions(e) {
+  handleApply(e) {
     e.stopPropagation()
 
     this.setState({isOpen: false})
@@ -91,18 +96,18 @@ class MultiSelectDropdown extends Component {
   }
 
   renderMenu() {
-    const {items} = this.props
-
-    return (
-      <ul className="dropdown-menu">
-        <li className="multi-select--apply">
-          <button
-            className="btn btn-xs btn-info"
-            onClick={this.onApplyFunctions}
-          >
+    const {items, isApplyShown} = this.props
+    const applyButton = isApplyShown
+      ? <li className="multi-select--apply">
+          <button className="btn btn-xs btn-info" onClick={this.handleApply}>
             Apply
           </button>
         </li>
+      : null
+
+    return (
+      <ul className="dropdown-menu">
+        {applyButton}
         <FancyScrollbar
           autoHide={false}
           autoHeight={true}
@@ -130,7 +135,7 @@ class MultiSelectDropdown extends Component {
   }
 }
 
-const {arrayOf, func, shape, string} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 MultiSelectDropdown.propTypes = {
   onApply: func.isRequired,
@@ -149,6 +154,7 @@ MultiSelectDropdown.propTypes = {
   buttonColor: string,
   customClass: string,
   iconName: string,
+  isApplyShown: bool,
 }
 
 MultiSelectDropdown.defaultProps = {
@@ -156,6 +162,7 @@ MultiSelectDropdown.defaultProps = {
   buttonColor: 'btn-default',
   customClass: 'dropdown-160',
   selectedItems: [],
+  isApplyShown: true,
 }
 
 export default OnClickOutside(MultiSelectDropdown)
