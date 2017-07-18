@@ -10,7 +10,7 @@ import DeleteConfirmTableCell from 'shared/components/DeleteConfirmTableCell'
 import {ROLES_TABLE} from 'src/admin/constants/tableSizing'
 
 const RoleRow = ({
-  role: {name, permissions, users},
+  role: {name, permissions, users = []},
   role,
   allUsers,
   allPermissions,
@@ -85,9 +85,9 @@ const RoleRow = ({
       <td>
         {allUsers && allUsers.length
           ? <MultiSelectDropdown
-              items={allUsers.map(u => u.name)}
-              selectedItems={users === undefined ? [] : users.map(u => u.name)}
-              label={users && users.length ? '' : 'Select Users'}
+              items={allUsers}
+              selectedItems={users}
+              label={users.length ? '' : 'Select Users'}
               onApply={handleUpdateUsers}
               buttonSize="btn-xs"
               buttonColor="btn-primary"

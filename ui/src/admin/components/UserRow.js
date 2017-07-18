@@ -12,7 +12,7 @@ import ChangePassRow from 'src/admin/components/ChangePassRow'
 import {USERS_TABLE} from 'src/admin/constants/tableSizing'
 
 const UserRow = ({
-  user: {name, roles, permissions, password},
+  user: {name, roles = [], permissions, password},
   user,
   allRoles,
   allPermissions,
@@ -86,13 +86,9 @@ const UserRow = ({
       {hasRoles
         ? <td>
             <MultiSelectDropdown
-              items={allRoles.map(r => r.name)}
-              selectedItems={
-                roles
-                  ? roles.map(r => r.name)
-                  : [] /* TODO remove check when server returns empty list */
-              }
-              label={roles && roles.length ? '' : 'Select Roles'}
+              items={allRoles}
+              selectedItems={roles.map(r => r.name)}
+              label={roles.length ? '' : 'Select Roles'}
               onApply={handleUpdateRoles}
               buttonSize="btn-xs"
               buttonColor="btn-primary"
