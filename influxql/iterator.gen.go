@@ -20,7 +20,7 @@ import (
 )
 
 // DefaultStatsInterval is the default value for IteratorEncoder.StatsInterval.
-const DefaultStatsInterval = 10 * time.Second
+const DefaultStatsInterval = time.Second
 
 // FloatIterator represents a stream of float points.
 type FloatIterator interface {
