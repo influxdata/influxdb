@@ -357,6 +357,109 @@ func TestExecuteContinuousQuery_InvalidQueries(t *testing.T) {
 	}
 }
 
+// Test the time range for different CQ durations.
+func TestExecuteContinuousQuery_TimeRange(t *testing.T) {
+	// Choose a start date that is not on an interval border for anyone.
+	now := mustParseTime(t, "2000-01-01T00:00:00Z")
+	for _, tt := range []struct {
+		d          string
+		start, end time.Time
+	}{
+		{
+			d:     "10s",
+			start: mustParseTime(t, "2000-01-01T00:00:00Z"),
+			end:   mustParseTime(t, "2000-01-01T00:00:10Z"),
+		},
+		{
+			d:     "1m",
+			start: mustParseTime(t, "2000-01-01T00:00:00Z"),
+			end:   mustParseTime(t, "2000-01-01T00:01:00Z"),
+		},
+		{
+			d:     "10m",
+			start: mustParseTime(t, "2000-01-01T00:00:00Z"),
+			end:   mustParseTime(t, "2000-01-01T00:10:00Z"),
+		},
+		{
+			d:     "30m",
+			start: mustParseTime(t, "2000-01-01T00:00:00Z"),
+			end:   mustParseTime(t, "2000-01-01T00:30:00Z"),
+		},
+		{
+			d:     "1h",
+			start: mustParseTime(t, "2000-01-01T00:00:00Z"),
+			end:   mustParseTime(t, "2000-01-01T01:00:00Z"),
+		},
+		{
+			d:     "2h",
+			start: mustParseTime(t, "2000-01-01T00:00:00Z"),
+			end:   mustParseTime(t, "2000-01-01T02:00:00Z"),
+		},
+		{
+			d:     "12h",
+			start: mustParseTime(t, "2000-01-01T00:00:00Z"),
+			end:   mustParseTime(t, "2000-01-01T12:00:00Z"),
+		},
+		{
+			d:     "1d",
+			start: mustParseTime(t, "2000-01-01T00:00:00Z"),
+			end:   mustParseTime(t, "2000-01-02T00:00:00Z"),
+		},
+		{
+			d:     "1w",
+			start: mustParseTime(t, "1999-12-30T00:00:00Z"),
+			end:   mustParseTime(t, "2000-01-06T00:00:00Z"),
+		},
+	} {
+		t.Run(tt.d, func(t *testing.T) {
+			d, err := influxql.ParseDuration(tt.d)
+			if err != nil {
+				t.Fatalf("unable to parse duration: %s", err)
+			}
+
+			s := NewTestService(t)
+			mc := NewMetaClient(t)
+			mc.CreateDatabase("db", "")
+			mc.CreateContinuousQuery("db", "cq",
+				fmt.Sprintf(`CREATE CONTINUOUS QUERY cq ON db BEGIN SELECT mean(value) INTO cpu_mean FROM cpu GROUP BY time(%s) END`, tt.d))
+			s.MetaClient = mc
+
+			// Set RunInterval high so we can trigger using Run method.
+			s.RunInterval = 10 * time.Minute
+			done := make(chan struct{})
+
+			// Set a callback for ExecuteStatement.
+			s.QueryExecutor.StatementExecutor = &StatementExecutor{
+				ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
+					s := stmt.(*influxql.SelectStatement)
+					min, max, err := influxql.TimeRange(s.Condition)
+					max = max.Add(time.Nanosecond)
+					if err != nil {
+						t.Errorf("unexpected error parsing time range: %s", err)
+					} else if !tt.start.Equal(min) || !tt.end.Equal(max) {
+						t.Errorf("mismatched time range: got=(%s, %s) exp=(%s, %s)", min, max, tt.start, tt.end)
+					}
+					done <- struct{}{}
+					ctx.Results <- &influxql.Result{}
+					return nil
+				},
+			}
+
+			s.Open()
+			defer s.Close()
+
+			// Send an initial run request one nanosecond after the start to
+			// prime the last CQ map.
+			s.RunCh <- &RunRequest{Now: now.Add(time.Nanosecond)}
+			// Execute the real request after the time interval.
+			s.RunCh <- &RunRequest{Now: now.Add(d)}
+			if err := wait(done, 100*time.Millisecond); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
 // Test ExecuteContinuousQuery when QueryExecutor returns an error.
 func TestExecuteContinuousQuery_QueryExecutor_Error(t *testing.T) {
 	s := NewTestService(t)
@@ -533,4 +636,12 @@ func wait(c chan struct{}, d time.Duration) (err error) {
 		err = errors.New("timed out")
 	}
 	return
+}
+
+func mustParseTime(t *testing.T, value string) time.Time {
+	ts, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		t.Fatalf("unable to parse time: %s", err)
+	}
+	return ts
 }
