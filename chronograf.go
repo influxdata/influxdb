@@ -565,16 +565,22 @@ type Dashboard struct {
 	Name      string          `json:"name"`
 }
 
+// DashboardRange represents the visible extents of a visualization
+type DashboardRange struct {
+	Bounds [2]int32 `json:"bounds"` // bounds are an ordered 2-tuple consisting of lower and upper axis extents, respectively
+}
+
 // DashboardCell holds visual and query information for a cell
 type DashboardCell struct {
-	ID      string           `json:"i"`
-	X       int32            `json:"x"`
-	Y       int32            `json:"y"`
-	W       int32            `json:"w"`
-	H       int32            `json:"h"`
-	Name    string           `json:"name"`
-	Queries []DashboardQuery `json:"queries"`
-	Type    string           `json:"type"`
+	ID      string                    `json:"i"`
+	X       int32                     `json:"x"`
+	Y       int32                     `json:"y"`
+	W       int32                     `json:"w"`
+	H       int32                     `json:"h"`
+	Name    string                    `json:"name"`
+	Queries []DashboardQuery          `json:"queries"`
+	Axes    map[string]DashboardRange `json:"axes"`
+	Type    string                    `json:"type"`
 }
 
 // DashboardsStore is the storage and retrieval of dashboards
