@@ -23,14 +23,19 @@ message Dashboard {
 }
 
 message DashboardCell {
-	int32 x                 = 1; // X-coordinate of Cell in the Dashboard
-	int32 y                 = 2; // Y-coordinate of Cell in the Dashboard
-	int32 w                 = 3; // Width of Cell in the Dashboard
-	int32 h                 = 4; // Height of Cell in the Dashboard
-	repeated Query queries  = 5; // Time-series data queries for Dashboard
-	string name             = 6; // User-facing name for this Dashboard
-	string type             = 7; // Dashboard visualization type
-    string ID               = 8; // id is the unique id of the dashboard. MIGRATED FIELD added in 1.2.0-beta6
+	int32 x                          = 1; // X-coordinate of Cell in the Dashboard
+	int32 y                          = 2; // Y-coordinate of Cell in the Dashboard
+	int32 w                          = 3; // Width of Cell in the Dashboard
+	int32 h                          = 4; // Height of Cell in the Dashboard
+	repeated Query queries           = 5; // Time-series data queries for Dashboard
+	string name                      = 6; // User-facing name for this Dashboard
+	string type                      = 7; // Dashboard visualization type
+  string ID                        = 8; // id is the unique id of the dashboard. MIGRATED FIELD added in 1.2.0-beta6
+  map<string, DashboardRange> axes = 9; // Axes represent the graphical viewport for a cell's visualizations
+}
+
+message DashboardRange {
+  repeated int32 bounds = 1; // bounds are an ordered 2-tuple consisting of lower and upper axis extents, respectively
 }
 
 message Template {
