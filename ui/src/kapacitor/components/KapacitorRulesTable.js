@@ -76,7 +76,7 @@ const RuleRow = ({rule, source, onDelete, onChangeRuleStatus}) =>
     </td>
     <td style={{width: colActions}} className="text-right table-cell-nowrap">
       <Link
-        className="btn btn-primary btn-xs"
+        className="btn btn-info btn-xs"
         to={`/sources/${source.id}/tickscript/${rule.id}`}
       >
         Edit TICKscript

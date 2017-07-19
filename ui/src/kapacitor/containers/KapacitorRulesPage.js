@@ -12,13 +12,6 @@ class KapacitorRulesPage extends Component {
       hasKapacitor: false,
       loading: true,
     }
-<<<<<<< HEAD
-=======
-
-    this.handleDeleteRule = ::this.handleDeleteRule
-    this.handleRuleStatus = ::this.handleRuleStatus
-    this.handleCloseTickscript = ::this.handleCloseTickscript
->>>>>>> Remove view only Tickscript
   }
 
   async componentDidMount() {
@@ -44,17 +37,6 @@ class KapacitorRulesPage extends Component {
     actions.updateRuleStatusSuccess(rule.id, status)
   }
 
-<<<<<<< HEAD
-  handleReadTickscript = ({tickscript}) => () => {
-    this.setState({tickscript})
-  }
-
-  handleCloseTickscript = () => {
-    this.setState({tickscript: null})
-  }
-
-=======
->>>>>>> Remove view only Tickscript
   render() {
     const {source, rules} = this.props
     const {hasKapacitor, loading} = this.state
@@ -65,9 +47,8 @@ class KapacitorRulesPage extends Component {
         rules={rules}
         hasKapacitor={hasKapacitor}
         loading={loading}
-        onDelete={this.handleDeleteRule}
-        onChangeRuleStatus={this.handleRuleStatus}
-        onCloseTickscript={this.handleCloseTickscript}
+        onDelete={::this.handleDeleteRule}
+        onChangeRuleStatus={::this.handleRuleStatus}
       />
     )
   }
