@@ -5,7 +5,7 @@ import RuleMessageOptions from 'src/kapacitor/components/RuleMessageOptions'
 import RuleMessageText from 'src/kapacitor/components/RuleMessageText'
 import RuleMessageTemplates from 'src/kapacitor/components/RuleMessageTemplates'
 
-import {DEFAULT_ALERTS} from 'src/kapacitor/constants'
+import {DEFAULT_ALERTS, RULE_ALERT_OPTIONS} from 'src/kapacitor/constants'
 
 class RuleMessage extends Component {
   constructor(props) {
@@ -54,17 +54,22 @@ class RuleMessage extends Component {
           <div className="rule-section--row rule-section--row-first rule-section--border-bottom">
             <p>Send this Alert to:</p>
             <ul className="nav nav-tablist nav-tablist-sm nav-tablist-malachite">
-              {alerts.map(alert =>
-                <li
-                  key={alert.text}
-                  className={classnames({
-                    active: alert.text === selectedAlert,
-                  })}
-                  onClick={() => this.handleChooseAlert(alert)}
-                >
-                  {alert.text}
-                </li>
-              )}
+              {alerts
+                // only display alert endpoints that have had their argument details configured
+                .filter(alert =>
+                  Object.keys(RULE_ALERT_OPTIONS).includes(alert.text)
+                )
+                .map(alert =>
+                  <li
+                    key={alert.text}
+                    className={classnames({
+                      active: alert.text === selectedAlert,
+                    })}
+                    onClick={() => this.handleChooseAlert(alert)}
+                  >
+                    {alert.text}
+                  </li>
+                )}
             </ul>
           </div>
           <RuleMessageOptions

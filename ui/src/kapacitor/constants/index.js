@@ -83,23 +83,65 @@ export const RULE_MESSAGE_TEMPLATES = {
 
 export const DEFAULT_ALERTS = ['http', 'tcp', 'exec', 'log']
 
-export const DEFAULT_ALERT_LABELS = {
-  http: 'URL:',
-  tcp: 'Address:',
-  exec: 'Add Command (Arguments separated by Spaces):',
-  log: 'File:',
-  smtp: 'Email Addresses (Separated by Spaces):',
-  slack: 'Send alerts to Slack channel:',
-  alerta: 'Paste Alerta TICKscript:',
-}
-export const DEFAULT_ALERT_PLACEHOLDERS = {
-  http: 'Ex: http://example.com/api/alert',
-  tcp: 'Ex: exampleendpoint.com:5678',
-  exec: 'Ex: woogie boogie',
-  log: 'Ex: /tmp/alerts.log',
-  smtp: 'Ex: benedict@domain.com delaney@domain.com susan@domain.com',
-  slack: '#alerts',
-  alerta: 'alerta()',
+export const RULE_ALERT_OPTIONS = {
+  http: {
+    args: {
+      label: 'URL:',
+      placeholder: 'Ex: http://example.com/api/alert',
+    },
+  },
+  tcp: {
+    args: {
+      label: 'Address:',
+      placeholder: 'Ex: exampleendpoint.com:5678',
+    },
+  },
+  exec: {
+    args: {
+      label: 'Add Command (Arguments separated by Spaces):',
+      placeholder: 'Ex: woogie boogie',
+    },
+  },
+  log: {
+    args: {
+      label: 'File:',
+      placeholder: 'Ex: /tmp/alerts.log',
+    },
+  },
+  smtp: {
+    args: {
+      label: 'Email Addresses (Separated by Spaces):',
+      placeholder:
+        'Ex: benedict@domain.com delaney@domain.com susan@domain.com',
+    },
+    details: {placeholder: 'Email body text goes here'},
+  },
+  slack: {
+    args: {
+      label: 'Send alerts to Slack channel:',
+      placeholder: '#alerts',
+    },
+  },
+  alerta: {
+    args: {
+      label: 'Paste Alerta TICKscript:',
+      placeholder: 'alerta()',
+    },
+  },
+  pushover: {
+    args: {
+      label: 'Devices (Separated by Commas, Optional):',
+      placeholder: 'phone33,submarine,pineapple_tower',
+    },
+    properties: [
+      {key: 'UserKey', label: 'User Key', placeholder: 'my_user_key'},
+      {key: 'Device', label: 'Device', placeholder: 'my_device'},
+      {key: 'Title', label: 'Title', placeholder: 'message_title'},
+      {key: 'URL', label: 'URL', placeholder: 'http://reference.url'},
+      {key: 'URLTitle', label: 'URL Title', placeholder: 'My URL Title'},
+      {key: 'Sound', label: 'Sound', placeholder: 'pineapple_falling'},
+    ],
+  },
 }
 
 export const ALERT_NODES_ACCESSORS = {
@@ -119,4 +161,5 @@ export const ALERT_NODES_ACCESSORS = {
         ['alerta()']
       )
       .join('.'),
+  pushover: rule => _.get(rule, 'alertNodes[0].args'),
 }
