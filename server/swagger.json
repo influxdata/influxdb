@@ -3999,6 +3999,13 @@
 									"$ref": "#/definitions/DashboardQuery"
 								}
 							},
+              "axes": {
+                "description": "The viewport for a cell's visualizations",
+                "type": "object",
+                "additionalProperties": {
+                  "$ref": "#/definitions/DashboardRange"
+                }
+              },
 							"type": {
 								"description": "Cell visualization type",
 								"type": "string",
@@ -4080,6 +4087,22 @@
 				}
 			}
 		},
+    "DashboardRange": {
+      "type": "object",
+      "description": "A description of a particular axis for a visualization",
+      "properties": {
+        "bounds": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 2,
+          "description": "The extents of an axis in the form [lower, upper]. Clients determine whether bounds are to be inclusive or exclusive of their limits",
+          "items": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      }
+    },
 		"Routes": {
 			"type": "object",
 			"properties": {
