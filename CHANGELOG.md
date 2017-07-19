@@ -6,6 +6,7 @@
 ### Features
 1. [#1717](https://github.com/influxdata/chronograf/pull/1717): View server generated TICKscripts
 1. [#1681](https://github.com/influxdata/chronograf/pull/1681): Add the ability to select Custom Time Ranges in the Hostpages, Data Explorer, and Dashboards.
+1. [#1738](https://github.com/influxdata/chronograf/pull/1738): Add shared secret JWT authorization to InfluxDB
 
 
 ### UI Improvements
