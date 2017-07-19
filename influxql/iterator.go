@@ -849,14 +849,13 @@ func (opt IteratorOptions) Window(t int64) (start, end int64) {
 	t -= int64(opt.Interval.Offset)
 
 	// Retrieve the zone offset for the start time.
-	var startOffset int64
+	var zone int64
 	if opt.Location != nil {
-		_, startOffset = opt.Zone(t)
-		t += startOffset
+		_, zone = opt.Zone(t)
 	}
 
 	// Truncate time by duration.
-	dt := t % int64(opt.Interval.Duration)
+	dt := (t + zone) % int64(opt.Interval.Duration)
 	if dt < 0 {
 		// Negative modulo rounds up instead of down, so offset
 		// with the duration.
@@ -874,14 +873,14 @@ func (opt IteratorOptions) Window(t int64) (start, end int64) {
 	// after the offset switch. Now that we are at midnight in UTC, we can
 	// lookup the zone offset again to get the real starting offset.
 	if opt.Location != nil {
-		_, adjustedOffset := opt.Zone(start)
+		_, startOffset := opt.Zone(start)
 		// Do not adjust the offset if the offset change is greater than or
 		// equal to the duration.
-		if o := startOffset - adjustedOffset; o != 0 && abs(o) < int64(opt.Interval.Duration) {
-			startOffset = adjustedOffset
+		if o := zone - startOffset; o != 0 && abs(o) < int64(opt.Interval.Duration) {
+			start += o
 		}
 	}
-	start += int64(opt.Interval.Offset) - startOffset
+	start += int64(opt.Interval.Offset)
 
 	// Find the end time.
 	if dt := int64(opt.Interval.Duration) - dt; MaxTime-dt <= t {
@@ -889,23 +888,33 @@ func (opt IteratorOptions) Window(t int64) (start, end int64) {
 	} else {
 		end = t + dt
 	}
-	end += int64(opt.Interval.Offset) - startOffset
 
 	// Retrieve the zone offset for the end time.
 	if opt.Location != nil {
 		_, endOffset := opt.Zone(end)
 		// Adjust the end time if the offset is different from the start offset.
-		if startOffset != endOffset {
-			offset := startOffset - endOffset
-
-			// Only apply the offset if it is smaller than the duration.
-			// This prevents going back in time and creating time windows
-			// that don't make any sense.
-			if abs(offset) < int64(opt.Interval.Duration) {
-				end += offset
+		// Only apply the offset if it is smaller than the duration.
+		// This prevents going back in time and creating time windows
+		// that don't make any sense.
+		if o := zone - endOffset; o != 0 && abs(o) < int64(opt.Interval.Duration) {
+			// If the offset is greater than 0, that means we are adding time.
+			// Added time goes into the previous interval because the clocks
+			// move backwards. If the offset is less than 0, then we are skipping
+			// time. Skipped time comes after the switch so if we have a time
+			// interval that lands on the switch, it comes from the next
+			// interval and not the current one. For this reason, we need to know
+			// when the actual switch happens by seeing if the time switch is within
+			// the current interval. We calculate the zone offset with the offset
+			// and see if the value is the same. If it is, we apply the
+			// offset.
+			if o > 0 {
+				end += o
+			} else if _, z := opt.Zone(end + o); z == endOffset {
+				end += o
 			}
 		}
 	}
+	end += int64(opt.Interval.Offset)
 	return
 }
 

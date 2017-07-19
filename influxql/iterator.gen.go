@@ -726,7 +726,7 @@ func (itr *floatFillIterator) Next() (*FloatPoint, error) {
 	// Check to see if we have passed over an offset change and adjust the time
 	// to account for this new offset.
 	if itr.opt.Location != nil {
-		if _, offset := itr.opt.Zone(itr.window.time); offset != itr.window.offset {
+		if _, offset := itr.opt.Zone(itr.window.time - 1); offset != itr.window.offset {
 			diff := itr.window.offset - offset
 			if abs(diff) < int64(itr.opt.Interval.Duration) {
 				itr.window.time += diff
@@ -4073,7 +4073,7 @@ func (itr *integerFillIterator) Next() (*IntegerPoint, error) {
 	// Check to see if we have passed over an offset change and adjust the time
 	// to account for this new offset.
 	if itr.opt.Location != nil {
-		if _, offset := itr.opt.Zone(itr.window.time); offset != itr.window.offset {
+		if _, offset := itr.opt.Zone(itr.window.time - 1); offset != itr.window.offset {
 			diff := itr.window.offset - offset
 			if abs(diff) < int64(itr.opt.Interval.Duration) {
 				itr.window.time += diff
@@ -7403,7 +7403,7 @@ func (itr *unsignedFillIterator) Next() (*UnsignedPoint, error) {
 	// Check to see if we have passed over an offset change and adjust the time
 	// to account for this new offset.
 	if itr.opt.Location != nil {
-		if _, offset := itr.opt.Zone(itr.window.time); offset != itr.window.offset {
+		if _, offset := itr.opt.Zone(itr.window.time - 1); offset != itr.window.offset {
 			diff := itr.window.offset - offset
 			if abs(diff) < int64(itr.opt.Interval.Duration) {
 				itr.window.time += diff
@@ -10733,7 +10733,7 @@ func (itr *stringFillIterator) Next() (*StringPoint, error) {
 	// Check to see if we have passed over an offset change and adjust the time
 	// to account for this new offset.
 	if itr.opt.Location != nil {
-		if _, offset := itr.opt.Zone(itr.window.time); offset != itr.window.offset {
+		if _, offset := itr.opt.Zone(itr.window.time - 1); offset != itr.window.offset {
 			diff := itr.window.offset - offset
 			if abs(diff) < int64(itr.opt.Interval.Duration) {
 				itr.window.time += diff
@@ -14063,7 +14063,7 @@ func (itr *booleanFillIterator) Next() (*BooleanPoint, error) {
 	// Check to see if we have passed over an offset change and adjust the time
 	// to account for this new offset.
 	if itr.opt.Location != nil {
-		if _, offset := itr.opt.Zone(itr.window.time); offset != itr.window.offset {
+		if _, offset := itr.opt.Zone(itr.window.time - 1); offset != itr.window.offset {
 			diff := itr.window.offset - offset
 			if abs(diff) < int64(itr.opt.Interval.Duration) {
 				itr.window.time += diff

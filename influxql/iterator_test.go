@@ -705,235 +705,224 @@ func TestLimitIterator(t *testing.T) {
 	}
 }
 
-func TestFillIterator_DST_Start_GroupByDay_Ascending(t *testing.T) {
-	start := time.Date(2000, 4, 1, 0, 0, 0, 0, LosAngeles)
-	end := time.Date(2000, 4, 5, 0, 0, 0, 0, LosAngeles).Add(-time.Nanosecond)
-	itr := influxql.NewFillIterator(
-		&FloatIterator{Points: []influxql.FloatPoint{{Time: start.UnixNano(), Value: 0}}},
-		nil,
-		influxql.IteratorOptions{
-			StartTime: start.UnixNano(),
-			EndTime:   end.UnixNano(),
-			Interval: influxql.Interval{
-				Duration: 24 * time.Hour,
+func TestFillIterator_DST(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		start, end time.Time
+		points     []time.Duration
+		opt        influxql.IteratorOptions
+	}{
+		{
+			name:  "Start_GroupByDay_Ascending",
+			start: mustParseTime("2000-04-01T00:00:00-08:00"),
+			end:   mustParseTime("2000-04-05T00:00:00-07:00"),
+			points: []time.Duration{
+				24 * time.Hour,
+				47 * time.Hour,
+				71 * time.Hour,
 			},
-			Location:  LosAngeles,
-			Ascending: true,
-		},
-	)
-
-	if a, err := (Iterators{itr}).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if !deep.Equal(a, [][]influxql.Point{
-		{&influxql.FloatPoint{Time: start.UnixNano(), Value: 0}},
-		{&influxql.FloatPoint{Time: start.Add(24 * time.Hour).UnixNano(), Nil: true}},
-		{&influxql.FloatPoint{Time: start.Add(47 * time.Hour).UnixNano(), Nil: true}},
-		{&influxql.FloatPoint{Time: start.Add(71 * time.Hour).UnixNano(), Nil: true}},
-	}) {
-		t.Fatalf("unexpected points: %s", spew.Sdump(a))
-	}
-}
-
-func TestFillIterator_DST_Start_GroupByDay_Descending(t *testing.T) {
-	start := time.Date(2000, 4, 1, 0, 0, 0, 0, LosAngeles)
-	end := time.Date(2000, 4, 5, 0, 0, 0, 0, LosAngeles).Add(-time.Nanosecond)
-	itr := influxql.NewFillIterator(
-		&FloatIterator{Points: []influxql.FloatPoint{{Time: start.UnixNano(), Value: 0}}},
-		nil,
-		influxql.IteratorOptions{
-			StartTime: start.UnixNano(),
-			EndTime:   end.UnixNano(),
-			Interval: influxql.Interval{
-				Duration: 24 * time.Hour,
+			opt: influxql.IteratorOptions{
+				Interval: influxql.Interval{
+					Duration: 24 * time.Hour,
+				},
+				Location:  LosAngeles,
+				Ascending: true,
 			},
-			Location:  LosAngeles,
-			Ascending: false,
 		},
-	)
-
-	if a, err := (Iterators{itr}).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if !deep.Equal(a, [][]influxql.Point{
-		{&influxql.FloatPoint{Time: start.Add(71 * time.Hour).UnixNano(), Nil: true}},
-		{&influxql.FloatPoint{Time: start.Add(47 * time.Hour).UnixNano(), Nil: true}},
-		{&influxql.FloatPoint{Time: start.Add(24 * time.Hour).UnixNano(), Nil: true}},
-		{&influxql.FloatPoint{Time: start.UnixNano(), Value: 0}},
-	}) {
-		t.Fatalf("unexpected points: %s", spew.Sdump(a))
-	}
-}
-
-func TestFillIterator_DST_Start_GroupByHour_Ascending(t *testing.T) {
-	start := time.Date(2000, 4, 2, 0, 0, 0, 0, LosAngeles)
-	end := start.Add(4*time.Hour - time.Nanosecond)
-	itr := influxql.NewFillIterator(
-		&FloatIterator{Points: []influxql.FloatPoint{{Time: start.UnixNano(), Value: 0}}},
-		nil,
-		influxql.IteratorOptions{
-			StartTime: start.UnixNano(),
-			EndTime:   end.UnixNano(),
-			Interval: influxql.Interval{
-				Duration: time.Hour,
+		{
+			name:  "Start_GroupByDay_Descending",
+			start: mustParseTime("2000-04-01T00:00:00-08:00"),
+			end:   mustParseTime("2000-04-05T00:00:00-07:00"),
+			points: []time.Duration{
+				71 * time.Hour,
+				47 * time.Hour,
+				24 * time.Hour,
 			},
-			Location:  LosAngeles,
-			Ascending: true,
-		},
-	)
-
-	if a, err := (Iterators{itr}).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if !deep.Equal(a, [][]influxql.Point{
-		{&influxql.FloatPoint{Time: start.UnixNano(), Value: 0}},
-		{&influxql.FloatPoint{Time: start.Add(1 * time.Hour).UnixNano(), Nil: true}},
-		{&influxql.FloatPoint{Time: start.Add(2 * time.Hour).UnixNano(), Nil: true}},
-		{&influxql.FloatPoint{Time: start.Add(3 * time.Hour).UnixNano(), Nil: true}},
-	}) {
-		t.Fatalf("unexpected points: %s", spew.Sdump(a))
-	}
-}
-
-func TestFillIterator_DST_Start_GroupByHour_Descending(t *testing.T) {
-	start := time.Date(2000, 4, 2, 0, 0, 0, 0, LosAngeles)
-	end := start.Add(4*time.Hour - time.Nanosecond)
-	itr := influxql.NewFillIterator(
-		&FloatIterator{Points: []influxql.FloatPoint{{Time: start.UnixNano(), Value: 0}}},
-		nil,
-		influxql.IteratorOptions{
-			StartTime: start.UnixNano(),
-			EndTime:   end.UnixNano(),
-			Interval: influxql.Interval{
-				Duration: time.Hour,
+			opt: influxql.IteratorOptions{
+				Interval: influxql.Interval{
+					Duration: 24 * time.Hour,
+				},
+				Location:  LosAngeles,
+				Ascending: false,
 			},
-			Location:  LosAngeles,
-			Ascending: false,
 		},
-	)
-
-	if a, err := (Iterators{itr}).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if !deep.Equal(a, [][]influxql.Point{
-		{&influxql.FloatPoint{Time: start.Add(3 * time.Hour).UnixNano(), Nil: true}},
-		{&influxql.FloatPoint{Time: start.Add(2 * time.Hour).UnixNano(), Nil: true}},
-		{&influxql.FloatPoint{Time: start.Add(1 * time.Hour).UnixNano(), Nil: true}},
-		{&influxql.FloatPoint{Time: start.UnixNano(), Value: 0}},
-	}) {
-		t.Fatalf("unexpected points: %s", spew.Sdump(a))
-	}
-}
-
-func TestFillIterator_DST_End_GroupByDay_Ascending(t *testing.T) {
-	start := time.Date(2000, 10, 28, 0, 0, 0, 0, LosAngeles)
-	end := time.Date(2000, 11, 1, 0, 0, 0, 0, LosAngeles).Add(-time.Nanosecond)
-	itr := influxql.NewFillIterator(
-		&FloatIterator{Points: []influxql.FloatPoint{{Time: start.UnixNano(), Value: 0}}},
-		nil,
-		influxql.IteratorOptions{
-			StartTime: start.UnixNano(),
-			EndTime:   end.UnixNano(),
-			Interval: influxql.Interval{
-				Duration: 24 * time.Hour,
+		{
+			name:  "Start_GroupByHour_Ascending",
+			start: mustParseTime("2000-04-02T00:00:00-08:00"),
+			end:   mustParseTime("2000-04-02T05:00:00-07:00"),
+			points: []time.Duration{
+				1 * time.Hour,
+				2 * time.Hour,
+				3 * time.Hour,
 			},
-			Location:  LosAngeles,
-			Ascending: true,
-		},
-	)
-
-	if a, err := (Iterators{itr}).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if !deep.Equal(a, [][]influxql.Point{
-		{&influxql.FloatPoint{Time: start.UnixNano(), Value: 0}},
-		{&influxql.FloatPoint{Time: start.Add(24 * time.Hour).UnixNano(), Nil: true}},
-		{&influxql.FloatPoint{Time: start.Add(49 * time.Hour).UnixNano(), Nil: true}},
-		{&influxql.FloatPoint{Time: start.Add(73 * time.Hour).UnixNano(), Nil: true}},
-	}) {
-		t.Fatalf("unexpected points: %s", spew.Sdump(a))
-	}
-}
-
-func TestFillIterator_DST_End_GroupByDay_Descending(t *testing.T) {
-	start := time.Date(2000, 10, 28, 0, 0, 0, 0, LosAngeles)
-	end := time.Date(2000, 11, 1, 0, 0, 0, 0, LosAngeles).Add(-time.Nanosecond)
-	itr := influxql.NewFillIterator(
-		&FloatIterator{Points: []influxql.FloatPoint{{Time: start.UnixNano(), Value: 0}}},
-		nil,
-		influxql.IteratorOptions{
-			StartTime: start.UnixNano(),
-			EndTime:   end.UnixNano(),
-			Interval: influxql.Interval{
-				Duration: 24 * time.Hour,
+			opt: influxql.IteratorOptions{
+				Interval: influxql.Interval{
+					Duration: 1 * time.Hour,
+				},
+				Location:  LosAngeles,
+				Ascending: true,
 			},
-			Location:  LosAngeles,
-			Ascending: false,
 		},
-	)
-
-	if a, err := (Iterators{itr}).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if !deep.Equal(a, [][]influxql.Point{
-		{&influxql.FloatPoint{Time: start.Add(73 * time.Hour).UnixNano(), Nil: true}},
-		{&influxql.FloatPoint{Time: start.Add(49 * time.Hour).UnixNano(), Nil: true}},
-		{&influxql.FloatPoint{Time: start.Add(24 * time.Hour).UnixNano(), Nil: true}},
-		{&influxql.FloatPoint{Time: start.UnixNano(), Value: 0}},
-	}) {
-		t.Fatalf("unexpected points: %s", spew.Sdump(a))
-	}
-}
-
-func TestFillIterator_DST_End_GroupByHour_Ascending(t *testing.T) {
-	start := time.Date(2000, 10, 29, 0, 0, 0, 0, LosAngeles)
-	end := start.Add(4*time.Hour - time.Nanosecond)
-	itr := influxql.NewFillIterator(
-		&FloatIterator{Points: []influxql.FloatPoint{{Time: start.UnixNano(), Value: 0}}},
-		nil,
-		influxql.IteratorOptions{
-			StartTime: start.UnixNano(),
-			EndTime:   end.UnixNano(),
-			Interval: influxql.Interval{
-				Duration: time.Hour,
+		{
+			name:  "Start_GroupByHour_Descending",
+			start: mustParseTime("2000-04-02T00:00:00-08:00"),
+			end:   mustParseTime("2000-04-02T05:00:00-07:00"),
+			points: []time.Duration{
+				3 * time.Hour,
+				2 * time.Hour,
+				1 * time.Hour,
 			},
-			Location:  LosAngeles,
-			Ascending: true,
-		},
-	)
-
-	if a, err := (Iterators{itr}).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if !deep.Equal(a, [][]influxql.Point{
-		{&influxql.FloatPoint{Time: start.UnixNano(), Value: 0}},
-		{&influxql.FloatPoint{Time: start.Add(1 * time.Hour).UnixNano(), Nil: true}},
-		{&influxql.FloatPoint{Time: start.Add(2 * time.Hour).UnixNano(), Nil: true}},
-		{&influxql.FloatPoint{Time: start.Add(3 * time.Hour).UnixNano(), Nil: true}},
-	}) {
-		t.Fatalf("unexpected points: %s", spew.Sdump(a))
-	}
-}
-
-func TestFillIterator_DST_End_GroupByHour_Descending(t *testing.T) {
-	start := time.Date(2000, 10, 29, 0, 0, 0, 0, LosAngeles)
-	end := start.Add(4*time.Hour - time.Nanosecond)
-	itr := influxql.NewFillIterator(
-		&FloatIterator{Points: []influxql.FloatPoint{{Time: start.UnixNano(), Value: 0}}},
-		nil,
-		influxql.IteratorOptions{
-			StartTime: start.UnixNano(),
-			EndTime:   end.UnixNano(),
-			Interval: influxql.Interval{
-				Duration: time.Hour,
+			opt: influxql.IteratorOptions{
+				Interval: influxql.Interval{
+					Duration: 1 * time.Hour,
+				},
+				Location:  LosAngeles,
+				Ascending: false,
 			},
-			Location:  LosAngeles,
-			Ascending: false,
 		},
-	)
+		{
+			name:  "Start_GroupBy2Hour_Ascending",
+			start: mustParseTime("2000-04-02T00:00:00-08:00"),
+			end:   mustParseTime("2000-04-02T07:00:00-07:00"),
+			points: []time.Duration{
+				2 * time.Hour,
+				3 * time.Hour,
+				5 * time.Hour,
+			},
+			opt: influxql.IteratorOptions{
+				Interval: influxql.Interval{
+					Duration: 2 * time.Hour,
+				},
+				Location:  LosAngeles,
+				Ascending: true,
+			},
+		},
+		{
+			name:  "Start_GroupBy2Hour_Descending",
+			start: mustParseTime("2000-04-02T00:00:00-08:00"),
+			end:   mustParseTime("2000-04-02T07:00:00-07:00"),
+			points: []time.Duration{
+				5 * time.Hour,
+				3 * time.Hour,
+				2 * time.Hour,
+			},
+			opt: influxql.IteratorOptions{
+				Interval: influxql.Interval{
+					Duration: 2 * time.Hour,
+				},
+				Location:  LosAngeles,
+				Ascending: false,
+			},
+		},
+		{
+			name:  "End_GroupByDay_Ascending",
+			start: mustParseTime("2000-10-28T00:00:00-07:00"),
+			end:   mustParseTime("2000-11-01T00:00:00-08:00"),
+			points: []time.Duration{
+				24 * time.Hour,
+				49 * time.Hour,
+				73 * time.Hour,
+			},
+			opt: influxql.IteratorOptions{
+				Interval: influxql.Interval{
+					Duration: 24 * time.Hour,
+				},
+				Location:  LosAngeles,
+				Ascending: true,
+			},
+		},
+		{
+			name:  "End_GroupByDay_Descending",
+			start: mustParseTime("2000-10-28T00:00:00-07:00"),
+			end:   mustParseTime("2000-11-01T00:00:00-08:00"),
+			points: []time.Duration{
+				73 * time.Hour,
+				49 * time.Hour,
+				24 * time.Hour,
+			},
+			opt: influxql.IteratorOptions{
+				Interval: influxql.Interval{
+					Duration: 24 * time.Hour,
+				},
+				Location:  LosAngeles,
+				Ascending: false,
+			},
+		},
+		{
+			name:  "End_GroupByHour_Ascending",
+			start: mustParseTime("2000-10-29T00:00:00-07:00"),
+			end:   mustParseTime("2000-10-29T03:00:00-08:00"),
+			points: []time.Duration{
+				1 * time.Hour,
+				2 * time.Hour,
+				3 * time.Hour,
+			},
+			opt: influxql.IteratorOptions{
+				Interval: influxql.Interval{
+					Duration: 1 * time.Hour,
+				},
+				Location:  LosAngeles,
+				Ascending: true,
+			},
+		},
+		{
+			name:  "End_GroupByHour_Descending",
+			start: mustParseTime("2000-10-29T00:00:00-07:00"),
+			end:   mustParseTime("2000-10-29T03:00:00-08:00"),
+			points: []time.Duration{
+				3 * time.Hour,
+				2 * time.Hour,
+				1 * time.Hour,
+			},
+			opt: influxql.IteratorOptions{
+				Interval: influxql.Interval{
+					Duration: 1 * time.Hour,
+				},
+				Location:  LosAngeles,
+				Ascending: false,
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			opt := tt.opt
+			opt.StartTime = tt.start.UnixNano()
+			opt.EndTime = tt.end.UnixNano() - 1
 
-	if a, err := (Iterators{itr}).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if !deep.Equal(a, [][]influxql.Point{
-		{&influxql.FloatPoint{Time: start.Add(3 * time.Hour).UnixNano(), Nil: true}},
-		{&influxql.FloatPoint{Time: start.Add(2 * time.Hour).UnixNano(), Nil: true}},
-		{&influxql.FloatPoint{Time: start.Add(1 * time.Hour).UnixNano(), Nil: true}},
-		{&influxql.FloatPoint{Time: start.UnixNano(), Value: 0}},
-	}) {
-		t.Fatalf("unexpected points: %s", spew.Sdump(a))
+			points := make([][]influxql.Point, 0, len(tt.points)+1)
+			if opt.Ascending {
+				points = append(points, []influxql.Point{
+					&influxql.FloatPoint{
+						Time: tt.start.UnixNano(),
+					},
+				})
+			}
+			for _, d := range tt.points {
+				points = append(points, []influxql.Point{
+					&influxql.FloatPoint{
+						Time: tt.start.Add(d).UnixNano(),
+						Nil:  true,
+					},
+				})
+			}
+			if !opt.Ascending {
+				points = append(points, []influxql.Point{
+					&influxql.FloatPoint{
+						Time: tt.start.UnixNano(),
+					},
+				})
+			}
+			itr := influxql.NewFillIterator(
+				&FloatIterator{Points: []influxql.FloatPoint{{Time: tt.start.UnixNano(), Value: 0}}},
+				nil,
+				opt,
+			)
+
+			if a, err := (Iterators{itr}).ReadAll(); err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			} else if !deep.Equal(a, points) {
+				t.Fatalf("unexpected points: %s", spew.Sdump(a))
+			}
+		})
 	}
 }
 
@@ -1047,23 +1036,99 @@ func TestIteratorOptions_Window_Default(t *testing.T) {
 }
 
 func TestIteratorOptions_Window_Location(t *testing.T) {
-	now := time.Date(2000, 4, 2, 12, 14, 15, 0, LosAngeles)
-	opt := influxql.IteratorOptions{
-		Location: LosAngeles,
-		Interval: influxql.Interval{
-			Duration: 24 * time.Hour,
+	for _, tt := range []struct {
+		now        time.Time
+		start, end time.Time
+		interval   time.Duration
+	}{
+		{
+			now:      mustParseTime("2000-04-02T12:14:15-07:00"),
+			start:    mustParseTime("2000-04-02T00:00:00-08:00"),
+			end:      mustParseTime("2000-04-03T00:00:00-07:00"),
+			interval: 24 * time.Hour,
 		},
-	}
-
-	start, end := opt.Window(now.UnixNano())
-	if exp := time.Date(2000, 4, 2, 0, 0, 0, 0, LosAngeles).UnixNano(); start != exp {
-		t.Errorf("expected start to be %d, got %d", exp, start)
-	}
-	if exp := time.Date(2000, 4, 3, 0, 0, 0, 0, LosAngeles).UnixNano(); end != exp {
-		t.Errorf("expected end to be %d, got %d", exp, end)
-	}
-	if got, exp := time.Duration(end-start), 23*time.Hour; got != exp {
-		t.Errorf("expected duration to be %s, got %s", exp, got)
+		{
+			now:      mustParseTime("2000-04-02T01:17:12-08:00"),
+			start:    mustParseTime("2000-04-02T00:00:00-08:00"),
+			end:      mustParseTime("2000-04-03T00:00:00-07:00"),
+			interval: 24 * time.Hour,
+		},
+		{
+			now:      mustParseTime("2000-04-02T01:14:15-08:00"),
+			start:    mustParseTime("2000-04-02T00:00:00-08:00"),
+			end:      mustParseTime("2000-04-02T03:00:00-07:00"),
+			interval: 2 * time.Hour,
+		},
+		{
+			now:      mustParseTime("2000-04-02T03:17:12-07:00"),
+			start:    mustParseTime("2000-04-02T03:00:00-07:00"),
+			end:      mustParseTime("2000-04-02T04:00:00-07:00"),
+			interval: 2 * time.Hour,
+		},
+		{
+			now:      mustParseTime("2000-04-02T01:14:15-08:00"),
+			start:    mustParseTime("2000-04-02T01:00:00-08:00"),
+			end:      mustParseTime("2000-04-02T03:00:00-07:00"),
+			interval: 1 * time.Hour,
+		},
+		{
+			now:      mustParseTime("2000-04-02T03:17:12-07:00"),
+			start:    mustParseTime("2000-04-02T03:00:00-07:00"),
+			end:      mustParseTime("2000-04-02T04:00:00-07:00"),
+			interval: 1 * time.Hour,
+		},
+		{
+			now:      mustParseTime("2000-10-29T12:14:15-08:00"),
+			start:    mustParseTime("2000-10-29T00:00:00-07:00"),
+			end:      mustParseTime("2000-10-30T00:00:00-08:00"),
+			interval: 24 * time.Hour,
+		},
+		{
+			now:      mustParseTime("2000-10-29T01:17:12-07:00"),
+			start:    mustParseTime("2000-10-29T00:00:00-07:00"),
+			end:      mustParseTime("2000-10-30T00:00:00-08:00"),
+			interval: 24 * time.Hour,
+		},
+		{
+			now:      mustParseTime("2000-10-29T01:14:15-07:00"),
+			start:    mustParseTime("2000-10-29T00:00:00-07:00"),
+			end:      mustParseTime("2000-10-29T02:00:00-08:00"),
+			interval: 2 * time.Hour,
+		},
+		{
+			now:      mustParseTime("2000-10-29T03:17:12-08:00"),
+			start:    mustParseTime("2000-10-29T02:00:00-08:00"),
+			end:      mustParseTime("2000-10-29T04:00:00-08:00"),
+			interval: 2 * time.Hour,
+		},
+		{
+			now:      mustParseTime("2000-10-29T01:14:15-07:00"),
+			start:    mustParseTime("2000-10-29T01:00:00-07:00"),
+			end:      mustParseTime("2000-10-29T01:00:00-08:00"),
+			interval: 1 * time.Hour,
+		},
+		{
+			now:      mustParseTime("2000-10-29T02:17:12-07:00"),
+			start:    mustParseTime("2000-10-29T02:00:00-07:00"),
+			end:      mustParseTime("2000-10-29T03:00:00-07:00"),
+			interval: 1 * time.Hour,
+		},
+	} {
+		t.Run(fmt.Sprintf("%s/%s", tt.now, tt.interval), func(t *testing.T) {
+			opt := influxql.IteratorOptions{
+				Location: LosAngeles,
+				Interval: influxql.Interval{
+					Duration: tt.interval,
+				},
+			}
+			start, end := opt.Window(tt.now.UnixNano())
+			if have, want := time.Unix(0, start).In(LosAngeles), tt.start; !have.Equal(want) {
+				t.Errorf("unexpected start time: %s != %s", have, want)
+			}
+			if have, want := time.Unix(0, end).In(LosAngeles), tt.end; !have.Equal(want) {
+				t.Errorf("unexpected end time: %s != %s", have, want)
+			}
+		})
 	}
 }
 
