@@ -12,23 +12,7 @@ const {
   colActions,
 } = KAPACITOR_RULES_TABLE
 
-import {KAPACITOR_RULES_TABLE} from 'src/kapacitor/constants/tableSizing'
-const {
-  colName,
-  colType,
-  colMessage,
-  colAlerts,
-  colEnabled,
-  colActions,
-} = KAPACITOR_RULES_TABLE
-
-const KapacitorRulesTable = ({
-  rules,
-  source,
-  onDelete,
-  onReadTickscript,
-  onChangeRuleStatus,
-}) =>
+const KapacitorRulesTable = ({rules, source, onDelete, onChangeRuleStatus}) =>
   <div className="panel-body">
     <table className="table v-center">
       <thead>
@@ -52,7 +36,6 @@ const KapacitorRulesTable = ({
               source={source}
               onDelete={onDelete}
               onChangeRuleStatus={onChangeRuleStatus}
-              onRead={onReadTickscript}
             />
           )
         })}
@@ -60,7 +43,7 @@ const KapacitorRulesTable = ({
     </table>
   </div>
 
-const RuleRow = ({rule, source, onRead, onDelete, onChangeRuleStatus}) =>
+const RuleRow = ({rule, source, onDelete, onChangeRuleStatus}) =>
   <tr key={rule.id}>
     <td style={{width: colName}} className="monotype">
       <RuleTitle rule={rule} source={source} />
@@ -98,7 +81,7 @@ const RuleRow = ({rule, source, onRead, onDelete, onChangeRuleStatus}) =>
       >
         Edit TICKscript
       </Link>
-      <button className="btn btn-danger btn-xs" onClick={onDelete(rule)}>
+      <button className="btn btn-danger btn-xs" onClick={() => onDelete(rule)}>
         Delete
       </button>
     </td>
@@ -130,7 +113,6 @@ KapacitorRulesTable.propTypes = {
   source: shape({
     id: string.isRequired,
   }).isRequired,
-  onReadTickscript: func,
 }
 
 RuleRow.propTypes = {
@@ -138,7 +120,6 @@ RuleRow.propTypes = {
   source: shape(),
   onChangeRuleStatus: func,
   onDelete: func,
-  onRead: func,
 }
 
 RuleTitle.propTypes = {
