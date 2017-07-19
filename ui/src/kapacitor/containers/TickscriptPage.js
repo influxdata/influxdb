@@ -10,17 +10,18 @@ import {getActiveKapacitor} from 'src/shared/apis'
 class TickscriptPage extends Component {
   constructor(props) {
     super(props)
+
     this.state = {
       kapacitor: {},
       task: {
-        id: props.params.ruleID,
+        id: '',
         status: 'enabled',
         script: '',
         dbrps: [],
         type: 'stream',
       },
       validation: '',
-      isEditingID: false,
+      isEditingID: true,
     }
   }
 
@@ -39,7 +40,7 @@ class TickscriptPage extends Component {
       )
     }
 
-    if (this.isEditing()) {
+    if (this._isEditing()) {
       await kapacitorActions.getRule(kapacitor, ruleID)
       const activeRule = this.props.rules.find(r => r.id === ruleID)
       this.setState({task: {...this.state.task, script: activeRule.tickscript}})
@@ -58,7 +59,7 @@ class TickscriptPage extends Component {
     } = this.props
 
     let response
-    if (this.isEditing()) {
+    if (this._isEditing()) {
       response = await updateTask(kapacitor, task, ruleID)
     } else {
       response = await createTask(kapacitor, task)
@@ -75,7 +76,6 @@ class TickscriptPage extends Component {
     this.setState({task: {...this.state.task, script}})
   }
 
-  // TODO: make this fire on every click so user doesn't have to 'apply'
   handleSelectDbrps(dbrps) {
     this.setState({task: {...this.state.task, dbrps}})
   }
@@ -100,31 +100,26 @@ class TickscriptPage extends Component {
       <Tickscript
         task={task}
         source={source}
+        validation={validation}
+        isEditingID={isEditingID}
+        isNewTickscript={!this._isEditing()}
         onSave={::this.handleSave}
+        onStartEditID={::this.handleStartEditID}
+        onStopEditID={::this.handleStopEditID}
         onSelectDbrps={::this.handleSelectDbrps}
         onChangeScript={::this.handleChangeScript}
         onChangeType={::this.handleChangeType}
-        validation={validation}
-        isEditingID={isEditingID}
-        onStartEditID={::this.handleStartEditID}
-        onStopEditID={::this.handleStopEditID}
       />
     )
   }
 
-  isEditing() {
+  _isEditing() {
     const {params} = this.props
     return params.ruleID && params.ruleID !== 'new'
   }
 }
 
 const {arrayOf, func, shape, string} = PropTypes
-
-TickscriptPage.defaultProps = {
-  params: {
-    ruleID: '',
-  },
-}
 
 TickscriptPage.propTypes = {
   source: shape({
@@ -142,7 +137,7 @@ TickscriptPage.propTypes = {
     push: func.isRequired,
   }).isRequired,
   params: shape({
-    ruleID: string.isRequired,
+    ruleID: string,
   }).isRequired,
   rules: arrayOf(shape()),
 }

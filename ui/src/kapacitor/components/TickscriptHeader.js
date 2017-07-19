@@ -2,7 +2,9 @@ import React, {PropTypes} from 'react'
 import SourceIndicator from 'shared/components/SourceIndicator'
 import TickscriptType from 'src/kapacitor/components/TickscriptType'
 import MultiSelectDBDropdown from 'shared/components/MultiSelectDBDropdown'
-import TickscrtiptID from 'src/kapacitor/components/TickscriptID'
+import TickscrtiptNewID, {
+  TickscriptEditID,
+} from 'src/kapacitor/components/TickscriptID'
 const addName = list => list.map(l => ({...l, name: `${l.db}.${l.rp}`}))
 
 const TickscriptHeader = ({
@@ -14,16 +16,19 @@ const TickscriptHeader = ({
   onStartEdit,
   onChangeType,
   onSelectDbrps,
+  isNewTickscript,
 }) => (
   <div className="page-header">
     <div className="page-header__container">
       <div className="page-header__left">
-        <TickscrtiptID
-          id={id}
-          isEditing={isEditing}
-          onStopEdit={onStopEdit}
-          onStartEdit={onStartEdit}
-        />
+        {isNewTickscript
+          ? <TickscrtiptNewID
+              isEditing={isEditing}
+              onStopEdit={onStopEdit}
+              onStartEdit={onStartEdit}
+              isNewTickscript={isNewTickscript}
+            />
+          : <TickscriptEditID id={id} />}
       </div>
       <div className="page-header__right">
         <SourceIndicator sourceName={name} />
@@ -58,6 +63,7 @@ TickscriptHeader.propTypes = {
   isEditing: bool.isRequired,
   onStartEdit: func.isRequired,
   onStopEdit: func.isRequired,
+  isNewTickscript: bool.isRequired,
 }
 
 export default TickscriptHeader

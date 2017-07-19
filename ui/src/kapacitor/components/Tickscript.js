@@ -14,6 +14,7 @@ const Tickscript = ({
   isEditingID,
   onStartEditID,
   onStopEditID,
+  isNewTickscript,
 }) => (
   <div className="page">
     <TickscriptHeader
@@ -25,6 +26,7 @@ const Tickscript = ({
       onStartEdit={onStartEditID}
       onChangeType={onChangeType}
       onSelectDbrps={onSelectDbrps}
+      isNewTickscript={isNewTickscript}
     />
     <FancyScrollbar className="page-contents fancy-scroll--kapacitor">
       <div className="container-fluid">
@@ -63,6 +65,7 @@ Tickscript.propTypes = {
   isEditingID: bool.isRequired,
   onStartEditID: func.isRequired,
   onStopEditID: func.isRequired,
+  isNewTickscript: bool.isRequired,
 }
 
 export default Tickscript
