@@ -265,9 +265,9 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 			}
 		}
 
-		axes := make(map[string]chronograf.DashboardRange, len(c.Axes))
+		axes := make(map[string]chronograf.Axis, len(c.Axes))
 		for a, r := range c.Axes {
-			axis := chronograf.DashboardRange{}
+			axis := chronograf.Axis{}
 			copy(axis.Bounds[:], r.Bounds[:2])
 			axes[a] = axis
 		}
