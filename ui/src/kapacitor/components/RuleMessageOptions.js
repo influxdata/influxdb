@@ -57,7 +57,7 @@ class RuleMessageOptions extends Component {
           : null}
         {properties && properties.length
           ? <div className="rule-section--row rule-section--border-bottom">
-              <p>Optional Alert Configuration:</p>
+              <p>Optional Alert Parameters:</p>
               {properties.map(({name: propertyName, label, placeholder}) =>
                 <div key={propertyName}>
                   <p>
