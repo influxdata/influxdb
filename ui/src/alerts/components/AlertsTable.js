@@ -48,9 +48,8 @@ class AlertsTable extends Component {
   changeSort(key) {
     // if we're using the key, reverse order; otherwise, set it with ascending
     if (this.state.sortKey === key) {
-      const reverseDirection = this.state.sortDirection === 'asc'
-        ? 'desc'
-        : 'asc'
+      const reverseDirection =
+        this.state.sortDirection === 'asc' ? 'desc' : 'asc'
       this.setState({sortDirection: reverseDirection})
     } else {
       this.setState({sortKey: key, sortDirection: 'asc'})
@@ -192,9 +191,7 @@ class AlertsTable extends Component {
           </p>
         </div>
       : <div className="generic-empty-state">
-          <h4 className="no-user-select">
-            There are no Alerts to display
-          </h4>
+          <h4 className="no-user-select">There are no Alerts to display</h4>
           <br />
           <h6 className="no-user-select">
             Try changing the Time Range or
@@ -236,7 +233,9 @@ class AlertsTable extends Component {
         </div>
       : <div className="panel panel-minimal">
           <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-            <h2 className="panel-title">{this.props.alerts.length} Alerts</h2>
+            <h2 className="panel-title">
+              {this.props.alerts.length} Alerts
+            </h2>
             {this.props.alerts.length
               ? <SearchBar onSearch={this.filterAlerts} />
               : null}

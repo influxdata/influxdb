@@ -43,18 +43,15 @@ type InfluxClient struct{}
 
 // New creates a client to connect to OSS or enterprise
 func (c *InfluxClient) New(src chronograf.Source, logger chronograf.Logger) (chronograf.TimeSeries, error) {
-	if src.Type == chronograf.InfluxEnterprise && src.MetaURL != "" {
-		dataNode := &influx.Client{
-			Logger: logger,
-		}
-		if err := dataNode.Connect(context.TODO(), &src); err != nil {
-			return nil, err
-		}
-
-		tls := strings.Contains(src.MetaURL, "https")
-		return enterprise.NewClientWithTimeSeries(logger, src.MetaURL, src.Username, src.Password, tls, dataNode)
-	}
-	return &influx.Client{
+	client := &influx.Client{
 		Logger: logger,
-	}, nil
+	}
+	if err := client.Connect(context.TODO(), &src); err != nil {
+		return nil, err
+	}
+	if src.Type == chronograf.InfluxEnterprise && src.MetaURL != "" {
+		tls := strings.Contains(src.MetaURL, "https")
+		return enterprise.NewClientWithTimeSeries(logger, src.MetaURL, src.Username, src.Password, tls, client)
+	}
+	return client, nil
 }

@@ -73,9 +73,8 @@ const HostsTable = React.createClass({
   updateSort(key) {
     // if we're using the key, reverse order; otherwise, set it with ascending
     if (this.state.sortKey === key) {
-      const reverseDirection = this.state.sortDirection === 'asc'
-        ? 'desc'
-        : 'asc'
+      const reverseDirection =
+        this.state.sortDirection === 'asc' ? 'desc' : 'asc'
       this.setState({sortDirection: reverseDirection})
     } else {
       this.setState({sortKey: key, sortDirection: 'asc'})
@@ -118,7 +117,9 @@ const HostsTable = React.createClass({
     return (
       <div className="panel panel-minimal">
         <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-          <h2 className="panel-title">{hostsTitle}</h2>
+          <h2 className="panel-title">
+            {hostsTitle}
+          </h2>
           <SearchBar onSearch={this.updateSearchTerm} />
         </div>
         <div className="panel-body">
@@ -165,9 +166,7 @@ const HostsTable = React.createClass({
                 </tbody>
               </table>
             : <div className="generic-empty-state">
-                <h4 style={{margin: '90px 0'}}>
-                  No Hosts found
-                </h4>
+                <h4 style={{margin: '90px 0'}}>No Hosts found</h4>
               </div>}
         </div>
       </div>
@@ -202,7 +201,9 @@ const HostRow = React.createClass({
     return (
       <tr>
         <td style={{width: colName}}>
-          <Link to={`/sources/${source.id}/hosts/${name}`}>{name}</Link>
+          <Link to={`/sources/${source.id}/hosts/${name}`}>
+            {name}
+          </Link>
         </td>
         <td style={{width: colStatus}}>
           <div

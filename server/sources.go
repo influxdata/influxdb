@@ -34,8 +34,9 @@ func newSourceResponse(src chronograf.Source) sourceResponse {
 		src.Telegraf = "telegraf"
 	}
 
-	// Omit the password on response
+	// Omit the password and shared secret on response
 	src.Password = ""
+	src.SharedSecret = ""
 
 	httpAPISrcs := "/chronograf/v1/sources"
 	res := sourceResponse{
@@ -99,6 +100,7 @@ func (h *Service) tsdbType(ctx context.Context, src *chronograf.Source) (string,
 	cli := &influx.Client{
 		Logger: h.Logger,
 	}
+
 	if err := cli.Connect(ctx, src); err != nil {
 		return "", err
 	}
@@ -291,5 +293,71 @@ func ValidSourceRequest(s chronograf.Source) error {
 	if len(url.Scheme) == 0 {
 		return fmt.Errorf("Invalid URL; no URL scheme defined")
 	}
+	return nil
+}
+
+// HandleNewSources parses and persists new sources passed in via server flag
+func (h *Service) HandleNewSources(ctx context.Context, input string) error {
+	if input == "" {
+		return nil
+	}
+
+	var srcsKaps []struct {
+		Source    chronograf.Source `json:"influxdb"`
+		Kapacitor chronograf.Server `json:"kapacitor"`
+	}
+	if err := json.Unmarshal([]byte(input), &srcsKaps); err != nil {
+		h.Logger.
+			WithField("component", "server").
+			WithField("NewSources", "invalid").
+			Error(err)
+		return err
+	}
+
+	for _, sk := range srcsKaps {
+		if err := ValidSourceRequest(sk.Source); err != nil {
+			return err
+		}
+		// Add any new sources and kapacitors as specified via server flag
+		if err := h.newSourceKapacitor(ctx, sk.Source, sk.Kapacitor); err != nil {
+			// Continue with server run even if adding NewSource fails
+			h.Logger.
+				WithField("component", "server").
+				WithField("NewSource", "invalid").
+				Error(err)
+			return err
+		}
+	}
+	return nil
+}
+
+// newSourceKapacitor adds sources to BoltDB idempotently by name, as well as respective kapacitors
+func (h *Service) newSourceKapacitor(ctx context.Context, src chronograf.Source, kapa chronograf.Server) error {
+	srcs, err := h.SourcesStore.All(ctx)
+	if err != nil {
+		return err
+	}
+
+	for _, s := range srcs {
+		// If source already exists, do nothing
+		if s.Name == src.Name {
+			h.Logger.
+				WithField("component", "server").
+				WithField("NewSource", s.Name).
+				Info("Source already exists")
+			return nil
+		}
+	}
+
+	src, err = h.SourcesStore.Add(ctx, src)
+	if err != nil {
+		return err
+	}
+
+	kapa.SrcID = src.ID
+	if _, err := h.ServersStore.Add(ctx, kapa); err != nil {
+		return err
+	}
+
 	return nil
 }

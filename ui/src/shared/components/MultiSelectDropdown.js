@@ -118,7 +118,9 @@ class MultiSelectDropdown extends Component {
                 onClick={_.wrap(listItem, this.onSelect)}
               >
                 <div className="multi-select--checkbox" />
-                <span>{listItem}</span>
+                <span>
+                  {listItem}
+                </span>
               </li>
             )
           })}

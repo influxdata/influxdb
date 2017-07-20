@@ -35,7 +35,9 @@ const DashboardHeader = ({
                   type="button"
                   data-toggle="dropdown"
                 >
-                  <span>{buttonText}</span>
+                  <span>
+                    {buttonText}
+                  </span>
                   <span className="caret" />
                 </button>
                 <ul className="dropdown-menu">

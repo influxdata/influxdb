@@ -26,19 +26,16 @@ const Dashboard = ({
 }) => {
   const cells = dashboard.cells.map(cell => {
     const dashboardCell = {...cell}
-    dashboardCell.queries = dashboardCell.queries.map(({
-      label,
-      query,
-      queryConfig,
-      db,
-    }) => ({
-      label,
-      query,
-      queryConfig,
-      db,
-      database: db,
-      text: query,
-    }))
+    dashboardCell.queries = dashboardCell.queries.map(
+      ({label, query, queryConfig, db}) => ({
+        label,
+        query,
+        queryConfig,
+        db,
+        database: db,
+        text: query,
+      })
+    )
     return dashboardCell
   })
 

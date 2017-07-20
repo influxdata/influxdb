@@ -5,7 +5,7 @@ const WriteDataFooter = ({
   inputContent,
   uploadContent,
   handleSubmit,
-}) => (
+}) =>
   <div className="write-data-form--footer">
     {isManual
       ? <span className="write-data-form--helper">
@@ -33,7 +33,6 @@ const WriteDataFooter = ({
       Write
     </button>
   </div>
-)
 
 const {bool, func, string} = PropTypes
 

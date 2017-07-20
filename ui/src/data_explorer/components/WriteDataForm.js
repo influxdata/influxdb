@@ -157,7 +157,7 @@ class WriteDataForm extends Component {
           />
           <WriteDataBody
             {...this.state}
-            fileInput={el => this.fileInput = el}
+            fileInput={el => (this.fileInput = el)}
             handleEdit={this.handleEdit}
             handleFile={this.handleFile}
             handleKeyUp={this.handleKeyUp}

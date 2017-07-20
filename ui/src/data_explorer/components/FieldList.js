@@ -7,12 +7,7 @@ import FancyScrollbar from 'shared/components/FancyScrollbar'
 import {showFieldKeys} from 'shared/apis/metaQuery'
 import showFieldKeysParser from 'shared/parsing/showFieldKeys'
 
-const {
-  bool,
-  func,
-  shape,
-  string,
-} = PropTypes
+const {bool, func, shape, string} = PropTypes
 
 const FieldList = React.createClass({
   propTypes: {
@@ -112,7 +107,9 @@ const FieldList = React.createClass({
     if (!database || !measurement) {
       return (
         <div className="query-builder--list-empty">
-          <span>No <strong>Measurement</strong> selected</span>
+          <span>
+            No <strong>Measurement</strong> selected
+          </span>
         </div>
       )
     }
