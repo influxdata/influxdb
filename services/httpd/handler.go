@@ -256,9 +256,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if strings.HasPrefix(r.URL.Path, "/debug/pprof") && h.Config.PprofEnabled {
 		h.handleProfiles(w, r)
-	} else if strings.HasPrefix(r.URL.Path, "/debug/vars") {
+	} else if strings.HasPrefix(r.URL.Path, "/debug/vars") && h.Config.DebugEnabled {
 		h.serveExpvar(w, r)
-	} else if strings.HasPrefix(r.URL.Path, "/debug/requests") {
+	} else if strings.HasPrefix(r.URL.Path, "/debug/requests") && h.Config.DebugEnabled {
 		h.serveDebugRequests(w, r)
 	} else {
 		h.mux.ServeHTTP(w, r)

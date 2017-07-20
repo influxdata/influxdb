@@ -16,6 +16,7 @@ bind-address = ":8080"
 auth-enabled = true
 log-enabled = true
 write-tracing = true
+debug-enabled = true
 https-enabled = true
 https-certificate = "/dev/null"
 unix-socket-enabled = true
@@ -34,6 +35,8 @@ max-body-size = 100
 		t.Fatalf("unexpected auth enabled: %v", c.AuthEnabled)
 	} else if c.LogEnabled != true {
 		t.Fatalf("unexpected log enabled: %v", c.LogEnabled)
+	} else if c.DebugEnabled != true {
+		t.Fatalf("unexpected debug enabled: %v", c.DebugEnabled)
 	} else if c.WriteTracing != true {
 		t.Fatalf("unexpected write tracing: %v", c.WriteTracing)
 	} else if c.HTTPSEnabled != true {

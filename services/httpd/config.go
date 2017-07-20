@@ -24,6 +24,7 @@ type Config struct {
 	LogEnabled         bool   `toml:"log-enabled"`
 	WriteTracing       bool   `toml:"write-tracing"`
 	PprofEnabled       bool   `toml:"pprof-enabled"`
+	DebugEnabled       bool   `toml:"debug-enabled"`
 	HTTPSEnabled       bool   `toml:"https-enabled"`
 	HTTPSCertificate   string `toml:"https-certificate"`
 	HTTPSPrivateKey    string `toml:"https-private-key"`
