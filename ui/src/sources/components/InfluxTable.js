@@ -133,11 +133,15 @@ const InfluxTable = ({
                           to={`${location.pathname}/${s.id}/edit`}
                           className={s.id === source.id ? 'link-success' : null}
                         >
-                          <strong>{s.name}</strong>
+                          <strong>
+                            {s.name}
+                          </strong>
                           {s.default ? ' (Default)' : null}
                         </Link>
                       </h5>
-                      <span>{s.url}</span>
+                      <span>
+                        {s.url}
+                      </span>
                     </td>
                     <td className="text-right">
                       <a

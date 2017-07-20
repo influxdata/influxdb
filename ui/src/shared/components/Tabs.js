@@ -70,12 +70,18 @@ export const TabList = React.createClass({
     if (this.props.customClass) {
       return (
         <div className={this.props.customClass}>
-          <div className="btn-group btn-group-lg tab-group">{children}</div>
+          <div className="btn-group btn-group-lg tab-group">
+            {children}
+          </div>
         </div>
       )
     }
 
-    return <div className="btn-group btn-group-lg tab-group">{children}</div>
+    return (
+      <div className="btn-group btn-group-lg tab-group">
+        {children}
+      </div>
+    )
   },
 })
 
@@ -102,7 +108,11 @@ export const TabPanel = React.createClass({
   },
 
   render() {
-    return <div>{this.props.children}</div>
+    return (
+      <div>
+        {this.props.children}
+      </div>
+    )
   },
 })
 
@@ -151,6 +161,10 @@ export const Tabs = React.createClass({
       return child
     })
 
-    return <div className={this.props.tabContentsClass}>{children}</div>
+    return (
+      <div className={this.props.tabContentsClass}>
+        {children}
+      </div>
+    )
   },
 })

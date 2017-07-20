@@ -228,11 +228,17 @@ class AlertTabs extends Component {
 
         <Tabs tabContentsClass="config-endpoint">
           <TabList customClass="config-endpoint--tabs">
-            {tabs.map((t, i) => <Tab key={tabs[i].type}>{tabs[i].type}</Tab>)}
+            {tabs.map((t, i) =>
+              <Tab key={tabs[i].type}>
+                {tabs[i].type}
+              </Tab>
+            )}
           </TabList>
           <TabPanels customClass="config-endpoint--tab-contents">
             {tabs.map((t, i) =>
-              <TabPanel key={tabs[i].type}>{t.component}</TabPanel>
+              <TabPanel key={tabs[i].type}>
+                {t.component}
+              </TabPanel>
             )}
           </TabPanels>
         </Tabs>

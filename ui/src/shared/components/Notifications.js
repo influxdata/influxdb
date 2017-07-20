@@ -35,7 +35,8 @@ class Notifications extends Component {
     })
     return (
       <div className={cls} role="alert">
-        {message}{this.renderDismiss(type)}
+        {message}
+        {this.renderDismiss(type)}
       </div>
     )
   }

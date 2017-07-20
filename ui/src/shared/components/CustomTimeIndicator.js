@@ -14,7 +14,11 @@ const CustomTimeIndicator = ({queries}) => {
     ? `${customLower} AND ${customUpper}`
     : customLower
 
-  return <span className="dash-graph--custom-time">{customTimeRange}</span>
+  return (
+    <span className="dash-graph--custom-time">
+      {customTimeRange}
+    </span>
+  )
 }
 
 const {arrayOf, shape} = PropTypes

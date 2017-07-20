@@ -61,7 +61,9 @@ const RoleRow = ({
 
   return (
     <tr>
-      <td style={{width: `${ROLES_TABLE.colName}px`}}>{name}</td>
+      <td style={{width: `${ROLES_TABLE.colName}px`}}>
+        {name}
+      </td>
       <td>
         {allPermissions && allPermissions.length
           ? <MultiSelectDropdown
