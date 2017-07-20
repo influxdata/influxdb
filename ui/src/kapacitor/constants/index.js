@@ -129,17 +129,16 @@ export const RULE_ALERT_OPTIONS = {
     },
   },
   pushover: {
-    args: {
-      label: 'Devices (Separated by Commas, Optional):',
-      placeholder: 'phone33,submarine,pineapple_tower',
-    },
     properties: [
-      {key: 'UserKey', label: 'User Key', placeholder: 'my_user_key'},
-      {key: 'Device', label: 'Device', placeholder: 'my_device'},
-      {key: 'Title', label: 'Title', placeholder: 'message_title'},
-      {key: 'URL', label: 'URL', placeholder: 'http://reference.url'},
-      {key: 'URLTitle', label: 'URL Title', placeholder: 'My URL Title'},
-      {key: 'Sound', label: 'Sound', placeholder: 'pineapple_falling'},
+      {
+        name: 'device',
+        label: 'Device:',
+        placeholder: 'dv1,dv2 (Comma Separated)',
+      },
+      {name: 'title', label: 'Title:', placeholder: 'Important Message'},
+      {name: 'URL', label: 'URL:', placeholder: 'https://influxdata.com'},
+      {name: 'URLTitle', label: 'URL Title:', placeholder: 'InfluxData'},
+      {name: 'sound', label: 'Sound:', placeholder: 'alien'},
     ],
   },
 }
@@ -161,5 +160,4 @@ export const ALERT_NODES_ACCESSORS = {
         ['alerta()']
       )
       .join('.'),
-  pushover: rule => _.get(rule, 'alertNodes[0].args'),
 }

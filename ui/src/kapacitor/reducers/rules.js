@@ -83,6 +83,10 @@ export default function rules(state = {}, action) {
       })
     }
 
+    // TODO: refactor to allow multiple alert nodes, and change name + refactor
+    // functionality to clearly disambiguate creating an alert node, changing its
+    // type, adding other alert nodes to a single rule, and updating an alert node's
+    // properties vs args vs details vs message.
     case 'UPDATE_RULE_ALERT_NODES': {
       const {ruleID, alertType, alertNodesText} = action.payload
 
@@ -132,8 +136,15 @@ export default function rules(state = {}, action) {
             },
           ]
           break
+        case 'pushover':
         default:
-          alertNodesByType = []
+          alertNodesByType = [
+            {
+              name: alertType,
+              args: [],
+              properties: [],
+            },
+          ]
       }
 
       return Object.assign({}, state, {
@@ -141,6 +152,38 @@ export default function rules(state = {}, action) {
           alertNodes: alertNodesByType,
         }),
       })
+    }
+
+    case 'UPDATE_RULE_ALERT_PROPERTY': {
+      const {ruleID, alertType, alertProperty} = action.payload
+
+      const newAlertNodes = state[ruleID].alertNodes.map(alertNode => {
+        if (alertNode.name !== alertType) {
+          return alertNode
+        }
+        let matched = false
+
+        if (!alertNode.properties) {
+          alertNode.properties = []
+        }
+        alertNode.properties = alertNode.properties.map(property => {
+          if (property.name === alertProperty.name) {
+            matched = true
+            return alertProperty
+          }
+          return property
+        })
+        if (!matched) {
+          alertNode.properties.push(alertProperty)
+        }
+        return alertNode
+      })
+
+      return {
+        ...state,
+        [ruleID]: {...state[ruleID]},
+        alertNodes: newAlertNodes,
+      }
     }
 
     case 'UPDATE_RULE_NAME': {

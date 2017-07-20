@@ -12,8 +12,7 @@ class RuleMessage extends Component {
     super(props)
 
     this.state = {
-      selectedAlert: null,
-      selectedAlertProperty: null,
+      selectedAlertType: null,
     }
 
     this.handleChangeMessage = ::this.handleChangeMessage
@@ -29,7 +28,7 @@ class RuleMessage extends Component {
     const {actions} = this.props
     actions.updateAlerts(item.ruleID, [item.text])
     actions.updateAlertNodes(item.ruleID, item.text, '')
-    this.setState({selectedAlert: item.text})
+    this.setState({selectedAlertType: item.text})
   }
 
   render() {
@@ -45,7 +44,7 @@ class RuleMessage extends Component {
       }),
     ]
 
-    const selectedAlert = rule.alerts[0] || alerts[0].text
+    const selectedAlertType = rule.alerts[0] || alerts[0].text
 
     return (
       <div className="rule-section">
@@ -55,7 +54,7 @@ class RuleMessage extends Component {
             <p>Send this Alert to:</p>
             <ul className="nav nav-tablist nav-tablist-sm nav-tablist-malachite">
               {alerts
-                // only display alert endpoints that have had their argument details configured
+                // only display alert endpoints that have rule alert options configured
                 .filter(alert =>
                   Object.keys(RULE_ALERT_OPTIONS).includes(alert.text)
                 )
@@ -63,7 +62,7 @@ class RuleMessage extends Component {
                   <li
                     key={alert.text}
                     className={classnames({
-                      active: alert.text === selectedAlert,
+                      active: alert.text === selectedAlertType,
                     })}
                     onClick={() => this.handleChooseAlert(alert)}
                   >
@@ -74,9 +73,10 @@ class RuleMessage extends Component {
           </div>
           <RuleMessageOptions
             rule={rule}
-            alert={selectedAlert}
+            alertType={selectedAlertType}
             updateAlertNodes={actions.updateAlertNodes}
             updateDetails={actions.updateDetails}
+            updateAlertProperty={actions.updateAlertProperty}
           />
           <RuleMessageText rule={rule} updateMessage={actions.updateMessage} />
           <RuleMessageTemplates
@@ -94,8 +94,10 @@ const {arrayOf, func, shape, string} = PropTypes
 RuleMessage.propTypes = {
   rule: shape({}).isRequired,
   actions: shape({
+    updateAlertNodes: func.isRequired,
     updateMessage: func.isRequired,
     updateDetails: func.isRequired,
+    updateAlertProperty: func.isRequired,
   }).isRequired,
   enabledAlerts: arrayOf(string.isRequired).isRequired,
 }

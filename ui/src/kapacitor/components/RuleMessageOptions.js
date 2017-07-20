@@ -8,28 +8,80 @@ import {
 class RuleMessageOptions extends Component {
   constructor(props) {
     super(props)
+
+    this.getAlertPropertyValue = ::this.getAlertPropertyValue
+  }
+
+  getAlertPropertyValue(properties, name) {
+    if (properties) {
+      const alertNodeProperty = properties.find(
+        property => property.name === name
+      )
+      if (alertNodeProperty) {
+        return alertNodeProperty.args
+      }
+    }
+    return ''
   }
 
   render() {
-    const {rule, alert, updateAlertNodes, updateDetails} = this.props
-    const {args, details, properties} = RULE_ALERT_OPTIONS[alert]
+    const {
+      rule,
+      alertType,
+      updateAlertNodes,
+      updateDetails,
+      updateAlertProperty,
+    } = this.props
+    const {args, details, properties} = RULE_ALERT_OPTIONS[alertType]
 
     return (
       <div>
         {args
           ? <div className="rule-section--row rule-section--border-bottom">
-              <p>{args.label}</p>
+              <p>
+                {args.label}
+              </p>
               <input
                 id="alert-input"
                 className="form-control input-sm form-malachite"
                 style={{flex: '1 0 0'}}
                 type="text"
                 placeholder={args.placeholder}
-                onChange={e => updateAlertNodes(rule.id, alert, e.target.value)}
-                value={ALERT_NODES_ACCESSORS[alert](rule)}
+                onChange={e =>
+                  updateAlertNodes(rule.id, alertType, e.target.value)}
+                value={ALERT_NODES_ACCESSORS[alertType](rule)}
                 autoComplete="off"
                 spellCheck="false"
               />
+            </div>
+          : null}
+        {properties && properties.length
+          ? <div className="rule-section--row rule-section--border-bottom">
+              <p>Optional Alert Configuration:</p>
+              {properties.map(({name: propertyName, label, placeholder}) =>
+                <div key={propertyName}>
+                  <p>
+                    {label}
+                  </p>
+                  <input
+                    className="form-control input-sm form-malachite"
+                    style={{flex: '1 0 0'}}
+                    type="text"
+                    placeholder={placeholder}
+                    onChange={e =>
+                      updateAlertProperty(rule.id, alertType, {
+                        name: propertyName,
+                        args: [e.target.value],
+                      })}
+                    value={this.getAlertPropertyValue(
+                      rule.alertNodes[0].properties,
+                      propertyName
+                    )}
+                    autoComplete="off"
+                    spellCheck="false"
+                  />
+                </div>
+              )}
             </div>
           : null}
         {details
@@ -44,26 +96,6 @@ class RuleMessageOptions extends Component {
               />
             </div>
           : null}
-        {properties
-          ? properties.map(({key, label, placeholder}) =>
-              <div
-                key={key}
-                className="rule-section--row rule-section--border-bottom"
-              >
-                <p>{label}</p>
-                <input
-                  className="form-control input-sm form-malachite"
-                  style={{flex: '1 0 0'}}
-                  type="text"
-                  placeholder={placeholder}
-                  // onChange={e => updateProperties(rule.id, e.target.value)}
-                  value={ALERT_NODES_ACCESSORS[alert](rule)}
-                  autoComplete="off"
-                  spellCheck="false"
-                />
-              </div>
-            )
-          : null}
       </div>
     )
   }
@@ -73,9 +105,10 @@ const {func, shape, string} = PropTypes
 
 RuleMessageOptions.propTypes = {
   rule: shape({}).isRequired,
-  alert: string,
+  alertType: string,
   updateAlertNodes: func.isRequired,
   updateDetails: func.isRequired,
+  updateAlertProperty: func.isRequired,
 }
 
 export default RuleMessageOptions
