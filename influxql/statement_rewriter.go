@@ -11,6 +11,8 @@ func RewriteStatement(stmt Statement) (Statement, error) {
 		return rewriteShowMeasurementsStatement(stmt)
 	case *ShowSeriesStatement:
 		return rewriteShowSeriesStatement(stmt)
+	case *ShowSeriesCardinalityStatement:
+		return rewriteShowSeriesCardinalityStatement(stmt)
 	case *ShowTagKeysStatement:
 		return rewriteShowTagKeysStatement(stmt)
 	case *ShowTagValuesStatement:
@@ -71,6 +73,25 @@ func rewriteShowSeriesStatement(stmt *ShowSeriesStatement) (Statement, error) {
 		Offset:     stmt.Offset,
 		Limit:      stmt.Limit,
 		SortFields: stmt.SortFields,
+		OmitTime:   true,
+		Dedupe:     true,
+		IsRawQuery: true,
+	}, nil
+}
+
+func rewriteShowSeriesCardinalityStatement(stmt *ShowSeriesCardinalityStatement) (Statement, error) {
+	// Check for time in WHERE clause (not supported).
+	if HasTimeExpr(stmt.Condition) {
+		return nil, errors.New("SHOW SERIES doesn't support time in WHERE clause")
+	}
+
+	return &SelectStatement{
+		Fields: []*Field{
+			{Expr: &Call{Name: "count", Args: []Expr{&VarRef{Val: "key"}}}, Alias: "cardinality"},
+		},
+		Sources:    rewriteSources(stmt.Sources, "_series", stmt.Database),
+		Condition:  rewriteSourcesCondition(stmt.Sources, stmt.Condition),
+		Dimensions: stmt.Dimensions,
 		OmitTime:   true,
 		Dedupe:     true,
 		IsRawQuery: true,

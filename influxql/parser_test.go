@@ -1529,6 +1529,12 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// SHOW SERIES CARDINALITY statement
+		{
+			s:    `SHOW SERIES CARDINALITY`,
+			stmt: &influxql.ShowSeriesCardinalityStatement{},
+		},
+
 		// SHOW MEASUREMENTS WHERE with ORDER BY and LIMIT
 		{
 			skip: true,

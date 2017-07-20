@@ -72,6 +72,7 @@ const (
 	ASC
 	BEGIN
 	BY
+	CARDINALITY
 	CREATE
 	CONTINUOUS
 	DATABASE
@@ -192,6 +193,7 @@ var tokens = [...]string{
 	ASC:           "ASC",
 	BEGIN:         "BEGIN",
 	BY:            "BY",
+	CARDINALITY:   "CARDINALITY",
 	CREATE:        "CREATE",
 	CONTINUOUS:    "CONTINUOUS",
 	DATABASE:      "DATABASE",

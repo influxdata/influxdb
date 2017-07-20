@@ -736,7 +736,7 @@ func (s *Shard) CreateIterator(measurement string, opt influxql.IteratorOptions)
 	return s.engine.CreateIterator(measurement, opt)
 }
 
-// createSystemIterator returns an iterator for a system source.
+// createSystemIterator returns an iterator for a field of system source.
 func (s *Shard) createSystemIterator(measurement string, opt influxql.IteratorOptions) (influxql.Iterator, bool, error) {
 	switch measurement {
 	case "_fieldKeys":
@@ -748,8 +748,9 @@ func (s *Shard) createSystemIterator(measurement string, opt influxql.IteratorOp
 	case "_tagKeys":
 		itr, err := NewTagKeysIterator(s, opt)
 		return itr, true, err
+	default:
+		return nil, false, nil
 	}
-	return nil, false, nil
 }
 
 // createSeriesIterator returns a new instance of SeriesIterator.

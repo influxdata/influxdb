@@ -902,9 +902,14 @@ func (p *Parser) parseDeleteStatement() (Statement, error) {
 
 // parseShowSeriesStatement parses a string and returns a ShowSeriesStatement.
 // This function assumes the "SHOW SERIES" tokens have already been consumed.
-func (p *Parser) parseShowSeriesStatement() (*ShowSeriesStatement, error) {
+func (p *Parser) parseShowSeriesStatement() (Statement, error) {
 	stmt := &ShowSeriesStatement{}
 	var err error
+
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == CARDINALITY {
+		return p.parseShowSeriesCardinalityStatement()
+	}
+	p.unscan()
 
 	// Parse optional ON clause.
 	if tok, _, _ := p.ScanIgnoreWhitespace(); tok == ON {
@@ -945,6 +950,49 @@ func (p *Parser) parseShowSeriesStatement() (*ShowSeriesStatement, error) {
 	if stmt.Offset, err = p.ParseOptionalTokenAndInt(OFFSET); err != nil {
 		return nil, err
 	}
+
+	return stmt, nil
+}
+
+// This function assumes the "SHOW SERIES CARDINALITY" tokens have already been consumed.
+func (p *Parser) parseShowSeriesCardinalityStatement() (Statement, error) {
+	stmt := &ShowSeriesCardinalityStatement{}
+
+	// Parse optional ON clause.
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == ON {
+		database, err := p.parseIdent()
+		if err != nil {
+			return nil, err
+		}
+		stmt.Database = database
+	} else {
+		p.unscan()
+	}
+
+	// Parse optional FROM.
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == FROM {
+		sources, err := p.parseSources(false)
+		if err != nil {
+			return nil, err
+		}
+		stmt.Sources = sources
+	} else {
+		p.unscan()
+	}
+
+	// Parse condition: "WHERE EXPR".
+	condition, err := p.parseCondition()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Condition = condition
+
+	// Parse dimensions: "GROUP BY DIMENSION+".
+	dimensions, err := p.parseDimensions()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Dimensions = dimensions
 
 	return stmt, nil
 }

@@ -153,6 +153,7 @@ func (*ShowRetentionPoliciesStatement) node() {}
 func (*ShowMeasurementsStatement) node()      {}
 func (*ShowQueriesStatement) node()           {}
 func (*ShowSeriesStatement) node()            {}
+func (*ShowSeriesCardinalityStatement) node() {}
 func (*ShowShardGroupsStatement) node()       {}
 func (*ShowShardsStatement) node()            {}
 func (*ShowStatsStatement) node()             {}
@@ -268,6 +269,7 @@ func (*ShowMeasurementsStatement) stmt()      {}
 func (*ShowQueriesStatement) stmt()           {}
 func (*ShowRetentionPoliciesStatement) stmt() {}
 func (*ShowSeriesStatement) stmt()            {}
+func (*ShowSeriesCardinalityStatement) stmt() {}
 func (*ShowShardGroupsStatement) stmt()       {}
 func (*ShowShardsStatement) stmt()            {}
 func (*ShowStatsStatement) stmt()             {}
@@ -2757,6 +2759,47 @@ func (s *DropShardStatement) String() string {
 // DropShardStatement.
 func (s *DropShardStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
 	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}, nil
+}
+
+// ShowSeriesCardinalityStatement represents a command for listing series cardinality.
+type ShowSeriesCardinalityStatement struct {
+	// Database to query. If blank, use the default database.
+	// The database can also be specified per source in the Sources.
+	Database string
+
+	// Measurement(s) the series are listed for.
+	Sources Sources
+
+	// An expression evaluated on a series name or tag.
+	Condition Expr
+
+	// Expressions used for grouping the selection.
+	Dimensions Dimensions
+}
+
+// String returns a string representation of the show continuous queries statement.
+func (s *ShowSeriesCardinalityStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("SHOW SERIES CARDINALITY")
+
+	if s.Database != "" {
+		_, _ = buf.WriteString(" ON ")
+		_, _ = buf.WriteString(QuoteIdent(s.Database))
+	}
+	if s.Sources != nil {
+		_, _ = buf.WriteString(" FROM ")
+		_, _ = buf.WriteString(s.Sources.String())
+	}
+	if s.Condition != nil {
+		_, _ = buf.WriteString(" WHERE ")
+		_, _ = buf.WriteString(s.Condition.String())
+	}
+	return buf.String()
+}
+
+// RequiredPrivileges returns the privilege required to execute a ShowSeriesCardinalityStatement.
+func (s *ShowSeriesCardinalityStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
+	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: ReadPrivilege}}, nil
 }
 
 // ShowContinuousQueriesStatement represents a command for listing continuous queries.
