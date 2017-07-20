@@ -412,7 +412,6 @@ func Reverse(script chronograf.TICKScript) (chronograf.AlertRule, error) {
 	rule.Query.RetentionPolicy = commonVars.RP
 	rule.Query.Measurement = commonVars.Measurement
 	rule.Query.GroupBy.Tags = commonVars.GroupBy
-
 	if commonVars.Filter.Operator == "==" {
 		rule.Query.AreTagsAccepted = true
 	}
@@ -863,13 +862,6 @@ func extractPushover(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
 		Name: "pushover",
 	}
 
-	if a.UserKey != "" {
-		alert.Properties = append(alert.Properties, chronograf.KapacitorProperty{
-			Name: "user-key",
-			Args: []string{a.UserKey},
-		})
-	}
-
 	if a.Device != "" {
 		alert.Properties = append(alert.Properties, chronograf.KapacitorProperty{
 			Name: "device",
@@ -886,14 +878,14 @@ func extractPushover(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
 
 	if a.URL != "" {
 		alert.Properties = append(alert.Properties, chronograf.KapacitorProperty{
-			Name: "url",
+			Name: "URL",
 			Args: []string{a.URL},
 		})
 	}
 
 	if a.URLTitle != "" {
 		alert.Properties = append(alert.Properties, chronograf.KapacitorProperty{
-			Name: "url-title",
+			Name: "URLTitle",
 			Args: []string{a.URLTitle},
 		})
 	}
