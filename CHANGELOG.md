@@ -1,4 +1,4 @@
-## v1.3.1 [unreleased]
+## v1.3.1 [2017-07-20]
 
 ### Bugfixes
 
