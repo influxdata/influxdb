@@ -213,7 +213,7 @@ log.Printf("Found a total of %v records\n", count)
 #### Find the last 10 _shapes_ records
 
 ```go
-q := fmt.Sprintf("SELECT * FROM %s LIMIT %d", MyMeasurement, 20)
+q := fmt.Sprintf("SELECT * FROM %s LIMIT %d", MyMeasurement, 10)
 res, err = queryDB(clnt, q)
 if err != nil {
 	log.Fatal(err)
