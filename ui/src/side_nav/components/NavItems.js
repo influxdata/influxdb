@@ -126,7 +126,11 @@ const NavBar = React.createClass({
 
       return child
     })
-    return <nav className="sidebar">{children}</nav>
+    return (
+      <nav className="sidebar">
+        {children}
+      </nav>
+    )
   },
 })
 

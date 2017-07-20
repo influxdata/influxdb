@@ -15,7 +15,9 @@ const RuleMessageAlertConfig = ({updateAlertNodes, alert, rule}) => {
   }
   return (
     <div className="rule-section--row rule-section--border-bottom">
-      <p>{DEFAULT_ALERT_LABELS[alert]}</p>
+      <p>
+        {DEFAULT_ALERT_LABELS[alert]}
+      </p>
       <input
         id="alert-input"
         className="form-control input-sm form-malachite"

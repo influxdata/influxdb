@@ -12,7 +12,7 @@ const WriteDataBody = ({
   isManual,
   fileInput,
   handleFileOpen,
-}) => (
+}) =>
   <div className="write-data-form--body">
     {isManual
       ? <textarea
@@ -51,7 +51,6 @@ const WriteDataBody = ({
       uploadContent={uploadContent}
     />
   </div>
-)
 
 const {func, string, bool} = PropTypes
 

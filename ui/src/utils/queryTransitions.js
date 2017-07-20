@@ -60,7 +60,11 @@ export const toggleField = (query, {field, funcs}, isKapacitorRule = false) => {
 
 // all fields implicitly have a function applied to them, so consequently
 // we need to set the auto group by time
-export const toggleFieldWithGroupByInterval = (query, {field, funcs}, isKapacitorRule) => {
+export const toggleFieldWithGroupByInterval = (
+  query,
+  {field, funcs},
+  isKapacitorRule
+) => {
   const queryWithField = toggleField(query, {field, funcs}, isKapacitorRule)
   return groupByTime(queryWithField, DEFAULT_DASHBOARD_GROUP_BY_INTERVAL)
 }
@@ -79,7 +83,11 @@ export function toggleTagAcceptance(query) {
   })
 }
 
-export function applyFuncsToField(query, {field, funcs}, isInDataExplorer = false) {
+export function applyFuncsToField(
+  query,
+  {field, funcs},
+  isInDataExplorer = false
+) {
   const shouldRemoveFuncs = funcs.length === 0
   const nextFields = query.fields.map(f => {
     // If one field has no funcs, all fields must have no funcs
@@ -95,9 +103,13 @@ export function applyFuncsToField(query, {field, funcs}, isInDataExplorer = fals
     return f
   })
 
-  const defaultGroupBy = isInDataExplorer ? DEFAULT_DATA_EXPLORER_GROUP_BY_INTERVAL : DEFAULT_DASHBOARD_GROUP_BY_INTERVAL
+  const defaultGroupBy = isInDataExplorer
+    ? DEFAULT_DATA_EXPLORER_GROUP_BY_INTERVAL
+    : DEFAULT_DASHBOARD_GROUP_BY_INTERVAL
   // If there are no functions, then there should be no GROUP BY time
-  const nextGroupBy = Object.assign({}, query.groupBy, {time: shouldRemoveFuncs ? null : defaultGroupBy})
+  const nextGroupBy = Object.assign({}, query.groupBy, {
+    time: shouldRemoveFuncs ? null : defaultGroupBy,
+  })
 
   return Object.assign({}, query, {
     fields: nextFields,

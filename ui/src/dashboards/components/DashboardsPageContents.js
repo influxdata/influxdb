@@ -25,7 +25,9 @@ const DashboardsPageContents = ({
           <div className="col-md-12">
             <div className="panel panel-minimal">
               <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-                <h2 className="panel-title">{tableHeader}</h2>
+                <h2 className="panel-title">
+                  {tableHeader}
+                </h2>
                 <button
                   className="btn btn-sm btn-primary"
                   onClick={onCreateDashboard}

@@ -105,7 +105,9 @@ const Header = ({
 
   return (
     <div className="db-manager-header">
-      <h4>{database.name}</h4>
+      <h4>
+        {database.name}
+      </h4>
       {database.hasOwnProperty('deleteCode') ? deleteConfirmation : buttons}
     </div>
   )

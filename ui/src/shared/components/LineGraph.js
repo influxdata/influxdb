@@ -183,7 +183,9 @@ export default React.createClass({
                   'single-stat--small': cellHeight === SMALL_CELL_HEIGHT,
                 })}
               >
-                <span className="single-stat--shadow">{roundedValue}</span>
+                <span className="single-stat--shadow">
+                  {roundedValue}
+                </span>
               </span>
             </div>
           : null}

@@ -198,7 +198,9 @@ const TableInput = ({
         />
       </div>
     : <div style={{width: '100%'}} onClick={() => onStartEdit(name)}>
-        <div className="tvm-input">{defaultValue}</div>
+        <div className="tvm-input">
+          {defaultValue}
+        </div>
       </div>
 }
 

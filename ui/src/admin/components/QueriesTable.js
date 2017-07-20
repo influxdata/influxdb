@@ -14,9 +14,7 @@ const QueriesTable = ({queries, onKillQuery}) =>
                 Database
               </th>
               <th>Query</th>
-              <th style={{width: `${QUERIES_TABLE.colRunning}px`}}>
-                Running
-              </th>
+              <th style={{width: `${QUERIES_TABLE.colRunning}px`}}>Running</th>
               <th style={{width: `${QUERIES_TABLE.colKillQuery}px`}} />
             </tr>
           </thead>

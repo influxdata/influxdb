@@ -19,11 +19,7 @@ export const KapacitorTasksPage = React.createClass({
   },
 
   render() {
-    return (
-      <div className="kapacitorTasks">
-        tasks
-      </div>
-    )
+    return <div className="kapacitorTasks">tasks</div>
   },
 })
 

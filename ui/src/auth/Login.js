@@ -15,7 +15,9 @@ const Login = ({authData: {auth}}) => {
         <div className="auth-box">
           <div className="auth-logo" />
           <h1 className="auth-text-logo">Chronograf</h1>
-          <p><strong>{VERSION}</strong> / Time-Series Data Visualization</p>
+          <p>
+            <strong>{VERSION}</strong> / Time-Series Data Visualization
+          </p>
           {auth.links &&
             auth.links.map(({name, login, label}) =>
               <a key={name} className="btn btn-primary" href={login}>

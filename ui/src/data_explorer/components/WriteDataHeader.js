@@ -8,7 +8,7 @@ const WriteDataHeader = ({
   toggleWriteView,
   isManual,
   onClose,
-}) => (
+}) =>
   <div className="write-data-form--header">
     <div className="page-header__left">
       <h1 className="page-header__title">Write Data To</h1>
@@ -36,7 +36,6 @@ const WriteDataHeader = ({
       <span className="page-header__dismiss" onClick={onClose} />
     </div>
   </div>
-)
 
 const {func, string, bool} = PropTypes
 
