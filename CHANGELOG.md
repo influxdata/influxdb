@@ -6,7 +6,7 @@
 ### Features
 1. [#1717](https://github.com/influxdata/chronograf/pull/1717): View server generated TICKscripts
 1. [#1681](https://github.com/influxdata/chronograf/pull/1681): Add the ability to select Custom Time Ranges in the Hostpages, Data Explorer, and Dashboards.
-1. [#1724](https://github.com/influxdata/chronograf/pull/1724): Add alert configuration for Kapacitor support of Pushover
+1. [#1724](https://github.com/influxdata/chronograf/pull/1724): Add Pushover alert support
 
 
 ### UI Improvements
