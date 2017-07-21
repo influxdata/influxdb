@@ -71,6 +71,7 @@ export const KapacitorRule = React.createClass({
                     actions={queryActions}
                     onAddEvery={this.handleAddEvery}
                     onRemoveEvery={this.handleRemoveEvery}
+                    isKapacitorRule={true}
                   />
                   <ValuesSection
                     rule={rule}

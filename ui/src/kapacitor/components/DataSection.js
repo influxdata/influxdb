@@ -32,6 +32,7 @@ export const DataSection = React.createClass({
     onAddEvery: PropTypes.func.isRequired,
     onRemoveEvery: PropTypes.func.isRequired,
     timeRange: PropTypes.shape({}).isRequired,
+    isKapacitorRule: PropTypes.bool,
   },
 
   childContextTypes: {
@@ -69,7 +70,13 @@ export const DataSection = React.createClass({
   },
 
   handleApplyFuncsToField(fieldFunc) {
-    this.props.actions.applyFuncsToField(this.props.query.id, fieldFunc)
+    this.props.actions.applyFuncsToField(
+      this.props.query.id,
+      fieldFunc,
+      // this 3rd arg (isKapacitorRule) makes sure 'auto' is not added as
+      // default group by in Kapacitor rule
+      this.props.isKapacitorRule
+    )
     this.props.onAddEvery(defaultEveryFrequency)
   },
 
@@ -109,7 +116,7 @@ export const DataSection = React.createClass({
   },
 
   renderQueryBuilder() {
-    const {query} = this.props
+    const {query, isKapacitorRule} = this.props
 
     return (
       <div className="query-builder">
@@ -129,7 +136,7 @@ export const DataSection = React.createClass({
           onToggleField={this.handleToggleField}
           onGroupByTime={this.handleGroupByTime}
           applyFuncsToField={this.handleApplyFuncsToField}
-          isKapacitorRule={true}
+          isKapacitorRule={isKapacitorRule}
         />
       </div>
     )

@@ -86,7 +86,7 @@ export function toggleTagAcceptance(query) {
 export function applyFuncsToField(
   query,
   {field, funcs},
-  isInDataExplorer = false
+  preventAutoGroupBy = false
 ) {
   const shouldRemoveFuncs = funcs.length === 0
   const nextFields = query.fields.map(f => {
@@ -103,7 +103,7 @@ export function applyFuncsToField(
     return f
   })
 
-  const defaultGroupBy = isInDataExplorer
+  const defaultGroupBy = preventAutoGroupBy
     ? DEFAULT_DATA_EXPLORER_GROUP_BY_INTERVAL
     : DEFAULT_DASHBOARD_GROUP_BY_INTERVAL
   // If there are no functions, then there should be no GROUP BY time
