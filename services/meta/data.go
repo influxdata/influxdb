@@ -40,6 +40,7 @@ type Data struct {
 	ClusterID uint64
 	Databases map[string]*DatabaseInfo
 	Users     map[string]*UserInfo
+	Nodes     map[uint64]*NodeInfo
 
 	// adminUserExists provides a constant time mechanism for determining
 	// if there is at least one admin user.
@@ -245,10 +246,6 @@ func (data *Data) UpdateRetentionPolicy(database, name string, rpu *RetentionPol
 		urpi.ShardGroupDuration = normalisedShardDuration(*rpu.ShardGroupDuration, urpi.Duration)
 	}
 	return &urpi, nil
-
-	//if di.DefaultRetentionPolicy != rpi.Name && makeDefault {
-	//		di.DefaultRetentionPolicy = rpi.Name
-	//	}
 }
 
 // DropShard removes a shard by ID.

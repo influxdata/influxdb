@@ -41,7 +41,6 @@ var (
 
 type StorageService interface {
 	Load() (*Data, error)
-	Snapshot(data *Data) error
 
 	// Node
 	AddNode(node *NodeInfo) error
@@ -190,6 +189,18 @@ func (c *Client) ClusterID() uint64 {
 	defer c.mu.RUnlock()
 
 	return c.cacheData.ClusterID
+}
+
+// Nodes returns a list of all nodes infos.
+func (c *Client) Nodes() map[uint64]*NodeInfo {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.cacheData.Nodes == nil {
+		return make(map[uint64]*NodeInfo)
+	}
+
+	return c.cacheData.Nodes
 }
 
 // Database returns info for the requested database.

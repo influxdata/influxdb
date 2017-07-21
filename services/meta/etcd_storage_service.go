@@ -53,11 +53,92 @@ func NewEtcdStorageService(config *Config) (*EtcdStorageService, error) {
 }
 
 func (e *EtcdStorageService) Load() (*Data, error) {
-	return nil, nil
-}
+	data := &Data{}
 
-func (e *EtcdStorageService) Snapshot(data *Data) error {
-	return nil
+	// node
+	nodes, err := e.GetNodes()
+	if err != nil {
+		return nil, err
+	}
+	data.Nodes = make(map[uint64]*NodeInfo, len(nodes))
+	for _, node := range nodes {
+		data.Nodes[node.ID] = node
+	}
+
+	// database
+	dbs, err := e.GetDatabases()
+	if err != nil {
+		return nil, err
+	}
+	data.Databases = make(map[string]*DatabaseInfo, len(dbs))
+	for _, db := range dbs {
+		data.Databases[db.Name] = db
+	}
+
+	// user
+	users, err := e.GetUsers()
+	if err != nil {
+		return nil, err
+	}
+	data.Users = make(map[string]*UserInfo, len(users))
+	for _, u := range users {
+		data.Users[u.Name] = u
+	}
+
+	// rp
+	for name, db := range data.Databases {
+		rps, err := e.GetRetentionPolicies(name)
+		if err != nil {
+			return nil, err
+		}
+
+		db.RetentionPolicies = make(map[string]*RetentionPolicyInfo, len(rps))
+		for _, rp := range rps {
+			db.RetentionPolicies[rp.Name] = rp
+		}
+	}
+
+	// cq
+	for name, db := range data.Databases {
+		cqs, err := e.GetContinuousQueries(name)
+		if err != nil {
+			return nil, err
+		}
+
+		db.ContinuousQueries = make(map[string]*ContinuousQueryInfo, len(cqs))
+		for _, cq := range cqs {
+			db.ContinuousQueries[cq.Name] = cq
+		}
+	}
+
+	// sg
+	for dbName, db := range data.Databases {
+		for rpName, rp := range db.RetentionPolicies {
+			sgs, err := e.GetShardGroups(dbName, rpName)
+			if err != nil {
+				return nil, err
+			}
+
+			rp.ShardGroups = sgs
+		}
+	}
+
+	// sub
+	for dbName, db := range data.Databases {
+		for rpName, rp := range db.RetentionPolicies {
+			subs, err := e.GetSubscriptions(dbName, rpName)
+			if err != nil {
+				return nil, err
+			}
+
+			rp.Subscriptions = make(map[string]*SubscriptionInfo, len(subs))
+			for _, sub := range subs {
+				rp.Subscriptions[sub.Name] = sub
+			}
+		}
+	}
+
+	return data, nil
 }
 
 func (e *EtcdStorageService) AddUser(user *UserInfo) error {
