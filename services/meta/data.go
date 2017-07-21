@@ -64,7 +64,12 @@ func (data *Data) CreateDatabase(name string) (*DatabaseInfo, error) {
 		return nil, nil
 	}
 
-	return &DatabaseInfo{Name: name}, nil
+	return &DatabaseInfo{
+		Name: name,
+
+		RetentionPolicies: make(map[string]*RetentionPolicyInfo),
+		ContinuousQueries: make(map[string]*ContinuousQueryInfo),
+	}, nil
 }
 
 // CommitDatabase commits to data cache
@@ -97,7 +102,8 @@ func (data *Data) UpdateDefaultRetentionPolicy(database string, rpi *RetentionPo
 	}
 
 	// if they want to make it default, and it's not the default, it's not an identical command so it's an error
-	if isNew && di.DefaultRetentionPolicy != rpi.Name {
+	alreadyHasThisRP := di.RetentionPolicy(rpi.Name) != nil
+	if isNew && alreadyHasThisRP && di.DefaultRetentionPolicy != rpi.Name {
 		return nil, ErrRetentionPolicyConflict
 	}
 
@@ -910,9 +916,10 @@ type RetentionPolicyInfo struct {
 // with default replication and duration.
 func NewRetentionPolicyInfo(name string) *RetentionPolicyInfo {
 	return &RetentionPolicyInfo{
-		Name:     name,
-		ReplicaN: DefaultRetentionPolicyReplicaN,
-		Duration: DefaultRetentionPolicyDuration,
+		Name:          name,
+		ReplicaN:      DefaultRetentionPolicyReplicaN,
+		Duration:      DefaultRetentionPolicyDuration,
+		Subscriptions: make(map[string]*SubscriptionInfo),
 	}
 }
 

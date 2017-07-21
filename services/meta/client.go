@@ -1071,9 +1071,14 @@ func (c *Client) WithLogger(log zap.Logger) {
 	c.logger = log.With(zap.String("service", "metaclient"))
 }
 
-// FIXME
-// Load loads the current meta data from disk.
+// Load loads the current meta data storage service.
 func (c *Client) Load() error {
+	data, err := c.storage.Load()
+	if err != nil {
+		return err
+	}
+
+	c.cacheData = data
 	return nil
 }
 
