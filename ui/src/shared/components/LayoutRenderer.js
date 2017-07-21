@@ -138,11 +138,11 @@ class LayoutRenderer extends Component {
       source,
       cells,
       onEditCell,
+      onCancelEditCell,
       onRenameCell,
       onUpdateCell,
       onDeleteCell,
       onSummonOverlayTechnologies,
-      shouldNotBeEditable,
       timeRange,
       autoRefresh,
       templates,
@@ -156,13 +156,13 @@ class LayoutRenderer extends Component {
       return (
         <div key={cell.i}>
           <NameableGraph
+            onCancelEditCell={onCancelEditCell}
             isEditable={isEditable}
             onEditCell={onEditCell}
             onRenameCell={onRenameCell}
             onUpdateCell={onUpdateCell}
             onDeleteCell={onDeleteCell}
             onSummonOverlayTechnologies={onSummonOverlayTechnologies}
-            shouldNotBeEditable={shouldNotBeEditable}
             cell={cell}
           >
             {cell.isWidget
@@ -215,7 +215,7 @@ class LayoutRenderer extends Component {
           PAGE_HEADER_HEIGHT -
           PAGE_CONTAINER_MARGIN -
           PAGE_CONTAINER_MARGIN) /
-        STATUS_PAGE_ROW_COUNT
+          STATUS_PAGE_ROW_COUNT
       : DASHBOARD_LAYOUT_ROW_HEIGHT
   }
 
@@ -298,10 +298,10 @@ LayoutRenderer.propTypes = {
   onUpdateCell: func,
   onDeleteCell: func,
   onSummonOverlayTechnologies: func,
-  shouldNotBeEditable: bool,
   synchronizer: func,
   isStatusPage: bool,
   isEditable: bool,
+  onCancelEditCell: func,
 }
 
 export default LayoutRenderer

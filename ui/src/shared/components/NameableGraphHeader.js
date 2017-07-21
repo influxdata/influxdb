@@ -4,12 +4,13 @@ import classnames from 'classnames'
 import CustomTimeIndicator from 'shared/components/CustomTimeIndicator'
 
 const NameableGraphHeader = ({
+  onCancelEditCell,
   isEditable,
-  onEditCell,
   onRenameCell,
   onUpdateCell,
   cell,
-  cell: {x, y, name, queries},
+  cellName,
+  cell: {i, name, queries},
 }) => {
   const isInputVisible = isEditable && cell.isEditing
   const className = classnames('dash-graph--heading', {
@@ -17,10 +18,11 @@ const NameableGraphHeader = ({
   })
   const onKeyUp = evt => {
     if (evt.key === 'Enter') {
-      onUpdateCell(cell)()
+      onUpdateCell({...cell, name: cellName})()
     }
+
     if (evt.key === 'Escape') {
-      onEditCell(x, y, true)()
+      onCancelEditCell(i)
     }
   }
 
@@ -28,9 +30,9 @@ const NameableGraphHeader = ({
     <div className={className}>
       {isInputVisible
         ? <GraphNameInput
-            value={name}
-            onChange={onRenameCell(x, y)}
-            onBlur={onUpdateCell(cell)}
+            value={cellName}
+            onChange={onRenameCell}
+            onBlur={onUpdateCell({...cell, name: cellName})}
             onKeyUp={onKeyUp}
           />
         : <GraphName name={name} queries={queries} />}
@@ -42,26 +44,28 @@ const {arrayOf, bool, func, string, shape} = PropTypes
 
 NameableGraphHeader.propTypes = {
   cell: shape(),
-  onEditCell: func,
+  cellName: string,
   onRenameCell: func,
   onUpdateCell: func,
   isEditable: bool,
+  onCancelEditCell: func,
 }
 
-const GraphName = ({name, queries}) =>
+const GraphName = ({name, queries}) => (
   <span className="dash-graph--name">
     {name}
     {queries && queries.length
       ? <CustomTimeIndicator queries={queries} />
       : null}
   </span>
+)
 
 GraphName.propTypes = {
   name: string,
   queries: arrayOf(shape()),
 }
 
-const GraphNameInput = ({value, onKeyUp, onChange, onBlur}) =>
+const GraphNameInput = ({value, onKeyUp, onChange, onBlur}) => (
   <input
     className="form-control input-sm dash-graph--name-edit"
     type="text"
@@ -71,6 +75,7 @@ const GraphNameInput = ({value, onKeyUp, onChange, onBlur}) =>
     onBlur={onBlur}
     onKeyUp={onKeyUp}
   />
+)
 
 GraphNameInput.propTypes = {
   value: string,

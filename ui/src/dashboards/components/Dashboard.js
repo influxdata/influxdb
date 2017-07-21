@@ -23,6 +23,7 @@ const Dashboard = ({
   onSummonOverlayTechnologies,
   onSelectTemplate,
   showTemplateControlBar,
+  onCancelEditCell,
 }) => {
   const cells = dashboard.cells.map(cell => {
     const dashboardCell = {...cell}
@@ -56,6 +57,7 @@ const Dashboard = ({
             />}
         {cells.length
           ? <LayoutRenderer
+              onCancelEditCell={onCancelEditCell}
               templates={templatesIncludingDashTime}
               isEditable={true}
               cells={cells}
@@ -124,6 +126,7 @@ Dashboard.propTypes = {
   onOpenTemplateManager: func.isRequired,
   onSelectTemplate: func.isRequired,
   showTemplateControlBar: bool,
+  onCancelEditCell: func,
 }
 
 export default Dashboard
