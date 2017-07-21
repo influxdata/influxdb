@@ -3718,8 +3718,16 @@
               "axes": {
                 "description": "The viewport for a cell's visualizations",
                 "type": "object",
-                "additionalProperties": {
-                  "$ref": "#/definitions/DashboardRange"
+                "properties": {
+                  "x": {
+                    "$ref": "#/definitions/DashboardRange"
+                  },
+                  "y": {
+                    "$ref": "#/definitions/DashboardRange"
+                  },
+                  "y2": {
+                    "$ref": "#/definitions/DashboardRange"
+                  }
                 }
               },
               "type": {
@@ -3814,7 +3822,7 @@
           "description": "The extents of an axis in the form [lower, upper]. Clients determine whether bounds are to be inclusive or exclusive of their limits",
           "items": {
             "type": "integer",
-            "format": "int32"
+            "format": "int64"
           }
         }
       }

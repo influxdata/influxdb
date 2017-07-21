@@ -43,9 +43,23 @@ func newCellResponses(dID chronograf.DashboardID, dcells []chronograf.DashboardC
 	return cells
 }
 
-// ValidDashboardCellRequest verifies that the dashboard cells have a query
+// ValidDashboardCellRequest verifies that the dashboard cells have a query and
+// have the correct axes specified
 func ValidDashboardCellRequest(c *chronograf.DashboardCell) error {
 	CorrectWidthHeight(c)
+	return HasCorrectAxes(c)
+}
+
+// HasCorrectAxes verifies that only permitted axes exist within a DashboardCell
+func HasCorrectAxes(c *chronograf.DashboardCell) error {
+	for axis, _ := range c.Axes {
+		switch axis {
+		case "x", "y", "y2":
+			// no-op
+		default:
+			return chronograf.ErrInvalidAxis
+		}
+	}
 	return nil
 }
 
