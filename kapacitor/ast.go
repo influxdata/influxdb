@@ -559,7 +559,7 @@ func extractPagerduty(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
 	rule.Alerts = append(rule.Alerts, "pagerduty")
 	p := node.PagerDutyHandlers[0]
 	alert := chronograf.KapacitorNode{
-		Name: "paperduty",
+		Name: "pagerduty",
 	}
 
 	if p.ServiceKey != "" {
