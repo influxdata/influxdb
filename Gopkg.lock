@@ -48,6 +48,11 @@
   revision = "8ee79997227bf9b34611aee7946ae64735e6fd93"
 
 [[projects]]
+  name = "github.com/google/go-cmp"
+  packages = ["cmp"]
+  revision = "79b2d888f100ec053545168aa94bcfb322e8bfc8"
+
+[[projects]]
   name = "github.com/google/go-github"
   packages = ["github"]
   revision = "1bc362c7737e51014af7299e016444b654095ad9"
@@ -135,6 +140,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "bac138180cd86a0ae604cd3aa7b6ba300673478c880882bd58a4bd7f8bff518d"
+  inputs-digest = "f34fb88755292baba8b52c14bf5b9a028daff96a763368a7cf1de90004d33695"
   solver-name = "gps-cdcl"
   solver-version = 1
