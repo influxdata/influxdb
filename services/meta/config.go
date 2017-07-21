@@ -2,6 +2,7 @@ package meta
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/influxdata/influxdb/monitor/diagnostics"
@@ -17,6 +18,10 @@ const (
 
 // Config represents the meta configuration.
 type Config struct {
+	NodeID      uint64 `toml:"node-id"`
+	NodeHost    string `toml:"node-host"`
+	NodeTCPHost string `toml:"node-tcphost"`
+
 	EtcdEndpoints string `toml:"etdc-endpoints"`
 
 	Dir string `toml:"dir"`
@@ -31,7 +36,12 @@ type Config struct {
 // NewConfig builds a new configuration with default values.
 func NewConfig() *Config {
 	return &Config{
-		EtcdEndpoints:       "http://localhost:2379",
+		NodeID:      1,
+		NodeHost:    "localhost",
+		NodeTCPHost: "localhost:8089",
+
+		EtcdEndpoints: "http://localhost:2379",
+
 		LeaseDuration:       2,
 		RetentionAutoCreate: true,
 		LoggingEnabled:      DefaultLoggingEnabled,
@@ -40,12 +50,20 @@ func NewConfig() *Config {
 
 // Validate returns an error if the config is invalid.
 func (c *Config) Validate() error {
-	if c.EtcdEndpoints == "" {
-		return errors.New("Meta.EtcdEndpoints must be specified")
+	allRequired := [][2]string{
+		{"node-host", c.NodeHost},
+		{"node-tcp-host", c.NodeTCPHost},
+		{"etdc-endpoints", c.EtcdEndpoints},
+	}
+
+	for _, required := range allRequired {
+		if required[1] == "" {
+			return errors.New(fmt.Sprintf("%s must be specified", required[0]))
+		}
 	}
 
 	if c.LeaseDuration <= 0 {
-		return errors.New("Meta.LeaseDuration must be a positive number")
+		return errors.New("lease-duration must be a positive number")
 	}
 	return nil
 }

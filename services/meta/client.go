@@ -109,6 +109,7 @@ type Client struct {
 	changed   chan struct{}
 	cacheData *Data
 
+	config *Config
 	// Authentication cache.
 	authCache map[string]authUser
 
@@ -132,6 +133,7 @@ func NewClient(config *Config) (*Client, error) {
 	}
 
 	return &Client{
+		config: config,
 		cacheData: &Data{
 			ClusterID: uint64(rand.Int63()),
 			Index:     1,
@@ -149,6 +151,17 @@ func NewClient(config *Config) (*Client, error) {
 func (c *Client) Open() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	// Register itself
+	node := &NodeInfo{
+		ID: c.config.NodeID,
+		Host: c.config.NodeHost,
+		TCPHost: c.config.NodeTCPHost,
+	}
+	err := c.storage.AddNode(node)
+	if err != nil {
+		return err
+	}
 
 	// Try to load from storage service
 	return c.Load()
