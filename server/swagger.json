@@ -2714,6 +2714,7 @@
               "hipchat",
               "opsgenie",
               "pagerduty",
+              "pushover",
               "victorops",
               "smtp",
               "email",
