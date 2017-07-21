@@ -56,32 +56,53 @@ class RuleMessageOptions extends Component {
             </div>
           : null}
         {properties && properties.length
-          ? <div className="rule-section--row rule-section--border-bottom">
-              <p>Optional Alert Parameters:</p>
-              {properties.map(({name: propertyName, label, placeholder}) =>
-                <div key={propertyName}>
-                  <p>
-                    {label}
-                  </p>
-                  <input
-                    className="form-control input-sm form-malachite"
-                    style={{flex: '1 0 0'}}
-                    type="text"
-                    placeholder={placeholder}
-                    onChange={e =>
-                      updateAlertProperty(rule.id, alertNodeName, {
-                        name: propertyName,
-                        args: [e.target.value],
-                      })}
-                    value={this.getAlertPropertyValue(
-                      rule.alertNodes[0].properties,
-                      propertyName
-                    )}
-                    autoComplete="off"
-                    spellCheck="false"
-                  />
-                </div>
-              )}
+          ? <div
+              className="rule-section--row rule-section--border-bottom"
+              style={{display: 'block'}}
+            >
+              <p>Optional Alert Parameters</p>
+              <div style={{display: 'flex', flexWrap: 'wrap'}}>
+                {properties.map(({name: propertyName, label, placeholder}) =>
+                  <div
+                    key={propertyName}
+                    style={{display: 'block', flex: '0 0 33.33%'}}
+                  >
+                    <label
+                      htmlFor={label}
+                      style={{
+                        display: 'flex',
+                        width: '100%',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <span style={{flex: '0 0 auto'}}>
+                        {label}
+                      </span>
+                      <input
+                        name={label}
+                        className="form-control input-sm form-malachite"
+                        style={{
+                          margin: '0 15px 0 5px',
+                          flex: '1 0 0',
+                        }}
+                        type="text"
+                        placeholder={placeholder}
+                        onChange={e =>
+                          updateAlertProperty(rule.id, alertNodeName, {
+                            name: propertyName,
+                            args: [e.target.value],
+                          })}
+                        value={this.getAlertPropertyValue(
+                          rule.alertNodes[0].properties,
+                          propertyName
+                        )}
+                        autoComplete="off"
+                        spellCheck="false"
+                      />
+                    </label>
+                  </div>
+                )}
+              </div>
             </div>
           : null}
         {details
