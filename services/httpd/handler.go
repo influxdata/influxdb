@@ -430,7 +430,6 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 	}
 
 	// Execute query.
-	rw.Header().Add("Connection", "close")
 	results := h.QueryExecutor.ExecuteQuery(query, opts, closing)
 
 	// If we are running in async mode, open a goroutine to drain the results
