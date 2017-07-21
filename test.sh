@@ -9,6 +9,7 @@
 #      1: race enabled 64bit tests
 #      2: normal 32bit tests
 #      3: tsi build
+#      4: go 1.9
 #      save: build the docker images and save them to DOCKER_SAVE_DIR. Do not run tests.
 #      count: print the number of test environments
 #      *: to run all tests in parallel containers
@@ -34,7 +35,7 @@ TIMEOUT=${TIMEOUT-960s}
 DOCKER_RM=${DOCKER_RM-true}
 
 # Update this value if you add a new test environment.
-ENV_COUNT=4
+ENV_COUNT=5
 
 # Default return code 0
 rc=0
@@ -152,7 +153,12 @@ case $ENVIRONMENT_INDEX in
         run_test_docker Dockerfile_build_ubuntu64 test_64bit --test --junit-report
         rc=$?
         ;;
-    "save")
+    4)
+        # go1.9
+        run_test_docker Dockerfile_build_ubuntu64_go19 test_64bit --test --junit-report
+        rc=$?
+        ;;
+     "save")
         # Save docker images for every Dockerfile_build* file.
         # Useful for creating an external cache.
         pids=()
