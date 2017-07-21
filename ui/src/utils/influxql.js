@@ -5,17 +5,19 @@ import {
   DEFAULT_DASHBOARD_GROUP_BY_INTERVAL,
 } from 'shared/constants'
 
+/* eslint-disable quotes */
 export const quoteIfTimestamp = ({lower, upper}) => {
-  if (lower && lower.includes('Z') && !lower.includes('\'')) {
+  if (lower && lower.includes('Z') && !lower.includes("'")) {
     lower = `'${lower}'`
   }
 
-  if (upper && upper.includes('Z') && !upper.includes('\'')) {
+  if (upper && upper.includes('Z') && !upper.includes("'")) {
     upper = `'${upper}'`
   }
 
   return {lower, upper}
 }
+/* eslint-enable quotes */
 
 export default function buildInfluxQLQuery(timeBounds, config) {
   const {groupBy, tags, areTagsAccepted} = config
