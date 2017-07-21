@@ -7,21 +7,26 @@
   position: relative;
 }
 .custom-time--container {
-  display: flex;
+  display: none;
   position: absolute;
   flex-direction: row;
-  align-items: center;
+  align-items: stretch;
   top: 35px;
   right: 0;
-  background: $g5-pepper;
   border-radius: $radius;
-  padding: 8px;
   z-index: 1000;
   box-shadow: 0 2px 5px 0.6px rgba(15, 14, 21, 0.2);
 }
-.custom-time--wrap {
+.custom-time--wrap,
+.custom-time--moving-dates {
   display: flex;
   flex-direction: column;
+}
+.custom-time--wrap {
+  padding: 8px;
+  align-items: center;
+  border-radius: 0 $radius $radius 0;
+  background: $g5-pepper;
 }
 .custom-time--dates {
   display: flex;
@@ -35,10 +40,24 @@
   margin-left: 4px;
 }
 .custom-time--moving-dates {
-  flex: 1;
-  width: 80px;
-  > div {
+  @include no-user-select();
+  align-items: stretch;
+  background-color: $g6-smoke;
+  border-radius: $radius 0 0 $radius;
+}
+.custom-time--moving-date {
+  white-space: nowrap;
+  padding: 8px 16px;
+  transition:
+    color 0.25s ease,
+    background-color 0.25s ease;
+  color: $g13-mist;
+  font-weight: 600;
+
+  &:hover {
     cursor: pointer;
+    background-color: $g7-graphite;
+    color: $g17-whisper;
   }
 }
 

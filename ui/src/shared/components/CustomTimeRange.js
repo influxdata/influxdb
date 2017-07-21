@@ -41,16 +41,42 @@ class CustomTimeRange extends Component {
     return (
       <div className="custom-time--container">
         <div className="custom-time--moving-dates">
-          <div onClick={this.handleMovingTimeRange('pastWeek')}>Past week</div>
-          <div onClick={this.handleMovingTimeRange('pastMonth')}>
-            Past month
+          <div
+            className="custom-time--moving-date"
+            onClick={this.handleMovingTimeRange('pastWeek')}
+          >
+            Past Week
           </div>
-          <div onClick={this.handleMovingTimeRange('pastYear')}>Past year</div>
-          <div onClick={this.handleMovingTimeRange('thisWeek')}>This week</div>
-          <div onClick={this.handleMovingTimeRange('thisMonth')}>
-            This month
+          <div
+            className="custom-time--moving-date"
+            onClick={this.handleMovingTimeRange('pastMonth')}
+          >
+            Past Month
           </div>
-          <div onClick={this.handleMovingTimeRange('thisYear')}>This year</div>
+          <div
+            className="custom-time--moving-date"
+            onClick={this.handleMovingTimeRange('pastYear')}
+          >
+            Past Year
+          </div>
+          <div
+            className="custom-time--moving-date"
+            onClick={this.handleMovingTimeRange('thisWeek')}
+          >
+            This Week
+          </div>
+          <div
+            className="custom-time--moving-date"
+            onClick={this.handleMovingTimeRange('thisMonth')}
+          >
+            This Month
+          </div>
+          <div
+            className="custom-time--moving-date"
+            onClick={this.handleMovingTimeRange('thisYear')}
+          >
+            This Year
+          </div>
         </div>
         <div className="custom-time--wrap">
           <div className="custom-time--dates">
