@@ -7,7 +7,8 @@
 # Corresponding environments for environment_index:
 #      0: normal 64bit tests
 #      1: race enabled 64bit tests
-#      3: normal 32bit tests
+#      2: normal 32bit tests
+#      3: tsi build
 #      save: build the docker images and save them to DOCKER_SAVE_DIR. Do not run tests.
 #      count: print the number of test environments
 #      *: to run all tests in parallel containers
@@ -33,7 +34,7 @@ TIMEOUT=${TIMEOUT-960s}
 DOCKER_RM=${DOCKER_RM-true}
 
 # Update this value if you add a new test environment.
-ENV_COUNT=3
+ENV_COUNT=4
 
 # Default return code 0
 rc=0
@@ -143,6 +144,12 @@ case $ENVIRONMENT_INDEX in
     2)
         # 32 bit tests
         run_test_docker Dockerfile_build_ubuntu32 test_32bit --test --junit-report --arch=i386
+        rc=$?
+        ;;
+    3)
+        # tsi
+        INFLUXDB_DATA_INDEX_VERSION="tsi1"
+        run_test_docker Dockerfile_build_ubuntu64 test_64bit --test --junit-report
         rc=$?
         ;;
     "save")
