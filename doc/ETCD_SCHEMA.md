@@ -20,14 +20,12 @@ In the following sections, the path is persitent path by default. If the path is
 | Continuous Queries | $INFLUXDB/cqs | | | |
 | Coninuous Query | $INFLUXDB/cqs/\<databaseName\>/\<cqName\> | { "name": string, "query": string } | | |
 
-
 ## Data node
 
 | Function | Path | Schema | Ephemeral | Note |
 | -------- | ---- | ------ | --------- | ---- |
 | Node root path | $INFLUXDB/nodes | | | |
 | Node | $INFLUXDB/nodes/\<id\> | {"time": int64, "host":string, "version": int, "tcpHost": string } | yes | |
-
 
 ## Master node
 
