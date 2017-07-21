@@ -225,7 +225,9 @@ class QueryEditor extends Component {
           className={classnames('varmoji', {'varmoji-rotated': isTemplating})}
         >
           <div className="varmoji-container">
-            <div className="varmoji-front">{this.renderStatus(status)}</div>
+            <div className="varmoji-front">
+              {this.renderStatus(status)}
+            </div>
             <div className="varmoji-back">
               {isTemplating
                 ? <TemplateDrawer

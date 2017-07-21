@@ -39,7 +39,11 @@ export function toggleField(queryId, fieldFunc, isKapacitorRule) {
 
 // all fields implicitly have a function applied to them, so consequently
 // we need to set the auto group by time
-export const toggleFieldWithGroupByInterval = (queryID, fieldFunc, isKapacitorRule) => (dispatch) => {
+export const toggleFieldWithGroupByInterval = (
+  queryID,
+  fieldFunc,
+  isKapacitorRule
+) => dispatch => {
   dispatch(toggleField(queryID, fieldFunc, isKapacitorRule))
   dispatch(groupByTime(queryID, DEFAULT_DATA_EXPLORER_GROUP_BY_INTERVAL))
 }

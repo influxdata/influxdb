@@ -52,7 +52,10 @@ const QueryBuilder = React.createClass({
   },
 
   handleToggleField(field) {
-    this.props.actions.toggleFieldWithGroupByInterval(this.props.query.id, field)
+    this.props.actions.toggleFieldWithGroupByInterval(
+      this.props.query.id,
+      field
+    )
   },
 
   handleGroupByTime(time) {
@@ -60,7 +63,11 @@ const QueryBuilder = React.createClass({
   },
 
   handleApplyFuncsToField(fieldFunc) {
-    this.props.actions.applyFuncsToField(this.props.query.id, fieldFunc, this.props.isInDataExplorer)
+    this.props.actions.applyFuncsToField(
+      this.props.query.id,
+      fieldFunc,
+      this.props.isInDataExplorer
+    )
   },
 
   handleChooseTag(tag) {

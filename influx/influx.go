@@ -28,25 +28,9 @@ var (
 // Client is a device for retrieving time series data from an InfluxDB instance
 type Client struct {
 	URL                *url.URL
+	Bearer             Bearer
 	InsecureSkipVerify bool
-
-	Logger chronograf.Logger
-}
-
-// NewClient initializes an HTTP Client for InfluxDB. UDP, although supported
-// for querying InfluxDB, is not supported here to remove the need to
-// explicitly Close the client.
-func NewClient(host string, lg chronograf.Logger) (*Client, error) {
-	l := lg.WithField("host", host)
-	u, err := url.Parse(host)
-	if err != nil {
-		l.Error("Error initialize influx client: err:", err)
-		return nil, err
-	}
-	return &Client{
-		URL:    u,
-		Logger: l,
-	}, nil
+	Logger             chronograf.Logger
 }
 
 // Response is a partial JSON decoded InfluxQL response used
@@ -87,6 +71,15 @@ func (c *Client) query(u *url.URL, q chronograf.Query) (chronograf.Response, err
 	params.Set("rp", q.RP)
 	params.Set("epoch", "ms") // TODO(timraymond): set this based on analysis
 	req.URL.RawQuery = params.Encode()
+
+	if c.Bearer != nil && u.User != nil {
+		token, err := c.Bearer.Token(u.User.Username())
+		if err != nil {
+			logs.Error("Error creating token", err)
+			return nil, fmt.Errorf("Unable to create token")
+		}
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
 
 	hc := &http.Client{}
 	if c.InsecureSkipVerify {
@@ -157,7 +150,7 @@ func (c *Client) Query(ctx context.Context, q chronograf.Query) (chronograf.Resp
 	}
 }
 
-// Connect caches the URL for the data source
+// Connect caches the URL and optional Bearer Authorization for the data source
 func (c *Client) Connect(ctx context.Context, src *chronograf.Source) error {
 	u, err := url.Parse(src.URL)
 	if err != nil {
@@ -169,6 +162,16 @@ func (c *Client) Connect(ctx context.Context, src *chronograf.Source) error {
 		c.InsecureSkipVerify = src.InsecureSkipVerify
 	}
 	c.URL = u
+
+	// Optionally, add the shared secret JWT token creation
+	if src.Username != "" && src.SharedSecret != "" {
+		c.Bearer = &BearerJWT{
+			src.SharedSecret,
+		}
+	} else {
+		// Clear out the bearer if not needed
+		c.Bearer = nil
+	}
 	return nil
 }
 

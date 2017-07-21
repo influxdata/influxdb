@@ -112,7 +112,9 @@ const MeasurementList = React.createClass({
     if (!this.props.query.database) {
       return (
         <div className="query-builder--list-empty">
-          <span>No <strong>Database</strong> selected</span>
+          <span>
+            No <strong>Database</strong> selected
+          </span>
         </div>
       )
     }

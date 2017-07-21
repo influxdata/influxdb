@@ -27,7 +27,9 @@ const KapacitorRulesTable = ({
           <th style={{width: colType}}>Rule Type</th>
           <th style={{width: colMessage}}>Message</th>
           <th style={{width: colAlerts}}>Alerts</th>
-          <th style={{width: colEnabled}} className="text-center">Enabled</th>
+          <th style={{width: colEnabled}} className="text-center">
+            Enabled
+          </th>
           <th style={{width: colActions}} />
         </tr>
       </thead>
@@ -53,7 +55,9 @@ const RuleRow = ({rule, source, onRead, onDelete, onChangeRuleStatus}) =>
     <td style={{width: colName}} className="monotype">
       <RuleTitle rule={rule} source={source} />
     </td>
-    <td style={{width: colType}} className="monotype">{rule.trigger}</td>
+    <td style={{width: colType}} className="monotype">
+      {rule.trigger}
+    </td>
     <td className="monotype">
       <span
         className="table-cell-nowrap"
@@ -90,10 +94,18 @@ const RuleRow = ({rule, source, onRead, onDelete, onChangeRuleStatus}) =>
 const RuleTitle = ({rule: {id, name, query}, source}) => {
   // no queryConfig means the rule was manually created outside of Chronograf
   if (!query) {
-    return <i>{name}</i>
+    return (
+      <i>
+        {name}
+      </i>
+    )
   }
 
-  return <Link to={`/sources/${source.id}/alert-rules/${id}`}>{name}</Link>
+  return (
+    <Link to={`/sources/${source.id}/alert-rules/${id}`}>
+      {name}
+    </Link>
+  )
 }
 
 const {arrayOf, func, shape, string} = PropTypes

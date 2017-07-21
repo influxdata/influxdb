@@ -55,15 +55,13 @@ const TelegramConfig = React.createClass({
         <div className="form-group col-xs-12">
           <div className="alert alert-warning alert-icon no-user-select">
             <span className="icon triangle" />
-            You need a
-            {' '}
+            You need a{' '}
             <a
               href="https://docs.influxdata.com/kapacitor/latest/guides/event-handler-setup/#telegram-setup"
               target="_blank"
             >
               Telegram Bot
-            </a>
-            {' '}
+            </a>{' '}
             to use this endpoint
           </div>
         </div>
@@ -137,12 +135,10 @@ const TelegramConfig = React.createClass({
               ref={r => (this.disableWebPagePreview = r)}
             />
             <label htmlFor="disableWebPagePreview">
-              Disable
-              {' '}
+              Disable{' '}
               <a href="https://telegram.org/blog/link-preview" target="_blank">
                 link previews
-              </a>
-              {' '}
+              </a>{' '}
               in alert messages.
             </label>
           </div>

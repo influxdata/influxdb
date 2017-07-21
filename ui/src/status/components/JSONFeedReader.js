@@ -22,13 +22,19 @@ const JSONFeedReader = ({data}) =>
                   </div>
                   <div className="newsfeed--post-title">
                     <a href={url} target="_blank">
-                      <h6>{title}</h6>
+                      <h6>
+                        {title}
+                      </h6>
                     </a>
-                    <span>by {name}</span>
+                    <span>
+                      by {name}
+                    </span>
                   </div>
                   <div className="newsfeed--content">
                     {image ? <img src={image} /> : null}
-                    <p>{contentText}</p>
+                    <p>
+                      {contentText}
+                    </p>
                   </div>
                 </div>
             )

@@ -130,7 +130,11 @@ export default function queryConfigs(state = {}, action) {
 
     case 'APPLY_FUNCS_TO_FIELD': {
       const {queryId, fieldFunc, isInDataExplorer} = action.payload
-      const nextQueryConfig = applyFuncsToField(state[queryId], fieldFunc, isInDataExplorer)
+      const nextQueryConfig = applyFuncsToField(
+        state[queryId],
+        fieldFunc,
+        isInDataExplorer
+      )
 
       return Object.assign({}, state, {
         [queryId]: nextQueryConfig,

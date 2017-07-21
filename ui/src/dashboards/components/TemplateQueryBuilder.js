@@ -90,7 +90,11 @@ const TemplateQueryBuilder = ({
         </div>
       )
     default:
-      return <div><span className="tvm-query-builder--text">n/a</span></div>
+      return (
+        <div>
+          <span className="tvm-query-builder--text">n/a</span>
+        </div>
+      )
   }
 }
 

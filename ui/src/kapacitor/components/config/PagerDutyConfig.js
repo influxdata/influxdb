@@ -39,11 +39,8 @@ const PagerDutyConfig = React.createClass({
             defaultValue={serviceKey || ''}
           />
           <label className="form-helper">
-            Note: a value of
-            {' '}
-            <code>true</code>
-            {' '}
-            indicates the PagerDuty service key has been set
+            Note: a value of <code>true</code> indicates the PagerDuty service
+            key has been set
           </label>
         </div>
 

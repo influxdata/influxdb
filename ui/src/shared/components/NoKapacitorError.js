@@ -14,7 +14,8 @@ const NoKapacitorError = React.createClass({
       <div className="graph-empty">
         <p>
           The current source does not have an associated Kapacitor instance
-          <br /><br />
+          <br />
+          <br />
           <Link to={path} className="btn btn-sm btn-primary">
             Configure Kapacitor
           </Link>

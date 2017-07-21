@@ -39,7 +39,11 @@ class QueryRow extends Component {
         >
           {database}
         </td>
-        <td><code>{query}</code></td>
+        <td>
+          <code>
+            {query}
+          </code>
+        </td>
         <td
           style={{width: `${QUERIES_TABLE.colRunning}px`}}
           className="monotype"

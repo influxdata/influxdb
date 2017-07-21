@@ -150,7 +150,11 @@ class Dropdown extends Component {
           autoHeight={true}
           maxHeight={DROPDOWN_MENU_MAX_HEIGHT}
         >
-          {menuLabel ? <li className="dropdown-header">{menuLabel}</li> : null}
+          {menuLabel
+            ? <li className="dropdown-header">
+                {menuLabel}
+              </li>
+            : null}
           {menuItems.map((item, i) => {
             if (item.text === 'SEPARATOR') {
               return <li key={i} className="dropdown-divider" />
@@ -246,7 +250,9 @@ class Dropdown extends Component {
               {iconName
                 ? <span className={classnames('icon', {[iconName]: true})} />
                 : null}
-              <span className="dropdown-selected">{selected}</span>
+              <span className="dropdown-selected">
+                {selected}
+              </span>
               <span className="caret" />
             </div>}
         {isOpen && menuItems.length ? this.renderMenu() : null}

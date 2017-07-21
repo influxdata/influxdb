@@ -28,7 +28,9 @@ export const ValuesSection = React.createClass({
           <Tabs initialIndex={initialIndex} onSelect={this.handleChooseTrigger}>
             <TabList isKapacitorTabs="true">
               {TABS.map(tab =>
-                <Tab key={tab} isKapacitorTab={true}>{tab}</Tab>
+                <Tab key={tab} isKapacitorTab={true}>
+                  {tab}
+                </Tab>
               )}
             </TabList>
 
