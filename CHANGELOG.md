@@ -2,6 +2,7 @@
 
 ### Bug Fixes
 1. [#1708](https://github.com/influxdata/chronograf/pull/1708): Fix z-index issue in dashboard cell context menu
+1. [#1752](https://github.com/influxdata/chronograf/pull/1752): Clarify BoltPath server flag help text by making example the default path
 
 ### Features
 1. [#1717](https://github.com/influxdata/chronograf/pull/1717): View server generated TICKscripts
