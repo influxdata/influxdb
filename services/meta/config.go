@@ -31,6 +31,7 @@ type Config struct {
 // NewConfig builds a new configuration with default values.
 func NewConfig() *Config {
 	return &Config{
+		EtcdEndpoints:       "http://localhost:2379",
 		LeaseDuration:       2,
 		RetentionAutoCreate: true,
 		LoggingEnabled:      DefaultLoggingEnabled,
