@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/chronograf"
 )
 
@@ -219,6 +220,14 @@ func Test_newDashboardResponse(t *testing.T) {
 								Command: "SELECT donors from hill_valley_preservation_society where time > '1985-10-25 08:00:00'",
 							},
 						},
+						Axes: map[string]chronograf.Axis{
+							"x": chronograf.Axis{
+								Bounds: [2]int64{0, 100},
+							},
+							"y": chronograf.Axis{
+								Bounds: [2]int64{2, 95},
+							},
+						},
 					},
 					{
 						ID: "b",
@@ -255,6 +264,14 @@ func Test_newDashboardResponse(t *testing.T) {
 										Tags:            make(map[string][]string, 0),
 										AreTagsAccepted: false,
 									},
+								},
+							},
+							Axes: map[string]chronograf.Axis{
+								"x": chronograf.Axis{
+									Bounds: [2]int64{0, 100},
+								},
+								"y": chronograf.Axis{
+									Bounds: [2]int64{2, 95},
 								},
 							},
 						},
@@ -301,8 +318,8 @@ func Test_newDashboardResponse(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		if got := newDashboardResponse(tt.d); !reflect.DeepEqual(got, tt.want) {
-			t.Errorf("%q. newDashboardResponse() = \n%#v\n\n, want\n\n%#v", tt.name, got, tt.want)
+		if got := newDashboardResponse(tt.d); !cmp.Equal(got, tt.want) {
+			t.Errorf("%q. newDashboardResponse() = diff:\n%s", tt.name, cmp.Diff(got, tt.want))
 		}
 	}
 }

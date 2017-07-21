@@ -29,6 +29,7 @@ const (
 	ErrAlertNotFound     = Error("alert not found")
 	ErrAuthentication    = Error("user not authenticated")
 	ErrUninitialized     = Error("client uninitialized. Call Open() method")
+	ErrInvalidAxis       = Error("Unexpected axis in cell. Valid axes are 'x', 'y', and 'y2'")
 )
 
 // Error is a domain error encountered while processing chronograf requests
