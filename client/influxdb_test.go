@@ -539,7 +539,7 @@ func TestEpochToTime(t *testing.T) {
 		if e != nil {
 			t.Fatalf("unexpected error: expected %v, actual: %v", nil, e)
 		}
-		if tm != test.expected {
+		if !tm.Equal(test.expected) {
 			t.Fatalf("unexpected time: expected %v, actual %v", test.expected, tm)
 		}
 	}
