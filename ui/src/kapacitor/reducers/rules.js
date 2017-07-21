@@ -88,17 +88,17 @@ export default function rules(state = {}, action) {
     // type, adding other alert nodes to a single rule, and updating an alert node's
     // properties vs args vs details vs message.
     case 'UPDATE_RULE_ALERT_NODES': {
-      const {ruleID, alertType, alertNodesText} = action.payload
+      const {ruleID, alertNodeName, alertNodesText} = action.payload
 
       let alertNodesByType
 
-      switch (alertType) {
+      switch (alertNodeName) {
         case 'http':
         case 'tcp':
         case 'log':
           alertNodesByType = [
             {
-              name: alertType,
+              name: alertNodeName,
               args: [alertNodesText],
               properties: [],
             },
@@ -108,7 +108,7 @@ export default function rules(state = {}, action) {
         case 'smtp':
           alertNodesByType = [
             {
-              name: alertType,
+              name: alertNodeName,
               args: alertNodesText.split(' '),
               properties: [],
             },
@@ -117,7 +117,7 @@ export default function rules(state = {}, action) {
         case 'slack':
           alertNodesByType = [
             {
-              name: alertType,
+              name: alertNodeName,
               properties: [
                 {
                   name: 'channel',
@@ -130,7 +130,7 @@ export default function rules(state = {}, action) {
         case 'alerta':
           alertNodesByType = [
             {
-              name: alertType,
+              name: alertNodeName,
               args: [],
               properties: parseAlerta(alertNodesText),
             },
@@ -140,7 +140,7 @@ export default function rules(state = {}, action) {
         default:
           alertNodesByType = [
             {
-              name: alertType,
+              name: alertNodeName,
               args: [],
               properties: [],
             },
@@ -155,10 +155,10 @@ export default function rules(state = {}, action) {
     }
 
     case 'UPDATE_RULE_ALERT_PROPERTY': {
-      const {ruleID, alertType, alertProperty} = action.payload
+      const {ruleID, alertNodeName, alertProperty} = action.payload
 
       const newAlertNodes = state[ruleID].alertNodes.map(alertNode => {
-        if (alertNode.name !== alertType) {
+        if (alertNode.name !== alertNodeName) {
           return alertNode
         }
         let matched = false

@@ -12,7 +12,7 @@ class RuleMessage extends Component {
     super(props)
 
     this.state = {
-      selectedAlertType: null,
+      selectedAlertNodeName: null,
     }
 
     this.handleChangeMessage = ::this.handleChangeMessage
@@ -28,7 +28,7 @@ class RuleMessage extends Component {
     const {actions} = this.props
     actions.updateAlerts(item.ruleID, [item.text])
     actions.updateAlertNodes(item.ruleID, item.text, '')
-    this.setState({selectedAlertType: item.text})
+    this.setState({selectedAlertNodeName: item.text})
   }
 
   render() {
@@ -44,7 +44,7 @@ class RuleMessage extends Component {
       }),
     ]
 
-    const selectedAlertType = rule.alerts[0] || alerts[0].text
+    const selectedAlertNodeName = rule.alerts[0] || alerts[0].text
 
     return (
       <div className="rule-section">
@@ -62,7 +62,7 @@ class RuleMessage extends Component {
                   <li
                     key={alert.text}
                     className={classnames({
-                      active: alert.text === selectedAlertType,
+                      active: alert.text === selectedAlertNodeName,
                     })}
                     onClick={() => this.handleChooseAlert(alert)}
                   >
@@ -73,7 +73,7 @@ class RuleMessage extends Component {
           </div>
           <RuleMessageOptions
             rule={rule}
-            alertType={selectedAlertType}
+            alertNodeName={selectedAlertNodeName}
             updateAlertNodes={actions.updateAlertNodes}
             updateDetails={actions.updateDetails}
             updateAlertProperty={actions.updateAlertProperty}
