@@ -215,7 +215,7 @@ class LayoutRenderer extends Component {
           PAGE_HEADER_HEIGHT -
           PAGE_CONTAINER_MARGIN -
           PAGE_CONTAINER_MARGIN) /
-          STATUS_PAGE_ROW_COUNT
+        STATUS_PAGE_ROW_COUNT
       : DASHBOARD_LAYOUT_ROW_HEIGHT
   }
 

@@ -137,14 +137,14 @@ export default function ui(state = initialState, action) {
 
       const dashboards = state.dashboards.map(
         d =>
-          (d.id === dashboardID
+          d.id === dashboardID
             ? {
                 ...d,
                 cells: d.cells.map(
                   c => (c.i === cellID ? {...c, isEditing: false} : c)
                 ),
               }
-            : d)
+            : d
       )
 
       return {...state, dashboards}

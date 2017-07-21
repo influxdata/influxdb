@@ -10,8 +10,7 @@ import CellEditorOverlay from 'src/dashboards/components/CellEditorOverlay'
 import DashboardHeader from 'src/dashboards/components/DashboardHeader'
 import DashboardHeaderEdit from 'src/dashboards/components/DashboardHeaderEdit'
 import Dashboard from 'src/dashboards/components/Dashboard'
-import TemplateVariableManager
-  from 'src/dashboards/components/TemplateVariableManager'
+import TemplateVariableManager from 'src/dashboards/components/TemplateVariableManager'
 
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 
@@ -82,7 +81,8 @@ class DashboardPage extends Component {
 
   handleCloseTemplateManager(isEdited) {
     if (
-      !isEdited || (isEdited && confirm('Do you want to close without saving?')) // eslint-disable-line no-alert
+      !isEdited ||
+      (isEdited && confirm('Do you want to close without saving?')) // eslint-disable-line no-alert
     ) {
       this.setState({isTemplating: false})
     }
@@ -355,13 +355,13 @@ class DashboardPage extends Component {
               showTemplateControlBar={showTemplateControlBar}
             >
               {dashboards
-                ? dashboards.map((d, i) => (
+                ? dashboards.map((d, i) =>
                     <li className="dropdown-item" key={i}>
                       <Link to={`/sources/${sourceID}/dashboards/${d.id}`}>
                         {d.name}
                       </Link>
                     </li>
-                  ))
+                  )
                 : null}
             </DashboardHeader>}
         {dashboard
