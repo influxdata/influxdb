@@ -13,6 +13,7 @@
 1. [#1752](https://github.com/influxdata/chronograf/pull/1752): Clarify BoltPath server flag help text by making example the default path
 1. [#1738](https://github.com/influxdata/chronograf/pull/1738): Add shared secret JWT authorization to InfluxDB
 1. [#1724](https://github.com/influxdata/chronograf/pull/1724): Add Pushover alert support
+1. [#1762](https://github.com/influxdata/chronograf/pull/1762): Restore all supported Kapacitor services when creating rules, and add most optional message parameters
 
 ### UI Improvements
 1. [#1707](https://github.com/influxdata/chronograf/pull/1707): Polish alerts table in status page to wrap text less
