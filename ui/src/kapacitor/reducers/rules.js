@@ -172,8 +172,10 @@ export default function rules(state = {}, action) {
 
       return {
         ...state,
-        [ruleID]: {...state[ruleID]},
-        alertNodes: newAlertNodes,
+        [ruleID]: {
+          ...state[ruleID],
+          alertNodes: newAlertNodes,
+        },
       }
     }
 
