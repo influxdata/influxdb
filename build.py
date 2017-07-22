@@ -168,6 +168,7 @@ def go_get(branch, update=False, no_uncommitted=False):
         run(get_command)
     logging.info("Retrieving dependencies with `gdm`...")
     sys.stdout.flush()
+    # Ken Chen
     run("{}/bin/gdm restore -v".format(os.environ.get("GOPATH")))
     return True
 
@@ -559,7 +560,9 @@ def build(version=None,
                                                                                                                get_current_commit())
         if static:
             build_command += "-a -installsuffix cgo "
+        build_command += "-gcflags \"-N -l\" "
         build_command += path
+        print build_command
         start_time = datetime.utcnow()
         run(build_command, shell=True)
         end_time = datetime.utcnow()
