@@ -114,19 +114,6 @@ export default function rules(state = {}, action) {
             },
           ]
           break
-        case 'slack':
-          alertNodesByType = [
-            {
-              name: alertNodeName,
-              properties: [
-                {
-                  name: 'channel',
-                  args: [alertNodesText],
-                },
-              ],
-            },
-          ]
-          break
         case 'alerta':
           alertNodesByType = [
             {
@@ -136,6 +123,12 @@ export default function rules(state = {}, action) {
             },
           ]
           break
+        case 'hipchat':
+        case 'opsgenie':
+        case 'pagerduty':
+        case 'slack':
+        case 'telegram':
+        case 'victorops':
         case 'pushover':
         default:
           alertNodesByType = [
@@ -146,7 +139,6 @@ export default function rules(state = {}, action) {
             },
           ]
       }
-
       return Object.assign({}, state, {
         [ruleID]: Object.assign({}, state[ruleID], {
           alertNodes: alertNodesByType,
@@ -156,7 +148,6 @@ export default function rules(state = {}, action) {
 
     case 'UPDATE_RULE_ALERT_PROPERTY': {
       const {ruleID, alertNodeName, alertProperty} = action.payload
-
       const newAlertNodes = state[ruleID].alertNodes.map(alertNode => {
         if (alertNode.name !== alertNodeName) {
           return alertNode

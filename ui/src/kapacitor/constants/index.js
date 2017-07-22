@@ -76,6 +76,10 @@ export const RULE_ALERT_OPTIONS = {
       label: 'URL:',
       placeholder: 'Ex: http://example.com/api/alert',
     },
+    // properties: [
+    //   {name: 'endpoint', label: 'Endpoint:', placeholder: 'Endpoint'},
+    //   {name: 'header', label: 'Headers:', placeholder: 'Headers (Delimited)'}, // TODO: determine how to delimit
+    // ],
   },
   tcp: {
     args: {
@@ -85,7 +89,7 @@ export const RULE_ALERT_OPTIONS = {
   },
   exec: {
     args: {
-      label: 'Add Command (Arguments separated by Spaces):',
+      label: 'Command (Arguments separated by Spaces):',
       placeholder: 'Ex: woogie boogie',
     },
   },
@@ -97,16 +101,47 @@ export const RULE_ALERT_OPTIONS = {
   },
   alerta: {
     args: {
-      label: 'Paste Alerta TICKscript:',
+      label: 'Paste Alerta TICKscript:', // TODO: remove this
       placeholder: 'alerta()',
     },
+    // properties: [
+    //   {name: 'token', label: 'Token:', placeholder: 'Token'},
+    //   {name: 'resource', label: 'Resource:', placeholder: 'Resource'},
+    //   {name: 'event', label: 'Event:', placeholder: 'Event'},
+    //   {name: 'environment', label: 'Environment:', placeholder: 'Environment'},
+    //   {name: 'group', label: 'Group:', placeholder: 'Group'},
+    //   {name: 'value', label: 'Value:', placeholder: 'Value'},
+    //   {name: 'origin', label: 'Origin:', placeholder: 'Origin'},
+    //   {name: 'services', label: 'Services:', placeholder: 'Services'}, // TODO: what format?
+    // ],
+  },
+  hipchat: {
+    properties: [
+      {name: 'room', label: 'Room:', placeholder: 'happy_place'},
+      {name: 'token', label: 'Token:', placeholder: 'a_gilded_token'},
+    ],
+  },
+  opsgenie: {
+    // properties: [
+    //   {name: 'recipients', label: 'Recipients:', placeholder: 'happy_place'}, // TODO: what format?
+    //   {name: 'teams', label: 'Teams:', placeholder: 'blue,yellow,maroon'}, // TODO: what format?
+    // ],
+  },
+  pagerduty: {
+    properties: [
+      {
+        name: 'serviceKey',
+        label: 'Service Key:',
+        placeholder: 'one_rad_key',
+      },
+    ],
   },
   pushover: {
     properties: [
       {
         name: 'device',
         label: 'Device:',
-        placeholder: 'dv1,dv2 (Comma Separated)',
+        placeholder: 'dv1,dv2 (Comma Separated)', // TODO: do these need to be parsed before sent?
       },
       {name: 'title', label: 'Title:', placeholder: 'Important Message'},
       {name: 'URL', label: 'URL:', placeholder: 'https://influxdata.com'},
@@ -114,11 +149,15 @@ export const RULE_ALERT_OPTIONS = {
       {name: 'sound', label: 'Sound:', placeholder: 'alien'},
     ],
   },
+  sensu: {
+    // TODO: apparently no args or properties, according to kapacitor/ast.go ?
+  },
   slack: {
-    args: {
-      label: 'Send alerts to Slack channel:',
-      placeholder: '#alerts',
-    },
+    properties: [
+      {name: 'channel', label: 'Channel:', placeholder: '#cubeoctohedron'},
+      {name: 'iconEmoji', label: 'Emoji:', placeholder: ':cubeapple:'},
+      {name: 'username', label: 'Username:', placeholder: 'pineapple'},
+    ],
   },
   smtp: {
     args: {
@@ -128,6 +167,28 @@ export const RULE_ALERT_OPTIONS = {
     },
     details: {placeholder: 'Email body text goes here'},
   },
+  talk: {},
+  telegram: {
+    properties: [
+      {name: 'chatId', label: 'Chat ID:', placeholder: 'xxxxxxxxx'},
+      {name: 'parseMode', label: 'Emoji:', placeholder: 'Markdown'},
+      // {
+      //   name: 'disableWebPagePreview',
+      //   label: 'Disable Web Page Preview:',
+      //   placeholder: 'true', // TODO: format to bool
+      // },
+      // {
+      //   name: 'disableNotification',
+      //   label: 'Disable Notification:',
+      //   placeholder: 'false', // TODO: format to bool
+      // },
+    ],
+  },
+  victorops: {
+    properties: [
+      {name: 'routingKey', label: 'Channel:', placeholder: 'team_rocket'},
+    ],
+  },
 }
 
 export const ALERT_NODES_ACCESSORS = {
@@ -136,7 +197,6 @@ export const ALERT_NODES_ACCESSORS = {
   exec: rule => _.get(rule, 'alertNodes[0].args', []).join(' '),
   log: rule => _.get(rule, 'alertNodes[0].args[0]', ''),
   smtp: rule => _.get(rule, 'alertNodes[0].args', []).join(' '),
-  slack: rule => _.get(rule, 'alertNodes[0].properties[0].args', ''),
   alerta: rule =>
     _.get(rule, 'alertNodes[0].properties', [])
       .reduce(
