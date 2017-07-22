@@ -69,19 +69,6 @@ export const RULE_MESSAGE_TEMPLATES = {
 }
 
 export const DEFAULT_ALERTS = ['http', 'tcp', 'exec', 'log']
-export const ALERTS = [
-  'alerta',
-  'hipchat',
-  'opsgenie',
-  'pagerduty',
-  'pushover',
-  'sensu',
-  'slack',
-  'smtp',
-  'talk',
-  'telegram',
-  'victorops',
-]
 
 export const RULE_ALERT_OPTIONS = {
   http: {
