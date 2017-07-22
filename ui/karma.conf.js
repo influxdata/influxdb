@@ -1,5 +1,5 @@
-var webpack = require('webpack');
-var path = require('path');
+var webpack = require('webpack')
+var path = require('path')
 
 module.exports = function(config) {
   config.set({
@@ -15,7 +15,7 @@ module.exports = function(config) {
       'spec/spec-helper.js': ['webpack', 'sourcemap'],
       'spec/index.js': ['webpack', 'sourcemap'],
     },
-    reporters: ['dots'],
+    reporters: ['dots'], // can also use 'verbose' and/or 'progress' for more detailed reporting
     webpack: {
       devtool: 'inline-source-map',
       module: {
@@ -35,7 +35,8 @@ module.exports = function(config) {
             exclude: /node_modules/,
             loader: 'style-loader!css-loader!sass-loader',
           },
-          { // Sinon behaves weirdly with webpack, see https://github.com/webpack/webpack/issues/304
+          {
+            // Sinon behaves weirdly with webpack, see https://github.com/webpack/webpack/issues/304
             test: /sinon\/pkg\/sinon\.js/,
             loader: 'imports?define=>false,require=>false',
           },
@@ -48,7 +49,7 @@ module.exports = function(config) {
       externals: {
         'react/addons': true,
         'react/lib/ExecutionEnvironment': true,
-        'react/lib/ReactContext': true
+        'react/lib/ReactContext': true,
       },
       resolve: {
         alias: {
@@ -65,5 +66,5 @@ module.exports = function(config) {
     webpackServer: {
       noInfo: true, // please don't spam the console when running in karma!
     },
-  });
-};
+  })
+}

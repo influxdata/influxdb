@@ -68,6 +68,7 @@
     "karma-phantomjs-launcher": "^1.0.2",
     "karma-sinon-chai": "^1.2.4",
     "karma-sourcemap-loader": "^0.3.7",
+    "karma-verbose-reporter": "^0.0.6",
     "karma-webpack": "^1.8.0",
     "mocha": "^2.4.5",
     "mocha-loader": "^0.7.1",
