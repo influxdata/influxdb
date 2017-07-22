@@ -35,19 +35,6 @@ export const OPERATORS = [
 export const PERIODS = ['1m', '5m', '10m', '30m', '1h', '2h', '24h']
 export const CHANGES = ['change', '% change']
 export const SHIFTS = ['1m', '5m', '10m', '30m', '1h', '2h', '24h']
-export const ALERTS = [
-  'alerta',
-  'hipchat',
-  'opsgenie',
-  'pagerduty',
-  'pushover',
-  'sensu',
-  'slack',
-  'smtp',
-  'talk',
-  'telegram',
-  'victorops',
-]
 
 export const DEFAULT_RULE_ID = 'DEFAULT_RULE_ID'
 
@@ -82,6 +69,19 @@ export const RULE_MESSAGE_TEMPLATES = {
 }
 
 export const DEFAULT_ALERTS = ['http', 'tcp', 'exec', 'log']
+export const ALERTS = [
+  'alerta',
+  'hipchat',
+  'opsgenie',
+  'pagerduty',
+  'pushover',
+  'sensu',
+  'slack',
+  'smtp',
+  'talk',
+  'telegram',
+  'victorops',
+]
 
 export const RULE_ALERT_OPTIONS = {
   http: {
@@ -108,20 +108,6 @@ export const RULE_ALERT_OPTIONS = {
       placeholder: 'Ex: /tmp/alerts.log',
     },
   },
-  smtp: {
-    args: {
-      label: 'Email Addresses (Separated by Spaces):',
-      placeholder:
-        'Ex: benedict@domain.com delaney@domain.com susan@domain.com',
-    },
-    details: {placeholder: 'Email body text goes here'},
-  },
-  slack: {
-    args: {
-      label: 'Send alerts to Slack channel:',
-      placeholder: '#alerts',
-    },
-  },
   alerta: {
     args: {
       label: 'Paste Alerta TICKscript:',
@@ -140,6 +126,20 @@ export const RULE_ALERT_OPTIONS = {
       {name: 'URLTitle', label: 'URL Title:', placeholder: 'InfluxData'},
       {name: 'sound', label: 'Sound:', placeholder: 'alien'},
     ],
+  },
+  slack: {
+    args: {
+      label: 'Send alerts to Slack channel:',
+      placeholder: '#alerts',
+    },
+  },
+  smtp: {
+    args: {
+      label: 'Email Addresses (Separated by Spaces):',
+      placeholder:
+        'Ex: benedict@domain.com delaney@domain.com susan@domain.com',
+    },
+    details: {placeholder: 'Email body text goes here'},
   },
 }
 
