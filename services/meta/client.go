@@ -154,8 +154,8 @@ func (c *Client) Open() error {
 
 	// Register itself
 	node := &NodeInfo{
-		ID: c.config.NodeID,
-		Host: c.config.NodeHost,
+		ID:      c.config.NodeID,
+		Host:    c.config.NodeHost,
 		TCPHost: c.config.NodeTCPHost,
 	}
 	err := c.storage.AddNode(node)
