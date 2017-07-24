@@ -25,15 +25,9 @@ func (k *tsmKeyIterator) mergeFloat() {
 		// Quickly scan each block to see if any overlap with the prior block, if they overlap then
 		// we need to dedup as there may be duplicate points now
 		for i := 1; !dedup && i < len(k.blocks); i++ {
-			if k.blocks[i].partiallyRead() {
-				dedup = true
-				break
-			}
-
-			if k.blocks[i].minTime <= k.blocks[i-1].maxTime || len(k.blocks[i].tombstones) > 0 {
-				dedup = true
-				break
-			}
+			dedup = k.blocks[i].partiallyRead() ||
+				k.blocks[i].minTime <= k.blocks[i-1].maxTime ||
+				len(k.blocks[i].tombstones) > 0
 		}
 
 	}
@@ -239,15 +233,9 @@ func (k *tsmKeyIterator) mergeInteger() {
 		// Quickly scan each block to see if any overlap with the prior block, if they overlap then
 		// we need to dedup as there may be duplicate points now
 		for i := 1; !dedup && i < len(k.blocks); i++ {
-			if k.blocks[i].partiallyRead() {
-				dedup = true
-				break
-			}
-
-			if k.blocks[i].minTime <= k.blocks[i-1].maxTime || len(k.blocks[i].tombstones) > 0 {
-				dedup = true
-				break
-			}
+			dedup = k.blocks[i].partiallyRead() ||
+				k.blocks[i].minTime <= k.blocks[i-1].maxTime ||
+				len(k.blocks[i].tombstones) > 0
 		}
 
 	}
@@ -453,15 +441,9 @@ func (k *tsmKeyIterator) mergeUnsigned() {
 		// Quickly scan each block to see if any overlap with the prior block, if they overlap then
 		// we need to dedup as there may be duplicate points now
 		for i := 1; !dedup && i < len(k.blocks); i++ {
-			if k.blocks[i].partiallyRead() {
-				dedup = true
-				break
-			}
-
-			if k.blocks[i].minTime <= k.blocks[i-1].maxTime || len(k.blocks[i].tombstones) > 0 {
-				dedup = true
-				break
-			}
+			dedup = k.blocks[i].partiallyRead() ||
+				k.blocks[i].minTime <= k.blocks[i-1].maxTime ||
+				len(k.blocks[i].tombstones) > 0
 		}
 
 	}
@@ -667,15 +649,9 @@ func (k *tsmKeyIterator) mergeString() {
 		// Quickly scan each block to see if any overlap with the prior block, if they overlap then
 		// we need to dedup as there may be duplicate points now
 		for i := 1; !dedup && i < len(k.blocks); i++ {
-			if k.blocks[i].partiallyRead() {
-				dedup = true
-				break
-			}
-
-			if k.blocks[i].minTime <= k.blocks[i-1].maxTime || len(k.blocks[i].tombstones) > 0 {
-				dedup = true
-				break
-			}
+			dedup = k.blocks[i].partiallyRead() ||
+				k.blocks[i].minTime <= k.blocks[i-1].maxTime ||
+				len(k.blocks[i].tombstones) > 0
 		}
 
 	}
@@ -881,15 +857,9 @@ func (k *tsmKeyIterator) mergeBoolean() {
 		// Quickly scan each block to see if any overlap with the prior block, if they overlap then
 		// we need to dedup as there may be duplicate points now
 		for i := 1; !dedup && i < len(k.blocks); i++ {
-			if k.blocks[i].partiallyRead() {
-				dedup = true
-				break
-			}
-
-			if k.blocks[i].minTime <= k.blocks[i-1].maxTime || len(k.blocks[i].tombstones) > 0 {
-				dedup = true
-				break
-			}
+			dedup = k.blocks[i].partiallyRead() ||
+				k.blocks[i].minTime <= k.blocks[i-1].maxTime ||
+				len(k.blocks[i].tombstones) > 0
 		}
 
 	}
