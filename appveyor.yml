@@ -12,7 +12,7 @@ clone_folder: c:\gopath\src\github.com\influxdata\influxdb
 
 # Environment variables
 environment:
-  GOROOT: C:\go17
+  GOROOT: C:\go18
   GOPATH: C:\gopath
 
 # Scripts that run after cloning repository
