@@ -38,6 +38,8 @@ const (
 	Tag = 7
 	// AnyField means the data type is any field.
 	AnyField = 8
+	// Unsigned means the data type is an unsigned integer.
+	Unsigned = 9
 )
 
 var (

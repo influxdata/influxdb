@@ -170,7 +170,7 @@ func encode{{ .Name }}ValuesBlock(buf []byte, values []{{.Name}}Value) ([]byte, 
 	err := func() error {
 		for _, v := range values {
 			tsenc.Write(v.unixnano)
-			venc.Write(v.value)
+			venc.Write({{if .CastType}}{{.CastType}}(v.value){{else}}v.value{{end}})
 		}
 		venc.Flush()
 

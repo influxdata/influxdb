@@ -6,9 +6,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
-
 	"github.com/golang/snappy"
+	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
 
 func TestWALWriter_WriteMulti_Single(t *testing.T) {
@@ -21,12 +20,14 @@ func TestWALWriter_WriteMulti_Single(t *testing.T) {
 	p2 := tsm1.NewValue(1, int64(1))
 	p3 := tsm1.NewValue(1, true)
 	p4 := tsm1.NewValue(1, "string")
+	p5 := tsm1.NewValue(1, ^uint64(0))
 
 	values := map[string][]tsm1.Value{
-		"cpu,host=A#!~#float":  []tsm1.Value{p1},
-		"cpu,host=A#!~#int":    []tsm1.Value{p2},
-		"cpu,host=A#!~#bool":   []tsm1.Value{p3},
-		"cpu,host=A#!~#string": []tsm1.Value{p4},
+		"cpu,host=A#!~#float":    []tsm1.Value{p1},
+		"cpu,host=A#!~#int":      []tsm1.Value{p2},
+		"cpu,host=A#!~#bool":     []tsm1.Value{p3},
+		"cpu,host=A#!~#string":   []tsm1.Value{p4},
+		"cpu,host=A#!~#unsigned": []tsm1.Value{p5},
 	}
 
 	entry := &tsm1.WriteWALEntry{
@@ -607,12 +608,14 @@ func TestWriteWALSegment_UnmarshalBinary_WriteWALCorrupt(t *testing.T) {
 	p2 := tsm1.NewValue(1, int64(1))
 	p3 := tsm1.NewValue(1, true)
 	p4 := tsm1.NewValue(1, "string")
+	p5 := tsm1.NewValue(1, uint64(1))
 
 	values := map[string][]tsm1.Value{
-		"cpu,host=A#!~#float":  []tsm1.Value{p1, p1},
-		"cpu,host=A#!~#int":    []tsm1.Value{p2, p2},
-		"cpu,host=A#!~#bool":   []tsm1.Value{p3, p3},
-		"cpu,host=A#!~#string": []tsm1.Value{p4, p4},
+		"cpu,host=A#!~#float":    []tsm1.Value{p1, p1},
+		"cpu,host=A#!~#int":      []tsm1.Value{p2, p2},
+		"cpu,host=A#!~#bool":     []tsm1.Value{p3, p3},
+		"cpu,host=A#!~#string":   []tsm1.Value{p4, p4},
+		"cpu,host=A#!~#unsigned": []tsm1.Value{p5, p5},
 	}
 
 	w := &tsm1.WriteWALEntry{

@@ -9,20 +9,22 @@ message Point {
     repeated Aux    Aux        = 5;
     optional uint32 Aggregated = 6;
 
-    optional double FloatValue   = 7;
-    optional int64  IntegerValue = 8;
-    optional string StringValue  = 9;
-    optional bool   BooleanValue = 10;
+    optional double FloatValue    = 7;
+    optional int64  IntegerValue  = 8;
+    optional string StringValue   = 9;
+    optional bool   BooleanValue  = 10;
+    optional uint64 UnsignedValue = 12;
 
     optional IteratorStats Stats = 11;
 }
 
 message Aux {
-    required int32  DataType     = 1;
-    optional double FloatValue   = 2;
-    optional int64  IntegerValue = 3;
-    optional string StringValue  = 4;
-    optional bool   BooleanValue = 5;
+    required int32  DataType      = 1;
+    optional double FloatValue    = 2;
+    optional int64  IntegerValue  = 3;
+    optional string StringValue   = 4;
+    optional bool   BooleanValue  = 5;
+    optional uint64 UnsignedValue = 6;
 }
 
 message IteratorOptions {

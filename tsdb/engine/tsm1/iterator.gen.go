@@ -100,6 +100,8 @@ func (c *bufCursor) nextAt(seek int64) interface{} {
 			return (*float64)(nil)
 		case integerCursor:
 			return (*int64)(nil)
+		case unsignedCursor:
+			return (*uint64)(nil)
 		case stringCursor:
 			return (*string)(nil)
 		case booleanCursor:
@@ -996,6 +998,447 @@ func (c *integerNilLiteralCursor) close() error                   { return nil }
 func (c *integerNilLiteralCursor) peek() (t int64, v interface{}) { return tsdb.EOF, (*int64)(nil) }
 func (c *integerNilLiteralCursor) next() (t int64, v interface{}) { return tsdb.EOF, (*int64)(nil) }
 func (c *integerNilLiteralCursor) nextAt(seek int64) interface{}  { return (*int64)(nil) }
+
+type unsignedIterator struct {
+	cur   unsignedCursor
+	aux   []cursorAt
+	conds struct {
+		names []string
+		curs  []cursorAt
+	}
+	opt influxql.IteratorOptions
+
+	m     map[string]interface{} // map used for condition evaluation
+	point influxql.UnsignedPoint // reusable buffer
+
+	statsLock sync.Mutex
+	stats     influxql.IteratorStats
+	statsBuf  influxql.IteratorStats
+}
+
+func newUnsignedIterator(name string, tags influxql.Tags, opt influxql.IteratorOptions, cur unsignedCursor, aux []cursorAt, conds []cursorAt, condNames []string) *unsignedIterator {
+	itr := &unsignedIterator{
+		cur: cur,
+		aux: aux,
+		opt: opt,
+		point: influxql.UnsignedPoint{
+			Name: name,
+			Tags: tags,
+		},
+		statsBuf: influxql.IteratorStats{
+			SeriesN: 1,
+		},
+	}
+	itr.stats = itr.statsBuf
+
+	if len(aux) > 0 {
+		itr.point.Aux = make([]interface{}, len(aux))
+	}
+
+	if opt.Condition != nil {
+		itr.m = make(map[string]interface{}, len(aux)+len(conds))
+	}
+	itr.conds.names = condNames
+	itr.conds.curs = conds
+
+	return itr
+}
+
+// Next returns the next point from the iterator.
+func (itr *unsignedIterator) Next() (*influxql.UnsignedPoint, error) {
+	for {
+		seek := tsdb.EOF
+
+		if itr.cur != nil {
+			// Read from the main cursor if we have one.
+			itr.point.Time, itr.point.Value = itr.cur.nextUnsigned()
+			seek = itr.point.Time
+		} else {
+			// Otherwise find lowest aux timestamp.
+			for i := range itr.aux {
+				if k, _ := itr.aux[i].peek(); k != tsdb.EOF {
+					if seek == tsdb.EOF || (itr.opt.Ascending && k < seek) || (!itr.opt.Ascending && k > seek) {
+						seek = k
+					}
+				}
+			}
+			itr.point.Time = seek
+		}
+
+		// Exit if we have no more points or we are outside our time range.
+		if itr.point.Time == tsdb.EOF {
+			itr.copyStats()
+			return nil, nil
+		} else if itr.opt.Ascending && itr.point.Time > itr.opt.EndTime {
+			itr.copyStats()
+			return nil, nil
+		} else if !itr.opt.Ascending && itr.point.Time < itr.opt.StartTime {
+			itr.copyStats()
+			return nil, nil
+		}
+
+		// Read from each auxiliary cursor.
+		for i := range itr.opt.Aux {
+			itr.point.Aux[i] = itr.aux[i].nextAt(seek)
+		}
+
+		// Read from condition field cursors.
+		for i := range itr.conds.curs {
+			itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
+		}
+
+		// Evaluate condition, if one exists. Retry if it fails.
+		if itr.opt.Condition != nil && !influxql.EvalBool(itr.opt.Condition, itr.m) {
+			continue
+		}
+
+		// Track points returned.
+		itr.statsBuf.PointN++
+
+		// Copy buffer to stats periodically.
+		if itr.statsBuf.PointN%statsBufferCopyIntervalN == 0 {
+			itr.copyStats()
+		}
+
+		return &itr.point, nil
+	}
+}
+
+// copyStats copies from the itr stats buffer to the stats under lock.
+func (itr *unsignedIterator) copyStats() {
+	itr.statsLock.Lock()
+	itr.stats = itr.statsBuf
+	itr.statsLock.Unlock()
+}
+
+// Stats returns stats on the points processed.
+func (itr *unsignedIterator) Stats() influxql.IteratorStats {
+	itr.statsLock.Lock()
+	stats := itr.stats
+	itr.statsLock.Unlock()
+	return stats
+}
+
+// Close closes the iterator.
+func (itr *unsignedIterator) Close() error {
+	for _, c := range itr.aux {
+		c.close()
+	}
+	itr.aux = nil
+	for _, c := range itr.conds.curs {
+		c.close()
+	}
+	itr.conds.curs = nil
+	if itr.cur != nil {
+		err := itr.cur.close()
+		itr.cur = nil
+		return err
+	}
+	return nil
+}
+
+// unsignedLimitIterator
+type unsignedLimitIterator struct {
+	input influxql.UnsignedIterator
+	opt   influxql.IteratorOptions
+	n     int
+}
+
+func newUnsignedLimitIterator(input influxql.UnsignedIterator, opt influxql.IteratorOptions) *unsignedLimitIterator {
+	return &unsignedLimitIterator{
+		input: input,
+		opt:   opt,
+	}
+}
+
+func (itr *unsignedLimitIterator) Stats() influxql.IteratorStats { return itr.input.Stats() }
+func (itr *unsignedLimitIterator) Close() error                  { return itr.input.Close() }
+
+func (itr *unsignedLimitIterator) Next() (*influxql.UnsignedPoint, error) {
+	// Check if we are beyond the limit.
+	if (itr.n - itr.opt.Offset) > itr.opt.Limit {
+		return nil, nil
+	}
+
+	// Read the next point.
+	p, err := itr.input.Next()
+	if p == nil || err != nil {
+		return nil, err
+	}
+
+	// Increment counter.
+	itr.n++
+
+	// Offsets are handled by a higher level iterator so return all points.
+	return p, nil
+}
+
+// unsignedCursor represents an object for iterating over a single unsigned field.
+type unsignedCursor interface {
+	cursor
+	nextUnsigned() (t int64, v uint64)
+}
+
+func newUnsignedCursor(seek int64, ascending bool, cacheValues Values, tsmKeyCursor *KeyCursor) unsignedCursor {
+	if ascending {
+		return newUnsignedAscendingCursor(seek, cacheValues, tsmKeyCursor)
+	}
+	return newUnsignedDescendingCursor(seek, cacheValues, tsmKeyCursor)
+}
+
+type unsignedAscendingCursor struct {
+	cache struct {
+		values Values
+		pos    int
+	}
+
+	tsm struct {
+		buf       []UnsignedValue
+		values    []UnsignedValue
+		pos       int
+		keyCursor *KeyCursor
+	}
+}
+
+func newUnsignedAscendingCursor(seek int64, cacheValues Values, tsmKeyCursor *KeyCursor) *unsignedAscendingCursor {
+	c := &unsignedAscendingCursor{}
+
+	c.cache.values = cacheValues
+	c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
+		return c.cache.values[i].UnixNano() >= seek
+	})
+
+	c.tsm.keyCursor = tsmKeyCursor
+	c.tsm.buf = make([]UnsignedValue, 10)
+	c.tsm.values, _ = c.tsm.keyCursor.ReadUnsignedBlock(&c.tsm.buf)
+	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
+		return c.tsm.values[i].UnixNano() >= seek
+	})
+
+	return c
+}
+
+// peekCache returns the current time/value from the cache.
+func (c *unsignedAscendingCursor) peekCache() (t int64, v uint64) {
+	if c.cache.pos >= len(c.cache.values) {
+		return tsdb.EOF, 0
+	}
+
+	item := c.cache.values[c.cache.pos]
+	return item.UnixNano(), item.(UnsignedValue).value
+}
+
+// peekTSM returns the current time/value from tsm.
+func (c *unsignedAscendingCursor) peekTSM() (t int64, v uint64) {
+	if c.tsm.pos < 0 || c.tsm.pos >= len(c.tsm.values) {
+		return tsdb.EOF, 0
+	}
+
+	item := c.tsm.values[c.tsm.pos]
+	return item.UnixNano(), item.value
+}
+
+// close closes the cursor and any dependent cursors.
+func (c *unsignedAscendingCursor) close() error {
+	c.tsm.keyCursor.Close()
+	c.tsm.keyCursor = nil
+	c.tsm.buf = nil
+	c.cache.values = nil
+	c.tsm.values = nil
+	return nil
+}
+
+// next returns the next key/value for the cursor.
+func (c *unsignedAscendingCursor) next() (int64, interface{}) { return c.nextUnsigned() }
+
+// nextUnsigned returns the next key/value for the cursor.
+func (c *unsignedAscendingCursor) nextUnsigned() (int64, uint64) {
+	ckey, cvalue := c.peekCache()
+	tkey, tvalue := c.peekTSM()
+
+	// No more data in cache or in TSM files.
+	if ckey == tsdb.EOF && tkey == tsdb.EOF {
+		return tsdb.EOF, 0
+	}
+
+	// Both cache and tsm files have the same key, cache takes precedence.
+	if ckey == tkey {
+		c.nextCache()
+		c.nextTSM()
+		return ckey, cvalue
+	}
+
+	// Buffered cache key precedes that in TSM file.
+	if ckey != tsdb.EOF && (ckey < tkey || tkey == tsdb.EOF) {
+		c.nextCache()
+		return ckey, cvalue
+	}
+
+	// Buffered TSM key precedes that in cache.
+	c.nextTSM()
+	return tkey, tvalue
+}
+
+// nextCache returns the next value from the cache.
+func (c *unsignedAscendingCursor) nextCache() {
+	if c.cache.pos >= len(c.cache.values) {
+		return
+	}
+	c.cache.pos++
+}
+
+// nextTSM returns the next value from the TSM files.
+func (c *unsignedAscendingCursor) nextTSM() {
+	c.tsm.pos++
+	if c.tsm.pos >= len(c.tsm.values) {
+		c.tsm.keyCursor.Next()
+		c.tsm.values, _ = c.tsm.keyCursor.ReadUnsignedBlock(&c.tsm.buf)
+		if len(c.tsm.values) == 0 {
+			return
+		}
+		c.tsm.pos = 0
+	}
+}
+
+type unsignedDescendingCursor struct {
+	cache struct {
+		values Values
+		pos    int
+	}
+
+	tsm struct {
+		buf       []UnsignedValue
+		values    []UnsignedValue
+		pos       int
+		keyCursor *KeyCursor
+	}
+}
+
+func newUnsignedDescendingCursor(seek int64, cacheValues Values, tsmKeyCursor *KeyCursor) *unsignedDescendingCursor {
+	c := &unsignedDescendingCursor{}
+
+	c.cache.values = cacheValues
+	c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
+		return c.cache.values[i].UnixNano() >= seek
+	})
+	if t, _ := c.peekCache(); t != seek {
+		c.cache.pos--
+	}
+
+	c.tsm.keyCursor = tsmKeyCursor
+	c.tsm.buf = make([]UnsignedValue, 10)
+	c.tsm.values, _ = c.tsm.keyCursor.ReadUnsignedBlock(&c.tsm.buf)
+	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
+		return c.tsm.values[i].UnixNano() >= seek
+	})
+	if t, _ := c.peekTSM(); t != seek {
+		c.tsm.pos--
+	}
+
+	return c
+}
+
+// peekCache returns the current time/value from the cache.
+func (c *unsignedDescendingCursor) peekCache() (t int64, v uint64) {
+	if c.cache.pos < 0 || c.cache.pos >= len(c.cache.values) {
+		return tsdb.EOF, 0
+	}
+
+	item := c.cache.values[c.cache.pos]
+	return item.UnixNano(), item.(UnsignedValue).value
+}
+
+// peekTSM returns the current time/value from tsm.
+func (c *unsignedDescendingCursor) peekTSM() (t int64, v uint64) {
+	if c.tsm.pos < 0 || c.tsm.pos >= len(c.tsm.values) {
+		return tsdb.EOF, 0
+	}
+
+	item := c.tsm.values[c.tsm.pos]
+	return item.UnixNano(), item.value
+}
+
+// close closes the cursor and any dependent cursors.
+func (c *unsignedDescendingCursor) close() error {
+	c.tsm.keyCursor.Close()
+	c.tsm.keyCursor = nil
+	c.tsm.buf = nil
+	c.cache.values = nil
+	c.tsm.values = nil
+	return nil
+}
+
+// next returns the next key/value for the cursor.
+func (c *unsignedDescendingCursor) next() (int64, interface{}) { return c.nextUnsigned() }
+
+// nextUnsigned returns the next key/value for the cursor.
+func (c *unsignedDescendingCursor) nextUnsigned() (int64, uint64) {
+	ckey, cvalue := c.peekCache()
+	tkey, tvalue := c.peekTSM()
+
+	// No more data in cache or in TSM files.
+	if ckey == tsdb.EOF && tkey == tsdb.EOF {
+		return tsdb.EOF, 0
+	}
+
+	// Both cache and tsm files have the same key, cache takes precedence.
+	if ckey == tkey {
+		c.nextCache()
+		c.nextTSM()
+		return ckey, cvalue
+	}
+
+	// Buffered cache key precedes that in TSM file.
+	if ckey != tsdb.EOF && (ckey > tkey || tkey == tsdb.EOF) {
+		c.nextCache()
+		return ckey, cvalue
+	}
+
+	// Buffered TSM key precedes that in cache.
+	c.nextTSM()
+	return tkey, tvalue
+}
+
+// nextCache returns the next value from the cache.
+func (c *unsignedDescendingCursor) nextCache() {
+	if c.cache.pos < 0 {
+		return
+	}
+	c.cache.pos--
+}
+
+// nextTSM returns the next value from the TSM files.
+func (c *unsignedDescendingCursor) nextTSM() {
+	c.tsm.pos--
+	if c.tsm.pos < 0 {
+		c.tsm.keyCursor.Next()
+		c.tsm.values, _ = c.tsm.keyCursor.ReadUnsignedBlock(&c.tsm.buf)
+		if len(c.tsm.values) == 0 {
+			return
+		}
+		c.tsm.pos = len(c.tsm.values) - 1
+	}
+}
+
+// unsignedLiteralCursor represents a cursor that always returns a single value.
+// It doesn't not have a time value so it can only be used with nextAt().
+type unsignedLiteralCursor struct {
+	value uint64
+}
+
+func (c *unsignedLiteralCursor) close() error                   { return nil }
+func (c *unsignedLiteralCursor) peek() (t int64, v interface{}) { return tsdb.EOF, c.value }
+func (c *unsignedLiteralCursor) next() (t int64, v interface{}) { return tsdb.EOF, c.value }
+func (c *unsignedLiteralCursor) nextAt(seek int64) interface{}  { return c.value }
+
+// unsignedNilLiteralCursor represents a cursor that always returns a typed nil value.
+// It doesn't not have a time value so it can only be used with nextAt().
+type unsignedNilLiteralCursor struct{}
+
+func (c *unsignedNilLiteralCursor) close() error                   { return nil }
+func (c *unsignedNilLiteralCursor) peek() (t int64, v interface{}) { return tsdb.EOF, (*uint64)(nil) }
+func (c *unsignedNilLiteralCursor) next() (t int64, v interface{}) { return tsdb.EOF, (*uint64)(nil) }
+func (c *unsignedNilLiteralCursor) nextAt(seek int64) interface{}  { return (*uint64)(nil) }
 
 type stringIterator struct {
 	cur   stringCursor

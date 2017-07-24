@@ -436,6 +436,215 @@ func (dec *IntegerPointDecoder) DecodeIntegerPoint(p *IntegerPoint) error {
 	}
 }
 
+// UnsignedPoint represents a point with a uint64 value.
+// DO NOT ADD ADDITIONAL FIELDS TO THIS STRUCT.
+// See TestPoint_Fields in influxql/point_test.go for more details.
+type UnsignedPoint struct {
+	Name string
+	Tags Tags
+
+	Time  int64
+	Nil   bool
+	Value uint64
+	Aux   []interface{}
+
+	// Total number of points that were combined into this point from an aggregate.
+	// If this is zero, the point is not the result of an aggregate function.
+	Aggregated uint32
+}
+
+func (v *UnsignedPoint) name() string { return v.Name }
+func (v *UnsignedPoint) tags() Tags   { return v.Tags }
+func (v *UnsignedPoint) time() int64  { return v.Time }
+func (v *UnsignedPoint) nil() bool    { return v.Nil }
+func (v *UnsignedPoint) value() interface{} {
+	if v.Nil {
+		return nil
+	}
+	return v.Value
+}
+func (v *UnsignedPoint) aux() []interface{} { return v.Aux }
+
+// Clone returns a copy of v.
+func (v *UnsignedPoint) Clone() *UnsignedPoint {
+	if v == nil {
+		return nil
+	}
+
+	other := *v
+	if v.Aux != nil {
+		other.Aux = make([]interface{}, len(v.Aux))
+		copy(other.Aux, v.Aux)
+	}
+
+	return &other
+}
+
+// CopyTo makes a deep copy into the point.
+func (v *UnsignedPoint) CopyTo(other *UnsignedPoint) {
+	*other = *v
+	if v.Aux != nil {
+		other.Aux = make([]interface{}, len(v.Aux))
+		copy(other.Aux, v.Aux)
+	}
+}
+
+func encodeUnsignedPoint(p *UnsignedPoint) *internal.Point {
+	return &internal.Point{
+		Name:       proto.String(p.Name),
+		Tags:       proto.String(p.Tags.ID()),
+		Time:       proto.Int64(p.Time),
+		Nil:        proto.Bool(p.Nil),
+		Aux:        encodeAux(p.Aux),
+		Aggregated: proto.Uint32(p.Aggregated),
+	}
+}
+
+func decodeUnsignedPoint(pb *internal.Point) *UnsignedPoint {
+	return &UnsignedPoint{
+		Name:       pb.GetName(),
+		Tags:       newTagsID(pb.GetTags()),
+		Time:       pb.GetTime(),
+		Nil:        pb.GetNil(),
+		Aux:        decodeAux(pb.Aux),
+		Aggregated: pb.GetAggregated(),
+		Value:      pb.GetUnsignedValue(),
+	}
+}
+
+// unsignedPoints represents a slice of points sortable by value.
+type unsignedPoints []UnsignedPoint
+
+func (a unsignedPoints) Len() int { return len(a) }
+func (a unsignedPoints) Less(i, j int) bool {
+	if a[i].Time != a[j].Time {
+		return a[i].Time < a[j].Time
+	}
+	return a[i].Value < a[j].Value
+}
+func (a unsignedPoints) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+
+// unsignedPointsByValue represents a slice of points sortable by value.
+type unsignedPointsByValue []UnsignedPoint
+
+func (a unsignedPointsByValue) Len() int { return len(a) }
+
+func (a unsignedPointsByValue) Less(i, j int) bool { return a[i].Value < a[j].Value }
+
+func (a unsignedPointsByValue) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+
+// unsignedPointsByTime represents a slice of points sortable by value.
+type unsignedPointsByTime []UnsignedPoint
+
+func (a unsignedPointsByTime) Len() int           { return len(a) }
+func (a unsignedPointsByTime) Less(i, j int) bool { return a[i].Time < a[j].Time }
+func (a unsignedPointsByTime) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+
+// unsignedPointByFunc represents a slice of points sortable by a function.
+type unsignedPointsByFunc struct {
+	points []UnsignedPoint
+	cmp    func(a, b *UnsignedPoint) bool
+}
+
+func (a *unsignedPointsByFunc) Len() int           { return len(a.points) }
+func (a *unsignedPointsByFunc) Less(i, j int) bool { return a.cmp(&a.points[i], &a.points[j]) }
+func (a *unsignedPointsByFunc) Swap(i, j int)      { a.points[i], a.points[j] = a.points[j], a.points[i] }
+
+func (a *unsignedPointsByFunc) Push(x interface{}) {
+	a.points = append(a.points, x.(UnsignedPoint))
+}
+
+func (a *unsignedPointsByFunc) Pop() interface{} {
+	p := a.points[len(a.points)-1]
+	a.points = a.points[:len(a.points)-1]
+	return p
+}
+
+func unsignedPointsSortBy(points []UnsignedPoint, cmp func(a, b *UnsignedPoint) bool) *unsignedPointsByFunc {
+	return &unsignedPointsByFunc{
+		points: points,
+		cmp:    cmp,
+	}
+}
+
+// UnsignedPointEncoder encodes UnsignedPoint points to a writer.
+type UnsignedPointEncoder struct {
+	w io.Writer
+}
+
+// NewUnsignedPointEncoder returns a new instance of UnsignedPointEncoder that writes to w.
+func NewUnsignedPointEncoder(w io.Writer) *UnsignedPointEncoder {
+	return &UnsignedPointEncoder{w: w}
+}
+
+// EncodeUnsignedPoint marshals and writes p to the underlying writer.
+func (enc *UnsignedPointEncoder) EncodeUnsignedPoint(p *UnsignedPoint) error {
+	// Marshal to bytes.
+	buf, err := proto.Marshal(encodeUnsignedPoint(p))
+	if err != nil {
+		return err
+	}
+
+	// Write the length.
+	if err := binary.Write(enc.w, binary.BigEndian, uint32(len(buf))); err != nil {
+		return err
+	}
+
+	// Write the encoded point.
+	if _, err := enc.w.Write(buf); err != nil {
+		return err
+	}
+	return nil
+}
+
+// UnsignedPointDecoder decodes UnsignedPoint points from a reader.
+type UnsignedPointDecoder struct {
+	r     io.Reader
+	stats IteratorStats
+}
+
+// NewUnsignedPointDecoder returns a new instance of UnsignedPointDecoder that reads from r.
+func NewUnsignedPointDecoder(r io.Reader) *UnsignedPointDecoder {
+	return &UnsignedPointDecoder{r: r}
+}
+
+// Stats returns iterator stats embedded within the stream.
+func (dec *UnsignedPointDecoder) Stats() IteratorStats { return dec.stats }
+
+// DecodeUnsignedPoint reads from the underlying reader and unmarshals into p.
+func (dec *UnsignedPointDecoder) DecodeUnsignedPoint(p *UnsignedPoint) error {
+	for {
+		// Read length.
+		var sz uint32
+		if err := binary.Read(dec.r, binary.BigEndian, &sz); err != nil {
+			return err
+		}
+
+		// Read point data.
+		buf := make([]byte, sz)
+		if _, err := io.ReadFull(dec.r, buf); err != nil {
+			return err
+		}
+
+		// Unmarshal into point.
+		var pb internal.Point
+		if err := proto.Unmarshal(buf, &pb); err != nil {
+			return err
+		}
+
+		// If the point contains stats then read stats and retry.
+		if pb.Stats != nil {
+			dec.stats = decodeIteratorStats(pb.Stats)
+			continue
+		}
+
+		// Decode into point object.
+		*p = *decodeUnsignedPoint(&pb)
+
+		return nil
+	}
+}
+
 // StringPoint represents a point with a string value.
 // DO NOT ADD ADDITIONAL FIELDS TO THIS STRUCT.
 // See TestPoint_Fields in influxql/point_test.go for more details.

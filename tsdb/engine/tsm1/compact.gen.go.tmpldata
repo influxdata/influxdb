@@ -8,6 +8,10 @@
 		"name":"integer"
 	},
 	{
+		"Name":"Unsigned",
+		"name":"unsigned"
+	},
+	{
 		"Name":"String",
 		"name":"string"
 	},

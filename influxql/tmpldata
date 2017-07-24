@@ -14,6 +14,13 @@
 		"Zero":"int64(0)"
 	},
 	{
+		"Name":"Unsigned",
+		"name":"unsigned",
+		"Type":"uint64",
+		"Nil":"0",
+		"Zero":"uint64(0)"
+	},
+	{
 		"Name":"String",
 		"name":"string",
 		"Type":"string",

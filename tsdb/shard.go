@@ -647,6 +647,8 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 				fieldType = influxql.Float
 			case models.Integer:
 				fieldType = influxql.Integer
+			case models.Unsigned:
+				fieldType = influxql.Unsigned
 			case models.Boolean:
 				fieldType = influxql.Boolean
 			case models.String:

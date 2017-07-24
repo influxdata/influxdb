@@ -986,10 +986,11 @@ type tsmKeyIterator struct {
 	buf []blocks
 
 	// mergeValues are decoded blocks that have been combined
-	mergedFloatValues   FloatValues
-	mergedIntegerValues IntegerValues
-	mergedBooleanValues BooleanValues
-	mergedStringValues  StringValues
+	mergedFloatValues    FloatValues
+	mergedIntegerValues  IntegerValues
+	mergedUnsignedValues UnsignedValues
+	mergedBooleanValues  BooleanValues
+	mergedStringValues   StringValues
 
 	// merged are encoded blocks that have been combined or used as is
 	// without decode
@@ -1065,6 +1066,7 @@ func NewTSMKeyIterator(size int, fast bool, readers ...*TSMReader) (KeyIterator,
 func (k *tsmKeyIterator) hasMergedValues() bool {
 	return len(k.mergedFloatValues) > 0 ||
 		len(k.mergedIntegerValues) > 0 ||
+		len(k.mergedUnsignedValues) > 0 ||
 		len(k.mergedStringValues) > 0 ||
 		len(k.mergedBooleanValues) > 0
 }
@@ -1189,6 +1191,8 @@ func (k *tsmKeyIterator) merge() {
 		k.mergeFloat()
 	case BlockInteger:
 		k.mergeInteger()
+	case BlockUnsigned:
+		k.mergeUnsigned()
 	case BlockBoolean:
 		k.mergeBoolean()
 	case BlockString:

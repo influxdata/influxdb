@@ -93,6 +93,8 @@ func (c *bufCursor) nextAt(seek int64) interface{} {
 				return (*float64)(nil)
 			case integerCursor:
 				return (*int64)(nil)
+			case unsignedCursor:
+				return (*uint64)(nil)
 			case stringCursor:
 				return (*string)(nil)
 			case booleanCursor:
