@@ -17,6 +17,7 @@
 
 ### UI Improvements
 1. [#1707](https://github.com/influxdata/chronograf/pull/1707): Polish alerts table in status page to wrap text less
+1. [#1770](https://github.com/influxdata/chronograf/pull/1770): Specify that version is for Chronograf on Configuration page
 
 ## v1.3.4.0 [2017-07-10]
 ### Bug Fixes
