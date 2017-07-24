@@ -2,6 +2,8 @@
 
 ### Configuration Changes
 
+* test for commit.  do not merge this to master.
+	
 #### `[collectd]` Section
 
 * `parse-multivalue-plugin` was added with a default of `split`.  When set to `split`, multivalue plugin data (e.g. df free:5000,used:1000) will be split into separate measurements (e.g., (df_free, value=5000) (df_used, value=1000)).  When set to `join`, multivalue plugin will be stored as a single multi-value measurement (e.g., (df, free=5000,used=1000)).
