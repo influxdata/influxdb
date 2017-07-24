@@ -15,7 +15,9 @@ module.exports = function(config) {
       'spec/spec-helper.js': ['webpack', 'sourcemap'],
       'spec/index.js': ['webpack', 'sourcemap'],
     },
-    reporters: ['dots'], // can also use 'verbose' and/or 'progress' for more detailed reporting
+    // For more detailed reporting on tests, you can add 'verbose' and/or 'progress'.
+    // This can also be done via the command line with `npm test -- --reporters=verbose`.
+    reporters: ['dots'],
     webpack: {
       devtool: 'inline-source-map',
       module: {
