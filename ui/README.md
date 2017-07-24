@@ -33,5 +33,4 @@ yarn upgrade packageName
 ```
 
 ## Testing
-Tests can be run via command line with `npm run test`, from within the `/ui` directory. For more detailed reporting, use `npm test -- --reporters=verbose
-`.
+Tests can be run via command line with `npm test`, from within the `/ui` directory. For more detailed reporting, use `npm test -- --reporters=verbose`.
