@@ -35,7 +35,7 @@ class CellEditorOverlay extends Component {
     this.handleEditRawText = ::this.handleEditRawText
     this.handleSetRange = ::this.handleSetRange
 
-    const {cell: {name, type, queries, yRanges}} = props
+    const {cell: {name, type, queries, axes}} = props
 
     const queriesWorkingDraft = _.cloneDeep(
       queries.map(({queryConfig}) => ({...queryConfig, id: uuid.v4()}))
@@ -47,9 +47,7 @@ class CellEditorOverlay extends Component {
       queriesWorkingDraft,
       activeQueryIndex: 0,
       isDisplayOptionsTabOpen: false,
-      yRanges: {
-        y: yRanges && yRanges.y ? yRanges.y : ['', ''],
-      },
+      axes,
     }
   }
 
@@ -82,9 +80,12 @@ class CellEditorOverlay extends Component {
 
   handleSetRange(e) {
     const {min, max} = e.target.form
+
     this.setState({
-      yRanges: {
-        y: [min.value, max.value],
+      axes: {
+        y: {
+          bounds: [min.value, max.value],
+        },
       },
     })
     e.preventDefault()
@@ -108,7 +109,7 @@ class CellEditorOverlay extends Component {
       queriesWorkingDraft,
       cellWorkingType: type,
       cellWorkingName: name,
-      yRanges,
+      axes,
     } = this.state
 
     const {cell} = this.props
@@ -125,7 +126,13 @@ class CellEditorOverlay extends Component {
       }
     })
 
-    this.props.onSave({...cell, name, type, queries, yRanges})
+    this.props.onSave({
+      ...cell,
+      name,
+      type,
+      queries,
+      axes,
+    })
   }
 
   handleSelectGraphType(graphType) {
@@ -174,7 +181,7 @@ class CellEditorOverlay extends Component {
       cellWorkingType,
       isDisplayOptionsTabOpen,
       queriesWorkingDraft,
-      yRanges,
+      axes,
     } = this.state
 
     const queryActions = {
@@ -205,7 +212,7 @@ class CellEditorOverlay extends Component {
             cellType={cellWorkingType}
             cellName={cellWorkingName}
             editQueryStatus={editQueryStatus}
-            yRanges={yRanges}
+            axes={axes}
             views={[]}
           />
           <div className="overlay-technology--editor">
@@ -221,7 +228,7 @@ class CellEditorOverlay extends Component {
                   selectedGraphType={cellWorkingType}
                   onSelectGraphType={this.handleSelectGraphType}
                   onSetRange={this.handleSetRange}
-                  yRanges={yRanges}
+                  axes={axes}
                 />
               : <QueryMaker
                   source={source}

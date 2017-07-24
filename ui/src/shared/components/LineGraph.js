@@ -15,9 +15,13 @@ export default React.createClass({
   displayName: 'LineGraph',
   propTypes: {
     data: arrayOf(shape({}).isRequired).isRequired,
-    yRanges: shape({
-      y: arrayOf(string),
-      y2: arrayOf(string),
+    axes: shape({
+      y: shape({
+        bounds: array,
+      }),
+      y2: shape({
+        bounds: array,
+      }),
     }),
     title: string,
     isFetchingInitially: bool,
@@ -67,7 +71,8 @@ export default React.createClass({
   componentWillUpdate(nextProps) {
     const {data, activeQueryIndex} = this.props
     if (
-      data !== nextProps.data || activeQueryIndex !== nextProps.activeQueryIndex
+      data !== nextProps.data ||
+      activeQueryIndex !== nextProps.activeQueryIndex
     ) {
       this._timeSeries = timeSeriesToDygraph(
         nextProps.data,
@@ -80,7 +85,7 @@ export default React.createClass({
   render() {
     const {
       data,
-      yRanges,
+      axes,
       isFetchingInitially,
       isRefreshing,
       isGraphFilled,
@@ -159,6 +164,7 @@ export default React.createClass({
       >
         {isRefreshing ? this.renderSpinner() : null}
         <Dygraph
+          axes={axes}
           containerStyle={{width: '100%', height: '100%'}}
           overrideLineColors={
             showSingleStat ? singleStatLineColors : overrideLineColors
@@ -169,7 +175,6 @@ export default React.createClass({
           labels={labels}
           options={showSingleStat ? singleStatOptions : options}
           dygraphSeries={dygraphSeries}
-          ranges={yRanges}
           ruleValues={ruleValues}
           synchronizer={synchronizer}
           timeRange={timeRange}
@@ -182,7 +187,9 @@ export default React.createClass({
                   'single-stat--small': cellHeight === SMALL_CELL_HEIGHT,
                 })}
               >
-                <span className="single-stat--shadow">{roundedValue}</span>
+                <span className="single-stat--shadow">
+                  {roundedValue}
+                </span>
               </span>
             </div>
           : null}

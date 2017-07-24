@@ -1,8 +1,12 @@
 const PADDING_FACTOR = 0.1
 
 const considerZero = (userNumber, number) => {
-  if (typeof userNumber === 'number') {
-    return userNumber
+  if (userNumber === '') {
+    return null
+  }
+
+  if (userNumber) {
+    return +userNumber
   }
 
   return number

@@ -1,29 +1,34 @@
 import React, {PropTypes} from 'react'
+import _ from 'lodash'
 
-const Ranger = ({onSetRange, yRanges}) =>
+const Ranger = ({onSetRange, axes}) =>
   <div className="display-options--cell">
     <h5 className="display-options--header">Y Axis Controls</h5>
     <form autoComplete="off">
       <div className="display-options--row">
-        <label htmlFor="min" style={{width: '40px'}}>Min</label>
+        <label htmlFor="min" style={{width: '40px'}}>
+          Min
+        </label>
         <input
           className="form-control input-sm"
-          type="text"
+          type="number"
           name="min"
           id="min"
-          value={yRanges.y[0]}
+          value={_.get(axes, ['y', 'bounds', '0'], '')}
           onChange={onSetRange}
           placeholder="auto"
         />
       </div>
       <div className="display-options--row">
-        <label htmlFor="max" style={{width: '40px'}}>Max</label>
+        <label htmlFor="max" style={{width: '40px'}}>
+          Max
+        </label>
         <input
           className="form-control input-sm"
-          type="text"
+          type="number"
           name="max"
           id="max"
-          value={yRanges.y[1]}
+          value={_.get(axes, ['y', 'bounds', '1'], '')}
           onChange={onSetRange}
           placeholder="auto"
         />
@@ -35,9 +40,10 @@ const {array, func, shape} = PropTypes
 
 Ranger.propTypes = {
   onSetRange: func.isRequired,
-  yRanges: shape({
-    y: array,
-    y2: array,
+  axes: shape({
+    y: shape({
+      bounds: array,
+    }),
   }).isRequired,
 }
 

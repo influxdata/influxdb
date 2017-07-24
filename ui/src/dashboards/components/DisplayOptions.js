@@ -7,26 +7,23 @@ const DisplayOptions = ({
   selectedGraphType,
   onSelectGraphType,
   onSetRange,
-  yRanges,
+  axes,
 }) =>
   <div className="display-options">
     <GraphTypeSelector
       selectedGraphType={selectedGraphType}
       onSelectGraphType={onSelectGraphType}
     />
-    <Ranger onSetRange={onSetRange} yRanges={yRanges} />
+    <Ranger onSetRange={onSetRange} axes={axes} />
   </div>
 
-const {array, func, shape, string} = PropTypes
+const {func, shape, string} = PropTypes
 
 DisplayOptions.propTypes = {
   selectedGraphType: string.isRequired,
   onSelectGraphType: func.isRequired,
   onSetRange: func.isRequired,
-  yRanges: shape({
-    y: array,
-    y2: array,
-  }).isRequired,
+  axes: shape({}).isRequired,
 }
 
 export default DisplayOptions
