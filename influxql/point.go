@@ -87,6 +87,11 @@ func newTagsID(id string) Tags {
 	return Tags{id: id, m: m}
 }
 
+// Equal compares if the Tags are equal to each other.
+func (t Tags) Equal(other Tags) bool {
+	return t.ID() == other.ID()
+}
+
 // ID returns the string identifier for the tags.
 func (t Tags) ID() string { return t.id }
 

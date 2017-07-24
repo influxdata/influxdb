@@ -9,6 +9,7 @@ github.com/dgryski/go-bits 2ad8d707cc05b1815ce6ff2543bb5e8d8f9298ef
 github.com/dgryski/go-bitstream 7d46cd22db7004f0cceb6f7975824b560cf0e486
 github.com/gogo/protobuf 30433562cfbf487fe1df7cd26c7bab168d2f14d0
 github.com/golang/snappy d9eb7a3d35ec988b8585d4a0068e462c27d28380
+github.com/google/go-cmp 18107e6c56edb2d51f965f7d68e59404f0daee54
 github.com/influxdata/usage-client 6d3895376368aa52a3a81d2a16e90f0f52371967
 github.com/jwilder/encoding 27894731927e49b0a9023f00312be26733744815
 github.com/paulbellamy/ratecounter 5a11f585a31379765c190c033b6ad39956584447
