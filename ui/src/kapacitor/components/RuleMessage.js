@@ -1,4 +1,5 @@
 import React, {Component, PropTypes} from 'react'
+import _ from 'lodash'
 import classnames from 'classnames'
 
 import RuleMessageOptions from 'src/kapacitor/components/RuleMessageOptions'
@@ -55,9 +56,7 @@ class RuleMessage extends Component {
             <ul className="nav nav-tablist nav-tablist-sm nav-tablist-malachite">
               {alerts
                 // only display alert endpoints that have rule alert options configured
-                .filter(alert =>
-                  Object.keys(RULE_ALERT_OPTIONS).includes(alert.text)
-                )
+                .filter(alert => _.get(RULE_ALERT_OPTIONS, alert.text, false))
                 .map(alert =>
                   <li
                     key={alert.text}

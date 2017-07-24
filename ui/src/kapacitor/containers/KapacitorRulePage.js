@@ -7,7 +7,7 @@ import * as queryActionCreators from 'src/data_explorer/actions/view'
 
 import {bindActionCreators} from 'redux'
 import {getActiveKapacitor, getKapacitorConfig} from 'shared/apis/index'
-import {ALERTS, DEFAULT_RULE_ID} from 'src/kapacitor/constants'
+import {RULE_ALERT_OPTIONS, DEFAULT_RULE_ID} from 'src/kapacitor/constants'
 import KapacitorRule from 'src/kapacitor/components/KapacitorRule'
 
 class KapacitorRulePage extends Component {
@@ -40,15 +40,14 @@ class KapacitorRulePage extends Component {
 
     try {
       const {data: {sections}} = await getKapacitorConfig(kapacitor)
-      const enabledAlerts = Object.keys(sections).filter(section => {
-        return (
+      const enabledAlerts = Object.keys(sections).filter(
+        section =>
           _.get(
             sections,
             [section, 'elements', '0', 'options', 'enabled'],
             false
-          ) && ALERTS.includes(section)
-        )
-      })
+          ) && _.get(RULE_ALERT_OPTIONS, section, false)
+      )
 
       this.setState({kapacitor, enabledAlerts})
     } catch (error) {

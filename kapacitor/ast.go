@@ -752,6 +752,7 @@ func extractSlack(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
 	}
 	rule.AlertNodes = append(rule.AlertNodes, alert)
 }
+
 func extractTalk(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
 	if len(node.TalkHandlers) == 0 {
 		return
@@ -763,6 +764,7 @@ func extractTalk(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
 
 	rule.AlertNodes = append(rule.AlertNodes, alert)
 }
+
 func extractTelegram(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
 	if len(node.TelegramHandlers) == 0 {
 		return
