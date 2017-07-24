@@ -1808,7 +1808,7 @@ colors@1.0.3:
   version "1.0.3"
   resolved "https://registry.yarnpkg.com/colors/-/colors-1.0.3.tgz#0433f44d809680fdeb60ed260f1b0c262e82a40b"
 
-colors@^1.1.0, colors@~1.1.2:
+colors@>=1.0, colors@^1.1.0, colors@~1.1.2:
   version "1.1.2"
   resolved "https://registry.yarnpkg.com/colors/-/colors-1.1.2.tgz#168a4701756b6a7f51a12ce0c97bfa28c084ed63"
 
@@ -4091,6 +4091,12 @@ karma-sourcemap-loader@^0.3.7:
   resolved "https://registry.yarnpkg.com/karma-sourcemap-loader/-/karma-sourcemap-loader-0.3.7.tgz#91322c77f8f13d46fed062b042e1009d4c4505d8"
   dependencies:
     graceful-fs "^4.1.2"
+
+karma-verbose-reporter@^0.0.6:
+  version "0.0.6"
+  resolved "https://registry.yarnpkg.com/karma-verbose-reporter/-/karma-verbose-reporter-0.0.6.tgz#5909052451c607f02ac77c763791a2fe1251260c"
+  dependencies:
+    colors ">=1.0"
 
 karma-webpack@^1.8.0:
   version "1.8.1"
