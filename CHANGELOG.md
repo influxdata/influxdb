@@ -19,6 +19,7 @@
 - [#8711](https://github.com/influxdata/influxdb/pull/8711): Batch up writes for monitor service
 - [#8572](https://github.com/influxdata/influxdb/pull/8572): All errors from queries or writes are available via X-InfluxDB-Error header, and 5xx error messages will be written to server logs.
 - [#8662](https://github.com/influxdata/influxdb/pull/8662): Improve test coverage across both indexes.
+- [#8611](https://github.com/influxdata/influxdb/issues/8611): Respect X-Request-Id/Request-Id headers.
 
 ### Bugfixes
 

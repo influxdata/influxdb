@@ -698,6 +698,72 @@ func TestHandler_XForwardedFor(t *testing.T) {
 	}
 }
 
+func TestHandler_XRequestId(t *testing.T) {
+	var buf bytes.Buffer
+	h := NewHandler(false)
+	h.CLFLogger = log.New(&buf, "", 0)
+
+	cases := []map[string]string{
+		{"X-Request-Id": "abc123", "Request-Id": ""},          // X-Request-Id is used.
+		{"X-REQUEST-ID": "cde", "Request-Id": ""},             // X-REQUEST-ID is used.
+		{"X-Request-Id": "", "Request-Id": "foobarzoo"},       // Request-Id is used.
+		{"X-Request-Id": "abc123", "Request-Id": "foobarzoo"}, // X-Request-Id takes precedence.
+		{"X-Request-Id": "", "Request-Id": ""},                // v1 UUID generated.
+	}
+
+	for _, c := range cases {
+		t.Run(fmt.Sprint(c), func(t *testing.T) {
+			buf.Reset()
+			req := MustNewRequest("GET", "/ping", nil)
+			req.RemoteAddr = "127.0.0.1"
+
+			// Set the relevant request ID headers
+			var allEmpty = true
+			for k, v := range c {
+				req.Header.Set(k, v)
+				if v != "" {
+					allEmpty = false
+				}
+			}
+
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, req)
+
+			// Split up the HTTP log line. The request ID is currently located in
+			// index 12. If the log line gets changed in the future, this test
+			// will likely break and the index will need to be updated.
+			parts := strings.Split(buf.String(), " ")
+			i := 12
+
+			// If neither header is set then we expect a v1 UUID to be generated.
+			if allEmpty {
+				if got, exp := len(parts[i]), 36; got != exp {
+					t.Fatalf("got ID of length %d, expected one of length %d", got, exp)
+				}
+			} else if c["X-Request-Id"] != "" {
+				if got, exp := parts[i], c["X-Request-Id"]; got != exp {
+					t.Fatalf("got ID of %q, expected %q", got, exp)
+				}
+			} else if c["X-REQUEST-ID"] != "" {
+				if got, exp := parts[i], c["X-REQUEST-ID"]; got != exp {
+					t.Fatalf("got ID of %q, expected %q", got, exp)
+				}
+			} else {
+				if got, exp := parts[i], c["Request-Id"]; got != exp {
+					t.Fatalf("got ID of %q, expected %q", got, exp)
+				}
+			}
+
+			// Check response headers
+			if got, exp := w.Header().Get("Request-Id"), parts[i]; got != exp {
+				t.Fatalf("Request-Id header was %s, expected %s", got, exp)
+			} else if got, exp := w.Header().Get("X-Request-Id"), parts[i]; got != exp {
+				t.Fatalf("X-Request-Id header was %s, expected %s", got, exp)
+			}
+		})
+	}
+}
+
 // NewHandler represents a test wrapper for httpd.Handler.
 type Handler struct {
 	*httpd.Handler
