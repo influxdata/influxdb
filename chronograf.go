@@ -29,6 +29,7 @@ const (
 	ErrAlertNotFound     = Error("alert not found")
 	ErrAuthentication    = Error("user not authenticated")
 	ErrUninitialized     = Error("client uninitialized. Call Open() method")
+	ErrInvalidAxis       = Error("Unexpected axis in cell. Valid axes are 'x', 'y', and 'y2'")
 )
 
 // Error is a domain error encountered while processing chronograf requests
@@ -566,6 +567,11 @@ type Dashboard struct {
 	Name      string          `json:"name"`
 }
 
+// Axis represents the visible extents of a visualization
+type Axis struct {
+	Bounds [2]int64 `json:"bounds"` // bounds are an ordered 2-tuple consisting of lower and upper axis extents, respectively
+}
+
 // DashboardCell holds visual and query information for a cell
 type DashboardCell struct {
 	ID      string           `json:"i"`
@@ -575,6 +581,7 @@ type DashboardCell struct {
 	H       int32            `json:"h"`
 	Name    string           `json:"name"`
 	Queries []DashboardQuery `json:"queries"`
+	Axes    map[string]Axis  `json:"axes"`
 	Type    string           `json:"type"`
 }
 
