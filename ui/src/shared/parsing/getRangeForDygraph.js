@@ -1,10 +1,18 @@
 const PADDING_FACTOR = 0.1
 
-export default function getRange(
+const considerZero = (userNumber, number) => {
+  if (typeof userNumber === 'number') {
+    return userNumber
+  }
+
+  return number
+}
+
+const getRange = (
   timeSeries,
   userSelectedRange = [null, null],
   ruleValues = {value: null, rangeValue: null}
-) {
+) => {
   const {value, rangeValue, operator} = ruleValues
 
   const subtractPadding = val => +val - Math.abs(val * PADDING_FACTOR)
@@ -56,5 +64,7 @@ export default function getRange(
   const [userMin, userMax] = userSelectedRange
   const [min, max] = range
 
-  return [+userMin || min, +userMax || max]
+  return [considerZero(userMin, min), considerZero(userMax, max)]
 }
+
+export default getRange
