@@ -11,16 +11,27 @@ import {DROPDOWN_MENU_MAX_HEIGHT} from 'shared/constants/index'
 
 class TimeRangeDropdown extends Component {
   constructor(props) {
+    const {lower, upper} = props.selected
+
     super(props)
+
     this.state = {
       autobind: false,
       isOpen: false,
       isCustomTimeRangeOpen: false,
-      customTimeRange: {
-        lower: '',
-        upper: '',
-      },
+      customTimeRange:
+        moment(props.selected.upper).isValid() &&
+        moment(props.selected.lower).isValid()
+          ? {
+              lower,
+              upper,
+            }
+          : {
+              lower: '',
+              upper: '',
+            },
     }
+
     this.findTimeRangeInputValue = ::this.findTimeRangeInputValue
     this.handleSelection = ::this.handleSelection
     this.toggleMenu = ::this.toggleMenu
