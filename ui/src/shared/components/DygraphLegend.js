@@ -83,7 +83,13 @@ const DygraphLegend = ({
         >
           <span className="icon search" />
         </button>
-        <button className="btn btn-default btn-sm" onClick={onSnip}>
+        <button
+          className={classnames('btn btn-sm', {
+            'btn-default': !isSnipped,
+            'btn-primary': isSnipped,
+          })}
+          onClick={onSnip}
+        >
           Snip
         </button>
       </div>
