@@ -290,6 +290,7 @@ func (e *Engine) enableSnapshotCompactions() {
 		return
 	}
 
+	e.Compactor.EnableSnapshots()
 	quit := make(chan struct{})
 	e.snapDone = quit
 	e.snapWG.Add(1)
@@ -304,6 +305,7 @@ func (e *Engine) disableSnapshotCompactions() {
 	if e.snapDone != nil {
 		close(e.snapDone)
 		e.snapDone = nil
+		e.Compactor.DisableSnapshots()
 	}
 
 	e.mu.Unlock()

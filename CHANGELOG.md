@@ -23,6 +23,12 @@
 - [#8601](https://github.com/influxdata/influxdb/pull/8601): Fixed time boundaries for continuous queries with time zones.
 - [#8097](https://github.com/influxdata/influxdb/pull/8097): Return query parsing errors in CSV formats.
 
+## v1.3.2 [unreleased]
+
+### Bugfixes
+
+- [#8629](https://github.com/influxdata/influxdb/pull/8629): Interrupt in progress TSM compactions
+
 ## v1.3.1 [unreleased]
 
 ### Bugfixes

@@ -591,6 +591,11 @@ type Compactor struct {
 	snapshotsEnabled   bool
 	compactionsEnabled bool
 
+	// The channel to signal that any in progress snapshots should be aborted.
+	snapshotsInterrupt chan struct{}
+	// The channel to signal that any in progress level compactions should be aborted.
+	compactionsInterrupt chan struct{}
+
 	files map[string]struct{}
 }
 
@@ -604,6 +609,9 @@ func (c *Compactor) Open() {
 
 	c.snapshotsEnabled = true
 	c.compactionsEnabled = true
+	c.snapshotsInterrupt = make(chan struct{})
+	c.compactionsInterrupt = make(chan struct{})
+
 	c.files = make(map[string]struct{})
 }
 
@@ -616,12 +624,22 @@ func (c *Compactor) Close() {
 	}
 	c.snapshotsEnabled = false
 	c.compactionsEnabled = false
+	if c.compactionsInterrupt != nil {
+		close(c.compactionsInterrupt)
+	}
+	if c.snapshotsInterrupt != nil {
+		close(c.snapshotsInterrupt)
+	}
 }
 
 // DisableSnapshots disables the compactor from performing snapshots.
 func (c *Compactor) DisableSnapshots() {
 	c.mu.Lock()
 	c.snapshotsEnabled = false
+	if c.snapshotsInterrupt != nil {
+		close(c.snapshotsInterrupt)
+		c.snapshotsInterrupt = nil
+	}
 	c.mu.Unlock()
 }
 
@@ -629,6 +647,9 @@ func (c *Compactor) DisableSnapshots() {
 func (c *Compactor) EnableSnapshots() {
 	c.mu.Lock()
 	c.snapshotsEnabled = true
+	if c.snapshotsInterrupt == nil {
+		c.snapshotsInterrupt = make(chan struct{})
+	}
 	c.mu.Unlock()
 }
 
@@ -636,6 +657,10 @@ func (c *Compactor) EnableSnapshots() {
 func (c *Compactor) DisableCompactions() {
 	c.mu.Lock()
 	c.compactionsEnabled = false
+	if c.compactionsInterrupt != nil {
+		close(c.compactionsInterrupt)
+		c.compactionsInterrupt = nil
+	}
 	c.mu.Unlock()
 }
 
@@ -643,6 +668,9 @@ func (c *Compactor) DisableCompactions() {
 func (c *Compactor) EnableCompactions() {
 	c.mu.Lock()
 	c.compactionsEnabled = true
+	if c.compactionsInterrupt == nil {
+		c.compactionsInterrupt = make(chan struct{})
+	}
 	c.mu.Unlock()
 }
 
@@ -650,13 +678,14 @@ func (c *Compactor) EnableCompactions() {
 func (c *Compactor) WriteSnapshot(cache *Cache) ([]string, error) {
 	c.mu.RLock()
 	enabled := c.snapshotsEnabled
+	intC := c.snapshotsInterrupt
 	c.mu.RUnlock()
 
 	if !enabled {
 		return nil, errSnapshotsDisabled
 	}
 
-	iter := NewCacheKeyIterator(cache, tsdb.DefaultMaxPointsPerBlock)
+	iter := NewCacheKeyIterator(cache, tsdb.DefaultMaxPointsPerBlock, intC)
 	files, err := c.writeNewFiles(c.FileStore.NextGeneration(), 0, iter)
 
 	// See if we were disabled while writing a snapshot
@@ -717,7 +746,11 @@ func (c *Compactor) compact(fast bool, tsmFiles []string) ([]string, error) {
 		return nil, nil
 	}
 
-	tsm, err := NewTSMKeyIterator(size, fast, trs...)
+	c.mu.RLock()
+	intC := c.compactionsInterrupt
+	c.mu.RUnlock()
+
+	tsm, err := NewTSMKeyIterator(size, fast, intC, trs...)
 	if err != nil {
 		return nil, err
 	}
@@ -994,7 +1027,8 @@ type tsmKeyIterator struct {
 
 	// merged are encoded blocks that have been combined or used as is
 	// without decode
-	merged blocks
+	merged    blocks
+	interrupt chan struct{}
 }
 
 type block struct {
@@ -1046,7 +1080,7 @@ func (a blocks) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 
 // NewTSMKeyIterator returns a new TSM key iterator from readers.
 // size indicates the maximum number of values to encode in a single block.
-func NewTSMKeyIterator(size int, fast bool, readers ...*TSMReader) (KeyIterator, error) {
+func NewTSMKeyIterator(size int, fast bool, interrupt chan struct{}, readers ...*TSMReader) (KeyIterator, error) {
 	var iter []*BlockIterator
 	for _, r := range readers {
 		iter = append(iter, r.BlockIterator())
@@ -1060,6 +1094,7 @@ func NewTSMKeyIterator(size int, fast bool, readers ...*TSMReader) (KeyIterator,
 		iterators: iter,
 		fast:      fast,
 		buf:       make([]blocks, len(iter)),
+		interrupt: interrupt,
 	}, nil
 }
 
@@ -1203,6 +1238,13 @@ func (k *tsmKeyIterator) merge() {
 }
 
 func (k *tsmKeyIterator) Read() (string, int64, int64, []byte, error) {
+	// See if compactions were disabled while we were running.
+	select {
+	case <-k.interrupt:
+		return "", 0, 0, nil, errCompactionAborted
+	default:
+	}
+
 	if len(k.merged) == 0 {
 		return "", 0, 0, nil, k.err
 	}
@@ -1228,9 +1270,10 @@ type cacheKeyIterator struct {
 	size  int
 	order []string
 
-	i      int
-	blocks [][]cacheBlock
-	ready  []chan struct{}
+	i         int
+	blocks    [][]cacheBlock
+	ready     []chan struct{}
+	interrupt chan struct{}
 }
 
 type cacheBlock struct {
@@ -1241,7 +1284,7 @@ type cacheBlock struct {
 }
 
 // NewCacheKeyIterator returns a new KeyIterator from a Cache.
-func NewCacheKeyIterator(cache *Cache, size int) KeyIterator {
+func NewCacheKeyIterator(cache *Cache, size int, interrupt chan struct{}) KeyIterator {
 	keys := cache.Keys()
 
 	chans := make([]chan struct{}, len(keys))
@@ -1250,12 +1293,13 @@ func NewCacheKeyIterator(cache *Cache, size int) KeyIterator {
 	}
 
 	cki := &cacheKeyIterator{
-		i:      -1,
-		size:   size,
-		cache:  cache,
-		order:  keys,
-		ready:  chans,
-		blocks: make([][]cacheBlock, len(keys)),
+		i:         -1,
+		size:      size,
+		cache:     cache,
+		order:     keys,
+		ready:     chans,
+		blocks:    make([][]cacheBlock, len(keys)),
+		interrupt: interrupt,
 	}
 	go cki.encode()
 	return cki
@@ -1334,6 +1378,13 @@ func (c *cacheKeyIterator) Next() bool {
 }
 
 func (c *cacheKeyIterator) Read() (string, int64, int64, []byte, error) {
+	// See if snapshot compactions were disabled while we were running.
+	select {
+	case <-c.interrupt:
+		return "", 0, 0, nil, errCompactionAborted
+	default:
+	}
+
 	blk := c.blocks[c.i][0]
 	return blk.k, blk.minTime, blk.maxTime, blk.b, blk.err
 }
