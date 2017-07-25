@@ -570,7 +570,13 @@ func (s *Store) DeleteMeasurement(database, name string) error {
 	shards := s.filterShards(byDatabase(database))
 	s.mu.RUnlock()
 
+	// Limit to 1 delete for each shard since expanding the measurement into the list
+	// of series keys can be very memory intensive if run concurrently.
+	limit := limiter.NewFixed(1)
 	return s.walkShards(shards, func(sh *Shard) error {
+		limit.Take()
+		defer limit.Release()
+
 		if err := sh.DeleteMeasurement([]byte(name)); err != nil {
 			return err
 		}
@@ -834,6 +840,10 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
+	// Limit to 1 delete for each shard since expanding the measurement into the list
+	// of series keys can be very memory intensive if run concurrently.
+	limit := limiter.NewFixed(1)
+
 	return s.walkShards(shards, func(sh *Shard) error {
 		// Determine list of measurements from sources.
 		// Use all measurements if no FROM clause was provided.
@@ -851,6 +861,9 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 			}
 		}
 		sort.Strings(names)
+
+		limit.Take()
+		defer limit.Release()
 
 		// Find matching series keys for each measurement.
 		var keys [][]byte
