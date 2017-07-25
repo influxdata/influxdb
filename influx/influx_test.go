@@ -62,38 +62,52 @@ func Test_Influx_MakesRequestsToQueryEndpoint(t *testing.T) {
 	}
 }
 
-type MockBearer struct {
+type MockAuthorization struct {
 	Bearer string
 	Error  error
 }
 
-func (m *MockBearer) Token(username string) (string, error) {
-	return m.Bearer, m.Error
+func (m *MockAuthorization) Set(req *http.Request) error {
+	return m.Error
 }
 func Test_Influx_AuthorizationBearer(t *testing.T) {
 	t.Parallel()
-	want := "Bearer ********"
 	ts := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		rw.WriteHeader(http.StatusOK)
 		rw.Write([]byte(`{}`))
-		got := r.Header.Get("Authorization")
-		if got != want {
-			t.Errorf("Test_Influx_AuthorizationBearer got %s want %s", got, want)
+		auth := r.Header.Get("Authorization")
+		tokenString := strings.Split(auth, " ")[1]
+		token, err := gojwt.Parse(tokenString, func(token *gojwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*gojwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+			}
+			return []byte("42"), nil
+		})
+		if err != nil {
+			t.Errorf("Invalid token %v", err)
 		}
+
+		if claims, ok := token.Claims.(gojwt.MapClaims); ok && token.Valid {
+			got := claims["username"]
+			want := "AzureDiamond"
+			if got != want {
+				t.Errorf("Test_Influx_AuthorizationBearer got %s want %s", got, want)
+			}
+			return
+		}
+		t.Errorf("Invalid token %v", token)
 	}))
 	defer ts.Close()
 
-	bearer := &MockBearer{
-		Bearer: "********",
+	src := &chronograf.Source{
+		Username:     "AzureDiamond",
+		URL:          ts.URL,
+		SharedSecret: "42",
 	}
-
-	u, _ := url.Parse(ts.URL)
-	u.User = url.UserPassword("AzureDiamond", "hunter2")
 	series := &influx.Client{
-		URL:    u,
-		Bearer: bearer,
 		Logger: log.New(log.DebugLevel),
 	}
+	series.Connect(context.Background(), src)
 
 	query := chronograf.Query{
 		Command: "show databases",
@@ -161,16 +175,16 @@ func Test_Influx_AuthorizationBearerCtx(t *testing.T) {
 
 func Test_Influx_AuthorizationBearerFailure(t *testing.T) {
 	t.Parallel()
-	bearer := &MockBearer{
+	bearer := &MockAuthorization{
 		Error: fmt.Errorf("cracked1337"),
 	}
 
 	u, _ := url.Parse("http://haxored.net")
 	u.User = url.UserPassword("AzureDiamond", "hunter2")
 	series := &influx.Client{
-		URL:    u,
-		Bearer: bearer,
-		Logger: log.New(log.DebugLevel),
+		URL:        u,
+		Authorizer: bearer,
+		Logger:     log.New(log.DebugLevel),
 	}
 
 	query := chronograf.Query{

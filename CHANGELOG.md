@@ -7,6 +7,7 @@
 1. [#1751](https://github.com/influxdata/chronograf/pull/1751): Fix typo that may have affected PagerDuty node creation in Kapacitor
 1. [#1756](https://github.com/influxdata/chronograf/pull/1756): Prevent 'auto' GROUP BY as option in Kapacitor rule builder when applying a function to a field
 1. [#1773](https://github.com/influxdata/chronograf/pull/1773): Prevent clipped buttons in Rule Builder, Data Explorer, and Configuration pages
+1. [#1776](https://github.com/influxdata/chronograf/pull/1776): Fix JWT for the write path
 
 ### Features
 1. [#1717](https://github.com/influxdata/chronograf/pull/1717): View server generated TICKscripts
