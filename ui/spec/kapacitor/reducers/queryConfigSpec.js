@@ -1,4 +1,4 @@
-import reducer from 'src/data_explorer/reducers/queryConfigs'
+import reducer from 'src/kapacitor/reducers/queryConfigs'
 import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 import {
   chooseNamespace,
@@ -12,11 +12,11 @@ import {
   updateQueryConfig,
   updateRawQuery,
   editQueryStatus,
-} from 'src/data_explorer/actions/view'
+} from 'src/kapacitor/actions/view'
 
 const fakeAddQueryAction = (panelID, queryID) => {
   return {
-    type: 'DE_ADD_QUERY',
+    type: 'KAPA_ADD_QUERY',
     payload: {panelID, queryID},
   }
 }
@@ -25,7 +25,7 @@ function buildInitialState(queryId, params) {
   return Object.assign({}, defaultQueryConfig(queryId), params)
 }
 
-describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
+describe('Chronograf.Reducers.Kapacitor.queryConfigs', () => {
   const queryId = 123
 
   it('can add a query', () => {
@@ -117,7 +117,26 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
       })
     })
 
-    describe('DE_TOGGLE_FIELD', () => {
+    describe('when the query is part of a kapacitor rule', () => {
+      it('only allows one field', () => {
+        expect(state[queryId].fields.length).to.equal(1)
+
+        const isKapacitorRule = true
+        const newState = reducer(
+          state,
+          toggleField(
+            queryId,
+            {field: 'a different field', funcs: []},
+            isKapacitorRule
+          )
+        )
+
+        expect(newState[queryId].fields.length).to.equal(1)
+        expect(newState[queryId].fields[0].field).to.equal('a different field')
+      })
+    })
+
+    describe('KAPA_TOGGLE_FIELD', () => {
       it('can toggle multiple fields', () => {
         expect(state[queryId].fields.length).to.equal(1)
 
@@ -149,7 +168,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
     })
   })
 
-  describe('DE_APPLY_FUNCS_TO_FIELD', () => {
+  describe('KAPA_APPLY_FUNCS_TO_FIELD', () => {
     it('applies functions to a field without any existing functions', () => {
       const initialState = {
         [queryId]: {
@@ -207,7 +226,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
     })
   })
 
-  describe('DE_CHOOSE_TAG', () => {
+  describe('KAPA_CHOOSE_TAG', () => {
     it('adds a tag key/value to the query', () => {
       const initialState = {
         [queryId]: buildInitialState(queryId, {
@@ -268,7 +287,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
     })
   })
 
-  describe('DE_GROUP_BY_TAG', () => {
+  describe('KAPA_GROUP_BY_TAG', () => {
     it('adds a tag key/value to the query', () => {
       const initialState = {
         [queryId]: {
@@ -312,7 +331,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
     })
   })
 
-  describe('DE_TOGGLE_TAG_ACCEPTANCE', () => {
+  describe('KAPA_TOGGLE_TAG_ACCEPTANCE', () => {
     it('it toggles areTagsAccepted', () => {
       const initialState = {
         [queryId]: buildInitialState(queryId),
@@ -327,7 +346,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
     })
   })
 
-  describe('DE_GROUP_BY_TIME', () => {
+  describe('KAPA_GROUP_BY_TIME', () => {
     it('applys the appropriate group by time', () => {
       const time = '100y'
       const initialState = {
