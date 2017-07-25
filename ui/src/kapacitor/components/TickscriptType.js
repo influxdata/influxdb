@@ -2,7 +2,7 @@ import React, {PropTypes} from 'react'
 const STREAM = 'stream'
 const BATCH = 'batch'
 
-const TickscriptType = ({type, onChangeType}) => (
+const TickscriptType = ({type, onChangeType}) =>
   <ul className="nav nav-tablist nav-tablist-sm">
     <li
       className={type === STREAM ? 'active' : ''}
@@ -17,7 +17,6 @@ const TickscriptType = ({type, onChangeType}) => (
       Batch
     </li>
   </ul>
-)
 
 const {string, func} = PropTypes
 

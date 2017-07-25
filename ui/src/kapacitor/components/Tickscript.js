@@ -15,7 +15,7 @@ const Tickscript = ({
   onStartEditID,
   onStopEditID,
   isNewTickscript,
-}) => (
+}) =>
   <div className="page">
     <TickscriptHeader
       task={task}
@@ -46,7 +46,6 @@ const Tickscript = ({
       </div>
     </FancyScrollbar>
   </div>
-)
 
 const {arrayOf, bool, func, shape, string} = PropTypes
 

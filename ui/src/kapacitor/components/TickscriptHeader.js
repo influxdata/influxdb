@@ -17,7 +17,7 @@ const TickscriptHeader = ({
   onChangeType,
   onSelectDbrps,
   isNewTickscript,
-}) => (
+}) =>
   <div className="page-header">
     <div className="page-header__container">
       <div className="page-header__left">
@@ -43,7 +43,6 @@ const TickscriptHeader = ({
       </div>
     </div>
   </div>
-)
 
 const {arrayOf, bool, func, shape, string} = PropTypes
 

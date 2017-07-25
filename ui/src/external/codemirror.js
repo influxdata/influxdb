@@ -9,11 +9,13 @@ CodeMirror.defineSimpleMode = function(name, states) {
 
 CodeMirror.simpleMode = function(config, states) {
   ensureState(states, 'start')
-  const states_ = {}, meta = states.meta || {}
+  const states_ = {},
+    meta = states.meta || {}
   let hasIndentation = false
   for (const state in states) {
     if (state !== meta && states.hasOwnProperty(state)) {
-      const list = (states_[state] = []), orig = states[state]
+      const list = (states_[state] = []),
+        orig = states[state]
       for (let i = 0; i < orig.length; i++) {
         const data = orig[i]
         list.push(new Rule(data, states))
@@ -51,9 +53,10 @@ CodeMirror.simpleMode = function(config, states) {
         s.persistentStates = {
           mode: pers.mode,
           spec: pers.spec,
-          state: pers.state === state.localState
-            ? s.localState
-            : CodeMirror.copyState(pers.mode, pers.state),
+          state:
+            pers.state === state.localState
+              ? s.localState
+              : CodeMirror.copyState(pers.mode, pers.state),
           next: s.persistentStates,
         }
       }
@@ -144,7 +147,8 @@ function tokenFunction(states, config) {
 
       tok = state.local.mode.token(stream, state.localState)
       if (
-        state.local.endScan && (m = state.local.endScan.exec(stream.current()))
+        state.local.endScan &&
+        (m = state.local.endScan.exec(stream.current()))
       ) {
         stream.pos = stream.start + m.index
       }
@@ -278,7 +282,8 @@ function indentFunction(states, meta) {
       return CodeMirror.Pass
     }
 
-    let pos = state.indent.length - 1, rules = states[state.state]
+    let pos = state.indent.length - 1,
+      rules = states[state.state]
     scan: for (;;) {
       for (let i = 0; i < rules.length; i++) {
         const rule = rules[i]

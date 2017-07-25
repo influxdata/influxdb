@@ -53,11 +53,10 @@ class TickscriptNewID extends Component {
   }
 }
 
-export const TickscriptEditID = ({id}) => (
+export const TickscriptEditID = ({id}) =>
   <h1 className="page-header__title page-header kapacitor-theme">
     {id}
   </h1>
-)
 
 const {bool, func, string} = PropTypes
 
