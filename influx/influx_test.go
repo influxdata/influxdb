@@ -182,9 +182,9 @@ func Test_Influx_AuthorizationBearerFailure(t *testing.T) {
 	u, _ := url.Parse("http://haxored.net")
 	u.User = url.UserPassword("AzureDiamond", "hunter2")
 	series := &influx.Client{
-		URL:           u,
-		Authorization: bearer,
-		Logger:        log.New(log.DebugLevel),
+		URL:        u,
+		Authorizer: bearer,
+		Logger:     log.New(log.DebugLevel),
 	}
 
 	query := chronograf.Query{

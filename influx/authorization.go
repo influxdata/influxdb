@@ -9,8 +9,8 @@ import (
 	"github.com/influxdata/chronograf"
 )
 
-// Authorization adds optional authorization header to request
-type Authorization interface {
+// Authorizer adds optional authorization header to request
+type Authorizer interface {
 	// Set may manipulate the request by adding the Authorization header
 	Set(req *http.Request) error
 }
@@ -22,7 +22,7 @@ type NoAuthorization struct{}
 func (n *NoAuthorization) Set(req *http.Request) error { return nil }
 
 // DefaultAuthorization creates either a shared JWT builder, basic auth or Noop
-func DefaultAuthorization(src *chronograf.Source) Authorization {
+func DefaultAuthorization(src *chronograf.Source) Authorizer {
 	// Optionally, add the shared secret JWT token creation
 	if src.Username != "" && src.SharedSecret != "" {
 		return &BearerJWT{

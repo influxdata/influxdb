@@ -28,7 +28,7 @@ var (
 // Client is a device for retrieving time series data from an InfluxDB instance
 type Client struct {
 	URL                *url.URL
-	Authorization      Authorization
+	Authorizer         Authorizer
 	InsecureSkipVerify bool
 	Logger             chronograf.Logger
 }
@@ -72,8 +72,8 @@ func (c *Client) query(u *url.URL, q chronograf.Query) (chronograf.Response, err
 	params.Set("epoch", "ms") // TODO(timraymond): set this based on analysis
 	req.URL.RawQuery = params.Encode()
 
-	if c.Authorization != nil {
-		if err := c.Authorization.Set(req); err != nil {
+	if c.Authorizer != nil {
+		if err := c.Authorizer.Set(req); err != nil {
 			logs.Error("Error setting authorization header ", err)
 			return nil, err
 		}
@@ -154,7 +154,7 @@ func (c *Client) Connect(ctx context.Context, src *chronograf.Source) error {
 	if err != nil {
 		return err
 	}
-	c.Authorization = DefaultAuthorization(src)
+	c.Authorizer = DefaultAuthorization(src)
 	// Only allow acceptance of all certs if the scheme is https AND the user opted into to the setting.
 	if u.Scheme == "https" && src.InsecureSkipVerify {
 		c.InsecureSkipVerify = src.InsecureSkipVerify
