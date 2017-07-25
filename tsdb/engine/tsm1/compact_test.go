@@ -830,7 +830,7 @@ func TestTSMKeyIterator_Single(t *testing.T) {
 
 	r := MustTSMReader(dir, 1, writes)
 
-	iter, err := tsm1.NewTSMKeyIterator(1, false, r)
+	iter, err := tsm1.NewTSMKeyIterator(1, false, nil, r)
 	if err != nil {
 		t.Fatalf("unexpected error creating WALKeyIterator: %v", err)
 	}
@@ -890,7 +890,7 @@ func TestTSMKeyIterator_Duplicate(t *testing.T) {
 
 	r2 := MustTSMReader(dir, 2, writes2)
 
-	iter, err := tsm1.NewTSMKeyIterator(1, false, r1, r2)
+	iter, err := tsm1.NewTSMKeyIterator(1, false, nil, r1, r2)
 	if err != nil {
 		t.Fatalf("unexpected error creating WALKeyIterator: %v", err)
 	}
@@ -951,7 +951,7 @@ func TestTSMKeyIterator_MultipleKeysDeleted(t *testing.T) {
 	r2 := MustTSMReader(dir, 2, points2)
 	r2.Delete([]string{"cpu,host=A#!~#count"})
 
-	iter, err := tsm1.NewTSMKeyIterator(1, false, r1, r2)
+	iter, err := tsm1.NewTSMKeyIterator(1, false, nil, r1, r2)
 	if err != nil {
 		t.Fatalf("unexpected error creating WALKeyIterator: %v", err)
 	}
@@ -993,6 +993,41 @@ func TestTSMKeyIterator_MultipleKeysDeleted(t *testing.T) {
 	}
 }
 
+// Tests that the TSMKeyIterator will abort if the interrupt channel is closed
+func TestTSMKeyIterator_Abort(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	v1 := tsm1.NewValue(1, 1.1)
+	writes := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v1},
+	}
+
+	r := MustTSMReader(dir, 1, writes)
+
+	intC := make(chan struct{})
+	iter, err := tsm1.NewTSMKeyIterator(1, false, intC, r)
+	if err != nil {
+		t.Fatalf("unexpected error creating WALKeyIterator: %v", err)
+	}
+
+	var aborted bool
+	for iter.Next() {
+		// Abort
+		close(intC)
+
+		_, _, _, _, err := iter.Read()
+		if err == nil {
+			t.Fatalf("unexpected error read: %v", err)
+		}
+		aborted = err != nil
+	}
+
+	if !aborted {
+		t.Fatalf("iteration not aborted")
+	}
+}
+
 func TestCacheKeyIterator_Single(t *testing.T) {
 	v0 := tsm1.NewValue(1, 1.0)
 
@@ -1008,7 +1043,7 @@ func TestCacheKeyIterator_Single(t *testing.T) {
 		}
 	}
 
-	iter := tsm1.NewCacheKeyIterator(c, 1)
+	iter := tsm1.NewCacheKeyIterator(c, 1, nil)
 	var readValues bool
 	for iter.Next() {
 		key, _, _, block, err := iter.Read()
@@ -1056,7 +1091,7 @@ func TestCacheKeyIterator_Chunked(t *testing.T) {
 		}
 	}
 
-	iter := tsm1.NewCacheKeyIterator(c, 1)
+	iter := tsm1.NewCacheKeyIterator(c, 1, nil)
 	var readValues bool
 	var chunk int
 	for iter.Next() {
@@ -1087,6 +1122,43 @@ func TestCacheKeyIterator_Chunked(t *testing.T) {
 
 	if !readValues {
 		t.Fatalf("failed to read any values")
+	}
+}
+
+// Tests that the CacheKeyIterator will abort if the interrupt channel is closed
+func TestCacheKeyIterator_Abort(t *testing.T) {
+	v0 := tsm1.NewValue(1, 1.0)
+
+	writes := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v0},
+	}
+
+	c := tsm1.NewCache(0, "")
+
+	for k, v := range writes {
+		if err := c.Write(k, v); err != nil {
+			t.Fatalf("failed to write key foo to cache: %s", err.Error())
+		}
+	}
+
+	intC := make(chan struct{})
+
+	iter := tsm1.NewCacheKeyIterator(c, 1, intC)
+
+	var aborted bool
+	for iter.Next() {
+		//Abort
+		close(intC)
+
+		_, _, _, _, err := iter.Read()
+		if err == nil {
+			t.Fatalf("unexpected error read: %v", err)
+		}
+		aborted = err != nil
+	}
+
+	if !aborted {
+		t.Fatalf("iteration not aborted")
 	}
 }
 
