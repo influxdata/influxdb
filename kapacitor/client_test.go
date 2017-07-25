@@ -793,6 +793,13 @@ func TestClient_updateStatus(t *testing.T) {
 			resTask: client.Task{
 				ID:     "howdy",
 				Status: client.Disabled,
+				Type:   client.StreamTask,
+				DBRPs: []client.DBRP{
+					{
+						Database:        "db",
+						RetentionPolicy: "rp",
+					},
+				},
 				Link: client.Link{
 					Href: "/kapacitor/v1/tasks/howdy",
 				},
@@ -803,6 +810,10 @@ func TestClient_updateStatus(t *testing.T) {
 			},
 			want: &Task{
 				ID:         "howdy",
+				Type:       "stream",
+				DB:         "db",
+				RP:         "rp",
+				Status:     "disabled",
 				Href:       "/kapacitor/v1/tasks/howdy",
 				HrefOutput: "/kapacitor/v1/tasks/howdy/output",
 				Rule:       chronograf.AlertRule{},
@@ -842,7 +853,14 @@ func TestClient_updateStatus(t *testing.T) {
 				status: client.Enabled,
 			},
 			resTask: client.Task{
-				ID:     "howdy",
+				ID:   "howdy",
+				Type: client.StreamTask,
+				DBRPs: []client.DBRP{
+					{
+						Database:        "db",
+						RetentionPolicy: "rp",
+					},
+				},
 				Status: client.Enabled,
 				Link: client.Link{
 					Href: "/kapacitor/v1/tasks/howdy",
@@ -854,6 +872,10 @@ func TestClient_updateStatus(t *testing.T) {
 			},
 			want: &Task{
 				ID:         "howdy",
+				Type:       "stream",
+				DB:         "db",
+				RP:         "rp",
+				Status:     "enabled",
 				Href:       "/kapacitor/v1/tasks/howdy",
 				HrefOutput: "/kapacitor/v1/tasks/howdy/output",
 				Rule:       chronograf.AlertRule{},
@@ -968,7 +990,14 @@ func TestClient_Update(t *testing.T) {
 				},
 			},
 			resTask: client.Task{
-				ID:     "howdy",
+				ID:   "howdy",
+				Type: client.StreamTask,
+				DBRPs: []client.DBRP{
+					{
+						Database:        "db",
+						RetentionPolicy: "rp",
+					},
+				},
 				Status: client.Enabled,
 				Link: client.Link{
 					Href: "/kapacitor/v1/tasks/howdy",
@@ -1016,7 +1045,14 @@ func TestClient_Update(t *testing.T) {
 				},
 			},
 			resTask: client.Task{
-				ID:     "howdy",
+				ID:   "howdy",
+				Type: client.StreamTask,
+				DBRPs: []client.DBRP{
+					{
+						Database:        "db",
+						RetentionPolicy: "rp",
+					},
+				},
 				Status: client.Disabled,
 				Link: client.Link{
 					Href: "/kapacitor/v1/tasks/howdy",
@@ -1123,6 +1159,7 @@ func TestClient_Create(t *testing.T) {
 			resTask: client.Task{
 				ID:     "chronograf-v1-howdy",
 				Status: client.Enabled,
+				Type:   client.StreamTask,
 				Link: client.Link{
 					Href: "/kapacitor/v1/tasks/chronograf-v1-howdy",
 				},
@@ -1141,6 +1178,10 @@ func TestClient_Create(t *testing.T) {
 			},
 			want: &Task{
 				ID:         "chronograf-v1-howdy",
+				Type:       "stream",
+				DB:         "db",
+				RP:         "rp",
+				Status:     "enabled",
 				Href:       "/kapacitor/v1/tasks/chronograf-v1-howdy",
 				HrefOutput: "/kapacitor/v1/tasks/chronograf-v1-howdy/output",
 				Rule: chronograf.AlertRule{
