@@ -8,6 +8,7 @@ import (
 	"net/url"
 
 	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/influx"
 )
 
 // ValidInfluxRequest checks if queries specify a command.
@@ -106,10 +107,9 @@ func (h *Service) Write(w http.ResponseWriter, r *http.Request) {
 		req.Host = u.Host
 		req.URL = u
 		// Because we are acting as a proxy, influxdb needs to have the
-		// basic auth information set as a header directly
-		if src.Username != "" && src.Password != "" {
-			req.SetBasicAuth(src.Username, src.Password)
-		}
+		// basic auth or bearer token information set as a header directly
+		auth := influx.DefaultAuthorization(&src)
+		auth.Set(req)
 	}
 	proxy := &httputil.ReverseProxy{
 		Director: director,

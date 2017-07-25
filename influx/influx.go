@@ -28,7 +28,7 @@ var (
 // Client is a device for retrieving time series data from an InfluxDB instance
 type Client struct {
 	URL                *url.URL
-	Bearer             Bearer
+	Authorization      Authorization
 	InsecureSkipVerify bool
 	Logger             chronograf.Logger
 }
@@ -72,13 +72,11 @@ func (c *Client) query(u *url.URL, q chronograf.Query) (chronograf.Response, err
 	params.Set("epoch", "ms") // TODO(timraymond): set this based on analysis
 	req.URL.RawQuery = params.Encode()
 
-	if c.Bearer != nil && u.User != nil {
-		token, err := c.Bearer.Token(u.User.Username())
-		if err != nil {
-			logs.Error("Error creating token", err)
-			return nil, fmt.Errorf("Unable to create token")
+	if c.Authorization != nil {
+		if err := c.Authorization.Set(req); err != nil {
+			logs.Error("Error setting authorization header ", err)
+			return nil, err
 		}
-		req.Header.Set("Authorization", "Bearer "+token)
 	}
 
 	hc := &http.Client{}
@@ -156,22 +154,13 @@ func (c *Client) Connect(ctx context.Context, src *chronograf.Source) error {
 	if err != nil {
 		return err
 	}
-	u.User = url.UserPassword(src.Username, src.Password)
+	c.Authorization = DefaultAuthorization(src)
 	// Only allow acceptance of all certs if the scheme is https AND the user opted into to the setting.
 	if u.Scheme == "https" && src.InsecureSkipVerify {
 		c.InsecureSkipVerify = src.InsecureSkipVerify
 	}
-	c.URL = u
 
-	// Optionally, add the shared secret JWT token creation
-	if src.Username != "" && src.SharedSecret != "" {
-		c.Bearer = &BearerJWT{
-			src.SharedSecret,
-		}
-	} else {
-		// Clear out the bearer if not needed
-		c.Bearer = nil
-	}
+	c.URL = u
 	return nil
 }
 
