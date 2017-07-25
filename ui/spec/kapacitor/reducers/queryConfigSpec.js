@@ -3,16 +3,13 @@ import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 import {
   chooseNamespace,
   chooseMeasurement,
-  toggleField,
-  applyFuncsToField,
   chooseTag,
   groupByTag,
-  groupByTime,
   toggleTagAcceptance,
-  updateQueryConfig,
-  updateRawQuery,
-  editQueryStatus,
-} from 'src/kapacitor/actions/view'
+  toggleField,
+  applyFuncsToField,
+  groupByTime,
+} from 'src/kapacitor/actions/queryConfigs'
 
 const fakeAddQueryAction = (panelID, queryID) => {
   return {
@@ -121,14 +118,9 @@ describe('Chronograf.Reducers.Kapacitor.queryConfigs', () => {
       it('only allows one field', () => {
         expect(state[queryId].fields.length).to.equal(1)
 
-        const isKapacitorRule = true
         const newState = reducer(
           state,
-          toggleField(
-            queryId,
-            {field: 'a different field', funcs: []},
-            isKapacitorRule
-          )
+          toggleField(queryId, {field: 'a different field', funcs: []})
         )
 
         expect(newState[queryId].fields.length).to.equal(1)
@@ -137,7 +129,7 @@ describe('Chronograf.Reducers.Kapacitor.queryConfigs', () => {
     })
 
     describe('KAPA_TOGGLE_FIELD', () => {
-      it('can toggle multiple fields', () => {
+      it('cannot toggle multiple fields', () => {
         expect(state[queryId].fields.length).to.equal(1)
 
         const newState = reducer(
@@ -145,25 +137,19 @@ describe('Chronograf.Reducers.Kapacitor.queryConfigs', () => {
           toggleField(queryId, {field: 'a different field', funcs: []})
         )
 
-        expect(newState[queryId].fields.length).to.equal(2)
-        expect(newState[queryId].fields[1].field).to.equal('a different field')
+        expect(newState[queryId].fields.length).to.equal(1)
+        expect(newState[queryId].fields[0].field).to.equal('a different field')
       })
 
-      it('applies a funcs to newly selected fields', () => {
+      it('applies no funcs to newly selected fields', () => {
         expect(state[queryId].fields.length).to.equal(1)
 
-        const oneFieldOneFunc = reducer(
-          state,
-          applyFuncsToField(queryId, {field: 'a great field', funcs: ['func1']})
-        )
-
         const newState = reducer(
-          oneFieldOneFunc,
-          toggleField(queryId, {field: 'a different field', funcs: []})
+          state,
+          toggleField(queryId, {field: 'a different field'})
         )
 
-        expect(newState[queryId].fields[1].funcs.length).to.equal(1)
-        expect(newState[queryId].fields[1].funcs[0]).to.equal('func1')
+        expect(newState[queryId].fields[0].funcs).to.equal(undefined)
       })
     })
   })
@@ -359,41 +345,5 @@ describe('Chronograf.Reducers.Kapacitor.queryConfigs', () => {
 
       expect(nextState[queryId].groupBy.time).to.equal(time)
     })
-  })
-
-  it('updates entire config', () => {
-    const initialState = {
-      [queryId]: buildInitialState(queryId),
-    }
-    const expected = defaultQueryConfig(queryId, {rawText: 'hello'})
-    const action = updateQueryConfig(expected)
-
-    const nextState = reducer(initialState, action)
-
-    expect(nextState[queryId]).to.deep.equal(expected)
-  })
-
-  it("updates a query's raw text", () => {
-    const initialState = {
-      [queryId]: buildInitialState(queryId),
-    }
-    const text = 'foo'
-    const action = updateRawQuery(queryId, text)
-
-    const nextState = reducer(initialState, action)
-
-    expect(nextState[queryId].rawText).to.equal('foo')
-  })
-
-  it("updates a query's raw status", () => {
-    const initialState = {
-      [queryId]: buildInitialState(queryId),
-    }
-    const status = 'your query was sweet'
-    const action = editQueryStatus(queryId, status)
-
-    const nextState = reducer(initialState, action)
-
-    expect(nextState[queryId].status).to.equal(status)
   })
 })
