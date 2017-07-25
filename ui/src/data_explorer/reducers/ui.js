@@ -4,7 +4,7 @@ const initialState = {
 
 export default function ui(state = initialState, action) {
   switch (action.type) {
-    case 'ADD_QUERY': {
+    case 'DE_ADD_QUERY': {
       const {queryID} = action.payload
       const newState = {
         queryIDs: state.queryIDs.concat(queryID),
@@ -13,7 +13,7 @@ export default function ui(state = initialState, action) {
       return {...state, ...newState}
     }
 
-    case 'DELETE_QUERY': {
+    case 'DE_DELETE_QUERY': {
       const {queryID} = action.payload
       const newState = {
         queryIDs: state.queryIDs.filter(id => id !== queryID),

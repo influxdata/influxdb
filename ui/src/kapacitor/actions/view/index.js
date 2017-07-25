@@ -9,6 +9,13 @@ import {
 } from 'src/kapacitor/apis'
 import {errorThrown} from 'shared/actions/errors'
 
+const loadQuery = query => ({
+  type: 'KAPA_LOAD_QUERY',
+  payload: {
+    query,
+  },
+})
+
 export function fetchRule(source, ruleID) {
   return dispatch => {
     getActiveKapacitor(source).then(kapacitor => {
@@ -19,17 +26,18 @@ export function fetchRule(source, ruleID) {
             rule: Object.assign(rule, {queryID: rule.query.id}),
           },
         })
-
-        dispatch({
-          type: 'LOAD_KAPACITOR_QUERY',
-          payload: {
-            query: rule.query,
-          },
-        })
+        dispatch(loadQuery(rule.query))
       })
     })
   }
 }
+
+const addQuery = queryID => ({
+  type: 'KAPA_ADD_QUERY',
+  payload: {
+    queryID,
+  },
+})
 
 export function loadDefaultRule() {
   return dispatch => {
@@ -40,12 +48,7 @@ export function loadDefaultRule() {
         queryID,
       },
     })
-    dispatch({
-      type: 'ADD_KAPACITOR_QUERY',
-      payload: {
-        queryID,
-      },
-    })
+    dispatch(addQuery(queryID))
   }
 }
 
