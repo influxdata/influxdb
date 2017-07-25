@@ -20,6 +20,8 @@
 ### UI Improvements
 1. [#1707](https://github.com/influxdata/chronograf/pull/1707): Polish alerts table in status page to wrap text less
 1. [#1770](https://github.com/influxdata/chronograf/pull/1770): Specify that version is for Chronograf on Configuration page
+1. [#1779](https://github.com/influxdata/chronograf/pull/1779): Move custom time range indicator on cells into corner when in presentation mode
+1. [#1779](https://github.com/influxdata/chronograf/pull/1779): Highlight legend "Snip" toggle when active
 
 ## v1.3.4.0 [2017-07-10]
 ### Bug Fixes
