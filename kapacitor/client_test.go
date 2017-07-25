@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/chronograf"
 	client "github.com/influxdata/kapacitor/client/v1"
 )
@@ -210,7 +211,7 @@ func TestClient_All(t *testing.T) {
 		name     string
 		fields   fields
 		args     args
-		want     map[string]chronograf.AlertRule
+		want     map[string]*Task
 		wantErr  bool
 		resTask  client.Task
 		resTasks []client.Task
@@ -230,7 +231,7 @@ func TestClient_All(t *testing.T) {
 				},
 			},
 			listTasksOptions: &client.ListTasksOptions{},
-			want:             map[string]chronograf.AlertRule{},
+			want:             map[string]*Task{},
 		},
 		{
 			name: "return a non-reversible task",
@@ -246,10 +247,17 @@ func TestClient_All(t *testing.T) {
 					Status: client.Enabled,
 				},
 			},
-			want: map[string]chronograf.AlertRule{
-				"howdy": chronograf.AlertRule{
+			want: map[string]*Task{
+				"howdy": &Task{
 					ID:         "howdy",
-					Name:       "howdy",
+					Type:       "unknown TaskType 0",
+					Status:     "enabled",
+					HrefOutput: "/kapacitor/v1/tasks/howdy/output",
+					Rule: chronograf.AlertRule{
+						ID:         "howdy",
+						Name:       "howdy",
+						TICKScript: "",
+					},
 					TICKScript: "",
 				},
 			},
@@ -266,6 +274,13 @@ func TestClient_All(t *testing.T) {
 				client.Task{
 					ID:     "rule 1",
 					Status: client.Enabled,
+					Type:   client.StreamTask,
+					DBRPs: []client.DBRP{
+						{
+							Database:        "_internal",
+							RetentionPolicy: "autogen",
+						},
+					},
 					TICKscript: `var db = '_internal'
 
 var rp = 'monitor'
@@ -335,11 +350,18 @@ trigger
 `,
 				},
 			},
-			want: map[string]chronograf.AlertRule{
-				"rule 1": chronograf.AlertRule{
-					ID:   "rule 1",
-					Name: "rule 1",
-					TICKScript: `var db = '_internal'
+			want: map[string]*Task{
+				"rule 1": &Task{
+					ID:         "rule 1",
+					DB:         "_internal",
+					RP:         "autogen",
+					Type:       "stream",
+					Status:     "enabled",
+					HrefOutput: "/kapacitor/v1/tasks/rule 1/output",
+					Rule: chronograf.AlertRule{
+						ID:   "rule 1",
+						Name: "rule 1",
+						TICKScript: `var db = '_internal'
 
 var rp = 'monitor'
 
@@ -406,26 +428,27 @@ trigger
 trigger
     |httpOut('output')
 `,
-					Trigger: "threshold",
-					Alerts:  []string{},
-					TriggerValues: chronograf.TriggerValues{
-						Operator: "greater than",
-						Value:    "90000",
-					},
-					Query: &chronograf.QueryConfig{
-						Database:        "_internal",
-						RetentionPolicy: "monitor",
-						Measurement:     "cq",
-						Fields: []chronograf.Field{
-							{
-								Field: "queryOk",
-								Funcs: []string{},
+						Trigger: "threshold",
+						Alerts:  []string{},
+						TriggerValues: chronograf.TriggerValues{
+							Operator: "greater than",
+							Value:    "90000",
+						},
+						Query: &chronograf.QueryConfig{
+							Database:        "_internal",
+							RetentionPolicy: "monitor",
+							Measurement:     "cq",
+							Fields: []chronograf.Field{
+								{
+									Field: "queryOk",
+									Funcs: []string{},
+								},
 							},
+							GroupBy: chronograf.GroupBy{
+								Tags: []string{},
+							},
+							AreTagsAccepted: false,
 						},
-						GroupBy: chronograf.GroupBy{
-							Tags: []string{},
-						},
-						AreTagsAccepted: false,
 					},
 				},
 			},
@@ -449,8 +472,8 @@ trigger
 				t.Errorf("Client.All() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Client.All() = %#v, want %#v", got, tt.want)
+			if !cmp.Equal(got, tt.want) {
+				t.Errorf("Client.All() = %s", cmp.Diff(got, tt.want))
 			}
 			if !reflect.DeepEqual(kapa.ListTasksOptions, tt.listTasksOptions) {
 				t.Errorf("Client.All() = listTasksOptions  %v, want %v", kapa.ListTasksOptions, tt.listTasksOptions)

@@ -78,6 +78,7 @@ func NewTask(task *client.Task) *Task {
 			Query:      nil,
 			TICKScript: script,
 		}
+		rule.ID = task.ID
 	}
 
 	return &Task{
