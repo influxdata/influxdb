@@ -17,8 +17,8 @@ export const KapacitorRule = React.createClass({
     rule: PropTypes.shape({}).isRequired,
     query: PropTypes.shape({}).isRequired,
     queryConfigs: PropTypes.shape({}).isRequired,
-    queryActions: PropTypes.shape({}).isRequired,
-    kapacitorActions: PropTypes.shape({}).isRequired,
+    queryConfigActions: PropTypes.shape({}).isRequired,
+    ruleActions: PropTypes.shape({}).isRequired,
     addFlashMessage: PropTypes.func.isRequired,
     isEditing: PropTypes.bool.isRequired,
     enabledAlerts: PropTypes.arrayOf(PropTypes.string.isRequired).isRequired,
@@ -36,23 +36,23 @@ export const KapacitorRule = React.createClass({
 
   render() {
     const {
-      queryActions,
+      queryConfigActions,
       source,
       enabledAlerts,
       queryConfigs,
       query,
       rule,
-      kapacitorActions,
+      ruleActions,
       isEditing,
     } = this.props
-    const {chooseTrigger, updateRuleValues} = kapacitorActions
+    const {chooseTrigger, updateRuleValues} = ruleActions
     const {timeRange} = this.state
 
     return (
       <div className="page">
         <RuleHeader
           rule={rule}
-          actions={kapacitorActions}
+          actions={ruleActions}
           onSave={isEditing ? this.handleEdit : this.handleCreate}
           onChooseTimeRange={this.handleChooseTimeRange}
           validationError={this.validationError()}
@@ -68,7 +68,7 @@ export const KapacitorRule = React.createClass({
                     timeRange={timeRange}
                     source={source}
                     query={query}
-                    actions={queryActions}
+                    actions={queryConfigActions}
                     onAddEvery={this.handleAddEvery}
                     onRemoveEvery={this.handleRemoveEvery}
                     isKapacitorRule={true}
@@ -87,7 +87,7 @@ export const KapacitorRule = React.createClass({
                   />
                   <RuleMessage
                     rule={rule}
-                    actions={kapacitorActions}
+                    actions={ruleActions}
                     enabledAlerts={enabledAlerts}
                   />
                 </div>
@@ -134,7 +134,6 @@ export const KapacitorRule = React.createClass({
 
   handleEdit() {
     const {addFlashMessage, queryConfigs, rule} = this.props
-
     const updatedRule = Object.assign({}, rule, {
       query: queryConfigs[rule.queryID],
     })
@@ -152,12 +151,12 @@ export const KapacitorRule = React.createClass({
   },
 
   handleAddEvery(frequency) {
-    const {rule: {id: ruleID}, kapacitorActions: {addEvery}} = this.props
+    const {rule: {id: ruleID}, ruleActions: {addEvery}} = this.props
     addEvery(ruleID, frequency)
   },
 
   handleRemoveEvery() {
-    const {rule: {id: ruleID}, kapacitorActions: {removeEvery}} = this.props
+    const {rule: {id: ruleID}, ruleActions: {removeEvery}} = this.props
     removeEvery(ruleID)
   },
 

@@ -57,7 +57,7 @@ export const DataSection = React.createClass({
   },
 
   handleToggleField(field) {
-    this.props.actions.toggleField(this.props.query.id, field, true)
+    this.props.actions.toggleField(this.props.query.id, field)
     // Every is only added when a function has been added to a field.
     // Here, the field is selected without a function.
     this.props.onRemoveEvery()
@@ -70,13 +70,7 @@ export const DataSection = React.createClass({
   },
 
   handleApplyFuncsToField(fieldFunc) {
-    this.props.actions.applyFuncsToField(
-      this.props.query.id,
-      fieldFunc,
-      // this 3rd arg (isKapacitorRule) makes sure 'auto' is not added as
-      // default group by in Kapacitor rule
-      this.props.isKapacitorRule
-    )
+    this.props.actions.applyFuncsToField(this.props.query.id, fieldFunc)
     this.props.onAddEvery(defaultEveryFrequency)
   },
 
