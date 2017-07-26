@@ -724,14 +724,9 @@ func (f *FileStore) walkFiles(fn func(f TSMFile) error) error {
 // whether the key will be scan in ascending time order or descenging time order.
 // This function assumes the read-lock has been taken.
 func (f *FileStore) locations(key string, t int64, ascending bool) []*location {
-	filesSnapshot := make([]TSMFile, len(f.files))
-	for i := range f.files {
-		filesSnapshot[i] = f.files[i]
-	}
-
 	var entries []IndexEntry
-	locations := make([]*location, 0, len(filesSnapshot))
-	for _, fd := range filesSnapshot {
+	locations := make([]*location, 0, len(f.files))
+	for _, fd := range f.files {
 		minTime, maxTime := fd.TimeRange()
 
 		tombstones := fd.TombstoneRange(key)
@@ -748,7 +743,8 @@ func (f *FileStore) locations(key string, t int64, ascending bool) []*location {
 		// This file could potential contain points we are looking for so find the blocks for
 		// the given key.
 		fd.ReadEntries(key, &entries)
-		for _, ie := range entries {
+		for i := 0; i < len(entries); i++ {
+			ie := entries[i]
 
 			// Skip any blocks only contain values that are tombstoned.
 			var skip bool
@@ -884,9 +880,6 @@ type KeyCursor struct {
 	// If this is true, we need to scan the duplicate blocks and dedup the points
 	// as query time until they are compacted.
 	duplicates bool
-
-	// The distinct set of TSM files references by the cursor
-	refs map[string]TSMFile
 }
 
 type location struct {
@@ -943,7 +936,6 @@ func newKeyCursor(fs *FileStore, key string, t int64, ascending bool) *KeyCursor
 		seeks:     fs.locations(key, t, ascending),
 		ascending: ascending,
 	}
-	c.refs = make(map[string]TSMFile, len(c.seeks))
 
 	c.duplicates = c.hasOverlappingBlocks()
 
@@ -955,10 +947,7 @@ func newKeyCursor(fs *FileStore, key string, t int64, ascending bool) *KeyCursor
 
 	// Determine the distinct set of TSM files in use and mark then as in-use
 	for _, f := range c.seeks {
-		if _, ok := c.refs[f.r.Path()]; !ok {
-			f.r.Ref()
-			c.refs[f.r.Path()] = f.r
-		}
+		f.r.Ref()
 	}
 
 	c.seek(t)
@@ -968,8 +957,8 @@ func newKeyCursor(fs *FileStore, key string, t int64, ascending bool) *KeyCursor
 // Close removes all references on the cursor.
 func (c *KeyCursor) Close() {
 	// Remove all of our in-use references since we're done
-	for _, f := range c.refs {
-		f.Unref()
+	for _, f := range c.seeks {
+		f.r.Unref()
 	}
 
 	c.buf = nil
