@@ -2,7 +2,7 @@ collectd.org e84e8af5356e7f47485bbc95c96da6dd7984a67e
 github.com/BurntSushi/toml 99064174e013895bbd9b025c31100bd1d9b590ca
 github.com/bmizerany/pat c068ca2f0aacee5ac3681d68e4d0a003b7d1fd2c
 github.com/boltdb/bolt 4b1ebc1869ad66568b313d0dc410e2be72670dda
-github.com/cespare/xxhash 4a94f899c20bc44d4f5f807cb14529e72aca99d6
+github.com/cespare/xxhash 1b6d2e40c16ba0dfce5c8eac2480ad6e7394819b
 github.com/davecgh/go-spew 346938d642f2ec3594ed81d874461961cd0faa76
 github.com/dgrijalva/jwt-go 24c63f56522a87ec5339cc3567883f1039378fdb
 github.com/dgryski/go-bits 2ad8d707cc05b1815ce6ff2543bb5e8d8f9298ef

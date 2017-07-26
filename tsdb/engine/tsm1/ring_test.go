@@ -63,7 +63,29 @@ func BenchmarkRing_keys_1000(b *testing.B)   { benchmarkRingkeys(b, MustNewRing(
 func BenchmarkRing_keys_10000(b *testing.B)  { benchmarkRingkeys(b, MustNewRing(256), 10000) }
 func BenchmarkRing_keys_100000(b *testing.B) { benchmarkRingkeys(b, MustNewRing(256), 100000) }
 
+func benchmarkRingGetPartition(b *testing.B, r *ring, keys int) {
+	vals := make([]string, keys)
+
+	// Add some keys
+	for i := 0; i < keys; i++ {
+		vals[i] = fmt.Sprintf("cpu,host=server-%d field1=value1,field2=value2,field4=value4,field5=value5,field6=value6,field7=value7,field8=value1,field9=value2,field10=value4,field11=value5,field12=value6,field13=value7", i)
+		r.add(vals[i], nil)
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r.getPartition(vals[i%keys])
+	}
+}
+
+func BenchmarkRing_getPartition_100(b *testing.B) { benchmarkRingGetPartition(b, MustNewRing(256), 100) }
+func BenchmarkRing_getPartition_1000(b *testing.B) {
+	benchmarkRingGetPartition(b, MustNewRing(256), 1000)
+}
+
 func benchmarkRingWrite(b *testing.B, r *ring, n int) {
+	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		var wg sync.WaitGroup
 		for i := 0; i < runtime.GOMAXPROCS(0); i++ {
