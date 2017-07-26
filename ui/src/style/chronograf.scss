@@ -11,11 +11,13 @@
 @import 'theme/bootstrap-theme';
 @import 'theme/reset';
 
-// External
+// Vendor
 @import 'external/react-grid-layout';
 @import 'external/fixed-data-table-base';
 @import 'external/fixed-data-table-style';
 @import 'external/fixed-data-table';
+@import "external/codemirror";
+@import "../../node_modules/codemirror/theme/material.css";
 
 // Layout
 @import 'layout/page';
@@ -27,6 +29,7 @@
 // Components
 @import 'components/ceo-display-options';
 @import 'components/confirm-buttons';
+@import 'components/code-mirror-theme';
 @import 'components/custom-time-range';
 @import 'components/dygraphs';
 @import 'components/fancy-scrollbars';
@@ -59,7 +62,3 @@
 
 // TODO
 @import 'unsorted';
-
-// Vendor
-@import "external/codemirror";
-@import "../../node_modules/codemirror/theme/material.css";

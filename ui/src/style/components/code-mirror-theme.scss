@@ -1,0 +1,124 @@
+/*
+
+    Name:       CHRONOGRAF YO
+    Author:     Michael Kaminsky (http://github.com/mkaminsky11)
+
+    Original material color scheme by Mattia Astorino (https://github.com/equinusocio/material-theme)
+
+*/
+
+$tickscript-console-height: 120px;
+
+.tickscript-console,
+.tickscript-editor {
+  padding-left: $page-wrapper-padding;
+  padding-right: $page-wrapper-padding;
+  margin: 0 auto;
+  max-width: $page-wrapper-max-width;
+  position: relative;
+}
+.tickscript-console {
+  height: $tickscript-console-height;
+  padding-top: 30px;
+}
+.tickscript-console--output {
+  padding: 0 60px;
+  font-family: $code-font;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  background-color: $g3-castle;
+  position: relative;
+  height: 100%;
+  width: 100%;
+  border-radius: $radius $radius 0 0;
+
+  > p {
+    margin: 0;
+  }
+}
+.tickscript-console--default {
+  color: $g10-wolf;
+  font-style: italic;
+}
+.tickscript-editor {
+  margin: 0 auto;
+  padding-bottom: 30px;
+  height: calc(100% - #{$tickscript-console-height});
+}
+.ReactCodeMirror {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.cm-s-material.CodeMirror {
+  border-radius: 0 0 $radius $radius;
+  font-family: $code-font;
+  background-color: $g2-kevlar;
+  color: $c-neutrino;
+  font-weight: 600;
+  height: 100%;
+}
+.CodeMirror-vscrollbar {
+  @include custom-scrollbar-round($g2-kevlar,$g6-smoke);
+}
+.cm-s-material .CodeMirror-gutters {
+  background-color: fade-out($g4-onyx, 0.5);
+  border: none;
+}
+.CodeMirror-gutter.CodeMirror-linenumbers {
+  width: 60px;
+}
+.cm-s-material.CodeMirror .CodeMirror-sizer {
+  margin-left: 60px;
+}
+.cm-s-material.CodeMirror .CodeMirror-linenumber.CodeMirror-gutter-elt {
+  padding-right: 9px;
+  width: 46px;
+  color: $g8-storm;
+}
+.cm-s-material .CodeMirror-guttermarker, .cm-s-material .CodeMirror-guttermarker-subtle, .cm-s-material .CodeMirror-linenumber { color: rgb(83,127,126); }
+.cm-s-material .CodeMirror-cursor {
+  width: 2px;
+  border: 0;
+  background-color: $g20-white;
+  box-shadow:
+    0 0 3px $c-laser,
+    0 0 6px $c-ocean,
+    0 0 11px $c-amethyst;
+}
+.cm-s-material div.CodeMirror-selected,
+.cm-s-material.CodeMirror-focused div.CodeMirror-selected {
+  background-color: fade-out($g8-storm,0.7);
+}
+.cm-s-material .CodeMirror-line::selection, .cm-s-material .CodeMirror-line > span::selection, .cm-s-material .CodeMirror-line > span > span::selection { background: rgba(255, 255, 255, 0.10); }
+.cm-s-material .CodeMirror-line::-moz-selection, .cm-s-material .CodeMirror-line > span::-moz-selection, .cm-s-material .CodeMirror-line > span > span::-moz-selection { background: rgba(255, 255, 255, 0.10); }
+
+.cm-s-material .CodeMirror-activeline-background { background: rgba(0, 0, 0, 0); }
+.cm-s-material .cm-keyword { color: $c-comet; }
+.cm-s-material .cm-operator { color: $c-dreamsicle; }
+.cm-s-material .cm-variable-2 { color: #80CBC4; }
+.cm-s-material .cm-variable-3, .cm-s-material .cm-type { color: $c-laser; }
+.cm-s-material .cm-builtin { color: #DECB6B; }
+.cm-s-material .cm-atom { color: $c-viridian; }
+.cm-s-material .cm-number { color: $c-daisy; }
+.cm-s-material .cm-def { color: rgba(233, 237, 237, 1); }
+.cm-s-material .cm-string { color: $c-krypton; }
+.cm-s-material .cm-string-2 { color: #80CBC4; }
+.cm-s-material .cm-comment { color: $g10-wolf; }
+.cm-s-material .cm-variable { color: $c-laser; }
+.cm-s-material .cm-tag { color: #80CBC4; }
+.cm-s-material .cm-meta { color: #80CBC4; }
+.cm-s-material .cm-attribute { color: #FFCB6B; }
+.cm-s-material .cm-property { color: #80CBAE; }
+.cm-s-material .cm-qualifier { color: #DECB6B; }
+.cm-s-material .cm-variable-3, .cm-s-material .cm-type { color: #DECB6B; }
+.cm-s-material .cm-tag { color: rgba(255, 83, 112, 1); }
+.cm-s-material .cm-error {
+  color: rgba(255, 255, 255, 1.0);
+  background-color: #EC5F67;
+}
+.cm-s-material .CodeMirror-matchingbracket {
+  text-decoration: underline;
+  color: white !important;
+}
