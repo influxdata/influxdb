@@ -1535,6 +1535,59 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: &influxql.ShowSeriesCardinalityStatement{},
 		},
 
+		// SHOW SERIES CARDINALITY FROM cpu
+		{
+			s: `SHOW SERIES CARDINALITY FROM cpu`,
+			stmt: &influxql.ShowSeriesCardinalityStatement{
+				Sources: []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+			},
+		},
+
+		// SHOW SERIES CARDINALITY ON db0
+		{
+			s: `SHOW SERIES CARDINALITY ON db0`,
+			stmt: &influxql.ShowSeriesCardinalityStatement{
+				Database: "db0",
+			},
+		},
+
+		// SHOW SERIES CARDINALITY FROM /<regex>/
+		{
+			s: `SHOW SERIES CARDINALITY FROM /[cg]pu/`,
+			stmt: &influxql.ShowSeriesCardinalityStatement{
+				Sources: []influxql.Source{
+					&influxql.Measurement{
+						Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`[cg]pu`)},
+					},
+				},
+			},
+		},
+
+		// SHOW SERIES CARDINALITY with OFFSET 0
+		{
+			s:    `SHOW SERIES CARDINALITY OFFSET 0`,
+			stmt: &influxql.ShowSeriesCardinalityStatement{Offset: 0},
+		},
+
+		// SHOW SERIES CARDINALITY with LIMIT 2 OFFSET 0
+		{
+			s:    `SHOW SERIES CARDINALITY LIMIT 2 OFFSET 0`,
+			stmt: &influxql.ShowSeriesCardinalityStatement{Offset: 0, Limit: 2},
+		},
+
+		// SHOW SERIES CARDINALITY WHERE with ORDER BY and LIMIT
+		{
+			s: `SHOW SERIES CARDINALITY WHERE region = 'order by desc' LIMIT 10`,
+			stmt: &influxql.ShowSeriesCardinalityStatement{
+				Condition: &influxql.BinaryExpr{
+					Op:  influxql.EQ,
+					LHS: &influxql.VarRef{Val: "region"},
+					RHS: &influxql.StringLiteral{Val: "order by desc"},
+				},
+				Limit: 10,
+			},
+		},
+
 		// SHOW MEASUREMENTS WHERE with ORDER BY and LIMIT
 		{
 			skip: true,
@@ -1580,6 +1633,65 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// SHOW MEASUREMENT CARDINALITY statement
+		{
+			s:    `SHOW MEASUREMENT CARDINALITY`,
+			stmt: &influxql.ShowMeasurementCardinalityStatement{},
+		},
+
+		// SHOW MEASUREMENT CARDINALITY FROM cpu
+		{
+			s: `SHOW MEASUREMENT CARDINALITY FROM cpu`,
+			stmt: &influxql.ShowMeasurementCardinalityStatement{
+				Sources: []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+			},
+		},
+
+		// SHOW MEASUREMENT CARDINALITY ON db0
+		{
+			s: `SHOW MEASUREMENT CARDINALITY ON db0`,
+			stmt: &influxql.ShowMeasurementCardinalityStatement{
+				Database: "db0",
+			},
+		},
+
+		// SHOW MEASUREMENT CARDINALITY FROM /<regex>/
+		{
+			s: `SHOW MEASUREMENT CARDINALITY FROM /[cg]pu/`,
+			stmt: &influxql.ShowMeasurementCardinalityStatement{
+				Sources: []influxql.Source{
+					&influxql.Measurement{
+						Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`[cg]pu`)},
+					},
+				},
+			},
+		},
+
+		// SHOW MEASUREMENT CARDINALITY with OFFSET 0
+		{
+			s:    `SHOW MEASUREMENT CARDINALITY OFFSET 0`,
+			stmt: &influxql.ShowMeasurementCardinalityStatement{Offset: 0},
+		},
+
+		// SHOW MEASUREMENT CARDINALITY with LIMIT 2 OFFSET 0
+		{
+			s:    `SHOW MEASUREMENT CARDINALITY LIMIT 2 OFFSET 0`,
+			stmt: &influxql.ShowMeasurementCardinalityStatement{Offset: 0, Limit: 2},
+		},
+
+		// SHOW MEASUREMENT CARDINALITY WHERE with ORDER BY and LIMIT
+		{
+			s: `SHOW MEASUREMENT CARDINALITY WHERE region = 'order by desc' LIMIT 10`,
+			stmt: &influxql.ShowMeasurementCardinalityStatement{
+				Condition: &influxql.BinaryExpr{
+					Op:  influxql.EQ,
+					LHS: &influxql.VarRef{Val: "region"},
+					RHS: &influxql.StringLiteral{Val: "order by desc"},
+				},
+				Limit: 10,
+			},
+		},
+
 		// SHOW QUERIES
 		{
 			s:    `SHOW QUERIES`,
@@ -1614,6 +1726,65 @@ func TestParser_ParseStatement(t *testing.T) {
 			s: `SHOW RETENTION POLICIES ON db0`,
 			stmt: &influxql.ShowRetentionPoliciesStatement{
 				Database: "db0",
+			},
+		},
+
+		// SHOW TAG KEY CARDINALITY statement
+		{
+			s:    `SHOW TAG KEY CARDINALITY`,
+			stmt: &influxql.ShowTagKeyCardinalityStatement{},
+		},
+
+		// SHOW TAG KEY CARDINALITY FROM cpu
+		{
+			s: `SHOW TAG KEY CARDINALITY FROM cpu`,
+			stmt: &influxql.ShowTagKeyCardinalityStatement{
+				Sources: []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+			},
+		},
+
+		// SHOW TAG KEY CARDINALITY ON db0
+		{
+			s: `SHOW TAG KEY CARDINALITY ON db0`,
+			stmt: &influxql.ShowTagKeyCardinalityStatement{
+				Database: "db0",
+			},
+		},
+
+		// SHOW TAG KEY CARDINALITY FROM /<regex>/
+		{
+			s: `SHOW TAG KEY CARDINALITY FROM /[cg]pu/`,
+			stmt: &influxql.ShowTagKeyCardinalityStatement{
+				Sources: []influxql.Source{
+					&influxql.Measurement{
+						Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`[cg]pu`)},
+					},
+				},
+			},
+		},
+
+		// SHOW TAG KEY CARDINALITY with OFFSET 0
+		{
+			s:    `SHOW TAG KEY CARDINALITY OFFSET 0`,
+			stmt: &influxql.ShowTagKeyCardinalityStatement{Offset: 0},
+		},
+
+		// SHOW TAG KEY CARDINALITY with LIMIT 2 OFFSET 0
+		{
+			s:    `SHOW TAG KEY CARDINALITY LIMIT 2 OFFSET 0`,
+			stmt: &influxql.ShowTagKeyCardinalityStatement{Offset: 0, Limit: 2},
+		},
+
+		// SHOW TAG KEY CARDINALITY WHERE with ORDER BY and LIMIT
+		{
+			s: `SHOW TAG KEY CARDINALITY WHERE region = 'order by desc' LIMIT 10`,
+			stmt: &influxql.ShowTagKeyCardinalityStatement{
+				Condition: &influxql.BinaryExpr{
+					Op:  influxql.EQ,
+					LHS: &influxql.VarRef{Val: "region"},
+					RHS: &influxql.StringLiteral{Val: "order by desc"},
+				},
+				Limit: 10,
 			},
 		},
 
@@ -1843,6 +2014,85 @@ func TestParser_ParseStatement(t *testing.T) {
 				Database:   "db0",
 				Op:         influxql.EQ,
 				TagKeyExpr: &influxql.StringLiteral{Val: "host"},
+			},
+		},
+
+		// SHOW TAG VALUES CARDINALITY statement
+		{
+			s: `SHOW TAG VALUES CARDINALITY WITH KEY = host`,
+			stmt: &influxql.ShowTagValuesCardinalityStatement{
+				Op:         influxql.EQ,
+				TagKeyExpr: &influxql.StringLiteral{Val: "host"},
+			},
+		},
+
+		// SHOW TAG VALUES CARDINALITY FROM cpu
+		{
+			s: `SHOW TAG VALUES CARDINALITY FROM cpu WITH KEY =  host`,
+			stmt: &influxql.ShowTagValuesCardinalityStatement{
+				Sources:    []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+				Op:         influxql.EQ,
+				TagKeyExpr: &influxql.StringLiteral{Val: "host"},
+			},
+		},
+
+		// SHOW TAG VALUES CARDINALITY ON db0
+		{
+			s: `SHOW TAG VALUES CARDINALITY ON db0 WITH KEY = host`,
+			stmt: &influxql.ShowTagValuesCardinalityStatement{
+				Database:   "db0",
+				Op:         influxql.EQ,
+				TagKeyExpr: &influxql.StringLiteral{Val: "host"},
+			},
+		},
+
+		// SHOW TAG VALUES CARDINALITY FROM /<regex>/
+		{
+			s: `SHOW TAG VALUES CARDINALITY FROM /[cg]pu/ WITH KEY = host`,
+			stmt: &influxql.ShowTagValuesCardinalityStatement{
+				Sources: []influxql.Source{
+					&influxql.Measurement{
+						Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`[cg]pu`)},
+					},
+				},
+				Op:         influxql.EQ,
+				TagKeyExpr: &influxql.StringLiteral{Val: "host"},
+			},
+		},
+
+		// SHOW TAG VALUES CARDINALITY with OFFSET 0
+		{
+			s: `SHOW TAG VALUES CARDINALITY WITH KEY = host OFFSET 0`,
+			stmt: &influxql.ShowTagValuesCardinalityStatement{
+				Op:         influxql.EQ,
+				TagKeyExpr: &influxql.StringLiteral{Val: "host"},
+				Offset:     0,
+			},
+		},
+
+		// SHOW TAG VALUES CARDINALITY with LIMIT 2 OFFSET 0
+		{
+			s: `SHOW TAG VALUES CARDINALITY WITH KEY = host LIMIT 2 OFFSET 0`,
+			stmt: &influxql.ShowTagValuesCardinalityStatement{
+				Op:         influxql.EQ,
+				TagKeyExpr: &influxql.StringLiteral{Val: "host"},
+				Offset:     0,
+				Limit:      2,
+			},
+		},
+
+		// SHOW TAG VALUES CARDINALITY WHERE with ORDER BY and LIMIT
+		{
+			s: `SHOW TAG VALUES CARDINALITY WITH KEY = host WHERE region = 'order by desc' LIMIT 10`,
+			stmt: &influxql.ShowTagValuesCardinalityStatement{
+				Op:         influxql.EQ,
+				TagKeyExpr: &influxql.StringLiteral{Val: "host"},
+				Condition: &influxql.BinaryExpr{
+					Op:  influxql.EQ,
+					LHS: &influxql.VarRef{Val: "region"},
+					RHS: &influxql.StringLiteral{Val: "order by desc"},
+				},
+				Limit: 10,
 			},
 		},
 
@@ -2709,7 +2959,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SHOW RETENTION ON`, err: `found ON, expected POLICIES at line 1, char 16`},
 		{s: `SHOW RETENTION POLICIES ON`, err: `found EOF, expected identifier at line 1, char 28`},
 		{s: `SHOW SHARD`, err: `found EOF, expected GROUPS at line 1, char 12`},
-		{s: `SHOW FOO`, err: `found FOO, expected CONTINUOUS, DATABASES, DIAGNOSTICS, FIELD, GRANTS, MEASUREMENTS, QUERIES, RETENTION, SERIES, SHARD, SHARDS, STATS, SUBSCRIPTIONS, TAG, USERS at line 1, char 6`},
+		{s: `SHOW FOO`, err: `found FOO, expected CONTINUOUS, DATABASES, DIAGNOSTICS, FIELD, GRANTS, MEASUREMENT, MEASUREMENTS, QUERIES, RETENTION, SERIES, SHARD, SHARDS, STATS, SUBSCRIPTIONS, TAG, USERS at line 1, char 6`},
 		{s: `SHOW STATS FOR`, err: `found EOF, expected string at line 1, char 16`},
 		{s: `SHOW DIAGNOSTICS FOR`, err: `found EOF, expected string at line 1, char 22`},
 		{s: `SHOW GRANTS`, err: `found EOF, expected FOR at line 1, char 13`},

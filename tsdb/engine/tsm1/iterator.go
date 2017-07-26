@@ -121,3 +121,22 @@ var (
 	nilStringLiteralValueCursor   cursorAt = &literalValueCursor{value: (*string)(nil)}
 	nilBooleanLiteralValueCursor  cursorAt = &literalValueCursor{value: (*bool)(nil)}
 )
+
+// stringSliceCursor is a cursor that outputs a slice of string values.
+type stringSliceCursor struct {
+	values []string
+}
+
+func (c *stringSliceCursor) close() error { return nil }
+
+func (c *stringSliceCursor) next() (int64, interface{}) { return c.nextString() }
+
+func (c *stringSliceCursor) nextString() (int64, string) {
+	if len(c.values) == 0 {
+		return tsdb.EOF, ""
+	}
+
+	value := c.values[0]
+	c.values = c.values[1:]
+	return 0, value
+}

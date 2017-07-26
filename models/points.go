@@ -1826,6 +1826,30 @@ func NewTags(m map[string]string) Tags {
 	return a
 }
 
+// Keys returns the list of keys for a tag set.
+func (a Tags) Keys() []string {
+	if len(a) == 0 {
+		return nil
+	}
+	keys := make([]string, len(a))
+	for i, tag := range a {
+		keys[i] = string(tag.Key)
+	}
+	return keys
+}
+
+// Values returns the list of values for a tag set.
+func (a Tags) Values() []string {
+	if len(a) == 0 {
+		return nil
+	}
+	values := make([]string, len(a))
+	for i, tag := range a {
+		values[i] = string(tag.Value)
+	}
+	return values
+}
+
 // String returns the string representation of the tags.
 func (a Tags) String() string {
 	var buf bytes.Buffer
