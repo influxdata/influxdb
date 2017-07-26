@@ -81,6 +81,21 @@ func TestParser_ParseQuery_NoSemicolon(t *testing.T) {
 	}
 }
 
+func TestParser_ParseBoundParameter(t *testing.T) {
+	parser := influxql.NewParser(strings.NewReader(`SELECT * FROM m WHERE t = $v`))
+	params := map[string]interface{}{
+		"v": "1; select * from m where t = v",
+	}
+	parser.SetParams(params)
+	q, err := parser.ParseQuery()
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if len(q.Statements) != 1 {
+		t.Fatalf("bound query parameter injected a statement")
+	}
+}
+
 // Ensure the parser can parse strings into Statement ASTs.
 func TestParser_ParseStatement(t *testing.T) {
 	// For use in various tests.
