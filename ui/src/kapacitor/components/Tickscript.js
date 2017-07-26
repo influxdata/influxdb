@@ -1,6 +1,5 @@
 import React, {PropTypes} from 'react'
 import TickscriptHeader from 'src/kapacitor/components/TickscriptHeader'
-import FancyScrollbar from 'shared/components/FancyScrollbar'
 import TickscriptEditor from 'src/kapacitor/components/TickscriptEditor'
 
 const Tickscript = ({
@@ -28,23 +27,25 @@ const Tickscript = ({
       onSelectDbrps={onSelectDbrps}
       isNewTickscript={isNewTickscript}
     />
-    <FancyScrollbar className="page-contents fancy-scroll--kapacitor">
-      <div className="container-fluid">
-        <div className="row">
-          <div className="col-xs-12">
-            {validation}
-          </div>
-        </div>
-        <div className="row">
-          <div className="col-xs-12">
-            <TickscriptEditor
-              script={task.script}
-              onChangeScript={onChangeScript}
-            />
-          </div>
+    <div className="page-contents">
+      <div className="tickscript-console">
+        <div className="tickscript-console--output">
+          {validation
+            ? <p>
+                {validation}
+              </p>
+            : <p className="tickscript-console--default">
+                Save your TICKscript to validate it
+              </p>}
         </div>
       </div>
-    </FancyScrollbar>
+      <div className="tickscript-editor">
+        <TickscriptEditor
+          script={task.script}
+          onChangeScript={onChangeScript}
+        />
+      </div>
+    </div>
   </div>
 
 const {arrayOf, bool, func, shape, string} = PropTypes
