@@ -222,10 +222,10 @@ func Test_newDashboardResponse(t *testing.T) {
 						},
 						Axes: map[string]chronograf.Axis{
 							"x": chronograf.Axis{
-								Bounds: [2]int64{0, 100},
+								Bounds: []string{"0", "100"},
 							},
 							"y": chronograf.Axis{
-								Bounds: [2]int64{2, 95},
+								Bounds: []string{"2", "95"},
 							},
 						},
 					},
@@ -268,10 +268,10 @@ func Test_newDashboardResponse(t *testing.T) {
 							},
 							Axes: map[string]chronograf.Axis{
 								"x": chronograf.Axis{
-									Bounds: [2]int64{0, 100},
+									Bounds: []string{"0", "100"},
 								},
 								"y": chronograf.Axis{
-									Bounds: [2]int64{2, 95},
+									Bounds: []string{"2", "95"},
 								},
 							},
 						},

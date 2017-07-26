@@ -34,7 +34,8 @@ message DashboardCell {
 }
 
 message Axis {
-	repeated int64 bounds = 1; // bounds are an ordered 2-tuple consisting of lower and upper axis extents, respectively
+	repeated int64 legacyBounds = 1; // legacyBounds are an ordered 2-tuple consisting of lower and upper axis extents, respectively
+	repeated string bounds = 2; // bounds are an arbitrary list of client-defined bounds.
 }
 
 message Template {

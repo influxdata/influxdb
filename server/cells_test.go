@@ -20,13 +20,13 @@ func Test_Cells_CorrectAxis(t *testing.T) {
 			&chronograf.DashboardCell{
 				Axes: map[string]chronograf.Axis{
 					"x": chronograf.Axis{
-						Bounds: [2]int64{0, 100},
+						Bounds: []string{"0", "100"},
 					},
 					"y": chronograf.Axis{
-						Bounds: [2]int64{0, 100},
+						Bounds: []string{"0", "100"},
 					},
 					"y2": chronograf.Axis{
-						Bounds: [2]int64{0, 100},
+						Bounds: []string{"0", "100"},
 					},
 				},
 			},
@@ -37,10 +37,10 @@ func Test_Cells_CorrectAxis(t *testing.T) {
 			&chronograf.DashboardCell{
 				Axes: map[string]chronograf.Axis{
 					"axis of evil": chronograf.Axis{
-						Bounds: [2]int64{666, 666},
+						Bounds: []string{"666", "666"},
 					},
 					"axis of awesome": chronograf.Axis{
-						Bounds: [2]int64{1337, 31337},
+						Bounds: []string{"1337", "31337"},
 					},
 				},
 			},

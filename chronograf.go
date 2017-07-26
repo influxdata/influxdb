@@ -568,7 +568,8 @@ type Dashboard struct {
 
 // Axis represents the visible extents of a visualization
 type Axis struct {
-	Bounds [2]int64 `json:"bounds"` // bounds are an ordered 2-tuple consisting of lower and upper axis extents, respectively
+	Bounds       []string `json:"bounds"` // bounds are an arbitrary list of client-defined strings that specify the viewport for a cell
+	LegacyBounds [2]int64 `json:"-"`      // legacy bounds are for testing a migration from an earlier version of axis
 }
 
 // DashboardCell holds visual and query information for a cell
