@@ -22,13 +22,13 @@ type FloatPoint struct {
 	Tags Tags
 
 	Time  int64
-	Nil   bool
 	Value float64
 	Aux   []interface{}
 
 	// Total number of points that were combined into this point from an aggregate.
 	// If this is zero, the point is not the result of an aggregate function.
 	Aggregated uint32
+	Nil        bool
 }
 
 func (v *FloatPoint) name() string { return v.Name }
@@ -233,13 +233,13 @@ type IntegerPoint struct {
 	Tags Tags
 
 	Time  int64
-	Nil   bool
 	Value int64
 	Aux   []interface{}
 
 	// Total number of points that were combined into this point from an aggregate.
 	// If this is zero, the point is not the result of an aggregate function.
 	Aggregated uint32
+	Nil        bool
 }
 
 func (v *IntegerPoint) name() string { return v.Name }
@@ -444,13 +444,13 @@ type UnsignedPoint struct {
 	Tags Tags
 
 	Time  int64
-	Nil   bool
 	Value uint64
 	Aux   []interface{}
 
 	// Total number of points that were combined into this point from an aggregate.
 	// If this is zero, the point is not the result of an aggregate function.
 	Aggregated uint32
+	Nil        bool
 }
 
 func (v *UnsignedPoint) name() string { return v.Name }
@@ -653,13 +653,13 @@ type StringPoint struct {
 	Tags Tags
 
 	Time  int64
-	Nil   bool
 	Value string
 	Aux   []interface{}
 
 	// Total number of points that were combined into this point from an aggregate.
 	// If this is zero, the point is not the result of an aggregate function.
 	Aggregated uint32
+	Nil        bool
 }
 
 func (v *StringPoint) name() string { return v.Name }
@@ -864,13 +864,13 @@ type BooleanPoint struct {
 	Tags Tags
 
 	Time  int64
-	Nil   bool
 	Value bool
 	Aux   []interface{}
 
 	// Total number of points that were combined into this point from an aggregate.
 	// If this is zero, the point is not the result of an aggregate function.
 	Aggregated uint32
+	Nil        bool
 }
 
 func (v *BooleanPoint) name() string { return v.Name }
