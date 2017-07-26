@@ -92,7 +92,7 @@ func (r *ring) reset() {
 // getPartition retrieves the hash ring partition associated with the provided
 // key.
 func (r *ring) getPartition(key string) *partition {
-	return r.continuum[int(xxhash.Sum64([]byte(key))%partitions)]
+	return r.continuum[int(xxhash.Sum64String(key)%partitions)]
 }
 
 // entry returns the entry for the given key.
@@ -240,7 +240,7 @@ func (p *partition) write(key string, values Values) error {
 	}
 
 	// Create a new entry using a preallocated size if we have a hint available.
-	hint, _ := p.entrySizeHints[xxhash.Sum64([]byte(key))]
+	hint, _ := p.entrySizeHints[xxhash.Sum64String(key)]
 	e, err := newEntryValues(values, hint)
 	if err != nil {
 		return err
@@ -289,7 +289,7 @@ func (p *partition) reset() {
 		// Store a hint to pre-allocate the next time we see the same entry.
 		entry.mu.RLock()
 		if cap(entry.values) > 128 { // 4 x the default entry capacity size.
-			p.entrySizeHints[xxhash.Sum64([]byte(k))] = cap(entry.values)
+			p.entrySizeHints[xxhash.Sum64String(k)] = cap(entry.values)
 		}
 		entry.mu.RUnlock()
 	}
