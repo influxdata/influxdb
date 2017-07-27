@@ -1,5 +1,7 @@
 ## v1.3.6.0 [unreleased]
 ### Bug Fixes
+1. [#1795](https://github.com/influxdata/chronograf/pull/1795): Fix uptime status on Windows hosts running Telegraf
+
 ### Features
 ### UI Improvements
 
