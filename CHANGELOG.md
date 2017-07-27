@@ -30,6 +30,10 @@
 
 - [#8629](https://github.com/influxdata/influxdb/pull/8629): Interrupt in progress TSM compactions
 
+## v1.3.2 [unreleased]
+
+- [#8630](https://github.com/influxdata/influxdb/pull/8630): Prevent excessive memory usage when dropping series
+
 ## v1.3.1 [unreleased]
 
 ### Bugfixes
