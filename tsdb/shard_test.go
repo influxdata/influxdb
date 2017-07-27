@@ -6,13 +6,16 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"reflect"
+	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/deep"
@@ -836,9 +839,10 @@ cpu,host=serverA,region=uswest value=50,val2=5  10
 cpu,host=serverB,region=uswest value=25  0
 mem,host=serverA value=25i 0
 mem,host=serverB value=50i,val3=t 10
+_reserved,region=uswest value="foo" 0
 `)
 
-	for i, tt := range []struct {
+	for _, tt := range []struct {
 		sources []string
 		f       map[string]influxql.DataType
 		d       map[string]struct{}
@@ -850,8 +854,18 @@ mem,host=serverB value=50i,val3=t 10
 				"val2":  influxql.Float,
 			},
 			d: map[string]struct{}{
-				"host":   struct{}{},
-				"region": struct{}{},
+				"host":   {},
+				"region": {},
+			},
+		},
+		{
+			sources: []string{"mem"},
+			f: map[string]influxql.DataType{
+				"value": influxql.Integer,
+				"val3":  influxql.Boolean,
+			},
+			d: map[string]struct{}{
+				"host": {},
 			},
 		},
 		{
@@ -862,22 +876,523 @@ mem,host=serverB value=50i,val3=t 10
 				"val3":  influxql.Boolean,
 			},
 			d: map[string]struct{}{
-				"host":   struct{}{},
-				"region": struct{}{},
+				"host":   {},
+				"region": {},
 			},
 		},
+		{
+			sources: []string{"_fieldKeys"},
+			f: map[string]influxql.DataType{
+				"fieldKey":  influxql.String,
+				"fieldType": influxql.String,
+			},
+			d: map[string]struct{}{},
+		},
+		{
+			sources: []string{"_series"},
+			f: map[string]influxql.DataType{
+				"key": influxql.String,
+			},
+			d: map[string]struct{}{},
+		},
+		{
+			sources: []string{"_tagKeys"},
+			f: map[string]influxql.DataType{
+				"tagKey": influxql.String,
+			},
+			d: map[string]struct{}{},
+		},
+		{
+			sources: []string{"_reserved"},
+			f: map[string]influxql.DataType{
+				"value": influxql.String,
+			},
+			d: map[string]struct{}{
+				"region": {},
+			},
+		},
+		{
+			sources: []string{"unknown"},
+			f:       map[string]influxql.DataType{},
+			d:       map[string]struct{}{},
+		},
 	} {
-		f, d, err := sh.FieldDimensions(tt.sources)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		name := strings.Join(tt.sources, ",")
+		t.Run(name, func(t *testing.T) {
+			f, d, err := sh.FieldDimensions(tt.sources)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
 
-		if !reflect.DeepEqual(f, tt.f) {
-			t.Errorf("%d. unexpected fields:\n\nexp=%#v\n\ngot=%#v\n\n", i, tt.f, f)
-		}
-		if !reflect.DeepEqual(d, tt.d) {
-			t.Errorf("%d. unexpected dimensions:\n\nexp=%#v\n\ngot=%#v\n\n", i, tt.d, d)
-		}
+			if diff := cmp.Diff(tt.f, f, cmpopts.EquateEmpty()); diff != "" {
+				t.Errorf("unexpected fields:\n%s", diff)
+			}
+			if diff := cmp.Diff(tt.d, d, cmpopts.EquateEmpty()); diff != "" {
+				t.Errorf("unexpected dimensions:\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestShard_MapType(t *testing.T) {
+	sh := NewShard()
+
+	if err := sh.Open(); err != nil {
+		t.Fatal(err)
+	}
+	defer sh.Close()
+
+	sh.MustWritePointsString(`
+cpu,host=serverA,region=uswest value=100 0
+cpu,host=serverA,region=uswest value=50,val2=5  10
+cpu,host=serverB,region=uswest value=25  0
+mem,host=serverA value=25i 0
+mem,host=serverB value=50i,val3=t 10
+_reserved,region=uswest value="foo" 0
+`)
+
+	for _, tt := range []struct {
+		measurement string
+		field       string
+		typ         influxql.DataType
+	}{
+		{
+			measurement: "cpu",
+			field:       "value",
+			typ:         influxql.Float,
+		},
+		{
+			measurement: "cpu",
+			field:       "host",
+			typ:         influxql.Tag,
+		},
+		{
+			measurement: "cpu",
+			field:       "region",
+			typ:         influxql.Tag,
+		},
+		{
+			measurement: "cpu",
+			field:       "val2",
+			typ:         influxql.Float,
+		},
+		{
+			measurement: "cpu",
+			field:       "unknown",
+			typ:         influxql.Unknown,
+		},
+		{
+			measurement: "mem",
+			field:       "value",
+			typ:         influxql.Integer,
+		},
+		{
+			measurement: "mem",
+			field:       "val3",
+			typ:         influxql.Boolean,
+		},
+		{
+			measurement: "mem",
+			field:       "host",
+			typ:         influxql.Tag,
+		},
+		{
+			measurement: "unknown",
+			field:       "unknown",
+			typ:         influxql.Unknown,
+		},
+		{
+			measurement: "_fieldKeys",
+			field:       "fieldKey",
+			typ:         influxql.String,
+		},
+		{
+			measurement: "_fieldKeys",
+			field:       "fieldType",
+			typ:         influxql.String,
+		},
+		{
+			measurement: "_fieldKeys",
+			field:       "unknown",
+			typ:         influxql.Unknown,
+		},
+		{
+			measurement: "_series",
+			field:       "key",
+			typ:         influxql.String,
+		},
+		{
+			measurement: "_series",
+			field:       "unknown",
+			typ:         influxql.Unknown,
+		},
+		{
+			measurement: "_tagKeys",
+			field:       "tagKey",
+			typ:         influxql.String,
+		},
+		{
+			measurement: "_tagKeys",
+			field:       "unknown",
+			typ:         influxql.Unknown,
+		},
+		{
+			measurement: "_reserved",
+			field:       "value",
+			typ:         influxql.String,
+		},
+		{
+			measurement: "_reserved",
+			field:       "region",
+			typ:         influxql.Tag,
+		},
+	} {
+		name := fmt.Sprintf("%s - %s", tt.measurement, tt.field)
+		t.Run(name, func(t *testing.T) {
+			typ := sh.MapType(tt.measurement, tt.field)
+			if have, want := typ, tt.typ; have != want {
+				t.Errorf("unexpected data type: have=%#v want=%#v", have, want)
+			}
+		})
+	}
+}
+
+func TestShard_MeasurementsByRegex(t *testing.T) {
+	sh := NewShard()
+
+	if err := sh.Open(); err != nil {
+		t.Fatal(err)
+	}
+	defer sh.Close()
+
+	sh.MustWritePointsString(`
+cpu,host=serverA,region=uswest value=100 0
+cpu,host=serverA,region=uswest value=50,val2=5  10
+cpu,host=serverB,region=uswest value=25  0
+mem,host=serverA value=25i 0
+mem,host=serverB value=50i,val3=t 10
+`)
+
+	for _, tt := range []struct {
+		regex        string
+		measurements []string
+	}{
+		{regex: `cpu`, measurements: []string{"cpu"}},
+		{regex: `mem`, measurements: []string{"mem"}},
+		{regex: `cpu|mem`, measurements: []string{"cpu", "mem"}},
+		{regex: `gpu`, measurements: []string{}},
+		{regex: `pu`, measurements: []string{"cpu"}},
+		{regex: `p|m`, measurements: []string{"cpu", "mem"}},
+	} {
+		t.Run(tt.regex, func(t *testing.T) {
+			re := regexp.MustCompile(tt.regex)
+			measurements := sh.MeasurementsByRegex(re)
+			sort.Strings(measurements)
+			if diff := cmp.Diff(tt.measurements, measurements, cmpopts.EquateEmpty()); diff != "" {
+				t.Errorf("unexpected measurements:\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestShards_FieldDimensions(t *testing.T) {
+	shard1 := NewShard()
+
+	if err := shard1.Open(); err != nil {
+		t.Fatal(err)
+	}
+	defer shard1.Close()
+
+	shard1.MustWritePointsString(`
+cpu,host=serverA,region=uswest value=100 0
+cpu,host=serverA,region=uswest value=50,val2=5  10
+cpu,host=serverB,region=uswest value=25  0
+`)
+
+	shard2 := NewShard()
+
+	if err := shard2.Open(); err != nil {
+		t.Fatal(err)
+	}
+
+	shard2.MustWritePointsString(`
+mem,host=serverA value=25i 0
+mem,host=serverB value=50i,val3=t 10
+_reserved,region=uswest value="foo" 0
+`)
+
+	sh := tsdb.Shards([]*tsdb.Shard{shard1.Shard, shard2.Shard})
+	for _, tt := range []struct {
+		sources []string
+		f       map[string]influxql.DataType
+		d       map[string]struct{}
+	}{
+		{
+			sources: []string{"cpu"},
+			f: map[string]influxql.DataType{
+				"value": influxql.Float,
+				"val2":  influxql.Float,
+			},
+			d: map[string]struct{}{
+				"host":   {},
+				"region": {},
+			},
+		},
+		{
+			sources: []string{"mem"},
+			f: map[string]influxql.DataType{
+				"value": influxql.Integer,
+				"val3":  influxql.Boolean,
+			},
+			d: map[string]struct{}{
+				"host": {},
+			},
+		},
+		{
+			sources: []string{"cpu", "mem"},
+			f: map[string]influxql.DataType{
+				"value": influxql.Float,
+				"val2":  influxql.Float,
+				"val3":  influxql.Boolean,
+			},
+			d: map[string]struct{}{
+				"host":   {},
+				"region": {},
+			},
+		},
+		{
+			sources: []string{"_fieldKeys"},
+			f: map[string]influxql.DataType{
+				"fieldKey":  influxql.String,
+				"fieldType": influxql.String,
+			},
+			d: map[string]struct{}{},
+		},
+		{
+			sources: []string{"_series"},
+			f: map[string]influxql.DataType{
+				"key": influxql.String,
+			},
+			d: map[string]struct{}{},
+		},
+		{
+			sources: []string{"_tagKeys"},
+			f: map[string]influxql.DataType{
+				"tagKey": influxql.String,
+			},
+			d: map[string]struct{}{},
+		},
+		{
+			sources: []string{"_reserved"},
+			f: map[string]influxql.DataType{
+				"value": influxql.String,
+			},
+			d: map[string]struct{}{
+				"region": {},
+			},
+		},
+		{
+			sources: []string{"unknown"},
+			f:       map[string]influxql.DataType{},
+			d:       map[string]struct{}{},
+		},
+	} {
+		name := strings.Join(tt.sources, ",")
+		t.Run(name, func(t *testing.T) {
+			f, d, err := sh.FieldDimensions(tt.sources)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if diff := cmp.Diff(tt.f, f, cmpopts.EquateEmpty()); diff != "" {
+				t.Errorf("unexpected fields:\n%s", diff)
+			}
+			if diff := cmp.Diff(tt.d, d, cmpopts.EquateEmpty()); diff != "" {
+				t.Errorf("unexpected dimensions:\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestShards_MapType(t *testing.T) {
+	shard1 := NewShard()
+
+	if err := shard1.Open(); err != nil {
+		t.Fatal(err)
+	}
+	defer shard1.Close()
+
+	shard1.MustWritePointsString(`
+cpu,host=serverA,region=uswest value=100 0
+cpu,host=serverA,region=uswest value=50,val2=5  10
+cpu,host=serverB,region=uswest value=25  0
+`)
+
+	shard2 := NewShard()
+
+	if err := shard2.Open(); err != nil {
+		t.Fatal(err)
+	}
+
+	shard2.MustWritePointsString(`
+mem,host=serverA value=25i 0
+mem,host=serverB value=50i,val3=t 10
+_reserved,region=uswest value="foo" 0
+`)
+
+	sh := tsdb.Shards([]*tsdb.Shard{shard1.Shard, shard2.Shard})
+	for _, tt := range []struct {
+		measurement string
+		field       string
+		typ         influxql.DataType
+	}{
+		{
+			measurement: "cpu",
+			field:       "value",
+			typ:         influxql.Float,
+		},
+		{
+			measurement: "cpu",
+			field:       "host",
+			typ:         influxql.Tag,
+		},
+		{
+			measurement: "cpu",
+			field:       "region",
+			typ:         influxql.Tag,
+		},
+		{
+			measurement: "cpu",
+			field:       "val2",
+			typ:         influxql.Float,
+		},
+		{
+			measurement: "cpu",
+			field:       "unknown",
+			typ:         influxql.Unknown,
+		},
+		{
+			measurement: "mem",
+			field:       "value",
+			typ:         influxql.Integer,
+		},
+		{
+			measurement: "mem",
+			field:       "val3",
+			typ:         influxql.Boolean,
+		},
+		{
+			measurement: "mem",
+			field:       "host",
+			typ:         influxql.Tag,
+		},
+		{
+			measurement: "unknown",
+			field:       "unknown",
+			typ:         influxql.Unknown,
+		},
+		{
+			measurement: "_fieldKeys",
+			field:       "fieldKey",
+			typ:         influxql.String,
+		},
+		{
+			measurement: "_fieldKeys",
+			field:       "fieldType",
+			typ:         influxql.String,
+		},
+		{
+			measurement: "_fieldKeys",
+			field:       "unknown",
+			typ:         influxql.Unknown,
+		},
+		{
+			measurement: "_series",
+			field:       "key",
+			typ:         influxql.String,
+		},
+		{
+			measurement: "_series",
+			field:       "unknown",
+			typ:         influxql.Unknown,
+		},
+		{
+			measurement: "_tagKeys",
+			field:       "tagKey",
+			typ:         influxql.String,
+		},
+		{
+			measurement: "_tagKeys",
+			field:       "unknown",
+			typ:         influxql.Unknown,
+		},
+		{
+			measurement: "_reserved",
+			field:       "value",
+			typ:         influxql.String,
+		},
+		{
+			measurement: "_reserved",
+			field:       "region",
+			typ:         influxql.Tag,
+		},
+	} {
+		name := fmt.Sprintf("%s - %s", tt.measurement, tt.field)
+		t.Run(name, func(t *testing.T) {
+			typ := sh.MapType(tt.measurement, tt.field)
+			if have, want := typ, tt.typ; have != want {
+				t.Errorf("unexpected data type: have=%#v want=%#v", have, want)
+			}
+		})
+	}
+}
+
+func TestShards_MeasurementsByRegex(t *testing.T) {
+	shard1 := NewShard()
+
+	if err := shard1.Open(); err != nil {
+		t.Fatal(err)
+	}
+	defer shard1.Close()
+
+	shard1.MustWritePointsString(`
+cpu,host=serverA,region=uswest value=100 0
+cpu,host=serverA,region=uswest value=50,val2=5  10
+cpu,host=serverB,region=uswest value=25  0
+`)
+
+	shard2 := NewShard()
+
+	if err := shard2.Open(); err != nil {
+		t.Fatal(err)
+	}
+
+	shard2.MustWritePointsString(`
+mem,host=serverA value=25i 0
+mem,host=serverB value=50i,val3=t 10
+_reserved,region=uswest value="foo" 0
+`)
+
+	sh := tsdb.Shards([]*tsdb.Shard{shard1.Shard, shard2.Shard})
+	for _, tt := range []struct {
+		regex        string
+		measurements []string
+	}{
+		{regex: `cpu`, measurements: []string{"cpu"}},
+		{regex: `mem`, measurements: []string{"mem"}},
+		{regex: `cpu|mem`, measurements: []string{"cpu", "mem"}},
+		{regex: `gpu`, measurements: []string{}},
+		{regex: `pu`, measurements: []string{"cpu"}},
+		{regex: `p|m`, measurements: []string{"cpu", "mem"}},
+	} {
+		t.Run(tt.regex, func(t *testing.T) {
+			re := regexp.MustCompile(tt.regex)
+			measurements := sh.MeasurementsByRegex(re)
+			sort.Strings(measurements)
+			if diff := cmp.Diff(tt.measurements, measurements, cmpopts.EquateEmpty()); diff != "" {
+				t.Errorf("unexpected measurements:\n%s", diff)
+			}
+		})
 	}
 }
 
