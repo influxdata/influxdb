@@ -71,7 +71,9 @@ const UserRow = ({
 
   return (
     <tr>
-      <td style={{width: `${USERS_TABLE.colUsername}px`}}>{name}</td>
+      <td style={{width: `${USERS_TABLE.colUsername}px`}}>
+        {name}
+      </td>
       <td style={{width: `${USERS_TABLE.colPassword}px`}}>
         <ChangePassRow
           onEdit={onEdit}

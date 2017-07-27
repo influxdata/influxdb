@@ -17,6 +17,7 @@ func MarshalSource(s chronograf.Source) ([]byte, error) {
 		Type:               s.Type,
 		Username:           s.Username,
 		Password:           s.Password,
+		SharedSecret:       s.SharedSecret,
 		URL:                s.URL,
 		MetaURL:            s.MetaURL,
 		InsecureSkipVerify: s.InsecureSkipVerify,
@@ -37,6 +38,7 @@ func UnmarshalSource(data []byte, s *chronograf.Source) error {
 	s.Type = pb.Type
 	s.Username = pb.Username
 	s.Password = pb.Password
+	s.SharedSecret = pb.SharedSecret
 	s.URL = pb.URL
 	s.MetaURL = pb.MetaURL
 	s.InsecureSkipVerify = pb.InsecureSkipVerify
@@ -179,6 +181,19 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 			}
 		}
 
+		axes := make(map[string]*Axis, len(c.Axes))
+		for a, r := range c.Axes {
+			// need to explicitly allocate a new array because r.Bounds is
+			// over-written and the resulting slices from previous iterations will
+			// point to later iteration's data. It is _not_ enough to simply re-slice
+			// r.Bounds
+			axis := [2]int64{}
+			copy(axis[:], r.Bounds[:2])
+			axes[a] = &Axis{
+				Bounds: axis[:],
+			}
+		}
+
 		cells[i] = &DashboardCell{
 			ID:      c.ID,
 			X:       c.X,
@@ -188,6 +203,7 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 			Name:    c.Name,
 			Queries: queries,
 			Type:    c.Type,
+			Axes:    axes,
 		}
 	}
 	templates := make([]*Template, len(d.Templates))
@@ -251,6 +267,13 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 			}
 		}
 
+		axes := make(map[string]chronograf.Axis, len(c.Axes))
+		for a, r := range c.Axes {
+			axis := chronograf.Axis{}
+			copy(axis.Bounds[:], r.Bounds[:2])
+			axes[a] = axis
+		}
+
 		cells[i] = chronograf.DashboardCell{
 			ID:      c.ID,
 			X:       c.X,
@@ -260,6 +283,7 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 			Name:    c.Name,
 			Queries: queries,
 			Type:    c.Type,
+			Axes:    axes,
 		}
 	}
 

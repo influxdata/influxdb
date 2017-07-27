@@ -34,7 +34,9 @@ export const RuleGraph = React.createClass({
     if (!queryText) {
       return (
         <div className="rule-builder--graph-empty">
-          <p>Select a <strong>Time-Series</strong> to preview on a graph</p>
+          <p>
+            Select a <strong>Time-Series</strong> to preview on a graph
+          </p>
         </div>
       )
     }
@@ -106,9 +108,10 @@ export const RuleGraph = React.createClass({
       const bottom = dygraph.toDomYCoord(highlightStart)
       const top = dygraph.toDomYCoord(highlightEnd)
 
-      canvas.fillStyle = rule.values.operator === 'outside range'
-        ? 'rgba(41, 41, 51, 1)'
-        : 'rgba(78, 216, 160, 0.3)'
+      canvas.fillStyle =
+        rule.values.operator === 'outside range'
+          ? 'rgba(41, 41, 51, 1)'
+          : 'rgba(78, 216, 160, 0.3)'
       canvas.fillRect(area.x, top, area.w, bottom - top)
     }
   },

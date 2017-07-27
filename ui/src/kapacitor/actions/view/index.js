@@ -7,6 +7,14 @@ import {
   deleteRule as deleteRuleAPI,
   updateRuleStatus as updateRuleStatusAPI,
 } from 'src/kapacitor/apis'
+import {errorThrown} from 'shared/actions/errors'
+
+const loadQuery = query => ({
+  type: 'KAPA_LOAD_QUERY',
+  payload: {
+    query,
+  },
+})
 
 export function fetchRule(source, ruleID) {
   return dispatch => {
@@ -18,17 +26,18 @@ export function fetchRule(source, ruleID) {
             rule: Object.assign(rule, {queryID: rule.query.id}),
           },
         })
-
-        dispatch({
-          type: 'LOAD_KAPACITOR_QUERY',
-          payload: {
-            query: rule.query,
-          },
-        })
+        dispatch(loadQuery(rule.query))
       })
     })
   }
 }
+
+const addQuery = queryID => ({
+  type: 'KAPA_ADD_QUERY',
+  payload: {
+    queryID,
+  },
+})
 
 export function loadDefaultRule() {
   return dispatch => {
@@ -39,25 +48,16 @@ export function loadDefaultRule() {
         queryID,
       },
     })
-    dispatch({
-      type: 'ADD_KAPACITOR_QUERY',
-      payload: {
-        queryID,
-      },
-    })
+    dispatch(addQuery(queryID))
   }
 }
 
-export function fetchRules(kapacitor) {
-  return dispatch => {
-    getRules(kapacitor).then(({data: {rules}}) => {
-      dispatch({
-        type: 'LOAD_RULES',
-        payload: {
-          rules,
-        },
-      })
-    })
+export const fetchRules = kapacitor => async dispatch => {
+  try {
+    const {data: {rules}} = await getRules(kapacitor)
+    dispatch({type: 'LOAD_RULES', payload: {rules}})
+  } catch (error) {
+    dispatch(errorThrown(error))
   }
 }
 
@@ -117,6 +117,15 @@ export function updateDetails(ruleID, details) {
   }
 }
 
+export const updateAlertProperty = (ruleID, alertNodeName, alertProperty) => ({
+  type: 'UPDATE_RULE_ALERT_PROPERTY',
+  payload: {
+    ruleID,
+    alertNodeName,
+    alertProperty,
+  },
+})
+
 export function updateAlerts(ruleID, alerts) {
   return {
     type: 'UPDATE_RULE_ALERTS',
@@ -127,12 +136,12 @@ export function updateAlerts(ruleID, alerts) {
   }
 }
 
-export function updateAlertNodes(ruleID, alertType, alertNodesText) {
+export function updateAlertNodes(ruleID, alertNodeName, alertNodesText) {
   return {
     type: 'UPDATE_RULE_ALERT_NODES',
     payload: {
       ruleID,
-      alertType,
+      alertNodeName,
       alertNodesText,
     },
   }

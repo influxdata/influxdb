@@ -34,9 +34,7 @@ const DashboardsTable = ({
                         {tv.tempVar}
                       </code>
                     )
-                  : <span className="empty-string">
-                      None
-                    </span>}
+                  : <span className="empty-string">None</span>}
               </td>
               <DeleteConfirmTableCell
                 onDelete={onDeleteDashboard}

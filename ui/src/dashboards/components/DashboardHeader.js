@@ -35,7 +35,9 @@ const DashboardHeader = ({
                   type="button"
                   data-toggle="dropdown"
                 >
-                  <span>{buttonText}</span>
+                  <span>
+                    {buttonText}
+                  </span>
                   <span className="caret" />
                 </button>
                 <ul className="dropdown-menu">
@@ -99,7 +101,10 @@ DashboardHeader.propTypes = {
   buttonText: string,
   dashboard: shape({}),
   headerText: string,
-  timeRange: shape({}).isRequired,
+  timeRange: shape({
+    lower: string,
+    upper: string,
+  }).isRequired,
   autoRefresh: number.isRequired,
   isHidden: bool.isRequired,
   handleChooseTimeRange: func.isRequired,

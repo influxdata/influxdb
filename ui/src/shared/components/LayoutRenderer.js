@@ -42,13 +42,19 @@ class LayoutRenderer extends Component {
   }
 
   buildQueryForOldQuerySchema(q) {
-    const {timeRange: {lower}, host} = this.props
-    const {defaultGroupBy} = timeRanges.find(range => range.lower === lower)
+    const {timeRange: {lower, upper}, host} = this.props
+    const {defaultGroupBy} = timeRanges.find(
+      range => range.lower === lower
+    ) || {defaultGroupBy: '5m'}
     const {wheres, groupbys} = q
 
     let text = q.text
 
-    text += ` where time > ${lower}`
+    if (upper) {
+      text += ` where time > '${lower}' AND time < '${upper}'`
+    } else {
+      text += ` where time > ${lower}`
+    }
 
     if (host) {
       text += ` and \"host\" = '${host}'`
@@ -82,7 +88,10 @@ class LayoutRenderer extends Component {
       let queryText
       if (query.queryConfig) {
         const {queryConfig: {rawText, range}} = query
-        const timeRange = range || {upper: null, lower: ':dashboardTime:'}
+        const timeRange = range || {
+          upper: ':upperDashboardTime:',
+          lower: ':dashboardTime:',
+        }
         queryText = rawText || buildInfluxQLQuery(timeRange, query.queryConfig)
       } else {
         queryText = this.buildQueryForOldQuerySchema(query)
@@ -129,11 +138,11 @@ class LayoutRenderer extends Component {
       source,
       cells,
       onEditCell,
+      onCancelEditCell,
       onRenameCell,
       onUpdateCell,
       onDeleteCell,
       onSummonOverlayTechnologies,
-      shouldNotBeEditable,
       timeRange,
       autoRefresh,
       templates,
@@ -147,13 +156,13 @@ class LayoutRenderer extends Component {
       return (
         <div key={cell.i}>
           <NameableGraph
+            onCancelEditCell={onCancelEditCell}
             isEditable={isEditable}
             onEditCell={onEditCell}
             onRenameCell={onRenameCell}
             onUpdateCell={onUpdateCell}
             onDeleteCell={onDeleteCell}
             onSummonOverlayTechnologies={onSummonOverlayTechnologies}
-            shouldNotBeEditable={shouldNotBeEditable}
             cell={cell}
           >
             {cell.isWidget
@@ -206,7 +215,7 @@ class LayoutRenderer extends Component {
           PAGE_HEADER_HEIGHT -
           PAGE_CONTAINER_MARGIN -
           PAGE_CONTAINER_MARGIN) /
-          STATUS_PAGE_ROW_COUNT
+        STATUS_PAGE_ROW_COUNT
       : DASHBOARD_LAYOUT_ROW_HEIGHT
   }
 
@@ -289,10 +298,10 @@ LayoutRenderer.propTypes = {
   onUpdateCell: func,
   onDeleteCell: func,
   onSummonOverlayTechnologies: func,
-  shouldNotBeEditable: bool,
   synchronizer: func,
   isStatusPage: bool,
   isEditable: bool,
+  onCancelEditCell: func,
 }
 
 export default LayoutRenderer

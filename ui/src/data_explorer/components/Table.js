@@ -27,10 +27,18 @@ const CustomCell = React.createClass({
     if (columnName === 'time') {
       const date = moment(new Date(data)).format('MM/DD/YY hh:mm:ssA')
 
-      return <span>{date}</span>
+      return (
+        <span>
+          {date}
+        </span>
+      )
     }
 
-    return <span>{data}</span>
+    return (
+      <span>
+        {data}
+      </span>
+    )
   },
 })
 
@@ -137,9 +145,8 @@ const ChronoTable = React.createClass({
     const headerHeight = 30
     const minWidth = 70
     const styleAdjustedHeight = height - stylePixelOffset
-    const width = columns && columns.length > 1
-      ? defaultColumnWidth
-      : containerWidth
+    const width =
+      columns && columns.length > 1 ? defaultColumnWidth : containerWidth
 
     if (!query) {
       return <div className="generic-empty-state">Please add a query below</div>
@@ -172,9 +179,7 @@ const ChronoTable = React.createClass({
             />}
         <div className="table--tabs-content">
           {(columns && !columns.length) || (values && !values.length)
-            ? <div className="generic-empty-state">
-                This series is empty
-              </div>
+            ? <div className="generic-empty-state">This series is empty</div>
             : <Table
                 onColumnResizeEndCallback={this.handleColumnResize}
                 isColumnResizing={false}
@@ -191,7 +196,11 @@ const ChronoTable = React.createClass({
                       isResizable={true}
                       key={columnName}
                       columnKey={columnName}
-                      header={<Cell>{columnName}</Cell>}
+                      header={
+                        <Cell>
+                          {columnName}
+                        </Cell>
+                      }
                       cell={({rowIndex}) =>
                         <CustomCell
                           columnName={columnName}

@@ -132,6 +132,24 @@ export default function ui(state = initialState, action) {
       return {...state, ...newState}
     }
 
+    case 'CANCEL_EDIT_CELL': {
+      const {dashboardID, cellID} = action.payload
+
+      const dashboards = state.dashboards.map(
+        d =>
+          d.id === dashboardID
+            ? {
+                ...d,
+                cells: d.cells.map(
+                  c => (c.i === cellID ? {...c, isEditing: false} : c)
+                ),
+              }
+            : d
+      )
+
+      return {...state, dashboards}
+    }
+
     case 'SYNC_DASHBOARD_CELL': {
       const {cell, dashboard} = action.payload
 
@@ -217,12 +235,12 @@ export default function ui(state = initialState, action) {
 
       const dashboards = state.dashboards.map(
         dashboard =>
-          (dashboard.id === dashboardID
+          dashboard.id === dashboardID
             ? {
                 ...dashboard,
                 templates: dashboard.templates.map(
                   template =>
-                    (template.id === templateID
+                    template.id === templateID
                       ? {
                           ...template,
                           values: values.map((value, i) => ({
@@ -231,10 +249,10 @@ export default function ui(state = initialState, action) {
                             type: TEMPLATE_VARIABLE_TYPES[template.type],
                           })),
                         }
-                      : template)
+                      : template
                 ),
               }
-            : dashboard)
+            : dashboard
       )
 
       return {...state, dashboards}

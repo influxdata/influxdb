@@ -58,9 +58,7 @@ $rd-cell-size: 30px;
   background-color: transparent;
   border-radius: 50%;
   color: $g15-platinum;
-  transition:
-    background-color 0.25s ease,
-    color 0.25s ease;
+  transition: background-color 0.25s ease, color 0.25s ease;
 
   &:after {
     font-family: 'icomoon' !important;
@@ -70,7 +68,7 @@ $rd-cell-size: 30px;
     color: inherit;
     position: absolute;
     top: 50%;
-    transform: translate(-50%,-50%);
+    transform: translate(-50%, -50%);
     font-size: 16px;
   }
   &:hover {
@@ -132,9 +130,7 @@ $rd-cell-size: 30px;
     @include no-user-select();
     letter-spacing: -1px;
     font-family: $code-font;
-    transition:
-      background-color 0.25s ease,
-      color 0.25s ease;
+    transition: background-color 0.25s ease, color 0.25s ease;
     color: $g13-mist !important;
     background-color: $g3-castle;
     border-radius: 5px;
@@ -157,7 +153,6 @@ $rd-cell-size: 30px;
   }
 }
 
-
 .rd-time {
   margin: 0 2px;
   width: calc(100% - 4px);
@@ -178,9 +173,7 @@ $rd-cell-size: 30px;
   font-family: $code-font;
   color: $g13-mist;
   display: inline-block;
-  transition:
-    color 0.25s ease,
-    background-color 0.25s ease;
+  transition: color 0.25s ease, background-color 0.25s ease;
   text-align: center;
 
   &:hover {
@@ -191,11 +184,12 @@ $rd-cell-size: 30px;
 }
 .rd-time-list {
   position: absolute;
+  z-index: 1;
   top: 50%;
   left: 50%;
   width: 120px;
   height: 200px;
-  transform: translate(-50%,-50%);
+  transform: translate(-50%, -50%);
   overflow: auto;
   overflow-x: hidden;
   overflow-y: scroll;
@@ -226,11 +220,10 @@ $rd-cell-size: 30px;
   }
 }
 
-.custom-time--apply {
+.custom-time--container .btn.custom-time--apply {
   margin-top: 8px;
   width: 120px;
 }
-
 
 /* Open State */
 .custom-time-range.open {
@@ -240,5 +233,19 @@ $rd-cell-size: 30px;
   .custom-time-range--btn {
     color: $g20-white !important;
     background-color: $g6-smoke;
+  }
+}
+/* Custom positioning for dashboard use */
+.time-range-dropdown {
+  position: relative;
+}
+.custom-time--overlay {
+  position: absolute;
+  top: 0;
+  right: calc(100% + 4px);
+  z-index: 4;
+
+  .custom-time--container {
+    display: flex;
   }
 }

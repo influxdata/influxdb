@@ -32,16 +32,28 @@ class StatusPage extends Component {
         },
       ],
     }
-    const templates = [dashboardTime]
+
+    const upperDashboardTime = {
+      id: 'upperdashtime',
+      tempVar: ':upperDashboardTime:',
+      type: 'constant',
+      values: [
+        {
+          value: 'now()',
+          type: 'constant',
+          selected: true,
+        },
+      ],
+    }
+
+    const templates = [dashboardTime, upperDashboardTime]
 
     return (
       <div className="page">
         <div className="page-header full-width">
           <div className="page-header__container">
             <div className="page-header__left">
-              <h1 className="page-header__title">
-                Status
-              </h1>
+              <h1 className="page-header__title">Status</h1>
             </div>
             <div className="page-header__right">
               <SourceIndicator sourceName={source.name} />

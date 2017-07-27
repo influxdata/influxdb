@@ -67,14 +67,19 @@ export function getKapacitor(source, kapacitorID) {
   })
 }
 
-export function getActiveKapacitor(source) {
-  return AJAX({
-    url: source.links.kapacitors,
-    method: 'GET',
-  }).then(({data}) => {
+export const getActiveKapacitor = async source => {
+  try {
+    const {data} = await AJAX({
+      url: source.links.kapacitors,
+      method: 'GET',
+    })
+
     const activeKapacitor = data.kapacitors.find(k => k.active)
     return activeKapacitor || data.kapacitors[0]
-  })
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
 }
 
 export const getKapacitors = async source => {
@@ -138,11 +143,11 @@ export function updateKapacitor({
   })
 }
 
-export function getKapacitorConfig(kapacitor) {
-  return kapacitorProxy(kapacitor, 'GET', '/kapacitor/v1/config', '')
+export const getKapacitorConfig = async kapacitor => {
+  return await kapacitorProxy(kapacitor, 'GET', '/kapacitor/v1/config', '')
 }
 
-export function getKapacitorConfigSection(kapacitor, section) {
+export const getKapacitorConfigSection = (kapacitor, section) => {
   return kapacitorProxy(kapacitor, 'GET', `/kapacitor/v1/config/${section}`, '')
 }
 

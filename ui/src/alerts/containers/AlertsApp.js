@@ -27,7 +27,6 @@ class AlertsApp extends Component {
       loading: true,
       hasKapacitor: false,
       alerts: [],
-      isTimeOpen: false,
       timeRange: {
         upper: moment().format(),
         lower: moment().subtract(lowerInSec || oneDayInSec, 'seconds').format(),
@@ -40,8 +39,6 @@ class AlertsApp extends Component {
     this.fetchAlerts = ::this.fetchAlerts
     this.renderSubComponents = ::this.renderSubComponents
     this.handleGetMoreAlerts = ::this.handleGetMoreAlerts
-    this.handleToggleTime = ::this.handleToggleTime
-    this.handleCloseTime = ::this.handleCloseTime
     this.handleApplyTime = ::this.handleApplyTime
   }
 
@@ -138,14 +135,6 @@ class AlertsApp extends Component {
       : <NoKapacitorError source={source} />
   }
 
-  handleToggleTime() {
-    this.setState({isTimeOpen: !this.state.isTimeOpen})
-  }
-
-  handleCloseTime() {
-    this.setState({isTimeOpen: false})
-  }
-
   handleApplyTime(timeRange) {
     this.setState({timeRange})
   }
@@ -164,16 +153,11 @@ class AlertsApp extends Component {
           <div className="page-header">
             <div className="page-header__container">
               <div className="page-header__left">
-                <h1 className="page-header__title">
-                  Alert History
-                </h1>
+                <h1 className="page-header__title">Alert History</h1>
               </div>
               <div className="page-header__right">
                 <SourceIndicator sourceName={source.name} />
                 <CustomTimeRangeDropdown
-                  isVisible={this.state.isTimeOpen}
-                  onToggle={this.handleToggleTime}
-                  onClose={this.handleCloseTime}
                   onApplyTimeRange={this.handleApplyTime}
                   timeRange={timeRange}
                 />

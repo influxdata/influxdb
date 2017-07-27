@@ -8,16 +8,25 @@ class NameableGraph extends Component {
     super(props)
     this.state = {
       isMenuOpen: false,
+      cellName: props.cell.name,
     }
-
-    this.toggleMenu = ::this.toggleMenu
-    this.closeMenu = ::this.closeMenu
   }
 
   toggleMenu() {
     this.setState({
       isMenuOpen: !this.state.isMenuOpen,
     })
+  }
+
+  handleRenameCell(e) {
+    const cellName = e.target.value
+    this.setState({cellName})
+  }
+
+  handleCancelEdit(cellID) {
+    const {cell, onCancelEditCell} = this.props
+    this.setState({cellName: cell.name})
+    onCancelEditCell(cellID)
   }
 
   closeMenu() {
@@ -30,7 +39,6 @@ class NameableGraph extends Component {
     const {
       cell,
       onEditCell,
-      onRenameCell,
       onUpdateCell,
       onDeleteCell,
       onSummonOverlayTechnologies,
@@ -38,23 +46,26 @@ class NameableGraph extends Component {
       children,
     } = this.props
 
+    const {cellName, isMenuOpen} = this.state
+
     return (
       <div className="dash-graph">
         <NameableGraphHeader
           cell={cell}
+          cellName={cellName}
           isEditable={isEditable}
-          onEditCell={onEditCell}
-          onRenameCell={onRenameCell}
           onUpdateCell={onUpdateCell}
+          onRenameCell={::this.handleRenameCell}
+          onCancelEditCell={::this.handleCancelEdit}
         />
         <ContextMenu
           cell={cell}
           onDelete={onDeleteCell}
           onRename={!cell.isEditing && isEditable ? onEditCell : () => {}}
-          toggleMenu={this.toggleMenu}
-          isOpen={this.state.isMenuOpen}
+          toggleMenu={::this.toggleMenu}
+          isOpen={isMenuOpen}
           isEditable={isEditable}
-          handleClickOutside={this.closeMenu}
+          handleClickOutside={::this.closeMenu}
           onEdit={onSummonOverlayTechnologies}
         />
         <div className="dash-graph--container">
@@ -81,8 +92,8 @@ NameableGraph.propTypes = {
   onUpdateCell: func,
   onDeleteCell: func,
   onSummonOverlayTechnologies: func,
-  shouldNotBeEditable: bool,
   isEditable: bool,
+  onCancelEditCell: func,
 }
 
 export default NameableGraph

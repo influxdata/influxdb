@@ -44,9 +44,7 @@ const Header = React.createClass({
       <div className="page-header full-width">
         <div className="page-header__container">
           <div className="page-header__left">
-            <h1 className="page-header__title">
-              Data Explorer
-            </h1>
+            <h1 className="page-header__title">Data Explorer</h1>
           </div>
           <div className="page-header__right">
             <GraphTips />

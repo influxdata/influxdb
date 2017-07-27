@@ -15,7 +15,7 @@ import {VIS_VIEWS} from 'shared/constants'
 import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from '../constants'
 import {errorThrown} from 'shared/actions/errors'
 import {setAutoRefresh} from 'shared/actions/app'
-import * as viewActions from 'src/data_explorer/actions/view'
+import * as dataExplorerActionCreators from 'src/data_explorer/actions/view'
 import {writeLineProtocolAsync} from 'src/data_explorer/actions/view/write'
 
 const {arrayOf, func, number, shape, string} = PropTypes
@@ -152,7 +152,7 @@ function mapStateToProps(state) {
   const {
     app: {persisted: {autoRefresh}},
     dataExplorer,
-    queryConfigs,
+    dataExplorerQueryConfigs: queryConfigs,
     timeRange,
   } = state
   const queryConfigValues = _.values(queryConfigs)
@@ -169,9 +169,15 @@ function mapDispatchToProps(dispatch) {
   return {
     handleChooseAutoRefresh: bindActionCreators(setAutoRefresh, dispatch),
     errorThrownAction: bindActionCreators(errorThrown, dispatch),
-    setTimeRange: bindActionCreators(viewActions.setTimeRange, dispatch),
+    setTimeRange: bindActionCreators(
+      dataExplorerActionCreators.setTimeRange,
+      dispatch
+    ),
     writeLineProtocol: bindActionCreators(writeLineProtocolAsync, dispatch),
-    queryConfigActions: bindActionCreators(viewActions, dispatch),
+    queryConfigActions: bindActionCreators(
+      dataExplorerActionCreators,
+      dispatch
+    ),
   }
 }
 

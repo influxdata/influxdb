@@ -8,8 +8,12 @@ const NoDataNodeError = React.createClass({
   render() {
     return (
       <ClusterError>
-        <PanelHeading>{errorCopy.noData.head}</PanelHeading>
-        <PanelBody>{errorCopy.noData.body}</PanelBody>
+        <PanelHeading>
+          {errorCopy.noData.head}
+        </PanelHeading>
+        <PanelBody>
+          {errorCopy.noData.body}
+        </PanelBody>
       </ClusterError>
     )
   },

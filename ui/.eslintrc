@@ -2,6 +2,7 @@
   parser: 'babel-eslint',
   plugins: [
     'react',
+    'prettier',
   ],
   env: {
     browser: true,
@@ -220,7 +221,7 @@
     'react/jsx-uses-react': 2,
     'react/jsx-uses-vars': 2,
     'react/no-danger': 2,
-    'react/no-did-mount-set-state': 'error',
+    'react/no-did-mount-set-state': 0,
     'react/no-did-update-set-state': 2,
     'react/no-direct-mutation-state': 2,
     'react/no-is-mounted': 2,
@@ -234,5 +235,11 @@
     'react/require-extension': 0,
     'react/self-closing-comp': 0, // TODO: we can re-enable this if some brave soul wants to update the code (mostly spans acting as icons)
     'react/sort-comp': 0, // TODO: 2
+    'prettier/prettier': ['error', {
+      'singleQuote': true,
+      'trailingComma': 'es5',
+      'bracketSpacing': false,
+      'semi': false,
+    }],
   },
 }

@@ -169,7 +169,51 @@ func TestAlertServices(t *testing.T) {
 					},
 				},
 			},
-			wantErr: true,
+			want: `alert()
+        .post()
+`,
+		},
+		{
+			name: "Test post with headers",
+			rule: chronograf.AlertRule{
+				AlertNodes: []chronograf.KapacitorNode{
+					{
+						Name: "post",
+						Args: []string{"http://myaddress"},
+						Properties: []chronograf.KapacitorProperty{
+							{
+								Name: "header",
+								Args: []string{"key", "value"},
+							},
+						},
+					},
+				},
+			},
+			want: `alert()
+        .post('http://myaddress')
+        .header('key', 'value')
+`,
+		},
+		{
+			name: "Test post with headers",
+			rule: chronograf.AlertRule{
+				AlertNodes: []chronograf.KapacitorNode{
+					{
+						Name: "post",
+						Args: []string{"http://myaddress"},
+						Properties: []chronograf.KapacitorProperty{
+							{
+								Name: "endpoint",
+								Args: []string{"myendpoint"},
+							},
+						},
+					},
+				},
+			},
+			want: `alert()
+        .post('http://myaddress')
+        .endpoint('myendpoint')
+`,
 		},
 	}
 	for _, tt := range tests {

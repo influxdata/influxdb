@@ -10,8 +10,7 @@ import CellEditorOverlay from 'src/dashboards/components/CellEditorOverlay'
 import DashboardHeader from 'src/dashboards/components/DashboardHeader'
 import DashboardHeaderEdit from 'src/dashboards/components/DashboardHeaderEdit'
 import Dashboard from 'src/dashboards/components/Dashboard'
-import TemplateVariableManager
-  from 'src/dashboards/components/TemplateVariableManager'
+import TemplateVariableManager from 'src/dashboards/components/TemplateVariableManager'
 
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 
@@ -45,7 +44,6 @@ class DashboardPage extends Component {
     this.handleCancelEditDashboard = ::this.handleCancelEditDashboard
     this.handleDeleteDashboardCell = ::this.handleDeleteDashboardCell
     this.handleOpenTemplateManager = ::this.handleOpenTemplateManager
-    this.handleRenameDashboardCell = ::this.handleRenameDashboardCell
     this.handleUpdateDashboardCell = ::this.handleUpdateDashboardCell
     this.handleCloseTemplateManager = ::this.handleCloseTemplateManager
     this.handleSummonOverlayTechnologies = ::this
@@ -104,8 +102,8 @@ class DashboardPage extends Component {
     this.setState({selectedCell: cell})
   }
 
-  handleChooseTimeRange({lower}) {
-    this.props.dashboardActions.setTimeRange({lower, upper: null})
+  handleChooseTimeRange(timeRange) {
+    this.props.dashboardActions.setTimeRange(timeRange)
   }
 
   handleUpdatePosition(cells) {
@@ -145,26 +143,12 @@ class DashboardPage extends Component {
     }
   }
 
-  handleRenameDashboardCell(x, y) {
-    return evt => {
-      this.props.dashboardActions.renameDashboardCell(
-        this.getActiveDashboard(),
-        x,
-        y,
-        evt.target.value
-      )
-    }
-  }
-
   handleUpdateDashboardCell(newCell) {
     return () => {
-      this.props.dashboardActions.editDashboardCell(
+      this.props.dashboardActions.updateDashboardCell(
         this.getActiveDashboard(),
-        newCell.x,
-        newCell.y,
-        false
+        newCell
       )
-      this.props.dashboardActions.putDashboard(this.getActiveDashboard())
     }
   }
 
@@ -239,6 +223,13 @@ class DashboardPage extends Component {
     this.props.templateControlBarVisibilityToggled()
   }
 
+  handleCancelEditCell(cellID) {
+    this.props.dashboardActions.cancelEditCell(
+      this.getActiveDashboard().id,
+      cellID
+    )
+  }
+
   getActiveDashboard() {
     const {params: {dashboardID}, dashboards} = this.props
     return dashboards.find(d => d.id === +dashboardID)
@@ -248,6 +239,7 @@ class DashboardPage extends Component {
     const {
       source,
       timeRange,
+      timeRange: {lower, upper},
       showTemplateControlBar,
       dashboards,
       autoRefresh,
@@ -259,15 +251,30 @@ class DashboardPage extends Component {
       params: {sourceID},
     } = this.props
 
-    const dashboard = this.getActiveDashboard()
+    const lowerType = lower && lower.includes('Z') ? 'timeStamp' : 'constant'
+    const upperType = upper && upper.includes('Z') ? 'timeStamp' : 'constant'
+
     const dashboardTime = {
       id: 'dashtime',
       tempVar: ':dashboardTime:',
-      type: 'constant',
+      type: lowerType,
       values: [
         {
-          value: timeRange.lower,
-          type: 'constant',
+          value: lower,
+          type: lowerType,
+          selected: true,
+        },
+      ],
+    }
+
+    const upperDashboardTime = {
+      id: 'upperdashtime',
+      tempVar: ':upperDashboardTime:',
+      type: upperType,
+      values: [
+        {
+          value: upper || 'now()',
+          type: upperType,
           selected: true,
         },
       ],
@@ -283,8 +290,19 @@ class DashboardPage extends Component {
       values: [],
     }
 
-    const templatesIncludingDashTime = (dashboard &&
-      dashboard.templates.concat(dashboardTime).concat(interval)) || []
+    const dashboard = this.getActiveDashboard()
+
+    let templatesIncludingDashTime
+    if (dashboard) {
+      templatesIncludingDashTime = [
+        ...dashboard.templates,
+        dashboardTime,
+        upperDashboardTime,
+        interval,
+      ]
+    } else {
+      templatesIncludingDashTime = []
+    }
 
     const {selectedCell, isEditMode, isTemplating} = this.state
 
@@ -337,13 +355,13 @@ class DashboardPage extends Component {
               showTemplateControlBar={showTemplateControlBar}
             >
               {dashboards
-                ? dashboards.map((d, i) => (
+                ? dashboards.map((d, i) =>
                     <li className="dropdown-item" key={i}>
                       <Link to={`/sources/${sourceID}/dashboards/${d.id}`}>
                         {d.name}
                       </Link>
                     </li>
-                  ))
+                  )
                 : null}
             </DashboardHeader>}
         {dashboard
@@ -358,13 +376,13 @@ class DashboardPage extends Component {
               onEditCell={this.handleEditDashboardCell}
               onPositionChange={this.handleUpdatePosition}
               onDeleteCell={this.handleDeleteDashboardCell}
-              onRenameCell={this.handleRenameDashboardCell}
               onUpdateCell={this.handleUpdateDashboardCell}
               onOpenTemplateManager={this.handleOpenTemplateManager}
               templatesIncludingDashTime={templatesIncludingDashTime}
               onSummonOverlayTechnologies={this.handleSummonOverlayTechnologies}
               onSelectTemplate={this.handleSelectTemplate}
               showTemplateControlBar={showTemplateControlBar}
+              onCancelEditCell={::this.handleCancelEditCell}
             />
           : null}
       </div>
@@ -394,7 +412,7 @@ DashboardPage.propTypes = {
     setTimeRange: func.isRequired,
     addDashboardCellAsync: func.isRequired,
     editDashboardCell: func.isRequired,
-    renameDashboardCell: func.isRequired,
+    cancelEditCell: func.isRequired,
   }).isRequired,
   dashboards: arrayOf(
     shape({

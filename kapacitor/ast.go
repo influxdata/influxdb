@@ -412,7 +412,6 @@ func Reverse(script chronograf.TICKScript) (chronograf.AlertRule, error) {
 	rule.Query.RetentionPolicy = commonVars.RP
 	rule.Query.Measurement = commonVars.Measurement
 	rule.Query.GroupBy.Tags = commonVars.GroupBy
-
 	if commonVars.Filter.Operator == "==" {
 		rule.Query.AreTagsAccepted = true
 	}
@@ -492,6 +491,7 @@ func extractAlertNodes(p *pipeline.Pipeline, rule *chronograf.AlertRule) {
 			extractSlack(t, rule)
 			extractTalk(t, rule)
 			extractTelegram(t, rule)
+			extractPushover(t, rule)
 			extractTCP(t, rule)
 			extractLog(t, rule)
 			extractExec(t, rule)
@@ -501,7 +501,7 @@ func extractAlertNodes(p *pipeline.Pipeline, rule *chronograf.AlertRule) {
 }
 
 func extractHipchat(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
-	if node.HipChatHandlers == nil {
+	if len(node.HipChatHandlers) == 0 {
 		return
 	}
 	rule.Alerts = append(rule.Alerts, "hipchat")
@@ -527,7 +527,7 @@ func extractHipchat(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
 }
 
 func extractOpsgenie(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
-	if node.OpsGenieHandlers == nil {
+	if len(node.OpsGenieHandlers) == 0 {
 		return
 	}
 	rule.Alerts = append(rule.Alerts, "opsgenie")
@@ -553,13 +553,13 @@ func extractOpsgenie(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
 }
 
 func extractPagerduty(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
-	if node.PagerDutyHandlers == nil {
+	if len(node.PagerDutyHandlers) == 0 {
 		return
 	}
 	rule.Alerts = append(rule.Alerts, "pagerduty")
 	p := node.PagerDutyHandlers[0]
 	alert := chronograf.KapacitorNode{
-		Name: "paperduty",
+		Name: "pagerduty",
 	}
 
 	if p.ServiceKey != "" {
@@ -572,7 +572,7 @@ func extractPagerduty(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
 }
 
 func extractVictorops(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
-	if node.VictorOpsHandlers == nil {
+	if len(node.VictorOpsHandlers) == 0 {
 		return
 	}
 	rule.Alerts = append(rule.Alerts, "victorops")
@@ -591,7 +591,7 @@ func extractVictorops(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
 }
 
 func extractEmail(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
-	if node.EmailHandlers == nil {
+	if len(node.EmailHandlers) == 0 {
 		return
 	}
 	rule.Alerts = append(rule.Alerts, "smtp")
@@ -607,11 +607,11 @@ func extractEmail(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
 }
 
 func extractPost(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
-	if node.PostHandlers == nil {
+	if len(node.HTTPPostHandlers) == 0 {
 		return
 	}
 	rule.Alerts = append(rule.Alerts, "http")
-	p := node.PostHandlers[0]
+	p := node.HTTPPostHandlers[0]
 	alert := chronograf.KapacitorNode{
 		Name: "http",
 	}
@@ -620,11 +620,27 @@ func extractPost(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
 		alert.Args = []string{p.URL}
 	}
 
+	if p.Endpoint != "" {
+		alert.Properties = append(alert.Properties, chronograf.KapacitorProperty{
+			Name: "endpoint",
+			Args: []string{p.Endpoint},
+		})
+	}
+
+	if len(p.Headers) > 0 {
+		for k, v := range p.Headers {
+			alert.Properties = append(alert.Properties, chronograf.KapacitorProperty{
+				Name: "header",
+				Args: []string{k, v},
+			})
+		}
+	}
+
 	rule.AlertNodes = append(rule.AlertNodes, alert)
 }
 
 func extractAlerta(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
-	if node.AlertaHandlers == nil {
+	if len(node.AlertaHandlers) == 0 {
 		return
 	}
 	rule.Alerts = append(rule.Alerts, "alerta")
@@ -693,7 +709,7 @@ func extractAlerta(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
 }
 
 func extractSensu(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
-	if node.SensuHandlers == nil {
+	if len(node.SensuHandlers) == 0 {
 		return
 	}
 	rule.Alerts = append(rule.Alerts, "sensu")
@@ -705,7 +721,7 @@ func extractSensu(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
 }
 
 func extractSlack(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
-	if node.SlackHandlers == nil {
+	if len(node.SlackHandlers) == 0 {
 		return
 	}
 	rule.Alerts = append(rule.Alerts, "slack")
@@ -736,8 +752,9 @@ func extractSlack(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
 	}
 	rule.AlertNodes = append(rule.AlertNodes, alert)
 }
+
 func extractTalk(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
-	if node.TalkHandlers == nil {
+	if len(node.TalkHandlers) == 0 {
 		return
 	}
 	rule.Alerts = append(rule.Alerts, "talk")
@@ -747,8 +764,9 @@ func extractTalk(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
 
 	rule.AlertNodes = append(rule.AlertNodes, alert)
 }
+
 func extractTelegram(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
-	if node.TelegramHandlers == nil {
+	if len(node.TelegramHandlers) == 0 {
 		return
 	}
 	rule.Alerts = append(rule.Alerts, "telegram")
@@ -786,7 +804,7 @@ func extractTelegram(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
 }
 
 func extractTCP(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
-	if node.TcpHandlers == nil {
+	if len(node.TcpHandlers) == 0 {
 		return
 	}
 	rule.Alerts = append(rule.Alerts, "tcp")
@@ -803,7 +821,7 @@ func extractTCP(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
 }
 
 func extractLog(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
-	if node.LogHandlers == nil {
+	if len(node.LogHandlers) == 0 {
 		return
 	}
 	rule.Alerts = append(rule.Alerts, "log")
@@ -820,7 +838,7 @@ func extractLog(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
 }
 
 func extractExec(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
-	if node.ExecHandlers == nil {
+	if len(node.ExecHandlers) == 0 {
 		return
 	}
 	rule.Alerts = append(rule.Alerts, "exec")
@@ -831,6 +849,54 @@ func extractExec(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
 
 	if len(exec.Command) != 0 {
 		alert.Args = exec.Command
+	}
+
+	rule.AlertNodes = append(rule.AlertNodes, alert)
+}
+
+func extractPushover(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
+	if len(node.PushoverHandlers) == 0 {
+		return
+	}
+	rule.Alerts = append(rule.Alerts, "pushover")
+	a := node.PushoverHandlers[0]
+	alert := chronograf.KapacitorNode{
+		Name: "pushover",
+	}
+
+	if a.Device != "" {
+		alert.Properties = append(alert.Properties, chronograf.KapacitorProperty{
+			Name: "device",
+			Args: []string{a.Device},
+		})
+	}
+
+	if a.Title != "" {
+		alert.Properties = append(alert.Properties, chronograf.KapacitorProperty{
+			Name: "title",
+			Args: []string{a.Title},
+		})
+	}
+
+	if a.URL != "" {
+		alert.Properties = append(alert.Properties, chronograf.KapacitorProperty{
+			Name: "URL",
+			Args: []string{a.URL},
+		})
+	}
+
+	if a.URLTitle != "" {
+		alert.Properties = append(alert.Properties, chronograf.KapacitorProperty{
+			Name: "URLTitle",
+			Args: []string{a.URLTitle},
+		})
+	}
+
+	if a.Sound != "" {
+		alert.Properties = append(alert.Properties, chronograf.KapacitorProperty{
+			Name: "sound",
+			Args: []string{a.Sound},
+		})
 	}
 
 	rule.AlertNodes = append(rule.AlertNodes, alert)
