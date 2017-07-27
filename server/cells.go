@@ -33,6 +33,20 @@ func newCellResponses(dID chronograf.DashboardID, dcells []chronograf.DashboardC
 		if len(cell.Queries) == 0 {
 			cell.Queries = make([]chronograf.DashboardQuery, 0)
 		}
+
+		// ensure x, y, and y2 axes always returned
+		labels := []string{"x", "y", "y2"}
+		if cell.Axes == nil {
+			cell.Axes = make(map[string]chronograf.Axis, len(labels))
+		}
+
+		for _, lbl := range labels {
+			_, found := cell.Axes[lbl]
+			if !found {
+				cell.Axes[lbl] = chronograf.Axis{}
+			}
+		}
+
 		cells[i] = dashboardCellResponse{
 			DashboardCell: cell,
 			Links: dashboardCellLinks{

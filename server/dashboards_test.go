@@ -273,6 +273,7 @@ func Test_newDashboardResponse(t *testing.T) {
 								"y": chronograf.Axis{
 									Bounds: []string{"2", "95"},
 								},
+								"y2": chronograf.Axis{},
 							},
 						},
 					},
@@ -284,6 +285,11 @@ func Test_newDashboardResponse(t *testing.T) {
 							ID: "b",
 							W:  4,
 							H:  4,
+							Axes: map[string]chronograf.Axis{
+								"x":  chronograf.Axis{},
+								"y":  chronograf.Axis{},
+								"y2": chronograf.Axis{},
+							},
 							Queries: []chronograf.DashboardQuery{
 								{
 									Command: "SELECT winning_horses from grays_sports_alamanc where time > now() - 15m",
