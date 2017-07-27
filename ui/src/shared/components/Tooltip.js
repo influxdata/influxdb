@@ -3,7 +3,9 @@ import ReactTooltip from 'react-tooltip'
 
 const Tooltip = ({tip, children}) =>
   <div>
-    <div data-tip={tip}>{children}</div>
+    <div data-tip={tip}>
+      {children}
+    </div>
     <ReactTooltip
       effect="solid"
       html={true}

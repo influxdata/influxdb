@@ -1,41 +1,36 @@
-import React, {PropTypes} from 'react'
+import React, {Component, PropTypes} from 'react'
+import _ from 'lodash'
 import classnames from 'classnames'
-import ReactTooltip from 'react-tooltip'
 
-import RuleMessageAlertConfig from 'src/kapacitor/components/RuleMessageAlertConfig'
+import RuleMessageOptions from 'src/kapacitor/components/RuleMessageOptions'
+import RuleMessageText from 'src/kapacitor/components/RuleMessageText'
+import RuleMessageTemplates from 'src/kapacitor/components/RuleMessageTemplates'
 
-import {RULE_MESSAGE_TEMPLATES as templates, DEFAULT_ALERTS} from '../constants'
+import {DEFAULT_ALERTS, RULE_ALERT_OPTIONS} from 'src/kapacitor/constants'
 
-const {arrayOf, func, shape, string} = PropTypes
+class RuleMessage extends Component {
+  constructor(props) {
+    super(props)
 
-export const RuleMessage = React.createClass({
-  propTypes: {
-    rule: shape({}).isRequired,
-    actions: shape({
-      updateMessage: func.isRequired,
-      updateDetails: func.isRequired,
-    }).isRequired,
-    enabledAlerts: arrayOf(string.isRequired).isRequired,
-  },
-
-  getInitialState() {
-    return {
-      selectedAlert: null,
-      selectedAlertProperty: null,
+    this.state = {
+      selectedAlertNodeName: null,
     }
-  },
+
+    this.handleChangeMessage = ::this.handleChangeMessage
+    this.handleChooseAlert = ::this.handleChooseAlert
+  }
 
   handleChangeMessage() {
     const {actions, rule} = this.props
     actions.updateMessage(rule.id, this.message.value)
-  },
+  }
 
   handleChooseAlert(item) {
     const {actions} = this.props
     actions.updateAlerts(item.ruleID, [item.text])
     actions.updateAlertNodes(item.ruleID, item.text, '')
-    this.setState({selectedAlert: item.text})
-  },
+    this.setState({selectedAlertNodeName: item.text})
+  }
 
   render() {
     const {rule, actions, enabledAlerts} = this.props
@@ -43,13 +38,14 @@ export const RuleMessage = React.createClass({
       return {text, ruleID: rule.id}
     })
 
-    const alerts = enabledAlerts
-      .map(text => {
+    const alerts = [
+      ...defaultAlertEndpoints,
+      ...enabledAlerts.map(text => {
         return {text, ruleID: rule.id}
-      })
-      .concat(defaultAlertEndpoints)
+      }),
+    ]
 
-    const selectedAlert = rule.alerts[0] || alerts[0].text
+    const selectedAlertNodeName = rule.alerts[0] || alerts[0].text
 
     return (
       <div className="rule-section">
@@ -58,96 +54,51 @@ export const RuleMessage = React.createClass({
           <div className="rule-section--row rule-section--row-first rule-section--border-bottom">
             <p>Send this Alert to:</p>
             <ul className="nav nav-tablist nav-tablist-sm nav-tablist-malachite">
-              {alerts.map(alert =>
-                <li
-                  key={alert.text}
-                  className={classnames({
-                    active: alert.text === selectedAlert,
-                  })}
-                  onClick={() => this.handleChooseAlert(alert)}
-                >
-                  {alert.text}
-                </li>
-              )}
+              {alerts
+                // only display alert endpoints that have rule alert options configured
+                .filter(alert => _.get(RULE_ALERT_OPTIONS, alert.text, false))
+                .map(alert =>
+                  <li
+                    key={alert.text}
+                    className={classnames({
+                      active: alert.text === selectedAlertNodeName,
+                    })}
+                    onClick={() => this.handleChooseAlert(alert)}
+                  >
+                    {alert.text}
+                  </li>
+                )}
             </ul>
           </div>
-          <RuleMessageAlertConfig
-            updateAlertNodes={actions.updateAlertNodes}
-            alert={selectedAlert}
+          <RuleMessageOptions
             rule={rule}
+            alertNodeName={selectedAlertNodeName}
+            updateAlertNodes={actions.updateAlertNodes}
+            updateDetails={actions.updateDetails}
+            updateAlertProperty={actions.updateAlertProperty}
           />
-          {selectedAlert === 'smtp'
-            ? <div className="rule-section--border-bottom">
-                <textarea
-                  className="form-control form-malachite monotype rule-builder--message"
-                  placeholder="Email body text goes here"
-                  ref={r => (this.details = r)}
-                  onChange={() =>
-                    actions.updateDetails(rule.id, this.details.value)}
-                  value={rule.details}
-                  spellCheck={false}
-                />
-              </div>
-            : null}
-          <textarea
-            className="form-control form-malachite monotype rule-builder--message"
-            ref={r => (this.message = r)}
-            onChange={() => actions.updateMessage(rule.id, this.message.value)}
-            placeholder="Example: {{ .ID }} is {{ .Level }} value: {{ index .Fields &quot;value&quot; }}"
-            value={rule.message}
-            spellCheck={false}
+          <RuleMessageText rule={rule} updateMessage={actions.updateMessage} />
+          <RuleMessageTemplates
+            rule={rule}
+            updateMessage={actions.updateMessage}
           />
-          <div className="rule-section--row rule-section--row-last rule-section--border-top">
-            <p>Templates:</p>
-            {Object.keys(templates).map(t => {
-              return (
-                <CodeData
-                  key={t}
-                  template={templates[t]}
-                  onClickTemplate={() =>
-                    actions.updateMessage(
-                      rule.id,
-                      `${this.message.value} ${templates[t].label}`
-                    )}
-                />
-              )
-            })}
-            <ReactTooltip
-              effect="solid"
-              html={true}
-              offset={{top: -4}}
-              class="influx-tooltip kapacitor-tooltip"
-            />
-          </div>
         </div>
       </div>
     )
-  },
-})
+  }
+}
 
-const CodeData = React.createClass({
-  propTypes: {
-    onClickTemplate: func,
-    template: shape({
-      label: string,
-      text: string,
-    }),
-  },
+const {arrayOf, func, shape, string} = PropTypes
 
-  render() {
-    const {onClickTemplate, template} = this.props
-    const {label, text} = template
-
-    return (
-      <code
-        className="rule-builder--message-template"
-        data-tip={text}
-        onClick={onClickTemplate}
-      >
-        {label}
-      </code>
-    )
-  },
-})
+RuleMessage.propTypes = {
+  rule: shape({}).isRequired,
+  actions: shape({
+    updateAlertNodes: func.isRequired,
+    updateMessage: func.isRequired,
+    updateDetails: func.isRequired,
+    updateAlertProperty: func.isRequired,
+  }).isRequired,
+  enabledAlerts: arrayOf(string.isRequired).isRequired,
+}
 
 export default RuleMessage

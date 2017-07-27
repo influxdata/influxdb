@@ -11,16 +11,27 @@ import {DROPDOWN_MENU_MAX_HEIGHT} from 'shared/constants/index'
 
 class TimeRangeDropdown extends Component {
   constructor(props) {
+    const {lower, upper} = props.selected
+
     super(props)
+
     this.state = {
       autobind: false,
       isOpen: false,
       isCustomTimeRangeOpen: false,
-      customTimeRange: {
-        lower: '',
-        upper: '',
-      },
+      customTimeRange:
+        moment(props.selected.upper).isValid() &&
+        moment(props.selected.lower).isValid()
+          ? {
+              lower,
+              upper,
+            }
+          : {
+              lower: '',
+              upper: '',
+            },
     }
+
     this.findTimeRangeInputValue = ::this.findTimeRangeInputValue
     this.handleSelection = ::this.handleSelection
     this.toggleMenu = ::this.toggleMenu
@@ -72,7 +83,7 @@ class TimeRangeDropdown extends Component {
   }
 
   render() {
-    const {selected} = this.props
+    const {selected, preventCustomTimeRange} = this.props
     const {isOpen, customTimeRange, isCustomTimeRangeOpen} = this.state
 
     return (
@@ -95,17 +106,19 @@ class TimeRangeDropdown extends Component {
               maxHeight={DROPDOWN_MENU_MAX_HEIGHT}
             >
               <li className="dropdown-header">Time Range</li>
-              <li
-                className={
-                  isCustomTimeRangeOpen
-                    ? 'active dropdown-item custom-timerange'
-                    : 'dropdown-item custom-timerange'
-                }
-              >
-                <a href="#" onClick={this.showCustomTimeRange}>
-                  Custom Time Range
-                </a>
-              </li>
+              {preventCustomTimeRange
+                ? null
+                : <li
+                    className={
+                      isCustomTimeRangeOpen
+                        ? 'active dropdown-item custom-timerange'
+                        : 'dropdown-item custom-timerange'
+                    }
+                  >
+                    <a href="#" onClick={this.showCustomTimeRange}>
+                      Custom Time Range
+                    </a>
+                  </li>}
               {timeRanges.map(item => {
                 return (
                   <li className="dropdown-item" key={item.menuOption}>
@@ -132,7 +145,7 @@ class TimeRangeDropdown extends Component {
   }
 }
 
-const {shape, string, func} = PropTypes
+const {bool, func, shape, string} = PropTypes
 
 TimeRangeDropdown.propTypes = {
   selected: shape({
@@ -140,6 +153,7 @@ TimeRangeDropdown.propTypes = {
     upper: string,
   }).isRequired,
   onChooseTimeRange: func.isRequired,
+  preventCustomTimeRange: bool,
 }
 
 export default OnClickOutside(TimeRangeDropdown)

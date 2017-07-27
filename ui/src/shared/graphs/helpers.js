@@ -65,9 +65,10 @@ export const multiColumnBarPlotter = e => {
     for (let i = 0; i < sets[j].length; i++) {
       const p = sets[j][i]
       const centerX = p.canvasx
-      const xLeft = sets.length === 1
-        ? centerX - barWidth / 2
-        : centerX - barWidth / 2 * (1 - j / (sets.length - 1))
+      const xLeft =
+        sets.length === 1
+          ? centerX - barWidth / 2
+          : centerX - barWidth / 2 * (1 - j / (sets.length - 1))
 
       ctx.fillRect(
         xLeft,

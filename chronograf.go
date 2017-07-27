@@ -29,6 +29,7 @@ const (
 	ErrAlertNotFound     = Error("alert not found")
 	ErrAuthentication    = Error("user not authenticated")
 	ErrUninitialized     = Error("client uninitialized. Call Open() method")
+	ErrInvalidAxis       = Error("Unexpected axis in cell. Valid axes are 'x', 'y', and 'y2'")
 )
 
 // Error is a domain error encountered while processing chronograf requests
@@ -346,6 +347,7 @@ type Source struct {
 	Type               string `json:"type,omitempty"`               // Type specifies which kinds of source (enterprise vs oss)
 	Username           string `json:"username,omitempty"`           // Username is the username to connect to the source
 	Password           string `json:"password,omitempty"`           // Password is in CLEARTEXT
+	SharedSecret       string `json:"sharedSecret,omitempty"`       // ShareSecret is the optional signing secret for Influx JWT authorization
 	URL                string `json:"url"`                          // URL are the connections to the source
 	MetaURL            string `json:"metaUrl,omitempty"`            // MetaURL is the url for the meta node
 	InsecureSkipVerify bool   `json:"insecureSkipVerify,omitempty"` // InsecureSkipVerify as true means any certificate presented by the source is accepted.
@@ -565,6 +567,11 @@ type Dashboard struct {
 	Name      string          `json:"name"`
 }
 
+// Axis represents the visible extents of a visualization
+type Axis struct {
+	Bounds [2]int64 `json:"bounds"` // bounds are an ordered 2-tuple consisting of lower and upper axis extents, respectively
+}
+
 // DashboardCell holds visual and query information for a cell
 type DashboardCell struct {
 	ID      string           `json:"i"`
@@ -574,6 +581,7 @@ type DashboardCell struct {
 	H       int32            `json:"h"`
 	Name    string           `json:"name"`
 	Queries []DashboardQuery `json:"queries"`
+	Axes    map[string]Axis  `json:"axes"`
 	Type    string           `json:"type"`
 }
 
@@ -624,45 +632,4 @@ type LayoutStore interface {
 	Get(ctx context.Context, ID string) (Layout, error)
 	// Update the dashboard in the store.
 	Update(context.Context, Layout) error
-}
-
-// SourceAndKapacitor is used to parse any NewSources server flag arguments
-type SourceAndKapacitor struct {
-	Source    Source `json:"influxdb"`
-	Kapacitor Server `json:"kapacitor"`
-}
-
-// NewSources adds sources to BoltDb idempotently by name, as well as respective kapacitors
-func NewSources(ctx context.Context, sourcesStore SourcesStore, serversStore ServersStore, srcsKaps []SourceAndKapacitor, logger Logger) error {
-	srcs, err := sourcesStore.All(ctx)
-	if err != nil {
-		return err
-	}
-
-SourceLoop:
-	for _, srcKap := range srcsKaps {
-		for _, src := range srcs {
-			// If source already exists, do nothing
-			if src.Name == srcKap.Source.Name {
-				logger.
-					WithField("component", "server").
-					WithField("NewSources", src.Name).
-					Info("Source already exists")
-				continue SourceLoop
-			}
-		}
-
-		src, err := sourcesStore.Add(ctx, srcKap.Source)
-		if err != nil {
-			return err
-		}
-
-		srcKap.Kapacitor.SrcID = src.ID
-		_, err = serversStore.Add(ctx, srcKap.Kapacitor)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
 }

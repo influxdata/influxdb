@@ -60,7 +60,6 @@ const RenameCluster = React.createClass({
                         placeholder="Name this cluster..."
                       />
                     </div>
-
                   </div>
                 </div>
               </div>

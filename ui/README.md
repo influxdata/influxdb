@@ -15,7 +15,7 @@ yarn add --dev packageName
 ```
 
 ### Updating a package
-First, run 
+First, run
 
 ```sh
 yarn outdated
@@ -31,3 +31,6 @@ To upgrade a single package named `packageName`:
 ```sh
 yarn upgrade packageName
 ```
+
+## Testing
+Tests can be run via command line with `npm test`, from within the `/ui` directory. For more detailed reporting, use `npm test -- --reporters=verbose`.

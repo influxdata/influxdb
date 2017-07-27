@@ -52,9 +52,7 @@ const DatabaseTable = ({
         <table className="table v-center table-highlight">
           <thead>
             <tr>
-              <th>
-                Retention Policy
-              </th>
+              <th>Retention Policy</th>
               <th style={{width: `${DATABASE_TABLE.colDuration}px`}}>
                 Duration
               </th>

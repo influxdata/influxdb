@@ -17,7 +17,9 @@ const VisHeader = ({views, view, onToggleView, name}) =>
           )}
         </ul>
       : null}
-    <div className="graph-title">{name}</div>
+    <div className="graph-title">
+      {name}
+    </div>
   </div>
 
 const {arrayOf, func, string} = PropTypes

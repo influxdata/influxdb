@@ -10,9 +10,8 @@ export function parseAlerta(string) {
       if (match[m]) {
         properties.push({
           name: match[m],
-          args: match[m] === 'services'
-            ? match[m + 1].split(' ')
-            : [match[m + 1]],
+          args:
+            match[m] === 'services' ? match[m + 1].split(' ') : [match[m + 1]],
         })
       }
     }

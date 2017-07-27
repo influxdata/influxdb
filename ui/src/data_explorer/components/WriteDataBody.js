@@ -12,7 +12,8 @@ const WriteDataBody = ({
   isManual,
   fileInput,
   handleFileOpen,
-}) => (
+  isUploading,
+}) =>
   <div className="write-data-form--body">
     {isManual
       ? <textarea
@@ -45,13 +46,13 @@ const WriteDataBody = ({
               </span>}
         </div>}
     <WriteDataFooter
+      isUploading={isUploading}
       isManual={isManual}
       inputContent={inputContent}
       handleSubmit={handleSubmit}
       uploadContent={uploadContent}
     />
   </div>
-)
 
 const {func, string, bool} = PropTypes
 
@@ -66,6 +67,7 @@ WriteDataBody.propTypes = {
   isManual: bool,
   fileInput: func.isRequired,
   handleFileOpen: func.isRequired,
+  isUploading: bool.isRequired,
 }
 
 export default WriteDataBody

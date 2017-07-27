@@ -1,15 +1,33 @@
-## v1.3.5.0 [unreleased]
+## v1.3.6.0 [unreleased]
+### Bug Fixes
+### Features
+### UI Improvements
+1. [#1796](https://github.com/influxdata/chronograf/pull/1796): Add spinner to indicate data is being written
 
+## v1.3.5.0 [2017-07-25]
 ### Bug Fixes
 1. [#1708](https://github.com/influxdata/chronograf/pull/1708): Fix z-index issue in dashboard cell context menu
+1. [#1752](https://github.com/influxdata/chronograf/pull/1752): Clarify BoltPath server flag help text by making example the default path
+1. [#1703](https://github.com/influxdata/chronograf/pull/1703): Fix cell name cancel not reverting to original name
+1. [#1751](https://github.com/influxdata/chronograf/pull/1751): Fix typo that may have affected PagerDuty node creation in Kapacitor
+1. [#1756](https://github.com/influxdata/chronograf/pull/1756): Prevent 'auto' GROUP BY as option in Kapacitor rule builder when applying a function to a field
+1. [#1773](https://github.com/influxdata/chronograf/pull/1773): Prevent clipped buttons in Rule Builder, Data Explorer, and Configuration pages
+1. [#1776](https://github.com/influxdata/chronograf/pull/1776): Fix JWT for the write path
+1. [#1777](https://github.com/influxdata/chronograf/pull/1777): Disentangle client Kapacitor rule creation from Data Explorer query creation
 
 ### Features
 1. [#1717](https://github.com/influxdata/chronograf/pull/1717): View server generated TICKscripts
-1. [#1681](https://github.com/influxdata/chronograf/pull/1681): Add the ability to select Custom Time Ranges in the Hostpages, Data Explorer, and Dashboards.
-
+1. [#1681](https://github.com/influxdata/chronograf/pull/1681): Add the ability to select Custom Time Ranges in the Hostpages, Data Explorer, and Dashboards
+1. [#1752](https://github.com/influxdata/chronograf/pull/1752): Clarify BoltPath server flag help text by making example the default path
+1. [#1738](https://github.com/influxdata/chronograf/pull/1738): Add shared secret JWT authorization to InfluxDB
+1. [#1724](https://github.com/influxdata/chronograf/pull/1724): Add Pushover alert support
+1. [#1762](https://github.com/influxdata/chronograf/pull/1762): Restore all supported Kapacitor services when creating rules, and add most optional message parameters
 
 ### UI Improvements
 1. [#1707](https://github.com/influxdata/chronograf/pull/1707): Polish alerts table in status page to wrap text less
+1. [#1770](https://github.com/influxdata/chronograf/pull/1770): Specify that version is for Chronograf on Configuration page
+1. [#1779](https://github.com/influxdata/chronograf/pull/1779): Move custom time range indicator on cells into corner when in presentation mode
+1. [#1779](https://github.com/influxdata/chronograf/pull/1779): Highlight legend "Snip" toggle when active
 
 ## v1.3.4.0 [2017-07-10]
 ### Bug Fixes

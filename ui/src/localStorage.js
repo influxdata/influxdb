@@ -31,7 +31,7 @@ export const loadLocalStorage = errorsQueue => {
 
 export const saveToLocalStorage = ({
   app: {persisted},
-  queryConfigs,
+  dataExplorerQueryConfigs,
   timeRange,
   dataExplorer,
 }) => {
@@ -42,7 +42,7 @@ export const saveToLocalStorage = ({
       'state',
       JSON.stringify({
         ...appPersisted,
-        queryConfigs,
+        dataExplorerQueryConfigs,
         timeRange,
         dataExplorer,
         VERSION, // eslint-disable-line no-undef

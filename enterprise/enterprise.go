@@ -120,13 +120,17 @@ func (c *Client) Connect(ctx context.Context, src *chronograf.Source) error {
 
 	c.dataNodes = ring.New(len(cluster.DataNodes))
 	for _, dn := range cluster.DataNodes {
-		cl, err := influx.NewClient(dn.HTTPAddr, c.Logger)
-		if err != nil {
-			continue
-		} else {
-			c.dataNodes.Value = cl
-			c.dataNodes = c.dataNodes.Next()
+		cl := &influx.Client{
+			Logger: c.Logger,
 		}
+		dataSrc := &chronograf.Source{}
+		*dataSrc = *src
+		dataSrc.URL = dn.HTTPAddr
+		if err := cl.Connect(ctx, dataSrc); err != nil {
+			continue
+		}
+		c.dataNodes.Value = cl
+		c.dataNodes = c.dataNodes.Next()
 	}
 	return nil
 }

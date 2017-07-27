@@ -14,9 +14,7 @@ import {errorThrown} from 'shared/actions/errors'
 import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants'
 
 import {TEMPLATE_VARIABLE_SELECTED} from 'shared/constants/actionTypes'
-import {
-  makeQueryForTemplate,
-} from 'src/dashboards/utils/templateVariableQueryGenerator'
+import {makeQueryForTemplate} from 'src/dashboards/utils/templateVariableQueryGenerator'
 import parsers from 'shared/parsing'
 
 export const loadDashboards = (dashboards, dashboardID) => ({
@@ -90,6 +88,14 @@ export const editDashboardCell = (dashboard, x, y, isEditing) => ({
     x, // x-coord of the cell to be edited
     y, // y-coord of the cell to be edited
     isEditing,
+  },
+})
+
+export const cancelEditCell = (dashboardID, cellID) => ({
+  type: 'CANCEL_EDIT_CELL',
+  payload: {
+    dashboardID,
+    cellID,
   },
 })
 

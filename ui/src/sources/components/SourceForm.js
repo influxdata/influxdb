@@ -161,7 +161,9 @@ export const SourceForm = React.createClass({
                   />
                   <label htmlFor="insecureSkipVerifyCheckbox">Unsafe SSL</label>
                 </div>
-                <label className="form-helper">{insecureSkipVerifyText}</label>
+                <label className="form-helper">
+                  {insecureSkipVerifyText}
+                </label>
               </div>
             : null}
           <div className="form-group form-group-submit col-xs-12 col-sm-6 col-sm-offset-3">

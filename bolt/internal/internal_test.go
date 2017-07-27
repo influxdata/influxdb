@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/bolt/internal"
 )
@@ -19,6 +20,38 @@ func TestMarshalSource(t *testing.T) {
 		MetaURL:  "http://twin-pines.meta.io:8086",
 		Default:  true,
 		Telegraf: "telegraf",
+	}
+
+	var vv chronograf.Source
+	if buf, err := internal.MarshalSource(v); err != nil {
+		t.Fatal(err)
+	} else if err := internal.UnmarshalSource(buf, &vv); err != nil {
+		t.Fatal(err)
+	} else if !reflect.DeepEqual(v, vv) {
+		t.Fatalf("source protobuf copy error: got %#v, expected %#v", vv, v)
+	}
+
+	// Test if the new insecureskipverify works
+	v.InsecureSkipVerify = true
+	if buf, err := internal.MarshalSource(v); err != nil {
+		t.Fatal(err)
+	} else if err := internal.UnmarshalSource(buf, &vv); err != nil {
+		t.Fatal(err)
+	} else if !reflect.DeepEqual(v, vv) {
+		t.Fatalf("source protobuf copy error: got %#v, expected %#v", vv, v)
+	}
+}
+func TestMarshalSourceWithSecret(t *testing.T) {
+	v := chronograf.Source{
+		ID:           12,
+		Name:         "Fountain of Truth",
+		Type:         "influx",
+		Username:     "docbrown",
+		SharedSecret: "hunter2s",
+		URL:          "http://twin-pines.mall.io:8086",
+		MetaURL:      "http://twin-pines.meta.io:8086",
+		Default:      true,
+		Telegraf:     "telegraf",
 	}
 
 	var vv chronograf.Source
@@ -102,5 +135,47 @@ func TestMarshalLayout(t *testing.T) {
 		t.Fatal(err)
 	} else if !reflect.DeepEqual(layout, vv) {
 		t.Fatalf("source protobuf copy error: got %#v, expected %#v", vv, layout)
+	}
+}
+
+func Test_MarshalDashboard(t *testing.T) {
+	dashboard := chronograf.Dashboard{
+		ID: 1,
+		Cells: []chronograf.DashboardCell{
+			{
+				ID:   "9b5367de-c552-4322-a9e8-7f384cbd235c",
+				X:    0,
+				Y:    0,
+				W:    4,
+				H:    4,
+				Name: "Super awesome query",
+				Queries: []chronograf.DashboardQuery{
+					{
+						Command: "select * from cpu",
+						Label:   "CPU Utilization",
+						Range: &chronograf.Range{
+							Upper: int64(100),
+						},
+					},
+				},
+				Axes: map[string]chronograf.Axis{
+					"y": chronograf.Axis{
+						Bounds: [2]int64{0, 100},
+					},
+				},
+				Type: "line",
+			},
+		},
+		Templates: []chronograf.Template{},
+		Name:      "Dashboard",
+	}
+
+	var actual chronograf.Dashboard
+	if buf, err := internal.MarshalDashboard(dashboard); err != nil {
+		t.Fatal("Error marshaling dashboard: err", err)
+	} else if err := internal.UnmarshalDashboard(buf, &actual); err != nil {
+		t.Fatal("Error unmarshaling dashboard: err:", err)
+	} else if !cmp.Equal(dashboard, actual) {
+		t.Fatalf("Dashboard protobuf copy error: diff follows:\n%s", cmp.Diff(dashboard, actual))
 	}
 }

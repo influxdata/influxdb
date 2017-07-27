@@ -32,6 +32,7 @@ export const DataSection = React.createClass({
     onAddEvery: PropTypes.func.isRequired,
     onRemoveEvery: PropTypes.func.isRequired,
     timeRange: PropTypes.shape({}).isRequired,
+    isKapacitorRule: PropTypes.bool,
   },
 
   childContextTypes: {
@@ -56,7 +57,7 @@ export const DataSection = React.createClass({
   },
 
   handleToggleField(field) {
-    this.props.actions.toggleField(this.props.query.id, field, true)
+    this.props.actions.toggleField(this.props.query.id, field)
     // Every is only added when a function has been added to a field.
     // Here, the field is selected without a function.
     this.props.onRemoveEvery()
@@ -109,7 +110,7 @@ export const DataSection = React.createClass({
   },
 
   renderQueryBuilder() {
-    const {query} = this.props
+    const {query, isKapacitorRule} = this.props
 
     return (
       <div className="query-builder">
@@ -129,7 +130,7 @@ export const DataSection = React.createClass({
           onToggleField={this.handleToggleField}
           onGroupByTime={this.handleGroupByTime}
           applyFuncsToField={this.handleApplyFuncsToField}
-          isKapacitorRule={true}
+          isKapacitorRule={isKapacitorRule}
         />
       </div>
     )

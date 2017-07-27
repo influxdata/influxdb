@@ -17,11 +17,18 @@ const GroupByTimeDropdown = React.createClass({
   },
 
   render() {
-    const {selected, onChooseGroupByTime, isInRuleBuilder, isInDataExplorer} = this.props
+    const {
+      selected,
+      onChooseGroupByTime,
+      isInRuleBuilder,
+      isInDataExplorer,
+    } = this.props
 
     let validOptions = groupByTimeOptions
-    if (isInDataExplorer) {
-      validOptions = validOptions.filter(({menuOption}) => menuOption !== DEFAULT_DASHBOARD_GROUP_BY_INTERVAL)
+    if (isInDataExplorer || isInRuleBuilder) {
+      validOptions = validOptions.filter(
+        ({menuOption}) => menuOption !== DEFAULT_DASHBOARD_GROUP_BY_INTERVAL
+      )
     }
 
     return (
