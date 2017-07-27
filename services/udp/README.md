@@ -116,7 +116,7 @@ Multiple UDP listeners
 [[udp]]
   # High-traffic UDP
   enabled = true
-  bind-address = ":80891" # the bind address
+  bind-address = ":8189" # the bind address
   database = "mymetrics" # Name of the database that will be written to
   batch-size = 5000 # will flush if this many points get buffered
   batch-timeout = "1s" # will flush at least this often even if the batch-size is not reached
