@@ -307,7 +307,6 @@ type {{.name}}AscendingCursor struct {
 	}
 
 	tsm struct {
-		buf       []{{.Name}}Value
 		values    []{{.Name}}Value
 		pos       int
 		keyCursor *KeyCursor
@@ -323,8 +322,7 @@ func new{{.Name}}AscendingCursor(seek int64, cacheValues Values, tsmKeyCursor *K
 	})
 
 	c.tsm.keyCursor = tsmKeyCursor
-	c.tsm.buf = make([]{{.Name}}Value, 10)
-	c.tsm.values, _ = c.tsm.keyCursor.Read{{.Name}}Block(&c.tsm.buf)
+	c.tsm.values, _ = c.tsm.keyCursor.Read{{.Name}}Block(&c.tsm.values)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
 		return c.tsm.values[i].UnixNano() >= seek
 	})
@@ -356,7 +354,6 @@ func (c *{{.name}}AscendingCursor) peekTSM() (t int64, v {{.Type}}) {
 func (c *{{.name}}AscendingCursor) close() (error) {
 	c.tsm.keyCursor.Close()
 	c.tsm.keyCursor = nil
-	c.tsm.buf = nil
 	c.cache.values = nil
 	c.tsm.values = nil
 	return nil
@@ -406,7 +403,7 @@ func (c *{{.name}}AscendingCursor) nextTSM() {
 	c.tsm.pos++
 	if c.tsm.pos >= len(c.tsm.values) {
 		c.tsm.keyCursor.Next()
-		c.tsm.values, _ = c.tsm.keyCursor.Read{{.Name}}Block(&c.tsm.buf)
+		c.tsm.values, _ = c.tsm.keyCursor.Read{{.Name}}Block(&c.tsm.values)
 		if len(c.tsm.values) == 0 {
 			return
 		}
@@ -421,7 +418,6 @@ type {{.name}}DescendingCursor struct {
 	}
 
 	tsm struct {
-		buf       []{{.Name}}Value
 		values    []{{.Name}}Value
 		pos       int
 		keyCursor *KeyCursor
@@ -440,8 +436,7 @@ func new{{.Name}}DescendingCursor(seek int64, cacheValues Values, tsmKeyCursor *
 	}
 
 	c.tsm.keyCursor = tsmKeyCursor
-	c.tsm.buf = make([]{{.Name}}Value, 10)
-	c.tsm.values, _ = c.tsm.keyCursor.Read{{.Name}}Block(&c.tsm.buf)
+	c.tsm.values, _ = c.tsm.keyCursor.Read{{.Name}}Block(&c.tsm.values)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
 		return c.tsm.values[i].UnixNano() >= seek
 	})
@@ -476,7 +471,6 @@ func (c *{{.name}}DescendingCursor) peekTSM() (t int64, v {{.Type}}) {
 func (c *{{.name}}DescendingCursor) close() (error) {
 	c.tsm.keyCursor.Close()
 	c.tsm.keyCursor = nil
-	c.tsm.buf = nil
 	c.cache.values = nil
 	c.tsm.values = nil
 	return nil
@@ -526,7 +520,7 @@ func (c *{{.name}}DescendingCursor) nextTSM() {
 	c.tsm.pos--
 	if c.tsm.pos < 0 {
 		c.tsm.keyCursor.Next()
-		c.tsm.values, _ = c.tsm.keyCursor.Read{{.Name}}Block(&c.tsm.buf)
+		c.tsm.values, _ = c.tsm.keyCursor.Read{{.Name}}Block(&c.tsm.values)
 		if len(c.tsm.values) == 0 {
 			return
 		}
