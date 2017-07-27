@@ -3,6 +3,7 @@
 ### Features
 ### UI Improvements
 1. [#1796](https://github.com/influxdata/chronograf/pull/1796): Add spinner to indicate data is being written
+1. [#1800](https://github.com/influxdata/chronograf/pull/1796): Embiggen line protocol INSERT text area
 
 ## v1.3.5.0 [2017-07-25]
 ### Bug Fixes
