@@ -2,11 +2,11 @@ package tsm1
 
 import (
 	"fmt"
-	"sort"
 	"sync"
 	"sync/atomic"
 
 	"github.com/cespare/xxhash"
+	"github.com/influxdata/influxdb/pkg/bytesutil"
 )
 
 // partitions is the number of partitions we used in the ring's continuum. It
@@ -91,32 +91,32 @@ func (r *ring) reset() {
 
 // getPartition retrieves the hash ring partition associated with the provided
 // key.
-func (r *ring) getPartition(key string) *partition {
-	return r.continuum[int(xxhash.Sum64String(key)%partitions)]
+func (r *ring) getPartition(key []byte) *partition {
+	return r.continuum[int(xxhash.Sum64(key)%partitions)]
 }
 
 // entry returns the entry for the given key.
 // entry is safe for use by multiple goroutines.
-func (r *ring) entry(key string) (*entry, bool) {
+func (r *ring) entry(key []byte) (*entry, bool) {
 	return r.getPartition(key).entry(key)
 }
 
 // write writes values to the entry in the ring's partition associated with key.
 // If no entry exists for the key then one will be created.
 // write is safe for use by multiple goroutines.
-func (r *ring) write(key string, values Values) error {
+func (r *ring) write(key []byte, values Values) error {
 	return r.getPartition(key).write(key, values)
 }
 
 // add adds an entry to the ring.
-func (r *ring) add(key string, entry *entry) {
+func (r *ring) add(key []byte, entry *entry) {
 	r.getPartition(key).add(key, entry)
 	atomic.AddInt64(&r.keysHint, 1)
 }
 
 // remove deletes the entry for the given key.
 // remove is safe for use by multiple goroutines.
-func (r *ring) remove(key string) {
+func (r *ring) remove(key []byte) {
 	r.getPartition(key).remove(key)
 	if r.keysHint > 0 {
 		atomic.AddInt64(&r.keysHint, -1)
@@ -125,14 +125,14 @@ func (r *ring) remove(key string) {
 
 // keys returns all the keys from all partitions in the hash ring. The returned
 // keys will be in order if sorted is true.
-func (r *ring) keys(sorted bool) []string {
-	keys := make([]string, 0, atomic.LoadInt64(&r.keysHint))
+func (r *ring) keys(sorted bool) [][]byte {
+	keys := make([][]byte, 0, atomic.LoadInt64(&r.keysHint))
 	for _, p := range r.partitions {
 		keys = append(keys, p.keys()...)
 	}
 
 	if sorted {
-		sort.Strings(keys)
+		bytesutil.Sort(keys)
 	}
 	return keys
 }
@@ -142,7 +142,7 @@ func (r *ring) keys(sorted bool) []string {
 // will be called with each key and the corresponding entry. The first error
 // encountered will be returned, if any. apply is safe for use by multiple
 // goroutines.
-func (r *ring) apply(f func(string, *entry) error) error {
+func (r *ring) apply(f func([]byte, *entry) error) error {
 
 	var (
 		wg  sync.WaitGroup
@@ -157,7 +157,7 @@ func (r *ring) apply(f func(string, *entry) error) error {
 
 			p.mu.RLock()
 			for k, e := range p.store {
-				if err := f(k, e); err != nil {
+				if err := f([]byte(k), e); err != nil {
 					res <- err
 					p.mu.RUnlock()
 					return
@@ -184,11 +184,11 @@ func (r *ring) apply(f func(string, *entry) error) error {
 // applySerial is similar to apply, but invokes f on each partition in the same
 // goroutine.
 // apply is safe for use by multiple goroutines.
-func (r *ring) applySerial(f func(string, *entry) error) error {
+func (r *ring) applySerial(f func([]byte, *entry) error) error {
 	for _, p := range r.partitions {
 		p.mu.RLock()
 		for k, e := range p.store {
-			if err := f(k, e); err != nil {
+			if err := f([]byte(k), e); err != nil {
 				p.mu.RUnlock()
 				return err
 			}
@@ -212,9 +212,9 @@ type partition struct {
 
 // entry returns the partition's entry for the provided key.
 // It's safe for use by multiple goroutines.
-func (p *partition) entry(key string) (*entry, bool) {
+func (p *partition) entry(key []byte) (*entry, bool) {
 	p.mu.RLock()
-	e, ok := p.store[key]
+	e, ok := p.store[string(key)]
 	p.mu.RUnlock()
 	return e, ok
 }
@@ -222,9 +222,9 @@ func (p *partition) entry(key string) (*entry, bool) {
 // write writes the values to the entry in the partition, creating the entry
 // if it does not exist.
 // write is safe for use by multiple goroutines.
-func (p *partition) write(key string, values Values) error {
+func (p *partition) write(key []byte, values Values) error {
 	p.mu.RLock()
-	e, ok := p.store[key]
+	e, ok := p.store[string(key)]
 	p.mu.RUnlock()
 	if ok {
 		// Hot path.
@@ -235,42 +235,42 @@ func (p *partition) write(key string, values Values) error {
 	defer p.mu.Unlock()
 
 	// Check again.
-	if e, ok = p.store[key]; ok {
+	if e, ok = p.store[string(key)]; ok {
 		return e.add(values)
 	}
 
 	// Create a new entry using a preallocated size if we have a hint available.
-	hint, _ := p.entrySizeHints[xxhash.Sum64String(key)]
+	hint, _ := p.entrySizeHints[xxhash.Sum64(key)]
 	e, err := newEntryValues(values, hint)
 	if err != nil {
 		return err
 	}
 
-	p.store[key] = e
+	p.store[string(key)] = e
 	return nil
 }
 
 // add adds a new entry for key to the partition.
-func (p *partition) add(key string, entry *entry) {
+func (p *partition) add(key []byte, entry *entry) {
 	p.mu.Lock()
-	p.store[key] = entry
+	p.store[string(key)] = entry
 	p.mu.Unlock()
 }
 
 // remove deletes the entry associated with the provided key.
 // remove is safe for use by multiple goroutines.
-func (p *partition) remove(key string) {
+func (p *partition) remove(key []byte) {
 	p.mu.Lock()
-	delete(p.store, key)
+	delete(p.store, string(key))
 	p.mu.Unlock()
 }
 
 // keys returns an unsorted slice of the keys in the partition.
-func (p *partition) keys() []string {
+func (p *partition) keys() [][]byte {
 	p.mu.RLock()
-	keys := make([]string, 0, len(p.store))
+	keys := make([][]byte, 0, len(p.store))
 	for k := range p.store {
-		keys = append(keys, k)
+		keys = append(keys, []byte(k))
 	}
 	p.mu.RUnlock()
 	return keys

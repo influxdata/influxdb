@@ -13,6 +13,7 @@ package tsm1
 // one-pass writing of a new TSM file.
 
 import (
+	"bytes"
 	"fmt"
 	"math"
 	"os"
@@ -974,7 +975,7 @@ type KeyIterator interface {
 
 	// Read returns the key, time range, and raw data for the next block,
 	// or any error that occurred.
-	Read() (key string, minTime int64, maxTime int64, data []byte, err error)
+	Read() (key []byte, minTime int64, maxTime int64, data []byte, err error)
 
 	// Close closes the iterator.
 	Close() error
@@ -1010,7 +1011,7 @@ type tsmKeyIterator struct {
 
 	// key is the current key lowest key across all readers that has not be fully exhausted
 	// of values.
-	key string
+	key []byte
 	typ byte
 
 	iterators []*BlockIterator
@@ -1032,7 +1033,7 @@ type tsmKeyIterator struct {
 }
 
 type block struct {
-	key              string
+	key              []byte
 	minTime, maxTime int64
 	typ              byte
 	b                []byte
@@ -1070,10 +1071,11 @@ type blocks []*block
 func (a blocks) Len() int { return len(a) }
 
 func (a blocks) Less(i, j int) bool {
-	if a[i].key == a[j].key {
+	cmp := bytes.Compare(a[i].key, a[j].key)
+	if cmp == 0 {
 		return a[i].minTime < a[j].minTime
 	}
-	return a[i].key < a[j].key
+	return cmp < 0
 }
 
 func (a blocks) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
@@ -1157,7 +1159,7 @@ func (k *tsmKeyIterator) Next() bool {
 				})
 
 				blockKey := key
-				for iter.PeekNext() == blockKey {
+				for bytes.Equal(iter.PeekNext(), blockKey) {
 					iter.Next()
 					key, minTime, maxTime, typ, _, b, err := iter.Read()
 					if err != nil {
@@ -1183,14 +1185,14 @@ func (k *tsmKeyIterator) Next() bool {
 
 	// Each reader could have a different key that it's currently at, need to find
 	// the next smallest one to keep the sort ordering.
-	var minKey string
+	var minKey []byte
 	var minType byte
 	for _, b := range k.buf {
 		// block could be nil if the iterator has been exhausted for that file
 		if len(b) == 0 {
 			continue
 		}
-		if minKey == "" || b[0].key < minKey {
+		if len(minKey) == 0 || bytes.Compare(b[0].key, minKey) < 0 {
 			minKey = b[0].key
 			minType = b[0].typ
 		}
@@ -1204,7 +1206,7 @@ func (k *tsmKeyIterator) Next() bool {
 		if len(b) == 0 {
 			continue
 		}
-		if b[0].key == k.key {
+		if bytes.Equal(b[0].key, k.key) {
 			k.blocks = append(k.blocks, b...)
 			k.buf[i] = nil
 		}
@@ -1237,16 +1239,16 @@ func (k *tsmKeyIterator) merge() {
 	}
 }
 
-func (k *tsmKeyIterator) Read() (string, int64, int64, []byte, error) {
+func (k *tsmKeyIterator) Read() ([]byte, int64, int64, []byte, error) {
 	// See if compactions were disabled while we were running.
 	select {
 	case <-k.interrupt:
-		return "", 0, 0, nil, errCompactionAborted
+		return nil, 0, 0, nil, errCompactionAborted
 	default:
 	}
 
 	if len(k.merged) == 0 {
-		return "", 0, 0, nil, k.err
+		return nil, 0, 0, nil, k.err
 	}
 
 	block := k.merged[0]
@@ -1268,7 +1270,7 @@ func (k *tsmKeyIterator) Close() error {
 type cacheKeyIterator struct {
 	cache *Cache
 	size  int
-	order []string
+	order [][]byte
 
 	i         int
 	blocks    [][]cacheBlock
@@ -1277,7 +1279,7 @@ type cacheKeyIterator struct {
 }
 
 type cacheBlock struct {
-	k                string
+	k                []byte
 	minTime, maxTime int64
 	b                []byte
 	err              error
@@ -1377,11 +1379,11 @@ func (c *cacheKeyIterator) Next() bool {
 	return true
 }
 
-func (c *cacheKeyIterator) Read() (string, int64, int64, []byte, error) {
+func (c *cacheKeyIterator) Read() ([]byte, int64, int64, []byte, error) {
 	// See if snapshot compactions were disabled while we were running.
 	select {
 	case <-c.interrupt:
-		return "", 0, 0, nil, errCompactionAborted
+		return nil, 0, 0, nil, errCompactionAborted
 	default:
 	}
 

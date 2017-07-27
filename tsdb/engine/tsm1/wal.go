@@ -2,6 +2,7 @@ package tsm1
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -479,7 +480,7 @@ func (l *WAL) CloseSegment() error {
 }
 
 // Delete deletes the given keys, returning the segment ID for the operation.
-func (l *WAL) Delete(keys []string) (int, error) {
+func (l *WAL) Delete(keys [][]byte) (int, error) {
 	if len(keys) == 0 {
 		return 0, nil
 	}
@@ -496,7 +497,7 @@ func (l *WAL) Delete(keys []string) (int, error) {
 
 // DeleteRange deletes the given keys within the given time range,
 // returning the segment ID for the operation.
-func (l *WAL) DeleteRange(keys []string, min, max int64) (int, error) {
+func (l *WAL) DeleteRange(keys [][]byte, min, max int64) (int, error) {
 	if len(keys) == 0 {
 		return 0, nil
 	}
@@ -877,7 +878,7 @@ func (w *WriteWALEntry) Type() WalEntryType {
 
 // DeleteWALEntry represents the deletion of multiple series.
 type DeleteWALEntry struct {
-	Keys []string
+	Keys [][]byte
 	sz   int
 }
 
@@ -889,7 +890,7 @@ func (w *DeleteWALEntry) MarshalBinary() ([]byte, error) {
 
 // UnmarshalBinary deserializes the byte slice into w.
 func (w *DeleteWALEntry) UnmarshalBinary(b []byte) error {
-	w.Keys = strings.Split(string(b), "\n")
+	w.Keys = bytes.Split(b, []byte("\n"))
 	return nil
 }
 
@@ -934,7 +935,7 @@ func (w *DeleteWALEntry) Type() WalEntryType {
 
 // DeleteRangeWALEntry represents the deletion of multiple series.
 type DeleteRangeWALEntry struct {
-	Keys     []string
+	Keys     [][]byte
 	Min, Max int64
 	sz       int
 }
@@ -965,7 +966,7 @@ func (w *DeleteRangeWALEntry) UnmarshalBinary(b []byte) error {
 		if i+sz > len(b) {
 			return ErrWALCorrupt
 		}
-		w.Keys = append(w.Keys, string(b[i:i+sz]))
+		w.Keys = append(w.Keys, b[i:i+sz])
 		i += sz
 	}
 	return nil

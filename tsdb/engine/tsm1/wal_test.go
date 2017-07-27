@@ -216,7 +216,7 @@ func TestWALWriter_WriteDelete_Single(t *testing.T) {
 	w := tsm1.NewWALSegmentWriter(f)
 
 	entry := &tsm1.DeleteWALEntry{
-		Keys: []string{"cpu"},
+		Keys: [][]byte{[]byte("cpu")},
 	}
 
 	if err := w.Write(mustMarshalEntry(entry)); err != nil {
@@ -251,7 +251,7 @@ func TestWALWriter_WriteDelete_Single(t *testing.T) {
 		t.Fatalf("key length mismatch: got %v, exp %v", got, exp)
 	}
 
-	if got, exp := e.Keys[0], entry.Keys[0]; got != exp {
+	if got, exp := string(e.Keys[0]), string(entry.Keys[0]); got != exp {
 		t.Fatalf("key mismatch: got %v, exp %v", got, exp)
 	}
 }
@@ -281,7 +281,7 @@ func TestWALWriter_WriteMultiDelete_Multiple(t *testing.T) {
 
 	// Write the delete entry
 	deleteEntry := &tsm1.DeleteWALEntry{
-		Keys: []string{"cpu,host=A#!~value"},
+		Keys: [][]byte{[]byte("cpu,host=A#!~value")},
 	}
 
 	if err := w.Write(mustMarshalEntry(deleteEntry)); err != nil {
@@ -345,7 +345,7 @@ func TestWALWriter_WriteMultiDelete_Multiple(t *testing.T) {
 		t.Fatalf("key length mismatch: got %v, exp %v", got, exp)
 	}
 
-	if got, exp := de.Keys[0], deleteEntry.Keys[0]; got != exp {
+	if got, exp := string(de.Keys[0]), string(deleteEntry.Keys[0]); got != exp {
 		t.Fatalf("key mismatch: got %v, exp %v", got, exp)
 	}
 }
@@ -378,7 +378,7 @@ func TestWALWriter_WriteMultiDeleteRange_Multiple(t *testing.T) {
 
 	// Write the delete entry
 	deleteEntry := &tsm1.DeleteRangeWALEntry{
-		Keys: []string{"cpu,host=A#!~value"},
+		Keys: [][]byte{[]byte("cpu,host=A#!~value")},
 		Min:  2,
 		Max:  3,
 	}
@@ -444,7 +444,7 @@ func TestWALWriter_WriteMultiDeleteRange_Multiple(t *testing.T) {
 		t.Fatalf("key length mismatch: got %v, exp %v", got, exp)
 	}
 
-	if got, exp := de.Keys[0], deleteEntry.Keys[0]; got != exp {
+	if got, exp := string(de.Keys[0]), string(deleteEntry.Keys[0]); got != exp {
 		t.Fatalf("key mismatch: got %v, exp %v", got, exp)
 	}
 
@@ -522,7 +522,7 @@ func TestWAL_Delete(t *testing.T) {
 		t.Fatalf("close segment length mismatch: got %v, exp %v", got, exp)
 	}
 
-	if _, err := w.Delete([]string{"cpu"}); err != nil {
+	if _, err := w.Delete([][]byte{[]byte("cpu")}); err != nil {
 		t.Fatalf("error writing points: %v", err)
 	}
 
@@ -641,7 +641,7 @@ func TestWriteWALSegment_UnmarshalBinary_WriteWALCorrupt(t *testing.T) {
 
 func TestWriteWALSegment_UnmarshalBinary_DeleteWALCorrupt(t *testing.T) {
 	w := &tsm1.DeleteWALEntry{
-		Keys: []string{"foo", "bar"},
+		Keys: [][]byte{[]byte("foo"), []byte("bar")},
 	}
 
 	b, err := w.MarshalBinary()
@@ -663,7 +663,7 @@ func TestWriteWALSegment_UnmarshalBinary_DeleteWALCorrupt(t *testing.T) {
 
 func TestWriteWALSegment_UnmarshalBinary_DeleteRangeWALCorrupt(t *testing.T) {
 	w := &tsm1.DeleteRangeWALEntry{
-		Keys: []string{"foo", "bar"},
+		Keys: [][]byte{[]byte("foo"), []byte("bar")},
 		Min:  1,
 		Max:  2,
 	}

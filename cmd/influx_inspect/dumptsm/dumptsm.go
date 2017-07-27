@@ -110,7 +110,7 @@ func (cmd *Command) dump() error {
 		var pos int
 		for i := 0; i < keyCount; i++ {
 			key, _ := r.KeyAt(i)
-			for _, e := range r.Entries(string(key)) {
+			for _, e := range r.Entries(key) {
 				pos++
 				split := strings.Split(string(key), "#!~#")
 
@@ -146,7 +146,7 @@ func (cmd *Command) dump() error {
 	// Start at the beginning and read every block
 	for j := 0; j < keyCount; j++ {
 		key, _ := r.KeyAt(j)
-		for _, e := range r.Entries(string(key)) {
+		for _, e := range r.Entries(key) {
 
 			f.Seek(int64(e.Offset), 0)
 			f.Read(b[:4])

@@ -136,11 +136,11 @@ func TestEngine_DeleteWALLoadMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if exp, got := 0, len(e.Cache.Values(tsm1.SeriesFieldKey("cpu,host=A", "value"))); exp != got {
+	if exp, got := 0, len(e.Cache.Values(tsm1.SeriesFieldKeyBytes("cpu,host=A", "value"))); exp != got {
 		t.Fatalf("unexpected number of values: got: %d. exp: %d", got, exp)
 	}
 
-	if exp, got := 1, len(e.Cache.Values(tsm1.SeriesFieldKey("cpu,host=B", "value"))); exp != got {
+	if exp, got := 1, len(e.Cache.Values(tsm1.SeriesFieldKeyBytes("cpu,host=B", "value"))); exp != got {
 		t.Fatalf("unexpected number of values: got: %d. exp: %d", got, exp)
 	}
 }
