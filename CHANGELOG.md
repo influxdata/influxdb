@@ -3,7 +3,7 @@
 ### Features
 ### UI Improvements
 
-## v1.3.5.0 [2017-07-25]
+## v1.3.5.0 [2017-07-27]
 ### Bug Fixes
 1. [#1708](https://github.com/influxdata/chronograf/pull/1708): Fix z-index issue in dashboard cell context menu
 1. [#1752](https://github.com/influxdata/chronograf/pull/1752): Clarify BoltPath server flag help text by making example the default path
