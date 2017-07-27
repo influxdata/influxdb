@@ -1,5 +1,7 @@
 ## v1.3.6.0 [unreleased]
 ### Bug Fixes
+1. [#1799](https://github.com/influxdata/chronograf/pull/1799): Fix console error spam from Dygraph.syncronize
+
 ### Features
 ### UI Improvements
 1. [#1796](https://github.com/influxdata/chronograf/pull/1796): Add spinner to indicate data is being written
