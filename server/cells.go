@@ -43,7 +43,9 @@ func newCellResponses(dID chronograf.DashboardID, dcells []chronograf.DashboardC
 		for _, lbl := range labels {
 			_, found := cell.Axes[lbl]
 			if !found {
-				cell.Axes[lbl] = chronograf.Axis{}
+				cell.Axes[lbl] = chronograf.Axis{
+					Bounds: []string{},
+				}
 			}
 		}
 

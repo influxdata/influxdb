@@ -273,7 +273,9 @@ func Test_newDashboardResponse(t *testing.T) {
 								"y": chronograf.Axis{
 									Bounds: []string{"2", "95"},
 								},
-								"y2": chronograf.Axis{},
+								"y2": chronograf.Axis{
+									Bounds: []string{},
+								},
 							},
 						},
 					},
@@ -286,9 +288,15 @@ func Test_newDashboardResponse(t *testing.T) {
 							W:  4,
 							H:  4,
 							Axes: map[string]chronograf.Axis{
-								"x":  chronograf.Axis{},
-								"y":  chronograf.Axis{},
-								"y2": chronograf.Axis{},
+								"x": chronograf.Axis{
+									Bounds: []string{},
+								},
+								"y": chronograf.Axis{
+									Bounds: []string{},
+								},
+								"y2": chronograf.Axis{
+									Bounds: []string{},
+								},
 							},
 							Queries: []chronograf.DashboardQuery{
 								{

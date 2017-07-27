@@ -119,9 +119,15 @@ func Test_Service_DashboardCells(t *testing.T) {
 					Name:    "CPU",
 					Queries: []chronograf.DashboardQuery{},
 					Axes: map[string]chronograf.Axis{
-						"x":  chronograf.Axis{},
-						"y":  chronograf.Axis{},
-						"y2": chronograf.Axis{},
+						"x": chronograf.Axis{
+							Bounds: []string{},
+						},
+						"y": chronograf.Axis{
+							Bounds: []string{},
+						},
+						"y2": chronograf.Axis{
+							Bounds: []string{},
+						},
 					},
 				},
 			},
