@@ -1,5 +1,6 @@
 ## v1.3.6.0 [unreleased]
 ### Bug Fixes
+1. [#1798](https://github.com/influxdata/chronograf/pull/1798): Fix domain on CEO not updating when new time is entered into InfluxQL in the builder
 ### Features
 ### UI Improvements
 
