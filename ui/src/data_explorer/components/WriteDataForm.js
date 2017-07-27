@@ -19,6 +19,7 @@ class WriteDataForm extends Component {
       progress: '',
       isManual: false,
       dragClass: 'drag-none',
+      isUploading: false,
     }
 
     this.handleSelectDatabase = ::this.handleSelectDatabase
@@ -59,12 +60,15 @@ class WriteDataForm extends Component {
     const {onClose, source, writeLineProtocol} = this.props
     const {inputContent, uploadContent, selectedDatabase, isManual} = this.state
     const content = isManual ? inputContent : uploadContent
+    this.setState({isUploading: true})
 
     try {
       await writeLineProtocol(source, selectedDatabase, content)
+      this.setState({isUploading: false})
       onClose()
       window.location.reload()
     } catch (error) {
+      this.setState({isUploading: false})
       console.error(error.data.error)
     }
   }

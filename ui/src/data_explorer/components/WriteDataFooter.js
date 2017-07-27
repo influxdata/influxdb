@@ -1,10 +1,14 @@
 import React, {PropTypes} from 'react'
 
+const submitButton = 'btn btn-sm btn-success write-data-form--submit'
+const spinner = 'btn-spinner'
+
 const WriteDataFooter = ({
   isManual,
   inputContent,
   uploadContent,
   handleSubmit,
+  isUploading,
 }) =>
   <div className="write-data-form--footer">
     {isManual
@@ -26,9 +30,13 @@ const WriteDataFooter = ({
           </a>
         </span>}
     <button
-      className="btn btn-sm btn-success write-data-form--submit"
+      className={isUploading ? `${submitButton} ${spinner}` : submitButton}
       onClick={handleSubmit}
-      disabled={(!inputContent && isManual) || (!uploadContent && !isManual)}
+      disabled={
+        (!inputContent && isManual) ||
+        (!uploadContent && !isManual) ||
+        isUploading
+      }
     >
       Write
     </button>
@@ -38,6 +46,7 @@ const {bool, func, string} = PropTypes
 
 WriteDataFooter.propTypes = {
   isManual: bool.isRequired,
+  isUploading: bool.isRequired,
   uploadContent: string,
   inputContent: string,
   handleSubmit: func,
