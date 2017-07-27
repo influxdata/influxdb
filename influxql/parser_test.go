@@ -81,18 +81,27 @@ func TestParser_ParseQuery_NoSemicolon(t *testing.T) {
 	}
 }
 
-func TestParser_ParseBoundParameter(t *testing.T) {
-	parser := influxql.NewParser(strings.NewReader(`SELECT * FROM m WHERE t = $v`))
-	params := map[string]interface{}{
-		"v": "1; select * from m where t = v",
+func TestParser_SQLInjection(t *testing.T) {
+	injections := []string{
+		"1; select * from m where t = v",
+		`1 "; drop measurement m;"`,
+		`1 '; drop measurement m;'`,
 	}
-	parser.SetParams(params)
-	q, err := parser.ParseQuery()
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
-	if len(q.Statements) != 1 {
-		t.Fatalf("bound query parameter injected a statement")
+
+	for _, inject := range injections {
+		parser := influxql.NewParser(strings.NewReader(`SELECT * FROM m WHERE t = $v`))
+		params := map[string]interface{}{
+			"v": inject,
+		}
+		parser.SetParams(params)
+		q, err := parser.ParseQuery()
+		if err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
+		if len(q.Statements) != 1 {
+			t.Fatalf("bound query parameter injected a statement")
+		}
+		fmt.Printf("Parameterized result: %s\n", q.String())
 	}
 }
 
