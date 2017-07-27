@@ -1,5 +1,7 @@
 ## v1.3.6.0 [unreleased]
 ### Bug Fixes
+1. [#1715](https://github.com/influxdata/chronograf/pull/1715): Chronograf now renders properly on IE11.
+
 ### Features
 ### UI Improvements
 1. [#1796](https://github.com/influxdata/chronograf/pull/1796): Add spinner to indicate data is being written
