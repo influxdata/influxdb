@@ -703,7 +703,7 @@ type IteratorOptions struct {
 func newIteratorOptionsStmt(stmt *SelectStatement, sopt *SelectOptions) (opt IteratorOptions, err error) {
 
 	// Determine time range from the condition.
-	startTime, endTime, err := TimeRange(stmt.Condition)
+	startTime, endTime, err := TimeRange(stmt.Condition, stmt.Location)
 	if err != nil {
 		return IteratorOptions{}, err
 	}

@@ -123,7 +123,7 @@ func TestContinuousQueryService_ResampleOptions(t *testing.T) {
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
 		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
 			s := stmt.(*influxql.SelectStatement)
-			min, max, err := influxql.TimeRange(s.Condition)
+			min, max, err := influxql.TimeRange(s.Condition, s.Location)
 			if err != nil {
 				t.Errorf("unexpected error parsing time range: %s", err)
 			} else if !expected.min.Equal(min) || !expected.max.Equal(max) {
@@ -204,7 +204,7 @@ func TestContinuousQueryService_EveryHigherThanInterval(t *testing.T) {
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
 		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
 			s := stmt.(*influxql.SelectStatement)
-			min, max, err := influxql.TimeRange(s.Condition)
+			min, max, err := influxql.TimeRange(s.Condition, s.Location)
 			if err != nil {
 				t.Errorf("unexpected error parsing time range: %s", err)
 			} else if !expected.min.Equal(min) || !expected.max.Equal(max) {
@@ -273,7 +273,7 @@ func TestContinuousQueryService_GroupByOffset(t *testing.T) {
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
 		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
 			s := stmt.(*influxql.SelectStatement)
-			min, max, err := influxql.TimeRange(s.Condition)
+			min, max, err := influxql.TimeRange(s.Condition, s.Location)
 			if err != nil {
 				t.Errorf("unexpected error parsing time range: %s", err)
 			} else if !expected.min.Equal(min) || !expected.max.Equal(max) {
@@ -433,7 +433,7 @@ func TestExecuteContinuousQuery_TimeRange(t *testing.T) {
 			s.QueryExecutor.StatementExecutor = &StatementExecutor{
 				ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
 					s := stmt.(*influxql.SelectStatement)
-					min, max, err := influxql.TimeRange(s.Condition)
+					min, max, err := influxql.TimeRange(s.Condition, s.Location)
 					max = max.Add(time.Nanosecond)
 					if err != nil {
 						t.Errorf("unexpected error parsing time range: %s", err)
@@ -547,7 +547,7 @@ func TestExecuteContinuousQuery_TimeZone(t *testing.T) {
 				ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
 					test := <-tests
 					s := stmt.(*influxql.SelectStatement)
-					min, max, err := influxql.TimeRange(s.Condition)
+					min, max, err := influxql.TimeRange(s.Condition, s.Location)
 					max = max.Add(time.Nanosecond)
 					if err != nil {
 						t.Errorf("unexpected error parsing time range: %s", err)
