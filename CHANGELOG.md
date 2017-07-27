@@ -2,6 +2,7 @@
 ### Bug Fixes
 ### Features
 ### UI Improvements
+1. [#1796](https://github.com/influxdata/chronograf/pull/1796): Add spinner to indicate data is being written
 
 ## v1.3.5.0 [2017-07-25]
 ### Bug Fixes
