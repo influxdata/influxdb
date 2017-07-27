@@ -4276,6 +4276,70 @@ fieldset[disabled] .btn-link:focus {
   margin-top: 5px;
 }
 
+// Spinner button
+// Not already in theme, so making a rough version here
+
+@keyframes buttonSpinner {
+  0% {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  100% {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+.btn-spinner {
+  position: relative;
+
+  &,
+  &:hover,
+  &:focus,
+  &:active,
+  &:focus:active,
+  &:focus:hover,
+  &:focus:active:hover {
+    color: transparent !important;
+    text-shadow: none;
+  }
+
+  // Spinner shared styles
+  &:before {
+    position: absolute;
+    z-index: 2;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    animation-name: buttonSpinner;
+    animation-iteration-count: infinite;
+    animation-duration: 0.6s;
+    animation-timing-function: linear;
+    content: '';
+    border-radius: 50%;
+    border-width: 2px;
+    border-style: solid;
+    border-color: fade_out($g20-white, 0.75);
+    border-top-color: $g20-white;
+    width: 20px;
+    height: 20px;
+  }
+  // Size of spinner related to button size
+  &.btn-xs:before {
+    width: 13px;
+    height: 13px;
+  }
+  &.btn-sm:before {
+    width: 16px;
+    height: 16px;
+  }
+  &.btn-md:before {
+    width: 20px;
+    height: 20px;
+  }
+  &.btn-lg:before {
+    width: 24px;
+    height: 24px;
+  }
+}
+
 input[type="submit"].btn-block,
 input[type="reset"].btn-block,
 input[type="button"].btn-block {
