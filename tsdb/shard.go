@@ -737,6 +737,10 @@ func (s *Shard) CreateIterator(measurement string, opt query.IteratorOptions) (q
 	return s.engine.CreateIterator(measurement, opt)
 }
 
+func (s *Shard) CreateCursor(r CursorRequest) (Cursor, error) {
+	return s.engine.CreateCursor(r)
+}
+
 // createSystemIterator returns an iterator for a field of system source.
 func (s *Shard) createSystemIterator(measurement string, opt query.IteratorOptions) (query.Iterator, bool, error) {
 	switch measurement {

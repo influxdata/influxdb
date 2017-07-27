@@ -692,13 +692,9 @@ func DecodeIntegerBlock(block []byte, a *[]IntegerValue) ([]IntegerValue, error)
 		for tdec.Next() && vdec.Next() {
 			ts := tdec.Read()
 			v := vdec.Read()
-			if i < len(*a) {
-				elem := &(*a)[i]
-				elem.unixnano = ts
-				elem.value = v
-			} else {
-				*a = append(*a, IntegerValue{ts, v})
-			}
+			elem := &(*a)[i]
+			elem.unixnano = ts
+			elem.value = v
 			i++
 		}
 

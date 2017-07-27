@@ -314,6 +314,17 @@ type {{.name}}Cursor interface {
 	next{{.Name}}() (t int64, v {{.Type}})
 }
 
+type {{.name}}NilCursor struct {
+    value interface{}
+}
+
+func (c *{{.name}}NilCursor) close() error { return nil }
+func (c *{{.name}}NilCursor) next() (t int64, v interface{}) { return tsdb.EOF, c.value }
+func (c *{{.name}}NilCursor) next{{.Name}}() (t int64, v {{.Type}}) { return tsdb.EOF, {{.Nil}} }
+func (c *{{.name}}NilCursor) Next() (t int64, v {{.Type}}) { return tsdb.EOF, {{.Nil}} }
+
+var {{.name}}NilCursorStatic {{.name}}Cursor = &{{.name}}NilCursor{value:{{.Nil}}}
+
 func new{{.Name}}Cursor(seek int64, ascending bool, cacheValues Values, tsmKeyCursor *KeyCursor) {{.name}}Cursor {
 	if ascending {
 		return new{{.Name}}AscendingCursor(seek, cacheValues, tsmKeyCursor)
@@ -382,6 +393,8 @@ func (c *{{.name}}AscendingCursor) close() (error) {
 
 // next returns the next key/value for the cursor.
 func (c *{{.name}}AscendingCursor) next() (int64, interface{}) { return c.next{{.Name}}() }
+
+func (c *{{.name}}AscendingCursor) Next() (int64, {{.Type}}) { return c.next{{.Name}}() }
 
 // next{{.Name}} returns the next key/value for the cursor.
 func (c *{{.name}}AscendingCursor) next{{.Name}}() (int64, {{.Type}}) {
@@ -499,6 +512,8 @@ func (c *{{.name}}DescendingCursor) close() (error) {
 
 // next returns the next key/value for the cursor.
 func (c *{{.name}}DescendingCursor) next() (int64, interface{}) { return c.next{{.Name}}() }
+
+func (c *{{.name}}DescendingCursor) Next() (int64, {{.Type}}) { return c.next{{.Name}}() }
 
 // next{{.Name}} returns the next key/value for the cursor.
 func (c *{{.name}}DescendingCursor) next{{.Name}}() (int64, {{.Type}}) {

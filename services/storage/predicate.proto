@@ -1,0 +1,79 @@
+syntax = "proto3";
+package storage;
+
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+message Predicate {
+  enum Comparison {
+    option (gogoproto.goproto_enum_prefix) = false;
+
+    // ComparisonEqual denotes the equal comparison operator.
+    EQUAL = 0 [(gogoproto.enumvalue_customname) = "ComparisonEqual"];
+
+    // ComparisonNotEqual denotes the not equal comparison operator.
+    NEQUAL = 1 [(gogoproto.enumvalue_customname) = "ComparisonNotEqual"];
+
+    // ComparisonStartsWith denotes the starts with string comparison operator.
+    STARTS_WITH = 2 [(gogoproto.enumvalue_customname) = "ComparisonStartsWith"];
+
+    // ComparisonRegex denotes the regex string comparison operator.
+    REGEX = 3 [(gogoproto.enumvalue_customname) = "ComparisonRegex"];
+
+    // ComparisonNotRegex denotes the negated regex string comparison operator.
+    NREGEX = 4 [(gogoproto.enumvalue_customname) = "ComparisonNotRegex"];
+  }
+
+  // Logical operators apply to boolean values and combine to produce a single boolean result.
+  enum Logical {
+    option (gogoproto.goproto_enum_prefix) = false;
+
+    AND = 0 [(gogoproto.enumvalue_customname) = "LogicalAnd"];
+    OR = 1 [(gogoproto.enumvalue_customname) = "LogicalOr"];
+  }
+
+  message Expression {
+    oneof value {
+      BooleanExpression binary_expression = 1 [(gogoproto.customname) = "BinaryExpression"];
+      GroupExpression group_expression = 2 [(gogoproto.customname) = "GroupExpression"];
+    }
+  }
+
+  // GroupExpression combines a group of expressions using either a logical AND or OR operator
+  message GroupExpression {
+    Logical op = 1;
+    repeated Expression expressions = 2;
+  }
+
+  // BooleanExpressions compares two operands and yieds a boolean result
+  message BooleanExpression {
+    LiteralExpression lhs = 1 [(gogoproto.customname) = "LHS"];
+    Comparison op = 2;
+    LiteralExpression rhs = 3 [(gogoproto.customname) = "RHS"];
+  }
+
+  // ValueExpression represents a tag or literal value
+  message ValueExpression {
+    oneof value {
+      RefExpression ref = 1;
+      LiteralExpression literal = 2;
+    }
+  }
+
+  // RefExpression represents a tag reference
+  message RefExpression {
+    string ref = 1;
+  }
+
+  // LiteralExpression represents a typed literal value
+  message LiteralExpression {
+    oneof value {
+      string string_value = 1 [(gogoproto.customname) = "StringValue"];
+      bool bool_value = 2 [(gogoproto.customname) = "BooleanValue"];
+      int64 int_value = 3 [(gogoproto.customname) = "IntegerValue"];
+      uint64 uint_value = 4 [(gogoproto.customname) = "UnsignedValue"];
+      float float_value = 5 [(gogoproto.customname) = "FloatValue"];
+    }
+  }
+
+  Expression root = 1;
+}

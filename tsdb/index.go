@@ -44,6 +44,7 @@ type Index interface {
 	// InfluxQL system iterators
 	MeasurementSeriesKeysByExpr(name []byte, condition influxql.Expr) ([][]byte, error)
 	SeriesPointIterator(opt query.IteratorOptions) (query.Iterator, error)
+	MeasurementSeriesPointIterator(measurement string, opt influxql.IteratorOptions) (influxql.Iterator, error)
 
 	// Sets a shared fieldset from the engine.
 	SetFieldSet(fs *MeasurementFieldSet)

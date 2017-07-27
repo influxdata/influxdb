@@ -722,6 +722,21 @@ func (i *Index) SeriesPointIterator(opt query.IteratorOptions) (query.Iterator, 
 	}, nil
 }
 
+func (i *Index) MeasurementSeriesPointIterator(measurement string, opt influxql.IteratorOptions) (influxql.Iterator, error) {
+	mm, ok := i.measurements[measurement]
+	if !ok {
+		return nil, nil
+	}
+
+	return &seriesPointIterator{
+		mms: Measurements{mm},
+		point: influxql.FloatPoint{
+			Aux: make([]interface{}, len(opt.Aux)),
+		},
+		opt: opt,
+	}, nil
+}
+
 // SnapshotTo is a no-op since this is an in-memory index.
 func (i *Index) SnapshotTo(path string) error { return nil }
 
