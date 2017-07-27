@@ -407,6 +407,14 @@ func DecodeFloatBlock(block []byte, a *[]FloatValue) ([]FloatValue, error) {
 		return nil, err
 	}
 
+	sz := CountTimestamps(tb)
+
+	if cap(*a) < sz {
+		*a = make([]FloatValue, sz)
+	} else {
+		*a = (*a)[:sz]
+	}
+
 	tdec := timeDecoderPool.Get(0).(*TimeDecoder)
 	vdec := floatDecoderPool.Get(0).(*FloatDecoder)
 
@@ -537,6 +545,14 @@ func DecodeBooleanBlock(block []byte, a *[]BooleanValue) ([]BooleanValue, error)
 		return nil, err
 	}
 
+	sz := CountTimestamps(tb)
+
+	if cap(*a) < sz {
+		*a = make([]BooleanValue, sz)
+	} else {
+		*a = (*a)[:sz]
+	}
+
 	tdec := timeDecoderPool.Get(0).(*TimeDecoder)
 	vdec := booleanDecoderPool.Get(0).(*BooleanDecoder)
 
@@ -653,6 +669,14 @@ func DecodeIntegerBlock(block []byte, a *[]IntegerValue) ([]IntegerValue, error)
 	tb, vb, err := unpackBlock(block)
 	if err != nil {
 		return nil, err
+	}
+
+	sz := CountTimestamps(tb)
+
+	if cap(*a) < sz {
+		*a = make([]IntegerValue, sz)
+	} else {
+		*a = (*a)[:sz]
 	}
 
 	tdec := timeDecoderPool.Get(0).(*TimeDecoder)
@@ -773,6 +797,14 @@ func DecodeUnsignedBlock(block []byte, a *[]UnsignedValue) ([]UnsignedValue, err
 		return nil, err
 	}
 
+	sz := CountTimestamps(tb)
+
+	if cap(*a) < sz {
+		*a = make([]UnsignedValue, sz)
+	} else {
+		*a = (*a)[:sz]
+	}
+
 	tdec := timeDecoderPool.Get(0).(*TimeDecoder)
 	vdec := integerDecoderPool.Get(0).(*IntegerDecoder)
 
@@ -890,6 +922,14 @@ func DecodeStringBlock(block []byte, a *[]StringValue) ([]StringValue, error) {
 	tb, vb, err := unpackBlock(block)
 	if err != nil {
 		return nil, err
+	}
+
+	sz := CountTimestamps(tb)
+
+	if cap(*a) < sz {
+		*a = make([]StringValue, sz)
+	} else {
+		*a = (*a)[:sz]
 	}
 
 	tdec := timeDecoderPool.Get(0).(*TimeDecoder)
