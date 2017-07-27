@@ -534,11 +534,11 @@ func (e *StatementExecutor) createIterators(stmt *influxql.SelectStatement, ctx 
 	}
 
 	// Replace instances of "now()" with the current time, and check the resultant times.
-	nowValuer := influxql.NowValuer{Now: now}
+	nowValuer := influxql.NowValuer{Now: now, Location: stmt.Location}
 	stmt = stmt.Reduce(&nowValuer)
 
 	var err error
-	opt.MinTime, opt.MaxTime, err = influxql.TimeRange(stmt.Condition)
+	opt.MinTime, opt.MaxTime, err = influxql.TimeRange(stmt.Condition, stmt.Location)
 	if err != nil {
 		return nil, stmt, err
 	}

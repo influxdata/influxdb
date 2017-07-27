@@ -4,6 +4,7 @@
 
 - [#8601](https://github.com/influxdata/influxdb/pull/8601): Fixed time boundaries for continuous queries with time zones.
 - [#8607](https://github.com/influxdata/influxdb/issues/8607): Fix time zone shifts when the shift happens on a time zone boundary.
+- [#8639](https://github.com/influxdata/influxdb/issues/8639): Parse time literals using the time zone in the select statement.
 
 ## v1.3.3 [2017-08-10]
 

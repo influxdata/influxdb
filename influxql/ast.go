@@ -1480,7 +1480,7 @@ func (s *SelectStatement) RewriteTimeCondition(now time.Time) error {
 	if err != nil {
 		return err
 	} else if interval > 0 && s.Condition != nil {
-		_, tmax, err := TimeRange(s.Condition)
+		_, tmax, err := TimeRange(s.Condition, s.Location)
 		if err != nil {
 			return err
 		}
@@ -3776,19 +3776,23 @@ func (l *StringLiteral) IsTimeLiteral() bool {
 }
 
 // ToTimeLiteral returns a time literal if this string can be converted to a time literal.
-func (l *StringLiteral) ToTimeLiteral() (*TimeLiteral, error) {
+func (l *StringLiteral) ToTimeLiteral(loc *time.Location) (*TimeLiteral, error) {
+	if loc == nil {
+		loc = time.UTC
+	}
+
 	if isDateTimeString(l.Val) {
-		t, err := time.Parse(DateTimeFormat, l.Val)
+		t, err := time.ParseInLocation(DateTimeFormat, l.Val, loc)
 		if err != nil {
 			// try to parse it as an RFCNano time
-			t, err = time.Parse(time.RFC3339Nano, l.Val)
+			t, err = time.ParseInLocation(time.RFC3339Nano, l.Val, loc)
 			if err != nil {
 				return nil, ErrInvalidTime
 			}
 		}
 		return &TimeLiteral{Val: t}, nil
 	} else if isDateString(l.Val) {
-		t, err := time.Parse(DateFormat, l.Val)
+		t, err := time.ParseInLocation(DateFormat, l.Val, loc)
 		if err != nil {
 			return nil, ErrInvalidTime
 		}
@@ -4038,7 +4042,7 @@ func OnlyTimeExpr(expr Expr) bool {
 
 // TimeRange returns the minimum and maximum times specified by an expression.
 // It returns zero times if there is no bound.
-func TimeRange(expr Expr) (min, max time.Time, err error) {
+func TimeRange(expr Expr, loc *time.Location) (min, max time.Time, err error) {
 	WalkFunc(expr, func(n Node) {
 		if err != nil {
 			return
@@ -4050,11 +4054,11 @@ func TimeRange(expr Expr) (min, max time.Time, err error) {
 			// Otherwise check for for the right-hand side and flip the operator.
 			op := n.Op
 			var value time.Time
-			value, err = timeExprValue(n.LHS, n.RHS)
+			value, err = timeExprValue(n.LHS, n.RHS, loc)
 			if err != nil {
 				return
 			} else if value.IsZero() {
-				if value, err = timeExprValue(n.RHS, n.LHS); value.IsZero() || err != nil {
+				if value, err = timeExprValue(n.RHS, n.LHS, loc); value.IsZero() || err != nil {
 					return
 				} else if op == LT {
 					op = GT
@@ -4103,7 +4107,7 @@ func TimeRange(expr Expr) (min, max time.Time, err error) {
 // an expression. If there is no lower bound, the minimum time is returned
 // for minimum. If there is no higher bound, the maximum time is returned.
 func TimeRangeAsEpochNano(expr Expr) (min, max int64, err error) {
-	tmin, tmax, err := TimeRange(expr)
+	tmin, tmax, err := TimeRange(expr, nil)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -4123,12 +4127,12 @@ func TimeRangeAsEpochNano(expr Expr) (min, max int64, err error) {
 
 // timeExprValue returns the time literal value of a "time == <TimeLiteral>" expression.
 // Returns zero time if the expression is not a time expression.
-func timeExprValue(ref Expr, lit Expr) (t time.Time, err error) {
+func timeExprValue(ref Expr, lit Expr, loc *time.Location) (t time.Time, err error) {
 	if ref, ok := ref.(*VarRef); ok && strings.ToLower(ref.Val) == "time" {
 		// If literal looks like a date time then parse it as a time literal.
 		if strlit, ok := lit.(*StringLiteral); ok {
 			if strlit.IsTimeLiteral() {
-				t, err := strlit.ToTimeLiteral()
+				t, err := strlit.ToTimeLiteral(loc)
 				if err != nil {
 					return time.Time{}, err
 				}
@@ -4795,6 +4799,11 @@ func reduceBinaryExpr(expr *BinaryExpr, valuer Valuer) Expr {
 	lhs := reduce(expr.LHS, valuer)
 	rhs := reduce(expr.RHS, valuer)
 
+	loc := time.UTC
+	if v, ok := valuer.(ZoneValuer); ok {
+		loc = v.Zone()
+	}
+
 	// Do not evaluate if one side is nil.
 	if lhs == nil || rhs == nil {
 		return &BinaryExpr{LHS: lhs, RHS: rhs, Op: expr.Op}
@@ -4825,17 +4834,17 @@ func reduceBinaryExpr(expr *BinaryExpr, valuer Valuer) Expr {
 	case *BooleanLiteral:
 		return reduceBinaryExprBooleanLHS(op, lhs, rhs)
 	case *DurationLiteral:
-		return reduceBinaryExprDurationLHS(op, lhs, rhs)
+		return reduceBinaryExprDurationLHS(op, lhs, rhs, loc)
 	case *IntegerLiteral:
-		return reduceBinaryExprIntegerLHS(op, lhs, rhs)
+		return reduceBinaryExprIntegerLHS(op, lhs, rhs, loc)
 	case *nilLiteral:
 		return reduceBinaryExprNilLHS(op, lhs, rhs)
 	case *NumberLiteral:
 		return reduceBinaryExprNumberLHS(op, lhs, rhs)
 	case *StringLiteral:
-		return reduceBinaryExprStringLHS(op, lhs, rhs)
+		return reduceBinaryExprStringLHS(op, lhs, rhs, loc)
 	case *TimeLiteral:
-		return reduceBinaryExprTimeLHS(op, lhs, rhs)
+		return reduceBinaryExprTimeLHS(op, lhs, rhs, loc)
 	default:
 		return &BinaryExpr{Op: op, LHS: lhs, RHS: rhs}
 	}
@@ -4866,7 +4875,7 @@ func reduceBinaryExprBooleanLHS(op Token, lhs *BooleanLiteral, rhs Expr) Expr {
 	return &BinaryExpr{Op: op, LHS: lhs, RHS: rhs}
 }
 
-func reduceBinaryExprDurationLHS(op Token, lhs *DurationLiteral, rhs Expr) Expr {
+func reduceBinaryExprDurationLHS(op Token, lhs *DurationLiteral, rhs Expr, loc *time.Location) Expr {
 	switch rhs := rhs.(type) {
 	case *DurationLiteral:
 		switch op {
@@ -4913,11 +4922,11 @@ func reduceBinaryExprDurationLHS(op Token, lhs *DurationLiteral, rhs Expr) Expr 
 			return &TimeLiteral{Val: rhs.Val.Add(lhs.Val)}
 		}
 	case *StringLiteral:
-		t, err := rhs.ToTimeLiteral()
+		t, err := rhs.ToTimeLiteral(loc)
 		if err != nil {
 			break
 		}
-		expr := reduceBinaryExprDurationLHS(op, lhs, t)
+		expr := reduceBinaryExprDurationLHS(op, lhs, t, loc)
 
 		// If the returned expression is still a binary expr, that means
 		// we couldn't reduce it so this wasn't used in a time literal context.
@@ -4930,7 +4939,7 @@ func reduceBinaryExprDurationLHS(op Token, lhs *DurationLiteral, rhs Expr) Expr 
 	return &BinaryExpr{Op: op, LHS: lhs, RHS: rhs}
 }
 
-func reduceBinaryExprIntegerLHS(op Token, lhs *IntegerLiteral, rhs Expr) Expr {
+func reduceBinaryExprIntegerLHS(op Token, lhs *IntegerLiteral, rhs Expr, loc *time.Location) Expr {
 	switch rhs := rhs.(type) {
 	case *NumberLiteral:
 		return reduceBinaryExprNumberLHS(op, &NumberLiteral{Val: float64(lhs.Val)}, rhs)
@@ -4981,17 +4990,17 @@ func reduceBinaryExprIntegerLHS(op Token, lhs *IntegerLiteral, rhs Expr) Expr {
 		}
 	case *TimeLiteral:
 		d := &DurationLiteral{Val: time.Duration(lhs.Val)}
-		expr := reduceBinaryExprDurationLHS(op, d, rhs)
+		expr := reduceBinaryExprDurationLHS(op, d, rhs, loc)
 		if _, ok := expr.(*BinaryExpr); !ok {
 			return expr
 		}
 	case *StringLiteral:
-		t, err := rhs.ToTimeLiteral()
+		t, err := rhs.ToTimeLiteral(loc)
 		if err != nil {
 			break
 		}
 		d := &DurationLiteral{Val: time.Duration(lhs.Val)}
-		expr := reduceBinaryExprDurationLHS(op, d, t)
+		expr := reduceBinaryExprDurationLHS(op, d, t, loc)
 		if _, ok := expr.(*BinaryExpr); !ok {
 			return expr
 		}
@@ -5073,7 +5082,7 @@ func reduceBinaryExprNumberLHS(op Token, lhs *NumberLiteral, rhs Expr) Expr {
 	return &BinaryExpr{Op: op, LHS: lhs, RHS: rhs}
 }
 
-func reduceBinaryExprStringLHS(op Token, lhs *StringLiteral, rhs Expr) Expr {
+func reduceBinaryExprStringLHS(op Token, lhs *StringLiteral, rhs Expr, loc *time.Location) Expr {
 	switch rhs := rhs.(type) {
 	case *StringLiteral:
 		switch op {
@@ -5084,17 +5093,17 @@ func reduceBinaryExprStringLHS(op Token, lhs *StringLiteral, rhs Expr) Expr {
 			// could be a different result if they use different formats
 			// for the same time.
 			if lhs.IsTimeLiteral() && rhs.IsTimeLiteral() {
-				tlhs, err := lhs.ToTimeLiteral()
+				tlhs, err := lhs.ToTimeLiteral(loc)
 				if err != nil {
 					return expr
 				}
 
-				trhs, err := rhs.ToTimeLiteral()
+				trhs, err := rhs.ToTimeLiteral(loc)
 				if err != nil {
 					return expr
 				}
 
-				t := reduceBinaryExprTimeLHS(op, tlhs, trhs)
+				t := reduceBinaryExprTimeLHS(op, tlhs, trhs, loc)
 				if _, ok := t.(*BinaryExpr); !ok {
 					expr = t
 				}
@@ -5107,17 +5116,17 @@ func reduceBinaryExprStringLHS(op Token, lhs *StringLiteral, rhs Expr) Expr {
 			// could be a different result if they use different formats
 			// for the same time.
 			if lhs.IsTimeLiteral() && rhs.IsTimeLiteral() {
-				tlhs, err := lhs.ToTimeLiteral()
+				tlhs, err := lhs.ToTimeLiteral(loc)
 				if err != nil {
 					return expr
 				}
 
-				trhs, err := rhs.ToTimeLiteral()
+				trhs, err := rhs.ToTimeLiteral(loc)
 				if err != nil {
 					return expr
 				}
 
-				t := reduceBinaryExprTimeLHS(op, tlhs, trhs)
+				t := reduceBinaryExprTimeLHS(op, tlhs, trhs, loc)
 				if _, ok := t.(*BinaryExpr); !ok {
 					expr = t
 				}
@@ -5127,11 +5136,11 @@ func reduceBinaryExprStringLHS(op Token, lhs *StringLiteral, rhs Expr) Expr {
 			return &StringLiteral{Val: lhs.Val + rhs.Val}
 		default:
 			// Attempt to convert the string literal to a time literal.
-			t, err := lhs.ToTimeLiteral()
+			t, err := lhs.ToTimeLiteral(loc)
 			if err != nil {
 				break
 			}
-			expr := reduceBinaryExprTimeLHS(op, t, rhs)
+			expr := reduceBinaryExprTimeLHS(op, t, rhs, loc)
 
 			// If the returned expression is still a binary expr, that means
 			// we couldn't reduce it so this wasn't used in a time literal context.
@@ -5141,11 +5150,11 @@ func reduceBinaryExprStringLHS(op Token, lhs *StringLiteral, rhs Expr) Expr {
 		}
 	case *DurationLiteral:
 		// Attempt to convert the string literal to a time literal.
-		t, err := lhs.ToTimeLiteral()
+		t, err := lhs.ToTimeLiteral(loc)
 		if err != nil {
 			break
 		}
-		expr := reduceBinaryExprTimeLHS(op, t, rhs)
+		expr := reduceBinaryExprTimeLHS(op, t, rhs, loc)
 
 		// If the returned expression is still a binary expr, that means
 		// we couldn't reduce it so this wasn't used in a time literal context.
@@ -5154,11 +5163,11 @@ func reduceBinaryExprStringLHS(op Token, lhs *StringLiteral, rhs Expr) Expr {
 		}
 	case *TimeLiteral:
 		// Attempt to convert the string literal to a time literal.
-		t, err := lhs.ToTimeLiteral()
+		t, err := lhs.ToTimeLiteral(loc)
 		if err != nil {
 			break
 		}
-		expr := reduceBinaryExprTimeLHS(op, t, rhs)
+		expr := reduceBinaryExprTimeLHS(op, t, rhs, loc)
 
 		// If the returned expression is still a binary expr, that means
 		// we couldn't reduce it so this wasn't used in a time literal context.
@@ -5167,11 +5176,11 @@ func reduceBinaryExprStringLHS(op Token, lhs *StringLiteral, rhs Expr) Expr {
 		}
 	case *IntegerLiteral:
 		// Attempt to convert the string literal to a time literal.
-		t, err := lhs.ToTimeLiteral()
+		t, err := lhs.ToTimeLiteral(loc)
 		if err != nil {
 			break
 		}
-		expr := reduceBinaryExprTimeLHS(op, t, rhs)
+		expr := reduceBinaryExprTimeLHS(op, t, rhs, loc)
 
 		// If the returned expression is still a binary expr, that means
 		// we couldn't reduce it so this wasn't used in a time literal context.
@@ -5187,7 +5196,7 @@ func reduceBinaryExprStringLHS(op Token, lhs *StringLiteral, rhs Expr) Expr {
 	return &BinaryExpr{Op: op, LHS: lhs, RHS: rhs}
 }
 
-func reduceBinaryExprTimeLHS(op Token, lhs *TimeLiteral, rhs Expr) Expr {
+func reduceBinaryExprTimeLHS(op Token, lhs *TimeLiteral, rhs Expr, loc *time.Location) Expr {
 	switch rhs := rhs.(type) {
 	case *DurationLiteral:
 		switch op {
@@ -5198,7 +5207,7 @@ func reduceBinaryExprTimeLHS(op Token, lhs *TimeLiteral, rhs Expr) Expr {
 		}
 	case *IntegerLiteral:
 		d := &DurationLiteral{Val: time.Duration(rhs.Val)}
-		expr := reduceBinaryExprTimeLHS(op, lhs, d)
+		expr := reduceBinaryExprTimeLHS(op, lhs, d, loc)
 		if _, ok := expr.(*BinaryExpr); !ok {
 			return expr
 		}
@@ -5220,11 +5229,11 @@ func reduceBinaryExprTimeLHS(op Token, lhs *TimeLiteral, rhs Expr) Expr {
 			return &BooleanLiteral{Val: lhs.Val.Before(rhs.Val) || lhs.Val.Equal(rhs.Val)}
 		}
 	case *StringLiteral:
-		t, err := rhs.ToTimeLiteral()
+		t, err := rhs.ToTimeLiteral(loc)
 		if err != nil {
 			break
 		}
-		expr := reduceBinaryExprTimeLHS(op, lhs, t)
+		expr := reduceBinaryExprTimeLHS(op, lhs, t, loc)
 
 		// If the returned expression is still a binary expr, that means
 		// we couldn't reduce it so this wasn't used in a time literal context.
@@ -5298,9 +5307,16 @@ type Valuer interface {
 	Value(key string) (interface{}, bool)
 }
 
+// ZoneValuer is the interface that specifies the current time zone.
+type ZoneValuer interface {
+	// Zone returns the time zone location.
+	Zone() *time.Location
+}
+
 // NowValuer returns only the value for "now()".
 type NowValuer struct {
-	Now time.Time
+	Now      time.Time
+	Location *time.Location
 }
 
 // Value is a method that returns the value and existence flag for a given key.
@@ -5309,6 +5325,14 @@ func (v *NowValuer) Value(key string) (interface{}, bool) {
 		return v.Now, true
 	}
 	return nil, false
+}
+
+// Zone is a method that returns the time.Location.
+func (v *NowValuer) Zone() *time.Location {
+	if v.Location != nil {
+		return v.Location
+	}
+	return time.UTC
 }
 
 // ContainsVarRef returns true if expr is a VarRef or contains one.
