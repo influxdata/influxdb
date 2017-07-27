@@ -24,6 +24,12 @@
 - [#8097](https://github.com/influxdata/influxdb/pull/8097): Return query parsing errors in CSV formats.
 - [#8607](https://github.com/influxdata/influxdb/issues/8607): Fix time zone shifts when the shift happens on a time zone boundary.
 
+## v1.3.2 [unreleased]
+
+### Bugfixes
+
+- [#8629](https://github.com/influxdata/influxdb/pull/8629): Interrupt in progress TSM compactions
+
 ## v1.3.1 [unreleased]
 
 ### Bugfixes
