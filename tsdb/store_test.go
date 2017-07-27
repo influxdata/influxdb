@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -779,6 +780,109 @@ func TestStore_Cardinality_Compactions_TSI1(t *testing.T) {
 	testStoreCardinalityCompactions(t, store)
 }
 
+func TestStore_TagValues(t *testing.T) {
+	t.Parallel()
+
+	// SHOW TAG VALUES FROM /cpu\d/ WITH KEY IN ("host", "shard")
+	cond := &influxql.BinaryExpr{
+		Op: influxql.AND,
+		LHS: &influxql.ParenExpr{
+			Expr: &influxql.BinaryExpr{
+				Op:  influxql.EQREGEX,
+				LHS: &influxql.VarRef{Val: "_name"},
+				RHS: &influxql.RegexLiteral{Val: regexp.MustCompile(`cpu\d`)},
+			},
+		},
+		RHS: &influxql.ParenExpr{
+			Expr: &influxql.BinaryExpr{
+				Op: influxql.OR,
+				LHS: &influxql.BinaryExpr{
+					Op:  influxql.EQ,
+					LHS: &influxql.VarRef{Val: "_tagKey"},
+					RHS: &influxql.StringLiteral{Val: "host"},
+				},
+				RHS: &influxql.BinaryExpr{
+					Op:  influxql.EQ,
+					LHS: &influxql.VarRef{Val: "_tagKey"},
+					RHS: &influxql.StringLiteral{Val: "shard"},
+				},
+			},
+		},
+	}
+
+	var s *Store
+	setup := func(index string) {
+		s = MustOpenStore()
+		s.EngineOptions.IndexVersion = index
+
+		fmtStr := `cpu%d,ignoreme=nope,host=tv%d,shard=s%d value=1 %[4]d
+	mem,host=nothanks value=1 %[4]d
+	`
+		genPoints := func(sid int) []string {
+			var ts int
+			points := make([]string, 0, 3*4)
+			for m := 0; m < 3; m++ {
+				for tagvid := 0; tagvid < 4; tagvid++ {
+					points = append(points, fmt.Sprintf(fmtStr, m, tagvid, sid, ts))
+					ts++
+				}
+			}
+			return points
+		}
+
+		// Create data across 3 shards.
+		for i := 0; i < 3; i++ {
+			s.MustCreateShardWithData("db0", "rp0", i, genPoints(i)...)
+		}
+	}
+
+	indexes := []string{"inmem", "tsi1"}
+	for _, index := range indexes {
+		setup(index)
+		t.Run(index, func(t *testing.T) {
+			got, err := s.TagValues("db0", cond)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			exp := []tsdb.TagValues{
+				createTagValues("cpu0", map[string][]string{"host": {"tv0", "tv1", "tv2", "tv3"}, "shard": {"s0", "s1", "s2"}}),
+				createTagValues("cpu1", map[string][]string{"host": {"tv0", "tv1", "tv2", "tv3"}, "shard": {"s0", "s1", "s2"}}),
+				createTagValues("cpu2", map[string][]string{"host": {"tv0", "tv1", "tv2", "tv3"}, "shard": {"s0", "s1", "s2"}}),
+			}
+
+			if !reflect.DeepEqual(got, exp) {
+				t.Fatalf("got:\n%#v\n\nexp:\n%#v", got, exp)
+			}
+		})
+		s.Close()
+	}
+}
+
+// Helper to create some tag values
+func createTagValues(mname string, kvs map[string][]string) tsdb.TagValues {
+	var sz int
+	for _, v := range kvs {
+		sz += len(v)
+	}
+
+	out := tsdb.TagValues{
+		Measurement: mname,
+		Values:      make([]tsdb.KeyValue, 0, sz),
+	}
+
+	for tk, tvs := range kvs {
+		for _, tv := range tvs {
+			out.Values = append(out.Values, tsdb.KeyValue{Key: tk, Value: tv})
+		}
+		// We have to sort the KeyValues since that's how they're provided from
+		// the tsdb.Store.
+		sort.Sort(tsdb.KeyValues(out.Values))
+	}
+
+	return out
+}
+
 func benchmarkStoreSeriesCardinality(b *testing.B, store *Store, n int) {
 	// Write a point to n shards.
 	for shardID := 0; shardID < n; shardID++ {
@@ -865,6 +969,105 @@ func benchmarkStoreOpen(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt, shardCnt int) 
 		b.StopTimer()
 		store.Close()
 		b.StartTimer()
+	}
+}
+
+// To store result of benchmark (ensure allocated on heap).
+var tvResult []tsdb.TagValues
+
+func BenchmarkStore_TagValues(b *testing.B) {
+	benchmarks := []struct {
+		name         string
+		shards       int
+		measurements int
+		tagValues    int
+	}{
+		{name: "s=1_m=1_v=100", shards: 1, measurements: 1, tagValues: 100},
+		{name: "s=1_m=1_v=1000", shards: 1, measurements: 1, tagValues: 1000},
+		{name: "s=1_m=10_v=100", shards: 1, measurements: 10, tagValues: 100},
+		{name: "s=1_m=10_v=1000", shards: 1, measurements: 10, tagValues: 1000},
+		{name: "s=1_m=100_v=100", shards: 1, measurements: 100, tagValues: 100},
+		{name: "s=1_m=100_v=1000", shards: 1, measurements: 100, tagValues: 1000},
+		{name: "s=10_m=1_v=100", shards: 10, measurements: 1, tagValues: 100},
+		{name: "s=10_m=1_v=1000", shards: 10, measurements: 1, tagValues: 1000},
+		{name: "s=10_m=10_v=100", shards: 10, measurements: 10, tagValues: 100},
+		{name: "s=10_m=10_v=1000", shards: 10, measurements: 10, tagValues: 1000},
+		{name: "s=10_m=100_v=100", shards: 10, measurements: 100, tagValues: 100},
+		{name: "s=10_m=100_v=1000", shards: 10, measurements: 100, tagValues: 1000},
+	}
+
+	var s *Store
+	setup := func(shards, measurements, tagValues int, index string, useRandom bool) {
+		s = NewStore()
+		s.EngineOptions.Config.Index = index
+		if err := s.Open(); err != nil {
+			panic(err)
+		}
+
+		fmtStr := `cpu%[1]d,host=tv%[2]d,shard=s%[3]d,z1=s%[1]d%[2]d,z2=fixed value=1 %[4]d`
+		// genPoints generates some point data. If ran is true then random tag
+		// key values will be generated, meaning more work sorting and merging.
+		// If ran is false, then the same set of points will be produced for the
+		// same set of parameters, meaning more de-duplication of points will be
+		// needed.
+		genPoints := func(sid int, ran bool) []string {
+			var v, ts int
+			points := make([]string, 0, measurements*tagValues)
+			for m := 0; m < measurements; m++ {
+				for tagvid := 0; tagvid < tagValues; tagvid++ {
+					v = tagvid
+					if ran {
+						v = rand.Intn(100000)
+					}
+					points = append(points, fmt.Sprintf(fmtStr, m, v, sid, ts))
+					ts++
+				}
+			}
+			return points
+		}
+
+		// Create data across chosen number of shards.
+		for i := 0; i < shards; i++ {
+			s.MustCreateShardWithData("db0", "rp0", i, genPoints(i, useRandom)...)
+		}
+	}
+
+	teardown := func() {
+		if err := s.Close(); err != nil {
+			b.Fatal(err)
+		}
+	}
+
+	// SHOW TAG VALUES WITH KEY IN ("host", "shard")
+	cond := &influxql.BinaryExpr{
+		Op: influxql.OR,
+		LHS: &influxql.BinaryExpr{
+			Op:  influxql.EQ,
+			LHS: &influxql.VarRef{Val: "_tagKey"},
+			RHS: &influxql.StringLiteral{Val: "host"},
+		},
+		RHS: &influxql.BinaryExpr{
+			Op:  influxql.EQ,
+			LHS: &influxql.VarRef{Val: "_tagKey"},
+			RHS: &influxql.StringLiteral{Val: "shard"},
+		},
+	}
+
+	var err error
+	for useRand := 0; useRand < 2; useRand++ {
+		for _, index := range []string{"inmem", "tsi1"} {
+			for _, bm := range benchmarks {
+				setup(bm.shards, bm.measurements, bm.tagValues, index, useRand == 1)
+				b.Run("random_values="+fmt.Sprint(useRand == 1)+"_index="+index+"_"+bm.name, func(b *testing.B) {
+					for i := 0; i < b.N; i++ {
+						if tvResult, err = s.TagValues("db0", cond); err != nil {
+							b.Fatal(err)
+						}
+					}
+				})
+				teardown()
+			}
+		}
 	}
 }
 

@@ -1,18 +1,21 @@
 package tsdb // import "github.com/influxdata/influxdb/tsdb"
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"unsafe"
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
@@ -967,6 +970,48 @@ func (a TagValuesSlice) Len() int           { return len(a) }
 func (a TagValuesSlice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a TagValuesSlice) Less(i, j int) bool { return a[i].Measurement < a[j].Measurement }
 
+type tagValue struct {
+	mname   string
+	keyIdxs map[string]int
+	lastKey []byte
+	values  []tvSlice
+}
+
+type tvSlice struct {
+	data [][]byte
+}
+
+func (a tvSlice) Len() int           { return len(a.data) }
+func (a tvSlice) Swap(i, j int)      { a.data[i], a.data[j] = a.data[j], a.data[i] }
+func (a tvSlice) Less(i, j int) bool { return bytes.Compare(a.data[i], a.data[j]) == -1 }
+
+func (a *tvSlice) Insert(v []byte) {
+	var found bool
+	i := sort.Search(len(a.data), func(i int) bool {
+		cmp := bytes.Compare(a.data[i], v)
+		if cmp == 0 {
+			found = true
+		}
+		return cmp > -1
+	})
+
+	// Insert at end of slice.
+	if i == len(a.data) {
+		a.data = append(a.data, v)
+		return
+	}
+
+	// We already have this.
+	if found || bytes.Compare(a.data[i], v) == 0 {
+		return
+	}
+
+	// Insert it into slice.
+	a.data = append(a.data, nil)
+	copy(a.data[i+1:], a.data[i:])
+	a.data[i] = v
+}
+
 // TagValues returns the tag keys and values in the given database, matching the condition.
 func (s *Store) TagValues(database string, cond influxql.Expr) ([]TagValues, error) {
 	if cond == nil {
@@ -1008,11 +1053,29 @@ func (s *Store) TagValues(database string, cond influxql.Expr) ([]TagValues, err
 	shards := s.filterShards(byDatabase(database))
 	s.mu.RUnlock()
 
-	m := make(map[string]map[KeyValue]struct{})
+	// If we're using the inmem index then all shards contain a duplicate
+	// version of the global index. We don't need to iterate over all shards
+	// since we have everything we need from the first shard.
+	if s.EngineOptions.IndexVersion == "inmem" && len(shards) > 0 {
+		shards = shards[:1]
+	}
+
+	// Stores each list of TagValues for each measurement.
+	var sms map[string]tagValue
+	var maxMeasuremnts int // Hint as to lower bound on number of measurements.
 	for _, sh := range shards {
 		names, err := sh.MeasurementNamesByExpr(measurementExpr)
 		if err != nil {
 			return nil, err
+		}
+
+		if len(names) > maxMeasuremnts {
+			maxMeasuremnts = len(names)
+		}
+
+		if sms == nil {
+			// Initialise map of tag key/values.
+			sms = make(map[string]tagValue, len(names))
 		}
 
 		for _, name := range names {
@@ -1022,39 +1085,119 @@ func (s *Store) TagValues(database string, cond influxql.Expr) ([]TagValues, err
 				return nil, err
 			}
 
+			mname := string(name)
+
+			var (
+				tagSet tagValue
+				ok     bool
+			)
+
+			if tagSet, ok = sms[mname]; !ok {
+				tagSet = tagValue{
+					mname:   mname,
+					keyIdxs: make(map[string]int, len(keySet)),
+				}
+			}
+
+			// i will be used to track where to append values for each tag key.
+			i := len(tagSet.values)
+			for k := range keySet {
+				// If we're not already tracking this key then add a slot for
+				// its values.
+				if _, ok := tagSet.keyIdxs[k]; !ok {
+					tagSet.keyIdxs[k] = i
+					tagSet.values = append(tagSet.values, tvSlice{})
+					i++
+				}
+
+				bk := []byte(k)
+				if bytes.Compare(bk, tagSet.lastKey) == 1 {
+					tagSet.lastKey = bk
+				}
+			}
+
 			// Loop over all keys for each series.
 			if err := sh.engine.ForEachMeasurementSeriesByExpr(name, filterExpr, func(tags models.Tags) error {
 				for _, t := range tags {
+					// Since tags are sorted, once we've past the last value
+					// in the the tag keys we're looking for, there is no point
+					// in continuing to look.
+					if bytes.Compare(t.Key, tagSet.lastKey) == 1 {
+						break
+					}
+
 					if _, ok := keySet[string(t.Key)]; ok {
-						if m[string(name)] == nil {
-							m[string(name)] = make(map[KeyValue]struct{})
-						}
-						m[string(name)][KeyValue{string(t.Key), string(t.Value)}] = struct{}{}
+						tagSet.values[tagSet.keyIdxs[string(t.Key)]].Insert(t.Value)
 					}
 				}
 				return nil
 			}); err != nil {
 				return nil, err
 			}
+			sms[mname] = tagSet
 		}
 	}
 
-	// Sort key/value set.
-	var tagValues []TagValues
-	for name, kvs := range m {
-		a := make([]KeyValue, 0, len(kvs))
-		for kv := range kvs {
-			a = append(a, kv)
-		}
-		sort.Sort(KeyValues(a))
-
-		tagValues = append(tagValues, TagValues{
-			Measurement: name,
-			Values:      a,
-		})
+	// Build out the results...
+	all := make([]TagValues, 0, len(sms))
+	sortedMs := make([]string, 0, len(sms))
+	for k := range sms {
+		sortedMs = append(sortedMs, k)
 	}
-	sort.Sort(TagValuesSlice(tagValues))
-	return tagValues, nil
+	sort.Sort(sort.StringSlice(sortedMs))
+
+	var (
+		prevM string
+		prevK string
+		prevV []byte
+	)
+
+	for _, m := range sortedMs {
+		tagData := sms[m]
+		tagValues := TagValues{
+			Measurement: m,
+			Values:      make([]KeyValue, 0, len(tagData.keyIdxs)),
+		}
+
+		// Sort tag keys.
+		sortedKeys := make([]string, 0, len(tagData.keyIdxs))
+		for k := range tagData.keyIdxs {
+			sortedKeys = append(sortedKeys, k)
+		}
+		sort.Sort(sort.StringSlice(sortedKeys))
+
+		for _, k := range sortedKeys {
+			tvIdx := tagData.keyIdxs[k] // The location of the tag value data for this key
+
+			// Sort tag values
+			// sort.Sort(tagData.values[tvIdx])
+			for _, v := range tagData.values[tvIdx].data {
+				if m != prevM || k != prevK || bytes.Compare(v, prevV) != 0 {
+					// Unique tag - let's add this one.
+					tagValues.Values = append(tagValues.Values, KeyValue{Key: k, Value: string(v)})
+				}
+				prevV = v
+				prevK = k
+				prevM = m
+			}
+		}
+		all = append(all, tagValues)
+	}
+	return all, nil
+}
+
+// unsafeBytesToString converts a []byte to a string without a heap allocation.
+//
+// It is unsafe, and is intended to prepare input to short-lived functions
+// that require strings.
+func unsafeBytesToString(in []byte) string {
+	src := *(*reflect.SliceHeader)(unsafe.Pointer(&in))
+	dst := reflect.StringHeader{
+		Data: src.Data,
+		Len:  src.Len,
+	}
+	s := *(*string)(unsafe.Pointer(&dst))
+	return s
 }
 
 func (s *Store) monitorShards() {
