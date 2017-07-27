@@ -40,6 +40,7 @@
 1. [#1799](https://github.com/influxdata/chronograf/pull/1799): Prevent console error spam from Dygraph's synchronize method when a dashboard has only one graph
 1. [#1813](https://github.com/influxdata/chronograf/pull/1813): Guarantee UUID for each Alert Table key to prevent dropping items when keys overlap
 1. [#1795](https://github.com/influxdata/chronograf/pull/1795): Fix uptime status on Windows hosts running Telegraf
+1. [#1715](https://github.com/influxdata/chronograf/pull/1715): Chronograf now renders properly on IE11.
 
 ### Features
 1. [#1744](https://github.com/influxdata/chronograf/pull/1744): Add a few time range shortcuts to the custom time range menu
