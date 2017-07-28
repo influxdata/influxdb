@@ -34,7 +34,7 @@ func TestTSMWriter_Write_NoValues(t *testing.T) {
 		t.Fatalf("unexpected error created writer: %v", err)
 	}
 
-	if err := w.Write("foo", []tsm1.Value{}); err != nil {
+	if err := w.Write([]byte("foo"), []tsm1.Value{}); err != nil {
 		t.Fatalf("unexpected error writing: %v", err)
 	}
 
@@ -58,7 +58,7 @@ func TestTSMWriter_Write_Single(t *testing.T) {
 	}
 
 	values := []tsm1.Value{tsm1.NewValue(0, 1.0)}
-	if err := w.Write("cpu", values); err != nil {
+	if err := w.Write([]byte("cpu"), values); err != nil {
 		t.Fatalf("unexpected error writing: %v", err)
 
 	}
@@ -97,7 +97,7 @@ func TestTSMWriter_Write_Single(t *testing.T) {
 	}
 	defer r.Close()
 
-	readValues, err := r.ReadAll("cpu")
+	readValues, err := r.ReadAll([]byte("cpu"))
 	if err != nil {
 		t.Fatalf("unexpected error readin: %v", err)
 	}
@@ -132,7 +132,7 @@ func TestTSMWriter_Write_Multiple(t *testing.T) {
 	}
 
 	for _, d := range data {
-		if err := w.Write(d.key, d.values); err != nil {
+		if err := w.Write([]byte(d.key), d.values); err != nil {
 			t.Fatalf("unexpected error writing: %v", err)
 		}
 	}
@@ -157,7 +157,7 @@ func TestTSMWriter_Write_Multiple(t *testing.T) {
 	defer r.Close()
 
 	for _, d := range data {
-		readValues, err := r.ReadAll(d.key)
+		readValues, err := r.ReadAll([]byte(d.key))
 		if err != nil {
 			t.Fatalf("unexpected error readin: %v", err)
 		}
@@ -199,7 +199,7 @@ func TestTSMWriter_Write_MultipleKeyValues(t *testing.T) {
 	}
 
 	for _, d := range data {
-		if err := w.Write(d.key, d.values); err != nil {
+		if err := w.Write([]byte(d.key), d.values); err != nil {
 			t.Fatalf("unexpected error writing: %v", err)
 		}
 	}
@@ -224,7 +224,7 @@ func TestTSMWriter_Write_MultipleKeyValues(t *testing.T) {
 	defer r.Close()
 
 	for _, d := range data {
-		readValues, err := r.ReadAll(d.key)
+		readValues, err := r.ReadAll([]byte(d.key))
 		if err != nil {
 			t.Fatalf("unexpected error readin: %v", err)
 		}
@@ -267,7 +267,7 @@ func TestTSMWriter_Write_ReverseKeys(t *testing.T) {
 	}
 
 	for _, d := range data {
-		if err := w.Write(d.key, d.values); err != nil {
+		if err := w.Write([]byte(d.key), d.values); err != nil {
 			t.Fatalf("unexpected error writing: %v", err)
 		}
 	}
@@ -292,7 +292,7 @@ func TestTSMWriter_Write_ReverseKeys(t *testing.T) {
 	defer r.Close()
 
 	for _, d := range data {
-		readValues, err := r.ReadAll(d.key)
+		readValues, err := r.ReadAll([]byte(d.key))
 		if err != nil {
 			t.Fatalf("unexpected error readin: %v", err)
 		}
@@ -335,7 +335,7 @@ func TestTSMWriter_Write_SameKey(t *testing.T) {
 	}
 
 	for _, d := range data {
-		if err := w.Write(d.key, d.values); err != nil {
+		if err := w.Write([]byte(d.key), d.values); err != nil {
 			t.Fatalf("unexpected error writing: %v", err)
 		}
 	}
@@ -361,7 +361,7 @@ func TestTSMWriter_Write_SameKey(t *testing.T) {
 
 	values := append(data[0].values, data[1].values...)
 
-	readValues, err := r.ReadAll("cpu")
+	readValues, err := r.ReadAll([]byte("cpu"))
 	if err != nil {
 		t.Fatalf("unexpected error readin: %v", err)
 	}
@@ -404,7 +404,7 @@ func TestTSMWriter_Read_Multiple(t *testing.T) {
 	}
 
 	for _, d := range data {
-		if err := w.Write(d.key, d.values); err != nil {
+		if err := w.Write([]byte(d.key), d.values); err != nil {
 			t.Fatalf("unexpected error writing: %v", err)
 		}
 	}
@@ -430,7 +430,7 @@ func TestTSMWriter_Read_Multiple(t *testing.T) {
 
 	for _, values := range data {
 		// Try the first timestamp
-		readValues, err := r.Read("cpu", values.values[0].UnixNano())
+		readValues, err := r.Read([]byte("cpu"), values.values[0].UnixNano())
 		if err != nil {
 			t.Fatalf("unexpected error readin: %v", err)
 		}
@@ -446,7 +446,7 @@ func TestTSMWriter_Read_Multiple(t *testing.T) {
 		}
 
 		// Try the last timestamp too
-		readValues, err = r.Read("cpu", values.values[1].UnixNano())
+		readValues, err = r.Read([]byte("cpu"), values.values[1].UnixNano())
 		if err != nil {
 			t.Fatalf("unexpected error readin: %v", err)
 		}
@@ -473,7 +473,7 @@ func TestTSMWriter_WriteBlock_Empty(t *testing.T) {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
 
-	if err := w.WriteBlock("cpu", 0, 0, nil); err != nil {
+	if err := w.WriteBlock([]byte("cpu"), 0, 0, nil); err != nil {
 		t.Fatalf("unexpected error writing block: %v", err)
 	}
 
@@ -516,7 +516,7 @@ func TestTSMWriter_WriteBlock_Multiple(t *testing.T) {
 	}
 
 	for _, d := range data {
-		if err := w.Write(d.key, d.values); err != nil {
+		if err := w.Write([]byte(d.key), d.values); err != nil {
 			t.Fatalf("unexpected error writing: %v", err)
 		}
 	}
@@ -569,7 +569,7 @@ func TestTSMWriter_WriteBlock_Multiple(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error reading block: %v", err)
 		}
-		if err := w.WriteBlock(key, minTime, maxTime, b); err != nil {
+		if err := w.WriteBlock([]byte(key), minTime, maxTime, b); err != nil {
 			t.Fatalf("unexpected error writing block: %v", err)
 		}
 	}
@@ -595,7 +595,7 @@ func TestTSMWriter_WriteBlock_Multiple(t *testing.T) {
 	defer r.Close()
 
 	for _, d := range data {
-		readValues, err := r.ReadAll(d.key)
+		readValues, err := r.ReadAll([]byte(d.key))
 		if err != nil {
 			t.Fatalf("unexpected error readin: %v", err)
 		}
@@ -627,7 +627,7 @@ func TestTSMWriter_WriteBlock_MaxKey(t *testing.T) {
 		key += "a"
 	}
 
-	if err := w.WriteBlock(key, 0, 0, nil); err != tsm1.ErrMaxKeyLengthExceeded {
+	if err := w.WriteBlock([]byte(key), 0, 0, nil); err != tsm1.ErrMaxKeyLengthExceeded {
 		t.Fatalf("expected max key length error writing key: %v", err)
 	}
 }
@@ -647,7 +647,7 @@ func TestTSMWriter_Write_MaxKey(t *testing.T) {
 	for i := 0; i < 100000; i++ {
 		key += "a"
 	}
-	if err := w.Write(key, []tsm1.Value{tsm1.NewValue(0, 1.0)}); err != tsm1.ErrMaxKeyLengthExceeded {
+	if err := w.Write([]byte(key), []tsm1.Value{tsm1.NewValue(0, 1.0)}); err != tsm1.ErrMaxKeyLengthExceeded {
 		t.Fatalf("expected max key length error writing key: %v", err)
 	}
 }

@@ -18,13 +18,13 @@ type {{.Name}}Point struct {
 	Tags Tags
 
 	Time  int64
-	Nil   bool
 	Value {{.Type}}
 	Aux   []interface{}
 
 	// Total number of points that were combined into this point from an aggregate.
 	// If this is zero, the point is not the result of an aggregate function.
 	Aggregated uint32
+	Nil   bool
 }
 
 func (v *{{.Name}}Point) name() string       { return v.Name }

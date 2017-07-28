@@ -278,7 +278,7 @@ func (cmd *Command) exportTSMFile(tsmFilePath string, w io.Writer) error {
 
 	for i := 0; i < r.KeyCount(); i++ {
 		key, _ := r.KeyAt(i)
-		values, err := r.ReadAll(string(key))
+		values, err := r.ReadAll(key)
 		if err != nil {
 			fmt.Fprintf(cmd.Stderr, "unable to read key %q in %s, skipping: %s\n", string(key), tsmFilePath, err.Error())
 			continue

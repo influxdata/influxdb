@@ -60,7 +60,7 @@ func (c *Converter) Process(iter KeyIterator) error {
 			}
 			keyCount = map[string]int{}
 		}
-		if err := w.Write(k, v); err != nil {
+		if err := w.Write([]byte(k), v); err != nil {
 			return err
 		}
 		keyCount[k]++

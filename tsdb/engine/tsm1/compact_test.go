@@ -28,7 +28,7 @@ func TestCompactor_Snapshot(t *testing.T) {
 
 	c := tsm1.NewCache(0, "")
 	for k, v := range points1 {
-		if err := c.Write(k, v); err != nil {
+		if err := c.Write([]byte(k), v); err != nil {
 			t.Fatalf("failed to write key foo to cache: %s", err.Error())
 		}
 	}
@@ -73,7 +73,7 @@ func TestCompactor_Snapshot(t *testing.T) {
 	}
 
 	for _, p := range data {
-		values, err := r.ReadAll(p.key)
+		values, err := r.ReadAll([]byte(p.key))
 		if err != nil {
 			t.Fatalf("unexpected error reading: %v", err)
 		}
@@ -176,7 +176,7 @@ func TestCompactor_CompactFull(t *testing.T) {
 	}
 
 	for _, p := range data {
-		values, err := r.ReadAll(p.key)
+		values, err := r.ReadAll([]byte(p.key))
 		if err != nil {
 			t.Fatalf("unexpected error reading: %v", err)
 		}
@@ -246,7 +246,7 @@ func TestCompactor_Compact_OverlappingBlocks(t *testing.T) {
 	}
 
 	for _, p := range data {
-		values, err := r.ReadAll(p.key)
+		values, err := r.ReadAll([]byte(p.key))
 		if err != nil {
 			t.Fatalf("unexpected error reading: %v", err)
 		}
@@ -325,7 +325,7 @@ func TestCompactor_Compact_OverlappingBlocksMultiple(t *testing.T) {
 	}
 
 	for _, p := range data {
-		values, err := r.ReadAll(p.key)
+		values, err := r.ReadAll([]byte(p.key))
 		if err != nil {
 			t.Fatalf("unexpected error reading: %v", err)
 		}
@@ -414,7 +414,7 @@ func TestCompactor_CompactFull_SkipFullBlocks(t *testing.T) {
 	}
 
 	for _, p := range data {
-		values, err := r.ReadAll(p.key)
+		values, err := r.ReadAll([]byte(p.key))
 		if err != nil {
 			t.Fatalf("unexpected error reading: %v", err)
 		}
@@ -428,7 +428,7 @@ func TestCompactor_CompactFull_SkipFullBlocks(t *testing.T) {
 		}
 	}
 
-	if got, exp := len(r.Entries("cpu,host=A#!~#value")), 2; got != exp {
+	if got, exp := len(r.Entries([]byte("cpu,host=A#!~#value"))), 2; got != exp {
 		t.Fatalf("block count mismatch: got %v, exp %v", got, exp)
 	}
 }
@@ -450,7 +450,7 @@ func TestCompactor_CompactFull_TombstonedSkipBlock(t *testing.T) {
 	ts := tsm1.Tombstoner{
 		Path: f1,
 	}
-	ts.AddRange([]string{"cpu,host=A#!~#value"}, math.MinInt64, math.MaxInt64)
+	ts.AddRange([][]byte{[]byte("cpu,host=A#!~#value")}, math.MinInt64, math.MaxInt64)
 
 	a3 := tsm1.NewValue(3, 1.3)
 	writes = map[string][]tsm1.Value{
@@ -513,7 +513,7 @@ func TestCompactor_CompactFull_TombstonedSkipBlock(t *testing.T) {
 	}
 
 	for _, p := range data {
-		values, err := r.ReadAll(p.key)
+		values, err := r.ReadAll([]byte(p.key))
 		if err != nil {
 			t.Fatalf("unexpected error reading: %v", err)
 		}
@@ -527,7 +527,7 @@ func TestCompactor_CompactFull_TombstonedSkipBlock(t *testing.T) {
 		}
 	}
 
-	if got, exp := len(r.Entries("cpu,host=A#!~#value")), 1; got != exp {
+	if got, exp := len(r.Entries([]byte("cpu,host=A#!~#value"))), 1; got != exp {
 		t.Fatalf("block count mismatch: got %v, exp %v", got, exp)
 	}
 }
@@ -550,7 +550,7 @@ func TestCompactor_CompactFull_TombstonedPartialBlock(t *testing.T) {
 		Path: f1,
 	}
 	// a1 should remain after compaction
-	ts.AddRange([]string{"cpu,host=A#!~#value"}, 2, math.MaxInt64)
+	ts.AddRange([][]byte{[]byte("cpu,host=A#!~#value")}, 2, math.MaxInt64)
 
 	a3 := tsm1.NewValue(3, 1.3)
 	writes = map[string][]tsm1.Value{
@@ -613,7 +613,7 @@ func TestCompactor_CompactFull_TombstonedPartialBlock(t *testing.T) {
 	}
 
 	for _, p := range data {
-		values, err := r.ReadAll(p.key)
+		values, err := r.ReadAll([]byte(p.key))
 		if err != nil {
 			t.Fatalf("unexpected error reading: %v", err)
 		}
@@ -627,7 +627,7 @@ func TestCompactor_CompactFull_TombstonedPartialBlock(t *testing.T) {
 		}
 	}
 
-	if got, exp := len(r.Entries("cpu,host=A#!~#value")), 2; got != exp {
+	if got, exp := len(r.Entries([]byte("cpu,host=A#!~#value"))), 2; got != exp {
 		t.Fatalf("block count mismatch: got %v, exp %v", got, exp)
 	}
 }
@@ -654,8 +654,8 @@ func TestCompactor_CompactFull_TombstonedMultipleRanges(t *testing.T) {
 		Path: f1,
 	}
 	// a1, a3 should remain after compaction
-	ts.AddRange([]string{"cpu,host=A#!~#value"}, 2, 2)
-	ts.AddRange([]string{"cpu,host=A#!~#value"}, 4, 4)
+	ts.AddRange([][]byte{[]byte("cpu,host=A#!~#value")}, 2, 2)
+	ts.AddRange([][]byte{[]byte("cpu,host=A#!~#value")}, 4, 4)
 
 	a5 := tsm1.NewValue(5, 1.5)
 	writes = map[string][]tsm1.Value{
@@ -718,7 +718,7 @@ func TestCompactor_CompactFull_TombstonedMultipleRanges(t *testing.T) {
 	}
 
 	for _, p := range data {
-		values, err := r.ReadAll(p.key)
+		values, err := r.ReadAll([]byte(p.key))
 		if err != nil {
 			t.Fatalf("unexpected error reading: %v", err)
 		}
@@ -732,7 +732,7 @@ func TestCompactor_CompactFull_TombstonedMultipleRanges(t *testing.T) {
 		}
 	}
 
-	if got, exp := len(r.Entries("cpu,host=A#!~#value")), 2; got != exp {
+	if got, exp := len(r.Entries([]byte("cpu,host=A#!~#value"))), 2; got != exp {
 		t.Fatalf("block count mismatch: got %v, exp %v", got, exp)
 	}
 }
@@ -756,7 +756,7 @@ func TestCompactor_CompactFull_MaxKeys(t *testing.T) {
 		for j := 0; j < 1000; j++ {
 			values = append(values, tsm1.NewValue(int64(i*1000+j), int64(1)))
 		}
-		if err := f1.Write("cpu,host=A#!~#value", values); err != nil {
+		if err := f1.Write([]byte("cpu,host=A#!~#value"), values); err != nil {
 			t.Fatalf("write tsm f1: %v", err)
 		}
 	}
@@ -773,7 +773,7 @@ func TestCompactor_CompactFull_MaxKeys(t *testing.T) {
 	for j := lastTimeStamp; j < lastTimeStamp+1000; j++ {
 		values = append(values, tsm1.NewValue(int64(j), int64(1)))
 	}
-	if err := f2.Write("cpu,host=A#!~#value", values); err != nil {
+	if err := f2.Write([]byte("cpu,host=A#!~#value"), values); err != nil {
 		t.Fatalf("write tsm f1: %v", err)
 	}
 
@@ -847,7 +847,7 @@ func TestTSMKeyIterator_Single(t *testing.T) {
 			t.Fatalf("unexpected error decode: %v", err)
 		}
 
-		if got, exp := key, "cpu,host=A#!~#value"; got != exp {
+		if got, exp := string(key), "cpu,host=A#!~#value"; got != exp {
 			t.Fatalf("key mismatch: got %v, exp %v", got, exp)
 		}
 
@@ -907,7 +907,7 @@ func TestTSMKeyIterator_Duplicate(t *testing.T) {
 			t.Fatalf("unexpected error decode: %v", err)
 		}
 
-		if got, exp := key, "cpu,host=A#!~#value"; got != exp {
+		if got, exp := string(key), "cpu,host=A#!~#value"; got != exp {
 			t.Fatalf("key mismatch: got %v, exp %v", got, exp)
 		}
 
@@ -936,7 +936,7 @@ func TestTSMKeyIterator_MultipleKeysDeleted(t *testing.T) {
 	}
 
 	r1 := MustTSMReader(dir, 1, points1)
-	if e := r1.Delete([]string{"cpu,host=A#!~#value"}); nil != e {
+	if e := r1.Delete([][]byte{[]byte("cpu,host=A#!~#value")}); nil != e {
 		t.Fatal(e)
 	}
 
@@ -949,7 +949,7 @@ func TestTSMKeyIterator_MultipleKeysDeleted(t *testing.T) {
 	}
 
 	r2 := MustTSMReader(dir, 2, points2)
-	r2.Delete([]string{"cpu,host=A#!~#count"})
+	r2.Delete([][]byte{[]byte("cpu,host=A#!~#count")})
 
 	iter, err := tsm1.NewTSMKeyIterator(1, false, nil, r1, r2)
 	if err != nil {
@@ -975,7 +975,7 @@ func TestTSMKeyIterator_MultipleKeysDeleted(t *testing.T) {
 			t.Fatalf("unexpected error decode: %v", err)
 		}
 
-		if got, exp := key, data[0].key; got != exp {
+		if got, exp := string(key), data[0].key; got != exp {
 			t.Fatalf("key mismatch: got %v, exp %v", got, exp)
 		}
 
@@ -1038,7 +1038,7 @@ func TestCacheKeyIterator_Single(t *testing.T) {
 	c := tsm1.NewCache(0, "")
 
 	for k, v := range writes {
-		if err := c.Write(k, v); err != nil {
+		if err := c.Write([]byte(k), v); err != nil {
 			t.Fatalf("failed to write key foo to cache: %s", err.Error())
 		}
 	}
@@ -1056,7 +1056,7 @@ func TestCacheKeyIterator_Single(t *testing.T) {
 			t.Fatalf("unexpected error decode: %v", err)
 		}
 
-		if got, exp := key, "cpu,host=A#!~#value"; got != exp {
+		if got, exp := string(key), "cpu,host=A#!~#value"; got != exp {
 			t.Fatalf("key mismatch: got %v, exp %v", got, exp)
 		}
 
@@ -1086,7 +1086,7 @@ func TestCacheKeyIterator_Chunked(t *testing.T) {
 	c := tsm1.NewCache(0, "")
 
 	for k, v := range writes {
-		if err := c.Write(k, v); err != nil {
+		if err := c.Write([]byte(k), v); err != nil {
 			t.Fatalf("failed to write key foo to cache: %s", err.Error())
 		}
 	}
@@ -1105,7 +1105,7 @@ func TestCacheKeyIterator_Chunked(t *testing.T) {
 			t.Fatalf("unexpected error decode: %v", err)
 		}
 
-		if got, exp := key, "cpu,host=A#!~#value"; got != exp {
+		if got, exp := string(key), "cpu,host=A#!~#value"; got != exp {
 			t.Fatalf("key mismatch: got %v, exp %v", got, exp)
 		}
 
@@ -1136,7 +1136,7 @@ func TestCacheKeyIterator_Abort(t *testing.T) {
 	c := tsm1.NewCache(0, "")
 
 	for k, v := range writes {
-		if err := c.Write(k, v); err != nil {
+		if err := c.Write([]byte(k), v); err != nil {
 			t.Fatalf("failed to write key foo to cache: %s", err.Error())
 		}
 	}
@@ -2397,7 +2397,7 @@ func MustWriteTSM(dir string, gen int, values map[string][]tsm1.Value) string {
 	w, name := MustTSMWriter(dir, gen)
 
 	for k, v := range values {
-		if err := w.Write(k, v); err != nil {
+		if err := w.Write([]byte(k), v); err != nil {
 			panic(fmt.Sprintf("write TSM value: %v", err))
 		}
 	}

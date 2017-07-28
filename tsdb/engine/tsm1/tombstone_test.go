@@ -29,7 +29,7 @@ func TestTombstoner_Add(t *testing.T) {
 		t.Fatalf("stat length mismatch: got %v, exp %v", got, exp)
 	}
 
-	ts.Add([]string{"foo"})
+	ts.Add([][]byte{[]byte("foo")})
 
 	entries, err = ts.ReadAll()
 	if err != nil {
@@ -57,7 +57,7 @@ func TestTombstoner_Add(t *testing.T) {
 		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
 	}
 
-	if got, exp := entries[0].Key, "foo"; got != exp {
+	if got, exp := string(entries[0].Key), "foo"; got != exp {
 		t.Fatalf("value mismatch: got %v, exp %v", got, exp)
 	}
 
@@ -72,7 +72,7 @@ func TestTombstoner_Add(t *testing.T) {
 		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
 	}
 
-	if got, exp := entries[0].Key, "foo"; got != exp {
+	if got, exp := string(entries[0].Key), "foo"; got != exp {
 		t.Fatalf("value mismatch: got %v, exp %v", got, exp)
 	}
 }
@@ -93,7 +93,7 @@ func TestTombstoner_Add_Empty(t *testing.T) {
 		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
 	}
 
-	ts.Add([]string{})
+	ts.Add([][]byte{})
 
 	// Use a new Tombstoner to verify values are persisted
 	ts = &tsm1.Tombstoner{Path: f.Name()}
@@ -120,7 +120,7 @@ func TestTombstoner_Delete(t *testing.T) {
 	f := MustTempFile(dir)
 	ts := &tsm1.Tombstoner{Path: f.Name()}
 
-	ts.Add([]string{"foo"})
+	ts.Add([][]byte{[]byte("foo")})
 
 	// Use a new Tombstoner to verify values are persisted
 	ts = &tsm1.Tombstoner{Path: f.Name()}
@@ -133,8 +133,8 @@ func TestTombstoner_Delete(t *testing.T) {
 		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
 	}
 
-	if got, exp := entries[0].Key, "foo"; got != exp {
-		t.Fatalf("value mismatch: got %v, exp %v", got, exp)
+	if got, exp := string(entries[0].Key), "foo"; got != exp {
+		t.Fatalf("value mismatch: got %s, exp %s", got, exp)
 	}
 
 	if err := ts.Delete(); err != nil {
@@ -187,7 +187,7 @@ func TestTombstoner_ReadV1(t *testing.T) {
 		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
 	}
 
-	if got, exp := entries[0].Key, "foo"; got != exp {
+	if got, exp := string(entries[0].Key), "foo"; got != exp {
 		t.Fatalf("value mismatch: got %v, exp %v", got, exp)
 	}
 
@@ -202,7 +202,7 @@ func TestTombstoner_ReadV1(t *testing.T) {
 		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
 	}
 
-	if got, exp := entries[0].Key, "foo"; got != exp {
+	if got, exp := string(entries[0].Key), "foo"; got != exp {
 		t.Fatalf("value mismatch: got %v, exp %v", got, exp)
 	}
 }

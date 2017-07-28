@@ -311,7 +311,6 @@ type floatAscendingCursor struct {
 	}
 
 	tsm struct {
-		buf       []FloatValue
 		values    []FloatValue
 		pos       int
 		keyCursor *KeyCursor
@@ -327,8 +326,7 @@ func newFloatAscendingCursor(seek int64, cacheValues Values, tsmKeyCursor *KeyCu
 	})
 
 	c.tsm.keyCursor = tsmKeyCursor
-	c.tsm.buf = make([]FloatValue, 10)
-	c.tsm.values, _ = c.tsm.keyCursor.ReadFloatBlock(&c.tsm.buf)
+	c.tsm.values, _ = c.tsm.keyCursor.ReadFloatBlock(&c.tsm.values)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
 		return c.tsm.values[i].UnixNano() >= seek
 	})
@@ -360,7 +358,6 @@ func (c *floatAscendingCursor) peekTSM() (t int64, v float64) {
 func (c *floatAscendingCursor) close() error {
 	c.tsm.keyCursor.Close()
 	c.tsm.keyCursor = nil
-	c.tsm.buf = nil
 	c.cache.values = nil
 	c.tsm.values = nil
 	return nil
@@ -410,7 +407,7 @@ func (c *floatAscendingCursor) nextTSM() {
 	c.tsm.pos++
 	if c.tsm.pos >= len(c.tsm.values) {
 		c.tsm.keyCursor.Next()
-		c.tsm.values, _ = c.tsm.keyCursor.ReadFloatBlock(&c.tsm.buf)
+		c.tsm.values, _ = c.tsm.keyCursor.ReadFloatBlock(&c.tsm.values)
 		if len(c.tsm.values) == 0 {
 			return
 		}
@@ -425,7 +422,6 @@ type floatDescendingCursor struct {
 	}
 
 	tsm struct {
-		buf       []FloatValue
 		values    []FloatValue
 		pos       int
 		keyCursor *KeyCursor
@@ -444,8 +440,7 @@ func newFloatDescendingCursor(seek int64, cacheValues Values, tsmKeyCursor *KeyC
 	}
 
 	c.tsm.keyCursor = tsmKeyCursor
-	c.tsm.buf = make([]FloatValue, 10)
-	c.tsm.values, _ = c.tsm.keyCursor.ReadFloatBlock(&c.tsm.buf)
+	c.tsm.values, _ = c.tsm.keyCursor.ReadFloatBlock(&c.tsm.values)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
 		return c.tsm.values[i].UnixNano() >= seek
 	})
@@ -480,7 +475,6 @@ func (c *floatDescendingCursor) peekTSM() (t int64, v float64) {
 func (c *floatDescendingCursor) close() error {
 	c.tsm.keyCursor.Close()
 	c.tsm.keyCursor = nil
-	c.tsm.buf = nil
 	c.cache.values = nil
 	c.tsm.values = nil
 	return nil
@@ -530,7 +524,7 @@ func (c *floatDescendingCursor) nextTSM() {
 	c.tsm.pos--
 	if c.tsm.pos < 0 {
 		c.tsm.keyCursor.Next()
-		c.tsm.values, _ = c.tsm.keyCursor.ReadFloatBlock(&c.tsm.buf)
+		c.tsm.values, _ = c.tsm.keyCursor.ReadFloatBlock(&c.tsm.values)
 		if len(c.tsm.values) == 0 {
 			return
 		}
@@ -752,7 +746,6 @@ type integerAscendingCursor struct {
 	}
 
 	tsm struct {
-		buf       []IntegerValue
 		values    []IntegerValue
 		pos       int
 		keyCursor *KeyCursor
@@ -768,8 +761,7 @@ func newIntegerAscendingCursor(seek int64, cacheValues Values, tsmKeyCursor *Key
 	})
 
 	c.tsm.keyCursor = tsmKeyCursor
-	c.tsm.buf = make([]IntegerValue, 10)
-	c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerBlock(&c.tsm.buf)
+	c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerBlock(&c.tsm.values)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
 		return c.tsm.values[i].UnixNano() >= seek
 	})
@@ -801,7 +793,6 @@ func (c *integerAscendingCursor) peekTSM() (t int64, v int64) {
 func (c *integerAscendingCursor) close() error {
 	c.tsm.keyCursor.Close()
 	c.tsm.keyCursor = nil
-	c.tsm.buf = nil
 	c.cache.values = nil
 	c.tsm.values = nil
 	return nil
@@ -851,7 +842,7 @@ func (c *integerAscendingCursor) nextTSM() {
 	c.tsm.pos++
 	if c.tsm.pos >= len(c.tsm.values) {
 		c.tsm.keyCursor.Next()
-		c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerBlock(&c.tsm.buf)
+		c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerBlock(&c.tsm.values)
 		if len(c.tsm.values) == 0 {
 			return
 		}
@@ -866,7 +857,6 @@ type integerDescendingCursor struct {
 	}
 
 	tsm struct {
-		buf       []IntegerValue
 		values    []IntegerValue
 		pos       int
 		keyCursor *KeyCursor
@@ -885,8 +875,7 @@ func newIntegerDescendingCursor(seek int64, cacheValues Values, tsmKeyCursor *Ke
 	}
 
 	c.tsm.keyCursor = tsmKeyCursor
-	c.tsm.buf = make([]IntegerValue, 10)
-	c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerBlock(&c.tsm.buf)
+	c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerBlock(&c.tsm.values)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
 		return c.tsm.values[i].UnixNano() >= seek
 	})
@@ -921,7 +910,6 @@ func (c *integerDescendingCursor) peekTSM() (t int64, v int64) {
 func (c *integerDescendingCursor) close() error {
 	c.tsm.keyCursor.Close()
 	c.tsm.keyCursor = nil
-	c.tsm.buf = nil
 	c.cache.values = nil
 	c.tsm.values = nil
 	return nil
@@ -971,7 +959,7 @@ func (c *integerDescendingCursor) nextTSM() {
 	c.tsm.pos--
 	if c.tsm.pos < 0 {
 		c.tsm.keyCursor.Next()
-		c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerBlock(&c.tsm.buf)
+		c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerBlock(&c.tsm.values)
 		if len(c.tsm.values) == 0 {
 			return
 		}
@@ -1193,7 +1181,6 @@ type unsignedAscendingCursor struct {
 	}
 
 	tsm struct {
-		buf       []UnsignedValue
 		values    []UnsignedValue
 		pos       int
 		keyCursor *KeyCursor
@@ -1209,8 +1196,7 @@ func newUnsignedAscendingCursor(seek int64, cacheValues Values, tsmKeyCursor *Ke
 	})
 
 	c.tsm.keyCursor = tsmKeyCursor
-	c.tsm.buf = make([]UnsignedValue, 10)
-	c.tsm.values, _ = c.tsm.keyCursor.ReadUnsignedBlock(&c.tsm.buf)
+	c.tsm.values, _ = c.tsm.keyCursor.ReadUnsignedBlock(&c.tsm.values)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
 		return c.tsm.values[i].UnixNano() >= seek
 	})
@@ -1242,7 +1228,6 @@ func (c *unsignedAscendingCursor) peekTSM() (t int64, v uint64) {
 func (c *unsignedAscendingCursor) close() error {
 	c.tsm.keyCursor.Close()
 	c.tsm.keyCursor = nil
-	c.tsm.buf = nil
 	c.cache.values = nil
 	c.tsm.values = nil
 	return nil
@@ -1292,7 +1277,7 @@ func (c *unsignedAscendingCursor) nextTSM() {
 	c.tsm.pos++
 	if c.tsm.pos >= len(c.tsm.values) {
 		c.tsm.keyCursor.Next()
-		c.tsm.values, _ = c.tsm.keyCursor.ReadUnsignedBlock(&c.tsm.buf)
+		c.tsm.values, _ = c.tsm.keyCursor.ReadUnsignedBlock(&c.tsm.values)
 		if len(c.tsm.values) == 0 {
 			return
 		}
@@ -1307,7 +1292,6 @@ type unsignedDescendingCursor struct {
 	}
 
 	tsm struct {
-		buf       []UnsignedValue
 		values    []UnsignedValue
 		pos       int
 		keyCursor *KeyCursor
@@ -1326,8 +1310,7 @@ func newUnsignedDescendingCursor(seek int64, cacheValues Values, tsmKeyCursor *K
 	}
 
 	c.tsm.keyCursor = tsmKeyCursor
-	c.tsm.buf = make([]UnsignedValue, 10)
-	c.tsm.values, _ = c.tsm.keyCursor.ReadUnsignedBlock(&c.tsm.buf)
+	c.tsm.values, _ = c.tsm.keyCursor.ReadUnsignedBlock(&c.tsm.values)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
 		return c.tsm.values[i].UnixNano() >= seek
 	})
@@ -1362,7 +1345,6 @@ func (c *unsignedDescendingCursor) peekTSM() (t int64, v uint64) {
 func (c *unsignedDescendingCursor) close() error {
 	c.tsm.keyCursor.Close()
 	c.tsm.keyCursor = nil
-	c.tsm.buf = nil
 	c.cache.values = nil
 	c.tsm.values = nil
 	return nil
@@ -1412,7 +1394,7 @@ func (c *unsignedDescendingCursor) nextTSM() {
 	c.tsm.pos--
 	if c.tsm.pos < 0 {
 		c.tsm.keyCursor.Next()
-		c.tsm.values, _ = c.tsm.keyCursor.ReadUnsignedBlock(&c.tsm.buf)
+		c.tsm.values, _ = c.tsm.keyCursor.ReadUnsignedBlock(&c.tsm.values)
 		if len(c.tsm.values) == 0 {
 			return
 		}
@@ -1634,7 +1616,6 @@ type stringAscendingCursor struct {
 	}
 
 	tsm struct {
-		buf       []StringValue
 		values    []StringValue
 		pos       int
 		keyCursor *KeyCursor
@@ -1650,8 +1631,7 @@ func newStringAscendingCursor(seek int64, cacheValues Values, tsmKeyCursor *KeyC
 	})
 
 	c.tsm.keyCursor = tsmKeyCursor
-	c.tsm.buf = make([]StringValue, 10)
-	c.tsm.values, _ = c.tsm.keyCursor.ReadStringBlock(&c.tsm.buf)
+	c.tsm.values, _ = c.tsm.keyCursor.ReadStringBlock(&c.tsm.values)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
 		return c.tsm.values[i].UnixNano() >= seek
 	})
@@ -1683,7 +1663,6 @@ func (c *stringAscendingCursor) peekTSM() (t int64, v string) {
 func (c *stringAscendingCursor) close() error {
 	c.tsm.keyCursor.Close()
 	c.tsm.keyCursor = nil
-	c.tsm.buf = nil
 	c.cache.values = nil
 	c.tsm.values = nil
 	return nil
@@ -1733,7 +1712,7 @@ func (c *stringAscendingCursor) nextTSM() {
 	c.tsm.pos++
 	if c.tsm.pos >= len(c.tsm.values) {
 		c.tsm.keyCursor.Next()
-		c.tsm.values, _ = c.tsm.keyCursor.ReadStringBlock(&c.tsm.buf)
+		c.tsm.values, _ = c.tsm.keyCursor.ReadStringBlock(&c.tsm.values)
 		if len(c.tsm.values) == 0 {
 			return
 		}
@@ -1748,7 +1727,6 @@ type stringDescendingCursor struct {
 	}
 
 	tsm struct {
-		buf       []StringValue
 		values    []StringValue
 		pos       int
 		keyCursor *KeyCursor
@@ -1767,8 +1745,7 @@ func newStringDescendingCursor(seek int64, cacheValues Values, tsmKeyCursor *Key
 	}
 
 	c.tsm.keyCursor = tsmKeyCursor
-	c.tsm.buf = make([]StringValue, 10)
-	c.tsm.values, _ = c.tsm.keyCursor.ReadStringBlock(&c.tsm.buf)
+	c.tsm.values, _ = c.tsm.keyCursor.ReadStringBlock(&c.tsm.values)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
 		return c.tsm.values[i].UnixNano() >= seek
 	})
@@ -1803,7 +1780,6 @@ func (c *stringDescendingCursor) peekTSM() (t int64, v string) {
 func (c *stringDescendingCursor) close() error {
 	c.tsm.keyCursor.Close()
 	c.tsm.keyCursor = nil
-	c.tsm.buf = nil
 	c.cache.values = nil
 	c.tsm.values = nil
 	return nil
@@ -1853,7 +1829,7 @@ func (c *stringDescendingCursor) nextTSM() {
 	c.tsm.pos--
 	if c.tsm.pos < 0 {
 		c.tsm.keyCursor.Next()
-		c.tsm.values, _ = c.tsm.keyCursor.ReadStringBlock(&c.tsm.buf)
+		c.tsm.values, _ = c.tsm.keyCursor.ReadStringBlock(&c.tsm.values)
 		if len(c.tsm.values) == 0 {
 			return
 		}
@@ -2075,7 +2051,6 @@ type booleanAscendingCursor struct {
 	}
 
 	tsm struct {
-		buf       []BooleanValue
 		values    []BooleanValue
 		pos       int
 		keyCursor *KeyCursor
@@ -2091,8 +2066,7 @@ func newBooleanAscendingCursor(seek int64, cacheValues Values, tsmKeyCursor *Key
 	})
 
 	c.tsm.keyCursor = tsmKeyCursor
-	c.tsm.buf = make([]BooleanValue, 10)
-	c.tsm.values, _ = c.tsm.keyCursor.ReadBooleanBlock(&c.tsm.buf)
+	c.tsm.values, _ = c.tsm.keyCursor.ReadBooleanBlock(&c.tsm.values)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
 		return c.tsm.values[i].UnixNano() >= seek
 	})
@@ -2124,7 +2098,6 @@ func (c *booleanAscendingCursor) peekTSM() (t int64, v bool) {
 func (c *booleanAscendingCursor) close() error {
 	c.tsm.keyCursor.Close()
 	c.tsm.keyCursor = nil
-	c.tsm.buf = nil
 	c.cache.values = nil
 	c.tsm.values = nil
 	return nil
@@ -2174,7 +2147,7 @@ func (c *booleanAscendingCursor) nextTSM() {
 	c.tsm.pos++
 	if c.tsm.pos >= len(c.tsm.values) {
 		c.tsm.keyCursor.Next()
-		c.tsm.values, _ = c.tsm.keyCursor.ReadBooleanBlock(&c.tsm.buf)
+		c.tsm.values, _ = c.tsm.keyCursor.ReadBooleanBlock(&c.tsm.values)
 		if len(c.tsm.values) == 0 {
 			return
 		}
@@ -2189,7 +2162,6 @@ type booleanDescendingCursor struct {
 	}
 
 	tsm struct {
-		buf       []BooleanValue
 		values    []BooleanValue
 		pos       int
 		keyCursor *KeyCursor
@@ -2208,8 +2180,7 @@ func newBooleanDescendingCursor(seek int64, cacheValues Values, tsmKeyCursor *Ke
 	}
 
 	c.tsm.keyCursor = tsmKeyCursor
-	c.tsm.buf = make([]BooleanValue, 10)
-	c.tsm.values, _ = c.tsm.keyCursor.ReadBooleanBlock(&c.tsm.buf)
+	c.tsm.values, _ = c.tsm.keyCursor.ReadBooleanBlock(&c.tsm.values)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
 		return c.tsm.values[i].UnixNano() >= seek
 	})
@@ -2244,7 +2215,6 @@ func (c *booleanDescendingCursor) peekTSM() (t int64, v bool) {
 func (c *booleanDescendingCursor) close() error {
 	c.tsm.keyCursor.Close()
 	c.tsm.keyCursor = nil
-	c.tsm.buf = nil
 	c.cache.values = nil
 	c.tsm.values = nil
 	return nil
@@ -2294,7 +2264,7 @@ func (c *booleanDescendingCursor) nextTSM() {
 	c.tsm.pos--
 	if c.tsm.pos < 0 {
 		c.tsm.keyCursor.Next()
-		c.tsm.values, _ = c.tsm.keyCursor.ReadBooleanBlock(&c.tsm.buf)
+		c.tsm.values, _ = c.tsm.keyCursor.ReadBooleanBlock(&c.tsm.values)
 		if len(c.tsm.values) == 0 {
 			return
 		}

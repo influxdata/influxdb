@@ -323,7 +323,7 @@ func writeCorpusToTSMFile(c corpus) *os.File {
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
-		if err := w.Write(k, c[k]); err != nil {
+		if err := w.Write([]byte(k), c[k]); err != nil {
 			panic(err)
 		}
 	}

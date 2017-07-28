@@ -37,7 +37,7 @@ type Tombstoner struct {
 // Tombstone represents an individual deletion.
 type Tombstone struct {
 	// Key is the tombstoned series key.
-	Key string
+	Key []byte
 
 	// Min and Max are the min and max unix nanosecond time ranges of Key that are deleted.  If
 	// the full range is deleted, both values are -1.
@@ -45,12 +45,12 @@ type Tombstone struct {
 }
 
 // Add adds the all keys, across all timestamps, to the tombstone.
-func (t *Tombstoner) Add(keys []string) error {
+func (t *Tombstoner) Add(keys [][]byte) error {
 	return t.AddRange(keys, math.MinInt64, math.MaxInt64)
 }
 
 // AddRange adds all keys to the tombstone specifying only the data between min and max to be removed.
-func (t *Tombstoner) AddRange(keys []string, min, max int64) error {
+func (t *Tombstoner) AddRange(keys [][]byte, min, max int64) error {
 	if len(keys) == 0 {
 		return nil
 	}
@@ -259,7 +259,7 @@ func (t *Tombstoner) readTombstoneV1(f *os.File, fn func(t Tombstone) error) err
 			continue
 		}
 		if err := fn(Tombstone{
-			Key: line,
+			Key: []byte(line),
 			Min: math.MinInt64,
 			Max: math.MaxInt64,
 		}); err != nil {
@@ -287,7 +287,7 @@ func (t *Tombstoner) readTombstoneV2(f *os.File, fn func(t Tombstone) error) err
 
 	var (
 		min, max int64
-		key      string
+		key      []byte
 	)
 	b := make([]byte, 4096)
 	for {
@@ -308,7 +308,7 @@ func (t *Tombstoner) readTombstoneV2(f *os.File, fn func(t Tombstone) error) err
 		if _, err := f.Read(b[:keyLen]); err != nil {
 			return err
 		}
-		key = string(b[:keyLen])
+		key = b[:keyLen]
 		n += int64(keyLen)
 
 		if _, err := f.Read(b[:8]); err != nil {
@@ -345,7 +345,7 @@ func (t *Tombstoner) readTombstoneV3(f *os.File, fn func(t Tombstone) error) err
 
 	var (
 		min, max int64
-		key      string
+		key      []byte
 	)
 
 	gr, err := gzip.NewReader(bufio.NewReader(f))
@@ -370,7 +370,10 @@ func (t *Tombstoner) readTombstoneV3(f *os.File, fn func(t Tombstone) error) err
 		if _, err := io.ReadFull(gr, b[:keyLen]); err != nil {
 			return err
 		}
-		key = string(b[:keyLen])
+
+		// Copy the key since b is re-used
+		key = make([]byte, keyLen)
+		copy(key, b[:keyLen])
 
 		if _, err := io.ReadFull(gr, b[:8]); err != nil {
 			return err

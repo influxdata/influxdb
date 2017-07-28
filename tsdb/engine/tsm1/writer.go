@@ -73,6 +73,8 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/influxdata/influxdb/pkg/bytesutil"
 )
 
 const (
@@ -122,14 +124,14 @@ type TSMWriter interface {
 	// ensuring a fixed number of values are encoded in each block as well as
 	// ensuring the Values are sorted. The first and last timestamp values are
 	// used as the minimum and maximum values for the index entry.
-	Write(key string, values Values) error
+	Write(key []byte, values Values) error
 
 	// WriteBlock writes a new block for key containing the bytes in block.  WriteBlock appends
 	// blocks in the order that the WriteBlock function is called.  The caller is
 	// responsible for ensuring keys and blocks are sorted appropriately, and that the
 	// block and index information is correct for the block.  The minTime and maxTime
 	// timestamp values are used as the minimum and maximum values for the index entry.
-	WriteBlock(key string, minTime, maxTime int64, block []byte) error
+	WriteBlock(key []byte, minTime, maxTime int64, block []byte) error
 
 	// WriteIndex finishes the TSM write streams and writes the index.
 	WriteIndex() error
@@ -147,13 +149,13 @@ type TSMWriter interface {
 // IndexWriter writes a TSMIndex.
 type IndexWriter interface {
 	// Add records a new block entry for a key in the index.
-	Add(key string, blockType byte, minTime, maxTime int64, offset int64, size uint32)
+	Add(key []byte, blockType byte, minTime, maxTime int64, offset int64, size uint32)
 
 	// Entries returns all index entries for a key.
-	Entries(key string) []IndexEntry
+	Entries(key []byte) []IndexEntry
 
 	// Keys returns the unique set of keys in the index.
-	Keys() []string
+	Keys() [][]byte
 
 	// KeyCount returns the count of unique keys in the index.
 	KeyCount() int
@@ -243,16 +245,16 @@ type directIndex struct {
 	blocks map[string]*indexEntries
 }
 
-func (d *directIndex) Add(key string, blockType byte, minTime, maxTime int64, offset int64, size uint32) {
+func (d *directIndex) Add(key []byte, blockType byte, minTime, maxTime int64, offset int64, size uint32) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	entries := d.blocks[key]
+	entries := d.blocks[string(key)]
 	if entries == nil {
 		entries = &indexEntries{
 			Type: blockType,
 		}
-		d.blocks[key] = entries
+		d.blocks[string(key)] = entries
 		// size of the key stored in the index
 		d.size += uint32(2 + len(key))
 
@@ -270,22 +272,22 @@ func (d *directIndex) Add(key string, blockType byte, minTime, maxTime int64, of
 	d.size += indexEntrySize
 }
 
-func (d *directIndex) entries(key string) []IndexEntry {
-	entries := d.blocks[key]
+func (d *directIndex) entries(key []byte) []IndexEntry {
+	entries := d.blocks[string(key)]
 	if entries == nil {
 		return nil
 	}
 	return entries.entries
 }
 
-func (d *directIndex) Entries(key string) []IndexEntry {
+func (d *directIndex) Entries(key []byte) []IndexEntry {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
 	return d.entries(key)
 }
 
-func (d *directIndex) Entry(key string, t int64) *IndexEntry {
+func (d *directIndex) Entry(key []byte, t int64) *IndexEntry {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -298,15 +300,15 @@ func (d *directIndex) Entry(key string, t int64) *IndexEntry {
 	return nil
 }
 
-func (d *directIndex) Keys() []string {
+func (d *directIndex) Keys() [][]byte {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	var keys []string
+	keys := make([][]byte, 0, len(d.blocks))
 	for k := range d.blocks {
-		keys = append(keys, k)
+		keys = append(keys, []byte(k))
 	}
-	sort.Strings(keys)
+	bytesutil.Sort(keys)
 	return keys
 }
 
@@ -454,7 +456,7 @@ func (t *tsmWriter) writeHeader() error {
 }
 
 // Write writes a new block containing key and values.
-func (t *tsmWriter) Write(key string, values Values) error {
+func (t *tsmWriter) Write(key []byte, values Values) error {
 	if len(key) > maxKeyLength {
 		return ErrMaxKeyLengthExceeded
 	}
@@ -506,7 +508,7 @@ func (t *tsmWriter) Write(key string, values Values) error {
 // WriteBlock writes block for the given key and time range to the TSM file.  If the write
 // exceeds max entries for a given key, ErrMaxBlocksExceeded is returned.  This indicates
 // that the index is now full for this key and no future writes to this key will succeed.
-func (t *tsmWriter) WriteBlock(key string, minTime, maxTime int64, block []byte) error {
+func (t *tsmWriter) WriteBlock(key []byte, minTime, maxTime int64, block []byte) error {
 	if len(key) > maxKeyLength {
 		return ErrMaxKeyLengthExceeded
 	}

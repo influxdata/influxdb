@@ -12,7 +12,7 @@ import (
 func TestCacheCheckConcurrentReadsAreSafe(t *testing.T) {
 	values := make(tsm1.Values, 1000)
 	timestamps := make([]int64, len(values))
-	series := make([]string, 100)
+	series := make([][]byte, 100)
 	for i := range timestamps {
 		timestamps[i] = int64(rand.Int63n(int64(len(values))))
 	}
@@ -22,7 +22,7 @@ func TestCacheCheckConcurrentReadsAreSafe(t *testing.T) {
 	}
 
 	for i := range series {
-		series[i] = fmt.Sprintf("series%d", i)
+		series[i] = []byte(fmt.Sprintf("series%d", i))
 	}
 
 	wg := sync.WaitGroup{}
@@ -34,17 +34,17 @@ func TestCacheCheckConcurrentReadsAreSafe(t *testing.T) {
 			c.Write(s, tsm1.Values{v})
 		}
 		wg.Add(3)
-		go func(s string) {
+		go func(s []byte) {
 			defer wg.Done()
 			<-ch
 			c.Values(s)
 		}(s)
-		go func(s string) {
+		go func(s []byte) {
 			defer wg.Done()
 			<-ch
 			c.Values(s)
 		}(s)
-		go func(s string) {
+		go func(s []byte) {
 			defer wg.Done()
 			<-ch
 			c.Values(s)
@@ -57,7 +57,7 @@ func TestCacheCheckConcurrentReadsAreSafe(t *testing.T) {
 func TestCacheRace(t *testing.T) {
 	values := make(tsm1.Values, 1000)
 	timestamps := make([]int64, len(values))
-	series := make([]string, 100)
+	series := make([][]byte, 100)
 	for i := range timestamps {
 		timestamps[i] = int64(rand.Int63n(int64(len(values))))
 	}
@@ -67,7 +67,7 @@ func TestCacheRace(t *testing.T) {
 	}
 
 	for i := range series {
-		series[i] = fmt.Sprintf("series%d", i)
+		series[i] = []byte(fmt.Sprintf("series%d", i))
 	}
 
 	wg := sync.WaitGroup{}
@@ -79,7 +79,7 @@ func TestCacheRace(t *testing.T) {
 			c.Write(s, tsm1.Values{v})
 		}
 		wg.Add(1)
-		go func(s string) {
+		go func(s []byte) {
 			defer wg.Done()
 			<-ch
 			c.Values(s)
@@ -122,7 +122,7 @@ func TestCacheRace(t *testing.T) {
 func TestCacheRace2Compacters(t *testing.T) {
 	values := make(tsm1.Values, 1000)
 	timestamps := make([]int64, len(values))
-	series := make([]string, 100)
+	series := make([][]byte, 100)
 	for i := range timestamps {
 		timestamps[i] = int64(rand.Int63n(int64(len(values))))
 	}
@@ -132,7 +132,7 @@ func TestCacheRace2Compacters(t *testing.T) {
 	}
 
 	for i := range series {
-		series[i] = fmt.Sprintf("series%d", i)
+		series[i] = []byte(fmt.Sprintf("series%d", i))
 	}
 
 	wg := sync.WaitGroup{}
@@ -144,7 +144,7 @@ func TestCacheRace2Compacters(t *testing.T) {
 			c.Write(s, tsm1.Values{v})
 		}
 		wg.Add(1)
-		go func(s string) {
+		go func(s []byte) {
 			defer wg.Done()
 			<-ch
 			c.Values(s)

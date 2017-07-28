@@ -43,12 +43,12 @@ func TestRing_newRing(t *testing.T) {
 	}
 }
 
-var strSliceRes []string
+var strSliceRes [][]byte
 
 func benchmarkRingkeys(b *testing.B, r *ring, keys int) {
 	// Add some keys
 	for i := 0; i < keys; i++ {
-		r.add(fmt.Sprintf("cpu,host=server-%d value=1", i), nil)
+		r.add([]byte(fmt.Sprintf("cpu,host=server-%d value=1", i)), nil)
 	}
 
 	b.ReportAllocs()
@@ -64,11 +64,11 @@ func BenchmarkRing_keys_10000(b *testing.B)  { benchmarkRingkeys(b, MustNewRing(
 func BenchmarkRing_keys_100000(b *testing.B) { benchmarkRingkeys(b, MustNewRing(256), 100000) }
 
 func benchmarkRingGetPartition(b *testing.B, r *ring, keys int) {
-	vals := make([]string, keys)
+	vals := make([][]byte, keys)
 
 	// Add some keys
 	for i := 0; i < keys; i++ {
-		vals[i] = fmt.Sprintf("cpu,host=server-%d field1=value1,field2=value2,field4=value4,field5=value5,field6=value6,field7=value7,field8=value1,field9=value2,field10=value4,field11=value5,field12=value6,field13=value7", i)
+		vals[i] = []byte(fmt.Sprintf("cpu,host=server-%d field1=value1,field2=value2,field4=value4,field5=value5,field6=value6,field7=value7,field8=value1,field9=value2,field10=value4,field11=value5,field12=value6,field13=value7", i))
 		r.add(vals[i], nil)
 	}
 
@@ -94,7 +94,7 @@ func benchmarkRingWrite(b *testing.B, r *ring, n int) {
 			go func() {
 				defer wg.Done()
 				for j := 0; j < n; j++ {
-					if err := r.write(fmt.Sprintf("cpu,host=server-%d value=1", j), Values{}); err != nil {
+					if err := r.write([]byte(fmt.Sprintf("cpu,host=server-%d value=1", j)), Values{}); err != nil {
 						errC <- err
 					}
 				}
