@@ -9,17 +9,17 @@ set -e
 DIR=$(cd $(dirname "${BASH_SOURCE[0]}") && pwd)
 cd $DIR
 
-export OUTPUT_DIR="$CIRCLE_ARTIFACTS" 
+export OUTPUT_DIR="$CIRCLE_ARTIFACTS"
 # Don't delete the container since CircleCI doesn't have permission to do so.
 export DOCKER_RM="false"
 
 # Get number of test environments.
 count=$(./test.sh count)
 # Check that we aren't wasting CircleCI nodes.
-if [ $CIRCLE_NODE_TOTAL -gt $count ]
+if [ $CIRCLE_NODE_INDEX -gt $((count - 1)) ]
 then
     echo "More CircleCI nodes allocated than tests environments to run!"
-    exit 1
+    exit 0
 fi
 
 # Map CircleCI nodes to test environments.
