@@ -128,7 +128,7 @@ func TestDashboardDefaults(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		if DashboardDefaults(&tt.d); !reflect.DeepEqual(tt.d, tt.want) {
+		if actual := DashboardDefaults(tt.d); !reflect.DeepEqual(actual, tt.want) {
 			t.Errorf("%q. DashboardDefaults() = %v, want %v", tt.name, tt.d, tt.want)
 		}
 	}
