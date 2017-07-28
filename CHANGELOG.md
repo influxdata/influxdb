@@ -1,5 +1,6 @@
 ## v1.3.6.0 [unreleased]
 ### Bug Fixes
+1. [#1798](https://github.com/influxdata/chronograf/pull/1798): Fix domain not updating in visualizations when changing time range manually
 1. [#1799](https://github.com/influxdata/chronograf/pull/1799): Prevent console error spam from Dygraph.synchronize when a dashboard has only one graph
 
 ### Features

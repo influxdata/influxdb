@@ -93,7 +93,8 @@ const Visualization = React.createClass({
     const {view} = this.state
 
     const statements = queryConfigs.map(query => {
-      const text = query.rawText || buildInfluxQLQuery(timeRange, query)
+      const text =
+        query.rawText || buildInfluxQLQuery(query.range || timeRange, query)
       return {text, id: query.id}
     })
     const queries = statements.filter(s => s.text !== null).map(s => {
