@@ -209,7 +209,11 @@ class DashboardPage extends Component {
     const dygraphs = [...this.state.dygraphs, dygraph]
     const {dashboards, params} = this.props
     const dashboard = dashboards.find(d => d.id === +params.dashboardID)
-    if (dashboard && dygraphs.length === dashboard.cells.length) {
+    if (
+      dashboard &&
+      dygraphs.length === dashboard.cells.length &&
+      dashboard.cells.length > 1
+    ) {
       Dygraph.synchronize(dygraphs, {
         selection: true,
         zoom: false,

@@ -1,10 +1,14 @@
 ## v1.3.6.0 [unreleased]
 ### Bug Fixes
-1. [#1798](https://github.com/influxdata/chronograf/pull/1798): Fix domain on CEO not updating when new time is entered into InfluxQL in the builder
+1. [#1798](https://github.com/influxdata/chronograf/pull/1798): Fix domain not updating in visualizations when changing time range manually
+1. [#1799](https://github.com/influxdata/chronograf/pull/1799): Prevent console error spam from Dygraph.synchronize when a dashboard has only one graph
+
 ### Features
 ### UI Improvements
+1. [#1796](https://github.com/influxdata/chronograf/pull/1796): Add spinner to indicate data is being written
+1. [#1800](https://github.com/influxdata/chronograf/pull/1796): Embiggen text area for line protocol manual entry in Data Explorer's Write Data overlay
 
-## v1.3.5.0 [2017-07-25]
+## v1.3.5.0 [2017-07-27]
 ### Bug Fixes
 1. [#1708](https://github.com/influxdata/chronograf/pull/1708): Fix z-index issue in dashboard cell context menu
 1. [#1752](https://github.com/influxdata/chronograf/pull/1752): Clarify BoltPath server flag help text by making example the default path

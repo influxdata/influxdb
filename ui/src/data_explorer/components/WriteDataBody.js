@@ -12,6 +12,7 @@ const WriteDataBody = ({
   isManual,
   fileInput,
   handleFileOpen,
+  isUploading,
 }) =>
   <div className="write-data-form--body">
     {isManual
@@ -32,7 +33,7 @@ const WriteDataBody = ({
             ref={fileInput}
             accept="text/*, application/gzip"
           />
-          <button className="btn btn-sm btn-primary" onClick={handleFileOpen}>
+          <button className="btn btn-md btn-primary" onClick={handleFileOpen}>
             {uploadContent ? 'Upload a Different File' : 'Upload a File'}
           </button>
           {uploadContent
@@ -45,6 +46,7 @@ const WriteDataBody = ({
               </span>}
         </div>}
     <WriteDataFooter
+      isUploading={isUploading}
       isManual={isManual}
       inputContent={inputContent}
       handleSubmit={handleSubmit}
@@ -65,6 +67,7 @@ WriteDataBody.propTypes = {
   isManual: bool,
   fileInput: func.isRequired,
   handleFileOpen: func.isRequired,
+  isUploading: bool.isRequired,
 }
 
 export default WriteDataBody
