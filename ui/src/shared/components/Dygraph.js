@@ -10,6 +10,12 @@ import getRange from 'shared/parsing/getRangeForDygraph'
 import {LINE_COLORS, multiColumnBarPlotter} from 'src/shared/graphs/helpers'
 import DygraphLegend from 'src/shared/components/DygraphLegend'
 
+const hasherino = (str, len) =>
+  str
+    .split('')
+    .map(char => char.charCodeAt(0))
+    .reduce((hash, code) => (hash + code) % len, 0)
+
 export default class Dygraph extends Component {
   constructor(props) {
     super(props)
@@ -65,18 +71,42 @@ export default class Dygraph extends Component {
 
     const graphRef = this.graphRef
     const legendRef = this.legendRef
-    let finalLineColors = overrideLineColors
+    const finalLineColors = [...(overrideLineColors || LINE_COLORS)]
 
-    if (finalLineColors === null) {
-      finalLineColors = LINE_COLORS
+    const hashColorDygraphSeries = {}
+    const {length} = finalLineColors
+
+    let used = []
+
+    for (const seriesName in dygraphSeries) {
+      const series = dygraphSeries[seriesName]
+      let hashIndex = hasherino(seriesName, length)
+
+      // Check to see if color is already being used
+      while (used.includes(hashIndex)) {
+        hashIndex = (hashIndex + 1) % length
+      }
+
+      used.push(hashIndex)
+
+      // Empty used array if all colors are used
+      if (used.length === length) {
+        used = []
+      }
+
+      const color = finalLineColors[hashIndex]
+
+      hashColorDygraphSeries[seriesName] = {...series, color}
     }
 
     const defaultOptions = {
-      plugins: [
-        new Dygraphs.Plugins.Crosshair({
-          direction: 'vertical',
-        }),
-      ],
+      plugins: isBarGraph
+        ? []
+        : [
+            new Dygraphs.Plugins.Crosshair({
+              direction: 'vertical',
+            }),
+          ],
       labelsSeparateLines: false,
       labelsKMB: true,
       rightGap: 0,
@@ -89,7 +119,7 @@ export default class Dygraph extends Component {
       animatedZooms: true,
       hideOverlayOnMouseOut: false,
       colors: finalLineColors,
-      series: dygraphSeries,
+      series: hashColorDygraphSeries,
       axes: {
         y: {
           valueRange: getRange(timeSeries, ranges.y, ruleValues),
