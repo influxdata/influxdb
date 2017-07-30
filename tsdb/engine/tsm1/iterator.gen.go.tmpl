@@ -528,27 +528,6 @@ func (c *{{.name}}DescendingCursor) nextTSM() {
 	}
 }
 
-// {{.name}}LiteralCursor represents a cursor that always returns a single value.
-// It doesn't not have a time value so it can only be used with nextAt().
-type {{.name}}LiteralCursor struct {
-	value {{.Type}}
-}
-
-func (c *{{.name}}LiteralCursor) close() error { return nil }
-func (c *{{.name}}LiteralCursor) peek() (t int64, v interface{}) { return tsdb.EOF, c.value }
-func (c *{{.name}}LiteralCursor) next() (t int64, v interface{}) { return tsdb.EOF, c.value }
-func (c *{{.name}}LiteralCursor) nextAt(seek int64) interface{} { return c.value }
-
-
-// {{.name}}NilLiteralCursor represents a cursor that always returns a typed nil value.
-// It doesn't not have a time value so it can only be used with nextAt().
-type {{.name}}NilLiteralCursor struct {}
-
-func (c *{{.name}}NilLiteralCursor) close() error { return nil }
-func (c *{{.name}}NilLiteralCursor) peek() (t int64, v interface{}) { return tsdb.EOF, (*{{.Type}})(nil) }
-func (c *{{.name}}NilLiteralCursor) next() (t int64, v interface{}) { return tsdb.EOF, (*{{.Type}})(nil) }
-func (c *{{.name}}NilLiteralCursor) nextAt(seek int64) interface{} { return (*{{.Type}})(nil) }
-
 {{end}}
 
 var _ = fmt.Print

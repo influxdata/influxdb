@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 func newLimitIterator(input influxql.Iterator, opt influxql.IteratorOptions) influxql.Iterator {
@@ -100,3 +101,23 @@ func (c *unsignedCastIntegerCursor) nextUnsigned() (int64, uint64) {
 	t, v := c.cursor.nextInteger()
 	return t, uint64(v)
 }
+
+// literalValueCursor represents a cursor that always returns a single value.
+// It doesn't not have a time value so it can only be used with nextAt().
+type literalValueCursor struct {
+	value interface{}
+}
+
+func (c *literalValueCursor) close() error                   { return nil }
+func (c *literalValueCursor) peek() (t int64, v interface{}) { return tsdb.EOF, c.value }
+func (c *literalValueCursor) next() (t int64, v interface{}) { return tsdb.EOF, c.value }
+func (c *literalValueCursor) nextAt(seek int64) interface{}  { return c.value }
+
+// preallocate and cast to cursorAt to avoid allocations
+var (
+	nilFloatLiteralValueCursor    cursorAt = &literalValueCursor{value: (*float64)(nil)}
+	nilIntegerLiteralValueCursor  cursorAt = &literalValueCursor{value: (*int64)(nil)}
+	nilUnsignedLiteralValueCursor cursorAt = &literalValueCursor{value: (*uint64)(nil)}
+	nilStringLiteralValueCursor   cursorAt = &literalValueCursor{value: (*string)(nil)}
+	nilBooleanLiteralValueCursor  cursorAt = &literalValueCursor{value: (*bool)(nil)}
+)
