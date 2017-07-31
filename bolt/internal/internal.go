@@ -2,6 +2,7 @@ package internal
 
 import (
 	"encoding/json"
+	"strconv"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/chronograf"
@@ -181,14 +182,14 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 
 		axes := make(map[string]*Axis, len(c.Axes))
 		for a, r := range c.Axes {
-			// need to explicitly allocate a new array because r.Bounds is
-			// over-written and the resulting slices from previous iterations will
-			// point to later iteration's data. It is _not_ enough to simply re-slice
-			// r.Bounds
+			// we only marshal LegacyBounds for a data migration test. This should
+			// not be used by anything in production.
 			axis := [2]int64{}
-			copy(axis[:], r.Bounds[:2])
+			copy(axis[:], r.LegacyBounds[:2])
+
 			axes[a] = &Axis{
-				Bounds: axis[:],
+				Bounds:       r.Bounds,
+				LegacyBounds: axis[:],
 			}
 		}
 
@@ -268,7 +269,14 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 		axes := make(map[string]chronograf.Axis, len(c.Axes))
 		for a, r := range c.Axes {
 			axis := chronograf.Axis{}
-			copy(axis.Bounds[:], r.Bounds[:2])
+			// repair legacy bounds
+			for _, bound := range r.LegacyBounds {
+				axis.Bounds = append(axis.Bounds, strconv.FormatInt(bound, 10))
+			}
+
+			if len(r.Bounds) > 0 {
+				axis.Bounds = r.Bounds
+			}
 			axes[a] = axis
 		}
 
