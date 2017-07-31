@@ -118,6 +118,274 @@ func (c *bufCursor) nextAt(seek int64) interface{} {
 // amortize the cost of using a mutex when updating stats.
 const statsBufferCopyIntervalN = 100
 
+func newFloatCountCursor(opt query.IteratorOptions, seek int64, ascending bool, cacheValues Values, tsmKeyCursor *KeyCursor) integerCursor {
+	if ascending {
+		return newFloatAscendingCountCursor(opt, seek, cacheValues, tsmKeyCursor)
+	}
+	return newFloatDescendingCountCursor(opt, seek, cacheValues, tsmKeyCursor)
+}
+
+type floatAscendingCountCursor struct {
+	cache struct {
+		values Values
+		pos    int
+	}
+
+	tsm struct {
+		values    []FloatValue
+		keyCursor *KeyCursor
+	}
+	opt         query.IteratorOptions
+	aggTSMValue IntegerValue
+}
+
+func newFloatAscendingCountCursor(opt query.IteratorOptions, seek int64, cacheValues Values, tsmKeyCursor *KeyCursor) *floatAscendingCountCursor {
+	c := &floatAscendingCountCursor{
+		opt: opt,
+	}
+
+	c.cache.values = cacheValues
+	c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
+		return c.cache.values[i].UnixNano() >= seek
+	})
+
+	winMin, winMax := opt.Window(seek)
+	winMin = seek
+
+	mergeValues := c.nextCache(winMin, winMax)
+	for len(mergeValues) == 0 && c.cache.pos < len(c.cache.values) && c.cache.values[c.cache.pos].UnixNano() >= c.opt.StartTime {
+		winMin, winMax = c.opt.Window(winMax + 1)
+		mergeValues = c.nextCache(winMin, winMax)
+	}
+	if c.cache.pos >= len(c.cache.values) || c.cache.values[c.cache.pos].UnixNano() >= c.opt.EndTime {
+		c.cache.values = c.cache.values[:0]
+	}
+
+	c.tsm.keyCursor = tsmKeyCursor
+	if !c.tsm.keyCursor.NextWindow(winMin, winMax) && len(mergeValues) == 0 && len(c.cache.values) == 0 {
+		c.aggTSMValue = IntegerValue{tsdb.EOF, 0}
+		return c
+	}
+
+	c.aggTSMValue, _ = c.tsm.keyCursor.CountFloatBlock(&c.tsm.values, mergeValues, winMin, winMax)
+	return c
+}
+
+// nextCache returns the next cache values within the winMin and winMax
+func (c *floatAscendingCountCursor) nextCache(winMin, winMax int64) []FloatValue {
+	if c.cache.pos >= len(c.cache.values) {
+		return nil
+	}
+
+	count, origPos := 0, c.cache.pos
+	for c.cache.pos < len(c.cache.values) && c.cache.values[c.cache.pos].UnixNano() >= winMin && c.cache.values[c.cache.pos].UnixNano() < winMax {
+		c.cache.pos++
+		count++
+	}
+
+	return toFloatValues(c.cache.values[origPos:c.cache.pos])
+}
+
+// peekTSM returns the current time/value from tsm.
+func (c *floatAscendingCountCursor) peekTSM() (t int64, v int64) {
+	return c.aggTSMValue.UnixNano(), c.aggTSMValue.value
+}
+
+// close closes the cursor and any dependent cursors.
+func (c *floatAscendingCountCursor) close() error {
+	c.tsm.keyCursor.Close()
+	c.tsm.keyCursor = nil
+	c.cache.values = nil
+	c.tsm.values = nil
+	return nil
+}
+
+// next returns the next key/value for the cursor.
+func (c *floatAscendingCountCursor) next() (int64, interface{}) { return c.nextInteger() }
+
+// nextInteger returns the next key/value for the cursor.
+func (c *floatAscendingCountCursor) nextInteger() (int64, int64) {
+	tkey, tvalue := c.peekTSM()
+
+	// No more data in cache or in TSM files.
+	if tkey == tsdb.EOF {
+		return tsdb.EOF, 0
+	}
+
+	// Buffered TSM key precedes that in cache.
+	c.nextTSM()
+	return tkey, tvalue
+}
+
+// nextTSM returns the next value from the TSM files.
+func (c *floatAscendingCountCursor) nextTSM() {
+	// There is no interval so all the values were counted when the cursor was created.
+	if c.opt.Interval.IsZero() {
+		c.aggTSMValue = IntegerValue{tsdb.EOF, 0}
+		return
+	}
+
+	winMin, winMax := c.opt.Window(c.aggTSMValue.UnixNano())
+	winMin, winMax = c.opt.Window(winMax + 1)
+	if winMax > c.opt.EndTime {
+		winMax = c.opt.EndTime + 1
+	}
+
+	// Find the next set of cache values, we may need to skip windows.
+	mergeValues := c.nextCache(winMin, winMax)
+	for len(mergeValues) == 0 && c.cache.pos >= 0 && c.cache.pos < len(c.cache.values) && c.cache.values[c.cache.pos].UnixNano() >= c.opt.StartTime {
+		winMin, winMax = c.opt.Window(winMax + 1)
+		mergeValues = c.nextCache(winMin, winMax)
+	}
+
+	if c.cache.pos < 0 || c.cache.pos >= len(c.cache.values) || c.cache.values[c.cache.pos].UnixNano() > c.opt.EndTime {
+		c.cache.values = c.cache.values[:0]
+	}
+
+	if !c.tsm.keyCursor.NextWindow(winMin, winMax) && len(mergeValues) == 0 && len(c.cache.values) == 0 {
+		c.aggTSMValue = IntegerValue{tsdb.EOF, 0}
+		return
+	}
+
+	c.aggTSMValue, _ = c.tsm.keyCursor.CountFloatBlock(&c.tsm.values, mergeValues, winMin, winMax)
+}
+
+type floatDescendingCountCursor struct {
+	cache struct {
+		values Values
+		pos    int
+	}
+
+	tsm struct {
+		values    []FloatValue
+		keyCursor *KeyCursor
+	}
+	opt         query.IteratorOptions
+	aggTSMValue IntegerValue
+}
+
+func newFloatDescendingCountCursor(opt query.IteratorOptions, seek int64, cacheValues Values, tsmKeyCursor *KeyCursor) *floatDescendingCountCursor {
+	c := &floatDescendingCountCursor{
+		opt: opt,
+	}
+
+	c.cache.values = cacheValues
+	c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
+		return c.cache.values[i].UnixNano() >= seek
+	})
+	if c.cache.pos >= len(c.cache.values) {
+		c.cache.pos--
+	}
+
+	winMin, winMax := opt.Window(seek)
+
+	mergeValues := c.nextCache(winMin, winMax)
+	for len(mergeValues) == 0 && c.cache.pos > 0 && c.cache.values[c.cache.pos].UnixNano() >= c.opt.StartTime {
+		winMin, winMax = c.opt.Window(winMin - 1)
+		mergeValues = c.nextCache(winMin, winMax)
+	}
+	if c.cache.pos > 0 && len(c.cache.values) > 0 && c.cache.values[c.cache.pos].UnixNano() < c.opt.StartTime {
+		c.cache.values = c.cache.values[:0]
+	}
+
+	c.tsm.keyCursor = tsmKeyCursor
+	if !c.tsm.keyCursor.NextWindow(winMin, winMax) && len(mergeValues) == 0 && len(c.cache.values) == 0 {
+		c.aggTSMValue = IntegerValue{tsdb.EOF, 0}
+		return c
+	}
+
+	c.aggTSMValue, _ = c.tsm.keyCursor.CountFloatBlock(&c.tsm.values, mergeValues, winMin, winMax)
+
+	return c
+}
+
+// nextCache returns the next cache values within the winMin and winMax
+func (c *floatDescendingCountCursor) nextCache(winMin, winMax int64) []FloatValue {
+	if c.cache.pos >= len(c.cache.values) {
+		return nil
+	}
+
+	count, origPos := 0, c.cache.pos
+	for c.cache.pos >= 0 && c.cache.values[c.cache.pos].UnixNano() >= winMin {
+		c.cache.pos--
+		count++
+	}
+
+	return toFloatValues(c.cache.values[c.cache.pos+1 : origPos+1])
+}
+
+// peekTSM returns the current time/value from tsm.
+func (c *floatDescendingCountCursor) peekTSM() (t int64, v int64) {
+	return c.aggTSMValue.unixnano, c.aggTSMValue.value
+}
+
+// close closes the cursor and any dependent cursors.
+func (c *floatDescendingCountCursor) close() error {
+	c.tsm.keyCursor.Close()
+	c.tsm.keyCursor = nil
+	c.cache.values = nil
+	c.tsm.values = nil
+	return nil
+}
+
+// next returns the next key/value for the cursor.
+func (c *floatDescendingCountCursor) next() (int64, interface{}) { return c.nextInteger() }
+
+// nextInteger returns the next key/value for the cursor.
+func (c *floatDescendingCountCursor) nextInteger() (int64, int64) {
+	tkey, tvalue := c.peekTSM()
+
+	// No more data in cache or in TSM files.
+	if tkey == tsdb.EOF {
+		return tsdb.EOF, 0
+	}
+
+	// Buffered TSM key precedes that in cache.
+	c.nextTSM()
+	return tkey, tvalue
+}
+
+// nextTSM returns the next value from the TSM files.
+func (c *floatDescendingCountCursor) nextTSM() {
+	if c.opt.Interval.IsZero() {
+		c.aggTSMValue = IntegerValue{tsdb.EOF, 0}
+		return
+	}
+
+	// Find the current window
+	winMin, winMax := c.opt.Window(c.aggTSMValue.UnixNano())
+	// Move to the previous window
+	winMin, winMax = c.opt.Window(winMin - 1)
+	if winMin < c.opt.StartTime {
+		winMin = c.opt.StartTime
+	}
+
+	if winMax <= c.opt.StartTime {
+		c.aggTSMValue = IntegerValue{tsdb.EOF, 0}
+		return
+	}
+
+	// Find the next set of cache values, we may need to skip windows.
+	mergeValues := c.nextCache(winMin, winMax)
+	for len(mergeValues) == 0 && c.cache.pos > 0 && winMax > c.opt.StartTime {
+		winMin, winMax = c.opt.Window(winMin - 1)
+		mergeValues = c.nextCache(winMin, winMax)
+	}
+
+	// Any more cache values?
+	if c.cache.pos > 0 && len(c.cache.values) > 0 && c.cache.values[c.cache.pos].UnixNano() < c.opt.StartTime {
+		c.cache.values = c.cache.values[:0]
+	}
+
+	// No more cache or TSM values to read, we're done.
+	if !c.tsm.keyCursor.NextWindow(winMin, winMax) && len(mergeValues) == 0 && len(c.cache.values) == 0 {
+		c.aggTSMValue = IntegerValue{tsdb.EOF, 0}
+		return
+	}
+
+	c.aggTSMValue, _ = c.tsm.keyCursor.CountFloatBlock(&c.tsm.values, mergeValues, winMin, winMax)
+}
+
 type floatIterator struct {
 	cur   floatCursor
 	aux   []cursorAt
@@ -527,6 +795,274 @@ func (c *floatDescendingCursor) nextTSM() {
 		}
 		c.tsm.pos = len(c.tsm.values) - 1
 	}
+}
+
+func newIntegerCountCursor(opt query.IteratorOptions, seek int64, ascending bool, cacheValues Values, tsmKeyCursor *KeyCursor) integerCursor {
+	if ascending {
+		return newIntegerAscendingCountCursor(opt, seek, cacheValues, tsmKeyCursor)
+	}
+	return newIntegerDescendingCountCursor(opt, seek, cacheValues, tsmKeyCursor)
+}
+
+type integerAscendingCountCursor struct {
+	cache struct {
+		values Values
+		pos    int
+	}
+
+	tsm struct {
+		values    []IntegerValue
+		keyCursor *KeyCursor
+	}
+	opt         query.IteratorOptions
+	aggTSMValue IntegerValue
+}
+
+func newIntegerAscendingCountCursor(opt query.IteratorOptions, seek int64, cacheValues Values, tsmKeyCursor *KeyCursor) *integerAscendingCountCursor {
+	c := &integerAscendingCountCursor{
+		opt: opt,
+	}
+
+	c.cache.values = cacheValues
+	c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
+		return c.cache.values[i].UnixNano() >= seek
+	})
+
+	winMin, winMax := opt.Window(seek)
+	winMin = seek
+
+	mergeValues := c.nextCache(winMin, winMax)
+	for len(mergeValues) == 0 && c.cache.pos < len(c.cache.values) && c.cache.values[c.cache.pos].UnixNano() >= c.opt.StartTime {
+		winMin, winMax = c.opt.Window(winMax + 1)
+		mergeValues = c.nextCache(winMin, winMax)
+	}
+	if c.cache.pos >= len(c.cache.values) || c.cache.values[c.cache.pos].UnixNano() >= c.opt.EndTime {
+		c.cache.values = c.cache.values[:0]
+	}
+
+	c.tsm.keyCursor = tsmKeyCursor
+	if !c.tsm.keyCursor.NextWindow(winMin, winMax) && len(mergeValues) == 0 && len(c.cache.values) == 0 {
+		c.aggTSMValue = IntegerValue{tsdb.EOF, 0}
+		return c
+	}
+
+	c.aggTSMValue, _ = c.tsm.keyCursor.CountIntegerBlock(&c.tsm.values, mergeValues, winMin, winMax)
+	return c
+}
+
+// nextCache returns the next cache values within the winMin and winMax
+func (c *integerAscendingCountCursor) nextCache(winMin, winMax int64) []IntegerValue {
+	if c.cache.pos >= len(c.cache.values) {
+		return nil
+	}
+
+	count, origPos := 0, c.cache.pos
+	for c.cache.pos < len(c.cache.values) && c.cache.values[c.cache.pos].UnixNano() >= winMin && c.cache.values[c.cache.pos].UnixNano() < winMax {
+		c.cache.pos++
+		count++
+	}
+
+	return toIntegerValues(c.cache.values[origPos:c.cache.pos])
+}
+
+// peekTSM returns the current time/value from tsm.
+func (c *integerAscendingCountCursor) peekTSM() (t int64, v int64) {
+	return c.aggTSMValue.UnixNano(), c.aggTSMValue.value
+}
+
+// close closes the cursor and any dependent cursors.
+func (c *integerAscendingCountCursor) close() error {
+	c.tsm.keyCursor.Close()
+	c.tsm.keyCursor = nil
+	c.cache.values = nil
+	c.tsm.values = nil
+	return nil
+}
+
+// next returns the next key/value for the cursor.
+func (c *integerAscendingCountCursor) next() (int64, interface{}) { return c.nextInteger() }
+
+// nextInteger returns the next key/value for the cursor.
+func (c *integerAscendingCountCursor) nextInteger() (int64, int64) {
+	tkey, tvalue := c.peekTSM()
+
+	// No more data in cache or in TSM files.
+	if tkey == tsdb.EOF {
+		return tsdb.EOF, 0
+	}
+
+	// Buffered TSM key precedes that in cache.
+	c.nextTSM()
+	return tkey, tvalue
+}
+
+// nextTSM returns the next value from the TSM files.
+func (c *integerAscendingCountCursor) nextTSM() {
+	// There is no interval so all the values were counted when the cursor was created.
+	if c.opt.Interval.IsZero() {
+		c.aggTSMValue = IntegerValue{tsdb.EOF, 0}
+		return
+	}
+
+	winMin, winMax := c.opt.Window(c.aggTSMValue.UnixNano())
+	winMin, winMax = c.opt.Window(winMax + 1)
+	if winMax > c.opt.EndTime {
+		winMax = c.opt.EndTime + 1
+	}
+
+	// Find the next set of cache values, we may need to skip windows.
+	mergeValues := c.nextCache(winMin, winMax)
+	for len(mergeValues) == 0 && c.cache.pos >= 0 && c.cache.pos < len(c.cache.values) && c.cache.values[c.cache.pos].UnixNano() >= c.opt.StartTime {
+		winMin, winMax = c.opt.Window(winMax + 1)
+		mergeValues = c.nextCache(winMin, winMax)
+	}
+
+	if c.cache.pos < 0 || c.cache.pos >= len(c.cache.values) || c.cache.values[c.cache.pos].UnixNano() > c.opt.EndTime {
+		c.cache.values = c.cache.values[:0]
+	}
+
+	if !c.tsm.keyCursor.NextWindow(winMin, winMax) && len(mergeValues) == 0 && len(c.cache.values) == 0 {
+		c.aggTSMValue = IntegerValue{tsdb.EOF, 0}
+		return
+	}
+
+	c.aggTSMValue, _ = c.tsm.keyCursor.CountIntegerBlock(&c.tsm.values, mergeValues, winMin, winMax)
+}
+
+type integerDescendingCountCursor struct {
+	cache struct {
+		values Values
+		pos    int
+	}
+
+	tsm struct {
+		values    []IntegerValue
+		keyCursor *KeyCursor
+	}
+	opt         query.IteratorOptions
+	aggTSMValue IntegerValue
+}
+
+func newIntegerDescendingCountCursor(opt query.IteratorOptions, seek int64, cacheValues Values, tsmKeyCursor *KeyCursor) *integerDescendingCountCursor {
+	c := &integerDescendingCountCursor{
+		opt: opt,
+	}
+
+	c.cache.values = cacheValues
+	c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
+		return c.cache.values[i].UnixNano() >= seek
+	})
+	if c.cache.pos >= len(c.cache.values) {
+		c.cache.pos--
+	}
+
+	winMin, winMax := opt.Window(seek)
+
+	mergeValues := c.nextCache(winMin, winMax)
+	for len(mergeValues) == 0 && c.cache.pos > 0 && c.cache.values[c.cache.pos].UnixNano() >= c.opt.StartTime {
+		winMin, winMax = c.opt.Window(winMin - 1)
+		mergeValues = c.nextCache(winMin, winMax)
+	}
+	if c.cache.pos > 0 && len(c.cache.values) > 0 && c.cache.values[c.cache.pos].UnixNano() < c.opt.StartTime {
+		c.cache.values = c.cache.values[:0]
+	}
+
+	c.tsm.keyCursor = tsmKeyCursor
+	if !c.tsm.keyCursor.NextWindow(winMin, winMax) && len(mergeValues) == 0 && len(c.cache.values) == 0 {
+		c.aggTSMValue = IntegerValue{tsdb.EOF, 0}
+		return c
+	}
+
+	c.aggTSMValue, _ = c.tsm.keyCursor.CountIntegerBlock(&c.tsm.values, mergeValues, winMin, winMax)
+
+	return c
+}
+
+// nextCache returns the next cache values within the winMin and winMax
+func (c *integerDescendingCountCursor) nextCache(winMin, winMax int64) []IntegerValue {
+	if c.cache.pos >= len(c.cache.values) {
+		return nil
+	}
+
+	count, origPos := 0, c.cache.pos
+	for c.cache.pos >= 0 && c.cache.values[c.cache.pos].UnixNano() >= winMin {
+		c.cache.pos--
+		count++
+	}
+
+	return toIntegerValues(c.cache.values[c.cache.pos+1 : origPos+1])
+}
+
+// peekTSM returns the current time/value from tsm.
+func (c *integerDescendingCountCursor) peekTSM() (t int64, v int64) {
+	return c.aggTSMValue.unixnano, c.aggTSMValue.value
+}
+
+// close closes the cursor and any dependent cursors.
+func (c *integerDescendingCountCursor) close() error {
+	c.tsm.keyCursor.Close()
+	c.tsm.keyCursor = nil
+	c.cache.values = nil
+	c.tsm.values = nil
+	return nil
+}
+
+// next returns the next key/value for the cursor.
+func (c *integerDescendingCountCursor) next() (int64, interface{}) { return c.nextInteger() }
+
+// nextInteger returns the next key/value for the cursor.
+func (c *integerDescendingCountCursor) nextInteger() (int64, int64) {
+	tkey, tvalue := c.peekTSM()
+
+	// No more data in cache or in TSM files.
+	if tkey == tsdb.EOF {
+		return tsdb.EOF, 0
+	}
+
+	// Buffered TSM key precedes that in cache.
+	c.nextTSM()
+	return tkey, tvalue
+}
+
+// nextTSM returns the next value from the TSM files.
+func (c *integerDescendingCountCursor) nextTSM() {
+	if c.opt.Interval.IsZero() {
+		c.aggTSMValue = IntegerValue{tsdb.EOF, 0}
+		return
+	}
+
+	// Find the current window
+	winMin, winMax := c.opt.Window(c.aggTSMValue.UnixNano())
+	// Move to the previous window
+	winMin, winMax = c.opt.Window(winMin - 1)
+	if winMin < c.opt.StartTime {
+		winMin = c.opt.StartTime
+	}
+
+	if winMax <= c.opt.StartTime {
+		c.aggTSMValue = IntegerValue{tsdb.EOF, 0}
+		return
+	}
+
+	// Find the next set of cache values, we may need to skip windows.
+	mergeValues := c.nextCache(winMin, winMax)
+	for len(mergeValues) == 0 && c.cache.pos > 0 && winMax > c.opt.StartTime {
+		winMin, winMax = c.opt.Window(winMin - 1)
+		mergeValues = c.nextCache(winMin, winMax)
+	}
+
+	// Any more cache values?
+	if c.cache.pos > 0 && len(c.cache.values) > 0 && c.cache.values[c.cache.pos].UnixNano() < c.opt.StartTime {
+		c.cache.values = c.cache.values[:0]
+	}
+
+	// No more cache or TSM values to read, we're done.
+	if !c.tsm.keyCursor.NextWindow(winMin, winMax) && len(mergeValues) == 0 && len(c.cache.values) == 0 {
+		c.aggTSMValue = IntegerValue{tsdb.EOF, 0}
+		return
+	}
+
+	c.aggTSMValue, _ = c.tsm.keyCursor.CountIntegerBlock(&c.tsm.values, mergeValues, winMin, winMax)
 }
 
 type integerIterator struct {
@@ -940,6 +1476,274 @@ func (c *integerDescendingCursor) nextTSM() {
 	}
 }
 
+func newUnsignedCountCursor(opt query.IteratorOptions, seek int64, ascending bool, cacheValues Values, tsmKeyCursor *KeyCursor) integerCursor {
+	if ascending {
+		return newUnsignedAscendingCountCursor(opt, seek, cacheValues, tsmKeyCursor)
+	}
+	return newUnsignedDescendingCountCursor(opt, seek, cacheValues, tsmKeyCursor)
+}
+
+type unsignedAscendingCountCursor struct {
+	cache struct {
+		values Values
+		pos    int
+	}
+
+	tsm struct {
+		values    []UnsignedValue
+		keyCursor *KeyCursor
+	}
+	opt         query.IteratorOptions
+	aggTSMValue IntegerValue
+}
+
+func newUnsignedAscendingCountCursor(opt query.IteratorOptions, seek int64, cacheValues Values, tsmKeyCursor *KeyCursor) *unsignedAscendingCountCursor {
+	c := &unsignedAscendingCountCursor{
+		opt: opt,
+	}
+
+	c.cache.values = cacheValues
+	c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
+		return c.cache.values[i].UnixNano() >= seek
+	})
+
+	winMin, winMax := opt.Window(seek)
+	winMin = seek
+
+	mergeValues := c.nextCache(winMin, winMax)
+	for len(mergeValues) == 0 && c.cache.pos < len(c.cache.values) && c.cache.values[c.cache.pos].UnixNano() >= c.opt.StartTime {
+		winMin, winMax = c.opt.Window(winMax + 1)
+		mergeValues = c.nextCache(winMin, winMax)
+	}
+	if c.cache.pos >= len(c.cache.values) || c.cache.values[c.cache.pos].UnixNano() >= c.opt.EndTime {
+		c.cache.values = c.cache.values[:0]
+	}
+
+	c.tsm.keyCursor = tsmKeyCursor
+	if !c.tsm.keyCursor.NextWindow(winMin, winMax) && len(mergeValues) == 0 && len(c.cache.values) == 0 {
+		c.aggTSMValue = IntegerValue{tsdb.EOF, 0}
+		return c
+	}
+
+	c.aggTSMValue, _ = c.tsm.keyCursor.CountUnsignedBlock(&c.tsm.values, mergeValues, winMin, winMax)
+	return c
+}
+
+// nextCache returns the next cache values within the winMin and winMax
+func (c *unsignedAscendingCountCursor) nextCache(winMin, winMax int64) []UnsignedValue {
+	if c.cache.pos >= len(c.cache.values) {
+		return nil
+	}
+
+	count, origPos := 0, c.cache.pos
+	for c.cache.pos < len(c.cache.values) && c.cache.values[c.cache.pos].UnixNano() >= winMin && c.cache.values[c.cache.pos].UnixNano() < winMax {
+		c.cache.pos++
+		count++
+	}
+
+	return toUnsignedValues(c.cache.values[origPos:c.cache.pos])
+}
+
+// peekTSM returns the current time/value from tsm.
+func (c *unsignedAscendingCountCursor) peekTSM() (t int64, v int64) {
+	return c.aggTSMValue.UnixNano(), c.aggTSMValue.value
+}
+
+// close closes the cursor and any dependent cursors.
+func (c *unsignedAscendingCountCursor) close() error {
+	c.tsm.keyCursor.Close()
+	c.tsm.keyCursor = nil
+	c.cache.values = nil
+	c.tsm.values = nil
+	return nil
+}
+
+// next returns the next key/value for the cursor.
+func (c *unsignedAscendingCountCursor) next() (int64, interface{}) { return c.nextInteger() }
+
+// nextInteger returns the next key/value for the cursor.
+func (c *unsignedAscendingCountCursor) nextInteger() (int64, int64) {
+	tkey, tvalue := c.peekTSM()
+
+	// No more data in cache or in TSM files.
+	if tkey == tsdb.EOF {
+		return tsdb.EOF, 0
+	}
+
+	// Buffered TSM key precedes that in cache.
+	c.nextTSM()
+	return tkey, tvalue
+}
+
+// nextTSM returns the next value from the TSM files.
+func (c *unsignedAscendingCountCursor) nextTSM() {
+	// There is no interval so all the values were counted when the cursor was created.
+	if c.opt.Interval.IsZero() {
+		c.aggTSMValue = IntegerValue{tsdb.EOF, 0}
+		return
+	}
+
+	winMin, winMax := c.opt.Window(c.aggTSMValue.UnixNano())
+	winMin, winMax = c.opt.Window(winMax + 1)
+	if winMax > c.opt.EndTime {
+		winMax = c.opt.EndTime + 1
+	}
+
+	// Find the next set of cache values, we may need to skip windows.
+	mergeValues := c.nextCache(winMin, winMax)
+	for len(mergeValues) == 0 && c.cache.pos >= 0 && c.cache.pos < len(c.cache.values) && c.cache.values[c.cache.pos].UnixNano() >= c.opt.StartTime {
+		winMin, winMax = c.opt.Window(winMax + 1)
+		mergeValues = c.nextCache(winMin, winMax)
+	}
+
+	if c.cache.pos < 0 || c.cache.pos >= len(c.cache.values) || c.cache.values[c.cache.pos].UnixNano() > c.opt.EndTime {
+		c.cache.values = c.cache.values[:0]
+	}
+
+	if !c.tsm.keyCursor.NextWindow(winMin, winMax) && len(mergeValues) == 0 && len(c.cache.values) == 0 {
+		c.aggTSMValue = IntegerValue{tsdb.EOF, 0}
+		return
+	}
+
+	c.aggTSMValue, _ = c.tsm.keyCursor.CountUnsignedBlock(&c.tsm.values, mergeValues, winMin, winMax)
+}
+
+type unsignedDescendingCountCursor struct {
+	cache struct {
+		values Values
+		pos    int
+	}
+
+	tsm struct {
+		values    []UnsignedValue
+		keyCursor *KeyCursor
+	}
+	opt         query.IteratorOptions
+	aggTSMValue IntegerValue
+}
+
+func newUnsignedDescendingCountCursor(opt query.IteratorOptions, seek int64, cacheValues Values, tsmKeyCursor *KeyCursor) *unsignedDescendingCountCursor {
+	c := &unsignedDescendingCountCursor{
+		opt: opt,
+	}
+
+	c.cache.values = cacheValues
+	c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
+		return c.cache.values[i].UnixNano() >= seek
+	})
+	if c.cache.pos >= len(c.cache.values) {
+		c.cache.pos--
+	}
+
+	winMin, winMax := opt.Window(seek)
+
+	mergeValues := c.nextCache(winMin, winMax)
+	for len(mergeValues) == 0 && c.cache.pos > 0 && c.cache.values[c.cache.pos].UnixNano() >= c.opt.StartTime {
+		winMin, winMax = c.opt.Window(winMin - 1)
+		mergeValues = c.nextCache(winMin, winMax)
+	}
+	if c.cache.pos > 0 && len(c.cache.values) > 0 && c.cache.values[c.cache.pos].UnixNano() < c.opt.StartTime {
+		c.cache.values = c.cache.values[:0]
+	}
+
+	c.tsm.keyCursor = tsmKeyCursor
+	if !c.tsm.keyCursor.NextWindow(winMin, winMax) && len(mergeValues) == 0 && len(c.cache.values) == 0 {
+		c.aggTSMValue = IntegerValue{tsdb.EOF, 0}
+		return c
+	}
+
+	c.aggTSMValue, _ = c.tsm.keyCursor.CountUnsignedBlock(&c.tsm.values, mergeValues, winMin, winMax)
+
+	return c
+}
+
+// nextCache returns the next cache values within the winMin and winMax
+func (c *unsignedDescendingCountCursor) nextCache(winMin, winMax int64) []UnsignedValue {
+	if c.cache.pos >= len(c.cache.values) {
+		return nil
+	}
+
+	count, origPos := 0, c.cache.pos
+	for c.cache.pos >= 0 && c.cache.values[c.cache.pos].UnixNano() >= winMin {
+		c.cache.pos--
+		count++
+	}
+
+	return toUnsignedValues(c.cache.values[c.cache.pos+1 : origPos+1])
+}
+
+// peekTSM returns the current time/value from tsm.
+func (c *unsignedDescendingCountCursor) peekTSM() (t int64, v int64) {
+	return c.aggTSMValue.unixnano, c.aggTSMValue.value
+}
+
+// close closes the cursor and any dependent cursors.
+func (c *unsignedDescendingCountCursor) close() error {
+	c.tsm.keyCursor.Close()
+	c.tsm.keyCursor = nil
+	c.cache.values = nil
+	c.tsm.values = nil
+	return nil
+}
+
+// next returns the next key/value for the cursor.
+func (c *unsignedDescendingCountCursor) next() (int64, interface{}) { return c.nextInteger() }
+
+// nextInteger returns the next key/value for the cursor.
+func (c *unsignedDescendingCountCursor) nextInteger() (int64, int64) {
+	tkey, tvalue := c.peekTSM()
+
+	// No more data in cache or in TSM files.
+	if tkey == tsdb.EOF {
+		return tsdb.EOF, 0
+	}
+
+	// Buffered TSM key precedes that in cache.
+	c.nextTSM()
+	return tkey, tvalue
+}
+
+// nextTSM returns the next value from the TSM files.
+func (c *unsignedDescendingCountCursor) nextTSM() {
+	if c.opt.Interval.IsZero() {
+		c.aggTSMValue = IntegerValue{tsdb.EOF, 0}
+		return
+	}
+
+	// Find the current window
+	winMin, winMax := c.opt.Window(c.aggTSMValue.UnixNano())
+	// Move to the previous window
+	winMin, winMax = c.opt.Window(winMin - 1)
+	if winMin < c.opt.StartTime {
+		winMin = c.opt.StartTime
+	}
+
+	if winMax <= c.opt.StartTime {
+		c.aggTSMValue = IntegerValue{tsdb.EOF, 0}
+		return
+	}
+
+	// Find the next set of cache values, we may need to skip windows.
+	mergeValues := c.nextCache(winMin, winMax)
+	for len(mergeValues) == 0 && c.cache.pos > 0 && winMax > c.opt.StartTime {
+		winMin, winMax = c.opt.Window(winMin - 1)
+		mergeValues = c.nextCache(winMin, winMax)
+	}
+
+	// Any more cache values?
+	if c.cache.pos > 0 && len(c.cache.values) > 0 && c.cache.values[c.cache.pos].UnixNano() < c.opt.StartTime {
+		c.cache.values = c.cache.values[:0]
+	}
+
+	// No more cache or TSM values to read, we're done.
+	if !c.tsm.keyCursor.NextWindow(winMin, winMax) && len(mergeValues) == 0 && len(c.cache.values) == 0 {
+		c.aggTSMValue = IntegerValue{tsdb.EOF, 0}
+		return
+	}
+
+	c.aggTSMValue, _ = c.tsm.keyCursor.CountUnsignedBlock(&c.tsm.values, mergeValues, winMin, winMax)
+}
+
 type unsignedIterator struct {
 	cur   unsignedCursor
 	aux   []cursorAt
@@ -1351,6 +2155,274 @@ func (c *unsignedDescendingCursor) nextTSM() {
 	}
 }
 
+func newStringCountCursor(opt query.IteratorOptions, seek int64, ascending bool, cacheValues Values, tsmKeyCursor *KeyCursor) integerCursor {
+	if ascending {
+		return newStringAscendingCountCursor(opt, seek, cacheValues, tsmKeyCursor)
+	}
+	return newStringDescendingCountCursor(opt, seek, cacheValues, tsmKeyCursor)
+}
+
+type stringAscendingCountCursor struct {
+	cache struct {
+		values Values
+		pos    int
+	}
+
+	tsm struct {
+		values    []StringValue
+		keyCursor *KeyCursor
+	}
+	opt         query.IteratorOptions
+	aggTSMValue IntegerValue
+}
+
+func newStringAscendingCountCursor(opt query.IteratorOptions, seek int64, cacheValues Values, tsmKeyCursor *KeyCursor) *stringAscendingCountCursor {
+	c := &stringAscendingCountCursor{
+		opt: opt,
+	}
+
+	c.cache.values = cacheValues
+	c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
+		return c.cache.values[i].UnixNano() >= seek
+	})
+
+	winMin, winMax := opt.Window(seek)
+	winMin = seek
+
+	mergeValues := c.nextCache(winMin, winMax)
+	for len(mergeValues) == 0 && c.cache.pos < len(c.cache.values) && c.cache.values[c.cache.pos].UnixNano() >= c.opt.StartTime {
+		winMin, winMax = c.opt.Window(winMax + 1)
+		mergeValues = c.nextCache(winMin, winMax)
+	}
+	if c.cache.pos >= len(c.cache.values) || c.cache.values[c.cache.pos].UnixNano() >= c.opt.EndTime {
+		c.cache.values = c.cache.values[:0]
+	}
+
+	c.tsm.keyCursor = tsmKeyCursor
+	if !c.tsm.keyCursor.NextWindow(winMin, winMax) && len(mergeValues) == 0 && len(c.cache.values) == 0 {
+		c.aggTSMValue = IntegerValue{tsdb.EOF, 0}
+		return c
+	}
+
+	c.aggTSMValue, _ = c.tsm.keyCursor.CountStringBlock(&c.tsm.values, mergeValues, winMin, winMax)
+	return c
+}
+
+// nextCache returns the next cache values within the winMin and winMax
+func (c *stringAscendingCountCursor) nextCache(winMin, winMax int64) []StringValue {
+	if c.cache.pos >= len(c.cache.values) {
+		return nil
+	}
+
+	count, origPos := 0, c.cache.pos
+	for c.cache.pos < len(c.cache.values) && c.cache.values[c.cache.pos].UnixNano() >= winMin && c.cache.values[c.cache.pos].UnixNano() < winMax {
+		c.cache.pos++
+		count++
+	}
+
+	return toStringValues(c.cache.values[origPos:c.cache.pos])
+}
+
+// peekTSM returns the current time/value from tsm.
+func (c *stringAscendingCountCursor) peekTSM() (t int64, v int64) {
+	return c.aggTSMValue.UnixNano(), c.aggTSMValue.value
+}
+
+// close closes the cursor and any dependent cursors.
+func (c *stringAscendingCountCursor) close() error {
+	c.tsm.keyCursor.Close()
+	c.tsm.keyCursor = nil
+	c.cache.values = nil
+	c.tsm.values = nil
+	return nil
+}
+
+// next returns the next key/value for the cursor.
+func (c *stringAscendingCountCursor) next() (int64, interface{}) { return c.nextInteger() }
+
+// nextInteger returns the next key/value for the cursor.
+func (c *stringAscendingCountCursor) nextInteger() (int64, int64) {
+	tkey, tvalue := c.peekTSM()
+
+	// No more data in cache or in TSM files.
+	if tkey == tsdb.EOF {
+		return tsdb.EOF, 0
+	}
+
+	// Buffered TSM key precedes that in cache.
+	c.nextTSM()
+	return tkey, tvalue
+}
+
+// nextTSM returns the next value from the TSM files.
+func (c *stringAscendingCountCursor) nextTSM() {
+	// There is no interval so all the values were counted when the cursor was created.
+	if c.opt.Interval.IsZero() {
+		c.aggTSMValue = IntegerValue{tsdb.EOF, 0}
+		return
+	}
+
+	winMin, winMax := c.opt.Window(c.aggTSMValue.UnixNano())
+	winMin, winMax = c.opt.Window(winMax + 1)
+	if winMax > c.opt.EndTime {
+		winMax = c.opt.EndTime + 1
+	}
+
+	// Find the next set of cache values, we may need to skip windows.
+	mergeValues := c.nextCache(winMin, winMax)
+	for len(mergeValues) == 0 && c.cache.pos >= 0 && c.cache.pos < len(c.cache.values) && c.cache.values[c.cache.pos].UnixNano() >= c.opt.StartTime {
+		winMin, winMax = c.opt.Window(winMax + 1)
+		mergeValues = c.nextCache(winMin, winMax)
+	}
+
+	if c.cache.pos < 0 || c.cache.pos >= len(c.cache.values) || c.cache.values[c.cache.pos].UnixNano() > c.opt.EndTime {
+		c.cache.values = c.cache.values[:0]
+	}
+
+	if !c.tsm.keyCursor.NextWindow(winMin, winMax) && len(mergeValues) == 0 && len(c.cache.values) == 0 {
+		c.aggTSMValue = IntegerValue{tsdb.EOF, 0}
+		return
+	}
+
+	c.aggTSMValue, _ = c.tsm.keyCursor.CountStringBlock(&c.tsm.values, mergeValues, winMin, winMax)
+}
+
+type stringDescendingCountCursor struct {
+	cache struct {
+		values Values
+		pos    int
+	}
+
+	tsm struct {
+		values    []StringValue
+		keyCursor *KeyCursor
+	}
+	opt         query.IteratorOptions
+	aggTSMValue IntegerValue
+}
+
+func newStringDescendingCountCursor(opt query.IteratorOptions, seek int64, cacheValues Values, tsmKeyCursor *KeyCursor) *stringDescendingCountCursor {
+	c := &stringDescendingCountCursor{
+		opt: opt,
+	}
+
+	c.cache.values = cacheValues
+	c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
+		return c.cache.values[i].UnixNano() >= seek
+	})
+	if c.cache.pos >= len(c.cache.values) {
+		c.cache.pos--
+	}
+
+	winMin, winMax := opt.Window(seek)
+
+	mergeValues := c.nextCache(winMin, winMax)
+	for len(mergeValues) == 0 && c.cache.pos > 0 && c.cache.values[c.cache.pos].UnixNano() >= c.opt.StartTime {
+		winMin, winMax = c.opt.Window(winMin - 1)
+		mergeValues = c.nextCache(winMin, winMax)
+	}
+	if c.cache.pos > 0 && len(c.cache.values) > 0 && c.cache.values[c.cache.pos].UnixNano() < c.opt.StartTime {
+		c.cache.values = c.cache.values[:0]
+	}
+
+	c.tsm.keyCursor = tsmKeyCursor
+	if !c.tsm.keyCursor.NextWindow(winMin, winMax) && len(mergeValues) == 0 && len(c.cache.values) == 0 {
+		c.aggTSMValue = IntegerValue{tsdb.EOF, 0}
+		return c
+	}
+
+	c.aggTSMValue, _ = c.tsm.keyCursor.CountStringBlock(&c.tsm.values, mergeValues, winMin, winMax)
+
+	return c
+}
+
+// nextCache returns the next cache values within the winMin and winMax
+func (c *stringDescendingCountCursor) nextCache(winMin, winMax int64) []StringValue {
+	if c.cache.pos >= len(c.cache.values) {
+		return nil
+	}
+
+	count, origPos := 0, c.cache.pos
+	for c.cache.pos >= 0 && c.cache.values[c.cache.pos].UnixNano() >= winMin {
+		c.cache.pos--
+		count++
+	}
+
+	return toStringValues(c.cache.values[c.cache.pos+1 : origPos+1])
+}
+
+// peekTSM returns the current time/value from tsm.
+func (c *stringDescendingCountCursor) peekTSM() (t int64, v int64) {
+	return c.aggTSMValue.unixnano, c.aggTSMValue.value
+}
+
+// close closes the cursor and any dependent cursors.
+func (c *stringDescendingCountCursor) close() error {
+	c.tsm.keyCursor.Close()
+	c.tsm.keyCursor = nil
+	c.cache.values = nil
+	c.tsm.values = nil
+	return nil
+}
+
+// next returns the next key/value for the cursor.
+func (c *stringDescendingCountCursor) next() (int64, interface{}) { return c.nextInteger() }
+
+// nextInteger returns the next key/value for the cursor.
+func (c *stringDescendingCountCursor) nextInteger() (int64, int64) {
+	tkey, tvalue := c.peekTSM()
+
+	// No more data in cache or in TSM files.
+	if tkey == tsdb.EOF {
+		return tsdb.EOF, 0
+	}
+
+	// Buffered TSM key precedes that in cache.
+	c.nextTSM()
+	return tkey, tvalue
+}
+
+// nextTSM returns the next value from the TSM files.
+func (c *stringDescendingCountCursor) nextTSM() {
+	if c.opt.Interval.IsZero() {
+		c.aggTSMValue = IntegerValue{tsdb.EOF, 0}
+		return
+	}
+
+	// Find the current window
+	winMin, winMax := c.opt.Window(c.aggTSMValue.UnixNano())
+	// Move to the previous window
+	winMin, winMax = c.opt.Window(winMin - 1)
+	if winMin < c.opt.StartTime {
+		winMin = c.opt.StartTime
+	}
+
+	if winMax <= c.opt.StartTime {
+		c.aggTSMValue = IntegerValue{tsdb.EOF, 0}
+		return
+	}
+
+	// Find the next set of cache values, we may need to skip windows.
+	mergeValues := c.nextCache(winMin, winMax)
+	for len(mergeValues) == 0 && c.cache.pos > 0 && winMax > c.opt.StartTime {
+		winMin, winMax = c.opt.Window(winMin - 1)
+		mergeValues = c.nextCache(winMin, winMax)
+	}
+
+	// Any more cache values?
+	if c.cache.pos > 0 && len(c.cache.values) > 0 && c.cache.values[c.cache.pos].UnixNano() < c.opt.StartTime {
+		c.cache.values = c.cache.values[:0]
+	}
+
+	// No more cache or TSM values to read, we're done.
+	if !c.tsm.keyCursor.NextWindow(winMin, winMax) && len(mergeValues) == 0 && len(c.cache.values) == 0 {
+		c.aggTSMValue = IntegerValue{tsdb.EOF, 0}
+		return
+	}
+
+	c.aggTSMValue, _ = c.tsm.keyCursor.CountStringBlock(&c.tsm.values, mergeValues, winMin, winMax)
+}
+
 type stringIterator struct {
 	cur   stringCursor
 	aux   []cursorAt
@@ -1760,6 +2832,274 @@ func (c *stringDescendingCursor) nextTSM() {
 		}
 		c.tsm.pos = len(c.tsm.values) - 1
 	}
+}
+
+func newBooleanCountCursor(opt query.IteratorOptions, seek int64, ascending bool, cacheValues Values, tsmKeyCursor *KeyCursor) integerCursor {
+	if ascending {
+		return newBooleanAscendingCountCursor(opt, seek, cacheValues, tsmKeyCursor)
+	}
+	return newBooleanDescendingCountCursor(opt, seek, cacheValues, tsmKeyCursor)
+}
+
+type booleanAscendingCountCursor struct {
+	cache struct {
+		values Values
+		pos    int
+	}
+
+	tsm struct {
+		values    []BooleanValue
+		keyCursor *KeyCursor
+	}
+	opt         query.IteratorOptions
+	aggTSMValue IntegerValue
+}
+
+func newBooleanAscendingCountCursor(opt query.IteratorOptions, seek int64, cacheValues Values, tsmKeyCursor *KeyCursor) *booleanAscendingCountCursor {
+	c := &booleanAscendingCountCursor{
+		opt: opt,
+	}
+
+	c.cache.values = cacheValues
+	c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
+		return c.cache.values[i].UnixNano() >= seek
+	})
+
+	winMin, winMax := opt.Window(seek)
+	winMin = seek
+
+	mergeValues := c.nextCache(winMin, winMax)
+	for len(mergeValues) == 0 && c.cache.pos < len(c.cache.values) && c.cache.values[c.cache.pos].UnixNano() >= c.opt.StartTime {
+		winMin, winMax = c.opt.Window(winMax + 1)
+		mergeValues = c.nextCache(winMin, winMax)
+	}
+	if c.cache.pos >= len(c.cache.values) || c.cache.values[c.cache.pos].UnixNano() >= c.opt.EndTime {
+		c.cache.values = c.cache.values[:0]
+	}
+
+	c.tsm.keyCursor = tsmKeyCursor
+	if !c.tsm.keyCursor.NextWindow(winMin, winMax) && len(mergeValues) == 0 && len(c.cache.values) == 0 {
+		c.aggTSMValue = IntegerValue{tsdb.EOF, 0}
+		return c
+	}
+
+	c.aggTSMValue, _ = c.tsm.keyCursor.CountBooleanBlock(&c.tsm.values, mergeValues, winMin, winMax)
+	return c
+}
+
+// nextCache returns the next cache values within the winMin and winMax
+func (c *booleanAscendingCountCursor) nextCache(winMin, winMax int64) []BooleanValue {
+	if c.cache.pos >= len(c.cache.values) {
+		return nil
+	}
+
+	count, origPos := 0, c.cache.pos
+	for c.cache.pos < len(c.cache.values) && c.cache.values[c.cache.pos].UnixNano() >= winMin && c.cache.values[c.cache.pos].UnixNano() < winMax {
+		c.cache.pos++
+		count++
+	}
+
+	return toBooleanValues(c.cache.values[origPos:c.cache.pos])
+}
+
+// peekTSM returns the current time/value from tsm.
+func (c *booleanAscendingCountCursor) peekTSM() (t int64, v int64) {
+	return c.aggTSMValue.UnixNano(), c.aggTSMValue.value
+}
+
+// close closes the cursor and any dependent cursors.
+func (c *booleanAscendingCountCursor) close() error {
+	c.tsm.keyCursor.Close()
+	c.tsm.keyCursor = nil
+	c.cache.values = nil
+	c.tsm.values = nil
+	return nil
+}
+
+// next returns the next key/value for the cursor.
+func (c *booleanAscendingCountCursor) next() (int64, interface{}) { return c.nextInteger() }
+
+// nextInteger returns the next key/value for the cursor.
+func (c *booleanAscendingCountCursor) nextInteger() (int64, int64) {
+	tkey, tvalue := c.peekTSM()
+
+	// No more data in cache or in TSM files.
+	if tkey == tsdb.EOF {
+		return tsdb.EOF, 0
+	}
+
+	// Buffered TSM key precedes that in cache.
+	c.nextTSM()
+	return tkey, tvalue
+}
+
+// nextTSM returns the next value from the TSM files.
+func (c *booleanAscendingCountCursor) nextTSM() {
+	// There is no interval so all the values were counted when the cursor was created.
+	if c.opt.Interval.IsZero() {
+		c.aggTSMValue = IntegerValue{tsdb.EOF, 0}
+		return
+	}
+
+	winMin, winMax := c.opt.Window(c.aggTSMValue.UnixNano())
+	winMin, winMax = c.opt.Window(winMax + 1)
+	if winMax > c.opt.EndTime {
+		winMax = c.opt.EndTime + 1
+	}
+
+	// Find the next set of cache values, we may need to skip windows.
+	mergeValues := c.nextCache(winMin, winMax)
+	for len(mergeValues) == 0 && c.cache.pos >= 0 && c.cache.pos < len(c.cache.values) && c.cache.values[c.cache.pos].UnixNano() >= c.opt.StartTime {
+		winMin, winMax = c.opt.Window(winMax + 1)
+		mergeValues = c.nextCache(winMin, winMax)
+	}
+
+	if c.cache.pos < 0 || c.cache.pos >= len(c.cache.values) || c.cache.values[c.cache.pos].UnixNano() > c.opt.EndTime {
+		c.cache.values = c.cache.values[:0]
+	}
+
+	if !c.tsm.keyCursor.NextWindow(winMin, winMax) && len(mergeValues) == 0 && len(c.cache.values) == 0 {
+		c.aggTSMValue = IntegerValue{tsdb.EOF, 0}
+		return
+	}
+
+	c.aggTSMValue, _ = c.tsm.keyCursor.CountBooleanBlock(&c.tsm.values, mergeValues, winMin, winMax)
+}
+
+type booleanDescendingCountCursor struct {
+	cache struct {
+		values Values
+		pos    int
+	}
+
+	tsm struct {
+		values    []BooleanValue
+		keyCursor *KeyCursor
+	}
+	opt         query.IteratorOptions
+	aggTSMValue IntegerValue
+}
+
+func newBooleanDescendingCountCursor(opt query.IteratorOptions, seek int64, cacheValues Values, tsmKeyCursor *KeyCursor) *booleanDescendingCountCursor {
+	c := &booleanDescendingCountCursor{
+		opt: opt,
+	}
+
+	c.cache.values = cacheValues
+	c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
+		return c.cache.values[i].UnixNano() >= seek
+	})
+	if c.cache.pos >= len(c.cache.values) {
+		c.cache.pos--
+	}
+
+	winMin, winMax := opt.Window(seek)
+
+	mergeValues := c.nextCache(winMin, winMax)
+	for len(mergeValues) == 0 && c.cache.pos > 0 && c.cache.values[c.cache.pos].UnixNano() >= c.opt.StartTime {
+		winMin, winMax = c.opt.Window(winMin - 1)
+		mergeValues = c.nextCache(winMin, winMax)
+	}
+	if c.cache.pos > 0 && len(c.cache.values) > 0 && c.cache.values[c.cache.pos].UnixNano() < c.opt.StartTime {
+		c.cache.values = c.cache.values[:0]
+	}
+
+	c.tsm.keyCursor = tsmKeyCursor
+	if !c.tsm.keyCursor.NextWindow(winMin, winMax) && len(mergeValues) == 0 && len(c.cache.values) == 0 {
+		c.aggTSMValue = IntegerValue{tsdb.EOF, 0}
+		return c
+	}
+
+	c.aggTSMValue, _ = c.tsm.keyCursor.CountBooleanBlock(&c.tsm.values, mergeValues, winMin, winMax)
+
+	return c
+}
+
+// nextCache returns the next cache values within the winMin and winMax
+func (c *booleanDescendingCountCursor) nextCache(winMin, winMax int64) []BooleanValue {
+	if c.cache.pos >= len(c.cache.values) {
+		return nil
+	}
+
+	count, origPos := 0, c.cache.pos
+	for c.cache.pos >= 0 && c.cache.values[c.cache.pos].UnixNano() >= winMin {
+		c.cache.pos--
+		count++
+	}
+
+	return toBooleanValues(c.cache.values[c.cache.pos+1 : origPos+1])
+}
+
+// peekTSM returns the current time/value from tsm.
+func (c *booleanDescendingCountCursor) peekTSM() (t int64, v int64) {
+	return c.aggTSMValue.unixnano, c.aggTSMValue.value
+}
+
+// close closes the cursor and any dependent cursors.
+func (c *booleanDescendingCountCursor) close() error {
+	c.tsm.keyCursor.Close()
+	c.tsm.keyCursor = nil
+	c.cache.values = nil
+	c.tsm.values = nil
+	return nil
+}
+
+// next returns the next key/value for the cursor.
+func (c *booleanDescendingCountCursor) next() (int64, interface{}) { return c.nextInteger() }
+
+// nextInteger returns the next key/value for the cursor.
+func (c *booleanDescendingCountCursor) nextInteger() (int64, int64) {
+	tkey, tvalue := c.peekTSM()
+
+	// No more data in cache or in TSM files.
+	if tkey == tsdb.EOF {
+		return tsdb.EOF, 0
+	}
+
+	// Buffered TSM key precedes that in cache.
+	c.nextTSM()
+	return tkey, tvalue
+}
+
+// nextTSM returns the next value from the TSM files.
+func (c *booleanDescendingCountCursor) nextTSM() {
+	if c.opt.Interval.IsZero() {
+		c.aggTSMValue = IntegerValue{tsdb.EOF, 0}
+		return
+	}
+
+	// Find the current window
+	winMin, winMax := c.opt.Window(c.aggTSMValue.UnixNano())
+	// Move to the previous window
+	winMin, winMax = c.opt.Window(winMin - 1)
+	if winMin < c.opt.StartTime {
+		winMin = c.opt.StartTime
+	}
+
+	if winMax <= c.opt.StartTime {
+		c.aggTSMValue = IntegerValue{tsdb.EOF, 0}
+		return
+	}
+
+	// Find the next set of cache values, we may need to skip windows.
+	mergeValues := c.nextCache(winMin, winMax)
+	for len(mergeValues) == 0 && c.cache.pos > 0 && winMax > c.opt.StartTime {
+		winMin, winMax = c.opt.Window(winMin - 1)
+		mergeValues = c.nextCache(winMin, winMax)
+	}
+
+	// Any more cache values?
+	if c.cache.pos > 0 && len(c.cache.values) > 0 && c.cache.values[c.cache.pos].UnixNano() < c.opt.StartTime {
+		c.cache.values = c.cache.values[:0]
+	}
+
+	// No more cache or TSM values to read, we're done.
+	if !c.tsm.keyCursor.NextWindow(winMin, winMax) && len(mergeValues) == 0 && len(c.cache.values) == 0 {
+		c.aggTSMValue = IntegerValue{tsdb.EOF, 0}
+		return
+	}
+
+	c.aggTSMValue, _ = c.tsm.keyCursor.CountBooleanBlock(&c.tsm.values, mergeValues, winMin, winMax)
 }
 
 type booleanIterator struct {

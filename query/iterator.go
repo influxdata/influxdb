@@ -961,6 +961,31 @@ func (opt *IteratorOptions) Zone(ns int64) (string, int64) {
 	return name, secToNs * int64(offset)
 }
 
+// IndexOnlyConditions returns true if the conditions specifies only time or tag conditions.
+func (opt *IteratorOptions) IndexOnlyConditions() bool {
+	onlyTime := true
+	influxql.WalkFunc(opt.Condition, func(n influxql.Node) {
+		if ex, ok := n.(*influxql.BinaryExpr); ok {
+			if lhs, ok := ex.LHS.(*influxql.VarRef); ok {
+				if lhs.Val != "time" && lhs.Type != influxql.Tag {
+					onlyTime = false
+				}
+			}
+		}
+	})
+
+	// See if there are any system names being queried
+	influxql.WalkFunc(opt.Expr, func(n influxql.Node) {
+		if varRef, ok := n.(*influxql.VarRef); ok {
+			if influxql.IsSystemName(varRef.Val) {
+				onlyTime = false
+			}
+		}
+	})
+
+	return onlyTime
+}
+
 // MarshalBinary encodes opt into a binary format.
 func (opt *IteratorOptions) MarshalBinary() ([]byte, error) {
 	return proto.Marshal(encodeIteratorOptions(opt))

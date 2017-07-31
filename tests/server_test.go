@@ -1822,6 +1822,11 @@ cpu0,host=server02 ticks=101,total=100 1278010023000000000
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:00Z",2],["2010-07-01T18:47:02Z",0]]}]}]}`,
 		},
 		&Query{
+			name:    "calculate derivative of count with unit default (2s) group by time",
+			command: `SELECT derivative(count(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) order by time desc`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",2],["2010-07-01T18:47:00Z",0]]}]}]}`,
+		},
+		&Query{
 			name:    "calculate derivative of count with unit 4s group by time",
 			command: `SELECT derivative(count(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:00Z",4],["2010-07-01T18:47:02Z",0]]}]}]}`,
@@ -2726,9 +2731,19 @@ cpu value=20 1278010021000000000
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","cumulative_sum"],"values":[["2010-07-01T18:47:00Z",2],["2010-07-01T18:47:02Z",2]]}]}]}`,
 		},
 		&Query{
+			name:    "calculate cumulative sum of count with fill 0 desc",
+			command: `SELECT cumulative_sum(count(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(0) order by time desc`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","cumulative_sum"],"values":[["2010-07-01T18:47:02Z",0],["2010-07-01T18:47:00Z",2]]}]}]}`,
+		},
+		&Query{
 			name:    "calculate cumulative sum of count with fill previous",
 			command: `SELECT cumulative_sum(count(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(previous)`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","cumulative_sum"],"values":[["2010-07-01T18:47:00Z",2],["2010-07-01T18:47:02Z",4]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate cumulative sum of count with fill previous desc",
+			command: `SELECT cumulative_sum(count(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(previous) order by time desc`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","cumulative_sum"],"values":[["2010-07-01T18:47:00Z",2]]}]}]}`,
 		},
 		&Query{
 			name:    "calculate cumulative sum of mean with fill 0",
@@ -2861,6 +2876,11 @@ events signup=t 3838400000
 			name:    "cumulative count",
 			command: `SELECT cumulative_sum(count(signup)) from db0.rp0.events where time >= 1s and time < 4s group by time(1s)`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"events","columns":["time","cumulative_sum"],"values":[["1970-01-01T00:00:01Z",3],["1970-01-01T00:00:02Z",4],["1970-01-01T00:00:03Z",6]]}]}]}`,
+		},
+		&Query{
+			name:    "cumulative count desc",
+			command: `SELECT cumulative_sum(count(signup)) from db0.rp0.events where time >= 1s and time < 4s group by time(1s) order by time desc`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"events","columns":["time","cumulative_sum"],"values":[["1970-01-01T00:00:03Z",2],["1970-01-01T00:00:02Z",3],["1970-01-01T00:00:01Z",6]]}]}]}`,
 		},
 	}...)
 
@@ -2998,14 +3018,28 @@ func TestServer_Query_MergeMany(t *testing.T) {
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","count"],"values":[["1970-01-01T00:00:01Z",10],["1970-01-01T00:00:02Z",10],["1970-01-01T00:00:03Z",10],["1970-01-01T00:00:04Z",10],["1970-01-01T00:00:05Z",7],["1970-01-01T00:00:06Z",3]]}]}]}`,
 		},
 		&Query{
-			skip:    true,
-			name:    "GROUP by tag - FIXME issue #2875",
-			command: `SELECT count(value) FROM db0.rp0.cpu where time >= '2000-01-01T00:00:00Z' and time <= '2000-01-01T02:00:00Z' group by host`,
-			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","count"],"values":[["2000-01-01T00:00:00Z",1]]},{"name":"cpu","tags":{"host":"server02"},"columns":["time","count"],"values":[["2000-01-01T00:00:00Z",1]]},{"name":"cpu","tags":{"host":"server03"},"columns":["time","count"],"values":[["2000-01-01T00:00:00Z",1]]}]}]}`,
+			name:    "GROUP by time desc",
+			command: `SELECT count(value) FROM db0.rp0.cpu WHERE time >= '1970-01-01T00:00:01Z' AND time <= '1970-01-01T00:00:06Z' GROUP BY time(1s) order by time desc`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","count"],"values":[["1970-01-01T00:00:06Z",3],["1970-01-01T00:00:05Z",7],["1970-01-01T00:00:04Z",10],["1970-01-01T00:00:03Z",10],["1970-01-01T00:00:02Z",10],["1970-01-01T00:00:01Z",10]]}]}]}`,
+		},
+		&Query{
+			name:    "GROUP by tag",
+			command: `SELECT count(value) FROM db0.rp0.cpu where time >= '1970-01-01T00:00:05Z' and time <= '1970-01-01T00:00:06Z' group by host`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","tags":{"host":"server_1"},"columns":["time","count"],"values":[["1970-01-01T00:00:05Z",1]]},{"name":"cpu","tags":{"host":"server_10"},"columns":["time","count"],"values":[["1970-01-01T00:00:05Z",1]]},{"name":"cpu","tags":{"host":"server_2"},"columns":["time","count"],"values":[["1970-01-01T00:00:05Z",2]]},{"name":"cpu","tags":{"host":"server_4"},"columns":["time","count"],"values":[["1970-01-01T00:00:05Z",1]]},{"name":"cpu","tags":{"host":"server_5"},"columns":["time","count"],"values":[["1970-01-01T00:00:05Z",2]]},{"name":"cpu","tags":{"host":"server_7"},"columns":["time","count"],"values":[["1970-01-01T00:00:05Z",1]]},{"name":"cpu","tags":{"host":"server_8"},"columns":["time","count"],"values":[["1970-01-01T00:00:05Z",2]]}]}]}`,
+		},
+		&Query{
+			name:    "GROUP by tag desc",
+			command: `SELECT count(value) FROM db0.rp0.cpu where time >= '1970-01-01T00:00:05Z' and time <= '1970-01-01T00:00:06Z' group by host order by time desc`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","tags":{"host":"server_8"},"columns":["time","count"],"values":[["1970-01-01T00:00:05Z",2]]},{"name":"cpu","tags":{"host":"server_7"},"columns":["time","count"],"values":[["1970-01-01T00:00:05Z",1]]},{"name":"cpu","tags":{"host":"server_5"},"columns":["time","count"],"values":[["1970-01-01T00:00:05Z",2]]},{"name":"cpu","tags":{"host":"server_4"},"columns":["time","count"],"values":[["1970-01-01T00:00:05Z",1]]},{"name":"cpu","tags":{"host":"server_2"},"columns":["time","count"],"values":[["1970-01-01T00:00:05Z",2]]},{"name":"cpu","tags":{"host":"server_10"},"columns":["time","count"],"values":[["1970-01-01T00:00:05Z",1]]},{"name":"cpu","tags":{"host":"server_1"},"columns":["time","count"],"values":[["1970-01-01T00:00:05Z",1]]}]}]}`,
 		},
 		&Query{
 			name:    "GROUP by field",
 			command: `SELECT count(value) FROM db0.rp0.cpu group by value`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","tags":{"value":""},"columns":["time","count"],"values":[["1970-01-01T00:00:00Z",50]]}]}]}`,
+		},
+		&Query{
+			name:    "GROUP by field desc",
+			command: `SELECT count(value) FROM db0.rp0.cpu group by value order by time desc`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","tags":{"value":""},"columns":["time","count"],"values":[["1970-01-01T00:00:00Z",50]]}]}]}`,
 		},
 	}...)
@@ -3056,13 +3090,29 @@ func TestServer_Query_SLimitAndSOffset(t *testing.T) {
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","tags":{"host":"server-2","region":"us-east"},"columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]},{"name":"cpu","tags":{"host":"server-3","region":"us-east"},"columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]}]}]}`,
 		},
 		&Query{
+			name:    "SLIMIT 2 SOFFSET 1 desc",
+			command: `SELECT count(value) FROM db0.rp0.cpu GROUP BY * ORDER BY time DESC SLIMIT 2 SOFFSET 1`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","tags":{"host":"server-3","region":"us-east"},"columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]},{"name":"cpu","tags":{"host":"server-2","region":"us-east"},"columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]}]}]}`,
+		},
+		&Query{
 			name:    "SLIMIT 2 SOFFSET 3",
 			command: `SELECT count(value) FROM db0.rp0.cpu GROUP BY * SLIMIT 2 SOFFSET 3`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","tags":{"host":"server-4","region":"us-east"},"columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]},{"name":"cpu","tags":{"host":"server-5","region":"us-east"},"columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]}]}]}`,
 		},
+
+		&Query{
+			name:    "SLIMIT 2 SOFFSET 3 desc",
+			command: `SELECT count(value) FROM db0.rp0.cpu GROUP BY * ORDER BY time DESC SLIMIT 2 SOFFSET 3`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","tags":{"host":"server-5","region":"us-east"},"columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]},{"name":"cpu","tags":{"host":"server-4","region":"us-east"},"columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]}]}]}`,
+		},
 		&Query{
 			name:    "SLIMIT 3 SOFFSET 8",
 			command: `SELECT count(value) FROM db0.rp0.cpu GROUP BY * SLIMIT 3 SOFFSET 8`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","tags":{"host":"server-9","region":"us-east"},"columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]}]}]}`,
+		},
+		&Query{
+			name:    "SLIMIT 3 SOFFSET 8 desc",
+			command: `SELECT count(value) FROM db0.rp0.cpu GROUP BY * ORDER BY time DESC SLIMIT 3 SOFFSET 8`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","tags":{"host":"server-9","region":"us-east"},"columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]}]}]}`,
 		},
 	}...)
@@ -3347,9 +3397,21 @@ func TestServer_Query_Aggregates_IntMany(t *testing.T) {
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"intmany","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",5]]}]}]}`,
 		},
 		&Query{
+			name:    "count distinct - int desc",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT COUNT(DISTINCT value) FROM intmany ORDER BY time DESC`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"intmany","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",5]]}]}]}`,
+		},
+		&Query{
 			name:    "count distinct as call - int",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT COUNT(DISTINCT(value)) FROM intmany`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"intmany","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",5]]}]}]}`,
+		},
+		&Query{
+			name:    "count distinct as call - int desc",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT COUNT(DISTINCT(value)) FROM intmany ORDER BY time DESC`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"intmany","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",5]]}]}]}`,
 		},
 		&Query{
@@ -3542,19 +3604,26 @@ func TestServer_Query_Aggregates_IntOverlap(t *testing.T) {
 	}
 
 	test.addQueries([]*Query{
-		/*		&Query{
-					name:    "aggregation with no interval - int",
-					params:  url.Values{"db": []string{"db0"}},
-					command: `SELECT count(value) FROM intoverlap WHERE time = '2000-01-01 00:00:00'`,
-					exp:     `{"results":[{"statement_id":0,"series":[{"name":"intoverlap","columns":["time","count"],"values":[["2000-01-01T00:00:00Z",2]]}]}]}`,
-				},
-				&Query{
-					name:    "sum - int",
-					params:  url.Values{"db": []string{"db0"}},
-					command: `SELECT SUM(value) FROM intoverlap WHERE time >= '2000-01-01 00:00:05' AND time <= '2000-01-01T00:00:10Z' GROUP BY time(10s), region`,
-					exp:     `{"results":[{"statement_id":0,"series":[{"name":"intoverlap","tags":{"region":"us-east"},"columns":["time","sum"],"values":[["2000-01-01T00:00:10Z",30]]}]}]}`,
-				},
-		*/&Query{
+		&Query{
+			name:    "aggregation with no interval - int",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT count(value) FROM intoverlap WHERE time = '2000-01-01 00:00:00'`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"intoverlap","columns":["time","count"],"values":[["2000-01-01T00:00:00Z",2]]}]}]}`,
+		},
+		&Query{
+			name:    "aggregation with no interval - int desc",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT count(value) FROM intoverlap WHERE time = '2000-01-01 00:00:00' ORDER BY time DESC`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"intoverlap","columns":["time","count"],"values":[["2000-01-01T00:00:00Z",2]]}]}]}`,
+		},
+		&Query{
+			name:    "sum - int",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT SUM(value) FROM intoverlap WHERE time >= '2000-01-01 00:00:05' AND time <= '2000-01-01T00:00:10Z' GROUP BY time(10s), region`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"intoverlap","tags":{"region":"us-east"},"columns":["time","sum"],"values":[["2000-01-01T00:00:10Z",30]]}]}]}`,
+			skip:    true,
+		},
+		&Query{
 			name:    "aggregation with a null field value - int",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT SUM(value) FROM intoverlap GROUP BY region`,
@@ -3567,11 +3636,16 @@ func TestServer_Query_Aggregates_IntOverlap(t *testing.T) {
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"intoverlap","tags":{"region":"us-east"},"columns":["time","sum","mean"],"values":[["1970-01-01T00:00:00Z",50,25]]},{"name":"intoverlap","tags":{"region":"us-west"},"columns":["time","sum","mean"],"values":[["1970-01-01T00:00:00Z",100,100]]}]}]}`,
 		},
 		&Query{
-			skip:    true,
-			name:    "multiple aggregations with division - int FIXME issue #2879",
+			name:    "multiple aggregations with division - int",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT sum(value), mean(value), sum(value) / mean(value) as div FROM intoverlap GROUP BY region`,
-			exp:     `{"results":[{"statement_id":0,"series":[{"name":"intoverlap","tags":{"region":"us-east"},"columns":["time","sum","mean","div"],"values":[["1970-01-01T00:00:00Z",50,25,2]]},{"name":"intoverlap","tags":{"region":"us-west"},"columns":["time","div"],"values":[["1970-01-01T00:00:00Z",100,100,1]]}]}]}`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"intoverlap","tags":{"region":"us-east"},"columns":["time","sum","mean","div"],"values":[["1970-01-01T00:00:00Z",50,25,2]]},{"name":"intoverlap","tags":{"region":"us-west"},"columns":["time","sum","mean","div"],"values":[["1970-01-01T00:00:00Z",100,100,1]]}]}]}`,
+		},
+		&Query{
+			name:    "multiple aggregations with division - int desc",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT sum(value), mean(value), sum(value) / mean(value) as div FROM intoverlap GROUP BY region ORDER BY time DESC`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"intoverlap","tags":{"region":"us-west"},"columns":["time","sum","mean","div"],"values":[["1970-01-01T00:00:00Z",100,100,1]]},{"name":"intoverlap","tags":{"region":"us-east"},"columns":["time","sum","mean","div"],"values":[["1970-01-01T00:00:00Z",50,25,2]]}]}]}`,
 		},
 	}...)
 
@@ -3733,9 +3807,21 @@ func TestServer_Query_Aggregates_FloatMany(t *testing.T) {
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"floatmany","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",5]]}]}]}`,
 		},
 		&Query{
+			name:    "count distinct - float desc",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT COUNT(DISTINCT value) FROM floatmany ORDER BY time DESC`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"floatmany","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",5]]}]}]}`,
+		},
+		&Query{
 			name:    "count distinct as call - float",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT COUNT(DISTINCT(value)) FROM floatmany`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"floatmany","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",5]]}]}]}`,
+		},
+		&Query{
+			name:    "count distinct as call - float desc",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT COUNT(DISTINCT(value)) FROM floatmany ORDER BY time DESC`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"floatmany","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",5]]}]}]}`,
 		},
 		&Query{
@@ -3792,6 +3878,12 @@ func TestServer_Query_Aggregates_FloatOverlap(t *testing.T) {
 			name:    "aggregation with no interval - float",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT count(value) FROM floatoverlap WHERE time = '2000-01-01 00:00:00'`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"floatoverlap","columns":["time","count"],"values":[["2000-01-01T00:00:00Z",2]]}]}]}`,
+		},
+		&Query{
+			name:    "aggregation with no interval - float desc",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT count(value) FROM floatoverlap WHERE time = '2000-01-01 00:00:00' ORDER BY time DESC`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"floatoverlap","columns":["time","count"],"values":[["2000-01-01T00:00:00Z",2]]}]}]}`,
 		},
 		&Query{
@@ -4031,21 +4123,24 @@ func TestServer_Query_Aggregates_String(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT COUNT(value) FROM stringdata`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"stringdata","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",2]]}]}]}`,
-			skip:    true, // FIXME(benbjohnson): allow non-float var ref expr in cursor iterator
+		},
+		&Query{
+			name:    "COUNT on string data - string desc",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT COUNT(value) FROM stringdata ORDER BY time DESC`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"stringdata","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",2]]}]}]}`,
 		},
 		&Query{
 			name:    "FIRST on string data - string",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT FIRST(value) FROM stringdata`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"stringdata","columns":["time","first"],"values":[["2000-01-01T00:00:03Z","first"]]}]}]}`,
-			skip:    true, // FIXME(benbjohnson): allow non-float var ref expr in cursor iterator
 		},
 		&Query{
 			name:    "LAST on string data - string",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT LAST(value) FROM stringdata`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"stringdata","columns":["time","last"],"values":[["2000-01-01T00:00:04Z","last"]]}]}]}`,
-			skip:    true, // FIXME(benbjohnson): allow non-float var ref expr in cursor iterator
 		},
 	}...)
 
@@ -4284,6 +4379,12 @@ func TestServer_Query_AggregateSelectors(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT count(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"network","columns":["time","count"],"values":[["2000-01-01T00:00:00Z",3],["2000-01-01T00:00:30Z",3],["2000-01-01T00:01:00Z",3]]}]}]}`,
+		},
+		&Query{
+			name:    "count - baseline 30s desc",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT count(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s) ORDER BY time DESC`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"network","columns":["time","count"],"values":[["2000-01-01T00:01:00Z",3],["2000-01-01T00:00:30Z",3],["2000-01-01T00:00:00Z",3]]}]}]}`,
 		},
 		&Query{
 			name:    "count - time",
@@ -5230,6 +5331,11 @@ func TestServer_Query_Subqueries(t *testing.T) {
 		&Query{
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT count(host) FROM (SELECT top(usage_user, host, 2) FROM cpu) WHERE time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T00:00:30Z'`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","count"],"values":[["2000-01-01T00:00:00Z",2]]}]}]}`,
+		},
+		&Query{
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT count(host) FROM (SELECT top(usage_user, host, 2) FROM cpu) WHERE time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T00:00:30Z' ORDER BY time DESC`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","count"],"values":[["2000-01-01T00:00:00Z",2]]}]}]}`,
 		},
 		&Query{
@@ -6491,9 +6597,21 @@ func TestServer_Query_Fill(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
+			name:    "fill none drops 0s for count desc",
+			command: `select count(val) from fills where time >= '2009-11-10T23:00:00Z' and time < '2009-11-10T23:00:20Z' group by time(5s) fill(none) ORDER BY time DESC`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"fills","columns":["time","count"],"values":[["2009-11-10T23:00:15Z",1],["2009-11-10T23:00:05Z",1],["2009-11-10T23:00:00Z",2]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
 			name:    "fill previous overwrites 0s for count",
 			command: `select count(val) from fills where time >= '2009-11-10T23:00:00Z' and time < '2009-11-10T23:00:20Z' group by time(5s) fill(previous)`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"fills","columns":["time","count"],"values":[["2009-11-10T23:00:00Z",2],["2009-11-10T23:00:05Z",1],["2009-11-10T23:00:10Z",1],["2009-11-10T23:00:15Z",1]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "fill previous overwrites 0s for count desc",
+			command: `select count(val) from fills where time >= '2009-11-10T23:00:00Z' and time < '2009-11-10T23:00:20Z' group by time(5s) fill(previous) ORDER BY time DESC`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"fills","columns":["time","count"],"values":[["2009-11-10T23:00:15Z",1],["2009-11-10T23:00:10Z",1],["2009-11-10T23:00:05Z",1],["2009-11-10T23:00:00Z",2]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 	}...)
@@ -6562,9 +6680,21 @@ func TestServer_Query_TimeZone(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
+			name:    "timezone offset - dst start - daily desc",
+			command: `SELECT count(value) FROM cpu WHERE time >= '2000-04-02T00:00:00-08:00' AND time < '2000-04-04T00:00:00-07:00' AND interval = 'daily' GROUP BY time(1d) ORDER BY time DESC TZ('America/Los_Angeles')`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","count"],"values":[["2000-04-03T00:00:00-07:00",24],["2000-04-02T00:00:00-08:00",23]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
 			name:    "timezone offset - no change - daily",
 			command: `SELECT count(value) FROM cpu WHERE time >= '2000-06-01T00:00:00-07:00' AND time < '2000-06-03T00:00:00-07:00' AND interval = 'daily' GROUP BY time(1d) TZ('America/Los_Angeles')`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","count"],"values":[["2000-06-01T00:00:00-07:00",24],["2000-06-02T00:00:00-07:00",24]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "timezone offset - no change - daily desc",
+			command: `SELECT count(value) FROM cpu WHERE time >= '2000-06-01T00:00:00-07:00' AND time < '2000-06-03T00:00:00-07:00' AND interval = 'daily' GROUP BY time(1d) ORDER BY time DESC TZ('America/Los_Angeles')`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","count"],"values":[["2000-06-02T00:00:00-07:00",24],["2000-06-01T00:00:00-07:00",24]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
@@ -6574,9 +6704,21 @@ func TestServer_Query_TimeZone(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
+			name:    "timezone offset - dst end - daily desc",
+			command: `SELECT count(value) FROM cpu WHERE time >= '2000-10-29T00:00:00-07:00' AND time < '2000-10-31T00:00:00-08:00' AND interval = 'daily' GROUP BY time(1d) ORDER BY time DESC TZ('America/Los_Angeles')`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","count"],"values":[["2000-10-30T00:00:00-08:00",24],["2000-10-29T00:00:00-07:00",25]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
 			name:    "timezone offset - dst start - hourly",
 			command: `SELECT count(value) FROM cpu WHERE time >= '2000-04-02T01:00:00-08:00' AND time < '2000-04-02T04:00:00-07:00' AND interval = 'hourly' GROUP BY time(1h) TZ('America/Los_Angeles')`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","count"],"values":[["2000-04-02T01:00:00-08:00",12],["2000-04-02T03:00:00-07:00",12]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "timezone offset - dst start - hourly desc",
+			command: `SELECT count(value) FROM cpu WHERE time >= '2000-04-02T01:00:00-08:00' AND time < '2000-04-02T04:00:00-07:00' AND interval = 'hourly' GROUP BY time(1h) ORDER BY time DESC TZ('America/Los_Angeles')`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","count"],"values":[["2000-04-02T03:00:00-07:00",12],["2000-04-02T01:00:00-08:00",12]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
@@ -6586,9 +6728,21 @@ func TestServer_Query_TimeZone(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
+			name:    "timezone offset - no change - hourly desc",
+			command: `SELECT count(value) FROM cpu WHERE time >= '2000-06-02T01:00:00-07:00' AND time < '2000-06-02T03:00:00-07:00' AND interval = 'hourly' GROUP BY time(1h) ORDER BY time DESC TZ('America/Los_Angeles')`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","count"],"values":[["2000-06-02T02:00:00-07:00",12],["2000-06-02T01:00:00-07:00",12]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
 			name:    "timezone offset - dst end - hourly",
 			command: `SELECT count(value) FROM cpu WHERE time >= '2000-10-29T01:00:00-07:00' AND time < '2000-10-29T02:00:00-08:00' AND interval = 'hourly' GROUP BY time(1h) TZ('America/Los_Angeles')`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","count"],"values":[["2000-10-29T01:00:00-07:00",12],["2000-10-29T01:00:00-08:00",12]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "timezone offset - dst end - hourly desc",
+			command: `SELECT count(value) FROM cpu WHERE time >= '2000-10-29T01:00:00-07:00' AND time < '2000-10-29T02:00:00-08:00' AND interval = 'hourly' GROUP BY time(1h) ORDER BY time DESC TZ('America/Los_Angeles')`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","count"],"values":[["2000-10-29T01:00:00-08:00",12],["2000-10-29T01:00:00-07:00",12]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 	}...)

@@ -24,6 +24,7 @@ func TestCallIterator_Count_Float(t *testing.T) {
 		}},
 		query.IteratorOptions{
 			Expr:       MustParseExpr(`count("value")`),
+			Condition:  MustParseExpr("value > 1"),
 			Dimensions: []string{"host"},
 			Interval:   query.Interval{Duration: 5 * time.Nanosecond},
 			Ordered:    true,
@@ -59,6 +60,7 @@ func TestCallIterator_Count_Integer(t *testing.T) {
 		}},
 		query.IteratorOptions{
 			Expr:       MustParseExpr(`count("value")`),
+			Condition:  MustParseExpr("value > 1"),
 			Dimensions: []string{"host"},
 			Interval:   query.Interval{Duration: 5 * time.Nanosecond},
 			Ordered:    true,
@@ -94,6 +96,7 @@ func TestCallIterator_Count_String(t *testing.T) {
 		}},
 		query.IteratorOptions{
 			Expr:       MustParseExpr(`count("value")`),
+			Condition:  MustParseExpr("value > 1"),
 			Dimensions: []string{"host"},
 			Interval:   query.Interval{Duration: 5 * time.Nanosecond},
 			Ordered:    true,
@@ -129,6 +132,7 @@ func TestCallIterator_Count_Boolean(t *testing.T) {
 		}},
 		query.IteratorOptions{
 			Expr:       MustParseExpr(`count("value")`),
+			Condition:  MustParseExpr("value > 1"),
 			Dimensions: []string{"host"},
 			Interval:   query.Interval{Duration: 5 * time.Nanosecond},
 			Ordered:    true,

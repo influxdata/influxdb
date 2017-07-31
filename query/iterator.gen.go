@@ -3801,7 +3801,7 @@ type integerParallelIterator struct {
 func newIntegerParallelIterator(input IntegerIterator) *integerParallelIterator {
 	itr := &integerParallelIterator{
 		input:   input,
-		ch:      make(chan integerPointError, 256),
+		ch:      make(chan integerPointError, 8192),
 		closing: make(chan struct{}),
 	}
 	itr.wg.Add(1)

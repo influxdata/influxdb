@@ -246,6 +246,19 @@ func BlockCount(block []byte) int {
 	return CountTimestamps(tb)
 }
 
+// BlockCount returns the number of timestamps encoded in block between [min, max)
+func BlockCountBetween(block []byte, min, max int64) int {
+	if len(block) <= encodedBlockHeaderSize {
+		panic(fmt.Sprintf("count of short block: got %v, exp %v", len(block), encodedBlockHeaderSize))
+	}
+	// first byte is the block type
+	tb, _, err := unpackBlock(block[1:])
+	if err != nil {
+		panic(fmt.Sprintf("BlockCount: error unpacking block: %s", err.Error()))
+	}
+	return CountTimestampsBetween(tb, min, max)
+}
+
 // DecodeBlock takes a byte slice and decodes it into values of the appropriate type
 // based on the block.
 func DecodeBlock(block []byte, vals []Value) ([]Value, error) {
@@ -341,7 +354,7 @@ func (v FloatValue) Size() int {
 
 // String returns the string representation of the value and its timestamp.
 func (v FloatValue) String() string {
-	return fmt.Sprintf("%v %v", time.Unix(0, v.unixnano), v.value)
+	return fmt.Sprintf("%v %v", time.Unix(0, v.unixnano).UTC(), v.value)
 }
 
 func encodeFloatBlock(buf []byte, values []Value) ([]byte, error) {
@@ -484,7 +497,7 @@ func (v BooleanValue) Value() interface{} {
 
 // String returns the string representation of the value and its timestamp.
 func (v BooleanValue) String() string {
-	return fmt.Sprintf("%v %v", time.Unix(0, v.unixnano), v.Value())
+	return fmt.Sprintf("%v %v", time.Unix(0, v.unixnano).UTC(), v.Value())
 }
 
 func encodeBooleanBlock(buf []byte, values []Value) ([]byte, error) {
@@ -618,7 +631,7 @@ func (v IntegerValue) Size() int {
 
 // String returns the string representation of the value and its timestamp.
 func (v IntegerValue) String() string {
-	return fmt.Sprintf("%v %v", time.Unix(0, v.unixnano), v.Value())
+	return fmt.Sprintf("%v %v", time.Unix(0, v.unixnano).UTC(), v.Value())
 }
 
 func encodeIntegerBlock(buf []byte, values []Value) ([]byte, error) {
@@ -744,7 +757,7 @@ func (v UnsignedValue) Size() int {
 
 // String returns the string representation of the value and its timestamp.
 func (v UnsignedValue) String() string {
-	return fmt.Sprintf("%v %v", time.Unix(0, v.unixnano), v.Value())
+	return fmt.Sprintf("%v %v", time.Unix(0, v.unixnano).UTC(), v.Value())
 }
 
 func encodeUnsignedBlock(buf []byte, values []Value) ([]byte, error) {
@@ -870,7 +883,7 @@ func (v StringValue) Size() int {
 
 // String returns the string representation of the value and its timestamp.
 func (v StringValue) String() string {
-	return fmt.Sprintf("%v %v", time.Unix(0, v.unixnano), v.Value())
+	return fmt.Sprintf("%v %v", time.Unix(0, v.unixnano).UTC(), v.Value())
 }
 
 func encodeStringBlock(buf []byte, values []Value) ([]byte, error) {
@@ -1069,3 +1082,43 @@ func getBooleanEncoder(sz int) BooleanEncoder {
 	return x
 }
 func putBooleanEncoder(enc BooleanEncoder) { booleanEncoderPool.Put(enc) }
+
+func toFloatValues(a []Value) []FloatValue {
+	x := make([]FloatValue, len(a))
+	for i := range a {
+		x[i] = a[i].(FloatValue)
+	}
+	return x
+}
+
+func toIntegerValues(a []Value) []IntegerValue {
+	x := make([]IntegerValue, len(a))
+	for i := range a {
+		x[i] = a[i].(IntegerValue)
+	}
+	return x
+}
+
+func toUnsignedValues(a []Value) []UnsignedValue {
+	x := make([]UnsignedValue, len(a))
+	for i := range a {
+		x[i] = a[i].(UnsignedValue)
+	}
+	return x
+}
+
+func toBooleanValues(a []Value) []BooleanValue {
+	x := make([]BooleanValue, len(a))
+	for i := range a {
+		x[i] = a[i].(BooleanValue)
+	}
+	return x
+}
+
+func toStringValues(a []Value) []StringValue {
+	x := make([]StringValue, len(a))
+	for i := range a {
+		x[i] = a[i].(StringValue)
+	}
+	return x
+}

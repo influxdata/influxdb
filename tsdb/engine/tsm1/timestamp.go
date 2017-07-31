@@ -429,9 +429,7 @@ func CountTimestampsBetween(b []byte, min, max int64) int {
 			ts := int64(binary.BigEndian.Uint64(b[i : i+8]))
 			if ts >= min && ts < max {
 				n++
-			}
-
-			if ts > max {
+			} else if ts >= max {
 				break
 			}
 		}
@@ -468,9 +466,7 @@ func CountTimestampsBetween(b []byte, min, max int64) int {
 		for i := 0; i < int(count); i++ {
 			if ts >= min && ts < max {
 				tot++
-			}
-
-			if ts > max {
+			} else if ts >= max {
 				break
 			}
 			ts += delta
@@ -493,7 +489,7 @@ func CountTimestampsBetween(b []byte, min, max int64) int {
 			}
 			if ts >= min && ts < max {
 				count++
-			} else if ts > max {
+			} else if ts >= max {
 				return false
 			}
 			return true

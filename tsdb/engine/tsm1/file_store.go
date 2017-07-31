@@ -35,6 +35,9 @@ type TSMFile interface {
 	ReadStringBlockAt(entry *IndexEntry, values *[]StringValue) ([]StringValue, error)
 	ReadBooleanBlockAt(entry *IndexEntry, values *[]BooleanValue) ([]BooleanValue, error)
 
+	CountBlock(entry *IndexEntry) (int64, int64, error)
+	CountBlockBetween(entry *IndexEntry, min, max int64) (int64, int64, error)
+
 	// Entries returns the index entries for all blocks for the given key.
 	Entries(key []byte) []IndexEntry
 	ReadEntries(key []byte, entries *[]IndexEntry)
@@ -936,6 +939,7 @@ func newKeyCursor(fs *FileStore, key []byte, t int64, ascending bool) *KeyCursor
 	}
 
 	c.duplicates = c.hasOverlappingBlocks()
+	c.current = make([]*location, 0, len(c.seeks))
 
 	if ascending {
 		sort.Sort(ascLocations(c.seeks))
@@ -1039,6 +1043,7 @@ func (c *KeyCursor) Next() {
 	if len(c.current) == 0 {
 		return
 	}
+
 	// Do we still have unread values in the current block
 	if !c.current[0].read() {
 		return
@@ -1049,6 +1054,42 @@ func (c *KeyCursor) Next() {
 	} else {
 		c.nextDescending()
 	}
+}
+
+// NextWindow resets the cursor to read values between min, max.  Values already
+// read not be returned again.  Returns true if there are more values that can
+// be read from the cursor.  A value of true does not indicate that there are
+// values to be read between min, max though.
+func (c *KeyCursor) NextWindow(min, max int64) bool {
+	c.current = c.current[:0]
+
+	var unread int
+	if c.ascending {
+		for i := 0; i < len(c.seeks); i++ {
+			if c.seeks[i].read() {
+				continue
+			}
+
+			unread++
+			if c.seeks[i].entry.OverlapsTimeRange(min, max) {
+				c.current = append(c.current, c.seeks[i])
+			}
+		}
+	} else {
+		for i := len(c.seeks) - 1; i >= 0; i-- {
+			if c.seeks[i].read() {
+				continue
+			}
+			unread++
+
+			if c.seeks[i].entry.OverlapsTimeRange(min, max) {
+				c.current = append(c.current, c.seeks[i])
+			}
+		}
+
+	}
+
+	return unread > 0
 }
 
 func (c *KeyCursor) nextAscending() {

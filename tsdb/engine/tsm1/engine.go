@@ -2026,6 +2026,23 @@ func (e *Engine) buildCursor(measurement, seriesKey string, tags models.Tags, re
 		return nil
 	}
 
+	if call, ok := opt.Expr.(*influxql.Call); ok && call.Name == "count" && opt.IndexOnlyConditions() {
+		switch f.Type {
+		case influxql.Float:
+			return e.buildFloatCountCursor(measurement, seriesKey, ref.Val, opt)
+		case influxql.Integer:
+			return e.buildIntegerCountCursor(measurement, seriesKey, ref.Val, opt)
+		case influxql.Unsigned:
+			return e.buildUnsignedCountCursor(measurement, seriesKey, ref.Val, opt)
+		case influxql.String:
+			return e.buildStringCountCursor(measurement, seriesKey, ref.Val, opt)
+		case influxql.Boolean:
+			return e.buildBooleanCountCursor(measurement, seriesKey, ref.Val, opt)
+		default:
+			panic("unreachable")
+		}
+	}
+
 	// Check if we need to perform a cast. Performing a cast in the
 	// engine (if it is possible) is much more efficient than an automatic cast.
 	if ref.Type != influxql.Unknown && ref.Type != influxql.AnyField && ref.Type != f.Type {
@@ -2100,6 +2117,14 @@ func matchTagValues(tags models.Tags, condition influxql.Expr) []string {
 	return values
 }
 
+// buildFloatCountCursor creates a count cursor for a float field.
+func (e *Engine) buildFloatCountCursor(measurement, seriesKey, field string, opt query.IteratorOptions) integerCursor {
+	key := SeriesFieldKeyBytes(seriesKey, field)
+	cacheValues := e.Cache.Values(key)
+	keyCursor := e.KeyCursor(key, opt.SeekTime(), opt.Ascending)
+	return newFloatCountCursor(opt, opt.SeekTime(), opt.Ascending, cacheValues, keyCursor)
+}
+
 // buildFloatCursor creates a cursor for a float field.
 func (e *Engine) buildFloatCursor(measurement, seriesKey, field string, opt query.IteratorOptions) floatCursor {
 	key := SeriesFieldKeyBytes(seriesKey, field)
@@ -2116,12 +2141,28 @@ func (e *Engine) buildIntegerCursor(measurement, seriesKey, field string, opt qu
 	return newIntegerCursor(opt.SeekTime(), opt.Ascending, cacheValues, keyCursor)
 }
 
+// buildIntegerCursor creates a cursor for an integer field.
+func (e *Engine) buildIntegerCountCursor(measurement, seriesKey, field string, opt query.IteratorOptions) integerCursor {
+	key := SeriesFieldKeyBytes(seriesKey, field)
+	cacheValues := e.Cache.Values(key)
+	keyCursor := e.KeyCursor(key, opt.SeekTime(), opt.Ascending)
+	return newIntegerCountCursor(opt, opt.SeekTime(), opt.Ascending, cacheValues, keyCursor)
+}
+
 // buildUnsignedCursor creates a cursor for an unsigned field.
 func (e *Engine) buildUnsignedCursor(measurement, seriesKey, field string, opt query.IteratorOptions) unsignedCursor {
 	key := SeriesFieldKeyBytes(seriesKey, field)
 	cacheValues := e.Cache.Values(key)
 	keyCursor := e.KeyCursor(key, opt.SeekTime(), opt.Ascending)
 	return newUnsignedCursor(opt.SeekTime(), opt.Ascending, cacheValues, keyCursor)
+}
+
+// buildUnsignedCursor creates a cursor for an unsigned field.
+func (e *Engine) buildUnsignedCountCursor(measurement, seriesKey, field string, opt query.IteratorOptions) integerCursor {
+	key := SeriesFieldKeyBytes(seriesKey, field)
+	cacheValues := e.Cache.Values(key)
+	keyCursor := e.KeyCursor(key, opt.SeekTime(), opt.Ascending)
+	return newUnsignedCountCursor(opt, opt.SeekTime(), opt.Ascending, cacheValues, keyCursor)
 }
 
 // buildStringCursor creates a cursor for a string field.
@@ -2132,12 +2173,28 @@ func (e *Engine) buildStringCursor(measurement, seriesKey, field string, opt que
 	return newStringCursor(opt.SeekTime(), opt.Ascending, cacheValues, keyCursor)
 }
 
+// buildStringCursor creates a cursor for a string field.
+func (e *Engine) buildStringCountCursor(measurement, seriesKey, field string, opt query.IteratorOptions) integerCursor {
+	key := SeriesFieldKeyBytes(seriesKey, field)
+	cacheValues := e.Cache.Values(key)
+	keyCursor := e.KeyCursor(key, opt.SeekTime(), opt.Ascending)
+	return newStringCountCursor(opt, opt.SeekTime(), opt.Ascending, cacheValues, keyCursor)
+}
+
 // buildBooleanCursor creates a cursor for a boolean field.
 func (e *Engine) buildBooleanCursor(measurement, seriesKey, field string, opt query.IteratorOptions) booleanCursor {
 	key := SeriesFieldKeyBytes(seriesKey, field)
 	cacheValues := e.Cache.Values(key)
 	keyCursor := e.KeyCursor(key, opt.SeekTime(), opt.Ascending)
 	return newBooleanCursor(opt.SeekTime(), opt.Ascending, cacheValues, keyCursor)
+}
+
+// buildBooleanCountCursor creates a cursor for a boolean field.
+func (e *Engine) buildBooleanCountCursor(measurement, seriesKey, field string, opt query.IteratorOptions) integerCursor {
+	key := SeriesFieldKeyBytes(seriesKey, field)
+	cacheValues := e.Cache.Values(key)
+	keyCursor := e.KeyCursor(key, opt.SeekTime(), opt.Ascending)
+	return newBooleanCountCursor(opt, opt.SeekTime(), opt.Ascending, cacheValues, keyCursor)
 }
 
 func (e *Engine) SeriesPointIterator(opt query.IteratorOptions) (query.Iterator, error) {

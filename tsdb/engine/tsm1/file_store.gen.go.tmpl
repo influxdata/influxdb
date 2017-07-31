@@ -1,7 +1,132 @@
 package tsm1
 
+import (
+	"math"
+)
 
 {{range .}}
+
+// Count{{ .Name }}Block counts the values in the current blocks that have a timestamp
+// between [min, max).
+func (c *KeyCursor) Count{{ .Name }}Block(buf *[]{{ .Name }}Value, mergeValues []{{ .Name }}Value, min, max int64) (IntegerValue, error) {
+	// No matching blocks to decode
+	if len(c.current) == 0 && len(mergeValues) == 0 {
+		return IntegerValue{min, 0}, nil
+	}
+
+	// See if any of the files have tombstones.  This is a very coarse check, we could look at the
+	// tombstone for this key instead.
+	var hasTombstones bool
+	for _, block := range c.current {
+		if block.r.HasTombstones() {
+			hasTombstones = true
+			break
+		}
+	}
+
+	// Slowest path: If there are overlapping blocks or tombstones, we have to decode the block to
+	// count them.
+	if c.duplicates || hasTombstones || len(mergeValues) > 0 {
+        var count int64
+        minT, maxT := int64(math.MaxInt64), int64(math.MinInt64)
+    LOOP_SLOW:
+		vals, err := c.Read{{ .Name }}Block(buf)
+		if err != nil {
+			return IntegerValue{min, 0}, err
+		}
+
+		if len(vals) > 0 {
+			// Merge the TSM values with any cache values that overlap
+			vals = {{ .Name }}Values(vals).Merge({{ .Name }}Values(mergeValues).Include(vals[0].UnixNano(), vals[len(vals)-1].UnixNano()))
+			// Drop any values outside the window
+			vals = {{ .Name }}Values(vals).Include(min, max)
+			// Remove the merge values so we don't double count them
+			mergeValues = {{ .Name }}Values(mergeValues).Exclude(vals[0].UnixNano(), vals[len(vals)-1].UnixNano())
+		} else {
+			vals = {{ .Name }}Values(mergeValues).Include(min, max)
+		}
+
+		var maybeMore bool
+		for _, v := range vals {
+			if v.unixnano >= min && v.unixnano < max {
+				if v.unixnano > maxT {
+					maxT = v.unixnano
+				}
+				if v.unixnano <= minT {
+					minT = v.unixnano
+				}
+				maybeMore = true
+				count++
+			} else if v.unixnano >= max {
+				break
+			}
+		}
+
+        // See if there are more values to read.
+        for _, block := range c.current {
+			if c.ascending {
+				if maxT != math.MinInt64 {
+					block.readMax = maxT
+				}
+			} else {
+				if maxT != math.MaxInt64 {
+					block.readMin = minT
+				}
+			}
+		}
+
+       if maybeMore {
+			// See if there are more values to read.
+			for _, block := range c.current {
+				if block.readMin > min || block.readMax < max {
+					c.NextWindow(min, max)
+					goto LOOP_SLOW
+				}
+			}
+        }
+		return IntegerValue{min, count}, nil
+	}
+
+	var count int64
+	for _, block := range c.current {
+		if block.read() || (block.readMin <= min && block.readMax >= max) {
+			continue
+		}
+
+		// Fastest path: Can we count the whole block?
+		if block.entry.MinTime >= min && block.entry.MaxTime < max {
+			_, cnt, err := block.r.CountBlock(&block.entry)
+			if err != nil {
+				return IntegerValue{min, 0}, err
+			}
+			block.markRead(block.entry.MinTime, block.entry.MaxTime)
+			count += cnt
+		} else {
+			// Clamp our window to avoid counting values more than once
+			minT, maxT := min, max
+			if c.ascending {
+				if block.readMax > min {
+					minT = block.readMax
+				}
+			} else {
+				if block.readMin < max {
+					maxT = block.readMin
+			    }
+			}
+
+			// Slower path: Do a partial count
+			_, cnt, err := block.r.CountBlockBetween(&block.entry, minT, maxT)
+			if err != nil {
+				return IntegerValue{min, 0}, err
+			}
+			block.markRead(minT, maxT-1)
+			count += cnt
+		}
+	}
+
+	return IntegerValue{min, count}, nil
+}
+
 // Read{{.Name}}Block reads the next block as a set of {{.name}} values.
 func (c *KeyCursor) Read{{.Name}}Block(buf *[]{{.Name}}Value) ([]{{.Name}}Value, error) {
 	// No matching blocks to decode

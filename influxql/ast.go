@@ -472,6 +472,7 @@ func IsSystemName(name string) bool {
 	case "_fieldKeys",
 		"_measurements",
 		"_series",
+		"_seriesKey",
 		"_tagKeys",
 		"_tags":
 		return true

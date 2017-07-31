@@ -173,6 +173,10 @@ func (b *BlockIterator) Read() (key []byte, minTime int64, maxTime int64, typ by
 // TSM file.
 type blockAccessor interface {
 	init() (*indirectIndex, error)
+
+	countBlock(entry *IndexEntry) (int64, int64, error)
+	countBlockBetween(entry *IndexEntry, min, max int64) (int64, int64, error)
+
 	read(key []byte, timestamp int64) ([]Value, error)
 	readAll(key []byte) ([]Value, error)
 	readBlock(entry *IndexEntry, values []Value) ([]Value, error)
@@ -278,6 +282,20 @@ func (t *TSMReader) ReadFloatBlockAt(entry *IndexEntry, vals *[]FloatValue) ([]F
 	v, err := t.accessor.readFloatBlock(entry, vals)
 	t.mu.RUnlock()
 	return v, err
+}
+
+func (t *TSMReader) CountBlock(entry *IndexEntry) (int64, int64, error) {
+	t.mu.RLock()
+	ts, n, err := t.accessor.countBlock(entry)
+	t.mu.RUnlock()
+	return ts, n, err
+}
+
+func (t *TSMReader) CountBlockBetween(entry *IndexEntry, min, max int64) (int64, int64, error) {
+	t.mu.RLock()
+	ts, n, err := t.accessor.countBlockBetween(entry, min, max)
+	t.mu.RUnlock()
+	return ts, n, err
 }
 
 // ReadIntegerBlockAt returns the integer values corresponding to the given index entry.
@@ -1146,6 +1164,34 @@ func (m *mmapAccessor) readFloatBlock(entry *IndexEntry, values *[]FloatValue) (
 	}
 
 	return a, nil
+}
+
+func (m *mmapAccessor) countBlock(entry *IndexEntry) (int64, int64, error) {
+	m.mu.RLock()
+
+	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
+		m.mu.RUnlock()
+		return 0, 0, ErrTSMClosed
+	}
+
+	n := BlockCount(m.b[entry.Offset+4 : entry.Offset+int64(entry.Size)])
+	m.mu.RUnlock()
+
+	return entry.MinTime, int64(n), nil
+}
+
+func (m *mmapAccessor) countBlockBetween(entry *IndexEntry, min, max int64) (int64, int64, error) {
+	m.mu.RLock()
+
+	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
+		m.mu.RUnlock()
+		return 0, 0, ErrTSMClosed
+	}
+
+	n := BlockCountBetween(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], min, max)
+	m.mu.RUnlock()
+
+	return entry.MinTime, int64(n), nil
 }
 
 func (m *mmapAccessor) readIntegerBlock(entry *IndexEntry, values *[]IntegerValue) ([]IntegerValue, error) {
