@@ -34,7 +34,6 @@ class CellEditorOverlay extends Component {
     this.handleSetActiveQueryIndex = ::this.handleSetActiveQueryIndex
     this.handleEditRawText = ::this.handleEditRawText
     this.handleSetRange = ::this.handleSetRange
-    this.normalizeAxes = ::this.normalizeAxes
 
     const {cell: {name, type, queries, axes}} = props
 
@@ -82,7 +81,6 @@ class CellEditorOverlay extends Component {
   handleSetRange(e) {
     const {min, max} = e.target.form
 
-    // TODO: handle "" for min and max value
     this.setState({
       axes: {
         y: {
@@ -111,10 +109,10 @@ class CellEditorOverlay extends Component {
       queriesWorkingDraft,
       cellWorkingType: type,
       cellWorkingName: name,
+      axes,
     } = this.state
 
     const {cell} = this.props
-    const axes = this.normalizeAxes()
 
     const queries = queriesWorkingDraft.map(q => {
       const timeRange = q.range || {upper: null, lower: ':dashboardTime:'}
@@ -135,22 +133,6 @@ class CellEditorOverlay extends Component {
       queries,
       axes,
     })
-  }
-
-  normalizeAxes() {
-    const axes = this.state.axes
-    const bounds = _.get(axes, ['y', 'bounds'], false)
-    if (!bounds && !bounds.length) {
-      return {...axes, y: {bounds: []}}
-    }
-
-    const [min, max] = bounds
-    if (min === '' || max === '') {
-      // TODO: throw requirement error
-      return
-    }
-
-    return {...axes, y: {bounds: [+min, +max]}}
   }
 
   handleSelectGraphType(graphType) {
