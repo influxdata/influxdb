@@ -235,7 +235,11 @@ func ValidDashboardRequest(d *chronograf.Dashboard) error {
 // DashboardDefaults updates the dashboard with the default values
 // if none are specified
 func DashboardDefaults(d chronograf.Dashboard) (newDash chronograf.Dashboard) {
+	newDash.ID = d.ID
+	newDash.Templates = d.Templates
+	newDash.Name = d.Name
 	newDash.Cells = make([]chronograf.DashboardCell, len(d.Cells))
+
 	for i, c := range d.Cells {
 		CorrectWidthHeight(&c)
 		newDash.Cells[i] = c
@@ -246,7 +250,11 @@ func DashboardDefaults(d chronograf.Dashboard) (newDash chronograf.Dashboard) {
 // AddQueryConfigs updates all the celsl in the dashboard to have query config
 // objects corresponding to their influxql queries.
 func AddQueryConfigs(d chronograf.Dashboard) (newDash chronograf.Dashboard) {
+	newDash.ID = d.ID
+	newDash.Templates = d.Templates
+	newDash.Name = d.Name
 	newDash.Cells = make([]chronograf.DashboardCell, len(d.Cells))
+
 	for i, c := range d.Cells {
 		AddQueryConfig(&c)
 		newDash.Cells[i] = c
