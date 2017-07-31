@@ -1114,6 +1114,7 @@ func (s *Store) TagValues(database string, cond influxql.Expr) ([]TagValues, err
 				if bytes.Compare(bk, tagSet.lastKey) == 1 {
 					tagSet.lastKey = bk
 				}
+
 			}
 
 			// Loop over all keys for each series.
