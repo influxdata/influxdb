@@ -281,6 +281,31 @@ func (fs *FileSet) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (ma
 	return nil, fmt.Errorf("%#v", expr)
 }
 
+func (fs *FileSet) tagValuesByKeyAndExpr(name, key []byte, expr influxql.Expr, fieldset *tsdb.MeasurementFieldSet) (map[string]struct{}, error) {
+	itr, err := fs.seriesByExprIterator(name, expr, fieldset.Fields(string(name)))
+	if err != nil {
+		return nil, err
+	} else if itr == nil {
+		return nil, nil
+	}
+	// Set of all tag values.
+	tagValues := make(map[string]struct{})
+
+	// Iterate all series to collect tag values.
+	for e := itr.Next(); e != nil; e = itr.Next() {
+
+		// Iterate the tag keys we're interested in and collect values
+		// from this series, if they exist.
+		tags := e.Tags()
+		tagVal := tags.Get(key)
+		if _, ok := tagValues[string(tagVal)]; !ok {
+			tagValues[string(tagVal)] = struct{}{}
+		}
+	}
+
+	return tagValues, nil
+}
+
 // tagKeysByFilter will filter the tag keys for the measurement.
 func (fs *FileSet) tagKeysByFilter(name []byte, op influxql.Token, val []byte, regex *regexp.Regexp) map[string]struct{} {
 	ss := make(map[string]struct{})

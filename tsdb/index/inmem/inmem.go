@@ -270,6 +270,30 @@ func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[s
 	return mm.TagKeysByExpr(expr)
 }
 
+// MeasurementTagKeyValuesByExpr returns a set of tag values filtered by an expression.
+func (i *Index) MeasurementTagKeyValuesByExpr(name, key []byte, expr influxql.Expr) (map[string]struct{}, error) {
+	i.mu.RLock()
+	mm := i.measurements[string(name)]
+	i.mu.RUnlock()
+
+	if mm == nil {
+		return nil, nil
+	}
+
+	ids, _, _ := mm.WalkWhereForSeriesIds(expr)
+	if ids.Len() == 0 && expr == nil {
+		values := mm.TagValues(string(key))
+		x := make(map[string]struct{}, len(values))
+		for _, v := range values {
+			x[v] = struct{}{}
+		}
+		return x, nil
+	}
+
+	vals := mm.tagValuesByKeyAndSeriesID([]string{string(key)}, ids)[string(key)]
+	return vals, nil
+}
+
 // ForEachMeasurementTagKey iterates over all tag keys for a measurement.
 func (i *Index) ForEachMeasurementTagKey(name []byte, fn func(key []byte) error) error {
 	// Ensure we do not hold a lock on the index while fn executes in case fn tries

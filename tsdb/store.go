@@ -1,6 +1,7 @@
 package tsdb // import "github.com/influxdata/influxdb/tsdb"
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -1020,6 +1021,38 @@ func (s *Store) TagValues(database string, cond influxql.Expr) ([]TagValues, err
 			keySet, err := sh.engine.MeasurementTagKeysByExpr(name, cond)
 			if err != nil {
 				return nil, err
+			}
+
+			mname := string(name)
+
+			var (
+				tagSet tagValue
+				ok     bool
+			)
+
+			if tagSet, ok = sms[mname]; !ok {
+				tagSet = tagValue{
+					mname:   mname,
+					keyIdxs: make(map[string]int, len(keySet)),
+				}
+			}
+
+			// i will be used to track where to append values for each tag key.
+			i := len(tagSet.values)
+			for k := range keySet {
+				// If we're not already tracking this key then add a slot for
+				// its values.
+				if _, ok := tagSet.keyIdxs[k]; !ok {
+					tagSet.keyIdxs[k] = i
+					tagSet.values = append(tagSet.values, tvSlice{})
+					i++
+				}
+
+				bk := []byte(k)
+				if bytes.Compare(bk, tagSet.lastKey) == 1 {
+					tagSet.lastKey = bk
+				}
+
 			}
 
 			// Loop over all keys for each series.
