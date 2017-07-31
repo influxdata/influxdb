@@ -76,26 +76,10 @@ export default class Dygraph extends Component {
     const hashColorDygraphSeries = {}
     const {length} = finalLineColors
 
-    let used = []
-
     for (const seriesName in dygraphSeries) {
       const series = dygraphSeries[seriesName]
-      let hashIndex = hasherino(seriesName, length)
-
-      // Check to see if color is already being used
-      while (used.includes(hashIndex)) {
-        hashIndex = (hashIndex + 1) % length
-      }
-
-      used.push(hashIndex)
-
-      // Empty used array if all colors are used
-      if (used.length === length) {
-        used = []
-      }
-
+      const hashIndex = hasherino(seriesName, length)
       const color = finalLineColors[hashIndex]
-
       hashColorDygraphSeries[seriesName] = {...series, color}
     }
 
@@ -115,7 +99,7 @@ export default class Dygraph extends Component {
       fillGraph: isGraphFilled,
       axisLineWidth: 2,
       gridLineWidth: 1,
-      highlightCircleSize: 3,
+      highlightCircleSize: isBarGraph ? 0 : 3,
       animatedZooms: true,
       hideOverlayOnMouseOut: false,
       colors: finalLineColors,
@@ -130,7 +114,7 @@ export default class Dygraph extends Component {
       },
       highlightSeriesOpts: {
         strokeWidth: 2,
-        highlightCircleSize: 5,
+        highlightCircleSize: isBarGraph ? 0 : 5,
       },
       legendFormatter: legend => {
         if (!legend.x) {
