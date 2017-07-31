@@ -1016,25 +1016,27 @@ func (s *Store) TagValues(database string, cond influxql.Expr) ([]TagValues, err
 		}
 
 		for _, name := range names {
+			if m[string(name)] == nil {
+				m[string(name)] = make(map[KeyValue]struct{})
+			}
+
 			// Determine a list of keys from condition.
 			keySet, err := sh.engine.MeasurementTagKeysByExpr(name, cond)
 			if err != nil {
 				return nil, err
 			}
 
-			// Loop over all keys for each series.
-			if err := sh.engine.ForEachMeasurementSeriesByExpr(name, filterExpr, func(tags models.Tags) error {
-				for _, t := range tags {
-					if _, ok := keySet[string(t.Key)]; ok {
-						if m[string(name)] == nil {
-							m[string(name)] = make(map[KeyValue]struct{})
-						}
-						m[string(name)][KeyValue{string(t.Key), string(t.Value)}] = struct{}{}
-					}
+			// TODO: The set of keys could be passed directly into MeasurementTagKeyValuesByExpr instead
+			// of looping here.  Might be more efficient...
+			for key := range keySet {
+				values, err := sh.engine.MeasurementTagKeyValuesByExpr(name, []byte(key), filterExpr)
+				if err != nil {
+					return nil, err
 				}
-				return nil
-			}); err != nil {
-				return nil, err
+
+				for value := range values {
+					m[string(name)][KeyValue{key, value}] = struct{}{}
+				}
 			}
 		}
 	}
