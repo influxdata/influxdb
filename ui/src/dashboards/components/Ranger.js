@@ -8,7 +8,34 @@ const Ranger = ({onSetRange, axes}) => {
   return (
     <div className="display-options--cell">
       <h5 className="display-options--header">Y Axis Controls</h5>
-      <form autoComplete="off">
+      <form autoComplete="off" style={{margin: '0 -6px'}}>
+        <div className="form-group col-sm-3">
+          <label htmlFor="prefix">Prefix</label>
+          <input
+            className="form-control input-sm"
+            type="text"
+            name="prefix"
+            id="prefix"
+          />
+        </div>
+        <div className="form-group col-sm-6">
+          <label htmlFor="prefix">Label</label>
+          <input
+            className="form-control input-sm"
+            type="text"
+            name="label"
+            id="label"
+          />
+        </div>
+        <div className="form-group col-sm-3">
+          <label htmlFor="prefix">Suffix</label>
+          <input
+            className="form-control input-sm"
+            type="text"
+            name="suffix"
+            id="suffix"
+          />
+        </div>
         <div className="form-group col-sm-6">
           <label htmlFor="min">Min</label>
           <input
@@ -32,6 +59,20 @@ const Ranger = ({onSetRange, axes}) => {
             onChange={onSetRange}
             placeholder="auto"
           />
+        </div>
+        <div className="form-group col-sm-6">
+          <label>Units</label>
+          <ul className="nav nav-tablist nav-tablist-sm">
+            <li className="active">Base 10</li>
+            <li>Base 2</li>
+          </ul>
+        </div>
+        <div className="form-group col-sm-6">
+          <label>Scale</label>
+          <ul className="nav nav-tablist nav-tablist-sm">
+            <li className="active">Linear</li>
+            <li>Logarithmic</li>
+          </ul>
         </div>
       </form>
     </div>
