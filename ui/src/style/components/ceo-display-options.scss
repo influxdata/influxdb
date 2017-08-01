@@ -30,15 +30,6 @@
   color: $g11-sidewalk;
   @include no-user-select();
 }
-.display-options--row {
-  display: flex;
-  align-items: center;
-  flex-wrap: nowrap;
-  margin-bottom: 8px;
-
-  label { margin: 0; }
-  input { flex: 1 0 0; }
-}
 
 
 .viz-type-selector {
@@ -137,4 +128,16 @@
   .viz-type-selector--graphic-fill.graphic-fill-a,
   .viz-type-selector--graphic-fill.graphic-fill-b,
   .viz-type-selector--graphic-fill.graphic-fill-c {opacity: 0.18;}
+}
+
+
+
+.display-options--cell .form-group .nav.nav-tablist {
+  display: flex;
+  width: 100%;
+
+  > li {
+    flex: 1 0 0;
+    justify-content: center;
+  }
 }
