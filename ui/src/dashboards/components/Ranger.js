@@ -25,7 +25,7 @@ const Ranger = ({onSetRange, axes}) => {
         </div>
         <div className="display-options--row">
           <label htmlFor="max" style={{width: '40px'}}>
-            Maximum
+            Max
           </label>
           <input
             className="form-control input-sm"
