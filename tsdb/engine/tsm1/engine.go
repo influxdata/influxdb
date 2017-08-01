@@ -1852,19 +1852,19 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, name string, s
 				// If a field was requested, use a nil cursor of the requested type.
 				switch ref.Type {
 				case influxql.Float, influxql.AnyField:
-					aux[i] = &floatNilLiteralCursor{}
+					aux[i] = nilFloatLiteralValueCursor
 					continue
 				case influxql.Integer:
-					aux[i] = &integerNilLiteralCursor{}
+					aux[i] = nilIntegerLiteralValueCursor
 					continue
 				case influxql.Unsigned:
-					aux[i] = &unsignedNilLiteralCursor{}
+					aux[i] = nilUnsignedLiteralValueCursor
 					continue
 				case influxql.String:
-					aux[i] = &stringNilLiteralCursor{}
+					aux[i] = nilStringLiteralValueCursor
 					continue
 				case influxql.Boolean:
-					aux[i] = &booleanNilLiteralCursor{}
+					aux[i] = nilBooleanLiteralValueCursor
 					continue
 				}
 			}
@@ -1872,9 +1872,9 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, name string, s
 			// If field doesn't exist, use the tag value.
 			if v := tags.Value(ref.Val); v == "" {
 				// However, if the tag value is blank then return a null.
-				aux[i] = &stringNilLiteralCursor{}
+				aux[i] = nilStringLiteralValueCursor
 			} else {
-				aux[i] = &stringLiteralCursor{value: v}
+				aux[i] = &literalValueCursor{value: v}
 			}
 		}
 	}
@@ -1896,19 +1896,19 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, name string, s
 				// If a field was requested, use a nil cursor of the requested type.
 				switch ref.Type {
 				case influxql.Float, influxql.AnyField:
-					conds[i] = &floatNilLiteralCursor{}
+					conds[i] = nilFloatLiteralValueCursor
 					continue
 				case influxql.Integer:
-					conds[i] = &integerNilLiteralCursor{}
+					conds[i] = nilIntegerLiteralValueCursor
 					continue
 				case influxql.Unsigned:
-					conds[i] = &unsignedNilLiteralCursor{}
+					conds[i] = nilUnsignedLiteralValueCursor
 					continue
 				case influxql.String:
-					conds[i] = &stringNilLiteralCursor{}
+					conds[i] = nilStringLiteralValueCursor
 					continue
 				case influxql.Boolean:
-					conds[i] = &booleanNilLiteralCursor{}
+					conds[i] = nilBooleanLiteralValueCursor
 					continue
 				}
 			}
@@ -1916,9 +1916,9 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, name string, s
 			// If field doesn't exist, use the tag value.
 			if v := tags.Value(ref.Val); v == "" {
 				// However, if the tag value is blank then return a null.
-				conds[i] = &stringNilLiteralCursor{}
+				conds[i] = nilStringLiteralValueCursor
 			} else {
-				conds[i] = &stringLiteralCursor{value: v}
+				conds[i] = &literalValueCursor{value: v}
 			}
 		}
 	}

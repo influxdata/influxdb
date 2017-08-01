@@ -532,26 +532,6 @@ func (c *floatDescendingCursor) nextTSM() {
 	}
 }
 
-// floatLiteralCursor represents a cursor that always returns a single value.
-// It doesn't not have a time value so it can only be used with nextAt().
-type floatLiteralCursor struct {
-	value float64
-}
-
-func (c *floatLiteralCursor) close() error                   { return nil }
-func (c *floatLiteralCursor) peek() (t int64, v interface{}) { return tsdb.EOF, c.value }
-func (c *floatLiteralCursor) next() (t int64, v interface{}) { return tsdb.EOF, c.value }
-func (c *floatLiteralCursor) nextAt(seek int64) interface{}  { return c.value }
-
-// floatNilLiteralCursor represents a cursor that always returns a typed nil value.
-// It doesn't not have a time value so it can only be used with nextAt().
-type floatNilLiteralCursor struct{}
-
-func (c *floatNilLiteralCursor) close() error                   { return nil }
-func (c *floatNilLiteralCursor) peek() (t int64, v interface{}) { return tsdb.EOF, (*float64)(nil) }
-func (c *floatNilLiteralCursor) next() (t int64, v interface{}) { return tsdb.EOF, (*float64)(nil) }
-func (c *floatNilLiteralCursor) nextAt(seek int64) interface{}  { return (*float64)(nil) }
-
 type integerIterator struct {
 	cur   integerCursor
 	aux   []cursorAt
@@ -966,26 +946,6 @@ func (c *integerDescendingCursor) nextTSM() {
 		c.tsm.pos = len(c.tsm.values) - 1
 	}
 }
-
-// integerLiteralCursor represents a cursor that always returns a single value.
-// It doesn't not have a time value so it can only be used with nextAt().
-type integerLiteralCursor struct {
-	value int64
-}
-
-func (c *integerLiteralCursor) close() error                   { return nil }
-func (c *integerLiteralCursor) peek() (t int64, v interface{}) { return tsdb.EOF, c.value }
-func (c *integerLiteralCursor) next() (t int64, v interface{}) { return tsdb.EOF, c.value }
-func (c *integerLiteralCursor) nextAt(seek int64) interface{}  { return c.value }
-
-// integerNilLiteralCursor represents a cursor that always returns a typed nil value.
-// It doesn't not have a time value so it can only be used with nextAt().
-type integerNilLiteralCursor struct{}
-
-func (c *integerNilLiteralCursor) close() error                   { return nil }
-func (c *integerNilLiteralCursor) peek() (t int64, v interface{}) { return tsdb.EOF, (*int64)(nil) }
-func (c *integerNilLiteralCursor) next() (t int64, v interface{}) { return tsdb.EOF, (*int64)(nil) }
-func (c *integerNilLiteralCursor) nextAt(seek int64) interface{}  { return (*int64)(nil) }
 
 type unsignedIterator struct {
 	cur   unsignedCursor
@@ -1402,26 +1362,6 @@ func (c *unsignedDescendingCursor) nextTSM() {
 	}
 }
 
-// unsignedLiteralCursor represents a cursor that always returns a single value.
-// It doesn't not have a time value so it can only be used with nextAt().
-type unsignedLiteralCursor struct {
-	value uint64
-}
-
-func (c *unsignedLiteralCursor) close() error                   { return nil }
-func (c *unsignedLiteralCursor) peek() (t int64, v interface{}) { return tsdb.EOF, c.value }
-func (c *unsignedLiteralCursor) next() (t int64, v interface{}) { return tsdb.EOF, c.value }
-func (c *unsignedLiteralCursor) nextAt(seek int64) interface{}  { return c.value }
-
-// unsignedNilLiteralCursor represents a cursor that always returns a typed nil value.
-// It doesn't not have a time value so it can only be used with nextAt().
-type unsignedNilLiteralCursor struct{}
-
-func (c *unsignedNilLiteralCursor) close() error                   { return nil }
-func (c *unsignedNilLiteralCursor) peek() (t int64, v interface{}) { return tsdb.EOF, (*uint64)(nil) }
-func (c *unsignedNilLiteralCursor) next() (t int64, v interface{}) { return tsdb.EOF, (*uint64)(nil) }
-func (c *unsignedNilLiteralCursor) nextAt(seek int64) interface{}  { return (*uint64)(nil) }
-
 type stringIterator struct {
 	cur   stringCursor
 	aux   []cursorAt
@@ -1837,26 +1777,6 @@ func (c *stringDescendingCursor) nextTSM() {
 	}
 }
 
-// stringLiteralCursor represents a cursor that always returns a single value.
-// It doesn't not have a time value so it can only be used with nextAt().
-type stringLiteralCursor struct {
-	value string
-}
-
-func (c *stringLiteralCursor) close() error                   { return nil }
-func (c *stringLiteralCursor) peek() (t int64, v interface{}) { return tsdb.EOF, c.value }
-func (c *stringLiteralCursor) next() (t int64, v interface{}) { return tsdb.EOF, c.value }
-func (c *stringLiteralCursor) nextAt(seek int64) interface{}  { return c.value }
-
-// stringNilLiteralCursor represents a cursor that always returns a typed nil value.
-// It doesn't not have a time value so it can only be used with nextAt().
-type stringNilLiteralCursor struct{}
-
-func (c *stringNilLiteralCursor) close() error                   { return nil }
-func (c *stringNilLiteralCursor) peek() (t int64, v interface{}) { return tsdb.EOF, (*string)(nil) }
-func (c *stringNilLiteralCursor) next() (t int64, v interface{}) { return tsdb.EOF, (*string)(nil) }
-func (c *stringNilLiteralCursor) nextAt(seek int64) interface{}  { return (*string)(nil) }
-
 type booleanIterator struct {
 	cur   booleanCursor
 	aux   []cursorAt
@@ -2271,25 +2191,5 @@ func (c *booleanDescendingCursor) nextTSM() {
 		c.tsm.pos = len(c.tsm.values) - 1
 	}
 }
-
-// booleanLiteralCursor represents a cursor that always returns a single value.
-// It doesn't not have a time value so it can only be used with nextAt().
-type booleanLiteralCursor struct {
-	value bool
-}
-
-func (c *booleanLiteralCursor) close() error                   { return nil }
-func (c *booleanLiteralCursor) peek() (t int64, v interface{}) { return tsdb.EOF, c.value }
-func (c *booleanLiteralCursor) next() (t int64, v interface{}) { return tsdb.EOF, c.value }
-func (c *booleanLiteralCursor) nextAt(seek int64) interface{}  { return c.value }
-
-// booleanNilLiteralCursor represents a cursor that always returns a typed nil value.
-// It doesn't not have a time value so it can only be used with nextAt().
-type booleanNilLiteralCursor struct{}
-
-func (c *booleanNilLiteralCursor) close() error                   { return nil }
-func (c *booleanNilLiteralCursor) peek() (t int64, v interface{}) { return tsdb.EOF, (*bool)(nil) }
-func (c *booleanNilLiteralCursor) next() (t int64, v interface{}) { return tsdb.EOF, (*bool)(nil) }
-func (c *booleanNilLiteralCursor) nextAt(seek int64) interface{}  { return (*bool)(nil) }
 
 var _ = fmt.Print

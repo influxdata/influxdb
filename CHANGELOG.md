@@ -12,6 +12,7 @@
 - [#8426](https://github.com/influxdata/influxdb/issues/8426): Add `parse-multivalue-plugin` to allow users to choose how multivalue plugins should be handled by the collectd service.
 - [#8548](https://github.com/influxdata/influxdb/issues/8548): Allow panic recovery to be disabled when investigating server issues.
 - [#8525](https://github.com/influxdata/influxdb/issues/8525): Support http pipelining for /query endpoint.
+- [#8652](https://github.com/influxdata/influxdb/pull/8652): Reduce allocations when reading data
 
 ### Bugfixes
 
