@@ -17,10 +17,10 @@ describe.only('getRangeForDygraphSpec', () => {
 
   it('does not get range when a range is provided', () => {
     const timeSeries = [[date, min], [date, max], [date, mid]]
-    const providedRange = [0, 4]
+    const providedRange = ['0', '4']
     const actual = getRange(timeSeries, providedRange)
 
-    expect(actual).to.deep.equal(providedRange)
+    expect(actual).to.deep.equal([0, 4])
   })
 
   it('gets the range for multiple timeSeries', () => {

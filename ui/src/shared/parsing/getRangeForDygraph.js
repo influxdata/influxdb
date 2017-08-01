@@ -18,9 +18,9 @@ const getRange = (
   ruleValues = {value: null, rangeValue: null}
 ) => {
   const {value, rangeValue, operator} = ruleValues
+  const [userMin, userMax] = userSelectedRange
 
-  if (userSelectedRange.length) {
-    const [userMin, userMax] = userSelectedRange
+  if (userMin && userMax) {
     return [considerZero(userMin), considerZero(userMax)]
   }
 
@@ -72,7 +72,7 @@ const getRange = (
 
   const [min, max] = range
 
-  return [min, max]
+  return [considerZero(userMin, min), considerZero(userMax, max)]
 }
 
 export default getRange
