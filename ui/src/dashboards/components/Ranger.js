@@ -9,10 +9,8 @@ const Ranger = ({onSetRange, axes}) => {
     <div className="display-options--cell">
       <h5 className="display-options--header">Y Axis Controls</h5>
       <form autoComplete="off">
-        <div className="display-options--row">
-          <label htmlFor="min" style={{width: '40px'}}>
-            Min
-          </label>
+        <div className="form-group col-sm-6">
+          <label htmlFor="min">Min</label>
           <input
             className="form-control input-sm"
             type="number"
@@ -23,10 +21,8 @@ const Ranger = ({onSetRange, axes}) => {
             placeholder="auto"
           />
         </div>
-        <div className="display-options--row">
-          <label htmlFor="max" style={{width: '40px'}}>
-            Max
-          </label>
+        <div className="form-group col-sm-6">
+          <label htmlFor="max">Max</label>
           <input
             className="form-control input-sm"
             type="number"
