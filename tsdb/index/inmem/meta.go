@@ -1465,38 +1465,9 @@ func (m *Measurement) FieldNames() []string {
 	return a
 }
 
-func (m *Measurement) tagValuesByKeyAndSeriesID(tagKeys []string, ids SeriesIDs) map[string]stringSet {
-	// If no tag keys were passed, get all tag keys for the measurement.
-	if len(tagKeys) == 0 {
-		for k := range m.seriesByTagKeyValue {
-			tagKeys = append(tagKeys, k)
-		}
-	}
+func (m *Measurement) tagValuesByKeyAndSeriesID(tagKeys []string, ids SeriesIDs) [][]string {
 
-	// Mapping between tag keys to all existing tag values.
-	tagValues := make(map[string]stringSet, 0)
-
-	// Iterate all series to collect tag values.
-	for _, id := range ids {
-		s, ok := m.seriesByID[id]
-		if !ok {
-			continue
-		}
-
-		// Iterate the tag keys we're interested in and collect values
-		// from this series, if they exist.
-		tags := s.Tags()
-		for _, tagKey := range tagKeys {
-			if tagVal := tags.GetString(tagKey); tagVal != "" {
-				if _, ok = tagValues[tagKey]; !ok {
-					tagValues[tagKey] = newStringSet()
-				}
-				tagValues[tagKey].add(tagVal)
-			}
-		}
-	}
-
-	return tagValues
+	return nil
 }
 
 func (m *Measurement) SeriesByTagKeyValue(key string) map[string]SeriesIDs {
