@@ -348,6 +348,10 @@ func (e *Engine) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[
 	return e.index.MeasurementTagKeysByExpr(name, expr)
 }
 
+func (e *Engine) MeasurementTagKeyValuesByExpr(name, key []byte, expr influxql.Expr) (map[string]struct{}, error) {
+	return e.index.MeasurementTagKeyValuesByExpr(name, key, expr)
+}
+
 func (e *Engine) ForEachMeasurementTagKey(name []byte, fn func(key []byte) error) error {
 	return e.index.ForEachMeasurementTagKey(name, fn)
 }

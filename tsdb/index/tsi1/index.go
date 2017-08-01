@@ -614,6 +614,23 @@ func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[s
 	return fs.MeasurementTagKeysByExpr(name, expr)
 }
 
+func (i *Index) MeasurementTagKeyValuesByExpr(name, key []byte, expr influxql.Expr) (map[string]struct{}, error) {
+	fs := i.RetainFileSet()
+	defer fs.Release()
+
+	values := make(map[string]struct{})
+	// If there is not expr, we return all tag values for the key
+	if expr == nil {
+		itr := fs.TagValueIterator(name, key)
+		for val := itr.Next(); val != nil; val = itr.Next() {
+			values[string(val.Value())] = struct{}{}
+		}
+		return values, nil
+	}
+
+	return fs.tagValuesByKeyAndExpr(name, key, expr, i.fieldset)
+}
+
 // ForEachMeasurementSeriesByExpr iterates over all series in a measurement filtered by an expression.
 func (i *Index) ForEachMeasurementSeriesByExpr(name []byte, condition influxql.Expr, fn func(tags models.Tags) error) error {
 	fs := i.RetainFileSet()
