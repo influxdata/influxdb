@@ -9,31 +9,13 @@ const Ranger = ({onSetRange, axes}) => {
     <div className="display-options--cell">
       <h5 className="display-options--header">Y Axis Controls</h5>
       <form autoComplete="off" style={{margin: '0 -6px'}}>
-        <div className="form-group col-sm-3">
-          <label htmlFor="prefix">Prefix</label>
-          <input
-            className="form-control input-sm"
-            type="text"
-            name="prefix"
-            id="prefix"
-          />
-        </div>
-        <div className="form-group col-sm-6">
-          <label htmlFor="prefix">Label</label>
+        <div className="form-group col-sm-12">
+          <label htmlFor="prefix">Axis Title</label>
           <input
             className="form-control input-sm"
             type="text"
             name="label"
             id="label"
-          />
-        </div>
-        <div className="form-group col-sm-3">
-          <label htmlFor="prefix">Suffix</label>
-          <input
-            className="form-control input-sm"
-            type="text"
-            name="suffix"
-            id="suffix"
           />
         </div>
         <div className="form-group col-sm-6">
@@ -61,10 +43,28 @@ const Ranger = ({onSetRange, axes}) => {
           />
         </div>
         <div className="form-group col-sm-6">
-          <label>Units</label>
+          <label htmlFor="prefix">Labels Prefix</label>
+          <input
+            className="form-control input-sm"
+            type="text"
+            name="prefix"
+            id="prefix"
+          />
+        </div>
+        <div className="form-group col-sm-6">
+          <label htmlFor="prefix">Labels Suffix</label>
+          <input
+            className="form-control input-sm"
+            type="text"
+            name="suffix"
+            id="suffix"
+          />
+        </div>
+        <div className="form-group col-sm-6">
+          <label>Labels Format</label>
           <ul className="nav nav-tablist nav-tablist-sm">
-            <li className="active">Base 10</li>
-            <li>Base 2</li>
+            <li className="active">K/M/B</li>
+            <li>K/M/G</li>
           </ul>
         </div>
         <div className="form-group col-sm-6">
@@ -74,6 +74,7 @@ const Ranger = ({onSetRange, axes}) => {
             <li>Logarithmic</li>
           </ul>
         </div>
+
       </form>
     </div>
   )
