@@ -525,6 +525,89 @@ func TestTimeEncoder_Count_Simple8(t *testing.T) {
 	}
 }
 
+func TestTimeEncoder_CountBetween_Uncompressed(t *testing.T) {
+	enc := NewTimeEncoder(2)
+	t1 := time.Unix(0, 0).UnixNano()
+	t2 := time.Unix(1, 0).UnixNano()
+
+	// about 36.5yrs in NS resolution is max range for compressed format
+	// This should cause the encoding to fallback to raw points
+	t3 := time.Unix(2, (2 << 59)).UnixNano()
+	enc.Write(t1)
+	enc.Write(t2)
+	enc.Write(t3)
+
+	b, err := enc.Bytes()
+	if got := b[0] >> 4; got != timeUncompressed {
+		t.Fatalf("Wrong encoding used: expected rle, got %v", got)
+	}
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got, exp := CountTimestampsBetween(b, 0, 2*1e9), 2; got != exp {
+		t.Fatalf("count mismatch: got %v, exp %v", got, exp)
+	}
+}
+
+func TestTimeEncoder_CountBetween_RLE(t *testing.T) {
+	enc := NewTimeEncoder(5)
+	ts := make([]int64, 6)
+
+	ts[0] = int64(1444448158000000000)
+	ts[1] = int64(1444448168000000000) // start
+	ts[2] = int64(1444448178000000000)
+	ts[3] = int64(1444448188000000000) // stop
+	ts[4] = int64(1444448198000000000)
+	ts[5] = int64(1444448208000000000)
+
+	for _, v := range ts {
+		enc.Write(v)
+	}
+
+	b, err := enc.Bytes()
+	if got := b[0] >> 4; got != timeCompressedRLE {
+		t.Fatalf("Wrong encoding used: expected rle, got %v", got)
+	}
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got, exp := CountTimestampsBetween(b, 1444448168000000000, 1444448188000000000), 2; got != exp {
+		t.Fatalf("count mismatch: got %v, exp %v", got, exp)
+	}
+}
+
+func TestTimeEncoder_CountBetween_Simple8(t *testing.T) {
+	enc := NewTimeEncoder(3)
+	t1 := int64(0)
+	t2 := int64(1 * 1e9)
+	t3 := int64(3 * 1e9)
+
+	enc.Write(t1)
+	enc.Write(t2)
+	enc.Write(t3)
+
+	b, err := enc.Bytes()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got := b[0] >> 4; got != timeCompressedPackedSimple {
+		t.Fatalf("Wrong encoding used: expected rle, got %v", got)
+	}
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got, exp := CountTimestampsBetween(b, 0, 2*1e9), 2; got != exp {
+		t.Fatalf("count mismatch: got %v, exp %v", got, exp)
+	}
+}
+
 func TestTimeDecoder_Corrupt(t *testing.T) {
 	cases := []string{
 		"",                 // Empty

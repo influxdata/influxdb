@@ -412,3 +412,94 @@ func CountTimestamps(b []byte) int {
 		return 0
 	}
 }
+
+// CountTimestampsBetween returns the count of timestamp between [min, max) contained in b.
+func CountTimestampsBetween(b []byte, min, max int64) int {
+	if len(b) == 0 {
+		return 0
+	}
+
+	var n int
+	// Encoding type is stored in the 4 high bits of the first byte
+	encoding := b[0] >> 4
+	switch encoding {
+	case timeUncompressed:
+		for i := 1; i < len(b); i += 8 {
+			// Uncompressed timestamps are just 8 bytes each
+			ts := int64(binary.BigEndian.Uint64(b[i : i+8]))
+			if ts >= min && ts < max {
+				n++
+			}
+
+			if ts > max {
+				break
+			}
+		}
+		return n
+	case timeCompressedRLE:
+		var i, n int
+
+		// Lower 4 bits hold the 10 based exponent so we can scale the values back up
+		mod := int64(math.Pow10(int(b[i] & 0xF)))
+		i++
+
+		// Next 8 bytes is the starting timestamp
+		first := binary.BigEndian.Uint64(b[i : i+8])
+		i += 8
+
+		// Next 1-10 bytes is our (scaled down by factor of 10) run length values
+		value, n := binary.Uvarint(b[i:])
+		if n <= 0 {
+			return 0
+		}
+
+		// Scale the value back up
+		value *= uint64(mod)
+		i += n
+
+		// Last 1-10 bytes is how many times the value repeats
+		count, n := binary.Uvarint(b[i:])
+		if n <= 0 {
+			return 0
+		}
+
+		tot, ts := 0, int64(first)
+		delta := int64(value)
+		for i := 0; i < int(count); i++ {
+			if ts >= min && ts < max {
+				tot++
+			}
+
+			if ts > max {
+				break
+			}
+			ts += delta
+		}
+		return tot
+	case timeCompressedPackedSimple:
+		div := uint64(math.Pow10(int(b[0] & 0xF)))
+		first := uint64(binary.BigEndian.Uint64(b[1:9]))
+
+		count, ts := 0, int64(first)
+		if ts >= min && ts < max {
+			count++
+		}
+
+		simple8b.ForEach(b[9:], func(v uint64) bool {
+			if div > 1 {
+				ts += int64(v * div)
+			} else {
+				ts += int64(v)
+			}
+			if ts >= min && ts < max {
+				count++
+			} else if ts > max {
+				return false
+			}
+			return true
+		})
+		return count
+	default:
+		return 0
+	}
+}
