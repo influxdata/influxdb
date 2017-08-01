@@ -80,14 +80,9 @@ class CellEditorOverlay extends Component {
 
   handleSetRange(e) {
     const {min, max} = e.target.form
+    const {axes} = this.state
 
-    this.setState({
-      axes: {
-        y: {
-          bounds: [min.value, max.value],
-        },
-      },
-    })
+    this.setState({axes: {...axes, y: {bounds: [min.value, max.value]}}})
     e.preventDefault()
   }
 

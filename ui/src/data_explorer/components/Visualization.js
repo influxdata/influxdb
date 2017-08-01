@@ -6,7 +6,7 @@ import VisView from 'src/data_explorer/components/VisView'
 import {GRAPH, TABLE} from 'shared/constants'
 import _ from 'lodash'
 
-const {array, arrayOf, bool, func, number, shape, string} = PropTypes
+const {arrayOf, bool, func, number, shape, string} = PropTypes
 const META_QUERY_REGEX = /^show/i
 
 const Visualization = React.createClass({
@@ -28,7 +28,7 @@ const Visualization = React.createClass({
     views: arrayOf(string).isRequired,
     axes: shape({
       y: shape({
-        bounds: array,
+        bounds: arrayOf(string),
       }),
     }),
   },

@@ -19,6 +19,11 @@ const getRange = (
 ) => {
   const {value, rangeValue, operator} = ruleValues
 
+  if (userSelectedRange.length) {
+    const [userMin, userMax] = userSelectedRange
+    return [considerZero(userMin), considerZero(userMax)]
+  }
+
   const subtractPadding = val => +val - Math.abs(val * PADDING_FACTOR)
   const addPadding = val => +val + Math.abs(val * PADDING_FACTOR)
 
@@ -65,10 +70,9 @@ const getRange = (
     return [null, null]
   }
 
-  const [userMin, userMax] = userSelectedRange
   const [min, max] = range
 
-  return [considerZero(userMin, min), considerZero(userMax, max)]
+  return [min, max]
 }
 
 export default getRange
