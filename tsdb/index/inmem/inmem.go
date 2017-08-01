@@ -14,9 +14,11 @@ package inmem
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"regexp"
 	"sort"
 	"sync"
+	"unsafe"
 	// "sync/atomic"
 
 	"github.com/influxdata/influxdb/influxql"
@@ -270,27 +272,85 @@ func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[s
 }
 
 // MeasurementTagKeyValuesByExpr returns a set of tag values filtered by an expression.
-func (i *Index) MeasurementTagKeyValuesByExpr(name, key []byte, expr influxql.Expr) (map[string]struct{}, error) {
+//
+// See tsm1.Engine.MeasurementTagKeyValuesByExpr for a fuller description of this
+// method.
+func (i *Index) MeasurementTagKeyValuesByExpr(name []byte, keys []string, expr influxql.Expr, keysSorted bool) ([][]string, error) {
 	i.mu.RLock()
 	mm := i.measurements[string(name)]
 	i.mu.RUnlock()
 
-	if mm == nil {
+	if mm == nil || len(keys) == 0 {
 		return nil, nil
+	}
+
+	results := make([][]string, len(keys))
+
+	// If we haven't been provided sorted keys, then we need to sort them.
+	if !keysSorted {
+		sort.Sort(sort.StringSlice(keys))
 	}
 
 	ids, _, _ := mm.WalkWhereForSeriesIds(expr)
 	if ids.Len() == 0 && expr == nil {
-		values := mm.TagValues(string(key))
-		x := make(map[string]struct{}, len(values))
-		for _, v := range values {
-			x[v] = struct{}{}
+		for ki, key := range keys {
+			values := mm.TagValues(key)
+			sort.Sort(sort.StringSlice(values))
+			results[ki] = values
 		}
-		return x, nil
+		return results, nil
 	}
 
-	vals := mm.tagValuesByKeyAndSeriesID([]string{string(key)}, ids)[string(key)]
-	return vals, nil
+	// This is the case where we have filtered series by some WHERE condition.
+	// We only care about the tag values for the keys given the
+	// filtered set of series ids.
+
+	keyIdxs := make(map[string]int, len(keys))
+	for ki, key := range keys {
+		keyIdxs[key] = ki
+	}
+
+	resultSet := make([]stringSet, len(keys))
+	for i := 0; i < len(resultSet); i++ {
+		resultSet[i] = newStringSet()
+	}
+
+	// Iterate all series to collect tag values.
+	for _, id := range ids {
+		s, ok := mm.seriesByID[id]
+		if !ok {
+			continue
+		}
+
+		// Iterate the tag keys we're interested in and collect values
+		// from this series, if they exist.
+		for _, t := range s.Tags() {
+			if idx, ok := keyIdxs[unsafeBytesToString(t.Key)]; ok {
+				resultSet[idx].add(string(t.Value))
+			} else if unsafeBytesToString(t.Key) > keys[len(keys)-1] {
+				// The tag key is > the largest key we're interested in.
+				break
+			}
+		}
+	}
+	for i, s := range resultSet {
+		results[i] = s.list()
+	}
+	return results, nil
+}
+
+// unsafeBytesToString converts a []byte to a string without a heap allocation.
+//
+// It is unsafe, and is intended to prepare input to short-lived functions
+// that require strings.
+func unsafeBytesToString(in []byte) string {
+	src := *(*reflect.SliceHeader)(unsafe.Pointer(&in))
+	dst := reflect.StringHeader{
+		Data: src.Data,
+		Len:  src.Len,
+	}
+	s := *(*string)(unsafe.Pointer(&dst))
+	return s
 }
 
 // ForEachMeasurementTagKey iterates over all tag keys for a measurement.

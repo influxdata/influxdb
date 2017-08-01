@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/deep"
@@ -783,7 +784,7 @@ func TestStore_Cardinality_Compactions_TSI1(t *testing.T) {
 func TestStore_TagValues(t *testing.T) {
 	t.Parallel()
 
-	// SHOW TAG VALUES FROM /cpu\d/ WITH KEY IN ("host", "shard")
+	// SHOW TAG VALUES FROM /cpu\d/ WITH KEY IN ("host", "shard") WHERE foo = 'a'
 	cond := &influxql.BinaryExpr{
 		Op: influxql.AND,
 		LHS: &influxql.ParenExpr{
@@ -795,16 +796,28 @@ func TestStore_TagValues(t *testing.T) {
 		},
 		RHS: &influxql.ParenExpr{
 			Expr: &influxql.BinaryExpr{
-				Op: influxql.OR,
-				LHS: &influxql.BinaryExpr{
-					Op:  influxql.EQ,
-					LHS: &influxql.VarRef{Val: "_tagKey"},
-					RHS: &influxql.StringLiteral{Val: "host"},
+				Op: influxql.AND,
+				LHS: &influxql.ParenExpr{
+					Expr: &influxql.BinaryExpr{
+						Op:  influxql.EQ,
+						LHS: &influxql.VarRef{Val: "foo"},
+						RHS: &influxql.StringLiteral{Val: "a"},
+					},
 				},
-				RHS: &influxql.BinaryExpr{
-					Op:  influxql.EQ,
-					LHS: &influxql.VarRef{Val: "_tagKey"},
-					RHS: &influxql.StringLiteral{Val: "shard"},
+				RHS: &influxql.ParenExpr{
+					Expr: &influxql.BinaryExpr{
+						Op: influxql.OR,
+						LHS: &influxql.BinaryExpr{
+							Op:  influxql.EQ,
+							LHS: &influxql.VarRef{Val: "_tagKey"},
+							RHS: &influxql.StringLiteral{Val: "host"},
+						},
+						RHS: &influxql.BinaryExpr{
+							Op:  influxql.EQ,
+							LHS: &influxql.VarRef{Val: "_tagKey"},
+							RHS: &influxql.StringLiteral{Val: "shard"},
+						},
+					},
 				},
 			},
 		},
@@ -815,7 +828,8 @@ func TestStore_TagValues(t *testing.T) {
 		s = MustOpenStore()
 		s.EngineOptions.IndexVersion = index
 
-		fmtStr := `cpu%d,ignoreme=nope,host=tv%d,shard=s%d value=1 %[4]d
+		fmtStr := `cpu%[1]d,foo=a,ignoreme=nope,host=tv%[2]d,shard=s%[3]d value=1 %[4]d
+		cpu%[1]d,host=tv%[2]d%[2]d,shard=s%[3]d%[3]d value=1 %[4]d
 	mem,host=nothanks value=1 %[4]d
 	`
 		genPoints := func(sid int) []string {
@@ -836,7 +850,7 @@ func TestStore_TagValues(t *testing.T) {
 		}
 	}
 
-	indexes := []string{"inmem", "tsi1"}
+	indexes := []string{"inmem"}
 	for _, index := range indexes {
 		setup(index)
 		t.Run(index, func(t *testing.T) {
@@ -852,6 +866,7 @@ func TestStore_TagValues(t *testing.T) {
 			}
 
 			if !reflect.DeepEqual(got, exp) {
+				fmt.Println(cmp.Diff(got, exp))
 				t.Fatalf("got:\n%#v\n\nexp:\n%#v", got, exp)
 			}
 		})
@@ -1004,7 +1019,7 @@ func BenchmarkStore_TagValues(b *testing.B) {
 			panic(err)
 		}
 
-		fmtStr := `cpu%[1]d,host=tv%[2]d,shard=s%[3]d,z1=s%[1]d%[2]d,z2=fixed value=1 %[4]d`
+		fmtStr := `cpu%[1]d,host=tv%[2]d,shard=s%[3]d,z1=s%[1]d%[2]d,z2=%[4]s value=1 %[5]d`
 		// genPoints generates some point data. If ran is true then random tag
 		// key values will be generated, meaning more work sorting and merging.
 		// If ran is false, then the same set of points will be produced for the
@@ -1012,6 +1027,7 @@ func BenchmarkStore_TagValues(b *testing.B) {
 		// needed.
 		genPoints := func(sid int, ran bool) []string {
 			var v, ts int
+			var half string
 			points := make([]string, 0, measurements*tagValues)
 			for m := 0; m < measurements; m++ {
 				for tagvid := 0; tagvid < tagValues; tagvid++ {
@@ -1019,7 +1035,8 @@ func BenchmarkStore_TagValues(b *testing.B) {
 					if ran {
 						v = rand.Intn(100000)
 					}
-					points = append(points, fmt.Sprintf(fmtStr, m, v, sid, ts))
+					half = fmt.Sprint(rand.Intn(2) == 0)
+					points = append(points, fmt.Sprintf(fmtStr, m, v, sid, half, ts))
 					ts++
 				}
 			}
@@ -1039,33 +1056,55 @@ func BenchmarkStore_TagValues(b *testing.B) {
 	}
 
 	// SHOW TAG VALUES WITH KEY IN ("host", "shard")
-	cond := &influxql.BinaryExpr{
-		Op: influxql.OR,
-		LHS: &influxql.BinaryExpr{
-			Op:  influxql.EQ,
-			LHS: &influxql.VarRef{Val: "_tagKey"},
-			RHS: &influxql.StringLiteral{Val: "host"},
+	cond1 := &influxql.ParenExpr{
+		Expr: &influxql.BinaryExpr{
+			Op: influxql.OR,
+			LHS: &influxql.BinaryExpr{
+				Op:  influxql.EQ,
+				LHS: &influxql.VarRef{Val: "_tagKey"},
+				RHS: &influxql.StringLiteral{Val: "host"},
+			},
+			RHS: &influxql.BinaryExpr{
+				Op:  influxql.EQ,
+				LHS: &influxql.VarRef{Val: "_tagKey"},
+				RHS: &influxql.StringLiteral{Val: "shard"},
+			},
 		},
-		RHS: &influxql.BinaryExpr{
-			Op:  influxql.EQ,
-			LHS: &influxql.VarRef{Val: "_tagKey"},
-			RHS: &influxql.StringLiteral{Val: "shard"},
+	}
+
+	cond2 := &influxql.ParenExpr{
+		Expr: &influxql.BinaryExpr{
+			Op: influxql.AND,
+			LHS: &influxql.ParenExpr{
+				Expr: &influxql.BinaryExpr{
+					Op:  influxql.EQ,
+					LHS: &influxql.VarRef{Val: "z2"},
+					RHS: &influxql.StringLiteral{Val: "true"},
+				},
+			},
+			RHS: cond1,
 		},
 	}
 
 	var err error
 	for useRand := 0; useRand < 2; useRand++ {
 		for _, index := range []string{"inmem", "tsi1"} {
-			for _, bm := range benchmarks {
-				setup(bm.shards, bm.measurements, bm.tagValues, index, useRand == 1)
-				b.Run("random_values="+fmt.Sprint(useRand == 1)+"_index="+index+"_"+bm.name, func(b *testing.B) {
-					for i := 0; i < b.N; i++ {
-						if tvResult, err = s.TagValues("db0", cond); err != nil {
-							b.Fatal(err)
-						}
+			for c, condition := range []influxql.Expr{cond1, cond2} {
+				for _, bm := range benchmarks {
+					setup(bm.shards, bm.measurements, bm.tagValues, index, useRand == 1)
+					cnd := "Unfiltered"
+					if c == 0 {
+						cnd = "Filtered"
 					}
-				})
-				teardown()
+					b.Run("random_values="+fmt.Sprint(useRand == 1)+"_index="+index+"_"+cnd+"_"+bm.name, func(b *testing.B) {
+						for i := 0; i < b.N; i++ {
+							if tvResult, err = s.TagValues("db0", condition); err != nil {
+								b.Fatal(err)
+							}
+						}
+					})
+					teardown()
+				}
 			}
 		}
 	}

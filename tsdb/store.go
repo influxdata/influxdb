@@ -8,14 +8,12 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"reflect"
 	"runtime"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-	"unsafe"
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
@@ -970,47 +968,21 @@ func (a TagValuesSlice) Len() int           { return len(a) }
 func (a TagValuesSlice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a TagValuesSlice) Less(i, j int) bool { return a[i].Measurement < a[j].Measurement }
 
-type tagValue struct {
-	mname   string
-	keyIdxs map[string]int
-	lastKey []byte
-	values  []tvSlice
+// tagValues is a temporary representation of a TagValues. Rather than allocating
+// KeyValues as we build up a TagValues object, We hold off allocating KeyValues
+// until we have merged multiple tagValues together.
+type tagValues struct {
+	name   []byte
+	keys   []string
+	values [][]string
 }
 
-type tvSlice struct {
-	data [][]byte
-}
+// Is a slice of tagValues that can be sorted by measurement.
+type tagValuesSlice []tagValues
 
-func (a tvSlice) Len() int           { return len(a.data) }
-func (a tvSlice) Swap(i, j int)      { a.data[i], a.data[j] = a.data[j], a.data[i] }
-func (a tvSlice) Less(i, j int) bool { return bytes.Compare(a.data[i], a.data[j]) == -1 }
-
-func (a *tvSlice) Insert(v []byte) {
-	var found bool
-	i := sort.Search(len(a.data), func(i int) bool {
-		cmp := bytes.Compare(a.data[i], v)
-		if cmp == 0 {
-			found = true
-		}
-		return cmp > -1
-	})
-
-	// Insert at end of slice.
-	if i == len(a.data) {
-		a.data = append(a.data, v)
-		return
-	}
-
-	// We already have this.
-	if found || bytes.Compare(a.data[i], v) == 0 {
-		return
-	}
-
-	// Insert it into slice.
-	a.data = append(a.data, nil)
-	copy(a.data[i+1:], a.data[i:])
-	a.data[i] = v
-}
+func (a tagValuesSlice) Len() int           { return len(a) }
+func (a tagValuesSlice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a tagValuesSlice) Less(i, j int) bool { return bytes.Compare(a[i].name, a[j].name) == -1 }
 
 // TagValues returns the tag keys and values in the given database, matching the condition.
 func (s *Store) TagValues(database string, cond influxql.Expr) ([]TagValues, error) {
@@ -1061,23 +1033,28 @@ func (s *Store) TagValues(database string, cond influxql.Expr) ([]TagValues, err
 	}
 
 	// Stores each list of TagValues for each measurement.
-	var sms map[string]tagValue
-	var maxMeasuremnts int // Hint as to lower bound on number of measurements.
+	var allResults []tagValues
+	var maxMeasurements int // Hint as to lower bound on number of measurements.
 	for _, sh := range shards {
+		// names will be sorted by MeasurementNamesByExpr.
 		names, err := sh.MeasurementNamesByExpr(measurementExpr)
 		if err != nil {
 			return nil, err
 		}
 
-		if len(names) > maxMeasuremnts {
-			maxMeasuremnts = len(names)
+		if len(names) > maxMeasurements {
+			maxMeasurements = len(names)
 		}
 
-		if sms == nil {
-			// Initialise map of tag key/values.
-			sms = make(map[string]tagValue, len(names))
+		if allResults == nil {
+			allResults = make([]tagValues, 0, len(shards)*len(names)) // Assuming all series in all shards.
 		}
 
+		// Iterate over each matching measurement in the shard. For each
+		// measurement we'll get the matching tag keys (e.g., when a WITH KEYS)
+		// statement is used, and we'll then use those to fetch all the relevant
+		// values from matching series. Series may be filtered using a WHERE
+		// filter.
 		for _, name := range names {
 			// Determine a list of keys from condition.
 			keySet, err := sh.engine.MeasurementTagKeysByExpr(name, cond)
@@ -1085,120 +1062,172 @@ func (s *Store) TagValues(database string, cond influxql.Expr) ([]TagValues, err
 				return nil, err
 			}
 
-			mname := string(name)
-
-			var (
-				tagSet tagValue
-				ok     bool
-			)
-
-			if tagSet, ok = sms[mname]; !ok {
-				tagSet = tagValue{
-					mname:   mname,
-					keyIdxs: make(map[string]int, len(keySet)),
-				}
+			if len(keySet) == 0 {
+				// No matching tag keys for this measurement
+				continue
 			}
 
-			// i will be used to track where to append values for each tag key.
-			i := len(tagSet.values)
+			result := tagValues{
+				name: name,
+				keys: make([]string, 0, len(keySet)),
+			}
+
+			// Add the keys to the tagValues and sort them.
 			for k := range keySet {
-				// If we're not already tracking this key then add a slot for
-				// its values.
-				if _, ok := tagSet.keyIdxs[k]; !ok {
-					tagSet.keyIdxs[k] = i
-					tagSet.values = append(tagSet.values, tvSlice{})
-					i++
-				}
-
-				bk := []byte(k)
-				if bytes.Compare(bk, tagSet.lastKey) == 1 {
-					tagSet.lastKey = bk
-				}
-
+				result.keys = append(result.keys, k)
 			}
+			sort.Sort(sort.StringSlice(result.keys))
 
-			// Loop over all keys for each series.
-			if err := sh.engine.ForEachMeasurementSeriesByExpr(name, filterExpr, func(tags models.Tags) error {
-				for _, t := range tags {
-					// Since tags are sorted, once we've past the last value
-					// in the the tag keys we're looking for, there is no point
-					// in continuing to look.
-					if bytes.Compare(t.Key, tagSet.lastKey) == 1 {
-						break
-					}
-
-					if _, ok := keySet[string(t.Key)]; ok {
-						tagSet.values[tagSet.keyIdxs[string(t.Key)]].Insert(t.Value)
-					}
-				}
-				return nil
-			}); err != nil {
+			// get all the tag values for each key in the keyset.
+			// Each slice in the results contains the sorted values associated
+			// associated with each tag key for the measurement from the key set.
+			if result.values, err = sh.engine.MeasurementTagKeyValuesByExpr(name, result.keys, filterExpr, true); err != nil {
 				return nil, err
 			}
-			sms[mname] = tagSet
+			allResults = append(allResults, result)
 		}
 	}
 
-	// Build out the results...
-	all := make([]TagValues, 0, len(sms))
-	sortedMs := make([]string, 0, len(sms))
-	for k := range sms {
-		sortedMs = append(sortedMs, k)
+	result := make([]TagValues, 0, maxMeasurements)
+
+	// We need to sort all results by measurement name.
+	if len(shards) > 1 {
+		sort.Sort(tagValuesSlice(allResults))
 	}
-	sort.Sort(sort.StringSlice(sortedMs))
 
-	var (
-		prevM string
-		prevK string
-		prevV []byte
-	)
-
-	for _, m := range sortedMs {
-		tagData := sms[m]
-		tagValues := TagValues{
-			Measurement: m,
-			Values:      make([]KeyValue, 0, len(tagData.keyIdxs)),
+	// The next stage is to merge the tagValue results for each shard's measurements.
+	var i, j int
+	// Used as a temporary buffer in mergeTagValues. There can be at most len(shards)
+	// instances of tagValues for a given measurement.
+	idxBuf := make([][2]int, 0, len(shards))
+	for i < len(allResults) {
+		// Gather all occurrences of the same measurement for merging.
+		for j+1 < len(allResults) && bytes.Equal(allResults[j+1].name, allResults[i].name) {
+			j++
 		}
 
-		// Sort tag keys.
-		sortedKeys := make([]string, 0, len(tagData.keyIdxs))
-		for k := range tagData.keyIdxs {
-			sortedKeys = append(sortedKeys, k)
+		// An invariant is that there can't be more than n instances of tag
+		// key value pairs for a given measurement, where n is the number of
+		// shards.
+		if got, exp := j-i+1, len(shards); got > exp {
+			return nil, fmt.Errorf("unexpected results returned engine. Got %d measurement sets for %d shards", got, exp)
 		}
-		sort.Sort(sort.StringSlice(sortedKeys))
 
-		for _, k := range sortedKeys {
-			tvIdx := tagData.keyIdxs[k] // The location of the tag value data for this key
-
-			// Sort tag values
-			// sort.Sort(tagData.values[tvIdx])
-			for _, v := range tagData.values[tvIdx].data {
-				if m != prevM || k != prevK || bytes.Compare(v, prevV) != 0 {
-					// Unique tag - let's add this one.
-					tagValues.Values = append(tagValues.Values, KeyValue{Key: k, Value: string(v)})
-				}
-				prevV = v
-				prevK = k
-				prevM = m
-			}
+		nextResult := mergeTagValues(idxBuf, allResults[i:j+1]...)
+		i = j + 1
+		if len(nextResult.Values) > 0 {
+			result = append(result, nextResult)
 		}
-		all = append(all, tagValues)
 	}
-	return all, nil
+	return result, nil
 }
 
-// unsafeBytesToString converts a []byte to a string without a heap allocation.
+// mergeTagValues merges multiple sorted sets of temporary tagValues using a
+// direct k-way merge whilst also removing duplicated entries. The result is a
+// single TagValue type.
 //
-// It is unsafe, and is intended to prepare input to short-lived functions
-// that require strings.
-func unsafeBytesToString(in []byte) string {
-	src := *(*reflect.SliceHeader)(unsafe.Pointer(&in))
-	dst := reflect.StringHeader{
-		Data: src.Data,
-		Len:  src.Len,
+// TODO(edd): a Tournament based merge (see: Knuth's TAOCP 5.4.1) might be more
+// appropriate at some point.
+//
+func mergeTagValues(valueIdxs [][2]int, tvs ...tagValues) TagValues {
+	var result TagValues
+	if len(tvs) == 0 {
+		return TagValues{}
+	} else if len(tvs) == 1 {
+		result.Measurement = string(tvs[0].name)
+		// TODO(edd): will be too small likely. Find a hint?
+		result.Values = make([]KeyValue, 0, len(tvs[0].values))
+
+		for ki, key := range tvs[0].keys {
+			for _, value := range tvs[0].values[ki] {
+				result.Values = append(result.Values, KeyValue{Key: key, Value: value})
+			}
+		}
+		return result
 	}
-	s := *(*string)(unsafe.Pointer(&dst))
-	return s
+
+	result.Measurement = string(tvs[0].name)
+
+	var maxSize int
+	for _, tv := range tvs {
+		if len(tv.values) > maxSize {
+			maxSize = len(tv.values)
+		}
+	}
+	result.Values = make([]KeyValue, 0, maxSize) // This will likely be too small but it's a start.
+
+	// Resize and reset to the number of TagValues we're merging.
+	valueIdxs = valueIdxs[:len(tvs)]
+	for i := 0; i < len(valueIdxs); i++ {
+		valueIdxs[i][0], valueIdxs[i][1] = 0, 0
+	}
+
+	var (
+		j              int
+		keyCmp, valCmp int
+	)
+
+	for {
+		// Which of the provided TagValue sets currently holds the smallest element.
+		// j is the candidate we're going to next pick for the result set.
+		j = -1
+
+		// Find the smallest element
+		for i := 0; i < len(tvs); i++ {
+			if valueIdxs[i][0] >= len(tvs[i].keys) {
+				continue // We have completely drained all tag keys and values for this shard.
+			} else if len(tvs[i].values[valueIdxs[i][0]]) == 0 {
+				// There are no tag values for these keys.
+				valueIdxs[i][0]++
+				valueIdxs[i][1] = 0
+				continue
+			} else if j == -1 {
+				// We haven't picked a best TagValues set yet. Pick this one.
+				j = i
+				continue
+			}
+
+			// It this tag key is lower than the candidate's tag key
+			keyCmp = strings.Compare(tvs[i].keys[valueIdxs[i][0]], tvs[j].keys[valueIdxs[j][0]])
+			if keyCmp == -1 {
+				j = i
+			} else if keyCmp == 0 {
+				valCmp = strings.Compare(tvs[i].values[valueIdxs[i][0]][valueIdxs[i][1]], tvs[j].values[valueIdxs[j][0]][valueIdxs[j][1]])
+				// Same tag key but this tag value is lower than the candidate.
+				if valCmp == -1 {
+					j = i
+				} else if valCmp == 0 {
+					// Duplicate tag key/value pair.... Remove and move onto
+					// the next value for shard i.
+					valueIdxs[i][1]++
+					if valueIdxs[i][1] >= len(tvs[i].values[valueIdxs[i][0]]) {
+						// Drained all these tag values, move onto next key.
+						valueIdxs[i][0]++
+						valueIdxs[i][1] = 0
+					}
+				}
+			}
+		}
+
+		// We could have drained all of the TagValue sets and be done...
+		if j == -1 {
+			break
+		}
+
+		// Append the smallest KeyValue
+		result.Values = append(result.Values, KeyValue{
+			Key:   string(tvs[j].keys[valueIdxs[j][0]]),
+			Value: tvs[j].values[valueIdxs[j][0]][valueIdxs[j][1]],
+		})
+		// Increment the indexes for the chosen TagValue.
+		valueIdxs[j][1]++
+		if valueIdxs[j][1] >= len(tvs[j].values[valueIdxs[j][0]]) {
+			// Drained all these tag values, move onto next key.
+			valueIdxs[j][0]++
+			valueIdxs[j][1] = 0
+		}
+	}
+	return result
 }
 
 func (s *Store) monitorShards() {
