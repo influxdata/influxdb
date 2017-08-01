@@ -7,6 +7,7 @@
 ### UI Improvements
 1. [#1796](https://github.com/influxdata/chronograf/pull/1796): Add spinner to indicate data is being written
 1. [#1800](https://github.com/influxdata/chronograf/pull/1796): Embiggen text area for line protocol manual entry in Data Explorer's Write Data overlay
+1. [#1812](https://github.com/influxdata/chronograf/pull/1812): Improve error message when request for Status Page News Feed fails
 
 ## v1.3.5.0 [2017-07-27]
 ### Bug Fixes
