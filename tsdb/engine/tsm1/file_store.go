@@ -859,7 +859,6 @@ func ParseTSMFileName(name string) (int, int, error) {
 // KeyCursor allows iteration through keys in a set of files within a FileStore.
 type KeyCursor struct {
 	key []byte
-	fs  *FileStore
 
 	// seeks is all the file locations that we need to return during iteration.
 	seeks []*location
@@ -932,7 +931,6 @@ func (a ascLocations) Less(i, j int) bool {
 func newKeyCursor(fs *FileStore, key []byte, t int64, ascending bool) *KeyCursor {
 	c := &KeyCursor{
 		key:       key,
-		fs:        fs,
 		seeks:     fs.locations(key, t, ascending),
 		ascending: ascending,
 	}
@@ -963,7 +961,6 @@ func (c *KeyCursor) Close() {
 
 	c.buf = nil
 	c.seeks = nil
-	c.fs = nil
 	c.current = nil
 }
 
