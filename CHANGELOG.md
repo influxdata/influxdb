@@ -6,6 +6,7 @@
 ### Features
 1. [#1717](https://github.com/influxdata/chronograf/pull/1717): View server generated TICKscripts
 1. [#1681](https://github.com/influxdata/chronograf/pull/1681): Add the ability to select Custom Time Ranges in the Hostpages, Data Explorer, and Dashboards.
+1. [#1714](https://github.com/influxdata/chronograf/pull/1714): Add ability for users to set y-axis bounds
 
 
 ### UI Improvements
