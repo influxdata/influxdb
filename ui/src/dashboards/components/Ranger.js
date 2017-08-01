@@ -10,7 +10,7 @@ const Ranger = ({onSetRange, axes}) => {
     <div className="display-options--cell">
       <h5 className="display-options--header">Y Axis Controls</h5>
       <form autoComplete="off" style={{margin: '0 -6px'}}>
-        {/*<div className="form-group col-sm-12">
+        {/* <div className="form-group col-sm-12">
           <label htmlFor="prefix">Axis Title</label>
           <input
             className="form-control input-sm"
@@ -18,7 +18,7 @@ const Ranger = ({onSetRange, axes}) => {
             name="label"
             id="label"
           />
-        </div>*/}
+        </div> */}
         <div className="form-group col-sm-6">
           <label htmlFor="min">Min</label>
           <input
@@ -43,7 +43,7 @@ const Ranger = ({onSetRange, axes}) => {
             placeholder="auto"
           />
         </div>
-        {/*<div className="form-group col-sm-6">
+        {/* <div className="form-group col-sm-6">
           <label htmlFor="prefix">Labels Prefix</label>
           <input
             className="form-control input-sm"
@@ -74,8 +74,7 @@ const Ranger = ({onSetRange, axes}) => {
             <li className="active">Linear</li>
             <li>Logarithmic</li>
           </ul>
-        </div>*/}
-
+        </div> */}
       </form>
     </div>
   )
