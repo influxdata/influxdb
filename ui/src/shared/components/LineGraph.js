@@ -153,10 +153,12 @@ export default React.createClass({
       roundedValue = Math.round(+lastValue * precision) / precision
     }
 
+    const isLabelSet = !!axes.y.label || !!axes.y2.label
+
     return (
       <div
         className={classnames('dygraph', {
-          'graph--hasYLabel': !!(options.ylabel || options.y2label),
+          'graph--hasYLabel': isLabelSet,
         })}
         style={{height: '100%'}}
       >
