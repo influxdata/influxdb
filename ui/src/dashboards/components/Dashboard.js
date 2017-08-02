@@ -23,22 +23,20 @@ const Dashboard = ({
   onSummonOverlayTechnologies,
   onSelectTemplate,
   showTemplateControlBar,
+  onCancelEditCell,
 }) => {
   const cells = dashboard.cells.map(cell => {
     const dashboardCell = {...cell}
-    dashboardCell.queries = dashboardCell.queries.map(({
-      label,
-      query,
-      queryConfig,
-      db,
-    }) => ({
-      label,
-      query,
-      queryConfig,
-      db,
-      database: db,
-      text: query,
-    }))
+    dashboardCell.queries = dashboardCell.queries.map(
+      ({label, query, queryConfig, db}) => ({
+        label,
+        query,
+        queryConfig,
+        db,
+        database: db,
+        text: query,
+      })
+    )
     return dashboardCell
   })
 
@@ -59,6 +57,7 @@ const Dashboard = ({
             />}
         {cells.length
           ? <LayoutRenderer
+              onCancelEditCell={onCancelEditCell}
               templates={templatesIncludingDashTime}
               isEditable={true}
               cells={cells}
@@ -127,6 +126,7 @@ Dashboard.propTypes = {
   onOpenTemplateManager: func.isRequired,
   onSelectTemplate: func.isRequired,
   showTemplateControlBar: bool,
+  onCancelEditCell: func,
 }
 
 export default Dashboard

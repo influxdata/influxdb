@@ -9,7 +9,7 @@ import statusReducers from 'src/status/reducers'
 import sharedReducers from 'shared/reducers'
 import dataExplorerReducers from 'src/data_explorer/reducers'
 import adminReducer from 'src/admin/reducers/admin'
-import rulesReducer from 'src/kapacitor/reducers/rules'
+import kapacitorReducers from 'src/kapacitor/reducers'
 import dashboardUI from 'src/dashboards/reducers/ui'
 import persistStateEnhancer from './persistStateEnhancer'
 
@@ -17,8 +17,8 @@ const rootReducer = combineReducers({
   ...statusReducers,
   ...sharedReducers,
   ...dataExplorerReducers,
+  ...kapacitorReducers,
   admin: adminReducer,
-  rules: rulesReducer,
   dashboardUI,
   routing: routerReducer,
 })

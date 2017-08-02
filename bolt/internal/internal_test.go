@@ -41,6 +41,38 @@ func TestMarshalSource(t *testing.T) {
 		t.Fatalf("source protobuf copy error: got %#v, expected %#v", vv, v)
 	}
 }
+func TestMarshalSourceWithSecret(t *testing.T) {
+	v := chronograf.Source{
+		ID:           12,
+		Name:         "Fountain of Truth",
+		Type:         "influx",
+		Username:     "docbrown",
+		SharedSecret: "hunter2s",
+		URL:          "http://twin-pines.mall.io:8086",
+		MetaURL:      "http://twin-pines.meta.io:8086",
+		Default:      true,
+		Telegraf:     "telegraf",
+	}
+
+	var vv chronograf.Source
+	if buf, err := internal.MarshalSource(v); err != nil {
+		t.Fatal(err)
+	} else if err := internal.UnmarshalSource(buf, &vv); err != nil {
+		t.Fatal(err)
+	} else if !reflect.DeepEqual(v, vv) {
+		t.Fatalf("source protobuf copy error: got %#v, expected %#v", vv, v)
+	}
+
+	// Test if the new insecureskipverify works
+	v.InsecureSkipVerify = true
+	if buf, err := internal.MarshalSource(v); err != nil {
+		t.Fatal(err)
+	} else if err := internal.UnmarshalSource(buf, &vv); err != nil {
+		t.Fatal(err)
+	} else if !reflect.DeepEqual(v, vv) {
+		t.Fatalf("source protobuf copy error: got %#v, expected %#v", vv, v)
+	}
+}
 
 func TestMarshalServer(t *testing.T) {
 	v := chronograf.Server{

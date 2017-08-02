@@ -2,16 +2,17 @@ syntax = "proto3";
 package internal;
 
 message Source {
-	int64 ID                  = 1; // ID is the unique ID of the source
-	string Name               = 2; // Name is the user-defined name for the source
-	string Type               = 3; // Type specifies which kinds of source (enterprise vs oss)
-	string Username           = 4; // Username is the username to connect to the source
+	int64 ID                  = 1;  // ID is the unique ID of the source
+	string Name               = 2;  // Name is the user-defined name for the source
+	string Type               = 3;  // Type specifies which kinds of source (enterprise vs oss)
+	string Username           = 4;  // Username is the username to connect to the source
 	string Password           = 5;
-	string URL                = 6; // URL are the connections to the source
-	bool Default              = 7; // Flags an source as the default.
-	string Telegraf           = 8; // Telegraf is the db telegraf is written to. By default it is "telegraf"
-	bool InsecureSkipVerify   = 9; // InsecureSkipVerify accepts any certificate from the influx server
+	string URL                = 6;  // URL are the connections to the source
+	bool Default              = 7;  // Flags an source as the default.
+	string Telegraf           = 8;  // Telegraf is the db telegraf is written to. By default it is "telegraf"
+	bool InsecureSkipVerify   = 9;  // InsecureSkipVerify accepts any certificate from the influx server
 	string MetaURL            = 10; // MetaURL is the connection URL for the meta node.
+	string SharedSecret       = 11; // SharedSecret signs the optional InfluxDB JWT Authorization
 }
 
 message Dashboard {

@@ -83,6 +83,7 @@ export const RuleHeader = React.createClass({
         <TimeRangeDropdown
           onChooseTimeRange={onChooseTimeRange}
           selected={timeRange}
+          preventCustomTimeRange={true}
         />
         {saveButton}
         <ReactTooltip

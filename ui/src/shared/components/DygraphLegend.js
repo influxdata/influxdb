@@ -69,7 +69,9 @@ const DygraphLegend = ({
       onMouseLeave={onHide}
     >
       <div className="dygraph-legend--header">
-        <div className="dygraph-legend--timestamp">{xHTML}</div>
+        <div className="dygraph-legend--timestamp">
+          {xHTML}
+        </div>
         {renderSortAlpha}
         {renderSortNum}
         <button
@@ -81,7 +83,13 @@ const DygraphLegend = ({
         >
           <span className="icon search" />
         </button>
-        <button className="btn btn-default btn-sm" onClick={onSnip}>
+        <button
+          className={classnames('btn btn-sm', {
+            'btn-default': !isSnipped,
+            'btn-primary': isSnipped,
+          })}
+          onClick={onSnip}
+        >
           Snip
         </button>
       </div>
@@ -106,7 +114,9 @@ const DygraphLegend = ({
               <span style={{color}}>
                 {isSnipped ? removeMeasurement(label) : label}
               </span>
-              <figure>{yHTML || 'no value'}</figure>
+              <figure>
+                {yHTML || 'no value'}
+              </figure>
             </div>
           )
         })}

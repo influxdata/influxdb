@@ -74,8 +74,14 @@ export default React.createClass({
 
     const statText = (
       <div className="cluster-stat--label">
-        <span>{this.props.queryDescription}</span>
-        <span><strong>{truncated}</strong></span>
+        <span>
+          {this.props.queryDescription}
+        </span>
+        <span>
+          <strong>
+            {truncated}
+          </strong>
+        </span>
       </div>
     )
 

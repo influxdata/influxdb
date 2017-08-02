@@ -76,11 +76,8 @@ const OpsGenieConfig = React.createClass({
             refFunc={r => (this.apiKey = r)}
           />
           <label className="form-helper">
-            Note: a value of
-            {' '}
-            <code>true</code>
-            {' '}
-            indicates the OpsGenie API key has been set
+            Note: a value of <code>true</code> indicates the OpsGenie API key
+            has been set
           </label>
         </div>
 
@@ -138,7 +135,9 @@ const TagInput = React.createClass({
 
     return (
       <div className="form-group col-xs-12">
-        <label htmlFor={title}>{title}</label>
+        <label htmlFor={title}>
+          {title}
+        </label>
         <input
           placeholder={`Type and hit 'Enter' to add to list of ${title}`}
           autoComplete="off"
@@ -183,7 +182,9 @@ const Tag = React.createClass({
 
     return (
       <span key={item} className="input-tag-item">
-        <span>{item}</span>
+        <span>
+          {item}
+        </span>
         <span className="icon remove" onClick={() => onDelete(item)} />
       </span>
     )

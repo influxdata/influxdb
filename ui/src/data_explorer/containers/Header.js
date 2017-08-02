@@ -2,7 +2,7 @@ import React, {PropTypes} from 'react'
 import {withRouter} from 'react-router'
 
 import AutoRefreshDropdown from 'shared/components/AutoRefreshDropdown'
-import CustomTimeRangeDropdown from 'shared/components/CustomTimeRangeDropdown'
+import TimeRangeDropdown from 'shared/components/TimeRangeDropdown'
 import SourceIndicator from 'shared/components/SourceIndicator'
 import GraphTips from 'shared/components/GraphTips'
 
@@ -44,9 +44,7 @@ const Header = React.createClass({
       <div className="page-header full-width">
         <div className="page-header__container">
           <div className="page-header__left">
-            <h1 className="page-header__title">
-              Data Explorer
-            </h1>
+            <h1 className="page-header__title">Data Explorer</h1>
           </div>
           <div className="page-header__right">
             <GraphTips />
@@ -60,9 +58,9 @@ const Header = React.createClass({
               selected={autoRefresh}
               iconName="refresh"
             />
-            <CustomTimeRangeDropdown
-              onApplyTimeRange={this.handleChooseTimeRange}
-              timeRange={timeRange}
+            <TimeRangeDropdown
+              onChooseTimeRange={this.handleChooseTimeRange}
+              selected={timeRange}
             />
           </div>
         </div>

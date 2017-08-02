@@ -13,6 +13,7 @@ import {
   HipChatConfig,
   OpsGenieConfig,
   PagerDutyConfig,
+  PushoverConfig,
   SensuConfig,
   SlackConfig,
   SMTPConfig,
@@ -124,99 +125,97 @@ class AlertTabs extends Component {
       this.handleTest('slack', properties)
     }
 
-    const tabs = [
-      {
+    const supportedConfigs = {
+      alerta: {
         type: 'Alerta',
-        component: (
+        renderComponent: () =>
           <AlertaConfig
             onSave={p => this.handleSaveConfig('alerta', p)}
             config={this.getSection(configSections, 'alerta')}
-          />
-        ),
+          />,
       },
-      {
-        type: 'SMTP',
-        component: (
-          <SMTPConfig
-            onSave={p => this.handleSaveConfig('smtp', p)}
-            config={this.getSection(configSections, 'smtp')}
-          />
-        ),
+      hipchat: {
+        type: 'HipChat',
+        renderComponent: () =>
+          <HipChatConfig
+            onSave={p => this.handleSaveConfig('hipchat', p)}
+            config={this.getSection(configSections, 'hipchat')}
+          />,
       },
-      {
+      opsgenie: {
+        type: 'OpsGenie',
+        renderComponent: () =>
+          <OpsGenieConfig
+            onSave={p => this.handleSaveConfig('opsgenie', p)}
+            config={this.getSection(configSections, 'opsgenie')}
+          />,
+      },
+      pagerduty: {
+        type: 'PagerDuty',
+        renderComponent: () =>
+          <PagerDutyConfig
+            onSave={p => this.handleSaveConfig('pagerduty', p)}
+            config={this.getSection(configSections, 'pagerduty')}
+          />,
+      },
+      pushover: {
+        type: 'Pushover',
+        renderComponent: () =>
+          <PushoverConfig
+            onSave={p => this.handleSaveConfig('pushover', p)}
+            config={this.getSection(configSections, 'pushover')}
+          />,
+      },
+      sensu: {
+        type: 'Sensu',
+        renderComponent: () =>
+          <SensuConfig
+            onSave={p => this.handleSaveConfig('sensu', p)}
+            config={this.getSection(configSections, 'sensu')}
+          />,
+      },
+      slack: {
         type: 'Slack',
-        component: (
+        renderComponent: () =>
           <SlackConfig
             onSave={p => this.handleSaveConfig('slack', p)}
             onTest={test}
             config={this.getSection(configSections, 'slack')}
-          />
-        ),
+          />,
       },
-      {
-        type: 'VictorOps',
-        component: (
-          <VictorOpsConfig
-            onSave={p => this.handleSaveConfig('victorops', p)}
-            config={this.getSection(configSections, 'victorops')}
-          />
-        ),
+      smtp: {
+        type: 'SMTP',
+        renderComponent: () =>
+          <SMTPConfig
+            onSave={p => this.handleSaveConfig('smtp', p)}
+            config={this.getSection(configSections, 'smtp')}
+          />,
       },
-      {
-        type: 'Telegram',
-        component: (
-          <TelegramConfig
-            onSave={p => this.handleSaveConfig('telegram', p)}
-            config={this.getSection(configSections, 'telegram')}
-          />
-        ),
-      },
-      {
-        type: 'OpsGenie',
-        component: (
-          <OpsGenieConfig
-            onSave={p => this.handleSaveConfig('opsgenie', p)}
-            config={this.getSection(configSections, 'opsgenie')}
-          />
-        ),
-      },
-      {
-        type: 'PagerDuty',
-        component: (
-          <PagerDutyConfig
-            onSave={p => this.handleSaveConfig('pagerduty', p)}
-            config={this.getSection(configSections, 'pagerduty')}
-          />
-        ),
-      },
-      {
-        type: 'HipChat',
-        component: (
-          <HipChatConfig
-            onSave={p => this.handleSaveConfig('hipchat', p)}
-            config={this.getSection(configSections, 'hipchat')}
-          />
-        ),
-      },
-      {
-        type: 'Sensu',
-        component: (
-          <SensuConfig
-            onSave={p => this.handleSaveConfig('sensu', p)}
-            config={this.getSection(configSections, 'sensu')}
-          />
-        ),
-      },
-      {
+      talk: {
         type: 'Talk',
-        component: (
+        renderComponent: () =>
           <TalkConfig
             onSave={p => this.handleSaveConfig('talk', p)}
             config={this.getSection(configSections, 'talk')}
-          />
-        ),
+          />,
       },
-    ]
+      telegram: {
+        type: 'Telegram',
+        renderComponent: () =>
+          <TelegramConfig
+            onSave={p => this.handleSaveConfig('telegram', p)}
+            config={this.getSection(configSections, 'telegram')}
+          />,
+      },
+      victorops: {
+        type: 'VictorOps',
+        renderComponent: () =>
+          <VictorOpsConfig
+            onSave={p => this.handleSaveConfig('victorops', p)}
+            config={this.getSection(configSections, 'victorops')}
+          />,
+      },
+    }
 
     return (
       <div>
@@ -228,11 +227,31 @@ class AlertTabs extends Component {
 
         <Tabs tabContentsClass="config-endpoint">
           <TabList customClass="config-endpoint--tabs">
-            {tabs.map((t, i) => <Tab key={tabs[i].type}>{tabs[i].type}</Tab>)}
+            {_.reduce(
+              configSections,
+              (acc, _cur, k) =>
+                supportedConfigs[k]
+                  ? acc.concat(
+                      <Tab key={supportedConfigs[k].type}>
+                        {supportedConfigs[k].type}
+                      </Tab>
+                    )
+                  : acc,
+              []
+            )}
           </TabList>
           <TabPanels customClass="config-endpoint--tab-contents">
-            {tabs.map((t, i) =>
-              <TabPanel key={tabs[i].type}>{t.component}</TabPanel>
+            {_.reduce(
+              configSections,
+              (acc, _cur, k) =>
+                supportedConfigs[k]
+                  ? acc.concat(
+                      <TabPanel key={supportedConfigs[k].type}>
+                        {supportedConfigs[k].renderComponent()}
+                      </TabPanel>
+                    )
+                  : acc,
+              []
             )}
           </TabPanels>
         </Tabs>

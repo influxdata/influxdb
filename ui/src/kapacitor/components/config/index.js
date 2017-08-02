@@ -2,6 +2,7 @@ import AlertaConfig from './AlertaConfig'
 import HipChatConfig from './HipChatConfig'
 import OpsGenieConfig from './OpsGenieConfig'
 import PagerDutyConfig from './PagerDutyConfig'
+import PushoverConfig from './PushoverConfig'
 import SensuConfig from './SensuConfig'
 import SlackConfig from './SlackConfig'
 import SMTPConfig from './SMTPConfig'
@@ -14,6 +15,7 @@ export {
   HipChatConfig,
   OpsGenieConfig,
   PagerDutyConfig,
+  PushoverConfig,
   SensuConfig,
   SlackConfig,
   SMTPConfig,

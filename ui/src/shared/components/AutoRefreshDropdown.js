@@ -55,7 +55,9 @@ const AutoRefreshDropdown = React.createClass({
               +milliseconds > 0 ? 'refresh' : 'pause'
             )}
           />
-          <span className="dropdown-selected">{inputValue}</span>
+          <span className="dropdown-selected">
+            {inputValue}
+          </span>
           <span className="caret" />
         </div>
         <ul className="dropdown-menu">

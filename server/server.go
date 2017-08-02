@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"log"
 	"math/rand"
 	"net"
@@ -51,10 +50,10 @@ type Server struct {
 	KapacitorUsername string `long:"kapacitor-username" description:"Username of your Kapacitor instance" env:"KAPACITOR_USERNAME"`
 	KapacitorPassword string `long:"kapacitor-password" description:"Password of your Kapacitor instance" env:"KAPACITOR_PASSWORD"`
 
-	NewSources string `long:"new-sources" description:"Config for adding a new InfluxDb source and Kapacitor server, in JSON as an array of objects, and surrounded by single quotes. E.g. --new-sources='[{\"influxdb\":{\"name\":\"Influx 1\",\"username\":\"user1\",\"password\":\"pass1\",\"url\":\"http://localhost:8086\",\"metaUrl\":\"http://metaurl.com\",\"insecureSkipVerify\":false,\"default\":true,\"telegraf\":\"telegraf\"},\"kapacitor\":{\"name\":\"Kapa 1\",\"url\":\"http://localhost:9092\",\"active\":true}}]'" env:"NEW_SOURCES"`
+	NewSources string `long:"new-sources" description:"Config for adding a new InfluxDB source and Kapacitor server, in JSON as an array of objects, and surrounded by single quotes. E.g. --new-sources='[{\"influxdb\":{\"name\":\"Influx 1\",\"username\":\"user1\",\"password\":\"pass1\",\"url\":\"http://localhost:8086\",\"metaUrl\":\"http://metaurl.com\",\"insecureSkipVerify\":false,\"default\":true,\"telegraf\":\"telegraf\",\"sharedSecret\":\"hunter2\"},\"kapacitor\":{\"name\":\"Kapa 1\",\"url\":\"http://localhost:9092\",\"active\":true}}]'" env:"NEW_SOURCES" hidden:"true"`
 
 	Develop      bool          `short:"d" long:"develop" description:"Run server in develop mode."`
-	BoltPath     string        `short:"b" long:"bolt-path" description:"Full path to boltDB file (/var/lib/chronograf/chronograf-v1.db)" env:"BOLT_PATH" default:"chronograf-v1.db"`
+	BoltPath     string        `short:"b" long:"bolt-path" description:"Full path to boltDB file (e.g. './chronograf-v1.db')" env:"BOLT_PATH" default:"chronograf-v1.db"`
 	CannedPath   string        `short:"c" long:"canned-path" description:"Path to directory of pre-canned application layouts (/usr/share/chronograf/canned)" env:"CANNED_PATH" default:"canned"`
 	TokenSecret  string        `short:"t" long:"token-secret" description:"Secret to sign tokens" env:"TOKEN_SECRET"`
 	AuthDuration time.Duration `long:"auth-duration" default:"720h" description:"Total duration of cookie life for authentication (in hours). 0 means authentication expires on browser close." env:"AUTH_DURATION"`
@@ -301,8 +300,13 @@ func (s *Server) Serve(ctx context.Context) error {
 		return err
 	}
 	service := openService(ctx, s.BoltPath, layoutBuilder, sourcesBuilder, kapacitorBuilder, logger, s.useAuth())
-
-	go processNewSources(ctx, service, s.NewSources, logger)
+	if err := service.HandleNewSources(ctx, s.NewSources); err != nil {
+		logger.
+			WithField("component", "server").
+			WithField("new-sources", "invalid").
+			Error(err)
+		return err
+	}
 
 	basepath = s.Basepath
 	if basepath != "" && s.PrefixRoutes == false {
@@ -435,33 +439,6 @@ func openService(ctx context.Context, boltPath string, lBuilder LayoutBuilder, s
 		UseAuth:          useAuth,
 		Databases:        &influx.Client{Logger: logger},
 	}
-}
-
-// processNewSources parses and persists new sources passed in via server flag
-func processNewSources(ctx context.Context, service Service, newSources string, logger chronograf.Logger) error {
-	if newSources == "" {
-		return nil
-	}
-
-	var srcsKaps []chronograf.SourceAndKapacitor
-	// On JSON unmarshal error, continue server process without new source and write error to log
-	if err := json.Unmarshal([]byte(newSources), &srcsKaps); err != nil {
-		logger.
-			WithField("component", "server").
-			WithField("NewSources", "invalid").
-			Error(err)
-	}
-
-	// Add any new sources and kapacitors as specified via server flag
-	if err := chronograf.NewSources(ctx, service.SourcesStore, service.ServersStore, srcsKaps, logger); err != nil {
-		// Continue with server run even if adding NewSources fails
-		logger.
-			WithField("component", "server").
-			WithField("NewSources", "invalid").
-			Error(err)
-	}
-
-	return nil
 }
 
 // reportUsageStats starts periodic server reporting.

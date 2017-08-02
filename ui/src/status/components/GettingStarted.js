@@ -19,9 +19,9 @@ class GettingStarted extends Component {
           </div>
           <div className="getting-started--cell">
             <p>
-              <strong>Install the TICK Stack</strong><br />Save some time and
-              use this handy tool to install the rest of the
-              stack:
+              <strong>Install the TICK Stack</strong>
+              <br />Save some time and use this handy tool to install the rest
+              of the stack:
             </p>
             <p>
               <a href="https://github.com/influxdata/sandbox" target="_blank">
@@ -30,7 +30,9 @@ class GettingStarted extends Component {
             </p>
           </div>
           <div className="getting-started--cell">
-            <p><strong>Guides</strong></p>
+            <p>
+              <strong>Guides</strong>
+            </p>
             <p>
               <a
                 href="https://docs.influxdata.com/chronograf/latest/guides/create-a-dashboard/"
@@ -76,7 +78,9 @@ class GettingStarted extends Component {
             </p>
           </div>
           <div className="getting-started--cell">
-            <p><strong>Questions & Comments</strong></p>
+            <p>
+              <strong>Questions & Comments</strong>
+            </p>
             <p>
               If you have any product feedback please open a GitHub issue and
               we'll take a look. For any questions or other issues try posting

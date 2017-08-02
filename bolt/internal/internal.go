@@ -17,6 +17,7 @@ func MarshalSource(s chronograf.Source) ([]byte, error) {
 		Type:               s.Type,
 		Username:           s.Username,
 		Password:           s.Password,
+		SharedSecret:       s.SharedSecret,
 		URL:                s.URL,
 		MetaURL:            s.MetaURL,
 		InsecureSkipVerify: s.InsecureSkipVerify,
@@ -37,6 +38,7 @@ func UnmarshalSource(data []byte, s *chronograf.Source) error {
 	s.Type = pb.Type
 	s.Username = pb.Username
 	s.Password = pb.Password
+	s.SharedSecret = pb.SharedSecret
 	s.URL = pb.URL
 	s.MetaURL = pb.MetaURL
 	s.InsecureSkipVerify = pb.InsecureSkipVerify
@@ -181,15 +183,9 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 
 		axes := make(map[string]*Axis, len(c.Axes))
 		for a, r := range c.Axes {
-			// we only marshal LegacyBounds for a data migration test. This should
-			// not be used by anything in production.
-			axis := [2]int64{}
-			copy(axis[:], r.LegacyBounds[:2])
-
 			axes[a] = &Axis{
-				Bounds:       r.Bounds,
-				LegacyBounds: axis[:],
-				Label:        r.Label,
+				Bounds: r.Bounds,
+				Label:  r.Label,
 			}
 		}
 

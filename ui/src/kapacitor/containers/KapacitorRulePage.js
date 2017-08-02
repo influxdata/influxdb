@@ -2,12 +2,12 @@ import React, {PropTypes, Component} from 'react'
 import {connect} from 'react-redux'
 import _ from 'lodash'
 
-import * as kapacitorActionCreators from 'src/kapacitor/actions/view'
-import * as queryActionCreators from 'src/data_explorer/actions/view'
+import * as kapacitorRuleActionCreators from 'src/kapacitor/actions/view'
+import * as kapacitorQueryConfigActionCreators from 'src/kapacitor/actions/queryConfigs'
 
 import {bindActionCreators} from 'redux'
 import {getActiveKapacitor, getKapacitorConfig} from 'shared/apis/index'
-import {ALERTS, DEFAULT_RULE_ID} from 'src/kapacitor/constants'
+import {RULE_ALERT_OPTIONS, DEFAULT_RULE_ID} from 'src/kapacitor/constants'
 import KapacitorRule from 'src/kapacitor/components/KapacitorRule'
 
 class KapacitorRulePage extends Component {
@@ -23,11 +23,11 @@ class KapacitorRulePage extends Component {
   }
 
   async componentDidMount() {
-    const {params, source, kapacitorActions, addFlashMessage} = this.props
+    const {params, source, ruleActions, addFlashMessage} = this.props
     if (this.isEditing()) {
-      kapacitorActions.fetchRule(source, params.ruleID)
+      ruleActions.fetchRule(source, params.ruleID)
     } else {
-      kapacitorActions.loadDefaultRule()
+      ruleActions.loadDefaultRule()
     }
 
     const kapacitor = await getActiveKapacitor(this.props.source)
@@ -40,15 +40,14 @@ class KapacitorRulePage extends Component {
 
     try {
       const {data: {sections}} = await getKapacitorConfig(kapacitor)
-      const enabledAlerts = Object.keys(sections).filter(section => {
-        return (
+      const enabledAlerts = Object.keys(sections).filter(
+        section =>
           _.get(
             sections,
             [section, 'elements', '0', 'options', 'enabled'],
             false
-          ) && ALERTS.includes(section)
-        )
-      })
+          ) && _.get(RULE_ALERT_OPTIONS, section, false)
+      )
 
       this.setState({kapacitor, enabledAlerts})
     } catch (error) {
@@ -66,14 +65,13 @@ class KapacitorRulePage extends Component {
       rules,
       queryConfigs,
       params,
-      kapacitorActions,
+      ruleActions,
       source,
-      queryActions,
+      queryConfigActions,
       addFlashMessage,
       router,
     } = this.props
     const {enabledAlerts, kapacitor} = this.state
-
     const rule = this.isEditing()
       ? rules[params.ruleID]
       : rules[DEFAULT_RULE_ID]
@@ -82,15 +80,14 @@ class KapacitorRulePage extends Component {
     if (!query) {
       return <div className="page-spinner" />
     }
-
     return (
       <KapacitorRule
         source={source}
         rule={rule}
         query={query}
         queryConfigs={queryConfigs}
-        queryActions={queryActions}
-        kapacitorActions={kapacitorActions}
+        queryConfigActions={queryConfigActions}
+        ruleActions={ruleActions}
         addFlashMessage={addFlashMessage}
         enabledAlerts={enabledAlerts}
         isEditing={this.isEditing()}
@@ -118,7 +115,7 @@ KapacitorRulePage.propTypes = {
   addFlashMessage: func,
   rules: shape({}).isRequired,
   queryConfigs: shape({}).isRequired,
-  kapacitorActions: shape({
+  ruleActions: shape({
     loadDefaultRule: func.isRequired,
     fetchRule: func.isRequired,
     chooseTrigger: func.isRequired,
@@ -129,7 +126,7 @@ KapacitorRulePage.propTypes = {
     updateAlerts: func.isRequired,
     updateRuleName: func.isRequired,
   }).isRequired,
-  queryActions: shape({}).isRequired,
+  queryConfigActions: shape({}).isRequired,
   params: shape({
     ruleID: string,
   }).isRequired,
@@ -138,14 +135,17 @@ KapacitorRulePage.propTypes = {
   }).isRequired,
 }
 
-const mapStateToProps = ({rules, queryConfigs}) => ({
+const mapStateToProps = ({rules, kapacitorQueryConfigs: queryConfigs}) => ({
   rules,
   queryConfigs,
 })
 
 const mapDispatchToProps = dispatch => ({
-  kapacitorActions: bindActionCreators(kapacitorActionCreators, dispatch),
-  queryActions: bindActionCreators(queryActionCreators, dispatch),
+  ruleActions: bindActionCreators(kapacitorRuleActionCreators, dispatch),
+  queryConfigActions: bindActionCreators(
+    kapacitorQueryConfigActionCreators,
+    dispatch
+  ),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(KapacitorRulePage)
