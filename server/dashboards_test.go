@@ -226,6 +226,7 @@ func Test_newDashboardResponse(t *testing.T) {
 							},
 							"y": chronograf.Axis{
 								Bounds: []string{"2", "95"},
+								Label:  "foo",
 							},
 						},
 					},
@@ -272,6 +273,7 @@ func Test_newDashboardResponse(t *testing.T) {
 								},
 								"y": chronograf.Axis{
 									Bounds: []string{"2", "95"},
+									Label:  "foo",
 								},
 								"y2": chronograf.Axis{
 									Bounds: []string{},

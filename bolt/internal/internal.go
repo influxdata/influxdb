@@ -189,6 +189,7 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 			axes[a] = &Axis{
 				Bounds:       r.Bounds,
 				LegacyBounds: axis[:],
+				Label:        r.Label,
 			}
 		}
 
@@ -270,6 +271,7 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 			if r.Bounds != nil {
 				axes[a] = chronograf.Axis{
 					Bounds: r.Bounds,
+					Label:  r.Label,
 				}
 			} else {
 				axes[a] = chronograf.Axis{

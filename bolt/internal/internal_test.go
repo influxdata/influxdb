@@ -129,6 +129,7 @@ func Test_MarshalDashboard(t *testing.T) {
 				Axes: map[string]chronograf.Axis{
 					"y": chronograf.Axis{
 						Bounds: []string{"0", "3", "1-7", "foo"},
+						Label:  "foo",
 					},
 				},
 				Type: "line",
