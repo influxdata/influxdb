@@ -80,7 +80,6 @@ func (fs *FileSet) MustReplace(oldFiles []File, newFile File) *FileSet {
 
 	// Ensure all old files are contiguous.
 	for j := range oldFiles {
-		println("dbg/replace", len(fs.files), "//", i, j)
 		if fs.files[i+j] != oldFiles[j] {
 			panic(fmt.Sprintf("cannot replace non-contiguous files: subset=%+v, fileset=%+v", Files(oldFiles).IDs(), Files(fs.files).IDs()))
 		}
