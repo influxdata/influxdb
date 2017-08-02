@@ -9,6 +9,7 @@ import getRange from 'shared/parsing/getRangeForDygraph'
 
 import {LINE_COLORS, multiColumnBarPlotter} from 'src/shared/graphs/helpers'
 import DygraphLegend from 'src/shared/components/DygraphLegend'
+import {buildYLabel} from 'shared/presenters'
 
 export default class Dygraph extends Component {
   constructor(props) {
@@ -35,6 +36,7 @@ export default class Dygraph extends Component {
     this.handleHideLegend = ::this.handleHideLegend
     this.handleToggleFilter = ::this.handleToggleFilter
     this.visibility = ::this.visibility
+    this.getLabel = ::this.getLabel
   }
 
   static defaultProps = {
@@ -48,6 +50,18 @@ export default class Dygraph extends Component {
     // Avoid 'Can't plot empty data set' errors by falling back to a
     // default dataset that's valid for Dygraph.
     return timeSeries.length ? timeSeries : [[0]]
+  }
+
+  getLabel(axis) {
+    const {axes, queries} = this.props
+    const label = _.get(axes, [axis, 'label'], '')
+    const queryConfig = _.get(queries, ['0', 'queryConfig'], false)
+
+    if (label || !queryConfig) {
+      return label
+    }
+
+    return buildYLabel(queryConfig)
   }
 
   componentDidMount() {
@@ -73,7 +87,6 @@ export default class Dygraph extends Component {
 
     const yAxis = _.get(axes, ['y', 'bounds'], [null, null])
     const y2Axis = _.get(axes, ['y2', 'bounds'], undefined)
-    const ylabel = _.get(axes, ['y', 'label'], '')
 
     const defaultOptions = {
       plugins: [
@@ -94,7 +107,7 @@ export default class Dygraph extends Component {
       hideOverlayOnMouseOut: false,
       colors: finalLineColors,
       series: dygraphSeries,
-      ylabel,
+      ylabel: this.getLabel('y'),
       axes: {
         y: {
           valueRange: getRange(timeSeries, yAxis, ruleValues),
@@ -256,13 +269,12 @@ export default class Dygraph extends Component {
 
     const y = _.get(axes, ['y', 'bounds'], [null, null])
     const y2 = _.get(axes, ['y2', 'bounds'], undefined)
-    const ylabel = _.get(axes, ['y', 'label'], '')
     const timeSeries = this.getTimeSeries()
 
     const updateOptions = {
       labels,
       file: timeSeries,
-      ylabel,
+      ylabel: this.getLabel('y'),
       axes: {
         y: {
           valueRange: getRange(timeSeries, y, ruleValues),
@@ -369,7 +381,7 @@ export default class Dygraph extends Component {
   }
 }
 
-const {array, bool, func, shape, string} = PropTypes
+const {array, arrayOf, bool, func, shape, string} = PropTypes
 
 Dygraph.propTypes = {
   axes: shape({
@@ -380,6 +392,7 @@ Dygraph.propTypes = {
       bounds: array,
     }),
   }),
+  queries: arrayOf(shape),
   timeSeries: array.isRequired,
   labels: array.isRequired,
   options: shape({}),

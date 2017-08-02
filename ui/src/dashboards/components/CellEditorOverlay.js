@@ -17,6 +17,7 @@ import {getQueryConfig} from 'shared/apis'
 import {removeUnselectedTemplateValues} from 'src/dashboards/constants'
 import {OVERLAY_TECHNOLOGY} from 'shared/constants/classNames'
 import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from 'src/data_explorer/constants'
+import {buildYLabel} from 'shared/presenters'
 
 class CellEditorOverlay extends Component {
   constructor(props) {
@@ -59,7 +60,8 @@ class CellEditorOverlay extends Component {
     }
 
     const q = queries[0].queryConfig
-    const label = q.rawText ? '' : `${q.measurement}.${q.fields[0].field}`
+    const label = buildYLabel(q)
+
     return {...axes, y: {...axes.y, label}}
   }
 

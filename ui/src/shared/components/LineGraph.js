@@ -93,6 +93,7 @@ export default React.createClass({
       isBarGraph,
       overrideLineColors,
       title,
+      queries,
       underlayCallback,
       showSingleStat,
       displayOptions,
@@ -156,15 +157,18 @@ export default React.createClass({
     const isLabelSet =
       !!axes.y.label || !!axes.y2.label ? 'graph--hasYLabel' : ''
 
+    const lineColors = showSingleStat
+      ? singleStatLineColors
+      : overrideLineColors
+
     return (
       <div className={`dygraph ${isLabelSet}`} style={{height: '100%'}}>
         {isRefreshing ? this.renderSpinner() : null}
         <Dygraph
           axes={axes}
+          queries={queries}
           containerStyle={{width: '100%', height: '100%'}}
-          overrideLineColors={
-            showSingleStat ? singleStatLineColors : overrideLineColors
-          }
+          overrideLineColors={lineColors}
           isGraphFilled={showSingleStat ? false : isGraphFilled}
           isBarGraph={isBarGraph}
           timeSeries={timeSeries}
