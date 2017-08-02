@@ -23,8 +23,8 @@ const Ranger = ({onSetRange, axes}) => {
           <label htmlFor="min">Lower Bound</label>
           <div className="one-or-any">
             <div className="one-or-any--auto">auto</div>
-            <div className="one-or-any--toggle">
-              <div className="one-or-any--groove-knob" />
+            <div className="one-or-any--switch">
+              <div />
             </div>
             <input
               className="form-control input-sm"
