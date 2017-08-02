@@ -104,7 +104,7 @@ class CellEditorOverlay extends Component {
     const {label} = e.target.form
     const {axes} = this.state
 
-    this.setState({axes: {...axes, y: {label: label.value}}})
+    this.setState({axes: {...axes, y: {...axes.y, label: label.value}}})
     e.preventDefault()
   }
 
