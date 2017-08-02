@@ -184,8 +184,7 @@ export const putDashboardByID = dashboardID => async (dispatch, getState) => {
 export const updateDashboardCell = (dashboard, cell) => async dispatch => {
   try {
     const {data} = await updateDashboardCellAJAX(cell)
-    // TODO: remove yRanges when server persists the ranges
-    dispatch(syncDashboardCell(dashboard, {...data, yRanges: cell.yRanges}))
+    dispatch(syncDashboardCell(dashboard, data))
   } catch (error) {
     console.error(error)
     dispatch(errorThrown(error))
