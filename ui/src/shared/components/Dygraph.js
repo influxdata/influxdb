@@ -43,6 +43,7 @@ export default class Dygraph extends Component {
     containerStyle: {},
     isGraphFilled: true,
     overrideLineColors: null,
+    dygraphRef: () => {},
   }
 
   getTimeSeries() {
@@ -372,6 +373,7 @@ export default class Dygraph extends Component {
         <div
           ref={r => {
             this.graphRef = r
+            this.props.dygraphRef(r)
           }}
           style={this.props.containerStyle}
           className="dygraph-child-container"
@@ -411,4 +413,5 @@ Dygraph.propTypes = {
   }),
   synchronizer: func,
   setResolution: func,
+  dygraphRef: func,
 }
