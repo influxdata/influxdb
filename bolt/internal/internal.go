@@ -2,7 +2,6 @@ package internal
 
 import (
 	"encoding/json"
-	"strconv"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/chronograf"
@@ -268,16 +267,15 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 
 		axes := make(map[string]chronograf.Axis, len(c.Axes))
 		for a, r := range c.Axes {
-			axis := chronograf.Axis{}
-			// repair legacy bounds
-			for _, bound := range r.LegacyBounds {
-				axis.Bounds = append(axis.Bounds, strconv.FormatInt(bound, 10))
+			if r.Bounds != nil {
+				axes[a] = chronograf.Axis{
+					Bounds: r.Bounds,
+				}
+			} else {
+				axes[a] = chronograf.Axis{
+					Bounds: []string{},
+				}
 			}
-
-			if len(r.Bounds) > 0 {
-				axis.Bounds = r.Bounds
-			}
-			axes[a] = axis
 		}
 
 		cells[i] = chronograf.DashboardCell{
