@@ -569,9 +569,9 @@ type Dashboard struct {
 
 // Axis represents the visible extents of a visualization
 type Axis struct {
-	Bounds       []string `json:"bounds"`          // bounds are an arbitrary list of client-defined strings that specify the viewport for a cell
-	LegacyBounds [2]int64 `json:"-"`               // legacy bounds are for testing a migration from an earlier version of axis
-	Label        string   `json:"label,omitempty"` // label is a description of this Axis
+	Bounds       []string `json:"bounds"` // bounds are an arbitrary list of client-defined strings that specify the viewport for a cell
+	LegacyBounds [2]int64 `json:"-"`      // legacy bounds are for testing a migration from an earlier version of axis
+	Label        string   `json:"label"`  // label is a description of this Axis
 }
 
 // DashboardCell holds visual and query information for a cell
