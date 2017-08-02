@@ -24,7 +24,7 @@
     background-color 0.25s ease,
     color 0.25s ease;
 }
-.one-or-any--toggle {
+.one-or-any--switch {
   display: flex;
   align-items: center;
   border: 2px solid $g5-pepper;
@@ -88,11 +88,11 @@
   border-radius: 0 4px 4px 0;
   font-family: $code-font;
 }
-// Toggled state
-.one-or-any.toggled {
+// When using right value
+.one-or-any.use-right-value {
   .one-or-any--groove-knob:after {transform: translate(0%,-50%);}
   // Fade out left, fade in right
-  .one-or-any--toggle:before {opacity: 0;}
+  .one-or-any--switch:before {opacity: 0;}
   // Make auto look disabled
   .one-or-any--auto {
     background-color: $g3-castle;
