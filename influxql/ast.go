@@ -459,6 +459,29 @@ func (a *Sources) UnmarshalBinary(buf []byte) error {
 	return nil
 }
 
+// RequiredPrivileges recursively returns a list of execution privileges required.
+func (a Sources) RequiredPrivileges() (ExecutionPrivileges, error) {
+	var ep ExecutionPrivileges
+	for _, source := range a {
+		switch source := source.(type) {
+		case *Measurement:
+			ep = append(ep, ExecutionPrivilege{
+				Name:      source.Database,
+				Privilege: ReadPrivilege,
+			})
+		case *SubQuery:
+			privs, err := source.Statement.RequiredPrivileges()
+			if err != nil {
+				return nil, err
+			}
+			ep = append(ep, privs...)
+		default:
+			return nil, fmt.Errorf("invalid source: %s", source)
+		}
+	}
+	return ep, nil
+}
+
 // IsSystemName returns true if name is an internal system name.
 func IsSystemName(name string) bool {
 	switch name {
@@ -1702,28 +1725,13 @@ func (s *SelectStatement) String() string {
 // empty string will be returned for the database name and it is up to the caller
 // to interpret that as the default database.
 func (s *SelectStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
-	ep := ExecutionPrivileges{}
-	for _, source := range s.Sources {
-		switch source := source.(type) {
-		case *Measurement:
-			ep = append(ep, ExecutionPrivilege{
-				Name:      source.Database,
-				Privilege: ReadPrivilege,
-			})
-		case *SubQuery:
-			privs, err := source.Statement.RequiredPrivileges()
-			if err != nil {
-				return nil, err
-			}
-			ep = append(ep, privs...)
-		default:
-			return nil, fmt.Errorf("invalid source: %s", source)
-		}
+	ep, err := s.Sources.RequiredPrivileges()
+	if err != nil {
+		return nil, err
 	}
 
 	if s.Target != nil {
-		p := ExecutionPrivilege{Admin: false, Name: s.Target.Measurement.Database, Privilege: WritePrivilege}
-		ep = append(ep, p)
+		ep = append(ep, ExecutionPrivilege{Admin: false, Name: s.Target.Measurement.Database, Privilege: WritePrivilege})
 	}
 	return ep, nil
 }
@@ -2820,7 +2828,7 @@ func (s *ShowSeriesCardinalityStatement) String() string {
 
 // RequiredPrivileges returns the privilege required to execute a ShowSeriesCardinalityStatement.
 func (s *ShowSeriesCardinalityStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
-	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: ReadPrivilege}}, nil
+	return s.Sources.RequiredPrivileges()
 }
 
 // DefaultDatabase returns the default database from the statement.
@@ -3015,7 +3023,7 @@ func (s *ShowMeasurementCardinalityStatement) String() string {
 
 // RequiredPrivileges returns the privilege required to execute a ShowMeasurementCardinalityStatement.
 func (s *ShowMeasurementCardinalityStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
-	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: ReadPrivilege}}, nil
+	return s.Sources.RequiredPrivileges()
 }
 
 // DefaultDatabase returns the default database from the statement.
@@ -3413,7 +3421,7 @@ func (s *ShowTagKeyCardinalityStatement) String() string {
 
 // RequiredPrivileges returns the privilege required to execute a ShowTagKeyCardinalityStatement.
 func (s *ShowTagKeyCardinalityStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
-	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: ReadPrivilege}}, nil
+	return s.Sources.RequiredPrivileges()
 }
 
 // DefaultDatabase returns the default database from the statement.
@@ -3552,7 +3560,7 @@ func (s *ShowTagValuesCardinalityStatement) String() string {
 
 // RequiredPrivileges returns the privilege required to execute a ShowTagValuesCardinalityStatement.
 func (s *ShowTagValuesCardinalityStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
-	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: ReadPrivilege}}, nil
+	return s.Sources.RequiredPrivileges()
 }
 
 // DefaultDatabase returns the default database from the statement.
@@ -3615,7 +3623,7 @@ func (s *ShowFieldKeyCardinalityStatement) String() string {
 
 // RequiredPrivileges returns the privilege required to execute a ShowFieldKeyCardinalityStatement.
 func (s *ShowFieldKeyCardinalityStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
-	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: ReadPrivilege}}, nil
+	return s.Sources.RequiredPrivileges()
 }
 
 // DefaultDatabase returns the default database from the statement.

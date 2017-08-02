@@ -84,8 +84,6 @@ func rewriteShowFieldKeyCardinalityStatement(stmt *ShowFieldKeyCardinalityStatem
 		Offset:     stmt.Offset,
 		Limit:      stmt.Limit,
 		OmitTime:   true,
-		Dedupe:     true,
-		IsRawQuery: true,
 	}, nil
 }
 
@@ -142,8 +140,6 @@ func rewriteShowMeasurementCardinalityStatement(stmt *ShowMeasurementCardinality
 		Offset:     stmt.Offset,
 		Limit:      stmt.Limit,
 		OmitTime:   true,
-		Dedupe:     true,
-		IsRawQuery: true,
 	}, nil
 }
 
@@ -191,8 +187,6 @@ func rewriteShowSeriesCardinalityStatement(stmt *ShowSeriesCardinalityStatement)
 		Offset:     stmt.Offset,
 		Limit:      stmt.Limit,
 		OmitTime:   true,
-		Dedupe:     true,
-		IsRawQuery: true,
 	}, nil
 }
 
@@ -326,8 +320,6 @@ func rewriteShowTagValuesCardinalityStatement(stmt *ShowTagValuesCardinalityStat
 		Offset:     stmt.Offset,
 		Limit:      stmt.Limit,
 		OmitTime:   true,
-		Dedupe:     true,
-		IsRawQuery: true,
 	}, nil
 }
 
@@ -386,8 +378,6 @@ func rewriteShowTagKeyCardinalityStatement(stmt *ShowTagKeyCardinalityStatement)
 		Offset:     stmt.Offset,
 		Limit:      stmt.Limit,
 		OmitTime:   true,
-		Dedupe:     true,
-		IsRawQuery: true,
 	}, nil
 }
 

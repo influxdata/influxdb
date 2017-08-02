@@ -125,10 +125,8 @@ func init() {
 		show.Group(GRANTS).Handle(FOR, func(p *Parser) (Statement, error) {
 			return p.parseGrantsForUserStatement()
 		})
-		show.Group(MEASUREMENT).With(func(measurement *ParseTree) {
-			measurement.Handle(CARDINALITY, func(p *Parser) (Statement, error) {
-				return p.parseShowMeasurementCardinalityStatement()
-			})
+		show.Group(MEASUREMENT).Handle(CARDINALITY, func(p *Parser) (Statement, error) {
+			return p.parseShowMeasurementCardinalityStatement()
 		})
 		show.Handle(MEASUREMENTS, func(p *Parser) (Statement, error) {
 			return p.parseShowMeasurementsStatement()
@@ -155,10 +153,8 @@ func init() {
 			return p.parseShowSubscriptionsStatement()
 		})
 		show.Group(TAG).With(func(tag *ParseTree) {
-			tag.Group(KEY).With(func(key *ParseTree) {
-				key.Handle(CARDINALITY, func(p *Parser) (Statement, error) {
-					return p.parseShowTagKeyCardinalityStatement()
-				})
+			tag.Group(KEY).Handle(CARDINALITY, func(p *Parser) (Statement, error) {
+				return p.parseShowTagKeyCardinalityStatement()
 			})
 			tag.Handle(KEYS, func(p *Parser) (Statement, error) {
 				return p.parseShowTagKeysStatement()

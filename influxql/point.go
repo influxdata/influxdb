@@ -118,7 +118,7 @@ func (t *Tags) Values() []string {
 		return nil
 	}
 
-	var a []string
+	a := make([]string, 0, len(t.m))
 	for _, v := range t.m {
 		a = append(a, v)
 	}

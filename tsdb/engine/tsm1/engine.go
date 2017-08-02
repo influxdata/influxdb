@@ -1899,7 +1899,7 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, name string, s
 		conditionFields = varRefSliceRemove(conditionFields, "_tagKey")
 
 		// Remove _tagKey conditional references from iterator.
-		itrOpt.Condition = influxql.RewriteExpr(itrOpt.Condition, func(expr influxql.Expr) influxql.Expr {
+		itrOpt.Condition = influxql.RewriteExpr(influxql.CloneExpr(itrOpt.Condition), func(expr influxql.Expr) influxql.Expr {
 			switch expr := expr.(type) {
 			case *influxql.BinaryExpr:
 				if ref, ok := expr.LHS.(*influxql.VarRef); ok && ref.Val == "_tagKey" {
