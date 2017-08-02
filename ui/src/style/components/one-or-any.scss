@@ -24,40 +24,13 @@
     background-color 0.25s ease,
     color 0.25s ease;
 }
-.one-or-any--switch {
+.one-or-any--toggle {
   display: flex;
   align-items: center;
   border: 2px solid $g5-pepper;
   border-left: 0;
   border-right: 0;
   position: relative;
-
-  // Tray
-  > div {
-    margin: 0 10px;
-    z-index: 3;
-    width: 28px;
-    height: 8px;
-    border-radius: 4px;
-    background-color: $g6-smoke;
-    position: relative;
-
-    // Dot
-    &:after {
-      content: '';
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
-      background-color: $c-pool;
-      transition:
-        background-color 0.25s ease,
-        transform 0.25s ease;
-      transform: translate(-100%,-50%);
-    }
-  }
 
   // Background Gradients
   &:before, &:after {
@@ -82,7 +55,32 @@
 
   &:hover {
     cursor: pointer;
-    > div:after {background-color: $c-laser;}
+    .one-or-any--groove-knob:after {background-color: $c-laser;}
+  }
+}
+.one-or-any--groove-knob {
+  margin: 0 10px;
+  z-index: 3;
+  width: 28px;
+  height: 8px;
+  border-radius: 4px;
+  background-color: $g6-smoke;
+  position: relative;
+
+  // Knob
+  &:after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background-color: $c-pool;
+    transition:
+      background-color 0.25s ease,
+      transform 0.25s ease;
+    transform: translate(-100%,-50%);
   }
 }
 // Customize form input
@@ -92,9 +90,9 @@
 }
 // Toggled state
 .one-or-any.toggled {
-  .one-or-any--switch > div:after {transform: translate(0%,-50%);}
+  .one-or-any--groove-knob:after {transform: translate(0%,-50%);}
   // Fade out left, fade in right
-  .one-or-any--switch:before {opacity: 0;}
+  .one-or-any--toggle:before {opacity: 0;}
   // Make auto look disabled
   .one-or-any--auto {
     background-color: $g3-castle;
