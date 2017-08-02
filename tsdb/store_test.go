@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/deep"
@@ -784,8 +783,43 @@ func TestStore_Cardinality_Compactions_TSI1(t *testing.T) {
 func TestStore_TagValues(t *testing.T) {
 	t.Parallel()
 
-	// SHOW TAG VALUES FROM /cpu\d/ WITH KEY IN ("host", "shard") WHERE foo = 'a'
-	cond := &influxql.BinaryExpr{
+	// No WHERE - just get for keys host and shard
+	RHSAll := &influxql.ParenExpr{
+		Expr: &influxql.BinaryExpr{
+			Op: influxql.OR,
+			LHS: &influxql.BinaryExpr{
+				Op:  influxql.EQ,
+				LHS: &influxql.VarRef{Val: "_tagKey"},
+				RHS: &influxql.StringLiteral{Val: "host"},
+			},
+			RHS: &influxql.BinaryExpr{
+				Op:  influxql.EQ,
+				LHS: &influxql.VarRef{Val: "_tagKey"},
+				RHS: &influxql.StringLiteral{Val: "shard"},
+			},
+		},
+	}
+
+	// Get for host and shard, but also WHERE on foo = a
+	RHSWhere := &influxql.ParenExpr{
+		Expr: &influxql.BinaryExpr{
+			Op: influxql.AND,
+			LHS: &influxql.ParenExpr{
+				Expr: &influxql.BinaryExpr{
+					Op:  influxql.EQ,
+					LHS: &influxql.VarRef{Val: "foo"},
+					RHS: &influxql.StringLiteral{Val: "a"},
+				},
+			},
+			RHS: RHSAll,
+		},
+	}
+
+	// SHOW TAG VALUES FROM /cpu\d/ WITH KEY IN ("host", "shard")
+	//
+	// Switching out RHS for RHSWhere would make the query:
+	//    SHOW TAG VALUES FROM /cpu\d/ WITH KEY IN ("host", "shard") WHERE foo = 'a'
+	base := influxql.BinaryExpr{
 		Op: influxql.AND,
 		LHS: &influxql.ParenExpr{
 			Expr: &influxql.BinaryExpr{
@@ -794,31 +828,33 @@ func TestStore_TagValues(t *testing.T) {
 				RHS: &influxql.RegexLiteral{Val: regexp.MustCompile(`cpu\d`)},
 			},
 		},
-		RHS: &influxql.ParenExpr{
-			Expr: &influxql.BinaryExpr{
-				Op: influxql.AND,
-				LHS: &influxql.ParenExpr{
-					Expr: &influxql.BinaryExpr{
-						Op:  influxql.EQ,
-						LHS: &influxql.VarRef{Val: "foo"},
-						RHS: &influxql.StringLiteral{Val: "a"},
-					},
-				},
-				RHS: &influxql.ParenExpr{
-					Expr: &influxql.BinaryExpr{
-						Op: influxql.OR,
-						LHS: &influxql.BinaryExpr{
-							Op:  influxql.EQ,
-							LHS: &influxql.VarRef{Val: "_tagKey"},
-							RHS: &influxql.StringLiteral{Val: "host"},
-						},
-						RHS: &influxql.BinaryExpr{
-							Op:  influxql.EQ,
-							LHS: &influxql.VarRef{Val: "_tagKey"},
-							RHS: &influxql.StringLiteral{Val: "shard"},
-						},
-					},
-				},
+		RHS: RHSAll,
+	}
+
+	var baseWhere *influxql.BinaryExpr = influxql.CloneExpr(&base).(*influxql.BinaryExpr)
+	baseWhere.RHS = RHSWhere
+
+	examples := []struct {
+		Name string
+		Expr influxql.Expr
+		Exp  []tsdb.TagValues
+	}{
+		{
+			Name: "No WHERE clause",
+			Expr: &base,
+			Exp: []tsdb.TagValues{
+				createTagValues("cpu0", map[string][]string{"host": {"nofoo", "tv0", "tv1", "tv2", "tv3"}, "shard": {"s0", "s1", "s2"}}),
+				createTagValues("cpu1", map[string][]string{"host": {"nofoo", "tv0", "tv1", "tv2", "tv3"}, "shard": {"s0", "s1", "s2"}}),
+				createTagValues("cpu2", map[string][]string{"host": {"nofoo", "tv0", "tv1", "tv2", "tv3"}, "shard": {"s0", "s1", "s2"}}),
+			},
+		},
+		{
+			Name: "With WHERE clause",
+			Expr: baseWhere,
+			Exp: []tsdb.TagValues{
+				createTagValues("cpu0", map[string][]string{"host": {"tv0", "tv1", "tv2", "tv3"}, "shard": {"s0", "s1", "s2"}}),
+				createTagValues("cpu1", map[string][]string{"host": {"tv0", "tv1", "tv2", "tv3"}, "shard": {"s0", "s1", "s2"}}),
+				createTagValues("cpu2", map[string][]string{"host": {"tv0", "tv1", "tv2", "tv3"}, "shard": {"s0", "s1", "s2"}}),
 			},
 		},
 	}
@@ -829,7 +865,7 @@ func TestStore_TagValues(t *testing.T) {
 		s.EngineOptions.IndexVersion = index
 
 		fmtStr := `cpu%[1]d,foo=a,ignoreme=nope,host=tv%[2]d,shard=s%[3]d value=1 %[4]d
-		cpu%[1]d,host=tv%[2]d%[2]d,shard=s%[3]d%[3]d value=1 %[4]d
+		cpu%[1]d,host=nofoo value=1 %[4]d
 	mem,host=nothanks value=1 %[4]d
 	`
 		genPoints := func(sid int) []string {
@@ -850,27 +886,23 @@ func TestStore_TagValues(t *testing.T) {
 		}
 	}
 
-	indexes := []string{"inmem"}
-	for _, index := range indexes {
-		setup(index)
-		t.Run(index, func(t *testing.T) {
-			got, err := s.TagValues("db0", cond)
-			if err != nil {
-				t.Fatal(err)
-			}
+	indexes := []string{"inmem", "tsi1"}
+	for _, example := range examples {
+		for _, index := range indexes {
+			setup(index)
+			t.Run(example.Name+"_"+index, func(t *testing.T) {
+				got, err := s.TagValues("db0", example.Expr)
+				if err != nil {
+					t.Fatal(err)
+				}
+				exp := example.Exp
 
-			exp := []tsdb.TagValues{
-				createTagValues("cpu0", map[string][]string{"host": {"tv0", "tv1", "tv2", "tv3"}, "shard": {"s0", "s1", "s2"}}),
-				createTagValues("cpu1", map[string][]string{"host": {"tv0", "tv1", "tv2", "tv3"}, "shard": {"s0", "s1", "s2"}}),
-				createTagValues("cpu2", map[string][]string{"host": {"tv0", "tv1", "tv2", "tv3"}, "shard": {"s0", "s1", "s2"}}),
-			}
-
-			if !reflect.DeepEqual(got, exp) {
-				fmt.Println(cmp.Diff(got, exp))
-				t.Fatalf("got:\n%#v\n\nexp:\n%#v", got, exp)
-			}
-		})
-		s.Close()
+				if !reflect.DeepEqual(got, exp) {
+					t.Fatalf("got:\n%#v\n\nexp:\n%#v", got, exp)
+				}
+			})
+			s.Close()
+		}
 	}
 }
 
@@ -1014,7 +1046,7 @@ func BenchmarkStore_TagValues(b *testing.B) {
 	var s *Store
 	setup := func(shards, measurements, tagValues int, index string, useRandom bool) {
 		s = NewStore()
-		s.EngineOptions.Config.Index = index
+		s.EngineOptions.IndexVersion = index
 		if err := s.Open(); err != nil {
 			panic(err)
 		}
@@ -1087,8 +1119,8 @@ func BenchmarkStore_TagValues(b *testing.B) {
 	}
 
 	var err error
-	for useRand := 0; useRand < 2; useRand++ {
-		for _, index := range []string{"inmem", "tsi1"} {
+	for _, index := range []string{"inmem", "tsi1"} {
+		for useRand := 0; useRand < 2; useRand++ {
 			for c, condition := range []influxql.Expr{cond1, cond2} {
 				for _, bm := range benchmarks {
 					setup(bm.shards, bm.measurements, bm.tagValues, index, useRand == 1)

@@ -8,12 +8,14 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"unsafe"
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
@@ -614,22 +616,69 @@ func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[s
 	return fs.MeasurementTagKeysByExpr(name, expr)
 }
 
-func (i *Index) MeasurementTagKeyValuesByExpr(name []byte, key []string, expr influxql.Expr, keysSorted bool) ([][]string, error) {
-	return nil, nil
-	// fs := i.RetainFileSet()
-	// defer fs.Release()
+// MeasurementTagKeyValuesByExpr returns a set of tag values filtered by an expression.
+//
+// See tsm1.Engine.MeasurementTagKeyValuesByExpr for a fuller description of this
+// method.
+func (i *Index) MeasurementTagKeyValuesByExpr(name []byte, keys []string, expr influxql.Expr, keysSorted bool) ([][]string, error) {
+	fs := i.RetainFileSet()
+	defer fs.Release()
 
-	// values := make(map[string]struct{})
-	// // If there is not expr, we return all tag values for the key
-	// if expr == nil {
-	// 	itr := fs.TagValueIterator(name, key)
-	// 	for val := itr.Next(); val != nil; val = itr.Next() {
-	// 		values[string(val.Value())] = struct{}{}
-	// 	}
-	// 	return values, nil
-	// }
+	if len(keys) == 0 {
+		return nil, nil
+	}
 
-	// return fs.tagValuesByKeyAndExpr(name, key, expr, i.fieldset)
+	results := make([][]string, len(keys))
+	// If we haven't been provided sorted keys, then we need to sort them.
+	if !keysSorted {
+		sort.Sort(sort.StringSlice(keys))
+	}
+
+	// No expression means that the values shouldn't be filtered, so we can
+	// fetch them all.
+	if expr == nil {
+		for ki, key := range keys {
+			itr := fs.TagValueIterator(name, unsafeStringToBytes(key))
+			for val := itr.Next(); val != nil; val = itr.Next() {
+				results[ki] = append(results[ki], string(val.Value()))
+			}
+		}
+		return results, nil
+	}
+
+	// This is the case where we have filtered series by some WHERE condition.
+	// We only care about the tag values for the keys given the
+	// filtered set of series ids.
+	resultSet, err := fs.tagValuesByKeyAndExpr(name, keys, expr, i.fieldset)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert result sets into []string
+	for i, s := range resultSet {
+		values := make([]string, 0, len(s))
+		for v := range s {
+			values = append(values, v)
+		}
+		sort.Sort(sort.StringSlice(values))
+		results[i] = values
+	}
+	return results, nil
+}
+
+// unsafeStringToBytes converts a string to a []byte without a heap allocation.
+//
+// It is unsafe, and is intended to prepare input to short-lived functions
+// that require strings.
+func unsafeStringToBytes(in string) []byte {
+	src := (*reflect.StringHeader)(unsafe.Pointer(&in))
+	len := src.Len
+
+	var b []byte
+	bh := (*reflect.SliceHeader)(unsafe.Pointer(&b))
+	bh.Data = src.Data
+	bh.Len, bh.Cap = len, len
+	return b
 }
 
 // ForEachMeasurementSeriesByExpr iterates over all series in a measurement filtered by an expression.

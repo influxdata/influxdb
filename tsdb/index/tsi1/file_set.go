@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"reflect"
 	"regexp"
+	"unsafe"
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
@@ -282,29 +284,62 @@ func (fs *FileSet) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (ma
 	return nil, fmt.Errorf("%#v", expr)
 }
 
-func (fs *FileSet) tagValuesByKeyAndExpr(name, key []byte, expr influxql.Expr, fieldset *tsdb.MeasurementFieldSet) (map[string]struct{}, error) {
+// tagValuesByKeyAndExpr retrieves tag values for the provided tag keys.
+//
+// tagValuesByKeyAndExpr returns sets of values for each key, indexable by the
+// position of the tag key in the keys argument.
+//
+// N.B tagValuesByKeyAndExpr relies on keys being sorted in ascending
+// lexicographic order.
+func (fs *FileSet) tagValuesByKeyAndExpr(name []byte, keys []string, expr influxql.Expr, fieldset *tsdb.MeasurementFieldSet) ([]map[string]struct{}, error) {
 	itr, err := fs.seriesByExprIterator(name, expr, fieldset.Fields(string(name)))
 	if err != nil {
 		return nil, err
 	} else if itr == nil {
 		return nil, nil
 	}
-	// Set of all tag values.
-	tagValues := make(map[string]struct{})
 
-	// Iterate all series to collect tag values.
-	for e := itr.Next(); e != nil; e = itr.Next() {
+	keyIdxs := make(map[string]int, len(keys))
+	for ki, key := range keys {
+		keyIdxs[key] = ki
 
-		// Iterate the tag keys we're interested in and collect values
-		// from this series, if they exist.
-		tags := e.Tags()
-		tagVal := tags.Get(key)
-		if _, ok := tagValues[string(tagVal)]; !ok {
-			tagValues[string(tagVal)] = struct{}{}
+		// Check that keys are in order.
+		if ki > 0 && key < keys[ki-1] {
+			return nil, fmt.Errorf("keys %v are not in ascending order", keys)
 		}
 	}
 
-	return tagValues, nil
+	resultSet := make([]map[string]struct{}, len(keys))
+	for i := 0; i < len(resultSet); i++ {
+		resultSet[i] = make(map[string]struct{})
+	}
+
+	// Iterate all series to collect tag values.
+	for e := itr.Next(); e != nil; e = itr.Next() {
+		for _, t := range e.Tags() {
+			if idx, ok := keyIdxs[unsafeBytesToString(t.Key)]; ok {
+				resultSet[idx][string(t.Value)] = struct{}{}
+			} else if unsafeBytesToString(t.Key) > keys[len(keys)-1] {
+				// The tag key is > the largest key we're interested in.
+				break
+			}
+		}
+	}
+	return resultSet, nil
+}
+
+// unsafeBytesToString converts a []byte to a string without a heap allocation.
+//
+// It is unsafe, and is intended to prepare input to short-lived functions
+// that require strings.
+func unsafeBytesToString(in []byte) string {
+	src := *(*reflect.SliceHeader)(unsafe.Pointer(&in))
+	dst := reflect.StringHeader{
+		Data: src.Data,
+		Len:  src.Len,
+	}
+	s := *(*string)(unsafe.Pointer(&dst))
+	return s
 }
 
 // tagKeysByFilter will filter the tag keys for the measurement.
