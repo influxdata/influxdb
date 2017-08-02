@@ -20,6 +20,7 @@ const Ranger = ({onSetRange, onSetLabel, axes}) => {
             id="label"
             value={label}
             onChange={onSetLabel}
+            placeholder="auto"
           />
         </div>
         <div className="form-group col-sm-6">
