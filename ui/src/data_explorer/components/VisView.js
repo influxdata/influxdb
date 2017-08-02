@@ -52,7 +52,7 @@ const {arrayOf, func, number, shape, string} = PropTypes
 
 VisView.propTypes = {
   view: string.isRequired,
-  axes: shape().isRequired,
+  axes: shape(),
   queries: arrayOf(shape()).isRequired,
   cellType: string,
   templates: arrayOf(shape()),

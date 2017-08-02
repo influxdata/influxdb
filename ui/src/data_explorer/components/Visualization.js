@@ -53,6 +53,7 @@ const Visualization = React.createClass({
   getDefaultProps() {
     return {
       cellName: '',
+      cellType: '',
     }
   },
 
