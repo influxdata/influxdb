@@ -1465,11 +1465,6 @@ func (m *Measurement) FieldNames() []string {
 	return a
 }
 
-func (m *Measurement) tagValuesByKeyAndSeriesID(tagKeys []string, ids SeriesIDs) [][]string {
-
-	return nil
-}
-
 func (m *Measurement) SeriesByTagKeyValue(key string) map[string]SeriesIDs {
 	m.mu.RLock()
 	ret := m.seriesByTagKeyValue[key]
