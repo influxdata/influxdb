@@ -20,23 +20,16 @@ const Ranger = ({onSetRange, axes}) => {
           />
         </div> */}
         <div className="form-group col-sm-6">
-          <label htmlFor="min">Lower Bound</label>
-          <div className="one-or-any">
-            <div className="one-or-any--auto">auto</div>
-            <div className="one-or-any--switch">
-              <div />
-            </div>
-            <input
-              className="form-control input-sm"
-              type="number"
-              name="min"
-              id="min"
-              value={min}
-              onChange={onSetRange}
-              placeholder="Custom Value"
-              disabled={true}
-            />
-          </div>
+          <label htmlFor="min">Min</label>
+          <input
+            className="form-control input-sm"
+            type="number"
+            name="min"
+            id="min"
+            value={min}
+            onChange={onSetRange}
+            placeholder="auto"
+          />
         </div>
         <div className="form-group col-sm-6">
           <label htmlFor="max">Max</label>
