@@ -1,6 +1,8 @@
 import React, {PropTypes} from 'react'
 import _ from 'lodash'
 
+import GrooveKnob from 'shared/components/GrooveKnob'
+
 // TODO: add logic for for Prefix, Suffix, Scale, and Multiplier
 const Ranger = ({onSetRange, axes}) => {
   const min = _.get(axes, ['y', 'bounds', '0'], '')
@@ -21,22 +23,13 @@ const Ranger = ({onSetRange, axes}) => {
         </div> */}
         <div className="form-group col-sm-6">
           <label htmlFor="min">Lower Bound</label>
-          <div className="one-or-any">
-            <div className="one-or-any--auto">auto</div>
-            <div className="one-or-any--toggle">
-              <div className="one-or-any--groove-knob" />
-            </div>
-            <input
-              className="form-control input-sm"
-              type="number"
-              name="min"
-              id="min"
-              value={min}
-              onChange={onSetRange}
-              placeholder="Custom Value"
-              disabled={true}
-            />
-          </div>
+          <GrooveKnob
+            onSetValues={({leftValue, rightValue}) => {
+              console.log(leftValue, rightValue)
+              // onSetRange()
+            }}
+            rightValue={Number(min)}
+          />
         </div>
         <div className="form-group col-sm-6">
           <label htmlFor="max">Upper Bound</label>
