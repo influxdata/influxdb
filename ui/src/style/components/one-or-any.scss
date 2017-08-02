@@ -1,0 +1,104 @@
+/*
+  One or Any Input
+  ------------------------------------------------------------------------------
+  User can toggle between a single value or any value
+*/
+.one-or-any {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: nowrap;
+}
+.one-or-any--auto {
+  border: 2px solid $g5-pepper;
+  background-color: $g2-kevlar;
+  color: $c-pool;
+  font-family: $code-font;
+  padding: 0 11px;
+  border-radius: 4px 0 0 4px;
+  line-height: 24px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: default;
+  @include no-user-select();
+  transition:
+    background-color 0.25s ease,
+    color 0.25s ease;
+}
+.one-or-any--switch {
+  display: flex;
+  align-items: center;
+  border: 2px solid $g5-pepper;
+  border-left: 0;
+  border-right: 0;
+  position: relative;
+
+  // Tray
+  > div {
+    margin: 0 10px;
+    z-index: 3;
+    width: 28px;
+    height: 8px;
+    border-radius: 4px;
+    background-color: $g6-smoke;
+    position: relative;
+
+    // Dot
+    &:after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background-color: $c-pool;
+      transition:
+        background-color 0.25s ease,
+        transform 0.25s ease;
+      transform: translate(-100%,-50%);
+    }
+  }
+
+  // Background Gradients
+  &:before, &:after {
+    content: '';
+    display: block;
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    transition: opacity 0.25s ease;
+  }
+  // Left
+  &:before {
+    z-index: 2;
+    @include gradient-h($g2-kevlar,$g3-castle);
+    opacity: 1;
+  }
+  // Right
+  &:after {
+    @include gradient-h($g3-castle,$g2-kevlar);
+    z-index: 1;
+  }
+
+  &:hover {
+    cursor: pointer;
+    > div:after {background-color: $c-laser;}
+  }
+}
+// Customize form input
+.one-or-any > input.form-control {
+  border-radius: 0 4px 4px 0;
+  font-family: $code-font;
+}
+// Toggled state
+.one-or-any.toggled {
+  .one-or-any--switch > div:after {transform: translate(0%,-50%);}
+  // Fade out left, fade in right
+  .one-or-any--switch:before {opacity: 0;}
+  // Make auto look disabled
+  .one-or-any--auto {
+    background-color: $g3-castle;
+    color: $g8-storm;
+    font-style: italic;
+  }
+}
