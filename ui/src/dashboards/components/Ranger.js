@@ -2,23 +2,26 @@ import React, {PropTypes} from 'react'
 import _ from 'lodash'
 
 // TODO: add logic for for Prefix, Suffix, Scale, and Multiplier
-const Ranger = ({onSetRange, axes}) => {
+const Ranger = ({onSetRange, onSetLabel, axes}) => {
   const min = _.get(axes, ['y', 'bounds', '0'], '')
   const max = _.get(axes, ['y', 'bounds', '1'], '')
+  const label = _.get(axes, ['y', 'label'], '')
 
   return (
     <div className="display-options--cell">
       <h5 className="display-options--header">Y Axis Controls</h5>
       <form autoComplete="off" style={{margin: '0 -6px'}}>
-        {/* <div className="form-group col-sm-12">
-          <label htmlFor="prefix">Axis Title</label>
+        <div className="form-group col-sm-12">
+          <label htmlFor="prefix">Title</label>
           <input
             className="form-control input-sm"
             type="text"
             name="label"
             id="label"
+            value={label}
+            onChange={onSetLabel}
           />
-        </div> */}
+        </div>
         <div className="form-group col-sm-6">
           <label htmlFor="min">Min</label>
           <input
@@ -80,13 +83,15 @@ const Ranger = ({onSetRange, axes}) => {
   )
 }
 
-const {array, func, shape} = PropTypes
+const {arrayOf, func, shape, string} = PropTypes
 
 Ranger.propTypes = {
   onSetRange: func.isRequired,
+  onSetLabel: func.isRequired,
   axes: shape({
     y: shape({
-      bounds: array,
+      bounds: arrayOf(string),
+      label: string,
     }),
   }).isRequired,
 }

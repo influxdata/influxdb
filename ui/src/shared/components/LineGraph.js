@@ -2,7 +2,6 @@ import React, {PropTypes} from 'react'
 import Dygraph from 'shared/components/Dygraph'
 import classnames from 'classnames'
 import shallowCompare from 'react-addons-shallow-compare'
-import _ from 'lodash'
 
 import timeSeriesToDygraph from 'utils/timeSeriesToDygraph'
 import lastValues from 'shared/parsing/lastValues'
@@ -18,9 +17,11 @@ export default React.createClass({
     axes: shape({
       y: shape({
         bounds: array,
+        label: string,
       }),
       y2: shape({
         bounds: array,
+        label: string,
       }),
     }),
     title: string,
@@ -93,7 +94,6 @@ export default React.createClass({
       overrideLineColors,
       title,
       underlayCallback,
-      queries,
       showSingleStat,
       displayOptions,
       ruleValues,
@@ -124,8 +124,6 @@ export default React.createClass({
       axisLabelWidth: 60,
       drawAxesAtZero: true,
       underlayCallback,
-      ylabel: _.get(queries, ['0', 'label'], ''),
-      y2label: _.get(queries, ['1', 'label'], ''),
       ...displayOptions,
     }
 

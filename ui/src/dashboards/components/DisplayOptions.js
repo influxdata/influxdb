@@ -6,6 +6,7 @@ import Ranger from 'src/dashboards/components/Ranger'
 const DisplayOptions = ({
   selectedGraphType,
   onSelectGraphType,
+  onSetLabel,
   onSetRange,
   axes,
 }) =>
@@ -14,7 +15,7 @@ const DisplayOptions = ({
       selectedGraphType={selectedGraphType}
       onSelectGraphType={onSelectGraphType}
     />
-    <Ranger onSetRange={onSetRange} axes={axes} />
+    <Ranger onSetLabel={onSetLabel} onSetRange={onSetRange} axes={axes} />
   </div>
 
 const {func, shape, string} = PropTypes
@@ -23,6 +24,7 @@ DisplayOptions.propTypes = {
   selectedGraphType: string.isRequired,
   onSelectGraphType: func.isRequired,
   onSetRange: func.isRequired,
+  onSetLabel: func.isRequired,
   axes: shape({}).isRequired,
 }
 

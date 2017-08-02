@@ -73,6 +73,7 @@ export default class Dygraph extends Component {
 
     const yAxis = _.get(axes, ['y', 'bounds'], [null, null])
     const y2Axis = _.get(axes, ['y2', 'bounds'], undefined)
+    const ylabel = _.get(axes, ['y', 'label'], '')
 
     const defaultOptions = {
       plugins: [
@@ -93,6 +94,7 @@ export default class Dygraph extends Component {
       hideOverlayOnMouseOut: false,
       colors: finalLineColors,
       series: dygraphSeries,
+      ylabel,
       axes: {
         y: {
           valueRange: getRange(timeSeries, yAxis, ruleValues),
@@ -254,11 +256,13 @@ export default class Dygraph extends Component {
 
     const y = _.get(axes, ['y', 'bounds'], [null, null])
     const y2 = _.get(axes, ['y2', 'bounds'], undefined)
+    const ylabel = _.get(axes, ['y', 'label'], '')
     const timeSeries = this.getTimeSeries()
 
     const updateOptions = {
       labels,
       file: timeSeries,
+      ylabel,
       axes: {
         y: {
           valueRange: getRange(timeSeries, y, ruleValues),

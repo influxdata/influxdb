@@ -23,17 +23,15 @@ class CellEditorOverlay extends Component {
     super(props)
 
     this.queryStateReducer = ::this.queryStateReducer
-
     this.handleAddQuery = ::this.handleAddQuery
     this.handleDeleteQuery = ::this.handleDeleteQuery
-
     this.handleSaveCell = ::this.handleSaveCell
-
     this.handleSelectGraphType = ::this.handleSelectGraphType
     this.handleSelectDisplayOptions = ::this.handleSelectDisplayOptions
     this.handleSetActiveQueryIndex = ::this.handleSetActiveQueryIndex
     this.handleEditRawText = ::this.handleEditRawText
     this.handleSetRange = ::this.handleSetRange
+    this.handleSetLabel = ::this.handleSetLabel
 
     const {cell: {name, type, queries, axes}} = props
 
@@ -47,8 +45,22 @@ class CellEditorOverlay extends Component {
       queriesWorkingDraft,
       activeQueryIndex: 0,
       isDisplayOptionsTabOpen: false,
-      axes,
+      axes: this.setDefaultLabels(axes, queries),
     }
+  }
+
+  setDefaultLabels(axes, queries) {
+    if (!queries.length) {
+      return axes
+    }
+
+    if (axes.y.label) {
+      return axes
+    }
+
+    const q = queries[0].queryConfig
+    const label = q.rawText ? '' : `${q.measurement}.${q.fields[0].field}`
+    return {...axes, y: {...axes.y, label}}
   }
 
   componentWillReceiveProps(nextProps) {
@@ -83,6 +95,14 @@ class CellEditorOverlay extends Component {
     const {axes} = this.state
 
     this.setState({axes: {...axes, y: {bounds: [min.value, max.value]}}})
+    e.preventDefault()
+  }
+
+  handleSetLabel(e) {
+    const {label} = e.target.form
+    const {axes} = this.state
+
+    this.setState({axes: {...axes, y: {label: label.value}}})
     e.preventDefault()
   }
 
@@ -223,6 +243,7 @@ class CellEditorOverlay extends Component {
                   selectedGraphType={cellWorkingType}
                   onSelectGraphType={this.handleSelectGraphType}
                   onSetRange={this.handleSetRange}
+                  onSetLabel={this.handleSetLabel}
                   axes={axes}
                 />
               : <QueryMaker
