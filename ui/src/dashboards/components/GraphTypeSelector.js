@@ -15,7 +15,9 @@ const GraphTypeSelector = ({selectedGraphType, onSelectGraphType}) =>
         >
           <div onClick={() => onSelectGraphType(graphType.type)}>
             {graphType.graphic}
-            <p>{graphType.menuOption}</p>
+            <p>
+              {graphType.menuOption}
+            </p>
           </div>
         </div>
       )}

@@ -22,17 +22,17 @@ const Ranger = ({onSetRange, axes}) => {
           />
         </div> */}
         <div className="form-group col-sm-6">
-          <label htmlFor="min">Lower Bound</label>
+          <label htmlFor="min">Min</label>
           <GrooveKnob
             onSetValues={({leftValue, rightValue}) => {
               console.log(leftValue, rightValue)
               // onSetRange()
             }}
-            rightValue={Number(min)}
+            rightValue={min}
           />
         </div>
         <div className="form-group col-sm-6">
-          <label htmlFor="max">Upper Bound</label>
+          <label htmlFor="max">Max</label>
           <input
             className="form-control input-sm"
             type="number"

@@ -42,7 +42,9 @@ class GrooveKnob extends Component {
       <div
         className={classnames('one-or-any', {'use-right-value': !useLeftValue})}
       >
-        <div className="one-or-any--auto">{leftLabel}</div>
+        <div className="one-or-any--auto">
+          {leftLabel}
+        </div>
         <div
           className="one-or-any--switch"
           onClick={this.handleToggleLeftValue}
