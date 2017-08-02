@@ -199,7 +199,7 @@ export default React.createClass({
     const dygraph = this.dygraphRef
 
     if (!dygraph) {
-      return ''
+      return 'graph--hasYLabel'
     }
 
     const label = dygraph.querySelector('.dygraph-ylabel')
