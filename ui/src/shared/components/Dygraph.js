@@ -271,11 +271,12 @@ export default class Dygraph extends Component {
     const y = _.get(axes, ['y', 'bounds'], [null, null])
     const y2 = _.get(axes, ['y2', 'bounds'], undefined)
     const timeSeries = this.getTimeSeries()
+    const ylabel = this.getLabel('y')
 
     const updateOptions = {
       labels,
       file: timeSeries,
-      ylabel: this.getLabel('y'),
+      ylabel,
       axes: {
         y: {
           valueRange: getRange(timeSeries, y, ruleValues),
