@@ -6,7 +6,7 @@ const mid = 10
 const min = 5
 const kapacitor = {value: null, rangeValue: null, operator: null}
 
-describe.only('getRangeForDygraphSpec', () => {
+describe('getRangeForDygraphSpec', () => {
   it('gets the range for one timeSeries', () => {
     const timeSeries = [[date, min], [date, mid], [date, max]]
     const actual = getRange(timeSeries)
