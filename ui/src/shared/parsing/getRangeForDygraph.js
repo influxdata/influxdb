@@ -1,6 +1,6 @@
 const PADDING_FACTOR = 0.1
 
-const considerZero = (userNumber, number) => {
+const considerEmpty = (userNumber, number) => {
   if (userNumber === '') {
     return null
   }
@@ -19,10 +19,6 @@ const getRange = (
 ) => {
   const {value, rangeValue, operator} = ruleValues
   const [userMin, userMax] = userSelectedRange
-
-  if (userMin && userMax) {
-    return [considerZero(userMin), considerZero(userMax)]
-  }
 
   const subtractPadding = val => +val - Math.abs(val * PADDING_FACTOR)
   const addPadding = val => +val + Math.abs(val * PADDING_FACTOR)
@@ -65,8 +61,9 @@ const getRange = (
     [null, null]
   )
 
-  // If time series is such that min and max are equal use Dygraph defaults
   const [min, max] = range
+
+  // If time series is such that min and max are equal use Dygraph defaults
   if (min === max) {
     return [null, null]
   }
@@ -75,7 +72,11 @@ const getRange = (
     return [min, max]
   }
 
-  return [considerZero(userMin, min), considerZero(userMax, max)]
+  if (userMin && userMax) {
+    return [considerEmpty(userMin), considerEmpty(userMax)]
+  }
+
+  return [considerEmpty(userMin, min), considerEmpty(userMax, max)]
 }
 
 export default getRange

@@ -23,6 +23,14 @@ describe('getRangeForDygraphSpec', () => {
     expect(actual).to.deep.equal([0, 4])
   })
 
+  it('does not use the user submitted range if they are equal', () => {
+    const timeSeries = [[date, min], [date, max], [date, mid]]
+    const providedRange = ['0', '0']
+    const actual = getRange(timeSeries, providedRange)
+
+    expect(actual).to.deep.equal([min, max])
+  })
+
   it('gets the range for multiple timeSeries', () => {
     const timeSeries = [[date, null, min], [date, max, mid], [date, null, mid]]
     const actual = getRange(timeSeries)
