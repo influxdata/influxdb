@@ -348,6 +348,19 @@ func (e *Engine) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[
 	return e.index.MeasurementTagKeysByExpr(name, expr)
 }
 
+// MeasurementTagKeyValuesByExpr returns a set of tag values filtered by an expression.
+//
+// MeasurementTagKeyValuesByExpr relies on the provided tag keys being sorted.
+// The caller can indicate the tag keys have been sorted by setting the
+// keysSorted argument appropriately. Tag values are returned in a slice that
+// is indexible according to the sorted order of the tag keys, e.g., the values
+// for the earliest tag k will be available in index 0 of the returned values
+// slice.
+//
+func (e *Engine) MeasurementTagKeyValuesByExpr(name []byte, keys []string, expr influxql.Expr, keysSorted bool) ([][]string, error) {
+	return e.index.MeasurementTagKeyValuesByExpr(name, keys, expr, keysSorted)
+}
+
 func (e *Engine) ForEachMeasurementTagKey(name []byte, fn func(key []byte) error) error {
 	return e.index.ForEachMeasurementTagKey(name, fn)
 }

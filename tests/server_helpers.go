@@ -480,6 +480,11 @@ func NewConfig() *run.Config {
 	c.Data.Dir = MustTempFile()
 	c.Data.WALDir = MustTempFile()
 
+	indexVersion := os.Getenv("INFLUXDB_DATA_INDEX_VERSION")
+	if indexVersion != "" {
+		c.Data.Index = indexVersion
+	}
+
 	c.HTTPD.Enabled = true
 	c.HTTPD.BindAddress = "127.0.0.1:0"
 	c.HTTPD.LogEnabled = testing.Verbose()

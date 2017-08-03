@@ -4,6 +4,7 @@
 
 - [#8629](https://github.com/influxdata/influxdb/pull/8629): Interrupt in progress TSM compactions
 - [#8630](https://github.com/influxdata/influxdb/pull/8630): Prevent excessive memory usage when dropping series
+- [#8640](https://github.com/influxdata/influxdb/issues/8640): Significantly improve performance of SHOW TAG VALUES.
 
 ## v1.3.1 [2017-07-20]
 
