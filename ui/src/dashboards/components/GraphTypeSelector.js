@@ -1,5 +1,6 @@
 import React, {PropTypes} from 'react'
 import classnames from 'classnames'
+
 import {graphTypes} from 'src/dashboards/graphics/graph'
 
 const GraphTypeSelector = ({selectedGraphType, onSelectGraphType}) =>
