@@ -8,16 +8,17 @@ import QueryMaker from 'src/data_explorer/components/QueryMaker'
 import Visualization from 'src/data_explorer/components/Visualization'
 import OverlayControls from 'src/dashboards/components/OverlayControls'
 import DisplayOptions from 'src/dashboards/components/DisplayOptions'
+
 import * as queryModifiers from 'src/utils/queryTransitions'
 
 import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 import buildInfluxQLQuery from 'utils/influxql'
 import {getQueryConfig} from 'shared/apis'
 
+import {buildYLabel} from 'shared/presenters'
 import {removeUnselectedTemplateValues} from 'src/dashboards/constants'
 import {OVERLAY_TECHNOLOGY} from 'shared/constants/classNames'
 import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from 'src/data_explorer/constants'
-import {buildYLabel} from 'shared/presenters'
 
 class CellEditorOverlay extends Component {
   constructor(props) {
