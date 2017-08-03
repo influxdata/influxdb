@@ -14,11 +14,9 @@ package inmem
 import (
 	"errors"
 	"fmt"
-	"reflect"
 	"regexp"
 	"sort"
 	"sync"
-	"unsafe"
 	// "sync/atomic"
 
 	"github.com/influxdata/influxdb/influxql"
@@ -325,9 +323,9 @@ func (i *Index) MeasurementTagKeyValuesByExpr(name []byte, keys []string, expr i
 		// Iterate the tag keys we're interested in and collect values
 		// from this series, if they exist.
 		for _, t := range s.Tags() {
-			if idx, ok := keyIdxs[unsafeBytesToString(t.Key)]; ok {
+			if idx, ok := keyIdxs[string(t.Key)]; ok {
 				resultSet[idx].add(string(t.Value))
-			} else if unsafeBytesToString(t.Key) > keys[len(keys)-1] {
+			} else if string(t.Key) > keys[len(keys)-1] {
 				// The tag key is > the largest key we're interested in.
 				break
 			}
@@ -337,20 +335,6 @@ func (i *Index) MeasurementTagKeyValuesByExpr(name []byte, keys []string, expr i
 		results[i] = s.list()
 	}
 	return results, nil
-}
-
-// unsafeBytesToString converts a []byte to a string without a heap allocation.
-//
-// It is unsafe, and is intended to prepare input to short-lived functions
-// that require strings.
-func unsafeBytesToString(in []byte) string {
-	src := *(*reflect.SliceHeader)(unsafe.Pointer(&in))
-	dst := reflect.StringHeader{
-		Data: src.Data,
-		Len:  src.Len,
-	}
-	s := *(*string)(unsafe.Pointer(&dst))
-	return s
 }
 
 // ForEachMeasurementTagKey iterates over all tag keys for a measurement.
