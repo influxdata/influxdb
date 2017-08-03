@@ -4,9 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"reflect"
 	"regexp"
-	"unsafe"
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
@@ -316,29 +314,15 @@ func (fs *FileSet) tagValuesByKeyAndExpr(name []byte, keys []string, expr influx
 	// Iterate all series to collect tag values.
 	for e := itr.Next(); e != nil; e = itr.Next() {
 		for _, t := range e.Tags() {
-			if idx, ok := keyIdxs[unsafeBytesToString(t.Key)]; ok {
+			if idx, ok := keyIdxs[string(t.Key)]; ok {
 				resultSet[idx][string(t.Value)] = struct{}{}
-			} else if unsafeBytesToString(t.Key) > keys[len(keys)-1] {
+			} else if string(t.Key) > keys[len(keys)-1] {
 				// The tag key is > the largest key we're interested in.
 				break
 			}
 		}
 	}
 	return resultSet, nil
-}
-
-// unsafeBytesToString converts a []byte to a string without a heap allocation.
-//
-// It is unsafe, and is intended to prepare input to short-lived functions
-// that require strings.
-func unsafeBytesToString(in []byte) string {
-	src := *(*reflect.SliceHeader)(unsafe.Pointer(&in))
-	dst := reflect.StringHeader{
-		Data: src.Data,
-		Len:  src.Len,
-	}
-	s := *(*string)(unsafe.Pointer(&dst))
-	return s
 }
 
 // tagKeysByFilter will filter the tag keys for the measurement.

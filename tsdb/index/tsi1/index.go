@@ -8,14 +8,12 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"reflect"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-	"unsafe"
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
@@ -638,7 +636,7 @@ func (i *Index) MeasurementTagKeyValuesByExpr(name []byte, keys []string, expr i
 	// fetch them all.
 	if expr == nil {
 		for ki, key := range keys {
-			itr := fs.TagValueIterator(name, unsafeStringToBytes(key))
+			itr := fs.TagValueIterator(name, []byte(key))
 			for val := itr.Next(); val != nil; val = itr.Next() {
 				results[ki] = append(results[ki], string(val.Value()))
 			}
@@ -664,21 +662,6 @@ func (i *Index) MeasurementTagKeyValuesByExpr(name []byte, keys []string, expr i
 		results[i] = values
 	}
 	return results, nil
-}
-
-// unsafeStringToBytes converts a string to a []byte without a heap allocation.
-//
-// It is unsafe, and is intended to prepare input to short-lived functions
-// that require strings.
-func unsafeStringToBytes(in string) []byte {
-	src := (*reflect.StringHeader)(unsafe.Pointer(&in))
-	len := src.Len
-
-	var b []byte
-	bh := (*reflect.SliceHeader)(unsafe.Pointer(&b))
-	bh.Data = src.Data
-	bh.Len, bh.Cap = len, len
-	return b
 }
 
 // ForEachMeasurementSeriesByExpr iterates over all series in a measurement filtered by an expression.
