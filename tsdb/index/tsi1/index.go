@@ -614,6 +614,56 @@ func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[s
 	return fs.MeasurementTagKeysByExpr(name, expr)
 }
 
+// MeasurementTagKeyValuesByExpr returns a set of tag values filtered by an expression.
+//
+// See tsm1.Engine.MeasurementTagKeyValuesByExpr for a fuller description of this
+// method.
+func (i *Index) MeasurementTagKeyValuesByExpr(name []byte, keys []string, expr influxql.Expr, keysSorted bool) ([][]string, error) {
+	fs := i.RetainFileSet()
+	defer fs.Release()
+
+	if len(keys) == 0 {
+		return nil, nil
+	}
+
+	results := make([][]string, len(keys))
+	// If we haven't been provided sorted keys, then we need to sort them.
+	if !keysSorted {
+		sort.Sort(sort.StringSlice(keys))
+	}
+
+	// No expression means that the values shouldn't be filtered, so we can
+	// fetch them all.
+	if expr == nil {
+		for ki, key := range keys {
+			itr := fs.TagValueIterator(name, []byte(key))
+			for val := itr.Next(); val != nil; val = itr.Next() {
+				results[ki] = append(results[ki], string(val.Value()))
+			}
+		}
+		return results, nil
+	}
+
+	// This is the case where we have filtered series by some WHERE condition.
+	// We only care about the tag values for the keys given the
+	// filtered set of series ids.
+	resultSet, err := fs.tagValuesByKeyAndExpr(name, keys, expr, i.fieldset)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert result sets into []string
+	for i, s := range resultSet {
+		values := make([]string, 0, len(s))
+		for v := range s {
+			values = append(values, v)
+		}
+		sort.Sort(sort.StringSlice(values))
+		results[i] = values
+	}
+	return results, nil
+}
+
 // ForEachMeasurementSeriesByExpr iterates over all series in a measurement filtered by an expression.
 func (i *Index) ForEachMeasurementSeriesByExpr(name []byte, condition influxql.Expr, fn func(tags models.Tags) error) error {
 	fs := i.RetainFileSet()
