@@ -1,7 +1,7 @@
 import React, {PropTypes} from 'react'
 
 import GraphTypeSelector from 'src/dashboards/components/GraphTypeSelector'
-import Ranger from 'src/dashboards/components/Ranger'
+import AxesOptions from 'src/dashboards/components/AxesOptions'
 
 const DisplayOptions = ({
   selectedGraphType,
@@ -15,7 +15,7 @@ const DisplayOptions = ({
       selectedGraphType={selectedGraphType}
       onSelectGraphType={onSelectGraphType}
     />
-    <Ranger onSetLabel={onSetLabel} onSetRange={onSetRange} axes={axes} />
+    <AxesOptions onSetLabel={onSetLabel} onSetRange={onSetRange} axes={axes} />
   </div>
 
 const {func, shape, string} = PropTypes

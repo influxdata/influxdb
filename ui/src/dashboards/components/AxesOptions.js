@@ -2,7 +2,7 @@ import React, {PropTypes} from 'react'
 import _ from 'lodash'
 
 // TODO: add logic for for Prefix, Suffix, Scale, and Multiplier
-const Ranger = ({onSetRange, onSetLabel, axes}) => {
+const AxesOptions = ({onSetRange, onSetLabel, axes}) => {
   const min = _.get(axes, ['y', 'bounds', '0'], '')
   const max = _.get(axes, ['y', 'bounds', '1'], '')
   const label = _.get(axes, ['y', 'label'], '')
@@ -89,7 +89,7 @@ const Ranger = ({onSetRange, onSetLabel, axes}) => {
 
 const {arrayOf, func, shape, string} = PropTypes
 
-Ranger.propTypes = {
+AxesOptions.propTypes = {
   onSetRange: func.isRequired,
   onSetLabel: func.isRequired,
   axes: shape({
@@ -100,4 +100,4 @@ Ranger.propTypes = {
   }).isRequired,
 }
 
-export default Ranger
+export default AxesOptions
