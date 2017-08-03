@@ -66,11 +66,14 @@ const getRange = (
   )
 
   // If time series is such that min and max are equal use Dygraph defaults
-  if (range[0] === range[1]) {
+  const [min, max] = range
+  if (min === max) {
     return [null, null]
   }
 
-  const [min, max] = range
+  if (userMin === userMax) {
+    return [min, max]
+  }
 
   return [considerZero(userMin, min), considerZero(userMax, max)]
 }

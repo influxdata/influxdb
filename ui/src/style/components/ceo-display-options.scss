@@ -114,8 +114,7 @@
   opacity: 0.035;
   transition: opacity 0.5s ease;
 
-  &.graphic-fill-a {fill: $g11-sidewalk;}
-  &.graphic-fill-b {fill: $g9-mountain;}
+  &.graphic-fill-a {fill: $g11-sidewalk;}  &.graphic-fill-b {fill: $g9-mountain;}
   &.graphic-fill-c {fill: $g7-graphite;}
 }
 .viz-type-selector--option.active .viz-type-selector--graphic {
@@ -140,4 +139,15 @@
     flex: 1 0 0;
     justify-content: center;
   }
+}
+
+.display-options--footnote {
+  color: $g11-sidewalk;
+  margin: 0;
+  margin-top: 8px;
+  font-style: italic;
+  display: inline-block;
+  width: 100%;
+  padding-left: 6px;
+  @include no-user-select();
 }

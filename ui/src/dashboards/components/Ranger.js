@@ -47,6 +47,9 @@ const Ranger = ({onSetRange, onSetLabel, axes}) => {
             placeholder="auto"
           />
         </div>
+        <p className="display-options--footnote">
+          Values left blank will be set automatically
+        </p>
         {/* <div className="form-group col-sm-6">
           <label htmlFor="prefix">Labels Prefix</label>
           <input
