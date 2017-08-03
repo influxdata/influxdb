@@ -182,7 +182,9 @@ func (s *Service) Run(database, name string, t time.Time) error {
 		if db == nil {
 			return influxql.ErrDatabaseNotFound(database)
 		}
-		dbs[db.Name] = db
+		dbs = map[string]*meta.DatabaseInfo{
+			db.Name: db,
+		}
 	} else {
 		// Get all databases.
 		dbs = s.MetaClient.Databases()

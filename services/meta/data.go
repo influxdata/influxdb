@@ -50,6 +50,15 @@ type Data struct {
 	MaxShardID      uint64
 }
 
+// NewData creates a new Data instance.
+func NewData() *Data {
+	return &Data{
+		Databases: make(map[string]*DatabaseInfo),
+		Users:     make(map[string]*UserInfo),
+		Nodes:     make(map[uint64]*NodeInfo),
+	}
+}
+
 // Database returns a DatabaseInfo by the database name.
 func (data *Data) Database(name string) *DatabaseInfo {
 	return data.Databases[name]
@@ -66,7 +75,6 @@ func (data *Data) CreateDatabase(name string) (*DatabaseInfo, error) {
 
 	return &DatabaseInfo{
 		Name: name,
-
 		RetentionPolicies: make(map[string]*RetentionPolicyInfo),
 		ContinuousQueries: make(map[string]*ContinuousQueryInfo),
 	}, nil
@@ -129,7 +137,7 @@ func (data *Data) RetentionPolicy(database, name string) (*RetentionPolicyInfo, 
 
 // ValidateRetentionPolicy validate a new retention policy on a database.
 // It returns an error if name is blank or if the database does not exist.
-func (data *Data) ValidateRetentionPolicy(database string, rpi *RetentionPolicyInfo) (*RetentionPolicyInfo, error) {
+func (data *Data) ValidateRetentionPolicy(database string, rpi *RetentionPolicyInfo, makeDefault bool) (*RetentionPolicyInfo, error) {
 	// Validate retention policy.
 	if rpi == nil {
 		return nil, ErrRetentionPolicyRequired
@@ -157,7 +165,11 @@ func (data *Data) ValidateRetentionPolicy(database string, rpi *RetentionPolicyI
 		if rp.ReplicaN != rpi.ReplicaN || rp.Duration != rpi.Duration || rp.ShardGroupDuration != rpi.ShardGroupDuration {
 			return nil, ErrRetentionPolicyExists
 		}
-
+		// if they want to make it default, and it's not the default, it's not an identical command so it's an error
+		if makeDefault && di.DefaultRetentionPolicy != rpi.Name {
+			return nil, ErrRetentionPolicyConflict
+		}
+		
 		return rpi, nil
 	}
 
@@ -380,6 +392,12 @@ func (data *Data) CommitShardGroup(database, policy string, sgi *ShardGroupInfo)
 	// Groups must be stored in sorted order, as other parts of the system
 	// assume this to be the case.
 	rpi, _ := data.RetentionPolicy(database, policy)
+	for i := len(rpi.ShardGroups) - 1; i >= 0; i-- {
+		if (rpi.ShardGroups[i].ID == sgi.ID) {
+			rpi.ShardGroups = append(rpi.ShardGroups[:i], rpi.ShardGroups[i+1:]...)
+			break
+		}
+	}
 	rpi.ShardGroups = append(rpi.ShardGroups, sgi)
 	sort.Sort(ShardGroupInfos(rpi.ShardGroups))
 }
@@ -419,16 +437,14 @@ func (data *Data) CreateContinuousQuery(database, name, query string) (*Continuo
 	}
 
 	// Ensure the name doesn't already exist.
-	for _, cq := range di.ContinuousQueries {
-		if cq.Name == name {
-			// If the query string is the same, we'll silently return,
-			// otherwise we'll assume the user might be trying to
-			// overwrite an existing CQ with a different query.
-			if strings.ToLower(cq.Query) == strings.ToLower(query) {
-				return cq, nil
-			}
-			return nil, ErrContinuousQueryExists
+	if cq, ok := di.ContinuousQueries[name]; ok {
+		// If the query string is the same, we'll silently return,
+		// otherwise we'll assume the user might be trying to
+		// overwrite an existing CQ with a different query.
+		if strings.ToLower(cq.Query) == strings.ToLower(query) {
+			return cq, nil
 		}
+		return nil, ErrContinuousQueryExists
 	}
 
 	return &ContinuousQueryInfo{
@@ -605,15 +621,12 @@ func (data *Data) SetPrivilege(name, database string, p influxql.Privilege) (*Us
 	if data.Database(database) == nil {
 		return nil, influxdb.ErrDatabaseNotFound(database)
 	}
-
-	updatedUser := *ui
-
-	if updatedUser.Privileges == nil {
-		updatedUser.Privileges = make(map[string]influxql.Privilege)
+	
+	if ui.Privileges == nil {
+		ui.Privileges = make(map[string]influxql.Privilege)
 	}
-	updatedUser.Privileges[database] = p
-
-	return &updatedUser, nil
+	ui.Privileges[database] = p
+	return ui, nil
 }
 
 // SetAdminPrivilege sets the admin privilege for a user.
@@ -622,11 +635,9 @@ func (data *Data) SetAdminPrivilege(name string, admin bool) (*UserInfo, error) 
 	if ui == nil {
 		return nil, ErrUserNotFound
 	}
-
-	updatedUser := *ui
-	updatedUser.Admin = admin
-
-	return &updatedUser, nil
+	ui.Admin = admin
+	data.adminUserExists = data.hasAdminUser()
+	return ui, nil
 }
 
 // AdminUserExists returns true if an admin user exists.
