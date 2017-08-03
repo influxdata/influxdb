@@ -6,7 +6,7 @@ import ConfirmButtons from 'shared/components/ConfirmButtons'
 const OverlayControls = ({
   onCancel,
   onSave,
-  isDisplayOptionsTabOpen,
+  isDisplayOptionsTabActive,
   onSelectDisplayOptions,
   isSavable,
 }) =>
@@ -16,7 +16,7 @@ const OverlayControls = ({
       <li
         key="queries"
         className={classnames({
-          active: !isDisplayOptionsTabOpen,
+          active: !isDisplayOptionsTabActive,
         })}
         onClick={onSelectDisplayOptions(false)}
       >
@@ -25,7 +25,7 @@ const OverlayControls = ({
       <li
         key="displayOptions"
         className={classnames({
-          active: isDisplayOptionsTabOpen,
+          active: isDisplayOptionsTabActive,
         })}
         onClick={onSelectDisplayOptions(true)}
       >
@@ -46,7 +46,7 @@ const {func, bool} = PropTypes
 OverlayControls.propTypes = {
   onCancel: func.isRequired,
   onSave: func.isRequired,
-  isDisplayOptionsTabOpen: bool.isRequired,
+  isDisplayOptionsTabActive: bool.isRequired,
   onSelectDisplayOptions: func.isRequired,
   isSavable: bool,
 }

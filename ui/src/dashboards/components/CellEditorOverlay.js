@@ -29,10 +29,11 @@ class CellEditorOverlay extends Component {
     this.handleDeleteQuery = ::this.handleDeleteQuery
     this.handleSaveCell = ::this.handleSaveCell
     this.handleSelectGraphType = ::this.handleSelectGraphType
-    this.handleSelectDisplayOptions = ::this.handleSelectDisplayOptions
+    this.handleMakeDisplayOptionsTabActive = ::this
+      .handleMakeDisplayOptionsTabActive
     this.handleSetActiveQueryIndex = ::this.handleSetActiveQueryIndex
     this.handleEditRawText = ::this.handleEditRawText
-    this.handleSetRange = ::this.handleSetRange
+    this.handleSetYAxisBounds = ::this.handleSetYAxisBounds
     this.handleSetLabel = ::this.handleSetLabel
 
     const {cell: {name, type, queries, axes}} = props
@@ -46,7 +47,7 @@ class CellEditorOverlay extends Component {
       cellWorkingType: type,
       queriesWorkingDraft,
       activeQueryIndex: 0,
-      isDisplayOptionsTabOpen: false,
+      isDisplayOptionsTabActive: false,
       axes: this.setDefaultLabels(axes, queries),
     }
   }
@@ -93,7 +94,7 @@ class CellEditorOverlay extends Component {
     }
   }
 
-  handleSetRange(e) {
+  handleSetYAxisBounds(e) {
     const {min, max} = e.target.form
     const {axes} = this.state
 
@@ -157,9 +158,9 @@ class CellEditorOverlay extends Component {
     this.setState({cellWorkingType: graphType})
   }
 
-  handleSelectDisplayOptions(isDisplayOptionsTabOpen) {
+  handleMakeDisplayOptionsTabActive(isDisplayOptionsTabActive) {
     return () => {
-      this.setState({isDisplayOptionsTabOpen})
+      this.setState({isDisplayOptionsTabActive})
     }
   }
 
@@ -197,7 +198,7 @@ class CellEditorOverlay extends Component {
       activeQueryIndex,
       cellWorkingName,
       cellWorkingType,
-      isDisplayOptionsTabOpen,
+      isDisplayOptionsTabActive,
       queriesWorkingDraft,
       axes,
     } = this.state
@@ -235,17 +236,17 @@ class CellEditorOverlay extends Component {
           />
           <div className="overlay-technology--editor">
             <OverlayControls
-              isDisplayOptionsTabOpen={isDisplayOptionsTabOpen}
-              onSelectDisplayOptions={this.handleSelectDisplayOptions}
+              isDisplayOptionsTabActive={isDisplayOptionsTabActive}
+              onSelectDisplayOptions={this.handleMakeDisplayOptionsTabActive}
               onCancel={onCancel}
               onSave={this.handleSaveCell}
               isSavable={queriesWorkingDraft.every(isQuerySavable)}
             />
-            {isDisplayOptionsTabOpen
+            {isDisplayOptionsTabActive
               ? <DisplayOptions
                   selectedGraphType={cellWorkingType}
                   onSelectGraphType={this.handleSelectGraphType}
-                  onSetRange={this.handleSetRange}
+                  onSetRange={this.handleSetYAxisBounds}
                   onSetLabel={this.handleSetLabel}
                   axes={axes}
                 />
