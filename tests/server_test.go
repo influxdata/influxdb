@@ -13,34 +13,42 @@ import (
 
 	"github.com/influxdata/influxdb/coordinator"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 // Global server used by benchmarks
 var benchServer Server
 var verboseServerLogs bool
+var indexType string
 
 func TestMain(m *testing.M) {
 	vv := flag.Bool("vv", false, "Turn on very verbose server logging.")
 	flag.Parse()
 
 	verboseServerLogs = *vv
+	var r int
+	for _, indexType = range tsdb.RegisteredIndexes() {
+		// Setup benchmark server
+		c := NewConfig()
+		c.Retention.Enabled = false
+		c.Monitor.StoreEnabled = false
+		c.Meta.LoggingEnabled = false
+		c.Subscriber.Enabled = false
+		c.ContinuousQuery.Enabled = false
+		c.Data.MaxValuesPerTag = 1000000 // 1M
+		c.Data.Index = indexType
+		benchServer = OpenDefaultServer(c)
 
-	// Setup
-	c := NewConfig()
-	c.Retention.Enabled = false
-	c.Monitor.StoreEnabled = false
-	c.Meta.LoggingEnabled = false
-	c.Subscriber.Enabled = false
-	c.ContinuousQuery.Enabled = false
-	c.Data.MaxValuesPerTag = 1000000 // 1M
-	benchServer = OpenDefaultServer(c)
+		// Run test suite.
+		fmt.Printf("============= Running all tests for %q index =============\n", indexType)
+		if thisr := m.Run(); r == 0 {
+			r = thisr // We'll always remember the first time r is non-zero
+		}
 
-	// Run suite.
-	r := m.Run()
-
-	// Cleanup
-	benchServer.Close()
-
+		// Cleanup
+		benchServer.Close()
+		fmt.Println()
+	}
 	os.Exit(r)
 }
 
