@@ -2,6 +2,7 @@
 ### Bug Fixes
 1. [#1798](https://github.com/influxdata/chronograf/pull/1798): Fix domain not updating in visualizations when changing time range manually
 1. [#1799](https://github.com/influxdata/chronograf/pull/1799): Prevent console error spam from Dygraph.synchronize when a dashboard has only one graph
+1. [#1813](https://github.com/influxdata/chronograf/pull/1813): Guarantee UUID for each Alert Table key to prevent dropping items when keys overlap
 
 ### Features
 1. [#1714](https://github.com/influxdata/chronograf/pull/1714): Add ability to edit a dashboard graph's y-axis bounds
