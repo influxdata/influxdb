@@ -29,8 +29,7 @@ class CellEditorOverlay extends Component {
     this.handleDeleteQuery = ::this.handleDeleteQuery
     this.handleSaveCell = ::this.handleSaveCell
     this.handleSelectGraphType = ::this.handleSelectGraphType
-    this.handleMakeDisplayOptionsTabActive = ::this
-      .handleMakeDisplayOptionsTabActive
+    this.handleClickDisplayOptionsTab = ::this.handleClickDisplayOptionsTab
     this.handleSetActiveQueryIndex = ::this.handleSetActiveQueryIndex
     this.handleEditRawText = ::this.handleEditRawText
     this.handleSetYAxisBounds = ::this.handleSetYAxisBounds
@@ -158,7 +157,7 @@ class CellEditorOverlay extends Component {
     this.setState({cellWorkingType: graphType})
   }
 
-  handleMakeDisplayOptionsTabActive(isDisplayOptionsTabActive) {
+  handleClickDisplayOptionsTab(isDisplayOptionsTabActive) {
     return () => {
       this.setState({isDisplayOptionsTabActive})
     }
@@ -237,7 +236,7 @@ class CellEditorOverlay extends Component {
           <div className="overlay-technology--editor">
             <OverlayControls
               isDisplayOptionsTabActive={isDisplayOptionsTabActive}
-              onSelectDisplayOptions={this.handleMakeDisplayOptionsTabActive}
+              onClickDisplayOptions={this.handleClickDisplayOptionsTab}
               onCancel={onCancel}
               onSave={this.handleSaveCell}
               isSavable={queriesWorkingDraft.every(isQuerySavable)}

@@ -7,7 +7,7 @@ const OverlayControls = ({
   onCancel,
   onSave,
   isDisplayOptionsTabActive,
-  onSelectDisplayOptions,
+  onClickDisplayOptions,
   isSavable,
 }) =>
   <div className="overlay-controls">
@@ -18,7 +18,7 @@ const OverlayControls = ({
         className={classnames({
           active: !isDisplayOptionsTabActive,
         })}
-        onClick={onSelectDisplayOptions(false)}
+        onClick={onClickDisplayOptions(false)}
       >
         Queries
       </li>
@@ -27,7 +27,7 @@ const OverlayControls = ({
         className={classnames({
           active: isDisplayOptionsTabActive,
         })}
-        onClick={onSelectDisplayOptions(true)}
+        onClick={onClickDisplayOptions(true)}
       >
         Display Options
       </li>
@@ -47,7 +47,7 @@ OverlayControls.propTypes = {
   onCancel: func.isRequired,
   onSave: func.isRequired,
   isDisplayOptionsTabActive: bool.isRequired,
-  onSelectDisplayOptions: func.isRequired,
+  onClickDisplayOptions: func.isRequired,
   isSavable: bool,
 }
 
