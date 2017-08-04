@@ -2,7 +2,6 @@ import React, {PropTypes} from 'react'
 import Dygraph from 'shared/components/Dygraph'
 import classnames from 'classnames'
 import shallowCompare from 'react-addons-shallow-compare'
-import _ from 'lodash'
 
 import timeSeriesToDygraph from 'utils/timeSeriesToDygraph'
 import lastValues from 'shared/parsing/lastValues'
@@ -15,9 +14,15 @@ export default React.createClass({
   displayName: 'LineGraph',
   propTypes: {
     data: arrayOf(shape({}).isRequired).isRequired,
-    ranges: shape({
-      y: arrayOf(number),
-      y2: arrayOf(number),
+    axes: shape({
+      y: shape({
+        bounds: array,
+        label: string,
+      }),
+      y2: shape({
+        bounds: array,
+        label: string,
+      }),
     }),
     title: string,
     isFetchingInitially: bool,
@@ -81,15 +86,15 @@ export default React.createClass({
   render() {
     const {
       data,
-      ranges,
+      axes,
       isFetchingInitially,
       isRefreshing,
       isGraphFilled,
       isBarGraph,
       overrideLineColors,
       title,
-      underlayCallback,
       queries,
+      underlayCallback,
       showSingleStat,
       displayOptions,
       ruleValues,
@@ -120,8 +125,6 @@ export default React.createClass({
       axisLabelWidth: 60,
       drawAxesAtZero: true,
       underlayCallback,
-      ylabel: _.get(queries, ['0', 'label'], ''),
-      y2label: _.get(queries, ['1', 'label'], ''),
       ...displayOptions,
     }
 
@@ -151,26 +154,25 @@ export default React.createClass({
       roundedValue = Math.round(+lastValue * precision) / precision
     }
 
+    const lineColors = showSingleStat
+      ? singleStatLineColors
+      : overrideLineColors
+
     return (
-      <div
-        className={classnames('dygraph', {
-          'graph--hasYLabel': !!(options.ylabel || options.y2label),
-        })}
-        style={{height: '100%'}}
-      >
+      <div className={`dygraph ${this.yLabelClass()}`} style={{height: '100%'}}>
         {isRefreshing ? this.renderSpinner() : null}
         <Dygraph
+          axes={axes}
+          queries={queries}
+          dygraphRef={this.dygraphRefFunc}
           containerStyle={{width: '100%', height: '100%'}}
-          overrideLineColors={
-            showSingleStat ? singleStatLineColors : overrideLineColors
-          }
+          overrideLineColors={lineColors}
           isGraphFilled={showSingleStat ? false : isGraphFilled}
           isBarGraph={isBarGraph}
           timeSeries={timeSeries}
           labels={labels}
           options={showSingleStat ? singleStatOptions : options}
           dygraphSeries={dygraphSeries}
-          ranges={ranges || this.getRanges()}
           ruleValues={ruleValues}
           synchronizer={synchronizer}
           timeRange={timeRange}
@@ -193,6 +195,26 @@ export default React.createClass({
     )
   },
 
+  yLabelClass() {
+    const dygraph = this.dygraphRef
+
+    if (!dygraph) {
+      return 'graph--hasYLabel'
+    }
+
+    const label = dygraph.querySelector('.dygraph-ylabel')
+
+    if (!label) {
+      return ''
+    }
+
+    return 'graph--hasYLabel'
+  },
+
+  dygraphRefFunc(dygraphRef) {
+    this.dygraphRef = dygraphRef
+  },
+
   renderSpinner() {
     return (
       <div className="graph-panel__refreshing">
@@ -201,26 +223,5 @@ export default React.createClass({
         <div />
       </div>
     )
-  },
-
-  getRanges() {
-    const {queries} = this.props
-    if (!queries) {
-      return {}
-    }
-
-    const ranges = {}
-    const q0 = queries[0]
-    const q1 = queries[1]
-
-    if (q0 && q0.range) {
-      ranges.y = [q0.range.lower, q0.range.upper]
-    }
-
-    if (q1 && q1.range) {
-      ranges.y2 = [q1.range.lower, q1.range.upper]
-    }
-
-    return ranges
   },
 })

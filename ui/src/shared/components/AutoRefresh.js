@@ -4,6 +4,7 @@ import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
 import {removeUnselectedTemplateValues} from 'src/dashboards/constants'
 
 const {
+  array,
   arrayOf,
   bool,
   element,
@@ -43,6 +44,12 @@ const AutoRefresh = ComposedComponent => {
           text: string,
         }).isRequired
       ).isRequired,
+      axes: shape({
+        bounds: shape({
+          y: array,
+          y2: array,
+        }),
+      }),
       editQueryStatus: func,
     },
 

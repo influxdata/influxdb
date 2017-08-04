@@ -15,6 +15,7 @@ const RefreshingGraph = ({
   type,
   queries,
   cellHeight,
+  axes,
 }) => {
   if (type === 'single-stat') {
     return (
@@ -42,6 +43,7 @@ const RefreshingGraph = ({
       isBarGraph={type === 'bar'}
       displayOptions={displayOptions}
       synchronizer={synchronizer}
+      axes={axes}
     />
   )
 }
@@ -57,7 +59,8 @@ RefreshingGraph.propTypes = {
   synchronizer: func,
   type: string.isRequired,
   queries: arrayOf(shape()).isRequired,
-  cellHeight: number.isRequired,
+  cellHeight: number,
+  axes: shape(),
 }
 
 export default RefreshingGraph

@@ -108,3 +108,9 @@ function getRolesForUser(roles, user) {
 
   return buildRoles(userRoles)
 }
+
+export const buildYLabel = queryConfig => {
+  return queryConfig.rawText
+    ? ''
+    : `${queryConfig.measurement}.${queryConfig.fields[0].field}`
+}
