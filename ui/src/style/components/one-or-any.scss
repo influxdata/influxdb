@@ -8,7 +8,7 @@
   align-items: stretch;
   flex-wrap: nowrap;
 }
-.one-or-any--auto {
+.one-or-any--left-label {
   border: 2px solid $g5-pepper;
   background-color: $g2-kevlar;
   color: $c-pool;
@@ -22,7 +22,7 @@
   @include no-user-select();
   transition: background-color 0.25s ease, color 0.25s ease;
 }
-.one-or-any--groove-knob {
+.one-or-any--groove-knob-container {
   display: flex;
   align-items: center;
   border: 2px solid $g5-pepper;
@@ -31,7 +31,7 @@
   position: relative;
 
   // Groove
-  > div {
+  > div.one-or-any--groove-knob {
     margin: 0 10px;
     z-index: 3;
     width: 28px;
@@ -88,18 +88,19 @@
 .one-or-any > input.form-control {
   border-radius: 0 4px 4px 0;
   font-family: $code-font;
+  flex: 1 0 0;
 }
-// Toggled state
-.one-or-any.toggled {
-  .one-or-any--groove-knob > div:after {
+// Right value toggled state
+.one-or-any.right-toggled {
+  .one-or-any--groove-knob:after {
     transform: translate(0%, -50%);
   }
   // Fade out left, fade in right
-  .one-or-any--groove-knob:before {
+  .one-or-any--groove-knob-container:before {
     opacity: 0;
   }
-  // Make auto look disabled
-  .one-or-any--auto {
+  // Make left label look disabled
+  .one-or-any--left-label {
     background-color: $g3-castle;
     color: $g8-storm;
     font-style: italic;
