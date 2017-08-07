@@ -47,6 +47,7 @@
 1. [#1714](https://github.com/influxdata/chronograf/pull/1714): Add ability to edit a dashboard graph's y-axis bounds
 1. [#1714](https://github.com/influxdata/chronograf/pull/1714): Add ability to edit a dashboard graph's y-axis label
 1. [#1744](https://github.com/influxdata/chronograf/pull/1744): Add a few pre-set time range selections to the custom time range menu-- be sure to add a sensible GROUP BY
+1. [#1744](https://github.com/influxdata/chronograf/pull/1744): Add a few time range shortcuts to the custom time range menu
 
 ### UI Improvements
 1. [#1796](https://github.com/influxdata/chronograf/pull/1796): Add spinner write data modal to indicate data is being written
