@@ -1,5 +1,5 @@
 import React, {PropTypes, Component} from 'react'
-import CodeMirror from 'react-codemirror'
+import CodeMirror from '@skidding/react-codemirror'
 import 'src/external/codemirror'
 
 class TickscriptEditor extends Component {
