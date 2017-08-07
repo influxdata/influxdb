@@ -14,7 +14,7 @@ const hasherino = (str, len) =>
   str
     .split('')
     .map(char => char.charCodeAt(0))
-    .reduce((hash, code) => (hash + code) % len, 0)
+    .reduce((hash, code) => hash + code, 0) % len
 
 export default class Dygraph extends Component {
   constructor(props) {
