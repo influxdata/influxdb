@@ -116,7 +116,7 @@ class TimeRangeDropdown extends Component {
                     }
                   >
                     <a href="#" onClick={this.showCustomTimeRange}>
-                      Custom Time Range
+                      Date Picker
                     </a>
                   </li>}
               {timeRanges.map(item => {
