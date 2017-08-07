@@ -242,6 +242,11 @@ func (i *Index) deleteNonManifestFiles(m *Manifest) error {
 	return nil
 }
 
+// Wait returns once outstanding compactions have finished.
+func (i *Index) Wait() {
+	i.wg.Wait()
+}
+
 // Close closes the index.
 func (i *Index) Close() error {
 	// Wait for goroutines to finish.
