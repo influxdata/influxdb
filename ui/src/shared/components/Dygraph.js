@@ -11,6 +11,12 @@ import {LINE_COLORS, multiColumnBarPlotter} from 'src/shared/graphs/helpers'
 import DygraphLegend from 'src/shared/components/DygraphLegend'
 import {buildYLabel} from 'shared/presenters'
 
+const hasherino = (str, len) =>
+  str
+    .split('')
+    .map(char => char.charCodeAt(0))
+    .reduce((hash, code) => hash + code, 0) % len
+
 export default class Dygraph extends Component {
   constructor(props) {
     super(props)
@@ -80,21 +86,29 @@ export default class Dygraph extends Component {
 
     const graphRef = this.graphRef
     const legendRef = this.legendRef
-    let finalLineColors = overrideLineColors
+    const finalLineColors = [...(overrideLineColors || LINE_COLORS)]
 
-    if (finalLineColors === null) {
-      finalLineColors = LINE_COLORS
+    const hashColorDygraphSeries = {}
+    const {length} = finalLineColors
+
+    for (const seriesName in dygraphSeries) {
+      const series = dygraphSeries[seriesName]
+      const hashIndex = hasherino(seriesName, length)
+      const color = finalLineColors[hashIndex]
+      hashColorDygraphSeries[seriesName] = {...series, color}
     }
 
     const yAxis = _.get(axes, ['y', 'bounds'], [null, null])
     const y2Axis = _.get(axes, ['y2', 'bounds'], undefined)
 
     const defaultOptions = {
-      plugins: [
-        new Dygraphs.Plugins.Crosshair({
-          direction: 'vertical',
-        }),
-      ],
+      plugins: isBarGraph
+        ? []
+        : [
+            new Dygraphs.Plugins.Crosshair({
+              direction: 'vertical',
+            }),
+          ],
       labelsSeparateLines: false,
       labelsKMB: true,
       rightGap: 0,
@@ -103,12 +117,11 @@ export default class Dygraph extends Component {
       fillGraph: isGraphFilled,
       axisLineWidth: 2,
       gridLineWidth: 1,
-      highlightCircleSize: 3,
+      highlightCircleSize: isBarGraph ? 0 : 3,
       animatedZooms: true,
       hideOverlayOnMouseOut: false,
       colors: finalLineColors,
-      series: dygraphSeries,
-      ylabel: this.getLabel('y'),
+      series: hashColorDygraphSeries,
       axes: {
         y: {
           valueRange: getRange(timeSeries, yAxis, ruleValues),
@@ -119,7 +132,7 @@ export default class Dygraph extends Component {
       },
       highlightSeriesOpts: {
         strokeWidth: 2,
-        highlightCircleSize: 5,
+        highlightCircleSize: isBarGraph ? 0 : 5,
       },
       legendFormatter: legend => {
         if (!legend.x) {
@@ -259,6 +272,7 @@ export default class Dygraph extends Component {
       dygraphSeries,
       ruleValues,
       isBarGraph,
+      overrideLineColors,
     } = this.props
 
     const dygraph = this.dygraph
@@ -272,6 +286,17 @@ export default class Dygraph extends Component {
     const y2 = _.get(axes, ['y2', 'bounds'], undefined)
     const timeSeries = this.getTimeSeries()
     const ylabel = this.getLabel('y')
+    const finalLineColors = [...(overrideLineColors || LINE_COLORS)]
+
+    const hashColorDygraphSeries = {}
+    const {length} = finalLineColors
+
+    for (const seriesName in dygraphSeries) {
+      const series = dygraphSeries[seriesName]
+      const hashIndex = hasherino(seriesName, length)
+      const color = finalLineColors[hashIndex]
+      hashColorDygraphSeries[seriesName] = {...series, color}
+    }
 
     const updateOptions = {
       labels,
@@ -288,7 +313,8 @@ export default class Dygraph extends Component {
       stepPlot: options.stepPlot,
       stackedGraph: options.stackedGraph,
       underlayCallback: options.underlayCallback,
-      series: dygraphSeries,
+      colors: finalLineColors,
+      series: hashColorDygraphSeries,
       plotter: isBarGraph ? multiColumnBarPlotter : null,
       visibility: this.visibility(),
     }
