@@ -7,7 +7,8 @@
 ### UI Improvements
 1. [#1796](https://github.com/influxdata/chronograf/pull/1796): Add spinner to indicate data is being written
 1. [#1800](https://github.com/influxdata/chronograf/pull/1796): Embiggen text area for line protocol manual entry in Data Explorer's Write Data overlay
-1. [#1805](https://github.com/influxdata/chronograf/pull/1805): Bar graphs no longer overlap with each other, and bonus, series names are hashed so that graph colors should stay the same for the same series across charts
+1. [#1805](https://github.com/influxdata/chronograf/pull/1805): Fix bar graphs overlapping
+1. [#1805](https://github.com/influxdata/chronograf/pull/1805): Add series names hashing so that graph colors should stay the same for the same series across charts
 
 ## v1.3.5.0 [2017-07-27]
 ### Bug Fixes
