@@ -58,7 +58,7 @@ class OneOrAny extends Component {
     return e => {
       const rightValue = e.target.value.trim()
       this.setState({rightValue}, () => {
-        if (!this.state.rightValue) {
+        if (rightValue === '') {
           // this helps ensure that when the toggle is clicked, if the rightValue
           // input's blur event also fires, that only the expected behavior happens
           setTimeout(() => {
