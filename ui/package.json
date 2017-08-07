@@ -9,13 +9,13 @@
     "url": "github:influxdata/chronograf"
   },
   "scripts": {
-    "build": "npm run clean && env NODE_ENV=production node_modules/webpack/bin/webpack.js -p --config ./webpack/prodConfig.js",
+    "build": "yarn run clean && env NODE_ENV=production node_modules/webpack/bin/webpack.js -p --config ./webpack/prodConfig.js",
     "build:dev": "node_modules/webpack/bin/webpack.js --config ./webpack/devConfig.js",
     "start": "node_modules/webpack/bin/webpack.js -w --config ./webpack/devConfig.js",
     "lint": "node_modules/eslint/bin/eslint.js src/",
     "test": "karma start",
-    "test:lint": "npm run lint; npm run test",
-    "test:dev": "nodemon --exec npm run test:lint",
+    "test:lint": "yarn run lint; yarn run test",
+    "test:dev": "nodemon --exec yarn run test:lint",
     "clean": "rm -rf build",
     "storybook": "node ./storybook",
     "prettier": "prettier --single-quote --trailing-comma es5 --bracket-spacing false --semi false --write \"{src,spec}/**/*.js\"; eslint src --fix"
