@@ -3,6 +3,7 @@ package mocks
 import (
 	"fmt"
 	"io"
+	"testing"
 
 	"github.com/influxdata/chronograf"
 )
@@ -70,5 +71,13 @@ func (tl *TestLogger) stringifyArg(arg interface{}) []byte {
 		return []byte(a)
 	default:
 		return []byte("UNKNOWN")
+	}
+}
+
+// Dump dumps out logs into a given testing.T's logs
+func (tl *TestLogger) Dump(t *testing.T) {
+	t.Log("== Dumping Test Logs ==")
+	for _, msg := range tl.Messages {
+		t.Logf("lvl: %s, msg: %s", msg.Level, msg.Body)
 	}
 }

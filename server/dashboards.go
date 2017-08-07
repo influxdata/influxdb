@@ -28,20 +28,19 @@ type getDashboardsResponse struct {
 
 func newDashboardResponse(d chronograf.Dashboard) *dashboardResponse {
 	base := "/chronograf/v1/dashboards"
-	DashboardDefaults(&d)
-	AddQueryConfigs(&d)
-	cells := newCellResponses(d.ID, d.Cells)
-	templates := newTemplateResponses(d.ID, d.Templates)
+	dd := AddQueryConfigs(DashboardDefaults(d))
+	cells := newCellResponses(dd.ID, dd.Cells)
+	templates := newTemplateResponses(dd.ID, dd.Templates)
 
 	return &dashboardResponse{
-		ID:        d.ID,
-		Name:      d.Name,
+		ID:        dd.ID,
+		Name:      dd.Name,
 		Cells:     cells,
 		Templates: templates,
 		Links: dashboardLinks{
-			Self:      fmt.Sprintf("%s/%d", base, d.ID),
-			Cells:     fmt.Sprintf("%s/%d/cells", base, d.ID),
-			Templates: fmt.Sprintf("%s/%d/templates", base, d.ID),
+			Self:      fmt.Sprintf("%s/%d", base, dd.ID),
+			Cells:     fmt.Sprintf("%s/%d/cells", base, dd.ID),
+			Templates: fmt.Sprintf("%s/%d/templates", base, dd.ID),
 		},
 	}
 }
@@ -229,24 +228,36 @@ func ValidDashboardRequest(d *chronograf.Dashboard) error {
 			return err
 		}
 	}
-	DashboardDefaults(d)
+	(*d) = DashboardDefaults(*d)
 	return nil
 }
 
 // DashboardDefaults updates the dashboard with the default values
 // if none are specified
-func DashboardDefaults(d *chronograf.Dashboard) {
+func DashboardDefaults(d chronograf.Dashboard) (newDash chronograf.Dashboard) {
+	newDash.ID = d.ID
+	newDash.Templates = d.Templates
+	newDash.Name = d.Name
+	newDash.Cells = make([]chronograf.DashboardCell, len(d.Cells))
+
 	for i, c := range d.Cells {
 		CorrectWidthHeight(&c)
-		d.Cells[i] = c
+		newDash.Cells[i] = c
 	}
+	return
 }
 
 // AddQueryConfigs updates all the celsl in the dashboard to have query config
 // objects corresponding to their influxql queries.
-func AddQueryConfigs(d *chronograf.Dashboard) {
+func AddQueryConfigs(d chronograf.Dashboard) (newDash chronograf.Dashboard) {
+	newDash.ID = d.ID
+	newDash.Templates = d.Templates
+	newDash.Name = d.Name
+	newDash.Cells = make([]chronograf.DashboardCell, len(d.Cells))
+
 	for i, c := range d.Cells {
 		AddQueryConfig(&c)
-		d.Cells[i] = c
+		newDash.Cells[i] = c
 	}
+	return
 }

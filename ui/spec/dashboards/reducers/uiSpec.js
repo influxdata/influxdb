@@ -60,6 +60,7 @@ const c1 = {
   w: 4,
   h: 4,
   id: 1,
+  i: 'im-a-cell-id-index',
   isEditing: false,
   name: 'Gigawatts',
 }
@@ -71,18 +72,6 @@ const editingCell = {
 }
 
 const cells = [c1]
-const tempVar = {
-  ...d1.templates[0],
-  id: '1',
-  type: 'measurement',
-  label: 'test query',
-  tempVar: '$HOSTS',
-  query: {
-    db: 'db1',
-    text: 'SHOW TAGS WHERE HUNTER = "coo"',
-  },
-  values: ['h1', 'h2', 'h3'],
-}
 
 describe('DataExplorer.Reducers.UI', () => {
   it('can load the dashboards', () => {

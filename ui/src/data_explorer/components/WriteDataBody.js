@@ -33,7 +33,7 @@ const WriteDataBody = ({
             ref={fileInput}
             accept="text/*, application/gzip"
           />
-          <button className="btn btn-sm btn-primary" onClick={handleFileOpen}>
+          <button className="btn btn-md btn-primary" onClick={handleFileOpen}>
             {uploadContent ? 'Upload a Different File' : 'Upload a File'}
           </button>
           {uploadContent

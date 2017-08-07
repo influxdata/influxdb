@@ -7,12 +7,15 @@ import ResizeContainer from 'shared/components/ResizeContainer'
 import QueryMaker from 'src/data_explorer/components/QueryMaker'
 import Visualization from 'src/data_explorer/components/Visualization'
 import OverlayControls from 'src/dashboards/components/OverlayControls'
+import DisplayOptions from 'src/dashboards/components/DisplayOptions'
+
 import * as queryModifiers from 'src/utils/queryTransitions'
 
 import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 import buildInfluxQLQuery from 'utils/influxql'
 import {getQueryConfig} from 'shared/apis'
 
+import {buildYLabel} from 'shared/presenters'
 import {removeUnselectedTemplateValues} from 'src/dashboards/constants'
 import {OVERLAY_TECHNOLOGY} from 'shared/constants/classNames'
 import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from 'src/data_explorer/constants'
@@ -22,17 +25,17 @@ class CellEditorOverlay extends Component {
     super(props)
 
     this.queryStateReducer = ::this.queryStateReducer
-
     this.handleAddQuery = ::this.handleAddQuery
     this.handleDeleteQuery = ::this.handleDeleteQuery
-
     this.handleSaveCell = ::this.handleSaveCell
-
     this.handleSelectGraphType = ::this.handleSelectGraphType
+    this.handleClickDisplayOptionsTab = ::this.handleClickDisplayOptionsTab
     this.handleSetActiveQueryIndex = ::this.handleSetActiveQueryIndex
     this.handleEditRawText = ::this.handleEditRawText
+    this.handleSetYAxisBounds = ::this.handleSetYAxisBounds
+    this.handleSetLabel = ::this.handleSetLabel
 
-    const {cell: {name, type, queries}} = props
+    const {cell: {name, type, queries, axes}} = props
 
     const queriesWorkingDraft = _.cloneDeep(
       queries.map(({queryConfig}) => ({...queryConfig, id: uuid.v4()}))
@@ -43,7 +46,24 @@ class CellEditorOverlay extends Component {
       cellWorkingType: type,
       queriesWorkingDraft,
       activeQueryIndex: 0,
+      isDisplayOptionsTabActive: false,
+      axes: this.setDefaultLabels(axes, queries),
     }
+  }
+
+  setDefaultLabels(axes, queries) {
+    if (!queries.length) {
+      return axes
+    }
+
+    if (axes.y.label) {
+      return axes
+    }
+
+    const q = queries[0].queryConfig
+    const label = buildYLabel(q)
+
+    return {...axes, y: {...axes.y, label}}
   }
 
   componentWillReceiveProps(nextProps) {
@@ -73,6 +93,24 @@ class CellEditorOverlay extends Component {
     }
   }
 
+  handleSetYAxisBounds(e) {
+    const {min, max} = e.target.form
+    const {axes} = this.state
+
+    this.setState({
+      axes: {...axes, y: {...axes.y, bounds: [min.value, max.value]}},
+    })
+    e.preventDefault()
+  }
+
+  handleSetLabel(e) {
+    const {label} = e.target.form
+    const {axes} = this.state
+
+    this.setState({axes: {...axes, y: {...axes.y, label: label.value}}})
+    e.preventDefault()
+  }
+
   handleAddQuery(options) {
     const newQuery = Object.assign({}, defaultQueryConfig(uuid.v4()), options)
     const nextQueries = this.state.queriesWorkingDraft.concat(newQuery)
@@ -87,29 +125,42 @@ class CellEditorOverlay extends Component {
   }
 
   handleSaveCell() {
-    const {queriesWorkingDraft, cellWorkingType, cellWorkingName} = this.state
+    const {
+      queriesWorkingDraft,
+      cellWorkingType: type,
+      cellWorkingName: name,
+      axes,
+    } = this.state
+
     const {cell} = this.props
 
-    const newCell = _.cloneDeep(cell)
-    newCell.name = cellWorkingName
-    newCell.type = cellWorkingType
-    newCell.queries = queriesWorkingDraft.map(q => {
+    const queries = queriesWorkingDraft.map(q => {
       const timeRange = q.range || {upper: null, lower: ':dashboardTime:'}
       const query = q.rawText || buildInfluxQLQuery(timeRange, q)
-      const label = q.rawText ? '' : `${q.measurement}.${q.fields[0].field}`
 
       return {
         queryConfig: q,
         query,
-        label,
       }
     })
 
-    this.props.onSave(newCell)
+    this.props.onSave({
+      ...cell,
+      name,
+      type,
+      queries,
+      axes,
+    })
   }
 
   handleSelectGraphType(graphType) {
     this.setState({cellWorkingType: graphType})
+  }
+
+  handleClickDisplayOptionsTab(isDisplayOptionsTabActive) {
+    return () => {
+      this.setState({isDisplayOptionsTabActive})
+    }
   }
 
   handleSetActiveQueryIndex(activeQueryIndex) {
@@ -146,7 +197,9 @@ class CellEditorOverlay extends Component {
       activeQueryIndex,
       cellWorkingName,
       cellWorkingType,
+      isDisplayOptionsTabActive,
       queriesWorkingDraft,
+      axes,
     } = this.state
 
     const queryActions = {
@@ -177,27 +230,36 @@ class CellEditorOverlay extends Component {
             cellType={cellWorkingType}
             cellName={cellWorkingName}
             editQueryStatus={editQueryStatus}
+            axes={axes}
             views={[]}
           />
           <div className="overlay-technology--editor">
             <OverlayControls
-              selectedGraphType={cellWorkingType}
-              onSelectGraphType={this.handleSelectGraphType}
+              isDisplayOptionsTabActive={isDisplayOptionsTabActive}
+              onClickDisplayOptions={this.handleClickDisplayOptionsTab}
               onCancel={onCancel}
               onSave={this.handleSaveCell}
               isSavable={queriesWorkingDraft.every(isQuerySavable)}
             />
-            <QueryMaker
-              source={source}
-              templates={templates}
-              queries={queriesWorkingDraft}
-              actions={queryActions}
-              autoRefresh={autoRefresh}
-              timeRange={timeRange}
-              setActiveQueryIndex={this.handleSetActiveQueryIndex}
-              onDeleteQuery={this.handleDeleteQuery}
-              activeQueryIndex={activeQueryIndex}
-            />
+            {isDisplayOptionsTabActive
+              ? <DisplayOptions
+                  selectedGraphType={cellWorkingType}
+                  onSelectGraphType={this.handleSelectGraphType}
+                  onSetRange={this.handleSetYAxisBounds}
+                  onSetLabel={this.handleSetLabel}
+                  axes={axes}
+                />
+              : <QueryMaker
+                  source={source}
+                  templates={templates}
+                  queries={queriesWorkingDraft}
+                  actions={queryActions}
+                  autoRefresh={autoRefresh}
+                  timeRange={timeRange}
+                  setActiveQueryIndex={this.handleSetActiveQueryIndex}
+                  onDeleteQuery={this.handleDeleteQuery}
+                  activeQueryIndex={activeQueryIndex}
+                />}
           </div>
         </ResizeContainer>
       </div>
@@ -232,6 +294,7 @@ CellEditorOverlay.propTypes = {
     queryID: string,
     status: shape({}),
   }).isRequired,
+  dashboardID: string.isRequired,
 }
 
 export default CellEditorOverlay

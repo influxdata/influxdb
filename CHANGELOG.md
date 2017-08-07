@@ -1,12 +1,23 @@
 ## v1.3.6.0 [unreleased]
 ### Bug Fixes
+1. [#1798](https://github.com/influxdata/chronograf/pull/1798): Fix domain not updating in visualizations when changing time range manually
+1. [#1799](https://github.com/influxdata/chronograf/pull/1799): Prevent console error spam from Dygraph.synchronize when a dashboard has only one graph
+1. [#1813](https://github.com/influxdata/chronograf/pull/1813): Guarantee UUID for each Alert Table key to prevent dropping items when keys overlap
+
 ### Features
 1. [#1744](https://github.com/influxdata/chronograf/pull/1744): Add a few time range shortcuts to the custom time range menu
+1. [#1714](https://github.com/influxdata/chronograf/pull/1714): Add ability to edit a dashboard graph's y-axis bounds
+1. [#1714](https://github.com/influxdata/chronograf/pull/1714): Add ability to edit a dashboard graph's y-axis label
 
 ### UI Improvements
 1. [#1796](https://github.com/influxdata/chronograf/pull/1796): Add spinner to indicate data is being written
+1. [#1800](https://github.com/influxdata/chronograf/pull/1796): Embiggen text area for line protocol manual entry in Data Explorer's Write Data overlay
+1. [#1805](https://github.com/influxdata/chronograf/pull/1805): Fix bar graphs overlapping
+1. [#1805](https://github.com/influxdata/chronograf/pull/1805): Add series names hashing so that graph colors should stay the same for the same series across charts
+1. [#1800](https://github.com/influxdata/chronograf/pull/1800): Embiggen text area for line protocol manual entry in Data Explorer's Write Data overlay
+1. [#1812](https://github.com/influxdata/chronograf/pull/1812): Improve error message when request for Status Page News Feed fails
 
-## v1.3.5.0 [2017-07-25]
+## v1.3.5.0 [2017-07-27]
 ### Bug Fixes
 1. [#1708](https://github.com/influxdata/chronograf/pull/1708): Fix z-index issue in dashboard cell context menu
 1. [#1752](https://github.com/influxdata/chronograf/pull/1752): Clarify BoltPath server flag help text by making example the default path
