@@ -9,6 +9,7 @@ import getRange from 'shared/parsing/getRangeForDygraph'
 
 import {LINE_COLORS, multiColumnBarPlotter} from 'src/shared/graphs/helpers'
 import DygraphLegend from 'src/shared/components/DygraphLegend'
+import {buildYLabel} from 'shared/presenters'
 
 const hasherino = (str, len) =>
   str
@@ -41,12 +42,14 @@ export default class Dygraph extends Component {
     this.handleHideLegend = ::this.handleHideLegend
     this.handleToggleFilter = ::this.handleToggleFilter
     this.visibility = ::this.visibility
+    this.getLabel = ::this.getLabel
   }
 
   static defaultProps = {
     containerStyle: {},
     isGraphFilled: true,
     overrideLineColors: null,
+    dygraphRef: () => {},
   }
 
   getTimeSeries() {
@@ -56,11 +59,23 @@ export default class Dygraph extends Component {
     return timeSeries.length ? timeSeries : [[0]]
   }
 
+  getLabel(axis) {
+    const {axes, queries} = this.props
+    const label = _.get(axes, [axis, 'label'], '')
+    const queryConfig = _.get(queries, ['0', 'queryConfig'], false)
+
+    if (label || !queryConfig) {
+      return label
+    }
+
+    return buildYLabel(queryConfig)
+  }
+
   componentDidMount() {
     const timeSeries = this.getTimeSeries()
     // dygraphSeries is a legend label and its corresponding y-axis e.g. {legendLabel1: 'y', legendLabel2: 'y2'};
     const {
-      ranges,
+      axes,
       dygraphSeries,
       ruleValues,
       overrideLineColors,
@@ -82,6 +97,9 @@ export default class Dygraph extends Component {
       const color = finalLineColors[hashIndex]
       hashColorDygraphSeries[seriesName] = {...series, color}
     }
+
+    const yAxis = _.get(axes, ['y', 'bounds'], [null, null])
+    const y2Axis = _.get(axes, ['y2', 'bounds'], undefined)
 
     const defaultOptions = {
       plugins: isBarGraph
@@ -106,10 +124,10 @@ export default class Dygraph extends Component {
       series: hashColorDygraphSeries,
       axes: {
         y: {
-          valueRange: getRange(timeSeries, ranges.y, ruleValues),
+          valueRange: getRange(timeSeries, yAxis, ruleValues),
         },
         y2: {
-          valueRange: getRange(timeSeries, ranges.y2),
+          valueRange: getRange(timeSeries, y2Axis),
         },
       },
       highlightSeriesOpts: {
@@ -249,7 +267,7 @@ export default class Dygraph extends Component {
   componentDidUpdate() {
     const {
       labels,
-      ranges,
+      axes,
       options,
       dygraphSeries,
       ruleValues,
@@ -263,16 +281,21 @@ export default class Dygraph extends Component {
       )
     }
 
+    const y = _.get(axes, ['y', 'bounds'], [null, null])
+    const y2 = _.get(axes, ['y2', 'bounds'], undefined)
     const timeSeries = this.getTimeSeries()
+    const ylabel = this.getLabel('y')
+
     const updateOptions = {
       labels,
       file: timeSeries,
+      ylabel,
       axes: {
         y: {
-          valueRange: getRange(timeSeries, ranges.y, ruleValues),
+          valueRange: getRange(timeSeries, y, ruleValues),
         },
         y2: {
-          valueRange: getRange(timeSeries, ranges.y2),
+          valueRange: getRange(timeSeries, y2),
         },
       },
       stepPlot: options.stepPlot,
@@ -364,6 +387,7 @@ export default class Dygraph extends Component {
         <div
           ref={r => {
             this.graphRef = r
+            this.props.dygraphRef(r)
           }}
           style={this.props.containerStyle}
           className="dygraph-child-container"
@@ -373,13 +397,18 @@ export default class Dygraph extends Component {
   }
 }
 
-const {array, arrayOf, func, number, bool, shape, string} = PropTypes
+const {array, arrayOf, bool, func, shape, string} = PropTypes
 
 Dygraph.propTypes = {
-  ranges: shape({
-    y: arrayOf(number),
-    y2: arrayOf(number),
+  axes: shape({
+    y: shape({
+      bounds: array,
+    }),
+    y2: shape({
+      bounds: array,
+    }),
   }),
+  queries: arrayOf(shape),
   timeSeries: array.isRequired,
   labels: array.isRequired,
   options: shape({}),
@@ -398,4 +427,5 @@ Dygraph.propTypes = {
   }),
   synchronizer: func,
   setResolution: func,
+  dygraphRef: func,
 }

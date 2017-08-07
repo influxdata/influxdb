@@ -26,6 +26,11 @@ const Visualization = React.createClass({
     heightPixels: number,
     editQueryStatus: func.isRequired,
     views: arrayOf(string).isRequired,
+    axes: shape({
+      y: shape({
+        bounds: arrayOf(string),
+      }),
+    }),
   },
 
   contextTypes: {
@@ -48,6 +53,7 @@ const Visualization = React.createClass({
   getDefaultProps() {
     return {
       cellName: '',
+      cellType: '',
     }
   },
 
@@ -76,6 +82,7 @@ const Visualization = React.createClass({
 
   render() {
     const {
+      axes,
       views,
       height,
       cellType,
@@ -95,10 +102,11 @@ const Visualization = React.createClass({
     const statements = queryConfigs.map(query => {
       const text =
         query.rawText || buildInfluxQLQuery(query.range || timeRange, query)
-      return {text, id: query.id}
+      return {text, id: query.id, queryConfig: query}
     })
+
     const queries = statements.filter(s => s.text !== null).map(s => {
-      return {host: [proxy], text: s.text, id: s.id}
+      return {host: [proxy], text: s.text, id: s.id, queryConfig: s.queryConfig}
     })
 
     return (
@@ -117,6 +125,7 @@ const Visualization = React.createClass({
         >
           <VisView
             view={view}
+            axes={axes}
             queries={queries}
             templates={templates}
             cellType={cellType}

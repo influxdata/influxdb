@@ -252,7 +252,7 @@ class DashboardPage extends Component {
       inPresentationMode,
       handleChooseAutoRefresh,
       handleClickPresentationButton,
-      params: {sourceID},
+      params: {sourceID, dashboardID},
     } = this.props
 
     const lowerType = lower && lower.includes('Z') ? 'timeStamp' : 'constant'
@@ -326,6 +326,7 @@ class DashboardPage extends Component {
         {selectedCell
           ? <CellEditorOverlay
               source={source}
+              dashboardID={dashboardID}
               templates={templatesIncludingDashTime}
               cell={selectedCell}
               timeRange={timeRange}
@@ -376,8 +377,8 @@ class DashboardPage extends Component {
               autoRefresh={autoRefresh}
               synchronizer={this.synchronizer}
               onAddCell={this.handleAddCell}
-              inPresentationMode={inPresentationMode}
               onEditCell={this.handleEditDashboardCell}
+              inPresentationMode={inPresentationMode}
               onPositionChange={this.handleUpdatePosition}
               onDeleteCell={this.handleDeleteDashboardCell}
               onUpdateCell={this.handleUpdateDashboardCell}

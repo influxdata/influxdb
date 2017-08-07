@@ -1,7 +1,9 @@
 import React, {Component, PropTypes} from 'react'
+
 import _ from 'lodash'
 import classnames from 'classnames'
 import {Link} from 'react-router'
+import uuid from 'node-uuid'
 
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
@@ -130,10 +132,7 @@ class AlertsTable extends Component {
           >
             {alerts.map(({name, level, time, host, value}) => {
               return (
-                <div
-                  className="alert-history-table--tr"
-                  key={`${name}-${level}-${time}-${host}-${value}`}
-                >
+                <div className="alert-history-table--tr" key={uuid.v4()}>
                   <div
                     className="alert-history-table--td"
                     style={{width: colName}}
