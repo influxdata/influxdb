@@ -51,7 +51,9 @@ export const multiColumnBarPlotter = e => {
     }
   }
 
-  const barWidth = Math.max(Math.floor(2.0 / 3.0 * minSep), 1)
+  // calculate bar width using some graphics math while
+  // ensuring a bar is never smaller than one px, so it is always rendered
+  const barWidth = Math.max(Math.floor(2.0 / 3.0 * minSep), 1.0)
 
   const fillColors = []
   const strokeColors = g.getColors()
@@ -75,8 +77,8 @@ export const multiColumnBarPlotter = e => {
       ctx.fillStyle = fillColors[j]
       const xLeft =
         sets.length === 1
-          ? centerX - barWidth / 1
-          : centerX - barWidth / 1 * (1 - j / sets.length)
+          ? centerX - barWidth
+          : centerX - barWidth * (1 - j / sets.length)
 
       ctx.fillRect(
         xLeft,
@@ -85,6 +87,7 @@ export const multiColumnBarPlotter = e => {
         yBottom - p.canvasy
       )
 
+      // hover highlighting
       if (selPointX === centerX) {
         ctx.strokeRect(
           xLeft,
