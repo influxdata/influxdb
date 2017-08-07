@@ -272,6 +272,7 @@ export default class Dygraph extends Component {
       dygraphSeries,
       ruleValues,
       isBarGraph,
+      overrideLineColors,
     } = this.props
 
     const dygraph = this.dygraph
@@ -285,6 +286,17 @@ export default class Dygraph extends Component {
     const y2 = _.get(axes, ['y2', 'bounds'], undefined)
     const timeSeries = this.getTimeSeries()
     const ylabel = this.getLabel('y')
+    const finalLineColors = [...(overrideLineColors || LINE_COLORS)]
+
+    const hashColorDygraphSeries = {}
+    const {length} = finalLineColors
+
+    for (const seriesName in dygraphSeries) {
+      const series = dygraphSeries[seriesName]
+      const hashIndex = hasherino(seriesName, length)
+      const color = finalLineColors[hashIndex]
+      hashColorDygraphSeries[seriesName] = {...series, color}
+    }
 
     const updateOptions = {
       labels,
@@ -301,7 +313,8 @@ export default class Dygraph extends Component {
       stepPlot: options.stepPlot,
       stackedGraph: options.stackedGraph,
       underlayCallback: options.underlayCallback,
-      series: dygraphSeries,
+      colors: finalLineColors,
+      series: hashColorDygraphSeries,
       plotter: isBarGraph ? multiColumnBarPlotter : null,
       visibility: this.visibility(),
     }
