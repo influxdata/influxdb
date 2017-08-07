@@ -39,20 +39,26 @@
 .custom-time--upper {
   margin-left: 4px;
 }
-.custom-time--moving-dates {
+.custom-time--shortcuts {
   @include no-user-select();
   align-items: stretch;
   background-color: $g6-smoke;
   border-radius: $radius 0 0 $radius;
 }
-.custom-time--moving-date {
+.custom-time--shortcuts-header {
   white-space: nowrap;
-  padding: 8px 16px;
+  padding: 16px;
+  color: $g15-platinum;
+  font-weight: 700;
+}
+.custom-time--shortcut {
+  white-space: nowrap;
+  padding: 6px 16px;
   transition:
     color 0.25s ease,
     background-color 0.25s ease;
-  color: $g13-mist;
-  font-weight: 600;
+  color: $g11-sidewalk;
+  font-weight: 500;
 
   &:hover {
     cursor: pointer;

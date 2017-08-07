@@ -40,39 +40,40 @@ class CustomTimeRange extends Component {
   render() {
     return (
       <div className="custom-time--container">
-        <div className="custom-time--moving-dates">
+        <div className="custom-time--shortcuts">
+          <div className="custom-time--shortcuts-header">Shortcuts</div>
           <div
-            className="custom-time--moving-date"
+            className="custom-time--shortcut"
             onClick={this.handleMovingTimeRange('pastWeek')}
           >
             Past Week
           </div>
           <div
-            className="custom-time--moving-date"
+            className="custom-time--shortcut"
             onClick={this.handleMovingTimeRange('pastMonth')}
           >
             Past Month
           </div>
           <div
-            className="custom-time--moving-date"
+            className="custom-time--shortcut"
             onClick={this.handleMovingTimeRange('pastYear')}
           >
             Past Year
           </div>
           <div
-            className="custom-time--moving-date"
+            className="custom-time--shortcut"
             onClick={this.handleMovingTimeRange('thisWeek')}
           >
             This Week
           </div>
           <div
-            className="custom-time--moving-date"
+            className="custom-time--shortcut"
             onClick={this.handleMovingTimeRange('thisMonth')}
           >
             This Month
           </div>
           <div
-            className="custom-time--moving-date"
+            className="custom-time--shortcut"
             onClick={this.handleMovingTimeRange('thisYear')}
           >
             This Year
