@@ -88,7 +88,7 @@ class TimeRangeDropdown extends Component {
 
     return (
       <div className="time-range-dropdown">
-        <div className={classnames('dropdown dropdown-160', {open: isOpen})}>
+        <div className={classnames('dropdown dropdown-290', {open: isOpen})}>
           <div
             className="btn btn-sm btn-default dropdown-toggle"
             onClick={() => this.toggleMenu()}
@@ -116,7 +116,7 @@ class TimeRangeDropdown extends Component {
                     }
                   >
                     <a href="#" onClick={this.showCustomTimeRange}>
-                      Custom Time Range
+                      Date Picker
                     </a>
                   </li>}
               {timeRanges.map(item => {
