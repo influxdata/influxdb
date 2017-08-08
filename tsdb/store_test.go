@@ -592,28 +592,22 @@ func testStoreCardinalityTombstoning(t *testing.T, store *Store) {
 	}
 }
 
-func TestStore_Cardinality_Tombstoning_Inmem(t *testing.T) {
+func TestStore_Cardinality_Tombstoning(t *testing.T) {
 	t.Parallel()
 
-	store := NewStore()
-	store.EngineOptions.Config.Index = "inmem"
-	if err := store.Open(); err != nil {
-		panic(err)
+	test := func(index string) {
+		store := NewStore()
+		store.EngineOptions.IndexVersion = index
+		if err := store.Open(); err != nil {
+			panic(err)
+		}
+		defer store.Close()
+		testStoreCardinalityTombstoning(t, store)
 	}
-	defer store.Close()
-	testStoreCardinalityTombstoning(t, store)
-}
 
-func TestStore_Cardinality_Tombstoning_TSI(t *testing.T) {
-	t.Parallel()
-
-	store := NewStore()
-	store.EngineOptions.Config.Index = "tsi1"
-	if err := store.Open(); err != nil {
-		panic(err)
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) { test(index) })
 	}
-	defer store.Close()
-	testStoreCardinalityTombstoning(t, store)
 }
 
 func testStoreCardinalityUnique(t *testing.T, store *Store) {
@@ -664,30 +658,23 @@ func testStoreCardinalityUnique(t *testing.T, store *Store) {
 	}
 }
 
-func TestStore_Cardinality_Unique_Inmem(t *testing.T) {
+func TestStore_Cardinality_Unique(t *testing.T) {
 	t.Parallel()
 
-	store := NewStore()
-	store.EngineOptions.Config.Index = "inmem"
-	store.EngineOptions.Config.MaxSeriesPerDatabase = 0
-	if err := store.Open(); err != nil {
-		panic(err)
+	test := func(index string) {
+		store := NewStore()
+		store.EngineOptions.IndexVersion = index
+		store.EngineOptions.Config.MaxSeriesPerDatabase = 0
+		if err := store.Open(); err != nil {
+			panic(err)
+		}
+		defer store.Close()
+		testStoreCardinalityUnique(t, store)
 	}
-	defer store.Close()
-	testStoreCardinalityUnique(t, store)
-}
 
-func TestStore_Cardinality_Unique_TSI1(t *testing.T) {
-	t.Parallel()
-
-	store := NewStore()
-	store.EngineOptions.Config.Index = "tsi1"
-	store.EngineOptions.Config.MaxSeriesPerDatabase = 0
-	if err := store.Open(); err != nil {
-		panic(err)
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) { test(index) })
 	}
-	defer store.Close()
-	testStoreCardinalityUnique(t, store)
 }
 
 // This test tests cardinality estimation when series data is duplicated across
@@ -754,30 +741,23 @@ func testStoreCardinalityDuplicates(t *testing.T, store *Store) {
 	}
 }
 
-func TestStore_Cardinality_Duplicates_Inmem(t *testing.T) {
+func TestStore_Cardinality_Duplicates(t *testing.T) {
 	t.Parallel()
 
-	store := NewStore()
-	store.EngineOptions.Config.Index = "inmem"
-	store.EngineOptions.Config.MaxSeriesPerDatabase = 0
-	if err := store.Open(); err != nil {
-		panic(err)
+	test := func(index string) {
+		store := NewStore()
+		store.EngineOptions.IndexVersion = index
+		store.EngineOptions.Config.MaxSeriesPerDatabase = 0
+		if err := store.Open(); err != nil {
+			panic(err)
+		}
+		defer store.Close()
+		testStoreCardinalityDuplicates(t, store)
 	}
-	defer store.Close()
-	testStoreCardinalityDuplicates(t, store)
-}
 
-func TestStore_Cardinality_Duplicates_TSI1(t *testing.T) {
-	t.Parallel()
-
-	store := NewStore()
-	store.EngineOptions.Config.Index = "tsi1"
-	store.EngineOptions.Config.MaxSeriesPerDatabase = 0
-	if err := store.Open(); err != nil {
-		panic(err)
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) { test(index) })
 	}
-	defer store.Close()
-	testStoreCardinalityDuplicates(t, store)
 }
 
 // Creates a large number of series in multiple shards, which will force
@@ -830,30 +810,23 @@ func testStoreCardinalityCompactions(t *testing.T, store *Store) {
 	}
 }
 
-func TestStore_Cardinality_Compactions_Inmem(t *testing.T) {
+func TestStore_Cardinality_Compactions(t *testing.T) {
 	t.Parallel()
 
-	store := NewStore()
-	store.EngineOptions.Config.Index = "inmem"
-	store.EngineOptions.Config.MaxSeriesPerDatabase = 0
-	if err := store.Open(); err != nil {
-		panic(err)
+	test := func(index string) {
+		store := NewStore()
+		store.EngineOptions.Config.Index = "inmem"
+		store.EngineOptions.Config.MaxSeriesPerDatabase = 0
+		if err := store.Open(); err != nil {
+			panic(err)
+		}
+		defer store.Close()
+		testStoreCardinalityCompactions(t, store)
 	}
-	defer store.Close()
-	testStoreCardinalityCompactions(t, store)
-}
 
-func TestStore_Cardinality_Compactions_TSI1(t *testing.T) {
-	t.Parallel()
-
-	store := NewStore()
-	store.EngineOptions.Config.Index = "tsi1"
-	store.EngineOptions.Config.MaxSeriesPerDatabase = 0
-	if err := store.Open(); err != nil {
-		panic(err)
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) { test(index) })
 	}
-	defer store.Close()
-	testStoreCardinalityCompactions(t, store)
 }
 
 func TestStore_TagValues(t *testing.T) {
@@ -961,9 +934,8 @@ func TestStore_TagValues(t *testing.T) {
 		}
 	}
 
-	indexes := []string{"inmem", "tsi1"}
 	for _, example := range examples {
-		for _, index := range indexes {
+		for _, index := range tsdb.RegisteredIndexes() {
 			setup(index)
 			t.Run(example.Name+"_"+index, func(t *testing.T) {
 				got, err := s.TagValues("db0", example.Expr)
