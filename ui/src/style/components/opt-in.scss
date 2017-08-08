@@ -10,11 +10,12 @@
 }
 .opt-in--left-label {
   border: 2px solid $g5-pepper;
+  border-left: 0;
   background-color: $g2-kevlar;
   color: $c-pool;
   font-family: $code-font;
-  padding: 0 11px;
-  border-radius: 4px 0 0 4px;
+  padding-right: 11px;
+  border-radius: 0 4px 4px 0;
   line-height: 24px;
   font-size: 13px;
   font-weight: 500;
@@ -70,7 +71,7 @@
   }
   // Left
   &:before {
-    @include gradient-h($g3-castle,$g2-kevlar);
+    background-color: $g2-kevlar;
     z-index: 2;
     opacity: 1;
   }
@@ -89,7 +90,7 @@
 }
 // Customize form input
 .opt-in > input.form-control {
-  border-radius: 0 4px 4px 0;
+  border-radius: 4px 0 0 4px;
   font-family: $code-font;
   flex: 1 0 0;
 }
