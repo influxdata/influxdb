@@ -1,7 +1,14 @@
-## v1.3.6.0 [unreleased]
+## v1.3.7.0 [unreleased]
+### Bug Fixes
+
+### Features
+
+### UI Improvements
+
+## v1.3.6.0 [2017-08-08]
 ### Bug Fixes
 1. [#1798](https://github.com/influxdata/chronograf/pull/1798): Fix domain not updating in visualizations when changing time range manually
-1. [#1799](https://github.com/influxdata/chronograf/pull/1799): Prevent console error spam from Dygraph.synchronize when a dashboard has only one graph
+1. [#1799](https://github.com/influxdata/chronograf/pull/1799): Prevent console error spam from Dygraph's synchronize method when a dashboard has only one graph
 1. [#1813](https://github.com/influxdata/chronograf/pull/1813): Guarantee UUID for each Alert Table key to prevent dropping items when keys overlap
 
 ### Features
@@ -9,11 +16,10 @@
 1. [#1714](https://github.com/influxdata/chronograf/pull/1714): Add ability to edit a dashboard graph's y-axis label
 
 ### UI Improvements
-1. [#1796](https://github.com/influxdata/chronograf/pull/1796): Add spinner to indicate data is being written
-1. [#1800](https://github.com/influxdata/chronograf/pull/1796): Embiggen text area for line protocol manual entry in Data Explorer's Write Data overlay
+1. [#1796](https://github.com/influxdata/chronograf/pull/1796): Add spinner write data modal to indicate data is being written
 1. [#1805](https://github.com/influxdata/chronograf/pull/1805): Fix bar graphs overlapping
-1. [#1805](https://github.com/influxdata/chronograf/pull/1805): Add series names hashing so that graph colors should stay the same for the same series across charts
-1. [#1800](https://github.com/influxdata/chronograf/pull/1800): Embiggen text area for line protocol manual entry in Data Explorer's Write Data overlay
+1. [#1805](https://github.com/influxdata/chronograf/pull/1805): Assign a series consistent coloring when it appears in multiple cells
+1. [#1800](https://github.com/influxdata/chronograf/pull/1800): Increase size of line protocol manual entry in Data Explorer's Write Data overlay
 1. [#1812](https://github.com/influxdata/chronograf/pull/1812): Improve error message when request for Status Page News Feed fails
 
 ## v1.3.5.0 [2017-07-27]
