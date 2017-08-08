@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -193,32 +194,103 @@ type GroupByVar struct {
 
 // Exec is responsible for extracting the Duration from the query
 func (g *GroupByVar) Exec(query string) {
-	whereClause := "WHERE time > now() - "
+	whereClause := "WHERE"
 	start := strings.Index(query, whereClause)
 	if start == -1 {
 		// no where clause
 		return
 	}
 
-	// reposition start to the END of the where clause
+	// reposition start to after the 'where' keyword
 	durStr := query[start+len(whereClause):]
 
-	// advance to next space
+	// attempt to parse out a relative time range
+	dur, err := g.parseRelative(durStr)
+	if err == nil {
+		// we parsed relative duration successfully
+		g.Duration = dur
+		return
+	}
+
+	dur, err = g.parseAbsolute(durStr)
+	if err == nil {
+		// we found an absolute time range
+		g.Duration = dur
+	}
+}
+
+// parseRelative locates and extracts a duration value from a fragment of an
+// InfluxQL query following the "where" keyword. For example, in the fragment
+// "time > now() - 180d GROUP BY :interval:", parseRelative would return a
+// duration equal to 180d
+func (g *GroupByVar) parseRelative(fragment string) (time.Duration, error) {
+	// locate duration literal start
+	prefix := "time > now() - "
+	start := strings.Index(fragment, prefix)
+	if start == -1 {
+		return time.Duration(0), errors.New("not a relative duration")
+	}
+
+	// reposition to duration literal
+	durFragment := fragment[start+len(prefix):]
+
+	// init counters
 	pos := 0
-	for pos < len(durStr) {
-		rn, _ := utf8.DecodeRuneInString(durStr[pos:])
+
+	// locate end of duration literal
+	for pos < len(durFragment) {
+		rn, _ := utf8.DecodeRuneInString(durFragment[pos:])
 		if unicode.IsSpace(rn) {
 			break
 		}
 		pos++
 	}
 
-	dur, err := influxql.ParseDuration(durStr[:pos])
+	// attempt to parse what we suspect is a duration literal
+	dur, err := influxql.ParseDuration(durFragment[:pos])
 	if err != nil {
-		return
+		return dur, err
 	}
 
-	g.Duration = dur
+	return dur, nil
+}
+
+// parseAbsolute will determine the duration between two absolute timestamps
+// found within an InfluxQL fragment following the "where" keyword. For
+// example, the fragement "time > '1985-10-25T00:01:21-0800 and time <
+// '1985-10-25T00:01:22-0800'" would yield a duration of 1m'
+func (g *GroupByVar) parseAbsolute(fragment string) (time.Duration, error) {
+	timePtn := `time\s[>|<]\s'([0-9\-TZ\:]+)'` // Playground: http://gobular.com/x/41a45095-c384-46ea-b73c-54ef91ab93af
+	re, err := regexp.Compile(timePtn)
+	if err != nil {
+		// this is a developer error and should complain loudly
+		panic("Bad Regex: err:" + err.Error())
+	}
+
+	if !re.Match([]byte(fragment)) {
+		return time.Duration(0), errors.New("absolute duration not found")
+	}
+
+	// extract at most two times
+	matches := re.FindAll([]byte(fragment), 2)
+
+	// parse out absolute times
+	durs := make([]time.Time, 0, 2)
+	for _, match := range matches {
+		durStr := re.FindSubmatch(match)
+		if tm, err := time.Parse(time.RFC3339Nano, string(durStr[1])); err == nil {
+			durs = append(durs, tm)
+		}
+	}
+
+	// reject more than 2 times found
+	if len(durs) != 2 {
+		return time.Duration(0), errors.New("must provide exactly two absolute times")
+	}
+
+	dur := durs[1].Sub(durs[0])
+
+	return dur, nil
 }
 
 func (g *GroupByVar) String() string {
