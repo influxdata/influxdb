@@ -13,7 +13,7 @@ class OptIn extends Component {
     const {customValue, fixedValue} = props
 
     this.state = {
-      useCustomValue: customValue === '',
+      useCustomValue: customValue !== '',
       fixedValue,
       customValue,
       // fixedValueFieldClicked: false,
