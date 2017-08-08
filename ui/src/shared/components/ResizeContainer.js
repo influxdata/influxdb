@@ -31,6 +31,12 @@ class ResizeContainer extends Component {
     initialBottomHeight: defaultInitialBottomHeight,
   }
 
+  componentDidMount() {
+    this.setState({
+      bottomHeightPixels: this.bottom.getBoundingClientRect().height,
+    })
+  }
+
   handleStartDrag() {
     this.setState({isDragging: true})
   }
@@ -51,7 +57,7 @@ class ResizeContainer extends Component {
     const {minTopHeight, minBottomHeight} = this.props
     const oneHundred = 100
     const containerHeight = parseInt(
-      getComputedStyle(this.refs.resizeContainer).height,
+      getComputedStyle(this.resizeContainer).height,
       10
     )
     // verticalOffset moves the resize handle as many pixels as the page-heading is taking up.
@@ -85,11 +91,12 @@ class ResizeContainer extends Component {
     this.setState({
       topHeight: `${newTopPanelPercent}%`,
       bottomHeight: `${newBottomPanelPercent}%`,
+      bottomHeightPixels,
     })
   }
 
   render() {
-    const {topHeight, bottomHeight, isDragging} = this.state
+    const {bottomHeightPixels, topHeight, bottomHeight, isDragging} = this.state
     const {containerClass, children} = this.props
 
     if (React.Children.count(children) > maximumNumChildren) {
@@ -107,10 +114,12 @@ class ResizeContainer extends Component {
         onMouseLeave={this.handleMouseLeave}
         onMouseUp={this.handleStopDrag}
         onMouseMove={this.handleDrag}
-        ref="resizeContainer"
+        ref={r => (this.resizeContainer = r)}
       >
         <div className="resize--top" style={{height: topHeight}}>
-          {React.cloneElement(children[0])}
+          {React.cloneElement(children[0], {
+            resizerBottomHeight: bottomHeightPixels,
+          })}
         </div>
         <ResizeHandle
           isDragging={isDragging}
@@ -120,8 +129,11 @@ class ResizeContainer extends Component {
         <div
           className="resize--bottom"
           style={{height: bottomHeight, top: topHeight}}
+          ref={r => (this.bottom = r)}
         >
-          {React.cloneElement(children[1])}
+          {React.cloneElement(children[1], {
+            resizerBottomHeight: bottomHeightPixels,
+          })}
         </div>
       </div>
     )
