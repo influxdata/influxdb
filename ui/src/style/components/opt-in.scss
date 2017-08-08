@@ -21,6 +21,9 @@
   cursor: default;
   @include no-user-select();
   transition: background-color 0.25s ease, color 0.25s ease;
+  &:hover {
+    cursor: pointer;
+  }
 }
 .opt-in--groove-knob-container {
   display: flex;

@@ -16,17 +16,16 @@ class OptIn extends Component {
       useCustomValue: customValue !== '',
       fixedValue,
       customValue,
-      // fixedValueFieldClicked: false,
       toggleClicked: false,
       customValueInputBlurred: false,
-      // customValueInputClicked: false, // TODO: implement custom input clickability
     }
 
     this.useFixedValue = ::this.useFixedValue
     this.toggleValue = ::this.toggleValue
     this.useCustomValue = ::this.useCustomValue
-    // this.handleClickFixedValueField = ::this.handleClickFixedValueField
+    this.handleClickFixedValueField = ::this.handleClickFixedValueField
     this.handleClickToggle = ::this.handleClickToggle
+    this.handleFocusCustomValueInput = ::this.handleFocusCustomValueInput
     this.handleBlurCustomValueInput = ::this.handleBlurCustomValueInput
     this.handleChangeCustomValue = ::this.handleChangeCustomValue
     this.handleKeyPressCustomValueInput = ::this.handleKeyPressCustomValueInput
@@ -57,11 +56,9 @@ class OptIn extends Component {
     })
   }
 
-  // handleClickFixedValueField() {
-  //   return () => {
-  //     this.setState({fixedValueFieldClicked: true}, this.useFixedValue)
-  //   }
-  // }
+  handleClickFixedValueField() {
+    return () => this.useFixedValue()
+  }
 
   handleClickToggle() {
     return () => {
@@ -73,6 +70,10 @@ class OptIn extends Component {
         this.setState({toggleClicked: false})
       }, TOGGLE_CLICKED_TIMEOUT)
     }
+  }
+
+  handleFocusCustomValueInput() {
+    return () => this.useCustomValue()
   }
 
   handleBlurCustomValueInput() {
@@ -143,10 +144,7 @@ class OptIn extends Component {
           id={customPlaceholder}
           ref={el => (this.customValueInput = el)}
           value={customValue}
-          onClick={() => {
-            // TODO: you can't 'click' a disabled button -- find another solution
-            // this.useCustomValue()
-          }}
+          onFocus={this.handleFocusCustomValueInput()}
           onBlur={this.handleBlurCustomValueInput()}
           onChange={this.handleChangeCustomValue()}
           onKeyPress={this.handleKeyPressCustomValueInput()}
@@ -161,9 +159,7 @@ class OptIn extends Component {
         </div>
         <div
           className="opt-in--left-label"
-          onClick={() => {
-            // this.handleClickFixedValueField() // TODO: re-enable once clickability of custom value input is enabled
-          }}
+          onClick={this.handleClickFixedValueField()}
         >
           {fixedPlaceholder}
         </div>
