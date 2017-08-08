@@ -19,6 +19,7 @@ const AxesOptions = ({
       <h5 className="display-options--header">Y Axis Controls</h5>
       <form autoComplete="off" style={{margin: '0 -6px'}}>
         <div className="form-group col-sm-12">
+          <label htmlFor="prefix">Title</label>
           <OptIn
             customPlaceholder={'label'}
             customValue={label}
@@ -27,6 +28,7 @@ const AxesOptions = ({
           />
         </div>
         <div className="form-group col-sm-6">
+          <label htmlFor="min">Min</label>
           <OptIn
             customPlaceholder={'min'}
             customValue={min}
@@ -35,6 +37,7 @@ const AxesOptions = ({
           />
         </div>
         <div className="form-group col-sm-6">
+          <label htmlFor="max">Max</label>
           <OptIn
             customPlaceholder={'max'}
             customValue={max}
