@@ -33,7 +33,7 @@ message Predicate {
 
   message Expression {
     oneof value {
-      BooleanExpression binary_expression = 1 [(gogoproto.customname) = "BinaryExpression"];
+      BooleanExpression binary_expression = 1 [(gogoproto.customname) = "BooleanExpression"];
       GroupExpression group_expression = 2 [(gogoproto.customname) = "GroupExpression"];
     }
   }
@@ -46,7 +46,7 @@ message Predicate {
 
   // BooleanExpressions compares two operands and yieds a boolean result
   message BooleanExpression {
-    LiteralExpression lhs = 1 [(gogoproto.customname) = "LHS"];
+    ValueExpression lhs = 1 [(gogoproto.customname) = "LHS"];
     Comparison op = 2;
     LiteralExpression rhs = 3 [(gogoproto.customname) = "RHS"];
   }
@@ -71,7 +71,8 @@ message Predicate {
       bool bool_value = 2 [(gogoproto.customname) = "BooleanValue"];
       int64 int_value = 3 [(gogoproto.customname) = "IntegerValue"];
       uint64 uint_value = 4 [(gogoproto.customname) = "UnsignedValue"];
-      float float_value = 5 [(gogoproto.customname) = "FloatValue"];
+      double float_value = 5 [(gogoproto.customname) = "FloatValue"];
+      string regex_value = 6 [(gogoproto.customname) = "RegexValue"];
     }
   }
 
