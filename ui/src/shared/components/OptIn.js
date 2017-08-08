@@ -17,7 +17,7 @@ class OptIn extends Component {
       useRightValue,
       leftValue,
       rightValue: value || '',
-      leftValueFieldClicked: false,
+      // leftValueFieldClicked: false,
       toggleClicked: false,
       rightValueInputBlurred: false,
       // rightValueInputClicked: false, // TODO: implement right input clickability
@@ -26,7 +26,7 @@ class OptIn extends Component {
     this.useLeftValue = ::this.useLeftValue
     this.toggleValue = ::this.toggleValue
     this.useRightValue = ::this.useRightValue
-    this.handleClickLeftValueField = ::this.handleClickLeftValueField
+    // this.handleClickLeftValueField = ::this.handleClickLeftValueField
     this.handleClickToggle = ::this.handleClickToggle
     this.handleBlurRightValueInput = ::this.handleBlurRightValueInput
     this.handleChangeRightValue = ::this.handleChangeRightValue
@@ -58,11 +58,11 @@ class OptIn extends Component {
     })
   }
 
-  handleClickLeftValueField() {
-    return () => {
-      this.setState({leftValueFieldClicked: true}, this.useLeftValue)
-    }
-  }
+  // handleClickLeftValueField() {
+  //   return () => {
+  //     this.setState({leftValueFieldClicked: true}, this.useLeftValue)
+  //   }
+  // }
 
   handleClickToggle() {
     return () => {
@@ -136,7 +136,9 @@ class OptIn extends Component {
       <div className={classnames('opt-in', {'right-toggled': useRightValue})}>
         <div
           className="opt-in--left-label"
-          onClick={this.handleClickLeftValueField()}
+          onClick={() => {
+            // this.handleClickLeftValueField() // TODO: re-enable once clickability of right value input is enabled
+          }}
         >
           {leftLabel}
         </div>
