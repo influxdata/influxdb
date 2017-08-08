@@ -1,91 +1,122 @@
 import React, {Component, PropTypes} from 'react'
 import classnames from 'classnames'
 
-// these help ensure that blur and toggle events don't both change knob's side
+// these help ensure that blur and toggle events don't both change toggle's side
+const RESET_TIMEOUT = 300
 const TOGGLE_CLICKED_TIMEOUT = 20
 const BLUR_FOCUS_GAP_TIMEOUT = 10
 
-// TODO: separate useInput from useValue in order to perform focus() correctly
 class OneOrAny extends Component {
   constructor(props) {
     super(props)
 
-    const {useRightValue, leftValue, rightValue} = props
+    const {value, leftValue} = props
+    const useRightValue = value !== ''
 
     this.state = {
       useRightValue,
       leftValue,
-      rightValue,
-      toggleWasClicked: false,
+      rightValue: value || '',
+      leftValueFieldClicked: false,
+      toggleClicked: false,
+      rightValueInputBlurred: false,
+      // rightValueInputClicked: false, // TODO: implement right input clickability
     }
 
-    this.handleToggleLeftValue = ::this.handleToggleLeftValue
-    this.handleToggleValue = ::this.handleToggleValue
-    this.handleToggleRightValue = ::this.handleToggleRightValue
-    this.handleBlurRight = ::this.handleBlurRight
-    this.handleSetRightValue = ::this.handleSetRightValue
-    this.handleSetValue = ::this.handleSetValue
+    this.useLeftValue = ::this.useLeftValue
+    this.toggleValue = ::this.toggleValue
+    this.useRightValue = ::this.useRightValue
+    this.handleClickLeftValueField = ::this.handleClickLeftValueField
+    this.handleClickToggle = ::this.handleClickToggle
+    this.handleBlurRightValueInput = ::this.handleBlurRightValueInput
+    this.handleChangeRightValue = ::this.handleChangeRightValue
+    this.setRightValue = ::this.setRightValue
+    this.setValue = ::this.setValue
   }
 
-  handleToggleLeftValue() {
-    return () => {
-      this.setState({useRightValue: false}, this.handleSetValue)
+  useLeftValue() {
+    this.setState({useRightValue: false}, this.setValue)
+  }
+
+  toggleValue() {
+    const useRightValueNext = !this.state.useRightValue
+    if (useRightValueNext && !this.state.rightValueInputBlurred) {
+      this.useRightValue()
+    } else {
+      this.useLeftValue()
     }
   }
 
-  handleToggleValue() {
+  useRightValue() {
+    this.setState({useRightValue: true}, () => {
+      if (this.state.toggleClicked && !this.state.rightValueInputBlurred) {
+        // TODO: || if this.state.rightValueInputClicked
+        this.rightValueInput.focus()
+      }
+      this.setValue()
+    })
+  }
+
+  handleClickLeftValueField() {
     return () => {
-      const {useRightValue} = this.state
-      this.setState(
-        {useRightValue: !useRightValue, toggleWasClicked: true},
-        this.handleSetValue
-      )
-      // this helps ensure that when the toggle is clicked, if the rightValue
-      // input's blur event also fires, that only the expected behavior happens
+      this.setState({leftValueFieldClicked: true}, this.useLeftValue)
+    }
+  }
+
+  handleClickToggle() {
+    return () => {
+      this.setState({toggleClicked: true}, () => {
+        this.toggleValue()
+      })
+
       setTimeout(() => {
-        this.setState({toggleWasClicked: false})
+        this.setState({toggleClicked: false})
       }, TOGGLE_CLICKED_TIMEOUT)
     }
   }
 
-  handleToggleRightValue() {
-    return () => {
-      this.setState({useRightValue: true}, this.handleSetValue)
-    }
-  }
-
-  handleBlurRight() {
+  handleBlurRightValueInput() {
     return e => {
-      const rightValue = e.target.value.trim()
-      this.setState({rightValue}, () => {
-        if (rightValue === '') {
-          // this helps ensure that when the toggle is clicked, if the rightValue
-          // input's blur event also fires, that only the expected behavior happens
-          setTimeout(() => {
-            if (!this.state.toggleWasClicked) {
-              this.handleToggleLeftValue()()
-            }
-          }, BLUR_FOCUS_GAP_TIMEOUT)
+      this.setState(
+        {rightValueInputBlurred: true, rightValue: e.target.value.trim()},
+        () => {
+          if (this.state.rightValue === '') {
+            setTimeout(() => {
+              if (!this.state.toggleClicked) {
+                this.useLeftValue()
+              }
+            }, BLUR_FOCUS_GAP_TIMEOUT)
+          }
         }
-      })
+      )
     }
   }
 
-  handleSetRightValue() {
+  handleChangeRightValue() {
     return e => {
-      this.setState({rightValue: e.target.value}, this.handleSetValue)
+      this.setRightValue(e.target.value)
     }
   }
 
-  handleSetValue() {
+  setRightValue(value) {
+    this.setState({rightValue: value}, this.setValue)
+  }
+
+  setValue() {
     const {onSetValue} = this.props
     const {useRightValue, leftValue, rightValue} = this.state
 
-    if (!useRightValue) {
+    if (useRightValue) {
+      onSetValue({value: rightValue})
+    } else {
       this.setState({rightValue: ''})
+      onSetValue({value: leftValue})
     }
 
-    onSetValue({value: useRightValue ? rightValue : leftValue})
+    // reset UI interaction state-tracking values & prevent blur + click
+    setTimeout(() => {
+      this.setState({toggleClicked: false, rightValueInputBlurred: false})
+    }, RESET_TIMEOUT)
   }
 
   render() {
@@ -98,28 +129,29 @@ class OneOrAny extends Component {
       >
         <div
           className="one-or-any--left-label"
-          onClick={this.handleToggleLeftValue()}
+          onClick={this.handleClickLeftValueField()}
         >
           {leftLabel}
         </div>
         <div
           className="one-or-any--groove-knob-container"
-          onClick={this.handleToggleValue()}
+          onClick={this.handleClickToggle()}
         >
           <div className="one-or-any--groove-knob" />
         </div>
         <input
           className="form-control input-sm"
           type="number"
-          name="rightValue"
-          id="rightValue"
+          name="rightValueInput"
+          id="rightValueInput"
+          ref={el => (this.rightValueInput = el)}
           value={rightValue}
           onClick={() => {
             // TODO: you can't 'click' a disabled button -- find another solution
-            // this.handleToggleRightValue()
+            // this.useRightValue()
           }}
-          onBlur={this.handleBlurRight()}
-          onChange={this.handleSetRightValue()}
+          onBlur={this.handleBlurRightValueInput()}
+          onChange={this.handleChangeRightValue()}
           placeholder={rightLabel}
           disabled={!useRightValue}
         />
@@ -132,17 +164,15 @@ OneOrAny.defaultProps = {
   leftLabel: 'auto',
   leftValue: '',
   rightLabel: 'Custom Value',
-  rightValue: '',
-  useRightValue: false,
+  value: '',
 }
-const {bool, func, string} = PropTypes
+const {func, string} = PropTypes
 
 OneOrAny.propTypes = {
-  useRightValue: bool,
   leftLabel: string,
   leftValue: string,
   rightLabel: string,
-  rightValue: string,
+  value: string,
   onSetValue: func.isRequired,
 }
 
