@@ -14,6 +14,7 @@
 		CapabilitiesResponse
 		HintsResponse
 		TimestampRange
+		Node
 		Predicate
 */
 package storage

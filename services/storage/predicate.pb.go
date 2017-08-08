@@ -15,647 +15,539 @@ var _ = proto.Marshal
 var _ = fmt.Errorf
 var _ = math.Inf
 
-type Predicate_Comparison int32
+type Node_Type int32
 
 const (
 	// ComparisonEqual denotes the equal comparison operator.
-	ComparisonEqual Predicate_Comparison = 0
-	// ComparisonNotEqual denotes the not equal comparison operator.
-	ComparisonNotEqual Predicate_Comparison = 1
-	// ComparisonStartsWith denotes the starts with string comparison operator.
-	ComparisonStartsWith Predicate_Comparison = 2
-	// ComparisonRegex denotes the regex string comparison operator.
-	ComparisonRegex Predicate_Comparison = 3
-	// ComparisonNotRegex denotes the negated regex string comparison operator.
-	ComparisonNotRegex Predicate_Comparison = 4
+	NodeTypeGroupExpression   Node_Type = 0
+	NodeTypeBooleanExpression Node_Type = 1
+	NodeTypeRef               Node_Type = 2
+	NodeTypeLiteral           Node_Type = 3
 )
 
-var Predicate_Comparison_name = map[int32]string{
-	0: "EQUAL",
-	1: "NEQUAL",
-	2: "STARTS_WITH",
-	3: "REGEX",
-	4: "NREGEX",
+var Node_Type_name = map[int32]string{
+	0: "GROUP_EXPRESSION",
+	1: "BOOLEAN_EXPRESSION",
+	2: "REF",
+	3: "LITERAL",
 }
-var Predicate_Comparison_value = map[string]int32{
-	"EQUAL":       0,
-	"NEQUAL":      1,
-	"STARTS_WITH": 2,
-	"REGEX":       3,
-	"NREGEX":      4,
+var Node_Type_value = map[string]int32{
+	"GROUP_EXPRESSION":   0,
+	"BOOLEAN_EXPRESSION": 1,
+	"REF":                2,
+	"LITERAL":            3,
 }
 
-func (x Predicate_Comparison) String() string {
-	return proto.EnumName(Predicate_Comparison_name, int32(x))
+func (x Node_Type) String() string {
+	return proto.EnumName(Node_Type_name, int32(x))
 }
-func (Predicate_Comparison) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptorPredicate, []int{0, 0}
-}
+func (Node_Type) EnumDescriptor() ([]byte, []int) { return fileDescriptorPredicate, []int{0, 0} }
 
-// Logical operators apply to boolean values and combine to produce a single boolean result.
-type Predicate_Logical int32
+type Node_Comparison int32
 
 const (
-	LogicalAnd Predicate_Logical = 0
-	LogicalOr  Predicate_Logical = 1
+	ComparisonEqual      Node_Comparison = 0
+	ComparisonNotEqual   Node_Comparison = 1
+	ComparisonStartsWith Node_Comparison = 2
+	ComparisonRegex      Node_Comparison = 3
+	ComparisonNotRegex   Node_Comparison = 4
 )
 
-var Predicate_Logical_name = map[int32]string{
+var Node_Comparison_name = map[int32]string{
+	0: "EQUAL",
+	1: "NOT_EQUAL",
+	2: "STARTS_WITH",
+	3: "REGEX",
+	4: "NOT_REGEX",
+}
+var Node_Comparison_value = map[string]int32{
+	"EQUAL":       0,
+	"NOT_EQUAL":   1,
+	"STARTS_WITH": 2,
+	"REGEX":       3,
+	"NOT_REGEX":   4,
+}
+
+func (x Node_Comparison) String() string {
+	return proto.EnumName(Node_Comparison_name, int32(x))
+}
+func (Node_Comparison) EnumDescriptor() ([]byte, []int) { return fileDescriptorPredicate, []int{0, 1} }
+
+// Logical operators apply to boolean values and combine to produce a single boolean result.
+type Node_Logical int32
+
+const (
+	LogicalAnd Node_Logical = 0
+	LogicalOr  Node_Logical = 1
+)
+
+var Node_Logical_name = map[int32]string{
 	0: "AND",
 	1: "OR",
 }
-var Predicate_Logical_value = map[string]int32{
+var Node_Logical_value = map[string]int32{
 	"AND": 0,
 	"OR":  1,
 }
 
-func (x Predicate_Logical) String() string {
-	return proto.EnumName(Predicate_Logical_name, int32(x))
+func (x Node_Logical) String() string {
+	return proto.EnumName(Node_Logical_name, int32(x))
 }
-func (Predicate_Logical) EnumDescriptor() ([]byte, []int) { return fileDescriptorPredicate, []int{0, 1} }
+func (Node_Logical) EnumDescriptor() ([]byte, []int) { return fileDescriptorPredicate, []int{0, 2} }
+
+type Node struct {
+	NodeType Node_Type `protobuf:"varint,1,opt,name=node_type,json=nodeType,proto3,enum=storage.Node_Type" json:"nodeType"`
+	Children []*Node   `protobuf:"bytes,2,rep,name=children" json:"children,omitempty"`
+	// Types that are valid to be assigned to Value:
+	//	*Node_StringValue
+	//	*Node_BooleanValue
+	//	*Node_IntegerValue
+	//	*Node_UnsignedValue
+	//	*Node_FloatValue
+	//	*Node_RegexValue
+	//	*Node_RefValue
+	//	*Node_Logical_
+	//	*Node_Comparison_
+	Value isNode_Value `protobuf_oneof:"value"`
+}
+
+func (m *Node) Reset()                    { *m = Node{} }
+func (m *Node) String() string            { return proto.CompactTextString(m) }
+func (*Node) ProtoMessage()               {}
+func (*Node) Descriptor() ([]byte, []int) { return fileDescriptorPredicate, []int{0} }
+
+type isNode_Value interface {
+	isNode_Value()
+	MarshalTo([]byte) (int, error)
+	Size() int
+}
+
+type Node_StringValue struct {
+	StringValue string `protobuf:"bytes,3,opt,name=string_value,json=stringValue,proto3,oneof"`
+}
+type Node_BooleanValue struct {
+	BooleanValue bool `protobuf:"varint,4,opt,name=bool_value,json=boolValue,proto3,oneof"`
+}
+type Node_IntegerValue struct {
+	IntegerValue int64 `protobuf:"varint,5,opt,name=int_value,json=intValue,proto3,oneof"`
+}
+type Node_UnsignedValue struct {
+	UnsignedValue uint64 `protobuf:"varint,6,opt,name=uint_value,json=uintValue,proto3,oneof"`
+}
+type Node_FloatValue struct {
+	FloatValue float64 `protobuf:"fixed64,7,opt,name=float_value,json=floatValue,proto3,oneof"`
+}
+type Node_RegexValue struct {
+	RegexValue string `protobuf:"bytes,8,opt,name=regex_value,json=regexValue,proto3,oneof"`
+}
+type Node_RefValue struct {
+	RefValue string `protobuf:"bytes,9,opt,name=ref_value,json=refValue,proto3,oneof"`
+}
+type Node_Logical_ struct {
+	Logical Node_Logical `protobuf:"varint,10,opt,name=logical,proto3,enum=storage.Node_Logical,oneof"`
+}
+type Node_Comparison_ struct {
+	Comparison Node_Comparison `protobuf:"varint,11,opt,name=comparison,proto3,enum=storage.Node_Comparison,oneof"`
+}
+
+func (*Node_StringValue) isNode_Value()   {}
+func (*Node_BooleanValue) isNode_Value()  {}
+func (*Node_IntegerValue) isNode_Value()  {}
+func (*Node_UnsignedValue) isNode_Value() {}
+func (*Node_FloatValue) isNode_Value()    {}
+func (*Node_RegexValue) isNode_Value()    {}
+func (*Node_RefValue) isNode_Value()      {}
+func (*Node_Logical_) isNode_Value()      {}
+func (*Node_Comparison_) isNode_Value()   {}
+
+func (m *Node) GetValue() isNode_Value {
+	if m != nil {
+		return m.Value
+	}
+	return nil
+}
+
+func (m *Node) GetNodeType() Node_Type {
+	if m != nil {
+		return m.NodeType
+	}
+	return NodeTypeGroupExpression
+}
+
+func (m *Node) GetChildren() []*Node {
+	if m != nil {
+		return m.Children
+	}
+	return nil
+}
+
+func (m *Node) GetStringValue() string {
+	if x, ok := m.GetValue().(*Node_StringValue); ok {
+		return x.StringValue
+	}
+	return ""
+}
+
+func (m *Node) GetBooleanValue() bool {
+	if x, ok := m.GetValue().(*Node_BooleanValue); ok {
+		return x.BooleanValue
+	}
+	return false
+}
+
+func (m *Node) GetIntegerValue() int64 {
+	if x, ok := m.GetValue().(*Node_IntegerValue); ok {
+		return x.IntegerValue
+	}
+	return 0
+}
+
+func (m *Node) GetUnsignedValue() uint64 {
+	if x, ok := m.GetValue().(*Node_UnsignedValue); ok {
+		return x.UnsignedValue
+	}
+	return 0
+}
+
+func (m *Node) GetFloatValue() float64 {
+	if x, ok := m.GetValue().(*Node_FloatValue); ok {
+		return x.FloatValue
+	}
+	return 0
+}
+
+func (m *Node) GetRegexValue() string {
+	if x, ok := m.GetValue().(*Node_RegexValue); ok {
+		return x.RegexValue
+	}
+	return ""
+}
+
+func (m *Node) GetRefValue() string {
+	if x, ok := m.GetValue().(*Node_RefValue); ok {
+		return x.RefValue
+	}
+	return ""
+}
+
+func (m *Node) GetLogical() Node_Logical {
+	if x, ok := m.GetValue().(*Node_Logical_); ok {
+		return x.Logical
+	}
+	return LogicalAnd
+}
+
+func (m *Node) GetComparison() Node_Comparison {
+	if x, ok := m.GetValue().(*Node_Comparison_); ok {
+		return x.Comparison
+	}
+	return ComparisonEqual
+}
+
+// XXX_OneofFuncs is for the internal use of the proto package.
+func (*Node) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
+	return _Node_OneofMarshaler, _Node_OneofUnmarshaler, _Node_OneofSizer, []interface{}{
+		(*Node_StringValue)(nil),
+		(*Node_BooleanValue)(nil),
+		(*Node_IntegerValue)(nil),
+		(*Node_UnsignedValue)(nil),
+		(*Node_FloatValue)(nil),
+		(*Node_RegexValue)(nil),
+		(*Node_RefValue)(nil),
+		(*Node_Logical_)(nil),
+		(*Node_Comparison_)(nil),
+	}
+}
+
+func _Node_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
+	m := msg.(*Node)
+	// value
+	switch x := m.Value.(type) {
+	case *Node_StringValue:
+		_ = b.EncodeVarint(3<<3 | proto.WireBytes)
+		_ = b.EncodeStringBytes(x.StringValue)
+	case *Node_BooleanValue:
+		t := uint64(0)
+		if x.BooleanValue {
+			t = 1
+		}
+		_ = b.EncodeVarint(4<<3 | proto.WireVarint)
+		_ = b.EncodeVarint(t)
+	case *Node_IntegerValue:
+		_ = b.EncodeVarint(5<<3 | proto.WireVarint)
+		_ = b.EncodeVarint(uint64(x.IntegerValue))
+	case *Node_UnsignedValue:
+		_ = b.EncodeVarint(6<<3 | proto.WireVarint)
+		_ = b.EncodeVarint(uint64(x.UnsignedValue))
+	case *Node_FloatValue:
+		_ = b.EncodeVarint(7<<3 | proto.WireFixed64)
+		_ = b.EncodeFixed64(math.Float64bits(x.FloatValue))
+	case *Node_RegexValue:
+		_ = b.EncodeVarint(8<<3 | proto.WireBytes)
+		_ = b.EncodeStringBytes(x.RegexValue)
+	case *Node_RefValue:
+		_ = b.EncodeVarint(9<<3 | proto.WireBytes)
+		_ = b.EncodeStringBytes(x.RefValue)
+	case *Node_Logical_:
+		_ = b.EncodeVarint(10<<3 | proto.WireVarint)
+		_ = b.EncodeVarint(uint64(x.Logical))
+	case *Node_Comparison_:
+		_ = b.EncodeVarint(11<<3 | proto.WireVarint)
+		_ = b.EncodeVarint(uint64(x.Comparison))
+	case nil:
+	default:
+		return fmt.Errorf("Node.Value has unexpected type %T", x)
+	}
+	return nil
+}
+
+func _Node_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error) {
+	m := msg.(*Node)
+	switch tag {
+	case 3: // value.string_value
+		if wire != proto.WireBytes {
+			return true, proto.ErrInternalBadWireType
+		}
+		x, err := b.DecodeStringBytes()
+		m.Value = &Node_StringValue{x}
+		return true, err
+	case 4: // value.bool_value
+		if wire != proto.WireVarint {
+			return true, proto.ErrInternalBadWireType
+		}
+		x, err := b.DecodeVarint()
+		m.Value = &Node_BooleanValue{x != 0}
+		return true, err
+	case 5: // value.int_value
+		if wire != proto.WireVarint {
+			return true, proto.ErrInternalBadWireType
+		}
+		x, err := b.DecodeVarint()
+		m.Value = &Node_IntegerValue{int64(x)}
+		return true, err
+	case 6: // value.uint_value
+		if wire != proto.WireVarint {
+			return true, proto.ErrInternalBadWireType
+		}
+		x, err := b.DecodeVarint()
+		m.Value = &Node_UnsignedValue{x}
+		return true, err
+	case 7: // value.float_value
+		if wire != proto.WireFixed64 {
+			return true, proto.ErrInternalBadWireType
+		}
+		x, err := b.DecodeFixed64()
+		m.Value = &Node_FloatValue{math.Float64frombits(x)}
+		return true, err
+	case 8: // value.regex_value
+		if wire != proto.WireBytes {
+			return true, proto.ErrInternalBadWireType
+		}
+		x, err := b.DecodeStringBytes()
+		m.Value = &Node_RegexValue{x}
+		return true, err
+	case 9: // value.ref_value
+		if wire != proto.WireBytes {
+			return true, proto.ErrInternalBadWireType
+		}
+		x, err := b.DecodeStringBytes()
+		m.Value = &Node_RefValue{x}
+		return true, err
+	case 10: // value.logical
+		if wire != proto.WireVarint {
+			return true, proto.ErrInternalBadWireType
+		}
+		x, err := b.DecodeVarint()
+		m.Value = &Node_Logical_{Node_Logical(x)}
+		return true, err
+	case 11: // value.comparison
+		if wire != proto.WireVarint {
+			return true, proto.ErrInternalBadWireType
+		}
+		x, err := b.DecodeVarint()
+		m.Value = &Node_Comparison_{Node_Comparison(x)}
+		return true, err
+	default:
+		return false, nil
+	}
+}
+
+func _Node_OneofSizer(msg proto.Message) (n int) {
+	m := msg.(*Node)
+	// value
+	switch x := m.Value.(type) {
+	case *Node_StringValue:
+		n += proto.SizeVarint(3<<3 | proto.WireBytes)
+		n += proto.SizeVarint(uint64(len(x.StringValue)))
+		n += len(x.StringValue)
+	case *Node_BooleanValue:
+		n += proto.SizeVarint(4<<3 | proto.WireVarint)
+		n += 1
+	case *Node_IntegerValue:
+		n += proto.SizeVarint(5<<3 | proto.WireVarint)
+		n += proto.SizeVarint(uint64(x.IntegerValue))
+	case *Node_UnsignedValue:
+		n += proto.SizeVarint(6<<3 | proto.WireVarint)
+		n += proto.SizeVarint(uint64(x.UnsignedValue))
+	case *Node_FloatValue:
+		n += proto.SizeVarint(7<<3 | proto.WireFixed64)
+		n += 8
+	case *Node_RegexValue:
+		n += proto.SizeVarint(8<<3 | proto.WireBytes)
+		n += proto.SizeVarint(uint64(len(x.RegexValue)))
+		n += len(x.RegexValue)
+	case *Node_RefValue:
+		n += proto.SizeVarint(9<<3 | proto.WireBytes)
+		n += proto.SizeVarint(uint64(len(x.RefValue)))
+		n += len(x.RefValue)
+	case *Node_Logical_:
+		n += proto.SizeVarint(10<<3 | proto.WireVarint)
+		n += proto.SizeVarint(uint64(x.Logical))
+	case *Node_Comparison_:
+		n += proto.SizeVarint(11<<3 | proto.WireVarint)
+		n += proto.SizeVarint(uint64(x.Comparison))
+	case nil:
+	default:
+		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
+	}
+	return n
+}
 
 type Predicate struct {
-	Root *Predicate_Expression `protobuf:"bytes,1,opt,name=root" json:"root,omitempty"`
+	Root *Node `protobuf:"bytes,1,opt,name=root" json:"root,omitempty"`
 }
 
 func (m *Predicate) Reset()                    { *m = Predicate{} }
 func (m *Predicate) String() string            { return proto.CompactTextString(m) }
 func (*Predicate) ProtoMessage()               {}
-func (*Predicate) Descriptor() ([]byte, []int) { return fileDescriptorPredicate, []int{0} }
+func (*Predicate) Descriptor() ([]byte, []int) { return fileDescriptorPredicate, []int{1} }
 
-func (m *Predicate) GetRoot() *Predicate_Expression {
+func (m *Predicate) GetRoot() *Node {
 	if m != nil {
 		return m.Root
 	}
 	return nil
 }
 
-type Predicate_Expression struct {
-	// Types that are valid to be assigned to Value:
-	//	*Predicate_Expression_BooleanExpression
-	//	*Predicate_Expression_GroupExpression
-	Value isPredicate_Expression_Value `protobuf_oneof:"value"`
-}
-
-func (m *Predicate_Expression) Reset()                    { *m = Predicate_Expression{} }
-func (m *Predicate_Expression) String() string            { return proto.CompactTextString(m) }
-func (*Predicate_Expression) ProtoMessage()               {}
-func (*Predicate_Expression) Descriptor() ([]byte, []int) { return fileDescriptorPredicate, []int{0, 0} }
-
-type isPredicate_Expression_Value interface {
-	isPredicate_Expression_Value()
-	MarshalTo([]byte) (int, error)
-	Size() int
-}
-
-type Predicate_Expression_BooleanExpression struct {
-	BooleanExpression *Predicate_BooleanExpression `protobuf:"bytes,1,opt,name=binary_expression,json=binaryExpression,oneof"`
-}
-type Predicate_Expression_GroupExpression struct {
-	GroupExpression *Predicate_GroupExpression `protobuf:"bytes,2,opt,name=group_expression,json=groupExpression,oneof"`
-}
-
-func (*Predicate_Expression_BooleanExpression) isPredicate_Expression_Value() {}
-func (*Predicate_Expression_GroupExpression) isPredicate_Expression_Value()   {}
-
-func (m *Predicate_Expression) GetValue() isPredicate_Expression_Value {
-	if m != nil {
-		return m.Value
-	}
-	return nil
-}
-
-func (m *Predicate_Expression) GetBooleanExpression() *Predicate_BooleanExpression {
-	if x, ok := m.GetValue().(*Predicate_Expression_BooleanExpression); ok {
-		return x.BooleanExpression
-	}
-	return nil
-}
-
-func (m *Predicate_Expression) GetGroupExpression() *Predicate_GroupExpression {
-	if x, ok := m.GetValue().(*Predicate_Expression_GroupExpression); ok {
-		return x.GroupExpression
-	}
-	return nil
-}
-
-// XXX_OneofFuncs is for the internal use of the proto package.
-func (*Predicate_Expression) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
-	return _Predicate_Expression_OneofMarshaler, _Predicate_Expression_OneofUnmarshaler, _Predicate_Expression_OneofSizer, []interface{}{
-		(*Predicate_Expression_BooleanExpression)(nil),
-		(*Predicate_Expression_GroupExpression)(nil),
-	}
-}
-
-func _Predicate_Expression_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
-	m := msg.(*Predicate_Expression)
-	// value
-	switch x := m.Value.(type) {
-	case *Predicate_Expression_BooleanExpression:
-		_ = b.EncodeVarint(1<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.BooleanExpression); err != nil {
-			return err
-		}
-	case *Predicate_Expression_GroupExpression:
-		_ = b.EncodeVarint(2<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.GroupExpression); err != nil {
-			return err
-		}
-	case nil:
-	default:
-		return fmt.Errorf("Predicate_Expression.Value has unexpected type %T", x)
-	}
-	return nil
-}
-
-func _Predicate_Expression_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error) {
-	m := msg.(*Predicate_Expression)
-	switch tag {
-	case 1: // value.binary_expression
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(Predicate_BooleanExpression)
-		err := b.DecodeMessage(msg)
-		m.Value = &Predicate_Expression_BooleanExpression{msg}
-		return true, err
-	case 2: // value.group_expression
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(Predicate_GroupExpression)
-		err := b.DecodeMessage(msg)
-		m.Value = &Predicate_Expression_GroupExpression{msg}
-		return true, err
-	default:
-		return false, nil
-	}
-}
-
-func _Predicate_Expression_OneofSizer(msg proto.Message) (n int) {
-	m := msg.(*Predicate_Expression)
-	// value
-	switch x := m.Value.(type) {
-	case *Predicate_Expression_BooleanExpression:
-		s := proto.Size(x.BooleanExpression)
-		n += proto.SizeVarint(1<<3 | proto.WireBytes)
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case *Predicate_Expression_GroupExpression:
-		s := proto.Size(x.GroupExpression)
-		n += proto.SizeVarint(2<<3 | proto.WireBytes)
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case nil:
-	default:
-		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
-	}
-	return n
-}
-
-// GroupExpression combines a group of expressions using either a logical AND or OR operator
-type Predicate_GroupExpression struct {
-	Op          Predicate_Logical       `protobuf:"varint,1,opt,name=op,proto3,enum=storage.Predicate_Logical" json:"op,omitempty"`
-	Expressions []*Predicate_Expression `protobuf:"bytes,2,rep,name=expressions" json:"expressions,omitempty"`
-}
-
-func (m *Predicate_GroupExpression) Reset()         { *m = Predicate_GroupExpression{} }
-func (m *Predicate_GroupExpression) String() string { return proto.CompactTextString(m) }
-func (*Predicate_GroupExpression) ProtoMessage()    {}
-func (*Predicate_GroupExpression) Descriptor() ([]byte, []int) {
-	return fileDescriptorPredicate, []int{0, 1}
-}
-
-func (m *Predicate_GroupExpression) GetOp() Predicate_Logical {
-	if m != nil {
-		return m.Op
-	}
-	return LogicalAnd
-}
-
-func (m *Predicate_GroupExpression) GetExpressions() []*Predicate_Expression {
-	if m != nil {
-		return m.Expressions
-	}
-	return nil
-}
-
-// BooleanExpressions compares two operands and yieds a boolean result
-type Predicate_BooleanExpression struct {
-	LHS *Predicate_ValueExpression   `protobuf:"bytes,1,opt,name=lhs" json:"lhs,omitempty"`
-	Op  Predicate_Comparison         `protobuf:"varint,2,opt,name=op,proto3,enum=storage.Predicate_Comparison" json:"op,omitempty"`
-	RHS *Predicate_LiteralExpression `protobuf:"bytes,3,opt,name=rhs" json:"rhs,omitempty"`
-}
-
-func (m *Predicate_BooleanExpression) Reset()         { *m = Predicate_BooleanExpression{} }
-func (m *Predicate_BooleanExpression) String() string { return proto.CompactTextString(m) }
-func (*Predicate_BooleanExpression) ProtoMessage()    {}
-func (*Predicate_BooleanExpression) Descriptor() ([]byte, []int) {
-	return fileDescriptorPredicate, []int{0, 2}
-}
-
-func (m *Predicate_BooleanExpression) GetLHS() *Predicate_ValueExpression {
-	if m != nil {
-		return m.LHS
-	}
-	return nil
-}
-
-func (m *Predicate_BooleanExpression) GetOp() Predicate_Comparison {
-	if m != nil {
-		return m.Op
-	}
-	return ComparisonEqual
-}
-
-func (m *Predicate_BooleanExpression) GetRHS() *Predicate_LiteralExpression {
-	if m != nil {
-		return m.RHS
-	}
-	return nil
-}
-
-// ValueExpression represents a tag or literal value
-type Predicate_ValueExpression struct {
-	// Types that are valid to be assigned to Value:
-	//	*Predicate_ValueExpression_Ref
-	//	*Predicate_ValueExpression_Literal
-	Value isPredicate_ValueExpression_Value `protobuf_oneof:"value"`
-}
-
-func (m *Predicate_ValueExpression) Reset()         { *m = Predicate_ValueExpression{} }
-func (m *Predicate_ValueExpression) String() string { return proto.CompactTextString(m) }
-func (*Predicate_ValueExpression) ProtoMessage()    {}
-func (*Predicate_ValueExpression) Descriptor() ([]byte, []int) {
-	return fileDescriptorPredicate, []int{0, 3}
-}
-
-type isPredicate_ValueExpression_Value interface {
-	isPredicate_ValueExpression_Value()
-	MarshalTo([]byte) (int, error)
-	Size() int
-}
-
-type Predicate_ValueExpression_Ref struct {
-	Ref *Predicate_RefExpression `protobuf:"bytes,1,opt,name=ref,oneof"`
-}
-type Predicate_ValueExpression_Literal struct {
-	Literal *Predicate_LiteralExpression `protobuf:"bytes,2,opt,name=literal,oneof"`
-}
-
-func (*Predicate_ValueExpression_Ref) isPredicate_ValueExpression_Value()     {}
-func (*Predicate_ValueExpression_Literal) isPredicate_ValueExpression_Value() {}
-
-func (m *Predicate_ValueExpression) GetValue() isPredicate_ValueExpression_Value {
-	if m != nil {
-		return m.Value
-	}
-	return nil
-}
-
-func (m *Predicate_ValueExpression) GetRef() *Predicate_RefExpression {
-	if x, ok := m.GetValue().(*Predicate_ValueExpression_Ref); ok {
-		return x.Ref
-	}
-	return nil
-}
-
-func (m *Predicate_ValueExpression) GetLiteral() *Predicate_LiteralExpression {
-	if x, ok := m.GetValue().(*Predicate_ValueExpression_Literal); ok {
-		return x.Literal
-	}
-	return nil
-}
-
-// XXX_OneofFuncs is for the internal use of the proto package.
-func (*Predicate_ValueExpression) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
-	return _Predicate_ValueExpression_OneofMarshaler, _Predicate_ValueExpression_OneofUnmarshaler, _Predicate_ValueExpression_OneofSizer, []interface{}{
-		(*Predicate_ValueExpression_Ref)(nil),
-		(*Predicate_ValueExpression_Literal)(nil),
-	}
-}
-
-func _Predicate_ValueExpression_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
-	m := msg.(*Predicate_ValueExpression)
-	// value
-	switch x := m.Value.(type) {
-	case *Predicate_ValueExpression_Ref:
-		_ = b.EncodeVarint(1<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.Ref); err != nil {
-			return err
-		}
-	case *Predicate_ValueExpression_Literal:
-		_ = b.EncodeVarint(2<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.Literal); err != nil {
-			return err
-		}
-	case nil:
-	default:
-		return fmt.Errorf("Predicate_ValueExpression.Value has unexpected type %T", x)
-	}
-	return nil
-}
-
-func _Predicate_ValueExpression_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error) {
-	m := msg.(*Predicate_ValueExpression)
-	switch tag {
-	case 1: // value.ref
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(Predicate_RefExpression)
-		err := b.DecodeMessage(msg)
-		m.Value = &Predicate_ValueExpression_Ref{msg}
-		return true, err
-	case 2: // value.literal
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(Predicate_LiteralExpression)
-		err := b.DecodeMessage(msg)
-		m.Value = &Predicate_ValueExpression_Literal{msg}
-		return true, err
-	default:
-		return false, nil
-	}
-}
-
-func _Predicate_ValueExpression_OneofSizer(msg proto.Message) (n int) {
-	m := msg.(*Predicate_ValueExpression)
-	// value
-	switch x := m.Value.(type) {
-	case *Predicate_ValueExpression_Ref:
-		s := proto.Size(x.Ref)
-		n += proto.SizeVarint(1<<3 | proto.WireBytes)
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case *Predicate_ValueExpression_Literal:
-		s := proto.Size(x.Literal)
-		n += proto.SizeVarint(2<<3 | proto.WireBytes)
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case nil:
-	default:
-		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
-	}
-	return n
-}
-
-// RefExpression represents a tag reference
-type Predicate_RefExpression struct {
-	Ref string `protobuf:"bytes,1,opt,name=ref,proto3" json:"ref,omitempty"`
-}
-
-func (m *Predicate_RefExpression) Reset()         { *m = Predicate_RefExpression{} }
-func (m *Predicate_RefExpression) String() string { return proto.CompactTextString(m) }
-func (*Predicate_RefExpression) ProtoMessage()    {}
-func (*Predicate_RefExpression) Descriptor() ([]byte, []int) {
-	return fileDescriptorPredicate, []int{0, 4}
-}
-
-func (m *Predicate_RefExpression) GetRef() string {
-	if m != nil {
-		return m.Ref
-	}
-	return ""
-}
-
-// LiteralExpression represents a typed literal value
-type Predicate_LiteralExpression struct {
-	// Types that are valid to be assigned to Value:
-	//	*Predicate_LiteralExpression_StringValue
-	//	*Predicate_LiteralExpression_BooleanValue
-	//	*Predicate_LiteralExpression_IntegerValue
-	//	*Predicate_LiteralExpression_UnsignedValue
-	//	*Predicate_LiteralExpression_FloatValue
-	//	*Predicate_LiteralExpression_RegexValue
-	Value isPredicate_LiteralExpression_Value `protobuf_oneof:"value"`
-}
-
-func (m *Predicate_LiteralExpression) Reset()         { *m = Predicate_LiteralExpression{} }
-func (m *Predicate_LiteralExpression) String() string { return proto.CompactTextString(m) }
-func (*Predicate_LiteralExpression) ProtoMessage()    {}
-func (*Predicate_LiteralExpression) Descriptor() ([]byte, []int) {
-	return fileDescriptorPredicate, []int{0, 5}
-}
-
-type isPredicate_LiteralExpression_Value interface {
-	isPredicate_LiteralExpression_Value()
-	MarshalTo([]byte) (int, error)
-	Size() int
-}
-
-type Predicate_LiteralExpression_StringValue struct {
-	StringValue string `protobuf:"bytes,1,opt,name=string_value,json=stringValue,proto3,oneof"`
-}
-type Predicate_LiteralExpression_BooleanValue struct {
-	BooleanValue bool `protobuf:"varint,2,opt,name=bool_value,json=boolValue,proto3,oneof"`
-}
-type Predicate_LiteralExpression_IntegerValue struct {
-	IntegerValue int64 `protobuf:"varint,3,opt,name=int_value,json=intValue,proto3,oneof"`
-}
-type Predicate_LiteralExpression_UnsignedValue struct {
-	UnsignedValue uint64 `protobuf:"varint,4,opt,name=uint_value,json=uintValue,proto3,oneof"`
-}
-type Predicate_LiteralExpression_FloatValue struct {
-	FloatValue float64 `protobuf:"fixed64,5,opt,name=float_value,json=floatValue,proto3,oneof"`
-}
-type Predicate_LiteralExpression_RegexValue struct {
-	RegexValue string `protobuf:"bytes,6,opt,name=regex_value,json=regexValue,proto3,oneof"`
-}
-
-func (*Predicate_LiteralExpression_StringValue) isPredicate_LiteralExpression_Value()   {}
-func (*Predicate_LiteralExpression_BooleanValue) isPredicate_LiteralExpression_Value()  {}
-func (*Predicate_LiteralExpression_IntegerValue) isPredicate_LiteralExpression_Value()  {}
-func (*Predicate_LiteralExpression_UnsignedValue) isPredicate_LiteralExpression_Value() {}
-func (*Predicate_LiteralExpression_FloatValue) isPredicate_LiteralExpression_Value()    {}
-func (*Predicate_LiteralExpression_RegexValue) isPredicate_LiteralExpression_Value()    {}
-
-func (m *Predicate_LiteralExpression) GetValue() isPredicate_LiteralExpression_Value {
-	if m != nil {
-		return m.Value
-	}
-	return nil
-}
-
-func (m *Predicate_LiteralExpression) GetStringValue() string {
-	if x, ok := m.GetValue().(*Predicate_LiteralExpression_StringValue); ok {
-		return x.StringValue
-	}
-	return ""
-}
-
-func (m *Predicate_LiteralExpression) GetBooleanValue() bool {
-	if x, ok := m.GetValue().(*Predicate_LiteralExpression_BooleanValue); ok {
-		return x.BooleanValue
-	}
-	return false
-}
-
-func (m *Predicate_LiteralExpression) GetIntegerValue() int64 {
-	if x, ok := m.GetValue().(*Predicate_LiteralExpression_IntegerValue); ok {
-		return x.IntegerValue
-	}
-	return 0
-}
-
-func (m *Predicate_LiteralExpression) GetUnsignedValue() uint64 {
-	if x, ok := m.GetValue().(*Predicate_LiteralExpression_UnsignedValue); ok {
-		return x.UnsignedValue
-	}
-	return 0
-}
-
-func (m *Predicate_LiteralExpression) GetFloatValue() float64 {
-	if x, ok := m.GetValue().(*Predicate_LiteralExpression_FloatValue); ok {
-		return x.FloatValue
-	}
-	return 0
-}
-
-func (m *Predicate_LiteralExpression) GetRegexValue() string {
-	if x, ok := m.GetValue().(*Predicate_LiteralExpression_RegexValue); ok {
-		return x.RegexValue
-	}
-	return ""
-}
-
-// XXX_OneofFuncs is for the internal use of the proto package.
-func (*Predicate_LiteralExpression) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
-	return _Predicate_LiteralExpression_OneofMarshaler, _Predicate_LiteralExpression_OneofUnmarshaler, _Predicate_LiteralExpression_OneofSizer, []interface{}{
-		(*Predicate_LiteralExpression_StringValue)(nil),
-		(*Predicate_LiteralExpression_BooleanValue)(nil),
-		(*Predicate_LiteralExpression_IntegerValue)(nil),
-		(*Predicate_LiteralExpression_UnsignedValue)(nil),
-		(*Predicate_LiteralExpression_FloatValue)(nil),
-		(*Predicate_LiteralExpression_RegexValue)(nil),
-	}
-}
-
-func _Predicate_LiteralExpression_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
-	m := msg.(*Predicate_LiteralExpression)
-	// value
-	switch x := m.Value.(type) {
-	case *Predicate_LiteralExpression_StringValue:
-		_ = b.EncodeVarint(1<<3 | proto.WireBytes)
-		_ = b.EncodeStringBytes(x.StringValue)
-	case *Predicate_LiteralExpression_BooleanValue:
-		t := uint64(0)
-		if x.BooleanValue {
-			t = 1
-		}
-		_ = b.EncodeVarint(2<<3 | proto.WireVarint)
-		_ = b.EncodeVarint(t)
-	case *Predicate_LiteralExpression_IntegerValue:
-		_ = b.EncodeVarint(3<<3 | proto.WireVarint)
-		_ = b.EncodeVarint(uint64(x.IntegerValue))
-	case *Predicate_LiteralExpression_UnsignedValue:
-		_ = b.EncodeVarint(4<<3 | proto.WireVarint)
-		_ = b.EncodeVarint(uint64(x.UnsignedValue))
-	case *Predicate_LiteralExpression_FloatValue:
-		_ = b.EncodeVarint(5<<3 | proto.WireFixed64)
-		_ = b.EncodeFixed64(math.Float64bits(x.FloatValue))
-	case *Predicate_LiteralExpression_RegexValue:
-		_ = b.EncodeVarint(6<<3 | proto.WireBytes)
-		_ = b.EncodeStringBytes(x.RegexValue)
-	case nil:
-	default:
-		return fmt.Errorf("Predicate_LiteralExpression.Value has unexpected type %T", x)
-	}
-	return nil
-}
-
-func _Predicate_LiteralExpression_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error) {
-	m := msg.(*Predicate_LiteralExpression)
-	switch tag {
-	case 1: // value.string_value
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		x, err := b.DecodeStringBytes()
-		m.Value = &Predicate_LiteralExpression_StringValue{x}
-		return true, err
-	case 2: // value.bool_value
-		if wire != proto.WireVarint {
-			return true, proto.ErrInternalBadWireType
-		}
-		x, err := b.DecodeVarint()
-		m.Value = &Predicate_LiteralExpression_BooleanValue{x != 0}
-		return true, err
-	case 3: // value.int_value
-		if wire != proto.WireVarint {
-			return true, proto.ErrInternalBadWireType
-		}
-		x, err := b.DecodeVarint()
-		m.Value = &Predicate_LiteralExpression_IntegerValue{int64(x)}
-		return true, err
-	case 4: // value.uint_value
-		if wire != proto.WireVarint {
-			return true, proto.ErrInternalBadWireType
-		}
-		x, err := b.DecodeVarint()
-		m.Value = &Predicate_LiteralExpression_UnsignedValue{x}
-		return true, err
-	case 5: // value.float_value
-		if wire != proto.WireFixed64 {
-			return true, proto.ErrInternalBadWireType
-		}
-		x, err := b.DecodeFixed64()
-		m.Value = &Predicate_LiteralExpression_FloatValue{math.Float64frombits(x)}
-		return true, err
-	case 6: // value.regex_value
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		x, err := b.DecodeStringBytes()
-		m.Value = &Predicate_LiteralExpression_RegexValue{x}
-		return true, err
-	default:
-		return false, nil
-	}
-}
-
-func _Predicate_LiteralExpression_OneofSizer(msg proto.Message) (n int) {
-	m := msg.(*Predicate_LiteralExpression)
-	// value
-	switch x := m.Value.(type) {
-	case *Predicate_LiteralExpression_StringValue:
-		n += proto.SizeVarint(1<<3 | proto.WireBytes)
-		n += proto.SizeVarint(uint64(len(x.StringValue)))
-		n += len(x.StringValue)
-	case *Predicate_LiteralExpression_BooleanValue:
-		n += proto.SizeVarint(2<<3 | proto.WireVarint)
-		n += 1
-	case *Predicate_LiteralExpression_IntegerValue:
-		n += proto.SizeVarint(3<<3 | proto.WireVarint)
-		n += proto.SizeVarint(uint64(x.IntegerValue))
-	case *Predicate_LiteralExpression_UnsignedValue:
-		n += proto.SizeVarint(4<<3 | proto.WireVarint)
-		n += proto.SizeVarint(uint64(x.UnsignedValue))
-	case *Predicate_LiteralExpression_FloatValue:
-		n += proto.SizeVarint(5<<3 | proto.WireFixed64)
-		n += 8
-	case *Predicate_LiteralExpression_RegexValue:
-		n += proto.SizeVarint(6<<3 | proto.WireBytes)
-		n += proto.SizeVarint(uint64(len(x.RegexValue)))
-		n += len(x.RegexValue)
-	case nil:
-	default:
-		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
-	}
-	return n
-}
-
 func init() {
+	proto.RegisterType((*Node)(nil), "storage.Node")
 	proto.RegisterType((*Predicate)(nil), "storage.Predicate")
-	proto.RegisterType((*Predicate_Expression)(nil), "storage.Predicate.Expression")
-	proto.RegisterType((*Predicate_GroupExpression)(nil), "storage.Predicate.GroupExpression")
-	proto.RegisterType((*Predicate_BooleanExpression)(nil), "storage.Predicate.BooleanExpression")
-	proto.RegisterType((*Predicate_ValueExpression)(nil), "storage.Predicate.ValueExpression")
-	proto.RegisterType((*Predicate_RefExpression)(nil), "storage.Predicate.RefExpression")
-	proto.RegisterType((*Predicate_LiteralExpression)(nil), "storage.Predicate.LiteralExpression")
-	proto.RegisterEnum("storage.Predicate_Comparison", Predicate_Comparison_name, Predicate_Comparison_value)
-	proto.RegisterEnum("storage.Predicate_Logical", Predicate_Logical_name, Predicate_Logical_value)
+	proto.RegisterEnum("storage.Node_Type", Node_Type_name, Node_Type_value)
+	proto.RegisterEnum("storage.Node_Comparison", Node_Comparison_name, Node_Comparison_value)
+	proto.RegisterEnum("storage.Node_Logical", Node_Logical_name, Node_Logical_value)
+}
+func (m *Node) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *Node) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.NodeType != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintPredicate(dAtA, i, uint64(m.NodeType))
+	}
+	if len(m.Children) > 0 {
+		for _, msg := range m.Children {
+			dAtA[i] = 0x12
+			i++
+			i = encodeVarintPredicate(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
+	}
+	if m.Value != nil {
+		nn1, err := m.Value.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += nn1
+	}
+	return i, nil
+}
+
+func (m *Node_StringValue) MarshalTo(dAtA []byte) (int, error) {
+	i := 0
+	dAtA[i] = 0x1a
+	i++
+	i = encodeVarintPredicate(dAtA, i, uint64(len(m.StringValue)))
+	i += copy(dAtA[i:], m.StringValue)
+	return i, nil
+}
+func (m *Node_BooleanValue) MarshalTo(dAtA []byte) (int, error) {
+	i := 0
+	dAtA[i] = 0x20
+	i++
+	if m.BooleanValue {
+		dAtA[i] = 1
+	} else {
+		dAtA[i] = 0
+	}
+	i++
+	return i, nil
+}
+func (m *Node_IntegerValue) MarshalTo(dAtA []byte) (int, error) {
+	i := 0
+	dAtA[i] = 0x28
+	i++
+	i = encodeVarintPredicate(dAtA, i, uint64(m.IntegerValue))
+	return i, nil
+}
+func (m *Node_UnsignedValue) MarshalTo(dAtA []byte) (int, error) {
+	i := 0
+	dAtA[i] = 0x30
+	i++
+	i = encodeVarintPredicate(dAtA, i, uint64(m.UnsignedValue))
+	return i, nil
+}
+func (m *Node_FloatValue) MarshalTo(dAtA []byte) (int, error) {
+	i := 0
+	dAtA[i] = 0x39
+	i++
+	i = encodeFixed64Predicate(dAtA, i, uint64(math.Float64bits(float64(m.FloatValue))))
+	return i, nil
+}
+func (m *Node_RegexValue) MarshalTo(dAtA []byte) (int, error) {
+	i := 0
+	dAtA[i] = 0x42
+	i++
+	i = encodeVarintPredicate(dAtA, i, uint64(len(m.RegexValue)))
+	i += copy(dAtA[i:], m.RegexValue)
+	return i, nil
+}
+func (m *Node_RefValue) MarshalTo(dAtA []byte) (int, error) {
+	i := 0
+	dAtA[i] = 0x4a
+	i++
+	i = encodeVarintPredicate(dAtA, i, uint64(len(m.RefValue)))
+	i += copy(dAtA[i:], m.RefValue)
+	return i, nil
+}
+func (m *Node_Logical_) MarshalTo(dAtA []byte) (int, error) {
+	i := 0
+	dAtA[i] = 0x50
+	i++
+	i = encodeVarintPredicate(dAtA, i, uint64(m.Logical))
+	return i, nil
+}
+func (m *Node_Comparison_) MarshalTo(dAtA []byte) (int, error) {
+	i := 0
+	dAtA[i] = 0x58
+	i++
+	i = encodeVarintPredicate(dAtA, i, uint64(m.Comparison))
+	return i, nil
 }
 func (m *Predicate) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
@@ -676,297 +568,15 @@ func (m *Predicate) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0xa
 		i++
 		i = encodeVarintPredicate(dAtA, i, uint64(m.Root.Size()))
-		n1, err := m.Root.MarshalTo(dAtA[i:])
+		n2, err := m.Root.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n1
+		i += n2
 	}
 	return i, nil
 }
 
-func (m *Predicate_Expression) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *Predicate_Expression) MarshalTo(dAtA []byte) (int, error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	if m.Value != nil {
-		nn2, err := m.Value.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += nn2
-	}
-	return i, nil
-}
-
-func (m *Predicate_Expression_BooleanExpression) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	if m.BooleanExpression != nil {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintPredicate(dAtA, i, uint64(m.BooleanExpression.Size()))
-		n3, err := m.BooleanExpression.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n3
-	}
-	return i, nil
-}
-func (m *Predicate_Expression_GroupExpression) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	if m.GroupExpression != nil {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintPredicate(dAtA, i, uint64(m.GroupExpression.Size()))
-		n4, err := m.GroupExpression.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n4
-	}
-	return i, nil
-}
-func (m *Predicate_GroupExpression) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *Predicate_GroupExpression) MarshalTo(dAtA []byte) (int, error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	if m.Op != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintPredicate(dAtA, i, uint64(m.Op))
-	}
-	if len(m.Expressions) > 0 {
-		for _, msg := range m.Expressions {
-			dAtA[i] = 0x12
-			i++
-			i = encodeVarintPredicate(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
-			}
-			i += n
-		}
-	}
-	return i, nil
-}
-
-func (m *Predicate_BooleanExpression) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *Predicate_BooleanExpression) MarshalTo(dAtA []byte) (int, error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	if m.LHS != nil {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintPredicate(dAtA, i, uint64(m.LHS.Size()))
-		n5, err := m.LHS.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n5
-	}
-	if m.Op != 0 {
-		dAtA[i] = 0x10
-		i++
-		i = encodeVarintPredicate(dAtA, i, uint64(m.Op))
-	}
-	if m.RHS != nil {
-		dAtA[i] = 0x1a
-		i++
-		i = encodeVarintPredicate(dAtA, i, uint64(m.RHS.Size()))
-		n6, err := m.RHS.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n6
-	}
-	return i, nil
-}
-
-func (m *Predicate_ValueExpression) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *Predicate_ValueExpression) MarshalTo(dAtA []byte) (int, error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	if m.Value != nil {
-		nn7, err := m.Value.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += nn7
-	}
-	return i, nil
-}
-
-func (m *Predicate_ValueExpression_Ref) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	if m.Ref != nil {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintPredicate(dAtA, i, uint64(m.Ref.Size()))
-		n8, err := m.Ref.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n8
-	}
-	return i, nil
-}
-func (m *Predicate_ValueExpression_Literal) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	if m.Literal != nil {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintPredicate(dAtA, i, uint64(m.Literal.Size()))
-		n9, err := m.Literal.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n9
-	}
-	return i, nil
-}
-func (m *Predicate_RefExpression) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *Predicate_RefExpression) MarshalTo(dAtA []byte) (int, error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	if len(m.Ref) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintPredicate(dAtA, i, uint64(len(m.Ref)))
-		i += copy(dAtA[i:], m.Ref)
-	}
-	return i, nil
-}
-
-func (m *Predicate_LiteralExpression) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *Predicate_LiteralExpression) MarshalTo(dAtA []byte) (int, error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	if m.Value != nil {
-		nn10, err := m.Value.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += nn10
-	}
-	return i, nil
-}
-
-func (m *Predicate_LiteralExpression_StringValue) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	dAtA[i] = 0xa
-	i++
-	i = encodeVarintPredicate(dAtA, i, uint64(len(m.StringValue)))
-	i += copy(dAtA[i:], m.StringValue)
-	return i, nil
-}
-func (m *Predicate_LiteralExpression_BooleanValue) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	dAtA[i] = 0x10
-	i++
-	if m.BooleanValue {
-		dAtA[i] = 1
-	} else {
-		dAtA[i] = 0
-	}
-	i++
-	return i, nil
-}
-func (m *Predicate_LiteralExpression_IntegerValue) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	dAtA[i] = 0x18
-	i++
-	i = encodeVarintPredicate(dAtA, i, uint64(m.IntegerValue))
-	return i, nil
-}
-func (m *Predicate_LiteralExpression_UnsignedValue) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	dAtA[i] = 0x20
-	i++
-	i = encodeVarintPredicate(dAtA, i, uint64(m.UnsignedValue))
-	return i, nil
-}
-func (m *Predicate_LiteralExpression_FloatValue) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	dAtA[i] = 0x29
-	i++
-	i = encodeFixed64Predicate(dAtA, i, uint64(math.Float64bits(float64(m.FloatValue))))
-	return i, nil
-}
-func (m *Predicate_LiteralExpression_RegexValue) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	dAtA[i] = 0x32
-	i++
-	i = encodeVarintPredicate(dAtA, i, uint64(len(m.RegexValue)))
-	i += copy(dAtA[i:], m.RegexValue)
-	return i, nil
-}
 func encodeFixed64Predicate(dAtA []byte, offset int, v uint64) int {
 	dAtA[offset] = uint8(v)
 	dAtA[offset+1] = uint8(v >> 8)
@@ -994,6 +604,81 @@ func encodeVarintPredicate(dAtA []byte, offset int, v uint64) int {
 	dAtA[offset] = uint8(v)
 	return offset + 1
 }
+func (m *Node) Size() (n int) {
+	var l int
+	_ = l
+	if m.NodeType != 0 {
+		n += 1 + sovPredicate(uint64(m.NodeType))
+	}
+	if len(m.Children) > 0 {
+		for _, e := range m.Children {
+			l = e.Size()
+			n += 1 + l + sovPredicate(uint64(l))
+		}
+	}
+	if m.Value != nil {
+		n += m.Value.Size()
+	}
+	return n
+}
+
+func (m *Node_StringValue) Size() (n int) {
+	var l int
+	_ = l
+	l = len(m.StringValue)
+	n += 1 + l + sovPredicate(uint64(l))
+	return n
+}
+func (m *Node_BooleanValue) Size() (n int) {
+	var l int
+	_ = l
+	n += 2
+	return n
+}
+func (m *Node_IntegerValue) Size() (n int) {
+	var l int
+	_ = l
+	n += 1 + sovPredicate(uint64(m.IntegerValue))
+	return n
+}
+func (m *Node_UnsignedValue) Size() (n int) {
+	var l int
+	_ = l
+	n += 1 + sovPredicate(uint64(m.UnsignedValue))
+	return n
+}
+func (m *Node_FloatValue) Size() (n int) {
+	var l int
+	_ = l
+	n += 9
+	return n
+}
+func (m *Node_RegexValue) Size() (n int) {
+	var l int
+	_ = l
+	l = len(m.RegexValue)
+	n += 1 + l + sovPredicate(uint64(l))
+	return n
+}
+func (m *Node_RefValue) Size() (n int) {
+	var l int
+	_ = l
+	l = len(m.RefValue)
+	n += 1 + l + sovPredicate(uint64(l))
+	return n
+}
+func (m *Node_Logical_) Size() (n int) {
+	var l int
+	_ = l
+	n += 1 + sovPredicate(uint64(m.Logical))
+	return n
+}
+func (m *Node_Comparison_) Size() (n int) {
+	var l int
+	_ = l
+	n += 1 + sovPredicate(uint64(m.Comparison))
+	return n
+}
 func (m *Predicate) Size() (n int) {
 	var l int
 	_ = l
@@ -1001,150 +686,6 @@ func (m *Predicate) Size() (n int) {
 		l = m.Root.Size()
 		n += 1 + l + sovPredicate(uint64(l))
 	}
-	return n
-}
-
-func (m *Predicate_Expression) Size() (n int) {
-	var l int
-	_ = l
-	if m.Value != nil {
-		n += m.Value.Size()
-	}
-	return n
-}
-
-func (m *Predicate_Expression_BooleanExpression) Size() (n int) {
-	var l int
-	_ = l
-	if m.BooleanExpression != nil {
-		l = m.BooleanExpression.Size()
-		n += 1 + l + sovPredicate(uint64(l))
-	}
-	return n
-}
-func (m *Predicate_Expression_GroupExpression) Size() (n int) {
-	var l int
-	_ = l
-	if m.GroupExpression != nil {
-		l = m.GroupExpression.Size()
-		n += 1 + l + sovPredicate(uint64(l))
-	}
-	return n
-}
-func (m *Predicate_GroupExpression) Size() (n int) {
-	var l int
-	_ = l
-	if m.Op != 0 {
-		n += 1 + sovPredicate(uint64(m.Op))
-	}
-	if len(m.Expressions) > 0 {
-		for _, e := range m.Expressions {
-			l = e.Size()
-			n += 1 + l + sovPredicate(uint64(l))
-		}
-	}
-	return n
-}
-
-func (m *Predicate_BooleanExpression) Size() (n int) {
-	var l int
-	_ = l
-	if m.LHS != nil {
-		l = m.LHS.Size()
-		n += 1 + l + sovPredicate(uint64(l))
-	}
-	if m.Op != 0 {
-		n += 1 + sovPredicate(uint64(m.Op))
-	}
-	if m.RHS != nil {
-		l = m.RHS.Size()
-		n += 1 + l + sovPredicate(uint64(l))
-	}
-	return n
-}
-
-func (m *Predicate_ValueExpression) Size() (n int) {
-	var l int
-	_ = l
-	if m.Value != nil {
-		n += m.Value.Size()
-	}
-	return n
-}
-
-func (m *Predicate_ValueExpression_Ref) Size() (n int) {
-	var l int
-	_ = l
-	if m.Ref != nil {
-		l = m.Ref.Size()
-		n += 1 + l + sovPredicate(uint64(l))
-	}
-	return n
-}
-func (m *Predicate_ValueExpression_Literal) Size() (n int) {
-	var l int
-	_ = l
-	if m.Literal != nil {
-		l = m.Literal.Size()
-		n += 1 + l + sovPredicate(uint64(l))
-	}
-	return n
-}
-func (m *Predicate_RefExpression) Size() (n int) {
-	var l int
-	_ = l
-	l = len(m.Ref)
-	if l > 0 {
-		n += 1 + l + sovPredicate(uint64(l))
-	}
-	return n
-}
-
-func (m *Predicate_LiteralExpression) Size() (n int) {
-	var l int
-	_ = l
-	if m.Value != nil {
-		n += m.Value.Size()
-	}
-	return n
-}
-
-func (m *Predicate_LiteralExpression_StringValue) Size() (n int) {
-	var l int
-	_ = l
-	l = len(m.StringValue)
-	n += 1 + l + sovPredicate(uint64(l))
-	return n
-}
-func (m *Predicate_LiteralExpression_BooleanValue) Size() (n int) {
-	var l int
-	_ = l
-	n += 2
-	return n
-}
-func (m *Predicate_LiteralExpression_IntegerValue) Size() (n int) {
-	var l int
-	_ = l
-	n += 1 + sovPredicate(uint64(m.IntegerValue))
-	return n
-}
-func (m *Predicate_LiteralExpression_UnsignedValue) Size() (n int) {
-	var l int
-	_ = l
-	n += 1 + sovPredicate(uint64(m.UnsignedValue))
-	return n
-}
-func (m *Predicate_LiteralExpression_FloatValue) Size() (n int) {
-	var l int
-	_ = l
-	n += 9
-	return n
-}
-func (m *Predicate_LiteralExpression_RegexValue) Size() (n int) {
-	var l int
-	_ = l
-	l = len(m.RegexValue)
-	n += 1 + l + sovPredicate(uint64(l))
 	return n
 }
 
@@ -1160,6 +701,312 @@ func sovPredicate(x uint64) (n int) {
 }
 func sozPredicate(x uint64) (n int) {
 	return sovPredicate(uint64((x << 1) ^ uint64((int64(x) >> 63))))
+}
+func (m *Node) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowPredicate
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: Node: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: Node: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field NodeType", wireType)
+			}
+			m.NodeType = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowPredicate
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.NodeType |= (Node_Type(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Children", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowPredicate
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthPredicate
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Children = append(m.Children, &Node{})
+			if err := m.Children[len(m.Children)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field StringValue", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowPredicate
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthPredicate
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Value = &Node_StringValue{string(dAtA[iNdEx:postIndex])}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field BooleanValue", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowPredicate
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			b := bool(v != 0)
+			m.Value = &Node_BooleanValue{b}
+		case 5:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field IntegerValue", wireType)
+			}
+			var v int64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowPredicate
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= (int64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.Value = &Node_IntegerValue{v}
+		case 6:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UnsignedValue", wireType)
+			}
+			var v uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowPredicate
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.Value = &Node_UnsignedValue{v}
+		case 7:
+			if wireType != 1 {
+				return fmt.Errorf("proto: wrong wireType = %d for field FloatValue", wireType)
+			}
+			var v uint64
+			if (iNdEx + 8) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += 8
+			v = uint64(dAtA[iNdEx-8])
+			v |= uint64(dAtA[iNdEx-7]) << 8
+			v |= uint64(dAtA[iNdEx-6]) << 16
+			v |= uint64(dAtA[iNdEx-5]) << 24
+			v |= uint64(dAtA[iNdEx-4]) << 32
+			v |= uint64(dAtA[iNdEx-3]) << 40
+			v |= uint64(dAtA[iNdEx-2]) << 48
+			v |= uint64(dAtA[iNdEx-1]) << 56
+			m.Value = &Node_FloatValue{float64(math.Float64frombits(v))}
+		case 8:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RegexValue", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowPredicate
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthPredicate
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Value = &Node_RegexValue{string(dAtA[iNdEx:postIndex])}
+			iNdEx = postIndex
+		case 9:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RefValue", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowPredicate
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthPredicate
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Value = &Node_RefValue{string(dAtA[iNdEx:postIndex])}
+			iNdEx = postIndex
+		case 10:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Logical", wireType)
+			}
+			var v Node_Logical
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowPredicate
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= (Node_Logical(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.Value = &Node_Logical_{v}
+		case 11:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Comparison", wireType)
+			}
+			var v Node_Comparison
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowPredicate
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= (Node_Comparison(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.Value = &Node_Comparison_{v}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipPredicate(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthPredicate
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
 }
 func (m *Predicate) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
@@ -1217,740 +1064,11 @@ func (m *Predicate) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if m.Root == nil {
-				m.Root = &Predicate_Expression{}
+				m.Root = &Node{}
 			}
 			if err := m.Root.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipPredicate(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthPredicate
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *Predicate_Expression) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowPredicate
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: Expression: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: Expression: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field BooleanExpression", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowPredicate
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthPredicate
-			}
-			postIndex := iNdEx + msglen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			v := &Predicate_BooleanExpression{}
-			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			m.Value = &Predicate_Expression_BooleanExpression{v}
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field GroupExpression", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowPredicate
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthPredicate
-			}
-			postIndex := iNdEx + msglen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			v := &Predicate_GroupExpression{}
-			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			m.Value = &Predicate_Expression_GroupExpression{v}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipPredicate(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthPredicate
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *Predicate_GroupExpression) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowPredicate
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: GroupExpression: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: GroupExpression: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Op", wireType)
-			}
-			m.Op = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowPredicate
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Op |= (Predicate_Logical(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Expressions", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowPredicate
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthPredicate
-			}
-			postIndex := iNdEx + msglen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Expressions = append(m.Expressions, &Predicate_Expression{})
-			if err := m.Expressions[len(m.Expressions)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipPredicate(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthPredicate
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *Predicate_BooleanExpression) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowPredicate
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: BooleanExpression: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: BooleanExpression: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field LHS", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowPredicate
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthPredicate
-			}
-			postIndex := iNdEx + msglen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.LHS == nil {
-				m.LHS = &Predicate_ValueExpression{}
-			}
-			if err := m.LHS.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 2:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Op", wireType)
-			}
-			m.Op = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowPredicate
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Op |= (Predicate_Comparison(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 3:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field RHS", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowPredicate
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthPredicate
-			}
-			postIndex := iNdEx + msglen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.RHS == nil {
-				m.RHS = &Predicate_LiteralExpression{}
-			}
-			if err := m.RHS.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipPredicate(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthPredicate
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *Predicate_ValueExpression) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowPredicate
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: ValueExpression: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: ValueExpression: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Ref", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowPredicate
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthPredicate
-			}
-			postIndex := iNdEx + msglen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			v := &Predicate_RefExpression{}
-			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			m.Value = &Predicate_ValueExpression_Ref{v}
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Literal", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowPredicate
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthPredicate
-			}
-			postIndex := iNdEx + msglen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			v := &Predicate_LiteralExpression{}
-			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			m.Value = &Predicate_ValueExpression_Literal{v}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipPredicate(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthPredicate
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *Predicate_RefExpression) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowPredicate
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: RefExpression: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: RefExpression: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Ref", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowPredicate
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthPredicate
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Ref = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipPredicate(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthPredicate
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *Predicate_LiteralExpression) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowPredicate
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: LiteralExpression: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: LiteralExpression: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field StringValue", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowPredicate
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthPredicate
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Value = &Predicate_LiteralExpression_StringValue{string(dAtA[iNdEx:postIndex])}
-			iNdEx = postIndex
-		case 2:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field BooleanValue", wireType)
-			}
-			var v int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowPredicate
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				v |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			b := bool(v != 0)
-			m.Value = &Predicate_LiteralExpression_BooleanValue{b}
-		case 3:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field IntegerValue", wireType)
-			}
-			var v int64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowPredicate
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				v |= (int64(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			m.Value = &Predicate_LiteralExpression_IntegerValue{v}
-		case 4:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field UnsignedValue", wireType)
-			}
-			var v uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowPredicate
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				v |= (uint64(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			m.Value = &Predicate_LiteralExpression_UnsignedValue{v}
-		case 5:
-			if wireType != 1 {
-				return fmt.Errorf("proto: wrong wireType = %d for field FloatValue", wireType)
-			}
-			var v uint64
-			if (iNdEx + 8) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += 8
-			v = uint64(dAtA[iNdEx-8])
-			v |= uint64(dAtA[iNdEx-7]) << 8
-			v |= uint64(dAtA[iNdEx-6]) << 16
-			v |= uint64(dAtA[iNdEx-5]) << 24
-			v |= uint64(dAtA[iNdEx-4]) << 32
-			v |= uint64(dAtA[iNdEx-3]) << 40
-			v |= uint64(dAtA[iNdEx-2]) << 48
-			v |= uint64(dAtA[iNdEx-1]) << 56
-			m.Value = &Predicate_LiteralExpression_FloatValue{float64(math.Float64frombits(v))}
-		case 6:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field RegexValue", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowPredicate
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthPredicate
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Value = &Predicate_LiteralExpression_RegexValue{string(dAtA[iNdEx:postIndex])}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -2081,50 +1199,50 @@ var (
 func init() { proto.RegisterFile("predicate.proto", fileDescriptorPredicate) }
 
 var fileDescriptorPredicate = []byte{
-	// 719 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x94, 0x41, 0x6f, 0x12, 0x41,
-	0x14, 0xc7, 0x77, 0x76, 0x69, 0x29, 0x8f, 0xb6, 0x2c, 0x53, 0xab, 0x64, 0x13, 0x61, 0x25, 0x1e,
-	0xaa, 0x49, 0x69, 0x5a, 0x7b, 0x35, 0x15, 0x14, 0x4b, 0x13, 0xd2, 0xea, 0xd2, 0x5a, 0x6f, 0xcd,
-	0x52, 0x86, 0x65, 0xcd, 0x76, 0x07, 0x67, 0x07, 0x53, 0x2f, 0x26, 0xde, 0x0c, 0x27, 0xe3, 0x9d,
-	0x93, 0xdf, 0xc4, 0xc4, 0xc4, 0x63, 0x3f, 0x01, 0x31, 0xeb, 0xc1, 0xaf, 0x61, 0x76, 0x76, 0xd9,
-	0xa5, 0x14, 0xa3, 0x37, 0xe6, 0xcd, 0xff, 0xf7, 0xff, 0xbf, 0x37, 0x0f, 0x80, 0x5c, 0x9f, 0x91,
-	0x8e, 0x7d, 0x6e, 0x72, 0x52, 0xe9, 0x33, 0xca, 0x29, 0x4e, 0x7b, 0x9c, 0x32, 0xd3, 0x22, 0xda,
-	0xa6, 0x65, 0xf3, 0xde, 0xa0, 0x5d, 0x39, 0xa7, 0x17, 0x5b, 0x16, 0xb5, 0xe8, 0x96, 0xb8, 0x6f,
-	0x0f, 0xba, 0xe2, 0x24, 0x0e, 0xe2, 0x53, 0xc8, 0x95, 0x3f, 0x66, 0x21, 0xf3, 0x62, 0xe2, 0x85,
-	0xb7, 0x21, 0xc5, 0x28, 0xe5, 0x05, 0xa4, 0xa3, 0x8d, 0xec, 0xce, 0xdd, 0x4a, 0x64, 0x5a, 0x89,
-	0x15, 0x95, 0xfa, 0x65, 0x9f, 0x11, 0xcf, 0xb3, 0xa9, 0x6b, 0x08, 0xa9, 0xf6, 0x1b, 0x01, 0x24,
-	0x45, 0xfc, 0x06, 0xf2, 0x6d, 0xdb, 0x35, 0xd9, 0xfb, 0x33, 0x12, 0x17, 0x23, 0xbb, 0xfb, 0x73,
-	0xec, 0x6a, 0x94, 0x3a, 0xc4, 0x74, 0x13, 0x83, 0xda, 0xba, 0x3f, 0x2e, 0xe5, 0x6f, 0x94, 0x1b,
-	0x92, 0xa1, 0x86, 0xbe, 0x53, 0x59, 0x1d, 0x50, 0x2d, 0x46, 0x07, 0xfd, 0xe9, 0x28, 0x59, 0x44,
-	0x95, 0xe7, 0x44, 0xed, 0x07, 0xd2, 0xa9, 0xa0, 0x35, 0x7f, 0x5c, 0xca, 0xcd, 0x14, 0x1b, 0x92,
-	0x91, 0xb3, 0x66, 0x74, 0x69, 0x58, 0x78, 0x67, 0x3a, 0x03, 0xa2, 0x7d, 0x80, 0x59, 0x39, 0x7e,
-	0x08, 0x32, 0xed, 0x8b, 0xf1, 0x56, 0x77, 0xb4, 0x39, 0x99, 0x4d, 0x6a, 0xd9, 0xe7, 0xa6, 0x63,
-	0xc8, 0xb4, 0x8f, 0xf7, 0x20, 0x9b, 0xf4, 0xe9, 0x15, 0x64, 0x5d, 0xf9, 0xf7, 0x13, 0x4f, 0x13,
-	0xda, 0x37, 0x04, 0x37, 0x1f, 0x06, 0x3f, 0x06, 0xc5, 0xe9, 0x79, 0xd1, 0x13, 0xcf, 0x9b, 0xfb,
-	0x55, 0xd0, 0xfc, 0xf4, 0x3c, 0xfe, 0xb8, 0xa4, 0x34, 0x1b, 0x2d, 0x23, 0xe0, 0xf0, 0xa6, 0x98,
-	0x40, 0x16, 0x13, 0xcc, 0x6b, 0xe6, 0x29, 0xbd, 0xe8, 0x9b, 0xcc, 0xf6, 0xa8, 0x1b, 0x0d, 0xa1,
-	0xb0, 0x9e, 0x57, 0x50, 0xfe, 0xba, 0xd0, 0xa6, 0xcd, 0x09, 0x33, 0x9d, 0xd9, 0x3c, 0x23, 0xc8,
-	0x63, 0x3d, 0x4f, 0xfb, 0x82, 0x20, 0x37, 0xd3, 0x11, 0xde, 0x05, 0x85, 0x91, 0x6e, 0x34, 0x82,
-	0x3e, 0xc7, 0xd4, 0x20, 0xdd, 0x6b, 0x3b, 0x0a, 0xe4, 0xf8, 0x09, 0xa4, 0x9d, 0x30, 0x2c, 0x5a,
-	0xfa, 0x7f, 0xb5, 0xd3, 0x90, 0x8c, 0x09, 0x96, 0x6c, 0xf6, 0x1e, 0xac, 0x5c, 0x8b, 0xc0, 0x6a,
-	0xd2, 0x51, 0x46, 0xa4, 0x69, 0x57, 0x32, 0xe4, 0x6f, 0x98, 0xe1, 0x5d, 0x58, 0xf6, 0x38, 0xb3,
-	0x5d, 0xeb, 0x4c, 0x18, 0x85, 0x40, 0x2d, 0xe7, 0x8f, 0x4b, 0xd9, 0x96, 0xa8, 0x8b, 0x51, 0x1b,
-	0x92, 0x91, 0xf5, 0x92, 0x23, 0xde, 0x06, 0x68, 0x53, 0xea, 0x44, 0x4c, 0xd0, 0xfc, 0x52, 0x4d,
-	0xf5, 0xc7, 0xa5, 0xe5, 0x68, 0xbb, 0x13, 0x28, 0x13, 0xa8, 0x42, 0x64, 0x0b, 0x32, 0xb6, 0xcb,
-	0x23, 0x22, 0x78, 0x7d, 0x25, 0x24, 0x0e, 0x5c, 0x4e, 0x2c, 0xc2, 0x26, 0xc4, 0x92, 0xed, 0xf2,
-	0x10, 0xd8, 0x01, 0x18, 0x24, 0x44, 0x4a, 0x47, 0x1b, 0xa9, 0x5a, 0xde, 0x1f, 0x97, 0x56, 0x4e,
-	0x5c, 0xcf, 0xb6, 0x5c, 0xd2, 0x89, 0x43, 0x06, 0x31, 0xb3, 0x0d, 0xd9, 0xae, 0x43, 0xcd, 0x09,
-	0xb4, 0xa0, 0xa3, 0x0d, 0x54, 0x5b, 0xf5, 0xc7, 0x25, 0x78, 0x1e, 0x94, 0x27, 0x04, 0x74, 0xe3,
-	0x53, 0x80, 0x30, 0x62, 0x91, 0xcb, 0x08, 0x59, 0x14, 0xf3, 0x0b, 0xc4, 0x08, 0xca, 0x31, 0xc2,
-	0xe2, 0x53, 0xfc, 0xea, 0xe5, 0xef, 0x08, 0x20, 0xf9, 0x7a, 0xe1, 0x22, 0x2c, 0xd4, 0x5f, 0x9e,
-	0x54, 0x9b, 0xaa, 0xa4, 0xad, 0x0d, 0x47, 0x7a, 0x2e, 0xb9, 0xaa, 0xbf, 0x1d, 0x98, 0x0e, 0x2e,
-	0xc3, 0xe2, 0x61, 0x28, 0x40, 0xda, 0xed, 0xe1, 0x48, 0xc7, 0x89, 0xe0, 0x90, 0xf2, 0x50, 0xf3,
-	0x00, 0xb2, 0xad, 0xe3, 0xaa, 0x71, 0xdc, 0x3a, 0x3b, 0x3d, 0x38, 0x6e, 0xa8, 0xb2, 0x56, 0x18,
-	0x8e, 0xf4, 0x5b, 0x89, 0xb0, 0xc5, 0x4d, 0xc6, 0xbd, 0x53, 0x9b, 0xf7, 0x82, 0x38, 0xa3, 0xbe,
-	0x5f, 0x7f, 0xad, 0x2a, 0xb3, 0x71, 0xa2, 0x73, 0x11, 0x17, 0x0a, 0x52, 0x73, 0xe2, 0x84, 0x46,
-	0x4b, 0x7d, 0xfa, 0x5a, 0x94, 0xca, 0x7b, 0x90, 0x8e, 0x7e, 0xe7, 0xf8, 0x0e, 0x28, 0xd5, 0xc3,
-	0x67, 0xaa, 0xa4, 0xad, 0x0e, 0x47, 0x3a, 0x44, 0xd5, 0xaa, 0xdb, 0xc1, 0xeb, 0x20, 0x1f, 0x19,
-	0x2a, 0xd2, 0x56, 0x86, 0x23, 0x3d, 0x13, 0xd5, 0x8f, 0x58, 0x68, 0x50, 0x53, 0x7f, 0xf8, 0x45,
-	0x74, 0xe5, 0x17, 0xd1, 0x4f, 0xbf, 0x88, 0x3e, 0xff, 0x2a, 0x4a, 0xed, 0x45, 0xf1, 0xe7, 0xfc,
-	0xe8, 0x4f, 0x00, 0x00, 0x00, 0xff, 0xff, 0x4a, 0xbe, 0x08, 0xbc, 0xe7, 0x05, 0x00, 0x00,
+	// 713 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x6c, 0x94, 0xcf, 0x6e, 0xea, 0x46,
+	0x14, 0xc6, 0x19, 0x20, 0x01, 0x1f, 0x92, 0xe0, 0x4e, 0x9b, 0xc6, 0x75, 0x55, 0x98, 0x22, 0x55,
+	0x22, 0xaa, 0x4a, 0x44, 0xda, 0x6e, 0xba, 0xa9, 0x70, 0xeb, 0x24, 0x48, 0x08, 0x52, 0x43, 0x9a,
+	0xec, 0x90, 0x81, 0xc1, 0xb1, 0xe4, 0x78, 0xe8, 0xd8, 0x54, 0xc9, 0x1b, 0x54, 0x5e, 0x75, 0xdb,
+	0x85, 0x57, 0x7d, 0x83, 0x3e, 0x45, 0xa5, 0xbb, 0xb9, 0x4f, 0x80, 0xae, 0x7c, 0x77, 0xf7, 0x29,
+	0xae, 0x3c, 0xfe, 0x97, 0xe8, 0xde, 0xdd, 0x9c, 0xf3, 0x7d, 0xbf, 0x39, 0x3e, 0x3a, 0xc7, 0x03,
+	0xcd, 0x0d, 0xa7, 0x2b, 0x7b, 0x69, 0xfa, 0xb4, 0xb7, 0xe1, 0xcc, 0x67, 0xb8, 0xe6, 0xf9, 0x8c,
+	0x9b, 0x16, 0x55, 0xbf, 0xb3, 0x6c, 0xff, 0x7e, 0xbb, 0xe8, 0x2d, 0xd9, 0xc3, 0x99, 0xc5, 0x2c,
+	0x76, 0x26, 0xf4, 0xc5, 0x76, 0x2d, 0x22, 0x11, 0x88, 0x53, 0xc2, 0x75, 0xfe, 0xa9, 0x43, 0x75,
+	0xcc, 0x56, 0x14, 0x0f, 0x41, 0x72, 0xd9, 0x8a, 0xce, 0xfd, 0xa7, 0x0d, 0x55, 0x10, 0x41, 0xdd,
+	0xa3, 0x73, 0xdc, 0x4b, 0x2f, 0xed, 0xc5, 0x8e, 0xde, 0xec, 0x69, 0x43, 0x35, 0x25, 0xda, 0xb5,
+	0xeb, 0x71, 0x18, 0x47, 0xef, 0x76, 0xed, 0xba, 0x9b, 0x9e, 0x8d, 0xfc, 0x84, 0x4f, 0xa1, 0xbe,
+	0xbc, 0xb7, 0x9d, 0x15, 0xa7, 0xae, 0x52, 0x26, 0x95, 0x6e, 0xe3, 0xfc, 0xf0, 0xc5, 0x4d, 0x46,
+	0x2e, 0xe3, 0x1f, 0xe0, 0xc0, 0xf3, 0xb9, 0xed, 0x5a, 0xf3, 0x3f, 0x4d, 0x67, 0x4b, 0x95, 0x0a,
+	0x41, 0x5d, 0x49, 0x6b, 0x46, 0xbb, 0x76, 0x63, 0x2a, 0xf2, 0xbf, 0xc7, 0xe9, 0xab, 0x92, 0xd1,
+	0xf0, 0x8a, 0x10, 0xf7, 0x01, 0x16, 0x8c, 0x39, 0x29, 0x53, 0x25, 0xa8, 0x5b, 0xd7, 0xe4, 0x68,
+	0xd7, 0x3e, 0xd0, 0x18, 0x73, 0xa8, 0xe9, 0x66, 0x90, 0x14, 0xbb, 0x12, 0xe4, 0x0c, 0x24, 0xdb,
+	0xf5, 0x53, 0x62, 0x8f, 0xa0, 0x6e, 0x25, 0x21, 0x86, 0xae, 0x4f, 0x2d, 0xca, 0x33, 0xa2, 0x6e,
+	0xbb, 0x7e, 0x02, 0x9c, 0x03, 0x6c, 0x0b, 0x62, 0x9f, 0xa0, 0x6e, 0x55, 0xfb, 0x24, 0xda, 0xb5,
+	0x0f, 0x6f, 0x5c, 0xcf, 0xb6, 0x5c, 0xba, 0xca, 0x8b, 0x6c, 0x73, 0xa6, 0x0f, 0x8d, 0xb5, 0xc3,
+	0xcc, 0x0c, 0xaa, 0x11, 0xd4, 0x45, 0xda, 0x51, 0xb4, 0x6b, 0xc3, 0x45, 0x9c, 0xce, 0x08, 0x58,
+	0xe7, 0x51, 0x8c, 0x70, 0x6a, 0xd1, 0xc7, 0x14, 0xa9, 0x8b, 0xfe, 0x05, 0x62, 0xc4, 0xe9, 0x1c,
+	0xe1, 0x79, 0x84, 0xbf, 0x05, 0x89, 0xd3, 0x75, 0x0a, 0x48, 0x02, 0x38, 0x88, 0xa7, 0x62, 0xd0,
+	0x75, 0xde, 0x06, 0x4f, 0xcf, 0xb8, 0x0f, 0x35, 0x87, 0x59, 0xf6, 0xd2, 0x74, 0x14, 0x10, 0x43,
+	0x3d, 0x7e, 0x39, 0xd4, 0x51, 0x22, 0x5e, 0x95, 0x8c, 0xcc, 0x87, 0x7f, 0x02, 0x58, 0xb2, 0x87,
+	0x8d, 0xc9, 0x6d, 0x8f, 0xb9, 0x4a, 0x43, 0x50, 0xca, 0x4b, 0xea, 0x97, 0x5c, 0x8f, 0xbf, 0xad,
+	0x70, 0x77, 0xfe, 0x43, 0x50, 0x15, 0x3b, 0xd0, 0x07, 0xf9, 0xd2, 0x98, 0xdc, 0x5c, 0xcf, 0xf5,
+	0xbb, 0x6b, 0x43, 0x9f, 0x4e, 0x87, 0x93, 0xb1, 0x5c, 0x52, 0xbf, 0x0c, 0x42, 0x72, 0x92, 0x6d,
+	0xcf, 0x25, 0x67, 0xdb, 0x8d, 0xfe, 0xb8, 0xe1, 0xd4, 0xf3, 0x6c, 0xe6, 0xe2, 0x1f, 0x01, 0x6b,
+	0x93, 0xc9, 0x48, 0x1f, 0x8c, 0x9f, 0x43, 0x48, 0xfd, 0x2a, 0x08, 0xc9, 0x17, 0x19, 0x94, 0x4e,
+	0xf8, 0x19, 0xa6, 0x40, 0xc5, 0xd0, 0x2f, 0xe4, 0xb2, 0xda, 0x0c, 0x42, 0xd2, 0xc8, 0x7c, 0x06,
+	0x5d, 0x63, 0x02, 0xb5, 0xd1, 0x70, 0xa6, 0x1b, 0x83, 0x91, 0x5c, 0x51, 0x3f, 0x0d, 0x42, 0xd2,
+	0xcc, 0xd4, 0x91, 0xed, 0x53, 0x6e, 0x3a, 0x6a, 0xf5, 0xaf, 0x7f, 0x5b, 0xa5, 0xce, 0x2b, 0x04,
+	0x50, 0x74, 0x84, 0x5b, 0xb0, 0xa7, 0xff, 0x76, 0x33, 0x18, 0xc9, 0xa5, 0x04, 0x2a, 0x24, 0xfd,
+	0x8f, 0xad, 0xe9, 0xe0, 0x6f, 0x40, 0x1a, 0x4f, 0x66, 0xf3, 0xc4, 0x83, 0xd4, 0xcf, 0x83, 0x90,
+	0xe0, 0xc2, 0x33, 0x66, 0x7e, 0x62, 0x3b, 0x85, 0xc6, 0x74, 0x36, 0x30, 0x66, 0xd3, 0xf9, 0xed,
+	0x70, 0x76, 0x25, 0x97, 0x55, 0x25, 0x08, 0xc9, 0x67, 0x85, 0x71, 0xea, 0x9b, 0xdc, 0xf7, 0x6e,
+	0x6d, 0xff, 0x3e, 0xae, 0x68, 0xe8, 0x97, 0xfa, 0x5d, 0xf6, 0x99, 0x85, 0x49, 0x2c, 0x41, 0x56,
+	0x31, 0xf1, 0x54, 0x3f, 0x52, 0x51, 0xd8, 0xd2, 0x6e, 0x7e, 0x86, 0x5a, 0x3a, 0x54, 0x7c, 0x02,
+	0x95, 0xc1, 0xf8, 0x57, 0xb9, 0xa4, 0x1e, 0x05, 0x21, 0x81, 0x34, 0x3b, 0x70, 0x57, 0xf8, 0x18,
+	0xca, 0x13, 0x43, 0x46, 0xea, 0x61, 0x10, 0x12, 0x29, 0xcd, 0x4f, 0x78, 0x72, 0x81, 0x56, 0x83,
+	0x3d, 0xb1, 0x5b, 0x9d, 0x1e, 0x48, 0xd7, 0xd9, 0x33, 0x83, 0xbf, 0x86, 0x2a, 0x67, 0xcc, 0x17,
+	0x4f, 0xc3, 0x07, 0x3f, 0xb4, 0x90, 0x34, 0xf9, 0xff, 0xa8, 0x85, 0x5e, 0x47, 0x2d, 0xf4, 0x26,
+	0x6a, 0xa1, 0xbf, 0xdf, 0xb6, 0x4a, 0x8b, 0x7d, 0xf1, 0xc8, 0x7c, 0xff, 0x3e, 0x00, 0x00, 0xff,
+	0xff, 0x21, 0xaf, 0x09, 0xe5, 0xaf, 0x04, 0x00, 0x00,
 }

@@ -3,24 +3,24 @@ package storage;
 
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
-message Predicate {
-  enum Comparison {
+message Node {
+  enum Type {
     option (gogoproto.goproto_enum_prefix) = false;
 
     // ComparisonEqual denotes the equal comparison operator.
+    GROUP_EXPRESSION = 0 [(gogoproto.enumvalue_customname) = "NodeTypeGroupExpression"];
+    BOOLEAN_EXPRESSION = 1 [(gogoproto.enumvalue_customname) = "NodeTypeBooleanExpression"];
+    REF = 2 [(gogoproto.enumvalue_customname) = "NodeTypeRef"];
+    LITERAL = 3 [(gogoproto.enumvalue_customname) = "NodeTypeLiteral"];
+  }
+
+  enum Comparison {
+    option (gogoproto.goproto_enum_prefix) = false;
     EQUAL = 0 [(gogoproto.enumvalue_customname) = "ComparisonEqual"];
-
-    // ComparisonNotEqual denotes the not equal comparison operator.
-    NEQUAL = 1 [(gogoproto.enumvalue_customname) = "ComparisonNotEqual"];
-
-    // ComparisonStartsWith denotes the starts with string comparison operator.
+    NOT_EQUAL = 1 [(gogoproto.enumvalue_customname) = "ComparisonNotEqual"];
     STARTS_WITH = 2 [(gogoproto.enumvalue_customname) = "ComparisonStartsWith"];
-
-    // ComparisonRegex denotes the regex string comparison operator.
     REGEX = 3 [(gogoproto.enumvalue_customname) = "ComparisonRegex"];
-
-    // ComparisonNotRegex denotes the negated regex string comparison operator.
-    NREGEX = 4 [(gogoproto.enumvalue_customname) = "ComparisonNotRegex"];
+    NOT_REGEX = 4 [(gogoproto.enumvalue_customname) = "ComparisonNotRegex"];
   }
 
   // Logical operators apply to boolean values and combine to produce a single boolean result.
@@ -31,50 +31,23 @@ message Predicate {
     OR = 1 [(gogoproto.enumvalue_customname) = "LogicalOr"];
   }
 
-  message Expression {
-    oneof value {
-      BooleanExpression binary_expression = 1 [(gogoproto.customname) = "BooleanExpression"];
-      GroupExpression group_expression = 2 [(gogoproto.customname) = "GroupExpression"];
-    }
-  }
 
-  // GroupExpression combines a group of expressions using either a logical AND or OR operator
-  message GroupExpression {
-    Logical op = 1;
-    repeated Expression expressions = 2;
-  }
+  Type node_type = 1 [(gogoproto.customname) = "NodeType", (gogoproto.jsontag) = "nodeType"];
+  repeated Node children = 2;
 
-  // BooleanExpressions compares two operands and yieds a boolean result
-  message BooleanExpression {
-    ValueExpression lhs = 1 [(gogoproto.customname) = "LHS"];
-    Comparison op = 2;
-    LiteralExpression rhs = 3 [(gogoproto.customname) = "RHS"];
+  oneof value {
+    string string_value = 3 [(gogoproto.customname) = "StringValue"];
+    bool bool_value = 4 [(gogoproto.customname) = "BooleanValue"];
+    int64 int_value = 5 [(gogoproto.customname) = "IntegerValue"];
+    uint64 uint_value = 6 [(gogoproto.customname) = "UnsignedValue"];
+    double float_value = 7 [(gogoproto.customname) = "FloatValue"];
+    string regex_value = 8 [(gogoproto.customname) = "RegexValue"];
+    string ref_value = 9 [(gogoproto.customname) = "RefValue"];
+    Logical logical = 10;
+    Comparison comparison = 11;
   }
+}
 
-  // ValueExpression represents a tag or literal value
-  message ValueExpression {
-    oneof value {
-      RefExpression ref = 1;
-      LiteralExpression literal = 2;
-    }
-  }
-
-  // RefExpression represents a tag reference
-  message RefExpression {
-    string ref = 1;
-  }
-
-  // LiteralExpression represents a typed literal value
-  message LiteralExpression {
-    oneof value {
-      string string_value = 1 [(gogoproto.customname) = "StringValue"];
-      bool bool_value = 2 [(gogoproto.customname) = "BooleanValue"];
-      int64 int_value = 3 [(gogoproto.customname) = "IntegerValue"];
-      uint64 uint_value = 4 [(gogoproto.customname) = "UnsignedValue"];
-      double float_value = 5 [(gogoproto.customname) = "FloatValue"];
-      string regex_value = 6 [(gogoproto.customname) = "RegexValue"];
-    }
-  }
-
-  Expression root = 1;
+message Predicate {
+  Node root = 1;
 }

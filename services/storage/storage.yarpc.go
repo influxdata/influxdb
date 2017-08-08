@@ -14,6 +14,7 @@ It has these top-level messages:
 	CapabilitiesResponse
 	HintsResponse
 	TimestampRange
+	Node
 	Predicate
 */
 package storage

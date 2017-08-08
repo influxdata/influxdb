@@ -2,30 +2,33 @@ package storage_test
 
 import (
 	"bytes"
-	"github.com/influxdata/influxdb/services/storage"
 	"strconv"
 	"testing"
+
+	"encoding/json"
+
+	"github.com/influxdata/influxdb/services/storage"
 )
 
-type vis1 struct {
+type visalt1 struct {
 	bytes.Buffer
 }
 
-func (v *vis1) Visit(node storage.Node) storage.PredicateVisitor {
-	switch n := node.(type) {
-	case *storage.Predicate_GroupExpression:
-		if len(n.Expressions) > 0 {
+func (v *visalt1) Visit(n *storage.Node) storage.PredicateVisitor {
+	switch n.NodeType {
+	case storage.NodeTypeGroupExpression:
+		if len(n.Children) > 0 {
 			var op string
-			if n.Op == storage.LogicalAnd {
+			if n.GetLogical() == storage.LogicalAnd {
 				op = " AND "
 			} else {
 				op = " OR "
 			}
 			v.Buffer.WriteString("( ")
-			storage.Walk(v, n.Expressions[0])
-			for _, e := range n.Expressions[1:] {
+			storage.WalkNode(v, n.Children[0])
+			for _, e := range n.Children[1:] {
 				v.Buffer.WriteString(op)
-				storage.Walk(v, e)
+				storage.WalkNode(v, e)
 			}
 
 			v.Buffer.WriteString(" )")
@@ -33,10 +36,10 @@ func (v *vis1) Visit(node storage.Node) storage.PredicateVisitor {
 
 		return nil
 
-	case *storage.Predicate_BooleanExpression:
-		storage.Walk(v, n.LHS)
+	case storage.NodeTypeBooleanExpression:
+		storage.WalkNode(v, n.Children[0])
 		v.Buffer.WriteByte(' ')
-		switch n.Op {
+		switch n.GetComparison() {
 		case storage.ComparisonEqual:
 			v.Buffer.WriteByte('=')
 		case storage.ComparisonNotEqual:
@@ -48,43 +51,42 @@ func (v *vis1) Visit(node storage.Node) storage.PredicateVisitor {
 		case storage.ComparisonNotRegex:
 			v.Buffer.WriteString("!~")
 		}
+
 		v.Buffer.WriteByte(' ')
-		storage.Walk(v, n.RHS)
+		storage.WalkNode(v, n.Children[1])
 		return nil
 
-	case *storage.Predicate_RefExpression:
+	case storage.NodeTypeRef:
 		v.Buffer.WriteByte('\'')
-		v.Buffer.WriteString(n.Ref)
+		v.Buffer.WriteString(n.GetStringValue())
 		v.Buffer.WriteByte('\'')
 		return nil
 
-	case *storage.Predicate_LiteralExpression_StringValue:
-		v.Buffer.WriteString(strconv.Quote(n.StringValue))
-		return nil
+	case storage.NodeTypeLiteral:
+		switch val := n.Value.(type) {
+		case *storage.Node_StringValue:
+			v.Buffer.WriteString(strconv.Quote(val.StringValue))
 
-	case *storage.Predicate_LiteralExpression_RegexValue:
-		v.Buffer.WriteByte('/')
-		v.Buffer.WriteString(n.RegexValue)
-		v.Buffer.WriteByte('/')
-		return nil
+		case *storage.Node_RegexValue:
+			v.Buffer.WriteByte('/')
+			v.Buffer.WriteString(val.RegexValue)
+			v.Buffer.WriteByte('/')
 
-	case *storage.Predicate_LiteralExpression_IntegerValue:
-		v.Buffer.WriteString(strconv.FormatInt(n.IntegerValue, 10))
-		return nil
+		case *storage.Node_IntegerValue:
+			v.Buffer.WriteString(strconv.FormatInt(val.IntegerValue, 10))
 
-	case *storage.Predicate_LiteralExpression_UnsignedValue:
-		v.Buffer.WriteString(strconv.FormatUint(n.UnsignedValue, 10))
-		return nil
+		case *storage.Node_UnsignedValue:
+			v.Buffer.WriteString(strconv.FormatUint(val.UnsignedValue, 10))
 
-	case *storage.Predicate_LiteralExpression_FloatValue:
-		v.Buffer.WriteString(strconv.FormatFloat(n.FloatValue, 'f', 10, 64))
-		return nil
+		case *storage.Node_FloatValue:
+			v.Buffer.WriteString(strconv.FormatFloat(val.FloatValue, 'f', 10, 64))
 
-	case *storage.Predicate_LiteralExpression_BooleanValue:
-		if n.BooleanValue {
-			v.Buffer.WriteString("true")
-		} else {
-			v.Buffer.WriteString("false")
+		case *storage.Node_BooleanValue:
+			if val.BooleanValue {
+				v.Buffer.WriteString("true")
+			} else {
+				v.Buffer.WriteString("false")
+			}
 		}
 
 		return nil
@@ -95,54 +97,39 @@ func (v *vis1) Visit(node storage.Node) storage.PredicateVisitor {
 }
 
 func TestWalk(t *testing.T) {
-	var v vis1
+	var v visalt1
 
 	pred := &storage.Predicate{
-		Root: &storage.Predicate_Expression{
-			Value: &storage.Predicate_Expression_GroupExpression{
-				GroupExpression: &storage.Predicate_GroupExpression{
-					Op: storage.LogicalAnd,
-					Expressions: []*storage.Predicate_Expression{
-						{
-							Value: &storage.Predicate_Expression_BooleanExpression{
-								BooleanExpression: &storage.Predicate_BooleanExpression{
-									LHS: &storage.Predicate_ValueExpression{
-										Value: &storage.Predicate_ValueExpression_Ref{
-											Ref: &storage.Predicate_RefExpression{
-												Ref: "host",
-											},
-										},
-									},
-									Op: storage.ComparisonEqual,
-									RHS: &storage.Predicate_LiteralExpression{
-										Value: &storage.Predicate_LiteralExpression_StringValue{StringValue: "host1"},
-									},
-								},
-							},
-						},
-						{
-							Value: &storage.Predicate_Expression_BooleanExpression{
-								BooleanExpression: &storage.Predicate_BooleanExpression{
-									LHS: &storage.Predicate_ValueExpression{
-										Value: &storage.Predicate_ValueExpression_Ref{
-											Ref: &storage.Predicate_RefExpression{
-												Ref: "region",
-											},
-										},
-									},
-									Op: storage.ComparisonRegex,
-									RHS: &storage.Predicate_LiteralExpression{
-										Value: &storage.Predicate_LiteralExpression_RegexValue{RegexValue: "^us-west"},
-									},
-								},
-							},
-						},
+		Root: &storage.Node{
+			NodeType: storage.NodeTypeGroupExpression,
+			Value:    &storage.Node_Logical_{Logical: storage.LogicalAnd},
+			Children: []*storage.Node{
+				{
+					NodeType: storage.NodeTypeBooleanExpression,
+					Value:    &storage.Node_Comparison_{Comparison: storage.ComparisonEqual},
+					Children: []*storage.Node{
+						{NodeType: storage.NodeTypeRef, Value: &storage.Node_RefValue{RefValue: "host"}},
+						{NodeType: storage.NodeTypeLiteral, Value: &storage.Node_StringValue{StringValue: "host1"}},
+					},
+				},
+				{
+					NodeType: storage.NodeTypeBooleanExpression,
+					Value:    &storage.Node_Comparison_{Comparison: storage.ComparisonRegex},
+					Children: []*storage.Node{
+						{NodeType: storage.NodeTypeRef, Value: &storage.Node_RefValue{RefValue: "region"}},
+						{NodeType: storage.NodeTypeLiteral, Value: &storage.Node_RegexValue{RegexValue: "^us-west"}},
 					},
 				},
 			},
 		},
 	}
 
-	storage.Walk(&v, pred)
+	d, err := json.MarshalIndent(pred, " ", " ")
+	if err != nil {
+		t.Error(err)
+	}
+	t.Log(string(d))
+
+	storage.WalkNode(&v, pred.Root)
 	t.Log(v.String())
 }
