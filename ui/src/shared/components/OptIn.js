@@ -6,7 +6,7 @@ const RESET_TIMEOUT = 300
 const TOGGLE_CLICKED_TIMEOUT = 20
 const BLUR_FOCUS_GAP_TIMEOUT = 10
 
-class OneOrAny extends Component {
+class OptIn extends Component {
   constructor(props) {
     super(props)
 
@@ -133,20 +133,18 @@ class OneOrAny extends Component {
     const {useRightValue, rightValue} = this.state
 
     return (
-      <div
-        className={classnames('one-or-any', {'right-toggled': useRightValue})}
-      >
+      <div className={classnames('opt-in', {'right-toggled': useRightValue})}>
         <div
-          className="one-or-any--left-label"
+          className="opt-in--left-label"
           onClick={this.handleClickLeftValueField()}
         >
           {leftLabel}
         </div>
         <div
-          className="one-or-any--groove-knob-container"
+          className="opt-in--groove-knob-container"
           onClick={this.handleClickToggle()}
         >
-          <div className="one-or-any--groove-knob" />
+          <div className="opt-in--groove-knob" />
         </div>
         <input
           className="form-control input-sm"
@@ -170,7 +168,7 @@ class OneOrAny extends Component {
   }
 }
 
-OneOrAny.defaultProps = {
+OptIn.defaultProps = {
   leftLabel: 'auto',
   leftValue: '',
   rightLabel: 'Custom Value',
@@ -178,7 +176,7 @@ OneOrAny.defaultProps = {
 }
 const {func, string} = PropTypes
 
-OneOrAny.propTypes = {
+OptIn.propTypes = {
   leftLabel: string,
   leftValue: string,
   rightLabel: string,
@@ -186,4 +184,4 @@ OneOrAny.propTypes = {
   onSetValue: func.isRequired,
 }
 
-export default OneOrAny
+export default OptIn
