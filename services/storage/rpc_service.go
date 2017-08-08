@@ -35,6 +35,11 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 		return err
 	}
 
+	if rs == nil {
+		stream.Send(&ReadResponse{})
+		return nil
+	}
+
 	lim := int64(req.Limit)
 	i := int64(0)
 	b := 0

@@ -67,6 +67,10 @@ func (s *Store) Read(req ReadRequest) (*ResultSet, error) {
 		return nil, err
 	}
 
+	if len(groups) == 0 {
+		return nil, nil
+	}
+
 	shardIDs := make([]uint64, 0, len(groups[0].Shards)*len(groups))
 	for _, g := range groups {
 		for _, si := range g.Shards {
