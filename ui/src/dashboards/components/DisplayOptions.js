@@ -7,7 +7,8 @@ const DisplayOptions = ({
   selectedGraphType,
   onSelectGraphType,
   onSetLabel,
-  onSetRange,
+  onSetYAxisBoundMin,
+  onSetYAxisBoundMax,
   axes,
 }) =>
   <div className="display-options">
@@ -15,7 +16,12 @@ const DisplayOptions = ({
       selectedGraphType={selectedGraphType}
       onSelectGraphType={onSelectGraphType}
     />
-    <AxesOptions onSetLabel={onSetLabel} onSetRange={onSetRange} axes={axes} />
+    <AxesOptions
+      onSetLabel={onSetLabel}
+      onSetYAxisBoundMin={onSetYAxisBoundMin}
+      onSetYAxisBoundMax={onSetYAxisBoundMax}
+      axes={axes}
+    />
   </div>
 
 const {func, shape, string} = PropTypes
@@ -23,7 +29,8 @@ const {func, shape, string} = PropTypes
 DisplayOptions.propTypes = {
   selectedGraphType: string.isRequired,
   onSelectGraphType: func.isRequired,
-  onSetRange: func.isRequired,
+  onSetYAxisBoundMin: func.isRequired,
+  onSetYAxisBoundMax: func.isRequired,
   onSetLabel: func.isRequired,
   axes: shape({}).isRequired,
 }

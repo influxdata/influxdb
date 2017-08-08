@@ -32,7 +32,8 @@ class CellEditorOverlay extends Component {
     this.handleClickDisplayOptionsTab = ::this.handleClickDisplayOptionsTab
     this.handleSetActiveQueryIndex = ::this.handleSetActiveQueryIndex
     this.handleEditRawText = ::this.handleEditRawText
-    this.handleSetYAxisBounds = ::this.handleSetYAxisBounds
+    this.handleSetYAxisBoundMin = ::this.handleSetYAxisBoundMin
+    this.handleSetYAxisBoundMax = ::this.handleSetYAxisBoundMax
     this.handleSetLabel = ::this.handleSetLabel
 
     const {cell: {name, type, queries, axes}} = props
@@ -93,22 +94,28 @@ class CellEditorOverlay extends Component {
     }
   }
 
-  handleSetYAxisBounds(e) {
-    const {min, max} = e.target.form
+  handleSetYAxisBoundMin(min) {
     const {axes} = this.state
+    const {y: {bounds: [, max]}} = axes
 
     this.setState({
-      axes: {...axes, y: {...axes.y, bounds: [min.value, max.value]}},
+      axes: {...axes, y: {...axes.y, bounds: [min, max]}},
     })
-    e.preventDefault()
   }
 
-  handleSetLabel(e) {
-    const {label} = e.target.form
+  handleSetYAxisBoundMax(max) {
+    const {axes} = this.state
+    const {y: {bounds: [min]}} = axes
+
+    this.setState({
+      axes: {...axes, y: {...axes.y, bounds: [min, max]}},
+    })
+  }
+
+  handleSetLabel(value) {
     const {axes} = this.state
 
-    this.setState({axes: {...axes, y: {...axes.y, label: label.value}}})
-    e.preventDefault()
+    this.setState({axes: {...axes, y: {...axes.y, label: value}}})
   }
 
   handleAddQuery(options) {
@@ -245,7 +252,8 @@ class CellEditorOverlay extends Component {
               ? <DisplayOptions
                   selectedGraphType={cellWorkingType}
                   onSelectGraphType={this.handleSelectGraphType}
-                  onSetRange={this.handleSetYAxisBounds}
+                  onSetYAxisBoundMin={this.handleSetYAxisBoundMin}
+                  onSetYAxisBoundMax={this.handleSetYAxisBoundMax}
                   onSetLabel={this.handleSetLabel}
                   axes={axes}
                 />

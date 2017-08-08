@@ -114,12 +114,11 @@ class OptIn extends Component {
   setValue() {
     const {onSetValue} = this.props
     const {useRightValue, leftValue, rightValue} = this.state
-
     if (useRightValue) {
-      onSetValue({value: rightValue})
+      onSetValue(rightValue)
     } else {
       this.setState({rightValue: ''})
-      onSetValue({value: leftValue})
+      onSetValue(leftValue)
     }
 
     // reset UI interaction state-tracking values & prevent blur + click
@@ -129,7 +128,7 @@ class OptIn extends Component {
   }
 
   render() {
-    const {leftLabel, rightLabel} = this.props
+    const {leftLabel, rightLabel, type} = this.props
     const {useRightValue, rightValue} = this.state
 
     return (
@@ -150,9 +149,9 @@ class OptIn extends Component {
         </div>
         <input
           className="form-control input-sm"
-          type="number"
-          name="rightValueInput"
-          id="rightValueInput"
+          type={type}
+          name={rightLabel}
+          id={rightLabel}
           ref={el => (this.rightValueInput = el)}
           value={rightValue}
           onClick={() => {
@@ -176,7 +175,7 @@ OptIn.defaultProps = {
   rightLabel: 'Custom Value',
   value: '',
 }
-const {func, string} = PropTypes
+const {func, oneOf, string} = PropTypes
 
 OptIn.propTypes = {
   leftLabel: string,
@@ -184,6 +183,7 @@ OptIn.propTypes = {
   rightLabel: string,
   value: string,
   onSetValue: func.isRequired,
+  type: oneOf(['text', 'number']),
 }
 
 export default OptIn

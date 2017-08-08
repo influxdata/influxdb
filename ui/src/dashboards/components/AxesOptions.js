@@ -1,8 +1,15 @@
 import React, {PropTypes} from 'react'
 import _ from 'lodash'
 
+import OptIn from 'shared/components/OptIn'
+
 // TODO: add logic for for Prefix, Suffix, Scale, and Multiplier
-const AxesOptions = ({onSetRange, onSetLabel, axes}) => {
+const AxesOptions = ({
+  onSetYAxisBoundMin,
+  onSetYAxisBoundMax,
+  onSetLabel,
+  axes,
+}) => {
   const min = _.get(axes, ['y', 'bounds', '0'], '')
   const max = _.get(axes, ['y', 'bounds', '1'], '')
   const label = _.get(axes, ['y', 'label'], '')
@@ -12,44 +19,29 @@ const AxesOptions = ({onSetRange, onSetLabel, axes}) => {
       <h5 className="display-options--header">Y Axis Controls</h5>
       <form autoComplete="off" style={{margin: '0 -6px'}}>
         <div className="form-group col-sm-12">
-          <label htmlFor="prefix">Title</label>
-          <input
-            className="form-control input-sm"
-            type="text"
-            name="label"
-            id="label"
+          <OptIn
+            rightLabel={'label'}
             value={label}
-            onChange={onSetLabel}
-            placeholder="auto"
+            onSetValue={onSetLabel}
+            type="text"
           />
         </div>
         <div className="form-group col-sm-6">
-          <label htmlFor="min">Min</label>
-          <input
-            className="form-control input-sm"
-            type="number"
-            name="min"
-            id="min"
+          <OptIn
+            rightLabel={'min'}
             value={min}
-            onChange={onSetRange}
-            placeholder="auto"
+            onSetValue={onSetYAxisBoundMin}
+            type="number"
           />
         </div>
         <div className="form-group col-sm-6">
-          <label htmlFor="max">Max</label>
-          <input
-            className="form-control input-sm"
-            type="number"
-            name="max"
-            id="max"
+          <OptIn
+            rightLabel={'max'}
             value={max}
-            onChange={onSetRange}
-            placeholder="auto"
+            onSetValue={onSetYAxisBoundMax}
+            type="number"
           />
         </div>
-        <p className="display-options--footnote">
-          Values left blank will be set automatically
-        </p>
         {/* <div className="form-group col-sm-6">
           <label htmlFor="prefix">Labels Prefix</label>
           <input
@@ -90,7 +82,8 @@ const AxesOptions = ({onSetRange, onSetLabel, axes}) => {
 const {arrayOf, func, shape, string} = PropTypes
 
 AxesOptions.propTypes = {
-  onSetRange: func.isRequired,
+  onSetYAxisBoundMin: func.isRequired,
+  onSetYAxisBoundMax: func.isRequired,
   onSetLabel: func.isRequired,
   axes: shape({
     y: shape({
