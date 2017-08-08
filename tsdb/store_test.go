@@ -977,53 +977,41 @@ func createTagValues(mname string, kvs map[string][]string) tsdb.TagValues {
 	return out
 }
 
-func benchmarkStoreSeriesCardinality(b *testing.B, store *Store, n int) {
-	// Write a point to n shards.
-	for shardID := 0; shardID < n; shardID++ {
-		if err := store.CreateShard("db", "rp", uint64(shardID), true); err != nil {
-			b.Fatalf("create shard: %s", err)
+func BenchmarkStore_SeriesCardinality_100_Shards(b *testing.B) {
+	for _, index := range tsdb.RegisteredIndexes() {
+		store := NewStore()
+		store.EngineOptions.IndexVersion = index
+		if err := store.Open(); err != nil {
+			panic(err)
 		}
 
-		err := store.WriteToShard(uint64(shardID), []models.Point{models.MustNewPoint("cpu", nil, map[string]interface{}{"value": 1.0}, time.Now())})
-		if err != nil {
-			b.Fatalf("write: %s", err)
+		// Write a point to n shards.
+		for shardID := 0; shardID < 100; shardID++ {
+			if err := store.CreateShard("db", "rp", uint64(shardID), true); err != nil {
+				b.Fatalf("create shard: %s", err)
+			}
+
+			err := store.WriteToShard(uint64(shardID), []models.Point{models.MustNewPoint("cpu", nil, map[string]interface{}{"value": 1.0}, time.Now())})
+			if err != nil {
+				b.Fatalf("write: %s", err)
+			}
 		}
-	}
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, _ = store.SeriesCardinality("db")
+		b.Run(store.EngineOptions.IndexVersion, func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				_, _ = store.SeriesCardinality("db")
+			}
+		})
+		store.Close()
 	}
-}
-
-func BenchmarkStore_SeriesCardinality_100_Shards_Inmem(b *testing.B) {
-	store := NewStore()
-	store.EngineOptions.Config.Index = "inmem"
-	if err := store.Open(); err != nil {
-		panic(err)
-	}
-	defer store.Close()
-	benchmarkStoreSeriesCardinality(b, store, 100)
-}
-
-func BenchmarkStore_SeriesCardinality_100_Shards_TSI(b *testing.B) {
-	store := NewStore()
-	store.EngineOptions.Config.Index = "tsi1"
-	if err := store.Open(); err != nil {
-		panic(err)
-	}
-	defer store.Close()
-	benchmarkStoreSeriesCardinality(b, store, 100)
 }
 
 func BenchmarkStoreOpen_200KSeries_100Shards(b *testing.B) { benchmarkStoreOpen(b, 64, 5, 5, 1, 100) }
 
 func benchmarkStoreOpen(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt, shardCnt int) {
-	var path string
-	if err := func() error {
-		store := MustOpenStore("inmem")
-		defer store.Store.Close()
-		path = store.Path()
+	var store *Store
+	setup := func(index string) error {
+		store := MustOpenStore(index)
 
 		// Generate test series (measurements + unique tag sets).
 		series := genTestSeries(mCnt, tkCnt, tvCnt)
@@ -1047,22 +1035,25 @@ func benchmarkStoreOpen(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt, shardCnt int) 
 			}
 		}
 		return nil
-	}(); err != nil {
-		b.Fatal(err)
 	}
-	defer os.RemoveAll(path)
 
-	// Run the benchmark loop.
-	b.ResetTimer()
-	for n := 0; n < b.N; n++ {
-		store := tsdb.NewStore(path)
-		if err := store.Open(); err != nil {
-			b.Fatalf("open store error: %s", err)
+	for _, index := range tsdb.RegisteredIndexes() {
+		if err := setup(index); err != nil {
+			b.Fatal(err)
 		}
+		b.Run(store.EngineOptions.IndexVersion, func(b *testing.B) {
+			for n := 0; n < b.N; n++ {
+				store := tsdb.NewStore(store.Path())
+				if err := store.Open(); err != nil {
+					b.Fatalf("open store error: %s", err)
+				}
 
-		b.StopTimer()
-		store.Close()
-		b.StartTimer()
+				b.StopTimer()
+				store.Close()
+				b.StartTimer()
+			}
+		})
+		os.RemoveAll(store.Path())
 	}
 }
 
@@ -1166,7 +1157,7 @@ func BenchmarkStore_TagValues(b *testing.B) {
 	}
 
 	var err error
-	for _, index := range []string{"inmem", "tsi1"} {
+	for _, index := range tsdb.RegisteredIndexes() {
 		for useRand := 0; useRand < 2; useRand++ {
 			for c, condition := range []influxql.Expr{cond1, cond2} {
 				for _, bm := range benchmarks {
