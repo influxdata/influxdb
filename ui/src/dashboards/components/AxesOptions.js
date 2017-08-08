@@ -20,24 +20,24 @@ const AxesOptions = ({
       <form autoComplete="off" style={{margin: '0 -6px'}}>
         <div className="form-group col-sm-12">
           <OptIn
-            rightLabel={'label'}
-            value={label}
+            customPlaceholder={'label'}
+            customValue={label}
             onSetValue={onSetLabel}
             type="text"
           />
         </div>
         <div className="form-group col-sm-6">
           <OptIn
-            rightLabel={'min'}
-            value={min}
+            customPlaceholder={'min'}
+            customValue={min}
             onSetValue={onSetYAxisBoundMin}
             type="number"
           />
         </div>
         <div className="form-group col-sm-6">
           <OptIn
-            rightLabel={'max'}
-            value={max}
+            customPlaceholder={'max'}
+            customValue={max}
             onSetValue={onSetYAxisBoundMax}
             type="number"
           />

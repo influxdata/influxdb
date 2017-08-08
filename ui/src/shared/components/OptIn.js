@@ -10,57 +10,56 @@ class OptIn extends Component {
   constructor(props) {
     super(props)
 
-    const {value, leftValue} = props
-    const useRightValue = value !== ''
+    const {customValue, fixedValue} = props
 
     this.state = {
-      useRightValue,
-      leftValue,
-      rightValue: value || '',
-      // leftValueFieldClicked: false,
+      useCustomValue: customValue === '',
+      fixedValue,
+      customValue,
+      // fixedValueFieldClicked: false,
       toggleClicked: false,
-      rightValueInputBlurred: false,
-      // rightValueInputClicked: false, // TODO: implement right input clickability
+      customValueInputBlurred: false,
+      // customValueInputClicked: false, // TODO: implement custom input clickability
     }
 
-    this.useLeftValue = ::this.useLeftValue
+    this.useFixedValue = ::this.useFixedValue
     this.toggleValue = ::this.toggleValue
-    this.useRightValue = ::this.useRightValue
-    // this.handleClickLeftValueField = ::this.handleClickLeftValueField
+    this.useCustomValue = ::this.useCustomValue
+    // this.handleClickFixedValueField = ::this.handleClickFixedValueField
     this.handleClickToggle = ::this.handleClickToggle
-    this.handleBlurRightValueInput = ::this.handleBlurRightValueInput
-    this.handleChangeRightValue = ::this.handleChangeRightValue
-    this.handleKeyPressRightValueInput = ::this.handleKeyPressRightValueInput
-    this.setRightValue = ::this.setRightValue
+    this.handleBlurCustomValueInput = ::this.handleBlurCustomValueInput
+    this.handleChangeCustomValue = ::this.handleChangeCustomValue
+    this.handleKeyPressCustomValueInput = ::this.handleKeyPressCustomValueInput
+    this.setCustomValue = ::this.setCustomValue
     this.setValue = ::this.setValue
   }
 
-  useLeftValue() {
-    this.setState({useRightValue: false}, this.setValue)
+  useFixedValue() {
+    this.setState({useCustomValue: false}, this.setValue)
   }
 
   toggleValue() {
-    const useRightValueNext = !this.state.useRightValue
-    if (useRightValueNext && !this.state.rightValueInputBlurred) {
-      this.useRightValue()
+    const useCustomValueNext = !this.state.useCustomValue
+    if (useCustomValueNext && !this.state.customValueInputBlurred) {
+      this.useCustomValue()
     } else {
-      this.useLeftValue()
+      this.useFixedValue()
     }
   }
 
-  useRightValue() {
-    this.setState({useRightValue: true}, () => {
-      if (this.state.toggleClicked && !this.state.rightValueInputBlurred) {
-        // TODO: || if this.state.rightValueInputClicked
-        this.rightValueInput.focus()
+  useCustomValue() {
+    this.setState({useCustomValue: true}, () => {
+      if (this.state.toggleClicked && !this.state.customValueInputBlurred) {
+        // TODO: || if this.state.customValueInputClicked
+        this.customValueInput.focus()
       }
       this.setValue()
     })
   }
 
-  // handleClickLeftValueField() {
+  // handleClickFixedValueField() {
   //   return () => {
-  //     this.setState({leftValueFieldClicked: true}, this.useLeftValue)
+  //     this.setState({fixedValueFieldClicked: true}, this.useFixedValue)
   //   }
   // }
 
@@ -76,15 +75,15 @@ class OptIn extends Component {
     }
   }
 
-  handleBlurRightValueInput() {
+  handleBlurCustomValueInput() {
     return e => {
       this.setState(
-        {rightValueInputBlurred: true, rightValue: e.target.value.trim()},
+        {customValueInputBlurred: true, customValue: e.target.value.trim()},
         () => {
-          if (this.state.rightValue === '') {
+          if (this.state.customValue === '') {
             setTimeout(() => {
               if (!this.state.toggleClicked) {
-                this.useLeftValue()
+                this.useFixedValue()
               }
             }, BLUR_FOCUS_GAP_TIMEOUT)
           }
@@ -93,95 +92,99 @@ class OptIn extends Component {
     }
   }
 
-  handleChangeRightValue() {
+  handleChangeCustomValue() {
     return e => {
-      this.setRightValue(e.target.value)
+      this.setCustomValue(e.target.value)
     }
   }
 
-  handleKeyPressRightValueInput() {
+  handleKeyPressCustomValueInput() {
     return e => {
       if (e.key === 'Enter') {
-        this.rightValueInput.blur()
+        this.customValueInput.blur()
       }
     }
   }
 
-  setRightValue(value) {
-    this.setState({rightValue: value}, this.setValue)
+  setCustomValue(value) {
+    this.setState({customValue: value}, this.setValue)
   }
 
   setValue() {
     const {onSetValue} = this.props
-    const {useRightValue, leftValue, rightValue} = this.state
-    if (useRightValue) {
-      onSetValue(rightValue)
+    const {useCustomValue, fixedValue, customValue} = this.state
+    if (useCustomValue) {
+      onSetValue(customValue)
     } else {
-      this.setState({rightValue: ''})
-      onSetValue(leftValue)
+      this.setState({customValue: ''})
+      onSetValue(fixedValue)
     }
 
     // reset UI interaction state-tracking values & prevent blur + click
     setTimeout(() => {
-      this.setState({toggleClicked: false, rightValueInputBlurred: false})
+      this.setState({toggleClicked: false, customValueInputBlurred: false})
     }, RESET_TIMEOUT)
   }
 
   render() {
-    const {leftLabel, rightLabel, type} = this.props
-    const {useRightValue, rightValue} = this.state
+    const {fixedPlaceholder, customPlaceholder, type} = this.props
+    const {useCustomValue, customValue} = this.state
 
     return (
-      <div className={classnames('opt-in', {'right-toggled': useRightValue})}>
-        <div
-          className="opt-in--left-label"
+      <div
+        className={classnames('opt-in', {
+          'right-toggled': useCustomValue,
+        })}
+      >
+        <input
+          className="form-control input-sm"
+          type={type}
+          name={customPlaceholder}
+          id={customPlaceholder}
+          ref={el => (this.customValueInput = el)}
+          value={customValue}
           onClick={() => {
-            // this.handleClickLeftValueField() // TODO: re-enable once clickability of right value input is enabled
+            // TODO: you can't 'click' a disabled button -- find another solution
+            // this.useCustomValue()
           }}
-        >
-          {leftLabel}
-        </div>
+          onBlur={this.handleBlurCustomValueInput()}
+          onChange={this.handleChangeCustomValue()}
+          onKeyPress={this.handleKeyPressCustomValueInput()}
+          placeholder={customPlaceholder}
+          // disabled={!useCustomValue}
+        />
         <div
           className="opt-in--groove-knob-container"
           onClick={this.handleClickToggle()}
         >
           <div className="opt-in--groove-knob" />
         </div>
-        <input
-          className="form-control input-sm"
-          type={type}
-          name={rightLabel}
-          id={rightLabel}
-          ref={el => (this.rightValueInput = el)}
-          value={rightValue}
+        <div
+          className="opt-in--left-label"
           onClick={() => {
-            // TODO: you can't 'click' a disabled button -- find another solution
-            // this.useRightValue()
+            // this.handleClickFixedValueField() // TODO: re-enable once clickability of custom value input is enabled
           }}
-          onBlur={this.handleBlurRightValueInput()}
-          onChange={this.handleChangeRightValue()}
-          onKeyPress={this.handleKeyPressRightValueInput()}
-          placeholder={rightLabel}
-          disabled={!useRightValue}
-        />
+        >
+          {fixedPlaceholder}
+        </div>
       </div>
     )
   }
 }
 
 OptIn.defaultProps = {
-  leftLabel: 'auto',
-  leftValue: '',
-  rightLabel: 'Custom Value',
-  value: '',
+  fixedPlaceholder: 'auto',
+  fixedValue: '',
+  customPlaceholder: 'Custom Value',
+  customValue: '',
 }
 const {func, oneOf, string} = PropTypes
 
 OptIn.propTypes = {
-  leftLabel: string,
-  leftValue: string,
-  rightLabel: string,
-  value: string,
+  fixedPlaceholder: string,
+  fixedValue: string,
+  customPlaceholder: string,
+  customValue: string,
   onSetValue: func.isRequired,
   type: oneOf(['text', 'number']),
 }
