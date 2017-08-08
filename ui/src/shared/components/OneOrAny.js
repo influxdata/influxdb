@@ -30,6 +30,7 @@ class OneOrAny extends Component {
     this.handleClickToggle = ::this.handleClickToggle
     this.handleBlurRightValueInput = ::this.handleBlurRightValueInput
     this.handleChangeRightValue = ::this.handleChangeRightValue
+    this.handleKeyPressRightValueInput = ::this.handleKeyPressRightValueInput
     this.setRightValue = ::this.setRightValue
     this.setValue = ::this.setValue
   }
@@ -98,6 +99,14 @@ class OneOrAny extends Component {
     }
   }
 
+  handleKeyPressRightValueInput() {
+    return e => {
+      if (e.key === 'Enter') {
+        this.rightValueInput.blur()
+      }
+    }
+  }
+
   setRightValue(value) {
     this.setState({rightValue: value}, this.setValue)
   }
@@ -152,6 +161,7 @@ class OneOrAny extends Component {
           }}
           onBlur={this.handleBlurRightValueInput()}
           onChange={this.handleChangeRightValue()}
+          onKeyPress={this.handleKeyPressRightValueInput()}
           placeholder={rightLabel}
           disabled={!useRightValue}
         />
