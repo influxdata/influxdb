@@ -626,7 +626,7 @@ func NewReaderIterator(r io.Reader, typ DataType, stats IteratorStats) Iterator 
 	case Boolean:
 		return newBooleanReaderIterator(r, stats)
 	default:
-		return &nilFloatIterator{}
+		return &nilFloatReaderIterator{r: r}
 	}
 }
 
@@ -1232,6 +1232,20 @@ type nilFloatIterator struct{}
 func (*nilFloatIterator) Stats() IteratorStats       { return IteratorStats{} }
 func (*nilFloatIterator) Close() error               { return nil }
 func (*nilFloatIterator) Next() (*FloatPoint, error) { return nil, nil }
+
+type nilFloatReaderIterator struct {
+	r io.Reader
+}
+
+func (*nilFloatReaderIterator) Stats() IteratorStats { return IteratorStats{} }
+func (itr *nilFloatReaderIterator) Close() error {
+	if r, ok := itr.r.(io.ReadCloser); ok {
+		itr.r = nil
+		return r.Close()
+	}
+	return nil
+}
+func (*nilFloatReaderIterator) Next() (*FloatPoint, error) { return nil, nil }
 
 // integerFloatTransformIterator executes a function to modify an existing point for every
 // output of the input iterator.
