@@ -1231,6 +1231,7 @@ type nilFloatReaderIterator struct {
 func (*nilFloatReaderIterator) Stats() IteratorStats { return IteratorStats{} }
 func (itr *nilFloatReaderIterator) Close() error {
 	if r, ok := itr.r.(io.ReadCloser); ok {
+		itr.r = nil
 		return r.Close()
 	}
 	return nil
