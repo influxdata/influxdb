@@ -7,6 +7,7 @@ import (
 	"github.com/gogo/protobuf/types"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/uber-go/zap"
+	"math"
 )
 
 //go:generate protoc -I$GOPATH/src -I. --plugin=protoc-gen-yarpc=$GOPATH/bin/protoc-gen-yarpc --yarpc_out=Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types:. --gogofaster_out=Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types:. storage.proto predicate.proto
@@ -41,17 +42,21 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 	}
 
 	lim := int64(req.Limit)
+	if lim == 0 {
+		lim = math.MaxInt64
+	}
+
 	i := int64(0)
 	b := 0
 	var lastKey string
 	var res ReadResponse
-	res.Frames = make([]ReadResponse_Frame, FrameCount)
+	res.Frames = make([]ReadResponse_Frame, 0, FrameCount)
 
 LIMIT:
 	for rs.Next() {
 		if len(res.Frames) >= FrameCount {
 			stream.Send(&res)
-			res.Frames = make([]ReadResponse_Frame, FrameCount)
+			res.Frames = make([]ReadResponse_Frame, 0, FrameCount)
 		}
 
 		cur := rs.Cursor()
@@ -123,7 +128,7 @@ LIMIT:
 		}
 	}
 
-	if len(res.Frames) >= FrameCount {
+	if len(res.Frames) >= 0 {
 		stream.Send(&res)
 	}
 
