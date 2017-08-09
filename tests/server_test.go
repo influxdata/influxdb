@@ -40,14 +40,18 @@ func TestMain(m *testing.M) {
 		benchServer = OpenDefaultServer(c)
 
 		// Run test suite.
-		fmt.Printf("============= Running all tests for %q index =============\n", indexType)
+		if testing.Verbose() {
+			fmt.Printf("============= Running all tests for %q index =============\n", indexType)
+		}
 		if thisr := m.Run(); r == 0 {
 			r = thisr // We'll always remember the first time r is non-zero
 		}
 
 		// Cleanup
 		benchServer.Close()
-		fmt.Println()
+		if testing.Verbose() {
+			fmt.Println()
+		}
 	}
 	os.Exit(r)
 }
@@ -8413,7 +8417,7 @@ func TestServer_Query_LargeTimestamp(t *testing.T) {
 	// Open a new server with the same configuration file.
 	// This is to ensure the meta data was marshaled correctly.
 	s2 := OpenServer((s.(*LocalServer)).Config)
-	defer s2.Close()
+	defer s2.(*LocalServer).Server.Close()
 
 	for _, query := range test.queries {
 		t.Run(query.name, func(t *testing.T) {
