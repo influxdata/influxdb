@@ -26,7 +26,13 @@
 - [#8607](https://github.com/influxdata/influxdb/issues/8607): Fix time zone shifts when the shift happens on a time zone boundary.
 - [#8639](https://github.com/influxdata/influxdb/issues/8639): Parse time literals using the time zone in the select statement.
 
-## v1.3.2 [unreleased]
+## v1.3.3 [unreleased]
+
+### Bugfixes
+
+- [#8681](https://github.com/influxdata/influxdb/pull/8681): Resolves a memory leak when NewReaderIterator creates a nilFloatIterator, the reader is not closed
+
+## v1.3.2 [2017-08-04]
 
 ### Bugfixes
 
