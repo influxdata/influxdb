@@ -240,7 +240,7 @@ class CellEditorOverlay extends Component {
                   onSetYAxisBoundMax={this.handleSetYAxisBoundMax}
                   onSetLabel={this.handleSetLabel}
                   axes={axes}
-                  queries={queriesWorkingDraft}
+                  queryConfigs={queriesWorkingDraft}
                 />
               : <QueryMaker
                   source={source}

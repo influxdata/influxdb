@@ -9,18 +9,18 @@ class DisplayOptions extends Component {
   constructor(props) {
     super(props)
 
-    const {axes, queries} = props
+    const {axes, queryConfigs} = props
 
     this.state = {
-      axes: this.setDefaultLabels(axes, queries),
+      axes: this.setDefaultLabels(axes, queryConfigs),
     }
   }
 
   componentWillReceiveProps(nextProps) {
-    if (nextProps.queries.length !== this.props.queries.length) {
-      const {axes, queries} = nextProps
+    if (nextProps.queryConfigs.length !== this.props.queryConfigs.length) {
+      const {axes, queryConfigs} = nextProps
 
-      this.setState({axes: this.setDefaultLabels(axes, queries)})
+      this.setState({axes: this.setDefaultLabels(axes, queryConfigs)})
     }
   }
 
@@ -69,7 +69,7 @@ DisplayOptions.propTypes = {
   onSetYAxisBoundMax: func.isRequired,
   onSetLabel: func.isRequired,
   axes: shape({}).isRequired,
-  queries: arrayOf(shape()).isRequired,
+  queryConfigs: arrayOf(shape()).isRequired,
 }
 
 export default DisplayOptions
