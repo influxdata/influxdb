@@ -43,15 +43,15 @@ class DisplayOptions extends Component {
 
     return (
       <div className="display-options">
-        <GraphTypeSelector
-          selectedGraphType={selectedGraphType}
-          onSelectGraphType={onSelectGraphType}
-        />
         <AxesOptions
           onSetLabel={onSetLabel}
           onSetYAxisBoundMin={onSetYAxisBoundMin}
           onSetYAxisBoundMax={onSetYAxisBoundMax}
           axes={axes}
+        />
+        <GraphTypeSelector
+          selectedGraphType={selectedGraphType}
+          onSelectGraphType={onSelectGraphType}
         />
       </div>
     )

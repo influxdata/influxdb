@@ -42,6 +42,25 @@ export default class Dygraph extends Component {
     dygraphRef: () => {},
   }
 
+  getTimeSeries() {
+    const {timeSeries} = this.props
+    // Avoid 'Can't plot empty data set' errors by falling back to a
+    // default dataset that's valid for Dygraph.
+    return timeSeries.length ? timeSeries : [[0]]
+  }
+
+  getLabel(axis) {
+    const {axes, queries} = this.props
+    const label = _.get(axes, [axis, 'label'], '')
+    const queryConfig = _.get(queries, ['0', 'queryConfig'], false)
+
+    if (label || !queryConfig) {
+      return label
+    }
+
+    return buildDefaultYLabel(queryConfig)
+  }
+
   componentDidMount() {
     const timeSeries = this.getTimeSeries()
     // dygraphSeries is a legend label and its corresponding y-axis e.g. {legendLabel1: 'y', legendLabel2: 'y2'};
