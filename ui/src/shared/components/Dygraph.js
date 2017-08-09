@@ -9,7 +9,7 @@ import getRange from 'shared/parsing/getRangeForDygraph'
 
 import {LINE_COLORS, multiColumnBarPlotter} from 'src/shared/graphs/helpers'
 import DygraphLegend from 'src/shared/components/DygraphLegend'
-import {buildYLabel} from 'shared/presenters'
+import {buildDefaultYLabel} from 'shared/presenters'
 
 export default class Dygraph extends Component {
   constructor(props) {
@@ -62,7 +62,7 @@ export default class Dygraph extends Component {
       return label
     }
 
-    return buildYLabel(queryConfig)
+    return buildDefaultYLabel(queryConfig)
   }
 
   componentDidMount() {

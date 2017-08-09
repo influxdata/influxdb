@@ -15,7 +15,6 @@ import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 import buildInfluxQLQuery from 'utils/influxql'
 import {getQueryConfig} from 'shared/apis'
 
-import {buildYLabel} from 'shared/presenters'
 import {removeUnselectedTemplateValues} from 'src/dashboards/constants'
 import {OVERLAY_TECHNOLOGY} from 'shared/constants/classNames'
 import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from 'src/data_explorer/constants'
@@ -48,23 +47,8 @@ class CellEditorOverlay extends Component {
       queriesWorkingDraft,
       activeQueryIndex: 0,
       isDisplayOptionsTabActive: false,
-      axes: this.setDefaultLabels(axes, queries),
+      axes,
     }
-  }
-
-  setDefaultLabels(axes, queries) {
-    if (!queries.length) {
-      return axes
-    }
-
-    if (axes.y.label) {
-      return axes
-    }
-
-    const q = queries[0].queryConfig
-    const label = buildYLabel(q)
-
-    return {...axes, y: {...axes.y, label}}
   }
 
   componentWillReceiveProps(nextProps) {
@@ -256,6 +240,7 @@ class CellEditorOverlay extends Component {
                   onSetYAxisBoundMax={this.handleSetYAxisBoundMax}
                   onSetLabel={this.handleSetLabel}
                   axes={axes}
+                  queries={queriesWorkingDraft}
                 />
               : <QueryMaker
                   source={source}

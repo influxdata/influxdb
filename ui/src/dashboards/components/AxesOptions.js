@@ -13,6 +13,7 @@ const AxesOptions = ({
   const min = _.get(axes, ['y', 'bounds', '0'], '')
   const max = _.get(axes, ['y', 'bounds', '1'], '')
   const label = _.get(axes, ['y', 'label'], '')
+  const defaultYLabel = _.get(axes, ['y', 'defaultYLabel'], '')
 
   return (
     <div className="display-options--cell">
@@ -21,7 +22,7 @@ const AxesOptions = ({
         <div className="form-group col-sm-12">
           <label htmlFor="prefix">Title</label>
           <OptIn
-            customPlaceholder={'label'}
+            customPlaceholder={defaultYLabel}
             customValue={label}
             onSetValue={onSetLabel}
             type="text"
@@ -92,6 +93,7 @@ AxesOptions.propTypes = {
     y: shape({
       bounds: arrayOf(string),
       label: string,
+      defaultYLabel: string,
     }),
   }).isRequired,
 }
