@@ -23,13 +23,12 @@ class DisplayOptions extends Component {
   }
 
   setDefaultLabels(axes, queryConfigs) {
-    if (!queryConfigs.length) {
-      return axes
-    }
-
-    const defaultYLabel = buildDefaultYLabel(queryConfigs[0])
-
-    return {...axes, y: {...axes.y, defaultYLabel}}
+    return queryConfigs.length
+      ? {
+          ...axes,
+          y: {...axes.y, defaultYLabel: buildDefaultYLabel(queryConfigs[0])},
+        }
+      : axes
   }
 
   render() {
