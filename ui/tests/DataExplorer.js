@@ -43,6 +43,15 @@ module.exports = {
       // Check to see that there are no results displayed
       .waitForElementVisible(dataTest('data-explorer-no-results'), 5000)
       .assert.containsText(dataTest('data-explorer-no-results'), 'No Results')
+      // Open a new query tab
+      .waitForElementVisible(dataTest('new-query-button'), 1000)
+      .click(dataTest('new-query-button'))
+      // Select the testing database
+      .waitForElementVisible(
+        dataTest('query-builder-list-item-database-testing'),
+        1000
+      )
+      .click(dataTest('query-builder-list-item-database-testing'))
       // Open up the Write Data dialog
       .click(dataTest('write-data-button'))
       // Set the dialog to manual entry mode
@@ -56,33 +65,36 @@ module.exports = {
       // Pause, then click the submit button
       .pause(500)
       .click(dataTest('write-data-submit-button'))
-      .pause(5000)
-      // Open a new query tab
-      .waitForElementVisible(dataTest('new-query-button'), 1000)
-      .click(dataTest('new-query-button'))
+      .pause(2000)
       // Start building a query
-      // Select the testing database
+      // Select the testing measurement
       .waitForElementVisible(
-        dataTest('query-builder-list-item-database-testing'),
-        1000
+        dataTest('query-builder-list-item-measurement-testing'),
+        2000
       )
-      .click(dataTest('query-builder-list-item-database-testing'))
+      .click(dataTest('query-builder-list-item-measurement-testing'))
       // Select both test measurements
       .waitForElementVisible(
         dataTest('query-builder-list-item-tag-test_measurement'),
         1000
       )
-      .click('query-builder-list-item-tag-test_measurement')
-      .click('query-builder-list-item-tag-test_measurement2')
+      .click(dataTest('query-builder-list-item-tag-test_measurement'))
+      .click(dataTest('query-builder-list-item-tag-test_measurement2'))
+      // Select both tag values
       .waitForElementVisible(
         dataTest('query-builder-list-item-tag-value-1'),
         1000
       )
       .click(dataTest('query-builder-list-item-tag-value-1'))
       .click(dataTest('query-builder-list-item-tag-value-2'))
-      .waitForElementVisible(dataTest('query-builder-list-item-field-value'))
+      // Select both field values
+      .waitForElementVisible(
+        dataTest('query-builder-list-item-field-value'),
+        1000
+      )
       .click(dataTest('query-builder-list-item-field-value'))
       .click(dataTest('query-builder-list-item-field-value2'))
+      // Assert the built query string
       .assert.containsText(
         dataTest('query-editor-field'),
         'SELECT mean("value") AS "mean_value", mean("value2") AS "mean_value2" FROM "testing"."autogen"."testing" WHERE time > now() - 1h AND "test_measurement"=\'1\' AND "test_measurement2"=\'2\' GROUP BY time(10s)'
