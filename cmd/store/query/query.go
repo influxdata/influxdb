@@ -14,6 +14,7 @@ import (
 	"errors"
 
 	"github.com/gogo/protobuf/codec"
+	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/storage"
 	"github.com/influxdata/yarpc"
@@ -38,6 +39,7 @@ type Command struct {
 	offset          int
 	desc            bool
 	silent          bool
+	expr            string
 }
 
 // NewCommand returns a new instance of Command.
@@ -75,6 +77,7 @@ func (cmd *Command) Run(args ...string) error {
 	fs.IntVar(&cmd.offset, "offset", 0, "Optional: start offset for rows")
 	fs.BoolVar(&cmd.desc, "desc", false, "Optional: return results in descending order")
 	fs.BoolVar(&cmd.silent, "silent", false, "silence output")
+	fs.StringVar(&cmd.expr, "expr", "", "InfluxQL expression")
 
 	fs.SetOutput(cmd.Stdout)
 	fs.Usage = func() {
@@ -140,6 +143,21 @@ func (cmd *Command) query(c storage.StorageClient) error {
 	req.TimestampRange.End = cmd.endTime
 	req.Limit = int64(cmd.limit)
 
+	if cmd.expr != "" {
+		expr, err := influxql.ParseExpr(cmd.expr)
+		if err != nil {
+			return nil
+		}
+		fmt.Println(expr)
+		var v exprToNodeVisitor
+		influxql.Walk(&v, expr)
+		if v.Err() != nil {
+			return v.Err()
+		}
+
+		req.Predicate = &storage.Predicate{Root: v.nodes[0]}
+	}
+
 	stream, err := c.Read(context.Background(), &req)
 	if err != nil {
 		return err
@@ -171,9 +189,9 @@ func (cmd *Command) query(c storage.StorageClient) error {
 		for _, frame := range rep.Frames {
 			if s := frame.GetSeries(); s != nil {
 				if !cmd.silent {
-					wr.WriteString("series:")
+					wr.WriteString("\033[36m;series:")
 					wr.WriteString(s.Name)
-					wr.WriteString("\n")
+					wr.WriteString("\n\033[0m;")
 					wr.Flush()
 				}
 			} else if p := frame.GetIntegerPoints(); p != nil {
@@ -222,4 +240,71 @@ func (cmd *Command) query(c storage.StorageClient) error {
 	fmt.Println("integerSum", integerSum, "floatSum", floatSum)
 
 	return nil
+}
+
+type exprToNodeVisitor struct {
+	nodes []*storage.Node
+	err   error
+}
+
+func (v *exprToNodeVisitor) Err() error {
+	return v.err
+}
+
+func (v *exprToNodeVisitor) pop2() (lhs, rhs *storage.Node) {
+	if len(v.nodes) < 2 {
+		panic("exprToNodeVisitor: stack empty")
+	}
+
+	rhs = v.nodes[len(v.nodes)-1]
+	lhs = v.nodes[len(v.nodes)-2]
+	v.nodes = v.nodes[:len(v.nodes)-2]
+	return
+}
+
+func (v *exprToNodeVisitor) Visit(node influxql.Node) influxql.Visitor {
+	switch n := node.(type) {
+	case *influxql.BinaryExpr:
+		if v.err != nil {
+			return nil
+		}
+
+		influxql.Walk(v, n.LHS)
+		if v.err != nil {
+			return nil
+		}
+
+		influxql.Walk(v, n.RHS)
+		if v.err != nil {
+			return nil
+		}
+
+		if n.Op == influxql.EQ {
+			lhs, rhs := v.pop2()
+			node := &storage.Node{
+				NodeType: storage.NodeTypeBooleanExpression,
+				Value:    &storage.Node_Comparison_{Comparison: storage.ComparisonEqual},
+				Children: []*storage.Node{lhs, rhs},
+			}
+			v.nodes = append(v.nodes, node)
+		} else {
+			v.err = errors.New("unsupported operator")
+		}
+
+		return nil
+
+	case *influxql.StringLiteral:
+		node := &storage.Node{NodeType: storage.NodeTypeLiteral, Value: &storage.Node_StringValue{StringValue: n.Val}}
+		v.nodes = append(v.nodes, node)
+		return nil
+
+	case *influxql.VarRef:
+		node := &storage.Node{NodeType: storage.NodeTypeRef, Value: &storage.Node_RefValue{RefValue: n.Val}}
+		v.nodes = append(v.nodes, node)
+		return nil
+
+	default:
+		v.err = errors.New("unsupported node")
+		return nil
+	}
 }

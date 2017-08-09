@@ -78,7 +78,7 @@ func (s *Store) Read(req ReadRequest) (*ResultSet, error) {
 		}
 	}
 
-	qp, err := newAllMeasurementsPlanner(s.TSDBStore.Shards(shardIDs), s.Logger)
+	qp, err := newAllMeasurementsPlanner(req, s.TSDBStore.Shards(shardIDs), s.Logger)
 	if err != nil {
 		return nil, err
 	}

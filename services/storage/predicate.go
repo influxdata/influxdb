@@ -20,12 +20,16 @@ func (x Node_Comparison) MarshalJSON() ([]byte, error) {
 	return []byte(strconv.Quote(x.String())), nil
 }
 
+func walkChildren(v NodeVisitor, node *Node) {
+	for _, n := range node.Children {
+		WalkNode(v, n)
+	}
+}
+
 func WalkNode(v NodeVisitor, node *Node) {
 	if v = v.Visit(node); v == nil {
 		return
 	}
 
-	for _, n := range node.Children {
-		WalkNode(v, n)
-	}
+	walkChildren(v, node)
 }

@@ -57,8 +57,17 @@ func extractFields(itr influxql.FloatIterator) []string {
 	return fields
 }
 
-func newAllMeasurementsPlanner(shards []*tsdb.Shard, log zap.Logger) (*allMeasurementsPlanner, error) {
+func newAllMeasurementsPlanner(req ReadRequest, shards []*tsdb.Shard, log zap.Logger) (*allMeasurementsPlanner, error) {
 	opt := influxql.IteratorOptions{Aux: []influxql.VarRef{{Val: "key"}}}
+
+	if req.Predicate.GetRoot() != nil {
+		var err error
+		opt.Condition, err = NodeToExpr(req.Predicate.Root)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	sg := tsdb.Shards(shards)
 	sitr, err := toFloatIterator(sg.CreateIterator("_series", opt))
 	if err != nil {
