@@ -45,6 +45,7 @@ const VisView = ({
       templates={templates}
       cellHeight={heightPixels}
       autoRefresh={autoRefresh}
+      editQueryStatus={editQueryStatus}
     />
   )
 }
