@@ -729,7 +729,8 @@ func (i *Index) SeriesPointIterator(opt influxql.IteratorOptions) (influxql.Iter
 	sort.Sort(mms)
 
 	return &seriesPointIterator{
-		mms: mms,
+		database: i.database,
+		mms:      mms,
 		point: influxql.FloatPoint{
 			Aux: make([]interface{}, len(opt.Aux)),
 		},
@@ -911,9 +912,10 @@ func NewShardIndex(id uint64, database, path string, opt tsdb.EngineOptions) tsd
 
 // seriesPointIterator emits series as influxql points.
 type seriesPointIterator struct {
-	mms  Measurements
-	keys struct {
-		buf []string
+	database string
+	mms      Measurements
+	keys     struct {
+		buf []*Series
 		i   int
 	}
 
@@ -941,14 +943,18 @@ func (itr *seriesPointIterator) Next() (*influxql.FloatPoint, error) {
 		}
 
 		// Read the next key.
-		key := itr.keys.buf[itr.keys.i]
+		series := itr.keys.buf[itr.keys.i]
 		itr.keys.i++
+
+		if !itr.opt.Authorizer.AuthorizeSeriesRead(itr.database, series.measurement.name, series.tags) {
+			continue
+		}
 
 		// Write auxiliary fields.
 		for i, f := range itr.opt.Aux {
 			switch f.Val {
 			case "key":
-				itr.point.Aux[i] = key
+				itr.point.Aux[i] = series.Key
 			}
 		}
 		return &itr.point, nil
@@ -975,8 +981,12 @@ func (itr *seriesPointIterator) nextKeys() error {
 		} else if len(ids) == 0 {
 			continue
 		}
-		itr.keys.buf = mm.AppendSeriesKeysByID(itr.keys.buf, ids)
-		sort.Strings(itr.keys.buf)
+		itr.keys.buf = mm.SeriesByIDSlice(ids)
+
+		// Sort series by key
+		sort.Slice(itr.keys.buf, func(i, j int) bool {
+			return itr.keys.buf[i].Key < itr.keys.buf[j].Key
+		})
 
 		return nil
 	}
