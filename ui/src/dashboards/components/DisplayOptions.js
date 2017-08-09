@@ -17,11 +17,9 @@ class DisplayOptions extends Component {
   }
 
   componentWillReceiveProps(nextProps) {
-    if (nextProps.queryConfigs.length !== this.props.queryConfigs.length) {
-      const {axes, queryConfigs} = nextProps
+    const {axes, queryConfigs} = nextProps
 
-      this.setState({axes: this.setDefaultLabels(axes, queryConfigs)})
-    }
+    this.setState({axes: this.setDefaultLabels(axes, queryConfigs)})
   }
 
   setDefaultLabels(axes, queryConfigs) {
