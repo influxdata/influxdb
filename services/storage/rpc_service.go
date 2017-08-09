@@ -55,6 +55,11 @@ LIMIT:
 		}
 
 		cur := rs.Cursor()
+		if cur == nil {
+			r.Logger.Error("rs.Cursor: nil value")
+			return nil
+		}
+
 		if cur.SeriesKey() != lastKey {
 			lastKey = cur.SeriesKey()
 			res.Frames = append(res.Frames, ReadResponse_Frame{&ReadResponse_Frame_Series{&ReadResponse_SeriesFrame{lastKey}}})
