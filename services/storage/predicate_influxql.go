@@ -108,7 +108,12 @@ func (v *nodeToExprVisitor) Visit(n *Node) NodeVisitor {
 		return nil
 
 	case NodeTypeRef:
-		v.exprs = append(v.exprs, &influxql.VarRef{Val: n.GetRefValue()})
+		ref := n.GetRefValue()
+		if ref == "_measurement" {
+			ref = "_name"
+		}
+
+		v.exprs = append(v.exprs, &influxql.VarRef{Val: ref})
 		return nil
 
 	case NodeTypeLiteral:
