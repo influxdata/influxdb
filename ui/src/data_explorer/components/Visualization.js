@@ -31,6 +31,7 @@ const Visualization = React.createClass({
         bounds: arrayOf(string),
       }),
     }),
+    resizerBottomHeight: number,
   },
 
   contextTypes: {
@@ -95,6 +96,7 @@ const Visualization = React.createClass({
       editQueryStatus,
       activeQueryIndex,
       isInDataExplorer,
+      resizerBottomHeight,
     } = this.props
     const {source: {links: {proxy}}} = this.context
     const {view} = this.state
@@ -134,6 +136,7 @@ const Visualization = React.createClass({
             editQueryStatus={editQueryStatus}
             activeQueryIndex={activeQueryIndex}
             isInDataExplorer={isInDataExplorer}
+            resizerBottomHeight={resizerBottomHeight}
           />
         </div>
       </div>
