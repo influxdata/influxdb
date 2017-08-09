@@ -38,6 +38,9 @@ message Axis {
 	repeated int64 legacyBounds = 1; // legacyBounds are an ordered 2-tuple consisting of lower and upper axis extents, respectively
 	repeated string bounds      = 2; // bounds are an arbitrary list of client-defined bounds.
 	string label                = 3; // label is a description of this axis
+	string prefix               = 4; // specifies the prefix for axis values
+	string suffix               = 5; // specifies the suffix for axis values
+	string base                 = 6; // defines the base for axis values
 }
 
 message Template {

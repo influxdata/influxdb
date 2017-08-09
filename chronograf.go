@@ -644,6 +644,9 @@ type Axis struct {
 	Bounds       []string `json:"bounds"` // bounds are an arbitrary list of client-defined strings that specify the viewport for a cell
 	LegacyBounds [2]int64 `json:"-"`      // legacy bounds are for testing a migration from an earlier version of axis
 	Label        string   `json:"label"`  // label is a description of this Axis
+	Prefix       string   `json:"prefix"` // specifies a prefix for axis values
+	Suffix       string   `json:"suffix"` // specifies a suffix for axis values
+	Base         string   `json:"base"`   // defines the base for axis values
 }
 
 // DashboardCell holds visual and query information for a cell
