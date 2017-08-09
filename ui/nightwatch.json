@@ -1,0 +1,37 @@
+{
+  "src_folders": ["tests"],
+  "output_folder": "reports",
+  "custom_commands_path": "",
+  "custom_assertions_path": "",
+  "page_objects_path": "",
+  "globals_path": "",
+
+  "use_xpath": true,
+
+  "selenium": {
+    "start_process": false,
+    "host": "hub-cloud.browserstack.com",
+    "port": 80
+  },
+
+  "test_settings": {
+    "default": {
+      "selenium_port": 80,
+      "selenium_host": "hub-cloud.browserstack.com",
+      "silent": false,
+      "screenshots": {
+        "enabled": true,
+        "path": "screenshots"
+      },
+      "desiredCapabilities": {
+        "browser": "chrome",
+        "build": "nightwatch-browserstack",
+        "browserstack.user": "${BROWSERSTACK_USER}",
+        "browserstack.key": "${BROWSERSTACK_KEY}",
+        "browserstack.debug": true,
+        "browserstack.local": true,
+        "resolution": "1920x1080"
+      }
+    }
+  }
+}

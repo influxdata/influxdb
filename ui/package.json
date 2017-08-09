@@ -16,6 +16,7 @@
     "test": "karma start",
     "test:lint": "npm run lint; npm run test",
     "test:dev": "nodemon --exec npm run test:lint",
+    "test:integration": "nightwatch tests --skip",
     "clean": "rm -rf build",
     "storybook": "node ./storybook",
     "prettier": "prettier --single-quote --trailing-comma es5 --bracket-spacing false --semi false --write \"{src,spec}/**/*.js\"; eslint src --fix"
