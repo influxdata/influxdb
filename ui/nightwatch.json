@@ -6,8 +6,6 @@
   "page_objects_path": "",
   "globals_path": "",
 
-  "use_xpath": true,
-
   "selenium": {
     "start_process": false,
     "host": "hub-cloud.browserstack.com",

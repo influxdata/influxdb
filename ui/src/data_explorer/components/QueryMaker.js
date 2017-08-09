@@ -101,6 +101,7 @@ const QueryMaker = React.createClass({
             className="btn btn-primary"
             role="button"
             onClick={this.handleAddQuery}
+            data-test="add-query-button"
           >
             Add a Query
           </div>

@@ -177,7 +177,7 @@ const ChronoTable = React.createClass({
               selected={series[activeSeriesIndex].name}
               buttonSize="btn-xs"
             />}
-        <div className="table--tabs-content">
+        <div className="table--tabs-content" data-test="data-table">
           {(columns && !columns.length) || (values && !values.length)
             ? <div className="generic-empty-state">This series is empty</div>
             : <Table

@@ -220,6 +220,7 @@ class QueryEditor extends Component {
           placeholder="Enter a query or select database, measurement, and field below and have us build one for you..."
           autoComplete="off"
           spellCheck="false"
+          data-test="query-editor-field"
         />
         <div
           className={classnames('varmoji', {'varmoji-rotated': isTemplating})}
