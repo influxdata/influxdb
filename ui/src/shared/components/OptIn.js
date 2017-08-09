@@ -18,6 +18,9 @@ class OptIn extends Component {
       customValue,
       toggleClicked: false,
       customValueInputBlurred: false,
+      resetTimeoutID: null,
+      toggleTimeoutID: null,
+      blurTimeoutID: null,
     }
 
     this.useFixedValue = ::this.useFixedValue
@@ -31,6 +34,12 @@ class OptIn extends Component {
     this.handleKeyPressCustomValueInput = ::this.handleKeyPressCustomValueInput
     this.setCustomValue = ::this.setCustomValue
     this.setValue = ::this.setValue
+  }
+
+  componentWillUnmount() {
+    clearTimeout(this.state.resetTimeoutID)
+    clearTimeout(this.state.toggleTimeoutID)
+    clearTimeout(this.state.blurTimeoutID)
   }
 
   useFixedValue() {
@@ -66,9 +75,11 @@ class OptIn extends Component {
         this.toggleValue()
       })
 
-      setTimeout(() => {
+      const toggleTimeoutID = setTimeout(() => {
         this.setState({toggleClicked: false})
       }, TOGGLE_CLICKED_TIMEOUT)
+
+      this.setState({toggleTimeoutID})
     }
   }
 
@@ -82,11 +93,13 @@ class OptIn extends Component {
         {customValueInputBlurred: true, customValue: e.target.value.trim()},
         () => {
           if (this.state.customValue === '') {
-            setTimeout(() => {
+            const blurTimeoutID = setTimeout(() => {
               if (!this.state.toggleClicked) {
                 this.useFixedValue()
               }
             }, BLUR_FOCUS_GAP_TIMEOUT)
+
+            this.setState({blurTimeoutID})
           }
         }
       )
@@ -122,9 +135,11 @@ class OptIn extends Component {
     }
 
     // reset UI interaction state-tracking values & prevent blur + click
-    setTimeout(() => {
+    const resetTimeoutID = setTimeout(() => {
       this.setState({toggleClicked: false, customValueInputBlurred: false})
     }, RESET_TIMEOUT)
+
+    this.setState({resetTimeoutID})
   }
 
   render() {
