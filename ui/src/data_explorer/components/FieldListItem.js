@@ -64,6 +64,7 @@ const FieldListItem = React.createClass({
             active: isSelected,
           })}
           onClick={_.wrap(fieldFunc, this.handleToggleField)}
+          data-test={`query-builder-list-item-field-${fieldText}`}
         >
           <span>
             <div className="query-builder--checkbox" />

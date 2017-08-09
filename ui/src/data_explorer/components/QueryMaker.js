@@ -168,6 +168,7 @@ const QueryMaker = React.createClass({
         <div
           className="query-maker--new btn btn-sm btn-primary"
           onClick={this.handleAddQuery}
+          data-test="new-query-button"
         >
           <span className="icon plus" />
         </div>

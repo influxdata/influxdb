@@ -28,7 +28,7 @@
         "browserstack.key": "${BROWSERSTACK_KEY}",
         "browserstack.debug": true,
         "browserstack.local": true,
-        "resolution": "1920x1080"
+        "resolution": "1024x768"
       }
     }
   }

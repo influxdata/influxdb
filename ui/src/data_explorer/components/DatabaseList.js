@@ -83,6 +83,7 @@ const DatabaseList = React.createClass({
                   })}
                   key={`${database}..${retentionPolicy}`}
                   onClick={_.wrap(namespace, onChooseNamespace)}
+                  data-test={`query-builder-list-item-database-${database}`}
                 >
                   {database}.{retentionPolicy}
                 </div>
