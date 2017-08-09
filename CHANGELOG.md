@@ -1,3 +1,9 @@
+## v1.3.3 [unreleased]
+
+### Bugfixes
+
+- [#8681](https://github.com/influxdata/influxdb/pull/8681): Resolves a memory leak when NewReaderIterator creates a nilFloatIterator, the reader is not closed
+
 ## v1.3.2 [2017-08-04]
 
 ### Bugfixes
