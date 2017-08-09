@@ -105,7 +105,7 @@ class TimeRangeDropdown extends Component {
               autoHeight={true}
               maxHeight={DROPDOWN_MENU_MAX_HEIGHT}
             >
-              <li className="dropdown-header">Time Range</li>
+              <li className="dropdown-header">Absolute Time Ranges</li>
               {preventCustomTimeRange
                 ? null
                 : <li
@@ -116,9 +116,10 @@ class TimeRangeDropdown extends Component {
                     }
                   >
                     <a href="#" onClick={this.showCustomTimeRange}>
-                      Date Picker
+                      Custom Date Picker
                     </a>
                   </li>}
+              <li className="dropdown-header">Relative Time Ranges</li>
               {timeRanges.map(item => {
                 return (
                   <li className="dropdown-item" key={item.menuOption}>
