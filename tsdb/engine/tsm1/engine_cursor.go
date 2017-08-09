@@ -3,18 +3,21 @@ package tsm1
 import (
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/uber-go/zap"
 )
 
 func (e *Engine) CreateCursor(r tsdb.CursorRequest) (tsdb.Cursor, error) {
 	// Look up fields for measurement.
 	mf := e.fieldset.Fields(r.Measurement)
 	if mf == nil {
+		e.logger.Info("measurement not found", zap.String("measurement", r.Measurement))
 		return nil, nil
 	}
 
 	// Find individual field.
 	f := mf.Field(r.Field)
 	if f == nil {
+		e.logger.Info("field not found", zap.String("field", r.Field))
 		return nil, nil
 	}
 

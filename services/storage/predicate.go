@@ -2,10 +2,10 @@ package storage
 
 import "strconv"
 
-// Visitor can be called by Walk to traverse an AST hierarchy.
+// NodeVisitor can be called by Walk to traverse the Node hierarchy.
 // The Visit() function is called once per node.
-type PredicateVisitor interface {
-	Visit(*Node) PredicateVisitor
+type NodeVisitor interface {
+	Visit(*Node) NodeVisitor
 }
 
 func (x Node_Type) MarshalJSON() ([]byte, error) {
@@ -20,7 +20,7 @@ func (x Node_Comparison) MarshalJSON() ([]byte, error) {
 	return []byte(strconv.Quote(x.String())), nil
 }
 
-func WalkNode(v PredicateVisitor, node *Node) {
+func WalkNode(v NodeVisitor, node *Node) {
 	if v = v.Visit(node); v == nil {
 		return
 	}

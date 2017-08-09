@@ -104,6 +104,8 @@ func (p *allMeasurementsPlanner) Next() bool {
 		p.key = key
 		if i := strings.IndexByte(p.key, ','); i > -1 {
 			p.m = p.key[:i]
+		} else {
+			p.m = key
 		}
 
 		p.nf = p.fields
