@@ -2,7 +2,6 @@ import React, {PropTypes} from 'react'
 
 import QueryBuilder from 'src/data_explorer/components/QueryBuilder'
 import QueryTabList from 'src/dashboards/components/QueryTabList'
-import classnames from 'classnames'
 
 const {arrayOf, bool, func, node, number, shape, string} = PropTypes
 
@@ -36,8 +35,6 @@ const QueryMaker = React.createClass({
       applyFuncsToField: func.isRequired,
       editRawTextAsync: func.isRequired,
     }).isRequired,
-    height: string,
-    top: string,
     setActiveQueryIndex: func.isRequired,
     onDeleteQuery: func.isRequired,
     activeQueryIndex: number,
@@ -67,9 +64,6 @@ const QueryMaker = React.createClass({
 
   render() {
     const {
-      height,
-      top,
-      layout,
       queries,
       timeRange,
       onDeleteQuery,
@@ -78,12 +72,7 @@ const QueryMaker = React.createClass({
     } = this.props
 
     return (
-      <div
-        className={classnames('query-maker', {
-          'query-maker--panel': layout === 'panel',
-        })}
-        style={{height, top}}
-      >
+      <div className="query-maker query-maker--panel">
         <QueryTabList
           queries={queries}
           timeRange={timeRange}
@@ -103,8 +92,8 @@ const QueryMaker = React.createClass({
       actions,
       source,
       templates,
-      layout,
       isInDataExplorer,
+      layout,
     } = this.props
     const query = this.getActiveQuery()
 
@@ -142,4 +131,5 @@ const QueryMaker = React.createClass({
 QueryMaker.defaultProps = {
   layout: 'default',
 }
+
 export default QueryMaker
