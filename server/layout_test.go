@@ -68,9 +68,58 @@ func Test_Layouts(t *testing.T) {
 			"influxdb",
 			false,
 		},
+		{
+			"axis zero values",
+			chronograf.Layout{
+				ID:          "d20a21c8-69f1-4780-90fe-e69f5e4d138c",
+				Application: "influxdb",
+				Measurement: "influxdb",
+				Cells: []chronograf.Cell{
+					{
+						X:    0,
+						Y:    0,
+						W:    4,
+						H:    4,
+						I:    "3b0e646b-2ca3-4df2-95a5-fd80915459dd",
+						Name: "A Graph",
+						Axes: map[string]chronograf.Axis{
+							"x": chronograf.Axis{
+								Bounds: []string{},
+							},
+							"y": chronograf.Axis{
+								Bounds: []string{},
+							},
+							"y2": chronograf.Axis{
+								Bounds: []string{},
+							},
+						},
+					},
+				},
+			},
+			[]chronograf.Layout{
+				chronograf.Layout{
+					ID:          "d20a21c8-69f1-4780-90fe-e69f5e4d138c",
+					Application: "influxdb",
+					Measurement: "influxdb",
+					Cells: []chronograf.Cell{
+						{
+							X:    0,
+							Y:    0,
+							W:    4,
+							H:    4,
+							I:    "3b0e646b-2ca3-4df2-95a5-fd80915459dd",
+							Name: "A Graph",
+						},
+					},
+				},
+			},
+			"",
+			false,
+		},
 	}
 
 	for _, test := range layoutTests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
