@@ -5,31 +5,28 @@ import buildQueries from 'utils/buildQueriesForGraphs'
 const DashVisualization = (
   {
     axes,
-    height,
-    cellType,
-    cellName,
+    type,
+    name,
     templates,
     timeRange,
     autoRefresh,
     queryConfigs,
-    heightPixels,
     editQueryStatus,
   },
   {source: {links: {proxy}}}
 ) =>
-  <div className="graph" style={{height}}>
+  <div className="graph">
     <div className="graph-heading">
       <div className="graph-title">
-        {cellName}
+        {name}
       </div>
     </div>
     <div className="graph-container">
       <RefreshingGraph
         axes={axes}
-        type={cellType}
+        type={type}
         queries={buildQueries(proxy, queryConfigs, timeRange)}
         templates={templates}
-        cellHeight={heightPixels}
         autoRefresh={autoRefresh}
         editQueryStatus={editQueryStatus}
       />
@@ -39,13 +36,13 @@ const DashVisualization = (
 const {arrayOf, func, number, shape, string} = PropTypes
 
 DashVisualization.defaultProps = {
-  cellName: '',
-  cellType: '',
+  name: '',
+  type: '',
 }
 
 DashVisualization.propTypes = {
-  cellName: string,
-  cellType: string,
+  name: string,
+  type: string,
   autoRefresh: number.isRequired,
   templates: arrayOf(shape()),
   timeRange: shape({
@@ -53,8 +50,6 @@ DashVisualization.propTypes = {
     lower: string,
   }).isRequired,
   queryConfigs: arrayOf(shape({})).isRequired,
-  height: string,
-  heightPixels: number,
   editQueryStatus: func.isRequired,
   axes: shape({
     y: shape({

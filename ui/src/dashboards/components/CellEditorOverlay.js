@@ -222,16 +222,14 @@ class CellEditorOverlay extends Component {
           initialBottomHeight={INITIAL_HEIGHTS.queryMaker}
         >
           <Visualization
-            autoRefresh={autoRefresh}
+            axes={axes}
+            type={cellWorkingType}
+            name={cellWorkingName}
             timeRange={timeRange}
             templates={templates}
+            autoRefresh={autoRefresh}
             queryConfigs={queriesWorkingDraft}
-            activeQueryIndex={0}
-            cellType={cellWorkingType}
-            cellName={cellWorkingName}
             editQueryStatus={editQueryStatus}
-            axes={axes}
-            views={[]}
           />
           <div className="overlay-technology--editor">
             <OverlayControls
