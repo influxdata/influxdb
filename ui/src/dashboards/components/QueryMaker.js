@@ -2,6 +2,7 @@ import React, {PropTypes} from 'react'
 
 import QueryBuilder from 'src/data_explorer/components/QueryBuilder'
 import QueryTabList from 'src/dashboards/components/QueryTabList'
+import EmptyQuery from 'src/dashboards/components/EmptyQuery'
 
 const {arrayOf, bool, func, node, number, shape, string} = PropTypes
 
@@ -64,12 +65,18 @@ const QueryMaker = React.createClass({
 
   render() {
     const {
+      layout,
+      source,
+      actions,
       queries,
       timeRange,
+      templates,
       onDeleteQuery,
       activeQueryIndex,
       setActiveQueryIndex,
     } = this.props
+
+    const query = this.getActiveQuery()
 
     return (
       <div className="query-maker query-maker--panel">
@@ -81,49 +88,18 @@ const QueryMaker = React.createClass({
           activeQueryIndex={activeQueryIndex}
           setActiveQueryIndex={setActiveQueryIndex}
         />
-        {this.renderQueryBuilder()}
+        {query
+          ? <QueryBuilder
+              query={query}
+              layout={layout}
+              source={source}
+              actions={actions}
+              timeRange={timeRange}
+              templates={templates}
+              onAddQuery={this.handleAddQuery}
+            />
+          : <EmptyQuery onAddQuery={this.handleAddQuery} />}
       </div>
-    )
-  },
-
-  renderQueryBuilder() {
-    const {
-      timeRange,
-      actions,
-      source,
-      templates,
-      isInDataExplorer,
-      layout,
-    } = this.props
-    const query = this.getActiveQuery()
-
-    if (!query) {
-      return (
-        <div className="query-maker--empty">
-          <h5>This Graph has no Queries</h5>
-          <br />
-          <div
-            className="btn btn-primary"
-            role="button"
-            onClick={this.handleAddQuery}
-          >
-            Add a Query
-          </div>
-        </div>
-      )
-    }
-
-    return (
-      <QueryBuilder
-        source={source}
-        timeRange={timeRange}
-        templates={templates}
-        query={query}
-        actions={actions}
-        onAddQuery={this.handleAddQuery}
-        layout={layout}
-        isInDataExplorer={isInDataExplorer}
-      />
     )
   },
 })
