@@ -12,6 +12,8 @@
     "port": 80
   },
 
+  "live_output" : true,
+
   "test_settings": {
     "default": {
       "selenium_port": 80,
@@ -28,7 +30,7 @@
         "browserstack.key": "${BROWSERSTACK_KEY}",
         "browserstack.debug": true,
         "browserstack.local": true,
-        "resolution": "1024x768"
+        "resolution": "1280x1024"
       }
     }
   }

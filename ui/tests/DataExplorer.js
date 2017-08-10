@@ -80,6 +80,7 @@ module.exports = {
       )
       .click(dataTest('query-builder-list-item-tag-test_measurement'))
       .click(dataTest('query-builder-list-item-tag-test_measurement2'))
+      .pause(500)
       // Select both tag values
       .waitForElementVisible(
         dataTest('query-builder-list-item-tag-value-1'),
@@ -87,6 +88,7 @@ module.exports = {
       )
       .click(dataTest('query-builder-list-item-tag-value-1'))
       .click(dataTest('query-builder-list-item-tag-value-2'))
+      .pause(500)
       // Select both field values
       .waitForElementVisible(
         dataTest('query-builder-list-item-field-value'),
@@ -94,11 +96,17 @@ module.exports = {
       )
       .click(dataTest('query-builder-list-item-field-value'))
       .click(dataTest('query-builder-list-item-field-value2'))
+      .pause(500)
       // Assert the built query string
       .assert.containsText(
         dataTest('query-editor-field'),
         'SELECT mean("value") AS "mean_value", mean("value2") AS "mean_value2" FROM "testing"."autogen"."testing" WHERE time > now() - 1h AND "test_measurement"=\'1\' AND "test_measurement2"=\'2\' GROUP BY time(10s)'
       )
+      .click(dataTest('data-table'))
+      .click(dataTest('query-builder-list-item-function-value'))
+      .waitForElementVisible(dataTest('function-selector-item-mean'), 1000)
+      .click(dataTest('function-selector-item-mean'))
+      .click(dataTest('function-selector-apply'))
       .end()
   },
 }
