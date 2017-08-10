@@ -100,10 +100,8 @@ func MarshalLayout(l chronograf.Layout) ([]byte, error) {
 
 		axes := make(map[string]*Axis, len(c.Axes))
 		for a, r := range c.Axes {
-			axis := [2]int64{}
-			copy(axis[:], r.Bounds[:2])
 			axes[a] = &Axis{
-				Bounds: axis[:],
+				Bounds: r.Bounds,
 			}
 		}
 
@@ -160,9 +158,9 @@ func UnmarshalLayout(data []byte, l *chronograf.Layout) error {
 		}
 		axes := make(map[string]chronograf.Axis, len(c.Axes))
 		for a, r := range c.Axes {
-			axis := chronograf.Axis{}
-			copy(axis.Bounds[:], r.Bounds[:2])
-			axes[a] = axis
+			axes[a] = chronograf.Axis{
+				Bounds: r.Bounds,
+			}
 		}
 
 		cells[i] = chronograf.Cell{

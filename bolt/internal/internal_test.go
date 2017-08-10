@@ -110,7 +110,7 @@ func TestMarshalLayout(t *testing.T) {
 				Name: "cell1",
 				Axes: map[string]chronograf.Axis{
 					"y": chronograf.Axis{
-						Bounds: [2]int64{0, 100},
+						Bounds: []string{"0", "100"},
 					},
 				},
 				Queries: []chronograf.Query{
