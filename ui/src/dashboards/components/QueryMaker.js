@@ -1,8 +1,7 @@
 import React, {PropTypes} from 'react'
 
 import QueryBuilder from 'src/data_explorer/components/QueryBuilder'
-import QueryMakerTab from 'src/data_explorer/components/QueryMakerTab'
-import buildInfluxQLQuery from 'utils/influxql'
+import QueryTabList from 'src/dashboards/components/QueryTabList'
 import classnames from 'classnames'
 
 const {arrayOf, bool, func, node, number, shape, string} = PropTypes
@@ -67,7 +66,17 @@ const QueryMaker = React.createClass({
   },
 
   render() {
-    const {height, top, layout} = this.props
+    const {
+      height,
+      top,
+      layout,
+      queries,
+      timeRange,
+      onDeleteQuery,
+      activeQueryIndex,
+      setActiveQueryIndex,
+    } = this.props
+
     return (
       <div
         className={classnames('query-maker', {
@@ -75,7 +84,14 @@ const QueryMaker = React.createClass({
         })}
         style={{height, top}}
       >
-        {this.renderQueryTabList()}
+        <QueryTabList
+          queries={queries}
+          timeRange={timeRange}
+          onAddQuery={this.handleAddQuery}
+          onDeleteQuery={onDeleteQuery}
+          activeQueryIndex={activeQueryIndex}
+          setActiveQueryIndex={setActiveQueryIndex}
+        />
         {this.renderQueryBuilder()}
       </div>
     )
@@ -108,19 +124,6 @@ const QueryMaker = React.createClass({
       )
     }
 
-    // NOTE
-    // the layout prop is intended to toggle between a horizontal and vertical layout
-    // the layout will be horizontal by default
-    // vertical layout is known as "panel" layout as it will be used to build
-    // a "cell editor panel" though that term might change
-    // Currently, if set to "panel" the only noticeable difference is that the
-    // DatabaseList becomes DatabaseDropdown (more space efficient in vertical layout)
-    // and is outside the container with measurements/tags/fields
-    //
-    // TODO:
-    // - perhaps switch to something like "isVertical" and accept boolean instead of string
-    // - more css/markup work to make the alternate appearance look good
-
     return (
       <QueryBuilder
         source={source}
@@ -132,45 +135,6 @@ const QueryMaker = React.createClass({
         layout={layout}
         isInDataExplorer={isInDataExplorer}
       />
-    )
-  },
-
-  renderQueryTabList() {
-    const {
-      queries,
-      activeQueryIndex,
-      onDeleteQuery,
-      timeRange,
-      setActiveQueryIndex,
-    } = this.props
-
-    return (
-      <div className="query-maker--tabs">
-        {queries.map((q, i) => {
-          return (
-            <QueryMakerTab
-              isActive={i === activeQueryIndex}
-              key={i}
-              queryIndex={i}
-              query={q}
-              onSelect={setActiveQueryIndex}
-              onDelete={onDeleteQuery}
-              queryTabText={
-                q.rawText ||
-                buildInfluxQLQuery(timeRange, q) ||
-                `Query ${i + 1}`
-              }
-            />
-          )
-        })}
-        {this.props.children}
-        <div
-          className="query-maker--new btn btn-sm btn-primary"
-          onClick={this.handleAddQuery}
-        >
-          <span className="icon plus" />
-        </div>
-      </div>
     )
   },
 })
