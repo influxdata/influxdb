@@ -11,16 +11,11 @@ const QueryMaker = ({
   queries,
   timeRange,
   templates,
+  onAddQuery,
   onDeleteQuery,
   activeQueryIndex,
   setActiveQueryIndex,
 }) => {
-  const handleAddQuery = () => {
-    const newIndex = queries.length
-    actions.addQuery()
-    setActiveQueryIndex(newIndex)
-  }
-
   const getActiveQuery = () => {
     const activeQuery = queries[activeQueryIndex]
     const defaultQuery = queries[0]
@@ -35,7 +30,7 @@ const QueryMaker = ({
       <QueryTabList
         queries={queries}
         timeRange={timeRange}
-        onAddQuery={handleAddQuery}
+        onAddQuery={onAddQuery}
         onDeleteQuery={onDeleteQuery}
         activeQueryIndex={activeQueryIndex}
         setActiveQueryIndex={setActiveQueryIndex}
@@ -48,9 +43,9 @@ const QueryMaker = ({
             actions={actions}
             timeRange={timeRange}
             templates={templates}
-            onAddQuery={handleAddQuery}
+            onAddQuery={onAddQuery}
           />
-        : <EmptyQuery onAddQuery={handleAddQuery} />}
+        : <EmptyQuery onAddQuery={onAddQuery} />}
     </div>
   )
 }

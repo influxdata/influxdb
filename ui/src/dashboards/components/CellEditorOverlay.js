@@ -111,10 +111,14 @@ class CellEditorOverlay extends Component {
     e.preventDefault()
   }
 
-  handleAddQuery(options) {
-    const newQuery = Object.assign({}, defaultQueryConfig(uuid.v4()), options)
-    const nextQueries = this.state.queriesWorkingDraft.concat(newQuery)
+  handleAddQuery() {
+    const {queriesWorkingDraft} = this.state
+    const newIndex = queriesWorkingDraft.length
+    const newQuery = {...defaultQueryConfig(uuid.v4())}
+    const nextQueries = queriesWorkingDraft.concat(newQuery)
+
     this.setState({queriesWorkingDraft: nextQueries})
+    this.handleSetActiveQueryIndex(newIndex)
   }
 
   handleDeleteQuery(index) {
@@ -203,7 +207,6 @@ class CellEditorOverlay extends Component {
     } = this.state
 
     const queryActions = {
-      addQuery: this.handleAddQuery,
       editRawTextAsync: this.handleEditRawText,
       ..._.mapValues(queryModifiers, qm => this.queryStateReducer(qm)),
     }
@@ -254,8 +257,8 @@ class CellEditorOverlay extends Component {
                   actions={queryActions}
                   autoRefresh={autoRefresh}
                   timeRange={timeRange}
-                  setActiveQueryIndex={this.handleSetActiveQueryIndex}
                   onDeleteQuery={this.handleDeleteQuery}
+                  onAddQuery={this.handleAddQuery}
                   activeQueryIndex={activeQueryIndex}
                 />}
           </div>
