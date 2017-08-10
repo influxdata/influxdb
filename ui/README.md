@@ -1,6 +1,8 @@
 ## Packages
 We are using [yarn](https://yarnpkg.com/en/docs/install) 0.19.1.
 
+Run `yarn run` to see a list of available tasks.
+
 ### Adding new packages
 To add a new package, run
 
