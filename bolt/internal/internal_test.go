@@ -111,6 +111,7 @@ func TestMarshalLayout(t *testing.T) {
 				Axes: map[string]chronograf.Axis{
 					"y": chronograf.Axis{
 						Bounds: []string{"0", "100"},
+						Label:  "foo",
 					},
 				},
 				Queries: []chronograf.Query{

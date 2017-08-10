@@ -102,6 +102,7 @@ func MarshalLayout(l chronograf.Layout) ([]byte, error) {
 		for a, r := range c.Axes {
 			axes[a] = &Axis{
 				Bounds: r.Bounds,
+				Label:  r.Label,
 			}
 		}
 
@@ -160,6 +161,7 @@ func UnmarshalLayout(data []byte, l *chronograf.Layout) error {
 		for a, r := range c.Axes {
 			axes[a] = chronograf.Axis{
 				Bounds: r.Bounds,
+				Label:  r.Label,
 			}
 		}
 
