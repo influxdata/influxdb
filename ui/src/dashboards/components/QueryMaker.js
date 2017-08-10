@@ -5,26 +5,17 @@ import QueryTabList from 'src/dashboards/components/QueryTabList'
 import EmptyQuery from 'src/dashboards/components/EmptyQuery'
 
 const QueryMaker = ({
-  layout,
   source,
   actions,
   queries,
   timeRange,
   templates,
   onAddQuery,
+  activeQuery,
   onDeleteQuery,
   activeQueryIndex,
   setActiveQueryIndex,
 }) => {
-  const getActiveQuery = () => {
-    const activeQuery = queries[activeQueryIndex]
-    const defaultQuery = queries[0]
-
-    return activeQuery || defaultQuery
-  }
-
-  const query = getActiveQuery()
-
   return (
     <div className="query-maker query-maker--panel">
       <QueryTabList
@@ -35,10 +26,10 @@ const QueryMaker = ({
         activeQueryIndex={activeQueryIndex}
         setActiveQueryIndex={setActiveQueryIndex}
       />
-      {query
+      {activeQuery
         ? <QueryBuilder
-            query={query}
-            layout={layout}
+            query={activeQuery}
+            layout={'default'}
             source={source}
             actions={actions}
             timeRange={timeRange}
@@ -50,7 +41,7 @@ const QueryMaker = ({
   )
 }
 
-const {arrayOf, bool, func, node, number, shape, string} = PropTypes
+const {arrayOf, bool, func, number, shape, string} = PropTypes
 
 QueryMaker.propTypes = {
   source: shape({
@@ -74,7 +65,6 @@ QueryMaker.propTypes = {
     chooseMeasurement: func.isRequired,
     chooseTag: func.isRequired,
     groupByTag: func.isRequired,
-    addQuery: func.isRequired,
     toggleField: func.isRequired,
     groupByTime: func.isRequired,
     toggleTagAcceptance: func.isRequired,
@@ -84,12 +74,8 @@ QueryMaker.propTypes = {
   setActiveQueryIndex: func.isRequired,
   onDeleteQuery: func.isRequired,
   activeQueryIndex: number,
-  children: node,
-  layout: string,
-}
-
-QueryMaker.defaultProps = {
-  layout: 'default',
+  activeQuery: shape({}),
+  onAddQuery: func.isRequired,
 }
 
 export default QueryMaker

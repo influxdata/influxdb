@@ -34,6 +34,7 @@ class CellEditorOverlay extends Component {
     this.handleEditRawText = ::this.handleEditRawText
     this.handleSetYAxisBounds = ::this.handleSetYAxisBounds
     this.handleSetLabel = ::this.handleSetLabel
+    this.getActiveQuery = ::this.getActiveQuery
 
     const {cell: {name, type, queries, axes}} = props
 
@@ -171,6 +172,14 @@ class CellEditorOverlay extends Component {
     this.setState({activeQueryIndex})
   }
 
+  getActiveQuery() {
+    const {queriesWorkingDraft, activeQueryIndex} = this.state
+    const activeQuery = queriesWorkingDraft[activeQueryIndex]
+    const defaultQuery = queriesWorkingDraft[0]
+
+    return activeQuery || defaultQuery
+  }
+
   async handleEditRawText(url, id, text) {
     const templates = removeUnselectedTemplateValues(this.props.templates)
 
@@ -260,6 +269,7 @@ class CellEditorOverlay extends Component {
                   onDeleteQuery={this.handleDeleteQuery}
                   onAddQuery={this.handleAddQuery}
                   activeQueryIndex={activeQueryIndex}
+                  activeQuery={this.getActiveQuery()}
                 />}
           </div>
         </ResizeContainer>
