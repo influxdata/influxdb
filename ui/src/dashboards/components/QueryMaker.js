@@ -1,8 +1,8 @@
 import React, {PropTypes} from 'react'
 
-import QueryBuilder from 'src/data_explorer/components/QueryBuilder'
-import QueryTabList from 'src/dashboards/components/QueryTabList'
 import EmptyQuery from 'src/dashboards/components/EmptyQuery'
+import QueryTabList from 'src/dashboards/components/QueryTabList'
+import SchemaExplorer from 'src/dashboards/components/SchemaExplorer'
 
 const QueryMaker = ({
   source,
@@ -27,12 +27,10 @@ const QueryMaker = ({
         setActiveQueryIndex={setActiveQueryIndex}
       />
       {activeQuery
-        ? <QueryBuilder
+        ? <SchemaExplorer
             query={activeQuery}
-            layout={'default'}
             source={source}
             actions={actions}
-            timeRange={timeRange}
             templates={templates}
             onAddQuery={onAddQuery}
           />
