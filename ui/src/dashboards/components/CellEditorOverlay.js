@@ -4,7 +4,7 @@ import _ from 'lodash'
 import uuid from 'node-uuid'
 
 import ResizeContainer from 'shared/components/ResizeContainer'
-import QueryMaker from 'src/data_explorer/components/QueryMaker'
+import QueryMaker from 'src/dashboards/components/QueryMaker'
 import Visualization from 'src/dashboards/components/Visualization'
 import OverlayControls from 'src/dashboards/components/OverlayControls'
 import DisplayOptions from 'src/dashboards/components/DisplayOptions'
