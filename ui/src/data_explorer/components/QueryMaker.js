@@ -41,20 +41,6 @@ const QueryMaker = React.createClass({
     layout: string,
   },
 
-  handleAddQuery() {
-    const newIndex = this.props.queries.length
-    this.props.actions.addQuery()
-    this.props.setActiveQueryIndex(newIndex)
-  },
-
-  getActiveQuery() {
-    const {queries, activeQueryIndex} = this.props
-    const activeQuery = queries[activeQueryIndex]
-    const defaultQuery = queries[0]
-
-    return activeQuery || defaultQuery
-  },
-
   render() {
     const {height, top, layout} = this.props
     return (
@@ -71,10 +57,17 @@ const QueryMaker = React.createClass({
   },
 
   renderQueryBuilder() {
-    const {timeRange, actions, source, layout, isInDataExplorer} = this.props
-    const query = this.getActiveQuery()
+    const {
+      timeRange,
+      actions,
+      source,
+      layout,
+      isInDataExplorer,
+      activeQuery,
+      onAddQuery,
+    } = this.props
 
-    if (!query) {
+    if (!activeQuery) {
       return (
         <div className="query-maker--empty">
           <h5>This Graph has no Queries</h5>
@@ -82,7 +75,7 @@ const QueryMaker = React.createClass({
           <div
             className="btn btn-primary"
             role="button"
-            onClick={this.handleAddQuery}
+            onClick={onAddQuery}
             data-test="add-query-button"
           >
             Add a Query
@@ -108,9 +101,9 @@ const QueryMaker = React.createClass({
       <QueryBuilder
         source={source}
         timeRange={timeRange}
-        query={query}
+        query={activeQuery}
         actions={actions}
-        onAddQuery={this.handleAddQuery}
+        onAddQuery={onAddQuery}
         layout={layout}
         isInDataExplorer={isInDataExplorer}
       />
@@ -124,6 +117,7 @@ const QueryMaker = React.createClass({
       onDeleteQuery,
       timeRange,
       setActiveQueryIndex,
+      onAddQuery,
     } = this.props
 
     return (
@@ -148,7 +142,7 @@ const QueryMaker = React.createClass({
         {this.props.children}
         <div
           className="query-maker--new btn btn-sm btn-primary"
-          onClick={this.handleAddQuery}
+          onClick={onAddQuery}
           data-test="new-query-button"
         >
           <span className="icon plus" />
