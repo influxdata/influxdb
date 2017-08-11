@@ -47,12 +47,6 @@ const QueryMaker = React.createClass({
     this.props.setActiveQueryIndex(newIndex)
   },
 
-  handleAddRawQuery() {
-    const newIndex = this.props.queries.length
-    this.props.actions.addQuery({rawText: ''})
-    this.props.setActiveQueryIndex(newIndex)
-  },
-
   getActiveQuery() {
     const {queries, activeQueryIndex} = this.props
     const activeQuery = queries[activeQueryIndex]
