@@ -1,11 +1,10 @@
 import React, {PropTypes, Component} from 'react'
 import _ from 'lodash'
-import classnames from 'classnames'
 
 import Dropdown from 'shared/components/Dropdown'
-import LoadingDots from 'shared/components/LoadingDots'
-import TemplateDrawer from 'shared/components/TemplateDrawer'
 import {QUERY_TEMPLATES} from 'src/data_explorer/constants'
+import QueryStatus from 'src/dashboards/components/QueryStatus'
+
 import {
   MATCH_INCOMPLETE_TEMPLATES,
   applyMasks,
@@ -222,93 +221,21 @@ class QueryEditor extends Component {
           spellCheck="false"
           data-test="query-editor-field"
         />
-        <div
-          className={classnames('varmoji', {'varmoji-rotated': isTemplating})}
-        >
+        <div className="varmoji">
           <div className="varmoji-container">
             <div className="varmoji-front">
-              {this.renderStatus(status)}
-            </div>
-            <div className="varmoji-back">
-              {isTemplating
-                ? <TemplateDrawer
-                    onClickTempVar={this.handleClickTempVar}
-                    templates={filteredTemplates}
-                    selected={selectedTemplate}
-                    onMouseOverTempVar={this.handleMouseOverTempVar}
-                    handleClickOutside={this.handleCloseDrawer}
-                  />
-                : null}
+              <QueryStatus status={status}>
+                <Dropdown
+                  items={QUERY_TEMPLATES}
+                  selected={'Query Templates'}
+                  onChoose={this.handleChooseTemplate}
+                  className="dropdown-140 query-editor--templates"
+                  buttonSize="btn-xs"
+                />
+              </QueryStatus>
             </div>
           </div>
         </div>
-      </div>
-    )
-  }
-
-  renderStatus(status) {
-    const {isInDataExplorer} = this.props
-
-    if (!status) {
-      return (
-        <div className="query-editor--status">
-          {isInDataExplorer
-            ? <Dropdown
-                items={QUERY_TEMPLATES}
-                selected={'Query Templates'}
-                onChoose={this.handleChooseTemplate}
-                className="dropdown-140 query-editor--templates"
-                buttonSize="btn-xs"
-              />
-            : null}
-        </div>
-      )
-    }
-
-    if (status.loading) {
-      return (
-        <div className="query-editor--status">
-          <LoadingDots />
-          {isInDataExplorer
-            ? <Dropdown
-                items={QUERY_TEMPLATES}
-                selected={'Query Templates'}
-                onChoose={this.handleChooseTemplate}
-                className="dropdown-140 query-editor--templates"
-                buttonSize="btn-xs"
-              />
-            : null}
-        </div>
-      )
-    }
-
-    return (
-      <div className="query-editor--status">
-        <span
-          className={classnames('query-status-output', {
-            'query-status-output--error': status.error,
-            'query-status-output--success': status.success,
-            'query-status-output--warning': status.warn,
-          })}
-        >
-          <span
-            className={classnames('icon', {
-              stop: status.error,
-              checkmark: status.success,
-              'alert-triangle': status.warn,
-            })}
-          />
-          {status.error || status.warn || status.success}
-        </span>
-        {isInDataExplorer
-          ? <Dropdown
-              items={QUERY_TEMPLATES}
-              selected={'Query Templates'}
-              onChoose={this.handleChooseTemplate}
-              className="dropdown-140 query-editor--templates"
-              buttonSize="btn-xs"
-            />
-          : null}
       </div>
     )
   }

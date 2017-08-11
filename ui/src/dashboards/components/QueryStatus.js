@@ -2,7 +2,7 @@ import React, {PropTypes} from 'react'
 import LoadingDots from 'shared/components/LoadingDots'
 import classnames from 'classnames'
 
-const QueryStatus = ({status}) => {
+const QueryStatus = ({status, children}) => {
   if (!status) {
     return <div className="query-editor--status" />
   }
@@ -11,6 +11,7 @@ const QueryStatus = ({status}) => {
     return (
       <div className="query-editor--status">
         <LoadingDots />
+        {children}
       </div>
     )
   }
@@ -33,11 +34,12 @@ const QueryStatus = ({status}) => {
         />
         {status.error || status.warn || status.success}
       </span>
+      {children}
     </div>
   )
 }
 
-const {shape, string} = PropTypes
+const {node, shape, string} = PropTypes
 
 QueryStatus.propTypes = {
   status: shape({
@@ -45,6 +47,7 @@ QueryStatus.propTypes = {
     success: string,
     warn: string,
   }),
+  children: node,
 }
 
 export default QueryStatus
