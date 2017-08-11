@@ -58,7 +58,6 @@ class OptIn extends Component {
   useCustomValue() {
     this.setState({useCustomValue: true}, () => {
       if (this.state.toggleClicked && !this.state.customValueInputBlurred) {
-        // TODO: || if this.state.customValueInputClicked
         this.customValueInput.focus()
       }
       this.setValue()
@@ -164,7 +163,6 @@ class OptIn extends Component {
           onChange={this.handleChangeCustomValue()}
           onKeyPress={this.handleKeyPressCustomValueInput()}
           placeholder={customPlaceholder}
-          // disabled={!useCustomValue}
         />
         <div
           className="opt-in--groove-knob-container"
