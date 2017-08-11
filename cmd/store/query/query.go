@@ -234,7 +234,6 @@ func (cmd *Command) query(c storage.StorageClient) error {
 				}
 			}
 		}
-
 	}
 
 	fmt.Println("integerSum", integerSum, "floatSum", floatSum)
