@@ -50,7 +50,7 @@ type Server struct {
 	KapacitorUsername string `long:"kapacitor-username" description:"Username of your Kapacitor instance" env:"KAPACITOR_USERNAME"`
 	KapacitorPassword string `long:"kapacitor-password" description:"Password of your Kapacitor instance" env:"KAPACITOR_PASSWORD"`
 
-	NewSources string `long:"new-sources" description:"Config for adding a new InfluxDB source and Kapacitor server, in JSON as an array of objects, and surrounded by single quotes. E.g. --new-sources='[{\"influxdb\":{\"name\":\"Influx 1\",\"username\":\"user1\",\"password\":\"pass1\",\"url\":\"http://localhost:8086\",\"metaUrl\":\"http://metaurl.com\",\"insecureSkipVerify\":false,\"default\":true,\"telegraf\":\"telegraf\",\"sharedSecret\":\"hunter2\"},\"kapacitor\":{\"name\":\"Kapa 1\",\"url\":\"http://localhost:9092\",\"active\":true}}]'" env:"NEW_SOURCES" hidden:"true"`
+	NewSources string `long:"new-sources" description:"Config for adding a new InfluxDB source and Kapacitor server, in JSON as an array of objects, and surrounded by single quotes. E.g. --new-sources='[{\"influxdb\":{\"name\":\"Influx 1\",\"username\":\"user1\",\"password\":\"pass1\",\"url\":\"http://localhost:8086\",\"metaUrl\":\"http://metaurl.com\",\"type\":\"influx-enterprise\",\"insecureSkipVerify\":false,\"default\":true,\"telegraf\":\"telegraf\",\"sharedSecret\":\"cubeapples\"},\"kapacitor\":{\"name\":\"Kapa 1\",\"url\":\"http://localhost:9092\",\"active\":true}}]'" env:"NEW_SOURCES" hidden:"true"`
 
 	Develop      bool          `short:"d" long:"develop" description:"Run server in develop mode."`
 	BoltPath     string        `short:"b" long:"bolt-path" description:"Full path to boltDB file (e.g. './chronograf-v1.db')" env:"BOLT_PATH" default:"chronograf-v1.db"`
