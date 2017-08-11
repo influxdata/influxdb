@@ -1,6 +1,8 @@
 import React, {Component, PropTypes} from 'react'
 import classnames from 'classnames'
 
+import ClickOutsideInput from 'shared/components/ClickOutsideInput'
+
 // these help ensure that blur and toggle events don't both change toggle's side
 const RESET_TIMEOUT = 300
 const TOGGLE_CLICKED_TIMEOUT = 20
@@ -32,6 +34,9 @@ class OptIn extends Component {
     this.handleBlurCustomValueInput = ::this.handleBlurCustomValueInput
     this.handleChangeCustomValue = ::this.handleChangeCustomValue
     this.handleKeyPressCustomValueInput = ::this.handleKeyPressCustomValueInput
+    this.handleClickOutsideCustomValueInput = ::this
+      .handleClickOutsideCustomValueInput
+    this.handleGetRefCustomValueInput = ::this.handleGetRefCustomValueInput
     this.setCustomValue = ::this.setCustomValue
     this.setValue = ::this.setValue
   }
@@ -122,6 +127,16 @@ class OptIn extends Component {
     }
   }
 
+  handleGetRefCustomValueInput() {
+    return el => (this.customValueInput = el)
+  }
+
+  handleClickOutsideCustomValueInput() {
+    return e => {
+      console.log(e)
+    }
+  }
+
   setCustomValue(value) {
     this.setState({customValue: value}, this.setValue)
   }
@@ -157,18 +172,16 @@ class OptIn extends Component {
           'right-toggled': useCustomValue,
         })}
       >
-        <input
-          className="form-control input-sm"
+        <ClickOutsideInput
           type={type}
-          name={customPlaceholder}
-          ref={el => (this.customValueInput = el)}
-          value={customValue}
-          onFocus={this.handleFocusCustomValueInput()}
-          onBlur={this.handleBlurCustomValueInput()}
+          customPlaceholder={customPlaceholder}
+          customValue={customValue}
+          onGetRef={this.handleGetRefCustomValueInput()}
           onChange={this.handleChangeCustomValue()}
           onKeyPress={this.handleKeyPressCustomValueInput()}
-          placeholder={customPlaceholder}
+          handleClickOutsideCustomValueInput={this.handleClickOutsideCustomValueInput()}
         />
+
         <div
           className="opt-in--groove-knob-container"
           onClick={this.handleClickToggle()}
@@ -192,6 +205,7 @@ OptIn.defaultProps = {
   customPlaceholder: 'Custom Value',
   customValue: '',
 }
+
 const {func, oneOf, string} = PropTypes
 
 OptIn.propTypes = {
