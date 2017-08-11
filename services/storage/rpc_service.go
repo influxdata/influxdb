@@ -66,8 +66,8 @@ LIMIT:
 			continue
 		}
 
-		if rs.SeriesKey() != lastKey {
-			lastKey = cur.SeriesKey()
+		if next := rs.SeriesKey(); next != lastKey {
+			lastKey = next
 			res.Frames = append(res.Frames, ReadResponse_Frame{&ReadResponse_Frame_Series{&ReadResponse_SeriesFrame{lastKey}}})
 			if err != nil {
 				r.Logger.Error("stream.Send failed", zap.Error(err))

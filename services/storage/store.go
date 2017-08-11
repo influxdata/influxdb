@@ -6,6 +6,8 @@ import (
 	"errors"
 	"strings"
 
+	"bytes"
+
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
@@ -117,9 +119,17 @@ func (r *ResultSet) Cursor() tsdb.Cursor {
 }
 
 func (r *ResultSet) Tags() map[string]string {
-	return r.tagset // TODO(sgc): this should not be mutated
+	return r.tagset
 }
 
 func (r *ResultSet) SeriesKey() string {
-	return r.key
+	var buf bytes.Buffer
+	for _, tag := range models.NewTags(r.tagset) {
+		buf.Write(tag.Key)
+		buf.WriteByte(':')
+		buf.Write(tag.Value)
+		buf.WriteByte(',')
+	}
+	s := buf.String()
+	return s[:len(s)-1]
 }
