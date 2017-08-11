@@ -16,8 +16,8 @@ class OptIn extends Component {
       useCustomValue: customValue !== '',
       fixedValue,
       customValue,
-      toggleClicked: false,
-      customValueInputBlurred: false,
+      wasToggleClicked: false,
+      wasCustomValueInputBlurred: false,
       resetTimeoutID: null,
       toggleTimeoutID: null,
       blurTimeoutID: null,
@@ -48,7 +48,7 @@ class OptIn extends Component {
 
   toggleValue() {
     const useCustomValueNext = !this.state.useCustomValue
-    if (useCustomValueNext && !this.state.customValueInputBlurred) {
+    if (useCustomValueNext && !this.state.wasCustomValueInputBlurred) {
       this.useCustomValue()
     } else {
       this.useFixedValue()
@@ -57,7 +57,10 @@ class OptIn extends Component {
 
   useCustomValue() {
     this.setState({useCustomValue: true}, () => {
-      if (this.state.toggleClicked && !this.state.customValueInputBlurred) {
+      if (
+        this.state.wasToggleClicked &&
+        !this.state.wasCustomValueInputBlurred
+      ) {
         this.customValueInput.focus()
       }
       this.setValue()
@@ -70,12 +73,12 @@ class OptIn extends Component {
 
   handleClickToggle() {
     return () => {
-      this.setState({toggleClicked: true}, () => {
+      this.setState({wasToggleClicked: true}, () => {
         this.toggleValue()
       })
 
       const toggleTimeoutID = setTimeout(() => {
-        this.setState({toggleClicked: false})
+        this.setState({wasToggleClicked: false})
       }, TOGGLE_CLICKED_TIMEOUT)
 
       this.setState({toggleTimeoutID})
@@ -89,11 +92,11 @@ class OptIn extends Component {
   handleBlurCustomValueInput() {
     return e => {
       this.setState(
-        {customValueInputBlurred: true, customValue: e.target.value.trim()},
+        {wasCustomValueInputBlurred: true, customValue: e.target.value.trim()},
         () => {
           if (this.state.customValue === '') {
             const blurTimeoutID = setTimeout(() => {
-              if (!this.state.toggleClicked) {
+              if (!this.state.wasToggleClicked) {
                 this.useFixedValue()
               }
             }, BLUR_FOCUS_GAP_TIMEOUT)
@@ -135,7 +138,10 @@ class OptIn extends Component {
 
     // reset UI interaction state-tracking values & prevent blur + click
     const resetTimeoutID = setTimeout(() => {
-      this.setState({toggleClicked: false, customValueInputBlurred: false})
+      this.setState({
+        wasToggleClicked: false,
+        wasCustomValueInputBlurred: false,
+      })
     }, RESET_TIMEOUT)
 
     this.setState({resetTimeoutID})
