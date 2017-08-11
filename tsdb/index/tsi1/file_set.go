@@ -758,7 +758,9 @@ func (fs *FileSet) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr, 
 		// Check for unsupported field filters.
 		// Any remaining filters means there were fields (e.g., `WHERE value = 1.2`).
 		if e.Expr() != nil {
-			return nil, errors.New("fields not supported in WHERE clause during deletion")
+			if v, ok := e.Expr().(*influxql.BooleanLiteral); !ok || !v.Val {
+				return nil, errors.New("fields not supported in WHERE clause during deletion")
+			}
 		}
 
 		keys = append(keys, models.MakeKey(e.Name(), e.Tags()))
