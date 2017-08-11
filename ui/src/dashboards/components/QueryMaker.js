@@ -2,16 +2,26 @@ import React, {PropTypes} from 'react'
 
 import EmptyQuery from 'src/dashboards/components/EmptyQuery'
 import QueryTabList from 'src/dashboards/components/QueryTabList'
+import QueryEditor from 'src/data_explorer/components/QueryEditor'
 import SchemaExplorer from 'src/dashboards/components/SchemaExplorer'
+import buildInfluxQLQuery from 'utils/influxql'
+
+const TEMPLATE_RANGE = {upper: null, lower: ':dashboardTime:'}
+const rawTextBinder = (links, id, action) => text =>
+  action(links.queries, id, text)
+
+const buildText = (rawText, range, q) =>
+  rawText || buildInfluxQLQuery(range || TEMPLATE_RANGE, q) || ''
 
 const QueryMaker = ({
-  source,
+  source: {links},
   actions,
   queries,
   timeRange,
   templates,
   onAddQuery,
   activeQuery,
+  activeQuery: {id, range, rawText},
   onDeleteQuery,
   activeQueryIndex,
   setActiveQueryIndex,
@@ -27,13 +37,20 @@ const QueryMaker = ({
         setActiveQueryIndex={setActiveQueryIndex}
       />
       {activeQuery
-        ? <SchemaExplorer
-            query={activeQuery}
-            source={source}
-            actions={actions}
-            templates={templates}
-            onAddQuery={onAddQuery}
-          />
+        ? <div className="query-maker--tab-contents">
+            <QueryEditor
+              query={buildText(rawText, range, activeQuery)}
+              config={activeQuery}
+              onUpdate={rawTextBinder(links, id, actions.editRawTextAsync)}
+              templates={templates}
+            />
+            <SchemaExplorer
+              query={activeQuery}
+              actions={actions}
+              templates={templates}
+              onAddQuery={onAddQuery}
+            />
+          </div>
         : <EmptyQuery onAddQuery={onAddQuery} />}
     </div>
   )
