@@ -1,6 +1,6 @@
 import React, {PropTypes} from 'react'
 
-import EmptyQuery from 'src/dashboards/components/EmptyQuery'
+import EmptyQuery from 'src/shared/components/EmptyQuery'
 import QueryTabList from 'src/dashboards/components/QueryTabList'
 import QueryTextArea from 'src/dashboards/components/QueryTextArea'
 import SchemaExplorer from 'src/dashboards/components/SchemaExplorer'
