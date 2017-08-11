@@ -1,8 +1,16 @@
 import React, {PropTypes} from 'react'
 
-import QueryBuilder from './QueryBuilder'
+import QueryEditor from './QueryEditor'
 import EmptyQuery from 'src/shared/components/EmptyQuery'
 import QueryTabList from 'src/shared/components/QueryTabList'
+import SchemaExplorer from 'src/dashboards/components/SchemaExplorer'
+import buildInfluxQLQuery from 'utils/influxql'
+
+const rawTextBinder = (links, id, action) => text =>
+  action(links.queries, id, text)
+
+const buildText = (q, timeRange) =>
+  q.rawText || buildInfluxQLQuery(q.range || timeRange, q) || ''
 
 const QueryMaker = ({
   source,
@@ -24,16 +32,24 @@ const QueryMaker = ({
       activeQueryIndex={activeQueryIndex}
       setActiveQueryIndex={setActiveQueryIndex}
     />
-    {activeQuery
-      ? <QueryBuilder
-          layout={'default'}
-          source={source}
-          actions={actions}
-          query={activeQuery}
-          timeRange={timeRange}
-          onAddQuery={onAddQuery}
-          isInDataExplorer={true}
-        />
+    {activeQuery && activeQuery.id
+      ? <div className="query-maker--tab-contents">
+          <QueryEditor
+            query={buildText(activeQuery, timeRange)}
+            config={activeQuery}
+            isInDataExplorer={true}
+            onUpdate={rawTextBinder(
+              source.links,
+              activeQuery.id,
+              actions.editRawTextAsync
+            )}
+          />
+          <SchemaExplorer
+            query={activeQuery}
+            actions={actions}
+            onAddQuery={onAddQuery}
+          />
+        </div>
       : <EmptyQuery onAddQuery={onAddQuery} />}
   </div>
 
