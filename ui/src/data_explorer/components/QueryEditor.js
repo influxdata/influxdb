@@ -14,6 +14,7 @@ class QueryEditor extends Component {
     this.handleKeyDown = ::this.handleKeyDown
     this.handleChange = ::this.handleChange
     this.handleUpdate = ::this.handleUpdate
+    this.handleChooseMetaQuery = ::this.handleChooseMetaQuery
   }
 
   componentWillReceiveProps(nextProps) {
@@ -44,6 +45,10 @@ class QueryEditor extends Component {
     this.props.onUpdate(this.state.value)
   }
 
+  handleChooseMetaQuery(template) {
+    this.setState({value: template.query})
+  }
+
   render() {
     const {config: {status}} = this.props
     const {value} = this.state
@@ -69,7 +74,7 @@ class QueryEditor extends Component {
                 <Dropdown
                   items={QUERY_TEMPLATES}
                   selected={'Query Templates'}
-                  onChoose={this.handleChooseTemplate}
+                  onChoose={this.handleChooseMetaQuery}
                   className="dropdown-140 query-editor--templates"
                   buttonSize="btn-xs"
                 />
