@@ -87,18 +87,12 @@ class QueryEditor extends Component {
   }
 }
 
-const {arrayOf, bool, func, shape, string} = PropTypes
+const {func, shape, string} = PropTypes
 
 QueryEditor.propTypes = {
   query: string.isRequired,
   onUpdate: func.isRequired,
   config: shape().isRequired,
-  isInDataExplorer: bool,
-  templates: arrayOf(
-    shape({
-      tempVar: string.isRequired,
-    })
-  ),
 }
 
 export default QueryEditor

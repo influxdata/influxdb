@@ -109,7 +109,6 @@ class DataExplorer extends Component {
             actions={queryConfigActions}
             autoRefresh={autoRefresh}
             timeRange={timeRange}
-            isInDataExplorer={true}
             setActiveQueryIndex={::this.handleSetActiveQueryIndex}
             onDeleteQuery={::this.handleDeleteQuery}
             onAddQuery={::this.handleAddQuery}

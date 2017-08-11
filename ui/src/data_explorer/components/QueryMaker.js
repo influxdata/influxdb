@@ -37,7 +37,6 @@ const QueryMaker = ({
           <QueryEditor
             query={buildText(activeQuery, timeRange)}
             config={activeQuery}
-            isInDataExplorer={true}
             onUpdate={rawTextBinder(
               source.links,
               activeQuery.id,
