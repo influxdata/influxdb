@@ -9,8 +9,8 @@ import buildInfluxQLQuery from 'utils/influxql'
 const TEMPLATE_RANGE = {upper: null, lower: ':dashboardTime:'}
 const rawTextBinder = (links, id, action) => text =>
   action(links.queries, id, text)
-const buildText = (rawText, range, q) =>
-  rawText || buildInfluxQLQuery(range || TEMPLATE_RANGE, q) || ''
+const buildText = q =>
+  q.rawText || buildInfluxQLQuery(q.range || TEMPLATE_RANGE, q) || ''
 
 const QueryMaker = ({
   source: {links},
@@ -20,7 +20,6 @@ const QueryMaker = ({
   templates,
   onAddQuery,
   activeQuery,
-  activeQuery: {id, range, rawText},
   onDeleteQuery,
   activeQueryIndex,
   setActiveQueryIndex,
@@ -35,12 +34,16 @@ const QueryMaker = ({
         activeQueryIndex={activeQueryIndex}
         setActiveQueryIndex={setActiveQueryIndex}
       />
-      {activeQuery
+      {activeQuery && activeQuery.id
         ? <div className="query-maker--tab-contents">
             <QueryTextArea
-              query={buildText(rawText, range, activeQuery)}
+              query={buildText(activeQuery)}
               config={activeQuery}
-              onUpdate={rawTextBinder(links, id, actions.editRawTextAsync)}
+              onUpdate={rawTextBinder(
+                links,
+                activeQuery.id,
+                actions.editRawTextAsync
+              )}
               templates={templates}
             />
             <SchemaExplorer

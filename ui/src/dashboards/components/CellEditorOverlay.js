@@ -270,6 +270,7 @@ class CellEditorOverlay extends Component {
                   onAddQuery={this.handleAddQuery}
                   activeQueryIndex={activeQueryIndex}
                   activeQuery={this.getActiveQuery()}
+                  setActiveQueryIndex={this.handleSetActiveQueryIndex}
                 />}
           </div>
         </ResizeContainer>
