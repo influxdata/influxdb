@@ -1,7 +1,7 @@
 import React, {PropTypes} from 'react'
 
 import EmptyQuery from 'src/shared/components/EmptyQuery'
-import QueryTabList from 'src/dashboards/components/QueryTabList'
+import QueryTabList from 'src/shared/components/QueryTabList'
 import QueryTextArea from 'src/dashboards/components/QueryTextArea'
 import SchemaExplorer from 'src/dashboards/components/SchemaExplorer'
 import buildInfluxQLQuery from 'utils/influxql'

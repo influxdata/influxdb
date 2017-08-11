@@ -2,7 +2,7 @@ import React, {PropTypes} from 'react'
 
 import QueryBuilder from './QueryBuilder'
 import QueryMakerTab from './QueryMakerTab'
-import QueryTabList from 'src/dashboards/components/QueryTabList'
+import QueryTabList from 'src/shared/components/QueryTabList'
 import buildInfluxQLQuery from 'utils/influxql'
 import classnames from 'classnames'
 
