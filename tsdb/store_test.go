@@ -412,8 +412,6 @@ func TestShards_CreateIterator(t *testing.T) {
 
 // Ensure the store can backup a shard and another store can restore it.
 func TestStore_BackupRestoreShard(t *testing.T) {
-	// t.Parallel()
-
 	test := func(index string) {
 		s0, s1 := MustOpenStore(index), MustOpenStore(index)
 		defer s0.Close()
@@ -481,10 +479,11 @@ func TestStore_BackupRestoreShard(t *testing.T) {
 	}
 
 	for _, index := range tsdb.RegisteredIndexes() {
+		if index == "tsi1" {
+			t.Skip("Skipping failing test for tsi1")
+		}
+
 		t.Run(index, func(t *testing.T) {
-			if index == "tsi1" {
-				t.Skip("Skipping failing test for tsi1")
-			}
 			test(index)
 		})
 	}
@@ -531,10 +530,6 @@ func TestStore_MeasurementNames_Deduplicate(t *testing.T) {
 }
 
 func testStoreCardinalityTombstoning(t *testing.T, store *Store) {
-	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" {
-		t.Skip("Skipping test in short, race and appveyor mode.")
-	}
-
 	// Generate point data to write to the shards.
 	series := genTestSeries(10, 2, 4) // 160 series
 
@@ -595,6 +590,10 @@ func testStoreCardinalityTombstoning(t *testing.T, store *Store) {
 func TestStore_Cardinality_Tombstoning(t *testing.T) {
 	t.Parallel()
 
+	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" {
+		t.Skip("Skipping test in short, race and appveyor mode.")
+	}
+
 	test := func(index string) {
 		store := NewStore()
 		store.EngineOptions.IndexVersion = index
@@ -611,10 +610,6 @@ func TestStore_Cardinality_Tombstoning(t *testing.T) {
 }
 
 func testStoreCardinalityUnique(t *testing.T, store *Store) {
-	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" {
-		t.Skip("Skipping test in short, race and appveyor mode.")
-	}
-
 	// Generate point data to write to the shards.
 	series := genTestSeries(64, 5, 5) // 200,000 series
 	expCardinality := len(series)
@@ -661,6 +656,10 @@ func testStoreCardinalityUnique(t *testing.T, store *Store) {
 func TestStore_Cardinality_Unique(t *testing.T) {
 	t.Parallel()
 
+	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" {
+		t.Skip("Skipping test in short, race and appveyor mode.")
+	}
+
 	test := func(index string) {
 		store := NewStore()
 		store.EngineOptions.IndexVersion = index
@@ -680,10 +679,6 @@ func TestStore_Cardinality_Unique(t *testing.T) {
 // This test tests cardinality estimation when series data is duplicated across
 // multiple shards.
 func testStoreCardinalityDuplicates(t *testing.T, store *Store) {
-	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" {
-		t.Skip("Skipping test in short, race and appveyor mode.")
-	}
-
 	// Generate point data to write to the shards.
 	series := genTestSeries(64, 5, 5) // 200,000 series.
 	expCardinality := len(series)
@@ -744,6 +739,10 @@ func testStoreCardinalityDuplicates(t *testing.T, store *Store) {
 func TestStore_Cardinality_Duplicates(t *testing.T) {
 	t.Parallel()
 
+	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" {
+		t.Skip("Skipping test in short, race and appveyor mode.")
+	}
+
 	test := func(index string) {
 		store := NewStore()
 		store.EngineOptions.IndexVersion = index
@@ -763,9 +762,6 @@ func TestStore_Cardinality_Duplicates(t *testing.T) {
 // Creates a large number of series in multiple shards, which will force
 // compactions to occur.
 func testStoreCardinalityCompactions(t *testing.T, store *Store) {
-	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" {
-		t.Skip("Skipping test in short, race and appveyor mode.")
-	}
 
 	// Generate point data to write to the shards.
 	series := genTestSeries(300, 5, 5) // 937,500 series
@@ -812,6 +808,10 @@ func testStoreCardinalityCompactions(t *testing.T, store *Store) {
 
 func TestStore_Cardinality_Compactions(t *testing.T) {
 	t.Parallel()
+
+	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" {
+		t.Skip("Skipping test in short, race and appveyor mode.")
+	}
 
 	test := func(index string) {
 		store := NewStore()
