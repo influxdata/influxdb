@@ -19,11 +19,6 @@ const QueryMaker = React.createClass({
       upper: string,
       lower: string,
     }).isRequired,
-    templates: arrayOf(
-      shape({
-        tempVar: string.isRequired,
-      })
-    ),
     isInDataExplorer: bool,
     actions: shape({
       chooseNamespace: func.isRequired,
@@ -82,14 +77,7 @@ const QueryMaker = React.createClass({
   },
 
   renderQueryBuilder() {
-    const {
-      timeRange,
-      actions,
-      source,
-      templates,
-      layout,
-      isInDataExplorer,
-    } = this.props
+    const {timeRange, actions, source, layout, isInDataExplorer} = this.props
     const query = this.getActiveQuery()
 
     if (!query) {
@@ -126,7 +114,6 @@ const QueryMaker = React.createClass({
       <QueryBuilder
         source={source}
         timeRange={timeRange}
-        templates={templates}
         query={query}
         actions={actions}
         onAddQuery={this.handleAddQuery}
