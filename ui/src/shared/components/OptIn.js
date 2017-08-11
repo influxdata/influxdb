@@ -155,7 +155,6 @@ class OptIn extends Component {
           className="form-control input-sm"
           type={type}
           name={customPlaceholder}
-          id={customPlaceholder}
           ref={el => (this.customValueInput = el)}
           value={customValue}
           onFocus={this.handleFocusCustomValueInput()}
