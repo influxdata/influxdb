@@ -32,7 +32,7 @@ func (s *Store) WithLogger(log zap.Logger) {
 	s.Logger = log.With(zap.String("service", "store"))
 }
 
-func (s *Store) Read(req ReadRequest) (*ResultSet, error) {
+func (s *Store) Read(req *ReadRequest) (*ResultSet, error) {
 	database, rp := req.Database, ""
 
 	if p := strings.IndexByte(database, '/'); p > -1 {
@@ -93,6 +93,7 @@ type ResultSet struct {
 
 	shards    []*tsdb.Shard
 	m, key, f string
+	tagset    map[string]string
 	shard     *tsdb.Shard
 }
 
@@ -102,7 +103,7 @@ func (r *ResultSet) Next() bool {
 			return false
 		}
 
-		r.m, r.key, r.f, r.shards = r.p.Read()
+		r.m, r.key, r.f, r.tagset, r.shards = r.p.Read()
 	}
 
 	r.shard, r.shards = r.shards[0], r.shards[1:]
@@ -113,4 +114,12 @@ func (r *ResultSet) Cursor() tsdb.Cursor {
 	req := tsdb.CursorRequest{Measurement: r.m, Series: r.key, Field: r.f, Ascending: r.asc, StartTime: r.start, EndTime: r.end}
 	c, _ := r.shard.CreateCursor(req)
 	return c
+}
+
+func (r *ResultSet) Tags() map[string]string {
+	return r.tagset // TODO(sgc): this should not be mutated
+}
+
+func (r *ResultSet) SeriesKey() string {
+	return r.key
 }

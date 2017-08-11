@@ -226,7 +226,7 @@ func (cmd *Command) queryCursor(s *storage.Store) error {
 	req.TimestampRange.End = cmd.endTime
 	req.Database = cmd.database
 
-	rs, err := s.Read(req)
+	rs, err := s.Read(&req)
 	if err != nil {
 		return err
 	}

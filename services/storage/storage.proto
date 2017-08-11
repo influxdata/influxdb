@@ -65,12 +65,12 @@ message ReadResponse {
   }
 
   message FloatPointsFrame {
-    repeated int64 timestamps = 1;
+    repeated int64 timestamps = 1; // TODO(sgc): fixed64?
     repeated double values = 2;
   }
 
   message IntegerPointsFrame {
-    repeated int64 timestamps = 1;
+    repeated int64 timestamps = 1; // TODO(sgc): fixed64?
     repeated int64 values = 2;
   }
 

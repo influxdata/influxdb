@@ -4,10 +4,11 @@ import (
 	"context"
 	"encoding/binary"
 
+	"math"
+
 	"github.com/gogo/protobuf/types"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/uber-go/zap"
-	"math"
 )
 
 //go:generate protoc -I$GOPATH/src -I. --plugin=protoc-gen-yarpc=$GOPATH/bin/protoc-gen-yarpc --yarpc_out=Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types:. --gogofaster_out=Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types:. storage.proto predicate.proto
@@ -30,7 +31,7 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 	const BatchSize = 5000
 	const FrameCount = 10
 
-	rs, err := r.Store.Read(*req)
+	rs, err := r.Store.Read(req)
 	if err != nil {
 		r.Logger.Error("Store.Read failed", zap.Error(err))
 		return err
@@ -61,11 +62,11 @@ LIMIT:
 
 		cur := rs.Cursor()
 		if cur == nil {
-			r.Logger.Error("rs.Cursor: nil value")
-			return nil
+			// no data for series key + field combination
+			continue
 		}
 
-		if cur.SeriesKey() != lastKey {
+		if rs.SeriesKey() != lastKey {
 			lastKey = cur.SeriesKey()
 			res.Frames = append(res.Frames, ReadResponse_Frame{&ReadResponse_Frame_Series{&ReadResponse_SeriesFrame{lastKey}}})
 			if err != nil {

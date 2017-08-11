@@ -15,37 +15,41 @@ func NodeToExpr(node *Node) (influxql.Expr, error) {
 		return nil, err
 	}
 
-	if len(v.exprs) != 1 {
+	if len(v.exprs) > 1 {
 		return nil, errors.New("invalid expression")
+	}
+
+	if len(v.exprs) == 0 {
+		return nil, nil
 	}
 
 	return v.exprs[0], nil
 }
 
-type nodeToExprVisitor struct {
-	exprs []influxql.Expr
-	err   error
-}
-
-func (v *nodeToExprVisitor) Err() error {
-	return v.err
-}
-
-func (v *nodeToExprVisitor) pop() influxql.Expr {
-	if len(v.exprs) == 0 {
-		panic("stack empty")
+func NodeToExprNoField(node *Node) (influxql.Expr, bool, error) {
+	var v nodeToExprVisitor
+	v.removeField = true
+	WalkNode(&v, node)
+	if err := v.Err(); err != nil {
+		return nil, false, err
 	}
 
-	var top influxql.Expr
-	top, v.exprs = v.exprs[len(v.exprs)-1], v.exprs[:len(v.exprs)-1]
-	return top
+	if len(v.exprs) > 1 {
+		return nil, false, errors.New("invalid expression")
+	}
+
+	if len(v.exprs) == 0 {
+		return nil, v.containsField, nil
+	}
+
+	return v.exprs[0], v.containsField, nil
 }
 
-func (v *nodeToExprVisitor) pop2() (lhs, rhs influxql.Expr) {
-	rhs = v.exprs[len(v.exprs)-1]
-	lhs = v.exprs[len(v.exprs)-2]
-	v.exprs = v.exprs[:len(v.exprs)-2]
-	return lhs, rhs
+type nodeToExprVisitor struct {
+	exprs         []influxql.Expr
+	removeField   bool
+	containsField bool
+	err           error
 }
 
 func (v *nodeToExprVisitor) Visit(n *Node) NodeVisitor {
@@ -72,8 +76,10 @@ func (v *nodeToExprVisitor) Visit(n *Node) NodeVisitor {
 					return nil
 				}
 
-				lhs, rhs := v.pop2()
-				v.exprs = append(v.exprs, &influxql.BinaryExpr{LHS: lhs, Op: op, RHS: rhs})
+				if len(v.exprs) >= 2 {
+					lhs, rhs := v.pop2()
+					v.exprs = append(v.exprs, &influxql.BinaryExpr{LHS: lhs, Op: op, RHS: rhs})
+				}
 			}
 			v.exprs = append(v.exprs, &influxql.ParenExpr{Expr: v.pop()})
 			return nil
@@ -88,6 +94,16 @@ func (v *nodeToExprVisitor) Visit(n *Node) NodeVisitor {
 		}
 
 		lhs, rhs := v.pop2()
+
+		if v.removeField {
+			// HACK(sgc): for POC we just rewrite _field OP val to VarRef OP VarRef so they can be passed to the index
+			// series iterator and not affect the outcome
+			if l, ok := lhs.(*influxql.VarRef); ok && l.Val == "_field" {
+				v.containsField = true
+				return nil
+			}
+		}
+
 		be := &influxql.BinaryExpr{LHS: lhs, RHS: rhs}
 		switch n.GetComparison() {
 		case ComparisonEqual:
@@ -95,12 +111,16 @@ func (v *nodeToExprVisitor) Visit(n *Node) NodeVisitor {
 		case ComparisonNotEqual:
 			be.Op = influxql.NEQ
 		case ComparisonStartsWith:
+			// TODO(sgc): rewrite to anchored RE, as index does not support startsWith yet
 			v.err = errors.New("startsWith not implemented")
 			return nil
 		case ComparisonRegex:
 			be.Op = influxql.EQREGEX
 		case ComparisonNotRegex:
 			be.Op = influxql.NEQREGEX
+		default:
+			v.err = errors.New("invalid comparison operator")
+			return nil
 		}
 
 		v.exprs = append(v.exprs, be)
@@ -153,4 +173,29 @@ func (v *nodeToExprVisitor) Visit(n *Node) NodeVisitor {
 		return v
 	}
 	return nil
+}
+
+func (v *nodeToExprVisitor) Err() error {
+	return v.err
+}
+
+func (v *nodeToExprVisitor) pop() influxql.Expr {
+	if len(v.exprs) == 0 {
+		panic("stack empty")
+	}
+
+	var top influxql.Expr
+	top, v.exprs = v.exprs[len(v.exprs)-1], v.exprs[:len(v.exprs)-1]
+	return top
+}
+
+func (v *nodeToExprVisitor) pop2() (lhs, rhs influxql.Expr) {
+	if len(v.exprs) < 2 {
+		panic("stack empty")
+	}
+
+	rhs = v.exprs[len(v.exprs)-1]
+	lhs = v.exprs[len(v.exprs)-2]
+	v.exprs = v.exprs[:len(v.exprs)-2]
+	return
 }

@@ -189,9 +189,9 @@ func (cmd *Command) query(c storage.StorageClient) error {
 		for _, frame := range rep.Frames {
 			if s := frame.GetSeries(); s != nil {
 				if !cmd.silent {
-					wr.WriteString("\033[36m;series:")
+					wr.WriteString("\033[36mseries:")
 					wr.WriteString(s.Name)
-					wr.WriteString("\n\033[0m;")
+					wr.WriteString("\n\033[0m")
 					wr.Flush()
 				}
 			} else if p := frame.GetIntegerPoints(); p != nil {

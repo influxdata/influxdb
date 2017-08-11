@@ -134,7 +134,23 @@ func TestWalk(t *testing.T) {
 	t.Log(v.String())
 }
 
+func TestNodeToExpr3(t *testing.T) {
+	tests := []struct {
+		name string
+		node *storage.Node
+		exp  string
+	}{
+	// TODO: test cases
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+
+		})
+	}
+}
+
 func TestNodeToExpr(t *testing.T) {
+
 	node := &storage.Node{
 		NodeType: storage.NodeTypeBooleanExpression,
 		Value:    &storage.Node_Comparison_{Comparison: storage.ComparisonEqual},
@@ -181,5 +197,39 @@ func TestNodeToExpr2(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+	t.Log(expr)
+}
+
+func TestNodeToExprNoField(t *testing.T) {
+	pred := &storage.Predicate{
+		Root: &storage.Node{
+			NodeType: storage.NodeTypeGroupExpression,
+			Value:    &storage.Node_Logical_{Logical: storage.LogicalAnd},
+			Children: []*storage.Node{
+				{
+					NodeType: storage.NodeTypeBooleanExpression,
+					Value:    &storage.Node_Comparison_{Comparison: storage.ComparisonEqual},
+					Children: []*storage.Node{
+						{NodeType: storage.NodeTypeRef, Value: &storage.Node_RefValue{RefValue: "host"}},
+						{NodeType: storage.NodeTypeLiteral, Value: &storage.Node_StringValue{StringValue: "host1"}},
+					},
+				},
+				{
+					NodeType: storage.NodeTypeBooleanExpression,
+					Value:    &storage.Node_Comparison_{Comparison: storage.ComparisonRegex},
+					Children: []*storage.Node{
+						{NodeType: storage.NodeTypeRef, Value: &storage.Node_RefValue{RefValue: "_field"}},
+						{NodeType: storage.NodeTypeLiteral, Value: &storage.Node_RegexValue{RegexValue: "^us-west"}},
+					},
+				},
+			},
+		},
+	}
+
+	expr, hf, err := storage.NodeToExprNoField(pred.Root)
+	if err != nil {
+		t.Error(err)
+	}
+	t.Log(hf)
 	t.Log(expr)
 }
