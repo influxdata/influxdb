@@ -76,6 +76,9 @@ textarea.form-control.write-data-form--input {
 input[type="file"].write-data-form--upload {
   display: none;
 }
+button.write-data-form--upload-button {
+  margin-top: 312px;
+}
 .write-data-form--filepath_selected,
 .write-data-form--filepath_empty {
   @include no-user-select();
@@ -95,7 +98,7 @@ input[type="file"].write-data-form--upload {
 /* Drag File to Upload Styles */
 .write-data-form--drag-here {
   position: absolute;
-  top: 50%;
+  top: 35%;
   left: 50%;
   transform: translate(-50%,-50%);
   transition: $write-data--transition;
@@ -106,7 +109,7 @@ input[type="file"].write-data-form--upload {
   line-height: 240px;
   font-size: 30px;
   font-weight: 400;
-  opacity: 0;
+  opacity: 0.5;
   color: $g20-white;
   border: 2px dashed fade-out($g20-white, 0.5);
 }
