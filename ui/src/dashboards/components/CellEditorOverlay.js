@@ -96,10 +96,10 @@ class CellEditorOverlay extends Component {
     })
   }
 
-  handleSetLabel(value) {
+  handleSetLabel(label) {
     const {axes} = this.state
 
-    this.setState({axes: {...axes, y: {...axes.y, label: value}}})
+    this.setState({axes: {...axes, y: {...axes.y, label}}})
   }
 
   handleAddQuery(options) {
