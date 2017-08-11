@@ -209,8 +209,17 @@ const AutoRefresh = ComposedComponent => {
     },
 
     renderNoResults() {
-      if (this.props.children) {
-        return this.props.children
+      const {children, queries} = this.props
+      if (children) {
+        return children
+      }
+
+      if (!queries.length) {
+        return (
+          <div className="graph-empty">
+            <p>Build a Graph below</p>
+          </div>
+        )
       }
 
       return (

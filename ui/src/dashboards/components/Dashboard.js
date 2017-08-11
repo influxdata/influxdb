@@ -73,9 +73,9 @@ const Dashboard = ({
               synchronizer={synchronizer}
             />
           : <div className="dashboard__empty">
-              <p>This Dashboard has no Graphs</p>
+              <p>This Dashboard has no Cells</p>
               <button className="btn btn-primary btn-m" onClick={onAddCell}>
-                Add Graph
+                <span className="icon plus" />Add a Cell
               </button>
             </div>}
       </div>
