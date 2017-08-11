@@ -3,7 +3,7 @@ import _ from 'lodash'
 
 import Dropdown from 'shared/components/Dropdown'
 import {QUERY_TEMPLATES} from 'src/data_explorer/constants'
-import QueryStatus from 'src/dashboards/components/QueryStatus'
+import QueryStatus from 'shared/components/QueryStatus'
 
 import {
   MATCH_INCOMPLETE_TEMPLATES,

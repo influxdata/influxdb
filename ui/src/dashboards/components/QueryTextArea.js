@@ -3,7 +3,7 @@ import _ from 'lodash'
 import classnames from 'classnames'
 
 import TemplateDrawer from 'shared/components/TemplateDrawer'
-import QueryStatus from 'src/dashboards/components/QueryStatus'
+import QueryStatus from 'shared/components/QueryStatus'
 
 import {
   MATCH_INCOMPLETE_TEMPLATES,
