@@ -2,6 +2,7 @@ import React, {PropTypes} from 'react'
 
 import QueryBuilder from './QueryBuilder'
 import QueryMakerTab from './QueryMakerTab'
+import QueryTabList from 'src/dashboards/components/QueryTabList'
 import buildInfluxQLQuery from 'utils/influxql'
 import classnames from 'classnames'
 
@@ -42,7 +43,18 @@ const QueryMaker = React.createClass({
   },
 
   render() {
-    const {height, top, layout} = this.props
+    const {
+      height,
+      top,
+      layout,
+      queries,
+      timeRange,
+      onAddQuery,
+      onDeleteQuery,
+      activeQueryIndex,
+      setActiveQueryIndex,
+    } = this.props
+
     return (
       <div
         className={classnames('query-maker', {
@@ -50,7 +62,14 @@ const QueryMaker = React.createClass({
         })}
         style={{height, top}}
       >
-        {this.renderQueryTabList()}
+        <QueryTabList
+          queries={queries}
+          timeRange={timeRange}
+          onAddQuery={onAddQuery}
+          onDeleteQuery={onDeleteQuery}
+          activeQueryIndex={activeQueryIndex}
+          setActiveQueryIndex={setActiveQueryIndex}
+        />
         {this.renderQueryBuilder()}
       </div>
     )
@@ -107,47 +126,6 @@ const QueryMaker = React.createClass({
         layout={layout}
         isInDataExplorer={isInDataExplorer}
       />
-    )
-  },
-
-  renderQueryTabList() {
-    const {
-      queries,
-      activeQueryIndex,
-      onDeleteQuery,
-      timeRange,
-      setActiveQueryIndex,
-      onAddQuery,
-    } = this.props
-
-    return (
-      <div className="query-maker--tabs">
-        {queries.map((q, i) => {
-          return (
-            <QueryMakerTab
-              isActive={i === activeQueryIndex}
-              key={i}
-              queryIndex={i}
-              query={q}
-              onSelect={setActiveQueryIndex}
-              onDelete={onDeleteQuery}
-              queryTabText={
-                q.rawText ||
-                buildInfluxQLQuery(timeRange, q) ||
-                `Query ${i + 1}`
-              }
-            />
-          )
-        })}
-        {this.props.children}
-        <div
-          className="query-maker--new btn btn-sm btn-primary"
-          onClick={onAddQuery}
-          data-test="new-query-button"
-        >
-          <span className="icon plus" />
-        </div>
-      </div>
     )
   },
 })
