@@ -22,13 +22,6 @@ class OptIn extends Component {
 
     this.useFixedValue = ::this.useFixedValue
     this.useCustomValue = ::this.useCustomValue
-    this.handleClickFixedValueField = ::this.handleClickFixedValueField
-    this.handleClickToggle = ::this.handleClickToggle
-    // this.handleFocusCustomValueInput = ::this.handleFocusCustomValueInput
-    this.handleChangeCustomValue = ::this.handleChangeCustomValue
-    this.handleKeyDownCustomValueInput = ::this.handleKeyDownCustomValueInput
-    this.handleClickOutsideCustomValueInput = ::this
-      .handleClickOutsideCustomValueInput
     this.considerResetCustomValue = ::this.considerResetCustomValue
     this.setCustomValue = ::this.setCustomValue
     this.setValue = ::this.setValue
@@ -38,7 +31,6 @@ class OptIn extends Component {
     this.setState({useCustomValue: false, customValue: ''}, () =>
       this.setValue()
     )
-    // this.customValueInput.blur()
   }
 
   useCustomValue() {
