@@ -7,7 +7,6 @@ message Node {
   enum Type {
     option (gogoproto.goproto_enum_prefix) = false;
 
-    // ComparisonEqual denotes the equal comparison operator.
     GROUP_EXPRESSION = 0 [(gogoproto.enumvalue_customname) = "NodeTypeGroupExpression"];
     BOOLEAN_EXPRESSION = 1 [(gogoproto.enumvalue_customname) = "NodeTypeBooleanExpression"];
     REF = 2 [(gogoproto.enumvalue_customname) = "NodeTypeRef"];

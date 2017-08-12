@@ -21,7 +21,6 @@ package storage
 
 import (
 	context "context"
-
 	yarpc "github.com/influxdata/yarpc"
 )
 

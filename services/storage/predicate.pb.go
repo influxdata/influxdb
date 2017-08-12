@@ -18,7 +18,6 @@ var _ = math.Inf
 type Node_Type int32
 
 const (
-	// ComparisonEqual denotes the equal comparison operator.
 	NodeTypeGroupExpression   Node_Type = 0
 	NodeTypeBooleanExpression Node_Type = 1
 	NodeTypeRef               Node_Type = 2

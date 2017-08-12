@@ -236,6 +236,7 @@ func (cmd *Command) query(c storage.StorageClient) error {
 		}
 	}
 
+	fmt.Println()
 	fmt.Println("integerSum", integerSum, "floatSum", floatSum)
 
 	return nil
@@ -286,8 +287,23 @@ func (v *exprToNodeVisitor) Visit(node influxql.Node) influxql.Visitor {
 				Children: []*storage.Node{lhs, rhs},
 			}
 			v.nodes = append(v.nodes, node)
+		} else if n.Op == influxql.AND || n.Op == influxql.OR {
+			var op storage.Node_Logical
+			if n.Op == influxql.AND {
+				op = storage.LogicalAnd
+			} else {
+				op = storage.LogicalOr
+			}
+
+			lhs, rhs := v.pop2()
+			node := &storage.Node{
+				NodeType: storage.NodeTypeGroupExpression,
+				Value:    &storage.Node_Logical_{Logical: op},
+				Children: []*storage.Node{lhs, rhs},
+			}
+			v.nodes = append(v.nodes, node)
 		} else {
-			v.err = errors.New("unsupported operator")
+			v.err = fmt.Errorf("unsupported operator, %s", n.Op)
 		}
 
 		return nil
@@ -303,7 +319,7 @@ func (v *exprToNodeVisitor) Visit(node influxql.Node) influxql.Visitor {
 		return nil
 
 	default:
-		v.err = errors.New("unsupported node")
+		v.err = errors.New("unsupported expression")
 		return nil
 	}
 }
