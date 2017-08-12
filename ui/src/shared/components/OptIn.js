@@ -89,6 +89,7 @@ class OptIn extends Component {
     return e => {
       if (
         e.target.id !== this.grooveKnob.id &&
+        e.target.id !== this.grooveKnobContainer.id &&
         this.isCustomValueInputFocused
       ) {
         this.considerResetCustomValue()
@@ -148,10 +149,14 @@ class OptIn extends Component {
         <div
           className="opt-in--groove-knob-container"
           id={this.id}
-          ref={el => (this.grooveKnob = el)}
+          ref={el => (this.grooveKnobContainer = el)}
           onClick={this.handleClickToggle()}
         >
-          <div className="opt-in--groove-knob" />
+          <div
+            className="opt-in--groove-knob"
+            id={this.id}
+            ref={el => (this.grooveKnob = el)}
+          />
         </div>
         <div
           className="opt-in--left-label"
