@@ -31,6 +31,13 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 	const BatchSize = 5000
 	const FrameCount = 10
 
+	r.Logger.Info("request",
+		zap.String("predicate", PredicateToExprString(req.Predicate)),
+		zap.Int64("limit", req.Limit),
+		zap.Int64("start", req.TimestampRange.Start),
+		zap.Int64("end", req.TimestampRange.End),
+	)
+
 	rs, err := r.Store.Read(req)
 	if err != nil {
 		r.Logger.Error("Store.Read failed", zap.Error(err))
