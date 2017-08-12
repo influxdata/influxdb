@@ -15,23 +15,27 @@ class ClickOutsideInput extends Component {
 
   render() {
     const {
+      id,
       type,
       customPlaceholder,
       onGetRef,
       customValue,
+      onFocus,
       onChange,
-      onKeyPress,
+      onKeyDown,
     } = this.props
 
     return (
       <input
         className="form-control input-sm"
+        id={id}
         type={type}
         name={customPlaceholder}
         ref={onGetRef}
         value={customValue}
+        onFocus={onFocus}
         onChange={onChange}
-        onKeyPress={onKeyPress}
+        onKeyDown={onKeyDown}
         placeholder={customPlaceholder}
       />
     )
@@ -41,12 +45,14 @@ class ClickOutsideInput extends Component {
 const {func, string} = PropTypes
 
 ClickOutsideInput.propTypes = {
+  id: string.isRequired,
   type: string.isRequired,
   customPlaceholder: string.isRequired,
-  onGetRef: func.isRequired,
   customValue: string.isRequired,
+  onGetRef: func.isRequired,
+  onFocus: func.isRequired,
   onChange: func.isRequired,
-  onKeyPress: func.isRequired,
+  onKeyDown: func.isRequired,
   handleClickOutsideCustomValueInput: func.isRequired,
 }
 

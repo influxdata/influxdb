@@ -1,12 +1,9 @@
 import React, {Component, PropTypes} from 'react'
 import classnames from 'classnames'
 
-import ClickOutsideInput from 'shared/components/ClickOutsideInput'
+import uuid from 'node-uuid'
 
-// these help ensure that blur and toggle events don't both change toggle's side
-const RESET_TIMEOUT = 300
-const TOGGLE_CLICKED_TIMEOUT = 20
-const BLUR_FOCUS_GAP_TIMEOUT = 10
+import ClickOutsideInput from 'shared/components/ClickOutsideInput'
 
 class OptIn extends Component {
   constructor(props) {
@@ -18,58 +15,34 @@ class OptIn extends Component {
       useCustomValue: customValue !== '',
       fixedValue,
       customValue,
-      wasToggleClicked: false,
-      wasCustomValueInputBlurred: false,
-      resetTimeoutID: null,
-      toggleTimeoutID: null,
-      blurTimeoutID: null,
     }
 
+    this.id = uuid.v4()
+    this.isCustomValueInputFocused = false
+
     this.useFixedValue = ::this.useFixedValue
-    this.toggleValue = ::this.toggleValue
     this.useCustomValue = ::this.useCustomValue
     this.handleClickFixedValueField = ::this.handleClickFixedValueField
     this.handleClickToggle = ::this.handleClickToggle
-    this.handleFocusCustomValueInput = ::this.handleFocusCustomValueInput
-    this.handleBlurCustomValueInput = ::this.handleBlurCustomValueInput
+    // this.handleFocusCustomValueInput = ::this.handleFocusCustomValueInput
     this.handleChangeCustomValue = ::this.handleChangeCustomValue
-    this.handleKeyPressCustomValueInput = ::this.handleKeyPressCustomValueInput
+    this.handleKeyDownCustomValueInput = ::this.handleKeyDownCustomValueInput
     this.handleClickOutsideCustomValueInput = ::this
       .handleClickOutsideCustomValueInput
-    this.handleGetRefCustomValueInput = ::this.handleGetRefCustomValueInput
+    this.considerResetCustomValue = ::this.considerResetCustomValue
     this.setCustomValue = ::this.setCustomValue
     this.setValue = ::this.setValue
   }
 
-  componentWillUnmount() {
-    clearTimeout(this.state.resetTimeoutID)
-    clearTimeout(this.state.toggleTimeoutID)
-    clearTimeout(this.state.blurTimeoutID)
-  }
-
   useFixedValue() {
-    this.setState({useCustomValue: false}, this.setValue)
-  }
-
-  toggleValue() {
-    const useCustomValueNext = !this.state.useCustomValue
-    if (useCustomValueNext && !this.state.wasCustomValueInputBlurred) {
-      this.useCustomValue()
-    } else {
-      this.useFixedValue()
-    }
+    this.setState({useCustomValue: false, customValue: ''}, () =>
+      this.setValue()
+    )
+    // this.customValueInput.blur()
   }
 
   useCustomValue() {
-    this.setState({useCustomValue: true}, () => {
-      if (
-        this.state.wasToggleClicked &&
-        !this.state.wasCustomValueInputBlurred
-      ) {
-        this.customValueInput.focus()
-      }
-      this.setValue()
-    })
+    this.setState({useCustomValue: true}, () => this.setValue())
   }
 
   handleClickFixedValueField() {
@@ -78,38 +51,20 @@ class OptIn extends Component {
 
   handleClickToggle() {
     return () => {
-      this.setState({wasToggleClicked: true}, () => {
-        this.toggleValue()
-      })
-
-      const toggleTimeoutID = setTimeout(() => {
-        this.setState({wasToggleClicked: false})
-      }, TOGGLE_CLICKED_TIMEOUT)
-
-      this.setState({toggleTimeoutID})
+      const useCustomValueNext = !this.state.useCustomValue
+      if (useCustomValueNext) {
+        this.useCustomValue()
+        this.customValueInput.focus()
+      } else {
+        this.useFixedValue()
+      }
     }
   }
 
   handleFocusCustomValueInput() {
-    return () => this.useCustomValue()
-  }
-
-  handleBlurCustomValueInput() {
-    return e => {
-      this.setState(
-        {wasCustomValueInputBlurred: true, customValue: e.target.value.trim()},
-        () => {
-          if (this.state.customValue === '') {
-            const blurTimeoutID = setTimeout(() => {
-              if (!this.state.wasToggleClicked) {
-                this.useFixedValue()
-              }
-            }, BLUR_FOCUS_GAP_TIMEOUT)
-
-            this.setState({blurTimeoutID})
-          }
-        }
-      )
+    return () => {
+      this.isCustomValueInputFocused = true
+      this.useCustomValue()
     }
   }
 
@@ -119,22 +74,38 @@ class OptIn extends Component {
     }
   }
 
-  handleKeyPressCustomValueInput() {
+  handleKeyDownCustomValueInput() {
     return e => {
-      if (e.key === 'Enter') {
-        this.customValueInput.blur()
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        if (e.key === 'Enter') {
+          this.customValueInput.blur()
+        }
+        this.considerResetCustomValue()
       }
     }
   }
 
-  handleGetRefCustomValueInput() {
-    return el => (this.customValueInput = el)
-  }
-
   handleClickOutsideCustomValueInput() {
     return e => {
-      console.log(e)
+      if (
+        e.target.id !== this.grooveKnob.id &&
+        this.isCustomValueInputFocused
+      ) {
+        this.considerResetCustomValue()
+      }
     }
+  }
+
+  considerResetCustomValue() {
+    const customValue = this.customValueInput.value.trim()
+
+    this.setState({customValue})
+
+    if (customValue === '') {
+      this.useFixedValue()
+    }
+
+    this.isCustomValueInputFocused = false
   }
 
   setCustomValue(value) {
@@ -144,22 +115,12 @@ class OptIn extends Component {
   setValue() {
     const {onSetValue} = this.props
     const {useCustomValue, fixedValue, customValue} = this.state
+
     if (useCustomValue) {
       onSetValue(customValue)
     } else {
-      this.setState({customValue: ''})
       onSetValue(fixedValue)
     }
-
-    // reset UI interaction state-tracking values & prevent blur + click
-    const resetTimeoutID = setTimeout(() => {
-      this.setState({
-        wasToggleClicked: false,
-        wasCustomValueInputBlurred: false,
-      })
-    }, RESET_TIMEOUT)
-
-    this.setState({resetTimeoutID})
   }
 
   render() {
@@ -173,17 +134,21 @@ class OptIn extends Component {
         })}
       >
         <ClickOutsideInput
+          id={this.id}
           type={type}
           customPlaceholder={customPlaceholder}
           customValue={customValue}
-          onGetRef={this.handleGetRefCustomValueInput()}
+          onGetRef={el => (this.customValueInput = el)}
+          onFocus={this.handleFocusCustomValueInput()}
           onChange={this.handleChangeCustomValue()}
-          onKeyPress={this.handleKeyPressCustomValueInput()}
+          onKeyDown={this.handleKeyDownCustomValueInput()}
           handleClickOutsideCustomValueInput={this.handleClickOutsideCustomValueInput()}
         />
 
         <div
           className="opt-in--groove-knob-container"
+          id={this.id}
+          ref={el => (this.grooveKnob = el)}
           onClick={this.handleClickToggle()}
         >
           <div className="opt-in--groove-knob" />
