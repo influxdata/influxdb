@@ -148,6 +148,7 @@ class WriteDataForm extends Component {
         onDrop={e => this.handleFile(e, true)}
         onDragOver={this.handleDragOver}
         onDragEnter={e => this.handleDragEnter(e)}
+        onDragExit={e => this.handleDragLeave(e)}
         onDragLeave={e => this.handleDragLeave(e)}
         className={classnames(OVERLAY_TECHNOLOGY, dragClass)}
       >

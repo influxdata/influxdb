@@ -3,6 +3,7 @@
 1. [#1795](https://github.com/influxdata/chronograf/pull/1795): Fix uptime status on Windows hosts running Telegraf
 1. [#1715](https://github.com/influxdata/chronograf/pull/1715): Chronograf now renders on IE11.
 1. [#1845](https://github.com/influxdata/chronograf/pull/1845): Fix no-scroll bar appearing in the Data Explorer table
+1. [#1864](https://github.com/influxdata/chronograf/pull/1864): Fix Write Data form upload button and add `onDragExit` handler
 1. [#1866](https://github.com/influxdata/chronograf/pull/1866): Fix missing cell type (and consequently single-stat)
 
 ### Features
