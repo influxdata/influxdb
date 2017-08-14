@@ -94,7 +94,7 @@ $query-editor-tab-active: $g3-castle;
   height: $query-maker--tabs-height;
   margin: 0 2px 0 0;
   max-width: $query-maker--tab-width;
-  flex: 1 0 0;
+  flex: 1 0 0%;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -170,7 +170,7 @@ $query-editor-tab-active: $g3-castle;
 }
 .query-maker--tab-contents,
 .query-maker--empty {
-  flex: 1 0 0;
+  flex: 1 0 0%;
   margin: 0 0 $query-maker--gutter 0;
   background-color: $query-maker--tab-contents-bg;
 }

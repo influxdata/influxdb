@@ -4,8 +4,8 @@ import _ from 'lodash'
 import uuid from 'node-uuid'
 
 import ResizeContainer from 'shared/components/ResizeContainer'
-import QueryMaker from 'src/data_explorer/components/QueryMaker'
-import Visualization from 'src/data_explorer/components/Visualization'
+import QueryMaker from 'src/dashboards/components/QueryMaker'
+import Visualization from 'src/dashboards/components/Visualization'
 import OverlayControls from 'src/dashboards/components/OverlayControls'
 import DisplayOptions from 'src/dashboards/components/DisplayOptions'
 
@@ -34,6 +34,7 @@ class CellEditorOverlay extends Component {
     this.handleEditRawText = ::this.handleEditRawText
     this.handleSetYAxisBounds = ::this.handleSetYAxisBounds
     this.handleSetLabel = ::this.handleSetLabel
+    this.getActiveQuery = ::this.getActiveQuery
 
     const {cell: {name, type, queries, axes}} = props
 
@@ -111,10 +112,17 @@ class CellEditorOverlay extends Component {
     e.preventDefault()
   }
 
-  handleAddQuery(options) {
-    const newQuery = Object.assign({}, defaultQueryConfig(uuid.v4()), options)
-    const nextQueries = this.state.queriesWorkingDraft.concat(newQuery)
-    this.setState({queriesWorkingDraft: nextQueries})
+  handleAddQuery() {
+    const {queriesWorkingDraft} = this.state
+    const newIndex = queriesWorkingDraft.length
+
+    this.setState({
+      queriesWorkingDraft: [
+        ...queriesWorkingDraft,
+        defaultQueryConfig(uuid.v4()),
+      ],
+    })
+    this.handleSetActiveQueryIndex(newIndex)
   }
 
   handleDeleteQuery(index) {
@@ -167,6 +175,14 @@ class CellEditorOverlay extends Component {
     this.setState({activeQueryIndex})
   }
 
+  getActiveQuery() {
+    const {queriesWorkingDraft, activeQueryIndex} = this.state
+    const activeQuery = queriesWorkingDraft[activeQueryIndex]
+    const defaultQuery = queriesWorkingDraft[0]
+
+    return activeQuery || defaultQuery
+  }
+
   async handleEditRawText(url, id, text) {
     const templates = removeUnselectedTemplateValues(this.props.templates)
 
@@ -203,7 +219,6 @@ class CellEditorOverlay extends Component {
     } = this.state
 
     const queryActions = {
-      addQuery: this.handleAddQuery,
       editRawTextAsync: this.handleEditRawText,
       ..._.mapValues(queryModifiers, qm => this.queryStateReducer(qm)),
     }
@@ -222,16 +237,14 @@ class CellEditorOverlay extends Component {
           initialBottomHeight={INITIAL_HEIGHTS.queryMaker}
         >
           <Visualization
-            autoRefresh={autoRefresh}
+            axes={axes}
+            type={cellWorkingType}
+            name={cellWorkingName}
             timeRange={timeRange}
             templates={templates}
+            autoRefresh={autoRefresh}
             queryConfigs={queriesWorkingDraft}
-            activeQueryIndex={0}
-            cellType={cellWorkingType}
-            cellName={cellWorkingName}
             editQueryStatus={editQueryStatus}
-            axes={axes}
-            views={[]}
           />
           <CEOBottom>
             <OverlayControls
@@ -256,9 +269,11 @@ class CellEditorOverlay extends Component {
                   actions={queryActions}
                   autoRefresh={autoRefresh}
                   timeRange={timeRange}
-                  setActiveQueryIndex={this.handleSetActiveQueryIndex}
                   onDeleteQuery={this.handleDeleteQuery}
+                  onAddQuery={this.handleAddQuery}
                   activeQueryIndex={activeQueryIndex}
+                  activeQuery={this.getActiveQuery()}
+                  setActiveQueryIndex={this.handleSetActiveQueryIndex}
                 />}
           </CEOBottom>
         </ResizeContainer>

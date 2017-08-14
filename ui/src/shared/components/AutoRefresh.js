@@ -215,7 +215,7 @@ const AutoRefresh = ComposedComponent => {
 
       return (
         <div className="graph-empty">
-          <p>No Results</p>
+          <p data-test="data-explorer-no-results">No Results</p>
         </div>
       )
     },

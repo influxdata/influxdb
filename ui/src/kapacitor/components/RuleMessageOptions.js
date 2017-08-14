@@ -44,7 +44,7 @@ class RuleMessageOptions extends Component {
               <input
                 id="alert-input"
                 className="form-control input-sm form-malachite"
-                style={{flex: '1 0 0'}}
+                style={{flex: '1 0 0%'}}
                 type="text"
                 placeholder={args.placeholder}
                 onChange={e =>
@@ -83,7 +83,7 @@ class RuleMessageOptions extends Component {
                         className="form-control input-sm form-malachite"
                         style={{
                           margin: '0 15px 0 5px',
-                          flex: '1 0 0',
+                          flex: '1 0 0%',
                         }}
                         type="text"
                         placeholder={placeholder}

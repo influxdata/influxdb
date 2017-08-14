@@ -64,6 +64,7 @@ const FieldListItem = React.createClass({
             active: isSelected,
           })}
           onClick={_.wrap(fieldFunc, this.handleToggleField)}
+          data-test={`query-builder-list-item-field-${fieldText}`}
         >
           <span>
             <div className="query-builder--checkbox" />
@@ -77,6 +78,7 @@ const FieldListItem = React.createClass({
                   'btn-primary': fieldFunc.funcs.length,
                 })}
                 onClick={this.toggleFunctionsMenu}
+                data-test={`query-builder-list-item-function-${fieldText}`}
               >
                 {fieldFuncsLabel}
               </div>
