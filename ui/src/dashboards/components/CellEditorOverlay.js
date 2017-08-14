@@ -115,10 +115,13 @@ class CellEditorOverlay extends Component {
   handleAddQuery() {
     const {queriesWorkingDraft} = this.state
     const newIndex = queriesWorkingDraft.length
-    const newQuery = {...defaultQueryConfig(uuid.v4())}
-    const nextQueries = queriesWorkingDraft.concat(newQuery)
 
-    this.setState({queriesWorkingDraft: nextQueries})
+    this.setState({
+      queriesWorkingDraft: [
+        ...queriesWorkingDraft,
+        defaultQueryConfig(uuid.v4()),
+      ],
+    })
     this.handleSetActiveQueryIndex(newIndex)
   }
 
