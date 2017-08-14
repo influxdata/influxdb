@@ -3,7 +3,7 @@ import React, {PropTypes} from 'react'
 import QueryEditor from './QueryEditor'
 import EmptyQuery from 'src/shared/components/EmptyQuery'
 import QueryTabList from 'src/shared/components/QueryTabList'
-import SchemaExplorer from 'src/dashboards/components/SchemaExplorer'
+import SchemaExplorer from 'src/shared/components/SchemaExplorer'
 import buildInfluxQLQuery from 'utils/influxql'
 
 const rawTextBinder = (links, id, action) => text =>
