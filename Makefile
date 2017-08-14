@@ -60,11 +60,11 @@ canned/bin_gen.go: canned/*.json
 	go generate -x ./canned
 
 .jssrc: $(UISOURCES)
-	cd ui && npm run build
+	cd ui && yarn run build
 	@touch .jssrc
 
 .dev-jssrc: $(UISOURCES)
-	cd ui && npm run build:dev
+	cd ui && yarn run build:dev
 	@touch .dev-jssrc
 
 dep: .jsdep .godep
@@ -98,7 +98,7 @@ gotestrace:
 	go test -race `go list ./... | grep -v /vendor/`
 
 jstest:
-	cd ui && npm test
+	cd ui && yarn test
 
 run: ${BINARY}
 	./chronograf
@@ -108,7 +108,7 @@ run-dev: chronogiraffe
 
 clean:
 	if [ -f ${BINARY} ] ; then rm ${BINARY} ; fi
-	cd ui && npm run clean
+	cd ui && yarn run clean
 	cd ui && rm -rf node_modules
 	rm -f dist/dist_gen.go canned/bin_gen.go server/swagger_gen.go
 	@rm -f .godep .jsdep .jssrc .dev-jssrc .bindata

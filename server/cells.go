@@ -45,6 +45,7 @@ func newCellResponses(dID chronograf.DashboardID, dcells []chronograf.DashboardC
 		newCell.H = cell.H
 		newCell.Name = cell.Name
 		newCell.ID = cell.ID
+		newCell.Type = cell.Type
 
 		for _, lbl := range labels {
 			if axis, found := cell.Axes[lbl]; !found {

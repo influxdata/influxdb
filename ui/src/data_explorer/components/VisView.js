@@ -13,6 +13,7 @@ const VisView = ({
   heightPixels,
   editQueryStatus,
   activeQueryIndex,
+  resizerBottomHeight,
 }) => {
   const activeQuery = queries[activeQueryIndex]
   const defaultQuery = queries[0]
@@ -30,7 +31,7 @@ const VisView = ({
     return (
       <Table
         query={query}
-        height={heightPixels}
+        height={resizerBottomHeight}
         editQueryStatus={editQueryStatus}
       />
     )
@@ -44,6 +45,7 @@ const VisView = ({
       templates={templates}
       cellHeight={heightPixels}
       autoRefresh={autoRefresh}
+      editQueryStatus={editQueryStatus}
     />
   )
 }
@@ -60,6 +62,7 @@ VisView.propTypes = {
   heightPixels: number,
   editQueryStatus: func.isRequired,
   activeQueryIndex: number,
+  resizerBottomHeight: number,
 }
 
 export default VisView
