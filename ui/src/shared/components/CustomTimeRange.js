@@ -8,7 +8,7 @@ class CustomTimeRange extends Component {
 
     this.handleClick = ::this.handleClick
     this._formatTimeRange = ::this._formatTimeRange
-    this.handleMovingTimeRange = ::this.handleMovingTimeRange
+    this.handleTimeRangeShortcut = ::this.handleTimeRangeShortcut
   }
 
   componentDidMount() {
@@ -44,37 +44,37 @@ class CustomTimeRange extends Component {
           <div className="custom-time--shortcuts-header">Shortcuts</div>
           <div
             className="custom-time--shortcut"
-            onClick={this.handleMovingTimeRange('pastWeek')}
+            onClick={this.handleTimeRangeShortcut('pastWeek')}
           >
             Past Week
           </div>
           <div
             className="custom-time--shortcut"
-            onClick={this.handleMovingTimeRange('pastMonth')}
+            onClick={this.handleTimeRangeShortcut('pastMonth')}
           >
             Past Month
           </div>
           <div
             className="custom-time--shortcut"
-            onClick={this.handleMovingTimeRange('pastYear')}
+            onClick={this.handleTimeRangeShortcut('pastYear')}
           >
             Past Year
           </div>
           <div
             className="custom-time--shortcut"
-            onClick={this.handleMovingTimeRange('thisWeek')}
+            onClick={this.handleTimeRangeShortcut('thisWeek')}
           >
             This Week
           </div>
           <div
             className="custom-time--shortcut"
-            onClick={this.handleMovingTimeRange('thisMonth')}
+            onClick={this.handleTimeRangeShortcut('thisMonth')}
           >
             This Month
           </div>
           <div
             className="custom-time--shortcut"
-            onClick={this.handleMovingTimeRange('thisYear')}
+            onClick={this.handleTimeRangeShortcut('thisYear')}
           >
             This Year
           </div>
@@ -125,11 +125,11 @@ class CustomTimeRange extends Component {
     }
   }
 
-  handleMovingTimeRange(movingTimeRange) {
+  handleTimeRangeShortcut(shortcut) {
     return () => {
       let lower
 
-      switch (movingTimeRange) {
+      switch (shortcut) {
         case 'pastWeek': {
           lower = moment().subtract(1, 'week')
           break
