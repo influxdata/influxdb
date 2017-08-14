@@ -18,7 +18,7 @@ $config-endpoint-tab-bg-active: $g3-castle;
   align-items: stretch;
 }
 .config-endpoint--tabs {
-  flex: 0 0 0;
+  flex: 0 0 0%;
   display: flex;
 
   .btn-group.tab-group {
@@ -27,7 +27,7 @@ $config-endpoint-tab-bg-active: $g3-castle;
     border-radius: $radius 0 0 $radius;
     margin: 0;
     display: flex;
-    flex: 1 0 0;
+    flex: 1 0 0%;
     flex-direction: column;
     align-items: stretch;
 
@@ -58,7 +58,7 @@ $config-endpoint-tab-bg-active: $g3-castle;
   }
 }
 .config-endpoint--tab-contents {
-  flex: 1 0 0;
+  flex: 1 0 0%;
   background-color: $config-endpoint-tab-bg-active;
   border-radius: 0 $radius $radius 0;
   padding: 16px 42px;

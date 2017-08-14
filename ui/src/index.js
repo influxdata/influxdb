@@ -1,3 +1,5 @@
+import 'babel-polyfill'
+
 import React from 'react'
 import {render} from 'react-dom'
 import {Provider} from 'react-redux'
@@ -47,7 +49,8 @@ const errorsQueue = []
 
 const rootNode = document.getElementById('react-root')
 
-const basepath = rootNode.dataset.basepath || ''
+// Older method used for pre-IE 11 compatibility
+const basepath = rootNode.getAttribute('data-basepath') || ''
 window.basepath = basepath
 const browserHistory = useRouterHistory(createHistory)({
   basename: basepath, // this is written in when available by the URL prefixer middleware

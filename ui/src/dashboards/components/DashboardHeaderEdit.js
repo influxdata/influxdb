@@ -38,7 +38,7 @@ class DashboardEditHeader extends Component {
         <div className="page-header__container">
           <form
             className="page-header__left"
-            style={{flex: '1 0 0'}}
+            style={{flex: '1 0 0%'}}
             onSubmit={this.handleFormSubmit}
           >
             <input

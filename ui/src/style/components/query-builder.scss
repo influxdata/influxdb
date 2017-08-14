@@ -5,7 +5,7 @@
 */
 .query-builder {
   width: 100%;
-  flex: 1 0 0;
+  flex: 1 0 0%;
   display: flex;
   align-items: stretch;
   flex-wrap: nowrap;
@@ -13,10 +13,10 @@
 .query-builder--column {
   display: flex;
   flex-direction: column;
-  flex: 2 0 0;
+  flex: 2 0 0%;
 }
 .query-builder--column-db {
-  flex: 1 0 0;
+  flex: 1 0 0%;
 }
 .query-builder--heading {
   @include no-user-select();
@@ -39,7 +39,7 @@
 }
 .query-builder--list,
 .query-builder--list-empty {
-  flex: 1 0 0;
+  flex: 1 0 0%;
 }
 .query-builder--list {
   padding: 0;
@@ -99,7 +99,7 @@
 }
 /* Filter Element */
 .query-builder--filter {
-  flex: 1 0 0;
+  flex: 1 0 0%;
   display: flex;
 
   & > span {

@@ -3887,7 +3887,7 @@ p .label {
   text-overflow: ellipsis;
   white-space: nowrap;
 
-  flex: 1 0 0;
+  flex: 1 0 0%;
 }
 .dropdown-toggle.btn-xs .caret {
   right: 7px;
@@ -4041,7 +4041,7 @@ p .label {
   outline: none;
   transition: color .25s ease;
 
-  flex: 1 0 0;
+  flex: 1 0 0%;
 }
 .dropdown-menu li.dropdown-item > a,
 .dropdown-menu li.dropdown-item > a:hover,

@@ -1,5 +1,6 @@
 ## v1.3.7.0 [unreleased]
 ### Bug Fixes
+1. [#1715](https://github.com/influxdata/chronograf/pull/1715): Chronograf now renders on IE11.
 1. [#1845](https://github.com/influxdata/chronograf/pull/1845): Fix no-scroll bar appearing in the Data Explorer table
 1. [#1866](https://github.com/influxdata/chronograf/pull/1866): Fix missing cell type (and consequently single-stat)
 

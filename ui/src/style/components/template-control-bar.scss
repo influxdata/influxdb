@@ -42,7 +42,7 @@ button.btn.template-control--manage {
 }
 .template-control--controls {
   display: flex;
-  flex: 1 0 0;
+  flex: 1 0 0%;
   flex-wrap: wrap;
 }
 .template-control--empty {
@@ -64,7 +64,7 @@ button.btn.template-control--manage {
   .dropdown {
     order: 2;
     margin: 0;
-    flex: 1 0 0;
+    flex: 1 0 0%;
   }
   .dropdown-toggle {
     border-radius: 0 0 $radius-small $radius-small;
