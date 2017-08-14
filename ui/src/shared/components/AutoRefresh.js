@@ -209,19 +209,6 @@ const AutoRefresh = ComposedComponent => {
     },
 
     renderNoResults() {
-      const {children, queries} = this.props
-      if (children) {
-        return children
-      }
-
-      if (!queries.length) {
-        return (
-          <div className="graph-empty">
-            <p>Build a Graph below</p>
-          </div>
-        )
-      }
-
       return (
         <div className="graph-empty">
           <p>No Results</p>
@@ -236,7 +223,9 @@ const AutoRefresh = ComposedComponent => {
 
       return data.every(datum => {
         return datum.response.results.every(result => {
-          return Object.keys(result).length === 0
+          return (
+            Object.keys(result).filter(k => k !== 'statement_id').length === 0
+          )
         })
       })
     },
