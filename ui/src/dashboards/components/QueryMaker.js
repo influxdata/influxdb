@@ -17,6 +17,7 @@ const QueryMaker = ({
   actions,
   queries,
   timeRange,
+  templates,
   onAddQuery,
   activeQuery,
   onDeleteQuery,
@@ -43,6 +44,7 @@ const QueryMaker = ({
                 activeQuery.id,
                 actions.editRawTextAsync
               )}
+              templates={templates}
             />
             <SchemaExplorer
               query={activeQuery}
@@ -85,6 +87,11 @@ QueryMaker.propTypes = {
   activeQueryIndex: number,
   activeQuery: shape({}),
   onAddQuery: func.isRequired,
+  templates: arrayOf(
+    shape({
+      tempVar: string.isRequired,
+    })
+  ).isRequired,
 }
 
 export default QueryMaker
