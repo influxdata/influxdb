@@ -1,40 +1,20 @@
 import React, {PropTypes, Component} from 'react'
-import _ from 'lodash'
-import classnames from 'classnames'
 
 import Dropdown from 'shared/components/Dropdown'
-import LoadingDots from 'shared/components/LoadingDots'
-import TemplateDrawer from 'shared/components/TemplateDrawer'
 import {QUERY_TEMPLATES} from 'src/data_explorer/constants'
-import {
-  MATCH_INCOMPLETE_TEMPLATES,
-  applyMasks,
-  insertTempVar,
-  unMask,
-} from 'src/dashboards/constants'
+import QueryStatus from 'shared/components/QueryStatus'
 
 class QueryEditor extends Component {
   constructor(props) {
     super(props)
     this.state = {
       value: this.props.query,
-      isTemplating: false,
-      selectedTemplate: {
-        tempVar: _.get(this.props.templates, ['0', 'tempVar'], ''),
-      },
-      filteredTemplates: this.props.templates,
     }
 
     this.handleKeyDown = ::this.handleKeyDown
     this.handleChange = ::this.handleChange
     this.handleUpdate = ::this.handleUpdate
-    this.handleChooseTemplate = ::this.handleChooseTemplate
-    this.handleCloseDrawer = ::this.handleCloseDrawer
-    this.findTempVar = ::this.findTempVar
-    this.handleTemplateReplace = ::this.handleTemplateReplace
-    this.handleMouseOverTempVar = ::this.handleMouseOverTempVar
-    this.handleClickTempVar = ::this.handleClickTempVar
-    this.closeDrawer = ::this.closeDrawer
+    this.handleChooseMetaQuery = ::this.handleChooseMetaQuery
   }
 
   componentWillReceiveProps(nextProps) {
@@ -43,170 +23,35 @@ class QueryEditor extends Component {
     }
   }
 
-  handleCloseDrawer() {
-    this.setState({isTemplating: false})
-  }
-
-  handleMouseOverTempVar(template) {
-    this.handleTemplateReplace(template)
-  }
-
-  handleClickTempVar(template) {
-    // Clicking a tempVar does the same thing as hitting 'Enter'
-    this.handleTemplateReplace(template, true)
-    this.closeDrawer()
-  }
-
-  closeDrawer() {
-    this.setState({
-      isTemplating: false,
-      selectedTemplate: {
-        tempVar: _.get(this.props.templates, ['0', 'tempVar'], ''),
-      },
-    })
-  }
-
   handleKeyDown(e) {
-    const {isTemplating, value} = this.state
+    const {value} = this.state
 
-    if (isTemplating) {
-      switch (e.key) {
-        case 'Tab':
-        case 'ArrowRight':
-        case 'ArrowDown':
-          e.preventDefault()
-          return this.handleTemplateReplace(this.findTempVar('next'))
-        case 'ArrowLeft':
-        case 'ArrowUp':
-          e.preventDefault()
-          return this.handleTemplateReplace(this.findTempVar('previous'))
-        case 'Enter':
-          e.preventDefault()
-          this.handleTemplateReplace(this.state.selectedTemplate, true)
-          return this.closeDrawer()
-        case 'Escape':
-          e.preventDefault()
-          return this.closeDrawer()
-      }
-    } else if (e.key === 'Escape') {
+    if (e.key === 'Escape') {
       e.preventDefault()
-      this.setState({value, isTemplating: false})
-    } else if (e.key === 'Enter') {
+      this.setState({value})
+    }
+
+    if (e.key === 'Enter') {
       e.preventDefault()
       this.handleUpdate()
     }
   }
 
-  handleTemplateReplace(selectedTemplate, replaceWholeTemplate) {
-    const {selectionStart, value} = this.editor
-    const {tempVar} = selectedTemplate
-    const newTempVar = replaceWholeTemplate
-      ? tempVar
-      : tempVar.substring(0, tempVar.length - 1)
-
-    // mask matches that will confuse our regex
-    const masked = applyMasks(value)
-    const matched = masked.match(MATCH_INCOMPLETE_TEMPLATES)
-
-    let templatedValue
-    if (matched) {
-      templatedValue = insertTempVar(masked, newTempVar)
-      templatedValue = unMask(templatedValue)
-    }
-
-    const enterModifier = replaceWholeTemplate ? 0 : -1
-    const diffInLength =
-      tempVar.length - _.get(matched, '0', []).length + enterModifier
-
-    this.setState({value: templatedValue, selectedTemplate}, () =>
-      this.editor.setSelectionRange(
-        selectionStart + diffInLength,
-        selectionStart + diffInLength
-      )
-    )
-  }
-
-  findTempVar(direction) {
-    const {filteredTemplates: templates} = this.state
-    const {selectedTemplate} = this.state
-
-    const i = _.findIndex(templates, selectedTemplate)
-    const lastIndex = templates.length - 1
-
-    if (i >= 0) {
-      if (direction === 'next') {
-        return templates[(i + 1) % templates.length]
-      }
-
-      if (direction === 'previous') {
-        if (i === 0) {
-          return templates[lastIndex]
-        }
-
-        return templates[i - 1]
-      }
-    }
-
-    return templates[0]
-  }
-
   handleChange() {
-    const {templates} = this.props
-    const {selectedTemplate} = this.state
-    const value = this.editor.value
-
-    // mask matches that will confuse our regex
-    const masked = applyMasks(value)
-    const matched = masked.match(MATCH_INCOMPLETE_TEMPLATES)
-
-    if (matched && !_.isEmpty(templates)) {
-      // maintain cursor poition
-      const start = this.editor.selectionStart
-
-      const end = this.editor.selectionEnd
-      const filterText = matched[0].substr(1).toLowerCase()
-
-      const filteredTemplates = templates.filter(t =>
-        t.tempVar.toLowerCase().includes(filterText)
-      )
-
-      const found = filteredTemplates.find(
-        t => t.tempVar === selectedTemplate && selectedTemplate.tempVar
-      )
-      const newTemplate = found ? found : filteredTemplates[0]
-
-      this.setState({
-        isTemplating: true,
-        selectedTemplate: newTemplate,
-        filteredTemplates,
-        value,
-      })
-      this.editor.setSelectionRange(start, end)
-    } else {
-      this.setState({isTemplating: false, value})
-    }
+    this.setState({value: this.editor.value})
   }
 
   handleUpdate() {
     this.props.onUpdate(this.state.value)
   }
 
-  handleChooseTemplate(template) {
+  handleChooseMetaQuery(template) {
     this.setState({value: template.query})
-  }
-
-  handleSelectTempVar(tempVar) {
-    this.setState({selectedTemplate: tempVar})
   }
 
   render() {
     const {config: {status}} = this.props
-    const {
-      value,
-      isTemplating,
-      selectedTemplate,
-      filteredTemplates,
-    } = this.state
+    const {value} = this.state
 
     return (
       <div className="query-editor">
@@ -220,111 +65,34 @@ class QueryEditor extends Component {
           placeholder="Enter a query or select database, measurement, and field below and have us build one for you..."
           autoComplete="off"
           spellCheck="false"
+          data-test="query-editor-field"
         />
-        <div
-          className={classnames('varmoji', {'varmoji-rotated': isTemplating})}
-        >
+        <div className="varmoji">
           <div className="varmoji-container">
             <div className="varmoji-front">
-              {this.renderStatus(status)}
-            </div>
-            <div className="varmoji-back">
-              {isTemplating
-                ? <TemplateDrawer
-                    onClickTempVar={this.handleClickTempVar}
-                    templates={filteredTemplates}
-                    selected={selectedTemplate}
-                    onMouseOverTempVar={this.handleMouseOverTempVar}
-                    handleClickOutside={this.handleCloseDrawer}
-                  />
-                : null}
+              <QueryStatus status={status}>
+                <Dropdown
+                  items={QUERY_TEMPLATES}
+                  selected={'Query Templates'}
+                  onChoose={this.handleChooseMetaQuery}
+                  className="dropdown-140 query-editor--templates"
+                  buttonSize="btn-xs"
+                />
+              </QueryStatus>
             </div>
           </div>
         </div>
       </div>
     )
   }
-
-  renderStatus(status) {
-    const {isInDataExplorer} = this.props
-
-    if (!status) {
-      return (
-        <div className="query-editor--status">
-          {isInDataExplorer
-            ? <Dropdown
-                items={QUERY_TEMPLATES}
-                selected={'Query Templates'}
-                onChoose={this.handleChooseTemplate}
-                className="dropdown-140 query-editor--templates"
-                buttonSize="btn-xs"
-              />
-            : null}
-        </div>
-      )
-    }
-
-    if (status.loading) {
-      return (
-        <div className="query-editor--status">
-          <LoadingDots />
-          {isInDataExplorer
-            ? <Dropdown
-                items={QUERY_TEMPLATES}
-                selected={'Query Templates'}
-                onChoose={this.handleChooseTemplate}
-                className="dropdown-140 query-editor--templates"
-                buttonSize="btn-xs"
-              />
-            : null}
-        </div>
-      )
-    }
-
-    return (
-      <div className="query-editor--status">
-        <span
-          className={classnames('query-status-output', {
-            'query-status-output--error': status.error,
-            'query-status-output--success': status.success,
-            'query-status-output--warning': status.warn,
-          })}
-        >
-          <span
-            className={classnames('icon', {
-              stop: status.error,
-              checkmark: status.success,
-              'alert-triangle': status.warn,
-            })}
-          />
-          {status.error || status.warn || status.success}
-        </span>
-        {isInDataExplorer
-          ? <Dropdown
-              items={QUERY_TEMPLATES}
-              selected={'Query Templates'}
-              onChoose={this.handleChooseTemplate}
-              className="dropdown-140 query-editor--templates"
-              buttonSize="btn-xs"
-            />
-          : null}
-      </div>
-    )
-  }
 }
 
-const {arrayOf, bool, func, shape, string} = PropTypes
+const {func, shape, string} = PropTypes
 
 QueryEditor.propTypes = {
   query: string.isRequired,
   onUpdate: func.isRequired,
   config: shape().isRequired,
-  isInDataExplorer: bool,
-  templates: arrayOf(
-    shape({
-      tempVar: string.isRequired,
-    })
-  ),
 }
 
 export default QueryEditor

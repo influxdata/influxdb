@@ -14,6 +14,7 @@
     "start": "node_modules/webpack/bin/webpack.js -w --config ./webpack/devConfig.js",
     "lint": "node_modules/eslint/bin/eslint.js src/",
     "test": "karma start",
+    "test:integration": "nightwatch tests --skip",
     "test:lint": "yarn run lint; yarn run test",
     "test:dev": "nodemon --exec yarn run test:lint",
     "clean": "rm -rf build",

@@ -2,9 +2,9 @@ import React, {PropTypes} from 'react'
 import buildInfluxQLQuery from 'utils/influxql'
 import classnames from 'classnames'
 
-import DatabaseList from '../../data_explorer/components/DatabaseList'
-import MeasurementList from '../../data_explorer/components/MeasurementList'
-import FieldList from '../../data_explorer/components/FieldList'
+import DatabaseList from 'src/shared/components/DatabaseList'
+import MeasurementList from 'src/shared/components/MeasurementList'
+import FieldList from 'src/shared/components/FieldList'
 
 import {defaultEveryFrequency} from 'src/kapacitor/constants'
 

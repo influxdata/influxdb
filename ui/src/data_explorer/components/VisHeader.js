@@ -11,6 +11,7 @@ const VisHeader = ({views, view, onToggleView, name}) =>
               key={v}
               onClick={() => onToggleView(v)}
               className={classnames({active: view === v})}
+              data-test={`data-${v}`}
             >
               {_.upperFirst(v)}
             </li>

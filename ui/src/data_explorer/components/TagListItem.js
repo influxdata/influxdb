@@ -76,7 +76,12 @@ const TagListItem = React.createClass({
             active: selectedTagValues.indexOf(v) > -1,
           })
           return (
-            <div className={cx} onClick={_.wrap(v, this.handleChoose)} key={v}>
+            <div
+              className={cx}
+              onClick={_.wrap(v, this.handleChoose)}
+              key={v}
+              data-test={`query-builder-list-item-tag-value-${v}`}
+            >
               <span>
                 <div className="query-builder--checkbox" />
                 {v}
@@ -103,6 +108,7 @@ const TagListItem = React.createClass({
         <div
           className={classnames('query-builder--list-item', {active: isOpen})}
           onClick={this.handleClickKey}
+          data-test={`query-builder-list-item-tag-${tagKey}`}
         >
           <span>
             <div className="query-builder--caret icon caret-right" />

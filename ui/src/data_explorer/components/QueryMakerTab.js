@@ -33,7 +33,11 @@ const QueryMakerTab = React.createClass({
         <label>
           {this.props.queryTabText}
         </label>
-        <span className="query-maker--delete" onClick={this.handleDelete} />
+        <span
+          className="query-maker--delete"
+          onClick={this.handleDelete}
+          data-test="query-maker-delete"
+        />
       </div>
     )
   },
