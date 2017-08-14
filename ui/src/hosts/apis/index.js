@@ -10,7 +10,7 @@ export function getCpuAndLoadForHosts(proxyLink, telegrafDB) {
       SELECT non_negative_derivative(mean(uptime)) AS deltaUptime FROM "system" WHERE time > now() - 10m GROUP BY host, time(1m) fill(0);
       SELECT mean("Percent_Processor_Time") FROM win_cpu WHERE time > now() - 10m GROUP BY host;
       SELECT mean("Processor_Queue_Length") FROM win_system WHERE time > now() - 10s GROUP BY host;
-      SELECT non_negative_derivative(mean("System_Up_Time")) AS deltaUptime FROM "telegraf"."autogen"."win_uptime" WHERE time > now() - 10m GROUP BY host, time(1m) fill(0);
+      SELECT non_negative_derivative(mean("System_Up_Time")) AS winDeltaUptime FROM "telegraf"."autogen"."win_system" WHERE time > now() - 10m GROUP BY host, time(1m) fill(0);
       SHOW TAG VALUES FROM /win_system|system/ WITH KEY = "host"`,
     db: telegrafDB,
   }).then(resp => {
@@ -72,9 +72,11 @@ export function getCpuAndLoadForHosts(proxyLink, telegrafDB) {
     })
 
     winUptimeSeries.forEach(s => {
-      const uptimeIndex = s.columns.findIndex(col => col === 'deltaUptime')
-      hosts[s.tags.host].deltaUptime =
-        s.values[s.values.length - 1][uptimeIndex]
+      const winUptimeIndex = s.columns.findIndex(
+        col => col === 'winDeltaUptime'
+      )
+      hosts[s.tags.host].winDeltaUptime =
+        s.values[s.values.length - 1][winUptimeIndex]
     })
 
     return hosts
