@@ -7,6 +7,7 @@
 ### UI Improvements
 
 ## v1.3.7.0 [2017-08-23]
+## v1.3.6.1 [2017-08-14]
 ### Bug Fixes
 1. [#1795](https://github.com/influxdata/chronograf/pull/1795): Fix uptime status on Windows hosts running Telegraf
 1. [#1715](https://github.com/influxdata/chronograf/pull/1715): Chronograf now renders on IE11.
