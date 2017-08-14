@@ -209,7 +209,9 @@ const HostRow = React.createClass({
           <div
             className={classnames(
               'table-dot',
-              host.deltaUptime > 0 ? 'dot-success' : 'dot-critical'
+              Math.max(host.deltaUptime || 0, host.winDeltaUptime || 0) > 0
+                ? 'dot-success'
+                : 'dot-critical'
             )}
           />
         </td>

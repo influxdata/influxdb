@@ -17,3 +17,4 @@ npm-debug.log
 .jssrc
 .dev-jssrc
 .bindata
+ui/reports

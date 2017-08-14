@@ -24,6 +24,7 @@ const WriteDataBody = ({
           onKeyUp={handleKeyUp}
           onChange={handleEdit}
           autoFocus={true}
+          data-test="manual-entry-field"
         />
       : <div className="write-data-form--file">
           <input

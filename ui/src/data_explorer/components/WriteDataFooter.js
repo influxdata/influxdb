@@ -37,6 +37,7 @@ const WriteDataFooter = ({
         (!uploadContent && !isManual) ||
         isUploading
       }
+      data-test="write-data-submit-button"
     >
       Write
     </button>

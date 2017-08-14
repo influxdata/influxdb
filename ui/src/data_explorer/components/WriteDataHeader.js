@@ -27,6 +27,7 @@ const WriteDataHeader = ({
         <li
           onClick={() => toggleWriteView(true)}
           className={isManual ? 'active' : ''}
+          data-test="manual-entry-button"
         >
           Manual Entry
         </li>

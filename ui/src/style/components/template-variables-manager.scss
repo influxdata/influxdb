@@ -166,7 +166,7 @@ $tvmp-table-gutter: 8px;
   > *:last-child {margin-right: 0;}
 
   .dropdown {
-    flex: 1 0 0;
+    flex: 1 0 0%;
 
     & > .dropdown-toggle {width: 100%;}
   }

@@ -74,6 +74,7 @@ class FunctionSelector extends Component {
               <div
                 className="btn btn-xs btn-success"
                 onClick={this.handleApplyFunctions}
+                data-test="function-selector-apply"
               >
                 Apply
               </div>
@@ -90,6 +91,7 @@ class FunctionSelector extends Component {
                   f,
                   singleSelect ? this.onSingleSelect : this.onSelect
                 )}
+                data-test={`function-selector-item-${f}`}
               >
                 {f}
               </div>

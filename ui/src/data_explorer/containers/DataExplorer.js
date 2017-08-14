@@ -1,4 +1,4 @@
-import React, {PropTypes} from 'react'
+import React, {PropTypes, Component} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
@@ -18,64 +18,44 @@ import {setAutoRefresh} from 'shared/actions/app'
 import * as dataExplorerActionCreators from 'src/data_explorer/actions/view'
 import {writeLineProtocolAsync} from 'src/data_explorer/actions/view/write'
 
-const {arrayOf, func, number, shape, string} = PropTypes
+class DataExplorer extends Component {
+  constructor(props) {
+    super(props)
 
-const DataExplorer = React.createClass({
-  propTypes: {
-    source: shape({
-      links: shape({
-        proxy: string.isRequired,
-        self: string.isRequired,
-        queries: string.isRequired,
-      }).isRequired,
-    }).isRequired,
-    queryConfigs: arrayOf(shape({})).isRequired,
-    queryConfigActions: shape({
-      editQueryStatus: func.isRequired,
-    }).isRequired,
-    autoRefresh: number.isRequired,
-    handleChooseAutoRefresh: func.isRequired,
-    timeRange: shape({
-      upper: string,
-      lower: string,
-    }).isRequired,
-    setTimeRange: func.isRequired,
-    dataExplorer: shape({
-      queryIDs: arrayOf(string).isRequired,
-    }).isRequired,
-    writeLineProtocol: func.isRequired,
-    errorThrownAction: func.isRequired,
-  },
-
-  childContextTypes: {
-    source: shape({
-      links: shape({
-        proxy: string.isRequired,
-        self: string.isRequired,
-      }).isRequired,
-    }).isRequired,
-  },
-
-  getChildContext() {
-    return {source: this.props.source}
-  },
-
-  getInitialState() {
-    return {
+    this.state = {
       activeQueryIndex: 0,
       showWriteForm: false,
     }
-  },
+  }
+
+  getChildContext() {
+    return {source: this.props.source}
+  }
 
   handleSetActiveQueryIndex(index) {
     this.setState({activeQueryIndex: index})
-  },
+  }
 
   handleDeleteQuery(index) {
-    const {queryConfigs} = this.props
+    const {queryConfigs, queryConfigActions} = this.props
     const query = queryConfigs[index]
-    this.props.queryConfigActions.deleteQuery(query.id)
-  },
+    queryConfigActions.deleteQuery(query.id)
+  }
+
+  handleAddQuery() {
+    const newIndex = this.props.queryConfigs.length
+    this.props.queryConfigActions.addQuery()
+    this.handleSetActiveQueryIndex(newIndex)
+  }
+
+  getActiveQuery() {
+    const {activeQueryIndex} = this.state
+    const {queryConfigs} = this.props
+    const activeQuery = queryConfigs[activeQueryIndex]
+    const defaultQuery = queryConfigs[0]
+
+    return activeQuery || defaultQuery
+  }
 
   render() {
     const {
@@ -89,6 +69,7 @@ const DataExplorer = React.createClass({
       source,
       writeLineProtocol,
     } = this.props
+
     const {activeQueryIndex, showWriteForm} = this.state
     const selectedDatabase = _.get(
       queryConfigs,
@@ -128,10 +109,11 @@ const DataExplorer = React.createClass({
             actions={queryConfigActions}
             autoRefresh={autoRefresh}
             timeRange={timeRange}
-            isInDataExplorer={true}
-            setActiveQueryIndex={this.handleSetActiveQueryIndex}
-            onDeleteQuery={this.handleDeleteQuery}
+            setActiveQueryIndex={::this.handleSetActiveQueryIndex}
+            onDeleteQuery={::this.handleDeleteQuery}
+            onAddQuery={::this.handleAddQuery}
             activeQueryIndex={activeQueryIndex}
+            activeQuery={::this.getActiveQuery()}
           />
           <Visualization
             isInDataExplorer={true}
@@ -145,10 +127,47 @@ const DataExplorer = React.createClass({
         </ResizeContainer>
       </div>
     )
-  },
-})
+  }
+}
 
-function mapStateToProps(state) {
+const {arrayOf, func, number, shape, string} = PropTypes
+
+DataExplorer.propTypes = {
+  source: shape({
+    links: shape({
+      proxy: string.isRequired,
+      self: string.isRequired,
+      queries: string.isRequired,
+    }).isRequired,
+  }).isRequired,
+  queryConfigs: arrayOf(shape({})).isRequired,
+  queryConfigActions: shape({
+    editQueryStatus: func.isRequired,
+  }).isRequired,
+  autoRefresh: number.isRequired,
+  handleChooseAutoRefresh: func.isRequired,
+  timeRange: shape({
+    upper: string,
+    lower: string,
+  }).isRequired,
+  setTimeRange: func.isRequired,
+  dataExplorer: shape({
+    queryIDs: arrayOf(string).isRequired,
+  }).isRequired,
+  writeLineProtocol: func.isRequired,
+  errorThrownAction: func.isRequired,
+}
+
+DataExplorer.childContextTypes = {
+  source: shape({
+    links: shape({
+      proxy: string.isRequired,
+      self: string.isRequired,
+    }).isRequired,
+  }).isRequired,
+}
+
+const mapStateToProps = state => {
   const {
     app: {persisted: {autoRefresh}},
     dataExplorer,
@@ -165,7 +184,7 @@ function mapStateToProps(state) {
   }
 }
 
-function mapDispatchToProps(dispatch) {
+const mapDispatchToProps = dispatch => {
   return {
     handleChooseAutoRefresh: bindActionCreators(setAutoRefresh, dispatch),
     errorThrownAction: bindActionCreators(errorThrown, dispatch),
