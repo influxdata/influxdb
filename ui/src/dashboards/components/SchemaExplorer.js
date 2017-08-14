@@ -1,8 +1,8 @@
 import React, {PropTypes} from 'react'
 
-import DatabaseList from 'src/data_explorer/components/DatabaseList'
-import MeasurementList from 'src/data_explorer/components/MeasurementList'
-import FieldList from 'src/data_explorer/components/FieldList'
+import DatabaseList from 'src/shared/components/DatabaseList'
+import MeasurementList from 'src/shared/components/MeasurementList'
+import FieldList from 'src/shared/components/FieldList'
 
 const actionBinder = (id, action) => item => action(id, item)
 
