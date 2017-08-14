@@ -1,8 +1,9 @@
 ## v1.3.6.1 [2017-08-14]
+**Upgrade Note** This release (1.3.6.1) fixes a possibly data corruption issue with dashboard cells' graph types. If you upgraded to 1.3.6.0 and visited any dashboard, once you have then upgraded to this release (1.3.6.1) you will need to manually reset the graph type for every cell via the cell's caret --> Edit --> Display Options. If you upgraded directly to 1.3.6.1, you should not experience this issue.
+
 ### Bug Fixes
-1. [#1845](https://github.com/influxdata/chronograf/pull/1845): Fix no-scroll bar appearing in the Data Explorer table
-1. [#1866](https://github.com/influxdata/chronograf/pull/1866): Fix data corruption issue with dashboard graph types
-    **Note**: If you upgraded to 1.3.6.0 and visited any dashboard, you will need to manually reset the graph type for every cell via the cell's caret -> Edit -> Display Options.
+1. [#1845](https://github.com/influxdata/chronograf/pull/1845): Fix inaccessible scroll bar in Data Explorer table
+1. [#1866](https://github.com/influxdata/chronograf/pull/1866): Fix non-persistence of dashboard graph types
 
 ### Features
 
