@@ -19,6 +19,7 @@
 - [#8480](https://github.com/influxdata/influxdb/pull/8480): Change the default stats interval to 1 second instead of 10 seconds.
 - [#8466](https://github.com/influxdata/influxdb/issues/8466): illumos build broken on syscall.Mmap
 - [#8124](https://github.com/influxdata/influxdb/issues/8124): Prevent privileges on non-existent databases from being set.
+- [#8461](https://github.com/influxdata/influxdb/issues/8461) influxd backup tool will now separate out its logging to stdout and stderr. Thanks @xginn8!
 - [#8558](https://github.com/influxdata/influxdb/issues/8558): Dropping measurement used several GB disk space
 - [#8569](https://github.com/influxdata/influxdb/issues/8569): Fix the cq start and end times to use unix timestamps.
 - [#8601](https://github.com/influxdata/influxdb/pull/8601): Fixed time boundaries for continuous queries with time zones.
@@ -86,7 +87,7 @@ The following new configuration options are available.
 * `max-body-size` was added with a default of 25,000,000, but can be disabled by setting it to 0.
   Specifies the maximum size (in bytes) of a client request body. When a client sends data that exceeds
   the configured maximum size, a `413 Request Entity Too Large` HTTP response is returned.
-
+  
 #### `[continuous_queries]` Section
 
 * `query-stats-enabled` was added with a default of `false`. When set to `true`, continuous query execution statistics are written to the default monitor store.
