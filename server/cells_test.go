@@ -105,6 +105,7 @@ func Test_Service_DashboardCells(t *testing.T) {
 					W:       4,
 					H:       4,
 					Name:    "CPU",
+					Type:    "bar",
 					Queries: []chronograf.DashboardQuery{},
 					Axes:    map[string]chronograf.Axis{},
 				},
@@ -117,6 +118,7 @@ func Test_Service_DashboardCells(t *testing.T) {
 					W:       4,
 					H:       4,
 					Name:    "CPU",
+					Type:    "bar",
 					Queries: []chronograf.DashboardQuery{},
 					Axes: map[string]chronograf.Axis{
 						"x": chronograf.Axis{

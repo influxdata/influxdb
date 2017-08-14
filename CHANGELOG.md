@@ -1,6 +1,7 @@
 ## v1.3.7.0 [unreleased]
 ### Bug Fixes
 1. [#1845](https://github.com/influxdata/chronograf/pull/1845): Fix no-scroll bar appearing in the Data Explorer table
+1. [#1866](https://github.com/influxdata/chronograf/pull/1866): Fix missing cell type (and consequently single-stat)
 
 ### Features
 1. [#1863](https://github.com/influxdata/chronograf/pull/1863): Improve 'new-sources' server flag example by adding 'type' key
