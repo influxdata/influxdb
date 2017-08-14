@@ -17,7 +17,6 @@ const QueryMaker = ({
   actions,
   queries,
   timeRange,
-  templates,
   onAddQuery,
   activeQuery,
   onDeleteQuery,
@@ -44,12 +43,10 @@ const QueryMaker = ({
                 activeQuery.id,
                 actions.editRawTextAsync
               )}
-              templates={templates}
             />
             <SchemaExplorer
               query={activeQuery}
               actions={actions}
-              templates={templates}
               onAddQuery={onAddQuery}
             />
           </div>
@@ -71,11 +68,6 @@ QueryMaker.propTypes = {
     upper: string,
     lower: string,
   }).isRequired,
-  templates: arrayOf(
-    shape({
-      tempVar: string.isRequired,
-    })
-  ),
   isInDataExplorer: bool,
   actions: shape({
     chooseNamespace: func.isRequired,
