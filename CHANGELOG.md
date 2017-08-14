@@ -23,6 +23,7 @@
 1. [#1866](https://github.com/influxdata/chronograf/pull/1866): Fix missing cell type (and consequently single-stat)
 1. [#1866](https://github.com/influxdata/chronograf/pull/1866): Fix data corruption issue with dashboard graph types
     **Note**: If you upgraded to 1.3.6.0 and visited any dashboard, you will need to manually reset the graph type for every cell via the cell's caret -> Edit -> Display Options.
+1. [#1870](https://github.com/influxdata/chronograf/pull/1870): Fix console error for placing prop on div
 
 ### Features
 1. [#1863](https://github.com/influxdata/chronograf/pull/1863): Improve 'new-sources' server flag example by adding 'type' key
