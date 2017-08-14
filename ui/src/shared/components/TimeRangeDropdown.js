@@ -85,10 +85,17 @@ class TimeRangeDropdown extends Component {
   render() {
     const {selected, preventCustomTimeRange} = this.props
     const {isOpen, customTimeRange, isCustomTimeRangeOpen} = this.state
+    const isRelativeTimeRange = selected.upper === null
 
     return (
       <div className="time-range-dropdown">
-        <div className={classnames('dropdown dropdown-290', {open: isOpen})}>
+        <div
+          className={classnames('dropdown', {
+            'dropdown-160': isRelativeTimeRange,
+            'dropdown-290': !isRelativeTimeRange,
+            open: isOpen,
+          })}
+        >
           <div
             className="btn btn-sm btn-default dropdown-toggle"
             onClick={() => this.toggleMenu()}
