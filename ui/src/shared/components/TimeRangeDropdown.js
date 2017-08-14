@@ -112,21 +112,25 @@ class TimeRangeDropdown extends Component {
               autoHeight={true}
               maxHeight={DROPDOWN_MENU_MAX_HEIGHT}
             >
-              <li className="dropdown-header">Absolute Time Ranges</li>
               {preventCustomTimeRange
                 ? null
-                : <li
-                    className={
-                      isCustomTimeRangeOpen
-                        ? 'active dropdown-item custom-timerange'
-                        : 'dropdown-item custom-timerange'
-                    }
-                  >
-                    <a href="#" onClick={this.showCustomTimeRange}>
-                      Custom Date Picker
-                    </a>
-                  </li>}
-              <li className="dropdown-header">Relative Time Ranges</li>
+                : <div>
+                    <li className="dropdown-header">Absolute Time Ranges</li>
+                    <li
+                      className={
+                        isCustomTimeRangeOpen
+                          ? 'active dropdown-item custom-timerange'
+                          : 'dropdown-item custom-timerange'
+                      }
+                    >
+                      <a href="#" onClick={this.showCustomTimeRange}>
+                        Custom Date Picker
+                      </a>
+                    </li>
+                  </div>}
+              <li className="dropdown-header">
+                {preventCustomTimeRange ? '' : 'Relative '}Time Ranges
+              </li>
               {timeRanges.map(item => {
                 return (
                   <li className="dropdown-item" key={item.menuOption}>
