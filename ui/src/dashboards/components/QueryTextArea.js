@@ -12,7 +12,7 @@ import {
   unMask,
 } from 'src/dashboards/constants'
 
-class QueryEditor extends Component {
+class QueryTextArea extends Component {
   constructor(props) {
     super(props)
     this.state = {
@@ -248,7 +248,7 @@ class QueryEditor extends Component {
 
 const {arrayOf, bool, func, shape, string} = PropTypes
 
-QueryEditor.propTypes = {
+QueryTextArea.propTypes = {
   query: string.isRequired,
   onUpdate: func.isRequired,
   config: shape().isRequired,
@@ -260,4 +260,4 @@ QueryEditor.propTypes = {
   ),
 }
 
-export default QueryEditor
+export default QueryTextArea
