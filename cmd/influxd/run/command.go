@@ -96,8 +96,9 @@ func (cmd *Command) Run(args ...string) error {
 	}
 
 	if config.HTTPD.PprofEnabled {
-		// Turn on block profiling to debug stuck databases
+		// Turn on block and mutex profiling.
 		runtime.SetBlockProfileRate(int(1 * time.Second))
+		runtime.SetMutexProfileFraction(1) // Collect every sample
 	}
 
 	// Create server from config and start it.
