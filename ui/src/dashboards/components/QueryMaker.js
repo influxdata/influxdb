@@ -23,39 +23,36 @@ const QueryMaker = ({
   onDeleteQuery,
   activeQueryIndex,
   setActiveQueryIndex,
-}) => {
-  return (
-    <div className="query-maker query-maker--panel">
-      <QueryTabList
-        queries={queries}
-        timeRange={timeRange}
-        onAddQuery={onAddQuery}
-        onDeleteQuery={onDeleteQuery}
-        activeQueryIndex={activeQueryIndex}
-        setActiveQueryIndex={setActiveQueryIndex}
-      />
-      {activeQuery && activeQuery.id
-        ? <div className="query-maker--tab-contents">
-            <QueryTextArea
-              query={buildText(activeQuery)}
-              config={activeQuery}
-              onUpdate={rawTextBinder(
-                links,
-                activeQuery.id,
-                actions.editRawTextAsync
-              )}
-              templates={templates}
-            />
-            <SchemaExplorer
-              query={activeQuery}
-              actions={actions}
-              onAddQuery={onAddQuery}
-            />
-          </div>
-        : <EmptyQuery onAddQuery={onAddQuery} />}
-    </div>
-  )
-}
+}) =>
+  <div className="query-maker query-maker--panel">
+    <QueryTabList
+      queries={queries}
+      timeRange={timeRange}
+      onAddQuery={onAddQuery}
+      onDeleteQuery={onDeleteQuery}
+      activeQueryIndex={activeQueryIndex}
+      setActiveQueryIndex={setActiveQueryIndex}
+    />
+    {activeQuery && activeQuery.id
+      ? <div className="query-maker--tab-contents">
+          <QueryTextArea
+            query={buildText(activeQuery)}
+            config={activeQuery}
+            onUpdate={rawTextBinder(
+              links,
+              activeQuery.id,
+              actions.editRawTextAsync
+            )}
+            templates={templates}
+          />
+          <SchemaExplorer
+            query={activeQuery}
+            actions={actions}
+            onAddQuery={onAddQuery}
+          />
+        </div>
+      : <EmptyQuery onAddQuery={onAddQuery} />}
+  </div>
 
 const {arrayOf, bool, func, number, shape, string} = PropTypes
 
