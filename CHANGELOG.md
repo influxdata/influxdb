@@ -21,6 +21,8 @@
 1. [#1922](https://github.com/influxdata/chronograf/pull/1922): Fix Safari display issues in the Cell Editor display options
 1. [#1715](https://github.com/influxdata/chronograf/pull/1715): Chronograf now renders on IE11.
 1. [#1866](https://github.com/influxdata/chronograf/pull/1866): Fix missing cell type (and consequently single-stat)
+1. [#1866](https://github.com/influxdata/chronograf/pull/1866): Fix data corruption issue with dashboard graph types
+    **Note**: If you upgraded to 1.3.6.0 and visited any dashboard, you will need to manually reset the graph type for every cell via the cell's caret -> Edit -> Display Options.
 
 ### Features
 1. [#1863](https://github.com/influxdata/chronograf/pull/1863): Improve 'new-sources' server flag example by adding 'type' key
