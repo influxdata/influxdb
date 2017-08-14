@@ -233,7 +233,7 @@ class CellEditorOverlay extends Component {
             axes={axes}
             views={[]}
           />
-          <div className="overlay-technology--editor">
+          <CEOBottom>
             <OverlayControls
               isDisplayOptionsTabActive={isDisplayOptionsTabActive}
               onClickDisplayOptions={this.handleClickDisplayOptionsTab}
@@ -260,14 +260,19 @@ class CellEditorOverlay extends Component {
                   onDeleteQuery={this.handleDeleteQuery}
                   activeQueryIndex={activeQueryIndex}
                 />}
-          </div>
+          </CEOBottom>
         </ResizeContainer>
       </div>
     )
   }
 }
 
-const {arrayOf, func, number, shape, string} = PropTypes
+const CEOBottom = ({children}) =>
+  <div className="overlay-technology--editor">
+    {children}
+  </div>
+
+const {arrayOf, func, node, number, shape, string} = PropTypes
 
 CellEditorOverlay.propTypes = {
   onCancel: func.isRequired,
@@ -295,6 +300,10 @@ CellEditorOverlay.propTypes = {
     status: shape({}),
   }).isRequired,
   dashboardID: string.isRequired,
+}
+
+CEOBottom.propTypes = {
+  children: node,
 }
 
 export default CellEditorOverlay
