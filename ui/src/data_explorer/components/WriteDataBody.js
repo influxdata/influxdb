@@ -38,8 +38,9 @@ const WriteDataBody = ({
             className="write-data-form--upload-button btn btn-md btn-primary"
             onClick={handleFileOpen}
           >
-            {uploadContent ? 'Choose Another File to Upload'
-                           : 'Choose a File to Upload'}
+            {uploadContent
+              ? 'Choose Another File to Upload'
+              : 'Choose a File to Upload'}
           </button>
           {uploadContent
             ? <span className="write-data-form--filepath_selected">
