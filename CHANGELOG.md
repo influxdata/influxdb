@@ -10,6 +10,7 @@
 1. [#1863](https://github.com/influxdata/chronograf/pull/1863): Improve 'new-sources' server flag example by adding 'type' key
 
 ### UI Improvements
+1. [#1862](https://github.com/influxdata/chronograf/pull/1862): Show "Add Graph" button on cells with no queries
 1. [#1846](https://github.com/influxdata/chronograf/pull/1846): Increase screen real estate of Query Maker in the Cell Editor Overlay
 
 ## v1.3.6.0 [2017-08-08]

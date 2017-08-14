@@ -69,7 +69,16 @@ class NameableGraph extends Component {
           onEdit={onSummonOverlayTechnologies}
         />
         <div className="dash-graph--container">
-          {children}
+          {cell.queries.length
+            ? children
+            : <div className="graph-empty">
+                <button
+                  className="no-query--button btn btn-md btn-primary"
+                  onClick={() => onSummonOverlayTechnologies(cell)}
+                >
+                  Add Graph
+                </button>
+              </div>}
         </div>
       </div>
     )
