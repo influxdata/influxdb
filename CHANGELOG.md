@@ -4,6 +4,7 @@
 1. [#1715](https://github.com/influxdata/chronograf/pull/1715): Chronograf now renders on IE11.
 1. [#1845](https://github.com/influxdata/chronograf/pull/1845): Fix no-scroll bar appearing in the Data Explorer table
 1. [#1870](https://github.com/influxdata/chronograf/pull/1870): Fix console error for placing prop on div
+1. [#1864](https://github.com/influxdata/chronograf/pull/1864): Fix Write Data form upload button and add `onDragExit` handler
 1. [#1866](https://github.com/influxdata/chronograf/pull/1866): Fix missing cell type (and consequently single-stat)
 
 
@@ -11,6 +12,7 @@
 1. [#1863](https://github.com/influxdata/chronograf/pull/1863): Improve 'new-sources' server flag example by adding 'type' key
 
 ### UI Improvements
+1. [#1862](https://github.com/influxdata/chronograf/pull/1862): Show "Add Graph" button on cells with no queries
 1. [#1846](https://github.com/influxdata/chronograf/pull/1846): Increase screen real estate of Query Maker in the Cell Editor Overlay
 
 ## v1.3.6.0 [2017-08-08]
