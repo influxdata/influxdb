@@ -16,7 +16,7 @@ module.exports = function(config) {
       'spec/index.js': ['webpack', 'sourcemap'],
     },
     // For more detailed reporting on tests, you can add 'verbose' and/or 'progress'.
-    // This can also be done via the command line with `npm test -- --reporters=verbose`.
+    // This can also be done via the command line with `yarn test -- --reporters=verbose`.
     reporters: ['dots'],
     webpack: {
       devtool: 'inline-source-map',

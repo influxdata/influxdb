@@ -1,15 +1,24 @@
 const PADDING_FACTOR = 0.1
 
-export default function getRange(
-  timeSeries,
-  override,
-  ruleValues = {value: null, rangeValue: null}
-) {
-  if (override) {
-    return override
+const considerEmpty = (userNumber, number) => {
+  if (userNumber === '') {
+    return null
   }
 
+  if (userNumber) {
+    return +userNumber
+  }
+
+  return number
+}
+
+const getRange = (
+  timeSeries,
+  userSelectedRange = [null, null],
+  ruleValues = {value: null, rangeValue: null}
+) => {
   const {value, rangeValue, operator} = ruleValues
+  const [userMin, userMax] = userSelectedRange
 
   const subtractPadding = val => +val - Math.abs(val * PADDING_FACTOR)
   const addPadding = val => +val + Math.abs(val * PADDING_FACTOR)
@@ -52,10 +61,22 @@ export default function getRange(
     [null, null]
   )
 
+  const [min, max] = range
+
   // If time series is such that min and max are equal use Dygraph defaults
-  if (range[0] === range[1]) {
+  if (min === max) {
     return [null, null]
   }
 
-  return range
+  if (userMin === userMax) {
+    return [min, max]
+  }
+
+  if (userMin && userMax) {
+    return [considerEmpty(userMin), considerEmpty(userMax)]
+  }
+
+  return [considerEmpty(userMin, min), considerEmpty(userMax, max)]
 }
+
+export default getRange

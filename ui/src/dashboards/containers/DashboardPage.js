@@ -209,7 +209,11 @@ class DashboardPage extends Component {
     const dygraphs = [...this.state.dygraphs, dygraph]
     const {dashboards, params} = this.props
     const dashboard = dashboards.find(d => d.id === +params.dashboardID)
-    if (dashboard && dygraphs.length === dashboard.cells.length) {
+    if (
+      dashboard &&
+      dygraphs.length === dashboard.cells.length &&
+      dashboard.cells.length > 1
+    ) {
       Dygraph.synchronize(dygraphs, {
         selection: true,
         zoom: false,
@@ -248,7 +252,7 @@ class DashboardPage extends Component {
       inPresentationMode,
       handleChooseAutoRefresh,
       handleClickPresentationButton,
-      params: {sourceID},
+      params: {sourceID, dashboardID},
     } = this.props
 
     const lowerType = lower && lower.includes('Z') ? 'timeStamp' : 'constant'
@@ -322,6 +326,7 @@ class DashboardPage extends Component {
         {selectedCell
           ? <CellEditorOverlay
               source={source}
+              dashboardID={dashboardID}
               templates={templatesIncludingDashTime}
               cell={selectedCell}
               timeRange={timeRange}
@@ -372,8 +377,8 @@ class DashboardPage extends Component {
               autoRefresh={autoRefresh}
               synchronizer={this.synchronizer}
               onAddCell={this.handleAddCell}
-              inPresentationMode={inPresentationMode}
               onEditCell={this.handleEditDashboardCell}
+              inPresentationMode={inPresentationMode}
               onPositionChange={this.handleUpdatePosition}
               onDeleteCell={this.handleDeleteDashboardCell}
               onUpdateCell={this.handleUpdateDashboardCell}

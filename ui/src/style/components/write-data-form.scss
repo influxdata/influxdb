@@ -7,7 +7,7 @@
 $write-data--max-width: 960px;
 $write-data--gutter: 30px;
 $write-data--margin: 18px;
-$write-data--input-height: 120px;
+$write-data--input-height: calc(90vh - 48px - 60px - 36px); // Heights of everything but input height
 $write-data--transition: opacity 0.4s ease;
 
 .write-data-form {

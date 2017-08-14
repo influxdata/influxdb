@@ -128,7 +128,7 @@ func TestDashboardDefaults(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		if DashboardDefaults(&tt.d); !reflect.DeepEqual(tt.d, tt.want) {
+		if actual := DashboardDefaults(tt.d); !reflect.DeepEqual(actual, tt.want) {
 			t.Errorf("%q. DashboardDefaults() = %v, want %v", tt.name, tt.d, tt.want)
 		}
 	}
@@ -222,10 +222,11 @@ func Test_newDashboardResponse(t *testing.T) {
 						},
 						Axes: map[string]chronograf.Axis{
 							"x": chronograf.Axis{
-								Bounds: [2]int64{0, 100},
+								Bounds: []string{"0", "100"},
 							},
 							"y": chronograf.Axis{
-								Bounds: [2]int64{2, 95},
+								Bounds: []string{"2", "95"},
+								Label:  "foo",
 							},
 						},
 					},
@@ -268,10 +269,14 @@ func Test_newDashboardResponse(t *testing.T) {
 							},
 							Axes: map[string]chronograf.Axis{
 								"x": chronograf.Axis{
-									Bounds: [2]int64{0, 100},
+									Bounds: []string{"0", "100"},
 								},
 								"y": chronograf.Axis{
-									Bounds: [2]int64{2, 95},
+									Bounds: []string{"2", "95"},
+									Label:  "foo",
+								},
+								"y2": chronograf.Axis{
+									Bounds: []string{},
 								},
 							},
 						},
@@ -284,6 +289,17 @@ func Test_newDashboardResponse(t *testing.T) {
 							ID: "b",
 							W:  4,
 							H:  4,
+							Axes: map[string]chronograf.Axis{
+								"x": chronograf.Axis{
+									Bounds: []string{},
+								},
+								"y": chronograf.Axis{
+									Bounds: []string{},
+								},
+								"y2": chronograf.Axis{
+									Bounds: []string{},
+								},
+							},
 							Queries: []chronograf.DashboardQuery{
 								{
 									Command: "SELECT winning_horses from grays_sports_alamanc where time > now() - 15m",

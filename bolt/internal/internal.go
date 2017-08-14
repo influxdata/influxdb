@@ -183,14 +183,9 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 
 		axes := make(map[string]*Axis, len(c.Axes))
 		for a, r := range c.Axes {
-			// need to explicitly allocate a new array because r.Bounds is
-			// over-written and the resulting slices from previous iterations will
-			// point to later iteration's data. It is _not_ enough to simply re-slice
-			// r.Bounds
-			axis := [2]int64{}
-			copy(axis[:], r.Bounds[:2])
 			axes[a] = &Axis{
-				Bounds: axis[:],
+				Bounds: r.Bounds,
+				Label:  r.Label,
 			}
 		}
 
@@ -269,9 +264,16 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 
 		axes := make(map[string]chronograf.Axis, len(c.Axes))
 		for a, r := range c.Axes {
-			axis := chronograf.Axis{}
-			copy(axis.Bounds[:], r.Bounds[:2])
-			axes[a] = axis
+			if r.Bounds != nil {
+				axes[a] = chronograf.Axis{
+					Bounds: r.Bounds,
+					Label:  r.Label,
+				}
+			} else {
+				axes[a] = chronograf.Axis{
+					Bounds: []string{},
+				}
+			}
 		}
 
 		cells[i] = chronograf.DashboardCell{
