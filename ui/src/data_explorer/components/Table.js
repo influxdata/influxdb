@@ -12,7 +12,6 @@ import {Table, Column, Cell} from 'fixed-data-table'
 
 const {arrayOf, bool, func, number, oneOfType, shape, string} = PropTypes
 
-const defaultTableHeight = 1000
 const emptySeries = {columns: [], values: []}
 
 const CustomCell = React.createClass({
@@ -64,7 +63,7 @@ const ChronoTable = React.createClass({
 
   getDefaultProps() {
     return {
-      height: defaultTableHeight,
+      height: 500,
     }
   },
 
@@ -139,11 +138,11 @@ const ChronoTable = React.createClass({
     const maximumTabsCount = 11
     // adjust height to proper value by subtracting the heights of the UI around it
     // tab height, graph-container vertical padding, graph-heading height, multitable-header height
-    const stylePixelOffset = 136
-    const rowHeight = 34
-    const defaultColumnWidth = 200
-    const headerHeight = 30
     const minWidth = 70
+    const rowHeight = 34
+    const headerHeight = 30
+    const stylePixelOffset = 125
+    const defaultColumnWidth = 200
     const styleAdjustedHeight = height - stylePixelOffset
     const width =
       columns && columns.length > 1 ? defaultColumnWidth : containerWidth

@@ -103,7 +103,7 @@ table.table-highlight > tbody > tr.admin-table--edit-row:hover {
 
   .form-control {
     margin: 0 4px 0 0;
-    flex: 1 0 0;
+    flex: 1 0 0%;
   }
 }
 pre.admin-table--query {
@@ -118,7 +118,7 @@ pre.admin-table--query {
   align-items: center;
 
   > .form-control {
-    flex: 1 0 0;
+    flex: 1 0 0%;
     margin-right: 4px;
   }
 }
@@ -157,7 +157,7 @@ pre.admin-table--query {
 
   .form-control {
     margin: 0 8px 0 0;
-    flex: 1 0 0;
+    flex: 1 0 0%;
   }
 }
 

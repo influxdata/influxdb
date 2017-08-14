@@ -21,7 +21,7 @@ We really like to receive feature requests, as it helps us prioritize our work. 
 
 Contributing to the source code
 -------------------------------
-Chronograf is built using Go for its API backend and serving the front-end assets. The front-end visualization is built with React and uses NPM for package management. The assumption is that all your Go development are done in `$GOPATH/src`. `GOPATH` can be any directory under which Chronograf and all its dependencies will be cloned. For full details on the project structure, follow along below.
+Chronograf is built using Go for its API backend and serving the front-end assets. The front-end visualization is built with React and uses Yarn for package management. The assumption is that all your Go development are done in `$GOPATH/src`. `GOPATH` can be any directory under which Chronograf and all its dependencies will be cloned. For full details on the project structure, follow along below.
 
 Submitting a pull request
 -------------------------
@@ -43,9 +43,9 @@ Signing the CLA
 If you are going to be contributing back to Chronograf please take a second to sign our CLA, which can be found
 [on our website](https://influxdata.com/community/cla/).
 
-Installing NPM
+Installing Yarn
 --------------
-You'll need to install NPM to manage the JavaScript modules that the front-end uses. This varies depending on what platform you're developing on, but you should be able to find an installer on [the NPM downloads page](https://nodejs.org/en/download/).
+You'll need to install Yarn to manage the JavaScript modules that the front-end uses. This varies depending on what platform you're developing on, but you should be able to find an installer on [the Yarn installation page](https://yarnpkg.com/en/docs/install).
 
 Installing Go
 -------------
@@ -105,7 +105,7 @@ Retaining the directory structure `$GOPATH/src/github.com/influxdata` is necessa
 
 Build and Test
 --------------
-Make sure you have `go` and `npm` installed and the project structure as shown above. We provide a `Makefile` to get up and running quickly, so all you'll need to do is run the following:
+Make sure you have `go` and `yarn` installed and the project structure as shown above. We provide a `Makefile` to get up and running quickly, so all you'll need to do is run the following:
 
 ```bash
   cd $GOPATH/src/github.com/influxdata/chronograf

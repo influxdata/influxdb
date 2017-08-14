@@ -26,7 +26,7 @@ export const darkenColor = colorStr => {
   return `rgb(${color.r},${color.g},${color.b})`
 }
 
-// Bar Graph code below is from http://dygraphs.com/tests/plotters.html
+// Bar Graph code below is adapted from http://dygraphs.com/tests/plotters.html
 export const multiColumnBarPlotter = e => {
   // We need to handle all the series simultaneously.
   if (e.seriesIndex !== 0) {
@@ -51,24 +51,34 @@ export const multiColumnBarPlotter = e => {
     }
   }
 
-  const barWidth = Math.floor(2.0 / 3 * minSep)
+  // calculate bar width using some graphics math while
+  // ensuring a bar is never smaller than one px, so it is always rendered
+  const barWidth = Math.max(Math.floor(2.0 / 3.0 * minSep), 1.0)
 
   const fillColors = []
   const strokeColors = g.getColors()
+
+  let selPointX
+  if (g.selPoints_ && g.selPoints_.length) {
+    selPointX = g.selPoints_[0].canvasx
+  }
+
   for (let i = 0; i < strokeColors.length; i++) {
     fillColors.push(darkenColor(strokeColors[i]))
   }
 
+  ctx.lineWidth = 2
+
   for (let j = 0; j < sets.length; j++) {
-    ctx.fillStyle = fillColors[j]
     ctx.strokeStyle = strokeColors[j]
     for (let i = 0; i < sets[j].length; i++) {
       const p = sets[j][i]
       const centerX = p.canvasx
+      ctx.fillStyle = fillColors[j]
       const xLeft =
         sets.length === 1
-          ? centerX - barWidth / 2
-          : centerX - barWidth / 2 * (1 - j / (sets.length - 1))
+          ? centerX - barWidth
+          : centerX - barWidth * (1 - j / sets.length)
 
       ctx.fillRect(
         xLeft,
@@ -77,12 +87,15 @@ export const multiColumnBarPlotter = e => {
         yBottom - p.canvasy
       )
 
-      ctx.strokeRect(
-        xLeft,
-        p.canvasy,
-        barWidth / sets.length,
-        yBottom - p.canvasy
-      )
+      // hover highlighting
+      if (selPointX === centerX) {
+        ctx.strokeRect(
+          xLeft,
+          p.canvasy,
+          barWidth / sets.length,
+          yBottom - p.canvasy
+        )
+      }
     }
   }
 }

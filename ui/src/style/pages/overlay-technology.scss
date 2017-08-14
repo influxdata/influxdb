@@ -3,7 +3,7 @@
   ------------------------------------------------------
 */
 
-$overlay-controls-height: 50px;
+$overlay-controls-height: 60px;
 $overlay-controls-bg: $g2-kevlar;
 $overlay-z: 100;
 
@@ -33,17 +33,16 @@ $overlay-z: 100;
   }
 
   .overlay-controls {
-    padding: 0 16px;
+    padding: 0 18px;
     position: relative;
     display: flex;
     align-items: center;
     justify-content: space-between;
     flex: 0 0 $overlay-controls-height;
-    width: calc(100% - #{($page-wrapper-padding * 2)});
-    left: $page-wrapper-padding;
+    width: 100%;
+    left: 0;
     border: 0;
     background-color: $g2-kevlar;
-    border-radius: $radius $radius 0 0;
   }
   .overlay-controls--right {
     display: flex;
@@ -74,7 +73,9 @@ $overlay-z: 100;
   flex-direction: column;
   align-items: stretch;
   height: 100%;
-  padding: 16px 0;
+}
+.overlay-technology--editor .query-maker--empty {
+  margin-bottom: 8px;
 }
 .overlay-controls .confirm-buttons {
   margin-left: 32px;
@@ -85,9 +86,9 @@ $overlay-z: 100;
   margin: 0 15%;
 }
 .overlay-technology .query-maker {
-  flex: 1 0 0;
-  padding: 0 8px;
-  border-radius: 0 0 $radius $radius;
+  flex: 1 0 0%;
+  padding: 0 18px;
+  margin: 0;
   background-color: $g2-kevlar;
 }
 .overlay-technology .query-maker--tabs {

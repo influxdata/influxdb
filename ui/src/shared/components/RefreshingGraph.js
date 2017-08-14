@@ -8,13 +8,15 @@ const RefreshingLineGraph = AutoRefresh(LineGraph)
 const RefreshingSingleStat = AutoRefresh(SingleStat)
 
 const RefreshingGraph = ({
-  timeRange,
-  autoRefresh,
-  templates,
-  synchronizer,
+  axes,
   type,
   queries,
+  templates,
+  timeRange,
   cellHeight,
+  autoRefresh,
+  synchronizer,
+  editQueryStatus,
 }) => {
   if (type === 'single-stat') {
     return (
@@ -42,6 +44,8 @@ const RefreshingGraph = ({
       isBarGraph={type === 'bar'}
       displayOptions={displayOptions}
       synchronizer={synchronizer}
+      editQueryStatus={editQueryStatus}
+      axes={axes}
     />
   )
 }
@@ -56,8 +60,10 @@ RefreshingGraph.propTypes = {
   templates: arrayOf(shape()),
   synchronizer: func,
   type: string.isRequired,
+  cellHeight: number,
+  axes: shape(),
   queries: arrayOf(shape()).isRequired,
-  cellHeight: number.isRequired,
+  editQueryStatus: func,
 }
 
 export default RefreshingGraph
