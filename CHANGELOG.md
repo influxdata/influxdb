@@ -5,6 +5,7 @@
 ### Features
 
 ### UI Improvements
+1. [#1846](https://github.com/influxdata/chronograf/pull/1846): Increase screen real estate of Query Maker in the Cell Editor Overlay
 
 ## v1.3.6.0 [2017-08-08]
 ### Bug Fixes
