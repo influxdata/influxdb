@@ -1,6 +1,6 @@
 ## v1.3.6.0 [unreleased]
 ### Bug Fixes
-1. [#1715](https://github.com/influxdata/chronograf/pull/1715): Chronograf now renders properly on IE11.
+1. [#1715](https://github.com/influxdata/chronograf/pull/1715): Chronograf now renders on IE11.
 
 ### Features
 ### UI Improvements
