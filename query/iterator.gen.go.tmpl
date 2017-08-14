@@ -393,6 +393,12 @@ func (itr *{{$k.name}}SortedMergeIterator) pop() (*{{$k.Name}}Point, error) {
 }
 
 // {{$k.name}}SortedMergeHeap represents a heap of {{$k.name}}SortedMergeHeapItems.
+// Items are sorted with the following priority:
+//     - By their measurement name;
+//     - By their tag keys/values;
+//     - By time; or
+//     - By their Aux field values.
+//
 type {{$k.name}}SortedMergeHeap struct {
 	opt   IteratorOptions
 	items []*{{$k.name}}SortedMergeHeapItem
@@ -409,15 +415,53 @@ func (h *{{$k.name}}SortedMergeHeap) Less(i, j int) bool {
 		} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); !xTags.Equals(&yTags) {
 			return xTags.ID() < yTags.ID()
 		}
-		return x.Time < y.Time
+
+		if x.Time != y.Time{
+			return x.Time < y.Time
+		}
+
+		if len(x.Aux) > 0 && len(x.Aux) == len(y.Aux) {
+			for i := 0; i < len(x.Aux); i++ {
+				v1, ok1 := x.Aux[i].(string)
+				v2, ok2 := y.Aux[i].(string)
+				if !ok1 || !ok2 {
+					// Unsupported types used in Aux fields. Maybe they
+					// need to be added here?
+					return false
+				} else if v1 == v2 {
+					continue
+				}
+				return v1 < v2
+			}
+		}
+		return false // Times and/or Aux fields are equal.
 	}
 
 	if x.Name != y.Name {
 		return x.Name > y.Name
-  } else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); !xTags.Equals(&yTags) {
+	} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); !xTags.Equals(&yTags) {
 		return xTags.ID() > yTags.ID()
 	}
-	return x.Time > y.Time
+	
+	if x.Time != y.Time{
+		return x.Time > y.Time
+	}
+
+	if len(x.Aux) > 0 && len(x.Aux) == len(y.Aux) {
+		for i := 0; i < len(x.Aux); i++ {
+			v1, ok1 := x.Aux[i].(string)
+			v2, ok2 := y.Aux[i].(string)
+			if !ok1 || !ok2 {
+				// Unsupported types used in Aux fields. Maybe they
+				// need to be added here?
+				return false
+			} else if v1 == v2 {
+				continue
+			}
+			return v1 > v2
+		}
+	}
+	return false // Times and/or Aux fields are equal.
 }
 
 func (h *{{$k.name}}SortedMergeHeap) Push(x interface{}) {
