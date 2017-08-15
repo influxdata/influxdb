@@ -3639,6 +3639,234 @@ func TestSelect(t *testing.T) {
 			},
 			optimize: true,
 		},
+		{
+			name: "SubqueryBasic",
+			s:    `SELECT mean(max) FROM (SELECT max(value) FROM cpu GROUP BY time(30s), host) WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T01:00:00Z' GROUP BY host FILL(none)`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 50 * Second, Value: 10},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 51 * Second, Value: 9},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 52 * Second, Value: 8},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 53 * Second, Value: 7},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 54 * Second, Value: 6},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 55 * Second, Value: 5},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 56 * Second, Value: 4},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 57 * Second, Value: 3},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 58 * Second, Value: 2},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 59 * Second, Value: 1},
+				}},
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 0 * Second, Value: 60, Aggregated: 2}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 0 * Second, Value: 10, Aggregated: 2}},
+			},
+		},
+		{
+			name: "SubqueryWithFieldFilter",
+			s:    `SELECT mean(max) FROM (SELECT max(value) FROM cpu GROUP BY time(30s), host) WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T01:00:00Z' AND max > 50 GROUP BY host FILL(none)`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 50 * Second, Value: 10},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 51 * Second, Value: 9},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 52 * Second, Value: 8},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 53 * Second, Value: 7},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 54 * Second, Value: 6},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 55 * Second, Value: 5},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 56 * Second, Value: 4},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 57 * Second, Value: 3},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 58 * Second, Value: 2},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 59 * Second, Value: 1},
+				}},
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 0 * Second, Value: 100, Aggregated: 1}},
+			},
+		},
+		{
+			name: "SubqueryWithTagFilter",
+			s:    `SELECT mean(max) FROM (SELECT max(value) FROM cpu GROUP BY time(30s), host) WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T01:00:00Z' AND host = 'B' GROUP BY host FILL(none)`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 50 * Second, Value: 10},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 51 * Second, Value: 9},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 52 * Second, Value: 8},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 53 * Second, Value: 7},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 54 * Second, Value: 6},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 55 * Second, Value: 5},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 56 * Second, Value: 4},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 57 * Second, Value: 3},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 58 * Second, Value: 2},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 59 * Second, Value: 1},
+				}},
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 0 * Second, Value: 10, Aggregated: 2}},
+			},
+		},
+		{
+			name: "SubqueryWithDifferentTags",
+			s:    `SELECT mean(max) FROM (SELECT max(value) FROM cpu GROUP BY time(30s), host, region) WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T01:00:00Z' GROUP BY time(30s), host FILL(none)`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 50 * Second, Value: 10},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 51 * Second, Value: 9},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 52 * Second, Value: 8},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 53 * Second, Value: 7},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 54 * Second, Value: 6},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 55 * Second, Value: 5},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 56 * Second, Value: 4},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 57 * Second, Value: 3},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 58 * Second, Value: 2},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 59 * Second, Value: 1},
+				}},
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 0 * Second, Value: 19.5, Aggregated: 2}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 30 * Second, Value: 100, Aggregated: 1}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 0 * Second, Value: 10, Aggregated: 1}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 30 * Second, Value: 10, Aggregated: 1}},
+			},
+		},
+		{
+			name: "SubqueryRaw",
+			s:    `SELECT max, host FROM (SELECT max(value) FROM cpu GROUP BY time(30s), host FILL(none)) WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T01:00:00Z'`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]influxql.Point{
+				{
+					&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 20},
+					&influxql.StringPoint{Name: "cpu", Time: 0 * Second, Value: "A"},
+				},
+				{
+					&influxql.FloatPoint{Name: "cpu", Time: 30 * Second, Value: 100},
+					&influxql.StringPoint{Name: "cpu", Time: 30 * Second, Value: "A"},
+				},
+			},
+		},
+		{
+			name: "SubqueryCountDimensions",
+			s:    `SELECT count(host) FROM (SELECT first(value) FROM cpu GROUP BY time(30s), host, region) WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T01:00:00Z' GROUP BY time(30s) FILL(none)`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 50 * Second, Value: 10},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 51 * Second, Value: 9},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 52 * Second, Value: 8},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 53 * Second, Value: 7},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 54 * Second, Value: 6},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 55 * Second, Value: 5},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 56 * Second, Value: 4},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 57 * Second, Value: 3},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 58 * Second, Value: 2},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 59 * Second, Value: 1},
+				}},
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 3, Aggregated: 3}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 30 * Second, Value: 2, Aggregated: 2}},
+			},
+		},
+		{
+			name: "SubqueryWildcards",
+			s:    `SELECT * FROM (SELECT max(value) FROM cpu GROUP BY time(30s), host FILL(none)) WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T01:00:00Z' GROUP BY *`,
+			typ:  influxql.Float,
+			itrs: []influxql.Iterator{
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 50 * Second, Value: 10},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 51 * Second, Value: 9},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 52 * Second, Value: 8},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 53 * Second, Value: 7},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 54 * Second, Value: 6},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 55 * Second, Value: 5},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 56 * Second, Value: 4},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 57 * Second, Value: 3},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 58 * Second, Value: 2},
+					{Name: "cpu", Tags: mock.ParseTags("region=west,host=B"), Time: 59 * Second, Value: 1},
+				}},
+				&mock.FloatIterator{Points: []influxql.FloatPoint{
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: mock.ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 0 * Second, Value: 20}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=A"), Time: 30 * Second, Value: 100}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 0 * Second, Value: 10}},
+				{&influxql.FloatPoint{Name: "cpu", Tags: mock.ParseTags("host=B"), Time: 30 * Second, Value: 10}},
+			},
+		},
+		//{name: "SubqueryWithAliases"},
+		//{name: "SubqueryWithNameConflicts"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.skip {
