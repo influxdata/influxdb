@@ -1,17 +1,11 @@
-import React, {PropTypes} from 'react'
+import React, {PropTypes, Component} from 'react'
 
-const PagerDutyConfig = React.createClass({
-  propTypes: {
-    config: PropTypes.shape({
-      options: PropTypes.shape({
-        'service-key': PropTypes.bool.isRequired,
-        url: PropTypes.string.isRequired,
-      }).isRequired,
-    }).isRequired,
-    onSave: PropTypes.func.isRequired,
-  },
+class PagerDutyConfig extends Component {
+  constructor(props) {
+    super(props)
+  }
 
-  handleSaveAlert(e) {
+  handleSaveAlert = e => {
     e.preventDefault()
 
     const properties = {
@@ -20,7 +14,7 @@ const PagerDutyConfig = React.createClass({
     }
 
     this.props.onSave(properties)
-  },
+  }
 
   render() {
     const {options} = this.props.config
@@ -62,7 +56,19 @@ const PagerDutyConfig = React.createClass({
         </div>
       </form>
     )
-  },
-})
+  }
+}
+
+const {bool, func, shape, string} = PropTypes
+
+PagerDutyConfig.propTypes = {
+  config: shape({
+    options: shape({
+      'service-key': bool.isRequired,
+      url: string.isRequired,
+    }).isRequired,
+  }).isRequired,
+  onSave: func.isRequired,
+}
 
 export default PagerDutyConfig
