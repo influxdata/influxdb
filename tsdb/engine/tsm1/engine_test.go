@@ -698,6 +698,41 @@ func TestEngine_LastModified(t *testing.T) {
 	}
 }
 
+func TestEngine_SnapshotsDisabled(t *testing.T) {
+	// Generate temporary file.
+	dir, _ := ioutil.TempDir("", "tsm")
+	walPath := filepath.Join(dir, "wal")
+	os.MkdirAll(walPath, 0777)
+	defer os.RemoveAll(dir)
+
+	// Create a tsm1 engine.
+	db := path.Base(dir)
+	opt := tsdb.NewEngineOptions()
+	opt.InmemIndex = inmem.NewIndex(db)
+	idx := tsdb.MustOpenIndex(1, db, filepath.Join(dir, "index"), opt)
+	defer idx.Close()
+
+	e := tsm1.NewEngine(1, idx, db, dir, walPath, opt).(*tsm1.Engine)
+
+	// mock the planner so compactions don't run during the test
+	e.CompactionPlan = &mockPlanner{}
+
+	e.SetEnabled(false)
+	if err := e.Open(); err != nil {
+		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
+	}
+
+	// Make sure Snapshots are disabled.
+	e.SetCompactionsEnabled(false)
+	e.Compactor.DisableSnapshots()
+
+	// Writing a snapshot should not fail when the snapshot is empty
+	// even if snapshots are disabled.
+	if err := e.WriteSnapshot(); err != nil {
+		t.Fatalf("failed to snapshot: %s", err.Error())
+	}
+}
+
 func BenchmarkEngine_CreateIterator_Count_1K(b *testing.B) {
 	benchmarkEngineCreateIteratorCount(b, 1000)
 }

@@ -1106,6 +1106,11 @@ func (e *Engine) WriteSnapshot() error {
 		return err
 	}
 
+	if snapshot.Size() == 0 {
+		e.Cache.ClearSnapshot(true)
+		return nil
+	}
+
 	// The snapshotted cache may have duplicate points and unsorted data.  We need to deduplicate
 	// it before writing the snapshot.  This can be very expensive so it's done while we are not
 	// holding the engine write lock.
@@ -1136,6 +1141,7 @@ func (e *Engine) writeSnapshotAndCommit(closedFiles []string, snapshot *Cache) (
 			e.Cache.ClearSnapshot(false)
 		}
 	}()
+
 	// write the new snapshot files
 	newFiles, err := e.Compactor.WriteSnapshot(snapshot)
 	if err != nil {
