@@ -33,15 +33,6 @@ export default class Dygraph extends Component {
       isSnipped: false,
       isFilterVisible: false,
     }
-
-    this.sync = ::this.sync
-    this.getTimeSeries = ::this.getTimeSeries
-    this.handleLegendInputChange = ::this.handleLegendInputChange
-    this.handleSnipLabel = ::this.handleSnipLabel
-    this.handleHideLegend = ::this.handleHideLegend
-    this.handleToggleFilter = ::this.handleToggleFilter
-    this.visibility = ::this.visibility
-    this.getLabel = ::this.getLabel
   }
 
   static defaultProps = {
@@ -49,25 +40,6 @@ export default class Dygraph extends Component {
     isGraphFilled: true,
     overrideLineColors: null,
     dygraphRef: () => {},
-  }
-
-  getTimeSeries() {
-    const {timeSeries} = this.props
-    // Avoid 'Can't plot empty data set' errors by falling back to a
-    // default dataset that's valid for Dygraph.
-    return timeSeries.length ? timeSeries : [[0]]
-  }
-
-  getLabel(axis) {
-    const {axes, queries} = this.props
-    const label = _.get(axes, [axis, 'label'], '')
-    const queryConfig = _.get(queries, ['0', 'queryConfig'], false)
-
-    if (label || !queryConfig) {
-      return label
-    }
-
-    return buildDefaultYLabel(queryConfig)
   }
 
   componentDidMount() {
@@ -247,22 +219,6 @@ export default class Dygraph extends Component {
     return shallowCompare(this, nextProps, nextState)
   }
 
-  visibility() {
-    const timeSeries = this.getTimeSeries()
-    const {filterText, legend} = this.state
-    const series = _.get(timeSeries, '0', [])
-    const numSeries = series.length
-    return Array(numSeries ? numSeries - 1 : numSeries)
-      .fill(true)
-      .map((s, i) => {
-        if (!legend.series[i]) {
-          return true
-        }
-
-        return !!legend.series[i].label.match(filterText)
-      })
-  }
-
   componentDidUpdate() {
     const {
       labels,
@@ -324,7 +280,7 @@ export default class Dygraph extends Component {
     this.props.setResolution(w)
   }
 
-  sync() {
+  sync = () => {
     if (!this.state.isSynced) {
       this.props.synchronizer(this.dygraph)
       this.setState({isSynced: true})
@@ -335,22 +291,22 @@ export default class Dygraph extends Component {
     this.setState({sortType, isAscending: !this.state.isAscending})
   }
 
-  handleLegendInputChange(e) {
+  handleLegendInputChange = e => {
     this.setState({filterText: e.target.value})
   }
 
-  handleSnipLabel() {
+  handleSnipLabel = () => {
     this.setState({isSnipped: !this.state.isSnipped})
   }
 
-  handleToggleFilter() {
+  handleToggleFilter = () => {
     this.setState({
       isFilterVisible: !this.state.isFilterVisible,
       filterText: '',
     })
   }
 
-  handleHideLegend(e) {
+  handleHideLegend = e => {
     const {top, bottom, left, right} = this.graphRef.getBoundingClientRect()
 
     const mouseY = e.clientY
@@ -367,6 +323,43 @@ export default class Dygraph extends Component {
       }
     }
   }
+
+  visibility = () => {
+    const timeSeries = this.getTimeSeries()
+    const {filterText, legend} = this.state
+    const series = _.get(timeSeries, '0', [])
+    const numSeries = series.length
+    return Array(numSeries ? numSeries - 1 : numSeries)
+      .fill(true)
+      .map((s, i) => {
+        if (!legend.series[i]) {
+          return true
+        }
+
+        return !!legend.series[i].label.match(filterText)
+      })
+  }
+
+  getTimeSeries = () => {
+    const {timeSeries} = this.props
+    // Avoid 'Can't plot empty data set' errors by falling back to a
+    // default dataset that's valid for Dygraph.
+    return timeSeries.length ? timeSeries : [[0]]
+  }
+
+  getLabel = axis => {
+    const {axes, queries} = this.props
+    const label = _.get(axes, [axis, 'label'], '')
+    const queryConfig = _.get(queries, ['0', 'queryConfig'], false)
+
+    if (label || !queryConfig) {
+      return label
+    }
+
+    return buildDefaultYLabel(queryConfig)
+  }
+
+  handleLegendRef = el => (this.legendRef = el)
 
   render() {
     const {
@@ -392,7 +385,7 @@ export default class Dygraph extends Component {
           isAscending={isAscending}
           onSnip={this.handleSnipLabel}
           onSort={this.handleSortLegend}
-          legendRef={el => (this.legendRef = el)}
+          legendRef={this.handleLegendRef}
           onInputChange={this.handleLegendInputChange}
           onToggleFilter={this.handleToggleFilter}
         />
