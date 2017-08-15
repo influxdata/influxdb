@@ -24,6 +24,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
 	"github.com/influxdata/influxdb/monitor/diagnostics"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/uuid"
@@ -88,7 +89,7 @@ type Handler struct {
 		AuthorizeWrite(username, database string) error
 	}
 
-	QueryExecutor *influxql.QueryExecutor
+	QueryExecutor *query.QueryExecutor
 
 	Monitor interface {
 		Statistics(tags map[string]string) ([]*monitor.Statistic, error)
@@ -358,7 +359,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 	}
 
 	// Parse query from query string.
-	query, err := p.ParseQuery()
+	q, err := p.ParseQuery()
 	if err != nil {
 		h.httpError(rw, "error parsing query: "+err.Error(), http.StatusBadRequest)
 		return
@@ -366,7 +367,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 
 	// Check authorization.
 	if h.Config.AuthEnabled {
-		if err := h.QueryAuthorizer.AuthorizeQuery(user, query, db); err != nil {
+		if err := h.QueryAuthorizer.AuthorizeQuery(user, q, db); err != nil {
 			if err, ok := err.(meta.ErrAuthorize); ok {
 				h.Logger.Info(fmt.Sprintf("Unauthorized request | user: %q | query: %q | database %q", err.User, err.Query.String(), err.Database))
 			}
@@ -387,7 +388,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 	// Parse whether this is an async command.
 	async := r.FormValue("async") == "true"
 
-	opts := influxql.ExecutionOptions{
+	opts := query.ExecutionOptions{
 		Database:  db,
 		ChunkSize: chunkSize,
 		ReadOnly:  r.Method == "GET",
@@ -399,7 +400,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 		opts.Authorizer = user
 	} else {
 		// Auth is disabled, so allow everything.
-		opts.Authorizer = influxql.OpenAuthorizer{}
+		opts.Authorizer = query.OpenAuthorizer{}
 	}
 
 	// Make sure if the client disconnects we signal the query to abort
@@ -430,18 +431,18 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 	}
 
 	// Execute query.
-	results := h.QueryExecutor.ExecuteQuery(query, opts, closing)
+	results := h.QueryExecutor.ExecuteQuery(q, opts, closing)
 
 	// If we are running in async mode, open a goroutine to drain the results
 	// and return with a StatusNoContent.
 	if async {
-		go h.async(query, results)
+		go h.async(q, results)
 		h.writeHeader(w, http.StatusNoContent)
 		return
 	}
 
 	// if we're not chunking, this will be the in memory buffer for all results before sending to client
-	resp := Response{Results: make([]*influxql.Result, 0)}
+	resp := Response{Results: make([]*query.Result, 0)}
 
 	// Status header is OK once this point is reached.
 	// Attempt to flush the header immediately so the client gets the header information
@@ -467,7 +468,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 		// Write out result immediately if chunked.
 		if chunked {
 			n, _ := rw.WriteResponse(Response{
-				Results: []*influxql.Result{r},
+				Results: []*query.Result{r},
 			})
 			atomic.AddInt64(&h.stats.QueryRequestBytesTransmitted, int64(n))
 			w.(http.Flusher).Flush()
@@ -564,17 +565,17 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 }
 
 // async drains the results from an async query and logs a message if it fails.
-func (h *Handler) async(query *influxql.Query, results <-chan *influxql.Result) {
+func (h *Handler) async(q *influxql.Query, results <-chan *query.Result) {
 	for r := range results {
 		// Drain the results and do nothing with them.
 		// If it fails, log the failure so there is at least a record of it.
 		if r.Err != nil {
 			// Do not log when a statement was not executed since there would
 			// have been an earlier error that was already logged.
-			if r.Err == influxql.ErrNotExecuted {
+			if r.Err == query.ErrNotExecuted {
 				continue
 			}
-			h.Logger.Info(fmt.Sprintf("error while running async query: %s: %s", query, r.Err))
+			h.Logger.Info(fmt.Sprintf("error while running async query: %s: %s", q, r.Err))
 		}
 	}
 }
@@ -733,7 +734,7 @@ func (h *Handler) serveStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 // convertToEpoch converts result timestamps from time.Time to the specified epoch.
-func convertToEpoch(r *influxql.Result, epoch string) {
+func convertToEpoch(r *query.Result, epoch string) {
 	divisor := int64(1)
 
 	switch epoch {
@@ -1195,7 +1196,7 @@ var willCrash bool
 
 func init() {
 	var err error
-	if willCrash, err = strconv.ParseBool(os.Getenv(influxql.PanicCrashEnv)); err != nil {
+	if willCrash, err = strconv.ParseBool(os.Getenv(query.PanicCrashEnv)); err != nil {
 		willCrash = false
 	}
 }
@@ -1228,7 +1229,7 @@ func (h *Handler) recovery(inner http.Handler, name string) http.Handler {
 
 // Response represents a list of statement results.
 type Response struct {
-	Results []*influxql.Result
+	Results []*query.Result
 	Err     error
 }
 
@@ -1236,8 +1237,8 @@ type Response struct {
 func (r Response) MarshalJSON() ([]byte, error) {
 	// Define a struct that outputs "error" as a string.
 	var o struct {
-		Results []*influxql.Result `json:"results,omitempty"`
-		Err     string             `json:"error,omitempty"`
+		Results []*query.Result `json:"results,omitempty"`
+		Err     string          `json:"error,omitempty"`
 	}
 
 	// Copy fields to output struct.
@@ -1252,8 +1253,8 @@ func (r Response) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON decodes the data into the Response struct.
 func (r *Response) UnmarshalJSON(b []byte) error {
 	var o struct {
-		Results []*influxql.Result `json:"results,omitempty"`
-		Err     string             `json:"error,omitempty"`
+		Results []*query.Result `json:"results,omitempty"`
+		Err     string          `json:"error,omitempty"`
 	}
 
 	err := json.Unmarshal(b, &o)

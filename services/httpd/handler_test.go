@@ -14,11 +14,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/internal"
-
 	"github.com/dgrijalva/jwt-go"
 	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/internal"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/httpd"
 	"github.com/influxdata/influxdb/services/meta"
 )
@@ -26,14 +26,14 @@ import (
 // Ensure the handler returns results from a query (including nil results).
 func TestHandler_Query(t *testing.T) {
 	h := NewHandler(false)
-	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
+	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx query.ExecutionContext) error {
 		if stmt.String() != `SELECT * FROM bar` {
 			t.Fatalf("unexpected query: %s", stmt.String())
 		} else if ctx.Database != `foo` {
 			t.Fatalf("unexpected db: %s", ctx.Database)
 		}
-		ctx.Results <- &influxql.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
-		ctx.Results <- &influxql.Result{StatementID: 2, Series: models.Rows([]*models.Row{{Name: "series1"}})}
+		ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
+		ctx.Results <- &query.Result{StatementID: 2, Series: models.Rows([]*models.Row{{Name: "series1"}})}
 		return nil
 	}
 
@@ -49,14 +49,14 @@ func TestHandler_Query(t *testing.T) {
 // Ensure the handler returns results from a query passed as a file.
 func TestHandler_Query_File(t *testing.T) {
 	h := NewHandler(false)
-	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
+	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx query.ExecutionContext) error {
 		if stmt.String() != `SELECT * FROM bar` {
 			t.Fatalf("unexpected query: %s", stmt.String())
 		} else if ctx.Database != `foo` {
 			t.Fatalf("unexpected db: %s", ctx.Database)
 		}
-		ctx.Results <- &influxql.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
-		ctx.Results <- &influxql.Result{StatementID: 2, Series: models.Rows([]*models.Row{{Name: "series1"}})}
+		ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
+		ctx.Results <- &query.Result{StatementID: 2, Series: models.Rows([]*models.Row{{Name: "series1"}})}
 		return nil
 	}
 
@@ -118,14 +118,14 @@ func TestHandler_Query_Auth(t *testing.T) {
 	}
 
 	// Set mock statement executor for handler to use.
-	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
+	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx query.ExecutionContext) error {
 		if stmt.String() != `SELECT * FROM bar` {
 			t.Fatalf("unexpected query: %s", stmt.String())
 		} else if ctx.Database != `foo` {
 			t.Fatalf("unexpected db: %s", ctx.Database)
 		}
-		ctx.Results <- &influxql.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
-		ctx.Results <- &influxql.Result{StatementID: 2, Series: models.Rows([]*models.Row{{Name: "series1"}})}
+		ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
+		ctx.Results <- &query.Result{StatementID: 2, Series: models.Rows([]*models.Row{{Name: "series1"}})}
 		return nil
 	}
 
@@ -233,7 +233,7 @@ func TestHandler_Query_Auth(t *testing.T) {
 // Ensure the handler returns results from a query (including nil results).
 func TestHandler_QueryRegex(t *testing.T) {
 	h := NewHandler(false)
-	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
+	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx query.ExecutionContext) error {
 		if stmt.String() != `SELECT * FROM test WHERE url =~ /http\:\/\/www.akamai\.com/` {
 			t.Fatalf("unexpected query: %s", stmt.String())
 		} else if ctx.Database != `test` {
@@ -250,9 +250,9 @@ func TestHandler_QueryRegex(t *testing.T) {
 // Ensure the handler merges results from the same statement.
 func TestHandler_Query_MergeResults(t *testing.T) {
 	h := NewHandler(false)
-	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
-		ctx.Results <- &influxql.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
-		ctx.Results <- &influxql.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series1"}})}
+	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx query.ExecutionContext) error {
+		ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
+		ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series1"}})}
 		return nil
 	}
 
@@ -268,9 +268,9 @@ func TestHandler_Query_MergeResults(t *testing.T) {
 // Ensure the handler merges results from the same statement.
 func TestHandler_Query_MergeEmptyResults(t *testing.T) {
 	h := NewHandler(false)
-	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
-		ctx.Results <- &influxql.Result{StatementID: 1, Series: models.Rows{}}
-		ctx.Results <- &influxql.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series1"}})}
+	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx query.ExecutionContext) error {
+		ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows{}}
+		ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series1"}})}
 		return nil
 	}
 
@@ -286,12 +286,12 @@ func TestHandler_Query_MergeEmptyResults(t *testing.T) {
 // Ensure the handler can parse chunked and chunk size query parameters.
 func TestHandler_Query_Chunked(t *testing.T) {
 	h := NewHandler(false)
-	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
+	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx query.ExecutionContext) error {
 		if ctx.ChunkSize != 2 {
 			t.Fatalf("unexpected chunk size: %d", ctx.ChunkSize)
 		}
-		ctx.Results <- &influxql.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
-		ctx.Results <- &influxql.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series1"}})}
+		ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
+		ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series1"}})}
 		return nil
 	}
 
@@ -310,14 +310,14 @@ func TestHandler_Query_Chunked(t *testing.T) {
 func TestHandler_Query_Async(t *testing.T) {
 	done := make(chan struct{})
 	h := NewHandler(false)
-	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
+	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx query.ExecutionContext) error {
 		if stmt.String() != `SELECT * FROM bar` {
 			t.Fatalf("unexpected query: %s", stmt.String())
 		} else if ctx.Database != `foo` {
 			t.Fatalf("unexpected db: %s", ctx.Database)
 		}
-		ctx.Results <- &influxql.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
-		ctx.Results <- &influxql.Result{StatementID: 2, Series: models.Rows([]*models.Row{{Name: "series1"}})}
+		ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
+		ctx.Results <- &query.Result{StatementID: 2, Series: models.Rows([]*models.Row{{Name: "series1"}})}
 		close(done)
 		return nil
 	}
@@ -444,7 +444,7 @@ func TestHandler_Query_ErrAuthorize(t *testing.T) {
 // Ensure the handler returns a status 200 if an error is returned in the result.
 func TestHandler_Query_ErrResult(t *testing.T) {
 	h := NewHandler(false)
-	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
+	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx query.ExecutionContext) error {
 		return errors.New("measurement not found")
 	}
 
@@ -465,7 +465,7 @@ func TestHandler_Query_CloseNotify(t *testing.T) {
 
 	interrupted := make(chan struct{})
 	h := NewHandler(false)
-	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
+	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx query.ExecutionContext) error {
 		select {
 		case <-ctx.InterruptCh:
 		case <-done:
@@ -542,7 +542,7 @@ func TestHandler_Ping(t *testing.T) {
 // Ensure the handler returns the version correctly from the different endpoints.
 func TestHandler_Version(t *testing.T) {
 	h := NewHandler(false)
-	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
+	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx query.ExecutionContext) error {
 		return nil
 	}
 	tests := []struct {
@@ -720,7 +720,7 @@ func NewHandler(requireAuthentication bool) *Handler {
 	h.MetaClient = &internal.MetaClientMock{}
 
 	h.Handler.MetaClient = h.MetaClient
-	h.Handler.QueryExecutor = influxql.NewQueryExecutor()
+	h.Handler.QueryExecutor = query.NewQueryExecutor()
 	h.Handler.QueryExecutor.StatementExecutor = &h.StatementExecutor
 	h.Handler.QueryAuthorizer = &h.QueryAuthorizer
 	h.Handler.PointsWriter = &h.PointsWriter
@@ -731,10 +731,10 @@ func NewHandler(requireAuthentication bool) *Handler {
 
 // HandlerStatementExecutor is a mock implementation of Handler.StatementExecutor.
 type HandlerStatementExecutor struct {
-	ExecuteStatementFn func(stmt influxql.Statement, ctx influxql.ExecutionContext) error
+	ExecuteStatementFn func(stmt influxql.Statement, ctx query.ExecutionContext) error
 }
 
-func (e *HandlerStatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
+func (e *HandlerStatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx query.ExecutionContext) error {
 	return e.ExecuteStatementFn(stmt, ctx)
 }
 

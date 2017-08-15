@@ -19,6 +19,7 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/deep"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/uber-go/zap"
 )
@@ -299,7 +300,7 @@ func TestShards_CreateIterator(t *testing.T) {
 	shards := s.ShardGroup([]uint64{0, 1})
 
 	// Create iterator.
-	itr, err := shards.CreateIterator("cpu", influxql.IteratorOptions{
+	itr, err := shards.CreateIterator("cpu", query.IteratorOptions{
 		Expr:       influxql.MustParseExpr(`value`),
 		Dimensions: []string{"host"},
 		Ascending:  true,
@@ -310,36 +311,36 @@ func TestShards_CreateIterator(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer itr.Close()
-	fitr := itr.(influxql.FloatIterator)
+	fitr := itr.(query.FloatIterator)
 
 	// Read values from iterator. The host=serverA points should come first.
 	if p, err := fitr.Next(); err != nil {
 		t.Fatalf("unexpected error(0): %s", err)
-	} else if !deep.Equal(p, &influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=serverA"), Time: time.Unix(0, 0).UnixNano(), Value: 1}) {
+	} else if !deep.Equal(p, &query.FloatPoint{Name: "cpu", Tags: ParseTags("host=serverA"), Time: time.Unix(0, 0).UnixNano(), Value: 1}) {
 		t.Fatalf("unexpected point(0): %s", spew.Sdump(p))
 	}
 	if p, err := fitr.Next(); err != nil {
 		t.Fatalf("unexpected error(1): %s", err)
-	} else if !deep.Equal(p, &influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=serverA"), Time: time.Unix(10, 0).UnixNano(), Value: 2}) {
+	} else if !deep.Equal(p, &query.FloatPoint{Name: "cpu", Tags: ParseTags("host=serverA"), Time: time.Unix(10, 0).UnixNano(), Value: 2}) {
 		t.Fatalf("unexpected point(1): %s", spew.Sdump(p))
 	}
 	if p, err := fitr.Next(); err != nil {
 		t.Fatalf("unexpected error(2): %s", err)
-	} else if !deep.Equal(p, &influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=serverA"), Time: time.Unix(30, 0).UnixNano(), Value: 1}) {
+	} else if !deep.Equal(p, &query.FloatPoint{Name: "cpu", Tags: ParseTags("host=serverA"), Time: time.Unix(30, 0).UnixNano(), Value: 1}) {
 		t.Fatalf("unexpected point(2): %s", spew.Sdump(p))
 	}
 
 	// Next the host=serverB point.
 	if p, err := fitr.Next(); err != nil {
 		t.Fatalf("unexpected error(3): %s", err)
-	} else if !deep.Equal(p, &influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=serverB"), Time: time.Unix(20, 0).UnixNano(), Value: 3}) {
+	} else if !deep.Equal(p, &query.FloatPoint{Name: "cpu", Tags: ParseTags("host=serverB"), Time: time.Unix(20, 0).UnixNano(), Value: 3}) {
 		t.Fatalf("unexpected point(3): %s", spew.Sdump(p))
 	}
 
 	// And finally the host=serverC point.
 	if p, err := fitr.Next(); err != nil {
 		t.Fatalf("unexpected error(4): %s", err)
-	} else if !deep.Equal(p, &influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=serverC"), Time: time.Unix(60, 0).UnixNano(), Value: 3}) {
+	} else if !deep.Equal(p, &query.FloatPoint{Name: "cpu", Tags: ParseTags("host=serverC"), Time: time.Unix(60, 0).UnixNano(), Value: 3}) {
 		t.Fatalf("unexpected point(4): %s", spew.Sdump(p))
 	}
 
@@ -385,7 +386,7 @@ func TestStore_BackupRestoreShard(t *testing.T) {
 	}
 
 	// Read data from
-	itr, err := s0.Shard(100).CreateIterator("cpu", influxql.IteratorOptions{
+	itr, err := s0.Shard(100).CreateIterator("cpu", query.IteratorOptions{
 		Expr:      influxql.MustParseExpr(`value`),
 		Ascending: true,
 		StartTime: influxql.MinTime,
@@ -394,28 +395,28 @@ func TestStore_BackupRestoreShard(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fitr := itr.(influxql.FloatIterator)
+	fitr := itr.(query.FloatIterator)
 
 	// Read values from iterator. The host=serverA points should come first.
 	p, e := fitr.Next()
 	if e != nil {
 		t.Fatal(e)
 	}
-	if !deep.Equal(p, &influxql.FloatPoint{Name: "cpu", Time: time.Unix(0, 0).UnixNano(), Value: 1}) {
+	if !deep.Equal(p, &query.FloatPoint{Name: "cpu", Time: time.Unix(0, 0).UnixNano(), Value: 1}) {
 		t.Fatalf("unexpected point(0): %s", spew.Sdump(p))
 	}
 	p, e = fitr.Next()
 	if e != nil {
 		t.Fatal(e)
 	}
-	if !deep.Equal(p, &influxql.FloatPoint{Name: "cpu", Time: time.Unix(10, 0).UnixNano(), Value: 2}) {
+	if !deep.Equal(p, &query.FloatPoint{Name: "cpu", Time: time.Unix(10, 0).UnixNano(), Value: 2}) {
 		t.Fatalf("unexpected point(1): %s", spew.Sdump(p))
 	}
 	p, e = fitr.Next()
 	if e != nil {
 		t.Fatal(e)
 	}
-	if !deep.Equal(p, &influxql.FloatPoint{Name: "cpu", Time: time.Unix(20, 0).UnixNano(), Value: 3}) {
+	if !deep.Equal(p, &query.FloatPoint{Name: "cpu", Time: time.Unix(20, 0).UnixNano(), Value: 3}) {
 		t.Fatalf("unexpected point(2): %s", spew.Sdump(p))
 	}
 }
@@ -1243,13 +1244,13 @@ func (s *Store) BatchWrite(shardID int, points []models.Point) error {
 }
 
 // ParseTags returns an instance of Tags for a comma-delimited list of key/values.
-func ParseTags(s string) influxql.Tags {
+func ParseTags(s string) query.Tags {
 	m := make(map[string]string)
 	for _, kv := range strings.Split(s, ",") {
 		a := strings.Split(kv, "=")
 		m[a[0]] = a[1]
 	}
-	return influxql.NewTags(m)
+	return query.NewTags(m)
 }
 
 func dirExists(path string) bool {

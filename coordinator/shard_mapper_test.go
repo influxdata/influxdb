@@ -7,6 +7,7 @@ import (
 
 	"github.com/influxdata/influxdb/coordinator"
 	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 )
@@ -39,7 +40,7 @@ func TestLocalShardMapper(t *testing.T) {
 		}
 
 		var sh MockShard
-		sh.CreateIteratorFn = func(measurement string, opt influxql.IteratorOptions) (influxql.Iterator, error) {
+		sh.CreateIteratorFn = func(measurement string, opt query.IteratorOptions) (query.Iterator, error) {
 			if measurement != "cpu" {
 				t.Errorf("unexpected measurement: %s", measurement)
 			}
@@ -60,7 +61,7 @@ func TestLocalShardMapper(t *testing.T) {
 		RetentionPolicy: "rp0",
 		Name:            "cpu",
 	}
-	ic, err := shardMapper.MapShards([]influxql.Source{measurement}, &influxql.SelectOptions{})
+	ic, err := shardMapper.MapShards([]influxql.Source{measurement}, &query.SelectOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -73,7 +74,7 @@ func TestLocalShardMapper(t *testing.T) {
 		t.Fatalf("unexpected number of shard mappings: %d", len(m.ShardMap))
 	}
 
-	if _, err := ic.CreateIterator(measurement, influxql.IteratorOptions{}); err != nil {
+	if _, err := ic.CreateIterator(measurement, query.IteratorOptions{}); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
 
@@ -83,7 +84,7 @@ func TestLocalShardMapper(t *testing.T) {
 			Sources: []influxql.Source{measurement},
 		},
 	}
-	ic, err = shardMapper.MapShards([]influxql.Source{subquery}, &influxql.SelectOptions{})
+	ic, err = shardMapper.MapShards([]influxql.Source{subquery}, &query.SelectOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -96,7 +97,7 @@ func TestLocalShardMapper(t *testing.T) {
 		t.Fatalf("unexpected number of shard mappings: %d", len(m.ShardMap))
 	}
 
-	if _, err := ic.CreateIterator(measurement, influxql.IteratorOptions{}); err != nil {
+	if _, err := ic.CreateIterator(measurement, query.IteratorOptions{}); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }

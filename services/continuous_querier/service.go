@@ -11,6 +11,7 @@ import (
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/uber-go/zap"
 )
@@ -80,7 +81,7 @@ func (nullMonitor) WritePoints(models.Points) error { return nil }
 // Service manages continuous query execution.
 type Service struct {
 	MetaClient    metaClient
-	QueryExecutor *influxql.QueryExecutor
+	QueryExecutor *query.QueryExecutor
 	Monitor       Monitor
 	Config        *Config
 	RunInterval   time.Duration
@@ -180,7 +181,7 @@ func (s *Service) Run(database, name string, t time.Time) error {
 		// Find the requested database.
 		db := s.MetaClient.Database(database)
 		if db == nil {
-			return influxql.ErrDatabaseNotFound(database)
+			return query.ErrDatabaseNotFound(database)
 		}
 		dbs = append(dbs, *db)
 	} else {
@@ -409,7 +410,7 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 }
 
 // runContinuousQueryAndWriteResult will run the query against the cluster and write the results back in
-func (s *Service) runContinuousQueryAndWriteResult(cq *ContinuousQuery) *influxql.Result {
+func (s *Service) runContinuousQueryAndWriteResult(cq *ContinuousQuery) *query.Result {
 	// Wrap the CQ's inner SELECT statement in a Query for the QueryExecutor.
 	q := &influxql.Query{
 		Statements: influxql.Statements([]influxql.Statement{cq.q}),
@@ -419,7 +420,7 @@ func (s *Service) runContinuousQueryAndWriteResult(cq *ContinuousQuery) *influxq
 	defer close(closing)
 
 	// Execute the SELECT.
-	ch := s.QueryExecutor.ExecuteQuery(q, influxql.ExecutionOptions{
+	ch := s.QueryExecutor.ExecuteQuery(q, query.ExecutionOptions{
 		Database: cq.Database,
 	}, closing)
 

@@ -502,8 +502,8 @@ func TestSelectStatement_RewriteFields(t *testing.T) {
 			t.Fatalf("invalid statement: %q: %s", tt.stmt, err)
 		}
 
-		var ic IteratorCreator
-		ic.FieldDimensionsFn = func(m *influxql.Measurement) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
+		var mapper FieldMapper
+		mapper.FieldDimensionsFn = func(m *influxql.Measurement) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
 			switch m.Name {
 			case "cpu":
 				fields = map[string]influxql.DataType{
@@ -526,7 +526,7 @@ func TestSelectStatement_RewriteFields(t *testing.T) {
 		}
 
 		// Rewrite statement.
-		rw, err := stmt.(*influxql.SelectStatement).RewriteFields(&ic)
+		rw, err := stmt.(*influxql.SelectStatement).RewriteFields(&mapper)
 		if tt.err != "" {
 			if err != nil && err.Error() != tt.err {
 				t.Errorf("%d. %q: unexpected error: %s != %s", i, tt.stmt, err.Error(), tt.err)
@@ -1844,4 +1844,28 @@ func mustParseTime(s string) time.Time {
 		panic(err.Error())
 	}
 	return t
+}
+
+// FieldMapper is a mockable implementation of influxql.FieldMapper.
+type FieldMapper struct {
+	FieldDimensionsFn func(m *influxql.Measurement) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error)
+}
+
+func (fm *FieldMapper) FieldDimensions(m *influxql.Measurement) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
+	return fm.FieldDimensionsFn(m)
+}
+
+func (fm *FieldMapper) MapType(m *influxql.Measurement, field string) influxql.DataType {
+	f, d, err := fm.FieldDimensions(m)
+	if err != nil {
+		return influxql.Unknown
+	}
+
+	if typ, ok := f[field]; ok {
+		return typ
+	}
+	if _, ok := d[field]; ok {
+		return influxql.Tag
+	}
+	return influxql.Unknown
 }

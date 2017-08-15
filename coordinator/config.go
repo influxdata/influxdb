@@ -5,8 +5,8 @@ package coordinator
 import (
 	"time"
 
-	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/monitor/diagnostics"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/toml"
 )
 
@@ -42,7 +42,7 @@ type Config struct {
 func NewConfig() Config {
 	return Config{
 		WriteTimeout:         toml.Duration(DefaultWriteTimeout),
-		QueryTimeout:         toml.Duration(influxql.DefaultQueryTimeout),
+		QueryTimeout:         toml.Duration(query.DefaultQueryTimeout),
 		MaxConcurrentQueries: DefaultMaxConcurrentQueries,
 		MaxSelectPointN:      DefaultMaxSelectPointN,
 		MaxSelectSeriesN:     DefaultMaxSelectSeriesN,

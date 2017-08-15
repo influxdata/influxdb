@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
 )
 
@@ -124,26 +125,26 @@ type floatIterator struct {
 		names []string
 		curs  []cursorAt
 	}
-	opt influxql.IteratorOptions
+	opt query.IteratorOptions
 
 	m     map[string]interface{} // map used for condition evaluation
-	point influxql.FloatPoint    // reusable buffer
+	point query.FloatPoint       // reusable buffer
 
 	statsLock sync.Mutex
-	stats     influxql.IteratorStats
-	statsBuf  influxql.IteratorStats
+	stats     query.IteratorStats
+	statsBuf  query.IteratorStats
 }
 
-func newFloatIterator(name string, tags influxql.Tags, opt influxql.IteratorOptions, cur floatCursor, aux []cursorAt, conds []cursorAt, condNames []string) *floatIterator {
+func newFloatIterator(name string, tags query.Tags, opt query.IteratorOptions, cur floatCursor, aux []cursorAt, conds []cursorAt, condNames []string) *floatIterator {
 	itr := &floatIterator{
 		cur: cur,
 		aux: aux,
 		opt: opt,
-		point: influxql.FloatPoint{
+		point: query.FloatPoint{
 			Name: name,
 			Tags: tags,
 		},
-		statsBuf: influxql.IteratorStats{
+		statsBuf: query.IteratorStats{
 			SeriesN: 1,
 		},
 	}
@@ -163,7 +164,7 @@ func newFloatIterator(name string, tags influxql.Tags, opt influxql.IteratorOpti
 }
 
 // Next returns the next point from the iterator.
-func (itr *floatIterator) Next() (*influxql.FloatPoint, error) {
+func (itr *floatIterator) Next() (*query.FloatPoint, error) {
 	for {
 		seek := tsdb.EOF
 
@@ -230,7 +231,7 @@ func (itr *floatIterator) copyStats() {
 }
 
 // Stats returns stats on the points processed.
-func (itr *floatIterator) Stats() influxql.IteratorStats {
+func (itr *floatIterator) Stats() query.IteratorStats {
 	itr.statsLock.Lock()
 	stats := itr.stats
 	itr.statsLock.Unlock()
@@ -253,22 +254,22 @@ func (itr *floatIterator) Close() error {
 
 // floatLimitIterator
 type floatLimitIterator struct {
-	input influxql.FloatIterator
-	opt   influxql.IteratorOptions
+	input query.FloatIterator
+	opt   query.IteratorOptions
 	n     int
 }
 
-func newFloatLimitIterator(input influxql.FloatIterator, opt influxql.IteratorOptions) *floatLimitIterator {
+func newFloatLimitIterator(input query.FloatIterator, opt query.IteratorOptions) *floatLimitIterator {
 	return &floatLimitIterator{
 		input: input,
 		opt:   opt,
 	}
 }
 
-func (itr *floatLimitIterator) Stats() influxql.IteratorStats { return itr.input.Stats() }
-func (itr *floatLimitIterator) Close() error                  { return itr.input.Close() }
+func (itr *floatLimitIterator) Stats() query.IteratorStats { return itr.input.Stats() }
+func (itr *floatLimitIterator) Close() error               { return itr.input.Close() }
 
-func (itr *floatLimitIterator) Next() (*influxql.FloatPoint, error) {
+func (itr *floatLimitIterator) Next() (*query.FloatPoint, error) {
 	// Check if we are beyond the limit.
 	if (itr.n - itr.opt.Offset) > itr.opt.Limit {
 		return nil, nil
@@ -535,26 +536,26 @@ type integerIterator struct {
 		names []string
 		curs  []cursorAt
 	}
-	opt influxql.IteratorOptions
+	opt query.IteratorOptions
 
 	m     map[string]interface{} // map used for condition evaluation
-	point influxql.IntegerPoint  // reusable buffer
+	point query.IntegerPoint     // reusable buffer
 
 	statsLock sync.Mutex
-	stats     influxql.IteratorStats
-	statsBuf  influxql.IteratorStats
+	stats     query.IteratorStats
+	statsBuf  query.IteratorStats
 }
 
-func newIntegerIterator(name string, tags influxql.Tags, opt influxql.IteratorOptions, cur integerCursor, aux []cursorAt, conds []cursorAt, condNames []string) *integerIterator {
+func newIntegerIterator(name string, tags query.Tags, opt query.IteratorOptions, cur integerCursor, aux []cursorAt, conds []cursorAt, condNames []string) *integerIterator {
 	itr := &integerIterator{
 		cur: cur,
 		aux: aux,
 		opt: opt,
-		point: influxql.IntegerPoint{
+		point: query.IntegerPoint{
 			Name: name,
 			Tags: tags,
 		},
-		statsBuf: influxql.IteratorStats{
+		statsBuf: query.IteratorStats{
 			SeriesN: 1,
 		},
 	}
@@ -574,7 +575,7 @@ func newIntegerIterator(name string, tags influxql.Tags, opt influxql.IteratorOp
 }
 
 // Next returns the next point from the iterator.
-func (itr *integerIterator) Next() (*influxql.IntegerPoint, error) {
+func (itr *integerIterator) Next() (*query.IntegerPoint, error) {
 	for {
 		seek := tsdb.EOF
 
@@ -641,7 +642,7 @@ func (itr *integerIterator) copyStats() {
 }
 
 // Stats returns stats on the points processed.
-func (itr *integerIterator) Stats() influxql.IteratorStats {
+func (itr *integerIterator) Stats() query.IteratorStats {
 	itr.statsLock.Lock()
 	stats := itr.stats
 	itr.statsLock.Unlock()
@@ -664,22 +665,22 @@ func (itr *integerIterator) Close() error {
 
 // integerLimitIterator
 type integerLimitIterator struct {
-	input influxql.IntegerIterator
-	opt   influxql.IteratorOptions
+	input query.IntegerIterator
+	opt   query.IteratorOptions
 	n     int
 }
 
-func newIntegerLimitIterator(input influxql.IntegerIterator, opt influxql.IteratorOptions) *integerLimitIterator {
+func newIntegerLimitIterator(input query.IntegerIterator, opt query.IteratorOptions) *integerLimitIterator {
 	return &integerLimitIterator{
 		input: input,
 		opt:   opt,
 	}
 }
 
-func (itr *integerLimitIterator) Stats() influxql.IteratorStats { return itr.input.Stats() }
-func (itr *integerLimitIterator) Close() error                  { return itr.input.Close() }
+func (itr *integerLimitIterator) Stats() query.IteratorStats { return itr.input.Stats() }
+func (itr *integerLimitIterator) Close() error               { return itr.input.Close() }
 
-func (itr *integerLimitIterator) Next() (*influxql.IntegerPoint, error) {
+func (itr *integerLimitIterator) Next() (*query.IntegerPoint, error) {
 	// Check if we are beyond the limit.
 	if (itr.n - itr.opt.Offset) > itr.opt.Limit {
 		return nil, nil
@@ -946,26 +947,26 @@ type unsignedIterator struct {
 		names []string
 		curs  []cursorAt
 	}
-	opt influxql.IteratorOptions
+	opt query.IteratorOptions
 
 	m     map[string]interface{} // map used for condition evaluation
-	point influxql.UnsignedPoint // reusable buffer
+	point query.UnsignedPoint    // reusable buffer
 
 	statsLock sync.Mutex
-	stats     influxql.IteratorStats
-	statsBuf  influxql.IteratorStats
+	stats     query.IteratorStats
+	statsBuf  query.IteratorStats
 }
 
-func newUnsignedIterator(name string, tags influxql.Tags, opt influxql.IteratorOptions, cur unsignedCursor, aux []cursorAt, conds []cursorAt, condNames []string) *unsignedIterator {
+func newUnsignedIterator(name string, tags query.Tags, opt query.IteratorOptions, cur unsignedCursor, aux []cursorAt, conds []cursorAt, condNames []string) *unsignedIterator {
 	itr := &unsignedIterator{
 		cur: cur,
 		aux: aux,
 		opt: opt,
-		point: influxql.UnsignedPoint{
+		point: query.UnsignedPoint{
 			Name: name,
 			Tags: tags,
 		},
-		statsBuf: influxql.IteratorStats{
+		statsBuf: query.IteratorStats{
 			SeriesN: 1,
 		},
 	}
@@ -985,7 +986,7 @@ func newUnsignedIterator(name string, tags influxql.Tags, opt influxql.IteratorO
 }
 
 // Next returns the next point from the iterator.
-func (itr *unsignedIterator) Next() (*influxql.UnsignedPoint, error) {
+func (itr *unsignedIterator) Next() (*query.UnsignedPoint, error) {
 	for {
 		seek := tsdb.EOF
 
@@ -1052,7 +1053,7 @@ func (itr *unsignedIterator) copyStats() {
 }
 
 // Stats returns stats on the points processed.
-func (itr *unsignedIterator) Stats() influxql.IteratorStats {
+func (itr *unsignedIterator) Stats() query.IteratorStats {
 	itr.statsLock.Lock()
 	stats := itr.stats
 	itr.statsLock.Unlock()
@@ -1075,22 +1076,22 @@ func (itr *unsignedIterator) Close() error {
 
 // unsignedLimitIterator
 type unsignedLimitIterator struct {
-	input influxql.UnsignedIterator
-	opt   influxql.IteratorOptions
+	input query.UnsignedIterator
+	opt   query.IteratorOptions
 	n     int
 }
 
-func newUnsignedLimitIterator(input influxql.UnsignedIterator, opt influxql.IteratorOptions) *unsignedLimitIterator {
+func newUnsignedLimitIterator(input query.UnsignedIterator, opt query.IteratorOptions) *unsignedLimitIterator {
 	return &unsignedLimitIterator{
 		input: input,
 		opt:   opt,
 	}
 }
 
-func (itr *unsignedLimitIterator) Stats() influxql.IteratorStats { return itr.input.Stats() }
-func (itr *unsignedLimitIterator) Close() error                  { return itr.input.Close() }
+func (itr *unsignedLimitIterator) Stats() query.IteratorStats { return itr.input.Stats() }
+func (itr *unsignedLimitIterator) Close() error               { return itr.input.Close() }
 
-func (itr *unsignedLimitIterator) Next() (*influxql.UnsignedPoint, error) {
+func (itr *unsignedLimitIterator) Next() (*query.UnsignedPoint, error) {
 	// Check if we are beyond the limit.
 	if (itr.n - itr.opt.Offset) > itr.opt.Limit {
 		return nil, nil
@@ -1357,26 +1358,26 @@ type stringIterator struct {
 		names []string
 		curs  []cursorAt
 	}
-	opt influxql.IteratorOptions
+	opt query.IteratorOptions
 
 	m     map[string]interface{} // map used for condition evaluation
-	point influxql.StringPoint   // reusable buffer
+	point query.StringPoint      // reusable buffer
 
 	statsLock sync.Mutex
-	stats     influxql.IteratorStats
-	statsBuf  influxql.IteratorStats
+	stats     query.IteratorStats
+	statsBuf  query.IteratorStats
 }
 
-func newStringIterator(name string, tags influxql.Tags, opt influxql.IteratorOptions, cur stringCursor, aux []cursorAt, conds []cursorAt, condNames []string) *stringIterator {
+func newStringIterator(name string, tags query.Tags, opt query.IteratorOptions, cur stringCursor, aux []cursorAt, conds []cursorAt, condNames []string) *stringIterator {
 	itr := &stringIterator{
 		cur: cur,
 		aux: aux,
 		opt: opt,
-		point: influxql.StringPoint{
+		point: query.StringPoint{
 			Name: name,
 			Tags: tags,
 		},
-		statsBuf: influxql.IteratorStats{
+		statsBuf: query.IteratorStats{
 			SeriesN: 1,
 		},
 	}
@@ -1396,7 +1397,7 @@ func newStringIterator(name string, tags influxql.Tags, opt influxql.IteratorOpt
 }
 
 // Next returns the next point from the iterator.
-func (itr *stringIterator) Next() (*influxql.StringPoint, error) {
+func (itr *stringIterator) Next() (*query.StringPoint, error) {
 	for {
 		seek := tsdb.EOF
 
@@ -1463,7 +1464,7 @@ func (itr *stringIterator) copyStats() {
 }
 
 // Stats returns stats on the points processed.
-func (itr *stringIterator) Stats() influxql.IteratorStats {
+func (itr *stringIterator) Stats() query.IteratorStats {
 	itr.statsLock.Lock()
 	stats := itr.stats
 	itr.statsLock.Unlock()
@@ -1486,22 +1487,22 @@ func (itr *stringIterator) Close() error {
 
 // stringLimitIterator
 type stringLimitIterator struct {
-	input influxql.StringIterator
-	opt   influxql.IteratorOptions
+	input query.StringIterator
+	opt   query.IteratorOptions
 	n     int
 }
 
-func newStringLimitIterator(input influxql.StringIterator, opt influxql.IteratorOptions) *stringLimitIterator {
+func newStringLimitIterator(input query.StringIterator, opt query.IteratorOptions) *stringLimitIterator {
 	return &stringLimitIterator{
 		input: input,
 		opt:   opt,
 	}
 }
 
-func (itr *stringLimitIterator) Stats() influxql.IteratorStats { return itr.input.Stats() }
-func (itr *stringLimitIterator) Close() error                  { return itr.input.Close() }
+func (itr *stringLimitIterator) Stats() query.IteratorStats { return itr.input.Stats() }
+func (itr *stringLimitIterator) Close() error               { return itr.input.Close() }
 
-func (itr *stringLimitIterator) Next() (*influxql.StringPoint, error) {
+func (itr *stringLimitIterator) Next() (*query.StringPoint, error) {
 	// Check if we are beyond the limit.
 	if (itr.n - itr.opt.Offset) > itr.opt.Limit {
 		return nil, nil
@@ -1768,26 +1769,26 @@ type booleanIterator struct {
 		names []string
 		curs  []cursorAt
 	}
-	opt influxql.IteratorOptions
+	opt query.IteratorOptions
 
 	m     map[string]interface{} // map used for condition evaluation
-	point influxql.BooleanPoint  // reusable buffer
+	point query.BooleanPoint     // reusable buffer
 
 	statsLock sync.Mutex
-	stats     influxql.IteratorStats
-	statsBuf  influxql.IteratorStats
+	stats     query.IteratorStats
+	statsBuf  query.IteratorStats
 }
 
-func newBooleanIterator(name string, tags influxql.Tags, opt influxql.IteratorOptions, cur booleanCursor, aux []cursorAt, conds []cursorAt, condNames []string) *booleanIterator {
+func newBooleanIterator(name string, tags query.Tags, opt query.IteratorOptions, cur booleanCursor, aux []cursorAt, conds []cursorAt, condNames []string) *booleanIterator {
 	itr := &booleanIterator{
 		cur: cur,
 		aux: aux,
 		opt: opt,
-		point: influxql.BooleanPoint{
+		point: query.BooleanPoint{
 			Name: name,
 			Tags: tags,
 		},
-		statsBuf: influxql.IteratorStats{
+		statsBuf: query.IteratorStats{
 			SeriesN: 1,
 		},
 	}
@@ -1807,7 +1808,7 @@ func newBooleanIterator(name string, tags influxql.Tags, opt influxql.IteratorOp
 }
 
 // Next returns the next point from the iterator.
-func (itr *booleanIterator) Next() (*influxql.BooleanPoint, error) {
+func (itr *booleanIterator) Next() (*query.BooleanPoint, error) {
 	for {
 		seek := tsdb.EOF
 
@@ -1874,7 +1875,7 @@ func (itr *booleanIterator) copyStats() {
 }
 
 // Stats returns stats on the points processed.
-func (itr *booleanIterator) Stats() influxql.IteratorStats {
+func (itr *booleanIterator) Stats() query.IteratorStats {
 	itr.statsLock.Lock()
 	stats := itr.stats
 	itr.statsLock.Unlock()
@@ -1897,22 +1898,22 @@ func (itr *booleanIterator) Close() error {
 
 // booleanLimitIterator
 type booleanLimitIterator struct {
-	input influxql.BooleanIterator
-	opt   influxql.IteratorOptions
+	input query.BooleanIterator
+	opt   query.IteratorOptions
 	n     int
 }
 
-func newBooleanLimitIterator(input influxql.BooleanIterator, opt influxql.IteratorOptions) *booleanLimitIterator {
+func newBooleanLimitIterator(input query.BooleanIterator, opt query.IteratorOptions) *booleanLimitIterator {
 	return &booleanLimitIterator{
 		input: input,
 		opt:   opt,
 	}
 }
 
-func (itr *booleanLimitIterator) Stats() influxql.IteratorStats { return itr.input.Stats() }
-func (itr *booleanLimitIterator) Close() error                  { return itr.input.Close() }
+func (itr *booleanLimitIterator) Stats() query.IteratorStats { return itr.input.Stats() }
+func (itr *booleanLimitIterator) Close() error               { return itr.input.Close() }
 
-func (itr *booleanLimitIterator) Next() (*influxql.BooleanPoint, error) {
+func (itr *booleanLimitIterator) Next() (*query.BooleanPoint, error) {
 	// Check if we are beyond the limit.
 	if (itr.n - itr.opt.Offset) > itr.opt.Limit {
 		return nil, nil

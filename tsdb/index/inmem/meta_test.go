@@ -7,6 +7,7 @@ import (
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb/index/inmem"
 )
 
@@ -131,7 +132,7 @@ func TestMeasurement_TagsSet_Deadlock(t *testing.T) {
 	m.DropSeries(s1)
 
 	// This was deadlocking
-	m.TagSets(1, influxql.IteratorOptions{})
+	m.TagSets(1, query.IteratorOptions{})
 	if got, exp := len(m.SeriesIDs()), 1; got != exp {
 		t.Fatalf("series count mismatch: got %v, exp %v", got, exp)
 	}
@@ -221,7 +222,7 @@ func BenchmarkMeasurement_SeriesIDForExp_NERegex(b *testing.B) {
 
 }
 
-func benchmarkTagSets(b *testing.B, n int, opt influxql.IteratorOptions) {
+func benchmarkTagSets(b *testing.B, n int, opt query.IteratorOptions) {
 	m := inmem.NewMeasurement("foo", "m")
 	for i := 0; i < n; i++ {
 		tags := map[string]string{"tag1": "value1", "tag2": "value2"}
@@ -242,17 +243,17 @@ func benchmarkTagSets(b *testing.B, n int, opt influxql.IteratorOptions) {
 }
 
 func BenchmarkMeasurement_TagSetsNoDimensions_1000(b *testing.B) {
-	benchmarkTagSets(b, 1000, influxql.IteratorOptions{})
+	benchmarkTagSets(b, 1000, query.IteratorOptions{})
 }
 
 func BenchmarkMeasurement_TagSetsDimensions_1000(b *testing.B) {
-	benchmarkTagSets(b, 1000, influxql.IteratorOptions{Dimensions: []string{"tag1", "tag2"}})
+	benchmarkTagSets(b, 1000, query.IteratorOptions{Dimensions: []string{"tag1", "tag2"}})
 }
 
 func BenchmarkMeasurement_TagSetsNoDimensions_100000(b *testing.B) {
-	benchmarkTagSets(b, 100000, influxql.IteratorOptions{})
+	benchmarkTagSets(b, 100000, query.IteratorOptions{})
 }
 
 func BenchmarkMeasurement_TagSetsDimensions_100000(b *testing.B) {
-	benchmarkTagSets(b, 100000, influxql.IteratorOptions{Dimensions: []string{"tag1", "tag2"}})
+	benchmarkTagSets(b, 100000, query.IteratorOptions{Dimensions: []string{"tag1", "tag2"}})
 }

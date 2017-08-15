@@ -5,13 +5,14 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 )
 
 // IteratorCreator is an interface that combines mapping fields and creating iterators.
 type IteratorCreator interface {
-	influxql.IteratorCreator
+	query.IteratorCreator
 	influxql.FieldMapper
 	io.Closer
 }
@@ -19,7 +20,7 @@ type IteratorCreator interface {
 // ShardMapper retrieves and maps shards into an IteratorCreator that can later be
 // used for executing queries.
 type ShardMapper interface {
-	MapShards(sources influxql.Sources, opt *influxql.SelectOptions) (IteratorCreator, error)
+	MapShards(sources influxql.Sources, opt *query.SelectOptions) (IteratorCreator, error)
 }
 
 // LocalShardMapper implements a ShardMapper for local shards.
@@ -34,7 +35,7 @@ type LocalShardMapper struct {
 }
 
 // MapShards maps the sources to the appropriate shards into an IteratorCreator.
-func (e *LocalShardMapper) MapShards(sources influxql.Sources, opt *influxql.SelectOptions) (IteratorCreator, error) {
+func (e *LocalShardMapper) MapShards(sources influxql.Sources, opt *query.SelectOptions) (IteratorCreator, error) {
 	a := &LocalShardMapping{
 		ShardMap: make(map[Source]tsdb.ShardGroup),
 	}
@@ -45,7 +46,7 @@ func (e *LocalShardMapper) MapShards(sources influxql.Sources, opt *influxql.Sel
 	return a, nil
 }
 
-func (e *LocalShardMapper) mapShards(a *LocalShardMapping, sources influxql.Sources, opt *influxql.SelectOptions) error {
+func (e *LocalShardMapper) mapShards(a *LocalShardMapping, sources influxql.Sources, opt *query.SelectOptions) error {
 	for _, s := range sources {
 		switch s := s.(type) {
 		case *influxql.Measurement:
@@ -152,7 +153,7 @@ func (a *LocalShardMapping) MapType(m *influxql.Measurement, field string) influ
 	return typ
 }
 
-func (a *LocalShardMapping) CreateIterator(m *influxql.Measurement, opt influxql.IteratorOptions) (influxql.Iterator, error) {
+func (a *LocalShardMapping) CreateIterator(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
 	source := Source{
 		Database:        m.Database,
 		RetentionPolicy: m.RetentionPolicy,
@@ -165,7 +166,7 @@ func (a *LocalShardMapping) CreateIterator(m *influxql.Measurement, opt influxql
 
 	if m.Regex != nil {
 		measurements := sg.MeasurementsByRegex(m.Regex.Val)
-		inputs := make([]influxql.Iterator, 0, len(measurements))
+		inputs := make([]query.Iterator, 0, len(measurements))
 		if err := func() error {
 			for _, measurement := range measurements {
 				input, err := sg.CreateIterator(measurement, opt)
@@ -176,10 +177,10 @@ func (a *LocalShardMapping) CreateIterator(m *influxql.Measurement, opt influxql
 			}
 			return nil
 		}(); err != nil {
-			influxql.Iterators(inputs).Close()
+			query.Iterators(inputs).Close()
 			return nil, err
 		}
-		return influxql.Iterators(inputs).Merge(opt)
+		return query.Iterators(inputs).Merge(opt)
 	}
 	return sg.CreateIterator(m.Name, opt)
 }
