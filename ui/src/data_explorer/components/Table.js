@@ -1,75 +1,31 @@
-import React, {PropTypes} from 'react'
+import React, {PropTypes, Component} from 'react'
 
 import Dimensions from 'react-dimensions'
 import _ from 'lodash'
-import moment from 'moment'
-import classnames from 'classnames'
-
-import Dropdown from 'shared/components/Dropdown'
-import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
 
 import {Table, Column, Cell} from 'fixed-data-table'
+import Dropdown from 'shared/components/Dropdown'
+import CustomCell from 'src/data_explorer/components/CustomCell'
+import TabItem from 'src/data_explorer/components/TableTabItem'
 
-const {arrayOf, bool, func, number, oneOfType, shape, string} = PropTypes
+import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
 
 const emptySeries = {columns: [], values: []}
 
-const CustomCell = React.createClass({
-  propTypes: {
-    data: oneOfType([number, string]),
-    columnName: string.isRequired,
-  },
+class ChronoTable extends Component {
+  constructor(props) {
+    super(props)
 
-  render() {
-    const {columnName, data} = this.props
-
-    if (columnName === 'time') {
-      const date = moment(new Date(data)).format('MM/DD/YY hh:mm:ssA')
-
-      return (
-        <span>
-          {date}
-        </span>
-      )
-    }
-
-    return (
-      <span>
-        {data}
-      </span>
-    )
-  },
-})
-
-const ChronoTable = React.createClass({
-  propTypes: {
-    query: shape({
-      host: arrayOf(string.isRequired).isRequired,
-      text: string.isRequired,
-      id: string.isRequired,
-    }).isRequired,
-    containerWidth: number.isRequired,
-    height: number,
-    editQueryStatus: func.isRequired,
-  },
-
-  getInitialState() {
-    return {
+    this.state = {
       series: [emptySeries],
       columnWidths: {},
       activeSeriesIndex: 0,
     }
-  },
-
-  getDefaultProps() {
-    return {
-      height: 500,
-    }
-  },
+  }
 
   componentDidMount() {
     this.fetchCellData(this.props.query)
-  },
+  }
 
   componentWillReceiveProps(nextProps) {
     if (this.props.query.text === nextProps.query.text) {
@@ -77,9 +33,9 @@ const ChronoTable = React.createClass({
     }
 
     this.fetchCellData(nextProps.query)
-  },
+  }
 
-  async fetchCellData(query) {
+  fetchCellData = async query => {
     if (!query || !query.text) {
       return
     }
@@ -105,9 +61,9 @@ const ChronoTable = React.createClass({
       })
       throw error
     }
-  },
+  }
 
-  handleColumnResize(newColumnWidth, columnKey) {
+  handleColumnResize = (newColumnWidth, columnKey) => {
     const columnWidths = {
       ...this.state.columnWidths,
       [columnKey]: newColumnWidth,
@@ -116,15 +72,21 @@ const ChronoTable = React.createClass({
     this.setState({
       columnWidths,
     })
-  },
+  }
 
-  handleClickTab(activeSeriesIndex) {
+  handleClickTab = activeSeriesIndex => () => {
     this.setState({activeSeriesIndex})
-  },
+  }
 
-  handleClickDropdown(item) {
+  handleClickDropdown = item => {
     this.setState({activeSeriesIndex: item.index})
-  },
+  }
+
+  handleCustomCell = (columnName, values, colIndex) => ({rowIndex}) => {
+    return (
+      <CustomCell columnName={columnName} data={values[rowIndex][colIndex]} />
+    )
+  }
 
   render() {
     const {containerWidth, height, query} = this.props
@@ -200,11 +162,7 @@ const ChronoTable = React.createClass({
                           {columnName}
                         </Cell>
                       }
-                      cell={({rowIndex}) =>
-                        <CustomCell
-                          columnName={columnName}
-                          data={values[rowIndex][colIndex]}
-                        />}
+                      cell={this.handleCustomCell(columnName, values, colIndex)}
                       width={columnWidths[columnName] || width}
                       minWidth={minWidth}
                     />
@@ -214,22 +172,24 @@ const ChronoTable = React.createClass({
         </div>
       </div>
     )
-  },
-})
+  }
+}
 
-const TabItem = ({name, index, onClickTab, isActive}) =>
-  <div
-    className={classnames('table--tab', {active: isActive})}
-    onClick={() => onClickTab(index)}
-  >
-    {name}
-  </div>
+ChronoTable.defaultProps = {
+  height: 500,
+}
 
-TabItem.propTypes = {
-  name: string,
-  onClickTab: func.isRequired,
-  index: number.isRequired,
-  isActive: bool,
+const {arrayOf, func, number, shape, string} = PropTypes
+
+ChronoTable.propTypes = {
+  query: shape({
+    host: arrayOf(string.isRequired).isRequired,
+    text: string.isRequired,
+    id: string.isRequired,
+  }).isRequired,
+  containerWidth: number.isRequired,
+  height: number,
+  editQueryStatus: func.isRequired,
 }
 
 export default Dimensions({elementResize: true})(ChronoTable)
