@@ -1,0 +1,38 @@
+/*
+  Fill Query
+  ------------------------------------------------------------------------------
+  Small widget for supplying a fill() value in a query
+*/
+
+.fill-query {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: nowrap;
+}
+.fill-query > label {
+  font-size: 12px;
+  white-space: nowrap;
+  padding: 0 8px;
+  margin: 0;
+  height: 22px;
+  line-height: 22px;
+  @include no-user-select();
+  color: $g11-sidewalk;
+}
+.fill-query--dropdown .dropdown-toggle {
+  width: 90px;
+  font-family: $code-font;
+}
+.fill-query--dropdown .dropdown-menu .dropdown-item a {
+  font-family: $code-font;
+}
+.fill-query--input {
+  width: 70px;
+  margin-left: 4px;
+  font-weight: 600;
+}
+
+// Prevent component from being flush to edge when used in Query Editor
+.query-editor--status .fill-query {
+  margin-right: 4px;
+}
