@@ -140,3 +140,11 @@ func (c *stringSliceCursor) nextString() (int64, string) {
 	c.values = c.values[1:]
 	return 0, value
 }
+
+type cursorsAt []cursorAt
+
+func (c cursorsAt) close() {
+	for _, cur := range c {
+		cur.close()
+	}
+}
