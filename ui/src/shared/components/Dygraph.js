@@ -36,7 +36,6 @@ export default class Dygraph extends Component {
 
     this.sync = ::this.sync
     this.getTimeSeries = ::this.getTimeSeries
-    this.handleSortLegend = ::this.handleSortLegend
     this.handleLegendInputChange = ::this.handleLegendInputChange
     this.handleSnipLabel = ::this.handleSnipLabel
     this.handleHideLegend = ::this.handleHideLegend
@@ -332,7 +331,7 @@ export default class Dygraph extends Component {
     }
   }
 
-  handleSortLegend(sortType) {
+  handleSortLegend = sortType => () => {
     this.setState({sortType, isAscending: !this.state.isAscending})
   }
 
