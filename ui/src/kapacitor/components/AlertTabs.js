@@ -25,15 +25,11 @@ import {
 class AlertTabs extends Component {
   constructor(props) {
     super(props)
+
     this.state = {
       selectedEndpoint: 'smtp',
       configSections: null,
     }
-    this.refreshKapacitorConfig = ::this.refreshKapacitorConfig
-    this.getSection = ::this.getSection
-    this.handleSaveConfig = ::this.handleSaveConfig
-    this.handleTest = ::this.handleTest
-    this.sanitizeProperties = ::this.sanitizeProperties
   }
 
   componentDidMount() {
@@ -46,7 +42,7 @@ class AlertTabs extends Component {
     }
   }
 
-  refreshKapacitorConfig(kapacitor) {
+  refreshKapacitorConfig = kapacitor => {
     getKapacitorConfig(kapacitor)
       .then(({data: {sections}}) => {
         this.setState({configSections: sections})
@@ -60,11 +56,15 @@ class AlertTabs extends Component {
       })
   }
 
-  getSection(sections, section) {
+  getSection = (sections, section) => {
     return _.get(sections, [section, 'elements', '0'], null)
   }
 
-  handleSaveConfig(section, properties) {
+  handleGetSection = (sections, section) => () => {
+    return this.getSection(sections, section)
+  }
+
+  handleSaveConfig = section => properties => {
     if (section !== '') {
       const propsToSend = this.sanitizeProperties(section, properties)
       updateKapacitorConfigSection(this.props.kapacitor, section, propsToSend)
@@ -84,25 +84,8 @@ class AlertTabs extends Component {
     }
   }
 
-  handleTest(section, properties) {
-    const propsToSend = this.sanitizeProperties(section, properties)
-    testAlertOutput(this.props.kapacitor, section, propsToSend)
-      .then(() => {
-        this.props.addFlashMessage({
-          type: 'success',
-          text: 'Slack test message sent',
-        })
-      })
-      .catch(() => {
-        this.props.addFlashMessage({
-          type: 'error',
-          text: 'There was an error testing the slack alert',
-        })
-      })
-  }
-
-  sanitizeProperties(section, properties) {
-    const cleanProps = Object.assign({}, properties, {enabled: true})
+  sanitizeProperties = (section, properties) => {
+    const cleanProps = {...properties, enabled: true}
     const {redacted} = this.getSection(this.state.configSections, section)
     if (redacted && redacted.length) {
       redacted.forEach(badProp => {
@@ -111,6 +94,7 @@ class AlertTabs extends Component {
         }
       })
     }
+
     return cleanProps
   }
 
@@ -121,16 +105,12 @@ class AlertTabs extends Component {
       return null
     }
 
-    const test = properties => {
-      this.handleTest('slack', properties)
-    }
-
     const supportedConfigs = {
       alerta: {
         type: 'Alerta',
         renderComponent: () =>
           <AlertaConfig
-            onSave={p => this.handleSaveConfig('alerta', p)}
+            onSave={this.handleSaveConfig('alerta')}
             config={this.getSection(configSections, 'alerta')}
           />,
       },
@@ -138,7 +118,7 @@ class AlertTabs extends Component {
         type: 'HipChat',
         renderComponent: () =>
           <HipChatConfig
-            onSave={p => this.handleSaveConfig('hipchat', p)}
+            onSave={this.handleSaveConfig('hipchat')}
             config={this.getSection(configSections, 'hipchat')}
           />,
       },
@@ -146,7 +126,7 @@ class AlertTabs extends Component {
         type: 'OpsGenie',
         renderComponent: () =>
           <OpsGenieConfig
-            onSave={p => this.handleSaveConfig('opsgenie', p)}
+            onSave={this.handleSaveConfig('opsgenie')}
             config={this.getSection(configSections, 'opsgenie')}
           />,
       },
@@ -154,7 +134,7 @@ class AlertTabs extends Component {
         type: 'PagerDuty',
         renderComponent: () =>
           <PagerDutyConfig
-            onSave={p => this.handleSaveConfig('pagerduty', p)}
+            onSave={this.handleSaveConfig('pagerduty')}
             config={this.getSection(configSections, 'pagerduty')}
           />,
       },
@@ -162,7 +142,7 @@ class AlertTabs extends Component {
         type: 'Pushover',
         renderComponent: () =>
           <PushoverConfig
-            onSave={p => this.handleSaveConfig('pushover', p)}
+            onSave={this.handleSaveConfig('pushover')}
             config={this.getSection(configSections, 'pushover')}
           />,
       },
@@ -170,7 +150,7 @@ class AlertTabs extends Component {
         type: 'Sensu',
         renderComponent: () =>
           <SensuConfig
-            onSave={p => this.handleSaveConfig('sensu', p)}
+            onSave={this.handleSaveConfig('sensu')}
             config={this.getSection(configSections, 'sensu')}
           />,
       },
@@ -178,8 +158,7 @@ class AlertTabs extends Component {
         type: 'Slack',
         renderComponent: () =>
           <SlackConfig
-            onSave={p => this.handleSaveConfig('slack', p)}
-            onTest={test}
+            onSave={this.handleSaveConfig('slack')}
             config={this.getSection(configSections, 'slack')}
           />,
       },
@@ -187,7 +166,7 @@ class AlertTabs extends Component {
         type: 'SMTP',
         renderComponent: () =>
           <SMTPConfig
-            onSave={p => this.handleSaveConfig('smtp', p)}
+            onSave={this.handleSaveConfig('smtp')}
             config={this.getSection(configSections, 'smtp')}
           />,
       },
@@ -195,7 +174,7 @@ class AlertTabs extends Component {
         type: 'Talk',
         renderComponent: () =>
           <TalkConfig
-            onSave={p => this.handleSaveConfig('talk', p)}
+            onSave={this.handleSaveConfig('talk')}
             config={this.getSection(configSections, 'talk')}
           />,
       },
@@ -203,7 +182,7 @@ class AlertTabs extends Component {
         type: 'Telegram',
         renderComponent: () =>
           <TelegramConfig
-            onSave={p => this.handleSaveConfig('telegram', p)}
+            onSave={this.handleSaveConfig('telegram')}
             config={this.getSection(configSections, 'telegram')}
           />,
       },
@@ -211,7 +190,7 @@ class AlertTabs extends Component {
         type: 'VictorOps',
         renderComponent: () =>
           <VictorOpsConfig
-            onSave={p => this.handleSaveConfig('victorops', p)}
+            onSave={this.handleSaveConfig('victorops')}
             config={this.getSection(configSections, 'victorops')}
           />,
       },

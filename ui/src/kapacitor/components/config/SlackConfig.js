@@ -81,7 +81,6 @@ SlackConfig.propTypes = {
     }).isRequired,
   }).isRequired,
   onSave: func.isRequired,
-  onTest: func.isRequired,
 }
 
 export default SlackConfig
