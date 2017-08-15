@@ -1,6 +1,10 @@
 import React, {PropTypes, Component} from 'react'
 
 class SMTPConfig extends Component {
+  constructor(props) {
+    super(props)
+  }
+
   handleSaveAlert = e => {
     e.preventDefault()
 
