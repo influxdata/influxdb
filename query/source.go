@@ -176,18 +176,6 @@ func (s *subquery) link(m ShardMapper) (storage, error) {
 	}, nil
 }
 
-func (s *subquery) mapField(name string, columns []string, dimensions map[string]struct{}) influxql.IteratorMap {
-	for i, colName := range columns {
-		if colName == name {
-			return influxql.FieldMap(i)
-		}
-	}
-	if _, ok := dimensions[name]; ok {
-		return influxql.TagMap(name)
-	}
-	return influxql.NullMap{}
-}
-
 type subqueryEngine struct {
 	fields     []*compiledField
 	columns    []influxql.VarRef

@@ -1512,9 +1512,7 @@ func (c *compiledStatement) Select(mapper ShardMapper) ([]*ReadEdge, []string, e
 
 		// Optimize this graph unless optimizations have been turned off.
 		if !c.Options.DisableOptimizations {
-			if err := optimize(f.Output.Input.Node); err != nil {
-				return nil, nil, err
-			}
+			optimize(f.Output.Input.Node)
 		}
 
 		// Ensure that the nodes produce an ordered output.

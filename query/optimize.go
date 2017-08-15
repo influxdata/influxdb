@@ -1,17 +1,12 @@
 package query
 
-func optimize(n Node) error {
-	if err := optimizeMerges(n); err != nil {
-		return err
-	}
-	if err := optimizeFunctionCalls(n); err != nil {
-		return err
-	}
-	return nil
+func optimize(n Node) {
+	optimizeMerges(n)
+	optimizeFunctionCalls(n)
 }
 
-func optimizeMerges(n Node) error {
-	return Walk(n, VisitorFunc(func(n Node) (bool, error) {
+func optimizeMerges(n Node) {
+	Walk(n, VisitorFunc(func(n Node) (bool, error) {
 		if m, ok := n.(*Merge); ok && len(m.InputNodes) == 1 {
 			RemoveNode(m.InputNodes[0], m.Output)
 		}
@@ -19,8 +14,8 @@ func optimizeMerges(n Node) error {
 	}))
 }
 
-func optimizeFunctionCalls(n Node) error {
-	return Walk(n, VisitorFunc(func(n Node) (bool, error) {
+func optimizeFunctionCalls(n Node) {
+	Walk(n, VisitorFunc(func(n Node) (bool, error) {
 		fc, ok := n.(*FunctionCall)
 		if !ok {
 			return true, nil
