@@ -39,9 +39,13 @@ class DatabaseManagerPage extends Component {
         onCreateRetentionPolicy={actions.createRetentionPolicyAsync}
         onUpdateRetentionPolicy={actions.updateRetentionPolicyAsync}
         onRemoveRetentionPolicy={actions.removeRetentionPolicy}
-        onDeleteRetentionPolicy={actions.deleteRetentionPolicyAsync}
+        onDeleteRetentionPolicy={this.handleDeleteRetentionPolicy}
       />
     )
+  }
+
+  handleDeleteRetentionPolicy = (db, rp) => () => {
+    this.props.actions.deleteRetentionPolicyAsync(db, rp)
   }
 
   handleStartDeleteDatabase = database => () => {

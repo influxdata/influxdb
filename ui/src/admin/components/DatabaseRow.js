@@ -227,7 +227,7 @@ class DatabaseRow extends Component {
         >
           {isDeleting
             ? <YesNoButtons
-                onConfirm={() => onDelete(database, retentionPolicy)}
+                onConfirm={onDelete(database, retentionPolicy)}
                 onCancel={this.handleEndDelete}
                 buttonSize="btn-xs"
               />
