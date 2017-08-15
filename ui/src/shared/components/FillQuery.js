@@ -21,6 +21,7 @@ class FillQuery extends Component {
 
   static defaultProps = {
     size: 'xs',
+    theme: 'blue',
   }
 
   handleInputBlur(e) {
@@ -58,9 +59,24 @@ class FillQuery extends Component {
   }
 
   render() {
-    const {size} = this.props
+    const {size, theme} = this.props
     const {selected, useCustomNumber, inputValue} = this.state
     const items = QUERY_FILL_OPTIONS.map(text => ({text}))
+
+    let inputTheme = ''
+    let dropdownTheme = ''
+
+    if (theme === 'blue') {
+      inputTheme = 'form-plutonium'
+    }
+    if (theme === 'green') {
+      inputTheme = 'form-malachite'
+      dropdownTheme = 'dropdown-malachite'
+    }
+    if (theme === 'purple') {
+      inputTheme = 'form-astronaut'
+      dropdownTheme = 'dropdown-astronaut'
+    }
 
     return (
       <div className={`fill-query fill-query--${size}`}>
@@ -71,12 +87,13 @@ class FillQuery extends Component {
           className="fill-query--dropdown"
           buttonSize={`btn-${size}`}
           buttonColor="btn-default"
+          menuClass={dropdownTheme}
           onChoose={this.handleDropdown}
         />
         {useCustomNumber
           ? <input
               type="number"
-              className={`form-control monotype form-plutonium input-${size} fill-query--input`}
+              className={`form-control monotype ${inputTheme} input-${size} fill-query--input`}
               placeholder="Custom Value"
               autoFocus={true}
               value={inputValue}
@@ -95,6 +112,7 @@ const {func, string} = PropTypes
 FillQuery.propTypes = {
   onSelection: func.isRequired,
   size: string,
+  theme: string,
 }
 
 export default FillQuery
