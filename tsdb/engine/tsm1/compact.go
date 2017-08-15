@@ -1063,6 +1063,10 @@ func (b *block) markRead(min, max int64) {
 }
 
 func (b *block) partiallyRead() bool {
+	// If readMin and readMax are still the initial values, nothing has been read.
+	if b.readMin == int64(math.MaxInt64) && b.readMax == int64(math.MinInt64) {
+		return false
+	}
 	return b.readMin != b.minTime || b.readMax != b.maxTime
 }
 
