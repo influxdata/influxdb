@@ -10,9 +10,6 @@ import {publishAutoDismissingNotification} from 'shared/dispatchers'
 class DatabaseManagerPage extends Component {
   constructor(props) {
     super(props)
-    this.handleKeyDownDatabase = ::this.handleKeyDownDatabase
-    this.handleDatabaseDeleteConfirm = ::this.handleDatabaseDeleteConfirm
-    this.handleCreateDatabase = ::this.handleCreateDatabase
   }
 
   componentDidMount() {
@@ -32,13 +29,13 @@ class DatabaseManagerPage extends Component {
         onKeyDownDatabase={this.handleKeyDownDatabase}
         onDatabaseDeleteConfirm={this.handleDatabaseDeleteConfirm}
         addDatabase={actions.addDatabase}
-        onEditDatabase={actions.editDatabase}
+        onEditDatabase={this.handleEditDatabase}
         onCancelDatabase={actions.removeDatabase}
         onConfirmDatabase={this.handleCreateDatabase}
         onDeleteDatabase={actions.deleteDatabaseAsync}
-        onStartDeleteDatabase={actions.addDatabaseDeleteCode}
+        onStartDeleteDatabase={this.handleStartDeleteDatabase}
         onRemoveDeleteCode={actions.removeDatabaseDeleteCode}
-        onAddRetentionPolicy={actions.addRetentionPolicy}
+        onAddRetentionPolicy={this.handleAddRetentionPolicy}
         onCreateRetentionPolicy={actions.createRetentionPolicyAsync}
         onUpdateRetentionPolicy={actions.updateRetentionPolicyAsync}
         onRemoveRetentionPolicy={actions.removeRetentionPolicy}
@@ -47,7 +44,15 @@ class DatabaseManagerPage extends Component {
     )
   }
 
-  handleCreateDatabase(database) {
+  handleStartDeleteDatabase = database => () => {
+    this.props.actions.addDatabaseDeleteCode(database)
+  }
+
+  handleEditDatabase = database => e => {
+    this.props.actions.editDatabase(database, {name: e.target.value})
+  }
+
+  handleCreateDatabase = database => {
     const {actions, notify, source} = this.props
 
     if (!database.name) {
@@ -57,7 +62,12 @@ class DatabaseManagerPage extends Component {
     actions.createDatabaseAsync(source.links.databases, database)
   }
 
-  handleKeyDownDatabase(e, database) {
+  handleAddRetentionPolicy = database => () => {
+    const {addRetentionPolicy} = this.props.actions
+    addRetentionPolicy(database)
+  }
+
+  handleKeyDownDatabase = database => e => {
     const {key} = e
     const {actions, notify, source} = this.props
 
@@ -74,7 +84,7 @@ class DatabaseManagerPage extends Component {
     }
   }
 
-  handleDatabaseDeleteConfirm(database, e) {
+  handleDatabaseDeleteConfirm = database => e => {
     const {key, target: {value}} = e
     const {actions, notify} = this.props
 
