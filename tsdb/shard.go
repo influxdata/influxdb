@@ -990,14 +990,6 @@ func (s *Shard) TagKeyCardinality(name, key []byte) int {
 	return s.engine.TagKeyCardinality(name, key)
 }
 
-type ShardGroup interface {
-	MeasurementsByRegex(re *regexp.Regexp) []string
-	FieldDimensions(measurements []string) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error)
-	MapType(measurement, field string) influxql.DataType
-	CreateIterator(measurement string, opt influxql.IteratorOptions) (influxql.Iterator, error)
-	ExpandSources(sources influxql.Sources) (influxql.Sources, error)
-}
-
 // Shards represents a sortable list of shards.
 type Shards []*Shard
 

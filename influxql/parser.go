@@ -142,6 +142,16 @@ func (p *Parser) parseKillQueryStatement() (*KillQueryStatement, error) {
 	return &KillQueryStatement{QueryID: qid, Host: host}, nil
 }
 
+// parseExplainStatement parses a string and returns an ExplainStatement.
+// This function assumes the EXPLAIN SELECT tokens have already been consumed.
+func (p *Parser) parseExplainStatement() (*ExplainStatement, error) {
+	stmt, err := p.parseSelectStatement(targetNotRequired)
+	if err != nil {
+		return nil, err
+	}
+	return &ExplainStatement{Statement: stmt}, nil
+}
+
 // parseCreateSubscriptionStatement parses a string and returns a CreateSubscriptionStatement.
 // This function assumes the "CREATE SUBSCRIPTION" tokens have already been consumed.
 func (p *Parser) parseCreateSubscriptionStatement() (*CreateSubscriptionStatement, error) {
@@ -790,11 +800,6 @@ func (p *Parser) parseSelectStatement(tr targetRequirement) (*SelectStatement, e
 			stmt.IsRawQuery = false
 		}
 	})
-
-	if err := stmt.validate(tr); err != nil {
-		return nil, err
-	}
-
 	return stmt, nil
 }
 

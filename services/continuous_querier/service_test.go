@@ -10,6 +10,7 @@ import (
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/uber-go/zap"
 )
@@ -123,11 +124,11 @@ func TestContinuousQueryService_ResampleOptions(t *testing.T) {
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
 		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
 			s := stmt.(*influxql.SelectStatement)
-			min, max, err := influxql.TimeRange(s.Condition, s.Location)
+			_, timeRange, err := query.ParseCondition(s.Condition, nil)
 			if err != nil {
 				t.Errorf("unexpected error parsing time range: %s", err)
-			} else if !expected.min.Equal(min) || !expected.max.Equal(max) {
-				t.Errorf("mismatched time range: got=(%s, %s) exp=(%s, %s)", min, max, expected.min, expected.max)
+			} else if !expected.min.Equal(timeRange.Min) || !expected.max.Equal(timeRange.Max) {
+				t.Errorf("mismatched time range: got=(%s, %s) exp=(%s, %s)", timeRange.Min, timeRange.Max, expected.min, expected.max)
 			}
 			done <- struct{}{}
 			ctx.Results <- &influxql.Result{}
@@ -204,11 +205,11 @@ func TestContinuousQueryService_EveryHigherThanInterval(t *testing.T) {
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
 		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
 			s := stmt.(*influxql.SelectStatement)
-			min, max, err := influxql.TimeRange(s.Condition, s.Location)
+			_, timeRange, err := query.ParseCondition(s.Condition, nil)
 			if err != nil {
 				t.Errorf("unexpected error parsing time range: %s", err)
-			} else if !expected.min.Equal(min) || !expected.max.Equal(max) {
-				t.Errorf("mismatched time range: got=(%s, %s) exp=(%s, %s)", min, max, expected.min, expected.max)
+			} else if !expected.min.Equal(timeRange.Min) || !expected.max.Equal(timeRange.Max) {
+				t.Errorf("mismatched time range: got=(%s, %s) exp=(%s, %s)", timeRange.Min, timeRange.Max, expected.min, expected.max)
 			}
 			done <- struct{}{}
 			ctx.Results <- &influxql.Result{}
@@ -273,11 +274,11 @@ func TestContinuousQueryService_GroupByOffset(t *testing.T) {
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
 		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
 			s := stmt.(*influxql.SelectStatement)
-			min, max, err := influxql.TimeRange(s.Condition, s.Location)
+			_, timeRange, err := query.ParseCondition(s.Condition, nil)
 			if err != nil {
 				t.Errorf("unexpected error parsing time range: %s", err)
-			} else if !expected.min.Equal(min) || !expected.max.Equal(max) {
-				t.Errorf("mismatched time range: got=(%s, %s) exp=(%s, %s)", min, max, expected.min, expected.max)
+			} else if !expected.min.Equal(timeRange.Min) || !expected.max.Equal(timeRange.Max) {
+				t.Errorf("mismatched time range: got=(%s, %s) exp=(%s, %s)", timeRange.Min, timeRange.Max, expected.min, expected.max)
 			}
 			done <- struct{}{}
 			ctx.Results <- &influxql.Result{}
@@ -433,12 +434,12 @@ func TestExecuteContinuousQuery_TimeRange(t *testing.T) {
 			s.QueryExecutor.StatementExecutor = &StatementExecutor{
 				ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
 					s := stmt.(*influxql.SelectStatement)
-					min, max, err := influxql.TimeRange(s.Condition, s.Location)
-					max = max.Add(time.Nanosecond)
+					_, timeRange, err := query.ParseCondition(s.Condition, nil)
+					timeRange.Max = timeRange.Max.Add(time.Nanosecond)
 					if err != nil {
 						t.Errorf("unexpected error parsing time range: %s", err)
-					} else if !tt.start.Equal(min) || !tt.end.Equal(max) {
-						t.Errorf("mismatched time range: got=(%s, %s) exp=(%s, %s)", min, max, tt.start, tt.end)
+					} else if !tt.start.Equal(timeRange.Min) || !tt.end.Equal(timeRange.Max) {
+						t.Errorf("mismatched time range: got=(%s, %s) exp=(%s, %s)", timeRange.Min, timeRange.Max, tt.start, tt.end)
 					}
 					done <- struct{}{}
 					ctx.Results <- &influxql.Result{}
@@ -547,12 +548,12 @@ func TestExecuteContinuousQuery_TimeZone(t *testing.T) {
 				ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
 					test := <-tests
 					s := stmt.(*influxql.SelectStatement)
-					min, max, err := influxql.TimeRange(s.Condition, s.Location)
-					max = max.Add(time.Nanosecond)
+					_, timeRange, err := query.ParseCondition(s.Condition, nil)
+					timeRange.Max = timeRange.Max.Add(time.Nanosecond)
 					if err != nil {
 						t.Errorf("unexpected error parsing time range: %s", err)
-					} else if !test.start.Equal(min) || !test.end.Equal(max) {
-						t.Errorf("mismatched time range: got=(%s, %s) exp=(%s, %s)", min, max, test.start, test.end)
+					} else if !test.start.Equal(timeRange.Min) || !test.end.Equal(timeRange.Max) {
+						t.Errorf("mismatched time range: got=(%s, %s) exp=(%s, %s)", timeRange.Min, timeRange.Max, test.start, test.end)
 					}
 					done <- struct{}{}
 					ctx.Results <- &influxql.Result{}

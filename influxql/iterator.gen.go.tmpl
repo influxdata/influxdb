@@ -935,7 +935,7 @@ func (itr *{{$k.name}}ChanIterator) Close() error {
 	return nil
 }
 
-func (itr *{{$k.name}}ChanIterator) setBuf(name string, tags Tags, time int64, value interface{}) bool {
+func (itr *{{$k.name}}ChanIterator) setBuf(name string, tags Tags, time int64, value interface{}, aux []interface{}) bool {
 	itr.cond.L.Lock()
 	defer itr.cond.L.Unlock()
 
@@ -954,13 +954,13 @@ func (itr *{{$k.name}}ChanIterator) setBuf(name string, tags Tags, time int64, v
 
 	switch v := value.(type) {
 	case {{$k.Type}}:
-		itr.buf.points[itr.buf.i] = {{$k.Name}}Point{Name: name, Tags: tags, Time: time, Value: v}
+		itr.buf.points[itr.buf.i] = {{$k.Name}}Point{Name: name, Tags: tags, Time: time, Value: v, Aux: aux}
 {{if eq $k.Name "Float"}}
 	case int64:
-		itr.buf.points[itr.buf.i] = {{$k.Name}}Point{Name: name, Tags: tags, Time: time, Value: float64(v)}
+		itr.buf.points[itr.buf.i] = {{$k.Name}}Point{Name: name, Tags: tags, Time: time, Value: float64(v), Aux: aux}
 {{end}}
 	default:
-		itr.buf.points[itr.buf.i] = {{$k.Name}}Point{Name: name, Tags: tags, Time: time, Nil: true}
+		itr.buf.points[itr.buf.i] = {{$k.Name}}Point{Name: name, Tags: tags, Time: time, Nil: true, Aux: aux}
 	}
 	itr.buf.filled = true
 
@@ -1507,67 +1507,116 @@ type {{$k.name}}DedupeIterator struct {
 }
 
 type {{$k.name}}IteratorMapper struct {
-	e         *Emitter
-	buf       []interface{}
-	driver    IteratorMap   // which iterator to use for the primary value, can be nil
-	fields    []IteratorMap // which iterator to use for an aux field
-	point     {{$k.Name}}Point
+	input      {{$k.Name}}Iterator
+	drivers    []IteratorMap
+	dimensions []string
+	fields     []IteratorMap
+	outputs    []Iterator
 }
 
-func new{{$k.Name}}IteratorMapper(itrs []Iterator, driver IteratorMap, fields []IteratorMap, opt IteratorOptions) *{{$k.name}}IteratorMapper {
-	e := NewEmitter(itrs, opt.Ascending, 0)
-	e.OmitTime = true
+func new{{$k.Name}}IteratorMapper(input {{$k.Name}}Iterator, drivers []IteratorMap, dimensions []string) *{{$k.name}}IteratorMapper {
 	return &{{$k.name}}IteratorMapper{
-		e:         e,
-		buf:       make([]interface{}, len(itrs)),
-		driver:    driver,
-		fields:    fields,
-		point:  {{$k.Name}}Point{
-			Aux: make([]interface{}, len(fields)),
-		},
+		input:      input,
+		drivers:    drivers,
+		dimensions: dimensions,
 	}
 }
 
-func (itr *{{$k.name}}IteratorMapper) Next() (*{{$k.Name}}Point, error) {
-	t, name, tags, err := itr.e.loadBuf()
-	if err != nil || t == ZeroTime {
-		return nil, err
+func (itr *{{$k.name}}IteratorMapper) Iterator(driver IteratorMap, typ DataType) Iterator {
+	itr.fields = append(itr.fields, driver)
+	if _, ok := driver.(NullMap); ok {
+		ch := &floatChanIterator{cond: sync.NewCond(&sync.Mutex{})}
+		itr.outputs = append(itr.outputs, ch)
+		return ch
 	}
-	itr.point.Time = t
-	itr.point.Name = name
-	itr.point.Tags = tags
 
-	itr.e.readInto(t, name, tags, itr.buf)
-	if itr.driver != nil {
-	if v := itr.driver.Value(tags, itr.buf); v != nil {
-			if v, ok := v.({{$k.Type}}); ok {
-				itr.point.Value = v
-				itr.point.Nil = false
-			} else {
-				itr.point.Value = {{$k.Nil}}
-				itr.point.Nil = true
-			}
-		} else {
-			itr.point.Value = {{$k.Nil}}
-			itr.point.Nil = true
+	switch typ {
+	case Float:
+		ch := &floatChanIterator{cond: sync.NewCond(&sync.Mutex{})}
+		itr.outputs = append(itr.outputs, ch)
+		return ch
+	case Integer:
+		ch := &integerChanIterator{cond: sync.NewCond(&sync.Mutex{})}
+		itr.outputs = append(itr.outputs, ch)
+		return ch
+	case String, Tag:
+		ch := &stringChanIterator{cond: sync.NewCond(&sync.Mutex{})}
+		itr.outputs = append(itr.outputs, ch)
+		return ch
+	case Boolean:
+		ch := &booleanChanIterator{cond: sync.NewCond(&sync.Mutex{})}
+		itr.outputs = append(itr.outputs, ch)
+		return ch
+	}
+	return &nilFloatIterator{}
+}
+
+func (itr *{{$k.name}}IteratorMapper) Start() {
+	go itr.stream()
+}
+
+func (itr *{{$k.name}}IteratorMapper) stream() {
+	for {
+		p, err := itr.input.Next()
+		if err != nil {
+			itr.sendError(err)
+			break
+		} else if p == nil {
+			break
+		}
+
+		if ok := itr.send(p); !ok {
+			break
 		}
 	}
+	itr.close()
+}
+
+func (itr *{{$k.name}}IteratorMapper) send(p *{{$k.Name}}Point) (ok bool) {
+	t, name, tags := p.Time, p.Name, p.Tags
+	aux := make([]interface{}, len(itr.drivers))
+	for i, driver := range itr.drivers {
+		aux[i] = driver.Value(tags, p.Aux)
+	}
+	tags = tags.Subset(itr.dimensions)
+
 	for i, f := range itr.fields {
-		itr.point.Aux[i] = f.Value(tags, itr.buf)
+		v := f.Value(tags, p.Aux)
+		switch itr := itr.outputs[i].(type) {
+		case *floatChanIterator:
+			ok = itr.setBuf(name, tags, t, v, aux) || ok
+		case *integerChanIterator:
+			ok = itr.setBuf(name, tags, t, v, aux) || ok
+		case *stringChanIterator:
+			ok = itr.setBuf(name, tags, t, v, aux) || ok
+		case *booleanChanIterator:
+			ok = itr.setBuf(name, tags, t, v, aux) || ok
+		}
 	}
-	return &itr.point, nil
+	return ok
 }
 
-func (itr *{{$k.name}}IteratorMapper) Stats() IteratorStats {
-	stats := IteratorStats{}
-	for _, itr := range itr.e.itrs {
-		stats.Add(itr.Stats())
+func (itr *{{$k.name}}IteratorMapper) sendError(err error) {
+	for _, itr := range itr.outputs {
+		switch itr := itr.(type) {
+		case *floatChanIterator:
+			itr.setErr(err)
+		case *integerChanIterator:
+			itr.setErr(err)
+		case *stringChanIterator:
+			itr.setErr(err)
+		case *booleanChanIterator:
+			itr.setErr(err)
+		default:
+			panic(fmt.Sprintf("invalid aux itr type: %T", itr))
+		}
 	}
-	return stats
 }
 
-func (itr *{{$k.name}}IteratorMapper) Close() error {
-	return itr.e.Close()
+func (itr *{{$k.name}}IteratorMapper) close() {
+	for _, itr := range itr.outputs {
+		itr.Close()
+	}
 }
 
 type {{$k.name}}FilterIterator struct {

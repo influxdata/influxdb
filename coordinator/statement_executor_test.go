@@ -15,6 +15,7 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/internal"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/uber-go/zap"
@@ -43,7 +44,7 @@ func TestQueryExecutor_ExecuteQuery_SelectStatement(t *testing.T) {
 
 	// The TSDB store should return an IteratorCreator for shard.
 	// This IteratorCreator returns a single iterator with "value" in the aux fields.
-	e.TSDBStore.ShardGroupFn = func(ids []uint64) tsdb.ShardGroup {
+	e.TSDBStore.ShardGroupFn = func(ids []uint64) query.ShardGroup {
 		if !reflect.DeepEqual(ids, []uint64{100}) {
 			t.Fatalf("unexpected shard ids: %v", ids)
 		}
@@ -96,7 +97,7 @@ func TestQueryExecutor_ExecuteQuery_MaxSelectBucketsN(t *testing.T) {
 		}, nil
 	}
 
-	e.TSDBStore.ShardGroupFn = func(ids []uint64) tsdb.ShardGroup {
+	e.TSDBStore.ShardGroupFn = func(ids []uint64) query.ShardGroup {
 		if !reflect.DeepEqual(ids, []uint64{100}) {
 			t.Fatalf("unexpected shard ids: %v", ids)
 		}
@@ -322,7 +323,7 @@ type TSDBStore struct {
 	DeleteRetentionPolicyFn func(database, name string) error
 	DeleteShardFn           func(id uint64) error
 	DeleteSeriesFn          func(database string, sources []influxql.Source, condition influxql.Expr) error
-	ShardGroupFn            func(ids []uint64) tsdb.ShardGroup
+	ShardGroupFn            func(ids []uint64) query.ShardGroup
 }
 
 func (s *TSDBStore) CreateShard(database, policy string, shardID uint64, enabled bool) error {
@@ -364,7 +365,7 @@ func (s *TSDBStore) DeleteSeries(database string, sources []influxql.Source, con
 	return s.DeleteSeriesFn(database, sources, condition)
 }
 
-func (s *TSDBStore) ShardGroup(ids []uint64) tsdb.ShardGroup {
+func (s *TSDBStore) ShardGroup(ids []uint64) query.ShardGroup {
 	return s.ShardGroupFn(ids)
 }
 

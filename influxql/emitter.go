@@ -94,6 +94,12 @@ func (e *Emitter) Emit() (*models.Row, bool, error) {
 	}
 }
 
+// LoadBuf reads in points into empty buffer slots.
+// Returns the next time/name/tags to emit for.
+func (e *Emitter) LoadBuf() (t int64, name string, tags Tags, err error) {
+	return e.loadBuf()
+}
+
 // loadBuf reads in points into empty buffer slots.
 // Returns the next time/name/tags to emit for.
 func (e *Emitter) loadBuf() (t int64, name string, tags Tags, err error) {
@@ -162,6 +168,10 @@ func (e *Emitter) readAt(t int64, name string, tags Tags) []interface{} {
 	}
 	e.readInto(t, name, tags, values[offset:])
 	return values
+}
+
+func (e *Emitter) ReadInto(t int64, name string, tags Tags, values []interface{}) {
+	e.readInto(t, name, tags, values)
 }
 
 func (e *Emitter) readInto(t int64, name string, tags Tags, values []interface{}) {

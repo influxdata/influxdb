@@ -1,0 +1,48 @@
+package iterators
+
+import . "github.com/influxdata/influxdb/influxql"
+
+{{with $types := .}}{{range $k := $types}}
+
+type {{$k.name}}FilterIterator struct {
+  input  {{$k.Name}}Iterator
+  cond   Expr
+	fields map[string]IteratorMap
+  m      map[string]interface{}
+}
+
+func new{{$k.Name}}FilterIterator(input {{$k.Name}}Iterator, fields map[string]IteratorMap, cond Expr) *{{$k.name}}FilterIterator {
+  return &{{$k.name}}FilterIterator{
+    input:  input,
+    cond:   cond,
+    fields: fields,
+    m:      make(map[string]interface{}, len(fields)),
+  }
+}
+
+func (itr *{{$k.name}}FilterIterator) Next() (*{{$k.Name}}Point, error) {
+  for {
+    p, err := itr.input.Next()
+    if err != nil || p == nil {
+      return nil, err
+    }
+
+    for name, field := range itr.fields {
+      itr.m[name] = field.Value(p.Tags, p.Aux)
+    }
+
+    if !EvalBool(itr.cond, itr.m) {
+      continue
+    }
+    return p, nil
+  }
+}
+
+func (itr *{{$k.name}}FilterIterator) Stats() IteratorStats {
+  return itr.input.Stats()
+}
+
+func (itr *{{$k.name}}FilterIterator) Close() error {
+  return itr.input.Close()
+}
+{{end}}{{end}}

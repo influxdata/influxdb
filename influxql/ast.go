@@ -68,15 +68,6 @@ func InspectDataType(v interface{}) DataType {
 	}
 }
 
-// InspectDataTypes returns all of the data types for an interface slice.
-func InspectDataTypes(a []interface{}) []DataType {
-	dta := make([]DataType, len(a))
-	for i, v := range a {
-		dta[i] = InspectDataType(v)
-	}
-	return dta
-}
-
 // LessThan returns true if the other DataType has greater precedence than the
 // current data type. Unknown has the lowest precedence.
 //
@@ -138,6 +129,7 @@ func (*DropSeriesStatement) node()            {}
 func (*DropShardStatement) node()             {}
 func (*DropSubscriptionStatement) node()      {}
 func (*DropUserStatement) node()              {}
+func (*ExplainStatement) node()               {}
 func (*GrantStatement) node()                 {}
 func (*GrantAdminStatement) node()            {}
 func (*KillQueryStatement) node()             {}
@@ -257,6 +249,7 @@ func (*DropRetentionPolicyStatement) stmt()   {}
 func (*DropSeriesStatement) stmt()            {}
 func (*DropSubscriptionStatement) stmt()      {}
 func (*DropUserStatement) stmt()              {}
+func (*ExplainStatement) stmt()               {}
 func (*GrantStatement) stmt()                 {}
 func (*GrantAdminStatement) stmt()            {}
 func (*KillQueryStatement) stmt()             {}
@@ -338,54 +331,12 @@ func (*SubQuery) source()    {}
 // Sources represents a list of sources.
 type Sources []Source
 
-// Names returns a list of source names.
-func (a Sources) Names() []string {
-	names := make([]string, 0, len(a))
-	for _, s := range a {
-		switch s := s.(type) {
-		case *Measurement:
-			names = append(names, s.Name)
-		}
-	}
-	return names
-}
-
-// Filter returns a list of source names filtered by the database/retention policy.
-func (a Sources) Filter(database, retentionPolicy string) []Source {
-	sources := make([]Source, 0, len(a))
-	for _, s := range a {
-		switch s := s.(type) {
-		case *Measurement:
-			if s.Database == database && s.RetentionPolicy == retentionPolicy {
-				sources = append(sources, s)
-			}
-		case *SubQuery:
-			filteredSources := s.Statement.Sources.Filter(database, retentionPolicy)
-			sources = append(sources, filteredSources...)
-		}
-	}
-	return sources
-}
-
 // HasSystemSource returns true if any of the sources are internal, system sources.
 func (a Sources) HasSystemSource() bool {
 	for _, s := range a {
 		switch s := s.(type) {
 		case *Measurement:
 			if IsSystemName(s.Name) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// HasRegex returns true if any of the sources are regex measurements.
-func (a Sources) HasRegex() bool {
-	for _, s := range a {
-		switch s := s.(type) {
-		case *Measurement:
-			if s.Regex != nil {
 				return true
 			}
 		}
@@ -648,6 +599,26 @@ func (s *DropUserStatement) String() string {
 // RequiredPrivileges returns the privilege(s) required to execute a DropUserStatement.
 func (s *DropUserStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
 	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}, nil
+}
+
+// ExplainStatement represents a command for explaining a statement.
+type ExplainStatement struct {
+	// Leaving this as only supporting select statements at the moment.
+	// Might expand this later to include other statements.
+	Statement *SelectStatement
+}
+
+// String returns a string representation of the explain statement.
+func (s *ExplainStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("EXPLAIN ")
+	_, _ = buf.WriteString(s.Statement.String())
+	return buf.String()
+}
+
+// RequiredPrivileges returns the privilege(s) required to execute an ExplainStatement.
+func (s *ExplainStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
+	return s.Statement.RequiredPrivileges()
 }
 
 // Privilege is a type of action a user can be granted the right to use.
@@ -1024,46 +995,6 @@ type SelectStatement struct {
 	Dedupe bool
 }
 
-// HasDerivative returns true if any function call in the statement is a
-// derivative aggregate.
-func (s *SelectStatement) HasDerivative() bool {
-	for _, f := range s.FunctionCalls() {
-		if f.Name == "derivative" || f.Name == "non_negative_derivative" {
-			return true
-		}
-	}
-	return false
-}
-
-// IsSimpleDerivative return true if any function call is a derivative function with a
-// variable ref as the first arg.
-func (s *SelectStatement) IsSimpleDerivative() bool {
-	for _, f := range s.FunctionCalls() {
-		if f.Name == "derivative" || f.Name == "non_negative_derivative" {
-			// it's nested if the first argument is an aggregate function
-			if _, ok := f.Args[0].(*VarRef); ok {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// HasSelector returns true if there is exactly one selector.
-func (s *SelectStatement) HasSelector() bool {
-	var selector *Call
-	for _, f := range s.Fields {
-		if call, ok := f.Expr.(*Call); ok {
-			if selector != nil || !IsSelector(call) {
-				// This is an aggregate call or there is already a selector.
-				return false
-			}
-			selector = call
-		}
-	}
-	return selector != nil
-}
-
 // TimeAscending returns true if the time field is sorted in chronological order.
 func (s *SelectStatement) TimeAscending() bool {
 	return len(s.SortFields) == 0 || s.SortFields[0].Ascending
@@ -1133,227 +1064,6 @@ func cloneSource(s Source) Source {
 	default:
 		panic("unreachable")
 	}
-}
-
-// RewriteFields returns the re-written form of the select statement. Any wildcard query
-// fields are replaced with the supplied fields, and any wildcard GROUP BY fields are replaced
-// with the supplied dimensions. Any fields with no type specifier are rewritten with the
-// appropriate type.
-func (s *SelectStatement) RewriteFields(m FieldMapper) (*SelectStatement, error) {
-	// Clone the statement so we aren't rewriting the original.
-	other := s.Clone()
-
-	// Iterate through the sources and rewrite any subqueries first.
-	for _, src := range other.Sources {
-		switch src := src.(type) {
-		case *SubQuery:
-			stmt, err := src.Statement.RewriteFields(m)
-			if err != nil {
-				return nil, err
-			}
-			src.Statement = stmt
-		}
-	}
-
-	// Rewrite all variable references in the fields with their types if one
-	// hasn't been specified.
-	rewrite := func(n Node) {
-		ref, ok := n.(*VarRef)
-		if !ok || (ref.Type != Unknown && ref.Type != AnyField) {
-			return
-		}
-
-		typ := EvalType(ref, other.Sources, m)
-		if typ == Tag && ref.Type == AnyField {
-			return
-		}
-		ref.Type = typ
-	}
-	WalkFunc(other.Fields, rewrite)
-	WalkFunc(other.Condition, rewrite)
-
-	// Ignore if there are no wildcards.
-	hasFieldWildcard := other.HasFieldWildcard()
-	hasDimensionWildcard := other.HasDimensionWildcard()
-	if !hasFieldWildcard && !hasDimensionWildcard {
-		return other, nil
-	}
-
-	fieldSet, dimensionSet, err := FieldDimensions(other.Sources, m)
-	if err != nil {
-		return nil, err
-	}
-
-	// If there are no dimension wildcards then merge dimensions to fields.
-	if !hasDimensionWildcard {
-		// Remove the dimensions present in the group by so they don't get added as fields.
-		for _, d := range other.Dimensions {
-			switch expr := d.Expr.(type) {
-			case *VarRef:
-				if _, ok := dimensionSet[expr.Val]; ok {
-					delete(dimensionSet, expr.Val)
-				}
-			}
-		}
-	}
-
-	// Sort the field and dimension names for wildcard expansion.
-	var fields []VarRef
-	if len(fieldSet) > 0 {
-		fields = make([]VarRef, 0, len(fieldSet))
-		for name, typ := range fieldSet {
-			fields = append(fields, VarRef{Val: name, Type: typ})
-		}
-		if !hasDimensionWildcard {
-			for name := range dimensionSet {
-				fields = append(fields, VarRef{Val: name, Type: Tag})
-			}
-			dimensionSet = nil
-		}
-		sort.Sort(VarRefs(fields))
-	}
-	dimensions := stringSetSlice(dimensionSet)
-
-	// Rewrite all wildcard query fields
-	if hasFieldWildcard {
-		// Allocate a slice assuming there is exactly one wildcard for efficiency.
-		rwFields := make(Fields, 0, len(other.Fields)+len(fields)-1)
-		for _, f := range other.Fields {
-			switch expr := f.Expr.(type) {
-			case *Wildcard:
-				for _, ref := range fields {
-					if expr.Type == FIELD && ref.Type == Tag {
-						continue
-					} else if expr.Type == TAG && ref.Type != Tag {
-						continue
-					}
-					rwFields = append(rwFields, &Field{Expr: &VarRef{Val: ref.Val, Type: ref.Type}})
-				}
-			case *RegexLiteral:
-				for _, ref := range fields {
-					if expr.Val.MatchString(ref.Val) {
-						rwFields = append(rwFields, &Field{Expr: &VarRef{Val: ref.Val, Type: ref.Type}})
-					}
-				}
-			case *Call:
-				// Clone a template that we can modify and use for new fields.
-				template := CloneExpr(expr).(*Call)
-
-				// Search for the call with a wildcard by continuously descending until
-				// we no longer have a call.
-				call := template
-				for len(call.Args) > 0 {
-					arg, ok := call.Args[0].(*Call)
-					if !ok {
-						break
-					}
-					call = arg
-				}
-
-				// Check if this field value is a wildcard.
-				if len(call.Args) == 0 {
-					rwFields = append(rwFields, f)
-					continue
-				}
-
-				// Retrieve if this is a wildcard or a regular expression.
-				var re *regexp.Regexp
-				switch expr := call.Args[0].(type) {
-				case *Wildcard:
-					if expr.Type == TAG {
-						return nil, fmt.Errorf("unable to use tag wildcard in %s()", call.Name)
-					}
-				case *RegexLiteral:
-					re = expr.Val
-				default:
-					rwFields = append(rwFields, f)
-					continue
-				}
-
-				// All types that can expand wildcards support float and integer.
-				supportedTypes := map[DataType]struct{}{
-					Float:   struct{}{},
-					Integer: struct{}{},
-				}
-
-				// Add additional types for certain functions.
-				switch call.Name {
-				case "count", "first", "last", "distinct", "elapsed", "mode", "sample":
-					supportedTypes[String] = struct{}{}
-					fallthrough
-				case "min", "max":
-					supportedTypes[Boolean] = struct{}{}
-				}
-
-				for _, ref := range fields {
-					// Do not expand tags within a function call. It likely won't do anything
-					// anyway and will be the wrong thing in 99% of cases.
-					if ref.Type == Tag {
-						continue
-					} else if _, ok := supportedTypes[ref.Type]; !ok {
-						continue
-					} else if re != nil && !re.MatchString(ref.Val) {
-						continue
-					}
-
-					// Make a new expression and replace the wildcard within this cloned expression.
-					call.Args[0] = &VarRef{Val: ref.Val, Type: ref.Type}
-					rwFields = append(rwFields, &Field{
-						Expr:  CloneExpr(template),
-						Alias: fmt.Sprintf("%s_%s", f.Name(), ref.Val),
-					})
-				}
-			case *BinaryExpr:
-				// Search for regexes or wildcards within the binary
-				// expression. If we find any, throw an error indicating that
-				// it's illegal.
-				var regex, wildcard bool
-				WalkFunc(expr, func(n Node) {
-					switch n.(type) {
-					case *RegexLiteral:
-						regex = true
-					case *Wildcard:
-						wildcard = true
-					}
-				})
-
-				if wildcard {
-					return nil, fmt.Errorf("unsupported expression with wildcard: %s", f.Expr)
-				} else if regex {
-					return nil, fmt.Errorf("unsupported expression with regex field: %s", f.Expr)
-				}
-				rwFields = append(rwFields, f)
-			default:
-				rwFields = append(rwFields, f)
-			}
-		}
-		other.Fields = rwFields
-	}
-
-	// Rewrite all wildcard GROUP BY fields
-	if hasDimensionWildcard {
-		// Allocate a slice assuming there is exactly one wildcard for efficiency.
-		rwDimensions := make(Dimensions, 0, len(other.Dimensions)+len(dimensions)-1)
-		for _, d := range other.Dimensions {
-			switch expr := d.Expr.(type) {
-			case *Wildcard:
-				for _, name := range dimensions {
-					rwDimensions = append(rwDimensions, &Dimension{Expr: &VarRef{Val: name}})
-				}
-			case *RegexLiteral:
-				for _, name := range dimensions {
-					if expr.Val.MatchString(name) {
-						rwDimensions = append(rwDimensions, &Dimension{Expr: &VarRef{Val: name}})
-					}
-				}
-			default:
-				rwDimensions = append(rwDimensions, d)
-			}
-		}
-		other.Dimensions = rwDimensions
-	}
-
-	return other, nil
 }
 
 // RewriteRegexConditions rewrites regex conditions to make better use of the
@@ -1443,165 +1153,6 @@ func matchExactRegex(v string) (string, bool) {
 	return "", true
 }
 
-// RewriteDistinct rewrites the expression to be a call for map/reduce to work correctly.
-// This method assumes all validation has passed.
-func (s *SelectStatement) RewriteDistinct() {
-	WalkFunc(s.Fields, func(n Node) {
-		switch n := n.(type) {
-		case *Field:
-			if expr, ok := n.Expr.(*Distinct); ok {
-				n.Expr = expr.NewCall()
-				s.IsRawQuery = false
-			}
-		case *Call:
-			for i, arg := range n.Args {
-				if arg, ok := arg.(*Distinct); ok {
-					n.Args[i] = arg.NewCall()
-				}
-			}
-		}
-	})
-}
-
-// RewriteTimeFields removes any "time" field references.
-func (s *SelectStatement) RewriteTimeFields() {
-	for i := 0; i < len(s.Fields); i++ {
-		switch expr := s.Fields[i].Expr.(type) {
-		case *VarRef:
-			if expr.Val == "time" {
-				s.TimeAlias = s.Fields[i].Alias
-				s.Fields = append(s.Fields[:i], s.Fields[i+1:]...)
-			}
-		}
-	}
-}
-
-// RewriteTimeCondition adds time constraints to aggregate queries.
-func (s *SelectStatement) RewriteTimeCondition(now time.Time) error {
-	interval, err := s.GroupByInterval()
-	if err != nil {
-		return err
-	} else if interval > 0 && s.Condition != nil {
-		_, tmax, err := TimeRange(s.Condition, s.Location)
-		if err != nil {
-			return err
-		}
-
-		if tmax.IsZero() {
-			s.Condition = &BinaryExpr{
-				Op:  AND,
-				LHS: s.Condition,
-				RHS: &BinaryExpr{
-					Op:  LTE,
-					LHS: &VarRef{Val: "time"},
-					RHS: &TimeLiteral{Val: now},
-				},
-			}
-		}
-	}
-
-	for _, source := range s.Sources {
-		switch source := source.(type) {
-		case *SubQuery:
-			if err := source.Statement.RewriteTimeCondition(now); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-// ColumnNames will walk all fields and functions and return the appropriate field names for the select statement
-// while maintaining order of the field names.
-func (s *SelectStatement) ColumnNames() []string {
-	// First walk each field to determine the number of columns.
-	columnFields := Fields{}
-	for _, field := range s.Fields {
-		columnFields = append(columnFields, field)
-
-		switch f := field.Expr.(type) {
-		case *Call:
-			if s.Target == nil && (f.Name == "top" || f.Name == "bottom") {
-				for _, arg := range f.Args[1:] {
-					ref, ok := arg.(*VarRef)
-					if ok {
-						columnFields = append(columnFields, &Field{Expr: ref})
-					}
-				}
-			}
-		}
-	}
-
-	// Determine if we should add an extra column for an implicit time.
-	offset := 0
-	if !s.OmitTime {
-		offset++
-	}
-
-	columnNames := make([]string, len(columnFields)+offset)
-	if !s.OmitTime {
-		// Add the implicit time if requested.
-		columnNames[0] = s.TimeFieldName()
-	}
-
-	// Keep track of the encountered column names.
-	names := make(map[string]int)
-
-	// Resolve aliases first.
-	for i, col := range columnFields {
-		if col.Alias != "" {
-			columnNames[i+offset] = col.Alias
-			names[col.Alias] = 1
-		}
-	}
-
-	// Resolve any generated names and resolve conflicts.
-	for i, col := range columnFields {
-		if columnNames[i+offset] != "" {
-			continue
-		}
-
-		name := col.Name()
-		count, conflict := names[name]
-		if conflict {
-			for {
-				resolvedName := fmt.Sprintf("%s_%d", name, count)
-				_, conflict = names[resolvedName]
-				if !conflict {
-					names[name] = count + 1
-					name = resolvedName
-					break
-				}
-				count++
-			}
-		}
-		names[name]++
-		columnNames[i+offset] = name
-	}
-	return columnNames
-}
-
-// FieldExprByName returns the expression that matches the field name and the
-// index where this was found. If the name matches one of the arguments to
-// "top" or "bottom", the variable reference inside of the function is returned
-// and the index is of the function call rather than the variable reference.
-// If no expression is found, -1 is returned for the index and the expression
-// will be nil.
-func (s *SelectStatement) FieldExprByName(name string) (int, Expr) {
-	for i, f := range s.Fields {
-		if f.Name() == name {
-			return i, f.Expr
-		} else if call, ok := f.Expr.(*Call); ok && (call.Name == "top" || call.Name == "bottom") && len(call.Args) > 2 {
-			for _, arg := range call.Args[1 : len(call.Args)-1] {
-				if arg, ok := arg.(*VarRef); ok && arg.Val == name {
-					return i, arg
-				}
-			}
-		}
-	}
-	return -1, nil
-}
-
 // Reduce calls the Reduce function on the different components of the
 // SelectStatement to reduce the statement.
 func (s *SelectStatement) Reduce(valuer Valuer) *SelectStatement {
@@ -1618,17 +1169,6 @@ func (s *SelectStatement) Reduce(valuer Valuer) *SelectStatement {
 		}
 	}
 	return stmt
-}
-
-// HasTimeFieldSpecified will walk all fields and determine if the user explicitly asked for time.
-// This is needed to determine re-write behaviors for functions like TOP and BOTTOM.
-func (s *SelectStatement) HasTimeFieldSpecified() bool {
-	for _, f := range s.Fields {
-		if f.Name() == "time" {
-			return true
-		}
-	}
-	return false
 }
 
 // String returns a string representation of the select statement.
@@ -1716,570 +1256,6 @@ func (s *SelectStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
 		ep = append(ep, p)
 	}
 	return ep, nil
-}
-
-// HasWildcard returns whether or not the select statement has at least 1 wildcard.
-func (s *SelectStatement) HasWildcard() bool {
-	return s.HasFieldWildcard() || s.HasDimensionWildcard()
-}
-
-// HasFieldWildcard returns whether or not the select statement has at least 1 wildcard in the fields.
-func (s *SelectStatement) HasFieldWildcard() (hasWildcard bool) {
-	WalkFunc(s.Fields, func(n Node) {
-		if hasWildcard {
-			return
-		}
-		switch n.(type) {
-		case *Wildcard, *RegexLiteral:
-			hasWildcard = true
-		}
-	})
-	return hasWildcard
-}
-
-// HasDimensionWildcard returns whether or not the select statement has
-// at least 1 wildcard in the dimensions aka `GROUP BY`.
-func (s *SelectStatement) HasDimensionWildcard() bool {
-	for _, d := range s.Dimensions {
-		switch d.Expr.(type) {
-		case *Wildcard, *RegexLiteral:
-			return true
-		}
-	}
-
-	return false
-}
-
-func (s *SelectStatement) validate(tr targetRequirement) error {
-	if err := s.validateFields(); err != nil {
-		return err
-	}
-
-	if err := s.validateDimensions(); err != nil {
-		return err
-	}
-
-	if err := s.validateDistinct(); err != nil {
-		return err
-	}
-
-	if err := s.validateTopBottom(); err != nil {
-		return err
-	}
-
-	if err := s.validateAggregates(tr); err != nil {
-		return err
-	}
-
-	if err := s.validateFill(); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (s *SelectStatement) validateFields() error {
-	ns := s.NamesInSelect()
-	if len(ns) == 1 && ns[0] == "time" {
-		return fmt.Errorf("at least 1 non-time field must be queried")
-	}
-
-	for _, f := range s.Fields {
-		switch expr := f.Expr.(type) {
-		case *BinaryExpr:
-			if err := expr.validate(); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func (s *SelectStatement) validateDimensions() error {
-	var dur time.Duration
-	for _, dim := range s.Dimensions {
-		switch expr := dim.Expr.(type) {
-		case *Call:
-			// Ensure the call is time() and it has one or two duration arguments.
-			// If we already have a duration
-			if expr.Name != "time" {
-				return errors.New("only time() calls allowed in dimensions")
-			} else if got := len(expr.Args); got < 1 || got > 2 {
-				return errors.New("time dimension expected 1 or 2 arguments")
-			} else if lit, ok := expr.Args[0].(*DurationLiteral); !ok {
-				return errors.New("time dimension must have duration argument")
-			} else if dur != 0 {
-				return errors.New("multiple time dimensions not allowed")
-			} else {
-				dur = lit.Val
-				if len(expr.Args) == 2 {
-					switch lit := expr.Args[1].(type) {
-					case *DurationLiteral:
-						// noop
-					case *Call:
-						if lit.Name != "now" {
-							return errors.New("time dimension offset function must be now()")
-						} else if len(lit.Args) != 0 {
-							return errors.New("time dimension offset now() function requires no arguments")
-						}
-					default:
-						return errors.New("time dimension offset must be duration or now()")
-					}
-				}
-			}
-		case *VarRef:
-			if strings.ToLower(expr.Val) == "time" {
-				return errors.New("time() is a function and expects at least one argument")
-			}
-		case *Wildcard:
-		case *RegexLiteral:
-		default:
-			return errors.New("only time and tag dimensions allowed")
-		}
-	}
-	return nil
-}
-
-// validSelectWithAggregate determines if a SELECT statement has the correct
-// combination of aggregate functions combined with selected fields and tags
-// Currently we don't have support for all aggregates, but aggregates that
-// can be combined with fields/tags are:
-//  TOP, BOTTOM, MAX, MIN, FIRST, LAST
-func (s *SelectStatement) validSelectWithAggregate() error {
-	calls := map[string]struct{}{}
-	numAggregates := 0
-	for _, f := range s.Fields {
-		fieldCalls := walkFunctionCalls(f.Expr)
-		for _, c := range fieldCalls {
-			calls[c.Name] = struct{}{}
-		}
-		if len(fieldCalls) != 0 {
-			numAggregates++
-		}
-	}
-	// For TOP, BOTTOM, MAX, MIN, FIRST, LAST, PERCENTILE (selector functions) it is ok to ask for fields and tags
-	// but only if one function is specified.  Combining multiple functions and fields and tags is not currently supported
-	onlySelectors := true
-	for k := range calls {
-		switch k {
-		case "top", "bottom", "max", "min", "first", "last", "percentile", "sample":
-		default:
-			onlySelectors = false
-			break
-		}
-	}
-	if onlySelectors {
-		// If they only have one selector, they can have as many fields or tags as they want
-		if numAggregates == 1 {
-			return nil
-		}
-		// If they have multiple selectors, they are not allowed to have any other fields or tags specified
-		if numAggregates > 1 && len(s.Fields) != numAggregates {
-			return fmt.Errorf("mixing multiple selector functions with tags or fields is not supported")
-		}
-	}
-
-	if numAggregates != 0 && numAggregates != len(s.Fields) {
-		return fmt.Errorf("mixing aggregate and non-aggregate queries is not supported")
-	}
-	return nil
-}
-
-// validTopBottomAggr determines if TOP or BOTTOM aggregates have valid arguments.
-func (s *SelectStatement) validTopBottomAggr(expr *Call) error {
-	if exp, got := 2, len(expr.Args); got < exp {
-		return fmt.Errorf("invalid number of arguments for %s, expected at least %d, got %d", expr.Name, exp, got)
-	}
-	if len(expr.Args) > 1 {
-		callLimit, ok := expr.Args[len(expr.Args)-1].(*IntegerLiteral)
-		if !ok {
-			return fmt.Errorf("expected integer as last argument in %s(), found %s", expr.Name, expr.Args[len(expr.Args)-1])
-		}
-		// Check if they asked for a limit smaller than what they passed into the call
-		if int64(callLimit.Val) > int64(s.Limit) && s.Limit != 0 {
-			return fmt.Errorf("limit (%d) in %s function can not be larger than the LIMIT (%d) in the select statement", int64(callLimit.Val), expr.Name, int64(s.Limit))
-		}
-
-		for _, v := range expr.Args[:len(expr.Args)-1] {
-			if _, ok := v.(*VarRef); !ok {
-				return fmt.Errorf("only fields or tags are allowed in %s(), found %s", expr.Name, v)
-			}
-		}
-	}
-	return nil
-}
-
-// validPercentileAggr determines if the call to PERCENTILE has valid arguments.
-func (s *SelectStatement) validPercentileAggr(expr *Call) error {
-	if err := s.validSelectWithAggregate(); err != nil {
-		return err
-	}
-	if exp, got := 2, len(expr.Args); got != exp {
-		return fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", expr.Name, exp, got)
-	}
-
-	switch expr.Args[0].(type) {
-	case *VarRef, *RegexLiteral, *Wildcard:
-		// do nothing
-	default:
-		return fmt.Errorf("expected field argument in percentile()")
-	}
-
-	switch expr.Args[1].(type) {
-	case *IntegerLiteral, *NumberLiteral:
-		return nil
-	default:
-		return fmt.Errorf("expected float argument in percentile()")
-	}
-}
-
-// validPercentileAggr determines if the call to SAMPLE has valid arguments.
-func (s *SelectStatement) validSampleAggr(expr *Call) error {
-	if err := s.validSelectWithAggregate(); err != nil {
-		return err
-	}
-	if exp, got := 2, len(expr.Args); got != exp {
-		return fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", expr.Name, exp, got)
-	}
-
-	switch expr.Args[0].(type) {
-	case *VarRef, *RegexLiteral, *Wildcard:
-		// do nothing
-	default:
-		return fmt.Errorf("expected field argument in sample()")
-	}
-
-	switch expr.Args[1].(type) {
-	case *IntegerLiteral:
-		return nil
-	default:
-		return fmt.Errorf("expected integer argument in sample()")
-	}
-}
-
-func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
-	for _, f := range s.Fields {
-		for _, expr := range walkFunctionCalls(f.Expr) {
-			switch expr.Name {
-			case "derivative", "non_negative_derivative", "difference", "non_negative_difference", "moving_average", "cumulative_sum", "elapsed":
-				if err := s.validSelectWithAggregate(); err != nil {
-					return err
-				}
-				switch expr.Name {
-				case "derivative", "non_negative_derivative", "elapsed":
-					if min, max, got := 1, 2, len(expr.Args); got > max || got < min {
-						return fmt.Errorf("invalid number of arguments for %s, expected at least %d but no more than %d, got %d", expr.Name, min, max, got)
-					}
-					// If a duration arg is passed, make sure it's a duration
-					if len(expr.Args) == 2 {
-						// Second must be a duration .e.g (1h)
-						if _, ok := expr.Args[1].(*DurationLiteral); !ok {
-							return fmt.Errorf("second argument to %s must be a duration, got %T", expr.Name, expr.Args[1])
-						}
-					}
-				case "difference", "non_negative_difference", "cumulative_sum":
-					if got := len(expr.Args); got != 1 {
-						return fmt.Errorf("invalid number of arguments for %s, expected 1, got %d", expr.Name, got)
-					}
-				case "moving_average":
-					if got := len(expr.Args); got != 2 {
-						return fmt.Errorf("invalid number of arguments for moving_average, expected 2, got %d", got)
-					}
-
-					if lit, ok := expr.Args[1].(*IntegerLiteral); !ok {
-						return fmt.Errorf("second argument for moving_average must be an integer, got %T", expr.Args[1])
-					} else if lit.Val <= 1 {
-						return fmt.Errorf("moving_average window must be greater than 1, got %d", lit.Val)
-					} else if int64(int(lit.Val)) != lit.Val {
-						return fmt.Errorf("moving_average window too large, got %d", lit.Val)
-					}
-				}
-				// Validate that if they have grouping by time, they need a sub-call like min/max, etc.
-				groupByInterval, err := s.GroupByInterval()
-				if err != nil {
-					return fmt.Errorf("invalid group interval: %v", err)
-				}
-
-				if c, ok := expr.Args[0].(*Call); ok && groupByInterval == 0 && tr != targetSubquery {
-					return fmt.Errorf("%s aggregate requires a GROUP BY interval", expr.Name)
-				} else if !ok && groupByInterval > 0 {
-					return fmt.Errorf("aggregate function required inside the call to %s", expr.Name)
-				} else if ok {
-					switch c.Name {
-					case "top", "bottom":
-						if err := s.validTopBottomAggr(c); err != nil {
-							return err
-						}
-					case "percentile":
-						if err := s.validPercentileAggr(c); err != nil {
-							return err
-						}
-					default:
-						if exp, got := 1, len(c.Args); got != exp {
-							return fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", c.Name, exp, got)
-						}
-
-						switch fc := c.Args[0].(type) {
-						case *VarRef, *Wildcard, *RegexLiteral:
-							// do nothing
-						case *Call:
-							if fc.Name != "distinct" || expr.Name != "count" {
-								return fmt.Errorf("expected field argument in %s()", c.Name)
-							} else if exp, got := 1, len(fc.Args); got != exp {
-								return fmt.Errorf("count(distinct %s) can only have %d argument(s), got %d", fc.Name, exp, got)
-							} else if _, ok := fc.Args[0].(*VarRef); !ok {
-								return fmt.Errorf("expected field argument in distinct()")
-							}
-						case *Distinct:
-							if expr.Name != "count" {
-								return fmt.Errorf("expected field argument in %s()", c.Name)
-							}
-						default:
-							return fmt.Errorf("expected field argument in %s()", c.Name)
-						}
-					}
-				}
-			case "top", "bottom":
-				if err := s.validTopBottomAggr(expr); err != nil {
-					return err
-				}
-			case "percentile":
-				if err := s.validPercentileAggr(expr); err != nil {
-					return err
-				}
-			case "sample":
-				if err := s.validSampleAggr(expr); err != nil {
-					return err
-				}
-			case "integral":
-				if err := s.validSelectWithAggregate(); err != nil {
-					return err
-				}
-				if min, max, got := 1, 2, len(expr.Args); got > max || got < min {
-					return fmt.Errorf("invalid number of arguments for %s, expected at least %d but no more than %d, got %d", expr.Name, min, max, got)
-				}
-				// If a duration arg is passed, make sure it's a duration
-				if len(expr.Args) == 2 {
-					// Second must be a duration .e.g (1h)
-					if _, ok := expr.Args[1].(*DurationLiteral); !ok {
-						return errors.New("second argument must be a duration")
-					}
-				}
-			case "holt_winters", "holt_winters_with_fit":
-				if exp, got := 3, len(expr.Args); got != exp {
-					return fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", expr.Name, exp, got)
-				}
-				// Validate that if they have grouping by time, they need a sub-call like min/max, etc.
-				groupByInterval, err := s.GroupByInterval()
-				if err != nil {
-					return fmt.Errorf("invalid group interval: %v", err)
-				}
-
-				if _, ok := expr.Args[0].(*Call); ok && groupByInterval == 0 && tr != targetSubquery {
-					return fmt.Errorf("%s aggregate requires a GROUP BY interval", expr.Name)
-				} else if !ok {
-					return fmt.Errorf("must use aggregate function with %s", expr.Name)
-				}
-				if arg, ok := expr.Args[1].(*IntegerLiteral); !ok {
-					return fmt.Errorf("expected integer argument as second arg in %s", expr.Name)
-				} else if arg.Val <= 0 {
-					return fmt.Errorf("second arg to %s must be greater than 0, got %d", expr.Name, arg.Val)
-				}
-				if _, ok := expr.Args[2].(*IntegerLiteral); !ok {
-					return fmt.Errorf("expected integer argument as third arg in %s", expr.Name)
-				}
-			default:
-				if err := s.validSelectWithAggregate(); err != nil {
-					return err
-				}
-				if exp, got := 1, len(expr.Args); got != exp {
-					// Special error message if distinct was used as the argument.
-					if expr.Name == "count" && got >= 1 {
-						if _, ok := expr.Args[0].(*Distinct); ok {
-							return fmt.Errorf("count(distinct <field>) can only have one argument")
-						}
-					}
-					return fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", expr.Name, exp, got)
-				}
-				switch fc := expr.Args[0].(type) {
-				case *VarRef, *Wildcard, *RegexLiteral:
-					// do nothing
-				case *Call:
-					if fc.Name != "distinct" || expr.Name != "count" {
-						return fmt.Errorf("expected field argument in %s()", expr.Name)
-					} else if exp, got := 1, len(fc.Args); got != exp {
-						return fmt.Errorf("count(distinct <field>) can only have one argument")
-					} else if _, ok := fc.Args[0].(*VarRef); !ok {
-						return fmt.Errorf("expected field argument in distinct()")
-					}
-				case *Distinct:
-					if expr.Name != "count" {
-						return fmt.Errorf("expected field argument in %s()", expr.Name)
-					}
-				default:
-					return fmt.Errorf("expected field argument in %s()", expr.Name)
-				}
-			}
-		}
-	}
-
-	// Check that we have valid duration and where clauses for aggregates
-
-	// fetch the group by duration
-	groupByDuration, _ := s.GroupByInterval()
-
-	// If we have a group by interval, but no aggregate function, it's an invalid statement
-	if s.IsRawQuery && groupByDuration > 0 {
-		return fmt.Errorf("GROUP BY requires at least one aggregate function")
-	}
-
-	// If we have an aggregate function with a group by time without a where clause, it's an invalid statement
-	if tr == targetNotRequired { // ignore create continuous query statements
-		if err := s.validateTimeExpression(); err != nil {
-			return err
-		}
-	}
-	if tr != targetSubquery {
-		if err := s.validateGroupByInterval(); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// validateFill ensures that the fill option matches the query type.
-func (s *SelectStatement) validateFill() error {
-	info := newSelectInfo(s)
-	if len(info.calls) == 0 {
-		switch s.Fill {
-		case NoFill:
-			return errors.New("fill(none) must be used with a function")
-		case LinearFill:
-			return errors.New("fill(linear) must be used with a function")
-		}
-	}
-	return nil
-}
-
-// validateTimeExpression ensures that any select statements that have a group
-// by interval either have a time expression limiting the time range or have a
-// parent query that does that.
-func (s *SelectStatement) validateTimeExpression() error {
-	// If we have a time expression, we and all subqueries are fine.
-	if HasTimeExpr(s.Condition) {
-		return nil
-	}
-
-	// Check if this is not a raw query and if the group by duration exists.
-	// If these are true, then we have an error.
-	interval, err := s.GroupByInterval()
-	if err != nil {
-		return err
-	} else if !s.IsRawQuery && interval > 0 {
-		return fmt.Errorf("aggregate functions with GROUP BY time require a WHERE time clause")
-	}
-
-	// Validate the subqueries. If we have a time expression in this select
-	// statement, we don't need to do this because parent time ranges propagate
-	// to children. So we only execute this when there is no time condition in
-	// the parent.
-	for _, source := range s.Sources {
-		switch source := source.(type) {
-		case *SubQuery:
-			if err := source.Statement.validateTimeExpression(); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-// validateGroupByInterval ensures that a select statement is grouped by an
-// interval if it contains certain functions.
-func (s *SelectStatement) validateGroupByInterval() error {
-	interval, err := s.GroupByInterval()
-	if err != nil {
-		return err
-	} else if interval > 0 {
-		// If we have an interval here, that means the interval will propagate
-		// into any subqueries and we can just stop looking.
-		return nil
-	}
-
-	// Check inside of the fields for any of the specific functions that ned a group by interval.
-	for _, f := range s.Fields {
-		switch expr := f.Expr.(type) {
-		case *Call:
-			switch expr.Name {
-			case "derivative", "non_negative_derivative", "difference", "non_negative_difference", "moving_average", "cumulative_sum", "elapsed", "holt_winters", "holt_winters_with_fit":
-				// If the first argument is a call, we needed a group by interval and we don't have one.
-				if _, ok := expr.Args[0].(*Call); ok {
-					return fmt.Errorf("%s aggregate requires a GROUP BY interval", expr.Name)
-				}
-			}
-		}
-	}
-
-	// Validate the subqueries.
-	for _, source := range s.Sources {
-		switch source := source.(type) {
-		case *SubQuery:
-			if err := source.Statement.validateGroupByInterval(); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-// HasDistinct checks if a select statement contains a call to DISTINCT.
-func (s *SelectStatement) HasDistinct() bool {
-	for _, f := range s.Fields {
-		switch c := f.Expr.(type) {
-		case *Call:
-			if c.Name == "distinct" {
-				return true
-			}
-		case *Distinct:
-			return true
-		}
-	}
-	return false
-}
-
-func (s *SelectStatement) validateDistinct() error {
-	if !s.HasDistinct() {
-		return nil
-	}
-
-	if len(s.Fields) > 1 {
-		return fmt.Errorf("aggregate function distinct() cannot be combined with other functions or fields")
-	}
-
-	switch c := s.Fields[0].Expr.(type) {
-	case *Call:
-		if len(c.Args) == 0 {
-			return fmt.Errorf("distinct function requires at least one argument")
-		}
-
-		if len(c.Args) != 1 {
-			return fmt.Errorf("distinct function can only have one argument")
-		}
-	}
-	return nil
-}
-
-func (s *SelectStatement) validateTopBottom() error {
-	// Ensure there are not multiple calls if top/bottom is present.
-	info := newSelectInfo(s)
-	if len(info.calls) > 1 {
-		for call := range info.calls {
-			if call.Name == "top" || call.Name == "bottom" {
-				return fmt.Errorf("selector function %s() cannot be combined with other functions", call.Name)
-			}
-		}
-	}
-	return nil
 }
 
 // GroupByInterval extracts the time interval, if specified.
@@ -2382,37 +1358,6 @@ func (s *SelectStatement) rewriteWithoutTimeDimensions() string {
 	return n.String()
 }
 
-// NamesInWhere returns the field and tag names (idents) referenced in the where clause.
-func (s *SelectStatement) NamesInWhere() []string {
-	var a []string
-	if s.Condition != nil {
-		a = walkNames(s.Condition)
-	}
-	return a
-}
-
-// NamesInSelect returns the field and tag names (idents) in the select clause.
-func (s *SelectStatement) NamesInSelect() []string {
-	var a []string
-
-	for _, f := range s.Fields {
-		a = append(a, walkNames(f.Expr)...)
-	}
-
-	return a
-}
-
-// NamesInDimension returns the field and tag names (idents) in the group by clause.
-func (s *SelectStatement) NamesInDimension() []string {
-	var a []string
-
-	for _, d := range s.Dimensions {
-		a = append(a, walkNames(d.Expr)...)
-	}
-
-	return a
-}
-
 // LimitTagSets returns a tag set list with SLIMIT and SOFFSET applied.
 func LimitTagSets(a []*TagSet, slimit, soffset int) []*TagSet {
 	// Ignore if no limit or offset is specified.
@@ -2430,31 +1375,6 @@ func LimitTagSets(a []*TagSet, slimit, soffset int) []*TagSet {
 		slimit = len(a) - soffset
 	}
 	return a[soffset : soffset+slimit]
-}
-
-// walkNames will walk the Expr and return the identifier names used.
-func walkNames(exp Expr) []string {
-	switch expr := exp.(type) {
-	case *VarRef:
-		return []string{expr.Val}
-	case *Call:
-		var a []string
-		for _, expr := range expr.Args {
-			if ref, ok := expr.(*VarRef); ok {
-				a = append(a, ref.Val)
-			}
-		}
-		return a
-	case *BinaryExpr:
-		var ret []string
-		ret = append(ret, walkNames(expr.LHS)...)
-		ret = append(ret, walkNames(expr.RHS)...)
-		return ret
-	case *ParenExpr:
-		return walkNames(expr.Expr)
-	}
-
-	return nil
 }
 
 // walkRefs will walk the Expr and return the var refs used.
@@ -2501,57 +1421,6 @@ func ExprNames(expr Expr) []VarRef {
 	sort.Sort(VarRefs(a))
 
 	return a
-}
-
-// FunctionCalls returns the Call objects from the query.
-func (s *SelectStatement) FunctionCalls() []*Call {
-	var a []*Call
-	for _, f := range s.Fields {
-		a = append(a, walkFunctionCalls(f.Expr)...)
-	}
-	return a
-}
-
-// FunctionCallsByPosition returns the Call objects from the query in the order they appear in the select statement.
-func (s *SelectStatement) FunctionCallsByPosition() [][]*Call {
-	var a [][]*Call
-	for _, f := range s.Fields {
-		a = append(a, walkFunctionCalls(f.Expr))
-	}
-	return a
-}
-
-// walkFunctionCalls walks the Expr and returns any function calls made.
-func walkFunctionCalls(exp Expr) []*Call {
-	switch expr := exp.(type) {
-	case *VarRef:
-		return nil
-	case *Call:
-		return []*Call{expr}
-	case *BinaryExpr:
-		var ret []*Call
-		ret = append(ret, walkFunctionCalls(expr.LHS)...)
-		ret = append(ret, walkFunctionCalls(expr.RHS)...)
-		return ret
-	case *ParenExpr:
-		return walkFunctionCalls(expr.Expr)
-	}
-
-	return nil
-}
-
-// MatchSource returns the source name that matches a field name.
-// It returns a blank string if no sources match.
-func MatchSource(sources Sources, name string) string {
-	for _, src := range sources {
-		switch src := src.(type) {
-		case *Measurement:
-			if strings.HasPrefix(name, src.Name) {
-				return src.Name
-			}
-		}
-	}
-	return ""
 }
 
 // Target represents a target (destination) policy, measurement, and DB.
@@ -3405,34 +2274,6 @@ func (s *ShowFieldKeysStatement) DefaultDatabase() string {
 // Fields represents a list of fields.
 type Fields []*Field
 
-// AliasNames returns a list of calculated field names in
-// order of alias, function name, then field.
-func (a Fields) AliasNames() []string {
-	names := []string{}
-	for _, f := range a {
-		names = append(names, f.Name())
-	}
-	return names
-}
-
-// Names returns a list of field names.
-func (a Fields) Names() []string {
-	names := []string{}
-	for _, f := range a {
-		switch expr := f.Expr.(type) {
-		case *Call:
-			names = append(names, expr.Name)
-		case *VarRef:
-			names = append(names, expr.Val)
-		case *BinaryExpr:
-			names = append(names, walkNames(expr)...)
-		case *ParenExpr:
-			names = append(names, walkNames(expr)...)
-		}
-	}
-	return names
-}
-
 // String returns a string representation of the fields.
 func (a Fields) String() string {
 	var str []string
@@ -3467,6 +2308,8 @@ func (f *Field) Name() string {
 		return f.Name()
 	case *VarRef:
 		return expr.Val
+	case *Distinct:
+		return "distinct"
 	}
 
 	// Otherwise return a blank name.
@@ -3840,52 +2683,6 @@ func (e *BinaryExpr) String() string {
 	return fmt.Sprintf("%s %s %s", e.LHS.String(), e.Op.String(), e.RHS.String())
 }
 
-func (e *BinaryExpr) validate() error {
-	v := binaryExprValidator{}
-	Walk(&v, e)
-	if v.err != nil {
-		return v.err
-	} else if v.calls && v.refs {
-		return errors.New("binary expressions cannot mix aggregates and raw fields")
-	}
-	return nil
-}
-
-type binaryExprValidator struct {
-	calls bool
-	refs  bool
-	err   error
-}
-
-func (v *binaryExprValidator) Visit(n Node) Visitor {
-	if v.err != nil {
-		return nil
-	}
-
-	switch n := n.(type) {
-	case *Call:
-		v.calls = true
-
-		if n.Name == "top" || n.Name == "bottom" {
-			v.err = fmt.Errorf("cannot use %s() inside of a binary expression", n.Name)
-			return nil
-		}
-
-		for _, expr := range n.Args {
-			switch e := expr.(type) {
-			case *BinaryExpr:
-				v.err = e.validate()
-				return nil
-			}
-		}
-		return nil
-	case *VarRef:
-		v.refs = true
-		return nil
-	}
-	return v
-}
-
 // BinaryExprName returns the name of a binary expression by concatenating
 // the variables in the binary expression with underscores.
 func BinaryExprName(expr *BinaryExpr) string {
@@ -4042,129 +2839,6 @@ func OnlyTimeExpr(expr Expr) bool {
 	}
 }
 
-// TimeRange returns the minimum and maximum times specified by an expression.
-// It returns zero times if there is no bound.
-func TimeRange(expr Expr, loc *time.Location) (min, max time.Time, err error) {
-	WalkFunc(expr, func(n Node) {
-		if err != nil {
-			return
-		}
-
-		if n, ok := n.(*BinaryExpr); ok {
-			// Extract literal expression & operator on LHS.
-			// Check for "time" on the left-hand side first.
-			// Otherwise check for for the right-hand side and flip the operator.
-			op := n.Op
-			var value time.Time
-			value, err = timeExprValue(n.LHS, n.RHS, loc)
-			if err != nil {
-				return
-			} else if value.IsZero() {
-				if value, err = timeExprValue(n.RHS, n.LHS, loc); value.IsZero() || err != nil {
-					return
-				} else if op == LT {
-					op = GT
-				} else if op == LTE {
-					op = GTE
-				} else if op == GT {
-					op = LT
-				} else if op == GTE {
-					op = LTE
-				}
-			}
-
-			// Update the min/max depending on the operator.
-			// The GT & LT update the value by +/- 1ns not make them "not equal".
-			switch op {
-			case GT:
-				if min.IsZero() || value.After(min) {
-					min = value.Add(time.Nanosecond)
-				}
-			case GTE:
-				if min.IsZero() || value.After(min) {
-					min = value
-				}
-			case LT:
-				if max.IsZero() || value.Before(max) {
-					max = value.Add(-time.Nanosecond)
-				}
-			case LTE:
-				if max.IsZero() || value.Before(max) {
-					max = value
-				}
-			case EQ:
-				if min.IsZero() || value.After(min) {
-					min = value
-				}
-				if max.IsZero() || value.Before(max) {
-					max = value
-				}
-			}
-		}
-	})
-	return
-}
-
-// TimeRangeAsEpochNano returns the minimum and maximum times, as epoch nano, specified by
-// an expression. If there is no lower bound, the minimum time is returned
-// for minimum. If there is no higher bound, the maximum time is returned.
-func TimeRangeAsEpochNano(expr Expr) (min, max int64, err error) {
-	tmin, tmax, err := TimeRange(expr, nil)
-	if err != nil {
-		return 0, 0, err
-	}
-
-	if tmin.IsZero() {
-		min = time.Unix(0, MinTime).UnixNano()
-	} else {
-		min = tmin.UnixNano()
-	}
-	if tmax.IsZero() {
-		max = time.Unix(0, MaxTime).UnixNano()
-	} else {
-		max = tmax.UnixNano()
-	}
-	return
-}
-
-// timeExprValue returns the time literal value of a "time == <TimeLiteral>" expression.
-// Returns zero time if the expression is not a time expression.
-func timeExprValue(ref Expr, lit Expr, loc *time.Location) (t time.Time, err error) {
-	if ref, ok := ref.(*VarRef); ok && strings.ToLower(ref.Val) == "time" {
-		// If literal looks like a date time then parse it as a time literal.
-		if strlit, ok := lit.(*StringLiteral); ok {
-			if strlit.IsTimeLiteral() {
-				t, err := strlit.ToTimeLiteral(loc)
-				if err != nil {
-					return time.Time{}, err
-				}
-				lit = t
-			}
-		}
-
-		switch lit := lit.(type) {
-		case *TimeLiteral:
-			if lit.Val.After(time.Unix(0, MaxTime)) {
-				return time.Time{}, fmt.Errorf("time %s overflows time literal", lit.Val.Format(time.RFC3339))
-			} else if lit.Val.Before(time.Unix(0, MinTime+1)) {
-				// The minimum allowable time literal is one greater than the minimum time because the minimum time
-				// is a sentinel value only used internally.
-				return time.Time{}, fmt.Errorf("time %s underflows time literal", lit.Val.Format(time.RFC3339))
-			}
-			return lit.Val, nil
-		case *DurationLiteral:
-			return time.Unix(0, int64(lit.Val)).UTC(), nil
-		case *NumberLiteral:
-			return time.Unix(0, int64(lit.Val)).UTC(), nil
-		case *IntegerLiteral:
-			return time.Unix(0, lit.Val).UTC(), nil
-		default:
-			return time.Time{}, fmt.Errorf("invalid operation: time and %T are not compatible", lit)
-		}
-	}
-	return time.Time{}, nil
-}
-
 // Visitor can be called by Walk to traverse an AST hierarchy.
 // The Visit() function is called once per node.
 type Visitor interface {
@@ -4231,6 +2905,9 @@ func Walk(v Visitor, node Node) {
 		Walk(v, n.Sources)
 		Walk(v, n.Condition)
 		Walk(v, n.SortFields)
+
+	case *ExplainStatement:
+		Walk(v, n.Statement)
 
 	case *ShowSeriesStatement:
 		Walk(v, n.Sources)
@@ -4636,130 +3313,6 @@ func evalBinaryExpr(expr *BinaryExpr, m map[string]interface{}) interface{} {
 func EvalBool(expr Expr, m map[string]interface{}) bool {
 	v, _ := Eval(expr, m).(bool)
 	return v
-}
-
-// TypeMapper maps a data type to the measurement and field.
-type TypeMapper interface {
-	MapType(measurement *Measurement, field string) DataType
-}
-
-type nilTypeMapper struct{}
-
-func (nilTypeMapper) MapType(*Measurement, string) DataType { return Unknown }
-
-// EvalType evaluates the expression's type.
-func EvalType(expr Expr, sources Sources, typmap TypeMapper) DataType {
-	if typmap == nil {
-		typmap = nilTypeMapper{}
-	}
-
-	switch expr := expr.(type) {
-	case *VarRef:
-		// If this variable already has an assigned type, just use that.
-		if expr.Type != Unknown && expr.Type != AnyField {
-			return expr.Type
-		}
-
-		var typ DataType
-		for _, src := range sources {
-			switch src := src.(type) {
-			case *Measurement:
-				if t := typmap.MapType(src, expr.Val); typ.LessThan(t) {
-					typ = t
-				}
-			case *SubQuery:
-				_, e := src.Statement.FieldExprByName(expr.Val)
-				if e != nil {
-					if t := EvalType(e, src.Statement.Sources, typmap); typ.LessThan(t) {
-						typ = t
-					}
-				}
-
-				if typ == Unknown {
-					for _, d := range src.Statement.Dimensions {
-						if d, ok := d.Expr.(*VarRef); ok && expr.Val == d.Val {
-							typ = Tag
-						}
-					}
-				}
-			}
-		}
-		return typ
-	case *Call:
-		switch expr.Name {
-		case "mean", "median", "integral":
-			return Float
-		case "count":
-			return Integer
-		default:
-			return EvalType(expr.Args[0], sources, typmap)
-		}
-	case *ParenExpr:
-		return EvalType(expr.Expr, sources, typmap)
-	case *NumberLiteral:
-		return Float
-	case *IntegerLiteral:
-		return Integer
-	case *StringLiteral:
-		return String
-	case *BooleanLiteral:
-		return Boolean
-	case *BinaryExpr:
-		lhs := EvalType(expr.LHS, sources, typmap)
-		rhs := EvalType(expr.RHS, sources, typmap)
-		if lhs != Unknown && rhs != Unknown {
-			if lhs < rhs {
-				return lhs
-			} else {
-				return rhs
-			}
-		} else if lhs != Unknown {
-			return lhs
-		} else {
-			return rhs
-		}
-	}
-	return Unknown
-}
-
-func FieldDimensions(sources Sources, m FieldMapper) (fields map[string]DataType, dimensions map[string]struct{}, err error) {
-	fields = make(map[string]DataType)
-	dimensions = make(map[string]struct{})
-
-	for _, src := range sources {
-		switch src := src.(type) {
-		case *Measurement:
-			f, d, err := m.FieldDimensions(src)
-			if err != nil {
-				return nil, nil, err
-			}
-
-			for k, typ := range f {
-				if _, ok := fields[k]; typ != Unknown && (!ok || typ < fields[k]) {
-					fields[k] = typ
-				}
-			}
-			for k := range d {
-				dimensions[k] = struct{}{}
-			}
-		case *SubQuery:
-			for _, f := range src.Statement.Fields {
-				k := f.Name()
-				typ := EvalType(f.Expr, src.Statement.Sources, m)
-
-				if _, ok := fields[k]; typ != Unknown && (!ok || typ < fields[k]) {
-					fields[k] = typ
-				}
-			}
-
-			for _, d := range src.Statement.Dimensions {
-				if expr, ok := d.Expr.(*VarRef); ok {
-					dimensions[expr.Val] = struct{}{}
-				}
-			}
-		}
-	}
-	return
 }
 
 // Reduce evaluates expr using the available values in valuer.
@@ -5327,43 +3880,4 @@ func (v *NowValuer) Value(key string) (interface{}, bool) {
 		return v.Now, true
 	}
 	return nil, false
-}
-
-// Zone is a method that returns the time.Location.
-func (v *NowValuer) Zone() *time.Location {
-	if v.Location != nil {
-		return v.Location
-	}
-	return time.UTC
-}
-
-// ContainsVarRef returns true if expr is a VarRef or contains one.
-func ContainsVarRef(expr Expr) bool {
-	var v containsVarRefVisitor
-	Walk(&v, expr)
-	return v.contains
-}
-
-type containsVarRefVisitor struct {
-	contains bool
-}
-
-func (v *containsVarRefVisitor) Visit(n Node) Visitor {
-	switch n.(type) {
-	case *Call:
-		return nil
-	case *VarRef:
-		v.contains = true
-	}
-	return v
-}
-
-func IsSelector(expr Expr) bool {
-	if call, ok := expr.(*Call); ok {
-		switch call.Name {
-		case "first", "last", "min", "max", "percentile", "sample", "top", "bottom":
-			return true
-		}
-	}
-	return false
 }
