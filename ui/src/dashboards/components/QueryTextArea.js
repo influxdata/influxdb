@@ -2,6 +2,7 @@ import React, {PropTypes, Component} from 'react'
 import _ from 'lodash'
 import classnames from 'classnames'
 
+import FillQuery from 'shared/components/FillQuery'
 import TemplateDrawer from 'shared/components/TemplateDrawer'
 import QueryStatus from 'shared/components/QueryStatus'
 
@@ -226,7 +227,13 @@ class QueryTextArea extends Component {
         >
           <div className="varmoji-container">
             <div className="varmoji-front">
-              <QueryStatus status={status} />
+              <QueryStatus status={status}>
+                <FillQuery
+                  onSelection={e => {
+                    console.log(e)
+                  }}
+                />
+              </QueryStatus>
             </div>
             <div className="varmoji-back">
               {isTemplating
