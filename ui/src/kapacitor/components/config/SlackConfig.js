@@ -1,32 +1,22 @@
-import React, {PropTypes} from 'react'
+import React, {PropTypes, Component} from 'react'
 
 import RedactedInput from './RedactedInput'
 
-const SlackConfig = React.createClass({
-  propTypes: {
-    config: PropTypes.shape({
-      options: PropTypes.shape({
-        url: PropTypes.bool.isRequired,
-        channel: PropTypes.string.isRequired,
-      }).isRequired,
-    }).isRequired,
-    onSave: PropTypes.func.isRequired,
-    onTest: PropTypes.func.isRequired,
-  },
-
-  getInitialState() {
-    return {
+class SlackConfig extends Component {
+  constructor(props) {
+    super(props)
+    this.state = {
       testEnabled: !!this.props.config.options.url,
     }
-  },
+  }
 
   componentWillReceiveProps(nextProps) {
     this.setState({
       testEnabled: !!nextProps.config.options.url,
     })
-  },
+  }
 
-  handleSaveAlert(e) {
+  handleSaveAlert = e => {
     e.preventDefault()
 
     const properties = {
@@ -35,15 +25,9 @@ const SlackConfig = React.createClass({
     }
 
     this.props.onSave(properties)
-  },
+  }
 
-  handleTest(e) {
-    e.preventDefault()
-    this.props.onTest({
-      url: this.url.value,
-      channel: this.channel.value,
-    })
-  },
+  handleUrlRef = r => (this.url = r)
 
   render() {
     const {url, channel} = this.props.config.options
@@ -61,7 +45,7 @@ const SlackConfig = React.createClass({
           <RedactedInput
             defaultValue={url}
             id="url"
-            refFunc={r => (this.url = r)}
+            refFunc={this.handleUrlRef}
           />
         </div>
 
@@ -84,7 +68,20 @@ const SlackConfig = React.createClass({
         </div>
       </form>
     )
-  },
-})
+  }
+}
+
+const {bool, func, shape, string} = PropTypes
+
+SlackConfig.propTypes = {
+  config: shape({
+    options: shape({
+      url: bool.isRequired,
+      channel: string.isRequired,
+    }).isRequired,
+  }).isRequired,
+  onSave: func.isRequired,
+  onTest: func.isRequired,
+}
 
 export default SlackConfig
