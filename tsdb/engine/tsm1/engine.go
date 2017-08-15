@@ -1040,11 +1040,6 @@ func (e *Engine) deleteMeasurement(name []byte) error {
 			return err
 		}
 	}
-
-	// Remove the measurement from the index.
-	if err := e.index.DropMeasurement(name); err != nil {
-		return err
-	}
 	return nil
 }
 
