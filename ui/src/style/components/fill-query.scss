@@ -10,26 +10,41 @@
   flex-wrap: nowrap;
 }
 .fill-query > label {
-  font-size: 12px;
   white-space: nowrap;
-  padding: 0 8px;
   margin: 0;
-  height: 22px;
-  line-height: 22px;
   @include no-user-select();
   color: $g11-sidewalk;
 }
 .fill-query--dropdown .dropdown-toggle {
-  width: 90px;
   font-family: $code-font;
 }
 .fill-query--dropdown .dropdown-menu .dropdown-item a {
   font-family: $code-font;
 }
 .fill-query--input {
-  width: 70px;
   margin-left: 4px;
   font-weight: 600;
+}
+// Size modifiers
+.fill-query--xs {
+  .fill-query--dropdown .dropdown-toggle { width: 90px; }
+  .fill-query--input {width: 70px;}
+  & > label {
+    height: 22px;
+    line-height: 22px;
+    font-size: 12px;
+    padding: 0 8px;
+  }
+}
+.fill-query--sm {
+  .fill-query--dropdown .dropdown-toggle { width: 110px; }
+  .fill-query--input {width: 90px;}
+  & > label {
+    height: 30px;
+    line-height: 30px;
+    font-size: 13px;
+    padding: 0 11px;
+  }
 }
 
 // Prevent component from being flush to edge when used in Query Editor

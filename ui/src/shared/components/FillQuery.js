@@ -19,6 +19,10 @@ class FillQuery extends Component {
     this.handleKeyUp = ::this.handleKeyUp
   }
 
+  static defaultProps = {
+    size: 'xs',
+  }
+
   handleInputBlur(e) {
     const {useCustomNumber, inputValue} = this.state
     // Prevent user from submitting an empty string as their value
@@ -54,24 +58,25 @@ class FillQuery extends Component {
   }
 
   render() {
+    const {size} = this.props
     const {selected, useCustomNumber, inputValue} = this.state
     const items = QUERY_FILL_OPTIONS.map(text => ({text}))
 
     return (
-      <div className="fill-query">
+      <div className={`fill-query fill-query--${size}`}>
         <label>Fill missing with</label>
         <Dropdown
           selected={selected}
           items={items}
           className="fill-query--dropdown"
-          buttonSize="btn-xs"
+          buttonSize={`btn-${size}`}
           buttonColor="btn-default"
           onChoose={this.handleDropdown}
         />
         {useCustomNumber
           ? <input
               type="number"
-              className="form-control monotype form-plutonium input-xs fill-query--input"
+              className={`form-control monotype form-plutonium input-${size} fill-query--input`}
               placeholder="Custom Value"
               autoFocus={true}
               value={inputValue}
@@ -85,10 +90,11 @@ class FillQuery extends Component {
   }
 }
 
-const {func} = PropTypes
+const {func, string} = PropTypes
 
 FillQuery.propTypes = {
   onSelection: func.isRequired,
+  size: string,
 }
 
 export default FillQuery
