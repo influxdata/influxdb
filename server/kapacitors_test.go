@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -106,6 +107,18 @@ func Test_KapacitorRulesGet(t *testing.T) {
 
 			// setup mock kapa API
 			kapaSrv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+				params := r.URL.Query()
+				limit, err := strconv.Atoi(params.Get("limit"))
+				if err != nil {
+					rw.WriteHeader(http.StatusBadRequest)
+					return
+				}
+				offset, err := strconv.Atoi(params.Get("offset"))
+				if err != nil {
+					rw.WriteHeader(http.StatusBadRequest)
+					return
+				}
+
 				tsks := []map[string]interface{}{}
 				for _, task := range test.mockAlerts {
 					tsks = append(tsks, map[string]interface{}{
@@ -119,11 +132,23 @@ func Test_KapacitorRulesGet(t *testing.T) {
 					})
 				}
 
-				tasks := map[string]interface{}{
-					"tasks": tsks,
+				var tasks map[string]interface{}
+
+				if offset >= len(tsks) {
+					tasks = map[string]interface{}{
+						"tasks": []map[string]interface{}{},
+					}
+				} else if limit+offset > len(tsks) {
+					tasks = map[string]interface{}{
+						"tasks": tsks[offset:],
+					}
+				} else {
+					tasks = map[string]interface{}{
+						"tasks": tsks[offset : offset+limit],
+					}
 				}
 
-				err := json.NewEncoder(rw).Encode(&tasks)
+				err = json.NewEncoder(rw).Encode(&tasks)
 				if err != nil {
 					t.Error("Failed to encode JSON. err:", err)
 				}

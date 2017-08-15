@@ -9,7 +9,7 @@ import (
 )
 
 func Test_Kapacitor_PaginatingKapaClient(t *testing.T) {
-	const lenAllTasks = 200
+	const lenAllTasks = 227 // prime, to stress odd result sets
 
 	// create a mock client that will return a huge response from ListTasks
 	mockClient := &mocks.KapaClient{
@@ -30,7 +30,7 @@ func Test_Kapacitor_PaginatingKapaClient(t *testing.T) {
 		},
 	}
 
-	pkap := kapacitor.PaginatingKapaClient{mockClient, 100}
+	pkap := kapacitor.PaginatingKapaClient{mockClient, 50}
 
 	opts := &client.ListTasksOptions{
 		Limit:  100,

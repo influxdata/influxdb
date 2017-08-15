@@ -1,6 +1,8 @@
 package kapacitor
 
-import client "github.com/influxdata/kapacitor/client/v1"
+import (
+	client "github.com/influxdata/kapacitor/client/v1"
+)
 
 // ensure PaginatingKapaClient is a KapaClient
 var _ KapaClient = &PaginatingKapaClient{}

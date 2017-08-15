@@ -12,6 +12,10 @@ import (
 const (
 	// Prefix is prepended to the ID of all alerts
 	Prefix = "chronograf-v1-"
+
+	// DefaultFetchRate is the rate at which paginated responses will be consumed
+	// from a Kapacitor
+	FetchRate = 100
 )
 
 // Client communicates to kapacitor
@@ -325,8 +329,14 @@ func NewKapaClient(url, username, password string) (KapaClient, error) {
 		}
 	}
 
-	return client.New(client.Config{
+	clnt, err := client.New(client.Config{
 		URL:         url,
 		Credentials: creds,
 	})
+
+	if err != nil {
+		return clnt, err
+	}
+
+	return &PaginatingKapaClient{clnt, FetchRate}, nil
 }
