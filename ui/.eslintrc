@@ -3,6 +3,7 @@
   plugins: [
     'react',
     'prettier',
+    'babel',
   ],
   env: {
     browser: true,
@@ -98,7 +99,6 @@
     'no-floating-decimal': 2,
     'no-implicit-coercion': 0,
     'no-implied-eval': 2,
-    'no-invalid-this': 2,
     'no-iterator': 2,
     'no-lone-blocks': 2,
     'no-loop-func': 2,
@@ -235,11 +235,16 @@
     'react/require-extension': 0,
     'react/self-closing-comp': 0, // TODO: we can re-enable this if some brave soul wants to update the code (mostly spans acting as icons)
     'react/sort-comp': 0, // TODO: 2
+
+    // Prettier
     'prettier/prettier': ['error', {
       'singleQuote': true,
       'trailingComma': 'es5',
       'bracketSpacing': false,
       'semi': false,
     }],
+
+    // Babel
+    'babel/no-invalid-this': 1
   },
 }
