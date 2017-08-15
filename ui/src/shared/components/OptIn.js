@@ -19,77 +19,57 @@ class OptIn extends Component {
 
     this.id = uuid.v4()
     this.isCustomValueInputFocused = false
-
-    this.useFixedValue = ::this.useFixedValue
-    this.useCustomValue = ::this.useCustomValue
-    this.considerResetCustomValue = ::this.considerResetCustomValue
-    this.setCustomValue = ::this.setCustomValue
-    this.setValue = ::this.setValue
   }
 
-  useFixedValue() {
+  useFixedValue = () => {
     this.setState({useCustomValue: false, customValue: ''}, () =>
       this.setValue()
     )
   }
 
-  useCustomValue() {
+  useCustomValue = () => {
     this.setState({useCustomValue: true}, () => this.setValue())
   }
 
-  handleClickFixedValueField() {
-    return () => this.useFixedValue()
-  }
-
-  handleClickToggle() {
-    return () => {
-      const useCustomValueNext = !this.state.useCustomValue
-      if (useCustomValueNext) {
-        this.useCustomValue()
-        this.customValueInput.focus()
-      } else {
-        this.useFixedValue()
-      }
-    }
-  }
-
-  handleFocusCustomValueInput() {
-    return () => {
-      this.isCustomValueInputFocused = true
+  handleClickToggle = () => {
+    const useCustomValueNext = !this.state.useCustomValue
+    if (useCustomValueNext) {
       this.useCustomValue()
+      this.customValueInput.focus()
+    } else {
+      this.useFixedValue()
     }
   }
 
-  handleChangeCustomValue() {
-    return e => {
-      this.setCustomValue(e.target.value)
-    }
+  handleFocusCustomValueInput = () => {
+    this.isCustomValueInputFocused = true
+    this.useCustomValue()
   }
 
-  handleKeyDownCustomValueInput() {
-    return e => {
-      if (e.key === 'Enter' || e.key === 'Tab') {
-        if (e.key === 'Enter') {
-          this.customValueInput.blur()
-        }
-        this.considerResetCustomValue()
+  handleChangeCustomValue = e => {
+    this.setCustomValue(e.target.value)
+  }
+
+  handleKeyDownCustomValueInput = e => {
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      if (e.key === 'Enter') {
+        this.customValueInput.blur()
       }
+      this.considerResetCustomValue()
     }
   }
 
-  handleClickOutsideCustomValueInput() {
-    return e => {
-      if (
-        e.target.id !== this.grooveKnob.id &&
-        e.target.id !== this.grooveKnobContainer.id &&
-        this.isCustomValueInputFocused
-      ) {
-        this.considerResetCustomValue()
-      }
+  handleClickOutsideInput = e => {
+    if (
+      e.target.id !== this.grooveKnob.id &&
+      e.target.id !== this.grooveKnobContainer.id &&
+      this.isCustomValueInputFocused
+    ) {
+      this.considerResetCustomValue()
     }
   }
 
-  considerResetCustomValue() {
+  considerResetCustomValue = () => {
     const customValue = this.customValueInput.value.trim()
 
     this.setState({customValue})
@@ -101,11 +81,11 @@ class OptIn extends Component {
     this.isCustomValueInputFocused = false
   }
 
-  setCustomValue(value) {
+  setCustomValue = value => {
     this.setState({customValue: value}, this.setValue)
   }
 
-  setValue() {
+  setValue = () => {
     const {onSetValue} = this.props
     const {useCustomValue, fixedValue, customValue} = this.state
 
@@ -115,6 +95,8 @@ class OptIn extends Component {
       onSetValue(fixedValue)
     }
   }
+
+  handleInputRef = el => (this.customValueInput = el)
 
   render() {
     const {fixedPlaceholder, customPlaceholder, type} = this.props
@@ -129,20 +111,20 @@ class OptIn extends Component {
         <ClickOutsideInput
           id={this.id}
           type={type}
-          customPlaceholder={customPlaceholder}
           customValue={customValue}
-          onGetRef={el => (this.customValueInput = el)}
-          onFocus={this.handleFocusCustomValueInput()}
-          onChange={this.handleChangeCustomValue()}
-          onKeyDown={this.handleKeyDownCustomValueInput()}
-          handleClickOutsideCustomValueInput={this.handleClickOutsideCustomValueInput()}
+          onGetRef={this.handleInputRef}
+          customPlaceholder={customPlaceholder}
+          onChange={this.handleChangeCustomValue}
+          onFocus={this.handleFocusCustomValueInput}
+          onKeyDown={this.handleKeyDownCustomValueInput}
+          handleClickOutsideInput={this.handleClickOutsideInput}
         />
 
         <div
           className="opt-in--groove-knob-container"
           id={this.id}
           ref={el => (this.grooveKnobContainer = el)}
-          onClick={this.handleClickToggle()}
+          onClick={this.handleClickToggle}
         >
           <div
             className="opt-in--groove-knob"
@@ -150,10 +132,7 @@ class OptIn extends Component {
             ref={el => (this.grooveKnob = el)}
           />
         </div>
-        <div
-          className="opt-in--left-label"
-          onClick={this.handleClickFixedValueField()}
-        >
+        <div className="opt-in--left-label" onClick={this.useFixedValue}>
           {fixedPlaceholder}
         </div>
       </div>
