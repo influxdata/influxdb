@@ -15,7 +15,6 @@ import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 import buildInfluxQLQuery from 'utils/influxql'
 import {getQueryConfig} from 'shared/apis'
 
-import {buildYLabel} from 'shared/presenters'
 import {removeUnselectedTemplateValues} from 'src/dashboards/constants'
 import {OVERLAY_TECHNOLOGY} from 'shared/constants/classNames'
 import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from 'src/data_explorer/constants'
@@ -32,7 +31,8 @@ class CellEditorOverlay extends Component {
     this.handleClickDisplayOptionsTab = ::this.handleClickDisplayOptionsTab
     this.handleSetActiveQueryIndex = ::this.handleSetActiveQueryIndex
     this.handleEditRawText = ::this.handleEditRawText
-    this.handleSetYAxisBounds = ::this.handleSetYAxisBounds
+    this.handleSetYAxisBoundMin = ::this.handleSetYAxisBoundMin
+    this.handleSetYAxisBoundMax = ::this.handleSetYAxisBoundMax
     this.handleSetLabel = ::this.handleSetLabel
     this.getActiveQuery = ::this.getActiveQuery
 
@@ -48,23 +48,8 @@ class CellEditorOverlay extends Component {
       queriesWorkingDraft,
       activeQueryIndex: 0,
       isDisplayOptionsTabActive: false,
-      axes: this.setDefaultLabels(axes, queries),
+      axes,
     }
-  }
-
-  setDefaultLabels(axes, queries) {
-    if (!queries.length) {
-      return axes
-    }
-
-    if (axes.y.label) {
-      return axes
-    }
-
-    const q = queries[0].queryConfig
-    const label = buildYLabel(q)
-
-    return {...axes, y: {...axes.y, label}}
   }
 
   componentWillReceiveProps(nextProps) {
@@ -94,22 +79,28 @@ class CellEditorOverlay extends Component {
     }
   }
 
-  handleSetYAxisBounds(e) {
-    const {min, max} = e.target.form
+  handleSetYAxisBoundMin(min) {
     const {axes} = this.state
+    const {y: {bounds: [, max]}} = axes
 
     this.setState({
-      axes: {...axes, y: {...axes.y, bounds: [min.value, max.value]}},
+      axes: {...axes, y: {...axes.y, bounds: [min, max]}},
     })
-    e.preventDefault()
   }
 
-  handleSetLabel(e) {
-    const {label} = e.target.form
+  handleSetYAxisBoundMax(max) {
+    const {axes} = this.state
+    const {y: {bounds: [min]}} = axes
+
+    this.setState({
+      axes: {...axes, y: {...axes.y, bounds: [min, max]}},
+    })
+  }
+
+  handleSetLabel(label) {
     const {axes} = this.state
 
-    this.setState({axes: {...axes, y: {...axes.y, label: label.value}}})
-    e.preventDefault()
+    this.setState({axes: {...axes, y: {...axes.y, label}}})
   }
 
   handleAddQuery() {
@@ -258,9 +249,11 @@ class CellEditorOverlay extends Component {
               ? <DisplayOptions
                   selectedGraphType={cellWorkingType}
                   onSelectGraphType={this.handleSelectGraphType}
-                  onSetRange={this.handleSetYAxisBounds}
+                  onSetYAxisBoundMin={this.handleSetYAxisBoundMin}
+                  onSetYAxisBoundMax={this.handleSetYAxisBoundMax}
                   onSetLabel={this.handleSetLabel}
                   axes={axes}
+                  queryConfigs={queriesWorkingDraft}
                 />
               : <QueryMaker
                   source={source}

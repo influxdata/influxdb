@@ -31,6 +31,7 @@
 1. [#1805](https://github.com/influxdata/chronograf/pull/1805): Assign a series consistent coloring when it appears in multiple cells
 1. [#1800](https://github.com/influxdata/chronograf/pull/1800): Increase size of line protocol manual entry in Data Explorer's Write Data overlay
 1. [#1812](https://github.com/influxdata/chronograf/pull/1812): Improve error message when request for Status Page News Feed fails
+1. [#1858](https://github.com/influxdata/chronograf/pull/1858): Provide affirmative UI choice for 'auto' in DisplayOptions with new toggle-based component
 
 ## v1.3.5.0 [2017-07-27]
 ### Bug Fixes
