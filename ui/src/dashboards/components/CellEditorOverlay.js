@@ -27,7 +27,6 @@ class CellEditorOverlay extends Component {
     this.handleAddQuery = ::this.handleAddQuery
     this.handleDeleteQuery = ::this.handleDeleteQuery
     this.handleSaveCell = ::this.handleSaveCell
-    this.handleSelectGraphType = ::this.handleSelectGraphType
     this.handleClickDisplayOptionsTab = ::this.handleClickDisplayOptionsTab
     this.handleSetActiveQueryIndex = ::this.handleSetActiveQueryIndex
     this.handleEditRawText = ::this.handleEditRawText
@@ -152,7 +151,7 @@ class CellEditorOverlay extends Component {
     })
   }
 
-  handleSelectGraphType(graphType) {
+  handleSelectGraphType = graphType => () => {
     this.setState({cellWorkingType: graphType})
   }
 

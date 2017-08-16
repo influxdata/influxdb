@@ -14,7 +14,7 @@ const GraphTypeSelector = ({selectedGraphType, onSelectGraphType}) =>
             active: graphType.type === selectedGraphType,
           })}
         >
-          <div onClick={() => onSelectGraphType(graphType.type)}>
+          <div onClick={onSelectGraphType(graphType.type)}>
             {graphType.graphic}
             <p>
               {graphType.menuOption}
