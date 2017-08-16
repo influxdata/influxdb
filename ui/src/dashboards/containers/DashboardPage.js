@@ -10,7 +10,7 @@ import CellEditorOverlay from 'src/dashboards/components/CellEditorOverlay'
 import DashboardHeader from 'src/dashboards/components/DashboardHeader'
 import DashboardHeaderEdit from 'src/dashboards/components/DashboardHeaderEdit'
 import Dashboard from 'src/dashboards/components/Dashboard'
-import TemplateVariableManager from 'src/dashboards/components/TemplateVariableManager'
+import TemplateVariableManager from 'src/dashboards/components/template_variables/Manager'
 
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 

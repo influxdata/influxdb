@@ -2,7 +2,7 @@ import React, {Component, PropTypes} from 'react'
 import classnames from 'classnames'
 import uuid from 'node-uuid'
 
-import TemplateVariableTable from 'src/dashboards/components/TemplateVariableTable'
+import TemplateVariableTable from 'src/dashboards/components/template_variables/Table'
 
 import {TEMPLATE_VARIABLE_TYPES} from 'src/dashboards/constants'
 
