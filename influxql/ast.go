@@ -4248,28 +4248,6 @@ func HasTimeExpr(expr Expr) bool {
 	}
 }
 
-// OnlyTimeExpr returns true if the expression only has time constraints.
-func OnlyTimeExpr(expr Expr) bool {
-	if expr == nil {
-		return false
-	}
-	switch n := expr.(type) {
-	case *BinaryExpr:
-		if n.Op == AND || n.Op == OR {
-			return OnlyTimeExpr(n.LHS) && OnlyTimeExpr(n.RHS)
-		}
-		if ref, ok := n.LHS.(*VarRef); ok && strings.ToLower(ref.Val) == "time" {
-			return true
-		}
-		return false
-	case *ParenExpr:
-		// walk down the tree
-		return OnlyTimeExpr(n.Expr)
-	default:
-		return false
-	}
-}
-
 // Visitor can be called by Walk to traverse an AST hierarchy.
 // The Visit() function is called once per node.
 type Visitor interface {

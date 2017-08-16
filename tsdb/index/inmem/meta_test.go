@@ -138,27 +138,6 @@ func TestMeasurement_TagsSet_Deadlock(t *testing.T) {
 	}
 }
 
-func TestMeasurement_ForEachSeriesByExpr_Deadlock(t *testing.T) {
-	m := inmem.NewMeasurement("foo", "cpu")
-	s1 := inmem.NewSeries([]byte("cpu,host=foo"), models.Tags{models.NewTag([]byte("host"), []byte("foo"))})
-	s1.ID = 1
-	m.AddSeries(s1)
-
-	s2 := inmem.NewSeries([]byte("cpu,host=bar"), models.Tags{models.NewTag([]byte("host"), []byte("bar"))})
-	s2.ID = 2
-	m.AddSeries(s2)
-
-	m.DropSeries(s1)
-
-	// This was deadlocking
-	m.ForEachSeriesByExpr(nil, func(tags models.Tags) error {
-		return nil
-	})
-	if got, exp := len(m.SeriesIDs()), 1; got != exp {
-		t.Fatalf("series count mismatch: got %v, exp %v", got, exp)
-	}
-}
-
 func BenchmarkMeasurement_SeriesIDForExp_EQRegex(b *testing.B) {
 	m := inmem.NewMeasurement("foo", "cpu")
 	for i := 0; i < 100000; i++ {

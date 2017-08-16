@@ -949,46 +949,6 @@ func TestConditionExpr(t *testing.T) {
 	}
 }
 
-// Ensure that we see if a where clause has only time limitations
-func TestOnlyTimeExpr(t *testing.T) {
-	var tests = []struct {
-		stmt string
-		exp  bool
-	}{
-		{
-			stmt: `SELECT value FROM myseries WHERE value > 1`,
-			exp:  false,
-		},
-		{
-			stmt: `SELECT value FROM foo WHERE time >= '2000-01-01T00:00:05Z'`,
-			exp:  true,
-		},
-		{
-			stmt: `SELECT value FROM foo WHERE time >= '2000-01-01T00:00:05Z' AND time < '2000-01-01T00:00:05Z'`,
-			exp:  true,
-		},
-		{
-			stmt: `SELECT value FROM foo WHERE time >= '2000-01-01T00:00:05Z' AND asdf = 'bar'`,
-			exp:  false,
-		},
-		{
-			stmt: `SELECT value FROM foo WHERE asdf = 'jkl' AND (time >= '2000-01-01T00:00:05Z' AND time < '2000-01-01T00:00:05Z')`,
-			exp:  false,
-		},
-	}
-
-	for i, tt := range tests {
-		// Parse statement.
-		stmt, err := influxql.NewParser(strings.NewReader(tt.stmt)).ParseStatement()
-		if err != nil {
-			t.Fatalf("invalid statement: %q: %s", tt.stmt, err)
-		}
-		if influxql.OnlyTimeExpr(stmt.(*influxql.SelectStatement).Condition) != tt.exp {
-			t.Fatalf("%d. expected statement to return only time dimension to be %t: %s", i, tt.exp, tt.stmt)
-		}
-	}
-}
-
 // Ensure an AST node can be rewritten.
 func TestRewrite(t *testing.T) {
 	expr := MustParseExpr(`time > 1 OR foo = 2`)

@@ -829,7 +829,7 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 	sources = a
 
 	// Determine deletion time range.
-	_, timeRange, err := influxql.ConditionExpr(condition, nil)
+	condition, timeRange, err := influxql.ConditionExpr(condition, nil)
 	if err != nil {
 		return err
 	}

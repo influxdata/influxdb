@@ -736,7 +736,7 @@ func (fs *FileSet) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, e
 // call is equivalent to MeasurementSeriesIterator().
 func (fs *FileSet) MeasurementSeriesByExprIterator(name []byte, expr influxql.Expr, fieldset *tsdb.MeasurementFieldSet) (SeriesIterator, error) {
 	// Return all series for the measurement if there are no tag expressions.
-	if expr == nil || influxql.OnlyTimeExpr(expr) {
+	if expr == nil {
 		return fs.MeasurementSeriesIterator(name), nil
 	}
 	return fs.seriesByExprIterator(name, expr, fieldset.CreateFieldsIfNotExists(name))
@@ -822,11 +822,6 @@ func (fs *FileSet) seriesByBinaryExprIterator(name []byte, n *influxql.BinaryExp
 			return nil, fmt.Errorf("invalid expression: %s", n.String())
 		}
 		value = n.LHS
-	}
-
-	// For time literals, return all series and "true" as the filter.
-	if _, ok := value.(*influxql.TimeLiteral); ok || key.Val == "time" {
-		return newSeriesExprIterator(fs.MeasurementSeriesIterator(name), &influxql.BooleanLiteral{Val: true}), nil
 	}
 
 	// For fields, return all series from this measurement.
