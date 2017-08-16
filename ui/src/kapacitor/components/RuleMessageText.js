@@ -5,14 +5,18 @@ class RuleMessageText extends Component {
     super(props)
   }
 
-  render() {
+  handleChange = e => {
     const {rule, updateMessage} = this.props
+    updateMessage(rule, e.targe.value)
+  }
+
+  render() {
+    const {rule} = this.props
 
     return (
       <textarea
         className="form-control form-malachite monotype rule-builder--message"
-        ref={r => (this.message = r)}
-        onChange={() => updateMessage(rule.id, this.message.value)}
+        onChange={this.handleChange}
         placeholder="Example: {{ .ID }} is {{ .Level }} value: {{ index .Fields &quot;value&quot; }}"
         value={rule.message}
         spellCheck={false}
