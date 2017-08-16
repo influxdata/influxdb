@@ -235,13 +235,9 @@ func (itr *{{.name}}Iterator) Stats() influxql.IteratorStats {
 
 // Close closes the iterator.
 func (itr *{{.name}}Iterator) Close() error {
-	for _, c := range itr.aux {
-		c.close()
-	}
+    cursorsAt(itr.aux).close()
 	itr.aux = nil
-	for _, c := range itr.conds.curs {
-	    c.close()
-	}
+	cursorsAt(itr.conds.curs).close()
 	itr.conds.curs = nil
 	if itr.cur != nil {
 		err := itr.cur.close()

@@ -239,13 +239,9 @@ func (itr *floatIterator) Stats() influxql.IteratorStats {
 
 // Close closes the iterator.
 func (itr *floatIterator) Close() error {
-	for _, c := range itr.aux {
-		c.close()
-	}
+	cursorsAt(itr.aux).close()
 	itr.aux = nil
-	for _, c := range itr.conds.curs {
-		c.close()
-	}
+	cursorsAt(itr.conds.curs).close()
 	itr.conds.curs = nil
 	if itr.cur != nil {
 		err := itr.cur.close()
@@ -654,13 +650,9 @@ func (itr *integerIterator) Stats() influxql.IteratorStats {
 
 // Close closes the iterator.
 func (itr *integerIterator) Close() error {
-	for _, c := range itr.aux {
-		c.close()
-	}
+	cursorsAt(itr.aux).close()
 	itr.aux = nil
-	for _, c := range itr.conds.curs {
-		c.close()
-	}
+	cursorsAt(itr.conds.curs).close()
 	itr.conds.curs = nil
 	if itr.cur != nil {
 		err := itr.cur.close()
@@ -1069,13 +1061,9 @@ func (itr *unsignedIterator) Stats() influxql.IteratorStats {
 
 // Close closes the iterator.
 func (itr *unsignedIterator) Close() error {
-	for _, c := range itr.aux {
-		c.close()
-	}
+	cursorsAt(itr.aux).close()
 	itr.aux = nil
-	for _, c := range itr.conds.curs {
-		c.close()
-	}
+	cursorsAt(itr.conds.curs).close()
 	itr.conds.curs = nil
 	if itr.cur != nil {
 		err := itr.cur.close()
@@ -1484,13 +1472,9 @@ func (itr *stringIterator) Stats() influxql.IteratorStats {
 
 // Close closes the iterator.
 func (itr *stringIterator) Close() error {
-	for _, c := range itr.aux {
-		c.close()
-	}
+	cursorsAt(itr.aux).close()
 	itr.aux = nil
-	for _, c := range itr.conds.curs {
-		c.close()
-	}
+	cursorsAt(itr.conds.curs).close()
 	itr.conds.curs = nil
 	if itr.cur != nil {
 		err := itr.cur.close()
@@ -1899,13 +1883,9 @@ func (itr *booleanIterator) Stats() influxql.IteratorStats {
 
 // Close closes the iterator.
 func (itr *booleanIterator) Close() error {
-	for _, c := range itr.aux {
-		c.close()
-	}
+	cursorsAt(itr.aux).close()
 	itr.aux = nil
-	for _, c := range itr.conds.curs {
-		c.close()
-	}
+	cursorsAt(itr.conds.curs).close()
 	itr.conds.curs = nil
 	if itr.cur != nil {
 		err := itr.cur.close()

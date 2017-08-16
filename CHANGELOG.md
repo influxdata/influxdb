@@ -31,6 +31,7 @@
 - [#8639](https://github.com/influxdata/influxdb/issues/8639): Parse time literals using the time zone in the select statement.
 - [#8694](https://github.com/influxdata/influxdb/issues/8694): Reduce CPU usage when checking series cardinality
 - [#8677](https://github.com/influxdata/influxdb/issues/8677): Fix backups when snapshot is empty.
+- [#8706](https://github.com/influxdata/influxdb/pull/8706): Cursor leak, resulting in an accumulation of `.tsm.tmp` files after compactions. 
 
 ## v1.3.4 [unreleased]
 
