@@ -170,8 +170,10 @@ class WriteDataForm extends Component {
             handleFileOpen={this.handleFileOpen}
           />
         </div>
-        <div className="write-data-form--drag-here">
-          Drag & Drop a File to Upload
+        <div className="write-data-form--drag-container">
+          <div className="write-data-form--drag-here">
+            Drag file here to Upload
+          </div>
         </div>
       </div>
     )

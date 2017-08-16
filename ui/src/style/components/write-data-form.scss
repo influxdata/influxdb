@@ -72,12 +72,21 @@ textarea.form-control.write-data-form--input {
   background-color: $g2-kevlar;
   border: 2px solid $g4-onyx;
   border-radius: 3px;
+
+  > h3, > p {
+    color: $g12-forge;
+    @include no-user-select();
+  }
+  > h3 {
+    margin: 0 0 20px 0;
+  }
+  > p {
+    font-weight: 600;
+    margin: 20px 0;
+  }
 }
 input[type="file"].write-data-form--upload {
   display: none;
-}
-button.write-data-form--upload-button {
-  margin-top: 312px;
 }
 .write-data-form--filepath_selected,
 .write-data-form--filepath_empty {
@@ -96,9 +105,21 @@ button.write-data-form--upload-button {
 }
 
 /* Drag File to Upload Styles */
+.write-data-form--drag-container,
 .write-data-form--drag-here {
   position: absolute;
-  top: 35%;
+}
+.write-data-form--drag-container {
+  transition-property: all;
+  visibility: hidden;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+}
+.write-data-form--drag-here {
+  position: absolute;
+  top: 50%;
   left: 50%;
   transform: translate(-50%,-50%);
   transition: $write-data--transition;
@@ -109,11 +130,19 @@ button.write-data-form--upload-button {
   line-height: 240px;
   font-size: 30px;
   font-weight: 400;
-  opacity: 0.5;
+  opacity: 0;
   color: $g20-white;
   border: 2px dashed fade-out($g20-white, 0.5);
 }
-.drag-over {
+.overlay-technology.drag-over {
   .write-data-form {opacity: 0;}
+  .write-data-form--drag-container {visibility: visible;}
   .write-data-form--drag-here {opacity: 1;}
+}
+.write-data-form--drag-graphic {
+  background-image: url(assets/images/drag-drop-icon.svg);
+  background-size: 100% 100%;
+  background-position: center center;
+  width: 90px;
+  height: 90px;
 }

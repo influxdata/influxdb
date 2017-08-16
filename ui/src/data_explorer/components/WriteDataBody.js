@@ -27,6 +27,9 @@ const WriteDataBody = ({
           data-test="manual-entry-field"
         />
       : <div className="write-data-form--file">
+          <h3>Drag & drop File here</h3>
+          <div className="write-data-form--drag-graphic" />
+          <p>OR</p>
           <input
             type="file"
             onChange={e => handleFile(e, false)}
@@ -34,10 +37,7 @@ const WriteDataBody = ({
             ref={fileInput}
             accept="text/*, application/gzip"
           />
-          <button
-            className="write-data-form--upload-button btn btn-md btn-primary"
-            onClick={handleFileOpen}
-          >
+          <button className="btn btn-md btn-primary" onClick={handleFileOpen}>
             {uploadContent
               ? 'Choose Another File to Upload'
               : 'Choose a File to Upload'}
