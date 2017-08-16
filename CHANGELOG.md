@@ -33,7 +33,7 @@
 - [#8639](https://github.com/influxdata/influxdb/issues/8639): Parse time literals using the time zone in the select statement.
 - [#8694](https://github.com/influxdata/influxdb/issues/8694): Reduce CPU usage when checking series cardinality
 - [#8677](https://github.com/influxdata/influxdb/issues/8677): Fix backups when snapshot is empty.
-- [#8706](https://github.com/influxdata/influxdb/pull/8706): Cursor leak, resulting in an accumulation of `.tsm.tmp` files after compactions. 
+- [#8706](https://github.com/influxdata/influxdb/pull/8706): Cursor leak, resulting in an accumulation of `.tsm.tmp` files after compactions.
 - [#8712](https://github.com/influxdata/influxdb/pull/8712): Force time expressions to use AND and improve condition parsing.
 
 ## v1.3.4 [unreleased]
@@ -41,6 +41,7 @@
 ### Bugfixes
 
 - [#8701](https://github.com/influxdata/influxdb/pull/8701): Fix drop measurement not dropping all data
+- [#8713](https://github.com/influxdata/influxdb/issues/8713): Deadlock when dropping measurement and writing
 
 ## v1.3.3 [unreleased]
 
