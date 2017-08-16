@@ -2,7 +2,7 @@ import React, {PropTypes, Component} from 'react'
 import rome from 'rome'
 import moment from 'moment'
 
-import shortcuts from 'hson!shared/data/shortcuts.hson'
+import shortcuts from 'hson!shared/data/timeRangeShortcuts.hson'
 
 class CustomTimeRange extends Component {
   constructor(props) {
