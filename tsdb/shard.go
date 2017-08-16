@@ -401,6 +401,12 @@ func (s *Shard) UnloadIndex() {
 	s.index.RemoveShard(s.id)
 }
 
+// Index returns a reference to the underlying index.
+// This should only be used by utilities and not directly accessed by the database.
+func (s *Shard) Index() Index {
+	return s.index
+}
+
 // IsIdle return true if the shard is not receiving writes and is fully compacted.
 func (s *Shard) IsIdle() bool {
 	if err := s.ready(); err != nil {
