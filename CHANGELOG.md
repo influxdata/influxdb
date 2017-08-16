@@ -1,3 +1,17 @@
+## v1.3.7.0 [unreleased]
+### Bug Fixes
+1. [#1795](https://github.com/influxdata/chronograf/pull/1795): Fix uptime status on Windows hosts running Telegraf
+1. [#1715](https://github.com/influxdata/chronograf/pull/1715): Chronograf now renders on IE11.
+1. [#1870](https://github.com/influxdata/chronograf/pull/1870): Fix console error for placing prop on div
+1. [#1864](https://github.com/influxdata/chronograf/pull/1864): Fix Write Data form upload button and add `onDragExit` handler
+1. [#1891](https://github.com/influxdata/chronograf/pull/1891): Fix Kapacitor config for PagerDuty via the UI
+
+### Features
+1. [#1863](https://github.com/influxdata/chronograf/pull/1863): Improve 'new-sources' server flag example by adding 'type' key
+
+### UI Improvements
+1. [#1862](https://github.com/influxdata/chronograf/pull/1862): Show "Add Graph" button on cells with no queries
+
 ## v1.3.6.1 [2017-08-14]
 **Upgrade Note** This release (1.3.6.1) fixes a possibly data corruption issue with dashboard cells' graph types. If you upgraded to 1.3.6.0 and visited any dashboard, once you have then upgraded to this release (1.3.6.1) you will need to manually reset the graph type for every cell via the cell's caret --> Edit --> Display Options. If you upgraded directly to 1.3.6.1, you should not experience this issue.
 
