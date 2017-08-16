@@ -6,8 +6,9 @@ class DashboardEditHeader extends Component {
     super(props)
 
     const {dashboard: {name}} = props
-    this.state = {name}
-    this.handleKeyUp = ::this.handleKeyUp
+    this.state = {
+      name,
+    }
   }
 
   handleChange = e => {
