@@ -19,18 +19,13 @@ class AlertsTable extends Component {
       sortDirection: null,
       sortKey: null,
     }
-
-    this.filterAlerts = ::this.filterAlerts
-    this.changeSort = ::this.changeSort
-    this.sortableClasses = ::this.sortableClasses
-    this.sort = ::this.sort
   }
 
   componentWillReceiveProps(newProps) {
     this.filterAlerts(this.state.searchTerm, newProps.alerts)
   }
 
-  filterAlerts(searchTerm, newAlerts) {
+  filterAlerts = (searchTerm, newAlerts) => {
     const alerts = newAlerts || this.props.alerts
     const filterText = searchTerm.toLowerCase()
     const filteredAlerts = alerts.filter(h => {
@@ -47,7 +42,7 @@ class AlertsTable extends Component {
     this.setState({searchTerm, filteredAlerts})
   }
 
-  changeSort(key) {
+  changeSort = key => () => {
     // if we're using the key, reverse order; otherwise, set it with ascending
     if (this.state.sortKey === key) {
       const reverseDirection =
@@ -58,7 +53,7 @@ class AlertsTable extends Component {
     }
   }
 
-  sortableClasses(key) {
+  sortableClasses = key => () => {
     if (this.state.sortKey === key) {
       if (this.state.sortDirection === 'asc') {
         return 'alert-history-table--th sortable-header sorting-ascending'
@@ -68,7 +63,7 @@ class AlertsTable extends Component {
     return 'alert-history-table--th sortable-header'
   }
 
-  sort(alerts, key, direction) {
+  sort = (alerts, key, direction) => {
     switch (direction) {
       case 'asc':
         return _.sortBy(alerts, e => e[key])
@@ -91,35 +86,35 @@ class AlertsTable extends Component {
       ? <div className="alert-history-table">
           <div className="alert-history-table--thead">
             <div
-              onClick={() => this.changeSort('name')}
+              onClick={this.changeSort('name')}
               className={this.sortableClasses('name')}
               style={{width: colName}}
             >
               Name
             </div>
             <div
-              onClick={() => this.changeSort('level')}
+              onClick={this.changeSort('level')}
               className={this.sortableClasses('level')}
               style={{width: colLevel}}
             >
               Level
             </div>
             <div
-              onClick={() => this.changeSort('time')}
+              onClick={this.changeSort('time')}
               className={this.sortableClasses('time')}
               style={{width: colTime}}
             >
               Time
             </div>
             <div
-              onClick={() => this.changeSort('host')}
+              onClick={this.changeSort('host')}
               className={this.sortableClasses('host')}
               style={{width: colHost}}
             >
               Host
             </div>
             <div
-              onClick={() => this.changeSort('value')}
+              onClick={this.changeSort('value')}
               className={this.sortableClasses('value')}
               style={{width: colValue}}
             >
