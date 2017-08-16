@@ -15,7 +15,7 @@ const PagerDutyConfig = React.createClass({
     e.preventDefault()
 
     const properties = {
-      serviceKey: this.serviceKey.value,
+      'service-key': this.serviceKey.value,
       url: this.url.value,
     }
 
