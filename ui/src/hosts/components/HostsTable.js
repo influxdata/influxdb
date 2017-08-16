@@ -1,4 +1,4 @@
-import React, {PropTypes} from 'react'
+import React, {PropTypes, Component} from 'react'
 import _ from 'lodash'
 
 import SearchBar from 'src/hosts/components/SearchBar'
@@ -6,33 +6,16 @@ import HostRow from 'src/hosts/components/HostRow'
 
 import {HOSTS_TABLE} from 'src/hosts/constants/tableSizing'
 
-const {arrayOf, bool, number, shape, string} = PropTypes
+class HostsTable extends Component {
+  constructor(props) {
+    super(props)
 
-const HostsTable = React.createClass({
-  propTypes: {
-    hosts: arrayOf(
-      shape({
-        name: string,
-        cpu: number,
-        load: number,
-        apps: arrayOf(string.isRequired),
-      })
-    ),
-    hostsLoading: bool,
-    hostsError: string,
-    source: shape({
-      id: string.isRequired,
-      name: string.isRequired,
-    }).isRequired,
-  },
-
-  getInitialState() {
-    return {
+    this.state = {
       searchTerm: '',
       sortDirection: null,
       sortKey: null,
     }
-  },
+  }
 
   filter(allHosts, searchTerm) {
     const filterText = searchTerm.toLowerCase()
@@ -53,7 +36,7 @@ const HostsTable = React.createClass({
         tagResult
       )
     })
-  },
+  }
 
   sort(hosts, key, direction) {
     switch (direction) {
@@ -64,13 +47,13 @@ const HostsTable = React.createClass({
       default:
         return hosts
     }
-  },
+  }
 
-  updateSearchTerm(term) {
+  updateSearchTerm = term => {
     this.setState({searchTerm: term})
-  },
+  }
 
-  updateSort(key) {
+  updateSort = key => () => {
     // if we're using the key, reverse order; otherwise, set it with ascending
     if (this.state.sortKey === key) {
       const reverseDirection =
@@ -79,9 +62,9 @@ const HostsTable = React.createClass({
     } else {
       this.setState({sortKey: key, sortDirection: 'asc'})
     }
-  },
+  }
 
-  sortableClasses(key) {
+  sortableClasses = key => {
     if (this.state.sortKey === key) {
       if (this.state.sortDirection === 'asc') {
         return 'sortable-header sorting-ascending'
@@ -89,7 +72,7 @@ const HostsTable = React.createClass({
       return 'sortable-header sorting-descending'
     }
     return 'sortable-header'
-  },
+  }
 
   render() {
     const {searchTerm, sortKey, sortDirection} = this.state
@@ -128,28 +111,28 @@ const HostsTable = React.createClass({
                 <thead>
                   <tr>
                     <th
-                      onClick={() => this.updateSort('name')}
+                      onClick={this.updateSort('name')}
                       className={this.sortableClasses('name')}
                       style={{width: colName}}
                     >
                       Host
                     </th>
                     <th
-                      onClick={() => this.updateSort('deltaUptime')}
+                      onClick={this.updateSort('deltaUptime')}
                       className={this.sortableClasses('deltaUptime')}
                       style={{width: colStatus}}
                     >
                       Status
                     </th>
                     <th
-                      onClick={() => this.updateSort('cpu')}
+                      onClick={this.updateSort('cpu')}
                       className={this.sortableClasses('cpu')}
                       style={{width: colCPU}}
                     >
                       CPU
                     </th>
                     <th
-                      onClick={() => this.updateSort('load')}
+                      onClick={this.updateSort('load')}
                       className={this.sortableClasses('load')}
                       style={{width: colLoad}}
                     >
@@ -171,7 +154,26 @@ const HostsTable = React.createClass({
         </div>
       </div>
     )
-  },
-})
+  }
+}
+
+const {arrayOf, bool, number, shape, string} = PropTypes
+
+HostsTable.propTypes = {
+  hosts: arrayOf(
+    shape({
+      name: string,
+      cpu: number,
+      load: number,
+      apps: arrayOf(string.isRequired),
+    })
+  ),
+  hostsLoading: bool,
+  hostsError: string,
+  source: shape({
+    id: string.isRequired,
+    name: string.isRequired,
+  }).isRequired,
+}
 
 export default HostsTable
