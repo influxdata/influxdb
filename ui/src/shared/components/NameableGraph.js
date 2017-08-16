@@ -12,39 +12,39 @@ class NameableGraph extends Component {
     }
   }
 
-  toggleMenu() {
+  toggleMenu = () => {
     this.setState({
       isMenuOpen: !this.state.isMenuOpen,
     })
   }
 
-  handleRenameCell(e) {
+  handleRenameCell = e => {
     const cellName = e.target.value
     this.setState({cellName})
   }
 
-  handleCancelEdit(cellID) {
+  handleCancelEdit = cellID => {
     const {cell, onCancelEditCell} = this.props
     this.setState({cellName: cell.name})
     onCancelEditCell(cellID)
   }
 
-  closeMenu() {
+  closeMenu = () => {
     this.setState({
       isMenuOpen: false,
     })
   }
 
+  handleDeleteCell = cell => () => {
+    this.props.onDeleteCell(cell)
+  }
+
+  handleSummonOverlay = cell => () => {
+    this.props.onSummonOverlayTechnologies(cell)
+  }
+
   render() {
-    const {
-      cell,
-      onEditCell,
-      onUpdateCell,
-      onDeleteCell,
-      onSummonOverlayTechnologies,
-      isEditable,
-      children,
-    } = this.props
+    const {cell, children, isEditable, onEditCell, onUpdateCell} = this.props
 
     const {cellName, isMenuOpen} = this.state
 
@@ -55,18 +55,18 @@ class NameableGraph extends Component {
           cellName={cellName}
           isEditable={isEditable}
           onUpdateCell={onUpdateCell}
-          onRenameCell={::this.handleRenameCell}
-          onCancelEditCell={::this.handleCancelEdit}
+          onRenameCell={this.handleRenameCell}
+          onCancelEditCell={this.handleCancelEdit}
         />
         <ContextMenu
           cell={cell}
-          onDelete={onDeleteCell}
+          onDelete={this.handleDeleteCell}
           onRename={!cell.isEditing && isEditable ? onEditCell : () => {}}
-          toggleMenu={::this.toggleMenu}
+          toggleMenu={this.toggleMenu}
           isOpen={isMenuOpen}
           isEditable={isEditable}
-          handleClickOutside={::this.closeMenu}
-          onEdit={onSummonOverlayTechnologies}
+          handleClickOutside={this.closeMenu}
+          onEdit={this.handleSummonOverlay}
         />
         <div className="dash-graph--container">
           {cell.queries.length
@@ -74,7 +74,7 @@ class NameableGraph extends Component {
             : <div className="graph-empty">
                 <button
                   className="no-query--button btn btn-md btn-primary"
-                  onClick={() => onSummonOverlayTechnologies(cell)}
+                  onClick={this.handleSummonOverlay(cell)}
                 >
                   Add Graph
                 </button>
