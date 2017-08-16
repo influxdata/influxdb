@@ -8,6 +8,7 @@
 - [#8701](https://github.com/influxdata/influxdb/pull/8701): Fix drop measurement not dropping all data
 - [#8677](https://github.com/influxdata/influxdb/issues/8677): Fix backups when snapshot is empty.
 - [#8706](https://github.com/influxdata/influxdb/pull/8706): Cursor leak, resulting in an accumulation of `.tsm.tmp` files after compactions.
+- [#8713](https://github.com/influxdata/influxdb/issues/8713): Deadlock when dropping measurement and writing
 
 ## v1.3.3 [2017-08-10]
 
