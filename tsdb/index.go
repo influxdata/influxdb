@@ -18,7 +18,7 @@ type Index interface {
 	WithLogger(zap.Logger)
 
 	MeasurementExists(name []byte) (bool, error)
-	MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error)
+	MeasurementNamesByExpr(expr influxql.Expr, auth influxql.Authorizer) ([][]byte, error)
 	MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error)
 	DropMeasurement(name []byte) error
 	ForEachMeasurementName(fn func(name []byte) error) error

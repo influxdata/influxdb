@@ -922,7 +922,7 @@ func (s *Store) WriteToShard(shardID uint64, points []models.Point) error {
 // MeasurementNames returns a slice of all measurements. Measurements accepts an
 // optional condition expression. If cond is nil, then all measurements for the
 // database will be returned.
-func (s *Store) MeasurementNames(database string, cond influxql.Expr) ([][]byte, error) {
+func (s *Store) MeasurementNames(database string, cond influxql.Expr, auth influxql.Authorizer) ([][]byte, error) {
 	s.mu.RLock()
 	shards := s.filterShards(byDatabase(database))
 	s.mu.RUnlock()
@@ -933,7 +933,7 @@ func (s *Store) MeasurementNames(database string, cond influxql.Expr) ([][]byte,
 	set := make(map[string]struct{})
 	var names [][]byte
 	for _, sh := range shards {
-		a, err := sh.MeasurementNamesByExpr(cond)
+		a, err := sh.MeasurementNamesByExpr(cond, auth)
 		if err != nil {
 			return nil, err
 		}
@@ -1037,7 +1037,7 @@ func (s *Store) TagValues(database string, cond influxql.Expr) ([]TagValues, err
 	var maxMeasurements int // Hint as to lower bound on number of measurements.
 	for _, sh := range shards {
 		// names will be sorted by MeasurementNamesByExpr.
-		names, err := sh.MeasurementNamesByExpr(measurementExpr)
+		names, err := sh.MeasurementNamesByExpr(measurementExpr, nil) // TODO(AUTH)
 		if err != nil {
 			return nil, err
 		}
@@ -1284,7 +1284,7 @@ func (s *Store) monitorShards() {
 				// inmem shards share the same index instance so just use the first one to avoid
 				// allocating the same measurements repeatedly
 				first := shards[0]
-				names, err := first.MeasurementNamesByExpr(nil)
+				names, err := first.MeasurementNamesByExpr(nil, nil)
 				if err != nil {
 					s.Logger.Warn("cannot retrieve measurement names", zap.Error(err))
 					return nil

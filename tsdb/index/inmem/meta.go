@@ -395,6 +395,20 @@ func (m *Measurement) TagSets(shardID uint64, opt influxql.IteratorOptions) ([]*
 	return sortedTagsSets, nil
 }
 
+func (m *Measurement) AuthorizeRead(auth influxql.Authorizer) bool {
+	if auth == nil {
+		return true
+	}
+
+	for _, s := range m.SeriesByIDMap() {
+		if auth.AuthorizeSeriesRead(m.database, m.name, s.tags) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // intersectSeriesFilters performs an intersection for two sets of ids and filter expressions.
 func intersectSeriesFilters(lids, rids SeriesIDs, lfilters, rfilters FilterExprs) (SeriesIDs, FilterExprs) {
 	// We only want to allocate a slice and map of the smaller size.
