@@ -2,11 +2,7 @@ import React, {Component, PropTypes} from 'react'
 import _ from 'lodash'
 
 import {Tab, Tabs, TabPanel, TabPanels, TabList} from 'shared/components/Tabs'
-import {
-  getKapacitorConfig,
-  updateKapacitorConfigSection,
-  testAlertOutput,
-} from 'shared/apis'
+import {getKapacitorConfig, updateKapacitorConfigSection} from 'shared/apis'
 
 import {
   AlertaConfig,
