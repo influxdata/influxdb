@@ -6,6 +6,7 @@
 - [#8607](https://github.com/influxdata/influxdb/issues/8607): Fix time zone shifts when the shift happens on a time zone boundary.
 - [#8639](https://github.com/influxdata/influxdb/issues/8639): Parse time literals using the time zone in the select statement.
 - [#8701](https://github.com/influxdata/influxdb/pull/8701): Fix drop measurement not dropping all data
+- [#8677](https://github.com/influxdata/influxdb/issues/8677): Fix backups when snapshot is empty.
 
 ## v1.3.3 [2017-08-10]
 
