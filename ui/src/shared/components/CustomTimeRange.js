@@ -2,6 +2,8 @@ import React, {PropTypes, Component} from 'react'
 import rome from 'rome'
 import moment from 'moment'
 
+import shortcuts from 'hson!shared/data/shortcuts.hson'
+
 class CustomTimeRange extends Component {
   constructor(props) {
     super(props)
@@ -42,42 +44,15 @@ class CustomTimeRange extends Component {
       <div className="custom-time--container">
         <div className="custom-time--shortcuts">
           <div className="custom-time--shortcuts-header">Shortcuts</div>
-          <div
-            className="custom-time--shortcut"
-            onClick={this.handleTimeRangeShortcut('pastWeek')}
-          >
-            Past Week
-          </div>
-          <div
-            className="custom-time--shortcut"
-            onClick={this.handleTimeRangeShortcut('pastMonth')}
-          >
-            Past Month
-          </div>
-          <div
-            className="custom-time--shortcut"
-            onClick={this.handleTimeRangeShortcut('pastYear')}
-          >
-            Past Year
-          </div>
-          <div
-            className="custom-time--shortcut"
-            onClick={this.handleTimeRangeShortcut('thisWeek')}
-          >
-            This Week
-          </div>
-          <div
-            className="custom-time--shortcut"
-            onClick={this.handleTimeRangeShortcut('thisMonth')}
-          >
-            This Month
-          </div>
-          <div
-            className="custom-time--shortcut"
-            onClick={this.handleTimeRangeShortcut('thisYear')}
-          >
-            This Year
-          </div>
+          {shortcuts.map(({id, name}) =>
+            <div
+              key={id}
+              className="custom-time--shortcut"
+              onClick={this.handleTimeRangeShortcut(id)}
+            >
+              {name}
+            </div>
+          )}
         </div>
         <div className="custom-time--wrap">
           <div className="custom-time--dates">
@@ -120,6 +95,7 @@ class CustomTimeRange extends Component {
     const upper = this.upperCal.getDate().toISOString()
 
     onApplyTimeRange({lower, upper})
+
     if (onClose) {
       onClose()
     }
