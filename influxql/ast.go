@@ -121,46 +121,51 @@ type Node interface {
 func (*Query) node()     {}
 func (Statements) node() {}
 
-func (*AlterRetentionPolicyStatement) node()  {}
-func (*CreateContinuousQueryStatement) node() {}
-func (*CreateDatabaseStatement) node()        {}
-func (*CreateRetentionPolicyStatement) node() {}
-func (*CreateSubscriptionStatement) node()    {}
-func (*CreateUserStatement) node()            {}
-func (*Distinct) node()                       {}
-func (*DeleteSeriesStatement) node()          {}
-func (*DeleteStatement) node()                {}
-func (*DropContinuousQueryStatement) node()   {}
-func (*DropDatabaseStatement) node()          {}
-func (*DropMeasurementStatement) node()       {}
-func (*DropRetentionPolicyStatement) node()   {}
-func (*DropSeriesStatement) node()            {}
-func (*DropShardStatement) node()             {}
-func (*DropSubscriptionStatement) node()      {}
-func (*DropUserStatement) node()              {}
-func (*GrantStatement) node()                 {}
-func (*GrantAdminStatement) node()            {}
-func (*KillQueryStatement) node()             {}
-func (*RevokeStatement) node()                {}
-func (*RevokeAdminStatement) node()           {}
-func (*SelectStatement) node()                {}
-func (*SetPasswordUserStatement) node()       {}
-func (*ShowContinuousQueriesStatement) node() {}
-func (*ShowGrantsForUserStatement) node()     {}
-func (*ShowDatabasesStatement) node()         {}
-func (*ShowFieldKeysStatement) node()         {}
-func (*ShowRetentionPoliciesStatement) node() {}
-func (*ShowMeasurementsStatement) node()      {}
-func (*ShowQueriesStatement) node()           {}
-func (*ShowSeriesStatement) node()            {}
-func (*ShowShardGroupsStatement) node()       {}
-func (*ShowShardsStatement) node()            {}
-func (*ShowStatsStatement) node()             {}
-func (*ShowSubscriptionsStatement) node()     {}
-func (*ShowDiagnosticsStatement) node()       {}
-func (*ShowTagKeysStatement) node()           {}
-func (*ShowTagValuesStatement) node()         {}
-func (*ShowUsersStatement) node()             {}
+func (*AlterRetentionPolicyStatement) node()       {}
+func (*CreateContinuousQueryStatement) node()      {}
+func (*CreateDatabaseStatement) node()             {}
+func (*CreateRetentionPolicyStatement) node()      {}
+func (*CreateSubscriptionStatement) node()         {}
+func (*CreateUserStatement) node()                 {}
+func (*Distinct) node()                            {}
+func (*DeleteSeriesStatement) node()               {}
+func (*DeleteStatement) node()                     {}
+func (*DropContinuousQueryStatement) node()        {}
+func (*DropDatabaseStatement) node()               {}
+func (*DropMeasurementStatement) node()            {}
+func (*DropRetentionPolicyStatement) node()        {}
+func (*DropSeriesStatement) node()                 {}
+func (*DropShardStatement) node()                  {}
+func (*DropSubscriptionStatement) node()           {}
+func (*DropUserStatement) node()                   {}
+func (*GrantStatement) node()                      {}
+func (*GrantAdminStatement) node()                 {}
+func (*KillQueryStatement) node()                  {}
+func (*RevokeStatement) node()                     {}
+func (*RevokeAdminStatement) node()                {}
+func (*SelectStatement) node()                     {}
+func (*SetPasswordUserStatement) node()            {}
+func (*ShowContinuousQueriesStatement) node()      {}
+func (*ShowGrantsForUserStatement) node()          {}
+func (*ShowDatabasesStatement) node()              {}
+func (*ShowFieldKeyCardinalityStatement) node()    {}
+func (*ShowFieldKeysStatement) node()              {}
+func (*ShowRetentionPoliciesStatement) node()      {}
+func (*ShowMeasurementCardinalityStatement) node() {}
+func (*ShowMeasurementsStatement) node()           {}
+func (*ShowQueriesStatement) node()                {}
+func (*ShowSeriesStatement) node()                 {}
+func (*ShowSeriesCardinalityStatement) node()      {}
+func (*ShowShardGroupsStatement) node()            {}
+func (*ShowShardsStatement) node()                 {}
+func (*ShowStatsStatement) node()                  {}
+func (*ShowSubscriptionsStatement) node()          {}
+func (*ShowDiagnosticsStatement) node()            {}
+func (*ShowTagKeyCardinalityStatement) node()      {}
+func (*ShowTagKeysStatement) node()                {}
+func (*ShowTagValuesCardinalityStatement) node()   {}
+func (*ShowTagValuesStatement) node()              {}
+func (*ShowUsersStatement) node()                  {}
 
 func (*BinaryExpr) node()      {}
 func (*BooleanLiteral) node()  {}
@@ -242,45 +247,50 @@ type ExecutionPrivilege struct {
 // ExecutionPrivileges is a list of privileges required to execute a statement.
 type ExecutionPrivileges []ExecutionPrivilege
 
-func (*AlterRetentionPolicyStatement) stmt()  {}
-func (*CreateContinuousQueryStatement) stmt() {}
-func (*CreateDatabaseStatement) stmt()        {}
-func (*CreateRetentionPolicyStatement) stmt() {}
-func (*CreateSubscriptionStatement) stmt()    {}
-func (*CreateUserStatement) stmt()            {}
-func (*DeleteSeriesStatement) stmt()          {}
-func (*DeleteStatement) stmt()                {}
-func (*DropContinuousQueryStatement) stmt()   {}
-func (*DropDatabaseStatement) stmt()          {}
-func (*DropMeasurementStatement) stmt()       {}
-func (*DropRetentionPolicyStatement) stmt()   {}
-func (*DropSeriesStatement) stmt()            {}
-func (*DropSubscriptionStatement) stmt()      {}
-func (*DropUserStatement) stmt()              {}
-func (*GrantStatement) stmt()                 {}
-func (*GrantAdminStatement) stmt()            {}
-func (*KillQueryStatement) stmt()             {}
-func (*ShowContinuousQueriesStatement) stmt() {}
-func (*ShowGrantsForUserStatement) stmt()     {}
-func (*ShowDatabasesStatement) stmt()         {}
-func (*ShowFieldKeysStatement) stmt()         {}
-func (*ShowMeasurementsStatement) stmt()      {}
-func (*ShowQueriesStatement) stmt()           {}
-func (*ShowRetentionPoliciesStatement) stmt() {}
-func (*ShowSeriesStatement) stmt()            {}
-func (*ShowShardGroupsStatement) stmt()       {}
-func (*ShowShardsStatement) stmt()            {}
-func (*ShowStatsStatement) stmt()             {}
-func (*DropShardStatement) stmt()             {}
-func (*ShowSubscriptionsStatement) stmt()     {}
-func (*ShowDiagnosticsStatement) stmt()       {}
-func (*ShowTagKeysStatement) stmt()           {}
-func (*ShowTagValuesStatement) stmt()         {}
-func (*ShowUsersStatement) stmt()             {}
-func (*RevokeStatement) stmt()                {}
-func (*RevokeAdminStatement) stmt()           {}
-func (*SelectStatement) stmt()                {}
-func (*SetPasswordUserStatement) stmt()       {}
+func (*AlterRetentionPolicyStatement) stmt()       {}
+func (*CreateContinuousQueryStatement) stmt()      {}
+func (*CreateDatabaseStatement) stmt()             {}
+func (*CreateRetentionPolicyStatement) stmt()      {}
+func (*CreateSubscriptionStatement) stmt()         {}
+func (*CreateUserStatement) stmt()                 {}
+func (*DeleteSeriesStatement) stmt()               {}
+func (*DeleteStatement) stmt()                     {}
+func (*DropContinuousQueryStatement) stmt()        {}
+func (*DropDatabaseStatement) stmt()               {}
+func (*DropMeasurementStatement) stmt()            {}
+func (*DropRetentionPolicyStatement) stmt()        {}
+func (*DropSeriesStatement) stmt()                 {}
+func (*DropSubscriptionStatement) stmt()           {}
+func (*DropUserStatement) stmt()                   {}
+func (*GrantStatement) stmt()                      {}
+func (*GrantAdminStatement) stmt()                 {}
+func (*KillQueryStatement) stmt()                  {}
+func (*ShowContinuousQueriesStatement) stmt()      {}
+func (*ShowGrantsForUserStatement) stmt()          {}
+func (*ShowDatabasesStatement) stmt()              {}
+func (*ShowFieldKeyCardinalityStatement) stmt()    {}
+func (*ShowFieldKeysStatement) stmt()              {}
+func (*ShowMeasurementCardinalityStatement) stmt() {}
+func (*ShowMeasurementsStatement) stmt()           {}
+func (*ShowQueriesStatement) stmt()                {}
+func (*ShowRetentionPoliciesStatement) stmt()      {}
+func (*ShowSeriesStatement) stmt()                 {}
+func (*ShowSeriesCardinalityStatement) stmt()      {}
+func (*ShowShardGroupsStatement) stmt()            {}
+func (*ShowShardsStatement) stmt()                 {}
+func (*ShowStatsStatement) stmt()                  {}
+func (*DropShardStatement) stmt()                  {}
+func (*ShowSubscriptionsStatement) stmt()          {}
+func (*ShowDiagnosticsStatement) stmt()            {}
+func (*ShowTagKeyCardinalityStatement) stmt()      {}
+func (*ShowTagKeysStatement) stmt()                {}
+func (*ShowTagValuesCardinalityStatement) stmt()   {}
+func (*ShowTagValuesStatement) stmt()              {}
+func (*ShowUsersStatement) stmt()                  {}
+func (*RevokeStatement) stmt()                     {}
+func (*RevokeAdminStatement) stmt()                {}
+func (*SelectStatement) stmt()                     {}
+func (*SetPasswordUserStatement) stmt()            {}
 
 // Expr represents an expression that can be evaluated to a value.
 type Expr interface {
@@ -447,6 +457,29 @@ func (a *Sources) UnmarshalBinary(buf []byte) error {
 		(*a)[i] = mm
 	}
 	return nil
+}
+
+// RequiredPrivileges recursively returns a list of execution privileges required.
+func (a Sources) RequiredPrivileges() (ExecutionPrivileges, error) {
+	var ep ExecutionPrivileges
+	for _, source := range a {
+		switch source := source.(type) {
+		case *Measurement:
+			ep = append(ep, ExecutionPrivilege{
+				Name:      source.Database,
+				Privilege: ReadPrivilege,
+			})
+		case *SubQuery:
+			privs, err := source.Statement.RequiredPrivileges()
+			if err != nil {
+				return nil, err
+			}
+			ep = append(ep, privs...)
+		default:
+			return nil, fmt.Errorf("invalid source: %s", source)
+		}
+	}
+	return ep, nil
 }
 
 // IsSystemName returns true if name is an internal system name.
@@ -1692,28 +1725,13 @@ func (s *SelectStatement) String() string {
 // empty string will be returned for the database name and it is up to the caller
 // to interpret that as the default database.
 func (s *SelectStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
-	ep := ExecutionPrivileges{}
-	for _, source := range s.Sources {
-		switch source := source.(type) {
-		case *Measurement:
-			ep = append(ep, ExecutionPrivilege{
-				Name:      source.Database,
-				Privilege: ReadPrivilege,
-			})
-		case *SubQuery:
-			privs, err := source.Statement.RequiredPrivileges()
-			if err != nil {
-				return nil, err
-			}
-			ep = append(ep, privs...)
-		default:
-			return nil, fmt.Errorf("invalid source: %s", source)
-		}
+	ep, err := s.Sources.RequiredPrivileges()
+	if err != nil {
+		return nil, err
 	}
 
 	if s.Target != nil {
-		p := ExecutionPrivilege{Admin: false, Name: s.Target.Measurement.Database, Privilege: WritePrivilege}
-		ep = append(ep, p)
+		ep = append(ep, ExecutionPrivilege{Admin: false, Name: s.Target.Measurement.Database, Privilege: WritePrivilege})
 	}
 	return ep, nil
 }
@@ -2759,6 +2777,65 @@ func (s *DropShardStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
 	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}, nil
 }
 
+// ShowSeriesCardinalityStatement represents a command for listing series cardinality.
+type ShowSeriesCardinalityStatement struct {
+	// Database to query. If blank, use the default database.
+	// The database can also be specified per source in the Sources.
+	Database string
+
+	// Measurement(s) the series are listed for.
+	Sources Sources
+
+	// An expression evaluated on a series name or tag.
+	Condition Expr
+
+	// Expressions used for grouping the selection.
+	Dimensions Dimensions
+
+	Limit, Offset int
+}
+
+// String returns a string representation of the show continuous queries statement.
+func (s *ShowSeriesCardinalityStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("SHOW SERIES CARDINALITY")
+
+	if s.Database != "" {
+		_, _ = buf.WriteString(" ON ")
+		_, _ = buf.WriteString(QuoteIdent(s.Database))
+	}
+	if s.Sources != nil {
+		_, _ = buf.WriteString(" FROM ")
+		_, _ = buf.WriteString(s.Sources.String())
+	}
+	if s.Condition != nil {
+		_, _ = buf.WriteString(" WHERE ")
+		_, _ = buf.WriteString(s.Condition.String())
+	}
+	if len(s.Dimensions) > 0 {
+		_, _ = buf.WriteString(" GROUP BY ")
+		_, _ = buf.WriteString(s.Dimensions.String())
+	}
+	if s.Limit > 0 {
+		_, _ = fmt.Fprintf(&buf, " LIMIT %d", s.Limit)
+	}
+	if s.Offset > 0 {
+		_, _ = buf.WriteString(" OFFSET ")
+		_, _ = buf.WriteString(strconv.Itoa(s.Offset))
+	}
+	return buf.String()
+}
+
+// RequiredPrivileges returns the privilege required to execute a ShowSeriesCardinalityStatement.
+func (s *ShowSeriesCardinalityStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
+	return s.Sources.RequiredPrivileges()
+}
+
+// DefaultDatabase returns the default database from the statement.
+func (s *ShowSeriesCardinalityStatement) DefaultDatabase() string {
+	return s.Database
+}
+
 // ShowContinuousQueriesStatement represents a command for listing continuous queries.
 type ShowContinuousQueriesStatement struct{}
 
@@ -2901,6 +2978,56 @@ func (s *DropContinuousQueryStatement) RequiredPrivileges() (ExecutionPrivileges
 
 // DefaultDatabase returns the default database from the statement.
 func (s *DropContinuousQueryStatement) DefaultDatabase() string {
+	return s.Database
+}
+
+// ShowMeasurementCardinalityStatement represents a command for listing measurement cardinality.
+type ShowMeasurementCardinalityStatement struct {
+	Database      string
+	Sources       Sources
+	Condition     Expr
+	Dimensions    Dimensions
+	Limit, Offset int
+}
+
+// String returns a string representation of the statement.
+func (s *ShowMeasurementCardinalityStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("SHOW MEASUREMENT CARDINALITY")
+
+	if s.Database != "" {
+		_, _ = buf.WriteString(" ON ")
+		_, _ = buf.WriteString(QuoteIdent(s.Database))
+	}
+	if s.Sources != nil {
+		_, _ = buf.WriteString(" FROM ")
+		_, _ = buf.WriteString(s.Sources.String())
+	}
+	if s.Condition != nil {
+		_, _ = buf.WriteString(" WHERE ")
+		_, _ = buf.WriteString(s.Condition.String())
+	}
+	if len(s.Dimensions) > 0 {
+		_, _ = buf.WriteString(" GROUP BY ")
+		_, _ = buf.WriteString(s.Dimensions.String())
+	}
+	if s.Limit > 0 {
+		_, _ = fmt.Fprintf(&buf, " LIMIT %d", s.Limit)
+	}
+	if s.Offset > 0 {
+		_, _ = buf.WriteString(" OFFSET ")
+		_, _ = buf.WriteString(strconv.Itoa(s.Offset))
+	}
+	return buf.String()
+}
+
+// RequiredPrivileges returns the privilege required to execute a ShowMeasurementCardinalityStatement.
+func (s *ShowMeasurementCardinalityStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
+	return s.Sources.RequiredPrivileges()
+}
+
+// DefaultDatabase returns the default database from the statement.
+func (s *ShowMeasurementCardinalityStatement) DefaultDatabase() string {
 	return s.Database
 }
 
@@ -3252,6 +3379,56 @@ func (s *ShowTagKeysStatement) DefaultDatabase() string {
 	return s.Database
 }
 
+// ShowTagKeyCardinalityStatement represents a command for listing tag key cardinality.
+type ShowTagKeyCardinalityStatement struct {
+	Database      string
+	Sources       Sources
+	Condition     Expr
+	Dimensions    Dimensions
+	Limit, Offset int
+}
+
+// String returns a string representation of the statement.
+func (s *ShowTagKeyCardinalityStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("SHOW TAG KEY CARDINALITY")
+
+	if s.Database != "" {
+		_, _ = buf.WriteString(" ON ")
+		_, _ = buf.WriteString(QuoteIdent(s.Database))
+	}
+	if s.Sources != nil {
+		_, _ = buf.WriteString(" FROM ")
+		_, _ = buf.WriteString(s.Sources.String())
+	}
+	if s.Condition != nil {
+		_, _ = buf.WriteString(" WHERE ")
+		_, _ = buf.WriteString(s.Condition.String())
+	}
+	if len(s.Dimensions) > 0 {
+		_, _ = buf.WriteString(" GROUP BY ")
+		_, _ = buf.WriteString(s.Dimensions.String())
+	}
+	if s.Limit > 0 {
+		_, _ = fmt.Fprintf(&buf, " LIMIT %d", s.Limit)
+	}
+	if s.Offset > 0 {
+		_, _ = buf.WriteString(" OFFSET ")
+		_, _ = buf.WriteString(strconv.Itoa(s.Offset))
+	}
+	return buf.String()
+}
+
+// RequiredPrivileges returns the privilege required to execute a ShowTagKeyCardinalityStatement.
+func (s *ShowTagKeyCardinalityStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
+	return s.Sources.RequiredPrivileges()
+}
+
+// DefaultDatabase returns the default database from the statement.
+func (s *ShowTagKeyCardinalityStatement) DefaultDatabase() string {
+	return s.Database
+}
+
 // ShowTagValuesStatement represents a command for listing tag values.
 type ShowTagValuesStatement struct {
 	// Database to query. If blank, use the default database.
@@ -3331,6 +3508,66 @@ func (s *ShowTagValuesStatement) DefaultDatabase() string {
 	return s.Database
 }
 
+// ShowTagValuesCardinalityStatement represents a command for listing tag value cardinality.
+type ShowTagValuesCardinalityStatement struct {
+	Database      string
+	Sources       Sources
+	Op            Token
+	TagKeyExpr    Literal
+	Condition     Expr
+	Dimensions    Dimensions
+	Limit, Offset int
+}
+
+// String returns a string representation of the statement.
+func (s *ShowTagValuesCardinalityStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("SHOW TAG VALUES CARDINALITY")
+
+	if s.Database != "" {
+		_, _ = buf.WriteString(" ON ")
+		_, _ = buf.WriteString(QuoteIdent(s.Database))
+	}
+	if s.Sources != nil {
+		_, _ = buf.WriteString(" FROM ")
+		_, _ = buf.WriteString(s.Sources.String())
+	}
+	_, _ = buf.WriteString(" WITH KEY ")
+	_, _ = buf.WriteString(s.Op.String())
+	_, _ = buf.WriteString(" ")
+	if lit, ok := s.TagKeyExpr.(*StringLiteral); ok {
+		_, _ = buf.WriteString(QuoteIdent(lit.Val))
+	} else {
+		_, _ = buf.WriteString(s.TagKeyExpr.String())
+	}
+	if s.Condition != nil {
+		_, _ = buf.WriteString(" WHERE ")
+		_, _ = buf.WriteString(s.Condition.String())
+	}
+	if len(s.Dimensions) > 0 {
+		_, _ = buf.WriteString(" GROUP BY ")
+		_, _ = buf.WriteString(s.Dimensions.String())
+	}
+	if s.Limit > 0 {
+		_, _ = fmt.Fprintf(&buf, " LIMIT %d", s.Limit)
+	}
+	if s.Offset > 0 {
+		_, _ = buf.WriteString(" OFFSET ")
+		_, _ = buf.WriteString(strconv.Itoa(s.Offset))
+	}
+	return buf.String()
+}
+
+// RequiredPrivileges returns the privilege required to execute a ShowTagValuesCardinalityStatement.
+func (s *ShowTagValuesCardinalityStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
+	return s.Sources.RequiredPrivileges()
+}
+
+// DefaultDatabase returns the default database from the statement.
+func (s *ShowTagValuesCardinalityStatement) DefaultDatabase() string {
+	return s.Database
+}
+
 // ShowUsersStatement represents a command for listing users.
 type ShowUsersStatement struct{}
 
@@ -3342,6 +3579,56 @@ func (s *ShowUsersStatement) String() string {
 // RequiredPrivileges returns the privilege(s) required to execute a ShowUsersStatement
 func (s *ShowUsersStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
 	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}, nil
+}
+
+// ShowFieldKeyCardinalityStatement represents a command for listing field key cardinality.
+type ShowFieldKeyCardinalityStatement struct {
+	Database      string
+	Sources       Sources
+	Condition     Expr
+	Dimensions    Dimensions
+	Limit, Offset int
+}
+
+// String returns a string representation of the statement.
+func (s *ShowFieldKeyCardinalityStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("SHOW FIELD KEY CARDINALITY")
+
+	if s.Database != "" {
+		_, _ = buf.WriteString(" ON ")
+		_, _ = buf.WriteString(QuoteIdent(s.Database))
+	}
+	if s.Sources != nil {
+		_, _ = buf.WriteString(" FROM ")
+		_, _ = buf.WriteString(s.Sources.String())
+	}
+	if s.Condition != nil {
+		_, _ = buf.WriteString(" WHERE ")
+		_, _ = buf.WriteString(s.Condition.String())
+	}
+	if len(s.Dimensions) > 0 {
+		_, _ = buf.WriteString(" GROUP BY ")
+		_, _ = buf.WriteString(s.Dimensions.String())
+	}
+	if s.Limit > 0 {
+		_, _ = fmt.Fprintf(&buf, " LIMIT %d", s.Limit)
+	}
+	if s.Offset > 0 {
+		_, _ = buf.WriteString(" OFFSET ")
+		_, _ = buf.WriteString(strconv.Itoa(s.Offset))
+	}
+	return buf.String()
+}
+
+// RequiredPrivileges returns the privilege required to execute a ShowFieldKeyCardinalityStatement.
+func (s *ShowFieldKeyCardinalityStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
+	return s.Sources.RequiredPrivileges()
+}
+
+// DefaultDatabase returns the default database from the statement.
+func (s *ShowFieldKeyCardinalityStatement) DefaultDatabase() string {
+	return s.Database
 }
 
 // ShowFieldKeysStatement represents a command for listing field keys.
@@ -4232,7 +4519,23 @@ func Walk(v Visitor, node Node) {
 		Walk(v, n.Condition)
 		Walk(v, n.SortFields)
 
+	case *ShowFieldKeyCardinalityStatement:
+		Walk(v, n.Sources)
+		Walk(v, n.Condition)
+
 	case *ShowSeriesStatement:
+		Walk(v, n.Sources)
+		Walk(v, n.Condition)
+
+	case *ShowSeriesCardinalityStatement:
+		Walk(v, n.Sources)
+		Walk(v, n.Condition)
+
+	case *ShowMeasurementCardinalityStatement:
+		Walk(v, n.Sources)
+		Walk(v, n.Condition)
+
+	case *ShowTagKeyCardinalityStatement:
 		Walk(v, n.Sources)
 		Walk(v, n.Condition)
 
@@ -4240,6 +4543,10 @@ func Walk(v Visitor, node Node) {
 		Walk(v, n.Sources)
 		Walk(v, n.Condition)
 		Walk(v, n.SortFields)
+
+	case *ShowTagValuesCardinalityStatement:
+		Walk(v, n.Sources)
+		Walk(v, n.Condition)
 
 	case *ShowTagValuesStatement:
 		Walk(v, n.Sources)

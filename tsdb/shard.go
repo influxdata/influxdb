@@ -736,7 +736,7 @@ func (s *Shard) CreateIterator(measurement string, opt influxql.IteratorOptions)
 	return s.engine.CreateIterator(measurement, opt)
 }
 
-// createSystemIterator returns an iterator for a system source.
+// createSystemIterator returns an iterator for a field of system source.
 func (s *Shard) createSystemIterator(measurement string, opt influxql.IteratorOptions) (influxql.Iterator, bool, error) {
 	switch measurement {
 	case "_fieldKeys":
@@ -748,8 +748,9 @@ func (s *Shard) createSystemIterator(measurement string, opt influxql.IteratorOp
 	case "_tagKeys":
 		itr, err := NewTagKeysIterator(s, opt)
 		return itr, true, err
+	default:
+		return nil, false, nil
 	}
-	return nil, false, nil
 }
 
 // createSeriesIterator returns a new instance of SeriesIterator.
@@ -847,6 +848,11 @@ func (s *Shard) MeasurementsByRegex(re *regexp.Regexp) []string {
 
 // MapType returns the data type for the field within the measurement.
 func (s *Shard) MapType(measurement, field string) influxql.DataType {
+	switch field {
+	case "_name", "_tagKey", "_tagValue", "_seriesKey":
+		return influxql.String
+	}
+
 	// Process system measurements.
 	if strings.HasPrefix(measurement, "_") {
 		switch measurement {
@@ -1145,6 +1151,18 @@ type MeasurementFields struct {
 // NewMeasurementFields returns an initialised *MeasurementFields value.
 func NewMeasurementFields() *MeasurementFields {
 	return &MeasurementFields{fields: make(map[string]*Field)}
+}
+
+func (m *MeasurementFields) FieldKeys() []string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	a := make([]string, 0, len(m.fields))
+	for key := range m.fields {
+		a = append(a, key)
+	}
+	sort.Strings(a)
+	return a
 }
 
 // MarshalBinary encodes the object to a binary format.

@@ -1857,7 +1857,7 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, name string, s
 		for i, ref := range opt.Aux {
 			// Create cursor from field if a tag wasn't requested.
 			if ref.Type != influxql.Tag {
-				cur := e.buildCursor(name, seriesKey, &ref, opt)
+				cur := e.buildCursor(name, seriesKey, tfs, &ref, opt)
 				if cur != nil {
 					aux[i] = newBufCursor(cur, opt.Ascending)
 					continue
@@ -1893,6 +1893,26 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, name string, s
 		}
 	}
 
+	// Remove _tagKey condition field.
+	// We can't seach on it because we can't join it to _tagValue based on time.
+	if varRefSliceContains(conditionFields, "_tagKey") {
+		conditionFields = varRefSliceRemove(conditionFields, "_tagKey")
+
+		// Remove _tagKey conditional references from iterator.
+		itrOpt.Condition = influxql.RewriteExpr(influxql.CloneExpr(itrOpt.Condition), func(expr influxql.Expr) influxql.Expr {
+			switch expr := expr.(type) {
+			case *influxql.BinaryExpr:
+				if ref, ok := expr.LHS.(*influxql.VarRef); ok && ref.Val == "_tagKey" {
+					return &influxql.BooleanLiteral{Val: true}
+				}
+				if ref, ok := expr.RHS.(*influxql.VarRef); ok && ref.Val == "_tagKey" {
+					return &influxql.BooleanLiteral{Val: true}
+				}
+			}
+			return expr
+		})
+	}
+
 	// Build conditional field cursors.
 	// If a conditional field doesn't exist then ignore the series.
 	var conds []cursorAt
@@ -1901,7 +1921,7 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, name string, s
 		for i, ref := range conditionFields {
 			// Create cursor from field if a tag wasn't requested.
 			if ref.Type != influxql.Tag {
-				cur := e.buildCursor(name, seriesKey, &ref, opt)
+				cur := e.buildCursor(name, seriesKey, tfs, &ref, opt)
 				if cur != nil {
 					conds[i] = newBufCursor(cur, opt.Ascending)
 					continue
@@ -1948,11 +1968,16 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, name string, s
 	}
 
 	// Build main cursor.
-	cur := e.buildCursor(name, seriesKey, ref, opt)
+	cur := e.buildCursor(name, seriesKey, tfs, ref, opt)
 
 	// If the field doesn't exist then don't build an iterator.
 	if cur == nil {
 		return nil, nil
+	}
+
+	// Remove measurement name if we are selecting the name.
+	if ref.Val == "_name" {
+		name = ""
 	}
 
 	switch cur := cur.(type) {
@@ -1972,11 +1997,28 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, name string, s
 }
 
 // buildCursor creates an untyped cursor for a field.
-func (e *Engine) buildCursor(measurement, seriesKey string, ref *influxql.VarRef, opt influxql.IteratorOptions) cursor {
+func (e *Engine) buildCursor(measurement, seriesKey string, tags models.Tags, ref *influxql.VarRef, opt influxql.IteratorOptions) cursor {
+	// Check if this is a system field cursor.
+	switch ref.Val {
+	case "_name":
+		return &stringSliceCursor{values: []string{measurement}}
+	case "_tagKey":
+		return &stringSliceCursor{values: tags.Keys()}
+	case "_tagValue":
+		return &stringSliceCursor{values: matchTagValues(tags, opt.Condition)}
+	case "_seriesKey":
+		return &stringSliceCursor{values: []string{seriesKey}}
+	}
+
 	// Look up fields for measurement.
 	mf := e.fieldset.Fields(measurement)
 	if mf == nil {
 		return nil
+	}
+
+	// Check for system field for field keys.
+	if ref.Val == "_fieldKey" {
+		return &stringSliceCursor{values: mf.FieldKeys()}
 	}
 
 	// Find individual field.
@@ -2035,6 +2077,28 @@ func (e *Engine) buildCursor(measurement, seriesKey string, ref *influxql.VarRef
 	default:
 		panic("unreachable")
 	}
+}
+
+func matchTagValues(tags models.Tags, condition influxql.Expr) []string {
+	if condition == nil {
+		return tags.Values()
+	}
+
+	// Populate map with tag values.
+	data := map[string]interface{}{}
+	for _, tag := range tags {
+		data[string(tag.Key)] = string(tag.Value)
+	}
+
+	// Match against each specific tag.
+	var values []string
+	for _, tag := range tags {
+		data["_tagKey"] = string(tag.Key)
+		if influxql.EvalBool(condition, data) {
+			values = append(values, string(tag.Value))
+		}
+	}
+	return values
 }
 
 // buildFloatCursor creates a cursor for a float field.
@@ -2153,4 +2217,27 @@ func readDir(root, rel string) ([]string, error) {
 		paths = append(paths, children...)
 	}
 	return paths, nil
+}
+
+func varRefSliceContains(a []influxql.VarRef, v string) bool {
+	for _, ref := range a {
+		if ref.Val == v {
+			return true
+		}
+	}
+	return false
+}
+
+func varRefSliceRemove(a []influxql.VarRef, v string) []influxql.VarRef {
+	if !varRefSliceContains(a, v) {
+		return a
+	}
+
+	other := make([]influxql.VarRef, 0, len(a))
+	for _, ref := range a {
+		if ref.Val != v {
+			other = append(other, ref)
+		}
+	}
+	return other
 }

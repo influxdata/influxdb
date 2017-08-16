@@ -1790,11 +1790,16 @@ func Test_EnforceHasDefaultDatabase(t *testing.T) {
 		&influxql.GrantStatement{},
 		&influxql.RevokeStatement{},
 		&influxql.ShowFieldKeysStatement{},
+		&influxql.ShowFieldKeyCardinalityStatement{},
+		&influxql.ShowMeasurementCardinalityStatement{},
 		&influxql.ShowMeasurementsStatement{},
 		&influxql.ShowRetentionPoliciesStatement{},
 		&influxql.ShowSeriesStatement{},
+		&influxql.ShowSeriesCardinalityStatement{},
 		&influxql.ShowTagKeysStatement{},
+		&influxql.ShowTagKeyCardinalityStatement{},
 		&influxql.ShowTagValuesStatement{},
+		&influxql.ShowTagValuesCardinalityStatement{},
 	}
 
 	for _, stmt := range needsHasDefault {

@@ -112,6 +112,20 @@ func (t *Tags) Keys() []string {
 	return a
 }
 
+// Values returns a sorted list of all values on the tag.
+func (t *Tags) Values() []string {
+	if t == nil {
+		return nil
+	}
+
+	a := make([]string, 0, len(t.m))
+	for _, v := range t.m {
+		a = append(a, v)
+	}
+	sort.Strings(a)
+	return a
+}
+
 // Value returns the value for a given key.
 func (t *Tags) Value(k string) string {
 	if t == nil {

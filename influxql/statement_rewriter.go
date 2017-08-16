@@ -1,20 +1,33 @@
 package influxql
 
-import "errors"
+import (
+	"errors"
+	"regexp"
+)
 
 // RewriteStatement rewrites stmt into a new statement, if applicable.
 func RewriteStatement(stmt Statement) (Statement, error) {
 	switch stmt := stmt.(type) {
 	case *ShowFieldKeysStatement:
 		return rewriteShowFieldKeysStatement(stmt)
+	case *ShowFieldKeyCardinalityStatement:
+		return rewriteShowFieldKeyCardinalityStatement(stmt)
 	case *ShowMeasurementsStatement:
 		return rewriteShowMeasurementsStatement(stmt)
+	case *ShowMeasurementCardinalityStatement:
+		return rewriteShowMeasurementCardinalityStatement(stmt)
 	case *ShowSeriesStatement:
 		return rewriteShowSeriesStatement(stmt)
+	case *ShowSeriesCardinalityStatement:
+		return rewriteShowSeriesCardinalityStatement(stmt)
 	case *ShowTagKeysStatement:
 		return rewriteShowTagKeysStatement(stmt)
+	case *ShowTagKeyCardinalityStatement:
+		return rewriteShowTagKeyCardinalityStatement(stmt)
 	case *ShowTagValuesStatement:
 		return rewriteShowTagValuesStatement(stmt)
+	case *ShowTagValuesCardinalityStatement:
+		return rewriteShowTagValuesCardinalityStatement(stmt)
 	default:
 		return stmt, nil
 	}
@@ -37,6 +50,43 @@ func rewriteShowFieldKeysStatement(stmt *ShowFieldKeysStatement) (Statement, err
 	}, nil
 }
 
+func rewriteShowFieldKeyCardinalityStatement(stmt *ShowFieldKeyCardinalityStatement) (Statement, error) {
+	// Check for time in WHERE clause (not supported).
+	if HasTimeExpr(stmt.Condition) {
+		return nil, errors.New("SHOW FIELD KEY CARDINALITY doesn't support time in WHERE clause")
+	}
+
+	// Use all field keys, if zero.
+	if len(stmt.Sources) == 0 {
+		stmt.Sources = Sources{
+			&Measurement{Regex: &RegexLiteral{Val: regexp.MustCompile(`.+`)}},
+		}
+	}
+
+	return &SelectStatement{
+		Fields: []*Field{
+			{
+				Expr: &Call{
+					Name: "count",
+					Args: []Expr{
+						&Call{
+							Name: "distinct",
+							Args: []Expr{&VarRef{Val: "_fieldKey"}},
+						},
+					},
+				},
+				Alias: "count",
+			},
+		},
+		Sources:    stmt.Sources,
+		Condition:  stmt.Condition,
+		Dimensions: stmt.Dimensions,
+		Offset:     stmt.Offset,
+		Limit:      stmt.Limit,
+		OmitTime:   true,
+	}, nil
+}
+
 func rewriteShowMeasurementsStatement(stmt *ShowMeasurementsStatement) (Statement, error) {
 	// Check for time in WHERE clause (not supported).
 	if HasTimeExpr(stmt.Condition) {
@@ -53,6 +103,43 @@ func rewriteShowMeasurementsStatement(stmt *ShowMeasurementsStatement) (Statemen
 		Limit:      stmt.Limit,
 		Offset:     stmt.Offset,
 		SortFields: stmt.SortFields,
+	}, nil
+}
+
+func rewriteShowMeasurementCardinalityStatement(stmt *ShowMeasurementCardinalityStatement) (Statement, error) {
+	// Check for time in WHERE clause (not supported).
+	if HasTimeExpr(stmt.Condition) {
+		return nil, errors.New("SHOW MEASUREMENT CARDINALITY doesn't support time in WHERE clause")
+	}
+
+	// Use all measurements, if zero.
+	if len(stmt.Sources) == 0 {
+		stmt.Sources = Sources{
+			&Measurement{Regex: &RegexLiteral{Val: regexp.MustCompile(`.+`)}},
+		}
+	}
+
+	return &SelectStatement{
+		Fields: []*Field{
+			{
+				Expr: &Call{
+					Name: "count",
+					Args: []Expr{
+						&Call{
+							Name: "distinct",
+							Args: []Expr{&VarRef{Val: "_name"}},
+						},
+					},
+				},
+				Alias: "count",
+			},
+		},
+		Sources:    stmt.Sources,
+		Condition:  stmt.Condition,
+		Dimensions: stmt.Dimensions,
+		Offset:     stmt.Offset,
+		Limit:      stmt.Limit,
+		OmitTime:   true,
 	}, nil
 }
 
@@ -77,13 +164,38 @@ func rewriteShowSeriesStatement(stmt *ShowSeriesStatement) (Statement, error) {
 	}, nil
 }
 
+func rewriteShowSeriesCardinalityStatement(stmt *ShowSeriesCardinalityStatement) (Statement, error) {
+	// Check for time in WHERE clause (not supported).
+	if HasTimeExpr(stmt.Condition) {
+		return nil, errors.New("SHOW SERIES CARDINALITY doesn't support time in WHERE clause")
+	}
+
+	// Use all measurements, if zero.
+	if len(stmt.Sources) == 0 {
+		stmt.Sources = Sources{
+			&Measurement{Regex: &RegexLiteral{Val: regexp.MustCompile(`.+`)}},
+		}
+	}
+
+	return &SelectStatement{
+		Fields: []*Field{
+			{Expr: &Call{Name: "count", Args: []Expr{&VarRef{Val: "_seriesKey"}}}, Alias: "count"},
+		},
+		Sources:    stmt.Sources,
+		Condition:  stmt.Condition,
+		Dimensions: stmt.Dimensions,
+		Offset:     stmt.Offset,
+		Limit:      stmt.Limit,
+		OmitTime:   true,
+	}, nil
+}
+
 func rewriteShowTagValuesStatement(stmt *ShowTagValuesStatement) (Statement, error) {
 	// Check for time in WHERE clause (not supported).
 	if HasTimeExpr(stmt.Condition) {
 		return nil, errors.New("SHOW TAG VALUES doesn't support time in WHERE clause")
 	}
 
-	condition := stmt.Condition
 	var expr Expr
 	if list, ok := stmt.TagKeyExpr.(*ListLiteral); ok {
 		for _, tagKey := range list.Vals {
@@ -112,6 +224,7 @@ func rewriteShowTagValuesStatement(stmt *ShowTagValuesStatement) (Statement, err
 	}
 
 	// Set condition or "AND" together.
+	condition := stmt.Condition
 	if condition == nil {
 		condition = expr
 	} else {
@@ -134,6 +247,82 @@ func rewriteShowTagValuesStatement(stmt *ShowTagValuesStatement) (Statement, err
 	}, nil
 }
 
+func rewriteShowTagValuesCardinalityStatement(stmt *ShowTagValuesCardinalityStatement) (Statement, error) {
+	// Check for time in WHERE clause (not supported).
+	if HasTimeExpr(stmt.Condition) {
+		return nil, errors.New("SHOW TAG VALUES CARDINALITY doesn't support time in WHERE clause")
+	}
+
+	// Use all measurements, if zero.
+	if len(stmt.Sources) == 0 {
+		stmt.Sources = Sources{
+			&Measurement{Regex: &RegexLiteral{Val: regexp.MustCompile(`.+`)}},
+		}
+	}
+
+	var expr Expr
+	if list, ok := stmt.TagKeyExpr.(*ListLiteral); ok {
+		for _, tagKey := range list.Vals {
+			tagExpr := &BinaryExpr{
+				Op:  EQ,
+				LHS: &VarRef{Val: "_tagKey"},
+				RHS: &StringLiteral{Val: tagKey},
+			}
+
+			if expr != nil {
+				expr = &BinaryExpr{
+					Op:  OR,
+					LHS: expr,
+					RHS: tagExpr,
+				}
+			} else {
+				expr = tagExpr
+			}
+		}
+	} else {
+		expr = &BinaryExpr{
+			Op:  stmt.Op,
+			LHS: &VarRef{Val: "_tagKey"},
+			RHS: stmt.TagKeyExpr,
+		}
+	}
+
+	// Set condition or "AND" together.
+	condition := stmt.Condition
+	if condition == nil {
+		condition = expr
+	} else {
+		condition = &BinaryExpr{
+			Op:  AND,
+			LHS: &ParenExpr{Expr: condition},
+			RHS: &ParenExpr{Expr: expr},
+		}
+	}
+
+	return &SelectStatement{
+		Fields: []*Field{
+			{
+				Expr: &Call{
+					Name: "count",
+					Args: []Expr{
+						&Call{
+							Name: "distinct",
+							Args: []Expr{&VarRef{Val: "_tagValue"}},
+						},
+					},
+				},
+				Alias: "count",
+			},
+		},
+		Sources:    stmt.Sources,
+		Condition:  condition,
+		Dimensions: stmt.Dimensions,
+		Offset:     stmt.Offset,
+		Limit:      stmt.Limit,
+		OmitTime:   true,
+	}, nil
+}
+
 func rewriteShowTagKeysStatement(stmt *ShowTagKeysStatement) (Statement, error) {
 	// Check for time in WHERE clause (not supported).
 	if HasTimeExpr(stmt.Condition) {
@@ -152,6 +341,43 @@ func rewriteShowTagKeysStatement(stmt *ShowTagKeysStatement) (Statement, error) 
 		OmitTime:   true,
 		Dedupe:     true,
 		IsRawQuery: true,
+	}, nil
+}
+
+func rewriteShowTagKeyCardinalityStatement(stmt *ShowTagKeyCardinalityStatement) (Statement, error) {
+	// Check for time in WHERE clause (not supported).
+	if HasTimeExpr(stmt.Condition) {
+		return nil, errors.New("SHOW TAG KEY CARDINALITY doesn't support time in WHERE clause")
+	}
+
+	// Use all measurements, if zero.
+	if len(stmt.Sources) == 0 {
+		stmt.Sources = Sources{
+			&Measurement{Regex: &RegexLiteral{Val: regexp.MustCompile(`.+`)}},
+		}
+	}
+
+	return &SelectStatement{
+		Fields: []*Field{
+			{
+				Expr: &Call{
+					Name: "count",
+					Args: []Expr{
+						&Call{
+							Name: "distinct",
+							Args: []Expr{&VarRef{Val: "_tagKey"}},
+						},
+					},
+				},
+				Alias: "count",
+			},
+		},
+		Sources:    stmt.Sources,
+		Condition:  stmt.Condition,
+		Dimensions: stmt.Dimensions,
+		Offset:     stmt.Offset,
+		Limit:      stmt.Limit,
+		OmitTime:   true,
 	}, nil
 }
 

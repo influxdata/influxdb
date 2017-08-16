@@ -114,11 +114,19 @@ func init() {
 		show.Handle(DIAGNOSTICS, func(p *Parser) (Statement, error) {
 			return p.parseShowDiagnosticsStatement()
 		})
-		show.Group(FIELD).Handle(KEYS, func(p *Parser) (Statement, error) {
-			return p.parseShowFieldKeysStatement()
+		show.Group(FIELD).With(func(field *ParseTree) {
+			field.Handle(KEY, func(p *Parser) (Statement, error) {
+				return p.parseShowFieldKeyStatement()
+			})
+			field.Handle(KEYS, func(p *Parser) (Statement, error) {
+				return p.parseShowFieldKeysStatement()
+			})
 		})
 		show.Group(GRANTS).Handle(FOR, func(p *Parser) (Statement, error) {
 			return p.parseGrantsForUserStatement()
+		})
+		show.Group(MEASUREMENT).Handle(CARDINALITY, func(p *Parser) (Statement, error) {
+			return p.parseShowMeasurementCardinalityStatement()
 		})
 		show.Handle(MEASUREMENTS, func(p *Parser) (Statement, error) {
 			return p.parseShowMeasurementsStatement()
@@ -145,6 +153,9 @@ func init() {
 			return p.parseShowSubscriptionsStatement()
 		})
 		show.Group(TAG).With(func(tag *ParseTree) {
+			tag.Group(KEY).Handle(CARDINALITY, func(p *Parser) (Statement, error) {
+				return p.parseShowTagKeyCardinalityStatement()
+			})
 			tag.Handle(KEYS, func(p *Parser) (Statement, error) {
 				return p.parseShowTagKeysStatement()
 			})
