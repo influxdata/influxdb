@@ -4,8 +4,6 @@ import calculateSize from 'calculate-size'
 
 import Dropdown from 'shared/components/Dropdown'
 
-import omit from 'lodash/omit'
-
 const minTempVarDropdownWidth = 146
 const maxTempVarDropdownWidth = 300
 const tempVarDropdownPadding = 30
@@ -65,8 +63,7 @@ const TemplateControlBar = ({
                     menuClass="dropdown-astronaut"
                     useAutoComplete={true}
                     selected={selectedText || '(No values)'}
-                    onChoose={item =>
-                      onSelectTemplate(id, [item].map(x => omit(x, 'text')))}
+                    onChoose={onSelectTemplate(id)}
                   />
                   <label className="template-control--label">
                     {tempVar}

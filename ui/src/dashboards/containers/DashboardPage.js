@@ -49,7 +49,6 @@ class DashboardPage extends Component {
     this.handleSummonOverlayTechnologies = ::this
       .handleSummonOverlayTechnologies
     this.handleRunTemplateVariableQuery = ::this.handleRunTemplateVariableQuery
-    this.handleSelectTemplate = ::this.handleSelectTemplate
     this.handleEditTemplateVariables = ::this.handleEditTemplateVariables
     this.handleRunQueryFailure = ::this.handleRunQueryFailure
     this.handleToggleTempVarControls = ::this.handleToggleTempVarControls
@@ -157,7 +156,7 @@ class DashboardPage extends Component {
     this.props.dashboardActions.deleteDashboardCellAsync(dashboard, cell)
   }
 
-  handleSelectTemplate(templateID, values) {
+  handleSelectTemplate = templateID => values => {
     const {params: {dashboardID}} = this.props
     this.props.dashboardActions.templateVariableSelected(
       +dashboardID,
