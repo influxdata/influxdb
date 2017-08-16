@@ -45,7 +45,6 @@ class DashboardPage extends Component {
     this.handleDeleteDashboardCell = ::this.handleDeleteDashboardCell
     this.handleOpenTemplateManager = ::this.handleOpenTemplateManager
     this.handleUpdateDashboardCell = ::this.handleUpdateDashboardCell
-    this.handleCloseTemplateManager = ::this.handleCloseTemplateManager
     this.handleSummonOverlayTechnologies = ::this
       .handleSummonOverlayTechnologies
     this.handleRunTemplateVariableQuery = ::this.handleRunTemplateVariableQuery
@@ -78,7 +77,7 @@ class DashboardPage extends Component {
     this.setState({isTemplating: true})
   }
 
-  handleCloseTemplateManager(isEdited) {
+  handleCloseTemplateManager = isEdited => () => {
     if (
       !isEdited ||
       (isEdited && confirm('Do you want to close without saving?')) // eslint-disable-line no-alert
