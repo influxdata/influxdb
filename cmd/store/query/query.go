@@ -189,7 +189,7 @@ func (cmd *Command) query(c storage.StorageClient) error {
 		for _, frame := range rep.Frames {
 			if s := frame.GetSeries(); s != nil {
 				if !cmd.silent {
-					wr.WriteString("\033[36mseries:")
+					wr.WriteString("\033[36m")
 					wr.WriteString(s.Name)
 					wr.WriteString("\n\033[0m")
 					wr.Flush()

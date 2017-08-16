@@ -60,7 +60,10 @@ func extractFields(itr influxql.FloatIterator) []string {
 }
 
 func newAllMeasurementsPlanner(req *ReadRequest, shards []*tsdb.Shard, log zap.Logger) (*allMeasurementsPlanner, error) {
-	opt := influxql.IteratorOptions{Aux: []influxql.VarRef{{Val: "key"}}}
+	opt := influxql.IteratorOptions{
+		Aux:        []influxql.VarRef{{Val: "key"}},
+		Authorizer: influxql.OpenAuthorizer{},
+	}
 	p := &allMeasurementsPlanner{shards: shards}
 
 	var err error
