@@ -23,6 +23,23 @@ func newLayoutResponse(layout chronograf.Layout) layoutResponse {
 	httpAPILayouts := "/chronograf/v1/layouts"
 	href := fmt.Sprintf("%s/%s", httpAPILayouts, layout.ID)
 	rel := "self"
+
+	for idx, cell := range layout.Cells {
+		axes := []string{"x", "y", "y2"}
+
+		if cell.Axes == nil {
+			layout.Cells[idx].Axes = make(map[string]chronograf.Axis, len(axes))
+		}
+
+		for _, axis := range axes {
+			if _, found := cell.Axes[axis]; !found {
+				layout.Cells[idx].Axes[axis] = chronograf.Axis{
+					Bounds: []string{},
+				}
+			}
+		}
+	}
+
 	return layoutResponse{
 		Layout: layout,
 		Link: link{

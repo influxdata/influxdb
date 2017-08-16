@@ -19,6 +19,7 @@
 1. [#1866](https://github.com/influxdata/chronograf/pull/1866): Fix non-persistence of dashboard graph types
 
 ### Features
+1. [#1859](https://github.com/influxdata/chronograf/pull/1859): Add y-axis controls to the API for layouts
 
 ### UI Improvements
 1. [#1846](https://github.com/influxdata/chronograf/pull/1846): Increase screen real estate of Query Maker in the Cell Editor Overlay

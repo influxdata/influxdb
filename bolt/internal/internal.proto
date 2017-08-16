@@ -93,6 +93,7 @@ message Cell {
 	repeated int64 yranges  = 8; // Limits of the y-axes
 	repeated string ylabels = 9; // Labels of the y-axes
 	string type             = 10; // Cell visualization type
+	map<string, Axis> axes  = 11; // Axes represent the graphical viewport for a cell's visualizations
 }
 
 message Query {
