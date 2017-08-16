@@ -1940,6 +1940,8 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, name string, s
 
 	// If the field doesn't exist then don't build an iterator.
 	if cur == nil {
+		cursorsAt(aux).close()
+		cursorsAt(conds).close()
 		return nil, nil
 	}
 

@@ -7,6 +7,7 @@
 - [#8639](https://github.com/influxdata/influxdb/issues/8639): Parse time literals using the time zone in the select statement.
 - [#8701](https://github.com/influxdata/influxdb/pull/8701): Fix drop measurement not dropping all data
 - [#8677](https://github.com/influxdata/influxdb/issues/8677): Fix backups when snapshot is empty.
+- [#8706](https://github.com/influxdata/influxdb/pull/8706): Cursor leak, resulting in an accumulation of `.tsm.tmp` files after compactions.
 
 ## v1.3.3 [2017-08-10]
 
