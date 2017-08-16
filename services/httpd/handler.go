@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"os"
 	"runtime/debug"
@@ -956,14 +957,17 @@ func parseSystemDiagnostics(d *diagnostics.Diagnostics) (map[string]interface{},
 }
 
 // httpError writes an error to the client in a standard format.
-func (h *Handler) httpError(w http.ResponseWriter, error string, code int) {
+func (h *Handler) httpError(w http.ResponseWriter, errmsg string, code int) {
 	if code == http.StatusUnauthorized {
 		// If an unauthorized header will be sent back, add a WWW-Authenticate header
 		// as an authorization challenge.
 		w.Header().Set("WWW-Authenticate", fmt.Sprintf("Basic realm=\"%s\"", h.Config.Realm))
+	} else if code/100 != 2 {
+		sz := math.Min(float64(len(errmsg)), 1024.0)
+		w.Header().Set("X-InfluxDB-Error", errmsg[:int(sz)])
 	}
 
-	response := Response{Err: errors.New(error)}
+	response := Response{Err: errors.New(errmsg)}
 	if rw, ok := w.(ResponseWriter); ok {
 		h.writeHeader(w, code)
 		rw.WriteResponse(response)
@@ -1180,6 +1184,14 @@ func (h *Handler) logging(inner http.Handler, name string) http.Handler {
 		l := &responseLogger{w: w}
 		inner.ServeHTTP(l, r)
 		h.CLFLogger.Println(buildLogLine(l, r, start))
+
+		// Log server errors.
+		if l.Status()/100 == 5 {
+			errStr := l.Header().Get("X-InfluxDB-Error")
+			if errStr != "" {
+				h.Logger.Error(fmt.Sprintf("[%d] - %q", l.Status(), errStr))
+			}
+		}
 	})
 }
 
