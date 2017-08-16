@@ -104,6 +104,7 @@ class CustomTimeRange extends Component {
   handleTimeRangeShortcut(shortcut) {
     return () => {
       let lower
+      const upper = moment()
 
       switch (shortcut) {
         case 'pastWeek': {
@@ -133,6 +134,7 @@ class CustomTimeRange extends Component {
       }
 
       this.lowerCal.setValue(lower)
+      this.upperCal.setValue(upper)
     }
   }
 }
