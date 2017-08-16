@@ -16,6 +16,7 @@
 - [#8592](https://github.com/influxdata/influxdb/pull/8592): Mutex profiles are now available.
 - [#8669](https://github.com/influxdata/influxdb/pull/8669): TSI Index Migration Tool
 - [#7195](https://github.com/influxdata/influxdb/issues/7195): Support SHOW CARDINALITY queries.
+- [#8711](https://github.com/influxdata/influxdb/pull/8711): Batch up writes for monitor service
 
 ### Bugfixes
 
