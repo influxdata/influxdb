@@ -14,10 +14,8 @@ const TemplateDrawer = ({
         className={classnames('template-drawer--item', {
           'template-drawer--selected': t.tempVar === selected.tempVar,
         })}
-        onMouseOver={() => {
-          onMouseOverTempVar(t)
-        }}
-        onClick={() => onClickTempVar(t)}
+        onMouseOver={onMouseOverTempVar(t)}
+        onClick={onClickTempVar(t)}
         key={t.tempVar}
       >
         {' '}{t.tempVar}{' '}
