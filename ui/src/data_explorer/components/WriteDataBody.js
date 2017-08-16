@@ -27,7 +27,7 @@ const WriteDataBody = ({
           data-test="manual-entry-field"
         />
       : <div className="write-data-form--file">
-          <h3>Drag & drop File here</h3>
+          <h3>Drag & Drop a File</h3>
           <div className="write-data-form--drag-graphic" />
           <p>OR</p>
           <input
