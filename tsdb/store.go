@@ -829,9 +829,21 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 	sources = a
 
 	// Determine deletion time range.
-	min, max, err := influxql.TimeRangeAsEpochNano(condition)
+	condition, timeRange, err := influxql.ConditionExpr(condition, nil)
 	if err != nil {
 		return err
+	}
+
+	var min, max int64
+	if !timeRange.Min.IsZero() {
+		min = timeRange.Min.UnixNano()
+	} else {
+		min = influxql.MinTime
+	}
+	if !timeRange.Max.IsZero() {
+		max = timeRange.Max.UnixNano()
+	} else {
+		max = influxql.MaxTime
 	}
 
 	s.mu.RLock()

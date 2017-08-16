@@ -687,13 +687,14 @@ type IteratorOptions struct {
 func newIteratorOptionsStmt(stmt *influxql.SelectStatement, sopt *SelectOptions) (opt IteratorOptions, err error) {
 
 	// Determine time range from the condition.
-	startTime, endTime, err := influxql.TimeRange(stmt.Condition, stmt.Location)
+	valuer := &influxql.NowValuer{Location: stmt.Location}
+	condition, timeRange, err := influxql.ConditionExpr(stmt.Condition, valuer)
 	if err != nil {
 		return IteratorOptions{}, err
 	}
 
-	if !startTime.IsZero() {
-		opt.StartTime = startTime.UnixNano()
+	if !timeRange.Min.IsZero() {
+		opt.StartTime = timeRange.Min.UnixNano()
 	} else {
 		if sopt != nil {
 			opt.StartTime = sopt.MinTime.UnixNano()
@@ -701,8 +702,8 @@ func newIteratorOptionsStmt(stmt *influxql.SelectStatement, sopt *SelectOptions)
 			opt.StartTime = influxql.MinTime
 		}
 	}
-	if !endTime.IsZero() {
-		opt.EndTime = endTime.UnixNano()
+	if !timeRange.Max.IsZero() {
+		opt.EndTime = timeRange.Max.UnixNano()
 	} else {
 		if sopt != nil {
 			opt.EndTime = sopt.MaxTime.UnixNano()
@@ -741,7 +742,7 @@ func newIteratorOptionsStmt(stmt *influxql.SelectStatement, sopt *SelectOptions)
 		}
 	}
 
-	opt.Condition = stmt.Condition
+	opt.Condition = condition
 	opt.Ascending = stmt.TimeAscending()
 	opt.Dedupe = stmt.Dedupe
 

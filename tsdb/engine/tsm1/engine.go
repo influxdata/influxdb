@@ -337,10 +337,6 @@ func (e *Engine) MeasurementFields(measurement []byte) *tsdb.MeasurementFields {
 	return e.fieldset.CreateFieldsIfNotExists(measurement)
 }
 
-func (e *Engine) ForEachMeasurementSeriesByExpr(name []byte, condition influxql.Expr, fn func(tags models.Tags) error) error {
-	return e.index.ForEachMeasurementSeriesByExpr(name, condition, fn)
-}
-
 func (e *Engine) HasTagKey(name, key []byte) (bool, error) {
 	return e.index.HasTagKey(name, key)
 }

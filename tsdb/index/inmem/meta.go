@@ -276,7 +276,7 @@ func (m *Measurement) DropSeries(series *Series) {
 // filters walks the where clause of a select statement and returns a map with all series ids
 // matching the where clause and any filter expression that should be applied to each
 func (m *Measurement) filters(condition influxql.Expr) ([]uint64, map[uint64]influxql.Expr, error) {
-	if condition == nil || influxql.OnlyTimeExpr(condition) {
+	if condition == nil {
 		return m.SeriesIDs(), nil, nil
 	}
 	return m.WalkWhereForSeriesIds(condition)
@@ -555,11 +555,6 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (SeriesIDs, influxql.Ex
 			return nil, nil, fmt.Errorf("invalid expression: %s", n.String())
 		}
 		value = n.LHS
-	}
-
-	// For time literals, return all series IDs and "true" as the filter.
-	if _, ok := value.(*influxql.TimeLiteral); ok || name.Val == "time" {
-		return m.SeriesIDs(), &influxql.BooleanLiteral{Val: true}, nil
 	}
 
 	// For fields, return all series IDs from this measurement and return

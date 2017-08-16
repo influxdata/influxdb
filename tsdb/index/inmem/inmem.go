@@ -614,23 +614,6 @@ func (i *Index) DropSeries(key []byte) error {
 	return nil
 }
 
-// ForEachMeasurementSeriesByExpr iterates over all series in a measurement filtered by an expression.
-func (i *Index) ForEachMeasurementSeriesByExpr(name []byte, expr influxql.Expr, fn func(tags models.Tags) error) error {
-	i.mu.RLock()
-	mm := i.measurements[string(name)]
-	i.mu.RUnlock()
-
-	if mm == nil {
-		return nil
-	}
-
-	if err := mm.ForEachSeriesByExpr(expr, fn); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // TagSets returns a list of tag sets.
 func (i *Index) TagSets(shardID uint64, name []byte, opt query.IteratorOptions) ([]*query.TagSet, error) {
 	i.mu.RLock()
