@@ -1,9 +1,10 @@
 import React, {PropTypes} from 'react'
 import {Link} from 'react-router'
 import _ from 'lodash'
-
 import shallowCompare from 'react-addons-shallow-compare'
 import classnames from 'classnames'
+
+import SearchBar from 'src/hosts/components/SearchBar'
 import {HOSTS_TABLE} from 'src/hosts/constants/tableSizing'
 
 const {arrayOf, bool, number, shape, string} = PropTypes
@@ -240,48 +241,6 @@ const HostRow = React.createClass({
           })}
         </td>
       </tr>
-    )
-  },
-})
-
-const SearchBar = React.createClass({
-  propTypes: {
-    onSearch: PropTypes.func.isRequired,
-  },
-
-  getInitialState() {
-    return {
-      searchTerm: '',
-    }
-  },
-
-  componentWillMount() {
-    const waitPeriod = 300
-    this.handleSearch = _.debounce(this.handleSearch, waitPeriod)
-  },
-
-  handleSearch() {
-    this.props.onSearch(this.state.searchTerm)
-  },
-
-  handleChange() {
-    this.setState({searchTerm: this.refs.searchInput.value}, this.handleSearch)
-  },
-
-  render() {
-    return (
-      <div className="users__search-widget input-group">
-        <input
-          type="text"
-          className="form-control"
-          placeholder="Filter by Host..."
-          ref="searchInput"
-          onChange={this.handleChange}
-        />
-        <div className="input-group-addon">
-          <span className="icon search" aria-hidden="true" />
-        </div>
-      </div>
     )
   },
 })
