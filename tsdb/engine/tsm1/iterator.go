@@ -46,3 +46,11 @@ func (c *integerCastFloatCursor) nextInteger() (int64, int64) {
 	t, v := c.cursor.nextFloat()
 	return t, int64(v)
 }
+
+type cursorsAt []cursorAt
+
+func (c cursorsAt) close() {
+	for _, cur := range c {
+		cur.close()
+	}
+}
