@@ -180,8 +180,6 @@ func NewEngine(id uint64, idx tsdb.Index, database, path string, walPath string,
 		compactionLimiter: opt.CompactionLimiter,
 	}
 
-	fs.OnReplace = e.onFileStoreReplace
-
 	// Attach fieldset to index.
 	e.index.SetFieldSet(e.fieldset)
 
@@ -1323,6 +1321,7 @@ type compactionStrategy struct {
 	compactor *Compactor
 	fileStore *FileStore
 	limiter   limiter.Fixed
+	engine    *Engine
 }
 
 // Apply concurrently compacts all the groups in a compaction strategy.
@@ -1398,7 +1397,7 @@ func (s *compactionStrategy) compactGroup(groupNum int) {
 		return
 	}
 
-	if err := s.fileStore.Replace(group, files); err != nil {
+	if err := s.fileStore.ReplaceWithCallback(group, files, s.engine.onFileStoreReplace); err != nil {
 		s.logger.Info(fmt.Sprintf("error replacing new TSM files: %v", err))
 		atomic.AddInt64(s.errorStat, 1)
 		time.Sleep(time.Second)
@@ -1429,6 +1428,7 @@ func (e *Engine) levelCompactionStrategy(fast bool, level int) *compactionStrate
 		compactor:        e.Compactor,
 		fast:             fast,
 		limiter:          e.compactionLimiter,
+		engine:           e,
 
 		description:  fmt.Sprintf("level %d", level),
 		activeStat:   &e.stats.TSMCompactionsActive[level-1],
@@ -1461,6 +1461,7 @@ func (e *Engine) fullCompactionStrategy() *compactionStrategy {
 		compactor:        e.Compactor,
 		fast:             optimize,
 		limiter:          e.compactionLimiter,
+		engine:           e,
 	}
 
 	if optimize {
