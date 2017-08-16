@@ -1506,12 +1506,13 @@ func (s *SelectStatement) RewriteTimeCondition(now time.Time) error {
 	if err != nil {
 		return err
 	} else if interval > 0 && s.Condition != nil {
-		_, tmax, err := TimeRange(s.Condition, s.Location)
+		valuer := &NowValuer{Location: s.Location}
+		_, timeRange, err := ConditionExpr(s.Condition, valuer)
 		if err != nil {
 			return err
 		}
 
-		if tmax.IsZero() {
+		if timeRange.Max.IsZero() {
 			s.Condition = &BinaryExpr{
 				Op:  AND,
 				LHS: s.Condition,
@@ -4269,129 +4270,6 @@ func OnlyTimeExpr(expr Expr) bool {
 	}
 }
 
-// TimeRange returns the minimum and maximum times specified by an expression.
-// It returns zero times if there is no bound.
-func TimeRange(expr Expr, loc *time.Location) (min, max time.Time, err error) {
-	WalkFunc(expr, func(n Node) {
-		if err != nil {
-			return
-		}
-
-		if n, ok := n.(*BinaryExpr); ok {
-			// Extract literal expression & operator on LHS.
-			// Check for "time" on the left-hand side first.
-			// Otherwise check for for the right-hand side and flip the operator.
-			op := n.Op
-			var value time.Time
-			value, err = timeExprValue(n.LHS, n.RHS, loc)
-			if err != nil {
-				return
-			} else if value.IsZero() {
-				if value, err = timeExprValue(n.RHS, n.LHS, loc); value.IsZero() || err != nil {
-					return
-				} else if op == LT {
-					op = GT
-				} else if op == LTE {
-					op = GTE
-				} else if op == GT {
-					op = LT
-				} else if op == GTE {
-					op = LTE
-				}
-			}
-
-			// Update the min/max depending on the operator.
-			// The GT & LT update the value by +/- 1ns not make them "not equal".
-			switch op {
-			case GT:
-				if min.IsZero() || value.After(min) {
-					min = value.Add(time.Nanosecond)
-				}
-			case GTE:
-				if min.IsZero() || value.After(min) {
-					min = value
-				}
-			case LT:
-				if max.IsZero() || value.Before(max) {
-					max = value.Add(-time.Nanosecond)
-				}
-			case LTE:
-				if max.IsZero() || value.Before(max) {
-					max = value
-				}
-			case EQ:
-				if min.IsZero() || value.After(min) {
-					min = value
-				}
-				if max.IsZero() || value.Before(max) {
-					max = value
-				}
-			}
-		}
-	})
-	return
-}
-
-// TimeRangeAsEpochNano returns the minimum and maximum times, as epoch nano, specified by
-// an expression. If there is no lower bound, the minimum time is returned
-// for minimum. If there is no higher bound, the maximum time is returned.
-func TimeRangeAsEpochNano(expr Expr) (min, max int64, err error) {
-	tmin, tmax, err := TimeRange(expr, nil)
-	if err != nil {
-		return 0, 0, err
-	}
-
-	if tmin.IsZero() {
-		min = time.Unix(0, MinTime).UnixNano()
-	} else {
-		min = tmin.UnixNano()
-	}
-	if tmax.IsZero() {
-		max = time.Unix(0, MaxTime).UnixNano()
-	} else {
-		max = tmax.UnixNano()
-	}
-	return
-}
-
-// timeExprValue returns the time literal value of a "time == <TimeLiteral>" expression.
-// Returns zero time if the expression is not a time expression.
-func timeExprValue(ref Expr, lit Expr, loc *time.Location) (t time.Time, err error) {
-	if ref, ok := ref.(*VarRef); ok && strings.ToLower(ref.Val) == "time" {
-		// If literal looks like a date time then parse it as a time literal.
-		if strlit, ok := lit.(*StringLiteral); ok {
-			if strlit.IsTimeLiteral() {
-				t, err := strlit.ToTimeLiteral(loc)
-				if err != nil {
-					return time.Time{}, err
-				}
-				lit = t
-			}
-		}
-
-		switch lit := lit.(type) {
-		case *TimeLiteral:
-			if lit.Val.After(time.Unix(0, MaxTime)) {
-				return time.Time{}, fmt.Errorf("time %s overflows time literal", lit.Val.Format(time.RFC3339))
-			} else if lit.Val.Before(time.Unix(0, MinTime+1)) {
-				// The minimum allowable time literal is one greater than the minimum time because the minimum time
-				// is a sentinel value only used internally.
-				return time.Time{}, fmt.Errorf("time %s underflows time literal", lit.Val.Format(time.RFC3339))
-			}
-			return lit.Val, nil
-		case *DurationLiteral:
-			return time.Unix(0, int64(lit.Val)).UTC(), nil
-		case *NumberLiteral:
-			return time.Unix(0, int64(lit.Val)).UTC(), nil
-		case *IntegerLiteral:
-			return time.Unix(0, lit.Val).UTC(), nil
-		default:
-			return time.Time{}, fmt.Errorf("invalid operation: time and %T are not compatible", lit)
-		}
-	}
-	return time.Time{}, nil
-}
-
 // Visitor can be called by Walk to traverse an AST hierarchy.
 // The Visit() function is called once per node.
 type Visitor interface {
@@ -5570,7 +5448,7 @@ type NowValuer struct {
 
 // Value is a method that returns the value and existence flag for a given key.
 func (v *NowValuer) Value(key string) (interface{}, bool) {
-	if key == "now()" {
+	if !v.Now.IsZero() && key == "now()" {
 		return v.Now, true
 	}
 	return nil, false
@@ -5655,4 +5533,168 @@ func stringSetSlice(m map[string]struct{}) []string {
 	}
 	sort.Strings(a)
 	return a
+}
+
+// TimeRange represents a range of time from Min to Max. The times are inclusive.
+type TimeRange struct {
+	Min, Max time.Time
+}
+
+// Intersect joins this TimeRange with another TimeRange.
+func (t TimeRange) Intersect(other TimeRange) TimeRange {
+	if !other.Min.IsZero() {
+		if t.Min.IsZero() || other.Min.After(t.Min) {
+			t.Min = other.Min
+		}
+	}
+	if !other.Max.IsZero() {
+		if t.Max.IsZero() || other.Max.Before(t.Max) {
+			t.Max = other.Max
+		}
+	}
+	return t
+}
+
+// IsZero is true if the min and max of the time range are zero.
+func (t TimeRange) IsZero() bool {
+	return t.Min.IsZero() && t.Max.IsZero()
+}
+
+// ConditionExpr extracts the time range and the condition from an expression.
+// We only support simple time ranges that are constrained with AND and are not nested.
+// This throws an error when we encounter a time condition that is combined with OR
+// to prevent returning unexpected results that we do not support.
+func ConditionExpr(cond Expr, valuer Valuer) (Expr, TimeRange, error) {
+	if cond == nil {
+		return nil, TimeRange{}, nil
+	}
+
+	switch cond := cond.(type) {
+	case *BinaryExpr:
+		if cond.Op == AND || cond.Op == OR {
+			lhsExpr, lhsTime, err := ConditionExpr(cond.LHS, valuer)
+			if err != nil {
+				return nil, TimeRange{}, err
+			}
+
+			rhsExpr, rhsTime, err := ConditionExpr(cond.RHS, valuer)
+			if err != nil {
+				return nil, TimeRange{}, err
+			}
+
+			// If either of the two expressions has a time range and we are combining
+			// them with OR, return an error since this isn't allowed.
+			if cond.Op == OR && !(lhsTime.IsZero() && rhsTime.IsZero()) {
+				return nil, TimeRange{}, errors.New("cannot use OR with time conditions")
+			}
+			timeRange := lhsTime.Intersect(rhsTime)
+
+			// Combine the left and right expression.
+			if rhsExpr == nil {
+				return lhsExpr, timeRange, nil
+			} else if lhsExpr == nil {
+				return rhsExpr, timeRange, nil
+			}
+			return &BinaryExpr{
+				Op:  cond.Op,
+				LHS: lhsExpr,
+				RHS: rhsExpr,
+			}, timeRange, nil
+		}
+
+		// If either the left or the right side is "time", we are looking at
+		// a time range.
+		if lhs, ok := cond.LHS.(*VarRef); ok && lhs.Val == "time" {
+			timeRange, err := getTimeRange(cond.Op, cond.RHS, valuer)
+			return nil, timeRange, err
+		} else if rhs, ok := cond.RHS.(*VarRef); ok && rhs.Val == "time" {
+			// Swap the op for the opposite if it is a comparison.
+			op := cond.Op
+			switch op {
+			case GT:
+				op = LT
+			case LT:
+				op = GT
+			case GTE:
+				op = LTE
+			case LTE:
+				op = GTE
+			}
+			timeRange, err := getTimeRange(op, cond.LHS, valuer)
+			return nil, timeRange, err
+		}
+		return cond, TimeRange{}, nil
+	case *ParenExpr:
+		expr, timeRange, err := ConditionExpr(cond.Expr, valuer)
+		if err != nil {
+			return nil, TimeRange{}, err
+		} else if expr == nil {
+			return nil, timeRange, nil
+		}
+		return &ParenExpr{Expr: expr}, timeRange, nil
+	default:
+		return nil, TimeRange{}, fmt.Errorf("invalid condition expression: %s", cond)
+	}
+}
+
+// getTimeRange returns the time range associated with this comparison.
+// op is the operation that is used for comparison and rhs is the right hand side
+// of the expression. The left hand side is always assumed to be "time".
+func getTimeRange(op Token, rhs Expr, valuer Valuer) (TimeRange, error) {
+	// If literal looks like a date time then parse it as a time literal.
+	if strlit, ok := rhs.(*StringLiteral); ok {
+		if strlit.IsTimeLiteral() {
+			var loc *time.Location
+			if v, ok := valuer.(ZoneValuer); ok {
+				loc = v.Zone()
+			}
+
+			t, err := strlit.ToTimeLiteral(loc)
+			if err != nil {
+				return TimeRange{}, err
+			}
+			rhs = t
+		}
+	}
+
+	// Evaluate the RHS to replace "now()" with the current time.
+	rhs = Reduce(rhs, valuer)
+
+	var value time.Time
+	switch lit := rhs.(type) {
+	case *TimeLiteral:
+		if lit.Val.After(time.Unix(0, MaxTime)) {
+			return TimeRange{}, fmt.Errorf("time %s overflows time literal", lit.Val.Format(time.RFC3339))
+		} else if lit.Val.Before(time.Unix(0, MinTime+1)) {
+			// The minimum allowable time literal is one greater than the minimum time because the minimum time
+			// is a sentinel value only used internally.
+			return TimeRange{}, fmt.Errorf("time %s underflows time literal", lit.Val.Format(time.RFC3339))
+		}
+		value = lit.Val
+	case *DurationLiteral:
+		value = time.Unix(0, int64(lit.Val)).UTC()
+	case *NumberLiteral:
+		value = time.Unix(0, int64(lit.Val)).UTC()
+	case *IntegerLiteral:
+		value = time.Unix(0, lit.Val).UTC()
+	default:
+		return TimeRange{}, fmt.Errorf("invalid operation: time and %T are not compatible", lit)
+	}
+
+	timeRange := TimeRange{}
+	switch op {
+	case GT:
+		timeRange.Min = value.Add(time.Nanosecond)
+	case GTE:
+		timeRange.Min = value
+	case LT:
+		timeRange.Max = value.Add(-time.Nanosecond)
+	case LTE:
+		timeRange.Max = value
+	case EQ:
+		timeRange.Min, timeRange.Max = value, value
+	default:
+		return TimeRange{}, fmt.Errorf("invalid time comparison operator: %s", op)
+	}
+	return timeRange, nil
 }

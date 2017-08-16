@@ -858,81 +858,92 @@ func TestBinaryExprName(t *testing.T) {
 	}
 }
 
-// Ensure the time range of an expression can be extracted.
-func TestTimeRange(t *testing.T) {
-	for i, tt := range []struct {
-		expr          string
-		min, max, err string
-		loc           string
+func TestConditionExpr(t *testing.T) {
+	mustParseTime := func(value string) time.Time {
+		ts, err := time.Parse(time.RFC3339, value)
+		if err != nil {
+			t.Fatalf("unable to parse time: %s", err)
+		}
+		return ts
+	}
+	now := mustParseTime("2000-01-01T00:00:00Z")
+	valuer := influxql.NowValuer{Now: now}
+
+	for _, tt := range []struct {
+		s        string
+		cond     string
+		min, max time.Time
+		err      string
 	}{
-		// LHS VarRef
-		{expr: `time > '2000-01-01 00:00:00'`, min: `2000-01-01T00:00:00.000000001Z`, max: `0001-01-01T00:00:00Z`},
-		{expr: `time >= '2000-01-01 00:00:00'`, min: `2000-01-01T00:00:00Z`, max: `0001-01-01T00:00:00Z`},
-		{expr: `time < '2000-01-01 00:00:00'`, min: `0001-01-01T00:00:00Z`, max: `1999-12-31T23:59:59.999999999Z`},
-		{expr: `time <= '2000-01-01 00:00:00'`, min: `0001-01-01T00:00:00Z`, max: `2000-01-01T00:00:00Z`},
-
-		// RHS VarRef
-		{expr: `'2000-01-01 00:00:00' > time`, min: `0001-01-01T00:00:00Z`, max: `1999-12-31T23:59:59.999999999Z`},
-		{expr: `'2000-01-01 00:00:00' >= time`, min: `0001-01-01T00:00:00Z`, max: `2000-01-01T00:00:00Z`},
-		{expr: `'2000-01-01 00:00:00' < time`, min: `2000-01-01T00:00:00.000000001Z`, max: `0001-01-01T00:00:00Z`},
-		{expr: `'2000-01-01 00:00:00' <= time`, min: `2000-01-01T00:00:00Z`, max: `0001-01-01T00:00:00Z`},
-
-		// number literal
-		{expr: `time < 10`, min: `0001-01-01T00:00:00Z`, max: `1970-01-01T00:00:00.000000009Z`},
-
-		// Equality
-		{expr: `time = '2000-01-01 00:00:00'`, min: `2000-01-01T00:00:00Z`, max: `2000-01-01T00:00:00Z`},
-
-		// Multiple time expressions.
-		{expr: `time >= '2000-01-01 00:00:00' AND time < '2000-01-02 00:00:00'`, min: `2000-01-01T00:00:00Z`, max: `2000-01-01T23:59:59.999999999Z`},
-
-		// Min/max crossover
-		{expr: `time >= '2000-01-01 00:00:00' AND time <= '1999-01-01 00:00:00'`, min: `2000-01-01T00:00:00Z`, max: `1999-01-01T00:00:00Z`},
-
-		// Absolute time
-		{expr: `time = 1388534400s`, min: `2014-01-01T00:00:00Z`, max: `2014-01-01T00:00:00Z`},
-
-		// Non-comparative expressions.
-		{expr: `time`, min: `0001-01-01T00:00:00Z`, max: `0001-01-01T00:00:00Z`},
-		{expr: `time + 2`, min: `0001-01-01T00:00:00Z`, max: `0001-01-01T00:00:00Z`},
-		{expr: `time - '2000-01-01 00:00:00'`, min: `0001-01-01T00:00:00Z`, max: `0001-01-01T00:00:00Z`},
-		{expr: `time AND '2000-01-01 00:00:00'`, min: `0001-01-01T00:00:00Z`, max: `0001-01-01T00:00:00Z`},
-
-		// Invalid time expressions.
-		{expr: `time > "2000-01-01 00:00:00"`, min: `0001-01-01T00:00:00Z`, max: `0001-01-01T00:00:00Z`, err: `invalid operation: time and *influxql.VarRef are not compatible`},
-		{expr: `time > '2262-04-11 23:47:17'`, min: `0001-01-01T00:00:00Z`, max: `0001-01-01T00:00:00Z`, err: `time 2262-04-11T23:47:17Z overflows time literal`},
-		{expr: `time > '1677-09-20 19:12:43'`, min: `0001-01-01T00:00:00Z`, max: `0001-01-01T00:00:00Z`, err: `time 1677-09-20T19:12:43Z underflows time literal`},
-
-		// Time zone expressions.
-		{expr: `time >= '2000-01-01'`, loc: `America/Los_Angeles`, min: `2000-01-01T00:00:00-08:00`, max: `0001-01-01T00:00:00Z`},
-		{expr: `time <= '2000-01-01'`, loc: `America/Los_Angeles`, min: `0001-01-01T00:00:00Z`, max: `2000-01-01T00:00:00-08:00`},
-		{expr: `time >= '2000-01-01 03:17:00'`, loc: `America/Los_Angeles`, min: `2000-01-01T03:17:00-08:00`, max: `0001-01-01T00:00:00Z`},
-		{expr: `time <= '2000-01-01 03:17:00'`, loc: `America/Los_Angeles`, min: `0001-01-01T00:00:00Z`, max: `2000-01-01T03:17:00-08:00`},
+		{s: `host = 'server01'`, cond: `host = 'server01'`},
+		{s: `time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T01:00:00Z'`,
+			min: mustParseTime("2000-01-01T00:00:00Z"),
+			max: mustParseTime("2000-01-01T01:00:00Z").Add(-1)},
+		{s: `host = 'server01' AND (region = 'uswest' AND time >= now() - 10m)`,
+			cond: `host = 'server01' AND (region = 'uswest')`,
+			min:  mustParseTime("1999-12-31T23:50:00Z")},
+		{s: `(host = 'server01' AND region = 'uswest') AND time >= now() - 10m`,
+			cond: `(host = 'server01' AND region = 'uswest')`,
+			min:  mustParseTime("1999-12-31T23:50:00Z")},
+		{s: `host = 'server01' AND (time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T01:00:00Z')`,
+			cond: `host = 'server01'`,
+			min:  mustParseTime("2000-01-01T00:00:00Z"),
+			max:  mustParseTime("2000-01-01T01:00:00Z").Add(-1)},
+		{s: `(time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T01:00:00Z') AND host = 'server01'`,
+			cond: `host = 'server01'`,
+			min:  mustParseTime("2000-01-01T00:00:00Z"),
+			max:  mustParseTime("2000-01-01T01:00:00Z").Add(-1)},
+		{s: `'2000-01-01T00:00:00Z' <= time AND '2000-01-01T01:00:00Z' > time`,
+			min: mustParseTime("2000-01-01T00:00:00Z"),
+			max: mustParseTime("2000-01-01T01:00:00Z").Add(-1)},
+		{s: `'2000-01-01T00:00:00Z' < time AND '2000-01-01T01:00:00Z' >= time`,
+			min: mustParseTime("2000-01-01T00:00:00Z").Add(1),
+			max: mustParseTime("2000-01-01T01:00:00Z")},
+		{s: `time = '2000-01-01T00:00:00Z'`,
+			min: mustParseTime("2000-01-01T00:00:00Z"),
+			max: mustParseTime("2000-01-01T00:00:00Z")},
+		{s: `time >= 10s`, min: mustParseTime("1970-01-01T00:00:10Z")},
+		{s: `time >= 10000000000`, min: mustParseTime("1970-01-01T00:00:10Z")},
+		{s: `time >= 10000000000.0`, min: mustParseTime("1970-01-01T00:00:10Z")},
+		{s: `time > now()`, min: now.Add(1)},
+		{s: `value`, err: `invalid condition expression: value`},
+		{s: `4`, err: `invalid condition expression: 4`},
+		{s: `time >= 'today'`, err: `invalid operation: time and *influxql.StringLiteral are not compatible`},
+		{s: `time != '2000-01-01T00:00:00Z'`, err: `invalid time comparison operator: !=`},
+		{s: `host = 'server01' OR (time >= now() - 10m AND host = 'server02')`, err: `cannot use OR with time conditions`},
+		{s: `value AND host = 'server01'`, err: `invalid condition expression: value`},
+		{s: `host = 'server01' OR (value)`, err: `invalid condition expression: value`},
+		{s: `time > '2262-04-11 23:47:17'`, err: `time 2262-04-11T23:47:17Z overflows time literal`},
+		{s: `time > '1677-09-20 19:12:43'`, err: `time 1677-09-20T19:12:43Z underflows time literal`},
 	} {
-		t.Run(tt.expr, func(t *testing.T) {
-			// Load the time zone if one was specified.
-			var loc *time.Location
-			if tt.loc != "" {
-				l, err := time.LoadLocation(tt.loc)
-				if err != nil {
-					t.Fatalf("unable to load time zone %s: %s", tt.loc, err)
+		t.Run(tt.s, func(t *testing.T) {
+			expr, err := influxql.ParseExpr(tt.s)
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+
+			cond, timeRange, err := influxql.ConditionExpr(expr, &valuer)
+			if err != nil {
+				if tt.err == "" {
+					t.Fatalf("unexpected error: %s", err)
+				} else if have, want := err.Error(), tt.err; have != want {
+					t.Fatalf("unexpected error: %s != %s", have, want)
 				}
-				loc = l
 			}
-
-			// Extract time range.
-			expr := MustParseExpr(tt.expr)
-			min, max, err := influxql.TimeRange(expr, loc)
-
-			// Compare with expected min/max.
-			if min := min.Format(time.RFC3339Nano); tt.min != min {
-				t.Fatalf("%d. %s: unexpected min:\n\nexp=%s\n\ngot=%s\n\n", i, tt.expr, tt.min, min)
+			if cond != nil {
+				if have, want := cond.String(), tt.cond; have != want {
+					t.Errorf("unexpected condition:\nhave=%s\nwant=%s", have, want)
+				}
+			} else {
+				if have, want := "", tt.cond; have != want {
+					t.Errorf("unexpected condition:\nhave=%s\nwant=%s", have, want)
+				}
 			}
-			if max := max.Format(time.RFC3339Nano); tt.max != max {
-				t.Fatalf("%d. %s: unexpected max:\n\nexp=%s\n\ngot=%s\n\n", i, tt.expr, tt.max, max)
+			if have, want := timeRange.Min, tt.min; !have.Equal(want) {
+				t.Errorf("unexpected min time:\nhave=%s\nwant=%s", have, want)
 			}
-			if (err != nil && err.Error() != tt.err) || (err == nil && tt.err != "") {
-				t.Fatalf("%d. %s: unexpected error:\n\nexp=%s\n\ngot=%s\n\n", i, tt.expr, tt.err, err)
+			if have, want := timeRange.Max, tt.max; !have.Equal(want) {
+				t.Errorf("unexpected max time:\nhave=%s\nwant=%s", have, want)
 			}
 		})
 	}
@@ -1830,11 +1841,11 @@ func (o Valuer) Value(key string) (v interface{}, ok bool) {
 
 // MustTimeRange will parse a time range. Panic on error.
 func MustTimeRange(expr influxql.Expr) (min, max time.Time) {
-	min, max, err := influxql.TimeRange(expr, nil)
+	_, timeRange, err := influxql.ConditionExpr(expr, nil)
 	if err != nil {
 		panic(err)
 	}
-	return min, max
+	return timeRange.Min, timeRange.Max
 }
 
 // mustParseTime parses an IS0-8601 string. Panic on error.

@@ -538,11 +538,11 @@ func (e *StatementExecutor) createIterators(stmt *influxql.SelectStatement, ctx 
 	nowValuer := influxql.NowValuer{Now: now, Location: stmt.Location}
 	stmt = stmt.Reduce(&nowValuer)
 
-	var err error
-	opt.MinTime, opt.MaxTime, err = influxql.TimeRange(stmt.Condition, stmt.Location)
+	_, timeRange, err := influxql.ConditionExpr(stmt.Condition, &nowValuer)
 	if err != nil {
 		return nil, stmt, err
 	}
+	opt.MinTime, opt.MaxTime = timeRange.Min, timeRange.Max
 
 	if opt.MaxTime.IsZero() {
 		opt.MaxTime = time.Unix(0, influxql.MaxTime)
