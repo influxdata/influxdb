@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/httpd"
 )
 
@@ -23,7 +23,7 @@ func TestResponseWriter_CSV(t *testing.T) {
 
 	writer := httpd.NewResponseWriter(w, r)
 	writer.WriteResponse(httpd.Response{
-		Results: []*influxql.Result{
+		Results: []*query.Result{
 			{
 				StatementID: 0,
 				Series: []*models.Row{

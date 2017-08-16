@@ -4,10 +4,11 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/query"
 )
 
 func BenchmarkIntegerIterator_Next(b *testing.B) {
-	opt := influxql.IteratorOptions{
+	opt := query.IteratorOptions{
 		Aux: []influxql.VarRef{{Val: "f1"}, {Val: "f1"}, {Val: "f1"}, {Val: "f1"}},
 	}
 	aux := []cursorAt{
@@ -17,7 +18,7 @@ func BenchmarkIntegerIterator_Next(b *testing.B) {
 		&literalValueCursor{value: true},
 	}
 
-	cur := newIntegerIterator("m0", influxql.Tags{}, opt, &infiniteIntegerCursor{}, aux, nil, nil)
+	cur := newIntegerIterator("m0", query.Tags{}, opt, &infiniteIntegerCursor{}, aux, nil, nil)
 
 	b.ResetTimer()
 	b.ReportAllocs()

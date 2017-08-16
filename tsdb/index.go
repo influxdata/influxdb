@@ -9,6 +9,7 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/estimator"
+	"github.com/influxdata/influxdb/query"
 	"github.com/uber-go/zap"
 )
 
@@ -33,7 +34,7 @@ type Index interface {
 	SeriesN() int64
 
 	HasTagKey(name, key []byte) (bool, error)
-	TagSets(name []byte, options influxql.IteratorOptions) ([]*influxql.TagSet, error)
+	TagSets(name []byte, options query.IteratorOptions) ([]*query.TagSet, error)
 	MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error)
 	MeasurementTagKeyValuesByExpr(name []byte, keys []string, expr influxql.Expr, keysSorted bool) ([][]string, error)
 
@@ -43,7 +44,7 @@ type Index interface {
 	// InfluxQL system iterators
 	MeasurementSeriesKeysByExpr(name []byte, condition influxql.Expr) ([][]byte, error)
 	ForEachMeasurementSeriesByExpr(name []byte, expr influxql.Expr, fn func(tags models.Tags) error) error
-	SeriesPointIterator(opt influxql.IteratorOptions) (influxql.Iterator, error)
+	SeriesPointIterator(opt query.IteratorOptions) (query.Iterator, error)
 
 	// Sets a shared fieldset from the engine.
 	SetFieldSet(fs *MeasurementFieldSet)

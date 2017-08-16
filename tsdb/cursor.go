@@ -1,9 +1,9 @@
 package tsdb
 
-import "github.com/influxdata/influxdb/influxql"
+import "github.com/influxdata/influxdb/query"
 
 // EOF represents a "not found" key returned by a Cursor.
-const EOF = influxql.ZeroTime
+const EOF = query.ZeroTime
 
 // Cursor represents an iterator over a series.
 type Cursor interface {

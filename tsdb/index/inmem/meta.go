@@ -9,6 +9,7 @@ import (
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
 )
 
@@ -308,7 +309,7 @@ func (m *Measurement) ForEachSeriesByExpr(condition influxql.Expr, fn func(tags 
 // This will also populate the TagSet objects with the series IDs that match each tagset and any
 // influx filter expression that goes with the series
 // TODO: this shouldn't be exported. However, until tx.go and the engine get refactored into tsdb, we need it.
-func (m *Measurement) TagSets(shardID uint64, opt influxql.IteratorOptions) ([]*influxql.TagSet, error) {
+func (m *Measurement) TagSets(shardID uint64, opt query.IteratorOptions) ([]*query.TagSet, error) {
 	// get the unique set of series ids and the filters that should be applied to each
 	ids, filters, err := m.filters(opt.Condition)
 	if err != nil {
@@ -326,14 +327,14 @@ func (m *Measurement) TagSets(shardID uint64, opt influxql.IteratorOptions) ([]*
 	// For every series, get the tag values for the requested tag keys i.e. dimensions. This is the
 	// TagSet for that series. Series with the same TagSet are then grouped together, because for the
 	// purpose of GROUP BY they are part of the same composite series.
-	tagSets := make(map[string]*influxql.TagSet, 64)
+	tagSets := make(map[string]*query.TagSet, 64)
 	var seriesN int
 	for _, id := range ids {
 		// Abort if the query was killed
 		select {
 		case <-opt.InterruptCh:
 			m.mu.RUnlock()
-			return nil, influxql.ErrQueryInterrupted
+			return nil, query.ErrQueryInterrupted
 		default:
 		}
 
@@ -359,7 +360,7 @@ func (m *Measurement) TagSets(shardID uint64, opt influxql.IteratorOptions) ([]*
 		tagSet, ok := tagSets[string(tagsAsKey)]
 		if !ok {
 			// This TagSet is new, create a new entry for it.
-			tagSet = &influxql.TagSet{
+			tagSet = &query.TagSet{
 				Tags: nil,
 				Key:  tagsAsKey,
 			}
@@ -377,7 +378,7 @@ func (m *Measurement) TagSets(shardID uint64, opt influxql.IteratorOptions) ([]*
 		// Abort if the query was killed
 		select {
 		case <-opt.InterruptCh:
-			return nil, influxql.ErrQueryInterrupted
+			return nil, query.ErrQueryInterrupted
 		default:
 		}
 
@@ -386,7 +387,7 @@ func (m *Measurement) TagSets(shardID uint64, opt influxql.IteratorOptions) ([]*
 
 	// The TagSets have been created, as a map of TagSets. Just send
 	// the values back as a slice, sorting for consistency.
-	sortedTagsSets := make([]*influxql.TagSet, 0, len(tagSets))
+	sortedTagsSets := make([]*query.TagSet, 0, len(tagSets))
 	for _, v := range tagSets {
 		sortedTagsSets = append(sortedTagsSets, v)
 	}
@@ -1539,7 +1540,7 @@ func filter(a []uint64, v uint64) []uint64 {
 	return a[:len(a)-1]
 }
 
-type byTagKey []*influxql.TagSet
+type byTagKey []*query.TagSet
 
 func (t byTagKey) Len() int           { return len(t) }
 func (t byTagKey) Less(i, j int) bool { return bytes.Compare(t[i].Key, t[j].Key) < 0 }

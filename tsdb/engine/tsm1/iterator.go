@@ -3,21 +3,21 @@ package tsm1
 import (
 	"fmt"
 
-	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
 )
 
-func newLimitIterator(input influxql.Iterator, opt influxql.IteratorOptions) influxql.Iterator {
+func newLimitIterator(input query.Iterator, opt query.IteratorOptions) query.Iterator {
 	switch input := input.(type) {
-	case influxql.FloatIterator:
+	case query.FloatIterator:
 		return newFloatLimitIterator(input, opt)
-	case influxql.IntegerIterator:
+	case query.IntegerIterator:
 		return newIntegerLimitIterator(input, opt)
-	case influxql.UnsignedIterator:
+	case query.UnsignedIterator:
 		return newUnsignedLimitIterator(input, opt)
-	case influxql.StringIterator:
+	case query.StringIterator:
 		return newStringLimitIterator(input, opt)
-	case influxql.BooleanIterator:
+	case query.BooleanIterator:
 		return newBooleanLimitIterator(input, opt)
 	default:
 		panic(fmt.Sprintf("unsupported limit iterator type: %T", input))

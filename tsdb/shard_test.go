@@ -19,6 +19,7 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/deep"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
 	_ "github.com/influxdata/influxdb/tsdb/engine"
 	_ "github.com/influxdata/influxdb/tsdb/index"
@@ -463,7 +464,7 @@ func TestShard_WritePoints_FieldConflictConcurrentQuery(t *testing.T) {
 
 			sh.WritePoints(points)
 
-			iter, err := sh.CreateIterator("cpu", influxql.IteratorOptions{
+			iter, err := sh.CreateIterator("cpu", query.IteratorOptions{
 				Expr:       influxql.MustParseExpr(`value`),
 				Aux:        []influxql.VarRef{{Val: "value"}},
 				Dimensions: []string{},
@@ -476,14 +477,14 @@ func TestShard_WritePoints_FieldConflictConcurrentQuery(t *testing.T) {
 			}
 
 			switch itr := iter.(type) {
-			case influxql.IntegerIterator:
+			case query.IntegerIterator:
 				p, err := itr.Next()
 				for p != nil && err == nil {
 					p, err = itr.Next()
 				}
 				iter.Close()
 
-			case influxql.FloatIterator:
+			case query.FloatIterator:
 				p, err := itr.Next()
 				for p != nil && err == nil {
 					p, err = itr.Next()
@@ -524,7 +525,7 @@ func TestShard_WritePoints_FieldConflictConcurrentQuery(t *testing.T) {
 
 			sh.WritePoints(points)
 
-			iter, err := sh.CreateIterator("cpu", influxql.IteratorOptions{
+			iter, err := sh.CreateIterator("cpu", query.IteratorOptions{
 				Expr:       influxql.MustParseExpr(`value`),
 				Aux:        []influxql.VarRef{{Val: "value"}},
 				Dimensions: []string{},
@@ -537,13 +538,13 @@ func TestShard_WritePoints_FieldConflictConcurrentQuery(t *testing.T) {
 			}
 
 			switch itr := iter.(type) {
-			case influxql.IntegerIterator:
+			case query.IntegerIterator:
 				p, err := itr.Next()
 				for p != nil && err == nil {
 					p, err = itr.Next()
 				}
 				iter.Close()
-			case influxql.FloatIterator:
+			case query.FloatIterator:
 				p, err := itr.Next()
 				for p != nil && err == nil {
 					p, err = itr.Next()
@@ -604,7 +605,7 @@ func TestShard_CreateIterator_Ascending(t *testing.T) {
 
 	// Calling CreateIterator when the engine is not open will return
 	// ErrEngineClosed.
-	_, got := sh.CreateIterator("cpu", influxql.IteratorOptions{})
+	_, got := sh.CreateIterator("cpu", query.IteratorOptions{})
 	if exp := tsdb.ErrEngineClosed; got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
 	}
@@ -621,7 +622,7 @@ cpu,host=serverB,region=uswest value=25  0
 `)
 
 	// Create iterator.
-	itr, err := sh.CreateIterator("cpu", influxql.IteratorOptions{
+	itr, err := sh.CreateIterator("cpu", query.IteratorOptions{
 		Expr:       influxql.MustParseExpr(`value`),
 		Aux:        []influxql.VarRef{{Val: "val2"}},
 		Dimensions: []string{"host"},
@@ -632,15 +633,15 @@ cpu,host=serverB,region=uswest value=25  0
 	if err != nil {
 		t.Fatal(err)
 	}
-	fitr := itr.(influxql.FloatIterator)
+	fitr := itr.(query.FloatIterator)
 	defer itr.Close()
 
 	// Read values from iterator.
 	if p, err := fitr.Next(); err != nil {
 		t.Fatalf("unexpected error(0): %s", err)
-	} else if !deep.Equal(p, &influxql.FloatPoint{
+	} else if !deep.Equal(p, &query.FloatPoint{
 		Name:  "cpu",
-		Tags:  influxql.NewTags(map[string]string{"host": "serverA"}),
+		Tags:  query.NewTags(map[string]string{"host": "serverA"}),
 		Time:  time.Unix(0, 0).UnixNano(),
 		Value: 100,
 		Aux:   []interface{}{(*float64)(nil)},
@@ -650,9 +651,9 @@ cpu,host=serverB,region=uswest value=25  0
 
 	if p, err := fitr.Next(); err != nil {
 		t.Fatalf("unexpected error(1): %s", err)
-	} else if !deep.Equal(p, &influxql.FloatPoint{
+	} else if !deep.Equal(p, &query.FloatPoint{
 		Name:  "cpu",
-		Tags:  influxql.NewTags(map[string]string{"host": "serverA"}),
+		Tags:  query.NewTags(map[string]string{"host": "serverA"}),
 		Time:  time.Unix(10, 0).UnixNano(),
 		Value: 50,
 		Aux:   []interface{}{float64(5)},
@@ -662,9 +663,9 @@ cpu,host=serverB,region=uswest value=25  0
 
 	if p, err := fitr.Next(); err != nil {
 		t.Fatalf("unexpected error(2): %s", err)
-	} else if !deep.Equal(p, &influxql.FloatPoint{
+	} else if !deep.Equal(p, &query.FloatPoint{
 		Name:  "cpu",
-		Tags:  influxql.NewTags(map[string]string{"host": "serverB"}),
+		Tags:  query.NewTags(map[string]string{"host": "serverB"}),
 		Time:  time.Unix(0, 0).UnixNano(),
 		Value: 25,
 		Aux:   []interface{}{(*float64)(nil)},
@@ -679,7 +680,7 @@ func TestShard_CreateIterator_Descending(t *testing.T) {
 
 	// Calling CreateIterator when the engine is not open will return
 	// ErrEngineClosed.
-	_, got := sh.CreateIterator("cpu", influxql.IteratorOptions{})
+	_, got := sh.CreateIterator("cpu", query.IteratorOptions{})
 	if exp := tsdb.ErrEngineClosed; got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
 	}
@@ -696,7 +697,7 @@ cpu,host=serverB,region=uswest value=25  0
 `)
 
 	// Create iterator.
-	itr, err := sh.CreateIterator("cpu", influxql.IteratorOptions{
+	itr, err := sh.CreateIterator("cpu", query.IteratorOptions{
 		Expr:       influxql.MustParseExpr(`value`),
 		Aux:        []influxql.VarRef{{Val: "val2"}},
 		Dimensions: []string{"host"},
@@ -708,14 +709,14 @@ cpu,host=serverB,region=uswest value=25  0
 		t.Fatal(err)
 	}
 	defer itr.Close()
-	fitr := itr.(influxql.FloatIterator)
+	fitr := itr.(query.FloatIterator)
 
 	// Read values from iterator.
 	if p, err := fitr.Next(); err != nil {
 		t.Fatalf("unexpected error(0): %s", err)
-	} else if !deep.Equal(p, &influxql.FloatPoint{
+	} else if !deep.Equal(p, &query.FloatPoint{
 		Name:  "cpu",
-		Tags:  influxql.NewTags(map[string]string{"host": "serverB"}),
+		Tags:  query.NewTags(map[string]string{"host": "serverB"}),
 		Time:  time.Unix(0, 0).UnixNano(),
 		Value: 25,
 		Aux:   []interface{}{(*float64)(nil)},
@@ -725,9 +726,9 @@ cpu,host=serverB,region=uswest value=25  0
 
 	if p, err := fitr.Next(); err != nil {
 		t.Fatalf("unexpected error(1): %s", err)
-	} else if !deep.Equal(p, &influxql.FloatPoint{
+	} else if !deep.Equal(p, &query.FloatPoint{
 		Name:  "cpu",
-		Tags:  influxql.NewTags(map[string]string{"host": "serverA"}),
+		Tags:  query.NewTags(map[string]string{"host": "serverA"}),
 		Time:  time.Unix(10, 0).UnixNano(),
 		Value: 50,
 		Aux:   []interface{}{float64(5)},
@@ -737,9 +738,9 @@ cpu,host=serverB,region=uswest value=25  0
 
 	if p, err := fitr.Next(); err != nil {
 		t.Fatalf("unexpected error(2): %s", err)
-	} else if !deep.Equal(p, &influxql.FloatPoint{
+	} else if !deep.Equal(p, &query.FloatPoint{
 		Name:  "cpu",
-		Tags:  influxql.NewTags(map[string]string{"host": "serverA"}),
+		Tags:  query.NewTags(map[string]string{"host": "serverA"}),
 		Time:  time.Unix(0, 0).UnixNano(),
 		Value: 100,
 		Aux:   []interface{}{(*float64)(nil)},
@@ -772,7 +773,7 @@ func TestShard_Disabled_WriteQuery(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 
-	_, got := sh.CreateIterator("cpu", influxql.IteratorOptions{})
+	_, got := sh.CreateIterator("cpu", query.IteratorOptions{})
 	if err == nil {
 		t.Fatalf("expected shard disabled error")
 	}
@@ -787,7 +788,7 @@ func TestShard_Disabled_WriteQuery(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if _, err = sh.CreateIterator("cpu", influxql.IteratorOptions{}); err != nil {
+	if _, err = sh.CreateIterator("cpu", query.IteratorOptions{}); err != nil {
 		t.Fatalf("unexpected error: %v", got)
 	}
 }

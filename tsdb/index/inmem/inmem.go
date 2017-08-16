@@ -25,6 +25,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/escape"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/estimator/hll"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/uber-go/zap"
 )
@@ -631,7 +632,7 @@ func (i *Index) ForEachMeasurementSeriesByExpr(name []byte, expr influxql.Expr, 
 }
 
 // TagSets returns a list of tag sets.
-func (i *Index) TagSets(shardID uint64, name []byte, opt influxql.IteratorOptions) ([]*influxql.TagSet, error) {
+func (i *Index) TagSets(shardID uint64, name []byte, opt query.IteratorOptions) ([]*query.TagSet, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
 
@@ -720,7 +721,7 @@ func (i *Index) MeasurementSeriesKeysByExpr(name []byte, condition influxql.Expr
 }
 
 // SeriesPointIterator returns an influxql iterator over all series.
-func (i *Index) SeriesPointIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+func (i *Index) SeriesPointIterator(opt query.IteratorOptions) (query.Iterator, error) {
 	// Read and sort all measurements.
 	mms := make(Measurements, 0, len(i.measurements))
 	for _, mm := range i.measurements {
@@ -731,7 +732,7 @@ func (i *Index) SeriesPointIterator(opt influxql.IteratorOptions) (influxql.Iter
 	return &seriesPointIterator{
 		database: i.database,
 		mms:      mms,
-		point: influxql.FloatPoint{
+		point: query.FloatPoint{
 			Aux: make([]interface{}, len(opt.Aux)),
 		},
 		opt: opt,
@@ -897,7 +898,7 @@ func (i *ShardIndex) CreateSeriesIfNotExists(key, name []byte, tags models.Tags)
 }
 
 // TagSets returns a list of tag sets based on series filtering.
-func (i *ShardIndex) TagSets(name []byte, opt influxql.IteratorOptions) ([]*influxql.TagSet, error) {
+func (i *ShardIndex) TagSets(name []byte, opt query.IteratorOptions) ([]*query.TagSet, error) {
 	return i.Index.TagSets(i.id, name, opt)
 }
 
@@ -919,18 +920,18 @@ type seriesPointIterator struct {
 		i   int
 	}
 
-	point influxql.FloatPoint // reusable point
-	opt   influxql.IteratorOptions
+	point query.FloatPoint // reusable point
+	opt   query.IteratorOptions
 }
 
 // Stats returns stats about the points processed.
-func (itr *seriesPointIterator) Stats() influxql.IteratorStats { return influxql.IteratorStats{} }
+func (itr *seriesPointIterator) Stats() query.IteratorStats { return query.IteratorStats{} }
 
 // Close closes the iterator.
 func (itr *seriesPointIterator) Close() error { return nil }
 
 // Next emits the next point in the iterator.
-func (itr *seriesPointIterator) Next() (*influxql.FloatPoint, error) {
+func (itr *seriesPointIterator) Next() (*query.FloatPoint, error) {
 	for {
 		// Load next measurement's keys if there are no more remaining.
 		if itr.keys.i >= len(itr.keys.buf) {

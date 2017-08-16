@@ -12,8 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
-	internal "github.com/influxdata/influxdb/influxql/internal"
+	"github.com/influxdata/influxdb/models"
 )
 
 // DataType represents the primitive data types available in InfluxQL.
@@ -40,6 +39,18 @@ const (
 	AnyField = 8
 	// Unsigned means the data type is an unsigned integer.
 	Unsigned = 9
+)
+
+const (
+	// MinTime is used as the minimum time value when computing an unbounded range.
+	// This time is one less than the MinNanoTime so that the first minimum
+	// time can be used as a sentinel value to signify that it is the default
+	// value rather than explicitly set by the user.
+	MinTime = models.MinNanoTime - 1
+
+	// MaxTime is used as the maximum time value when computing an unbounded range.
+	// This time is 2262-04-11 23:47:16.854775806 +0000 UTC
+	MaxTime = models.MaxNanoTime
 )
 
 var (
@@ -178,7 +189,7 @@ func (*Field) node()           {}
 func (Fields) node()           {}
 func (*Measurement) node()     {}
 func (Measurements) node()     {}
-func (*nilLiteral) node()      {}
+func (*NilLiteral) node()      {}
 func (*NumberLiteral) node()   {}
 func (*ParenExpr) node()       {}
 func (*RegexLiteral) node()    {}
@@ -306,7 +317,7 @@ func (*Call) expr()            {}
 func (*Distinct) expr()        {}
 func (*DurationLiteral) expr() {}
 func (*IntegerLiteral) expr()  {}
-func (*nilLiteral) expr()      {}
+func (*NilLiteral) expr()      {}
 func (*NumberLiteral) expr()   {}
 func (*ParenExpr) expr()       {}
 func (*RegexLiteral) expr()    {}
@@ -327,7 +338,7 @@ type Literal interface {
 func (*BooleanLiteral) literal()  {}
 func (*DurationLiteral) literal() {}
 func (*IntegerLiteral) literal()  {}
-func (*nilLiteral) literal()      {}
+func (*NilLiteral) literal()      {}
 func (*NumberLiteral) literal()   {}
 func (*RegexLiteral) literal()    {}
 func (*ListLiteral) literal()     {}
@@ -430,33 +441,6 @@ func (a Sources) Measurements() []*Measurement {
 		}
 	}
 	return mms
-}
-
-// MarshalBinary encodes a list of sources to a binary format.
-func (a Sources) MarshalBinary() ([]byte, error) {
-	var pb internal.Measurements
-	pb.Items = make([]*internal.Measurement, len(a))
-	for i, source := range a {
-		pb.Items[i] = encodeMeasurement(source.(*Measurement))
-	}
-	return proto.Marshal(&pb)
-}
-
-// UnmarshalBinary decodes binary data into a list of sources.
-func (a *Sources) UnmarshalBinary(buf []byte) error {
-	var pb internal.Measurements
-	if err := proto.Unmarshal(buf, &pb); err != nil {
-		return err
-	}
-	*a = make(Sources, len(pb.GetItems()))
-	for i := range pb.GetItems() {
-		mm, err := decodeMeasurement(pb.GetItems()[i])
-		if err != nil {
-			return err
-		}
-		(*a)[i] = mm
-	}
-	return nil
 }
 
 // RequiredPrivileges recursively returns a list of execution privileges required.
@@ -1166,6 +1150,13 @@ func cloneSource(s Source) Source {
 	default:
 		panic("unreachable")
 	}
+}
+
+// FieldMapper returns the data type for the field inside of the measurement.
+type FieldMapper interface {
+	FieldDimensions(m *Measurement) (fields map[string]DataType, dimensions map[string]struct{}, err error)
+
+	TypeMapper
 }
 
 // RewriteFields returns the re-written form of the select statement. Any wildcard query
@@ -2429,25 +2420,6 @@ func (s *SelectStatement) NamesInDimension() []string {
 	}
 
 	return a
-}
-
-// LimitTagSets returns a tag set list with SLIMIT and SOFFSET applied.
-func LimitTagSets(a []*TagSet, slimit, soffset int) []*TagSet {
-	// Ignore if no limit or offset is specified.
-	if slimit == 0 && soffset == 0 {
-		return a
-	}
-
-	// If offset is beyond the number of tag sets then return nil.
-	if soffset > len(a) {
-		return nil
-	}
-
-	// Clamp limit to the max number of tag sets.
-	if soffset+slimit > len(a) {
-		slimit = len(a) - soffset
-	}
-	return a[soffset : soffset+slimit]
 }
 
 // walkNames will walk the Expr and return the identifier names used.
@@ -3864,38 +3836,6 @@ func (m *Measurement) String() string {
 	return buf.String()
 }
 
-func encodeMeasurement(mm *Measurement) *internal.Measurement {
-	pb := &internal.Measurement{
-		Database:        proto.String(mm.Database),
-		RetentionPolicy: proto.String(mm.RetentionPolicy),
-		Name:            proto.String(mm.Name),
-		IsTarget:        proto.Bool(mm.IsTarget),
-	}
-	if mm.Regex != nil {
-		pb.Regex = proto.String(mm.Regex.Val.String())
-	}
-	return pb
-}
-
-func decodeMeasurement(pb *internal.Measurement) (*Measurement, error) {
-	mm := &Measurement{
-		Database:        pb.GetDatabase(),
-		RetentionPolicy: pb.GetRetentionPolicy(),
-		Name:            pb.GetName(),
-		IsTarget:        pb.GetIsTarget(),
-	}
-
-	if pb.Regex != nil {
-		regex, err := regexp.Compile(pb.GetRegex())
-		if err != nil {
-			return nil, fmt.Errorf("invalid binary measurement regex: value=%q, err=%s", pb.GetRegex(), err)
-		}
-		mm.Regex = &RegexLiteral{Val: regex}
-	}
-
-	return mm, nil
-}
-
 // SubQuery is a source with a SelectStatement as the backing store.
 type SubQuery struct {
 	Statement *SelectStatement
@@ -4108,12 +4048,12 @@ type DurationLiteral struct {
 // String returns a string representation of the literal.
 func (l *DurationLiteral) String() string { return FormatDuration(l.Val) }
 
-// nilLiteral represents a nil literal.
+// NilLiteral represents a nil literal.
 // This is not available to the query language itself. It's only used internally.
-type nilLiteral struct{}
+type NilLiteral struct{}
 
 // String returns a string representation of the literal.
-func (l *nilLiteral) String() string { return `nil` }
+func (l *NilLiteral) String() string { return `nil` }
 
 // BinaryExpr represents an operation between two expressions.
 type BinaryExpr struct {
@@ -5095,7 +5035,7 @@ func reduce(expr Expr, valuer Valuer) Expr {
 		return reduceParenExpr(expr, valuer)
 	case *VarRef:
 		return reduceVarRef(expr, valuer)
-	case *nilLiteral:
+	case *NilLiteral:
 		return expr
 	default:
 		return CloneExpr(expr)
@@ -5146,7 +5086,7 @@ func reduceBinaryExpr(expr *BinaryExpr, valuer Valuer) Expr {
 		return reduceBinaryExprDurationLHS(op, lhs, rhs, loc)
 	case *IntegerLiteral:
 		return reduceBinaryExprIntegerLHS(op, lhs, rhs, loc)
-	case *nilLiteral:
+	case *NilLiteral:
 		return reduceBinaryExprNilLHS(op, lhs, rhs)
 	case *NumberLiteral:
 		return reduceBinaryExprNumberLHS(op, lhs, rhs)
@@ -5178,7 +5118,7 @@ func reduceBinaryExprBooleanLHS(op Token, lhs *BooleanLiteral, rhs Expr) Expr {
 		case BITWISE_XOR:
 			return &BooleanLiteral{Val: lhs.Val != rhs.Val}
 		}
-	case *nilLiteral:
+	case *NilLiteral:
 		return &BooleanLiteral{Val: false}
 	}
 	return &BinaryExpr{Op: op, LHS: lhs, RHS: rhs}
@@ -5242,7 +5182,7 @@ func reduceBinaryExprDurationLHS(op Token, lhs *DurationLiteral, rhs Expr, loc *
 		if _, ok := expr.(*BinaryExpr); !ok {
 			return expr
 		}
-	case *nilLiteral:
+	case *NilLiteral:
 		return &BooleanLiteral{Val: false}
 	}
 	return &BinaryExpr{Op: op, LHS: lhs, RHS: rhs}
@@ -5313,13 +5253,13 @@ func reduceBinaryExprIntegerLHS(op Token, lhs *IntegerLiteral, rhs Expr, loc *ti
 		if _, ok := expr.(*BinaryExpr); !ok {
 			return expr
 		}
-	case *nilLiteral:
+	case *NilLiteral:
 		return &BooleanLiteral{Val: false}
 	}
 	return &BinaryExpr{Op: op, LHS: lhs, RHS: rhs}
 }
 
-func reduceBinaryExprNilLHS(op Token, lhs *nilLiteral, rhs Expr) Expr {
+func reduceBinaryExprNilLHS(op Token, lhs *NilLiteral, rhs Expr) Expr {
 	switch op {
 	case EQ, NEQ:
 		return &BooleanLiteral{Val: false}
@@ -5385,7 +5325,7 @@ func reduceBinaryExprNumberLHS(op Token, lhs *NumberLiteral, rhs Expr) Expr {
 		case LTE:
 			return &BooleanLiteral{Val: lhs.Val <= float64(rhs.Val)}
 		}
-	case *nilLiteral:
+	case *NilLiteral:
 		return &BooleanLiteral{Val: false}
 	}
 	return &BinaryExpr{Op: op, LHS: lhs, RHS: rhs}
@@ -5496,7 +5436,7 @@ func reduceBinaryExprStringLHS(op Token, lhs *StringLiteral, rhs Expr, loc *time
 		if _, ok := expr.(*BinaryExpr); !ok {
 			return expr
 		}
-	case *nilLiteral:
+	case *NilLiteral:
 		switch op {
 		case EQ, NEQ:
 			return &BooleanLiteral{Val: false}
@@ -5549,7 +5489,7 @@ func reduceBinaryExprTimeLHS(op Token, lhs *TimeLiteral, rhs Expr, loc *time.Loc
 		if _, ok := expr.(*BinaryExpr); !ok {
 			return expr
 		}
-	case *nilLiteral:
+	case *NilLiteral:
 		return &BooleanLiteral{Val: false}
 	}
 	return &BinaryExpr{Op: op, LHS: lhs, RHS: rhs}
@@ -5606,7 +5546,7 @@ func reduceVarRef(expr *VarRef, valuer Valuer) Expr {
 	case time.Time:
 		return &TimeLiteral{Val: v}
 	default:
-		return &nilLiteral{}
+		return &NilLiteral{}
 	}
 }
 
@@ -5673,4 +5613,46 @@ func IsSelector(expr Expr) bool {
 		}
 	}
 	return false
+}
+
+// selectInfo represents an object that stores info about select fields.
+type selectInfo struct {
+	calls map[*Call]struct{}
+	refs  map[*VarRef]struct{}
+}
+
+// newSelectInfo creates a object with call and var ref info from stmt.
+func newSelectInfo(stmt *SelectStatement) *selectInfo {
+	info := &selectInfo{
+		calls: make(map[*Call]struct{}),
+		refs:  make(map[*VarRef]struct{}),
+	}
+	Walk(info, stmt.Fields)
+	return info
+}
+
+func (v *selectInfo) Visit(n Node) Visitor {
+	switch n := n.(type) {
+	case *Call:
+		v.calls[n] = struct{}{}
+		return nil
+	case *VarRef:
+		v.refs[n] = struct{}{}
+		return nil
+	}
+	return v
+}
+
+// stringSetSlice returns a sorted slice of keys from a string set.
+func stringSetSlice(m map[string]struct{}) []string {
+	if m == nil {
+		return nil
+	}
+
+	a := make([]string, 0, len(m))
+	for k := range m {
+		a = append(a, k)
+	}
+	sort.Strings(a)
+	return a
 }
