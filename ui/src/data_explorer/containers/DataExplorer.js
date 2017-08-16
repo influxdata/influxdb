@@ -53,6 +53,14 @@ class DataExplorer extends Component {
     return activeQuery || defaultQuery
   }
 
+  handleCloseWriteData = () => {
+    this.setState({showWriteForm: false})
+  }
+
+  handleOpenWriteData = () => {
+    this.setState({showWriteForm: true})
+  }
+
   render() {
     const {
       autoRefresh,
@@ -78,19 +86,19 @@ class DataExplorer extends Component {
         {showWriteForm
           ? <OverlayTechnologies>
               <WriteDataForm
-                selectedDatabase={selectedDatabase}
-                errorThrown={errorThrownAction}
-                onClose={() => this.setState({showWriteForm: false})}
                 source={source}
+                errorThrown={errorThrownAction}
+                selectedDatabase={selectedDatabase}
+                onClose={this.handleCloseWriteData}
                 writeLineProtocol={writeLineProtocol}
               />
             </OverlayTechnologies>
           : null}
         <Header
-          actions={{handleChooseAutoRefresh, setTimeRange}}
-          autoRefresh={autoRefresh}
           timeRange={timeRange}
-          showWriteForm={() => this.setState({showWriteForm: true})}
+          autoRefresh={autoRefresh}
+          actions={{handleChooseAutoRefresh, setTimeRange}}
+          showWriteForm={this.handleOpenWriteData}
         />
         <ResizeContainer
           containerClass="page-contents"
