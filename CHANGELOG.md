@@ -9,6 +9,7 @@
 
 ### Features
 1. [#1863](https://github.com/influxdata/chronograf/pull/1863): Improve 'new-sources' server flag example by adding 'type' key
+1. [#1898](https://github.com/influxdata/chronograf/pull/1898): Add an input and validation to custom time range calendar dropdowns
 
 ### UI Improvements
 1. [#1862](https://github.com/influxdata/chronograf/pull/1862): Show "Add Graph" button on cells with no queries
