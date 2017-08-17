@@ -32,6 +32,7 @@
 1. [#1813](https://github.com/influxdata/chronograf/pull/1813): Guarantee UUID for each Alert Table key to prevent dropping items when keys overlap
 
 ### Features
+1. [#1744](https://github.com/influxdata/chronograf/pull/1744): Add a few time range shortcuts to the custom time range menu
 1. [#1714](https://github.com/influxdata/chronograf/pull/1714): Add ability to edit a dashboard graph's y-axis bounds
 1. [#1714](https://github.com/influxdata/chronograf/pull/1714): Add ability to edit a dashboard graph's y-axis label
 

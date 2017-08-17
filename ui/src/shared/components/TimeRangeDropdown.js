@@ -85,10 +85,17 @@ class TimeRangeDropdown extends Component {
   render() {
     const {selected, preventCustomTimeRange} = this.props
     const {isOpen, customTimeRange, isCustomTimeRangeOpen} = this.state
+    const isRelativeTimeRange = selected.upper === null
 
     return (
       <div className="time-range-dropdown">
-        <div className={classnames('dropdown dropdown-160', {open: isOpen})}>
+        <div
+          className={classnames('dropdown', {
+            'dropdown-160': isRelativeTimeRange,
+            'dropdown-290': !isRelativeTimeRange,
+            open: isOpen,
+          })}
+        >
           <div
             className="btn btn-sm btn-default dropdown-toggle"
             onClick={() => this.toggleMenu()}
@@ -105,20 +112,25 @@ class TimeRangeDropdown extends Component {
               autoHeight={true}
               maxHeight={DROPDOWN_MENU_MAX_HEIGHT}
             >
-              <li className="dropdown-header">Time Range</li>
               {preventCustomTimeRange
                 ? null
-                : <li
-                    className={
-                      isCustomTimeRangeOpen
-                        ? 'active dropdown-item custom-timerange'
-                        : 'dropdown-item custom-timerange'
-                    }
-                  >
-                    <a href="#" onClick={this.showCustomTimeRange}>
-                      Custom Time Range
-                    </a>
-                  </li>}
+                : <div>
+                    <li className="dropdown-header">Absolute Time Ranges</li>
+                    <li
+                      className={
+                        isCustomTimeRangeOpen
+                          ? 'active dropdown-item custom-timerange'
+                          : 'dropdown-item custom-timerange'
+                      }
+                    >
+                      <a href="#" onClick={this.showCustomTimeRange}>
+                        Custom Date Picker
+                      </a>
+                    </li>
+                  </div>}
+              <li className="dropdown-header">
+                {preventCustomTimeRange ? '' : 'Relative '}Time Ranges
+              </li>
               {timeRanges.map(item => {
                 return (
                   <li className="dropdown-item" key={item.menuOption}>
