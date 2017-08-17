@@ -35,9 +35,11 @@
 }
 .custom-time--lower {
   margin-right: 4px;
+  text-align: center;
 }
 .custom-time--upper {
   margin-left: 4px;
+  text-align: center;
 }
 .custom-time--shortcuts {
   @include no-user-select();
@@ -179,12 +181,16 @@ $rd-cell-size: 30px;
     &.rd-day-next-month,
     &.rd-day-prev-month {
       cursor: default;
-      color: $g8-storm !important;
-      background-color: $g5-pepper !important;
+      visibility: hidden;
     }
     &.rd-day-selected {
       background-color: $c-pool !important;
       color: $g20-white !important;
+    }
+    &.rd-day-disabled {
+      color: $g8-storm !important;
+      background-color: $g5-pepper !important;
+      cursor: default;
     }
   }
 }
