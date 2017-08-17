@@ -8,6 +8,10 @@ class RedactedInput extends Component {
     }
   }
 
+  handleClick = () => {
+    this.setState({editing: true})
+  }
+
   render() {
     const {defaultValue, id, refFunc} = this.props
     const {editing} = this.state
@@ -18,12 +22,7 @@ class RedactedInput extends Component {
           <span className="alert-value-set">
             <span className="icon checkmark" /> Value set
           </span>
-          <button
-            className="btn btn-xs btn-link"
-            onClick={() => {
-              this.setState({editing: true})
-            }}
-          >
+          <button className="btn btn-xs btn-link" onClick={this.handleClick}>
             Change
           </button>
           <input

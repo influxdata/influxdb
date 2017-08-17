@@ -14,9 +14,9 @@ const ContextMenu = OnClickOutside(
         <span className="icon caret-down" />
       </button>
       <ul className="dash-graph--options-menu">
-        <li onClick={() => onEdit(cell)}>Edit</li>
+        <li onClick={onEdit(cell)}>Edit</li>
         <li onClick={onRename(cell.x, cell.y, cell.isEditing)}>Rename</li>
-        <li onClick={() => onDelete(cell)}>Delete</li>
+        <li onClick={onDelete(cell)}>Delete</li>
       </ul>
     </div>
 )

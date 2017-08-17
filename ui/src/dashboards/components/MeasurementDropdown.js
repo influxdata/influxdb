@@ -11,8 +11,6 @@ class MeasurementDropdown extends Component {
     this.state = {
       measurements: [],
     }
-
-    this._getMeasurements = ::this._getMeasurements
   }
 
   componentDidMount() {
@@ -35,12 +33,12 @@ class MeasurementDropdown extends Component {
         items={measurements.map(text => ({text}))}
         selected={measurement || 'Select Measurement'}
         onChoose={onSelectMeasurement}
-        onClick={() => onStartEdit(null)}
+        onClick={onStartEdit}
       />
     )
   }
 
-  async _getMeasurements() {
+  _getMeasurements = async () => {
     const {source: {links: {proxy}}} = this.context
     const {
       measurement,

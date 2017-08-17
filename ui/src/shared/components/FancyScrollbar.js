@@ -12,6 +12,10 @@ class FancyScrollbar extends Component {
     autoHeight: false,
   }
 
+  handleMakeDiv = className => props => {
+    return <div {...props} className={`fancy-scroll--${className}`} />
+  }
+
   render() {
     const {autoHide, autoHeight, children, className, maxHeight} = this.props
 
@@ -25,15 +29,11 @@ class FancyScrollbar extends Component {
         autoHideDuration={250}
         autoHeight={autoHeight}
         autoHeightMax={maxHeight}
-        renderTrackHorizontal={props =>
-          <div {...props} className="fancy-scroll--track-h" />}
-        renderTrackVertical={props =>
-          <div {...props} className="fancy-scroll--track-v" />}
-        renderThumbHorizontal={props =>
-          <div {...props} className="fancy-scroll--thumb-h" />}
-        renderThumbVertical={props =>
-          <div {...props} className="fancy-scroll--thumb-v" />}
-        renderView={props => <div {...props} className="fancy-scroll--view" />}
+        renderTrackHorizontal={this.handleMakeDiv('track-h')}
+        renderTrackVertical={this.handleMakeDiv('track-v')}
+        renderThumbHorizontal={this.handleMakeDiv('thumb-h')}
+        renderThumbVertical={this.handleMakeDiv('thumb-v')}
+        renderView={this.handleMakeDiv('view')}
       >
         {children}
       </Scrollbars>

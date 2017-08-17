@@ -1,21 +1,13 @@
-import React, {PropTypes} from 'react'
+import React, {PropTypes, Component} from 'react'
 
 import RedactedInput from './RedactedInput'
 
-const {bool, string, shape, func} = PropTypes
+class TalkConfig extends Component {
+  constructor(props) {
+    super(props)
+  }
 
-const TalkConfig = React.createClass({
-  propTypes: {
-    config: shape({
-      options: shape({
-        url: bool.isRequired,
-        author_name: string.isRequired,
-      }).isRequired,
-    }).isRequired,
-    onSave: func.isRequired,
-  },
-
-  handleSaveAlert(e) {
+  handleSaveAlert = e => {
     e.preventDefault()
 
     const properties = {
@@ -24,7 +16,9 @@ const TalkConfig = React.createClass({
     }
 
     this.props.onSave(properties)
-  },
+  }
+
+  handleUrlRef = r => (this.url = r)
 
   render() {
     const {url, author_name: author} = this.props.config.options
@@ -36,7 +30,7 @@ const TalkConfig = React.createClass({
           <RedactedInput
             defaultValue={url}
             id="url"
-            refFunc={r => (this.url = r)}
+            refFunc={this.handleUrlRef}
           />
         </div>
 
@@ -58,7 +52,19 @@ const TalkConfig = React.createClass({
         </div>
       </form>
     )
-  },
-})
+  }
+}
+
+const {bool, string, shape, func} = PropTypes
+
+TalkConfig.propTypes = {
+  config: shape({
+    options: shape({
+      url: bool.isRequired,
+      author_name: string.isRequired,
+    }).isRequired,
+  }).isRequired,
+  onSave: func.isRequired,
+}
 
 export default TalkConfig

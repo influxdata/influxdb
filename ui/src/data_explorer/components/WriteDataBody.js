@@ -29,7 +29,7 @@ const WriteDataBody = ({
       : <div className="write-data-form--file">
           <input
             type="file"
-            onChange={e => handleFile(e, false)}
+            onChange={handleFile(false)}
             className="write-data-form--upload"
             ref={fileInput}
             accept="text/*, application/gzip"

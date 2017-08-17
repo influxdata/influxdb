@@ -57,7 +57,7 @@ const Header = ({
       <button
         className="btn btn-xs btn-primary"
         disabled={isAddRPDisabled}
-        onClick={() => onAddRetentionPolicy(database)}
+        onClick={onAddRetentionPolicy(database)}
       >
         Add Retention Policy
       </button>
@@ -65,7 +65,7 @@ const Header = ({
         ? null
         : <button
             className="btn btn-xs btn-danger"
-            onClick={() => onStartDelete(database)}
+            onClick={onStartDelete(database)}
           >
             Delete
           </button>}
@@ -88,8 +88,8 @@ const Header = ({
         type="text"
         value={database.deleteCode || ''}
         placeholder={`DELETE ${database.name}`}
-        onChange={e => onDatabaseDeleteConfirm(database, e)}
-        onKeyDown={e => onDatabaseDeleteConfirm(database, e)}
+        onChange={onDatabaseDeleteConfirm(database)}
+        onKeyDown={onDatabaseDeleteConfirm(database)}
         autoFocus={true}
         autoComplete={false}
         spellCheck={false}
@@ -121,8 +121,8 @@ const EditHeader = ({database, onEdit, onKeyDown, onConfirm, onCancel}) =>
       type="text"
       value={database.name}
       placeholder="Name this Database"
-      onChange={e => onEdit(database, {name: e.target.value})}
-      onKeyDown={e => onKeyDown(e, database)}
+      onChange={onEdit(database)}
+      onKeyDown={onKeyDown(database)}
       autoFocus={true}
       spellCheck={false}
       autoComplete={false}

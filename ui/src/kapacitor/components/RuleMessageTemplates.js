@@ -12,9 +12,12 @@ class RuleMessageTemplates extends Component {
     super(props)
   }
 
-  render() {
-    const {rule, updateMessage} = this.props
+  handleClickTemplate = template => () => {
+    const {updateMessage, rule} = this.props
+    updateMessage(rule.id, `${rule.message} ${template.label}`)
+  }
 
+  render() {
     return (
       <div className="rule-section--row rule-section--row-last rule-section--border-top">
         <p>Templates:</p>
@@ -23,8 +26,7 @@ class RuleMessageTemplates extends Component {
             <CodeData
               key={key}
               template={template}
-              onClickTemplate={() =>
-                updateMessage(rule.id, `${rule.message} ${template.label}`)}
+              onClickTemplate={this.handleClickTemplate(template)}
             />
           )
         })}

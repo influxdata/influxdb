@@ -1,25 +1,13 @@
-import React, {Component, PropTypes} from 'react'
+import React, {PropTypes} from 'react'
 
-class RuleMessageText extends Component {
-  constructor(props) {
-    super(props)
-  }
-
-  render() {
-    const {rule, updateMessage} = this.props
-
-    return (
-      <textarea
-        className="form-control form-malachite monotype rule-builder--message"
-        ref={r => (this.message = r)}
-        onChange={() => updateMessage(rule.id, this.message.value)}
-        placeholder="Example: {{ .ID }} is {{ .Level }} value: {{ index .Fields &quot;value&quot; }}"
-        value={rule.message}
-        spellCheck={false}
-      />
-    )
-  }
-}
+const RuleMessageText = ({rule, updateMessage}) =>
+  <textarea
+    className="form-control form-malachite monotype rule-builder--message"
+    onChange={updateMessage}
+    placeholder="Example: {{ .ID }} is {{ .Level }} value: {{ index .Fields &quot;value&quot; }}"
+    value={rule.message}
+    spellCheck={false}
+  />
 
 const {func, shape} = PropTypes
 

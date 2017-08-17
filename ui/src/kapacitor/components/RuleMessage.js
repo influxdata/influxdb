@@ -15,17 +15,14 @@ class RuleMessage extends Component {
     this.state = {
       selectedAlertNodeName: null,
     }
-
-    this.handleChangeMessage = ::this.handleChangeMessage
-    this.handleChooseAlert = ::this.handleChooseAlert
   }
 
-  handleChangeMessage() {
+  handleChangeMessage = e => {
     const {actions, rule} = this.props
-    actions.updateMessage(rule.id, this.message.value)
+    actions.updateMessage(rule.id, e.target.value)
   }
 
-  handleChooseAlert(item) {
+  handleChooseAlert = item => () => {
     const {actions} = this.props
     actions.updateAlerts(item.ruleID, [item.text])
     actions.updateAlertNodes(item.ruleID, item.text, '')
@@ -63,7 +60,7 @@ class RuleMessage extends Component {
                     className={classnames({
                       active: alert.text === selectedAlertNodeName,
                     })}
-                    onClick={() => this.handleChooseAlert(alert)}
+                    onClick={this.handleChooseAlert(alert)}
                   >
                     {alert.text}
                   </li>
@@ -77,7 +74,10 @@ class RuleMessage extends Component {
             updateDetails={actions.updateDetails}
             updateAlertProperty={actions.updateAlertProperty}
           />
-          <RuleMessageText rule={rule} updateMessage={actions.updateMessage} />
+          <RuleMessageText
+            rule={rule}
+            updateMessage={this.handleChangeMessage}
+          />
           <RuleMessageTemplates
             rule={rule}
             updateMessage={actions.updateMessage}
