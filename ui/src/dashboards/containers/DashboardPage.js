@@ -140,7 +140,7 @@ class DashboardPage extends Component {
     this.props.dashboardActions.templateVariableSelected(
       +dashboardID,
       templateID,
-      values
+      [values]
     )
   }
 
