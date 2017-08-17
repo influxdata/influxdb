@@ -113,19 +113,19 @@ _cpu_stats
 ## Keywords
 
 ```
-ALL           ALTER         ANY           AS            ASC           BEGIN
-BY            CREATE        CONTINUOUS    DATABASE      DATABASES     DEFAULT
-DELETE        DESC          DESTINATIONS  DIAGNOSTICS   DISTINCT      DROP
-DURATION      END           EVERY         EXPLAIN       FIELD         FOR
-FROM          GRANT         GRANTS        GROUP         GROUPS        IN
-INF           INSERT        INTO          KEY           KEYS          KILL
-LIMIT         SHOW          MEASUREMENT   MEASUREMENTS  NAME          OFFSET
-ON            ORDER         PASSWORD      POLICY        POLICIES      PRIVILEGES
-QUERIES       QUERY         READ          REPLICATION   RESAMPLE      RETENTION
-REVOKE        SELECT        SERIES        SET           SHARD         SHARDS
-SLIMIT        SOFFSET       STATS         SUBSCRIPTION  SUBSCRIPTIONS TAG
-TO            USER          USERS         VALUES        WHERE         WITH
-WRITE
+ALL           ALTER         ANALYZE       ANY           AS            ASC
+BEGIN         BY            CREATE        CONTINUOUS    DATABASE      DATABASES
+DEFAULT       DELETE        DESC          DESTINATIONS  DIAGNOSTICS   DISTINCT
+DROP          DURATION      END           EVERY         EXPLAIN       FIELD
+FOR           FROM          GRANT         GRANTS        GROUP         GROUPS
+IN            INF           INSERT        INTO          KEY           KEYS
+KILL          LIMIT         SHOW          MEASUREMENT   MEASUREMENTS  NAME
+OFFSET        ON            ORDER         PASSWORD      POLICY        POLICIES
+PRIVILEGES    QUERIES       QUERY         READ          REPLICATION   RESAMPLE
+RETENTION     REVOKE        SELECT        SERIES        SET           SHARD
+SHARDS        SLIMIT        SOFFSET       STATS         SUBSCRIPTION  SUBSCRIPTIONS
+TAG           TO            USER          USERS         VALUES        WHERE
+WITH          WRITE
 ```
 
 ## Literals
@@ -229,6 +229,7 @@ statement           = alter_retention_policy_stmt |
                       drop_shard_stmt |
                       drop_subscription_stmt |
                       drop_user_stmt |
+                      explain_stmt |
                       grant_stmt |
                       kill_query_statement |
                       show_continuous_queries_stmt |
@@ -524,6 +525,14 @@ drop_user_stmt = "DROP USER" user_name .
 
 ```sql
 DROP USER "jdoe"
+```
+
+### EXPLAIN
+
+> **NOTE:** This functionality is unimplemented.
+
+```
+explain_stmt = "EXPLAIN" [ "ANALYZE" ] select_stmt .
 ```
 
 ### GRANT

@@ -134,6 +134,8 @@ func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx query.
 			messages = append(messages, query.ReadOnlyWarning(stmt.String()))
 		}
 		err = e.executeDropUserStatement(stmt)
+	case *influxql.ExplainStatement:
+		rows, err = e.executeExplainStatement(stmt, &ctx)
 	case *influxql.GrantStatement:
 		if ctx.ReadOnly {
 			messages = append(messages, query.ReadOnlyWarning(stmt.String()))
@@ -396,6 +398,10 @@ func (e *StatementExecutor) executeDropSubscriptionStatement(q *influxql.DropSub
 
 func (e *StatementExecutor) executeDropUserStatement(q *influxql.DropUserStatement) error {
 	return e.MetaClient.DropUser(q.Name)
+}
+
+func (e *StatementExecutor) executeExplainStatement(q *influxql.ExplainStatement, ctx *query.ExecutionContext) (models.Rows, error) {
+	return nil, errors.New("unimplemented")
 }
 
 func (e *StatementExecutor) executeGrantStatement(stmt *influxql.GrantStatement) error {
