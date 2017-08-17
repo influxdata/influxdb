@@ -39,7 +39,7 @@ const WriteDataBody = ({
           />
           <button className="btn btn-md btn-primary" onClick={handleFileOpen}>
             {uploadContent
-              ? 'Choose Another File to Upload'
+              ? 'Choose a Different File to Upload'
               : 'Choose a File to Upload'}
           </button>
           {uploadContent
