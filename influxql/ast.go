@@ -142,6 +142,7 @@ func (*DropSeriesStatement) node()                 {}
 func (*DropShardStatement) node()                  {}
 func (*DropSubscriptionStatement) node()           {}
 func (*DropUserStatement) node()                   {}
+func (*ExplainStatement) node()                    {}
 func (*GrantStatement) node()                      {}
 func (*GrantAdminStatement) node()                 {}
 func (*KillQueryStatement) node()                  {}
@@ -266,6 +267,7 @@ func (*DropRetentionPolicyStatement) stmt()        {}
 func (*DropSeriesStatement) stmt()                 {}
 func (*DropSubscriptionStatement) stmt()           {}
 func (*DropUserStatement) stmt()                   {}
+func (*ExplainStatement) stmt()                    {}
 func (*GrantStatement) stmt()                      {}
 func (*GrantAdminStatement) stmt()                 {}
 func (*KillQueryStatement) stmt()                  {}
@@ -1861,6 +1863,29 @@ func (t *Target) String() string {
 	}
 
 	return buf.String()
+}
+
+// ExplainStatement represents a command for explaining a select statement.
+type ExplainStatement struct {
+	Statement *SelectStatement
+
+	Analyze bool
+}
+
+// String returns a string representation of the explain statement.
+func (e *ExplainStatement) String() string {
+	var buf bytes.Buffer
+	buf.WriteString("EXPLAIN ")
+	if e.Analyze {
+		buf.WriteString("ANALYZE ")
+	}
+	buf.WriteString(e.Statement.String())
+	return buf.String()
+}
+
+// RequiredPrivileges returns the privilege required to execute a ExplainStatement.
+func (e *ExplainStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
+	return e.Statement.RequiredPrivileges()
 }
 
 // DeleteStatement represents a command for deleting data from the database.

@@ -1884,6 +1884,29 @@ func (p *Parser) parseDropUserStatement() (*DropUserStatement, error) {
 	return stmt, nil
 }
 
+// parseExplainStatement parses a string and return an ExplainStatement.
+// This function assumes the EXPLAIN token has already been consumed.
+func (p *Parser) parseExplainStatement() (*ExplainStatement, error) {
+	stmt := &ExplainStatement{}
+
+	if tok, _, _ := p.ScanIgnoreWhitespace(); tok == ANALYZE {
+		stmt.Analyze = true
+	} else {
+		p.Unscan()
+	}
+
+	if tok, pos, lit := p.ScanIgnoreWhitespace(); tok != SELECT {
+		return nil, newParseError(tokstr(tok, lit), []string{"SELECT"}, pos)
+	}
+
+	s, err := p.parseSelectStatement(targetNotRequired)
+	if err != nil {
+		return nil, err
+	}
+	stmt.Statement = s
+	return stmt, nil
+}
+
 // parseShowShardGroupsStatement parses a string for "SHOW SHARD GROUPS" statement.
 // This function assumes the "SHOW SHARD GROUPS" tokens have already been consumed.
 func (p *Parser) parseShowShardGroupsStatement() (*ShowShardGroupsStatement, error) {
