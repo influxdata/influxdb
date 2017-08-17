@@ -1,4 +1,5 @@
 import React, {Component, PropTypes} from 'react'
+import _ from 'lodash'
 
 import NameableGraphHeader from 'shared/components/NameableGraphHeader'
 import ContextMenu from 'shared/components/ContextMenu'
@@ -47,6 +48,7 @@ class NameableGraph extends Component {
     const {cell, children, isEditable, onEditCell, onUpdateCell} = this.props
 
     const {cellName, isMenuOpen} = this.state
+    const queries = _.get(cell, ['queries'], [])
 
     return (
       <div className="dash-graph">
@@ -69,7 +71,7 @@ class NameableGraph extends Component {
           onEdit={this.handleSummonOverlay}
         />
         <div className="dash-graph--container">
-          {cell.queries.length
+          {queries.length
             ? children
             : <div className="graph-empty">
                 <button
