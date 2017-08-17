@@ -1563,7 +1563,7 @@ func (e *Engine) CreateIterator(measurement string, opt query.IteratorOptions) (
 				if err != nil {
 					return nil, err
 				}
-				return query.Iterators(itrs).Merge(opt)
+				return newMergeGuardIterator(itrs, opt)
 			}
 		}
 
@@ -1573,14 +1573,14 @@ func (e *Engine) CreateIterator(measurement string, opt query.IteratorOptions) (
 		} else if len(inputs) == 0 {
 			return nil, nil
 		}
-		return query.Iterators(inputs).Merge(opt)
+		return newMergeGuardIterator(inputs, opt)
 	}
 
 	itrs, err := e.createVarRefIterator(measurement, opt)
 	if err != nil {
 		return nil, err
 	}
-	return query.Iterators(itrs).Merge(opt)
+	return newMergeGuardIterator(itrs, opt)
 }
 
 func (e *Engine) createCallIterator(measurement string, call *influxql.Call, opt query.IteratorOptions) ([]query.Iterator, error) {
@@ -1634,6 +1634,7 @@ func (e *Engine) createCallIterator(measurement string, call *influxql.Call, opt
 
 				itr, err := query.NewCallIterator(input, opt)
 				if err != nil {
+					query.Iterators(inputs).Close()
 					return err
 				}
 				inputs[i] = itr

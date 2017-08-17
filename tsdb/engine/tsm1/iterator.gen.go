@@ -8,6 +8,7 @@ package tsm1
 
 import (
 	"fmt"
+	"runtime"
 	"sort"
 	"sync"
 
@@ -117,6 +118,21 @@ func (c *bufCursor) nextAt(seek int64) interface{} {
 // copying the stats buffer to the iterator's stats field. This is used to
 // amortize the cost of using a mutex when updating stats.
 const statsBufferCopyIntervalN = 100
+
+type floatFinalizerIterator struct {
+	query.FloatIterator
+}
+
+func newFloatFinalizerIterator(inner query.FloatIterator) *floatFinalizerIterator {
+	itr := &floatFinalizerIterator{inner}
+	runtime.SetFinalizer(itr, (*floatFinalizerIterator).Close)
+	return itr
+}
+
+func (itr *floatFinalizerIterator) Close() error {
+	runtime.SetFinalizer(itr, nil)
+	return itr.FloatIterator.Close()
+}
 
 type floatIterator struct {
 	cur   floatCursor
@@ -527,6 +543,21 @@ func (c *floatDescendingCursor) nextTSM() {
 		}
 		c.tsm.pos = len(c.tsm.values) - 1
 	}
+}
+
+type integerFinalizerIterator struct {
+	query.IntegerIterator
+}
+
+func newIntegerFinalizerIterator(inner query.IntegerIterator) *integerFinalizerIterator {
+	itr := &integerFinalizerIterator{inner}
+	runtime.SetFinalizer(itr, (*integerFinalizerIterator).Close)
+	return itr
+}
+
+func (itr *integerFinalizerIterator) Close() error {
+	runtime.SetFinalizer(itr, nil)
+	return itr.IntegerIterator.Close()
 }
 
 type integerIterator struct {
@@ -940,6 +971,21 @@ func (c *integerDescendingCursor) nextTSM() {
 	}
 }
 
+type unsignedFinalizerIterator struct {
+	query.UnsignedIterator
+}
+
+func newUnsignedFinalizerIterator(inner query.UnsignedIterator) *unsignedFinalizerIterator {
+	itr := &unsignedFinalizerIterator{inner}
+	runtime.SetFinalizer(itr, (*unsignedFinalizerIterator).Close)
+	return itr
+}
+
+func (itr *unsignedFinalizerIterator) Close() error {
+	runtime.SetFinalizer(itr, nil)
+	return itr.UnsignedIterator.Close()
+}
+
 type unsignedIterator struct {
 	cur   unsignedCursor
 	aux   []cursorAt
@@ -1351,6 +1397,21 @@ func (c *unsignedDescendingCursor) nextTSM() {
 	}
 }
 
+type stringFinalizerIterator struct {
+	query.StringIterator
+}
+
+func newStringFinalizerIterator(inner query.StringIterator) *stringFinalizerIterator {
+	itr := &stringFinalizerIterator{inner}
+	runtime.SetFinalizer(itr, (*stringFinalizerIterator).Close)
+	return itr
+}
+
+func (itr *stringFinalizerIterator) Close() error {
+	runtime.SetFinalizer(itr, nil)
+	return itr.StringIterator.Close()
+}
+
 type stringIterator struct {
 	cur   stringCursor
 	aux   []cursorAt
@@ -1760,6 +1821,21 @@ func (c *stringDescendingCursor) nextTSM() {
 		}
 		c.tsm.pos = len(c.tsm.values) - 1
 	}
+}
+
+type booleanFinalizerIterator struct {
+	query.BooleanIterator
+}
+
+func newBooleanFinalizerIterator(inner query.BooleanIterator) *booleanFinalizerIterator {
+	itr := &booleanFinalizerIterator{inner}
+	runtime.SetFinalizer(itr, (*booleanFinalizerIterator).Close)
+	return itr
+}
+
+func (itr *booleanFinalizerIterator) Close() error {
+	runtime.SetFinalizer(itr, nil)
+	return itr.BooleanIterator.Close()
 }
 
 type booleanIterator struct {
