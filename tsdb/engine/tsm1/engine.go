@@ -1560,7 +1560,7 @@ func (e *Engine) CreateIterator(measurement string, opt influxql.IteratorOptions
 				if err != nil {
 					return nil, err
 				}
-				return influxql.Iterators(itrs).Merge(opt)
+				return newMergeGuardIterator(itrs, opt)
 			}
 		}
 
@@ -1570,14 +1570,14 @@ func (e *Engine) CreateIterator(measurement string, opt influxql.IteratorOptions
 		} else if len(inputs) == 0 {
 			return nil, nil
 		}
-		return influxql.Iterators(inputs).Merge(opt)
+		return newMergeGuardIterator(inputs, opt)
 	}
 
 	itrs, err := e.createVarRefIterator(measurement, opt)
 	if err != nil {
 		return nil, err
 	}
-	return influxql.Iterators(itrs).Merge(opt)
+	return newMergeGuardIterator(itrs, opt)
 }
 
 func (e *Engine) createCallIterator(measurement string, call *influxql.Call, opt influxql.IteratorOptions) ([]influxql.Iterator, error) {
@@ -1631,6 +1631,7 @@ func (e *Engine) createCallIterator(measurement string, call *influxql.Call, opt
 
 				itr, err := influxql.NewCallIterator(input, opt)
 				if err != nil {
+					influxql.Iterators(inputs).Close()
 					return err
 				}
 				inputs[i] = itr
