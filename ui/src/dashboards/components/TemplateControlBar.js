@@ -9,10 +9,10 @@ const maxTempVarDropdownWidth = 300
 const tempVarDropdownPadding = 30
 
 const TemplateControlBar = ({
+  isOpen,
   templates,
   onSelectTemplate,
   onOpenTemplateManager,
-  isOpen,
 }) =>
   <div className={classnames('template-control-bar', {show: isOpen})}>
     <div className="template-control--container">

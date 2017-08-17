@@ -47,10 +47,10 @@ const TemplateVariableManager = ({
     <div className="template-variable-manager--body">
       <TemplateVariableTable
         source={source}
+        onDelete={onDelete}
         templates={templates}
         onRunQuerySuccess={onRunQuerySuccess}
         onRunQueryFailure={onRunQueryFailure}
-        onDelete={onDelete}
         tempVarAlreadyExists={tempVarAlreadyExists}
       />
     </div>
