@@ -14,6 +14,7 @@ class CustomTimeRange extends Component {
     const {timeRange} = this.props
 
     const lower = rome(this.lower, {
+      dateValidator: rome.val.beforeEq(this.upper),
       appendTo: this.lowerContainer,
       initialValue: this.getInitialDate(timeRange.lower),
       autoClose: false,
@@ -22,6 +23,7 @@ class CustomTimeRange extends Component {
     })
 
     const upper = rome(this.upper, {
+      dateValidator: rome.val.afterEq(this.lower),
       appendTo: this.upperContainer,
       autoClose: false,
       initialValue: this.getInitialDate(timeRange.upper),
@@ -36,17 +38,6 @@ class CustomTimeRange extends Component {
     this.upperCal.show()
   }
 
-  getInitialDate = time => {
-    const {upper, lower} = this.props.timeRange
-
-    if (upper || lower) {
-      return this._formatTimeRange(time)
-    }
-
-    return moment(new Date()).format(dateFormat)
-  }
-
-  // If there is an upper or lower time range set, set the corresponding calendar's value.
   componentWillReceiveProps(nextProps) {
     const {lower, upper} = nextProps.timeRange
     if (lower) {
@@ -62,53 +53,19 @@ class CustomTimeRange extends Component {
     }
   }
 
-  render() {
-    return (
-      <div className="custom-time--container">
-        <div className="custom-time--shortcuts">
-          <div className="custom-time--shortcuts-header">Shortcuts</div>
-          {shortcuts.map(({id, name}) =>
-            <div
-              key={id}
-              className="custom-time--shortcut"
-              onClick={this.handleTimeRangeShortcut(id)}
-            >
-              {name}
-            </div>
-          )}
-        </div>
-        <div className="custom-time--wrap">
-          <div className="custom-time--dates">
-            <div
-              className="lower-container"
-              ref={r => (this.lowerContainer = r)}
-            >
-              <input
-                className="custom-time--lower form-control input-sm"
-                ref={r => (this.lower = r)}
-                placeholder="from"
-              />
-            </div>
-            <div
-              className="upper-container"
-              ref={r => (this.upperContainer = r)}
-            >
-              <input
-                className="custom-time--upper form-control input-sm"
-                ref={r => (this.upper = r)}
-                placeholder="to"
-              />
-            </div>
-          </div>
-          <div
-            className="custom-time--apply btn btn-sm btn-primary"
-            onClick={this.handleClick}
-          >
-            Apply
-          </div>
-        </div>
-      </div>
-    )
+  getInitialDate = time => {
+    const {upper, lower} = this.props.timeRange
+
+    if (upper || lower) {
+      return this._formatTimeRange(time)
+    }
+
+    return moment(new Date()).format(dateFormat)
+  }
+
+  handleRefreshCals = () => {
+    this.lowerCal.refresh()
+    this.upperCal.refresh()
   }
 
   /*
@@ -174,9 +131,65 @@ class CustomTimeRange extends Component {
         }
       }
 
+      this.lower.value = lower.format(dateFormat)
+      this.upper.value = upper.format(dateFormat)
+
       this.lowerCal.setValue(lower)
       this.upperCal.setValue(upper)
+
+      this.handleRefreshCals()
     }
+  }
+
+  render() {
+    return (
+      <div className="custom-time--container">
+        <div className="custom-time--shortcuts">
+          <div className="custom-time--shortcuts-header">Shortcuts</div>
+          {shortcuts.map(({id, name}) =>
+            <div
+              key={id}
+              className="custom-time--shortcut"
+              onClick={this.handleTimeRangeShortcut(id)}
+            >
+              {name}
+            </div>
+          )}
+        </div>
+        <div className="custom-time--wrap">
+          <div className="custom-time--dates" onClick={this.handleRefreshCals}>
+            <div
+              className="lower-container"
+              ref={r => (this.lowerContainer = r)}
+            >
+              <input
+                className="custom-time--lower form-control input-sm"
+                ref={r => (this.lower = r)}
+                placeholder="from"
+                onKeyUp={this.handleRefreshCals}
+              />
+            </div>
+            <div
+              className="upper-container"
+              ref={r => (this.upperContainer = r)}
+            >
+              <input
+                className="custom-time--upper form-control input-sm"
+                ref={r => (this.upper = r)}
+                placeholder="to"
+                onKeyUp={this.handleRefreshCals}
+              />
+            </div>
+          </div>
+          <div
+            className="custom-time--apply btn btn-sm btn-primary"
+            onClick={this.handleClick}
+          >
+            Apply
+          </div>
+        </div>
+      </div>
+    )
   }
 }
 
