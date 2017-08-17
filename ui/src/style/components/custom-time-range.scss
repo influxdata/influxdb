@@ -190,6 +190,7 @@ $rd-cell-size: 30px;
     &.rd-day-disabled {
       color: $g8-storm !important;
       background-color: $g5-pepper !important;
+      cursor: default;
     }
   }
 }
