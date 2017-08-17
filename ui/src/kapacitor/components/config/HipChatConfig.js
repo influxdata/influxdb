@@ -1,24 +1,15 @@
-import React, {PropTypes} from 'react'
+import React, {PropTypes, Component} from 'react'
 
 import QuestionMarkTooltip from 'shared/components/QuestionMarkTooltip'
 import {HIPCHAT_TOKEN_TIP} from 'src/kapacitor/copy'
 import RedactedInput from './RedactedInput'
 
-const {bool, func, shape, string} = PropTypes
+class HipchatConfig extends Component {
+  constructor(props) {
+    super(props)
+  }
 
-const HipchatConfig = React.createClass({
-  propTypes: {
-    config: shape({
-      options: shape({
-        room: string.isRequired,
-        token: bool.isRequired,
-        url: string.isRequired,
-      }).isRequired,
-    }).isRequired,
-    onSave: func.isRequired,
-  },
-
-  handleSaveAlert(e) {
+  handleSaveAlert = e => {
     e.preventDefault()
 
     const properties = {
@@ -28,7 +19,9 @@ const HipchatConfig = React.createClass({
     }
 
     this.props.onSave(properties)
-  },
+  }
+
+  handleTokenRef = r => (this.token = r)
 
   render() {
     const {options} = this.props.config
@@ -72,7 +65,7 @@ const HipchatConfig = React.createClass({
           <RedactedInput
             defaultValue={token}
             id="token"
-            refFunc={r => (this.token = r)}
+            refFunc={this.handleTokenRef}
           />
         </div>
 
@@ -83,7 +76,20 @@ const HipchatConfig = React.createClass({
         </div>
       </form>
     )
-  },
-})
+  }
+}
+
+const {bool, func, shape, string} = PropTypes
+
+HipchatConfig.propTypes = {
+  config: shape({
+    options: shape({
+      room: string.isRequired,
+      token: bool.isRequired,
+      url: string.isRequired,
+    }).isRequired,
+  }).isRequired,
+  onSave: func.isRequired,
+}
 
 export default HipchatConfig

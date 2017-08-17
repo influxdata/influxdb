@@ -43,21 +43,6 @@ const isValidRole = role => {
 class AdminPage extends Component {
   constructor(props) {
     super(props)
-
-    this.handleClickCreate = ::this.handleClickCreate
-    this.handleEditUser = ::this.handleEditUser
-    this.handleEditRole = ::this.handleEditRole
-    this.handleSaveUser = ::this.handleSaveUser
-    this.handleSaveRole = ::this.handleSaveRole
-    this.handleCancelEditUser = ::this.handleCancelEditUser
-    this.handleCancelEditRole = ::this.handleCancelEditRole
-    this.handleDeleteRole = ::this.handleDeleteRole
-    this.handleDeleteUser = ::this.handleDeleteUser
-    this.handleUpdateRoleUsers = ::this.handleUpdateRoleUsers
-    this.handleUpdateRolePermissions = ::this.handleUpdateRolePermissions
-    this.handleUpdateUserPermissions = ::this.handleUpdateUserPermissions
-    this.handleUpdateUserRoles = ::this.handleUpdateUserRoles
-    this.handleUpdateUserPassword = ::this.handleUpdateUserPassword
   }
 
   componentDidMount() {
@@ -70,7 +55,7 @@ class AdminPage extends Component {
     }
   }
 
-  handleClickCreate(type) {
+  handleClickCreate = type => () => {
     if (type === 'users') {
       this.props.addUser()
     } else if (type === 'roles') {
@@ -78,15 +63,15 @@ class AdminPage extends Component {
     }
   }
 
-  handleEditUser(user, updates) {
+  handleEditUser = (user, updates) => {
     this.props.editUser(user, updates)
   }
 
-  handleEditRole(role, updates) {
+  handleEditRole = (role, updates) => {
     this.props.editRole(role, updates)
   }
 
-  async handleSaveUser(user) {
+  handleSaveUser = async user => {
     const {notify} = this.props
     if (!isValidUser(user)) {
       notify('error', 'Username and/or password too short')
@@ -99,7 +84,7 @@ class AdminPage extends Component {
     }
   }
 
-  async handleSaveRole(role) {
+  handleSaveRole = async role => {
     const {notify} = this.props
     if (!isValidRole(role)) {
       notify('error', 'Role name too short')
@@ -112,39 +97,39 @@ class AdminPage extends Component {
     }
   }
 
-  handleCancelEditUser(user) {
+  handleCancelEditUser = user => {
     this.props.removeUser(user)
   }
 
-  handleCancelEditRole(role) {
+  handleCancelEditRole = role => {
     this.props.removeRole(role)
   }
 
-  handleDeleteRole(role) {
+  handleDeleteRole = role => {
     this.props.deleteRole(role)
   }
 
-  handleDeleteUser(user) {
+  handleDeleteUser = user => {
     this.props.deleteUser(user)
   }
 
-  handleUpdateRoleUsers(role, users) {
+  handleUpdateRoleUsers = (role, users) => {
     this.props.updateRoleUsers(role, users)
   }
 
-  handleUpdateRolePermissions(role, permissions) {
+  handleUpdateRolePermissions = (role, permissions) => {
     this.props.updateRolePermissions(role, permissions)
   }
 
-  handleUpdateUserPermissions(user, permissions) {
+  handleUpdateUserPermissions = (user, permissions) => {
     this.props.updateUserPermissions(user, permissions)
   }
 
-  handleUpdateUserRoles(user, roles) {
+  handleUpdateUserRoles = (user, roles) => {
     this.props.updateUserRoles(user, roles)
   }
 
-  handleUpdateUserPassword(user, password) {
+  handleUpdateUserPassword = (user, password) => {
     this.props.updateUserPassword(user, password)
   }
 

@@ -164,7 +164,7 @@ KapacitorPage.propTypes = {
   source: shape({
     id: string.isRequired,
     url: string.isRequired,
-    kapacitors: array.isRequired,
+    kapacitors: array,
   }),
 }
 

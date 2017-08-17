@@ -44,7 +44,7 @@ const kapacitorDropdown = (
       buttonColor="btn-primary"
       buttonSize="btn-xs"
       items={kapacitorItems}
-      onChoose={item => setActiveKapacitor(item.kapacitor)}
+      onChoose={setActiveKapacitor}
       addNew={{
         url: `/sources/${source.id}/kapacitors/new`,
         text: 'Add Kapacitor',
@@ -72,12 +72,12 @@ const kapacitorDropdown = (
 }
 
 const InfluxTable = ({
-  sources,
   source,
-  handleDeleteSource,
-  location,
   router,
+  sources,
+  location,
   setActiveKapacitor,
+  handleDeleteSource,
   handleDeleteKapacitor,
 }) =>
   <div className="row">
@@ -147,7 +147,7 @@ const InfluxTable = ({
                       <a
                         className="btn btn-xs btn-danger table--show-on-row-hover"
                         href="#"
-                        onClick={() => handleDeleteSource(s)}
+                        onClick={handleDeleteSource(s)}
                       >
                         Delete Source
                       </a>

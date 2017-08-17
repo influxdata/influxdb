@@ -1,23 +1,13 @@
-import React, {PropTypes} from 'react'
+import React, {PropTypes, Component} from 'react'
 
 import RedactedInput from './RedactedInput'
 
-const {bool, func, shape, string} = PropTypes
+class AlertaConfig extends Component {
+  constructor(props) {
+    super(props)
+  }
 
-const AlertaConfig = React.createClass({
-  propTypes: {
-    config: shape({
-      options: shape({
-        environment: string,
-        origin: string,
-        token: bool,
-        url: string,
-      }).isRequired,
-    }).isRequired,
-    onSave: func.isRequired,
-  },
-
-  handleSaveAlert(e) {
+  handleSaveAlert = e => {
     e.preventDefault()
 
     const properties = {
@@ -28,7 +18,9 @@ const AlertaConfig = React.createClass({
     }
 
     this.props.onSave(properties)
-  },
+  }
+
+  handleTokenRef = r => (this.token = r)
 
   render() {
     const {environment, origin, token, url} = this.props.config.options
@@ -62,7 +54,7 @@ const AlertaConfig = React.createClass({
           <RedactedInput
             defaultValue={token}
             id="token"
-            refFunc={r => (this.token = r)}
+            refFunc={this.handleTokenRef}
           />
         </div>
 
@@ -84,7 +76,21 @@ const AlertaConfig = React.createClass({
         </div>
       </form>
     )
-  },
-})
+  }
+}
+
+const {bool, func, shape, string} = PropTypes
+
+AlertaConfig.propTypes = {
+  config: shape({
+    options: shape({
+      environment: string,
+      origin: string,
+      token: bool,
+      url: string,
+    }).isRequired,
+  }).isRequired,
+  onSave: func.isRequired,
+}
 
 export default AlertaConfig

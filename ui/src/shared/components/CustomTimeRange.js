@@ -2,12 +2,15 @@ import React, {PropTypes, Component} from 'react'
 import rome from 'rome'
 import moment from 'moment'
 
+import shortcuts from 'hson!shared/data/timeRangeShortcuts.hson'
+
 class CustomTimeRange extends Component {
   constructor(props) {
     super(props)
 
     this.handleClick = ::this.handleClick
     this._formatTimeRange = ::this._formatTimeRange
+    this.handleTimeRangeShortcut = ::this.handleTimeRangeShortcut
   }
 
   componentDidMount() {
@@ -39,15 +42,29 @@ class CustomTimeRange extends Component {
   render() {
     return (
       <div className="custom-time--container">
-        <div className="custom-time--dates">
-          <div className="custom-time--lower" ref={r => (this.lower = r)} />
-          <div className="custom-time--upper" ref={r => (this.upper = r)} />
+        <div className="custom-time--shortcuts">
+          <div className="custom-time--shortcuts-header">Shortcuts</div>
+          {shortcuts.map(({id, name}) =>
+            <div
+              key={id}
+              className="custom-time--shortcut"
+              onClick={this.handleTimeRangeShortcut(id)}
+            >
+              {name}
+            </div>
+          )}
         </div>
-        <div
-          className="custom-time--apply btn btn-sm btn-primary"
-          onClick={this.handleClick}
-        >
-          Apply
+        <div className="custom-time--wrap">
+          <div className="custom-time--dates">
+            <div className="custom-time--lower" ref={r => (this.lower = r)} />
+            <div className="custom-time--upper" ref={r => (this.upper = r)} />
+          </div>
+          <div
+            className="custom-time--apply btn btn-sm btn-primary"
+            onClick={this.handleClick}
+          >
+            Apply
+          </div>
         </div>
       </div>
     )
@@ -78,8 +95,46 @@ class CustomTimeRange extends Component {
     const upper = this.upperCal.getDate().toISOString()
 
     onApplyTimeRange({lower, upper})
+
     if (onClose) {
       onClose()
+    }
+  }
+
+  handleTimeRangeShortcut(shortcut) {
+    return () => {
+      let lower
+      const upper = moment()
+
+      switch (shortcut) {
+        case 'pastWeek': {
+          lower = moment().subtract(1, 'week')
+          break
+        }
+        case 'pastMonth': {
+          lower = moment().subtract(1, 'month')
+          break
+        }
+        case 'pastYear': {
+          lower = moment().subtract(1, 'year')
+          break
+        }
+        case 'thisWeek': {
+          lower = moment().startOf('week')
+          break
+        }
+        case 'thisMonth': {
+          lower = moment().startOf('month')
+          break
+        }
+        case 'thisYear': {
+          lower = moment().startOf('year')
+          break
+        }
+      }
+
+      this.lowerCal.setValue(lower)
+      this.upperCal.setValue(upper)
     }
   }
 }

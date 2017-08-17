@@ -2,22 +2,22 @@ import React, {Component, PropTypes} from 'react'
 import classnames from 'classnames'
 import uuid from 'node-uuid'
 
-import TemplateVariableTable from 'src/dashboards/components/TemplateVariableTable'
+import TemplateVariableTable from 'src/dashboards/components/template_variables/Table'
 
 import {TEMPLATE_VARIABLE_TYPES} from 'src/dashboards/constants'
 
 const TemplateVariableManager = ({
-  onClose,
-  onEditTemplateVariables,
   source,
+  onClose,
+  onDelete,
+  isEdited,
   templates,
+  onAddVariable,
   onRunQuerySuccess,
   onRunQueryFailure,
-  onSaveTemplatesSuccess,
-  onAddVariable,
-  onDelete,
   tempVarAlreadyExists,
-  isEdited,
+  onSaveTemplatesSuccess,
+  onEditTemplateVariables,
 }) =>
   <div className="template-variable-manager">
     <div className="template-variable-manager--header">
@@ -41,19 +41,16 @@ const TemplateVariableManager = ({
         >
           Save Changes
         </button>
-        <span
-          className="page-header__dismiss"
-          onClick={() => onClose(isEdited)}
-        />
+        <span className="page-header__dismiss" onClick={onClose(isEdited)} />
       </div>
     </div>
     <div className="template-variable-manager--body">
       <TemplateVariableTable
         source={source}
+        onDelete={onDelete}
         templates={templates}
         onRunQuerySuccess={onRunQuerySuccess}
         onRunQueryFailure={onRunQueryFailure}
-        onDelete={onDelete}
         tempVarAlreadyExists={tempVarAlreadyExists}
       />
     </div>

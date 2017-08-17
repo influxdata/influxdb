@@ -108,6 +108,12 @@ func TestMarshalLayout(t *testing.T) {
 				I:    "anotherid",
 				Type: "line",
 				Name: "cell1",
+				Axes: map[string]chronograf.Axis{
+					"y": chronograf.Axis{
+						Bounds: []string{"0", "100"},
+						Label:  "foo",
+					},
+				},
 				Queries: []chronograf.Query{
 					{
 						Range: &chronograf.Range{
@@ -133,8 +139,8 @@ func TestMarshalLayout(t *testing.T) {
 		t.Fatal(err)
 	} else if err := internal.UnmarshalLayout(buf, &vv); err != nil {
 		t.Fatal(err)
-	} else if !reflect.DeepEqual(layout, vv) {
-		t.Fatalf("source protobuf copy error: got %#v, expected %#v", vv, layout)
+	} else if !cmp.Equal(layout, vv) {
+		t.Fatal("source protobuf copy error: diff:\n", cmp.Diff(layout, vv))
 	}
 }
 

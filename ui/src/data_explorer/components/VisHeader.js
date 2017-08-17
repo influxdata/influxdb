@@ -9,7 +9,7 @@ const VisHeader = ({views, view, onToggleView, name}) =>
           {views.map(v =>
             <li
               key={v}
-              onClick={() => onToggleView(v)}
+              onClick={onToggleView(v)}
               className={classnames({active: view === v})}
               data-test={`data-${v}`}
             >

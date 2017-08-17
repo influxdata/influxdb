@@ -23,19 +23,6 @@ class CellEditorOverlay extends Component {
   constructor(props) {
     super(props)
 
-    this.queryStateReducer = ::this.queryStateReducer
-    this.handleAddQuery = ::this.handleAddQuery
-    this.handleDeleteQuery = ::this.handleDeleteQuery
-    this.handleSaveCell = ::this.handleSaveCell
-    this.handleSelectGraphType = ::this.handleSelectGraphType
-    this.handleClickDisplayOptionsTab = ::this.handleClickDisplayOptionsTab
-    this.handleSetActiveQueryIndex = ::this.handleSetActiveQueryIndex
-    this.handleEditRawText = ::this.handleEditRawText
-    this.handleSetYAxisBoundMin = ::this.handleSetYAxisBoundMin
-    this.handleSetYAxisBoundMax = ::this.handleSetYAxisBoundMax
-    this.handleSetLabel = ::this.handleSetLabel
-    this.getActiveQuery = ::this.getActiveQuery
-
     const {cell: {name, type, queries, axes}} = props
 
     const queriesWorkingDraft = _.cloneDeep(
@@ -65,21 +52,19 @@ class CellEditorOverlay extends Component {
     }
   }
 
-  queryStateReducer(queryModifier) {
-    return (queryID, payload) => {
-      const {queriesWorkingDraft} = this.state
-      const query = queriesWorkingDraft.find(q => q.id === queryID)
+  queryStateReducer = queryModifier => (queryID, payload) => {
+    const {queriesWorkingDraft} = this.state
+    const query = queriesWorkingDraft.find(q => q.id === queryID)
 
-      const nextQuery = queryModifier(query, payload)
+    const nextQuery = queryModifier(query, payload)
 
-      const nextQueries = queriesWorkingDraft.map(
-        q => (q.id === query.id ? nextQuery : q)
-      )
-      this.setState({queriesWorkingDraft: nextQueries})
-    }
+    const nextQueries = queriesWorkingDraft.map(
+      q => (q.id === query.id ? nextQuery : q)
+    )
+    this.setState({queriesWorkingDraft: nextQueries})
   }
 
-  handleSetYAxisBoundMin(min) {
+  handleSetYAxisBoundMin = min => {
     const {axes} = this.state
     const {y: {bounds: [, max]}} = axes
 
@@ -88,7 +73,7 @@ class CellEditorOverlay extends Component {
     })
   }
 
-  handleSetYAxisBoundMax(max) {
+  handleSetYAxisBoundMax = max => {
     const {axes} = this.state
     const {y: {bounds: [min]}} = axes
 
@@ -97,13 +82,13 @@ class CellEditorOverlay extends Component {
     })
   }
 
-  handleSetLabel(label) {
+  handleSetLabel = label => {
     const {axes} = this.state
 
     this.setState({axes: {...axes, y: {...axes.y, label}}})
   }
 
-  handleAddQuery() {
+  handleAddQuery = () => {
     const {queriesWorkingDraft} = this.state
     const newIndex = queriesWorkingDraft.length
 
@@ -116,14 +101,14 @@ class CellEditorOverlay extends Component {
     this.handleSetActiveQueryIndex(newIndex)
   }
 
-  handleDeleteQuery(index) {
+  handleDeleteQuery = index => {
     const nextQueries = this.state.queriesWorkingDraft.filter(
       (__, i) => i !== index
     )
     this.setState({queriesWorkingDraft: nextQueries})
   }
 
-  handleSaveCell() {
+  handleSaveCell = () => {
     const {
       queriesWorkingDraft,
       cellWorkingType: type,
@@ -152,21 +137,19 @@ class CellEditorOverlay extends Component {
     })
   }
 
-  handleSelectGraphType(graphType) {
+  handleSelectGraphType = graphType => () => {
     this.setState({cellWorkingType: graphType})
   }
 
-  handleClickDisplayOptionsTab(isDisplayOptionsTabActive) {
-    return () => {
-      this.setState({isDisplayOptionsTabActive})
-    }
+  handleClickDisplayOptionsTab = isDisplayOptionsTabActive => () => {
+    this.setState({isDisplayOptionsTabActive})
   }
 
-  handleSetActiveQueryIndex(activeQueryIndex) {
+  handleSetActiveQueryIndex = activeQueryIndex => {
     this.setState({activeQueryIndex})
   }
 
-  getActiveQuery() {
+  getActiveQuery = () => {
     const {queriesWorkingDraft, activeQueryIndex} = this.state
     const activeQuery = queriesWorkingDraft[activeQueryIndex]
     const defaultQuery = queriesWorkingDraft[0]
@@ -174,7 +157,7 @@ class CellEditorOverlay extends Component {
     return activeQuery || defaultQuery
   }
 
-  async handleEditRawText(url, id, text) {
+  handleEditRawText = async (url, id, text) => {
     const templates = removeUnselectedTemplateValues(this.props.templates)
 
     // use this as the handler passed into fetchTimeSeries to update a query status

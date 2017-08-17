@@ -8,11 +8,9 @@ import {PUSHOVER_DOCS_LINK} from 'src/kapacitor/copy'
 class PushoverConfig extends Component {
   constructor(props) {
     super(props)
-
-    this.handleSaveAlert = ::this.handleSaveAlert
   }
 
-  handleSaveAlert(e) {
+  handleSaveAlert = e => {
     e.preventDefault()
 
     const properties = {
@@ -23,6 +21,10 @@ class PushoverConfig extends Component {
 
     this.props.onSave(properties)
   }
+
+  handleUserKeyRef = r => (this.userKey = r)
+
+  handleTokenRef = r => (this.token = r)
 
   render() {
     const {options} = this.props.config
@@ -42,7 +44,7 @@ class PushoverConfig extends Component {
           <RedactedInput
             defaultValue={userKey}
             id="user-key"
-            refFunc={r => (this.userKey = r)}
+            refFunc={this.handleUserKeyRef}
           />
         </div>
 
@@ -57,7 +59,7 @@ class PushoverConfig extends Component {
           <RedactedInput
             defaultValue={token}
             id="token"
-            refFunc={r => (this.token = r)}
+            refFunc={this.handleTokenRef}
           />
         </div>
 

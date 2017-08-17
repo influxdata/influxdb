@@ -76,16 +76,16 @@ const RuleRow = ({rule, source, onRead, onDelete, onChangeRuleStatus}) =>
           className="form-control-static"
           type="checkbox"
           defaultChecked={rule.status === 'enabled'}
-          onClick={() => onChangeRuleStatus(rule)}
+          onClick={onChangeRuleStatus(rule)}
         />
         <label htmlFor={`kapacitor-enabled ${rule.id}`} />
       </div>
     </td>
     <td style={{width: colActions}} className="text-right table-cell-nowrap">
-      <button className="btn btn-info btn-xs" onClick={() => onRead(rule)}>
+      <button className="btn btn-info btn-xs" onClick={onRead(rule)}>
         View TICKscript
       </button>
-      <button className="btn btn-danger btn-xs" onClick={() => onDelete(rule)}>
+      <button className="btn btn-danger btn-xs" onClick={onDelete(rule)}>
         Delete
       </button>
     </td>

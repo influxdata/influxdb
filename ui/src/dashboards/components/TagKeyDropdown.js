@@ -11,8 +11,6 @@ class TagKeyDropdown extends Component {
     this.state = {
       tagKeys: [],
     }
-
-    this._getTags = ::this._getTags
   }
 
   componentDidMount() {
@@ -32,18 +30,20 @@ class TagKeyDropdown extends Component {
 
   render() {
     const {tagKeys} = this.state
-    const {tagKey, onSelectTagKey, onStartEdit} = this.props
+    const {tagKey, onSelectTagKey} = this.props
     return (
       <Dropdown
         items={tagKeys.map(text => ({text}))}
         selected={tagKey || 'Select Tag Key'}
         onChoose={onSelectTagKey}
-        onClick={() => onStartEdit(null)}
+        onClick={this.handleStartEdit}
       />
     )
   }
 
-  async _getTags() {
+  handleStartEdit = () => this.props.onStartEdit(null)
+
+  _getTags = async () => {
     const {
       database,
       measurement,

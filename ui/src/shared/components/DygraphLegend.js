@@ -39,7 +39,7 @@ const DygraphLegend = ({
         'sort-btn--asc': isAscending && sortType !== 'numeric',
         'sort-btn--desc': !isAscending && sortType !== 'numeric',
       })}
-      onClick={() => onSort('alphabetic')}
+      onClick={onSort('alphabetic')}
     >
       <div className="sort-btn--arrow" />
       <div className="sort-btn--top">A</div>
@@ -54,7 +54,7 @@ const DygraphLegend = ({
         'sort-btn--asc': isAscending && sortType === 'numeric',
         'sort-btn--desc': !isAscending && sortType === 'numeric',
       })}
-      onClick={() => onSort('numeric')}
+      onClick={onSort('numeric')}
     >
       <div className="sort-btn--arrow" />
       <div className="sort-btn--top">0</div>

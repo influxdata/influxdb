@@ -8,8 +8,10 @@ import OnClickOutside from 'react-onclickoutside'
 import classnames from 'classnames'
 
 import Dropdown from 'shared/components/Dropdown'
-import DeleteConfirmButtons from 'shared/components/DeleteConfirmButtons'
-import TemplateQueryBuilder from 'src/dashboards/components/TemplateQueryBuilder'
+import TemplateQueryBuilder from 'src/dashboards/components/template_variables/TemplateQueryBuilder'
+import TableInput from 'src/dashboards/components/template_variables/TableInput'
+import RowValues from 'src/dashboards/components/template_variables/RowValues'
+import RowButtons from 'src/dashboards/components/template_variables/RowButtons'
 
 import {runTemplateVariableQuery as runTemplateVariableQueryAJAX} from 'src/dashboards/apis'
 
@@ -22,79 +24,6 @@ import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
 const compact = values => uniq(values).filter(value => /\S/.test(value))
-
-const RowValues = ({
-  selectedType,
-  values = [],
-  isEditing,
-  onStartEdit,
-  autoFocusTarget,
-}) => {
-  const _values = values.map(v => v.value).join(', ')
-
-  if (selectedType === 'csv') {
-    return (
-      <TableInput
-        name="values"
-        defaultValue={_values}
-        isEditing={isEditing}
-        onStartEdit={onStartEdit}
-        autoFocusTarget={autoFocusTarget}
-        spellCheck={false}
-        autoComplete={false}
-      />
-    )
-  }
-  return (
-    <div className={values.length ? 'tvm-values' : 'tvm-values-empty'}>
-      {values.length ? _values : 'No values to display'}
-    </div>
-  )
-}
-
-const RowButtons = ({
-  onStartEdit,
-  isEditing,
-  onCancelEdit,
-  onDelete,
-  id,
-  selectedType,
-}) => {
-  if (isEditing) {
-    return (
-      <div className="tvm-actions">
-        <button
-          className="btn btn-sm btn-info"
-          type="button"
-          onClick={onCancelEdit}
-        >
-          Cancel
-        </button>
-        <button className="btn btn-sm btn-success" type="submit">
-          {selectedType === 'csv' ? 'Save Values' : 'Get Values'}
-        </button>
-      </div>
-    )
-  }
-  return (
-    <div className="tvm-actions">
-      <DeleteConfirmButtons onDelete={() => onDelete(id)} />
-      <button
-        className="btn btn-sm btn-info btn-edit btn-square"
-        type="button"
-        onClick={e => {
-          // prevent subsequent 'onSubmit' that is caused by an unknown source,
-          // possible onClickOutside, after 'onClick'. this allows
-          // us to enter 'isEditing' mode
-          e.preventDefault()
-          onStartEdit('tempVar')
-        }}
-      >
-        <span className="icon pencil" />
-      </button>
-    </div>
-  )
-}
 
 const TemplateVariableRow = ({
   template: {id, tempVar, values},
@@ -111,8 +40,8 @@ const TemplateVariableRow = ({
   onCancelEdit,
   autoFocusTarget,
   onSubmit,
-  onDelete,
   onErrorThrown,
+  onDeleteTempVar,
 }) =>
   <form
     className={classnames('template-variable-manager--table-row', {
@@ -138,7 +67,7 @@ const TemplateVariableRow = ({
       <Dropdown
         items={TEMPLATE_TYPES}
         onChoose={onSelectType}
-        onClick={() => onStartEdit(null)}
+        onClick={onStartEdit}
         selected={TEMPLATE_TYPES.find(t => t.type === selectedType).text}
         className="dropdown-140"
       />
@@ -168,41 +97,12 @@ const TemplateVariableRow = ({
         onStartEdit={onStartEdit}
         isEditing={isEditing}
         onCancelEdit={onCancelEdit}
-        onDelete={onDelete}
+        onDelete={onDeleteTempVar}
         id={id}
         selectedType={selectedType}
       />
     </div>
   </form>
-
-const TableInput = ({
-  name,
-  defaultValue,
-  isEditing,
-  onStartEdit,
-  autoFocusTarget,
-}) => {
-  return isEditing
-    ? <div name={name} style={{width: '100%'}}>
-        <input
-          required={true}
-          name={name}
-          autoFocus={name === autoFocusTarget}
-          className="form-control input-sm tvm-input-edit"
-          type="text"
-          defaultValue={
-            name === 'tempVar'
-              ? defaultValue.replace(/\u003a/g, '') // remove ':'s
-              : defaultValue
-          }
-        />
-      </div>
-    : <div style={{width: '100%'}} onClick={() => onStartEdit(name)}>
-        <div className="tvm-input">
-          {defaultValue}
-        </div>
-      </div>
-}
 
 class RowWrapper extends Component {
   constructor(props) {
@@ -220,85 +120,74 @@ class RowWrapper extends Component {
       autoFocusTarget: 'tempVar',
     }
 
-    this.handleSubmit = ::this.handleSubmit
-    this.handleSelectType = ::this.handleSelectType
-    this.handleSelectDatabase = ::this.handleSelectDatabase
-    this.handleSelectMeasurement = ::this.handleSelectMeasurement
-    this.handleSelectTagKey = ::this.handleSelectTagKey
-    this.handleStartEdit = ::this.handleStartEdit
-    this.handleCancelEdit = ::this.handleCancelEdit
     this.runTemplateVariableQuery = ::this.runTemplateVariableQuery
   }
 
-  handleSubmit({
+  handleSubmit = ({
     selectedDatabase: database,
     selectedMeasurement: measurement,
     selectedTagKey: tagKey,
     selectedType: type,
-  }) {
-    return async e => {
-      e.preventDefault()
+  }) => async e => {
+    e.preventDefault()
 
-      const {
-        source,
-        template,
-        template: {id},
-        onRunQuerySuccess,
-        onRunQueryFailure,
-        tempVarAlreadyExists,
-        notify,
-      } = this.props
+    const {
+      source,
+      template,
+      template: {id},
+      onRunQuerySuccess,
+      onRunQueryFailure,
+      tempVarAlreadyExists,
+      notify,
+    } = this.props
 
-      const _tempVar = e.target.tempVar.value.replace(/\u003a/g, '')
-      const tempVar = `\u003a${_tempVar}\u003a` // add ':'s
+    const _tempVar = e.target.tempVar.value.replace(/\u003a/g, '')
+    const tempVar = `\u003a${_tempVar}\u003a` // add ':'s
 
-      if (tempVarAlreadyExists(tempVar, id)) {
-        return notify(
-          'error',
-          `Variable '${_tempVar}' already exists. Please enter a new value.`
-        )
-      }
+    if (tempVarAlreadyExists(tempVar, id)) {
+      return notify(
+        'error',
+        `Variable '${_tempVar}' already exists. Please enter a new value.`
+      )
+    }
 
-      this.setState({
-        isEditing: false,
-        hasBeenSavedToComponentStateOnce: true,
-      })
+    this.setState({
+      isEditing: false,
+      hasBeenSavedToComponentStateOnce: true,
+    })
 
-      const {query, tempVars} = generateTemplateVariableQuery({
-        type,
-        tempVar,
-        query: {
-          database,
-          // rp, TODO
-          measurement,
-          tagKey,
-        },
-      })
-
-      const queryConfig = {
-        type,
-        tempVars,
-        query,
+    const {query, tempVars} = generateTemplateVariableQuery({
+      type,
+      tempVar,
+      query: {
         database,
-        // rp: TODO
+        // rp, TODO
         measurement,
         tagKey,
+      },
+    })
+
+    const queryConfig = {
+      type,
+      tempVars,
+      query,
+      database,
+      // rp: TODO
+      measurement,
+      tagKey,
+    }
+
+    try {
+      let parsedData
+      if (type === 'csv') {
+        parsedData = e.target.values.value.split(',').map(value => value.trim())
+      } else {
+        parsedData = await this.runTemplateVariableQuery(source, queryConfig)
       }
 
-      try {
-        let parsedData
-        if (type === 'csv') {
-          parsedData = e.target.values.value
-            .split(',')
-            .map(value => value.trim())
-        } else {
-          parsedData = await this.runTemplateVariableQuery(source, queryConfig)
-        }
-
-        onRunQuerySuccess(template, queryConfig, compact(parsedData), tempVar)
-      } catch (error) {
-        onRunQueryFailure(error)
-      }
+      onRunQuerySuccess(template, queryConfig, compact(parsedData), tempVar)
+    } catch (error) {
+      onRunQueryFailure(error)
     }
   }
 
@@ -306,11 +195,11 @@ class RowWrapper extends Component {
     this.handleCancelEdit()
   }
 
-  handleStartEdit(name) {
+  handleStartEdit = name => () => {
     this.setState({isEditing: true, autoFocusTarget: name})
   }
 
-  handleCancelEdit() {
+  handleCancelEdit = () => {
     const {
       template: {type, query: {db, measurement, tagKey}, id},
       onDelete,
@@ -329,7 +218,7 @@ class RowWrapper extends Component {
     })
   }
 
-  handleSelectType(item) {
+  handleSelectType = item => {
     this.setState({
       selectedType: item.type,
       selectedDatabase: null,
@@ -338,22 +227,22 @@ class RowWrapper extends Component {
     })
   }
 
-  handleSelectDatabase(item) {
+  handleSelectDatabase = item => {
     this.setState({selectedDatabase: item.text})
   }
 
-  handleSelectMeasurement(item) {
+  handleSelectMeasurement = item => {
     this.setState({selectedMeasurement: item.text})
   }
 
-  handleSelectTagKey(item) {
+  handleSelectTagKey = item => {
     this.setState({selectedTagKey: item.text})
   }
 
-  async runTemplateVariableQuery(
+  runTemplateVariableQuery = async (
     source,
     {query, database, rp, tempVars, type, measurement, tagKey}
-  ) {
+  ) => {
     try {
       const {data} = await runTemplateVariableQueryAJAX(source, {
         query,
@@ -371,6 +260,10 @@ class RowWrapper extends Component {
       console.error(error)
       throw error
     }
+  }
+
+  handleDelete = id => () => {
+    this.props.onDelete(id)
   }
 
   render() {
@@ -399,6 +292,7 @@ class RowWrapper extends Component {
         onCancelEdit={this.handleCancelEdit}
         autoFocusTarget={autoFocusTarget}
         onSubmit={this.handleSubmit}
+        onDeleteTempVar={this.handleDelete}
       />
     )
   }
@@ -451,31 +345,6 @@ TemplateVariableRow.propTypes = {
   onCancelEdit: func.isRequired,
   onSubmit: func.isRequired,
   onErrorThrown: func.isRequired,
-}
-
-TableInput.propTypes = {
-  defaultValue: string,
-  isEditing: bool.isRequired,
-  onStartEdit: func.isRequired,
-  name: string.isRequired,
-  autoFocusTarget: string,
-}
-
-RowValues.propTypes = {
-  selectedType: string.isRequired,
-  values: arrayOf(shape()),
-  isEditing: bool.isRequired,
-  onStartEdit: func.isRequired,
-  autoFocusTarget: string,
-}
-
-RowButtons.propTypes = {
-  onStartEdit: func.isRequired,
-  isEditing: bool.isRequired,
-  onCancelEdit: func.isRequired,
-  onDelete: func.isRequired,
-  id: string.isRequired,
-  selectedType: string.isRequired,
 }
 
 const mapDispatchToProps = dispatch => ({
