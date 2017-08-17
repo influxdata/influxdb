@@ -172,7 +172,7 @@ class WriteDataForm extends Component {
         </div>
         <div className="write-data-form--drag-container">
           <div className="write-data-form--drag-here">
-            Drag file here to Upload
+            <h3>Drag your file here to Upload</h3>
           </div>
         </div>
       </div>
