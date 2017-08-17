@@ -41,15 +41,15 @@ class Notifications extends Component {
     )
   }
 
-  renderDismiss(type) {
-    const {dismissNotification} = this.props
+  handleDismiss = type => () => this.props.dismissNotification(type)
 
+  renderDismiss(type) {
     return (
       <button
         className="close"
         data-dismiss="alert"
         aria-label="Close"
-        onClick={() => dismissNotification(type)}
+        onClick={this.handleDismiss(type)}
       >
         <span className="icon remove" />
       </button>

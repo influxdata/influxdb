@@ -18,8 +18,6 @@ const V_NUMBER = VERSION // eslint-disable-line no-undef
 class ManageSources extends Component {
   constructor(props) {
     super(props)
-
-    this.handleDeleteSource = ::this.handleDeleteSource
   }
 
   componentDidMount() {
@@ -36,7 +34,7 @@ class ManageSources extends Component {
     }
   }
 
-  handleDeleteSource(source) {
+  handleDeleteSource = source => () => {
     const {addFlashMessage} = this.props
 
     try {
@@ -49,8 +47,12 @@ class ManageSources extends Component {
     }
   }
 
+  handleSetActiveKapacitor = ({kapacitor}) => {
+    this.props.setActiveKapacitor(kapacitor)
+  }
+
   render() {
-    const {sources, source, setActiveKapacitor, deleteKapacitor} = this.props
+    const {sources, source, deleteKapacitor} = this.props
 
     return (
       <div className="page" id="manage-sources-page">
@@ -67,11 +69,11 @@ class ManageSources extends Component {
         <FancyScrollbar className="page-contents">
           <div className="container-fluid">
             <InfluxTable
-              handleDeleteSource={this.handleDeleteSource}
               source={source}
               sources={sources}
-              setActiveKapacitor={setActiveKapacitor}
               handleDeleteKapacitor={deleteKapacitor}
+              handleDeleteSource={this.handleDeleteSource}
+              setActiveKapacitor={this.handleSetActiveKapacitor}
             />
             <p className="version-number">
               Chronograf Version: {V_NUMBER}

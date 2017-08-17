@@ -12,15 +12,6 @@ class DatabaseRow extends Component {
       isEditing: false,
       isDeleting: false,
     }
-    this.handleKeyDown = ::this.handleKeyDown
-    this.handleClickOutside = ::this.handleClickOutside
-    this.handleStartEdit = ::this.handleStartEdit
-    this.handleEndEdit = ::this.handleEndEdit
-    this.handleCreate = ::this.handleCreate
-    this.handleUpdate = ::this.handleUpdate
-    this.getInputValues = ::this.getInputValues
-    this.handleStartDelete = ::this.handleStartDelete
-    this.handleEndDelete = ::this.handleEndDelete
   }
 
   componentWillMount() {
@@ -29,9 +20,112 @@ class DatabaseRow extends Component {
     }
   }
 
+  handleRemove = () => {
+    const {database, retentionPolicy, onRemove} = this.props
+    onRemove(database, retentionPolicy)
+  }
+
+  handleClickOutside = () => {
+    const {database, retentionPolicy, onRemove} = this.props
+    if (retentionPolicy.isNew) {
+      onRemove(database, retentionPolicy)
+    }
+
+    this.handleEndEdit()
+    this.handleEndDelete()
+  }
+
+  handleStartEdit = () => {
+    this.setState({isEditing: true})
+  }
+
+  handleEndEdit = () => {
+    this.setState({isEditing: false})
+  }
+
+  handleStartDelete = () => {
+    this.setState({isDeleting: true})
+  }
+
+  handleEndDelete = () => {
+    this.setState({isDeleting: false})
+  }
+
+  handleCreate = () => {
+    const {database, retentionPolicy, onCreate} = this.props
+    const validInputs = this.getInputValues()
+    if (!validInputs) {
+      return
+    }
+
+    onCreate(database, {...retentionPolicy, ...validInputs})
+    this.handleEndEdit()
+  }
+
+  handleUpdate = () => {
+    const {database, retentionPolicy, onUpdate} = this.props
+    const validInputs = this.getInputValues()
+    if (!validInputs) {
+      return
+    }
+
+    onUpdate(database, retentionPolicy, validInputs)
+    this.handleEndEdit()
+  }
+
+  handleKeyDown = e => {
+    const {key} = e
+    const {retentionPolicy, database, onRemove} = this.props
+
+    if (key === 'Escape') {
+      if (retentionPolicy.isNew) {
+        onRemove(database, retentionPolicy)
+        return
+      }
+
+      this.handleEndEdit()
+    }
+
+    if (key === 'Enter') {
+      if (retentionPolicy.isNew) {
+        this.handleCreate()
+        return
+      }
+
+      this.handleUpdate()
+    }
+  }
+
+  getInputValues = () => {
+    const {
+      notify,
+      retentionPolicy: {name: currentName},
+      isRFDisplayed,
+    } = this.props
+
+    const name = (this.name && this.name.value.trim()) || currentName
+    let duration = this.duration.value.trim()
+    // Replication > 1 is only valid for Influx Enterprise
+    const replication = isRFDisplayed ? +this.replication.value.trim() : 1
+
+    if (!duration || (isRFDisplayed && !replication)) {
+      notify('error', 'Fields cannot be empty')
+      return
+    }
+
+    if (duration === '∞') {
+      duration = 'INF'
+    }
+
+    return {
+      name,
+      duration,
+      replication,
+    }
+  }
+
   render() {
     const {
-      onRemove,
       retentionPolicy: {name, duration, replication, isDefault, isNew},
       retentionPolicy,
       database,
@@ -53,7 +147,7 @@ class DatabaseRow extends Component {
                   type="text"
                   defaultValue={name}
                   placeholder="Name this RP"
-                  onKeyDown={e => this.handleKeyDown(e, database)}
+                  onKeyDown={this.handleKeyDown}
                   ref={r => (this.name = r)}
                   autoFocus={true}
                   spellCheck={false}
@@ -68,7 +162,7 @@ class DatabaseRow extends Component {
               type="text"
               defaultValue={formattedDuration}
               placeholder="How long should Data last"
-              onKeyDown={e => this.handleKeyDown(e, database)}
+              onKeyDown={this.handleKeyDown}
               ref={r => (this.duration = r)}
               autoFocus={!isNew}
               spellCheck={false}
@@ -84,7 +178,7 @@ class DatabaseRow extends Component {
                   min="1"
                   defaultValue={replication || 1}
                   placeholder="# of Nodes"
-                  onKeyDown={e => this.handleKeyDown(e, database)}
+                  onKeyDown={this.handleKeyDown}
                   ref={r => (this.replication = r)}
                   spellCheck={false}
                   autoComplete={false}
@@ -98,11 +192,7 @@ class DatabaseRow extends Component {
             <YesNoButtons
               buttonSize="btn-xs"
               onConfirm={isNew ? this.handleCreate : this.handleUpdate}
-              onCancel={
-                isNew
-                  ? () => onRemove(database, retentionPolicy)
-                  : this.handleEndEdit
-              }
+              onCancel={isNew ? this.handleRemove : this.handleEndEdit}
             />
           </td>
         </tr>
@@ -137,7 +227,7 @@ class DatabaseRow extends Component {
         >
           {isDeleting
             ? <YesNoButtons
-                onConfirm={() => onDelete(database, retentionPolicy)}
+                onConfirm={onDelete(database, retentionPolicy)}
                 onCancel={this.handleEndDelete}
                 buttonSize="btn-xs"
               />
@@ -151,105 +241,6 @@ class DatabaseRow extends Component {
         </td>
       </tr>
     )
-  }
-
-  handleClickOutside() {
-    const {database, retentionPolicy, onRemove} = this.props
-    if (retentionPolicy.isNew) {
-      onRemove(database, retentionPolicy)
-    }
-
-    this.handleEndEdit()
-    this.handleEndDelete()
-  }
-
-  handleStartEdit() {
-    this.setState({isEditing: true})
-  }
-
-  handleEndEdit() {
-    this.setState({isEditing: false})
-  }
-
-  handleStartDelete() {
-    this.setState({isDeleting: true})
-  }
-
-  handleEndDelete() {
-    this.setState({isDeleting: false})
-  }
-
-  handleCreate() {
-    const {database, retentionPolicy, onCreate} = this.props
-    const validInputs = this.getInputValues()
-    if (!validInputs) {
-      return
-    }
-
-    onCreate(database, {...retentionPolicy, ...validInputs})
-    this.handleEndEdit()
-  }
-
-  handleUpdate() {
-    const {database, retentionPolicy, onUpdate} = this.props
-    const validInputs = this.getInputValues()
-    if (!validInputs) {
-      return
-    }
-
-    onUpdate(database, retentionPolicy, validInputs)
-    this.handleEndEdit()
-  }
-
-  handleKeyDown(e) {
-    const {key} = e
-    const {retentionPolicy, database, onRemove} = this.props
-
-    if (key === 'Escape') {
-      if (retentionPolicy.isNew) {
-        onRemove(database, retentionPolicy)
-        return
-      }
-
-      this.handleEndEdit()
-    }
-
-    if (key === 'Enter') {
-      if (retentionPolicy.isNew) {
-        this.handleCreate()
-        return
-      }
-
-      this.handleUpdate()
-    }
-  }
-
-  getInputValues() {
-    const {
-      notify,
-      retentionPolicy: {name: currentName},
-      isRFDisplayed,
-    } = this.props
-
-    const name = (this.name && this.name.value.trim()) || currentName
-    let duration = this.duration.value.trim()
-    // Replication > 1 is only valid for Influx Enterprise
-    const replication = isRFDisplayed ? +this.replication.value.trim() : 1
-
-    if (!duration || (isRFDisplayed && !replication)) {
-      notify('error', 'Fields cannot be empty')
-      return
-    }
-
-    if (duration === '∞') {
-      duration = 'INF'
-    }
-
-    return {
-      name,
-      duration,
-      replication,
-    }
   }
 }
 

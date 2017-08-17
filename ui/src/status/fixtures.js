@@ -47,6 +47,22 @@ export const fixtureStatusPageCells = [
     y: 5,
     w: 6.5,
     h: 6,
+    queries: [
+      {
+        query: '',
+        queryConfig: {
+          database: '',
+          measurement: '',
+          retentionPolicy: '',
+          fields: [],
+          tags: {},
+          groupBy: {},
+          areTagsAccepted: false,
+          rawText: null,
+          range: null,
+        },
+      },
+    ],
   },
   {
     i: 'news-feed',
@@ -57,6 +73,22 @@ export const fixtureStatusPageCells = [
     y: 5,
     w: 3,
     h: 6,
+    queries: [
+      {
+        query: '',
+        queryConfig: {
+          database: '',
+          measurement: '',
+          retentionPolicy: '',
+          fields: [],
+          tags: {},
+          groupBy: {},
+          areTagsAccepted: false,
+          rawText: null,
+          range: null,
+        },
+      },
+    ],
   },
   {
     i: 'getting-started',
@@ -67,5 +99,21 @@ export const fixtureStatusPageCells = [
     y: 5,
     w: 2.5,
     h: 6,
+    queries: [
+      {
+        query: '',
+        queryConfig: {
+          database: '',
+          measurement: '',
+          retentionPolicy: '',
+          fields: [],
+          tags: {},
+          groupBy: {},
+          areTagsAccepted: false,
+          rawText: null,
+          range: null,
+        },
+      },
+    ],
   },
 ]

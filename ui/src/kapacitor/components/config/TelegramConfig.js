@@ -1,26 +1,15 @@
-import React, {PropTypes} from 'react'
+import React, {PropTypes, Component} from 'react'
 import QuestionMarkTooltip from 'shared/components/QuestionMarkTooltip'
 import {TELEGRAM_CHAT_ID_TIP, TELEGRAM_TOKEN_TIP} from 'src/kapacitor/copy'
 
 import RedactedInput from './RedactedInput'
 
-const {bool, func, shape, string} = PropTypes
+class TelegramConfig extends Component {
+  constructor(props) {
+    super(props)
+  }
 
-const TelegramConfig = React.createClass({
-  propTypes: {
-    config: shape({
-      options: shape({
-        'chat-id': string.isRequired,
-        'disable-notification': bool.isRequired,
-        'disable-web-page-preview': bool.isRequired,
-        'parse-mode': string.isRequired,
-        token: bool.isRequired,
-      }).isRequired,
-    }).isRequired,
-    onSave: func.isRequired,
-  },
-
-  handleSaveAlert(e) {
+  handleSaveAlert = e => {
     e.preventDefault()
 
     let parseMode
@@ -40,7 +29,9 @@ const TelegramConfig = React.createClass({
     }
 
     this.props.onSave(properties)
-  },
+  }
+
+  handleTokenRef = r => (this.token = r)
 
   render() {
     const {options} = this.props.config
@@ -76,7 +67,7 @@ const TelegramConfig = React.createClass({
           <RedactedInput
             defaultValue={token}
             id="token"
-            refFunc={r => (this.token = r)}
+            refFunc={this.handleTokenRef}
           />
         </div>
 
@@ -166,7 +157,22 @@ const TelegramConfig = React.createClass({
         </div>
       </form>
     )
-  },
-})
+  }
+}
+
+const {bool, func, shape, string} = PropTypes
+
+TelegramConfig.propTypes = {
+  config: shape({
+    options: shape({
+      'chat-id': string.isRequired,
+      'disable-notification': bool.isRequired,
+      'disable-web-page-preview': bool.isRequired,
+      'parse-mode': string.isRequired,
+      token: bool.isRequired,
+    }).isRequired,
+  }).isRequired,
+  onSave: func.isRequired,
+}
 
 export default TelegramConfig

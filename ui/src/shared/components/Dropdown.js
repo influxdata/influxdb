@@ -14,16 +14,6 @@ class Dropdown extends Component {
       filteredItems: this.props.items,
       highlightedItemIndex: null,
     }
-
-    this.handleClickOutside = ::this.handleClickOutside
-    this.handleClick = ::this.handleClick
-    this.handleSelection = ::this.handleSelection
-    this.toggleMenu = ::this.toggleMenu
-    this.handleAction = ::this.handleAction
-    this.handleFilterChange = ::this.handleFilterChange
-    this.applyFilter = ::this.applyFilter
-    this.handleFilterKeyPress = ::this.handleFilterKeyPress
-    this.handleHighlight = ::this.handleHighlight
   }
 
   static defaultProps = {
@@ -34,27 +24,27 @@ class Dropdown extends Component {
     useAutoComplete: false,
   }
 
-  handleClickOutside() {
+  handleClickOutside = () => {
     this.setState({isOpen: false})
   }
 
-  handleClick(e) {
+  handleClick = e => {
     this.toggleMenu(e)
     if (this.props.onClick) {
       this.props.onClick(e)
     }
   }
 
-  handleSelection(item) {
+  handleSelection = item => () => {
     this.toggleMenu()
     this.props.onChoose(item)
   }
 
-  handleHighlight(itemIndex) {
+  handleHighlight = itemIndex => () => {
     this.setState({highlightedItemIndex: itemIndex})
   }
 
-  toggleMenu(e) {
+  toggleMenu = e => {
     if (e) {
       e.stopPropagation()
     }
@@ -68,12 +58,12 @@ class Dropdown extends Component {
     this.setState({isOpen: !this.state.isOpen})
   }
 
-  handleAction(e, action, item) {
+  handleAction = (action, item) => e => {
     e.stopPropagation()
     action.handler(item)
   }
 
-  handleFilterKeyPress(e) {
+  handleFilterKeyPress = e => {
     const {filteredItems, highlightedItemIndex} = this.state
 
     if (e.key === 'Enter' && filteredItems.length) {
@@ -96,7 +86,7 @@ class Dropdown extends Component {
     }
   }
 
-  handleFilterChange(e) {
+  handleFilterChange = e => {
     if (e.target.value === null || e.target.value === '') {
       this.setState({
         searchTerm: '',
@@ -110,7 +100,7 @@ class Dropdown extends Component {
     }
   }
 
-  applyFilter(searchTerm) {
+  applyFilter = searchTerm => {
     const {items} = this.props
     const filterText = searchTerm.toLowerCase()
     const matchingItems = items.filter(item =>
@@ -169,8 +159,8 @@ class Dropdown extends Component {
               >
                 <a
                   href="#"
-                  onClick={() => this.handleSelection(item)}
-                  onMouseOver={() => this.handleHighlight(i)}
+                  onClick={this.handleSelection(item)}
+                  onMouseOver={this.handleHighlight(i)}
                 >
                   {item.text}
                 </a>
@@ -181,7 +171,7 @@ class Dropdown extends Component {
                           <button
                             key={action.text}
                             className="dropdown-action"
-                            onClick={e => this.handleAction(e, action, item)}
+                            onClick={this.handleAction(action, item)}
                           >
                             <span
                               title={action.text}

@@ -11,8 +11,6 @@ class DatabaseDropdown extends Component {
     this.state = {
       databases: [],
     }
-
-    this._getDatabases = ::this._getDatabases
   }
 
   componentDidMount() {
@@ -32,12 +30,12 @@ class DatabaseDropdown extends Component {
         items={databases.map(text => ({text}))}
         selected={database || 'Loading...'}
         onChoose={onSelectDatabase}
-        onClick={onStartEdit ? () => onStartEdit(null) : null}
+        onClick={onStartEdit ? onStartEdit : null}
       />
     )
   }
 
-  async _getDatabases() {
+  _getDatabases = async () => {
     const {source} = this.context
     const {database, onSelectDatabase, onErrorThrown} = this.props
     const proxy = source.links.proxy

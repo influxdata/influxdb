@@ -1,20 +1,13 @@
-import React, {PropTypes} from 'react'
+import React, {PropTypes, Component} from 'react'
 
 import RedactedInput from './RedactedInput'
 
-const VictorOpsConfig = React.createClass({
-  propTypes: {
-    config: PropTypes.shape({
-      options: PropTypes.shape({
-        'api-key': PropTypes.bool,
-        'routing-key': PropTypes.string,
-        url: PropTypes.string,
-      }).isRequired,
-    }).isRequired,
-    onSave: PropTypes.func.isRequired,
-  },
+class VictorOpsConfig extends Component {
+  constructor(props) {
+    super(props)
+  }
 
-  handleSaveAlert(e) {
+  handleSaveAlert = e => {
     e.preventDefault()
 
     const properties = {
@@ -24,7 +17,9 @@ const VictorOpsConfig = React.createClass({
     }
 
     this.props.onSave(properties)
-  },
+  }
+
+  handleApiRef = r => (this.apiKey = r)
 
   render() {
     const {options} = this.props.config
@@ -39,7 +34,7 @@ const VictorOpsConfig = React.createClass({
           <RedactedInput
             defaultValue={apiKey}
             id="api-key"
-            refFunc={r => (this.apiKey = r)}
+            refFunc={this.handleApiRef}
           />
         </div>
 
@@ -72,7 +67,20 @@ const VictorOpsConfig = React.createClass({
         </div>
       </form>
     )
-  },
-})
+  }
+}
+
+const {bool, shape, string, func} = PropTypes
+
+VictorOpsConfig.propTypes = {
+  config: shape({
+    options: shape({
+      'api-key': bool,
+      'routing-key': string,
+      url: string,
+    }).isRequired,
+  }).isRequired,
+  onSave: func.isRequired,
+}
 
 export default VictorOpsConfig

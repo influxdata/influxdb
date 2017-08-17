@@ -5,24 +5,22 @@ import onClickOutside from 'shared/components/OnClickOutside'
 class ClickOutsideInput extends Component {
   constructor(props) {
     super(props)
-
-    this.handleClickOutside = ::this.handleClickOutside
   }
 
-  handleClickOutside(e) {
-    this.props.handleClickOutsideCustomValueInput(e)
+  handleClickOutside = e => {
+    this.props.handleClickOutsideInput(e)
   }
 
   render() {
     const {
       id,
       type,
-      customPlaceholder,
-      onGetRef,
-      customValue,
       onFocus,
       onChange,
+      onGetRef,
       onKeyDown,
+      customValue,
+      customPlaceholder,
     } = this.props
 
     return (
@@ -53,7 +51,7 @@ ClickOutsideInput.propTypes = {
   onFocus: func.isRequired,
   onChange: func.isRequired,
   onKeyDown: func.isRequired,
-  handleClickOutsideCustomValueInput: func.isRequired,
+  handleClickOutsideInput: func.isRequired,
 }
 
 export default onClickOutside(ClickOutsideInput)

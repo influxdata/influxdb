@@ -98,6 +98,14 @@ func MarshalLayout(l chronograf.Layout) ([]byte, error) {
 			}
 		}
 
+		axes := make(map[string]*Axis, len(c.Axes))
+		for a, r := range c.Axes {
+			axes[a] = &Axis{
+				Bounds: r.Bounds,
+				Label:  r.Label,
+			}
+		}
+
 		cells[i] = &Cell{
 			X:       c.X,
 			Y:       c.Y,
@@ -107,6 +115,7 @@ func MarshalLayout(l chronograf.Layout) ([]byte, error) {
 			Name:    c.Name,
 			Queries: queries,
 			Type:    c.Type,
+			Axes:    axes,
 		}
 	}
 	return proto.Marshal(&Layout{
@@ -148,6 +157,13 @@ func UnmarshalLayout(data []byte, l *chronograf.Layout) error {
 				}
 			}
 		}
+		axes := make(map[string]chronograf.Axis, len(c.Axes))
+		for a, r := range c.Axes {
+			axes[a] = chronograf.Axis{
+				Bounds: r.Bounds,
+				Label:  r.Label,
+			}
+		}
 
 		cells[i] = chronograf.Cell{
 			X:       c.X,
@@ -158,6 +174,7 @@ func UnmarshalLayout(data []byte, l *chronograf.Layout) error {
 			Name:    c.Name,
 			Queries: queries,
 			Type:    c.Type,
+			Axes:    axes,
 		}
 	}
 	l.Cells = cells
