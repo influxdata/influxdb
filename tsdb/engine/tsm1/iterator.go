@@ -149,9 +149,10 @@ func (c cursorsAt) close() {
 	}
 }
 
-// newMergeGuardIterator creates a new Merge iterator from the inputs. If Merge returns an error,
-// the inputs will be closed
-func newMergeGuardIterator(inputs []query.Iterator, opt query.IteratorOptions) (query.Iterator, error) {
+// newMergeFinalizerIterator creates a new Merge iterator from the inputs. If the call to Merge succeeds,
+// the resulting Iterator will be wrapped in a finalizer iterator.
+// If Merge returns an error, the inputs will be closed.
+func newMergeFinalizerIterator(inputs []query.Iterator, opt query.IteratorOptions) (query.Iterator, error) {
 	itr, err := query.Iterators(inputs).Merge(opt)
 	if err != nil {
 		query.Iterators(inputs).Close()
