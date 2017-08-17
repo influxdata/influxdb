@@ -3,39 +3,62 @@ import rome from 'rome'
 import moment from 'moment'
 
 import shortcuts from 'hson!shared/data/timeRangeShortcuts.hson'
+const dateFormat = 'YYYY-MM-DD HH:mm'
 
 class CustomTimeRange extends Component {
   constructor(props) {
     super(props)
-
-    this.handleClick = ::this.handleClick
-    this._formatTimeRange = ::this._formatTimeRange
-    this.handleTimeRangeShortcut = ::this.handleTimeRangeShortcut
   }
 
   componentDidMount() {
     const {timeRange} = this.props
 
     const lower = rome(this.lower, {
-      initialValue: this._formatTimeRange(timeRange.lower),
+      appendTo: this.lowerContainer,
+      initialValue: this.getInitialDate(timeRange.lower),
+      autoClose: false,
+      autoHideOnBlur: false,
+      autoHideOnClick: false,
     })
+
     const upper = rome(this.upper, {
-      initialValue: this._formatTimeRange(timeRange.upper),
+      appendTo: this.upperContainer,
+      autoClose: false,
+      initialValue: this.getInitialDate(timeRange.upper),
+      autoHideOnBlur: false,
+      autoHideOnClick: false,
     })
 
     this.lowerCal = lower
     this.upperCal = upper
+
+    this.lowerCal.show()
+    this.upperCal.show()
+  }
+
+  getInitialDate = time => {
+    const {upper, lower} = this.props.timeRange
+
+    if (upper || lower) {
+      return this._formatTimeRange(time)
+    }
+
+    return moment(new Date()).format(dateFormat)
   }
 
   // If there is an upper or lower time range set, set the corresponding calendar's value.
   componentWillReceiveProps(nextProps) {
     const {lower, upper} = nextProps.timeRange
     if (lower) {
+      const formattedLower = this._formatTimeRange(lower)
       this.lowerCal.setValue(this._formatTimeRange(lower))
+      this.lower.value = formattedLower
     }
 
     if (upper) {
+      const formattedUpper = this._formatTimeRange(upper)
       this.upperCal.setValue(this._formatTimeRange(upper))
+      this.upper.value = formattedUpper
     }
   }
 
@@ -56,8 +79,26 @@ class CustomTimeRange extends Component {
         </div>
         <div className="custom-time--wrap">
           <div className="custom-time--dates">
-            <div className="custom-time--lower" ref={r => (this.lower = r)} />
-            <div className="custom-time--upper" ref={r => (this.upper = r)} />
+            <div
+              className="lower-container"
+              ref={r => (this.lowerContainer = r)}
+            >
+              <input
+                className="custom-time--lower form-control input-sm"
+                ref={r => (this.lower = r)}
+                placeholder="from"
+              />
+            </div>
+            <div
+              className="upper-container"
+              ref={r => (this.upperContainer = r)}
+            >
+              <input
+                className="custom-time--upper form-control input-sm"
+                ref={r => (this.upper = r)}
+                placeholder="to"
+              />
+            </div>
           </div>
           <div
             className="custom-time--apply btn btn-sm btn-primary"
@@ -75,7 +116,7 @@ class CustomTimeRange extends Component {
    * the string literal, i.e. "'2015-09-23T18:00:00.000Z'".  Remove them
    * before passing the string to be parsed.
    */
-  _formatTimeRange(timeRange) {
+  _formatTimeRange = timeRange => {
     if (!timeRange) {
       return ''
     }
@@ -86,10 +127,10 @@ class CustomTimeRange extends Component {
       moment().subtract(duration, unitOfTime)
     }
 
-    return moment(timeRange.replace(/\'/g, '')).format('YYYY-MM-DD HH:mm')
+    return moment(timeRange.replace(/\'/g, '')).format(dateFormat)
   }
 
-  handleClick() {
+  handleClick = () => {
     const {onApplyTimeRange, onClose} = this.props
     const lower = this.lowerCal.getDate().toISOString()
     const upper = this.upperCal.getDate().toISOString()
@@ -101,7 +142,7 @@ class CustomTimeRange extends Component {
     }
   }
 
-  handleTimeRangeShortcut(shortcut) {
+  handleTimeRangeShortcut = shortcut => {
     return () => {
       let lower
       const upper = moment()

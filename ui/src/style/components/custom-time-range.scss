@@ -35,9 +35,11 @@
 }
 .custom-time--lower {
   margin-right: 4px;
+  text-align: center;
 }
 .custom-time--upper {
   margin-left: 4px;
+  text-align: center;
 }
 .custom-time--shortcuts {
   @include no-user-select();
