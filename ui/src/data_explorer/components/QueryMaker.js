@@ -10,7 +10,7 @@ const rawTextBinder = (links, id, action) => text =>
   action(links.queries, id, text)
 
 const buildText = (q, timeRange) =>
-  q.rawText || buildInfluxQLQuery(q.range || timeRange, q) || ''
+  q.rawText || buildInfluxQLQuery(timeRange, q) || ''
 
 const QueryMaker = ({
   source,
