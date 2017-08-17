@@ -109,7 +109,7 @@ input[type="file"].write-data-form--upload {
   position: absolute;
 }
 .write-data-form--drag-container {
-  transition-property: all;
+  transition: all 0.25s ease;
   visibility: hidden;
   width: calc(100% - 60px);
   max-width: $write-data--max-width;
@@ -156,7 +156,6 @@ input[type="file"].write-data-form--upload {
   .write-data-form--drag-container {visibility: visible;}
   .write-data-form--drag-here {
     opacity: 1;
-    transition: $write-data--transition;
   }
 }
 .write-data-form--drag-graphic {
