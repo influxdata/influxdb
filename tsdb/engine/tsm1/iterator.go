@@ -55,9 +55,10 @@ func (c cursorsAt) close() {
 	}
 }
 
-// newMergeGuardIterator creates a new Merge iterator from the inputs. If Merge returns an error,
-// the inputs will be closed
-func newMergeGuardIterator(inputs []influxql.Iterator, opt influxql.IteratorOptions) (influxql.Iterator, error) {
+// newMergeFinalizerIterator creates a new Merge iterator from the inputs. If the call to Merge succeeds,
+// the resulting Iterator will be wrapped in a finalizer iterator.
+// If Merge returns an error, the inputs will be closed.
+func newMergeFinalizerIterator(inputs []influxql.Iterator, opt influxql.IteratorOptions) (influxql.Iterator, error) {
 	itr, err := influxql.Iterators(inputs).Merge(opt)
 	if err != nil {
 		influxql.Iterators(inputs).Close()
