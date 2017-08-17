@@ -1758,8 +1758,6 @@ func (e *Engine) createTagSetIterators(ref *influxql.VarRef, name string, t *que
 			group.keys = t.SeriesKeys[i*n:]
 			group.filters = t.Filters[i*n:]
 		}
-
-		group.itrs = make([]query.Iterator, 0, len(group.keys))
 	}
 
 	// Read series groups in parallel.
