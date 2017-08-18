@@ -13,8 +13,7 @@ const (
 	// Prefix is prepended to the ID of all alerts
 	Prefix = "chronograf-v1-"
 
-	// DefaultFetchRate is the rate at which paginated responses will be consumed
-	// from a Kapacitor
+	// FetchRate is the rate Paginating Kapacitor Clients will consume responses
 	FetchRate = 100
 )
 
