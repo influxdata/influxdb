@@ -192,8 +192,6 @@ describe('DataExplorer.Reducers.UI', () => {
       templateVariablesSelectedByName(dash.id, selected)
     )
 
-    console.log(JSON.stringify(actual, null, 2))
-
     expect(actual.dashboards[0].templates[0].values[0].selected).to.equal(true)
     expect(actual.dashboards[0].templates[0].values[1].selected).to.equal(false)
     expect(actual.dashboards[0].templates[0].values[2].selected).to.equal(false)
