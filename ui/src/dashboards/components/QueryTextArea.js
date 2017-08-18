@@ -229,8 +229,8 @@ class QueryTextArea extends Component {
             <div className="varmoji-front">
               <QueryStatus status={status}>
                 <FillQuery
-                  onSelection={e => {
-                    console.log(e)
+                  onSelection={(val, isNum) => {
+                    console.log(val, isNum)
                   }}
                 />
               </QueryStatus>
