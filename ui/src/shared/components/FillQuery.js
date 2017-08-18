@@ -3,6 +3,14 @@ import Dropdown from 'src/shared/components/Dropdown'
 
 import {QUERY_FILL_OPTIONS} from 'src/shared/constants/queryFillOptions'
 
+/*
+  NOTE
+  This component requires a function be passed in as a prop
+  FillQuery calls that function with 2 arguments:
+   - Either the selected item from the dropdown or the value of the input
+   - A boolean to type the result, true = number, false = string
+*/
+
 class FillQuery extends Component {
   constructor(props) {
     super(props)
