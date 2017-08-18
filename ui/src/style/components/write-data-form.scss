@@ -4,6 +4,8 @@
   Accessed via Data Explorer
 */
 
+$write-data--form-z: 2;
+$write-data--drag-overlay-z: 1;
 $write-data--max-width: 960px;
 $write-data--gutter: 30px;
 $write-data--margin: 18px;
@@ -13,7 +15,8 @@ $write-data--transition: opacity 0.4s ease;
 .write-data-form {
   max-width: $write-data--max-width;
   margin: 0 auto;
-  transition: $write-data--transition;
+  position: relative;
+  z-index: $write-data--form-z;
 }
 .write-data-form--header {
   height: $chronograf-page-header-height;
@@ -71,49 +74,63 @@ textarea.form-control.write-data-form--input {
   justify-content: center;
   background-color: $g2-kevlar;
   border: 2px solid $g4-onyx;
+  margin-bottom: 48px;
   border-radius: 3px;
+  transition:
+    background-color 0.25s ease,
+    border-color 0.25s ease;
+
+  > p {
+    color: $g12-forge;
+    font-weight: 600;
+    margin: 20px 0;
+  }
 }
+.write-data-form--graphic {
+  background-image: url(assets/images/drag-drop-icon.svg);
+  background-size: 100% 100%;
+  background-position: center center;
+  width: 90px;
+  height: 90px;
+  margin-bottom: 68px;
+
+  &.write-data-form--graphic_success {
+    background-image: url(assets/images/drag-drop-icon--success.svg);
+    margin-bottom: 0;
+  }
+}
+
 input[type="file"].write-data-form--upload {
   display: none;
-}
-button.write-data-form--upload-button {
-  margin-top: 312px;
 }
 .write-data-form--filepath_selected,
 .write-data-form--filepath_empty {
   @include no-user-select();
-  font-size: 13px;
-  font-weight: 600;
-  margin-top: 15px;
+  width: 100%;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0 0 30px 0;
 }
-.write-data-form--filepath_empty {
-  color: $g13-mist;
-  font-style: italic;
-}
-.write-data-form--filepath_selected {
-  color: $c-rainforest;
-  .icon {margin-right: 4px;}
+.write-data-form--filepath_empty {color: $g12-forge;}
+.write-data-form--filepath_selected {color: $c-rainforest;}
+
+.write-data-form--file-submit {
+  margin-top: 30px;
+  & .btn {
+    width: 124px;
+    margin: 0 8px;
+  }
 }
 
-/* Drag File to Upload Styles */
-.write-data-form--drag-here {
-  position: absolute;
-  top: 35%;
-  left: 50%;
-  transform: translate(-50%,-50%);
-  transition: $write-data--transition;
-  width: 520px;
-  height: 240px;
-  border-radius: 5px;
-  text-align: center;
-  line-height: 240px;
-  font-size: 30px;
-  font-weight: 400;
-  opacity: 0.5;
-  color: $g20-white;
-  border: 2px dashed fade-out($g20-white, 0.5);
-}
-.drag-over {
-  .write-data-form {opacity: 0;}
-  .write-data-form--drag-here {opacity: 1;}
+/*
+  Styles for hover state and drag-over state look the same
+  ------------------------------------------------------------------------------
+*/
+.write-data-form--file.write-data-form--file_active:hover,
+.overlay-technology.drag-over .write-data-form--file {
+  cursor: pointer;
+  background-color: $g4-onyx;
+  border-color: $g6-smoke;
 }

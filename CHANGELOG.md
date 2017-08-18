@@ -5,6 +5,7 @@
 1. [#1870](https://github.com/influxdata/chronograf/pull/1870): Fix console error for placing prop on div
 1. [#1864](https://github.com/influxdata/chronograf/pull/1864): Fix Write Data form upload button and add `onDragExit` handler
 1. [#1891](https://github.com/influxdata/chronograf/pull/1891): Fix Kapacitor config for PagerDuty via the UI
+1. [#1897](https://github.com/influxdata/chronograf/pull/1897): Fix regression from [#1864](https://github.com/influxdata/chronograf/pull/1864) and redesign drag & drop interaction
 1. [#1872](https://github.com/influxdata/chronograf/pull/1872): Prevent stats in the legend from wrapping line
 1. [#1899](https://github.com/influxdata/chronograf/pull/1899): Fix raw query editor in Data Explorer not using selected time
 
