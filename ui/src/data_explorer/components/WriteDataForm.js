@@ -92,6 +92,10 @@ class WriteDataForm extends Component {
     }
   }
 
+  handleCancelFile = () => {
+    this.setState({uploadContent: ''})
+  }
+
   handleDragOver = e => {
     e.preventDefault()
     e.stopPropagation()
@@ -112,7 +116,10 @@ class WriteDataForm extends Component {
   }
 
   handleFileOpen = () => {
-    this.fileInput.click()
+    const {uploadContent} = this.state
+    if (uploadContent === '') {
+      this.fileInput.click()
+    }
   }
 
   handleFileInputRef = el => (this.fileInput = el)
@@ -146,13 +153,12 @@ class WriteDataForm extends Component {
             handleKeyUp={this.handleKeyUp}
             handleSubmit={this.handleSubmit}
             handleFileOpen={this.handleFileOpen}
+            handleCancelFile={this.handleCancelFile}
           />
         </div>
-        <div className="write-data-form--drag-container">
-          <div className="write-data-form--drag-here">
-            <h3>Drag your file here to Upload</h3>
-          </div>
-        </div>
+        {/* <div className="write-data-form--drag-container">
+          <div className="write-data-form--drag-overlay" />
+        </div> */}
       </div>
     )
   }

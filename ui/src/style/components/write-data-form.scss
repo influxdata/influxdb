@@ -4,6 +4,8 @@
   Accessed via Data Explorer
 */
 
+$write-data--form-z: 2;
+$write-data--drag-overlay-z: 1;
 $write-data--max-width: 960px;
 $write-data--gutter: 30px;
 $write-data--margin: 18px;
@@ -13,6 +15,8 @@ $write-data--transition: opacity 0.4s ease;
 .write-data-form {
   max-width: $write-data--max-width;
   margin: 0 auto;
+  position: relative;
+  z-index: $write-data--form-z;
 }
 .write-data-form--header {
   height: $chronograf-page-header-height;
@@ -70,98 +74,66 @@ textarea.form-control.write-data-form--input {
   justify-content: center;
   background-color: $g2-kevlar;
   border: 2px solid $g4-onyx;
+  margin-bottom: 48px;
   border-radius: 3px;
+  transition:
+    background-color 0.25s ease,
+    border-color 0.25s ease;
 
-  > h3, > p {
-    color: $g12-forge;
-    @include no-user-select();
-  }
-  > h3 {
-    margin: 0 0 20px 0;
-  }
   > p {
+    color: $g12-forge;
     font-weight: 600;
     margin: 20px 0;
   }
 }
+.write-data-form--graphic {
+  background-image: url(assets/images/drag-drop-icon.svg);
+  background-size: 100% 100%;
+  background-position: center center;
+  width: 90px;
+  height: 90px;
+  margin-bottom: 68px;
+
+  &.write-data-form--graphic_success {
+    background-image: url(assets/images/drag-drop-icon--success.svg);
+    margin-bottom: 0;
+  }
+  &.write-data-form--graphic_upload {
+    background-image: url(assets/images/drag-drop-icon-hover.svg);
+  }
+}
+
 input[type="file"].write-data-form--upload {
   display: none;
 }
 .write-data-form--filepath_selected,
 .write-data-form--filepath_empty {
   @include no-user-select();
-  font-size: 13px;
-  font-weight: 600;
-  margin-top: 15px;
-}
-.write-data-form--filepath_empty {
-  color: $g13-mist;
-  font-style: italic;
-}
-.write-data-form--filepath_selected {
-  color: $c-rainforest;
-  .icon {margin-right: 4px;}
-}
-
-/* Drag File to Upload Styles */
-.write-data-form--drag-container,
-.write-data-form--drag-here {
-  position: absolute;
-}
-.write-data-form--drag-container {
-  transition: all 0.25s ease;
-  visibility: hidden;
-  width: calc(100% - 60px);
-  max-width: $write-data--max-width;
-  height: 90vh;
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  position: absolute;
-  z-index: 3;
-}
-.write-data-form--drag-here {
-  position: absolute;
-  top: 60px;
   width: 100%;
-  height: calc(100% - 60px);
-  @include gradient-v($g2-kevlar,$g0-obsidian);
-  transition: $write-data--transition;
-  border-radius: 0 0 4px 4px;
-  opacity: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  align-content: center;
-
-  // Dashed box
-  &:after {
-    content: '';
-    position: absolute;
-    top: 18px;
-    left: 30px;
-    right: 30px;
-    bottom: 66px;
-    border: 2px dashed $g5-pepper;
-    border-radius: 4px;
-  }
-}
-.write-data-form--drag-here h3 {
   text-align: center;
-  color: $g12-forge;
-  margin: 0;
-  @include no-user-select();
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0 0 30px 0;
 }
-.overlay-technology.drag-over {
-  .write-data-form--drag-container {visibility: visible;}
-  .write-data-form--drag-here {
-    opacity: 1;
+.write-data-form--filepath_empty {color: $g12-forge;}
+.write-data-form--filepath_selected {color: $c-rainforest;}
+
+.write-data-form--file-submit {
+  margin-top: 30px;
+  & .btn {
+    width: 124px;
+    margin: 0 8px;
   }
 }
-.write-data-form--drag-graphic {
-  background-image: url(assets/images/drag-drop-icon.svg);
-  background-size: 100% 100%;
-  background-position: center center;
-  width: 90px;
-  height: 90px;
+
+/*
+  Styles for hover state and drag-over state look the same
+  ------------------------------------------------------------------------------
+*/
+.write-data-form--file.write-data-form--file_active:hover,
+.overlay-technology.drag-over .write-data-form--file {
+  cursor: pointer;
+  background-color: $g4-onyx;
+  border-color: $g6-smoke;
 }
