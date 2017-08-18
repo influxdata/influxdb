@@ -148,3 +148,40 @@ func (c cursorsAt) close() {
 		cur.close()
 	}
 }
+
+// newMergeFinalizerIterator creates a new Merge iterator from the inputs. If the call to Merge succeeds,
+// the resulting Iterator will be wrapped in a finalizer iterator.
+// If Merge returns an error, the inputs will be closed.
+func newMergeFinalizerIterator(inputs []query.Iterator, opt query.IteratorOptions) (query.Iterator, error) {
+	itr, err := query.Iterators(inputs).Merge(opt)
+	if err != nil {
+		query.Iterators(inputs).Close()
+		return nil, err
+	}
+	return newFinalizerIterator(itr), nil
+}
+
+// newFinalizerIterator creates a new iterator that installs a runtime finalizer
+// to ensure close is eventually called if the iterator is garbage collected.
+// This additional guard attempts to protect against clients of CreateIterator not
+// correctly closing them and leaking cursors.
+func newFinalizerIterator(itr query.Iterator) query.Iterator {
+	if itr == nil {
+		return nil
+	}
+
+	switch inner := itr.(type) {
+	case query.FloatIterator:
+		return newFloatFinalizerIterator(inner)
+	case query.IntegerIterator:
+		return newIntegerFinalizerIterator(inner)
+	case query.UnsignedIterator:
+		return newUnsignedFinalizerIterator(inner)
+	case query.StringIterator:
+		return newStringFinalizerIterator(inner)
+	case query.BooleanIterator:
+		return newBooleanFinalizerIterator(inner)
+	default:
+		panic(fmt.Sprintf("unsupported finalizer iterator type: %T", itr))
+	}
+}
