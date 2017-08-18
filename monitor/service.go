@@ -125,6 +125,16 @@ func (m *Monitor) Open() error {
 	return nil
 }
 
+func (m *Monitor) writePoints(p models.Points) error {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if err := m.PointsWriter.WritePoints(m.storeDatabase, m.storeRetentionPolicy, p); err != nil {
+		m.Logger.Info(fmt.Sprintf("failed to store statistics: %s", err))
+	}
+	return nil
+}
+
 // Close closes the monitor system.
 func (m *Monitor) Close() error {
 	if !m.open() {
@@ -424,14 +434,7 @@ func (m *Monitor) storeStatistics() {
 				points = append(points, pt)
 			}
 
-			func() {
-				m.mu.RLock()
-				defer m.mu.RUnlock()
-
-				if err := m.PointsWriter.WritePoints(m.storeDatabase, m.storeRetentionPolicy, points); err != nil {
-					m.Logger.Info(fmt.Sprintf("failed to store statistics: %s", err))
-				}
-			}()
+			m.writePoints(points)
 		case <-m.done:
 			m.Logger.Info(fmt.Sprintf("terminating storage of statistics"))
 			return
