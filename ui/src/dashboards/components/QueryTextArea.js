@@ -55,6 +55,10 @@ class QueryTextArea extends Component {
     })
   }
 
+  handleFillQuery = (val, isNum) => {
+    console.log(val, isNum)
+  }
+
   handleKeyDown = e => {
     const {isTemplating, value} = this.state
 
@@ -213,11 +217,7 @@ class QueryTextArea extends Component {
           <div className="varmoji-container">
             <div className="varmoji-front">
               <QueryStatus status={status}>
-                <FillQuery
-                  onSelection={(val, isNum) => {
-                    console.log(val, isNum)
-                  }}
-                />
+                <FillQuery onSelection={this.handleFillQuery} />
               </QueryStatus>
             </div>
             <div className="varmoji-back">
