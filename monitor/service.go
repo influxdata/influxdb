@@ -125,6 +125,16 @@ func (m *Monitor) Open() error {
 	return nil
 }
 
+func (m *Monitor) writePoints(p models.Points) error {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if err := m.PointsWriter.WritePoints(m.storeDatabase, m.storeRetentionPolicy, p); err != nil {
+		m.Logger.Info(fmt.Sprintf("failed to store statistics: %s", err))
+	}
+	return nil
+}
+
 // Close closes the monitor system.
 func (m *Monitor) Close() error {
 	if !m.open() {
@@ -414,24 +424,26 @@ func (m *Monitor) storeStatistics() {
 				return
 			}
 
-			points := make(models.Points, 0, len(stats))
+			// Write all stats in batches
+			batch := make(models.Points, 0, 5000)
 			for _, s := range stats {
 				pt, err := models.NewPoint(s.Name, models.NewTags(s.Tags), s.Values, now)
 				if err != nil {
 					m.Logger.Info(fmt.Sprintf("Dropping point %v: %v", s.Name, err))
 					return
 				}
-				points = append(points, pt)
+				batch = append(batch, pt)
+				if len(batch) == cap(batch) {
+					m.writePoints(batch)
+					batch = batch[:0]
+
+				}
 			}
 
-			func() {
-				m.mu.RLock()
-				defer m.mu.RUnlock()
-
-				if err := m.PointsWriter.WritePoints(m.storeDatabase, m.storeRetentionPolicy, points); err != nil {
-					m.Logger.Info(fmt.Sprintf("failed to store statistics: %s", err))
-				}
-			}()
+			// Write the last batch
+			if len(batch) > 0 {
+				m.writePoints(batch)
+			}
 		case <-m.done:
 			m.Logger.Info(fmt.Sprintf("terminating storage of statistics"))
 			return
