@@ -29,10 +29,12 @@ class FillQuery extends Component {
     // Prevent user from submitting an empty string as their value
     // Use 0 by default
     if (e.target.value === '') {
-      this.setState({inputValue: '0'})
-    }
-    if (useCustomNumber) {
-      this.props.onSelection(inputValue)
+      const zeroVal = '0'
+      this.setState({inputValue: zeroVal}, () => {
+        this.props.onSelection(zeroVal, true)
+      })
+    } else if (useCustomNumber) {
+      this.props.onSelection(inputValue, true)
     }
   }
 
@@ -43,11 +45,11 @@ class FillQuery extends Component {
   handleDropdown(item) {
     if (item.text === 'number') {
       this.setState({selected: item.text, useCustomNumber: true}, () => {
-        this.props.onSelection(this.state.inputValue)
+        this.props.onSelection(this.state.inputValue, true)
       })
     } else {
       this.setState({selected: item.text, useCustomNumber: false}, () => {
-        this.props.onSelection(item.text)
+        this.props.onSelection(item.text, false)
       })
     }
   }
