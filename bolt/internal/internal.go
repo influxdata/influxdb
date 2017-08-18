@@ -206,6 +206,7 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 				Prefix: r.Prefix,
 				Suffix: r.Suffix,
 				Base:   r.Base,
+				Scale:  r.Scale,
 			}
 		}
 
@@ -296,6 +297,7 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 					Prefix: r.Prefix,
 					Suffix: r.Suffix,
 					Base:   r.Base,
+					Scale:  r.Scale,
 				}
 
 			} else {

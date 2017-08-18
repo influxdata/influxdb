@@ -647,6 +647,7 @@ type Axis struct {
 	Prefix       string   `json:"prefix"` // specifies a prefix for axis values
 	Suffix       string   `json:"suffix"` // specifies a suffix for axis values
 	Base         string   `json:"base"`   // defines the base for axis values
+	Scale        string   `json:"scale"`  // the magnitude of the numbers for this axis
 }
 
 // DashboardCell holds visual and query information for a cell
