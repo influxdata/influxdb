@@ -171,6 +171,7 @@ func Test_MarshalDashboard(t *testing.T) {
 						Prefix: "M",
 						Suffix: "m",
 						Base:   "2",
+						Scale:  "roflscale",
 					},
 				},
 				Type: "line",
