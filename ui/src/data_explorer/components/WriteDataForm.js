@@ -156,9 +156,6 @@ class WriteDataForm extends Component {
             handleCancelFile={this.handleCancelFile}
           />
         </div>
-        {/* <div className="write-data-form--drag-container">
-          <div className="write-data-form--drag-overlay" />
-        </div> */}
       </div>
     )
   }
