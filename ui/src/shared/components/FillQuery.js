@@ -12,11 +12,6 @@ class FillQuery extends Component {
       customNumber: null,
       inputValue: '0',
     }
-
-    this.handleDropdown = ::this.handleDropdown
-    this.handleInputBlur = ::this.handleInputBlur
-    this.handleInputChange = ::this.handleInputChange
-    this.handleKeyUp = ::this.handleKeyUp
   }
 
   static defaultProps = {
@@ -24,7 +19,19 @@ class FillQuery extends Component {
     theme: 'blue',
   }
 
-  handleInputBlur(e) {
+  handleDropdown = item => {
+    if (item.text === 'number') {
+      this.setState({selected: item.text, useCustomNumber: true}, () => {
+        this.props.onSelection(this.state.inputValue, true)
+      })
+    } else {
+      this.setState({selected: item.text, useCustomNumber: false}, () => {
+        this.props.onSelection(item.text, false)
+      })
+    }
+  }
+
+  handleInputBlur = e => {
     const {useCustomNumber, inputValue} = this.state
     // Prevent user from submitting an empty string as their value
     // Use 0 by default
@@ -38,23 +45,11 @@ class FillQuery extends Component {
     }
   }
 
-  handleInputChange(e) {
+  handleInputChange = e => {
     this.setState({inputValue: e.target.value})
   }
 
-  handleDropdown(item) {
-    if (item.text === 'number') {
-      this.setState({selected: item.text, useCustomNumber: true}, () => {
-        this.props.onSelection(this.state.inputValue, true)
-      })
-    } else {
-      this.setState({selected: item.text, useCustomNumber: false}, () => {
-        this.props.onSelection(item.text, false)
-      })
-    }
-  }
-
-  handleKeyUp(e) {
+  handleKeyUp = e => {
     if (e.key === 'Enter' || e.key === 'Escape') {
       e.target.blur()
     }
