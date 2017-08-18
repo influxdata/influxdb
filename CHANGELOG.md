@@ -2,17 +2,30 @@
 ### Bug Fixes
 1. [#1795](https://github.com/influxdata/chronograf/pull/1795): Fix uptime status on Windows hosts running Telegraf
 1. [#1715](https://github.com/influxdata/chronograf/pull/1715): Chronograf now renders on IE11.
-1. [#1845](https://github.com/influxdata/chronograf/pull/1845): Fix no-scroll bar appearing in the Data Explorer table
 1. [#1870](https://github.com/influxdata/chronograf/pull/1870): Fix console error for placing prop on div
 1. [#1864](https://github.com/influxdata/chronograf/pull/1864): Fix Write Data form upload button and add `onDragExit` handler
-1. [#1866](https://github.com/influxdata/chronograf/pull/1866): Fix missing cell type (and consequently single-stat)
-
+1. [#1891](https://github.com/influxdata/chronograf/pull/1891): Fix Kapacitor config for PagerDuty via the UI
+1. [#1872](https://github.com/influxdata/chronograf/pull/1872): Prevent stats in the legend from wrapping line
+1. [#1899](https://github.com/influxdata/chronograf/pull/1899): Fix raw query editor in Data Explorer not using selected time
 
 ### Features
 1. [#1863](https://github.com/influxdata/chronograf/pull/1863): Improve 'new-sources' server flag example by adding 'type' key
+1. [#1898](https://github.com/influxdata/chronograf/pull/1898): Add an input and validation to custom time range calendar dropdowns
 
 ### UI Improvements
 1. [#1862](https://github.com/influxdata/chronograf/pull/1862): Show "Add Graph" button on cells with no queries
+
+## v1.3.6.1 [2017-08-14]
+**Upgrade Note** This release (1.3.6.1) fixes a possibly data corruption issue with dashboard cells' graph types. If you upgraded to 1.3.6.0 and visited any dashboard, once you have then upgraded to this release (1.3.6.1) you will need to manually reset the graph type for every cell via the cell's caret --> Edit --> Display Options. If you upgraded directly to 1.3.6.1, you should not experience this issue.
+
+### Bug Fixes
+1. [#1845](https://github.com/influxdata/chronograf/pull/1845): Fix inaccessible scroll bar in Data Explorer table
+1. [#1866](https://github.com/influxdata/chronograf/pull/1866): Fix non-persistence of dashboard graph types
+
+### Features
+1. [#1859](https://github.com/influxdata/chronograf/pull/1859): Add y-axis controls to the API for layouts
+
+### UI Improvements
 1. [#1846](https://github.com/influxdata/chronograf/pull/1846): Increase screen real estate of Query Maker in the Cell Editor Overlay
 
 ## v1.3.6.0 [2017-08-08]
@@ -22,6 +35,7 @@
 1. [#1813](https://github.com/influxdata/chronograf/pull/1813): Guarantee UUID for each Alert Table key to prevent dropping items when keys overlap
 
 ### Features
+1. [#1744](https://github.com/influxdata/chronograf/pull/1744): Add a few time range shortcuts to the custom time range menu
 1. [#1714](https://github.com/influxdata/chronograf/pull/1714): Add ability to edit a dashboard graph's y-axis bounds
 1. [#1714](https://github.com/influxdata/chronograf/pull/1714): Add ability to edit a dashboard graph's y-axis label
 
@@ -31,6 +45,7 @@
 1. [#1805](https://github.com/influxdata/chronograf/pull/1805): Assign a series consistent coloring when it appears in multiple cells
 1. [#1800](https://github.com/influxdata/chronograf/pull/1800): Increase size of line protocol manual entry in Data Explorer's Write Data overlay
 1. [#1812](https://github.com/influxdata/chronograf/pull/1812): Improve error message when request for Status Page News Feed fails
+1. [#1858](https://github.com/influxdata/chronograf/pull/1858): Provide affirmative UI choice for 'auto' in DisplayOptions with new toggle-based component
 
 ## v1.3.5.0 [2017-07-27]
 ### Bug Fixes

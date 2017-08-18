@@ -1,53 +1,42 @@
-import React, {PropTypes} from 'react'
+import React, {PropTypes, Component} from 'react'
 import classnames from 'classnames'
 import OnClickOutside from 'shared/components/OnClickOutside'
 
 import autoRefreshItems from 'hson!shared/data/autoRefreshes.hson'
 
-const {number, func} = PropTypes
-
-const AutoRefreshDropdown = React.createClass({
-  autobind: false,
-
-  propTypes: {
-    selected: number.isRequired,
-    onChoose: func.isRequired,
-  },
-
-  getInitialState() {
-    return {
+class AutoRefreshDropdown extends Component {
+  constructor(props) {
+    super(props)
+    this.state = {
       isOpen: false,
     }
-  },
+  }
 
   findAutoRefreshItem(milliseconds) {
     return autoRefreshItems.find(values => values.milliseconds === milliseconds)
-  },
+  }
 
   handleClickOutside() {
     this.setState({isOpen: false})
-  },
+  }
 
-  handleSelection(milliseconds) {
+  handleSelection = milliseconds => () => {
     this.props.onChoose(milliseconds)
     this.setState({isOpen: false})
-  },
+  }
 
-  toggleMenu() {
-    this.setState({isOpen: !this.state.isOpen})
-  },
+  toggleMenu = () => this.setState({isOpen: !this.state.isOpen})
 
   render() {
-    const self = this
-    const {selected} = self.props
-    const {isOpen} = self.state
+    const {selected} = this.props
+    const {isOpen} = this.state
     const {milliseconds, inputValue} = this.findAutoRefreshItem(selected)
 
     return (
       <div className={classnames('dropdown dropdown-160', {open: isOpen})}>
         <div
           className="btn btn-sm btn-default dropdown-toggle"
-          onClick={() => self.toggleMenu()}
+          onClick={this.toggleMenu}
         >
           <span
             className={classnames(
@@ -62,22 +51,24 @@ const AutoRefreshDropdown = React.createClass({
         </div>
         <ul className="dropdown-menu">
           <li className="dropdown-header">AutoRefresh Interval</li>
-          {autoRefreshItems.map(item => {
-            return (
-              <li className="dropdown-item" key={item.menuOption}>
-                <a
-                  href="#"
-                  onClick={() => self.handleSelection(item.milliseconds)}
-                >
-                  {item.menuOption}
-                </a>
-              </li>
-            )
-          })}
+          {autoRefreshItems.map(item =>
+            <li className="dropdown-item" key={item.menuOption}>
+              <a href="#" onClick={this.handleSelection(item.milliseconds)}>
+                {item.menuOption}
+              </a>
+            </li>
+          )}
         </ul>
       </div>
     )
-  },
-})
+  }
+}
+
+const {number, func} = PropTypes
+
+AutoRefreshDropdown.propTypes = {
+  selected: number.isRequired,
+  onChoose: func.isRequired,
+}
 
 export default OnClickOutside(AutoRefreshDropdown)

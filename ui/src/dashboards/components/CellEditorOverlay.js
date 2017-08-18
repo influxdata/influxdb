@@ -15,7 +15,6 @@ import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 import buildInfluxQLQuery from 'utils/influxql'
 import {getQueryConfig} from 'shared/apis'
 
-import {buildYLabel} from 'shared/presenters'
 import {removeUnselectedTemplateValues} from 'src/dashboards/constants'
 import {OVERLAY_TECHNOLOGY} from 'shared/constants/classNames'
 import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from 'src/data_explorer/constants'
@@ -23,18 +22,6 @@ import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from 'src/data_explorer/constants'
 class CellEditorOverlay extends Component {
   constructor(props) {
     super(props)
-
-    this.queryStateReducer = ::this.queryStateReducer
-    this.handleAddQuery = ::this.handleAddQuery
-    this.handleDeleteQuery = ::this.handleDeleteQuery
-    this.handleSaveCell = ::this.handleSaveCell
-    this.handleSelectGraphType = ::this.handleSelectGraphType
-    this.handleClickDisplayOptionsTab = ::this.handleClickDisplayOptionsTab
-    this.handleSetActiveQueryIndex = ::this.handleSetActiveQueryIndex
-    this.handleEditRawText = ::this.handleEditRawText
-    this.handleSetYAxisBounds = ::this.handleSetYAxisBounds
-    this.handleSetLabel = ::this.handleSetLabel
-    this.getActiveQuery = ::this.getActiveQuery
 
     const {cell: {name, type, queries, axes}} = props
 
@@ -48,23 +35,8 @@ class CellEditorOverlay extends Component {
       queriesWorkingDraft,
       activeQueryIndex: 0,
       isDisplayOptionsTabActive: false,
-      axes: this.setDefaultLabels(axes, queries),
+      axes,
     }
-  }
-
-  setDefaultLabels(axes, queries) {
-    if (!queries.length) {
-      return axes
-    }
-
-    if (axes.y.label) {
-      return axes
-    }
-
-    const q = queries[0].queryConfig
-    const label = buildYLabel(q)
-
-    return {...axes, y: {...axes.y, label}}
   }
 
   componentWillReceiveProps(nextProps) {
@@ -80,39 +52,43 @@ class CellEditorOverlay extends Component {
     }
   }
 
-  queryStateReducer(queryModifier) {
-    return (queryID, payload) => {
-      const {queriesWorkingDraft} = this.state
-      const query = queriesWorkingDraft.find(q => q.id === queryID)
+  queryStateReducer = queryModifier => (queryID, payload) => {
+    const {queriesWorkingDraft} = this.state
+    const query = queriesWorkingDraft.find(q => q.id === queryID)
 
-      const nextQuery = queryModifier(query, payload)
+    const nextQuery = queryModifier(query, payload)
 
-      const nextQueries = queriesWorkingDraft.map(
-        q => (q.id === query.id ? nextQuery : q)
-      )
-      this.setState({queriesWorkingDraft: nextQueries})
-    }
+    const nextQueries = queriesWorkingDraft.map(
+      q => (q.id === query.id ? nextQuery : q)
+    )
+    this.setState({queriesWorkingDraft: nextQueries})
   }
 
-  handleSetYAxisBounds(e) {
-    const {min, max} = e.target.form
+  handleSetYAxisBoundMin = min => {
     const {axes} = this.state
+    const {y: {bounds: [, max]}} = axes
 
     this.setState({
-      axes: {...axes, y: {...axes.y, bounds: [min.value, max.value]}},
+      axes: {...axes, y: {...axes.y, bounds: [min, max]}},
     })
-    e.preventDefault()
   }
 
-  handleSetLabel(e) {
-    const {label} = e.target.form
+  handleSetYAxisBoundMax = max => {
+    const {axes} = this.state
+    const {y: {bounds: [min]}} = axes
+
+    this.setState({
+      axes: {...axes, y: {...axes.y, bounds: [min, max]}},
+    })
+  }
+
+  handleSetLabel = label => {
     const {axes} = this.state
 
-    this.setState({axes: {...axes, y: {...axes.y, label: label.value}}})
-    e.preventDefault()
+    this.setState({axes: {...axes, y: {...axes.y, label}}})
   }
 
-  handleAddQuery() {
+  handleAddQuery = () => {
     const {queriesWorkingDraft} = this.state
     const newIndex = queriesWorkingDraft.length
 
@@ -125,14 +101,14 @@ class CellEditorOverlay extends Component {
     this.handleSetActiveQueryIndex(newIndex)
   }
 
-  handleDeleteQuery(index) {
+  handleDeleteQuery = index => {
     const nextQueries = this.state.queriesWorkingDraft.filter(
       (__, i) => i !== index
     )
     this.setState({queriesWorkingDraft: nextQueries})
   }
 
-  handleSaveCell() {
+  handleSaveCell = () => {
     const {
       queriesWorkingDraft,
       cellWorkingType: type,
@@ -161,21 +137,19 @@ class CellEditorOverlay extends Component {
     })
   }
 
-  handleSelectGraphType(graphType) {
+  handleSelectGraphType = graphType => () => {
     this.setState({cellWorkingType: graphType})
   }
 
-  handleClickDisplayOptionsTab(isDisplayOptionsTabActive) {
-    return () => {
-      this.setState({isDisplayOptionsTabActive})
-    }
+  handleClickDisplayOptionsTab = isDisplayOptionsTabActive => () => {
+    this.setState({isDisplayOptionsTabActive})
   }
 
-  handleSetActiveQueryIndex(activeQueryIndex) {
+  handleSetActiveQueryIndex = activeQueryIndex => {
     this.setState({activeQueryIndex})
   }
 
-  getActiveQuery() {
+  getActiveQuery = () => {
     const {queriesWorkingDraft, activeQueryIndex} = this.state
     const activeQuery = queriesWorkingDraft[activeQueryIndex]
     const defaultQuery = queriesWorkingDraft[0]
@@ -183,7 +157,7 @@ class CellEditorOverlay extends Component {
     return activeQuery || defaultQuery
   }
 
-  async handleEditRawText(url, id, text) {
+  handleEditRawText = async (url, id, text) => {
     const templates = removeUnselectedTemplateValues(this.props.templates)
 
     // use this as the handler passed into fetchTimeSeries to update a query status
@@ -258,9 +232,11 @@ class CellEditorOverlay extends Component {
               ? <DisplayOptions
                   selectedGraphType={cellWorkingType}
                   onSelectGraphType={this.handleSelectGraphType}
-                  onSetRange={this.handleSetYAxisBounds}
+                  onSetYAxisBoundMin={this.handleSetYAxisBoundMin}
+                  onSetYAxisBoundMax={this.handleSetYAxisBoundMax}
                   onSetLabel={this.handleSetLabel}
                   axes={axes}
+                  queryConfigs={queriesWorkingDraft}
                 />
               : <QueryMaker
                   source={source}

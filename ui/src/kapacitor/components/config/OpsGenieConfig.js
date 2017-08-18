@@ -1,31 +1,21 @@
-import React, {PropTypes} from 'react'
+import React, {PropTypes, Component} from 'react'
 import _ from 'lodash'
 
 import RedactedInput from './RedactedInput'
 
-const {array, arrayOf, bool, func, shape, string} = PropTypes
+class OpsGenieConfig extends Component {
+  constructor(props) {
+    super(props)
 
-const OpsGenieConfig = React.createClass({
-  propTypes: {
-    config: shape({
-      options: shape({
-        'api-key': bool,
-        teams: array,
-        recipients: array,
-      }).isRequired,
-    }).isRequired,
-    onSave: func.isRequired,
-  },
+    const {teams, recipients} = props.config.options
 
-  getInitialState() {
-    const {teams, recipients} = this.props.config.options
-    return {
+    this.state = {
       currentTeams: teams || [],
       currentRecipients: recipients || [],
     }
-  },
+  }
 
-  handleSaveAlert(e) {
+  handleSaveAlert = e => {
     e.preventDefault()
 
     const properties = {
@@ -35,31 +25,33 @@ const OpsGenieConfig = React.createClass({
     }
 
     this.props.onSave(properties)
-  },
+  }
 
-  handleAddTeam(team) {
+  handleAddTeam = team => {
     this.setState({currentTeams: this.state.currentTeams.concat(team)})
-  },
+  }
 
-  handleAddRecipient(recipient) {
+  handleAddRecipient = recipient => {
     this.setState({
       currentRecipients: this.state.currentRecipients.concat(recipient),
     })
-  },
+  }
 
-  handleDeleteTeam(team) {
+  handleDeleteTeam = team => () => {
     this.setState({
       currentTeams: this.state.currentTeams.filter(t => t !== team),
     })
-  },
+  }
 
-  handleDeleteRecipient(recipient) {
+  handleDeleteRecipient = recipient => () => {
     this.setState({
       currentRecipients: this.state.currentRecipients.filter(
         r => r !== recipient
       ),
     })
-  },
+  }
+
+  handleApiKeyRef = r => (this.apiKey = r)
 
   render() {
     const {options} = this.props.config
@@ -73,7 +65,7 @@ const OpsGenieConfig = React.createClass({
           <RedactedInput
             defaultValue={apiKey}
             id="api-key"
-            refFunc={r => (this.apiKey = r)}
+            refFunc={this.handleApiKeyRef}
           />
           <label className="form-helper">
             Note: a value of <code>true</code> indicates the OpsGenie API key
@@ -101,18 +93,28 @@ const OpsGenieConfig = React.createClass({
         </div>
       </form>
     )
-  },
-})
+  }
+}
 
-const TagInput = React.createClass({
-  propTypes: {
-    onAddTag: func.isRequired,
-    onDeleteTag: func.isRequired,
-    tags: arrayOf(string).isRequired,
-    title: string.isRequired,
-  },
+const {array, arrayOf, bool, func, shape, string} = PropTypes
 
-  handleAddTag(e) {
+OpsGenieConfig.propTypes = {
+  config: shape({
+    options: shape({
+      'api-key': bool,
+      teams: array,
+      recipients: array,
+    }).isRequired,
+  }).isRequired,
+  onSave: func.isRequired,
+}
+
+class TagInput extends Component {
+  constructor(props) {
+    super(props)
+  }
+
+  handleAddTag = e => {
     if (e.key === 'Enter') {
       e.preventDefault()
       const newItem = e.target.value.trim()
@@ -124,11 +126,11 @@ const TagInput = React.createClass({
       this.input.value = ''
       onAddTag(newItem)
     }
-  },
+  }
 
   shouldAddToList(item, tags) {
     return !_.isEmpty(item) && !tags.find(l => l === item)
-  },
+  }
 
   render() {
     const {title, tags, onDeleteTag} = this.props
@@ -150,45 +152,39 @@ const TagInput = React.createClass({
         <Tags tags={tags} onDeleteTag={onDeleteTag} />
       </div>
     )
-  },
-})
+  }
+}
 
-const Tags = React.createClass({
-  propTypes: {
-    tags: arrayOf(string),
-    onDeleteTag: func,
-  },
+TagInput.propTypes = {
+  onAddTag: func.isRequired,
+  onDeleteTag: func.isRequired,
+  tags: arrayOf(string).isRequired,
+  title: string.isRequired,
+}
 
-  render() {
-    const {tags, onDeleteTag} = this.props
-    return (
-      <div className="input-tag-list">
-        {tags.map(item => {
-          return <Tag key={item} item={item} onDelete={onDeleteTag} />
-        })}
-      </div>
-    )
-  },
-})
+const Tags = ({tags, onDeleteTag}) =>
+  <div className="input-tag-list">
+    {tags.map(item => {
+      return <Tag key={item} item={item} onDelete={onDeleteTag} />
+    })}
+  </div>
 
-const Tag = React.createClass({
-  propTypes: {
-    item: string,
-    onDelete: func,
-  },
+Tags.propTypes = {
+  tags: arrayOf(string),
+  onDeleteTag: func,
+}
 
-  render() {
-    const {item, onDelete} = this.props
+const Tag = ({item, onDelete}) =>
+  <span key={item} className="input-tag-item">
+    <span>
+      {item}
+    </span>
+    <span className="icon remove" onClick={onDelete(item)} />
+  </span>
 
-    return (
-      <span key={item} className="input-tag-item">
-        <span>
-          {item}
-        </span>
-        <span className="icon remove" onClick={() => onDelete(item)} />
-      </span>
-    )
-  },
-})
+Tag.propTypes = {
+  item: string,
+  onDelete: func,
+}
 
 export default OpsGenieConfig

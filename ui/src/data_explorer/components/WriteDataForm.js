@@ -21,26 +21,17 @@ class WriteDataForm extends Component {
       dragClass: 'drag-none',
       isUploading: false,
     }
-
-    this.handleSelectDatabase = ::this.handleSelectDatabase
-    this.handleSubmit = ::this.handleSubmit
-    this.handleClickOutside = ::this.handleClickOutside
-    this.handleKeyUp = ::this.handleKeyUp
-    this.handleEdit = ::this.handleEdit
-    this.handleFile = ::this.handleFile
-    this.toggleWriteView = ::this.toggleWriteView
-    this.handleFileOpen = ::this.handleFileOpen
   }
 
-  toggleWriteView(isManual) {
+  toggleWriteView = isManual => () => {
     this.setState({isManual})
   }
 
-  handleSelectDatabase(item) {
+  handleSelectDatabase = item => {
     this.setState({selectedDatabase: item.text})
   }
 
-  handleClickOutside(e) {
+  handleClickOutside = e => {
     // guard against clicking to close error notification
     if (e.target.className === OVERLAY_TECHNOLOGY) {
       const {onClose} = this.props
@@ -48,7 +39,7 @@ class WriteDataForm extends Component {
     }
   }
 
-  handleKeyUp(e) {
+  handleKeyUp = e => {
     e.stopPropagation()
     if (e.key === 'Escape') {
       const {onClose} = this.props
@@ -56,7 +47,7 @@ class WriteDataForm extends Component {
     }
   }
 
-  async handleSubmit() {
+  handleSubmit = async () => {
     const {onClose, source, writeLineProtocol} = this.props
     const {inputContent, uploadContent, selectedDatabase, isManual} = this.state
     const content = isManual ? inputContent : uploadContent
@@ -73,11 +64,11 @@ class WriteDataForm extends Component {
     }
   }
 
-  handleEdit(e) {
+  handleEdit = e => {
     this.setState({inputContent: e.target.value.trim()})
   }
 
-  handleFile(e, drop) {
+  handleFile = drop => e => {
     let file
     if (drop) {
       file = e.dataTransfer.files[0]
@@ -101,33 +92,18 @@ class WriteDataForm extends Component {
     }
   }
 
-  handleDragOver(e) {
+  handleDragOver = e => {
     e.preventDefault()
     e.stopPropagation()
   }
 
-  handleDragClass(entering) {
-    return e => {
-      e.preventDefault()
-      if (entering) {
-        this.setState({
-          dragClass: 'drag-over',
-        })
-      } else {
-        this.setState({
-          dragClass: 'drag-none',
-        })
-      }
-    }
-  }
-
-  handleDragEnter(e) {
+  handleDragEnter = e => {
     dragCounter += 1
     e.preventDefault()
     this.setState({dragClass: 'drag-over'})
   }
 
-  handleDragLeave(e) {
+  handleDragLeave = e => {
     dragCounter -= 1
     e.preventDefault()
     if (dragCounter === 0) {
@@ -135,9 +111,11 @@ class WriteDataForm extends Component {
     }
   }
 
-  handleFileOpen() {
+  handleFileOpen = () => {
     this.fileInput.click()
   }
+
+  handleFileInputRef = el => (this.fileInput = el)
 
   render() {
     const {onClose, errorThrown} = this.props
@@ -145,11 +123,11 @@ class WriteDataForm extends Component {
 
     return (
       <div
-        onDrop={e => this.handleFile(e, true)}
+        onDrop={this.handleFile(true)}
         onDragOver={this.handleDragOver}
-        onDragEnter={e => this.handleDragEnter(e)}
-        onDragExit={e => this.handleDragLeave(e)}
-        onDragLeave={e => this.handleDragLeave(e)}
+        onDragEnter={this.handleDragEnter}
+        onDragExit={this.handleDragLeave}
+        onDragLeave={this.handleDragLeave}
         className={classnames(OVERLAY_TECHNOLOGY, dragClass)}
       >
         <div className="write-data-form">
@@ -162,7 +140,7 @@ class WriteDataForm extends Component {
           />
           <WriteDataBody
             {...this.state}
-            fileInput={el => (this.fileInput = el)}
+            fileInput={this.handleFileInputRef}
             handleEdit={this.handleEdit}
             handleFile={this.handleFile}
             handleKeyUp={this.handleKeyUp}

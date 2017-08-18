@@ -28,33 +28,37 @@ class DataExplorer extends Component {
     }
   }
 
-  getChildContext() {
-    return {source: this.props.source}
-  }
-
-  handleSetActiveQueryIndex(index) {
+  handleSetActiveQueryIndex = index => {
     this.setState({activeQueryIndex: index})
   }
 
-  handleDeleteQuery(index) {
+  handleDeleteQuery = index => {
     const {queryConfigs, queryConfigActions} = this.props
     const query = queryConfigs[index]
     queryConfigActions.deleteQuery(query.id)
   }
 
-  handleAddQuery() {
+  handleAddQuery = () => {
     const newIndex = this.props.queryConfigs.length
     this.props.queryConfigActions.addQuery()
     this.handleSetActiveQueryIndex(newIndex)
   }
 
-  getActiveQuery() {
+  getActiveQuery = () => {
     const {activeQueryIndex} = this.state
     const {queryConfigs} = this.props
     const activeQuery = queryConfigs[activeQueryIndex]
     const defaultQuery = queryConfigs[0]
 
     return activeQuery || defaultQuery
+  }
+
+  handleCloseWriteData = () => {
+    this.setState({showWriteForm: false})
+  }
+
+  handleOpenWriteData = () => {
+    this.setState({showWriteForm: true})
   }
 
   render() {
@@ -82,19 +86,19 @@ class DataExplorer extends Component {
         {showWriteForm
           ? <OverlayTechnologies>
               <WriteDataForm
-                selectedDatabase={selectedDatabase}
-                errorThrown={errorThrownAction}
-                onClose={() => this.setState({showWriteForm: false})}
                 source={source}
+                errorThrown={errorThrownAction}
+                selectedDatabase={selectedDatabase}
+                onClose={this.handleCloseWriteData}
                 writeLineProtocol={writeLineProtocol}
               />
             </OverlayTechnologies>
           : null}
         <Header
-          actions={{handleChooseAutoRefresh, setTimeRange}}
-          autoRefresh={autoRefresh}
           timeRange={timeRange}
-          showWriteForm={() => this.setState({showWriteForm: true})}
+          autoRefresh={autoRefresh}
+          actions={{handleChooseAutoRefresh, setTimeRange}}
+          showWriteForm={this.handleOpenWriteData}
         />
         <ResizeContainer
           containerClass="page-contents"
@@ -109,11 +113,11 @@ class DataExplorer extends Component {
             actions={queryConfigActions}
             autoRefresh={autoRefresh}
             timeRange={timeRange}
-            setActiveQueryIndex={::this.handleSetActiveQueryIndex}
-            onDeleteQuery={::this.handleDeleteQuery}
-            onAddQuery={::this.handleAddQuery}
+            setActiveQueryIndex={this.handleSetActiveQueryIndex}
+            onDeleteQuery={this.handleDeleteQuery}
+            onAddQuery={this.handleAddQuery}
             activeQueryIndex={activeQueryIndex}
-            activeQuery={::this.getActiveQuery()}
+            activeQuery={this.getActiveQuery()}
           />
           <Visualization
             isInDataExplorer={true}

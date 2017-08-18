@@ -1,6 +1,6 @@
 import React, {PropTypes} from 'react'
 
-import TemplateVariableRow from 'src/dashboards/components/TemplateVariableRow'
+import TemplateVariableRow from 'src/dashboards/components/template_variables/Row'
 
 const TemplateVariableTable = ({
   source,

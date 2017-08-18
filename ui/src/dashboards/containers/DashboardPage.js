@@ -10,7 +10,7 @@ import CellEditorOverlay from 'src/dashboards/components/CellEditorOverlay'
 import DashboardHeader from 'src/dashboards/components/DashboardHeader'
 import DashboardHeaderEdit from 'src/dashboards/components/DashboardHeaderEdit'
 import Dashboard from 'src/dashboards/components/Dashboard'
-import TemplateVariableManager from 'src/dashboards/components/TemplateVariableManager'
+import TemplateVariableManager from 'src/dashboards/components/template_variables/Manager'
 
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 
@@ -27,33 +27,11 @@ class DashboardPage extends Component {
     super(props)
 
     this.state = {
-      selectedCell: null,
-      isEditMode: false,
-      isTemplating: false,
       dygraphs: [],
+      isEditMode: false,
+      selectedCell: null,
+      isTemplating: false,
     }
-
-    this.handleAddCell = ::this.handleAddCell
-    this.handleEditDashboard = ::this.handleEditDashboard
-    this.handleSaveEditedCell = ::this.handleSaveEditedCell
-    this.handleDismissOverlay = ::this.handleDismissOverlay
-    this.handleUpdatePosition = ::this.handleUpdatePosition
-    this.handleChooseTimeRange = ::this.handleChooseTimeRange
-    this.handleRenameDashboard = ::this.handleRenameDashboard
-    this.handleEditDashboardCell = ::this.handleEditDashboardCell
-    this.handleCancelEditDashboard = ::this.handleCancelEditDashboard
-    this.handleDeleteDashboardCell = ::this.handleDeleteDashboardCell
-    this.handleOpenTemplateManager = ::this.handleOpenTemplateManager
-    this.handleUpdateDashboardCell = ::this.handleUpdateDashboardCell
-    this.handleCloseTemplateManager = ::this.handleCloseTemplateManager
-    this.handleSummonOverlayTechnologies = ::this
-      .handleSummonOverlayTechnologies
-    this.handleRunTemplateVariableQuery = ::this.handleRunTemplateVariableQuery
-    this.handleSelectTemplate = ::this.handleSelectTemplate
-    this.handleEditTemplateVariables = ::this.handleEditTemplateVariables
-    this.handleRunQueryFailure = ::this.handleRunQueryFailure
-    this.handleToggleTempVarControls = ::this.handleToggleTempVarControls
-    this.synchronizer = ::this.synchronizer
   }
 
   async componentDidMount() {
@@ -75,11 +53,11 @@ class DashboardPage extends Component {
     await putDashboardByID(dashboardID)
   }
 
-  handleOpenTemplateManager() {
+  handleOpenTemplateManager = () => {
     this.setState({isTemplating: true})
   }
 
-  handleCloseTemplateManager(isEdited) {
+  handleCloseTemplateManager = isEdited => () => {
     if (
       !isEdited ||
       (isEdited && confirm('Do you want to close without saving?')) // eslint-disable-line no-alert
@@ -88,43 +66,43 @@ class DashboardPage extends Component {
     }
   }
 
-  handleDismissOverlay() {
+  handleDismissOverlay = () => {
     this.setState({selectedCell: null})
   }
 
-  handleSaveEditedCell(newCell) {
+  handleSaveEditedCell = newCell => {
     this.props.dashboardActions
       .updateDashboardCell(this.getActiveDashboard(), newCell)
       .then(this.handleDismissOverlay)
   }
 
-  handleSummonOverlayTechnologies(cell) {
+  handleSummonOverlayTechnologies = cell => {
     this.setState({selectedCell: cell})
   }
 
-  handleChooseTimeRange(timeRange) {
+  handleChooseTimeRange = timeRange => {
     this.props.dashboardActions.setTimeRange(timeRange)
   }
 
-  handleUpdatePosition(cells) {
+  handleUpdatePosition = cells => {
     const newDashboard = {...this.getActiveDashboard(), cells}
     this.props.dashboardActions.updateDashboard(newDashboard)
     this.props.dashboardActions.putDashboard(newDashboard)
   }
 
-  handleAddCell() {
+  handleAddCell = () => {
     this.props.dashboardActions.addDashboardCellAsync(this.getActiveDashboard())
   }
 
-  handleEditDashboard() {
+  handleEditDashboard = () => {
     this.setState({isEditMode: true})
   }
 
-  handleCancelEditDashboard() {
+  handleCancelEditDashboard = () => {
     this.setState({isEditMode: false})
   }
 
-  handleRenameDashboard(name) {
+  handleRenameDashboard = name => {
     this.setState({isEditMode: false})
     const newDashboard = {...this.getActiveDashboard(), name}
     this.props.dashboardActions.updateDashboard(newDashboard)
@@ -132,7 +110,7 @@ class DashboardPage extends Component {
   }
 
   // Places cell into editing mode.
-  handleEditDashboardCell(x, y, isEditing) {
+  handleEditDashboardCell = (x, y, isEditing) => {
     return () => {
       this.props.dashboardActions.editDashboardCell(
         this.getActiveDashboard(),
@@ -143,7 +121,7 @@ class DashboardPage extends Component {
     }
   }
 
-  handleUpdateDashboardCell(newCell) {
+  handleUpdateDashboardCell = newCell => {
     return () => {
       this.props.dashboardActions.updateDashboardCell(
         this.getActiveDashboard(),
@@ -152,60 +130,41 @@ class DashboardPage extends Component {
     }
   }
 
-  handleDeleteDashboardCell(cell) {
+  handleDeleteDashboardCell = cell => {
     const dashboard = this.getActiveDashboard()
     this.props.dashboardActions.deleteDashboardCellAsync(dashboard, cell)
   }
 
-  handleSelectTemplate(templateID, values) {
+  handleSelectTemplate = templateID => values => {
     const {params: {dashboardID}} = this.props
     this.props.dashboardActions.templateVariableSelected(
       +dashboardID,
       templateID,
-      values
+      [values]
     )
   }
 
-  handleRunTemplateVariableQuery(
-    templateVariable,
-    {query, db, tempVars, type, tagKey, measurement}
-  ) {
-    const {source} = this.props
-    this.props.dashboardActions.runTemplateVariableQueryAsync(
-      templateVariable,
-      {
-        source,
-        query,
-        db,
-        // rp, TODO
-        tempVars,
-        type,
-        tagKey,
-        measurement,
-      }
-    )
-  }
-
-  handleEditTemplateVariables(templates, onSaveTemplatesSuccess) {
-    return async () => {
-      try {
-        await this.props.dashboardActions.putDashboard({
-          ...this.getActiveDashboard(),
-          templates,
-        })
-        onSaveTemplatesSuccess()
-      } catch (error) {
-        console.error(error)
-      }
+  handleEditTemplateVariables = (
+    templates,
+    onSaveTemplatesSuccess
+  ) => async () => {
+    try {
+      await this.props.dashboardActions.putDashboard({
+        ...this.getActiveDashboard(),
+        templates,
+      })
+      onSaveTemplatesSuccess()
+    } catch (error) {
+      console.error(error)
     }
   }
 
-  handleRunQueryFailure(error) {
+  handleRunQueryFailure = error => {
     console.error(error)
     this.props.errorThrown(error)
   }
 
-  synchronizer(dygraph) {
+  synchronizer = dygraph => {
     const dygraphs = [...this.state.dygraphs, dygraph]
     const {dashboards, params} = this.props
     const dashboard = dashboards.find(d => d.id === +params.dashboardID)
@@ -223,11 +182,11 @@ class DashboardPage extends Component {
     this.setState({dygraphs})
   }
 
-  handleToggleTempVarControls() {
+  handleToggleTempVarControls = () => {
     this.props.templateControlBarVisibilityToggled()
   }
 
-  handleCancelEditCell(cellID) {
+  handleCancelEditCell = cellID => {
     this.props.dashboardActions.cancelEditCell(
       this.getActiveDashboard().id,
       cellID
@@ -315,49 +274,49 @@ class DashboardPage extends Component {
         {isTemplating
           ? <OverlayTechnologies>
               <TemplateVariableManager
-                onClose={this.handleCloseTemplateManager}
-                onEditTemplateVariables={this.handleEditTemplateVariables}
                 source={source}
                 templates={dashboard.templates}
+                onClose={this.handleCloseTemplateManager}
                 onRunQueryFailure={this.handleRunQueryFailure}
+                onEditTemplateVariables={this.handleEditTemplateVariables}
               />
             </OverlayTechnologies>
           : null}
         {selectedCell
           ? <CellEditorOverlay
               source={source}
-              dashboardID={dashboardID}
-              templates={templatesIncludingDashTime}
               cell={selectedCell}
               timeRange={timeRange}
               autoRefresh={autoRefresh}
+              dashboardID={dashboardID}
               queryStatus={cellQueryStatus}
               onSave={this.handleSaveEditedCell}
               onCancel={this.handleDismissOverlay}
+              templates={templatesIncludingDashTime}
               editQueryStatus={dashboardActions.editCellQueryStatus}
             />
           : null}
         {isEditMode
           ? <DashboardHeaderEdit
               dashboard={dashboard}
-              onCancel={this.handleCancelEditDashboard}
               onSave={this.handleRenameDashboard}
+              onCancel={this.handleCancelEditDashboard}
             />
           : <DashboardHeader
-              buttonText={dashboard ? dashboard.name : ''}
-              handleChooseAutoRefresh={handleChooseAutoRefresh}
-              autoRefresh={autoRefresh}
-              timeRange={timeRange}
-              handleChooseTimeRange={this.handleChooseTimeRange}
-              isHidden={inPresentationMode}
-              handleClickPresentationButton={handleClickPresentationButton}
-              dashboard={dashboard}
-              sourceID={sourceID}
               source={source}
+              sourceID={sourceID}
+              dashboard={dashboard}
+              timeRange={timeRange}
+              autoRefresh={autoRefresh}
+              isHidden={inPresentationMode}
               onAddCell={this.handleAddCell}
               onEditDashboard={this.handleEditDashboard}
-              onToggleTempVarControls={this.handleToggleTempVarControls}
+              buttonText={dashboard ? dashboard.name : ''}
               showTemplateControlBar={showTemplateControlBar}
+              handleChooseAutoRefresh={handleChooseAutoRefresh}
+              handleChooseTimeRange={this.handleChooseTimeRange}
+              onToggleTempVarControls={this.handleToggleTempVarControls}
+              handleClickPresentationButton={handleClickPresentationButton}
             >
               {dashboards
                 ? dashboards.map((d, i) =>
@@ -375,19 +334,19 @@ class DashboardPage extends Component {
               dashboard={dashboard}
               timeRange={timeRange}
               autoRefresh={autoRefresh}
-              synchronizer={this.synchronizer}
               onAddCell={this.handleAddCell}
-              onEditCell={this.handleEditDashboardCell}
+              synchronizer={this.synchronizer}
               inPresentationMode={inPresentationMode}
+              onEditCell={this.handleEditDashboardCell}
               onPositionChange={this.handleUpdatePosition}
+              onSelectTemplate={this.handleSelectTemplate}
+              onCancelEditCell={this.handleCancelEditCell}
               onDeleteCell={this.handleDeleteDashboardCell}
               onUpdateCell={this.handleUpdateDashboardCell}
+              showTemplateControlBar={showTemplateControlBar}
               onOpenTemplateManager={this.handleOpenTemplateManager}
               templatesIncludingDashTime={templatesIncludingDashTime}
               onSummonOverlayTechnologies={this.handleSummonOverlayTechnologies}
-              onSelectTemplate={this.handleSelectTemplate}
-              showTemplateControlBar={showTemplateControlBar}
-              onCancelEditCell={::this.handleCancelEditCell}
             />
           : null}
       </div>

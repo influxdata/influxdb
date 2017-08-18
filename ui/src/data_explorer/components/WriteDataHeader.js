@@ -19,13 +19,13 @@ const WriteDataHeader = ({
       />
       <ul className="nav nav-tablist nav-tablist-sm">
         <li
-          onClick={() => toggleWriteView(false)}
+          onClick={toggleWriteView(false)}
           className={isManual ? '' : 'active'}
         >
           File Upload
         </li>
         <li
-          onClick={() => toggleWriteView(true)}
+          onClick={toggleWriteView(true)}
           className={isManual ? 'active' : ''}
           data-test="manual-entry-button"
         >
