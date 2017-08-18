@@ -18,8 +18,8 @@ type PaginatingKapaClient struct {
 // it fetches them
 func (p *PaginatingKapaClient) ListTasks(opts *client.ListTasksOptions) ([]client.Task, error) {
 	// only trigger auto-pagination with Offset=0 and Limit=0
-	if opts.Limit != 0 && opts.Offset != 0 {
-		p.KapaClient.ListTasks(opts)
+	if opts.Limit != 0 || opts.Offset != 0 {
+		return p.KapaClient.ListTasks(opts)
 	}
 
 	allTasks := []client.Task{}

@@ -38,7 +38,7 @@ func Test_Kapacitor_PaginatingKapaClient(t *testing.T) {
 	}
 
 	// ensure 100 elems returned when calling mockClient directly
-	tasks, _ := mockClient.ListTasks(opts)
+	tasks, _ := pkap.ListTasks(opts)
 
 	if len(tasks) != 100 {
 		t.Error("Expected calling KapaClient's ListTasks to return", opts.Limit, "items. Received:", len(tasks))
