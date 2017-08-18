@@ -3,6 +3,7 @@ package tsm1
 import (
 	"sort"
 	"fmt"
+	"runtime"
 	"sync"
 
 	"github.com/influxdata/influxdb/influxql"
@@ -110,6 +111,21 @@ func (c *bufCursor) nextAt(seek int64) interface{} {
 const statsBufferCopyIntervalN = 100
 
 {{range .}}
+
+type {{.name}}FinalizerIterator struct {
+	influxql.{{.Name}}Iterator
+}
+
+func new{{.Name}}FinalizerIterator(inner influxql.{{.Name}}Iterator) *{{.name}}FinalizerIterator {
+	itr := &{{.name}}FinalizerIterator{inner}
+	runtime.SetFinalizer(itr, (*{{.name}}FinalizerIterator).Close)
+	return itr
+}
+
+func (itr *{{.name}}FinalizerIterator) Close() error {
+	runtime.SetFinalizer(itr, nil)
+	return itr.{{.Name}}Iterator.Close()
+}
 
 type {{.name}}Iterator struct {
 	cur   {{.name}}Cursor

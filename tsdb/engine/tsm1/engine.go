@@ -1560,7 +1560,7 @@ func (e *Engine) CreateIterator(measurement string, opt influxql.IteratorOptions
 				if err != nil {
 					return nil, err
 				}
-				return influxql.Iterators(itrs).Merge(opt)
+				return newMergeFinalizerIterator(itrs, opt)
 			}
 		}
 
@@ -1570,14 +1570,14 @@ func (e *Engine) CreateIterator(measurement string, opt influxql.IteratorOptions
 		} else if len(inputs) == 0 {
 			return nil, nil
 		}
-		return influxql.Iterators(inputs).Merge(opt)
+		return newMergeFinalizerIterator(inputs, opt)
 	}
 
 	itrs, err := e.createVarRefIterator(measurement, opt)
 	if err != nil {
 		return nil, err
 	}
-	return influxql.Iterators(itrs).Merge(opt)
+	return newMergeFinalizerIterator(itrs, opt)
 }
 
 func (e *Engine) createCallIterator(measurement string, call *influxql.Call, opt influxql.IteratorOptions) ([]influxql.Iterator, error) {
@@ -1631,6 +1631,7 @@ func (e *Engine) createCallIterator(measurement string, call *influxql.Call, opt
 
 				itr, err := influxql.NewCallIterator(input, opt)
 				if err != nil {
+					influxql.Iterators(inputs).Close()
 					return err
 				}
 				inputs[i] = itr
@@ -1754,8 +1755,6 @@ func (e *Engine) createTagSetIterators(ref *influxql.VarRef, name string, t *inf
 			group.keys = t.SeriesKeys[i*n:]
 			group.filters = t.Filters[i*n:]
 		}
-
-		group.itrs = make([]influxql.Iterator, 0, len(group.keys))
 	}
 
 	// Read series groups in parallel.

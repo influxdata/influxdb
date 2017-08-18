@@ -9,6 +9,7 @@
 - [#8677](https://github.com/influxdata/influxdb/issues/8677): Fix backups when snapshot is empty.
 - [#8706](https://github.com/influxdata/influxdb/pull/8706): Cursor leak, resulting in an accumulation of `.tsm.tmp` files after compactions.
 - [#8713](https://github.com/influxdata/influxdb/issues/8713): Deadlock when dropping measurement and writing
+- [#8716](https://github.com/influxdata/influxdb/pull/8716): Ensure inputs are closed on error. Add runtime GC finalizer as additional guard to close iterators
 
 ### Features
 

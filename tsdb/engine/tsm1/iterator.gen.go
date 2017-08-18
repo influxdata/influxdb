@@ -8,6 +8,7 @@ package tsm1
 
 import (
 	"fmt"
+	"runtime"
 	"sort"
 	"sync"
 
@@ -114,6 +115,21 @@ func (c *bufCursor) nextAt(seek int64) interface{} {
 // copying the stats buffer to the iterator's stats field. This is used to
 // amortize the cost of using a mutex when updating stats.
 const statsBufferCopyIntervalN = 100
+
+type floatFinalizerIterator struct {
+	influxql.FloatIterator
+}
+
+func newFloatFinalizerIterator(inner influxql.FloatIterator) *floatFinalizerIterator {
+	itr := &floatFinalizerIterator{inner}
+	runtime.SetFinalizer(itr, (*floatFinalizerIterator).Close)
+	return itr
+}
+
+func (itr *floatFinalizerIterator) Close() error {
+	runtime.SetFinalizer(itr, nil)
+	return itr.FloatIterator.Close()
+}
 
 type floatIterator struct {
 	cur   floatCursor
@@ -552,6 +568,21 @@ func (c *floatNilLiteralCursor) peek() (t int64, v interface{}) { return tsdb.EO
 func (c *floatNilLiteralCursor) next() (t int64, v interface{}) { return tsdb.EOF, (*float64)(nil) }
 func (c *floatNilLiteralCursor) nextAt(seek int64) interface{}  { return (*float64)(nil) }
 
+type integerFinalizerIterator struct {
+	influxql.IntegerIterator
+}
+
+func newIntegerFinalizerIterator(inner influxql.IntegerIterator) *integerFinalizerIterator {
+	itr := &integerFinalizerIterator{inner}
+	runtime.SetFinalizer(itr, (*integerFinalizerIterator).Close)
+	return itr
+}
+
+func (itr *integerFinalizerIterator) Close() error {
+	runtime.SetFinalizer(itr, nil)
+	return itr.IntegerIterator.Close()
+}
+
 type integerIterator struct {
 	cur   integerCursor
 	aux   []cursorAt
@@ -989,6 +1020,21 @@ func (c *integerNilLiteralCursor) peek() (t int64, v interface{}) { return tsdb.
 func (c *integerNilLiteralCursor) next() (t int64, v interface{}) { return tsdb.EOF, (*int64)(nil) }
 func (c *integerNilLiteralCursor) nextAt(seek int64) interface{}  { return (*int64)(nil) }
 
+type stringFinalizerIterator struct {
+	influxql.StringIterator
+}
+
+func newStringFinalizerIterator(inner influxql.StringIterator) *stringFinalizerIterator {
+	itr := &stringFinalizerIterator{inner}
+	runtime.SetFinalizer(itr, (*stringFinalizerIterator).Close)
+	return itr
+}
+
+func (itr *stringFinalizerIterator) Close() error {
+	runtime.SetFinalizer(itr, nil)
+	return itr.StringIterator.Close()
+}
+
 type stringIterator struct {
 	cur   stringCursor
 	aux   []cursorAt
@@ -1425,6 +1471,21 @@ func (c *stringNilLiteralCursor) close() error                   { return nil }
 func (c *stringNilLiteralCursor) peek() (t int64, v interface{}) { return tsdb.EOF, (*string)(nil) }
 func (c *stringNilLiteralCursor) next() (t int64, v interface{}) { return tsdb.EOF, (*string)(nil) }
 func (c *stringNilLiteralCursor) nextAt(seek int64) interface{}  { return (*string)(nil) }
+
+type booleanFinalizerIterator struct {
+	influxql.BooleanIterator
+}
+
+func newBooleanFinalizerIterator(inner influxql.BooleanIterator) *booleanFinalizerIterator {
+	itr := &booleanFinalizerIterator{inner}
+	runtime.SetFinalizer(itr, (*booleanFinalizerIterator).Close)
+	return itr
+}
+
+func (itr *booleanFinalizerIterator) Close() error {
+	runtime.SetFinalizer(itr, nil)
+	return itr.BooleanIterator.Close()
+}
 
 type booleanIterator struct {
 	cur   booleanCursor
