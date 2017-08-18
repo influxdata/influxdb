@@ -10,6 +10,10 @@
 - [#8706](https://github.com/influxdata/influxdb/pull/8706): Cursor leak, resulting in an accumulation of `.tsm.tmp` files after compactions.
 - [#8713](https://github.com/influxdata/influxdb/issues/8713): Deadlock when dropping measurement and writing
 
+### Features
+
+- [#8711](https://github.com/influxdata/influxdb/pull/8711): Batch up writes for monitor service
+
 ## v1.3.3 [2017-08-10]
 
 ### Bugfixes
