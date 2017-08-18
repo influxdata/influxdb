@@ -40,9 +40,11 @@ class DashboardPage extends Component {
       dashboardActions: {
         getDashboardsAsync,
         updateTempVarValues,
+        selectTempVarsFromUrl,
         putDashboardByID,
       },
       source,
+      location: {query},
     } = this.props
 
     const dashboards = await getDashboardsAsync()
@@ -50,6 +52,7 @@ class DashboardPage extends Component {
 
     // Refresh and persists influxql generated template variable values
     await updateTempVarValues(source, dashboard)
+    selectTempVarsFromUrl(+dashboardID, query)
     await putDashboardByID(dashboardID)
   }
 
@@ -369,6 +372,7 @@ DashboardPage.propTypes = {
   }).isRequired,
   location: shape({
     pathname: string.isRequired,
+    query: shape({}),
   }).isRequired,
   dashboardActions: shape({
     putDashboard: func.isRequired,

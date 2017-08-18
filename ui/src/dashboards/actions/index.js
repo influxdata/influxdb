@@ -13,7 +13,10 @@ import {errorThrown} from 'shared/actions/errors'
 
 import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants'
 
-import {TEMPLATE_VARIABLE_SELECTED} from 'shared/constants/actionTypes'
+import {
+  TEMPLATE_VARIABLE_SELECTED,
+  TEMPLATE_VARIABLES_SELECTED_BY_NAME,
+} from 'shared/constants/actionTypes'
 import {makeQueryForTemplate} from 'src/dashboards/utils/templateVariableQueryGenerator'
 import parsers from 'shared/parsing'
 
@@ -134,6 +137,14 @@ export const templateVariableSelected = (dashboardID, templateID, values) => ({
   },
 })
 
+export const templateVariablesSelectedByName = (dashboardID, query) => ({
+  type: TEMPLATE_VARIABLES_SELECTED_BY_NAME,
+  payload: {
+    dashboardID,
+    query,
+  },
+})
+
 export const editTemplateVariableValues = (
   dashboardID,
   templateID,
@@ -234,7 +245,10 @@ export const deleteDashboardCellAsync = (dashboard, cell) => async dispatch => {
 
 export const updateTempVarValues = (source, dashboard) => async dispatch => {
   try {
-    const tempsWithQueries = dashboard.templates.filter(t => !!t.query.influxql)
+    const tempsWithQueries = dashboard.templates.filter(
+      ({query}) => !!query.influxql
+    )
+
     const asyncQueries = tempsWithQueries.map(({query}) =>
       runTemplateVariableQuery(source, {query: makeQueryForTemplate(query)})
     )
@@ -250,4 +264,8 @@ export const updateTempVarValues = (source, dashboard) => async dispatch => {
     console.error(error)
     dispatch(errorThrown(error))
   }
+}
+
+export const selectTempVarsFromUrl = (dashboardID, query = {}) => dispatch => {
+  dispatch(templateVariablesSelectedByName(dashboardID, query))
 }

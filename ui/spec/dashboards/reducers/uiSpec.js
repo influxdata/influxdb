@@ -11,6 +11,7 @@ import {
   renameDashboardCell,
   syncDashboardCell,
   templateVariableSelected,
+  templateVariablesSelectedByName,
   cancelEditCell,
 } from 'src/dashboards/actions'
 
@@ -20,7 +21,7 @@ const templates = [
     id: '1',
     type: 'query',
     label: 'test query',
-    tempVar: '$REGION',
+    tempVar: ':region:',
     query: {
       db: 'db1',
       rp: 'rp1',
@@ -37,7 +38,7 @@ const templates = [
     id: '2',
     type: 'csv',
     label: 'test csv',
-    tempVar: '$TEMPERATURE',
+    tempVar: ':temperature:',
     values: [
       {value: '98.7', type: 'measurement', selected: false},
       {value: '99.1', type: 'measurement', selected: false},
@@ -167,15 +168,38 @@ describe('DataExplorer.Reducers.UI', () => {
     state = {
       dashboards: [dash],
     }
+
     const value = dash.templates[0].values[2].value
     const actual = reducer(
-      {dashboards},
+      state,
       templateVariableSelected(dash.id, dash.templates[0].id, [{value}])
     )
 
     expect(actual.dashboards[0].templates[0].values[0].selected).to.equal(false)
     expect(actual.dashboards[0].templates[0].values[1].selected).to.equal(false)
     expect(actual.dashboards[0].templates[0].values[2].selected).to.equal(true)
+  })
+
+  it('can select template variable values by name', () => {
+    const dash = _.cloneDeep(d1)
+    state = {
+      dashboards: [dash],
+    }
+
+    const selected = {region: 'us-west', temperature: '99.1'}
+    const actual = reducer(
+      state,
+      templateVariablesSelectedByName(dash.id, selected)
+    )
+
+    console.log(JSON.stringify(actual, null, 2))
+
+    expect(actual.dashboards[0].templates[0].values[0].selected).to.equal(true)
+    expect(actual.dashboards[0].templates[0].values[1].selected).to.equal(false)
+    expect(actual.dashboards[0].templates[0].values[2].selected).to.equal(false)
+    expect(actual.dashboards[0].templates[1].values[0].selected).to.equal(false)
+    expect(actual.dashboards[0].templates[1].values[1].selected).to.equal(true)
+    expect(actual.dashboards[0].templates[1].values[2].selected).to.equal(false)
   })
 
   it('can cancel cell editing', () => {
