@@ -3,17 +3,19 @@ import _ from 'lodash'
 
 import OptIn from 'shared/components/OptIn'
 
-// TODO: add logic for for Prefix, Suffix, Scale, and Multiplier
 const AxesOptions = ({
+  axes,
+  onSetLabel,
+  onSetPrefixSuffix,
   onSetYAxisBoundMin,
   onSetYAxisBoundMax,
-  onSetLabel,
-  axes,
 }) => {
   const min = _.get(axes, ['y', 'bounds', '0'], '')
   const max = _.get(axes, ['y', 'bounds', '1'], '')
   const label = _.get(axes, ['y', 'label'], '')
   const defaultYLabel = _.get(axes, ['y', 'defaultYLabel'], '')
+  const prefix = _.get(axes, ['y', 'prefix'], '')
+  const suffix = _.get(axes, ['y', 'suffix'], '')
 
   return (
     <div className="display-options--cell">
@@ -46,22 +48,26 @@ const AxesOptions = ({
             type="number"
           />
         </div>
-        {/* <div className="form-group col-sm-6">
-          <label htmlFor="prefix">Labels Prefix</label>
+        <div className="form-group col-sm-6">
+          <label htmlFor="prefix">Y-Value's Prefix</label>
           <input
             className="form-control input-sm"
             type="text"
             name="prefix"
             id="prefix"
+            value={prefix}
+            onChange={onSetPrefixSuffix}
           />
         </div>
         <div className="form-group col-sm-6">
-          <label htmlFor="prefix">Labels Suffix</label>
+          <label htmlFor="prefix">Y-Value's Suffix</label>
           <input
             className="form-control input-sm"
             type="text"
             name="suffix"
             id="suffix"
+            value={suffix}
+            onChange={onSetPrefixSuffix}
           />
         </div>
         <div className="form-group col-sm-6">
@@ -77,7 +83,7 @@ const AxesOptions = ({
             <li className="active">Linear</li>
             <li>Logarithmic</li>
           </ul>
-        </div> */}
+        </div>
       </form>
     </div>
   )
@@ -86,6 +92,7 @@ const AxesOptions = ({
 const {arrayOf, func, shape, string} = PropTypes
 
 AxesOptions.propTypes = {
+  onSetPrefixSuffix: func.isRequired,
   onSetYAxisBoundMin: func.isRequired,
   onSetYAxisBoundMax: func.isRequired,
   onSetLabel: func.isRequired,

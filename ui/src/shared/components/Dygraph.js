@@ -10,6 +10,7 @@ import getRange from 'shared/parsing/getRangeForDygraph'
 import {LINE_COLORS, multiColumnBarPlotter} from 'src/shared/graphs/helpers'
 import DygraphLegend from 'src/shared/components/DygraphLegend'
 import {buildDefaultYLabel} from 'shared/presenters'
+import {numberValueFormatter} from 'src/utils/formatting'
 
 const hasherino = (str, len) =>
   str
@@ -115,6 +116,8 @@ export default class Dygraph extends Component {
       axes: {
         y: {
           valueRange: getRange(timeSeries, yAxis, ruleValues),
+          axisLabelFormatter: (yval, _, opts) =>
+            numberValueFormatter(yval, opts),
         },
         y2: {
           valueRange: getRange(timeSeries, y2Axis),
