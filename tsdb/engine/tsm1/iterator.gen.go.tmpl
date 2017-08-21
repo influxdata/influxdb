@@ -9,6 +9,7 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/uber-go/zap"
 )
 
 type cursor interface {
@@ -117,12 +118,19 @@ const statsBufferCopyIntervalN = 100
 
 type {{.name}}FinalizerIterator struct {
 	query.{{.Name}}Iterator
+	logger zap.Logger
 }
 
-func new{{.Name}}FinalizerIterator(inner query.{{.Name}}Iterator) *{{.name}}FinalizerIterator {
-	itr := &{{.name}}FinalizerIterator{inner}
-	runtime.SetFinalizer(itr, (*{{.name}}FinalizerIterator).Close)
+func new{{.Name}}FinalizerIterator(inner query.{{.Name}}Iterator, logger zap.Logger) *{{.name}}FinalizerIterator {
+	itr := &{{.name}}FinalizerIterator{ {{.Name}}Iterator: inner, logger: logger}
+	runtime.SetFinalizer(itr, (*{{.name}}FinalizerIterator).closeGC)
 	return itr
+}
+
+func (itr *{{.name}}FinalizerIterator) closeGC() {
+	runtime.SetFinalizer(itr, nil)
+	itr.logger.Error("{{.Name}}Iterator finalized by GC")
+	itr.Close()
 }
 
 func (itr *{{.name}}FinalizerIterator) Close() error {
