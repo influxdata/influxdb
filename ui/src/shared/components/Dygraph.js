@@ -116,7 +116,7 @@ export default class Dygraph extends Component {
       axes: {
         y: {
           valueRange: getRange(timeSeries, yAxis, ruleValues),
-          axisLabelFormatter: (yval, _, opts) =>
+          axisLabelFormatter: (yval, __, opts) =>
             numberValueFormatter(yval, opts),
         },
         y2: {
