@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/influxdata/influxdb/influxql"
+	"github.com/uber-go/zap"
 )
 
 func newLimitIterator(input influxql.Iterator, opt influxql.IteratorOptions) influxql.Iterator {
@@ -58,33 +59,33 @@ func (c cursorsAt) close() {
 // newMergeFinalizerIterator creates a new Merge iterator from the inputs. If the call to Merge succeeds,
 // the resulting Iterator will be wrapped in a finalizer iterator.
 // If Merge returns an error, the inputs will be closed.
-func newMergeFinalizerIterator(inputs []influxql.Iterator, opt influxql.IteratorOptions) (influxql.Iterator, error) {
+func newMergeFinalizerIterator(inputs []influxql.Iterator, opt influxql.IteratorOptions, log zap.Logger) (influxql.Iterator, error) {
 	itr, err := influxql.Iterators(inputs).Merge(opt)
 	if err != nil {
 		influxql.Iterators(inputs).Close()
 		return nil, err
 	}
-	return newFinalizerIterator(itr), nil
+	return newFinalizerIterator(itr, log), nil
 }
 
 // newFinalizerIterator creates a new iterator that installs a runtime finalizer
 // to ensure close is eventually called if the iterator is garbage collected.
 // This additional guard attempts to protect against clients of CreateIterator not
 // correctly closing them and leaking cursors.
-func newFinalizerIterator(itr influxql.Iterator) influxql.Iterator {
+func newFinalizerIterator(itr influxql.Iterator, log zap.Logger) influxql.Iterator {
 	if itr == nil {
 		return nil
 	}
 
 	switch inner := itr.(type) {
 	case influxql.FloatIterator:
-		return newFloatFinalizerIterator(inner)
+		return newFloatFinalizerIterator(inner, log)
 	case influxql.IntegerIterator:
-		return newIntegerFinalizerIterator(inner)
+		return newIntegerFinalizerIterator(inner, log)
 	case influxql.StringIterator:
-		return newStringFinalizerIterator(inner)
+		return newStringFinalizerIterator(inner, log)
 	case influxql.BooleanIterator:
-		return newBooleanFinalizerIterator(inner)
+		return newBooleanFinalizerIterator(inner, log)
 	default:
 		panic(fmt.Sprintf("unsupported finalizer iterator type: %T", itr))
 	}
