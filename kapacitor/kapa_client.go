@@ -1,8 +1,12 @@
 package kapacitor
 
 import (
+	"sync"
+
 	client "github.com/influxdata/kapacitor/client/v1"
 )
+
+const ListTaskWorkers = 4
 
 // ensure PaginatingKapaClient is a KapaClient
 var _ KapaClient = &PaginatingKapaClient{}
@@ -24,30 +28,76 @@ func (p *PaginatingKapaClient) ListTasks(opts *client.ListTasksOptions) ([]clien
 
 	allTasks := []client.Task{}
 
-	allOpts := &client.ListTasksOptions{
-		// copy existing fields
-		TaskOptions: opts.TaskOptions,
-		Pattern:     opts.Pattern,
-		Fields:      opts.Fields,
+	optChan := make(chan client.ListTasksOptions)
+	taskChan := make(chan []client.Task, ListTaskWorkers)
+	done := make(chan struct{})
 
-		// we take control of these two in the loop below
-		Limit:  p.FetchRate,
-		Offset: 0,
+	var once sync.Once
+
+	doneCloser := func() {
+		close(done)
 	}
 
-	for {
-		resp, err := p.KapaClient.ListTasks(allOpts)
-		if err != nil {
-			return allTasks, err
+	go func() {
+		opts := &client.ListTasksOptions{
+			// copy existing fields
+			TaskOptions: opts.TaskOptions,
+			Pattern:     opts.Pattern,
+			Fields:      opts.Fields,
+
+			// we take control of these two in the loop below
+			Limit:  p.FetchRate,
+			Offset: 0,
 		}
 
-		// break if we've exhausted available tasks
-		if len(resp) == 0 {
-			break
+		for {
+			opts.Offset = p.FetchRate + opts.Offset
+			select {
+			case <-done:
+				close(optChan)
+				return
+			case optChan <- *opts:
+				// nop
+			}
 		}
+	}()
 
-		allTasks = append(allTasks, resp...)
-		allOpts.Offset += len(resp)
+	var wg sync.WaitGroup
+
+	wg.Add(ListTaskWorkers)
+	for i := 0; i < ListTaskWorkers; i++ {
+		go func() {
+			defer wg.Done()
+			for opt := range optChan {
+				resp, err := p.KapaClient.ListTasks(&opt)
+				if err != nil {
+					return
+				}
+
+				// break and stop all workers if we're done
+				if len(resp) == 0 {
+					once.Do(doneCloser)
+					return
+				}
+
+				// handoff tasks to consumer
+				taskChan <- resp
+			}
+		}()
 	}
+
+	var taskAsm sync.WaitGroup
+	taskAsm.Add(1)
+	go func() {
+		for task := range taskChan {
+			allTasks = append(allTasks, task...)
+		}
+		taskAsm.Done()
+	}()
+
+	wg.Wait()
+	close(taskChan)
+	taskAsm.Wait()
+
 	return allTasks, nil
 }
