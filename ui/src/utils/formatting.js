@@ -1,6 +1,6 @@
-var KMB_LABELS = ['K', 'M', 'B', 'T', 'Q']
-var KMG2_BIG_LABELS = ['k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y']
-var KMG2_SMALL_LABELS = ['m', 'u', 'n', 'p', 'f', 'a', 'z', 'y']
+const KMB_LABELS = ['K', 'M', 'B', 'T', 'Q']
+const KMG2_BIG_LABELS = ['k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y']
+const KMG2_SMALL_LABELS = ['m', 'u', 'n', 'p', 'f', 'a', 'z', 'y']
 
 const pow = (base, exp) => {
   if (exp < 0) {
@@ -11,10 +11,36 @@ const pow = (base, exp) => {
 }
 
 const round_ = (num, places) => {
-  var shift = Math.pow(10, places)
+  const shift = Math.pow(10, places)
   return Math.round(num * shift) / shift
 }
 
+const floatFormat = (x, optPrecision) => {
+  // Avoid invalid precision values; [1, 21] is the valid range.
+  const p = Math.min(Math.max(1, optPrecision || 2), 21)
+
+  // This is deceptively simple.  The actual algorithm comes from:
+  //
+  // Max allowed length = p + 4
+  // where 4 comes from 'e+n' and '.'.
+  //
+  // Length of fixed format = 2 + y + p
+  // where 2 comes from '0.' and y = # of leading zeroes.
+  //
+  // Equating the two and solving for y yields y = 2, or 0.00xxxx which is
+  // 1.0e-3.
+  //
+  // Since the behavior of toPrecision() is identical for larger numbers, we
+  // don't have to worry about the other bound.
+  //
+  // Finally, the argument for toExponential() is the number of trailing digits,
+  // so we take off 1 for the value before the '.'.
+  return Math.abs(x) < 1.0e-3 && x !== 0.0
+    ? x.toExponential(p - 1)
+    : x.toPrecision(p)
+}
+
+// taken from https://github.com/danvk/dygraphs/blob/aaec6de56dba8ed712fd7b9d949de47b46a76ccd/src/dygraph-utils.js#L1103
 export const numberValueFormatter = (x, opts) => {
   const sigFigs = opts('sigFigs')
 
@@ -39,41 +65,43 @@ export const numberValueFormatter = (x, opts) => {
   ) {
     label = x.toExponential(digits)
   } else {
-    label = '' + round_(x, digits)
+    label = `${round_(x, digits)}`
   }
 
   if (kmb || kmg2) {
     let k
-    let k_labels = []
-    let m_labels = []
+    let kLabels = []
+    let mLabels = []
     if (kmb) {
       k = 1000
-      k_labels = KMB_LABELS
+      kLabels = KMB_LABELS
     }
     if (kmg2) {
-      if (kmb) console.warn('Setting both labelsKMB and labelsKMG2. Pick one!')
+      if (kmb) {
+        console.error('Setting both labelsKMB and labelsKMG2. Pick one!')
+      }
       k = 1024
-      k_labels = KMG2_BIG_LABELS
-      m_labels = KMG2_SMALL_LABELS
+      kLabels = KMG2_BIG_LABELS
+      mLabels = KMG2_SMALL_LABELS
     }
 
-    let absx = Math.abs(x)
-    let n = pow(k, k_labels.length)
-    for (var j = k_labels.length - 1; j >= 0; j--, n /= k) {
+    const absx = Math.abs(x)
+    let n = pow(k, kLabels.length)
+    for (let j = kLabels.length - 1; j >= 0; j -= 1, n /= k) {
       if (absx >= n) {
-        label = round_(x / n, digits) + k_labels[j]
+        label = round_(x / n, digits) + kLabels[j]
         break
       }
     }
     if (kmg2) {
-      const x_parts = String(x.toExponential()).split('e-')
-      if (x_parts.length === 2 && x_parts[1] >= 3 && x_parts[1] <= 24) {
-        if (x_parts[1] % 3 > 0) {
-          label = round_(x_parts[0] / pow(10, x_parts[1] % 3), digits)
+      const xParts = String(x.toExponential()).split('e-')
+      if (xParts.length === 2 && xParts[1] >= 3 && xParts[1] <= 24) {
+        if (xParts[1] % 3 > 0) {
+          label = round_(xParts[0] / pow(10, xParts[1] % 3), digits)
         } else {
-          label = Number(x_parts[0]).toFixed(2)
+          label = Number(xParts[0]).toFixed(2)
         }
-        label += m_labels[Math.floor(x_parts[1] / 3) - 1]
+        label += mLabels[Math.floor(xParts[1] / 3) - 1]
       }
     }
   }
