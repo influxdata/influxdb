@@ -290,6 +290,10 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 				r.Base = "10"
 			}
 
+			if r.Scale == "" {
+				r.Scale = "linear"
+			}
+
 			if r.Bounds != nil {
 				axes[a] = chronograf.Axis{
 					Bounds: r.Bounds,
@@ -304,6 +308,7 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 				axes[a] = chronograf.Axis{
 					Bounds: []string{},
 					Base:   r.Base,
+					Scale:  r.Scale,
 				}
 			}
 		}
