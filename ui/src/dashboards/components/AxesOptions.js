@@ -1,6 +1,7 @@
 import React, {PropTypes} from 'react'
 
 import OptIn from 'shared/components/OptIn'
+import Input from 'src/data_explorer/components/DisplayOptionsInput'
 
 const AxesOptions = ({
   axes: {y: {bounds, label, prefix, suffix, base, defaultYLabel}},
@@ -43,30 +44,22 @@ const AxesOptions = ({
             type="number"
           />
         </div>
+        <Input
+          name="prefix"
+          id="prefix"
+          value={prefix}
+          labelText="Y-Value's Prefix"
+          onChange={onSetPrefixSuffix}
+        />
+        <Input
+          name="suffix"
+          id="suffix"
+          value={suffix}
+          labelText="Y-Value's Suffix"
+          onChange={onSetPrefixSuffix}
+        />
         <div className="form-group col-sm-6">
-          <label htmlFor="prefix">Y-Value's Prefix</label>
-          <input
-            className="form-control input-sm"
-            type="text"
-            name="prefix"
-            id="prefix"
-            value={prefix}
-            onChange={onSetPrefixSuffix}
-          />
-        </div>
-        <div className="form-group col-sm-6">
-          <label htmlFor="prefix">Y-Value's Suffix</label>
-          <input
-            className="form-control input-sm"
-            type="text"
-            name="suffix"
-            id="suffix"
-            value={suffix}
-            onChange={onSetPrefixSuffix}
-          />
-        </div>
-        <div className="form-group col-sm-6">
-          <label>Labels Format</label>
+          <label>Y-Value Format</label>
           <ul className="nav nav-tablist nav-tablist-sm">
             <li
               className={base === '10' ? 'active' : ''}
