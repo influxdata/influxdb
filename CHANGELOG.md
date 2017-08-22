@@ -77,7 +77,7 @@
 - [#8726](https://github.com/influxdata/influxdb/pull/8726): Fix leaking tmp file when large compaction aborted
 
 
-## v1.3.3 [unreleased]
+## v1.3.3 [2017-08-10]
 
 ### Bugfixes
 
