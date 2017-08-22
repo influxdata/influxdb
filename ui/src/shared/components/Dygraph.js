@@ -415,7 +415,7 @@ Dygraph.defaultProps = {
       suffix: '',
     },
     y2: {
-      bounds: null,
+      bounds: undefined,
       prefix: '',
       suffix: '',
     },
