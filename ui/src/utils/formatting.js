@@ -41,7 +41,7 @@ const floatFormat = (x, optPrecision) => {
 }
 
 // taken from https://github.com/danvk/dygraphs/blob/aaec6de56dba8ed712fd7b9d949de47b46a76ccd/src/dygraph-utils.js#L1103
-export const numberValueFormatter = (x, opts) => {
+export const numberValueFormatter = (x, opts, prefix, suffix) => {
   const sigFigs = opts('sigFigs')
 
   if (sigFigs !== null) {
@@ -106,7 +106,7 @@ export const numberValueFormatter = (x, opts) => {
     }
   }
 
-  return label
+  return `${prefix}${label}${suffix}`
 }
 
 export const formatBytes = bytes => {
