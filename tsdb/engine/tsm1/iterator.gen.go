@@ -14,6 +14,7 @@ import (
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/uber-go/zap"
 )
 
 type cursor interface {
@@ -118,12 +119,19 @@ const statsBufferCopyIntervalN = 100
 
 type floatFinalizerIterator struct {
 	influxql.FloatIterator
+	logger zap.Logger
 }
 
-func newFloatFinalizerIterator(inner influxql.FloatIterator) *floatFinalizerIterator {
-	itr := &floatFinalizerIterator{inner}
-	runtime.SetFinalizer(itr, (*floatFinalizerIterator).Close)
+func newFloatFinalizerIterator(inner influxql.FloatIterator, logger zap.Logger) *floatFinalizerIterator {
+	itr := &floatFinalizerIterator{FloatIterator: inner, logger: logger}
+	runtime.SetFinalizer(itr, (*floatFinalizerIterator).closeGC)
 	return itr
+}
+
+func (itr *floatFinalizerIterator) closeGC() {
+	runtime.SetFinalizer(itr, nil)
+	itr.logger.Error("FloatIterator finalized by GC")
+	itr.Close()
 }
 
 func (itr *floatFinalizerIterator) Close() error {
@@ -570,12 +578,19 @@ func (c *floatNilLiteralCursor) nextAt(seek int64) interface{}  { return (*float
 
 type integerFinalizerIterator struct {
 	influxql.IntegerIterator
+	logger zap.Logger
 }
 
-func newIntegerFinalizerIterator(inner influxql.IntegerIterator) *integerFinalizerIterator {
-	itr := &integerFinalizerIterator{inner}
-	runtime.SetFinalizer(itr, (*integerFinalizerIterator).Close)
+func newIntegerFinalizerIterator(inner influxql.IntegerIterator, logger zap.Logger) *integerFinalizerIterator {
+	itr := &integerFinalizerIterator{IntegerIterator: inner, logger: logger}
+	runtime.SetFinalizer(itr, (*integerFinalizerIterator).closeGC)
 	return itr
+}
+
+func (itr *integerFinalizerIterator) closeGC() {
+	runtime.SetFinalizer(itr, nil)
+	itr.logger.Error("IntegerIterator finalized by GC")
+	itr.Close()
 }
 
 func (itr *integerFinalizerIterator) Close() error {
@@ -1022,12 +1037,19 @@ func (c *integerNilLiteralCursor) nextAt(seek int64) interface{}  { return (*int
 
 type stringFinalizerIterator struct {
 	influxql.StringIterator
+	logger zap.Logger
 }
 
-func newStringFinalizerIterator(inner influxql.StringIterator) *stringFinalizerIterator {
-	itr := &stringFinalizerIterator{inner}
-	runtime.SetFinalizer(itr, (*stringFinalizerIterator).Close)
+func newStringFinalizerIterator(inner influxql.StringIterator, logger zap.Logger) *stringFinalizerIterator {
+	itr := &stringFinalizerIterator{StringIterator: inner, logger: logger}
+	runtime.SetFinalizer(itr, (*stringFinalizerIterator).closeGC)
 	return itr
+}
+
+func (itr *stringFinalizerIterator) closeGC() {
+	runtime.SetFinalizer(itr, nil)
+	itr.logger.Error("StringIterator finalized by GC")
+	itr.Close()
 }
 
 func (itr *stringFinalizerIterator) Close() error {
@@ -1474,12 +1496,19 @@ func (c *stringNilLiteralCursor) nextAt(seek int64) interface{}  { return (*stri
 
 type booleanFinalizerIterator struct {
 	influxql.BooleanIterator
+	logger zap.Logger
 }
 
-func newBooleanFinalizerIterator(inner influxql.BooleanIterator) *booleanFinalizerIterator {
-	itr := &booleanFinalizerIterator{inner}
-	runtime.SetFinalizer(itr, (*booleanFinalizerIterator).Close)
+func newBooleanFinalizerIterator(inner influxql.BooleanIterator, logger zap.Logger) *booleanFinalizerIterator {
+	itr := &booleanFinalizerIterator{BooleanIterator: inner, logger: logger}
+	runtime.SetFinalizer(itr, (*booleanFinalizerIterator).closeGC)
 	return itr
+}
+
+func (itr *booleanFinalizerIterator) closeGC() {
+	runtime.SetFinalizer(itr, nil)
+	itr.logger.Error("BooleanIterator finalized by GC")
+	itr.Close()
 }
 
 func (itr *booleanFinalizerIterator) Close() error {

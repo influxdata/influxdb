@@ -865,6 +865,12 @@ func (c *Compactor) writeNewFiles(generation, sequence int, iter KeyIterator) ([
 			// planner keeps track of which files are assigned to compaction plans now.
 			return nil, err
 		} else if err != nil {
+			// Remove any tmp files we already completed
+			for _, f := range files {
+				if err := os.RemoveAll(f); err != nil {
+					return nil, err
+				}
+			}
 			// We hit an error and didn't finish the compaction.  Remove the temp file and abort.
 			if err := os.RemoveAll(fileName); err != nil {
 				return nil, err
