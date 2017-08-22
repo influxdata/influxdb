@@ -45,7 +45,7 @@
 - [#8713](https://github.com/influxdata/influxdb/issues/8713): Deadlock when dropping measurement and writing
 - [#8726](https://github.com/influxdata/influxdb/pull/8726): Fix leaking tmp file when large compaction aborted
 
-## v1.3.3 [unreleased]
+## v1.3.3 [2017-08-10]
 
 ### Bugfixes
 
