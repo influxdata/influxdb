@@ -5,6 +5,7 @@ import OptIn from 'shared/components/OptIn'
 
 const AxesOptions = ({
   axes,
+  onSetBase,
   onSetLabel,
   onSetPrefixSuffix,
   onSetYAxisBoundMin,
@@ -16,6 +17,7 @@ const AxesOptions = ({
   const defaultYLabel = _.get(axes, ['y', 'defaultYLabel'], '')
   const prefix = _.get(axes, ['y', 'prefix'], '')
   const suffix = _.get(axes, ['y', 'suffix'], '')
+  const base = _.get(axes, ['y', 'base'], '10')
 
   return (
     <div className="display-options--cell">
@@ -73,8 +75,18 @@ const AxesOptions = ({
         <div className="form-group col-sm-6">
           <label>Labels Format</label>
           <ul className="nav nav-tablist nav-tablist-sm">
-            <li className="active">K/M/B</li>
-            <li>K/M/G</li>
+            <li
+              className={base === '10' ? 'active' : ''}
+              onClick={onSetBase('10')}
+            >
+              K/M/B
+            </li>
+            <li
+              className={base === '2' ? 'active' : ''}
+              onClick={onSetBase('2')}
+            >
+              K/M/G
+            </li>
           </ul>
         </div>
         <div className="form-group col-sm-6">
@@ -96,6 +108,7 @@ AxesOptions.propTypes = {
   onSetYAxisBoundMin: func.isRequired,
   onSetYAxisBoundMax: func.isRequired,
   onSetLabel: func.isRequired,
+  onSetBase: func.isRequired,
   axes: shape({
     y: shape({
       bounds: arrayOf(string),
