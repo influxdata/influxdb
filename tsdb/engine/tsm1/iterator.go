@@ -5,6 +5,7 @@ import (
 
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/uber-go/zap"
 )
 
 func newLimitIterator(input query.Iterator, opt query.IteratorOptions) query.Iterator {
@@ -152,35 +153,35 @@ func (c cursorsAt) close() {
 // newMergeFinalizerIterator creates a new Merge iterator from the inputs. If the call to Merge succeeds,
 // the resulting Iterator will be wrapped in a finalizer iterator.
 // If Merge returns an error, the inputs will be closed.
-func newMergeFinalizerIterator(inputs []query.Iterator, opt query.IteratorOptions) (query.Iterator, error) {
+func newMergeFinalizerIterator(inputs []query.Iterator, opt query.IteratorOptions, log zap.Logger) (query.Iterator, error) {
 	itr, err := query.Iterators(inputs).Merge(opt)
 	if err != nil {
 		query.Iterators(inputs).Close()
 		return nil, err
 	}
-	return newFinalizerIterator(itr), nil
+	return newFinalizerIterator(itr, log), nil
 }
 
 // newFinalizerIterator creates a new iterator that installs a runtime finalizer
 // to ensure close is eventually called if the iterator is garbage collected.
 // This additional guard attempts to protect against clients of CreateIterator not
 // correctly closing them and leaking cursors.
-func newFinalizerIterator(itr query.Iterator) query.Iterator {
+func newFinalizerIterator(itr query.Iterator, log zap.Logger) query.Iterator {
 	if itr == nil {
 		return nil
 	}
 
 	switch inner := itr.(type) {
 	case query.FloatIterator:
-		return newFloatFinalizerIterator(inner)
+		return newFloatFinalizerIterator(inner, log)
 	case query.IntegerIterator:
-		return newIntegerFinalizerIterator(inner)
+		return newIntegerFinalizerIterator(inner, log)
 	case query.UnsignedIterator:
-		return newUnsignedFinalizerIterator(inner)
+		return newUnsignedFinalizerIterator(inner, log)
 	case query.StringIterator:
-		return newStringFinalizerIterator(inner)
+		return newStringFinalizerIterator(inner, log)
 	case query.BooleanIterator:
-		return newBooleanFinalizerIterator(inner)
+		return newBooleanFinalizerIterator(inner, log)
 	default:
 		panic(fmt.Sprintf("unsupported finalizer iterator type: %T", itr))
 	}
