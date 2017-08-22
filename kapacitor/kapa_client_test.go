@@ -26,6 +26,10 @@ func Test_Kapacitor_PaginatingKapaClient(t *testing.T) {
 				end = len(allTasks)
 			}
 
+			if begin > len(allTasks) {
+				begin = end
+			}
+
 			return allTasks[begin:end], nil
 		},
 	}

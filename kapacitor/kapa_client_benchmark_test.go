@@ -8,21 +8,23 @@ import (
 	client "github.com/influxdata/kapacitor/client/v1"
 )
 
-func BenchmarkKapaClient100(b *testing.B)   { benchmark_PaginatingKapaClient(100, b) }
-func BenchmarkKapaClient1000(b *testing.B)  { benchmark_PaginatingKapaClient(1000, b) }
-func BenchmarkKapaClient10000(b *testing.B) { benchmark_PaginatingKapaClient(10000, b) }
+func BenchmarkKapaClient100(b *testing.B)    { benchmark_PaginatingKapaClient(100, b) }
+func BenchmarkKapaClient1000(b *testing.B)   { benchmark_PaginatingKapaClient(1000, b) }
+func BenchmarkKapaClient10000(b *testing.B)  { benchmark_PaginatingKapaClient(10000, b) }
+func BenchmarkKapaClient100000(b *testing.B) { benchmark_PaginatingKapaClient(100000, b) }
+
+var tasks []client.Task
 
 func benchmark_PaginatingKapaClient(taskCount int, b *testing.B) {
+
+	b.StopTimer() // eliminate setup time
+
 	// create a mock client that will return a huge response from ListTasks
 	mockClient := &mocks.KapaClient{
 		ListTasksF: func(opts *client.ListTasksOptions) ([]client.Task, error) {
 			// create all the tasks
-			allTasks := []client.Task{}
+			allTasks := make([]client.Task, taskCount)
 
-			// create N tasks from the benchmark runner
-			for i := 0; i < taskCount; i++ {
-				allTasks = append(allTasks, client.Task{})
-			}
 			begin := opts.Offset
 			end := opts.Offset + opts.Limit
 
@@ -42,8 +44,11 @@ func benchmark_PaginatingKapaClient(taskCount int, b *testing.B) {
 
 	opts := &client.ListTasksOptions{}
 
+	b.StartTimer() // eliminate setup time
+
 	// let the benchmark runner run ListTasks until it's satisfied
 	for n := 0; n < b.N; n++ {
-		_, _ = pkap.ListTasks(opts)
+		// assignment is to avoid having the call optimized away
+		tasks, _ = pkap.ListTasks(opts)
 	}
 }

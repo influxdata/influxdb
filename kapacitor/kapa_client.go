@@ -51,7 +51,6 @@ func (p *PaginatingKapaClient) ListTasks(opts *client.ListTasksOptions) ([]clien
 		}
 
 		for {
-			opts.Offset = p.FetchRate + opts.Offset
 			select {
 			case <-done:
 				close(optChan)
@@ -59,6 +58,7 @@ func (p *PaginatingKapaClient) ListTasks(opts *client.ListTasksOptions) ([]clien
 			case optChan <- *opts:
 				// nop
 			}
+			opts.Offset = p.FetchRate + opts.Offset
 		}
 	}()
 
