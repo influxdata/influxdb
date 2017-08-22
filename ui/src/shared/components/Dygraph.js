@@ -87,9 +87,8 @@ export default class Dygraph extends Component {
       axes: {
         y: {
           valueRange: getRange(timeSeries, y.bounds, ruleValues),
-          axisLabelFormatter: (yval, __, opts, d) => {
-            return numberValueFormatter(yval, opts, y.prefix, y.suffix)
-          },
+          axisLabelFormatter: (yval, __, opts) =>
+            numberValueFormatter(yval, opts, y.prefix, y.suffix),
           axisLabelWidth: 60 + y.prefix.length * 7 + y.suffix.length * 7,
         },
         y2: {
@@ -205,13 +204,6 @@ export default class Dygraph extends Component {
 
     if (this.dygraph.isZoomed() && timeRangeChanged) {
       this.dygraph.resetZoom()
-    }
-
-    if (
-      this.props.axes.y.prefix !== nextProps.axes.y.prefix ||
-      this.props.axes.y.suffix !== nextProps.axes.y.suffix
-    ) {
-      this.resize()
     }
 
     // Will cause componentDidUpdate to fire twice, currently. This could
