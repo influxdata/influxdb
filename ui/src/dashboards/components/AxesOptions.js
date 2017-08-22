@@ -1,23 +1,16 @@
 import React, {PropTypes} from 'react'
-import _ from 'lodash'
 
 import OptIn from 'shared/components/OptIn'
 
 const AxesOptions = ({
-  axes,
+  axes: {y: {bounds, label, prefix, suffix, base, defaultYLabel}},
   onSetBase,
   onSetLabel,
   onSetPrefixSuffix,
   onSetYAxisBoundMin,
   onSetYAxisBoundMax,
 }) => {
-  const min = _.get(axes, ['y', 'bounds', '0'], '')
-  const max = _.get(axes, ['y', 'bounds', '1'], '')
-  const label = _.get(axes, ['y', 'label'], '')
-  const defaultYLabel = _.get(axes, ['y', 'defaultYLabel'], '')
-  const prefix = _.get(axes, ['y', 'prefix'], '')
-  const suffix = _.get(axes, ['y', 'suffix'], '')
-  const base = _.get(axes, ['y', 'base'], '10')
+  const [min, max] = bounds
 
   return (
     <div className="display-options--cell">
@@ -102,6 +95,19 @@ const AxesOptions = ({
 }
 
 const {arrayOf, func, shape, string} = PropTypes
+
+AxesOptions.defaultProps = {
+  axes: {
+    y: {
+      bounds: ['', ''],
+      prefix: '',
+      suffix: '',
+      base: '10',
+      scale: 'linear',
+      defaultYLabel: '',
+    },
+  },
+}
 
 AxesOptions.propTypes = {
   onSetPrefixSuffix: func.isRequired,
