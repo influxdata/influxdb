@@ -441,7 +441,7 @@ func TestStore_MeasurementNames_Deduplicate(t *testing.T) {
 		`cpu value=3 20`,
 	)
 
-	meas, err := s.MeasurementNames("db0", nil)
+	meas, err := s.MeasurementNames("db0", nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error with MeasurementNames: %v", err)
 	}
@@ -481,7 +481,7 @@ func testStoreCardinalityTombstoning(t *testing.T, store *Store) {
 	}
 
 	// Delete all the series for each measurement.
-	mnames, err := store.MeasurementNames("db", nil)
+	mnames, err := store.MeasurementNames("db", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

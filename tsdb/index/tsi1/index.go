@@ -384,10 +384,10 @@ func (i *Index) MeasurementExists(name []byte) (bool, error) {
 	return m != nil && !m.Deleted(), nil
 }
 
-func (i *Index) MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
+func (i *Index) MeasurementNamesByExpr(expr influxql.Expr, _ influxql.Authorizer) ([][]byte, error) {
 	fs := i.RetainFileSet()
 	defer fs.Release()
-	return fs.MeasurementNamesByExpr(expr)
+	return fs.MeasurementNamesByExpr(expr) // TODO(AUTH)
 }
 
 func (i *Index) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {

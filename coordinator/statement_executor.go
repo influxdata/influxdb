@@ -685,7 +685,7 @@ func (e *StatementExecutor) executeShowMeasurementsStatement(q *influxql.ShowMea
 		return ErrDatabaseNameRequired
 	}
 
-	names, err := e.TSDBStore.MeasurementNames(q.Database, q.Condition)
+	names, err := e.TSDBStore.MeasurementNames(q.Database, q.Condition, ctx.Authorizer)
 	if err != nil || len(names) == 0 {
 		return ctx.Send(&query.Result{
 			StatementID: ctx.StatementID,
@@ -1163,7 +1163,7 @@ type TSDBStore interface {
 	DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error
 	DeleteShard(id uint64) error
 
-	MeasurementNames(database string, cond influxql.Expr) ([][]byte, error)
+	MeasurementNames(database string, cond influxql.Expr, auth influxql.Authorizer) ([][]byte, error)
 	TagValues(database string, cond influxql.Expr) ([]tsdb.TagValues, error)
 }
 

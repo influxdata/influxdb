@@ -322,8 +322,8 @@ func (e *Engine) MeasurementExists(name []byte) (bool, error) {
 	return e.index.MeasurementExists(name)
 }
 
-func (e *Engine) MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
-	return e.index.MeasurementNamesByExpr(expr)
+func (e *Engine) MeasurementNamesByExpr(expr influxql.Expr, auth influxql.Authorizer) ([][]byte, error) {
+	return e.index.MeasurementNamesByExpr(expr, auth)
 }
 
 func (e *Engine) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {

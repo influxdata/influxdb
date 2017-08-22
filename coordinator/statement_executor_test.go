@@ -373,7 +373,7 @@ func (s *TSDBStore) Measurements(database string, cond influxql.Expr) ([]string,
 	return nil, nil
 }
 
-func (s *TSDBStore) MeasurementNames(database string, cond influxql.Expr) ([][]byte, error) {
+func (s *TSDBStore) MeasurementNames(database string, cond influxql.Expr, _ influxql.Authorizer) ([][]byte, error) {
 	return nil, nil
 }
 

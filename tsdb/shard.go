@@ -699,8 +699,8 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 
 // MeasurementNamesByExpr returns names of measurements matching the condition.
 // If cond is nil then all measurement names are returned.
-func (s *Shard) MeasurementNamesByExpr(cond influxql.Expr) ([][]byte, error) {
-	return s.engine.MeasurementNamesByExpr(cond)
+func (s *Shard) MeasurementNamesByExpr(cond influxql.Expr, auth influxql.Authorizer) ([][]byte, error) {
+	return s.engine.MeasurementNamesByExpr(cond, auth)
 }
 
 // MeasurementFields returns fields for a measurement.
@@ -1369,7 +1369,7 @@ func NewFieldKeysIterator(sh *Shard, opt query.IteratorOptions) (query.Iterator,
 	itr := &fieldKeysIterator{sh: sh}
 
 	// Retrieve measurements from shard. Filter if condition specified.
-	names, err := sh.engine.MeasurementNamesByExpr(opt.Condition)
+	names, err := sh.engine.MeasurementNamesByExpr(opt.Condition, nil) // TODO(AUTH)
 	if err != nil {
 		return nil, err
 	}
@@ -1460,7 +1460,7 @@ type measurementKeyFunc func(name []byte) ([][]byte, error)
 func newMeasurementKeysIterator(sh *Shard, fn measurementKeyFunc, opt query.IteratorOptions) (*measurementKeysIterator, error) {
 	itr := &measurementKeysIterator{fn: fn}
 
-	names, err := sh.engine.MeasurementNamesByExpr(opt.Condition)
+	names, err := sh.engine.MeasurementNamesByExpr(opt.Condition, nil) // TODO(AUTH)
 	if err != nil {
 		return nil, err
 	}
