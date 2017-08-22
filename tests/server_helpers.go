@@ -22,6 +22,9 @@ import (
 	"github.com/influxdata/influxdb/toml"
 )
 
+var verboseServerLogs bool
+var indexType string
+
 // Server represents a test wrapper for run.Server.
 type Server interface {
 	URL() string

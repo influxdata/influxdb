@@ -18,8 +18,6 @@ import (
 
 // Global server used by benchmarks
 var benchServer Server
-var verboseServerLogs bool
-var indexType string
 
 func TestMain(m *testing.M) {
 	vv := flag.Bool("vv", false, "Turn on very verbose server logging.")

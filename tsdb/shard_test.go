@@ -686,10 +686,8 @@ cpu,host=serverB,region=uswest value=25  0
 
 // Ensure a shard can create iterators for its underlying data.
 func TestShard_CreateIterator_Descending(t *testing.T) {
-	var (
-		sh  *Shard
-		itr query.Iterator
-	)
+	var sh *Shard
+	var itr query.Iterator
 
 	test := func(index string) {
 		sh = NewShard(index)
