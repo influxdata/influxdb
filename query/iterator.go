@@ -696,20 +696,12 @@ func newIteratorOptionsStmt(stmt *influxql.SelectStatement, sopt *SelectOptions)
 	if !timeRange.Min.IsZero() {
 		opt.StartTime = timeRange.Min.UnixNano()
 	} else {
-		if sopt != nil {
-			opt.StartTime = sopt.MinTime.UnixNano()
-		} else {
-			opt.StartTime = influxql.MinTime
-		}
+		opt.StartTime = influxql.MinTime
 	}
 	if !timeRange.Max.IsZero() {
 		opt.EndTime = timeRange.Max.UnixNano()
 	} else {
-		if sopt != nil {
-			opt.EndTime = sopt.MaxTime.UnixNano()
-		} else {
-			opt.EndTime = influxql.MaxTime
-		}
+		opt.EndTime = influxql.MaxTime
 	}
 	opt.Location = stmt.Location
 
