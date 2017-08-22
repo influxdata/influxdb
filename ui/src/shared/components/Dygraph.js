@@ -7,11 +7,13 @@ import _ from 'lodash'
 import Dygraphs from 'src/external/dygraph'
 import getRange from 'shared/parsing/getRangeForDygraph'
 
+import {DISPLAY_OPTIONS} from 'src/dashboards/constants'
 import {LINE_COLORS, multiColumnBarPlotter} from 'src/shared/graphs/helpers'
 import DygraphLegend from 'src/shared/components/DygraphLegend'
 import {buildDefaultYLabel} from 'shared/presenters'
 import {numberValueFormatter} from 'src/utils/formatting'
 
+const {LINEAR, LOG, BASE_10} = DISPLAY_OPTIONS
 const hasherino = (str, len) =>
   str
     .split('')
@@ -71,6 +73,7 @@ export default class Dygraph extends Component {
               direction: 'vertical',
             }),
           ],
+      logscale: y.scale === LOG,
       labelsSeparateLines: false,
       labelsKMB: true,
       rightGap: 0,
@@ -253,6 +256,7 @@ export default class Dygraph extends Component {
       labels,
       file: timeSeries,
       ylabel,
+      logscale: y.scale === LOG,
       axes: {
         y: {
           valueRange: getRange(timeSeries, y.bounds, ruleValues),
@@ -417,7 +421,8 @@ Dygraph.defaultProps = {
       bounds: [null, null],
       prefix: '',
       suffix: '',
-      base: '10',
+      base: BASE_10,
+      scale: LINEAR,
     },
     y2: {
       bounds: undefined,

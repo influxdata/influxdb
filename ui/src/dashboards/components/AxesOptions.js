@@ -1,11 +1,16 @@
 import React, {PropTypes} from 'react'
 
 import OptIn from 'shared/components/OptIn'
-import Input from 'src/data_explorer/components/DisplayOptionsInput'
+import Input from 'src/dashboards/components/DisplayOptionsInput'
+import {Tabber, Tab} from 'src/dashboards/components/Tabber'
+import {DISPLAY_OPTIONS} from 'src/dashboards/constants'
+
+const {LINEAR, LOG, BASE_2, BASE_10} = DISPLAY_OPTIONS
 
 const AxesOptions = ({
-  axes: {y: {bounds, label, prefix, suffix, base, defaultYLabel}},
+  axes: {y: {bounds, label, prefix, suffix, base, scale, defaultYLabel}},
   onSetBase,
+  onSetScale,
   onSetLabel,
   onSetPrefixSuffix,
   onSetYAxisBoundMin,
@@ -58,30 +63,30 @@ const AxesOptions = ({
           labelText="Y-Value's Suffix"
           onChange={onSetPrefixSuffix}
         />
-        <div className="form-group col-sm-6">
-          <label>Y-Value Format</label>
-          <ul className="nav nav-tablist nav-tablist-sm">
-            <li
-              className={base === '10' ? 'active' : ''}
-              onClick={onSetBase('10')}
-            >
-              K/M/B
-            </li>
-            <li
-              className={base === '2' ? 'active' : ''}
-              onClick={onSetBase('2')}
-            >
-              K/M/G
-            </li>
-          </ul>
-        </div>
-        <div className="form-group col-sm-6">
-          <label>Scale</label>
-          <ul className="nav nav-tablist nav-tablist-sm">
-            <li className="active">Linear</li>
-            <li>Logarithmic</li>
-          </ul>
-        </div>
+        <Tabber labelText="Y-Value's Format">
+          <Tab
+            text="K/M/B"
+            isActive={base === BASE_10}
+            onClickTab={onSetBase(BASE_10)}
+          />
+          <Tab
+            text="K/M/G"
+            isActive={base === BASE_2}
+            onClickTab={onSetBase(BASE_2)}
+          />
+        </Tabber>
+        <Tabber labelText="Scale">
+          <Tab
+            text="Linear"
+            isActive={scale === LINEAR}
+            onClickTab={onSetScale(LINEAR)}
+          />
+          <Tab
+            text="Logaritmic"
+            isActive={scale === LOG}
+            onClickTab={onSetScale(LOG)}
+          />
+        </Tabber>
       </form>
     </div>
   )
@@ -95,8 +100,8 @@ AxesOptions.defaultProps = {
       bounds: ['', ''],
       prefix: '',
       suffix: '',
-      base: '10',
-      scale: 'linear',
+      base: BASE_10,
+      scale: LINEAR,
       defaultYLabel: '',
     },
   },
@@ -107,6 +112,7 @@ AxesOptions.propTypes = {
   onSetYAxisBoundMin: func.isRequired,
   onSetYAxisBoundMax: func.isRequired,
   onSetLabel: func.isRequired,
+  onSetScale: func.isRequired,
   onSetBase: func.isRequired,
   axes: shape({
     y: shape({

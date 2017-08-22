@@ -94,3 +94,10 @@ export const removeUnselectedTemplateValues = templates => {
     return {...template, values: selectedValues}
   })
 }
+
+export const DISPLAY_OPTIONS = {
+  LINEAR: 'linear',
+  LOG: 'log',
+  BASE_2: '2',
+  BASE_10: '10',
+}

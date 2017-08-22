@@ -34,6 +34,7 @@ class DisplayOptions extends Component {
   render() {
     const {
       onSetBase,
+      onSetScale,
       onSetLabel,
       selectedGraphType,
       onSelectGraphType,
@@ -49,6 +50,7 @@ class DisplayOptions extends Component {
           axes={axes}
           onSetBase={onSetBase}
           onSetLabel={onSetLabel}
+          onSetScale={onSetScale}
           onSetPrefixSuffix={onSetPrefixSuffix}
           onSetYAxisBoundMin={onSetYAxisBoundMin}
           onSetYAxisBoundMax={onSetYAxisBoundMax}
@@ -69,6 +71,7 @@ DisplayOptions.propTypes = {
   onSetPrefixSuffix: func.isRequired,
   onSetYAxisBoundMin: func.isRequired,
   onSetYAxisBoundMax: func.isRequired,
+  onSetScale: func.isRequired,
   onSetLabel: func.isRequired,
   onSetBase: func.isRequired,
   axes: shape({}).isRequired,
