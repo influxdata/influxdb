@@ -213,11 +213,6 @@ export default class Dygraph extends Component {
     return shallowCompare(this, nextProps, nextState)
   }
 
-  resize() {
-    this.dygraph.resizeElements_()
-    this.dygraph.predraw_()
-  }
-
   componentDidUpdate() {
     const {
       labels,
@@ -279,6 +274,7 @@ export default class Dygraph extends Component {
     dygraph.updateOptions(updateOptions)
 
     const {w} = this.dygraph.getArea()
+    this.resize()
     this.props.setResolution(w)
   }
 
@@ -362,6 +358,11 @@ export default class Dygraph extends Component {
   }
 
   handleLegendRef = el => (this.legendRef = el)
+
+  resize = () => {
+    this.dygraph.resizeElements_()
+    this.dygraph.predraw_()
+  }
 
   render() {
     const {
