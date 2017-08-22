@@ -90,6 +90,8 @@ export default class Dygraph extends Component {
           axisLabelFormatter: (yval, __, opts) =>
             numberValueFormatter(yval, opts, y.prefix, y.suffix),
           axisLabelWidth: 60 + y.prefix.length * 7 + y.suffix.length * 7,
+          labelsKMB: y.base === '10',
+          labelsKMG2: y.base === '2',
         },
         y2: {
           valueRange: getRange(timeSeries, y2.bounds),
@@ -257,6 +259,8 @@ export default class Dygraph extends Component {
           axisLabelFormatter: (yval, __, opts) =>
             numberValueFormatter(yval, opts, y.prefix, y.suffix),
           axisLabelWidth,
+          labelsKMB: y.base === '10',
+          labelsKMG2: y.base === '2',
         },
         y2: {
           valueRange: getRange(timeSeries, y2.bounds),
@@ -413,6 +417,7 @@ Dygraph.defaultProps = {
       bounds: [null, null],
       prefix: '',
       suffix: '',
+      base: '10',
     },
     y2: {
       bounds: undefined,
