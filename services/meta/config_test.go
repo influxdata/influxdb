@@ -3,7 +3,7 @@ package meta_test
 import (
 	"testing"
 
-	"github.com/BurntSushi/toml"
+	"github.com/chanezon/toml"
 	"github.com/influxdata/influxdb/services/meta"
 )
 

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/BurntSushi/toml"
+	"github.com/chanezon/toml"
 	"github.com/influxdata/influxdb/services/subscriber"
 )
 
