@@ -37,7 +37,7 @@ type StatementExecutor struct {
 	TSDBStore TSDBStore
 
 	// ShardMapper for mapping shards when executing a SELECT statement.
-	ShardMapper ShardMapper
+	ShardMapper query.ShardMapper
 
 	// Holds monitoring data for SHOW STATS and SHOW DIAGNOSTICS.
 	Monitor *monitor.Monitor
@@ -431,14 +431,14 @@ func (e *StatementExecutor) executeSetPasswordUserStatement(q *influxql.SetPassw
 }
 
 func (e *StatementExecutor) executeSelectStatement(stmt *influxql.SelectStatement, ctx *query.ExecutionContext) error {
-	itrs, stmt, err := e.createIterators(stmt, ctx)
+	itrs, columns, err := e.createIterators(stmt, ctx)
 	if err != nil {
 		return err
 	}
 
 	// Generate a row emitter from the iterator set.
 	em := query.NewEmitter(itrs, stmt.TimeAscending(), ctx.ChunkSize)
-	em.Columns = stmt.ColumnNames()
+	em.Columns = columns
 	if stmt.Location != nil {
 		em.Location = stmt.Location
 	}
@@ -524,91 +524,27 @@ func (e *StatementExecutor) executeSelectStatement(stmt *influxql.SelectStatemen
 	return nil
 }
 
-func (e *StatementExecutor) createIterators(stmt *influxql.SelectStatement, ctx *query.ExecutionContext) ([]query.Iterator, *influxql.SelectStatement, error) {
+func (e *StatementExecutor) createIterators(stmt *influxql.SelectStatement, ctx *query.ExecutionContext) ([]query.Iterator, []string, error) {
 	// It is important to "stamp" this time so that everywhere we evaluate `now()` in the statement is EXACTLY the same `now`
-	now := time.Now().UTC()
 	opt := query.SelectOptions{
 		InterruptCh: ctx.InterruptCh,
 		NodeID:      ctx.ExecutionOptions.NodeID,
 		MaxSeriesN:  e.MaxSelectSeriesN,
+		MaxBucketsN: e.MaxSelectBucketsN,
 		Authorizer:  ctx.Authorizer,
 	}
 
-	// Replace instances of "now()" with the current time, and check the resultant times.
-	nowValuer := influxql.NowValuer{Now: now, Location: stmt.Location}
-	stmt = stmt.Reduce(&nowValuer)
-
-	_, timeRange, err := influxql.ConditionExpr(stmt.Condition, &nowValuer)
-	if err != nil {
-		return nil, stmt, err
-	}
-	opt.MinTime, opt.MaxTime = timeRange.Min, timeRange.Max
-
-	if opt.MaxTime.IsZero() {
-		opt.MaxTime = time.Unix(0, influxql.MaxTime)
-	}
-	if opt.MinTime.IsZero() {
-		opt.MinTime = time.Unix(0, influxql.MinTime).UTC()
-	}
-
-	// Convert DISTINCT into a call.
-	stmt.RewriteDistinct()
-
-	// Remove "time" from fields list.
-	stmt.RewriteTimeFields()
-
-	// Rewrite time condition.
-	if err := stmt.RewriteTimeCondition(now); err != nil {
-		return nil, stmt, err
-	}
-
-	// Rewrite any regex conditions that could make use of the index.
-	stmt.RewriteRegexConditions()
-
-	// Create an iterator creator based on the shards in the cluster.
-	ic, err := e.ShardMapper.MapShards(stmt.Sources, &opt)
-	if err != nil {
-		return nil, stmt, err
-	}
-	defer ic.Close()
-
-	// Rewrite wildcards, if any exist.
-	tmp, err := stmt.RewriteFields(ic)
-	if err != nil {
-		return nil, stmt, err
-	}
-	stmt = tmp
-
-	if e.MaxSelectBucketsN > 0 && !stmt.IsRawQuery {
-		interval, err := stmt.GroupByInterval()
-		if err != nil {
-			return nil, stmt, err
-		}
-
-		if interval > 0 {
-			// Determine the start and end time matched to the interval (may not match the actual times).
-			min := opt.MinTime.Truncate(interval)
-			max := opt.MaxTime.Truncate(interval).Add(interval)
-
-			// Determine the number of buckets by finding the time span and dividing by the interval.
-			buckets := int64(max.Sub(min)) / int64(interval)
-			if int(buckets) > e.MaxSelectBucketsN {
-				return nil, stmt, fmt.Errorf("max-select-buckets limit exceeded: (%d/%d)", buckets, e.MaxSelectBucketsN)
-			}
-		}
-	}
-
 	// Create a set of iterators from a selection.
-	itrs, err := query.Select(stmt, ic, &opt)
+	itrs, columns, err := query.Select(stmt, e.ShardMapper, &opt)
 	if err != nil {
-		return nil, stmt, err
+		return nil, nil, err
 	}
 
 	if e.MaxSelectPointN > 0 {
 		monitor := query.PointLimitMonitor(itrs, query.DefaultStatsInterval, e.MaxSelectPointN)
 		ctx.Query.Monitor(monitor)
 	}
-	return itrs, stmt, nil
+	return itrs, columns, nil
 }
 
 func (e *StatementExecutor) executeShowContinuousQueriesStatement(stmt *influxql.ShowContinuousQueriesStatement) (models.Rows, error) {

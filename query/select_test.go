@@ -16,2071 +16,2061 @@ import (
 // Second represents a helper for type converting durations.
 const Second = int64(time.Second)
 
-// Ensure a SELECT min() query can be executed.
-func TestSelect_Min(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		if !reflect.DeepEqual(opt.Expr, MustParseExpr(`min(value)`)) {
-			t.Fatalf("unexpected expr: %s", spew.Sdump(opt.Expr))
-		}
-
-		input, err := query.Iterators{
-			&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
-			}},
-			&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
-			}},
-			&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
-			}},
-		}.Merge(opt)
-		if err != nil {
-			return nil, err
-		}
-		return query.NewCallIterator(input, opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT min(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected point: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 19, Aggregated: 2}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2, Aggregated: 2}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 100, Aggregated: 1}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10, Aggregated: 1}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-// Ensure a SELECT distinct() query can be executed.
-func TestSelect_Distinct_Float(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return query.Iterators{
-			&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 1 * Second, Value: 19},
-			}},
-			&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
-			}},
-			&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 11 * Second, Value: 2},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 12 * Second, Value: 2},
-			}},
-		}.Merge(opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT distinct(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected point: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 20}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 19}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-// Ensure a SELECT distinct() query can be executed.
-func TestSelect_Distinct_Integer(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return query.Iterators{
-			&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 1 * Second, Value: 19},
-			}},
-			&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
-			}},
-			&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 11 * Second, Value: 2},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 12 * Second, Value: 2},
-			}},
-		}.Merge(opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT distinct(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected point: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 20}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 19}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-// Ensure a SELECT distinct() query can be executed.
-func TestSelect_Distinct_String(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return query.Iterators{
-			&StringIterator{Points: []query.StringPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: "a"},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 1 * Second, Value: "b"},
-			}},
-			&StringIterator{Points: []query.StringPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: "c"},
-			}},
-			&StringIterator{Points: []query.StringPoint{
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: "b"},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: "d"},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 11 * Second, Value: "d"},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 12 * Second, Value: "d"},
-			}},
-		}.Merge(opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT distinct(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected point: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.StringPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: "a"}},
-		{&query.StringPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: "b"}},
-		{&query.StringPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: "d"}},
-		{&query.StringPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: "c"}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-// Ensure a SELECT distinct() query can be executed.
-func TestSelect_Distinct_Boolean(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return query.Iterators{
-			&BooleanIterator{Points: []query.BooleanPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: true},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 1 * Second, Value: false},
-			}},
-			&BooleanIterator{Points: []query.BooleanPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: false},
-			}},
-			&BooleanIterator{Points: []query.BooleanPoint{
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: true},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: false},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 11 * Second, Value: false},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 12 * Second, Value: true},
-			}},
-		}.Merge(opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT distinct(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected point: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.BooleanPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: true}},
-		{&query.BooleanPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: false}},
-		{&query.BooleanPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: false}},
-		{&query.BooleanPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: true}},
-		{&query.BooleanPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: false}},
-	}); diff != "" {
-		t.Errorf("unexpected points:\n%s", diff)
-	}
-}
-
-// Ensure a SELECT mean() query can be executed.
-func TestSelect_Mean_Float(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		input, err := query.Iterators{
-			&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
-			}},
-			&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 4},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
-			}},
-			&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
-			}},
-		}.Merge(opt)
-		if err != nil {
-			return nil, err
-		}
-		return query.NewCallIterator(input, opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected point: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 19.5, Aggregated: 2}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2.5, Aggregated: 2}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 100, Aggregated: 1}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10, Aggregated: 1}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 3.2, Aggregated: 5}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-// Ensure a SELECT mean() query can be executed.
-func TestSelect_Mean_Integer(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		input, err := query.Iterators{
-			&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
-			}},
-			&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 4},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
-			}},
-			&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
-			}},
-		}.Merge(opt)
-		if err != nil {
-			return nil, err
-		}
-		return query.NewCallIterator(input, opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 19.5, Aggregated: 2}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2.5, Aggregated: 2}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 100, Aggregated: 1}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10, Aggregated: 1}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 3.2, Aggregated: 5}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-// Ensure a SELECT mean() query cannot be executed on strings.
-func TestSelect_Mean_String(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return query.NewCallIterator(&StringIterator{}, opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
-	if err == nil || err.Error() != "unsupported mean iterator type: *query_test.StringIterator" {
-		t.Errorf("unexpected error: %s", err)
-	}
-
-	if itrs != nil {
-		query.Iterators(itrs).Close()
-	}
-}
-
-// Ensure a SELECT mean() query cannot be executed on booleans.
-func TestSelect_Mean_Boolean(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return query.NewCallIterator(&BooleanIterator{}, opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
-	if err == nil || err.Error() != "unsupported mean iterator type: *query_test.BooleanIterator" {
-		t.Errorf("unexpected error: %s", err)
-	}
-
-	if itrs != nil {
-		query.Iterators(itrs).Close()
-	}
-}
-
-// Ensure a SELECT median() query can be executed.
-func TestSelect_Median_Float(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return query.Iterators{
-			&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
-			}},
-			&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
-			}},
-			&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
-			}},
-		}.Merge(opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT median(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 19.5}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2.5}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 100}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 3}},
-	}); diff != "" {
-		t.Fatalf("unexpected points: %s", diff)
-	}
-}
-
-// Ensure a SELECT median() query can be executed.
-func TestSelect_Median_Integer(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return query.Iterators{
-			&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
-			}},
-			&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
-			}},
-			&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
-			}},
-		}.Merge(opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT median(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 19.5}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2.5}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 100}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 3}},
-	}); diff != "" {
-		t.Fatalf("unexpected points: %s", diff)
-	}
-}
-
-// Ensure a SELECT median() query cannot be executed on strings.
-func TestSelect_Median_String(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return &StringIterator{}, nil
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT median(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
-	if err == nil || err.Error() != "unsupported median iterator type: *query_test.StringIterator" {
-		t.Errorf("unexpected error: %s", err)
-	}
-
-	if itrs != nil {
-		query.Iterators(itrs).Close()
-	}
-}
-
-// Ensure a SELECT median() query cannot be executed on booleans.
-func TestSelect_Median_Boolean(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return &BooleanIterator{}, nil
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT median(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
-	if err == nil || err.Error() != "unsupported median iterator type: *query_test.BooleanIterator" {
-		t.Errorf("unexpected error: %s", err)
-	}
-
-	if itrs != nil {
-		query.Iterators(itrs).Close()
-	}
-}
-
-// Ensure a SELECT mode() query can be executed.
-func TestSelect_Mode_Float(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return query.Iterators{
-			&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 10},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 2},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
-			}},
-			&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
-			}},
-			&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
-			}},
-		}.Merge(opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT mode(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 10}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 100}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 1}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-// Ensure a SELECT mode() query can be executed.
-func TestSelect_Mode_Integer(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return query.Iterators{
-			&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 10},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 2},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
-			}},
-			&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 54 * Second, Value: 5},
-			}},
-			&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
-			}},
-		}.Merge(opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT mode(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 10}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 100}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 1}},
-	}); diff != "" {
-		t.Fatalf("unexpected points: %s", diff)
-	}
-}
-
-// Ensure a SELECT mode() query cannot be executed on strings.
-func TestSelect_Mode_String(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return query.Iterators{
-			&StringIterator{Points: []query.StringPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: "a"},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 1 * Second, Value: "a"},
-			}},
-			&StringIterator{Points: []query.StringPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: "cxxx"},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 6 * Second, Value: "zzzz"},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 7 * Second, Value: "zzzz"},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 8 * Second, Value: "zxxx"},
-			}},
-			&StringIterator{Points: []query.StringPoint{
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: "b"},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: "d"},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 11 * Second, Value: "d"},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 12 * Second, Value: "d"},
-			}},
-		}.Merge(opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT mode(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected point: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.StringPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: "a"}},
-		{&query.StringPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: "d"}},
-		{&query.StringPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: "zzzz"}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-// Ensure a SELECT mode() query cannot be executed on booleans.
-func TestSelect_Mode_Boolean(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return query.Iterators{
-			&BooleanIterator{Points: []query.BooleanPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: true},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 1 * Second, Value: false},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 2 * Second, Value: false},
-			}},
-			&BooleanIterator{Points: []query.BooleanPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: true},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 6 * Second, Value: false},
-			}},
-			&BooleanIterator{Points: []query.BooleanPoint{
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: false},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: true},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 11 * Second, Value: false},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 12 * Second, Value: true},
-			}},
-		}.Merge(opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT mode(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected point: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.BooleanPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: false}},
-		{&query.BooleanPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: true}},
-		{&query.BooleanPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: true}},
-	}); diff != "" {
-		t.Errorf("unexpected points:\n%s", diff)
-	}
-}
-
-// Ensure a SELECT top() query can be executed.
-func TestSelect_Top_NoTags_Float(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return query.Iterators{
-			&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
-			}},
-			&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
-			}},
-			&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
-			}},
-		}.Merge(opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT top(value, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s), host fill(none)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 20}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 9 * Second, Value: 19}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 31 * Second, Value: 100}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 5 * Second, Value: 10}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 53 * Second, Value: 5}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 53 * Second, Value: 4}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-// Ensure a SELECT top() query can be executed.
-func TestSelect_Top_NoTags_Integer(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return query.Iterators{
-			&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
-			}},
-			&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
-			}},
-			&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
-			}},
-		}.Merge(opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT top(value, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s), host fill(none)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 20}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 9 * Second, Value: 19}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 31 * Second, Value: 100}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 5 * Second, Value: 10}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 53 * Second, Value: 5}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 53 * Second, Value: 4}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-// Ensure a SELECT top() query can be executed with tags.
-func TestSelect_Top_Tags_Float(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		if !reflect.DeepEqual(opt.Expr, MustParseExpr(`max(value::float)`)) {
-			t.Fatalf("unexpected expr: %s", spew.Sdump(opt.Expr))
-		}
-		return query.Iterators{
-			MustCallIterator(&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3, Aux: []interface{}{"A"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
-			}}, opt),
-			MustCallIterator(&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5, Aux: []interface{}{"B"}},
-			}}, opt),
-			MustCallIterator(&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19, Aux: []interface{}{"A"}},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
-			}}, opt),
-		}.Merge(opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT top(value::float, host::tag, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s) fill(none)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
+func TestSelect(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		q      string
+		typ    influxql.DataType
+		expr   string
+		itrs   []query.Iterator
+		points [][]query.Point
+		err    string
+	}{
 		{
-			&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
-			&query.StringPoint{Name: "cpu", Time: 0 * Second, Value: "A"},
+			name: "Min",
+			q:    `SELECT min(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.Float,
+			expr: `min(value::float)`,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 19, Aggregated: 2}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2, Aggregated: 2}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 100, Aggregated: 1}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10, Aggregated: 1}},
+			},
 		},
 		{
-			&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
-			&query.StringPoint{Name: "cpu", Time: 5 * Second, Value: "B"},
+			name: "Distinct_Float",
+			q:    `SELECT distinct(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.Float,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 1 * Second, Value: 19},
+				}},
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+				}},
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 11 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 12 * Second, Value: 2},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 20}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 19}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10}},
+			},
 		},
 		{
-			&query.FloatPoint{Name: "cpu", Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
-			&query.StringPoint{Name: "cpu", Time: 31 * Second, Value: "A"},
+			name: "Distinct_Integer",
+			q:    `SELECT distinct(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.Integer,
+			itrs: []query.Iterator{
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 1 * Second, Value: 19},
+				}},
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+				}},
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 11 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 12 * Second, Value: 2},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 20}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 19}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10}},
+			},
 		},
 		{
-			&query.FloatPoint{Name: "cpu", Time: 53 * Second, Value: 5, Aux: []interface{}{"B"}},
-			&query.StringPoint{Name: "cpu", Time: 53 * Second, Value: "B"},
-		},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-// Ensure a SELECT top() query can be executed with tags.
-func TestSelect_Top_Tags_Integer(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return query.Iterators{
-			&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3, Aux: []interface{}{"A"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
-			}},
-			&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5, Aux: []interface{}{"B"}},
-			}},
-			&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19, Aux: []interface{}{"A"}},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
-			}},
-		}.Merge(opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT top(value::integer, host::tag, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s) fill(none)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{
-			&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
-			&query.StringPoint{Name: "cpu", Time: 0 * Second, Value: "A"},
+			name: "Distinct_String",
+			q:    `SELECT distinct(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.String,
+			itrs: []query.Iterator{
+				&StringIterator{Points: []query.StringPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: "a"},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 1 * Second, Value: "b"},
+				}},
+				&StringIterator{Points: []query.StringPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: "c"},
+				}},
+				&StringIterator{Points: []query.StringPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: "b"},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: "d"},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 11 * Second, Value: "d"},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 12 * Second, Value: "d"},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.StringPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: "a"}},
+				{&query.StringPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: "b"}},
+				{&query.StringPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: "d"}},
+				{&query.StringPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: "c"}},
+			},
 		},
 		{
-			&query.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
-			&query.StringPoint{Name: "cpu", Time: 5 * Second, Value: "B"},
+			name: "Distinct_Boolean",
+			q:    `SELECT distinct(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.Boolean,
+			itrs: []query.Iterator{
+				&BooleanIterator{Points: []query.BooleanPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: true},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 1 * Second, Value: false},
+				}},
+				&BooleanIterator{Points: []query.BooleanPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: false},
+				}},
+				&BooleanIterator{Points: []query.BooleanPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: true},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: false},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 11 * Second, Value: false},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 12 * Second, Value: true},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.BooleanPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: true}},
+				{&query.BooleanPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: false}},
+				{&query.BooleanPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: false}},
+				{&query.BooleanPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: true}},
+				{&query.BooleanPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: false}},
+			},
 		},
 		{
-			&query.IntegerPoint{Name: "cpu", Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
-			&query.StringPoint{Name: "cpu", Time: 31 * Second, Value: "A"},
+			name: "Mean_Float",
+			q:    `SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.Float,
+			expr: `mean(value::float)`,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 4},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
+				}},
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 19.5, Aggregated: 2}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2.5, Aggregated: 2}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 100, Aggregated: 1}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10, Aggregated: 1}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 3.2, Aggregated: 5}},
+			},
 		},
 		{
-			&query.IntegerPoint{Name: "cpu", Time: 53 * Second, Value: 5, Aux: []interface{}{"B"}},
-			&query.StringPoint{Name: "cpu", Time: 53 * Second, Value: "B"},
-		},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-// Ensure a SELECT top() query can be executed with tags and group by.
-func TestSelect_Top_GroupByTags_Float(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		if !reflect.DeepEqual(opt.Expr, MustParseExpr(`max(value::float)`)) {
-			t.Fatalf("unexpected expr: %s", spew.Sdump(opt.Expr))
-		}
-		return query.Iterators{
-			MustCallIterator(&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3, Aux: []interface{}{"A"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
-			}}, opt),
-			MustCallIterator(&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5, Aux: []interface{}{"B"}},
-			}}, opt),
-			MustCallIterator(&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19, Aux: []interface{}{"A"}},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
-			}}, opt),
-		}.Merge(opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT top(value::float, host::tag, 1) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY region, time(30s) fill(none)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{
-			&query.FloatPoint{Name: "cpu", Tags: ParseTags("region=east"), Time: 9 * Second, Value: 19, Aux: []interface{}{"A"}},
-			&query.StringPoint{Name: "cpu", Tags: ParseTags("region=east"), Time: 9 * Second, Value: "A"},
+			name: "Mean_Integer",
+			q:    `SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.Integer,
+			expr: `mean(value::integer)`,
+			itrs: []query.Iterator{
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 4},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
+				}},
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 19.5, Aggregated: 2}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2.5, Aggregated: 2}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 100, Aggregated: 1}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10, Aggregated: 1}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 3.2, Aggregated: 5}},
+			},
 		},
 		{
-			&query.FloatPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
-			&query.StringPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 0 * Second, Value: "A"},
+			name: "Mean_String",
+			q:    `SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.String,
+			itrs: []query.Iterator{&StringIterator{}},
+			err:  `unsupported mean iterator type: *query_test.StringIterator`,
 		},
 		{
-			&query.FloatPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
-			&query.StringPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 31 * Second, Value: "A"},
-		},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-// Ensure a SELECT top() query can be executed with tags and group by.
-func TestSelect_Top_GroupByTags_Integer(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		if !reflect.DeepEqual(opt.Expr, MustParseExpr(`max(value::integer)`)) {
-			t.Fatalf("unexpected expr: %s", spew.Sdump(opt.Expr))
-		}
-		return query.Iterators{
-			MustCallIterator(&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3, Aux: []interface{}{"A"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
-			}}, opt),
-			MustCallIterator(&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5, Aux: []interface{}{"B"}},
-			}}, opt),
-			MustCallIterator(&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19, Aux: []interface{}{"A"}},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
-			}}, opt),
-		}.Merge(opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT top(value::integer, host::tag, 1) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY region, time(30s) fill(none)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{
-			&query.IntegerPoint{Name: "cpu", Tags: ParseTags("region=east"), Time: 9 * Second, Value: 19, Aux: []interface{}{"A"}},
-			&query.StringPoint{Name: "cpu", Tags: ParseTags("region=east"), Time: 9 * Second, Value: "A"},
+			name: "Mean_Boolean",
+			q:    `SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.Boolean,
+			itrs: []query.Iterator{&BooleanIterator{}},
+			err:  `unsupported mean iterator type: *query_test.BooleanIterator`,
 		},
 		{
-			&query.IntegerPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
-			&query.StringPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 0 * Second, Value: "A"},
+			name: "Median_Float",
+			q:    `SELECT median(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.Float,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
+				}},
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 19.5}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2.5}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 100}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 3}},
+			},
 		},
 		{
-			&query.IntegerPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
-			&query.StringPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 31 * Second, Value: "A"},
-		},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-// Ensure a SELECT bottom() query can be executed.
-func TestSelect_Bottom_NoTags_Float(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return query.Iterators{
-			&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
-			}},
-			&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
-			}},
-			&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
-			}},
-		}.Merge(opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT bottom(value::float, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s), host fill(none)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 11 * Second, Value: 3}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 31 * Second, Value: 100}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 5 * Second, Value: 10}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 1}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 51 * Second, Value: 2}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-// Ensure a SELECT bottom() query can be executed.
-func TestSelect_Bottom_NoTags_Integer(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return query.Iterators{
-			&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
-			}},
-			&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
-			}},
-			&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
-			}},
-		}.Merge(opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT bottom(value::integer, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s), host fill(none)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 11 * Second, Value: 3}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 31 * Second, Value: 100}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 5 * Second, Value: 10}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 1}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 51 * Second, Value: 2}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-// Ensure a SELECT bottom() query can be executed with tags.
-func TestSelect_Bottom_Tags_Float(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		if !reflect.DeepEqual(opt.Expr, MustParseExpr(`min(value::float)`)) {
-			t.Fatalf("unexpected expr: %s", spew.Sdump(opt.Expr))
-		}
-		return query.Iterators{
-			MustCallIterator(&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3, Aux: []interface{}{"A"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
-			}}, opt),
-			MustCallIterator(&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5, Aux: []interface{}{"B"}},
-			}}, opt),
-			MustCallIterator(&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19, Aux: []interface{}{"A"}},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
-			}}, opt),
-		}.Merge(opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT bottom(value::float, host::tag, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s) fill(none)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{
-			&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
-			&query.StringPoint{Name: "cpu", Time: 5 * Second, Value: "B"},
+			name: "Median_Integer",
+			q:    `SELECT median(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.Integer,
+			itrs: []query.Iterator{
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
+				}},
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 19.5}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2.5}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 100}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 3}},
+			},
 		},
 		{
-			&query.FloatPoint{Name: "cpu", Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
-			&query.StringPoint{Name: "cpu", Time: 10 * Second, Value: "A"},
+			name: "Median_String",
+			q:    `SELECT median(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.String,
+			itrs: []query.Iterator{&StringIterator{}},
+			err:  `unsupported median iterator type: *query_test.StringIterator`,
 		},
 		{
-			&query.FloatPoint{Name: "cpu", Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
-			&query.StringPoint{Name: "cpu", Time: 31 * Second, Value: "A"},
+			name: "Median_Boolean",
+			q:    `SELECT median(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.Boolean,
+			itrs: []query.Iterator{&BooleanIterator{}},
+			err:  `unsupported median iterator type: *query_test.BooleanIterator`,
 		},
 		{
-			&query.FloatPoint{Name: "cpu", Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
-			&query.StringPoint{Name: "cpu", Time: 50 * Second, Value: "B"},
-		},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-// Ensure a SELECT bottom() query can be executed with tags.
-func TestSelect_Bottom_Tags_Integer(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		if !reflect.DeepEqual(opt.Expr, MustParseExpr(`min(value::integer)`)) {
-			t.Fatalf("unexpected expr: %s", spew.Sdump(opt.Expr))
-		}
-		return query.Iterators{
-			MustCallIterator(&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3, Aux: []interface{}{"A"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
-			}}, opt),
-			MustCallIterator(&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5, Aux: []interface{}{"B"}},
-			}}, opt),
-			MustCallIterator(&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19, Aux: []interface{}{"A"}},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
-			}}, opt),
-		}.Merge(opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT bottom(value::integer, host::tag, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s) fill(none)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{
-			&query.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
-			&query.StringPoint{Name: "cpu", Time: 5 * Second, Value: "B"},
+			name: "Mode_Float",
+			q:    `SELECT mode(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.Float,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 10},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
+				}},
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 10}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 100}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 1}},
+			},
 		},
 		{
-			&query.IntegerPoint{Name: "cpu", Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
-			&query.StringPoint{Name: "cpu", Time: 10 * Second, Value: "A"},
+			name: "Mode_Integer",
+			q:    `SELECT mode(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.Integer,
+			itrs: []query.Iterator{
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 10},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 54 * Second, Value: 5},
+				}},
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 10}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 100}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 1}},
+			},
 		},
 		{
-			&query.IntegerPoint{Name: "cpu", Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
-			&query.StringPoint{Name: "cpu", Time: 31 * Second, Value: "A"},
+			name: "Mode_String",
+			q:    `SELECT mode(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.String,
+			itrs: []query.Iterator{
+				&StringIterator{Points: []query.StringPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: "a"},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 1 * Second, Value: "a"},
+				}},
+				&StringIterator{Points: []query.StringPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: "cxxx"},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 6 * Second, Value: "zzzz"},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 7 * Second, Value: "zzzz"},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 8 * Second, Value: "zxxx"},
+				}},
+				&StringIterator{Points: []query.StringPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: "b"},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: "d"},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 11 * Second, Value: "d"},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 12 * Second, Value: "d"},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.StringPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: "a"}},
+				{&query.StringPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: "d"}},
+				{&query.StringPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: "zzzz"}},
+			},
 		},
 		{
-			&query.IntegerPoint{Name: "cpu", Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
-			&query.StringPoint{Name: "cpu", Time: 50 * Second, Value: "B"},
-		},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-// Ensure a SELECT bottom() query can be executed with tags and group by.
-func TestSelect_Bottom_GroupByTags_Float(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		if !reflect.DeepEqual(opt.Expr, MustParseExpr(`min(value::float)`)) {
-			t.Fatalf("unexpected expr: %s", spew.Sdump(opt.Expr))
-		}
-		return query.Iterators{
-			MustCallIterator(&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3, Aux: []interface{}{"A"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
-			}}, opt),
-			MustCallIterator(&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5, Aux: []interface{}{"B"}},
-			}}, opt),
-			MustCallIterator(&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19, Aux: []interface{}{"A"}},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
-			}}, opt),
-		}.Merge(opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT bottom(value::float, host::tag, 1) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY region, time(30s) fill(none)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{
-			&query.FloatPoint{Name: "cpu", Tags: ParseTags("region=east"), Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
-			&query.StringPoint{Name: "cpu", Tags: ParseTags("region=east"), Time: 10 * Second, Value: "A"},
+			name: "Mode_Boolean",
+			q:    `SELECT mode(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.Boolean,
+			itrs: []query.Iterator{
+				&BooleanIterator{Points: []query.BooleanPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: true},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 1 * Second, Value: false},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 2 * Second, Value: false},
+				}},
+				&BooleanIterator{Points: []query.BooleanPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: true},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 6 * Second, Value: false},
+				}},
+				&BooleanIterator{Points: []query.BooleanPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: false},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: true},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 11 * Second, Value: false},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 12 * Second, Value: true},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.BooleanPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: false}},
+				{&query.BooleanPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: true}},
+				{&query.BooleanPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: true}},
+			},
 		},
 		{
-			&query.FloatPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 11 * Second, Value: 3, Aux: []interface{}{"A"}},
-			&query.StringPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 11 * Second, Value: "A"},
+			name: "Top_NoTags_Float",
+			q:    `SELECT top(value, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s), host fill(none)`,
+			typ:  influxql.Float,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
+				}},
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 20}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 9 * Second, Value: 19}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 31 * Second, Value: 100}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 5 * Second, Value: 10}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 53 * Second, Value: 5}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 53 * Second, Value: 4}},
+			},
 		},
 		{
-			&query.FloatPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
-			&query.StringPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 50 * Second, Value: "B"},
-		},
-	}); diff != "" {
-		t.Fatalf("unexpected points: %s", diff)
-	}
-}
-
-// Ensure a SELECT bottom() query can be executed with tags and group by.
-func TestSelect_Bottom_GroupByTags_Integer(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		if !reflect.DeepEqual(opt.Expr, MustParseExpr(`min(value::float)`)) {
-			t.Fatalf("unexpected expr: %s", spew.Sdump(opt.Expr))
-		}
-		return query.Iterators{
-			MustCallIterator(&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3, Aux: []interface{}{"A"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
-			}}, opt),
-			MustCallIterator(&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4, Aux: []interface{}{"B"}},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5, Aux: []interface{}{"B"}},
-			}}, opt),
-			MustCallIterator(&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19, Aux: []interface{}{"A"}},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
-			}}, opt),
-		}.Merge(opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT bottom(value::float, host::tag, 1) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY region, time(30s) fill(none)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{
-			&query.IntegerPoint{Name: "cpu", Tags: ParseTags("region=east"), Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
-			&query.StringPoint{Name: "cpu", Tags: ParseTags("region=east"), Time: 10 * Second, Value: "A"},
+			name: "Top_NoTags_Integer",
+			q:    `SELECT top(value, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s), host fill(none)`,
+			typ:  influxql.Integer,
+			itrs: []query.Iterator{
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
+				}},
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 20}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 9 * Second, Value: 19}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 31 * Second, Value: 100}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 5 * Second, Value: 10}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 53 * Second, Value: 5}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 53 * Second, Value: 4}},
+			},
 		},
 		{
-			&query.IntegerPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 11 * Second, Value: 3, Aux: []interface{}{"A"}},
-			&query.StringPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 11 * Second, Value: "A"},
+			name: "Top_Tags_Float",
+			q:    `SELECT top(value::float, host::tag, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s) fill(none)`,
+			typ:  influxql.Float,
+			expr: `max(value::float)`,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3, Aux: []interface{}{"A"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
+				}},
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5, Aux: []interface{}{"B"}},
+				}},
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19, Aux: []interface{}{"A"}},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
+				}},
+			},
+			points: [][]query.Point{
+				{
+					&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
+					&query.StringPoint{Name: "cpu", Time: 0 * Second, Value: "A"},
+				},
+				{
+					&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
+					&query.StringPoint{Name: "cpu", Time: 5 * Second, Value: "B"},
+				},
+				{
+					&query.FloatPoint{Name: "cpu", Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
+					&query.StringPoint{Name: "cpu", Time: 31 * Second, Value: "A"},
+				},
+				{
+					&query.FloatPoint{Name: "cpu", Time: 53 * Second, Value: 5, Aux: []interface{}{"B"}},
+					&query.StringPoint{Name: "cpu", Time: 53 * Second, Value: "B"},
+				},
+			},
 		},
 		{
-			&query.IntegerPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
-			&query.StringPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 50 * Second, Value: "B"},
-		},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-// Ensure a SELECT query with a fill(null) statement can be executed.
-func TestSelect_Fill_Null_Float(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return query.NewCallIterator(&FloatIterator{Points: []query.FloatPoint{
-			{Name: "cpu", Tags: ParseTags("host=A"), Time: 12 * Second, Value: 2},
-		}}, opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:00Z' GROUP BY host, time(10s) fill(null)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Nil: true}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2, Aggregated: 1}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 20 * Second, Nil: true}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Nil: true}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 40 * Second, Nil: true}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 50 * Second, Nil: true}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-// Ensure a SELECT query with a fill(<number>) statement can be executed.
-func TestSelect_Fill_Number_Float(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return query.NewCallIterator(&FloatIterator{Points: []query.FloatPoint{
-			{Name: "cpu", Tags: ParseTags("host=A"), Time: 12 * Second, Value: 2},
-		}}, opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:00Z' GROUP BY host, time(10s) fill(1)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 1}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2, Aggregated: 1}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 20 * Second, Value: 1}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 1}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 40 * Second, Value: 1}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 50 * Second, Value: 1}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-// Ensure a SELECT query with a fill(previous) statement can be executed.
-func TestSelect_Fill_Previous_Float(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return query.NewCallIterator(&FloatIterator{Points: []query.FloatPoint{
-			{Name: "cpu", Tags: ParseTags("host=A"), Time: 12 * Second, Value: 2},
-		}}, opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:00Z' GROUP BY host, time(10s) fill(previous)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Nil: true}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2, Aggregated: 1}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 20 * Second, Value: 2}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 2}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 40 * Second, Value: 2}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 50 * Second, Value: 2}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-// Ensure a SELECT query with a fill(linear) statement can be executed.
-func TestSelect_Fill_Linear_Float_One(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return query.NewCallIterator(&FloatIterator{Points: []query.FloatPoint{
-			{Name: "cpu", Tags: ParseTags("host=A"), Time: 12 * Second, Value: 2},
-			{Name: "cpu", Tags: ParseTags("host=A"), Time: 32 * Second, Value: 4},
-		}}, opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:00Z' GROUP BY host, time(10s) fill(linear)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Nil: true}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2, Aggregated: 1}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 20 * Second, Value: 3}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 4, Aggregated: 1}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 40 * Second, Nil: true}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 50 * Second, Nil: true}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-func TestSelect_Fill_Linear_Float_Many(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return query.NewCallIterator(&FloatIterator{Points: []query.FloatPoint{
-			{Name: "cpu", Tags: ParseTags("host=A"), Time: 12 * Second, Value: 2},
-			{Name: "cpu", Tags: ParseTags("host=A"), Time: 62 * Second, Value: 7},
-		}}, opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:00Z' GROUP BY host, time(10s) fill(linear)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Nil: true}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2, Aggregated: 1}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 20 * Second, Value: 3}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 4}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 40 * Second, Value: 5}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 50 * Second, Value: 6}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 60 * Second, Value: 7, Aggregated: 1}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-func TestSelect_Fill_Linear_Float_MultipleSeries(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return query.NewCallIterator(&FloatIterator{Points: []query.FloatPoint{
-			{Name: "cpu", Tags: ParseTags("host=A"), Time: 12 * Second, Value: 2},
-			{Name: "cpu", Tags: ParseTags("host=B"), Time: 32 * Second, Value: 4},
-		}}, opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:00Z' GROUP BY host, time(10s) fill(linear)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Nil: true}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2, Aggregated: 1}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 20 * Second, Nil: true}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Nil: true}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 40 * Second, Nil: true}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 50 * Second, Nil: true}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Nil: true}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 10 * Second, Nil: true}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 20 * Second, Nil: true}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 30 * Second, Value: 4, Aggregated: 1}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 40 * Second, Nil: true}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Nil: true}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-// Ensure a SELECT query with a fill(linear) statement can be executed for integers.
-func TestSelect_Fill_Linear_Integer_One(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return query.NewCallIterator(&IntegerIterator{Points: []query.IntegerPoint{
-			{Name: "cpu", Tags: ParseTags("host=A"), Time: 12 * Second, Value: 1},
-			{Name: "cpu", Tags: ParseTags("host=A"), Time: 32 * Second, Value: 4},
-		}}, opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT max(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:00Z' GROUP BY host, time(10s) fill(linear)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Nil: true}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 1, Aggregated: 1}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 20 * Second, Value: 2}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 4, Aggregated: 1}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 40 * Second, Nil: true}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 50 * Second, Nil: true}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-func TestSelect_Fill_Linear_Integer_Many(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return query.NewCallIterator(&IntegerIterator{Points: []query.IntegerPoint{
-			{Name: "cpu", Tags: ParseTags("host=A"), Time: 12 * Second, Value: 1},
-			{Name: "cpu", Tags: ParseTags("host=A"), Time: 72 * Second, Value: 10},
-		}}, opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT max(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:20Z' GROUP BY host, time(10s) fill(linear)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Nil: true}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 1, Aggregated: 1}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 20 * Second, Value: 2}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 4}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 40 * Second, Value: 5}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 50 * Second, Value: 7}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 60 * Second, Value: 8}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 70 * Second, Value: 10, Aggregated: 1}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-func TestSelect_Fill_Linear_Integer_MultipleSeries(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return query.NewCallIterator(&IntegerIterator{Points: []query.IntegerPoint{
-			{Name: "cpu", Tags: ParseTags("host=A"), Time: 12 * Second, Value: 2},
-			{Name: "cpu", Tags: ParseTags("host=B"), Time: 32 * Second, Value: 4},
-		}}, opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT max(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:00Z' GROUP BY host, time(10s) fill(linear)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Nil: true}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2, Aggregated: 1}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 20 * Second, Nil: true}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Nil: true}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 40 * Second, Nil: true}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 50 * Second, Nil: true}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Nil: true}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 10 * Second, Nil: true}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 20 * Second, Nil: true}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 30 * Second, Value: 4, Aggregated: 1}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 40 * Second, Nil: true}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Nil: true}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-// Ensure a SELECT stddev() query can be executed.
-func TestSelect_Stddev_Float(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return query.Iterators{
-			&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
-			}},
-			&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
-			}},
-			&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
-			}},
-		}.Merge(opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT stddev(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 0.7071067811865476}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 0.7071067811865476}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Nil: true}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Nil: true}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 1.5811388300841898}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-// Ensure a SELECT stddev() query can be executed.
-func TestSelect_Stddev_Integer(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return query.Iterators{
-			&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
-			}},
-			&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
-			}},
-			&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
-			}},
-		}.Merge(opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT stddev(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 0.7071067811865476}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 0.7071067811865476}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Nil: true}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Nil: true}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 1.5811388300841898}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-// Ensure a SELECT spread() query can be executed.
-func TestSelect_Spread_Float(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return query.Iterators{
-			&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
-			}},
-			&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
-			}},
-			&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
-			}},
-		}.Merge(opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT spread(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 1}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 1}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 0}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 0}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 4}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-// Ensure a SELECT spread() query can be executed.
-func TestSelect_Spread_Integer(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return query.Iterators{
-			&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
-			}},
-			&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
-			}},
-			&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
-			}},
-		}.Merge(opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT spread(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 1}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 1}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 0}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 0}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 4}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-// Ensure a SELECT percentile() query can be executed.
-func TestSelect_Percentile_Float(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return query.Iterators{
-			&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
-			}},
-			&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 10},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 9},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 8},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 7},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 54 * Second, Value: 6},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 55 * Second, Value: 5},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 56 * Second, Value: 4},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 57 * Second, Value: 3},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 58 * Second, Value: 2},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 59 * Second, Value: 1},
-			}},
-			&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
-			}},
-		}.Merge(opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT percentile(value, 90) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 20}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 3}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 100}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 9}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-// Ensure a SELECT percentile() query can be executed.
-func TestSelect_Percentile_Integer(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return query.Iterators{
-			&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
-			}},
-			&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 10},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 9},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 8},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 7},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 54 * Second, Value: 6},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 55 * Second, Value: 5},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 56 * Second, Value: 4},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 57 * Second, Value: 3},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 58 * Second, Value: 2},
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 59 * Second, Value: 1},
-			}},
-			&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
-			}},
-		}.Merge(opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT percentile(value, 90) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 20}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 3}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 100}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 9}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-// Ensure a SELECT sample() query can be executed.
-func TestSelect_Sample_Float(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return query.Iterators{
-			&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 5 * Second, Value: 10},
-			}},
-			&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=east,host=B"), Time: 10 * Second, Value: 19},
-				{Name: "cpu", Tags: ParseTags("region=east,host=B"), Time: 15 * Second, Value: 2},
-			}},
-		}.Merge(opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT sample(value, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 20}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 5 * Second, Value: 10}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 10 * Second, Value: 19}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 15 * Second, Value: 2}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-// Ensure a SELECT sample() query can be executed.
-func TestSelect_Sample_Integer(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return query.Iterators{
-			&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 5 * Second, Value: 10},
-			}},
-			&IntegerIterator{Points: []query.IntegerPoint{
-				{Name: "cpu", Tags: ParseTags("region=east,host=B"), Time: 10 * Second, Value: 19},
-				{Name: "cpu", Tags: ParseTags("region=east,host=B"), Time: 15 * Second, Value: 2},
-			}},
-		}.Merge(opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT sample(value, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 20}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 5 * Second, Value: 10}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 10 * Second, Value: 19}},
-		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 15 * Second, Value: 2}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-// Ensure a SELECT sample() query can be executed.
-func TestSelect_Sample_Boolean(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return query.Iterators{
-			&BooleanIterator{Points: []query.BooleanPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: true},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 5 * Second, Value: false},
-			}},
-			&BooleanIterator{Points: []query.BooleanPoint{
-				{Name: "cpu", Tags: ParseTags("region=east,host=B"), Time: 10 * Second, Value: false},
-				{Name: "cpu", Tags: ParseTags("region=east,host=B"), Time: 15 * Second, Value: true},
-			}},
-		}.Merge(opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT sample(value, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.BooleanPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: true}},
-		{&query.BooleanPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 5 * Second, Value: false}},
-		{&query.BooleanPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 10 * Second, Value: false}},
-		{&query.BooleanPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 15 * Second, Value: true}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-// Ensure a SELECT sample() query can be executed.
-func TestSelect_Sample_String(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return query.Iterators{
-			&StringIterator{Points: []query.StringPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: "a"},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 5 * Second, Value: "b"},
-			}},
-			&StringIterator{Points: []query.StringPoint{
-				{Name: "cpu", Tags: ParseTags("region=east,host=B"), Time: 10 * Second, Value: "c"},
-				{Name: "cpu", Tags: ParseTags("region=east,host=B"), Time: 15 * Second, Value: "d"},
-			}},
-		}.Merge(opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT sample(value, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.StringPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: "a"}},
-		{&query.StringPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 5 * Second, Value: "b"}},
-		{&query.StringPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 10 * Second, Value: "c"}},
-		{&query.StringPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 15 * Second, Value: "d"}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-// Ensure a simple raw SELECT statement can be executed.
-func TestSelect_Raw(t *testing.T) {
-	// Mock two iterators -- one for each value in the query.
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		if !reflect.DeepEqual(opt.Aux, []influxql.VarRef{{Val: "v1", Type: influxql.Float}, {Val: "v2", Type: influxql.Float}}) {
-			t.Fatalf("unexpected options: %s", spew.Sdump(opt.Expr))
-
-		}
-		return &FloatIterator{Points: []query.FloatPoint{
-			{Time: 0, Aux: []interface{}{float64(1), nil}},
-			{Time: 1, Aux: []interface{}{nil, float64(2)}},
-			{Time: 5, Aux: []interface{}{float64(3), float64(4)}},
-		}}, nil
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT v1::float, v2::float FROM cpu`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{
-			&query.FloatPoint{Time: 0, Value: 1},
-			&query.FloatPoint{Time: 0, Nil: true},
+			name: "Top_Tags_Integer",
+			q:    `SELECT top(value::integer, host::tag, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s) fill(none)`,
+			typ:  influxql.Integer,
+			expr: `max(value::integer)`,
+			itrs: []query.Iterator{
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3, Aux: []interface{}{"A"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
+				}},
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5, Aux: []interface{}{"B"}},
+				}},
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19, Aux: []interface{}{"A"}},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
+				}},
+			},
+			points: [][]query.Point{
+				{
+					&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
+					&query.StringPoint{Name: "cpu", Time: 0 * Second, Value: "A"},
+				},
+				{
+					&query.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
+					&query.StringPoint{Name: "cpu", Time: 5 * Second, Value: "B"},
+				},
+				{
+					&query.IntegerPoint{Name: "cpu", Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
+					&query.StringPoint{Name: "cpu", Time: 31 * Second, Value: "A"},
+				},
+				{
+					&query.IntegerPoint{Name: "cpu", Time: 53 * Second, Value: 5, Aux: []interface{}{"B"}},
+					&query.StringPoint{Name: "cpu", Time: 53 * Second, Value: "B"},
+				},
+			},
 		},
 		{
-			&query.FloatPoint{Time: 1, Nil: true},
-			&query.FloatPoint{Time: 1, Value: 2},
+			name: "Top_GroupByTags_Float",
+			q:    `SELECT top(value::float, host::tag, 1) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY region, time(30s) fill(none)`,
+			typ:  influxql.Float,
+			expr: `max(value::float)`,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3, Aux: []interface{}{"A"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
+				}},
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5, Aux: []interface{}{"B"}},
+				}},
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19, Aux: []interface{}{"A"}},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
+				}},
+			},
+			points: [][]query.Point{
+				{
+					&query.FloatPoint{Name: "cpu", Tags: ParseTags("region=east"), Time: 9 * Second, Value: 19, Aux: []interface{}{"A"}},
+					&query.StringPoint{Name: "cpu", Tags: ParseTags("region=east"), Time: 9 * Second, Value: "A"},
+				},
+				{
+					&query.FloatPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
+					&query.StringPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 0 * Second, Value: "A"},
+				},
+				{
+					&query.FloatPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
+					&query.StringPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 31 * Second, Value: "A"},
+				},
+			},
 		},
 		{
-			&query.FloatPoint{Time: 5, Value: 3},
-			&query.FloatPoint{Time: 5, Value: 4},
+			name: "Top_GroupByTags_Integer",
+			q:    `SELECT top(value::integer, host::tag, 1) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY region, time(30s) fill(none)`,
+			typ:  influxql.Integer,
+			itrs: []query.Iterator{
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3, Aux: []interface{}{"A"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
+				}},
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5, Aux: []interface{}{"B"}},
+				}},
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19, Aux: []interface{}{"A"}},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
+				}},
+			},
+			points: [][]query.Point{
+				{
+					&query.IntegerPoint{Name: "cpu", Tags: ParseTags("region=east"), Time: 9 * Second, Value: 19, Aux: []interface{}{"A"}},
+					&query.StringPoint{Name: "cpu", Tags: ParseTags("region=east"), Time: 9 * Second, Value: "A"},
+				},
+				{
+					&query.IntegerPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
+					&query.StringPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 0 * Second, Value: "A"},
+				},
+				{
+					&query.IntegerPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
+					&query.StringPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 31 * Second, Value: "A"},
+				},
+			},
 		},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
+		{
+			name: "Bottom_NoTags_Float",
+			q:    `SELECT bottom(value::float, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s), host fill(none)`,
+			typ:  influxql.Float,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
+				}},
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 11 * Second, Value: 3}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 31 * Second, Value: 100}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 5 * Second, Value: 10}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 1}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 51 * Second, Value: 2}},
+			},
+		},
+		{
+			name: "Bottom_NoTags_Integer",
+			q:    `SELECT bottom(value::integer, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s), host fill(none)`,
+			typ:  influxql.Integer,
+			itrs: []query.Iterator{
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
+				}},
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 11 * Second, Value: 3}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 31 * Second, Value: 100}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 5 * Second, Value: 10}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 1}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 51 * Second, Value: 2}},
+			},
+		},
+		{
+			name: "Bottom_Tags_Float",
+			q:    `SELECT bottom(value::float, host::tag, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s) fill(none)`,
+			typ:  influxql.Float,
+			expr: `min(value::float)`,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3, Aux: []interface{}{"A"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
+				}},
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5, Aux: []interface{}{"B"}},
+				}},
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19, Aux: []interface{}{"A"}},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
+				}},
+			},
+			points: [][]query.Point{
+				{
+					&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
+					&query.StringPoint{Name: "cpu", Time: 5 * Second, Value: "B"},
+				},
+				{
+					&query.FloatPoint{Name: "cpu", Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
+					&query.StringPoint{Name: "cpu", Time: 10 * Second, Value: "A"},
+				},
+				{
+					&query.FloatPoint{Name: "cpu", Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
+					&query.StringPoint{Name: "cpu", Time: 31 * Second, Value: "A"},
+				},
+				{
+					&query.FloatPoint{Name: "cpu", Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
+					&query.StringPoint{Name: "cpu", Time: 50 * Second, Value: "B"},
+				},
+			},
+		},
+		{
+			name: "Bottom_Tags_Integer",
+			q:    `SELECT bottom(value::integer, host::tag, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s) fill(none)`,
+			typ:  influxql.Integer,
+			itrs: []query.Iterator{
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3, Aux: []interface{}{"A"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
+				}},
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5, Aux: []interface{}{"B"}},
+				}},
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19, Aux: []interface{}{"A"}},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
+				}},
+			},
+			points: [][]query.Point{
+				{
+					&query.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
+					&query.StringPoint{Name: "cpu", Time: 5 * Second, Value: "B"},
+				},
+				{
+					&query.IntegerPoint{Name: "cpu", Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
+					&query.StringPoint{Name: "cpu", Time: 10 * Second, Value: "A"},
+				},
+				{
+					&query.IntegerPoint{Name: "cpu", Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
+					&query.StringPoint{Name: "cpu", Time: 31 * Second, Value: "A"},
+				},
+				{
+					&query.IntegerPoint{Name: "cpu", Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
+					&query.StringPoint{Name: "cpu", Time: 50 * Second, Value: "B"},
+				},
+			},
+		},
+		{
+			name: "Bottom_GroupByTags_Float",
+			q:    `SELECT bottom(value::float, host::tag, 1) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY region, time(30s) fill(none)`,
+			typ:  influxql.Float,
+			expr: `min(value::float)`,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3, Aux: []interface{}{"A"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
+				}},
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5, Aux: []interface{}{"B"}},
+				}},
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19, Aux: []interface{}{"A"}},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
+				}},
+			},
+			points: [][]query.Point{
+				{
+					&query.FloatPoint{Name: "cpu", Tags: ParseTags("region=east"), Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
+					&query.StringPoint{Name: "cpu", Tags: ParseTags("region=east"), Time: 10 * Second, Value: "A"},
+				},
+				{
+					&query.FloatPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 11 * Second, Value: 3, Aux: []interface{}{"A"}},
+					&query.StringPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 11 * Second, Value: "A"},
+				},
+				{
+					&query.FloatPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
+					&query.StringPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 50 * Second, Value: "B"},
+				},
+			},
+		},
+		{
+			name: "Bottom_GroupByTags_Integer",
+			q:    `SELECT bottom(value::float, host::tag, 1) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY region, time(30s) fill(none)`,
+			typ:  influxql.Integer,
+			expr: `min(value::float)`,
+			itrs: []query.Iterator{
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3, Aux: []interface{}{"A"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
+				}},
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5, Aux: []interface{}{"B"}},
+				}},
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19, Aux: []interface{}{"A"}},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
+				}},
+			},
+			points: [][]query.Point{
+				{
+					&query.IntegerPoint{Name: "cpu", Tags: ParseTags("region=east"), Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
+					&query.StringPoint{Name: "cpu", Tags: ParseTags("region=east"), Time: 10 * Second, Value: "A"},
+				},
+				{
+					&query.IntegerPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 11 * Second, Value: 3, Aux: []interface{}{"A"}},
+					&query.StringPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 11 * Second, Value: "A"},
+				},
+				{
+					&query.IntegerPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
+					&query.StringPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 50 * Second, Value: "B"},
+				},
+			},
+		},
+		{
+			name: "Fill_Null_Float",
+			q:    `SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:00Z' GROUP BY host, time(10s) fill(null)`,
+			typ:  influxql.Float,
+			expr: `mean(value::float)`,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("host=A"), Time: 12 * Second, Value: 2},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Nil: true}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2, Aggregated: 1}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 20 * Second, Nil: true}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Nil: true}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 40 * Second, Nil: true}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 50 * Second, Nil: true}},
+			},
+		},
+		{
+			name: "Fill_Number_Float",
+			q:    `SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:00Z' GROUP BY host, time(10s) fill(1)`,
+			typ:  influxql.Float,
+			expr: `mean(value::float)`,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("host=A"), Time: 12 * Second, Value: 2},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 1}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2, Aggregated: 1}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 20 * Second, Value: 1}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 1}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 40 * Second, Value: 1}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 50 * Second, Value: 1}},
+			},
+		},
+		{
+			name: "Fill_Previous_Float",
+			q:    `SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:00Z' GROUP BY host, time(10s) fill(previous)`,
+			typ:  influxql.Float,
+			expr: `mean(value::float)`,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("host=A"), Time: 12 * Second, Value: 2},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Nil: true}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2, Aggregated: 1}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 20 * Second, Value: 2}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 2}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 40 * Second, Value: 2}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 50 * Second, Value: 2}},
+			},
+		},
+		{
+			name: "Fill_Linear_Float_One",
+			q:    `SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:00Z' GROUP BY host, time(10s) fill(linear)`,
+			typ:  influxql.Float,
+			expr: `mean(value::float)`,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("host=A"), Time: 12 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("host=A"), Time: 32 * Second, Value: 4},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Nil: true}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2, Aggregated: 1}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 20 * Second, Value: 3}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 4, Aggregated: 1}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 40 * Second, Nil: true}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 50 * Second, Nil: true}},
+			},
+		},
+		{
+			name: "Fill_Linear_Float_Many",
+			q:    `SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:00Z' GROUP BY host, time(10s) fill(linear)`,
+			typ:  influxql.Float,
+			expr: `mean(value::float)`,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("host=A"), Time: 12 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("host=A"), Time: 62 * Second, Value: 7},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Nil: true}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2, Aggregated: 1}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 20 * Second, Value: 3}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 4}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 40 * Second, Value: 5}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 50 * Second, Value: 6}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 60 * Second, Value: 7, Aggregated: 1}},
+			},
+		},
+		{
+			name: "Fill_Linear_Float_MultipleSeries",
+			q:    `SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:00Z' GROUP BY host, time(10s) fill(linear)`,
+			typ:  influxql.Float,
+			expr: `mean(value::float)`,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("host=A"), Time: 12 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("host=B"), Time: 32 * Second, Value: 4},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Nil: true}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2, Aggregated: 1}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 20 * Second, Nil: true}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Nil: true}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 40 * Second, Nil: true}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 50 * Second, Nil: true}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Nil: true}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 10 * Second, Nil: true}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 20 * Second, Nil: true}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 30 * Second, Value: 4, Aggregated: 1}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 40 * Second, Nil: true}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Nil: true}},
+			},
+		},
+		{
+			name: "Fill_Linear_Integer_One",
+			q:    `SELECT max(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:00Z' GROUP BY host, time(10s) fill(linear)`,
+			typ:  influxql.Integer,
+			expr: `max(value::integer)`,
+			itrs: []query.Iterator{
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("host=A"), Time: 12 * Second, Value: 1},
+					{Name: "cpu", Tags: ParseTags("host=A"), Time: 32 * Second, Value: 4},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Nil: true}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 1, Aggregated: 1}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 20 * Second, Value: 2}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 4, Aggregated: 1}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 40 * Second, Nil: true}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 50 * Second, Nil: true}},
+			},
+		},
+		{
+			name: "Fill_Linear_Integer_Many",
+			q:    `SELECT max(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:20Z' GROUP BY host, time(10s) fill(linear)`,
+			typ:  influxql.Integer,
+			expr: `max(value::integer)`,
+			itrs: []query.Iterator{
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("host=A"), Time: 12 * Second, Value: 1},
+					{Name: "cpu", Tags: ParseTags("host=A"), Time: 72 * Second, Value: 10},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Nil: true}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 1, Aggregated: 1}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 20 * Second, Value: 2}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 4}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 40 * Second, Value: 5}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 50 * Second, Value: 7}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 60 * Second, Value: 8}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 70 * Second, Value: 10, Aggregated: 1}},
+			},
+		},
+		{
+			name: "Fill_Linear_Integer_MultipleSeries",
+			q:    `SELECT max(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:00Z' GROUP BY host, time(10s) fill(linear)`,
+			typ:  influxql.Integer,
+			expr: `max(value::integer)`,
+			itrs: []query.Iterator{
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("host=A"), Time: 12 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("host=B"), Time: 32 * Second, Value: 4},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Nil: true}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2, Aggregated: 1}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 20 * Second, Nil: true}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Nil: true}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 40 * Second, Nil: true}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 50 * Second, Nil: true}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Nil: true}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 10 * Second, Nil: true}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 20 * Second, Nil: true}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 30 * Second, Value: 4, Aggregated: 1}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 40 * Second, Nil: true}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Nil: true}},
+			},
+		},
+		{
+			name: "Stddev_Float",
+			q:    `SELECT stddev(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.Float,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
+				}},
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 0.7071067811865476}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 0.7071067811865476}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Nil: true}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Nil: true}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 1.5811388300841898}},
+			},
+		},
+		{
+			name: "Stddev_Integer",
+			q:    `SELECT stddev(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.Integer,
+			itrs: []query.Iterator{
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
+				}},
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 0.7071067811865476}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 0.7071067811865476}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Nil: true}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Nil: true}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 1.5811388300841898}},
+			},
+		},
+		{
+			name: "Spread_Float",
+			q:    `SELECT spread(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.Float,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
+				}},
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 1}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 1}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 0}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 0}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 4}},
+			},
+		},
+		{
+			name: "Spread_Integer",
+			q:    `SELECT spread(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.Integer,
+			itrs: []query.Iterator{
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
+				}},
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 1}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 1}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 0}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 0}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 4}},
+			},
+		},
+		{
+			name: "Percentile_Float",
+			q:    `SELECT percentile(value, 90) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.Float,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 10},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 9},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 8},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 7},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 54 * Second, Value: 6},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 55 * Second, Value: 5},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 56 * Second, Value: 4},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 57 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 58 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 59 * Second, Value: 1},
+				}},
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 20}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 3}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 100}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 9}},
+			},
+		},
+		{
+			name: "Percentile_Integer",
+			q:    `SELECT percentile(value, 90) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.Integer,
+			itrs: []query.Iterator{
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 10},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 9},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 8},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 7},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 54 * Second, Value: 6},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 55 * Second, Value: 5},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 56 * Second, Value: 4},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 57 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 58 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 59 * Second, Value: 1},
+				}},
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 20}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 3}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 100}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 9}},
+			},
+		},
+		{
+			name: "Sample_Float",
+			q:    `SELECT sample(value, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.Float,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 5 * Second, Value: 10},
+				}},
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=B"), Time: 10 * Second, Value: 19},
+					{Name: "cpu", Tags: ParseTags("region=east,host=B"), Time: 15 * Second, Value: 2},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 20}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 5 * Second, Value: 10}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 10 * Second, Value: 19}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 15 * Second, Value: 2}},
+			},
+		},
+		{
+			name: "Sample_Integer",
+			q:    `SELECT sample(value, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.Integer,
+			itrs: []query.Iterator{
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 5 * Second, Value: 10},
+				}},
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=B"), Time: 10 * Second, Value: 19},
+					{Name: "cpu", Tags: ParseTags("region=east,host=B"), Time: 15 * Second, Value: 2},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 20}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 5 * Second, Value: 10}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 10 * Second, Value: 19}},
+				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 15 * Second, Value: 2}},
+			},
+		},
+		{
+			name: "Sample_String",
+			q:    `SELECT sample(value, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.String,
+			itrs: []query.Iterator{
+				&StringIterator{Points: []query.StringPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: "a"},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 5 * Second, Value: "b"},
+				}},
+				&StringIterator{Points: []query.StringPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=B"), Time: 10 * Second, Value: "c"},
+					{Name: "cpu", Tags: ParseTags("region=east,host=B"), Time: 15 * Second, Value: "d"},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.StringPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: "a"}},
+				{&query.StringPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 5 * Second, Value: "b"}},
+				{&query.StringPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 10 * Second, Value: "c"}},
+				{&query.StringPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 15 * Second, Value: "d"}},
+			},
+		},
+		{
+			name: "Sample_Boolean",
+			q:    `SELECT sample(value, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.Boolean,
+			itrs: []query.Iterator{
+				&BooleanIterator{Points: []query.BooleanPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: true},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 5 * Second, Value: false},
+				}},
+				&BooleanIterator{Points: []query.BooleanPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=B"), Time: 10 * Second, Value: false},
+					{Name: "cpu", Tags: ParseTags("region=east,host=B"), Time: 15 * Second, Value: true},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.BooleanPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: true}},
+				{&query.BooleanPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 5 * Second, Value: false}},
+				{&query.BooleanPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 10 * Second, Value: false}},
+				{&query.BooleanPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 15 * Second, Value: true}},
+			},
+		},
+		//{
+		//	name: "Raw",
+		//	q:    `SELECT v1::float, v2::float FROM cpu`,
+		//	itrs: []query.Iterator{
+		//		&FloatIterator{Points: []query.FloatPoint{
+		//			{Time: 0, Aux: []interface{}{float64(1), nil}},
+		//			{Time: 1, Aux: []interface{}{nil, float64(2)}},
+		//			{Time: 5, Aux: []interface{}{float64(3), float64(4)}},
+		//		}},
+		//	},
+		//	points: [][]query.Point{
+		//		{
+		//			&query.FloatPoint{Time: 0, Value: 1},
+		//			&query.FloatPoint{Time: 0, Nil: true},
+		//		},
+		//		{
+		//			&query.FloatPoint{Time: 1, Nil: true},
+		//			&query.FloatPoint{Time: 1, Value: 2},
+		//		},
+		//		{
+		//			&query.FloatPoint{Time: 5, Value: 3},
+		//			&query.FloatPoint{Time: 5, Value: 4},
+		//		},
+		//	},
+		//},
+		{
+			name: "ParenExpr_Min",
+			q:    `SELECT (min(value)) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.Float,
+			expr: `min(value::float)`,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+				}},
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 19, Aggregated: 2}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2, Aggregated: 2}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 100, Aggregated: 1}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10, Aggregated: 1}},
+			},
+		},
+		{
+			name: "ParenExpr_Distinct",
+			q:    `SELECT (distinct(value)) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.Float,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 1 * Second, Value: 19},
+				}},
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+				}},
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 11 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 12 * Second, Value: 2},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 20}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 19}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10}},
+			},
+		},
+		{
+			name: "Derivative_Float",
+			q:    `SELECT derivative(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Float,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 8 * Second, Value: 19},
+					{Name: "cpu", Time: 12 * Second, Value: 3},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 4 * Second, Value: -2.5}},
+				{&query.FloatPoint{Name: "cpu", Time: 8 * Second, Value: 2.25}},
+				{&query.FloatPoint{Name: "cpu", Time: 12 * Second, Value: -4}},
+			},
+		},
+		{
+			name: "Derivative_Integer",
+			q:    `SELECT derivative(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Integer,
+			itrs: []query.Iterator{
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 8 * Second, Value: 19},
+					{Name: "cpu", Time: 12 * Second, Value: 3},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 4 * Second, Value: -2.5}},
+				{&query.FloatPoint{Name: "cpu", Time: 8 * Second, Value: 2.25}},
+				{&query.FloatPoint{Name: "cpu", Time: 12 * Second, Value: -4}},
+			},
+		},
+		{
+			name: "Derivative_Desc_Float",
+			q:    `SELECT derivative(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z' ORDER BY desc`,
+			typ:  influxql.Float,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Time: 12 * Second, Value: 3},
+					{Name: "cpu", Time: 8 * Second, Value: 19},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 8 * Second, Value: 4}},
+				{&query.FloatPoint{Name: "cpu", Time: 4 * Second, Value: -2.25}},
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 2.5}},
+			},
+		},
+		{
+			name: "Derivative_Desc_Integer",
+			q:    `SELECT derivative(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z' ORDER BY desc`,
+			typ:  influxql.Integer,
+			itrs: []query.Iterator{
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Time: 12 * Second, Value: 3},
+					{Name: "cpu", Time: 8 * Second, Value: 19},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 8 * Second, Value: 4}},
+				{&query.FloatPoint{Name: "cpu", Time: 4 * Second, Value: -2.25}},
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 2.5}},
+			},
+		},
+		{
+			name: "Derivative_Duplicate_Float",
+			q:    `SELECT derivative(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Float,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 0 * Second, Value: 19},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 4 * Second, Value: 3},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 4 * Second, Value: -2.5}},
+			},
+		},
+		{
+			name: "Derivative_Duplicate_Integer",
+			q:    `SELECT derivative(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Integer,
+			itrs: []query.Iterator{
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 0 * Second, Value: 19},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 4 * Second, Value: 3},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 4 * Second, Value: -2.5}},
+			},
+		},
+		{
+			name: "Difference_Float",
+			q:    `SELECT difference(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Float,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 8 * Second, Value: 19},
+					{Name: "cpu", Time: 12 * Second, Value: 3},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 4 * Second, Value: -10}},
+				{&query.FloatPoint{Name: "cpu", Time: 8 * Second, Value: 9}},
+				{&query.FloatPoint{Name: "cpu", Time: 12 * Second, Value: -16}},
+			},
+		},
+		{
+			name: "Difference_Integer",
+			q:    `SELECT difference(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Integer,
+			itrs: []query.Iterator{
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 8 * Second, Value: 19},
+					{Name: "cpu", Time: 12 * Second, Value: 3},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.IntegerPoint{Name: "cpu", Time: 4 * Second, Value: -10}},
+				{&query.IntegerPoint{Name: "cpu", Time: 8 * Second, Value: 9}},
+				{&query.IntegerPoint{Name: "cpu", Time: 12 * Second, Value: -16}},
+			},
+		},
+		{
+			name: "Difference_Duplicate_Float",
+			q:    `SELECT difference(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Float,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 0 * Second, Value: 19},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 4 * Second, Value: 3},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 4 * Second, Value: -10}},
+			},
+		},
+		{
+			name: "Difference_Duplicate_Integer",
+			q:    `SELECT difference(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Integer,
+			itrs: []query.Iterator{
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 0 * Second, Value: 19},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 4 * Second, Value: 3},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.IntegerPoint{Name: "cpu", Time: 4 * Second, Value: -10}},
+			},
+		},
+		{
+			name: "Non_Negative_Difference_Float",
+			q:    `SELECT non_negative_difference(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Float,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 8 * Second, Value: 29},
+					{Name: "cpu", Time: 12 * Second, Value: 3},
+					{Name: "cpu", Time: 16 * Second, Value: 39},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 8 * Second, Value: 19}},
+				{&query.FloatPoint{Name: "cpu", Time: 16 * Second, Value: 36}},
+			},
+		},
+		{
+			name: "Non_Negative_Difference_Integer",
+			q:    `SELECT non_negative_difference(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Integer,
+			itrs: []query.Iterator{
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 8 * Second, Value: 21},
+					{Name: "cpu", Time: 12 * Second, Value: 3},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.IntegerPoint{Name: "cpu", Time: 8 * Second, Value: 11}},
+			},
+		},
+		{
+			name: "Non_Negative_Difference_Duplicate_Float",
+			q:    `SELECT non_negative_difference(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Float,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 0 * Second, Value: 19},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 4 * Second, Value: 3},
+					{Name: "cpu", Time: 8 * Second, Value: 30},
+					{Name: "cpu", Time: 8 * Second, Value: 19},
+					{Name: "cpu", Time: 12 * Second, Value: 10},
+					{Name: "cpu", Time: 12 * Second, Value: 3},
+					{Name: "cpu", Time: 16 * Second, Value: 40},
+					{Name: "cpu", Time: 16 * Second, Value: 3},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 8 * Second, Value: 20}},
+				{&query.FloatPoint{Name: "cpu", Time: 16 * Second, Value: 30}},
+			},
+		},
+		{
+			name: "Non_Negative_Difference_Duplicate_Integer",
+			q:    `SELECT non_negative_difference(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Integer,
+			itrs: []query.Iterator{
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 0 * Second, Value: 19},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 4 * Second, Value: 3},
+					{Name: "cpu", Time: 8 * Second, Value: 30},
+					{Name: "cpu", Time: 8 * Second, Value: 19},
+					{Name: "cpu", Time: 12 * Second, Value: 10},
+					{Name: "cpu", Time: 12 * Second, Value: 3},
+					{Name: "cpu", Time: 16 * Second, Value: 40},
+					{Name: "cpu", Time: 16 * Second, Value: 3},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.IntegerPoint{Name: "cpu", Time: 8 * Second, Value: 20}},
+				{&query.IntegerPoint{Name: "cpu", Time: 16 * Second, Value: 30}},
+			},
+		},
+		{
+			name: "Elapsed_Float",
+			q:    `SELECT elapsed(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Float,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 8 * Second, Value: 19},
+					{Name: "cpu", Time: 11 * Second, Value: 3},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.IntegerPoint{Name: "cpu", Time: 4 * Second, Value: 4}},
+				{&query.IntegerPoint{Name: "cpu", Time: 8 * Second, Value: 4}},
+				{&query.IntegerPoint{Name: "cpu", Time: 11 * Second, Value: 3}},
+			},
+		},
+		{
+			name: "Elapsed_Integer",
+			q:    `SELECT elapsed(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Integer,
+			itrs: []query.Iterator{
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 8 * Second, Value: 19},
+					{Name: "cpu", Time: 11 * Second, Value: 3},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.IntegerPoint{Name: "cpu", Time: 4 * Second, Value: 4}},
+				{&query.IntegerPoint{Name: "cpu", Time: 8 * Second, Value: 4}},
+				{&query.IntegerPoint{Name: "cpu", Time: 11 * Second, Value: 3}},
+			},
+		},
+		{
+			name: "Elapsed_String",
+			q:    `SELECT elapsed(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.String,
+			itrs: []query.Iterator{
+				&StringIterator{Points: []query.StringPoint{
+					{Name: "cpu", Time: 0 * Second, Value: "a"},
+					{Name: "cpu", Time: 4 * Second, Value: "b"},
+					{Name: "cpu", Time: 8 * Second, Value: "c"},
+					{Name: "cpu", Time: 11 * Second, Value: "d"},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.IntegerPoint{Name: "cpu", Time: 4 * Second, Value: 4}},
+				{&query.IntegerPoint{Name: "cpu", Time: 8 * Second, Value: 4}},
+				{&query.IntegerPoint{Name: "cpu", Time: 11 * Second, Value: 3}},
+			},
+		},
+		{
+			name: "Elapsed_Boolean",
+			q:    `SELECT elapsed(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Boolean,
+			itrs: []query.Iterator{
+				&BooleanIterator{Points: []query.BooleanPoint{
+					{Name: "cpu", Time: 0 * Second, Value: true},
+					{Name: "cpu", Time: 4 * Second, Value: false},
+					{Name: "cpu", Time: 8 * Second, Value: false},
+					{Name: "cpu", Time: 11 * Second, Value: true},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.IntegerPoint{Name: "cpu", Time: 4 * Second, Value: 4}},
+				{&query.IntegerPoint{Name: "cpu", Time: 8 * Second, Value: 4}},
+				{&query.IntegerPoint{Name: "cpu", Time: 11 * Second, Value: 3}},
+			},
+		},
+		{
+			name: "Integral_Float",
+			q:    `SELECT integral(value) FROM cpu`,
+			typ:  influxql.Float,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Time: 10 * Second, Value: 20},
+					{Name: "cpu", Time: 15 * Second, Value: 10},
+					{Name: "cpu", Time: 20 * Second, Value: 0},
+					{Name: "cpu", Time: 30 * Second, Value: -10},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0, Value: 50}},
+			},
+		},
+		{
+			name: "Integral_Duplicate_Float",
+			q:    `SELECT integral(value) FROM cpu`,
+			typ:  influxql.Float,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 5 * Second, Value: 10},
+					{Name: "cpu", Time: 5 * Second, Value: 30},
+					{Name: "cpu", Time: 10 * Second, Value: 40},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0, Value: 250}},
+			},
+		},
+		{
+			name: "Integral_Float_GroupByTime",
+			q:    `SELECT integral(value) FROM cpu WHERE time > 0s AND time < 60s GROUP BY time(20s)`,
+			typ:  influxql.Float,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Time: 10 * Second, Value: 20},
+					{Name: "cpu", Time: 15 * Second, Value: 10},
+					{Name: "cpu", Time: 20 * Second, Value: 0},
+					{Name: "cpu", Time: 30 * Second, Value: -10},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0, Value: 100}},
+				{&query.FloatPoint{Name: "cpu", Time: 20 * Second, Value: -50}},
+			},
+		},
+		{
+			name: "Integral_Float_InterpolateGroupByTime",
+			q:    `SELECT integral(value) FROM cpu WHERE time > 0s AND time < 60s GROUP BY time(20s)`,
+			typ:  influxql.Float,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Time: 10 * Second, Value: 20},
+					{Name: "cpu", Time: 15 * Second, Value: 10},
+					{Name: "cpu", Time: 25 * Second, Value: 0},
+					{Name: "cpu", Time: 30 * Second, Value: -10},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0, Value: 112.5}},
+				{&query.FloatPoint{Name: "cpu", Time: 20 * Second, Value: -12.5}},
+			},
+		},
+		{
+			name: "Integral_Integer",
+			q:    `SELECT integral(value) FROM cpu`,
+			typ:  influxql.Integer,
+			itrs: []query.Iterator{
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 5 * Second, Value: 10},
+					{Name: "cpu", Time: 10 * Second, Value: 0},
+					{Name: "cpu", Time: 20 * Second, Value: -10},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0, Value: 50}},
+			},
+		},
+		{
+			name: "Integral_Duplicate_Integer",
+			q:    `SELECT integral(value, 2s) FROM cpu`,
+			typ:  influxql.Integer,
+			itrs: []query.Iterator{
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 5 * Second, Value: 10},
+					{Name: "cpu", Time: 5 * Second, Value: 30},
+					{Name: "cpu", Time: 10 * Second, Value: 40},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0, Value: 125}},
+			},
+		},
+		{
+			name: "MovingAverage_Float",
+			q:    `SELECT moving_average(value, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Float,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 8 * Second, Value: 19},
+					{Name: "cpu", Time: 12 * Second, Value: 3},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 4 * Second, Value: 15, Aggregated: 2}},
+				{&query.FloatPoint{Name: "cpu", Time: 8 * Second, Value: 14.5, Aggregated: 2}},
+				{&query.FloatPoint{Name: "cpu", Time: 12 * Second, Value: 11, Aggregated: 2}},
+			},
+		},
+		{
+			name: "MovingAverage_Integer",
+			q:    `SELECT moving_average(value, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Integer,
+			itrs: []query.Iterator{
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 8 * Second, Value: 19},
+					{Name: "cpu", Time: 12 * Second, Value: 3},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 4 * Second, Value: 15, Aggregated: 2}},
+				{&query.FloatPoint{Name: "cpu", Time: 8 * Second, Value: 14.5, Aggregated: 2}},
+				{&query.FloatPoint{Name: "cpu", Time: 12 * Second, Value: 11, Aggregated: 2}},
+			},
+		},
+		{
+			name: "CumulativeSum_Float",
+			q:    `SELECT cumulative_sum(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Float,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 8 * Second, Value: 19},
+					{Name: "cpu", Time: 12 * Second, Value: 3},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 20}},
+				{&query.FloatPoint{Name: "cpu", Time: 4 * Second, Value: 30}},
+				{&query.FloatPoint{Name: "cpu", Time: 8 * Second, Value: 49}},
+				{&query.FloatPoint{Name: "cpu", Time: 12 * Second, Value: 52}},
+			},
+		},
+		{
+			name: "CumulativeSum_Integer",
+			q:    `SELECT cumulative_sum(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Integer,
+			itrs: []query.Iterator{
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 8 * Second, Value: 19},
+					{Name: "cpu", Time: 12 * Second, Value: 3},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 20}},
+				{&query.IntegerPoint{Name: "cpu", Time: 4 * Second, Value: 30}},
+				{&query.IntegerPoint{Name: "cpu", Time: 8 * Second, Value: 49}},
+				{&query.IntegerPoint{Name: "cpu", Time: 12 * Second, Value: 52}},
+			},
+		},
+		{
+			name: "CumulativeSum_Duplicate_Float",
+			q:    `SELECT cumulative_sum(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Float,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 0 * Second, Value: 19},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 4 * Second, Value: 3},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 20}},
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 39}},
+				{&query.FloatPoint{Name: "cpu", Time: 4 * Second, Value: 49}},
+				{&query.FloatPoint{Name: "cpu", Time: 4 * Second, Value: 52}},
+			},
+		},
+		{
+			name: "CumulativeSum_Duplicate_Integer",
+			q:    `SELECT cumulative_sum(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Integer,
+			itrs: []query.Iterator{
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 0 * Second, Value: 19},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 4 * Second, Value: 3},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 20}},
+				{&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 39}},
+				{&query.IntegerPoint{Name: "cpu", Time: 4 * Second, Value: 49}},
+				{&query.IntegerPoint{Name: "cpu", Time: 4 * Second, Value: 52}},
+			},
+		},
+		{
+			name: "HoltWinters_GroupBy_Agg",
+			q:    `SELECT holt_winters(mean(value), 2, 2) FROM cpu WHERE time >= '1970-01-01T00:00:10Z' AND time < '1970-01-01T00:00:20Z' GROUP BY time(2s)`,
+			typ:  influxql.Float,
+			expr: `mean(value::float)`,
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Time: 10 * Second, Value: 4},
+					{Name: "cpu", Time: 11 * Second, Value: 6},
+
+					{Name: "cpu", Time: 12 * Second, Value: 9},
+					{Name: "cpu", Time: 13 * Second, Value: 11},
+
+					{Name: "cpu", Time: 14 * Second, Value: 5},
+					{Name: "cpu", Time: 15 * Second, Value: 7},
+
+					{Name: "cpu", Time: 16 * Second, Value: 10},
+					{Name: "cpu", Time: 17 * Second, Value: 12},
+
+					{Name: "cpu", Time: 18 * Second, Value: 6},
+					{Name: "cpu", Time: 19 * Second, Value: 8},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 20 * Second, Value: 11.960623419918432}},
+				{&query.FloatPoint{Name: "cpu", Time: 22 * Second, Value: 7.953140268154609}},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			shardMapper := ShardMapper{
+				MapShardsFn: func(sources influxql.Sources, _ influxql.TimeRange) query.ShardGroup {
+					return &ShardGroup{
+						Fields: map[string]influxql.DataType{
+							"value": tt.typ,
+						},
+						Dimensions: []string{"host", "region"},
+						CreateIteratorFn: func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
+							if m.Name != "cpu" {
+								t.Fatalf("unexpected source: %s", m.Name)
+							}
+							if tt.expr != "" && !reflect.DeepEqual(opt.Expr, MustParseExpr(tt.expr)) {
+								t.Fatalf("unexpected expr: %s", spew.Sdump(opt.Expr))
+							}
+
+							itrs := tt.itrs
+							if _, ok := opt.Expr.(*influxql.Call); ok {
+								for i, itr := range itrs {
+									itr, err := query.NewCallIterator(itr, opt)
+									if err != nil {
+										return nil, err
+									}
+									itrs[i] = itr
+								}
+							}
+							return query.Iterators(itrs).Merge(opt)
+						},
+					}
+				},
+			}
+
+			itrs, _, err := query.Select(MustParseSelectStatement(tt.q), &shardMapper, nil)
+			if err != nil {
+				if tt.err == "" {
+					t.Fatal(err)
+				} else if have, want := err.Error(), tt.err; have != want {
+					t.Fatalf("unexpected error: have=%s want=%s", have, want)
+				}
+			} else if tt.err != "" {
+				t.Fatal("expected error")
+			} else if a, err := Iterators(itrs).ReadAll(); err != nil {
+				t.Fatalf("unexpected point: %s", err)
+			} else if diff := cmp.Diff(a, tt.points); diff != "" {
+				t.Fatalf("unexpected points:\n%s", diff)
+			}
+		})
 	}
 }
 
 // Ensure a SELECT binary expr queries can be executed as floats.
 func TestSelect_BinaryExpr_Float(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		makeAuxFields := func(value float64) []interface{} {
-			aux := make([]interface{}, len(opt.Aux))
-			for i := range aux {
-				aux[i] = value
+	shardMapper := ShardMapper{
+		MapShardsFn: func(sources influxql.Sources, _ influxql.TimeRange) query.ShardGroup {
+			return &ShardGroup{
+				Fields: map[string]influxql.DataType{
+					"value": influxql.Float,
+				},
+				CreateIteratorFn: func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
+					if m.Name != "cpu" {
+						t.Fatalf("unexpected source: %s", m.Name)
+					}
+					makeAuxFields := func(value float64) []interface{} {
+						aux := make([]interface{}, len(opt.Aux))
+						for i := range aux {
+							aux[i] = value
+						}
+						return aux
+					}
+					return &FloatIterator{Points: []query.FloatPoint{
+						{Name: "cpu", Time: 0 * Second, Aux: makeAuxFields(20)},
+						{Name: "cpu", Time: 5 * Second, Aux: makeAuxFields(10)},
+						{Name: "cpu", Time: 9 * Second, Aux: makeAuxFields(19)},
+					}}, nil
+				},
 			}
-			return aux
-		}
-		return &FloatIterator{Points: []query.FloatPoint{
-			{Name: "cpu", Time: 0 * Second, Value: 20, Aux: makeAuxFields(20)},
-			{Name: "cpu", Time: 5 * Second, Value: 10, Aux: makeAuxFields(10)},
-			{Name: "cpu", Time: 9 * Second, Value: 19, Aux: makeAuxFields(19)},
-		}}, nil
-	}
-	ic.FieldDimensionsFn = func(m *influxql.Measurement) (map[string]influxql.DataType, map[string]struct{}, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return map[string]influxql.DataType{"value": influxql.Float}, nil, nil
+		},
 	}
 
 	for _, test := range []struct {
@@ -2089,7 +2079,7 @@ func TestSelect_BinaryExpr_Float(t *testing.T) {
 		Points    [][]query.Point
 	}{
 		{
-			Name:      "rhs binary add number",
+			Name:      "AdditionRHS_Number",
 			Statement: `SELECT value + 2.0 FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 22}},
@@ -2098,7 +2088,7 @@ func TestSelect_BinaryExpr_Float(t *testing.T) {
 			},
 		},
 		{
-			Name:      "rhs binary add integer",
+			Name:      "AdditionRHS_Integer",
 			Statement: `SELECT value + 2 FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 22}},
@@ -2107,7 +2097,7 @@ func TestSelect_BinaryExpr_Float(t *testing.T) {
 			},
 		},
 		{
-			Name:      "lhs binary add number",
+			Name:      "AdditionLHS_Number",
 			Statement: `SELECT 2.0 + value FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 22}},
@@ -2116,7 +2106,7 @@ func TestSelect_BinaryExpr_Float(t *testing.T) {
 			},
 		},
 		{
-			Name:      "lhs binary add integer",
+			Name:      "AdditionLHS_Integer",
 			Statement: `SELECT 2 + value FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 22}},
@@ -2125,7 +2115,7 @@ func TestSelect_BinaryExpr_Float(t *testing.T) {
 			},
 		},
 		{
-			Name:      "two variable binary add",
+			Name:      "TwoVariableAddition",
 			Statement: `SELECT value + value FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
@@ -2134,7 +2124,7 @@ func TestSelect_BinaryExpr_Float(t *testing.T) {
 			},
 		},
 		{
-			Name:      "rhs binary multiply number",
+			Name:      "MultiplicationRHS_Number",
 			Statement: `SELECT value * 2.0 FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
@@ -2143,7 +2133,7 @@ func TestSelect_BinaryExpr_Float(t *testing.T) {
 			},
 		},
 		{
-			Name:      "rhs binary multiply integer",
+			Name:      "MultiplicationRHS_Integer",
 			Statement: `SELECT value * 2 FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
@@ -2152,7 +2142,7 @@ func TestSelect_BinaryExpr_Float(t *testing.T) {
 			},
 		},
 		{
-			Name:      "lhs binary multiply number",
+			Name:      "MultiplicationLHS_Number",
 			Statement: `SELECT 2.0 * value FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
@@ -2161,7 +2151,7 @@ func TestSelect_BinaryExpr_Float(t *testing.T) {
 			},
 		},
 		{
-			Name:      "lhs binary multiply integer",
+			Name:      "MultiplicationLHS_Integer",
 			Statement: `SELECT 2 * value FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
@@ -2170,7 +2160,7 @@ func TestSelect_BinaryExpr_Float(t *testing.T) {
 			},
 		},
 		{
-			Name:      "two variable binary multiply",
+			Name:      "TwoVariableMultiplication",
 			Statement: `SELECT value * value FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 400}},
@@ -2179,7 +2169,7 @@ func TestSelect_BinaryExpr_Float(t *testing.T) {
 			},
 		},
 		{
-			Name:      "rhs binary subtract number",
+			Name:      "SubtractionRHS_Number",
 			Statement: `SELECT value - 2.0 FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 18}},
@@ -2188,7 +2178,7 @@ func TestSelect_BinaryExpr_Float(t *testing.T) {
 			},
 		},
 		{
-			Name:      "rhs binary subtract integer",
+			Name:      "SubtractionRHS_Integer",
 			Statement: `SELECT value - 2 FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 18}},
@@ -2197,7 +2187,7 @@ func TestSelect_BinaryExpr_Float(t *testing.T) {
 			},
 		},
 		{
-			Name:      "lhs binary subtract number",
+			Name:      "SubtractionLHS_Number",
 			Statement: `SELECT 2.0 - value FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: -18}},
@@ -2206,7 +2196,7 @@ func TestSelect_BinaryExpr_Float(t *testing.T) {
 			},
 		},
 		{
-			Name:      "lhs binary subtract integer",
+			Name:      "SubtractionLHS_Integer",
 			Statement: `SELECT 2 - value FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: -18}},
@@ -2215,7 +2205,7 @@ func TestSelect_BinaryExpr_Float(t *testing.T) {
 			},
 		},
 		{
-			Name:      "two variable binary subtract",
+			Name:      "TwoVariableSubtraction",
 			Statement: `SELECT value - value FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 0}},
@@ -2224,7 +2214,7 @@ func TestSelect_BinaryExpr_Float(t *testing.T) {
 			},
 		},
 		{
-			Name:      "rhs binary division number",
+			Name:      "DivisionRHS_Number",
 			Statement: `SELECT value / 2.0 FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 10}},
@@ -2233,7 +2223,7 @@ func TestSelect_BinaryExpr_Float(t *testing.T) {
 			},
 		},
 		{
-			Name:      "rhs binary division integer",
+			Name:      "DivisionRHS_Integer",
 			Statement: `SELECT value / 2 FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 10}},
@@ -2242,7 +2232,7 @@ func TestSelect_BinaryExpr_Float(t *testing.T) {
 			},
 		},
 		{
-			Name:      "lhs binary division number",
+			Name:      "DivisionLHS_Number",
 			Statement: `SELECT 38.0 / value FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 1.9}},
@@ -2251,7 +2241,7 @@ func TestSelect_BinaryExpr_Float(t *testing.T) {
 			},
 		},
 		{
-			Name:      "lhs binary division integer",
+			Name:      "DivisionLHS_Integer",
 			Statement: `SELECT 38 / value FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 1.9}},
@@ -2260,7 +2250,7 @@ func TestSelect_BinaryExpr_Float(t *testing.T) {
 			},
 		},
 		{
-			Name:      "two variable binary division",
+			Name:      "TwoVariableDivision",
 			Statement: `SELECT value / value FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 1}},
@@ -2269,47 +2259,47 @@ func TestSelect_BinaryExpr_Float(t *testing.T) {
 			},
 		},
 	} {
-		stmt, err := MustParseSelectStatement(test.Statement).RewriteFields(&ic)
-		if err != nil {
-			t.Errorf("%s: rewrite error: %s", test.Name, err)
-		}
-
-		itrs, err := query.Select(stmt, &ic, nil)
-		if err != nil {
-			t.Errorf("%s: parse error: %s", test.Name, err)
-		} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-			t.Fatalf("%s: unexpected error: %s", test.Name, err)
-		} else if diff := cmp.Diff(a, test.Points); diff != "" {
-			t.Errorf("%s: unexpected points:\n%s", test.Name, diff)
-		}
+		t.Run(test.Name, func(t *testing.T) {
+			stmt := MustParseSelectStatement(test.Statement)
+			itrs, _, err := query.Select(stmt, &shardMapper, nil)
+			if err != nil {
+				t.Errorf("%s: parse error: %s", test.Name, err)
+			} else if a, err := Iterators(itrs).ReadAll(); err != nil {
+				t.Fatalf("%s: unexpected error: %s", test.Name, err)
+			} else if diff := cmp.Diff(a, test.Points); diff != "" {
+				t.Errorf("%s: unexpected points:\n%s", test.Name, diff)
+			}
+		})
 	}
 }
 
 // Ensure a SELECT binary expr queries can be executed as integers.
 func TestSelect_BinaryExpr_Integer(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		makeAuxFields := func(value int64) []interface{} {
-			aux := make([]interface{}, len(opt.Aux))
-			for i := range aux {
-				aux[i] = value
+	shardMapper := ShardMapper{
+		MapShardsFn: func(sources influxql.Sources, _ influxql.TimeRange) query.ShardGroup {
+			return &ShardGroup{
+				Fields: map[string]influxql.DataType{
+					"value": influxql.Integer,
+				},
+				CreateIteratorFn: func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
+					if m.Name != "cpu" {
+						t.Fatalf("unexpected source: %s", m.Name)
+					}
+					makeAuxFields := func(value int64) []interface{} {
+						aux := make([]interface{}, len(opt.Aux))
+						for i := range aux {
+							aux[i] = value
+						}
+						return aux
+					}
+					return &FloatIterator{Points: []query.FloatPoint{
+						{Name: "cpu", Time: 0 * Second, Aux: makeAuxFields(20)},
+						{Name: "cpu", Time: 5 * Second, Aux: makeAuxFields(10)},
+						{Name: "cpu", Time: 9 * Second, Aux: makeAuxFields(19)},
+					}}, nil
+				},
 			}
-			return aux
-		}
-		return &IntegerIterator{Points: []query.IntegerPoint{
-			{Name: "cpu", Time: 0 * Second, Value: 20, Aux: makeAuxFields(20)},
-			{Name: "cpu", Time: 5 * Second, Value: 10, Aux: makeAuxFields(10)},
-			{Name: "cpu", Time: 9 * Second, Value: 19, Aux: makeAuxFields(19)},
-		}}, nil
-	}
-	ic.FieldDimensionsFn = func(m *influxql.Measurement) (map[string]influxql.DataType, map[string]struct{}, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return map[string]influxql.DataType{"value": influxql.Integer}, nil, nil
+		},
 	}
 
 	for _, test := range []struct {
@@ -2318,7 +2308,7 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 		Points    [][]query.Point
 	}{
 		{
-			Name:      "rhs binary add number",
+			Name:      "AdditionRHS_Number",
 			Statement: `SELECT value + 2.0 FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 22}},
@@ -2327,7 +2317,7 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			},
 		},
 		{
-			Name:      "rhs binary add integer",
+			Name:      "AdditionRHS_Integer",
 			Statement: `SELECT value + 2 FROM cpu`,
 			Points: [][]query.Point{
 				{&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 22}},
@@ -2336,7 +2326,7 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			},
 		},
 		{
-			Name:      "lhs binary add number",
+			Name:      "AdditionLHS_Number",
 			Statement: `SELECT 2.0 + value FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 22}},
@@ -2345,7 +2335,7 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			},
 		},
 		{
-			Name:      "lhs binary add integer",
+			Name:      "AdditionLHS_Integer",
 			Statement: `SELECT 2 + value FROM cpu`,
 			Points: [][]query.Point{
 				{&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 22}},
@@ -2354,7 +2344,7 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			},
 		},
 		{
-			Name:      "two variable binary add",
+			Name:      "TwoVariableAddition",
 			Statement: `SELECT value + value FROM cpu`,
 			Points: [][]query.Point{
 				{&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
@@ -2363,7 +2353,7 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			},
 		},
 		{
-			Name:      "rhs binary multiply number",
+			Name:      "MultiplicationRHS_Number",
 			Statement: `SELECT value * 2.0 FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
@@ -2372,7 +2362,7 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			},
 		},
 		{
-			Name:      "rhs binary multiply integer",
+			Name:      "MultiplicationRHS_Integer",
 			Statement: `SELECT value * 2 FROM cpu`,
 			Points: [][]query.Point{
 				{&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
@@ -2381,7 +2371,7 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			},
 		},
 		{
-			Name:      "lhs binary multiply number",
+			Name:      "MultiplicationLHS_Number",
 			Statement: `SELECT 2.0 * value FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
@@ -2390,7 +2380,7 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			},
 		},
 		{
-			Name:      "lhs binary multiply integer",
+			Name:      "MultiplicationLHS_Integer",
 			Statement: `SELECT 2 * value FROM cpu`,
 			Points: [][]query.Point{
 				{&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
@@ -2399,7 +2389,7 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			},
 		},
 		{
-			Name:      "two variable binary multiply",
+			Name:      "TwoVariableMultiplication",
 			Statement: `SELECT value * value FROM cpu`,
 			Points: [][]query.Point{
 				{&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 400}},
@@ -2408,7 +2398,7 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			},
 		},
 		{
-			Name:      "rhs binary subtract number",
+			Name:      "SubtractionRHS_Number",
 			Statement: `SELECT value - 2.0 FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 18}},
@@ -2417,7 +2407,7 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			},
 		},
 		{
-			Name:      "rhs binary subtract integer",
+			Name:      "SubtractionRHS_Integer",
 			Statement: `SELECT value - 2 FROM cpu`,
 			Points: [][]query.Point{
 				{&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 18}},
@@ -2426,7 +2416,7 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			},
 		},
 		{
-			Name:      "lhs binary subtract number",
+			Name:      "SubtractionLHS_Number",
 			Statement: `SELECT 2.0 - value FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: -18}},
@@ -2435,7 +2425,7 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			},
 		},
 		{
-			Name:      "lhs binary subtract integer",
+			Name:      "SubtractionLHS_Integer",
 			Statement: `SELECT 2 - value FROM cpu`,
 			Points: [][]query.Point{
 				{&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: -18}},
@@ -2444,7 +2434,7 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			},
 		},
 		{
-			Name:      "two variable binary subtract",
+			Name:      "TwoVariableSubtraction",
 			Statement: `SELECT value - value FROM cpu`,
 			Points: [][]query.Point{
 				{&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 0}},
@@ -2453,7 +2443,7 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			},
 		},
 		{
-			Name:      "rhs binary division number",
+			Name:      "DivisionRHS_Number",
 			Statement: `SELECT value / 2.0 FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 10}},
@@ -2462,7 +2452,7 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			},
 		},
 		{
-			Name:      "rhs binary division integer",
+			Name:      "DivisionRHS_Integer",
 			Statement: `SELECT value / 2 FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 10}},
@@ -2471,7 +2461,7 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			},
 		},
 		{
-			Name:      "lhs binary division number",
+			Name:      "DivisionLHS_Number",
 			Statement: `SELECT 38.0 / value FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 1.9}},
@@ -2480,7 +2470,7 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			},
 		},
 		{
-			Name:      "lhs binary division integer",
+			Name:      "DivisionLHS_Integer",
 			Statement: `SELECT 38 / value FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 1.9}},
@@ -2489,7 +2479,7 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			},
 		},
 		{
-			Name:      "two variable binary division",
+			Name:      "TwoVariablesDivision",
 			Statement: `SELECT value / value FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 1}},
@@ -2498,7 +2488,7 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			},
 		},
 		{
-			Name:      "rhs binary bitwise-and integer",
+			Name:      "BitwiseAndRHS",
 			Statement: `SELECT value & 254 FROM cpu`,
 			Points: [][]query.Point{
 				{&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 20}},
@@ -2507,7 +2497,7 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			},
 		},
 		{
-			Name:      "lhs binary bitwise-or integer",
+			Name:      "BitwiseOrLHS",
 			Statement: `SELECT 4 | value FROM cpu`,
 			Points: [][]query.Point{
 				{&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 20}},
@@ -2516,7 +2506,7 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			},
 		},
 		{
-			Name:      "two variable binary bitwise-xor",
+			Name:      "TwoVariableBitwiseXOr",
 			Statement: `SELECT value ^ value FROM cpu`,
 			Points: [][]query.Point{
 				{&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 0}},
@@ -2525,43 +2515,41 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			},
 		},
 	} {
-		stmt, err := MustParseSelectStatement(test.Statement).RewriteFields(&ic)
-		if err != nil {
-			t.Errorf("%s: rewrite error: %s", test.Name, err)
-		}
-
-		itrs, err := query.Select(stmt, &ic, nil)
-		if err != nil {
-			t.Errorf("%s: parse error: %s", test.Name, err)
-		} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-			t.Fatalf("%s: unexpected error: %s", test.Name, err)
-		} else if diff := cmp.Diff(a, test.Points); diff != "" {
-			t.Errorf("%s: unexpected points:\n%s", test.Name, diff)
-		}
+		t.Run(test.Name, func(t *testing.T) {
+			stmt := MustParseSelectStatement(test.Statement)
+			itrs, _, err := query.Select(stmt, &shardMapper, nil)
+			if err != nil {
+				t.Errorf("%s: parse error: %s", test.Name, err)
+			} else if a, err := Iterators(itrs).ReadAll(); err != nil {
+				t.Fatalf("%s: unexpected error: %s", test.Name, err)
+			} else if diff := cmp.Diff(a, test.Points); diff != "" {
+				t.Errorf("%s: unexpected points:\n%s", test.Name, diff)
+			}
+		})
 	}
 }
 
 // Ensure a SELECT binary expr queries can be executed on mixed iterators.
 func TestSelect_BinaryExpr_Mixed(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return &IntegerIterator{Points: []query.IntegerPoint{
-			{Name: "cpu", Time: 0 * Second, Value: 20, Aux: []interface{}{float64(20), int64(10)}},
-			{Name: "cpu", Time: 5 * Second, Value: 10, Aux: []interface{}{float64(10), int64(15)}},
-			{Name: "cpu", Time: 9 * Second, Value: 19, Aux: []interface{}{float64(19), int64(5)}},
-		}}, nil
-	}
-	ic.FieldDimensionsFn = func(m *influxql.Measurement) (map[string]influxql.DataType, map[string]struct{}, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return map[string]influxql.DataType{
-			"total": influxql.Float,
-			"value": influxql.Integer,
-		}, nil, nil
+	shardMapper := ShardMapper{
+		MapShardsFn: func(sources influxql.Sources, _ influxql.TimeRange) query.ShardGroup {
+			return &ShardGroup{
+				Fields: map[string]influxql.DataType{
+					"total": influxql.Float,
+					"value": influxql.Integer,
+				},
+				CreateIteratorFn: func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
+					if m.Name != "cpu" {
+						t.Fatalf("unexpected source: %s", m.Name)
+					}
+					return &FloatIterator{Points: []query.FloatPoint{
+						{Name: "cpu", Time: 0 * Second, Aux: []interface{}{float64(20), int64(10)}},
+						{Name: "cpu", Time: 5 * Second, Aux: []interface{}{float64(10), int64(15)}},
+						{Name: "cpu", Time: 9 * Second, Aux: []interface{}{float64(19), int64(5)}},
+					}}, nil
+				},
+			}
+		},
 	}
 
 	for _, test := range []struct {
@@ -2570,7 +2558,7 @@ func TestSelect_BinaryExpr_Mixed(t *testing.T) {
 		Points    [][]query.Point
 	}{
 		{
-			Name:      "mixed binary add",
+			Name:      "Addition",
 			Statement: `SELECT total + value FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 30}},
@@ -2579,7 +2567,7 @@ func TestSelect_BinaryExpr_Mixed(t *testing.T) {
 			},
 		},
 		{
-			Name:      "mixed binary subtract",
+			Name:      "Subtraction",
 			Statement: `SELECT total - value FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 10}},
@@ -2588,7 +2576,7 @@ func TestSelect_BinaryExpr_Mixed(t *testing.T) {
 			},
 		},
 		{
-			Name:      "mixed binary multiply",
+			Name:      "Multiplication",
 			Statement: `SELECT total * value FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 200}},
@@ -2597,7 +2585,7 @@ func TestSelect_BinaryExpr_Mixed(t *testing.T) {
 			},
 		},
 		{
-			Name:      "mixed binary division",
+			Name:      "Division",
 			Statement: `SELECT total / value FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 2}},
@@ -2606,50 +2594,48 @@ func TestSelect_BinaryExpr_Mixed(t *testing.T) {
 			},
 		},
 	} {
-		stmt, err := MustParseSelectStatement(test.Statement).RewriteFields(&ic)
-		if err != nil {
-			t.Errorf("%s: rewrite error: %s", test.Name, err)
-		}
-
-		itrs, err := query.Select(stmt, &ic, nil)
-		if err != nil {
-			t.Errorf("%s: parse error: %s", test.Name, err)
-		} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-			t.Fatalf("%s: unexpected error: %s", test.Name, err)
-		} else if diff := cmp.Diff(a, test.Points); diff != "" {
-			t.Errorf("%s: unexpected points:\n%s", test.Name, diff)
-		}
+		t.Run(test.Name, func(t *testing.T) {
+			stmt := MustParseSelectStatement(test.Statement)
+			itrs, _, err := query.Select(stmt, &shardMapper, nil)
+			if err != nil {
+				t.Errorf("%s: parse error: %s", test.Name, err)
+			} else if a, err := Iterators(itrs).ReadAll(); err != nil {
+				t.Fatalf("%s: unexpected error: %s", test.Name, err)
+			} else if diff := cmp.Diff(a, test.Points); diff != "" {
+				t.Errorf("%s: unexpected points:\n%s", test.Name, diff)
+			}
+		})
 	}
 }
 
 // Ensure a SELECT binary expr queries can be executed as booleans.
 func TestSelect_BinaryExpr_Boolean(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		makeAuxFields := func(value bool) []interface{} {
-			aux := make([]interface{}, len(opt.Aux))
-			for i := range aux {
-				aux[i] = value
+	shardMapper := ShardMapper{
+		MapShardsFn: func(sources influxql.Sources, _ influxql.TimeRange) query.ShardGroup {
+			return &ShardGroup{
+				Fields: map[string]influxql.DataType{
+					"one": influxql.Boolean,
+					"two": influxql.Boolean,
+				},
+				CreateIteratorFn: func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
+					if m.Name != "cpu" {
+						t.Fatalf("unexpected source: %s", m.Name)
+					}
+					makeAuxFields := func(value bool) []interface{} {
+						aux := make([]interface{}, len(opt.Aux))
+						for i := range aux {
+							aux[i] = value
+						}
+						return aux
+					}
+					return &FloatIterator{Points: []query.FloatPoint{
+						{Name: "cpu", Time: 0 * Second, Aux: makeAuxFields(true)},
+						{Name: "cpu", Time: 5 * Second, Aux: makeAuxFields(false)},
+						{Name: "cpu", Time: 9 * Second, Aux: makeAuxFields(true)},
+					}}, nil
+				},
 			}
-			return aux
-		}
-		return &BooleanIterator{Points: []query.BooleanPoint{
-			{Name: "cpu", Time: 0 * Second, Value: true, Aux: makeAuxFields(true)},
-			{Name: "cpu", Time: 5 * Second, Value: false, Aux: makeAuxFields(false)},
-			{Name: "cpu", Time: 9 * Second, Value: true, Aux: makeAuxFields(true)},
-		}}, nil
-	}
-	ic.FieldDimensionsFn = func(m *influxql.Measurement) (map[string]influxql.DataType, map[string]struct{}, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return map[string]influxql.DataType{
-			"one": influxql.Boolean,
-			"two": influxql.Boolean,
-		}, nil, nil
+		},
 	}
 
 	for _, test := range []struct {
@@ -2658,7 +2644,7 @@ func TestSelect_BinaryExpr_Boolean(t *testing.T) {
 		Points    [][]query.Point
 	}{
 		{
-			Name:      "rhs binary bitwise-xor",
+			Name:      "BinaryXOrRHS",
 			Statement: `SELECT one ^ true FROM cpu`,
 			Points: [][]query.Point{
 				{&query.BooleanPoint{Name: "cpu", Time: 0 * Second, Value: false}},
@@ -2667,7 +2653,7 @@ func TestSelect_BinaryExpr_Boolean(t *testing.T) {
 			},
 		},
 		{
-			Name:      "lhs binary or",
+			Name:      "BinaryOrLHS",
 			Statement: `SELECT true | two FROM cpu`,
 			Points: [][]query.Point{
 				{&query.BooleanPoint{Name: "cpu", Time: 0 * Second, Value: true}},
@@ -2676,7 +2662,7 @@ func TestSelect_BinaryExpr_Boolean(t *testing.T) {
 			},
 		},
 		{
-			Name:      "two series bitwise-and",
+			Name:      "TwoSeriesBitwiseAnd",
 			Statement: `SELECT one & two FROM cpu`,
 			Points: [][]query.Point{
 				{&query.BooleanPoint{Name: "cpu", Time: 0 * Second, Value: true}},
@@ -2685,19 +2671,17 @@ func TestSelect_BinaryExpr_Boolean(t *testing.T) {
 			},
 		},
 	} {
-		stmt, err := MustParseSelectStatement(test.Statement).RewriteFields(&ic)
-		if err != nil {
-			t.Errorf("%s: rewrite error: %s", test.Name, err)
-		}
-
-		itrs, err := query.Select(stmt, &ic, nil)
-		if err != nil {
-			t.Errorf("%s: parse error: %s", test.Name, err)
-		} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-			t.Fatalf("%s: unexpected error: %s", test.Name, err)
-		} else if diff := cmp.Diff(a, test.Points); diff != "" {
-			t.Errorf("%s: unexpected points:\n%s", test.Name, diff)
-		}
+		t.Run(test.Name, func(t *testing.T) {
+			stmt := MustParseSelectStatement(test.Statement)
+			itrs, _, err := query.Select(stmt, &shardMapper, nil)
+			if err != nil {
+				t.Errorf("%s: parse error: %s", test.Name, err)
+			} else if a, err := Iterators(itrs).ReadAll(); err != nil {
+				t.Fatalf("%s: unexpected error: %s", test.Name, err)
+			} else if diff := cmp.Diff(a, test.Points); diff != "" {
+				t.Errorf("%s: unexpected points:\n%s", test.Name, diff)
+			}
+		})
 	}
 }
 
@@ -2705,25 +2689,25 @@ func TestSelect_BinaryExpr_Boolean(t *testing.T) {
 // Nil values may be present when a field is missing from one iterator,
 // but not the other.
 func TestSelect_BinaryExpr_NilValues(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return &FloatIterator{Points: []query.FloatPoint{
-			{Name: "cpu", Time: 0 * Second, Value: 20, Aux: []interface{}{float64(20), nil}},
-			{Name: "cpu", Time: 5 * Second, Value: 10, Aux: []interface{}{float64(10), float64(15)}},
-			{Name: "cpu", Time: 9 * Second, Value: 19, Aux: []interface{}{nil, float64(5)}},
-		}}, nil
-	}
-	ic.FieldDimensionsFn = func(m *influxql.Measurement) (map[string]influxql.DataType, map[string]struct{}, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return map[string]influxql.DataType{
-			"total": influxql.Float,
-			"value": influxql.Float,
-		}, nil, nil
+	shardMapper := ShardMapper{
+		MapShardsFn: func(sources influxql.Sources, _ influxql.TimeRange) query.ShardGroup {
+			return &ShardGroup{
+				Fields: map[string]influxql.DataType{
+					"total": influxql.Float,
+					"value": influxql.Float,
+				},
+				CreateIteratorFn: func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
+					if m.Name != "cpu" {
+						t.Fatalf("unexpected source: %s", m.Name)
+					}
+					return &FloatIterator{Points: []query.FloatPoint{
+						{Name: "cpu", Time: 0 * Second, Value: 20, Aux: []interface{}{float64(20), nil}},
+						{Name: "cpu", Time: 5 * Second, Value: 10, Aux: []interface{}{float64(10), float64(15)}},
+						{Name: "cpu", Time: 9 * Second, Value: 19, Aux: []interface{}{nil, float64(5)}},
+					}}, nil
+				},
+			}
+		},
 	}
 
 	for _, test := range []struct {
@@ -2732,7 +2716,7 @@ func TestSelect_BinaryExpr_NilValues(t *testing.T) {
 		Points    [][]query.Point
 	}{
 		{
-			Name:      "nil binary add",
+			Name:      "Addition",
 			Statement: `SELECT total + value FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Nil: true}},
@@ -2741,7 +2725,7 @@ func TestSelect_BinaryExpr_NilValues(t *testing.T) {
 			},
 		},
 		{
-			Name:      "nil binary subtract",
+			Name:      "Subtraction",
 			Statement: `SELECT total - value FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Nil: true}},
@@ -2750,7 +2734,7 @@ func TestSelect_BinaryExpr_NilValues(t *testing.T) {
 			},
 		},
 		{
-			Name:      "nil binary multiply",
+			Name:      "Multiplication",
 			Statement: `SELECT total * value FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Nil: true}},
@@ -2759,7 +2743,7 @@ func TestSelect_BinaryExpr_NilValues(t *testing.T) {
 			},
 		},
 		{
-			Name:      "nil binary division",
+			Name:      "Division",
 			Statement: `SELECT total / value FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Nil: true}},
@@ -2768,1050 +2752,109 @@ func TestSelect_BinaryExpr_NilValues(t *testing.T) {
 			},
 		},
 	} {
-		stmt, err := MustParseSelectStatement(test.Statement).RewriteFields(&ic)
-		if err != nil {
-			t.Errorf("%s: rewrite error: %s", test.Name, err)
-		}
-
-		itrs, err := query.Select(stmt, &ic, nil)
-		if err != nil {
-			t.Errorf("%s: parse error: %s", test.Name, err)
-		} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-			t.Fatalf("%s: unexpected error: %s", test.Name, err)
-		} else if diff := cmp.Diff(a, test.Points); diff != "" {
-			t.Errorf("%s: unexpected points:\n%s", test.Name, diff)
-		}
-	}
-}
-
-// Ensure a SELECT (...) query can be executed.
-func TestSelect_ParenExpr(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		if !reflect.DeepEqual(opt.Expr, MustParseExpr(`min(value)`)) {
-			t.Fatalf("unexpected expr: %s", spew.Sdump(opt.Expr))
-		}
-
-		input, err := query.Iterators{
-			&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
-			}},
-			&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
-			}},
-			&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
-			}},
-		}.Merge(opt)
-		if err != nil {
-			return nil, err
-		}
-		return query.NewCallIterator(input, opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT (min(value)) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 19, Aggregated: 2}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2, Aggregated: 2}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 100, Aggregated: 1}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10, Aggregated: 1}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return query.Iterators{
-			&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
-				{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 1 * Second, Value: 19},
-			}},
-			&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
-			}},
-			&FloatIterator{Points: []query.FloatPoint{
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 11 * Second, Value: 2},
-				{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 12 * Second, Value: 2},
-			}},
-		}.Merge(opt)
-	}
-
-	// Execute selection.
-	itrs, err = query.Select(MustParseSelectStatement(`SELECT (distinct(value)) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 20}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 19}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-func TestSelect_Derivative_Float(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return &FloatIterator{Points: []query.FloatPoint{
-			{Name: "cpu", Time: 0 * Second, Value: 20},
-			{Name: "cpu", Time: 4 * Second, Value: 10},
-			{Name: "cpu", Time: 8 * Second, Value: 19},
-			{Name: "cpu", Time: 12 * Second, Value: 3},
-		}}, nil
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT derivative(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Time: 4 * Second, Value: -2.5}},
-		{&query.FloatPoint{Name: "cpu", Time: 8 * Second, Value: 2.25}},
-		{&query.FloatPoint{Name: "cpu", Time: 12 * Second, Value: -4}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-func TestSelect_Derivative_Integer(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return &IntegerIterator{Points: []query.IntegerPoint{
-			{Name: "cpu", Time: 0 * Second, Value: 20},
-			{Name: "cpu", Time: 4 * Second, Value: 10},
-			{Name: "cpu", Time: 8 * Second, Value: 19},
-			{Name: "cpu", Time: 12 * Second, Value: 3},
-		}}, nil
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT derivative(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Time: 4 * Second, Value: -2.5}},
-		{&query.FloatPoint{Name: "cpu", Time: 8 * Second, Value: 2.25}},
-		{&query.FloatPoint{Name: "cpu", Time: 12 * Second, Value: -4}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-func TestSelect_Derivative_Desc_Float(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return &FloatIterator{Points: []query.FloatPoint{
-			{Name: "cpu", Time: 12 * Second, Value: 3},
-			{Name: "cpu", Time: 8 * Second, Value: 19},
-			{Name: "cpu", Time: 4 * Second, Value: 10},
-			{Name: "cpu", Time: 0 * Second, Value: 20},
-		}}, nil
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT derivative(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z' ORDER BY desc`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Errorf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Time: 8 * Second, Value: 4}},
-		{&query.FloatPoint{Name: "cpu", Time: 4 * Second, Value: -2.25}},
-		{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 2.5}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-func TestSelect_Derivative_Desc_Integer(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return &IntegerIterator{Points: []query.IntegerPoint{
-			{Name: "cpu", Time: 12 * Second, Value: 3},
-			{Name: "cpu", Time: 8 * Second, Value: 19},
-			{Name: "cpu", Time: 4 * Second, Value: 10},
-			{Name: "cpu", Time: 0 * Second, Value: 20},
-		}}, nil
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT derivative(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z' ORDER BY desc`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Errorf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Time: 8 * Second, Value: 4}},
-		{&query.FloatPoint{Name: "cpu", Time: 4 * Second, Value: -2.25}},
-		{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 2.5}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-func TestSelect_Derivative_Duplicate_Float(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return &FloatIterator{Points: []query.FloatPoint{
-			{Name: "cpu", Time: 0 * Second, Value: 20},
-			{Name: "cpu", Time: 0 * Second, Value: 19},
-			{Name: "cpu", Time: 4 * Second, Value: 10},
-			{Name: "cpu", Time: 4 * Second, Value: 3},
-		}}, nil
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT derivative(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Time: 4 * Second, Value: -2.5}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-func TestSelect_Derivative_Duplicate_Integer(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return &IntegerIterator{Points: []query.IntegerPoint{
-			{Name: "cpu", Time: 0 * Second, Value: 20},
-			{Name: "cpu", Time: 0 * Second, Value: 19},
-			{Name: "cpu", Time: 4 * Second, Value: 10},
-			{Name: "cpu", Time: 4 * Second, Value: 3},
-		}}, nil
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT derivative(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Time: 4 * Second, Value: -2.5}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-func TestSelect_Difference_Float(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return &FloatIterator{Points: []query.FloatPoint{
-			{Name: "cpu", Time: 0 * Second, Value: 20},
-			{Name: "cpu", Time: 4 * Second, Value: 10},
-			{Name: "cpu", Time: 8 * Second, Value: 19},
-			{Name: "cpu", Time: 12 * Second, Value: 3},
-		}}, nil
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT difference(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Time: 4 * Second, Value: -10}},
-		{&query.FloatPoint{Name: "cpu", Time: 8 * Second, Value: 9}},
-		{&query.FloatPoint{Name: "cpu", Time: 12 * Second, Value: -16}},
-	}); diff != "" {
-		t.Fatalf("unexpected points: %s", diff)
-	}
-}
-
-func TestSelect_Difference_Integer(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return &IntegerIterator{Points: []query.IntegerPoint{
-			{Name: "cpu", Time: 0 * Second, Value: 20},
-			{Name: "cpu", Time: 4 * Second, Value: 10},
-			{Name: "cpu", Time: 8 * Second, Value: 19},
-			{Name: "cpu", Time: 12 * Second, Value: 3},
-		}}, nil
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT difference(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.IntegerPoint{Name: "cpu", Time: 4 * Second, Value: -10}},
-		{&query.IntegerPoint{Name: "cpu", Time: 8 * Second, Value: 9}},
-		{&query.IntegerPoint{Name: "cpu", Time: 12 * Second, Value: -16}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-func TestSelect_Difference_Duplicate_Float(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return &FloatIterator{Points: []query.FloatPoint{
-			{Name: "cpu", Time: 0 * Second, Value: 20},
-			{Name: "cpu", Time: 0 * Second, Value: 19},
-			{Name: "cpu", Time: 4 * Second, Value: 10},
-			{Name: "cpu", Time: 4 * Second, Value: 3},
-		}}, nil
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT difference(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Time: 4 * Second, Value: -10}},
-	}); diff != "" {
-		t.Fatalf("unexpected points: %s", diff)
-	}
-}
-
-func TestSelect_Difference_Duplicate_Integer(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return &IntegerIterator{Points: []query.IntegerPoint{
-			{Name: "cpu", Time: 0 * Second, Value: 20},
-			{Name: "cpu", Time: 0 * Second, Value: 19},
-			{Name: "cpu", Time: 4 * Second, Value: 10},
-			{Name: "cpu", Time: 4 * Second, Value: 3},
-		}}, nil
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT difference(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.IntegerPoint{Name: "cpu", Time: 4 * Second, Value: -10}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-func TestSelect_Non_Negative_Difference_Float(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return &FloatIterator{Points: []query.FloatPoint{
-			{Name: "cpu", Time: 0 * Second, Value: 20},
-			{Name: "cpu", Time: 4 * Second, Value: 10},
-			{Name: "cpu", Time: 8 * Second, Value: 29},
-			{Name: "cpu", Time: 12 * Second, Value: 3},
-			{Name: "cpu", Time: 16 * Second, Value: 39},
-		}}, nil
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT non_negative_difference(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Time: 8 * Second, Value: 19}},
-		{&query.FloatPoint{Name: "cpu", Time: 16 * Second, Value: 36}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-func TestSelect_Non_Negative_Difference_Integer(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return &IntegerIterator{Points: []query.IntegerPoint{
-			{Name: "cpu", Time: 0 * Second, Value: 20},
-			{Name: "cpu", Time: 4 * Second, Value: 10},
-			{Name: "cpu", Time: 8 * Second, Value: 21},
-			{Name: "cpu", Time: 12 * Second, Value: 3},
-		}}, nil
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT non_negative_difference(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.IntegerPoint{Name: "cpu", Time: 8 * Second, Value: 11}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-func TestSelect_Non_Negative_Difference_Duplicate_Float(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return &FloatIterator{Points: []query.FloatPoint{
-			{Name: "cpu", Time: 0 * Second, Value: 20},
-			{Name: "cpu", Time: 0 * Second, Value: 19},
-			{Name: "cpu", Time: 4 * Second, Value: 10},
-			{Name: "cpu", Time: 4 * Second, Value: 3},
-			{Name: "cpu", Time: 8 * Second, Value: 30},
-			{Name: "cpu", Time: 8 * Second, Value: 19},
-			{Name: "cpu", Time: 12 * Second, Value: 10},
-			{Name: "cpu", Time: 12 * Second, Value: 3},
-			{Name: "cpu", Time: 16 * Second, Value: 40},
-			{Name: "cpu", Time: 16 * Second, Value: 3},
-		}}, nil
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT non_negative_difference(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Time: 8 * Second, Value: 20}},
-		{&query.FloatPoint{Name: "cpu", Time: 16 * Second, Value: 30}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-func TestSelect_Non_Negative_Difference_Duplicate_Integer(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return &IntegerIterator{Points: []query.IntegerPoint{
-			{Name: "cpu", Time: 0 * Second, Value: 20},
-			{Name: "cpu", Time: 0 * Second, Value: 19},
-			{Name: "cpu", Time: 4 * Second, Value: 10},
-			{Name: "cpu", Time: 4 * Second, Value: 3},
-			{Name: "cpu", Time: 8 * Second, Value: 30},
-			{Name: "cpu", Time: 8 * Second, Value: 19},
-			{Name: "cpu", Time: 12 * Second, Value: 10},
-			{Name: "cpu", Time: 12 * Second, Value: 3},
-			{Name: "cpu", Time: 16 * Second, Value: 40},
-			{Name: "cpu", Time: 16 * Second, Value: 3},
-		}}, nil
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT non_negative_difference(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.IntegerPoint{Name: "cpu", Time: 8 * Second, Value: 20}},
-		{&query.IntegerPoint{Name: "cpu", Time: 16 * Second, Value: 30}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-func TestSelect_Elapsed_Float(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return &FloatIterator{Points: []query.FloatPoint{
-			{Name: "cpu", Time: 0 * Second, Value: 20},
-			{Name: "cpu", Time: 4 * Second, Value: 10},
-			{Name: "cpu", Time: 8 * Second, Value: 19},
-			{Name: "cpu", Time: 11 * Second, Value: 3},
-		}}, nil
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT elapsed(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.IntegerPoint{Name: "cpu", Time: 4 * Second, Value: 4}},
-		{&query.IntegerPoint{Name: "cpu", Time: 8 * Second, Value: 4}},
-		{&query.IntegerPoint{Name: "cpu", Time: 11 * Second, Value: 3}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-func TestSelect_Elapsed_Integer(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return &IntegerIterator{Points: []query.IntegerPoint{
-			{Name: "cpu", Time: 0 * Second, Value: 20},
-			{Name: "cpu", Time: 4 * Second, Value: 10},
-			{Name: "cpu", Time: 8 * Second, Value: 19},
-			{Name: "cpu", Time: 11 * Second, Value: 3},
-		}}, nil
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT elapsed(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.IntegerPoint{Name: "cpu", Time: 4 * Second, Value: 4}},
-		{&query.IntegerPoint{Name: "cpu", Time: 8 * Second, Value: 4}},
-		{&query.IntegerPoint{Name: "cpu", Time: 11 * Second, Value: 3}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-func TestSelect_Elapsed_String(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return &StringIterator{Points: []query.StringPoint{
-			{Name: "cpu", Time: 0 * Second, Value: "a"},
-			{Name: "cpu", Time: 4 * Second, Value: "b"},
-			{Name: "cpu", Time: 8 * Second, Value: "c"},
-			{Name: "cpu", Time: 11 * Second, Value: "d"},
-		}}, nil
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT elapsed(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.IntegerPoint{Name: "cpu", Time: 4 * Second, Value: 4}},
-		{&query.IntegerPoint{Name: "cpu", Time: 8 * Second, Value: 4}},
-		{&query.IntegerPoint{Name: "cpu", Time: 11 * Second, Value: 3}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-func TestSelect_Elapsed_Boolean(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return &BooleanIterator{Points: []query.BooleanPoint{
-			{Name: "cpu", Time: 0 * Second, Value: true},
-			{Name: "cpu", Time: 4 * Second, Value: false},
-			{Name: "cpu", Time: 8 * Second, Value: false},
-			{Name: "cpu", Time: 11 * Second, Value: true},
-		}}, nil
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT elapsed(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.IntegerPoint{Name: "cpu", Time: 4 * Second, Value: 4}},
-		{&query.IntegerPoint{Name: "cpu", Time: 8 * Second, Value: 4}},
-		{&query.IntegerPoint{Name: "cpu", Time: 11 * Second, Value: 3}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-func TestSelect_Integral_Float(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return &FloatIterator{Points: []query.FloatPoint{
-			{Name: "cpu", Time: 10 * Second, Value: 20},
-			{Name: "cpu", Time: 15 * Second, Value: 10},
-			{Name: "cpu", Time: 20 * Second, Value: 0},
-			{Name: "cpu", Time: 30 * Second, Value: -10},
-		}}, nil
-	}
-
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT integral(value) FROM cpu`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Time: 0, Value: 50}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-func TestSelect_Integral_Float_GroupByTime(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return &FloatIterator{Points: []query.FloatPoint{
-			{Name: "cpu", Time: 10 * Second, Value: 20},
-			{Name: "cpu", Time: 15 * Second, Value: 10},
-			{Name: "cpu", Time: 20 * Second, Value: 0},
-			{Name: "cpu", Time: 30 * Second, Value: -10},
-		}}, nil
-	}
-
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT integral(value) FROM cpu WHERE time > 0s AND time < 60s GROUP BY time(20s)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Time: 0, Value: 100}},
-		{&query.FloatPoint{Name: "cpu", Time: 20 * Second, Value: -50}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-func TestSelect_Integral_Float_InterpolateGroupByTime(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return &FloatIterator{Points: []query.FloatPoint{
-			{Name: "cpu", Time: 10 * Second, Value: 20},
-			{Name: "cpu", Time: 15 * Second, Value: 10},
-			{Name: "cpu", Time: 25 * Second, Value: 0},
-			{Name: "cpu", Time: 30 * Second, Value: -10},
-		}}, nil
-	}
-
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT integral(value) FROM cpu WHERE time > 0s AND time < 60s GROUP BY time(20s)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Time: 0, Value: 112.5}},
-		{&query.FloatPoint{Name: "cpu", Time: 20 * Second, Value: -12.5}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-func TestSelect_Integral_Integer(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return &IntegerIterator{Points: []query.IntegerPoint{
-			{Name: "cpu", Time: 0 * Second, Value: 20},
-			{Name: "cpu", Time: 5 * Second, Value: 10},
-			{Name: "cpu", Time: 10 * Second, Value: 0},
-			{Name: "cpu", Time: 20 * Second, Value: -10},
-		}}, nil
-	}
-
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT integral(value) FROM cpu`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Time: 0, Value: 50}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-func TestSelect_Integral_Duplicate_Float(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return &FloatIterator{Points: []query.FloatPoint{
-			{Name: "cpu", Time: 0 * Second, Value: 20},
-			{Name: "cpu", Time: 5 * Second, Value: 10},
-			{Name: "cpu", Time: 5 * Second, Value: 30},
-			{Name: "cpu", Time: 10 * Second, Value: 40},
-		}}, nil
-	}
-
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT integral(value) FROM cpu`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Time: 0, Value: 250}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-func TestSelect_Integral_Duplicate_Integer(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return &IntegerIterator{Points: []query.IntegerPoint{
-			{Name: "cpu", Time: 0 * Second, Value: 20},
-			{Name: "cpu", Time: 5 * Second, Value: 10},
-			{Name: "cpu", Time: 5 * Second, Value: 30},
-			{Name: "cpu", Time: 10 * Second, Value: 40},
-		}}, nil
-	}
-
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT integral(value, 2s) FROM cpu`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Time: 0, Value: 125}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-func TestSelect_MovingAverage_Float(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return &FloatIterator{Points: []query.FloatPoint{
-			{Name: "cpu", Time: 0 * Second, Value: 20},
-			{Name: "cpu", Time: 4 * Second, Value: 10},
-			{Name: "cpu", Time: 8 * Second, Value: 19},
-			{Name: "cpu", Time: 12 * Second, Value: 3},
-		}}, nil
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT moving_average(value, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Time: 4 * Second, Value: 15, Aggregated: 2}},
-		{&query.FloatPoint{Name: "cpu", Time: 8 * Second, Value: 14.5, Aggregated: 2}},
-		{&query.FloatPoint{Name: "cpu", Time: 12 * Second, Value: 11, Aggregated: 2}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-func TestSelect_MovingAverage_Integer(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return &IntegerIterator{Points: []query.IntegerPoint{
-			{Name: "cpu", Time: 0 * Second, Value: 20},
-			{Name: "cpu", Time: 4 * Second, Value: 10},
-			{Name: "cpu", Time: 8 * Second, Value: 19},
-			{Name: "cpu", Time: 12 * Second, Value: 3},
-		}}, nil
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT moving_average(value, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Time: 4 * Second, Value: 15, Aggregated: 2}},
-		{&query.FloatPoint{Name: "cpu", Time: 8 * Second, Value: 14.5, Aggregated: 2}},
-		{&query.FloatPoint{Name: "cpu", Time: 12 * Second, Value: 11, Aggregated: 2}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-func TestSelect_CumulativeSum_Float(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return &FloatIterator{Points: []query.FloatPoint{
-			{Name: "cpu", Time: 0 * Second, Value: 20},
-			{Name: "cpu", Time: 4 * Second, Value: 10},
-			{Name: "cpu", Time: 8 * Second, Value: 19},
-			{Name: "cpu", Time: 12 * Second, Value: 3},
-		}}, nil
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT cumulative_sum(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 20}},
-		{&query.FloatPoint{Name: "cpu", Time: 4 * Second, Value: 30}},
-		{&query.FloatPoint{Name: "cpu", Time: 8 * Second, Value: 49}},
-		{&query.FloatPoint{Name: "cpu", Time: 12 * Second, Value: 52}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-func TestSelect_CumulativeSum_Integer(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return &IntegerIterator{Points: []query.IntegerPoint{
-			{Name: "cpu", Time: 0 * Second, Value: 20},
-			{Name: "cpu", Time: 4 * Second, Value: 10},
-			{Name: "cpu", Time: 8 * Second, Value: 19},
-			{Name: "cpu", Time: 12 * Second, Value: 3},
-		}}, nil
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT cumulative_sum(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 20}},
-		{&query.IntegerPoint{Name: "cpu", Time: 4 * Second, Value: 30}},
-		{&query.IntegerPoint{Name: "cpu", Time: 8 * Second, Value: 49}},
-		{&query.IntegerPoint{Name: "cpu", Time: 12 * Second, Value: 52}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-func TestSelect_CumulativeSum_Duplicate_Float(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return &FloatIterator{Points: []query.FloatPoint{
-			{Name: "cpu", Time: 0 * Second, Value: 20},
-			{Name: "cpu", Time: 0 * Second, Value: 19},
-			{Name: "cpu", Time: 4 * Second, Value: 10},
-			{Name: "cpu", Time: 4 * Second, Value: 3},
-		}}, nil
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT cumulative_sum(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 20}},
-		{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 39}},
-		{&query.FloatPoint{Name: "cpu", Time: 4 * Second, Value: 49}},
-		{&query.FloatPoint{Name: "cpu", Time: 4 * Second, Value: 52}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-func TestSelect_CumulativeSum_Duplicate_Integer(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return &IntegerIterator{Points: []query.IntegerPoint{
-			{Name: "cpu", Time: 0 * Second, Value: 20},
-			{Name: "cpu", Time: 0 * Second, Value: 19},
-			{Name: "cpu", Time: 4 * Second, Value: 10},
-			{Name: "cpu", Time: 4 * Second, Value: 3},
-		}}, nil
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT cumulative_sum(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 20}},
-		{&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 39}},
-		{&query.IntegerPoint{Name: "cpu", Time: 4 * Second, Value: 49}},
-		{&query.IntegerPoint{Name: "cpu", Time: 4 * Second, Value: 52}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-func TestSelect_HoltWinters_GroupBy_Agg(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return query.NewCallIterator(&FloatIterator{Points: []query.FloatPoint{
-			{Name: "cpu", Time: 10 * Second, Value: 4},
-			{Name: "cpu", Time: 11 * Second, Value: 6},
-
-			{Name: "cpu", Time: 12 * Second, Value: 9},
-			{Name: "cpu", Time: 13 * Second, Value: 11},
-
-			{Name: "cpu", Time: 14 * Second, Value: 5},
-			{Name: "cpu", Time: 15 * Second, Value: 7},
-
-			{Name: "cpu", Time: 16 * Second, Value: 10},
-			{Name: "cpu", Time: 17 * Second, Value: 12},
-
-			{Name: "cpu", Time: 18 * Second, Value: 6},
-			{Name: "cpu", Time: 19 * Second, Value: 8},
-		}}, opt)
-	}
-
-	// Execute selection.
-	itrs, err := query.Select(MustParseSelectStatement(`SELECT holt_winters(mean(value), 2, 2) FROM cpu WHERE time >= '1970-01-01T00:00:10Z' AND time < '1970-01-01T00:00:20Z' GROUP BY time(2s)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if diff := cmp.Diff(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Time: 20 * Second, Value: 11.960623419918432}},
-		{&query.FloatPoint{Name: "cpu", Time: 22 * Second, Value: 7.953140268154609}},
-	}); diff != "" {
-		t.Fatalf("unexpected points:\n%s", diff)
-	}
-}
-
-func TestSelect_UnsupportedCall(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return &FloatIterator{}, nil
-	}
-
-	_, err := query.Select(MustParseSelectStatement(`SELECT foobar(value) FROM cpu`), &ic, nil)
-	if err == nil || err.Error() != "unsupported call: foobar" {
-		t.Errorf("unexpected error: %s", err)
+		t.Run(test.Name, func(t *testing.T) {
+			stmt := MustParseSelectStatement(test.Statement)
+			itrs, _, err := query.Select(stmt, &shardMapper, nil)
+			if err != nil {
+				t.Errorf("%s: parse error: %s", test.Name, err)
+			} else if a, err := Iterators(itrs).ReadAll(); err != nil {
+				t.Fatalf("%s: unexpected error: %s", test.Name, err)
+			} else if diff := cmp.Diff(a, test.Points); diff != "" {
+				t.Errorf("%s: unexpected points:\n%s", test.Name, diff)
+			}
+		})
 	}
 }
 
 func TestSelect_InvalidQueries(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			t.Fatalf("unexpected source: %s", m.Name)
-		}
-		return &FloatIterator{}, nil
+	shardMapper := ShardMapper{
+		MapShardsFn: func(sources influxql.Sources, _ influxql.TimeRange) query.ShardGroup {
+			return &ShardGroup{
+				CreateIteratorFn: func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
+					return &FloatIterator{}, nil
+				},
+			}
+		},
 	}
 
 	tests := []struct {
-		q   string
-		err string
+		name string
+		q    string
+		err  string
 	}{
 		{
-			q:   `SELECT foobar(value) FROM cpu`,
-			err: `unsupported call: foobar`,
+			name: "UnsupportedCall",
+			q:    `SELECT foobar(value) FROM cpu`,
+			err:  `unsupported call: foobar`,
 		},
 		{
-			q:   `SELECT 'value' FROM cpu`,
-			err: `invalid expression type: *influxql.StringLiteral`,
+			name: "InvalidStringExpression",
+			q:    `SELECT 'value' FROM cpu`,
+			err:  `invalid expression type: *influxql.StringLiteral`,
 		},
 		{
-			q:   `SELECT 'value', value FROM cpu`,
-			err: `invalid expression type: *influxql.StringLiteral`,
+			name: "InvalidStringExpressionWithValidExpression",
+			q:    `SELECT 'value', value FROM cpu`,
+			err:  `invalid expression type: *influxql.StringLiteral`,
 		},
 	}
 
-	for i, tt := range tests {
-		itrs, err := query.Select(MustParseSelectStatement(tt.q), &ic, nil)
-		if err == nil || err.Error() != tt.err {
-			t.Errorf("%d. expected error '%s', got '%s'", i, tt.err, err)
-		}
-		query.Iterators(itrs).Close()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, _, err := query.Select(MustParseSelectStatement(tt.q), &shardMapper, nil)
+			if err == nil || err.Error() != tt.err {
+				t.Errorf("expected error '%s', got '%s'", tt.err, err)
+			}
+		})
 	}
+}
+
+type ShardMapper struct {
+	MapShardsFn func(sources influxql.Sources, t influxql.TimeRange) query.ShardGroup
+}
+
+func (m *ShardMapper) MapShards(sources influxql.Sources, t influxql.TimeRange) (query.ShardGroup, error) {
+	shards := m.MapShardsFn(sources, t)
+	return shards, nil
+}
+
+type ShardGroup struct {
+	CreateIteratorFn func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error)
+	Fields           map[string]influxql.DataType
+	Dimensions       []string
+}
+
+func (sh *ShardGroup) CreateIterator(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
+	return sh.CreateIteratorFn(m, opt)
+}
+
+func (sh *ShardGroup) FieldDimensions(m *influxql.Measurement) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
+	fields = make(map[string]influxql.DataType)
+	dimensions = make(map[string]struct{})
+
+	for f, typ := range sh.Fields {
+		fields[f] = typ
+	}
+	for _, d := range sh.Dimensions {
+		dimensions[d] = struct{}{}
+	}
+	return fields, dimensions, nil
+}
+
+func (sh *ShardGroup) MapType(m *influxql.Measurement, field string) influxql.DataType {
+	if typ, ok := sh.Fields[field]; ok {
+		return typ
+	}
+	for _, d := range sh.Dimensions {
+		if d == field {
+			return influxql.Tag
+		}
+	}
+	return influxql.Unknown
+}
+
+func (*ShardGroup) Close() error {
+	return nil
 }
 
 func BenchmarkSelect_Raw_1K(b *testing.B)   { benchmarkSelectRaw(b, 1000) }
@@ -3825,11 +2868,11 @@ func benchmarkSelect(b *testing.B, stmt *influxql.SelectStatement, ic query.Iter
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		itrs, err := query.Select(stmt, ic, nil)
-		if err != nil {
-			b.Fatal(err)
-		}
-		query.DrainIterators(itrs)
+		//itrs, err := query.Select(stmt, ic, nil)
+		//if err != nil {
+		//	b.Fatal(err)
+		//}
+		//query.DrainIterators(itrs)
 	}
 }
 

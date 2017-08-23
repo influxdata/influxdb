@@ -5538,6 +5538,24 @@ func (t TimeRange) IsZero() bool {
 	return t.Min.IsZero() && t.Max.IsZero()
 }
 
+// MinTime returns the minimum time in nanoseconds since the epoch.
+// If the minimum time is zero, this returns the minimum possible time.
+func (t TimeRange) MinTime() int64 {
+	if t.Min.IsZero() {
+		return MinTime
+	}
+	return t.Min.UnixNano()
+}
+
+// MaxTime returns the maximum time in nanoseconds since the epoch.
+// If the maximum time is zero, this returns the maximum possible time.
+func (t TimeRange) MaxTime() int64 {
+	if t.Max.IsZero() {
+		return MaxTime
+	}
+	return t.Max.UnixNano()
+}
+
 // ConditionExpr extracts the time range and the condition from an expression.
 // We only support simple time ranges that are constrained with AND and are not nested.
 // This throws an error when we encounter a time condition that is combined with OR
