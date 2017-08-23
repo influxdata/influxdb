@@ -14,6 +14,9 @@ import {buildDefaultYLabel} from 'shared/presenters'
 import {numberValueFormatter} from 'src/utils/formatting'
 
 const {LINEAR, LOG, BASE_10} = DISPLAY_OPTIONS
+const labelWidth = 60
+const avgCharPixels = 7
+
 const hasherino = (str, len) =>
   str
     .split('')
@@ -65,6 +68,11 @@ export default class Dygraph extends Component {
       hashColorDygraphSeries[seriesName] = {...series, color}
     }
 
+    const axisLabelWidth =
+      labelWidth +
+      y.prefix.length * avgCharPixels +
+      y.suffix.length * avgCharPixels
+
     const defaultOptions = {
       plugins: isBarGraph
         ? []
@@ -92,7 +100,7 @@ export default class Dygraph extends Component {
           valueRange: getRange(timeSeries, y.bounds, ruleValues),
           axisLabelFormatter: (yval, __, opts) =>
             numberValueFormatter(yval, opts, y.prefix, y.suffix),
-          axisLabelWidth: 60 + y.prefix.length * 7 + y.suffix.length * 7,
+          axisLabelWidth,
           labelsKMB: y.base === '10',
           labelsKMG2: y.base === '2',
         },
@@ -250,7 +258,10 @@ export default class Dygraph extends Component {
       hashColorDygraphSeries[seriesName] = {...series, color}
     }
 
-    const axisLabelWidth = 60 + y.prefix.length * 7 + y.suffix.length * 7
+    const axisLabelWidth =
+      labelWidth +
+      y.prefix.length * avgCharPixels +
+      y.suffix.length * avgCharPixels
 
     const updateOptions = {
       labels,
