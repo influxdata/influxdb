@@ -294,6 +294,7 @@ export default class Dygraph extends Component {
 
     const {w} = this.dygraph.getArea()
     this.resize()
+    this.dygraph.resize()
     this.props.setResolution(w)
   }
 
