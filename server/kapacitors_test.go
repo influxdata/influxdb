@@ -142,11 +142,12 @@ func Test_KapacitorRulesGet(t *testing.T) {
 					tasks = map[string]interface{}{
 						"tasks": tsks[offset:],
 					}
-				} else {
-					tasks = map[string]interface{}{
-						"tasks": tsks[offset : offset+limit],
-					}
 				}
+				//} else {
+				//tasks = map[string]interface{}{
+				//"tasks": tsks[offset : offset+limit],
+				//}
+				//}
 
 				err = json.NewEncoder(rw).Encode(&tasks)
 				if err != nil {
