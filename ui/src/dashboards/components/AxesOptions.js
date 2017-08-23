@@ -3,7 +3,7 @@ import React, {PropTypes} from 'react'
 import OptIn from 'shared/components/OptIn'
 import Input from 'src/dashboards/components/DisplayOptionsInput'
 import {Tabber, Tab} from 'src/dashboards/components/Tabber'
-import {DISPLAY_OPTIONS} from 'src/dashboards/constants'
+import {DISPLAY_OPTIONS, TOOLTIP_CONTENT} from 'src/dashboards/constants'
 
 const {LINEAR, LOG, BASE_2, BASE_10} = DISPLAY_OPTIONS
 
@@ -63,7 +63,11 @@ const AxesOptions = ({
           labelText="Y-Value's Suffix"
           onChange={onSetPrefixSuffix}
         />
-        <Tabber labelText="Y-Value's Format">
+        <Tabber
+          labelText="Y-Value's Format"
+          tipID="Y-Values's Format"
+          tipContent={TOOLTIP_CONTENT.FORMAT}
+        >
           <Tab
             text="K/M/B"
             isActive={base === BASE_10}

@@ -101,3 +101,8 @@ export const DISPLAY_OPTIONS = {
   BASE_2: '2',
   BASE_10: '10',
 }
+
+export const TOOLTIP_CONTENT = {
+  FORMAT:
+    '<p>K/M/B = Thousand / Million / Billion</p><p>K/M/G = Kilo / Mega / Giga </p>',
+}
