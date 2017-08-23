@@ -244,3 +244,16 @@ $tick-script-overlay-margin: 30px;
   padding: 20px;
   border: 2px solid $g4-onyx;
 }
+
+/*
+  Fix Display issue in Safari
+  -----------------------------------------------------------------------------
+  The pseudo elements offset items in the tablists
+*/
+.nav-tablist {
+  &:before,
+  &:after {
+    content: none;
+    display: none;
+  }
+}

@@ -11,6 +11,7 @@
   align-items: stretch;
 }
 .display-options--cell {
+  position: relative;
   border-radius: 3px;
   background-color: $g3-castle;
   padding: 30px;
@@ -33,8 +34,12 @@
 .viz-type-selector {
   display: flex;
   flex-wrap: wrap;
-  height: calc(100% - 22px);
-  margin: -4px;
+  position: absolute;
+  top: 60px;
+  left: 26px;
+  height: calc(100% - 85px);
+  width: calc(100% - 52px);
+  margin: 0;
 }
 .viz-type-selector--option {
   flex: 1 0 33.3333%;
