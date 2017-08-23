@@ -1170,9 +1170,30 @@ func cors(inner http.Handler) http.Handler {
 
 func requestID(inner http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		uid := uuid.TimeUUID()
-		r.Header.Set("Request-Id", uid.String())
-		w.Header().Set("Request-Id", r.Header.Get("Request-Id"))
+		// X-Request-Id takes priority.
+		rid := r.Header.Get("X-Request-Id")
+
+		// If X-Request-Id is empty, then check Request-Id
+		if rid == "" {
+			rid = r.Header.Get("Request-Id")
+		}
+
+		// If Request-Id is empty then generate a v1 UUID.
+		if rid == "" {
+			rid = uuid.TimeUUID().String()
+		}
+
+		// We read Request-Id in other handler code so we'll use that naming
+		// convention from this point in the request cycle.
+		r.Header.Set("Request-Id", rid)
+
+		// Set the request ID on the response headers.
+		// X-Request-Id is the most common name for a request ID header.
+		w.Header().Set("X-Request-Id", rid)
+
+		// We will also set Request-Id for backwards compatibility with previous
+		// versions of InfluxDB.
+		w.Header().Set("Request-Id", rid)
 
 		inner.ServeHTTP(w, r)
 	})
