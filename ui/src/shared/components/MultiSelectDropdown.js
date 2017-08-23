@@ -38,7 +38,7 @@ class MultiSelectDropdown extends Component {
     this.setState({isOpen: false})
   }
 
-  toggleMenu(e) {
+  toggleMenu = e => {
     e.stopPropagation()
     this.setState({isOpen: !this.state.isOpen})
   }
@@ -76,7 +76,7 @@ class MultiSelectDropdown extends Component {
     return (
       <div className={classnames(`dropdown ${customClass}`, {open: isOpen})}>
         <div
-          onClick={::this.toggleMenu}
+          onClick={this.toggleMenu}
           className={`dropdown-toggle btn ${buttonSize} ${buttonColor}`}
         >
           {iconName ? <span className={`icon ${iconName}`} /> : null}

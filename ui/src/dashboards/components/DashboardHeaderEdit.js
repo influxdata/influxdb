@@ -6,23 +6,22 @@ class DashboardEditHeader extends Component {
     super(props)
 
     const {dashboard: {name}} = props
-    this.state = {name}
-    this.handleChange = ::this.handleChange
-    this.handleFormSubmit = ::this.handleFormSubmit
-    this.handleKeyUp = ::this.handleKeyUp
+    this.state = {
+      name,
+    }
   }
 
-  handleChange(name) {
-    this.setState({name})
+  handleChange = e => {
+    this.setState({name: e.target.value})
   }
 
-  handleFormSubmit(e) {
+  handleFormSubmit = e => {
     e.preventDefault()
     const name = e.target.name.value
     this.props.onSave(name)
   }
 
-  handleKeyUp(e) {
+  handleKeyUp = e => {
     const {onCancel} = this.props
     if (e.key === 'Escape') {
       onCancel()
@@ -46,11 +45,11 @@ class DashboardEditHeader extends Component {
               name="name"
               value={name}
               placeholder="Name this Dashboard"
-              onChange={e => this.handleChange(e.target.value)}
               onKeyUp={this.handleKeyUp}
               autoFocus={true}
               spellCheck={false}
               autoComplete="off"
+              onChange={this.handleChange}
             />
           </form>
           <ConfirmButtons item={name} onConfirm={onSave} onCancel={onCancel} />

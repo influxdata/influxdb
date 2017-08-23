@@ -1,17 +1,11 @@
-import React, {PropTypes} from 'react'
+import React, {PropTypes, Component} from 'react'
 
-const SensuConfig = React.createClass({
-  propTypes: {
-    config: PropTypes.shape({
-      options: PropTypes.shape({
-        source: PropTypes.string.isRequired,
-        addr: PropTypes.string.isRequired,
-      }).isRequired,
-    }).isRequired,
-    onSave: PropTypes.func.isRequired,
-  },
+class SensuConfig extends Component {
+  constructor(props) {
+    super(props)
+  }
 
-  handleSaveAlert(e) {
+  handleSaveAlert = e => {
     e.preventDefault()
 
     const properties = {
@@ -20,7 +14,7 @@ const SensuConfig = React.createClass({
     }
 
     this.props.onSave(properties)
-  },
+  }
 
   render() {
     const {source, addr} = this.props.config.options
@@ -56,7 +50,19 @@ const SensuConfig = React.createClass({
         </div>
       </form>
     )
-  },
-})
+  }
+}
+
+const {func, shape, string} = PropTypes
+
+SensuConfig.propTypes = {
+  config: shape({
+    options: shape({
+      source: string.isRequired,
+      addr: string.isRequired,
+    }).isRequired,
+  }).isRequired,
+  onSave: func.isRequired,
+}
 
 export default SensuConfig

@@ -7,6 +7,8 @@ export const graphTypes = [
     graphic: (
       <div className="viz-type-selector--graphic">
         <svg
+          width="100%"
+          height="100%"
           version="1.1"
           id="Line"
           x="0px"
@@ -48,6 +50,8 @@ export const graphTypes = [
     graphic: (
       <div className="viz-type-selector--graphic">
         <svg
+          width="100%"
+          height="100%"
           version="1.1"
           id="LineStacked"
           x="0px"
@@ -89,6 +93,8 @@ export const graphTypes = [
     graphic: (
       <div className="viz-type-selector--graphic">
         <svg
+          width="100%"
+          height="100%"
           version="1.1"
           id="StepPlot"
           x="0px"
@@ -122,6 +128,8 @@ export const graphTypes = [
     graphic: (
       <div className="viz-type-selector--graphic">
         <svg
+          width="100%"
+          height="100%"
           version="1.1"
           id="SingleStat"
           x="0px"
@@ -155,6 +163,8 @@ export const graphTypes = [
     graphic: (
       <div className="viz-type-selector--graphic">
         <svg
+          width="100%"
+          height="100%"
           version="1.1"
           id="LineAndSingleStat"
           x="0px"
@@ -204,6 +214,8 @@ export const graphTypes = [
     graphic: (
       <div className="viz-type-selector--graphic">
         <svg
+          width="100%"
+          height="100%"
           version="1.1"
           id="Bar"
           x="0px"

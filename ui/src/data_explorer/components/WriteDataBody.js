@@ -3,6 +3,7 @@ import WriteDataFooter from 'src/data_explorer/components/WriteDataFooter'
 
 const WriteDataBody = ({
   handleKeyUp,
+  handleCancelFile,
   handleFile,
   handleEdit,
   handleSubmit,
@@ -26,38 +27,56 @@ const WriteDataBody = ({
           autoFocus={true}
           data-test="manual-entry-field"
         />
-      : <div className="write-data-form--file">
+      : <div
+          className={
+            uploadContent
+              ? 'write-data-form--file'
+              : 'write-data-form--file write-data-form--file_active'
+          }
+          onClick={handleFileOpen}
+        >
+          {uploadContent
+            ? <h3 className="write-data-form--filepath_selected">
+                {fileName}
+              </h3>
+            : <h3 className="write-data-form--filepath_empty">
+                Drop a file here or click to upload
+              </h3>}
+          <div
+            className={
+              uploadContent
+                ? 'write-data-form--graphic write-data-form--graphic_success'
+                : 'write-data-form--graphic'
+            }
+          />
           <input
             type="file"
-            onChange={e => handleFile(e, false)}
+            onChange={handleFile(false)}
             className="write-data-form--upload"
             ref={fileInput}
             accept="text/*, application/gzip"
           />
-          <button
-            className="write-data-form--upload-button btn btn-md btn-primary"
-            onClick={handleFileOpen}
-          >
-            {uploadContent
-              ? 'Choose Another File to Upload'
-              : 'Choose a File to Upload'}
-          </button>
-          {uploadContent
-            ? <span className="write-data-form--filepath_selected">
-                <span className="icon checkmark" />
-                {fileName}
-              </span>
-            : <span className="write-data-form--filepath_empty">
-                No file selected
-              </span>}
+          {uploadContent &&
+            <span className="write-data-form--file-submit">
+              <button className="btn btn-md btn-success" onClick={handleSubmit}>
+                Write this File
+              </button>
+              <button
+                className="btn btn-md btn-default"
+                onClick={handleCancelFile}
+              >
+                Cancel
+              </button>
+            </span>}
         </div>}
-    <WriteDataFooter
-      isUploading={isUploading}
-      isManual={isManual}
-      inputContent={inputContent}
-      handleSubmit={handleSubmit}
-      uploadContent={uploadContent}
-    />
+    {isManual &&
+      <WriteDataFooter
+        isUploading={isUploading}
+        isManual={isManual}
+        inputContent={inputContent}
+        handleSubmit={handleSubmit}
+        uploadContent={uploadContent}
+      />}
   </div>
 
 const {func, string, bool} = PropTypes
@@ -65,6 +84,7 @@ const {func, string, bool} = PropTypes
 WriteDataBody.propTypes = {
   handleKeyUp: func.isRequired,
   handleEdit: func.isRequired,
+  handleCancelFile: func.isRequired,
   handleFile: func.isRequired,
   handleSubmit: func.isRequired,
   inputContent: string,

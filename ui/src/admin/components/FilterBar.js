@@ -3,14 +3,13 @@ import React, {Component, PropTypes} from 'react'
 class FilterBar extends Component {
   constructor(props) {
     super(props)
+
     this.state = {
       filterText: '',
     }
-
-    this.handleText = ::this.handleText
   }
 
-  handleText(e) {
+  handleText = e => {
     this.setState(
       {filterText: e.target.value},
       this.props.onFilter(e.target.value)
@@ -43,7 +42,7 @@ class FilterBar extends Component {
         <button
           className="btn btn-sm btn-primary"
           disabled={isEditing}
-          onClick={() => onClickCreate(type)}
+          onClick={onClickCreate(type)}
         >
           Create {placeholderText.substring(0, placeholderText.length - 1)}
         </button>

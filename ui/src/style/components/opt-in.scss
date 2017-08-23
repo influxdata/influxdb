@@ -1,0 +1,113 @@
+/*
+  Opt In Component
+  ------------------------------------------------------------------------------
+  User can toggle between a single value or any value
+*/
+.opt-in {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: nowrap;
+}
+.opt-in--left-label {
+  border: 2px solid $g5-pepper;
+  border-left: 0;
+  background-color: $g2-kevlar;
+  color: $c-pool;
+  font-family: $code-font;
+  padding-right: 11px;
+  border-radius: 0 4px 4px 0;
+  line-height: 24px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: default;
+  @include no-user-select();
+  transition: background-color 0.25s ease, color 0.25s ease;
+  &:hover {
+    cursor: pointer;
+  }
+}
+.opt-in--groove-knob-container {
+  display: flex;
+  align-items: center;
+  border: 2px solid $g5-pepper;
+  border-left: 0;
+  border-right: 0;
+  position: relative;
+
+  // Groove
+  > div.opt-in--groove-knob {
+    margin: 0 10px;
+    z-index: 3;
+    width: 28px;
+    height: 8px;
+    border-radius: 4px;
+    background-color: $g6-smoke;
+    position: relative;
+
+    // Knob
+    &:after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background-color: $c-pool;
+      transition: background-color 0.25s ease, transform 0.25s ease;
+      transform: translate(0%, -50%);
+    }
+  }
+
+  // Background Gradients
+  &:before,
+  &:after {
+    content: '';
+    display: block;
+    position: absolute;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    transition: opacity 0.25s ease;
+  }
+  // Left
+  &:before {
+    background-color: $g2-kevlar;
+    z-index: 2;
+    opacity: 1;
+  }
+  // Right
+  &:after {
+    @include gradient-h($g2-kevlar,$g3-castle);
+    z-index: 1;
+  }
+
+  &:hover {
+    cursor: pointer;
+    > div:after {
+      background-color: $c-laser;
+    }
+  }
+}
+// Customize form input
+.opt-in > input.form-control {
+  border-radius: 4px 0 0 4px;
+  font-family: $code-font;
+  flex: 1 0 0;
+}
+// Right value toggled state
+.opt-in.right-toggled {
+  .opt-in--groove-knob:after {
+    transform: translate(-100%, -50%);
+  }
+  // Fade out left, fade in right
+  .opt-in--groove-knob-container:before {
+    opacity: 0;
+  }
+  // Make left label look disabled
+  .opt-in--left-label {
+    background-color: $g3-castle;
+    color: $g8-storm;
+    font-style: italic;
+  }
+}

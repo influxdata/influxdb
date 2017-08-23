@@ -9,15 +9,24 @@
 .custom-time--container {
   display: none;
   position: absolute;
-  flex-direction: column;
-  align-items: center;
+  flex-direction: row;
+  align-items: stretch;
   top: 35px;
   right: 0;
-  background: $g5-pepper;
   border-radius: $radius;
-  padding: 8px;
   z-index: 1000;
   box-shadow: 0 2px 5px 0.6px rgba(15, 14, 21, 0.2);
+}
+.custom-time--wrap,
+.custom-time--moving-dates {
+  display: flex;
+  flex-direction: column;
+}
+.custom-time--wrap {
+  padding: 8px;
+  align-items: center;
+  border-radius: 0 $radius $radius 0;
+  background: $g5-pepper;
 }
 .custom-time--dates {
   display: flex;
@@ -26,9 +35,38 @@
 }
 .custom-time--lower {
   margin-right: 4px;
+  text-align: center;
 }
 .custom-time--upper {
   margin-left: 4px;
+  text-align: center;
+}
+.custom-time--shortcuts {
+  @include no-user-select();
+  align-items: stretch;
+  background-color: $g6-smoke;
+  border-radius: $radius 0 0 $radius;
+}
+.custom-time--shortcuts-header {
+  white-space: nowrap;
+  padding: 16px;
+  color: $g15-platinum;
+  font-weight: 700;
+}
+.custom-time--shortcut {
+  white-space: nowrap;
+  padding: 6px 16px;
+  transition:
+    color 0.25s ease,
+    background-color 0.25s ease;
+  color: $g11-sidewalk;
+  font-weight: 500;
+
+  &:hover {
+    cursor: pointer;
+    background-color: $g7-graphite;
+    color: $g17-whisper;
+  }
 }
 
 $custom-time-arrow: 28px;
@@ -143,12 +181,16 @@ $rd-cell-size: 30px;
     &.rd-day-next-month,
     &.rd-day-prev-month {
       cursor: default;
-      color: $g8-storm !important;
-      background-color: $g5-pepper !important;
+      visibility: hidden;
     }
     &.rd-day-selected {
       background-color: $c-pool !important;
       color: $g20-white !important;
+    }
+    &.rd-day-disabled {
+      color: $g8-storm !important;
+      background-color: $g5-pepper !important;
+      cursor: default;
     }
   }
 }
@@ -222,7 +264,7 @@ $rd-cell-size: 30px;
 
 .custom-time--container .btn.custom-time--apply {
   margin-top: 8px;
-  width: 120px;
+  width: 210px;
 }
 
 /* Open State */

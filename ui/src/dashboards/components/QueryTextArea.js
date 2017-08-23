@@ -23,17 +23,6 @@ class QueryTextArea extends Component {
       },
       filteredTemplates: this.props.templates,
     }
-
-    this.handleKeyDown = ::this.handleKeyDown
-    this.handleChange = ::this.handleChange
-    this.handleUpdate = ::this.handleUpdate
-    this.handleChooseTemplate = ::this.handleChooseTemplate
-    this.handleCloseDrawer = ::this.handleCloseDrawer
-    this.findTempVar = ::this.findTempVar
-    this.handleTemplateReplace = ::this.handleTemplateReplace
-    this.handleMouseOverTempVar = ::this.handleMouseOverTempVar
-    this.handleClickTempVar = ::this.handleClickTempVar
-    this.closeDrawer = ::this.closeDrawer
   }
 
   componentWillReceiveProps(nextProps) {
@@ -42,21 +31,21 @@ class QueryTextArea extends Component {
     }
   }
 
-  handleCloseDrawer() {
+  handleCloseDrawer = () => {
     this.setState({isTemplating: false})
   }
 
-  handleMouseOverTempVar(template) {
+  handleMouseOverTempVar = template => () => {
     this.handleTemplateReplace(template)
   }
 
-  handleClickTempVar(template) {
+  handleClickTempVar = template => () => {
     // Clicking a tempVar does the same thing as hitting 'Enter'
     this.handleTemplateReplace(template, true)
     this.closeDrawer()
   }
 
-  closeDrawer() {
+  closeDrawer = () => {
     this.setState({
       isTemplating: false,
       selectedTemplate: {
@@ -65,7 +54,7 @@ class QueryTextArea extends Component {
     })
   }
 
-  handleKeyDown(e) {
+  handleKeyDown = e => {
     const {isTemplating, value} = this.state
 
     if (isTemplating) {
@@ -96,7 +85,7 @@ class QueryTextArea extends Component {
     }
   }
 
-  handleTemplateReplace(selectedTemplate, replaceWholeTemplate) {
+  handleTemplateReplace = (selectedTemplate, replaceWholeTemplate) => {
     const {selectionStart, value} = this.editor
     const {tempVar} = selectedTemplate
     const newTempVar = replaceWholeTemplate
@@ -125,7 +114,7 @@ class QueryTextArea extends Component {
     )
   }
 
-  findTempVar(direction) {
+  findTempVar = direction => {
     const {filteredTemplates: templates} = this.state
     const {selectedTemplate} = this.state
 
@@ -149,7 +138,7 @@ class QueryTextArea extends Component {
     return templates[0]
   }
 
-  handleChange() {
+  handleChange = () => {
     const {templates} = this.props
     const {selectedTemplate} = this.state
     const value = this.editor.value
@@ -186,12 +175,8 @@ class QueryTextArea extends Component {
     }
   }
 
-  handleUpdate() {
+  handleUpdate = () => {
     this.props.onUpdate(this.state.value)
-  }
-
-  handleChooseTemplate(template) {
-    this.setState({value: template.query})
   }
 
   handleSelectTempVar(tempVar) {
