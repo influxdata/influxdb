@@ -824,7 +824,7 @@ func (m *measurementElemsIterator) Next() (n MeasurementElem) {
 	return n
 }
 
-func (i *Index) MeasurementSeriesPointIterator(measurement string, opt influxql.IteratorOptions) (influxql.Iterator, error) {
+func (i *Index) MeasurementSeriesPointIterator(measurement string, opt query.IteratorOptions) (query.Iterator, error) {
 	// NOTE: The iterator handles releasing the file set.
 	fs := i.RetainFileSet()
 	var mitr measurementElemsIterator

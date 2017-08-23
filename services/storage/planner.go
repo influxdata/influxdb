@@ -5,6 +5,7 @@ import (
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/uber-go/zap"
 )
@@ -17,7 +18,7 @@ type planner interface {
 
 type allMeasurementsPlanner struct {
 	shards    []*tsdb.Shard
-	sitr      influxql.FloatIterator
+	sitr      query.FloatIterator
 	fields    []string
 	nf        []string
 	m         string
@@ -30,12 +31,12 @@ type allMeasurementsPlanner struct {
 	cond      influxql.Expr
 }
 
-func toFloatIterator(iter influxql.Iterator, err error) (influxql.FloatIterator, error) {
+func toFloatIterator(iter query.Iterator, err error) (query.FloatIterator, error) {
 	if err != nil {
 		return nil, err
 	}
 
-	sitr, ok := iter.(influxql.FloatIterator)
+	sitr, ok := iter.(query.FloatIterator)
 	if !ok {
 		return nil, errors.New("expected FloatIterator")
 	}
@@ -43,7 +44,7 @@ func toFloatIterator(iter influxql.Iterator, err error) (influxql.FloatIterator,
 	return sitr, nil
 }
 
-func extractFields(itr influxql.FloatIterator) []string {
+func extractFields(itr query.FloatIterator) []string {
 	var fields []string
 	for {
 		p, err := itr.Next()
@@ -60,9 +61,9 @@ func extractFields(itr influxql.FloatIterator) []string {
 }
 
 func newAllMeasurementsPlanner(req *ReadRequest, shards []*tsdb.Shard, log zap.Logger) (*allMeasurementsPlanner, error) {
-	opt := influxql.IteratorOptions{
+	opt := query.IteratorOptions{
 		Aux:        []influxql.VarRef{{Val: "key"}},
-		Authorizer: influxql.OpenAuthorizer{},
+		Authorizer: query.OpenAuthorizer{},
 	}
 	p := &allMeasurementsPlanner{shards: shards}
 

@@ -5,11 +5,12 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/query"
 )
 
 func TestPlannerCondition(t *testing.T) {
 	sitr := &FloatIterator{
-		Points: []influxql.FloatPoint{
+		Points: []query.FloatPoint{
 			{Aux: []interface{}{"cpu,host=host1"}},
 			{Aux: []interface{}{"mem,host=host1"}},
 		},
@@ -40,15 +41,15 @@ func TestPlannerCondition(t *testing.T) {
 
 // FloatIterator is a represents an iterator that reads from a slice.
 type FloatIterator struct {
-	Points []influxql.FloatPoint
-	stats  influxql.IteratorStats
+	Points []query.FloatPoint
+	stats  query.IteratorStats
 }
 
-func (itr *FloatIterator) Stats() influxql.IteratorStats { return itr.stats }
-func (itr *FloatIterator) Close() error                  { return nil }
+func (itr *FloatIterator) Stats() query.IteratorStats { return itr.stats }
+func (itr *FloatIterator) Close() error               { return nil }
 
 // Next returns the next value and shifts it off the beginning of the points slice.
-func (itr *FloatIterator) Next() (*influxql.FloatPoint, error) {
+func (itr *FloatIterator) Next() (*query.FloatPoint, error) {
 	if len(itr.Points) == 0 {
 		return nil, nil
 	}

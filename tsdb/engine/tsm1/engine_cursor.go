@@ -2,6 +2,7 @@ package tsm1
 
 import (
 	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
 )
 
@@ -19,7 +20,7 @@ func (e *Engine) CreateCursor(r tsdb.CursorRequest) (tsdb.Cursor, error) {
 		return nil, nil
 	}
 
-	var opt influxql.IteratorOptions
+	var opt query.IteratorOptions
 	opt.Ascending = r.Ascending
 	opt.StartTime = r.StartTime
 	opt.EndTime = r.EndTime

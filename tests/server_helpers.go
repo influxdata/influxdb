@@ -488,6 +488,8 @@ func NewConfig() *run.Config {
 
 	c.Monitor.StoreEnabled = false
 
+	c.Storage.Enabled = false
+
 	return c
 }
 

@@ -19,6 +19,7 @@ import (
 	"github.com/influxdata/influxdb/cmd/influxd/run"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/services/storage"
 	"github.com/influxdata/influxdb/tsdb"
@@ -181,6 +182,7 @@ func (cmd *Command) query(c *run.Config) error {
 	if err := mc.Open(); err != nil {
 		return err
 	}
+	defer mc.Close()
 
 	s := tsdb.NewStore(c.Data.Dir)
 	// s.Logger = cmd.Logger
@@ -192,6 +194,7 @@ func (cmd *Command) query(c *run.Config) error {
 	if err := s.Open(); err != nil {
 		return fmt.Errorf("open tsdb store: %s", err)
 	}
+	defer s.Close()
 
 	store := storage.NewStore()
 	store.TSDBStore = s
@@ -209,14 +212,9 @@ func (cmd *Command) query(c *run.Config) error {
 
 	if cmd.iterator {
 		return cmd.queryIterator(mc, s)
-	} else {
-		return cmd.queryCursor(store)
 	}
 
-	s.Close()
-	mc.Close()
-
-	return nil
+	return cmd.queryCursor(store)
 }
 
 func (cmd *Command) queryCursor(s *storage.Store) error {
@@ -320,7 +318,7 @@ func (cmd *Command) queryIterator(mc *meta.Client, s *tsdb.Store) error {
 		}
 	}
 
-	var opt influxql.IteratorOptions
+	var opt query.IteratorOptions
 	opt.StartTime = cmd.startTime
 	opt.EndTime = cmd.endTime
 	opt.Ascending = !cmd.desc
@@ -336,7 +334,7 @@ func (cmd *Command) queryIterator(mc *meta.Client, s *tsdb.Store) error {
 		return err
 	}
 
-	iit, ok := it.(influxql.IntegerIterator)
+	iit, ok := it.(query.IntegerIterator)
 	if !ok {
 		return fmt.Errorf("not an integer iterator: %T", it)
 	}

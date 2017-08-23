@@ -49,7 +49,7 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 		return nil
 	}
 
-	lim := int64(req.Limit)
+	lim := req.Limit
 	if lim == 0 {
 		lim = math.MaxInt64
 	}
