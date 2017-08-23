@@ -58,7 +58,7 @@ func (v *nodeToExprVisitor) Visit(n *Node) NodeVisitor {
 	}
 
 	switch n.NodeType {
-	case NodeTypeGroupExpression:
+	case NodeTypeLogicalExpression:
 		if len(n.Children) > 1 {
 			op := influxql.AND
 			if n.GetLogical() == LogicalOr {
@@ -81,15 +81,32 @@ func (v *nodeToExprVisitor) Visit(n *Node) NodeVisitor {
 					v.exprs = append(v.exprs, &influxql.BinaryExpr{LHS: lhs, Op: op, RHS: rhs})
 				}
 			}
-			v.exprs = append(v.exprs, &influxql.ParenExpr{Expr: v.pop()})
+
 			return nil
 		}
 
-	case NodeTypeBooleanExpression:
+	case NodeTypeParenExpression:
+		if len(n.Children) != 1 {
+			v.err = errors.New("ParenExpression expects one child")
+			return nil
+		}
+
+		WalkNode(v, n.Children[0])
+		if v.err != nil {
+			return nil
+		}
+
+		if len(v.exprs) > 0 {
+			v.exprs = append(v.exprs, &influxql.ParenExpr{Expr: v.pop()})
+		}
+
+		return nil
+
+	case NodeTypeComparisonExpression:
 		walkChildren(v, n)
 
 		if len(v.exprs) < 2 {
-			v.err = errors.New("BooleanExpression expects two children")
+			v.err = errors.New("ComparisonExpression expects two children")
 			return nil
 		}
 
@@ -127,8 +144,8 @@ func (v *nodeToExprVisitor) Visit(n *Node) NodeVisitor {
 
 		return nil
 
-	case NodeTypeRef:
-		ref := n.GetRefValue()
+	case NodeTypeTagRef:
+		ref := n.GetTagRefValue()
 		if ref == "_measurement" {
 			ref = "_name"
 		}

@@ -53,7 +53,7 @@ type predicateExpressionPrinter struct {
 
 func (v *predicateExpressionPrinter) Visit(n *Node) NodeVisitor {
 	switch n.NodeType {
-	case NodeTypeGroupExpression:
+	case NodeTypeLogicalExpression:
 		if len(n.Children) > 0 {
 			var op string
 			if n.GetLogical() == LogicalAnd {
@@ -61,19 +61,25 @@ func (v *predicateExpressionPrinter) Visit(n *Node) NodeVisitor {
 			} else {
 				op = " OR "
 			}
-			v.Buffer.WriteString("( ")
 			WalkNode(v, n.Children[0])
 			for _, e := range n.Children[1:] {
 				v.Buffer.WriteString(op)
 				WalkNode(v, e)
 			}
+		}
 
+		return nil
+
+	case NodeTypeParenExpression:
+		if len(n.Children) == 1 {
+			v.Buffer.WriteString("( ")
+			WalkNode(v, n.Children[0])
 			v.Buffer.WriteString(" )")
 		}
 
 		return nil
 
-	case NodeTypeBooleanExpression:
+	case NodeTypeComparisonExpression:
 		WalkNode(v, n.Children[0])
 		v.Buffer.WriteByte(' ')
 		switch n.GetComparison() {
@@ -93,10 +99,14 @@ func (v *predicateExpressionPrinter) Visit(n *Node) NodeVisitor {
 		WalkNode(v, n.Children[1])
 		return nil
 
-	case NodeTypeRef:
+	case NodeTypeTagRef:
 		v.Buffer.WriteByte('\'')
-		v.Buffer.WriteString(n.GetRefValue())
+		v.Buffer.WriteString(n.GetTagRefValue())
 		v.Buffer.WriteByte('\'')
+		return nil
+
+	case NodeTypeFieldRef:
+		v.Buffer.WriteByte('$')
 		return nil
 
 	case NodeTypeLiteral:

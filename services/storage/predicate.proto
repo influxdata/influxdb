@@ -7,10 +7,12 @@ message Node {
   enum Type {
     option (gogoproto.goproto_enum_prefix) = false;
 
-    GROUP_EXPRESSION = 0 [(gogoproto.enumvalue_customname) = "NodeTypeGroupExpression"];
-    BOOLEAN_EXPRESSION = 1 [(gogoproto.enumvalue_customname) = "NodeTypeBooleanExpression"];
-    REF = 2 [(gogoproto.enumvalue_customname) = "NodeTypeRef"];
-    LITERAL = 3 [(gogoproto.enumvalue_customname) = "NodeTypeLiteral"];
+    LOGICAL_EXPRESSION = 0 [(gogoproto.enumvalue_customname) = "NodeTypeLogicalExpression"];
+    COMPARISON_EXPRESSION = 1 [(gogoproto.enumvalue_customname) = "NodeTypeComparisonExpression"];
+    PAREN_EXPRESSION = 2 [(gogoproto.enumvalue_customname) = "NodeTypeParenExpression"];
+    TAG_REF = 3 [(gogoproto.enumvalue_customname) = "NodeTypeTagRef"];
+    LITERAL = 4 [(gogoproto.enumvalue_customname) = "NodeTypeLiteral"];
+    FIELD_REF = 5 [(gogoproto.enumvalue_customname) = "NodeTypeFieldRef"];
   }
 
   enum Comparison {
@@ -41,9 +43,10 @@ message Node {
     uint64 uint_value = 6 [(gogoproto.customname) = "UnsignedValue"];
     double float_value = 7 [(gogoproto.customname) = "FloatValue"];
     string regex_value = 8 [(gogoproto.customname) = "RegexValue"];
-    string ref_value = 9 [(gogoproto.customname) = "RefValue"];
-    Logical logical = 10;
-    Comparison comparison = 11;
+    string tag_ref_value = 9 [(gogoproto.customname) = "TagRefValue"];
+    string field_ref_value = 10 [(gogoproto.customname) = "FieldRefValue"];
+    Logical logical = 11;
+    Comparison comparison = 12;
   }
 }
 

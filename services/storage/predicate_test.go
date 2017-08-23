@@ -9,28 +9,32 @@ import (
 )
 
 func TestWalk(t *testing.T) {
-	pred := &storage.Predicate{
-		Root: &storage.Node{
-			NodeType: storage.NodeTypeGroupExpression,
-			Value:    &storage.Node_Logical_{Logical: storage.LogicalAnd},
-			Children: []*storage.Node{
-				{
-					NodeType: storage.NodeTypeBooleanExpression,
-					Value:    &storage.Node_Comparison_{Comparison: storage.ComparisonEqual},
-					Children: []*storage.Node{
-						{NodeType: storage.NodeTypeRef, Value: &storage.Node_RefValue{RefValue: "host"}},
-						{NodeType: storage.NodeTypeLiteral, Value: &storage.Node_StringValue{StringValue: "host1"}},
-					},
-				},
-				{
-					NodeType: storage.NodeTypeBooleanExpression,
-					Value:    &storage.Node_Comparison_{Comparison: storage.ComparisonRegex},
-					Children: []*storage.Node{
-						{NodeType: storage.NodeTypeRef, Value: &storage.Node_RefValue{RefValue: "region"}},
-						{NodeType: storage.NodeTypeLiteral, Value: &storage.Node_RegexValue{RegexValue: "^us-west"}},
-					},
+	expr := &storage.Node{
+		NodeType: storage.NodeTypeLogicalExpression,
+		Value:    &storage.Node_Logical_{Logical: storage.LogicalAnd},
+		Children: []*storage.Node{
+			{
+				NodeType: storage.NodeTypeComparisonExpression,
+				Value:    &storage.Node_Comparison_{Comparison: storage.ComparisonEqual},
+				Children: []*storage.Node{
+					{NodeType: storage.NodeTypeTagRef, Value: &storage.Node_TagRefValue{TagRefValue: "host"}},
+					{NodeType: storage.NodeTypeLiteral, Value: &storage.Node_StringValue{StringValue: "host1"}},
 				},
 			},
+			{
+				NodeType: storage.NodeTypeComparisonExpression,
+				Value:    &storage.Node_Comparison_{Comparison: storage.ComparisonRegex},
+				Children: []*storage.Node{
+					{NodeType: storage.NodeTypeTagRef, Value: &storage.Node_TagRefValue{TagRefValue: "region"}},
+					{NodeType: storage.NodeTypeLiteral, Value: &storage.Node_RegexValue{RegexValue: "^us-west"}},
+				},
+			},
+		},
+	}
+	pred := &storage.Predicate{
+		Root: &storage.Node{
+			NodeType: storage.NodeTypeParenExpression,
+			Children: []*storage.Node{expr},
 		},
 	}
 
@@ -46,10 +50,10 @@ func TestWalk(t *testing.T) {
 func TestNodeToExpr(t *testing.T) {
 
 	node := &storage.Node{
-		NodeType: storage.NodeTypeBooleanExpression,
+		NodeType: storage.NodeTypeComparisonExpression,
 		Value:    &storage.Node_Comparison_{Comparison: storage.ComparisonEqual},
 		Children: []*storage.Node{
-			{NodeType: storage.NodeTypeRef, Value: &storage.Node_RefValue{RefValue: "host"}},
+			{NodeType: storage.NodeTypeTagRef, Value: &storage.Node_TagRefValue{TagRefValue: "host"}},
 			{NodeType: storage.NodeTypeLiteral, Value: &storage.Node_StringValue{StringValue: "host1"}},
 		},
 	}
@@ -64,22 +68,22 @@ func TestNodeToExpr(t *testing.T) {
 func TestNodeToExpr2(t *testing.T) {
 	pred := &storage.Predicate{
 		Root: &storage.Node{
-			NodeType: storage.NodeTypeGroupExpression,
+			NodeType: storage.NodeTypeLogicalExpression,
 			Value:    &storage.Node_Logical_{Logical: storage.LogicalAnd},
 			Children: []*storage.Node{
 				{
-					NodeType: storage.NodeTypeBooleanExpression,
+					NodeType: storage.NodeTypeComparisonExpression,
 					Value:    &storage.Node_Comparison_{Comparison: storage.ComparisonEqual},
 					Children: []*storage.Node{
-						{NodeType: storage.NodeTypeRef, Value: &storage.Node_RefValue{RefValue: "host"}},
+						{NodeType: storage.NodeTypeTagRef, Value: &storage.Node_TagRefValue{TagRefValue: "host"}},
 						{NodeType: storage.NodeTypeLiteral, Value: &storage.Node_StringValue{StringValue: "host1"}},
 					},
 				},
 				{
-					NodeType: storage.NodeTypeBooleanExpression,
+					NodeType: storage.NodeTypeComparisonExpression,
 					Value:    &storage.Node_Comparison_{Comparison: storage.ComparisonRegex},
 					Children: []*storage.Node{
-						{NodeType: storage.NodeTypeRef, Value: &storage.Node_RefValue{RefValue: "region"}},
+						{NodeType: storage.NodeTypeTagRef, Value: &storage.Node_TagRefValue{TagRefValue: "region"}},
 						{NodeType: storage.NodeTypeLiteral, Value: &storage.Node_RegexValue{RegexValue: "^us-west"}},
 					},
 				},
@@ -97,22 +101,22 @@ func TestNodeToExpr2(t *testing.T) {
 func TestNodeToExprNoField(t *testing.T) {
 	pred := &storage.Predicate{
 		Root: &storage.Node{
-			NodeType: storage.NodeTypeGroupExpression,
+			NodeType: storage.NodeTypeLogicalExpression,
 			Value:    &storage.Node_Logical_{Logical: storage.LogicalAnd},
 			Children: []*storage.Node{
 				{
-					NodeType: storage.NodeTypeBooleanExpression,
+					NodeType: storage.NodeTypeComparisonExpression,
 					Value:    &storage.Node_Comparison_{Comparison: storage.ComparisonEqual},
 					Children: []*storage.Node{
-						{NodeType: storage.NodeTypeRef, Value: &storage.Node_RefValue{RefValue: "host"}},
+						{NodeType: storage.NodeTypeTagRef, Value: &storage.Node_TagRefValue{TagRefValue: "host"}},
 						{NodeType: storage.NodeTypeLiteral, Value: &storage.Node_StringValue{StringValue: "host1"}},
 					},
 				},
 				{
-					NodeType: storage.NodeTypeBooleanExpression,
+					NodeType: storage.NodeTypeComparisonExpression,
 					Value:    &storage.Node_Comparison_{Comparison: storage.ComparisonRegex},
 					Children: []*storage.Node{
-						{NodeType: storage.NodeTypeRef, Value: &storage.Node_RefValue{RefValue: "_field"}},
+						{NodeType: storage.NodeTypeTagRef, Value: &storage.Node_TagRefValue{TagRefValue: "_field"}},
 						{NodeType: storage.NodeTypeLiteral, Value: &storage.Node_RegexValue{RegexValue: "^us-west"}},
 					},
 				},

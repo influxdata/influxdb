@@ -251,6 +251,15 @@ func (v *exprToNodeVisitor) Err() error {
 	return v.err
 }
 
+func (v *exprToNodeVisitor) pop() (top *storage.Node) {
+	if len(v.nodes) < 1 {
+		panic("exprToNodeVisitor: stack empty")
+	}
+
+	top, v.nodes = v.nodes[len(v.nodes)-1], v.nodes[:len(v.nodes)-1]
+	return
+}
+
 func (v *exprToNodeVisitor) pop2() (lhs, rhs *storage.Node) {
 	if len(v.nodes) < 2 {
 		panic("exprToNodeVisitor: stack empty")
@@ -282,7 +291,7 @@ func (v *exprToNodeVisitor) Visit(node influxql.Node) influxql.Visitor {
 		if n.Op == influxql.EQ {
 			lhs, rhs := v.pop2()
 			node := &storage.Node{
-				NodeType: storage.NodeTypeBooleanExpression,
+				NodeType: storage.NodeTypeComparisonExpression,
 				Value:    &storage.Node_Comparison_{Comparison: storage.ComparisonEqual},
 				Children: []*storage.Node{lhs, rhs},
 			}
@@ -297,7 +306,7 @@ func (v *exprToNodeVisitor) Visit(node influxql.Node) influxql.Visitor {
 
 			lhs, rhs := v.pop2()
 			node := &storage.Node{
-				NodeType: storage.NodeTypeGroupExpression,
+				NodeType: storage.NodeTypeLogicalExpression,
 				Value:    &storage.Node_Logical_{Logical: op},
 				Children: []*storage.Node{lhs, rhs},
 			}
@@ -308,13 +317,26 @@ func (v *exprToNodeVisitor) Visit(node influxql.Node) influxql.Visitor {
 
 		return nil
 
+	case *influxql.ParenExpr:
+		influxql.Walk(v, n.Expr)
+		if v.err != nil {
+			return nil
+		}
+
+		node := &storage.Node{
+			NodeType: storage.NodeTypeParenExpression,
+			Children: []*storage.Node{v.pop()},
+		}
+		v.nodes = append(v.nodes, node)
+		return nil
+
 	case *influxql.StringLiteral:
 		node := &storage.Node{NodeType: storage.NodeTypeLiteral, Value: &storage.Node_StringValue{StringValue: n.Val}}
 		v.nodes = append(v.nodes, node)
 		return nil
 
 	case *influxql.VarRef:
-		node := &storage.Node{NodeType: storage.NodeTypeRef, Value: &storage.Node_RefValue{RefValue: n.Val}}
+		node := &storage.Node{NodeType: storage.NodeTypeTagRef, Value: &storage.Node_TagRefValue{TagRefValue: n.Val}}
 		v.nodes = append(v.nodes, node)
 		return nil
 
