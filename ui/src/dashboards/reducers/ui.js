@@ -10,7 +10,10 @@ const initialState = {
   cellQueryStatus: {queryID: null, status: null},
 }
 
-import {TEMPLATE_VARIABLE_SELECTED} from 'shared/constants/actionTypes'
+import {
+  TEMPLATE_VARIABLE_SELECTED,
+  TEMPLATE_VARIABLES_SELECTED_BY_NAME,
+} from 'shared/constants/actionTypes'
 import {TEMPLATE_VARIABLE_TYPES} from 'src/dashboards/constants'
 
 export default function ui(state = initialState, action) {
@@ -227,6 +230,49 @@ export default function ui(state = initialState, action) {
         }
         return dashboard
       })
+      return {...state, dashboards: newDashboards}
+    }
+
+    case TEMPLATE_VARIABLES_SELECTED_BY_NAME: {
+      const {dashboardID, query} = action.payload
+
+      const selecteds = Object.keys(query).map(k => ({
+        tempVar: `:${k}:`,
+        selectedValue: query[k],
+      }))
+
+      const makeNewValue = (value, selected) => ({...value, selected})
+
+      const makeNewValues = template => ({
+        ...template,
+        values: template.values.map(
+          value =>
+            selecteds.find(({selectedValue}) => selectedValue === value.value)
+              ? makeNewValue(value, true)
+              : makeNewValue(value, false)
+        ),
+      })
+
+      const makeNewTemplates = templates =>
+        templates.map(
+          template =>
+            selecteds.find(({tempVar}) => tempVar === template.tempVar)
+              ? makeNewValues(template)
+              : template
+        )
+
+      const makeNewDashboard = dashboard => ({
+        ...dashboard,
+        templates: makeNewTemplates(dashboard.templates),
+      })
+
+      const newDashboards = state.dashboards.map(
+        oldDashboard =>
+          oldDashboard.id === dashboardID
+            ? makeNewDashboard(oldDashboard)
+            : oldDashboard
+      )
+
       return {...state, dashboards: newDashboards}
     }
 
