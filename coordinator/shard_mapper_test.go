@@ -61,7 +61,7 @@ func TestLocalShardMapper(t *testing.T) {
 		RetentionPolicy: "rp0",
 		Name:            "cpu",
 	}
-	ic, err := shardMapper.MapShards([]influxql.Source{measurement}, &query.SelectOptions{})
+	ic, err := shardMapper.MapShards([]influxql.Source{measurement}, influxql.TimeRange{})
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -84,7 +84,7 @@ func TestLocalShardMapper(t *testing.T) {
 			Sources: []influxql.Source{measurement},
 		},
 	}
-	ic, err = shardMapper.MapShards([]influxql.Source{subquery}, &query.SelectOptions{})
+	ic, err = shardMapper.MapShards([]influxql.Source{subquery}, influxql.TimeRange{})
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}

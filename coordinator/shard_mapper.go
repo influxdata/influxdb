@@ -17,12 +17,6 @@ type IteratorCreator interface {
 	io.Closer
 }
 
-// ShardMapper retrieves and maps shards into an IteratorCreator that can later be
-// used for executing queries.
-type ShardMapper interface {
-	MapShards(sources influxql.Sources, opt *query.SelectOptions) (IteratorCreator, error)
-}
-
 // LocalShardMapper implements a ShardMapper for local shards.
 type LocalShardMapper struct {
 	MetaClient interface {
@@ -35,18 +29,20 @@ type LocalShardMapper struct {
 }
 
 // MapShards maps the sources to the appropriate shards into an IteratorCreator.
-func (e *LocalShardMapper) MapShards(sources influxql.Sources, opt *query.SelectOptions) (IteratorCreator, error) {
+func (e *LocalShardMapper) MapShards(sources influxql.Sources, t influxql.TimeRange) (query.ShardGroup, error) {
 	a := &LocalShardMapping{
 		ShardMap: make(map[Source]tsdb.ShardGroup),
 	}
 
-	if err := e.mapShards(a, sources, opt); err != nil {
+	tmin := time.Unix(0, t.MinTime())
+	tmax := time.Unix(0, t.MaxTime())
+	if err := e.mapShards(a, sources, tmin, tmax); err != nil {
 		return nil, err
 	}
 	return a, nil
 }
 
-func (e *LocalShardMapper) mapShards(a *LocalShardMapping, sources influxql.Sources, opt *query.SelectOptions) error {
+func (e *LocalShardMapper) mapShards(a *LocalShardMapping, sources influxql.Sources, tmin, tmax time.Time) error {
 	for _, s := range sources {
 		switch s := s.(type) {
 		case *influxql.Measurement:
@@ -59,7 +55,7 @@ func (e *LocalShardMapper) mapShards(a *LocalShardMapping, sources influxql.Sour
 			// shards is always the same regardless of which measurement we are
 			// using.
 			if _, ok := a.ShardMap[source]; !ok {
-				groups, err := e.MetaClient.ShardGroupsByTimeRange(s.Database, s.RetentionPolicy, opt.MinTime, opt.MaxTime)
+				groups, err := e.MetaClient.ShardGroupsByTimeRange(s.Database, s.RetentionPolicy, tmin, tmax)
 				if err != nil {
 					return err
 				}
@@ -78,7 +74,7 @@ func (e *LocalShardMapper) mapShards(a *LocalShardMapping, sources influxql.Sour
 				a.ShardMap[source] = e.TSDBStore.ShardGroup(shardIDs)
 			}
 		case *influxql.SubQuery:
-			if err := e.mapShards(a, s.Statement.Sources, opt); err != nil {
+			if err := e.mapShards(a, s.Statement.Sources, tmin, tmax); err != nil {
 				return err
 			}
 		}
