@@ -1,5 +1,5 @@
 collectd.org e84e8af5356e7f47485bbc95c96da6dd7984a67e
-github.com/BurntSushi/toml 99064174e013895bbd9b025c31100bd1d9b590ca
+github.com/chanezon/toml a5e42e4db96f9fa382bb0e635069381bc34f3134
 github.com/bmizerany/pat c068ca2f0aacee5ac3681d68e4d0a003b7d1fd2c
 github.com/boltdb/bolt 4b1ebc1869ad66568b313d0dc410e2be72670dda
 github.com/cespare/xxhash 1b6d2e40c16ba0dfce5c8eac2480ad6e7394819b

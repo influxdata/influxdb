@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/BurntSushi/toml"
+	"github.com/chanezon/toml"
 	"github.com/influxdata/influxdb/cmd/influxd/run"
 )
 

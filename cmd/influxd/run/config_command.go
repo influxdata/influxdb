@@ -6,7 +6,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/BurntSushi/toml"
+	"github.com/chanezon/toml"
 )
 
 // PrintConfigCommand represents the command executed by "influxd config".

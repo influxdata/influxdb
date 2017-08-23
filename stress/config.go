@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/BurntSushi/toml"
+	"github.com/chanezon/toml"
 )
 
 // Config is a struct for the Stress test configuration
