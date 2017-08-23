@@ -2026,7 +2026,7 @@ func TestSelect(t *testing.T) {
 				},
 			}
 
-			itrs, _, err := query.Select(MustParseSelectStatement(tt.q), &shardMapper, nil)
+			itrs, _, err := query.Select(MustParseSelectStatement(tt.q), &shardMapper, query.SelectOptions{})
 			if err != nil {
 				if tt.err == "" {
 					t.Fatal(err)
@@ -2261,7 +2261,7 @@ func TestSelect_BinaryExpr_Float(t *testing.T) {
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			stmt := MustParseSelectStatement(test.Statement)
-			itrs, _, err := query.Select(stmt, &shardMapper, nil)
+			itrs, _, err := query.Select(stmt, &shardMapper, query.SelectOptions{})
 			if err != nil {
 				t.Errorf("%s: parse error: %s", test.Name, err)
 			} else if a, err := Iterators(itrs).ReadAll(); err != nil {
@@ -2517,7 +2517,7 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			stmt := MustParseSelectStatement(test.Statement)
-			itrs, _, err := query.Select(stmt, &shardMapper, nil)
+			itrs, _, err := query.Select(stmt, &shardMapper, query.SelectOptions{})
 			if err != nil {
 				t.Errorf("%s: parse error: %s", test.Name, err)
 			} else if a, err := Iterators(itrs).ReadAll(); err != nil {
@@ -2596,7 +2596,7 @@ func TestSelect_BinaryExpr_Mixed(t *testing.T) {
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			stmt := MustParseSelectStatement(test.Statement)
-			itrs, _, err := query.Select(stmt, &shardMapper, nil)
+			itrs, _, err := query.Select(stmt, &shardMapper, query.SelectOptions{})
 			if err != nil {
 				t.Errorf("%s: parse error: %s", test.Name, err)
 			} else if a, err := Iterators(itrs).ReadAll(); err != nil {
@@ -2673,7 +2673,7 @@ func TestSelect_BinaryExpr_Boolean(t *testing.T) {
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			stmt := MustParseSelectStatement(test.Statement)
-			itrs, _, err := query.Select(stmt, &shardMapper, nil)
+			itrs, _, err := query.Select(stmt, &shardMapper, query.SelectOptions{})
 			if err != nil {
 				t.Errorf("%s: parse error: %s", test.Name, err)
 			} else if a, err := Iterators(itrs).ReadAll(); err != nil {
@@ -2754,7 +2754,7 @@ func TestSelect_BinaryExpr_NilValues(t *testing.T) {
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			stmt := MustParseSelectStatement(test.Statement)
-			itrs, _, err := query.Select(stmt, &shardMapper, nil)
+			itrs, _, err := query.Select(stmt, &shardMapper, query.SelectOptions{})
 			if err != nil {
 				t.Errorf("%s: parse error: %s", test.Name, err)
 			} else if a, err := Iterators(itrs).ReadAll(); err != nil {
@@ -2801,7 +2801,7 @@ func TestSelect_InvalidQueries(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, _, err := query.Select(MustParseSelectStatement(tt.q), &shardMapper, nil)
+			_, _, err := query.Select(MustParseSelectStatement(tt.q), &shardMapper, query.SelectOptions{})
 			if err == nil || err.Error() != tt.err {
 				t.Errorf("expected error '%s', got '%s'", tt.err, err)
 			}
@@ -2813,7 +2813,7 @@ type ShardMapper struct {
 	MapShardsFn func(sources influxql.Sources, t influxql.TimeRange) query.ShardGroup
 }
 
-func (m *ShardMapper) MapShards(sources influxql.Sources, t influxql.TimeRange) (query.ShardGroup, error) {
+func (m *ShardMapper) MapShards(sources influxql.Sources, t influxql.TimeRange, opt query.SelectOptions) (query.ShardGroup, error) {
 	shards := m.MapShardsFn(sources, t)
 	return shards, nil
 }
