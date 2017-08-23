@@ -1,7 +1,7 @@
 # List
 - bootstrap 3.3.5 [MIT LICENSE](https://github.com/twbs/bootstrap/blob/master/LICENSE)
 - collectd.org [ISC LICENSE](https://github.com/collectd/go-collectd/blob/master/LICENSE)
-- github.com/BurntSushi/toml [WTFPL LICENSE](https://github.com/BurntSushi/toml/blob/master/COPYING)
+- github.com/BurntSushi/toml [MIT LICENSE](https://github.com/BurntSushi/toml/blob/master/COPYING)
 - github.com/bmizerany/pat [MIT LICENSE](https://github.com/bmizerany/pat#license)
 - github.com/boltdb/bolt [MIT LICENSE](https://github.com/boltdb/bolt/blob/master/LICENSE)
 - github.com/cespare/xxhash [MIT LICENSE](https://github.com/cespare/xxhash/blob/master/LICENSE.txt)
