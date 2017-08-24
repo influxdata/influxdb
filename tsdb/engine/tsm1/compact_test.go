@@ -116,9 +116,11 @@ func TestCompactor_CompactFull(t *testing.T) {
 	}
 	f3 := MustWriteTSM(dir, 3, writes)
 
+	fs := &fakeFileStore{}
+	defer fs.Close()
 	compactor := &tsm1.Compactor{
 		Dir:       dir,
-		FileStore: &fakeFileStore{},
+		FileStore: fs,
 	}
 
 	files, err := compactor.CompactFull([]string{f1, f2, f3})
@@ -215,9 +217,11 @@ func TestCompactor_Compact_OverlappingBlocks(t *testing.T) {
 	}
 	f3 := MustWriteTSM(dir, 3, writes)
 
+	fs := &fakeFileStore{}
+	defer fs.Close()
 	compactor := &tsm1.Compactor{
 		Dir:       dir,
-		FileStore: &fakeFileStore{},
+		FileStore: fs,
 		Size:      2,
 	}
 
@@ -294,9 +298,11 @@ func TestCompactor_Compact_OverlappingBlocksMultiple(t *testing.T) {
 	}
 	f3 := MustWriteTSM(dir, 3, writes)
 
+	fs := &fakeFileStore{}
+	defer fs.Close()
 	compactor := &tsm1.Compactor{
 		Dir:       dir,
-		FileStore: &fakeFileStore{},
+		FileStore: fs,
 		Size:      2,
 	}
 
@@ -365,9 +371,11 @@ func TestCompactor_CompactFull_SkipFullBlocks(t *testing.T) {
 	}
 	f3 := MustWriteTSM(dir, 3, writes)
 
+	fs := &fakeFileStore{}
+	defer fs.Close()
 	compactor := &tsm1.Compactor{
 		Dir:       dir,
-		FileStore: &fakeFileStore{},
+		FileStore: fs,
 		Size:      2,
 	}
 	compactor.Open()
@@ -464,9 +472,11 @@ func TestCompactor_CompactFull_TombstonedSkipBlock(t *testing.T) {
 	}
 	f3 := MustWriteTSM(dir, 3, writes)
 
+	fs := &fakeFileStore{}
+	defer fs.Close()
 	compactor := &tsm1.Compactor{
 		Dir:       dir,
-		FileStore: &fakeFileStore{},
+		FileStore: fs,
 		Size:      2,
 	}
 	compactor.Open()
@@ -564,9 +574,11 @@ func TestCompactor_CompactFull_TombstonedPartialBlock(t *testing.T) {
 	}
 	f3 := MustWriteTSM(dir, 3, writes)
 
+	fs := &fakeFileStore{}
+	defer fs.Close()
 	compactor := &tsm1.Compactor{
 		Dir:       dir,
-		FileStore: &fakeFileStore{},
+		FileStore: fs,
 		Size:      2,
 	}
 	compactor.Open()
@@ -669,9 +681,11 @@ func TestCompactor_CompactFull_TombstonedMultipleRanges(t *testing.T) {
 	}
 	f3 := MustWriteTSM(dir, 3, writes)
 
+	fs := &fakeFileStore{}
+	defer fs.Close()
 	compactor := &tsm1.Compactor{
 		Dir:       dir,
-		FileStore: &fakeFileStore{},
+		FileStore: fs,
 		Size:      2,
 	}
 	compactor.Open()
@@ -782,9 +796,11 @@ func TestCompactor_CompactFull_MaxKeys(t *testing.T) {
 	}
 	f2.Close()
 
+	fs := &fakeFileStore{}
+	defer fs.Close()
 	compactor := &tsm1.Compactor{
 		Dir:       dir,
-		FileStore: &fakeFileStore{},
+		FileStore: fs,
 	}
 	compactor.Open()
 
@@ -2434,6 +2450,7 @@ type fakeFileStore struct {
 	PathsFn      func() []tsm1.FileStat
 	lastModified time.Time
 	blockCount   int
+	readers      []*tsm1.TSMReader
 }
 
 func (w *fakeFileStore) Stats() []tsm1.FileStat {
@@ -2450,4 +2467,17 @@ func (w *fakeFileStore) LastModified() time.Time {
 
 func (w *fakeFileStore) BlockCount(path string, idx int) int {
 	return w.blockCount
+}
+
+func (w *fakeFileStore) TSMReader(path string) *tsm1.TSMReader {
+	r := MustOpenTSMReader(path)
+	w.readers = append(w.readers, r)
+	return r
+}
+
+func (w *fakeFileStore) Close() {
+	for _, r := range w.readers {
+		r.Close()
+	}
+	w.readers = nil
 }
