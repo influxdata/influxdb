@@ -666,6 +666,9 @@ type IteratorOptions struct {
 	// Limits the number of series.
 	SLimit, SOffset int
 
+	// Removes the measurement name. Useful for meta queries.
+	StripName bool
+
 	// Removes duplicate rows from raw queries.
 	Dedupe bool
 
@@ -736,6 +739,7 @@ func newIteratorOptionsStmt(stmt *influxql.SelectStatement, sopt SelectOptions) 
 	opt.Condition = condition
 	opt.Ascending = stmt.TimeAscending()
 	opt.Dedupe = stmt.Dedupe
+	opt.StripName = stmt.StripName
 
 	opt.Fill, opt.FillValue = stmt.Fill, stmt.FillValue
 	if opt.Fill == influxql.NullFill && stmt.Target != nil {
@@ -986,6 +990,7 @@ func encodeIteratorOptions(opt *IteratorOptions) *internal.IteratorOptions {
 		Offset:     proto.Int64(int64(opt.Offset)),
 		SLimit:     proto.Int64(int64(opt.SLimit)),
 		SOffset:    proto.Int64(int64(opt.SOffset)),
+		StripName:  proto.Bool(opt.StripName),
 		Dedupe:     proto.Bool(opt.Dedupe),
 		MaxSeriesN: proto.Int64(int64(opt.MaxSeriesN)),
 		Ordered:    proto.Bool(opt.Ordered),
@@ -1054,6 +1059,7 @@ func decodeIteratorOptions(pb *internal.IteratorOptions) (*IteratorOptions, erro
 		Offset:     int(pb.GetOffset()),
 		SLimit:     int(pb.GetSLimit()),
 		SOffset:    int(pb.GetSOffset()),
+		StripName:  pb.GetStripName(),
 		Dedupe:     pb.GetDedupe(),
 		MaxSeriesN: int(pb.GetMaxSeriesN()),
 		Ordered:    pb.GetOrdered(),

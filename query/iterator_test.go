@@ -1315,6 +1315,7 @@ func TestIteratorOptions_MarshalBinary(t *testing.T) {
 		Offset:     200,
 		SLimit:     300,
 		SOffset:    400,
+		StripName:  true,
 		Dedupe:     true,
 	}
 

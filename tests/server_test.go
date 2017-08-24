@@ -6241,12 +6241,6 @@ func TestServer_Query_Where_With_Tags(t *testing.T) {
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"where_events","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z","bar"],["2009-11-10T23:00:03Z","baz"],["2009-11-10T23:00:04Z","bat"],["2009-11-10T23:00:05Z","bar"],["2009-11-10T23:00:06Z","bap"]]}]}]}`,
 		},
 		&Query{
-			name:    "where on tag that should be double quoted but isn't",
-			params:  url.Values{"db": []string{"db0"}},
-			command: `show series where data-center = 'foo'`,
-			exp:     `{"results":[{"statement_id":0,"error":"invalid tag comparison operator"}]}`,
-		},
-		&Query{
 			name:    "where comparing tag and field",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `select foo from where_events where tennant != foo`,
@@ -7040,18 +7034,6 @@ func TestServer_Query_ShowSeries(t *testing.T) {
 			exp:     `{"results":[{"statement_id":0,"series":[{"columns":["key"],"values":[["cpu,host=server01,region=useast"],["cpu,host=server02,region=useast"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
-		&Query{
-			name:    `show series with WHERE time should fail`,
-			command: "SHOW SERIES WHERE time > now() - 1h",
-			exp:     `{"results":[{"statement_id":0,"error":"SHOW SERIES doesn't support time in WHERE clause"}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    `show series with WHERE field should fail`,
-			command: "SHOW SERIES WHERE value > 10.0",
-			exp:     `{"results":[{"statement_id":0,"error":"invalid tag comparison operator"}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
 	}...)
 
 	for i, query := range test.queries {
@@ -7267,13 +7249,7 @@ func TestServer_Query_ShowMeasurements(t *testing.T) {
 		&Query{
 			name:    `show measurements where tag does not match a regular expression`,
 			command: "SHOW MEASUREMENTS WHERE region !~ /ca.*/",
-			exp:     `{"results":[{"statement_id":0,"series":[{"name":"measurements","columns":["name"],"values":[["cpu"]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    `show measurements with time in WHERE clauses errors`,
-			command: `SHOW MEASUREMENTS WHERE time > now() - 1h`,
-			exp:     `{"results":[{"statement_id":0,"error":"SHOW MEASUREMENTS doesn't support time in WHERE clause"}]}`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"measurements","columns":["name"],"values":[["cpu"],["gpu"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 	}...)
@@ -7431,12 +7407,6 @@ func TestServer_Query_ShowTagKeys(t *testing.T) {
 			name:    "show tag keys measurement not found",
 			command: "SHOW TAG KEYS FROM doesntexist",
 			exp:     `{"results":[{"statement_id":0}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "show tag keys with time in WHERE clause errors",
-			command: "SHOW TAG KEYS FROM cpu WHERE time > now() - 1h",
-			exp:     `{"results":[{"statement_id":0,"error":"SHOW TAG KEYS doesn't support time in WHERE clause"}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
@@ -7627,12 +7597,6 @@ func TestServer_Query_ShowTagKeyCardinality(t *testing.T) {
 			name:    `show tag values cardinality with key and measurement matches regular expression`,
 			command: `SHOW TAG VALUES CARDINALITY FROM /[cg]pu/ WITH KEY = host`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["count"],"values":[[2]]},{"name":"gpu","columns":["count"],"values":[[2]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    `show tag values cardinality with key and time in WHERE clause should error`,
-			command: `SHOW TAG VALUES CARDINALITY WITH KEY = host WHERE time > now() - 1h`,
-			exp:     `{"results":[{"statement_id":0,"error":"SHOW TAG VALUES CARDINALITY doesn't support time in WHERE clause"}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 	}...)

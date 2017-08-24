@@ -88,21 +88,25 @@ func rewriteShowFieldKeyCardinalityStatement(stmt *ShowFieldKeyCardinalityStatem
 }
 
 func rewriteShowMeasurementsStatement(stmt *ShowMeasurementsStatement) (Statement, error) {
-	// Check for time in WHERE clause (not supported).
-	if HasTimeExpr(stmt.Condition) {
-		return nil, errors.New("SHOW MEASUREMENTS doesn't support time in WHERE clause")
+	var sources Sources
+	if stmt.Source != nil {
+		sources = Sources{stmt.Source}
 	}
 
-	condition := stmt.Condition
-	if stmt.Source != nil {
-		condition = rewriteSourcesCondition(Sources([]Source{stmt.Source}), stmt.Condition)
-	}
-	return &ShowMeasurementsStatement{
-		Database:   stmt.Database,
-		Condition:  condition,
-		Limit:      stmt.Limit,
+	return &SelectStatement{
+		Fields: []*Field{
+			{Expr: &VarRef{Val: "_name"}, Alias: "name"},
+		},
+		Sources:    rewriteSources2(sources, stmt.Database),
+		Condition:  stmt.Condition,
 		Offset:     stmt.Offset,
+		Limit:      stmt.Limit,
 		SortFields: stmt.SortFields,
+		OmitTime:   true,
+		StripName:  true,
+		EmitName:   "measurements",
+		Dedupe:     true,
+		IsRawQuery: true,
 	}, nil
 }
 
@@ -140,25 +144,22 @@ func rewriteShowMeasurementCardinalityStatement(stmt *ShowMeasurementCardinality
 		Offset:     stmt.Offset,
 		Limit:      stmt.Limit,
 		OmitTime:   true,
+		StripName:  true,
 	}, nil
 }
 
 func rewriteShowSeriesStatement(stmt *ShowSeriesStatement) (Statement, error) {
-	// Check for time in WHERE clause (not supported).
-	if HasTimeExpr(stmt.Condition) {
-		return nil, errors.New("SHOW SERIES doesn't support time in WHERE clause")
-	}
-
 	return &SelectStatement{
 		Fields: []*Field{
-			{Expr: &VarRef{Val: "key"}},
+			{Expr: &VarRef{Val: "_seriesKey"}, Alias: "key"},
 		},
-		Sources:    rewriteSources(stmt.Sources, "_series", stmt.Database),
-		Condition:  rewriteSourcesCondition(stmt.Sources, stmt.Condition),
+		Sources:    rewriteSources2(stmt.Sources, stmt.Database),
+		Condition:  stmt.Condition,
 		Offset:     stmt.Offset,
 		Limit:      stmt.Limit,
 		SortFields: stmt.SortFields,
 		OmitTime:   true,
+		StripName:  true,
 		Dedupe:     true,
 		IsRawQuery: true,
 	}, nil
@@ -248,11 +249,6 @@ func rewriteShowTagValuesStatement(stmt *ShowTagValuesStatement) (Statement, err
 }
 
 func rewriteShowTagValuesCardinalityStatement(stmt *ShowTagValuesCardinalityStatement) (Statement, error) {
-	// Check for time in WHERE clause (not supported).
-	if HasTimeExpr(stmt.Condition) {
-		return nil, errors.New("SHOW TAG VALUES CARDINALITY doesn't support time in WHERE clause")
-	}
-
 	// Use all measurements, if zero.
 	if len(stmt.Sources) == 0 {
 		stmt.Sources = Sources{
@@ -324,17 +320,18 @@ func rewriteShowTagValuesCardinalityStatement(stmt *ShowTagValuesCardinalityStat
 }
 
 func rewriteShowTagKeysStatement(stmt *ShowTagKeysStatement) (Statement, error) {
-	// Check for time in WHERE clause (not supported).
-	if HasTimeExpr(stmt.Condition) {
-		return nil, errors.New("SHOW TAG KEYS doesn't support time in WHERE clause")
-	}
-
 	return &SelectStatement{
 		Fields: []*Field{
-			{Expr: &VarRef{Val: "tagKey"}},
+			{
+				Expr: &Call{
+					Name: "distinct",
+					Args: []Expr{&VarRef{Val: "_tagKey"}},
+				},
+				Alias: "tagKey",
+			},
 		},
-		Sources:    rewriteSources(stmt.Sources, "_tagKeys", stmt.Database),
-		Condition:  rewriteSourcesCondition(stmt.Sources, stmt.Condition),
+		Sources:    rewriteSources2(stmt.Sources, stmt.Database),
+		Condition:  stmt.Condition,
 		Offset:     stmt.Offset,
 		Limit:      stmt.Limit,
 		SortFields: stmt.SortFields,
@@ -457,3 +454,20 @@ func rewriteSourcesCondition(sources Sources, cond Expr) Expr {
 	}
 	return scond
 }
+
+func rewriteSources2(sources Sources, database string) Sources {
+	if len(sources) == 0 {
+		sources = Sources{&Measurement{Regex: &RegexLiteral{Val: matchAllRegex.Copy()}}}
+	}
+	for _, source := range sources {
+		switch source := source.(type) {
+		case *Measurement:
+			if source.Database == "" {
+				source.Database = database
+			}
+		}
+	}
+	return sources
+}
+
+var matchAllRegex = regexp.MustCompile(`.+`)
