@@ -1,36 +1,19 @@
 ## v1.3.8.0 [unreleased]
 ### Bug Fixes
+
 ### Features
 1. [#1928](https://github.com/influxdata/chronograf/pull/1928): Add prefix, suffix, scale, and other y-axis formatting
+1. [#1886](https://github.com/influxdata/chronograf/pull/1886): Fix limit of 100 alert rules on alert rules page
 
 ### UI Improvements
 
-## v1.3.7.0
-### Bug Fixes
-1. [#1795](https://github.com/influxdata/chronograf/pull/1795): Fix uptime status on Windows hosts running Telegraf
-1. [#1715](https://github.com/influxdata/chronograf/pull/1715): Chronograf now renders on IE11.
-1. [#1870](https://github.com/influxdata/chronograf/pull/1870): Fix console error for placing prop on div
-1. [#1864](https://github.com/influxdata/chronograf/pull/1864): Fix Write Data form upload button and add `onDragExit` handler
-1. [#1891](https://github.com/influxdata/chronograf/pull/1891): Fix Kapacitor config for PagerDuty via the UI
-1. [#1872](https://github.com/influxdata/chronograf/pull/1872): Prevent stats in the legend from wrapping line
-
-### Features
-1. [#1863](https://github.com/influxdata/chronograf/pull/1863): Improve 'new-sources' server flag example by adding 'type' key
-
-### UI Improvements
-1. [#1862](https://github.com/influxdata/chronograf/pull/1862): Show "Add Graph" button on cells with no queries
-
-## v1.3.6.1 [2017-08-14]
-**Upgrade Note** This release (1.3.6.1) fixes a possibly data corruption issue with dashboard cells' graph types. If you upgraded to 1.3.6.0 and visited any dashboard, once you have then upgraded to this release (1.3.6.1) you will need to manually reset the graph type for every cell via the cell's caret --> Edit --> Display Options. If you upgraded directly to 1.3.6.1, you should not experience this issue.
-
+## v1.3.7.0 [2017-08-23]
 ### Bug Fixes
 1. [#1795](https://github.com/influxdata/chronograf/pull/1795): Fix uptime status on Windows hosts running Telegraf
 1. [#1715](https://github.com/influxdata/chronograf/pull/1715): Chronograf now renders on IE11.
 1. [#1870](https://github.com/influxdata/chronograf/pull/1870): Fix console error for placing prop on div
 1. [#1864](https://github.com/influxdata/chronograf/pull/1864): Fix Write Data form upload button and add `onDragExit` handler
 1. [#1866](https://github.com/influxdata/chronograf/pull/1866): Fix missing cell type (and consequently single-stat)
-1. [#1886](https://github.com/influxdata/chronograf/pull/1886): Fix limit of 100 alert rules on alert rules page
-
 1. [#1891](https://github.com/influxdata/chronograf/pull/1891): Fix Kapacitor config for PagerDuty via the UI
 1. [#1897](https://github.com/influxdata/chronograf/pull/1897): Fix regression from [#1864](https://github.com/influxdata/chronograf/pull/1864) and redesign drag & drop interaction
 1. [#1872](https://github.com/influxdata/chronograf/pull/1872): Prevent stats in the legend from wrapping line
