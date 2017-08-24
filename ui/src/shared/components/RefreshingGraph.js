@@ -10,6 +10,7 @@ const RefreshingSingleStat = AutoRefresh(SingleStat)
 const RefreshingGraph = ({
   axes,
   type,
+  onZoom,
   queries,
   templates,
   timeRange,
@@ -46,6 +47,7 @@ const RefreshingGraph = ({
       synchronizer={synchronizer}
       editQueryStatus={editQueryStatus}
       axes={axes}
+      onZoom={onZoom}
     />
   )
 }
@@ -64,6 +66,7 @@ RefreshingGraph.propTypes = {
   axes: shape(),
   queries: arrayOf(shape()).isRequired,
   editQueryStatus: func,
+  onZoom: func,
 }
 
 export default RefreshingGraph
