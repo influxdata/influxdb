@@ -1,10 +1,6 @@
 const PADDING_FACTOR = 0.1
 
 const considerEmpty = (userNumber, number) => {
-  if (userNumber === '') {
-    return null
-  }
-
   if (userNumber) {
     return +userNumber
   }
@@ -61,22 +57,24 @@ const getRange = (
     [null, null]
   )
 
-  const [min, max] = range
+  const [calcMin, calcMax] = range
 
-  // If time series is such that min and max are equal use Dygraph defaults
+  const [min, max] = [
+    considerEmpty(userMin, calcMin),
+    considerEmpty(userMax, calcMax),
+  ]
+
   if (min === max) {
-    return [null, null]
+    if (min > 0) {
+      return [0, max]
+    }
+
+    if (min < 0) {
+      return [min, 0]
+    }
   }
 
-  if (userMin === userMax) {
-    return [min, max]
-  }
-
-  if (userMin && userMax) {
-    return [considerEmpty(userMin), considerEmpty(userMax)]
-  }
-
-  return [considerEmpty(userMin, min), considerEmpty(userMax, max)]
+  return [min, max]
 }
 
 export default getRange
