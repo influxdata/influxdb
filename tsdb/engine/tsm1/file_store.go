@@ -498,6 +498,11 @@ func (f *FileStore) Stats() []FileStat {
 	// The file stats cache is invalid due to changes to files. Need to
 	// recalculate.
 	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if len(f.lastFileStats) > 0 {
+		return f.lastFileStats
+	}
 
 	// If lastFileStats's capacity is far away from the number of entries
 	// we need to add, then we'll reallocate.
@@ -508,7 +513,6 @@ func (f *FileStore) Stats() []FileStat {
 	for _, fd := range f.files {
 		f.lastFileStats = append(f.lastFileStats, fd.Stats())
 	}
-	defer f.mu.Unlock()
 	return f.lastFileStats
 }
 
@@ -641,8 +645,8 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 	// If times didn't change (which can happen since file mod times are second level),
 	// then add a ns to the time to ensure that lastModified changes since files on disk
 	// actually did change
-	if maxTime.Equal(f.lastModified) {
-		maxTime = maxTime.UTC().Add(1)
+	if maxTime.Equal(f.lastModified) || maxTime.Before(f.lastModified) {
+		maxTime = f.lastModified.UTC().Add(1)
 	}
 
 	f.lastModified = maxTime.UTC()
