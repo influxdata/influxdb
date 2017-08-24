@@ -55,6 +55,78 @@ func Test_Cells_CorrectAxis(t *testing.T) {
 			},
 			true,
 		},
+		{
+			"linear scale value",
+			&chronograf.DashboardCell{
+				Axes: map[string]chronograf.Axis{
+					"x": chronograf.Axis{
+						Scale:  "linear",
+						Bounds: []string{"0", "100"},
+					},
+				},
+			},
+			false,
+		},
+		{
+			"log scale value",
+			&chronograf.DashboardCell{
+				Axes: map[string]chronograf.Axis{
+					"x": chronograf.Axis{
+						Scale:  "log",
+						Bounds: []string{"0", "100"},
+					},
+				},
+			},
+			false,
+		},
+		{
+			"invalid scale value",
+			&chronograf.DashboardCell{
+				Axes: map[string]chronograf.Axis{
+					"x": chronograf.Axis{
+						Scale:  "potatoes",
+						Bounds: []string{"0", "100"},
+					},
+				},
+			},
+			true,
+		},
+		{
+			"base 10 axis",
+			&chronograf.DashboardCell{
+				Axes: map[string]chronograf.Axis{
+					"x": chronograf.Axis{
+						Base:   "10",
+						Bounds: []string{"0", "100"},
+					},
+				},
+			},
+			false,
+		},
+		{
+			"base 2 axis",
+			&chronograf.DashboardCell{
+				Axes: map[string]chronograf.Axis{
+					"x": chronograf.Axis{
+						Base:   "2",
+						Bounds: []string{"0", "100"},
+					},
+				},
+			},
+			false,
+		},
+		{
+			"invalid base",
+			&chronograf.DashboardCell{
+				Axes: map[string]chronograf.Axis{
+					"x": chronograf.Axis{
+						Base:   "all your base are belong to us",
+						Bounds: []string{"0", "100"},
+					},
+				},
+			},
+			true,
+		},
 	}
 
 	for _, test := range axisTests {

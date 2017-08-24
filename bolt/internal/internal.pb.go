@@ -121,6 +121,10 @@ type Axis struct {
 	LegacyBounds []int64  `protobuf:"varint,1,rep,name=legacyBounds" json:"legacyBounds,omitempty"`
 	Bounds       []string `protobuf:"bytes,2,rep,name=bounds" json:"bounds,omitempty"`
 	Label        string   `protobuf:"bytes,3,opt,name=label,proto3" json:"label,omitempty"`
+	Prefix       string   `protobuf:"bytes,4,opt,name=prefix,proto3" json:"prefix,omitempty"`
+	Suffix       string   `protobuf:"bytes,5,opt,name=suffix,proto3" json:"suffix,omitempty"`
+	Base         string   `protobuf:"bytes,6,opt,name=base,proto3" json:"base,omitempty"`
+	Scale        string   `protobuf:"bytes,7,opt,name=scale,proto3" json:"scale,omitempty"`
 }
 
 func (m *Axis) Reset()                    { *m = Axis{} }

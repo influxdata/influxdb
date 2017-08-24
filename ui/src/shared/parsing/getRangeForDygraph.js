@@ -11,7 +11,7 @@ const considerEmpty = (userNumber, number) => {
 const getRange = (
   timeSeries,
   userSelectedRange = [null, null],
-  ruleValues = {value: null, rangeValue: null}
+  ruleValues = {value: null, rangeValue: null, operator: ''}
 ) => {
   const {value, rangeValue, operator} = ruleValues
   const [userMin, userMax] = userSelectedRange

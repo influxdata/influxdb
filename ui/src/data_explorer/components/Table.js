@@ -103,7 +103,7 @@ class ChronoTable extends Component {
     const minWidth = 70
     const rowHeight = 34
     const headerHeight = 30
-    const stylePixelOffset = 125
+    const stylePixelOffset = 130
     const defaultColumnWidth = 200
     const styleAdjustedHeight = height - stylePixelOffset
     const width =

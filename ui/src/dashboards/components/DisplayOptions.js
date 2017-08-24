@@ -33,9 +33,12 @@ class DisplayOptions extends Component {
 
   render() {
     const {
+      onSetBase,
+      onSetScale,
+      onSetLabel,
       selectedGraphType,
       onSelectGraphType,
-      onSetLabel,
+      onSetPrefixSuffix,
       onSetYAxisBoundMin,
       onSetYAxisBoundMax,
     } = this.props
@@ -43,15 +46,18 @@ class DisplayOptions extends Component {
 
     return (
       <div className="display-options">
+        <AxesOptions
+          axes={axes}
+          onSetBase={onSetBase}
+          onSetLabel={onSetLabel}
+          onSetScale={onSetScale}
+          onSetPrefixSuffix={onSetPrefixSuffix}
+          onSetYAxisBoundMin={onSetYAxisBoundMin}
+          onSetYAxisBoundMax={onSetYAxisBoundMax}
+        />
         <GraphTypeSelector
           selectedGraphType={selectedGraphType}
           onSelectGraphType={onSelectGraphType}
-        />
-        <AxesOptions
-          onSetLabel={onSetLabel}
-          onSetYAxisBoundMin={onSetYAxisBoundMin}
-          onSetYAxisBoundMax={onSetYAxisBoundMax}
-          axes={axes}
         />
       </div>
     )
@@ -62,9 +68,12 @@ const {arrayOf, func, shape, string} = PropTypes
 DisplayOptions.propTypes = {
   selectedGraphType: string.isRequired,
   onSelectGraphType: func.isRequired,
+  onSetPrefixSuffix: func.isRequired,
   onSetYAxisBoundMin: func.isRequired,
   onSetYAxisBoundMax: func.isRequired,
+  onSetScale: func.isRequired,
   onSetLabel: func.isRequired,
+  onSetBase: func.isRequired,
   axes: shape({}).isRequired,
   queryConfigs: arrayOf(shape()).isRequired,
 }

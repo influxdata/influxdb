@@ -203,6 +203,10 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 			axes[a] = &Axis{
 				Bounds: r.Bounds,
 				Label:  r.Label,
+				Prefix: r.Prefix,
+				Suffix: r.Suffix,
+				Base:   r.Base,
+				Scale:  r.Scale,
 			}
 		}
 
@@ -281,14 +285,30 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 
 		axes := make(map[string]chronograf.Axis, len(c.Axes))
 		for a, r := range c.Axes {
+			// axis base defaults to 10
+			if r.Base == "" {
+				r.Base = "10"
+			}
+
+			if r.Scale == "" {
+				r.Scale = "linear"
+			}
+
 			if r.Bounds != nil {
 				axes[a] = chronograf.Axis{
 					Bounds: r.Bounds,
 					Label:  r.Label,
+					Prefix: r.Prefix,
+					Suffix: r.Suffix,
+					Base:   r.Base,
+					Scale:  r.Scale,
 				}
+
 			} else {
 				axes[a] = chronograf.Axis{
 					Bounds: []string{},
+					Base:   r.Base,
+					Scale:  r.Scale,
 				}
 			}
 		}
