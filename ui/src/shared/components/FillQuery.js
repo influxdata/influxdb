@@ -3,8 +3,8 @@ import Dropdown from 'src/shared/components/Dropdown'
 
 import {
   QUERY_FILL_OPTIONS,
-  NUMBER,
   NULL,
+  NUMBER,
 } from 'src/shared/constants/queryFillOptions'
 
 class FillQuery extends Component {
@@ -23,7 +23,7 @@ class FillQuery extends Component {
   }
 
   handleDropdown = item => {
-    if (item.text === 'number') {
+    if (item.text === NUMBER) {
       this.setState({selected: item.text}, () => {
         this.props.onSelection(this.state.inputValue)
       })
