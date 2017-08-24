@@ -249,7 +249,7 @@ class DashboardPage extends Component {
       type: upperType,
       values: [
         {
-          value: low || 'now()',
+          value: up || 'now()',
           type: upperType,
           selected: true,
         },

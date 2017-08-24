@@ -393,7 +393,7 @@ export default class Dygraph extends Component {
       return ''
     }
 
-    return moment(timeRange).format('YYYY-MM-DD HH:mm:ss').replace(/\'/g, '')
+    return moment(timeRange).utc().format()
   }
 
   render() {
