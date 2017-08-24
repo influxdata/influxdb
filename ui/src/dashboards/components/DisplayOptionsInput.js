@@ -17,6 +17,10 @@ const DisplayOptionsInput = ({id, name, value, onChange, labelText}) =>
 
 const {func, string} = PropTypes
 
+DisplayOptionsInput.defaultProps = {
+  value: '',
+}
+
 DisplayOptionsInput.propTypes = {
   name: string.isRequired,
   id: string.isRequired,
