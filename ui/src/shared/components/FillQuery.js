@@ -7,13 +7,6 @@ import {
   NULL,
 } from 'src/shared/constants/queryFillOptions'
 
-/*
-  NOTE
-  This component requires a function be passed in as a prop
-  FillQuery calls that function with 2 arguments:
-   - Either the selected item from the dropdown or the value of the input
-   - A boolean to type the result, true = number, false = string
-*/
 class FillQuery extends Component {
   constructor(props) {
     super(props)
@@ -32,11 +25,11 @@ class FillQuery extends Component {
   handleDropdown = item => {
     if (item.text === 'number') {
       this.setState({selected: item.text}, () => {
-        this.props.onSelection(this.state.inputValue, true)
+        this.props.onSelection(this.state.inputValue)
       })
     } else {
       this.setState({selected: item.text}, () => {
-        this.props.onSelection(item.text, false)
+        this.props.onSelection(item.text)
       })
     }
   }
@@ -45,11 +38,14 @@ class FillQuery extends Component {
     const inputValue = e.target.value || '0'
 
     this.setState({inputValue})
-    this.props.onSelection(inputValue, true)
+    this.props.onSelection(inputValue)
   }
 
   handleInputChange = e => {
-    this.setState({inputValue: e.target.value})
+    const inputValue = e.target.value
+
+    this.setState({inputValue})
+    this.props.onSelection(inputValue)
   }
 
   handleKeyUp = e => {
