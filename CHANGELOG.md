@@ -8,6 +8,12 @@
 
 ## v1.3.7.0 [2017-08-23]
 ## v1.3.7.0 [unreleased]
+### Features
+1. [#1928](https://github.com/influxdata/chronograf/pull/1928): Add prefix, suffix, scale, and other y-axis formatting
+
+### UI Improvements
+
+## v1.3.7.0
 ### Bug Fixes
 1. [#1795](https://github.com/influxdata/chronograf/pull/1795): Fix uptime status on Windows hosts running Telegraf
 1. [#1715](https://github.com/influxdata/chronograf/pull/1715): Chronograf now renders on IE11.
