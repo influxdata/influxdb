@@ -7,6 +7,7 @@ import (
 	"io"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/influxdata/influxdb"
@@ -401,7 +402,39 @@ func (e *StatementExecutor) executeDropUserStatement(q *influxql.DropUserStateme
 }
 
 func (e *StatementExecutor) executeExplainStatement(q *influxql.ExplainStatement, ctx *query.ExecutionContext) (models.Rows, error) {
-	return nil, errors.New("unimplemented")
+	if q.Analyze {
+		return nil, errors.New("analyze is currently unimplemented")
+	}
+
+	opt := query.SelectOptions{
+		InterruptCh: ctx.InterruptCh,
+		NodeID:      ctx.ExecutionOptions.NodeID,
+		MaxSeriesN:  e.MaxSelectSeriesN,
+		MaxBucketsN: e.MaxSelectBucketsN,
+		Authorizer:  ctx.Authorizer,
+	}
+
+	// Prepare the query for execution, but do not actually execute it.
+	// This should perform any needed substitutions.
+	p, err := query.Prepare(q.Statement, e.ShardMapper, opt)
+	if err != nil {
+		return nil, err
+	}
+	defer p.Close()
+
+	plan, err := p.Explain()
+	if err != nil {
+		return nil, err
+	}
+	plan = strings.TrimSpace(plan)
+
+	row := &models.Row{
+		Columns: []string{"QUERY PLAN"},
+	}
+	for _, s := range strings.Split(plan, "\n") {
+		row.Values = append(row.Values, []interface{}{s})
+	}
+	return models.Rows{row}, nil
 }
 
 func (e *StatementExecutor) executeGrantStatement(stmt *influxql.GrantStatement) error {

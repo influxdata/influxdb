@@ -2785,6 +2785,10 @@ func (sh *ShardGroup) CreateIterator(m *influxql.Measurement, opt query.Iterator
 	return sh.CreateIteratorFn(m, opt)
 }
 
+func (sh *ShardGroup) IteratorCost(m *influxql.Measurement, opt query.IteratorOptions) (query.IteratorCost, error) {
+	return query.IteratorCost{}, nil
+}
+
 func (sh *ShardGroup) FieldDimensions(m *influxql.Measurement) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
 	fields = make(map[string]influxql.DataType)
 	dimensions = make(map[string]struct{})

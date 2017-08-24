@@ -56,6 +56,9 @@ type PreparedStatement interface {
 	// Select creates the Iterators that will be used to read the query.
 	Select() ([]Iterator, []string, error)
 
+	// Explain outputs the explain plan for this statement.
+	Explain() (string, error)
+
 	// Close closes the resources associated with this prepared statement.
 	// This must be called as the mapped shards may hold open resources such
 	// as network connections.

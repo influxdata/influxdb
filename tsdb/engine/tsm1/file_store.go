@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/query"
 	"github.com/uber-go/zap"
 )
 
@@ -472,6 +473,12 @@ func (f *FileStore) Read(key []byte, t int64) ([]Value, error) {
 	return nil, nil
 }
 
+func (f *FileStore) Cost(key []byte, min, max int64) query.IteratorCost {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	return f.cost(key, min, max)
+}
+
 // KeyCursor returns a KeyCursor for key and t across the files in the FileStore.
 func (f *FileStore) KeyCursor(key []byte, t int64, ascending bool) *KeyCursor {
 	f.mu.RLock()
@@ -726,6 +733,47 @@ func (f *FileStore) walkFiles(fn func(f TSMFile) error) error {
 	return nil
 }
 
+// We need to determine the possible files that may be accessed by this query given
+// the time range.
+func (f *FileStore) cost(key []byte, min, max int64) query.IteratorCost {
+	var entries []IndexEntry
+	cost := query.IteratorCost{}
+	for _, fd := range f.files {
+		minTime, maxTime := fd.TimeRange()
+		if !(maxTime > min && minTime < max) {
+			continue
+		}
+		skipped := true
+		tombstones := fd.TombstoneRange(key)
+
+		fd.ReadEntries(key, &entries)
+	ENTRIES:
+		for i := 0; i < len(entries); i++ {
+			ie := entries[i]
+
+			if !(ie.MaxTime > min && ie.MinTime < max) {
+				continue
+			}
+
+			// Skip any blocks only contain values that are tombstoned.
+			for _, t := range tombstones {
+				if t.Min <= ie.MinTime && t.Max >= ie.MaxTime {
+					continue ENTRIES
+				}
+			}
+
+			cost.BlocksRead++
+			cost.BlockSize += int64(ie.Size)
+			skipped = false
+		}
+
+		if !skipped {
+			cost.NumFiles++
+		}
+	}
+	return cost
+}
+
 // locations returns the files and index blocks for a key and time.  ascending indicates
 // whether the key will be scan in ascending time order or descenging time order.
 // This function assumes the read-lock has been taken.
@@ -735,7 +783,6 @@ func (f *FileStore) locations(key []byte, t int64, ascending bool) []*location {
 	for _, fd := range f.files {
 		minTime, maxTime := fd.TimeRange()
 
-		tombstones := fd.TombstoneRange(key)
 		// If we ascending and the max time of the file is before where we want to start
 		// skip it.
 		if ascending && maxTime < t {
@@ -745,6 +792,7 @@ func (f *FileStore) locations(key []byte, t int64, ascending bool) []*location {
 		} else if !ascending && minTime > t {
 			continue
 		}
+		tombstones := fd.TombstoneRange(key)
 
 		// This file could potential contain points we are looking for so find the blocks for
 		// the given key.
