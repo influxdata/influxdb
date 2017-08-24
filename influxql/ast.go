@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
+	internal "github.com/influxdata/influxdb/influxql/internal"
 	"github.com/influxdata/influxdb/models"
 )
 
@@ -441,6 +443,33 @@ func (a Sources) Measurements() []*Measurement {
 		}
 	}
 	return mms
+}
+
+// MarshalBinary encodes a list of sources to a binary format.
+func (a Sources) MarshalBinary() ([]byte, error) {
+	var pb internal.Measurements
+	pb.Items = make([]*internal.Measurement, len(a))
+	for i, source := range a {
+		pb.Items[i] = encodeMeasurement(source.(*Measurement))
+	}
+	return proto.Marshal(&pb)
+}
+
+// UnmarshalBinary decodes binary data into a list of sources.
+func (a *Sources) UnmarshalBinary(buf []byte) error {
+	var pb internal.Measurements
+	if err := proto.Unmarshal(buf, &pb); err != nil {
+		return err
+	}
+	*a = make(Sources, len(pb.GetItems()))
+	for i := range pb.GetItems() {
+		mm, err := decodeMeasurement(pb.GetItems()[i])
+		if err != nil {
+			return err
+		}
+		(*a)[i] = mm
+	}
+	return nil
 }
 
 // RequiredPrivileges recursively returns a list of execution privileges required.
@@ -2421,6 +2450,38 @@ func (s *SelectStatement) NamesInDimension() []string {
 	}
 
 	return a
+}
+
+func encodeMeasurement(mm *Measurement) *internal.Measurement {
+	pb := &internal.Measurement{
+		Database:        proto.String(mm.Database),
+		RetentionPolicy: proto.String(mm.RetentionPolicy),
+		Name:            proto.String(mm.Name),
+		IsTarget:        proto.Bool(mm.IsTarget),
+	}
+	if mm.Regex != nil {
+		pb.Regex = proto.String(mm.Regex.Val.String())
+	}
+	return pb
+}
+
+func decodeMeasurement(pb *internal.Measurement) (*Measurement, error) {
+	mm := &Measurement{
+		Database:        pb.GetDatabase(),
+		RetentionPolicy: pb.GetRetentionPolicy(),
+		Name:            pb.GetName(),
+		IsTarget:        pb.GetIsTarget(),
+	}
+
+	if pb.Regex != nil {
+		regex, err := regexp.Compile(pb.GetRegex())
+		if err != nil {
+			return nil, fmt.Errorf("invalid binary measurement regex: value=%q, err=%s", pb.GetRegex(), err)
+		}
+		mm.Regex = &RegexLiteral{Val: regex}
+	}
+
+	return mm, nil
 }
 
 // walkNames will walk the Expr and return the identifier names used.
