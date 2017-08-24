@@ -246,6 +246,7 @@ func Test_MarshalDashboard_WithLegacyBounds(t *testing.T) {
 					"y": chronograf.Axis{
 						Bounds: []string{},
 						Base:   "10",
+						Scale:  "linear",
 					},
 				},
 				Type: "line",
@@ -320,6 +321,7 @@ func Test_MarshalDashboard_WithEmptyLegacyBounds(t *testing.T) {
 					"y": chronograf.Axis{
 						Bounds: []string{},
 						Base:   "10",
+						Scale:  "linear",
 					},
 				},
 				Type: "line",
