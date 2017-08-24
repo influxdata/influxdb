@@ -77,6 +77,8 @@ export function groupByTime(query, time) {
   })
 }
 
+export const fill = (query, value) => ({...query, fill: value})
+
 export function toggleTagAcceptance(query) {
   return Object.assign({}, query, {
     areTagsAccepted: !query.areTagsAccepted,
