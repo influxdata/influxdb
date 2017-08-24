@@ -6,6 +6,7 @@ import {
   chooseTag,
   groupByTag,
   groupByTime,
+  fill,
   toggleField,
   toggleTagAcceptance,
 } from 'src/utils/queryTransitions'
@@ -107,6 +108,16 @@ const queryConfigs = (state = {}, action) => {
       return Object.assign({}, state, {
         [queryId]: nextQueryConfig,
       })
+    }
+
+    case 'KAPA_FILL': {
+      const {queryId, value} = action.payload
+      const nextQueryConfig = fill(state[queryId], value)
+
+      return {
+        ...state,
+        [queryId]: nextQueryConfig,
+      }
     }
   }
   return state

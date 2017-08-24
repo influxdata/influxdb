@@ -61,3 +61,11 @@ export const groupByTime = (queryId, time) => ({
     time,
   },
 })
+
+export const fill = (queryId, value) => ({
+  type: 'KAPA_FILL',
+  payload: {
+    queryId,
+    value,
+  },
+})

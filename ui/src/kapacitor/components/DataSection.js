@@ -35,8 +35,8 @@ class DataSection extends Component {
     this.props.actions.groupByTime(this.props.query.id, null)
   }
 
-  handleFillQuery = (val, isNum) => {
-    console.log(val, isNum)
+  handleFillQuery = value => {
+    this.props.actions.fill(this.props.query.id, value)
   }
 
   handleGroupByTime = time => {
