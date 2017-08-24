@@ -86,7 +86,7 @@ const AxesOptions = ({
             onClickTab={onSetScale(LINEAR)}
           />
           <Tab
-            text="Logaritmic"
+            text="Logarithmic"
             isActive={scale === LOG}
             onClickTab={onSetScale(LOG)}
           />
