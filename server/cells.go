@@ -77,31 +77,31 @@ func ValidDashboardCellRequest(c *chronograf.DashboardCell) error {
 // HasCorrectAxes verifies that only permitted axes exist within a DashboardCell
 func HasCorrectAxes(c *chronograf.DashboardCell) error {
 	for label, axis := range c.Axes {
-		switch label {
-		case "x", "y", "y2":
-			// no-op
-		default:
+		if !oneOf(label, "x", "y", "y2") {
 			return chronograf.ErrInvalidAxis
 		}
 
-		// validate axis scale
-		switch axis.Scale {
-		case "linear", "", "log":
-			// no-op
-		default:
+		if !oneOf(axis.Scale, "linear", "log", "") {
 			return chronograf.ErrInvalidAxis
 		}
 
-		// validate axis base
-		switch axis.Base {
-		case "10", "2", "":
-			// no-op
-		default:
+		if !oneOf(axis.Base, "10", "2", "") {
 			return chronograf.ErrInvalidAxis
 		}
 	}
 
 	return nil
+}
+
+// oneOf reports whether a provided string is a member of a variadic list of
+// valid options
+func oneOf(prop string, validOpts ...string) bool {
+	for _, valid := range validOpts {
+		if prop == valid {
+			return true
+		}
+	}
+	return false
 }
 
 // CorrectWidthHeight changes the cell to have at least the
