@@ -74,7 +74,7 @@ class FillQuery extends Component {
 
     return (
       <div className={`fill-query fill-query--${size}`}>
-        <label>Fill missing with</label>
+        <label>Fill</label>
         <Dropdown
           selected={selected}
           items={items}
