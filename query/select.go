@@ -34,7 +34,7 @@ type SelectOptions struct {
 // ShardMapper retrieves and maps shards into an IteratorCreator that can later be
 // used for executing queries.
 type ShardMapper interface {
-	MapShards(sources influxql.Sources, t influxql.TimeRange) (ShardGroup, error)
+	MapShards(sources influxql.Sources, t influxql.TimeRange, opt SelectOptions) (ShardGroup, error)
 }
 
 // ShardGroup represents a shard or a collection of shards that can be accessed
@@ -49,7 +49,7 @@ type ShardGroup interface {
 //
 // Statements should have all rewriting performed before calling select(). This
 // includes wildcard and source expansion.
-func Select(stmt *influxql.SelectStatement, shardMapper ShardMapper, sopt *SelectOptions) ([]Iterator, []string, error) {
+func Select(stmt *influxql.SelectStatement, shardMapper ShardMapper, sopt SelectOptions) ([]Iterator, []string, error) {
 	// It is important to "stamp" this time so that everywhere we evaluate `now()` in the statement is EXACTLY the same `now`
 	now := time.Now().UTC()
 
@@ -78,7 +78,7 @@ func Select(stmt *influxql.SelectStatement, shardMapper ShardMapper, sopt *Selec
 	}
 
 	// Create an iterator creator based on the shards in the cluster.
-	shards, err := shardMapper.MapShards(stmt.Sources, timeRange)
+	shards, err := shardMapper.MapShards(stmt.Sources, timeRange, sopt)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -92,12 +92,12 @@ func Select(stmt *influxql.SelectStatement, shardMapper ShardMapper, sopt *Selec
 	stmt = tmp
 
 	// Determine base options for iterators.
-	opt, err := newIteratorOptionsStmt(stmt, sopt)
+	opt, err := newIteratorOptionsStmt(stmt, &sopt)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	if sopt != nil && sopt.MaxBucketsN > 0 && !stmt.IsRawQuery {
+	if sopt.MaxBucketsN > 0 && !stmt.IsRawQuery {
 		interval, err := stmt.GroupByInterval()
 		if err != nil {
 			return nil, nil, err
