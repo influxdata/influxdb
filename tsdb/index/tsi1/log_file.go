@@ -189,17 +189,17 @@ func (f *LogFile) Release() { f.wg.Done() }
 
 // Stat returns size and last modification time of the file.
 func (f *LogFile) Stat() (int64, time.Time) {
-	f.mu.Lock()
+	f.mu.RLock()
 	size, modTime := f.size, f.modTime
-	f.mu.Unlock()
+	f.mu.RUnlock()
 	return size, modTime
 }
 
 // Size returns the size of the file, in bytes.
 func (f *LogFile) Size() int64 {
-	f.mu.Lock()
+	f.mu.RLock()
 	v := f.size
-	f.mu.Unlock()
+	f.mu.RUnlock()
 	return v
 }
 
