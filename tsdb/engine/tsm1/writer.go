@@ -433,7 +433,10 @@ func (d *directIndex) WriteTo(w io.Writer) (int64, error) {
 		if entries.Len() > maxIndexEntries {
 			return N, fmt.Errorf("key '%s' exceeds max index entries: %d > %d", key, entries.Len(), maxIndexEntries)
 		}
-		sort.Sort(entries)
+
+		if !sort.IsSorted(entries) {
+			sort.Sort(entries)
+		}
 
 		binary.BigEndian.PutUint16(buf[0:2], uint16(len(key)))
 		buf[2] = entries.Type
