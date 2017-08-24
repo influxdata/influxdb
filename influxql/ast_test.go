@@ -1666,29 +1666,6 @@ func TestSources_HasSystemSource(t *testing.T) {
 	}
 }
 
-// Parse statements that might appear valid but should return an error.
-// If allowed to execute, at least some of these statements would result in a panic.
-func TestParse_Errors(t *testing.T) {
-	for _, tt := range []struct {
-		tmpl string
-		good string
-		bad  string
-	}{
-		// Second argument to derivative must be duration
-		{tmpl: `SELECT derivative(f, %s) FROM m`, good: "1h", bad: "true"},
-	} {
-		good := fmt.Sprintf(tt.tmpl, tt.good)
-		if _, err := influxql.ParseStatement(good); err != nil {
-			t.Fatalf("statement %q should have parsed correctly but returned error: %s", good, err)
-		}
-
-		bad := fmt.Sprintf(tt.tmpl, tt.bad)
-		if _, err := influxql.ParseStatement(bad); err == nil {
-			t.Fatalf("statement %q should have resulted in a parse error but did not", bad)
-		}
-	}
-}
-
 // This test checks to ensure that we have given thought to the database
 // context required for security checks.  If a new statement is added, this
 // test will fail until it is categorized into the correct bucket below.
