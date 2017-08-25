@@ -347,7 +347,7 @@ func NewIntervalIterator(input Iterator, opt IteratorOptions) Iterator {
 	case BooleanIterator:
 		return newBooleanIntervalIterator(input, opt)
 	default:
-		panic(fmt.Sprintf("unsupported fill iterator type: %T", input))
+		panic(fmt.Sprintf("unsupported interval iterator type: %T", input))
 	}
 }
 
