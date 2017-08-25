@@ -1,8 +1,9 @@
 ## v1.3.8.0 [unreleased]
 ### Bug Fixes
-1. [#1886](https://github.com/influxdata/chronograf/pull/1886): Fix limit of 100 alert rules on alert rules page
 
 ### Features
+1. [#1928](https://github.com/influxdata/chronograf/pull/1928): Add prefix, suffix, scale, and other y-axis formatting
+1. [#1886](https://github.com/influxdata/chronograf/pull/1886): Fix limit of 100 alert rules on alert rules page
 
 ### UI Improvements
 
