@@ -6,6 +6,7 @@
 1. [#1886](https://github.com/influxdata/chronograf/pull/1886): Fix limit of 100 alert rules on alert rules page
 
 ### UI Improvements
+1. [#1933](https://github.com/influxdata/chronograf/pull/1933): Use line-stacked graph type for memory information - thank you, @Joxit!
 
 ## v1.3.7.0 [2017-08-23]
 ### Bug Fixes
