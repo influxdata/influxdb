@@ -9,27 +9,21 @@ import CustomTimeRangeOverlay from 'shared/components/CustomTimeRangeOverlay'
 import timeRanges from 'hson!shared/data/timeRanges.hson'
 import {DROPDOWN_MENU_MAX_HEIGHT} from 'shared/constants/index'
 
+const emptyTime = {lower: '', upper: ''}
+
 class TimeRangeDropdown extends Component {
   constructor(props) {
+    super(props)
     const {lower, upper} = props.selected
 
-    super(props)
+    const isTimeValid = moment(upper).isValid() && moment(lower).isValid()
+    const customTimeRange = isTimeValid ? {lower, upper} : emptyTime
 
     this.state = {
       autobind: false,
       isOpen: false,
       isCustomTimeRangeOpen: false,
-      customTimeRange:
-        moment(props.selected.upper).isValid() &&
-        moment(props.selected.lower).isValid()
-          ? {
-              lower,
-              upper,
-            }
-          : {
-              lower: '',
-              upper: '',
-            },
+      customTimeRange,
     }
   }
 
