@@ -186,8 +186,13 @@ export default class Dygraph extends Component {
           }
         }
       },
-      zoomCallback: (lower, upper) =>
-        onZoom(this.formatTimeRange(lower), this.formatTimeRange(upper)),
+      zoomCallback: (lower, upper) => {
+        if (this.dygraph.isZoomed() === false) {
+          return onZoom(null, null)
+        }
+
+        onZoom(this.formatTimeRange(lower), this.formatTimeRange(upper))
+      },
     }
 
     if (isBarGraph) {
