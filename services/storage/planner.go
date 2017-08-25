@@ -91,10 +91,20 @@ func newAllMeasurementsPlanner(req *ReadRequest, shards []*tsdb.Shard, log zap.L
 	}
 
 	sg := tsdb.Shards(shards)
-	p.sitr, err = toFloatIterator(sg.CreateIterator("_series", opt))
-	if err != nil {
+	if itr, err := sg.CreateIterator("_series", opt); err != nil {
 		return nil, err
+	} else {
+		if req.SeriesLimit > 0 || req.SeriesOffset > 0 {
+			opt := query.IteratorOptions{Limit: int(req.SeriesLimit), Offset: int(req.SeriesOffset)}
+			itr = query.NewLimitIterator(itr, opt)
+		}
+
+		p.sitr, err = toFloatIterator(itr, nil)
+		if err != nil {
+			return nil, err
+		}
 	}
+
 	fitr, err := toFloatIterator(sg.CreateIterator("_fieldKeys", opt))
 	if err != nil {
 		return nil, err

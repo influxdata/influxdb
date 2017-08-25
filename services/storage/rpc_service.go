@@ -34,7 +34,9 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 
 	r.Logger.Info("request",
 		zap.String("predicate", PredicateToExprString(req.Predicate)),
-		zap.Int64("limit", req.Limit),
+		zap.Uint64("series limit", req.SeriesLimit),
+		zap.Uint64("series offset", req.SeriesOffset),
+		zap.Uint64("points limit", req.PointsLimit),
 		zap.Int64("start", req.TimestampRange.Start),
 		zap.Int64("end", req.TimestampRange.End),
 	)
@@ -50,12 +52,12 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 		return nil
 	}
 
-	lim := req.Limit
+	lim := req.PointsLimit
 	if lim == 0 {
-		lim = math.MaxInt64
+		lim = math.MaxUint64
 	}
 
-	i := int64(0)
+	pointCount := uint64(0)
 	b := 0
 	var lastTags models.Tags
 	var res ReadResponse
@@ -87,6 +89,8 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 
 			lastTags = next
 			res.Frames = append(res.Frames, ReadResponse_Frame{&ReadResponse_Frame_Series{&sf}})
+
+			pointCount = 0
 		}
 
 		switch cur := cur.(type) {
@@ -99,9 +103,8 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 				if ts == tsdb.EOF {
 					break
 				}
-				i++
-				if i > lim {
-					rs.Close()
+				pointCount++
+				if pointCount > lim {
 					break
 				}
 
@@ -125,9 +128,8 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 				if ts == tsdb.EOF {
 					break
 				}
-				i++
-				if i > lim {
-					rs.Close()
+				pointCount++
+				if pointCount > lim {
 					break
 				}
 

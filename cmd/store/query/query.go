@@ -35,8 +35,9 @@ type Command struct {
 	retentionPolicy string
 	startTime       int64
 	endTime         int64
-	limit           int
-	offset          int
+	limit           uint64
+	slimit          uint64
+	soffset         uint64
 	desc            bool
 	silent          bool
 	expr            string
@@ -73,8 +74,9 @@ func (cmd *Command) Run(args ...string) error {
 	fs.StringVar(&cmd.retentionPolicy, "retention", "", "Optional: the retention policy to export (requires -database)")
 	fs.StringVar(&start, "start", "", "Optional: the start time to export (RFC3339 format)")
 	fs.StringVar(&end, "end", "", "Optional: the end time to export (RFC3339 format)")
-	fs.IntVar(&cmd.limit, "limit", 10, "Optional: limit number of rows")
-	fs.IntVar(&cmd.offset, "offset", 0, "Optional: start offset for rows")
+	fs.Uint64Var(&cmd.slimit, "slimit", 10, "Optional: limit number of series")
+	fs.Uint64Var(&cmd.soffset, "soffset", 0, "Optional: start offset for series")
+	fs.Uint64Var(&cmd.limit, "limit", 0, "Optional: limit number of values per series")
 	fs.BoolVar(&cmd.desc, "desc", false, "Optional: return results in descending order")
 	fs.BoolVar(&cmd.silent, "silent", false, "silence output")
 	fs.StringVar(&cmd.expr, "expr", "", "InfluxQL expression")
@@ -141,7 +143,9 @@ func (cmd *Command) query(c storage.StorageClient) error {
 	req.Database = cmd.database
 	req.TimestampRange.Start = cmd.startTime
 	req.TimestampRange.End = cmd.endTime
-	req.Limit = int64(cmd.limit)
+	req.SeriesLimit = cmd.slimit
+	req.SeriesOffset = cmd.soffset
+	req.PointsLimit = cmd.limit
 
 	if cmd.expr != "" {
 		expr, err := influxql.ParseExpr(cmd.expr)
