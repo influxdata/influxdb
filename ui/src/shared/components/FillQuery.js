@@ -1,51 +1,56 @@
 import React, {Component, PropTypes} from 'react'
-import Dropdown from 'src/shared/components/Dropdown'
+import Dropdown from 'shared/components/Dropdown'
 
-import {
-  QUERY_FILL_OPTIONS,
-  NULL,
-  NUMBER,
-} from 'src/shared/constants/queryFillOptions'
+import {NULL, NUMBER} from 'shared/constants/queryFillOptions'
+
+import queryFills from 'hson!shared/data/queryFills.hson'
 
 class FillQuery extends Component {
   constructor(props) {
     super(props)
-    this.state = {
-      selected: this.props.fillType,
-      inputValue: '0',
-    }
+
+    this.state =
+      typeof props.value === NUMBER
+        ? {
+            selected: queryFills.find(fill => fill.type === props.value),
+            numberValue: '0',
+          }
+        : {
+            selected: queryFills.find(fill => fill.type === NUMBER),
+            numberValue: props.value,
+          }
   }
 
   static defaultProps = {
     size: 'xs',
     theme: 'blue',
-    fillType: NULL,
+    value: NULL,
   }
 
   handleDropdown = item => {
     if (item.text === NUMBER) {
-      this.setState({selected: item.text}, () => {
-        this.props.onSelection(this.state.inputValue)
+      this.setState({selected: item}, () => {
+        this.props.onSelection(this.state.numberValue)
       })
     } else {
-      this.setState({selected: item.text}, () => {
+      this.setState({selected: item}, () => {
         this.props.onSelection(item.text)
       })
     }
   }
 
   handleInputBlur = e => {
-    const inputValue = e.target.value || '0'
+    const numberValue = e.target.value || '0'
 
-    this.setState({inputValue})
-    this.props.onSelection(inputValue)
+    this.setState({numberValue})
+    this.props.onSelection(numberValue)
   }
 
   handleInputChange = e => {
-    const inputValue = e.target.value
+    const numberValue = e.target.value
 
-    this.setState({inputValue})
-    this.props.onSelection(inputValue)
+    this.setState({numberValue})
+    this.props.onSelection(numberValue)
   }
 
   handleKeyUp = e => {
@@ -68,23 +73,24 @@ class FillQuery extends Component {
   }
 
   render() {
-    const {size, theme} = this.props
-    const {selected, inputValue} = this.state
-    const items = QUERY_FILL_OPTIONS.map(text => ({text}))
+    const {size, theme, isKapacitorRule} = this.props
+    const {selected, numberValue} = this.state
 
     return (
       <div className={`fill-query fill-query--${size}`}>
         <label>Fill</label>
         <Dropdown
-          selected={selected}
-          items={items}
+          selected={selected.text}
+          items={queryFills.filter(
+            fill => !(isKapacitorRule && !fill.isInKapacitor) // Filter fill types not supported by Kapacitor
+          )}
           className="fill-query--dropdown"
           buttonSize={`btn-${size}`}
           buttonColor="btn-default"
           menuClass={`dropdown-${this.getColor(theme)}`}
           onChoose={this.handleDropdown}
         />
-        {selected === NUMBER &&
+        {selected.type === NUMBER &&
           <input
             type="number"
             className={`form-control monotype form-${this.getColor(
@@ -92,7 +98,7 @@ class FillQuery extends Component {
             )} input-${size} fill-query--input`}
             placeholder="Custom Value"
             autoFocus={true}
-            value={inputValue}
+            value={numberValue}
             onKeyUp={this.handleKeyUp}
             onChange={this.handleInputChange}
             onBlur={this.handleInputBlur}
@@ -102,13 +108,14 @@ class FillQuery extends Component {
   }
 }
 
-const {func, string} = PropTypes
+const {bool, func, string} = PropTypes
 
 FillQuery.propTypes = {
   onSelection: func.isRequired,
-  fillType: string,
+  value: string,
   size: string,
   theme: string,
+  isKapacitorRule: bool,
 }
 
 export default FillQuery
