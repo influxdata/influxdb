@@ -20,7 +20,7 @@ export const quoteIfTimestamp = ({lower, upper}) => {
 /* eslint-enable quotes */
 
 export default function buildInfluxQLQuery(timeBounds, config) {
-  const {groupBy, tags, areTagsAccepted} = config
+  const {groupBy, fill, tags, areTagsAccepted} = config
   const {upper, lower} = quoteIfTimestamp(timeBounds)
 
   const select = _buildSelect(config)
@@ -30,8 +30,9 @@ export default function buildInfluxQLQuery(timeBounds, config) {
 
   const condition = _buildWhereClause({lower, upper, tags, areTagsAccepted})
   const dimensions = _buildGroupBy(groupBy)
+  const fillClause = _buildFill(fill)
 
-  return `${select}${condition}${dimensions}`
+  return `${select}${condition}${dimensions}${fillClause}`
 }
 
 function _buildSelect({fields, database, retentionPolicy, measurement}) {
@@ -131,4 +132,8 @@ function _buildGroupByTags(groupBy) {
   }
 
   return ` GROUP BY ${tags}`
+}
+
+function _buildFill(fill) {
+  return ` FILL(${fill})`
 }
