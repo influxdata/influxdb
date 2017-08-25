@@ -97,7 +97,7 @@ class FillQuery extends Component {
               theme
             )} input-${size} fill-query--input`}
             placeholder="Custom Value"
-            autoFocus={true}
+            // autoFocus={true}
             value={numberValue}
             onKeyUp={this.handleKeyUp}
             onChange={this.handleInputChange}
