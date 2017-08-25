@@ -207,7 +207,8 @@ class DashboardPage extends Component {
   }
 
   render() {
-    const {zoomedLower, zoomedUpper} = this.state.zoomedTimeRange
+    const {zoomedTimeRange} = this.state
+    const {zoomedLower, zoomedUpper} = zoomedTimeRange
 
     const {
       source,
@@ -320,6 +321,7 @@ class DashboardPage extends Component {
               sourceID={sourceID}
               dashboard={dashboard}
               timeRange={timeRange}
+              zoomedTimeRange={zoomedTimeRange}
               autoRefresh={autoRefresh}
               isHidden={inPresentationMode}
               onAddCell={this.handleAddCell}
