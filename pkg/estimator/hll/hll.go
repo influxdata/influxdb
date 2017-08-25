@@ -21,7 +21,7 @@ import (
 	"sort"
 
 	"github.com/cespare/xxhash"
-	"github.com/dgryski/go-bits"
+	"github.com/influxdata/influxdb/pkg/bits"
 	"github.com/influxdata/influxdb/pkg/estimator"
 )
 
@@ -154,7 +154,7 @@ func (h *Plus) Add(v []byte) {
 		i := bextr(x, 64-h.p, h.p) // {x63,...,x64-p}
 		w := x<<h.p | 1<<(h.p-1)   // {x63-p,...,x0}
 
-		rho := uint8(bits.Clz(w)) + 1
+		rho := uint8(bits.LeadingZeros64(w)) + 1
 		if rho > h.denseList[i] {
 			h.denseList[i] = rho
 		}
@@ -382,7 +382,7 @@ func (h *Plus) toNormal() {
 func (h *Plus) encodeHash(x uint64) uint32 {
 	idx := uint32(bextr(x, 64-h.pp, h.pp))
 	if bextr(x, 64-h.pp, h.pp-h.p) == 0 {
-		zeros := bits.Clz((bextr(x, 0, 64-h.pp)<<h.pp)|(1<<h.pp-1)) + 1
+		zeros := bits.LeadingZeros64((bextr(x, 0, 64-h.pp)<<h.pp)|(1<<h.pp-1)) + 1
 		return idx<<7 | uint32(zeros<<1) | 1
 	}
 	return idx << 1
@@ -394,9 +394,7 @@ func (h *Plus) decodeHash(k uint32) (uint32, uint8) {
 	if k&1 == 1 {
 		r = uint8(bextr32(k, 1, 6)) + h.pp - h.p
 	} else {
-		// We can use the 64bit clz implementation and reduce the result
-		// by 32 to get a clz for a 32bit word.
-		r = uint8(bits.Clz(uint64(k<<(32-h.pp+h.p-1))) - 31) // -32 + 1
+		r = uint8(bits.LeadingZeros32(k<<(32-h.pp+h.p-1)) + 1)
 	}
 	return h.getIndex(k), r
 }
