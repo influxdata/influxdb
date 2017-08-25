@@ -10,9 +10,15 @@ import (
 	"github.com/uber-go/zap"
 )
 
+var (
+	measurementKey = []byte("_measurement")
+	fieldKey       = []byte("_field")
+)
+
 type planner interface {
+	Close()
 	Next() bool
-	Read() (measurement, key, field string, tagset map[string]string, shards []*tsdb.Shard)
+	Read() (measurement, key, field string, tags models.Tags, shards []*tsdb.Shard)
 	Err() error
 }
 
@@ -26,7 +32,7 @@ type allMeasurementsPlanner struct {
 	f         string
 	err       error
 	eof       bool
-	tagset    map[string]string
+	tags      models.Tags
 	filterset map[string]string
 	cond      influxql.Expr
 }
@@ -99,6 +105,10 @@ func newAllMeasurementsPlanner(req *ReadRequest, shards []*tsdb.Shard, log zap.L
 	return p, nil
 }
 
+func (p *allMeasurementsPlanner) Close() {
+	p.eof = true
+}
+
 func (p *allMeasurementsPlanner) Next() bool {
 	if p.eof {
 		return false
@@ -123,18 +133,18 @@ RETRY:
 			p.eof = true
 			return false
 		}
+		keyb := []byte(key)
+		mm, _ := models.ParseName(keyb)
+		p.m = string(mm)
+		p.tags, _ = models.ParseTags(keyb)
 
-		m, tags := models.ParseKey([]byte(key))
-		p.filterset = map[string]string{"_name": m}
-		p.tagset = map[string]string{"_measurement": m}
-		for _, tag := range tags {
-			key, val := string(tag.Key), string(tag.Value)
-			p.tagset[key] = val
-			p.filterset[key] = val
+		p.filterset = map[string]string{"_name": p.m}
+		for _, tag := range p.tags {
+			p.filterset[string(tag.Key)] = string(tag.Value)
 		}
 
+		p.tags.Set(measurementKey, mm)
 		p.key = key
-		p.m = m
 		p.nf = p.fields
 	}
 
@@ -145,17 +155,15 @@ RETRY:
 		goto RETRY
 	}
 
-	p.tagset["_field"] = p.f
+	p.tags.Set(fieldKey, []byte(p.f))
 
 	return true
 }
 
-func (p *allMeasurementsPlanner) Read() (measurement, key, field string, tagset map[string]string, shards []*tsdb.Shard) {
-	return p.m, p.key, p.f, p.tagset, p.shards
+func (p *allMeasurementsPlanner) Read() (measurement, key, field string, tags models.Tags, shards []*tsdb.Shard) {
+	return p.m, p.key, p.f, p.tags, p.shards
 }
 
 func (p *allMeasurementsPlanner) Err() error {
 	return p.err
 }
-
-func (p *allMeasurementsPlanner) walk() {}

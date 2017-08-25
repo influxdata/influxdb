@@ -15,6 +15,11 @@ func newRangeIntegerCursor(key string, time int64, asc bool, cur integerCursor) 
 	return &rangeIntegerCursor{key: key, cur: cur, t: time, asc: asc}
 }
 
+func (l *rangeIntegerCursor) Close() {
+	// cursors always return nil
+	l.cur.close()
+}
+
 func (l *rangeIntegerCursor) SeriesKey() string { return l.key }
 
 func (l *rangeIntegerCursor) Next() (int64, int64) {
@@ -49,6 +54,11 @@ type rangeFloatCursor struct {
 
 func newRangeFloatCursor(key string, time int64, asc bool, cur floatCursor) *rangeFloatCursor {
 	return &rangeFloatCursor{key: key, cur: cur, t: time, asc: asc}
+}
+
+func (l *rangeFloatCursor) Close() {
+	// cursors always return nil
+	l.cur.close()
 }
 
 func (l *rangeFloatCursor) SeriesKey() string { return l.key }

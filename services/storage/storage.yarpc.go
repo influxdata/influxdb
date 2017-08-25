@@ -10,6 +10,7 @@ It is generated from these files:
 
 It has these top-level messages:
 	ReadRequest
+	Tag
 	ReadResponse
 	CapabilitiesResponse
 	HintsResponse
@@ -20,14 +21,14 @@ It has these top-level messages:
 package storage
 
 import (
-	"context"
+	context "context"
 
-	"github.com/influxdata/yarpc"
+	yarpc "github.com/influxdata/yarpc"
 )
 
-import "github.com/gogo/protobuf/proto"
-import "fmt"
-import "math"
+import proto "github.com/gogo/protobuf/proto"
+import fmt "fmt"
+import math "math"
 import _ "github.com/gogo/protobuf/gogoproto"
 import google_protobuf1 "github.com/gogo/protobuf/types"
 import _ "github.com/influxdata/yarpc/yarpcproto"

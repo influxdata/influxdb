@@ -95,17 +95,22 @@ type ResultSet struct {
 
 	shards    []*tsdb.Shard
 	m, key, f string
-	tagset    map[string]string
+	tags      models.Tags
 	shard     *tsdb.Shard
+}
+
+func (r *ResultSet) Close() {
+	r.shards = nil
+	r.p.Close()
 }
 
 func (r *ResultSet) Next() bool {
 	if len(r.shards) == 0 {
-		if ok := r.p.Next(); !ok {
+		if !r.p.Next() {
 			return false
 		}
 
-		r.m, r.key, r.f, r.tagset, r.shards = r.p.Read()
+		r.m, r.key, r.f, r.tags, r.shards = r.p.Read()
 	}
 
 	r.shard, r.shards = r.shards[0], r.shards[1:]
@@ -118,13 +123,14 @@ func (r *ResultSet) Cursor() tsdb.Cursor {
 	return c
 }
 
-func (r *ResultSet) Tags() map[string]string {
-	return r.tagset
+func (r *ResultSet) Tags() models.Tags {
+	return r.tags
 }
 
 func (r *ResultSet) SeriesKey() string {
+	// TODO(sgc): this must escape
 	var buf bytes.Buffer
-	for _, tag := range models.NewTags(r.tagset) {
+	for _, tag := range r.tags {
 		buf.Write(tag.Key)
 		buf.WriteByte(':')
 		buf.Write(tag.Value)

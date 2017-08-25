@@ -7,6 +7,7 @@ import (
 	"math"
 
 	"github.com/gogo/protobuf/types"
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/uber-go/zap"
 )
@@ -56,14 +57,18 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 
 	i := int64(0)
 	b := 0
-	var lastKey string
+	var lastTags models.Tags
 	var res ReadResponse
 	res.Frames = make([]ReadResponse_Frame, 0, FrameCount)
 
-LIMIT:
 	for rs.Next() {
 		if len(res.Frames) >= FrameCount {
-			stream.Send(&res)
+			err = stream.Send(&res)
+			if err != nil {
+				r.Logger.Error("stream.Send failed", zap.Error(err))
+				rs.Close()
+				break
+			}
 			res.Frames = make([]ReadResponse_Frame, 0, FrameCount)
 		}
 
@@ -73,12 +78,15 @@ LIMIT:
 			continue
 		}
 
-		if next := rs.SeriesKey(); next != lastKey {
-			lastKey = next
-			res.Frames = append(res.Frames, ReadResponse_Frame{&ReadResponse_Frame_Series{&ReadResponse_SeriesFrame{lastKey}}})
-			if err != nil {
-				r.Logger.Error("stream.Send failed", zap.Error(err))
+		if next := rs.Tags(); !next.Equal(lastTags) {
+			sf := ReadResponse_SeriesFrame{Name: rs.SeriesKey()}
+			sf.Tags = make([]Tag, len(next))
+			for i, t := range next {
+				sf.Tags[i] = Tag(t)
 			}
+
+			lastTags = next
+			res.Frames = append(res.Frames, ReadResponse_Frame{&ReadResponse_Frame_Series{&sf}})
 		}
 
 		switch cur := cur.(type) {
@@ -93,7 +101,8 @@ LIMIT:
 				}
 				i++
 				if i > lim {
-					break LIMIT
+					rs.Close()
+					break
 				}
 
 				frame.Timestamps = append(frame.Timestamps, ts)
@@ -118,7 +127,8 @@ LIMIT:
 				}
 				i++
 				if i > lim {
-					break LIMIT
+					rs.Close()
+					break
 				}
 
 				frame.Timestamps = append(frame.Timestamps, ts)
@@ -134,9 +144,11 @@ LIMIT:
 		default:
 
 		}
+
+		cur.Close()
 	}
 
-	if len(res.Frames) >= 0 {
+	if len(res.Frames) > 0 {
 		stream.Send(&res)
 	}
 

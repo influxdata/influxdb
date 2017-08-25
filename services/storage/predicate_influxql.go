@@ -113,8 +113,6 @@ func (v *nodeToExprVisitor) Visit(n *Node) NodeVisitor {
 		lhs, rhs := v.pop2()
 
 		if v.removeField {
-			// HACK(sgc): for POC we just rewrite _field OP val to VarRef OP VarRef so they can be passed to the index
-			// series iterator and not affect the outcome
 			if l, ok := lhs.(*influxql.VarRef); ok && l.Val == "_field" {
 				v.containsField = true
 				return nil
@@ -147,6 +145,7 @@ func (v *nodeToExprVisitor) Visit(n *Node) NodeVisitor {
 	case NodeTypeTagRef:
 		ref := n.GetTagRefValue()
 		if ref == "_measurement" {
+			// as tsdb.Index expects _name for measurement name
 			ref = "_name"
 		}
 
@@ -159,6 +158,7 @@ func (v *nodeToExprVisitor) Visit(n *Node) NodeVisitor {
 			v.exprs = append(v.exprs, &influxql.StringLiteral{Val: val.StringValue})
 
 		case *Node_RegexValue:
+			// TODO(sgc): could hash the RegexValue and cache compiled version
 			re, err := regexp.Compile(val.RegexValue)
 			if err != nil {
 				v.err = err

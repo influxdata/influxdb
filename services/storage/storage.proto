@@ -44,6 +44,11 @@ message ReadRequest {
   Predicate predicate = 6;
 }
 
+message Tag {
+  bytes key = 1;
+  bytes value = 2;
+}
+
 message ReadResponse {
   enum FrameType {
     option (gogoproto.goproto_enum_prefix) = false;
@@ -62,15 +67,16 @@ message ReadResponse {
 
   message SeriesFrame {
     string name = 1;
+    repeated Tag tags = 2 [(gogoproto.nullable) = false];
   }
 
   message FloatPointsFrame {
-    repeated int64 timestamps = 1; // TODO(sgc): fixed64?
+    repeated sfixed64 timestamps = 1;
     repeated double values = 2;
   }
 
   message IntegerPointsFrame {
-    repeated int64 timestamps = 1; // TODO(sgc): fixed64?
+    repeated sfixed64 timestamps = 1;
     repeated int64 values = 2;
   }
 

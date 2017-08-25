@@ -190,7 +190,17 @@ func (cmd *Command) query(c storage.StorageClient) error {
 			if s := frame.GetSeries(); s != nil {
 				if !cmd.silent {
 					wr.WriteString("\033[36m")
-					wr.WriteString(s.Name)
+					first := true
+					for _, t := range s.Tags {
+						if !first {
+							wr.WriteByte(',')
+						} else {
+							first = false
+						}
+						wr.Write(t.Key)
+						wr.WriteByte(':')
+						wr.Write(t.Value)
+					}
 					wr.WriteString("\n\033[0m")
 					wr.Flush()
 				}

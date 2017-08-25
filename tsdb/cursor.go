@@ -7,8 +7,7 @@ const EOF = query.ZeroTime
 
 // Cursor represents an iterator over a series.
 type Cursor interface {
-	// TODO(sgc): implement
-	// Close()
+	Close()
 	SeriesKey() string
 }
 
