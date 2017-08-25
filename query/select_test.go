@@ -2864,71 +2864,86 @@ func benchmarkSelectRaw(b *testing.B, pointN int) {
 	benchmarkSelect(b, MustParseSelectStatement(`SELECT fval FROM cpu`), NewRawBenchmarkIteratorCreator(pointN))
 }
 
-func benchmarkSelect(b *testing.B, stmt *influxql.SelectStatement, ic query.IteratorCreator) {
+func benchmarkSelect(b *testing.B, stmt *influxql.SelectStatement, shardMapper query.ShardMapper) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		//itrs, err := query.Select(stmt, ic, nil)
-		//if err != nil {
-		//	b.Fatal(err)
-		//}
-		//query.DrainIterators(itrs)
+		itrs, _, err := query.Select(stmt, shardMapper, query.SelectOptions{})
+		if err != nil {
+			b.Fatal(err)
+		}
+		query.DrainIterators(itrs)
 	}
 }
 
 // NewRawBenchmarkIteratorCreator returns a new mock iterator creator with generated fields.
-func NewRawBenchmarkIteratorCreator(pointN int) *IteratorCreator {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if opt.Expr != nil {
-			panic("unexpected expression")
-		}
+func NewRawBenchmarkIteratorCreator(pointN int) query.ShardMapper {
+	return &ShardMapper{
+		MapShardsFn: func(sources influxql.Sources, t influxql.TimeRange) query.ShardGroup {
+			return &ShardGroup{
+				Fields: map[string]influxql.DataType{
+					"fval": influxql.Float,
+				},
+				CreateIteratorFn: func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
+					if opt.Expr != nil {
+						panic("unexpected expression")
+					}
 
-		p := query.FloatPoint{
-			Name: "cpu",
-			Aux:  make([]interface{}, len(opt.Aux)),
-		}
+					p := query.FloatPoint{
+						Name: "cpu",
+						Aux:  make([]interface{}, len(opt.Aux)),
+					}
 
-		for i := range opt.Aux {
-			switch opt.Aux[i].Val {
-			case "fval":
-				p.Aux[i] = float64(100)
-			default:
-				panic("unknown iterator expr: " + opt.Expr.String())
+					for i := range opt.Aux {
+						switch opt.Aux[i].Val {
+						case "fval":
+							p.Aux[i] = float64(100)
+						default:
+							panic("unknown iterator expr: " + opt.Expr.String())
+						}
+					}
+
+					return &FloatPointGenerator{N: pointN, Fn: func(i int) *query.FloatPoint {
+						p.Time = int64(time.Duration(i) * (10 * time.Second))
+						return &p
+					}}, nil
+				},
 			}
-		}
-
-		return &FloatPointGenerator{N: pointN, Fn: func(i int) *query.FloatPoint {
-			p.Time = int64(time.Duration(i) * (10 * time.Second))
-			return &p
-		}}, nil
+		},
 	}
-	return &ic
 }
 
 func benchmarkSelectDedupe(b *testing.B, seriesN, pointsPerSeries int) {
 	stmt := MustParseSelectStatement(`SELECT sval::string FROM cpu`)
 	stmt.Dedupe = true
 
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if opt.Expr != nil {
-			panic("unexpected expression")
-		}
+	shardMapper := ShardMapper{
+		MapShardsFn: func(sources influxql.Sources, t influxql.TimeRange) query.ShardGroup {
+			return &ShardGroup{
+				Fields: map[string]influxql.DataType{
+					"sval": influxql.String,
+				},
+				CreateIteratorFn: func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
+					if opt.Expr != nil {
+						panic("unexpected expression")
+					}
 
-		p := query.FloatPoint{
-			Name: "tags",
-			Aux:  []interface{}{nil},
-		}
+					p := query.FloatPoint{
+						Name: "tags",
+						Aux:  []interface{}{nil},
+					}
 
-		return &FloatPointGenerator{N: seriesN * pointsPerSeries, Fn: func(i int) *query.FloatPoint {
-			p.Aux[0] = fmt.Sprintf("server%d", i%seriesN)
-			return &p
-		}}, nil
+					return &FloatPointGenerator{N: seriesN * pointsPerSeries, Fn: func(i int) *query.FloatPoint {
+						p.Aux[0] = fmt.Sprintf("server%d", i%seriesN)
+						return &p
+					}}, nil
+				},
+			}
+		},
 	}
 
 	b.ResetTimer()
-	benchmarkSelect(b, stmt, &ic)
+	benchmarkSelect(b, stmt, &shardMapper)
 }
 
 func BenchmarkSelect_Dedupe_1K(b *testing.B) { benchmarkSelectDedupe(b, 1000, 100) }
@@ -2936,28 +2951,36 @@ func BenchmarkSelect_Dedupe_1K(b *testing.B) { benchmarkSelectDedupe(b, 1000, 10
 func benchmarkSelectTop(b *testing.B, seriesN, pointsPerSeries int) {
 	stmt := MustParseSelectStatement(`SELECT top(sval, 10) FROM cpu`)
 
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-		if m.Name != "cpu" {
-			b.Fatalf("unexpected source: %s", m.Name)
-		}
-		if !reflect.DeepEqual(opt.Expr, MustParseExpr(`sval`)) {
-			b.Fatalf("unexpected expr: %s", spew.Sdump(opt.Expr))
-		}
+	shardMapper := ShardMapper{
+		MapShardsFn: func(sources influxql.Sources, t influxql.TimeRange) query.ShardGroup {
+			return &ShardGroup{
+				Fields: map[string]influxql.DataType{
+					"sval": influxql.Float,
+				},
+				CreateIteratorFn: func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
+					if m.Name != "cpu" {
+						b.Fatalf("unexpected source: %s", m.Name)
+					}
+					if !reflect.DeepEqual(opt.Expr, MustParseExpr(`sval`)) {
+						b.Fatalf("unexpected expr: %s", spew.Sdump(opt.Expr))
+					}
 
-		p := query.FloatPoint{
-			Name: "cpu",
-		}
+					p := query.FloatPoint{
+						Name: "cpu",
+					}
 
-		return &FloatPointGenerator{N: seriesN * pointsPerSeries, Fn: func(i int) *query.FloatPoint {
-			p.Value = float64(rand.Int63())
-			p.Time = int64(time.Duration(i) * (10 * time.Second))
-			return &p
-		}}, nil
+					return &FloatPointGenerator{N: seriesN * pointsPerSeries, Fn: func(i int) *query.FloatPoint {
+						p.Value = float64(rand.Int63())
+						p.Time = int64(time.Duration(i) * (10 * time.Second))
+						return &p
+					}}, nil
+				},
+			}
+		},
 	}
 
 	b.ResetTimer()
-	benchmarkSelect(b, stmt, &ic)
+	benchmarkSelect(b, stmt, &shardMapper)
 }
 
 func BenchmarkSelect_Top_1K(b *testing.B) { benchmarkSelectTop(b, 1000, 1000) }
