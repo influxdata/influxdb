@@ -29,7 +29,7 @@ type LocalShardMapper struct {
 }
 
 // MapShards maps the sources to the appropriate shards into an IteratorCreator.
-func (e *LocalShardMapper) MapShards(sources influxql.Sources, t influxql.TimeRange) (query.ShardGroup, error) {
+func (e *LocalShardMapper) MapShards(sources influxql.Sources, t influxql.TimeRange, opt query.SelectOptions) (query.ShardGroup, error) {
 	a := &LocalShardMapping{
 		ShardMap: make(map[Source]tsdb.ShardGroup),
 	}

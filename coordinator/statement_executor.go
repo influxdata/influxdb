@@ -535,7 +535,7 @@ func (e *StatementExecutor) createIterators(stmt *influxql.SelectStatement, ctx 
 	}
 
 	// Create a set of iterators from a selection.
-	itrs, columns, err := query.Select(stmt, e.ShardMapper, &opt)
+	itrs, columns, err := query.Select(stmt, e.ShardMapper, opt)
 	if err != nil {
 		return nil, nil, err
 	}
