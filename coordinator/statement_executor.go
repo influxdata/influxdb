@@ -525,7 +525,6 @@ func (e *StatementExecutor) executeSelectStatement(stmt *influxql.SelectStatemen
 }
 
 func (e *StatementExecutor) createIterators(stmt *influxql.SelectStatement, ctx *query.ExecutionContext) ([]query.Iterator, []string, error) {
-	// It is important to "stamp" this time so that everywhere we evaluate `now()` in the statement is EXACTLY the same `now`
 	opt := query.SelectOptions{
 		InterruptCh: ctx.InterruptCh,
 		NodeID:      ctx.ExecutionOptions.NodeID,

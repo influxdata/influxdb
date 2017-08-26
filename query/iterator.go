@@ -684,8 +684,7 @@ type IteratorOptions struct {
 }
 
 // newIteratorOptionsStmt creates the iterator options from stmt.
-func newIteratorOptionsStmt(stmt *influxql.SelectStatement, sopt *SelectOptions) (opt IteratorOptions, err error) {
-
+func newIteratorOptionsStmt(stmt *influxql.SelectStatement, sopt SelectOptions) (opt IteratorOptions, err error) {
 	// Determine time range from the condition.
 	valuer := &influxql.NowValuer{Location: stmt.Location}
 	condition, timeRange, err := influxql.ConditionExpr(stmt.Condition, valuer)
@@ -747,17 +746,15 @@ func newIteratorOptionsStmt(stmt *influxql.SelectStatement, sopt *SelectOptions)
 	}
 	opt.Limit, opt.Offset = stmt.Limit, stmt.Offset
 	opt.SLimit, opt.SOffset = stmt.SLimit, stmt.SOffset
-	if sopt != nil {
-		opt.MaxSeriesN = sopt.MaxSeriesN
-		opt.InterruptCh = sopt.InterruptCh
-		opt.Authorizer = sopt.Authorizer
-	}
+	opt.MaxSeriesN = sopt.MaxSeriesN
+	opt.InterruptCh = sopt.InterruptCh
+	opt.Authorizer = sopt.Authorizer
 
 	return opt, nil
 }
 
 func newIteratorOptionsSubstatement(stmt *influxql.SelectStatement, opt IteratorOptions) (IteratorOptions, error) {
-	subOpt, err := newIteratorOptionsStmt(stmt, nil)
+	subOpt, err := newIteratorOptionsStmt(stmt, SelectOptions{})
 	if err != nil {
 		return IteratorOptions{}, err
 	}

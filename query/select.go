@@ -6,7 +6,6 @@ import (
 	"io"
 	"math"
 	"sort"
-	"time"
 
 	"github.com/influxdata/influxdb/influxql"
 )
@@ -45,83 +44,45 @@ type ShardGroup interface {
 	io.Closer
 }
 
-// Select executes stmt against ic and returns a list of iterators to stream from.
-//
-// Statements should have all rewriting performed before calling select(). This
-// includes wildcard and source expansion.
-func Select(stmt *influxql.SelectStatement, shardMapper ShardMapper, sopt SelectOptions) ([]Iterator, []string, error) {
-	// It is important to "stamp" this time so that everywhere we evaluate `now()` in the statement is EXACTLY the same `now`
-	now := time.Now().UTC()
+// Select is a prepared statement that is ready to be executed.
+type PreparedStatement interface {
+	// Select creates the Iterators that will be used to read the query.
+	Select() ([]Iterator, []string, error)
+}
 
-	// Evaluate the now() condition immediately so we do not have to deal with this.
-	nowValuer := influxql.NowValuer{Now: now, Location: stmt.Location}
-	stmt = stmt.Reduce(&nowValuer)
-
-	// Convert DISTINCT into a call.
-	stmt.RewriteDistinct()
-
-	// Remove "time" from fields list.
-	stmt.RewriteTimeFields()
-
-	// Rewrite time condition.
-	if err := stmt.RewriteTimeCondition(now); err != nil {
-		return nil, nil, err
+// Prepare will compile the statement with the default compile options and
+// then prepare the query.
+func Prepare(stmt *influxql.SelectStatement, shardMapper ShardMapper, opt SelectOptions) (PreparedStatement, error) {
+	c, err := Compile(stmt, CompileOptions{})
+	if err != nil {
+		return nil, err
 	}
+	return c.Prepare(shardMapper, opt)
+}
 
-	// Rewrite any regex conditions that could make use of the index.
-	stmt.RewriteRegexConditions()
-
-	// Determine the time range spanned by the condition so we can map shards.
-	_, timeRange, err := influxql.ConditionExpr(stmt.Condition, &nowValuer)
+// Select compiles, prepares, and then initiates execution of the query using the
+// default compile options.
+func Select(stmt *influxql.SelectStatement, shardMapper ShardMapper, opt SelectOptions) ([]Iterator, []string, error) {
+	s, err := Prepare(stmt, shardMapper, opt)
 	if err != nil {
 		return nil, nil, err
 	}
+	return s.Select()
+}
 
-	// Create an iterator creator based on the shards in the cluster.
-	shards, err := shardMapper.MapShards(stmt.Sources, timeRange, sopt)
+type preparedStatement struct {
+	stmt    *influxql.SelectStatement
+	opt     IteratorOptions
+	ic      IteratorCreator
+	columns []string
+}
+
+func (p *preparedStatement) Select() ([]Iterator, []string, error) {
+	itrs, err := buildIterators(p.stmt, p.ic, p.opt)
 	if err != nil {
 		return nil, nil, err
 	}
-	defer shards.Close()
-
-	// Rewrite wildcards, if any exist.
-	tmp, err := stmt.RewriteFields(shards)
-	if err != nil {
-		return nil, nil, err
-	}
-	stmt = tmp
-
-	// Determine base options for iterators.
-	opt, err := newIteratorOptionsStmt(stmt, &sopt)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if sopt.MaxBucketsN > 0 && !stmt.IsRawQuery {
-		interval, err := stmt.GroupByInterval()
-		if err != nil {
-			return nil, nil, err
-		}
-
-		if interval > 0 {
-			// Determine the start and end time matched to the interval (may not match the actual times).
-			first, _ := opt.Window(opt.StartTime)
-			last, _ := opt.Window(opt.EndTime - 1)
-
-			// Determine the number of buckets by finding the time span and dividing by the interval.
-			buckets := (last - first + int64(interval)) / int64(interval)
-			if int(buckets) > sopt.MaxBucketsN {
-				return nil, nil, fmt.Errorf("max-select-buckets limit exceeded: (%d/%d)", buckets, sopt.MaxBucketsN)
-			}
-		}
-	}
-
-	itrs, err := buildIterators(stmt, shards, opt)
-	if err != nil {
-		return nil, nil, err
-	}
-	columns := stmt.ColumnNames()
-	return itrs, columns, nil
+	return itrs, p.columns, nil
 }
 
 func buildIterators(stmt *influxql.SelectStatement, ic IteratorCreator, opt IteratorOptions) ([]Iterator, error) {
