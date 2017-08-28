@@ -40,6 +40,7 @@
 - [#8712](https://github.com/influxdata/influxdb/pull/8712): Force time expressions to use AND and improve condition parsing.
 - [#8716](https://github.com/influxdata/influxdb/pull/8716): Ensure inputs are closed on error. Add runtime GC finalizer as additional guard to close iterators
 - [#8695](https://github.com/influxdata/influxdb/issues/8695): Fix merging bug on system iterators.
+- [#8699](https://github.com/influxdata/influxdb/issues/8699): Force subqueries to match the parent queries ordering.
 - [#8755](https://github.com/influxdata/influxdb/pull/8755): Fix race condition accessing `seriesByID` map.
 
 ## v1.3.4 [unreleased]
