@@ -26,30 +26,9 @@ func NodeToExpr(node *Node) (influxql.Expr, error) {
 	return v.exprs[0], nil
 }
 
-func NodeToExprNoField(node *Node) (influxql.Expr, bool, error) {
-	var v nodeToExprVisitor
-	v.removeField = true
-	WalkNode(&v, node)
-	if err := v.Err(); err != nil {
-		return nil, false, err
-	}
-
-	if len(v.exprs) > 1 {
-		return nil, false, errors.New("invalid expression")
-	}
-
-	if len(v.exprs) == 0 {
-		return nil, v.containsField, nil
-	}
-
-	return v.exprs[0], v.containsField, nil
-}
-
 type nodeToExprVisitor struct {
-	exprs         []influxql.Expr
-	removeField   bool
-	containsField bool
-	err           error
+	exprs []influxql.Expr
+	err   error
 }
 
 func (v *nodeToExprVisitor) Visit(n *Node) NodeVisitor {
@@ -112,13 +91,6 @@ func (v *nodeToExprVisitor) Visit(n *Node) NodeVisitor {
 
 		lhs, rhs := v.pop2()
 
-		if v.removeField {
-			if l, ok := lhs.(*influxql.VarRef); ok && l.Val == "_field" {
-				v.containsField = true
-				return nil
-			}
-		}
-
 		be := &influxql.BinaryExpr{LHS: lhs, RHS: rhs}
 		switch n.GetComparison() {
 		case ComparisonEqual:
@@ -152,13 +124,17 @@ func (v *nodeToExprVisitor) Visit(n *Node) NodeVisitor {
 		v.exprs = append(v.exprs, &influxql.VarRef{Val: ref})
 		return nil
 
+	case NodeTypeFieldRef:
+		v.exprs = append(v.exprs, &influxql.VarRef{Val: "$"})
+		return nil
+
 	case NodeTypeLiteral:
 		switch val := n.Value.(type) {
 		case *Node_StringValue:
 			v.exprs = append(v.exprs, &influxql.StringLiteral{Val: val.StringValue})
 
 		case *Node_RegexValue:
-			// TODO(sgc): could hash the RegexValue and cache compiled version
+			// TODO(sgc): consider hashing the RegexValue and cache compiled version
 			re, err := regexp.Compile(val.RegexValue)
 			if err != nil {
 				v.err = err
@@ -215,4 +191,32 @@ func (v *nodeToExprVisitor) pop2() (lhs, rhs influxql.Expr) {
 	lhs = v.exprs[len(v.exprs)-2]
 	v.exprs = v.exprs[:len(v.exprs)-2]
 	return
+}
+
+func RewriteExprRemoveFieldKeyAndValue(expr influxql.Expr) influxql.Expr {
+	return influxql.RewriteExpr(expr, func(expr influxql.Expr) influxql.Expr {
+		if be, ok := expr.(*influxql.BinaryExpr); ok {
+			if ref, ok := be.LHS.(*influxql.VarRef); ok {
+				if ref.Val == "_field" || ref.Val == "$" {
+					return &influxql.BooleanLiteral{Val: true}
+				}
+			}
+		}
+
+		return expr
+	})
+}
+
+func RewriteExprRemoveFieldValue(expr influxql.Expr) influxql.Expr {
+	return influxql.RewriteExpr(expr, func(expr influxql.Expr) influxql.Expr {
+		if be, ok := expr.(*influxql.BinaryExpr); ok {
+			if ref, ok := be.LHS.(*influxql.VarRef); ok {
+				if ref.Val == "$" {
+					return &influxql.BooleanLiteral{Val: true}
+				}
+			}
+		}
+
+		return expr
+	})
 }

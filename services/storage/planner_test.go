@@ -22,15 +22,15 @@ func TestPlannerCondition(t *testing.T) {
 	}
 
 	p := &allMeasurementsPlanner{
-		sitr:   sitr,
-		fields: []string{"user", "system", "val"},
-		cond:   cond,
+		sitr:            sitr,
+		fields:          []string{"user", "system", "val"},
+		measurementCond: cond,
 	}
 
 	keys := []string{}
 	for p.Next() {
-		_, key, field, _, _ := p.Read()
-		keys = append(keys, key+" "+field)
+		row := p.Read()
+		keys = append(keys, row.key+" "+row.field)
 	}
 
 	exp := []string{"cpu,host=host1 user", "cpu,host=host1 system", "mem,host=host1 user", "mem,host=host1 system", "mem,host=host1 val"}

@@ -3,6 +3,8 @@ package storage
 import (
 	"errors"
 
+	"bytes"
+
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/query"
@@ -15,26 +17,83 @@ var (
 	fieldKey       = []byte("_field")
 )
 
+type ResultSet struct {
+	p          planner
+	start, end int64
+	asc        bool
+
+	row   plannerRow
+	shard *tsdb.Shard
+}
+
+func (r *ResultSet) Close() {
+	r.row.shards = nil
+	r.p.Close()
+}
+
+func (r *ResultSet) Next() bool {
+	if len(r.row.shards) == 0 {
+		if !r.p.Next() {
+			return false
+		}
+
+		r.row = r.p.Read()
+	}
+
+	r.shard, r.row.shards = r.row.shards[0], r.row.shards[1:]
+	return true
+}
+
+func (r *ResultSet) Cursor() tsdb.Cursor {
+	req := tsdb.CursorRequest{Measurement: r.row.measurement, Series: r.row.key, Field: r.row.field, Ascending: r.asc, StartTime: r.start, EndTime: r.end}
+	c, _ := r.shard.CreateCursor(req)
+	return c
+}
+
+func (r *ResultSet) Tags() models.Tags {
+	return r.row.tags
+}
+
+func (r *ResultSet) SeriesKey() string {
+	// TODO(sgc): this must escape
+	var buf bytes.Buffer
+	for _, tag := range r.row.tags {
+		buf.Write(tag.Key)
+		buf.WriteByte(':')
+		buf.Write(tag.Value)
+		buf.WriteByte(',')
+	}
+	s := buf.String()
+	return s[:len(s)-1]
+}
+
 type planner interface {
 	Close()
 	Next() bool
-	Read() (measurement, key, field string, tags models.Tags, shards []*tsdb.Shard)
+	Read() plannerRow
 	Err() error
 }
 
+type plannerRow struct {
+	measurement, key, field string
+	tags                    models.Tags
+	shards                  []*tsdb.Shard
+}
+
 type allMeasurementsPlanner struct {
-	shards    []*tsdb.Shard
-	sitr      query.FloatIterator
-	fields    []string
-	nf        []string
-	m         string
-	key       string
-	f         string
-	err       error
-	eof       bool
-	tags      models.Tags
-	filterset map[string]string
-	cond      influxql.Expr
+	shards          []*tsdb.Shard
+	sitr            query.FloatIterator
+	fields          []string
+	nf              []string
+	m               string
+	key             string
+	f               string
+	err             error
+	eof             bool
+	tags            models.Tags
+	filterset       map[string]string
+	cond            influxql.Expr
+	measurementCond influxql.Expr
 }
 
 func toFloatIterator(iter query.Iterator, err error) (query.FloatIterator, error) {
@@ -75,19 +134,13 @@ func newAllMeasurementsPlanner(req *ReadRequest, shards []*tsdb.Shard, log zap.L
 
 	var err error
 
-	if req.Predicate.GetRoot() != nil {
-		var hf bool
-		opt.Condition, hf, err = NodeToExprNoField(req.Predicate.Root)
+	if root := req.Predicate.GetRoot(); root != nil {
+		p.cond, err = NodeToExpr(root)
 		if err != nil {
 			return nil, err
 		}
 
-		if hf {
-			// we've already parsed it, so no error here
-			p.cond, _ = NodeToExpr(req.Predicate.Root)
-		} else {
-			p.cond = opt.Condition
-		}
+		opt.Condition = RewriteExprRemoveFieldKeyAndValue(p.measurementCond)
 	}
 
 	sg := tsdb.Shards(shards)
@@ -161,7 +214,7 @@ RETRY:
 	p.f, p.nf = p.nf[0], p.nf[1:]
 	p.filterset["_field"] = p.f
 
-	if p.cond != nil && !evalExprBool(p.cond, p.filterset) {
+	if p.measurementCond != nil && !evalExprBool(p.measurementCond, p.filterset) {
 		goto RETRY
 	}
 
@@ -170,8 +223,8 @@ RETRY:
 	return true
 }
 
-func (p *allMeasurementsPlanner) Read() (measurement, key, field string, tags models.Tags, shards []*tsdb.Shard) {
-	return p.m, p.key, p.f, p.tags, p.shards
+func (p *allMeasurementsPlanner) Read() plannerRow {
+	return plannerRow{p.m, p.key, p.f, p.tags, p.shards}
 }
 
 func (p *allMeasurementsPlanner) Err() error {

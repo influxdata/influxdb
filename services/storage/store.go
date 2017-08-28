@@ -6,8 +6,6 @@ import (
 	"errors"
 	"strings"
 
-	"bytes"
-
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
@@ -86,56 +84,4 @@ func (s *Store) Read(req *ReadRequest) (*ResultSet, error) {
 	}
 
 	return &ResultSet{p: qp, start: start, end: end, asc: !req.Descending}, nil
-}
-
-type ResultSet struct {
-	p          planner
-	start, end int64
-	asc        bool
-
-	shards    []*tsdb.Shard
-	m, key, f string
-	tags      models.Tags
-	shard     *tsdb.Shard
-}
-
-func (r *ResultSet) Close() {
-	r.shards = nil
-	r.p.Close()
-}
-
-func (r *ResultSet) Next() bool {
-	if len(r.shards) == 0 {
-		if !r.p.Next() {
-			return false
-		}
-
-		r.m, r.key, r.f, r.tags, r.shards = r.p.Read()
-	}
-
-	r.shard, r.shards = r.shards[0], r.shards[1:]
-	return true
-}
-
-func (r *ResultSet) Cursor() tsdb.Cursor {
-	req := tsdb.CursorRequest{Measurement: r.m, Series: r.key, Field: r.f, Ascending: r.asc, StartTime: r.start, EndTime: r.end}
-	c, _ := r.shard.CreateCursor(req)
-	return c
-}
-
-func (r *ResultSet) Tags() models.Tags {
-	return r.tags
-}
-
-func (r *ResultSet) SeriesKey() string {
-	// TODO(sgc): this must escape
-	var buf bytes.Buffer
-	for _, tag := range r.tags {
-		buf.Write(tag.Key)
-		buf.WriteByte(':')
-		buf.Write(tag.Value)
-		buf.WriteByte(',')
-	}
-	s := buf.String()
-	return s[:len(s)-1]
 }

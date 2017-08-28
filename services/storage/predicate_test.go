@@ -98,7 +98,7 @@ func TestNodeToExpr2(t *testing.T) {
 	t.Log(expr)
 }
 
-func TestNodeToExprNoField(t *testing.T) {
+func TestRewriteExprRemoveFieldKeyAndValue(t *testing.T) {
 	pred := &storage.Predicate{
 		Root: &storage.Node{
 			NodeType: storage.NodeTypeLogicalExpression,
@@ -120,14 +120,23 @@ func TestNodeToExprNoField(t *testing.T) {
 						{NodeType: storage.NodeTypeLiteral, Value: &storage.Node_RegexValue{RegexValue: "^us-west"}},
 					},
 				},
+				{
+					NodeType: storage.NodeTypeComparisonExpression,
+					Value:    &storage.Node_Comparison_{Comparison: storage.ComparisonEqual},
+					Children: []*storage.Node{
+						{NodeType: storage.NodeTypeTagRef, Value: &storage.Node_TagRefValue{TagRefValue: "$"}},
+						{NodeType: storage.NodeTypeLiteral, Value: &storage.Node_FloatValue{FloatValue: 0.5}},
+					},
+				},
 			},
 		},
 	}
 
-	expr, hf, err := storage.NodeToExprNoField(pred.Root)
+	expr, err := storage.NodeToExpr(pred.Root)
 	if err != nil {
 		t.Error(err)
 	}
-	t.Log(hf)
+
+	expr = storage.RewriteExprRemoveFieldKeyAndValue(expr)
 	t.Log(expr)
 }
