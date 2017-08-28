@@ -73,7 +73,7 @@ class FillQuery extends Component {
   }
 
   render() {
-    const {size, theme, isKapacitorRule} = this.props
+    const {size, theme} = this.props
     const {selected, numberValue} = this.state
 
     return (
@@ -81,9 +81,7 @@ class FillQuery extends Component {
         <label>Fill</label>
         <Dropdown
           selected={selected.text}
-          items={queryFills.filter(
-            fill => !(isKapacitorRule && !fill.isInKapacitor) // Filter fill types not supported by Kapacitor
-          )}
+          items={queryFills}
           className="fill-query--dropdown"
           buttonSize={`btn-${size}`}
           buttonColor="btn-default"
@@ -108,14 +106,13 @@ class FillQuery extends Component {
   }
 }
 
-const {bool, func, string} = PropTypes
+const {func, string} = PropTypes
 
 FillQuery.propTypes = {
   onSelection: func.isRequired,
   value: string,
   size: string,
   theme: string,
-  isKapacitorRule: bool,
 }
 
 export default FillQuery

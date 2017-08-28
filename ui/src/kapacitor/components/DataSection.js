@@ -61,7 +61,7 @@ class DataSection extends Component {
   }
 
   render() {
-    const {query, timeRange: {lower}, isKapacitorRule} = this.props
+    const {query, timeRange: {lower}} = this.props
     const statement = query.rawText || buildInfluxQLQuery({lower}, query)
 
     return (
@@ -72,7 +72,6 @@ class DataSection extends Component {
             onSelection={this.handleFillQuery}
             theme="GREEN"
             size="sm"
-            isKapacitorRule={isKapacitorRule}
           />
         </h3>
         <div className="rule-section--body">
