@@ -12,12 +12,12 @@ class FillQuery extends Component {
     this.state =
       typeof props.value === NUMBER
         ? {
-            selected: queryFills.find(fill => fill.type === props.value),
-            numberValue: '0',
-          }
-        : {
             selected: queryFills.find(fill => fill.type === NUMBER),
             numberValue: props.value,
+          }
+        : {
+            selected: queryFills.find(fill => fill.type === props.value),
+            numberValue: '0',
           }
   }
 
