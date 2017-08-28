@@ -791,10 +791,6 @@ func (p *Parser) parseSelectStatement(tr targetRequirement) (*SelectStatement, e
 		}
 	})
 
-	if err := stmt.validate(tr); err != nil {
-		return nil, err
-	}
-
 	return stmt, nil
 }
 

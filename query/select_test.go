@@ -2766,49 +2766,6 @@ func TestSelect_BinaryExpr_NilValues(t *testing.T) {
 	}
 }
 
-func TestSelect_InvalidQueries(t *testing.T) {
-	shardMapper := ShardMapper{
-		MapShardsFn: func(sources influxql.Sources, _ influxql.TimeRange) query.ShardGroup {
-			return &ShardGroup{
-				CreateIteratorFn: func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-					return &FloatIterator{}, nil
-				},
-			}
-		},
-	}
-
-	tests := []struct {
-		name string
-		q    string
-		err  string
-	}{
-		{
-			name: "UnsupportedCall",
-			q:    `SELECT foobar(value) FROM cpu`,
-			err:  `unsupported call: foobar`,
-		},
-		{
-			name: "InvalidStringExpression",
-			q:    `SELECT 'value' FROM cpu`,
-			err:  `invalid expression type: *influxql.StringLiteral`,
-		},
-		{
-			name: "InvalidStringExpressionWithValidExpression",
-			q:    `SELECT 'value', value FROM cpu`,
-			err:  `invalid expression type: *influxql.StringLiteral`,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, _, err := query.Select(MustParseSelectStatement(tt.q), &shardMapper, query.SelectOptions{})
-			if err == nil || err.Error() != tt.err {
-				t.Errorf("expected error '%s', got '%s'", tt.err, err)
-			}
-		})
-	}
-}
-
 type ShardMapper struct {
 	MapShardsFn func(sources influxql.Sources, t influxql.TimeRange) query.ShardGroup
 }
