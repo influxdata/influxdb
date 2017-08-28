@@ -1,4 +1,7 @@
-const PADDING_FACTOR = 0.1
+import BigNumber from 'bignumber.js'
+
+const ADD_FACTOR = 1.1
+const SUB_FACTOR = 0.9
 
 const considerEmpty = (userNumber, number) => {
   if (userNumber) {
@@ -16,19 +19,21 @@ const getRange = (
   const {value, rangeValue, operator} = ruleValues
   const [userMin, userMax] = userSelectedRange
 
-  const subtractPadding = val => +val - Math.abs(val * PADDING_FACTOR)
-  const addPadding = val => +val + Math.abs(val * PADDING_FACTOR)
+  const addPad = bigNum => bigNum.times(ADD_FACTOR).toNumber()
+  const subPad = bigNum => bigNum.times(SUB_FACTOR).toNumber()
 
-  const pad = val => {
-    if (val === null || val === '') {
+  const pad = v => {
+    if (v === null || v === '') {
       return null
     }
 
+    const val = new BigNumber(v)
+
     if (operator === 'less than') {
-      return val < 0 ? addPadding(val) : subtractPadding(val)
+      return val.lessThan(0) ? addPad(val) : subPad(val)
     }
 
-    return val < 0 ? subtractPadding(val) : addPadding(val)
+    return val.lessThan(0) ? subPad(val) : addPad(val)
   }
 
   const points = [...timeSeries, [null, pad(value)], [null, pad(rangeValue)]]
@@ -58,11 +63,8 @@ const getRange = (
   )
 
   const [calcMin, calcMax] = range
-
-  const [min, max] = [
-    considerEmpty(userMin, calcMin),
-    considerEmpty(userMax, calcMax),
-  ]
+  const min = considerEmpty(userMin, calcMin)
+  const max = considerEmpty(userMax, calcMax)
 
   if (min === max) {
     if (min > 0) {

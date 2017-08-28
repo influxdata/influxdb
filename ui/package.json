@@ -96,6 +96,7 @@
   },
   "dependencies": {
     "axios": "^0.13.1",
+    "bignumber.js": "^4.0.2",
     "bootstrap": "^3.3.7",
     "calculate-size": "^1.1.1",
     "classnames": "^2.2.3",
