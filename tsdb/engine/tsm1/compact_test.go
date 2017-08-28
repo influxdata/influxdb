@@ -162,6 +162,7 @@ func TestCompactor_CompactFull(t *testing.T) {
 		t.Fatalf("wrong sequence for new file: got %v, exp %v", gotSeq, expSeq)
 	}
 
+	println("Open", files[0])
 	r := MustOpenTSMReader(files[0])
 
 	if got, exp := r.KeyCount(), 3; got != exp {

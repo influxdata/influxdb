@@ -8,12 +8,12 @@ import (
 )
 
 func mmap(f *os.File, offset int64, length int) ([]byte, error) {
-	mmap, err := syscall.Mmap(int(f.Fd()), 0, length, syscall.PROT_READ, syscall.MAP_SHARED)
-	if err != nil {
-		return nil, err
+	// anonymous mapping
+	if f == nil {
+		return syscall.Mmap(-1, 0, length, syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_ANON|syscall.MAP_PRIVATE)
 	}
 
-	return mmap, nil
+	return syscall.Mmap(int(f.Fd()), 0, length, syscall.PROT_READ, syscall.MAP_SHARED)
 }
 
 func munmap(b []byte) (err error) {
