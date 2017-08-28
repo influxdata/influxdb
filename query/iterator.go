@@ -776,6 +776,9 @@ func newIteratorOptionsSubstatement(stmt *influxql.SelectStatement, opt Iterator
 	subOpt.SLimit += opt.SLimit
 	subOpt.SOffset += opt.SOffset
 
+	// Propagate the ordering from the parent query.
+	subOpt.Ascending = opt.Ascending
+
 	// If the inner query uses a null fill option, switch it to none so we
 	// don't hit an unnecessary penalty from the fill iterator. Null values
 	// will end up getting stripped by an outer query anyway so there's no
