@@ -38,6 +38,13 @@ type ShardMapper interface {
 
 // ShardGroup represents a shard or a collection of shards that can be accessed
 // for creating iterators.
+// When creating iterators, the resource used for reading the iterators should be
+// separate from the resource used to map the shards. When the ShardGroup is closed,
+// it should not close any resources associated with the created Iterator. Those
+// resources belong to the Iterator and will be closed when the Iterator itself is
+// closed.
+// The query engine operates under this assumption and will close the shard group
+// after creating the iterators, but before the iterators are actually read.
 type ShardGroup interface {
 	IteratorCreator
 	influxql.FieldMapper
@@ -48,6 +55,11 @@ type ShardGroup interface {
 type PreparedStatement interface {
 	// Select creates the Iterators that will be used to read the query.
 	Select() ([]Iterator, []string, error)
+
+	// Close closes the resources associated with this prepared statement.
+	// This must be called as the mapped shards may hold open resources such
+	// as network connections.
+	Close() error
 }
 
 // Prepare will compile the statement with the default compile options and
@@ -67,13 +79,18 @@ func Select(stmt *influxql.SelectStatement, shardMapper ShardMapper, opt SelectO
 	if err != nil {
 		return nil, nil, err
 	}
+	// Must be deferred so it runs after Select.
+	defer s.Close()
 	return s.Select()
 }
 
 type preparedStatement struct {
-	stmt    *influxql.SelectStatement
-	opt     IteratorOptions
-	ic      IteratorCreator
+	stmt *influxql.SelectStatement
+	opt  IteratorOptions
+	ic   interface {
+		IteratorCreator
+		io.Closer
+	}
 	columns []string
 }
 
@@ -83,6 +100,10 @@ func (p *preparedStatement) Select() ([]Iterator, []string, error) {
 		return nil, nil, err
 	}
 	return itrs, p.columns, nil
+}
+
+func (p *preparedStatement) Close() error {
+	return p.ic.Close()
 }
 
 func buildIterators(stmt *influxql.SelectStatement, ic IteratorCreator, opt IteratorOptions) ([]Iterator, error) {
