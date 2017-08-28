@@ -65,23 +65,25 @@ func (c *compiledStatement) Prepare(shardMapper ShardMapper, sopt SelectOptions)
 	if err != nil {
 		return nil, err
 	}
-	defer shards.Close()
 
 	// Rewrite wildcards, if any exist.
 	stmt, err := c.stmt.RewriteFields(shards)
 	if err != nil {
+		shards.Close()
 		return nil, err
 	}
 
 	// Determine base options for iterators.
 	opt, err := newIteratorOptionsStmt(stmt, sopt)
 	if err != nil {
+		shards.Close()
 		return nil, err
 	}
 
 	if sopt.MaxBucketsN > 0 && !stmt.IsRawQuery {
 		interval, err := stmt.GroupByInterval()
 		if err != nil {
+			shards.Close()
 			return nil, err
 		}
 
@@ -93,6 +95,7 @@ func (c *compiledStatement) Prepare(shardMapper ShardMapper, sopt SelectOptions)
 			// Determine the number of buckets by finding the time span and dividing by the interval.
 			buckets := (last - first + int64(interval)) / int64(interval)
 			if int(buckets) > sopt.MaxBucketsN {
+				shards.Close()
 				return nil, fmt.Errorf("max-select-buckets limit exceeded: (%d/%d)", buckets, sopt.MaxBucketsN)
 			}
 		}

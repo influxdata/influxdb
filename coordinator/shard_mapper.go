@@ -181,8 +181,9 @@ func (a *LocalShardMapping) CreateIterator(m *influxql.Measurement, opt query.It
 	return sg.CreateIterator(m.Name, opt)
 }
 
-// Close does nothing for a LocalShardMapping.
+// Close clears out the list of mapped shards.
 func (a *LocalShardMapping) Close() error {
+	a.ShardMap = nil
 	return nil
 }
 
