@@ -140,7 +140,7 @@ class DatabaseRow extends Component {
     if (isEditing) {
       return (
         <tr>
-          <td>
+          <td style={{width: `${DATABASE_TABLE.colRetentionPolicy}px`}}>
             {isNew
               ? <input
                   className="form-control input-xs"
