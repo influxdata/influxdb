@@ -51,59 +51,45 @@ class RuleMessageOptions extends Component {
       <div>
         {args
           ? <div className="rule-section--row rule-section--border-bottom">
-              <p>
-                {args.label}
-              </p>
-              <input
-                id="alert-input"
-                className="form-control input-sm form-malachite"
-                style={{flex: '1 0 0%'}}
-                type="text"
-                placeholder={args.placeholder}
-                onChange={this.handleUpdateAlertNodes}
-                value={ALERT_NODES_ACCESSORS[alertNodeName](rule)}
-                autoComplete="off"
-                spellCheck="false"
-              />
+              <p>Optional Alert Parameters:</p>
+              <div className="optional-alert-parameters">
+                <div className="form-group">
+                  <input
+                    name={args.label}
+                    id="alert-input"
+                    className="form-control input-sm form-malachite"
+                    type="text"
+                    placeholder={args.placeholder}
+                    onChange={this.handleUpdateAlertNodes}
+                    value={ALERT_NODES_ACCESSORS[alertNodeName](rule)}
+                    autoComplete="off"
+                    spellCheck="false"
+                  />
+                  <label htmlFor={args.label}>
+                    {args.label}
+                  </label>
+                </div>
+              </div>
             </div>
           : null}
         {properties && properties.length
-          ? <div
-              className="rule-section--row rule-section--border-bottom"
-              style={{display: 'block'}}
-            >
-              <p>Optional Alert Parameters</p>
-              <div style={{display: 'flex', flexWrap: 'wrap'}}>
+          ? <div className="rule-section--row rule-section--border-bottom">
+              <p>Optional Alert Parameters:</p>
+              <div className="optional-alert-parameters">
                 {properties.map(({name: propertyName, label, placeholder}) =>
-                  <div
-                    key={propertyName}
-                    style={{display: 'block', flex: '0 0 33.33%'}}
-                  >
-                    <label
-                      htmlFor={label}
-                      style={{
-                        display: 'flex',
-                        width: '100%',
-                        alignItems: 'center',
-                      }}
-                    >
-                      <span style={{flex: '0 0 auto'}}>
-                        {label}
-                      </span>
-                      <input
-                        name={label}
-                        className="form-control input-sm form-malachite"
-                        style={{
-                          margin: '0 15px 0 5px',
-                          flex: '1 0 0%',
-                        }}
-                        type="text"
-                        placeholder={placeholder}
-                        onChange={this.handleUpdateAlertProperty(propertyName)}
-                        value={this.getAlertPropertyValue(propertyName)}
-                        autoComplete="off"
-                        spellCheck="false"
-                      />
+                  <div key={propertyName} className="form-group">
+                    <input
+                      name={label}
+                      className="form-control input-sm form-malachite"
+                      type="text"
+                      placeholder={placeholder}
+                      onChange={this.handleUpdateAlertProperty(propertyName)}
+                      value={this.getAlertPropertyValue(propertyName)}
+                      autoComplete="off"
+                      spellCheck="false"
+                    />
+                    <label htmlFor={label}>
+                      {label}
                     </label>
                   </div>
                 )}
