@@ -6,14 +6,9 @@
 
 .fill-query {
   display: flex;
-  align-items: stretch;
+  align-items: center;
   flex-wrap: nowrap;
-}
-.fill-query > label {
-  white-space: nowrap;
-  margin: 0;
-  @include no-user-select();
-  color: $g11-sidewalk;
+  margin-left: 8px; // Assumes it is to the right of GROUP BY TIME
 }
 .fill-query--dropdown .dropdown-toggle {
   font-family: $code-font;
@@ -27,27 +22,15 @@
 }
 // Size modifiers
 .fill-query--xs {
-  .fill-query--dropdown .dropdown-toggle { width: 90px; }
-  .fill-query--input {width: 70px;}
-  & > label {
-    height: 22px;
-    line-height: 22px;
-    font-size: 12px;
-    padding: 0 8px;
+  .fill-query--dropdown .dropdown-toggle {
+    width: 90px;
+  }
+  .fill-query--input {
+    width: 70px;
   }
 }
 .fill-query--sm {
-  .fill-query--dropdown .dropdown-toggle { width: 110px; }
-  .fill-query--input {width: 90px;}
-  & > label {
-    height: 30px;
-    line-height: 30px;
-    font-size: 14px;
-    padding: 0 11px;
+  .fill-query--input {
+    width: 90px;
   }
-}
-
-// Prevent component from being flush to edge when used in Query Editor
-.query-editor--status .fill-query {
-  margin-right: 4px;
 }

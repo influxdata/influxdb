@@ -23,7 +23,7 @@ class FillQuery extends Component {
   }
 
   static defaultProps = {
-    size: 'xs',
+    size: 'sm',
     theme: 'blue',
     value: NULL,
   }
@@ -79,13 +79,12 @@ class FillQuery extends Component {
 
     return (
       <div className={`fill-query fill-query--${size}`}>
-        <label>Fill</label>
         <Dropdown
           selected={selected.text}
           items={queryFills}
           className="fill-query--dropdown"
           buttonSize={`btn-${size}`}
-          buttonColor="btn-default"
+          buttonColor="btn-info"
           menuClass={`dropdown-${this.getColor(theme)}`}
           onChoose={this.handleDropdown}
         />
