@@ -46,6 +46,7 @@ export default React.createClass({
     synchronizer: func,
     setResolution: func,
     cellHeight: number,
+    onZoom: func,
   },
 
   getDefaultProps() {
@@ -101,6 +102,7 @@ export default React.createClass({
       synchronizer,
       timeRange,
       cellHeight,
+      onZoom,
     } = this.props
     const {labels, timeSeries, dygraphSeries} = this._timeSeries
 
@@ -159,12 +161,11 @@ export default React.createClass({
       : overrideLineColors
 
     return (
-      <div className={`dygraph ${this.yLabelClass()}`} style={{height: '100%'}}>
+      <div className="dygraph graph--hasYLabel" style={{height: '100%'}}>
         {isRefreshing ? this.renderSpinner() : null}
         <Dygraph
           axes={axes}
           queries={queries}
-          dygraphRef={this.dygraphRefFunc}
           containerStyle={{width: '100%', height: '100%'}}
           overrideLineColors={lineColors}
           isGraphFilled={showSingleStat ? false : isGraphFilled}
@@ -177,6 +178,7 @@ export default React.createClass({
           synchronizer={synchronizer}
           timeRange={timeRange}
           setResolution={this.props.setResolution}
+          onZoom={onZoom}
         />
         {showSingleStat
           ? <div className="single-stat single-stat-line">
@@ -193,26 +195,6 @@ export default React.createClass({
           : null}
       </div>
     )
-  },
-
-  yLabelClass() {
-    const dygraph = this.dygraphRef
-
-    if (!dygraph) {
-      return 'graph--hasYLabel'
-    }
-
-    const label = dygraph.querySelector('.dygraph-ylabel')
-
-    if (!label) {
-      return ''
-    }
-
-    return 'graph--hasYLabel'
-  },
-
-  dygraphRefFunc(dygraphRef) {
-    this.dygraphRef = dygraphRef
   },
 
   renderSpinner() {

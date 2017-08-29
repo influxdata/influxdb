@@ -3,13 +3,20 @@ import React, {Component, PropTypes} from 'react'
 import shallowCompare from 'react-addons-shallow-compare'
 
 import _ from 'lodash'
+import moment from 'moment'
 
 import Dygraphs from 'src/external/dygraph'
 import getRange from 'shared/parsing/getRangeForDygraph'
 
+import {DISPLAY_OPTIONS} from 'src/dashboards/constants'
 import {LINE_COLORS, multiColumnBarPlotter} from 'src/shared/graphs/helpers'
 import DygraphLegend from 'src/shared/components/DygraphLegend'
 import {buildDefaultYLabel} from 'shared/presenters'
+import {numberValueFormatter} from 'src/utils/formatting'
+
+const {LINEAR, LOG, BASE_10} = DISPLAY_OPTIONS
+const labelWidth = 60
+const avgCharPixels = 7
 
 const hasherino = (str, len) =>
   str
@@ -35,24 +42,18 @@ export default class Dygraph extends Component {
     }
   }
 
-  static defaultProps = {
-    containerStyle: {},
-    isGraphFilled: true,
-    overrideLineColors: null,
-    dygraphRef: () => {},
-  }
-
   componentDidMount() {
     const timeSeries = this.getTimeSeries()
     // dygraphSeries is a legend label and its corresponding y-axis e.g. {legendLabel1: 'y', legendLabel2: 'y2'};
     const {
-      axes,
+      axes: {y, y2},
       dygraphSeries,
       ruleValues,
       overrideLineColors,
       isGraphFilled,
       isBarGraph,
       options,
+      onZoom,
     } = this.props
 
     const graphRef = this.graphRef
@@ -69,8 +70,10 @@ export default class Dygraph extends Component {
       hashColorDygraphSeries[seriesName] = {...series, color}
     }
 
-    const yAxis = _.get(axes, ['y', 'bounds'], [null, null])
-    const y2Axis = _.get(axes, ['y2', 'bounds'], undefined)
+    const axisLabelWidth =
+      labelWidth +
+      y.prefix.length * avgCharPixels +
+      y.suffix.length * avgCharPixels
 
     const defaultOptions = {
       plugins: isBarGraph
@@ -80,6 +83,7 @@ export default class Dygraph extends Component {
               direction: 'vertical',
             }),
           ],
+      logscale: y.scale === LOG,
       labelsSeparateLines: false,
       labelsKMB: true,
       rightGap: 0,
@@ -95,10 +99,15 @@ export default class Dygraph extends Component {
       series: hashColorDygraphSeries,
       axes: {
         y: {
-          valueRange: getRange(timeSeries, yAxis, ruleValues),
+          valueRange: getRange(timeSeries, y.bounds, ruleValues),
+          axisLabelFormatter: (yval, __, opts) =>
+            numberValueFormatter(yval, opts, y.prefix, y.suffix),
+          axisLabelWidth,
+          labelsKMB: y.base === '10',
+          labelsKMG2: y.base === '2',
         },
         y2: {
-          valueRange: getRange(timeSeries, y2Axis),
+          valueRange: getRange(timeSeries, y2.bounds),
         },
       },
       highlightSeriesOpts: {
@@ -114,10 +123,10 @@ export default class Dygraph extends Component {
         const highlighted = legend.series.find(s => s.isHighlighted)
         const prevHighlighted = prevLegend.series.find(s => s.isHighlighted)
 
-        const y = highlighted && highlighted.y
+        const yVal = highlighted && highlighted.y
         const prevY = prevHighlighted && prevHighlighted.y
 
-        if (legend.x === prevLegend.x && y === prevY) {
+        if (legend.x === prevLegend.x && yVal === prevY) {
           return ''
         }
 
@@ -177,6 +186,13 @@ export default class Dygraph extends Component {
           }
         }
       },
+      zoomCallback: (lower, upper) => {
+        if (this.dygraph.isZoomed() === false) {
+          return onZoom(null, null)
+        }
+
+        onZoom(this.formatTimeRange(lower), this.formatTimeRange(upper))
+      },
     }
 
     if (isBarGraph) {
@@ -222,7 +238,7 @@ export default class Dygraph extends Component {
   componentDidUpdate() {
     const {
       labels,
-      axes,
+      axes: {y, y2},
       options,
       dygraphSeries,
       ruleValues,
@@ -237,8 +253,6 @@ export default class Dygraph extends Component {
       )
     }
 
-    const y = _.get(axes, ['y', 'bounds'], [null, null])
-    const y2 = _.get(axes, ['y2', 'bounds'], undefined)
     const timeSeries = this.getTimeSeries()
     const ylabel = this.getLabel('y')
     const finalLineColors = [...(overrideLineColors || LINE_COLORS)]
@@ -253,16 +267,27 @@ export default class Dygraph extends Component {
       hashColorDygraphSeries[seriesName] = {...series, color}
     }
 
+    const axisLabelWidth =
+      labelWidth +
+      y.prefix.length * avgCharPixels +
+      y.suffix.length * avgCharPixels
+
     const updateOptions = {
       labels,
       file: timeSeries,
       ylabel,
+      logscale: y.scale === LOG,
       axes: {
         y: {
-          valueRange: getRange(timeSeries, y, ruleValues),
+          valueRange: getRange(timeSeries, y.bounds, ruleValues),
+          axisLabelFormatter: (yval, __, opts) =>
+            numberValueFormatter(yval, opts, y.prefix, y.suffix),
+          axisLabelWidth,
+          labelsKMB: y.base === '10',
+          labelsKMG2: y.base === '2',
         },
         y2: {
-          valueRange: getRange(timeSeries, y2),
+          valueRange: getRange(timeSeries, y2.bounds),
         },
       },
       stepPlot: options.stepPlot,
@@ -275,8 +300,10 @@ export default class Dygraph extends Component {
     }
 
     dygraph.updateOptions(updateOptions)
-    dygraph.resize()
+
     const {w} = this.dygraph.getArea()
+    this.resize()
+    this.dygraph.resize()
     this.props.setResolution(w)
   }
 
@@ -361,6 +388,19 @@ export default class Dygraph extends Component {
 
   handleLegendRef = el => (this.legendRef = el)
 
+  resize = () => {
+    this.dygraph.resizeElements_()
+    this.dygraph.predraw_()
+  }
+
+  formatTimeRange = timeRange => {
+    if (!timeRange) {
+      return ''
+    }
+
+    return moment(timeRange).utc().format()
+  }
+
   render() {
     const {
       legend,
@@ -386,16 +426,16 @@ export default class Dygraph extends Component {
           onSnip={this.handleSnipLabel}
           onSort={this.handleSortLegend}
           legendRef={this.handleLegendRef}
-          onInputChange={this.handleLegendInputChange}
           onToggleFilter={this.handleToggleFilter}
+          onInputChange={this.handleLegendInputChange}
         />
         <div
           ref={r => {
             this.graphRef = r
             this.props.dygraphRef(r)
           }}
-          style={this.props.containerStyle}
           className="dygraph-child-container"
+          style={this.props.containerStyle}
         />
       </div>
     )
@@ -403,6 +443,28 @@ export default class Dygraph extends Component {
 }
 
 const {array, arrayOf, bool, func, shape, string} = PropTypes
+
+Dygraph.defaultProps = {
+  axes: {
+    y: {
+      bounds: [null, null],
+      prefix: '',
+      suffix: '',
+      base: BASE_10,
+      scale: LINEAR,
+    },
+    y2: {
+      bounds: undefined,
+      prefix: '',
+      suffix: '',
+    },
+  },
+  containerStyle: {},
+  isGraphFilled: true,
+  overrideLineColors: null,
+  dygraphRef: () => {},
+  onZoom: () => {},
+}
 
 Dygraph.propTypes = {
   axes: shape({
@@ -433,4 +495,5 @@ Dygraph.propTypes = {
   synchronizer: func,
   setResolution: func,
   dygraphRef: func,
+  onZoom: func,
 }

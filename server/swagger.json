@@ -3720,13 +3720,13 @@
                 "type": "object",
                 "properties": {
                   "x": {
-                    "$ref": "#/definitions/DashboardRange"
+                    "$ref": "#/definitions/Axis"
                   },
                   "y": {
-                    "$ref": "#/definitions/DashboardRange"
+                    "$ref": "#/definitions/Axis"
                   },
                   "y2": {
-                    "$ref": "#/definitions/DashboardRange"
+                    "$ref": "#/definitions/Axis"
                   }
                 }
               },
@@ -3811,7 +3811,7 @@
         }
       }
     },
-    "DashboardRange": {
+    "Axis": {
       "type": "object",
       "description": "A description of a particular axis for a visualization",
       "properties": {
@@ -3824,6 +3824,26 @@
             "type": "integer",
             "format": "int64"
           }
+        },
+        "label": {
+          "description": "label is a description of this Axis",
+          "type": "string"
+        },
+        "prefix": {
+          "description": "Prefix represents a label prefix for formatting axis values.",
+          "type": "string"
+        },
+        "suffix": {
+          "description": "Suffix represents a label suffix for formatting axis values.",
+          "type": "string"
+        },
+        "base": {
+          "description": "Base represents the radix for formatting axis values.",
+          "type": "string"
+        },
+        "scale": {
+          "description": "Scale is the axis formatting scale. Supported: \"log\", \"linear\"",
+          "type": "string"
         }
       }
     },

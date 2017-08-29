@@ -168,6 +168,10 @@ func Test_MarshalDashboard(t *testing.T) {
 					"y": chronograf.Axis{
 						Bounds: []string{"0", "3", "1-7", "foo"},
 						Label:  "foo",
+						Prefix: "M",
+						Suffix: "m",
+						Base:   "2",
+						Scale:  "roflscale",
 					},
 				},
 				Type: "line",
@@ -241,6 +245,8 @@ func Test_MarshalDashboard_WithLegacyBounds(t *testing.T) {
 				Axes: map[string]chronograf.Axis{
 					"y": chronograf.Axis{
 						Bounds: []string{},
+						Base:   "10",
+						Scale:  "linear",
 					},
 				},
 				Type: "line",
@@ -260,7 +266,7 @@ func Test_MarshalDashboard_WithLegacyBounds(t *testing.T) {
 	}
 }
 
-func Test_MarshalDashboard_WithNoLegacyBounds(t *testing.T) {
+func Test_MarshalDashboard_WithEmptyLegacyBounds(t *testing.T) {
 	dashboard := chronograf.Dashboard{
 		ID: 1,
 		Cells: []chronograf.DashboardCell{
@@ -314,6 +320,8 @@ func Test_MarshalDashboard_WithNoLegacyBounds(t *testing.T) {
 				Axes: map[string]chronograf.Axis{
 					"y": chronograf.Axis{
 						Bounds: []string{},
+						Base:   "10",
+						Scale:  "linear",
 					},
 				},
 				Type: "line",
