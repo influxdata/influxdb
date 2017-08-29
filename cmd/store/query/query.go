@@ -74,7 +74,7 @@ func (cmd *Command) Run(args ...string) error {
 	fs.StringVar(&cmd.retentionPolicy, "retention", "", "Optional: the retention policy to export (requires -database)")
 	fs.StringVar(&start, "start", "", "Optional: the start time to export (RFC3339 format)")
 	fs.StringVar(&end, "end", "", "Optional: the end time to export (RFC3339 format)")
-	fs.Uint64Var(&cmd.slimit, "slimit", 10, "Optional: limit number of series")
+	fs.Uint64Var(&cmd.slimit, "slimit", 0, "Optional: limit number of series")
 	fs.Uint64Var(&cmd.soffset, "soffset", 0, "Optional: start offset for series")
 	fs.Uint64Var(&cmd.limit, "limit", 0, "Optional: limit number of values per series")
 	fs.BoolVar(&cmd.desc, "desc", false, "Optional: return results in descending order")

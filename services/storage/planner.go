@@ -144,6 +144,7 @@ func newAllMeasurementsPlanner(req *ReadRequest, shards []*tsdb.Shard, log zap.L
 	opt := query.IteratorOptions{
 		Aux:        []influxql.VarRef{{Val: "key"}},
 		Authorizer: query.OpenAuthorizer{},
+		Ordered:    true,
 	}
 	p := &allMeasurementsPlanner{shards: shards}
 
@@ -175,6 +176,9 @@ func newAllMeasurementsPlanner(req *ReadRequest, shards []*tsdb.Shard, log zap.L
 	if itr, err := sg.CreateIterator("_series", opt); err != nil {
 		return nil, err
 	} else {
+		// TODO(sgc): need to rethink how we enumerate series across shards; dedupe is inefficient
+		itr = query.NewDedupeIterator(itr)
+
 		if req.SeriesLimit > 0 || req.SeriesOffset > 0 {
 			opt := query.IteratorOptions{Limit: int(req.SeriesLimit), Offset: int(req.SeriesOffset)}
 			itr = query.NewLimitIterator(itr, opt)
@@ -186,12 +190,18 @@ func newAllMeasurementsPlanner(req *ReadRequest, shards []*tsdb.Shard, log zap.L
 		}
 	}
 
-	fitr, err := toFloatIterator(sg.CreateIterator("_fieldKeys", opt))
-	if err != nil {
+	if itr, err := sg.CreateIterator("_fieldKeys", opt); err != nil {
 		return nil, err
+	} else {
+		itr = query.NewDedupeIterator(itr)
+		fitr, err := toFloatIterator(itr, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		p.fields = extractFields(fitr)
 	}
 
-	p.fields = extractFields(fitr)
 
 	return p, nil
 }
