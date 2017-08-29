@@ -1,3 +1,9 @@
+## v1.3.5 [unreleased]
+
+### Bugfixes
+
+- [#8755](https://github.com/influxdata/influxdb/pull/8755): Fix race condition accessing `seriesByID` map.
+
 ## v1.3.4 [2017-08-23]
 
 ### Bugfixes

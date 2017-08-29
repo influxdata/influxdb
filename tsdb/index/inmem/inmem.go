@@ -316,8 +316,8 @@ func (i *Index) MeasurementTagKeyValuesByExpr(name []byte, keys []string, expr i
 
 	// Iterate all series to collect tag values.
 	for _, id := range ids {
-		s, ok := mm.seriesByID[id]
-		if !ok {
+		s := mm.SeriesByID(id)
+		if s == nil {
 			continue
 		}
 
