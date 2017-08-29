@@ -5,7 +5,6 @@ import classnames from 'classnames'
 import DatabaseList from 'src/shared/components/DatabaseList'
 import MeasurementList from 'src/shared/components/MeasurementList'
 import FieldList from 'src/shared/components/FieldList'
-import FillQuery from 'shared/components/FillQuery'
 
 import {defaultEveryFrequency} from 'src/kapacitor/constants'
 
@@ -35,10 +34,6 @@ class DataSection extends Component {
     this.props.actions.groupByTime(this.props.query.id, null)
   }
 
-  handleFillQuery = value => {
-    this.props.actions.fill(this.props.query.id, value)
-  }
-
   handleGroupByTime = time => {
     this.props.actions.groupByTime(this.props.query.id, time)
   }
@@ -61,19 +56,13 @@ class DataSection extends Component {
   }
 
   render() {
-    const {query, timeRange: {lower}} = this.props
-    const statement = query.rawText || buildInfluxQLQuery({lower}, query)
+    const {query, timeRange: {lower}, isKapacitorRule} = this.props
+    const statement =
+      query.rawText || buildInfluxQLQuery({lower}, query, isKapacitorRule)
 
     return (
       <div className="rule-section">
-        <h3 className="rule-section--heading">
-          Select a Time Series
-          <FillQuery
-            onSelection={this.handleFillQuery}
-            theme="GREEN"
-            size="sm"
-          />
-        </h3>
+        <h3 className="rule-section--heading">Select a Time Series</h3>
         <div className="rule-section--body">
           <pre className="rule-section--border-bottom">
             <code
