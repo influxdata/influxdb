@@ -38,6 +38,9 @@ type compiledStatement struct {
 	// a query that shouldn't have an interval to fail.
 	InheritedInterval bool
 
+	// Ascending is true if the time ordering is ascending.
+	Ascending bool
+
 	// FunctionCalls holds a reference to the call expression of every function
 	// call that has been encountered.
 	FunctionCalls []*influxql.Call
@@ -114,6 +117,7 @@ func Compile(stmt *influxql.SelectStatement, opt CompileOptions) (Statement, err
 
 // preprocess retrieves and records the global attributes of the current statement.
 func (c *compiledStatement) preprocess(stmt *influxql.SelectStatement) error {
+	c.Ascending = stmt.TimeAscending()
 	c.Limit = stmt.Limit
 	c.HasTarget = stmt.Target != nil
 
@@ -764,6 +768,13 @@ func (c *compiledStatement) subquery(stmt *influxql.SelectStatement) error {
 		return err
 	}
 
+	// If the ordering is different and the sort field was specified for the subquery,
+	// throw an error.
+	if len(stmt.SortFields) != 0 && subquery.Ascending != c.Ascending {
+		return errors.New("subqueries must be ordered in the same direction as the query itself")
+	}
+	subquery.Ascending = c.Ascending
+
 	// Find the intersection between this time range and the parent.
 	// If the subquery doesn't have a time range, this causes it to
 	// inherit the parent's time range.
@@ -804,6 +815,7 @@ func (c *compiledStatement) Prepare(shardMapper ShardMapper, sopt SelectOptions)
 		return nil, err
 	}
 	opt.StartTime, opt.EndTime = c.TimeRange.MinTime(), c.TimeRange.MaxTime()
+	opt.Ascending = c.Ascending
 
 	if sopt.MaxBucketsN > 0 && !stmt.IsRawQuery {
 		interval, err := stmt.GroupByInterval()
