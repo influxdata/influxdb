@@ -850,9 +850,9 @@ func (m *Measurement) SeriesIDsAllOrByExpr(expr influxql.Expr) (SeriesIDs, error
 	}
 
 	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	if len(m.seriesByID) == 0 {
+	l := len(m.seriesByID)
+	m.mu.RUnlock()
+	if l == 0 {
 		return nil, nil
 	}
 
