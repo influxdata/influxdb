@@ -285,6 +285,26 @@ func (v *exprToNodeVisitor) pop2() (lhs, rhs *storage.Node) {
 	return
 }
 
+func mapOpToComparison(op influxql.Token) storage.Node_Comparison {
+	switch op {
+	case influxql.EQ:
+		return storage.ComparisonEqual
+	case influxql.NEQ:
+		return storage.ComparisonNotEqual
+	case influxql.LT:
+		return storage.ComparisonLess
+	case influxql.LTE:
+		return storage.ComparisonLessEqual
+	case influxql.GT:
+		return storage.ComparisonGreater
+	case influxql.GTE:
+		return storage.ComparisonGreaterEqual
+
+	default:
+		return -1
+	}
+}
+
 func (v *exprToNodeVisitor) Visit(node influxql.Node) influxql.Visitor {
 	switch n := node.(type) {
 	case *influxql.BinaryExpr:
@@ -302,11 +322,11 @@ func (v *exprToNodeVisitor) Visit(node influxql.Node) influxql.Visitor {
 			return nil
 		}
 
-		if n.Op == influxql.EQ {
+		if comp := mapOpToComparison(n.Op); comp != -1 {
 			lhs, rhs := v.pop2()
 			node := &storage.Node{
 				NodeType: storage.NodeTypeComparisonExpression,
-				Value:    &storage.Node_Comparison_{Comparison: storage.ComparisonEqual},
+				Value:    &storage.Node_Comparison_{Comparison: comp},
 				Children: []*storage.Node{lhs, rhs},
 			}
 			v.nodes = append(v.nodes, node)
@@ -346,6 +366,16 @@ func (v *exprToNodeVisitor) Visit(node influxql.Node) influxql.Visitor {
 
 	case *influxql.StringLiteral:
 		node := &storage.Node{NodeType: storage.NodeTypeLiteral, Value: &storage.Node_StringValue{StringValue: n.Val}}
+		v.nodes = append(v.nodes, node)
+		return nil
+
+	case *influxql.NumberLiteral:
+		node := &storage.Node{NodeType: storage.NodeTypeLiteral, Value: &storage.Node_FloatValue{FloatValue: n.Val}}
+		v.nodes = append(v.nodes, node)
+		return nil
+
+	case *influxql.IntegerLiteral:
+		node := &storage.Node{NodeType: storage.NodeTypeLiteral, Value: &storage.Node_IntegerValue{IntegerValue: n.Val}}
 		v.nodes = append(v.nodes, node)
 		return nil
 

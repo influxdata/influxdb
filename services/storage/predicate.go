@@ -93,6 +93,14 @@ func (v *predicateExpressionPrinter) Visit(n *Node) NodeVisitor {
 			v.Buffer.WriteString("=~")
 		case ComparisonNotRegex:
 			v.Buffer.WriteString("!~")
+		case ComparisonLess:
+			v.Buffer.WriteByte('<')
+		case ComparisonLessEqual:
+			v.Buffer.WriteString("<=")
+		case ComparisonGreater:
+			v.Buffer.WriteByte('>')
+		case ComparisonGreaterEqual:
+			v.Buffer.WriteString(">=")
 		}
 
 		v.Buffer.WriteByte(' ')

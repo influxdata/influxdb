@@ -62,9 +62,11 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 	var lastTags models.Tags
 	var res ReadResponse
 	res.Frames = make([]ReadResponse_Frame, 0, FrameCount)
+	ss := 0
 
 	for rs.Next() {
 		if len(res.Frames) >= FrameCount {
+			// TODO(sgc): if last frame is a series, strip it
 			err = stream.Send(&res)
 			if err != nil {
 				r.Logger.Error("stream.Send failed", zap.Error(err))
@@ -88,6 +90,13 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 			}
 
 			lastTags = next
+			if pointCount == 0 {
+				// no points collected, so strip series
+				res.Frames = res.Frames[:ss]
+			} else {
+				ss = len(res.Frames)
+			}
+
 			res.Frames = append(res.Frames, ReadResponse_Frame{&ReadResponse_Frame_Series{&sf}})
 
 			pointCount = 0

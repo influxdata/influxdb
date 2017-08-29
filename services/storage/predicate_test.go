@@ -5,6 +5,7 @@ import (
 
 	"encoding/json"
 
+	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/services/storage"
 )
 
@@ -139,4 +140,16 @@ func TestRewriteExprRemoveFieldKeyAndValue(t *testing.T) {
 
 	expr = storage.RewriteExprRemoveFieldKeyAndValue(expr)
 	t.Log(expr)
+
+	expr = influxql.Reduce(expr, mapValuer{"host": "host1"})
+	t.Log(expr)
+}
+
+type mapValuer map[string]string
+
+var _ influxql.Valuer = mapValuer(nil)
+
+func (vs mapValuer) Value(key string) (interface{}, bool) {
+	v, ok := vs[key]
+	return v, ok
 }

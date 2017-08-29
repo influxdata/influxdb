@@ -47,6 +47,11 @@ func (r *ResultSet) Next() bool {
 func (r *ResultSet) Cursor() tsdb.Cursor {
 	req := tsdb.CursorRequest{Measurement: r.row.measurement, Series: r.row.key, Field: r.row.field, Ascending: r.asc, StartTime: r.start, EndTime: r.end}
 	c, _ := r.shard.CreateCursor(req)
+
+	if r.row.valueCond != nil {
+		c = newFilterCursor(c, r.row.valueCond)
+	}
+
 	return c
 }
 
@@ -78,6 +83,7 @@ type plannerRow struct {
 	measurement, key, field string
 	tags                    models.Tags
 	shards                  []*tsdb.Shard
+	valueCond               influxql.Expr
 }
 
 type allMeasurementsPlanner struct {
@@ -91,9 +97,18 @@ type allMeasurementsPlanner struct {
 	err             error
 	eof             bool
 	tags            models.Tags
-	filterset       map[string]string
+	filterset       mapValuer
 	cond            influxql.Expr
 	measurementCond influxql.Expr
+}
+
+type mapValuer map[string]string
+
+var _ influxql.Valuer = mapValuer(nil)
+
+func (vs mapValuer) Value(key string) (interface{}, bool) {
+	v, ok := vs[key]
+	return v, ok
 }
 
 func toFloatIterator(iter query.Iterator, err error) (query.FloatIterator, error) {
@@ -140,7 +155,20 @@ func newAllMeasurementsPlanner(req *ReadRequest, shards []*tsdb.Shard, log zap.L
 			return nil, err
 		}
 
-		opt.Condition = RewriteExprRemoveFieldKeyAndValue(p.measurementCond)
+		if !HasFieldKeyOrValue(p.cond) {
+			p.measurementCond = p.cond
+			opt.Condition = p.cond
+		} else {
+			p.measurementCond = influxql.Reduce(RewriteExprRemoveFieldValue(influxql.CloneExpr(p.cond)), nil)
+			if isBooleanLiteral(p.measurementCond) {
+				p.measurementCond = nil
+			}
+
+			opt.Condition = influxql.Reduce(RewriteExprRemoveFieldKeyAndValue(influxql.CloneExpr(p.cond)), nil)
+			if isBooleanLiteral(opt.Condition) {
+				opt.Condition = nil
+			}
+		}
 	}
 
 	sg := tsdb.Shards(shards)
@@ -201,7 +229,7 @@ RETRY:
 		p.m = string(mm)
 		p.tags, _ = models.ParseTags(keyb)
 
-		p.filterset = map[string]string{"_name": p.m}
+		p.filterset = mapValuer{"_name": p.m}
 		for _, tag := range p.tags {
 			p.filterset[string(tag.Key)] = string(tag.Value)
 		}
@@ -224,9 +252,23 @@ RETRY:
 }
 
 func (p *allMeasurementsPlanner) Read() plannerRow {
-	return plannerRow{p.m, p.key, p.f, p.tags, p.shards}
+	var cond influxql.Expr
+	if p.cond != nil {
+		cond = influxql.Reduce(influxql.CloneExpr(p.cond), p.filterset)
+		if isBooleanLiteral(cond) {
+			// we've reduced the expression to "true"
+			cond = nil
+		}
+	}
+
+	return plannerRow{p.m, p.key, p.f, p.tags.Clone(), p.shards, cond}
 }
 
 func (p *allMeasurementsPlanner) Err() error {
 	return p.err
+}
+
+func isBooleanLiteral(expr influxql.Expr) bool {
+	_, ok := expr.(*influxql.BooleanLiteral)
+	return ok
 }

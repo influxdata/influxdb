@@ -105,6 +105,14 @@ func (v *nodeToExprVisitor) Visit(n *Node) NodeVisitor {
 			be.Op = influxql.EQREGEX
 		case ComparisonNotRegex:
 			be.Op = influxql.NEQREGEX
+		case ComparisonLess:
+			be.Op = influxql.LT
+		case ComparisonLessEqual:
+			be.Op = influxql.LTE
+		case ComparisonGreater:
+			be.Op = influxql.GT
+		case ComparisonGreaterEqual:
+			be.Op = influxql.GTE
 		default:
 			v.err = errors.New("invalid comparison operator")
 			return nil
@@ -191,6 +199,39 @@ func (v *nodeToExprVisitor) pop2() (lhs, rhs influxql.Expr) {
 	lhs = v.exprs[len(v.exprs)-2]
 	v.exprs = v.exprs[:len(v.exprs)-2]
 	return
+}
+
+type hasRefs struct {
+	refs  []string
+	found bool
+}
+
+func (v *hasRefs) Visit(node influxql.Node) influxql.Visitor {
+	if v.found {
+		return nil
+	}
+
+	if n, ok := node.(*influxql.VarRef); ok {
+		for _, r := range v.refs {
+			if r == n.Val {
+				v.found = true
+				return nil
+			}
+		}
+	}
+	return v
+}
+
+func HasFieldKey(expr influxql.Expr) bool {
+	refs := hasRefs{refs: []string{"_field"}}
+	influxql.Walk(&refs, expr)
+	return refs.found
+}
+
+func HasFieldKeyOrValue(expr influxql.Expr) bool {
+	refs := hasRefs{refs: []string{"_field", "$"}}
+	influxql.Walk(&refs, expr)
+	return refs.found
 }
 
 func RewriteExprRemoveFieldKeyAndValue(expr influxql.Expr) influxql.Expr {

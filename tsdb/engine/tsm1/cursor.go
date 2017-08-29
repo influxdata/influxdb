@@ -4,25 +4,25 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 )
 
-type rangeIntegerCursor struct {
+type integerRangeCursor struct {
 	key string
 	cur integerCursor
 	t   int64
 	asc bool
 }
 
-func newRangeIntegerCursor(key string, time int64, asc bool, cur integerCursor) *rangeIntegerCursor {
-	return &rangeIntegerCursor{key: key, cur: cur, t: time, asc: asc}
+func newIntegerRangeCursor(key string, time int64, asc bool, cur integerCursor) *integerRangeCursor {
+	return &integerRangeCursor{key: key, cur: cur, t: time, asc: asc}
 }
 
-func (l *rangeIntegerCursor) Close() {
+func (l *integerRangeCursor) Close() {
 	// cursors always return nil
 	l.cur.close()
 }
 
-func (l *rangeIntegerCursor) SeriesKey() string { return l.key }
+func (l *integerRangeCursor) SeriesKey() string { return l.key }
 
-func (l *rangeIntegerCursor) Next() (int64, int64) {
+func (l *integerRangeCursor) Next() (int64, int64) {
 	k, v := l.cur.nextInteger()
 	if k == tsdb.EOF {
 		return k, v
@@ -45,25 +45,25 @@ func (l *rangeIntegerCursor) Next() (int64, int64) {
 	return k, v
 }
 
-type rangeFloatCursor struct {
+type floatRangeCursor struct {
 	key string
 	cur floatCursor
 	t   int64
 	asc bool
 }
 
-func newRangeFloatCursor(key string, time int64, asc bool, cur floatCursor) *rangeFloatCursor {
-	return &rangeFloatCursor{key: key, cur: cur, t: time, asc: asc}
+func newFloatRangeCursor(key string, time int64, asc bool, cur floatCursor) *floatRangeCursor {
+	return &floatRangeCursor{key: key, cur: cur, t: time, asc: asc}
 }
 
-func (l *rangeFloatCursor) Close() {
+func (l *floatRangeCursor) Close() {
 	// cursors always return nil
 	l.cur.close()
 }
 
-func (l *rangeFloatCursor) SeriesKey() string { return l.key }
+func (l *floatRangeCursor) SeriesKey() string { return l.key }
 
-func (l *rangeFloatCursor) Next() (int64, float64) {
+func (l *floatRangeCursor) Next() (int64, float64) {
 	k, v := l.cur.nextFloat()
 	if k == tsdb.EOF {
 		return k, v

@@ -22,6 +22,10 @@ message Node {
     STARTS_WITH = 2 [(gogoproto.enumvalue_customname) = "ComparisonStartsWith"];
     REGEX = 3 [(gogoproto.enumvalue_customname) = "ComparisonRegex"];
     NOT_REGEX = 4 [(gogoproto.enumvalue_customname) = "ComparisonNotRegex"];
+    LT = 5 [(gogoproto.enumvalue_customname) = "ComparisonLess"];
+    LTE = 6 [(gogoproto.enumvalue_customname) = "ComparisonLessEqual"];
+    GT = 7 [(gogoproto.enumvalue_customname) = "ComparisonGreater"];
+    GTE = 8 [(gogoproto.enumvalue_customname) = "ComparisonGreaterEqual"];
   }
 
   // Logical operators apply to boolean values and combine to produce a single boolean result.

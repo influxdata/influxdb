@@ -34,10 +34,10 @@ func (e *Engine) CreateCursor(r tsdb.CursorRequest) (tsdb.Cursor, error) {
 	// Return appropriate cursor based on type.
 	switch f.Type {
 	case influxql.Float:
-		return newRangeFloatCursor(r.Series, t, r.Ascending, e.buildFloatCursor(r.Measurement, r.Series, r.Field, opt)), nil
+		return newFloatRangeCursor(r.Series, t, r.Ascending, e.buildFloatCursor(r.Measurement, r.Series, r.Field, opt)), nil
 
 	case influxql.Integer:
-		return newRangeIntegerCursor(r.Series, t, r.Ascending, e.buildIntegerCursor(r.Measurement, r.Series, r.Field, opt)), nil
+		return newIntegerRangeCursor(r.Series, t, r.Ascending, e.buildIntegerCursor(r.Measurement, r.Series, r.Field, opt)), nil
 
 	case influxql.Unsigned:
 		return nil, nil

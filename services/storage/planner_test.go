@@ -16,7 +16,7 @@ func TestPlannerCondition(t *testing.T) {
 		},
 	}
 
-	cond, err := influxql.ParseExpr(`(_name = 'cpu' AND (_field = 'user' OR _field = 'system')) OR _name = 'mem'`)
+	cond, err := influxql.ParseExpr(`(_name = 'cpu' AND (_field = 'user' OR _field = 'system')) OR (_name = 'mem' AND "$" = 0)`)
 	if err != nil {
 		t.Fatal("ParseExpr", err)
 	}
@@ -24,7 +24,8 @@ func TestPlannerCondition(t *testing.T) {
 	p := &allMeasurementsPlanner{
 		sitr:            sitr,
 		fields:          []string{"user", "system", "val"},
-		measurementCond: cond,
+		cond:            cond,
+		measurementCond: influxql.Reduce(RewriteExprRemoveFieldValue(influxql.CloneExpr(cond)), nil),
 	}
 
 	keys := []string{}
