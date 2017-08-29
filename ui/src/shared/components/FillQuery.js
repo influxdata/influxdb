@@ -9,16 +9,17 @@ class FillQuery extends Component {
   constructor(props) {
     super(props)
 
-    this.state =
-      typeof props.value === NUMBER
-        ? {
-            selected: queryFills.find(fill => fill.type === NUMBER),
-            numberValue: props.value,
-          }
-        : {
-            selected: queryFills.find(fill => fill.type === props.value),
-            numberValue: '0',
-          }
+    const isNumberValue = !isNaN(Number(props.value))
+
+    this.state = isNumberValue
+      ? {
+          selected: queryFills.find(fill => fill.type === NUMBER),
+          numberValue: props.value,
+        }
+      : {
+          selected: queryFills.find(fill => fill.type === props.value),
+          numberValue: '0',
+        }
   }
 
   static defaultProps = {
