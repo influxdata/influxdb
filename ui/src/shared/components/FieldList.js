@@ -2,6 +2,7 @@ import React, {PropTypes} from 'react'
 
 import FieldListItem from 'src/data_explorer/components/FieldListItem'
 import GroupByTimeDropdown from 'src/data_explorer/components/GroupByTimeDropdown'
+import FillQuery from 'shared/components/FillQuery'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 import {showFieldKeys} from 'shared/apis/metaQuery'
@@ -18,6 +19,7 @@ const FieldList = React.createClass({
     }).isRequired,
     onToggleField: func.isRequired,
     onGroupByTime: func.isRequired,
+    onFill: func.isRequired,
     applyFuncsToField: func.isRequired,
     isKapacitorRule: bool,
     isInDataExplorer: bool,
@@ -74,6 +76,10 @@ const FieldList = React.createClass({
     this._getFields()
   },
 
+  handleFill(value) {
+    this.props.onFill(value)
+  },
+
   handleGroupByTime(groupBy) {
     this.props.onGroupByTime(groupBy.menuOption)
   },
@@ -88,13 +94,21 @@ const FieldList = React.createClass({
         <div className="query-builder--heading">
           <span>Fields</span>
           {hasAggregates
-            ? <GroupByTimeDropdown
-                isOpen={!hasGroupByTime}
-                selected={query.groupBy.time}
-                onChooseGroupByTime={this.handleGroupByTime}
-                isInRuleBuilder={isKapacitorRule}
-                isInDataExplorer={isInDataExplorer}
-              />
+            ? <div>
+                {isKapacitorRule
+                  ? null
+                  : <FillQuery
+                      value={query.fill}
+                      onSelection={this.handleFill}
+                    />}
+                <GroupByTimeDropdown
+                  isOpen={!hasGroupByTime}
+                  selected={query.groupBy.time}
+                  onChooseGroupByTime={this.handleGroupByTime}
+                  isInRuleBuilder={isKapacitorRule}
+                  isInDataExplorer={isInDataExplorer}
+                />
+              </div>
             : null}
         </div>
         {this.renderList()}

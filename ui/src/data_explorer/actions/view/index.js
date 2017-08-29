@@ -37,6 +37,14 @@ export const groupByTime = (queryId, time) => ({
   },
 })
 
+export const fill = (queryId, value) => ({
+  type: 'DE_FILL',
+  payload: {
+    queryId,
+    value,
+  },
+})
+
 // all fields implicitly have a function applied to them, so consequently
 // we need to set the auto group by time
 export const toggleFieldWithGroupByInterval = (

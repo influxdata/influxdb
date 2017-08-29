@@ -2,7 +2,6 @@ import React, {PropTypes, Component} from 'react'
 import _ from 'lodash'
 import classnames from 'classnames'
 
-import FillQuery from 'shared/components/FillQuery'
 import TemplateDrawer from 'shared/components/TemplateDrawer'
 import QueryStatus from 'shared/components/QueryStatus'
 
@@ -53,10 +52,6 @@ class QueryTextArea extends Component {
         tempVar: _.get(this.props.templates, ['0', 'tempVar'], ''),
       },
     })
-  }
-
-  handleFillQuery = (val, isNum) => {
-    console.log(val, isNum)
   }
 
   handleKeyDown = e => {
@@ -216,9 +211,7 @@ class QueryTextArea extends Component {
         >
           <div className="varmoji-container">
             <div className="varmoji-front">
-              <QueryStatus status={status}>
-                <FillQuery onSelection={this.handleFillQuery} />
-              </QueryStatus>
+              <QueryStatus status={status} />
             </div>
             <div className="varmoji-back">
               {isTemplating

@@ -11,6 +11,7 @@ import {
   groupByTime,
   toggleField,
   toggleTagAcceptance,
+  fill,
   updateRawQuery,
 } from 'src/utils/queryTransitions'
 
@@ -118,6 +119,16 @@ const queryConfigs = (state = {}, action) => {
       return Object.assign({}, state, {
         [queryId]: nextQueryConfig,
       })
+    }
+
+    case 'DE_FILL': {
+      const {queryId, value} = action.payload
+      const nextQueryConfig = fill(state[queryId], value)
+
+      return {
+        ...state,
+        [queryId]: nextQueryConfig,
+      }
     }
 
     case 'DE_UPDATE_RAW_QUERY': {
