@@ -3,6 +3,7 @@
 ### Bugfixes
 
 - [#8755](https://github.com/influxdata/influxdb/pull/8755): Fix race condition accessing `seriesByID` map.
+- [#8766](https://github.com/influxdata/influxdb/pull/8766): Fix deadlock when calling `SeriesIDsAllOrByExpr`
 
 ## v1.3.4 [2017-08-23]
 
