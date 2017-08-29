@@ -3,11 +3,13 @@ package storage
 import (
 	"regexp"
 
+	"math"
+
 	"github.com/influxdata/influxdb/influxql"
 )
 
 // evalExpr evaluates expr against a map.
-func evalExpr(expr influxql.Expr, m map[string]string) interface{} {
+func evalExpr(expr influxql.Expr, m valuer) interface{} {
 	if expr == nil {
 		return nil
 	}
@@ -15,6 +17,12 @@ func evalExpr(expr influxql.Expr, m map[string]string) interface{} {
 	switch expr := expr.(type) {
 	case *influxql.BinaryExpr:
 		return evalBinaryExpr(expr, m)
+	case *influxql.BooleanLiteral:
+		return expr.Val
+	case *influxql.IntegerLiteral:
+		return expr.Val
+	case *influxql.NumberLiteral:
+		return expr.Val
 	case *influxql.ParenExpr:
 		return evalExpr(expr.Expr, m)
 	case *influxql.RegexLiteral:
@@ -22,13 +30,14 @@ func evalExpr(expr influxql.Expr, m map[string]string) interface{} {
 	case *influxql.StringLiteral:
 		return expr.Val
 	case *influxql.VarRef:
-		return m[expr.Val]
+		v, _ := m.Value(expr.Val)
+		return v
 	default:
 		return nil
 	}
 }
 
-func evalBinaryExpr(expr *influxql.BinaryExpr, m map[string]string) interface{} {
+func evalBinaryExpr(expr *influxql.BinaryExpr, m valuer) interface{} {
 	lhs := evalExpr(expr.LHS, m)
 	rhs := evalExpr(expr.RHS, m)
 	if lhs == nil && rhs != nil {
@@ -53,12 +62,163 @@ func evalBinaryExpr(expr *influxql.BinaryExpr, m map[string]string) interface{} 
 			return ok && (lhs && rhs)
 		case influxql.OR:
 			return ok && (lhs || rhs)
+		case influxql.BITWISE_AND:
+			return ok && (lhs && rhs)
+		case influxql.BITWISE_OR:
+			return ok && (lhs || rhs)
+		case influxql.BITWISE_XOR:
+			return ok && (lhs != rhs)
 		case influxql.EQ:
 			return ok && (lhs == rhs)
 		case influxql.NEQ:
 			return ok && (lhs != rhs)
 		}
+	case float64:
+		// Try the rhs as a float64 or int64
+		rhsf, ok := rhs.(float64)
+		if !ok {
+			var rhsi int64
+			if rhsi, ok = rhs.(int64); ok {
+				rhsf = float64(rhsi)
+			}
+		}
 
+		rhs := rhsf
+		switch expr.Op {
+		case influxql.EQ:
+			return ok && (lhs == rhs)
+		case influxql.NEQ:
+			return ok && (lhs != rhs)
+		case influxql.LT:
+			return ok && (lhs < rhs)
+		case influxql.LTE:
+			return ok && (lhs <= rhs)
+		case influxql.GT:
+			return ok && (lhs > rhs)
+		case influxql.GTE:
+			return ok && (lhs >= rhs)
+		case influxql.ADD:
+			if !ok {
+				return nil
+			}
+			return lhs + rhs
+		case influxql.SUB:
+			if !ok {
+				return nil
+			}
+			return lhs - rhs
+		case influxql.MUL:
+			if !ok {
+				return nil
+			}
+			return lhs * rhs
+		case influxql.DIV:
+			if !ok {
+				return nil
+			} else if rhs == 0 {
+				return float64(0)
+			}
+			return lhs / rhs
+		case influxql.MOD:
+			if !ok {
+				return nil
+			}
+			return math.Mod(lhs, rhs)
+		}
+	case int64:
+		// Try as a float64 to see if a float cast is required.
+		rhsf, ok := rhs.(float64)
+		if ok {
+			lhs := float64(lhs)
+			rhs := rhsf
+			switch expr.Op {
+			case influxql.EQ:
+				return lhs == rhs
+			case influxql.NEQ:
+				return lhs != rhs
+			case influxql.LT:
+				return lhs < rhs
+			case influxql.LTE:
+				return lhs <= rhs
+			case influxql.GT:
+				return lhs > rhs
+			case influxql.GTE:
+				return lhs >= rhs
+			case influxql.ADD:
+				return lhs + rhs
+			case influxql.SUB:
+				return lhs - rhs
+			case influxql.MUL:
+				return lhs * rhs
+			case influxql.DIV:
+				if rhs == 0 {
+					return float64(0)
+				}
+				return lhs / rhs
+			case influxql.MOD:
+				return math.Mod(lhs, rhs)
+			}
+		} else {
+			rhs, ok := rhs.(int64)
+			switch expr.Op {
+			case influxql.EQ:
+				return ok && (lhs == rhs)
+			case influxql.NEQ:
+				return ok && (lhs != rhs)
+			case influxql.LT:
+				return ok && (lhs < rhs)
+			case influxql.LTE:
+				return ok && (lhs <= rhs)
+			case influxql.GT:
+				return ok && (lhs > rhs)
+			case influxql.GTE:
+				return ok && (lhs >= rhs)
+			case influxql.ADD:
+				if !ok {
+					return nil
+				}
+				return lhs + rhs
+			case influxql.SUB:
+				if !ok {
+					return nil
+				}
+				return lhs - rhs
+			case influxql.MUL:
+				if !ok {
+					return nil
+				}
+				return lhs * rhs
+			case influxql.DIV:
+				if !ok {
+					return nil
+				} else if rhs == 0 {
+					return float64(0)
+				}
+				return lhs / rhs
+			case influxql.MOD:
+				if !ok {
+					return nil
+				} else if rhs == 0 {
+					return int64(0)
+				}
+				return lhs % rhs
+			case influxql.BITWISE_AND:
+				if !ok {
+					return nil
+				}
+				return lhs & rhs
+			case influxql.BITWISE_OR:
+				if !ok {
+					return nil
+				}
+				return lhs | rhs
+			case influxql.BITWISE_XOR:
+				if !ok {
+					return nil
+				}
+				return lhs ^ rhs
+			}
+		}
 	case string:
 		switch expr.Op {
 		case influxql.EQ:
@@ -90,7 +250,7 @@ func evalBinaryExpr(expr *influxql.BinaryExpr, m map[string]string) interface{} 
 	return nil
 }
 
-func evalExprBool(expr influxql.Expr, m map[string]string) bool {
+func evalExprBool(expr influxql.Expr, m valuer) bool {
 	v, _ := evalExpr(expr, m).(bool)
 	return v
 }

@@ -49,7 +49,8 @@ func (r *ResultSet) Cursor() tsdb.Cursor {
 	c, _ := r.shard.CreateCursor(req)
 
 	if r.row.valueCond != nil {
-		c = newFilterCursor(c, r.row.valueCond)
+		var cond expression = &astExpr{r.row.valueCond}
+		c = newFilterCursor(c, cond)
 	}
 
 	return c
@@ -201,7 +202,6 @@ func newAllMeasurementsPlanner(req *ReadRequest, shards []*tsdb.Shard, log zap.L
 
 		p.fields = extractFields(fitr)
 	}
-
 
 	return p, nil
 }

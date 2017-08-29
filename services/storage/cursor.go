@@ -1,11 +1,10 @@
 package storage
 
 import (
-	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/tsdb"
 )
 
-func newFilterCursor(cur tsdb.Cursor, cond influxql.Expr) tsdb.Cursor {
+func newFilterCursor(cur tsdb.Cursor, cond expression) tsdb.Cursor {
 	switch cur := cur.(type) {
 	case tsdb.FloatCursor:
 		return newFloatFilterCursor(cur, cond)
@@ -23,12 +22,20 @@ func newFilterCursor(cur tsdb.Cursor, cond influxql.Expr) tsdb.Cursor {
 
 type integerFilterCursor struct {
 	tsdb.IntegerCursor
-	cond influxql.Expr
-	m    map[string]interface{}
+	cond expression
+	m    *singleValue
 }
 
-func newIntegerFilterCursor(cur tsdb.IntegerCursor, cond influxql.Expr) *integerFilterCursor {
-	return &integerFilterCursor{IntegerCursor: cur, cond: cond, m: map[string]interface{}{"$": nil}}
+type singleValue struct {
+	v interface{}
+}
+
+func (v *singleValue) Value(key string) (interface{}, bool) {
+	return v.v, true
+}
+
+func newIntegerFilterCursor(cur tsdb.IntegerCursor, cond expression) *integerFilterCursor {
+	return &integerFilterCursor{IntegerCursor: cur, cond: cond, m: &singleValue{}}
 }
 
 func (c *integerFilterCursor) Next() (key int64, value int64) {
@@ -38,8 +45,8 @@ func (c *integerFilterCursor) Next() (key int64, value int64) {
 			return k, v
 		}
 
-		c.m["$"] = v
-		if !influxql.EvalBool(c.cond, c.m) {
+		c.m.v = v
+		if !c.cond.EvalBool(c.m) {
 			continue
 		}
 		return k, v
@@ -48,12 +55,12 @@ func (c *integerFilterCursor) Next() (key int64, value int64) {
 
 type floatFilterCursor struct {
 	tsdb.FloatCursor
-	cond influxql.Expr
-	m    map[string]interface{}
+	cond expression
+	m    *singleValue
 }
 
-func newFloatFilterCursor(cur tsdb.FloatCursor, cond influxql.Expr) *floatFilterCursor {
-	return &floatFilterCursor{FloatCursor: cur, cond: cond, m: map[string]interface{}{"$": nil}}
+func newFloatFilterCursor(cur tsdb.FloatCursor, cond expression) *floatFilterCursor {
+	return &floatFilterCursor{FloatCursor: cur, cond: cond, m: &singleValue{}}
 }
 
 func (c *floatFilterCursor) Next() (key int64, value float64) {
@@ -63,8 +70,8 @@ func (c *floatFilterCursor) Next() (key int64, value float64) {
 			return k, v
 		}
 
-		c.m["$"] = v
-		if !influxql.EvalBool(c.cond, c.m) {
+		c.m.v = v
+		if !c.cond.EvalBool(c.m) {
 			continue
 		}
 		return k, v
