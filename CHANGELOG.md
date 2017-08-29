@@ -1,5 +1,9 @@
 ## v1.4.0 [unreleased]
 
+### Breaking changes
+
+* You can no longer specify a different `ORDER BY` clause in a subquery than the one in the top level query. This functionality never worked properly, but was not explicitly forbidden.
+
 ### Configuration Changes
 
 #### `[collectd]` Section
