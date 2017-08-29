@@ -99,6 +99,13 @@ const DashboardHeader = ({
 
 const {array, bool, func, number, shape, string} = PropTypes
 
+DashboardHeader.defaultProps = {
+  zoomedTimeRange: {
+    zoomedLower: null,
+    zoomedUpper: null,
+  },
+}
+
 DashboardHeader.propTypes = {
   sourceID: string,
   children: array,
