@@ -224,7 +224,9 @@ func (s *Shard) Statistics(tags map[string]string) []models.Statistic {
 	}
 
 	// Refresh our disk size stat
-	_, _ = s.DiskSize()
+	if _, err := s.DiskSize(); err != nil {
+		return nil
+	}
 	seriesN := s.engine.SeriesN()
 
 	tags = s.defaultTags.Merge(tags)
@@ -427,6 +429,11 @@ func (s *Shard) SetCompactionsEnabled(enabled bool) {
 
 // DiskSize returns the size on disk of this shard
 func (s *Shard) DiskSize() (int64, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.engine == nil {
+		return 0, ErrEngineClosed
+	}
 	size := s.engine.DiskSize()
 	atomic.StoreInt64(&s.stats.DiskBytes, size)
 	return size, nil
@@ -984,6 +991,9 @@ func (s *Shard) Import(r io.Reader, basePath string) error {
 func (s *Shard) CreateSnapshot() (string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	if s.engine == nil {
+		return "", ErrEngineClosed
+	}
 	return s.engine.CreateSnapshot()
 }
 
