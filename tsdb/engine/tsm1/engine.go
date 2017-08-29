@@ -1551,7 +1551,7 @@ func (e *Engine) KeyCursor(key []byte, t int64, ascending bool) *KeyCursor {
 // CreateIterator returns an iterator for the measurement based on opt.
 func (e *Engine) CreateIterator(measurement string, opt query.IteratorOptions) (query.Iterator, error) {
 	if call, ok := opt.Expr.(*influxql.Call); ok {
-		if opt.Interval.IsZero() {
+		if opt.Interval.IsZero() && (len(opt.GroupBy) == 0 || len(opt.Dimensions) == len(opt.GroupBy)) {
 			if call.Name == "first" || call.Name == "last" {
 				refOpt := opt
 				refOpt.Limit = 1
@@ -1563,7 +1563,10 @@ func (e *Engine) CreateIterator(measurement string, opt query.IteratorOptions) (
 				if err != nil {
 					return nil, err
 				}
-				return newMergeFinalizerIterator(itrs, opt, e.logger)
+
+				// Merge the various series together with a parallel merge iterator.
+				itr := query.NewParallelMergeIterator(itrs, opt, runtime.GOMAXPROCS(0))
+				return newFinalizerIterator(itr, e.logger), nil
 			}
 		}
 
