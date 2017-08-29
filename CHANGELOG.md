@@ -7,6 +7,7 @@
 
 ### UI Improvements
 1. [#1933](https://github.com/influxdata/chronograf/pull/1933): Use line-stacked graph type for memory information - thank you, @Joxit!
+1. [#1940](https://github.com/influxdata/chronograf/pull/1940): Improve cell sizes in Admin Database tables
 
 ## v1.3.7.0 [2017-08-23]
 ### Bug Fixes
