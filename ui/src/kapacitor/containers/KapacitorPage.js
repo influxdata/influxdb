@@ -68,11 +68,18 @@ class KapacitorPage extends Component {
 
   handleSubmit(e) {
     e.preventDefault()
-    const {addFlashMessage, source, params, router} = this.props
+    const {
+      addFlashMessage,
+      source,
+      source: {kapacitors = []},
+      params,
+      router,
+    } = this.props
     const {kapacitor} = this.state
 
-    const kapNames = source.kapacitors.map(k => k.name)
-    if (kapNames.includes(kapacitor.name)) {
+    const isNameTaken = kapacitors.some(k => k.name === kapacitor.name)
+
+    if (isNameTaken) {
       addFlashMessage({
         type: 'error',
         text: `There is already a Kapacitor configuration named "${kapacitor.name}"`,
