@@ -1,5 +1,8 @@
 ## v1.3.8.0 [unreleased]
 ### Bug Fixes
+1. [#1886](https://github.com/influxdata/chronograf/pull/1886): Fix limit of 100 alert rules on alert rules page
+1. [#1930](https://github.com/influxdata/chronograf/pull/1930): Fix graphs when y-values are constant
+
 
 ### Features
 1. [#1928](https://github.com/influxdata/chronograf/pull/1928): Add prefix, suffix, scale, and other y-axis formatting
@@ -8,6 +11,7 @@
 ### UI Improvements
 1. [#1933](https://github.com/influxdata/chronograf/pull/1933): Use line-stacked graph type for memory information - thank you, @Joxit!
 1. [#1940](https://github.com/influxdata/chronograf/pull/1940): Improve cell sizes in Admin Database tables
+1. [#1942](https://github.com/influxdata/chronograf/pull/1942): Polish appearance of optional alert parameters in Kapacitor rule builder
 
 ## v1.3.7.0 [2017-08-23]
 ### Bug Fixes
