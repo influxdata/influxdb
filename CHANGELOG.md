@@ -21,6 +21,7 @@
 - [#8662](https://github.com/influxdata/influxdb/pull/8662): Improve test coverage across both indexes.
 - [#8611](https://github.com/influxdata/influxdb/issues/8611): Respect X-Request-Id/Request-Id headers.
 - [#8572](https://github.com/influxdata/influxdb/issues/8668): InfluxDB now uses MIT licensed version of BurntSushi/toml.
+- [#8752](https://github.com/influxdata/influxdb/pull/8752): Use system cursors for measurement, series, and tag key meta queries.
 
 ### Bugfixes
 

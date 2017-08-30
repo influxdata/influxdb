@@ -46,6 +46,7 @@ message IteratorOptions {
     optional int64       Offset     = 13;
     optional int64       SLimit     = 14;
     optional int64       SOffset    = 15;
+    optional bool        StripName  = 22;
     optional bool        Dedupe     = 16;
     optional int64       MaxSeriesN = 18;
     optional bool        Ordered    = 20;
