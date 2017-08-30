@@ -94,13 +94,7 @@ const FieldList = React.createClass({
         <div className="query-builder--heading">
           <span>Fields</span>
           {hasAggregates
-            ? <div>
-                {isKapacitorRule
-                  ? null
-                  : <FillQuery
-                      value={query.fill}
-                      onSelection={this.handleFill}
-                    />}
+            ? <div style={{display: 'flex', alignItems: 'center'}}>
                 <GroupByTimeDropdown
                   isOpen={!hasGroupByTime}
                   selected={query.groupBy.time}
@@ -108,6 +102,12 @@ const FieldList = React.createClass({
                   isInRuleBuilder={isKapacitorRule}
                   isInDataExplorer={isInDataExplorer}
                 />
+                {isKapacitorRule
+                  ? null
+                  : <FillQuery
+                      value={query.fill}
+                      onSelection={this.handleFill}
+                    />}
               </div>
             : null}
         </div>
