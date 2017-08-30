@@ -727,6 +727,7 @@ func (fs *FileSet) FilterNamesTags(names [][]byte, tagsSlice []models.Tags) ([][
 		}
 	}
 
+	println("dbg/NEW", len(newNames))
 	return newNames, newTagsSlice
 }
 
@@ -941,27 +942,23 @@ func (fs *FileSet) buildFilters() error {
 		return nil
 	}
 
-	// Build filters for each level where the filter is non-existent.
+	// Move past log files (level=0).
 	files := fs.files
+	for len(files) > 0 && files[0].Level() == 0 {
+		files = files[1:]
+	}
+
+	// Build filters for each level where the filter is non-existent.
 	for level := range fs.levels {
-		// Clear filter if level doesn't exist.
-		if level == 0 || len(files) == 0 || files[0].Level() > level {
+		// Clear filter if no files remain or next file is at a higher level.
+		if len(files) == 0 || files[0].Level() > level {
 			fs.filters[level] = nil
-			for len(files) > 0 {
-				if files[0].Level() > level {
-					break
-				}
-				files = files[1:]
-			}
 			continue
 		}
 
 		// Skip files at this level if filter already exists.
 		if fs.filters[level] != nil {
-			for len(files) > 0 {
-				if files[0].Level() > level {
-					break
-				}
+			for len(files) > 0 && files[0].Level() == level {
 				files = files[1:]
 			}
 			continue
@@ -969,10 +966,7 @@ func (fs *FileSet) buildFilters() error {
 
 		// Build new filter from files at this level.
 		fs.filters[level] = bloom.NewFilter(fs.levels[level].M, fs.levels[level].K)
-		for len(files) > 0 {
-			if files[0].Level() != level {
-				break
-			}
+		for len(files) > 0 && files[0].Level() == level {
 			if err := fs.filters[level].Merge(files[0].Filter()); err != nil {
 				return err
 			}
