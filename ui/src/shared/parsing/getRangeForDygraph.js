@@ -1,10 +1,9 @@
-const PADDING_FACTOR = 0.1
+import BigNumber from 'bignumber.js'
+
+const ADD_FACTOR = 1.1
+const SUB_FACTOR = 0.9
 
 const considerEmpty = (userNumber, number) => {
-  if (userNumber === '') {
-    return null
-  }
-
   if (userNumber) {
     return +userNumber
   }
@@ -15,24 +14,26 @@ const considerEmpty = (userNumber, number) => {
 const getRange = (
   timeSeries,
   userSelectedRange = [null, null],
-  ruleValues = {value: null, rangeValue: null}
+  ruleValues = {value: null, rangeValue: null, operator: ''}
 ) => {
   const {value, rangeValue, operator} = ruleValues
   const [userMin, userMax] = userSelectedRange
 
-  const subtractPadding = val => +val - Math.abs(val * PADDING_FACTOR)
-  const addPadding = val => +val + Math.abs(val * PADDING_FACTOR)
+  const addPad = bigNum => bigNum.times(ADD_FACTOR).toNumber()
+  const subPad = bigNum => bigNum.times(SUB_FACTOR).toNumber()
 
-  const pad = val => {
-    if (val === null || val === '') {
+  const pad = v => {
+    if (v === null || v === '') {
       return null
     }
 
+    const val = new BigNumber(v)
+
     if (operator === 'less than') {
-      return val < 0 ? addPadding(val) : subtractPadding(val)
+      return val.lessThan(0) ? addPad(val) : subPad(val)
     }
 
-    return val < 0 ? subtractPadding(val) : addPadding(val)
+    return val.lessThan(0) ? subPad(val) : addPad(val)
   }
 
   const points = [...timeSeries, [null, pad(value)], [null, pad(rangeValue)]]
@@ -61,22 +62,21 @@ const getRange = (
     [null, null]
   )
 
-  const [min, max] = range
+  const [calcMin, calcMax] = range
+  const min = considerEmpty(userMin, calcMin)
+  const max = considerEmpty(userMax, calcMax)
 
-  // If time series is such that min and max are equal use Dygraph defaults
   if (min === max) {
-    return [null, null]
+    if (min > 0) {
+      return [0, max]
+    }
+
+    if (min < 0) {
+      return [min, 0]
+    }
   }
 
-  if (userMin === userMax) {
-    return [min, max]
-  }
-
-  if (userMin && userMax) {
-    return [considerEmpty(userMin), considerEmpty(userMax)]
-  }
-
-  return [considerEmpty(userMin, min), considerEmpty(userMax, max)]
+  return [min, max]
 }
 
 export default getRange

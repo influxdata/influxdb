@@ -314,6 +314,61 @@ textarea.rule-builder--message {
 }
 
 /*
+  Section 3 - Optional Alert Parameters
+  -----------------------------------------------------------------------------
+*/
+.optional-alert-parameters {
+  flex: 1 0 0;
+  display: flex;
+  flex-wrap: nowrap;
+
+  .form-group {
+    flex: 1 0 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    margin: 0;
+    padding-right: 8px;
+    position: relative;
+
+    &:last-of-type {
+      padding-right: 0;
+    }
+  }
+  .form-group > input.form-control {
+    order: 2;
+    border-top-left-radius: 0;
+    position: relative;
+    z-index: 1;
+  }
+  .form-group > label {
+    position: relative;
+    z-index: 2;
+    order: 1;
+    background-color: $g5-pepper;
+    border-radius: 4px 4px 0 0;
+    margin: 0;
+    height: 18px;
+    line-height: 20px;
+    transition:
+      background-color 0.4s ease,
+      color 0.4s ease,
+      box-shadow 0.4s ease;
+  }
+  .form-group > input.form-control:hover + label {
+    background-color: $g6-smoke;
+    color: $g13-mist;
+  }
+  .form-group > input.form-control:focus + label {
+    background-color: $c-rainforest;
+    color: $g2-kevlar;
+    box-shadow: 0 0 8px $c-rainforest;
+  }
+}
+
+
+
+/*
   Color coding for alerts in Alert History table
   -----------------------------------------------------------------------------
 */

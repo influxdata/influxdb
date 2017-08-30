@@ -88,6 +88,22 @@ class CellEditorOverlay extends Component {
     this.setState({axes: {...axes, y: {...axes.y, label}}})
   }
 
+  handleSetPrefixSuffix = e => {
+    const {axes} = this.state
+    const {prefix, suffix} = e.target.form
+
+    this.setState({
+      axes: {
+        ...axes,
+        y: {
+          ...axes.y,
+          prefix: prefix.value,
+          suffix: suffix.value,
+        },
+      },
+    })
+  }
+
   handleAddQuery = () => {
     const {queriesWorkingDraft} = this.state
     const newIndex = queriesWorkingDraft.length
@@ -147,6 +163,34 @@ class CellEditorOverlay extends Component {
 
   handleSetActiveQueryIndex = activeQueryIndex => {
     this.setState({activeQueryIndex})
+  }
+
+  handleSetBase = base => () => {
+    const {axes} = this.state
+
+    this.setState({
+      axes: {
+        ...axes,
+        y: {
+          ...axes.y,
+          base,
+        },
+      },
+    })
+  }
+
+  handleSetScale = scale => () => {
+    const {axes} = this.state
+
+    this.setState({
+      axes: {
+        ...axes,
+        y: {
+          ...axes.y,
+          scale,
+        },
+      },
+    })
   }
 
   getActiveQuery = () => {
@@ -230,13 +274,16 @@ class CellEditorOverlay extends Component {
             />
             {isDisplayOptionsTabActive
               ? <DisplayOptions
+                  axes={axes}
+                  onSetBase={this.handleSetBase}
+                  onSetLabel={this.handleSetLabel}
+                  onSetScale={this.handleSetScale}
+                  queryConfigs={queriesWorkingDraft}
                   selectedGraphType={cellWorkingType}
+                  onSetPrefixSuffix={this.handleSetPrefixSuffix}
                   onSelectGraphType={this.handleSelectGraphType}
                   onSetYAxisBoundMin={this.handleSetYAxisBoundMin}
                   onSetYAxisBoundMax={this.handleSetYAxisBoundMax}
-                  onSetLabel={this.handleSetLabel}
-                  axes={axes}
-                  queryConfigs={queriesWorkingDraft}
                 />
               : <QueryMaker
                   source={source}

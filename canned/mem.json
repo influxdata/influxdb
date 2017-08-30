@@ -18,7 +18,8 @@
           "groupbys": [],
           "wheres": []
         }
-      ]
+      ],
+      "type": "line-stacked"
     }
   ]
 }

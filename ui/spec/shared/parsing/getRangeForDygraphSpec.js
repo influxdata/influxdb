@@ -4,6 +4,7 @@ const date = new Date()
 const max = 20
 const mid = 10
 const min = 5
+const negMax = -20
 const kapacitor = {value: null, rangeValue: null, operator: null}
 
 describe('getRangeForDygraphSpec', () => {
@@ -23,14 +24,6 @@ describe('getRangeForDygraphSpec', () => {
     expect(actual).to.deep.equal([0, 4])
   })
 
-  it('does not use the user submitted range if they are equal', () => {
-    const timeSeries = [[date, min], [date, max], [date, mid]]
-    const providedRange = ['0', '0']
-    const actual = getRange(timeSeries, providedRange)
-
-    expect(actual).to.deep.equal([min, max])
-  })
-
   it('gets the range for multiple timeSeries', () => {
     const timeSeries = [[date, null, min], [date, max, mid], [date, null, mid]]
     const actual = getRange(timeSeries)
@@ -39,12 +32,22 @@ describe('getRangeForDygraphSpec', () => {
     expect(actual).to.deep.equal(expected)
   })
 
-  it('returns a null array of two elements when min and max are equal', () => {
-    const timeSeries = [[date, max], [date, max], [date, max]]
-    const actual = getRange(timeSeries)
-    const expected = [null, null]
+  describe('if min and max are equal', () => {
+    it('it sets min to 0 if they are positive', () => {
+      const timeSeries = [[date, max], [date, max], [date, max]]
+      const actual = getRange(timeSeries)
+      const expected = [0, max]
 
-    expect(actual).to.deep.equal(expected)
+      expect(actual).to.deep.equal(expected)
+    })
+
+    it('it sets max to 0 if they are negative', () => {
+      const timeSeries = [[date, negMax], [date, negMax], [date, negMax]]
+      const actual = getRange(timeSeries)
+      const expected = [negMax, 0]
+
+      expect(actual).to.deep.equal(expected)
+    })
   })
 
   describe('when user provides a Kapacitor rule value', () => {

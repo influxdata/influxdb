@@ -1,19 +1,22 @@
 import React, {PropTypes} from 'react'
-import _ from 'lodash'
 
 import OptIn from 'shared/components/OptIn'
+import Input from 'src/dashboards/components/DisplayOptionsInput'
+import {Tabber, Tab} from 'src/dashboards/components/Tabber'
+import {DISPLAY_OPTIONS, TOOLTIP_CONTENT} from 'src/dashboards/constants'
 
-// TODO: add logic for for Prefix, Suffix, Scale, and Multiplier
+const {LINEAR, LOG, BASE_2, BASE_10} = DISPLAY_OPTIONS
+
 const AxesOptions = ({
+  axes: {y: {bounds, label, prefix, suffix, base, scale, defaultYLabel}},
+  onSetBase,
+  onSetScale,
+  onSetLabel,
+  onSetPrefixSuffix,
   onSetYAxisBoundMin,
   onSetYAxisBoundMax,
-  onSetLabel,
-  axes,
 }) => {
-  const min = _.get(axes, ['y', 'bounds', '0'], '')
-  const max = _.get(axes, ['y', 'bounds', '1'], '')
-  const label = _.get(axes, ['y', 'label'], '')
-  const defaultYLabel = _.get(axes, ['y', 'defaultYLabel'], '')
+  const [min, max] = bounds
 
   return (
     <div className="display-options--cell">
@@ -46,38 +49,48 @@ const AxesOptions = ({
             type="number"
           />
         </div>
-        {/* <div className="form-group col-sm-6">
-          <label htmlFor="prefix">Labels Prefix</label>
-          <input
-            className="form-control input-sm"
-            type="text"
-            name="prefix"
-            id="prefix"
+        <Input
+          name="prefix"
+          id="prefix"
+          value={prefix}
+          labelText="Y-Value's Prefix"
+          onChange={onSetPrefixSuffix}
+        />
+        <Input
+          name="suffix"
+          id="suffix"
+          value={suffix}
+          labelText="Y-Value's Suffix"
+          onChange={onSetPrefixSuffix}
+        />
+        <Tabber
+          labelText="Y-Value's Format"
+          tipID="Y-Values's Format"
+          tipContent={TOOLTIP_CONTENT.FORMAT}
+        >
+          <Tab
+            text="K/M/B"
+            isActive={base === BASE_10}
+            onClickTab={onSetBase(BASE_10)}
           />
-        </div>
-        <div className="form-group col-sm-6">
-          <label htmlFor="prefix">Labels Suffix</label>
-          <input
-            className="form-control input-sm"
-            type="text"
-            name="suffix"
-            id="suffix"
+          <Tab
+            text="K/M/G"
+            isActive={base === BASE_2}
+            onClickTab={onSetBase(BASE_2)}
           />
-        </div>
-        <div className="form-group col-sm-6">
-          <label>Labels Format</label>
-          <ul className="nav nav-tablist nav-tablist-sm">
-            <li className="active">K/M/B</li>
-            <li>K/M/G</li>
-          </ul>
-        </div>
-        <div className="form-group col-sm-6">
-          <label>Scale</label>
-          <ul className="nav nav-tablist nav-tablist-sm">
-            <li className="active">Linear</li>
-            <li>Logarithmic</li>
-          </ul>
-        </div> */}
+        </Tabber>
+        <Tabber labelText="Scale">
+          <Tab
+            text="Linear"
+            isActive={scale === LINEAR}
+            onClickTab={onSetScale(LINEAR)}
+          />
+          <Tab
+            text="Logarithmic"
+            isActive={scale === LOG}
+            onClickTab={onSetScale(LOG)}
+          />
+        </Tabber>
       </form>
     </div>
   )
@@ -85,10 +98,26 @@ const AxesOptions = ({
 
 const {arrayOf, func, shape, string} = PropTypes
 
+AxesOptions.defaultProps = {
+  axes: {
+    y: {
+      bounds: ['', ''],
+      prefix: '',
+      suffix: '',
+      base: BASE_10,
+      scale: LINEAR,
+      defaultYLabel: '',
+    },
+  },
+}
+
 AxesOptions.propTypes = {
+  onSetPrefixSuffix: func.isRequired,
   onSetYAxisBoundMin: func.isRequired,
   onSetYAxisBoundMax: func.isRequired,
   onSetLabel: func.isRequired,
+  onSetScale: func.isRequired,
+  onSetBase: func.isRequired,
   axes: shape({
     y: shape({
       bounds: arrayOf(string),
