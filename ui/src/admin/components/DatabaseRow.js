@@ -140,7 +140,7 @@ class DatabaseRow extends Component {
     if (isEditing) {
       return (
         <tr>
-          <td>
+          <td style={{width: `${DATABASE_TABLE.colRetentionPolicy}px`}}>
             {isNew
               ? <input
                   className="form-control input-xs"
@@ -161,7 +161,7 @@ class DatabaseRow extends Component {
               name="name"
               type="text"
               defaultValue={formattedDuration}
-              placeholder="How long should Data last"
+              placeholder="INF, 5m, 1d etc"
               onKeyDown={this.handleKeyDown}
               ref={r => (this.duration = r)}
               autoFocus={!isNew}
