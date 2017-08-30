@@ -964,6 +964,7 @@ func (fs *FileSet) buildFilters() error {
 				}
 				files = files[1:]
 			}
+			continue
 		}
 
 		// Build new filter from files at this level.
