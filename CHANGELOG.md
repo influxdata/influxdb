@@ -12,6 +12,8 @@
 1. [#1933](https://github.com/influxdata/chronograf/pull/1933): Use line-stacked graph type for memory information - thank you, @Joxit!
 1. [#1940](https://github.com/influxdata/chronograf/pull/1940): Improve cell sizes in Admin Database tables
 1. [#1942](https://github.com/influxdata/chronograf/pull/1942): Polish appearance of optional alert parameters in Kapacitor rule builder
+1. [#1944](https://github.com/influxdata/chronograf/pull/1944): Add active state for Status page navbar icon
+1. [#1944](https://github.com/influxdata/chronograf/pull/1944): Improve UX of navigation to a sub-nav item in the navbar
 
 ## v1.3.7.0 [2017-08-23]
 ### Bug Fixes
