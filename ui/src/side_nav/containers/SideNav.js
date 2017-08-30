@@ -69,10 +69,14 @@ const SideNav = React.createClass({
     const dataExplorerLink = `${sourcePrefix}/chronograf/data-explorer`
     const isUsingAuth = !!logoutLink
 
+    const isDefaultPage = location.split('/').includes(DEFAULT_HOME_PAGE)
+
     return isHidden
       ? null
       : <NavBar location={location}>
-          <div className="sidebar--item">
+          <div
+            className={isDefaultPage ? 'sidebar--item active' : 'sidebar--item'}
+          >
             <Link
               to={`${sourcePrefix}/${DEFAULT_HOME_PAGE}`}
               className="sidebar--square sidebar--logo"

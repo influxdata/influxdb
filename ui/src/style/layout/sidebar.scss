@@ -115,6 +115,16 @@ $sidebar-menu--gutter: 18px;
   background-color: $sidebar--logo-bg-hover;
   .sidebar--icon {color: $sidebar--logo-color-hover;}
 }
+.sidebar--item.active .sidebar--square.sidebar--logo {
+  background-color: $sidebar--logo-bg-hover;
+  .sidebar--icon {
+    color: $sidebar--logo-color-hover;
+    text-shadow:
+      0 0 9px $c-hydrogen,
+      0 0 15px $c-neutrino,
+      0 0 20px $c-yeti;
+  }
+}
 
 /*
     Sidebar Sub Menus
