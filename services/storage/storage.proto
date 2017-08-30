@@ -68,6 +68,7 @@ message Aggregate {
 
     NONE = 0 [(gogoproto.enumvalue_customname) = "AggregateTypeNone"];
     SUM = 1 [(gogoproto.enumvalue_customname) = "AggregateTypeSum"];
+    COUNT = 2 [(gogoproto.enumvalue_customname) = "AggregateTypeCount"];
   }
 
   AggregateType type = 1;

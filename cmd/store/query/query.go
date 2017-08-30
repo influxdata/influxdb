@@ -225,7 +225,7 @@ func (cmd *Command) query(c storage.StorageClient) error {
 						wr.WriteByte(':')
 						wr.Write(t.Value)
 					}
-					wr.WriteString("\n\033[0m")
+					wr.WriteString("\033[0m\n")
 					wr.Flush()
 				}
 			} else if p := frame.GetIntegerPoints(); p != nil {

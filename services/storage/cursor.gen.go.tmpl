@@ -128,6 +128,22 @@ func (c *{{.name}}SumCursor) Next() (key int64, value {{.Type}}) {
 
 {{end}}
 
+type integer{{.Name}}CountCursor struct {
+	tsdb.{{.Name}}Cursor
+	ts  int64
+	acc int64
+}
+
+func (c *integer{{.Name}}CountCursor) Next() (key int64, value int64) {
+	c.ts, _ = c.{{.Name}}Cursor.Next()
+	var k = c.ts
+	for k != tsdb.EOF {
+		c.acc += 1
+		k, _ = c.{{.Name}}Cursor.Next()
+	}
+	return c.ts, c.acc
+}
+
 type {{.name}}EmptyCursor struct{}
 
 var (

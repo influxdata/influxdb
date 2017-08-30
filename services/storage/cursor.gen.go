@@ -128,6 +128,22 @@ func (c *floatSumCursor) Next() (key int64, value float64) {
 	}
 }
 
+type integerFloatCountCursor struct {
+	tsdb.FloatCursor
+	ts  int64
+	acc int64
+}
+
+func (c *integerFloatCountCursor) Next() (key int64, value int64) {
+	c.ts, _ = c.FloatCursor.Next()
+	var k = c.ts
+	for k != tsdb.EOF {
+		c.acc += 1
+		k, _ = c.FloatCursor.Next()
+	}
+	return c.ts, c.acc
+}
+
 type floatEmptyCursor struct{}
 
 var (
@@ -253,6 +269,22 @@ func (c *integerSumCursor) Next() (key int64, value int64) {
 
 		c.acc += v
 	}
+}
+
+type integerIntegerCountCursor struct {
+	tsdb.IntegerCursor
+	ts  int64
+	acc int64
+}
+
+func (c *integerIntegerCountCursor) Next() (key int64, value int64) {
+	c.ts, _ = c.IntegerCursor.Next()
+	var k = c.ts
+	for k != tsdb.EOF {
+		c.acc += 1
+		k, _ = c.IntegerCursor.Next()
+	}
+	return c.ts, c.acc
 }
 
 type integerEmptyCursor struct{}
@@ -382,6 +414,22 @@ func (c *unsignedSumCursor) Next() (key int64, value uint64) {
 	}
 }
 
+type integerUnsignedCountCursor struct {
+	tsdb.UnsignedCursor
+	ts  int64
+	acc int64
+}
+
+func (c *integerUnsignedCountCursor) Next() (key int64, value int64) {
+	c.ts, _ = c.UnsignedCursor.Next()
+	var k = c.ts
+	for k != tsdb.EOF {
+		c.acc += 1
+		k, _ = c.UnsignedCursor.Next()
+	}
+	return c.ts, c.acc
+}
+
 type unsignedEmptyCursor struct{}
 
 var (
@@ -491,6 +539,22 @@ func (c *stringMultiShardCursor) nextCursor() bool {
 	return ok
 }
 
+type integerStringCountCursor struct {
+	tsdb.StringCursor
+	ts  int64
+	acc int64
+}
+
+func (c *integerStringCountCursor) Next() (key int64, value int64) {
+	c.ts, _ = c.StringCursor.Next()
+	var k = c.ts
+	for k != tsdb.EOF {
+		c.acc += 1
+		k, _ = c.StringCursor.Next()
+	}
+	return c.ts, c.acc
+}
+
 type stringEmptyCursor struct{}
 
 var (
@@ -598,6 +662,22 @@ func (c *booleanMultiShardCursor) nextCursor() bool {
 	}
 
 	return ok
+}
+
+type integerBooleanCountCursor struct {
+	tsdb.BooleanCursor
+	ts  int64
+	acc int64
+}
+
+func (c *integerBooleanCountCursor) Next() (key int64, value int64) {
+	c.ts, _ = c.BooleanCursor.Next()
+	var k = c.ts
+	for k != tsdb.EOF {
+		c.acc += 1
+		k, _ = c.BooleanCursor.Next()
+	}
+	return c.ts, c.acc
 }
 
 type booleanEmptyCursor struct{}

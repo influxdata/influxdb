@@ -44,6 +44,8 @@ func newAggregateCursor(agg *Aggregate, cursor tsdb.Cursor) tsdb.Cursor {
 	switch agg.Type {
 	case AggregateTypeSum:
 		return newSumCursor(cursor)
+	case AggregateTypeCount:
+		return newCountCursor(cursor)
 
 	default:
 		// TODO(sgc): should be validated higher up
@@ -61,6 +63,28 @@ func newSumCursor(cur tsdb.Cursor) tsdb.Cursor {
 
 	case tsdb.UnsignedCursor:
 		return &unsignedSumCursor{UnsignedCursor: cur}
+
+	default:
+		panic("unreachable")
+	}
+}
+
+func newCountCursor(cur tsdb.Cursor) tsdb.Cursor {
+	switch cur := cur.(type) {
+	case tsdb.FloatCursor:
+		return &integerFloatCountCursor{FloatCursor: cur}
+
+	case tsdb.IntegerCursor:
+		return &integerIntegerCountCursor{IntegerCursor: cur}
+
+	case tsdb.UnsignedCursor:
+		return &integerUnsignedCountCursor{UnsignedCursor: cur}
+
+	case tsdb.StringCursor:
+		return &integerStringCountCursor{StringCursor: cur}
+
+	case tsdb.BooleanCursor:
+		return &integerBooleanCountCursor{BooleanCursor: cur}
 
 	default:
 		panic("unreachable")
