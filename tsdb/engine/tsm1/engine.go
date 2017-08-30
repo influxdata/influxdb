@@ -1961,6 +1961,9 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, name string, s
 
 	// If it's only auxiliary fields then it doesn't matter what type of iterator we use.
 	if ref == nil {
+		if opt.StripName {
+			name = ""
+		}
 		return newFloatIterator(name, tags, itrOpt, nil, aux, conds, condNames), nil
 	}
 
@@ -1974,8 +1977,8 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, name string, s
 		return nil, nil
 	}
 
-	// Remove measurement name if we are selecting the name.
-	if ref.Val == "_name" {
+	// Remove name if requested.
+	if opt.StripName {
 		name = ""
 	}
 

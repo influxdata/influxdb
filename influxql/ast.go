@@ -1004,6 +1004,12 @@ type SelectStatement struct {
 	// Removes the "time" column from the output.
 	OmitTime bool
 
+	// Removes measurement name from resulting query. Useful for meta queries.
+	StripName bool
+
+	// Overrides the output measurement name.
+	EmitName string
+
 	// Removes duplicate rows from raw queries.
 	Dedupe bool
 }

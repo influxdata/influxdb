@@ -449,6 +449,7 @@ func (e *StatementExecutor) executeSelectStatement(stmt *influxql.SelectStatemen
 		em.Location = stmt.Location
 	}
 	em.OmitTime = stmt.OmitTime
+	em.EmitName = stmt.EmitName
 	defer em.Close()
 
 	// Emit rows to the results channel.
