@@ -258,24 +258,12 @@ $tick-script-overlay-margin: 30px;
 }
 
 /*
-  Group by Time Dropdown
+  GROUP BY TIME Dropdown
   -----------------------------------------------------------------------------
 */
-.group-by-time {
-  display: inline-flex;
-  align-items: center;
-}
-.group-by-time--label {
-  margin: 0;
-  color: $g12-forge;
-  padding: 0 6px;
-  height: 30px;
-  line-height: 30px;
-}
-.group-by-time--dropdown .dropdown-toggle {
-  width: 70px;
-}
-.group-by-time--dropdown .dropdown-selected,
-.group-by-time--dropdown .dropdown-item > a {
-  font-family: $code-font;
+.group-by-time-dropdown {
+  .dropdown-selected,
+  .dropdown-item {
+    font-family: $code-font;
+  }
 }
