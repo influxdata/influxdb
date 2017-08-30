@@ -1840,3 +1840,22 @@ func mustParseTime(s string) time.Time {
 	}
 	return t
 }
+
+// BenchmarkExprNames benchmarks how long it takes to run ExprNames.
+func BenchmarkExprNames(b *testing.B) {
+	exprs := make([]string, 100)
+	for i := range exprs {
+		exprs[i] = fmt.Sprintf("host = 'server%02d'", i)
+	}
+	condition := MustParseExpr(strings.Join(exprs, " OR "))
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		refs := influxql.ExprNames(condition)
+		if have, want := refs, []influxql.VarRef{{Val: "host"}}; !reflect.DeepEqual(have, want) {
+			b.Fatalf("unexpected expression names: have=%s want=%s", have, want)
+		}
+	}
+}

@@ -1795,20 +1795,15 @@ func (e *Engine) createTagSetIterators(ref *influxql.VarRef, name string, t *inf
 
 // createTagSetGroupIterators creates a set of iterators for a subset of a tagset's series.
 func (e *Engine) createTagSetGroupIterators(ref *influxql.VarRef, name string, seriesKeys []string, t *influxql.TagSet, filters []influxql.Expr, opt influxql.IteratorOptions) ([]influxql.Iterator, error) {
-	conditionFields := make([]influxql.VarRef, len(influxql.ExprNames(opt.Condition)))
-
 	itrs := make([]influxql.Iterator, 0, len(seriesKeys))
 	for i, seriesKey := range seriesKeys {
-		fields := 0
+		var conditionFields []influxql.VarRef
 		if filters[i] != nil {
 			// Retrieve non-time fields from this series filter and filter out tags.
-			for _, f := range influxql.ExprNames(filters[i]) {
-				conditionFields[fields] = f
-				fields++
-			}
+			conditionFields = influxql.ExprNames(filters[i])
 		}
 
-		itr, err := e.createVarRefSeriesIterator(ref, name, seriesKey, t, filters[i], conditionFields[:fields], opt)
+		itr, err := e.createVarRefSeriesIterator(ref, name, seriesKey, t, filters[i], conditionFields, opt)
 		if err != nil {
 			return itrs, err
 		} else if itr == nil {
