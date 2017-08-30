@@ -71,6 +71,7 @@ import (
 	"io"
 	"os"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -166,6 +167,8 @@ type IndexWriter interface {
 
 	// WriteTo writes the index contents to a writer.
 	WriteTo(w io.Writer) (int64, error)
+
+	Close() error
 }
 
 // IndexEntry is the index information for a given block in a TSM file.
@@ -233,6 +236,11 @@ func NewIndexWriter() IndexWriter {
 	return &directIndex{}
 }
 
+// NewIndexWriter returns a new IndexWriter.
+func NewDiskIndexWriter(f *os.File) IndexWriter {
+	return &directIndex{fd: f, w: bufio.NewWriter(f)}
+}
+
 // indexBlock represent an index information for a series within a TSM file.
 type indexBlock struct {
 	key     []byte
@@ -245,6 +253,8 @@ type directIndex struct {
 	mu     sync.RWMutex
 	size   uint32
 	blocks []indexBlock
+	fd     *os.File
+	w      *bufio.Writer
 }
 
 func (d *directIndex) Add(key []byte, blockType byte, minTime, maxTime int64, offset int64, size uint32) {
@@ -291,7 +301,9 @@ func (d *directIndex) Add(key []byte, blockType byte, minTime, maxTime int64, of
 		d.size += indexEntrySize
 
 	} else if cmp < 0 {
-
+		if d.w != nil {
+			d.flush(d.w)
+		}
 		// We have a new key that is greater than the last one so we need to add
 		// a new index block section.
 
@@ -315,47 +327,8 @@ func (d *directIndex) Add(key []byte, blockType byte, minTime, maxTime int64, of
 		// size of the encoded index entry
 		d.size += indexEntrySize
 	} else {
-		// Key being added is not in sorted order, find the index for this key and insert it.  This won't occur
-		// during compactions as the keys are always added in sorted order.  It may occur if using the TSMWriter directly
-		// and sub-optimally.
-		i := sort.Search(len(d.blocks), func(i int) bool { return bytes.Compare(d.blocks[i].key, key) >= 0 })
-		if i < len(d.blocks) && bytes.Equal(d.blocks[i].key, key) {
-			// The keys exists at position i
-			block := d.blocks[i]
-			block.entries.entries = append(block.entries.entries, IndexEntry{
-				MinTime: minTime,
-				MaxTime: maxTime,
-				Offset:  offset,
-				Size:    size,
-			})
-
-			// size of the encoded index entry
-			d.size += indexEntrySize
-		} else {
-			// Key is not present, but i is the index where it should be inserted.
-			ib := indexBlock{
-				key: key,
-				entries: &indexEntries{
-					Type: blockType,
-					entries: []IndexEntry{IndexEntry{
-						MinTime: minTime,
-						MaxTime: maxTime,
-						Offset:  offset,
-						Size:    size,
-					}}},
-			}
-			// Insert the new entry
-			d.blocks = append(d.blocks, indexBlock{})
-			copy(d.blocks[i+1:], d.blocks[i:])
-			d.blocks[i] = ib
-
-			// size of the key stored in the index
-			d.size += uint32(2 + len(key))
-			// size of the count of entries stored in the index
-			d.size += indexCountSize
-			// size of the encoded index entry
-			d.size += indexEntrySize
-		}
+		// Keys can't be added out of order.
+		panic(fmt.Sprintf("keys must be added in sorted order: %s < %s", string(key), string(d.blocks[len(d.blocks)-1].key)))
 	}
 }
 
@@ -415,9 +388,29 @@ func (d *directIndex) KeyCount() int {
 }
 
 func (d *directIndex) WriteTo(w io.Writer) (int64, error) {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
+	if d.w == nil {
+		return d.flush(w)
+	}
 
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	if _, err := d.flush(d.w); err != nil {
+		return 0, err
+	}
+
+	if err := d.w.Flush(); err != nil {
+		return 0, err
+	}
+
+	if _, err := d.fd.Seek(0, io.SeekStart); err != nil {
+		return 0, err
+	}
+
+	return io.Copy(w, bufio.NewReader(d.fd))
+}
+
+func (d *directIndex) flush(w io.Writer) (int64, error) {
 	var (
 		n   int
 		err error
@@ -467,7 +460,11 @@ func (d *directIndex) WriteTo(w io.Writer) (int64, error) {
 		N += n64
 
 	}
+
+	d.blocks = d.blocks[:0]
+
 	return N, nil
+
 }
 
 func (d *directIndex) MarshalBinary() ([]byte, error) {
@@ -482,6 +479,21 @@ func (d *directIndex) Size() uint32 {
 	return d.size
 }
 
+func (d *directIndex) Close() error {
+	if d.w == nil {
+		return nil
+	}
+
+	// Flush anything remaining in the index
+	if err := d.w.Flush(); err != nil {
+		return err
+	}
+	if err := d.fd.Close(); err != nil {
+		return nil
+	}
+	return os.Remove(d.fd.Name())
+}
+
 // tsmWriter writes keys and values in the TSM format
 type tsmWriter struct {
 	wrapped io.Writer
@@ -492,7 +504,16 @@ type tsmWriter struct {
 
 // NewTSMWriter returns a new TSMWriter writing to w.
 func NewTSMWriter(w io.Writer) (TSMWriter, error) {
-	index := NewIndexWriter()
+	var index IndexWriter
+	if fw, ok := w.(*os.File); ok {
+		f, err := os.Create(strings.TrimSuffix(fw.Name(), ".tsm.tmp") + ".idx.tmp")
+		if err != nil {
+			return nil, err
+		}
+		index = NewDiskIndexWriter(f)
+	} else {
+		index = NewIndexWriter()
+	}
 
 	return &tsmWriter{wrapped: w, w: bufio.NewWriterSize(w, 1024*1024), index: index}, nil
 }
@@ -649,6 +670,10 @@ func (t *tsmWriter) Flush() error {
 
 func (t *tsmWriter) Close() error {
 	if err := t.Flush(); err != nil {
+		return err
+	}
+
+	if err := t.index.Close(); err != nil {
 		return err
 	}
 

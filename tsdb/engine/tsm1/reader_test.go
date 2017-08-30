@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"sort"
 	"testing"
 
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
@@ -64,29 +65,22 @@ func TestTSMReader_MMAP_ReadAll(t *testing.T) {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
 
-	var data = []struct {
-		key    string
-		values []tsm1.Value
-	}{
-		{"float", []tsm1.Value{
-			tsm1.NewValue(1, 1.0)},
-		},
-		{"int", []tsm1.Value{
-			tsm1.NewValue(1, int64(1))},
-		},
-		{"uint", []tsm1.Value{
-			tsm1.NewValue(1, ^uint64(0))},
-		},
-		{"bool", []tsm1.Value{
-			tsm1.NewValue(1, true)},
-		},
-		{"string", []tsm1.Value{
-			tsm1.NewValue(1, "foo")},
-		},
+	var data = map[string][]tsm1.Value{
+		"float":  []tsm1.Value{tsm1.NewValue(1, 1.0)},
+		"int":    []tsm1.Value{tsm1.NewValue(1, int64(1))},
+		"uint":   []tsm1.Value{tsm1.NewValue(1, ^uint64(0))},
+		"bool":   []tsm1.Value{tsm1.NewValue(1, true)},
+		"string": []tsm1.Value{tsm1.NewValue(1, "foo")},
 	}
 
-	for _, d := range data {
-		if err := w.Write([]byte(d.key), d.values); err != nil {
+	keys := make([]string, 0, len(data))
+	for k := range data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		if err := w.Write([]byte(k), data[k]); err != nil {
 			t.Fatalf("unexpected error writing: %v", err)
 		}
 	}
@@ -111,17 +105,17 @@ func TestTSMReader_MMAP_ReadAll(t *testing.T) {
 	defer r.Close()
 
 	var count int
-	for _, d := range data {
-		readValues, err := r.ReadAll([]byte(d.key))
+	for k, vals := range data {
+		readValues, err := r.ReadAll([]byte(k))
 		if err != nil {
 			t.Fatalf("unexpected error readin: %v", err)
 		}
 
-		if exp := len(d.values); exp != len(readValues) {
+		if exp := len(vals); exp != len(readValues) {
 			t.Fatalf("read values length mismatch: got %v, exp %v", len(readValues), exp)
 		}
 
-		for i, v := range d.values {
+		for i, v := range vals {
 			if v.Value() != readValues[i].Value() {
 				t.Fatalf("read value mismatch(%d): got %v, exp %d", i, readValues[i].Value(), v.Value())
 			}
@@ -145,28 +139,27 @@ func TestTSMReader_MMAP_Read(t *testing.T) {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
 
-	var data = []struct {
-		key    string
-		values []tsm1.Value
-	}{
-		{"float", []tsm1.Value{
+	var data = map[string][]tsm1.Value{
+		"float": []tsm1.Value{
 			tsm1.NewValue(1, 1.0)},
-		},
-		{"int", []tsm1.Value{
+		"int": []tsm1.Value{
 			tsm1.NewValue(1, int64(1))},
-		},
-		{"uint", []tsm1.Value{
+		"uint": []tsm1.Value{
 			tsm1.NewValue(1, ^uint64(0))},
-		},
-		{"bool", []tsm1.Value{
+		"bool": []tsm1.Value{
 			tsm1.NewValue(1, true)},
-		},
-		{"string", []tsm1.Value{
+		"string": []tsm1.Value{
 			tsm1.NewValue(1, "foo")},
-		},
 	}
-	for _, d := range data {
-		if err := w.Write([]byte(d.key), d.values); err != nil {
+
+	keys := make([]string, 0, len(data))
+	for k := range data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		if err := w.Write([]byte(k), data[k]); err != nil {
 			t.Fatalf("unexpected error writing: %v", err)
 		}
 	}
@@ -191,17 +184,17 @@ func TestTSMReader_MMAP_Read(t *testing.T) {
 	defer r.Close()
 
 	var count int
-	for _, d := range data {
-		readValues, err := r.Read([]byte(d.key), d.values[0].UnixNano())
+	for k, vals := range data {
+		readValues, err := r.Read([]byte(k), vals[0].UnixNano())
 		if err != nil {
 			t.Fatalf("unexpected error readin: %v", err)
 		}
 
-		if exp := len(d.values); exp != len(readValues) {
+		if exp := len(vals); exp != len(readValues) {
 			t.Fatalf("read values length mismatch: got %v, exp %v", len(readValues), exp)
 		}
 
-		for i, v := range d.values {
+		for i, v := range vals {
 			if v.Value() != readValues[i].Value() {
 				t.Fatalf("read value mismatch(%d): got %v, exp %d", i, readValues[i].Value(), v.Value())
 			}
@@ -225,29 +218,27 @@ func TestTSMReader_MMAP_Keys(t *testing.T) {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
 
-	var data = []struct {
-		key    string
-		values []tsm1.Value
-	}{
-		{"float", []tsm1.Value{
+	var data = map[string][]tsm1.Value{
+		"float": []tsm1.Value{
 			tsm1.NewValue(1, 1.0)},
-		},
-		{"int", []tsm1.Value{
+		"int": []tsm1.Value{
 			tsm1.NewValue(1, int64(1))},
-		},
-		{"uint", []tsm1.Value{
+		"uint": []tsm1.Value{
 			tsm1.NewValue(1, ^uint64(0))},
-		},
-		{"bool", []tsm1.Value{
+		"bool": []tsm1.Value{
 			tsm1.NewValue(1, true)},
-		},
-		{"string", []tsm1.Value{
+		"string": []tsm1.Value{
 			tsm1.NewValue(1, "foo")},
-		},
 	}
 
-	for _, d := range data {
-		if err := w.Write([]byte(d.key), d.values); err != nil {
+	keys := make([]string, 0, len(data))
+	for k := range data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		if err := w.Write([]byte(k), data[k]); err != nil {
 			t.Fatalf("unexpected error writing: %v", err)
 		}
 	}
@@ -272,17 +263,17 @@ func TestTSMReader_MMAP_Keys(t *testing.T) {
 	defer r.Close()
 
 	var count int
-	for _, d := range data {
-		readValues, err := r.Read([]byte(d.key), d.values[0].UnixNano())
+	for k, vals := range data {
+		readValues, err := r.Read([]byte(k), vals[0].UnixNano())
 		if err != nil {
 			t.Fatalf("unexpected error readin: %v", err)
 		}
 
-		if exp := len(d.values); exp != len(readValues) {
+		if exp := len(vals); exp != len(readValues) {
 			t.Fatalf("read values length mismatch: got %v, exp %v", len(readValues), exp)
 		}
 
-		for i, v := range d.values {
+		for i, v := range vals {
 			if v.Value() != readValues[i].Value() {
 				t.Fatalf("read value mismatch(%d): got %v, exp %d", i, readValues[i].Value(), v.Value())
 			}
@@ -889,6 +880,7 @@ func TestIndirectIndex_Entries(t *testing.T) {
 	index.Add([]byte("cpu"), tsm1.BlockFloat64, 0, 1, 10, 100)
 	index.Add([]byte("cpu"), tsm1.BlockFloat64, 2, 3, 20, 200)
 	index.Add([]byte("mem"), tsm1.BlockFloat64, 0, 1, 10, 100)
+	exp := index.Entries([]byte("cpu"))
 
 	b, err := index.MarshalBinary()
 	if err != nil {
@@ -900,7 +892,6 @@ func TestIndirectIndex_Entries(t *testing.T) {
 		t.Fatalf("unexpected error unmarshaling index: %v", err)
 	}
 
-	exp := index.Entries([]byte("cpu"))
 	entries := indirect.Entries([]byte("cpu"))
 
 	if got, exp := len(entries), len(exp); got != exp {
@@ -991,8 +982,8 @@ func TestIndirectIndex_Type(t *testing.T) {
 func TestIndirectIndex_Keys(t *testing.T) {
 	index := tsm1.NewIndexWriter()
 	index.Add([]byte("cpu"), tsm1.BlockFloat64, 0, 1, 10, 20)
-	index.Add([]byte("mem"), tsm1.BlockFloat64, 0, 1, 10, 20)
 	index.Add([]byte("cpu"), tsm1.BlockFloat64, 1, 2, 20, 30)
+	index.Add([]byte("mem"), tsm1.BlockFloat64, 0, 1, 10, 20)
 
 	keys := index.Keys()
 
@@ -1176,8 +1167,14 @@ func TestBlockIterator_Sorted(t *testing.T) {
 		"load":   []tsm1.Value{tsm1.NewValue(1, "string")},
 	}
 
-	for k, v := range values {
-		if err := w.Write([]byte(k), v); err != nil {
+	keys := make([]string, 0, len(values))
+	for k := range values {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		if err := w.Write([]byte(k), values[k]); err != nil {
 			t.Fatalf("unexpected error writing: %v", err)
 
 		}
@@ -1323,29 +1320,27 @@ func TestTSMReader_File_ReadAll(t *testing.T) {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
 
-	var data = []struct {
-		key    string
-		values []tsm1.Value
-	}{
-		{"float", []tsm1.Value{
+	var data = map[string][]tsm1.Value{
+		"float": []tsm1.Value{
 			tsm1.NewValue(1, 1.0)},
-		},
-		{"int", []tsm1.Value{
+		"int": []tsm1.Value{
 			tsm1.NewValue(1, int64(1))},
-		},
-		{"uint", []tsm1.Value{
+		"uint": []tsm1.Value{
 			tsm1.NewValue(1, ^uint64(0))},
-		},
-		{"bool", []tsm1.Value{
+		"bool": []tsm1.Value{
 			tsm1.NewValue(1, true)},
-		},
-		{"string", []tsm1.Value{
+		"string": []tsm1.Value{
 			tsm1.NewValue(1, "foo")},
-		},
 	}
 
-	for _, d := range data {
-		if err := w.Write([]byte(d.key), d.values); err != nil {
+	keys := make([]string, 0, len(data))
+	for k := range data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		if err := w.Write([]byte(k), data[k]); err != nil {
 			t.Fatalf("unexpected error writing: %v", err)
 		}
 	}
@@ -1370,17 +1365,17 @@ func TestTSMReader_File_ReadAll(t *testing.T) {
 	defer r.Close()
 
 	var count int
-	for _, d := range data {
-		readValues, err := r.ReadAll([]byte(d.key))
+	for k, vals := range data {
+		readValues, err := r.ReadAll([]byte(k))
 		if err != nil {
 			t.Fatalf("unexpected error reading: %v", err)
 		}
 
-		if exp := len(d.values); exp != len(readValues) {
+		if exp := len(vals); exp != len(readValues) {
 			t.Fatalf("read values length mismatch: exp %v, got %v", exp, len(readValues))
 		}
 
-		for i, v := range d.values {
+		for i, v := range vals {
 			if exp, got := v.Value(), readValues[i].Value(); exp != got {
 				t.Fatalf("read value mismatch(%d): exp %v, got %d", i, v.Value(), readValues[i].Value())
 			}
@@ -1473,28 +1468,27 @@ func TestTSMReader_File_Read(t *testing.T) {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
 
-	var data = []struct {
-		key    string
-		values []tsm1.Value
-	}{
-		{"float", []tsm1.Value{
+	var data = map[string][]tsm1.Value{
+		"float": []tsm1.Value{
 			tsm1.NewValue(1, 1.0)},
-		},
-		{"int", []tsm1.Value{
+		"int": []tsm1.Value{
 			tsm1.NewValue(1, int64(1))},
-		},
-		{"uint", []tsm1.Value{
+		"uint": []tsm1.Value{
 			tsm1.NewValue(1, ^uint64(0))},
-		},
-		{"bool", []tsm1.Value{
+		"bool": []tsm1.Value{
 			tsm1.NewValue(1, true)},
-		},
-		{"string", []tsm1.Value{
+		"string": []tsm1.Value{
 			tsm1.NewValue(1, "foo")},
-		},
 	}
-	for _, d := range data {
-		if err := w.Write([]byte(d.key), d.values); err != nil {
+
+	keys := make([]string, 0, len(data))
+	for k := range data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		if err := w.Write([]byte(k), data[k]); err != nil {
 			t.Fatalf("unexpected error writing: %v", err)
 		}
 	}
@@ -1519,17 +1513,17 @@ func TestTSMReader_File_Read(t *testing.T) {
 	defer r.Close()
 
 	var count int
-	for _, d := range data {
-		readValues, err := r.Read([]byte(d.key), d.values[0].UnixNano())
+	for k, vals := range data {
+		readValues, err := r.Read([]byte(k), vals[0].UnixNano())
 		if err != nil {
 			t.Fatalf("unexpected error readin: %v", err)
 		}
 
-		if exp, got := len(d.values), len(readValues); exp != got {
+		if exp, got := len(vals), len(readValues); exp != got {
 			t.Fatalf("read values length mismatch: exp %v, got %v", exp, len(readValues))
 		}
 
-		for i, v := range d.values {
+		for i, v := range vals {
 			if v.Value() != readValues[i].Value() {
 				t.Fatalf("read value mismatch(%d): exp %v, got %d", i, v.Value(), readValues[i].Value())
 			}
@@ -1553,28 +1547,27 @@ func TestTSMReader_References(t *testing.T) {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
 
-	var data = []struct {
-		key    string
-		values []tsm1.Value
-	}{
-		{"float", []tsm1.Value{
+	var data = map[string][]tsm1.Value{
+		"float": []tsm1.Value{
 			tsm1.NewValue(1, 1.0)},
-		},
-		{"int", []tsm1.Value{
+		"int": []tsm1.Value{
 			tsm1.NewValue(1, int64(1))},
-		},
-		{"uint", []tsm1.Value{
+		"uint": []tsm1.Value{
 			tsm1.NewValue(1, ^uint64(0))},
-		},
-		{"bool", []tsm1.Value{
+		"bool": []tsm1.Value{
 			tsm1.NewValue(1, true)},
-		},
-		{"string", []tsm1.Value{
+		"string": []tsm1.Value{
 			tsm1.NewValue(1, "foo")},
-		},
 	}
-	for _, d := range data {
-		if err := w.Write([]byte(d.key), d.values); err != nil {
+
+	keys := make([]string, 0, len(data))
+	for k := range data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		if err := w.Write([]byte(k), data[k]); err != nil {
 			t.Fatalf("unexpected error writing: %v", err)
 		}
 	}
@@ -1609,17 +1602,17 @@ func TestTSMReader_References(t *testing.T) {
 	}
 
 	var count int
-	for _, d := range data {
-		readValues, err := r.Read([]byte(d.key), d.values[0].UnixNano())
+	for k, vals := range data {
+		readValues, err := r.Read([]byte(k), vals[0].UnixNano())
 		if err != nil {
 			t.Fatalf("unexpected error readin: %v", err)
 		}
 
-		if exp, got := len(d.values), len(readValues); exp != got {
+		if exp, got := len(vals), len(readValues); exp != got {
 			t.Fatalf("read values length mismatch: exp %v, got %v", exp, len(readValues))
 		}
 
-		for i, v := range d.values {
+		for i, v := range vals {
 			if v.Value() != readValues[i].Value() {
 				t.Fatalf("read value mismatch(%d): exp %v, got %d", i, v.Value(), readValues[i].Value())
 			}

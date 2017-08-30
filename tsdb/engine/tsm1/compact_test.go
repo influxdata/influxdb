@@ -5,6 +5,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"sort"
 	"testing"
 	"time"
 
@@ -162,7 +163,6 @@ func TestCompactor_CompactFull(t *testing.T) {
 		t.Fatalf("wrong sequence for new file: got %v, exp %v", gotSeq, expSeq)
 	}
 
-	println("Open", files[0])
 	r := MustOpenTSMReader(files[0])
 
 	if got, exp := r.KeyCount(), 3; got != exp {
@@ -2413,8 +2413,14 @@ func MustTSMWriter(dir string, gen int) (tsm1.TSMWriter, string) {
 func MustWriteTSM(dir string, gen int, values map[string][]tsm1.Value) string {
 	w, name := MustTSMWriter(dir, gen)
 
-	for k, v := range values {
-		if err := w.Write([]byte(k), v); err != nil {
+	keys := make([]string, 0, len(values))
+	for k := range values {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		if err := w.Write([]byte(k), values[k]); err != nil {
 			panic(fmt.Sprintf("write TSM value: %v", err))
 		}
 	}
