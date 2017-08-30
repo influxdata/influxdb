@@ -58,7 +58,8 @@
   color: $g12-forge;
   padding: 20px 0;
 
-  h4, h5 {
+  h4,
+  h5 {
     font-weight: 400;
   }
 
@@ -73,7 +74,7 @@
 */
 .loading-dots {
   position: absolute;
-  transform: translate(0,0);
+  transform: translate(0, 0);
   transform: translateX(50%);
   width: 16px;
   height: 18px;
@@ -85,12 +86,24 @@
     border-radius: 50%;
     position: absolute;
     top: 50%;
-    transform: translate(-50%,-50%);
+    transform: translate(-50%, -50%);
   }
 
-  div:nth-child(1) {left: 0; animation: refreshingSpinnerA 0.8s cubic-bezier(0.645, 0.045, 0.355, 1) infinite;}
-  div:nth-child(2) {left: 50%; animation: refreshingSpinnerB 0.8s cubic-bezier(0.645, 0.045, 0.355, 1) infinite;}
-  div:nth-child(3) {left: 100%; animation: refreshingSpinnerC 0.8s cubic-bezier(0.645, 0.045, 0.355, 1) infinite;}
+  div:nth-child(1) {
+    left: 0;
+    animation: refreshingSpinnerA 0.8s cubic-bezier(0.645, 0.045, 0.355, 1)
+      infinite;
+  }
+  div:nth-child(2) {
+    left: 50%;
+    animation: refreshingSpinnerB 0.8s cubic-bezier(0.645, 0.045, 0.355, 1)
+      infinite;
+  }
+  div:nth-child(3) {
+    left: 100%;
+    animation: refreshingSpinnerC 0.8s cubic-bezier(0.645, 0.045, 0.355, 1)
+      infinite;
+  }
 }
 
 /*
@@ -111,9 +124,7 @@
     color: $g11-sidewalk;
     background-color: $g17-whisper;
     box-shadow: none;
-    transition:
-      color 0.25s ease,
-      background-color 0.25s ease;
+    transition: color 0.25s ease, background-color 0.25s ease;
 
     &:hover {
       cursor: pointer;
@@ -190,7 +201,9 @@ br {
     color: $g20-white;
   }
 
-  p {font-size: 13px;}
+  p {
+    font-size: 13px;
+  }
 }
 .alerts-widget {
   height: 100%;
@@ -198,13 +211,14 @@ br {
   flex-direction: column;
   align-items: stretch;
 
-  > .btn {margin: 20px 0;}
+  > .btn {
+    margin: 20px 0;
+  }
 
   .alert-history-table {
     flex: 1 0 0;
   }
 }
-
 
 /*
   Version Number
@@ -217,8 +231,6 @@ br {
   color: $g11-sidewalk;
   font-size: 13px;
 }
-
-
 
 /*
   View TICKscript Overlay
@@ -243,4 +255,27 @@ $tick-script-overlay-margin: 30px;
   font-size: 14px;
   padding: 20px;
   border: 2px solid $g4-onyx;
+}
+
+/*
+  Group by Time Dropdown
+  -----------------------------------------------------------------------------
+*/
+.group-by-time {
+  display: inline-flex;
+  align-items: center;
+}
+.group-by-time--label {
+  margin: 0;
+  color: $g12-forge;
+  padding: 0 6px;
+  height: 30px;
+  line-height: 30px;
+}
+.group-by-time--dropdown .dropdown-toggle {
+  width: 70px;
+}
+.group-by-time--dropdown .dropdown-selected,
+.group-by-time--dropdown .dropdown-item > a {
+  font-family: $code-font;
 }

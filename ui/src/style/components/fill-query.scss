@@ -6,48 +6,41 @@
 
 .fill-query {
   display: flex;
-  align-items: stretch;
+  align-items: center;
   flex-wrap: nowrap;
+  margin-left: 8px; // Assumes it is to the right of GROUP BY TIME
 }
-.fill-query > label {
-  white-space: nowrap;
+.fill-query--label {
+  order: 1;
   margin: 0;
-  @include no-user-select();
-  color: $g11-sidewalk;
+  color: $g12-forge;
+  padding: 0 6px;
+  height: 30px;
+  line-height: 30px;
 }
-.fill-query--dropdown .dropdown-toggle {
+.fill-query--dropdown {
+  order: 2;
+}
+.fill-query--dropdown .dropdown-selected {
   font-family: $code-font;
 }
 .fill-query--dropdown .dropdown-menu .dropdown-item a {
   font-family: $code-font;
 }
-.fill-query--input {
-  margin-left: 4px;
+input.form-control.fill-query--input {
+  width: 70px;
+  order: 3;
+  margin: 0;
   font-weight: 600;
-}
-// Size modifiers
-.fill-query--xs {
-  .fill-query--dropdown .dropdown-toggle { width: 90px; }
-  .fill-query--input {width: 70px;}
-  & > label {
-    height: 22px;
-    line-height: 22px;
-    font-size: 12px;
-    padding: 0 8px;
-  }
-}
-.fill-query--sm {
-  .fill-query--dropdown .dropdown-toggle { width: 110px; }
-  .fill-query--input {width: 90px;}
-  & > label {
-    height: 30px;
-    line-height: 30px;
-    font-size: 14px;
-    padding: 0 11px;
-  }
-}
+  border-color: $g7-graphite;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
 
-// Prevent component from being flush to edge when used in Query Editor
-.query-editor--status .fill-query {
-  margin-right: 4px;
+  &:hover {border-color: $g8-storm;}
+  &:focus {border-color: $c-pool;}
+
+  & + .fill-query--dropdown .dropdown-toggle {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+  }
 }

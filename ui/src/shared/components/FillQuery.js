@@ -23,7 +23,7 @@ class FillQuery extends Component {
   }
 
   static defaultProps = {
-    size: 'xs',
+    size: 'sm',
     theme: 'blue',
     value: NULL,
   }
@@ -79,16 +79,6 @@ class FillQuery extends Component {
 
     return (
       <div className={`fill-query fill-query--${size}`}>
-        <label>Fill</label>
-        <Dropdown
-          selected={selected.text}
-          items={queryFills}
-          className="fill-query--dropdown"
-          buttonSize={`btn-${size}`}
-          buttonColor="btn-default"
-          menuClass={`dropdown-${this.getColor(theme)}`}
-          onChoose={this.handleDropdown}
-        />
         {selected.type === NUMBER &&
           <input
             type="number"
@@ -102,6 +92,16 @@ class FillQuery extends Component {
             onChange={this.handleInputChange}
             onBlur={this.handleInputBlur}
           />}
+        <Dropdown
+          selected={selected.text}
+          items={queryFills}
+          className="fill-query--dropdown dropdown-100"
+          buttonSize={`btn-${size}`}
+          buttonColor="btn-info"
+          menuClass={`dropdown-${this.getColor(theme)}`}
+          onChoose={this.handleDropdown}
+        />
+        <label className="fill-query--label">Fill:</label>
       </div>
     )
   }
