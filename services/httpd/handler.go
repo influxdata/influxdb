@@ -779,7 +779,7 @@ func (h *Handler) serveExpvar(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
 	first := true
-	if val, ok := diags["system"]; ok {
+	if val := diags["system"]; val != nil {
 		jv, err := parseSystemDiagnostics(val)
 		if err != nil {
 			h.httpError(w, err.Error(), http.StatusInternalServerError)

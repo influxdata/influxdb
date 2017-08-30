@@ -2638,8 +2638,8 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 			return nil, errors.New("empty bound parameter")
 		}
 
-		v, ok := p.params[k]
-		if !ok {
+		v := p.params[k]
+		if v == nil {
 			return nil, fmt.Errorf("missing parameter: %s", k)
 		}
 

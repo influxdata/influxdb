@@ -767,7 +767,7 @@ func (i *Index) assignExistingSeries(shardID uint64, keys, names [][]byte, tagsS
 	i.mu.RLock()
 	var n int
 	for j, key := range keys {
-		if ss, ok := i.series[string(key)]; !ok {
+		if ss := i.series[string(key)]; ss == nil {
 			keys[n] = keys[j]
 			names[n] = names[j]
 			tagsSlice[n] = tagsSlice[j]

@@ -113,11 +113,13 @@ func (t *TaskManager) executeShowQueriesStatement(q *influxql.ShowQueriesStateme
 	}}, nil
 }
 
-func (t *TaskManager) query(qid uint64) (*QueryTask, bool) {
+func (t *TaskManager) queryError(qid uint64, err error) {
 	t.mu.RLock()
-	query, ok := t.queries[qid]
+	query := t.queries[qid]
 	t.mu.RUnlock()
-	return query, ok
+	if query != nil {
+		query.setError(err)
+	}
 }
 
 // AttachQuery attaches a running query to be managed by the TaskManager.
@@ -174,8 +176,8 @@ func (t *TaskManager) KillQuery(qid uint64) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	query, ok := t.queries[qid]
-	if !ok {
+	query := t.queries[qid]
+	if query == nil {
 		return fmt.Errorf("no such query id: %d", qid)
 	}
 
@@ -220,27 +222,15 @@ func (t *TaskManager) waitForQuery(qid uint64, interrupt <-chan struct{}, closin
 
 	select {
 	case <-closing:
-		query, ok := t.query(qid)
-		if !ok {
-			break
-		}
-		query.setError(ErrQueryInterrupted)
+		t.queryError(qid, ErrQueryInterrupted)
 	case err := <-monitorCh:
 		if err == nil {
 			break
 		}
 
-		query, ok := t.query(qid)
-		if !ok {
-			break
-		}
-		query.setError(err)
+		t.queryError(qid, err)
 	case <-timerCh:
-		query, ok := t.query(qid)
-		if !ok {
-			break
-		}
-		query.setError(ErrQueryTimeoutLimitExceeded)
+		t.queryError(qid, ErrQueryTimeoutLimitExceeded)
 	case <-interrupt:
 		// Query was manually closed so exit the select.
 		return

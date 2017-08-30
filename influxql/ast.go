@@ -1141,9 +1141,7 @@ func (s *SelectStatement) RewriteFields(m FieldMapper) (*SelectStatement, error)
 		for _, d := range other.Dimensions {
 			switch expr := d.Expr.(type) {
 			case *VarRef:
-				if _, ok := dimensionSet[expr.Val]; ok {
-					delete(dimensionSet, expr.Val)
-				}
+				delete(dimensionSet, expr.Val)
 			}
 		}
 	}

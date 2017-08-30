@@ -575,7 +575,7 @@ func TestHandler_Version(t *testing.T) {
 	for _, test := range tests {
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, MustNewRequest(test.method, test.endpoint, test.body))
-		if v, ok := w.HeaderMap["X-Influxdb-Version"]; ok {
+		if v := w.HeaderMap["X-Influxdb-Version"]; len(v) > 0 {
 			if v[0] != "0.0.0" {
 				t.Fatalf("unexpected version: %s", v)
 			}
@@ -583,7 +583,7 @@ func TestHandler_Version(t *testing.T) {
 			t.Fatalf("Header entry 'X-Influxdb-Version' not present")
 		}
 
-		if v, ok := w.HeaderMap["X-Influxdb-Build"]; ok {
+		if v := w.HeaderMap["X-Influxdb-Build"]; len(v) > 0 {
 			if v[0] != "OSS" {
 				t.Fatalf("unexpected BuildType: %s", v)
 			}
