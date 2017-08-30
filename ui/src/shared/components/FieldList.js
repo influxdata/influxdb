@@ -104,7 +104,7 @@ class FieldList extends Component {
   }
 
   renderList() {
-    const {database, measurement, fields} = this.props.query
+    const {database, measurement, fields = []} = this.props.query
     if (!database || !measurement) {
       return (
         <div className="query-builder--list-empty">
