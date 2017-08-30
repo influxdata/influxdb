@@ -86,6 +86,7 @@ const NavBlock = React.createClass({
         {this.renderSquare()}
         <div className="sidebar-menu">
           {children}
+          <div className="sidebar-menu--triangle" />
         </div>
       </div>
     )
