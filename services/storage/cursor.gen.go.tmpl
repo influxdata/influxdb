@@ -110,19 +110,17 @@ func (c *{{.name}}MultiShardCursor) nextCursor() bool {
 
 type {{.name}}SumCursor struct {
 	tsdb.{{.Name}}Cursor
-	ts  int64
-	acc {{.Type}}
 }
 
 func (c *{{.name}}SumCursor) Next() (key int64, value {{.Type}}) {
-	c.ts, c.acc = c.{{.Name}}Cursor.Next()
+	ts, acc := c.{{.Name}}Cursor.Next()
 	for {
 		k, v := c.{{.Name}}Cursor.Next()
 		if k == tsdb.EOF {
-			return c.ts, c.acc
+			return ts, acc
 		}
 
-		c.acc += v
+		acc += v
 	}
 }
 
@@ -130,18 +128,17 @@ func (c *{{.name}}SumCursor) Next() (key int64, value {{.Type}}) {
 
 type integer{{.Name}}CountCursor struct {
 	tsdb.{{.Name}}Cursor
-	ts  int64
-	acc int64
 }
 
 func (c *integer{{.Name}}CountCursor) Next() (key int64, value int64) {
-	c.ts, _ = c.{{.Name}}Cursor.Next()
-	var k = c.ts
+	k, _ := c.{{.Name}}Cursor.Next()
+	var acc int64
+	ts := k
 	for k != tsdb.EOF {
-		c.acc += 1
+		acc += 1
 		k, _ = c.{{.Name}}Cursor.Next()
 	}
-	return c.ts, c.acc
+	return ts, acc
 }
 
 type {{.name}}EmptyCursor struct{}
