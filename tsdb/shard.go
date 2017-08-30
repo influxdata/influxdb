@@ -737,7 +737,7 @@ func (s *Shard) CreateIterator(measurement string, opt query.IteratorOptions) (q
 	return s.engine.CreateIterator(measurement, opt)
 }
 
-func (s *Shard) CreateCursor(r CursorRequest) (Cursor, error) {
+func (s *Shard) CreateCursor(r *CursorRequest) (Cursor, error) {
 	return s.engine.CreateCursor(r)
 }
 

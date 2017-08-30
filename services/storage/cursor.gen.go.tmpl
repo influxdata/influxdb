@@ -1,0 +1,142 @@
+package storage
+
+import (
+	"errors"
+
+	"github.com/influxdata/influxdb/tsdb"
+)
+
+{{range .}}
+
+// ********************
+// {{.Name}} Cursor
+
+type {{.name}}FilterCursor struct {
+	tsdb.{{.Name}}Cursor
+	cond expression
+	m    *singleValue
+}
+
+func new{{.Name}}FilterCursor(cur tsdb.{{.Name}}Cursor, cond expression) *{{.name}}FilterCursor {
+	return &{{.name}}FilterCursor{ {{- .Name}}Cursor: cur, cond: cond, m: &singleValue{}}
+}
+
+func (c *{{.name}}FilterCursor) Next() (key int64, value {{.Type}}) {
+	for {
+		k, v := c.{{.Name}}Cursor.Next()
+		if k == tsdb.EOF {
+			return k, v
+		}
+
+		c.m.v = v
+		if !c.cond.EvalBool(c.m) {
+			continue
+		}
+		return k, v
+	}
+}
+
+type {{.name}}MultiShardCursor struct {
+	tsdb.{{.Name}}Cursor
+	shards []*tsdb.Shard
+	req    *tsdb.CursorRequest
+	cond   expression
+	err    error
+}
+
+func new{{.Name}}MultiShardCursor(cur tsdb.{{.Name}}Cursor, req *tsdb.CursorRequest, shards []*tsdb.Shard, cond expression) *{{.name}}MultiShardCursor {
+	if cond != nil {
+		cur = new{{.Name}}FilterCursor(cur, cond)
+	}
+
+	c := &{{.name}}MultiShardCursor{
+		{{.Name}}Cursor: cur,
+		req:         req,
+		shards:      shards,
+		cond:        cond,
+	}
+
+	return c
+}
+
+func (c *{{.name}}MultiShardCursor) Err() error        { return c.err }
+func (c *{{.name}}MultiShardCursor) SeriesKey() string { return c.req.Series }
+
+func (c *{{.name}}MultiShardCursor) Next() (key int64, value {{.Type}}) {
+RETRY:
+	k, v := c.{{.Name}}Cursor.Next()
+	if k == tsdb.EOF {
+		if c.nextCursor() {
+			goto RETRY
+		}
+	}
+	return k, v
+}
+
+func (c *{{.name}}MultiShardCursor) nextCursor() bool {
+	if len(c.shards) == 0 {
+		return false
+	}
+
+	var shard *tsdb.Shard
+	var cur tsdb.Cursor
+	for cur == nil && len(c.shards) > 0 {
+		shard, c.shards = c.shards[0], c.shards[1:]
+		cur, _ = shard.CreateCursor(c.req)
+	}
+
+	var ok bool
+	if cur != nil {
+		var next tsdb.{{.Name}}Cursor
+		next, ok = cur.(tsdb.{{.Name}}Cursor)
+		if !ok {
+			next = {{.Name}}EmptyCursor
+			c.shards = nil
+			c.err = errors.New("expected {{.name}} cursor")
+		} else {
+			if c.cond != nil {
+				next = new{{.Name}}FilterCursor(next, c.cond)
+			}
+		}
+		c.{{.Name}}Cursor = next
+	} else {
+		c.{{.Name}}Cursor = {{.Name}}EmptyCursor
+	}
+
+	return ok
+}
+
+{{if .Agg}}
+
+type {{.name}}SumCursor struct {
+	tsdb.{{.Name}}Cursor
+	ts  int64
+	acc {{.Type}}
+}
+
+func (c *{{.name}}SumCursor) Next() (key int64, value {{.Type}}) {
+	c.ts, c.acc = c.{{.Name}}Cursor.Next()
+	for {
+		k, v := c.{{.Name}}Cursor.Next()
+		if k == tsdb.EOF {
+			return c.ts, c.acc
+		}
+
+		c.acc += v
+	}
+}
+
+{{end}}
+
+type {{.name}}EmptyCursor struct{}
+
+var (
+	{{.Name}}EmptyCursor tsdb.{{.Name}}Cursor = &{{.name}}EmptyCursor{}
+)
+
+func (*{{.name}}EmptyCursor) Err() error { return nil }
+func (*{{.name}}EmptyCursor) Close() {}
+func (*{{.name}}EmptyCursor) SeriesKey() string { return "" }
+func (*{{.name}}EmptyCursor) Next() (key int64, value {{.Type}}) { return tsdb.EOF, {{.Nil}} }
+
+{{end}}

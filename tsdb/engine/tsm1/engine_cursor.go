@@ -6,7 +6,7 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 )
 
-func (e *Engine) CreateCursor(r tsdb.CursorRequest) (tsdb.Cursor, error) {
+func (e *Engine) CreateCursor(r *tsdb.CursorRequest) (tsdb.Cursor, error) {
 	// Look up fields for measurement.
 	mf := e.fieldset.Fields(r.Measurement)
 	if mf == nil {

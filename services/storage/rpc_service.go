@@ -7,12 +7,12 @@ import (
 	"math"
 
 	"github.com/gogo/protobuf/types"
-	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/uber-go/zap"
 )
 
 //go:generate protoc -I$GOPATH/src -I. --plugin=protoc-gen-yarpc=$GOPATH/bin/protoc-gen-yarpc --yarpc_out=Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types:. --gogofaster_out=Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types:. storage.proto predicate.proto
+//go:generate tmpl -data=@cursor.gen.go.tmpldata cursor.gen.go.tmpl
 
 type rpcService struct {
 	Store *Store
@@ -57,12 +57,9 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 		lim = math.MaxUint64
 	}
 
-	pointCount := uint64(0)
 	b := 0
-	var lastTags models.Tags
 	var res ReadResponse
 	res.Frames = make([]ReadResponse_Frame, 0, FrameCount)
-	ss := 0
 
 	for rs.Next() {
 		if len(res.Frames) >= FrameCount {
@@ -82,25 +79,16 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 			continue
 		}
 
-		if next := rs.Tags(); !next.Equal(lastTags) {
-			sf := ReadResponse_SeriesFrame{Name: rs.SeriesKey()}
-			sf.Tags = make([]Tag, len(next))
-			for i, t := range next {
-				sf.Tags[i] = Tag(t)
-			}
+		ss := len(res.Frames)
+		pointCount := uint64(0)
 
-			lastTags = next
-			if pointCount == 0 {
-				// no points collected, so strip series
-				res.Frames = res.Frames[:ss]
-			} else {
-				ss = len(res.Frames)
-			}
-
-			res.Frames = append(res.Frames, ReadResponse_Frame{&ReadResponse_Frame_Series{&sf}})
-
-			pointCount = 0
+		next := rs.Tags()
+		sf := ReadResponse_SeriesFrame{Name: rs.SeriesKey()}
+		sf.Tags = make([]Tag, len(next))
+		for i, t := range next {
+			sf.Tags[i] = Tag(t)
 		}
+		res.Frames = append(res.Frames, ReadResponse_Frame{&ReadResponse_Frame_Series{&sf}})
 
 		switch cur := cur.(type) {
 		case tsdb.IntegerCursor:
@@ -157,6 +145,11 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 		}
 
 		cur.Close()
+
+		if pointCount == 0 {
+			// no points collected, so strip series
+			res.Frames = res.Frames[:ss]
+		}
 	}
 
 	if len(res.Frames) > 0 {

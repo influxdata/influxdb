@@ -15,11 +15,8 @@ func newIntegerRangeCursor(key string, time int64, asc bool, cur integerCursor) 
 	return &integerRangeCursor{key: key, cur: cur, t: time, asc: asc}
 }
 
-func (l *integerRangeCursor) Close() {
-	// cursors always return nil
-	l.cur.close()
-}
-
+func (l *integerRangeCursor) Err() error        { return nil }
+func (l *integerRangeCursor) Close()            { l.cur.close() }
 func (l *integerRangeCursor) SeriesKey() string { return l.key }
 
 func (l *integerRangeCursor) Next() (int64, int64) {
@@ -56,11 +53,8 @@ func newFloatRangeCursor(key string, time int64, asc bool, cur floatCursor) *flo
 	return &floatRangeCursor{key: key, cur: cur, t: time, asc: asc}
 }
 
-func (l *floatRangeCursor) Close() {
-	// cursors always return nil
-	l.cur.close()
-}
-
+func (l *floatRangeCursor) Err() error        { return nil }
+func (l *floatRangeCursor) Close()            { l.cur.close() }
 func (l *floatRangeCursor) SeriesKey() string { return l.key }
 
 func (l *floatRangeCursor) Next() (int64, float64) {

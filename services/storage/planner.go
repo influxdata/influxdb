@@ -18,12 +18,12 @@ var (
 )
 
 type ResultSet struct {
+	req        *ReadRequest
 	p          planner
 	start, end int64
 	asc        bool
 
-	row   plannerRow
-	shard *tsdb.Shard
+	row plannerRow
 }
 
 func (r *ResultSet) Close() {
@@ -32,28 +32,20 @@ func (r *ResultSet) Close() {
 }
 
 func (r *ResultSet) Next() bool {
-	if len(r.row.shards) == 0 {
-		if !r.p.Next() {
-			return false
-		}
-
-		r.row = r.p.Read()
+	if !r.p.Next() {
+		return false
 	}
 
-	r.shard, r.row.shards = r.row.shards[0], r.row.shards[1:]
+	r.row = r.p.Read()
 	return true
 }
 
 func (r *ResultSet) Cursor() tsdb.Cursor {
-	req := tsdb.CursorRequest{Measurement: r.row.measurement, Series: r.row.key, Field: r.row.field, Ascending: r.asc, StartTime: r.start, EndTime: r.end}
-	c, _ := r.shard.CreateCursor(req)
-
-	if r.row.valueCond != nil {
-		var cond expression = &astExpr{r.row.valueCond}
-		c = newFilterCursor(c, cond)
+	cur := newMultiShardCursor(r.row, r.asc, r.start, r.end)
+	if r.req.Aggregate != nil {
+		cur = newAggregateCursor(r.req.Aggregate, cur)
 	}
-
-	return c
+	return cur
 }
 
 func (r *ResultSet) Tags() models.Tags {
@@ -210,6 +202,7 @@ func (p *allMeasurementsPlanner) Close() {
 	p.eof = true
 }
 
+// Next returns the next series
 func (p *allMeasurementsPlanner) Next() bool {
 	if p.eof {
 		return false

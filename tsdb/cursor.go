@@ -9,6 +9,7 @@ const EOF = query.ZeroTime
 type Cursor interface {
 	Close()
 	SeriesKey() string
+	Err() error
 }
 
 type IntegerCursor interface {
@@ -19,6 +20,21 @@ type IntegerCursor interface {
 type FloatCursor interface {
 	Cursor
 	Next() (key int64, value float64)
+}
+
+type UnsignedCursor interface {
+	Cursor
+	Next() (key int64, value uint64)
+}
+
+type StringCursor interface {
+	Cursor
+	Next() (key int64, value string)
+}
+
+type BooleanCursor interface {
+	Cursor
+	Next() (key int64, value bool)
 }
 
 type CursorRequest struct {

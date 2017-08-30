@@ -32,13 +32,22 @@ service Storage {
   // rpc Explain(google.protobuf.Empty) returns (ExplainResponse){}
 }
 
+// Request message for Storage.Read.
 message ReadRequest {
+
+  // Database specifies the name of the database to issue the read request.
   string database = 1;
+
   TimestampRange timestamp_range = 2 [(gogoproto.customname) = "TimestampRange", (gogoproto.nullable) = false];
+
+  // Descending indicates whether points should be returned in descending order.
   bool descending = 3;
 
   // Grouping specifies a list of tags used to order the data
   repeated string grouping = 4;
+
+  // Aggregate specifies an optional aggregate to apply to the data.
+  Aggregate aggregate = 9;
 
   Predicate predicate = 5;
 
@@ -53,11 +62,25 @@ message ReadRequest {
   uint64 points_limit = 8 [(gogoproto.customname) = "PointsLimit"];
 }
 
+message Aggregate {
+  enum AggregateType {
+    option (gogoproto.goproto_enum_prefix) = false;
+
+    NONE = 0 [(gogoproto.enumvalue_customname) = "AggregateTypeNone"];
+    SUM = 1 [(gogoproto.enumvalue_customname) = "AggregateTypeSum"];
+  }
+
+  AggregateType type = 1;
+
+  // additional arguments?
+}
+
 message Tag {
   bytes key = 1;
   bytes value = 2;
 }
 
+// Response message for Storage.Read.
 message ReadResponse {
   enum FrameType {
     option (gogoproto.goproto_enum_prefix) = false;

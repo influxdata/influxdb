@@ -13,7 +13,10 @@ import (
 
 	"errors"
 
+	"strings"
+
 	"github.com/gogo/protobuf/codec"
+	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/storage"
@@ -41,6 +44,9 @@ type Command struct {
 	desc            bool
 	silent          bool
 	expr            string
+	agg             string
+
+	aggType storage.Aggregate_AggregateType
 }
 
 // NewCommand returns a new instance of Command.
@@ -80,6 +86,7 @@ func (cmd *Command) Run(args ...string) error {
 	fs.BoolVar(&cmd.desc, "desc", false, "Optional: return results in descending order")
 	fs.BoolVar(&cmd.silent, "silent", false, "silence output")
 	fs.StringVar(&cmd.expr, "expr", "", "InfluxQL expression")
+	fs.StringVar(&cmd.agg, "agg", "", "aggregate function")
 
 	fs.SetOutput(cmd.Stdout)
 	fs.Usage = func() {
@@ -111,6 +118,15 @@ func (cmd *Command) Run(args ...string) error {
 	} else {
 		// set end time to max if it is not set.
 		cmd.endTime = models.MaxNanoTime
+	}
+
+	if cmd.agg != "" {
+		tm := proto.EnumValueMap("storage.Aggregate_AggregateType")
+		if agg, ok := tm[strings.ToUpper(cmd.agg)]; !ok {
+			return errors.New("invalid aggregate function: " + cmd.agg)
+		} else {
+			cmd.aggType = storage.Aggregate_AggregateType(agg)
+		}
 	}
 
 	if err := cmd.validate(); err != nil {
@@ -146,6 +162,10 @@ func (cmd *Command) query(c storage.StorageClient) error {
 	req.SeriesLimit = cmd.slimit
 	req.SeriesOffset = cmd.soffset
 	req.PointsLimit = cmd.limit
+
+	if cmd.aggType != storage.AggregateTypeNone {
+		req.Aggregate = &storage.Aggregate{Type: cmd.aggType}
+	}
 
 	if cmd.expr != "" {
 		expr, err := influxql.ParseExpr(cmd.expr)

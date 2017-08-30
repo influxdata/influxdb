@@ -1,6 +1,8 @@
 package storage
 
 import (
+	"fmt"
+
 	"github.com/influxdata/influxdb/tsdb"
 )
 
@@ -12,18 +14,18 @@ func newFilterCursor(cur tsdb.Cursor, cond expression) tsdb.Cursor {
 	case tsdb.IntegerCursor:
 		return newIntegerFilterCursor(cur, cond)
 
-	case nil:
-		return nil
+	case tsdb.UnsignedCursor:
+		return newUnsignedFilterCursor(cur, cond)
+
+	case tsdb.StringCursor:
+		return newStringFilterCursor(cur, cond)
+
+	case tsdb.BooleanCursor:
+		return newBooleanFilterCursor(cur, cond)
 
 	default:
 		panic("invalid cursor type")
 	}
-}
-
-type integerFilterCursor struct {
-	tsdb.IntegerCursor
-	cond expression
-	m    *singleValue
 }
 
 type singleValue struct {
@@ -34,46 +36,79 @@ func (v *singleValue) Value(key string) (interface{}, bool) {
 	return v.v, true
 }
 
-func newIntegerFilterCursor(cur tsdb.IntegerCursor, cond expression) *integerFilterCursor {
-	return &integerFilterCursor{IntegerCursor: cur, cond: cond, m: &singleValue{}}
-}
+func newAggregateCursor(agg *Aggregate, cursor tsdb.Cursor) tsdb.Cursor {
+	if cursor == nil {
+		return nil
+	}
 
-func (c *integerFilterCursor) Next() (key int64, value int64) {
-	for {
-		k, v := c.IntegerCursor.Next()
-		if k == tsdb.EOF {
-			return k, v
-		}
+	switch agg.Type {
+	case AggregateTypeSum:
+		return newSumCursor(cursor)
 
-		c.m.v = v
-		if !c.cond.EvalBool(c.m) {
-			continue
-		}
-		return k, v
+	default:
+		// TODO(sgc): should be validated higher up
+		panic("invalid aggregate")
 	}
 }
 
-type floatFilterCursor struct {
-	tsdb.FloatCursor
-	cond expression
-	m    *singleValue
+func newSumCursor(cur tsdb.Cursor) tsdb.Cursor {
+	switch cur := cur.(type) {
+	case tsdb.FloatCursor:
+		return &floatSumCursor{FloatCursor: cur}
+
+	case tsdb.IntegerCursor:
+		return &integerSumCursor{IntegerCursor: cur}
+
+	case tsdb.UnsignedCursor:
+		return &unsignedSumCursor{UnsignedCursor: cur}
+
+	default:
+		panic("unreachable")
+	}
 }
 
-func newFloatFilterCursor(cur tsdb.FloatCursor, cond expression) *floatFilterCursor {
-	return &floatFilterCursor{FloatCursor: cur, cond: cond, m: &singleValue{}}
-}
+func newMultiShardCursor(row plannerRow, asc bool, start, end int64) tsdb.Cursor {
+	req := &tsdb.CursorRequest{
+		Measurement: row.measurement,
+		Series:      row.key,
+		Field:       row.field,
+		Ascending:   asc,
+		StartTime:   start,
+		EndTime:     end,
+	}
 
-func (c *floatFilterCursor) Next() (key int64, value float64) {
-	for {
-		k, v := c.FloatCursor.Next()
-		if k == tsdb.EOF {
-			return k, v
-		}
+	var cond expression
+	if row.valueCond != nil {
+		cond = &astExpr{row.valueCond}
+	}
 
-		c.m.v = v
-		if !c.cond.EvalBool(c.m) {
-			continue
-		}
-		return k, v
+	var shard *tsdb.Shard
+	var cur tsdb.Cursor
+	for cur == nil && len(row.shards) > 0 {
+		shard, row.shards = row.shards[0], row.shards[1:]
+		cur, _ = shard.CreateCursor(req)
+	}
+
+	switch c := cur.(type) {
+	case tsdb.IntegerCursor:
+		return newIntegerMultiShardCursor(c, req, row.shards, cond)
+
+	case tsdb.FloatCursor:
+		return newFloatMultiShardCursor(c, req, row.shards, cond)
+
+	case tsdb.UnsignedCursor:
+		return newUnsignedMultiShardCursor(c, req, row.shards, cond)
+
+	case tsdb.StringCursor:
+		return newStringMultiShardCursor(c, req, row.shards, cond)
+
+	case tsdb.BooleanCursor:
+		return newBooleanMultiShardCursor(c, req, row.shards, cond)
+
+	case nil:
+		return nil
+
+	default:
+		panic("unreachable: " + fmt.Sprintf("%T", cur))
 	}
 }
