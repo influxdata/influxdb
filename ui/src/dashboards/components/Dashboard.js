@@ -7,6 +7,7 @@ import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 const Dashboard = ({
   source,
+  onZoom,
   dashboard,
   onAddCell,
   onEditCell,
@@ -71,6 +72,7 @@ const Dashboard = ({
               onDeleteCell={onDeleteCell}
               onSummonOverlayTechnologies={onSummonOverlayTechnologies}
               synchronizer={synchronizer}
+              onZoom={onZoom}
             />
           : <div className="dashboard__empty">
               <p>This Dashboard has no Cells</p>
@@ -127,6 +129,7 @@ Dashboard.propTypes = {
   onSelectTemplate: func.isRequired,
   showTemplateControlBar: bool,
   onCancelEditCell: func,
+  onZoom: func,
 }
 
 export default Dashboard

@@ -3,6 +3,7 @@ import React, {Component, PropTypes} from 'react'
 import shallowCompare from 'react-addons-shallow-compare'
 
 import _ from 'lodash'
+import moment from 'moment'
 
 import Dygraphs from 'src/external/dygraph'
 import getRange from 'shared/parsing/getRangeForDygraph'
@@ -52,6 +53,7 @@ export default class Dygraph extends Component {
       isGraphFilled,
       isBarGraph,
       options,
+      onZoom,
     } = this.props
 
     const graphRef = this.graphRef
@@ -183,6 +185,13 @@ export default class Dygraph extends Component {
             this.setState({filterText: ''})
           }
         }
+      },
+      zoomCallback: (lower, upper) => {
+        if (this.dygraph.isZoomed() === false) {
+          return onZoom(null, null)
+        }
+
+        onZoom(this.formatTimeRange(lower), this.formatTimeRange(upper))
       },
     }
 
@@ -384,6 +393,14 @@ export default class Dygraph extends Component {
     this.dygraph.predraw_()
   }
 
+  formatTimeRange = timeRange => {
+    if (!timeRange) {
+      return ''
+    }
+
+    return moment(timeRange).utc().format()
+  }
+
   render() {
     const {
       legend,
@@ -446,6 +463,7 @@ Dygraph.defaultProps = {
   isGraphFilled: true,
   overrideLineColors: null,
   dygraphRef: () => {},
+  onZoom: () => {},
 }
 
 Dygraph.propTypes = {
@@ -477,4 +495,5 @@ Dygraph.propTypes = {
   synchronizer: func,
   setResolution: func,
   dygraphRef: func,
+  onZoom: func,
 }

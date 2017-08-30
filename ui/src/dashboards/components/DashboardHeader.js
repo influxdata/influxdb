@@ -11,7 +11,8 @@ const DashboardHeader = ({
   buttonText,
   dashboard,
   headerText,
-  timeRange,
+  timeRange: {upper, lower},
+  zoomedTimeRange: {zoomedLower, zoomedUpper},
   autoRefresh,
   isHidden,
   handleChooseTimeRange,
@@ -81,7 +82,10 @@ const DashboardHeader = ({
             />
             <TimeRangeDropdown
               onChooseTimeRange={handleChooseTimeRange}
-              selected={timeRange}
+              selected={{
+                upper: zoomedUpper || upper,
+                lower: zoomedLower || lower,
+              }}
             />
             <div
               className="btn btn-default btn-sm btn-square"
@@ -94,6 +98,13 @@ const DashboardHeader = ({
       </div>
 
 const {array, bool, func, number, shape, string} = PropTypes
+
+DashboardHeader.defaultProps = {
+  zoomedTimeRange: {
+    zoomedLower: null,
+    zoomedUpper: null,
+  },
+}
 
 DashboardHeader.propTypes = {
   sourceID: string,
@@ -115,6 +126,7 @@ DashboardHeader.propTypes = {
   onEditDashboard: func,
   onToggleTempVarControls: func,
   showTemplateControlBar: bool,
+  zoomedTimeRange: shape({}),
 }
 
 export default DashboardHeader

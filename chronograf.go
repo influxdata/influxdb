@@ -260,7 +260,7 @@ func (g *GroupByVar) parseRelative(fragment string) (time.Duration, error) {
 // example, the fragement "time > '1985-10-25T00:01:21-0800 and time <
 // '1985-10-25T00:01:22-0800'" would yield a duration of 1m'
 func (g *GroupByVar) parseAbsolute(fragment string) (time.Duration, error) {
-	timePtn := `time\s[>|<]\s'([0-9\-TZ\:]+)'` // Playground: http://gobular.com/x/41a45095-c384-46ea-b73c-54ef91ab93af
+	timePtn := `time\s[>|<]\s'([0-9\-T\:\.Z]+)'` // Playground: http://gobular.com/x/208f66bd-1889-4269-ab47-1efdfeeb63f0
 	re, err := regexp.Compile(timePtn)
 	if err != nil {
 		// this is a developer error and should complain loudly
