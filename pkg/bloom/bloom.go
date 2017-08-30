@@ -65,6 +65,13 @@ func (f *Filter) K() uint64 { return f.k }
 // Bytes returns the underlying backing slice.
 func (f *Filter) Bytes() []byte { return f.b }
 
+// Clone returns a copy of f.
+func (f *Filter) Clone() *Filter {
+	other := &Filter{k: f.k, b: make([]byte, len(f.b)), mask: f.mask, hashPool: f.hashPool}
+	copy(other.b, f.b)
+	return other
+}
+
 // Insert inserts data to the filter.
 func (f *Filter) Insert(v []byte) {
 	h := f.hash(v)
@@ -90,6 +97,10 @@ func (f *Filter) Contains(v []byte) bool {
 // Merge performs an in-place union of other into f.
 // Returns an error if m or k of the filters differs.
 func (f *Filter) Merge(other *Filter) error {
+	if other == nil {
+		return nil
+	}
+
 	// Ensure m & k fields match.
 	if len(f.b) != len(other.b) {
 		return fmt.Errorf("bloom.Filter.Merge(): m mismatch: %d <> %d", len(f.b), len(other.b))

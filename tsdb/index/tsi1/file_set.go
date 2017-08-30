@@ -102,14 +102,8 @@ func (fs *FileSet) MustReplace(oldFiles []File, newFile File) *FileSet {
 	filters := make([]*bloom.Filter, len(fs.filters))
 	copy(filters, fs.filters)
 
-	// Merge new file into existing filter.
-	if filters[newFile.Level()] == nil {
-		filters[newFile.Level()] = newFile.Filter()
-	} else {
-		filters[newFile.Level()].Merge(newFile.Filter())
-	}
-
 	// Clear filters at replaced file levels.
+	filters[newFile.Level()] = nil
 	for _, f := range oldFiles {
 		filters[f.Level()] = nil
 	}
@@ -732,6 +726,7 @@ func (fs *FileSet) FilterNamesTags(names [][]byte, tagsSlice []models.Tags) ([][
 			newTagsSlice = append(newTagsSlice, tags)
 		}
 	}
+
 	return newNames, newTagsSlice
 }
 
@@ -952,6 +947,12 @@ func (fs *FileSet) buildFilters() error {
 		// Clear filter if level doesn't exist.
 		if level == 0 || len(files) == 0 || files[0].Level() > level {
 			fs.filters[level] = nil
+			for len(files) > 0 {
+				if files[0].Level() > level {
+					break
+				}
+				files = files[1:]
+			}
 			continue
 		}
 
