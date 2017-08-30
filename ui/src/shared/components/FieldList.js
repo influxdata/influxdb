@@ -79,9 +79,14 @@ const FieldList = React.createClass({
   },
 
   render() {
-    const {query, isKapacitorRule, isInDataExplorer} = this.props
-    const hasAggregates = query.fields.some(f => f.funcs && f.funcs.length)
-    const hasGroupByTime = query.groupBy.time
+    const {
+      query: {fields = [], groupBy},
+      isKapacitorRule,
+      isInDataExplorer,
+    } = this.props
+
+    const hasAggregates = fields.some(f => f.funcs && f.funcs.length)
+    const hasGroupByTime = groupBy.time
 
     return (
       <div className="query-builder--column">
@@ -90,7 +95,7 @@ const FieldList = React.createClass({
           {hasAggregates
             ? <GroupByTimeDropdown
                 isOpen={!hasGroupByTime}
-                selected={query.groupBy.time}
+                selected={groupBy.time}
                 onChooseGroupByTime={this.handleGroupByTime}
                 isInRuleBuilder={isKapacitorRule}
                 isInDataExplorer={isInDataExplorer}
