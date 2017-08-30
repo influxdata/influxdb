@@ -32,6 +32,7 @@ class FillQuery extends Component {
     if (item.text === NUMBER) {
       this.setState({selected: item}, () => {
         this.props.onSelection(this.state.numberValue)
+        this.numberInput.focus()
       })
     } else {
       this.setState({selected: item}, () => {
@@ -81,12 +82,12 @@ class FillQuery extends Component {
       <div className={`fill-query fill-query--${size}`}>
         {selected.type === NUMBER &&
           <input
+            ref={r => (this.numberInput = r)}
             type="number"
             className={`form-control monotype form-${this.getColor(
               theme
             )} input-${size} fill-query--input`}
             placeholder="Custom Value"
-            // autoFocus={true}
             value={numberValue}
             onKeyUp={this.handleKeyUp}
             onChange={this.handleInputChange}
