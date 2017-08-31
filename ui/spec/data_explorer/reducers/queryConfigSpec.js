@@ -146,6 +146,20 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
         expect(newState[queryId].fields[1].funcs.length).to.equal(1)
         expect(newState[queryId].fields[1].funcs[0]).to.equal('func1')
       })
+
+      it('adds the field property to query config if not found', () => {
+        delete state[queryId].fields
+        expect(state[queryId].fields).to.equal(undefined)
+
+        const field = 'fk1'
+        const newState = reducer(
+          state,
+          toggleField(queryId, {field: 'fk1', funcs: []})
+        )
+
+        expect(newState[queryId].fields.length).to.equal(1)
+        expect(newState[queryId].fields[0].field).to.equal(field)
+      })
     })
   })
 

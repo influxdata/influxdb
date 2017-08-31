@@ -19,15 +19,23 @@ export function chooseMeasurement(query, measurement) {
 }
 
 export const toggleField = (query, {field, funcs}, isKapacitorRule = false) => {
-  const isSelected = query.fields.find(f => f.field === field)
+  const {fields, groupBy} = query
+
+  if (!fields) {
+    return {
+      ...query,
+      fields: [{field, funcs: ['mean']}],
+    }
+  }
+
+  const isSelected = fields.find(f => f.field === field)
   if (isSelected) {
-    const nextFields = query.fields.filter(f => f.field !== field)
+    const nextFields = fields.filter(f => f.field !== field)
     if (!nextFields.length) {
-      const nextGroupBy = {...query.groupBy, time: null}
       return {
         ...query,
         fields: nextFields,
-        groupBy: nextGroupBy,
+        groupBy: {...groupBy, time: null},
       }
     }
 
