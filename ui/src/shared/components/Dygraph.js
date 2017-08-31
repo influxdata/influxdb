@@ -55,11 +55,11 @@ export default class Dygraph extends Component {
     let defaultOptions = {
       fillGraph,
       logscale: y.scale === LOG,
-      colors: this.getLineColors,
+      colors: this.getLineColors(),
       series: this.hashColorDygraphSeries(),
-      legendFormatter: legend => this.legendFormatter(legend),
-      highlightCallback: e => this.highlightCallback(e),
-      unhighlightCallback: e => this.unhighlightCallback(e),
+      legendFormatter: this.legendFormatter,
+      highlightCallback: this.highlightCallback,
+      unhighlightCallback: this.unhighlightCallback,
       plugins: [new Dygraphs.Plugins.Crosshair({direction: 'vertical'})],
       axes: {
         y: {
@@ -158,7 +158,7 @@ export default class Dygraph extends Component {
           valueRange: getRange(timeSeries, y2.bounds),
         },
       },
-      colors: this.getLineColors,
+      colors: this.getLineColors(),
       series: this.hashColorDygraphSeries(),
       plotter: isBarGraph ? barPlotter : null,
       visibility: this.visibility(),
