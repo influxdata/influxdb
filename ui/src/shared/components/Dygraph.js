@@ -174,7 +174,8 @@ export default class Dygraph extends Component {
         const mouseY = e.clientY
         const mouseX = e.clientX
 
-        const mouseInLegendY = mouseY <= bottom && mouseY >= top
+        const mouseBuffer = 5
+        const mouseInLegendY = mouseY <= bottom && mouseY >= top - mouseBuffer
         const mouseInLegendX = mouseX <= right && mouseX >= left
         const isMouseHoveringLegend = mouseInLegendY && mouseInLegendX
 
