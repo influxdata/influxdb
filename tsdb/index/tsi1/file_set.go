@@ -100,7 +100,7 @@ func (fs *FileSet) MustReplace(oldFiles []File, newFile File) *FileSet {
 
 	// Copy existing bloom filters.
 	filters := make([]*bloom.Filter, len(fs.filters))
-	copy(filters, fs.filters)
+	// copy(filters, fs.filters)
 
 	// Clear filters at replaced file levels.
 	filters[newFile.Level()] = nil
