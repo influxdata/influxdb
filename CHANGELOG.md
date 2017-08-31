@@ -3,7 +3,7 @@
 1. [#1886](https://github.com/influxdata/chronograf/pull/1886): Fix limit of 100 alert rules on alert rules page
 1. [#1930](https://github.com/influxdata/chronograf/pull/1930): Fix graphs when y-values are constant
 1. [#1951](https://github.com/influxdata/chronograf/pull/1951): Fix crosshair not being removed when user leaves graph
-
+1. [#1943](https://github.com/influxdata/chronograf/pull/1943): Fix inability to add kapacitor from source page on fresh install
 
 ### Features
 1. [#1928](https://github.com/influxdata/chronograf/pull/1928): Add prefix, suffix, scale, and other y-axis formatting
