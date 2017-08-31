@@ -1803,29 +1803,33 @@ func walkNames(exp Expr) []string {
 
 // walkRefs will walk the Expr and return the var refs used.
 func walkRefs(exp Expr) []VarRef {
-	switch expr := exp.(type) {
-	case *VarRef:
-		return []VarRef{*expr}
-	case *Call:
-		a := make([]VarRef, 0, len(expr.Args))
-		for _, expr := range expr.Args {
-			if ref, ok := expr.(*VarRef); ok {
-				a = append(a, *ref)
+	refs := make(map[VarRef]struct{})
+	var walk func(exp Expr)
+	walk = func(exp Expr) {
+		switch expr := exp.(type) {
+		case *VarRef:
+			refs[*expr] = struct{}{}
+		case *Call:
+			for _, expr := range expr.Args {
+				if ref, ok := expr.(*VarRef); ok {
+					refs[*ref] = struct{}{}
+				}
 			}
+		case *BinaryExpr:
+			walk(expr.LHS)
+			walk(expr.RHS)
+		case *ParenExpr:
+			walk(expr.Expr)
 		}
-		return a
-	case *BinaryExpr:
-		lhs := walkRefs(expr.LHS)
-		rhs := walkRefs(expr.RHS)
-		ret := make([]VarRef, 0, len(lhs)+len(rhs))
-		ret = append(ret, lhs...)
-		ret = append(ret, rhs...)
-		return ret
-	case *ParenExpr:
-		return walkRefs(expr.Expr)
 	}
+	walk(exp)
 
-	return nil
+	// Turn the map into a slice.
+	a := make([]VarRef, 0, len(refs))
+	for ref := range refs {
+		a = append(a, ref)
+	}
+	return a
 }
 
 // ExprNames returns a list of non-"time" field names from an expression.
