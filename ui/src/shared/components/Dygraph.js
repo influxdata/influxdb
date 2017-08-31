@@ -401,6 +401,19 @@ export default class Dygraph extends Component {
     return moment(timeRange).utc().format()
   }
 
+  deselectCrosshair = () => {
+    const plugins = this.dygraph.plugins_
+    const {plugin: crosshair} = plugins.find(
+      ({plugin}) => plugin.toString() === 'Crosshair Plugin'
+    )
+
+    if (!crosshair) {
+      return
+    }
+
+    crosshair.deselect()
+  }
+
   render() {
     const {
       legend,
@@ -413,7 +426,7 @@ export default class Dygraph extends Component {
     } = this.state
 
     return (
-      <div className="dygraph-child">
+      <div className="dygraph-child" onMouseLeave={this.deselectCrosshair}>
         <DygraphLegend
           {...legend}
           sortType={sortType}
