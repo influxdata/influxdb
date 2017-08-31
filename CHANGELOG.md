@@ -2,7 +2,9 @@
 ### Bug Fixes
 1. [#1886](https://github.com/influxdata/chronograf/pull/1886): Fix limit of 100 alert rules on alert rules page
 1. [#1930](https://github.com/influxdata/chronograf/pull/1930): Fix graphs when y-values are constant
+1. [#1947](https://github.com/influxdata/chronograf/pull/1947): Fix DataExplorer crash if field property not present on queryConfig
 1. [#1943](https://github.com/influxdata/chronograf/pull/1943): Fix inability to add kapacitor from source page on fresh install
+
 
 
 ### Features
