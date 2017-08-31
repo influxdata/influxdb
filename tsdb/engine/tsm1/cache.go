@@ -168,7 +168,7 @@ const (
 
 // storer is the interface that descibes a cache's store.
 type storer interface {
-	entry(key []byte) (*entry, bool)                // Get an entry by its key.
+	entry(key []byte) *entry                        // Get an entry by its key.
 	write(key []byte, values Values) error          // Write an entry to the store.
 	add(key []byte, entry *entry)                   // Add a new entry to the store.
 	remove(key []byte)                              // Remove an entry from the store.
@@ -457,13 +457,13 @@ func (c *Cache) Values(key []byte) Values {
 	var snapshotEntries *entry
 
 	c.mu.RLock()
-	e, ok := c.store.entry(key)
+	e := c.store.entry(key)
 	if c.snapshot != nil {
-		snapshotEntries, _ = c.snapshot.store.entry(key)
+		snapshotEntries = c.snapshot.store.entry(key)
 	}
 	c.mu.RUnlock()
 
-	if !ok {
+	if e == nil {
 		if snapshotEntries == nil {
 			// No values in hot cache or snapshots.
 			return nil
@@ -524,8 +524,8 @@ func (c *Cache) DeleteRange(keys [][]byte, min, max int64) {
 
 	for _, k := range keys {
 		// Make sure key exist in the cache, skip if it does not
-		e, ok := c.store.entry(k)
-		if !ok {
+		e := c.store.entry(k)
+		if e == nil {
 			continue
 		}
 
@@ -559,7 +559,7 @@ func (c *Cache) SetMaxSize(size uint64) {
 // It doesn't lock the cache but it does read-lock the entry if there is one for the key.
 // values should only be used in compact.go in the CacheKeyIterator.
 func (c *Cache) values(key []byte) Values {
-	e, _ := c.store.entry(key)
+	e := c.store.entry(key)
 	if e == nil {
 		return nil
 	}

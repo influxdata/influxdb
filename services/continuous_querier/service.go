@@ -198,9 +198,7 @@ func (s *Service) Run(database, name string, t time.Time) error {
 			if name == "" || cq.Name == name {
 				// Remove the last run time for the CQ
 				id := fmt.Sprintf("%s%s%s", db.Name, idDelimiter, cq.Name)
-				if _, ok := s.lastRuns[id]; ok {
-					delete(s.lastRuns, id)
-				}
+				delete(s.lastRuns, id)
 			}
 		}
 	}

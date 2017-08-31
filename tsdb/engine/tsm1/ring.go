@@ -97,7 +97,7 @@ func (r *ring) getPartition(key []byte) *partition {
 
 // entry returns the entry for the given key.
 // entry is safe for use by multiple goroutines.
-func (r *ring) entry(key []byte) (*entry, bool) {
+func (r *ring) entry(key []byte) *entry {
 	return r.getPartition(key).entry(key)
 }
 
@@ -212,11 +212,11 @@ type partition struct {
 
 // entry returns the partition's entry for the provided key.
 // It's safe for use by multiple goroutines.
-func (p *partition) entry(key []byte) (*entry, bool) {
+func (p *partition) entry(key []byte) *entry {
 	p.mu.RLock()
-	e, ok := p.store[string(key)]
+	e := p.store[string(key)]
 	p.mu.RUnlock()
-	return e, ok
+	return e
 }
 
 // write writes the values to the entry in the partition, creating the entry
@@ -224,9 +224,9 @@ func (p *partition) entry(key []byte) (*entry, bool) {
 // write is safe for use by multiple goroutines.
 func (p *partition) write(key []byte, values Values) error {
 	p.mu.RLock()
-	e, ok := p.store[string(key)]
+	e := p.store[string(key)]
 	p.mu.RUnlock()
-	if ok {
+	if e != nil {
 		// Hot path.
 		return e.add(values)
 	}
@@ -235,7 +235,7 @@ func (p *partition) write(key []byte, values Values) error {
 	defer p.mu.Unlock()
 
 	// Check again.
-	if e, ok = p.store[string(key)]; ok {
+	if e = p.store[string(key)]; e != nil {
 		return e.add(values)
 	}
 

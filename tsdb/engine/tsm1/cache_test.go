@@ -788,7 +788,7 @@ func mustMarshalEntry(entry WALEntry) (WalEntryType, []byte) {
 // TestStore implements the storer interface and can be used to mock out a
 // Cache's storer implememation.
 type TestStore struct {
-	entryf       func(key []byte) (*entry, bool)
+	entryf       func(key []byte) *entry
 	writef       func(key []byte, values Values) error
 	addf         func(key []byte, entry *entry)
 	removef      func(key []byte)
@@ -799,7 +799,7 @@ type TestStore struct {
 }
 
 func NewTestStore() *TestStore                                      { return &TestStore{} }
-func (s *TestStore) entry(key []byte) (*entry, bool)                { return s.entryf(key) }
+func (s *TestStore) entry(key []byte) *entry                        { return s.entryf(key) }
 func (s *TestStore) write(key []byte, values Values) error          { return s.writef(key, values) }
 func (s *TestStore) add(key []byte, entry *entry)                   { s.addf(key, entry) }
 func (s *TestStore) remove(key []byte)                              { s.removef(key) }

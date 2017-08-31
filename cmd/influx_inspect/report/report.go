@@ -104,23 +104,23 @@ func (cmd *Command) Run(args ...string) error {
 				seriesKey, field := key[:sep], key[sep+4:]
 				measurement, tags := models.ParseKey(seriesKey)
 
-				measCount, ok := measCardinalities[measurement]
-				if !ok {
+				measCount := measCardinalities[measurement]
+				if measCount == nil {
 					measCount = hllpp.New()
 					measCardinalities[measurement] = measCount
 				}
 				measCount.Add([]byte(key))
 
-				fieldCount, ok := fieldCardinalities[measurement]
-				if !ok {
+				fieldCount := fieldCardinalities[measurement]
+				if fieldCount == nil {
 					fieldCount = hllpp.New()
 					fieldCardinalities[measurement] = fieldCount
 				}
 				fieldCount.Add([]byte(field))
 
 				for _, t := range tags {
-					tagCount, ok := tagCardinalities[string(t.Key)]
-					if !ok {
+					tagCount := tagCardinalities[string(t.Key)]
+					if tagCount == nil {
 						tagCount = hllpp.New()
 						tagCardinalities[string(t.Key)] = tagCount
 					}

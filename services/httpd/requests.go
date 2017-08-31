@@ -47,16 +47,16 @@ func (p *RequestProfile) AddQuery(info RequestInfo) {
 func (p *RequestProfile) add(info RequestInfo, fn func(*RequestStats)) {
 	// Look for a request entry for this request.
 	p.mu.RLock()
-	st, ok := p.Requests[info]
+	st := p.Requests[info]
 	p.mu.RUnlock()
-	if ok {
+	if st != nil {
 		fn(st)
 		return
 	}
 
 	// There is no entry in the request tracker. Create one.
 	p.mu.Lock()
-	if st, ok := p.Requests[info]; ok {
+	if st := p.Requests[info]; st != nil {
 		// Something else created this entry while we were waiting for the lock.
 		p.mu.Unlock()
 		fn(st)

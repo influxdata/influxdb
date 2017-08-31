@@ -155,14 +155,14 @@ func (m *Measurement) HasTagKey(k string) bool {
 }
 
 func (m *Measurement) HasTagKeyValue(k, v []byte) bool {
+	var ok bool
 	m.mu.RLock()
-	if vals, ok := m.seriesByTagKeyValue[string(k)]; ok {
-		_, ok := vals[string(v)]
-		m.mu.RUnlock()
-		return ok
+	vals := m.seriesByTagKeyValue[string(k)]
+	if vals != nil {
+		_, ok = vals[string(v)]
 	}
 	m.mu.RUnlock()
-	return false
+	return ok
 }
 
 // HasSeries returns true if there is at least 1 series under this measurement.
@@ -198,7 +198,7 @@ func (m *Measurement) CardinalityBytes(key []byte) int {
 // It returns true if the series was added successfully or false if the series was already present.
 func (m *Measurement) AddSeries(s *Series) bool {
 	m.mu.RLock()
-	if _, ok := m.seriesByID[s.ID]; ok {
+	if m.seriesByID[s.ID] != nil {
 		m.mu.RUnlock()
 		return false
 	}
@@ -207,7 +207,7 @@ func (m *Measurement) AddSeries(s *Series) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if _, ok := m.seriesByID[s.ID]; ok {
+	if m.seriesByID[s.ID] != nil {
 		return false
 	}
 
@@ -244,6 +244,7 @@ func (m *Measurement) DropSeries(series *Series) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	// Existence check before delete here to clean up the caching/indexing only when needed
 	if _, ok := m.seriesByID[seriesID]; !ok {
 		return
 	}
@@ -357,8 +358,8 @@ func (m *Measurement) TagSets(shardID uint64, opt query.IteratorOptions) ([]*que
 			tagsAsKey = tsdb.MakeTagsKey(dims, s.Tags())
 		}
 
-		tagSet, ok := tagSets[string(tagsAsKey)]
-		if !ok {
+		tagSet := tagSets[string(tagsAsKey)]
+		if tagSet == nil {
 			// This TagSet is new, create a new entry for it.
 			tagSet = &query.TagSet{
 				Tags: nil,
@@ -1123,11 +1124,7 @@ func NewSeries(key []byte, tags models.Tags) *Series {
 }
 
 func (s *Series) AssignShard(shardID uint64) {
-	s.mu.RLock()
-	_, ok := s.shardIDs[shardID]
-	s.mu.RUnlock()
-
-	if ok {
+	if s.Assigned(shardID) {
 		return
 	}
 
@@ -1438,11 +1435,12 @@ func (m *Measurement) TagValues(key string) []string {
 // SetFieldName adds the field name to the measurement.
 func (m *Measurement) SetFieldName(name string) {
 	m.mu.RLock()
-	if _, ok := m.fieldNames[name]; ok {
-		m.mu.RUnlock()
+	_, ok := m.fieldNames[name]
+	m.mu.RUnlock()
+
+	if ok {
 		return
 	}
-	m.mu.RUnlock()
 
 	m.mu.Lock()
 	m.fieldNames[name] = struct{}{}
