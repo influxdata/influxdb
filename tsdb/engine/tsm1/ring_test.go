@@ -94,7 +94,7 @@ func benchmarkRingWrite(b *testing.B, r *ring, n int) {
 			go func() {
 				defer wg.Done()
 				for j := 0; j < n; j++ {
-					if err := r.write([]byte(fmt.Sprintf("cpu,host=server-%d value=1", j)), Values{}); err != nil {
+					if _, err := r.write([]byte(fmt.Sprintf("cpu,host=server-%d value=1", j)), Values{}); err != nil {
 						errC <- err
 					}
 				}

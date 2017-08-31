@@ -50,7 +50,7 @@ func TestCache_CacheWrite(t *testing.T) {
 	if err := c.Write([]byte("bar"), values); err != nil {
 		t.Fatalf("failed to write key foo to cache: %s", err.Error())
 	}
-	if n := c.Size(); n != 2*valuesSize {
+	if n := c.Size(); n != 2*valuesSize+6 {
 		t.Fatalf("cache size incorrect after 2 writes, exp %d, got %d", 2*valuesSize, n)
 	}
 
@@ -75,7 +75,7 @@ func TestCache_CacheWrite_TypeConflict(t *testing.T) {
 		t.Fatalf("expected field type conflict")
 	}
 
-	if exp, got := uint64(v0.Size()), c.Size(); exp != got {
+	if exp, got := uint64(v0.Size())+3, c.Size(); exp != got {
 		t.Fatalf("cache size incorrect after 2 writes, exp %d, got %d", exp, got)
 	}
 }
@@ -92,7 +92,7 @@ func TestCache_CacheWriteMulti(t *testing.T) {
 	if err := c.WriteMulti(map[string][]Value{"foo": values, "bar": values}); err != nil {
 		t.Fatalf("failed to write key foo to cache: %s", err.Error())
 	}
-	if n := c.Size(); n != 2*valuesSize {
+	if n := c.Size(); n != 2*valuesSize+6 {
 		t.Fatalf("cache size incorrect after 2 writes, exp %d, got %d", 2*valuesSize, n)
 	}
 
@@ -120,11 +120,11 @@ func TestCache_WriteMulti_Stats(t *testing.T) {
 	c.init()
 	c.store = ms
 
-	ms.writef = func(key []byte, v Values) error {
+	ms.writef = func(key []byte, v Values) (bool, error) {
 		if bytes.Equal(key, []byte("foo")) {
-			return errors.New("write failed")
+			return false, errors.New("write failed")
 		}
-		return nil
+		return true, nil
 	}
 
 	values = map[string][]Value{"foo": []Value{v, v}, "bar": []Value{v}}
@@ -133,7 +133,7 @@ func TestCache_WriteMulti_Stats(t *testing.T) {
 	}
 
 	// Cache size decreased correctly.
-	if got, exp := c.Size(), uint64(16); got != exp {
+	if got, exp := c.Size(), uint64(16)+3; got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
 	}
 
@@ -158,7 +158,7 @@ func TestCache_CacheWriteMulti_TypeConflict(t *testing.T) {
 		t.Fatalf(" expected field type conflict")
 	}
 
-	if exp, got := uint64(v0.Size()), c.Size(); exp != got {
+	if exp, got := uint64(v0.Size())+3, c.Size(); exp != got {
 		t.Fatalf("cache size incorrect after 2 writes, exp %d, got %d", exp, got)
 	}
 
@@ -179,7 +179,7 @@ func TestCache_Cache_DeleteRange(t *testing.T) {
 	if err := c.WriteMulti(map[string][]Value{"foo": values, "bar": values}); err != nil {
 		t.Fatalf("failed to write key foo to cache: %s", err.Error())
 	}
-	if n := c.Size(); n != 2*valuesSize {
+	if n := c.Size(); n != 2*valuesSize+6 {
 		t.Fatalf("cache size incorrect after 2 writes, exp %d, got %d", 2*valuesSize, n)
 	}
 
@@ -193,7 +193,7 @@ func TestCache_Cache_DeleteRange(t *testing.T) {
 		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
 	}
 
-	if got, exp := c.Size(), valuesSize+uint64(v0.Size()); exp != got {
+	if got, exp := c.Size(), valuesSize+uint64(v0.Size())+6; exp != got {
 		t.Fatalf("cache size incorrect after 2 writes, exp %d, got %d", exp, got)
 	}
 
@@ -218,7 +218,7 @@ func TestCache_DeleteRange_NoValues(t *testing.T) {
 	if err := c.WriteMulti(map[string][]Value{"foo": values}); err != nil {
 		t.Fatalf("failed to write key foo to cache: %s", err.Error())
 	}
-	if n := c.Size(); n != valuesSize {
+	if n := c.Size(); n != valuesSize+3 {
 		t.Fatalf("cache size incorrect after 2 writes, exp %d, got %d", 2*valuesSize, n)
 	}
 
@@ -253,7 +253,7 @@ func TestCache_Cache_Delete(t *testing.T) {
 	if err := c.WriteMulti(map[string][]Value{"foo": values, "bar": values}); err != nil {
 		t.Fatalf("failed to write key foo to cache: %s", err.Error())
 	}
-	if n := c.Size(); n != 2*valuesSize {
+	if n := c.Size(); n != 2*valuesSize+6 {
 		t.Fatalf("cache size incorrect after 2 writes, exp %d, got %d", 2*valuesSize, n)
 	}
 
@@ -267,7 +267,7 @@ func TestCache_Cache_Delete(t *testing.T) {
 		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
 	}
 
-	if got, exp := c.Size(), valuesSize; exp != got {
+	if got, exp := c.Size(), valuesSize+3; exp != got {
 		t.Fatalf("cache size incorrect after 2 writes, exp %d, got %d", exp, got)
 	}
 
@@ -450,12 +450,12 @@ func TestCache_Snapshot_Stats(t *testing.T) {
 	}
 
 	// Store size should have been reset.
-	if got, exp := c.Size(), uint64(16); got != exp {
+	if got, exp := c.Size(), uint64(16)+3; got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
 	}
 
 	// Cached bytes should have been increased.
-	if got, exp := c.stats.CachedBytes, int64(16); got != exp {
+	if got, exp := c.stats.CachedBytes, int64(16)+3; got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
 	}
 }
@@ -790,7 +790,7 @@ func mustMarshalEntry(entry WALEntry) (WalEntryType, []byte) {
 // Cache's storer implememation.
 type TestStore struct {
 	entryf       func(key []byte) *entry
-	writef       func(key []byte, values Values) error
+	writef       func(key []byte, values Values) (bool, error)
 	addf         func(key []byte, entry *entry)
 	removef      func(key []byte)
 	keysf        func(sorted bool) [][]byte
@@ -801,7 +801,7 @@ type TestStore struct {
 
 func NewTestStore() *TestStore                                      { return &TestStore{} }
 func (s *TestStore) entry(key []byte) *entry                        { return s.entryf(key) }
-func (s *TestStore) write(key []byte, values Values) error          { return s.writef(key, values) }
+func (s *TestStore) write(key []byte, values Values) (bool, error)  { return s.writef(key, values) }
 func (s *TestStore) add(key []byte, entry *entry)                   { s.addf(key, entry) }
 func (s *TestStore) remove(key []byte)                              { s.removef(key) }
 func (s *TestStore) keys(sorted bool) [][]byte                      { return s.keysf(sorted) }
