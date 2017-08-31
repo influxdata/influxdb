@@ -93,6 +93,7 @@ $sidebar-menu--gutter: 18px;
 */
 .sidebar--item:hover {
   cursor: pointer;
+  z-index: 5;
 
   .sidebar--square {background-color: $sidebar--item-bg-hover;}
   .sidebar--icon {color: $sidebar--icon-hover;}
@@ -114,6 +115,16 @@ $sidebar-menu--gutter: 18px;
 .sidebar--item:hover .sidebar--square.sidebar--logo {
   background-color: $sidebar--logo-bg-hover;
   .sidebar--icon {color: $sidebar--logo-color-hover;}
+}
+.sidebar--item.active .sidebar--square.sidebar--logo {
+  background-color: $sidebar--logo-bg-hover;
+  .sidebar--icon {
+    color: $sidebar--logo-color-hover;
+    text-shadow:
+      0 0 9px $c-hydrogen,
+      0 0 15px $c-neutrino,
+      0 0 20px $c-yeti;
+  }
 }
 
 /*
@@ -176,4 +187,14 @@ $sidebar-menu--gutter: 18px;
   font-size: 19px;
   font-weight: 400;
   padding: 0px $sidebar-menu--gutter;
+}
+// Invisible triangle for easier mouse movement when navigating to sub items
+.sidebar-menu--item + .sidebar-menu--triangle {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  z-index: -1;
+  top: $sidebar--width;
+  left: 0px;
+  transform: translate(-50%,-50%) rotate(45deg);
 }
