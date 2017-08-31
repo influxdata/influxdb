@@ -72,7 +72,6 @@ import (
 	"os"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -250,7 +249,6 @@ type indexBlock struct {
 // directIndex is a simple in-memory index implementation for a TSM file.  The full index
 // must fit in memory.
 type directIndex struct {
-	mu     sync.RWMutex
 	size   uint32
 	blocks []indexBlock
 	fd     *os.File
@@ -258,9 +256,6 @@ type directIndex struct {
 }
 
 func (d *directIndex) Add(key []byte, blockType byte, minTime, maxTime int64, offset int64, size uint32) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
 	// Is this the first block being added?
 	if len(d.blocks) == 0 {
 		// size of the key stored in the index
@@ -350,16 +345,10 @@ func (d *directIndex) entries(key []byte) []IndexEntry {
 }
 
 func (d *directIndex) Entries(key []byte) []IndexEntry {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-
 	return d.entries(key)
 }
 
 func (d *directIndex) Entry(key []byte, t int64) *IndexEntry {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-
 	entries := d.entries(key)
 	for _, entry := range entries {
 		if entry.Contains(t) {
@@ -370,9 +359,6 @@ func (d *directIndex) Entry(key []byte, t int64) *IndexEntry {
 }
 
 func (d *directIndex) Keys() [][]byte {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-
 	keys := make([][]byte, 0, len(d.blocks))
 	for _, v := range d.blocks {
 		keys = append(keys, v.key)
@@ -381,19 +367,13 @@ func (d *directIndex) Keys() [][]byte {
 }
 
 func (d *directIndex) KeyCount() int {
-	d.mu.RLock()
-	n := len(d.blocks)
-	d.mu.RUnlock()
-	return n
+	return len(d.blocks)
 }
 
 func (d *directIndex) WriteTo(w io.Writer) (int64, error) {
 	if d.w == nil {
 		return d.flush(w)
 	}
-
-	d.mu.Lock()
-	defer d.mu.Unlock()
 
 	if _, err := d.flush(d.w); err != nil {
 		return 0, err
