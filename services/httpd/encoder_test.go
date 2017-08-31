@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/httpd"
 )
@@ -14,7 +15,10 @@ import (
 func EmitTestResults(results chan *query.ResultSet) {
 	result := &query.ResultSet{ID: 0}
 	results <- result.Init()
-	result = result.WithColumns("time", "value")
+	result = result.WithColumns(
+		query.Column{Name: "time", Type: influxql.Time},
+		query.Column{Name: "value", Type: influxql.Float},
+	)
 
 	series, _ := result.CreateSeriesWithTags("cpu",
 		query.NewTags(map[string]string{"host": "server01"}))
@@ -31,7 +35,9 @@ func EmitTestResults(results chan *query.ResultSet) {
 
 	result = &query.ResultSet{ID: 1}
 	results <- result.Init()
-	result = result.WithColumns("name")
+	result = result.WithColumns(
+		query.Column{Name: "name", Type: influxql.String},
+	)
 	close(results)
 
 	series, _ = result.CreateSeries("databases")
@@ -51,7 +57,7 @@ func TestEncoder_Default(t *testing.T) {
 
 	config := httpd.NewConfig()
 	enc := httpd.NewEncoder(req, &config)
-	enc.Encode(resp, results)
+	enc.Encode(resp, httpd.ResponseHeader{}, results)
 
 	if have, want := strings.TrimSpace(resp.Body.String()), `{"results":[{"statement_id":0,"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value"],"values":[["1970-01-01T00:00:00Z",2],["1970-01-01T00:00:10Z",5],["1970-01-01T00:00:20Z",7]]},{"name":"cpu","tags":{"host":"server02"},"columns":["time","value"],"values":[["1970-01-01T00:00:00Z",8]]}]},{"statement_id":1,"series":[{"name":"databases","columns":["name"],"values":[["db0"],["db1"]]}]}]}`; have != want {
 		t.Errorf("mismatched output:\n\thave=%v\n\twant=%v\n", have, want)
@@ -68,7 +74,7 @@ func TestEncoder_Chunked(t *testing.T) {
 
 	config := httpd.NewConfig()
 	enc := httpd.NewEncoder(req, &config)
-	enc.Encode(resp, results)
+	enc.Encode(resp, httpd.ResponseHeader{}, results)
 
 	if have, want := strings.TrimSpace(resp.Body.String()), `{"results":[{"statement_id":0,"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value"],"values":[["1970-01-01T00:00:00Z",2],["1970-01-01T00:00:10Z",5]],"partial":true}],"partial":true}]}
 {"results":[{"statement_id":0,"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value"],"values":[["1970-01-01T00:00:20Z",7]]}],"partial":true}]}

@@ -107,7 +107,12 @@ func (t *TaskManager) executeShowQueriesStatement(q *influxql.ShowQueriesStateme
 	}
 	defer result.Close()
 
-	result = result.WithColumns("qid", "query", "database", "duration")
+	result = result.WithColumns(
+		Column{Name: "qid", Type: influxql.Integer},
+		Column{Name: "query", Type: influxql.String},
+		Column{Name: "database", Type: influxql.String},
+		Column{Name: "duration", Type: influxql.String},
+	)
 	series, ok := result.CreateSeries("")
 	if !ok {
 		return

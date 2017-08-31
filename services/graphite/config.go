@@ -5,8 +5,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor/diagnostics"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/toml"
 )
 
@@ -261,7 +263,16 @@ type Configs []Config
 // Diagnostics returns one set of diagnostics for all of the Configs.
 func (c Configs) Diagnostics() (*diagnostics.Diagnostics, error) {
 	d := &diagnostics.Diagnostics{
-		Columns: []string{"enabled", "bind-address", "protocol", "database", "retention-policy", "batch-size", "batch-pending", "batch-timeout"},
+		Columns: []query.Column{
+			{Name: "enabled", Type: influxql.Boolean},
+			{Name: "bind-address", Type: influxql.String},
+			{Name: "protocol", Type: influxql.String},
+			{Name: "database", Type: influxql.String},
+			{Name: "retention-policy", Type: influxql.String},
+			{Name: "batch-size", Type: influxql.Integer},
+			{Name: "batch-pending", Type: influxql.Integer},
+			{Name: "batch-timeout", Type: influxql.Duration},
+		},
 	}
 
 	for _, cc := range c {

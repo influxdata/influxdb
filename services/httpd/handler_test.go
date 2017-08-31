@@ -598,7 +598,10 @@ func TestHandler_PromRead(t *testing.T) {
 		}
 		ctx.StatementID = 1
 		result, _ := ctx.CreateResult()
-		result = result.WithColumns("time", "f64")
+		result = result.WithColumns(
+			query.Column{Name: "time", Type: influxql.Time},
+			query.Column{Name: "f64", Type: influxql.Float},
+		)
 		series, _ := result.CreateSeriesWithTags("_", query.NewTags(map[string]string{
 			"foo": "bar",
 		}))

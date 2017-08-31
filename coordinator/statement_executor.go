@@ -483,7 +483,7 @@ func (e *StatementExecutor) executeExplainStatement(q *influxql.ExplainStatement
 		return err
 	}
 	defer result.Close()
-	result = result.WithColumns("QUERY PLAN")
+	result = result.WithColumns(query.Column{Name: "QUERY PLAN", Type: influxql.String})
 
 	series, ok := result.CreateSeries("")
 	if !ok {
@@ -534,7 +534,7 @@ func (e *StatementExecutor) executeSelectStatement(stmt *influxql.SelectStatemen
 		return errNoDatabaseInTarget
 	}
 
-	itrs, columns, err := e.createIterators(stmt, ctx)
+	itrs, columnNames, err := e.createIterators(stmt, ctx)
 	if err != nil {
 		return err
 	}
@@ -566,6 +566,27 @@ func (e *StatementExecutor) executeSelectStatement(stmt *influxql.SelectStatemen
 	defer result.Close()
 
 	// Set the columns of the result to the statement columns.
+	columns := make([]query.Column, len(columnNames))
+	offset := 0
+	for i, name := range columnNames {
+		columns[i].Name = name
+		if i == 0 && name == "time" {
+			columns[i].Type = influxql.Time
+			offset++
+			continue
+		}
+
+		switch itrs[i-offset].(type) {
+		case query.FloatIterator:
+			columns[i].Type = influxql.Float
+		case query.IntegerIterator:
+			columns[i].Type = influxql.Integer
+		case query.StringIterator:
+			columns[i].Type = influxql.String
+		case query.BooleanIterator:
+			columns[i].Type = influxql.Boolean
+		}
+	}
 	result = result.WithColumns(columns...)
 
 	// Generate a row emitter from the iterator set.
@@ -667,7 +688,10 @@ func (e *StatementExecutor) executeShowContinuousQueriesStatement(stmt *influxql
 	}
 	defer result.Close()
 
-	result = result.WithColumns("name", "query")
+	result = result.WithColumns(
+		query.Column{Name: "name", Type: influxql.String},
+		query.Column{Name: "query", Type: influxql.String},
+	)
 	for _, di := range dis {
 		series, ok := result.CreateSeries(di.Name)
 		if !ok {
@@ -691,7 +715,7 @@ func (e *StatementExecutor) executeShowDatabasesStatement(q *influxql.ShowDataba
 	}
 	defer result.Close()
 
-	result = result.WithColumns("name")
+	result = result.WithColumns(query.Column{Name: "name", Type: influxql.String})
 	series, ok := result.CreateSeries("databases")
 	if !ok {
 		return query.ErrQueryAborted
@@ -756,7 +780,10 @@ func (e *StatementExecutor) executeShowGrantsForUserStatement(q *influxql.ShowGr
 	}
 	defer result.Close()
 
-	result = result.WithColumns("database", "privilege")
+	result = result.WithColumns(
+		query.Column{Name: "database", Type: influxql.String},
+		query.Column{Name: "privilege", Type: influxql.String},
+	)
 	series, ok := result.CreateSeries("")
 	if !ok {
 		return query.ErrQueryAborted
@@ -803,7 +830,7 @@ func (e *StatementExecutor) executeShowMeasurementsStatement(q *influxql.ShowMea
 	}
 	defer result.Close()
 
-	result = result.WithColumns("name")
+	result = result.WithColumns(query.Column{Name: "name", Type: influxql.String})
 	series, ok := result.CreateSeries("measurements")
 	if !ok {
 		return query.ErrQueryAborted
@@ -832,7 +859,13 @@ func (e *StatementExecutor) executeShowRetentionPoliciesStatement(q *influxql.Sh
 	}
 	defer result.Close()
 
-	result = result.WithColumns("name", "duration", "shardGroupDuration", "replicaN", "default")
+	result = result.WithColumns(
+		query.Column{Name: "name", Type: influxql.String},
+		query.Column{Name: "duration", Type: influxql.String},
+		query.Column{Name: "shardGroupDuration", Type: influxql.String},
+		query.Column{Name: "replicaN", Type: influxql.Integer},
+		query.Column{Name: "default", Type: influxql.Boolean},
+	)
 	series, ok := result.CreateSeries("")
 	if !ok {
 		return query.ErrQueryAborted
@@ -854,7 +887,16 @@ func (e *StatementExecutor) executeShowShardsStatement(stmt *influxql.ShowShards
 	}
 	defer result.Close()
 
-	result = result.WithColumns("id", "database", "retention_policy", "shard_group", "start_time", "end_time", "expiry_time", "owners")
+	result = result.WithColumns(
+		query.Column{Name: "id", Type: influxql.Integer},
+		query.Column{Name: "database", Type: influxql.String},
+		query.Column{Name: "retention_policy", Type: influxql.String},
+		query.Column{Name: "shard_group", Type: influxql.Integer},
+		query.Column{Name: "start_time", Type: influxql.String},
+		query.Column{Name: "end_time", Type: influxql.String},
+		query.Column{Name: "expiry_time", Type: influxql.String},
+		query.Column{Name: "owners", Type: influxql.String},
+	)
 	for _, di := range dis {
 		series, ok := result.CreateSeries(di.Name)
 		if !ok {
@@ -902,7 +944,14 @@ func (e *StatementExecutor) executeShowShardGroupsStatement(stmt *influxql.ShowS
 	}
 	defer result.Close()
 
-	result = result.WithColumns("id", "database", "retention_policy", "start_time", "end_time", "expiry_time")
+	result = result.WithColumns(
+		query.Column{Name: "id", Type: influxql.Integer},
+		query.Column{Name: "database", Type: influxql.String},
+		query.Column{Name: "retention_policy", Type: influxql.String},
+		query.Column{Name: "start_time", Type: influxql.String},
+		query.Column{Name: "end_time", Type: influxql.String},
+		query.Column{Name: "expiry_time", Type: influxql.String},
+	)
 	series, ok := result.CreateSeries("shard groups")
 	if !ok {
 		return query.ErrQueryAborted
@@ -949,7 +998,7 @@ func (e *StatementExecutor) executeShowStatsStatement(stmt *influxql.ShowStatsSt
 			continue
 		}
 
-		result := result.WithColumns(stat.ValueNames()...)
+		result := result.WithColumns(stat.Columns()...)
 		series, ok := result.CreateSeriesWithTags(stat.Name, query.NewTags(stat.Tags))
 		if !ok {
 			return query.ErrQueryAborted
@@ -957,7 +1006,7 @@ func (e *StatementExecutor) executeShowStatsStatement(stmt *influxql.ShowStatsSt
 
 		row := make([]interface{}, 0, len(series.Columns))
 		for _, k := range series.Columns {
-			row = append(row, stat.Values[k])
+			row = append(row, stat.Values[k.Name])
 		}
 		series.Emit(row)
 		series.Close()
@@ -974,7 +1023,12 @@ func (e *StatementExecutor) executeShowSubscriptionsStatement(stmt *influxql.Sho
 	}
 	defer result.Close()
 
-	result = result.WithColumns("retention_policy", "name", "mode", "destinations")
+	result = result.WithColumns(
+		query.Column{Name: "retention_policy", Type: influxql.String},
+		query.Column{Name: "name", Type: influxql.String},
+		query.Column{Name: "mode", Type: influxql.String},
+		query.Column{Name: "destinations", Type: influxql.String},
+	)
 	for _, di := range dis {
 		var series *query.Series
 		for _, rpi := range di.RetentionPolicies {
@@ -1015,7 +1069,10 @@ func (e *StatementExecutor) executeShowTagValues(q *influxql.ShowTagValuesStatem
 	}
 	defer result.Close()
 
-	result = result.WithColumns("key", "value")
+	result = result.WithColumns(
+		query.Column{Name: "key", Type: influxql.String},
+		query.Column{Name: "value", Type: influxql.String},
+	)
 	for _, m := range tagValues {
 		values := m.Values
 
@@ -1056,7 +1113,10 @@ func (e *StatementExecutor) executeShowUsersStatement(q *influxql.ShowUsersState
 	}
 	defer result.Close()
 
-	result = result.WithColumns("user", "admin")
+	result = result.WithColumns(
+		query.Column{Name: "user", Type: influxql.String},
+		query.Column{Name: "admin", Type: influxql.Boolean},
+	)
 	series, ok := result.CreateSeries("")
 	if !ok {
 		return query.ErrQueryAborted
@@ -1135,7 +1195,10 @@ func (e *StatementExecutor) writeResult(stmt *influxql.SelectStatement, in, out 
 		writeN += int64(len(points))
 	}
 
-	series, ok := out.WithColumns("time", "written").CreateSeries("result")
+	series, ok := out.WithColumns(
+		query.Column{Name: "time", Type: influxql.Time},
+		query.Column{Name: "written", Type: influxql.Integer},
+	).CreateSeries("result")
 	if !ok {
 		return
 	}
@@ -1146,15 +1209,15 @@ func (e *StatementExecutor) writeResult(stmt *influxql.SelectStatement, in, out 
 var errNoDatabaseInTarget = errors.New("no database in target")
 
 // convertRowToPoints will convert a query result Row into Points that can be written back in.
-func convertRowToPoint(measurementName string, tags models.Tags, columns []string, row []interface{}) (models.Point, error) {
+func convertRowToPoint(measurementName string, tags models.Tags, columns []query.Column, row []interface{}) (models.Point, error) {
 	// Iterate through the columns and treat the first "time" field as the time.
 	var t time.Time
 	vals := make(map[string]interface{}, len(columns)-1)
 	for i, c := range columns {
-		if c == "time" && t.IsZero() {
+		if c.Type == influxql.Time && t.IsZero() {
 			t = row[i].(time.Time)
 		} else if val := row[i]; val != nil {
-			vals[c] = val
+			vals[c.Name] = val
 		}
 	}
 

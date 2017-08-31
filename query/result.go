@@ -19,10 +19,29 @@ type Row struct {
 	Err    error
 }
 
+type Column struct {
+	Name string
+	Type influxql.DataType
+}
+
+type Columns []Column
+
+func (c Columns) Names() []string {
+	names := make([]string, len(c))
+	for i, col := range c {
+		names[i] = col.Name
+	}
+	return names
+}
+
+func (c Columns) Len() int           { return len(c) }
+func (c Columns) Less(i, j int) bool { return c[i].Name < c[j].Name }
+func (c Columns) Swap(i, j int)      { c[i], c[j] = c[j], c[i] }
+
 type Series struct {
 	Name    string
 	Tags    Tags
-	Columns []string
+	Columns Columns
 	Err     error
 	AbortCh <-chan struct{}
 
@@ -65,7 +84,7 @@ type ResultSet struct {
 	AbortCh  <-chan struct{}
 
 	seriesCh chan *Series
-	columns  []string
+	columns  []Column
 }
 
 func (rs *ResultSet) Init() *ResultSet {
@@ -73,7 +92,7 @@ func (rs *ResultSet) Init() *ResultSet {
 	return rs
 }
 
-func (rs *ResultSet) WithColumns(columns ...string) *ResultSet {
+func (rs *ResultSet) WithColumns(columns ...Column) *ResultSet {
 	dup := *rs
 	dup.columns = columns
 	return &dup

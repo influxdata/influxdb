@@ -453,7 +453,8 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 	}
 
 	// Read the results and encode them in the proper structure.
-	enc.Encode(w, results)
+	header := ResponseHeader{Results: len(q.Statements)}
+	enc.Encode(w, header, results)
 }
 
 // async drains the results from an async query and logs a message if it fails.
@@ -1097,7 +1098,7 @@ func parseSystemDiagnostics(d *diagnostics.Diagnostics) (map[string]interface{},
 		// Find the associated column.
 		ci := -1
 		for i, col := range d.Columns {
-			if col == key {
+			if col.Name == key {
 				ci = i
 				break
 			}
@@ -1469,4 +1470,9 @@ func (r *Response) Error() error {
 		}
 	}
 	return nil
+}
+
+// ResponseHeader contains information about the full response.
+type ResponseHeader struct {
+	Results int
 }

@@ -2,6 +2,7 @@ package httpd
 
 import (
 	"io"
+	"mime"
 	"net/http"
 	"strconv"
 	"strings"
@@ -16,7 +17,7 @@ type Encoder interface {
 	ContentType() string
 
 	// Encode encodes the full response from the results channel.
-	Encode(w io.Writer, results <-chan *query.ResultSet)
+	Encode(w io.Writer, header ResponseHeader, results <-chan *query.ResultSet)
 
 	// Error encodes a top-level error to the io.Writer.
 	Error(w io.Writer, err error)
@@ -30,7 +31,13 @@ type ResponseFormatter interface {
 
 func NewEncoder(r *http.Request, config *Config) Encoder {
 	epoch := strings.TrimSpace(r.FormValue("epoch"))
-	switch r.Header.Get("Accept") {
+
+	var format string
+	if v := r.Header.Get("Accept"); v != "" {
+		format, _, _ = mime.ParseMediaType(v)
+	}
+
+	switch format {
 	case "application/csv", "text/csv":
 		formatter := &csvFormatter{statementID: -1}
 		chunked, size := parseChunkedOptions(r)
@@ -45,6 +52,15 @@ func NewEncoder(r *http.Request, config *Config) Encoder {
 			Formatter:   formatter,
 			MaxRowLimit: config.MaxRowLimit,
 			Epoch:       epoch,
+		}
+	case "application/vnd.influxdb-cursor+msgpack":
+		_, size := parseChunkedOptions(r)
+		if size == 0 {
+			size = DefaultChunkSize
+		}
+		return &messagePackEncoder{
+			Epoch:     epoch,
+			ChunkSize: size,
 		}
 	case "application/json":
 		fallthrough
@@ -83,7 +99,7 @@ func (e *defaultEncoder) ContentType() string {
 	return e.Formatter.ContentType()
 }
 
-func (e *defaultEncoder) Encode(w io.Writer, results <-chan *query.ResultSet) {
+func (e *defaultEncoder) Encode(w io.Writer, header ResponseHeader, results <-chan *query.ResultSet) {
 	var convertToEpoch func(row *query.Row)
 	if e.Epoch != "" {
 		convertToEpoch = epochConverter(e.Epoch)
@@ -113,7 +129,7 @@ RESULTS:
 			s := &models.Row{
 				Name:    series.Name,
 				Tags:    series.Tags.KeyValues(),
-				Columns: series.Columns,
+				Columns: series.Columns.Names(),
 			}
 			r.Series = append(r.Series, s)
 
@@ -152,7 +168,7 @@ func (e *chunkedEncoder) ContentType() string {
 	return e.Formatter.ContentType()
 }
 
-func (e *chunkedEncoder) Encode(w io.Writer, results <-chan *query.ResultSet) {
+func (e *chunkedEncoder) Encode(w io.Writer, header ResponseHeader, results <-chan *query.ResultSet) {
 	var convertToEpoch func(row *query.Row)
 	if e.Epoch != "" {
 		convertToEpoch = epochConverter(e.Epoch)
@@ -207,7 +223,7 @@ func (e *chunkedEncoder) Encode(w io.Writer, results <-chan *query.ResultSet) {
 						Series: []*models.Row{{
 							Name:    series.Name,
 							Tags:    series.Tags.KeyValues(),
-							Columns: series.Columns,
+							Columns: series.Columns.Names(),
 							Values:  values,
 							Partial: true,
 						}},
@@ -226,7 +242,7 @@ func (e *chunkedEncoder) Encode(w io.Writer, results <-chan *query.ResultSet) {
 				Series: []*models.Row{{
 					Name:    series.Name,
 					Tags:    series.Tags.KeyValues(),
-					Columns: series.Columns,
+					Columns: series.Columns.Names(),
 					Values:  values,
 				}},
 				Messages: messages,
