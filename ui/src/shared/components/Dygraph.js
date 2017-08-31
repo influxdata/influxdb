@@ -7,22 +7,20 @@ import moment from 'moment'
 
 import Dygraphs from 'src/external/dygraph'
 import getRange from 'shared/parsing/getRangeForDygraph'
-
-import {DISPLAY_OPTIONS} from 'src/dashboards/constants'
-import {LINE_COLORS, multiColumnBarPlotter} from 'src/shared/graphs/helpers'
 import DygraphLegend from 'src/shared/components/DygraphLegend'
+import {DISPLAY_OPTIONS} from 'src/dashboards/constants'
 import {buildDefaultYLabel} from 'shared/presenters'
 import {numberValueFormatter} from 'src/utils/formatting'
-
-const {LINEAR, LOG, BASE_10} = DISPLAY_OPTIONS
-const labelWidth = 60
-const avgCharPixels = 7
-
-const hasherino = (str, len) =>
-  str
-    .split('')
-    .map(char => char.charCodeAt(0))
-    .reduce((hash, code) => hash + code, 0) % len
+import {
+  OPTIONS,
+  LINE_COLORS,
+  LABEL_WIDTH,
+  CHAR_PIXELS,
+  barPlotter,
+  hasherino,
+  highlightSeriesOpts,
+} from 'src/shared/graphs/helpers'
+const {LINEAR, LOG, BASE_10, BASE_2} = DISPLAY_OPTIONS
 
 export default class Dygraph extends Component {
   constructor(props) {
@@ -43,165 +41,59 @@ export default class Dygraph extends Component {
   }
 
   componentDidMount() {
-    const timeSeries = this.getTimeSeries()
-    // dygraphSeries is a legend label and its corresponding y-axis e.g. {legendLabel1: 'y', legendLabel2: 'y2'};
     const {
       axes: {y, y2},
-      dygraphSeries,
       ruleValues,
-      overrideLineColors,
-      isGraphFilled,
+      isGraphFilled: fillGraph,
       isBarGraph,
       options,
-      onZoom,
     } = this.props
 
+    const timeSeries = this.getTimeSeries()
     const graphRef = this.graphRef
-    const legendRef = this.legendRef
-    const finalLineColors = [...(overrideLineColors || LINE_COLORS)]
 
-    const hashColorDygraphSeries = {}
-    const {length} = finalLineColors
-
-    for (const seriesName in dygraphSeries) {
-      const series = dygraphSeries[seriesName]
-      const hashIndex = hasherino(seriesName, length)
-      const color = finalLineColors[hashIndex]
-      hashColorDygraphSeries[seriesName] = {...series, color}
-    }
-
-    const axisLabelWidth =
-      labelWidth +
-      y.prefix.length * avgCharPixels +
-      y.suffix.length * avgCharPixels
-
-    const defaultOptions = {
-      plugins: isBarGraph
-        ? []
-        : [
-            new Dygraphs.Plugins.Crosshair({
-              direction: 'vertical',
-            }),
-          ],
+    let defaultOptions = {
+      fillGraph,
       logscale: y.scale === LOG,
-      labelsSeparateLines: false,
-      labelsKMB: true,
-      rightGap: 0,
-      highlightSeriesBackgroundAlpha: 1.0,
-      highlightSeriesBackgroundColor: 'rgb(41, 41, 51)',
-      fillGraph: isGraphFilled,
-      axisLineWidth: 2,
-      gridLineWidth: 1,
-      highlightCircleSize: isBarGraph ? 0 : 3,
-      animatedZooms: true,
-      hideOverlayOnMouseOut: false,
-      colors: finalLineColors,
-      series: hashColorDygraphSeries,
+      colors: this.getLineColors(),
+      series: this.hashColorDygraphSeries(),
+      legendFormatter: this.legendFormatter,
+      highlightCallback: this.highlightCallback,
+      unhighlightCallback: this.unhighlightCallback,
+      plugins: [new Dygraphs.Plugins.Crosshair({direction: 'vertical'})],
       axes: {
         y: {
           valueRange: getRange(timeSeries, y.bounds, ruleValues),
           axisLabelFormatter: (yval, __, opts) =>
             numberValueFormatter(yval, opts, y.prefix, y.suffix),
-          axisLabelWidth,
-          labelsKMB: y.base === '10',
-          labelsKMG2: y.base === '2',
+          axisLabelWidth: this.getLabelWidth(),
+          labelsKMB: y.base === BASE_10,
+          labelsKMG2: y.base === BASE_2,
         },
         y2: {
           valueRange: getRange(timeSeries, y2.bounds),
         },
       },
-      highlightSeriesOpts: {
-        strokeWidth: 2,
-        highlightCircleSize: isBarGraph ? 0 : 5,
-      },
-      legendFormatter: legend => {
-        if (!legend.x) {
-          return ''
-        }
-
-        const {state: {legend: prevLegend}} = this
-        const highlighted = legend.series.find(s => s.isHighlighted)
-        const prevHighlighted = prevLegend.series.find(s => s.isHighlighted)
-
-        const yVal = highlighted && highlighted.y
-        const prevY = prevHighlighted && prevHighlighted.y
-
-        if (legend.x === prevLegend.x && yVal === prevY) {
-          return ''
-        }
-
-        this.setState({legend})
-        return ''
-      },
-      highlightCallback: e => {
-        // Move the Legend on hover
-        const graphRect = graphRef.getBoundingClientRect()
-        const legendRect = legendRef.getBoundingClientRect()
-
-        const graphWidth = graphRect.width + 32 // Factoring in padding from parent
-        const graphHeight = graphRect.height
-        const graphBottom = graphRect.bottom
-        const legendWidth = legendRect.width
-        const legendHeight = legendRect.height
-        const screenHeight = window.innerHeight
-        const legendMaxLeft = graphWidth - legendWidth / 2
-        const trueGraphX = e.pageX - graphRect.left
-
-        let legendLeft = trueGraphX
-
-        // Enforcing max & min legend offsets
-        if (trueGraphX < legendWidth / 2) {
-          legendLeft = legendWidth / 2
-        } else if (trueGraphX > legendMaxLeft) {
-          legendLeft = legendMaxLeft
-        }
-
-        // Disallow screen overflow of legend
-        const isLegendBottomClipped = graphBottom + legendHeight > screenHeight
-
-        const legendTop = isLegendBottomClipped
-          ? graphHeight + 8 - legendHeight
-          : graphHeight + 8
-
-        legendRef.style.left = `${legendLeft}px`
-        legendRef.style.top = `${legendTop}px`
-
-        this.setState({isHidden: false})
-      },
-      unhighlightCallback: e => {
-        const {top, bottom, left, right} = legendRef.getBoundingClientRect()
-
-        const mouseY = e.clientY
-        const mouseX = e.clientX
-
-        const mouseInLegendY = mouseY <= bottom && mouseY >= top
-        const mouseInLegendX = mouseX <= right && mouseX >= left
-        const isMouseHoveringLegend = mouseInLegendY && mouseInLegendX
-
-        if (!isMouseHoveringLegend) {
-          this.setState({isHidden: true})
-
-          if (!this.visibility().find(bool => bool === true)) {
-            this.setState({filterText: ''})
-          }
-        }
-      },
-      zoomCallback: (lower, upper) => {
-        if (this.dygraph.isZoomed() === false) {
-          return onZoom(null, null)
-        }
-
-        onZoom(this.formatTimeRange(lower), this.formatTimeRange(upper))
-      },
+      highlightSeriesOpts,
+      zoomCallback: (lower, upper) => this.handleZoom(lower, upper),
     }
 
     if (isBarGraph) {
-      defaultOptions.plotter = multiColumnBarPlotter
+      defaultOptions = {
+        ...defaultOptions,
+        plotter: barPlotter,
+        plugins: [],
+        highlightSeriesOpts: {
+          ...highlightSeriesOpts,
+          highlightCircleSize: 0,
+        },
+      }
     }
 
     this.dygraph = new Dygraphs(graphRef, timeSeries, {
       ...defaultOptions,
       ...options,
+      ...OPTIONS,
     })
 
     const {w} = this.dygraph.getArea()
@@ -236,15 +128,7 @@ export default class Dygraph extends Component {
   }
 
   componentDidUpdate() {
-    const {
-      labels,
-      axes: {y, y2},
-      options,
-      dygraphSeries,
-      ruleValues,
-      isBarGraph,
-      overrideLineColors,
-    } = this.props
+    const {labels, axes: {y, y2}, options, ruleValues, isBarGraph} = this.props
 
     const dygraph = this.dygraph
     if (!dygraph) {
@@ -254,48 +138,29 @@ export default class Dygraph extends Component {
     }
 
     const timeSeries = this.getTimeSeries()
-    const ylabel = this.getLabel('y')
-    const finalLineColors = [...(overrideLineColors || LINE_COLORS)]
-
-    const hashColorDygraphSeries = {}
-    const {length} = finalLineColors
-
-    for (const seriesName in dygraphSeries) {
-      const series = dygraphSeries[seriesName]
-      const hashIndex = hasherino(seriesName, length)
-      const color = finalLineColors[hashIndex]
-      hashColorDygraphSeries[seriesName] = {...series, color}
-    }
-
-    const axisLabelWidth =
-      labelWidth +
-      y.prefix.length * avgCharPixels +
-      y.suffix.length * avgCharPixels
 
     const updateOptions = {
+      ...options,
       labels,
+      ylabel: this.getLabel('y'),
       file: timeSeries,
-      ylabel,
       logscale: y.scale === LOG,
       axes: {
         y: {
           valueRange: getRange(timeSeries, y.bounds, ruleValues),
           axisLabelFormatter: (yval, __, opts) =>
             numberValueFormatter(yval, opts, y.prefix, y.suffix),
-          axisLabelWidth,
-          labelsKMB: y.base === '10',
-          labelsKMG2: y.base === '2',
+          axisLabelWidth: this.getLabelWidth(),
+          labelsKMB: y.base === BASE_10,
+          labelsKMG2: y.base === BASE_2,
         },
         y2: {
           valueRange: getRange(timeSeries, y2.bounds),
         },
       },
-      stepPlot: options.stepPlot,
-      stackedGraph: options.stackedGraph,
-      underlayCallback: options.underlayCallback,
-      colors: finalLineColors,
-      series: hashColorDygraphSeries,
-      plotter: isBarGraph ? multiColumnBarPlotter : null,
+      colors: this.getLineColors(),
+      series: this.hashColorDygraphSeries(),
+      plotter: isBarGraph ? barPlotter : null,
       visibility: this.visibility(),
     }
 
@@ -305,6 +170,31 @@ export default class Dygraph extends Component {
     this.resize()
     this.dygraph.resize()
     this.props.setResolution(w)
+  }
+
+  handleZoom = (lower, upper) => {
+    const {onZoom} = this.props
+
+    if (this.dygraph.isZoomed() === false) {
+      return onZoom(null, null)
+    }
+
+    onZoom(this.formatTimeRange(lower), this.formatTimeRange(upper))
+  }
+
+  hashColorDygraphSeries = () => {
+    const {dygraphSeries} = this.props
+    const colors = this.getLineColors()
+    const hashColorDygraphSeries = {}
+
+    for (const seriesName in dygraphSeries) {
+      const series = dygraphSeries[seriesName]
+      const hashIndex = hasherino(seriesName, colors.length)
+      const color = colors[hashIndex]
+      hashColorDygraphSeries[seriesName] = {...series, color}
+    }
+
+    return hashColorDygraphSeries
   }
 
   sync = () => {
@@ -349,6 +239,19 @@ export default class Dygraph extends Component {
         this.setState({filterText: ''})
       }
     }
+  }
+
+  getLineColors = () => {
+    return [...(this.props.overrideLineColors || LINE_COLORS)]
+  }
+
+  getLabelWidth = () => {
+    const {axes: {y}} = this.props
+    return (
+      LABEL_WIDTH +
+      y.prefix.length * CHAR_PIXELS +
+      y.suffix.length * CHAR_PIXELS
+    )
   }
 
   visibility = () => {
@@ -401,6 +304,95 @@ export default class Dygraph extends Component {
     return moment(timeRange).utc().format()
   }
 
+  deselectCrosshair = () => {
+    const plugins = this.dygraph.plugins_
+    const crosshair = plugins.find(
+      ({plugin}) => plugin.toString() === 'Crosshair Plugin'
+    )
+
+    if (!crosshair || this.props.isBarGraph) {
+      return
+    }
+
+    crosshair.plugin.deselect()
+  }
+
+  unhighlightCallback = e => {
+    const {top, bottom, left, right} = this.legendRef.getBoundingClientRect()
+
+    const mouseY = e.clientY
+    const mouseX = e.clientX
+
+    const mouseBuffer = 5
+    const mouseInLegendY = mouseY <= bottom && mouseY >= top - mouseBuffer
+    const mouseInLegendX = mouseX <= right && mouseX >= left
+    const isMouseHoveringLegend = mouseInLegendY && mouseInLegendX
+
+    if (!isMouseHoveringLegend) {
+      this.setState({isHidden: true})
+
+      if (!this.visibility().find(bool => bool === true)) {
+        this.setState({filterText: ''})
+      }
+    }
+  }
+
+  highlightCallback = e => {
+    // Move the Legend on hover
+    const graphRect = this.graphRef.getBoundingClientRect()
+    const legendRect = this.legendRef.getBoundingClientRect()
+
+    const graphWidth = graphRect.width + 32 // Factoring in padding from parent
+    const graphHeight = graphRect.height
+    const graphBottom = graphRect.bottom
+    const legendWidth = legendRect.width
+    const legendHeight = legendRect.height
+    const screenHeight = window.innerHeight
+    const legendMaxLeft = graphWidth - legendWidth / 2
+    const trueGraphX = e.pageX - graphRect.left
+
+    let legendLeft = trueGraphX
+
+    // Enforcing max & min legend offsets
+    if (trueGraphX < legendWidth / 2) {
+      legendLeft = legendWidth / 2
+    } else if (trueGraphX > legendMaxLeft) {
+      legendLeft = legendMaxLeft
+    }
+
+    // Disallow screen overflow of legend
+    const isLegendBottomClipped = graphBottom + legendHeight > screenHeight
+
+    const legendTop = isLegendBottomClipped
+      ? graphHeight + 8 - legendHeight
+      : graphHeight + 8
+
+    this.legendRef.style.left = `${legendLeft}px`
+    this.legendRef.style.top = `${legendTop}px`
+
+    this.setState({isHidden: false})
+  }
+
+  legendFormatter = legend => {
+    if (!legend.x) {
+      return ''
+    }
+
+    const {state: {legend: prevLegend}} = this
+    const highlighted = legend.series.find(s => s.isHighlighted)
+    const prevHighlighted = prevLegend.series.find(s => s.isHighlighted)
+
+    const yVal = highlighted && highlighted.y
+    const prevY = prevHighlighted && prevHighlighted.y
+
+    if (legend.x === prevLegend.x && yVal === prevY) {
+      return ''
+    }
+
+    this.setState({legend})
+    return ''
+  }
+
   render() {
     const {
       legend,
@@ -413,7 +405,7 @@ export default class Dygraph extends Component {
     } = this.state
 
     return (
-      <div className="dygraph-child">
+      <div className="dygraph-child" onMouseLeave={this.deselectCrosshair}>
         <DygraphLegend
           {...legend}
           sortType={sortType}
