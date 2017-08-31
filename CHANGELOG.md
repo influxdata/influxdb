@@ -37,7 +37,7 @@
 - [#8694](https://github.com/influxdata/influxdb/issues/8694): Reduce CPU usage when checking series cardinality
 - [#8677](https://github.com/influxdata/influxdb/issues/8677): Fix backups when snapshot is empty.
 - [#8706](https://github.com/influxdata/influxdb/pull/8706): Cursor leak, resulting in an accumulation of `.tsm.tmp` files after compactions.
-- [#8712](https://github.com/influxdata/influxdb/pull/8712): Force time expressions to use AND and improve condition parsing.
+- [#8712](https://github.com/influxdata/influxdb/pull/8712): Improve condition parsing.
 - [#8716](https://github.com/influxdata/influxdb/pull/8716): Ensure inputs are closed on error. Add runtime GC finalizer as additional guard to close iterators
 - [#8695](https://github.com/influxdata/influxdb/issues/8695): Fix merging bug on system iterators.
 
