@@ -27,7 +27,7 @@ export const darkenColor = colorStr => {
 }
 
 // Bar Graph code below is adapted from http://dygraphs.com/tests/plotters.html
-export const multiColumnBarPlotter = e => {
+export const barPlotter = e => {
   // We need to handle all the series simultaneously.
   if (e.seriesIndex !== 0) {
     return
@@ -99,3 +99,28 @@ export const multiColumnBarPlotter = e => {
     }
   }
 }
+
+export const OPTIONS = {
+  rightGap: 0,
+  axisLineWidth: 2,
+  gridLineWidth: 1,
+  animatedZooms: true,
+  labelsSeparateLines: false,
+  hideOverlayOnMouseOut: false,
+  highlightSeriesBackgroundAlpha: 1.0,
+  highlightSeriesBackgroundColor: 'rgb(41, 41, 51)',
+}
+
+export const highlightSeriesOpts = {
+  strokeWidth: 2,
+  highlightCircleSize: 5,
+}
+
+export const hasherino = (str, len) =>
+  str
+    .split('')
+    .map(char => char.charCodeAt(0))
+    .reduce((hash, code) => hash + code, 0) % len
+
+export const LABEL_WIDTH = 60
+export const CHAR_PIXELS = 7
