@@ -928,6 +928,12 @@ func (s *Store) WriteToShard(shardID uint64, points []models.Point) error {
 	}
 	s.mu.RUnlock()
 
+	// Ensure snapshot compactions are enabled since the shard might have been cold
+	// and disabled by the monitor.
+	if sh.IsIdle() {
+		sh.SetCompactionsEnabled(true)
+	}
+
 	return sh.WritePoints(points)
 }
 
