@@ -385,6 +385,7 @@ type MockShard struct {
 	Measurements      []string
 	FieldDimensionsFn func(measurements []string) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error)
 	CreateIteratorFn  func(m string, opt query.IteratorOptions) (query.Iterator, error)
+	IteratorCostFn    func(m string, opt query.IteratorOptions) (query.IteratorCost, error)
 	ExpandSourcesFn   func(sources influxql.Sources) (influxql.Sources, error)
 }
 
@@ -418,6 +419,10 @@ func (sh *MockShard) MapType(measurement, field string) influxql.DataType {
 
 func (sh *MockShard) CreateIterator(measurement string, opt query.IteratorOptions) (query.Iterator, error) {
 	return sh.CreateIteratorFn(measurement, opt)
+}
+
+func (sh *MockShard) IteratorCost(measurement string, opt query.IteratorOptions) (query.IteratorCost, error) {
+	return sh.IteratorCostFn(measurement, opt)
 }
 
 func (sh *MockShard) ExpandSources(sources influxql.Sources) (influxql.Sources, error) {

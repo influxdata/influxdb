@@ -181,6 +181,32 @@ func (a *LocalShardMapping) CreateIterator(m *influxql.Measurement, opt query.It
 	return sg.CreateIterator(m.Name, opt)
 }
 
+func (a *LocalShardMapping) IteratorCost(m *influxql.Measurement, opt query.IteratorOptions) (query.IteratorCost, error) {
+	source := Source{
+		Database:        m.Database,
+		RetentionPolicy: m.RetentionPolicy,
+	}
+
+	sg := a.ShardMap[source]
+	if sg == nil {
+		return query.IteratorCost{}, nil
+	}
+
+	if m.Regex != nil {
+		var costs query.IteratorCost
+		measurements := sg.MeasurementsByRegex(m.Regex.Val)
+		for _, measurement := range measurements {
+			cost, err := sg.IteratorCost(measurement, opt)
+			if err != nil {
+				return query.IteratorCost{}, err
+			}
+			costs = costs.Combine(cost)
+		}
+		return costs, nil
+	}
+	return sg.IteratorCost(m.Name, opt)
+}
+
 // Close clears out the list of mapped shards.
 func (a *LocalShardMapping) Close() error {
 	a.ShardMap = nil
