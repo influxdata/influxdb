@@ -1,5 +1,6 @@
 // Trigger resize event to relayout the React Layout plugin
-import {enablePresentationMode} from '../actions/app'
+import queryString from 'query-string'
+import {enablePresentationMode} from 'src/shared/actions/app'
 
 export default function resizeLayout() {
   return next => action => {
@@ -13,7 +14,10 @@ export default function resizeLayout() {
       evt.initEvent('resize', false, true)
       window.dispatchEvent(evt)
     }
-    if (window.location.search.includes('present')) {
+
+    const qs = queryString.parse(window.location.search)
+
+    if (typeof qs.present !== 'undefined') {
       next(enablePresentationMode())
       next(action)
     }
