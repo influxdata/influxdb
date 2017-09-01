@@ -1,3 +1,9 @@
+## v1.3.6 [unreleased]
+
+### Bugfixes
+
+- [#8770](https://github.com/influxdata/influxdb/pull/8770): Reduce how long it takes to walk the varrefs in an expression.
+
 ## v1.3.5 [2017-08-29]
 
 ### Bugfixes
