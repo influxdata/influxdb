@@ -88,16 +88,65 @@ func (a Values) Deduplicate() Values {
 
 //  Exclude returns the subset of values not in [min, max]
 func (a Values) Exclude(min, max int64) Values {
-	var i int
-	for j := 0; j < len(a); j++ {
-		if a[j].UnixNano() >= min && a[j].UnixNano() <= max {
-			continue
-		}
-
-		a[i] = a[j]
-		i++
+	rmin, rmax := a.FindRange(min, max)
+	if rmin == -1 && rmax == -1 {
+		return a
 	}
-	return a[:i]
+
+	// a[rmin].UnixNano() ≥ min
+	// a[rmax].UnixNano() ≥ max
+
+	if rmax < len(a) {
+		if a[rmax].UnixNano() == max {
+			rmax++
+		}
+		rest := len(a) - rmax
+		if rest > 0 {
+			b := a[:rmin+rest]
+			copy(b[rmin:], a[rmax:])
+			return b
+		}
+	}
+
+	return a[:rmin]
+}
+
+// search performs a binary search for UnixNano() v in a
+// and returns the position, i, where v would be inserted.
+// An additional check of a[i].UnixNano() == v is necessary
+// to determine if the value v exists.
+func (a Values) search(v int64) int {
+	// Define: f(x) → a[x].UnixNano() < v
+	// Define: f(-1) == true, f(n) == false
+	// Invariant: f(lo-1) == true, f(hi) == false
+	lo := 0
+	hi := len(a)
+	for lo < hi {
+		mid := int(uint(lo+hi) >> 1)
+		if a[mid].UnixNano() < v {
+			lo = mid + 1 // preserves f(lo-1) == true
+		} else {
+			hi = mid // preserves f(hi) == false
+		}
+	}
+
+	// lo == hi
+	return lo
+}
+
+// FindRange returns the positions where min and max would be
+// inserted into the array. If a[0].UnixNano() > max or
+// a[len-1].UnixNano() < min then FindRange returns (-1, -1)
+// indicating the array is outside the [min, max].
+func (a Values) FindRange(min, max int64) (int, int) {
+	minVal := a[0].UnixNano()
+	maxVal := a[len(a)-1].UnixNano()
+
+	if maxVal < min || minVal > max {
+		return -1, -1
+	}
+
+	return a.search(min), a.search(max)
 }
 
 // Include returns the subset values between min and max inclusive.
@@ -238,16 +287,65 @@ func (a FloatValues) Deduplicate() FloatValues {
 
 //  Exclude returns the subset of values not in [min, max]
 func (a FloatValues) Exclude(min, max int64) FloatValues {
-	var i int
-	for j := 0; j < len(a); j++ {
-		if a[j].UnixNano() >= min && a[j].UnixNano() <= max {
-			continue
-		}
-
-		a[i] = a[j]
-		i++
+	rmin, rmax := a.FindRange(min, max)
+	if rmin == -1 && rmax == -1 {
+		return a
 	}
-	return a[:i]
+
+	// a[rmin].UnixNano() ≥ min
+	// a[rmax].UnixNano() ≥ max
+
+	if rmax < len(a) {
+		if a[rmax].UnixNano() == max {
+			rmax++
+		}
+		rest := len(a) - rmax
+		if rest > 0 {
+			b := a[:rmin+rest]
+			copy(b[rmin:], a[rmax:])
+			return b
+		}
+	}
+
+	return a[:rmin]
+}
+
+// search performs a binary search for UnixNano() v in a
+// and returns the position, i, where v would be inserted.
+// An additional check of a[i].UnixNano() == v is necessary
+// to determine if the value v exists.
+func (a FloatValues) search(v int64) int {
+	// Define: f(x) → a[x].UnixNano() < v
+	// Define: f(-1) == true, f(n) == false
+	// Invariant: f(lo-1) == true, f(hi) == false
+	lo := 0
+	hi := len(a)
+	for lo < hi {
+		mid := int(uint(lo+hi) >> 1)
+		if a[mid].UnixNano() < v {
+			lo = mid + 1 // preserves f(lo-1) == true
+		} else {
+			hi = mid // preserves f(hi) == false
+		}
+	}
+
+	// lo == hi
+	return lo
+}
+
+// FindRange returns the positions where min and max would be
+// inserted into the array. If a[0].UnixNano() > max or
+// a[len-1].UnixNano() < min then FindRange returns (-1, -1)
+// indicating the array is outside the [min, max].
+func (a FloatValues) FindRange(min, max int64) (int, int) {
+	minVal := a[0].UnixNano()
+	maxVal := a[len(a)-1].UnixNano()
+
+	if maxVal < min || minVal > max {
+		return -1, -1
+	}
+
+	return a.search(min), a.search(max)
 }
 
 // Include returns the subset values between min and max inclusive.
@@ -432,16 +530,65 @@ func (a IntegerValues) Deduplicate() IntegerValues {
 
 //  Exclude returns the subset of values not in [min, max]
 func (a IntegerValues) Exclude(min, max int64) IntegerValues {
-	var i int
-	for j := 0; j < len(a); j++ {
-		if a[j].UnixNano() >= min && a[j].UnixNano() <= max {
-			continue
-		}
-
-		a[i] = a[j]
-		i++
+	rmin, rmax := a.FindRange(min, max)
+	if rmin == -1 && rmax == -1 {
+		return a
 	}
-	return a[:i]
+
+	// a[rmin].UnixNano() ≥ min
+	// a[rmax].UnixNano() ≥ max
+
+	if rmax < len(a) {
+		if a[rmax].UnixNano() == max {
+			rmax++
+		}
+		rest := len(a) - rmax
+		if rest > 0 {
+			b := a[:rmin+rest]
+			copy(b[rmin:], a[rmax:])
+			return b
+		}
+	}
+
+	return a[:rmin]
+}
+
+// search performs a binary search for UnixNano() v in a
+// and returns the position, i, where v would be inserted.
+// An additional check of a[i].UnixNano() == v is necessary
+// to determine if the value v exists.
+func (a IntegerValues) search(v int64) int {
+	// Define: f(x) → a[x].UnixNano() < v
+	// Define: f(-1) == true, f(n) == false
+	// Invariant: f(lo-1) == true, f(hi) == false
+	lo := 0
+	hi := len(a)
+	for lo < hi {
+		mid := int(uint(lo+hi) >> 1)
+		if a[mid].UnixNano() < v {
+			lo = mid + 1 // preserves f(lo-1) == true
+		} else {
+			hi = mid // preserves f(hi) == false
+		}
+	}
+
+	// lo == hi
+	return lo
+}
+
+// FindRange returns the positions where min and max would be
+// inserted into the array. If a[0].UnixNano() > max or
+// a[len-1].UnixNano() < min then FindRange returns (-1, -1)
+// indicating the array is outside the [min, max].
+func (a IntegerValues) FindRange(min, max int64) (int, int) {
+	minVal := a[0].UnixNano()
+	maxVal := a[len(a)-1].UnixNano()
+
+	if maxVal < min || minVal > max {
+		return -1, -1
+	}
+
+	return a.search(min), a.search(max)
 }
 
 // Include returns the subset values between min and max inclusive.
@@ -626,16 +773,65 @@ func (a UnsignedValues) Deduplicate() UnsignedValues {
 
 //  Exclude returns the subset of values not in [min, max]
 func (a UnsignedValues) Exclude(min, max int64) UnsignedValues {
-	var i int
-	for j := 0; j < len(a); j++ {
-		if a[j].UnixNano() >= min && a[j].UnixNano() <= max {
-			continue
-		}
-
-		a[i] = a[j]
-		i++
+	rmin, rmax := a.FindRange(min, max)
+	if rmin == -1 && rmax == -1 {
+		return a
 	}
-	return a[:i]
+
+	// a[rmin].UnixNano() ≥ min
+	// a[rmax].UnixNano() ≥ max
+
+	if rmax < len(a) {
+		if a[rmax].UnixNano() == max {
+			rmax++
+		}
+		rest := len(a) - rmax
+		if rest > 0 {
+			b := a[:rmin+rest]
+			copy(b[rmin:], a[rmax:])
+			return b
+		}
+	}
+
+	return a[:rmin]
+}
+
+// search performs a binary search for UnixNano() v in a
+// and returns the position, i, where v would be inserted.
+// An additional check of a[i].UnixNano() == v is necessary
+// to determine if the value v exists.
+func (a UnsignedValues) search(v int64) int {
+	// Define: f(x) → a[x].UnixNano() < v
+	// Define: f(-1) == true, f(n) == false
+	// Invariant: f(lo-1) == true, f(hi) == false
+	lo := 0
+	hi := len(a)
+	for lo < hi {
+		mid := int(uint(lo+hi) >> 1)
+		if a[mid].UnixNano() < v {
+			lo = mid + 1 // preserves f(lo-1) == true
+		} else {
+			hi = mid // preserves f(hi) == false
+		}
+	}
+
+	// lo == hi
+	return lo
+}
+
+// FindRange returns the positions where min and max would be
+// inserted into the array. If a[0].UnixNano() > max or
+// a[len-1].UnixNano() < min then FindRange returns (-1, -1)
+// indicating the array is outside the [min, max].
+func (a UnsignedValues) FindRange(min, max int64) (int, int) {
+	minVal := a[0].UnixNano()
+	maxVal := a[len(a)-1].UnixNano()
+
+	if maxVal < min || minVal > max {
+		return -1, -1
+	}
+
+	return a.search(min), a.search(max)
 }
 
 // Include returns the subset values between min and max inclusive.
@@ -820,16 +1016,65 @@ func (a StringValues) Deduplicate() StringValues {
 
 //  Exclude returns the subset of values not in [min, max]
 func (a StringValues) Exclude(min, max int64) StringValues {
-	var i int
-	for j := 0; j < len(a); j++ {
-		if a[j].UnixNano() >= min && a[j].UnixNano() <= max {
-			continue
-		}
-
-		a[i] = a[j]
-		i++
+	rmin, rmax := a.FindRange(min, max)
+	if rmin == -1 && rmax == -1 {
+		return a
 	}
-	return a[:i]
+
+	// a[rmin].UnixNano() ≥ min
+	// a[rmax].UnixNano() ≥ max
+
+	if rmax < len(a) {
+		if a[rmax].UnixNano() == max {
+			rmax++
+		}
+		rest := len(a) - rmax
+		if rest > 0 {
+			b := a[:rmin+rest]
+			copy(b[rmin:], a[rmax:])
+			return b
+		}
+	}
+
+	return a[:rmin]
+}
+
+// search performs a binary search for UnixNano() v in a
+// and returns the position, i, where v would be inserted.
+// An additional check of a[i].UnixNano() == v is necessary
+// to determine if the value v exists.
+func (a StringValues) search(v int64) int {
+	// Define: f(x) → a[x].UnixNano() < v
+	// Define: f(-1) == true, f(n) == false
+	// Invariant: f(lo-1) == true, f(hi) == false
+	lo := 0
+	hi := len(a)
+	for lo < hi {
+		mid := int(uint(lo+hi) >> 1)
+		if a[mid].UnixNano() < v {
+			lo = mid + 1 // preserves f(lo-1) == true
+		} else {
+			hi = mid // preserves f(hi) == false
+		}
+	}
+
+	// lo == hi
+	return lo
+}
+
+// FindRange returns the positions where min and max would be
+// inserted into the array. If a[0].UnixNano() > max or
+// a[len-1].UnixNano() < min then FindRange returns (-1, -1)
+// indicating the array is outside the [min, max].
+func (a StringValues) FindRange(min, max int64) (int, int) {
+	minVal := a[0].UnixNano()
+	maxVal := a[len(a)-1].UnixNano()
+
+	if maxVal < min || minVal > max {
+		return -1, -1
+	}
+
+	return a.search(min), a.search(max)
 }
 
 // Include returns the subset values between min and max inclusive.
@@ -1014,16 +1259,65 @@ func (a BooleanValues) Deduplicate() BooleanValues {
 
 //  Exclude returns the subset of values not in [min, max]
 func (a BooleanValues) Exclude(min, max int64) BooleanValues {
-	var i int
-	for j := 0; j < len(a); j++ {
-		if a[j].UnixNano() >= min && a[j].UnixNano() <= max {
-			continue
-		}
-
-		a[i] = a[j]
-		i++
+	rmin, rmax := a.FindRange(min, max)
+	if rmin == -1 && rmax == -1 {
+		return a
 	}
-	return a[:i]
+
+	// a[rmin].UnixNano() ≥ min
+	// a[rmax].UnixNano() ≥ max
+
+	if rmax < len(a) {
+		if a[rmax].UnixNano() == max {
+			rmax++
+		}
+		rest := len(a) - rmax
+		if rest > 0 {
+			b := a[:rmin+rest]
+			copy(b[rmin:], a[rmax:])
+			return b
+		}
+	}
+
+	return a[:rmin]
+}
+
+// search performs a binary search for UnixNano() v in a
+// and returns the position, i, where v would be inserted.
+// An additional check of a[i].UnixNano() == v is necessary
+// to determine if the value v exists.
+func (a BooleanValues) search(v int64) int {
+	// Define: f(x) → a[x].UnixNano() < v
+	// Define: f(-1) == true, f(n) == false
+	// Invariant: f(lo-1) == true, f(hi) == false
+	lo := 0
+	hi := len(a)
+	for lo < hi {
+		mid := int(uint(lo+hi) >> 1)
+		if a[mid].UnixNano() < v {
+			lo = mid + 1 // preserves f(lo-1) == true
+		} else {
+			hi = mid // preserves f(hi) == false
+		}
+	}
+
+	// lo == hi
+	return lo
+}
+
+// FindRange returns the positions where min and max would be
+// inserted into the array. If a[0].UnixNano() > max or
+// a[len-1].UnixNano() < min then FindRange returns (-1, -1)
+// indicating the array is outside the [min, max].
+func (a BooleanValues) FindRange(min, max int64) (int, int) {
+	minVal := a[0].UnixNano()
+	maxVal := a[len(a)-1].UnixNano()
+
+	if maxVal < min || minVal > max {
+		return -1, -1
+	}
+
+	return a.search(min), a.search(max)
 }
 
 // Include returns the subset values between min and max inclusive.
