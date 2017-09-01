@@ -1,6 +1,7 @@
 package client_test
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"errors"
@@ -188,6 +189,86 @@ func TestClient_ChunkedQuery(t *testing.T) {
 
 	query := client.Query{Chunked: true}
 	_, err = c.Query(query)
+	if err != nil {
+		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+}
+
+func TestClient_QueryContext(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var data client.Response
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(data)
+	}))
+	defer ts.Close()
+
+	u, _ := url.Parse(ts.URL)
+	config := client.Config{URL: *u}
+	c, err := client.NewClient(config)
+	if err != nil {
+		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+
+	query := client.Query{}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	_, err = c.QueryContext(ctx, query)
+	if err != nil {
+		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+}
+
+func TestClient_QueryContext_Cancelled(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var data client.Response
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(data)
+	}))
+	defer ts.Close()
+
+	u, _ := url.Parse(ts.URL)
+	config := client.Config{URL: *u}
+	c, err := client.NewClient(config)
+	if err != nil {
+		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+
+	query := client.Query{}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err = c.QueryContext(ctx, query)
+	if err == nil {
+		t.Fatalf("Since context was cancelled an error was expected, but got nil.")
+	}
+}
+
+func TestClient_ChunkedQuery_WithContext(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var data client.Response
+		w.WriteHeader(http.StatusOK)
+		enc := json.NewEncoder(w)
+		_ = enc.Encode(data)
+		_ = enc.Encode(data)
+	}))
+	defer ts.Close()
+
+	u, _ := url.Parse(ts.URL)
+	config := client.Config{URL: *u}
+	c, err := client.NewClient(config)
+	if err != nil {
+		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+
+	query := client.Query{Chunked: true}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	_, err = c.QueryContext(ctx, query)
 	if err != nil {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
 	}
