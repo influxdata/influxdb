@@ -79,4 +79,18 @@ const getRange = (
   return [min, max]
 }
 
+const parseNumber = bound => {
+  if (bound) {
+    return +bound
+  }
+
+  return null
+}
+
+export const getStackedRange = (bounds = [null, null]) => {
+  const min = bounds[0]
+  const max = bounds[1]
+
+  return [parseNumber(min), parseNumber(max)]
+}
 export default getRange
