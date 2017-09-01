@@ -6,7 +6,7 @@ import _ from 'lodash'
 import moment from 'moment'
 
 import Dygraphs from 'src/external/dygraph'
-import getRange from 'shared/parsing/getRangeForDygraph'
+import getRange, {getStackedRange} from 'shared/parsing/getRangeForDygraph'
 import DygraphLegend from 'src/shared/components/DygraphLegend'
 import {DISPLAY_OPTIONS} from 'src/dashboards/constants'
 import {buildDefaultYLabel} from 'shared/presenters'
@@ -63,7 +63,9 @@ export default class Dygraph extends Component {
       plugins: [new Dygraphs.Plugins.Crosshair({direction: 'vertical'})],
       axes: {
         y: {
-          valueRange: getRange(timeSeries, y.bounds, ruleValues),
+          valueRange: options.stackedGraph
+            ? getStackedRange(y.bounds)
+            : getRange(timeSeries, y.bounds, ruleValues),
           axisLabelFormatter: (yval, __, opts) =>
             numberValueFormatter(yval, opts, y.prefix, y.suffix),
           axisLabelWidth: this.getLabelWidth(),
@@ -142,12 +144,14 @@ export default class Dygraph extends Component {
     const updateOptions = {
       ...options,
       labels,
-      ylabel: this.getLabel('y'),
       file: timeSeries,
       logscale: y.scale === LOG,
+      ylabel: this.getLabel('y'),
       axes: {
         y: {
-          valueRange: getRange(timeSeries, y.bounds, ruleValues),
+          valueRange: options.stackedGraph
+            ? getStackedRange(y.bounds)
+            : getRange(timeSeries, y.bounds, ruleValues),
           axisLabelFormatter: (yval, __, opts) =>
             numberValueFormatter(yval, opts, y.prefix, y.suffix),
           axisLabelWidth: this.getLabelWidth(),

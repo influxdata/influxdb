@@ -5,6 +5,7 @@
 1. [#1951](https://github.com/influxdata/chronograf/pull/1951): Fix crosshair not being removed when user leaves graph
 1. [#1943](https://github.com/influxdata/chronograf/pull/1943): Fix inability to add kapacitor from source page on fresh install
 1. [#1947](https://github.com/influxdata/chronograf/pull/1947): Fix DataExplorer crash if field property not present on queryConfig
+1. [#1957](https://github.com/influxdata/chronograf/pull/1957): Fix stacked graphs not being fully displayed
 
 ### Features
 1. [#1928](https://github.com/influxdata/chronograf/pull/1928): Add prefix, suffix, scale, and other y-axis formatting
