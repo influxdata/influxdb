@@ -79,18 +79,10 @@ const getRange = (
   return [min, max]
 }
 
-const parseNumber = bound => {
-  if (bound) {
-    return +bound
-  }
+const coerceToNum = str => (str ? +str : null)
+export const getStackedRange = (bounds = [null, null]) => [
+  coerceToNum(bounds[0]),
+  coerceToNum(bounds[1]),
+]
 
-  return null
-}
-
-export const getStackedRange = (bounds = [null, null]) => {
-  const min = bounds[0]
-  const max = bounds[1]
-
-  return [parseNumber(min), parseNumber(max)]
-}
 export default getRange
