@@ -10,6 +10,8 @@ import {
   toggleTagAcceptance,
 } from 'src/utils/queryTransitions'
 
+const IS_KAPACITOR_RULE = true
+
 const queryConfigs = (state = {}, action) => {
   switch (action.type) {
     case 'KAPA_LOAD_QUERY': {
@@ -24,7 +26,11 @@ const queryConfigs = (state = {}, action) => {
     case 'KAPA_ADD_QUERY': {
       const {queryID, options} = action.payload
       const nextState = Object.assign({}, state, {
-        [queryID]: Object.assign({}, defaultQueryConfig(queryID), options),
+        [queryID]: Object.assign(
+          {},
+          defaultQueryConfig({id: queryID, isKapacitorRule: true}),
+          options
+        ),
       })
 
       return nextState
@@ -32,10 +38,14 @@ const queryConfigs = (state = {}, action) => {
 
     case 'KAPA_CHOOSE_NAMESPACE': {
       const {queryId, database, retentionPolicy} = action.payload
-      const nextQueryConfig = chooseNamespace(state[queryId], {
-        database,
-        retentionPolicy,
-      })
+      const nextQueryConfig = chooseNamespace(
+        state[queryId],
+        {
+          database,
+          retentionPolicy,
+        },
+        IS_KAPACITOR_RULE
+      )
 
       return Object.assign({}, state, {
         [queryId]: Object.assign(nextQueryConfig, {rawText: null}),
@@ -44,7 +54,11 @@ const queryConfigs = (state = {}, action) => {
 
     case 'KAPA_CHOOSE_MEASUREMENT': {
       const {queryId, measurement} = action.payload
-      const nextQueryConfig = chooseMeasurement(state[queryId], measurement)
+      const nextQueryConfig = chooseMeasurement(
+        state[queryId],
+        measurement,
+        IS_KAPACITOR_RULE
+      )
 
       return Object.assign({}, state, {
         [queryId]: Object.assign(nextQueryConfig, {

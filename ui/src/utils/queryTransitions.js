@@ -1,4 +1,4 @@
-import defaultQueryConfig from './defaultQueryConfig'
+import defaultQueryConfig from 'utils/defaultQueryConfig'
 import {DEFAULT_DASHBOARD_GROUP_BY_INTERVAL} from 'shared/constants'
 import {DEFAULT_DATA_EXPLORER_GROUP_BY_INTERVAL} from 'src/data_explorer/constants'
 
@@ -6,16 +6,24 @@ export function editRawText(query, rawText) {
   return Object.assign({}, query, {rawText})
 }
 
-export function chooseNamespace(query, namespace) {
-  return Object.assign({}, defaultQueryConfig(query.id), namespace)
+export function chooseNamespace(query, namespace, isKapacitorRule = false) {
+  return Object.assign(
+    {},
+    defaultQueryConfig({id: query.id, isKapacitorRule}),
+    namespace
+  )
 }
 
-export function chooseMeasurement(query, measurement) {
-  return Object.assign({}, defaultQueryConfig(query.id), {
-    database: query.database,
-    retentionPolicy: query.retentionPolicy,
-    measurement,
-  })
+export function chooseMeasurement(query, measurement, isKapacitorRule = false) {
+  return Object.assign(
+    {},
+    defaultQueryConfig({id: query.id, isKapacitorRule}),
+    {
+      database: query.database,
+      retentionPolicy: query.retentionPolicy,
+      measurement,
+    }
+  )
 }
 
 export const toggleField = (query, {field, funcs}, isKapacitorRule = false) => {

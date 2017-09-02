@@ -43,7 +43,11 @@ const queryConfigs = (state = {}, action) => {
     case 'DE_ADD_QUERY': {
       const {queryID, options} = action.payload
       const nextState = Object.assign({}, state, {
-        [queryID]: Object.assign({}, defaultQueryConfig(queryID), options),
+        [queryID]: Object.assign(
+          {},
+          defaultQueryConfig({id: queryID}),
+          options
+        ),
       })
 
       return nextState
