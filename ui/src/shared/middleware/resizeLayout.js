@@ -17,7 +17,7 @@ export default function resizeLayout() {
 
     const qs = queryString.parse(window.location.search)
 
-    if (typeof qs.present !== 'undefined') {
+    if (qs.present === 'true') {
       next(enablePresentationMode())
       next(action)
     }
