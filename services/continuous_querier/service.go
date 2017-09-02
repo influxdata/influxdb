@@ -42,7 +42,7 @@ type ContinuousQuerier interface {
 // metaClient is an internal interface to make testing easier.
 type metaClient interface {
 	AcquireLease(name string) (l *meta.Lease, err error)
-	Databases() []meta.DatabaseInfo
+	Databases() map[string]*meta.DatabaseInfo
 	Database(name string) *meta.DatabaseInfo
 }
 
@@ -175,7 +175,7 @@ func (s *Service) Statistics(tags map[string]string) []models.Statistic {
 
 // Run runs the specified continuous query, or all CQs if none is specified.
 func (s *Service) Run(database, name string, t time.Time) error {
-	var dbs []meta.DatabaseInfo
+	var dbs map[string]*meta.DatabaseInfo
 
 	if database != "" {
 		// Find the requested database.
@@ -183,7 +183,9 @@ func (s *Service) Run(database, name string, t time.Time) error {
 		if db == nil {
 			return query.ErrDatabaseNotFound(database)
 		}
-		dbs = append(dbs, *db)
+		dbs = map[string]*meta.DatabaseInfo{
+			db.Name: db,
+		}
 	} else {
 		// Get all databases.
 		dbs = s.MetaClient.Databases()
@@ -262,10 +264,10 @@ func (s *Service) runContinuousQueries(req *RunRequest) {
 	for _, db := range dbs {
 		// TODO: distribute across nodes
 		for _, cq := range db.ContinuousQueries {
-			if !req.matches(&cq) {
+			if !req.matches(cq) {
 				continue
 			}
-			if ok, err := s.ExecuteContinuousQuery(&db, &cq, req.Now); err != nil {
+			if ok, err := s.ExecuteContinuousQuery(db, cq, req.Now); err != nil {
 				s.Logger.Info(fmt.Sprintf("error executing query: %s: err = %s", cq.Query, err))
 				atomic.AddInt64(&s.stats.QueryFail, 1)
 			} else if ok {

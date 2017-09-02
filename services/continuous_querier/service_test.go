@@ -102,7 +102,7 @@ func TestContinuousQueryService_ResampleOptions(t *testing.T) {
 
 	db := s.MetaClient.Database("db")
 
-	cq, err := NewContinuousQuery(db.Name, &db.ContinuousQueries[0])
+	cq, err := NewContinuousQuery(db.Name, db.ContinuousQueries["cq"])
 	if err != nil {
 		t.Fatal(err)
 	} else if cq.Resample.Every != 10*time.Second {
@@ -341,23 +341,23 @@ func TestExecuteContinuousQuery_InvalidQueries(t *testing.T) {
 		},
 	}
 	dbis := s.MetaClient.Databases()
-	dbi := dbis[0]
-	cqi := dbi.ContinuousQueries[0]
+	dbi := dbis["db"]
+	cqi := dbi.ContinuousQueries["cq"]
 
 	cqi.Query = `this is not a query`
-	if _, err := s.ExecuteContinuousQuery(&dbi, &cqi, time.Now()); err == nil {
+	if _, err := s.ExecuteContinuousQuery(dbi, cqi, time.Now()); err == nil {
 		t.Error("expected error but got nil")
 	}
 
 	// Valid query but invalid continuous query.
 	cqi.Query = `SELECT * FROM cpu`
-	if _, err := s.ExecuteContinuousQuery(&dbi, &cqi, time.Now()); err == nil {
+	if _, err := s.ExecuteContinuousQuery(dbi, cqi, time.Now()); err == nil {
 		t.Error("expected error but got nil")
 	}
 
 	// Group by requires aggregate.
 	cqi.Query = `SELECT value INTO other_value FROM cpu WHERE time > now() - 1h GROUP BY time(1s)`
-	if _, err := s.ExecuteContinuousQuery(&dbi, &cqi, time.Now()); err == nil {
+	if _, err := s.ExecuteContinuousQuery(dbi, cqi, time.Now()); err == nil {
 		t.Error("expected error but got nil")
 	}
 }
@@ -598,11 +598,11 @@ func TestExecuteContinuousQuery_QueryExecutor_Error(t *testing.T) {
 	}
 
 	dbis := s.MetaClient.Databases()
-	dbi := dbis[0]
-	cqi := dbi.ContinuousQueries[0]
+	dbi := dbis["db"]
+	cqi := dbi.ContinuousQueries["cq"]
 
 	now := time.Now().Truncate(10 * time.Minute)
-	if _, err := s.ExecuteContinuousQuery(&dbi, &cqi, now); err != errExpected {
+	if _, err := s.ExecuteContinuousQuery(dbi, cqi, now); err != errExpected {
 		t.Errorf("exp = %s, got = %v", errExpected, err)
 	}
 }
@@ -637,11 +637,11 @@ func TestService_ExecuteContinuousQuery_LogsToMonitor(t *testing.T) {
 	}
 
 	dbis := s.MetaClient.Databases()
-	dbi := dbis[0]
-	cqi := dbi.ContinuousQueries[0]
+	dbi := dbis["db"]
+	cqi := dbi.ContinuousQueries["cq"]
 
 	now := time.Now().Truncate(10 * time.Minute)
-	if ok, err := s.ExecuteContinuousQuery(&dbi, &cqi, now); !ok || err != nil {
+	if ok, err := s.ExecuteContinuousQuery(dbi, cqi, now); !ok || err != nil {
 		t.Fatalf("ExecuteContinuousQuery failed, ok=%t, err=%v", ok, err)
 	}
 
@@ -666,17 +666,17 @@ func TestService_ExecuteContinuousQuery_LogToMonitor_DisabledByDefault(t *testin
 	s.Monitor = &monitor{
 		EnabledFn: func() bool { return true },
 		WritePointsFn: func(p models.Points) error {
-			t.Fatalf("unexpected Monitor.WritePoints call")
+			t.Fatal("unexpected Monitor.WritePoints call")
 			return nil
 		},
 	}
 
 	dbis := s.MetaClient.Databases()
-	dbi := dbis[0]
-	cqi := dbi.ContinuousQueries[0]
+	dbi := dbis["db"]
+	cqi := dbi.ContinuousQueries["cq"]
 
 	now := time.Now().Truncate(10 * time.Minute)
-	if ok, err := s.ExecuteContinuousQuery(&dbi, &cqi, now); !ok || err != nil {
+	if ok, err := s.ExecuteContinuousQuery(dbi, cqi, now); !ok || err != nil {
 		t.Fatalf("ExecuteContinuousQuery failed, ok=%t, err=%v", ok, err)
 	}
 }
@@ -713,7 +713,7 @@ type MetaClient struct {
 	mu            sync.RWMutex
 	Leader        bool
 	AllowLease    bool
-	DatabaseInfos []meta.DatabaseInfo
+	DatabaseInfos map[string]*meta.DatabaseInfo
 	Err           error
 	t             *testing.T
 	nodeID        uint64
@@ -726,6 +726,7 @@ func NewMetaClient(t *testing.T) *MetaClient {
 		AllowLease: true,
 		t:          t,
 		nodeID:     1,
+		DatabaseInfos: make(map[string]*meta.DatabaseInfo),
 	}
 }
 
@@ -744,7 +745,7 @@ func (ms *MetaClient) AcquireLease(name string) (l *meta.Lease, err error) {
 }
 
 // Databases returns a list of database info about each database in the coordinator.
-func (ms *MetaClient) Databases() []meta.DatabaseInfo {
+func (ms *MetaClient) Databases() map[string]*meta.DatabaseInfo {
 	ms.mu.RLock()
 	defer ms.mu.RUnlock()
 	return ms.DatabaseInfos
@@ -761,12 +762,7 @@ func (ms *MetaClient) database(name string) *meta.DatabaseInfo {
 	if ms.Err != nil {
 		return nil
 	}
-	for i := range ms.DatabaseInfos {
-		if ms.DatabaseInfos[i].Name == name {
-			return &ms.DatabaseInfos[i]
-		}
-	}
-	return nil
+	return ms.DatabaseInfos[name]
 }
 
 // CreateDatabase adds a new database to the meta store.
@@ -785,11 +781,12 @@ func (ms *MetaClient) CreateDatabase(name, defaultRetentionPolicy string) error 
 	}
 
 	// Create database.
-	ms.DatabaseInfos = append(ms.DatabaseInfos, meta.DatabaseInfo{
+	ms.DatabaseInfos[name] = &meta.DatabaseInfo{
 		Name: name,
 		DefaultRetentionPolicy: defaultRetentionPolicy,
-	})
-
+		RetentionPolicies: make(map[string]*meta.RetentionPolicyInfo),
+		ContinuousQueries: make(map[string]*meta.ContinuousQueryInfo),
+	}
 	return nil
 }
 
@@ -814,10 +811,10 @@ func (ms *MetaClient) CreateContinuousQuery(database, name, query string) error 
 	}
 
 	// Create a new CQ and store it.
-	dbi.ContinuousQueries = append(dbi.ContinuousQueries, meta.ContinuousQueryInfo{
+	dbi.ContinuousQueries[name] = &meta.ContinuousQueryInfo{
 		Name:  name,
 		Query: query,
-	})
+	}
 
 	return nil
 }

@@ -168,6 +168,7 @@ func (cmd *Command) unpackMeta() error {
 
 	// Copy meta config and remove peers so it starts in single mode.
 	c := cmd.MetaConfig
+	// FIXME
 	c.Dir = cmd.metadir
 
 	// Create the meta dir
@@ -180,7 +181,11 @@ func (cmd *Command) unpackMeta() error {
 		return err
 	}
 
-	client := meta.NewClient(c)
+	client, err := meta.NewClient(c)
+	if err != nil {
+		return err
+	}
+
 	if err := client.Open(); err != nil {
 		return err
 	}

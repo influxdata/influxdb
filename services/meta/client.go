@@ -9,11 +9,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
-	"os"
-	"path/filepath"
 	"sort"
 	"sync"
 	"time"
@@ -29,8 +26,6 @@ const (
 	// SaltBytes is the number of bytes used for salts.
 	SaltBytes = 32
 
-	metaFile = "meta.db"
-
 	// ShardGroupDeletedExpiration is the amount of time before a shard group info will be removed from cached
 	// data after it has been marked deleted (2 weeks).
 	ShardGroupDeletedExpiration = -2 * 7 * 24 * time.Hour
@@ -44,6 +39,66 @@ var (
 	ErrService = errors.New("meta service error")
 )
 
+type StorageService interface {
+	Load() (*Data, error)
+
+	// Node
+	AddNode(node *NodeInfo) error
+	UpdateNode(node *NodeInfo) error
+	GetNode(nodeID string) (*NodeInfo, error)
+	GetNodes() ([]*NodeInfo, error)
+	DeleteNode(nodeID string) error
+	DeleteNodes() error
+
+	// Database
+	AddDatabase(db *DatabaseInfo) error
+	UpdateDatabase(db *DatabaseInfo) error
+	GetDatabase(dbName string) (*DatabaseInfo, error)
+	GetDatabases() ([]*DatabaseInfo, error)
+	DeleteDatabase(dbName string) error
+	DeleteDatabases() error
+
+	// Continuous query
+	AddContinuousQuery(dbName string, cq *ContinuousQueryInfo) error
+	UpdateContinuousQuery(dbName string, cq *ContinuousQueryInfo) error
+	GetContinuousQuery(dbName, cqName string) (*ContinuousQueryInfo, error)
+	GetContinuousQueries(dbName string) ([]*ContinuousQueryInfo, error)
+	DeleteContinuousQuery(dbName, cqName string) error
+	DeleteContinuousQueries(dbName string) error
+
+	// Retention policy
+	AddRetentionPolicy(dbName string, rp *RetentionPolicyInfo) error
+	UpdateRetentionPolicy(dbName string, rp *RetentionPolicyInfo) error
+	GetRetentionPolicy(dbName, rpName string) (*RetentionPolicyInfo, error)
+	GetRetentionPolicies(dbName string) ([]*RetentionPolicyInfo, error)
+	DeleteRetentionPolicy(dbName, rpName string) error
+	DeleteRetentionPolicies(dbName string) error
+
+	// ShardGroup
+	AddShardGroup(dbName, rpName string, sg *ShardGroupInfo) error
+	UpdateShardGroup(dbName, rpName string, sg *ShardGroupInfo) error
+	GetShardGroup(dbName, rpName, sgID string) (*ShardGroupInfo, error)
+	GetShardGroups(dbName, rpName string) ([]*ShardGroupInfo, error)
+	DeleteShardGroup(dbName, rpName, sgID string) error
+	DeleteShardGroups(dbName, rpName string) error
+
+	// Subscription
+	AddSubscription(dbName, rpName string, sub *SubscriptionInfo) error
+	UpdateSubscription(dbName, rpName string, sub *SubscriptionInfo) error
+	GetSubscription(dbName, rpName, subName string) (*SubscriptionInfo, error)
+	GetSubscriptions(dbName, rpName string) ([]*SubscriptionInfo, error)
+	DeleteSubscription(dbName, rpName, subName string) error
+	DeleteSubscriptions(dbName, rpName string) error
+
+	// User
+	AddUser(user *UserInfo) error
+	UpdateUser(user *UserInfo) error
+	GetUser(userName string) (*UserInfo, error)
+	GetUsers() ([]*UserInfo, error)
+	DeleteUser(userName string) error
+	DeleteUsers() error
+}
+
 // Client is used to execute commands on and read data from
 // a meta service cluster.
 type Client struct {
@@ -54,10 +109,12 @@ type Client struct {
 	changed   chan struct{}
 	cacheData *Data
 
+	config *Config
 	// Authentication cache.
 	authCache map[string]authUser
 
-	path string
+	// meta storage service
+	storage StorageService
 
 	retentionAutoCreate bool
 }
@@ -69,8 +126,14 @@ type authUser struct {
 }
 
 // NewClient returns a new *Client.
-func NewClient(config *Config) *Client {
+func NewClient(config *Config) (*Client, error) {
+	storage, err := NewEtcdStorageService(config)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Client{
+		config: config,
 		cacheData: &Data{
 			ClusterID: uint64(rand.Int63()),
 			Index:     1,
@@ -79,9 +142,9 @@ func NewClient(config *Config) *Client {
 		changed:             make(chan struct{}),
 		logger:              zap.New(zap.NullEncoder()),
 		authCache:           make(map[string]authUser, 0),
-		path:                config.Dir,
+		storage:             storage,
 		retentionAutoCreate: config.RetentionAutoCreate,
-	}
+	}, nil
 }
 
 // Open a connection to a meta service cluster.
@@ -89,19 +152,19 @@ func (c *Client) Open() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// Try to load from disk
-	if err := c.Load(); err != nil {
+	// Register itself
+	node := &NodeInfo{
+		ID:      c.config.NodeID,
+		Host:    c.config.NodeHost,
+		TCPHost: c.config.NodeTCPHost,
+	}
+	err := c.storage.AddNode(node)
+	if err != nil {
 		return err
 	}
 
-	// If this is a brand new instance, persist to disk immediatly.
-	if c.cacheData.Index == 1 {
-		if err := snapshot(c.path, c.cacheData); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	// Try to load from storage service
+	return c.Load()
 }
 
 // Close the meta service cluster connection.
@@ -141,64 +204,103 @@ func (c *Client) ClusterID() uint64 {
 	return c.cacheData.ClusterID
 }
 
+// Nodes returns a list of all nodes infos.
+func (c *Client) Nodes() map[uint64]*NodeInfo {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.cacheData.Nodes == nil {
+		return make(map[uint64]*NodeInfo)
+	}
+
+	return c.cacheData.Nodes
+}
+
 // Database returns info for the requested database.
 func (c *Client) Database(name string) *DatabaseInfo {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	for _, d := range c.cacheData.Databases {
-		if d.Name == name {
-			return &d
-		}
-	}
-
-	return nil
+	return c.cacheData.Database(name)
 }
 
 // Databases returns a list of all database infos.
-func (c *Client) Databases() []DatabaseInfo {
+func (c *Client) Databases() map[string]*DatabaseInfo {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	dbs := c.cacheData.Databases
-	if dbs == nil {
-		return []DatabaseInfo{}
+	if c.cacheData.Databases == nil {
+		return make(map[string]*DatabaseInfo)
 	}
-	return dbs
+
+	return c.cacheData.Databases
 }
 
+// FIXME, redesign
 // CreateDatabase creates a database or returns it if it already exists.
 func (c *Client) CreateDatabase(name string) (*DatabaseInfo, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	data := c.cacheData.Clone()
-
-	if db := data.Database(name); db != nil {
+	if db := c.cacheData.Database(name); db != nil {
 		return db, nil
 	}
 
-	if err := data.CreateDatabase(name); err != nil {
+	db, err := c.cacheData.CreateDatabase(name)
+	if err != nil {
 		return nil, err
 	}
+
+	c.cacheData.CommitDatabase(db)
+
+	var lastErr error
+	defer func() {
+		if lastErr != nil {
+			c.cacheData.DropDatabase(name)
+		}
+	}()
 
 	// create default retention policy
+	var rpi *RetentionPolicyInfo
 	if c.retentionAutoCreate {
-		rpi := DefaultRetentionPolicyInfo()
-		if err := data.CreateRetentionPolicy(name, rpi, true); err != nil {
+		rpi = DefaultRetentionPolicyInfo()
+		rpi, err := c.cacheData.ValidateRetentionPolicy(name, rpi)
+		if err != nil {
+			lastErr = err
 			return nil, err
 		}
+
+		db, err := c.cacheData.UpdateDefaultRetentionPolicy(name, rpi, true)
+		if err != nil {
+			lastErr = err
+			return nil, err
+		}
+
+		c.cacheData.CommitRetentionPolicy(name, rpi)
+
+		// Since the default rp may change
+		c.cacheData.CommitDatabase(db)
 	}
 
-	db := data.Database(name)
-
-	if err := c.commit(data); err != nil {
+	// Commit to storage, transaction
+	db = c.cacheData.Database(name)
+	if err := c.storage.AddDatabase(db); err != nil {
+		lastErr = err
 		return nil, err
+	}
+
+	if rpi != nil {
+		if err := c.storage.AddRetentionPolicy(name, rpi); err != nil {
+			c.storage.DeleteDatabase(name)
+			lastErr = err
+			return nil, err
+		}
 	}
 
 	return db, nil
 }
 
+// FIXME, redesign
 // CreateDatabaseWithRetentionPolicy creates a database with the specified
 // retention policy.
 //
@@ -219,31 +321,50 @@ func (c *Client) CreateDatabaseWithRetentionPolicy(name string, spec *RetentionP
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	data := c.cacheData.Clone()
-
 	if spec.Duration != nil && *spec.Duration < MinRetentionPolicyDuration && *spec.Duration != 0 {
 		return nil, ErrRetentionPolicyDurationTooLow
 	}
 
-	db := data.Database(name)
+	newDB := false
+	db := c.cacheData.Database(name)
 	if db == nil {
-		if err := data.CreateDatabase(name); err != nil {
+		d, err := c.cacheData.CreateDatabase(name)
+		if err != nil {
 			return nil, err
 		}
-		db = data.Database(name)
+		c.cacheData.CommitDatabase(d)
+		db = d
+		newDB = true
 	}
+
+	var lastErr error
+	defer func() {
+		if newDB && lastErr != nil {
+			c.cacheData.DropDatabase(name)
+		}
+	}()
 
 	// No existing retention policies, so we can create the provided policy as
 	// the new default policy.
 	rpi := spec.NewRetentionPolicyInfo()
 	if len(db.RetentionPolicies) == 0 {
-		if err := data.CreateRetentionPolicy(name, rpi, true); err != nil {
+		if _, err := c.cacheData.ValidateRetentionPolicy(name, rpi); err != nil {
+			lastErr = err
 			return nil, err
 		}
+
+		d, err := c.cacheData.UpdateDefaultRetentionPolicy(name, rpi, true)
+		if err != nil {
+			lastErr = err
+			return nil, err
+		}
+
+		db = d
 	} else if !spec.Matches(db.RetentionPolicy(rpi.Name)) {
 		// In this case we already have a retention policy on the database and
 		// the provided retention policy does not match it. Therefore, this call
 		// is not idempotent and we need to return an error.
+		lastErr = ErrRetentionPolicyConflict
 		return nil, ErrRetentionPolicyConflict
 	}
 
@@ -252,16 +373,28 @@ func (c *Client) CreateDatabaseWithRetentionPolicy(name string, spec *RetentionP
 	// provided. CREATE DATABASE WITH RETENTION POLICY should only be used to
 	// create DEFAULT retention policies.
 	if db.DefaultRetentionPolicy != rpi.Name {
+		lastErr = ErrRetentionPolicyConflict
 		return nil, ErrRetentionPolicyConflict
 	}
 
-	// Commit the changes.
-	if err := c.commit(data); err != nil {
-		return nil, err
+	// Since the default rp may change
+	c.cacheData.CommitDatabase(db)
+	c.cacheData.CommitRetentionPolicy(name, rpi)
+
+	// Commit to storage
+	if newDB {
+		if err := c.storage.AddDatabase(db); err != nil {
+			lastErr = err
+			return nil, err
+		}
 	}
 
-	// Refresh the database info.
-	db = data.Database(name)
+	if err := c.storage.UpdateRetentionPolicy(name, rpi); err != nil {
+		lastErr = err
+		if newDB {
+			c.storage.DeleteDatabase(name)
+		}
+	}
 
 	return db, nil
 }
@@ -271,13 +404,11 @@ func (c *Client) DropDatabase(name string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	data := c.cacheData.Clone()
-
-	if err := data.DropDatabase(name); err != nil {
+	if err := c.storage.DeleteDatabase(name); err != nil {
 		return err
 	}
 
-	if err := c.commit(data); err != nil {
+	if err := c.cacheData.DropDatabase(name); err != nil {
 		return err
 	}
 
@@ -289,20 +420,39 @@ func (c *Client) CreateRetentionPolicy(database string, spec *RetentionPolicySpe
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	data := c.cacheData.Clone()
-
 	if spec.Duration != nil && *spec.Duration < MinRetentionPolicyDuration && *spec.Duration != 0 {
 		return nil, ErrRetentionPolicyDurationTooLow
 	}
 
 	rp := spec.NewRetentionPolicyInfo()
-	if err := data.CreateRetentionPolicy(database, rp, makeDefault); err != nil {
+	if _, err := c.cacheData.ValidateRetentionPolicy(database, rp); err != nil {
 		return nil, err
 	}
 
-	if err := c.commit(data); err != nil {
+	var updatedDB *DatabaseInfo
+	if makeDefault {
+		db, err := c.cacheData.UpdateDefaultRetentionPolicy(database, rp, makeDefault)
+		if err != nil {
+			return nil, err
+		}
+		updatedDB = db
+	}
+
+	// commit to stroage
+	if err := c.storage.AddRetentionPolicy(database, rp); err != nil {
 		return nil, err
 	}
+
+	if updatedDB != nil {
+		// Default rp has changed
+		if err := c.storage.UpdateDatabase(updatedDB); err != nil {
+			c.storage.DeleteRetentionPolicy(database, rp.Name)
+			return nil, err
+		}
+		c.cacheData.CommitDatabase(updatedDB)
+	}
+
+	c.cacheData.CommitRetentionPolicy(database, rp)
 
 	return rp, nil
 }
@@ -325,13 +475,11 @@ func (c *Client) DropRetentionPolicy(database, name string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	data := c.cacheData.Clone()
-
-	if err := data.DropRetentionPolicy(database, name); err != nil {
+	if err := c.storage.DeleteRetentionPolicy(database, name); err != nil {
 		return err
 	}
 
-	if err := c.commit(data); err != nil {
+	if err := c.cacheData.DropRetentionPolicy(database, name); err != nil {
 		return err
 	}
 
@@ -343,28 +491,45 @@ func (c *Client) UpdateRetentionPolicy(database, name string, rpu *RetentionPoli
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	data := c.cacheData.Clone()
-
-	if err := data.UpdateRetentionPolicy(database, name, rpu, makeDefault); err != nil {
+	rpi, err := c.cacheData.UpdateRetentionPolicy(database, name, rpu)
+	if err != nil {
 		return err
 	}
 
-	if err := c.commit(data); err != nil {
+	var updatedDB *DatabaseInfo
+	if makeDefault {
+		db, err := c.cacheData.UpdateDefaultRetentionPolicy(database, rpi, makeDefault)
+		if err != nil {
+			return err
+		}
+		updatedDB = db
+	}
+
+	// commit to storage
+	if err := c.storage.UpdateRetentionPolicy(database, rpi); err != nil {
 		return err
 	}
+
+	if updatedDB != nil {
+		if err := c.storage.UpdateDatabase(updatedDB); err != nil {
+			return err
+		}
+		c.cacheData.CommitDatabase(updatedDB)
+	}
+	c.cacheData.CommitRetentionPolicy(database, rpi)
 
 	return nil
 }
 
 // Users returns a slice of UserInfo representing the currently known users.
-func (c *Client) Users() []UserInfo {
+func (c *Client) Users() map[string]*UserInfo {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
 	users := c.cacheData.Users
 
 	if users == nil {
-		return []UserInfo{}
+		return make(map[string]*UserInfo)
 	}
 	return users
 }
@@ -374,13 +539,11 @@ func (c *Client) User(name string) (User, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	for _, u := range c.cacheData.Users {
-		if u.Name == name {
-			return &u, nil
-		}
+	u := c.cacheData.User(name)
+	if u == nil {
+		return nil, ErrUserNotFound
 	}
-
-	return nil, ErrUserNotFound
+	return u, nil
 }
 
 // bcryptCost is the cost associated with generating password with bcrypt.
@@ -410,10 +573,8 @@ func (c *Client) CreateUser(name, password string, admin bool) (User, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	data := c.cacheData.Clone()
-
 	// See if the user already exists.
-	if u := data.user(name); u != nil {
+	if u := c.cacheData.user(name); u != nil {
 		if err := bcrypt.CompareHashAndPassword([]byte(u.Hash), []byte(password)); err != nil || u.Admin != admin {
 			return nil, ErrUserExists
 		}
@@ -426,15 +587,16 @@ func (c *Client) CreateUser(name, password string, admin bool) (User, error) {
 		return nil, err
 	}
 
-	if err := data.CreateUser(name, string(hash), admin); err != nil {
+	u, err := c.cacheData.CreateUser(name, string(hash), admin)
+	if err != nil {
 		return nil, err
 	}
 
-	u := data.user(name)
-
-	if err := c.commit(data); err != nil {
+	if err := c.storage.AddUser(u); err != nil {
 		return nil, err
 	}
+
+	c.cacheData.CommitUser(u)
 
 	return u, nil
 }
@@ -444,23 +606,24 @@ func (c *Client) UpdateUser(name, password string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	data := c.cacheData.Clone()
-
 	// Hash the password before serializing it.
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
 	if err != nil {
 		return err
 	}
 
-	if err := data.UpdateUser(name, string(hash)); err != nil {
+	u, err := c.cacheData.UpdateUser(name, string(hash))
+	if err != nil {
+		return err
+	}
+
+	if err := c.storage.UpdateUser(u); err != nil {
 		return err
 	}
 
 	delete(c.authCache, name)
 
-	if err := c.commit(data); err != nil {
-		return err
-	}
+	c.cacheData.CommitUser(u)
 
 	return nil
 }
@@ -470,13 +633,11 @@ func (c *Client) DropUser(name string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	data := c.cacheData.Clone()
-
-	if err := data.DropUser(name); err != nil {
+	if err := c.storage.DeleteUser(name); err != nil {
 		return err
 	}
 
-	if err := c.commit(data); err != nil {
+	if err := c.cacheData.DropUser(name); err != nil {
 		return err
 	}
 
@@ -488,15 +649,16 @@ func (c *Client) SetPrivilege(username, database string, p influxql.Privilege) e
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	data := c.cacheData.Clone()
-
-	if err := data.SetPrivilege(username, database, p); err != nil {
+	updatedUser, err := c.cacheData.SetPrivilege(username, database, p)
+	if err != nil {
 		return err
 	}
 
-	if err := c.commit(data); err != nil {
+	if err := c.storage.UpdateUser(updatedUser); err != nil {
 		return err
 	}
+
+	c.cacheData.CommitUser(updatedUser)
 
 	return nil
 }
@@ -506,15 +668,17 @@ func (c *Client) SetAdminPrivilege(username string, admin bool) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	data := c.cacheData.Clone()
-
-	if err := data.SetAdminPrivilege(username, admin); err != nil {
+	updatedUser, err := c.cacheData.SetAdminPrivilege(username, admin)
+	if err != nil {
 		return err
 	}
 
-	if err := c.commit(data); err != nil {
+	if err := c.storage.UpdateUser(updatedUser); err != nil {
 		return err
 	}
+
+	c.cacheData.CommitUser(updatedUser)
+	c.cacheData.SetAdminUserExists()
 
 	return nil
 }
@@ -618,7 +782,7 @@ func (c *Client) ShardIDs() []uint64 {
 
 // ShardGroupsByTimeRange returns a list of all shard groups on a database and policy that may contain data
 // for the specified time range. Shard groups are sorted by start time.
-func (c *Client) ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []ShardGroupInfo, err error) {
+func (c *Client) ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []*ShardGroupInfo, err error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -629,7 +793,7 @@ func (c *Client) ShardGroupsByTimeRange(database, policy string, min, max time.T
 	} else if rpi == nil {
 		return nil, influxdb.ErrRetentionPolicyNotFound(policy)
 	}
-	groups := make([]ShardGroupInfo, 0, len(rpi.ShardGroups))
+	groups := make([]*ShardGroupInfo, 0, len(rpi.ShardGroups))
 	for _, g := range rpi.ShardGroups {
 		if g.Deleted() || !g.Overlaps(min, max) {
 			continue
@@ -667,33 +831,36 @@ func (c *Client) DropShard(id uint64) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	data := c.cacheData.Clone()
-	data.DropShard(id)
-	return c.commit(data)
+	database, rpName, sgi := c.cacheData.DropShard(id)
+
+	if sgi != nil {
+		if err := c.storage.UpdateShardGroup(database, rpName, sgi); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // PruneShardGroups remove deleted shard groups from the data store.
 func (c *Client) PruneShardGroups() error {
-	var changed bool
 	expiration := time.Now().Add(ShardGroupDeletedExpiration)
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	data := c.cacheData.Clone()
-	for i, d := range data.Databases {
-		for j, rp := range d.RetentionPolicies {
-			var remainingShardGroups []ShardGroupInfo
+
+	for _, d := range c.cacheData.Databases {
+		for _, rp := range d.RetentionPolicies {
+			var remainingShardGroups []*ShardGroupInfo
 			for _, sgi := range rp.ShardGroups {
 				if sgi.DeletedAt.IsZero() || !expiration.After(sgi.DeletedAt) {
 					remainingShardGroups = append(remainingShardGroups, sgi)
 					continue
 				}
-				changed = true
 			}
-			data.Databases[i].RetentionPolicies[j].ShardGroups = remainingShardGroups
+			rp.ShardGroups = remainingShardGroups
+			if err := c.storage.UpdateRetentionPolicy(d.Name, rp); err != nil {
+				return err
+			}
 		}
-	}
-	if changed {
-		return c.commit(data)
 	}
 	return nil
 }
@@ -712,41 +879,21 @@ func (c *Client) CreateShardGroup(database, policy string, timestamp time.Time) 
 	defer c.mu.Unlock()
 
 	// Check again under the write lock
-	data := c.cacheData.Clone()
-	if sg, _ := data.ShardGroupByTimestamp(database, policy, timestamp); sg != nil {
+	if sg, _ := c.cacheData.ShardGroupByTimestamp(database, policy, timestamp); sg != nil {
 		return sg, nil
 	}
 
-	sgi, err := createShardGroup(data, database, policy, timestamp)
+	sgi, err := c.cacheData.CreateShardGroup(database, policy, timestamp)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := c.commit(data); err != nil {
+	if err := c.storage.AddShardGroup(database, policy, sgi); err != nil {
 		return nil, err
 	}
 
-	return sgi, nil
-}
+	c.cacheData.CommitShardGroup(database, policy, sgi)
 
-func createShardGroup(data *Data, database, policy string, timestamp time.Time) (*ShardGroupInfo, error) {
-	// It is the responsibility of the caller to check if it exists before calling this method.
-	if sg, _ := data.ShardGroupByTimestamp(database, policy, timestamp); sg != nil {
-		return nil, ErrShardGroupExists
-	}
-
-	if err := data.CreateShardGroup(database, policy, timestamp); err != nil {
-		return nil, err
-	}
-
-	rpi, err := data.RetentionPolicy(database, policy)
-	if err != nil {
-		return nil, err
-	} else if rpi == nil {
-		return nil, errors.New("retention policy deleted after shard group created")
-	}
-
-	sgi := rpi.ShardGroupByTimestamp(timestamp)
 	return sgi, nil
 }
 
@@ -755,15 +902,21 @@ func (c *Client) DeleteShardGroup(database, policy string, id uint64) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	data := c.cacheData.Clone()
-
-	if err := data.DeleteShardGroup(database, policy, id); err != nil {
+	sgi, err := c.cacheData.ShardGroup(database, policy, id)
+	if err != nil {
 		return err
 	}
 
-	if err := c.commit(data); err != nil {
+	updatedSgi := *sgi
+	// just set DeleteAt for sgi
+	if err := c.cacheData.DeleteShardGroup(database, policy, &updatedSgi); err != nil {
 		return err
 	}
+
+	if err := c.storage.UpdateShardGroup(database, policy, &updatedSgi); err != nil {
+		return err
+	}
+	c.cacheData.CommitShardGroup(database, policy, &updatedSgi)
 
 	return nil
 }
@@ -775,10 +928,8 @@ func (c *Client) DeleteShardGroup(database, policy string, id uint64) error {
 func (c *Client) PrecreateShardGroups(from, to time.Time) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	data := c.cacheData.Clone()
-	var changed bool
 
-	for _, di := range data.Databases {
+	for _, di := range c.cacheData.Databases {
 		for _, rp := range di.RetentionPolicies {
 			if len(rp.ShardGroups) == 0 {
 				// No data was ever written to this group, or all groups have been deleted.
@@ -793,24 +944,24 @@ func (c *Client) PrecreateShardGroups(from, to time.Time) error {
 				// Create successive shard group.
 				nextShardGroupTime := g.EndTime.Add(1 * time.Nanosecond)
 				// if it already exists, continue
-				if sg, _ := data.ShardGroupByTimestamp(di.Name, rp.Name, nextShardGroupTime); sg != nil {
+				if sg, _ := c.cacheData.ShardGroupByTimestamp(di.Name, rp.Name, nextShardGroupTime); sg != nil {
 					c.logger.Info(fmt.Sprintf("shard group %d exists for database %s, retention policy %s", sg.ID, di.Name, rp.Name))
 					continue
 				}
-				newGroup, err := createShardGroup(data, di.Name, rp.Name, nextShardGroupTime)
+
+				newGroup, err := c.cacheData.CreateShardGroup(di.Name, rp.Name, nextShardGroupTime)
 				if err != nil {
 					c.logger.Info(fmt.Sprintf("failed to precreate successive shard group for group %d: %s", g.ID, err.Error()))
 					continue
 				}
-				changed = true
+
+				if err := c.storage.AddShardGroup(di.Name, rp.Name, newGroup); err != nil {
+					c.logger.Info(fmt.Sprintf("failed to precreate successive shard group for group %d: %s", g.ID, err.Error()))
+					continue
+				}
+				c.cacheData.CommitShardGroup(di.Name, rp.Name, newGroup)
 				c.logger.Info(fmt.Sprintf("new shard group %d successfully precreated for database %s, retention policy %s", newGroup.ID, di.Name, rp.Name))
 			}
-		}
-	}
-
-	if changed {
-		if err := c.commit(data); err != nil {
-			return err
 		}
 	}
 
@@ -833,7 +984,7 @@ func (c *Client) ShardOwner(shardID uint64) (database, policy string, sgi *Shard
 					if sh.ID == shardID {
 						database = dbi.Name
 						policy = rpi.Name
-						sgi = &g
+						sgi = g
 						return
 					}
 				}
@@ -848,15 +999,15 @@ func (c *Client) CreateContinuousQuery(database, name, query string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	data := c.cacheData.Clone()
-
-	if err := data.CreateContinuousQuery(database, name, query); err != nil {
+	cq, err := c.cacheData.CreateContinuousQuery(database, name, query)
+	if err != nil {
 		return err
 	}
 
-	if err := c.commit(data); err != nil {
+	if err := c.storage.AddContinuousQuery(database, cq); err != nil {
 		return err
 	}
+	c.cacheData.CommitContinuousQuery(database, cq)
 
 	return nil
 }
@@ -866,13 +1017,11 @@ func (c *Client) DropContinuousQuery(database, name string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	data := c.cacheData.Clone()
-
-	if err := data.DropContinuousQuery(database, name); err != nil {
+	if err := c.storage.DeleteContinuousQuery(database, name); err != nil {
 		return err
 	}
 
-	if err := c.commit(data); err != nil {
+	if err := c.cacheData.DropContinuousQuery(database, name); err != nil {
 		return err
 	}
 
@@ -884,15 +1033,15 @@ func (c *Client) CreateSubscription(database, rp, name, mode string, destination
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	data := c.cacheData.Clone()
-
-	if err := data.CreateSubscription(database, rp, name, mode, destinations); err != nil {
+	sub, err := c.cacheData.CreateSubscription(database, rp, name, mode, destinations)
+	if err != nil {
 		return err
 	}
 
-	if err := c.commit(data); err != nil {
+	if err := c.storage.AddSubscription(database, rp, sub); err != nil {
 		return err
 	}
+	c.cacheData.CommitSubscription(database, rp, sub)
 
 	return nil
 }
@@ -902,45 +1051,15 @@ func (c *Client) DropSubscription(database, rp, name string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	data := c.cacheData.Clone()
-
-	if err := data.DropSubscription(database, rp, name); err != nil {
+	if err := c.storage.DeleteSubscription(database, rp, name); err != nil {
 		return err
 	}
 
-	if err := c.commit(data); err != nil {
+	if err := c.cacheData.DropSubscription(database, rp, name); err != nil {
 		return err
 	}
 
 	return nil
-}
-
-// SetData overwrites the underlying data in the meta store.
-func (c *Client) SetData(data *Data) error {
-	c.mu.Lock()
-
-	// reset the index so the commit will fire a change event
-	c.cacheData.Index = 0
-
-	// increment the index to force the changed channel to fire
-	d := data.Clone()
-	d.Index++
-
-	if err := c.commit(d); err != nil {
-		return err
-	}
-
-	c.mu.Unlock()
-
-	return nil
-}
-
-// Data returns a clone of the underlying data in the meta store.
-func (c *Client) Data() Data {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	d := c.cacheData.Clone()
-	return *d
 }
 
 // WaitForDataChanged returns a channel that will get closed when
@@ -949,26 +1068,6 @@ func (c *Client) WaitForDataChanged() chan struct{} {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.changed
-}
-
-// commit writes data to the underlying store.
-// This method assumes c's mutex is already locked.
-func (c *Client) commit(data *Data) error {
-	data.Index++
-
-	// try to write to disk before updating in memory
-	if err := snapshot(c.path, data); err != nil {
-		return err
-	}
-
-	// update in memory
-	c.cacheData = data
-
-	// close channels to signal changes
-	close(c.changed)
-	c.changed = make(chan struct{})
-
-	return nil
 }
 
 // MarshalBinary returns a binary representation of the underlying data.
@@ -985,61 +1084,18 @@ func (c *Client) WithLogger(log zap.Logger) {
 	c.logger = log.With(zap.String("service", "metaclient"))
 }
 
-// snapshot saves the current meta data to disk.
-func snapshot(path string, data *Data) error {
-	file := filepath.Join(path, metaFile)
-	tmpFile := file + "tmp"
-
-	f, err := os.Create(tmpFile)
+// Load loads the current meta data storage service.
+func (c *Client) Load() error {
+	data, err := c.storage.Load()
 	if err != nil {
 		return err
 	}
-	defer f.Close()
 
-	var d []byte
-	if b, err := data.MarshalBinary(); err != nil {
-		return err
-	} else {
-		d = b
-	}
-
-	if _, err := f.Write(d); err != nil {
-		return err
-	}
-
-	if err = f.Sync(); err != nil {
-		return err
-	}
-
-	//close file handle before renaming to support Windows
-	if err = f.Close(); err != nil {
-		return err
-	}
-
-	return renameFile(tmpFile, file)
+	c.cacheData = data
+	return nil
 }
 
-// Load loads the current meta data from disk.
-func (c *Client) Load() error {
-	file := filepath.Join(c.path, metaFile)
-
-	f, err := os.Open(file)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return err
-	}
-	defer f.Close()
-
-	data, err := ioutil.ReadAll(f)
-	if err != nil {
-		return err
-	}
-
-	if err := c.cacheData.UnmarshalBinary(data); err != nil {
-		return err
-	}
+func (c *Client) SetData(data *Data) error {
 	return nil
 }
 

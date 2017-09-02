@@ -7,28 +7,31 @@ import (
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/influxql"
-
 	"github.com/influxdata/influxdb/services/meta"
 )
 
 func Test_Data_DropDatabase(t *testing.T) {
 	data := &meta.Data{
-		Databases: []meta.DatabaseInfo{
-			{Name: "db0"},
-			{Name: "db1"},
-			{Name: "db2"},
-			{Name: "db4"},
-			{Name: "db5"},
+		Databases: map[string]*meta.DatabaseInfo {
+			"db0": {Name: "db0"},
+			"db1": {Name: "db1"},
+			"db2": {Name: "db2"},
+			"db4": {Name: "db4"},
+			"db5": {Name: "db5"},
 		},
-		Users: []meta.UserInfo{
-			{Name: "user1", Privileges: map[string]influxql.Privilege{"db1": influxql.ReadPrivilege, "db2": influxql.ReadPrivilege}},
-			{Name: "user2", Privileges: map[string]influxql.Privilege{"db2": influxql.ReadPrivilege}},
+		Users: map[string]*meta.UserInfo {
+			"user1": {Name: "user1", Privileges: map[string]influxql.Privilege{"db1": influxql.ReadPrivilege, "db2": influxql.ReadPrivilege}},
+			"user2": {Name: "user2", Privileges: map[string]influxql.Privilege{"db2": influxql.ReadPrivilege}},
 		},
 	}
 
 	// Dropping the first database removes it from the Data object.
-	expDbs := make([]meta.DatabaseInfo, 4)
-	copy(expDbs, data.Databases[1:])
+	expDbs := map[string]*meta.DatabaseInfo {
+		"db1": {Name: "db1"},
+		"db2": {Name: "db2"},
+		"db4": {Name: "db4"},
+		"db5": {Name: "db5"},
+	}
 	if err := data.DropDatabase("db0"); err != nil {
 		t.Fatal(err)
 	} else if got, exp := data.Databases, expDbs; !reflect.DeepEqual(got, exp) {
@@ -36,7 +39,11 @@ func Test_Data_DropDatabase(t *testing.T) {
 	}
 
 	// Dropping a middle database removes it from the data object.
-	expDbs = []meta.DatabaseInfo{{Name: "db1"}, {Name: "db2"}, {Name: "db5"}}
+	expDbs = map[string]*meta.DatabaseInfo {
+		"db1": {Name: "db1"},
+		"db2": {Name: "db2"},
+		"db5": {Name: "db5"},
+	}
 	if err := data.DropDatabase("db4"); err != nil {
 		t.Fatal(err)
 	} else if got, exp := data.Databases, expDbs; !reflect.DeepEqual(got, exp) {
@@ -44,7 +51,10 @@ func Test_Data_DropDatabase(t *testing.T) {
 	}
 
 	// Dropping the last database removes it from the data object.
-	expDbs = []meta.DatabaseInfo{{Name: "db1"}, {Name: "db2"}}
+	expDbs = map[string]*meta.DatabaseInfo {
+		"db1": {Name: "db1"},
+		"db2": {Name: "db2"},
+	}
 	if err := data.DropDatabase("db5"); err != nil {
 		t.Fatal(err)
 	} else if got, exp := data.Databases, expDbs; !reflect.DeepEqual(got, exp) {
@@ -53,9 +63,9 @@ func Test_Data_DropDatabase(t *testing.T) {
 
 	// Dropping a database also drops all the user privileges associated with
 	// it.
-	expUsers := []meta.UserInfo{
-		{Name: "user1", Privileges: map[string]influxql.Privilege{"db1": influxql.ReadPrivilege}},
-		{Name: "user2", Privileges: map[string]influxql.Privilege{}},
+	expUsers := map[string]*meta.UserInfo{
+		"user1": {Name: "user1", Privileges: map[string]influxql.Privilege{"db1": influxql.ReadPrivilege}},
+		"user2": {Name: "user2", Privileges: map[string]influxql.Privilege{}},
 	}
 	if err := data.DropDatabase("db2"); err != nil {
 		t.Fatal(err)
@@ -64,15 +74,16 @@ func Test_Data_DropDatabase(t *testing.T) {
 	}
 }
 
-func Test_Data_CreateRetentionPolicy(t *testing.T) {
-	data := meta.Data{}
+func Test_Data_ValidateRetentionPolicy(t *testing.T) {
+	data := meta.NewData()
 
-	err := data.CreateDatabase("foo")
+	db, err := data.CreateDatabase("foo")
 	if err != nil {
 		t.Fatal(err)
 	}
+	data.CommitDatabase(db)
 
-	err = data.CreateRetentionPolicy("foo", &meta.RetentionPolicyInfo{
+	rpi, err := data.ValidateRetentionPolicy("foo", &meta.RetentionPolicyInfo{
 		Name:     "bar",
 		ReplicaN: 1,
 		Duration: 24 * time.Hour,
@@ -80,6 +91,7 @@ func Test_Data_CreateRetentionPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	data.CommitRetentionPolicy("foo", rpi)
 
 	rp, err := data.RetentionPolicy("foo", "bar")
 	if err != nil {
@@ -91,17 +103,18 @@ func Test_Data_CreateRetentionPolicy(t *testing.T) {
 	}
 
 	// Try to recreate the same RP with default set to true, should fail
-	err = data.CreateRetentionPolicy("foo", &meta.RetentionPolicyInfo{
+	rpi, err = data.ValidateRetentionPolicy("foo", &meta.RetentionPolicyInfo{
 		Name:     "bar",
 		ReplicaN: 1,
 		Duration: 24 * time.Hour,
 	}, true)
+	
 	if err == nil || err != meta.ErrRetentionPolicyConflict {
 		t.Fatalf("unexpected error.  got: %v, exp: %s", err, meta.ErrRetentionPolicyConflict)
 	}
 
 	// Creating the same RP with the same specifications should succeed
-	err = data.CreateRetentionPolicy("foo", &meta.RetentionPolicyInfo{
+	rpi, err = data.ValidateRetentionPolicy("foo", &meta.RetentionPolicyInfo{
 		Name:     "bar",
 		ReplicaN: 1,
 		Duration: 24 * time.Hour,
@@ -112,7 +125,7 @@ func Test_Data_CreateRetentionPolicy(t *testing.T) {
 }
 
 func TestData_AdminUserExists(t *testing.T) {
-	data := meta.Data{}
+	data := meta.NewData()
 
 	// No users means no admin.
 	if data.AdminUserExists() {
@@ -120,7 +133,7 @@ func TestData_AdminUserExists(t *testing.T) {
 	}
 
 	// Add a non-admin user.
-	if err := data.CreateUser("user1", "a", false); err != nil {
+	if err := createAndCommitUser(data, "user1", "a", false); err != nil {
 		t.Fatal(err)
 	}
 	if got, exp := data.AdminUserExists(), false; got != exp {
@@ -128,7 +141,7 @@ func TestData_AdminUserExists(t *testing.T) {
 	}
 
 	// Add an admin user.
-	if err := data.CreateUser("admin1", "a", true); err != nil {
+	if err := createAndCommitUser(data, "admin1", "a", true); err != nil {
 		t.Fatal(err)
 	}
 	if got, exp := data.AdminUserExists(), true; got != exp {
@@ -144,7 +157,7 @@ func TestData_AdminUserExists(t *testing.T) {
 	}
 
 	// Add another admin
-	if err := data.CreateUser("admin2", "a", true); err != nil {
+	if err := createAndCommitUser(data, "admin2", "a", true); err != nil {
 		t.Fatal(err)
 	}
 	if got, exp := data.AdminUserExists(), true; got != exp {
@@ -152,7 +165,7 @@ func TestData_AdminUserExists(t *testing.T) {
 	}
 
 	// Revoke privileges of the first admin
-	if err := data.SetAdminPrivilege("admin1", false); err != nil {
+	if _, err := data.SetAdminPrivilege("admin1", false); err != nil {
 		t.Fatal(err)
 	}
 	if got, exp := data.AdminUserExists(), true; got != exp {
@@ -160,11 +173,11 @@ func TestData_AdminUserExists(t *testing.T) {
 	}
 
 	// Add user1 back.
-	if err := data.CreateUser("user1", "a", false); err != nil {
+	if err := createAndCommitUser(data, "user1", "a", false); err != nil {
 		t.Fatal(err)
 	}
 	// Revoke remaining admin.
-	if err := data.SetAdminPrivilege("admin2", false); err != nil {
+	if _, err := data.SetAdminPrivilege("admin2", false); err != nil {
 		t.Fatal(err)
 	}
 	// No longer any admins
@@ -173,7 +186,7 @@ func TestData_AdminUserExists(t *testing.T) {
 	}
 
 	// Make user1 an admin
-	if err := data.SetAdminPrivilege("user1", true); err != nil {
+	if _, err := data.SetAdminPrivilege("user1", true); err != nil {
 		t.Fatal(err)
 	}
 	if got, exp := data.AdminUserExists(), true; got != exp {
@@ -189,28 +202,42 @@ func TestData_AdminUserExists(t *testing.T) {
 	}
 }
 
+// CreateAndCommitUser creates a new user and commit it to database.
+func createAndCommitUser(data *meta.Data, name, hash string, admin bool) error {
+	user, err := data.CreateUser(name, hash, admin)
+	if err != nil {
+		return err
+	}
+	data.CommitUser(user)
+	return nil
+}
+
 func TestData_SetPrivilege(t *testing.T) {
-	data := meta.Data{}
-	if err := data.CreateDatabase("db0"); err != nil {
+	data := meta.NewData()
+	if db, err := data.CreateDatabase("db0"); err != nil {
 		t.Fatal(err)
+	} else {
+		data.CommitDatabase(db)
 	}
 
-	if err := data.CreateUser("user1", "", false); err != nil {
+	if err := createAndCommitUser(data, "user1", "", false); err != nil {
 		t.Fatal(err)
 	}
 
 	// When the user does not exist, SetPrivilege returns an error.
-	if got, exp := data.SetPrivilege("not a user", "db0", influxql.AllPrivileges), meta.ErrUserNotFound; got != exp {
+	_, got := data.SetPrivilege("not a user", "db0", influxql.AllPrivileges)
+	if exp := meta.ErrUserNotFound; got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
 	}
 
 	// When the database does not exist, SetPrivilege returns an error.
-	if got, exp := data.SetPrivilege("user1", "db1", influxql.AllPrivileges), influxdb.ErrDatabaseNotFound("db1"); got == nil || got.Error() != exp.Error() {
+	_, got = data.SetPrivilege("user1", "db1", influxql.AllPrivileges)
+	if exp := influxdb.ErrDatabaseNotFound("db1"); got == nil || got.Error() != exp.Error() {
 		t.Fatalf("got %v, expected %v", got, exp)
 	}
 
 	// Otherwise, SetPrivilege sets the expected privileges.
-	if got := data.SetPrivilege("user1", "db0", influxql.AllPrivileges); got != nil {
+	if _, got := data.SetPrivilege("user1", "db0", influxql.AllPrivileges); got != nil {
 		t.Fatalf("got %v, expected %v", got, nil)
 	}
 }
@@ -226,6 +253,6 @@ func TestUserInfo_AuthorizeDatabase(t *testing.T) {
 
 	adminUser := &meta.UserInfo{Admin: true}
 	if !adminUser.AuthorizeDatabase(influxql.AllPrivileges, "anydb") {
-		t.Fatalf("expected admin to be authorized but it wasn't")
+		t.Fatal("expected admin to be authorized but it wasn't")
 	}
 }

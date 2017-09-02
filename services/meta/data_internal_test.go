@@ -8,14 +8,14 @@ import (
 )
 
 func TestShardGroupSort(t *testing.T) {
-	sg1 := ShardGroupInfo{
+	sg1 := &ShardGroupInfo{
 		ID:          1,
 		StartTime:   time.Unix(1000, 0),
 		EndTime:     time.Unix(1100, 0),
 		TruncatedAt: time.Unix(1050, 0),
 	}
 
-	sg2 := ShardGroupInfo{
+	sg2 := &ShardGroupInfo{
 		ID:        2,
 		StartTime: time.Unix(1000, 0),
 		EndTime:   time.Unix(1100, 0),

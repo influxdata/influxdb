@@ -20,3 +20,16 @@ github.com/uber-go/atomic 74ca5ec650841aee9f289dce76e928313a37cbc6
 github.com/uber-go/zap fbae0281ffd546fa6d1959fec6075ac5da7fb577
 golang.org/x/crypto 9477e0b78b9ac3d0b03822fd95422e2fe07627cd
 golang.org/x/sys 90796e5a05ce440b41c768bd9af257005e470461
+github.com/coreos/etcd/clientv3 ae23b0ef2f1f6708f9a34d287a28ab02767c2a16
+golang.org/x/net/context 1f9224279e98554b6a6432d4dd998a739f8b2b7c
+google.golang.org/grpc v1.4.x
+google.golang.org/grpc/codes v1.4.x
+google.golang.org/grpc/credentials v1.4.x
+google.golang.org/grpc/grpclog v1.4.x
+google.golang.org/grpc/metadata v1.4.x
+github.com/golang/protobuf master
+golang.org/x/text master
+google.golang.org/genproto master
+gopkg.in/alecthomas/kingpin.v2 v2.2.4
+github.com/alecthomas/template master
+github.com/alecthomas/units master

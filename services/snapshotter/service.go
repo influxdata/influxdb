@@ -217,7 +217,7 @@ func (s *Service) writeRetentionPolicyInfo(conn net.Conn, database, retentionPol
 
 	for _, rp := range db.RetentionPolicies {
 		if rp.Name == retentionPolicy {
-			ret = &rp
+			ret = rp
 			break
 		}
 	}

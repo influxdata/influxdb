@@ -39,8 +39,9 @@ type Data struct {
 	Term      uint64 // associated raft term
 	Index     uint64 // associated raft index
 	ClusterID uint64
-	Databases []DatabaseInfo
-	Users     []UserInfo
+	Databases map[string]*DatabaseInfo
+	Users     map[string]*UserInfo
+	Nodes     map[uint64]*NodeInfo
 
 	// adminUserExists provides a constant time mechanism for determining
 	// if there is at least one admin user.
@@ -50,58 +51,75 @@ type Data struct {
 	MaxShardID      uint64
 }
 
-// Database returns a DatabaseInfo by the database name.
-func (data *Data) Database(name string) *DatabaseInfo {
-	for i := range data.Databases {
-		if data.Databases[i].Name == name {
-			return &data.Databases[i]
-		}
+// NewData creates a new Data instance.
+func NewData() *Data {
+	return &Data{
+		Databases: make(map[string]*DatabaseInfo),
+		Users:     make(map[string]*UserInfo),
+		Nodes:     make(map[uint64]*NodeInfo),
 	}
-	return nil
 }
 
-// CloneDatabases returns a copy of the DatabaseInfo.
-func (data *Data) CloneDatabases() []DatabaseInfo {
-	if data.Databases == nil {
-		return nil
-	}
-	dbs := make([]DatabaseInfo, len(data.Databases))
-	for i := range data.Databases {
-		dbs[i] = data.Databases[i].clone()
-	}
-	return dbs
+// Database returns a DatabaseInfo by the database name.
+func (data *Data) Database(name string) *DatabaseInfo {
+	return data.Databases[name]
 }
 
 // CreateDatabase creates a new database.
 // It returns an error if name is blank or if a database with the same name already exists.
-func (data *Data) CreateDatabase(name string) error {
+func (data *Data) CreateDatabase(name string) (*DatabaseInfo, error) {
 	if name == "" {
-		return ErrDatabaseNameRequired
+		return nil, ErrDatabaseNameRequired
 	} else if data.Database(name) != nil {
-		return nil
+		return nil, nil
 	}
 
-	// Append new node.
-	data.Databases = append(data.Databases, DatabaseInfo{Name: name})
+	return &DatabaseInfo{
+		Name: name,
+		RetentionPolicies: make(map[string]*RetentionPolicyInfo),
+		ContinuousQueries: make(map[string]*ContinuousQueryInfo),
+	}, nil
+}
 
-	return nil
+// CommitDatabase commits to data cache
+func (data *Data) CommitDatabase(db *DatabaseInfo) {
+	data.Databases[db.Name] = db
 }
 
 // DropDatabase removes a database by name. It does not return an error
 // if the database cannot be found.
 func (data *Data) DropDatabase(name string) error {
-	for i := range data.Databases {
-		if data.Databases[i].Name == name {
-			data.Databases = append(data.Databases[:i], data.Databases[i+1:]...)
+	_, ok := data.Databases[name]
+	if ok {
+		delete(data.Databases, name)
 
-			// Remove all user privileges associated with this database.
-			for i := range data.Users {
-				delete(data.Users[i].Privileges, name)
-			}
-			break
+		// Remove all user privileges associated with this database.
+		for i := range data.Users {
+			delete(data.Users[i].Privileges, name)
 		}
 	}
+
 	return nil
+}
+
+// UpdateDefaultRetentionPolicy according to makeDefault bool
+func (data *Data) UpdateDefaultRetentionPolicy(database string, rpi *RetentionPolicyInfo, isNew bool) (*DatabaseInfo, error) {
+	// Find database.
+	di := data.Database(database)
+	if di == nil {
+		return nil, influxdb.ErrDatabaseNotFound(database)
+	}
+
+	// if they want to make it default, and it's not the default, it's not an identical command so it's an error
+	alreadyHasThisRP := di.RetentionPolicy(rpi.Name) != nil
+	if isNew && alreadyHasThisRP && di.DefaultRetentionPolicy != rpi.Name {
+		return nil, ErrRetentionPolicyConflict
+	}
+
+	udi := *di
+	udi.DefaultRetentionPolicy = rpi.Name
+
+	return &udi, nil
 }
 
 // RetentionPolicy returns a retention policy for a database by name.
@@ -111,24 +129,23 @@ func (data *Data) RetentionPolicy(database, name string) (*RetentionPolicyInfo, 
 		return nil, influxdb.ErrDatabaseNotFound(database)
 	}
 
-	for i := range di.RetentionPolicies {
-		if di.RetentionPolicies[i].Name == name {
-			return &di.RetentionPolicies[i], nil
-		}
+	if rp, ok := di.RetentionPolicies[name]; ok {
+		return rp, nil
 	}
+
 	return nil, nil
 }
 
-// CreateRetentionPolicy creates a new retention policy on a database.
+// ValidateRetentionPolicy validate a new retention policy on a database.
 // It returns an error if name is blank or if the database does not exist.
-func (data *Data) CreateRetentionPolicy(database string, rpi *RetentionPolicyInfo, makeDefault bool) error {
+func (data *Data) ValidateRetentionPolicy(database string, rpi *RetentionPolicyInfo, makeDefault bool) (*RetentionPolicyInfo, error) {
 	// Validate retention policy.
 	if rpi == nil {
-		return ErrRetentionPolicyRequired
+		return nil, ErrRetentionPolicyRequired
 	} else if rpi.Name == "" {
-		return ErrRetentionPolicyNameRequired
+		return nil, ErrRetentionPolicyNameRequired
 	} else if rpi.ReplicaN < 1 {
-		return ErrReplicationFactorTooLow
+		return nil, ErrReplicationFactorTooLow
 	}
 
 	// Normalise ShardDuration before comparing to any existing
@@ -137,34 +154,33 @@ func (data *Data) CreateRetentionPolicy(database string, rpi *RetentionPolicyInf
 	rpi.ShardGroupDuration = normalisedShardDuration(rpi.ShardGroupDuration, rpi.Duration)
 
 	if rpi.Duration > 0 && rpi.Duration < rpi.ShardGroupDuration {
-		return ErrIncompatibleDurations
+		return nil, ErrIncompatibleDurations
 	}
 
 	// Find database.
 	di := data.Database(database)
 	if di == nil {
-		return influxdb.ErrDatabaseNotFound(database)
+		return nil, influxdb.ErrDatabaseNotFound(database)
 	} else if rp := di.RetentionPolicy(rpi.Name); rp != nil {
 		// RP with that name already exists. Make sure they're the same.
 		if rp.ReplicaN != rpi.ReplicaN || rp.Duration != rpi.Duration || rp.ShardGroupDuration != rpi.ShardGroupDuration {
-			return ErrRetentionPolicyExists
+			return nil, ErrRetentionPolicyExists
 		}
 		// if they want to make it default, and it's not the default, it's not an identical command so it's an error
 		if makeDefault && di.DefaultRetentionPolicy != rpi.Name {
-			return ErrRetentionPolicyConflict
+			return nil, ErrRetentionPolicyConflict
 		}
-		return nil
+		
+		return rpi, nil
 	}
 
-	// Append copy of new policy.
-	di.RetentionPolicies = append(di.RetentionPolicies, *rpi)
+	return rpi, nil
+}
 
-	// Set the default if needed
-	if makeDefault {
-		di.DefaultRetentionPolicy = rpi.Name
-	}
-
-	return nil
+// CommitRetentionPolicy commits to data cache
+func (data *Data) CommitRetentionPolicy(database string, rpi *RetentionPolicyInfo) {
+	di := data.Database(database)
+	di.RetentionPolicies[rpi.Name] = rpi
 }
 
 // DropRetentionPolicy removes a retention policy from a database by name.
@@ -176,13 +192,7 @@ func (data *Data) DropRetentionPolicy(database, name string) error {
 		return nil
 	}
 
-	// Remove from list.
-	for i := range di.RetentionPolicies {
-		if di.RetentionPolicies[i].Name == name {
-			di.RetentionPolicies = append(di.RetentionPolicies[:i], di.RetentionPolicies[i+1:]...)
-			break
-		}
-	}
+	delete(di.RetentionPolicies, name)
 
 	return nil
 }
@@ -207,28 +217,28 @@ func (rpu *RetentionPolicyUpdate) SetReplicaN(v int) { rpu.ReplicaN = &v }
 // SetShardGroupDuration sets the RetentionPolicyUpdate.ShardGroupDuration.
 func (rpu *RetentionPolicyUpdate) SetShardGroupDuration(v time.Duration) { rpu.ShardGroupDuration = &v }
 
-// UpdateRetentionPolicy updates an existing retention policy.
-func (data *Data) UpdateRetentionPolicy(database, name string, rpu *RetentionPolicyUpdate, makeDefault bool) error {
+// UpdateRetentionPolicy updates an existing retention policy and returned the updated copy of retention policy.
+func (data *Data) UpdateRetentionPolicy(database, name string, rpu *RetentionPolicyUpdate) (*RetentionPolicyInfo, error) {
 	// Find database.
 	di := data.Database(database)
 	if di == nil {
-		return influxdb.ErrDatabaseNotFound(database)
+		return nil, influxdb.ErrDatabaseNotFound(database)
 	}
 
 	// Find policy.
 	rpi := di.RetentionPolicy(name)
 	if rpi == nil {
-		return influxdb.ErrRetentionPolicyNotFound(name)
+		return nil, influxdb.ErrRetentionPolicyNotFound(name)
 	}
 
 	// Ensure new policy doesn't match an existing policy.
 	if rpu.Name != nil && *rpu.Name != name && di.RetentionPolicy(*rpu.Name) != nil {
-		return ErrRetentionPolicyNameExists
+		return nil, ErrRetentionPolicyNameExists
 	}
 
 	// Enforce duration of at least MinRetentionPolicyDuration
 	if rpu.Duration != nil && *rpu.Duration < MinRetentionPolicyDuration && *rpu.Duration != 0 {
-		return ErrRetentionPolicyDurationTooLow
+		return nil, ErrRetentionPolicyDurationTooLow
 	}
 
 	// Enforce duration is at least the shard duration
@@ -237,28 +247,24 @@ func (data *Data) UpdateRetentionPolicy(database, name string, rpu *RetentionPol
 			(rpu.ShardGroupDuration == nil && *rpu.Duration < rpi.ShardGroupDuration))) ||
 		(rpu.Duration == nil && rpi.Duration > 0 &&
 			rpu.ShardGroupDuration != nil && rpi.Duration < *rpu.ShardGroupDuration) {
-		return ErrIncompatibleDurations
+		return nil, ErrIncompatibleDurations
 	}
 
 	// Update fields.
+	urpi := *rpi
 	if rpu.Name != nil {
-		rpi.Name = *rpu.Name
+		urpi.Name = *rpu.Name
 	}
 	if rpu.Duration != nil {
-		rpi.Duration = *rpu.Duration
+		urpi.Duration = *rpu.Duration
 	}
 	if rpu.ReplicaN != nil {
-		rpi.ReplicaN = *rpu.ReplicaN
+		urpi.ReplicaN = *rpu.ReplicaN
 	}
 	if rpu.ShardGroupDuration != nil {
-		rpi.ShardGroupDuration = normalisedShardDuration(*rpu.ShardGroupDuration, rpi.Duration)
+		urpi.ShardGroupDuration = normalisedShardDuration(*rpu.ShardGroupDuration, urpi.Duration)
 	}
-
-	if di.DefaultRetentionPolicy != rpi.Name && makeDefault {
-		di.DefaultRetentionPolicy = rpi.Name
-	}
-
-	return nil
+	return &urpi, nil
 }
 
 // DropShard removes a shard by ID.
@@ -266,11 +272,11 @@ func (data *Data) UpdateRetentionPolicy(database, name string, rpu *RetentionPol
 // DropShard won't return an error if the shard can't be found, which
 // allows the command to be re-run in the case that the meta store
 // succeeds but a data node fails.
-func (data *Data) DropShard(id uint64) {
+func (data *Data) DropShard(id uint64) (string, string, *ShardGroupInfo) {
 	found := -1
-	for dbidx, dbi := range data.Databases {
-		for rpidx, rpi := range dbi.RetentionPolicies {
-			for sgidx, sg := range rpi.ShardGroups {
+	for _, dbi := range data.Databases {
+		for _, rpi := range dbi.RetentionPolicies {
+			for _, sg := range rpi.ShardGroups {
 				for sidx, s := range sg.Shards {
 					if s.ID == id {
 						found = sidx
@@ -279,22 +285,23 @@ func (data *Data) DropShard(id uint64) {
 				}
 
 				if found > -1 {
-					shards := sg.Shards
-					data.Databases[dbidx].RetentionPolicies[rpidx].ShardGroups[sgidx].Shards = append(shards[:found], shards[found+1:]...)
+					sg.Shards = append(sg.Shards[:found], sg.Shards[found+1:]...)
 
-					if len(shards) == 1 {
+					if len(sg.Shards) == 0 {
 						// We just deleted the last shard in the shard group.
-						data.Databases[dbidx].RetentionPolicies[rpidx].ShardGroups[sgidx].DeletedAt = time.Now()
+						sg.DeletedAt = time.Now()
 					}
-					return
+					return dbi.Name, rpi.Name, sg
 				}
 			}
 		}
 	}
+
+	return "", "", nil
 }
 
 // ShardGroups returns a list of all shard groups on a database and retention policy.
-func (data *Data) ShardGroups(database, policy string) ([]ShardGroupInfo, error) {
+func (data *Data) ShardGroups(database, policy string) ([]*ShardGroupInfo, error) {
 	// Find retention policy.
 	rpi, err := data.RetentionPolicy(database, policy)
 	if err != nil {
@@ -302,7 +309,7 @@ func (data *Data) ShardGroups(database, policy string) ([]ShardGroupInfo, error)
 	} else if rpi == nil {
 		return nil, influxdb.ErrRetentionPolicyNotFound(policy)
 	}
-	groups := make([]ShardGroupInfo, 0, len(rpi.ShardGroups))
+	groups := make([]*ShardGroupInfo, 0, len(rpi.ShardGroups))
 	for _, g := range rpi.ShardGroups {
 		if g.Deleted() {
 			continue
@@ -314,7 +321,7 @@ func (data *Data) ShardGroups(database, policy string) ([]ShardGroupInfo, error)
 
 // ShardGroupsByTimeRange returns a list of all shard groups on a database and policy that may contain data
 // for the specified time range. Shard groups are sorted by start time.
-func (data *Data) ShardGroupsByTimeRange(database, policy string, tmin, tmax time.Time) ([]ShardGroupInfo, error) {
+func (data *Data) ShardGroupsByTimeRange(database, policy string, tmin, tmax time.Time) ([]*ShardGroupInfo, error) {
 	// Find retention policy.
 	rpi, err := data.RetentionPolicy(database, policy)
 	if err != nil {
@@ -322,7 +329,7 @@ func (data *Data) ShardGroupsByTimeRange(database, policy string, tmin, tmax tim
 	} else if rpi == nil {
 		return nil, influxdb.ErrRetentionPolicyNotFound(policy)
 	}
-	groups := make([]ShardGroupInfo, 0, len(rpi.ShardGroups))
+	groups := make([]*ShardGroupInfo, 0, len(rpi.ShardGroups))
 	for _, g := range rpi.ShardGroups {
 		if g.Deleted() || !g.Overlaps(tmin, tmax) {
 			continue
@@ -346,22 +353,21 @@ func (data *Data) ShardGroupByTimestamp(database, policy string, timestamp time.
 }
 
 // CreateShardGroup creates a shard group on a database and policy for a given timestamp.
-func (data *Data) CreateShardGroup(database, policy string, timestamp time.Time) error {
+func (data *Data) CreateShardGroup(database, policy string, timestamp time.Time) (*ShardGroupInfo, error) {
 	// Find retention policy.
 	rpi, err := data.RetentionPolicy(database, policy)
 	if err != nil {
-		return err
+		return nil, err
 	} else if rpi == nil {
-		return influxdb.ErrRetentionPolicyNotFound(policy)
+		return nil, influxdb.ErrRetentionPolicyNotFound(policy)
 	}
 
 	// Verify that shard group doesn't already exist for this timestamp.
-	if rpi.ShardGroupByTimestamp(timestamp) != nil {
-		return nil
+	if sgi := rpi.ShardGroupByTimestamp(timestamp); sgi != nil {
+		return sgi, nil
 	}
 
 	// Create the shard group.
-	data.MaxShardGroupID++
 	sgi := ShardGroupInfo{}
 	sgi.ID = data.MaxShardGroupID
 	sgi.StartTime = timestamp.Truncate(rpi.ShardGroupDuration).UTC()
@@ -371,68 +377,87 @@ func (data *Data) CreateShardGroup(database, policy string, timestamp time.Time)
 		sgi.EndTime = time.Unix(0, models.MaxNanoTime+1)
 	}
 
-	data.MaxShardID++
 	sgi.Shards = []ShardInfo{
-		{ID: data.MaxShardID},
+		{ID: data.MaxShardID + 1},
 	}
+
+	return &sgi, nil
+}
+
+// CommitShardGroup commits to data cache
+func (data *Data) CommitShardGroup(database, policy string, sgi *ShardGroupInfo) {
+	data.MaxShardGroupID++
+	data.MaxShardID++
 
 	// Retention policy has a new shard group, so update the policy. Shard
 	// Groups must be stored in sorted order, as other parts of the system
 	// assume this to be the case.
+	rpi, _ := data.RetentionPolicy(database, policy)
+	for i := len(rpi.ShardGroups) - 1; i >= 0; i-- {
+		if (rpi.ShardGroups[i].ID == sgi.ID) {
+			rpi.ShardGroups = append(rpi.ShardGroups[:i], rpi.ShardGroups[i+1:]...)
+			break
+		}
+	}
 	rpi.ShardGroups = append(rpi.ShardGroups, sgi)
 	sort.Sort(ShardGroupInfos(rpi.ShardGroups))
-
-	return nil
 }
 
-// DeleteShardGroup removes a shard group from a database and retention policy by id.
-func (data *Data) DeleteShardGroup(database, policy string, id uint64) error {
+// ShardGroup find shard group from a database and retention policy by id.
+func (data *Data) ShardGroup(database, policy string, id uint64) (*ShardGroupInfo, error) {
 	// Find retention policy.
 	rpi, err := data.RetentionPolicy(database, policy)
 	if err != nil {
-		return err
+		return nil, err
 	} else if rpi == nil {
-		return influxdb.ErrRetentionPolicyNotFound(policy)
+		return nil, influxdb.ErrRetentionPolicyNotFound(policy)
 	}
 
 	// Find shard group by ID and set its deletion timestamp.
 	for i := range rpi.ShardGroups {
 		if rpi.ShardGroups[i].ID == id {
-			rpi.ShardGroups[i].DeletedAt = time.Now().UTC()
-			return nil
+			return rpi.ShardGroups[i], nil
 		}
 	}
 
-	return ErrShardGroupNotFound
+	return nil, ErrShardGroupNotFound
+}
+
+// FIXME
+// DeleteShardGroup removes a shard group from a database and retention policy by id.
+func (data *Data) DeleteShardGroup(database, policy string, sgi *ShardGroupInfo) error {
+	sgi.DeletedAt = time.Now().UTC()
+	return nil
 }
 
 // CreateContinuousQuery adds a named continuous query to a database.
-func (data *Data) CreateContinuousQuery(database, name, query string) error {
+func (data *Data) CreateContinuousQuery(database, name, query string) (*ContinuousQueryInfo, error) {
 	di := data.Database(database)
 	if di == nil {
-		return influxdb.ErrDatabaseNotFound(database)
+		return nil, influxdb.ErrDatabaseNotFound(database)
 	}
 
 	// Ensure the name doesn't already exist.
-	for _, cq := range di.ContinuousQueries {
-		if cq.Name == name {
-			// If the query string is the same, we'll silently return,
-			// otherwise we'll assume the user might be trying to
-			// overwrite an existing CQ with a different query.
-			if strings.ToLower(cq.Query) == strings.ToLower(query) {
-				return nil
-			}
-			return ErrContinuousQueryExists
+	if cq, ok := di.ContinuousQueries[name]; ok {
+		// If the query string is the same, we'll silently return,
+		// otherwise we'll assume the user might be trying to
+		// overwrite an existing CQ with a different query.
+		if strings.ToLower(cq.Query) == strings.ToLower(query) {
+			return cq, nil
 		}
+		return nil, ErrContinuousQueryExists
 	}
 
-	// Append new query.
-	di.ContinuousQueries = append(di.ContinuousQueries, ContinuousQueryInfo{
+	return &ContinuousQueryInfo{
 		Name:  name,
 		Query: query,
-	})
+	}, nil
+}
 
-	return nil
+// CommitContinuousQuery commits to data cache.
+func (data *Data) CommitContinuousQuery(database string, cq *ContinuousQueryInfo) {
+	di := data.Database(database)
+	di.ContinuousQueries[cq.Name] = cq
 }
 
 // DropContinuousQuery removes a continuous query.
@@ -442,12 +467,11 @@ func (data *Data) DropContinuousQuery(database, name string) error {
 		return influxdb.ErrDatabaseNotFound(database)
 	}
 
-	for i := range di.ContinuousQueries {
-		if di.ContinuousQueries[i].Name == name {
-			di.ContinuousQueries = append(di.ContinuousQueries[:i], di.ContinuousQueries[i+1:]...)
-			return nil
-		}
+	if _, ok := di.ContinuousQueries[name]; ok {
+		delete(di.ContinuousQueries, name)
+		return nil
 	}
+
 	return ErrContinuousQueryNotFound
 }
 
@@ -471,35 +495,38 @@ func validateURL(input string) error {
 }
 
 // CreateSubscription adds a named subscription to a database and retention policy.
-func (data *Data) CreateSubscription(database, rp, name, mode string, destinations []string) error {
+func (data *Data) CreateSubscription(database, rp, name, mode string, destinations []string) (*SubscriptionInfo, error) {
 	for _, d := range destinations {
 		if err := validateURL(d); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
 	rpi, err := data.RetentionPolicy(database, rp)
 	if err != nil {
-		return err
+		return nil, err
 	} else if rpi == nil {
-		return influxdb.ErrRetentionPolicyNotFound(rp)
+		return nil, influxdb.ErrRetentionPolicyNotFound(rp)
 	}
 
 	// Ensure the name doesn't already exist.
 	for i := range rpi.Subscriptions {
 		if rpi.Subscriptions[i].Name == name {
-			return ErrSubscriptionExists
+			return nil, ErrSubscriptionExists
 		}
 	}
 
-	// Append new query.
-	rpi.Subscriptions = append(rpi.Subscriptions, SubscriptionInfo{
+	return &SubscriptionInfo{
 		Name:         name,
 		Mode:         mode,
 		Destinations: destinations,
-	})
+	}, nil
+}
 
-	return nil
+// CommitSubscription commits to data cache.
+func (data *Data) CommitSubscription(database, rp string, sub *SubscriptionInfo) {
+	rpi, _ := data.RetentionPolicy(database, rp)
+	rpi.Subscriptions[sub.Name] = sub
 }
 
 // DropSubscription removes a subscription.
@@ -511,22 +538,15 @@ func (data *Data) DropSubscription(database, rp, name string) error {
 		return influxdb.ErrRetentionPolicyNotFound(rp)
 	}
 
-	for i := range rpi.Subscriptions {
-		if rpi.Subscriptions[i].Name == name {
-			rpi.Subscriptions = append(rpi.Subscriptions[:i], rpi.Subscriptions[i+1:]...)
-			return nil
-		}
+	if _, ok := rpi.Subscriptions[name]; ok {
+		delete(rpi.Subscriptions, name)
+		return nil
 	}
 	return ErrSubscriptionNotFound
 }
 
 func (data *Data) user(username string) *UserInfo {
-	for i := range data.Users {
-		if data.Users[i].Name == username {
-			return &data.Users[i]
-		}
-	}
-	return nil
+	return data.Users[username]
 }
 
 // User returns a user by username.
@@ -540,108 +560,97 @@ func (data *Data) User(username string) User {
 }
 
 // CreateUser creates a new user.
-func (data *Data) CreateUser(name, hash string, admin bool) error {
+func (data *Data) CreateUser(name, hash string, admin bool) (*UserInfo, error) {
 	// Ensure the user doesn't already exist.
 	if name == "" {
-		return ErrUsernameRequired
+		return nil, ErrUsernameRequired
 	} else if data.User(name) != nil {
-		return ErrUserExists
+		return nil, ErrUserExists
 	}
 
-	// Append new user.
-	data.Users = append(data.Users, UserInfo{
+	return &UserInfo{
 		Name:  name,
 		Hash:  hash,
 		Admin: admin,
-	})
+	}, nil
+
+}
+
+// CommitUser commits to data cache.
+func (data *Data) CommitUser(u *UserInfo) {
+	data.Users[u.Name] = u
 
 	// We know there is now at least one admin user.
-	if admin {
+	if u.Admin {
 		data.adminUserExists = true
 	}
-
-	return nil
 }
 
 // DropUser removes an existing user by name.
 func (data *Data) DropUser(name string) error {
-	for i := range data.Users {
-		if data.Users[i].Name == name {
-			wasAdmin := data.Users[i].Admin
-			data.Users = append(data.Users[:i], data.Users[i+1:]...)
-
-			// Maybe we dropped the only admin user?
-			if wasAdmin {
-				data.adminUserExists = data.hasAdminUser()
-			}
-			return nil
+	if u, ok := data.Users[name]; ok {
+		wasAdmin := u.Admin
+		delete(data.Users, name)
+		// Maybe we dropped the only admin user?
+		if wasAdmin {
+			data.adminUserExists = data.hasAdminUser()
 		}
+		return nil
 	}
 
 	return ErrUserNotFound
 }
 
 // UpdateUser updates the password hash of an existing user.
-func (data *Data) UpdateUser(name, hash string) error {
-	for i := range data.Users {
-		if data.Users[i].Name == name {
-			data.Users[i].Hash = hash
-			return nil
-		}
-	}
-	return ErrUserNotFound
-}
-
-// CloneUsers returns a copy of the user infos.
-func (data *Data) CloneUsers() []UserInfo {
-	if len(data.Users) == 0 {
-		return []UserInfo{}
-	}
-	users := make([]UserInfo, len(data.Users))
-	for i := range data.Users {
-		users[i] = data.Users[i].clone()
+func (data *Data) UpdateUser(name, hash string) (*UserInfo, error) {
+	if u, ok := data.Users[name]; ok {
+		updated := *u
+		updated.Hash = hash
+		return &updated, nil
 	}
 
-	return users
+	return nil, ErrUserNotFound
 }
 
 // SetPrivilege sets a privilege for a user on a database.
-func (data *Data) SetPrivilege(name, database string, p influxql.Privilege) error {
+func (data *Data) SetPrivilege(name, database string, p influxql.Privilege) (*UserInfo, error) {
 	ui := data.user(name)
 	if ui == nil {
-		return ErrUserNotFound
+		return nil, ErrUserNotFound
 	}
 
 	if data.Database(database) == nil {
-		return influxdb.ErrDatabaseNotFound(database)
+		return nil, influxdb.ErrDatabaseNotFound(database)
 	}
-
+	
 	if ui.Privileges == nil {
 		ui.Privileges = make(map[string]influxql.Privilege)
 	}
 	ui.Privileges[database] = p
-
-	return nil
+	return ui, nil
 }
 
 // SetAdminPrivilege sets the admin privilege for a user.
-func (data *Data) SetAdminPrivilege(name string, admin bool) error {
+func (data *Data) SetAdminPrivilege(name string, admin bool) (*UserInfo, error) {
 	ui := data.user(name)
 	if ui == nil {
-		return ErrUserNotFound
+		return nil, ErrUserNotFound
 	}
-
 	ui.Admin = admin
-
-	// We could have promoted or revoked the only admin. Check if an admin
-	// user exists.
 	data.adminUserExists = data.hasAdminUser()
-	return nil
+	return ui, nil
 }
 
 // AdminUserExists returns true if an admin user exists.
 func (data Data) AdminUserExists() bool {
 	return data.adminUserExists
+}
+
+// AdminUserExists returns true if an admin user exists.
+func (data Data) SetAdminUserExists() {
+	// We could have promoted or revoked the only admin. Check if an admin
+	// user exists.
+	data.adminUserExists = data.hasAdminUser()
 }
 
 // UserPrivileges gets the privileges for a user.
@@ -670,16 +679,6 @@ func (data *Data) UserPrivilege(name, database string) (*influxql.Privilege, err
 	return influxql.NewPrivilege(influxql.NoPrivileges), nil
 }
 
-// Clone returns a copy of data with a new version.
-func (data *Data) Clone() *Data {
-	other := *data
-
-	other.Databases = data.CloneDatabases()
-	other.Users = data.CloneUsers()
-
-	return &other
-}
-
 // marshal serializes data to a protobuf representation.
 func (data *Data) marshal() *internal.Data {
 	pb := &internal.Data{
@@ -694,16 +693,6 @@ func (data *Data) marshal() *internal.Data {
 		MaxNodeID: proto.Uint64(0),
 	}
 
-	pb.Databases = make([]*internal.DatabaseInfo, len(data.Databases))
-	for i := range data.Databases {
-		pb.Databases[i] = data.Databases[i].marshal()
-	}
-
-	pb.Users = make([]*internal.UserInfo, len(data.Users))
-	for i := range data.Users {
-		pb.Users[i] = data.Users[i].marshal()
-	}
-
 	return pb
 }
 
@@ -716,16 +705,7 @@ func (data *Data) unmarshal(pb *internal.Data) {
 	data.MaxShardGroupID = pb.GetMaxShardGroupID()
 	data.MaxShardID = pb.GetMaxShardID()
 
-	data.Databases = make([]DatabaseInfo, len(pb.GetDatabases()))
-	for i, x := range pb.GetDatabases() {
-		data.Databases[i].unmarshal(x)
-	}
-
-	data.Users = make([]UserInfo, len(pb.GetUsers()))
-	for i, x := range pb.GetUsers() {
-		data.Users[i].unmarshal(x)
-	}
-
+	// FIXME
 	// Exhaustively determine if there is an admin user. The marshalled cache
 	// value may not be correct.
 	data.adminUserExists = data.hasAdminUser()
@@ -764,6 +744,22 @@ type NodeInfo struct {
 	TCPHost string
 }
 
+func (ni NodeInfo) marshal() *internal.NodeInfo {
+	pb := &internal.NodeInfo{
+		ID:      proto.Uint64(ni.ID),
+		Host:    proto.String(ni.Host),
+		TCPHost: proto.String(ni.TCPHost),
+	}
+
+	return pb
+}
+
+func (ni *NodeInfo) unmarshal(pb *internal.NodeInfo) {
+	ni.ID = pb.GetID()
+	ni.Host = pb.GetHost()
+	ni.TCPHost = pb.GetTCPHost()
+}
+
 // NodeInfos is a slice of NodeInfo used for sorting
 type NodeInfos []NodeInfo
 
@@ -780,8 +776,8 @@ func (n NodeInfos) Less(i, j int) bool { return n[i].ID < n[j].ID }
 type DatabaseInfo struct {
 	Name                   string
 	DefaultRetentionPolicy string
-	RetentionPolicies      []RetentionPolicyInfo
-	ContinuousQueries      []ContinuousQueryInfo
+	RetentionPolicies      map[string]*RetentionPolicyInfo
+	ContinuousQueries      map[string]*ContinuousQueryInfo
 }
 
 // RetentionPolicy returns a retention policy by name.
@@ -793,27 +789,20 @@ func (di DatabaseInfo) RetentionPolicy(name string) *RetentionPolicyInfo {
 		name = di.DefaultRetentionPolicy
 	}
 
-	for i := range di.RetentionPolicies {
-		if di.RetentionPolicies[i].Name == name {
-			return &di.RetentionPolicies[i]
-		}
-	}
-	return nil
+	return di.RetentionPolicies[name]
 }
 
 // ShardInfos returns a list of all shards' info for the database.
 func (di DatabaseInfo) ShardInfos() []ShardInfo {
 	shards := map[uint64]*ShardInfo{}
-	for i := range di.RetentionPolicies {
-		for j := range di.RetentionPolicies[i].ShardGroups {
-			sg := di.RetentionPolicies[i].ShardGroups[j]
+	for _, rp := range di.RetentionPolicies {
+		for _, sg := range rp.ShardGroups {
 			// Skip deleted shard groups
 			if sg.Deleted() {
 				continue
 			}
 			for k := range sg.Shards {
-				si := &di.RetentionPolicies[i].ShardGroups[j].Shards[k]
-				shards[si.ID] = si
+				shards[sg.Shards[k].ID] = &sg.Shards[k]
 			}
 		}
 	}
@@ -826,43 +815,12 @@ func (di DatabaseInfo) ShardInfos() []ShardInfo {
 	return infos
 }
 
-// clone returns a deep copy of di.
-func (di DatabaseInfo) clone() DatabaseInfo {
-	other := di
-
-	if di.RetentionPolicies != nil {
-		other.RetentionPolicies = make([]RetentionPolicyInfo, len(di.RetentionPolicies))
-		for i := range di.RetentionPolicies {
-			other.RetentionPolicies[i] = di.RetentionPolicies[i].clone()
-		}
-	}
-
-	// Copy continuous queries.
-	if di.ContinuousQueries != nil {
-		other.ContinuousQueries = make([]ContinuousQueryInfo, len(di.ContinuousQueries))
-		for i := range di.ContinuousQueries {
-			other.ContinuousQueries[i] = di.ContinuousQueries[i].clone()
-		}
-	}
-
-	return other
-}
-
 // marshal serializes to a protobuf representation.
 func (di DatabaseInfo) marshal() *internal.DatabaseInfo {
 	pb := &internal.DatabaseInfo{}
 	pb.Name = proto.String(di.Name)
 	pb.DefaultRetentionPolicy = proto.String(di.DefaultRetentionPolicy)
 
-	pb.RetentionPolicies = make([]*internal.RetentionPolicyInfo, len(di.RetentionPolicies))
-	for i := range di.RetentionPolicies {
-		pb.RetentionPolicies[i] = di.RetentionPolicies[i].marshal()
-	}
-
-	pb.ContinuousQueries = make([]*internal.ContinuousQueryInfo, len(di.ContinuousQueries))
-	for i := range di.ContinuousQueries {
-		pb.ContinuousQueries[i] = di.ContinuousQueries[i].marshal()
-	}
 	return pb
 }
 
@@ -870,20 +828,6 @@ func (di DatabaseInfo) marshal() *internal.DatabaseInfo {
 func (di *DatabaseInfo) unmarshal(pb *internal.DatabaseInfo) {
 	di.Name = pb.GetName()
 	di.DefaultRetentionPolicy = pb.GetDefaultRetentionPolicy()
-
-	if len(pb.GetRetentionPolicies()) > 0 {
-		di.RetentionPolicies = make([]RetentionPolicyInfo, len(pb.GetRetentionPolicies()))
-		for i, x := range pb.GetRetentionPolicies() {
-			di.RetentionPolicies[i].unmarshal(x)
-		}
-	}
-
-	if len(pb.GetContinuousQueries()) > 0 {
-		di.ContinuousQueries = make([]ContinuousQueryInfo, len(pb.GetContinuousQueries()))
-		for i, x := range pb.GetContinuousQueries() {
-			di.ContinuousQueries[i].unmarshal(x)
-		}
-	}
 }
 
 // RetentionPolicySpec represents the specification for a new retention policy.
@@ -976,17 +920,18 @@ type RetentionPolicyInfo struct {
 	ReplicaN           int
 	Duration           time.Duration
 	ShardGroupDuration time.Duration
-	ShardGroups        []ShardGroupInfo
-	Subscriptions      []SubscriptionInfo
+	ShardGroups        []*ShardGroupInfo
+	Subscriptions      map[string]*SubscriptionInfo
 }
 
 // NewRetentionPolicyInfo returns a new instance of RetentionPolicyInfo
 // with default replication and duration.
 func NewRetentionPolicyInfo(name string) *RetentionPolicyInfo {
 	return &RetentionPolicyInfo{
-		Name:     name,
-		ReplicaN: DefaultRetentionPolicyReplicaN,
-		Duration: DefaultRetentionPolicyDuration,
+		Name:          name,
+		ReplicaN:      DefaultRetentionPolicyReplicaN,
+		Duration:      DefaultRetentionPolicyDuration,
+		Subscriptions: make(map[string]*SubscriptionInfo),
 	}
 }
 
@@ -1020,10 +965,9 @@ func (rpi *RetentionPolicyInfo) Apply(spec *RetentionPolicySpec) *RetentionPolic
 // ShardGroupByTimestamp returns the shard group in the policy that contains the timestamp,
 // or nil if no shard group matches.
 func (rpi *RetentionPolicyInfo) ShardGroupByTimestamp(timestamp time.Time) *ShardGroupInfo {
-	for i := range rpi.ShardGroups {
-		sgi := &rpi.ShardGroups[i]
+	for _, sgi := range rpi.ShardGroups {
 		if sgi.Contains(timestamp) && !sgi.Deleted() && (!sgi.Truncated() || timestamp.Before(sgi.TruncatedAt)) {
-			return &rpi.ShardGroups[i]
+			return sgi
 		}
 	}
 
@@ -1033,12 +977,12 @@ func (rpi *RetentionPolicyInfo) ShardGroupByTimestamp(timestamp time.Time) *Shar
 // ExpiredShardGroups returns the Shard Groups which are considered expired, for the given time.
 func (rpi *RetentionPolicyInfo) ExpiredShardGroups(t time.Time) []*ShardGroupInfo {
 	var groups = make([]*ShardGroupInfo, 0)
-	for i := range rpi.ShardGroups {
-		if rpi.ShardGroups[i].Deleted() {
+	for _, sgi := range rpi.ShardGroups {
+		if sgi.Deleted() {
 			continue
 		}
-		if rpi.Duration != 0 && rpi.ShardGroups[i].EndTime.Add(rpi.Duration).Before(t) {
-			groups = append(groups, &rpi.ShardGroups[i])
+		if rpi.Duration != 0 && sgi.EndTime.Add(rpi.Duration).Before(t) {
+			groups = append(groups, sgi)
 		}
 	}
 	return groups
@@ -1047,9 +991,9 @@ func (rpi *RetentionPolicyInfo) ExpiredShardGroups(t time.Time) []*ShardGroupInf
 // DeletedShardGroups returns the Shard Groups which are marked as deleted.
 func (rpi *RetentionPolicyInfo) DeletedShardGroups() []*ShardGroupInfo {
 	var groups = make([]*ShardGroupInfo, 0)
-	for i := range rpi.ShardGroups {
-		if rpi.ShardGroups[i].Deleted() {
-			groups = append(groups, &rpi.ShardGroups[i])
+	for _, sgi := range rpi.ShardGroups {
+		if sgi.Deleted() {
+			groups = append(groups, sgi)
 		}
 	}
 	return groups
@@ -1064,16 +1008,6 @@ func (rpi *RetentionPolicyInfo) marshal() *internal.RetentionPolicyInfo {
 		ShardGroupDuration: proto.Int64(int64(rpi.ShardGroupDuration)),
 	}
 
-	pb.ShardGroups = make([]*internal.ShardGroupInfo, len(rpi.ShardGroups))
-	for i, sgi := range rpi.ShardGroups {
-		pb.ShardGroups[i] = sgi.marshal()
-	}
-
-	pb.Subscriptions = make([]*internal.SubscriptionInfo, len(rpi.Subscriptions))
-	for i, sub := range rpi.Subscriptions {
-		pb.Subscriptions[i] = sub.marshal()
-	}
-
 	return pb
 }
 
@@ -1083,33 +1017,6 @@ func (rpi *RetentionPolicyInfo) unmarshal(pb *internal.RetentionPolicyInfo) {
 	rpi.ReplicaN = int(pb.GetReplicaN())
 	rpi.Duration = time.Duration(pb.GetDuration())
 	rpi.ShardGroupDuration = time.Duration(pb.GetShardGroupDuration())
-
-	if len(pb.GetShardGroups()) > 0 {
-		rpi.ShardGroups = make([]ShardGroupInfo, len(pb.GetShardGroups()))
-		for i, x := range pb.GetShardGroups() {
-			rpi.ShardGroups[i].unmarshal(x)
-		}
-	}
-	if len(pb.GetSubscriptions()) > 0 {
-		rpi.Subscriptions = make([]SubscriptionInfo, len(pb.GetSubscriptions()))
-		for i, x := range pb.GetSubscriptions() {
-			rpi.Subscriptions[i].unmarshal(x)
-		}
-	}
-}
-
-// clone returns a deep copy of rpi.
-func (rpi RetentionPolicyInfo) clone() RetentionPolicyInfo {
-	other := rpi
-
-	if rpi.ShardGroups != nil {
-		other.ShardGroups = make([]ShardGroupInfo, len(rpi.ShardGroups))
-		for i := range rpi.ShardGroups {
-			other.ShardGroups[i] = rpi.ShardGroups[i].clone()
-		}
-	}
-
-	return other
 }
 
 // MarshalBinary encodes rpi to a binary format.
@@ -1166,7 +1073,7 @@ type ShardGroupInfo struct {
 
 // ShardGroupInfos implements sort.Interface on []ShardGroupInfo, based
 // on the StartTime field.
-type ShardGroupInfos []ShardGroupInfo
+type ShardGroupInfos []*ShardGroupInfo
 
 // Len implements sort.Interface.
 func (a ShardGroupInfos) Len() int { return len(a) }
@@ -1211,20 +1118,6 @@ func (sgi *ShardGroupInfo) Deleted() bool {
 // Truncated returns true if this ShardGroup has been truncated (no new writes).
 func (sgi *ShardGroupInfo) Truncated() bool {
 	return !sgi.TruncatedAt.IsZero()
-}
-
-// clone returns a deep copy of sgi.
-func (sgi ShardGroupInfo) clone() ShardGroupInfo {
-	other := sgi
-
-	if sgi.Shards != nil {
-		other.Shards = make([]ShardInfo, len(sgi.Shards))
-		for i := range sgi.Shards {
-			other.Shards[i] = sgi.Shards[i].clone()
-		}
-	}
-
-	return other
 }
 
 // ShardFor returns the ShardInfo for a Point hash.
@@ -1294,20 +1187,6 @@ func (si ShardInfo) OwnedBy(nodeID uint64) bool {
 		}
 	}
 	return false
-}
-
-// clone returns a deep copy of si.
-func (si ShardInfo) clone() ShardInfo {
-	other := si
-
-	if si.Owners != nil {
-		other.Owners = make([]ShardOwner, len(si.Owners))
-		for i := range si.Owners {
-			other.Owners[i] = si.Owners[i].clone()
-		}
-	}
-
-	return other
 }
 
 // marshal serializes to a protobuf representation.
@@ -1393,11 +1272,6 @@ type ShardOwner struct {
 	NodeID uint64
 }
 
-// clone returns a deep copy of so.
-func (so ShardOwner) clone() ShardOwner {
-	return so
-}
-
 // marshal serializes to a protobuf representation.
 func (so ShardOwner) marshal() *internal.ShardOwner {
 	return &internal.ShardOwner{
@@ -1415,9 +1289,6 @@ type ContinuousQueryInfo struct {
 	Name  string
 	Query string
 }
-
-// clone returns a deep copy of cqi.
-func (cqi ContinuousQueryInfo) clone() ContinuousQueryInfo { return cqi }
 
 // marshal serializes to a protobuf representation.
 func (cqi ContinuousQueryInfo) marshal() *internal.ContinuousQueryInfo {
@@ -1481,20 +1352,6 @@ func (u *UserInfo) AuthorizeSeriesRead(database string, measurement []byte, tags
 // AuthorizeSeriesWrite is used to limit access per-series (enterprise only)
 func (u *UserInfo) AuthorizeSeriesWrite(database string, measurement []byte, tags models.Tags) bool {
 	return true
-}
-
-// clone returns a deep copy of si.
-func (ui UserInfo) clone() UserInfo {
-	other := ui
-
-	if ui.Privileges != nil {
-		other.Privileges = make(map[string]influxql.Privilege)
-		for k, v := range ui.Privileges {
-			other.Privileges[k] = v
-		}
-	}
-
-	return other
 }
 
 // marshal serializes to a protobuf representation.

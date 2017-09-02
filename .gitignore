@@ -74,3 +74,4 @@ man/*.1.gz
 
 # test outputs
 /test-results.xml
+cmd/examples/etcd_storage_service_exmaple
