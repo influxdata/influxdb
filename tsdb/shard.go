@@ -167,10 +167,12 @@ func NewShard(id uint64, path string, walPath string, opt EngineOptions) *Shard 
 // WithLogger sets the logger on the shard.
 func (s *Shard) WithLogger(log zap.Logger) {
 	s.baseLogger = log
+	s.mu.RLock()
 	if err := s.ready(); err == nil {
 		s.engine.WithLogger(s.baseLogger)
 		s.index.WithLogger(s.baseLogger)
 	}
+	s.mu.RUnlock()
 	s.logger = s.baseLogger.With(zap.String("service", "shard"))
 }
 
@@ -217,6 +219,8 @@ type ShardStatistics struct {
 
 // Statistics returns statistics for periodic monitoring.
 func (s *Shard) Statistics(tags map[string]string) []models.Statistic {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	if err := s.ready(); err != nil {
 		return nil
 	}
@@ -364,12 +368,12 @@ func (s *Shard) close(clean bool) error {
 }
 
 func (s *Shard) IndexType() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	if err := s.ready(); err != nil {
 		return ""
 	}
 
-	s.mu.RLock()
-	defer s.mu.RUnlock()
 	return s.index.Type()
 }
 
@@ -377,19 +381,18 @@ func (s *Shard) IndexType() string {
 // It returns nil if ready, otherwise ErrShardClosed or ErrShardDiabled
 func (s *Shard) ready() error {
 	var err error
-
-	s.mu.RLock()
 	if s.engine == nil {
 		err = ErrEngineClosed
 	} else if !s.enabled {
 		err = ErrShardDisabled
 	}
-	s.mu.RUnlock()
 	return err
 }
 
 // LastModified returns the time when this shard was last modified.
 func (s *Shard) LastModified() time.Time {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	if err := s.ready(); err != nil {
 		return time.Time{}
 	}
@@ -410,6 +413,8 @@ func (s *Shard) unloadIndex() {
 
 // IsIdle return true if the shard is not receiving writes and is fully compacted.
 func (s *Shard) IsIdle() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	if err := s.ready(); err != nil {
 		return true
 	}
@@ -419,6 +424,8 @@ func (s *Shard) IsIdle() bool {
 
 // SetCompactionsEnabled enables or disable shard background compactions.
 func (s *Shard) SetCompactionsEnabled(enabled bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	if err := s.ready(); err != nil {
 		return
 	}
@@ -445,15 +452,13 @@ type FieldCreate struct {
 
 // WritePoints will write the raw data points and any new metadata to the index in the shard.
 func (s *Shard) WritePoints(points []models.Point) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	if err := s.ready(); err != nil {
 		return err
 	}
 
 	var writeError error
-
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
 	atomic.AddInt64(&s.stats.WriteReq, 1)
 
 	points, fieldsToCreate, err := s.validateSeriesAndFields(points)
@@ -491,6 +496,8 @@ func (s *Shard) DeleteSeries(seriesKeys [][]byte) error {
 
 // DeleteSeriesRange deletes all values from for seriesKeys between min and max (inclusive)
 func (s *Shard) DeleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	if err := s.ready(); err != nil {
 		return err
 	}
@@ -504,9 +511,12 @@ func (s *Shard) DeleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 
 // DeleteMeasurement deletes a measurement and all underlying series.
 func (s *Shard) DeleteMeasurement(name []byte) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	if err := s.ready(); err != nil {
 		return err
 	}
+
 	return s.engine.DeleteMeasurement(name)
 }
 
@@ -717,6 +727,8 @@ func (s *Shard) MeasurementExists(name []byte) (bool, error) {
 
 // WriteTo writes the shard's data to w.
 func (s *Shard) WriteTo(w io.Writer) (int64, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	if err := s.ready(); err != nil {
 		return 0, err
 	}
@@ -727,15 +739,16 @@ func (s *Shard) WriteTo(w io.Writer) (int64, error) {
 
 // CreateIterator returns an iterator for the data in the shard.
 func (s *Shard) CreateIterator(measurement string, opt influxql.IteratorOptions) (influxql.Iterator, error) {
-	if err := s.ready(); err != nil {
-		return nil, err
-	}
-
 	if strings.HasPrefix(measurement, "_") {
 		if itr, ok, err := s.createSystemIterator(measurement, opt); ok {
 			return itr, err
 		}
 		// Unknown system source so pass this to the engine.
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if err := s.ready(); err != nil {
+		return nil, err
 	}
 	return s.engine.CreateIterator(measurement, opt)
 }
@@ -780,6 +793,8 @@ func (s *Shard) createSeriesIterator(opt influxql.IteratorOptions) (influxql.Ite
 
 // FieldDimensions returns unique sets of fields and dimensions across a list of sources.
 func (s *Shard) FieldDimensions(measurements []string) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	if err := s.ready(); err != nil {
 		return nil, nil, err
 	}
@@ -988,6 +1003,8 @@ func (s *Shard) CreateSnapshot() (string, error) {
 }
 
 func (s *Shard) ForEachMeasurementTagKey(name []byte, fn func(key []byte) error) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	if err := s.ready(); err != nil {
 		return nil
 	}
@@ -996,6 +1013,8 @@ func (s *Shard) ForEachMeasurementTagKey(name []byte, fn func(key []byte) error)
 }
 
 func (s *Shard) TagKeyCardinality(name, key []byte) int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	if err := s.ready(); err != nil {
 		return 0
 	}
