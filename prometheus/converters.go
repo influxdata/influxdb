@@ -19,7 +19,7 @@ const (
 	fieldName = "f64"
 )
 
-var ErrNaNDropped = errors.New("")
+var ErrNaNDropped = errors.New("dropped NaN from Prometheus since they are not supported")
 
 // WriteRequestToPoints converts a Prometheus remote write request of time series and their
 // samples into Points that can be written into Influx
