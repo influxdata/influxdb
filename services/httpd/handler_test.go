@@ -561,8 +561,8 @@ func TestHandler_PromWrite(t *testing.T) {
 	h.PointsWriter.WritePointsFn = func(db, rp string, _ models.ConsistencyLevel, _ meta.User, points []models.Point) error {
 		called = true
 		point := points[0]
-		if point.UnixNano() != 1*int64(time.Millisecond) {
-			t.Fatalf("Exp point time %d but got %d", 1*int64(time.Millisecond), point.UnixNano())
+		if point.UnixNano() != int64(time.Millisecond) {
+			t.Fatalf("Exp point time %d but got %d", int64(time.Millisecond), point.UnixNano())
 		}
 		tags := point.Tags()
 		expectedTags := models.Tags{models.Tag{Key: []byte("host"), Value: []byte("a")}, models.Tag{Key: []byte("region"), Value: []byte("west")}}

@@ -851,20 +851,19 @@ func (h *Handler) servePromWrite(w http.ResponseWriter, r *http.Request, user me
 
 	reqBuf, err := snappy.Decode(nil, buf.Bytes())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		h.httpError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	// Convert the Prometheus remote write request to Influx Points
 	var req remote.WriteRequest
 	if err := proto.Unmarshal(reqBuf, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		h.httpError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	points, err := prometheus.WriteRequestToPoints(&req)
 	if err != nil {
-		h.Logger.Info(fmt.Sprintf("promerr: %s", err.Error()))
 		if h.Config.WriteTracing {
 			h.Logger.Info(fmt.Sprintf("Prom write handler: %s", err.Error()))
 		}
@@ -879,7 +878,6 @@ func (h *Handler) servePromWrite(w http.ResponseWriter, r *http.Request, user me
 	level := r.URL.Query().Get("consistency")
 	consistency := models.ConsistencyLevelOne
 	if level != "" {
-		var err error
 		consistency, err = models.ParseConsistencyLevel(level)
 		if err != nil {
 			h.httpError(w, err.Error(), http.StatusBadRequest)
@@ -916,27 +914,19 @@ func (h *Handler) servePromWrite(w http.ResponseWriter, r *http.Request, user me
 func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user meta.User) {
 	compressed, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		h.httpError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	reqBuf, err := snappy.Decode(nil, compressed)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		h.httpError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	var req remote.ReadRequest
 	if err := proto.Unmarshal(reqBuf, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	if len(req.Queries) == 0 {
-		http.Error(w, "no prometheus queries passed", http.StatusBadRequest)
-		return
-	} else if len(req.Queries) > 1 {
-		http.Error(w, "only one prometheus remote query is supported per request", http.StatusBadRequest)
+		h.httpError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -944,7 +934,7 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 	db := r.FormValue("db")
 	q, err := prometheus.ReadRequestToInfluxQLQuery(&req, db, r.FormValue("rp"))
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		h.httpError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -1019,10 +1009,19 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 			}
 
 			for _, v := range s.Values {
-				timestamp := v[0].(time.Time).UnixNano() / int64(time.Millisecond) / int64(time.Nanosecond)
+				t, ok := v[0].(time.Time)
+				if !ok {
+					h.httpError(w, fmt.Sprintf("value %v wasn't a time", v[0]), http.StatusBadRequest)
+					return
+				}
+				val, ok := v[1].(float64)
+				if !ok {
+					h.httpError(w, fmt.Sprintf("value %v wasn't a float64", v[1]), http.StatusBadRequest)
+				}
+				timestamp := t.UnixNano() / int64(time.Millisecond) / int64(time.Nanosecond)
 				ts.Samples = append(ts.Samples, &remote.Sample{
 					TimestampMs: timestamp,
-					Value:       v[1].(float64),
+					Value:       val,
 				})
 			}
 
@@ -1032,7 +1031,7 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 
 	data, err := proto.Marshal(resp)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		h.httpError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -1041,7 +1040,7 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 
 	compressed = snappy.Encode(nil, data)
 	if _, err := w.Write(compressed); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		h.httpError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 

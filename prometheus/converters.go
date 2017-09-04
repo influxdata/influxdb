@@ -12,11 +12,11 @@ import (
 )
 
 const (
-	// MeasurementName is where all prometheus time series go to
-	MeasurementName = "_"
+	// measurementName is where all prometheus time series go to
+	measurementName = "_"
 
-	// FieldName is the field all prometheus values get written to
-	FieldName = "f64"
+	// fieldName is the field all prometheus values get written to
+	fieldName = "f64"
 )
 
 var ErrNaNDropped = errors.New("")
@@ -24,7 +24,12 @@ var ErrNaNDropped = errors.New("")
 // WriteRequestToPoints converts a Prometheus remote write request of time series and their
 // samples into Points that can be written into Influx
 func WriteRequestToPoints(req *remote.WriteRequest) ([]models.Point, error) {
-	var points []models.Point
+	var maxPoints int
+	for _, ts := range req.Timeseries {
+		maxPoints += len(ts.Samples)
+	}
+	points := make([]models.Point, 0, maxPoints)
+
 	var droppedNaN error
 
 	for _, ts := range req.Timeseries {
@@ -42,8 +47,8 @@ func WriteRequestToPoints(req *remote.WriteRequest) ([]models.Point, error) {
 
 			// convert and append
 			t := time.Unix(0, s.TimestampMs*int64(time.Millisecond))
-			fields := map[string]interface{}{FieldName: s.Value}
-			p, err := models.NewPoint(MeasurementName, models.NewTags(tags), fields, t)
+			fields := map[string]interface{}{fieldName: s.Value}
+			p, err := models.NewPoint(measurementName, models.NewTags(tags), fields, t)
 			if err != nil {
 				return nil, err
 			}
@@ -67,10 +72,10 @@ func ReadRequestToInfluxQLQuery(req *remote.ReadRequest, db, rp string) (*influx
 	stmt := &influxql.SelectStatement{
 		IsRawQuery: true,
 		Fields: []*influxql.Field{
-			{Expr: &influxql.VarRef{Val: FieldName}},
+			{Expr: &influxql.VarRef{Val: fieldName}},
 		},
 		Sources: []influxql.Source{&influxql.Measurement{
-			Name:            MeasurementName,
+			Name:            measurementName,
 			Database:        db,
 			RetentionPolicy: rp,
 		}},
@@ -150,7 +155,7 @@ func condFromMatchers(q *remote.Query, matchers []*remote.LabelMatcher) (*influx
 
 // TagsToLabelPairs converts a map of Influx tags into a slice of Prometheus label pairs
 func TagsToLabelPairs(tags map[string]string) []*remote.LabelPair {
-	var pairs []*remote.LabelPair
+	pairs := make([]*remote.LabelPair, 0, len(tags))
 	for k, v := range tags {
 		if v == "" {
 			// If we select metrics with different sets of labels names,
