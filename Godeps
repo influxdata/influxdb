@@ -14,10 +14,10 @@ github.com/influxdata/usage-client 6d3895376368aa52a3a81d2a16e90f0f52371967
 github.com/jwilder/encoding 27894731927e49b0a9023f00312be26733744815
 github.com/paulbellamy/ratecounter 5a11f585a31379765c190c033b6ad39956584447
 github.com/peterh/liner 88609521dc4b6c858fd4c98b628147da928ce4ac
+github.com/prometheus/prometheus 3afb3fffa3a29c3de865e1172fb740442e9d0133
 github.com/retailnext/hllpp 38a7bb71b483e855d35010808143beaf05b67f9d
 github.com/spaolacci/murmur3 0d12bf811670bf6a1a63828dfbd003eded177fce
 github.com/uber-go/atomic 74ca5ec650841aee9f289dce76e928313a37cbc6
 github.com/uber-go/zap fbae0281ffd546fa6d1959fec6075ac5da7fb577
 golang.org/x/crypto 9477e0b78b9ac3d0b03822fd95422e2fe07627cd
 golang.org/x/sys 90796e5a05ce440b41c768bd9af257005e470461
-github.com/prometheus/prometheus 3afb3fffa3a29c3de865e1172fb740442e9d0133
