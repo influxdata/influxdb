@@ -46,6 +46,7 @@ export default React.createClass({
     synchronizer: func,
     setResolution: func,
     cellHeight: number,
+    onZoom: func,
   },
 
   getDefaultProps() {
@@ -101,6 +102,7 @@ export default React.createClass({
       synchronizer,
       timeRange,
       cellHeight,
+      onZoom,
     } = this.props
     const {labels, timeSeries, dygraphSeries} = this._timeSeries
 
@@ -176,6 +178,7 @@ export default React.createClass({
           synchronizer={synchronizer}
           timeRange={timeRange}
           setResolution={this.props.setResolution}
+          onZoom={onZoom}
         />
         {showSingleStat
           ? <div className="single-stat single-stat-line">

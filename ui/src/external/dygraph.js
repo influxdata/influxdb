@@ -288,22 +288,17 @@ Dygraph.Plugins.Crosshair = (function() {
 
     var width = e.dygraph.width_
     var height = e.dygraph.height_
+    var xLabelPixels = 20
+
     this.canvas_.width = width
-    this.canvas_.height = height
+    this.canvas_.height = height - xLabelPixels
     this.canvas_.style.width = width + 'px' // for IE
-    this.canvas_.style.height = height + 'px' // for IE
+    this.canvas_.style.height = height - xLabelPixels + 'px' // for IE
 
     var ctx = this.canvas_.getContext('2d')
     ctx.clearRect(0, 0, width, height)
-
-    const gradient = ctx.createLinearGradient(0, 0, 0, height)
-    gradient.addColorStop(0, 'rgba(255, 255, 255, 0.0)')
-    gradient.addColorStop(0.11, 'rgba(255, 255, 255, 1.0)')
-    gradient.addColorStop(0.89, 'rgba(255, 255, 255, 1.0)')
-    gradient.addColorStop(1, 'rgba(255, 255, 255, 0.0)')
-
-    ctx.strokeStyle = gradient
-    ctx.lineWidth = 1.5
+    ctx.strokeStyle = '#C6CAD3'
+    ctx.lineWidth = 1
 
     // If graphs have different time ranges, it's possible to select a point on
     // one graph that doesn't exist in another, resulting in an exception.

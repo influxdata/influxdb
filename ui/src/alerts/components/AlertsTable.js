@@ -28,15 +28,11 @@ class AlertsTable extends Component {
   filterAlerts = (searchTerm, newAlerts) => {
     const alerts = newAlerts || this.props.alerts
     const filterText = searchTerm.toLowerCase()
-    const filteredAlerts = alerts.filter(h => {
-      if (h.host === null || h.name === null || h.level === null) {
-        return false
-      }
-
+    const filteredAlerts = alerts.filter(({name, host, level}) => {
       return (
-        h.name.toLowerCase().includes(filterText) ||
-        h.host.toLowerCase().includes(filterText) ||
-        h.level.toLowerCase().includes(filterText)
+        (name && name.toLowerCase().includes(filterText)) ||
+        (host && host.toLowerCase().includes(filterText)) ||
+        (level && level.toLowerCase().includes(filterText))
       )
     })
     this.setState({searchTerm, filteredAlerts})

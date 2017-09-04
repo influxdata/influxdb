@@ -148,6 +148,7 @@ class LayoutRenderer extends Component {
       templates,
       synchronizer,
       isEditable,
+      onZoom,
     } = this.props
 
     return cells.map(cell => {
@@ -176,6 +177,7 @@ class LayoutRenderer extends Component {
                   queries={this.standardizeQueries(cell, source)}
                   cellHeight={h}
                   axes={axes}
+                  onZoom={onZoom}
                 />}
           </NameableGraph>
         </div>
@@ -303,6 +305,7 @@ LayoutRenderer.propTypes = {
   isStatusPage: bool,
   isEditable: bool,
   onCancelEditCell: func,
+  onZoom: func,
 }
 
 export default LayoutRenderer
