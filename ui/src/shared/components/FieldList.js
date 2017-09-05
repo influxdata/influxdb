@@ -167,7 +167,7 @@ FieldList.propTypes = {
   }).isRequired,
   onToggleField: func.isRequired,
   onGroupByTime: func.isRequired,
-  onFill: func.isRequired,
+  onFill: func,
   applyFuncsToField: func.isRequired,
   isKapacitorRule: bool,
   isInDataExplorer: bool,
