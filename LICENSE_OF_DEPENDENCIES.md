@@ -17,6 +17,7 @@
 - github.com/jwilder/encoding [MIT LICENSE](https://github.com/jwilder/encoding/blob/master/LICENSE)
 - github.com/paulbellamy/ratecounter [MIT LICENSE](https://github.com/paulbellamy/ratecounter/blob/master/LICENSE)
 - github.com/peterh/liner [MIT LICENSE](https://github.com/peterh/liner/blob/master/COPYING)
+- github.com/prometheus/prometheus [APACHE LICENSE](https://github.com/prometheus/prometheus/blob/master/LICENSE)
 - github.com/rakyll/statik [APACHE LICENSE](https://github.com/rakyll/statik/blob/master/LICENSE)
 - github.com/retailnext/hllpp [BSD LICENSE](https://github.com/retailnext/hllpp/blob/master/LICENSE)
 - github.com/uber-go/atomic [MIT LICENSE](https://github.com/uber-go/atomic/blob/master/LICENSE.txt)
