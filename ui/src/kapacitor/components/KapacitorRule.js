@@ -136,6 +136,12 @@ class KapacitorRule extends Component {
             <div className="row">
               <div className="col-xs-12">
                 <div className="rule-builder">
+                  <ValuesSection
+                    rule={rule}
+                    query={queryConfigs[rule.queryID]}
+                    onChooseTrigger={chooseTrigger}
+                    onUpdateValues={updateRuleValues}
+                  />
                   <DataSection
                     timeRange={timeRange}
                     source={source}
@@ -144,12 +150,6 @@ class KapacitorRule extends Component {
                     onAddEvery={this.handleAddEvery}
                     onRemoveEvery={this.handleRemoveEvery}
                     isKapacitorRule={true}
-                  />
-                  <ValuesSection
-                    rule={rule}
-                    query={queryConfigs[rule.queryID]}
-                    onChooseTrigger={chooseTrigger}
-                    onUpdateValues={updateRuleValues}
                   />
                   <RuleGraph
                     timeRange={timeRange}

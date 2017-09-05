@@ -1,6 +1,4 @@
 import React, {PropTypes, Component} from 'react'
-import buildInfluxQLQuery from 'utils/influxql'
-import classnames from 'classnames'
 
 import DatabaseList from 'src/shared/components/DatabaseList'
 import MeasurementList from 'src/shared/components/MeasurementList'
@@ -56,51 +54,32 @@ class DataSection extends Component {
   }
 
   render() {
-    const {query, timeRange: {lower}} = this.props
-    const statement = query.rawText || buildInfluxQLQuery({lower}, query)
-
+    const {query, isKapacitorRule} = this.props
     return (
       <div className="rule-section">
         <h3 className="rule-section--heading">Select a Time Series</h3>
         <div className="rule-section--body">
-          <pre className="rule-section--border-bottom">
-            <code
-              className={classnames({
-                'metric-placeholder': !statement,
-              })}
-            >
-              {statement || 'Build a query below'}
-            </code>
-          </pre>
-          {this.renderQueryBuilder()}
+          <div className="query-builder rule-section--border-bottom">
+            <DatabaseList
+              query={query}
+              onChooseNamespace={this.handleChooseNamespace}
+            />
+            <MeasurementList
+              query={query}
+              onChooseMeasurement={this.handleChooseMeasurement}
+              onChooseTag={this.handleChooseTag}
+              onGroupByTag={this.handleGroupByTag}
+              onToggleTagAcceptance={this.handleToggleTagAcceptance}
+            />
+            <FieldList
+              query={query}
+              onToggleField={this.handleToggleField}
+              onGroupByTime={this.handleGroupByTime}
+              applyFuncsToField={this.handleApplyFuncsToField}
+              isKapacitorRule={isKapacitorRule}
+            />
+          </div>
         </div>
-      </div>
-    )
-  }
-
-  renderQueryBuilder() {
-    const {query, isKapacitorRule} = this.props
-
-    return (
-      <div className="query-builder">
-        <DatabaseList
-          query={query}
-          onChooseNamespace={this.handleChooseNamespace}
-        />
-        <MeasurementList
-          query={query}
-          onChooseMeasurement={this.handleChooseMeasurement}
-          onChooseTag={this.handleChooseTag}
-          onGroupByTag={this.handleGroupByTag}
-          onToggleTagAcceptance={this.handleToggleTagAcceptance}
-        />
-        <FieldList
-          query={query}
-          onToggleField={this.handleToggleField}
-          onGroupByTime={this.handleGroupByTime}
-          applyFuncsToField={this.handleApplyFuncsToField}
-          isKapacitorRule={isKapacitorRule}
-        />
       </div>
     )
   }

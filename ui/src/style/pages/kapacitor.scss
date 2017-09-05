@@ -157,10 +157,9 @@ $rule-builder--radius-lg: 5px;
   }
   .query-builder--column {
     margin-right: 2px;
-    &:last-child {margin-right: 0;}
-  }
-  .query-builder--column:nth-child(1) .query-builder--list {
-    border-bottom-left-radius: $rule-builder--radius-lg;
+    &:last-child {
+      margin-right: 0;
+    }
   }
   .query-builder--column:nth-child(4) .query-builder--list,
   .query-builder--column:nth-child(4) .query-builder--list-empty {
