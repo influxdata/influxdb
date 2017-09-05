@@ -29,6 +29,13 @@ func Test_GroupByVar(t *testing.T) {
 			1000,
 			10 * time.Second,
 		},
+		{
+			"absolute time with nano",
+			"SELECT mean(usage_idle) FROM cpu WHERE time > '2017-07-24T15:33:42.994Z' and time < '2017-08-24T15:33:42.994Z' GROUP BY :interval:",
+			744 * time.Hour,
+			1000,
+			10 * time.Second,
+		},
 	}
 
 	for _, test := range gbvTests {

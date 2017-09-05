@@ -31,6 +31,7 @@ class DashboardPage extends Component {
       isEditMode: false,
       selectedCell: null,
       isTemplating: false,
+      zoomedTimeRange: {zoomedLower: null, zoomedUpper: null},
     }
   }
 
@@ -196,12 +197,19 @@ class DashboardPage extends Component {
     )
   }
 
+  handleZoomedTimeRange = (zoomedLower, zoomedUpper) => {
+    this.setState({zoomedTimeRange: {zoomedLower, zoomedUpper}})
+  }
+
   getActiveDashboard() {
     const {params: {dashboardID}, dashboards} = this.props
     return dashboards.find(d => d.id === +dashboardID)
   }
 
   render() {
+    const {zoomedTimeRange} = this.state
+    const {zoomedLower, zoomedUpper} = zoomedTimeRange
+
     const {
       source,
       timeRange,
@@ -217,8 +225,11 @@ class DashboardPage extends Component {
       params: {sourceID, dashboardID},
     } = this.props
 
-    const lowerType = lower && lower.includes('Z') ? 'timeStamp' : 'constant'
-    const upperType = upper && upper.includes('Z') ? 'timeStamp' : 'constant'
+    const low = zoomedLower ? zoomedLower : lower
+    const up = zoomedUpper ? zoomedUpper : upper
+
+    const lowerType = low && low.includes(':') ? 'timeStamp' : 'constant'
+    const upperType = up && up.includes(':') ? 'timeStamp' : 'constant'
 
     const dashboardTime = {
       id: 'dashtime',
@@ -226,7 +237,7 @@ class DashboardPage extends Component {
       type: lowerType,
       values: [
         {
-          value: lower,
+          value: low,
           type: lowerType,
           selected: true,
         },
@@ -239,7 +250,7 @@ class DashboardPage extends Component {
       type: upperType,
       values: [
         {
-          value: upper || 'now()',
+          value: up || 'now()',
           type: upperType,
           selected: true,
         },
@@ -310,6 +321,7 @@ class DashboardPage extends Component {
               sourceID={sourceID}
               dashboard={dashboard}
               timeRange={timeRange}
+              zoomedTimeRange={zoomedTimeRange}
               autoRefresh={autoRefresh}
               isHidden={inPresentationMode}
               onAddCell={this.handleAddCell}
@@ -337,6 +349,7 @@ class DashboardPage extends Component {
               dashboard={dashboard}
               timeRange={timeRange}
               autoRefresh={autoRefresh}
+              onZoom={this.handleZoomedTimeRange}
               onAddCell={this.handleAddCell}
               synchronizer={this.synchronizer}
               inPresentationMode={inPresentationMode}
