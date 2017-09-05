@@ -471,6 +471,118 @@ func TestConvert(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:     "Test implicit null fill accepted and made explicit",
+			influxQL: `SELECT mean("usage_idle") FROM "telegraf"."autogen"."cpu" WHERE time > now() - 15m GROUP BY time(1m)`,
+			want: chronograf.QueryConfig{
+				Database:        "telegraf",
+				Measurement:     "cpu",
+				RetentionPolicy: "autogen",
+				Fields: []chronograf.Field{
+					chronograf.Field{
+						Field: "usage_idle",
+						Funcs: []string{
+							"mean",
+						},
+					},
+				},
+				GroupBy: chronograf.GroupBy{
+					Time: "1m",
+					Tags: []string{},
+				},
+				Tags:            map[string][]string{},
+				AreTagsAccepted: false,
+				Fill:            "null",
+				Range: &chronograf.DurationRange{
+					Lower: "now() - 15m",
+				},
+			},
+		},
+<<<<<<< HEAD
+		{
+			name:     "Test implicit null fill accepted and made explicit",
+			influxQL: `SELECT mean("usage_idle") FROM "telegraf"."autogen"."cpu" WHERE time > now() - 15m GROUP BY time(1m)`,
+			want: chronograf.QueryConfig{
+				Database:        "telegraf",
+				Measurement:     "cpu",
+				RetentionPolicy: "autogen",
+				Fields: []chronograf.Field{
+					chronograf.Field{
+						Field: "usage_idle",
+						Funcs: []string{
+							"mean",
+						},
+					},
+				},
+				GroupBy: chronograf.GroupBy{
+					Time: "1m",
+					Tags: []string{},
+				},
+				Tags:            map[string][]string{},
+				AreTagsAccepted: false,
+				Fill:            "null",
+				Range: &chronograf.DurationRange{
+					Lower: "now() - 15m",
+				},
+			},
+		},
+||||||| parent of a45faebe... bob
+		{
+			name:     "Test implicit null fill accepted and made explicit",
+			influxQL: `SELECT mean("usage_idle") FROM "telegraf"."autogen"."cpu" WHERE time > now() - 15m GROUP BY time(1m)`,
+			want: chronograf.QueryConfig{
+				Database:        "telegraf",
+				Measurement:     "cpu",
+				RetentionPolicy: "autogen",
+				Fields: []chronograf.Field{
+					chronograf.Field{
+						Field: "usage_idle",
+						Funcs: []string{
+							"mean",
+						},
+					},
+				},
+				GroupBy: chronograf.GroupBy{
+					Time: "1m",
+					Tags: []string{},
+				},
+				Tags:            map[string][]string{},
+				AreTagsAccepted: false,
+				Fill:            "null",
+				Range: &chronograf.DurationRange{
+					Lower: "now() - 15m",
+				},
+			},
+		},
+		{
+			name:     "Test fill number accepted",
+			influxQL: `SELECT mean("usage_idle") FROM "telegraf"."autogen"."cpu" WHERE time > now() - 15m GROUP BY time(1m) FILL(1337)`,
+			want: chronograf.QueryConfig{
+				Database:        "telegraf",
+				Measurement:     "cpu",
+				RetentionPolicy: "autogen",
+				Fields: []chronograf.Field{
+					chronograf.Field{
+						Field: "usage_idle",
+						Funcs: []string{
+							"mean",
+						},
+					},
+				},
+				GroupBy: chronograf.GroupBy{
+					Time: "1m",
+					Tags: []string{},
+				},
+				Tags:            map[string][]string{},
+				AreTagsAccepted: false,
+				Fill:            "1337",
+				Range: &chronograf.DurationRange{
+					Lower: "now() - 15m",
+				},
+			},
+		},
+=======
+>>>>>>> a45faebe... bob
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
