@@ -34,7 +34,7 @@ export default function buildInfluxQLQuery(
 
   const condition = _buildWhereClause({lower, upper, tags, areTagsAccepted})
   const dimensions = _buildGroupBy(groupBy)
-  const fillClause = isKapacitorRule ? '' : _buildFill(fill)
+  const fillClause = isKapacitorRule || !groupBy.time ? '' : _buildFill(fill)
 
   return `${select}${condition}${dimensions}${fillClause}`
 }
