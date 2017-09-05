@@ -112,7 +112,6 @@ type Shard struct {
 	path    string
 	walPath string
 	id      uint64
-	wg      sync.WaitGroup
 
 	database        string
 	retentionPolicy string
@@ -350,11 +349,10 @@ func (s *Shard) close(clean bool) error {
 	default:
 		close(s.closing)
 	}
-	s.wg.Wait()
 
 	if clean {
 		// Don't leak our shard ID and series keys in the index
-		s.UnloadIndex()
+		s.unloadIndex()
 	}
 
 	err := s.engine.Close()
@@ -403,6 +401,13 @@ func (s *Shard) LastModified() time.Time {
 
 // UnloadIndex removes all references to this shard from the DatabaseIndex
 func (s *Shard) UnloadIndex() {
+	if err := s.ready(); err != nil {
+		return
+	}
+	s.unloadIndex()
+}
+
+func (s *Shard) unloadIndex() {
 	s.index.RemoveShard(s.id)
 }
 
