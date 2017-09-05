@@ -1,6 +1,7 @@
 package influx
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -125,7 +126,7 @@ func Convert(influxQL string) (chronograf.QueryConfig, error) {
 				qc.Fill = "none"
 
 			case influxql.NumberFill:
-				qc.Fill = "number"
+				qc.Fill = fmt.Sprint(stmt.FillValue)
 
 			case influxql.PreviousFill:
 				qc.Fill = "previous"
