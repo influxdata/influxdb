@@ -4,6 +4,7 @@ import {
   TEMP_VAR_INTERVAL,
   DEFAULT_DASHBOARD_GROUP_BY_INTERVAL,
 } from 'shared/constants'
+import {NULL_STRING} from 'shared/constants/queryFillOptions'
 
 /* eslint-disable quotes */
 export const quoteIfTimestamp = ({lower, upper}) => {
@@ -24,7 +25,7 @@ export default function buildInfluxQLQuery(
   config,
   isKapacitorRule
 ) {
-  const {groupBy, fill, tags, areTagsAccepted} = config
+  const {groupBy, fill = NULL_STRING, tags, areTagsAccepted} = config
   const {upper, lower} = quoteIfTimestamp(timeBounds)
 
   const select = _buildSelect(config)
