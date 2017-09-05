@@ -1,6 +1,7 @@
 import defaultQueryConfig from 'utils/defaultQueryConfig'
 import {DEFAULT_DASHBOARD_GROUP_BY_INTERVAL} from 'shared/constants'
 import {DEFAULT_DATA_EXPLORER_GROUP_BY_INTERVAL} from 'src/data_explorer/constants'
+import {NULL_STRING} from 'shared/constants/queryFillOptions'
 
 export function editRawText(query, rawText) {
   return Object.assign({}, query, {rawText})

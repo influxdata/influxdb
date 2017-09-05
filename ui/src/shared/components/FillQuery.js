@@ -1,7 +1,7 @@
 import React, {Component, PropTypes} from 'react'
 import Dropdown from 'shared/components/Dropdown'
 
-import {NULL, NUMBER} from 'shared/constants/queryFillOptions'
+import {NULL_STRING, NUMBER} from 'shared/constants/queryFillOptions'
 
 import queryFills from 'hson!shared/data/queryFills.hson'
 
@@ -25,7 +25,7 @@ class FillQuery extends Component {
   static defaultProps = {
     size: 'sm',
     theme: 'blue',
-    value: NULL,
+    value: NULL_STRING,
   }
 
   handleDropdown = item => {

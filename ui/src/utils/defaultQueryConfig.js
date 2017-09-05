@@ -1,4 +1,4 @@
-import {NULL} from 'shared/constants/queryFillOptions'
+import {NULL_STRING} from 'shared/constants/queryFillOptions'
 
 const defaultQueryConfig = ({id, isKapacitorRule = false}) => {
   const queryConfig = {
@@ -12,7 +12,7 @@ const defaultQueryConfig = ({id, isKapacitorRule = false}) => {
       time: null,
       tags: [],
     },
-    fill: NULL,
+    fill: NULL_STRING,
     areTagsAccepted: true,
     rawText: null,
     status: null,
