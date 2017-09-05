@@ -105,9 +105,10 @@ const queryConfigs = (state = {}, action) => {
 
     case 'KAPA_APPLY_FUNCS_TO_FIELD': {
       const {queryId, fieldFunc} = action.payload
-      // this 3rd arg (isKapacitorRule) makes sure 'auto' is not added as
-      // default group by in Kapacitor rule
-      const nextQueryConfig = applyFuncsToField(state[queryId], fieldFunc, true)
+      const nextQueryConfig = applyFuncsToField(state[queryId], fieldFunc, {
+        preventAutoGroupBy: true,
+        isKapacitorRule: true,
+      })
 
       return Object.assign({}, state, {
         [queryId]: nextQueryConfig,

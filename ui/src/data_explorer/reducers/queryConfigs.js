@@ -101,7 +101,9 @@ const queryConfigs = (state = {}, action) => {
 
     case 'DE_APPLY_FUNCS_TO_FIELD': {
       const {queryId, fieldFunc} = action.payload
-      const nextQueryConfig = applyFuncsToField(state[queryId], fieldFunc, true)
+      const nextQueryConfig = applyFuncsToField(state[queryId], fieldFunc, {
+        preventAutoGroupBy: true,
+      })
 
       return Object.assign({}, state, {
         [queryId]: nextQueryConfig,

@@ -105,7 +105,7 @@ export function toggleTagAcceptance(query) {
 export function applyFuncsToField(
   query,
   {field, funcs},
-  preventAutoGroupBy = false
+  {preventAutoGroupBy = false, isKapacitorRule = false}
 ) {
   const shouldRemoveFuncs = funcs.length === 0
   const nextFields = query.fields.map(f => {
@@ -130,13 +130,16 @@ export function applyFuncsToField(
     time: shouldRemoveFuncs ? null : defaultGroupBy,
   })
 
-  const nextFill = NULL_STRING
+  const nextQuery = {...query, fields: nextFields, groupBy: nextGroupBy}
 
-  return Object.assign({}, query, {
-    fields: nextFields,
-    groupBy: nextGroupBy,
-    fill: nextFill,
-  })
+  // fill is not valid for kapacitor query configs since there is no actual
+  // query and all alert rules create stream-based tasks currently
+  if (!isKapacitorRule) {
+    const nextFill = NULL_STRING
+    Object.assign(nextQuery, {fill: nextFill})
+  }
+
+  return nextQuery
 }
 
 export function updateRawQuery(query, rawText) {
