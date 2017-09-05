@@ -418,7 +418,7 @@ func TestConvert(t *testing.T) {
 			},
 		},
 		{
-			name:     "Test fill non-null word accepted",
+			name:     "Test explicit non-null fill accepted",
 			influxQL: `SELECT mean("usage_idle") FROM "telegraf"."autogen"."cpu" WHERE time > now() - 15m GROUP BY time(1m) FILL(linear)`,
 			want: chronograf.QueryConfig{
 				Database:        "telegraf",
@@ -439,6 +439,33 @@ func TestConvert(t *testing.T) {
 				Tags:            map[string][]string{},
 				AreTagsAccepted: false,
 				Fill:            "linear",
+				Range: &chronograf.DurationRange{
+					Lower: "now() - 15m",
+				},
+			},
+		},
+		{
+			name:     "Test explicit null fill accepted",
+			influxQL: `SELECT mean("usage_idle") FROM "telegraf"."autogen"."cpu" WHERE time > now() - 15m GROUP BY time(1m) FILL(null)`,
+			want: chronograf.QueryConfig{
+				Database:        "telegraf",
+				Measurement:     "cpu",
+				RetentionPolicy: "autogen",
+				Fields: []chronograf.Field{
+					chronograf.Field{
+						Field: "usage_idle",
+						Funcs: []string{
+							"mean",
+						},
+					},
+				},
+				GroupBy: chronograf.GroupBy{
+					Time: "1m",
+					Tags: []string{},
+				},
+				Tags:            map[string][]string{},
+				AreTagsAccepted: false,
+				Fill:            "null",
 				Range: &chronograf.DurationRange{
 					Lower: "now() - 15m",
 				},
