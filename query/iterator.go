@@ -1355,6 +1355,10 @@ type IteratorCost struct {
 	// one cursor is created for every series.
 	NumSeries int64
 
+	// CachedValues returns the number of cached values that may be read by this
+	// query.
+	CachedValues int64
+
 	// The total number of non-unique files that may be accessed by this query.
 	// This will count the number of files accessed by each series so files
 	// will likely be double counted.
@@ -1370,11 +1374,12 @@ type IteratorCost struct {
 // Combine combines the results of two IteratorCost structures into one.
 func (c IteratorCost) Combine(other IteratorCost) IteratorCost {
 	return IteratorCost{
-		NumShards:  c.NumShards + other.NumShards,
-		NumSeries:  c.NumSeries + other.NumSeries,
-		NumFiles:   c.NumFiles + other.NumFiles,
-		BlocksRead: c.BlocksRead + other.BlocksRead,
-		BlockSize:  c.BlockSize + other.BlockSize,
+		NumShards:    c.NumShards + other.NumShards,
+		NumSeries:    c.NumSeries + other.NumSeries,
+		CachedValues: c.CachedValues + other.CachedValues,
+		NumFiles:     c.NumFiles + other.NumFiles,
+		BlocksRead:   c.BlocksRead + other.BlocksRead,
+		BlockSize:    c.BlockSize + other.BlockSize,
 	}
 }
 

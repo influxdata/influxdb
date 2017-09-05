@@ -17,16 +17,15 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/influxdata/influxdb/query"
-	"github.com/influxdata/influxdb/tsdb/index/inmem"
-
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/limiter"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
 	_ "github.com/influxdata/influxdb/tsdb/index"
+	"github.com/influxdata/influxdb/tsdb/index/inmem"
 	"github.com/uber-go/zap"
 )
 
@@ -2173,8 +2172,7 @@ func (e *Engine) IteratorCost(measurement string, opt query.IteratorOptions) (qu
 		for i, key := range t.SeriesKeys {
 			// Retrieve the cost for the main expression (if it exists).
 			if ref != nil {
-				k := SeriesFieldKey(key, ref.Val)
-				c := e.FileStore.Cost([]byte(k), opt.StartTime, opt.EndTime)
+				c := e.seriesCost(key, ref.Val, opt.StartTime, opt.EndTime)
 				cost = cost.Combine(c)
 			}
 
@@ -2184,8 +2182,7 @@ func (e *Engine) IteratorCost(measurement string, opt query.IteratorOptions) (qu
 			// anywhere close to the full costs of the auxiliary iterators because
 			// many of the selected values are usually skipped.
 			for _, ref := range opt.Aux {
-				k := SeriesFieldKey(key, ref.Val)
-				c := e.FileStore.Cost([]byte(k), opt.StartTime, opt.EndTime)
+				c := e.seriesCost(key, ref.Val, opt.StartTime, opt.EndTime)
 				cost = cost.Combine(c)
 			}
 
@@ -2194,14 +2191,23 @@ func (e *Engine) IteratorCost(measurement string, opt query.IteratorOptions) (qu
 			if t.Filters[i] != nil {
 				refs := influxql.ExprNames(t.Filters[i])
 				for _, ref := range refs {
-					k := SeriesFieldKey(key, ref.Val)
-					c := e.FileStore.Cost([]byte(k), opt.StartTime, opt.EndTime)
+					c := e.seriesCost(key, ref.Val, opt.StartTime, opt.EndTime)
 					cost = cost.Combine(c)
 				}
 			}
 		}
 	}
 	return cost, nil
+}
+
+func (e *Engine) seriesCost(seriesKey, field string, tmin, tmax int64) query.IteratorCost {
+	key := SeriesFieldKeyBytes(seriesKey, field)
+	c := e.FileStore.Cost(key, tmin, tmax)
+
+	// Retrieve the range of values within the cache.
+	cacheValues := e.Cache.Values(key)
+	c.CachedValues = int64(len(cacheValues.Include(tmin, tmax)))
+	return c
 }
 
 func (e *Engine) SeriesPointIterator(opt query.IteratorOptions) (query.Iterator, error) {
