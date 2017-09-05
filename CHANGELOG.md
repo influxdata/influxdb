@@ -3,6 +3,7 @@
 ### Bugfixes
 
 - [#8770](https://github.com/influxdata/influxdb/pull/8770): Reduce how long it takes to walk the varrefs in an expression.
+- [#8787](https://github.com/influxdata/influxdb/issues/8787): panic: runtime error: invalid memory address or nil pointer dereference.
 
 ## v1.3.5 [2017-08-29]
 
