@@ -265,7 +265,3 @@ export const updateTempVarValues = (source, dashboard) => async dispatch => {
     dispatch(errorThrown(error))
   }
 }
-
-export const selectTempVarsFromUrl = (dashboardID, query = {}) => dispatch => {
-  dispatch(templateVariablesSelectedByName(dashboardID, query))
-}
