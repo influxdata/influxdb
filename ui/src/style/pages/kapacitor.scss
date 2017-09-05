@@ -29,7 +29,9 @@ $rule-builder--radius-lg: 5px;
   color: $g15-platinum;
   @include no-user-select();
 
-  &:first-child {margin-left: 0;}
+  &:first-child {
+    margin-left: 0;
+  }
 }
 
 /*
@@ -59,7 +61,8 @@ $rule-builder--radius-lg: 5px;
 }
 .rule-section--heading {
   margin: 0;
-  padding: $rule-builder--section-gap 0 $rule-builder--padding-md $rule-builder--left-gutter;
+  padding: $rule-builder--section-gap 0 $rule-builder--padding-md
+    $rule-builder--left-gutter;
   font-size: $page-header-size;
   font-weight: $page-header-weight;
   color: $g12-forge;
@@ -127,7 +130,6 @@ $rule-builder--radius-lg: 5px;
   margin-left: $rule-builder--padding-sm - 2px;
 }
 
-
 /*
   Section 1 - Select a Time Series
   -----------------------------------------------------------------------------
@@ -174,7 +176,9 @@ $rule-builder--radius-lg: 5px;
   }
   .group-by-tag.active {
     background-color: $c-rainforest !important;
-    &:hover {background-color: $c-honeydew !important;}
+    &:hover {
+      background-color: $c-honeydew !important;
+    }
   }
   .query-builder--list-item .query-builder--checkbox:after {
     background-color: $c-rainforest;
@@ -293,8 +297,12 @@ textarea.rule-builder--message {
   border-radius: 0;
   @include custom-scrollbar($rule-builder--section-bg,$rule-builder--accent-color);
 
-  &:hover {border-color: $g4-onyx;}
-  &:focus {background-color: $rule-builder--section-bg;}
+  &:hover {
+    border-color: $g4-onyx;
+  }
+  &:focus {
+    background-color: $rule-builder--section-bg;
+  }
 }
 .rule-builder--message-template {
   height: 30px;
@@ -347,9 +355,7 @@ textarea.rule-builder--message {
     margin: 0;
     height: 18px;
     line-height: 20px;
-    transition:
-      background-color 0.4s ease,
-      color 0.4s ease,
+    transition: background-color 0.4s ease, color 0.4s ease,
       box-shadow 0.4s ease;
   }
   .form-group > input.form-control:hover + label {
@@ -363,18 +369,25 @@ textarea.rule-builder--message {
   }
 }
 
-
-
 /*
   Color coding for alerts in Alert History table
   -----------------------------------------------------------------------------
 */
 .alert-level-ok {
-  &, &:hover {color: $c-rainforest !important;}
+  &,
+  &:hover {
+    color: $c-rainforest !important;
+  }
 }
 .alert-level-warning {
-  &, &:hover {color: $c-pineapple !important;}
+  &,
+  &:hover {
+    color: $c-pineapple !important;
+  }
 }
 .alert-level-critical {
-  &, &:hover {color: $c-dreamsicle !important;}
+  &,
+  &:hover {
+    color: $c-dreamsicle !important;
+  }
 }
