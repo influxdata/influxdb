@@ -105,7 +105,7 @@ export function toggleTagAcceptance(query) {
 export function applyFuncsToField(
   query,
   {field, funcs},
-  {preventAutoGroupBy = false, isKapacitorRule = false}
+  {preventAutoGroupBy = false, isKapacitorRule = false} = {}
 ) {
   const shouldRemoveFuncs = funcs.length === 0
   const nextFields = query.fields.map(f => {
