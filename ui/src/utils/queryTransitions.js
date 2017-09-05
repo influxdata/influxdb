@@ -130,9 +130,12 @@ export function applyFuncsToField(
     time: shouldRemoveFuncs ? null : defaultGroupBy,
   })
 
+  const nextFill = NULL_STRING
+
   return Object.assign({}, query, {
     fields: nextFields,
     groupBy: nextGroupBy,
+    fill: nextFill,
   })
 }
 
