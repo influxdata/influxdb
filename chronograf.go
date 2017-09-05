@@ -503,6 +503,7 @@ type QueryConfig struct {
 	Tags            map[string][]string `json:"tags"`
 	GroupBy         GroupBy             `json:"groupBy"`
 	AreTagsAccepted bool                `json:"areTagsAccepted"`
+	Fill            string              `json:"fill,omitempty"`
 	RawText         *string             `json:"rawText"`
 	Range           *DurationRange      `json:"range"`
 }
