@@ -106,6 +106,21 @@ class KapacitorRule extends Component {
     return ''
   }
 
+  handleRuleTypeDropdownChange = ({type, text}) => {
+    const {ruleActions, rule} = this.props
+    ruleActions.updateRuleValues(rule.id, rule.trigger, {[type]: text})
+  }
+
+  // handleThresholdInputChange = () => {
+  //   const {ruleActions, rule} = this.props
+  //   // ruleActions.updateRuleValues(rule.id, rule.trigger, {period: text})
+  // }
+  //
+  // handleRelativeInputChange = () => {
+  //   const {ruleActions, rule} = this.props
+  //   // ruleActions.updateRuleValues(rule.id, rule.trigger, {period: text})
+  // }
+
   handleDeadmanChange = ({text}) => {
     const {ruleActions, rule} = this.props
     ruleActions.updateRuleValues(rule.id, rule.trigger, {period: text})
@@ -147,6 +162,9 @@ class KapacitorRule extends Component {
                     onChooseTrigger={chooseTrigger}
                     onUpdateValues={updateRuleValues}
                     onDeadmanChange={this.handleDeadmanChange}
+                    onRuleTypeDropdownChange={this.handleRuleTypeDropdownChange}
+                    onThresholdInputChange={this.handleThresholdInputChange}
+                    onRelativeInputChange={this.handleRelativeInputChange}
                   />
                   <DataSection
                     timeRange={timeRange}
