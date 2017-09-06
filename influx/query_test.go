@@ -525,6 +525,12 @@ func TestConvert(t *testing.T) {
 				},
 			},
 		},
+
+		{
+			name:     "Test invalid fill rejected",
+			influxQL: `SELECT mean("usage_idle") FROM "telegraf"."autogen"."cpu" WHERE time > now() - 15m GROUP BY time(1m) FILL(LINEAR)`,
+			wantErr:  true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
