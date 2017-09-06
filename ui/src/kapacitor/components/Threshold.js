@@ -9,7 +9,7 @@ const Threshold = ({
   rule: {values: {operator, value, rangeValue}},
   query,
   onDropdownChange,
-  onThresholdInputChange,
+  onRuleTypeInputChange,
 }) =>
   <div className="rule-section--row rule-section--border-bottom">
     <p>Send Alert where</p>
@@ -32,7 +32,7 @@ const Threshold = ({
         name="lower"
         spellCheck="false"
         value={value}
-        onChange={onThresholdInputChange}
+        onChange={onRuleTypeInputChange}
         placeholder={
           operator === 'inside range' || operator === 'outside range'
             ? 'Lower'
@@ -48,7 +48,7 @@ const Threshold = ({
           type="text"
           spellCheck="false"
           value={rangeValue}
-          onChange={onThresholdInputChange}
+          onChange={onRuleTypeInputChange}
         />}
     </form>
   </div>
@@ -65,7 +65,7 @@ Threshold.propTypes = {
     }),
   }),
   onDropdownChange: func.isRequired,
-  onThresholdInputChange: func.isRequired,
+  onRuleTypeInputChange: func.isRequired,
   query: shape({}).isRequired,
 }
 

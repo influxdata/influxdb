@@ -20,7 +20,7 @@ export const ValuesSection = React.createClass({
     query: PropTypes.shape({}).isRequired,
     onDeadmanChange: PropTypes.func.isRequired,
     onRuleTypeDropdownChange: PropTypes.func.isRequired,
-    onThresholdInputChange: PropTypes.func.isRequired,
+    onRuleTypeInputChange: PropTypes.func.isRequired,
   },
 
   render() {
@@ -29,7 +29,7 @@ export const ValuesSection = React.createClass({
       query,
       onDeadmanChange,
       onRuleTypeDropdownChange,
-      onThresholdInputChange,
+      onRuleTypeInputChange,
     } = this.props
     const initialIndex = TABS.indexOf(_.startCase(rule.trigger))
 
@@ -52,11 +52,15 @@ export const ValuesSection = React.createClass({
                   rule={rule}
                   query={query}
                   onDropdownChange={onRuleTypeDropdownChange}
-                  onThresholdInputChange={onThresholdInputChange}
+                  onRuleTypeInputChange={onRuleTypeInputChange}
                 />
               </TabPanel>
               <TabPanel>
-                <Relative rule={rule} onChange={this.handleValuesChange} />
+                <Relative
+                  rule={rule}
+                  onDropdownChange={onRuleTypeDropdownChange}
+                  onRuleTypeInputChange={onRuleTypeInputChange}
+                />
               </TabPanel>
               <TabPanel>
                 <Deadman rule={rule} onChange={onDeadmanChange} />
