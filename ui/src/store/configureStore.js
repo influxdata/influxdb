@@ -4,7 +4,8 @@ import {routerReducer, routerMiddleware} from 'react-router-redux'
 import thunkMiddleware from 'redux-thunk'
 
 import errorsMiddleware from 'shared/middleware/errors'
-import resizeLayout from 'shared/middleware/resizeLayout'
+import {resizeLayout} from 'shared/middleware/resizeLayout'
+import {queryStringConfig} from 'shared/middleware/queryStringConfig'
 import statusReducers from 'src/status/reducers'
 import sharedReducers from 'shared/reducers'
 import dataExplorerReducers from 'src/data_explorer/reducers'
@@ -33,6 +34,7 @@ export default function configureStore(initialState, browserHistory) {
       thunkMiddleware,
       routingMiddleware,
       errorsMiddleware,
+      queryStringConfig,
       resizeLayout
     )
   )(createStore)

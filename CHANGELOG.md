@@ -6,12 +6,14 @@
 1. [#1943](https://github.com/influxdata/chronograf/pull/1943): Fix inability to add kapacitor from source page on fresh install
 1. [#1947](https://github.com/influxdata/chronograf/pull/1947): Fix DataExplorer crash if field property not present on queryConfig
 1. [#1957](https://github.com/influxdata/chronograf/pull/1957): Fix stacked graphs not being fully displayed
+1. [#1969](https://github.com/influxdata/chronograf/pull/1969): Fix for delayed selection of template variables using URL query params
 
 ### Features
 1. [#1928](https://github.com/influxdata/chronograf/pull/1928): Add prefix, suffix, scale, and other y-axis formatting
 1. [#1886](https://github.com/influxdata/chronograf/pull/1886): Fix limit of 100 alert rules on alert rules page
 1. [#1934](https://github.com/influxdata/chronograf/pull/1934): Update time resolution when zooming in on graphs
 1. [#1945](https://github.com/influxdata/chronograf/pull/1945): Add `present` boolean query param to URL to enable presentation mode
+1. [#1969](https://github.com/influxdata/chronograf/pull/1969): Add `query` query param to URL to add a query to the Data Explorer
 
 ### UI Improvements
 1. [#1933](https://github.com/influxdata/chronograf/pull/1933): Use line-stacked graph type for memory information - thank you, @Joxit!
