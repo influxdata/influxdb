@@ -499,7 +499,7 @@ func TestConvert(t *testing.T) {
 			},
 		},
 		{
-			name:     "Test fill number accepted",
+			name:     "Test fill number (int) accepted",
 			influxQL: `SELECT mean("usage_idle") FROM "telegraf"."autogen"."cpu" WHERE time > now() - 15m GROUP BY time(1m) FILL(1337)`,
 			want: chronograf.QueryConfig{
 				Database:        "telegraf",
@@ -525,7 +525,33 @@ func TestConvert(t *testing.T) {
 				},
 			},
 		},
-
+		{
+			name:     "Test fill number (float) accepted",
+			influxQL: `SELECT mean("usage_idle") FROM "telegraf"."autogen"."cpu" WHERE time > now() - 15m GROUP BY time(1m) FILL(1.337)`,
+			want: chronograf.QueryConfig{
+				Database:        "telegraf",
+				Measurement:     "cpu",
+				RetentionPolicy: "autogen",
+				Fields: []chronograf.Field{
+					chronograf.Field{
+						Field: "usage_idle",
+						Funcs: []string{
+							"mean",
+						},
+					},
+				},
+				GroupBy: chronograf.GroupBy{
+					Time: "1m",
+					Tags: []string{},
+				},
+				Tags:            map[string][]string{},
+				AreTagsAccepted: false,
+				Fill:            "1.337",
+				Range: &chronograf.DurationRange{
+					Lower: "now() - 15m",
+				},
+			},
+		},
 		{
 			name:     "Test invalid fill rejected",
 			influxQL: `SELECT mean("usage_idle") FROM "telegraf"."autogen"."cpu" WHERE time > now() - 15m GROUP BY time(1m) FILL(LINEAR)`,
