@@ -205,8 +205,8 @@ describe('buildInfluxQLQuery', () => {
   })
 
   describe('with GROUP BY time()', () => {
-    describe('with no explicit fill', () => {
-      beforeEach(() => {
+    describe('and no explicit fill', () => {
+      it('makes fill(null) explicit', () => {
         config = mergeConfig({
           database: 'db1',
           retentionPolicy: 'rp1',
@@ -215,9 +215,25 @@ describe('buildInfluxQLQuery', () => {
           groupBy: {time: '10m', tags: []},
         })
         timeBounds = {lower: 'now() - 12h'}
-      })
 
-      it('builds makes fill(null) explicit', () => {
+        const expected =
+          'SELECT min("value") AS "min_value" FROM "db1"."rp1"."m0" WHERE time > now() - 12h GROUP BY time(10m) FILL(null)'
+        expect(buildInfluxQLQuery(timeBounds, config)).to.equal(expected)
+      })
+    })
+
+    describe('and explicit fill', () => {
+      it('includes explicit fill(null)', () => {
+        config = mergeConfig({
+          database: 'db1',
+          retentionPolicy: 'rp1',
+          measurement: 'm0',
+          fields: [{field: 'value', funcs: ['min']}],
+          groupBy: {time: '10m', tags: []},
+          fill: NULL_STRING,
+        })
+        timeBounds = {lower: 'now() - 12h'}
+
         const expected =
           'SELECT min("value") AS "min_value" FROM "db1"."rp1"."m0" WHERE time > now() - 12h GROUP BY time(10m) FILL(null)'
         expect(buildInfluxQLQuery(timeBounds, config)).to.equal(expected)
