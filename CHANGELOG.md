@@ -10,7 +10,8 @@
 ### Features
 1. [#1928](https://github.com/influxdata/chronograf/pull/1928): Add prefix, suffix, scale, and other y-axis formatting
 1. [#1886](https://github.com/influxdata/chronograf/pull/1886): Fix limit of 100 alert rules on alert rules page
-1. [#1934](https://github.com/influxdata/chronograf/pull/1943): Zoom syncronization and enhancement
+1. [#1934](https://github.com/influxdata/chronograf/pull/1934): Update time resolution when zooming in on graphs
+1. [#1945](https://github.com/influxdata/chronograf/pull/1945): Add `present` boolean query param to URL to enable presentation mode
 
 ### UI Improvements
 1. [#1933](https://github.com/influxdata/chronograf/pull/1933): Use line-stacked graph type for memory information - thank you, @Joxit!
