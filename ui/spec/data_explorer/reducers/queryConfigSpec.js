@@ -22,7 +22,7 @@ const fakeAddQueryAction = (panelID, queryID) => {
 }
 
 function buildInitialState(queryId, params) {
-  return Object.assign({}, defaultQueryConfig(queryId), params)
+  return Object.assign({}, defaultQueryConfig({id: queryId}), params)
 }
 
 describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
@@ -32,7 +32,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
     const state = reducer({}, fakeAddQueryAction('blah', queryId))
 
     const actual = state[queryId]
-    const expected = defaultQueryConfig(queryId)
+    const expected = defaultQueryConfig({id: queryId})
     expect(actual).to.deep.equal(expected)
   })
 
@@ -360,7 +360,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
     const initialState = {
       [queryId]: buildInitialState(queryId),
     }
-    const expected = defaultQueryConfig(queryId, {rawText: 'hello'})
+    const expected = defaultQueryConfig({id: queryId}, {rawText: 'hello'})
     const action = updateQueryConfig(expected)
 
     const nextState = reducer(initialState, action)

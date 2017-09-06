@@ -1,6 +1,8 @@
 import buildInfluxQLQuery from 'utils/influxql'
 import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 
+import {NULL_STRING} from 'shared/constants/queryFillOptions'
+
 function mergeConfig(options) {
   return Object.assign({}, defaultQueryConfig(123), options)
 }
@@ -87,13 +89,14 @@ describe('buildInfluxQLQuery', () => {
         retentionPolicy: 'rp1',
         fields: [{field: 'value', funcs: ['min']}],
         groupBy: {time: '10m', tags: []},
+        fill: NULL_STRING,
       })
       timeBounds = {lower: 'now() - 12h'}
     })
 
     it('builds the right query', () => {
       const expected =
-        'SELECT min("value") AS "min_value" FROM "db1"."rp1"."m0" WHERE time > now() - 12h GROUP BY time(10m)'
+        'SELECT min("value") AS "min_value" FROM "db1"."rp1"."m0" WHERE time > now() - 12h GROUP BY time(10m) FILL(null)'
       expect(buildInfluxQLQuery(timeBounds, config)).to.equal(expected)
     })
   })
@@ -145,13 +148,14 @@ describe('buildInfluxQLQuery', () => {
         measurement: 'm0',
         fields: [{field: 'value', funcs: ['min']}],
         groupBy: {time: '10m', tags: ['t1', 't2']},
+        fill: NULL_STRING,
       })
       timeBounds = {lower: 'now() - 12h'}
     })
 
     it('builds the right query', () => {
       const expected =
-        'SELECT min("value") AS "min_value" FROM "db1"."rp1"."m0" WHERE time > now() - 12h GROUP BY time(10m), "t1", "t2"'
+        'SELECT min("value") AS "min_value" FROM "db1"."rp1"."m0" WHERE time > now() - 12h GROUP BY time(10m), "t1", "t2" FILL(null)'
       expect(buildInfluxQLQuery(timeBounds, config)).to.equal(expected)
     })
   })
