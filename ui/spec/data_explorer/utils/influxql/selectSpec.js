@@ -1,7 +1,7 @@
 import buildInfluxQLQuery from 'utils/influxql'
 import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 
-import {NULL_STRING} from 'shared/constants/queryFillOptions'
+import {NONE, NULL_STRING} from 'shared/constants/queryFillOptions'
 
 function mergeConfig(options) {
   return Object.assign({}, defaultQueryConfig(123), options)
@@ -222,8 +222,9 @@ describe('buildInfluxQLQuery', () => {
       })
     })
 
-    describe('and explicit fill', () => {
-      it('includes explicit fill(null)', () => {
+    describe('and explicit fills', () => {
+      it('includes those explicit fills', () => {
+        // Test fill null
         config = mergeConfig({
           database: 'db1',
           retentionPolicy: 'rp1',
@@ -234,8 +235,38 @@ describe('buildInfluxQLQuery', () => {
         })
         timeBounds = {lower: 'now() - 12h'}
 
-        const expected =
+        let expected =
           'SELECT min("value") AS "min_value" FROM "db1"."rp1"."m0" WHERE time > now() - 12h GROUP BY time(10m) FILL(null)'
+        expect(buildInfluxQLQuery(timeBounds, config)).to.equal(expected)
+
+        // Test fill another option
+        config = mergeConfig({
+          database: 'db1',
+          retentionPolicy: 'rp1',
+          measurement: 'm0',
+          fields: [{field: 'value', funcs: ['min']}],
+          groupBy: {time: '10m', tags: []},
+          fill: NONE,
+        })
+        timeBounds = {lower: 'now() - 12h'}
+
+        expected =
+          'SELECT min("value") AS "min_value" FROM "db1"."rp1"."m0" WHERE time > now() - 12h GROUP BY time(10m) FILL(none)'
+        expect(buildInfluxQLQuery(timeBounds, config)).to.equal(expected)
+
+        // Test fill number
+        config = mergeConfig({
+          database: 'db1',
+          retentionPolicy: 'rp1',
+          measurement: 'm0',
+          fields: [{field: 'value', funcs: ['min']}],
+          groupBy: {time: '10m', tags: ['t1', 't2']},
+          fill: '1337',
+        })
+        timeBounds = {lower: 'now() - 12h'}
+
+        expected =
+          'SELECT min("value") AS "min_value" FROM "db1"."rp1"."m0" WHERE time > now() - 12h GROUP BY time(10m), "t1", "t2" FILL(1337)'
         expect(buildInfluxQLQuery(timeBounds, config)).to.equal(expected)
       })
     })
