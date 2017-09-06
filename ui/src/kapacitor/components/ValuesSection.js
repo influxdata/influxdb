@@ -1,8 +1,12 @@
 import React, {PropTypes} from 'react'
-import Dropdown from 'shared/components/Dropdown'
-import {Tab, TabList, TabPanels, TabPanel, Tabs} from 'shared/components/Tabs'
-import {OPERATORS, PERIODS, CHANGES, SHIFTS} from 'src/kapacitor/constants'
+
 import _ from 'lodash'
+
+import Dropdown from 'shared/components/Dropdown'
+import Deadman from 'src/kapacitor/components/Deadman'
+
+import {Tab, TabList, TabPanels, TabPanel, Tabs} from 'shared/components/Tabs'
+import {OPERATORS, CHANGES, SHIFTS} from 'src/kapacitor/constants'
 
 const TABS = ['Threshold', 'Relative', 'Deadman']
 const mapToItems = (arr, type) => arr.map(text => ({text, type}))
@@ -15,10 +19,11 @@ export const ValuesSection = React.createClass({
     onChooseTrigger: PropTypes.func.isRequired,
     onUpdateValues: PropTypes.func.isRequired,
     query: PropTypes.shape({}).isRequired,
+    onDeadmanChange: PropTypes.func.isRequired,
   },
 
   render() {
-    const {rule, query} = this.props
+    const {rule, query, onDeadmanChange} = this.props
     const initialIndex = TABS.indexOf(_.startCase(rule.trigger))
 
     return (
@@ -46,7 +51,7 @@ export const ValuesSection = React.createClass({
                 <Relative rule={rule} onChange={this.handleValuesChange} />
               </TabPanel>
               <TabPanel>
-                <Deadman rule={rule} onChange={this.handleValuesChange} />
+                <Deadman rule={rule} onChange={onDeadmanChange} />
               </TabPanel>
             </TabPanels>
           </Tabs>
@@ -211,40 +216,6 @@ const Relative = React.createClass({
           spellCheck="false"
         />
         {change === CHANGES[1] ? <p>%</p> : null}
-      </div>
-    )
-  },
-})
-
-const Deadman = React.createClass({
-  propTypes: {
-    rule: PropTypes.shape({
-      values: PropTypes.shape({
-        period: PropTypes.string,
-      }),
-    }),
-    onChange: PropTypes.func.isRequired,
-  },
-
-  handleChange(item) {
-    this.props.onChange({period: item.text})
-  },
-
-  render() {
-    const periods = PERIODS.map(text => {
-      return {text}
-    })
-
-    return (
-      <div className="rule-section--row">
-        <p>Send Alert if Data is missing for</p>
-        <Dropdown
-          className="dropdown-80"
-          menuClass="dropdown-malachite"
-          items={periods}
-          selected={this.props.rule.values.period}
-          onChoose={this.handleChange}
-        />
       </div>
     )
   },

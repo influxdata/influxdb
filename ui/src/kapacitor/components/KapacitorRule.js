@@ -106,6 +106,11 @@ class KapacitorRule extends Component {
     return ''
   }
 
+  handleDeadmanChange = ({text}) => {
+    const {ruleActions, rule} = this.props
+    ruleActions.updateRuleValues(rule.id, rule.trigger, {period: text})
+  }
+
   render() {
     const {
       queryConfigActions,
@@ -141,6 +146,7 @@ class KapacitorRule extends Component {
                     query={queryConfigs[rule.queryID]}
                     onChooseTrigger={chooseTrigger}
                     onUpdateValues={updateRuleValues}
+                    onDeadmanChange={this.handleDeadmanChange}
                   />
                   <DataSection
                     timeRange={timeRange}
