@@ -15,34 +15,6 @@ export const queryStringConfig = store => next => action => {
     next(enablePresentationMode())
   }
 
-  // Data Explorer Query Config
-  if (qs.query) {
-    const query = decodeURIComponent(qs.query)
-    const state = store.getState()
-    const defaultSource = state.sources.find(source => source.default)
-    let id = window.location.hash // Stored on hash to prevent page reload
-
-    if (defaultSource && !id) {
-      // Find query by raw text
-      for (const qid in state.dataExplorerQueryConfigs) {
-        const qc = state.dataExplorerQueryConfigs[qid]
-        if (qc && qc.rawText === query) {
-          id = qid
-        }
-      }
-
-      id = id || uuid.v4()
-
-      qs.queryID = id
-      window.location.hash = id
-    }
-
-    if (defaultSource && !state.dataExplorerQueryConfigs[id]) {
-      const url = defaultSource.links.queries
-      editRawTextAsync(url, id, query)(next)
-    }
-  }
-
   // Select Template Variable By Name
   const dashboardRegex = /\/sources\/(\d+?)\/dashboards\/(\d+?)/
   if (dashboardRegex.test(window.location.pathname)) {
