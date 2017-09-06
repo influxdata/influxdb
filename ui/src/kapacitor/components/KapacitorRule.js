@@ -111,10 +111,16 @@ class KapacitorRule extends Component {
     ruleActions.updateRuleValues(rule.id, rule.trigger, {[type]: text})
   }
 
-  // handleThresholdInputChange = () => {
-  //   const {ruleActions, rule} = this.props
-  //   // ruleActions.updateRuleValues(rule.id, rule.trigger, {period: text})
-  // }
+  handleThresholdInputChange = e => {
+    const {ruleActions, rule} = this.props
+    const {lower, upper} = e.target.form
+
+    ruleActions.updateRuleValues(rule.id, rule.trigger, {
+      ...this.props.rule.values,
+      value: lower.value,
+      rangeValue: upper ? upper.value : '',
+    })
+  }
   //
   // handleRelativeInputChange = () => {
   //   const {ruleActions, rule} = this.props
@@ -198,7 +204,9 @@ class KapacitorRule extends Component {
 
 KapacitorRule.propTypes = {
   source: PropTypes.shape({}).isRequired,
-  rule: PropTypes.shape({}).isRequired,
+  rule: PropTypes.shape({
+    values: PropTypes.shape({}),
+  }).isRequired,
   query: PropTypes.shape({}).isRequired,
   queryConfigs: PropTypes.shape({}).isRequired,
   queryConfigActions: PropTypes.shape({}).isRequired,
