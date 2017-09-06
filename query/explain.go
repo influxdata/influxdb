@@ -41,6 +41,7 @@ func (p *preparedStatement) Explain() (string, error) {
 		}
 		fmt.Fprintf(&buf, "NUMBER OF SHARDS: %d\n", node.Cost.NumShards)
 		fmt.Fprintf(&buf, "NUMBER OF SERIES: %d\n", node.Cost.NumSeries)
+		fmt.Fprintf(&buf, "CACHED VALUES: %d\n", node.Cost.CachedValues)
 		fmt.Fprintf(&buf, "NUMBER OF FILES: %d\n", node.Cost.NumFiles)
 		fmt.Fprintf(&buf, "NUMBER OF BLOCKS: %d\n", node.Cost.BlocksRead)
 		fmt.Fprintf(&buf, "SIZE OF BLOCKS: %d\n", node.Cost.BlockSize)
