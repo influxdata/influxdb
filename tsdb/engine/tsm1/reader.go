@@ -1034,7 +1034,7 @@ func (d *indirectIndex) Size() uint32 {
 }
 
 func (d *indirectIndex) Close() error {
-	return munmap(d.offsets)
+	return munmap(d.offsets[:cap(d.offsets)])
 }
 
 // mmapAccess is mmap based block accessor.  It access blocks through an
