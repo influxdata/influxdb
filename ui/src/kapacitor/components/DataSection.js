@@ -11,10 +11,6 @@ class DataSection extends Component {
     super(props)
   }
 
-  getChildContext() {
-    return {source: this.props.source}
-  }
-
   handleChooseNamespace = namespace => {
     this.props.actions.chooseNamespace(this.props.query.id, namespace)
   }
@@ -109,15 +105,6 @@ DataSection.propTypes = {
   onRemoveEvery: PropTypes.func.isRequired,
   timeRange: PropTypes.shape({}).isRequired,
   isKapacitorRule: PropTypes.bool,
-}
-
-DataSection.childContextTypes = {
-  source: PropTypes.shape({
-    links: PropTypes.shape({
-      proxy: PropTypes.string.isRequired,
-      self: PropTypes.string.isRequired,
-    }).isRequired,
-  }).isRequired,
 }
 
 export default DataSection
