@@ -126,13 +126,13 @@ export function applyFuncsToField(
     time: shouldRemoveFuncs ? null : defaultGroupBy,
   })
 
-  const nextQuery = {...query, fields: nextFields, groupBy: nextGroupBy}
+  let nextQuery = {...query, fields: nextFields, groupBy: nextGroupBy}
 
   // fill is not valid for kapacitor query configs since there is no actual
   // query and all alert rules create stream-based tasks currently
   if (!isKapacitorRule) {
     const nextFill = NULL_STRING
-    Object.assign(nextQuery, {fill: nextFill})
+    nextQuery = {...nextQuery, fill: nextFill}
   }
 
   return nextQuery
