@@ -24,16 +24,12 @@ const queryConfigs = (state = {}, action) => {
     }
 
     case 'KAPA_ADD_QUERY': {
-      const {queryID, options} = action.payload
-      const nextState = Object.assign({}, state, {
-        [queryID]: Object.assign(
-          {},
-          defaultQueryConfig({id: queryID, isKapacitorRule: true}),
-          options
-        ),
-      })
+      const {queryID} = action.payload
 
-      return nextState
+      return {
+        ...state,
+        [queryID]: defaultQueryConfig({id: queryID, isKapacitorRule: true}),
+      }
     }
 
     case 'KAPA_CHOOSE_NAMESPACE': {
