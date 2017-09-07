@@ -418,5 +418,29 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
 
       expect(nextState[queryId].fill).to.equal(LINEAR)
     })
+
+    it('updates fill to string integer value', () => {
+      const initialState = {
+        [queryId]: buildInitialState(queryId),
+      }
+      const INT_STRING = '1337'
+      const action = fill(queryId, INT_STRING)
+
+      const nextState = reducer(initialState, action)
+
+      expect(nextState[queryId].fill).to.equal(INT_STRING)
+    })
+
+    it('updates fill to string float value', () => {
+      const initialState = {
+        [queryId]: buildInitialState(queryId),
+      }
+      const FLOAT_STRING = '1.337'
+      const action = fill(queryId, FLOAT_STRING)
+
+      const nextState = reducer(initialState, action)
+
+      expect(nextState[queryId].fill).to.equal(FLOAT_STRING)
+    })
   })
 })
