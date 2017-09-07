@@ -40,6 +40,7 @@ const queryConfigs = (state = {}, action) => {
       })
     }
 
+    // there is an additional reducer for this same action in the ui reducer
     case 'DE_ADD_QUERY': {
       const {queryID} = action.payload
 
@@ -49,6 +50,7 @@ const queryConfigs = (state = {}, action) => {
       }
     }
 
+    // there is an additional reducer for this same action in the ui reducer
     case 'DE_DELETE_QUERY': {
       const {queryID} = action.payload
       return _.omit(state, queryID)
