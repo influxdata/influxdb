@@ -204,3 +204,8 @@
 .query-builder--db-dropdown {
   display: inline-block;
 }
+/* Container for group by and fill dropdowns to live side-by-side */
+.query-builder--groupby-fill-container {
+  display: flex;
+  alignItems: center;
+}

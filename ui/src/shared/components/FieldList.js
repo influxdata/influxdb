@@ -92,7 +92,7 @@ class FieldList extends Component {
         <div className="query-builder--heading">
           <span>Fields</span>
           {hasAggregates
-            ? <div style={{display: 'flex', alignItems: 'center'}}>
+            ? <div className="query-builder--groupby-fill-container">
                 <GroupByTimeDropdown
                   isOpen={!hasGroupByTime}
                   selected={groupBy.time}
