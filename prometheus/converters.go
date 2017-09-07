@@ -68,8 +68,6 @@ func ReadRequestToInfluxQLQuery(req *ReadRequest, db, rp string) (*influxql.Quer
 	}
 	promQuery := req.Queries[0]
 
-	q := &influxql.Query{}
-
 	stmt := &influxql.SelectStatement{
 		IsRawQuery: true,
 		Fields: []*influxql.Field{
@@ -89,9 +87,8 @@ func ReadRequestToInfluxQLQuery(req *ReadRequest, db, rp string) (*influxql.Quer
 	}
 
 	stmt.Condition = cond
-	q.Statements = append(q.Statements, stmt)
 
-	return q, nil
+	return &influxql.Query{Statements: []influxql.Statement{stmt}}, nil
 }
 
 // condFromMatcher converts a Prometheus LabelMatcher into an equivalent InfluxQL BinaryExpr
