@@ -1,19 +1,18 @@
-## v1.3.8.0 [unreleased]
+## v1.3.8.0 [2017-09-07]
 ### Bug Fixes
-1. [#1886](https://github.com/influxdata/chronograf/pull/1886): Fix limit of 100 alert rules on alert rules page
+1. [#1886](https://github.com/influxdata/chronograf/pull/1886): Fix the limit of 100 alert rules on alert rules page
 1. [#1930](https://github.com/influxdata/chronograf/pull/1930): Fix graphs when y-values are constant
 1. [#1951](https://github.com/influxdata/chronograf/pull/1951): Fix crosshair not being removed when user leaves graph
 1. [#1943](https://github.com/influxdata/chronograf/pull/1943): Fix inability to add kapacitor from source page on fresh install
-1. [#1947](https://github.com/influxdata/chronograf/pull/1947): Fix DataExplorer crash if field property not present on queryConfig
-1. [#1957](https://github.com/influxdata/chronograf/pull/1957): Fix stacked graphs not being fully displayed
+1. [#1947](https://github.com/influxdata/chronograf/pull/1947): Fix DataExplorer crashing if a field property is not present in the queryConfig
+1. [#1957](https://github.com/influxdata/chronograf/pull/1957): Fix the max y value of stacked graphs preventing display of the upper bounds of the chart
 1. [#1969](https://github.com/influxdata/chronograf/pull/1969): Fix for delayed selection of template variables using URL query params
 
 ### Features
-1. [#1928](https://github.com/influxdata/chronograf/pull/1928): Add prefix, suffix, scale, and other y-axis formatting
-1. [#1886](https://github.com/influxdata/chronograf/pull/1886): Fix limit of 100 alert rules on alert rules page
-1. [#1934](https://github.com/influxdata/chronograf/pull/1934): Update time resolution when zooming in on graphs
-1. [#1945](https://github.com/influxdata/chronograf/pull/1945): Add `present` boolean query param to URL to enable presentation mode
-1. [#1969](https://github.com/influxdata/chronograf/pull/1969): Add `query` query param to URL to add a query to the Data Explorer
+1. [#1928](https://github.com/influxdata/chronograf/pull/1928): Add prefix, suffix, scale, and other y-axis formatting for cells in dashboards
+1. [#1934](https://github.com/influxdata/chronograf/pull/1934): Update the group by time when zooming in graphs
+1. [#1945](https://github.com/influxdata/chronograf/pull/1945): Add the ability to link directly to presentation mode in dashboards with the `present` boolean query parameter in the URL
+1. [#1969](https://github.com/influxdata/chronograf/pull/1969): Add the ability to select a template variable via a URL parameter
 
 ### UI Improvements
 1. [#1933](https://github.com/influxdata/chronograf/pull/1933): Use line-stacked graph type for memory information - thank you, @Joxit!
@@ -23,7 +22,6 @@
 1. [#1944](https://github.com/influxdata/chronograf/pull/1944): Improve UX of navigation to a sub-nav item in the navbar
 
 ## v1.3.7.0 [2017-08-23]
-## v1.3.7.0 [unreleased]
 ### Features
 1. [#1928](https://github.com/influxdata/chronograf/pull/1928): Add prefix, suffix, scale, and other y-axis formatting
 
