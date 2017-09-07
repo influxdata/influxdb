@@ -50,6 +50,7 @@
 - [#8638](https://github.com/influxdata/influxdb/issues/8638): Fix `influx_inspect export` so it skips missing files.
 - [#8770](https://github.com/influxdata/influxdb/pull/8770): Reduce how long it takes to walk the varrefs in an expression.
 - [#8787](https://github.com/influxdata/influxdb/issues/8787): panic: runtime error: invalid memory address or nil pointer dereference.
+- [#8697](https://github.com/influxdata/influxdb/issues/8697): Drop Series Cause Write Fail/Write Timeouts/High Memory Usage
 
 ## v1.3.4 [unreleased]
 
