@@ -601,6 +601,8 @@ func NewCacheLoader(files []string) *CacheLoader {
 // file is truncated up to and including the last valid byte, and processing
 // continues with the next segment file.
 func (cl *CacheLoader) Load(cache *Cache) error {
+
+	var r *WALSegmentReader
 	for _, fn := range cl.files {
 		if err := func() error {
 			f, err := os.OpenFile(fn, os.O_CREATE|os.O_RDWR, 0666)
@@ -621,8 +623,12 @@ func (cl *CacheLoader) Load(cache *Cache) error {
 				return nil
 			}
 
-			r := NewWALSegmentReader(f)
-			defer r.Close()
+			if r == nil {
+				r = NewWALSegmentReader(f)
+				defer r.Close()
+			} else {
+				r.Reset(f)
+			}
 
 			for r.Next() {
 				entry, err := r.Read()
@@ -647,7 +653,7 @@ func (cl *CacheLoader) Load(cache *Cache) error {
 				}
 			}
 
-			return nil
+			return r.Close()
 		}(); err != nil {
 			return err
 		}

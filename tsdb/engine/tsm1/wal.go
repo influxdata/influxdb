@@ -1081,7 +1081,7 @@ func (w *WALSegmentWriter) close() error {
 // WALSegmentReader reads WAL segments.
 type WALSegmentReader struct {
 	rc    io.ReadCloser
-	r     io.Reader
+	r     *bufio.Reader
 	entry WALEntry
 	n     int64
 	err   error
@@ -1091,8 +1091,16 @@ type WALSegmentReader struct {
 func NewWALSegmentReader(r io.ReadCloser) *WALSegmentReader {
 	return &WALSegmentReader{
 		rc: r,
-		r:  bufio.NewReaderSize(r, 1024*1024),
+		r:  bufio.NewReader(r),
 	}
+}
+
+func (r *WALSegmentReader) Reset(rc io.ReadCloser) {
+	r.rc = rc
+	r.r.Reset(rc)
+	r.entry = nil
+	r.n = 0
+	r.err = nil
 }
 
 // Next indicates if there is a value to read.
@@ -1187,6 +1195,9 @@ func (r *WALSegmentReader) Error() error {
 
 // Close closes the underlying io.Reader.
 func (r *WALSegmentReader) Close() error {
+	if r.rc == nil {
+		return nil
+	}
 	return r.rc.Close()
 }
 
