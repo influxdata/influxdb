@@ -154,6 +154,7 @@ export const editRawTextAsync = (url, id, text) => async dispatch => {
   try {
     const {data} = await getQueryConfig(url, [{query: text, id}])
     const config = data.queries.find(q => q.id === id)
+    config.queryConfig.rawText = text
     dispatch(updateQueryConfig(config.queryConfig))
   } catch (error) {
     dispatch(errorThrown(error))
