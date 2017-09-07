@@ -15,7 +15,7 @@
 
 syntax = "proto3";
 
-package prometheus; // change package from remote to prometheus
+package remote;
 
 message Sample {
   double value       = 1;
