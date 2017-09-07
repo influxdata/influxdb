@@ -55,11 +55,11 @@ export const toggleFieldWithGroupByInterval = (queryID, fieldFunc) => (
   dispatch(toggleField(queryID, fieldFunc))
   // toggleField determines whether to add a func, so now check state for funcs
   // presence, and if present then apply default group by time
-  const newFieldFunc = getState().dataExplorerQueryConfigs[queryID].fields.find(
-    ({field}) => field === fieldFunc.field
-  )
-  // newFieldFunc could be undefined if it was toggled for removal
-  if (newFieldFunc && newFieldFunc.funcs.length) {
+  const updatedFieldFunc = getState().dataExplorerQueryConfigs[
+    queryID
+  ].fields.find(({field}) => field === fieldFunc.field)
+  // updatedFieldFunc could be undefined if it was toggled for removal
+  if (updatedFieldFunc && updatedFieldFunc.funcs.length) {
     dispatch(groupByTime(queryID, DEFAULT_DATA_EXPLORER_GROUP_BY_INTERVAL))
   }
 }
