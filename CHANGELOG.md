@@ -25,6 +25,7 @@
 - [#6563](https://github.com/influxdata/influxdb/issues/6563): Support Ctrl+C to cancel a running query in the Influx CLI. Thanks @emluque!
 - [#8776](https://github.com/influxdata/influxdb/pull/8776): Initial implementation of explain plan.
 - [#8791](https://github.com/influxdata/influxdb/pull/8791): Include the number of scanned cached values in the iterator cost.
+- [#8784](https://github.com/influxdata/influxdb/pull/8784): Add support for the Prometheus remote read and write APIs.
 
 ### Bugfixes
 
