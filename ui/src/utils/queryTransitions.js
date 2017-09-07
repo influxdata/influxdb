@@ -7,25 +7,21 @@ export function editRawText(query, rawText) {
   return Object.assign({}, query, {rawText})
 }
 
-export function chooseNamespace(query, namespace, isKapacitorRule = false) {
-  return Object.assign(
-    {},
-    defaultQueryConfig({id: query.id, isKapacitorRule}),
-    namespace
-  )
-}
+export const chooseNamespace = (query, namespace, isKapacitorRule = false) => ({
+  ...defaultQueryConfig({id: query.id, isKapacitorRule}),
+  ...namespace,
+})
 
-export function chooseMeasurement(query, measurement, isKapacitorRule = false) {
-  return Object.assign(
-    {},
-    defaultQueryConfig({id: query.id, isKapacitorRule}),
-    {
-      database: query.database,
-      retentionPolicy: query.retentionPolicy,
-      measurement,
-    }
-  )
-}
+export const chooseMeasurement = (
+  query,
+  measurement,
+  isKapacitorRule = false
+) => ({
+  ...defaultQueryConfig({id: query.id, isKapacitorRule}),
+  database: query.database,
+  retentionPolicy: query.retentionPolicy,
+  measurement,
+})
 
 export const toggleField = (query, {field, funcs}, isKapacitorRule = false) => {
   const {fields, groupBy} = query
