@@ -33,7 +33,6 @@ import (
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/uuid"
-	"github.com/prometheus/prometheus/storage/remote"
 	"github.com/uber-go/zap"
 )
 
@@ -856,7 +855,7 @@ func (h *Handler) servePromWrite(w http.ResponseWriter, r *http.Request, user me
 	}
 
 	// Convert the Prometheus remote write request to Influx Points
-	var req remote.WriteRequest
+	var req prometheus.WriteRequest
 	if err := proto.Unmarshal(reqBuf, &req); err != nil {
 		h.httpError(w, err.Error(), http.StatusBadRequest)
 		return
@@ -924,7 +923,7 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 		return
 	}
 
-	var req remote.ReadRequest
+	var req prometheus.ReadRequest
 	if err := proto.Unmarshal(reqBuf, &req); err != nil {
 		h.httpError(w, err.Error(), http.StatusBadRequest)
 		return
@@ -991,8 +990,8 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 	// Execute query.
 	results := h.QueryExecutor.ExecuteQuery(q, opts, closing)
 
-	resp := &remote.ReadResponse{
-		Results: []*remote.QueryResult{{}},
+	resp := &prometheus.ReadResponse{
+		Results: []*prometheus.QueryResult{{}},
 	}
 
 	// pull all results from the channel
@@ -1004,7 +1003,7 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 
 		// read the series data and convert into Prometheus samples
 		for _, s := range r.Series {
-			ts := &remote.TimeSeries{
+			ts := &prometheus.TimeSeries{
 				Labels: prometheus.TagsToLabelPairs(s.Tags),
 			}
 
@@ -1019,7 +1018,7 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 					h.httpError(w, fmt.Sprintf("value %v wasn't a float64", v[1]), http.StatusBadRequest)
 				}
 				timestamp := t.UnixNano() / int64(time.Millisecond) / int64(time.Nanosecond)
-				ts.Samples = append(ts.Samples, &remote.Sample{
+				ts.Samples = append(ts.Samples, &prometheus.Sample{
 					TimestampMs: timestamp,
 					Value:       val,
 				})

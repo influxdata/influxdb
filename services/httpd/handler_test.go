@@ -22,10 +22,10 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/internal"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/prometheus"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/httpd"
 	"github.com/influxdata/influxdb/services/meta"
-	"github.com/prometheus/prometheus/storage/remote"
 )
 
 // Ensure the handler returns results from a query (including nil results).
@@ -531,14 +531,14 @@ func TestHandler_Query_CloseNotify(t *testing.T) {
 
 // Ensure the prometheus remote write works
 func TestHandler_PromWrite(t *testing.T) {
-	req := &remote.WriteRequest{
-		Timeseries: []*remote.TimeSeries{
+	req := &prometheus.WriteRequest{
+		Timeseries: []*prometheus.TimeSeries{
 			{
-				Labels: []*remote.LabelPair{
+				Labels: []*prometheus.LabelPair{
 					{Name: "host", Value: "a"},
 					{Name: "region", Value: "west"},
 				},
-				Samples: []*remote.Sample{
+				Samples: []*prometheus.Sample{
 					{TimestampMs: 1, Value: 1.2},
 					{TimestampMs: 2, Value: math.NaN()},
 				},
@@ -594,13 +594,13 @@ func TestHandler_PromWrite(t *testing.T) {
 // Ensure Prometheus remote read requests are converted to the correct InfluxQL query and
 // data is returned
 func TestHandler_PromRead(t *testing.T) {
-	req := &remote.ReadRequest{
-		Queries: []*remote.Query{{
-			Matchers: []*remote.LabelMatcher{
-				{Type: remote.MatchType_EQUAL, Name: "eq", Value: "a"},
-				{Type: remote.MatchType_NOT_EQUAL, Name: "neq", Value: "b"},
-				{Type: remote.MatchType_REGEX_MATCH, Name: "regex", Value: "c"},
-				{Type: remote.MatchType_REGEX_NO_MATCH, Name: "neqregex", Value: "d"},
+	req := &prometheus.ReadRequest{
+		Queries: []*prometheus.Query{{
+			Matchers: []*prometheus.LabelMatcher{
+				{Type: prometheus.MatchType_EQUAL, Name: "eq", Value: "a"},
+				{Type: prometheus.MatchType_NOT_EQUAL, Name: "neq", Value: "b"},
+				{Type: prometheus.MatchType_REGEX_MATCH, Name: "regex", Value: "c"},
+				{Type: prometheus.MatchType_REGEX_NO_MATCH, Name: "neqregex", Value: "d"},
 			},
 			StartTimestampMs: 1,
 			EndTimestampMs:   2,
@@ -642,13 +642,13 @@ func TestHandler_PromRead(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
-	var resp remote.ReadResponse
+	var resp prometheus.ReadResponse
 	if err := proto.Unmarshal(reqBuf, &resp); err != nil {
 		t.Fatal(err.Error())
 	}
 
-	expLabels := []*remote.LabelPair{{Name: "foo", Value: "bar"}}
-	expSamples := []*remote.Sample{{TimestampMs: 23000, Value: 1.2}}
+	expLabels := []*prometheus.LabelPair{{Name: "foo", Value: "bar"}}
+	expSamples := []*prometheus.Sample{{TimestampMs: 23000, Value: 1.2}}
 
 	ts := resp.Results[0].Timeseries[0]
 

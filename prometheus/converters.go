@@ -8,8 +8,9 @@ import (
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
-	"github.com/prometheus/prometheus/storage/remote"
 )
+
+//go:generate protoc -I$GOPATH/src -I. --gogofaster_out=. remote.proto
 
 const (
 	// measurementName is where all prometheus time series go to
@@ -23,7 +24,7 @@ var ErrNaNDropped = errors.New("dropped NaN from Prometheus since they are not s
 
 // WriteRequestToPoints converts a Prometheus remote write request of time series and their
 // samples into Points that can be written into Influx
-func WriteRequestToPoints(req *remote.WriteRequest) ([]models.Point, error) {
+func WriteRequestToPoints(req *WriteRequest) ([]models.Point, error) {
 	var maxPoints int
 	for _, ts := range req.Timeseries {
 		maxPoints += len(ts.Samples)
@@ -61,7 +62,7 @@ func WriteRequestToPoints(req *remote.WriteRequest) ([]models.Point, error) {
 
 // ReadRequestToInfluxQLQuery converts a Prometheus remote read request to an equivalent InfluxQL
 // query that will return the requested data when executed
-func ReadRequestToInfluxQLQuery(req *remote.ReadRequest, db, rp string) (*influxql.Query, error) {
+func ReadRequestToInfluxQLQuery(req *ReadRequest, db, rp string) (*influxql.Query, error) {
 	if len(req.Queries) != 1 {
 		return nil, errors.New("Prometheus read endpoint currently only supports one query at a time")
 	}
@@ -94,16 +95,16 @@ func ReadRequestToInfluxQLQuery(req *remote.ReadRequest, db, rp string) (*influx
 }
 
 // condFromMatcher converts a Prometheus LabelMatcher into an equivalent InfluxQL BinaryExpr
-func condFromMatcher(m *remote.LabelMatcher) (*influxql.BinaryExpr, error) {
+func condFromMatcher(m *LabelMatcher) (*influxql.BinaryExpr, error) {
 	var op influxql.Token
 	switch m.Type {
-	case remote.MatchType_EQUAL:
+	case MatchType_EQUAL:
 		op = influxql.EQ
-	case remote.MatchType_NOT_EQUAL:
+	case MatchType_NOT_EQUAL:
 		op = influxql.NEQ
-	case remote.MatchType_REGEX_MATCH:
+	case MatchType_REGEX_MATCH:
 		op = influxql.EQREGEX
-	case remote.MatchType_REGEX_NO_MATCH:
+	case MatchType_REGEX_NO_MATCH:
 		op = influxql.NEQREGEX
 	default:
 		return nil, fmt.Errorf("unknown match type %v", m.Type)
@@ -120,7 +121,7 @@ func condFromMatcher(m *remote.LabelMatcher) (*influxql.BinaryExpr, error) {
 // into an equivalent influxql.BinaryExpr. This assume a schema that is written via the Prometheus
 // remote write endpoint, which uses a measurement name of _ and a field name of f64. Tags and labels
 // are kept equivalent.
-func condFromMatchers(q *remote.Query, matchers []*remote.LabelMatcher) (*influxql.BinaryExpr, error) {
+func condFromMatchers(q *Query, matchers []*LabelMatcher) (*influxql.BinaryExpr, error) {
 	if len(matchers) > 0 {
 		lhs, err := condFromMatcher(matchers[0])
 		if err != nil {
@@ -154,8 +155,8 @@ func condFromMatchers(q *remote.Query, matchers []*remote.LabelMatcher) (*influx
 }
 
 // TagsToLabelPairs converts a map of Influx tags into a slice of Prometheus label pairs
-func TagsToLabelPairs(tags map[string]string) []*remote.LabelPair {
-	pairs := make([]*remote.LabelPair, 0, len(tags))
+func TagsToLabelPairs(tags map[string]string) []*LabelPair {
+	pairs := make([]*LabelPair, 0, len(tags))
 	for k, v := range tags {
 		if v == "" {
 			// If we select metrics with different sets of labels names,
@@ -166,7 +167,7 @@ func TagsToLabelPairs(tags map[string]string) []*remote.LabelPair {
 			// to make the result correct.
 			continue
 		}
-		pairs = append(pairs, &remote.LabelPair{
+		pairs = append(pairs, &LabelPair{
 			Name:  k,
 			Value: v,
 		})
