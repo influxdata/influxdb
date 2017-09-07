@@ -9,10 +9,13 @@ import {
   groupByTag,
   groupByTime,
   toggleTagAcceptance,
+  fill,
   updateQueryConfig,
   updateRawQuery,
   editQueryStatus,
 } from 'src/data_explorer/actions/view'
+
+import {NULL_STRING} from 'shared/constants/queryFillOptions'
 
 const fakeAddQueryAction = (panelID, queryID) => {
   return {
@@ -390,5 +393,19 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
     const nextState = reducer(initialState, action)
 
     expect(nextState[queryId].status).to.equal(status)
+  })
+
+  describe('DE_FILL', () => {
+    it('applies an explicit fill when group by time is used', () => {
+      const initialState = {
+        [queryId]: buildInitialState(queryId),
+      }
+      const time = '10s'
+      const action = groupByTime(queryId, time)
+
+      const nextState = reducer(initialState, action)
+
+      expect(nextState[queryId].fill).to.equal(NULL_STRING)
+    })
   })
 })
