@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"time"
 
 	"github.com/bouk/httprouter"
 	"github.com/influxdata/chronograf"
@@ -331,22 +330,9 @@ type alertLinks struct {
 	Output    string `json:"output"`
 }
 
-type dbrp struct {
-	DB string `json:"db"`
-	RP string `json:"rp"`
-}
-
 type alertResponse struct {
 	chronograf.AlertRule
-	Type        string     `json:"type"`
-	DBRPs       []dbrp     `json:"dbrps"`
-	Status      string     `json:"status"`
-	Executing   bool       `json:"executing"`
-	Error       string     `json:"error"`
-	Created     time.Time  `json:"created"`
-	Modified    time.Time  `json:"modified"`
-	LastEnabled time.Time  `json:"last-enabled,omitempty"`
-	Links       alertLinks `json:"links"`
+	Links alertLinks `json:"links"`
 }
 
 // newAlertResponse formats task into an alertResponse
@@ -358,19 +344,6 @@ func newAlertResponse(task *kapa.Task, srcID, kapaID int) *alertResponse {
 			Kapacitor: fmt.Sprintf("/chronograf/v1/sources/%d/kapacitors/%d/proxy?path=%s", srcID, kapaID, url.QueryEscape(task.Href)),
 			Output:    fmt.Sprintf("/chronograf/v1/sources/%d/kapacitors/%d/proxy?path=%s", srcID, kapaID, url.QueryEscape(task.HrefOutput)),
 		},
-		Status:      task.Status,
-		Type:        task.Type,
-		Executing:   task.Executing,
-		Error:       task.Error,
-		Created:     task.Created,
-		Modified:    task.Modified,
-		LastEnabled: task.LastEnabled,
-		DBRPs:       make([]dbrp, len(task.DBRPs)),
-	}
-
-	for i := range task.DBRPs {
-		res.DBRPs[i].DB = task.DBRPs[i].DB
-		res.DBRPs[i].RP = task.DBRPs[i].RP
 	}
 
 	if res.Alerts == nil {

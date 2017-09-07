@@ -249,16 +249,17 @@ func TestClient_All(t *testing.T) {
 			},
 			want: map[string]*Task{
 				"howdy": &Task{
-					ID:         "howdy",
-					Type:       "unknown TaskType 0",
-					Status:     "enabled",
+					ID: "howdy",
+
 					HrefOutput: "/kapacitor/v1/tasks/howdy/output",
 					Rule: chronograf.AlertRule{
 						ID:         "howdy",
 						Name:       "howdy",
 						TICKScript: "",
+						Type:       "unknown TaskType 0",
+						Status:     "enabled",
+						DBRPs:      []chronograf.DBRP{},
 					},
-					DBRPs:      []DBRP{},
 					TICKScript: "",
 				},
 			},
@@ -354,19 +355,20 @@ trigger
 			want: map[string]*Task{
 				"rule 1": &Task{
 					ID: "rule 1",
-					DBRPs: []DBRP{
-						{
 
-							DB: "_internal",
-							RP: "autogen",
-						},
-					},
-					Type:       "stream",
-					Status:     "enabled",
 					HrefOutput: "/kapacitor/v1/tasks/rule 1/output",
 					Rule: chronograf.AlertRule{
-						ID:   "rule 1",
-						Name: "rule 1",
+						DBRPs: []chronograf.DBRP{
+							{
+
+								DB: "_internal",
+								RP: "autogen",
+							},
+						},
+						Type:   "stream",
+						Status: "enabled",
+						ID:     "rule 1",
+						Name:   "rule 1",
 						TICKScript: `var db = '_internal'
 
 var rp = 'monitor'
@@ -568,19 +570,18 @@ func TestClient_Get(t *testing.T) {
 			},
 			want: &Task{
 				ID:         "myid",
-				Type:       "stream",
-				Status:     "enabled",
 				HrefOutput: "/kapacitor/v1/tasks/myid/output",
-				DBRPs: []DBRP{
-					{
-
-						DB: "_internal",
-						RP: "autogen",
-					},
-				},
 				Rule: chronograf.AlertRule{
-					ID:   "myid",
-					Name: "myid",
+					Type:   "stream",
+					Status: "enabled",
+					ID:     "myid",
+					Name:   "myid",
+					DBRPs: []chronograf.DBRP{
+						{
+							DB: "_internal",
+							RP: "autogen",
+						},
+					},
 				},
 			},
 			link: client.Link{
@@ -677,18 +678,18 @@ trigger
 `,
 			},
 			want: &Task{
-				ID:     "rule 1",
-				Type:   "stream",
-				Status: "enabled",
-				DBRPs: []DBRP{
-					{
-
-						DB: "_internal",
-						RP: "autogen",
-					},
-				},
+				ID:         "rule 1",
 				HrefOutput: "/kapacitor/v1/tasks/rule 1/output",
 				Rule: chronograf.AlertRule{
+					Type:   "stream",
+					Status: "enabled",
+					DBRPs: []chronograf.DBRP{
+						{
+
+							DB: "_internal",
+							RP: "autogen",
+						},
+					},
 					ID:   "rule 1",
 					Name: "rule 1",
 					TICKScript: `var db = '_internal'
@@ -881,21 +882,21 @@ func TestClient_updateStatus(t *testing.T) {
 				Status:     client.Disabled,
 			},
 			want: &Task{
-				ID:   "howdy",
-				Type: "stream",
-				DBRPs: []DBRP{
-					{
-
-						DB: "db",
-						RP: "rp",
-					},
-				},
-				Status:     "disabled",
+				ID:         "howdy",
 				Href:       "/kapacitor/v1/tasks/howdy",
 				HrefOutput: "/kapacitor/v1/tasks/howdy/output",
 				Rule: chronograf.AlertRule{
 					ID:   "howdy",
 					Name: "howdy",
+					Type: "stream",
+					DBRPs: []chronograf.DBRP{
+						{
+
+							DB: "db",
+							RP: "rp",
+						},
+					},
+					Status: "disabled",
 				},
 			},
 		},
@@ -951,21 +952,21 @@ func TestClient_updateStatus(t *testing.T) {
 				Status:     client.Enabled,
 			},
 			want: &Task{
-				ID:   "howdy",
-				Type: "stream",
-				DBRPs: []DBRP{
-					{
-
-						DB: "db",
-						RP: "rp",
-					},
-				},
-				Status:     "enabled",
+				ID:         "howdy",
 				Href:       "/kapacitor/v1/tasks/howdy",
 				HrefOutput: "/kapacitor/v1/tasks/howdy/output",
 				Rule: chronograf.AlertRule{
 					ID:   "howdy",
 					Name: "howdy",
+					Type: "stream",
+					DBRPs: []chronograf.DBRP{
+						{
+
+							DB: "db",
+							RP: "rp",
+						},
+					},
+					Status: "enabled",
 				},
 			},
 		},
@@ -1103,21 +1104,21 @@ func TestClient_Update(t *testing.T) {
 				},
 			},
 			want: &Task{
-				ID: "howdy",
-				DBRPs: []DBRP{
-					{
-
-						DB: "db",
-						RP: "rp",
-					},
-				},
-				Status:     "enabled",
-				Type:       "stream",
+				ID:         "howdy",
 				Href:       "/kapacitor/v1/tasks/howdy",
 				HrefOutput: "/kapacitor/v1/tasks/howdy/output",
 				Rule: chronograf.AlertRule{
-					ID:   "howdy",
-					Name: "howdy",
+					DBRPs: []chronograf.DBRP{
+						{
+
+							DB: "db",
+							RP: "rp",
+						},
+					},
+					Status: "enabled",
+					Type:   "stream",
+					ID:     "howdy",
+					Name:   "howdy",
 				},
 			},
 			wantStatus: client.Enabled,
@@ -1167,21 +1168,21 @@ func TestClient_Update(t *testing.T) {
 				},
 			},
 			want: &Task{
-				ID: "howdy",
-				DBRPs: []DBRP{
-					{
-
-						DB: "db",
-						RP: "rp",
-					},
-				},
-				Status:     "disabled",
-				Type:       "stream",
+				ID:         "howdy",
 				Href:       "/kapacitor/v1/tasks/howdy",
 				HrefOutput: "/kapacitor/v1/tasks/howdy/output",
 				Rule: chronograf.AlertRule{
 					ID:   "howdy",
 					Name: "howdy",
+					DBRPs: []chronograf.DBRP{
+						{
+
+							DB: "db",
+							RP: "rp",
+						},
+					},
+					Status: "disabled",
+					Type:   "stream",
 				},
 			},
 			wantStatus: client.Disabled,
@@ -1289,21 +1290,21 @@ func TestClient_Create(t *testing.T) {
 				},
 			},
 			want: &Task{
-				ID:   "chronograf-v1-howdy",
-				Type: "stream",
-				DBRPs: []DBRP{
-					{
-
-						DB: "db",
-						RP: "rp",
-					},
-				},
-				Status:     "enabled",
+				ID:         "chronograf-v1-howdy",
 				Href:       "/kapacitor/v1/tasks/chronograf-v1-howdy",
 				HrefOutput: "/kapacitor/v1/tasks/chronograf-v1-howdy/output",
 				Rule: chronograf.AlertRule{
-					ID:   "chronograf-v1-howdy",
-					Name: "chronograf-v1-howdy",
+					Type: "stream",
+					DBRPs: []chronograf.DBRP{
+						{
+
+							DB: "db",
+							RP: "rp",
+						},
+					},
+					Status: "enabled",
+					ID:     "chronograf-v1-howdy",
+					Name:   "chronograf-v1-howdy",
 				},
 			},
 		},
