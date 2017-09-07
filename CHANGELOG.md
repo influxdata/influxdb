@@ -1,6 +1,8 @@
 ## v1.3.9.0 [unreleased]
 ### Bug Fixes
 ### Features
+1. [#1885](https://github.com/influxdata/chronograf/pull/1885): Add `fill` options to data explorer and dashboard queries
+
 ### UI Improvements
 
 ## v1.3.8.0 [unreleased]
@@ -19,7 +21,6 @@
 1. [#1934](https://github.com/influxdata/chronograf/pull/1934): Update time resolution when zooming in on graphs
 1. [#1945](https://github.com/influxdata/chronograf/pull/1945): Add `present` boolean query param to URL to enable presentation mode
 1. [#1969](https://github.com/influxdata/chronograf/pull/1969): Add `query` query param to URL to add a query to the Data Explorer
-1. [#1885](https://github.com/influxdata/chronograf/pull/1885): Add `fill` options to data explorer and dashboard queries
 
 ### UI Improvements
 1. [#1933](https://github.com/influxdata/chronograf/pull/1933): Use line-stacked graph type for memory information - thank you, @Joxit!
