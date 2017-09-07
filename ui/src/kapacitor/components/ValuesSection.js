@@ -23,6 +23,11 @@ export const ValuesSection = React.createClass({
     onDeadmanChange: PropTypes.func.isRequired,
     onRuleTypeDropdownChange: PropTypes.func.isRequired,
     onRuleTypeInputChange: PropTypes.func.isRequired,
+    onAddEvery: PropTypes.func.isRequired,
+    onRemoveEvery: PropTypes.func.isRequired,
+    timeRange: PropTypes.shape({}).isRequired,
+    queryConfigActions: PropTypes.shape({}).isRequired,
+    source: PropTypes.shape({}).isRequired,
   },
 
   render() {

@@ -2,7 +2,6 @@ import React, {PropTypes, Component} from 'react'
 
 import ValuesSection from 'src/kapacitor/components/ValuesSection'
 import RuleHeader from 'src/kapacitor/components/RuleHeader'
-import RuleGraph from 'src/kapacitor/components/RuleGraph'
 import RuleMessage from 'src/kapacitor/components/RuleMessage'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
@@ -132,7 +131,6 @@ class KapacitorRule extends Component {
   render() {
     const {
       rule,
-      query,
       source,
       isEditing,
       ruleActions,
