@@ -21,7 +21,13 @@ for cmd in \
     go build -i -o "$OUTDIR/$(basename $cmd)" "github.com/influxdata/$cmd"
 done
 
-TARBALL_NAME="influxdb_bin_${GOOS}_${GOARCH}-${SHA}.tar.gz"
+SUFFIX=
+if [ "$CGO_ENABLED" == "0" ]; then
+  # Only add the static suffix to the filename when explicitly requested.
+  SUFFIX=_static
+fi
+
+TARBALL_NAME="plutonium_bin_${GOOS}_${GOARCH}${SUFFIX}-${SHA}.tar.gz"
 (cd "$OUTDIR" && tar czf "/out/$TARBALL_NAME" ./*)
 (cd /out && md5sum "$TARBALL_NAME" > "$TARBALL_NAME.md5")
 (cd /out && sha256sum "$TARBALL_NAME" > "$TARBALL_NAME.sha256")

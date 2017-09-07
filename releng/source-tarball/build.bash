@@ -2,7 +2,7 @@
 
 function printHelp() {
   >&2 echo \
-"USAGE: $0 [-p INFLUXDB_GIT_DIR] [-S GITHUB_SSH_KEY]
+"USAGE: $0 [-p INFLUXDB_GIT_DIR]
             -s INFLUXDB_SHA -b INFLUXDB_BRANCH -v INFLUXDB_VERSION -o OUTDIR
 
 Emits a tarball of influxdb source code and dependencies to OUTDIR.
@@ -29,7 +29,7 @@ OUTDIR=""
 
 # These variables may expand to command arguments. Don't double quote them when used later.
 INFLUXDB_GIT_MOUNT=""
-GITHUB_SSH_MOUNT=""
+
 
 while getopts hs:b:v:o:p:S: arg; do
   case "$arg" in
@@ -39,7 +39,6 @@ while getopts hs:b:v:o:p:S: arg; do
     v) VERSION="$OPTARG";;
     o) OUTDIR="$OPTARG";;
     p) INFLUXDB_GIT_MOUNT="--mount type=bind,src=$OPTARG,dst=/influxdb-git,ro=1";;
-    S) GITHUB_SSH_MOUNT="--mount type=bind,src=$OPTARG,dst=/root/.ssh/id_rsa";;
   esac
 done
 
@@ -55,7 +54,7 @@ docker build --build-arg "GO_VERSION=$GO_CURRENT_VERSION" -t influxdata/influxdb
 mkdir -p "$OUTDIR"
 
 docker run --rm \
-  $INFLUXDB_GIT_MOUNT $GITHUB_SSH_MOUNT \
+  $INFLUXDB_GIT_MOUNT \
   --mount "type=bind,src=${OUTDIR},dst=/out" \
   influxdata/influxdb/releng/source-tarball:latest \
   -s "$SHA" \

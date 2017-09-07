@@ -39,10 +39,8 @@ mkdir -p "$IPATH" && cd "$IPATH"
 if [ -d /influxdb-git ]; then
   git clone /influxdb-git "$IPATH/influxdb"
 else
-  # Add GitHub host key to known hosts, non-interactively.
-  ssh-keyscan github.com >> ~/.ssh/known_hosts
 
-  git clone git@github.com:influxdata/influxdb.git
+  git clone https://github.com/influxdata/influxdb.git
 fi
 
 cd influxdb
