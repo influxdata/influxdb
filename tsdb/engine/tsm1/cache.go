@@ -607,6 +607,7 @@ func (cl *CacheLoader) Load(cache *Cache) error {
 			if err != nil {
 				return err
 			}
+			defer f.Close()
 
 			// Log some information about the segments.
 			stat, err := os.Stat(f.Name())
@@ -614,6 +615,11 @@ func (cl *CacheLoader) Load(cache *Cache) error {
 				return err
 			}
 			cl.Logger.Info(fmt.Sprintf("reading file %s, size %d", f.Name(), stat.Size()))
+
+			// Nothing to read, skip it
+			if stat.Size() == 0 {
+				return nil
+			}
 
 			r := NewWALSegmentReader(f)
 			defer r.Close()
