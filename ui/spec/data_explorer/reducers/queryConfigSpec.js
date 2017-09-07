@@ -15,7 +15,7 @@ import {
   editQueryStatus,
 } from 'src/data_explorer/actions/view'
 
-import {NULL_STRING} from 'shared/constants/queryFillOptions'
+import {LINEAR, NULL_STRING} from 'shared/constants/queryFillOptions'
 
 const fakeAddQueryAction = (panelID, queryID) => {
   return {
@@ -406,6 +406,17 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
       const nextState = reducer(initialState, action)
 
       expect(nextState[queryId].fill).to.equal(NULL_STRING)
+    })
+
+    it('updates fill to non-null-string non-number string value', () => {
+      const initialState = {
+        [queryId]: buildInitialState(queryId),
+      }
+      const action = fill(queryId, LINEAR)
+
+      const nextState = reducer(initialState, action)
+
+      expect(nextState[queryId].fill).to.equal(LINEAR)
     })
   })
 })
