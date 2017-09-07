@@ -25,12 +25,12 @@ class FillQuery extends Component {
   handleDropdown = item => {
     if (item.text === NUMBER) {
       this.setState({selected: item}, () => {
-        this.props.onSelection(this.state.numberValue)
+        this.props.onChooseFill(this.state.numberValue)
         this.numberInput.focus()
       })
     } else {
       this.setState({selected: item}, () => {
-        this.props.onSelection(item.text)
+        this.props.onChooseFill(item.text)
       })
     }
   }
@@ -39,14 +39,14 @@ class FillQuery extends Component {
     const numberValue = e.target.value || '0'
 
     this.setState({numberValue})
-    this.props.onSelection(numberValue)
+    this.props.onChooseFill(numberValue)
   }
 
   handleInputChange = e => {
     const numberValue = e.target.value
 
     this.setState({numberValue})
-    this.props.onSelection(numberValue)
+    this.props.onChooseFill(numberValue)
   }
 
   handleKeyUp = e => {
@@ -111,7 +111,7 @@ FillQuery.defaultProps = {
 }
 
 FillQuery.propTypes = {
-  onSelection: func.isRequired,
+  onChooseFill: func.isRequired,
   value: string,
   size: string,
   theme: string,

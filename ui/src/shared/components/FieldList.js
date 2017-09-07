@@ -102,7 +102,7 @@ class FieldList extends Component {
                 />
                 {isKapacitorRule
                   ? null
-                  : <FillQuery value={fill} onSelection={this.handleFill} />}
+                  : <FillQuery value={fill} onChooseFill={this.handleFill} />}
               </div>
             : null}
         </div>
