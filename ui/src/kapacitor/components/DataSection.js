@@ -50,61 +50,61 @@ class DataSection extends Component {
   }
 
   render() {
-    const {query, isKapacitorRule} = this.props
+    const {query, isKapacitorRule, isDeadman} = this.props
     return (
-      <div className="rule-section">
-        <h3 className="rule-section--heading">Select a Time Series</h3>
-        <div className="rule-section--body">
-          <div className="query-builder rule-section--border-bottom">
-            <DatabaseList
-              query={query}
-              onChooseNamespace={this.handleChooseNamespace}
-            />
-            <MeasurementList
-              query={query}
-              onChooseMeasurement={this.handleChooseMeasurement}
-              onChooseTag={this.handleChooseTag}
-              onGroupByTag={this.handleGroupByTag}
-              onToggleTagAcceptance={this.handleToggleTagAcceptance}
-            />
-            <FieldList
+      <div className="query-builder rule-section--border-bottom">
+        <DatabaseList
+          query={query}
+          onChooseNamespace={this.handleChooseNamespace}
+        />
+        <MeasurementList
+          query={query}
+          onChooseMeasurement={this.handleChooseMeasurement}
+          onChooseTag={this.handleChooseTag}
+          onGroupByTag={this.handleGroupByTag}
+          onToggleTagAcceptance={this.handleToggleTagAcceptance}
+        />
+        {isDeadman
+          ? null
+          : <FieldList
               query={query}
               onToggleField={this.handleToggleField}
               onGroupByTime={this.handleGroupByTime}
               applyFuncsToField={this.handleApplyFuncsToField}
               isKapacitorRule={isKapacitorRule}
-            />
-          </div>
-        </div>
+            />}
       </div>
     )
   }
 }
 
+const {string, func, shape, bool} = PropTypes
+
 DataSection.propTypes = {
-  source: PropTypes.shape({
-    links: PropTypes.shape({
-      kapacitors: PropTypes.string.isRequired,
+  source: shape({
+    links: shape({
+      kapacitors: string.isRequired,
     }).isRequired,
   }),
-  query: PropTypes.shape({
-    id: PropTypes.string.isRequired,
+  query: shape({
+    id: string.isRequired,
   }).isRequired,
-  addFlashMessage: PropTypes.func,
-  actions: PropTypes.shape({
-    chooseNamespace: PropTypes.func.isRequired,
-    chooseMeasurement: PropTypes.func.isRequired,
-    applyFuncsToField: PropTypes.func.isRequired,
-    chooseTag: PropTypes.func.isRequired,
-    groupByTag: PropTypes.func.isRequired,
-    toggleField: PropTypes.func.isRequired,
-    groupByTime: PropTypes.func.isRequired,
-    toggleTagAcceptance: PropTypes.func.isRequired,
+  addFlashMessage: func,
+  actions: shape({
+    chooseNamespace: func.isRequired,
+    chooseMeasurement: func.isRequired,
+    applyFuncsToField: func.isRequired,
+    chooseTag: func.isRequired,
+    groupByTag: func.isRequired,
+    toggleField: func.isRequired,
+    groupByTime: func.isRequired,
+    toggleTagAcceptance: func.isRequired,
   }).isRequired,
-  onAddEvery: PropTypes.func.isRequired,
-  onRemoveEvery: PropTypes.func.isRequired,
-  timeRange: PropTypes.shape({}).isRequired,
-  isKapacitorRule: PropTypes.bool,
+  onAddEvery: func.isRequired,
+  onRemoveEvery: func.isRequired,
+  timeRange: shape({}).isRequired,
+  isKapacitorRule: bool,
+  isDeadman: bool,
 }
 
 export default DataSection

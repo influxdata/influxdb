@@ -202,6 +202,13 @@ $rule-builder--radius-lg: 5px;
   Sectiom 2 - Rule Conditions
   -----------------------------------------------------------------------------
 */
+.rule-builder--sub-header {
+  margin: 0;
+  padding: 30px 0 13px 0;
+  font-size: 19px;
+  font-weight: 400 !important;
+  color: #a4a8b6;
+}
 .rule-builder--metric {
   height: 30px;
   line-height: 30px;
@@ -214,8 +221,6 @@ $rule-builder--radius-lg: 5px;
   @include no-user-select();
 }
 .rule-builder--graph {
-  margin-left: $rule-builder--left-gutter;
-  width: calc(100% - #{$rule-builder--left-gutter});
   background-color: $rule-builder--section-bg;
   border-radius: 0 0 $rule-builder--radius-lg $rule-builder--radius-lg;
   padding: 0 $rule-builder--padding-sm;
@@ -237,17 +242,6 @@ $rule-builder--radius-lg: 5px;
     }
   }
 
-  &:before {
-    content: '';
-    display: block;
-    position: absolute;
-    transform: translateX(-50%);
-    width: $rule-builder--accent-line-width;
-    height: 100%;
-    background-color: $rule-builder--accent-line-color;
-    top: 0;
-    left: (($rule-builder--dot / 2) - $rule-builder--left-gutter);
-  }
   .container--dygraph-legend {
     transform: translateX(-50%);
     background-color: $g5-pepper;

@@ -44,10 +44,11 @@ export const ValuesSection = React.createClass({
       onRuleTypeDropdownChange,
     } = this.props
     const initialIndex = TABS.indexOf(_.startCase(rule.trigger))
+    const isDeadman = rule.trigger === 'deadman'
 
     return (
       <div className="rule-section">
-        <h3 className="rule-section--heading">Rule Conditions</h3>
+        <h3 className="rule-section--heading">Alert Type</h3>
         <div className="rule-section--body">
           <Tabs initialIndex={initialIndex} onSelect={this.handleChooseTrigger}>
             <TabList isKapacitorTabs="true">
@@ -57,15 +58,20 @@ export const ValuesSection = React.createClass({
                 </Tab>
               )}
             </TabList>
-            <DataSection
-              query={query}
-              timeRange={timeRange}
-              isKapacitorRule={true}
-              actions={queryConfigActions}
-              onAddEvery={onAddEvery}
-              onRemoveEvery={onRemoveEvery}
-            />
+            <div>
+              <h3 className="rule-builder--sub-header">Time Series</h3>
+              <DataSection
+                query={query}
+                timeRange={timeRange}
+                isKapacitorRule={true}
+                actions={queryConfigActions}
+                onAddEvery={onAddEvery}
+                onRemoveEvery={onRemoveEvery}
+                isDeadman={isDeadman}
+              />
+            </div>
 
+            <h3 className="rule-builder--sub-header">Rule Conditions</h3>
             <TabPanels>
               <TabPanel>
                 <Threshold
@@ -86,12 +92,14 @@ export const ValuesSection = React.createClass({
                 <Deadman rule={rule} onChange={onDeadmanChange} />
               </TabPanel>
             </TabPanels>
-            <RuleGraph
-              rule={rule}
-              query={query}
-              source={source}
-              timeRange={timeRange}
-            />
+            {isDeadman
+              ? null
+              : <RuleGraph
+                  rule={rule}
+                  query={query}
+                  source={source}
+                  timeRange={timeRange}
+                />}
           </Tabs>
         </div>
       </div>
