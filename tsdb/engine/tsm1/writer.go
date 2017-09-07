@@ -485,7 +485,7 @@ type tsmWriter struct {
 // NewTSMWriter returns a new TSMWriter writing to w.
 func NewTSMWriter(w io.Writer) (TSMWriter, error) {
 	var index IndexWriter
-	if fw, ok := w.(*os.File); ok {
+	if fw, ok := w.(*os.File); ok && !strings.HasSuffix(fw.Name(), "01.tsm.tmp") {
 		f, err := os.Create(strings.TrimSuffix(fw.Name(), ".tsm.tmp") + ".idx.tmp")
 		if err != nil {
 			return nil, err
