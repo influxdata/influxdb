@@ -116,6 +116,7 @@ func TestCache_WriteMulti_Stats(t *testing.T) {
 
 	// Fail one of the values in the write.
 	c = NewCache(50, "")
+	c.init()
 	c.store = ms
 
 	ms.writef = func(key string, v Values) error {
