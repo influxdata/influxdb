@@ -473,7 +473,7 @@ trigger
 				return
 			}
 			if !cmp.Equal(got, tt.want) {
-				t.Errorf("Client.All() = %s", cmp.Diff(got, tt.want))
+				t.Errorf("%q. Client.All() = -got/+want %s", tt.name, cmp.Diff(got, tt.want))
 			}
 			if !reflect.DeepEqual(kapa.ListTasksOptions, tt.listTasksOptions) {
 				t.Errorf("Client.All() = listTasksOptions  %v, want %v", kapa.ListTasksOptions, tt.listTasksOptions)
@@ -509,7 +509,7 @@ func TestClient_Get(t *testing.T) {
 		name     string
 		fields   fields
 		args     args
-		want     chronograf.AlertRule
+		want     *Task
 		wantErr  bool
 		resTask  client.Task
 		resTasks []client.Task
@@ -550,11 +550,27 @@ func TestClient_Get(t *testing.T) {
 			},
 			taskOptions: nil,
 			resTask: client.Task{
-				ID: "myid",
+				ID:     "myid",
+				Status: client.Enabled,
+				Type:   client.StreamTask,
+				DBRPs: []client.DBRP{
+					{
+						Database:        "_internal",
+						RetentionPolicy: "autogen",
+					},
+				},
 			},
-			want: chronograf.AlertRule{
-				ID:   "myid",
-				Name: "myid",
+			want: &Task{
+				ID:         "myid",
+				Type:       "stream",
+				Status:     "enabled",
+				HrefOutput: "/kapacitor/v1/tasks/myid/output",
+				DB:         "_internal",
+				RP:         "autogen",
+				Rule: chronograf.AlertRule{
+					ID:   "myid",
+					Name: "myid",
+				},
 			},
 			link: client.Link{
 				Href: "/kapacitor/v1/tasks/myid",
@@ -572,7 +588,15 @@ func TestClient_Get(t *testing.T) {
 			},
 			taskOptions: nil,
 			resTask: client.Task{
-				ID: "rule 1",
+				ID:     "rule 1",
+				Status: client.Enabled,
+				Type:   client.StreamTask,
+				DBRPs: []client.DBRP{
+					{
+						Database:        "_internal",
+						RetentionPolicy: "autogen",
+					},
+				},
 				TICKscript: `var db = '_internal'
 
 var rp = 'monitor'
@@ -641,10 +665,17 @@ trigger
     |httpOut('output')
 `,
 			},
-			want: chronograf.AlertRule{
-				ID:   "rule 1",
-				Name: "rule 1",
-				TICKScript: `var db = '_internal'
+			want: &Task{
+				ID:         "rule 1",
+				Type:       "stream",
+				Status:     "enabled",
+				DB:         "_internal",
+				RP:         "autogen",
+				HrefOutput: "/kapacitor/v1/tasks/rule 1/output",
+				Rule: chronograf.AlertRule{
+					ID:   "rule 1",
+					Name: "rule 1",
+					TICKScript: `var db = '_internal'
 
 var rp = 'monitor'
 
@@ -711,26 +742,27 @@ trigger
 trigger
     |httpOut('output')
 `,
-				Trigger: "threshold",
-				Alerts:  []string{},
-				TriggerValues: chronograf.TriggerValues{
-					Operator: "greater than",
-					Value:    "90000",
-				},
-				Query: &chronograf.QueryConfig{
-					Database:        "_internal",
-					RetentionPolicy: "monitor",
-					Measurement:     "cq",
-					Fields: []chronograf.Field{
-						{
-							Field: "queryOk",
-							Funcs: []string{},
+					Trigger: "threshold",
+					Alerts:  []string{},
+					TriggerValues: chronograf.TriggerValues{
+						Operator: "greater than",
+						Value:    "90000",
+					},
+					Query: &chronograf.QueryConfig{
+						Database:        "_internal",
+						RetentionPolicy: "monitor",
+						Measurement:     "cq",
+						Fields: []chronograf.Field{
+							{
+								Field: "queryOk",
+								Funcs: []string{},
+							},
 						},
+						GroupBy: chronograf.GroupBy{
+							Tags: []string{},
+						},
+						AreTagsAccepted: false,
 					},
-					GroupBy: chronograf.GroupBy{
-						Tags: []string{},
-					},
-					AreTagsAccepted: false,
 				},
 			},
 			link: client.Link{
@@ -756,8 +788,9 @@ trigger
 				t.Errorf("Client.Get() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Client.Get() =\n%#v\nwant\n%#v", got, tt.want)
+
+			if !cmp.Equal(got, tt.want) {
+				t.Errorf("%q. Client.All() = -got/+want %s", tt.name, cmp.Diff(got, tt.want))
 			}
 			if !reflect.DeepEqual(kapa.ListTasksOptions, tt.listTasksOptions) {
 				t.Errorf("Client.Get() = listTasksOptions  %v, want %v", kapa.ListTasksOptions, tt.listTasksOptions)
@@ -839,7 +872,10 @@ func TestClient_updateStatus(t *testing.T) {
 				Status:     "disabled",
 				Href:       "/kapacitor/v1/tasks/howdy",
 				HrefOutput: "/kapacitor/v1/tasks/howdy/output",
-				Rule:       chronograf.AlertRule{},
+				Rule: chronograf.AlertRule{
+					ID:   "howdy",
+					Name: "howdy",
+				},
 			},
 		},
 		{
@@ -901,7 +937,10 @@ func TestClient_updateStatus(t *testing.T) {
 				Status:     "enabled",
 				Href:       "/kapacitor/v1/tasks/howdy",
 				HrefOutput: "/kapacitor/v1/tasks/howdy/output",
-				Rule:       chronograf.AlertRule{},
+				Rule: chronograf.AlertRule{
+					ID:   "howdy",
+					Name: "howdy",
+				},
 			},
 		},
 	}
@@ -923,8 +962,8 @@ func TestClient_updateStatus(t *testing.T) {
 				t.Errorf("Client.updateStatus() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Client.updateStatus() = %v, want %v", got, tt.want)
+			if !cmp.Equal(got, tt.want) {
+				t.Errorf("%q. Client.updateStatus() = -got/+want %s", tt.name, cmp.Diff(got, tt.want))
 			}
 			if !reflect.DeepEqual(kapa.UpdateTaskOptions, tt.updateTaskOptions) {
 				t.Errorf("Client.updateStatus() = %v, want %v", kapa.UpdateTaskOptions, tt.updateTaskOptions)
@@ -1039,6 +1078,10 @@ func TestClient_Update(t *testing.T) {
 			},
 			want: &Task{
 				ID:         "howdy",
+				DB:         "db",
+				RP:         "rp",
+				Status:     "enabled",
+				Type:       "stream",
 				Href:       "/kapacitor/v1/tasks/howdy",
 				HrefOutput: "/kapacitor/v1/tasks/howdy/output",
 				Rule: chronograf.AlertRule{
@@ -1094,6 +1137,10 @@ func TestClient_Update(t *testing.T) {
 			},
 			want: &Task{
 				ID:         "howdy",
+				DB:         "db",
+				RP:         "rp",
+				Status:     "disabled",
+				Type:       "stream",
 				Href:       "/kapacitor/v1/tasks/howdy",
 				HrefOutput: "/kapacitor/v1/tasks/howdy/output",
 				Rule: chronograf.AlertRule{
@@ -1121,8 +1168,8 @@ func TestClient_Update(t *testing.T) {
 				t.Errorf("Client.Update() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Client.Update() =\n%#+v\n, want\n%#+v\n", got, tt.want)
+			if !cmp.Equal(got, tt.want) {
+				t.Errorf("%q. Client.Update() = -got/+want %s", tt.name, cmp.Diff(got, tt.want))
 			}
 			if !reflect.DeepEqual(kapa.UpdateTaskOptions, tt.updateTaskOptions) {
 				t.Errorf("Client.Update() = %v, want %v", kapa.UpdateTaskOptions, tt.updateTaskOptions)
@@ -1183,6 +1230,12 @@ func TestClient_Create(t *testing.T) {
 				ID:     "chronograf-v1-howdy",
 				Status: client.Enabled,
 				Type:   client.StreamTask,
+				DBRPs: []client.DBRP{
+					{
+						Database:        "db",
+						RetentionPolicy: "rp",
+					},
+				},
 				Link: client.Link{
 					Href: "/kapacitor/v1/tasks/chronograf-v1-howdy",
 				},
@@ -1214,7 +1267,7 @@ func TestClient_Create(t *testing.T) {
 			},
 		},
 		{
-			name: "create alert rule",
+			name: "create alert rule error",
 			fields: fields{
 				kapaClient: func(url, username, password string) (KapaClient, error) {
 					return kapa, nil
@@ -1267,8 +1320,8 @@ func TestClient_Create(t *testing.T) {
 				t.Errorf("Client.Create() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Client.Create() =\n%v\n, want\n%v\n", got, tt.want)
+			if !cmp.Equal(got, tt.want) {
+				t.Errorf("%q. Client.Create() = -got/+want %s", tt.name, cmp.Diff(got, tt.want))
 			}
 			if !reflect.DeepEqual(kapa.CreateTaskOptions, tt.createTaskOptions) {
 				t.Errorf("Client.Create() =  %v, want %v", kapa.CreateTaskOptions, tt.createTaskOptions)

@@ -73,14 +73,13 @@ func NewTask(task *client.Task) *Task {
 	rule, err := Reverse(script)
 	if err != nil {
 		rule = chronograf.AlertRule{
-			ID:         task.ID,
-			Name:       task.ID,
-			Query:      nil,
-			TICKScript: script,
+			Name:  task.ID,
+			Query: nil,
 		}
-		rule.ID = task.ID
 	}
 
+	rule.ID = task.ID
+	rule.TICKScript = script
 	return &Task{
 		ID:         task.ID,
 		Type:       task.Type.String(),
@@ -90,7 +89,6 @@ func NewTask(task *client.Task) *Task {
 		Href:       task.Link.Href,
 		HrefOutput: HrefOutput(task.ID),
 		Rule:       rule,
-		TICKScript: script,
 	}
 }
 
