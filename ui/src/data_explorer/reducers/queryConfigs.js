@@ -41,16 +41,17 @@ const queryConfigs = (state = {}, action) => {
     }
 
     case 'DE_ADD_QUERY': {
-      const {queryID, options} = action.payload
-      const nextState = Object.assign({}, state, {
-        [queryID]: Object.assign(
-          {},
-          defaultQueryConfig({id: queryID}),
-          options
-        ),
-      })
+      const {queryID} = action.payload
 
-      return nextState
+      return {
+        ...state,
+        [queryID]: defaultQueryConfig({id: queryID}),
+      }
+    }
+
+    case 'DE_DELETE_QUERY': {
+      const {queryID} = action.payload
+      return _.omit(state, queryID)
     }
 
     case 'DE_UPDATE_QUERY_CONFIG': {
@@ -83,11 +84,6 @@ const queryConfigs = (state = {}, action) => {
       return Object.assign({}, state, {
         [queryId]: nextQueryConfig,
       })
-    }
-
-    case 'DE_DELETE_QUERY': {
-      const {queryID} = action.payload
-      return _.omit(state, queryID)
     }
 
     case 'DE_TOGGLE_FIELD': {

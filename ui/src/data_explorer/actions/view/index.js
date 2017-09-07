@@ -6,11 +6,10 @@ import {errorThrown} from 'shared/actions/errors'
 
 import {DEFAULT_DATA_EXPLORER_GROUP_BY_INTERVAL} from 'src/data_explorer/constants'
 
-export const addQuery = (options = {}) => ({
+export const addQuery = () => ({
   type: 'DE_ADD_QUERY',
   payload: {
     queryID: uuid.v4(),
-    options,
   },
 })
 
