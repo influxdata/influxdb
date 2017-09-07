@@ -7,7 +7,7 @@ Emits a tarball of influxdb source code and dependencies to /out,
 which must be a mounted volume if you want to access the file.
 
 If the directory /influxdb-git exists and is mounted,
-that will be used as the git repository used when cloning plutonium.
+that will be used as the git repository used when cloning influxdb.
 "
 }
 

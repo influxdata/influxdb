@@ -27,7 +27,7 @@ if [ "$CGO_ENABLED" == "0" ]; then
   SUFFIX=_static
 fi
 
-TARBALL_NAME="plutonium_bin_${GOOS}_${GOARCH}${SUFFIX}-${SHA}.tar.gz"
+TARBALL_NAME="influxdb_bin_${GOOS}_${GOARCH}${SUFFIX}-${SHA}.tar.gz"
 (cd "$OUTDIR" && tar czf "/out/$TARBALL_NAME" ./*)
 (cd /out && md5sum "$TARBALL_NAME" > "$TARBALL_NAME.md5")
 (cd /out && sha256sum "$TARBALL_NAME" > "$TARBALL_NAME.sha256")
