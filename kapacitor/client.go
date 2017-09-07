@@ -3,6 +3,7 @@ package kapacitor
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/uuid"
@@ -48,25 +49,34 @@ func NewClient(url, username, password string) *Client {
 	}
 }
 
+type DBRP struct {
+	DB string
+	RP string
+}
+
 // Task represents a running kapacitor task
 type Task struct {
-	ID         string                // Kapacitor ID
-	Type       string                // Kapacitor type (stream or batch)
-	DB         string                // DB this task is associated with
-	RP         string                // RP this task is associated with
-	Status     string                // Status is the current state of the task
-	Href       string                // Kapacitor relative URI
-	HrefOutput string                // Kapacitor relative URI to HTTPOutNode
-	Rule       chronograf.AlertRule  // Rule is the rule that represents this Task
-	TICKScript chronograf.TICKScript // TICKScript is the running script
+	ID          string // Kapacitor ID
+	Type        string // Kapacitor type (stream or batch)
+	DBRPs       []DBRP // Databases and RetentionPolicies associated with this task
+	Status      string // Status is the current state of the task
+	Executing   bool
+	Error       string
+	Created     time.Time
+	Modified    time.Time
+	LastEnabled time.Time
+	Href        string                // Kapacitor relative URI
+	HrefOutput  string                // Kapacitor relative URI to HTTPOutNode
+	Rule        chronograf.AlertRule  // Rule is the rule that represents this Task
+	TICKScript  chronograf.TICKScript // TICKScript is the running script
 }
 
 // NewTask creates a task from a kapacitor client task
 func NewTask(task *client.Task) *Task {
-	db, rp := "", ""
-	if len(task.DBRPs) > 0 {
-		dbrp := task.DBRPs[0]
-		db, rp = dbrp.Database, dbrp.RetentionPolicy
+	dbrps := make([]DBRP, len(task.DBRPs))
+	for i := range task.DBRPs {
+		dbrps[i].DB = task.DBRPs[i].Database
+		dbrps[i].RP = task.DBRPs[i].RetentionPolicy
 	}
 
 	script := chronograf.TICKScript(task.TICKscript)
@@ -81,14 +91,18 @@ func NewTask(task *client.Task) *Task {
 	rule.ID = task.ID
 	rule.TICKScript = script
 	return &Task{
-		ID:         task.ID,
-		Type:       task.Type.String(),
-		DB:         db,
-		RP:         rp,
-		Status:     task.Status.String(),
-		Href:       task.Link.Href,
-		HrefOutput: HrefOutput(task.ID),
-		Rule:       rule,
+		ID:          task.ID,
+		Type:        task.Type.String(),
+		DBRPs:       dbrps,
+		Status:      task.Status.String(),
+		Executing:   task.Executing,
+		Error:       task.Error,
+		Created:     task.Created,
+		Modified:    task.Modified,
+		LastEnabled: task.LastEnabled,
+		Href:        task.Link.Href,
+		HrefOutput:  HrefOutput(task.ID),
+		Rule:        rule,
 	}
 }
 
