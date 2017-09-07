@@ -2,7 +2,7 @@
 
 function printHelp() {
   >&2 echo \
-"USAGE: $0 [-p INFLUXDB_GIT_DIR] [-e ENTERPRISE_GIT_DIR] [-S GITHUB_SSH_KEY]
+"USAGE: $0 [-p INFLUXDB_GIT_DIR] [-S GITHUB_SSH_KEY]
             -s INFLUXDB_SHA -b INFLUXDB_BRANCH -v INFLUXDB_VERSION -o OUTDIR
 
 Emits a tarball of influxdb source code and dependencies to OUTDIR.
@@ -10,7 +10,7 @@ Emits a tarball of influxdb source code and dependencies to OUTDIR.
 If using -p flag, directory containing influxdb source code will be used as source of truth.
 This is helpful if you have local commits that have not been pushed.
 
-If not using both -p and -e, you must provide -S to clone over SSH.
+If not using -p, you must provide -S to clone over SSH.
 "
 }
 
@@ -29,10 +29,9 @@ OUTDIR=""
 
 # These variables may expand to command arguments. Don't double quote them when used later.
 INFLUXDB_GIT_MOUNT=""
-ENTERPRISE_GIT_MOUNT=""
 GITHUB_SSH_MOUNT=""
 
-while getopts hs:b:v:o:p:e:S: arg; do
+while getopts hs:b:v:o:p:S: arg; do
   case "$arg" in
     h) printHelp; exit 1;;
     s) SHA="$OPTARG";;
@@ -40,7 +39,6 @@ while getopts hs:b:v:o:p:e:S: arg; do
     v) VERSION="$OPTARG";;
     o) OUTDIR="$OPTARG";;
     p) INFLUXDB_GIT_MOUNT="--mount type=bind,src=$OPTARG,dst=/influxdb-git,ro=1";;
-    e) ENTERPRISE_GIT_MOUNT="--mount type=bind,src=$OPTARG,dst=/enterprise-git,ro=1";;
     S) GITHUB_SSH_MOUNT="--mount type=bind,src=$OPTARG,dst=/root/.ssh/id_rsa";;
   esac
 done
@@ -57,7 +55,7 @@ docker build --build-arg "GO_VERSION=$GO_CURRENT_VERSION" -t influxdata/influxdb
 mkdir -p "$OUTDIR"
 
 docker run --rm \
-  $INFLUXDB_GIT_MOUNT $ENTERPRISE_GIT_MOUNT $GITHUB_SSH_MOUNT \
+  $INFLUXDB_GIT_MOUNT $GITHUB_SSH_MOUNT \
   --mount "type=bind,src=${OUTDIR},dst=/out" \
   influxdata/influxdb/releng/source-tarball:latest \
   -s "$SHA" \
