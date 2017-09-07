@@ -52,5 +52,5 @@ mkdir -p "$OUTDIR"
 docker run --rm \
    --mount type=bind,source="${OUTDIR}",destination=/out \
    --mount type=bind,source="${TARBALL}",destination=/influxdb-src.tar.gz,ro=1 \
-   -e GOOS -e GOARCH \
+   -e GOOS -e GOARCH -e CGO_ENABLED \
   influxdata/influxdb/releng/raw-binaries:"$DOCKER_TAG"
