@@ -22,12 +22,6 @@ class FillQuery extends Component {
         }
   }
 
-  static defaultProps = {
-    size: 'sm',
-    theme: 'blue',
-    value: NULL_STRING,
-  }
-
   handleDropdown = item => {
     if (item.text === NUMBER) {
       this.setState({selected: item}, () => {
@@ -109,6 +103,12 @@ class FillQuery extends Component {
 }
 
 const {func, string} = PropTypes
+
+FillQuery.defaultProps = {
+  size: 'sm',
+  theme: 'blue',
+  value: NULL_STRING,
+}
 
 FillQuery.propTypes = {
   onSelection: func.isRequired,
