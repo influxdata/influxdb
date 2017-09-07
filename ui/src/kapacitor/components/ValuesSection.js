@@ -5,6 +5,8 @@ import _ from 'lodash'
 import Deadman from 'src/kapacitor/components/Deadman'
 import Threshold from 'src/kapacitor/components/Threshold'
 import Relative from 'src/kapacitor/components/Relative'
+import DataSection from 'src/kapacitor/components/DataSection'
+import RuleGraph from 'src/kapacitor/components/RuleGraph'
 
 import {Tab, TabList, TabPanels, TabPanel, Tabs} from 'shared/components/Tabs'
 
@@ -27,9 +29,14 @@ export const ValuesSection = React.createClass({
     const {
       rule,
       query,
+      source,
+      timeRange,
+      onAddEvery,
+      onRemoveEvery,
       onDeadmanChange,
-      onRuleTypeDropdownChange,
+      queryConfigActions,
       onRuleTypeInputChange,
+      onRuleTypeDropdownChange,
     } = this.props
     const initialIndex = TABS.indexOf(_.startCase(rule.trigger))
 
@@ -45,6 +52,14 @@ export const ValuesSection = React.createClass({
                 </Tab>
               )}
             </TabList>
+            <DataSection
+              query={query}
+              timeRange={timeRange}
+              isKapacitorRule={true}
+              actions={queryConfigActions}
+              onAddEvery={onAddEvery}
+              onRemoveEvery={onRemoveEvery}
+            />
 
             <TabPanels>
               <TabPanel>
@@ -66,6 +81,12 @@ export const ValuesSection = React.createClass({
                 <Deadman rule={rule} onChange={onDeadmanChange} />
               </TabPanel>
             </TabPanels>
+            <RuleGraph
+              rule={rule}
+              query={query}
+              source={source}
+              timeRange={timeRange}
+            />
           </Tabs>
         </div>
       </div>

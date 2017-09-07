@@ -1,6 +1,5 @@
 import React, {PropTypes, Component} from 'react'
 
-import DataSection from 'src/kapacitor/components/DataSection'
 import ValuesSection from 'src/kapacitor/components/ValuesSection'
 import RuleHeader from 'src/kapacitor/components/RuleHeader'
 import RuleGraph from 'src/kapacitor/components/RuleGraph'
@@ -132,14 +131,14 @@ class KapacitorRule extends Component {
 
   render() {
     const {
-      queryConfigActions,
-      source,
-      enabledAlerts,
-      queryConfigs,
-      query,
       rule,
-      ruleActions,
+      query,
+      source,
       isEditing,
+      ruleActions,
+      queryConfigs,
+      enabledAlerts,
+      queryConfigActions,
     } = this.props
     const {chooseTrigger, updateRuleValues} = ruleActions
     const {timeRange} = this.state
@@ -162,27 +161,17 @@ class KapacitorRule extends Component {
                 <div className="rule-builder">
                   <ValuesSection
                     rule={rule}
-                    query={queryConfigs[rule.queryID]}
+                    source={source}
+                    timeRange={timeRange}
                     onChooseTrigger={chooseTrigger}
-                    onUpdateValues={updateRuleValues}
-                    onDeadmanChange={this.handleDeadmanChange}
-                    onRuleTypeDropdownChange={this.handleRuleTypeDropdownChange}
-                    onRuleTypeInputChange={this.handleRuleTypeInputChange}
-                  />
-                  <DataSection
-                    timeRange={timeRange}
-                    source={source}
-                    query={query}
-                    actions={queryConfigActions}
                     onAddEvery={this.handleAddEvery}
+                    onUpdateValues={updateRuleValues}
+                    query={queryConfigs[rule.queryID]}
                     onRemoveEvery={this.handleRemoveEvery}
-                    isKapacitorRule={true}
-                  />
-                  <RuleGraph
-                    timeRange={timeRange}
-                    source={source}
-                    query={query}
-                    rule={rule}
+                    queryConfigActions={queryConfigActions}
+                    onDeadmanChange={this.handleDeadmanChange}
+                    onRuleTypeInputChange={this.handleRuleTypeInputChange}
+                    onRuleTypeDropdownChange={this.handleRuleTypeDropdownChange}
                   />
                   <RuleMessage
                     rule={rule}
