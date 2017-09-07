@@ -1,3 +1,8 @@
+## v1.3.9.0 [unreleased]
+### Bug Fixes
+### Features
+### UI Improvements
+
 ## v1.3.8.0 [unreleased]
 ### Bug Fixes
 1. [#1886](https://github.com/influxdata/chronograf/pull/1886): Fix limit of 100 alert rules on alert rules page
