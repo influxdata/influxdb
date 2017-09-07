@@ -972,6 +972,8 @@ func (i *Index) compactToLevel(files []*IndexFile, level int) {
 	}
 }
 
+func (i *Index) Rebuild() {}
+
 func (i *Index) CheckLogFile() error {
 	// Check log file size under read lock.
 	if size := func() int64 {

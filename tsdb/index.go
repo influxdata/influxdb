@@ -58,6 +58,8 @@ type Index interface {
 	RemoveShard(shardID uint64)
 
 	Type() string
+
+	Rebuild()
 }
 
 // IndexFormat represents the format for an index.

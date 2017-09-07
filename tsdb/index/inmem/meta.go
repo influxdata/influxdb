@@ -31,6 +31,10 @@ type Measurement struct {
 
 	// lazyily created sorted series IDs
 	sortedSeriesIDs SeriesIDs // sorted list of series IDs in this measurement
+
+	// Indicates whether the seriesByTagKeyValueMap needs to be rebuilt as it contains deleted series
+	// that waste memory.
+	dirty bool
 }
 
 // NewMeasurement allocates and initializes a new Measurement.
@@ -83,7 +87,7 @@ func (m *Measurement) AppendSeriesKeysByID(dst []string, ids []uint64) []string 
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	for _, id := range ids {
-		if s := m.seriesByID[id]; s != nil {
+		if s := m.seriesByID[id]; s != nil && !s.Deleted() {
 			dst = append(dst, s.Key)
 		}
 	}
@@ -97,7 +101,7 @@ func (m *Measurement) SeriesKeysByID(ids SeriesIDs) [][]byte {
 	keys := make([][]byte, 0, len(ids))
 	for _, id := range ids {
 		s := m.seriesByID[id]
-		if s == nil {
+		if s == nil || s.Deleted() {
 			continue
 		}
 		keys = append(keys, []byte(s.Key))
@@ -111,6 +115,9 @@ func (m *Measurement) SeriesKeys() [][]byte {
 	defer m.mu.RUnlock()
 	keys := make([][]byte, 0, len(m.seriesByID))
 	for _, s := range m.seriesByID {
+		if s.Deleted() {
+			continue
+		}
 		keys = append(keys, []byte(s.Key))
 	}
 	return keys
@@ -137,7 +144,10 @@ func (m *Measurement) SeriesIDs() SeriesIDs {
 		m.sortedSeriesIDs = make(SeriesIDs, 0, len(m.seriesByID))
 	}
 
-	for k := range m.seriesByID {
+	for k, v := range m.seriesByID {
+		if v.Deleted() {
+			continue
+		}
 		m.sortedSeriesIDs = append(m.sortedSeriesIDs, k)
 	}
 	sort.Sort(m.sortedSeriesIDs)
@@ -253,25 +263,32 @@ func (m *Measurement) DropSeries(series *Series) {
 	// clear our lazily sorted set of ids
 	m.sortedSeriesIDs = m.sortedSeriesIDs[:0]
 
-	// remove this series id from the tag index on the measurement
-	// s.seriesByTagKeyValue is defined as map[string]map[string]SeriesIDs
-	series.ForEachTag(func(t models.Tag) {
-		values := m.seriesByTagKeyValue[string(t.Key)][string(t.Value)]
-		ids := filter(values, seriesID)
-		// Check to see if we have any ids, if not, remove the key
-		if len(ids) == 0 {
-			delete(m.seriesByTagKeyValue[string(t.Key)], string(t.Value))
-		} else {
-			m.seriesByTagKeyValue[string(t.Key)][string(t.Value)] = ids
-		}
+	// Mark that this measurements tagValue map has stale entries that need to be rebuilt.
+	m.dirty = true
+}
 
-		// If we have no values, then we delete the key
-		if len(m.seriesByTagKeyValue[string(t.Key)]) == 0 {
-			delete(m.seriesByTagKeyValue, string(t.Key))
-		}
-	})
+func (m *Measurement) Rebuild() *Measurement {
+	m.mu.RLock()
 
-	return
+	// Nothing needs to be rebuilt.
+	if !m.dirty {
+		m.mu.RUnlock()
+		return m
+	}
+
+	// Create a new measurement from the state of the existing measurement
+	nm := NewMeasurement(m.database, string(m.name))
+	nm.fieldNames = m.fieldNames
+	m.mu.RUnlock()
+
+	// Re-add each series to allow the measurement indexes to get re-created.  If there were
+	// deletes, the existing measurment may have references to deleted series that need to be
+	// expunged.  Note: we're using SeriesIDs which returns the series in sorted order so that
+	// re-adding does not incur a sort for each series added.
+	for _, id := range m.SeriesIDs() {
+		nm.AddSeries(m.SeriesByID(id))
+	}
+	return nm
 }
 
 // filters walks the where clause of a select statement and returns a map with all series ids
@@ -345,7 +362,7 @@ func (m *Measurement) TagSets(shardID uint64, opt query.IteratorOptions) ([]*que
 		}
 
 		s := m.seriesByID[id]
-		if !s.Assigned(shardID) {
+		if s == nil || s.Deleted() || !s.Assigned(shardID) {
 			continue
 		}
 
@@ -1112,6 +1129,7 @@ type Series struct {
 	ID          uint64
 	measurement *Measurement
 	shardIDs    map[uint64]struct{} // shards that have this series defined
+	deleted     bool
 }
 
 // NewSeries returns an initialized series struct
@@ -1193,6 +1211,21 @@ func (s *Series) GetTagString(key string) string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.tags.GetString(key)
+}
+
+// Delete marks this series as deleted.  A deleted series should not be returned for queries.
+func (s *Series) Delete() {
+	s.mu.Lock()
+	s.deleted = true
+	s.mu.Unlock()
+}
+
+// Deleted indicates if this was previously deleted.
+func (s *Series) Deleted() bool {
+	s.mu.RLock()
+	v := s.deleted
+	s.mu.RUnlock()
+	return v
 }
 
 // SeriesIDs is a convenience type for sorting, checking equality, and doing
