@@ -7,7 +7,7 @@ class TickscriptEditor extends Component {
     super(props)
   }
 
-  updateCode(script) {
+  updateCode = script => {
     this.props.onChangeScript(script)
   }
 
@@ -20,11 +20,7 @@ class TickscriptEditor extends Component {
     }
 
     return (
-      <CodeMirror
-        value={script}
-        onChange={::this.updateCode}
-        options={options}
-      />
+      <CodeMirror value={script} onChange={this.updateCode} options={options} />
     )
   }
 }

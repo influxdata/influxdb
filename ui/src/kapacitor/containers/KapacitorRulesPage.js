@@ -47,8 +47,8 @@ class KapacitorRulesPage extends Component {
         rules={rules}
         hasKapacitor={hasKapacitor}
         loading={loading}
-        onDelete={::this.handleDeleteRule}
-        onChangeRuleStatus={::this.handleRuleStatus}
+        onDelete={this.handleDeleteRule}
+        onChangeRuleStatus={this.handleRuleStatus}
       />
     )
   }

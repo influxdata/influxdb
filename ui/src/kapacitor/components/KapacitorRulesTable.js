@@ -43,6 +43,8 @@ const KapacitorRulesTable = ({rules, source, onDelete, onChangeRuleStatus}) =>
     </table>
   </div>
 
+const handleDelete = (rule, onDelete) => onDelete(rule)
+
 const RuleRow = ({rule, source, onDelete, onChangeRuleStatus}) =>
   <tr key={rule.id}>
     <td style={{width: colName}} className="monotype">
@@ -81,7 +83,10 @@ const RuleRow = ({rule, source, onDelete, onChangeRuleStatus}) =>
       >
         Edit TICKscript
       </Link>
-      <button className="btn btn-danger btn-xs" onClick={() => onDelete(rule)}>
+      <button
+        className="btn btn-danger btn-xs"
+        onClick={handleDelete(rule, onDelete)}
+      >
         Delete
       </button>
     </td>

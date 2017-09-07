@@ -49,7 +49,7 @@ class TickscriptPage extends Component {
     this.setState({kapacitor})
   }
 
-  async handleSave() {
+  handleSave = async () => {
     const {kapacitor, task} = this.state
     const {
       source,
@@ -72,23 +72,23 @@ class TickscriptPage extends Component {
     router.push(`/sources/${source.id}/alert-rules`)
   }
 
-  handleChangeScript(script) {
+  handleChangeScript = script => {
     this.setState({task: {...this.state.task, script}})
   }
 
-  handleSelectDbrps(dbrps) {
+  handleSelectDbrps = dbrps => {
     this.setState({task: {...this.state.task, dbrps}})
   }
 
-  handleChangeType(type) {
+  handleChangeType = type => {
     return () => this.setState({task: {...this.state.task, type}})
   }
 
-  handleStartEditID() {
+  handleStartEditID = () => {
     this.setState({isEditingID: true})
   }
 
-  handleStopEditID() {
+  handleStopEditID = () => {
     this.setState({isEditingID: false})
   }
 
@@ -103,12 +103,12 @@ class TickscriptPage extends Component {
         validation={validation}
         isEditingID={isEditingID}
         isNewTickscript={!this._isEditing()}
-        onSave={::this.handleSave}
-        onStartEditID={::this.handleStartEditID}
-        onStopEditID={::this.handleStopEditID}
-        onSelectDbrps={::this.handleSelectDbrps}
-        onChangeScript={::this.handleChangeScript}
-        onChangeType={::this.handleChangeType}
+        onSave={this.handleSave}
+        onStartEditID={this.handleStartEditID}
+        onStopEditID={this.handleStopEditID}
+        onSelectDbrps={this.handleSelectDbrps}
+        onChangeScript={this.handleChangeScript}
+        onChangeType={this.handleChangeType}
       />
     )
   }

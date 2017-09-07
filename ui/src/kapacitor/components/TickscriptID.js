@@ -10,7 +10,7 @@ class TickscriptNewID extends Component {
     }
   }
 
-  handleChangeID(e) {
+  handleChangeID = e => {
     const tickscriptID = e.target.value
     this.setState({tickscriptID})
   }
@@ -28,7 +28,7 @@ class TickscriptNewID extends Component {
           className="page-header--editing kapacitor-theme"
           autoFocus={true}
           value={tickscriptID}
-          onChange={::this.handleChangeID}
+          onChange={this.handleChangeID}
           placeholder="Name your tickscript"
           spellCheck={false}
           autoComplete={false}
