@@ -7,6 +7,7 @@
 1. [#1947](https://github.com/influxdata/chronograf/pull/1947): Fix DataExplorer crashing if a field property is not present in the queryConfig
 1. [#1957](https://github.com/influxdata/chronograf/pull/1957): Fix the max y value of stacked graphs preventing display of the upper bounds of the chart
 1. [#1969](https://github.com/influxdata/chronograf/pull/1969): Fix for delayed selection of template variables using URL query params
+1. [#1982](https://github.com/influxdata/chronograf/pull/1982): Fix return code on meta nodes when raft redirects to leader
 
 ### Features
 1. [#1928](https://github.com/influxdata/chronograf/pull/1928): Add prefix, suffix, scale, and other y-axis formatting for cells in dashboards
