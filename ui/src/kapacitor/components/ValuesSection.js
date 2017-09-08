@@ -12,7 +12,7 @@ import {Tab, TabList, TabPanels, TabPanel, Tabs} from 'shared/components/Tabs'
 
 const TABS = ['Threshold', 'Relative', 'Deadman']
 
-const handleChooseTrigger = (rule, onChooseTrigger) => {
+const handleChooseTrigger = (rule, onChooseTrigger) => triggerIndex => {
   if (TABS[triggerIndex] === rule.trigger) {
     return
   }
