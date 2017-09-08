@@ -1,7 +1,7 @@
 import {NULL_STRING} from 'shared/constants/queryFillOptions'
 
 const defaultQueryConfig = ({id, isKapacitorRule = false}) => {
-  let queryConfig = {
+  const queryConfig = {
     id,
     database: null,
     measurement: null,
@@ -17,11 +17,7 @@ const defaultQueryConfig = ({id, isKapacitorRule = false}) => {
     status: null,
   }
 
-  if (!isKapacitorRule) {
-    queryConfig = {...queryConfig, fill: NULL_STRING}
-  }
-
-  return queryConfig
+  return isKapacitorRule ? queryConfig : {...queryConfig, fill: NULL_STRING}
 }
 
 export default defaultQueryConfig
