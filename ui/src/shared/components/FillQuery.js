@@ -14,11 +14,13 @@ class FillQuery extends Component {
     this.state = isNumberValue
       ? {
           selected: queryFills.find(fill => fill.type === NUMBER),
-          numberValue: props.value,
+          currentNumberValue: props.value,
+          resetNumberValue: props.value,
         }
       : {
           selected: queryFills.find(fill => fill.type === props.value),
-          numberValue: '0',
+          currentNumberValue: '0',
+          resetNumberValue: '0',
         }
   }
 
@@ -35,25 +37,35 @@ class FillQuery extends Component {
   }
 
   handleInputBlur = e => {
-    if (!e.target.value) {
-      this.setState({numberValue: '0'})
-    }
+    const nextNumberValue = e.target.value
+      ? e.target.value
+      : this.state.resetNumberValue || '0'
 
-    const numberValue = e.target.value || '0'
+    this.setState({
+      currentNumberValue: nextNumberValue,
+      resetNumberValue: nextNumberValue,
+    })
 
-    this.setState({numberValue})
-    this.props.onChooseFill(numberValue)
+    this.props.onChooseFill(nextNumberValue)
   }
 
   handleInputChange = e => {
-    const numberValue = e.target.value
+    const currentNumberValue = e.target.value
 
-    this.setState({numberValue})
+    this.setState({currentNumberValue})
+  }
+
+  handleKeyDown = e => {
+    if (e.key === 'Enter') {
+      this.numberInput.blur()
+    }
   }
 
   handleKeyUp = e => {
-    if (e.key === 'Enter' || e.key === 'Escape') {
-      e.target.blur()
+    if (e.key === 'Escape') {
+      this.setState({currentNumberValue: this.state.resetNumberValue}, () => {
+        this.numberInput.blur()
+      })
     }
   }
 
@@ -72,7 +84,7 @@ class FillQuery extends Component {
 
   render() {
     const {size, theme} = this.props
-    const {selected, numberValue} = this.state
+    const {selected, currentNumberValue} = this.state
 
     return (
       <div className={`fill-query fill-query--${size}`}>
@@ -84,8 +96,9 @@ class FillQuery extends Component {
               theme
             )} input-${size} fill-query--input`}
             placeholder="Custom Value"
-            value={numberValue}
+            value={currentNumberValue}
             onKeyUp={this.handleKeyUp}
+            onKeyDown={this.handleKeyDown}
             onChange={this.handleInputChange}
             onBlur={this.handleInputBlur}
           />}
