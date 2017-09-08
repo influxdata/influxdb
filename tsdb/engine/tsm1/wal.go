@@ -1198,7 +1198,9 @@ func (r *WALSegmentReader) Close() error {
 	if r.rc == nil {
 		return nil
 	}
-	return r.rc.Close()
+	err := r.rc.Close()
+	r.rc = nil
+	return err
 }
 
 // idFromFileName parses the segment file ID from its name.
