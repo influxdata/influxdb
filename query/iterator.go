@@ -779,6 +779,21 @@ func newIteratorOptionsSubstatement(stmt *influxql.SelectStatement, opt Iterator
 	}
 	subOpt.InterruptCh = opt.InterruptCh
 
+	// Extract the time range and condition from the condition.
+	cond, t, err := influxql.ConditionExpr(stmt.Condition, nil)
+	if err != nil {
+		return IteratorOptions{}, err
+	}
+	subOpt.Condition = cond
+	// If the time range is more constrained, use it instead. A less constrained time
+	// range should be ignored.
+	if !t.Min.IsZero() && t.MinTime() > opt.StartTime {
+		subOpt.StartTime = t.MinTime()
+	}
+	if !t.Max.IsZero() && t.MaxTime() < opt.EndTime {
+		subOpt.EndTime = t.MaxTime()
+	}
+
 	// Propagate the SLIMIT and SOFFSET from the outer query.
 	subOpt.SLimit += opt.SLimit
 	subOpt.SOffset += opt.SOffset
