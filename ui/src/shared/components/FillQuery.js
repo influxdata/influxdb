@@ -25,7 +25,6 @@ class FillQuery extends Component {
   handleDropdown = item => {
     if (item.text === NUMBER) {
       this.setState({selected: item}, () => {
-        this.props.onChooseFill(this.state.numberValue)
         this.numberInput.focus()
       })
     } else {
@@ -36,6 +35,10 @@ class FillQuery extends Component {
   }
 
   handleInputBlur = e => {
+    if (!e.target.value) {
+      this.setState({numberValue: '0'})
+    }
+
     const numberValue = e.target.value || '0'
 
     this.setState({numberValue})
@@ -46,7 +49,6 @@ class FillQuery extends Component {
     const numberValue = e.target.value
 
     this.setState({numberValue})
-    this.props.onChooseFill(numberValue)
   }
 
   handleKeyUp = e => {
