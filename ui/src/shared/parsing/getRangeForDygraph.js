@@ -23,7 +23,7 @@ const getRange = (
   const subPad = bigNum => bigNum.times(SUB_FACTOR).toNumber()
 
   const pad = v => {
-    if (v === null || v === '') {
+    if (v === null || v === '' || v === undefined) {
       return null
     }
 

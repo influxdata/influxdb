@@ -25,6 +25,7 @@
 1. [#1942](https://github.com/influxdata/chronograf/pull/1942): Polish appearance of optional alert parameters in Kapacitor rule builder
 1. [#1944](https://github.com/influxdata/chronograf/pull/1944): Add active state for Status page navbar icon
 1. [#1944](https://github.com/influxdata/chronograf/pull/1944): Improve UX of navigation to a sub-nav item in the navbar
+1. [#1971](https://github.com/influxdata/chronograf/pull/1971): Resolve confusing deadman trigger alert rule UI
 
 ## v1.3.7.0 [2017-08-23]
 ### Features
