@@ -1,6 +1,4 @@
 import React, {PropTypes, Component} from 'react'
-import buildInfluxQLQuery from 'utils/influxql'
-import classnames from 'classnames'
 
 import DatabaseList from 'src/shared/components/DatabaseList'
 import MeasurementList from 'src/shared/components/MeasurementList'
@@ -11,10 +9,6 @@ import {defaultEveryFrequency} from 'src/kapacitor/constants'
 class DataSection extends Component {
   constructor(props) {
     super(props)
-  }
-
-  getChildContext = () => {
-    return {source: this.props.source}
   }
 
   handleChooseNamespace = namespace => {
@@ -56,66 +50,40 @@ class DataSection extends Component {
   }
 
   render() {
-    const {query, timeRange: {lower}, isKapacitorRule} = this.props
-    const statement =
-      query.rawText || buildInfluxQLQuery({lower}, query, isKapacitorRule)
+    const {query, isKapacitorRule, isDeadman} = this.props
 
     return (
       <div className="rule-section">
-        <h3 className="rule-section--heading">Select a Time Series</h3>
-        <div className="rule-section--body">
-          <pre className="rule-section--border-bottom">
-            <code
-              className={classnames({
-                'metric-placeholder': !statement,
-              })}
-            >
-              {statement || 'Build a query below'}
-            </code>
-          </pre>
-          {this.renderQueryBuilder()}
+        <div className="query-builder rule-section--border-bottom">
+          <DatabaseList
+            query={query}
+            onChooseNamespace={this.handleChooseNamespace}
+          />
+          <MeasurementList
+            query={query}
+            onChooseMeasurement={this.handleChooseMeasurement}
+            onChooseTag={this.handleChooseTag}
+            onGroupByTag={this.handleGroupByTag}
+            onToggleTagAcceptance={this.handleToggleTagAcceptance}
+          />
+          {isDeadman
+            ? null
+            : <FieldList
+                query={query}
+                onToggleField={this.handleToggleField}
+                onGroupByTime={this.handleGroupByTime}
+                applyFuncsToField={this.handleApplyFuncsToField}
+                isKapacitorRule={isKapacitorRule}
+              />}
         </div>
-      </div>
-    )
-  }
-
-  renderQueryBuilder = () => {
-    const {query, isKapacitorRule, isDeadman} = this.props
-    return (
-      <div className="query-builder rule-section--border-bottom">
-        <DatabaseList
-          query={query}
-          onChooseNamespace={this.handleChooseNamespace}
-        />
-        <MeasurementList
-          query={query}
-          onChooseMeasurement={this.handleChooseMeasurement}
-          onChooseTag={this.handleChooseTag}
-          onGroupByTag={this.handleGroupByTag}
-          onToggleTagAcceptance={this.handleToggleTagAcceptance}
-        />
-        {isDeadman
-          ? null
-          : <FieldList
-              query={query}
-              onToggleField={this.handleToggleField}
-              onGroupByTime={this.handleGroupByTime}
-              applyFuncsToField={this.handleApplyFuncsToField}
-              isKapacitorRule={isKapacitorRule}
-            />}
       </div>
     )
   }
 }
 
-const {string, func, shape, bool} = PropTypes
+const {bool, func, shape, string} = PropTypes
 
 DataSection.propTypes = {
-  source: shape({
-    links: shape({
-      kapacitors: string.isRequired,
-    }).isRequired,
-  }),
   query: shape({
     id: string.isRequired,
   }).isRequired,
@@ -134,15 +102,6 @@ DataSection.propTypes = {
   onRemoveEvery: func.isRequired,
   timeRange: shape({}).isRequired,
   isKapacitorRule: bool,
-}
-
-DataSection.childContextTypes = {
-  source: PropTypes.shape({
-    links: PropTypes.shape({
-      proxy: PropTypes.string.isRequired,
-      self: PropTypes.string.isRequired,
-    }).isRequired,
-  }).isRequired,
   isDeadman: bool,
 }
 
