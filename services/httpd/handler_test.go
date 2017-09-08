@@ -6,18 +6,23 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
+	"github.com/gogo/protobuf/proto"
+	"github.com/golang/snappy"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/internal"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/prometheus/remote"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/httpd"
 	"github.com/influxdata/influxdb/services/meta"
@@ -521,6 +526,137 @@ func TestHandler_Query_CloseNotify(t *testing.T) {
 		timer.Stop()
 	case <-timer.C:
 		t.Fatal("timeout while waiting for query to abort")
+	}
+}
+
+// Ensure the prometheus remote write works
+func TestHandler_PromWrite(t *testing.T) {
+	req := &remote.WriteRequest{
+		Timeseries: []*remote.TimeSeries{
+			{
+				Labels: []*remote.LabelPair{
+					{Name: "host", Value: "a"},
+					{Name: "region", Value: "west"},
+				},
+				Samples: []*remote.Sample{
+					{TimestampMs: 1, Value: 1.2},
+					{TimestampMs: 2, Value: math.NaN()},
+				},
+			},
+		},
+	}
+
+	data, err := proto.Marshal(req)
+	if err != nil {
+		t.Fatal("couldn't marshal prometheus request")
+	}
+	compressed := snappy.Encode(nil, data)
+
+	b := bytes.NewReader(compressed)
+	h := NewHandler(false)
+	h.MetaClient.DatabaseFn = func(name string) *meta.DatabaseInfo {
+		return &meta.DatabaseInfo{}
+	}
+	called := false
+	h.PointsWriter.WritePointsFn = func(db, rp string, _ models.ConsistencyLevel, _ meta.User, points []models.Point) error {
+		called = true
+		point := points[0]
+		if point.UnixNano() != int64(time.Millisecond) {
+			t.Fatalf("Exp point time %d but got %d", int64(time.Millisecond), point.UnixNano())
+		}
+		tags := point.Tags()
+		expectedTags := models.Tags{models.Tag{Key: []byte("host"), Value: []byte("a")}, models.Tag{Key: []byte("region"), Value: []byte("west")}}
+		if !reflect.DeepEqual(tags, expectedTags) {
+			t.Fatalf("tags don't match\n\texp: %v\n\tgot: %v", expectedTags, tags)
+		}
+
+		fields, err := point.Fields()
+		if err != nil {
+			t.Fatal(err.Error())
+		}
+		expFields := models.Fields{"f64": 1.2}
+		if !reflect.DeepEqual(fields, expFields) {
+			t.Fatalf("fields don't match\n\texp: %v\n\tgot: %v", expFields, fields)
+		}
+		return nil
+	}
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, MustNewRequest("POST", "/api/v1/prom/write?db=foo", b))
+	if !called {
+		t.Fatal("WritePoints: expected call")
+	}
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("unexpected status: %d", w.Code)
+	}
+}
+
+// Ensure Prometheus remote read requests are converted to the correct InfluxQL query and
+// data is returned
+func TestHandler_PromRead(t *testing.T) {
+	req := &remote.ReadRequest{
+		Queries: []*remote.Query{{
+			Matchers: []*remote.LabelMatcher{
+				{Type: remote.MatchType_EQUAL, Name: "eq", Value: "a"},
+				{Type: remote.MatchType_NOT_EQUAL, Name: "neq", Value: "b"},
+				{Type: remote.MatchType_REGEX_MATCH, Name: "regex", Value: "c"},
+				{Type: remote.MatchType_REGEX_NO_MATCH, Name: "neqregex", Value: "d"},
+			},
+			StartTimestampMs: 1,
+			EndTimestampMs:   2,
+		}},
+	}
+	data, err := proto.Marshal(req)
+	if err != nil {
+		t.Fatal("couldn't marshal prometheus request")
+	}
+	compressed := snappy.Encode(nil, data)
+	b := bytes.NewReader(compressed)
+
+	h := NewHandler(false)
+	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx query.ExecutionContext) error {
+		if stmt.String() != `SELECT f64 FROM foo.._ WHERE eq = 'a' AND neq != 'b' AND regex =~ 'c' AND neqregex !~ 'd' AND time >= '1970-01-01T00:00:00.001Z' AND time <= '1970-01-01T00:00:00.002Z' GROUP BY *` {
+			t.Fatalf("unexpected query: %s", stmt.String())
+		} else if ctx.Database != `foo` {
+			t.Fatalf("unexpected db: %s", ctx.Database)
+		}
+		row := &models.Row{
+			Name:    "_",
+			Tags:    map[string]string{"foo": "bar"},
+			Columns: []string{"time", "f64"},
+			Values:  [][]interface{}{{time.Unix(23, 0), 1.2}},
+		}
+		ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{row})}
+		return nil
+	}
+
+	w := httptest.NewRecorder()
+
+	h.ServeHTTP(w, MustNewJSONRequest("POST", "/api/v1/prom/read?db=foo", b))
+	if w.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", w.Code)
+	}
+
+	reqBuf, err := snappy.Decode(nil, w.Body.Bytes())
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	var resp remote.ReadResponse
+	if err := proto.Unmarshal(reqBuf, &resp); err != nil {
+		t.Fatal(err.Error())
+	}
+
+	expLabels := []*remote.LabelPair{{Name: "foo", Value: "bar"}}
+	expSamples := []*remote.Sample{{TimestampMs: 23000, Value: 1.2}}
+
+	ts := resp.Results[0].Timeseries[0]
+
+	if !reflect.DeepEqual(expLabels, ts.Labels) {
+		t.Fatalf("unexpected labels\n\texp: %v\n\tgot: %v", expLabels, ts.Labels)
+	}
+	if !reflect.DeepEqual(expSamples, ts.Samples) {
+		t.Fatalf("unexpectd samples\n\texp: %v\n\tgot: %v", expSamples, ts.Samples)
 	}
 }
 
