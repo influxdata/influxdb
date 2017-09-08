@@ -4,6 +4,7 @@ import {
   TEMP_VAR_INTERVAL,
   DEFAULT_DASHBOARD_GROUP_BY_INTERVAL,
 } from 'shared/constants'
+import {NULL_STRING} from 'shared/constants/queryFillOptions'
 
 /* eslint-disable quotes */
 export const quoteIfTimestamp = ({lower, upper}) => {
@@ -19,8 +20,12 @@ export const quoteIfTimestamp = ({lower, upper}) => {
 }
 /* eslint-enable quotes */
 
-export default function buildInfluxQLQuery(timeBounds, config) {
-  const {groupBy, tags, areTagsAccepted} = config
+export default function buildInfluxQLQuery(
+  timeBounds,
+  config,
+  isKapacitorRule
+) {
+  const {groupBy, fill = NULL_STRING, tags, areTagsAccepted} = config
   const {upper, lower} = quoteIfTimestamp(timeBounds)
 
   const select = _buildSelect(config)
@@ -30,8 +35,9 @@ export default function buildInfluxQLQuery(timeBounds, config) {
 
   const condition = _buildWhereClause({lower, upper, tags, areTagsAccepted})
   const dimensions = _buildGroupBy(groupBy)
+  const fillClause = isKapacitorRule || !groupBy.time ? '' : _buildFill(fill)
 
-  return `${select}${condition}${dimensions}`
+  return `${select}${condition}${dimensions}${fillClause}`
 }
 
 function _buildSelect({fields, database, retentionPolicy, measurement}) {
@@ -131,4 +137,8 @@ function _buildGroupByTags(groupBy) {
   }
 
   return ` GROUP BY ${tags}`
+}
+
+function _buildFill(fill) {
+  return ` FILL(${fill})`
 }

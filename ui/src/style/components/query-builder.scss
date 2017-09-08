@@ -71,9 +71,7 @@
   font-size: 12px;
   font-weight: 600;
   padding: 0 $query-builder--list-gutter;
-  transition:
-    color 0.25s ease,
-    background-color 0.25s ease;
+  transition: color 0.25s ease, background-color 0.25s ease;
 
   &:hover {
     background-color: $query-builder--list-item-bg-hover;
@@ -86,8 +84,12 @@
     color: $query-builder--list-item-text-active;
   }
   /* Hide dropdowns unless item is active */
-  & > .dropdown {visibility: hidden;}
-  &.active > .dropdown {visibility: visible;}
+  & > .dropdown {
+    visibility: hidden;
+  }
+  &.active > .dropdown {
+    visibility: visible;
+  }
   /* Sub-item group for layout purposes */
   & > span {
     display: flex;
@@ -119,9 +121,15 @@
     padding-left: 24px;
     border-color: $g6-smoke !important;
 
-    &:hover {border-color: $g7-graphite !important;}
-    &:focus {border-color: $c-pool !important;}
-    &:focus + span {color: $c-pool;}
+    &:hover {
+      border-color: $g7-graphite !important;
+    }
+    &:focus {
+      border-color: $c-pool !important;
+    }
+    &:focus + span {
+      color: $c-pool;
+    }
   }
 }
 /* Checkbox Element */
@@ -140,20 +148,18 @@
     position: absolute;
     top: 50%;
     left: 50%;
-    transform: translate(-50%,-50%) scale(1,1);
+    transform: translate(-50%, -50%) scale(1, 1);
     width: 20px;
     height: 20px;
     opacity: 0;
     background-color: $c-pool;
     border-radius: 50%;
-    transition:
-      transform 0.25s ease,
-      opacity 0.25s ease;
+    transition: transform 0.25s ease, opacity 0.25s ease;
   }
 }
 .query-builder--list-item.active .query-builder--checkbox:after {
   opacity: 1;
-  transform: translate(-50%,-50%) scale(0.4,0.4);
+  transform: translate(-50%, -50%) scale(0.4, 0.4);
 }
 /* Caret Element */
 .query-builder--caret {
@@ -169,8 +175,12 @@
   padding: 4px $query-builder--list-gutter 4px $query-builder--sub-list-gutter;
   background-color: $query-builder--sub-list-bg;
 
-  .query-builder--list-item {padding: 0;}
-  .query-builder--filter {margin-bottom: 4px;}
+  .query-builder--list-item {
+    padding: 0;
+  }
+  .query-builder--filter {
+    margin-bottom: 4px;
+  }
 }
 /* Toggle for grouping by tags in tags list */
 .group-by-tag {
@@ -193,4 +203,9 @@
 }
 .query-builder--db-dropdown {
   display: inline-block;
+}
+/* Container for group by and fill dropdowns to live side-by-side */
+.query-builder--groupby-fill-container {
+  display: flex;
+  alignItems: center;
 }

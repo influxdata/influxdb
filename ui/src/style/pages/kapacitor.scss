@@ -66,6 +66,8 @@ $rule-builder--radius-lg: 5px;
   font-size: $page-header-size;
   font-weight: $page-header-weight;
   color: $g12-forge;
+  display: flex;
+  justify-content: space-between;
   @include no-user-select();
 
   // Dot

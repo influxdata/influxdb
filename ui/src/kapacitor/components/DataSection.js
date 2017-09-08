@@ -1,4 +1,4 @@
-import React, {PropTypes, Component} from 'react'
+import React, {PropTypes} from 'react'
 
 import DatabaseList from 'src/shared/components/DatabaseList'
 import MeasurementList from 'src/shared/components/MeasurementList'
@@ -6,86 +6,93 @@ import FieldList from 'src/shared/components/FieldList'
 
 import {defaultEveryFrequency} from 'src/kapacitor/constants'
 
-class DataSection extends Component {
-  constructor(props) {
-    super(props)
-  }
+const makeQueryHandlers = (actions, query) => ({
+  handleChooseNamespace: namespace => {
+    actions.chooseNamespace(query.id, namespace)
+  },
 
-  handleChooseNamespace = namespace => {
-    this.props.actions.chooseNamespace(this.props.query.id, namespace)
-  }
+  handleChooseMeasurement: measurement => {
+    actions.chooseMeasurement(query.id, measurement)
+  },
 
-  handleChooseMeasurement = measurement => {
-    this.props.actions.chooseMeasurement(this.props.query.id, measurement)
-  }
-
-  handleToggleField = field => {
-    this.props.actions.toggleField(this.props.query.id, field)
+  handleToggleField: onRemoveEvery => field => {
+    actions.toggleField(query.id, field)
     // Every is only added when a function has been added to a field.
     // Here, the field is selected without a function.
-    this.props.onRemoveEvery()
+    onRemoveEvery()
     // Because there are no functions there is no group by time.
-    this.props.actions.groupByTime(this.props.query.id, null)
-  }
+    actions.groupByTime(query.id, null)
+  },
 
-  handleGroupByTime = time => {
-    this.props.actions.groupByTime(this.props.query.id, time)
-  }
+  handleGroupByTime: time => {
+    actions.groupByTime(query.id, time)
+  },
 
-  handleApplyFuncsToField = fieldFunc => {
-    this.props.actions.applyFuncsToField(this.props.query.id, fieldFunc)
-    this.props.onAddEvery(defaultEveryFrequency)
-  }
+  handleApplyFuncsToField: onAddEvery => fieldFunc => {
+    actions.applyFuncsToField(query.id, fieldFunc)
+    onAddEvery(defaultEveryFrequency)
+  },
 
-  handleChooseTag = tag => {
-    this.props.actions.chooseTag(this.props.query.id, tag)
-  }
+  handleChooseTag: tag => {
+    actions.chooseTag(query.id, tag)
+  },
 
-  handleToggleTagAcceptance = () => {
-    this.props.actions.toggleTagAcceptance(this.props.query.id)
-  }
+  handleToggleTagAcceptance: () => {
+    actions.toggleTagAcceptance(query.id)
+  },
 
-  handleGroupByTag = tagKey => {
-    this.props.actions.groupByTag(this.props.query.id, tagKey)
-  }
+  handleGroupByTag: tagKey => {
+    actions.groupByTag(query.id, tagKey)
+  },
+})
 
-  render() {
-    const {query, isKapacitorRule, isDeadman} = this.props
-    return (
+const DataSection = ({
+  actions,
+  query,
+  isDeadman,
+  isKapacitorRule,
+  onRemoveEvery,
+  onAddEvery,
+}) => {
+  const {
+    handleChooseNamespace,
+    handleChooseMeasurement,
+    handleToggleField,
+    handleGroupByTime,
+    handleApplyFuncsToField,
+    handleChooseTag,
+    handleToggleTagAcceptance,
+    handleGroupByTag,
+  } = makeQueryHandlers(actions, query)
+
+  return (
+    <div className="rule-section">
       <div className="query-builder rule-section--border-bottom">
-        <DatabaseList
-          query={query}
-          onChooseNamespace={this.handleChooseNamespace}
-        />
+        <DatabaseList query={query} onChooseNamespace={handleChooseNamespace} />
         <MeasurementList
           query={query}
-          onChooseMeasurement={this.handleChooseMeasurement}
-          onChooseTag={this.handleChooseTag}
-          onGroupByTag={this.handleGroupByTag}
-          onToggleTagAcceptance={this.handleToggleTagAcceptance}
+          onChooseMeasurement={handleChooseMeasurement}
+          onChooseTag={handleChooseTag}
+          onGroupByTag={handleGroupByTag}
+          onToggleTagAcceptance={handleToggleTagAcceptance}
         />
         {isDeadman
           ? null
           : <FieldList
               query={query}
-              onToggleField={this.handleToggleField}
-              onGroupByTime={this.handleGroupByTime}
-              applyFuncsToField={this.handleApplyFuncsToField}
+              onToggleField={handleToggleField(onRemoveEvery)}
+              onGroupByTime={handleGroupByTime}
+              applyFuncsToField={handleApplyFuncsToField(onAddEvery)}
               isKapacitorRule={isKapacitorRule}
             />}
       </div>
-    )
-  }
+    </div>
+  )
 }
 
-const {string, func, shape, bool} = PropTypes
+const {bool, func, shape, string} = PropTypes
 
 DataSection.propTypes = {
-  source: shape({
-    links: shape({
-      kapacitors: string.isRequired,
-    }).isRequired,
-  }),
   query: shape({
     id: string.isRequired,
   }).isRequired,

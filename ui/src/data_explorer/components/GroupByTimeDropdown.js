@@ -32,17 +32,20 @@ const GroupByTimeDropdown = React.createClass({
     }
 
     return (
-      <Dropdown
-        className="dropdown-130"
-        menuClass={isInRuleBuilder ? 'dropdown-malachite' : null}
-        buttonColor={isInRuleBuilder ? 'btn-default' : 'btn-info'}
-        items={validOptions.map(groupBy => ({
-          ...groupBy,
-          text: groupBy.menuOption,
-        }))}
-        onChoose={onChooseGroupByTime}
-        selected={selected ? `Group by ${selected}` : 'Group by Time'}
-      />
+      <div className="group-by-time">
+        <label className="group-by-time--label">Group by:</label>
+        <Dropdown
+          className="group-by-time--dropdown"
+          menuClass={isInRuleBuilder ? 'dropdown-malachite' : null}
+          buttonColor={isInRuleBuilder ? 'btn-default' : 'btn-info'}
+          items={validOptions.map(groupBy => ({
+            ...groupBy,
+            text: groupBy.menuOption,
+          }))}
+          onChoose={onChooseGroupByTime}
+          selected={selected || 'Time'}
+        />
+      </div>
     )
   },
 })

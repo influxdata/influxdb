@@ -19,7 +19,11 @@ const fakeAddQueryAction = (panelID, queryID) => {
 }
 
 function buildInitialState(queryId, params) {
-  return Object.assign({}, defaultQueryConfig(queryId), params)
+  return Object.assign(
+    {},
+    defaultQueryConfig({id: queryId, isKapacitorRule: true}),
+    params
+  )
 }
 
 describe('Chronograf.Reducers.Kapacitor.queryConfigs', () => {
@@ -29,7 +33,7 @@ describe('Chronograf.Reducers.Kapacitor.queryConfigs', () => {
     const state = reducer({}, fakeAddQueryAction('blah', queryId))
 
     const actual = state[queryId]
-    const expected = defaultQueryConfig(queryId)
+    const expected = defaultQueryConfig({id: queryId, isKapacitorRule: true})
     expect(actual).to.deep.equal(expected)
   })
 

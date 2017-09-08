@@ -1,5 +1,7 @@
-export default function defaultQueryConfig(id) {
-  return {
+import {NULL_STRING} from 'shared/constants/queryFillOptions'
+
+const defaultQueryConfig = ({id, isKapacitorRule = false}) => {
+  const queryConfig = {
     id,
     database: null,
     measurement: null,
@@ -14,4 +16,8 @@ export default function defaultQueryConfig(id) {
     rawText: null,
     status: null,
   }
+
+  return isKapacitorRule ? queryConfig : {...queryConfig, fill: NULL_STRING}
 }
+
+export default defaultQueryConfig

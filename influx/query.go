@@ -1,6 +1,7 @@
 package influx
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -69,11 +70,6 @@ func Convert(influxQL string) (chronograf.QueryConfig, error) {
 		return raw, nil
 	}
 
-	// Query config doesn't support fill
-	if stmt.Fill != influxql.NullFill {
-		return raw, nil
-	}
-
 	// Query config doesn't allow SELECT INTO
 	if stmt.Target != nil {
 		return raw, nil
@@ -118,6 +114,26 @@ func Convert(influxQL string) (chronograf.QueryConfig, error) {
 				qc.GroupBy.Time = "auto"
 			} else {
 				qc.GroupBy.Time = lit.String()
+			}
+			// Add fill to queryConfig only if there's a `GROUP BY time`
+			switch stmt.Fill {
+			default:
+				return raw, nil
+			case influxql.NullFill:
+				qc.Fill = "null"
+
+			case influxql.NoFill:
+				qc.Fill = "none"
+
+			case influxql.NumberFill:
+				qc.Fill = fmt.Sprint(stmt.FillValue)
+
+			case influxql.PreviousFill:
+				qc.Fill = "previous"
+
+			case influxql.LinearFill:
+				qc.Fill = "linear"
+
 			}
 		case *influxql.VarRef:
 			qc.GroupBy.Tags = append(qc.GroupBy.Tags, v.Val)

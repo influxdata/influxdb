@@ -2,6 +2,7 @@ import React, {PropTypes, Component} from 'react'
 
 import FieldListItem from 'src/data_explorer/components/FieldListItem'
 import GroupByTimeDropdown from 'src/data_explorer/components/GroupByTimeDropdown'
+import FillQuery from 'shared/components/FillQuery'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 import {showFieldKeys} from 'shared/apis/metaQuery'
@@ -50,6 +51,10 @@ class FieldList extends Component {
     this.props.onGroupByTime(groupBy.menuOption)
   }
 
+  handleFill = fill => {
+    this.props.onFill(fill)
+  }
+
   _getFields = () => {
     const {database, measurement, retentionPolicy} = this.props.query
     const {source} = this.context
@@ -74,7 +79,7 @@ class FieldList extends Component {
 
   render() {
     const {
-      query: {fields = [], groupBy},
+      query: {fields = [], groupBy, fill},
       isKapacitorRule,
       isInDataExplorer,
     } = this.props
@@ -87,13 +92,18 @@ class FieldList extends Component {
         <div className="query-builder--heading">
           <span>Fields</span>
           {hasAggregates
-            ? <GroupByTimeDropdown
-                isOpen={!hasGroupByTime}
-                selected={groupBy.time}
-                onChooseGroupByTime={this.handleGroupByTime}
-                isInRuleBuilder={isKapacitorRule}
-                isInDataExplorer={isInDataExplorer}
-              />
+            ? <div className="query-builder--groupby-fill-container">
+                <GroupByTimeDropdown
+                  isOpen={!hasGroupByTime}
+                  selected={groupBy.time}
+                  onChooseGroupByTime={this.handleGroupByTime}
+                  isInRuleBuilder={isKapacitorRule}
+                  isInDataExplorer={isInDataExplorer}
+                />
+                {isKapacitorRule
+                  ? null
+                  : <FillQuery value={fill} onChooseFill={this.handleFill} />}
+              </div>
             : null}
         </div>
         {this.renderList()}
@@ -157,6 +167,7 @@ FieldList.propTypes = {
   }).isRequired,
   onToggleField: func.isRequired,
   onGroupByTime: func.isRequired,
+  onFill: func,
   applyFuncsToField: func.isRequired,
   isKapacitorRule: bool,
   isInDataExplorer: bool,
