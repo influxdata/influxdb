@@ -29,7 +29,9 @@ $rule-builder--radius-lg: 5px;
   color: $g15-platinum;
   @include no-user-select();
 
-  &:first-child {margin-left: 0;}
+  &:first-child {
+    margin-left: 0;
+  }
 }
 
 /*
@@ -59,7 +61,8 @@ $rule-builder--radius-lg: 5px;
 }
 .rule-section--heading {
   margin: 0;
-  padding: $rule-builder--section-gap 0 $rule-builder--padding-md $rule-builder--left-gutter;
+  padding: $rule-builder--section-gap 0 $rule-builder--padding-md
+    $rule-builder--left-gutter;
   font-size: $page-header-size;
   font-weight: $page-header-weight;
   color: $g12-forge;
@@ -129,7 +132,6 @@ $rule-builder--radius-lg: 5px;
   margin-left: $rule-builder--padding-sm - 2px;
 }
 
-
 /*
   Section 1 - Select a Time Series
   -----------------------------------------------------------------------------
@@ -159,10 +161,9 @@ $rule-builder--radius-lg: 5px;
   }
   .query-builder--column {
     margin-right: 2px;
-    &:last-child {margin-right: 0;}
-  }
-  .query-builder--column:nth-child(1) .query-builder--list {
-    border-bottom-left-radius: $rule-builder--radius-lg;
+    &:last-child {
+      margin-right: 0;
+    }
   }
   .query-builder--column:nth-child(4) .query-builder--list,
   .query-builder--column:nth-child(4) .query-builder--list-empty {
@@ -177,7 +178,9 @@ $rule-builder--radius-lg: 5px;
   }
   .group-by-tag.active {
     background-color: $c-rainforest !important;
-    &:hover {background-color: $c-honeydew !important;}
+    &:hover {
+      background-color: $c-honeydew !important;
+    }
   }
   .query-builder--list-item .query-builder--checkbox:after {
     background-color: $c-rainforest;
@@ -201,6 +204,13 @@ $rule-builder--radius-lg: 5px;
   Sectiom 2 - Rule Conditions
   -----------------------------------------------------------------------------
 */
+.rule-builder--sub-header {
+  margin: 0;
+  padding: 30px 0 13px 0;
+  font-size: 19px;
+  font-weight: 400 !important;
+  color: #a4a8b6;
+}
 .rule-builder--metric {
   height: 30px;
   line-height: 30px;
@@ -213,8 +223,6 @@ $rule-builder--radius-lg: 5px;
   @include no-user-select();
 }
 .rule-builder--graph {
-  margin-left: $rule-builder--left-gutter;
-  width: calc(100% - #{$rule-builder--left-gutter});
   background-color: $rule-builder--section-bg;
   border-radius: 0 0 $rule-builder--radius-lg $rule-builder--radius-lg;
   padding: 0 $rule-builder--padding-sm;
@@ -236,17 +244,6 @@ $rule-builder--radius-lg: 5px;
     }
   }
 
-  &:before {
-    content: '';
-    display: block;
-    position: absolute;
-    transform: translateX(-50%);
-    width: $rule-builder--accent-line-width;
-    height: 100%;
-    background-color: $rule-builder--accent-line-color;
-    top: 0;
-    left: (($rule-builder--dot / 2) - $rule-builder--left-gutter);
-  }
   .container--dygraph-legend {
     transform: translateX(-50%);
     background-color: $g5-pepper;
@@ -296,8 +293,12 @@ textarea.rule-builder--message {
   border-radius: 0;
   @include custom-scrollbar($rule-builder--section-bg,$rule-builder--accent-color);
 
-  &:hover {border-color: $g4-onyx;}
-  &:focus {background-color: $rule-builder--section-bg;}
+  &:hover {
+    border-color: $g4-onyx;
+  }
+  &:focus {
+    background-color: $rule-builder--section-bg;
+  }
 }
 .rule-builder--message-template {
   height: 30px;
@@ -350,9 +351,7 @@ textarea.rule-builder--message {
     margin: 0;
     height: 18px;
     line-height: 20px;
-    transition:
-      background-color 0.4s ease,
-      color 0.4s ease,
+    transition: background-color 0.4s ease, color 0.4s ease,
       box-shadow 0.4s ease;
   }
   .form-group > input.form-control:hover + label {
@@ -366,18 +365,25 @@ textarea.rule-builder--message {
   }
 }
 
-
-
 /*
   Color coding for alerts in Alert History table
   -----------------------------------------------------------------------------
 */
 .alert-level-ok {
-  &, &:hover {color: $c-rainforest !important;}
+  &,
+  &:hover {
+    color: $c-rainforest !important;
+  }
 }
 .alert-level-warning {
-  &, &:hover {color: $c-pineapple !important;}
+  &,
+  &:hover {
+    color: $c-pineapple !important;
+  }
 }
 .alert-level-critical {
-  &, &:hover {color: $c-dreamsicle !important;}
+  &,
+  &:hover {
+    color: $c-dreamsicle !important;
+  }
 }

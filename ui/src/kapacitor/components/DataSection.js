@@ -80,10 +80,9 @@ class DataSection extends Component {
   }
 
   renderQueryBuilder = () => {
-    const {query, isKapacitorRule} = this.props
-
+    const {query, isKapacitorRule, isDeadman} = this.props
     return (
-      <div className="query-builder">
+      <div className="query-builder rule-section--border-bottom">
         <DatabaseList
           query={query}
           onChooseNamespace={this.handleChooseNamespace}
@@ -95,19 +94,21 @@ class DataSection extends Component {
           onGroupByTag={this.handleGroupByTag}
           onToggleTagAcceptance={this.handleToggleTagAcceptance}
         />
-        <FieldList
-          query={query}
-          onToggleField={this.handleToggleField}
-          onGroupByTime={this.handleGroupByTime}
-          applyFuncsToField={this.handleApplyFuncsToField}
-          isKapacitorRule={isKapacitorRule}
-        />
+        {isDeadman
+          ? null
+          : <FieldList
+              query={query}
+              onToggleField={this.handleToggleField}
+              onGroupByTime={this.handleGroupByTime}
+              applyFuncsToField={this.handleApplyFuncsToField}
+              isKapacitorRule={isKapacitorRule}
+            />}
       </div>
     )
   }
 }
 
-const {bool, func, shape, string} = PropTypes
+const {string, func, shape, bool} = PropTypes
 
 DataSection.propTypes = {
   source: shape({
@@ -142,6 +143,7 @@ DataSection.childContextTypes = {
       self: PropTypes.string.isRequired,
     }).isRequired,
   }).isRequired,
+  isDeadman: bool,
 }
 
 export default DataSection
