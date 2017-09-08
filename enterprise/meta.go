@@ -13,13 +13,17 @@ import (
 	"github.com/influxdata/chronograf"
 )
 
+type client interface {
+	Do(URL *url.URL, path, method string, params map[string]string, body io.Reader) (*http.Response, error)
+}
+
 // MetaClient represents a Meta node in an Influx Enterprise cluster
 type MetaClient struct {
 	URL    *url.URL
-	client interface {
-		Do(URL *url.URL, path, method string, params map[string]string, body io.Reader) (*http.Response, error)
-	}
+	client client
 }
+
+type ClientBuilder func() client
 
 // NewMetaClient represents a meta node in an Influx Enterprise cluster
 func NewMetaClient(url *url.URL) *MetaClient {
@@ -364,7 +368,9 @@ func (m *MetaClient) Post(ctx context.Context, path string, action interface{}, 
 	return nil
 }
 
-type defaultClient struct{}
+type defaultClient struct {
+	Leader string
+}
 
 // Do is a helper function to interface with Influx Enterprise's Meta API
 func (d *defaultClient) Do(URL *url.URL, path, method string, params map[string]string, body io.Reader) (*http.Response, error) {
@@ -375,6 +381,11 @@ func (d *defaultClient) Do(URL *url.URL, path, method string, params map[string]
 
 	URL.Path = path
 	URL.RawQuery = p.Encode()
+	if d.Leader == "" {
+		d.Leader = URL.Host
+	} else if d.Leader != URL.Host {
+		URL.Host = d.Leader
+	}
 
 	req, err := http.NewRequest(method, URL.String(), body)
 	if err != nil {
@@ -387,7 +398,7 @@ func (d *defaultClient) Do(URL *url.URL, path, method string, params map[string]
 	// Meta servers will redirect (307) to leader. We need
 	// special handling to preserve authentication headers.
 	client := &http.Client{
-		CheckRedirect: AuthedCheckRedirect,
+		CheckRedirect: d.AuthedCheckRedirect,
 	}
 	res, err := client.Do(req)
 	if err != nil {
@@ -411,7 +422,7 @@ func (d *defaultClient) Do(URL *url.URL, path, method string, params map[string]
 
 // AuthedCheckRedirect tries to follow the Influx Enterprise pattern of
 // redirecting to the leader but preserving authentication headers.
-func AuthedCheckRedirect(req *http.Request, via []*http.Request) error {
+func (d *defaultClient) AuthedCheckRedirect(req *http.Request, via []*http.Request) error {
 	if len(via) >= 10 {
 		return errors.New("too many redirects")
 	} else if len(via) == 0 {
@@ -421,6 +432,7 @@ func AuthedCheckRedirect(req *http.Request, via []*http.Request) error {
 	if auth, ok := via[0].Header[preserve]; ok {
 		req.Header[preserve] = auth
 	}
+	d.Leader = req.URL.Host
 	return nil
 }
 

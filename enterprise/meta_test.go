@@ -1427,10 +1427,10 @@ func Test_AuthedCheckRedirect_Do(t *testing.T) {
 
 	tr := &http.Transport{}
 	defer tr.CloseIdleConnections()
-
+	d := &defaultClient{}
 	c := &http.Client{
 		Transport:     tr,
-		CheckRedirect: AuthedCheckRedirect,
+		CheckRedirect: d.AuthedCheckRedirect,
 	}
 
 	req, _ := http.NewRequest("GET", ts2.URL, nil)
