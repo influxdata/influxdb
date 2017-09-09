@@ -723,6 +723,10 @@ func (i *Index) TagSets(name []byte, opt query.IteratorOptions) ([]*query.TagSet
 
 	if itr != nil {
 		for e := itr.Next(); e != nil; e = itr.Next() {
+			if opt.Authorizer != nil && !opt.Authorizer.AuthorizeSeriesRead(i.Database, name, e.Tags()) {
+				continue
+			}
+
 			tags := make(map[string]string, len(opt.Dimensions))
 
 			// Build the TagSet for this series.
