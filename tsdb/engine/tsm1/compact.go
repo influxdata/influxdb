@@ -707,6 +707,11 @@ func (c *Compactor) compact(fast bool, tsmFiles []string) ([]string, error) {
 	if size <= 0 {
 		size = tsdb.DefaultMaxPointsPerBlock
 	}
+
+	c.mu.RLock()
+	intC := c.compactionsInterrupt
+	c.mu.RUnlock()
+
 	// The new compacted files need to added to the max generation in the
 	// set.  We need to find that max generation as well as the max sequence
 	// number to ensure we write to the next unique location.
@@ -730,6 +735,12 @@ func (c *Compactor) compact(fast bool, tsmFiles []string) ([]string, error) {
 	// For each TSM file, create a TSM reader
 	var trs []*TSMReader
 	for _, file := range tsmFiles {
+		select {
+		case <-intC:
+			return nil, errCompactionAborted
+		default:
+		}
+
 		f, err := os.Open(file)
 		if err != nil {
 			return nil, err
@@ -746,10 +757,6 @@ func (c *Compactor) compact(fast bool, tsmFiles []string) ([]string, error) {
 	if len(trs) == 0 {
 		return nil, nil
 	}
-
-	c.mu.RLock()
-	intC := c.compactionsInterrupt
-	c.mu.RUnlock()
 
 	tsm, err := NewTSMKeyIterator(size, fast, intC, trs...)
 	if err != nil {

@@ -1013,6 +1013,7 @@ func (e *Engine) DeleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 			}
 		}
 	}
+	go e.index.Rebuild()
 
 	return nil
 }
@@ -1024,10 +1025,35 @@ func (e *Engine) DeleteMeasurement(name []byte) error {
 		return err
 	}
 
-	// Under lock, delete any series created deletion.
+	// A sentinel error message to cause DeleteWithLock to not delete the measurement
+	abortErr := fmt.Errorf("measurements still exist")
+
+	// Under write lock, delete the measurement if we no longer have any data stored for
+	// the measurement.  If data exists, we can't delete the field set yet as there
+	// were writes to the measurement while we are deleting it.
 	if err := e.fieldset.DeleteWithLock(string(name), func() error {
-		return e.deleteMeasurement(name)
-	}); err != nil {
+		encodedName := models.EscapeMeasurement(name)
+
+		// First scan the cache to see if any series exists for this measurement.
+		if err := e.Cache.ApplyEntryFn(func(k []byte, _ *entry) error {
+			if bytes.HasPrefix(k, encodedName) {
+				return abortErr
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+
+		// Check the filestore.
+		return e.FileStore.WalkKeys(func(k []byte, typ byte) error {
+			if bytes.HasPrefix(k, encodedName) {
+				return abortErr
+			}
+			return nil
+		})
+
+	}); err != nil && err != abortErr {
+		// Something else failed, return it
 		return err
 	}
 
