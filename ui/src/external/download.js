@@ -7,28 +7,33 @@
 // v4.2 adds semantic variable names, long (over 2MB) dataURL support, and hidden by default temp anchors
 // https://github.com/rndme/download
 
-const download = (data, strFileName, strMimeType) => {
-  let self = window, // this script is only for browsers anyway...
-    defaultMime = 'application/octet-stream', // this default mime also triggers iframe downloads
-    mimeType = strMimeType || defaultMime,
-    payload = data,
-    url = !strFileName && !strMimeType && payload,
-    anchor = document.createElement('a'),
-    toString = function(a) {
-      return String(a)
-    },
-    myBlob = self.Blob || self.MozBlob || self.WebKitBlob || toString,
-    fileName = strFileName || 'download',
-    blob,
-    reader
-  myBlob = myBlob.call ? myBlob.bind(self) : Blob
+const dataUrlToBlob = (myBlob, strUrl) => {
+  const parts = strUrl.split(/[:;,]/),
+    type = parts[1],
+    decoder = parts[2] === 'base64' ? atob : decodeURIComponent,
+    binData = decoder(parts.pop()),
+    mx = binData.length,
+    uiArr = new Uint8Array(mx)
 
-  if (String(this) === 'true') {
-    // reverse arguments, allowing download.bind(true, "text/xml", "export.xml") to act as a callback
-    payload = [payload, mimeType]
-    mimeType = payload[0]
-    payload = payload[1]
+  for (let i = 0; i < mx; ++i) {
+    uiArr[i] = binData.charCodeAt(i)
   }
+
+  return new myBlob([uiArr], {type})
+}
+
+const download = (data, strFileName, strMimeType) => {
+  const _window = window // this script is only for browsers anyway...
+  const defaultMime = 'application/octet-stream' // this default mime also triggers iframe downloads
+  let mimeType = strMimeType || defaultMime
+  let payload = data
+  let url = !strFileName && !strMimeType && payload
+  const anchor = document.createElement('a')
+  const toString = a => `${a}`
+  let myBlob = _window.Blob || _window.MozBlob || _window.WebKitBlob || toString
+  let fileName = strFileName || 'download'
+  let reader
+  myBlob = myBlob.call ? myBlob.bind(_window) : Blob
 
   if (url && url.length < 2048) {
     // if no filename and no mime, assume a url was passed as the only argument
@@ -49,43 +54,10 @@ const download = (data, strFileName, strMimeType) => {
     } // end if valid url?
   } // end if url?
 
-  // go ahead and download dataURLs right away
-  if (/^data\:[\w+\-]+\/[\w+\-]+[,;]/.test(payload)) {
-    if (payload.length > 1024 * 1024 * 1.999 && myBlob !== toString) {
-      payload = dataUrlToBlob(payload)
-      mimeType = payload.type || defaultMime
-    } else {
-      return navigator.msSaveBlob // IE10 can't do a[download], only Blobs:
-        ? navigator.msSaveBlob(dataUrlToBlob(payload), fileName)
-        : saver(payload) // everyone else can save dataURLs un-processed
-    }
-  } // end if dataURL passed?
-
-  blob =
-    payload instanceof myBlob
-      ? payload
-      : new myBlob([payload], {type: mimeType})
-
-  function dataUrlToBlob(strUrl) {
-    let parts = strUrl.split(/[:;,]/),
-      type = parts[1],
-      decoder = parts[2] == 'base64' ? atob : decodeURIComponent,
-      binData = decoder(parts.pop()),
-      mx = binData.length,
-      i = 0,
-      uiArr = new Uint8Array(mx)
-
-    for (i; i < mx; ++i) {
-      uiArr[i] = binData.charCodeAt(i)
-    }
-
-    return new myBlob([uiArr], {type})
-  }
-
-  function saver(url, winMode) {
+  const saver = (saverUrl, winMode) => {
     if ('download' in anchor) {
       // html5 A[download]
-      anchor.href = url
+      anchor.href = saverUrl
       anchor.setAttribute('download', fileName)
       anchor.className = 'download-js-link'
       anchor.innerHTML = 'downloading...'
@@ -96,28 +68,10 @@ const download = (data, strFileName, strMimeType) => {
         document.body.removeChild(anchor)
         if (winMode === true) {
           setTimeout(function() {
-            self.URL.revokeObjectURL(anchor.href)
+            _window.URL.revokeObjectURL(anchor.href)
           }, 250)
         }
       }, 66)
-      return true
-    }
-
-    // handle non-a[download] safari as best we can:
-    if (
-      /(Version)\/(\d+)\.(\d+)(?:\.(\d+))?.*Safari\//.test(navigator.userAgent)
-    ) {
-      url = url.replace(/^data:([\w\/\-\+]+)/, defaultMime)
-      if (!window.open(url)) {
-        // popup blocked, offer direct download:
-        if (
-          confirm(
-            'Displaying New Document\n\nUse Save As... to download, then click back to return to this page.'
-          )
-        ) {
-          location.href = url
-        }
-      }
       return true
     }
 
@@ -135,19 +89,36 @@ const download = (data, strFileName, strMimeType) => {
     }, 333)
   } // end saver
 
+  // go ahead and download dataURLs right away
+  if (/^data\:[\w+\-]+\/[\w+\-]+[,;]/.test(payload)) {
+    if (payload.length > 1024 * 1024 * 1.999 && myBlob !== toString) {
+      payload = dataUrlToBlob(myBlob, payload)
+      mimeType = payload.type || defaultMime
+    } else {
+      return navigator.msSaveBlob // IE10 can't do a[download], only Blobs:
+        ? navigator.msSaveBlob(dataUrlToBlob(myBlob, payload), fileName)
+        : saver(payload) // everyone else can save dataURLs un-processed
+    }
+  } // end if dataURL passed?
+
+  const blob =
+    payload instanceof myBlob
+      ? payload
+      : new myBlob([payload], {type: mimeType})
+
   if (navigator.msSaveBlob) {
     // IE10+ : (has Blob, but not a[download] or URL)
     return navigator.msSaveBlob(blob, fileName)
   }
 
-  if (self.URL) {
+  if (_window.URL) {
     // simple fast and modern way using Blob and URL:
-    saver(self.URL.createObjectURL(blob), true)
+    saver(_window.URL.createObjectURL(blob), true)
   } else {
     // handle non-Blob()+non-URL browsers:
     if (typeof blob === 'string' || blob.constructor === toString) {
       try {
-        return saver(`data:${mimeType};base64,${self.btoa(blob)}`)
+        return saver(`data:${mimeType};base64,${_window.btoa(blob)}`)
       } catch (y) {
         return saver(`data:${mimeType},${encodeURIComponent(blob)}`)
       }
@@ -155,7 +126,7 @@ const download = (data, strFileName, strMimeType) => {
 
     // Blob but not URL support:
     reader = new FileReader()
-    reader.onload = function(e) {
+    reader.onload = function() {
       saver(this.result)
     }
     reader.readAsDataURL(blob)

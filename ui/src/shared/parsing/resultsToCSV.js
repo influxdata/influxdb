@@ -1,13 +1,22 @@
 import _ from 'lodash'
+import moment from 'moment'
 
 const resultsToCSV = results => {
-  const name = _.get(results, ['0', 'series', '0', 'name'])
-  const columns = _.get(results, ['0', 'series', '0', 'columns'])
-  const values = _.get(results, ['0', 'series', '0', 'values'])
+  const {name, columns, values} = _.get(results, ['0', 'series', '0'], {})
+  const [, ...cols] = columns
 
-  const CSVString = `\"${_.join(columns, '","')}\"\n${values
-    .map(arr => `${arr[0].toString()},${arr[1].toString()}`)
-    .join('\n')}`
+  const CSVString = [['date', ...cols].join(',')]
+    .concat(
+      values.map(([timestamp, ...measurements]) =>
+        // MS Excel format
+        [moment(timestamp).format('M/D/YYYY h:mm:ss A'), ...measurements].join(
+          ','
+        )
+      )
+    )
+    .join('\n')
+
   return {name, CSVString}
 }
+
 export default resultsToCSV
