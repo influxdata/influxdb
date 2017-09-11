@@ -93,7 +93,7 @@ if [ "$OS" == "linux" ]; then
       --description 'Distributed time-series database.' \
       --config-files /etc/influxdb/influxdb.conf \
       --config-files /etc/logrotate.d/influxdb \
-      --name "influxdb" \
+      --name "influxdb-oss" \
       --architecture "$ARCH" \
       --version "$VERSION" \
       --iteration 1 \
