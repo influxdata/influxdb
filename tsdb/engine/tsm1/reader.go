@@ -796,7 +796,6 @@ func (d *indirectIndex) Delete(keys [][]byte) {
 
 		copy(d.offsets[j:j+4], d.offsets[i:i+4])
 		j += 4
-		//offsets = append(offsets, int32(offset))
 	}
 	d.offsets = d.offsets[:j]
 }
