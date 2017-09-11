@@ -293,3 +293,15 @@ $tick-script-overlay-margin: 30px;
     display: none;
   }
 }
+/*
+  Data Explorer download CSV button
+  -----------------------------------------------------------------------------
+*/
+.icon.download.dlcsv:before {
+  content: "\e91d";
+  font-weight: bold;
+  color: #bec2cc;
+}
+.btn.btn-sm.btn-default.dlcsv {
+  margin-left: 10px;
+}
