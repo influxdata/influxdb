@@ -727,7 +727,6 @@ func (fs *FileSet) FilterNamesTags(names [][]byte, tagsSlice []models.Tags) ([][
 		}
 	}
 
-	println("dbg/NEW", len(newNames))
 	return newNames, newTagsSlice
 }
 
