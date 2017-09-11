@@ -308,6 +308,11 @@ func (e *Engine) disableSnapshotCompactions() {
 
 	e.mu.Unlock()
 	e.snapWG.Wait()
+
+	// If the cache is empty, free up its resources as well.
+	if e.Cache.Size() == 0 {
+		e.Cache.Free()
+	}
 }
 
 // Path returns the path the engine was opened with.
