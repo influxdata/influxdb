@@ -758,7 +758,7 @@ func (c *Cache) updateSnapshots() {
 type emptyStore struct{}
 
 func (e emptyStore) entry(key []byte) *entry                        { return nil }
-func (e emptyStore) write(key []byte, values Values) error          { return nil }
+func (e emptyStore) write(key []byte, values Values) (bool, error)  { return false, nil }
 func (e emptyStore) add(key []byte, entry *entry)                   {}
 func (e emptyStore) remove(key []byte)                              {}
 func (e emptyStore) keys(sorted bool) [][]byte                      { return nil }
