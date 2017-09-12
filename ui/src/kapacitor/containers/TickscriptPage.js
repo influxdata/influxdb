@@ -15,6 +15,7 @@ class TickscriptPage extends Component {
       kapacitor: {},
       task: {
         id: '',
+        name: '',
         status: 'enabled',
         tickscript: '',
         dbrps: [],
@@ -42,11 +43,11 @@ class TickscriptPage extends Component {
 
     if (this._isEditing()) {
       await kapacitorActions.getRule(kapacitor, ruleID)
-      const {id, tickscript, dbrps, type} = this.props.rules.find(
+      const {id, name, tickscript, dbrps, type} = this.props.rules.find(
         r => r.id === ruleID
       )
 
-      this.setState({task: {tickscript, dbrps, type, status, id}})
+      this.setState({task: {tickscript, dbrps, type, status, name, id}})
     }
 
     this.setState({kapacitor})
@@ -55,7 +56,7 @@ class TickscriptPage extends Component {
   handleSave = async () => {
     const {kapacitor, task} = this.state
     const {
-      source,
+      source: {id: sourceID},
       router,
       kapacitorActions: {createTask, updateTask},
       params: {ruleID},
@@ -65,16 +66,14 @@ class TickscriptPage extends Component {
 
     try {
       if (this._isEditing()) {
-        response = await updateTask(kapacitor, task, ruleID)
+        response = await updateTask(kapacitor, task, ruleID, router, sourceID)
       } else {
-        response = await createTask(kapacitor, task)
+        response = await createTask(kapacitor, task, router, sourceID)
       }
 
       if (response && response.code === 500) {
         return this.setState({validation: response.message})
       }
-
-      router.push(`/sources/${source.id}/alert-rules`)
     } catch (error) {
       console.error(error)
       throw error
@@ -93,28 +92,21 @@ class TickscriptPage extends Component {
     return () => this.setState({task: {...this.state.task, type}})
   }
 
-  handleStartEditID = () => {
-    this.setState({isEditingID: true})
-  }
-
-  handleStopEditID = () => {
-    this.setState({isEditingID: false})
+  handleChangeName = e => {
+    this.setState({task: {...this.state.task, name: e.target.value}})
   }
 
   render() {
     const {source} = this.props
-    const {task, validation, isEditingID} = this.state
+    const {task, validation} = this.state
 
     return (
       <Tickscript
         task={task}
         source={source}
         validation={validation}
-        isEditingID={isEditingID}
-        isNewTickscript={!this._isEditing()}
         onSave={this.handleSave}
-        onStartEditID={this.handleStartEditID}
-        onStopEditID={this.handleStopEditID}
+        isNewTickscript={!this._isEditing()}
         onSelectDbrps={this.handleSelectDbrps}
         onChangeScript={this.handleChangeScript}
         onChangeType={this.handleChangeType}

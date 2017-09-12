@@ -2,11 +2,13 @@ import React, {PropTypes} from 'react'
 import SourceIndicator from 'shared/components/SourceIndicator'
 import TickscriptType from 'src/kapacitor/components/TickscriptType'
 import MultiSelectDBDropdown from 'shared/components/MultiSelectDBDropdown'
+import {TickscriptStaticName} from 'src/kapacitor/components/TickscriptName'
 
 const addName = list => list.map(l => ({...l, name: `${l.db}.${l.rp}`}))
 
 const TickscriptHeader = ({
   task: {type, dbrps},
+  task,
   source: {name},
   onSave,
   onChangeType,
@@ -14,7 +16,9 @@ const TickscriptHeader = ({
 }) =>
   <div className="page-header">
     <div className="page-header__container">
-      <div className="page-header__left" />
+      <div className="page-header__left">
+        <TickscriptStaticName name={task.name} />
+      </div>
       <div className="page-header__right">
         <SourceIndicator sourceName={name} />
         <TickscriptType type={type} onChangeType={onChangeType} />
@@ -44,7 +48,7 @@ TickscriptHeader.propTypes = {
     ),
   }),
   onChangeType: func.isRequired,
-  isEditing: bool.isRequired,
+  isNewTickscript: bool.isRequired,
 }
 
 export default TickscriptHeader

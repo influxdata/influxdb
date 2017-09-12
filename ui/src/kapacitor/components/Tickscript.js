@@ -10,9 +10,6 @@ const Tickscript = ({
   onSelectDbrps,
   onChangeScript,
   onChangeType,
-  isEditingID,
-  onStartEditID,
-  onStopEditID,
   isNewTickscript,
 }) =>
   <div className="page">
@@ -20,9 +17,6 @@ const Tickscript = ({
       task={task}
       source={source}
       onSave={onSave}
-      isEditing={isEditingID}
-      onStopEdit={onStopEditID}
-      onStartEdit={onStartEditID}
       onChangeType={onChangeType}
       onSelectDbrps={onSelectDbrps}
       isNewTickscript={isNewTickscript}
@@ -62,9 +56,6 @@ Tickscript.propTypes = {
   onSelectDbrps: func.isRequired,
   validation: string,
   onChangeType: func.isRequired,
-  isEditingID: bool.isRequired,
-  onStartEditID: func.isRequired,
-  onStopEditID: func.isRequired,
   isNewTickscript: bool.isRequired,
 }
 

@@ -19,19 +19,6 @@ export const createRule = (kapacitor, rule) => {
   })
 }
 
-export const createTickScript = async (kapacitor, rule) => {
-  try {
-    return await AJAX({
-      method: 'POST',
-      url: kapacitor.links.rules,
-      data: rule,
-    })
-  } catch (error) {
-    console.error(error)
-    throw error
-  }
-}
-
 export const getRules = kapacitor => {
   return AJAX({
     method: 'GET',
