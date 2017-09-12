@@ -86,15 +86,23 @@ func Test_KapacitorRulesGet(t *testing.T) {
 			"/chronograf/v1/sources/1/kapacitors/1/rules",
 			[]chronograf.AlertRule{
 				{
-					ID:   "cpu_alert",
-					Name: "cpu_alert",
+					ID:         "cpu_alert",
+					Name:       "cpu_alert",
+					Status:     "enabled",
+					Type:       "stream",
+					DBRPs:      []chronograf.DBRP{{DB: "telegraf", RP: "autogen"}},
+					TICKScript: tickScript,
 				},
 			},
 			[]chronograf.AlertRule{
 				{
-					ID:     "cpu_alert",
-					Name:   "cpu_alert",
-					Alerts: []string{},
+					ID:         "cpu_alert",
+					Name:       "cpu_alert",
+					Status:     "enabled",
+					Type:       "stream",
+					DBRPs:      []chronograf.DBRP{{DB: "telegraf", RP: "autogen"}},
+					Alerts:     []string{},
+					TICKScript: tickScript,
 				},
 			},
 		},
@@ -125,6 +133,13 @@ func Test_KapacitorRulesGet(t *testing.T) {
 						"id":     task.ID,
 						"script": tickScript,
 						"status": "enabled",
+						"type":   "stream",
+						"dbrps": []chronograf.DBRP{
+							{
+								DB: "telegraf",
+								RP: "autogen",
+							},
+						},
 						"link": map[string]interface{}{
 							"rel":  "self",
 							"href": "/kapacitor/v1/tasks/cpu_alert",
@@ -196,9 +211,7 @@ func Test_KapacitorRulesGet(t *testing.T) {
 			frame := struct {
 				Rules []struct {
 					chronograf.AlertRule
-					TICKScript json.RawMessage `json:"tickscript"`
-					Status     json.RawMessage `json:"status"`
-					Links      json.RawMessage `json:"links"`
+					Links json.RawMessage `json:"links"`
 				} `json:"rules"`
 			}{}
 

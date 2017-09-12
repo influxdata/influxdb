@@ -2,12 +2,14 @@
 ### Bug Fixes
 ### Features
 1. [#1885](https://github.com/influxdata/chronograf/pull/1885): Add `fill` options to data explorer and dashboard queries
+1. [#1978](https://github.com/influxdata/chronograf/pull/1978): Support editing kapacitor TICKScript
 
 ### UI Improvements
 
 ## v1.3.8.1 [unreleased]
 ### Bug Fixes
 ### Features
+
 ### UI Improvements
 
 ## v1.3.8.0 [2017-09-07]

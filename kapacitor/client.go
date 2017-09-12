@@ -57,6 +57,46 @@ type Task struct {
 	TICKScript chronograf.TICKScript // TICKScript is the running script
 }
 
+// NewTask creates a task from a kapacitor client task
+func NewTask(task *client.Task) *Task {
+	dbrps := make([]chronograf.DBRP, len(task.DBRPs))
+	for i := range task.DBRPs {
+		dbrps[i].DB = task.DBRPs[i].Database
+		dbrps[i].RP = task.DBRPs[i].RetentionPolicy
+	}
+
+	script := chronograf.TICKScript(task.TICKscript)
+	rule, err := Reverse(script)
+	if err != nil {
+		rule = chronograf.AlertRule{
+			Name:  task.ID,
+			Query: nil,
+		}
+	}
+
+	rule.ID = task.ID
+	rule.TICKScript = script
+	rule.Type = task.Type.String()
+	rule.DBRPs = dbrps
+	rule.Status = task.Status.String()
+	rule.Executing = task.Executing
+	rule.Error = task.Error
+	rule.Created = task.Created
+	rule.Modified = task.Modified
+	rule.LastEnabled = task.LastEnabled
+	return &Task{
+		ID:         task.ID,
+		Href:       task.Link.Href,
+		HrefOutput: HrefOutput(task.ID),
+		Rule:       rule,
+	}
+}
+
+// HrefOutput returns the link to a kapacitor task httpOut Node given an id
+func HrefOutput(ID string) string {
+	return fmt.Sprintf("/kapacitor/v1/tasks/%s/%s", ID, HTTPEndpoint)
+}
+
 // Href returns the link to a kapacitor task given an id
 func (c *Client) Href(ID string) string {
 	return fmt.Sprintf("/kapacitor/v1/tasks/%s", ID)
@@ -64,16 +104,69 @@ func (c *Client) Href(ID string) string {
 
 // HrefOutput returns the link to a kapacitor task httpOut Node given an id
 func (c *Client) HrefOutput(ID string) string {
-	return fmt.Sprintf("/kapacitor/v1/tasks/%s/%s", ID, HTTPEndpoint)
+	return HrefOutput(ID)
 }
 
 // Create builds and POSTs a tickscript to kapacitor
 func (c *Client) Create(ctx context.Context, rule chronograf.AlertRule) (*Task, error) {
+	var opt *client.CreateTaskOptions
+	var err error
+	if rule.Query != nil {
+		opt, err = c.createFromQueryConfig(rule)
+	} else {
+		opt, err = c.createFromTick(rule)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
 	kapa, err := c.kapaClient(c.URL, c.Username, c.Password)
 	if err != nil {
 		return nil, err
 	}
 
+	task, err := kapa.CreateTask(*opt)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewTask(&task), nil
+}
+
+func (c *Client) createFromTick(rule chronograf.AlertRule) (*client.CreateTaskOptions, error) {
+	dbrps := make([]client.DBRP, len(rule.DBRPs))
+	for i := range rule.DBRPs {
+		dbrps[i] = client.DBRP{
+			Database:        rule.DBRPs[i].DB,
+			RetentionPolicy: rule.DBRPs[i].RP,
+		}
+	}
+
+	status := client.Enabled
+	if rule.Status != "" {
+		if err := status.UnmarshalText([]byte(rule.Status)); err != nil {
+			return nil, err
+		}
+	}
+
+	taskType := client.StreamTask
+	if rule.Type != "stream" {
+		if err := taskType.UnmarshalText([]byte(rule.Type)); err != nil {
+			return nil, err
+		}
+	}
+
+	return &client.CreateTaskOptions{
+		ID:         rule.ID,
+		Type:       taskType,
+		DBRPs:      dbrps,
+		TICKscript: string(rule.TICKScript),
+		Status:     status,
+	}, nil
+}
+
+func (c *Client) createFromQueryConfig(rule chronograf.AlertRule) (*client.CreateTaskOptions, error) {
 	id, err := c.ID.Generate()
 	if err != nil {
 		return nil, err
@@ -85,24 +178,12 @@ func (c *Client) Create(ctx context.Context, rule chronograf.AlertRule) (*Task, 
 	}
 
 	kapaID := Prefix + id
-	rule.ID = kapaID
-	task, err := kapa.CreateTask(client.CreateTaskOptions{
+	return &client.CreateTaskOptions{
 		ID:         kapaID,
 		Type:       toTask(rule.Query),
 		DBRPs:      []client.DBRP{{Database: rule.Query.Database, RetentionPolicy: rule.Query.RetentionPolicy}},
 		TICKscript: string(script),
 		Status:     client.Enabled,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return &Task{
-		ID:         kapaID,
-		Href:       task.Link.Href,
-		HrefOutput: c.HrefOutput(kapaID),
-		TICKScript: script,
-		Rule:       c.Reverse(kapaID, script),
 	}, nil
 }
 
@@ -130,12 +211,7 @@ func (c *Client) updateStatus(ctx context.Context, href string, status client.Ta
 		return nil, err
 	}
 
-	return &Task{
-		ID:         task.ID,
-		Href:       task.Link.Href,
-		HrefOutput: c.HrefOutput(task.ID),
-		TICKScript: chronograf.TICKScript(task.TICKscript),
-	}, nil
+	return NewTask(&task), nil
 }
 
 // Disable changes the tickscript status to disabled for a given href.
@@ -146,30 +222,6 @@ func (c *Client) Disable(ctx context.Context, href string) (*Task, error) {
 // Enable changes the tickscript status to disabled for a given href.
 func (c *Client) Enable(ctx context.Context, href string) (*Task, error) {
 	return c.updateStatus(ctx, href, client.Enabled)
-}
-
-// AllStatus returns the status of all tasks in kapacitor
-func (c *Client) AllStatus(ctx context.Context) (map[string]string, error) {
-	kapa, err := c.kapaClient(c.URL, c.Username, c.Password)
-	if err != nil {
-		return nil, err
-	}
-
-	// Only get the status, id and link section back
-	opts := &client.ListTasksOptions{
-		Fields: []string{"status"},
-	}
-	tasks, err := kapa.ListTasks(opts)
-	if err != nil {
-		return nil, err
-	}
-
-	taskStatuses := map[string]string{}
-	for _, task := range tasks {
-		taskStatuses[task.ID] = task.Status.String()
-	}
-
-	return taskStatuses, nil
 }
 
 // Status returns the status of a task in kapacitor
@@ -196,7 +248,7 @@ func (c *Client) status(ctx context.Context, href string) (client.TaskStatus, er
 }
 
 // All returns all tasks in kapacitor
-func (c *Client) All(ctx context.Context) (map[string]chronograf.AlertRule, error) {
+func (c *Client) All(ctx context.Context) (map[string]*Task, error) {
 	kapa, err := c.kapaClient(c.URL, c.Username, c.Password)
 	if err != nil {
 		return nil, err
@@ -209,22 +261,11 @@ func (c *Client) All(ctx context.Context) (map[string]chronograf.AlertRule, erro
 		return nil, err
 	}
 
-	alerts := map[string]chronograf.AlertRule{}
+	all := map[string]*Task{}
 	for _, task := range tasks {
-		script := chronograf.TICKScript(task.TICKscript)
-		if rule, err := Reverse(script); err != nil {
-			alerts[task.ID] = chronograf.AlertRule{
-				ID:         task.ID,
-				Name:       task.ID,
-				TICKScript: script,
-			}
-		} else {
-			rule.ID = task.ID
-			rule.TICKScript = script
-			alerts[task.ID] = rule
-		}
+		all[task.ID] = NewTask(&task)
 	}
-	return alerts, nil
+	return all, nil
 }
 
 // Reverse builds a chronograf.AlertRule and its QueryConfig from a tickscript
@@ -244,19 +285,18 @@ func (c *Client) Reverse(id string, script chronograf.TICKScript) chronograf.Ale
 }
 
 // Get returns a single alert in kapacitor
-func (c *Client) Get(ctx context.Context, id string) (chronograf.AlertRule, error) {
+func (c *Client) Get(ctx context.Context, id string) (*Task, error) {
 	kapa, err := c.kapaClient(c.URL, c.Username, c.Password)
 	if err != nil {
-		return chronograf.AlertRule{}, err
+		return nil, err
 	}
 	href := c.Href(id)
 	task, err := kapa.Task(client.Link{Href: href}, nil)
 	if err != nil {
-		return chronograf.AlertRule{}, chronograf.ErrAlertNotFound
+		return nil, chronograf.ErrAlertNotFound
 	}
 
-	script := chronograf.TICKScript(task.TICKscript)
-	return c.Reverse(task.ID, script), nil
+	return NewTask(&task), nil
 }
 
 // Update changes the tickscript of a given id.
@@ -266,30 +306,19 @@ func (c *Client) Update(ctx context.Context, href string, rule chronograf.AlertR
 		return nil, err
 	}
 
-	script, err := c.Ticker.Generate(rule)
-	if err != nil {
-		return nil, err
-	}
-
 	prevStatus, err := c.status(ctx, href)
 	if err != nil {
 		return nil, err
 	}
 
-	// We need to disable the kapacitor task followed by enabling it during update.
-	opts := client.UpdateTaskOptions{
-		TICKscript: string(script),
-		Status:     client.Disabled,
-		Type:       toTask(rule.Query),
-		DBRPs: []client.DBRP{
-			{
-				Database:        rule.Query.Database,
-				RetentionPolicy: rule.Query.RetentionPolicy,
-			},
-		},
+	var opt *client.UpdateTaskOptions
+	if rule.Query != nil {
+		opt, err = c.updateFromQueryConfig(rule)
+	} else {
+		opt, err = c.updateFromTick(rule)
 	}
 
-	task, err := kapa.UpdateTask(client.Link{Href: href}, opts)
+	task, err := kapa.UpdateTask(client.Link{Href: href}, *opt)
 	if err != nil {
 		return nil, err
 	}
@@ -301,12 +330,51 @@ func (c *Client) Update(ctx context.Context, href string, rule chronograf.AlertR
 		}
 	}
 
-	return &Task{
-		ID:         task.ID,
-		Href:       task.Link.Href,
-		HrefOutput: c.HrefOutput(task.ID),
-		TICKScript: script,
-		Rule:       c.Reverse(task.ID, script),
+	return NewTask(&task), nil
+}
+
+func (c *Client) updateFromQueryConfig(rule chronograf.AlertRule) (*client.UpdateTaskOptions, error) {
+	script, err := c.Ticker.Generate(rule)
+	if err != nil {
+		return nil, err
+	}
+
+	// We need to disable the kapacitor task followed by enabling it during update.
+	return &client.UpdateTaskOptions{
+		TICKscript: string(script),
+		Status:     client.Disabled,
+		Type:       toTask(rule.Query),
+		DBRPs: []client.DBRP{
+			{
+				Database:        rule.Query.Database,
+				RetentionPolicy: rule.Query.RetentionPolicy,
+			},
+		},
+	}, nil
+}
+
+func (c *Client) updateFromTick(rule chronograf.AlertRule) (*client.UpdateTaskOptions, error) {
+	dbrps := make([]client.DBRP, len(rule.DBRPs))
+	for i := range rule.DBRPs {
+		dbrps[i] = client.DBRP{
+			Database:        rule.DBRPs[i].DB,
+			RetentionPolicy: rule.DBRPs[i].RP,
+		}
+	}
+
+	taskType := client.StreamTask
+	if rule.Type != "stream" {
+		if err := taskType.UnmarshalText([]byte(rule.Type)); err != nil {
+			return nil, err
+		}
+	}
+
+	// We need to disable the kapacitor task followed by enabling it during update.
+	return &client.UpdateTaskOptions{
+		TICKscript: string(rule.TICKScript),
+		Status:     client.Disabled,
+		Type:       taskType,
+		DBRPs:      dbrps,
 	}, nil
 }
 
