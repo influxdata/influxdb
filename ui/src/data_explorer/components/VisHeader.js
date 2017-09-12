@@ -6,17 +6,18 @@ import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
 import resultsToCSV from 'src/shared/parsing/resultsToCSV.js'
 import download from 'src/external/download.js'
 
-const getCSV = query => async () => {
+const getCSV = (query, errorThrown) => async () => {
   try {
     const {results} = await fetchTimeSeriesAsync({source: query.host, query})
     const {name, CSVString} = resultsToCSV(results)
     download(CSVString, `${name}.csv`, 'text/plain')
   } catch (error) {
+    errorThrown(error)
     console.error(error)
   }
 }
 
-const VisHeader = ({views, view, onToggleView, name, query}) =>
+const VisHeader = ({views, view, onToggleView, name, query, errorThrown}) =>
   <div className="graph-heading">
     {views.length
       ? <div>
@@ -32,7 +33,10 @@ const VisHeader = ({views, view, onToggleView, name, query}) =>
               </li>
             )}
           </ul>
-          <div className="btn btn-sm btn-default dlcsv" onClick={getCSV(query)}>
+          <div
+            className="btn btn-sm btn-default dlcsv"
+            onClick={getCSV(query, errorThrown)}
+          >
             <span className="icon download dlcsv" />
             .csv
           </div>
@@ -51,6 +55,7 @@ VisHeader.propTypes = {
   onToggleView: func.isRequired,
   name: string.isRequired,
   query: shape().isRequired,
+  errorThrown: func.isRequired,
 }
 
 export default VisHeader

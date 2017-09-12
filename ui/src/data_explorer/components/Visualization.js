@@ -59,6 +59,7 @@ class Visualization extends Component {
       activeQueryIndex,
       isInDataExplorer,
       resizerBottomHeight,
+      errorThrown,
     } = this.props
     const {source: {links: {proxy}}} = this.context
     const {view} = this.state
@@ -85,6 +86,7 @@ class Visualization extends Component {
           onToggleView={this.handleToggleView}
           name={cellName}
           query={query}
+          errorThrown={errorThrown}
         />
         <div
           className={classnames({
@@ -153,6 +155,7 @@ Visualization.propTypes = {
     }),
   }),
   resizerBottomHeight: number,
+  errorThrown: func.isRequired,
 }
 
 export default Visualization
