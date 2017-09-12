@@ -236,10 +236,16 @@ export function updateRuleStatus(rule, status) {
   }
 }
 
-export const createTask = (kapacitor, task) => async dispatch => {
+export const createTask = (
+  kapacitor,
+  task,
+  router,
+  sourceID
+) => async dispatch => {
   try {
     const {data} = await createTaskAJAX(kapacitor, task)
-    dispatch(publishNotification('success', 'We made a tick script!'))
+    router.push(`/sources/${sourceID}/alert-rules`)
+    dispatch(publishNotification('success', 'You made a TICKscript!'))
     return data
   } catch (error) {
     if (!error) {
@@ -251,9 +257,16 @@ export const createTask = (kapacitor, task) => async dispatch => {
   }
 }
 
-export const updateTask = (kapacitor, task, ruleID) => async dispatch => {
+export const updateTask = (
+  kapacitor,
+  task,
+  ruleID,
+  router,
+  sourceID
+) => async dispatch => {
   try {
-    const {data} = await updateTaskAJAX(kapacitor, task, ruleID)
+    const {data} = await updateTaskAJAX(kapacitor, task, ruleID, sourceID)
+    router.push(`/sources/${sourceID}/alert-rules`)
     dispatch(publishNotification('success', 'TICKscript updated successully'))
     return data
   } catch (error) {
