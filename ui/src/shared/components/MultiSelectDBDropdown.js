@@ -11,8 +11,6 @@ class MultiSelectDBDropdown extends Component {
     this.state = {
       dbrps: [],
     }
-
-    this._getDbRps = ::this._getDbRps
   }
 
   componentDidMount() {
@@ -21,18 +19,21 @@ class MultiSelectDBDropdown extends Component {
 
   render() {
     const {dbrps} = this.state
-    const {onApply} = this.props
+    const {onApply, selectedItems} = this.props
+    const label = 'Select databases'
 
     return (
       <MultiSelectDropdown
+        label={label}
         items={dbrps}
         onApply={onApply}
         isApplyShown={false}
+        selectedItems={selectedItems}
       />
     )
   }
 
-  async _getDbRps() {
+  _getDbRps = async () => {
     const {source: {links: {proxy}}} = this.context
     const {onErrorThrown} = this.props
 
@@ -65,7 +66,7 @@ class MultiSelectDBDropdown extends Component {
   }
 }
 
-const {func, shape, string} = PropTypes
+const {arrayOf, func, shape, string} = PropTypes
 
 MultiSelectDBDropdown.contextTypes = {
   source: shape({
@@ -78,6 +79,7 @@ MultiSelectDBDropdown.contextTypes = {
 MultiSelectDBDropdown.propTypes = {
   onErrorThrown: func,
   onApply: func.isRequired,
+  selectedItems: arrayOf(shape()),
 }
 
 export default MultiSelectDBDropdown

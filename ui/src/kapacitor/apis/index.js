@@ -74,7 +74,7 @@ export const updateRuleStatus = (rule, status) => {
   })
 }
 
-export const createTask = async (kapacitor, {id, dbrps, script, type}) => {
+export const createTask = async (kapacitor, {id, dbrps, tickscript, type}) => {
   try {
     return await AJAX({
       method: 'POST',
@@ -83,7 +83,7 @@ export const createTask = async (kapacitor, {id, dbrps, script, type}) => {
         id,
         type,
         dbrps,
-        tickscript: script,
+        tickscript,
       },
     })
   } catch (error) {
@@ -94,18 +94,18 @@ export const createTask = async (kapacitor, {id, dbrps, script, type}) => {
 
 export const updateTask = async (
   kapacitor,
-  {id, dbrps, script, type},
+  {id, dbrps, tickscript, type},
   ruleID
 ) => {
   try {
     return await AJAX({
-      method: 'PATCH',
-      url: `${kapacitor.links.tasks}/${ruleID}`,
+      method: 'PUT',
+      url: `${kapacitor.links.rules}/${ruleID}`,
       data: {
         id,
         type,
         dbrps,
-        script,
+        tickscript,
       },
     })
   } catch (error) {

@@ -16,7 +16,7 @@ class TickscriptPage extends Component {
       task: {
         id: '',
         status: 'enabled',
-        script: '',
+        tickscript: '',
         dbrps: [],
         type: 'stream',
       },
@@ -42,8 +42,11 @@ class TickscriptPage extends Component {
 
     if (this._isEditing()) {
       await kapacitorActions.getRule(kapacitor, ruleID)
-      const activeRule = this.props.rules.find(r => r.id === ruleID)
-      this.setState({task: {...this.state.task, script: activeRule.tickscript}})
+      const {id, tickscript, dbrps, type} = this.props.rules.find(
+        r => r.id === ruleID
+      )
+
+      this.setState({task: {tickscript, dbrps, type, status, id}})
     }
 
     this.setState({kapacitor})
@@ -78,8 +81,8 @@ class TickscriptPage extends Component {
     }
   }
 
-  handleChangeScript = script => {
-    this.setState({task: {...this.state.task, script}})
+  handleChangeScript = tickscript => {
+    this.setState({task: {...this.state.task, tickscript}})
   }
 
   handleSelectDbrps = dbrps => {

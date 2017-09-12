@@ -8,16 +8,19 @@ import FancyScrollbar from 'shared/components/FancyScrollbar'
 import {DROPDOWN_MENU_MAX_HEIGHT} from 'shared/constants/index'
 
 const labelText = ({localSelectedItems, isOpen, label}) => {
+  if (localSelectedItems.length) {
+    return localSelectedItems.map(s => s.name).join(', ')
+  }
+
   if (label) {
     return label
-  } else if (localSelectedItems.length) {
-    return localSelectedItems.map(s => s.name).join(', ')
   }
 
   // TODO: be smarter about the text displayed here
   if (isOpen) {
     return '0 Selected'
   }
+
   return 'None'
 }
 
@@ -27,15 +30,20 @@ class MultiSelectDropdown extends Component {
 
     this.state = {
       isOpen: false,
-      localSelectedItems: this.props.selectedItems,
+      localSelectedItems: props.selectedItems,
     }
-
-    this.onSelect = ::this.onSelect
-    this.handleApply = ::this.handleApply
   }
 
   handleClickOutside() {
     this.setState({isOpen: false})
+  }
+
+  componentWillReceiveProps(nextProps) {
+    if (!_.isEqual(this.props.selectedItems, nextProps.selectedItems)) {
+      return
+    }
+
+    this.setState({localSelectedItems: nextProps.selectedItems})
   }
 
   toggleMenu = e => {
@@ -43,7 +51,7 @@ class MultiSelectDropdown extends Component {
     this.setState({isOpen: !this.state.isOpen})
   }
 
-  onSelect(item, e) {
+  onSelect = (item, e) => {
     e.stopPropagation()
 
     const {onApply, isApplyShown} = this.props
@@ -67,7 +75,7 @@ class MultiSelectDropdown extends Component {
     return !!this.state.localSelectedItems.find(({name}) => name === item.name)
   }
 
-  handleApply(e) {
+  handleApply = e => {
     e.stopPropagation()
 
     this.setState({isOpen: false})

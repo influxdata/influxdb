@@ -41,7 +41,7 @@ const Tickscript = ({
       </div>
       <div className="tickscript-editor">
         <TickscriptEditor
-          script={task.script}
+          script={task.tickscript}
           onChangeScript={onChangeScript}
         />
       </div>
