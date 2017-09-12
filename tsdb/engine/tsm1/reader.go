@@ -7,6 +7,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"runtime"
 	"sync"
 	"sync/atomic"
 
@@ -1033,6 +1034,10 @@ func (d *indirectIndex) Size() uint32 {
 }
 
 func (d *indirectIndex) Close() error {
+	// Windows doesn't use the anonymous map for the offsets index
+	if runtime.GOOS == "windows" {
+		return nil
+	}
 	return munmap(d.offsets[:cap(d.offsets)])
 }
 
