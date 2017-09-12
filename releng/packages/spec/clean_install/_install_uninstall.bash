@@ -9,16 +9,15 @@
 
 function printHelp() {
   >&2 echo "\
-USAGE: $0 [-d | -m] [-D | -R]
+USAGE: $0 [-D | -R]
 
 Tests installing and then uninstalling the provided package files.
-Exactly one of -d or -m must be provided to indicate data or meta,
-and exactly one of -D or -R must be provided to indicate Debian or RPM packages.
+Exactly one of -D or -R must be provided to indicate Debian or RPM packages.
 "
 }
 
-DATA_BINS=( influx influxd influx_stress influx_inspect influx_tsm )
-META_BINS=( influxd-meta influxd-ctl )
+BINS=( influx influxd influx_stress influx_inspect influx_tsm )
+
 
 function testInstalled() {
   if ! command -v "$1" >/dev/null 2>&1 ; then
@@ -34,67 +33,38 @@ function testUninstalled() {
   fi
 }
 
-function testData() {
+function testInstall() {
   if [ "$TYPE" == "deb" ]; then
     dpkg -i /data.deb
   elif [ "$TYPE" == "rpm" ]; then
     yum localinstall -y /data.rpm
   else
-    >&2 echo "testMeta: invalid type $TYPE"
+    >&2 echo "testInstall: invalid type $TYPE"
     exit 2
   fi
 
-  for x in "${DATA_BINS[@]}"; do
+  for x in "${BINS[@]}"; do
     testInstalled "$x"
   done
 
   if [ "$TYPE" == "deb" ]; then
-    dpkg -r influxdb-data
+    dpkg -r influxdb
   elif [ "$TYPE" == "rpm" ]; then
-    yum remove -y influxdb-data
+    yum remove -y influxdb
   fi
 
-  for x in "${DATA_BINS[@]}"; do
+  for x in "${BINS[@]}"; do
     testUninstalled "$x"
   done
 
   true # So we don't return 1 if `which` didn't find the executable after uninstall.
 }
 
-function testMeta() {
-  if [ "$TYPE" == "deb" ]; then
-    dpkg -i /meta.deb
-  elif [ "$TYPE" == "rpm" ]; then
-    yum localinstall -y /meta.rpm
-  else
-    >&2 echo "testMeta: invalid type $TYPE"
-    exit 2
-  fi
-
-  for x in "${META_BINS[@]}"; do
-    testInstalled "$x"
-  done
-
-  if [ "$TYPE" == "deb" ]; then
-    dpkg -r influxdb-meta
-  elif [ "$TYPE" == "rpm" ]; then
-    yum remove -y influxdb-meta
-  fi
-
-  for x in "${META_BINS[@]}"; do
-    testUninstalled "$x"
-  done
-
-  true # So we don't return 1 if `test{Uni,I}nstalled` didn't find the executable after uninstall.
-}
-
 PKG=""
 TYPE=""
 
-while getopts dmDR arg; do
+while getopts DR arg; do
   case "$arg" in
-    d) PKG=data;;
-    m) PKG=meta;;
     D) TYPE=deb;;
     R) TYPE=rpm;;
   esac
@@ -105,11 +75,4 @@ if [ "$TYPE" != "deb" ] && [ "$TYPE" != "rpm" ]; then
   exit 1
 fi
 
-if [ "$PKG" == "data" ]; then
-  testData
-elif [ "$PKG" == "meta" ]; then
-  testMeta
-else
-  printHelp
-  exit 1
-fi
+testInstall
