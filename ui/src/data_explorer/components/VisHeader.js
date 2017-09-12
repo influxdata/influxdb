@@ -12,7 +12,7 @@ const getCSV = (query, errorThrown) => async () => {
     const {name, CSVString} = resultsToCSV(results)
     download(CSVString, `${name}.csv`, 'text/plain')
   } catch (error) {
-    errorThrown(error)
+    errorThrown(error, 'Unable to download .csv file')
     console.error(error)
   }
 }
