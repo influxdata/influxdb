@@ -342,11 +342,7 @@ func (i *Index) prependActiveLogFile() error {
 	i.activeLogFile = f
 
 	// Prepend and generate new fileset.
-	fs, err := i.fileSet.Prepend(f)
-	if err != nil {
-		return err
-	}
-	i.fileSet = fs
+	i.fileSet = i.fileSet.PrependLogFile(f)
 
 	// Write new manifest.
 	if err := i.writeManifestFile(); err != nil {

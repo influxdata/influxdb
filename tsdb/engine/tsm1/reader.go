@@ -7,7 +7,7 @@ import (
 	"io"
 	"math"
 	"os"
-	"sort"
+	"runtime"
 	"sync"
 	"sync/atomic"
 
@@ -102,6 +102,9 @@ type TSMIndex interface {
 	// UnmarshalBinary populates an index from an encoded byte slice
 	// representation of an index.
 	UnmarshalBinary(b []byte) error
+
+	// Close closes the index and releases any resources.
+	Close() error
 }
 
 // BlockIterator allows iterating over each block in a TSM file in order.  It provides
@@ -353,7 +356,7 @@ func (t *TSMReader) Close() error {
 		return err
 	}
 
-	return nil
+	return t.index.Close()
 }
 
 // Ref records a usage of this TSMReader.  If there are active references
@@ -598,7 +601,7 @@ type indirectIndex struct {
 
 	// offsets contains the positions in b for each key.  It points to the 2 byte length of
 	// key.
-	offsets []int32
+	offsets []byte
 
 	// minKey, maxKey are the minium and maximum (lexicographically sorted) contained in the
 	// file
@@ -631,9 +634,10 @@ func NewIndirectIndex() *indirectIndex {
 func (d *indirectIndex) search(key []byte) int {
 	// We use a binary search across our indirect offsets (pointers to all the keys
 	// in the index slice).
-	i := sort.Search(len(d.offsets), func(i int) bool {
+	i := bytesutil.SearchBytesFixed(d.offsets, 4, func(x []byte) bool {
 		// i is the position in offsets we are at so get offset it points to
-		offset := d.offsets[i]
+		//offset := d.offsets[i]
+		offset := int32(binary.BigEndian.Uint32(x))
 
 		// It's pointing to the start of the key which is a 2 byte length
 		keyLen := int32(binary.BigEndian.Uint16(d.b[offset : offset+2]))
@@ -644,7 +648,7 @@ func (d *indirectIndex) search(key []byte) int {
 
 	// See if we might have found the right index
 	if i < len(d.offsets) {
-		ofs := d.offsets[i]
+		ofs := binary.BigEndian.Uint32(d.offsets[i : i+4])
 		_, k, err := readKey(d.b[ofs:])
 		if err != nil {
 			panic(fmt.Sprintf("error reading key: %v", err))
@@ -719,18 +723,19 @@ func (d *indirectIndex) Key(idx int) ([]byte, byte, []IndexEntry) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	if idx < 0 || idx >= len(d.offsets) {
+	if idx < 0 || idx*4+4 > len(d.offsets) {
 		return nil, 0, nil
 	}
-	n, key, err := readKey(d.b[d.offsets[idx]:])
+	ofs := binary.BigEndian.Uint32(d.offsets[idx*4 : idx*4+4])
+	n, key, err := readKey(d.b[ofs:])
 	if err != nil {
 		return nil, 0, nil
 	}
 
-	typ := d.b[int(d.offsets[idx])+n]
+	typ := d.b[int(ofs)+n]
 
 	var entries indexEntries
-	if _, err := readEntries(d.b[int(d.offsets[idx])+n:], &entries); err != nil {
+	if _, err := readEntries(d.b[int(ofs)+n:], &entries); err != nil {
 		return nil, 0, nil
 	}
 	return key, typ, entries.entries
@@ -740,12 +745,15 @@ func (d *indirectIndex) Key(idx int) ([]byte, byte, []IndexEntry) {
 func (d *indirectIndex) KeyAt(idx int) ([]byte, byte) {
 	d.mu.RLock()
 
-	if idx < 0 || idx >= len(d.offsets) {
+	if idx < 0 || idx*4+4 > len(d.offsets) {
 		d.mu.RUnlock()
 		return nil, 0
 	}
-	n, key, _ := readKey(d.b[d.offsets[idx]:])
-	typ := d.b[d.offsets[idx]+int32(n)]
+	ofs := int32(binary.BigEndian.Uint32(d.offsets[idx*4 : idx*4+4]))
+
+	n, key, _ := readKey(d.b[ofs:])
+	ofs = ofs + int32(n)
+	typ := d.b[ofs]
 	d.mu.RUnlock()
 	return key, typ
 }
@@ -753,7 +761,7 @@ func (d *indirectIndex) KeyAt(idx int) ([]byte, byte) {
 // KeyCount returns the count of unique keys in the index.
 func (d *indirectIndex) KeyCount() int {
 	d.mu.RLock()
-	n := len(d.offsets)
+	n := len(d.offsets) / 4
 	d.mu.RUnlock()
 	return n
 }
@@ -773,8 +781,9 @@ func (d *indirectIndex) Delete(keys [][]byte) {
 
 	// Both keys and offsets are sorted.  Walk both in order and skip
 	// any keys that exist in both.
-	offsets := make([]int32, 0, len(d.offsets))
-	for _, offset := range d.offsets {
+	var j int
+	for i := 0; i+4 <= len(d.offsets); i += 4 {
+		offset := binary.BigEndian.Uint32(d.offsets[i : i+4])
 		_, indexKey, _ := readKey(d.b[offset:])
 
 		for len(keys) > 0 && bytes.Compare(keys[0], indexKey) < 0 {
@@ -786,9 +795,10 @@ func (d *indirectIndex) Delete(keys [][]byte) {
 			continue
 		}
 
-		offsets = append(offsets, int32(offset))
+		copy(d.offsets[j:j+4], d.offsets[i:i+4])
+		j += 4
 	}
-	d.offsets = offsets
+	d.offsets = d.offsets[:j]
 }
 
 // DeleteRange removes the given keys with data between minTime and maxTime from the index.
@@ -945,9 +955,10 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 	// basically skips across the slice keeping track of the counter when we are at a key
 	// field.
 	var i int32
+	var offsets []int32
 	iMax := int32(len(b))
 	for i < iMax {
-		d.offsets = append(d.offsets, i)
+		offsets = append(offsets, i)
 
 		// Skip to the start of the values
 		// key length value (2) + type (1) + length of key
@@ -986,14 +997,14 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 		i += indexEntrySize
 	}
 
-	firstOfs := d.offsets[0]
+	firstOfs := offsets[0]
 	_, key, err := readKey(b[firstOfs:])
 	if err != nil {
 		return err
 	}
 	d.minKey = key
 
-	lastOfs := d.offsets[len(d.offsets)-1]
+	lastOfs := offsets[len(offsets)-1]
 	_, key, err = readKey(b[lastOfs:])
 	if err != nil {
 		return err
@@ -1002,6 +1013,14 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 
 	d.minTime = minTime
 	d.maxTime = maxTime
+
+	d.offsets, err = mmap(nil, 0, len(offsets)*4)
+	if err != nil {
+		return err
+	}
+	for i, v := range offsets {
+		binary.BigEndian.PutUint32(d.offsets[i*4:i*4+4], uint32(v))
+	}
 
 	return nil
 }
@@ -1012,6 +1031,14 @@ func (d *indirectIndex) Size() uint32 {
 	defer d.mu.RUnlock()
 
 	return uint32(len(d.b))
+}
+
+func (d *indirectIndex) Close() error {
+	// Windows doesn't use the anonymous map for the offsets index
+	if runtime.GOOS == "windows" {
+		return nil
+	}
+	return munmap(d.offsets[:cap(d.offsets)])
 }
 
 // mmapAccess is mmap based block accessor.  It access blocks through an

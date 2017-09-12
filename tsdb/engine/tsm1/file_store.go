@@ -479,6 +479,19 @@ func (f *FileStore) Cost(key []byte, min, max int64) query.IteratorCost {
 	return f.cost(key, min, max)
 }
 
+// Reader returns a TSMReader for path if one is currently managed by the FileStore.
+// Otherwise it returns nil.
+func (f *FileStore) TSMReader(path string) *TSMReader {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	for _, r := range f.files {
+		if r.Path() == path {
+			return r.(*TSMReader)
+		}
+	}
+	return nil
+}
+
 // KeyCursor returns a KeyCursor for key and t across the files in the FileStore.
 func (f *FileStore) KeyCursor(key []byte, t int64, ascending bool) *KeyCursor {
 	f.mu.RLock()
@@ -498,6 +511,11 @@ func (f *FileStore) Stats() []FileStat {
 	// The file stats cache is invalid due to changes to files. Need to
 	// recalculate.
 	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if len(f.lastFileStats) > 0 {
+		return f.lastFileStats
+	}
 
 	// If lastFileStats's capacity is far away from the number of entries
 	// we need to add, then we'll reallocate.
@@ -508,7 +526,6 @@ func (f *FileStore) Stats() []FileStat {
 	for _, fd := range f.files {
 		f.lastFileStats = append(f.lastFileStats, fd.Stats())
 	}
-	defer f.mu.Unlock()
 	return f.lastFileStats
 }
 
@@ -641,8 +658,8 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 	// If times didn't change (which can happen since file mod times are second level),
 	// then add a ns to the time to ensure that lastModified changes since files on disk
 	// actually did change
-	if maxTime.Equal(f.lastModified) {
-		maxTime = maxTime.UTC().Add(1)
+	if maxTime.Equal(f.lastModified) || maxTime.Before(f.lastModified) {
+		maxTime = f.lastModified.UTC().Add(1)
 	}
 
 	f.lastModified = maxTime.UTC()

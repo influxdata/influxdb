@@ -2,6 +2,7 @@ package bytesutil
 
 import (
 	"bytes"
+	"fmt"
 	"sort"
 )
 
@@ -16,6 +17,28 @@ func IsSorted(a [][]byte) bool {
 
 func SearchBytes(a [][]byte, x []byte) int {
 	return sort.Search(len(a), func(i int) bool { return bytes.Compare(a[i], x) >= 0 })
+}
+
+// SearchBytesFixed searches a for x using a binary search.  The size of a must be a multiple of
+// of x or else the function panics.  There returned value is the index within a where x should
+// exist.  The caller should ensure that x does exist at this index.
+func SearchBytesFixed(a []byte, sz int, fn func(x []byte) bool) int {
+	if len(a)%sz != 0 {
+		panic(fmt.Sprintf("x is not a multiple of a: %d %d", len(a), sz))
+	}
+
+	i, j := 0, len(a)-sz
+	for i < j {
+		h := int(uint(i+j) >> 1)
+		h -= h % sz
+		if !fn(a[h : h+sz]) {
+			i = h + sz
+		} else {
+			j = h
+		}
+	}
+
+	return i
 }
 
 // Union returns the union of a & b in sorted order.

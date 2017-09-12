@@ -169,7 +169,7 @@ const (
 // storer is the interface that descibes a cache's store.
 type storer interface {
 	entry(key []byte) *entry                        // Get an entry by its key.
-	write(key []byte, values Values) error          // Write an entry to the store.
+	write(key []byte, values Values) (bool, error)  // Write an entry to the store.
 	add(key []byte, entry *entry)                   // Add a new entry to the store.
 	remove(key []byte)                              // Remove an entry from the store.
 	keys(sorted bool) [][]byte                      // Return an optionally sorted slice of entry keys.
@@ -296,11 +296,15 @@ func (c *Cache) Write(key []byte, values []Value) error {
 		return ErrCacheMemorySizeLimitExceeded(n, limit)
 	}
 
-	if err := c.store.write(key, values); err != nil {
+	newKey, err := c.store.write(key, values)
+	if err != nil {
 		atomic.AddInt64(&c.stats.WriteErr, 1)
 		return err
 	}
 
+	if newKey {
+		addedSize += uint64(len(key))
+	}
 	// Update the cache size and the memory size stat.
 	c.increaseSize(addedSize)
 	c.updateMemSize(int64(addedSize))
@@ -337,11 +341,15 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 	// We'll optimistially set size here, and then decrement it for write errors.
 	c.increaseSize(addedSize)
 	for k, v := range values {
-		if err := store.write([]byte(k), v); err != nil {
+		newKey, err := store.write([]byte(k), v)
+		if err != nil {
 			// The write failed, hold onto the error and adjust the size delta.
 			werr = err
 			addedSize -= uint64(Values(v).Size())
 			c.decreaseSize(uint64(Values(v).Size()))
+		}
+		if newKey {
+			c.increaseSize(uint64(len(k)))
 		}
 	}
 
@@ -567,7 +575,7 @@ func (c *Cache) DeleteRange(keys [][]byte, min, max int64) {
 
 		origSize := uint64(e.size())
 		if min == math.MinInt64 && max == math.MaxInt64 {
-			c.decreaseSize(origSize)
+			c.decreaseSize(origSize + uint64(len(k)))
 			c.store.remove(k)
 			continue
 		}
@@ -575,7 +583,7 @@ func (c *Cache) DeleteRange(keys [][]byte, min, max int64) {
 		e.filter(min, max)
 		if e.count() == 0 {
 			c.store.remove(k)
-			c.decreaseSize(origSize)
+			c.decreaseSize(origSize + uint64(len(k)))
 			continue
 		}
 
@@ -750,7 +758,7 @@ func (c *Cache) updateSnapshots() {
 type emptyStore struct{}
 
 func (e emptyStore) entry(key []byte) *entry                        { return nil }
-func (e emptyStore) write(key []byte, values Values) error          { return nil }
+func (e emptyStore) write(key []byte, values Values) (bool, error)  { return false, nil }
 func (e emptyStore) add(key []byte, entry *entry)                   {}
 func (e emptyStore) remove(key []byte)                              {}
 func (e emptyStore) keys(sorted bool) [][]byte                      { return nil }

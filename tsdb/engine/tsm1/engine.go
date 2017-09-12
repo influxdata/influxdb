@@ -244,7 +244,7 @@ func (e *Engine) enableLevelCompactions(wait bool) {
 	go func() { defer e.wg.Done(); e.compactTSMFull(quit) }()
 	go func() { defer e.wg.Done(); e.compactTSMLevel(true, 1, quit) }()
 	go func() { defer e.wg.Done(); e.compactTSMLevel(true, 2, quit) }()
-	go func() { defer e.wg.Done(); e.compactTSMLevel(false, 3, quit) }()
+	go func() { defer e.wg.Done(); e.compactTSMLevel(true, 3, quit) }()
 }
 
 // disableLevelCompactions will stop level compactions before returning.
