@@ -24,12 +24,14 @@ source "$SRCDIR/../_go_versions.sh"
 
 OUTDIR=""
 TARBALL=""
+RACE_FLAG=""
 
 while getopts hi:o: arg; do
   case "$arg" in
     h) printHelp; exit 1;;
     i) TARBALL="$OPTARG";;
     o) OUTDIR="$OPTARG";;
+    r) RACE_FLAG="-r";;
   esac
 done
 
@@ -53,4 +55,4 @@ docker run --rm \
    --mount type=bind,source="${OUTDIR}",destination=/out \
    --mount type=bind,source="${TARBALL}",destination=/influxdb-src.tar.gz,ro=1 \
    -e GOOS -e GOARCH -e CGO_ENABLED \
-  influxdata/influxdb/releng/raw-binaries:"$DOCKER_TAG"
+  influxdata/influxdb/releng/raw-binaries:"$DOCKER_TAG" $RACE_FLAG
