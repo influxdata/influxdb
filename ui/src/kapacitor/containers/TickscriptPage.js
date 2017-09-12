@@ -59,17 +59,23 @@ class TickscriptPage extends Component {
     } = this.props
 
     let response
-    if (this._isEditing()) {
-      response = await updateTask(kapacitor, task, ruleID)
-    } else {
-      response = await createTask(kapacitor, task)
-    }
 
-    if (response && response.error) {
-      return this.setState({validation: response.error})
-    }
+    try {
+      if (this._isEditing()) {
+        response = await updateTask(kapacitor, task, ruleID)
+      } else {
+        response = await createTask(kapacitor, task)
+      }
 
-    router.push(`/sources/${source.id}/alert-rules`)
+      if (response && response.code === 500) {
+        return this.setState({validation: response.message})
+      }
+
+      router.push(`/sources/${source.id}/alert-rules`)
+    } catch (error) {
+      console.error(error)
+      throw error
+    }
   }
 
   handleChangeScript = script => {
