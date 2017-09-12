@@ -331,9 +331,6 @@ CodeMirror.defineSimpleMode('tickscript', {
     // A next property will cause the mode to move to a different state
     {regex: /\/\*/, token: 'comment', next: 'comment'},
     {regex: /[-+\/*=<>!]+/, token: 'operator'},
-    // indent and dedent properties guide autoindentation
-    {regex: /[\{\[\(]/, indent: true},
-    {regex: /[\}\]\)]/, dedent: true},
     {regex: /[a-z$][\w$]*/, token: 'variable'},
   ],
   // The multi-line comment state.
