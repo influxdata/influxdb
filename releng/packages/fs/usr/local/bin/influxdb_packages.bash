@@ -93,7 +93,7 @@ if [ "$OS" == "linux" ]; then
       --description 'Distributed time-series database.' \
       --config-files /etc/influxdb/influxdb.conf \
       --config-files /etc/logrotate.d/influxdb \
-      --name "influxdb-oss" \
+      --name "influxdb" \
       --architecture "$ARCH" \
       --version "$VERSION" \
       --iteration 1 \
@@ -111,7 +111,7 @@ if [ "$OS" == "linux" ]; then
 elif [ "$OS" == "windows" ]; then
   # Windows gets the binaries and nothing else.
   # TODO: should Windows get the sample config files?
-  (cd /ibin && zip -9 -r "/out/influxdb-${VERSION}.zip" ./*)
+  (cd /ibin && zip -9 -r "/out/influxdb_${VERSION}.zip" ./*)
   (cd /out && for f in *.zip; do
     md5sum "$f" > "$f.md5"
     sha256sum "$f" > "$f.sha256"
