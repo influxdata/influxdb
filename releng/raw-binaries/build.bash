@@ -26,7 +26,7 @@ OUTDIR=""
 TARBALL=""
 RACE_FLAG=""
 
-while getopts hi:o: arg; do
+while getopts hi:o:r arg; do
   case "$arg" in
     h) printHelp; exit 1;;
     i) TARBALL="$OPTARG";;
