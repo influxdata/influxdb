@@ -1,15 +1,24 @@
 import React, {PropTypes} from 'react'
+import Dropdown from 'shared/components/Dropdown'
 
-import Dropdown from 'src/shared/components/Dropdown'
+const noop = () => {}
 
-const SourceSelector = ({sources = []}) =>
+const SourceSelector = ({sources = [], source}) =>
   <div className="display-options--cell">
-    <h5 className="display-options--header">Source Selector</h5>
-    <div className="form-group col-sm-12">
+    <h5 className="display-options--header">InfluxDB Source Selector</h5>
+    <div
+      className="form-group col-md-12"
+      style={{display: 'flex', flexDirection: 'column'}}
+    >
+      <label>Using data from</label>
       <Dropdown
-        onChoose={() => {}}
         items={sources}
-        selected={sources[0].text}
+        buttonSize="btn-sm"
+        menuClass="dropdown-astronaut"
+        useAutoComplete={true}
+        selected={sources.find(s => s.id === source.id).text || '(No values)'}
+        onChoose={noop}
+        toggleStyle={{width: '75%'}}
       />
     </div>
   </div>
@@ -18,6 +27,7 @@ const {arrayOf, shape} = PropTypes
 
 SourceSelector.propTypes = {
   sources: arrayOf(shape()).isRequired,
+  source: shape({}).isRequired,
 }
 
 export default SourceSelector
