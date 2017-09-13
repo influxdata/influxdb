@@ -162,6 +162,8 @@ func (w *csvFormatter) WriteResponse(resp Response) (n int, err error) {
 						w.columns[i+2] = strconv.FormatFloat(v, 'f', -1, 64)
 					case int64:
 						w.columns[i+2] = strconv.FormatInt(v, 10)
+					case uint64:
+						w.columns[i+2] = strconv.FormatUint(v, 10)
 					case string:
 						w.columns[i+2] = v
 					case bool:
