@@ -61,18 +61,27 @@ class DisplayOptions extends Component {
     text: `${s.name} @ ${s.url}`,
   }))
 
-  findSelectedSource = ({id}) => {
-    const selected = this.formatSources.find(s => s.id === id)
+  findSelectedSource = () => {
+    const {cellSource, source: defaultSource} = this.props
+    const sources = this.formatSources
+    const cellSourceID = cellSource && cellSource.id
+
+    let selected
+    selected = sources.find(s => s.id === cellSourceID)
+
+    if (selected) {
+      return selected.text
+    }
+
+    selected = sources.find(s => s.id === defaultSource.id)
     return (selected && selected.text) || 'No sources'
   }
 
   render() {
     const {
-      source,
       onSetBase,
       onSetScale,
       onSetLabel,
-      cellSource,
       onSetCellSource,
       selectedGraphType,
       onSelectGraphType,
@@ -97,7 +106,7 @@ class DisplayOptions extends Component {
           <SourceSelector
             sources={this.formatSources}
             onSetCellSource={onSetCellSource}
-            selected={this.findSelectedSource(cellSource || source)}
+            selected={this.findSelectedSource()}
           />
         </div>
         <GraphTypeSelector
