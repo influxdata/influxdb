@@ -51,7 +51,7 @@ TARBALL_NAME="influxdb_bin_${GOOS}_${GOARCH}${SUFFIX}-${SHA}.tar.gz"
 # we want to support armel using GOARM=5
 # and we want to support armhf using GOARM=6
 # no GOARM setting is necessary for arm64
-if [ $GOARCH == "armel"]; then
+if [ $GOARCH == "armel" ]; then
   GOARCH=arm
   GOARM=5
 fi
