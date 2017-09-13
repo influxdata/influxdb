@@ -18,7 +18,7 @@ const SourceSelector = ({sources = [], source}) =>
         useAutoComplete={true}
         selected={sources.find(s => s.id === source.id).text || '(No values)'}
         onChoose={noop}
-        toggleStyle={{width: '75%'}}
+        toggleStyle={{width: '50%'}}
       />
     </div>
   </div>
