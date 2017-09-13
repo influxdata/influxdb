@@ -190,6 +190,7 @@ class DashboardPage extends Component {
 
     const {
       source,
+      sources,
       timeRange,
       timeRange: {lower, upper},
       showTemplateControlBar,
@@ -277,6 +278,7 @@ class DashboardPage extends Component {
         {selectedCell
           ? <CellEditorOverlay
               source={source}
+              sources={sources}
               cell={selectedCell}
               timeRange={timeRange}
               autoRefresh={autoRefresh}
@@ -324,6 +326,7 @@ class DashboardPage extends Component {
         {dashboard
           ? <Dashboard
               source={source}
+              sources={sources}
               dashboard={dashboard}
               timeRange={timeRange}
               autoRefresh={autoRefresh}
@@ -406,6 +409,7 @@ DashboardPage.propTypes = {
     status: shape(),
   }).isRequired,
   errorThrown: func,
+  sources: arrayOf(shape()),
 }
 
 const mapStateToProps = state => {
@@ -415,6 +419,7 @@ const mapStateToProps = state => {
       persisted: {autoRefresh, showTemplateControlBar},
     },
     dashboardUI: {dashboards, timeRange, cellQueryStatus},
+    sources,
   } = state
 
   return {
@@ -424,6 +429,7 @@ const mapStateToProps = state => {
     showTemplateControlBar,
     inPresentationMode,
     cellQueryStatus,
+    sources,
   }
 }
 

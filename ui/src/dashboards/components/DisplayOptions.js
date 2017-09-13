@@ -2,6 +2,7 @@ import React, {Component, PropTypes} from 'react'
 
 import GraphTypeSelector from 'src/dashboards/components/GraphTypeSelector'
 import AxesOptions from 'src/dashboards/components/AxesOptions'
+import SourceSelector from 'src/dashboards/components/SourceSelector'
 
 import {buildDefaultYLabel} from 'shared/presenters'
 
@@ -31,6 +32,8 @@ class DisplayOptions extends Component {
       : axes
   }
 
+  formatSources = this.props.sources.map(s => ({...s, text: s.name}))
+
   render() {
     const {
       onSetBase,
@@ -46,15 +49,18 @@ class DisplayOptions extends Component {
 
     return (
       <div className="display-options">
-        <AxesOptions
-          axes={axes}
-          onSetBase={onSetBase}
-          onSetLabel={onSetLabel}
-          onSetScale={onSetScale}
-          onSetPrefixSuffix={onSetPrefixSuffix}
-          onSetYAxisBoundMin={onSetYAxisBoundMin}
-          onSetYAxisBoundMax={onSetYAxisBoundMax}
-        />
+        <div className="foo" style={{display: 'flex', flexDirection: 'row'}}>
+          <AxesOptions
+            axes={axes}
+            onSetBase={onSetBase}
+            onSetLabel={onSetLabel}
+            onSetScale={onSetScale}
+            onSetPrefixSuffix={onSetPrefixSuffix}
+            onSetYAxisBoundMin={onSetYAxisBoundMin}
+            onSetYAxisBoundMax={onSetYAxisBoundMax}
+          />
+          <SourceSelector sources={this.formatSources} />
+        </div>
         <GraphTypeSelector
           selectedGraphType={selectedGraphType}
           onSelectGraphType={onSelectGraphType}
@@ -66,6 +72,7 @@ class DisplayOptions extends Component {
 const {arrayOf, func, shape, string} = PropTypes
 
 DisplayOptions.propTypes = {
+  sources: arrayOf(shape()).isRequired,
   selectedGraphType: string.isRequired,
   onSelectGraphType: func.isRequired,
   onSetPrefixSuffix: func.isRequired,
