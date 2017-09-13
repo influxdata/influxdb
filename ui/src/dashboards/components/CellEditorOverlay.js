@@ -23,7 +23,7 @@ class CellEditorOverlay extends Component {
   constructor(props) {
     super(props)
 
-    const {cell: {name, type, queries, axes}} = props
+    const {cell: {name, type, queries, axes, source}} = props
 
     const queriesWorkingDraft = _.cloneDeep(
       queries.map(({queryConfig}) => ({...queryConfig, id: uuid.v4()}))
@@ -35,6 +35,7 @@ class CellEditorOverlay extends Component {
       queriesWorkingDraft,
       activeQueryIndex: 0,
       isDisplayOptionsTabActive: false,
+      cellSource: source,
       axes,
     }
   }
@@ -197,6 +198,10 @@ class CellEditorOverlay extends Component {
     })
   }
 
+  handleSetCellSource = cellSource => {
+    this.setState({cellSource})
+  }
+
   getActiveQuery = () => {
     const {queriesWorkingDraft, activeQueryIndex} = this.state
     const activeQuery = queriesWorkingDraft[activeQueryIndex]
@@ -233,12 +238,13 @@ class CellEditorOverlay extends Component {
     } = this.props
 
     const {
+      axes,
+      cellSource,
       activeQueryIndex,
       cellWorkingName,
       cellWorkingType,
       isDisplayOptionsTabActive,
       queriesWorkingDraft,
-      axes,
     } = this.state
 
     const queryActions = {
@@ -283,11 +289,13 @@ class CellEditorOverlay extends Component {
                   axes={axes}
                   source={source}
                   sources={sources}
+                  cellSource={cellSource}
                   onSetBase={this.handleSetBase}
                   onSetLabel={this.handleSetLabel}
                   onSetScale={this.handleSetScale}
                   queryConfigs={queriesWorkingDraft}
                   selectedGraphType={cellWorkingType}
+                  onSetCellSource={this.handleSetCellSource}
                   onSetPrefixSuffix={this.handleSetPrefixSuffix}
                   onSelectGraphType={this.handleSelectGraphType}
                   onSetYAxisBoundMin={this.handleSetYAxisBoundMin}

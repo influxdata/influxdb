@@ -1,9 +1,7 @@
 import React, {PropTypes} from 'react'
 import Dropdown from 'shared/components/Dropdown'
 
-const noop = () => {}
-
-const SourceSelector = ({sources = [], source}) =>
+const SourceSelector = ({sources = [], selected, onSetCellSource}) =>
   <div className="display-options--cell">
     <h5 className="display-options--header">InfluxDB Source Selector</h5>
     <div
@@ -16,18 +14,19 @@ const SourceSelector = ({sources = [], source}) =>
         buttonSize="btn-sm"
         menuClass="dropdown-astronaut"
         useAutoComplete={true}
-        selected={sources.find(s => s.id === source.id).text || '(No values)'}
-        onChoose={noop}
-        toggleStyle={{width: '50%'}}
+        selected={selected}
+        onChoose={onSetCellSource}
+        toggleStyle={{width: '50%', maxWidth: '300px'}}
       />
     </div>
   </div>
 
-const {arrayOf, shape} = PropTypes
+const {arrayOf, func, shape, string} = PropTypes
 
 SourceSelector.propTypes = {
   sources: arrayOf(shape()).isRequired,
-  source: shape({}).isRequired,
+  onSetCellSource: func.isRequired,
+  selected: string,
 }
 
 export default SourceSelector

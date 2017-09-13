@@ -61,12 +61,19 @@ class DisplayOptions extends Component {
     text: `${s.name} @ ${s.url}`,
   }))
 
+  findSelectedSource = ({id}) => {
+    const selected = this.formatSources.find(s => s.id === id)
+    return (selected && selected.text) || 'No sources'
+  }
+
   render() {
     const {
       source,
       onSetBase,
       onSetScale,
       onSetLabel,
+      cellSource,
+      onSetCellSource,
       selectedGraphType,
       onSelectGraphType,
       onSetPrefixSuffix,
@@ -87,7 +94,11 @@ class DisplayOptions extends Component {
             onSetYAxisBoundMin={onSetYAxisBoundMin}
             onSetYAxisBoundMax={onSetYAxisBoundMax}
           />
-          <SourceSelector source={source} sources={this.formatSources} />
+          <SourceSelector
+            sources={this.formatSources}
+            onSetCellSource={onSetCellSource}
+            selected={this.findSelectedSource(cellSource || source)}
+          />
         </div>
         <GraphTypeSelector
           selectedGraphType={selectedGraphType}
@@ -106,12 +117,14 @@ DisplayOptions.propTypes = {
   onSetPrefixSuffix: func.isRequired,
   onSetYAxisBoundMin: func.isRequired,
   onSetYAxisBoundMax: func.isRequired,
+  onSetCellSource: func.isRequired,
   onSetScale: func.isRequired,
   onSetLabel: func.isRequired,
   onSetBase: func.isRequired,
   axes: shape({}).isRequired,
   queryConfigs: arrayOf(shape()).isRequired,
   source: shape({}).isRequired,
+  cellSource: shape({}),
 }
 
 export default DisplayOptions
