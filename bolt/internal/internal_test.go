@@ -162,6 +162,7 @@ func Test_MarshalDashboard(t *testing.T) {
 						Range: &chronograf.Range{
 							Upper: int64(100),
 						},
+						Source: "/chronograf/v1/sources/1",
 					},
 				},
 				Axes: map[string]chronograf.Axis{

@@ -108,6 +108,7 @@ message Query {
 	repeated string Wheres  = 5; // Wheres define the restrictions on the query
 	string Label            = 6; // Label is the name of the Y-Axis
 	Range Range             = 7; // Range is the upper and lower bound of the Y-Axis
+	string Source           = 8; // Source is the optional URI to the data source
 }
 
 message Range {
