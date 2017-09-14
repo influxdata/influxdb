@@ -695,7 +695,7 @@ type IteratorOptions struct {
 	// and close as soon as possible.
 	InterruptCh <-chan struct{}
 
-	// Authorizer can limit acccess to data
+	// Authorizer can limit access to data
 	Authorizer Authorizer
 }
 
@@ -1025,15 +1025,17 @@ func encodeIteratorOptions(opt *IteratorOptions) *internal.IteratorOptions {
 	}
 
 	// Convert and encode aux fields as variable references.
-	pb.Fields = make([]*internal.VarRef, len(opt.Aux))
-	pb.Aux = make([]string, len(opt.Aux))
-	for i, ref := range opt.Aux {
-		pb.Fields[i] = encodeVarRef(ref)
-		pb.Aux[i] = ref.Val
+	if opt.Aux != nil {
+		pb.Fields = make([]*internal.VarRef, len(opt.Aux))
+		pb.Aux = make([]string, len(opt.Aux))
+		for i, ref := range opt.Aux {
+			pb.Fields[i] = encodeVarRef(ref)
+			pb.Aux[i] = ref.Val
+		}
 	}
 
 	// Encode group by dimensions from a map.
-	if pb.GroupBy != nil {
+	if opt.GroupBy != nil {
 		dimensions := make([]string, 0, len(opt.GroupBy))
 		for dim := range opt.GroupBy {
 			dimensions = append(dimensions, dim)
@@ -1069,7 +1071,6 @@ func decodeIteratorOptions(pb *internal.IteratorOptions) (*IteratorOptions, erro
 		Interval:   decodeInterval(pb.GetInterval()),
 		Dimensions: pb.GetDimensions(),
 		Fill:       FillOption(pb.GetFill()),
-		FillValue:  pb.GetFillValue(),
 		StartTime:  pb.GetStartTime(),
 		EndTime:    pb.GetEndTime(),
 		Ascending:  pb.GetAscending(),
@@ -1105,9 +1106,9 @@ func decodeIteratorOptions(pb *internal.IteratorOptions) (*IteratorOptions, erro
 		for i, ref := range fields {
 			opt.Aux[i] = decodeVarRef(ref)
 		}
-	} else {
-		opt.Aux = make([]VarRef, len(pb.GetAux()))
-		for i, name := range pb.GetAux() {
+	} else if aux := pb.GetAux(); aux != nil {
+		opt.Aux = make([]VarRef, len(aux))
+		for i, name := range aux {
 			opt.Aux[i] = VarRef{Val: name}
 		}
 	}
@@ -1132,6 +1133,11 @@ func decodeIteratorOptions(pb *internal.IteratorOptions) (*IteratorOptions, erro
 			dimensions[dim] = struct{}{}
 		}
 		opt.GroupBy = dimensions
+	}
+
+	// Set the fill value, if set.
+	if pb.FillValue != nil {
+		opt.FillValue = pb.GetFillValue()
 	}
 
 	// Set condition, if set.
