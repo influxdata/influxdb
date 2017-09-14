@@ -29,7 +29,6 @@ type Index interface {
 	CreateSeriesListIfNotExists(keys, names [][]byte, tags []models.Tags) error
 	DropSeries(key []byte) error
 
-	SeriesSketches() (estimator.Sketch, estimator.Sketch, error)
 	MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error)
 	SeriesN() int64
 

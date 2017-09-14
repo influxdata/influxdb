@@ -1,7 +1,6 @@
 package tsi1_test
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/influxdata/influxdb/models"
@@ -265,6 +264,7 @@ func TestFileSet_TagKeyIterator(t *testing.T) {
 	})
 }
 
+/*
 var (
 	byteSliceResult [][]byte
 	tagsSliceResult []models.Tags
@@ -322,3 +322,4 @@ func BenchmarkFileset_FilterNamesTags(b *testing.B) {
 		byteSliceResult, tagsSliceResult = fs.FilterNamesTags(names, tags)
 	}
 }
+*/
