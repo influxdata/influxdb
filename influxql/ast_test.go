@@ -765,7 +765,18 @@ func TestConditionExpr(t *testing.T) {
 		{s: `4`, err: `invalid condition expression: 4`},
 		{s: `time >= 'today'`, err: `invalid operation: time and *influxql.StringLiteral are not compatible`},
 		{s: `time != '2000-01-01T00:00:00Z'`, err: `invalid time comparison operator: !=`},
-		{s: `host = 'server01' OR (time >= now() - 10m AND host = 'server02')`, err: `cannot use OR with time conditions`},
+		// This query makes no logical sense, but it's common enough that we pretend
+		// it does. Technically, this should be illegal because the AND has higher precedence
+		// than the OR so the AND only applies to the server02 tag, but a person's intention
+		// is to have it apply to both and previous versions worked that way.
+		{s: `host = 'server01' OR host = 'server02' AND time >= now() - 10m`,
+			cond: `host = 'server01' OR host = 'server02'`,
+			min:  mustParseTime("1999-12-31T23:50:00Z")},
+		// TODO(jsternberg): This should be an error, but we can't because the above query
+		// needs to work. Until we can work a way for the above to work or at least get
+		// a warning message for people to transition to a correct syntax, the bad behavior
+		// stays.
+		//{s: `host = 'server01' OR (time >= now() - 10m AND host = 'server02')`, err: `cannot use OR with time conditions`},
 		{s: `value AND host = 'server01'`, err: `invalid condition expression: value`},
 		{s: `host = 'server01' OR (value)`, err: `invalid condition expression: value`},
 		{s: `time > '2262-04-11 23:47:17'`, err: `time 2262-04-11T23:47:17Z overflows time literal`},

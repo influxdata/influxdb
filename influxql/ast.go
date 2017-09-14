@@ -4836,11 +4836,8 @@ func ConditionExpr(cond Expr, valuer Valuer) (Expr, TimeRange, error) {
 				return nil, TimeRange{}, err
 			}
 
-			// If either of the two expressions has a time range and we are combining
-			// them with OR, return an error since this isn't allowed.
-			if cond.Op == OR && !(lhsTime.IsZero() && rhsTime.IsZero()) {
-				return nil, TimeRange{}, errors.New("cannot use OR with time conditions")
-			}
+			// Always intersect the time range even if it makes no sense.
+			// There is no such thing as using OR with a time range.
 			timeRange := lhsTime.Intersect(rhsTime)
 
 			// Combine the left and right expression.
