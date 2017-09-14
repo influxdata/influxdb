@@ -167,6 +167,21 @@ func (fs *FileSet) LastContiguousIndexFilesByLevel(level int) []*IndexFile {
 	return a
 }
 
+/*
+// SeriesIDIterator returns an iterator over all series in the index.
+func (fs *FileSet) SeriesIDIterator() SeriesIDIterator {
+	a := make([]SeriesIDIterator, 0, len(fs.files))
+	for _, f := range fs.files {
+		itr := f.SeriesIDIterator()
+		if itr == nil {
+			continue
+		}
+		a = append(a, itr)
+	}
+	return FilterUndeletedSeriesIDIterator(MergeSeriesIDIterators(a...))
+}
+*/
+
 // Measurement returns a measurement by name.
 func (fs *FileSet) Measurement(name []byte) MeasurementElem {
 	for _, f := range fs.files {
@@ -656,6 +671,18 @@ func (fs *FileSet) measurementNamesByTagFilter(op influxql.Token, key, val strin
 	bytesutil.Sort(names)
 	return names
 }
+
+/*
+// HasSeries returns true if the series exists and is not tombstoned.
+func (fs *FileSet) HasSeries(name []byte, tags models.Tags, buf []byte) bool {
+	for _, f := range fs.files {
+		if exists, tombstoned := f.HasSeries(name, tags, buf); exists {
+			return !tombstoned
+		}
+	}
+	return false
+}
+*/
 
 // MeasurementsSketches returns the merged measurement sketches for the FileSet.
 func (fs *FileSet) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {

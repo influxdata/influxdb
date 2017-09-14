@@ -176,6 +176,7 @@ func (i *Index) Open() error {
 	// Mark opened.
 	i.opened = true
 	i.logger.Info(fmt.Sprintf("index opened with %d partitions", len(i.partitions)))
+
 	return nil
 }
 
