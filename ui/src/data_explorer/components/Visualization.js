@@ -59,6 +59,7 @@ class Visualization extends Component {
       activeQueryIndex,
       isInDataExplorer,
       resizerBottomHeight,
+      errorThrown,
     } = this.props
     const {source: {links: {proxy}}} = this.context
     const {view} = this.state
@@ -73,6 +74,10 @@ class Visualization extends Component {
       return {host: [proxy], text: s.text, id: s.id, queryConfig: s.queryConfig}
     })
 
+    const activeQuery = queries[activeQueryIndex]
+    const defaultQuery = queries[0]
+    const query = activeQuery || defaultQuery
+
     return (
       <div className="graph" style={{height}}>
         <VisHeader
@@ -80,6 +85,8 @@ class Visualization extends Component {
           view={view}
           onToggleView={this.handleToggleView}
           name={cellName}
+          query={query}
+          errorThrown={errorThrown}
         />
         <div
           className={classnames({
@@ -90,13 +97,13 @@ class Visualization extends Component {
           <VisView
             view={view}
             axes={axes}
+            query={query}
             queries={queries}
             templates={templates}
             cellType={cellType}
             autoRefresh={autoRefresh}
             heightPixels={heightPixels}
             editQueryStatus={editQueryStatus}
-            activeQueryIndex={activeQueryIndex}
             isInDataExplorer={isInDataExplorer}
             resizerBottomHeight={resizerBottomHeight}
           />
@@ -148,6 +155,7 @@ Visualization.propTypes = {
     }),
   }),
   resizerBottomHeight: number,
+  errorThrown: func.isRequired,
 }
 
 export default Visualization

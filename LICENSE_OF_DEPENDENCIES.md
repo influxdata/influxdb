@@ -391,6 +391,7 @@
 * domutils 1.1.6 [Unknown](http://github.com/FB55/domutils)
 * domutils 1.5.1 [Unknown](http://github.com/FB55/domutils)
 * dot-prop 3.0.0 [MIT](https://github.com/sindresorhus/dot-prop)
+* download 1.4.7 [MIT](https://github.com/rndme/download)
 * dygraphs 1.1.1 [Apache;BSD;MIT;MPL](http://github.com/danvk/dygraphs)
 * ecc-jsbn 0.1.1 [MIT](https://github.com/quartzjer/ecc-jsbn)
 * ee-first 1.1.1 [MIT](https://github.com/jonathanong/ee-first)
