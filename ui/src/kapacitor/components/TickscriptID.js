@@ -14,7 +14,7 @@ class TickscriptID extends Component {
         autoFocus={true}
         value={id}
         onChange={onChangeID}
-        placeholder="Name your tickscript"
+        placeholder="ID your TICKscript"
         spellCheck={false}
         autoComplete={false}
       />
@@ -24,7 +24,7 @@ class TickscriptID extends Component {
 
 export const TickscriptStaticID = ({id}) =>
   <h1
-    className="page-header__title page-header kapacitor-theme"
+    className="page-header--editing kapacitor-theme"
     style={{display: 'flex', justifyContent: 'baseline'}}
   >
     {id}

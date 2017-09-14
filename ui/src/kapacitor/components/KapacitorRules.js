@@ -4,6 +4,7 @@ import {Link} from 'react-router'
 import NoKapacitorError from 'shared/components/NoKapacitorError'
 import SourceIndicator from 'shared/components/SourceIndicator'
 import KapacitorRulesTable from 'src/kapacitor/components/KapacitorRulesTable'
+import TasksTable from 'src/kapacitor/components/TasksTable'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 const KapacitorRules = ({
@@ -40,13 +41,17 @@ const KapacitorRules = ({
     )
   }
 
-  const tableHeader =
-    rules.length === 1 ? '1 Alert Rule' : `${rules.length} Alert Rules`
+  const rulez = rules.filter(r => r.query)
+  const tasks = rules.filter(r => !r.query)
+
+  const rHeader = `${rulez.length} Alert Rule${rulez.length === 1 ? '' : 's'}`
+  const tHeader = `${tasks.length} TICKscript${tasks.length === 1 ? '' : 's'}`
+
   return (
     <PageContents source={source}>
       <div className="panel-heading u-flex u-ai-center u-jc-space-between">
         <h2 className="panel-title">
-          {tableHeader}
+          {rHeader}
         </h2>
         <div className="u-flex u-ai-center u-jc-space-between">
           <Link
@@ -56,20 +61,40 @@ const KapacitorRules = ({
           >
             Build Rule
           </Link>
-          <Link
-            to={`/sources/${source.id}/tickscript/new`}
-            className="btn btn-sm btn-info"
-          >
-            Write TICKscript
-          </Link>
         </div>
       </div>
       <KapacitorRulesTable
         source={source}
-        rules={rules}
+        rules={rulez}
         onDelete={onDelete}
         onChangeRuleStatus={onChangeRuleStatus}
       />
+
+      <div className="row">
+        <div className="col-md-12">
+          <div className="panel panel-minimal">
+            <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+              <h2 className="panel-title">
+                {tHeader}
+              </h2>
+              <div className="u-flex u-ai-center u-jc-space-between">
+                <Link
+                  to={`/sources/${source.id}/tickscript/new`}
+                  className="btn btn-sm btn-info"
+                >
+                  Write TICKscript
+                </Link>
+              </div>
+            </div>
+            <TasksTable
+              source={source}
+              tasks={tasks}
+              onDelete={onDelete}
+              onChangeRuleStatus={onChangeRuleStatus}
+            />
+          </div>
+        </div>
+      </div>
     </PageContents>
   )
 }

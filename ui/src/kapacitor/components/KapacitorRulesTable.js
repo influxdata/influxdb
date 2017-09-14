@@ -5,7 +5,7 @@ import _ from 'lodash'
 import {KAPACITOR_RULES_TABLE} from 'src/kapacitor/constants/tableSizing'
 const {
   colName,
-  colType,
+  colTrigger,
   colMessage,
   colAlerts,
   colEnabled,
@@ -18,7 +18,7 @@ const KapacitorRulesTable = ({rules, source, onDelete, onChangeRuleStatus}) =>
       <thead>
         <tr>
           <th style={{width: colName}}>Name</th>
-          <th style={{width: colType}}>Rule Type</th>
+          <th style={{width: colTrigger}}>Rule Trigger</th>
           <th style={{width: colMessage}}>Message</th>
           <th style={{width: colAlerts}}>Alerts</th>
           <th style={{width: colEnabled}} className="text-center">
@@ -50,7 +50,7 @@ const RuleRow = ({rule, source, onDelete, onChangeRuleStatus}) =>
     <td style={{width: colName}} className="monotype">
       <RuleTitle rule={rule} source={source} />
     </td>
-    <td style={{width: colType}} className="monotype">
+    <td style={{width: colTrigger}} className="monotype">
       {rule.trigger}
     </td>
     <td className="monotype">

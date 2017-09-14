@@ -34,7 +34,7 @@ const TickscriptHeader = ({
         />
         <button
           className="btn btn-success btn-sm"
-          title={id ? '' : 'Name your Tickscript to save'}
+          title={id ? '' : 'ID your TICKscript to save'}
           onClick={onSave}
           disabled={!id}
         >
