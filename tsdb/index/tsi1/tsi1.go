@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 
-	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
 )
@@ -341,204 +340,143 @@ func (p tagValueMergeElem) Deleted() bool {
 	return p[0].Deleted()
 }
 
-// SeriesElem represents a generic series element.
-type SeriesElem interface {
-	Name() []byte
-	Tags() models.Tags
-	Deleted() bool
-
-	// InfluxQL expression associated with series during filtering.
-	Expr() influxql.Expr
+type SeriesIDElem struct {
+	SeriesID uint32
+	Deleted  bool
+	Expr     influxql.Expr
 }
 
-// SeriesElemKey encodes e as a series key.
-func SeriesElemKey(e SeriesElem) []byte {
-	name, tags := e.Name(), e.Tags()
-
-	// TODO: Precompute allocation size.
-	// FIXME: Handle escaping.
-
-	var buf []byte
-	buf = append(buf, name...)
-	for _, t := range tags {
-		buf = append(buf, ',')
-		buf = append(buf, t.Key...)
-		buf = append(buf, '=')
-		buf = append(buf, t.Value...)
-	}
-	return buf
+// SeriesIDIterator represents a iterator over a list of series ids.
+type SeriesIDIterator interface {
+	Next() SeriesIDElem
 }
 
-// CompareSeriesElem returns -1 if a < b, 1 if a > b, and 0 if equal.
-func CompareSeriesElem(a, b SeriesElem) int {
-	if cmp := bytes.Compare(a.Name(), b.Name()); cmp != 0 {
-		return cmp
-	}
-	return models.CompareTags(a.Tags(), b.Tags())
-}
-
-// seriesElem represents an in-memory implementation of SeriesElem.
-type seriesElem struct {
-	name    []byte
-	tags    models.Tags
-	deleted bool
-}
-
-func (e *seriesElem) Name() []byte        { return e.name }
-func (e *seriesElem) Tags() models.Tags   { return e.tags }
-func (e *seriesElem) Deleted() bool       { return e.deleted }
-func (e *seriesElem) Expr() influxql.Expr { return nil }
-
-// SeriesIterator represents a iterator over a list of series.
-type SeriesIterator interface {
-	Next() SeriesElem
-}
-
-// MergeSeriesIterators returns an iterator that merges a set of iterators.
+// MergeSeriesIDIterators returns an iterator that merges a set of iterators.
 // Iterators that are first in the list take precendence and a deletion by those
 // early iterators will invalidate elements by later iterators.
-func MergeSeriesIterators(itrs ...SeriesIterator) SeriesIterator {
+func MergeSeriesIDIterators(itrs ...SeriesIDIterator) SeriesIDIterator {
 	if n := len(itrs); n == 0 {
 		return nil
 	} else if n == 1 {
 		return itrs[0]
 	}
 
-	return &seriesMergeIterator{
-		buf:  make([]SeriesElem, len(itrs)),
+	return &seriesIDMergeIterator{
+		buf:  make([]SeriesIDElem, len(itrs)),
 		itrs: itrs,
 	}
 }
 
-// seriesMergeIterator is an iterator that merges multiple iterators together.
-type seriesMergeIterator struct {
-	buf  []SeriesElem
-	itrs []SeriesIterator
+// seriesIDMergeIterator is an iterator that merges multiple iterators together.
+type seriesIDMergeIterator struct {
+	buf  []SeriesIDElem
+	itrs []SeriesIDIterator
 }
 
 // Next returns the element with the next lowest name/tags across the iterators.
-//
-// If multiple iterators contain the same name/tags then the first is returned
-// and the remaining ones are skipped.
-func (itr *seriesMergeIterator) Next() SeriesElem {
-	// Find next lowest name/tags amongst the buffers.
-	var name []byte
-	var tags models.Tags
-	for i, buf := range itr.buf {
+func (itr *seriesIDMergeIterator) Next() SeriesIDElem {
+	// Find next lowest id amongst the buffers.
+	var elem SeriesIDElem
+	for i := range itr.buf {
+		buf := &itr.buf
+
 		// Fill buffer.
-		if buf == nil {
-			if buf = itr.itrs[i].Next(); buf != nil {
-				itr.buf[i] = buf
-			} else {
+		if buf.SeriesID == 0 {
+			elem := itr.itrs[i].Next()
+			if elem.SeriesID == 0 {
 				continue
 			}
+			itr.buf[i] = elem
 		}
 
-		// If the name is not set the pick the first non-empty name.
-		if name == nil {
-			name, tags = buf.Name(), buf.Tags()
-			continue
-		}
-
-		// Set name/tags if they are lower than what has been seen.
-		if cmp := bytes.Compare(buf.Name(), name); cmp == -1 || (cmp == 0 && models.CompareTags(buf.Tags(), tags) == -1) {
-			name, tags = buf.Name(), buf.Tags()
+		if elem.SeriesID == 0 || buf.SeriesID < elem.SeriesID {
+			elem = buf
 		}
 	}
 
-	// Return nil if no elements remaining.
-	if name == nil {
+	// Return EOF if no elements remaining.
+	if seriesID == 0 {
 		return nil
 	}
 
-	// Refill buffer.
-	var e SeriesElem
-	for i, buf := range itr.buf {
-		if buf == nil || !bytes.Equal(buf.Name(), name) || models.CompareTags(buf.Tags(), tags) != 0 {
-			continue
+	// Clear matching buffers.
+	for i := range itr.buf {
+		if itr.buf[i].SeriesID == elem.SeriesID {
+			itr.buf[i].SeriesID = 0
 		}
-
-		// Copy first matching buffer to the return buffer.
-		if e == nil {
-			e = buf
-		}
-
-		// Clear buffer.
-		itr.buf[i] = nil
 	}
-	return e
+	return elem
 }
 
-// IntersectSeriesIterators returns an iterator that only returns series which
+// IntersectSeriesIDIterators returns an iterator that only returns series which
 // occur in both iterators. If both series have associated expressions then
 // they are combined together.
-func IntersectSeriesIterators(itr0, itr1 SeriesIterator) SeriesIterator {
+func IntersectSeriesIDIterators(itr0, itr1 SeriesIDIterator) SeriesIDIterator {
 	if itr0 == nil || itr1 == nil {
 		return nil
 	}
 
-	return &seriesIntersectIterator{itrs: [2]SeriesIterator{itr0, itr1}}
+	return &seriesIDIntersectIterator{itrs: [2]SeriesIDIterator{itr0, itr1}}
 }
 
-// seriesIntersectIterator is an iterator that merges two iterators together.
-type seriesIntersectIterator struct {
-	e    seriesExprElem
-	buf  [2]SeriesElem
-	itrs [2]SeriesIterator
+// seriesIDIntersectIterator is an iterator that merges two iterators together.
+type seriesIDIntersectIterator struct {
+	buf  [2]SeriesIDElem
+	itrs [2]SeriesIDIterator
 }
 
 // Next returns the next element which occurs in both iterators.
-func (itr *seriesIntersectIterator) Next() (e SeriesElem) {
+func (itr *seriesIDIntersectIterator) Next() SeriesIDElem {
 	for {
 		// Fill buffers.
-		if itr.buf[0] == nil {
+		if itr.buf[0].SeriesID == 0 {
 			itr.buf[0] = itr.itrs[0].Next()
 		}
-		if itr.buf[1] == nil {
+		if itr.buf[1].SeriesID == 0 {
 			itr.buf[1] = itr.itrs[1].Next()
 		}
 
 		// Exit if either buffer is still empty.
-		if itr.buf[0] == nil || itr.buf[1] == nil {
-			return nil
+		if itr.buf[0].SeriesID == 0 || itr.buf[1].SeriesID == 0 {
+			return SeriesIDElem{}
 		}
 
 		// Skip if both series are not equal.
-		if cmp := CompareSeriesElem(itr.buf[0], itr.buf[1]); cmp == -1 {
-			itr.buf[0] = nil
+		if a, b := itr.buf[0].SeriesID, itr.buf[1].SeriesID; a < b {
+			itr.buf[0].SeriesID = 0
 			continue
-		} else if cmp == 1 {
-			itr.buf[1] = nil
+		} else if a > b {
+			itr.buf[1].SeriesID = 0
 			continue
 		}
 
 		// Merge series together if equal.
-		itr.e.SeriesElem = itr.buf[0]
+		elem = itr.buf[0]
 
 		// Attach expression.
-		expr0 := itr.buf[0].Expr()
-		expr1 := itr.buf[1].Expr()
+		expr0 := itr.buf[0].Expr
+		expr1 := itr.buf[1].Expr
 		if expr0 == nil {
-			itr.e.expr = expr1
+			elem.Expr = expr1
 		} else if expr1 == nil {
-			itr.e.expr = expr0
+			elem.Expr = expr0
 		} else {
-			itr.e.expr = influxql.Reduce(&influxql.BinaryExpr{
+			elem.Expr = influxql.Reduce(&influxql.BinaryExpr{
 				Op:  influxql.AND,
 				LHS: expr0,
 				RHS: expr1,
 			}, nil)
 		}
 
-		itr.buf[0], itr.buf[1] = nil, nil
-		return &itr.e
+		itr.buf[0].SeriesID, itr.buf[1].SeriesID = 0, 0
+		return elem
 	}
 }
 
-// UnionSeriesIterators returns an iterator that returns series from both
+// UnionSeriesIDIterators returns an iterator that returns series from both
 // both iterators. If both series have associated expressions then they are
 // combined together.
-func UnionSeriesIterators(itr0, itr1 SeriesIterator) SeriesIterator {
+func UnionSeriesIDIterators(itr0, itr1 SeriesIDIterator) SeriesIDIterator {
 	// Return other iterator if either one is nil.
 	if itr0 == nil {
 		return itr1
@@ -546,182 +484,133 @@ func UnionSeriesIterators(itr0, itr1 SeriesIterator) SeriesIterator {
 		return itr0
 	}
 
-	return &seriesUnionIterator{itrs: [2]SeriesIterator{itr0, itr1}}
+	return &seriesIDUnionIterator{itrs: [2]SeriesIDIterator{itr0, itr1}}
 }
 
-// seriesUnionIterator is an iterator that unions two iterators together.
-type seriesUnionIterator struct {
-	e    seriesExprElem
-	buf  [2]SeriesElem
-	itrs [2]SeriesIterator
+// seriesIDUnionIterator is an iterator that unions two iterators together.
+type seriesIDUnionIterator struct {
+	buf  [2]SeriesIDElem
+	itrs [2]SeriesIDIterator
 }
 
 // Next returns the next element which occurs in both iterators.
-func (itr *seriesUnionIterator) Next() (e SeriesElem) {
+func (itr *seriesIDUnionIterator) Next() SeriesIDElem {
 	// Fill buffers.
-	if itr.buf[0] == nil {
+	if itr.buf[0].SeriesID == 0 {
 		itr.buf[0] = itr.itrs[0].Next()
 	}
-	if itr.buf[1] == nil {
+	if itr.buf[1].SeriesID == 0 {
 		itr.buf[1] = itr.itrs[1].Next()
 	}
 
-	// Return the other iterator if either one is empty.
-	if itr.buf[0] == nil {
-		e, itr.buf[1] = itr.buf[1], nil
-		return e
-	} else if itr.buf[1] == nil {
-		e, itr.buf[0] = itr.buf[0], nil
-		return e
-	}
-
-	// Return lesser series.
-	if cmp := CompareSeriesElem(itr.buf[0], itr.buf[1]); cmp == -1 {
-		e, itr.buf[0] = itr.buf[0], nil
-		return e
-	} else if cmp == 1 {
-		e, itr.buf[1] = itr.buf[1], nil
-		return e
+	// Return non-zero or lesser series.
+	if a, b := itr.buf[0].SeriesID, itr.buf[1].SeriesID; b == 0 || a < b {
+		elem := itr.buf[0]
+		itr.buf[0].SeriesID = 0
+		return elem
+	} else if a == 0 || a > b {
+		elem := itr.buf[1]
+		itr.buf[1].SeriesID = 0
+		return elem
 	}
 
 	// Attach element.
-	itr.e.SeriesElem = itr.buf[0]
+	elem := itr.buf[0]
 
 	// Attach expression.
 	expr0 := itr.buf[0].Expr()
 	expr1 := itr.buf[1].Expr()
 	if expr0 != nil && expr1 != nil {
-		itr.e.expr = influxql.Reduce(&influxql.BinaryExpr{
+		elem.Expr = influxql.Reduce(&influxql.BinaryExpr{
 			Op:  influxql.OR,
 			LHS: expr0,
 			RHS: expr1,
 		}, nil)
 	} else {
-		itr.e.expr = nil
+		elem.Expr = nil
 	}
 
-	itr.buf[0], itr.buf[1] = nil, nil
-	return &itr.e
+	itr.buf[0].SeriesID, itr.buf[1].SeriesID = 0, 0
+	return &elem
 }
 
-// DifferenceSeriesIterators returns an iterator that only returns series which
+// DifferenceSeriesIDIterators returns an iterator that only returns series which
 // occur the first iterator but not the second iterator.
-func DifferenceSeriesIterators(itr0, itr1 SeriesIterator) SeriesIterator {
+func DifferenceSeriesIDIterators(itr0, itr1 SeriesIDIterator) SeriesIDIterator {
 	if itr0 != nil && itr1 == nil {
 		return itr0
 	} else if itr0 == nil {
 		return nil
 	}
-	return &seriesDifferenceIterator{itrs: [2]SeriesIterator{itr0, itr1}}
+	return &seriesIDDifferenceIterator{itrs: [2]SeriesIDIterator{itr0, itr1}}
 }
 
-// seriesDifferenceIterator is an iterator that merges two iterators together.
-type seriesDifferenceIterator struct {
-	buf  [2]SeriesElem
-	itrs [2]SeriesIterator
+// seriesIDDifferenceIterator is an iterator that merges two iterators together.
+type seriesIDDifferenceIterator struct {
+	buf  [2]SeriesIDElem
+	itrs [2]SeriesIDIterator
 }
 
 // Next returns the next element which occurs only in the first iterator.
-func (itr *seriesDifferenceIterator) Next() (e SeriesElem) {
+func (itr *seriesIDDifferenceIterator) Next() SeriesElem {
 	for {
 		// Fill buffers.
-		if itr.buf[0] == nil {
+		if itr.buf[0].SeriesID == 0 {
 			itr.buf[0] = itr.itrs[0].Next()
 		}
-		if itr.buf[1] == nil {
+		if itr.buf[1].SeriesID == 0 {
 			itr.buf[1] = itr.itrs[1].Next()
 		}
 
 		// Exit if first buffer is still empty.
-		if itr.buf[0] == nil {
-			return nil
-		} else if itr.buf[1] == nil {
-			e, itr.buf[0] = itr.buf[0], nil
-			return e
+		if itr.buf[0].SeriesID == 0 {
+			return SeriesIDElem{}
+		} else if itr.buf[1].SeriesID == 0 {
+			elem := itr.buf[0]
+			itr.buf[0].SeriesID = 0
+			return elem
 		}
 
 		// Return first series if it's less.
 		// If second series is less then skip it.
 		// If both series are equal then skip both.
-		if cmp := CompareSeriesElem(itr.buf[0], itr.buf[1]); cmp == -1 {
-			e, itr.buf[0] = itr.buf[0], nil
-			return e
-		} else if cmp == 1 {
-			itr.buf[1] = nil
+		if a, b := itr.buf[0].SeriesID, itr.buf[1].SeriesID; a < b {
+			elem := itr.buf[0]
+			itr.buf[0].SeriesID = 0
+			return elem
+		} else if a > b {
+			itr.buf[1].SeriesID = 0
 			continue
 		} else {
-			itr.buf[0], itr.buf[1] = nil, nil
+			itr.buf[0].SeriesID, itr.buf[1].SeriesID = 0, 0
 			continue
 		}
 	}
 }
 
-// filterUndeletedSeriesIterator returns all series which are not deleted.
-type filterUndeletedSeriesIterator struct {
-	itr SeriesIterator
+// filterUndeletedSeriesIDIterator returns all series which are not deleted.
+type filterUndeletedSeriesIDIterator struct {
+	itr SeriesIDIterator
 }
 
-// FilterUndeletedSeriesIterator returns an iterator which filters all deleted series.
-func FilterUndeletedSeriesIterator(itr SeriesIterator) SeriesIterator {
+// FilterUndeletedSeriesIDIterator returns an iterator which filters all deleted series.
+func FilterUndeletedSeriesIDIterator(itr SeriesIDIterator) SeriesIDIterator {
 	if itr == nil {
 		return nil
 	}
-	return &filterUndeletedSeriesIterator{itr: itr}
+	return &filterUndeletedSeriesIDIterator{itr: itr}
 }
 
-func (itr *filterUndeletedSeriesIterator) Next() SeriesElem {
+func (itr *filterUndeletedSeriesIDIterator) Next() SeriesIDElem {
 	for {
 		e := itr.itr.Next()
-		if e == nil {
-			return nil
-		} else if e.Deleted() {
+		if e.SeriesID == 0 {
+			return SeriesIDElem{}
+		} else if e.Deleted {
 			continue
 		}
 		return e
 	}
-}
-
-// seriesExprElem holds a series and its associated filter expression.
-type seriesExprElem struct {
-	SeriesElem
-	expr influxql.Expr
-}
-
-// Expr returns the associated expression.
-func (e *seriesExprElem) Expr() influxql.Expr { return e.expr }
-
-// seriesExprIterator is an iterator that attaches an associated expression.
-type seriesExprIterator struct {
-	itr SeriesIterator
-	e   seriesExprElem
-}
-
-// newSeriesExprIterator returns a new instance of seriesExprIterator.
-func newSeriesExprIterator(itr SeriesIterator, expr influxql.Expr) SeriesIterator {
-	if itr == nil {
-		return nil
-	}
-
-	return &seriesExprIterator{
-		itr: itr,
-		e: seriesExprElem{
-			expr: expr,
-		},
-	}
-}
-
-// Next returns the next element in the iterator.
-func (itr *seriesExprIterator) Next() SeriesElem {
-	itr.e.SeriesElem = itr.itr.Next()
-	if itr.e.SeriesElem == nil {
-		return nil
-	}
-	return &itr.e
-}
-
-// seriesIDIterator represents a iterator over a list of series ids.
-type seriesIDIterator interface {
-	next() uint32
 }
 
 // writeTo writes write v into w. Updates n.

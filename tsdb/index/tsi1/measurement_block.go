@@ -141,8 +141,8 @@ func (blk *MeasurementBlock) Iterator() MeasurementIterator {
 	return &blockMeasurementIterator{data: blk.data[MeasurementFillSize:]}
 }
 
-// seriesIDIterator returns an iterator for all series ids in a measurement.
-func (blk *MeasurementBlock) seriesIDIterator(name []byte) seriesIDIterator {
+// SeriesIDIterator returns an iterator for all series ids in a measurement.
+func (blk *MeasurementBlock) SeriesIDIterator(name []byte) SeriesIDIterator {
 	// Find measurement element.
 	e, ok := blk.Elem(name)
 	if !ok {
