@@ -768,6 +768,12 @@ func (c *compiledStatement) subquery(stmt *influxql.SelectStatement) error {
 		return err
 	}
 
+	// Substitute now() into the subquery condition. Then use ConditionExpr to
+	// validate the expression. Do not store the results. We have no way to store
+	// and read those results at the moment.
+	valuer := influxql.NowValuer{Now: c.Options.Now, Location: stmt.Location}
+	stmt.Condition = influxql.Reduce(stmt.Condition, &valuer)
+
 	// If the ordering is different and the sort field was specified for the subquery,
 	// throw an error.
 	if len(stmt.SortFields) != 0 && subquery.Ascending != c.Ascending {
