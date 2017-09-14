@@ -1,19 +1,19 @@
 import React, {PropTypes, Component} from 'react'
 
-class TickscriptName extends Component {
+class TickscriptID extends Component {
   constructor(props) {
     super(props)
   }
 
   render() {
-    const {onChangeName, name} = this.props
+    const {onChangeID, id} = this.props
 
     return (
       <input
         className="page-header--editing kapacitor-theme"
         autoFocus={true}
-        value={name}
-        onChange={onChangeName}
+        value={id}
+        onChange={onChangeID}
         placeholder="Name your tickscript"
         spellCheck={false}
         autoComplete={false}
@@ -22,23 +22,23 @@ class TickscriptName extends Component {
   }
 }
 
-export const TickscriptStaticName = ({name}) =>
+export const TickscriptStaticID = ({id}) =>
   <h1
     className="page-header__title page-header kapacitor-theme"
     style={{display: 'flex', justifyContent: 'baseline'}}
   >
-    {name}
+    {id}
   </h1>
 
 const {func, string} = PropTypes
 
-TickscriptName.propTypes = {
-  onChangeName: func.isRequired,
-  name: string.isRequired,
+TickscriptID.propTypes = {
+  onChangeID: func.isRequired,
+  id: string.isRequired,
 }
 
-TickscriptStaticName.propTypes = {
-  name: string.isRequired,
+TickscriptStaticID.propTypes = {
+  id: string.isRequired,
 }
 
-export default TickscriptName
+export default TickscriptID

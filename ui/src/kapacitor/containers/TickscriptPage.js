@@ -88,12 +88,12 @@ class TickscriptPage extends Component {
     this.setState({task: {...this.state.task, dbrps}})
   }
 
-  handleChangeType = type => {
-    return () => this.setState({task: {...this.state.task, type}})
+  handleChangeType = type => () => {
+    this.setState({task: {...this.state.task, type}})
   }
 
-  handleChangeName = e => {
-    this.setState({task: {...this.state.task, name: e.target.value}})
+  handleChangeID = e => {
+    this.setState({task: {...this.state.task, id: e.target.value}})
   }
 
   render() {
@@ -110,6 +110,7 @@ class TickscriptPage extends Component {
         onSelectDbrps={this.handleSelectDbrps}
         onChangeScript={this.handleChangeScript}
         onChangeType={this.handleChangeType}
+        onChangeID={this.handleChangeID}
       />
     )
   }
