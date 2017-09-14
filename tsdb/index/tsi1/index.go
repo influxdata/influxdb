@@ -67,9 +67,10 @@ type Index struct {
 	opened  bool
 	options tsdb.EngineOptions
 
-	activeLogFile *LogFile // current log file
-	fileSet       *FileSet // current file set
-	seq           int      // file id sequence
+	sfile         *SeriesFile // series lookup file
+	activeLogFile *LogFile    // current log file
+	fileSet       *FileSet    // current file set
+	seq           int         // file id sequence
 
 	// Compaction management
 	levels          []CompactionLevel // compaction levels
@@ -216,7 +217,7 @@ func (i *Index) Open() error {
 
 // openLogFile opens a log file and appends it to the index.
 func (i *Index) openLogFile(path string) (*LogFile, error) {
-	f := NewLogFile(path)
+	f := NewLogFile(i.sfile, path)
 	if err := f.Open(); err != nil {
 		return nil, err
 	}
@@ -499,7 +500,7 @@ func (i *Index) CreateSeriesListIfNotExists(_, names [][]byte, tagsSlice []model
 	defer fs.Release()
 
 	// Filter out existing series. Exit if no new series exist.
-	names, tagsSlice = fs.FilterNamesTags(names, tagsSlice)
+	names, tagsSlice = i.sfile.FilterSeriesList(names, tagsSlice)
 	if len(names) == 0 {
 		return nil
 	}
@@ -587,14 +588,6 @@ func (i *Index) DropSeries(key []byte) error {
 		return err
 	}
 	return nil
-}
-
-// SeriesSketches returns the two sketches for the index by merging all
-// instances sketches from TSI files and the WAL.
-func (i *Index) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
-	fs := i.RetainFileSet()
-	defer fs.Release()
-	return fs.SeriesSketches()
 }
 
 // MeasurementsSketches returns the two sketches for the index by merging all
@@ -927,7 +920,7 @@ func (i *Index) compactToLevel(files []*IndexFile, level int) {
 
 	// Compact all index files to new index file.
 	lvl := i.levels[level]
-	n, err := IndexFiles(files).CompactTo(f, lvl.M, lvl.K)
+	n, err := IndexFiles(files).CompactTo(f, i.sfile, lvl.M, lvl.K)
 	if err != nil {
 		logger.Error("cannot compact index files", zap.Error(err))
 		return
@@ -1124,7 +1117,7 @@ type seriesPointIterator struct {
 	fs       *FileSet
 	fieldset *tsdb.MeasurementFieldSet
 	mitr     MeasurementIterator
-	sitr     SeriesIterator
+	sitr     SeriesIDIterator
 	opt      query.IteratorOptions
 
 	point query.FloatPoint // reusable point
@@ -1173,16 +1166,20 @@ func (itr *seriesPointIterator) Next() (*query.FloatPoint, error) {
 		}
 
 		// Read next series element.
-		e := itr.sitr.Next()
-		if e == nil {
+		elem := itr.sitr.Next()
+		if elem.SeriesID == 0 {
 			itr.sitr = nil
 			continue
 		}
 
 		// Convert to a key.
-		key := string(models.MakeKey(e.Name(), e.Tags()))
+		seriesKey := itr.fs.sfile.SeriesKey(elem.SeriesID)
+		if seriesKey == nil {
+			continue
+		}
 
 		// Write auxiliary fields.
+		key := string(ModelSeriesKey(seriesKey))
 		for i, f := range itr.opt.Aux {
 			switch f.Val {
 			case "key":

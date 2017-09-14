@@ -20,7 +20,10 @@ import (
 
 // Ensure log file can append series.
 func TestLogFile_AddSeries(t *testing.T) {
-	f := MustOpenLogFile()
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
+
+	f := MustOpenLogFile(sfile.SeriesFile)
 	defer f.Close()
 
 	// Add test data.
@@ -59,7 +62,10 @@ func TestLogFile_AddSeries(t *testing.T) {
 }
 
 func TestLogFile_SeriesStoredInOrder(t *testing.T) {
-	f := MustOpenLogFile()
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
+
+	f := MustOpenLogFile(sfile.SeriesFile)
 	defer f.Close()
 
 	// Generate and add test data
@@ -119,7 +125,10 @@ func TestLogFile_SeriesStoredInOrder(t *testing.T) {
 
 // Ensure log file can delete an existing measurement.
 func TestLogFile_DeleteMeasurement(t *testing.T) {
-	f := MustOpenLogFile()
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
+
+	f := MustOpenLogFile(sfile.SeriesFile)
 	defer f.Close()
 
 	// Add test data.
@@ -153,19 +162,19 @@ type LogFile struct {
 }
 
 // NewLogFile returns a new instance of LogFile with a temporary file path.
-func NewLogFile() *LogFile {
+func NewLogFile(sfile *tsi1.SeriesFile) *LogFile {
 	file, err := ioutil.TempFile("", "tsi1-log-file-")
 	if err != nil {
 		panic(err)
 	}
 	file.Close()
 
-	return &LogFile{LogFile: tsi1.NewLogFile(file.Name())}
+	return &LogFile{LogFile: tsi1.NewLogFile(sfile, file.Name())}
 }
 
 // MustOpenLogFile returns a new, open instance of LogFile. Panic on error.
-func MustOpenLogFile() *LogFile {
-	f := NewLogFile()
+func MustOpenLogFile(sfile *tsi1.SeriesFile) *LogFile {
+	f := NewLogFile(sfile)
 	if err := f.Open(); err != nil {
 		panic(err)
 	}
@@ -190,8 +199,8 @@ func (f *LogFile) Reopen() error {
 }
 
 // CreateLogFile creates a new temporary log file and adds a list of series.
-func CreateLogFile(series []Series) (*LogFile, error) {
-	f := MustOpenLogFile()
+func CreateLogFile(sfile *tsi1.SeriesFile, series []Series) (*LogFile, error) {
+	f := MustOpenLogFile(sfile)
 	for _, serie := range series {
 		if err := f.AddSeries(serie.Name, serie.Tags); err != nil {
 			return nil, err
@@ -202,10 +211,10 @@ func CreateLogFile(series []Series) (*LogFile, error) {
 
 // GenerateLogFile generates a log file from a set of series based on the count arguments.
 // Total series returned will equal measurementN * tagN * valueN.
-func GenerateLogFile(measurementN, tagN, valueN int) (*LogFile, error) {
+func GenerateLogFile(sfile *tsi1.SeriesFile, measurementN, tagN, valueN int) (*LogFile, error) {
 	tagValueN := pow(valueN, tagN)
 
-	f := MustOpenLogFile()
+	f := MustOpenLogFile(sfile)
 	for i := 0; i < measurementN; i++ {
 		name := []byte(fmt.Sprintf("measurement%d", i))
 
@@ -225,8 +234,8 @@ func GenerateLogFile(measurementN, tagN, valueN int) (*LogFile, error) {
 	return f, nil
 }
 
-func MustGenerateLogFile(measurementN, tagN, valueN int) *LogFile {
-	f, err := GenerateLogFile(measurementN, tagN, valueN)
+func MustGenerateLogFile(sfile *tsi1.SeriesFile, measurementN, tagN, valueN int) *LogFile {
+	f, err := GenerateLogFile(sfile, measurementN, tagN, valueN)
 	if err != nil {
 		panic(err)
 	}
@@ -234,8 +243,11 @@ func MustGenerateLogFile(measurementN, tagN, valueN int) *LogFile {
 }
 
 func benchmarkLogFile_AddSeries(b *testing.B, measurementN, seriesKeyN, seriesValueN int) {
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
+
 	b.StopTimer()
-	f := MustOpenLogFile()
+	f := MustOpenLogFile(sfile.SeriesFile)
 
 	type Datum struct {
 		Name []byte
@@ -288,7 +300,10 @@ func BenchmarkLogFile_WriteTo(b *testing.B) {
 	for _, seriesN := range []int{1000, 10000, 100000, 1000000} {
 		name := fmt.Sprintf("series=%d", seriesN)
 		b.Run(name, func(b *testing.B) {
-			f := MustOpenLogFile()
+			sfile := MustOpenSeriesFile()
+			defer sfile.Close()
+
+			f := MustOpenLogFile(sfile.SeriesFile)
 			defer f.Close()
 
 			// Estimate bloom filter size.
