@@ -179,6 +179,7 @@ func (*Dimension) node()       {}
 func (Dimensions) node()       {}
 func (*DurationLiteral) node() {}
 func (*IntegerLiteral) node()  {}
+func (*UnsignedLiteral) node() {}
 func (*Field) node()           {}
 func (Fields) node()           {}
 func (*Measurement) node()     {}
@@ -312,6 +313,7 @@ func (*Call) expr()            {}
 func (*Distinct) expr()        {}
 func (*DurationLiteral) expr() {}
 func (*IntegerLiteral) expr()  {}
+func (*UnsignedLiteral) expr() {}
 func (*NilLiteral) expr()      {}
 func (*NumberLiteral) expr()   {}
 func (*ParenExpr) expr()       {}
@@ -333,6 +335,7 @@ type Literal interface {
 func (*BooleanLiteral) literal()  {}
 func (*DurationLiteral) literal() {}
 func (*IntegerLiteral) literal()  {}
+func (*UnsignedLiteral) literal() {}
 func (*NilLiteral) literal()      {}
 func (*NumberLiteral) literal()   {}
 func (*RegexLiteral) literal()    {}
@@ -3272,6 +3275,15 @@ type IntegerLiteral struct {
 
 // String returns a string representation of the literal.
 func (l *IntegerLiteral) String() string { return fmt.Sprintf("%d", l.Val) }
+
+// UnsignedLiteral represents an unsigned literal. The parser will only use an unsigned literal if the parsed
+// integer is greater than math.MaxInt64.
+type UnsignedLiteral struct {
+	Val uint64
+}
+
+// String returns a string representation of the literal.
+func (l *UnsignedLiteral) String() string { return strconv.FormatUint(l.Val, 10) }
 
 // BooleanLiteral represents a boolean literal.
 type BooleanLiteral struct {
