@@ -36,10 +36,6 @@ type ring struct {
 	// len(partitions) <= len(continuum)
 	partitions []*partition
 
-	// A mapping of partition to location on the ring continuum. This is used
-	// to lookup a partition.
-	continuum []*partition
-
 	// Number of keys within the ring. This is used to provide a hint for
 	// allocating the return values in keys(). It will not be perfectly accurate
 	// since it doesn't consider adding duplicate keys, or trying to remove non-
@@ -59,20 +55,17 @@ func newring(n int) (*ring, error) {
 	}
 
 	r := ring{
-		continuum: make([]*partition, partitions), // maximum number of partitions.
+		partitions: make([]*partition, n), // maximum number of partitions.
 	}
 
 	// The trick here is to map N partitions to all points on the continuum,
 	// such that the first eight bits of a given hash will map directly to one
 	// of the N partitions.
-	for i := 0; i < len(r.continuum); i++ {
-		if (i == 0 || i%(partitions/n) == 0) && len(r.partitions) < n {
-			r.partitions = append(r.partitions, &partition{
-				store:          make(map[string]*entry),
-				entrySizeHints: make(map[uint64]int),
-			})
+	for i := 0; i < len(r.partitions); i++ {
+		r.partitions[i] = &partition{
+			store:          make(map[string]*entry),
+			entrySizeHints: make(map[uint64]int),
 		}
-		r.continuum[i] = r.partitions[len(r.partitions)-1]
 	}
 	return &r, nil
 }
@@ -92,7 +85,7 @@ func (r *ring) reset() {
 // getPartition retrieves the hash ring partition associated with the provided
 // key.
 func (r *ring) getPartition(key []byte) *partition {
-	return r.continuum[int(xxhash.Sum64(key)%partitions)]
+	return r.partitions[int(xxhash.Sum64(key)%partitions)]
 }
 
 // entry returns the entry for the given key.
