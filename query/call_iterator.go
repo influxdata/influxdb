@@ -1247,6 +1247,27 @@ func newMovingAverageIterator(input Iterator, n int, opt IteratorOptions) (Itera
 	}
 }
 
+// newExponentialMovingAverageIterator returns an iterator for
+// operating on an exp_moving_average() call.
+func newExponentialMovingAverageIterator(input Iterator, n int, opt IteratorOptions) (Iterator, error) {
+	switch input := input.(type) {
+	case FloatIterator:
+		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
+			fn := NewExponentialMovingAverageReducer(n)
+			return fn, fn
+		}
+		return newFloatStreamFloatIterator(input, createFn, opt), nil
+	case IntegerIterator:
+		createFn := func() (IntegerPointAggregator, FloatPointEmitter) {
+			fn := NewExponentialMovingAverageReducer(n)
+			return fn, fn
+		}
+		return newIntegerStreamFloatIterator(input, createFn, opt), nil
+	default:
+		return nil, fmt.Errorf("unsupported exponential moving average iterator type: %T", input)
+	}
+}
+
 // newCumulativeSumIterator returns an iterator for operating on a cumulative_sum() call.
 func newCumulativeSumIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 	switch input := input.(type) {

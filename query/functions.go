@@ -566,6 +566,76 @@ func (r *UnsignedMovingAverageReducer) Emit() []FloatPoint {
 	}
 }
 
+// ExponentialMovingAverageReducer calculates the
+// exponential moving average of the aggregated points.
+// It can aggregate both float and integer points.
+type ExponentialMovingAverageReducer struct {
+	decay float64 // the decay factor ( == 1/(age + 1) )
+	value float64 // current value of the moving average
+	count uint32  // number of aggregated samples
+	time  int64   // time of last sample
+}
+
+// NewExponentialMovingAverageReducer creates a new ExponentialMovingAverageReducer.
+func NewExponentialMovingAverageReducer(age int) *ExponentialMovingAverageReducer {
+	return &ExponentialMovingAverageReducer{
+		decay: 2 / (float64(age) + 1),
+	}
+}
+
+// exponentialMovingAverageWarmupSamples is the number of samples used to warm up
+// the exponential moving average calculation.
+//
+// For best results, the moving average should not be initialized to the
+// samples it sees immediately.  The book "Production and Operations
+// Analysis" by Steven Nahmias suggests initializing the moving average to
+// the mean of the first 10 samples.  Until the exponential moving average
+// reducer has seen this many samples, it is not "ready" to be queried for the
+// value of the moving average.
+const exponentialMovingAverageWarmupSamples = 10
+
+// aggregates aggregates a value to the reducer.
+func (r *ExponentialMovingAverageReducer) aggregate(value float64, time int64) {
+	r.count++
+	r.time = time
+	switch {
+	case r.count < exponentialMovingAverageWarmupSamples:
+		r.value += value
+	case r.count == exponentialMovingAverageWarmupSamples:
+		r.value = r.value / float64(exponentialMovingAverageWarmupSamples)
+		r.value = (value * r.decay) + (r.value * (1 - r.decay))
+	default:
+		r.value = (value * r.decay) + (r.value * (1 - r.decay))
+	}
+}
+
+// AggregateFloat aggregates a point into the reducer.
+func (r *ExponentialMovingAverageReducer) AggregateFloat(p *FloatPoint) {
+	r.aggregate(p.Value, p.Time)
+}
+
+// AggregateFloat aggregates a point into the reducer.
+func (r *ExponentialMovingAverageReducer) AggregateInteger(p *IntegerPoint) {
+	r.aggregate(float64(p.Value), p.Time)
+}
+
+// Emit emits the exponential moving average of the current window. Emit will
+// produce one point if there is enough data to fill a window, otherwise it will
+// produce zero points.
+func (r *ExponentialMovingAverageReducer) Emit() []FloatPoint {
+	if r.count <= exponentialMovingAverageWarmupSamples {
+		return []FloatPoint{}
+	}
+
+	return []FloatPoint{
+		{
+			Value:      r.value,
+			Time:       r.time,
+			Aggregated: r.count,
+		},
+	}
+}
+
 // FloatCumulativeSumReducer cumulates the values from each point.
 type FloatCumulativeSumReducer struct {
 	curr FloatPoint

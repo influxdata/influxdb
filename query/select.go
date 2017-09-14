@@ -492,7 +492,7 @@ func (b *exprIteratorBuilder) buildCallIterator(expr *influxql.Call) (Iterator, 
 		opt.Interval = Interval{}
 
 		return newHoltWintersIterator(input, opt, int(h.Val), int(m.Val), includeFitData, interval)
-	case "derivative", "non_negative_derivative", "difference", "non_negative_difference", "moving_average", "elapsed":
+	case "derivative", "non_negative_derivative", "difference", "non_negative_difference", "moving_average", "exp_moving_average", "elapsed":
 		if !opt.Interval.IsZero() {
 			if opt.Ascending {
 				opt.StartTime -= int64(opt.Interval.Duration)
@@ -528,6 +528,16 @@ func (b *exprIteratorBuilder) buildCallIterator(expr *influxql.Call) (Iterator, 
 				}
 			}
 			return newMovingAverageIterator(input, int(n.Val), opt)
+		case "exp_moving_average":
+			n := expr.Args[1].(*influxql.IntegerLiteral)
+			if n.Val > 1 && !opt.Interval.IsZero() {
+				if opt.Ascending {
+					opt.StartTime -= int64(opt.Interval.Duration) * (n.Val - 1)
+				} else {
+					opt.EndTime += int64(opt.Interval.Duration) * (n.Val - 1)
+				}
+			}
+			return newExponentialMovingAverageIterator(input, int(n.Val), opt)
 		}
 		panic(fmt.Sprintf("invalid series aggregate function: %s", expr.Name))
 	case "cumulative_sum":
