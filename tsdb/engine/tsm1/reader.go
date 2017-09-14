@@ -188,6 +188,7 @@ type blockAccessor interface {
 	rename(path string) error
 	path() string
 	close() error
+	free() error
 }
 
 // NewTSMReader returns a new TSMReader from the given file.
@@ -247,6 +248,12 @@ func (t *TSMReader) applyTombstones() error {
 		t.index.DeleteRange(batch, cur.Min, cur.Max)
 	}
 	return nil
+}
+
+func (t *TSMReader) Free() error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.accessor.free()
 }
 
 // Path returns the path of the file the TSMReader was initialized with.
@@ -1044,6 +1051,11 @@ func (d *indirectIndex) Close() error {
 // mmapAccess is mmap based block accessor.  It access blocks through an
 // MMAP file interface.
 type mmapAccessor struct {
+	// Counter incremented everytime the mmapAccessor is accessed
+	accessCount uint64
+	// Counter to determine whether the accessor can free its resources
+	freeCount uint64
+
 	mu sync.RWMutex
 
 	f     *os.File
@@ -1089,10 +1101,47 @@ func (m *mmapAccessor) init() (*indirectIndex, error) {
 		return nil, err
 	}
 
+	// Allow resources to be freed immediately if requested
+	m.incAccess()
+	atomic.StoreUint64(&m.freeCount, 1)
+
 	return m.index, nil
 }
 
+func (m *mmapAccessor) free() error {
+	accessCount := atomic.LoadUint64(&m.accessCount)
+	freeCount := atomic.LoadUint64(&m.freeCount)
+
+	// Already freed everything.
+	if freeCount == 0 && accessCount == 0 {
+		return nil
+	}
+
+	// Were there accesses after the last time we tried to free?
+	// If so, don't free anything and record the access count that we
+	// see now for the next check.
+	if accessCount != freeCount {
+		atomic.StoreUint64(&m.freeCount, accessCount)
+		return nil
+	}
+
+	// Reset both counters to zero to indicate that we have freed everything.
+	atomic.StoreUint64(&m.accessCount, 0)
+	atomic.StoreUint64(&m.freeCount, 0)
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	return madviseDontNeed(m.b)
+}
+
+func (m *mmapAccessor) incAccess() {
+	atomic.AddUint64(&m.accessCount, 1)
+}
+
 func (m *mmapAccessor) rename(path string) error {
+	m.incAccess()
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -1141,6 +1190,8 @@ func (m *mmapAccessor) read(key []byte, timestamp int64) ([]Value, error) {
 }
 
 func (m *mmapAccessor) readBlock(entry *IndexEntry, values []Value) ([]Value, error) {
+	m.incAccess()
+
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -1158,8 +1209,9 @@ func (m *mmapAccessor) readBlock(entry *IndexEntry, values []Value) ([]Value, er
 }
 
 func (m *mmapAccessor) readFloatBlock(entry *IndexEntry, values *[]FloatValue) ([]FloatValue, error) {
-	m.mu.RLock()
+	m.incAccess()
 
+	m.mu.RLock()
 	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
 		m.mu.RUnlock()
 		return nil, ErrTSMClosed
@@ -1176,8 +1228,9 @@ func (m *mmapAccessor) readFloatBlock(entry *IndexEntry, values *[]FloatValue) (
 }
 
 func (m *mmapAccessor) readIntegerBlock(entry *IndexEntry, values *[]IntegerValue) ([]IntegerValue, error) {
-	m.mu.RLock()
+	m.incAccess()
 
+	m.mu.RLock()
 	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
 		m.mu.RUnlock()
 		return nil, ErrTSMClosed
@@ -1194,8 +1247,9 @@ func (m *mmapAccessor) readIntegerBlock(entry *IndexEntry, values *[]IntegerValu
 }
 
 func (m *mmapAccessor) readUnsignedBlock(entry *IndexEntry, values *[]UnsignedValue) ([]UnsignedValue, error) {
-	m.mu.RLock()
+	m.incAccess()
 
+	m.mu.RLock()
 	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
 		m.mu.RUnlock()
 		return nil, ErrTSMClosed
@@ -1212,8 +1266,9 @@ func (m *mmapAccessor) readUnsignedBlock(entry *IndexEntry, values *[]UnsignedVa
 }
 
 func (m *mmapAccessor) readStringBlock(entry *IndexEntry, values *[]StringValue) ([]StringValue, error) {
-	m.mu.RLock()
+	m.incAccess()
 
+	m.mu.RLock()
 	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
 		m.mu.RUnlock()
 		return nil, ErrTSMClosed
@@ -1230,8 +1285,9 @@ func (m *mmapAccessor) readStringBlock(entry *IndexEntry, values *[]StringValue)
 }
 
 func (m *mmapAccessor) readBooleanBlock(entry *IndexEntry, values *[]BooleanValue) ([]BooleanValue, error) {
-	m.mu.RLock()
+	m.incAccess()
 
+	m.mu.RLock()
 	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
 		m.mu.RUnlock()
 		return nil, ErrTSMClosed
@@ -1248,6 +1304,8 @@ func (m *mmapAccessor) readBooleanBlock(entry *IndexEntry, values *[]BooleanValu
 }
 
 func (m *mmapAccessor) readBytes(entry *IndexEntry, b []byte) (uint32, []byte, error) {
+	m.incAccess()
+
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -1261,6 +1319,8 @@ func (m *mmapAccessor) readBytes(entry *IndexEntry, b []byte) (uint32, []byte, e
 
 // readAll returns all values for a key in all blocks.
 func (m *mmapAccessor) readAll(key []byte) ([]Value, error) {
+	m.incAccess()
+
 	blocks := m.index.Entries(key)
 	if len(blocks) == 0 {
 		return nil, nil

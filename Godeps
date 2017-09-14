@@ -19,4 +19,4 @@ github.com/spaolacci/murmur3 0d12bf811670bf6a1a63828dfbd003eded177fce
 github.com/uber-go/atomic 74ca5ec650841aee9f289dce76e928313a37cbc6
 github.com/uber-go/zap fbae0281ffd546fa6d1959fec6075ac5da7fb577
 golang.org/x/crypto 9477e0b78b9ac3d0b03822fd95422e2fe07627cd
-golang.org/x/sys 90796e5a05ce440b41c768bd9af257005e470461
+golang.org/x/sys 062cd7e4e68206d8bab9b18396626e855c992658

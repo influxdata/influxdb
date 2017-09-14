@@ -426,6 +426,17 @@ func (s *Shard) IsIdle() bool {
 	return s.engine.IsIdle()
 }
 
+func (s *Shard) Free() error {
+	if err := s.ready(); err != nil {
+		return err
+	}
+
+	// Disable compactions to stop background goroutines
+	s.SetCompactionsEnabled(false)
+
+	return s.engine.Free()
+}
+
 // SetCompactionsEnabled enables or disable shard background compactions.
 func (s *Shard) SetCompactionsEnabled(enabled bool) {
 	if err := s.ready(); err != nil {
