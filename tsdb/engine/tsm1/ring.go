@@ -63,8 +63,7 @@ func newring(n int) (*ring, error) {
 	// of the N partitions.
 	for i := 0; i < len(r.partitions); i++ {
 		r.partitions[i] = &partition{
-			store:          make(map[string]*entry),
-			entrySizeHints: make(map[uint64]int),
+			store: make(map[string]*entry),
 		}
 	}
 	return &r, nil
@@ -195,12 +194,6 @@ func (r *ring) applySerial(f func([]byte, *entry) error) error {
 type partition struct {
 	mu    sync.RWMutex
 	store map[string]*entry
-
-	// entrySizeHints stores hints for appropriate sizes to pre-allocate the
-	// []Values in an entry. entrySizeHints will only contain hints for entries
-	// that were present prior to the most recent snapshot, preventing unbounded
-	// growth over time.
-	entrySizeHints map[uint64]int
 }
 
 // entry returns the partition's entry for the provided key.
@@ -233,8 +226,7 @@ func (p *partition) write(key []byte, values Values) (bool, error) {
 	}
 
 	// Create a new entry using a preallocated size if we have a hint available.
-	hint, _ := p.entrySizeHints[xxhash.Sum64(key)]
-	e, err := newEntryValues(values, hint)
+	e, err := newEntryValues(values, 32)
 	if err != nil {
 		return false, err
 	}
@@ -274,19 +266,7 @@ func (p *partition) keys() [][]byte {
 func (p *partition) reset() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-
-	// Collect the allocated sizes of values for each entry in the store.
-	p.entrySizeHints = make(map[uint64]int)
-	for k, entry := range p.store {
-		// If the capacity is large then there are many values in the entry.
-		// Store a hint to pre-allocate the next time we see the same entry.
-		entry.mu.RLock()
-		if cap(entry.values) > 128 { // 4 x the default entry capacity size.
-			p.entrySizeHints[xxhash.Sum64String(k)] = cap(entry.values)
-		}
-		entry.mu.RUnlock()
+	for k := range p.store {
+		delete(p.store, k)
 	}
-
-	// Reset the store.
-	p.store = make(map[string]*entry, len(p.store))
 }
