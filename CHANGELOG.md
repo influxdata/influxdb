@@ -53,6 +53,7 @@
 - [#8787](https://github.com/influxdata/influxdb/issues/8787): panic: runtime error: invalid memory address or nil pointer dereference.
 - [#8697](https://github.com/influxdata/influxdb/issues/8697): Drop Series Cause Write Fail/Write Timeouts/High Memory Usage
 - [#8741](https://github.com/influxdata/influxdb/issues/8741): Fix increased memory usage in cache and wal readers
+- [#8749](https://github.com/influxdata/influxdb/issues/8749): An OSS read-only user should be able to list measurements on a database
 
 ## v1.3.4 [unreleased]
 
