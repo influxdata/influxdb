@@ -2462,12 +2462,14 @@ func (p *Parser) ParseVarRef() (*VarRef, error) {
 				dtype = Float
 			case "integer":
 				dtype = Integer
+			case "unsigned":
+				dtype = Unsigned
 			case "string":
 				dtype = String
 			case "boolean":
 				dtype = Boolean
 			default:
-				return nil, newParseError(tokstr(tok, lit), []string{"float", "integer", "string", "boolean", "field", "tag"}, pos)
+				return nil, newParseError(tokstr(tok, lit), []string{"float", "integer", "unsigned", "string", "boolean", "field", "tag"}, pos)
 			}
 		case FIELD:
 			dtype = AnyField

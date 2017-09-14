@@ -72,6 +72,8 @@ func InspectDataType(v interface{}) DataType {
 		return String
 	case bool:
 		return Boolean
+	case uint64:
+		return Unsigned
 	case time.Time:
 		return Time
 	case time.Duration:
@@ -88,7 +90,14 @@ func InspectDataType(v interface{}) DataType {
 // integers used decrease with higher precedence, but Unknown is the lowest
 // precedence at the zero value.
 func (d DataType) LessThan(other DataType) bool {
-	return d == Unknown || (other != Unknown && other < d)
+	if d == Unknown {
+		return true
+	} else if d == Unsigned {
+		return other != Unknown && other <= Integer
+	} else if other == Unsigned {
+		return d >= String
+	}
+	return other != Unknown && other < d
 }
 
 // String returns the human-readable string representation of the DataType.
@@ -98,6 +107,8 @@ func (d DataType) String() string {
 		return "float"
 	case Integer:
 		return "integer"
+	case Unsigned:
+		return "unsigned"
 	case String:
 		return "string"
 	case Boolean:
@@ -4124,7 +4135,7 @@ func FieldDimensions(sources Sources, m FieldMapper) (fields map[string]DataType
 			}
 
 			for k, typ := range f {
-				if _, ok := fields[k]; typ != Unknown && (!ok || typ < fields[k]) {
+				if fields[k].LessThan(typ) {
 					fields[k] = typ
 				}
 			}
@@ -4136,7 +4147,7 @@ func FieldDimensions(sources Sources, m FieldMapper) (fields map[string]DataType
 				k := f.Name()
 				typ := EvalType(f.Expr, src.Statement.Sources, m)
 
-				if _, ok := fields[k]; typ != Unknown && (!ok || typ < fields[k]) {
+				if fields[k].LessThan(typ) {
 					fields[k] = typ
 				}
 			}

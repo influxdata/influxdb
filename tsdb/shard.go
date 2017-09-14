@@ -822,7 +822,7 @@ func (s *Shard) FieldDimensions(measurements []string) (fields map[string]influx
 
 			if len(keys) > 0 {
 				for _, k := range keys {
-					if _, ok := fields[k]; !ok || influxql.String < fields[k] {
+					if fields[k].LessThan(influxql.String) {
 						fields[k] = influxql.String
 					}
 				}
@@ -842,7 +842,7 @@ func (s *Shard) FieldDimensions(measurements []string) (fields map[string]influx
 		mf := s.engine.MeasurementFields([]byte(name))
 		if mf != nil {
 			for k, typ := range mf.FieldSet() {
-				if _, ok := fields[k]; !ok || typ < fields[k] {
+				if fields[k].LessThan(typ) {
 					fields[k] = typ
 				}
 			}
@@ -1080,7 +1080,7 @@ func (a Shards) FieldDimensions(measurements []string) (fields map[string]influx
 			return nil, nil, err
 		}
 		for k, typ := range f {
-			if _, ok := fields[k]; typ != influxql.Unknown && (!ok || typ < fields[k]) {
+			if fields[k].LessThan(typ) {
 				fields[k] = typ
 			}
 		}
