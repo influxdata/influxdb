@@ -3075,6 +3075,9 @@ func TestParser_ParseExpr(t *testing.T) {
 		// Primitives
 		{s: `100.0`, expr: &influxql.NumberLiteral{Val: 100}},
 		{s: `100`, expr: &influxql.IntegerLiteral{Val: 100}},
+		{s: `9223372036854775808`, expr: &influxql.UnsignedLiteral{Val: 9223372036854775808}},
+		{s: `-9223372036854775808`, expr: &influxql.IntegerLiteral{Val: -9223372036854775808}},
+		{s: `-9223372036854775809`, err: `constant -9223372036854775809 underflows int64`},
 		{s: `-100.0`, expr: &influxql.NumberLiteral{Val: -100}},
 		{s: `-100`, expr: &influxql.IntegerLiteral{Val: -100}},
 		{s: `100.`, expr: &influxql.NumberLiteral{Val: 100}},
