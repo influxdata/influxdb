@@ -58,11 +58,15 @@ func (fs *FileSet) Release() {
 	}
 }
 
+// SeriesFile returns the attached series file.
+func (fs *FileSet) SeriesFile() *SeriesFile { return fs.sfile }
+
 // PrependLogFile returns a new file set with f added at the beginning.
 // Filters do not need to be rebuilt because log files have no bloom filter.
 func (fs *FileSet) PrependLogFile(f *LogFile) *FileSet {
 	return &FileSet{
 		levels: fs.levels,
+		sfile:  fs.sfile,
 		files:  append([]File{f}, fs.files...),
 	}
 }
@@ -666,16 +670,6 @@ func (fs *FileSet) measurementNamesByTagFilter(op influxql.Token, key, val strin
 	return names
 }
 
-// HasSeries returns true if the series exists and is not tombstoned.
-func (fs *FileSet) HasSeries(name []byte, tags models.Tags, buf []byte) bool {
-	for _, f := range fs.files {
-		if exists, tombstoned := f.HasSeries(name, tags, buf); exists {
-			return !tombstoned
-		}
-	}
-	return false
-}
-
 // MeasurementsSketches returns the merged measurement sketches for the FileSet.
 func (fs *FileSet) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
 	sketch, tsketch := hll.NewDefaultPlus(), hll.NewDefaultPlus()
@@ -724,7 +718,8 @@ func (fs *FileSet) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr, 
 		seriesKey := fs.sfile.SeriesKey(e.SeriesID)
 		assert(seriesKey != nil, "series key not found")
 
-		keys = append(keys, ModelSeriesKey(seriesKey))
+		name, tags := ParseSeriesKey(seriesKey)
+		keys = append(keys, models.MakeKey(name, tags))
 	}
 	return keys, nil
 }
@@ -771,9 +766,9 @@ func (fs *FileSet) seriesByBinaryExprIterator(name []byte, n *influxql.BinaryExp
 	// If this binary expression has another binary expression, then this
 	// is some expression math and we should just pass it to the underlying query.
 	if _, ok := n.LHS.(*influxql.BinaryExpr); ok {
-		return newSeriesExprIterator(fs.MeasurementSeriesIDIterator(name), n), nil
+		return newSeriesIDExprIterator(fs.MeasurementSeriesIDIterator(name), n), nil
 	} else if _, ok := n.RHS.(*influxql.BinaryExpr); ok {
-		return newSeriesExprIterator(fs.MeasurementSeriesIDIterator(name), n), nil
+		return newSeriesIDExprIterator(fs.MeasurementSeriesIDIterator(name), n), nil
 	}
 
 	// Retrieve the variable reference from the correct side of the expression.
@@ -789,11 +784,11 @@ func (fs *FileSet) seriesByBinaryExprIterator(name []byte, n *influxql.BinaryExp
 
 	// For fields, return all series from this measurement.
 	if key.Val != "_name" && ((key.Type == influxql.Unknown && mf.HasField(key.Val)) || key.Type == influxql.AnyField || (key.Type != influxql.Tag && key.Type != influxql.Unknown)) {
-		return newSeriesExprIterator(fs.MeasurementSeriesIDIterator(name), n), nil
+		return newSeriesIDExprIterator(fs.MeasurementSeriesIDIterator(name), n), nil
 	} else if value, ok := value.(*influxql.VarRef); ok {
 		// Check if the RHS is a variable and if it is a field.
 		if value.Val != "_name" && ((value.Type == influxql.Unknown && mf.HasField(value.Val)) || key.Type == influxql.AnyField || (value.Type != influxql.Tag && value.Type != influxql.Unknown)) {
-			return newSeriesExprIterator(fs.MeasurementSeriesIDIterator(name), n), nil
+			return newSeriesIDExprIterator(fs.MeasurementSeriesIDIterator(name), n), nil
 		}
 	}
 
@@ -852,7 +847,7 @@ func (fs *FileSet) seriesByBinaryExprRegexIterator(name, key []byte, value *rege
 	if bytes.Equal(key, []byte("_name")) {
 		match := value.Match(name)
 		if (op == influxql.EQREGEX && match) || (op == influxql.NEQREGEX && !match) {
-			return newSeriesExprIterator(fs.MeasurementSeriesIDIterator(name), &influxql.BooleanLiteral{Val: true}), nil
+			return newSeriesIDExprIterator(fs.MeasurementSeriesIDIterator(name), &influxql.BooleanLiteral{Val: true}), nil
 		}
 		return nil, nil
 	}
@@ -883,8 +878,8 @@ type File interface {
 
 	Measurement(name []byte) MeasurementElem
 	MeasurementIterator() MeasurementIterator
-	HasSeries(name []byte, tags models.Tags, buf []byte) (exists, tombstoned bool)
-	Series(name []byte, tags models.Tags) SeriesIDElem
+	// HasSeries(name []byte, tags models.Tags, buf []byte) (exists, tombstoned bool)
+	// Series(name []byte, tags models.Tags) SeriesIDElem
 	SeriesN() uint64
 
 	TagKey(name, key []byte) TagKeyElem

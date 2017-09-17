@@ -55,8 +55,13 @@ const (
 	CompactingExt = ".compacting"
 )
 
-// ManifestFileName is the name of the index manifest file.
-const ManifestFileName = "MANIFEST"
+const (
+	// ManifestFileName is the name of the index manifest file.
+	ManifestFileName = "MANIFEST"
+
+	// SeriesFileName is the name of the series file.
+	SeriesFileName = "series"
+)
 
 // Ensure index implements the interface.
 var _ tsdb.Index = &Index{}
@@ -140,6 +145,13 @@ func (i *Index) Open() error {
 		return err
 	}
 
+	// Open series file.
+	sfile := NewSeriesFile(filepath.Join(i.Path, SeriesFileName))
+	if err := sfile.Open(); err != nil {
+		return err
+	}
+	i.sfile = sfile
+
 	// Read manifest file.
 	m, err := ReadManifestFile(filepath.Join(i.Path, ManifestFileName))
 	if os.IsNotExist(err) {
@@ -185,7 +197,7 @@ func (i *Index) Open() error {
 			files = append(files, f)
 		}
 	}
-	fs, err := NewFileSet(i.Database, i.levels, files)
+	fs, err := NewFileSet(i.Database, i.levels, i.sfile, files)
 	if err != nil {
 		return err
 	}
@@ -457,13 +469,13 @@ func (i *Index) DropMeasurement(name []byte) error {
 	}
 
 	// Delete all series in measurement.
-	if sitr := fs.MeasurementSeriesIterator(name); sitr != nil {
-		for s := sitr.Next(); s != nil; s = sitr.Next() {
-			if !s.Deleted() {
+	if sitr := fs.MeasurementSeriesIDIterator(name); sitr != nil {
+		for s := sitr.Next(); s.SeriesID != 0; s = sitr.Next() {
+			if !s.Deleted {
 				if err := func() error {
 					i.mu.RLock()
 					defer i.mu.RUnlock()
-					return i.activeLogFile.DeleteSeries(s.Name(), s.Tags())
+					return i.activeLogFile.DeleteSeriesID(s.SeriesID)
 				}(); err != nil {
 					return err
 				}
@@ -524,16 +536,16 @@ func (i *Index) InitializeSeries(key, name []byte, tags models.Tags) error {
 
 // CreateSeriesIfNotExists creates a series if it doesn't exist or is deleted.
 func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error {
+	if i.sfile.HasSeries(name, tags, nil) {
+		return nil
+	}
+
 	if err := func() error {
 		i.mu.RLock()
 		defer i.mu.RUnlock()
 
 		fs := i.retainFileSet()
 		defer fs.Release()
-
-		if fs.HasSeries(name, tags, nil) {
-			return nil
-		}
 
 		if err := i.activeLogFile.AddSeries(name, tags); err != nil {
 			return err
@@ -558,7 +570,9 @@ func (i *Index) DropSeries(key []byte) error {
 		name, tags := models.ParseKey(key)
 
 		mname := []byte(name)
-		if err := i.activeLogFile.DeleteSeries(mname, tags); err != nil {
+		seriesID := i.sfile.Offset(mname, tags, nil)
+
+		if err := i.activeLogFile.DeleteSeriesID(seriesID); err != nil {
 			return err
 		}
 
@@ -567,10 +581,10 @@ func (i *Index) DropSeries(key []byte) error {
 		defer fs.Release()
 
 		// Check if that was the last series for the measurement in the entire index.
-		itr := fs.MeasurementSeriesIterator(mname)
+		itr := fs.MeasurementSeriesIDIterator(mname)
 		if itr == nil {
 			return nil
-		} else if e := itr.Next(); e != nil {
+		} else if e := itr.Next(); e.SeriesID != 0 {
 			return nil
 		}
 
@@ -742,31 +756,33 @@ func (i *Index) TagSets(name []byte, opt query.IteratorOptions) ([]*query.TagSet
 	tagSets := make(map[string]*query.TagSet, 64)
 
 	if itr != nil {
-		for e := itr.Next(); e != nil; e = itr.Next() {
-			if opt.Authorizer != nil && !opt.Authorizer.AuthorizeSeriesRead(i.Database, name, e.Tags()) {
+		for e := itr.Next(); e.SeriesID != 0; e = itr.Next() {
+			_, tags := ParseSeriesKey(i.sfile.SeriesKey(e.SeriesID))
+			if opt.Authorizer != nil && !opt.Authorizer.AuthorizeSeriesRead(i.Database, name, tags) {
 				continue
 			}
 
-			tags := make(map[string]string, len(opt.Dimensions))
+			tagsMap := make(map[string]string, len(opt.Dimensions))
 
 			// Build the TagSet for this series.
 			for _, dim := range opt.Dimensions {
-				tags[dim] = e.Tags().GetString(dim)
+				tagsMap[dim] = tags.GetString(dim)
 			}
 
 			// Convert the TagSet to a string, so it can be added to a map
 			// allowing TagSets to be handled as a set.
-			tagsAsKey := tsdb.MarshalTags(tags)
+			tagsAsKey := tsdb.MarshalTags(tagsMap)
 			tagSet, ok := tagSets[string(tagsAsKey)]
 			if !ok {
 				// This TagSet is new, create a new entry for it.
 				tagSet = &query.TagSet{
-					Tags: tags,
+					Tags: tagsMap,
 					Key:  tagsAsKey,
 				}
 			}
+
 			// Associate the series and filter with the Tagset.
-			tagSet.AddFilter(string(models.MakeKey(e.Name(), e.Tags())), e.Expr())
+			tagSet.AddFilter(string(models.MakeKey(name, tags)), e.Expr)
 
 			// Ensure it's back in the map.
 			tagSets[string(tagsAsKey)] = tagSet
@@ -1191,7 +1207,8 @@ func (itr *seriesPointIterator) Next() (*query.FloatPoint, error) {
 		}
 
 		// Write auxiliary fields.
-		key := string(ModelSeriesKey(seriesKey))
+		name, tags := ParseSeriesKey(seriesKey)
+		key := models.MakeKey(name, tags)
 		for i, f := range itr.opt.Aux {
 			switch f.Val {
 			case "key":

@@ -155,20 +155,14 @@ func (f *SeriesFile) CreateSeriesIfNotExists(name []byte, tags models.Tags, buf 
 	// Save current file offset.
 	offset = f.offset
 
-	// Generate series key & size buffers.
-	buf = AppendSeriesKey(buf[:0], name, tags)
-	sizeBuf := make([]byte, binary.MaxVarintLen64)
-	sizeBufN := binary.PutUvarint(sizeBuf, uint64(len(buf)))
-
 	// Append series to the end of the file.
-	if _, err := f.file.Write(sizeBuf[:sizeBufN]); err != nil {
-		return 0, err
-	} else if _, err := f.file.Write(buf); err != nil {
+	buf = AppendSeriesKey(buf[:0], name, tags)
+	if _, err := f.file.Write(buf); err != nil {
 		return 0, err
 	}
 
 	// Move current offset to the end.
-	sz := uint32(len(buf) + sizeBufN)
+	sz := uint32(len(buf))
 	f.offset += sz
 
 	// Add offset to hash map.
@@ -179,7 +173,6 @@ func (f *SeriesFile) CreateSeriesIfNotExists(name []byte, tags models.Tags, buf 
 
 // Offset returns the byte offset of the series within the block.
 func (f *SeriesFile) Offset(name []byte, tags models.Tags, buf []byte) uint32 {
-	buf = AppendSeriesKey(buf[:0], name, tags)
 	offset, _ := f.hashMap.Get(AppendSeriesKey(buf[:0], name, tags)).(uint32)
 	return offset
 }
@@ -190,8 +183,18 @@ func (f *SeriesFile) SeriesKey(offset uint32) []byte {
 		return nil
 	}
 
-	sz, n := binary.Uvarint(buf)
-	return data[n : n+int(sz)]
+	buf := f.data[offset:]
+	v, n := binary.Uvarint(buf)
+	return buf[:n+int(v)]
+}
+
+// Series returns the parsed series name and tags for an offset.
+func (f *SeriesFile) Series(offset uint32) ([]byte, models.Tags) {
+	key := f.SeriesKey(offset)
+	if key == nil {
+		return nil, nil
+	}
+	return ParseSeriesKey(key)
 }
 
 // HasSeries return true if the series exists.
@@ -418,18 +421,18 @@ func ReadSeriesKey(data []byte) []byte {
 }
 
 func ReadSeriesKeyLen(data []byte) (sz int, remainder []byte) {
-	sz, i := binary.Uvarint(data)
-	return int(sz), data[i:]
+	sz64, i := binary.Uvarint(data)
+	return int(sz64), data[i:]
 }
 
 func ReadSeriesKeyMeasurement(data []byte) (name, remainder []byte) {
-	n, data = binary.BigEndian.Uint16(data), data[2:]
+	n, data := binary.BigEndian.Uint16(data), data[2:]
 	return data[:n], data[n:]
 }
 
 func ReadSeriesKeyTagN(data []byte) (n int, remainder []byte) {
-	n, i := binary.Uvarint(data)
-	return int(n), data[i:]
+	n64, i := binary.Uvarint(data)
+	return int(n64), data[i:]
 }
 
 func ReadSeriesKeyTag(data []byte) (key, value, remainder []byte) {
@@ -460,17 +463,17 @@ func ParseSeriesKey(data []byte) (name []byte, tags models.Tags) {
 // ModelSeriesKey converts a tsi series key to models.MakeKey() format.
 func ModelSeriesKey(data []byte) []byte {
 	_, data = ReadSeriesKeyLen(data)
-	name, data := ReadSeriesKeyMeasurement(data)
+	name, data = ReadSeriesKeyMeasurement(data)
 
 	tagN, data := ReadSeriesKeyTagN(data)
-	tags := make(models.Tags, tagN)
+	tags = make(models.Tags, tagN)
 	for i := 0; i < tagN; i++ {
 		var key, value []byte
 		key, value, data = ReadSeriesKeyTag(data)
 		tags[i] = models.Tag{Key: key, Value: value}
 	}
 
-	return models.MakeKey(name, tags)
+	return name, tags
 }
 
 func CompareSeriesKeys(a, b []byte) int {
@@ -484,8 +487,8 @@ func CompareSeriesKeys(a, b []byte) int {
 	}
 
 	// Read total size.
-	_, a = ReadSeriesKeySize(a)
-	_, b = ReadSeriesKeySize(b)
+	_, a = ReadSeriesKeyLen(a)
+	_, b = ReadSeriesKeyLen(b)
 
 	// Read names.
 	name0, a := ReadSeriesKeyMeasurement(a)
@@ -501,7 +504,7 @@ func CompareSeriesKeys(a, b []byte) int {
 	tagN1, b := ReadSeriesKeyTagN(b)
 
 	// Compare each tag in order.
-	for i := uint64(0); ; i++ {
+	for i := 0; ; i++ {
 		// Check for EOF.
 		if i == tagN0 && i == tagN1 {
 			return 0
