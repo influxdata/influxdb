@@ -2,7 +2,6 @@ package tsi1
 
 import (
 	"bufio"
-	"fmt"
 	"io"
 	"os"
 	"sort"
@@ -189,8 +188,6 @@ func (p IndexFiles) writeTagsetsTo(w io.Writer, info *indexCompactInfo, n *int64
 
 // writeTagsetTo writes a single tagset to w and saves the tagset offset.
 func (p IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactInfo, n *int64) error {
-	var seriesKey []byte
-
 	kitr, err := p.TagKeyIterator(name)
 	if err != nil {
 		return err
@@ -209,12 +206,8 @@ func (p IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactIn
 			// Merge all series together.
 			sitr := p.TagValueSeriesIDIterator(name, ke.Key(), ve.Value())
 			var seriesIDs []uint32
-			for se := sitr.Next(); se != nil; se = sitr.Next() {
-				seriesID := info.sfile.Offset(se.Name(), se.Tags(), seriesKey[:0])
-				if seriesID == 0 {
-					return fmt.Errorf("expected series id: %s/%s", se.Name(), se.Tags().String())
-				}
-				seriesIDs = append(seriesIDs, seriesID)
+			for se := sitr.Next(); se.SeriesID != 0; se = sitr.Next() {
+				seriesIDs = append(seriesIDs, se.SeriesID)
 			}
 			sort.Sort(uint32Slice(seriesIDs))
 
@@ -245,7 +238,6 @@ func (p IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactIn
 }
 
 func (p IndexFiles) writeMeasurementBlockTo(w io.Writer, info *indexCompactInfo, n *int64) error {
-	var seriesKey []byte
 	mw := NewMeasurementBlockWriter()
 
 	// Add measurement data & compute sketches.
@@ -255,14 +247,10 @@ func (p IndexFiles) writeMeasurementBlockTo(w io.Writer, info *indexCompactInfo,
 			name := m.Name()
 
 			// Look-up series ids.
-			itr := p.MeasurementSeriesIterator(name)
+			itr := p.MeasurementSeriesIDIterator(name)
 			var seriesIDs []uint32
-			for e := itr.Next(); e != nil; e = itr.Next() {
-				seriesID, _ := info.sblk.Offset(e.Name(), e.Tags(), seriesKey[:0])
-				if seriesID == 0 {
-					panic(fmt.Sprintf("expected series id: %s %s", e.Name(), e.Tags().String()))
-				}
-				seriesIDs = append(seriesIDs, seriesID)
+			for e := itr.Next(); e.SeriesID != 0; e = itr.Next() {
+				seriesIDs = append(seriesIDs, e.SeriesID)
 			}
 			sort.Sort(uint32Slice(seriesIDs))
 

@@ -346,6 +346,12 @@ type SeriesIDElem struct {
 	Expr     influxql.Expr
 }
 
+type SeriesIDElems []SeriesIDElem
+
+func (a SeriesIDElems) Len() int           { return len(a) }
+func (a SeriesIDElems) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a SeriesIDElems) Less(i, j int) bool { return a[i].SeriesID < a[j].SeriesID }
+
 // SeriesIDIterator represents a iterator over a list of series ids.
 type SeriesIDIterator interface {
 	Next() SeriesIDElem
@@ -378,7 +384,7 @@ func (itr *seriesIDMergeIterator) Next() SeriesIDElem {
 	// Find next lowest id amongst the buffers.
 	var elem SeriesIDElem
 	for i := range itr.buf {
-		buf := &itr.buf
+		buf := &itr.buf[i]
 
 		// Fill buffer.
 		if buf.SeriesID == 0 {
@@ -390,13 +396,13 @@ func (itr *seriesIDMergeIterator) Next() SeriesIDElem {
 		}
 
 		if elem.SeriesID == 0 || buf.SeriesID < elem.SeriesID {
-			elem = buf
+			elem = *buf
 		}
 	}
 
 	// Return EOF if no elements remaining.
-	if seriesID == 0 {
-		return nil
+	if elem.SeriesID == 0 {
+		return SeriesIDElem{}
 	}
 
 	// Clear matching buffers.
@@ -451,7 +457,7 @@ func (itr *seriesIDIntersectIterator) Next() SeriesIDElem {
 		}
 
 		// Merge series together if equal.
-		elem = itr.buf[0]
+		elem := itr.buf[0]
 
 		// Attach expression.
 		expr0 := itr.buf[0].Expr
@@ -518,8 +524,8 @@ func (itr *seriesIDUnionIterator) Next() SeriesIDElem {
 	elem := itr.buf[0]
 
 	// Attach expression.
-	expr0 := itr.buf[0].Expr()
-	expr1 := itr.buf[1].Expr()
+	expr0 := itr.buf[0].Expr
+	expr1 := itr.buf[1].Expr
 	if expr0 != nil && expr1 != nil {
 		elem.Expr = influxql.Reduce(&influxql.BinaryExpr{
 			Op:  influxql.OR,
@@ -531,7 +537,7 @@ func (itr *seriesIDUnionIterator) Next() SeriesIDElem {
 	}
 
 	itr.buf[0].SeriesID, itr.buf[1].SeriesID = 0, 0
-	return &elem
+	return elem
 }
 
 // DifferenceSeriesIDIterators returns an iterator that only returns series which
@@ -552,7 +558,7 @@ type seriesIDDifferenceIterator struct {
 }
 
 // Next returns the next element which occurs only in the first iterator.
-func (itr *seriesIDDifferenceIterator) Next() SeriesElem {
+func (itr *seriesIDDifferenceIterator) Next() SeriesIDElem {
 	for {
 		// Fill buffers.
 		if itr.buf[0].SeriesID == 0 {
@@ -611,6 +617,34 @@ func (itr *filterUndeletedSeriesIDIterator) Next() SeriesIDElem {
 		}
 		return e
 	}
+}
+
+// seriesIDExprIterator is an iterator that attaches an associated expression.
+type seriesIDExprIterator struct {
+	itr  SeriesIDIterator
+	expr influxql.Expr
+}
+
+// newSeriesIDExprIterator returns a new instance of seriesIDExprIterator.
+func newSeriesIDExprIterator(itr SeriesIDIterator, expr influxql.Expr) SeriesIDIterator {
+	if itr == nil {
+		return nil
+	}
+
+	return &seriesIDExprIterator{
+		itr:  itr,
+		expr: expr,
+	}
+}
+
+// Next returns the next element in the iterator.
+func (itr *seriesIDExprIterator) Next() SeriesIDElem {
+	elem := itr.itr.Next()
+	if elem.SeriesID == 0 {
+		return SeriesIDElem{}
+	}
+	elem.Expr = itr.expr
+	return elem
 }
 
 // writeTo writes write v into w. Updates n.

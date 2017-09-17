@@ -95,7 +95,7 @@ func TestLogFile_SeriesStoredInOrder(t *testing.T) {
 	tvs = append(tvs, tvs...)
 
 	// When we pull the series out via an iterator they should be in order.
-	itr := f.SeriesIterator()
+	itr := f.SeriesIDIterator()
 	if itr == nil {
 		t.Fatal("nil iterator")
 	}
@@ -103,16 +103,17 @@ func TestLogFile_SeriesStoredInOrder(t *testing.T) {
 	mname := []string{"cpu", "mem"}
 	var j int
 	for i := 0; i < len(tvs); i++ {
-		serie := itr.Next()
-		if serie == nil {
+		elem := itr.Next()
+		if elem.SeriesID == 0 {
 			t.Fatal("got nil series")
 		}
 
-		if got, exp := string(serie.Name()), mname[j]; got != exp {
+		name, tags := sfile.Series(elem.SeriesID)
+		if got, exp := string(name), mname[j]; got != exp {
 			t.Fatalf("[series %d] got %s, expected %s", i, got, exp)
 		}
 
-		if got, exp := string(serie.Tags()[0].Value), tvs[i]; got != exp {
+		if got, exp := string(tags[0].Value), tvs[i]; got != exp {
 			t.Fatalf("[series %d] got %s, expected %s", i, got, exp)
 		}
 

@@ -238,7 +238,7 @@ func (f *IndexFile) TagKeySeriesIDIterator(name, key []byte) SeriesIDIterator {
 	var itrs []SeriesIDIterator
 	for ve := vitr.Next(); ve != nil; ve = vitr.Next() {
 		sitr := &rawSeriesIDIterator{data: ve.(*TagBlockValueElem).series.data}
-		itrs = append(itrs, newSeriesDecodeIterator(&f.sfile, sitr))
+		itrs = append(itrs, sitr)
 	}
 
 	return MergeSeriesIDIterators(itrs...)
@@ -259,13 +259,10 @@ func (f *IndexFile) TagValueSeriesIDIterator(name, key, value []byte) SeriesIDIt
 	}
 
 	// Create an iterator over value's series.
-	return newSeriesDecodeIterator(
-		&f.sfile,
-		&rawSeriesIDIterator{
-			n:    ve.(*TagBlockValueElem).series.n,
-			data: ve.(*TagBlockValueElem).series.data,
-		},
-	)
+	return &rawSeriesIDIterator{
+		n:    ve.(*TagBlockValueElem).series.n,
+		data: ve.(*TagBlockValueElem).series.data,
+	}
 }
 
 // TagKey returns a tag key.
@@ -322,10 +319,7 @@ func (f *IndexFile) TagKeyIterator(name []byte) TagKeyIterator {
 
 // MeasurementSeriesIDIterator returns an iterator over a measurement's series.
 func (f *IndexFile) MeasurementSeriesIDIterator(name []byte) SeriesIDIterator {
-	return &seriesDecodeIterator{
-		itr:   f.mblk.seriesIDIterator(name),
-		sfile: &f.sfile,
-	}
+	return f.mblk.SeriesIDIterator(name)
 }
 
 // MergeMeasurementsSketches merges the index file's series sketches into the provided
