@@ -735,15 +735,38 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 // MeasurementNamesByExpr returns names of measurements matching the condition.
 // If cond is nil then all measurement names are returned.
 func (s *Shard) MeasurementNamesByExpr(cond influxql.Expr) ([][]byte, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if err := s.ready(); err != nil {
+		return nil, err
+	}
+
 	return s.engine.MeasurementNamesByExpr(cond)
 }
 
 // MeasurementFields returns fields for a measurement.
+// TODO(edd): This method is currently only being called from tests; do we
+// really need it?
 func (s *Shard) MeasurementFields(name []byte) *MeasurementFields {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if err := s.ready(); err != nil {
+		return nil
+	}
+
 	return s.engine.MeasurementFields(name)
 }
 
+// MeasurementExists returns true if the shard contains name.
+// TODO(edd): This method is currently only being called from tests; do we
+// really need it?
 func (s *Shard) MeasurementExists(name []byte) (bool, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if err := s.ready(); err != nil {
+		return false, nil
+	}
+
 	return s.engine.MeasurementExists(name)
 }
 
