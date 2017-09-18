@@ -19,3 +19,13 @@ func linearInteger(windowTime, previousTime, nextTime int64, previousValue, next
 	b := float64(previousValue)
 	return int64(m*x + b)
 }
+
+// linearInteger computes the the slope of the line between the points (previousTime, previousValue) and (nextTime, nextValue)
+// and returns the value of the point on the line with time windowTime
+// y = mx + b
+func linearUnsigned(windowTime, previousTime, nextTime int64, previousValue, nextValue uint64) uint64 {
+	m := float64(nextValue-previousValue) / float64(nextTime-previousTime) // the slope of the line
+	x := float64(windowTime - previousTime)                                // how far into the interval we are
+	b := float64(previousValue)
+	return uint64(m*x + b)
+}

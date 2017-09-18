@@ -50,6 +50,8 @@ func (a Points) Clone() []Point {
 			other[i] = p.Clone()
 		case *IntegerPoint:
 			other[i] = p.Clone()
+		case *UnsignedPoint:
+			other[i] = p.Clone()
 		case *StringPoint:
 			other[i] = p.Clone()
 		case *BooleanPoint:
