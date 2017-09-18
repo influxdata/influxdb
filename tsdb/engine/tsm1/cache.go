@@ -438,6 +438,15 @@ func (c *Cache) Deduplicate() {
 func (c *Cache) ClearSnapshot(success bool) {
 	c.init()
 
+	c.mu.RLock()
+	snapStore := c.snapshot.store
+	c.mu.RUnlock()
+
+	// reset the snapshot store outside of the write lock
+	if success {
+		snapStore.reset()
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -447,8 +456,7 @@ func (c *Cache) ClearSnapshot(success bool) {
 		c.snapshotAttempts = 0
 		c.updateMemSize(-int64(atomic.LoadUint64(&c.snapshotSize))) // decrement the number of bytes in cache
 
-		// Reset the snapshot's store, and reset the snapshot to a fresh Cache.
-		c.snapshot.store.reset()
+		// Reset the snapshot to a fresh Cache.
 		c.snapshot = &Cache{
 			store: c.snapshot.store,
 		}
