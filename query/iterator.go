@@ -74,6 +74,8 @@ func (a Iterators) dataType() influxql.DataType {
 		return influxql.Float
 	case IntegerIterator:
 		return influxql.Integer
+	case UnsignedIterator:
+		return influxql.Unsigned
 	case StringIterator:
 		return influxql.String
 	case BooleanIterator:
@@ -93,6 +95,8 @@ func (a Iterators) coerce() interface{} {
 		return newFloatIterators(a)
 	case influxql.Integer:
 		return newIntegerIterators(a)
+	case influxql.Unsigned:
+		return newUnsignedIterators(a)
 	case influxql.String:
 		return newStringIterators(a)
 	case influxql.Boolean:
@@ -161,6 +165,8 @@ func NewMergeIterator(inputs []Iterator, opt IteratorOptions) Iterator {
 		return newFloatMergeIterator(inputs, opt)
 	case []IntegerIterator:
 		return newIntegerMergeIterator(inputs, opt)
+	case []UnsignedIterator:
+		return newUnsignedMergeIterator(inputs, opt)
 	case []StringIterator:
 		return newStringMergeIterator(inputs, opt)
 	case []BooleanIterator:
@@ -223,6 +229,8 @@ func NewSortedMergeIterator(inputs []Iterator, opt IteratorOptions) Iterator {
 		return newFloatSortedMergeIterator(inputs, opt)
 	case []IntegerIterator:
 		return newIntegerSortedMergeIterator(inputs, opt)
+	case []UnsignedIterator:
+		return newUnsignedSortedMergeIterator(inputs, opt)
 	case []StringIterator:
 		return newStringSortedMergeIterator(inputs, opt)
 	case []BooleanIterator:
@@ -243,6 +251,8 @@ func newParallelIterator(input Iterator) Iterator {
 		return newFloatParallelIterator(itr)
 	case IntegerIterator:
 		return newIntegerParallelIterator(itr)
+	case UnsignedIterator:
+		return newUnsignedParallelIterator(itr)
 	case StringIterator:
 		return newStringParallelIterator(itr)
 	case BooleanIterator:
@@ -259,6 +269,8 @@ func NewLimitIterator(input Iterator, opt IteratorOptions) Iterator {
 		return newFloatLimitIterator(input, opt)
 	case IntegerIterator:
 		return newIntegerLimitIterator(input, opt)
+	case UnsignedIterator:
+		return newUnsignedLimitIterator(input, opt)
 	case StringIterator:
 		return newStringLimitIterator(input, opt)
 	case BooleanIterator:
@@ -281,6 +293,8 @@ func NewFilterIterator(input Iterator, cond influxql.Expr, opt IteratorOptions) 
 		return newFloatFilterIterator(input, cond, opt)
 	case IntegerIterator:
 		return newIntegerFilterIterator(input, cond, opt)
+	case UnsignedIterator:
+		return newUnsignedFilterIterator(input, cond, opt)
 	case StringIterator:
 		return newStringFilterIterator(input, cond, opt)
 	case BooleanIterator:
@@ -303,6 +317,8 @@ func NewDedupeIterator(input Iterator) Iterator {
 		return newFloatDedupeIterator(input)
 	case IntegerIterator:
 		return newIntegerDedupeIterator(input)
+	case UnsignedIterator:
+		return newUnsignedDedupeIterator(input)
 	case StringIterator:
 		return newStringDedupeIterator(input)
 	case BooleanIterator:
@@ -319,6 +335,8 @@ func NewFillIterator(input Iterator, expr influxql.Expr, opt IteratorOptions) It
 		return newFloatFillIterator(input, expr, opt)
 	case IntegerIterator:
 		return newIntegerFillIterator(input, expr, opt)
+	case UnsignedIterator:
+		return newUnsignedFillIterator(input, expr, opt)
 	case StringIterator:
 		return newStringFillIterator(input, expr, opt)
 	case BooleanIterator:
@@ -335,6 +353,8 @@ func NewIntervalIterator(input Iterator, opt IteratorOptions) Iterator {
 		return newFloatIntervalIterator(input, opt)
 	case IntegerIterator:
 		return newIntegerIntervalIterator(input, opt)
+	case UnsignedIterator:
+		return newUnsignedIntervalIterator(input, opt)
 	case StringIterator:
 		return newStringIntervalIterator(input, opt)
 	case BooleanIterator:
@@ -352,6 +372,8 @@ func NewInterruptIterator(input Iterator, closing <-chan struct{}) Iterator {
 		return newFloatInterruptIterator(input, closing)
 	case IntegerIterator:
 		return newIntegerInterruptIterator(input, closing)
+	case UnsignedIterator:
+		return newUnsignedInterruptIterator(input, closing)
 	case StringIterator:
 		return newStringInterruptIterator(input, closing)
 	case BooleanIterator:
@@ -369,6 +391,8 @@ func NewCloseInterruptIterator(input Iterator, closing <-chan struct{}) Iterator
 		return newFloatCloseInterruptIterator(input, closing)
 	case IntegerIterator:
 		return newIntegerCloseInterruptIterator(input, closing)
+	case UnsignedIterator:
+		return newUnsignedCloseInterruptIterator(input, closing)
 	case StringIterator:
 		return newStringCloseInterruptIterator(input, closing)
 	case BooleanIterator:
@@ -400,6 +424,8 @@ func NewAuxIterator(input Iterator, opt IteratorOptions) AuxIterator {
 		return newFloatAuxIterator(input, opt)
 	case IntegerIterator:
 		return newIntegerAuxIterator(input, opt)
+	case UnsignedIterator:
+		return newUnsignedAuxIterator(input, opt)
 	case StringIterator:
 		return newStringAuxIterator(input, opt)
 	case BooleanIterator:
@@ -474,6 +500,10 @@ func (a *auxIteratorFields) iterator(name string, typ influxql.DataType) Iterato
 			itr := &integerChanIterator{cond: sync.NewCond(&sync.Mutex{})}
 			f.append(itr)
 			return itr
+		case influxql.Unsigned:
+			itr := &unsignedChanIterator{cond: sync.NewCond(&sync.Mutex{})}
+			f.append(itr)
+			return itr
 		case influxql.String, influxql.Tag:
 			itr := &stringChanIterator{cond: sync.NewCond(&sync.Mutex{})}
 			f.append(itr)
@@ -510,6 +540,8 @@ func (a *auxIteratorFields) send(p Point) (ok bool) {
 				ok = itr.setBuf(p.name(), tags, p.time(), v) || ok
 			case *integerChanIterator:
 				ok = itr.setBuf(p.name(), tags, p.time(), v) || ok
+			case *unsignedChanIterator:
+				ok = itr.setBuf(p.name(), tags, p.time(), v) || ok
 			case *stringChanIterator:
 				ok = itr.setBuf(p.name(), tags, p.time(), v) || ok
 			case *booleanChanIterator:
@@ -530,6 +562,8 @@ func (a *auxIteratorFields) sendError(err error) {
 				itr.setErr(err)
 			case *integerChanIterator:
 				itr.setErr(err)
+			case *unsignedChanIterator:
+				itr.setErr(err)
 			case *stringChanIterator:
 				itr.setErr(err)
 			case *booleanChanIterator:
@@ -549,6 +583,9 @@ func DrainIterator(itr Iterator) {
 		for p, _ := itr.Next(); p != nil; p, _ = itr.Next() {
 		}
 	case IntegerIterator:
+		for p, _ := itr.Next(); p != nil; p, _ = itr.Next() {
+		}
+	case UnsignedIterator:
 		for p, _ := itr.Next(); p != nil; p, _ = itr.Next() {
 		}
 	case StringIterator:
@@ -575,6 +612,10 @@ func DrainIterators(itrs []Iterator) {
 					hasData = true
 				}
 			case IntegerIterator:
+				if p, _ := itr.Next(); p != nil {
+					hasData = true
+				}
+			case UnsignedIterator:
 				if p, _ := itr.Next(); p != nil {
 					hasData = true
 				}
@@ -605,6 +646,8 @@ func NewReaderIterator(r io.Reader, typ influxql.DataType, stats IteratorStats) 
 		return newFloatReaderIterator(r, stats)
 	case influxql.Integer:
 		return newIntegerReaderIterator(r, stats)
+	case influxql.Unsigned:
+		return newUnsignedReaderIterator(r, stats)
 	case influxql.String:
 		return newStringReaderIterator(r, stats)
 	case influxql.Boolean:

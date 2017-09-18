@@ -1239,10 +1239,11 @@ func (s *SelectStatement) RewriteFields(m FieldMapper) (*SelectStatement, error)
 					continue
 				}
 
-				// All types that can expand wildcards support float and integer.
+				// All types that can expand wildcards support float, integer, and unsigned.
 				supportedTypes := map[DataType]struct{}{
-					Float:   struct{}{},
-					Integer: struct{}{},
+					Float:    {},
+					Integer:  {},
+					Unsigned: {},
 				}
 
 				// Add additional types for certain functions.
@@ -1252,6 +1253,8 @@ func (s *SelectStatement) RewriteFields(m FieldMapper) (*SelectStatement, error)
 					fallthrough
 				case "min", "max":
 					supportedTypes[Boolean] = struct{}{}
+				case "holt_winters", "holt_winters_with_fit":
+					delete(supportedTypes, Unsigned)
 				}
 
 				for _, ref := range fields {
@@ -4102,6 +4105,8 @@ func EvalType(expr Expr, sources Sources, typmap TypeMapper) DataType {
 		case "mean", "median", "integral":
 			return Float
 		case "count":
+			return Integer
+		case "elapsed":
 			return Integer
 		default:
 			return EvalType(expr.Args[0], sources, typmap)

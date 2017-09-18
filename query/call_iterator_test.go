@@ -79,6 +79,41 @@ func TestCallIterator_Count_Integer(t *testing.T) {
 	}
 }
 
+// Ensure that an unsigned iterator can be created for a count() call.
+func TestCallIterator_Count_Unsigned(t *testing.T) {
+	itr, _ := query.NewCallIterator(
+		&UnsignedIterator{Points: []query.UnsignedPoint{
+			{Name: "cpu", Time: 0, Value: 15, Tags: ParseTags("region=us-east,host=hostA")},
+			{Name: "cpu", Time: 2, Value: 10, Tags: ParseTags("region=us-east,host=hostA")},
+			{Name: "cpu", Time: 1, Value: 10, Tags: ParseTags("region=us-west,host=hostA")},
+			{Name: "cpu", Time: 5, Value: 20, Tags: ParseTags("region=us-east,host=hostA")},
+
+			{Name: "cpu", Time: 1, Value: 11, Tags: ParseTags("region=us-west,host=hostB")},
+			{Name: "cpu", Time: 23, Value: 8, Tags: ParseTags("region=us-west,host=hostB")},
+			{Name: "mem", Time: 23, Value: 10, Tags: ParseTags("region=us-west,host=hostB")},
+		}},
+		query.IteratorOptions{
+			Expr:       MustParseExpr(`count("value")`),
+			Dimensions: []string{"host"},
+			Interval:   query.Interval{Duration: 5 * time.Nanosecond},
+			Ordered:    true,
+			Ascending:  true,
+		},
+	)
+
+	if a, err := Iterators([]query.Iterator{itr}).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if diff := cmp.Diff(a, [][]query.Point{
+		{&query.IntegerPoint{Name: "cpu", Time: 0, Value: 3, Tags: ParseTags("host=hostA"), Aggregated: 3}},
+		{&query.IntegerPoint{Name: "cpu", Time: 5, Value: 1, Tags: ParseTags("host=hostA"), Aggregated: 1}},
+		{&query.IntegerPoint{Name: "cpu", Time: 0, Value: 1, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+		{&query.IntegerPoint{Name: "cpu", Time: 20, Value: 1, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+		{&query.IntegerPoint{Name: "mem", Time: 20, Value: 1, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+	}); diff != "" {
+		t.Fatalf("unexpected points:\n%s", diff)
+	}
+}
+
 // Ensure that a string iterator can be created for a count() call.
 func TestCallIterator_Count_String(t *testing.T) {
 	itr, _ := query.NewCallIterator(
@@ -217,6 +252,40 @@ func TestCallIterator_Min_Integer(t *testing.T) {
 	}
 }
 
+// Ensure that a unsigned iterator can be created for a min() call.
+func TestCallIterator_Min_Unsigned(t *testing.T) {
+	itr, _ := query.NewCallIterator(
+		&UnsignedIterator{Points: []query.UnsignedPoint{
+			{Time: 0, Value: 15, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 2, Value: 10, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 4, Value: 12, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 1, Value: 10, Tags: ParseTags("region=us-west,host=hostA")},
+			{Time: 5, Value: 20, Tags: ParseTags("region=us-east,host=hostA")},
+
+			{Time: 1, Value: 11, Tags: ParseTags("region=us-west,host=hostB")},
+			{Time: 23, Value: 8, Tags: ParseTags("region=us-west,host=hostB")},
+		}},
+		query.IteratorOptions{
+			Expr:       MustParseExpr(`min("value")`),
+			Dimensions: []string{"host"},
+			Interval:   query.Interval{Duration: 5 * time.Nanosecond},
+			Ordered:    true,
+			Ascending:  true,
+		},
+	)
+
+	if a, err := Iterators([]query.Iterator{itr}).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if diff := cmp.Diff(a, [][]query.Point{
+		{&query.UnsignedPoint{Time: 1, Value: 10, Tags: ParseTags("host=hostA"), Aggregated: 4}},
+		{&query.UnsignedPoint{Time: 5, Value: 20, Tags: ParseTags("host=hostA"), Aggregated: 1}},
+		{&query.UnsignedPoint{Time: 1, Value: 11, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+		{&query.UnsignedPoint{Time: 23, Value: 8, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+	}); diff != "" {
+		t.Fatalf("unexpected points:\n%s", diff)
+	}
+}
+
 // Ensure that a boolean iterator can be created for a min() call.
 func TestCallIterator_Min_Boolean(t *testing.T) {
 	itr, _ := query.NewCallIterator(
@@ -311,6 +380,39 @@ func TestCallIterator_Max_Integer(t *testing.T) {
 		{&query.IntegerPoint{Time: 5, Value: 20, Tags: ParseTags("host=hostA"), Aggregated: 1}},
 		{&query.IntegerPoint{Time: 1, Value: 11, Tags: ParseTags("host=hostB"), Aggregated: 1}},
 		{&query.IntegerPoint{Time: 23, Value: 8, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+	}); diff != "" {
+		t.Fatalf("unexpected points:\n%s", diff)
+	}
+}
+
+// Ensure that a unsigned iterator can be created for a max() call.
+func TestCallIterator_Max_Unsigned(t *testing.T) {
+	itr, _ := query.NewCallIterator(
+		&UnsignedIterator{Points: []query.UnsignedPoint{
+			{Time: 0, Value: 15, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 2, Value: 10, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 1, Value: 10, Tags: ParseTags("region=us-west,host=hostA")},
+			{Time: 5, Value: 20, Tags: ParseTags("region=us-east,host=hostA")},
+
+			{Time: 1, Value: 11, Tags: ParseTags("region=us-west,host=hostB")},
+			{Time: 23, Value: 8, Tags: ParseTags("region=us-west,host=hostB")},
+		}},
+		query.IteratorOptions{
+			Expr:       MustParseExpr(`max("value")`),
+			Dimensions: []string{"host"},
+			Interval:   query.Interval{Duration: 5 * time.Nanosecond},
+			Ordered:    true,
+			Ascending:  true,
+		},
+	)
+
+	if a, err := Iterators([]query.Iterator{itr}).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if diff := cmp.Diff(a, [][]query.Point{
+		{&query.UnsignedPoint{Time: 0, Value: 15, Tags: ParseTags("host=hostA"), Aggregated: 3}},
+		{&query.UnsignedPoint{Time: 5, Value: 20, Tags: ParseTags("host=hostA"), Aggregated: 1}},
+		{&query.UnsignedPoint{Time: 1, Value: 11, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+		{&query.UnsignedPoint{Time: 23, Value: 8, Tags: ParseTags("host=hostB"), Aggregated: 1}},
 	}); diff != "" {
 		t.Fatalf("unexpected points:\n%s", diff)
 	}
@@ -415,6 +517,39 @@ func TestCallIterator_Sum_Integer(t *testing.T) {
 	}
 }
 
+// Ensure that an unsigned iterator can be created for a sum() call.
+func TestCallIterator_Sum_Unsigned(t *testing.T) {
+	itr, _ := query.NewCallIterator(
+		&UnsignedIterator{Points: []query.UnsignedPoint{
+			{Time: 0, Value: 15, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 2, Value: 10, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 1, Value: 10, Tags: ParseTags("region=us-west,host=hostA")},
+			{Time: 5, Value: 20, Tags: ParseTags("region=us-east,host=hostA")},
+
+			{Time: 1, Value: 11, Tags: ParseTags("region=us-west,host=hostB")},
+			{Time: 23, Value: 8, Tags: ParseTags("region=us-west,host=hostB")},
+		}},
+		query.IteratorOptions{
+			Expr:       MustParseExpr(`sum("value")`),
+			Dimensions: []string{"host"},
+			Interval:   query.Interval{Duration: 5 * time.Nanosecond},
+			Ordered:    true,
+			Ascending:  true,
+		},
+	)
+
+	if a, err := Iterators([]query.Iterator{itr}).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if diff := cmp.Diff(a, [][]query.Point{
+		{&query.UnsignedPoint{Time: 0, Value: 35, Tags: ParseTags("host=hostA"), Aggregated: 3}},
+		{&query.UnsignedPoint{Time: 5, Value: 20, Tags: ParseTags("host=hostA"), Aggregated: 1}},
+		{&query.UnsignedPoint{Time: 0, Value: 11, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+		{&query.UnsignedPoint{Time: 20, Value: 8, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+	}); diff != "" {
+		t.Fatalf("unexpected points:\n%s", diff)
+	}
+}
+
 // Ensure that a float iterator can be created for a first() call.
 func TestCallIterator_First_Float(t *testing.T) {
 	itr, _ := query.NewCallIterator(
@@ -476,6 +611,39 @@ func TestCallIterator_First_Integer(t *testing.T) {
 		{&query.IntegerPoint{Time: 6, Value: 20, Tags: ParseTags("host=hostA"), Aggregated: 1}},
 		{&query.IntegerPoint{Time: 1, Value: 11, Tags: ParseTags("host=hostB"), Aggregated: 1}},
 		{&query.IntegerPoint{Time: 23, Value: 8, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+	}); diff != "" {
+		t.Fatalf("unexpected points:\n%s", diff)
+	}
+}
+
+// Ensure that an unsigned iterator can be created for a first() call.
+func TestCallIterator_First_Unsigned(t *testing.T) {
+	itr, _ := query.NewCallIterator(
+		&UnsignedIterator{Points: []query.UnsignedPoint{
+			{Time: 2, Value: 10, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 0, Value: 15, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 1, Value: 10, Tags: ParseTags("region=us-west,host=hostA")},
+			{Time: 6, Value: 20, Tags: ParseTags("region=us-east,host=hostA")},
+
+			{Time: 1, Value: 11, Tags: ParseTags("region=us-west,host=hostB")},
+			{Time: 23, Value: 8, Tags: ParseTags("region=us-west,host=hostB")},
+		}},
+		query.IteratorOptions{
+			Expr:       MustParseExpr(`first("value")`),
+			Dimensions: []string{"host"},
+			Interval:   query.Interval{Duration: 5 * time.Nanosecond},
+			Ordered:    true,
+			Ascending:  true,
+		},
+	)
+
+	if a, err := Iterators([]query.Iterator{itr}).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if diff := cmp.Diff(a, [][]query.Point{
+		{&query.UnsignedPoint{Time: 0, Value: 15, Tags: ParseTags("host=hostA"), Aggregated: 3}},
+		{&query.UnsignedPoint{Time: 6, Value: 20, Tags: ParseTags("host=hostA"), Aggregated: 1}},
+		{&query.UnsignedPoint{Time: 1, Value: 11, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+		{&query.UnsignedPoint{Time: 23, Value: 8, Tags: ParseTags("host=hostB"), Aggregated: 1}},
 	}); diff != "" {
 		t.Fatalf("unexpected points:\n%s", diff)
 	}
@@ -608,6 +776,39 @@ func TestCallIterator_Last_Integer(t *testing.T) {
 		{&query.IntegerPoint{Time: 6, Value: 20, Tags: ParseTags("host=hostA"), Aggregated: 1}},
 		{&query.IntegerPoint{Time: 1, Value: 11, Tags: ParseTags("host=hostB"), Aggregated: 1}},
 		{&query.IntegerPoint{Time: 23, Value: 8, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+	}); diff != "" {
+		t.Fatalf("unexpected points:\n%s", diff)
+	}
+}
+
+// Ensure that an unsigned iterator can be created for a last() call.
+func TestCallIterator_Last_Unsigned(t *testing.T) {
+	itr, _ := query.NewCallIterator(
+		&UnsignedIterator{Points: []query.UnsignedPoint{
+			{Time: 2, Value: 10, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 0, Value: 15, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 1, Value: 10, Tags: ParseTags("region=us-west,host=hostA")},
+			{Time: 6, Value: 20, Tags: ParseTags("region=us-east,host=hostA")},
+
+			{Time: 1, Value: 11, Tags: ParseTags("region=us-west,host=hostB")},
+			{Time: 23, Value: 8, Tags: ParseTags("region=us-west,host=hostB")},
+		}},
+		query.IteratorOptions{
+			Expr:       MustParseExpr(`last("value")`),
+			Dimensions: []string{"host"},
+			Interval:   query.Interval{Duration: 5 * time.Nanosecond},
+			Ordered:    true,
+			Ascending:  true,
+		},
+	)
+
+	if a, err := Iterators([]query.Iterator{itr}).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if diff := cmp.Diff(a, [][]query.Point{
+		{&query.UnsignedPoint{Time: 2, Value: 10, Tags: ParseTags("host=hostA"), Aggregated: 3}},
+		{&query.UnsignedPoint{Time: 6, Value: 20, Tags: ParseTags("host=hostA"), Aggregated: 1}},
+		{&query.UnsignedPoint{Time: 1, Value: 11, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+		{&query.UnsignedPoint{Time: 23, Value: 8, Tags: ParseTags("host=hostB"), Aggregated: 1}},
 	}); diff != "" {
 		t.Fatalf("unexpected points:\n%s", diff)
 	}
@@ -749,6 +950,43 @@ func TestCallIterator_Mode_Integer(t *testing.T) {
 		{&query.IntegerPoint{Time: 5, Value: 21, Tags: ParseTags("host=hostA")}},
 		{&query.IntegerPoint{Time: 1, Value: 11, Tags: ParseTags("host=hostB")}},
 		{&query.IntegerPoint{Time: 20, Value: 8, Tags: ParseTags("host=hostB")}},
+	}); diff != "" {
+		t.Fatalf("unexpected points:\n%s", diff)
+	}
+}
+
+// Ensure that a unsigned iterator can be created for a mode() call.
+func TestCallIterator_Mode_Unsigned(t *testing.T) {
+	itr, _ := query.NewModeIterator(&UnsignedIterator{Points: []query.UnsignedPoint{
+		{Time: 0, Value: 15, Tags: ParseTags("region=us-east,host=hostA")},
+		{Time: 1, Value: 10, Tags: ParseTags("region=us-west,host=hostA")},
+		{Time: 2, Value: 10, Tags: ParseTags("region=us-east,host=hostA")},
+		{Time: 3, Value: 10, Tags: ParseTags("region=us-east,host=hostA")},
+		{Time: 4, Value: 10, Tags: ParseTags("region=us-east,host=hostA")},
+		{Time: 6, Value: 20, Tags: ParseTags("region=us-east,host=hostA")},
+		{Time: 7, Value: 21, Tags: ParseTags("region=us-east,host=hostA")},
+		{Time: 8, Value: 21, Tags: ParseTags("region=us-east,host=hostA")},
+		{Time: 1, Value: 11, Tags: ParseTags("region=us-west,host=hostB")},
+		{Time: 22, Value: 8, Tags: ParseTags("region=us-west,host=hostB")},
+		{Time: 23, Value: 8, Tags: ParseTags("region=us-west,host=hostB")},
+		{Time: 24, Value: 25, Tags: ParseTags("region=us-west,host=hostB")},
+	}},
+		query.IteratorOptions{
+			Expr:       MustParseExpr(`mode("value")`),
+			Dimensions: []string{"host"},
+			Interval:   query.Interval{Duration: 5 * time.Nanosecond},
+			Ordered:    true,
+			Ascending:  true,
+		},
+	)
+
+	if a, err := Iterators([]query.Iterator{itr}).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if diff := cmp.Diff(a, [][]query.Point{
+		{&query.UnsignedPoint{Time: 0, Value: 10, Tags: ParseTags("host=hostA")}},
+		{&query.UnsignedPoint{Time: 5, Value: 21, Tags: ParseTags("host=hostA")}},
+		{&query.UnsignedPoint{Time: 1, Value: 11, Tags: ParseTags("host=hostB")}},
+		{&query.UnsignedPoint{Time: 20, Value: 8, Tags: ParseTags("host=hostB")}},
 	}); diff != "" {
 		t.Fatalf("unexpected points:\n%s", diff)
 	}
