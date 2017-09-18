@@ -34,10 +34,6 @@ func new{{$k.Name}}Iterators(itrs []Iterator) []{{$k.Name}}Iterator {
 		switch itr := itr.(type) {
 		case {{$k.Name}}Iterator:
 			a = append(a, itr)
-{{if eq .Name "Float"}}
-		case IntegerIterator:
-			a = append(a, &integerFloatCastIterator{input: itr})
-{{end}}
 		default:
 			itr.Close()
 		}

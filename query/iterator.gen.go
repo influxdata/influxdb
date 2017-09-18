@@ -38,10 +38,6 @@ func newFloatIterators(itrs []Iterator) []FloatIterator {
 		switch itr := itr.(type) {
 		case FloatIterator:
 			a = append(a, itr)
-
-		case IntegerIterator:
-			a = append(a, &integerFloatCastIterator{input: itr})
-
 		default:
 			itr.Close()
 		}
@@ -3432,7 +3428,6 @@ func newIntegerIterators(itrs []Iterator) []IntegerIterator {
 		switch itr := itr.(type) {
 		case IntegerIterator:
 			a = append(a, itr)
-
 		default:
 			itr.Close()
 		}
@@ -6820,7 +6815,6 @@ func newUnsignedIterators(itrs []Iterator) []UnsignedIterator {
 		switch itr := itr.(type) {
 		case UnsignedIterator:
 			a = append(a, itr)
-
 		default:
 			itr.Close()
 		}
@@ -10194,7 +10188,6 @@ func newStringIterators(itrs []Iterator) []StringIterator {
 		switch itr := itr.(type) {
 		case StringIterator:
 			a = append(a, itr)
-
 		default:
 			itr.Close()
 		}
@@ -13568,7 +13561,6 @@ func newBooleanIterators(itrs []Iterator) []BooleanIterator {
 		switch itr := itr.(type) {
 		case BooleanIterator:
 			a = append(a, itr)
-
 		default:
 			itr.Close()
 		}
