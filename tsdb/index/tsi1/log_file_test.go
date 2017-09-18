@@ -100,27 +100,15 @@ func TestLogFile_SeriesStoredInOrder(t *testing.T) {
 		t.Fatal("nil iterator")
 	}
 
-	mname := []string{"cpu", "mem"}
-	var j int
+	var prevSeriesID uint32
 	for i := 0; i < len(tvs); i++ {
 		elem := itr.Next()
 		if elem.SeriesID == 0 {
 			t.Fatal("got nil series")
+		} else if elem.SeriesID < prevSeriesID {
+			t.Fatal("series out of order: %d !< %d ", elem.SeriesID, prevSeriesID)
 		}
-
-		name, tags := sfile.Series(elem.SeriesID)
-		if got, exp := string(name), mname[j]; got != exp {
-			t.Fatalf("[series %d] got %s, expected %s", i, got, exp)
-		}
-
-		if got, exp := string(tags[0].Value), tvs[i]; got != exp {
-			t.Fatalf("[series %d] got %s, expected %s", i, got, exp)
-		}
-
-		if i == (len(tvs)/2)-1 {
-			// Next measurement
-			j++
-		}
+		prevSeriesID = elem.SeriesID
 	}
 }
 
