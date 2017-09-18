@@ -445,7 +445,7 @@ func TestParseCommand_Use(t *testing.T) {
 		}
 
 		if m.Database != test.db {
-			t.Fatalf(`Command "use" changed database to %q. Expected %s`, m.Database, test.db)
+			t.Fatalf(`Command "%s" changed database to %q. Expected %s`, test.cmd, m.Database, test.db)
 		}
 	}
 }
