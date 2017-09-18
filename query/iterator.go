@@ -61,40 +61,33 @@ func (a Iterators) filterNonNil() []Iterator {
 	return other
 }
 
-// castType determines what type to cast the set of iterators to.
-// An iterator type is chosen using this hierarchy:
-//   float > integer > string > boolean
-func (a Iterators) castType() influxql.DataType {
+// dataType determines what slice type this set of iterators should be.
+// An iterator type is chosen by looking at the first element in the slice
+// and then returning the data type for that iterator.
+func (a Iterators) dataType() influxql.DataType {
 	if len(a) == 0 {
 		return influxql.Unknown
 	}
 
-	typ := influxql.DataType(influxql.Boolean)
-	for _, input := range a {
-		switch input.(type) {
-		case FloatIterator:
-			// Once a float iterator is found, short circuit the end.
-			return influxql.Float
-		case IntegerIterator:
-			if typ > influxql.Integer {
-				typ = influxql.Integer
-			}
-		case StringIterator:
-			if typ > influxql.String {
-				typ = influxql.String
-			}
-		case BooleanIterator:
-			// Boolean is the lowest type.
-		}
+	switch a[0].(type) {
+	case FloatIterator:
+		return influxql.Float
+	case IntegerIterator:
+		return influxql.Integer
+	case StringIterator:
+		return influxql.String
+	case BooleanIterator:
+		return influxql.Boolean
+	default:
+		return influxql.Unknown
 	}
-	return typ
 }
 
-// cast casts an array of iterators to a single type.
-// Iterators that are not compatible or cannot be cast to the
-// chosen iterator type are closed and dropped.
-func (a Iterators) cast() interface{} {
-	typ := a.castType()
+// coerce forces an array of iterators to be a single type.
+// Iterators that are not of the same type as the first element in the slice
+// will be closed and dropped.
+func (a Iterators) coerce() interface{} {
+	typ := a.dataType()
 	switch typ {
 	case influxql.Float:
 		return newFloatIterators(a)
@@ -163,7 +156,7 @@ func NewMergeIterator(inputs []Iterator, opt IteratorOptions) Iterator {
 
 	// Aggregate functions can use a more relaxed sorting so that points
 	// within a window are grouped. This is much more efficient.
-	switch inputs := Iterators(inputs).cast().(type) {
+	switch inputs := Iterators(inputs).coerce().(type) {
 	case []FloatIterator:
 		return newFloatMergeIterator(inputs, opt)
 	case []IntegerIterator:
@@ -225,7 +218,7 @@ func NewSortedMergeIterator(inputs []Iterator, opt IteratorOptions) Iterator {
 		return inputs[0]
 	}
 
-	switch inputs := Iterators(inputs).cast().(type) {
+	switch inputs := Iterators(inputs).coerce().(type) {
 	case []FloatIterator:
 		return newFloatSortedMergeIterator(inputs, opt)
 	case []IntegerIterator:

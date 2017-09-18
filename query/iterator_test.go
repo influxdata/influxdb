@@ -219,20 +219,20 @@ func TestMergeIterator_Nil(t *testing.T) {
 	}
 }
 
-func TestMergeIterator_Cast_Float(t *testing.T) {
+func TestMergeIterator_Coerce_Float(t *testing.T) {
 	inputs := []query.Iterator{
+		&FloatIterator{Points: []query.FloatPoint{
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: 7},
+			{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: 5},
+			{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: 6},
+			{Name: "mem", Tags: ParseTags("host=A"), Time: 25, Value: 9},
+		}},
 		&IntegerIterator{Points: []query.IntegerPoint{
 			{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: 1},
 			{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: 3},
 			{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: 4},
 			{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: 2},
 			{Name: "mem", Tags: ParseTags("host=B"), Time: 11, Value: 8},
-		}},
-		&FloatIterator{Points: []query.FloatPoint{
-			{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: 7},
-			{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: 5},
-			{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: 6},
-			{Name: "mem", Tags: ParseTags("host=A"), Time: 25, Value: 9},
 		}},
 	}
 
@@ -246,15 +246,10 @@ func TestMergeIterator_Cast_Float(t *testing.T) {
 	if a, err := Iterators([]query.Iterator{itr}).ReadAll(); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	} else if !deep.Equal(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: 1}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: 3}},
 		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: 7}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: 4}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: 2}},
 		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: 5}},
 		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: 6}},
 		{&query.FloatPoint{Name: "mem", Tags: ParseTags("host=A"), Time: 25, Value: 9}},
-		{&query.FloatPoint{Name: "mem", Tags: ParseTags("host=B"), Time: 11, Value: 8}},
 	}) {
 		t.Errorf("unexpected points: %s", spew.Sdump(a))
 	}
@@ -472,20 +467,20 @@ func TestSortedMergeIterator_Nil(t *testing.T) {
 	}
 }
 
-func TestSortedMergeIterator_Cast_Float(t *testing.T) {
+func TestSortedMergeIterator_Coerce_Float(t *testing.T) {
 	inputs := []query.Iterator{
+		&FloatIterator{Points: []query.FloatPoint{
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: 7},
+			{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: 5},
+			{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: 6},
+			{Name: "mem", Tags: ParseTags("host=A"), Time: 25, Value: 9},
+		}},
 		&IntegerIterator{Points: []query.IntegerPoint{
 			{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: 1},
 			{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: 3},
 			{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: 4},
 			{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: 2},
 			{Name: "mem", Tags: ParseTags("host=B"), Time: 4, Value: 8},
-		}},
-		&FloatIterator{Points: []query.FloatPoint{
-			{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: 7},
-			{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: 5},
-			{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: 6},
-			{Name: "mem", Tags: ParseTags("host=A"), Time: 25, Value: 9},
 		}},
 	}
 
@@ -499,15 +494,10 @@ func TestSortedMergeIterator_Cast_Float(t *testing.T) {
 	if a, err := Iterators([]query.Iterator{itr}).ReadAll(); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	} else if !deep.Equal(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: 1}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: 3}},
 		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: 7}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: 4}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: 2}},
 		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: 5}},
 		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: 6}},
 		{&query.FloatPoint{Name: "mem", Tags: ParseTags("host=A"), Time: 25, Value: 9}},
-		{&query.FloatPoint{Name: "mem", Tags: ParseTags("host=B"), Time: 4, Value: 8}},
 	}) {
 		t.Errorf("unexpected points: %s", spew.Sdump(a))
 	}
