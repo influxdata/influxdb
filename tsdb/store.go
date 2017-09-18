@@ -1057,7 +1057,7 @@ func (s *Store) TagValues(database string, cond influxql.Expr) ([]TagValues, err
 		// filter.
 		for _, name := range names {
 			// Determine a list of keys from condition.
-			keySet, err := sh.engine.MeasurementTagKeysByExpr(name, cond)
+			keySet, err := sh.MeasurementTagKeysByExpr(name, cond)
 			if err != nil {
 				return nil, err
 			}
@@ -1081,7 +1081,7 @@ func (s *Store) TagValues(database string, cond influxql.Expr) ([]TagValues, err
 			// get all the tag values for each key in the keyset.
 			// Each slice in the results contains the sorted values associated
 			// associated with each tag key for the measurement from the key set.
-			if result.values, err = sh.engine.MeasurementTagKeyValuesByExpr(name, result.keys, filterExpr, true); err != nil {
+			if result.values, err = sh.MeasurementTagKeyValuesByExpr(name, result.keys, filterExpr, true); err != nil {
 				return nil, err
 			}
 			allResults = append(allResults, result)

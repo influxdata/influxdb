@@ -722,6 +722,27 @@ func (s *Shard) MeasurementNamesByExpr(cond influxql.Expr) ([][]byte, error) {
 	return s.engine.MeasurementNamesByExpr(cond)
 }
 
+// MeasurementTagKeysByExpr returns all the tag keys for the provided expression.
+func (s *Shard) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if err := s.ready(); err != nil {
+		return nil, err
+	}
+	return s.engine.MeasurementTagKeysByExpr(name, expr)
+}
+
+// MeasurementTagKeyValuesByExpr returns all the tag keys values for the
+// provided expression.
+func (s *Shard) MeasurementTagKeyValuesByExpr(name []byte, key []string, expr influxql.Expr, keysSorted bool) ([][]string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if err := s.ready(); err != nil {
+		return nil, err
+	}
+	return s.engine.MeasurementTagKeyValuesByExpr(name, key, expr, keysSorted)
+}
+
 // MeasurementFields returns fields for a measurement.
 // TODO(edd): This method is currently only being called from tests; do we
 // really need it?
