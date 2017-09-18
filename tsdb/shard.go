@@ -509,6 +509,70 @@ func (s *Shard) WritePoints(points []models.Point) error {
 	return writeError
 }
 
+// DeleteSeries deletes a list of series.
+func (s *Shard) DeleteSeries(seriesKeys [][]byte) error {
+	return s.DeleteSeriesRange(seriesKeys, math.MinInt64, math.MaxInt64)
+}
+
+// DeleteSeriesRange deletes all values from for seriesKeys between min and max (inclusive)
+func (s *Shard) DeleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if err := s.ready(); err != nil {
+		return err
+	}
+
+	if err := s.engine.DeleteSeriesRange(seriesKeys, min, max); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// DeleteMeasurement deletes a measurement and all underlying series.
+func (s *Shard) DeleteMeasurement(name []byte) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if err := s.ready(); err != nil {
+		return err
+	}
+
+	return s.engine.DeleteMeasurement(name)
+}
+
+// SeriesN returns the unique number of series in the shard.
+func (s *Shard) SeriesN() int64 {
+	return s.engine.SeriesN()
+}
+
+// MeasurementsSketches returns the measurement sketches for the shard.
+func (s *Shard) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.engine == nil {
+		return nil, nil, nil
+	}
+	return s.engine.MeasurementsSketches()
+}
+
+func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) error {
+	if len(fieldsToCreate) == 0 {
+		return nil
+	}
+
+	// add fields
+	for _, f := range fieldsToCreate {
+		mf := s.engine.MeasurementFields(f.Measurement)
+		if err := mf.CreateFieldIfNotExists([]byte(f.Field.Name), f.Field.Type, false); err != nil {
+			return err
+		}
+
+		s.index.SetFieldName(f.Measurement, f.Field.Name)
+	}
+
+	return nil
+}
+
 // validateSeriesAndFields checks which series and fields are new and whose metadata should be saved and indexed.
 func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, []*FieldCreate, error) {
 	var (

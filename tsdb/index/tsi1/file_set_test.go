@@ -141,10 +141,10 @@ func TestFileSet_MeasurementSeriesIDIterator(t *testing.T) {
 		if name, tags := fs.SeriesFile().Series(itr.Next().SeriesID); string(name) != `cpu` || tags.String() != `[{region east}]` {
 			t.Fatalf("unexpected series: %s/%s", name, tags.String())
 		}
-		if name, tags := fs.SeriesFile().Series(itr.Next().SeriesID); string(name) != `cpu` || tags.String() != `[{region north}]` {
+		if name, tags := fs.SeriesFile().Series(itr.Next().SeriesID); string(name) != `cpu` || tags.String() != `[{region west}]` {
 			t.Fatalf("unexpected series: %s/%s", name, tags.String())
 		}
-		if name, tags := fs.SeriesFile().Series(itr.Next().SeriesID); string(name) != `cpu` || tags.String() != `[{region west}]` {
+		if name, tags := fs.SeriesFile().Series(itr.Next().SeriesID); string(name) != `cpu` || tags.String() != `[{region north}]` {
 			t.Fatalf("unexpected series: %s/%s", name, tags.String())
 		}
 		if e := itr.Next(); e.SeriesID != 0 {

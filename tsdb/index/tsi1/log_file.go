@@ -648,7 +648,7 @@ func (f *LogFile) execSeriesEntry(e *LogEntry) {
 
 	// Read measurement name.
 	name, remainder := ReadSeriesKeyMeasurement(remainder)
-	mm := f.createMeasurementIfNotExists(e.Name)
+	mm := f.createMeasurementIfNotExists(name)
 
 	// Undelete measurement if it's been tombstoned previously.
 	if !deleted && mm.deleted {

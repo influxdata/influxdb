@@ -187,7 +187,7 @@ func TestMergeSeriesIDIterators(t *testing.T) {
 		t.Fatalf("unexpected elem(1): %#v", e)
 	} else if e := itr.Next(); !reflect.DeepEqual(e, tsi1.SeriesIDElem{SeriesID: 3}) {
 		t.Fatalf("unexpected elem(2): %#v", e)
-	} else if e := itr.Next(); !reflect.DeepEqual(e, tsi1.SeriesIDElem{SeriesID: 3}) {
+	} else if e := itr.Next(); !reflect.DeepEqual(e, tsi1.SeriesIDElem{SeriesID: 4}) {
 		t.Fatalf("unexpected elem(3): %#v", e)
 	} else if e := itr.Next(); e.SeriesID != 0 {
 		t.Fatalf("expected nil elem: %#v", e)

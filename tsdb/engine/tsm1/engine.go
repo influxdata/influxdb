@@ -393,10 +393,6 @@ func (e *Engine) SeriesN() int64 {
 	return e.index.SeriesN()
 }
 
-func (e *Engine) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
-	return e.index.SeriesSketches()
-}
-
 func (e *Engine) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
 	return e.index.MeasurementsSketches()
 }

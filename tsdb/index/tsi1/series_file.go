@@ -122,27 +122,19 @@ func (f *SeriesFile) reindex() error {
 
 	// Series data begins with an offset of 1.
 	data := f.data[1:f.offset]
+	offset := uint32(1)
 
-	var offset uint32
 	for len(data) > 0 {
-		sz, n := binary.Uvarint(data)
-		data = data[n:]
-
-		key := data[:sz]
-		data = data[sz:]
+		var key []byte
+		key, data = ReadSeriesKey(data)
 
 		m.Put(key, offset)
-		offset += uint32(sz) + uint32(n)
+		offset += uint32(len(key))
 	}
 
 	f.hashMap = m
 
 	return nil
-}
-
-// FilterSeriesList returns a list of series that don't exist.
-func (f *SeriesFile) FilterSeriesList(names [][]byte, tagsSlice []models.Tags) ([][]byte, []models.Tags) {
-	panic("TODO")
 }
 
 // CreateSeriesIfNotExists creates series if it doesn't exist. Returns the offset of the series.
@@ -415,9 +407,9 @@ func AppendSeriesKey(dst []byte, name []byte, tags models.Tags) []byte {
 }
 
 // ReadSeriesKey returns the series key from the beginning of the buffer.
-func ReadSeriesKey(data []byte) []byte {
+func ReadSeriesKey(data []byte) (key, remainder []byte) {
 	sz, n := binary.Uvarint(data)
-	return data[:int(sz)+n]
+	return data[:int(sz)+n], data[int(sz)+n:]
 }
 
 func ReadSeriesKeyLen(data []byte) (sz int, remainder []byte) {

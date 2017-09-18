@@ -521,12 +521,6 @@ func (i *Index) CreateSeriesListIfNotExists(_, names [][]byte, tagsSlice []model
 	fs := i.RetainFileSet()
 	defer fs.Release()
 
-	// Filter out existing series. Exit if no new series exist.
-	names, tagsSlice = i.sfile.FilterSeriesList(names, tagsSlice)
-	if len(names) == 0 {
-		return nil
-	}
-
 	// Ensure fileset cannot change during insert.
 	i.mu.RLock()
 	// Insert series into log file.
@@ -546,10 +540,6 @@ func (i *Index) InitializeSeries(key, name []byte, tags models.Tags) error {
 
 // CreateSeriesIfNotExists creates a series if it doesn't exist or is deleted.
 func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error {
-	if i.sfile.HasSeries(name, tags, nil) {
-		return nil
-	}
-
 	if err := func() error {
 		i.mu.RLock()
 		defer i.mu.RUnlock()

@@ -755,12 +755,18 @@ func (s *Store) estimateCardinality(dbName string, getSketches func(*Shard) (est
 
 // SeriesCardinality returns the series cardinality for the provided database.
 func (s *Store) SeriesCardinality(database string) (int64, error) {
-	return s.estimateCardinality(database, func(sh *Shard) (estimator.Sketch, estimator.Sketch, error) {
-		if sh == nil {
-			return nil, nil, errors.New("shard nil, can't get cardinality")
+	s.mu.RLock()
+	shards := s.filterShards(byDatabase(database))
+	s.mu.RUnlock()
+
+	// TODO(benbjohnson): Series file will be shared by the DB.
+	var max int64
+	for _, shard := range shards {
+		if n := shard.Index().SeriesN(); n > max {
+			max = n
 		}
-		return sh.SeriesSketches()
-	})
+	}
+	return max, nil
 }
 
 // MeasurementsCardinality returns the measurement cardinality for the provided
