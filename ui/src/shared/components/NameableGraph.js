@@ -10,6 +10,7 @@ class NameableGraph extends Component {
     this.state = {
       isMenuOpen: false,
       cellName: props.cell.name,
+      isDeleting: false,
     }
   }
 
@@ -33,7 +34,12 @@ class NameableGraph extends Component {
   closeMenu = () => {
     this.setState({
       isMenuOpen: false,
+      isDeleting: false,
     })
+  }
+
+  handleDeleteClick = () => {
+    this.setState({isDeleting: true})
   }
 
   handleDeleteCell = cell => () => {
@@ -47,7 +53,7 @@ class NameableGraph extends Component {
   render() {
     const {cell, children, isEditable, onEditCell, onUpdateCell} = this.props
 
-    const {cellName, isMenuOpen} = this.state
+    const {cellName, isMenuOpen, isDeleting} = this.state
     const queries = _.get(cell, ['queries'], [])
 
     return (
@@ -62,9 +68,11 @@ class NameableGraph extends Component {
         />
         <ContextMenu
           cell={cell}
+          onDeleteClick={this.handleDeleteClick}
           onDelete={this.handleDeleteCell}
           onRename={!cell.isEditing && isEditable ? onEditCell : () => {}}
           toggleMenu={this.toggleMenu}
+          isDeleting={isDeleting}
           isOpen={isMenuOpen}
           isEditable={isEditable}
           handleClickOutside={this.closeMenu}

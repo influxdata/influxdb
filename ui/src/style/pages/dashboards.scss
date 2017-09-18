@@ -215,7 +215,7 @@ input.form-control.dash-graph--name-edit {
   list-style: none;
   padding: 0;
   margin: 0;
-  width: 90px;
+  width: auto;
   visibility: hidden;
   transition-property: all;
 
@@ -230,6 +230,7 @@ input.form-control.dash-graph--name-edit {
     margin: 0;
     text-align: left;
     color: $g15-platinum;
+    white-space: nowrap;
     opacity: 0;
     transition:
       opacity 0.25s ease,
@@ -262,6 +263,11 @@ input.form-control.dash-graph--name-edit {
       color: $g20-white;
     }
   }
+}
+.dash-graph--options-menu > li.dash-graph--confirm-delete {
+  color: $c-curacao;
+
+  &:hover {color: $c-dreamsicle;}
 }
 
 /* Menu Open State */

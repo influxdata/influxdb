@@ -3,10 +3,19 @@ import classnames from 'classnames'
 import OnClickOutside from 'react-onclickoutside'
 
 const ContextMenu = OnClickOutside(
-  ({isOpen, toggleMenu, onEdit, onRename, onDelete, cell}) =>
+  ({
+    isOpen,
+    isDeleting,
+    toggleMenu,
+    onEdit,
+    onRename,
+    onDelete,
+    onDeleteClick,
+    cell,
+  }) =>
     <div
       className={classnames('dash-graph--options', {
-        'dash-graph--options-show': isOpen,
+        'dash-graph--options-show': isOpen || isDeleting,
       })}
       onClick={toggleMenu}
     >
@@ -16,7 +25,11 @@ const ContextMenu = OnClickOutside(
       <ul className="dash-graph--options-menu">
         <li onClick={onEdit(cell)}>Edit</li>
         <li onClick={onRename(cell.x, cell.y, cell.isEditing)}>Rename</li>
-        <li onClick={onDelete(cell)}>Delete</li>
+        {isDeleting
+          ? <li className="dash-graph--confirm-delete" onClick={onDelete(cell)}>
+              Confirm Delete
+            </li>
+          : <li onClick={onDeleteClick}>Delete</li>}
       </ul>
     </div>
 )
@@ -33,10 +46,12 @@ const {bool, func, shape} = PropTypes
 
 ContextMenuContainer.propTypes = {
   isOpen: bool,
+  isDeleting: bool,
   toggleMenu: func,
   onEdit: func,
   onRename: func,
   onDelete: func,
+  onDeleteClick: func,
   cell: shape(),
   isEditable: bool,
 }
