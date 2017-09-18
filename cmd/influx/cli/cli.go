@@ -15,6 +15,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -398,8 +399,10 @@ func (c *CommandLine) clear(cmd string) {
 	}
 }
 
+var useCmdRegexp = regexp.MustCompile(`([^\s"]+)|"([^"]+)"`)
+
 func (c *CommandLine) use(cmd string) {
-	args := strings.Split(strings.TrimSuffix(strings.TrimSpace(cmd), ";"), " ")
+	args := useCmdRegexp.FindAllString(strings.TrimSuffix(strings.TrimSpace(cmd), ";"), -1)
 	if len(args) != 2 {
 		fmt.Printf("Could not parse database name from %q.\n", cmd)
 		return
