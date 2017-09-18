@@ -78,6 +78,7 @@ type Engine interface {
 	LastModified() time.Time
 	DiskSize() int64
 	IsIdle() bool
+	Free() error
 
 	io.WriterTo
 }

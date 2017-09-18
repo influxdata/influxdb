@@ -269,7 +269,9 @@ func (s *Store) loadShards() error {
 	for _, sh := range s.shards {
 		sh.SetEnabled(true)
 		if sh.IsIdle() {
-			sh.SetCompactionsEnabled(false)
+			if err := sh.Free(); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -1262,7 +1264,9 @@ func (s *Store) monitorShards() {
 			s.mu.RLock()
 			for _, sh := range s.shards {
 				if sh.IsIdle() {
-					sh.SetCompactionsEnabled(false)
+					if err := sh.Free(); err != nil {
+						s.Logger.Warn("error free cold shard resources: %v", zap.Error(err))
+					}
 				} else {
 					sh.SetCompactionsEnabled(true)
 				}
