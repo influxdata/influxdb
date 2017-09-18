@@ -158,6 +158,21 @@ export const editTemplateVariableValues = (
   },
 })
 
+export const editDashboardQueryStatus = (
+  dashboardID,
+  cellID,
+  queryID,
+  status
+) => ({
+  type: 'EDIT_DASHBOARD_QUERY_STATUS',
+  payload: {
+    dashboardID,
+    cellID,
+    queryID,
+    status,
+  },
+})
+
 // Async Action Creators
 
 export const getDashboardsAsync = () => async dispatch => {

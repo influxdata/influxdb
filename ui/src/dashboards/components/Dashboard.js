@@ -17,14 +17,15 @@ const Dashboard = ({
   onUpdateCell,
   onDeleteCell,
   synchronizer,
+  editQueryStatus,
+  onSelectTemplate,
   onPositionChange,
+  onCancelEditCell,
   inPresentationMode,
   onOpenTemplateManager,
+  showTemplateControlBar,
   templatesIncludingDashTime,
   onSummonOverlayTechnologies,
-  onSelectTemplate,
-  showTemplateControlBar,
-  onCancelEditCell,
 }) => {
   const cells = dashboard.cells.map(cell => {
     const dashboardCell = {...cell}
@@ -73,6 +74,7 @@ const Dashboard = ({
               onSummonOverlayTechnologies={onSummonOverlayTechnologies}
               synchronizer={synchronizer}
               onZoom={onZoom}
+              editQueryStatus={editQueryStatus}
             />
           : <div className="dashboard__empty">
               <p>This Dashboard has no Cells</p>
@@ -116,6 +118,7 @@ Dashboard.propTypes = {
   onRenameCell: func,
   onUpdateCell: func,
   onDeleteCell: func,
+  editQueryStatus: func,
   onSummonOverlayTechnologies: func,
   synchronizer: func,
   source: shape({
