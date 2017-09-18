@@ -111,6 +111,29 @@ func (a Values) Exclude(min, max int64) Values {
 	return a[:rmin]
 }
 
+// Include returns the subset values between min and max inclusive.
+func (a Values) Include(min, max int64) Values {
+	rmin, rmax := a.FindRange(min, max)
+	if rmin == -1 && rmax == -1 {
+		return nil
+	}
+
+	// a[rmin].UnixNano() ≥ min
+	// a[rmax].UnixNano() ≥ max
+
+	if rmax < len(a) && a[rmax].UnixNano() == max {
+		rmax++
+	}
+
+	if rmin > -1 {
+		b := a[:rmax-rmin]
+		copy(b, a[rmin:rmax])
+		return b
+	}
+
+	return a[:rmax]
+}
+
 // search performs a binary search for UnixNano() v in a
 // and returns the position, i, where v would be inserted.
 // An additional check of a[i].UnixNano() == v is necessary
@@ -147,20 +170,6 @@ func (a Values) FindRange(min, max int64) (int, int) {
 	}
 
 	return a.search(min), a.search(max)
-}
-
-// Include returns the subset values between min and max inclusive.
-func (a Values) Include(min, max int64) Values {
-	var i int
-	for j := 0; j < len(a); j++ {
-		if a[j].UnixNano() < min || a[j].UnixNano() > max {
-			continue
-		}
-
-		a[i] = a[j]
-		i++
-	}
-	return a[:i]
 }
 
 // Merge overlays b to top of a.  If two values conflict with
@@ -310,6 +319,29 @@ func (a FloatValues) Exclude(min, max int64) FloatValues {
 	return a[:rmin]
 }
 
+// Include returns the subset values between min and max inclusive.
+func (a FloatValues) Include(min, max int64) FloatValues {
+	rmin, rmax := a.FindRange(min, max)
+	if rmin == -1 && rmax == -1 {
+		return nil
+	}
+
+	// a[rmin].UnixNano() ≥ min
+	// a[rmax].UnixNano() ≥ max
+
+	if rmax < len(a) && a[rmax].UnixNano() == max {
+		rmax++
+	}
+
+	if rmin > -1 {
+		b := a[:rmax-rmin]
+		copy(b, a[rmin:rmax])
+		return b
+	}
+
+	return a[:rmax]
+}
+
 // search performs a binary search for UnixNano() v in a
 // and returns the position, i, where v would be inserted.
 // An additional check of a[i].UnixNano() == v is necessary
@@ -346,20 +378,6 @@ func (a FloatValues) FindRange(min, max int64) (int, int) {
 	}
 
 	return a.search(min), a.search(max)
-}
-
-// Include returns the subset values between min and max inclusive.
-func (a FloatValues) Include(min, max int64) FloatValues {
-	var i int
-	for j := 0; j < len(a); j++ {
-		if a[j].UnixNano() < min || a[j].UnixNano() > max {
-			continue
-		}
-
-		a[i] = a[j]
-		i++
-	}
-	return a[:i]
 }
 
 // Merge overlays b to top of a.  If two values conflict with
@@ -553,6 +571,29 @@ func (a IntegerValues) Exclude(min, max int64) IntegerValues {
 	return a[:rmin]
 }
 
+// Include returns the subset values between min and max inclusive.
+func (a IntegerValues) Include(min, max int64) IntegerValues {
+	rmin, rmax := a.FindRange(min, max)
+	if rmin == -1 && rmax == -1 {
+		return nil
+	}
+
+	// a[rmin].UnixNano() ≥ min
+	// a[rmax].UnixNano() ≥ max
+
+	if rmax < len(a) && a[rmax].UnixNano() == max {
+		rmax++
+	}
+
+	if rmin > -1 {
+		b := a[:rmax-rmin]
+		copy(b, a[rmin:rmax])
+		return b
+	}
+
+	return a[:rmax]
+}
+
 // search performs a binary search for UnixNano() v in a
 // and returns the position, i, where v would be inserted.
 // An additional check of a[i].UnixNano() == v is necessary
@@ -589,20 +630,6 @@ func (a IntegerValues) FindRange(min, max int64) (int, int) {
 	}
 
 	return a.search(min), a.search(max)
-}
-
-// Include returns the subset values between min and max inclusive.
-func (a IntegerValues) Include(min, max int64) IntegerValues {
-	var i int
-	for j := 0; j < len(a); j++ {
-		if a[j].UnixNano() < min || a[j].UnixNano() > max {
-			continue
-		}
-
-		a[i] = a[j]
-		i++
-	}
-	return a[:i]
 }
 
 // Merge overlays b to top of a.  If two values conflict with
@@ -796,6 +823,29 @@ func (a UnsignedValues) Exclude(min, max int64) UnsignedValues {
 	return a[:rmin]
 }
 
+// Include returns the subset values between min and max inclusive.
+func (a UnsignedValues) Include(min, max int64) UnsignedValues {
+	rmin, rmax := a.FindRange(min, max)
+	if rmin == -1 && rmax == -1 {
+		return nil
+	}
+
+	// a[rmin].UnixNano() ≥ min
+	// a[rmax].UnixNano() ≥ max
+
+	if rmax < len(a) && a[rmax].UnixNano() == max {
+		rmax++
+	}
+
+	if rmin > -1 {
+		b := a[:rmax-rmin]
+		copy(b, a[rmin:rmax])
+		return b
+	}
+
+	return a[:rmax]
+}
+
 // search performs a binary search for UnixNano() v in a
 // and returns the position, i, where v would be inserted.
 // An additional check of a[i].UnixNano() == v is necessary
@@ -832,20 +882,6 @@ func (a UnsignedValues) FindRange(min, max int64) (int, int) {
 	}
 
 	return a.search(min), a.search(max)
-}
-
-// Include returns the subset values between min and max inclusive.
-func (a UnsignedValues) Include(min, max int64) UnsignedValues {
-	var i int
-	for j := 0; j < len(a); j++ {
-		if a[j].UnixNano() < min || a[j].UnixNano() > max {
-			continue
-		}
-
-		a[i] = a[j]
-		i++
-	}
-	return a[:i]
 }
 
 // Merge overlays b to top of a.  If two values conflict with
@@ -1039,6 +1075,29 @@ func (a StringValues) Exclude(min, max int64) StringValues {
 	return a[:rmin]
 }
 
+// Include returns the subset values between min and max inclusive.
+func (a StringValues) Include(min, max int64) StringValues {
+	rmin, rmax := a.FindRange(min, max)
+	if rmin == -1 && rmax == -1 {
+		return nil
+	}
+
+	// a[rmin].UnixNano() ≥ min
+	// a[rmax].UnixNano() ≥ max
+
+	if rmax < len(a) && a[rmax].UnixNano() == max {
+		rmax++
+	}
+
+	if rmin > -1 {
+		b := a[:rmax-rmin]
+		copy(b, a[rmin:rmax])
+		return b
+	}
+
+	return a[:rmax]
+}
+
 // search performs a binary search for UnixNano() v in a
 // and returns the position, i, where v would be inserted.
 // An additional check of a[i].UnixNano() == v is necessary
@@ -1075,20 +1134,6 @@ func (a StringValues) FindRange(min, max int64) (int, int) {
 	}
 
 	return a.search(min), a.search(max)
-}
-
-// Include returns the subset values between min and max inclusive.
-func (a StringValues) Include(min, max int64) StringValues {
-	var i int
-	for j := 0; j < len(a); j++ {
-		if a[j].UnixNano() < min || a[j].UnixNano() > max {
-			continue
-		}
-
-		a[i] = a[j]
-		i++
-	}
-	return a[:i]
 }
 
 // Merge overlays b to top of a.  If two values conflict with
@@ -1282,6 +1327,29 @@ func (a BooleanValues) Exclude(min, max int64) BooleanValues {
 	return a[:rmin]
 }
 
+// Include returns the subset values between min and max inclusive.
+func (a BooleanValues) Include(min, max int64) BooleanValues {
+	rmin, rmax := a.FindRange(min, max)
+	if rmin == -1 && rmax == -1 {
+		return nil
+	}
+
+	// a[rmin].UnixNano() ≥ min
+	// a[rmax].UnixNano() ≥ max
+
+	if rmax < len(a) && a[rmax].UnixNano() == max {
+		rmax++
+	}
+
+	if rmin > -1 {
+		b := a[:rmax-rmin]
+		copy(b, a[rmin:rmax])
+		return b
+	}
+
+	return a[:rmax]
+}
+
 // search performs a binary search for UnixNano() v in a
 // and returns the position, i, where v would be inserted.
 // An additional check of a[i].UnixNano() == v is necessary
@@ -1318,20 +1386,6 @@ func (a BooleanValues) FindRange(min, max int64) (int, int) {
 	}
 
 	return a.search(min), a.search(max)
-}
-
-// Include returns the subset values between min and max inclusive.
-func (a BooleanValues) Include(min, max int64) BooleanValues {
-	var i int
-	for j := 0; j < len(a); j++ {
-		if a[j].UnixNano() < min || a[j].UnixNano() > max {
-			continue
-		}
-
-		a[i] = a[j]
-		i++
-	}
-	return a[:i]
 }
 
 // Merge overlays b to top of a.  If two values conflict with

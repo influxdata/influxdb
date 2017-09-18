@@ -86,7 +86,37 @@ func TestIntegerValues_Exclude(t *testing.T) {
 			}
 		})
 	}
+}
 
+func TestIntegerValues_Include(t *testing.T) {
+	cases := []struct {
+		n        string
+		min, max int64
+		exp      []int64
+	}{
+		{"incl none-lo", 0, 9, nil},
+		{"incl none-hi", 19, 30, nil},
+		{"incl first", 0, 10, []int64{10}},
+		{"incl last", 18, 20, []int64{18}},
+		{"incl all but first and last", 12, 16, []int64{12, 14, 16}},
+		{"incl none in middle", 13, 13, nil},
+		{"incl middle", 14, 14, []int64{14}},
+	}
+
+	for _, tc := range cases {
+		t.Run(fmt.Sprintf("%s[%d,%d]", tc.n, tc.min, tc.max), func(t *testing.T) {
+			vals := makeIntegerValues(5, 10, 20)
+			vals = vals.Include(tc.min, tc.max)
+			var got []int64
+			for _, v := range vals {
+				got = append(got, v.unixnano)
+			}
+			opt := cmp.AllowUnexported(IntegerValue{})
+			if !cmp.Equal(tc.exp, got, opt) {
+				t.Error(cmp.Diff(tc.exp, got, opt))
+			}
+		})
+	}
 }
 
 func benchExclude(b *testing.B, vals IntegerValues, min, max int64) {
@@ -127,4 +157,44 @@ func BenchmarkIntegerValues_ExcludeFirst_10000(b *testing.B) {
 
 func BenchmarkIntegerValues_ExcludeLast_10000(b *testing.B) {
 	benchExclude(b, makeIntegerValues(10000, 10000, 20000), 19999, 20000)
+}
+
+func benchInclude(b *testing.B, vals IntegerValues, min, max int64) {
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		vals.Include(min, max)
+	}
+}
+
+func BenchmarkIntegerValues_IncludeNone_1000(b *testing.B) {
+	benchInclude(b, makeIntegerValues(1000, 1000, 2000), 0, 500)
+}
+
+func BenchmarkIntegerValues_IncludeMiddleHalf_1000(b *testing.B) {
+	benchInclude(b, makeIntegerValues(1000, 1000, 2000), 1250, 1750)
+}
+
+func BenchmarkIntegerValues_IncludeFirst_1000(b *testing.B) {
+	benchInclude(b, makeIntegerValues(1000, 1000, 2000), 0, 1000)
+}
+
+func BenchmarkIntegerValues_IncludeLast_1000(b *testing.B) {
+	benchInclude(b, makeIntegerValues(1000, 1000, 2000), 1999, 2000)
+}
+
+func BenchmarkIntegerValues_IncludeNone_10000(b *testing.B) {
+	benchInclude(b, makeIntegerValues(10000, 10000, 20000), 00, 5000)
+}
+
+func BenchmarkIntegerValues_IncludeMiddleHalf_10000(b *testing.B) {
+	benchInclude(b, makeIntegerValues(10000, 10000, 20000), 12500, 17500)
+}
+
+func BenchmarkIntegerValues_IncludeFirst_10000(b *testing.B) {
+	benchInclude(b, makeIntegerValues(10000, 10000, 20000), 0, 10000)
+}
+
+func BenchmarkIntegerValues_IncludeLast_10000(b *testing.B) {
+	benchInclude(b, makeIntegerValues(10000, 10000, 20000), 19999, 20000)
 }
