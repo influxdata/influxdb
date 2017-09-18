@@ -227,9 +227,16 @@ func (c *DefaultPlanner) PlanLevel(level int) []CompactionGroup {
 		minGenerations = level + 1
 	}
 
+	// Each compaction group should run against 4 generations.  For level 1, since these
+	// can get created much more quickly, bump the grouping to 8 to keep file counts lower.
+	groupSize := 4
+	if level == 1 {
+		groupSize = 8
+	}
+
 	var cGroups []CompactionGroup
 	for _, group := range levelGroups {
-		for _, chunk := range group.chunk(4) {
+		for _, chunk := range group.chunk(groupSize) {
 			var cGroup CompactionGroup
 			var hasTombstones bool
 			for _, gen := range chunk {
@@ -697,8 +704,39 @@ func (c *Compactor) WriteSnapshot(cache *Cache) ([]string, error) {
 		return nil, errSnapshotsDisabled
 	}
 
-	iter := NewCacheKeyIterator(cache, tsdb.DefaultMaxPointsPerBlock, intC)
-	files, err := c.writeNewFiles(c.FileStore.NextGeneration(), 0, iter)
+	concurrency := cache.Count() / 256000
+	if concurrency < 1 {
+		concurrency = 1
+	}
+	if concurrency > 4 {
+		concurrency = 4
+	}
+	splits := cache.Split(concurrency)
+
+	type res struct {
+		files []string
+		err   error
+	}
+
+	resC := make(chan res, concurrency)
+	for i := 0; i < concurrency; i++ {
+		go func(sp *Cache) {
+			iter := NewCacheKeyIterator(sp, tsdb.DefaultMaxPointsPerBlock, intC)
+			files, err := c.writeNewFiles(c.FileStore.NextGeneration(), 0, iter)
+			resC <- res{files: files, err: err}
+
+		}(splits[i])
+	}
+
+	var err error
+	files := make([]string, 0, concurrency)
+	for i := 0; i < concurrency; i++ {
+		result := <-resC
+		if result.err != nil {
+			err = result.err
+		}
+		files = append(files, result.files...)
+	}
 
 	// See if we were disabled while writing a snapshot
 	c.mu.RLock()

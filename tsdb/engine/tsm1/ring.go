@@ -315,3 +315,16 @@ func (p *partition) count() int {
 	return n
 
 }
+
+func (p *partition) count() int {
+	var n int
+	p.mu.RLock()
+	for _, v := range p.store {
+		if v.count() > 0 {
+			n++
+		}
+	}
+	p.mu.RUnlock()
+	return n
+
+}
