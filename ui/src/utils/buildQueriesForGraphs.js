@@ -8,7 +8,17 @@ const buildQueries = (proxy, queryConfigs, timeRange) => {
   })
 
   const queries = statements.filter(s => s.text !== null).map(s => {
-    return {host: [proxy], text: s.text, id: s.id, queryConfig: s.queryConfig}
+    let queryProxy = ''
+    if (s.queryConfig.source) {
+      queryProxy = `${s.queryConfig.source}/proxy`
+    }
+
+    return {
+      host: [queryProxy || proxy],
+      text: s.text,
+      id: s.id,
+      queryConfig: s.queryConfig,
+    }
   })
 
   return queries
