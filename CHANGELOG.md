@@ -1,5 +1,6 @@
 ## v1.3.9.0 [unreleased]
 ### Bug Fixes
+1.[#2004](https://github.com/influxdata/chronograf/pull/2004): Fix DE query templates dropdown disappearance.
 ### Features
 1. [#1885](https://github.com/influxdata/chronograf/pull/1885): Add `fill` options to data explorer and dashboard queries
 1. [#1978](https://github.com/influxdata/chronograf/pull/1978): Support editing kapacitor TICKScript
