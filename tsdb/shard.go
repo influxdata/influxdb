@@ -718,8 +718,18 @@ func (s *Shard) MeasurementNamesByExpr(cond influxql.Expr) ([][]byte, error) {
 	if err := s.ready(); err != nil {
 		return nil, err
 	}
-
 	return s.engine.MeasurementNamesByExpr(cond)
+}
+
+// MeasurementSeriesKeysByExpr returns a list of series keys from the shard
+// matching expr.
+func (s *Shard) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr) ([][]byte, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if err := s.ready(); err != nil {
+		return nil, err
+	}
+	return s.engine.MeasurementSeriesKeysByExpr(name, expr)
 }
 
 // MeasurementTagKeysByExpr returns all the tag keys for the provided expression.
@@ -1003,6 +1013,17 @@ func (s *Shard) ExpandSources(sources influxql.Sources) (influxql.Sources, error
 	return expanded, nil
 }
 
+// Backup backs up the shard by creating a tar archive of all TSM files that
+// have been modified since the provided time. See Engine.Backup for more details.
+func (s *Shard) Backup(w io.Writer, basePath string, since time.Time) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if err := s.ready(); err != nil {
+		return err
+	}
+	return s.engine.Backup(w, basePath, since)
+}
+
 // Restore restores data to the underlying engine for the shard.
 // The shard is reopened after restore.
 func (s *Shard) Restore(r io.Reader, basePath string) error {
@@ -1044,6 +1065,16 @@ func (s *Shard) CreateSnapshot() (string, error) {
 		return "", ErrEngineClosed
 	}
 	return s.engine.CreateSnapshot()
+}
+
+// ForEachMeasurementName iterates over each measurement in the shard.
+func (s *Shard) ForEachMeasurementName(fn func(name []byte) error) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if err := s.ready(); err != nil {
+		return nil
+	}
+	return s.engine.ForEachMeasurementName(fn)
 }
 
 func (s *Shard) ForEachMeasurementTagKey(name []byte, fn func(key []byte) error) error {
