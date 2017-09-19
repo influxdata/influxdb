@@ -62,6 +62,7 @@ class DatabaseManagerPage extends Component {
     if (!database.name) {
       return notify('error', 'Database name cannot be blank')
     }
+
     if (_.findIndex(databases, {name: database.name}, 1) !== -1) {
       return notify('error', 'A database by this name already exists')
     }
