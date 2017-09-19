@@ -167,21 +167,6 @@ func (fs *FileSet) LastContiguousIndexFilesByLevel(level int) []*IndexFile {
 	return a
 }
 
-/*
-// SeriesIDIterator returns an iterator over all series in the index.
-func (fs *FileSet) SeriesIDIterator() SeriesIDIterator {
-	a := make([]SeriesIDIterator, 0, len(fs.files))
-	for _, f := range fs.files {
-		itr := f.SeriesIDIterator()
-		if itr == nil {
-			continue
-		}
-		a = append(a, itr)
-	}
-	return FilterUndeletedSeriesIDIterator(MergeSeriesIDIterators(a...))
-}
-*/
-
 // Measurement returns a measurement by name.
 func (fs *FileSet) Measurement(name []byte) MeasurementElem {
 	for _, f := range fs.files {
