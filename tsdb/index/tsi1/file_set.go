@@ -11,24 +11,26 @@ import (
 	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/estimator/hll"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
 )
 
 // FileSet represents a collection of files.
 type FileSet struct {
-	levels []CompactionLevel
-	sfile  *SeriesFile
-	files  []File
+	levels   []CompactionLevel
+	sfile    *SeriesFile
+	files    []File
+	database string
 }
 
 // NewFileSet returns a new instance of FileSet.
-func NewFileSet(levels []CompactionLevel, sfile *SeriesFile, files []File) (*FileSet, error) {
-	fs := &FileSet{
-		levels: levels,
-		sfile:  sfile,
-		files:  files,
-	}
-	return fs, nil
+func NewFileSet(database string, levels []CompactionLevel, sfile *SeriesFile, files []File) (*FileSet, error) {
+	return &FileSet{
+		levels:   levels,
+		sfile:    sfile,
+		files:    files,
+		database: database,
+	}, nil
 }
 
 // Close closes all the files in the file set.
@@ -283,7 +285,7 @@ func (fs *FileSet) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (ma
 //
 // N.B tagValuesByKeyAndExpr relies on keys being sorted in ascending
 // lexicographic order.
-func (fs *FileSet) tagValuesByKeyAndExpr(name []byte, keys []string, expr influxql.Expr, fieldset *tsdb.MeasurementFieldSet) ([]map[string]struct{}, error) {
+func (fs *FileSet) tagValuesByKeyAndExpr(auth query.Authorizer, name []byte, keys []string, expr influxql.Expr, fieldset *tsdb.MeasurementFieldSet) ([]map[string]struct{}, error) {
 	itr, err := fs.seriesByExprIterator(name, expr, fieldset.Fields(string(name)))
 	if err != nil {
 		return nil, err
@@ -311,6 +313,13 @@ func (fs *FileSet) tagValuesByKeyAndExpr(name []byte, keys []string, expr influx
 		buf := fs.sfile.SeriesKey(e.SeriesID)
 		if buf == nil {
 			continue
+		}
+
+		if auth != nil {
+			name, tags := ParseSeriesKey(buf)
+			if !auth.AuthorizeSeriesRead(fs.database, name, tags) {
+				continue
+			}
 		}
 
 		_, buf = ReadSeriesKeyLen(buf)

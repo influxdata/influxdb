@@ -360,8 +360,8 @@ func (e *Engine) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[
 // for the earliest tag k will be available in index 0 of the returned values
 // slice.
 //
-func (e *Engine) MeasurementTagKeyValuesByExpr(name []byte, keys []string, expr influxql.Expr, keysSorted bool) ([][]string, error) {
-	return e.index.MeasurementTagKeyValuesByExpr(name, keys, expr, keysSorted)
+func (e *Engine) MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []byte, keys []string, expr influxql.Expr, keysSorted bool) ([][]string, error) {
+	return e.index.MeasurementTagKeyValuesByExpr(auth, name, keys, expr, keysSorted)
 }
 
 func (e *Engine) ForEachMeasurementTagKey(name []byte, fn func(key []byte) error) error {

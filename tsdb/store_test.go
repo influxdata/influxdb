@@ -940,7 +940,7 @@ func TestStore_TagValues(t *testing.T) {
 		for _, index := range tsdb.RegisteredIndexes() {
 			setup(index)
 			t.Run(example.Name+"_"+index, func(t *testing.T) {
-				got, err := s.TagValues("db0", example.Expr)
+				got, err := s.TagValues(nil, "db0", example.Expr)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -1170,7 +1170,7 @@ func BenchmarkStore_TagValues(b *testing.B) {
 					}
 					b.Run("random_values="+fmt.Sprint(useRand == 1)+"_index="+index+"_"+cnd+"_"+bm.name, func(b *testing.B) {
 						for i := 0; i < b.N; i++ {
-							if tvResult, err = s.TagValues("db0", condition); err != nil {
+							if tvResult, err = s.TagValues(nil, "db0", condition); err != nil {
 								b.Fatal(err)
 							}
 						}

@@ -178,7 +178,7 @@ func (i *Partition) Open() error {
 			files = append(files, f)
 		}
 	}
-	fs, err := NewFileSet(i.levels, i.sfile, files)
+	fs, err := NewFileSet(i.Database, i.levels, i.sfile, files)
 	if err != nil {
 		return err
 	}
@@ -587,7 +587,7 @@ func (i *Partition) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (m
 //
 // See tsm1.Engine.MeasurementTagKeyValuesByExpr for a fuller description of this
 // method.
-func (i *Partition) MeasurementTagKeyValuesByExpr(name []byte, keys []string, expr influxql.Expr, keysSorted bool) ([][]string, error) {
+func (i *Partition) MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []byte, keys []string, expr influxql.Expr, keysSorted bool) ([][]string, error) {
 	fs := i.RetainFileSet()
 	defer fs.Release()
 
@@ -606,8 +606,21 @@ func (i *Partition) MeasurementTagKeyValuesByExpr(name []byte, keys []string, ex
 	if expr == nil {
 		for ki, key := range keys {
 			itr := fs.TagValueIterator(name, []byte(key))
-			for val := itr.Next(); val != nil; val = itr.Next() {
-				results[ki] = append(results[ki], string(val.Value()))
+			if auth != nil {
+				for val := itr.Next(); val != nil; val = itr.Next() {
+					si := fs.TagValueSeriesIDIterator(name, []byte(key), val.Value())
+					for se := si.Next(); se.SeriesID != 0; se = si.Next() {
+						name, tags := ParseSeriesKey(i.sfile.SeriesKey(se.SeriesID))
+						if auth.AuthorizeSeriesRead(i.Database, name, tags) {
+							results[ki] = append(results[ki], string(val.Value()))
+							break
+						}
+					}
+				}
+			} else {
+				for val := itr.Next(); val != nil; val = itr.Next() {
+					results[ki] = append(results[ki], string(val.Value()))
+				}
 			}
 		}
 		return results, nil
@@ -616,7 +629,7 @@ func (i *Partition) MeasurementTagKeyValuesByExpr(name []byte, keys []string, ex
 	// This is the case where we have filtered series by some WHERE condition.
 	// We only care about the tag values for the keys given the
 	// filtered set of series ids.
-	resultSet, err := fs.tagValuesByKeyAndExpr(name, keys, expr, i.fieldset)
+	resultSet, err := fs.tagValuesByKeyAndExpr(auth, name, keys, expr, i.fieldset)
 	if err != nil {
 		return nil, err
 	}

@@ -766,12 +766,12 @@ func (s *Shard) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[s
 
 // MeasurementTagKeyValuesByExpr returns all the tag keys values for the
 // provided expression.
-func (s *Shard) MeasurementTagKeyValuesByExpr(name []byte, key []string, expr influxql.Expr, keysSorted bool) ([][]string, error) {
+func (s *Shard) MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []byte, key []string, expr influxql.Expr, keysSorted bool) ([][]string, error) {
 	engine, err := s.engine()
 	if err != nil {
 		return nil, err
 	}
-	return engine.MeasurementTagKeyValuesByExpr(name, key, expr, keysSorted)
+	return engine.MeasurementTagKeyValuesByExpr(auth, name, key, expr, keysSorted)
 }
 
 // MeasurementFields returns fields for a measurement.

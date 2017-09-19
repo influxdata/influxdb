@@ -20,6 +20,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/limiter"
+	"github.com/influxdata/influxdb/query"
 	"github.com/uber-go/zap"
 )
 
@@ -1031,7 +1032,7 @@ func (a tagValuesSlice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a tagValuesSlice) Less(i, j int) bool { return bytes.Compare(a[i].name, a[j].name) == -1 }
 
 // TagValues returns the tag keys and values in the given database, matching the condition.
-func (s *Store) TagValues(database string, cond influxql.Expr) ([]TagValues, error) {
+func (s *Store) TagValues(auth query.Authorizer, database string, cond influxql.Expr) ([]TagValues, error) {
 	if cond == nil {
 		return nil, errors.New("a condition is required")
 	}
@@ -1127,10 +1128,28 @@ func (s *Store) TagValues(database string, cond influxql.Expr) ([]TagValues, err
 			// get all the tag values for each key in the keyset.
 			// Each slice in the results contains the sorted values associated
 			// associated with each tag key for the measurement from the key set.
-			if result.values, err = sh.MeasurementTagKeyValuesByExpr(name, result.keys, filterExpr, true); err != nil {
+			if result.values, err = sh.MeasurementTagKeyValuesByExpr(auth, name, result.keys, filterExpr, true); err != nil {
 				return nil, err
 			}
-			allResults = append(allResults, result)
+
+			// remove any tag keys that didn't have any authorized values
+			j := 0
+			for i := range result.keys {
+				if len(result.values[i]) == 0 {
+					continue
+				}
+
+				result.keys[j] = result.keys[i]
+				result.values[j] = result.values[i]
+				j++
+			}
+			result.keys = result.keys[:j]
+			result.values = result.values[:j]
+
+			// only include result if there are keys with values
+			if len(result.keys) > 0 {
+				allResults = append(allResults, result)
+			}
 		}
 	}
 

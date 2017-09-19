@@ -179,7 +179,7 @@ func (cmd *Command) readFileSet() (*tsi1.Index, *tsi1.FileSet, error) {
 		}
 	}
 
-	fs, err := tsi1.NewFileSet(nil, sfile, files)
+	fs, err := tsi1.NewFileSet("", nil, sfile, files)
 	if err != nil {
 		return nil, nil, err
 	}
