@@ -867,7 +867,7 @@ type File interface {
 	MeasurementIterator() MeasurementIterator
 	// HasSeries(name []byte, tags models.Tags, buf []byte) (exists, tombstoned bool)
 	// Series(name []byte, tags models.Tags) SeriesIDElem
-	SeriesN() uint64
+	// SeriesN() uint64
 
 	TagKey(name, key []byte) TagKeyElem
 	TagKeyIterator(name []byte) TagKeyIterator
