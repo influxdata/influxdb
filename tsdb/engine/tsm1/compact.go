@@ -704,12 +704,16 @@ func (c *Compactor) WriteSnapshot(cache *Cache) ([]string, error) {
 		return nil, errSnapshotsDisabled
 	}
 
-	concurrency := cache.Count() / 256000
-	if concurrency < 1 {
-		concurrency = 1
-	}
-	if concurrency > 4 {
-		concurrency = 4
+	concurrency := 1
+	card := cache.Count()
+	if card >= 1024*1024 {
+		concurrency = card / 1024 * 1024
+		if concurrency < 1 {
+			concurrency = 1
+		}
+		if concurrency > 4 {
+			concurrency = 4
+		}
 	}
 	splits := cache.Split(concurrency)
 
