@@ -618,14 +618,7 @@ func (i *Index) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, erro
 // across indexes then use SeriesSketches and merge the results from other
 // indexes.
 func (i *Index) SeriesN() int64 {
-	fs := i.RetainFileSet()
-	defer fs.Release()
-
-	var total int64
-	for _, f := range fs.files {
-		total += int64(f.SeriesN())
-	}
-	return total
+	return int64(i.sfile.SeriesCount())
 }
 
 // HasTagKey returns true if tag key exists.

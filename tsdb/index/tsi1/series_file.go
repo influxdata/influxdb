@@ -1,6 +1,7 @@
 package tsi1
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	"errors"
@@ -39,6 +40,7 @@ type SeriesFile struct {
 	path string
 	data []byte
 	file *os.File
+	w    *bufio.Writer
 
 	offset  uint32
 	hashMap *rhh.HashMap
@@ -76,6 +78,9 @@ func (f *SeriesFile) Open() error {
 		}
 		f.offset = 1
 	}
+
+	// Wrap file write a bufferred writer.
+	f.w = bufio.NewWriter(f.file)
 
 	// Memory map file data.
 	data, err := mmap.Map(f.path, f.MaxSize)
@@ -149,7 +154,12 @@ func (f *SeriesFile) CreateSeriesIfNotExists(name []byte, tags models.Tags, buf 
 
 	// Append series to the end of the file.
 	buf = AppendSeriesKey(buf[:0], name, tags)
-	if _, err := f.file.Write(buf); err != nil {
+	if _, err := f.w.Write(buf); err != nil {
+		return 0, err
+	}
+
+	// Flush writer.
+	if err := f.w.Flush(); err != nil {
 		return 0, err
 	}
 
@@ -161,6 +171,52 @@ func (f *SeriesFile) CreateSeriesIfNotExists(name []byte, tags models.Tags, buf 
 	f.hashMap.Put(f.data[offset:offset+sz], offset)
 
 	return offset, nil
+}
+
+// CreateSeriesListIfNotExists creates a list of series in bulk if they don't exist. Returns the offset of the series.
+func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []models.Tags, buf []byte) (offsets []uint32, err error) {
+	type byteRange struct {
+		offset, size uint32
+	}
+	newKeyRanges := make([]byteRange, 0, len(names))
+
+	offsets = make([]uint32, len(names))
+	for i := range names {
+		offset := f.Offset(names[i], tagsSlice[i], buf)
+		if offset != 0 {
+			offsets[i] = offset
+			continue
+		}
+
+		// Save current file offset.
+		offset = f.offset
+
+		// Append series to the end of the file.
+		buf = AppendSeriesKey(buf[:0], names[i], tagsSlice[i])
+		if _, err := f.w.Write(buf); err != nil {
+			return nil, err
+		}
+
+		// Move current offset to the end.
+		sz := uint32(len(buf))
+		f.offset += sz
+
+		// Append new key to be added to hash map after flush.
+		offsets[i] = offset
+		newKeyRanges = append(newKeyRanges, byteRange{offset, sz})
+	}
+
+	// Flush writer.
+	if err := f.w.Flush(); err != nil {
+		return nil, err
+	}
+
+	// Add keys to hash map.
+	for _, keyRange := range newKeyRanges {
+		f.hashMap.Put(f.data[keyRange.offset:keyRange.offset+keyRange.size], keyRange.offset)
+	}
+
+	return offsets, nil
 }
 
 // Offset returns the byte offset of the series within the block.

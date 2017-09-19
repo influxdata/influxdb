@@ -369,7 +369,6 @@ func (cmd *Command) printIndexFileSummary(f *tsi1.IndexFile) error {
 	fmt.Fprintf(cmd.Stdout, "[INDEX FILE] %s\n", filepath.Base(f.Path()))
 
 	// Calculate summary stats.
-	seriesN := f.SeriesN()
 	var measurementN, measurementSeriesN, measurementSeriesSize uint64
 	var keyN uint64
 	var valueN, valueSeriesN, valueSeriesSize uint64
@@ -394,7 +393,6 @@ func (cmd *Command) printIndexFileSummary(f *tsi1.IndexFile) error {
 
 	// Write stats.
 	tw := tabwriter.NewWriter(cmd.Stdout, 8, 8, 1, '\t', 0)
-	fmt.Fprintf(tw, "Series:\t%d\n", seriesN)
 	fmt.Fprintf(tw, "Measurements:\t%d\n", measurementN)
 	fmt.Fprintf(tw, "  Series data size:\t%d (%s)\n", measurementSeriesSize, formatSize(measurementSeriesSize))
 	fmt.Fprintf(tw, "  Bytes per series:\t%.01fb\n", float64(measurementSeriesSize)/float64(measurementSeriesN))
@@ -403,7 +401,6 @@ func (cmd *Command) printIndexFileSummary(f *tsi1.IndexFile) error {
 	fmt.Fprintf(tw, "  Series:\t%d\n", valueSeriesN)
 	fmt.Fprintf(tw, "  Series data size:\t%d (%s)\n", valueSeriesSize, formatSize(valueSeriesSize))
 	fmt.Fprintf(tw, "  Bytes per series:\t%.01fb\n", float64(valueSeriesSize)/float64(valueSeriesN))
-	fmt.Fprintf(tw, "Avg tags per series:\t%.01f\n", float64(valueSeriesN)/float64(seriesN))
 	if err := tw.Flush(); err != nil {
 		return err
 	}

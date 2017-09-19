@@ -279,11 +279,13 @@ func (f *IndexFile) HasSeries(name []byte, tags models.Tags, buf []byte) (exists
 	return f.sfile.HasSeries(name, tags, buf), false // TODO(benbjohnson): series tombstone
 }
 
+/*
 // Series returns the series and a flag indicating if the series has been
 // tombstoned by the measurement.
 func (f *IndexFile) Series(name []byte, tags models.Tags) SeriesIDElem {
 	panic("TODO")
 }
+*/
 
 // TagValueElem returns an element for a measurement/tag/value.
 func (f *IndexFile) TagValueElem(name, key, value []byte) TagValueElem {
@@ -320,12 +322,6 @@ func (f *IndexFile) MergeMeasurementsSketches(s, t estimator.Sketch) error {
 		return err
 	}
 	return t.Merge(f.mblk.tSketch)
-}
-
-// SeriesN returns the total number of non-tombstoned series for the index file.
-func (f *IndexFile) SeriesN() uint64 {
-	panic("TODO")
-	// return uint64(f.sfile.SeriesN())
 }
 
 // ReadIndexFileTrailer returns the index file trailer from data.
