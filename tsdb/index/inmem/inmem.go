@@ -277,7 +277,7 @@ func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[s
 //
 // See tsm1.Engine.MeasurementTagKeyValuesByExpr for a fuller description of this
 // method.
-func (i *Index) MeasurementTagKeyValuesByExpr(name []byte, keys []string, expr influxql.Expr, keysSorted bool) ([][]string, error) {
+func (i *Index) MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []byte, keys []string, expr influxql.Expr, keysSorted bool) ([][]string, error) {
 	i.mu.RLock()
 	mm := i.measurements[string(name)]
 	i.mu.RUnlock()
@@ -296,7 +296,7 @@ func (i *Index) MeasurementTagKeyValuesByExpr(name []byte, keys []string, expr i
 	ids, _, _ := mm.WalkWhereForSeriesIds(expr)
 	if ids.Len() == 0 && expr == nil {
 		for ki, key := range keys {
-			values := mm.TagValues(key)
+			values := mm.TagValues(auth, key)
 			sort.Sort(sort.StringSlice(values))
 			results[ki] = values
 		}
@@ -321,6 +321,9 @@ func (i *Index) MeasurementTagKeyValuesByExpr(name []byte, keys []string, expr i
 	for _, id := range ids {
 		s := mm.SeriesByID(id)
 		if s == nil {
+			continue
+		}
+		if auth != nil && !auth.AuthorizeSeriesRead(i.database, s.Measurement().name, s.Tags()) {
 			continue
 		}
 

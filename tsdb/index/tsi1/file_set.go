@@ -12,22 +12,25 @@ import (
 	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/estimator/hll"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
 )
 
 // FileSet represents a collection of files.
 type FileSet struct {
-	levels  []CompactionLevel
-	files   []File
-	filters []*bloom.Filter // per-level filters
+	levels   []CompactionLevel
+	files    []File
+	filters  []*bloom.Filter // per-level filters
+	database string
 }
 
 // NewFileSet returns a new instance of FileSet.
-func NewFileSet(levels []CompactionLevel, files []File) (*FileSet, error) {
+func NewFileSet(database string, levels []CompactionLevel, files []File) (*FileSet, error) {
 	fs := &FileSet{
-		levels:  levels,
-		files:   files,
-		filters: make([]*bloom.Filter, len(levels)),
+		levels:   levels,
+		files:    files,
+		filters:  make([]*bloom.Filter, len(levels)),
+		database: database,
 	}
 	if err := fs.buildFilters(); err != nil {
 		return nil, err
@@ -312,7 +315,7 @@ func (fs *FileSet) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (ma
 //
 // N.B tagValuesByKeyAndExpr relies on keys being sorted in ascending
 // lexicographic order.
-func (fs *FileSet) tagValuesByKeyAndExpr(name []byte, keys []string, expr influxql.Expr, fieldset *tsdb.MeasurementFieldSet) ([]map[string]struct{}, error) {
+func (fs *FileSet) tagValuesByKeyAndExpr(auth query.Authorizer, name []byte, keys []string, expr influxql.Expr, fieldset *tsdb.MeasurementFieldSet) ([]map[string]struct{}, error) {
 	itr, err := fs.seriesByExprIterator(name, expr, fieldset.Fields(string(name)))
 	if err != nil {
 		return nil, err
@@ -337,6 +340,9 @@ func (fs *FileSet) tagValuesByKeyAndExpr(name []byte, keys []string, expr influx
 
 	// Iterate all series to collect tag values.
 	for e := itr.Next(); e != nil; e = itr.Next() {
+		if auth != nil && !auth.AuthorizeSeriesRead(fs.database, e.Name(), e.Tags()) {
+			continue
+		}
 		for _, t := range e.Tags() {
 			if idx, ok := keyIdxs[string(t.Key)]; ok {
 				resultSet[idx][string(t.Value)] = struct{}{}
