@@ -105,6 +105,32 @@ func TestSelect(t *testing.T) {
 			},
 		},
 		{
+			name: "Distinct_Unsigned",
+			q:    `SELECT distinct(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.Unsigned,
+			itrs: []query.Iterator{
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 1 * Second, Value: 19},
+				}},
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+				}},
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 11 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 12 * Second, Value: 2},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 20}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 19}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10}},
+			},
+		},
+		{
 			name: "Distinct_String",
 			q:    `SELECT distinct(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
 			typ:  influxql.String,
@@ -222,6 +248,38 @@ func TestSelect(t *testing.T) {
 			},
 		},
 		{
+			name: "Mean_Unsigned",
+			q:    `SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.Unsigned,
+			expr: `mean(value::Unsigned)`,
+			itrs: []query.Iterator{
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 4},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
+				}},
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 19.5, Aggregated: 2}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2.5, Aggregated: 2}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 100, Aggregated: 1}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10, Aggregated: 1}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 3.2, Aggregated: 5}},
+			},
+		},
+		{
 			name: "Mean_String",
 			q:    `SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
 			typ:  influxql.String,
@@ -285,6 +343,37 @@ func TestSelect(t *testing.T) {
 					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
 				}},
 				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 19.5}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2.5}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 100}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 3}},
+			},
+		},
+		{
+			name: "Median_Unsigned",
+			q:    `SELECT median(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.Unsigned,
+			itrs: []query.Iterator{
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
+				}},
+				&UnsignedIterator{Points: []query.UnsignedPoint{
 					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
 					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
 				}},
@@ -371,6 +460,37 @@ func TestSelect(t *testing.T) {
 				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 100}},
 				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10}},
 				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 1}},
+			},
+		},
+		{
+			name: "Mode_Unsigned",
+			q:    `SELECT mode(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.Unsigned,
+			itrs: []query.Iterator{
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 10},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 54 * Second, Value: 5},
+				}},
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 10}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 100}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 1}},
 			},
 		},
 		{
@@ -493,6 +613,38 @@ func TestSelect(t *testing.T) {
 			},
 		},
 		{
+			name: "Top_NoTags_Unsigned",
+			q:    `SELECT top(value, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s), host fill(none)`,
+			typ:  influxql.Unsigned,
+			itrs: []query.Iterator{
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
+				}},
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 20}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 9 * Second, Value: 19}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 31 * Second, Value: 100}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 5 * Second, Value: 10}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 53 * Second, Value: 5}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 53 * Second, Value: 4}},
+			},
+		},
+		{
 			name: "Top_Tags_Float",
 			q:    `SELECT top(value::float, host::tag, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s) fill(none)`,
 			typ:  influxql.Float,
@@ -579,6 +731,49 @@ func TestSelect(t *testing.T) {
 			},
 		},
 		{
+			name: "Top_Tags_Unsigned",
+			q:    `SELECT top(value::Unsigned, host::tag, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s) fill(none)`,
+			typ:  influxql.Unsigned,
+			expr: `max(value::Unsigned)`,
+			itrs: []query.Iterator{
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3, Aux: []interface{}{"A"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
+				}},
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5, Aux: []interface{}{"B"}},
+				}},
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19, Aux: []interface{}{"A"}},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
+				}},
+			},
+			points: [][]query.Point{
+				{
+					&query.UnsignedPoint{Name: "cpu", Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
+					&query.StringPoint{Name: "cpu", Time: 0 * Second, Value: "A"},
+				},
+				{
+					&query.UnsignedPoint{Name: "cpu", Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
+					&query.StringPoint{Name: "cpu", Time: 5 * Second, Value: "B"},
+				},
+				{
+					&query.UnsignedPoint{Name: "cpu", Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
+					&query.StringPoint{Name: "cpu", Time: 31 * Second, Value: "A"},
+				},
+				{
+					&query.UnsignedPoint{Name: "cpu", Time: 53 * Second, Value: 5, Aux: []interface{}{"B"}},
+					&query.StringPoint{Name: "cpu", Time: 53 * Second, Value: "B"},
+				},
+			},
+		},
+		{
 			name: "Top_GroupByTags_Float",
 			q:    `SELECT top(value::float, host::tag, 1) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY region, time(30s) fill(none)`,
 			typ:  influxql.Float,
@@ -656,6 +851,44 @@ func TestSelect(t *testing.T) {
 			},
 		},
 		{
+			name: "Top_GroupByTags_Unsigned",
+			q:    `SELECT top(value::Unsigned, host::tag, 1) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY region, time(30s) fill(none)`,
+			typ:  influxql.Unsigned,
+			itrs: []query.Iterator{
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3, Aux: []interface{}{"A"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
+				}},
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5, Aux: []interface{}{"B"}},
+				}},
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19, Aux: []interface{}{"A"}},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
+				}},
+			},
+			points: [][]query.Point{
+				{
+					&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("region=east"), Time: 9 * Second, Value: 19, Aux: []interface{}{"A"}},
+					&query.StringPoint{Name: "cpu", Tags: ParseTags("region=east"), Time: 9 * Second, Value: "A"},
+				},
+				{
+					&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
+					&query.StringPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 0 * Second, Value: "A"},
+				},
+				{
+					&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
+					&query.StringPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 31 * Second, Value: "A"},
+				},
+			},
+		},
+		{
 			name: "Bottom_NoTags_Float",
 			q:    `SELECT bottom(value::float, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s), host fill(none)`,
 			typ:  influxql.Float,
@@ -717,6 +950,38 @@ func TestSelect(t *testing.T) {
 				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 5 * Second, Value: 10}},
 				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 1}},
 				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 51 * Second, Value: 2}},
+			},
+		},
+		{
+			name: "Bottom_NoTags_Unsigned",
+			q:    `SELECT bottom(value::Unsigned, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s), host fill(none)`,
+			typ:  influxql.Unsigned,
+			itrs: []query.Iterator{
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
+				}},
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 11 * Second, Value: 3}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 31 * Second, Value: 100}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 5 * Second, Value: 10}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 1}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 51 * Second, Value: 2}},
 			},
 		},
 		{
@@ -805,6 +1070,48 @@ func TestSelect(t *testing.T) {
 			},
 		},
 		{
+			name: "Bottom_Tags_Unsigned",
+			q:    `SELECT bottom(value::Unsigned, host::tag, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s) fill(none)`,
+			typ:  influxql.Unsigned,
+			itrs: []query.Iterator{
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3, Aux: []interface{}{"A"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
+				}},
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5, Aux: []interface{}{"B"}},
+				}},
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19, Aux: []interface{}{"A"}},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
+				}},
+			},
+			points: [][]query.Point{
+				{
+					&query.UnsignedPoint{Name: "cpu", Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
+					&query.StringPoint{Name: "cpu", Time: 5 * Second, Value: "B"},
+				},
+				{
+					&query.UnsignedPoint{Name: "cpu", Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
+					&query.StringPoint{Name: "cpu", Time: 10 * Second, Value: "A"},
+				},
+				{
+					&query.UnsignedPoint{Name: "cpu", Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
+					&query.StringPoint{Name: "cpu", Time: 31 * Second, Value: "A"},
+				},
+				{
+					&query.UnsignedPoint{Name: "cpu", Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
+					&query.StringPoint{Name: "cpu", Time: 50 * Second, Value: "B"},
+				},
+			},
+		},
+		{
 			name: "Bottom_GroupByTags_Float",
 			q:    `SELECT bottom(value::float, host::tag, 1) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY region, time(30s) fill(none)`,
 			typ:  influxql.Float,
@@ -878,6 +1185,45 @@ func TestSelect(t *testing.T) {
 				},
 				{
 					&query.IntegerPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
+					&query.StringPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 50 * Second, Value: "B"},
+				},
+			},
+		},
+		{
+			name: "Bottom_GroupByTags_Unsigned",
+			q:    `SELECT bottom(value::float, host::tag, 1) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY region, time(30s) fill(none)`,
+			typ:  influxql.Unsigned,
+			expr: `min(value::float)`,
+			itrs: []query.Iterator{
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20, Aux: []interface{}{"A"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3, Aux: []interface{}{"A"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100, Aux: []interface{}{"A"}},
+				}},
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4, Aux: []interface{}{"B"}},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5, Aux: []interface{}{"B"}},
+				}},
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19, Aux: []interface{}{"A"}},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
+				}},
+			},
+			points: [][]query.Point{
+				{
+					&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("region=east"), Time: 10 * Second, Value: 2, Aux: []interface{}{"A"}},
+					&query.StringPoint{Name: "cpu", Tags: ParseTags("region=east"), Time: 10 * Second, Value: "A"},
+				},
+				{
+					&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 11 * Second, Value: 3, Aux: []interface{}{"A"}},
+					&query.StringPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 11 * Second, Value: "A"},
+				},
+				{
+					&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
 					&query.StringPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 50 * Second, Value: "B"},
 				},
 			},
@@ -1075,6 +1421,74 @@ func TestSelect(t *testing.T) {
 			},
 		},
 		{
+			name: "Fill_Linear_Unsigned_One",
+			q:    `SELECT max(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:00Z' GROUP BY host, time(10s) fill(linear)`,
+			typ:  influxql.Unsigned,
+			expr: `max(value::Unsigned)`,
+			itrs: []query.Iterator{
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("host=A"), Time: 12 * Second, Value: 1},
+					{Name: "cpu", Tags: ParseTags("host=A"), Time: 32 * Second, Value: 4},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Nil: true}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 1, Aggregated: 1}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 20 * Second, Value: 2}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 4, Aggregated: 1}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 40 * Second, Nil: true}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 50 * Second, Nil: true}},
+			},
+		},
+		{
+			name: "Fill_Linear_Unsigned_Many",
+			q:    `SELECT max(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:20Z' GROUP BY host, time(10s) fill(linear)`,
+			typ:  influxql.Unsigned,
+			expr: `max(value::Unsigned)`,
+			itrs: []query.Iterator{
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("host=A"), Time: 12 * Second, Value: 1},
+					{Name: "cpu", Tags: ParseTags("host=A"), Time: 72 * Second, Value: 10},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Nil: true}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 1, Aggregated: 1}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 20 * Second, Value: 2}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 4}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 40 * Second, Value: 5}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 50 * Second, Value: 7}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 60 * Second, Value: 8}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 70 * Second, Value: 10, Aggregated: 1}},
+			},
+		},
+		{
+			name: "Fill_Linear_Unsigned_MultipleSeries",
+			q:    `SELECT max(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:00Z' GROUP BY host, time(10s) fill(linear)`,
+			typ:  influxql.Unsigned,
+			expr: `max(value::Unsigned)`,
+			itrs: []query.Iterator{
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("host=A"), Time: 12 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("host=B"), Time: 32 * Second, Value: 4},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Nil: true}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2, Aggregated: 1}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 20 * Second, Nil: true}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Nil: true}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 40 * Second, Nil: true}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 50 * Second, Nil: true}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Nil: true}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 10 * Second, Nil: true}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 20 * Second, Nil: true}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 30 * Second, Value: 4, Aggregated: 1}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 40 * Second, Nil: true}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Nil: true}},
+			},
+		},
+		{
 			name: "Stddev_Float",
 			q:    `SELECT stddev(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
 			typ:  influxql.Float,
@@ -1124,6 +1538,37 @@ func TestSelect(t *testing.T) {
 					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
 				}},
 				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 0.7071067811865476}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 0.7071067811865476}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Nil: true}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Nil: true}},
+				{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 1.5811388300841898}},
+			},
+		},
+		{
+			name: "Stddev_Unsigned",
+			q:    `SELECT stddev(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.Unsigned,
+			itrs: []query.Iterator{
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
+				}},
+				&UnsignedIterator{Points: []query.UnsignedPoint{
 					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
 					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
 				}},
@@ -1199,6 +1644,37 @@ func TestSelect(t *testing.T) {
 			},
 		},
 		{
+			name: "Spread_Unsigned",
+			q:    `SELECT spread(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.Unsigned,
+			itrs: []query.Iterator{
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
+				}},
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 1}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 1}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 0}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 0}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 4}},
+			},
+		},
+		{
 			name: "Percentile_Float",
 			q:    `SELECT percentile(value, 90) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
 			typ:  influxql.Float,
@@ -1271,6 +1747,42 @@ func TestSelect(t *testing.T) {
 			},
 		},
 		{
+			name: "Percentile_Unsigned",
+			q:    `SELECT percentile(value, 90) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.Unsigned,
+			itrs: []query.Iterator{
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 10},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 9},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 8},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 7},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 54 * Second, Value: 6},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 55 * Second, Value: 5},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 56 * Second, Value: 4},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 57 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 58 * Second, Value: 2},
+					{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 59 * Second, Value: 1},
+				}},
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 20}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 3}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 100}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 9}},
+			},
+		},
+		{
 			name: "Sample_Float",
 			q:    `SELECT sample(value, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
 			typ:  influxql.Float,
@@ -1310,6 +1822,27 @@ func TestSelect(t *testing.T) {
 				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 5 * Second, Value: 10}},
 				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 10 * Second, Value: 19}},
 				{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 15 * Second, Value: 2}},
+			},
+		},
+		{
+			name: "Sample_Unsigned",
+			q:    `SELECT sample(value, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.Unsigned,
+			itrs: []query.Iterator{
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 5 * Second, Value: 10},
+				}},
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=B"), Time: 10 * Second, Value: 19},
+					{Name: "cpu", Tags: ParseTags("region=east,host=B"), Time: 15 * Second, Value: 2},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 20}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 5 * Second, Value: 10}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 10 * Second, Value: 19}},
+				{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 15 * Second, Value: 2}},
 			},
 		},
 		{
@@ -1468,6 +2001,24 @@ func TestSelect(t *testing.T) {
 			},
 		},
 		{
+			name: "Derivative_Unsigned",
+			q:    `SELECT derivative(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Unsigned,
+			itrs: []query.Iterator{
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 8 * Second, Value: 19},
+					{Name: "cpu", Time: 12 * Second, Value: 3},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 4 * Second, Value: -2.5}},
+				{&query.FloatPoint{Name: "cpu", Time: 8 * Second, Value: 2.25}},
+				{&query.FloatPoint{Name: "cpu", Time: 12 * Second, Value: -4}},
+			},
+		},
+		{
 			name: "Derivative_Desc_Float",
 			q:    `SELECT derivative(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z' ORDER BY desc`,
 			typ:  influxql.Float,
@@ -1504,6 +2055,24 @@ func TestSelect(t *testing.T) {
 			},
 		},
 		{
+			name: "Derivative_Desc_Unsigned",
+			q:    `SELECT derivative(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z' ORDER BY desc`,
+			typ:  influxql.Unsigned,
+			itrs: []query.Iterator{
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Time: 12 * Second, Value: 3},
+					{Name: "cpu", Time: 8 * Second, Value: 19},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 8 * Second, Value: 4}},
+				{&query.FloatPoint{Name: "cpu", Time: 4 * Second, Value: -2.25}},
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 2.5}},
+			},
+		},
+		{
 			name: "Derivative_Duplicate_Float",
 			q:    `SELECT derivative(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
 			typ:  influxql.Float,
@@ -1525,6 +2094,22 @@ func TestSelect(t *testing.T) {
 			typ:  influxql.Integer,
 			itrs: []query.Iterator{
 				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 0 * Second, Value: 19},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 4 * Second, Value: 3},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 4 * Second, Value: -2.5}},
+			},
+		},
+		{
+			name: "Derivative_Duplicate_Unsigned",
+			q:    `SELECT derivative(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Unsigned,
+			itrs: []query.Iterator{
+				&UnsignedIterator{Points: []query.UnsignedPoint{
 					{Name: "cpu", Time: 0 * Second, Value: 20},
 					{Name: "cpu", Time: 0 * Second, Value: 19},
 					{Name: "cpu", Time: 4 * Second, Value: 10},
@@ -1572,6 +2157,24 @@ func TestSelect(t *testing.T) {
 			},
 		},
 		{
+			name: "Difference_Unsigned",
+			q:    `SELECT difference(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Unsigned,
+			itrs: []query.Iterator{
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 8 * Second, Value: 19},
+					{Name: "cpu", Time: 12 * Second, Value: 3},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.UnsignedPoint{Name: "cpu", Time: 4 * Second, Value: 18446744073709551606}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 8 * Second, Value: 9}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 12 * Second, Value: 18446744073709551600}},
+			},
+		},
+		{
 			name: "Difference_Duplicate_Float",
 			q:    `SELECT difference(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
 			typ:  influxql.Float,
@@ -1601,6 +2204,22 @@ func TestSelect(t *testing.T) {
 			},
 			points: [][]query.Point{
 				{&query.IntegerPoint{Name: "cpu", Time: 4 * Second, Value: -10}},
+			},
+		},
+		{
+			name: "Difference_Duplicate_Unsigned",
+			q:    `SELECT difference(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Unsigned,
+			itrs: []query.Iterator{
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 0 * Second, Value: 19},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 4 * Second, Value: 3},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.UnsignedPoint{Name: "cpu", Time: 4 * Second, Value: 18446744073709551606}},
 			},
 		},
 		{
@@ -1635,6 +2254,22 @@ func TestSelect(t *testing.T) {
 			},
 			points: [][]query.Point{
 				{&query.IntegerPoint{Name: "cpu", Time: 8 * Second, Value: 11}},
+			},
+		},
+		{
+			name: "Non_Negative_Difference_Unsigned",
+			q:    `SELECT non_negative_difference(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Unsigned,
+			itrs: []query.Iterator{
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 8 * Second, Value: 21},
+					{Name: "cpu", Time: 12 * Second, Value: 3},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.UnsignedPoint{Name: "cpu", Time: 8 * Second, Value: 11}},
 			},
 		},
 		{
@@ -1684,6 +2319,29 @@ func TestSelect(t *testing.T) {
 			},
 		},
 		{
+			name: "Non_Negative_Difference_Duplicate_Unsigned",
+			q:    `SELECT non_negative_difference(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Unsigned,
+			itrs: []query.Iterator{
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 0 * Second, Value: 19},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 4 * Second, Value: 3},
+					{Name: "cpu", Time: 8 * Second, Value: 30},
+					{Name: "cpu", Time: 8 * Second, Value: 19},
+					{Name: "cpu", Time: 12 * Second, Value: 10},
+					{Name: "cpu", Time: 12 * Second, Value: 3},
+					{Name: "cpu", Time: 16 * Second, Value: 40},
+					{Name: "cpu", Time: 16 * Second, Value: 3},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.UnsignedPoint{Name: "cpu", Time: 8 * Second, Value: 20}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 16 * Second, Value: 30}},
+			},
+		},
+		{
 			name: "Elapsed_Float",
 			q:    `SELECT elapsed(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
 			typ:  influxql.Float,
@@ -1707,6 +2365,24 @@ func TestSelect(t *testing.T) {
 			typ:  influxql.Integer,
 			itrs: []query.Iterator{
 				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 8 * Second, Value: 19},
+					{Name: "cpu", Time: 11 * Second, Value: 3},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.IntegerPoint{Name: "cpu", Time: 4 * Second, Value: 4}},
+				{&query.IntegerPoint{Name: "cpu", Time: 8 * Second, Value: 4}},
+				{&query.IntegerPoint{Name: "cpu", Time: 11 * Second, Value: 3}},
+			},
+		},
+		{
+			name: "Elapsed_Unsigned",
+			q:    `SELECT elapsed(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Unsigned,
+			itrs: []query.Iterator{
+				&UnsignedIterator{Points: []query.UnsignedPoint{
 					{Name: "cpu", Time: 0 * Second, Value: 20},
 					{Name: "cpu", Time: 4 * Second, Value: 10},
 					{Name: "cpu", Time: 8 * Second, Value: 19},
@@ -1854,6 +2530,37 @@ func TestSelect(t *testing.T) {
 			},
 		},
 		{
+			name: "Integral_Unsigned",
+			q:    `SELECT integral(value) FROM cpu`,
+			typ:  influxql.Unsigned,
+			itrs: []query.Iterator{
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 5 * Second, Value: 10},
+					{Name: "cpu", Time: 10 * Second, Value: 0},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0, Value: 100}},
+			},
+		},
+		{
+			name: "Integral_Duplicate_Unsigned",
+			q:    `SELECT integral(value, 2s) FROM cpu`,
+			typ:  influxql.Unsigned,
+			itrs: []query.Iterator{
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 5 * Second, Value: 10},
+					{Name: "cpu", Time: 5 * Second, Value: 30},
+					{Name: "cpu", Time: 10 * Second, Value: 40},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0, Value: 125}},
+			},
+		},
+		{
 			name: "MovingAverage_Float",
 			q:    `SELECT moving_average(value, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
 			typ:  influxql.Float,
@@ -1877,6 +2584,24 @@ func TestSelect(t *testing.T) {
 			typ:  influxql.Integer,
 			itrs: []query.Iterator{
 				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 8 * Second, Value: 19},
+					{Name: "cpu", Time: 12 * Second, Value: 3},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 4 * Second, Value: 15, Aggregated: 2}},
+				{&query.FloatPoint{Name: "cpu", Time: 8 * Second, Value: 14.5, Aggregated: 2}},
+				{&query.FloatPoint{Name: "cpu", Time: 12 * Second, Value: 11, Aggregated: 2}},
+			},
+		},
+		{
+			name: "MovingAverage_Unsigned",
+			q:    `SELECT moving_average(value, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Unsigned,
+			itrs: []query.Iterator{
+				&UnsignedIterator{Points: []query.UnsignedPoint{
 					{Name: "cpu", Time: 0 * Second, Value: 20},
 					{Name: "cpu", Time: 4 * Second, Value: 10},
 					{Name: "cpu", Time: 8 * Second, Value: 19},
@@ -1928,6 +2653,25 @@ func TestSelect(t *testing.T) {
 			},
 		},
 		{
+			name: "CumulativeSum_Unsigned",
+			q:    `SELECT cumulative_sum(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Unsigned,
+			itrs: []query.Iterator{
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 8 * Second, Value: 19},
+					{Name: "cpu", Time: 12 * Second, Value: 3},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.UnsignedPoint{Name: "cpu", Time: 0 * Second, Value: 20}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 4 * Second, Value: 30}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 8 * Second, Value: 49}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 12 * Second, Value: 52}},
+			},
+		},
+		{
 			name: "CumulativeSum_Duplicate_Float",
 			q:    `SELECT cumulative_sum(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
 			typ:  influxql.Float,
@@ -1963,6 +2707,25 @@ func TestSelect(t *testing.T) {
 				{&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 39}},
 				{&query.IntegerPoint{Name: "cpu", Time: 4 * Second, Value: 49}},
 				{&query.IntegerPoint{Name: "cpu", Time: 4 * Second, Value: 52}},
+			},
+		},
+		{
+			name: "CumulativeSum_Duplicate_Unsigned",
+			q:    `SELECT cumulative_sum(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`,
+			typ:  influxql.Unsigned,
+			itrs: []query.Iterator{
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 20},
+					{Name: "cpu", Time: 0 * Second, Value: 19},
+					{Name: "cpu", Time: 4 * Second, Value: 10},
+					{Name: "cpu", Time: 4 * Second, Value: 3},
+				}},
+			},
+			points: [][]query.Point{
+				{&query.UnsignedPoint{Name: "cpu", Time: 0 * Second, Value: 20}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 0 * Second, Value: 39}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 4 * Second, Value: 49}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 4 * Second, Value: 52}},
 			},
 		},
 		{
@@ -2041,6 +2804,77 @@ func TestSelect(t *testing.T) {
 				t.Fatalf("unexpected points:\n%s", diff)
 			}
 		})
+	}
+}
+
+// Ensure a SELECT with raw fields works for all types.
+func TestSelect_Raw(t *testing.T) {
+	shardMapper := ShardMapper{
+		MapShardsFn: func(sources influxql.Sources, _ influxql.TimeRange) query.ShardGroup {
+			return &ShardGroup{
+				Fields: map[string]influxql.DataType{
+					"f": influxql.Float,
+					"i": influxql.Integer,
+					"u": influxql.Unsigned,
+					"s": influxql.String,
+					"b": influxql.Boolean,
+				},
+				CreateIteratorFn: func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
+					if m.Name != "cpu" {
+						t.Fatalf("unexpected source: %s", m.Name)
+					}
+					if !reflect.DeepEqual(opt.Aux, []influxql.VarRef{
+						{Val: "b", Type: influxql.Boolean},
+						{Val: "f", Type: influxql.Float},
+						{Val: "i", Type: influxql.Integer},
+						{Val: "s", Type: influxql.String},
+						{Val: "u", Type: influxql.Unsigned},
+					}) {
+						t.Fatalf("unexpected auxiliary fields: %v", opt.Aux)
+					}
+					return &FloatIterator{Points: []query.FloatPoint{
+						{Name: "cpu", Time: 0 * Second, Aux: []interface{}{
+							true, float64(20), int64(20), "a", uint64(20)}},
+						{Name: "cpu", Time: 5 * Second, Aux: []interface{}{
+							false, float64(10), int64(10), "b", uint64(10)}},
+						{Name: "cpu", Time: 9 * Second, Aux: []interface{}{
+							true, float64(19), int64(19), "c", uint64(19)}},
+					}}, nil
+				},
+			}
+		},
+	}
+
+	stmt := MustParseSelectStatement(`SELECT f, i, u, s, b FROM cpu`)
+	itrs, _, err := query.Select(stmt, &shardMapper, query.SelectOptions{})
+	if err != nil {
+		t.Errorf("parse error: %s", err)
+	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if diff := cmp.Diff(a, [][]query.Point{
+		{
+			&query.FloatPoint{Name: "cpu", Value: 20, Time: 0 * Second},
+			&query.IntegerPoint{Name: "cpu", Value: 20, Time: 0 * Second},
+			&query.UnsignedPoint{Name: "cpu", Value: 20, Time: 0 * Second},
+			&query.StringPoint{Name: "cpu", Value: "a", Time: 0 * Second},
+			&query.BooleanPoint{Name: "cpu", Value: true, Time: 0 * Second},
+		},
+		{
+			&query.FloatPoint{Name: "cpu", Value: 10, Time: 5 * Second},
+			&query.IntegerPoint{Name: "cpu", Value: 10, Time: 5 * Second},
+			&query.UnsignedPoint{Name: "cpu", Value: 10, Time: 5 * Second},
+			&query.StringPoint{Name: "cpu", Value: "b", Time: 5 * Second},
+			&query.BooleanPoint{Name: "cpu", Value: false, Time: 5 * Second},
+		},
+		{
+			&query.FloatPoint{Name: "cpu", Value: 19, Time: 9 * Second},
+			&query.IntegerPoint{Name: "cpu", Value: 19, Time: 9 * Second},
+			&query.UnsignedPoint{Name: "cpu", Value: 19, Time: 9 * Second},
+			&query.StringPoint{Name: "cpu", Value: "c", Time: 9 * Second},
+			&query.BooleanPoint{Name: "cpu", Value: true, Time: 9 * Second},
+		},
+	}); diff != "" {
+		t.Errorf("unexpected points:\n%s", diff)
 	}
 }
 

@@ -72,6 +72,8 @@ func InspectDataType(v interface{}) DataType {
 		return String
 	case bool:
 		return Boolean
+	case uint64:
+		return Unsigned
 	case time.Time:
 		return Time
 	case time.Duration:
@@ -88,7 +90,14 @@ func InspectDataType(v interface{}) DataType {
 // integers used decrease with higher precedence, but Unknown is the lowest
 // precedence at the zero value.
 func (d DataType) LessThan(other DataType) bool {
-	return d == Unknown || (other != Unknown && other < d)
+	if d == Unknown {
+		return true
+	} else if d == Unsigned {
+		return other != Unknown && other <= Integer
+	} else if other == Unsigned {
+		return d >= String
+	}
+	return other != Unknown && other < d
 }
 
 // String returns the human-readable string representation of the DataType.
@@ -98,6 +107,8 @@ func (d DataType) String() string {
 		return "float"
 	case Integer:
 		return "integer"
+	case Unsigned:
+		return "unsigned"
 	case String:
 		return "string"
 	case Boolean:
@@ -179,6 +190,7 @@ func (*Dimension) node()       {}
 func (Dimensions) node()       {}
 func (*DurationLiteral) node() {}
 func (*IntegerLiteral) node()  {}
+func (*UnsignedLiteral) node() {}
 func (*Field) node()           {}
 func (Fields) node()           {}
 func (*Measurement) node()     {}
@@ -312,6 +324,7 @@ func (*Call) expr()            {}
 func (*Distinct) expr()        {}
 func (*DurationLiteral) expr() {}
 func (*IntegerLiteral) expr()  {}
+func (*UnsignedLiteral) expr() {}
 func (*NilLiteral) expr()      {}
 func (*NumberLiteral) expr()   {}
 func (*ParenExpr) expr()       {}
@@ -333,6 +346,7 @@ type Literal interface {
 func (*BooleanLiteral) literal()  {}
 func (*DurationLiteral) literal() {}
 func (*IntegerLiteral) literal()  {}
+func (*UnsignedLiteral) literal() {}
 func (*NilLiteral) literal()      {}
 func (*NumberLiteral) literal()   {}
 func (*RegexLiteral) literal()    {}
@@ -1225,10 +1239,11 @@ func (s *SelectStatement) RewriteFields(m FieldMapper) (*SelectStatement, error)
 					continue
 				}
 
-				// All types that can expand wildcards support float and integer.
+				// All types that can expand wildcards support float, integer, and unsigned.
 				supportedTypes := map[DataType]struct{}{
-					Float:   struct{}{},
-					Integer: struct{}{},
+					Float:    {},
+					Integer:  {},
+					Unsigned: {},
 				}
 
 				// Add additional types for certain functions.
@@ -1238,6 +1253,8 @@ func (s *SelectStatement) RewriteFields(m FieldMapper) (*SelectStatement, error)
 					fallthrough
 				case "min", "max":
 					supportedTypes[Boolean] = struct{}{}
+				case "holt_winters", "holt_winters_with_fit":
+					delete(supportedTypes, Unsigned)
 				}
 
 				for _, ref := range fields {
@@ -3273,6 +3290,15 @@ type IntegerLiteral struct {
 // String returns a string representation of the literal.
 func (l *IntegerLiteral) String() string { return fmt.Sprintf("%d", l.Val) }
 
+// UnsignedLiteral represents an unsigned literal. The parser will only use an unsigned literal if the parsed
+// integer is greater than math.MaxInt64.
+type UnsignedLiteral struct {
+	Val uint64
+}
+
+// String returns a string representation of the literal.
+func (l *UnsignedLiteral) String() string { return strconv.FormatUint(l.Val, 10) }
+
 // BooleanLiteral represents a boolean literal.
 type BooleanLiteral struct {
 	Val bool
@@ -4080,6 +4106,8 @@ func EvalType(expr Expr, sources Sources, typmap TypeMapper) DataType {
 			return Float
 		case "count":
 			return Integer
+		case "elapsed":
+			return Integer
 		default:
 			return EvalType(expr.Args[0], sources, typmap)
 		}
@@ -4124,7 +4152,7 @@ func FieldDimensions(sources Sources, m FieldMapper) (fields map[string]DataType
 			}
 
 			for k, typ := range f {
-				if _, ok := fields[k]; typ != Unknown && (!ok || typ < fields[k]) {
+				if fields[k].LessThan(typ) {
 					fields[k] = typ
 				}
 			}
@@ -4136,7 +4164,7 @@ func FieldDimensions(sources Sources, m FieldMapper) (fields map[string]DataType
 				k := f.Name()
 				typ := EvalType(f.Expr, src.Statement.Sources, m)
 
-				if _, ok := fields[k]; typ != Unknown && (!ok || typ < fields[k]) {
+				if fields[k].LessThan(typ) {
 					fields[k] = typ
 				}
 			}

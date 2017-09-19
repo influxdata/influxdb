@@ -579,6 +579,12 @@ func (e *Engine) IsIdle() bool {
 	return cacheEmpty && runningCompactions == 0 && e.CompactionPlan.FullyCompacted()
 }
 
+// Free releases any resources held by the engine to free up memory or CPU.
+func (e *Engine) Free() error {
+	e.Cache.Free()
+	return e.FileStore.Free()
+}
+
 // Backup writes a tar archive of any TSM files modified since the passed
 // in time to the passed in writer. The basePath will be prepended to the names
 // of the files in the archive. It will force a snapshot of the WAL first

@@ -115,6 +115,55 @@ func TestMergeIterator_Integer(t *testing.T) {
 }
 
 // Ensure that a set of iterators can be merged together, sorted by window and name/tag.
+func TestMergeIterator_Unsigned(t *testing.T) {
+	inputs := []*UnsignedIterator{
+		{Points: []query.UnsignedPoint{
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: 1},
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: 3},
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: 4},
+			{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: 2},
+			{Name: "mem", Tags: ParseTags("host=B"), Time: 11, Value: 8},
+		}},
+		{Points: []query.UnsignedPoint{
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: 7},
+			{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: 5},
+			{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: 6},
+			{Name: "mem", Tags: ParseTags("host=A"), Time: 25, Value: 9},
+		}},
+		{Points: []query.UnsignedPoint{}},
+	}
+	itr := query.NewMergeIterator(UnsignedIterators(inputs), query.IteratorOptions{
+		Interval: query.Interval{
+			Duration: 10 * time.Nanosecond,
+		},
+		Dimensions: []string{"host"},
+		Ascending:  true,
+	})
+
+	if a, err := Iterators([]query.Iterator{itr}).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if !deep.Equal(a, [][]query.Point{
+		{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: 1}},
+		{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: 3}},
+		{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: 7}},
+		{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: 4}},
+		{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: 2}},
+		{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: 5}},
+		{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: 6}},
+		{&query.UnsignedPoint{Name: "mem", Tags: ParseTags("host=A"), Time: 25, Value: 9}},
+		{&query.UnsignedPoint{Name: "mem", Tags: ParseTags("host=B"), Time: 11, Value: 8}},
+	}) {
+		t.Errorf("unexpected points: %s", spew.Sdump(a))
+	}
+
+	for i, input := range inputs {
+		if !input.Closed {
+			t.Errorf("iterator %d not closed", i)
+		}
+	}
+}
+
+// Ensure that a set of iterators can be merged together, sorted by window and name/tag.
 func TestMergeIterator_String(t *testing.T) {
 	inputs := []*StringIterator{
 		{Points: []query.StringPoint{
@@ -219,20 +268,23 @@ func TestMergeIterator_Nil(t *testing.T) {
 	}
 }
 
-func TestMergeIterator_Cast_Float(t *testing.T) {
+// Verifies that coercing will drop values that aren't the primary type.
+// It's the responsibility of the engine to return the correct type. If they don't,
+// we drop iterators that don't match.
+func TestMergeIterator_Coerce_Float(t *testing.T) {
 	inputs := []query.Iterator{
+		&FloatIterator{Points: []query.FloatPoint{
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: 7},
+			{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: 5},
+			{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: 6},
+			{Name: "mem", Tags: ParseTags("host=A"), Time: 25, Value: 9},
+		}},
 		&IntegerIterator{Points: []query.IntegerPoint{
 			{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: 1},
 			{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: 3},
 			{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: 4},
 			{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: 2},
 			{Name: "mem", Tags: ParseTags("host=B"), Time: 11, Value: 8},
-		}},
-		&FloatIterator{Points: []query.FloatPoint{
-			{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: 7},
-			{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: 5},
-			{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: 6},
-			{Name: "mem", Tags: ParseTags("host=A"), Time: 25, Value: 9},
 		}},
 	}
 
@@ -246,15 +298,10 @@ func TestMergeIterator_Cast_Float(t *testing.T) {
 	if a, err := Iterators([]query.Iterator{itr}).ReadAll(); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	} else if !deep.Equal(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: 1}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: 3}},
 		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: 7}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: 4}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: 2}},
 		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: 5}},
 		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: 6}},
 		{&query.FloatPoint{Name: "mem", Tags: ParseTags("host=A"), Time: 25, Value: 9}},
-		{&query.FloatPoint{Name: "mem", Tags: ParseTags("host=B"), Time: 11, Value: 8}},
 	}) {
 		t.Errorf("unexpected points: %s", spew.Sdump(a))
 	}
@@ -266,6 +313,10 @@ func TestMergeIterator_Cast_Float(t *testing.T) {
 				t.Errorf("iterator %d not closed", i)
 			}
 		case *IntegerIterator:
+			if !input.Closed {
+				t.Errorf("iterator %d not closed", i)
+			}
+		case *UnsignedIterator:
 			if !input.Closed {
 				t.Errorf("iterator %d not closed", i)
 			}
@@ -358,6 +409,54 @@ func TestSortedMergeIterator_Integer(t *testing.T) {
 		{&query.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: 6}},
 		{&query.IntegerPoint{Name: "mem", Tags: ParseTags("host=A"), Time: 25, Value: 9}},
 		{&query.IntegerPoint{Name: "mem", Tags: ParseTags("host=B"), Time: 4, Value: 8}},
+	}) {
+		t.Errorf("unexpected points: %s", spew.Sdump(a))
+	}
+
+	for i, input := range inputs {
+		if !input.Closed {
+			t.Errorf("iterator %d not closed", i)
+		}
+	}
+}
+
+// Ensure that a set of iterators can be merged together, sorted by name/tag.
+func TestSortedMergeIterator_Unsigned(t *testing.T) {
+	inputs := []*UnsignedIterator{
+		{Points: []query.UnsignedPoint{
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: 1},
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: 3},
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: 4},
+			{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: 2},
+			{Name: "mem", Tags: ParseTags("host=B"), Time: 4, Value: 8},
+		}},
+		{Points: []query.UnsignedPoint{
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: 7},
+			{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: 5},
+			{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: 6},
+			{Name: "mem", Tags: ParseTags("host=A"), Time: 25, Value: 9},
+		}},
+		{Points: []query.UnsignedPoint{}},
+	}
+	itr := query.NewSortedMergeIterator(UnsignedIterators(inputs), query.IteratorOptions{
+		Interval: query.Interval{
+			Duration: 10 * time.Nanosecond,
+		},
+		Dimensions: []string{"host"},
+		Ascending:  true,
+	})
+	if a, err := Iterators([]query.Iterator{itr}).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if !deep.Equal(a, [][]query.Point{
+		{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: 1}},
+		{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: 3}},
+		{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: 7}},
+		{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: 4}},
+		{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: 2}},
+		{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: 5}},
+		{&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: 6}},
+		{&query.UnsignedPoint{Name: "mem", Tags: ParseTags("host=A"), Time: 25, Value: 9}},
+		{&query.UnsignedPoint{Name: "mem", Tags: ParseTags("host=B"), Time: 4, Value: 8}},
 	}) {
 		t.Errorf("unexpected points: %s", spew.Sdump(a))
 	}
@@ -472,20 +571,20 @@ func TestSortedMergeIterator_Nil(t *testing.T) {
 	}
 }
 
-func TestSortedMergeIterator_Cast_Float(t *testing.T) {
+func TestSortedMergeIterator_Coerce_Float(t *testing.T) {
 	inputs := []query.Iterator{
+		&FloatIterator{Points: []query.FloatPoint{
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: 7},
+			{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: 5},
+			{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: 6},
+			{Name: "mem", Tags: ParseTags("host=A"), Time: 25, Value: 9},
+		}},
 		&IntegerIterator{Points: []query.IntegerPoint{
 			{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: 1},
 			{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: 3},
 			{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: 4},
 			{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: 2},
 			{Name: "mem", Tags: ParseTags("host=B"), Time: 4, Value: 8},
-		}},
-		&FloatIterator{Points: []query.FloatPoint{
-			{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: 7},
-			{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: 5},
-			{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: 6},
-			{Name: "mem", Tags: ParseTags("host=A"), Time: 25, Value: 9},
 		}},
 	}
 
@@ -499,15 +598,10 @@ func TestSortedMergeIterator_Cast_Float(t *testing.T) {
 	if a, err := Iterators([]query.Iterator{itr}).ReadAll(); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	} else if !deep.Equal(a, [][]query.Point{
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: 1}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: 3}},
 		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: 7}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: 4}},
-		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: 2}},
 		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: 5}},
 		{&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: 6}},
 		{&query.FloatPoint{Name: "mem", Tags: ParseTags("host=A"), Time: 25, Value: 9}},
-		{&query.FloatPoint{Name: "mem", Tags: ParseTags("host=B"), Time: 4, Value: 8}},
 	}) {
 		t.Errorf("unexpected points: %s", spew.Sdump(a))
 	}
@@ -519,6 +613,10 @@ func TestSortedMergeIterator_Cast_Float(t *testing.T) {
 				t.Errorf("iterator %d not closed", i)
 			}
 		case *IntegerIterator:
+			if !input.Closed {
+				t.Errorf("iterator %d not closed", i)
+			}
+		case *UnsignedIterator:
 			if !input.Closed {
 				t.Errorf("iterator %d not closed", i)
 			}
@@ -575,6 +673,35 @@ func TestLimitIterator_Integer(t *testing.T) {
 	} else if !deep.Equal(a, [][]query.Point{
 		{&query.IntegerPoint{Name: "cpu", Time: 5, Value: 3}},
 		{&query.IntegerPoint{Name: "mem", Time: 7, Value: 8}},
+	}) {
+		t.Fatalf("unexpected points: %s", spew.Sdump(a))
+	}
+
+	if !input.Closed {
+		t.Error("iterator not closed")
+	}
+}
+
+// Ensure limit iterators work with limit and offset.
+func TestLimitIterator_Unsigned(t *testing.T) {
+	input := &UnsignedIterator{Points: []query.UnsignedPoint{
+		{Name: "cpu", Time: 0, Value: 1},
+		{Name: "cpu", Time: 5, Value: 3},
+		{Name: "cpu", Time: 10, Value: 5},
+		{Name: "mem", Time: 5, Value: 3},
+		{Name: "mem", Time: 7, Value: 8},
+	}}
+
+	itr := query.NewLimitIterator(input, query.IteratorOptions{
+		Limit:  1,
+		Offset: 1,
+	})
+
+	if a, err := Iterators([]query.Iterator{itr}).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if !deep.Equal(a, [][]query.Point{
+		{&query.UnsignedPoint{Name: "cpu", Time: 5, Value: 3}},
+		{&query.UnsignedPoint{Name: "mem", Time: 7, Value: 8}},
 	}) {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
 	}
@@ -642,7 +769,7 @@ func TestLimitIterator_Boolean(t *testing.T) {
 	}
 }
 
-// Ensure auxilary iterators can be created for auxilary fields.
+// Ensure auxiliary iterators can be created for auxilary fields.
 func TestFloatAuxIterator(t *testing.T) {
 	itr := query.NewAuxIterator(
 		&FloatIterator{Points: []query.FloatPoint{
@@ -949,6 +1076,12 @@ func (itrs Iterators) Next() ([]query.Point, error) {
 				return nil, err
 			}
 			a[i] = ip
+		case query.UnsignedIterator:
+			up, err := itr.Next()
+			if up == nil || err != nil {
+				return nil, err
+			}
+			a[i] = up
 		case query.StringIterator:
 			sp, err := itr.Next()
 			if sp == nil || err != nil {
@@ -1469,6 +1602,35 @@ func (itr *IntegerIterator) Next() (*query.IntegerPoint, error) {
 }
 
 func IntegerIterators(inputs []*IntegerIterator) []query.Iterator {
+	itrs := make([]query.Iterator, len(inputs))
+	for i := range itrs {
+		itrs[i] = query.Iterator(inputs[i])
+	}
+	return itrs
+}
+
+// Test implementation of query.UnsignedIterator
+type UnsignedIterator struct {
+	Points []query.UnsignedPoint
+	Closed bool
+	stats  query.IteratorStats
+}
+
+func (itr *UnsignedIterator) Stats() query.IteratorStats { return itr.stats }
+func (itr *UnsignedIterator) Close() error               { itr.Closed = true; return nil }
+
+// Next returns the next value and shifts it off the beginning of the points slice.
+func (itr *UnsignedIterator) Next() (*query.UnsignedPoint, error) {
+	if len(itr.Points) == 0 || itr.Closed {
+		return nil, nil
+	}
+
+	v := &itr.Points[0]
+	itr.Points = itr.Points[1:]
+	return v, nil
+}
+
+func UnsignedIterators(inputs []*UnsignedIterator) []query.Iterator {
 	itrs := make([]query.Iterator, len(inputs))
 	for i := range itrs {
 		itrs[i] = query.Iterator(inputs[i])

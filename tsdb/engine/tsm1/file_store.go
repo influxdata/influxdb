@@ -109,6 +109,9 @@ type TSMFile interface {
 	// BlockIterator returns an iterator pointing to the first block in the file and
 	// allows sequential iteration to each and every block.
 	BlockIterator() *BlockIterator
+
+	// Free releases any resources held by the FileStore to free up system resources.
+	Free() error
 }
 
 // Statistics gathered by the FileStore.
@@ -231,6 +234,19 @@ func (f *FileStore) Files() []TSMFile {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 	return f.files
+}
+
+// Free releases any resources held by the FileStore.  The resources will be re-acquired
+// if necessary if they are needed after freeing them.
+func (f *FileStore) Free() error {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	for _, f := range f.files {
+		if err := f.Free(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // CurrentGeneration returns the current generation of the TSM files.

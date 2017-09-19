@@ -34,10 +34,6 @@ func new{{$k.Name}}Iterators(itrs []Iterator) []{{$k.Name}}Iterator {
 		switch itr := itr.(type) {
 		case {{$k.Name}}Iterator:
 			a = append(a, itr)
-{{if eq .Name "Float"}}
-		case IntegerIterator:
-			a = append(a, &integerFloatCastIterator{input: itr})
-{{end}}
 		default:
 			itr.Close()
 		}
@@ -726,7 +722,7 @@ func (itr *{{$k.name}}FillIterator) Next() (*{{$k.Name}}Point, error) {
 
 		switch itr.opt.Fill {
 		case influxql.LinearFill:
-			{{- if or (eq $k.Name "Float") (eq $k.Name "Integer")}}
+			{{- if or (eq $k.Name "Float") (eq $k.Name "Integer") (eq $k.Name "Unsigned")}}
 			if !itr.prev.Nil {
 				next, err := itr.input.peek()
 				if err != nil {
