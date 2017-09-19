@@ -26,6 +26,7 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 	_ "github.com/influxdata/influxdb/tsdb/index"
 	"github.com/influxdata/influxdb/tsdb/index/inmem"
+	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 	"github.com/uber-go/zap"
 )
 
@@ -1289,6 +1290,10 @@ func (e *Engine) compactTSMFull(quit <-chan struct{}) {
 // onFileStoreReplace is callback handler invoked when the FileStore
 // has replaced one set of TSM files with a new set.
 func (e *Engine) onFileStoreReplace(newFiles []TSMFile) {
+	if e.index.Type() == tsi1.IndexName {
+		return
+	}
+
 	// Load any new series keys to the index
 	readers := make([]chan seriesKey, 0, len(newFiles))
 	for _, r := range newFiles {
