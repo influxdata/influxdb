@@ -26,11 +26,6 @@ class LayoutRenderer extends Component {
     }
   }
 
-  // idea adopted from https://stackoverflow.com/questions/36862334/get-viewport-window-height-in-reactjs
-  updateWindowDimensions = () => {
-    this.setState({rowHeight: this.calculateRowHeight()})
-  }
-
   handleLayoutChange = layout => {
     if (!this.props.onPositionChange) {
       return
@@ -172,6 +167,7 @@ LayoutRenderer.propTypes = {
   isEditable: bool,
   onCancelEditCell: func,
   onZoom: func,
+  sources: arrayOf(shape({})).isRequired,
 }
 
 export default LayoutRenderer
