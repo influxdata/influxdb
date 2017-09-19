@@ -59,12 +59,10 @@ class DatabaseManagerPage extends Component {
 
   handleCreateDatabase = database => {
     const {actions, notify, source, databases} = this.props
-
     if (!database.name) {
       return notify('error', 'Database name cannot be blank')
     }
-
-    if (_.findIndex(databases, {name: database.name}, 1)) {
+    if (_.findIndex(databases, {name: database.name}, 1) !== -1) {
       return notify('error', 'A database by this name already exists')
     }
 
@@ -78,7 +76,7 @@ class DatabaseManagerPage extends Component {
 
   handleKeyDownDatabase = database => e => {
     const {key} = e
-    const {actions, notify, source} = this.props
+    const {actions, notify, source, databases} = this.props
 
     if (key === 'Escape') {
       actions.removeDatabase(database)
@@ -87,6 +85,10 @@ class DatabaseManagerPage extends Component {
     if (key === 'Enter') {
       if (!database.name) {
         return notify('error', 'Database name cannot be blank')
+      }
+
+      if (_.findIndex(databases, {name: database.name}, 1) !== -1) {
+        return notify('error', 'A database by this name already exists')
       }
 
       actions.createDatabaseAsync(source.links.databases, database)

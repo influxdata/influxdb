@@ -41,9 +41,9 @@ const DatabaseManager = ({
         </button>
       </div>
       <div className="panel-body">
-        {databases.map(db =>
+        {databases.map((db, db_ind) =>
           <DatabaseTable
-            key={db.links.self}
+            key={db_ind}
             database={db}
             notify={notify}
             isRFDisplayed={isRFDisplayed}
