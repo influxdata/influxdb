@@ -29,6 +29,17 @@ func makeIntegerValuesFromSlice(t []int64) IntegerValues {
 	return iv
 }
 
+func TestIntegerValues_FindRangeNoValues(t *testing.T) {
+	var vals IntegerValues
+	l, r := vals.FindRange(0, 100)
+	if exp := -1; l != exp {
+		t.Errorf("invalid l; exp=%d, got=%d", exp, l)
+	}
+	if exp := -1; r != exp {
+		t.Errorf("invalid r; exp=%d, got=%d", exp, r)
+	}
+}
+
 func TestIntegerValues_FindRange(t *testing.T) {
 	vals := makeIntegerValuesFromSlice([]int64{10, 11, 13, 15, 17, 20, 21})
 
