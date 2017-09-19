@@ -43,7 +43,7 @@ type IndexFile struct {
 	data []byte
 
 	// Components
-	sfile SeriesFile
+	sfile *SeriesFile
 	tblks map[string]*TagBlock // tag blocks by measurement name
 	mblk  MeasurementBlock
 
@@ -60,8 +60,8 @@ type IndexFile struct {
 }
 
 // NewIndexFile returns a new instance of IndexFile.
-func NewIndexFile() *IndexFile {
-	return &IndexFile{}
+func NewIndexFile(sfile *SeriesFile) *IndexFile {
+	return &IndexFile{sfile: sfile}
 }
 
 // Open memory maps the data file at the file's path.
@@ -82,7 +82,7 @@ func (f *IndexFile) Close() error {
 	// Wait until all references are released.
 	f.wg.Wait()
 
-	f.sfile = SeriesFile{}
+	f.sfile = nil
 	f.tblks = nil
 	f.mblk = MeasurementBlock{}
 	return mmap.Unmap(f.data)
@@ -167,15 +167,6 @@ func (f *IndexFile) UnmarshalBinary(data []byte) error {
 		}
 		f.tblks[string(e.name)] = &tblk
 	}
-
-	// Slice series list data.
-	buf = data[t.SeriesFile.Offset:]
-	buf = buf[:t.SeriesFile.Size]
-
-	// Unmarshal series list.
-	// if err := f.sfile.UnmarshalBinary(buf); err != nil {
-	// 	return err
-	// }
 
 	// Save reference to entire data block.
 	f.data = data
@@ -334,13 +325,7 @@ func (f *IndexFile) MergeMeasurementsSketches(s, t estimator.Sketch) error {
 // SeriesN returns the total number of non-tombstoned series for the index file.
 func (f *IndexFile) SeriesN() uint64 {
 	panic("TODO")
-	// return uint64(f.sfile.seriesN - f.sfile.tombstoneN)
-}
-
-// SeriesIDIterator returns an iterator over all series.
-func (f *IndexFile) SeriesIDIterator() SeriesIDIterator {
-	panic("TODO")
-	// return f.sfile.SeriesIDIterator()
+	// return uint64(f.sfile.SeriesN())
 }
 
 // ReadIndexFileTrailer returns the index file trailer from data.
@@ -367,11 +352,7 @@ func ReadIndexFileTrailer(data []byte) (IndexFileTrailer, error) {
 
 // IndexFileTrailer represents meta data written to the end of the index file.
 type IndexFileTrailer struct {
-	Version    int
-	SeriesFile struct {
-		Offset int64
-		Size   int64
-	}
+	Version          int
 	MeasurementBlock struct {
 		Offset int64
 		Size   int64

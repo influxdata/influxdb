@@ -86,19 +86,6 @@ func (p *IndexFiles) TagKeyIterator(name []byte) (TagKeyIterator, error) {
 	return MergeTagKeyIterators(a...), nil
 }
 
-// SeriesIDIterator returns an iterator that merges series across all files.
-func (p IndexFiles) SeriesIDIterator() SeriesIDIterator {
-	a := make([]SeriesIDIterator, 0, len(p))
-	for _, f := range p {
-		itr := f.SeriesIDIterator()
-		if itr == nil {
-			continue
-		}
-		a = append(a, itr)
-	}
-	return MergeSeriesIDIterators(a...)
-}
-
 // MeasurementSeriesIDIterator returns an iterator that merges series across all files.
 func (p IndexFiles) MeasurementSeriesIDIterator(name []byte) SeriesIDIterator {
 	a := make([]SeriesIDIterator, 0, len(p))

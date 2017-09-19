@@ -148,19 +148,25 @@ func (cmd *Command) readFileSet() (*tsi1.Index, *tsi1.FileSet, error) {
 		}
 	}
 
+	// Open series file in path.
+	sfile := tsi1.NewSeriesFile(filepath.Join(filepath.Dir(cmd.paths[0]), tsi1.SeriesFileName))
+	if err := sfile.Open(); err != nil {
+		return nil, nil, err
+	}
+
 	// Open each file and group into a fileset.
 	var files []tsi1.File
 	for _, path := range cmd.paths {
 		switch ext := filepath.Ext(path); ext {
 		case tsi1.LogFileExt:
-			f := tsi1.NewLogFile(path)
+			f := tsi1.NewLogFile(sfile, path)
 			if err := f.Open(); err != nil {
 				return nil, nil, err
 			}
 			files = append(files, f)
 
 		case tsi1.IndexFileExt:
-			f := tsi1.NewIndexFile()
+			f := tsi1.NewIndexFile(sfile)
 			f.SetPath(path)
 			if err := f.Open(); err != nil {
 				return nil, nil, err
@@ -172,7 +178,7 @@ func (cmd *Command) readFileSet() (*tsi1.Index, *tsi1.FileSet, error) {
 		}
 	}
 
-	fs, err := tsi1.NewFileSet("", nil, files)
+	fs, err := tsi1.NewFileSet("", nil, sfile, files)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -200,15 +206,15 @@ func (cmd *Command) printSeries(fs *tsi1.FileSet) error {
 	fmt.Fprintln(tw, "Series\t")
 
 	// Iterate over each series.
-	itr := fs.SeriesIterator()
-	for e := itr.Next(); e != nil; e = itr.Next() {
-		name, tags := e.Name(), e.Tags()
+	itr := fs.SeriesFile().SeriesIDIterator()
+	for e := itr.Next(); e.SeriesID != 0; e = itr.Next() {
+		name, tags := tsi1.ParseSeriesKey(fs.SeriesFile().SeriesKey(e.SeriesID))
 
-		if !cmd.matchSeries(e.Name(), e.Tags()) {
+		if !cmd.matchSeries(name, tags) {
 			continue
 		}
 
-		fmt.Fprintf(tw, "%s%s\t%v\n", name, tags.HashKey(), deletedString(e.Deleted()))
+		fmt.Fprintf(tw, "%s%s\t%v\n", name, tags.HashKey(), deletedString(e.Deleted))
 	}
 
 	// Flush & write footer spacing.
@@ -312,13 +318,15 @@ func (cmd *Command) printTagValueSeries(fs *tsi1.FileSet, name, key, value []byt
 
 	// Iterate over each series.
 	tw := tabwriter.NewWriter(cmd.Stdout, 8, 8, 1, '\t', 0)
-	itr := fs.TagValueSeriesIterator(name, key, value)
-	for e := itr.Next(); e != nil; e = itr.Next() {
-		if !cmd.matchSeries(e.Name(), e.Tags()) {
+	itr := fs.TagValueSeriesIDIterator(name, key, value)
+	for e := itr.Next(); e.SeriesID != 0; e = itr.Next() {
+		name, tags := tsi1.ParseSeriesKey(fs.SeriesFile().SeriesKey(e.SeriesID))
+
+		if !cmd.matchSeries(name, tags) {
 			continue
 		}
 
-		fmt.Fprintf(tw, "            %s%s\n", e.Name(), e.Tags().HashKey())
+		fmt.Fprintf(tw, "            %s%s\n", name, tags.HashKey())
 		if err := tw.Flush(); err != nil {
 			return err
 		}
