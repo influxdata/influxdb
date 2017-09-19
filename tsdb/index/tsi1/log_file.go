@@ -433,13 +433,14 @@ func (f *LogFile) DeleteTagValue(name, key, value []byte) error {
 func (f *LogFile) AddSeriesList(names [][]byte, tagsSlice []models.Tags) error {
 	buf := make([]byte, 2048)
 
+	seriesIDs, err := f.sfile.CreateSeriesListIfNotExists(names, tagsSlice, buf[:0])
+	if err != nil {
+		return err
+	}
+
 	entries := make([]LogEntry, len(names))
 	for i := range names {
-		seriesID, err := f.sfile.CreateSeriesIfNotExists(names[i], tagsSlice[i], buf[:0])
-		if err != nil {
-			return err
-		}
-		entries[i] = LogEntry{SeriesID: seriesID}
+		entries[i] = LogEntry{SeriesID: seriesIDs[i]}
 	}
 
 	f.mu.Lock()
