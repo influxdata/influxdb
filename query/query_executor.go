@@ -273,7 +273,7 @@ func (e *QueryExecutor) executeQuery(query *influxql.Query, opt ExecutionOptions
 		}
 		return
 	}
-	defer e.TaskManager.KillQuery(qid)
+	defer e.TaskManager.DetachQuery(qid)
 
 	// Setup the execution context that will be used when executing statements.
 	ctx := ExecutionContext{
@@ -441,6 +441,7 @@ type QueryMonitorFunc func(<-chan struct{}) error
 type QueryTask struct {
 	query     string
 	database  string
+	status    TaskStatus
 	startTime time.Time
 	closing   chan struct{}
 	monitorCh chan error
