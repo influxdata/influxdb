@@ -1379,53 +1379,84 @@ func (c *cacheKeyIterator) encode() {
 	n := len(c.ready)
 
 	// Divide the keyset across each CPU
-	chunkSize := 128
+	chunkSize := 1
 	idx := uint64(0)
+
 	for i := 0; i < concurrency; i++ {
 		// Run one goroutine per CPU and encode a section of the key space concurrently
 		go func() {
+			tenc := getTimeEncoder(tsdb.DefaultMaxPointsPerBlock)
+			fenc := getFloatEncoder(tsdb.DefaultMaxPointsPerBlock)
+			benc := getBooleanEncoder(tsdb.DefaultMaxPointsPerBlock)
+			uenc := getUnsignedEncoder(tsdb.DefaultMaxPointsPerBlock)
+			senc := getStringEncoder(tsdb.DefaultMaxPointsPerBlock)
+			ienc := getIntegerEncoder(tsdb.DefaultMaxPointsPerBlock)
+
+			defer putTimeEncoder(tenc)
+			defer putFloatEncoder(fenc)
+			defer putBooleanEncoder(benc)
+			defer putUnsignedEncoder(uenc)
+			defer putStringEncoder(senc)
+			defer putIntegerEncoder(ienc)
+
 			for {
-				start := int(atomic.AddUint64(&idx, uint64(chunkSize))) - chunkSize
-				if start >= n {
+				i := int(atomic.AddUint64(&idx, uint64(chunkSize))) - chunkSize
+
+				if i >= n {
 					break
 				}
-				end := start + chunkSize
-				if end > n {
-					end = n
+
+				key := c.order[i]
+				values := c.cache.values(key)
+
+				for len(values) > 0 {
+
+					end := len(values)
+					if end > c.size {
+						end = c.size
+					}
+
+					minTime, maxTime := values[0].UnixNano(), values[end-1].UnixNano()
+					var b []byte
+					var err error
+					tenc.Reset()
+
+					maxTime = values[end-1].UnixNano()
+
+					switch values[0].(type) {
+					case FloatValue:
+						fenc.Reset()
+						b, err = encodeFloatBlockUsing(nil, values[:end], tenc, fenc)
+					case IntegerValue:
+						ienc.Reset()
+						b, err = encodeIntegerBlockUsing(nil, values[:end], tenc, ienc)
+					case UnsignedValue:
+						uenc.Reset()
+						b, err = encodeUnsignedBlockUsing(nil, values[:end], tenc, uenc)
+					case BooleanValue:
+						benc.Reset()
+						b, err = encodeBooleanBlockUsing(nil, values[:end], tenc, benc)
+					case StringValue:
+						senc.Reset()
+						b, err = encodeStringBlockUsing(nil, values[:end], tenc, senc)
+					default:
+						b, err = Values(values[:end]).Encode(nil)
+					}
+
+					values = values[end:]
+
+					c.blocks[i] = append(c.blocks[i], cacheBlock{
+						k:       key,
+						minTime: minTime,
+						maxTime: maxTime,
+						b:       b,
+						err:     err,
+					})
 				}
-				c.encodeRange(start, end)
+				// Notify this key is fully encoded
+				c.ready[i] <- struct{}{}
 			}
 		}()
-	}
-}
-
-func (c *cacheKeyIterator) encodeRange(start, stop int) {
-	for i := start; i < stop; i++ {
-		key := c.order[i]
-		values := c.cache.values(key)
-
-		for len(values) > 0 {
-			minTime, maxTime := values[0].UnixNano(), values[len(values)-1].UnixNano()
-			var b []byte
-			var err error
-			if len(values) > c.size {
-				maxTime = values[c.size-1].UnixNano()
-				b, err = Values(values[:c.size]).Encode(nil)
-				values = values[c.size:]
-			} else {
-				b, err = Values(values).Encode(nil)
-				values = values[:0]
-			}
-			c.blocks[i] = append(c.blocks[i], cacheBlock{
-				k:       key,
-				minTime: minTime,
-				maxTime: maxTime,
-				b:       b,
-				err:     err,
-			})
-		}
-		// Notify this key is fully encoded
-		c.ready[i] <- struct{}{}
 	}
 }
 
