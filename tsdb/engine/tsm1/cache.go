@@ -118,7 +118,7 @@ func (e *entry) deduplicate() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	if len(e.values) == 0 {
+	if len(e.values) <= 1 {
 		return
 	}
 	e.values = e.values.Deduplicate()
