@@ -38,7 +38,7 @@ type TSMFile interface {
 
 	// Entries returns the index entries for all blocks for the given key.
 	Entries(key []byte) []IndexEntry
-	ReadEntries(key []byte, entries *[]IndexEntry)
+	ReadEntries(key []byte, entries *[]IndexEntry) []IndexEntry
 
 	// Returns true if the TSMFile may contain a value with the specified
 	// key and time.
@@ -769,7 +769,7 @@ func (f *FileStore) walkFiles(fn func(f TSMFile) error) error {
 // We need to determine the possible files that may be accessed by this query given
 // the time range.
 func (f *FileStore) cost(key []byte, min, max int64) query.IteratorCost {
-	var entries []IndexEntry
+	var cache []IndexEntry
 	cost := query.IteratorCost{}
 	for _, fd := range f.files {
 		minTime, maxTime := fd.TimeRange()
@@ -779,7 +779,7 @@ func (f *FileStore) cost(key []byte, min, max int64) query.IteratorCost {
 		skipped := true
 		tombstones := fd.TombstoneRange(key)
 
-		fd.ReadEntries(key, &entries)
+		entries := fd.ReadEntries(key, &cache)
 	ENTRIES:
 		for i := 0; i < len(entries); i++ {
 			ie := entries[i]
@@ -811,7 +811,7 @@ func (f *FileStore) cost(key []byte, min, max int64) query.IteratorCost {
 // whether the key will be scan in ascending time order or descenging time order.
 // This function assumes the read-lock has been taken.
 func (f *FileStore) locations(key []byte, t int64, ascending bool) []*location {
-	var entries []IndexEntry
+	var cache []IndexEntry
 	locations := make([]*location, 0, len(f.files))
 	for _, fd := range f.files {
 		minTime, maxTime := fd.TimeRange()
@@ -829,22 +829,18 @@ func (f *FileStore) locations(key []byte, t int64, ascending bool) []*location {
 
 		// This file could potential contain points we are looking for so find the blocks for
 		// the given key.
-		fd.ReadEntries(key, &entries)
+		entries := fd.ReadEntries(key, &cache)
+	LOOP:
 		for i := 0; i < len(entries); i++ {
 			ie := entries[i]
 
 			// Skip any blocks only contain values that are tombstoned.
-			var skip bool
 			for _, t := range tombstones {
 				if t.Min <= ie.MinTime && t.Max >= ie.MaxTime {
-					skip = true
-					break
+					continue LOOP
 				}
 			}
 
-			if skip {
-				continue
-			}
 			// If we ascending and the max time of a block is before where we are looking, skip
 			// it since the data is out of our range
 			if ascending && ie.MaxTime < t {
