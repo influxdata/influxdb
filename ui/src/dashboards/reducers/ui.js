@@ -24,12 +24,6 @@ export default function ui(state = initialState, action) {
         dashboards,
       }
 
-      const dashboards = state.dashboards.map(
-        d => {
-          dashboards: 
-        }
-      )
-
       return {...state, ...newState}
     }
 
@@ -308,35 +302,6 @@ export default function ui(state = initialState, action) {
       )
 
       return {...state, dashboards}
-    }
-
-    case 'EDIT_DASHBOARD_QUERY_STATUS': {
-      const {dashboardID, cellID, queryID, status} = action.payload
-
-      const dashboards = state.dashboards.map(
-        dashboard =>
-          dashboard.id === dashboardID
-            ? {
-                ...dashboard,
-                cells: dashboard.cells.map(
-                  cell =>
-                    cell.i === cellID
-                      ? {
-                          ...cell,
-                          queries: cell.queries.map(q => {
-                            q.id === queryID
-                              ? {
-                                  ...q,
-                                  status,
-                                }
-                              : q
-                          }),
-                        }
-                      : cell
-                ),
-              }
-            : dashboard
-      )
     }
   }
 

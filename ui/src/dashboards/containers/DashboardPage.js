@@ -198,16 +198,6 @@ class DashboardPage extends Component {
     this.setState({zoomedTimeRange: {zoomedLower, zoomedUpper}})
   }
 
-  handleEditDashboardQueryStatus = cellID => (queryID, status) => {
-    const {params: dashboardID, dashboardActions} = this.props
-    dashboardActions.editDashboardQueryStatus(
-      dashboardID,
-      cellID,
-      queryID,
-      status
-    )
-  }
-
   getActiveDashboard() {
     const {params: {dashboardID}, dashboards} = this.props
     return dashboards.find(d => d.id === +dashboardID)
@@ -225,7 +215,7 @@ class DashboardPage extends Component {
       dashboards,
       autoRefresh,
       cellQueryStatus,
-      dashboardActions: {editCellQueryStatus},
+      dashboardActions,
       inPresentationMode,
       handleChooseAutoRefresh,
       handleClickPresentationButton,
@@ -314,7 +304,7 @@ class DashboardPage extends Component {
               onSave={this.handleSaveEditedCell}
               onCancel={this.handleDismissOverlay}
               templates={templatesIncludingDashTime}
-              editQueryStatus={editCellQueryStatus}
+              editQueryStatus={dashboardActions.editCellQueryStatus}
             />
           : null}
         {isEditMode
@@ -359,7 +349,6 @@ class DashboardPage extends Component {
               onZoom={this.handleZoomedTimeRange}
               onAddCell={this.handleAddCell}
               synchronizer={this.synchronizer}
-              editQueryStatus={this.handleEditDashboardQueryStatus}
               inPresentationMode={inPresentationMode}
               onEditCell={this.handleEditDashboardCell}
               onPositionChange={this.handleUpdatePosition}
