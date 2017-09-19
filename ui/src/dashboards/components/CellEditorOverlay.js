@@ -25,10 +25,8 @@ class CellEditorOverlay extends Component {
 
     const {cell: {name, type, queries, axes}, sources} = props
 
-    let source = [...sources, ...this.dummySources].find(
-      s =>
-        s.links.self === _.get(queries, ['0', source], props.source.links.self)
-    )
+    let source = _.get(queries, ['0', 'source'], props.source.links.self)
+    source = sources.find(s => s.links.self === source)
     source = source && source.links.self
 
     const queriesWorkingDraft = _.cloneDeep(
@@ -151,6 +149,7 @@ class CellEditorOverlay extends Component {
       return {
         queryConfig: q,
         query,
+        source: q.source,
       }
     })
 
