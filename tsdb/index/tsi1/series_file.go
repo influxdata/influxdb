@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/mmap"
 	"github.com/influxdata/influxdb/pkg/rhh"
@@ -199,154 +198,32 @@ func (f *SeriesFile) SeriesCount() uint32 {
 	return uint32(f.hashMap.Len())
 }
 
-/*
 // SeriesIterator returns an iterator over all the series.
-func (f *SeriesFile) SeriesIterator() SeriesIterator {
+func (f *SeriesFile) SeriesIDIterator() SeriesIDIterator {
 	return &seriesFileIterator{
 		offset: 1,
-		sfile:  f,
+		data:   f.data[1:],
 	}
-}
-
-// seriesFileIndex represents a partitioned series block index.
-type seriesFileIndex struct {
-	data     []byte
-	min      []byte
-	capacity int32
 }
 
 // seriesFileIterator is an iterator over a series ids in a series list.
 type seriesFileIterator struct {
-	i, n   uint32
+	data   []byte
 	offset uint32
-	sfile  *SeriesFile
-	e      SeriesFileElem // buffer
 }
 
 // Next returns the next series element.
-func (itr *seriesFileIterator) Next() SeriesElem {
-	for {
-		// Exit if at the end.
-		if itr.i == itr.n {
-			return nil
-		}
-
-		// If the current element is a hash index partition then skip it.
-		if flag := itr.sf.data[itr.offset]; flag&SeriesHashIndexFlag != 0 {
-			// Skip flag
-			itr.offset++
-
-			// Read index capacity.
-			n := binary.BigEndian.Uint32(itr.sf.data[itr.offset:])
-			itr.offset += 4
-
-			// Skip over index.
-			itr.offset += n * SeriesIDSize
-			continue
-		}
-
-		// Read next element.
-		itr.e.UnmarshalBinary(itr.sf.data[itr.offset:])
-
-		// Move iterator and offset forward.
-		itr.i++
-		itr.offset += uint32(itr.e.size)
-
-		return &itr.e
-	}
-}
-*/
-
-/*
-// seriesDecodeIterator decodes a series id iterator into unmarshaled elements.
-type seriesDecodeIterator struct {
-	itr   SeriesIDIterator
-	sfile *SeriesFile
-	e     SeriesFileElem // buffer
-}
-
-// newSeriesDecodeIterator returns a new instance of seriesDecodeIterator.
-func newSeriesDecodeIterator(sfile *SeriesFile, itr seriesIDIterator) *seriesDecodeIterator {
-	return &seriesDecodeIterator{sfile: sfile, itr: itr}
-}
-
-// Next returns the next series element.
-func (itr *seriesDecodeIterator) Next() SeriesElem {
-	// Read next series id.
-	id := itr.itr.next()
-	if id == 0 {
-		return nil
+func (itr *seriesFileIterator) Next() SeriesIDElem {
+	if len(itr.data) == 0 {
+		return SeriesIDElem{}
 	}
 
-	// Read next element.
-	itr.e.UnmarshalBinary(itr.sfile.data[id:])
-	return &itr.e
-}
-*/
+	var key []byte
+	key, itr.data = ReadSeriesKey(itr.data)
 
-// SeriesFileElem represents a series element in the series list.
-type SeriesFileElem struct {
-	flag byte
-	name []byte
-	tags models.Tags
-	size int
-}
-
-// Deleted returns true if the tombstone flag is set.
-func (e *SeriesFileElem) Deleted() bool { return (e.flag & SeriesTombstoneFlag) != 0 }
-
-// Name returns the measurement name.
-func (e *SeriesFileElem) Name() []byte { return e.name }
-
-// Tags returns the tag set.
-func (e *SeriesFileElem) Tags() models.Tags { return e.tags }
-
-// Expr always returns a nil expression.
-// This is only used by higher level query planning.
-func (e *SeriesFileElem) Expr() influxql.Expr { return nil }
-
-// UnmarshalBinary unmarshals data into e.
-func (e *SeriesFileElem) UnmarshalBinary(data []byte) error {
-	start := len(data)
-
-	// Parse flag data.
-	e.flag, data = data[0], data[1:]
-
-	// Parse total size.
-	_, szN := binary.Uvarint(data)
-	data = data[szN:]
-
-	// Parse name.
-	n, data := binary.BigEndian.Uint16(data[:2]), data[2:]
-	e.name, data = data[:n], data[n:]
-
-	// Parse tags.
-	e.tags = e.tags[:0]
-	tagN, szN := binary.Uvarint(data)
-	data = data[szN:]
-
-	for i := uint64(0); i < tagN; i++ {
-		var tag models.Tag
-
-		n, data = binary.BigEndian.Uint16(data[:2]), data[2:]
-		tag.Key, data = data[:n], data[n:]
-
-		n, data = binary.BigEndian.Uint16(data[:2]), data[2:]
-		tag.Value, data = data[:n], data[n:]
-
-		e.tags = append(e.tags, tag)
-	}
-
-	// Save length of elem.
-	e.size = start - len(data)
-
-	return nil
-}
-
-// AppendSeriesElem serializes flag/name/tags to dst and returns the new buffer.
-func AppendSeriesElem(dst []byte, flag byte, name []byte, tags models.Tags) []byte {
-	dst = append(dst, flag)
-	return AppendSeriesKey(dst, name, tags)
+	elem := SeriesIDElem{SeriesID: itr.offset}
+	itr.offset += uint32(len(key))
+	return elem
 }
 
 // AppendSeriesKey serializes name and tags to a byte slice.
