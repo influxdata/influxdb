@@ -474,6 +474,10 @@ func (f *LogFile) AddSeries(name []byte, tags models.Tags) error {
 
 // DeleteSeries adds a tombstone for a series to the log file.
 func (f *LogFile) DeleteSeriesID(seriesID uint32) error {
+	if seriesID == 0 {
+		return nil
+	}
+
 	f.mu.Lock()
 	defer f.mu.Unlock()
 

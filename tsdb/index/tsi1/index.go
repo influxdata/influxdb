@@ -238,7 +238,7 @@ func (i *Index) openLogFile(path string) (*LogFile, error) {
 
 // openIndexFile opens a log file and appends it to the index.
 func (i *Index) openIndexFile(path string) (*IndexFile, error) {
-	f := NewIndexFile()
+	f := NewIndexFile(i.sfile)
 	f.SetPath(path)
 	if err := f.Open(); err != nil {
 		return nil, err
@@ -951,7 +951,7 @@ func (i *Index) compactToLevel(files []*IndexFile, level int) {
 	}
 
 	// Reopen as an index file.
-	file := NewIndexFile()
+	file := NewIndexFile(i.sfile)
 	file.SetPath(path)
 	if err := file.Open(); err != nil {
 		logger.Error("cannot open new index file", zap.Error(err))
@@ -1084,7 +1084,7 @@ func (i *Index) compactLogFile(logFile *LogFile) {
 	}
 
 	// Reopen as an index file.
-	file := NewIndexFile()
+	file := NewIndexFile(i.sfile)
 	file.SetPath(path)
 	if err := file.Open(); err != nil {
 		logger.Error("cannot open compacted index file", zap.Error(err), zap.String("path", file.Path()))
