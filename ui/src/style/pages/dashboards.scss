@@ -194,7 +194,8 @@ $dash-graph-options-arrow: 8px;
     color 0.25s ease,
     background-color 0.25s ease;
 
-  &:hover {
+  &:hover,
+  &.active {
     cursor: pointer;
     color: $g20-white;
     background-color: $g5-pepper;
@@ -209,6 +210,11 @@ $dash-graph-options-arrow: 8px;
   }
 }
 .dash-graph-context--confirm {
+  z-index: 3;
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
   width: 58px;
   height: 24px;
   border-radius: 3px;
@@ -218,14 +224,27 @@ $dash-graph-options-arrow: 8px;
   line-height: 24px;
   background-color: $c-curacao;
   color: $g20-white;
-  transition:
-    color 0.25s ease,
-    background-color 0.25s ease;
+  transition: background-color 0.25s ease;
+
+  &:before {
+    position: absolute;
+    content: '';
+    border: 6px solid transparent;
+    border-bottom-color: $c-curacao;
+    left: 50%;
+    top: 0;
+    transform: translate(-50%,-100%);
+    transition: border-color 0.25s ease;
+  }
 
   &:hover {
     background-color: $c-dreamsicle;
     cursor: pointer;
   }
+  &:hover:before {
+    border-bottom-color: $c-dreamsicle;
+  }
+
 }
 
 /* Presentation Mode */

@@ -14,8 +14,14 @@ const ContextMenu = OnClickOutside(
         <span className="icon pencil" />
       </div>
       {isDeleting
-        ? <div className="dash-graph-context--confirm" onClick={onDelete(cell)}>
-            Confirm
+        ? <div className="dash-graph-context--button active">
+            <span className="icon trash" />
+            <div
+              className="dash-graph-context--confirm"
+              onClick={onDelete(cell)}
+            >
+              Confirm
+            </div>
           </div>
         : <div className="dash-graph-context--button" onClick={onDeleteClick}>
             <span className="icon trash" />
