@@ -163,8 +163,12 @@ input.form-control.dash-graph--name-edit {
   line-height: (26px - 4px) !important;
   position: relative;
   top: -1px; // Fix for slight offset
+.dash-graph--name.dash-graph--name__default {
+  font-style: italic;
 }
+
 .dash-graph--custom-time {
+  font-style: normal;
   font-family: $code-font;
   color: $c-pool;
   background-color: $g2-kevlar;

@@ -17,7 +17,7 @@ export const NEW_DEFAULT_DASHBOARD_CELL = {
   y: 0,
   w: 4,
   h: 4,
-  name: 'Name This Graph',
+  name: 'Untitled Cell',
   type: 'line',
   queries: [],
 }

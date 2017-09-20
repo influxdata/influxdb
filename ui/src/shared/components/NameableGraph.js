@@ -5,6 +5,8 @@ import classnames from 'classnames'
 import ContextMenu from 'shared/components/ContextMenu'
 import CustomTimeIndicator from 'shared/components/CustomTimeIndicator'
 
+import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants/index'
+
 class NameableGraph extends Component {
   constructor(props) {
     super(props)
@@ -48,6 +50,7 @@ class NameableGraph extends Component {
 
     const {cellName, isDeleting} = this.state
     const queries = _.get(cell, ['queries'], [])
+    const cellNameIsDefault = cellName === NEW_DEFAULT_DASHBOARD_CELL.name
 
     return (
       <div className="dash-graph">
@@ -66,7 +69,13 @@ class NameableGraph extends Component {
             'dash-graph--heading-draggable': isEditable,
           })}
         >
-          <span className="dash-graph--name">
+          <span
+            className={
+              cellNameIsDefault
+                ? 'dash-graph--name dash-graph--name__default'
+                : 'dash-graph--name'
+            }
+          >
             {cellName}
             {queries && queries.length
               ? <CustomTimeIndicator queries={queries} />
