@@ -1,7 +1,7 @@
 import React, {PropTypes} from 'react'
 import OnClickOutside from 'react-onclickoutside'
 
-const ContextMenu = OnClickOutside(
+const LayoutCellMenu = OnClickOutside(
   ({isDeleting, onEdit, onDeleteClick, onDelete, cell}) =>
     <div
       className={
@@ -29,17 +29,17 @@ const ContextMenu = OnClickOutside(
     </div>
 )
 
-const ContextMenuContainer = props => {
+const LayoutCellMenuContainer = props => {
   if (!props.isEditable) {
     return null
   }
 
-  return <ContextMenu {...props} />
+  return <LayoutCellMenu {...props} />
 }
 
 const {bool, func, shape} = PropTypes
 
-ContextMenuContainer.propTypes = {
+LayoutCellMenuContainer.propTypes = {
   isDeleting: bool,
   onEdit: func,
   onDelete: func,
@@ -48,6 +48,6 @@ ContextMenuContainer.propTypes = {
   isEditable: bool,
 }
 
-ContextMenu.propTypes = ContextMenuContainer.propTypes
+LayoutCellMenu.propTypes = LayoutCellMenuContainer.propTypes
 
-export default ContextMenuContainer
+export default LayoutCellMenuContainer

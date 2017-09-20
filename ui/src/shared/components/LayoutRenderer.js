@@ -2,7 +2,7 @@ import React, {Component, PropTypes} from 'react'
 
 import ReactGridLayout, {WidthProvider} from 'react-grid-layout'
 
-import NameableGraph from 'shared/components/NameableGraph'
+import LayoutCell from 'shared/components/LayoutCell'
 import RefreshingGraph from 'shared/components/RefreshingGraph'
 import AlertsApp from 'src/alerts/containers/AlertsApp'
 import NewsFeed from 'src/status/components/NewsFeed'
@@ -154,7 +154,7 @@ class LayoutRenderer extends Component {
 
       return (
         <div key={cell.i}>
-          <NameableGraph
+          <LayoutCell
             onCancelEditCell={onCancelEditCell}
             isEditable={isEditable}
             onEditCell={onEditCell}
@@ -175,7 +175,7 @@ class LayoutRenderer extends Component {
                   axes={axes}
                   onZoom={onZoom}
                 />}
-          </NameableGraph>
+          </LayoutCell>
         </div>
       )
     })

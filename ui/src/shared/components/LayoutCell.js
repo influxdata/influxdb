@@ -1,13 +1,10 @@
 import React, {Component, PropTypes} from 'react'
 import _ from 'lodash'
-import classnames from 'classnames'
 
-import ContextMenu from 'shared/components/ContextMenu'
-import CustomTimeIndicator from 'shared/components/CustomTimeIndicator'
+import LayoutCellMenu from 'shared/components/LayoutCellMenu'
+import LayoutCellHeader from 'shared/components/LayoutCellHeader'
 
-import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants/index'
-
-class NameableGraph extends Component {
+class LayoutCell extends Component {
   constructor(props) {
     super(props)
     this.state = {
@@ -50,11 +47,10 @@ class NameableGraph extends Component {
 
     const {cellName, isDeleting} = this.state
     const queries = _.get(cell, ['queries'], [])
-    const cellNameIsDefault = cellName === NEW_DEFAULT_DASHBOARD_CELL.name
 
     return (
       <div className="dash-graph">
-        <ContextMenu
+        <LayoutCellMenu
           cell={cell}
           onDeleteClick={this.handleDeleteClick}
           onDelete={this.handleDeleteCell}
@@ -63,24 +59,11 @@ class NameableGraph extends Component {
           handleClickOutside={this.closeMenu}
           onEdit={this.handleSummonOverlay}
         />
-        <div
-          className={classnames('dash-graph--heading', {
-            'dash-graph--heading-draggable': isEditable,
-          })}
-        >
-          <span
-            className={
-              cellNameIsDefault
-                ? 'dash-graph--name dash-graph--name__default'
-                : 'dash-graph--name'
-            }
-          >
-            {cellName}
-            {queries && queries.length
-              ? <CustomTimeIndicator queries={queries} />
-              : null}
-          </span>
-        </div>
+        <LayoutCellHeader
+          cellName={cellName}
+          queries={queries}
+          isEditable={isEditable}
+        />
         <div className="dash-graph--container">
           {queries.length
             ? children
@@ -100,7 +83,7 @@ class NameableGraph extends Component {
 
 const {array, bool, func, node, number, shape, string} = PropTypes
 
-NameableGraph.propTypes = {
+LayoutCell.propTypes = {
   cell: shape({
     name: string.isRequired,
     isEditing: bool,
@@ -115,4 +98,4 @@ NameableGraph.propTypes = {
   onCancelEditCell: func,
 }
 
-export default NameableGraph
+export default LayoutCell
