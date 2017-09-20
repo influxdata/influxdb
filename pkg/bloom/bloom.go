@@ -26,7 +26,7 @@ type Filter struct {
 // If m is not a power of two then it is rounded to the next highest power of 2.
 func NewFilter(m uint64, k uint64) *Filter {
 	m = pow2(m)
-	return &Filter{k: k, b: make([]byte, m/8), mask: m - 1}
+	return &Filter{k: k, b: make([]byte, m>>3), mask: m - 1}
 }
 
 // NewFilterBuffer returns a new instance of a filter using a backing buffer.
@@ -60,7 +60,7 @@ func (f *Filter) Insert(v []byte) {
 	h := f.hash(v)
 	for i := uint64(0); i < f.k; i++ {
 		loc := f.location(h, i)
-		f.b[loc/8] |= 1 << (loc % 8)
+		f.b[loc>>3] |= 1 << (loc & 7)
 	}
 }
 
@@ -70,7 +70,7 @@ func (f *Filter) Contains(v []byte) bool {
 	h := f.hash(v)
 	for i := uint64(0); i < f.k; i++ {
 		loc := f.location(h, i)
-		if f.b[loc/8]&(1<<(loc%8)) == 0 {
+		if f.b[loc>>3]&(1<<(loc&7)) == 0 {
 			return false
 		}
 	}
