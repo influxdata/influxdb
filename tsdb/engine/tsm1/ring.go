@@ -32,15 +32,15 @@ const partitions = 4096
 // key is hashed and the first 8 bits are used as an index to the ring.
 //
 type ring struct {
-	// The unique set of partitions in the ring.
-	// len(partitions) <= len(continuum)
-	partitions []*partition
-
 	// Number of keys within the ring. This is used to provide a hint for
 	// allocating the return values in keys(). It will not be perfectly accurate
 	// since it doesn't consider adding duplicate keys, or trying to remove non-
 	// existent keys.
 	keysHint int64
+
+	// The unique set of partitions in the ring.
+	// len(partitions) <= len(continuum)
+	partitions []*partition
 }
 
 // newring returns a new ring initialised with n partitions. n must always be a
