@@ -1,131 +1,176 @@
 # InfluxQL & Kapacitor 2.0
-This document puts forth some ideas for the new data model of InfluxDB and a query language that unites Influx and Kapacitor into one. The goal is to have a query language that is easy to use and fits with the model of working with time series data. It should be extensible and easy for users to add new functions and build on top of some key primitives.
+
+This document puts forth some ideas for the new data model of InfluxDB and a query language that unites Influx and Kapacitor into one.
+The goal is to have a query language that is easy to use and fits with the model of working with time series data.
+It should be extensible and easy for users to add new functions and build on top of some key primitives.
 
 The rollout of this should be as an additional endpoint in InfluxDB and Kapacitor that can work with the existing data model or work with the new data model.
 
 ## Proposed Data Model & Terms
 
-The new data model's goal is to simplify things for the users, while keeping the ability to represent other data models like InfluxDB 1.x, OpenTSDB, and Prometheus. The primary goal is to remove questions from the user about how to organize things and also let the data structures improve the clarity of the query language. The new model consists of databases, which have a retention period (how long they keep data around) and time series are identified by tag key/value pairs (note that measurements and fields are no longer a concept that exists). A series is a time ordered collection of time/value pairs. Values in a series must all be of the same type, either bool, int64, uint64, float64, or string. Queries can span multiple databases and can write into multiple databases so removing the separate retention policy heirarchy won't limit functionality.
+The new data model's goal is to simplify things for the users, while keeping the ability to represent other data models like InfluxDB 1.x, OpenTSDB, and Prometheus.
+The primary goal is to remove questions from the user about how to organize things and also let the data structures improve the clarity of the query language.
+The new model consists of databases, which have a retention period (how long they keep data around) and time series are identified by tag key/value pairs (note that measurements and fields are no longer a concept that exists).
+A series is a time ordered collection of time/value pairs.
+Values in a series must all be of the same type, either bool, int64, uint64, float64, or string.
+Queries can span multiple databases and can write into multiple databases so removing the separate retention policy heirarchy won't limit functionality.
 
 ### Definitions
 
-The following definitions encompass the entire vocabulary of the data model. Where appropriate, JSON examples are given, but the protocol will also support a line or protobuf based structure.
+The following definitions encompass the entire vocabulary of the data model.
+Where appropriate, JSON examples are given, but the protocol will also support a line or protobuf based structure.
 
-* **tag** - a key/value pair of strings. (e.g. "region":"host" or "building":"2"). Tags MUST NOT start with `#`. Tag keys starting with `_` have special meaning and should not be used by the user unless they conform to the predefined set of keys that use `_`.
-* **system tag** - A tag with a key that starts with `_` followed by letters and/or numbers. These are indexed just like tags, but are used by the system for compatibility layers with other systems.
-* **meta** - A JSON style object associated with a series. This data is not indexed and can only be included/joined in a query. Its purpose is to add more context to series for user interfaces and additional calculations.
-* **tagset** - an object of 1 or more tag key/value string pairs. Example:
-
-```json
-{
-	"region":"host",
-	"building":"2"
-}
-```
-
+* **tag** - a key/value pair of strings. (e.g. "region":"host" or "building":"2").
+    Tags MUST NOT start with `#`.
+    Tag keys starting with `_` have special meaning and should not be used by the user unless they conform to the predefined set of keys that use `_`.
+* **system tag** - A tag with a key that starts with `_` followed by letters and/or numbers.
+    These are indexed just like tags, but are used by the system for compatibility layers with other systems.
+* **meta** - A JSON style object associated with a series.
+    This data is not indexed and can only be included/joined in a query.
+    Its purpose is to add more context to series for user interfaces and additional calculations.
+* **tagset** - an set of one or more tag key/value string pairs.
+    Example:
+    ```json
+    {
+        "region":"host",
+        "building":"2"
+    }
+    ```
 * **value** - a single value of type null, bool, int64, uint64, float64 (must support NaN), time, or string
-* **epoch** - distance in time from UTC 00:00:00 01/01/1970. Step size for distance is determined by precision
-* **precision** - the precision at which an epoch should be interpreted. Acceptable values:
-  * s - seconds
-  * ms - milliseconds
-  * us - microseconds
-  * ns - nanoseconds
+* **epoch** - distance in time from UTC 00:00:00 01/01/1970. 
+    Step size for distance is determined by precision
+* **precision** - the precision at which an epoch should be interpreted.
+    Acceptable values:
+      * s - seconds
+      * ms - milliseconds
+      * us - microseconds
+      * ns - nanoseconds
 * **time** - an RFC3339 or RFC3339Nano time string
-* **point** - an object with value, epoch, time, and tagset. value is required. One and only one of either epoch or time MUST be present. Tagset is optional. Example:
-
-```json
-{
-	"value": 23.1,
-	"epoch": 1491499253,
-	"tagset": {"host":"A"}
-}
-```
-
+* **point** - an object with value, epoch, time, and tagset.
+    Value is required.
+    One and only one of either epoch or time MUST be present.
+    Tagset is optional.
+    Example:
+    ```json
+    {
+        "value": 23.1,
+        "epoch": 1491499253,
+        "tagset": {"host":"A"}
+    }
+    ```
 * **vector** - a time/epoch ordered collection of points
-* **series** - an object with a tagset, metadata, and an array of points. All values in the vector must be of the same data type. Points in the vector will have tagsets that are the union of the series tagset and their own, if it is specified. Keys in the point tagset will override any keys from the series tagset. (e.g. a point in series {"host":"A","region":"west"} with a point tagset of {"host":"B"} will have the resulting tagset of {"host":"B","region":"west"}). Note that series could map to raw underlying database series or could be a combination of series or composed series from transformations. Example:
-
-```json
-{
-	"id": 24,
-	"meta": {
-		"dataType": "float64",
-		"metricType": "gauge"
-	},
-	"tagset": {
-		"host": "A",
-		"region": "B"
-	},
-	"points": [
-		{"value":23.2, "epoch":1491499253},
-		{"value":78.1, "epoch":1491499263, "tagset":{"host":"B"}}
-	]
-}
-```
-
-**Note** All values in a vector or series must be of the same type. There are methods to do conversion at query time.
-
-* **matrix** - a collection of series. Example:
-
-```json
-[
-	{
-		"tagset": {
-			"host": "A",
-		},
-		"points": [{"value":23.1, "epoch":1491499253}, {"value":56.2, "epoch":1491499263}]
-	},
-	{
-		"tagset": {
-			"host": "B"
-		},
-		"points": [{"value":23.1, "epoch":1491499253}, {"value":56.2, "epoch":1491499263}]
-	}
-]
-```
-
-* **column vector** - a vector that is the column in a matrix, so each point is from a different series.
-* **raw series** - a series that maps to an underlying database series. Note that the **series** object can be a combination of various **raw series** or transformations of those. A raw series would take the same form as a series with the restrictions that all points in the vector have identical tagsets and that no points have the same epoch/time. Raw series also have a unique `uint64` id.
-* **raw point** - a point that maps to an individual time/value pair in a raw series. The **point** object from above could be an aggregate computed on the fly or a mathematic transformation with other points. Raw points exist in the underlying database and have their parent series' tagset and the point's time as a composite unique identifier.
-* **database** - an object with a name and a retention [duration string](https://golang.org/pkg/time/#ParseDuration). The duration determines how long data is kept in the database. It is a container of raw series. Names must be a string and can contain `_`, `-`, `0-9`, `a-z`, `A-Z`. Database names MUST not start with `_`. Note that retention policies are no longer a part of the model. Example:
-
-```json
-{
-	"name": "foo",
-	"retention": "0"
-}
-```
+* **series** - an object with a tagset, metadata, and an array of points.
+    All values in the vector must be of the same data type.
+    Points in the vector will have tagsets that are the union of the series tagset and their own, if it is specified.
+    Keys in the point tagset will override any keys from the series tagset. (e.g. a point in series {"host":"A","region":"west"} with a point tagset of {"host":"B"} will have the resulting tagset of {"host":"B","region":"west"}).
+    Note that series could map to raw underlying database series or could be a combination of series or composed series from transformations.
+    Example:
+    ```json
+    {
+        "id": 24,
+        "meta": {
+            "dataType": "float64",
+            "metricType": "gauge"
+        },
+        "tagset": {
+            "host": "A",
+            "region": "B"
+        },
+        "points": [
+            {"value":23.2, "epoch":1491499253},
+            {"value":78.1, "epoch":1491499263, "tagset":{"host":"B"}}
+        ]
+    }
+    ```
+    **Note** All values in a vector or series must be of the same type. There are methods to do conversion at query time.
+* **table** - a collection of series.
+    Columns are time, value and any tags keys on the series.
+    Example:
+    ```json
+    {
+        "columns": [
+            "time",
+            "host",
+            "value"
+        ],
+        "points" :[
+            [ 1491499253, "A", 23.1],
+            [ 1491499253, "B", 23.1],
+            [ 1491499263, "A", 56.2],
+            [ 1491499263, "B", 56.2]
+        ]
+    }
+    ```
+    Tables can be sorted by their tags or time columns.
+    Tables can represent unbounded data and so may be logically infinite.
+* **block** - a subset of a table.
+    Blocks are used break up tables into logically smaller bounded data sets.
+    Block define bounds around which transformations should operate.
+* **database** - an object with a name and a retention [duration string](https://golang.org/pkg/time/#ParseDuration).
+    The duration determines how long data is kept in the database.
+    It is a container of raw series.
+    Names must be a string and can contain `_`, `-`, `0-9`, `a-z`, `A-Z`.
+    Database names MUST not start with `_`.
+    **Note** Retention policies are no longer a part of the model.
+    Example:
+    ```json
+    {
+        "name": "foo",
+        "retention": "0"
+    }
+    ```
 
 ### Proposed Write Protocol
 
-The primary write protocol is a line protocol. In the context of a write, only **raw points** can be written. The line protocol contains some shortcuts to avoid the duplication of shared information like tags and time, but ultimately those will be converted into raw points, which are written into raw series (meaning that points in a series MUST have a unique time or they will overwrite previously written points).
+The primary write protocol is a line protocol.
+The line protocol contains some shortcuts to avoid the duplication of shared information like tags and time, but ultimately those will be converted into points, which are written into series (meaning that points in a series MUST have a unique time or they will overwrite previously written points).
 
-The protocol can also include comments, which are lines that start with `#` followed by a space. Lines that start with `##` specify a block of meta data for the line immediately following.
+The protocol can also include comments, which are lines that start with `#` followed by a space.
+Lines that start with `##` specify a block of meta data for the line immediately following.
 
-The most basic style of the protocol has the tag key/value pairs separated by `:` with a trailing space, a value, and a trailing epoch or time. The structure looks like this:
+The most basic style of the protocol has the tag key/value pairs separated by `:` with a trailing space, a value, and a trailing epoch or time.
+The structure looks like this:
 
 ```
 <tagset> <value> <time>
 ```
 
-All three sections are required. Here are the rules for each section.
+All three sections are required.
+Here are the rules for each section.
 
 #### Tagset
 
-The tagset is the key/value pairs that identify the series. A line MUST have at least one tag key/value pair. They should be separated by `:`. Spaces, commas, colons, and backslashes in either a key or value MUST be escaped by a backslash.
+The tagset is the key/value pairs that identify the series.
+A line MUST have at least one tag key/value pair.
+They should be separated by `:`.
+Spaces, commas, colons, and backslashes in either a key or value MUST be escaped by a backslash.
 
 #### Value
 
-The value block can be any of the value types: boolean, float64, int64, uint64, time, string, or bytes. Null values should never be specified as they aren't stored in the database. Boolean is represented with `t` or `f`. Int64, UInt64 must have a trailing `i` or `u`, while all numbers without the trailing character are parsed as float64. Times must be in RFC3339Nano format. Strings should be wrapped in double quotes, which means any double quote within a string must be escaped with a backslash. Bytes look like an array of numbers: `[102, 111, 111]`
+The value block can be any of the value types: boolean, float64, int64, uint64, time, string, or bytes.
+Null values should never be specified as they aren't stored in the database.
+Boolean is represented with `t` or `f`.
+Int64, UInt64 must have a trailing `i` or `u`, while all numbers without the trailing character are parsed as float64.
+Times must be in RFC3339Nano format.
+Strings should be wrapped in double quotes, which means any double quote within a string must be escaped with a backslash.
+Bytes look like an array of numbers: `[102, 111, 111]`.
 
 #### Time
 
-The time block can be specified as either an epoch or an RFC3339Nano string. If an epoch is used it should be followed by its precision. However, if no precision is specified, the system will guess the precision by whatever is closest to the current time on the server receiving the write.
+The time block can be specified as either an epoch or an RFC3339Nano string.
+If an epoch is used it should be followed by its precision.
+However, if no precision is specified, the system will guess the precision by whatever is closest to the current time on the server receiving the write.
 
 #### Meta data
 
 *TODO:* give this more definition.
 
-Meta data can be written with a line starting with `##`. The meta data will be associated with the series on the next line. Meta data is a JSON object. Keys in the object starting with `_` are reserved for the system. The data in meta is not indexed. The only validation is that it is a parseable JSON object.
+Meta data can be written with a line starting with `##`.
+The meta data will be associated with the series on the next line.
+Meta data is a JSON object.
+Keys in the object starting with `_` are reserved for the system.
+The data in meta is not indexed.
+The only validation is that it is a parseable JSON object.
 
 #### Examples
 
@@ -141,11 +186,13 @@ service:apache,host:serverA,region:west "127.0.0.1 - frank [10/Oct/2000:13:55:36
 
 #### gRPC
 
-Writes can come in through gRPC. Here's the `proto` definition for the schema and service. (TODO)
+Writes can come in through gRPC.
+Here's the `proto` definition for the schema and service. (TODO)
 
 ### Representing the InfluxDB 1.x Data Model
 
-The InfluxDB 1.x data model can be represented by using special `_measurement` and `_field` tag keys to split measurement and fields up. Here's an example:
+The InfluxDB 1.x data model can be represented by using special `_measurement` and `_field` tag keys to split measurement and fields up.
+Here's an example:
 
 ```text
 # InfluxDB 1.x
@@ -158,7 +205,8 @@ _measurement:cpu,host:serverA,region:west,_field:system 23.2 1491675816
 
 ### Representing the Prometheus/OpenTSDB Data Model
 
-The Prometheus data model can be represented by using the special `_metric` tag key. Here's an example:
+The Prometheus data model can be represented by using the special `_metric` tag key.
+Here's an example:
 
 ```text
 # Prometheus
@@ -170,7 +218,8 @@ _metric:node_cpu,cpu:cpu0,mode:user 182168.46875 1491675816
 
 ### Pre-defined tag keys
 
-There are a set of tag keys used by the system that start with `_` that are well known. Some of them are for conversions from Influx 1.x or Prometheus while others are for information useful in graphing.
+There are a set of tag keys used by the system that start with `_` that are well known.
+Some of them are for conversions from Influx 1.x or Prometheus while others are for information useful in graphing.
 
 * **_units** - the units of the measurement - 
 * **_type** - the type of the series - [int64, uint64, float64, bool, string]
@@ -182,22 +231,29 @@ There are a set of tag keys used by the system that start with `_` that are well
 
 ## Proposed Query Language
 
-The new query language is functional in style, but I would call it a streaming query language because the engine should process parts of function inputs as they come in rather than getting the entire input at once. From the user's perspective it should look purely functional, but the engine should optimize queries to be streamed. Functions take named arguments with the argument name and value separated by `:` and arguments separated by `,`. String arguments are wrapped in double quotes or backticks. If using double quotes, any double quotes in the string must be escaped by backslash. If using backticks, double quotes do not need escaping. Function and argument names should use camel casing like in Javascript.
+The new query language is functional in style, but I would call it a streaming query language because the engine should process parts of function inputs as they come in rather than getting the entire input at once.
+From the user's perspective it should look purely functional, but the engine should optimize queries to be streamed.
+Functions take named arguments with the argument name and value separated by `:` and arguments separated by `,`.
+String arguments are wrapped in double quotes.
+When using double quotes, any double quotes in the string must be escaped by backslash.
+Function and argument names should use camel casing like in Javascript.
 
-A **query** is made up of a number of **statements**, which can include variable assignments. The result set sent back is the last set of statements separated by commas. In the case of multiple statements returning values, they will be streamed back to the client in order of the statements from left to right. Queries can also include comments, which are started with `//` and continue until a newline.
+A **query** is made up of a number of **statements**, which can include variable assignments.
+The result set sent back are any terminal steps in the query(i.e. leaf nodes).
+Queries can also include comments, which are started with `//` and continue until a newline.
 
 Without using real function or argument names, here's an example of what the query language looks like:
 
 ```javascript
 // as one line
-funcA(argOne: "some thing", argTwo: ['foo', 'bar']).funcB(arg: /some regex/).funcC(arg: `here "is a" string`)
+funcA(argOne: "some thing", argTwo: ['foo', 'bar']).funcB(arg: /some regex/).funcC(arg: "here \"is a\" string")
 ```
 
 ```javascript
 // or separating for readability with newlines
 funcA(argOne: "some thing", argTwo: ['foo', 'bar'])
     .funcB(arg: /some regex/)
-    .funcC(arg: `here "is a" string`)
+    .funcC(arg: "here \"is a\" stringr)
 ```
 
 ```javascript
@@ -208,88 +264,227 @@ funcA(
 .funcB(
     arg: /some regex/)
 .funcC(
-    arg: `here "is a" string`)
+    arg: "here \"is a\" string")
 ```
 
 ```javascript
 // variable assignment and multiple returns
 var foo = funcA()
 
-foo.transformOne(), foo.transformTwo()
+foo.transformOne()
+foo.transformTwo()
 ```
 
-The query language doesn't aim to be the most terse representation possible. Rather, it is meant to be readable and, more importantly, extensible. New functions should be easy to define and add to the language. Existing functions should be able to get new optional arguments without breaking existing clients.
+The query language doesn't aim to be the most terse representation possible.
+Rather, it is meant to be readable and, more importantly, extensible.
+New functions should be easy to define and add to the language.
+Existing functions should be able to get new optional arguments without breaking existing clients.
 
-This documentation lays out the functions in the query language. For each function we define the following:
+This documentation lays out the functions in the query language.
+For each function we define the following:
 
-* **accepts** what data types (or function returns) a function can be chained off. For example `range` accepts the result of a select: `select(...).range(...)`
-* **arguments** named arguments for a function. Required arguments will be marked and the first listed
+* **accepts** what data types (or function returns) a function can be chained off.
+    For example `range` accepts the result of a select: `select(...).range(...)`
+* **arguments** named arguments for a function.
+    Required arguments will be marked and the first listed
 
-The passed in value for a function argument can be either the direct type (like a string), a variable holding the proper type, or another function in the language that returns the correct type. For example, a function argument that takes an array of strings could take `f(arg:['foo','bar'])` or it could take `f(arg:someFuncThatReturnsStringArray())`.
+The passed in value for a function argument can be either the direct type (like a string), a variable holding the proper type, or another function in the language that returns the correct type.
+For example, a function argument that takes an array of strings could take `f(arg:['foo','bar'])` or it could take `f(arg:someFuncThatReturnsStringArray())`.
 
 ### The Data Model
 
-We can represent data in the database as a matrix that can be manipulated. It's helpful to think of the data this way when working with the query language since it is a series of functions performing transormations on the matrix of time series. You can also think of them as data frames. For example, here is a basic matrix of series data:
+We can represent data in the database as a table that can be manipulated.
+It's helpful to think of the data this way when working with the query language since it is a series of functions performing transformations on the table of time series.
+You can also think of them as data frames.
+For example, here is a basic table of series data:
 
-|                           Series | 10  | 20  | 30  | 40
-|                              --- |:---:|:---:|:---:|:---:
-|`{"host":"a","metric":"cpu_user"}`|23.1 |25.3 |28.9 |35.2
-|`{"host":"b","metric":"cpu_user"}`|76.2 |50.1 |56.3 |65.0
 
-An entire database is really just a very large matrix like the one shown above. In the matrix, each row is a series. The first column identifies the series key. Each column after is a time and the columns will always be in time order (ascending by default, but reversible). The series column contains the tags that identify a given series. Each value cell will contain a value, and optionally, tag data specific to that point. As JSON, this matrix would look like this:
+| Time | host | metric   | Value |
+| ---- | ---- | ------   | ----- |
+| 10   | a    | cpu_user | 23.1  |
+| 10   | b    | cpu_user | 76.1  |
+| 20   | a    | cpu_user | 25.3  |
+| 20   | b    | cpu_user | 50.1  |
+| 30   | a    | cpu_user | 28.9  |
+| 30   | b    | cpu_user | 56.3  |
+| 40   | a    | cpu_user | 35.2  |
+| 40   | b    | cpu_user | 65.0  |
+
+
+An entire database is really just a very large table like the one shown above.
+In the table, each row represents a point.
+The columns identify the time, tags, and value.
+As JSON, this table would look like this:
 
 ```json
 {
-	"matrix":[
-		{
-			"series": {
-				"host": "a",
-				"metric": "cpu_user"
-			},
-			"points": [
-				{"epoch":10,"value":23.1},
-				{"epoch":20,"value":25.3},
-				{"epoch":30,"value":28.9},
-				{"epoch":40,"value":35.2}
-			]
-		},
-		{
-			"series": {
-				"host": "b",
-				"metric": "cpu_user"
-			},
-			"points": [
-				{"epoch":10,"value":76.2},
-				{"epoch":20,"value":50.1},
-				{"epoch":30,"value":56.3},
-				{"epoch":40,"value":65.0}
-			]
-		}
-	]
+    "table":{
+        "columns": [
+            "time",
+            "host",
+            "metric",
+            "value"
+        ],
+        "points": [
+            [ 10, "a", "cpu_user", 23.1],
+            [ 10, "b", "cpu_user", 76.1],
+            [ 20, "a", "cpu_user", 25.3],
+            [ 20, "b", "cpu_user", 50.1],
+            [ 30, "a", "cpu_user", 28.9],
+            [ 30, "b", "cpu_user", 56.3],
+            [ 40, "a", "cpu_user", 35.2],
+            [ 40, "b", "cpu_user", 65.0]
+        ]
+    }
 }
 ```
 
-#### Functions on series in a matrix
+#### Table Blocks
 
-Functions can either operate on the values in a series, or on the series column themselves. For example, say we have this matrix `foo`:
+A table represents all data for all time and all series that were selected.
+Since this data is potentially unbounded the table may have to be infinitely long.
+In order to deal with unbounded data we introduce the concept of a `block`.
+A `block` is a bounded subset records in a table.
 
-|                           Series | 10  | 20  
-|                              --- |:---:|:---:
-|`{"host":"a","metric":"cpu_user"}`| 12  | 13
-|`{"host":"b","metric":"cpu_user"}`| 5   | 6
+A block's bounds can be defined along two general dimensions:
+
+* Time - Windowing separates records by time.
+    A simple fixed window of one hour will create 24 blocks of data for a day.
+* Cardinality - Grouping separates records based on their tags.
+    For example records can be grouped by host to place all records for host=A into one block and records for host=B into another block.
+
+A block is defined by its window time bounds and the tags for the grouping.
+
+By default data queried from the database has each record in its own block.
+By applying `window` and `merge` transforms the records can be organized into different blocks.
+
+#### Transformations
+
+Transformations take a table as input and produce another table as output.
+Transformations consume records from tables in blocks and place the resulting records into the blocks of the output table.
+
+As an example, let's say we want to perform an aggregate transformation on each series.
+Aggregate transformations by definition produce a single record as output for each block in the input table.
+
+Given this table `foo` grouped by `host,metric` and windowed with a single global window:
+
+| Time | host | metric   | Value |
+| ---- | ---- | ------   | ----- |
+| 10   | a    | cpu_user | 23.1  |
+| 20   | a    | cpu_user | 25.3  |
+| 30   | a    | cpu_user | 28.9  |
+| 40   | a    | cpu_user | 35.2  |
+| ---- | ---- | ------   | ----- |
+| 10   | b    | cpu_user | 76.1  |
+| 20   | b    | cpu_user | 50.1  |
+| 30   | b    | cpu_user | 56.3  |
+| 40   | b    | cpu_user | 65.0  |
+
+Notice that there are two blocks of records within the table `foo`.
 
 If we called `foo.sum()` we would get the following matrix:
 
-|                           Series | 10
-|                              --- |:---:
-|`{"host":"a","metric":"cpu_user"}`| 25
-|`{"host":"b","metric":"cpu_user"}`| 11
+| Time | host | metric   | Value |
+| ---- | ---- | ------   | ----- |
+| 40   | a    | cpu_user | 112.5 |
+| 40   | b    | cpu_user | 247.5 |
 
-We can see that sum was applied across each row individually. That is, sum all the value columns across a row.
+We can see that sum was applied for each group individually and produced a single result for each block.
 
-#### Column oriented functions
+####  Windowing
 
-Most functions in the language operate on the individual series. However, there are some functions that operate on the columns in the matrix. Specifically, the functions `join` and `filter`. The `sort` function is a special case that can combine both row and column operations.
+Windowing data is a transformation in and of itself.
+The window transformation consumes input blocks and places the records in the output blocks according to their time.
+
+For example given the same table `foo` with two blocks:
+
+| Time | host | metric   | Value |
+| ---- | ---- | ------   | ----- |
+| 10   | a    | cpu_user | 23.1  |
+| 20   | a    | cpu_user | 25.3  |
+| 30   | a    | cpu_user | 28.9  |
+| 40   | a    | cpu_user | 35.2  |
+| ---- | ---- | ------   | ----- |
+| 10   | b    | cpu_user | 76.1  |
+| 20   | b    | cpu_user | 50.1  |
+| 30   | b    | cpu_user | 56.3  |
+| 40   | b    | cpu_user | 65.0  |
+
+The transformation `foo.window(every:20s)` would produce this output table with four blocks.
+
+| Time | host | metric   | Value |
+| ---- | ---- | ------   | ----- |
+| 10   | a    | cpu_user | 23.1  |
+| 20   | a    | cpu_user | 25.3  |
+| ---- | ---- | ------   | ----- |
+| 30   | a    | cpu_user | 28.9  |
+| 40   | a    | cpu_user | 35.2  |
+| ---- | ---- | ------   | ----- |
+| 10   | b    | cpu_user | 76.1  |
+| 20   | b    | cpu_user | 50.1  |
+| ---- | ---- | ------   | ----- |
+| 30   | b    | cpu_user | 56.3  |
+| 40   | b    | cpu_user | 65.0  |
+
+The combined transformation `foo.window(every:20s).sum()` would produce this output table with four blocks each with a single record.
+
+| Time | host | metric   | Value |
+| ---- | ---- | ------   | ----- |
+| 20   | a    | cpu_user | 48.4  |
+| ---- | ---- | ------   | ----- |
+| 40   | a    | cpu_user | 64.1  |
+| ---- | ---- | ------   | ----- |
+| 20   | b    | cpu_user | 126.2 |
+| ---- | ---- | ------   | ----- |
+| 40   | b    | cpu_user | 121.3 |
+
+**NOTE** Windowing may place an input record into multiple output blocks.
+    Overlapping windows is a simple example of this case.
+    More an that below.
+
+#### Merging
+
+Merging is a transformation that groups records into blocks by their tags.
+
+For example given this table `bar` which represents raw data from a select (since by default each record is in its own block):
+
+| Time | host | metric   | Value |
+| ---- | ---- | ------   | ----- |
+| 10   | a    | cpu_user | 23.1  |
+| ---- | ---- | ------   | ----- |
+| 20   | a    | cpu_user | 25.3  |
+| ---- | ---- | ------   | ----- |
+| 30   | a    | cpu_user | 28.9  |
+| ---- | ---- | ------   | ----- |
+| 40   | a    | cpu_user | 35.2  |
+| ---- | ---- | ------   | ----- |
+| 10   | b    | cpu_user | 76.1  |
+| ---- | ---- | ------   | ----- |
+| 20   | b    | cpu_user | 50.1  |
+| ---- | ---- | ------   | ----- |
+| 30   | b    | cpu_user | 56.3  |
+| ---- | ---- | ------   | ----- |
+| 40   | b    | cpu_user | 65.0  |
+| ---- | ---- | ------   | ----- |
+
+The transformation `bar.merge(keys:["host"])` produces this table with two blocks:
+
+| Time | host | metric   | Value |
+| ---- | ---- | ------   | ----- |
+| 10   | a    | cpu_user | 23.1  |
+| 20   | a    | cpu_user | 25.3  |
+| 30   | a    | cpu_user | 28.9  |
+| 40   | a    | cpu_user | 35.2  |
+| ---- | ---- | ------   | ----- |
+| 10   | b    | cpu_user | 76.1  |
+| 20   | b    | cpu_user | 50.1  |
+| 30   | b    | cpu_user | 56.3  |
+| 40   | b    | cpu_user | 65.0  |
+
+The individual records have been merged into larger blocks.
+
+**NOTE** Merge may also split up blocks into smaller blocks.
+(TODO) Should we choose a different name than merge since it is a bit of a misnomer when larger blocks are being split down into smaller blocks?
 
 ### Query Language Data Types
 
@@ -313,7 +508,7 @@ Operators are used in expressions (the `where` argument in `select` or `exp` in 
 * `<=` less than or equal to
 * `>` greater than
 * `>=` greater than or equal to
-* `=` equal to
+* `==` equal to
 * `!=` not equal
 * `=~` regex match (right hand side must be regex)
 * `!~` regex doesn't match (right hand side must be regex)
@@ -360,246 +555,411 @@ dropDatabase(name:"foo")
 ```
 
 #### Select
-`select` will return a matrix of series with empty vectors based on selection criteria. By default, select will limit the time range of the index it checks to the most recent data (depending on configuration this could be 24h-7d). For exact time matching use select to filter down the number of series and then perform a query that returns the count of results in that time window, then filter out all zero counts. To get any time series data back from the database, the `range` function must be chained off the select. For limiting the number of series that get returned you can use the `limit` function. You can also order the series using `sort`.
 
-**NOTE:** A major difference between 2.0 and 1.x is that by default, series will not be merged together. That is, all `select` statements will yield a matrix with each individual series. This is what `group by *` would do in InfluxQL 1.x. With InfluxQL 2.0 it is now the default behavior.
+`select` will return a table of data from a specified database.
+Remember that a table can represent unbounded data, so the select function logically returns all the data for the database.
+In practice, only the data that is actually needed is returned.
+See `range`, `where` and `limit` functions which will restrict the actual data needed to be read from the database.
+You can also order the records using `sort`.
+
+**NOTE:** A major difference between 2.0 and 1.x is that by default, series will not be merged together.
+That is, all `select` statements will yield a table with each individual record as its own block.
+This is what `group by *` would do in InfluxQL 1.x. With InfluxQL 2.0 it is now the default behavior.
 
 ```javascript
-// Accepts: start, matrix
+// Accepts: start
 // Arguments:
 //   database - a string, required if not chained off a matrix
-//   where - an expression to match against tags
-// Returns: a matrix with only the series column (empty points arrays)
+// Returns: a table for the data within the database.
 select(database:"foo") // get all series for database foo
 ```
 
-##### The `where` expression
+#### Where
 
-The `where` argument takes an expression that matches predicates against tag information. The where argument is wrapped in curley braces `{` `}`. Tag keys must be wrapped in single quotes and tag values must be wrapped in double quotes. Here are some examples:
+`where` will filter the records of table down to only records that match the given expression.
+The where argument is wrapped in curley braces `{` `}`. Tag keys must be wrapped in single quotes and tag values must be wrapped in double quotes. Here are some examples:
 
 ```javascript
-select(database:"foo", where:{'metric'="cpu"})
-select(database:"foo", where:{'metric'="cpu" OR 'metric'="mem"})
-select(database:"foo", where:{('metric'="cpu" OR 'metric'="mem") AND 'host'="serverA"})
-select(database:"foo", where:{'host' in ["a","b"]})
-select(database:"foo", where:{'host' NOT EMPTY})
+// Accepts: table
+// Arguments:
+//   exp - an expression, only records that match the expression are output.
+// Returns: a table of the filtered records.
+select(database:"foo").where(exp:{"metric" == "cpu"} // get all series for database foo with the tag "metric" equal to "cpu".
+```
+
+Other examples:
+
+```javascript
+select(database:"foo").where(exp:{"metric"=="cpu"})
+select(database:"foo").where(exp:{"metric"=="cpu" or "metric"=="mem"})
+select(database:"foo").where(exp:{("metric"=="cpu" or "metric"=="mem") and "host"=="serverA"})
+select(database:"foo").where(exp:{"host" in ["a","b"]})
+select(database:"foo").where(exp:{"host" not empty})
 
 // variables can be referenced in the where expression
 var hostName = "serverA"
-select(database:"foo", where:{'host' = hostName})
+select(database:"foo").where(exp:{"host" == hostName})
 ```
 
 #### Range
-`range` will get results by the time range specified. If chained against `select` it will pull the data from the database. If chained against a matrix, the points in the matrix will be filtered by the range. The range function could be updated with new arguments later to do things like filter out or keep periodic intervals (e.g. range for 4 weeks of data, but exclude Saturdays and Sundays).
+`range` will restrict records by the time range specified.
 
 ```javascript
-// Accepts: select or matrix
+// Accepts: table
 // Arguments:
 //   start - a time. Could be relative e.g. `-4h` or an epoch, or a time string
 //   end - a time
-//   count - an integer. Get this number of values either from the passed 
-//           in start or end time. If neither time is passed, count will return 
-//           the most recent points. If both start and end are specified, it will
-//           return the count number of points from start time to end or cut off before
-//           count is hit if the end time comes first
 // Returns: a matrix
 select(database:"foo").range(start:-4h)
 ```
 
 #### Clear
-`clear` will remove series from a matrix that have no points so they are not returned in the response.
+`clear` will remove series from a table that have no points so they are not returned in the response.
+(TODO) This should be the default behavior.
 
 ```javascript
-select(database:"foo", where:{'metric'="cpu"})
+select(database:"foo")
+  .where(exp:{"metric"=="cpu"})
   .range(start:-1h)
   .clear()
 ```
 
 #### Casting types
-The value types in a matrix can be cast using the type casting functions. When converting from string to int64, float64 or others they will be parsed. Errors can either be ignored or returned.
+
+The value columns of a table are typed and can be cast using the type casting functions.
+When converting from string to int64, float64 or others they will be parsed.
+Errors can either be ignored or returned.
 
 ##### Float
-`float` will convert a single value or all values in a matrix to `float64` type values.
+`float` will convert a single value or all values in a table to `float64` type values.
 
 ```javascript
-// Accepts: matrix, int64, uint64, bool, string
+// Accepts: table, int64, uint64, bool, string
 // Arguments:
-//   fixed - an integer specifying how many decimal places to round to
 //   error - boolean indicating if it should fail on casting error. default is false
-// Returns: matrix of float64 values or other value converted to a float64
+// Returns: table of float64 values or other value converted to a float64
 ```
 
 ##### Int
-`int` will convert a single value or all values in a matrix to `int64` type values.
+`int` will convert a single value or all values in a table to `int64` type values.
 
 ```javascript
-// Accepts: matrix, float64, uint64, bool, string
+// Accepts: table, float64, uint64, bool, string
 // Arguments:
 //   error - boolean indicating if it should fail on casting error. default is false
-// Returns: matrix of int64 values or other value converted to a int64
+// Returns: table of int64 values or other value converted to a int64
 ```
 
 ##### UInt
-`uint` will convert a single value or all values in a matrix to `uint64` type values.
+`uint` will convert a single value or all values in a table to `uint64` type values.
 
 ```javascript
-// Accepts: matrix, float64, int64, bool, string
+// Accepts: table, float64, int64, bool, string
 // Arguments:
 //   error - boolean indicating if it should fail on casting error. default is false
-// Returns: matrix of uint64 values or other value converted to a uint64
+// Returns: table of uint64 values or other value converted to a uint64
 ```
 
 ##### String
-`string` will convert a single value or all values in a matrix to `string` type values.
+`string` will convert a single value or all values in a table to `string` type values.
 
 ```javascript
-// Accepts: matrix, float64, int64, uint64, bool
+// Accepts: table, float64, int64, uint64, bool
 // Arguments:
 //   error - boolean indicating if it should fail on casting error. default is false
-// Returns: matrix of string values or other value converted to a string
+// Returns: table of string values or other value converted to a string
 ```
 
 ##### Bool
-`bool` will convert a single value or all values in a matrix to `bool` type values.
+`bool` will convert a single value or all values in a table to `bool` type values.
 
 ```javascript
-// Accepts: matrix, float64, int64, uint64, string
+// Accepts: table, float64, int64, uint64, string
 // Arguments:
 //   error - boolean indicating if it should fail on casting error. default is false
-// Returns: matrix of bool values or other value converted to a bool
+// Returns: table of bool values or other value converted to a bool
 ```
 
 #### Window
-`window` will group points is each series in a matrix based on the windowing criteria. These windows can then have functions applied to them to produce aggregates or summaries of each.
+
+`window` will group records in a table based on the windowing criteria.
+These windows can then have functions applied to them to produce aggregates or summaries of each.
 
 ```javascript
-// Accepts: a matrix
+// Accepts: table
 // Arguments:
 //   every - start a window after this duration. Must be less than or equal to period.
 //   period - windows are for this duration. If only every or period is specified,
 //            the other is set to the same value by default. If the every duration
 //            is less than the period, windows will overlap.
-//   count - number of windows (points) desired. Will adjust bucket durations
-//           based on this count and the start and end time. Either count or
-//           every & period can be specified, but not both.
 //   start - optional, time to start the windows. If not specified, the time to start
 //           will be the time of the first value in each series
 //   round - optional, duration to round the start time to
-// Returns: matrix
+// Returns: table
 ```
 
-For example, we start with this matrix `foo`:
+For example, we start with this table `foo` where each record is in its own block:
 
-|                           Series | 10  | 20  | 30  | 40
-|                              --- |:---:|:---:|:---:|:---:
-|`{"host":"a","metric":"cpu_user"}`| 12  | 13  | 18  | 14
-|`{"host":"b","metric":"cpu_user"}`| 6   | 5   | 3   | 2
+| Time | host | metric   | Value |
+| ---- | ---- | ------   | ----- |
+| 10   | a    | cpu_user | 12    |
+| ---- | ---- | ------   | ----- |
+| 10   | b    | cpu_user | 6     |
+| ---- | ---- | ------   | ----- |
+| 20   | a    | cpu_user | 13    |
+| ---- | ---- | ------   | ----- |
+| 20   | b    | cpu_user | 5     |
+| ---- | ---- | ------   | ----- |
+| 30   | a    | cpu_user | 18    |
+| ---- | ---- | ------   | ----- |
+| 30   | b    | cpu_user | 3     |
+| ---- | ---- | ------   | ----- |
+| 40   | a    | cpu_user | 14    |
+| ---- | ---- | ------   | ----- |
+| 40   | b    | cpu_user | 2     |
+| ---- | ---- | ------   | ----- |
 
-And we call `foo.window(every:20s)` we are conceptually splitting the series into windows demarcated every 20 seconds. For the aid of this visualization we have empty columns to indicate the start and end of a window:
 
-|                           Series |1.start|  10 |  20 |1.end|2.start| 30  | 40  | 2.end
-|                              --- |-------|:---:|:---:|-----|-------|:---:|:---:|---
-|`{"host":"a","metric":"cpu_user"}`|       | 12  | 13  |     |       | 18  | 14  |
-|`{"host":"b","metric":"cpu_user"}`|       | 6   | 5   |     |       | 3   | 2   |
+And we call `foo.window(every:20s)` assign the records into new blocks based on their time:
 
-We see that there are now columns that mark the start and end of each window. This is meant as a temporary stage before calling some sort of aggregate or selector function to be applied to each cell. For example if we had called `foo.window(every:20s).sum()` we would have received the following result:
+| Time | host | metric   | Value |
+| ---- | ---- | ------   | ----- |
+| 10   | a    | cpu_user | 12    |
+| 20   | a    | cpu_user | 13    |
+| ---- | ---- | ------   | ----- |
+| 10   | b    | cpu_user | 6     |
+| 20   | b    | cpu_user | 5     |
+| ---- | ---- | ------   | ----- |
+| 30   | a    | cpu_user | 18    |
+| 40   | a    | cpu_user | 14    |
+| ---- | ---- | ------   | ----- |
+| 30   | b    | cpu_user | 3     |
+| 40   | b    | cpu_user | 2     |
 
-Series | 10  | 30
-   --- | --- | ---
-`{"host":"a","metric":"cpu_user"}`| 48.4 | 64.1
-`{"host":"b","metric":"cpu_user"}`| 126.2 | 121.3
+We see that there are now four blocks of data, one for records of time `[10,30)`, and another of time `[30,50)` for each of the two unique tagsets.
+**NOTE** A square bracket `[` mean inclusive and a parentheses `)` means exclusive.
 
-If we had called sum twice like this `foo.window(every:20s).sum().sum()`, it would collapse into a single column (which is the same as what `foo.sum()` would produce. Note that not all aggregates behave like this. For example `foo.mean()` would be different than `foo.window(every:20s).mean().mean()`):
+Now if we call `foo.window(every:20s).sum()` we would have received the following result:
 
-Series | 10
-   --- | ---
-`{"host":"a","metric":"cpu_user"}`| 112.5
-`{"host":"b","metric":"cpu_user"}`| 247.5
+| Time | host | metric   | Value |
+| ---- | ---- | ------   | ----- |
+| 20   | a    | cpu_user | 25    |
+| ---- | ---- | ------   | ----- |
+| 20   | b    | cpu_user | 11    |
+| ---- | ---- | ------   | ----- |
+| 40   | a    | cpu_user | 32    |
+| ---- | ---- | ------   | ----- |
+| 40   | b    | cpu_user | 5     |
+
+Now what if we wanted to sum the values across the larger time windows?
+
+We can now define a new window `foo.window(every:20s).sum().window(every:40s).sum()`
+
+The intermediate step would first change the blocks to be:
+
+| Time | host | metric   | Value |
+| ---- | ---- | ------   | ----- |
+| 20   | a    | cpu_user | 25    |
+| 40   | a    | cpu_user | 32    |
+| ---- | ---- | ------   | ----- |
+| 20   | b    | cpu_user | 11    |
+| 40   | b    | cpu_user | 5     |
+
+The final result would be:
+
+| Time | host | metric   | Value |
+| ---- | ---- | ------   | ----- |
+| 40   | a    | cpu_user | 57    |
+| ---- | ---- | ------   | ----- |
+| 40   | b    | cpu_user | 16    |
+
 
 ##### Overlapping Windows
+
 The windows can also be overlapping. For example, if we specified a period of `20s` but created a window every `10s` we would get overlapping windows. So if we call `foo.window(period:20s, every:10s)` we would get:
 
-Series | 1.start | 10  | 2.start | 20  | 1.end | 3.start | 30  | 2.end | 40  | 3.end
-   --- | ------- | --- | ------- | --- | ----- | ------- | --- | ----- | --- | ---
-`{"host":"a","metric":"cpu_user"}`| |23.1| | 25.3| | | 28.9| | 35.2 |
-`{"host":"b","metric":"cpu_user"}`| |76.2| | 50  | | | 56.3| | 65.0 |
+Given this table `foo` we can create overlapping windows:
 
-And if we created a sum of the data: `foo.window(period:20s, every:10s).sum()` we would get:
+| Time | host | metric   | Value |
+| ---- | ---- | ------   | ----- |
+| 10   | a    | cpu_user | 12    |
+| ---- | ---- | ------   | ----- |
+| 10   | b    | cpu_user | 6     |
+| ---- | ---- | ------   | ----- |
+| 20   | a    | cpu_user | 13    |
+| ---- | ---- | ------   | ----- |
+| 20   | b    | cpu_user | 5     |
+| ---- | ---- | ------   | ----- |
+| 30   | a    | cpu_user | 18    |
+| ---- | ---- | ------   | ----- |
+| 30   | b    | cpu_user | 3     |
+| ---- | ---- | ------   | ----- |
+| 40   | a    | cpu_user | 14    |
+| ---- | ---- | ------   | ----- |
+| 40   | b    | cpu_user | 2     |
+| ---- | ---- | ------   | ----- |
 
-Series | 10  | 20  | 30
-   --- | --- | --- | ---
-`{"host":"a","metric":"cpu_user"}`| 48.4 | 54.2 | 64.1
-`{"host":"b","metric":"cpu_user"}`| 126.2 | 106.3 | 121.3
+Using `foo.window(every:10s, period:20s)` we will create the following blocks:
+
+| Time | host | metric   | Value |
+| ---- | ---- | ------   | ----- |
+| 10   | a    | cpu_user | 12    |
+| ---- | ---- | ------   | ----- |
+| 10   | a    | cpu_user | 12    |
+| 20   | a    | cpu_user | 13    |
+| ---- | ---- | ------   | ----- |
+| 20   | a    | cpu_user | 13    |
+| 30   | a    | cpu_user | 18    |
+| ---- | ---- | ------   | ----- |
+| 30   | a    | cpu_user | 18    |
+| 40   | a    | cpu_user | 14    |
+| ---- | ---- | ------   | ----- |
+| 10   | b    | cpu_user | 6     |
+| ---- | ---- | ------   | ----- |
+| 10   | b    | cpu_user | 6     |
+| 20   | b    | cpu_user | 5     |
+| ---- | ---- | ------   | ----- |
+| 20   | b    | cpu_user | 5     |
+| 30   | b    | cpu_user | 3     |
+| ---- | ---- | ------   | ----- |
+| 30   | b    | cpu_user | 3     |
+| 40   | b    | cpu_user | 2     |
+| ---- | ---- | ------   | ----- |
+
+Notice how there are now a total of 14 records in this table instead of just 8?
+This is because a single input record has been placed into multiple output blocks.
+This is exactly what we want since we requested overlapping windows, i.e. we want to process the data multiple times.
+
+
+And if we took the sum like: `foo.window(every:10s, period:20s).sum()` we would get:
+
+| Time | host | metric   | Value |
+| ---- | ---- | ------   | ----- |
+| 10   | a    | cpu_user | 12    |
+| ---- | ---- | ------   | ----- |
+| 20   | a    | cpu_user | 25    |
+| ---- | ---- | ------   | ----- |
+| 30   | a    | cpu_user | 31    |
+| ---- | ---- | ------   | ----- |
+| 40   | a    | cpu_user | 32    |
+| ---- | ---- | ------   | ----- |
+| 10   | b    | cpu_user | 6     |
+| ---- | ---- | ------   | ----- |
+| 20   | b    | cpu_user | 11    |
+| ---- | ---- | ------   | ----- |
+| 30   | b    | cpu_user | 8     |
+| ---- | ---- | ------   | ----- |
+| 40   | b    | cpu_user | 5     |
+| ---- | ---- | ------   | ----- |
 
 ##### Starting all windows at the same time
-If we specify a `start` argument, this will be the time that all series are started from. This makes it easy to ensure that all series in a matrix will have buckets on the same boundaries. For example, if we have:
+
+If we specify a `start` argument, this will be the time that all series are started from.
+This makes it easy to ensure that all blocks in a table will have buckets on the same boundaries.
+For example, if we have:
 
 ```javascript
 // example using windows from a given start time
-select(database:"foo",where:{'metric' = "cpu"})
+select(database:"foo")
+  .where(exp:{"metric"=="cpu"})
   .range(start:-1h)
   .window(period:10m,start:-1h)
 // if executed at 13:03:59, windows would occur at 12:03:59, 12:13:59, 12:23:59, etc.
 
-select(database:"foo",where:{'metric' = "cpu"})
+select(database:"foo")
+  .where(exp:{"metric"=="cpu"})
   .range(start:-1h)
   .window(period:10m,start:-1h,round:10m)
 // if executed at 13:03:59, windows would occur at 12:00:00, 12:10:0, 12:20:0, etc.
 ```
 
 #### Merge
-`merge` will merge series in a matrix together based on the grouping criteria. Note that all values in a series must be of the same type. If a type difference is encountered, merge will cast based on the type of the first series in the matrix. You can use the type casting functions to force a consistent type before a call to merge. (should we have merge throw an error instead and direct the user to typecast?)
+`merge` will merge blocks in a table together based on the grouping criteria.
+Note that all values in a series must be of the same type.
+If a type difference is encountered, merge will error.
+Use the type casting function to ensure values are of the same type before merging if necessary.
 
 ```javascript
-// Accepts: matrix
+// Accepts: table
 // Arguments:
 //   keys: an array of strings. This acts like a group by clause in SQL
-//   keep: an array of strings. These are tag key data that should be kept in the individual points
-//   error: boolean to return an error on type casting issue. Defaults to false
+//   keep: an array of strings. These are tag key data that should be kept in the individual points. This acts like a projection in SQL.
 // Returns: matrix
-select(database:"foo",where:{'metric'="network_in"})
+select(database:"foo")
+  .where(exp:{"metric"=="network_in"})
   .merge(keys:["region"])
 ```
 
-We'll use tables as an example to show how it works. For example, if we have the following matrix `foo`:
 
-| Series                                      |  10 |  20 |
-|---------------------------------------------|:---:|:---:|
-|`{"host":"a","metric":"network","dc":"west"}`|  1  |  1  |
-|`{"host":"b","metric":"network","dc":"east"}`|  2  |  2  |
-|`{"host":"c","metric":"network","dc":"east"}`|  3  |  3  |
-|`{"host":"d","metric":"network","dc":"west"}`|  4  |  4  |
+Given this new table `baz`:
 
-If we called `foo.merge(keys:["metric"])` we would get a matrix that looks something like this:
+| Time | host | metric  | dc   | Value |
+| ---- | ---- | ------  | --   | ----- |
+| 10   | a    | network | west | 1     |
+| ---- | ---- | ------  | --   | ----- |
+| 20   | a    | network | west | 1     |
+| ---- | ---- | ------  | --   | ----- |
+| 10   | b    | network | east | 2     |
+| ---- | ---- | ------  | --   | ----- |
+| 20   | b    | network | east | 2     |
+| ---- | ---- | ------  | --   | ----- |
+| 10   | c    | network | east | 3     |
+| ---- | ---- | ------  | --   | ----- |
+| 20   | c    | network | east | 3     |
+| ---- | ---- | ------  | --   | ----- |
+| 10   | d    | network | west | 4     |
+| ---- | ---- | ------  | --   | ----- |
+| 20   | d    | network | east | 4     |
+| ---- | ---- | ------  | --   | ----- |
 
-| Series               |10 `host:a,dc:west`|10 `host:b,dc:east`|10 `host:c,dc:east`|10 `host:d,dc:west`|20 `host:a,dc:west`|20 `host:b,dc:east`|20 `host:c,dc:east`|20 `host:d,dc:west`|
-|----------------------|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-|`{"metric":"network"}`|  1  |  2  |  3  |  4  |  1  |  2  |  3  |  4  |
 
-Note that in results that get returned to the client, only the series information would be retained, unless we pass in an argument to keep certain keys as tagsets on the individual points.
 
-We can merge based on multiple tag keys. For example if we called `foo.merge(keys:["metric", "dc"]) we would get a matrix that looks like this:
+If we called `baz.merge(keys:["metric"])` we would get a table that looks something like this:
 
-| Series                           |  10 `host:a`| 10 `host:b`| 10 `host:c`| 10 `host:d`| 20 `host:a`| 20 `host:b`| 20 `host:c`| 20 `host:d`|
-|----------------------------------|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-|`{"metric":"network","dc":"west"}`|  1  |     |     |  4  |  1  |     |     |  4  |
-|`{"metric":"network","dc":"east"}`|     |  2  |  3  |     |     |  2  |  3  |     |
+| Time | host | metric  | dc   | Value |
+| ---- | ---- | ------  | --   | ----- |
+| 10   | a    | network | west | 1     |
+| 20   | a    | network | west | 1     |
+| 10   | b    | network | east | 2     |
+| 20   | b    | network | east | 2     |
+| 10   | c    | network | east | 3     |
+| 20   | c    | network | east | 3     |
+| 10   | d    | network | west | 4     |
+| 20   | d    | network | east | 4     |
+
+We can merge based on multiple tag keys.
+For example if we called `baz.merge(keys:["metric", "dc"])` we would get a table that looks like this:
+
+| Time | host | metric  | dc   | Value |
+| ---- | ---- | ------  | --   | ----- |
+| 10   | b    | network | east | 2     |
+| 20   | b    | network | east | 2     |
+| 10   | c    | network | east | 3     |
+| 20   | c    | network | east | 3     |
+| ---- | ---- | ------  | --   | ----- |
+| 10   | a    | network | west | 1     |
+| 20   | a    | network | west | 1     |
+| 10   | d    | network | west | 4     |
+| 20   | d    | network | east | 4     |
 
 #### Keys
-`keys` will return an array of tag keys that occur in the matrix. The output of keys function can be used as the predecessor argument to `empty` or `not empty` in a `where` expression. For pagination through keys, `limit` can be chained off it.
+`keys` will return an array of tag keys that occur in the table.
+The output of keys function can be used as the predecessor argument to `empty` or `not empty` in a `where` expression.
+For pagination through keys, `limit` can be chained off it.
 
 ```javascript
-// Accepts: matrix
+// Accepts: table
 // Arguments: none
 // Returns: []string
 select(database:"foo").keys()
 ```
 
 #### Values
-`values` returns a string array of values in sorted order for a given key and the given criteria. For pagination through values, `limit` can be chained off of it.
+`values` returns a string array of values in sorted order for a given key and the given criteria.
+For pagination through values, `limit` can be chained off of it.
 
 ```javascript
-// Accepts: matrix
+// Accepts: table
 // Arguments:
 //   key - required argument, a string of what tag key to return values for
 // Returns: []string
@@ -607,54 +967,60 @@ select(database:"foo").values(key:"metric")
 ```
 
 #### Cardinality
-`cardinality` returns a map of the count of unique tag values for each key in the matrix.
+`cardinality` returns a table of the count of unique tag values for each key in the table.
 
 ```javascript
-// Accepts: matrix
+// Accepts: table
 // Arguments:
 //   keys - optional string array. only return the cardinality for the passed keys
-// Returns: matrix
-select(database:"foo", where:{'region'="west"})
+// Returns: table
+select(database:"foo")
+  .where(exp:{'region'="west"})
   .cardinality()
 ```
 
 #### Limit
-`limit` accepts either a matrix or an array and will limit the number of results. In the case of a matrix, it limits the number of series (or rows) that are returned. In the case of an array it is used to take a slice. It's a good practice to always apply a limit of some kind.
+`limit` accepts either a table or an array and will limit the number of results.
+In the case of a table, it limits the number records that are returned.
+In the case of an array it is used to take a slice.
+It's a good practice to always apply a limit of some kind.
 
 ```javascript
-// Accepts: matrix, array
+// Accepts: table, array
 // Arguments:
 //   n - the number of results to limit to, required argument.
 //   offset - the offset (inclusive) to start with. defaults to 0.
-// Returns: a matrix if passed a matrix, an array if passed an array
+// Returns: a table if passed a table, an array if passed an array
 //
 select(database:"foo").limit(n:10,offset:20) // get the third page of results
 ```
 
 #### Time Shift
-`timeShift` will shift all returned timestamps in the matrix by the given duration.
+`timeShift` will shift all returned timestamps in the table by the given duration.
 
 ```javascript
-// Accepts: a matrix
+// Accepts: table
 // Arguments:
 //   duration - a duration
-// Returns: matrix
-select(database:"foo").range(start:"2017-01-01")
+// Returns: table
+select(database:"foo")
+  .range(start:"2017-01-01")
   .timeShift(duration:-168h) // shift everything to a week before
 ```
 
 #### Interpolate
-`interpolate` will normalize the time series in a matrix based on different criteria. It could work across columns or on the series themselves.
+`interpolate` will normalize the time series in a table based on different criteria. It could work across columns or on the series themselves.
 
 ```javascript
-// Accepts: matrix
+// Accepts: table
 // Arguments:
 //   start - time, ensure data exists starting at this time
 //   every - duration, ensure that a value exists at every duration period from start
 //   value - integer, float, string, bool, or expression to fill with. Expressions can
 //           use functions calculated from the series like mean($)
-// Returns: a matrix
-select(database:"foo",where:{'metric'="requests"})
+// Returns: table
+select(database:"foo")
+  .where(exp:{"metric"=="requests"})
   .range(start:-4h)
   .clear()
   .window(period:10m)
@@ -663,120 +1029,223 @@ select(database:"foo",where:{'metric'="requests"})
 ```
 
 #### Join
-`join` operates on the columns in a matrix to combine series together. The `interpolate` function can be used to ensure that timestamps for the series line up and can be matched together.
+`join` operates on multiple tables and performs relational joins.
+The `interpolate` function can be used to ensure that timestamps for the series line up and can be matched together.
 
 ```javascript
-// Accepts: matrix
+// Accepts: table
 // Arguments:
 //   keys - the tag keys to group the join by
-//   exp - the expression to join series on
-// Returns: matrix
-select(database:"foo",where:{'metric'="errors" OR 'metric'="requests"})
+//   predicate - an expression that must evaluate to true for the resutling record to be added to the joined output. Only one of keys and predicate may be specified.
+//   exp - the expression to join series on. The variables found in the expression are the tables that will be joined.
+// Returns: table
+var requests = select(database:"foo")
+  .where(exp:{"metric"=="requests")
   .range(start:-30m)
-  .window(period:10m)
-  .sum()
-  .interpolate(start:-30m,value:0)
-  .join(keys:["host"],exp:
-    {('metric'."errors".float()/'metric'."requests" * 100).float(fixed:1) AS 'metric'."error_rate"})
+
+select(database:"foo")
+  .where(exp:{"metric"=="errors"})
+  .range(start:-30m)
+  // Join errors and requests on the "host" tag.
+  .join(
+    keys:["host"],
+    exp:{$/requests},
+  )
 ```
 
-We'll use the query from above to show an example of how join works. Say we start with this data after the the `interpolate` function (the input to `join`). Assuming run at `2017-07-06 06:00`:
+Given these two tables for the `requests` and `errors`:
 
-| Series                           |2017-07-06 05:30|2017-07-06 05:40|2017-07-06 05:50|
-|----------------------------------|:--------------:|:--------------:|:--------------:|
-|`{"host":"a","metric":"errors"}`  |       0        |       3        |       2        |
-|`{"host":"b","metric":"errors"}`  |       1        |       0        |       0        |
-|`{"host":"a","metric":"requests"}`|       50       |       60       |       50       |
-|`{"host":"b","metric":"requests"}`|       37       |       29       |       0        |
+Requests:
 
-The call to `join` would result in a matrix that looks like this:
+| Time | host | metric   | Value |
+| ---- | ---- | ------   | ----- |
+| 30   | a    | requests | 50    |
+| 30   | b    | requests | 50    |
+| 40   | a    | requests | 60    |
+| 40   | b    | requests | 29    |
+| 50   | a    | requests | 50    |
+| 50   | b    | requests | 0     |
 
-| Series                             |2017-07-06 05:30|2017-07-06 05:40|2017-07-06 05:50|
-|------------------------------------|:--------------:|:--------------:|:--------------:|
-|`{"host":"a","metric":"error_rate"}`|       0.0      |       5.0      |        4.0     |
-|`{"host":"b","metric":"error_rate"}`|       2.7      |       10.3     |        0.0     |
+Errors:
 
-##### Join Expression
-The join expression can do things like calculate based on transformations. By default, the output value will be of the same type as the two input values. For instance `int64 / int64` would yield an `int64` value. In the case of mixed types, `float64` will be chosen if present, or `int64` if present. It is possible to force an output type by wrapping the expression like `float(int64 / int64)`.
+| Time | host | metric | Value |
+| ---- | ---- | ------ | ----- |
+| 30   | a    | errors | 0     |
+| 30   | b    | errors | 1     |
+| 40   | a    | errors | 3     |
+| 40   | b    | errors | 0     |
+| 50   | a    | errors | 2     |
+| 50   | b    | errors | 0     |
 
-The join expression can also pull in values from another matrix. In that case the series that gets joined will be based on the `keys` passed in. For example:
+The join transformation creates the following intermediate table representation by joining records that have the same host and time attributes.
 
-```javascript
-var e = select(database:"foo",where:{'metric'="errors"})
-	      .range(start:-24h).window(period:10m).sum()
-var r = select(database:"foo",where:{'metric'="requests"})
-          .range(start:-24h).window(period:10m).sum()
+| Time | host | $.metric | requests.metric | $.Value | requests.Value |
+| ---- | ---- | ------   | ------          | -----   | -----          |
+| 30   | a    | errors   | requests        | 0       | 50             |
+| 30   | b    | errors   | requests        | 1       | 50             |
+| 40   | a    | errors   | requests        | 3       | 60             |
+| 40   | b    | errors   | requests        | 0       | 29             |
+| 50   | a    | errors   | requests        | 2       | 50             |
+| 50   | b    | errors   | requests        | 0       | 0              |
 
-e.join(group:["host"],exp:{
-	('metric'."errors".float()/r.'metric'."requests").float(fixed:2) AS "error_rate"})
+Then the join expression is applied and non matching attributes are dropped.
+
+| Time | host | Value |
+| ---- | ---- | ----- |
+| 30   | a    | 0/50  |
+| 30   | b    | 1/50  |
+| 40   | a    | 3/60  |
+| 40   | b    | 0/29  |
+| 50   | a    | 2/50  |
+| 50   | b    | 0/0   |
+
+##### Many-to-One
+
+Joins are pure relational joins and so can be used to create a many-to-one relationship between the tables.
+
+For example given this query:
+
+```
+// Query the number of request per http method.
+var requests = select(database:"foo")
+  .where(exp:{"metric"=="http_requests")
+  .range(start:-30m)
+
+// Query the number of requests that had an error status code per http method and code.
+var errors = select(database:"foo")
+  .where(exp:{"metric"=="http_errors"})
+  .range(start:-30m)
+
+
+errors.join(
+  keys:["method"],
+  exp:{errors/requests},
+)
 ```
 
-In the above example we see `r.'metric'."requests"`. When join goes through and joins series in `e` it will match against the series in `r` that have matching `host` tags.
+The above query will compute the error rate for each HTTP method and status code.
+
+Given the input tables
+
+Requests:
+
+| Time | method | metric        | Value |
+| ---- | -      | ------        | ----- |
+| 30   | GET    | http_requests | 50    |
+| 30   | POST   | http_requests | 20    |
+| 40   | GET    | http_requests | 55    |
+| 40   | POST   | http_requests | 15    |
+| 50   | GET    | http_requests | 65    |
+| 50   | POST   | http_requests | 30    |
+
+Errors:
+
+| Time | code | method | metric      | Value |
+| ---- | ---- | -      | ------      | ----- |
+| 30   | 404  | GET    | http_errors | 5     |
+| 30   | 500  | GET    | http_errors | 3     |
+| 30   | 500  | POST   | http_errors | 2     |
+| 30   | 502  | POST   | http_errors | 1     |
+| 40   | 404  | GET    | http_errors | 0     |
+| 40   | 500  | GET    | http_errors | 0     |
+| 40   | 500  | POST   | http_errors | 3     |
+| 40   | 502  | POST   | http_errors | 1     |
+| 50   | 404  | GET    | http_errors | 0     |
+| 50   | 500  | GET    | http_errors | 7     |
+| 50   | 500  | POST   | http_errors | 3     |
+| 50   | 502  | POST   | http_errors | 6     |
+
+The intermediate joined table is logically computed by taking the Cartesian product (for each record of `errors` emit and output record for each record of `requests`) and then filter the results by records that have equal times and equal method tags.
+**NOTE** The actual implementation is quite different and more efficient but the result is the same.
+
+| Time | errors.code | method | errors.metric | requests.metric | errors.Value | requests.Value |
+| ---- | ----------- | ------ | ------------- | --------------- | ------------ | -------------- |
+| 30   | 404         | GET    | http_errors   | http_requests   | 5            | 50             |
+| 30   | 500         | GET    | http_errors   | http_requests   | 3            | 50             |
+| 30   | 500         | POST   | http_errors   | http_requests   | 2            | 20             |
+| 30   | 502         | POST   | http_errors   | http_requests   | 1            | 20             |
+| 40   | 404         | GET    | http_errors   | http_requests   | 0            | 55             |
+| 40   | 500         | GET    | http_errors   | http_requests   | 0            | 55             |
+| 40   | 500         | POST   | http_errors   | http_requests   | 3            | 15             |
+| 40   | 502         | POST   | http_errors   | http_requests   | 1            | 15             |
+| 50   | 404         | GET    | http_errors   | http_requests   | 0            | 65             |
+| 50   | 500         | GET    | http_errors   | http_requests   | 7            | 65             |
+| 50   | 500         | POST   | http_errors   | http_requests   | 3            | 30             |
+| 50   | 502         | POST   | http_errors   | http_requests   | 6            | 30             |
+
+The again we drop columns for tags that do not match and we combine the value columns into a single value column using the expression.
+
+| Time | code | method | Value  |
+| ---- | ---- | ------ | -----  |
+| 30   | 404  | GET    | 5 / 50 |
+| 30   | 500  | GET    | 3 / 50 |
+| 30   | 500  | POST   | 2 / 20 |
+| 30   | 502  | POST   | 1 / 20 |
+| 40   | 404  | GET    | 0 / 55 |
+| 40   | 500  | GET    | 0 / 55 |
+| 40   | 500  | POST   | 3 / 15 |
+| 40   | 502  | POST   | 1 / 15 |
+| 50   | 404  | GET    | 0 / 65 |
+| 50   | 500  | GET    | 7 / 65 |
+| 50   | 500  | POST   | 3 / 30 |
+| 50   | 502  | POST   | 6 / 30 |
+
+Notice the tag `code` is still around since it did not have a conflicting column, it was simply added to the table as a result of the join.
+
 
 #### Union
-`union` will append all the series in one matrix to another.
+`union` will append all the series in one table to another.
 
 ```javascript
-// Accepts: matrix
+// Accepts: table
 // Arguments:
-//   m - required matrix to union
-// Returns: matrix
+//   m - required table to union
+// Returns: table
 // for example, merge events stream from two databases
-select(database:"foo",where:{'metric' = "events"})
+select(database:"foo")
+  .where(exp:{"metric" == "events"})
   .range(start:-1h)
-  .union(m:select(database:"bar",where:{'metric' = "events"})
-    .range(start:-1h))
+  .union(m:select(database:"bar")
+    .where(exp:{"metric" == "events"})
+    .range(start:-1h)
+  )
 ```
 
-#### Filter
-`filter` will filter points out of a matrix based on an expression. It can be used to filter points from one series based on evaluations from another series.
-
-```javascript
-// Accepts: matrix
-// Arguments:
-//   exp - a required expression string
-//   group - a string array of keys to group series by
-// Returns: matrix
-select(database:"foo",where:{'metric'="cpu_user"})
-  .range(start:-1h)
-  .filter(exp:{$ < 50}) // filter out any values less than 50
-
-// or to filter series in a matrix based on others
-select(database:"foo",where:{
-    'metric'="response_time" OR 'metric'="log_lines"})
-  .filter(group: ["host"], exp:{'metric'."response_time" > 300})
-```
 
 #### Sort
-`sort` will sort the series in a matrix in ascending order by default. They can either be sorted by their tags or by some expression.
+`sort` will sort the series in a table in ascending order by default.
+They can either be sorted by their tags or by some expression.
 
 ```javascript
-// Accepts: matrix
+// Accepts: table
 // Arguments:
 //   exp - an expression to specify what to sort by. Should return a value that can be sorted
 //   keys - a string array of tag keys to specify the sort order, required if exp not given
 //   order - string of either asc or desc, asc is default
-// Returns: the original matrix, modified in place with the sort order
-select(database:"foo",where:{'metric'="cpu_system"})
+// Returns: table
+select(database:"foo")
+  .where(exp:{"metric"=="cpu_system"})
   .range(start:-1h)
   .sort(exp:{mean($)})
   .limit(n:10)
 ```
 
 #### Rate
-`rate` calculates the average rate of increase between each point for each series in a matrix.
+`rate` calculates the average rate of increase between each record in a table.
 
 ```javascript
-// Accepts: a matrix
+// Accepts: table
 // Arguments:
-//   precision - a duration for what the rate should be. per second, per minute, etc.
-// Returns: a matrix
-selelct(database:"foo",where:{'metric' = "network_in" AND 'host' = "A")
-  .range(start:-1h).rate(precision:1s)
+//   unit - a duration for what the rate should be. per second, per minute, etc.
+// Returns: table
+selelct(database:"foo",where:{"metric" == "network_in" AND "host" == "A")
+  .range(start:-1h)
+  .rate(unit:1s)
 ```
 
 #### Aggregate Functions
-Aggregate functions will process each series in a matrix. It will be applied to each window in a series, or the entire series if no windows exist. They combine points in the window into a single value. The resulting timestamp of the aggregate will be the same as the time of the first value by default. This can be changed to use the last value's timestamp or the `interpolate` function can be used to round the resulting timestamps to a bucketed duration.
+Aggregate functions will process each block in a table an produce a block with a single record.
+The resulting timestamp of the aggregate will be the same as the time of the last value by default.
 
 ##### Count
 
@@ -787,7 +1256,9 @@ Aggregate functions will process each series in a matrix. It will be applied to 
 ##### Stddev
 
 #### Selector Functions
-Selector functions will process each series in a matrix. It will be applied to each window in a series, or the entire series if no windows exist. Selector functions differ from aggregates in that they don't combine data points, but select specific ones from a window or series. The default behavior for selector will leave the timestamps unchanged for the points that have been selected. `interpolate` can be used to round those timestamps to a set interval.
+Selector functions will process each block in a table an produce a block containing the selected records.
+Selector functions differ from aggregates in that they don't combine data points, but select specific ones from the block.
+The default behavior for selector will leave the timestamps unchanged for the points that have been selected.
 
 ##### Min
 
@@ -796,29 +1267,36 @@ Selector functions will process each series in a matrix. It will be applied to e
 ##### Top
 
 #### Transformation Functions
-Transformation functions will process each series in a matrix.
+Transformation functions will process each block in a table.
 
 ##### Difference
 
 ### Examples
 
-Here are a bunch of query examples for different scenarios. The imaginary data isn't necessarily consistent from query to query. The examples are here to illustrate what the language looks like for some real world query scenarios depending on what type of schema is set up.
+Here are a bunch of query examples for different scenarios.
+The imaginary data isn't necessarily consistent from query to query.
+The examples are here to illustrate what the language looks like for some real world query scenarios depending on what type of schema is set up.
 
 ```javascript
 // get all cpu measurements for a specific host for the last hour
-select(database:"foo", where:{'host'="a" AND 'system'="cpu"})
+select(database:"foo")
+  .where(exp:{"host"=="a" AND "system"=="cpu"})
   .range(start:-1h)
 
 // get the 90th percentile, max, and mean of all cpu measurements
 // for a specific host in 5m windows over last 4h
-var cpu = select(database:"foo", where:{'host'="A" AND 'system'="cpu"})
-            .range(start:-4h)
-            .window(every:5m)
+var cpu = select(database:"foo")
+  .where(exp:{"host"=="A" AND "system"=="cpu"})
+  .range(start:-4h)
+  .window(every:5m)
 
-cpu.percentile(n:90), cpu.max(), cpu.mean()
+cpu.percentile(n:90)
+cpu.max()
+cpu.mean()
 
 // get the last value recorded for all sensors in a specific building
-select(database:"foo",where:{'building' = "23" AND 'type' = "sensor"})
+select(database:"foo")
+  .where(exp:{"building"=="23" AND "type"=="sensor"})
   .last()
 
 // what keys are in the db
@@ -832,35 +1310,29 @@ select(database:"foo")
 // {"tag1":23, "tag2":76, ...}
 
 // what keys and how many values does each have for the sensor types in the west
-select(database:"foo",where:{"type" = 'sensor' AND "region" = 'west'})
+select(database:"foo")
+  .where(exp:{"type"=="sensor" AND "region"=="west"})
   .cardinality()
 // {"tag1":23, "tag2":76, ...}
 
 // get the number of hosts that have reported data in the west data center in the last 24h
-select(database:"foo",where:{"region" = 'west'})
+select(database:"foo")
+  .where(exp:{"region"=="west"})
   .cardinality(keys:["host"])
 // {"host":234}
 
 // get unique hosts in west region, but limit so you can paginate through
-select(database:"foo",where:{"region" = 'west'})
+select(database:"foo")
+  .where(exp:{"region"=="west"})
   .values(key:"host")
   .limit(n:50,offset:100)
 
 // get the metrics that each host has reported data for in the last 24h
-// source data:
-/*
-[
-  {
-    "series": {"host":"A","metric":"cpu"}
-    "values": []
-  },
-  {"host":"B","metric":"cpu"},
-  {"host":"A","metric":"mem"},
-  {"host":"B","metric":"mem"}
-]
-*/
-select(database:"foo", where: {'metric' NOT EMPTY})
+select(database:"foo")
+  .where(exp:{"metric" NOT EMPTY})
+  // TODO what is group?
   .group(keys:["host"])
+  // TODO what is op in a merge call?
   .merge(keys:["metric"], op:"append")
   .rename(from:"metric",to:"metrics")
 // returns matrix with empty values and series objects like:
@@ -887,24 +1359,33 @@ select(database:"foo")
 // {"data_center":"west","hostCount":23}
 
 // get the cpu usage_user of hosts that have mysql running
-select(database:"foo",where:{
-      'system' = "cpu" AND 'metric' = "usage_user" AND 'host' IN
-        select(database:"foo",where:{'service'="mysql"}).values(key:"host")
+select(database:"foo")
+  .where(exp:{
+      "system"=="cpu" 
+      AND "metric"=="usage_user" 
+      AND "host" IN select(database:"foo").where(exp:{"service"=="mysql"}).values(key:"host").range(start:-4h)
     })
   .range(start:-4h)
 
 // get the count in 10m periods in the last 24h from an event stream and
 // filter that to only include those periods that were 2 sigma above the average
-var m = select(database:"foo",where:{'event' = "pageview"})
-		  .range(start:-24h)
-		  .merge()
-		  .window(every:10m)
-		  .count()
+var m = select(database:"foo")
+  .where(exp:{"event"=="pageview"})
+  .range(start:-24h)
+  .merge()
+  .window(every:10m)
+  .count()
 
 // this is shorthand for m.stddev.join(exp:{$ * 2})
 var sigma = m.stddev() * 2
 
+var mean = m.mean()
+
+// compute the difference from the mean
+// shorthand for m.join(exp:{(m - mean).abs())
+var diff = (m - mean).abs()
+
 // return only the counts 2 sigma above
-// shorthand for m.filter(exp:{$ > sigma})
-m > sigma
+// shorthand for diff.where(exp:{$ > sigma})
+diff > sigma
 ```
