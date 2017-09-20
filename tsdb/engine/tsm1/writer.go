@@ -237,7 +237,7 @@ func NewIndexWriter() IndexWriter {
 
 // NewIndexWriter returns a new IndexWriter.
 func NewDiskIndexWriter(f *os.File) IndexWriter {
-	return &directIndex{fd: f, w: bufio.NewWriter(f)}
+	return &directIndex{fd: f, w: bufio.NewWriterSize(f, 1024*1024)}
 }
 
 // indexBlock represent an index information for a series within a TSM file.
