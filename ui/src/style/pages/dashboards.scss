@@ -151,9 +151,6 @@ $dash-graph-options-arrow: 8px;
     background-color 0.25s ease,
     border-color 0.25s ease;
 }
-.dash-graph-context__deleting + .dash-graph--heading .dash-graph--name {
-  width: calc(100% - 87px);
-}
 .dash-graph--name.dash-graph--name__default {
   font-style: italic;
 }

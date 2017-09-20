@@ -293,8 +293,6 @@ LayoutRenderer.propTypes = {
   }).isRequired,
   onPositionChange: func,
   onEditCell: func,
-  onRenameCell: func,
-  onUpdateCell: func,
   onDeleteCell: func,
   onSummonOverlayTechnologies: func,
   synchronizer: func,
