@@ -1,36 +1,25 @@
 import React, {PropTypes} from 'react'
-import classnames from 'classnames'
 import OnClickOutside from 'react-onclickoutside'
 
 const ContextMenu = OnClickOutside(
-  ({
-    isOpen,
-    isDeleting,
-    toggleMenu,
-    onEdit,
-    onRename,
-    onDelete,
-    onDeleteClick,
-    cell,
-  }) =>
+  ({isDeleting, onEdit, onDeleteClick, onDelete, cell}) =>
     <div
-      className={classnames('dash-graph--options', {
-        'dash-graph--options-show': isOpen || isDeleting,
-      })}
-      onClick={toggleMenu}
+      className={
+        isDeleting
+          ? 'dash-graph-context dash-graph-context__deleting'
+          : 'dash-graph-context'
+      }
     >
-      <button className="btn btn-info btn-xs">
-        <span className="icon caret-down" />
-      </button>
-      <ul className="dash-graph--options-menu">
-        <li onClick={onEdit(cell)}>Edit</li>
-        <li onClick={onRename(cell.x, cell.y, cell.isEditing)}>Rename</li>
-        {isDeleting
-          ? <li className="dash-graph--confirm-delete" onClick={onDelete(cell)}>
-              Confirm Delete
-            </li>
-          : <li onClick={onDeleteClick}>Delete</li>}
-      </ul>
+      <div className="dash-graph-context--button" onClick={onEdit(cell)}>
+        <span className="icon pencil" />
+      </div>
+      {isDeleting
+        ? <div className="dash-graph-context--confirm" onClick={onDelete(cell)}>
+            Confirm
+          </div>
+        : <div className="dash-graph-context--button" onClick={onDeleteClick}>
+            <span className="icon trash" />
+          </div>}
     </div>
 )
 
@@ -45,11 +34,8 @@ const ContextMenuContainer = props => {
 const {bool, func, shape} = PropTypes
 
 ContextMenuContainer.propTypes = {
-  isOpen: bool,
   isDeleting: bool,
-  toggleMenu: func,
   onEdit: func,
-  onRename: func,
   onDelete: func,
   onDeleteClick: func,
   cell: shape(),

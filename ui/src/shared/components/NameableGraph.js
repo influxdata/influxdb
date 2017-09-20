@@ -1,23 +1,17 @@
 import React, {Component, PropTypes} from 'react'
 import _ from 'lodash'
+import classnames from 'classnames'
 
-import NameableGraphHeader from 'shared/components/NameableGraphHeader'
 import ContextMenu from 'shared/components/ContextMenu'
+import CustomTimeIndicator from 'shared/components/CustomTimeIndicator'
 
 class NameableGraph extends Component {
   constructor(props) {
     super(props)
     this.state = {
-      isMenuOpen: false,
       cellName: props.cell.name,
       isDeleting: false,
     }
-  }
-
-  toggleMenu = () => {
-    this.setState({
-      isMenuOpen: !this.state.isMenuOpen,
-    })
   }
 
   handleRenameCell = e => {
@@ -33,7 +27,6 @@ class NameableGraph extends Component {
 
   closeMenu = () => {
     this.setState({
-      isMenuOpen: false,
       isDeleting: false,
     })
   }
@@ -51,33 +44,35 @@ class NameableGraph extends Component {
   }
 
   render() {
-    const {cell, children, isEditable, onEditCell, onUpdateCell} = this.props
+    const {cell, children, isEditable, onEditCell} = this.props
 
-    const {cellName, isMenuOpen, isDeleting} = this.state
+    const {cellName, isDeleting} = this.state
     const queries = _.get(cell, ['queries'], [])
 
     return (
       <div className="dash-graph">
-        <NameableGraphHeader
-          cell={cell}
-          cellName={cellName}
-          isEditable={isEditable}
-          onUpdateCell={onUpdateCell}
-          onRenameCell={this.handleRenameCell}
-          onCancelEditCell={this.handleCancelEdit}
-        />
         <ContextMenu
           cell={cell}
           onDeleteClick={this.handleDeleteClick}
           onDelete={this.handleDeleteCell}
           onRename={!cell.isEditing && isEditable ? onEditCell : () => {}}
-          toggleMenu={this.toggleMenu}
           isDeleting={isDeleting}
-          isOpen={isMenuOpen}
           isEditable={isEditable}
           handleClickOutside={this.closeMenu}
           onEdit={this.handleSummonOverlay}
         />
+        <div
+          className={classnames('dash-graph--heading', {
+            'dash-graph--heading-draggable': isEditable,
+          })}
+        >
+          <span className="dash-graph--name">
+            {cellName}
+            {queries && queries.length
+              ? <CustomTimeIndicator queries={queries} />
+              : null}
+          </span>
+        </div>
         <div className="dash-graph--container">
           {queries.length
             ? children
@@ -108,7 +103,6 @@ NameableGraph.propTypes = {
   children: node.isRequired,
   onEditCell: func,
   onRenameCell: func,
-  onUpdateCell: func,
   onDeleteCell: func,
   onSummonOverlayTechnologies: func,
   isEditable: bool,
