@@ -230,7 +230,7 @@ func (c *DefaultPlanner) PlanLevel(level int) []CompactionGroup {
 	// Each compaction group should run against 4 generations.  For level 1, since these
 	// can get created much more quickly, bump the grouping to 8 to keep file counts lower.
 	groupSize := 4
-	if level == 1 {
+	if level == 1 || level == 3 {
 		groupSize = 8
 	}
 
