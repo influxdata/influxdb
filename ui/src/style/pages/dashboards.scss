@@ -132,7 +132,6 @@ $dash-graph-options-arrow: 8px;
     background-color: $g5-pepper;
   }
 }
-.dash-graph--name-edit,
 .dash-graph--name {
   font-size: 13px;
   font-weight: 600;
@@ -155,14 +154,6 @@ $dash-graph-options-arrow: 8px;
 .dash-graph-context__deleting + .dash-graph--heading .dash-graph--name {
   width: calc(100% - 87px);
 }
-input.form-control.dash-graph--name-edit {
-  margin-left: 8px;
-  padding: 0 6px;
-  width: calc(100% - 42px);
-  height: 26px !important;
-  line-height: (26px - 4px) !important;
-  position: relative;
-  top: -1px; // Fix for slight offset
 .dash-graph--name.dash-graph--name__default {
   font-style: italic;
 }

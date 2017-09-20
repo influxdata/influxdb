@@ -139,8 +139,6 @@ class LayoutRenderer extends Component {
       cells,
       onEditCell,
       onCancelEditCell,
-      onRenameCell,
-      onUpdateCell,
       onDeleteCell,
       onSummonOverlayTechnologies,
       timeRange,
@@ -160,8 +158,6 @@ class LayoutRenderer extends Component {
             onCancelEditCell={onCancelEditCell}
             isEditable={isEditable}
             onEditCell={onEditCell}
-            onRenameCell={onRenameCell}
-            onUpdateCell={onUpdateCell}
             onDeleteCell={onDeleteCell}
             onSummonOverlayTechnologies={onSummonOverlayTechnologies}
             cell={cell}

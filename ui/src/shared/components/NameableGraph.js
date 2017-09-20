@@ -46,7 +46,7 @@ class NameableGraph extends Component {
   }
 
   render() {
-    const {cell, children, isEditable, onEditCell} = this.props
+    const {cell, children, isEditable} = this.props
 
     const {cellName, isDeleting} = this.state
     const queries = _.get(cell, ['queries'], [])
@@ -58,7 +58,6 @@ class NameableGraph extends Component {
           cell={cell}
           onDeleteClick={this.handleDeleteClick}
           onDelete={this.handleDeleteCell}
-          onRename={!cell.isEditing && isEditable ? onEditCell : () => {}}
           isDeleting={isDeleting}
           isEditable={isEditable}
           handleClickOutside={this.closeMenu}
@@ -110,8 +109,6 @@ NameableGraph.propTypes = {
     queries: array,
   }).isRequired,
   children: node.isRequired,
-  onEditCell: func,
-  onRenameCell: func,
   onDeleteCell: func,
   onSummonOverlayTechnologies: func,
   isEditable: bool,
