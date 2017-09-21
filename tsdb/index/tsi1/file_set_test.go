@@ -25,7 +25,7 @@ func TestFileSet_SeriesIDIterator(t *testing.T) {
 		fs := idx.RetainFileSet()
 		defer fs.Release()
 
-		itr := fs.SeriesIDIterator()
+		itr := fs.SeriesFile().SeriesIDIterator()
 		if itr == nil {
 			t.Fatal("expected iterator")
 		}
@@ -58,7 +58,7 @@ func TestFileSet_SeriesIDIterator(t *testing.T) {
 		fs := idx.RetainFileSet()
 		defer fs.Release()
 
-		itr := fs.SeriesIDIterator()
+		itr := fs.SeriesFile().SeriesIDIterator()
 		if itr == nil {
 			t.Fatal("expected iterator")
 		}
