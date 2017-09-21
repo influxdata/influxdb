@@ -8,14 +8,8 @@ class LayoutCell extends Component {
   constructor(props) {
     super(props)
     this.state = {
-      cellName: props.cell.name,
       isDeleting: false,
     }
-  }
-
-  handleRenameCell = e => {
-    const cellName = e.target.value
-    this.setState({cellName})
   }
 
   handleCancelEdit = cellID => {
@@ -45,7 +39,7 @@ class LayoutCell extends Component {
   render() {
     const {cell, children, isEditable} = this.props
 
-    const {cellName, isDeleting} = this.state
+    const {isDeleting} = this.state
     const queries = _.get(cell, ['queries'], [])
 
     return (
@@ -60,7 +54,7 @@ class LayoutCell extends Component {
           onEdit={this.handleSummonOverlay}
         />
         <LayoutCellHeader
-          cellName={cellName}
+          cellName={cell.name}
           queries={queries}
           isEditable={isEditable}
         />
