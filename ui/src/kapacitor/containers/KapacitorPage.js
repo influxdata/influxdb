@@ -24,12 +24,6 @@ class KapacitorPage extends Component {
       },
       exists: false,
     }
-
-    this.handleInputChange = ::this.handleInputChange
-    this.handleSubmit = ::this.handleSubmit
-    this.handleResetToDefaults = ::this.handleResetToDefaults
-    this._parseKapacitorURL = ::this._parseKapacitorURL
-    this.checkKapacitorConnection = ::this.checkKapacitorConnection
   }
 
   componentDidMount() {
@@ -44,7 +38,7 @@ class KapacitorPage extends Component {
     })
   }
 
-  async checkKapacitorConnection(kapacitor) {
+  checkKapacitorConnection = async kapacitor => {
     try {
       await pingKapacitor(kapacitor)
       this.setState({exists: true})
@@ -57,7 +51,7 @@ class KapacitorPage extends Component {
     }
   }
 
-  handleInputChange(e) {
+  handleInputChange = e => {
     const {value, name} = e.target
 
     this.setState(prevState => {
@@ -66,7 +60,7 @@ class KapacitorPage extends Component {
     })
   }
 
-  handleSubmit(e) {
+  handleSubmit = e => {
     e.preventDefault()
     const {
       addFlashMessage,
@@ -78,8 +72,9 @@ class KapacitorPage extends Component {
     const {kapacitor} = this.state
 
     const isNameTaken = kapacitors.some(k => k.name === kapacitor.name)
+    const isNew = !params.id
 
-    if (isNameTaken) {
+    if (isNew && isNameTaken) {
       addFlashMessage({
         type: 'error',
         text: `There is already a Kapacitor configuration named "${kapacitor.name}"`,
@@ -121,7 +116,7 @@ class KapacitorPage extends Component {
     }
   }
 
-  handleResetToDefaults(e) {
+  handleResetToDefaults = e => {
     e.preventDefault()
     const defaultState = {
       url: this._parseKapacitorURL(),
@@ -133,7 +128,7 @@ class KapacitorPage extends Component {
     this.setState({kapacitor: {...defaultState}})
   }
 
-  _parseKapacitorURL() {
+  _parseKapacitorURL = () => {
     const parser = document.createElement('a')
     parser.href = this.props.source.url
 
