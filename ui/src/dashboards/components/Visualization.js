@@ -1,6 +1,7 @@
 import React, {PropTypes} from 'react'
 import RefreshingGraph from 'shared/components/RefreshingGraph'
 import buildQueries from 'utils/buildQueriesForGraphs'
+import VisualizationName from 'src/dashboards/components/VisualizationName'
 
 const DashVisualization = (
   {
@@ -10,17 +11,14 @@ const DashVisualization = (
     templates,
     timeRange,
     autoRefresh,
+    onCellRename,
     queryConfigs,
     editQueryStatus,
   },
   {source: {links: {proxy}}}
 ) =>
   <div className="graph">
-    <div className="graph-heading">
-      <div className="graph-title">
-        {name}
-      </div>
-    </div>
+    <VisualizationName defaultName={name} onCellRename={onCellRename} />
     <div className="graph-container">
       <RefreshingGraph
         axes={axes}
@@ -56,6 +54,7 @@ DashVisualization.propTypes = {
       bounds: arrayOf(string),
     }),
   }),
+  onCellRename: func,
 }
 
 DashVisualization.contextTypes = {

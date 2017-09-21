@@ -179,6 +179,10 @@ class CellEditorOverlay extends Component {
     })
   }
 
+  handleCellRename = newName => {
+    this.setState({cellWorkingName: newName})
+  }
+
   handleSetScale = scale => () => {
     const {axes} = this.state
 
@@ -263,6 +267,7 @@ class CellEditorOverlay extends Component {
             autoRefresh={autoRefresh}
             queryConfigs={queriesWorkingDraft}
             editQueryStatus={editQueryStatus}
+            onCellRename={this.handleCellRename}
           />
           <CEOBottom>
             <OverlayControls
