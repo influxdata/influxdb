@@ -78,8 +78,9 @@ class KapacitorPage extends Component {
     const {kapacitor} = this.state
 
     const isNameTaken = kapacitors.some(k => k.name === kapacitor.name)
+    const isNew = !params.id
 
-    if (isNameTaken) {
+    if (isNew && isNameTaken) {
       addFlashMessage({
         type: 'error',
         text: `There is already a Kapacitor configuration named "${kapacitor.name}"`,
