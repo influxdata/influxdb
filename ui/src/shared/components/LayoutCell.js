@@ -12,12 +12,6 @@ class LayoutCell extends Component {
     }
   }
 
-  handleCancelEdit = cellID => {
-    const {cell, onCancelEditCell} = this.props
-    this.setState({cellName: cell.name})
-    onCancelEditCell(cellID)
-  }
-
   closeMenu = () => {
     this.setState({
       isDeleting: false,
