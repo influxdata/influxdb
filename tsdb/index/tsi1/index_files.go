@@ -175,6 +175,8 @@ func (p IndexFiles) writeTagsetsTo(w io.Writer, info *indexCompactInfo, n *int64
 
 // writeTagsetTo writes a single tagset to w and saves the tagset offset.
 func (p IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactInfo, n *int64) error {
+	var seriesIDs []uint32
+
 	kitr, err := p.TagKeyIterator(name)
 	if err != nil {
 		return err
@@ -190,13 +192,14 @@ func (p IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactIn
 		// Iterate over tag values.
 		vitr := ke.TagValueIterator()
 		for ve := vitr.Next(); ve != nil; ve = vitr.Next() {
+			seriesIDs = seriesIDs[:0]
+
 			// Merge all series together.
 			sitr := p.TagValueSeriesIDIterator(name, ke.Key(), ve.Value())
-			var seriesIDs []uint32
 			for se := sitr.Next(); se.SeriesID != 0; se = sitr.Next() {
 				seriesIDs = append(seriesIDs, se.SeriesID)
 			}
-			sort.Sort(uint32Slice(seriesIDs))
+			// sort.Sort(uint32Slice(seriesIDs))
 
 			// Encode value.
 			if err := enc.EncodeValue(ve.Value(), ve.Deleted(), seriesIDs); err != nil {
