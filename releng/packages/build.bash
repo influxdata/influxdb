@@ -50,7 +50,7 @@ docker build -t influxdata/influxdb/releng/packages:latest "$SRCDIR"
 mkdir -p "$OUTDIR"
 
 STATIC=""
-case "$(basename "$SRC_TARBALL")" in
+case "$(basename "$BIN_TARBALL")" in
    *static*) STATIC="-s";;
 esac
 
