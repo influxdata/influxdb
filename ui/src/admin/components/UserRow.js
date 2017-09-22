@@ -35,7 +35,7 @@ const UserRow = ({
   const handleUpdateRoles = roleNames => {
     onUpdateRoles(
       user,
-      allRoles.filter(r => roleNames.find(rn => rn === r.name))
+      allRoles.filter(r => roleNames.find(rn => rn.name === r.name))
     )
   }
 
@@ -89,7 +89,7 @@ const UserRow = ({
         ? <td>
             <MultiSelectDropdown
               items={allRoles}
-              selectedItems={roles.map(r => r.name)}
+              selectedItems={roles.map(r => ({name: r.name}))}
               label={roles.length ? '' : 'Select Roles'}
               onApply={handleUpdateRoles}
               buttonSize="btn-xs"
