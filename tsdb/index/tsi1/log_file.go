@@ -189,17 +189,17 @@ func (f *LogFile) Release() { f.wg.Done() }
 
 // Stat returns size and last modification time of the file.
 func (f *LogFile) Stat() (int64, time.Time) {
-	f.mu.Lock()
+	f.mu.RLock()
 	size, modTime := f.size, f.modTime
-	f.mu.Unlock()
+	f.mu.RUnlock()
 	return size, modTime
 }
 
 // Size returns the size of the file, in bytes.
 func (f *LogFile) Size() int64 {
-	f.mu.Lock()
+	f.mu.RLock()
 	v := f.size
-	f.mu.Unlock()
+	f.mu.RUnlock()
 	return v
 }
 
@@ -429,16 +429,55 @@ func (f *LogFile) DeleteTagValue(name, key, value []byte) error {
 
 // AddSeriesList adds a list of series to the log file in bulk.
 func (f *LogFile) AddSeriesList(names [][]byte, tagsSlice []models.Tags) error {
+	// Determine total size of names, keys, values.
+	var n int
+	for i := range names {
+		n += len(names[i])
+
+		tags := tagsSlice[i]
+		for j := range tags {
+			n += len(tags[j].Key) + len(tags[j].Value)
+		}
+	}
+
+	// Allocate names, keys, & values in one block.
+	buf := make([]byte, n)
+
+	// Clone all entries.
+	entries := make([]LogEntry, len(names))
+	for i := range names {
+		copy(buf, names[i])
+		clonedName := buf[:len(names[i])]
+		buf = buf[len(names[i]):]
+
+		// Clone tag set.
+		var clonedTags models.Tags
+		if len(tagsSlice[i]) > 0 {
+			clonedTags = make(models.Tags, len(tagsSlice[i]))
+			for j, tags := range tagsSlice[i] {
+				copy(buf, tags.Key)
+				key := buf[:len(tags.Key)]
+				buf = buf[len(tags.Key):]
+
+				copy(buf, tags.Value)
+				value := buf[:len(tags.Value)]
+				buf = buf[len(tags.Value):]
+
+				clonedTags[j] = models.Tag{Key: key, Value: value}
+			}
+		}
+
+		entries[i] = LogEntry{Name: clonedName, Tags: clonedTags}
+	}
+
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	for i := range names {
-		// The name and tags are clone to prevent a memory leak
-		e := LogEntry{Name: []byte(string(names[i])), Tags: tagsSlice[i].Clone()}
-		if err := f.appendEntry(&e); err != nil {
+	for i := range entries {
+		if err := f.appendEntry(&entries[i]); err != nil {
 			return err
 		}
-		f.execEntry(&e)
+		f.execEntry(&entries[i])
 	}
 	return nil
 }

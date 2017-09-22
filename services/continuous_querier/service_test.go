@@ -10,6 +10,7 @@ import (
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/uber-go/zap"
 )
@@ -49,12 +50,12 @@ func TestContinuousQueryService_Run(t *testing.T) {
 
 	// Set a callback for ExecuteStatement.
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
-		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx query.ExecutionContext) error {
 			callCnt++
 			if callCnt >= expectCallCnt {
 				done <- struct{}{}
 			}
-			ctx.Results <- &influxql.Result{}
+			ctx.Results <- &query.Result{}
 			return nil
 		},
 	}
@@ -121,16 +122,17 @@ func TestContinuousQueryService_ResampleOptions(t *testing.T) {
 
 	// Set a callback for ExecuteStatement.
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
-		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx query.ExecutionContext) error {
 			s := stmt.(*influxql.SelectStatement)
-			min, max, err := influxql.TimeRange(s.Condition, s.Location)
+			valuer := &influxql.NowValuer{Location: s.Location}
+			_, timeRange, err := influxql.ConditionExpr(s.Condition, valuer)
 			if err != nil {
 				t.Errorf("unexpected error parsing time range: %s", err)
-			} else if !expected.min.Equal(min) || !expected.max.Equal(max) {
-				t.Errorf("mismatched time range: got=(%s, %s) exp=(%s, %s)", min, max, expected.min, expected.max)
+			} else if !expected.min.Equal(timeRange.Min) || !expected.max.Equal(timeRange.Max) {
+				t.Errorf("mismatched time range: got=(%s, %s) exp=(%s, %s)", timeRange.Min, timeRange.Max, expected.min, expected.max)
 			}
 			done <- struct{}{}
-			ctx.Results <- &influxql.Result{}
+			ctx.Results <- &query.Result{}
 			return nil
 		},
 	}
@@ -202,16 +204,17 @@ func TestContinuousQueryService_EveryHigherThanInterval(t *testing.T) {
 
 	// Set a callback for ExecuteQuery.
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
-		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx query.ExecutionContext) error {
 			s := stmt.(*influxql.SelectStatement)
-			min, max, err := influxql.TimeRange(s.Condition, s.Location)
+			valuer := &influxql.NowValuer{Location: s.Location}
+			_, timeRange, err := influxql.ConditionExpr(s.Condition, valuer)
 			if err != nil {
 				t.Errorf("unexpected error parsing time range: %s", err)
-			} else if !expected.min.Equal(min) || !expected.max.Equal(max) {
-				t.Errorf("mismatched time range: got=(%s, %s) exp=(%s, %s)", min, max, expected.min, expected.max)
+			} else if !expected.min.Equal(timeRange.Min) || !expected.max.Equal(timeRange.Max) {
+				t.Errorf("mismatched time range: got=(%s, %s) exp=(%s, %s)", timeRange.Min, timeRange.Max, expected.min, expected.max)
 			}
 			done <- struct{}{}
-			ctx.Results <- &influxql.Result{}
+			ctx.Results <- &query.Result{}
 			return nil
 		},
 	}
@@ -271,16 +274,17 @@ func TestContinuousQueryService_GroupByOffset(t *testing.T) {
 
 	// Set a callback for ExecuteStatement.
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
-		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx query.ExecutionContext) error {
 			s := stmt.(*influxql.SelectStatement)
-			min, max, err := influxql.TimeRange(s.Condition, s.Location)
+			valuer := &influxql.NowValuer{Location: s.Location}
+			_, timeRange, err := influxql.ConditionExpr(s.Condition, valuer)
 			if err != nil {
 				t.Errorf("unexpected error parsing time range: %s", err)
-			} else if !expected.min.Equal(min) || !expected.max.Equal(max) {
-				t.Errorf("mismatched time range: got=(%s, %s) exp=(%s, %s)", min, max, expected.min, expected.max)
+			} else if !expected.min.Equal(timeRange.Min) || !expected.max.Equal(timeRange.Max) {
+				t.Errorf("mismatched time range: got=(%s, %s) exp=(%s, %s)", timeRange.Min, timeRange.Max, expected.min, expected.max)
 			}
 			done <- struct{}{}
-			ctx.Results <- &influxql.Result{}
+			ctx.Results <- &query.Result{}
 			return nil
 		},
 	}
@@ -311,9 +315,9 @@ func TestContinuousQueryService_NotLeader(t *testing.T) {
 	done := make(chan struct{})
 	// Set a callback for ExecuteStatement. Shouldn't get called because we're not the leader.
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
-		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx query.ExecutionContext) error {
 			done <- struct{}{}
-			ctx.Results <- &influxql.Result{Err: errUnexpected}
+			ctx.Results <- &query.Result{Err: errUnexpected}
 			return nil
 		},
 	}
@@ -332,7 +336,7 @@ func TestContinuousQueryService_NotLeader(t *testing.T) {
 func TestExecuteContinuousQuery_InvalidQueries(t *testing.T) {
 	s := NewTestService(t)
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
-		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx query.ExecutionContext) error {
 			return errUnexpected
 		},
 	}
@@ -431,17 +435,18 @@ func TestExecuteContinuousQuery_TimeRange(t *testing.T) {
 
 			// Set a callback for ExecuteStatement.
 			s.QueryExecutor.StatementExecutor = &StatementExecutor{
-				ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
+				ExecuteStatementFn: func(stmt influxql.Statement, ctx query.ExecutionContext) error {
 					s := stmt.(*influxql.SelectStatement)
-					min, max, err := influxql.TimeRange(s.Condition, s.Location)
-					max = max.Add(time.Nanosecond)
+					valuer := &influxql.NowValuer{Location: s.Location}
+					_, timeRange, err := influxql.ConditionExpr(s.Condition, valuer)
+					timeRange.Max = timeRange.Max.Add(time.Nanosecond)
 					if err != nil {
 						t.Errorf("unexpected error parsing time range: %s", err)
-					} else if !tt.start.Equal(min) || !tt.end.Equal(max) {
-						t.Errorf("mismatched time range: got=(%s, %s) exp=(%s, %s)", min, max, tt.start, tt.end)
+					} else if !tt.start.Equal(timeRange.Min) || !tt.end.Equal(timeRange.Max) {
+						t.Errorf("mismatched time range: got=(%s, %s) exp=(%s, %s)", timeRange.Min, timeRange.Max, tt.start, tt.end)
 					}
 					done <- struct{}{}
-					ctx.Results <- &influxql.Result{}
+					ctx.Results <- &query.Result{}
 					return nil
 				},
 			}
@@ -544,18 +549,19 @@ func TestExecuteContinuousQuery_TimeZone(t *testing.T) {
 			// Set a callback for ExecuteStatement.
 			tests := make(chan test, 1)
 			s.QueryExecutor.StatementExecutor = &StatementExecutor{
-				ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
+				ExecuteStatementFn: func(stmt influxql.Statement, ctx query.ExecutionContext) error {
 					test := <-tests
 					s := stmt.(*influxql.SelectStatement)
-					min, max, err := influxql.TimeRange(s.Condition, s.Location)
-					max = max.Add(time.Nanosecond)
+					valuer := &influxql.NowValuer{Location: s.Location}
+					_, timeRange, err := influxql.ConditionExpr(s.Condition, valuer)
+					timeRange.Max = timeRange.Max.Add(time.Nanosecond)
 					if err != nil {
 						t.Errorf("unexpected error parsing time range: %s", err)
-					} else if !test.start.Equal(min) || !test.end.Equal(max) {
-						t.Errorf("mismatched time range: got=(%s, %s) exp=(%s, %s)", min, max, test.start, test.end)
+					} else if !test.start.Equal(timeRange.Min) || !test.end.Equal(timeRange.Max) {
+						t.Errorf("mismatched time range: got=(%s, %s) exp=(%s, %s)", timeRange.Min, timeRange.Max, test.start, test.end)
 					}
 					done <- struct{}{}
-					ctx.Results <- &influxql.Result{}
+					ctx.Results <- &query.Result{}
 					return nil
 				},
 			}
@@ -586,7 +592,7 @@ func TestExecuteContinuousQuery_TimeZone(t *testing.T) {
 func TestExecuteContinuousQuery_QueryExecutor_Error(t *testing.T) {
 	s := NewTestService(t)
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
-		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx query.ExecutionContext) error {
 			return errExpected
 		},
 	}
@@ -606,8 +612,8 @@ func TestService_ExecuteContinuousQuery_LogsToMonitor(t *testing.T) {
 	const writeN = int64(50)
 
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
-		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
-			ctx.Results <- &influxql.Result{
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx query.ExecutionContext) error {
+			ctx.Results <- &query.Result{
 				Series: []*models.Row{{
 					Name:    "result",
 					Columns: []string{"time", "written"},
@@ -652,8 +658,8 @@ func TestService_ExecuteContinuousQuery_LogsToMonitor(t *testing.T) {
 func TestService_ExecuteContinuousQuery_LogToMonitor_DisabledByDefault(t *testing.T) {
 	s := NewTestService(t)
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
-		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
-			ctx.Results <- &influxql.Result{}
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx query.ExecutionContext) error {
+			ctx.Results <- &query.Result{}
 			return nil
 		},
 	}
@@ -680,7 +686,7 @@ func NewTestService(t *testing.T) *Service {
 	s := NewService(NewConfig())
 	ms := NewMetaClient(t)
 	s.MetaClient = ms
-	s.QueryExecutor = influxql.NewQueryExecutor()
+	s.QueryExecutor = query.NewQueryExecutor()
 	s.RunInterval = time.Millisecond
 
 	// Set Logger to write to dev/null so stdout isn't polluted.
@@ -818,10 +824,10 @@ func (ms *MetaClient) CreateContinuousQuery(database, name, query string) error 
 
 // StatementExecutor is a mock statement executor.
 type StatementExecutor struct {
-	ExecuteStatementFn func(stmt influxql.Statement, ctx influxql.ExecutionContext) error
+	ExecuteStatementFn func(stmt influxql.Statement, ctx query.ExecutionContext) error
 }
 
-func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
+func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx query.ExecutionContext) error {
 	return e.ExecuteStatementFn(stmt, ctx)
 }
 

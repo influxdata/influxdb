@@ -40,6 +40,7 @@ func (l *responseLogger) Write(b []byte) (int, error) {
 		// Set status if WriteHeader has not been called
 		l.status = http.StatusOK
 	}
+
 	size, err := l.w.Write(b)
 	l.size += size
 	return size, err

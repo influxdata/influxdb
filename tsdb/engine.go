@@ -13,6 +13,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/limiter"
+	"github.com/influxdata/influxdb/query"
 	"github.com/uber-go/zap"
 )
 
@@ -42,7 +43,8 @@ type Engine interface {
 	Restore(r io.Reader, basePath string) error
 	Import(r io.Reader, basePath string) error
 
-	CreateIterator(measurement string, opt influxql.IteratorOptions) (influxql.Iterator, error)
+	CreateIterator(measurement string, opt query.IteratorOptions) (query.Iterator, error)
+	IteratorCost(measurement string, opt query.IteratorOptions) (query.IteratorCost, error)
 	WritePoints(points []models.Point) error
 
 	CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error
@@ -69,14 +71,14 @@ type Engine interface {
 
 	// InfluxQL iterators
 	MeasurementSeriesKeysByExpr(name []byte, condition influxql.Expr) ([][]byte, error)
-	ForEachMeasurementSeriesByExpr(name []byte, expr influxql.Expr, fn func(tags models.Tags) error) error
-	SeriesPointIterator(opt influxql.IteratorOptions) (influxql.Iterator, error)
+	SeriesPointIterator(opt query.IteratorOptions) (query.Iterator, error)
 
 	// Statistics will return statistics relevant to this engine.
 	Statistics(tags map[string]string) []models.Statistic
 	LastModified() time.Time
 	DiskSize() int64
 	IsIdle() bool
+	Free() error
 
 	io.WriterTo
 }

@@ -10,6 +10,7 @@ import (
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/query"
 )
 
 // LoadFactor is the fill percent for RHH indexes.
@@ -808,7 +809,7 @@ func assert(condition bool, msg string, v ...interface{}) {
 	}
 }
 
-type byTagKey []*influxql.TagSet
+type byTagKey []*query.TagSet
 
 func (t byTagKey) Len() int           { return len(t) }
 func (t byTagKey) Less(i, j int) bool { return bytes.Compare(t[i].Key, t[j].Key) < 0 }

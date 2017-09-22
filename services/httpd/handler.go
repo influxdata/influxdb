@@ -8,7 +8,9 @@ import (
 	"expvar"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
+	"math"
 	"net/http"
 	"os"
 	"runtime/debug"
@@ -19,11 +21,16 @@ import (
 
 	"github.com/bmizerany/pat"
 	"github.com/dgrijalva/jwt-go"
+	"github.com/gogo/protobuf/proto"
+	"github.com/golang/snappy"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
 	"github.com/influxdata/influxdb/monitor/diagnostics"
+	"github.com/influxdata/influxdb/prometheus"
+	"github.com/influxdata/influxdb/prometheus/remote"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/uuid"
@@ -88,7 +95,7 @@ type Handler struct {
 		AuthorizeWrite(username, database string) error
 	}
 
-	QueryExecutor *influxql.QueryExecutor
+	QueryExecutor *query.QueryExecutor
 
 	Monitor interface {
 		Statistics(tags map[string]string) ([]*monitor.Statistic, error)
@@ -139,6 +146,14 @@ func NewHandler(c Config) *Handler {
 			"write", // Data-ingest route.
 			"POST", "/write", true, true, h.serveWrite,
 		},
+		Route{
+			"prometheus-write", // Prometheus remote write
+			"POST", "/api/v1/prom/write", false, true, h.servePromWrite,
+		},
+		Route{
+			"prometheus-read", // Prometheus remote read
+			"POST", "/api/v1/prom/read", true, true, h.servePromRead,
+		},
 		Route{ // Ping
 			"ping",
 			"GET", "/ping", false, true, h.servePing,
@@ -182,6 +197,8 @@ type Statistics struct {
 	ClientErrors                 int64
 	ServerErrors                 int64
 	RecoveredPanics              int64
+	PromWriteRequests            int64
+	PromReadRequests             int64
 }
 
 // Statistics returns statistics for periodic monitoring.
@@ -209,6 +226,8 @@ func (h *Handler) Statistics(tags map[string]string) []models.Statistic {
 			statClientError:                  atomic.LoadInt64(&h.stats.ClientErrors),
 			statServerError:                  atomic.LoadInt64(&h.stats.ServerErrors),
 			statRecoveredPanics:              atomic.LoadInt64(&h.stats.RecoveredPanics),
+			statPromWriteRequest:             atomic.LoadInt64(&h.stats.PromWriteRequests),
+			statPromReadRequest:              atomic.LoadInt64(&h.stats.PromReadRequests),
 		},
 	}}
 }
@@ -358,7 +377,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 	}
 
 	// Parse query from query string.
-	query, err := p.ParseQuery()
+	q, err := p.ParseQuery()
 	if err != nil {
 		h.httpError(rw, "error parsing query: "+err.Error(), http.StatusBadRequest)
 		return
@@ -366,7 +385,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 
 	// Check authorization.
 	if h.Config.AuthEnabled {
-		if err := h.QueryAuthorizer.AuthorizeQuery(user, query, db); err != nil {
+		if err := h.QueryAuthorizer.AuthorizeQuery(user, q, db); err != nil {
 			if err, ok := err.(meta.ErrAuthorize); ok {
 				h.Logger.Info(fmt.Sprintf("Unauthorized request | user: %q | query: %q | database %q", err.User, err.Query.String(), err.Database))
 			}
@@ -387,7 +406,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 	// Parse whether this is an async command.
 	async := r.FormValue("async") == "true"
 
-	opts := influxql.ExecutionOptions{
+	opts := query.ExecutionOptions{
 		Database:  db,
 		ChunkSize: chunkSize,
 		ReadOnly:  r.Method == "GET",
@@ -399,7 +418,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 		opts.Authorizer = user
 	} else {
 		// Auth is disabled, so allow everything.
-		opts.Authorizer = influxql.OpenAuthorizer{}
+		opts.Authorizer = query.OpenAuthorizer{}
 	}
 
 	// Make sure if the client disconnects we signal the query to abort
@@ -430,18 +449,18 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 	}
 
 	// Execute query.
-	results := h.QueryExecutor.ExecuteQuery(query, opts, closing)
+	results := h.QueryExecutor.ExecuteQuery(q, opts, closing)
 
 	// If we are running in async mode, open a goroutine to drain the results
 	// and return with a StatusNoContent.
 	if async {
-		go h.async(query, results)
+		go h.async(q, results)
 		h.writeHeader(w, http.StatusNoContent)
 		return
 	}
 
 	// if we're not chunking, this will be the in memory buffer for all results before sending to client
-	resp := Response{Results: make([]*influxql.Result, 0)}
+	resp := Response{Results: make([]*query.Result, 0)}
 
 	// Status header is OK once this point is reached.
 	// Attempt to flush the header immediately so the client gets the header information
@@ -467,7 +486,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 		// Write out result immediately if chunked.
 		if chunked {
 			n, _ := rw.WriteResponse(Response{
-				Results: []*influxql.Result{r},
+				Results: []*query.Result{r},
 			})
 			atomic.AddInt64(&h.stats.QueryRequestBytesTransmitted, int64(n))
 			w.(http.Flusher).Flush()
@@ -564,17 +583,17 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 }
 
 // async drains the results from an async query and logs a message if it fails.
-func (h *Handler) async(query *influxql.Query, results <-chan *influxql.Result) {
+func (h *Handler) async(q *influxql.Query, results <-chan *query.Result) {
 	for r := range results {
 		// Drain the results and do nothing with them.
 		// If it fails, log the failure so there is at least a record of it.
 		if r.Err != nil {
 			// Do not log when a statement was not executed since there would
 			// have been an earlier error that was already logged.
-			if r.Err == influxql.ErrNotExecuted {
+			if r.Err == query.ErrNotExecuted {
 				continue
 			}
-			h.Logger.Info(fmt.Sprintf("error while running async query: %s: %s", query, r.Err))
+			h.Logger.Info(fmt.Sprintf("error while running async query: %s: %s", q, r.Err))
 		}
 	}
 }
@@ -733,7 +752,7 @@ func (h *Handler) serveStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 // convertToEpoch converts result timestamps from time.Time to the specified epoch.
-func convertToEpoch(r *influxql.Result, epoch string) {
+func convertToEpoch(r *query.Result, epoch string) {
 	divisor := int64(1)
 
 	switch epoch {
@@ -758,6 +777,276 @@ func convertToEpoch(r *influxql.Result, epoch string) {
 	}
 }
 
+// servePromWrite receives data in the Prometheus remote write protocol and writes it
+// to the database
+func (h *Handler) servePromWrite(w http.ResponseWriter, r *http.Request, user meta.User) {
+	atomic.AddInt64(&h.stats.WriteRequests, 1)
+	atomic.AddInt64(&h.stats.ActiveWriteRequests, 1)
+	atomic.AddInt64(&h.stats.PromWriteRequests, 1)
+	defer func(start time.Time) {
+		atomic.AddInt64(&h.stats.ActiveWriteRequests, -1)
+		atomic.AddInt64(&h.stats.WriteRequestDuration, time.Since(start).Nanoseconds())
+	}(time.Now())
+	h.requestTracker.Add(r, user)
+
+	database := r.URL.Query().Get("db")
+	if database == "" {
+		h.httpError(w, "database is required", http.StatusBadRequest)
+		return
+	}
+
+	if di := h.MetaClient.Database(database); di == nil {
+		h.httpError(w, fmt.Sprintf("database not found: %q", database), http.StatusNotFound)
+		return
+	}
+
+	if h.Config.AuthEnabled {
+		if user == nil {
+			h.httpError(w, fmt.Sprintf("user is required to write to database %q", database), http.StatusForbidden)
+			return
+		}
+
+		if err := h.WriteAuthorizer.AuthorizeWrite(user.ID(), database); err != nil {
+			h.httpError(w, fmt.Sprintf("%q user is not authorized to write to database %q", user.ID(), database), http.StatusForbidden)
+			return
+		}
+	}
+
+	body := r.Body
+	if h.Config.MaxBodySize > 0 {
+		body = truncateReader(body, int64(h.Config.MaxBodySize))
+	}
+
+	var bs []byte
+	if r.ContentLength > 0 {
+		if h.Config.MaxBodySize > 0 && r.ContentLength > int64(h.Config.MaxBodySize) {
+			h.httpError(w, http.StatusText(http.StatusRequestEntityTooLarge), http.StatusRequestEntityTooLarge)
+			return
+		}
+
+		// This will just be an initial hint for the reader, as the
+		// bytes.Buffer will grow as needed when ReadFrom is called
+		bs = make([]byte, 0, r.ContentLength)
+	}
+	buf := bytes.NewBuffer(bs)
+
+	_, err := buf.ReadFrom(body)
+	if err != nil {
+		if err == errTruncated {
+			h.httpError(w, http.StatusText(http.StatusRequestEntityTooLarge), http.StatusRequestEntityTooLarge)
+			return
+		}
+
+		if h.Config.WriteTracing {
+			h.Logger.Info("Prom write handler unable to read bytes from request body")
+		}
+		h.httpError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	atomic.AddInt64(&h.stats.WriteRequestBytesReceived, int64(buf.Len()))
+
+	if h.Config.WriteTracing {
+		h.Logger.Info(fmt.Sprintf("Prom write body received by handler: %s", buf.Bytes()))
+	}
+
+	reqBuf, err := snappy.Decode(nil, buf.Bytes())
+	if err != nil {
+		h.httpError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Convert the Prometheus remote write request to Influx Points
+	var req remote.WriteRequest
+	if err := proto.Unmarshal(reqBuf, &req); err != nil {
+		h.httpError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	points, err := prometheus.WriteRequestToPoints(&req)
+	if err != nil {
+		if h.Config.WriteTracing {
+			h.Logger.Info(fmt.Sprintf("Prom write handler: %s", err.Error()))
+		}
+
+		if err != prometheus.ErrNaNDropped {
+			h.httpError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+
+	// Determine required consistency level.
+	level := r.URL.Query().Get("consistency")
+	consistency := models.ConsistencyLevelOne
+	if level != "" {
+		consistency, err = models.ParseConsistencyLevel(level)
+		if err != nil {
+			h.httpError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+
+	// Write points.
+	if err := h.PointsWriter.WritePoints(database, r.URL.Query().Get("rp"), consistency, user, points); influxdb.IsClientError(err) {
+		atomic.AddInt64(&h.stats.PointsWrittenFail, int64(len(points)))
+		h.httpError(w, err.Error(), http.StatusBadRequest)
+		return
+	} else if influxdb.IsAuthorizationError(err) {
+		atomic.AddInt64(&h.stats.PointsWrittenFail, int64(len(points)))
+		h.httpError(w, err.Error(), http.StatusForbidden)
+		return
+	} else if werr, ok := err.(tsdb.PartialWriteError); ok {
+		atomic.AddInt64(&h.stats.PointsWrittenOK, int64(len(points)-werr.Dropped))
+		atomic.AddInt64(&h.stats.PointsWrittenDropped, int64(werr.Dropped))
+		h.httpError(w, werr.Error(), http.StatusBadRequest)
+		return
+	} else if err != nil {
+		atomic.AddInt64(&h.stats.PointsWrittenFail, int64(len(points)))
+		h.httpError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	atomic.AddInt64(&h.stats.PointsWrittenOK, int64(len(points)))
+	h.writeHeader(w, http.StatusNoContent)
+}
+
+// servePromRead will convert a Prometheus remote read request into an InfluxQL query and
+// return data in Prometheus remote read protobuf format.
+func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user meta.User) {
+	compressed, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		h.httpError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	reqBuf, err := snappy.Decode(nil, compressed)
+	if err != nil {
+		h.httpError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	var req remote.ReadRequest
+	if err := proto.Unmarshal(reqBuf, &req); err != nil {
+		h.httpError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Query the DB and create a ReadResponse for Prometheus
+	db := r.FormValue("db")
+	q, err := prometheus.ReadRequestToInfluxQLQuery(&req, db, r.FormValue("rp"))
+	if err != nil {
+		h.httpError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Check authorization.
+	if h.Config.AuthEnabled {
+		if err := h.QueryAuthorizer.AuthorizeQuery(user, q, db); err != nil {
+			if err, ok := err.(meta.ErrAuthorize); ok {
+				h.Logger.Info(fmt.Sprintf("Unauthorized request | user: %q | query: %q | database %q", err.User, err.Query.String(), err.Database))
+			}
+			h.httpError(w, "error authorizing query: "+err.Error(), http.StatusForbidden)
+			return
+		}
+	}
+
+	opts := query.ExecutionOptions{
+		Database:  db,
+		ChunkSize: DefaultChunkSize,
+		ReadOnly:  true,
+	}
+
+	if h.Config.AuthEnabled {
+		// The current user determines the authorized actions.
+		opts.Authorizer = user
+	} else {
+		// Auth is disabled, so allow everything.
+		opts.Authorizer = query.OpenAuthorizer{}
+	}
+
+	// Make sure if the client disconnects we signal the query to abort
+	var closing chan struct{}
+	closing = make(chan struct{})
+	if notifier, ok := w.(http.CloseNotifier); ok {
+		// CloseNotify() is not guaranteed to send a notification when the query
+		// is closed. Use this channel to signal that the query is finished to
+		// prevent lingering goroutines that may be stuck.
+		done := make(chan struct{})
+		defer close(done)
+
+		notify := notifier.CloseNotify()
+		go func() {
+			// Wait for either the request to finish
+			// or for the client to disconnect
+			select {
+			case <-done:
+			case <-notify:
+				close(closing)
+			}
+		}()
+		opts.AbortCh = done
+	} else {
+		defer close(closing)
+	}
+
+	// Execute query.
+	results := h.QueryExecutor.ExecuteQuery(q, opts, closing)
+
+	resp := &remote.ReadResponse{
+		Results: []*remote.QueryResult{{}},
+	}
+
+	// pull all results from the channel
+	for r := range results {
+		// Ignore nil results.
+		if r == nil {
+			continue
+		}
+
+		// read the series data and convert into Prometheus samples
+		for _, s := range r.Series {
+			ts := &remote.TimeSeries{
+				Labels: prometheus.TagsToLabelPairs(s.Tags),
+			}
+
+			for _, v := range s.Values {
+				t, ok := v[0].(time.Time)
+				if !ok {
+					h.httpError(w, fmt.Sprintf("value %v wasn't a time", v[0]), http.StatusBadRequest)
+					return
+				}
+				val, ok := v[1].(float64)
+				if !ok {
+					h.httpError(w, fmt.Sprintf("value %v wasn't a float64", v[1]), http.StatusBadRequest)
+				}
+				timestamp := t.UnixNano() / int64(time.Millisecond) / int64(time.Nanosecond)
+				ts.Samples = append(ts.Samples, &remote.Sample{
+					TimestampMs: timestamp,
+					Value:       val,
+				})
+			}
+
+			resp.Results[0].Timeseries = append(resp.Results[0].Timeseries, ts)
+		}
+	}
+
+	data, err := proto.Marshal(resp)
+	if err != nil {
+		h.httpError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/x-protobuf")
+	w.Header().Set("Content-Encoding", "snappy")
+
+	compressed = snappy.Encode(nil, data)
+	if _, err := w.Write(compressed); err != nil {
+		h.httpError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	atomic.AddInt64(&h.stats.QueryRequestBytesTransmitted, int64(len(compressed)))
+}
+
 // serveExpvar serves internal metrics in /debug/vars format over HTTP.
 func (h *Handler) serveExpvar(w http.ResponseWriter, r *http.Request) {
 	// Retrieve statistics from the monitor.
@@ -777,7 +1066,7 @@ func (h *Handler) serveExpvar(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
 	first := true
-	if val, ok := diags["system"]; ok {
+	if val := diags["system"]; val != nil {
 		jv, err := parseSystemDiagnostics(val)
 		if err != nil {
 			h.httpError(w, err.Error(), http.StatusInternalServerError)
@@ -955,14 +1244,17 @@ func parseSystemDiagnostics(d *diagnostics.Diagnostics) (map[string]interface{},
 }
 
 // httpError writes an error to the client in a standard format.
-func (h *Handler) httpError(w http.ResponseWriter, error string, code int) {
+func (h *Handler) httpError(w http.ResponseWriter, errmsg string, code int) {
 	if code == http.StatusUnauthorized {
 		// If an unauthorized header will be sent back, add a WWW-Authenticate header
 		// as an authorization challenge.
 		w.Header().Set("WWW-Authenticate", fmt.Sprintf("Basic realm=\"%s\"", h.Config.Realm))
+	} else if code/100 != 2 {
+		sz := math.Min(float64(len(errmsg)), 1024.0)
+		w.Header().Set("X-InfluxDB-Error", errmsg[:int(sz)])
 	}
 
-	response := Response{Err: errors.New(error)}
+	response := Response{Err: errors.New(errmsg)}
 	if rw, ok := w.(ResponseWriter); ok {
 		h.writeHeader(w, code)
 		rw.WriteResponse(response)
@@ -1165,9 +1457,30 @@ func cors(inner http.Handler) http.Handler {
 
 func requestID(inner http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		uid := uuid.TimeUUID()
-		r.Header.Set("Request-Id", uid.String())
-		w.Header().Set("Request-Id", r.Header.Get("Request-Id"))
+		// X-Request-Id takes priority.
+		rid := r.Header.Get("X-Request-Id")
+
+		// If X-Request-Id is empty, then check Request-Id
+		if rid == "" {
+			rid = r.Header.Get("Request-Id")
+		}
+
+		// If Request-Id is empty then generate a v1 UUID.
+		if rid == "" {
+			rid = uuid.TimeUUID().String()
+		}
+
+		// We read Request-Id in other handler code so we'll use that naming
+		// convention from this point in the request cycle.
+		r.Header.Set("Request-Id", rid)
+
+		// Set the request ID on the response headers.
+		// X-Request-Id is the most common name for a request ID header.
+		w.Header().Set("X-Request-Id", rid)
+
+		// We will also set Request-Id for backwards compatibility with previous
+		// versions of InfluxDB.
+		w.Header().Set("Request-Id", rid)
 
 		inner.ServeHTTP(w, r)
 	})
@@ -1179,6 +1492,14 @@ func (h *Handler) logging(inner http.Handler, name string) http.Handler {
 		l := &responseLogger{w: w}
 		inner.ServeHTTP(l, r)
 		h.CLFLogger.Println(buildLogLine(l, r, start))
+
+		// Log server errors.
+		if l.Status()/100 == 5 {
+			errStr := l.Header().Get("X-InfluxDB-Error")
+			if errStr != "" {
+				h.Logger.Error(fmt.Sprintf("[%d] - %q", l.Status(), errStr))
+			}
+		}
 	})
 }
 
@@ -1195,7 +1516,7 @@ var willCrash bool
 
 func init() {
 	var err error
-	if willCrash, err = strconv.ParseBool(os.Getenv(influxql.PanicCrashEnv)); err != nil {
+	if willCrash, err = strconv.ParseBool(os.Getenv(query.PanicCrashEnv)); err != nil {
 		willCrash = false
 	}
 }
@@ -1228,7 +1549,7 @@ func (h *Handler) recovery(inner http.Handler, name string) http.Handler {
 
 // Response represents a list of statement results.
 type Response struct {
-	Results []*influxql.Result
+	Results []*query.Result
 	Err     error
 }
 
@@ -1236,8 +1557,8 @@ type Response struct {
 func (r Response) MarshalJSON() ([]byte, error) {
 	// Define a struct that outputs "error" as a string.
 	var o struct {
-		Results []*influxql.Result `json:"results,omitempty"`
-		Err     string             `json:"error,omitempty"`
+		Results []*query.Result `json:"results,omitempty"`
+		Err     string          `json:"error,omitempty"`
 	}
 
 	// Copy fields to output struct.
@@ -1252,8 +1573,8 @@ func (r Response) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON decodes the data into the Response struct.
 func (r *Response) UnmarshalJSON(b []byte) error {
 	var o struct {
-		Results []*influxql.Result `json:"results,omitempty"`
-		Err     string             `json:"error,omitempty"`
+		Results []*query.Result `json:"results,omitempty"`
+		Err     string          `json:"error,omitempty"`
 	}
 
 	err := json.Unmarshal(b, &o)

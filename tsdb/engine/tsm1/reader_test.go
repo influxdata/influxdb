@@ -1,4 +1,4 @@
-package tsm1_test
+package tsm1
 
 import (
 	"fmt"
@@ -6,22 +6,25 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"sort"
 	"testing"
-
-	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
 
-func TestTSMReader_Type(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
-	f := MustTempFile(dir)
+func fatal(t *testing.T, msg string, err error) {
+	t.Fatalf("unexpected error %v: %v", msg, err)
+}
 
-	w, err := tsm1.NewTSMWriter(f)
+func TestTSMReader_Type(t *testing.T) {
+	dir := mustTempDir()
+	defer os.RemoveAll(dir)
+	f := mustTempFile(dir)
+
+	w, err := NewTSMWriter(f)
 	if err != nil {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
 
-	values := []tsm1.Value{tsm1.NewValue(0, int64(1))}
+	values := []Value{NewValue(0, int64(1))}
 	if err := w.Write([]byte("cpu"), values); err != nil {
 		t.Fatalf("unexpected error writing: %v", err)
 
@@ -38,7 +41,7 @@ func TestTSMReader_Type(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error opening: %v", err)
 	}
-	r, err := tsm1.NewTSMReader(f)
+	r, err := NewTSMReader(f)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
@@ -48,45 +51,38 @@ func TestTSMReader_Type(t *testing.T) {
 		fatal(t, "reading type", err)
 	}
 
-	if got, exp := typ, tsm1.BlockInteger; got != exp {
+	if got, exp := typ, BlockInteger; got != exp {
 		t.Fatalf("type mismatch: got %v, exp %v", got, exp)
 	}
 }
 
 func TestTSMReader_MMAP_ReadAll(t *testing.T) {
-	dir := MustTempDir()
+	dir := mustTempDir()
 	defer os.RemoveAll(dir)
-	f := MustTempFile(dir)
+	f := mustTempFile(dir)
 	defer f.Close()
 
-	w, err := tsm1.NewTSMWriter(f)
+	w, err := NewTSMWriter(f)
 	if err != nil {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
 
-	var data = []struct {
-		key    string
-		values []tsm1.Value
-	}{
-		{"float", []tsm1.Value{
-			tsm1.NewValue(1, 1.0)},
-		},
-		{"int", []tsm1.Value{
-			tsm1.NewValue(1, int64(1))},
-		},
-		{"uint", []tsm1.Value{
-			tsm1.NewValue(1, ^uint64(0))},
-		},
-		{"bool", []tsm1.Value{
-			tsm1.NewValue(1, true)},
-		},
-		{"string", []tsm1.Value{
-			tsm1.NewValue(1, "foo")},
-		},
+	var data = map[string][]Value{
+		"float":  []Value{NewValue(1, 1.0)},
+		"int":    []Value{NewValue(1, int64(1))},
+		"uint":   []Value{NewValue(1, ^uint64(0))},
+		"bool":   []Value{NewValue(1, true)},
+		"string": []Value{NewValue(1, "foo")},
 	}
 
-	for _, d := range data {
-		if err := w.Write([]byte(d.key), d.values); err != nil {
+	keys := make([]string, 0, len(data))
+	for k := range data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		if err := w.Write([]byte(k), data[k]); err != nil {
 			t.Fatalf("unexpected error writing: %v", err)
 		}
 	}
@@ -104,24 +100,24 @@ func TestTSMReader_MMAP_ReadAll(t *testing.T) {
 		t.Fatalf("unexpected error open file: %v", err)
 	}
 
-	r, err := tsm1.NewTSMReader(f)
+	r, err := NewTSMReader(f)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
 	defer r.Close()
 
 	var count int
-	for _, d := range data {
-		readValues, err := r.ReadAll([]byte(d.key))
+	for k, vals := range data {
+		readValues, err := r.ReadAll([]byte(k))
 		if err != nil {
 			t.Fatalf("unexpected error readin: %v", err)
 		}
 
-		if exp := len(d.values); exp != len(readValues) {
+		if exp := len(vals); exp != len(readValues) {
 			t.Fatalf("read values length mismatch: got %v, exp %v", len(readValues), exp)
 		}
 
-		for i, v := range d.values {
+		for i, v := range vals {
 			if v.Value() != readValues[i].Value() {
 				t.Fatalf("read value mismatch(%d): got %v, exp %d", i, readValues[i].Value(), v.Value())
 			}
@@ -135,38 +131,37 @@ func TestTSMReader_MMAP_ReadAll(t *testing.T) {
 }
 
 func TestTSMReader_MMAP_Read(t *testing.T) {
-	dir := MustTempDir()
+	dir := mustTempDir()
 	defer os.RemoveAll(dir)
-	f := MustTempFile(dir)
+	f := mustTempFile(dir)
 	defer f.Close()
 
-	w, err := tsm1.NewTSMWriter(f)
+	w, err := NewTSMWriter(f)
 	if err != nil {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
 
-	var data = []struct {
-		key    string
-		values []tsm1.Value
-	}{
-		{"float", []tsm1.Value{
-			tsm1.NewValue(1, 1.0)},
-		},
-		{"int", []tsm1.Value{
-			tsm1.NewValue(1, int64(1))},
-		},
-		{"uint", []tsm1.Value{
-			tsm1.NewValue(1, ^uint64(0))},
-		},
-		{"bool", []tsm1.Value{
-			tsm1.NewValue(1, true)},
-		},
-		{"string", []tsm1.Value{
-			tsm1.NewValue(1, "foo")},
-		},
+	var data = map[string][]Value{
+		"float": []Value{
+			NewValue(1, 1.0)},
+		"int": []Value{
+			NewValue(1, int64(1))},
+		"uint": []Value{
+			NewValue(1, ^uint64(0))},
+		"bool": []Value{
+			NewValue(1, true)},
+		"string": []Value{
+			NewValue(1, "foo")},
 	}
-	for _, d := range data {
-		if err := w.Write([]byte(d.key), d.values); err != nil {
+
+	keys := make([]string, 0, len(data))
+	for k := range data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		if err := w.Write([]byte(k), data[k]); err != nil {
 			t.Fatalf("unexpected error writing: %v", err)
 		}
 	}
@@ -184,24 +179,24 @@ func TestTSMReader_MMAP_Read(t *testing.T) {
 		t.Fatalf("unexpected error open file: %v", err)
 	}
 
-	r, err := tsm1.NewTSMReader(f)
+	r, err := NewTSMReader(f)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
 	defer r.Close()
 
 	var count int
-	for _, d := range data {
-		readValues, err := r.Read([]byte(d.key), d.values[0].UnixNano())
+	for k, vals := range data {
+		readValues, err := r.Read([]byte(k), vals[0].UnixNano())
 		if err != nil {
 			t.Fatalf("unexpected error readin: %v", err)
 		}
 
-		if exp := len(d.values); exp != len(readValues) {
+		if exp := len(vals); exp != len(readValues) {
 			t.Fatalf("read values length mismatch: got %v, exp %v", len(readValues), exp)
 		}
 
-		for i, v := range d.values {
+		for i, v := range vals {
 			if v.Value() != readValues[i].Value() {
 				t.Fatalf("read value mismatch(%d): got %v, exp %d", i, readValues[i].Value(), v.Value())
 			}
@@ -215,39 +210,37 @@ func TestTSMReader_MMAP_Read(t *testing.T) {
 }
 
 func TestTSMReader_MMAP_Keys(t *testing.T) {
-	dir := MustTempDir()
+	dir := mustTempDir()
 	defer os.RemoveAll(dir)
-	f := MustTempFile(dir)
+	f := mustTempFile(dir)
 	defer f.Close()
 
-	w, err := tsm1.NewTSMWriter(f)
+	w, err := NewTSMWriter(f)
 	if err != nil {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
 
-	var data = []struct {
-		key    string
-		values []tsm1.Value
-	}{
-		{"float", []tsm1.Value{
-			tsm1.NewValue(1, 1.0)},
-		},
-		{"int", []tsm1.Value{
-			tsm1.NewValue(1, int64(1))},
-		},
-		{"uint", []tsm1.Value{
-			tsm1.NewValue(1, ^uint64(0))},
-		},
-		{"bool", []tsm1.Value{
-			tsm1.NewValue(1, true)},
-		},
-		{"string", []tsm1.Value{
-			tsm1.NewValue(1, "foo")},
-		},
+	var data = map[string][]Value{
+		"float": []Value{
+			NewValue(1, 1.0)},
+		"int": []Value{
+			NewValue(1, int64(1))},
+		"uint": []Value{
+			NewValue(1, ^uint64(0))},
+		"bool": []Value{
+			NewValue(1, true)},
+		"string": []Value{
+			NewValue(1, "foo")},
 	}
 
-	for _, d := range data {
-		if err := w.Write([]byte(d.key), d.values); err != nil {
+	keys := make([]string, 0, len(data))
+	for k := range data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		if err := w.Write([]byte(k), data[k]); err != nil {
 			t.Fatalf("unexpected error writing: %v", err)
 		}
 	}
@@ -265,24 +258,24 @@ func TestTSMReader_MMAP_Keys(t *testing.T) {
 		t.Fatalf("unexpected error open file: %v", err)
 	}
 
-	r, err := tsm1.NewTSMReader(f)
+	r, err := NewTSMReader(f)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
 	defer r.Close()
 
 	var count int
-	for _, d := range data {
-		readValues, err := r.Read([]byte(d.key), d.values[0].UnixNano())
+	for k, vals := range data {
+		readValues, err := r.Read([]byte(k), vals[0].UnixNano())
 		if err != nil {
 			t.Fatalf("unexpected error readin: %v", err)
 		}
 
-		if exp := len(d.values); exp != len(readValues) {
+		if exp := len(vals); exp != len(readValues) {
 			t.Fatalf("read values length mismatch: got %v, exp %v", len(readValues), exp)
 		}
 
-		for i, v := range d.values {
+		for i, v := range vals {
 			if v.Value() != readValues[i].Value() {
 				t.Fatalf("read value mismatch(%d): got %v, exp %d", i, readValues[i].Value(), v.Value())
 			}
@@ -296,17 +289,17 @@ func TestTSMReader_MMAP_Keys(t *testing.T) {
 }
 
 func TestTSMReader_MMAP_Tombstone(t *testing.T) {
-	dir := MustTempDir()
+	dir := mustTempDir()
 	defer os.RemoveAll(dir)
-	f := MustTempFile(dir)
+	f := mustTempFile(dir)
 	defer f.Close()
 
-	w, err := tsm1.NewTSMWriter(f)
+	w, err := NewTSMWriter(f)
 	if err != nil {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
 
-	values := []tsm1.Value{tsm1.NewValue(0, 1.0)}
+	values := []Value{NewValue(0, 1.0)}
 	if err := w.Write([]byte("cpu"), values); err != nil {
 		t.Fatalf("unexpected error writing: %v", err)
 	}
@@ -328,7 +321,7 @@ func TestTSMReader_MMAP_Tombstone(t *testing.T) {
 		t.Fatalf("unexpected error open file: %v", err)
 	}
 
-	r, err := tsm1.NewTSMReader(f)
+	r, err := NewTSMReader(f)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
@@ -337,7 +330,7 @@ func TestTSMReader_MMAP_Tombstone(t *testing.T) {
 		t.Fatalf("unexpected error deleting: %v", err)
 	}
 
-	r, err = tsm1.NewTSMReader(f)
+	r, err = NewTSMReader(f)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
@@ -349,20 +342,20 @@ func TestTSMReader_MMAP_Tombstone(t *testing.T) {
 }
 
 func TestTSMReader_MMAP_TombstoneRange(t *testing.T) {
-	dir := MustTempDir()
+	dir := mustTempDir()
 	defer os.RemoveAll(dir)
-	f := MustTempFile(dir)
+	f := mustTempFile(dir)
 	defer f.Close()
 
-	w, err := tsm1.NewTSMWriter(f)
+	w, err := NewTSMWriter(f)
 	if err != nil {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
 
-	expValues := []tsm1.Value{
-		tsm1.NewValue(1, 1.0),
-		tsm1.NewValue(2, 2.0),
-		tsm1.NewValue(3, 3.0),
+	expValues := []Value{
+		NewValue(1, 1.0),
+		NewValue(2, 2.0),
+		NewValue(3, 3.0),
 	}
 	if err := w.Write([]byte("cpu"), expValues); err != nil {
 		t.Fatalf("unexpected error writing: %v", err)
@@ -381,7 +374,7 @@ func TestTSMReader_MMAP_TombstoneRange(t *testing.T) {
 		t.Fatalf("unexpected error open file: %v", err)
 	}
 
-	r, err := tsm1.NewTSMReader(f)
+	r, err := NewTSMReader(f)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
@@ -414,20 +407,20 @@ func TestTSMReader_MMAP_TombstoneRange(t *testing.T) {
 }
 
 func TestTSMReader_MMAP_TombstoneOutsideTimeRange(t *testing.T) {
-	dir := MustTempDir()
+	dir := mustTempDir()
 	defer os.RemoveAll(dir)
-	f := MustTempFile(dir)
+	f := mustTempFile(dir)
 	defer f.Close()
 
-	w, err := tsm1.NewTSMWriter(f)
+	w, err := NewTSMWriter(f)
 	if err != nil {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
 
-	expValues := []tsm1.Value{
-		tsm1.NewValue(1, 1.0),
-		tsm1.NewValue(2, 2.0),
-		tsm1.NewValue(3, 3.0),
+	expValues := []Value{
+		NewValue(1, 1.0),
+		NewValue(2, 2.0),
+		NewValue(3, 3.0),
 	}
 	if err := w.Write([]byte("cpu"), expValues); err != nil {
 		t.Fatalf("unexpected error writing: %v", err)
@@ -446,7 +439,7 @@ func TestTSMReader_MMAP_TombstoneOutsideTimeRange(t *testing.T) {
 		t.Fatalf("unexpected error open file: %v", err)
 	}
 
-	r, err := tsm1.NewTSMReader(f)
+	r, err := NewTSMReader(f)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
@@ -478,20 +471,20 @@ func TestTSMReader_MMAP_TombstoneOutsideTimeRange(t *testing.T) {
 }
 
 func TestTSMReader_MMAP_TombstoneOutsideKeyRange(t *testing.T) {
-	dir := MustTempDir()
+	dir := mustTempDir()
 	defer os.RemoveAll(dir)
-	f := MustTempFile(dir)
+	f := mustTempFile(dir)
 	defer f.Close()
 
-	w, err := tsm1.NewTSMWriter(f)
+	w, err := NewTSMWriter(f)
 	if err != nil {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
 
-	expValues := []tsm1.Value{
-		tsm1.NewValue(1, 1.0),
-		tsm1.NewValue(2, 2.0),
-		tsm1.NewValue(3, 3.0),
+	expValues := []Value{
+		NewValue(1, 1.0),
+		NewValue(2, 2.0),
+		NewValue(3, 3.0),
 	}
 	if err := w.Write([]byte("cpu"), expValues); err != nil {
 		t.Fatalf("unexpected error writing: %v", err)
@@ -510,7 +503,7 @@ func TestTSMReader_MMAP_TombstoneOutsideKeyRange(t *testing.T) {
 		t.Fatalf("unexpected error open file: %v", err)
 	}
 
-	r, err := tsm1.NewTSMReader(f)
+	r, err := NewTSMReader(f)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
@@ -543,20 +536,20 @@ func TestTSMReader_MMAP_TombstoneOutsideKeyRange(t *testing.T) {
 }
 
 func TestTSMReader_MMAP_TombstoneOverlapKeyRange(t *testing.T) {
-	dir := MustTempDir()
+	dir := mustTempDir()
 	defer os.RemoveAll(dir)
-	f := MustTempFile(dir)
+	f := mustTempFile(dir)
 	defer f.Close()
 
-	w, err := tsm1.NewTSMWriter(f)
+	w, err := NewTSMWriter(f)
 	if err != nil {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
 
-	expValues := []tsm1.Value{
-		tsm1.NewValue(1, 1.0),
-		tsm1.NewValue(2, 2.0),
-		tsm1.NewValue(3, 3.0),
+	expValues := []Value{
+		NewValue(1, 1.0),
+		NewValue(2, 2.0),
+		NewValue(3, 3.0),
 	}
 	if err := w.Write([]byte("cpu,app=foo,host=server-0#!~#value"), expValues); err != nil {
 		t.Fatalf("unexpected error writing: %v", err)
@@ -579,7 +572,7 @@ func TestTSMReader_MMAP_TombstoneOverlapKeyRange(t *testing.T) {
 		t.Fatalf("unexpected error open file: %v", err)
 	}
 
-	r, err := tsm1.NewTSMReader(f)
+	r, err := NewTSMReader(f)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
@@ -611,20 +604,20 @@ func TestTSMReader_MMAP_TombstoneOverlapKeyRange(t *testing.T) {
 }
 
 func TestTSMReader_MMAP_TombstoneFullRange(t *testing.T) {
-	dir := MustTempDir()
+	dir := mustTempDir()
 	defer os.RemoveAll(dir)
-	f := MustTempFile(dir)
+	f := mustTempFile(dir)
 	defer f.Close()
 
-	w, err := tsm1.NewTSMWriter(f)
+	w, err := NewTSMWriter(f)
 	if err != nil {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
 
-	expValues := []tsm1.Value{
-		tsm1.NewValue(1, 1.0),
-		tsm1.NewValue(2, 2.0),
-		tsm1.NewValue(3, 3.0),
+	expValues := []Value{
+		NewValue(1, 1.0),
+		NewValue(2, 2.0),
+		NewValue(3, 3.0),
 	}
 	if err := w.Write([]byte("cpu"), expValues); err != nil {
 		t.Fatalf("unexpected error writing: %v", err)
@@ -643,7 +636,7 @@ func TestTSMReader_MMAP_TombstoneFullRange(t *testing.T) {
 		t.Fatalf("unexpected error open file: %v", err)
 	}
 
-	r, err := tsm1.NewTSMReader(f)
+	r, err := NewTSMReader(f)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
@@ -664,22 +657,22 @@ func TestTSMReader_MMAP_TombstoneFullRange(t *testing.T) {
 }
 
 func TestTSMReader_MMAP_TombstoneMultipleRanges(t *testing.T) {
-	dir := MustTempDir()
+	dir := mustTempDir()
 	defer os.RemoveAll(dir)
-	f := MustTempFile(dir)
+	f := mustTempFile(dir)
 	defer f.Close()
 
-	w, err := tsm1.NewTSMWriter(f)
+	w, err := NewTSMWriter(f)
 	if err != nil {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
 
-	expValues := []tsm1.Value{
-		tsm1.NewValue(1, 1.0),
-		tsm1.NewValue(2, 2.0),
-		tsm1.NewValue(3, 3.0),
-		tsm1.NewValue(4, 4.0),
-		tsm1.NewValue(5, 5.0),
+	expValues := []Value{
+		NewValue(1, 1.0),
+		NewValue(2, 2.0),
+		NewValue(3, 3.0),
+		NewValue(4, 4.0),
+		NewValue(5, 5.0),
 	}
 	if err := w.Write([]byte("cpu"), expValues); err != nil {
 		t.Fatalf("unexpected error writing: %v", err)
@@ -698,7 +691,7 @@ func TestTSMReader_MMAP_TombstoneMultipleRanges(t *testing.T) {
 		t.Fatalf("unexpected error open file: %v", err)
 	}
 
-	r, err := tsm1.NewTSMReader(f)
+	r, err := NewTSMReader(f)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
@@ -723,29 +716,29 @@ func TestTSMReader_MMAP_TombstoneMultipleRanges(t *testing.T) {
 }
 
 func TestTSMReader_MMAP_TombstoneOutsideRange(t *testing.T) {
-	dir := MustTempDir()
+	dir := mustTempDir()
 	defer os.RemoveAll(dir)
-	f := MustTempFile(dir)
+	f := mustTempFile(dir)
 	defer f.Close()
 
-	w, err := tsm1.NewTSMWriter(f)
+	w, err := NewTSMWriter(f)
 	if err != nil {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
 
-	cpuValues := []tsm1.Value{
-		tsm1.NewValue(1, 1.0),
-		tsm1.NewValue(2, 2.0),
-		tsm1.NewValue(3, 3.0),
+	cpuValues := []Value{
+		NewValue(1, 1.0),
+		NewValue(2, 2.0),
+		NewValue(3, 3.0),
 	}
 	if err := w.Write([]byte("cpu"), cpuValues); err != nil {
 		t.Fatalf("unexpected error writing: %v", err)
 	}
 
-	memValues := []tsm1.Value{
-		tsm1.NewValue(1, 1.0),
-		tsm1.NewValue(2, 2.0),
-		tsm1.NewValue(30, 3.0),
+	memValues := []Value{
+		NewValue(1, 1.0),
+		NewValue(2, 2.0),
+		NewValue(30, 3.0),
 	}
 	if err := w.Write([]byte("mem"), memValues); err != nil {
 		t.Fatalf("unexpected error writing: %v", err)
@@ -764,7 +757,7 @@ func TestTSMReader_MMAP_TombstoneOutsideRange(t *testing.T) {
 		t.Fatalf("unexpected error open file: %v", err)
 	}
 
-	r, err := tsm1.NewTSMReader(f)
+	r, err := NewTSMReader(f)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
@@ -807,22 +800,22 @@ func TestTSMReader_MMAP_TombstoneOutsideRange(t *testing.T) {
 }
 
 func TestTSMReader_MMAP_Stats(t *testing.T) {
-	dir := MustTempDir()
+	dir := mustTempDir()
 	defer os.RemoveAll(dir)
-	f := MustTempFile(dir)
+	f := mustTempFile(dir)
 	defer f.Close()
 
-	w, err := tsm1.NewTSMWriter(f)
+	w, err := NewTSMWriter(f)
 	if err != nil {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
 
-	values1 := []tsm1.Value{tsm1.NewValue(0, 1.0)}
+	values1 := []Value{NewValue(0, 1.0)}
 	if err := w.Write([]byte("cpu"), values1); err != nil {
 		t.Fatalf("unexpected error writing: %v", err)
 	}
 
-	values2 := []tsm1.Value{tsm1.NewValue(1, 1.0)}
+	values2 := []Value{NewValue(1, 1.0)}
 	if err := w.Write([]byte("mem"), values2); err != nil {
 		t.Fatalf("unexpected error writing: %v", err)
 	}
@@ -840,7 +833,7 @@ func TestTSMReader_MMAP_Stats(t *testing.T) {
 		t.Fatalf("unexpected error open file: %v", err)
 	}
 
-	r, err := tsm1.NewTSMReader(f)
+	r, err := NewTSMReader(f)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
@@ -870,37 +863,37 @@ func TestTSMReader_MMAP_Stats(t *testing.T) {
 
 // Ensure that we return an error if we try to open a non-tsm file
 func TestTSMReader_VerifiesFileType(t *testing.T) {
-	dir := MustTempDir()
+	dir := mustTempDir()
 	defer os.RemoveAll(dir)
-	f := MustTempFile(dir)
+	f := mustTempFile(dir)
 	defer f.Close()
 
 	// write some garbage
 	f.Write([]byte{0x23, 0xac, 0x99, 0x22, 0x77, 0x23, 0xac, 0x99, 0x22, 0x77, 0x23, 0xac, 0x99, 0x22, 0x77, 0x23, 0xac, 0x99, 0x22, 0x77})
 
-	_, err := tsm1.NewTSMReader(f)
+	_, err := NewTSMReader(f)
 	if err == nil {
 		t.Fatal("expected error trying to open non-tsm file")
 	}
 }
 
 func TestIndirectIndex_Entries(t *testing.T) {
-	index := tsm1.NewIndexWriter()
-	index.Add([]byte("cpu"), tsm1.BlockFloat64, 0, 1, 10, 100)
-	index.Add([]byte("cpu"), tsm1.BlockFloat64, 2, 3, 20, 200)
-	index.Add([]byte("mem"), tsm1.BlockFloat64, 0, 1, 10, 100)
+	index := NewIndexWriter()
+	index.Add([]byte("cpu"), BlockFloat64, 0, 1, 10, 100)
+	index.Add([]byte("cpu"), BlockFloat64, 2, 3, 20, 200)
+	index.Add([]byte("mem"), BlockFloat64, 0, 1, 10, 100)
+	exp := index.Entries([]byte("cpu"))
 
 	b, err := index.MarshalBinary()
 	if err != nil {
 		t.Fatalf("unexpected error marshaling index: %v", err)
 	}
 
-	indirect := tsm1.NewIndirectIndex()
+	indirect := NewIndirectIndex()
 	if err := indirect.UnmarshalBinary(b); err != nil {
 		t.Fatalf("unexpected error unmarshaling index: %v", err)
 	}
 
-	exp := index.Entries([]byte("cpu"))
 	entries := indirect.Entries([]byte("cpu"))
 
 	if got, exp := len(entries), len(exp); got != exp {
@@ -927,16 +920,16 @@ func TestIndirectIndex_Entries(t *testing.T) {
 }
 
 func TestIndirectIndex_Entries_NonExistent(t *testing.T) {
-	index := tsm1.NewIndexWriter()
-	index.Add([]byte("cpu"), tsm1.BlockFloat64, 0, 1, 10, 100)
-	index.Add([]byte("cpu"), tsm1.BlockFloat64, 2, 3, 20, 200)
+	index := NewIndexWriter()
+	index.Add([]byte("cpu"), BlockFloat64, 0, 1, 10, 100)
+	index.Add([]byte("cpu"), BlockFloat64, 2, 3, 20, 200)
 
 	b, err := index.MarshalBinary()
 	if err != nil {
 		t.Fatalf("unexpected error marshaling index: %v", err)
 	}
 
-	indirect := tsm1.NewIndirectIndex()
+	indirect := NewIndirectIndex()
 	if err := indirect.UnmarshalBinary(b); err != nil {
 		t.Fatalf("unexpected error unmarshaling index: %v", err)
 	}
@@ -952,9 +945,9 @@ func TestIndirectIndex_Entries_NonExistent(t *testing.T) {
 }
 
 func TestIndirectIndex_MaxBlocks(t *testing.T) {
-	index := tsm1.NewIndexWriter()
+	index := NewIndexWriter()
 	for i := 0; i < 1<<16; i++ {
-		index.Add([]byte("cpu"), tsm1.BlockFloat64, 0, 1, 10, 20)
+		index.Add([]byte("cpu"), BlockFloat64, 0, 1, 10, 20)
 	}
 
 	if _, err := index.MarshalBinary(); err == nil {
@@ -965,15 +958,15 @@ func TestIndirectIndex_MaxBlocks(t *testing.T) {
 }
 
 func TestIndirectIndex_Type(t *testing.T) {
-	index := tsm1.NewIndexWriter()
-	index.Add([]byte("cpu"), tsm1.BlockInteger, 0, 1, 10, 20)
+	index := NewIndexWriter()
+	index.Add([]byte("cpu"), BlockInteger, 0, 1, 10, 20)
 
 	b, err := index.MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	ind := tsm1.NewIndirectIndex()
+	ind := NewIndirectIndex()
 	if err := ind.UnmarshalBinary(b); err != nil {
 		fatal(t, "unmarshal binary", err)
 	}
@@ -983,16 +976,16 @@ func TestIndirectIndex_Type(t *testing.T) {
 		fatal(t, "reading type", err)
 	}
 
-	if got, exp := typ, tsm1.BlockInteger; got != exp {
+	if got, exp := typ, BlockInteger; got != exp {
 		t.Fatalf("type mismatch: got %v, exp %v", got, exp)
 	}
 }
 
 func TestIndirectIndex_Keys(t *testing.T) {
-	index := tsm1.NewIndexWriter()
-	index.Add([]byte("cpu"), tsm1.BlockFloat64, 0, 1, 10, 20)
-	index.Add([]byte("mem"), tsm1.BlockFloat64, 0, 1, 10, 20)
-	index.Add([]byte("cpu"), tsm1.BlockFloat64, 1, 2, 20, 30)
+	index := NewIndexWriter()
+	index.Add([]byte("cpu"), BlockFloat64, 0, 1, 10, 20)
+	index.Add([]byte("cpu"), BlockFloat64, 1, 2, 20, 30)
+	index.Add([]byte("mem"), BlockFloat64, 0, 1, 10, 20)
 
 	keys := index.Keys()
 
@@ -1012,16 +1005,16 @@ func TestIndirectIndex_Keys(t *testing.T) {
 }
 
 func TestBlockIterator_Single(t *testing.T) {
-	dir := MustTempDir()
+	dir := mustTempDir()
 	defer os.RemoveAll(dir)
-	f := MustTempFile(dir)
+	f := mustTempFile(dir)
 
-	w, err := tsm1.NewTSMWriter(f)
+	w, err := NewTSMWriter(f)
 	if err != nil {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
 
-	values := []tsm1.Value{tsm1.NewValue(0, int64(1))}
+	values := []Value{NewValue(0, int64(1))}
 	if err := w.Write([]byte("cpu"), values); err != nil {
 		t.Fatalf("unexpected error writing: %v", err)
 
@@ -1039,7 +1032,7 @@ func TestBlockIterator_Single(t *testing.T) {
 		t.Fatalf("unexpected error opening: %v", err)
 	}
 
-	r, err := tsm1.NewTSMReader(fd)
+	r, err := NewTSMReader(fd)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
@@ -1064,7 +1057,7 @@ func TestBlockIterator_Single(t *testing.T) {
 			t.Fatalf("max time mismatch: got %v, exp %v", got, exp)
 		}
 
-		if got, exp := typ, tsm1.BlockInteger; got != exp {
+		if got, exp := typ, BlockInteger; got != exp {
 			t.Fatalf("block type mismatch: got %v, exp %v", got, exp)
 		}
 
@@ -1081,21 +1074,21 @@ func TestBlockIterator_Single(t *testing.T) {
 }
 
 func TestBlockIterator_MultipleBlocks(t *testing.T) {
-	dir := MustTempDir()
+	dir := mustTempDir()
 	defer os.RemoveAll(dir)
-	f := MustTempFile(dir)
+	f := mustTempFile(dir)
 
-	w, err := tsm1.NewTSMWriter(f)
+	w, err := NewTSMWriter(f)
 	if err != nil {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
 
-	values1 := []tsm1.Value{tsm1.NewValue(0, int64(1))}
+	values1 := []Value{NewValue(0, int64(1))}
 	if err := w.Write([]byte("cpu"), values1); err != nil {
 		t.Fatalf("unexpected error writing: %v", err)
 	}
 
-	values2 := []tsm1.Value{tsm1.NewValue(1, int64(2))}
+	values2 := []Value{NewValue(1, int64(2))}
 	if err := w.Write([]byte("cpu"), values2); err != nil {
 		t.Fatalf("unexpected error writing: %v", err)
 	}
@@ -1113,13 +1106,13 @@ func TestBlockIterator_MultipleBlocks(t *testing.T) {
 		t.Fatalf("unexpected error opening: %v", err)
 	}
 
-	r, err := tsm1.NewTSMReader(fd)
+	r, err := NewTSMReader(fd)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
 
 	var count int
-	expData := []tsm1.Values{values1, values2}
+	expData := []Values{values1, values2}
 	iter := r.BlockIterator()
 	var i int
 	for iter.Next() {
@@ -1141,7 +1134,7 @@ func TestBlockIterator_MultipleBlocks(t *testing.T) {
 			t.Fatalf("max time mismatch: got %v, exp %v", got, exp)
 		}
 
-		if got, exp := typ, tsm1.BlockInteger; got != exp {
+		if got, exp := typ, BlockInteger; got != exp {
 			t.Fatalf("block type mismatch: got %v, exp %v", got, exp)
 		}
 
@@ -1159,25 +1152,31 @@ func TestBlockIterator_MultipleBlocks(t *testing.T) {
 }
 
 func TestBlockIterator_Sorted(t *testing.T) {
-	dir := MustTempDir()
+	dir := mustTempDir()
 	defer os.RemoveAll(dir)
-	f := MustTempFile(dir)
+	f := mustTempFile(dir)
 
-	w, err := tsm1.NewTSMWriter(f)
+	w, err := NewTSMWriter(f)
 	if err != nil {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
 
-	values := map[string][]tsm1.Value{
-		"mem":    []tsm1.Value{tsm1.NewValue(0, int64(1))},
-		"cycles": []tsm1.Value{tsm1.NewValue(0, ^uint64(0))},
-		"cpu":    []tsm1.Value{tsm1.NewValue(1, float64(2))},
-		"disk":   []tsm1.Value{tsm1.NewValue(1, true)},
-		"load":   []tsm1.Value{tsm1.NewValue(1, "string")},
+	values := map[string][]Value{
+		"mem":    []Value{NewValue(0, int64(1))},
+		"cycles": []Value{NewValue(0, ^uint64(0))},
+		"cpu":    []Value{NewValue(1, float64(2))},
+		"disk":   []Value{NewValue(1, true)},
+		"load":   []Value{NewValue(1, "string")},
 	}
 
-	for k, v := range values {
-		if err := w.Write([]byte(k), v); err != nil {
+	keys := make([]string, 0, len(values))
+	for k := range values {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		if err := w.Write([]byte(k), values[k]); err != nil {
 			t.Fatalf("unexpected error writing: %v", err)
 
 		}
@@ -1196,7 +1195,7 @@ func TestBlockIterator_Sorted(t *testing.T) {
 		t.Fatalf("unexpected error opening: %v", err)
 	}
 
-	r, err := tsm1.NewTSMReader(fd)
+	r, err := NewTSMReader(fd)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
@@ -1230,18 +1229,18 @@ func TestBlockIterator_Sorted(t *testing.T) {
 }
 
 func TestIndirectIndex_UnmarshalBinary_BlockCountOverflow(t *testing.T) {
-	dir := MustTempDir()
+	dir := mustTempDir()
 	defer os.RemoveAll(dir)
-	f := MustTempFile(dir)
+	f := mustTempFile(dir)
 	defer f.Close()
 
-	w, err := tsm1.NewTSMWriter(f)
+	w, err := NewTSMWriter(f)
 	if err != nil {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
 
 	for i := 0; i < 3280; i++ {
-		w.Write([]byte("cpu"), []tsm1.Value{tsm1.NewValue(int64(i), float64(i))})
+		w.Write([]byte("cpu"), []Value{NewValue(int64(i), float64(i))})
 	}
 
 	if err := w.WriteIndex(); err != nil {
@@ -1257,7 +1256,7 @@ func TestIndirectIndex_UnmarshalBinary_BlockCountOverflow(t *testing.T) {
 		t.Fatalf("unexpected error open file: %v", err)
 	}
 
-	r, err := tsm1.NewTSMReader(f)
+	r, err := NewTSMReader(f)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
@@ -1265,16 +1264,16 @@ func TestIndirectIndex_UnmarshalBinary_BlockCountOverflow(t *testing.T) {
 }
 
 func TestCompacted_NotFull(t *testing.T) {
-	dir := MustTempDir()
+	dir := mustTempDir()
 	defer os.RemoveAll(dir)
-	f := MustTempFile(dir)
+	f := mustTempFile(dir)
 
-	w, err := tsm1.NewTSMWriter(f)
+	w, err := NewTSMWriter(f)
 	if err != nil {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
 
-	values := []tsm1.Value{tsm1.NewValue(0, 1.0)}
+	values := []Value{NewValue(0, 1.0)}
 	if err := w.Write([]byte("cpu"), values); err != nil {
 		t.Fatalf("unexpected error writing: %v", err)
 
@@ -1292,7 +1291,7 @@ func TestCompacted_NotFull(t *testing.T) {
 		t.Fatalf("unexpected error open file: %v", err)
 	}
 
-	r, err := tsm1.NewTSMReader(fd)
+	r, err := NewTSMReader(fd)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
@@ -1307,45 +1306,43 @@ func TestCompacted_NotFull(t *testing.T) {
 		t.Fatalf("unexpected error reading block: %v", err)
 	}
 
-	if got, exp := tsm1.BlockCount(block), 1; got != exp {
+	if got, exp := BlockCount(block), 1; got != exp {
 		t.Fatalf("block count mismatch: got %v, exp %v", got, exp)
 	}
 }
 
 func TestTSMReader_File_ReadAll(t *testing.T) {
-	dir := MustTempDir()
+	dir := mustTempDir()
 	defer os.RemoveAll(dir)
-	f := MustTempFile(dir)
+	f := mustTempFile(dir)
 	defer f.Close()
 
-	w, err := tsm1.NewTSMWriter(f)
+	w, err := NewTSMWriter(f)
 	if err != nil {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
 
-	var data = []struct {
-		key    string
-		values []tsm1.Value
-	}{
-		{"float", []tsm1.Value{
-			tsm1.NewValue(1, 1.0)},
-		},
-		{"int", []tsm1.Value{
-			tsm1.NewValue(1, int64(1))},
-		},
-		{"uint", []tsm1.Value{
-			tsm1.NewValue(1, ^uint64(0))},
-		},
-		{"bool", []tsm1.Value{
-			tsm1.NewValue(1, true)},
-		},
-		{"string", []tsm1.Value{
-			tsm1.NewValue(1, "foo")},
-		},
+	var data = map[string][]Value{
+		"float": []Value{
+			NewValue(1, 1.0)},
+		"int": []Value{
+			NewValue(1, int64(1))},
+		"uint": []Value{
+			NewValue(1, ^uint64(0))},
+		"bool": []Value{
+			NewValue(1, true)},
+		"string": []Value{
+			NewValue(1, "foo")},
 	}
 
-	for _, d := range data {
-		if err := w.Write([]byte(d.key), d.values); err != nil {
+	keys := make([]string, 0, len(data))
+	for k := range data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		if err := w.Write([]byte(k), data[k]); err != nil {
 			t.Fatalf("unexpected error writing: %v", err)
 		}
 	}
@@ -1363,24 +1360,24 @@ func TestTSMReader_File_ReadAll(t *testing.T) {
 		t.Fatalf("unexpected error open file: %v", err)
 	}
 
-	r, err := tsm1.NewTSMReader(f)
+	r, err := NewTSMReader(f)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
 	defer r.Close()
 
 	var count int
-	for _, d := range data {
-		readValues, err := r.ReadAll([]byte(d.key))
+	for k, vals := range data {
+		readValues, err := r.ReadAll([]byte(k))
 		if err != nil {
 			t.Fatalf("unexpected error reading: %v", err)
 		}
 
-		if exp := len(d.values); exp != len(readValues) {
+		if exp := len(vals); exp != len(readValues) {
 			t.Fatalf("read values length mismatch: exp %v, got %v", exp, len(readValues))
 		}
 
-		for i, v := range d.values {
+		for i, v := range vals {
 			if exp, got := v.Value(), readValues[i].Value(); exp != got {
 				t.Fatalf("read value mismatch(%d): exp %v, got %d", i, v.Value(), readValues[i].Value())
 			}
@@ -1424,7 +1421,7 @@ func TestTSMReader_FuzzCrashes(t *testing.T) {
 
 	for _, c := range cases {
 		func() {
-			dir := MustTempDir()
+			dir := mustTempDir()
 			defer os.RemoveAll(dir)
 
 			filename := filepath.Join(dir, "x.tsm")
@@ -1439,7 +1436,7 @@ func TestTSMReader_FuzzCrashes(t *testing.T) {
 			}
 			defer f.Close()
 
-			r, err := tsm1.NewTSMReader(f)
+			r, err := NewTSMReader(f)
 			if err != nil {
 				return
 			}
@@ -1463,38 +1460,37 @@ func TestTSMReader_FuzzCrashes(t *testing.T) {
 }
 
 func TestTSMReader_File_Read(t *testing.T) {
-	dir := MustTempDir()
+	dir := mustTempDir()
 	defer os.RemoveAll(dir)
-	f := MustTempFile(dir)
+	f := mustTempFile(dir)
 	defer f.Close()
 
-	w, err := tsm1.NewTSMWriter(f)
+	w, err := NewTSMWriter(f)
 	if err != nil {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
 
-	var data = []struct {
-		key    string
-		values []tsm1.Value
-	}{
-		{"float", []tsm1.Value{
-			tsm1.NewValue(1, 1.0)},
-		},
-		{"int", []tsm1.Value{
-			tsm1.NewValue(1, int64(1))},
-		},
-		{"uint", []tsm1.Value{
-			tsm1.NewValue(1, ^uint64(0))},
-		},
-		{"bool", []tsm1.Value{
-			tsm1.NewValue(1, true)},
-		},
-		{"string", []tsm1.Value{
-			tsm1.NewValue(1, "foo")},
-		},
+	var data = map[string][]Value{
+		"float": []Value{
+			NewValue(1, 1.0)},
+		"int": []Value{
+			NewValue(1, int64(1))},
+		"uint": []Value{
+			NewValue(1, ^uint64(0))},
+		"bool": []Value{
+			NewValue(1, true)},
+		"string": []Value{
+			NewValue(1, "foo")},
 	}
-	for _, d := range data {
-		if err := w.Write([]byte(d.key), d.values); err != nil {
+
+	keys := make([]string, 0, len(data))
+	for k := range data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		if err := w.Write([]byte(k), data[k]); err != nil {
 			t.Fatalf("unexpected error writing: %v", err)
 		}
 	}
@@ -1512,24 +1508,24 @@ func TestTSMReader_File_Read(t *testing.T) {
 		t.Fatalf("unexpected error open file: %v", err)
 	}
 
-	r, err := tsm1.NewTSMReader(f)
+	r, err := NewTSMReader(f)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
 	defer r.Close()
 
 	var count int
-	for _, d := range data {
-		readValues, err := r.Read([]byte(d.key), d.values[0].UnixNano())
+	for k, vals := range data {
+		readValues, err := r.Read([]byte(k), vals[0].UnixNano())
 		if err != nil {
 			t.Fatalf("unexpected error readin: %v", err)
 		}
 
-		if exp, got := len(d.values), len(readValues); exp != got {
+		if exp, got := len(vals), len(readValues); exp != got {
 			t.Fatalf("read values length mismatch: exp %v, got %v", exp, len(readValues))
 		}
 
-		for i, v := range d.values {
+		for i, v := range vals {
 			if v.Value() != readValues[i].Value() {
 				t.Fatalf("read value mismatch(%d): exp %v, got %d", i, v.Value(), readValues[i].Value())
 			}
@@ -1543,38 +1539,37 @@ func TestTSMReader_File_Read(t *testing.T) {
 }
 
 func TestTSMReader_References(t *testing.T) {
-	dir := MustTempDir()
+	dir := mustTempDir()
 	defer os.RemoveAll(dir)
-	f := MustTempFile(dir)
+	f := mustTempFile(dir)
 	defer f.Close()
 
-	w, err := tsm1.NewTSMWriter(f)
+	w, err := NewTSMWriter(f)
 	if err != nil {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
 
-	var data = []struct {
-		key    string
-		values []tsm1.Value
-	}{
-		{"float", []tsm1.Value{
-			tsm1.NewValue(1, 1.0)},
-		},
-		{"int", []tsm1.Value{
-			tsm1.NewValue(1, int64(1))},
-		},
-		{"uint", []tsm1.Value{
-			tsm1.NewValue(1, ^uint64(0))},
-		},
-		{"bool", []tsm1.Value{
-			tsm1.NewValue(1, true)},
-		},
-		{"string", []tsm1.Value{
-			tsm1.NewValue(1, "foo")},
-		},
+	var data = map[string][]Value{
+		"float": []Value{
+			NewValue(1, 1.0)},
+		"int": []Value{
+			NewValue(1, int64(1))},
+		"uint": []Value{
+			NewValue(1, ^uint64(0))},
+		"bool": []Value{
+			NewValue(1, true)},
+		"string": []Value{
+			NewValue(1, "foo")},
 	}
-	for _, d := range data {
-		if err := w.Write([]byte(d.key), d.values); err != nil {
+
+	keys := make([]string, 0, len(data))
+	for k := range data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		if err := w.Write([]byte(k), data[k]); err != nil {
 			t.Fatalf("unexpected error writing: %v", err)
 		}
 	}
@@ -1592,7 +1587,7 @@ func TestTSMReader_References(t *testing.T) {
 		t.Fatalf("unexpected error open file: %v", err)
 	}
 
-	r, err := tsm1.NewTSMReader(f)
+	r, err := NewTSMReader(f)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
@@ -1600,26 +1595,26 @@ func TestTSMReader_References(t *testing.T) {
 
 	r.Ref()
 
-	if err := r.Close(); err != tsm1.ErrFileInUse {
+	if err := r.Close(); err != ErrFileInUse {
 		t.Fatalf("expected error closing reader: %v", err)
 	}
 
-	if err := r.Remove(); err != tsm1.ErrFileInUse {
+	if err := r.Remove(); err != ErrFileInUse {
 		t.Fatalf("expected error removing reader: %v", err)
 	}
 
 	var count int
-	for _, d := range data {
-		readValues, err := r.Read([]byte(d.key), d.values[0].UnixNano())
+	for k, vals := range data {
+		readValues, err := r.Read([]byte(k), vals[0].UnixNano())
 		if err != nil {
 			t.Fatalf("unexpected error readin: %v", err)
 		}
 
-		if exp, got := len(d.values), len(readValues); exp != got {
+		if exp, got := len(vals), len(readValues); exp != got {
 			t.Fatalf("read values length mismatch: exp %v, got %v", exp, len(readValues))
 		}
 
-		for i, v := range d.values {
+		for i, v := range vals {
 			if v.Value() != readValues[i].Value() {
 				t.Fatalf("read value mismatch(%d): exp %v, got %d", i, v.Value(), readValues[i].Value())
 			}
@@ -1642,9 +1637,9 @@ func TestTSMReader_References(t *testing.T) {
 }
 
 func BenchmarkIndirectIndex_UnmarshalBinary(b *testing.B) {
-	index := tsm1.NewIndexWriter()
+	index := NewIndexWriter()
 	for i := 0; i < 100000; i++ {
-		index.Add([]byte(fmt.Sprintf("cpu-%d", i)), tsm1.BlockFloat64, int64(i*2), int64(i*2+1), 10, 100)
+		index.Add([]byte(fmt.Sprintf("cpu-%d", i)), BlockFloat64, int64(i*2), int64(i*2+1), 10, 100)
 	}
 
 	bytes, err := index.MarshalBinary()
@@ -1652,11 +1647,63 @@ func BenchmarkIndirectIndex_UnmarshalBinary(b *testing.B) {
 		b.Fatalf("unexpected error marshaling index: %v", err)
 	}
 
-	indirect := tsm1.NewIndirectIndex()
+	indirect := NewIndirectIndex()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		if err := indirect.UnmarshalBinary(bytes); err != nil {
 			b.Fatalf("unexpected error unmarshaling index: %v", err)
+		}
+	}
+}
+
+func mustMakeIndex(tb testing.TB, keys, blocks int) *indirectIndex {
+	index := NewIndexWriter()
+	// add 1000 keys and 1000 blocks per key
+	for i := 0; i < keys; i++ {
+		for j := 0; j < blocks; j++ {
+			index.Add([]byte(fmt.Sprintf("cpu-%03d", i)), BlockFloat64, int64(i*j*2), int64(i*j*2+1), 10, 100)
+		}
+	}
+
+	bytes, err := index.MarshalBinary()
+	if err != nil {
+		tb.Fatalf("unexpected error marshaling index: %v", err)
+	}
+
+	indirect := NewIndirectIndex()
+	if err = indirect.UnmarshalBinary(bytes); err != nil {
+		tb.Fatalf("unexpected error unmarshaling index: %v", err)
+	}
+
+	return indirect
+}
+
+func BenchmarkIndirectIndex_Entries(b *testing.B) {
+	indirect := mustMakeIndex(b, 1000, 1000)
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		indirect.Entries([]byte("cpu-001"))
+	}
+}
+
+func BenchmarkIndirectIndex_ReadEntries(b *testing.B) {
+	var cache []IndexEntry
+	indirect := mustMakeIndex(b, 1000, 1000)
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		indirect.ReadEntries([]byte("cpu-001"), &cache)
+	}
+}
+
+func BenchmarkBlockIterator_Next(b *testing.B) {
+	r := TSMReader{index: mustMakeIndex(b, 1000, 1000)}
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		bi := r.BlockIterator()
+		for bi.Next() {
 		}
 	}
 }

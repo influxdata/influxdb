@@ -71,36 +71,49 @@ func TestDataType_LessThan(t *testing.T) {
 		{typ: influxql.Unknown, other: influxql.Unknown, exp: true},
 		{typ: influxql.Unknown, other: influxql.Float, exp: true},
 		{typ: influxql.Unknown, other: influxql.Integer, exp: true},
+		{typ: influxql.Unknown, other: influxql.Unsigned, exp: true},
 		{typ: influxql.Unknown, other: influxql.String, exp: true},
 		{typ: influxql.Unknown, other: influxql.Boolean, exp: true},
 		{typ: influxql.Unknown, other: influxql.Tag, exp: true},
 		{typ: influxql.Float, other: influxql.Unknown, exp: false},
 		{typ: influxql.Integer, other: influxql.Unknown, exp: false},
+		{typ: influxql.Unsigned, other: influxql.Unknown, exp: false},
 		{typ: influxql.String, other: influxql.Unknown, exp: false},
 		{typ: influxql.Boolean, other: influxql.Unknown, exp: false},
 		{typ: influxql.Tag, other: influxql.Unknown, exp: false},
 		{typ: influxql.Float, other: influxql.Float, exp: false},
 		{typ: influxql.Float, other: influxql.Integer, exp: false},
+		{typ: influxql.Float, other: influxql.Unsigned, exp: false},
 		{typ: influxql.Float, other: influxql.String, exp: false},
 		{typ: influxql.Float, other: influxql.Boolean, exp: false},
 		{typ: influxql.Float, other: influxql.Tag, exp: false},
 		{typ: influxql.Integer, other: influxql.Float, exp: true},
 		{typ: influxql.Integer, other: influxql.Integer, exp: false},
+		{typ: influxql.Integer, other: influxql.Unsigned, exp: false},
 		{typ: influxql.Integer, other: influxql.String, exp: false},
 		{typ: influxql.Integer, other: influxql.Boolean, exp: false},
 		{typ: influxql.Integer, other: influxql.Tag, exp: false},
+		{typ: influxql.Unsigned, other: influxql.Float, exp: true},
+		{typ: influxql.Unsigned, other: influxql.Integer, exp: true},
+		{typ: influxql.Unsigned, other: influxql.Unsigned, exp: false},
+		{typ: influxql.Unsigned, other: influxql.String, exp: false},
+		{typ: influxql.Unsigned, other: influxql.Boolean, exp: false},
+		{typ: influxql.Unsigned, other: influxql.Tag, exp: false},
 		{typ: influxql.String, other: influxql.Float, exp: true},
 		{typ: influxql.String, other: influxql.Integer, exp: true},
+		{typ: influxql.String, other: influxql.Unsigned, exp: true},
 		{typ: influxql.String, other: influxql.String, exp: false},
 		{typ: influxql.String, other: influxql.Boolean, exp: false},
 		{typ: influxql.String, other: influxql.Tag, exp: false},
 		{typ: influxql.Boolean, other: influxql.Float, exp: true},
 		{typ: influxql.Boolean, other: influxql.Integer, exp: true},
+		{typ: influxql.Boolean, other: influxql.Unsigned, exp: true},
 		{typ: influxql.Boolean, other: influxql.String, exp: true},
 		{typ: influxql.Boolean, other: influxql.Boolean, exp: false},
 		{typ: influxql.Boolean, other: influxql.Tag, exp: false},
 		{typ: influxql.Tag, other: influxql.Float, exp: true},
 		{typ: influxql.Tag, other: influxql.Integer, exp: true},
+		{typ: influxql.Tag, other: influxql.Unsigned, exp: true},
 		{typ: influxql.Tag, other: influxql.String, exp: true},
 		{typ: influxql.Tag, other: influxql.Boolean, exp: true},
 		{typ: influxql.Tag, other: influxql.Tag, exp: false},
@@ -226,24 +239,6 @@ func TestSelectStatement_SetTimeRange(t *testing.T) {
 	})
 	if !hasWhere {
 		t.Fatal("set time range cleared out the where clause")
-	}
-}
-
-// Ensure the idents from the select clause can come out
-func TestSelect_NamesInSelect(t *testing.T) {
-	s := MustParseSelectStatement("select count(asdf), count(bar) from cpu")
-	a := s.NamesInSelect()
-	if !reflect.DeepEqual(a, []string{"asdf", "bar"}) {
-		t.Fatal("expected names asdf and bar")
-	}
-}
-
-// Ensure the idents from the where clause can come out
-func TestSelect_NamesInWhere(t *testing.T) {
-	s := MustParseSelectStatement("select * from cpu where time > 23s AND (asdf = 'jkl' OR (foo = 'bar' AND baz = 'bar'))")
-	a := s.NamesInWhere()
-	if !reflect.DeepEqual(a, []string{"time", "asdf", "foo", "baz"}) {
-		t.Fatalf("exp: time,asdf,foo,baz\ngot: %s\n", strings.Join(a, ","))
 	}
 }
 
@@ -502,8 +497,8 @@ func TestSelectStatement_RewriteFields(t *testing.T) {
 			t.Fatalf("invalid statement: %q: %s", tt.stmt, err)
 		}
 
-		var ic IteratorCreator
-		ic.FieldDimensionsFn = func(m *influxql.Measurement) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
+		var mapper FieldMapper
+		mapper.FieldDimensionsFn = func(m *influxql.Measurement) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
 			switch m.Name {
 			case "cpu":
 				fields = map[string]influxql.DataType{
@@ -526,7 +521,7 @@ func TestSelectStatement_RewriteFields(t *testing.T) {
 		}
 
 		// Rewrite statement.
-		rw, err := stmt.(*influxql.SelectStatement).RewriteFields(&ic)
+		rw, err := stmt.(*influxql.SelectStatement).RewriteFields(&mapper)
 		if tt.err != "" {
 			if err != nil && err.Error() != tt.err {
 				t.Errorf("%d. %q: unexpected error: %s != %s", i, tt.stmt, err.Error(), tt.err)
@@ -708,133 +703,6 @@ func TestSelectStatement_IsRawQuerySet(t *testing.T) {
 	}
 }
 
-func TestSelectStatement_HasDerivative(t *testing.T) {
-	var tests = []struct {
-		stmt       string
-		derivative bool
-	}{
-		// No derivatives
-		{
-			stmt:       `SELECT value FROM cpu`,
-			derivative: false,
-		},
-
-		// Query derivative
-		{
-			stmt:       `SELECT derivative(value) FROM cpu`,
-			derivative: true,
-		},
-
-		// No GROUP BY time only
-		{
-			stmt:       `SELECT mean(value) FROM cpu where time < now() GROUP BY time(5ms)`,
-			derivative: false,
-		},
-
-		// No GROUP BY derivatives, time only
-		{
-			stmt:       `SELECT derivative(mean(value)) FROM cpu where time < now() GROUP BY time(5ms)`,
-			derivative: true,
-		},
-
-		{
-			stmt:       `SELECT value FROM cpu`,
-			derivative: false,
-		},
-
-		// Query derivative
-		{
-			stmt:       `SELECT non_negative_derivative(value) FROM cpu`,
-			derivative: true,
-		},
-
-		// No GROUP BY derivatives, time only
-		{
-			stmt:       `SELECT non_negative_derivative(mean(value)) FROM cpu where time < now() GROUP BY time(5ms)`,
-			derivative: true,
-		},
-
-		// Invalid derivative function name
-		{
-			stmt:       `SELECT typoDerivative(value) FROM cpu where time < now()`,
-			derivative: false,
-		},
-	}
-
-	for i, tt := range tests {
-		// Parse statement.
-		t.Logf("index: %d, statement: %s", i, tt.stmt)
-		stmt, err := influxql.NewParser(strings.NewReader(tt.stmt)).ParseStatement()
-		if err != nil {
-			t.Fatalf("invalid statement: %q: %s", tt.stmt, err)
-		}
-
-		// Test derivative detection.
-		if d := stmt.(*influxql.SelectStatement).HasDerivative(); tt.derivative != d {
-			t.Errorf("%d. %q: unexpected derivative detection:\n\nexp=%v\n\ngot=%v\n\n", i, tt.stmt, tt.derivative, d)
-			continue
-		}
-	}
-}
-
-func TestSelectStatement_IsSimpleDerivative(t *testing.T) {
-	var tests = []struct {
-		stmt       string
-		derivative bool
-	}{
-		// No derivatives
-		{
-			stmt:       `SELECT value FROM cpu`,
-			derivative: false,
-		},
-
-		// Query derivative
-		{
-			stmt:       `SELECT derivative(value) FROM cpu`,
-			derivative: true,
-		},
-
-		// Query derivative
-		{
-			stmt:       `SELECT non_negative_derivative(value) FROM cpu`,
-			derivative: true,
-		},
-
-		// No GROUP BY time only
-		{
-			stmt:       `SELECT mean(value) FROM cpu where time < now() GROUP BY time(5ms)`,
-			derivative: false,
-		},
-
-		// No GROUP BY derivatives, time only
-		{
-			stmt:       `SELECT non_negative_derivative(mean(value)) FROM cpu where time < now() GROUP BY time(5ms)`,
-			derivative: false,
-		},
-
-		// Invalid derivative function name
-		{
-			stmt:       `SELECT typoDerivative(value) FROM cpu where time < now()`,
-			derivative: false,
-		},
-	}
-
-	for i, tt := range tests {
-		// Parse statement.
-		t.Logf("index: %d, statement: %s", i, tt.stmt)
-		stmt, err := influxql.NewParser(strings.NewReader(tt.stmt)).ParseStatement()
-		if err != nil {
-			t.Fatalf("invalid statement: %q: %s", tt.stmt, err)
-		}
-
-		// Test derivative detection.
-		if d := stmt.(*influxql.SelectStatement).IsSimpleDerivative(); tt.derivative != d {
-			t.Errorf("%d. %q: unexpected derivative detection:\n\nexp=%v\n\ngot=%v\n\n", i, tt.stmt, tt.derivative, d)
-			continue
-		}
-	}
-}
-
 // Ensure binary expression names can be evaluated.
 func TestBinaryExprName(t *testing.T) {
 	for i, tt := range []struct {
@@ -858,123 +726,105 @@ func TestBinaryExprName(t *testing.T) {
 	}
 }
 
-// Ensure the time range of an expression can be extracted.
-func TestTimeRange(t *testing.T) {
-	for i, tt := range []struct {
-		expr          string
-		min, max, err string
-		loc           string
+func TestConditionExpr(t *testing.T) {
+	mustParseTime := func(value string) time.Time {
+		ts, err := time.Parse(time.RFC3339, value)
+		if err != nil {
+			t.Fatalf("unable to parse time: %s", err)
+		}
+		return ts
+	}
+	now := mustParseTime("2000-01-01T00:00:00Z")
+	valuer := influxql.NowValuer{Now: now}
+
+	for _, tt := range []struct {
+		s        string
+		cond     string
+		min, max time.Time
+		err      string
 	}{
-		// LHS VarRef
-		{expr: `time > '2000-01-01 00:00:00'`, min: `2000-01-01T00:00:00.000000001Z`, max: `0001-01-01T00:00:00Z`},
-		{expr: `time >= '2000-01-01 00:00:00'`, min: `2000-01-01T00:00:00Z`, max: `0001-01-01T00:00:00Z`},
-		{expr: `time < '2000-01-01 00:00:00'`, min: `0001-01-01T00:00:00Z`, max: `1999-12-31T23:59:59.999999999Z`},
-		{expr: `time <= '2000-01-01 00:00:00'`, min: `0001-01-01T00:00:00Z`, max: `2000-01-01T00:00:00Z`},
-
-		// RHS VarRef
-		{expr: `'2000-01-01 00:00:00' > time`, min: `0001-01-01T00:00:00Z`, max: `1999-12-31T23:59:59.999999999Z`},
-		{expr: `'2000-01-01 00:00:00' >= time`, min: `0001-01-01T00:00:00Z`, max: `2000-01-01T00:00:00Z`},
-		{expr: `'2000-01-01 00:00:00' < time`, min: `2000-01-01T00:00:00.000000001Z`, max: `0001-01-01T00:00:00Z`},
-		{expr: `'2000-01-01 00:00:00' <= time`, min: `2000-01-01T00:00:00Z`, max: `0001-01-01T00:00:00Z`},
-
-		// number literal
-		{expr: `time < 10`, min: `0001-01-01T00:00:00Z`, max: `1970-01-01T00:00:00.000000009Z`},
-
-		// Equality
-		{expr: `time = '2000-01-01 00:00:00'`, min: `2000-01-01T00:00:00Z`, max: `2000-01-01T00:00:00Z`},
-
-		// Multiple time expressions.
-		{expr: `time >= '2000-01-01 00:00:00' AND time < '2000-01-02 00:00:00'`, min: `2000-01-01T00:00:00Z`, max: `2000-01-01T23:59:59.999999999Z`},
-
-		// Min/max crossover
-		{expr: `time >= '2000-01-01 00:00:00' AND time <= '1999-01-01 00:00:00'`, min: `2000-01-01T00:00:00Z`, max: `1999-01-01T00:00:00Z`},
-
-		// Absolute time
-		{expr: `time = 1388534400s`, min: `2014-01-01T00:00:00Z`, max: `2014-01-01T00:00:00Z`},
-
-		// Non-comparative expressions.
-		{expr: `time`, min: `0001-01-01T00:00:00Z`, max: `0001-01-01T00:00:00Z`},
-		{expr: `time + 2`, min: `0001-01-01T00:00:00Z`, max: `0001-01-01T00:00:00Z`},
-		{expr: `time - '2000-01-01 00:00:00'`, min: `0001-01-01T00:00:00Z`, max: `0001-01-01T00:00:00Z`},
-		{expr: `time AND '2000-01-01 00:00:00'`, min: `0001-01-01T00:00:00Z`, max: `0001-01-01T00:00:00Z`},
-
-		// Invalid time expressions.
-		{expr: `time > "2000-01-01 00:00:00"`, min: `0001-01-01T00:00:00Z`, max: `0001-01-01T00:00:00Z`, err: `invalid operation: time and *influxql.VarRef are not compatible`},
-		{expr: `time > '2262-04-11 23:47:17'`, min: `0001-01-01T00:00:00Z`, max: `0001-01-01T00:00:00Z`, err: `time 2262-04-11T23:47:17Z overflows time literal`},
-		{expr: `time > '1677-09-20 19:12:43'`, min: `0001-01-01T00:00:00Z`, max: `0001-01-01T00:00:00Z`, err: `time 1677-09-20T19:12:43Z underflows time literal`},
-
-		// Time zone expressions.
-		{expr: `time >= '2000-01-01'`, loc: `America/Los_Angeles`, min: `2000-01-01T00:00:00-08:00`, max: `0001-01-01T00:00:00Z`},
-		{expr: `time <= '2000-01-01'`, loc: `America/Los_Angeles`, min: `0001-01-01T00:00:00Z`, max: `2000-01-01T00:00:00-08:00`},
-		{expr: `time >= '2000-01-01 03:17:00'`, loc: `America/Los_Angeles`, min: `2000-01-01T03:17:00-08:00`, max: `0001-01-01T00:00:00Z`},
-		{expr: `time <= '2000-01-01 03:17:00'`, loc: `America/Los_Angeles`, min: `0001-01-01T00:00:00Z`, max: `2000-01-01T03:17:00-08:00`},
+		{s: `host = 'server01'`, cond: `host = 'server01'`},
+		{s: `time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T01:00:00Z'`,
+			min: mustParseTime("2000-01-01T00:00:00Z"),
+			max: mustParseTime("2000-01-01T01:00:00Z").Add(-1)},
+		{s: `host = 'server01' AND (region = 'uswest' AND time >= now() - 10m)`,
+			cond: `host = 'server01' AND (region = 'uswest')`,
+			min:  mustParseTime("1999-12-31T23:50:00Z")},
+		{s: `(host = 'server01' AND region = 'uswest') AND time >= now() - 10m`,
+			cond: `(host = 'server01' AND region = 'uswest')`,
+			min:  mustParseTime("1999-12-31T23:50:00Z")},
+		{s: `host = 'server01' AND (time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T01:00:00Z')`,
+			cond: `host = 'server01'`,
+			min:  mustParseTime("2000-01-01T00:00:00Z"),
+			max:  mustParseTime("2000-01-01T01:00:00Z").Add(-1)},
+		{s: `(time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T01:00:00Z') AND host = 'server01'`,
+			cond: `host = 'server01'`,
+			min:  mustParseTime("2000-01-01T00:00:00Z"),
+			max:  mustParseTime("2000-01-01T01:00:00Z").Add(-1)},
+		{s: `'2000-01-01T00:00:00Z' <= time AND '2000-01-01T01:00:00Z' > time`,
+			min: mustParseTime("2000-01-01T00:00:00Z"),
+			max: mustParseTime("2000-01-01T01:00:00Z").Add(-1)},
+		{s: `'2000-01-01T00:00:00Z' < time AND '2000-01-01T01:00:00Z' >= time`,
+			min: mustParseTime("2000-01-01T00:00:00Z").Add(1),
+			max: mustParseTime("2000-01-01T01:00:00Z")},
+		{s: `time = '2000-01-01T00:00:00Z'`,
+			min: mustParseTime("2000-01-01T00:00:00Z"),
+			max: mustParseTime("2000-01-01T00:00:00Z")},
+		{s: `time >= 10s`, min: mustParseTime("1970-01-01T00:00:10Z")},
+		{s: `time >= 10000000000`, min: mustParseTime("1970-01-01T00:00:10Z")},
+		{s: `time >= 10000000000.0`, min: mustParseTime("1970-01-01T00:00:10Z")},
+		{s: `time > now()`, min: now.Add(1)},
+		{s: `value`, err: `invalid condition expression: value`},
+		{s: `4`, err: `invalid condition expression: 4`},
+		{s: `time >= 'today'`, err: `invalid operation: time and *influxql.StringLiteral are not compatible`},
+		{s: `time != '2000-01-01T00:00:00Z'`, err: `invalid time comparison operator: !=`},
+		// This query makes no logical sense, but it's common enough that we pretend
+		// it does. Technically, this should be illegal because the AND has higher precedence
+		// than the OR so the AND only applies to the server02 tag, but a person's intention
+		// is to have it apply to both and previous versions worked that way.
+		{s: `host = 'server01' OR host = 'server02' AND time >= now() - 10m`,
+			cond: `host = 'server01' OR host = 'server02'`,
+			min:  mustParseTime("1999-12-31T23:50:00Z")},
+		// TODO(jsternberg): This should be an error, but we can't because the above query
+		// needs to work. Until we can work a way for the above to work or at least get
+		// a warning message for people to transition to a correct syntax, the bad behavior
+		// stays.
+		//{s: `host = 'server01' OR (time >= now() - 10m AND host = 'server02')`, err: `cannot use OR with time conditions`},
+		{s: `value AND host = 'server01'`, err: `invalid condition expression: value`},
+		{s: `host = 'server01' OR (value)`, err: `invalid condition expression: value`},
+		{s: `time > '2262-04-11 23:47:17'`, err: `time 2262-04-11T23:47:17Z overflows time literal`},
+		{s: `time > '1677-09-20 19:12:43'`, err: `time 1677-09-20T19:12:43Z underflows time literal`},
 	} {
-		t.Run(tt.expr, func(t *testing.T) {
-			// Load the time zone if one was specified.
-			var loc *time.Location
-			if tt.loc != "" {
-				l, err := time.LoadLocation(tt.loc)
-				if err != nil {
-					t.Fatalf("unable to load time zone %s: %s", tt.loc, err)
+		t.Run(tt.s, func(t *testing.T) {
+			expr, err := influxql.ParseExpr(tt.s)
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+
+			cond, timeRange, err := influxql.ConditionExpr(expr, &valuer)
+			if err != nil {
+				if tt.err == "" {
+					t.Fatalf("unexpected error: %s", err)
+				} else if have, want := err.Error(), tt.err; have != want {
+					t.Fatalf("unexpected error: %s != %s", have, want)
 				}
-				loc = l
 			}
-
-			// Extract time range.
-			expr := MustParseExpr(tt.expr)
-			min, max, err := influxql.TimeRange(expr, loc)
-
-			// Compare with expected min/max.
-			if min := min.Format(time.RFC3339Nano); tt.min != min {
-				t.Fatalf("%d. %s: unexpected min:\n\nexp=%s\n\ngot=%s\n\n", i, tt.expr, tt.min, min)
+			if cond != nil {
+				if have, want := cond.String(), tt.cond; have != want {
+					t.Errorf("unexpected condition:\nhave=%s\nwant=%s", have, want)
+				}
+			} else {
+				if have, want := "", tt.cond; have != want {
+					t.Errorf("unexpected condition:\nhave=%s\nwant=%s", have, want)
+				}
 			}
-			if max := max.Format(time.RFC3339Nano); tt.max != max {
-				t.Fatalf("%d. %s: unexpected max:\n\nexp=%s\n\ngot=%s\n\n", i, tt.expr, tt.max, max)
+			if have, want := timeRange.Min, tt.min; !have.Equal(want) {
+				t.Errorf("unexpected min time:\nhave=%s\nwant=%s", have, want)
 			}
-			if (err != nil && err.Error() != tt.err) || (err == nil && tt.err != "") {
-				t.Fatalf("%d. %s: unexpected error:\n\nexp=%s\n\ngot=%s\n\n", i, tt.expr, tt.err, err)
+			if have, want := timeRange.Max, tt.max; !have.Equal(want) {
+				t.Errorf("unexpected max time:\nhave=%s\nwant=%s", have, want)
 			}
 		})
-	}
-}
-
-// Ensure that we see if a where clause has only time limitations
-func TestOnlyTimeExpr(t *testing.T) {
-	var tests = []struct {
-		stmt string
-		exp  bool
-	}{
-		{
-			stmt: `SELECT value FROM myseries WHERE value > 1`,
-			exp:  false,
-		},
-		{
-			stmt: `SELECT value FROM foo WHERE time >= '2000-01-01T00:00:05Z'`,
-			exp:  true,
-		},
-		{
-			stmt: `SELECT value FROM foo WHERE time >= '2000-01-01T00:00:05Z' AND time < '2000-01-01T00:00:05Z'`,
-			exp:  true,
-		},
-		{
-			stmt: `SELECT value FROM foo WHERE time >= '2000-01-01T00:00:05Z' AND asdf = 'bar'`,
-			exp:  false,
-		},
-		{
-			stmt: `SELECT value FROM foo WHERE asdf = 'jkl' AND (time >= '2000-01-01T00:00:05Z' AND time < '2000-01-01T00:00:05Z')`,
-			exp:  false,
-		},
-	}
-
-	for i, tt := range tests {
-		// Parse statement.
-		stmt, err := influxql.NewParser(strings.NewReader(tt.stmt)).ParseStatement()
-		if err != nil {
-			t.Fatalf("invalid statement: %q: %s", tt.stmt, err)
-		}
-		if influxql.OnlyTimeExpr(stmt.(*influxql.SelectStatement).Condition) != tt.exp {
-			t.Fatalf("%d. expected statement to return only time dimension to be %t: %s", i, tt.exp, tt.stmt)
-		}
 	}
 }
 
@@ -1652,72 +1502,6 @@ func TestShow_Privileges(t *testing.T) {
 	}
 }
 
-func TestSources_Names(t *testing.T) {
-	sources := influxql.Sources([]influxql.Source{
-		&influxql.Measurement{
-			Name: "cpu",
-		},
-		&influxql.Measurement{
-			Name: "mem",
-		},
-	})
-
-	names := sources.Names()
-	if names[0] != "cpu" {
-		t.Errorf("expected cpu, got %s", names[0])
-	}
-	if names[1] != "mem" {
-		t.Errorf("expected mem, got %s", names[1])
-	}
-}
-
-func TestSources_HasSystemSource(t *testing.T) {
-	sources := influxql.Sources([]influxql.Source{
-		&influxql.Measurement{
-			Name: "_measurements",
-		},
-	})
-
-	ok := sources.HasSystemSource()
-	if !ok {
-		t.Errorf("expected to find a system source, found none")
-	}
-
-	sources = influxql.Sources([]influxql.Source{
-		&influxql.Measurement{
-			Name: "cpu",
-		},
-	})
-
-	ok = sources.HasSystemSource()
-	if ok {
-		t.Errorf("expected to find no system source, found one")
-	}
-}
-
-// Parse statements that might appear valid but should return an error.
-// If allowed to execute, at least some of these statements would result in a panic.
-func TestParse_Errors(t *testing.T) {
-	for _, tt := range []struct {
-		tmpl string
-		good string
-		bad  string
-	}{
-		// Second argument to derivative must be duration
-		{tmpl: `SELECT derivative(f, %s) FROM m`, good: "1h", bad: "true"},
-	} {
-		good := fmt.Sprintf(tt.tmpl, tt.good)
-		if _, err := influxql.ParseStatement(good); err != nil {
-			t.Fatalf("statement %q should have parsed correctly but returned error: %s", good, err)
-		}
-
-		bad := fmt.Sprintf(tt.tmpl, tt.bad)
-		if _, err := influxql.ParseStatement(bad); err == nil {
-			t.Fatalf("statement %q should have resulted in a parse error but did not", bad)
-		}
-	}
-}
-
 // This test checks to ensure that we have given thought to the database
 // context required for security checks.  If a new statement is added, this
 // test will fail until it is categorized into the correct bucket below.
@@ -1739,6 +1523,7 @@ func Test_EnforceHasDefaultDatabase(t *testing.T) {
 		"DropSeriesStatement",
 		"DropShardStatement",
 		"DropUserStatement",
+		"ExplainStatement",
 		"GrantAdminStatement",
 		"KillQueryStatement",
 		"RevokeAdminStatement",
@@ -1790,11 +1575,16 @@ func Test_EnforceHasDefaultDatabase(t *testing.T) {
 		&influxql.GrantStatement{},
 		&influxql.RevokeStatement{},
 		&influxql.ShowFieldKeysStatement{},
+		&influxql.ShowFieldKeyCardinalityStatement{},
+		&influxql.ShowMeasurementCardinalityStatement{},
 		&influxql.ShowMeasurementsStatement{},
 		&influxql.ShowRetentionPoliciesStatement{},
 		&influxql.ShowSeriesStatement{},
+		&influxql.ShowSeriesCardinalityStatement{},
 		&influxql.ShowTagKeysStatement{},
+		&influxql.ShowTagKeyCardinalityStatement{},
 		&influxql.ShowTagValuesStatement{},
+		&influxql.ShowTagValuesCardinalityStatement{},
 	}
 
 	for _, stmt := range needsHasDefault {
@@ -1825,11 +1615,11 @@ func (o Valuer) Value(key string) (v interface{}, ok bool) {
 
 // MustTimeRange will parse a time range. Panic on error.
 func MustTimeRange(expr influxql.Expr) (min, max time.Time) {
-	min, max, err := influxql.TimeRange(expr, nil)
+	_, timeRange, err := influxql.ConditionExpr(expr, nil)
 	if err != nil {
 		panic(err)
 	}
-	return min, max
+	return timeRange.Min, timeRange.Max
 }
 
 // mustParseTime parses an IS0-8601 string. Panic on error.
@@ -1839,4 +1629,47 @@ func mustParseTime(s string) time.Time {
 		panic(err.Error())
 	}
 	return t
+}
+
+// FieldMapper is a mockable implementation of influxql.FieldMapper.
+type FieldMapper struct {
+	FieldDimensionsFn func(m *influxql.Measurement) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error)
+}
+
+func (fm *FieldMapper) FieldDimensions(m *influxql.Measurement) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
+	return fm.FieldDimensionsFn(m)
+}
+
+func (fm *FieldMapper) MapType(m *influxql.Measurement, field string) influxql.DataType {
+	f, d, err := fm.FieldDimensions(m)
+	if err != nil {
+		return influxql.Unknown
+	}
+
+	if typ, ok := f[field]; ok {
+		return typ
+	}
+	if _, ok := d[field]; ok {
+		return influxql.Tag
+	}
+	return influxql.Unknown
+}
+
+// BenchmarkExprNames benchmarks how long it takes to run ExprNames.
+func BenchmarkExprNames(b *testing.B) {
+	exprs := make([]string, 100)
+	for i := range exprs {
+		exprs[i] = fmt.Sprintf("host = 'server%02d'", i)
+	}
+	condition := MustParseExpr(strings.Join(exprs, " OR "))
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		refs := influxql.ExprNames(condition)
+		if have, want := refs, []influxql.VarRef{{Val: "host"}}; !reflect.DeepEqual(have, want) {
+			b.Fatalf("unexpected expression names: have=%s want=%s", have, want)
+		}
+	}
 }

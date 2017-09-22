@@ -3,21 +3,22 @@ package tsm1
 import (
 	"fmt"
 
-	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/uber-go/zap"
 )
 
-func newLimitIterator(input influxql.Iterator, opt influxql.IteratorOptions) influxql.Iterator {
+func newLimitIterator(input query.Iterator, opt query.IteratorOptions) query.Iterator {
 	switch input := input.(type) {
-	case influxql.FloatIterator:
+	case query.FloatIterator:
 		return newFloatLimitIterator(input, opt)
-	case influxql.IntegerIterator:
+	case query.IntegerIterator:
 		return newIntegerLimitIterator(input, opt)
-	case influxql.UnsignedIterator:
+	case query.UnsignedIterator:
 		return newUnsignedLimitIterator(input, opt)
-	case influxql.StringIterator:
+	case query.StringIterator:
 		return newStringLimitIterator(input, opt)
-	case influxql.BooleanIterator:
+	case query.BooleanIterator:
 		return newBooleanLimitIterator(input, opt)
 	default:
 		panic(fmt.Sprintf("unsupported limit iterator type: %T", input))
@@ -121,3 +122,67 @@ var (
 	nilStringLiteralValueCursor   cursorAt = &literalValueCursor{value: (*string)(nil)}
 	nilBooleanLiteralValueCursor  cursorAt = &literalValueCursor{value: (*bool)(nil)}
 )
+
+// stringSliceCursor is a cursor that outputs a slice of string values.
+type stringSliceCursor struct {
+	values []string
+}
+
+func (c *stringSliceCursor) close() error { return nil }
+
+func (c *stringSliceCursor) next() (int64, interface{}) { return c.nextString() }
+
+func (c *stringSliceCursor) nextString() (int64, string) {
+	if len(c.values) == 0 {
+		return tsdb.EOF, ""
+	}
+
+	value := c.values[0]
+	c.values = c.values[1:]
+	return 0, value
+}
+
+type cursorsAt []cursorAt
+
+func (c cursorsAt) close() {
+	for _, cur := range c {
+		cur.close()
+	}
+}
+
+// newMergeFinalizerIterator creates a new Merge iterator from the inputs. If the call to Merge succeeds,
+// the resulting Iterator will be wrapped in a finalizer iterator.
+// If Merge returns an error, the inputs will be closed.
+func newMergeFinalizerIterator(inputs []query.Iterator, opt query.IteratorOptions, log zap.Logger) (query.Iterator, error) {
+	itr, err := query.Iterators(inputs).Merge(opt)
+	if err != nil {
+		query.Iterators(inputs).Close()
+		return nil, err
+	}
+	return newFinalizerIterator(itr, log), nil
+}
+
+// newFinalizerIterator creates a new iterator that installs a runtime finalizer
+// to ensure close is eventually called if the iterator is garbage collected.
+// This additional guard attempts to protect against clients of CreateIterator not
+// correctly closing them and leaking cursors.
+func newFinalizerIterator(itr query.Iterator, log zap.Logger) query.Iterator {
+	if itr == nil {
+		return nil
+	}
+
+	switch inner := itr.(type) {
+	case query.FloatIterator:
+		return newFloatFinalizerIterator(inner, log)
+	case query.IntegerIterator:
+		return newIntegerFinalizerIterator(inner, log)
+	case query.UnsignedIterator:
+		return newUnsignedFinalizerIterator(inner, log)
+	case query.StringIterator:
+		return newStringFinalizerIterator(inner, log)
+	case query.BooleanIterator:
+		return newBooleanFinalizerIterator(inner, log)
+	default:
+		panic(fmt.Sprintf("unsupported finalizer iterator type: %T", itr))
+	}
+}

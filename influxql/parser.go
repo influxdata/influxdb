@@ -791,10 +791,6 @@ func (p *Parser) parseSelectStatement(tr targetRequirement) (*SelectStatement, e
 		}
 	})
 
-	if err := stmt.validate(tr); err != nil {
-		return nil, err
-	}
-
 	return stmt, nil
 }
 
@@ -900,11 +896,16 @@ func (p *Parser) parseDeleteStatement() (Statement, error) {
 	return stmt, nil
 }
 
-// parseShowSeriesStatement parses a string and returns a ShowSeriesStatement.
+// parseShowSeriesStatement parses a string and returns a Statement.
 // This function assumes the "SHOW SERIES" tokens have already been consumed.
-func (p *Parser) parseShowSeriesStatement() (*ShowSeriesStatement, error) {
+func (p *Parser) parseShowSeriesStatement() (Statement, error) {
 	stmt := &ShowSeriesStatement{}
 	var err error
+
+	if tok, _, _ := p.ScanIgnoreWhitespace(); tok == CARDINALITY {
+		return p.parseShowSeriesCardinalityStatement()
+	}
+	p.Unscan()
 
 	// Parse optional ON clause.
 	if tok, _, _ := p.ScanIgnoreWhitespace(); tok == ON {
@@ -949,7 +950,93 @@ func (p *Parser) parseShowSeriesStatement() (*ShowSeriesStatement, error) {
 	return stmt, nil
 }
 
-// parseShowMeasurementsStatement parses a string and returns a ShowSeriesStatement.
+// This function assumes the "SHOW SERIES CARDINALITY" tokens have already been consumed.
+func (p *Parser) parseShowSeriesCardinalityStatement() (Statement, error) {
+	var err error
+	stmt := &ShowSeriesCardinalityStatement{}
+
+	// Parse optional ON clause.
+	if tok, _, _ := p.ScanIgnoreWhitespace(); tok == ON {
+		if stmt.Database, err = p.ParseIdent(); err != nil {
+			return nil, err
+		}
+	} else {
+		p.Unscan()
+	}
+
+	// Parse optional FROM.
+	if tok, _, _ := p.ScanIgnoreWhitespace(); tok == FROM {
+		if stmt.Sources, err = p.parseSources(false); err != nil {
+			return nil, err
+		}
+	} else {
+		p.Unscan()
+	}
+
+	// Parse condition: "WHERE EXPR".
+	if stmt.Condition, err = p.parseCondition(); err != nil {
+		return nil, err
+	}
+
+	// Parse dimensions: "GROUP BY DIMENSION+".
+	if stmt.Dimensions, err = p.parseDimensions(); err != nil {
+		return nil, err
+	}
+
+	// Parse limit & offset: "LIMIT <n>", "OFFSET <n>".
+	if stmt.Limit, err = p.ParseOptionalTokenAndInt(LIMIT); err != nil {
+		return nil, err
+	} else if stmt.Offset, err = p.ParseOptionalTokenAndInt(OFFSET); err != nil {
+		return nil, err
+	}
+
+	return stmt, nil
+}
+
+// This function assumes the "SHOW MEASUREMENT CARDINALITY" tokens have already been consumed.
+func (p *Parser) parseShowMeasurementCardinalityStatement() (Statement, error) {
+	stmt := &ShowMeasurementCardinalityStatement{}
+
+	// Parse optional ON clause.
+	var err error
+	if tok, _, _ := p.ScanIgnoreWhitespace(); tok == ON {
+		if stmt.Database, err = p.ParseIdent(); err != nil {
+			return nil, err
+		}
+	} else {
+		p.Unscan()
+	}
+
+	// Parse optional FROM.
+	if tok, _, _ := p.ScanIgnoreWhitespace(); tok == FROM {
+		if stmt.Sources, err = p.parseSources(false); err != nil {
+			return nil, err
+		}
+	} else {
+		p.Unscan()
+	}
+
+	// Parse condition: "WHERE EXPR".
+	if stmt.Condition, err = p.parseCondition(); err != nil {
+		return nil, err
+	}
+
+	// Parse dimensions: "GROUP BY DIMENSION+".
+	if stmt.Dimensions, err = p.parseDimensions(); err != nil {
+		return nil, err
+	}
+
+	// Parse limit & offset: "LIMIT <n>", "OFFSET <n>".
+	if stmt.Limit, err = p.ParseOptionalTokenAndInt(LIMIT); err != nil {
+		return nil, err
+	} else if stmt.Offset, err = p.ParseOptionalTokenAndInt(OFFSET); err != nil {
+		return nil, err
+	}
+
+	return stmt, nil
+}
+
+// parseShowMeasurementsStatement parses a string and returns a Statement.
 // This function assumes the "SHOW MEASUREMENTS" tokens have already been consumed.
 func (p *Parser) parseShowMeasurementsStatement() (*ShowMeasurementsStatement, error) {
 	stmt := &ShowMeasurementsStatement{}
@@ -1038,7 +1125,59 @@ func (p *Parser) parseShowRetentionPoliciesStatement() (*ShowRetentionPoliciesSt
 	return stmt, nil
 }
 
-// parseShowTagKeysStatement parses a string and returns a ShowSeriesStatement.
+// parseShowTagKeyStatement parses a string and returns a Statement.
+// This function assumes the "SHOW TAG KEY" tokens have already been consumed.
+func (p *Parser) parseShowTagKeyStatement() (Statement, error) {
+	if tok, pos, lit := p.ScanIgnoreWhitespace(); tok != CARDINALITY {
+		return nil, newParseError(tokstr(tok, lit), []string{"CARDINALITY"}, pos)
+	}
+	return p.parseShowTagKeyCardinalityStatement()
+}
+
+// This function assumes the "SHOW TAG KEY CARDINALITY" tokens have already been consumed.
+func (p *Parser) parseShowTagKeyCardinalityStatement() (Statement, error) {
+	var err error
+	stmt := &ShowTagKeyCardinalityStatement{}
+
+	// Parse optional ON clause.
+	if tok, _, _ := p.ScanIgnoreWhitespace(); tok == ON {
+		if stmt.Database, err = p.ParseIdent(); err != nil {
+			return nil, err
+		}
+	} else {
+		p.Unscan()
+	}
+
+	// Parse optional FROM.
+	if tok, _, _ := p.ScanIgnoreWhitespace(); tok == FROM {
+		if stmt.Sources, err = p.parseSources(false); err != nil {
+			return nil, err
+		}
+	} else {
+		p.Unscan()
+	}
+
+	// Parse condition: "WHERE EXPR".
+	if stmt.Condition, err = p.parseCondition(); err != nil {
+		return nil, err
+	}
+
+	// Parse dimensions: "GROUP BY DIMENSION+".
+	if stmt.Dimensions, err = p.parseDimensions(); err != nil {
+		return nil, err
+	}
+
+	// Parse limit & offset: "LIMIT <n>", "OFFSET <n>".
+	if stmt.Limit, err = p.ParseOptionalTokenAndInt(LIMIT); err != nil {
+		return nil, err
+	} else if stmt.Offset, err = p.ParseOptionalTokenAndInt(OFFSET); err != nil {
+		return nil, err
+	}
+
+	return stmt, nil
+}
+
+// parseShowTagKeysStatement parses a string and returns a Statement.
 // This function assumes the "SHOW TAG KEYS" tokens have already been consumed.
 func (p *Parser) parseShowTagKeysStatement() (*ShowTagKeysStatement, error) {
 	stmt := &ShowTagKeysStatement{}
@@ -1097,11 +1236,16 @@ func (p *Parser) parseShowTagKeysStatement() (*ShowTagKeysStatement, error) {
 	return stmt, nil
 }
 
-// parseShowTagValuesStatement parses a string and returns a ShowSeriesStatement.
+// parseShowTagValuesStatement parses a string and returns a Statement.
 // This function assumes the "SHOW TAG VALUES" tokens have already been consumed.
-func (p *Parser) parseShowTagValuesStatement() (*ShowTagValuesStatement, error) {
+func (p *Parser) parseShowTagValuesStatement() (Statement, error) {
 	stmt := &ShowTagValuesStatement{}
 	var err error
+
+	if tok, _, _ := p.ScanIgnoreWhitespace(); tok == CARDINALITY {
+		return p.parseShowTagValuesCardinalityStatement()
+	}
+	p.Unscan()
 
 	// Parse optional ON clause.
 	if tok, _, _ := p.ScanIgnoreWhitespace(); tok == ON {
@@ -1145,6 +1289,54 @@ func (p *Parser) parseShowTagValuesStatement() (*ShowTagValuesStatement, error) 
 
 	// Parse offset: "OFFSET <n>".
 	if stmt.Offset, err = p.ParseOptionalTokenAndInt(OFFSET); err != nil {
+		return nil, err
+	}
+
+	return stmt, nil
+}
+
+// This function assumes the "SHOW TAG VALUES CARDINALITY" tokens have already been consumed.
+func (p *Parser) parseShowTagValuesCardinalityStatement() (Statement, error) {
+	var err error
+	stmt := &ShowTagValuesCardinalityStatement{}
+
+	// Parse optional ON clause.
+	if tok, _, _ := p.ScanIgnoreWhitespace(); tok == ON {
+		if stmt.Database, err = p.ParseIdent(); err != nil {
+			return nil, err
+		}
+	} else {
+		p.Unscan()
+	}
+
+	// Parse optional FROM.
+	if tok, _, _ := p.ScanIgnoreWhitespace(); tok == FROM {
+		if stmt.Sources, err = p.parseSources(false); err != nil {
+			return nil, err
+		}
+	} else {
+		p.Unscan()
+	}
+
+	// Parse required WITH KEY.
+	if stmt.Op, stmt.TagKeyExpr, err = p.parseTagKeyExpr(); err != nil {
+		return nil, err
+	}
+
+	// Parse condition: "WHERE EXPR".
+	if stmt.Condition, err = p.parseCondition(); err != nil {
+		return nil, err
+	}
+
+	// Parse dimensions: "GROUP BY DIMENSION+".
+	if stmt.Dimensions, err = p.parseDimensions(); err != nil {
+		return nil, err
+	}
+
+	// Parse limit & offset: "LIMIT <n>", "OFFSET <n>".
+	if stmt.Limit, err = p.ParseOptionalTokenAndInt(LIMIT); err != nil {
+		return nil, err
+	} else if stmt.Offset, err = p.ParseOptionalTokenAndInt(OFFSET); err != nil {
 		return nil, err
 	}
 
@@ -1213,7 +1405,59 @@ func (p *Parser) parseShowSubscriptionsStatement() (*ShowSubscriptionsStatement,
 	return stmt, nil
 }
 
-// parseShowFieldKeysStatement parses a string and returns a ShowSeriesStatement.
+// parseShowFieldKeyStatement parses a string and returns a Statement.
+// This function assumes the "SHOW FIELD KEY" tokens have already been consumed.
+func (p *Parser) parseShowFieldKeyStatement() (Statement, error) {
+	if tok, pos, lit := p.ScanIgnoreWhitespace(); tok != CARDINALITY {
+		return nil, newParseError(tokstr(tok, lit), []string{"CARDINALITY"}, pos)
+	}
+	return p.parseShowFieldKeyCardinalityStatement()
+}
+
+// This function assumes the "SHOW FIELD KEY CARDINALITY" tokens have already been consumed.
+func (p *Parser) parseShowFieldKeyCardinalityStatement() (Statement, error) {
+	var err error
+	stmt := &ShowFieldKeyCardinalityStatement{}
+
+	// Parse optional ON clause.
+	if tok, _, _ := p.ScanIgnoreWhitespace(); tok == ON {
+		if stmt.Database, err = p.ParseIdent(); err != nil {
+			return nil, err
+		}
+	} else {
+		p.Unscan()
+	}
+
+	// Parse optional FROM.
+	if tok, _, _ := p.ScanIgnoreWhitespace(); tok == FROM {
+		if stmt.Sources, err = p.parseSources(false); err != nil {
+			return nil, err
+		}
+	} else {
+		p.Unscan()
+	}
+
+	// Parse condition: "WHERE EXPR".
+	if stmt.Condition, err = p.parseCondition(); err != nil {
+		return nil, err
+	}
+
+	// Parse dimensions: "GROUP BY DIMENSION+".
+	if stmt.Dimensions, err = p.parseDimensions(); err != nil {
+		return nil, err
+	}
+
+	// Parse limit & offset: "LIMIT <n>", "OFFSET <n>".
+	if stmt.Limit, err = p.ParseOptionalTokenAndInt(LIMIT); err != nil {
+		return nil, err
+	} else if stmt.Offset, err = p.ParseOptionalTokenAndInt(OFFSET); err != nil {
+		return nil, err
+	}
+
+	return stmt, nil
+}
+
+// parseShowFieldKeysStatement parses a string and returns a Statement.
 // This function assumes the "SHOW FIELD KEYS" tokens have already been consumed.
 func (p *Parser) parseShowFieldKeysStatement() (*ShowFieldKeysStatement, error) {
 	stmt := &ShowFieldKeysStatement{}
@@ -1637,6 +1881,29 @@ func (p *Parser) parseDropUserStatement() (*DropUserStatement, error) {
 	}
 	stmt.Name = lit
 
+	return stmt, nil
+}
+
+// parseExplainStatement parses a string and return an ExplainStatement.
+// This function assumes the EXPLAIN token has already been consumed.
+func (p *Parser) parseExplainStatement() (*ExplainStatement, error) {
+	stmt := &ExplainStatement{}
+
+	if tok, _, _ := p.ScanIgnoreWhitespace(); tok == ANALYZE {
+		stmt.Analyze = true
+	} else {
+		p.Unscan()
+	}
+
+	if tok, pos, lit := p.ScanIgnoreWhitespace(); tok != SELECT {
+		return nil, newParseError(tokstr(tok, lit), []string{"SELECT"}, pos)
+	}
+
+	s, err := p.parseSelectStatement(targetNotRequired)
+	if err != nil {
+		return nil, err
+	}
+	stmt.Statement = s
 	return stmt, nil
 }
 
@@ -2195,12 +2462,14 @@ func (p *Parser) ParseVarRef() (*VarRef, error) {
 				dtype = Float
 			case "integer":
 				dtype = Integer
+			case "unsigned":
+				dtype = Unsigned
 			case "string":
 				dtype = String
 			case "boolean":
 				dtype = Boolean
 			default:
-				return nil, newParseError(tokstr(tok, lit), []string{"float", "integer", "string", "boolean", "field", "tag"}, pos)
+				return nil, newParseError(tokstr(tok, lit), []string{"float", "integer", "unsigned", "string", "boolean", "field", "tag"}, pos)
 			}
 		case FIELD:
 			dtype = AnyField
@@ -2334,6 +2603,11 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 	case INTEGER:
 		v, err := strconv.ParseInt(lit, 10, 64)
 		if err != nil {
+			// The literal may be too large to fit into an int64. If it is, use an unsigned integer.
+			// The check for negative numbers is handled somewhere else so this should always be a positive number.
+			if v, err := strconv.ParseUint(lit, 10, 64); err == nil {
+				return &UnsignedLiteral{Val: v}, nil
+			}
 			return nil, &ParseError{Message: "unable to parse integer", Pos: pos}
 		}
 		return &IntegerLiteral{Val: v}, nil
@@ -2371,8 +2645,8 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 			return nil, errors.New("empty bound parameter")
 		}
 
-		v, ok := p.params[k]
-		if !ok {
+		v := p.params[k]
+		if v == nil {
 			return nil, fmt.Errorf("missing parameter: %s", k)
 		}
 
@@ -2410,6 +2684,16 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 				lit.Val *= float64(mul)
 			case *IntegerLiteral:
 				lit.Val *= int64(mul)
+			case *UnsignedLiteral:
+				if tok == SUB {
+					// Because of twos-complement integers and the method we parse, math.MinInt64 will be parsed
+					// as an UnsignedLiteral because it overflows an int64, but it fits into int64 if it were parsed
+					// as a negative number instead.
+					if lit.Val == uint64(math.MaxInt64+1) {
+						return &IntegerLiteral{Val: int64(-lit.Val)}, nil
+					}
+					return nil, fmt.Errorf("constant -%d underflows int64", lit.Val)
+				}
 			case *DurationLiteral:
 				lit.Val *= time.Duration(mul)
 			case *VarRef, *Call, *ParenExpr:

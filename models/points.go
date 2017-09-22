@@ -1156,7 +1156,7 @@ func scanFieldValue(buf []byte, i int) (int, []byte) {
 	return i, buf[start:i]
 }
 
-func escapeMeasurement(in []byte) []byte {
+func EscapeMeasurement(in []byte) []byte {
 	for b, esc := range measurementEscapeCodes {
 		in = bytes.Replace(in, []byte{b}, esc, -1)
 	}
@@ -1498,7 +1498,7 @@ func parseTags(buf []byte) Tags {
 func MakeKey(name []byte, tags Tags) []byte {
 	// unescape the name and then re-escape it to avoid double escaping.
 	// The key should always be stored in escaped form.
-	return append(escapeMeasurement(unescapeMeasurement(name)), tags.HashKey()...)
+	return append(EscapeMeasurement(unescapeMeasurement(name)), tags.HashKey()...)
 }
 
 // SetTags replaces the tags for the point.
@@ -1824,6 +1824,30 @@ func NewTags(m map[string]string) Tags {
 	}
 	sort.Sort(a)
 	return a
+}
+
+// Keys returns the list of keys for a tag set.
+func (a Tags) Keys() []string {
+	if len(a) == 0 {
+		return nil
+	}
+	keys := make([]string, len(a))
+	for i, tag := range a {
+		keys[i] = string(tag.Key)
+	}
+	return keys
+}
+
+// Values returns the list of values for a tag set.
+func (a Tags) Values() []string {
+	if len(a) == 0 {
+		return nil
+	}
+	values := make([]string, len(a))
+	for i, tag := range a {
+		values[i] = string(tag.Value)
+	}
+	return values
 }
 
 // String returns the string representation of the tags.

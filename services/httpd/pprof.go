@@ -44,6 +44,7 @@ type prof struct {
 //	- goroutine profile
 //	- heap profile
 //	- blocking profile
+//	- mutex profile
 //	- (optionally) CPU profile
 //
 // It also collects the following query results:
@@ -70,6 +71,7 @@ func (h *Handler) archiveProfilesAndQueries(w http.ResponseWriter, r *http.Reque
 	var allProfs = []*prof{
 		{Name: "goroutine", Debug: 1},
 		{Name: "block", Debug: 1},
+		{Name: "mutex", Debug: 1},
 		{Name: "heap", Debug: 1},
 	}
 

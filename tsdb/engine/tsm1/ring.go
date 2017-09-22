@@ -97,14 +97,14 @@ func (r *ring) getPartition(key []byte) *partition {
 
 // entry returns the entry for the given key.
 // entry is safe for use by multiple goroutines.
-func (r *ring) entry(key []byte) (*entry, bool) {
+func (r *ring) entry(key []byte) *entry {
 	return r.getPartition(key).entry(key)
 }
 
 // write writes values to the entry in the ring's partition associated with key.
 // If no entry exists for the key then one will be created.
 // write is safe for use by multiple goroutines.
-func (r *ring) write(key []byte, values Values) error {
+func (r *ring) write(key []byte, values Values) (bool, error) {
 	return r.getPartition(key).write(key, values)
 }
 
@@ -212,42 +212,42 @@ type partition struct {
 
 // entry returns the partition's entry for the provided key.
 // It's safe for use by multiple goroutines.
-func (p *partition) entry(key []byte) (*entry, bool) {
+func (p *partition) entry(key []byte) *entry {
 	p.mu.RLock()
-	e, ok := p.store[string(key)]
+	e := p.store[string(key)]
 	p.mu.RUnlock()
-	return e, ok
+	return e
 }
 
 // write writes the values to the entry in the partition, creating the entry
 // if it does not exist.
 // write is safe for use by multiple goroutines.
-func (p *partition) write(key []byte, values Values) error {
+func (p *partition) write(key []byte, values Values) (bool, error) {
 	p.mu.RLock()
-	e, ok := p.store[string(key)]
+	e := p.store[string(key)]
 	p.mu.RUnlock()
-	if ok {
+	if e != nil {
 		// Hot path.
-		return e.add(values)
+		return false, e.add(values)
 	}
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	// Check again.
-	if e, ok = p.store[string(key)]; ok {
-		return e.add(values)
+	if e = p.store[string(key)]; e != nil {
+		return false, e.add(values)
 	}
 
 	// Create a new entry using a preallocated size if we have a hint available.
 	hint, _ := p.entrySizeHints[xxhash.Sum64(key)]
 	e, err := newEntryValues(values, hint)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	p.store[string(key)] = e
-	return nil
+	return true, nil
 }
 
 // add adds a new entry for key to the partition.

@@ -35,7 +35,8 @@ const (
 // Command represents the program execution for "influxd backup".
 type Command struct {
 	// The logger passed to the ticker during execution.
-	Logger *log.Logger
+	StdoutLogger *log.Logger
+	StderrLogger *log.Logger
 
 	// Standard input/output, overridden for testing.
 	Stderr io.Writer
@@ -57,7 +58,8 @@ func NewCommand() *Command {
 // Run executes the program.
 func (cmd *Command) Run(args ...string) error {
 	// Set up logger.
-	cmd.Logger = log.New(cmd.Stderr, "", log.LstdFlags)
+	cmd.StdoutLogger = log.New(cmd.Stdout, "", log.LstdFlags)
+	cmd.StderrLogger = log.New(cmd.Stderr, "", log.LstdFlags)
 
 	// Parse command line arguments.
 	retentionPolicy, shardID, since, err := cmd.parseFlags(args)
@@ -81,11 +83,11 @@ func (cmd *Command) Run(args ...string) error {
 	}
 
 	if err != nil {
-		cmd.Logger.Printf("backup failed: %v", err)
+		cmd.StderrLogger.Printf("backup failed: %v", err)
 		return err
 	}
 
-	cmd.Logger.Println("backup complete")
+	cmd.StdoutLogger.Println("backup complete")
 
 	return nil
 }
@@ -141,7 +143,7 @@ func (cmd *Command) backupShard(retentionPolicy string, shardID string, since ti
 		return err
 	}
 
-	cmd.Logger.Printf("backing up db=%v rp=%v shard=%v to %s since %s",
+	cmd.StdoutLogger.Printf("backing up db=%v rp=%v shard=%v to %s since %s",
 		cmd.database, retentionPolicy, shardID, shardArchivePath, since)
 
 	req := &snapshotter.Request{
@@ -159,7 +161,7 @@ func (cmd *Command) backupShard(retentionPolicy string, shardID string, since ti
 // backupDatabase will request the database information from the server and then backup the metastore and
 // every shard in every retention policy in the database. Each shard will be written to a separate tar.
 func (cmd *Command) backupDatabase(since time.Time) error {
-	cmd.Logger.Printf("backing up db=%s since %s", cmd.database, since)
+	cmd.StdoutLogger.Printf("backing up db=%s since %s", cmd.database, since)
 
 	req := &snapshotter.Request{
 		Type:     snapshotter.RequestDatabaseInfo,
@@ -177,7 +179,7 @@ func (cmd *Command) backupDatabase(since time.Time) error {
 // backupRetentionPolicy will request the retention policy information from the server and then backup
 // the metastore and every shard in the retention policy. Each shard will be written to a separate tar.
 func (cmd *Command) backupRetentionPolicy(retentionPolicy string, since time.Time) error {
-	cmd.Logger.Printf("backing up rp=%s since %s", retentionPolicy, since)
+	cmd.StdoutLogger.Printf("backing up rp=%s since %s", retentionPolicy, since)
 
 	req := &snapshotter.Request{
 		Type:            snapshotter.RequestRetentionPolicyInfo,
@@ -222,7 +224,7 @@ func (cmd *Command) backupMetastore() error {
 		return err
 	}
 
-	cmd.Logger.Printf("backing up metastore to %s", metastoreArchivePath)
+	cmd.StdoutLogger.Printf("backing up metastore to %s", metastoreArchivePath)
 
 	req := &snapshotter.Request{
 		Type: snapshotter.RequestMetastoreBackup,
@@ -236,7 +238,7 @@ func (cmd *Command) backupMetastore() error {
 
 		magic := binary.BigEndian.Uint64(binData[:8])
 		if magic != snapshotter.BackupMagicHeader {
-			cmd.Logger.Println("Invalid metadata blob, ensure the metadata service is running (default port 8088)")
+			cmd.StderrLogger.Println("Invalid metadata blob, ensure the metadata service is running (default port 8088)")
 			return errors.New("invalid metadata received")
 		}
 
@@ -268,7 +270,7 @@ func (cmd *Command) downloadAndVerify(req *snapshotter.Request, path string, val
 	if validator != nil {
 		if err := validator(tmppath); err != nil {
 			if rmErr := os.Remove(tmppath); rmErr != nil {
-				cmd.Logger.Printf("Error cleaning up temporary file: %v", rmErr)
+				cmd.StderrLogger.Printf("Error cleaning up temporary file: %v", rmErr)
 			}
 			return err
 		}
@@ -323,7 +325,7 @@ func (cmd *Command) download(req *snapshotter.Request, path string) error {
 		}(); err == nil {
 			break
 		} else if err != nil {
-			cmd.Logger.Printf("Download shard %v failed %s.  Retrying (%d)...\n", req.ShardID, err, i)
+			cmd.StderrLogger.Printf("Download shard %v failed %s.  Retrying (%d)...\n", req.ShardID, err, i)
 			time.Sleep(time.Second)
 		}
 	}

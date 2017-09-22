@@ -180,6 +180,12 @@ func (c *Client) SetPrecision(precision string) {
 
 // Query sends a command to the server and returns the Response
 func (c *Client) Query(q Query) (*Response, error) {
+	return c.QueryContext(context.Background(), q)
+}
+
+// QueryContext sends a command to the server and returns the Response
+// It uses a context that can be cancelled by the command line client
+func (c *Client) QueryContext(ctx context.Context, q Query) (*Response, error) {
 	u := c.url
 
 	u.Path = "query"
@@ -205,6 +211,8 @@ func (c *Client) Query(q Query) (*Response, error) {
 	if c.username != "" {
 		req.SetBasicAuth(c.username, c.password)
 	}
+
+	req = req.WithContext(ctx)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

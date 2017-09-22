@@ -15,6 +15,7 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/internal"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/uber-go/zap"
@@ -49,8 +50,8 @@ func TestQueryExecutor_ExecuteQuery_SelectStatement(t *testing.T) {
 		}
 
 		var sh MockShard
-		sh.CreateIteratorFn = func(m string, opt influxql.IteratorOptions) (influxql.Iterator, error) {
-			return &FloatIterator{Points: []influxql.FloatPoint{
+		sh.CreateIteratorFn = func(m string, opt query.IteratorOptions) (query.Iterator, error) {
+			return &FloatIterator{Points: []query.FloatPoint{
 				{Name: "cpu", Time: int64(0 * time.Second), Aux: []interface{}{float64(100)}},
 				{Name: "cpu", Time: int64(1 * time.Second), Aux: []interface{}{float64(200)}},
 			}}, nil
@@ -65,7 +66,7 @@ func TestQueryExecutor_ExecuteQuery_SelectStatement(t *testing.T) {
 	}
 
 	// Verify all results from the query.
-	if a := ReadAllResults(e.ExecuteQuery(`SELECT * FROM cpu`, "db0", 0)); !reflect.DeepEqual(a, []*influxql.Result{
+	if a := ReadAllResults(e.ExecuteQuery(`SELECT * FROM cpu`, "db0", 0)); !reflect.DeepEqual(a, []*query.Result{
 		{
 			StatementID: 0,
 			Series: []*models.Row{{
@@ -102,9 +103,9 @@ func TestQueryExecutor_ExecuteQuery_MaxSelectBucketsN(t *testing.T) {
 		}
 
 		var sh MockShard
-		sh.CreateIteratorFn = func(m string, opt influxql.IteratorOptions) (influxql.Iterator, error) {
+		sh.CreateIteratorFn = func(m string, opt query.IteratorOptions) (query.Iterator, error) {
 			return &FloatIterator{
-				Points: []influxql.FloatPoint{{Name: "cpu", Time: int64(0 * time.Second), Aux: []interface{}{float64(100)}}},
+				Points: []query.FloatPoint{{Name: "cpu", Time: int64(0 * time.Second), Aux: []interface{}{float64(100)}}},
 			}, nil
 		}
 		sh.FieldDimensionsFn = func(measurements []string) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
@@ -117,7 +118,7 @@ func TestQueryExecutor_ExecuteQuery_MaxSelectBucketsN(t *testing.T) {
 	}
 
 	// Verify all results from the query.
-	if a := ReadAllResults(e.ExecuteQuery(`SELECT count(value) FROM cpu WHERE time >= '2000-01-01T00:00:05Z' AND time < '2000-01-01T00:00:35Z' GROUP BY time(10s)`, "db0", 0)); !reflect.DeepEqual(a, []*influxql.Result{
+	if a := ReadAllResults(e.ExecuteQuery(`SELECT count(value) FROM cpu WHERE time >= '2000-01-01T00:00:05Z' AND time < '2000-01-01T00:00:35Z' GROUP BY time(10s)`, "db0", 0)); !reflect.DeepEqual(a, []*query.Result{
 		{
 			StatementID: 0,
 			Err:         errors.New("max-select-buckets limit exceeded: (4/3)"),
@@ -214,7 +215,7 @@ func (m *mockAuthorizer) AuthorizeSeriesWrite(database string, measurement []byt
 }
 
 func TestQueryExecutor_ExecuteQuery_ShowDatabases(t *testing.T) {
-	qe := influxql.NewQueryExecutor()
+	qe := query.NewQueryExecutor()
 	qe.StatementExecutor = &coordinator.StatementExecutor{
 		MetaClient: &internal.MetaClientMock{
 			DatabasesFn: func() []meta.DatabaseInfo {
@@ -225,7 +226,7 @@ func TestQueryExecutor_ExecuteQuery_ShowDatabases(t *testing.T) {
 		},
 	}
 
-	opt := influxql.ExecutionOptions{
+	opt := query.ExecutionOptions{
 		Authorizer: &mockAuthorizer{
 			AuthorizeDatabaseFn: func(p influxql.Privilege, name string) bool {
 				return name == "db2" || name == "db4"
@@ -239,7 +240,7 @@ func TestQueryExecutor_ExecuteQuery_ShowDatabases(t *testing.T) {
 	}
 
 	results := ReadAllResults(qe.ExecuteQuery(q, opt, make(chan struct{})))
-	exp := []*influxql.Result{
+	exp := []*query.Result{
 		{
 			StatementID: 0,
 			Series: []*models.Row{{
@@ -258,7 +259,7 @@ func TestQueryExecutor_ExecuteQuery_ShowDatabases(t *testing.T) {
 
 // QueryExecutor is a test wrapper for coordinator.QueryExecutor.
 type QueryExecutor struct {
-	*influxql.QueryExecutor
+	*query.QueryExecutor
 
 	MetaClient        MetaClient
 	TSDBStore         TSDBStore
@@ -270,7 +271,7 @@ type QueryExecutor struct {
 // This query executor always has a node id of 0.
 func NewQueryExecutor() *QueryExecutor {
 	e := &QueryExecutor{
-		QueryExecutor: influxql.NewQueryExecutor(),
+		QueryExecutor: query.NewQueryExecutor(),
 	}
 	e.StatementExecutor = &coordinator.StatementExecutor{
 		MetaClient: &e.MetaClient,
@@ -302,8 +303,8 @@ func DefaultQueryExecutor() *QueryExecutor {
 }
 
 // ExecuteQuery parses query and executes against the database.
-func (e *QueryExecutor) ExecuteQuery(query, database string, chunkSize int) <-chan *influxql.Result {
-	return e.QueryExecutor.ExecuteQuery(MustParseQuery(query), influxql.ExecutionOptions{
+func (e *QueryExecutor) ExecuteQuery(q, database string, chunkSize int) <-chan *query.Result {
+	return e.QueryExecutor.ExecuteQuery(MustParseQuery(q), query.ExecutionOptions{
 		Database:  database,
 		ChunkSize: chunkSize,
 	}, make(chan struct{}))
@@ -383,7 +384,8 @@ func (s *TSDBStore) TagValues(database string, cond influxql.Expr) ([]tsdb.TagVa
 type MockShard struct {
 	Measurements      []string
 	FieldDimensionsFn func(measurements []string) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error)
-	CreateIteratorFn  func(m string, opt influxql.IteratorOptions) (influxql.Iterator, error)
+	CreateIteratorFn  func(m string, opt query.IteratorOptions) (query.Iterator, error)
+	IteratorCostFn    func(m string, opt query.IteratorOptions) (query.IteratorCost, error)
 	ExpandSourcesFn   func(sources influxql.Sources) (influxql.Sources, error)
 }
 
@@ -415,8 +417,12 @@ func (sh *MockShard) MapType(measurement, field string) influxql.DataType {
 	return influxql.Unknown
 }
 
-func (sh *MockShard) CreateIterator(measurement string, opt influxql.IteratorOptions) (influxql.Iterator, error) {
+func (sh *MockShard) CreateIterator(measurement string, opt query.IteratorOptions) (query.Iterator, error) {
 	return sh.CreateIteratorFn(measurement, opt)
+}
+
+func (sh *MockShard) IteratorCost(measurement string, opt query.IteratorOptions) (query.IteratorCost, error) {
+	return sh.IteratorCostFn(measurement, opt)
 }
 
 func (sh *MockShard) ExpandSources(sources influxql.Sources) (influxql.Sources, error) {
@@ -433,8 +439,8 @@ func MustParseQuery(s string) *influxql.Query {
 }
 
 // ReadAllResults reads all results from c and returns as a slice.
-func ReadAllResults(c <-chan *influxql.Result) []*influxql.Result {
-	var a []*influxql.Result
+func ReadAllResults(c <-chan *query.Result) []*query.Result {
+	var a []*query.Result
 	for result := range c {
 		a = append(a, result)
 	}
@@ -443,15 +449,15 @@ func ReadAllResults(c <-chan *influxql.Result) []*influxql.Result {
 
 // FloatIterator is a represents an iterator that reads from a slice.
 type FloatIterator struct {
-	Points []influxql.FloatPoint
-	stats  influxql.IteratorStats
+	Points []query.FloatPoint
+	stats  query.IteratorStats
 }
 
-func (itr *FloatIterator) Stats() influxql.IteratorStats { return itr.stats }
-func (itr *FloatIterator) Close() error                  { return nil }
+func (itr *FloatIterator) Stats() query.IteratorStats { return itr.stats }
+func (itr *FloatIterator) Close() error               { return nil }
 
 // Next returns the next value and shifts it off the beginning of the points slice.
-func (itr *FloatIterator) Next() (*influxql.FloatPoint, error) {
+func (itr *FloatIterator) Next() (*query.FloatPoint, error) {
 	if len(itr.Points) == 0 {
 		return nil, nil
 	}

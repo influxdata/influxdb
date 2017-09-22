@@ -41,7 +41,6 @@ var (
 	errMaxFileExceeded     = fmt.Errorf("max file exceeded")
 	errSnapshotsDisabled   = fmt.Errorf("snapshots disabled")
 	errCompactionsDisabled = fmt.Errorf("compactions disabled")
-	errCompactionAborted   = fmt.Errorf("compaction aborted")
 )
 
 type errCompactionInProgress struct {
@@ -54,6 +53,17 @@ func (e errCompactionInProgress) Error() string {
 		return fmt.Sprintf("compaction in progress: %s", e.err)
 	}
 	return "compaction in progress"
+}
+
+type errCompactionAborted struct {
+	err error
+}
+
+func (e errCompactionAborted) Error() string {
+	if e.err != nil {
+		return fmt.Sprintf("compaction aborted: %s", e.err)
+	}
+	return "compaction aborted"
 }
 
 // CompactionGroup represents a list of files eligible to be compacted together.
@@ -586,6 +596,7 @@ type Compactor struct {
 
 	FileStore interface {
 		NextGeneration() int
+		TSMReader(path string) *TSMReader
 	}
 
 	mu                 sync.RWMutex
@@ -707,6 +718,11 @@ func (c *Compactor) compact(fast bool, tsmFiles []string) ([]string, error) {
 	if size <= 0 {
 		size = tsdb.DefaultMaxPointsPerBlock
 	}
+
+	c.mu.RLock()
+	intC := c.compactionsInterrupt
+	c.mu.RUnlock()
+
 	// The new compacted files need to added to the max generation in the
 	// set.  We need to find that max generation as well as the max sequence
 	// number to ensure we write to the next unique location.
@@ -730,26 +746,25 @@ func (c *Compactor) compact(fast bool, tsmFiles []string) ([]string, error) {
 	// For each TSM file, create a TSM reader
 	var trs []*TSMReader
 	for _, file := range tsmFiles {
-		f, err := os.Open(file)
-		if err != nil {
-			return nil, err
+		select {
+		case <-intC:
+			return nil, errCompactionAborted{}
+		default:
 		}
 
-		tr, err := NewTSMReader(f)
-		if err != nil {
-			return nil, err
+		tr := c.FileStore.TSMReader(file)
+		if tr == nil {
+			// This would be a bug if this occurred as tsmFiles passed in should only be
+			// assigned to one compaction at any one time.  A nil tr would mean the file
+			// doesn't exist.
+			return nil, errCompactionAborted{fmt.Errorf("bad plan: %s", file)}
 		}
-		defer tr.Close()
 		trs = append(trs, tr)
 	}
 
 	if len(trs) == 0 {
 		return nil, nil
 	}
-
-	c.mu.RLock()
-	intC := c.compactionsInterrupt
-	c.mu.RUnlock()
 
 	tsm, err := NewTSMKeyIterator(size, fast, intC, trs...)
 	if err != nil {
@@ -866,6 +881,12 @@ func (c *Compactor) writeNewFiles(generation, sequence int, iter KeyIterator) ([
 			// planner keeps track of which files are assigned to compaction plans now.
 			return nil, err
 		} else if err != nil {
+			// Remove any tmp files we already completed
+			for _, f := range files {
+				if err := os.RemoveAll(f); err != nil {
+					return nil, err
+				}
+			}
 			// We hit an error and didn't finish the compaction.  Remove the temp file and abort.
 			if err := os.RemoveAll(fileName); err != nil {
 				return nil, err
@@ -904,7 +925,7 @@ func (c *Compactor) write(path string, iter KeyIterator) (err error) {
 		c.mu.RUnlock()
 
 		if !enabled {
-			return errCompactionAborted
+			return errCompactionAborted{}
 		}
 		// Each call to read returns the next sorted key (or the prior one if there are
 		// more values to write).  The size of values will be less than or equal to our
@@ -1063,6 +1084,10 @@ func (b *block) markRead(min, max int64) {
 }
 
 func (b *block) partiallyRead() bool {
+	// If readMin and readMax are still the initial values, nothing has been read.
+	if b.readMin == int64(math.MaxInt64) && b.readMax == int64(math.MinInt64) {
+		return false
+	}
 	return b.readMin != b.minTime || b.readMax != b.maxTime
 }
 
@@ -1243,7 +1268,7 @@ func (k *tsmKeyIterator) Read() ([]byte, int64, int64, []byte, error) {
 	// See if compactions were disabled while we were running.
 	select {
 	case <-k.interrupt:
-		return nil, 0, 0, nil, errCompactionAborted
+		return nil, 0, 0, nil, errCompactionAborted{}
 	default:
 	}
 
@@ -1383,7 +1408,7 @@ func (c *cacheKeyIterator) Read() ([]byte, int64, int64, []byte, error) {
 	// See if snapshot compactions were disabled while we were running.
 	select {
 	case <-c.interrupt:
-		return nil, 0, 0, nil, errCompactionAborted
+		return nil, 0, 0, nil, errCompactionAborted{}
 	default:
 	}
 

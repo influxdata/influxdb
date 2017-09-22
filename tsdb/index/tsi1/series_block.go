@@ -49,7 +49,7 @@ const (
 )
 
 // MaxSeriesBlockHashSize is the maximum number of series in a single hash.
-const MaxSeriesBlockHashSize = (65536 * LoadFactor) / 100
+const MaxSeriesBlockHashSize = (1048576 * LoadFactor) / 100
 
 // SeriesBlock represents the section of the index that holds series data.
 type SeriesBlock struct {

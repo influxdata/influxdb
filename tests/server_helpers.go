@@ -13,7 +13,6 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"testing"
 	"time"
 
 	"github.com/influxdata/influxdb/cmd/influxd/run"
@@ -22,6 +21,9 @@ import (
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/toml"
 )
+
+var verboseServerLogs bool
+var indexType string
 
 // Server represents a test wrapper for run.Server.
 type Server interface {
@@ -472,22 +474,17 @@ func NewConfig() *run.Config {
 	c.ReportingDisabled = true
 	c.Coordinator.WriteTimeout = toml.Duration(30 * time.Second)
 	c.Meta.Dir = MustTempFile()
-
-	if !testing.Verbose() {
-		c.Meta.LoggingEnabled = false
-	}
+	c.Meta.LoggingEnabled = verboseServerLogs
 
 	c.Data.Dir = MustTempFile()
 	c.Data.WALDir = MustTempFile()
-
-	indexVersion := os.Getenv("INFLUXDB_DATA_INDEX_VERSION")
-	if indexVersion != "" {
-		c.Data.Index = indexVersion
-	}
+	c.Data.QueryLogEnabled = verboseServerLogs
+	c.Data.TraceLoggingEnabled = verboseServerLogs
+	c.Data.Index = indexType
 
 	c.HTTPD.Enabled = true
 	c.HTTPD.BindAddress = "127.0.0.1:0"
-	c.HTTPD.LogEnabled = testing.Verbose()
+	c.HTTPD.LogEnabled = verboseServerLogs
 
 	c.Monitor.StoreEnabled = false
 
@@ -724,7 +721,7 @@ func writeTestData(s Server, t *Test) error {
 
 func configureLogging(s Server) {
 	// Set the logger to discard unless verbose is on
-	if !testing.Verbose() {
+	if !verboseServerLogs {
 		s.SetLogOutput(ioutil.Discard)
 	}
 }

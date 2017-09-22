@@ -3,6 +3,7 @@ package cli // import "github.com/influxdata/influxdb/cmd/influx/cli"
 
 import (
 	"bytes"
+	"context"
 	"encoding/csv"
 	"encoding/json"
 	"errors"
@@ -729,8 +730,31 @@ func (c *CommandLine) ExecuteQuery(query string) error {
 		}
 		query = pq.String()
 	}
-	response, err := c.Client.Query(c.query(query))
+
+	ctx := context.Background()
+	if !c.IgnoreSignals {
+		done := make(chan struct{})
+		defer close(done)
+
+		var cancel func()
+		ctx, cancel = context.WithCancel(ctx)
+		go func() {
+			select {
+			case <-done:
+			case <-c.osSignals:
+				cancel()
+			}
+		}()
+	}
+
+	response, err := c.Client.QueryContext(ctx, c.query(query))
 	if err != nil {
+		if err.Error() == "" {
+			err = ctx.Err()
+			if err == context.Canceled {
+				err = errors.New("aborted by user")
+			}
+		}
 		fmt.Printf("ERR: %s\n", err)
 		return err
 	}

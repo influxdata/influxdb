@@ -14,6 +14,7 @@ import (
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/query"
 	internal "github.com/influxdata/influxdb/services/meta/internal"
 )
 
@@ -1432,7 +1433,7 @@ func (cqi *ContinuousQueryInfo) unmarshal(pb *internal.ContinuousQueryInfo) {
 	cqi.Query = pb.GetQuery()
 }
 
-var _ influxql.Authorizer = (*UserInfo)(nil)
+var _ query.Authorizer = (*UserInfo)(nil)
 
 // UserInfo represents metadata about a user in the system.
 type UserInfo struct {
@@ -1450,7 +1451,7 @@ type UserInfo struct {
 }
 
 type User interface {
-	influxql.Authorizer
+	query.Authorizer
 	ID() string
 	IsAdmin() bool
 }
@@ -1556,8 +1557,8 @@ func (leases *Leases) Acquire(name string, nodeID uint64) (*Lease, error) {
 	leases.mu.Lock()
 	defer leases.mu.Unlock()
 
-	l, ok := leases.m[name]
-	if ok {
+	l := leases.m[name]
+	if l != nil {
 		if time.Now().After(l.Expiration) || l.Owner == nodeID {
 			l.Expiration = time.Now().Add(leases.d)
 			l.Owner = nodeID

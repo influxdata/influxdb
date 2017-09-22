@@ -67,11 +67,13 @@ const (
 	// ALL and the following are InfluxQL Keywords
 	ALL
 	ALTER
+	ANALYZE
 	ANY
 	AS
 	ASC
 	BEGIN
 	BY
+	CARDINALITY
 	CREATE
 	CONTINUOUS
 	DATABASE
@@ -187,11 +189,13 @@ var tokens = [...]string{
 
 	ALL:           "ALL",
 	ALTER:         "ALTER",
+	ANALYZE:       "ANALYZE",
 	ANY:           "ANY",
 	AS:            "AS",
 	ASC:           "ASC",
 	BEGIN:         "BEGIN",
 	BY:            "BY",
+	CARDINALITY:   "CARDINALITY",
 	CREATE:        "CREATE",
 	CONTINUOUS:    "CONTINUOUS",
 	DATABASE:      "DATABASE",
