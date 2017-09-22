@@ -215,7 +215,7 @@ func init() {
 		},
 	}
 
-	tests["delete_series"] = Test{
+	tests["delete_series_time"] = Test{
 		db: "db0",
 		rp: "rp0",
 		writes: Writes{
@@ -248,6 +248,51 @@ func init() {
 				name:    "Make sure last point still exists",
 				command: `SELECT * FROM cpu`,
 				exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","host","region","val"],"values":[["2000-01-03T00:00:00Z","serverA","uswest",200]]}]}]}`,
+				params:  url.Values{"db": []string{"db0"}},
+			},
+			&Query{
+				name:    "Make sure data wasn't deleted from other database.",
+				command: `SELECT * FROM cpu`,
+				exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","host","region","val"],"values":[["2000-01-01T00:00:00Z","serverA","uswest",23.2]]}]}]}`,
+				params:  url.Values{"db": []string{"db1"}},
+			},
+		},
+	}
+
+	tests["delete_series_time_tag_filter"] = Test{
+		db: "db0",
+		rp: "rp0",
+		writes: Writes{
+			&Write{data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano())},
+			&Write{data: fmt.Sprintf(`cpu,host=serverB,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano())},
+			&Write{data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=100 %d`, mustParseTime(time.RFC3339Nano, "2000-01-02T00:00:00Z").UnixNano())},
+			&Write{data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=200 %d`, mustParseTime(time.RFC3339Nano, "2000-01-03T00:00:00Z").UnixNano())},
+			&Write{db: "db1", data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano())},
+		},
+		queries: []*Query{
+			&Query{
+				name:    "Show series is present",
+				command: `SHOW SERIES`,
+				exp:     `{"results":[{"statement_id":0,"series":[{"columns":["key"],"values":[["cpu,host=serverA,region=uswest"],["cpu,host=serverB,region=uswest"]]}]}]}`,
+				params:  url.Values{"db": []string{"db0"}},
+			},
+			&Query{
+				name:    "Delete series",
+				command: `DELETE FROM cpu WHERE host = 'serverA' AND time < '2000-01-03T00:00:00Z'`,
+				exp:     `{"results":[{"statement_id":0}]}`,
+				params:  url.Values{"db": []string{"db0"}},
+				once:    true,
+			},
+			&Query{
+				name:    "Show series still exists",
+				command: `SHOW SERIES`,
+				exp:     `{"results":[{"statement_id":0,"series":[{"columns":["key"],"values":[["cpu,host=serverA,region=uswest"],["cpu,host=serverB,region=uswest"]]}]}]}`,
+				params:  url.Values{"db": []string{"db0"}},
+			},
+			&Query{
+				name:    "Make sure last point still exists",
+				command: `SELECT * FROM cpu`,
+				exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","host","region","val"],"values":[["2000-01-01T00:00:00Z","serverB","uswest",23.2],["2000-01-03T00:00:00Z","serverA","uswest",200]]}]}]}`,
 				params:  url.Values{"db": []string{"db0"}},
 			},
 			&Query{
