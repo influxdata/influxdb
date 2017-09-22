@@ -881,8 +881,9 @@ func TestIndirectIndex_Entries(t *testing.T) {
 	index := NewIndexWriter()
 	index.Add([]byte("cpu"), BlockFloat64, 0, 1, 10, 100)
 	index.Add([]byte("cpu"), BlockFloat64, 2, 3, 20, 200)
-	index.Add([]byte("mem"), BlockFloat64, 0, 1, 10, 100)
 	exp := index.Entries([]byte("cpu"))
+
+	index.Add([]byte("mem"), BlockFloat64, 0, 1, 10, 100)
 
 	b, err := index.MarshalBinary()
 	if err != nil {
@@ -981,26 +982,15 @@ func TestIndirectIndex_Type(t *testing.T) {
 	}
 }
 
-func TestIndirectIndex_Keys(t *testing.T) {
+func TestDirectIndex_KeyCount(t *testing.T) {
 	index := NewIndexWriter()
 	index.Add([]byte("cpu"), BlockFloat64, 0, 1, 10, 20)
 	index.Add([]byte("cpu"), BlockFloat64, 1, 2, 20, 30)
 	index.Add([]byte("mem"), BlockFloat64, 0, 1, 10, 20)
 
-	keys := index.Keys()
-
 	// 2 distinct keys
-	if got, exp := len(keys), 2; got != exp {
+	if got, exp := index.KeyCount(), 2; got != exp {
 		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
-	}
-
-	// Keys should be sorted
-	if got, exp := string(keys[0]), "cpu"; got != exp {
-		t.Fatalf("key mismatch: got %v, exp %v", got, exp)
-	}
-
-	if got, exp := string(keys[1]), "mem"; got != exp {
-		t.Fatalf("key mismatch: got %v, exp %v", got, exp)
 	}
 }
 

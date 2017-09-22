@@ -118,7 +118,7 @@ func (e *entry) deduplicate() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	if len(e.values) == 0 {
+	if len(e.values) <= 1 {
 		return
 	}
 	e.values = e.values.Deduplicate()
@@ -176,6 +176,8 @@ type storer interface {
 	apply(f func([]byte, *entry) error) error       // Apply f to all entries in the store in parallel.
 	applySerial(f func([]byte, *entry) error) error // Apply f to all entries in serial.
 	reset()                                         // Reset the store to an initial unused state.
+	split(n int) []storer                           // Split splits the store into n stores
+	count() int                                     // Count returns the number of keys in the store
 }
 
 // Cache maintains an in-memory store of Values for a set of keys.
@@ -436,6 +438,15 @@ func (c *Cache) Deduplicate() {
 func (c *Cache) ClearSnapshot(success bool) {
 	c.init()
 
+	c.mu.RLock()
+	snapStore := c.snapshot.store
+	c.mu.RUnlock()
+
+	// reset the snapshot store outside of the write lock
+	if success {
+		snapStore.reset()
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -445,8 +456,7 @@ func (c *Cache) ClearSnapshot(success bool) {
 		c.snapshotAttempts = 0
 		c.updateMemSize(-int64(atomic.LoadUint64(&c.snapshotSize))) // decrement the number of bytes in cache
 
-		// Reset the snapshot's store, and reset the snapshot to a fresh Cache.
-		c.snapshot.store.reset()
+		// Reset the snapshot to a fresh Cache.
 		c.snapshot = &Cache{
 			store: c.snapshot.store,
 		}
@@ -477,12 +487,34 @@ func (c *Cache) MaxSize() uint64 {
 	return c.maxSize
 }
 
+func (c *Cache) Count() int {
+	c.mu.RLock()
+	n := c.store.count()
+	c.mu.RUnlock()
+	return n
+}
+
 // Keys returns a sorted slice of all keys under management by the cache.
 func (c *Cache) Keys() [][]byte {
 	c.mu.RLock()
 	store := c.store
 	c.mu.RUnlock()
 	return store.keys(true)
+}
+
+func (c *Cache) Split(n int) []*Cache {
+	if n == 1 {
+		return []*Cache{c}
+	}
+
+	caches := make([]*Cache, n)
+	storers := c.store.split(n)
+	for i := 0; i < n; i++ {
+		caches[i] = &Cache{
+			store: storers[i],
+		}
+	}
+	return caches
 }
 
 // unsortedKeys returns a slice of all keys under management by the cache. The
@@ -765,3 +797,5 @@ func (e emptyStore) keys(sorted bool) [][]byte                      { return nil
 func (e emptyStore) apply(f func([]byte, *entry) error) error       { return nil }
 func (e emptyStore) applySerial(f func([]byte, *entry) error) error { return nil }
 func (e emptyStore) reset()                                         {}
+func (e emptyStore) split(n int) []storer                           { return nil }
+func (e emptyStore) count() int                                     { return 0 }
