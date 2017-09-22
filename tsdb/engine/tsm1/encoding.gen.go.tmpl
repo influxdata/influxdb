@@ -53,7 +53,7 @@ func (a {{.Name}}Values) assertOrdered() {
 // Deduplicate returns a new slice with any values that have the same timestamp removed.
 // The Value that appears last in the slice is the one that is kept.
 func (a {{.Name}}Values) Deduplicate() {{.Name}}Values {
-	if len(a) == 0 {
+	if len(a) <= 1 {
 		return a
 	}
 

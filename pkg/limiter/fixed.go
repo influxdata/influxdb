@@ -10,10 +10,27 @@ func NewFixed(limit int) Fixed {
 	return make(Fixed, limit)
 }
 
+// Idle returns true if the limiter has all its capacity is available.
+func (t Fixed) Idle() bool {
+	return len(t) == cap(t)
+}
+
+// TryTake attempts to take a token and return true if successful, otherwise returns false.
+func (t Fixed) TryTake() bool {
+	select {
+	case t <- struct{}{}:
+		return true
+	default:
+		return false
+	}
+}
+
+// Take attempts to take a token and blocks until one is available.
 func (t Fixed) Take() {
 	t <- struct{}{}
 }
 
+// Release releases a token back to the limiter.
 func (t Fixed) Release() {
 	<-t
 }

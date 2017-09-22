@@ -56,7 +56,7 @@ func (a Values) assertOrdered() {
 // Deduplicate returns a new slice with any values that have the same timestamp removed.
 // The Value that appears last in the slice is the one that is kept.
 func (a Values) Deduplicate() Values {
-	if len(a) == 0 {
+	if len(a) <= 1 {
 		return a
 	}
 
@@ -268,7 +268,7 @@ func (a FloatValues) assertOrdered() {
 // Deduplicate returns a new slice with any values that have the same timestamp removed.
 // The Value that appears last in the slice is the one that is kept.
 func (a FloatValues) Deduplicate() FloatValues {
-	if len(a) == 0 {
+	if len(a) <= 1 {
 		return a
 	}
 
@@ -524,7 +524,7 @@ func (a IntegerValues) assertOrdered() {
 // Deduplicate returns a new slice with any values that have the same timestamp removed.
 // The Value that appears last in the slice is the one that is kept.
 func (a IntegerValues) Deduplicate() IntegerValues {
-	if len(a) == 0 {
+	if len(a) <= 1 {
 		return a
 	}
 
@@ -780,7 +780,7 @@ func (a UnsignedValues) assertOrdered() {
 // Deduplicate returns a new slice with any values that have the same timestamp removed.
 // The Value that appears last in the slice is the one that is kept.
 func (a UnsignedValues) Deduplicate() UnsignedValues {
-	if len(a) == 0 {
+	if len(a) <= 1 {
 		return a
 	}
 
@@ -1036,7 +1036,7 @@ func (a StringValues) assertOrdered() {
 // Deduplicate returns a new slice with any values that have the same timestamp removed.
 // The Value that appears last in the slice is the one that is kept.
 func (a StringValues) Deduplicate() StringValues {
-	if len(a) == 0 {
+	if len(a) <= 1 {
 		return a
 	}
 
@@ -1292,7 +1292,7 @@ func (a BooleanValues) assertOrdered() {
 // Deduplicate returns a new slice with any values that have the same timestamp removed.
 // The Value that appears last in the slice is the one that is kept.
 func (a BooleanValues) Deduplicate() BooleanValues {
-	if len(a) == 0 {
+	if len(a) <= 1 {
 		return a
 	}
 
