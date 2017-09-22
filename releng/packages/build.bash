@@ -49,8 +49,13 @@ docker build -t influxdata/influxdb/releng/packages:latest "$SRCDIR"
 
 mkdir -p "$OUTDIR"
 
+STATIC=""
+case "$(basename "$BIN_TARBALL")" in
+   *static*) STATIC="-s";;
+esac
+
 docker run --rm \
    --mount type=bind,source="${OUTDIR}",destination=/out \
    --mount type=bind,source="${SRC_TARBALL}",destination=/influxdb-src.tar.gz \
    --mount type=bind,source="${BIN_TARBALL}",destination=/influxdb-bin.tar.gz \
-  influxdata/influxdb/releng/packages:latest -O "$OS" -A "$ARCH"
+  influxdata/influxdb/releng/packages:latest -O "$OS" -A "$ARCH" $STATIC

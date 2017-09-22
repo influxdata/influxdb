@@ -18,12 +18,14 @@ fi
 
 OS=""
 ARCH=""
+STATIC=""
 
-while getopts hO:A: arg; do
+while getopts hO:A:s arg; do
   case "$arg" in
     h) printHelp; exit 1;;
     O) OS="$OPTARG";;
     A) ARCH="$OPTARG";;
+    s) STATIC="1";;
   esac
 done
 
@@ -73,38 +75,42 @@ if [ "$OS" == "linux" ]; then
   cp /ibin/* /pkg/usr/bin/
 
   # Make tarball of files in packaging.
-  (cd /pkg && tar czf "/out/influxdb-pkg-${OS}-${ARCH}-${SHA}.tar.gz" ./*)
+  (cd /pkg && tar czf "/out/influxdb-oss-${VERSION}_${OS}_${ARCH}.tar.gz" ./*)
 
-  # Call fpm to build .deb and .rpm packages.
-  for typeargs in "-t deb" "-t rpm --depends coreutils"; do
-    fpm \
-      -s dir \
-      $typeargs \
-      --log error \
-      --vendor InfluxData \
-      --url "https://influxdata.com" \
-      --after-install /isrc/scripts/post-install.sh \
-      --before-install /isrc/scripts/pre-install.sh \
-      --after-remove /isrc/scripts/post-uninstall.sh \
-      --license Proprietary \
-      --maintainer "support@influxdb.com" \
-      --directories /var/log/influxdb \
-      --directories /var/lib/influxdb \
-      --description 'Distributed time-series database.' \
-      --config-files /etc/influxdb/influxdb.conf \
-      --config-files /etc/logrotate.d/influxdb \
-      --name "influxdb" \
-      --architecture "$ARCH" \
-      --version "$VERSION" \
-      --iteration 1 \
-      -C /pkg \
-      -p /out
-  done
+  if [ "$STATIC" == "1" ]; then
+    mv /out/influxdb-oss-${VERSION}-${OS}-${ARCH}.tar.gz  /out/influxdb-oss-static_${VERSION}_${OS}_${ARCH}.tar.gz
+  else
+    # Call fpm to build .deb and .rpm packages.
+    for typeargs in "-t deb" "-t rpm --depends coreutils"; do
+      fpm \
+        -s dir \
+        $typeargs \
+        --log error \
+        --vendor InfluxData \
+        --url "https://influxdata.com" \
+        --after-install /isrc/scripts/post-install.sh \
+        --before-install /isrc/scripts/pre-install.sh \
+        --after-remove /isrc/scripts/post-uninstall.sh \
+        --license Proprietary \
+        --maintainer "support@influxdb.com" \
+        --directories /var/log/influxdb \
+        --directories /var/lib/influxdb \
+        --description 'Distributed time-series database.' \
+        --config-files /etc/influxdb/influxdb.conf \
+        --config-files /etc/logrotate.d/influxdb \
+        --name "influxdb" \
+        --architecture "$ARCH" \
+        --version "$VERSION" \
+        --iteration 1 \
+        -C /pkg \
+        -p /out
+    done
+  fi
 
   #############################
   ######### Checksums #########
   #############################
-  (cd /out && for f in *.deb *.rpm; do
+  (cd /out && for f in *.deb *.rpm *.tar.gz; do
     md5sum "$f" > "$f.md5"
     sha256sum "$f" > "$f.sha256"
   done)

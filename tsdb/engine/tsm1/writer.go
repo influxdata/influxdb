@@ -184,8 +184,8 @@ type IndexEntry struct {
 
 // UnmarshalBinary decodes an IndexEntry from a byte slice.
 func (e *IndexEntry) UnmarshalBinary(b []byte) error {
-	if len(b) != indexEntrySize {
-		return fmt.Errorf("unmarshalBinary: short buf: %v != %v", indexEntrySize, len(b))
+	if len(b) < indexEntrySize {
+		return fmt.Errorf("unmarshalBinary: short buf: %v < %v", len(b), indexEntrySize)
 	}
 	e.MinTime = int64(binary.BigEndian.Uint64(b[:8]))
 	e.MaxTime = int64(binary.BigEndian.Uint64(b[8:16]))
