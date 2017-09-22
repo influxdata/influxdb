@@ -75,11 +75,15 @@ if [ "$OS" == "linux" ]; then
   cp /ibin/* /pkg/usr/bin/
 
   # Make tarball of files in packaging.
-  (cd /pkg && tar czf "/out/influxdb-oss-${VERSION}_${OS}_${ARCH}.tar.gz" ./*)
-
+  BIN_GZ_NAME="/out/influxdb-oss-${VERSION}_${OS}_${ARCH}.tar.gz"
   if [ "$STATIC" == "1" ]; then
-    mv /out/influxdb-oss-${VERSION}-${OS}-${ARCH}.tar.gz  /out/influxdb-oss-static_${VERSION}_${OS}_${ARCH}.tar.gz
-  else
+    BIN_GZ_NAME="/out/influxdb-oss-static_${VERSION}_${OS}_${ARCH}.tar.gz"
+  fi
+
+  (cd /pkg && tar czf $BIN_GZ_NAME ./*)
+
+  # don't need static install packages.
+  if [ "$STATIC" != "1" ]; then
     # Call fpm to build .deb and .rpm packages.
     for typeargs in "-t deb" "-t rpm --depends coreutils"; do
       fpm \
