@@ -802,12 +802,15 @@ func newIteratorOptionsSubstatement(stmt *SelectStatement, opt IteratorOptions) 
 	subOpt.SLimit += opt.SLimit
 	subOpt.SOffset += opt.SOffset
 
-	// If the inner query uses a null fill option, switch it to none so we
-	// don't hit an unnecessary penalty from the fill iterator. Null values
-	// will end up getting stripped by an outer query anyway so there's no
-	// point in having them here. We still need all other types of fill
-	// iterators because they can affect the result of the outer query.
-	if subOpt.Fill == NullFill {
+	// If the inner query uses a null fill option and is not a raw query,
+	// switch it to none so we don't hit an unnecessary penalty from the
+	// fill iterator. Null values will end up getting stripped by an outer
+	// query anyway so there's no point in having them here. We still need
+	// all other types of fill iterators because they can affect the result
+	// of the outer query. We also do not do this for raw queries because
+	// there is no fill iterator for them and fill(none) doesn't work with
+	// raw queries.
+	if !stmt.IsRawQuery && subOpt.Fill == NullFill {
 		subOpt.Fill = NoFill
 	}
 
