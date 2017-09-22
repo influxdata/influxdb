@@ -39,6 +39,7 @@ func (e *LocalShardMapper) MapShards(sources influxql.Sources, t influxql.TimeRa
 	if err := e.mapShards(a, sources, tmin, tmax); err != nil {
 		return nil, err
 	}
+	a.MinTime, a.MaxTime = tmin, tmax
 	return a, nil
 }
 
@@ -85,6 +86,16 @@ func (e *LocalShardMapper) mapShards(a *LocalShardMapping, sources influxql.Sour
 // ShardMapper maps data sources to a list of shard information.
 type LocalShardMapping struct {
 	ShardMap map[Source]tsdb.ShardGroup
+
+	// MinTime is the minimum time that this shard mapper will allow.
+	// Any attempt to use a time before this one will automatically result in using
+	// this time instead.
+	MinTime time.Time
+
+	// MaxTime is the maximum time that this shard mapper will allow.
+	// Any attempt to use a time after this one will automatically result in using
+	// this time instead.
+	MaxTime time.Time
 }
 
 func (a *LocalShardMapping) FieldDimensions(m *influxql.Measurement) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
@@ -160,6 +171,14 @@ func (a *LocalShardMapping) CreateIterator(m *influxql.Measurement, opt query.It
 		return nil, nil
 	}
 
+	// Override the time constraints if they don't match each other.
+	if !a.MinTime.IsZero() && opt.StartTime < a.MinTime.UnixNano() {
+		opt.StartTime = a.MinTime.UnixNano()
+	}
+	if !a.MaxTime.IsZero() && opt.EndTime > a.MaxTime.UnixNano() {
+		opt.EndTime = a.MaxTime.UnixNano()
+	}
+
 	if m.Regex != nil {
 		measurements := sg.MeasurementsByRegex(m.Regex.Val)
 		inputs := make([]query.Iterator, 0, len(measurements))
@@ -190,6 +209,14 @@ func (a *LocalShardMapping) IteratorCost(m *influxql.Measurement, opt query.Iter
 	sg := a.ShardMap[source]
 	if sg == nil {
 		return query.IteratorCost{}, nil
+	}
+
+	// Override the time constraints if they don't match each other.
+	if !a.MinTime.IsZero() && opt.StartTime < a.MinTime.UnixNano() {
+		opt.StartTime = a.MinTime.UnixNano()
+	}
+	if !a.MaxTime.IsZero() && opt.EndTime > a.MaxTime.UnixNano() {
+		opt.EndTime = a.MaxTime.UnixNano()
 	}
 
 	if m.Regex != nil {

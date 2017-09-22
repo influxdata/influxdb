@@ -664,6 +664,9 @@ func (itr *floatFillIterator) Next() (*FloatPoint, error) {
 		}
 		itr.window.name, itr.window.tags = p.Name, p.Tags
 		itr.window.time = itr.startTime
+		if itr.startTime == influxql.MinTime {
+			itr.window.time, _ = itr.opt.Window(p.Time)
+		}
 		if itr.opt.Location != nil {
 			_, itr.window.offset = itr.opt.Zone(itr.window.time)
 		}
@@ -686,7 +689,7 @@ func (itr *floatFillIterator) Next() (*FloatPoint, error) {
 				break
 			}
 		} else {
-			if itr.window.time >= itr.endTime {
+			if itr.window.time >= itr.endTime && itr.endTime != influxql.MinTime {
 				itr.input.unread(p)
 				p = nil
 				break
@@ -702,6 +705,9 @@ func (itr *floatFillIterator) Next() (*FloatPoint, error) {
 		// Set the new interval.
 		itr.window.name, itr.window.tags = p.Name, p.Tags
 		itr.window.time = itr.startTime
+		if itr.window.time == influxql.MinTime {
+			itr.window.time, _ = itr.opt.Window(p.Time)
+		}
 		if itr.opt.Location != nil {
 			_, itr.window.offset = itr.opt.Zone(itr.window.time)
 		}
@@ -4054,6 +4060,9 @@ func (itr *integerFillIterator) Next() (*IntegerPoint, error) {
 		}
 		itr.window.name, itr.window.tags = p.Name, p.Tags
 		itr.window.time = itr.startTime
+		if itr.startTime == influxql.MinTime {
+			itr.window.time, _ = itr.opt.Window(p.Time)
+		}
 		if itr.opt.Location != nil {
 			_, itr.window.offset = itr.opt.Zone(itr.window.time)
 		}
@@ -4076,7 +4085,7 @@ func (itr *integerFillIterator) Next() (*IntegerPoint, error) {
 				break
 			}
 		} else {
-			if itr.window.time >= itr.endTime {
+			if itr.window.time >= itr.endTime && itr.endTime != influxql.MinTime {
 				itr.input.unread(p)
 				p = nil
 				break
@@ -4092,6 +4101,9 @@ func (itr *integerFillIterator) Next() (*IntegerPoint, error) {
 		// Set the new interval.
 		itr.window.name, itr.window.tags = p.Name, p.Tags
 		itr.window.time = itr.startTime
+		if itr.window.time == influxql.MinTime {
+			itr.window.time, _ = itr.opt.Window(p.Time)
+		}
 		if itr.opt.Location != nil {
 			_, itr.window.offset = itr.opt.Zone(itr.window.time)
 		}
@@ -7441,6 +7453,9 @@ func (itr *unsignedFillIterator) Next() (*UnsignedPoint, error) {
 		}
 		itr.window.name, itr.window.tags = p.Name, p.Tags
 		itr.window.time = itr.startTime
+		if itr.startTime == influxql.MinTime {
+			itr.window.time, _ = itr.opt.Window(p.Time)
+		}
 		if itr.opt.Location != nil {
 			_, itr.window.offset = itr.opt.Zone(itr.window.time)
 		}
@@ -7463,7 +7478,7 @@ func (itr *unsignedFillIterator) Next() (*UnsignedPoint, error) {
 				break
 			}
 		} else {
-			if itr.window.time >= itr.endTime {
+			if itr.window.time >= itr.endTime && itr.endTime != influxql.MinTime {
 				itr.input.unread(p)
 				p = nil
 				break
@@ -7479,6 +7494,9 @@ func (itr *unsignedFillIterator) Next() (*UnsignedPoint, error) {
 		// Set the new interval.
 		itr.window.name, itr.window.tags = p.Name, p.Tags
 		itr.window.time = itr.startTime
+		if itr.window.time == influxql.MinTime {
+			itr.window.time, _ = itr.opt.Window(p.Time)
+		}
 		if itr.opt.Location != nil {
 			_, itr.window.offset = itr.opt.Zone(itr.window.time)
 		}
@@ -10828,6 +10846,9 @@ func (itr *stringFillIterator) Next() (*StringPoint, error) {
 		}
 		itr.window.name, itr.window.tags = p.Name, p.Tags
 		itr.window.time = itr.startTime
+		if itr.startTime == influxql.MinTime {
+			itr.window.time, _ = itr.opt.Window(p.Time)
+		}
 		if itr.opt.Location != nil {
 			_, itr.window.offset = itr.opt.Zone(itr.window.time)
 		}
@@ -10850,7 +10871,7 @@ func (itr *stringFillIterator) Next() (*StringPoint, error) {
 				break
 			}
 		} else {
-			if itr.window.time >= itr.endTime {
+			if itr.window.time >= itr.endTime && itr.endTime != influxql.MinTime {
 				itr.input.unread(p)
 				p = nil
 				break
@@ -10866,6 +10887,9 @@ func (itr *stringFillIterator) Next() (*StringPoint, error) {
 		// Set the new interval.
 		itr.window.name, itr.window.tags = p.Name, p.Tags
 		itr.window.time = itr.startTime
+		if itr.window.time == influxql.MinTime {
+			itr.window.time, _ = itr.opt.Window(p.Time)
+		}
 		if itr.opt.Location != nil {
 			_, itr.window.offset = itr.opt.Zone(itr.window.time)
 		}
@@ -14201,6 +14225,9 @@ func (itr *booleanFillIterator) Next() (*BooleanPoint, error) {
 		}
 		itr.window.name, itr.window.tags = p.Name, p.Tags
 		itr.window.time = itr.startTime
+		if itr.startTime == influxql.MinTime {
+			itr.window.time, _ = itr.opt.Window(p.Time)
+		}
 		if itr.opt.Location != nil {
 			_, itr.window.offset = itr.opt.Zone(itr.window.time)
 		}
@@ -14223,7 +14250,7 @@ func (itr *booleanFillIterator) Next() (*BooleanPoint, error) {
 				break
 			}
 		} else {
-			if itr.window.time >= itr.endTime {
+			if itr.window.time >= itr.endTime && itr.endTime != influxql.MinTime {
 				itr.input.unread(p)
 				p = nil
 				break
@@ -14239,6 +14266,9 @@ func (itr *booleanFillIterator) Next() (*BooleanPoint, error) {
 		// Set the new interval.
 		itr.window.name, itr.window.tags = p.Name, p.Tags
 		itr.window.time = itr.startTime
+		if itr.window.time == influxql.MinTime {
+			itr.window.time, _ = itr.opt.Window(p.Time)
+		}
 		if itr.opt.Location != nil {
 			_, itr.window.offset = itr.opt.Zone(itr.window.time)
 		}

@@ -662,6 +662,9 @@ func (itr *{{$k.name}}FillIterator) Next() (*{{$k.Name}}Point, error) {
 		}
 		itr.window.name, itr.window.tags = p.Name, p.Tags
 		itr.window.time = itr.startTime
+		if itr.startTime == influxql.MinTime {
+			itr.window.time, _ = itr.opt.Window(p.Time)
+		}
 		if itr.opt.Location != nil {
 			_, itr.window.offset = itr.opt.Zone(itr.window.time)
 		}
@@ -684,7 +687,7 @@ func (itr *{{$k.name}}FillIterator) Next() (*{{$k.Name}}Point, error) {
 				break
 			}
 		} else {
-			if itr.window.time >= itr.endTime {
+			if itr.window.time >= itr.endTime && itr.endTime != influxql.MinTime {
 				itr.input.unread(p)
 				p = nil
 				break
@@ -700,6 +703,9 @@ func (itr *{{$k.name}}FillIterator) Next() (*{{$k.Name}}Point, error) {
 		// Set the new interval.
 		itr.window.name, itr.window.tags = p.Name, p.Tags
 		itr.window.time = itr.startTime
+		if itr.window.time == influxql.MinTime {
+			itr.window.time, _ = itr.opt.Window(p.Time)
+		}
 		if itr.opt.Location != nil {
 			_, itr.window.offset = itr.opt.Zone(itr.window.time)
 		}
