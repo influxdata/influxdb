@@ -6,19 +6,15 @@ import RefreshingGraph from 'shared/components/RefreshingGraph'
 const VisView = ({
   axes,
   view,
+  query,
   queries,
   cellType,
   templates,
   autoRefresh,
   heightPixels,
   editQueryStatus,
-  activeQueryIndex,
   resizerBottomHeight,
 }) => {
-  const activeQuery = queries[activeQueryIndex]
-  const defaultQuery = queries[0]
-  const query = activeQuery || defaultQuery
-
   if (view === 'table') {
     if (!query) {
       return (
@@ -55,6 +51,7 @@ const {arrayOf, func, number, shape, string} = PropTypes
 VisView.propTypes = {
   view: string.isRequired,
   axes: shape(),
+  query: shape().isRequired,
   queries: arrayOf(shape()).isRequired,
   cellType: string,
   templates: arrayOf(shape()),
