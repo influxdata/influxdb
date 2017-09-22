@@ -2,6 +2,7 @@
 ### Bug Fixes
 1.[#2004](https://github.com/influxdata/chronograf/pull/2004): Fix DE query templates dropdown disappearance
 1.[#2006](https://github.com/influxdata/chronograf/pull/2006): Fix no alert for duplicate db name
+1.[#2015](https://github.com/influxdata/chronograf/pull/2015): Chronograf shows real status for windows hosts when metrics are saved in non-default db - thank you, @ar7z1!
 1.[#2019](https://github.com/influxdata/chronograf/pull/2006): Fix false error warning for duplicate kapacitor name
 1.[#2018](https://github.com/influxdata/chronograf/pull/2018): Fix unresponsive display options and query builder in dashboards
 
@@ -67,7 +68,7 @@
 ## v1.3.6.1 [2017-08-14]
 **Upgrade Note** This release (1.3.6.1) fixes a possibly data corruption issue with dashboard cells' graph types. If you upgraded to 1.3.6.0 and visited any dashboard, once you have then upgraded to this release (1.3.6.1) you will need to manually reset the graph type for every cell via the cell's caret --> Edit --> Display Options. If you upgraded directly to 1.3.6.1, you should not experience this issue.
 
-### Bug Fixes
+## Bug Fixes
 1. [#1795](https://github.com/influxdata/chronograf/pull/1795): Fix uptime status on Windows hosts running Telegraf
 1. [#1715](https://github.com/influxdata/chronograf/pull/1715): Chronograf now renders on IE11.
 1. [#1870](https://github.com/influxdata/chronograf/pull/1870): Fix console error for placing prop on div
