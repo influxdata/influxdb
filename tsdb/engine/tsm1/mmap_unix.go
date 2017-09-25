@@ -20,10 +20,6 @@ func mmap(f *os.File, offset int64, length int) ([]byte, error) {
 		return nil, err
 	}
 
-	if err := unix.Madvise(mmap, syscall.MADV_RANDOM); err != nil {
-		return nil, err
-	}
-
 	return mmap, nil
 }
 
