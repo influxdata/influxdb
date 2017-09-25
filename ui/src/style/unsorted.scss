@@ -316,5 +316,40 @@ $tick-script-overlay-margin: 30px;
 .dropdown .dropdown-menu li.dropdown-item {
   display: block;
 
-  > a {display: block;}
+  > a {
+    display: block;
+  }
+}
+
+/*  Deletable tabs in .nav-tablist
+  -----------------------------------------------------------------------------
+  TODO: Add this into the theme styles
+*/
+.nav-tab--delete {
+  width: 16px;
+  height: 16px;
+  display: inline-block;
+  margin-left: 4px;
+  border-radius: 3px;
+  position: relative;
+  background-color: $g5-pepper;
+
+  // Psuedo elements used to form the X
+  &:before,
+  &:after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    background-color: $g11-sidewalk;
+    width: 10px;
+    height: 2px;
+    border-radius: 1px;
+  }
+  &:before {
+    transform: translate(-50%, -50%) rotate(45deg);
+  }
+  &:after {
+    transform: translate(-50%, -50%) rotate(-45deg);
+  }
 }
