@@ -17,6 +17,7 @@ class RuleMessage extends Component {
     this.state = {
       selectedAlertNodeName: null,
       endpointsOnThisAlert: [],
+      endpointsOfKind: {},
     }
   }
 
@@ -27,30 +28,42 @@ class RuleMessage extends Component {
 
   handleChooseAlert = item => () => {
     const {actions} = this.props
-    actions.updateAlerts(item.ruleID, [item.text])
+    actions.updateAlerts(item.ruleID, [item.text]) // TODO: this seems to be doing a lot more than it needs to.
     actions.updateAlertNodes(item.ruleID, item.text, '')
     this.setState({selectedAlertNodeName: item.text})
   }
 
   handleAddNewAlertEndpoint = selectedItem => {
+    const {endpointsOnThisAlert, endpointsOfKind} = this.state
+    const newItemNumbering = _.get(endpointsOfKind, selectedItem.text, 0) + 1
+    const newItemName = selectedItem.text + newItemNumbering
     this.setState({
-      endpointsOnThisAlert: _.concat(
-        this.state.endpointsOnThisAlert,
-        selectedItem
-      ),
+      endpointsOnThisAlert: _.concat(endpointsOnThisAlert, {
+        text: newItemName,
+        kind: selectedItem.text,
+        ruleID: selectedItem.ruleID,
+      }),
+      endpointsOfKind: {
+        ...endpointsOfKind,
+        [selectedItem.text]: newItemNumbering,
+      },
     })
+    console.log(this.state.endpointsOnThisAlert)
+  }
+  handleRemoveAlertEndpoint = removedItem => {
+    console.log(removedItem)
   }
 
   render() {
     const {rule, actions, enabledAlerts} = this.props
     const defaultAlertEndpoints = DEFAULT_ALERTS.map(text => {
-      return {text, ruleID: rule.id}
+      return {text, kind: text, ruleID: rule.id}
     })
 
     const alerts = [
       ...defaultAlertEndpoints,
       ...enabledAlerts.map(text => {
-        return {text, ruleID: rule.id}
+        return {text, kind: text, ruleID: rule.id}
       }),
     ]
 
@@ -64,8 +77,7 @@ class RuleMessage extends Component {
             <p>Send this Alert to:</p>
             <ul className="nav nav-tablist nav-tablist-sm nav-tablist-malachite">
               {this.state.endpointsOnThisAlert
-                // only display alert endpoints that have rule alert options configured
-                .filter(alert => _.get(RULE_ALERT_OPTIONS, alert.text, false))
+                .filter(alert => _.get(RULE_ALERT_OPTIONS, alert.kind, false)) // / TODO this looks like a problem
                 .map(alert =>
                   <li
                     key={uuid.v4()}
