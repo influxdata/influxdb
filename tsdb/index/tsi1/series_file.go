@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync"
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/mmap"
@@ -36,12 +37,13 @@ const MaxSeriesFileHashSize = (1048576 * LoadFactor) / 100
 
 // SeriesFile represents the section of the index that holds series data.
 type SeriesFile struct {
+	mu   sync.RWMutex
 	path string
 	data []byte
 	file *os.File
 	w    *bufio.Writer
 
-	offset  uint32
+	n       uint32
 	hashMap *rhh.HashMap
 
 	// MaxSize is the maximum size of the file.
@@ -66,16 +68,16 @@ func (f *SeriesFile) Open() error {
 	f.file = file
 
 	// Ensure header byte exists.
-	f.offset = 0
+	f.n = 0
 	if fi, err := file.Stat(); err != nil {
 		return err
 	} else if fi.Size() > 0 {
-		f.offset = uint32(fi.Size())
+		f.n = uint32(fi.Size())
 	} else {
 		if _, err := f.file.Write([]byte{0}); err != nil {
 			return err
 		}
-		f.offset = 1
+		f.n = 1
 	}
 
 	// Wrap file write a bufferred writer.
@@ -98,6 +100,9 @@ func (f *SeriesFile) Open() error {
 
 // Close unmaps the data file.
 func (f *SeriesFile) Close() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	if f.data != nil {
 		if err := mmap.Unmap(f.data); err != nil {
 			return err
@@ -125,7 +130,7 @@ func (f *SeriesFile) reindex() error {
 	m := rhh.NewHashMap(rhh.DefaultOptions)
 
 	// Series data begins with an offset of 1.
-	data := f.data[1:f.offset]
+	data := f.data[1:f.n]
 	offset := uint32(1)
 
 	for len(data) > 0 {
@@ -141,54 +146,48 @@ func (f *SeriesFile) reindex() error {
 	return nil
 }
 
-// CreateSeriesIfNotExists creates series if it doesn't exist. Returns the offset of the series.
-func (f *SeriesFile) CreateSeriesIfNotExists(name []byte, tags models.Tags, buf []byte) (offset uint32, err error) {
-	// Return offset if series exists.
-	if offset = f.Offset(name, tags, buf); offset != 0 {
-		return offset, nil
-	}
-
-	// Save current file offset.
-	offset = f.offset
-
-	// Append series to the end of the file.
-	buf = AppendSeriesKey(buf[:0], name, tags)
-	if _, err := f.w.Write(buf); err != nil {
-		return 0, err
-	}
-
-	// Flush writer.
-	if err := f.w.Flush(); err != nil {
-		return 0, err
-	}
-
-	// Move current offset to the end.
-	sz := uint32(len(buf))
-	f.offset += sz
-
-	// Add offset to hash map.
-	f.hashMap.Put(f.data[offset:offset+sz], offset)
-
-	return offset, nil
-}
-
 // CreateSeriesListIfNotExists creates a list of series in bulk if they don't exist. Returns the offset of the series.
 func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []models.Tags, buf []byte) (offsets []uint32, err error) {
+	var createRequired bool
+
 	type byteRange struct {
 		offset, size uint32
 	}
 	newKeyRanges := make([]byteRange, 0, len(names))
 
+	// Find existing series under read-only lock.
+	f.mu.RLock()
 	offsets = make([]uint32, len(names))
 	for i := range names {
-		offset := f.Offset(names[i], tagsSlice[i], buf)
-		if offset != 0 {
-			offsets[i] = offset
+		offsets[i] = f.offset(names[i], tagsSlice[i], buf)
+		if offsets[i] == 0 {
+			createRequired = true
+		}
+	}
+	f.mu.RUnlock()
+
+	// Return immediately if no series need to be created.
+	if !createRequired {
+		return offsets, nil
+	}
+
+	// Obtain write lock to create new series.
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	for i := range names {
+		// Skip series that have already been created.
+		if offsets[i] != 0 {
+			continue
+		}
+
+		// Re-attempt lookup under write lock.
+		if offsets[i] = f.offset(names[i], tagsSlice[i], buf); offsets[i] != 0 {
 			continue
 		}
 
 		// Save current file offset.
-		offset = f.offset
+		offset := f.n
 
 		// Append series to the end of the file.
 		buf = AppendSeriesKey(buf[:0], names[i], tagsSlice[i])
@@ -198,7 +197,7 @@ func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []mod
 
 		// Move current offset to the end.
 		sz := uint32(len(buf))
-		f.offset += sz
+		f.n += sz
 
 		// Append new key to be added to hash map after flush.
 		offsets[i] = offset
@@ -219,7 +218,14 @@ func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []mod
 }
 
 // Offset returns the byte offset of the series within the block.
-func (f *SeriesFile) Offset(name []byte, tags models.Tags, buf []byte) uint32 {
+func (f *SeriesFile) Offset(name []byte, tags models.Tags, buf []byte) (offset uint32) {
+	f.mu.RLock()
+	offset = f.offset(name, tags, buf)
+	f.mu.RUnlock()
+	return offset
+}
+
+func (f *SeriesFile) offset(name []byte, tags models.Tags, buf []byte) uint32 {
 	offset, _ := f.hashMap.Get(AppendSeriesKey(buf[:0], name, tags)).(uint32)
 	return offset
 }
@@ -258,7 +264,7 @@ func (f *SeriesFile) SeriesCount() uint32 {
 func (f *SeriesFile) SeriesIDIterator() SeriesIDIterator {
 	return &seriesFileIterator{
 		offset: 1,
-		data:   f.data[1:],
+		data:   f.data[1:f.n],
 	}
 }
 

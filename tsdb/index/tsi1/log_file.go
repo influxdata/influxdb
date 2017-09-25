@@ -455,6 +455,7 @@ func (f *LogFile) AddSeriesList(names [][]byte, tagsSlice []models.Tags) error {
 	return nil
 }
 
+/*
 // AddSeries adds a series to the log file.
 func (f *LogFile) AddSeries(name []byte, tags models.Tags) error {
 	seriesID, err := f.sfile.CreateSeriesIfNotExists(name, tags, nil)
@@ -472,7 +473,7 @@ func (f *LogFile) AddSeries(name []byte, tags models.Tags) error {
 	f.execEntry(&e)
 	return nil
 }
-
+*/
 // DeleteSeries adds a tombstone for a series to the log file.
 func (f *LogFile) DeleteSeriesID(seriesID uint32) error {
 	if seriesID == 0 {
