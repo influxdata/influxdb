@@ -17,10 +17,7 @@ class RuleMessage extends Component {
     this.state = {
       selectedAlertNodeName: null,
       endpointsOnThisAlert: [],
-<<<<<<< HEAD
       endpointsOfKind: {},
-=======
->>>>>>> Add functionality to Dropdown for new alert addition
     }
   }
 
@@ -37,7 +34,6 @@ class RuleMessage extends Component {
   }
 
   handleAddNewAlertEndpoint = selectedItem => {
-<<<<<<< HEAD
     const {endpointsOnThisAlert, endpointsOfKind} = this.state
     const newItemNumbering = _.get(endpointsOfKind, selectedItem.text, 0) + 1
     const newItemName = selectedItem.text + newItemNumbering
@@ -56,14 +52,6 @@ class RuleMessage extends Component {
   }
   handleRemoveAlertEndpoint = removedItem => {
     console.log(removedItem)
-=======
-    this.setState({
-      endpointsOnThisAlert: _.concat(
-        this.state.endpointsOnThisAlert,
-        selectedItem
-      ),
-    })
->>>>>>> Add functionality to Dropdown for new alert addition
   }
 
   render() {
