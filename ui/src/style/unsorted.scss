@@ -454,4 +454,19 @@ $dash-editable-header-padding: 7px;
     }
   }
 
+/*  Add borders between items in .nav-tablist
+    -----------------------------------------------------------------------------
+    TODO: Add these styles into the theme
+  */
+
+.nav.nav-tablist {
+  background-color: $g5-pepper;
+
+  > li {
+    margin-right: 2px;
+
+    &:last-child {
+      margin-right: 0;
+    }
+  }
 }
