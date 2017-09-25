@@ -20,7 +20,7 @@ func TestSeriesFile_Series(t *testing.T) {
 		{Name: []byte("mem"), Tags: models.NewTags(map[string]string{"region": "east"})},
 	}
 	for _, s := range series {
-		if _, err := sfile.CreateSeriesIfNotExists(s.Name, s.Tags, nil); err != nil {
+		if _, err := sfile.CreateSeriesListIfNotExists([][]byte{[]byte(s.Name)}, []models.Tags{s.Tags}, nil); err != nil {
 			t.Fatal(err)
 		}
 	}
