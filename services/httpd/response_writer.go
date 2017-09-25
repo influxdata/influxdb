@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/models"
+	"github.com/tinylib/msgp/msgp"
 )
 
 // ResponseWriter is an interface for writing a response.
@@ -28,6 +29,9 @@ func NewResponseWriter(w http.ResponseWriter, r *http.Request) ResponseWriter {
 	case "application/csv", "text/csv":
 		w.Header().Add("Content-Type", "text/csv")
 		rw.formatter = &csvFormatter{statementID: -1, Writer: w}
+	case "application/x-msgpack":
+		w.Header().Add("Content-Type", "application/x-msgpack")
+		rw.formatter = &msgpackFormatter{Writer: w}
 	case "application/json":
 		fallthrough
 	default:
@@ -187,4 +191,106 @@ func (w *csvFormatter) WriteResponse(resp Response) (n int, err error) {
 		return n, err
 	}
 	return n, nil
+}
+
+type msgpackFormatter struct {
+	io.Writer
+}
+
+func (f *msgpackFormatter) ContentType() string {
+	return "application/x-msgpack"
+}
+
+func (f *msgpackFormatter) WriteResponse(resp Response) (n int, err error) {
+	enc := msgp.NewWriter(f.Writer)
+	defer enc.Flush()
+
+	enc.WriteMapHeader(1)
+	if resp.Err != nil {
+		enc.WriteString("error")
+		enc.WriteString(err.Error())
+		return 0, nil
+	} else {
+		enc.WriteString("results")
+		enc.WriteArrayHeader(uint32(len(resp.Results)))
+		for _, result := range resp.Results {
+			if result.Err != nil {
+				enc.WriteMapHeader(1)
+				enc.WriteString("error")
+				enc.WriteString(result.Err.Error())
+				continue
+			}
+
+			sz := 2
+			if len(result.Messages) > 0 {
+				sz++
+			}
+			if result.Partial {
+				sz++
+			}
+			enc.WriteMapHeader(uint32(sz))
+			enc.WriteString("statement_id")
+			enc.WriteInt(result.StatementID)
+			if len(result.Messages) > 0 {
+				enc.WriteString("messages")
+				enc.WriteArrayHeader(uint32(len(result.Messages)))
+				for _, msg := range result.Messages {
+					enc.WriteMapHeader(2)
+					enc.WriteString("level")
+					enc.WriteString(msg.Level)
+					enc.WriteString("text")
+					enc.WriteString(msg.Text)
+				}
+			}
+			enc.WriteString("series")
+			enc.WriteArrayHeader(uint32(len(result.Series)))
+			for _, series := range result.Series {
+				sz := 2
+				if series.Name != "" {
+					sz++
+				}
+				if len(series.Tags) > 0 {
+					sz++
+				}
+				if series.Partial {
+					sz++
+				}
+				enc.WriteMapHeader(uint32(sz))
+				if series.Name != "" {
+					enc.WriteString("name")
+					enc.WriteString(series.Name)
+				}
+				if len(series.Tags) > 0 {
+					enc.WriteString("tags")
+					enc.WriteMapHeader(uint32(len(series.Tags)))
+					for k, v := range series.Tags {
+						enc.WriteString(k)
+						enc.WriteString(v)
+					}
+				}
+				enc.WriteString("columns")
+				enc.WriteArrayHeader(uint32(len(series.Columns)))
+				for _, col := range series.Columns {
+					enc.WriteString(col)
+				}
+				enc.WriteString("values")
+				enc.WriteArrayHeader(uint32(len(series.Values)))
+				for _, values := range series.Values {
+					enc.WriteArrayHeader(uint32(len(values)))
+					for _, v := range values {
+						enc.WriteIntf(v)
+					}
+				}
+				if series.Partial {
+					enc.WriteString("partial")
+					enc.WriteBool(series.Partial)
+				}
+			}
+			if result.Partial {
+				enc.WriteString("partial")
+				enc.WriteBool(true)
+			}
+		}
+	}
+	return 0, nil
 }
