@@ -15,6 +15,7 @@ class RuleMessage extends Component {
 
     this.state = {
       selectedAlertNodeName: null,
+      endpointsOnThisAlert: [],
     }
   }
 
@@ -28,6 +29,15 @@ class RuleMessage extends Component {
     actions.updateAlerts(item.ruleID, [item.text])
     actions.updateAlertNodes(item.ruleID, item.text, '')
     this.setState({selectedAlertNodeName: item.text})
+  }
+
+  handleAddNewAlertEndpoint = selectedItem => {
+    this.setState({
+      endpointsOnThisAlert: _.concat(
+        this.state.endpointsOnThisAlert,
+        selectedItem
+      ),
+    })
   }
 
   render() {
@@ -45,16 +55,6 @@ class RuleMessage extends Component {
 
     const selectedAlertNodeName = rule.alerts[0] || alerts[0].text
 
-    const dropdownDummyClick = selectedItem => {
-      console.log(selectedItem.text)
-    }
-    const dropdownDummyItems = [
-      {text: 'swoggle'},
-      {text: 'yoggle'},
-      {text: 'zoggle'},
-      {text: 'doggle'},
-    ]
-
     return (
       <div className="rule-section">
         <h3 className="rule-section--heading">Alert Message</h3>
@@ -62,7 +62,7 @@ class RuleMessage extends Component {
           <div className="rule-section--row rule-section--row-first rule-section--border-bottom">
             <p>Send this Alert to:</p>
             <ul className="nav nav-tablist nav-tablist-sm nav-tablist-malachite">
-              {alerts
+              {this.state.endpointsOnThisAlert
                 // only display alert endpoints that have rule alert options configured
                 .filter(alert => _.get(RULE_ALERT_OPTIONS, alert.text, false))
                 .map(alert =>
@@ -79,10 +79,10 @@ class RuleMessage extends Component {
                 )}
             </ul>
             <Dropdown
-              items={dropdownDummyItems}
+              items={alerts}
               menuClass="dropdown-malachite"
               selected="Add an Endpoint"
-              onChoose={dropdownDummyClick}
+              onChoose={this.handleAddNewAlertEndpoint}
               className="dropdown-140"
             />
           </div>
