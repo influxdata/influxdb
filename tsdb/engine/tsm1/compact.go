@@ -169,7 +169,7 @@ func (t *tsmGeneration) hasTombstones() bool {
 
 // FullyCompacted returns true if the shard is fully compacted.
 func (c *DefaultPlanner) FullyCompacted() bool {
-	gens := c.findGenerations()
+	gens := c.findGenerations(false)
 	return len(gens) <= 1 && !gens.hasTombstones()
 }
 
@@ -178,7 +178,7 @@ func (c *DefaultPlanner) PlanLevel(level int) []CompactionGroup {
 	// Determine the generations from all files on disk.  We need to treat
 	// a generation conceptually as a single file even though it may be
 	// split across several files in sequence.
-	generations := c.findGenerations()
+	generations := c.findGenerations(true)
 
 	// If there is only one generation and no tombstones, then there's nothing to
 	// do.
@@ -270,7 +270,7 @@ func (c *DefaultPlanner) PlanOptimize() []CompactionGroup {
 	// Determine the generations from all files on disk.  We need to treat
 	// a generation conceptually as a single file even though it may be
 	// split across several files in sequence.
-	generations := c.findGenerations()
+	generations := c.findGenerations(true)
 
 	// If there is only one generation and no tombstones, then there's nothing to
 	// do.
@@ -335,7 +335,7 @@ func (c *DefaultPlanner) PlanOptimize() []CompactionGroup {
 // Plan returns a set of TSM files to rewrite for level 4 or higher.  The planning returns
 // multiple groups if possible to allow compactions to run concurrently.
 func (c *DefaultPlanner) Plan(lastWrite time.Time) []CompactionGroup {
-	generations := c.findGenerations()
+	generations := c.findGenerations(true)
 
 	// first check if we should be doing a full compaction because nothing has been written in a long time
 	if c.compactFullWriteColdDuration > 0 && time.Since(lastWrite) > c.compactFullWriteColdDuration && len(generations) > 1 {
@@ -520,7 +520,9 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []CompactionGroup {
 
 // findGenerations groups all the TSM files by generation based
 // on their filename, then returns the generations in descending order (newest first).
-func (c *DefaultPlanner) findGenerations() tsmGenerations {
+// If skipInUse is true, tsm files that are part of an existing compaction plan
+// are not returned.
+func (c *DefaultPlanner) findGenerations(skipInUse bool) tsmGenerations {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -536,6 +538,11 @@ func (c *DefaultPlanner) findGenerations() tsmGenerations {
 	generations := make(map[int]*tsmGeneration, len(tsmStats))
 	for _, f := range tsmStats {
 		gen, _, _ := ParseTSMFileName(f.Path)
+
+		// Skip any files that are assigned to a current compaction plan
+		if _, ok := c.filesInUse[f.Path]; skipInUse && ok {
+			continue
+		}
 
 		group := generations[gen]
 		if group == nil {
