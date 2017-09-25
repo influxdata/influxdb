@@ -84,7 +84,7 @@ class RuleMessage extends Component {
               menuClass="dropdown-malachite"
               selected="Add an Endpoint"
               onChoose={this.handleAddNewAlertEndpoint}
-              className="dropdown-140"
+              className="dropdown-140 rule-message--add-endpoint"
             />
           </div>
           <RuleMessageOptions

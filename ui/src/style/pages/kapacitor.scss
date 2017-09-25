@@ -404,3 +404,58 @@ $rule-builder--radius-lg: 5px;
     color: $c-dreamsicle !important;
   }
 }
+
+/*
+  Styles for Rule Message dropdown
+  -----------------------------------------------------------------------------
+*/
+.rule-message--add-endpoint {
+  margin-left: 4px;
+}
+
+/*
+  Deletable tabs in .nav-tablist
+  -----------------------------------------------------------------------------
+  TODO: Add this into the theme styles
+*/
+.nav-tab--delete {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  margin-right: -6px;
+  margin-left: 6px;
+  border-radius: 3px;
+  position: relative;
+  transition: background-color 0.25s ease;
+
+  // Psuedo elements used to form the X
+  &:before,
+  &:after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    background-color: $g7-graphite;
+    width: 10px;
+    height: 2px;
+    border-radius: 1px;
+    transition: background-color 0.25s ease;
+  }
+  &:before {transform: translate(-50%,-50%) rotate(45deg);}
+  &:after {transform: translate(-50%,-50%) rotate(-45deg);}
+}
+.nav-tablist li:hover .nav-tab--delete,
+.nav-tablist li.active .nav-tab--delete {
+  &:before, &:after {
+    background-color: $g11-sidewalk;
+  }
+
+  &:hover {
+    cursor: pointer;
+    background-color: $c-curacao;
+
+    &:before, &:after {
+      background-color: $g20-white;
+    }
+  }
+}
