@@ -2,8 +2,9 @@ package bloom
 
 // NOTE:
 // This package implements a limited bloom filter implementation based on
-// Will Fitzgerald's bloom & bitset packages. It's implemented locally to
-// support zero-copy memory-mapped slices.
+// Will Fitzgerald's bloom & bitset packages. It uses a zero-allocation xxhash
+// implementation, rather than murmur3. It's implemented locally to support
+// zero-copy memory-mapped slices.
 //
 // This also optimizes the filter by always using a bitset size with a power of 2.
 
@@ -11,31 +12,21 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/influxdata/influxdb/pkg/pool"
-	"github.com/spaolacci/murmur3"
+	"github.com/cespare/xxhash"
 )
 
 // Filter represents a bloom filter.
 type Filter struct {
-	k        uint64
-	b        []byte
-	mask     uint64
-	hashPool *pool.Generic
+	k    uint64
+	b    []byte
+	mask uint64
 }
 
 // NewFilter returns a new instance of Filter using m bits and k hash functions.
 // If m is not a power of two then it is rounded to the next highest power of 2.
 func NewFilter(m uint64, k uint64) *Filter {
 	m = pow2(m)
-
-	return &Filter{
-		k:    k,
-		b:    make([]byte, m/8),
-		mask: m - 1,
-		hashPool: pool.NewGeneric(16, func(sz int) interface{} {
-			return murmur3.New128()
-		}),
-	}
+	return &Filter{k: k, b: make([]byte, m>>3), mask: m - 1}
 }
 
 // NewFilterBuffer returns a new instance of a filter using a backing buffer.
@@ -45,15 +36,7 @@ func NewFilterBuffer(buf []byte, k uint64) (*Filter, error) {
 	if m != uint64(len(buf))*8 {
 		return nil, fmt.Errorf("bloom.Filter: buffer bit count must a power of two: %d/%d", len(buf)*8, m)
 	}
-
-	return &Filter{
-		k:    k,
-		b:    buf,
-		mask: m - 1,
-		hashPool: pool.NewGeneric(16, func(sz int) interface{} {
-			return murmur3.New128()
-		}),
-	}, nil
+	return &Filter{k: k, b: buf, mask: m - 1}, nil
 }
 
 // Len returns the number of bits used in the filter.
@@ -67,7 +50,7 @@ func (f *Filter) Bytes() []byte { return f.b }
 
 // Clone returns a copy of f.
 func (f *Filter) Clone() *Filter {
-	other := &Filter{k: f.k, b: make([]byte, len(f.b)), mask: f.mask, hashPool: f.hashPool}
+	other := &Filter{k: f.k, b: make([]byte, len(f.b)), mask: f.mask}
 	copy(other.b, f.b)
 	return other
 }
@@ -77,7 +60,7 @@ func (f *Filter) Insert(v []byte) {
 	h := f.hash(v)
 	for i := uint64(0); i < f.k; i++ {
 		loc := f.location(h, i)
-		f.b[loc/8] |= 1 << (loc % 8)
+		f.b[loc>>3] |= 1 << (loc & 7)
 	}
 }
 
@@ -87,7 +70,7 @@ func (f *Filter) Contains(v []byte) bool {
 	h := f.hash(v)
 	for i := uint64(0); i < f.k; i++ {
 		loc := f.location(h, i)
-		if f.b[loc/8]&(1<<(loc%8)) == 0 {
+		if f.b[loc>>3]&(1<<(loc&7)) == 0 {
 			return false
 		}
 	}
@@ -116,21 +99,22 @@ func (f *Filter) Merge(other *Filter) error {
 	return nil
 }
 
-// location returns the ith hashed location using the four base hash values.
-func (f *Filter) location(h [4]uint64, i uint64) uint {
-	return uint((h[i%2] + i*h[2+(((i+(i%2))%4)/2)]) & f.mask)
+// location returns the ith hashed location using two hash values.
+func (f *Filter) location(h [2]uint64, i uint64) uint {
+	return uint((h[0] + h[1]*i) & f.mask)
 }
 
-// hash returns a set of 4 based hashes.
-func (f *Filter) hash(data []byte) [4]uint64 {
-	h := f.hashPool.Get(0).(murmur3.Hash128)
-	defer f.hashPool.Put(h)
-	h.Reset()
-	h.Write(data)
-	v1, v2 := h.Sum128()
-	h.Write([]byte{1})
-	v3, v4 := h.Sum128()
-	return [4]uint64{v1, v2, v3, v4}
+// hash returns two 64-bit hashes based on the output of xxhash.
+func (f *Filter) hash(data []byte) [2]uint64 {
+	v1 := xxhash.Sum64(data)
+	var v2 uint64
+	if len(data) > 0 {
+		b := data[len(data)-1] // We'll put the original byte back.
+		data[len(data)-1] = byte(0)
+		v2 = xxhash.Sum64(data)
+		data[len(data)-1] = b
+	}
+	return [2]uint64{v1, v2}
 }
 
 // Estimate returns an estimated bit count and hash count given the element count and false positive rate.

@@ -2,7 +2,9 @@ package tsi1_test
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 	"reflect"
 	"regexp"
 	"testing"
@@ -240,6 +242,71 @@ func TestIndex_DropMeasurement(t *testing.T) {
 			t.Fatal("expected nil tag value iterator")
 		}
 
+	})
+}
+
+func TestIndex_Open(t *testing.T) {
+	// Opening a fresh index should set the MANIFEST version to current version.
+	idx := NewIndex()
+	t.Run("open new index", func(t *testing.T) {
+		if err := idx.Open(); err != nil {
+			t.Fatal(err)
+		}
+
+		// Check version set appropriately.
+		if got, exp := idx.Manifest().Version, 1; got != exp {
+			t.Fatalf("got index version %d, expected %d", got, exp)
+		}
+	})
+
+	// Reopening an open index should return an error.
+	t.Run("reopen open index", func(t *testing.T) {
+		err := idx.Open()
+		if err == nil {
+			idx.Close()
+			t.Fatal("didn't get an error on reopen, but expected one")
+		}
+		idx.Close()
+	})
+
+	// Opening an incompatible index should return an error.
+	incompatibleVersions := []int{-1, 0, 2}
+	for _, v := range incompatibleVersions {
+		t.Run(fmt.Sprintf("incompatible index version: %d", v), func(t *testing.T) {
+			idx = NewIndex()
+			// Manually create a MANIFEST file for an incompatible index version.
+			mpath := filepath.Join(idx.Path, tsi1.ManifestFileName)
+			m := tsi1.NewManifest()
+			m.Levels = nil
+			m.Version = v // Set example MANIFEST version.
+			if err := tsi1.WriteManifestFile(mpath, m); err != nil {
+				t.Fatal(err)
+			}
+
+			// Log the MANIFEST file.
+			data, err := ioutil.ReadFile(mpath)
+			if err != nil {
+				panic(err)
+			}
+			t.Logf("Incompatible MANIFEST: %s", data)
+
+			// Opening this index should return an error because the MANIFEST has an
+			// incompatible version.
+			err = idx.Open()
+			if err != tsi1.ErrIncompatibleVersion {
+				idx.Close()
+				t.Fatalf("got error %v, expected %v", err, tsi1.ErrIncompatibleVersion)
+			}
+		})
+	}
+}
+
+func TestIndex_Manifest(t *testing.T) {
+	t.Run("current MANIFEST", func(t *testing.T) {
+		idx := MustOpenIndex()
+		if got, exp := idx.Manifest().Version, tsi1.Version; got != exp {
+			t.Fatalf("got MANIFEST version %d, expected %d", got, exp)
+		}
 	})
 }
 
