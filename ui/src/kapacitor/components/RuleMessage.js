@@ -74,6 +74,7 @@ class RuleMessage extends Component {
                     onClick={this.handleChooseAlert(alert)}
                   >
                     {alert.text}
+                    <div className="nav-tab--delete" />
                   </li>
                 )}
             </ul>
