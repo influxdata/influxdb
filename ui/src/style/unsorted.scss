@@ -424,9 +424,7 @@ $dash-editable-header-padding: 7px;
     margin: 0;
     letter-spacing: 0;
     text-transform: none;
-    transition:
-      color 0.25s ease,
-      background-color 0.25s ease,
+    transition: color 0.25s ease, background-color 0.25s ease,
       border-color 0.25s ease;
 
     &:after {
