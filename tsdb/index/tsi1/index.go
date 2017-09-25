@@ -146,7 +146,7 @@ func (i *Index) Open() error {
 	}
 
 	// Open series file.
-	sfile := NewSeriesFile(filepath.Join(i.Path, SeriesFileName))
+	sfile := NewSeriesFile(i.SeriesFilePath())
 	if err := sfile.Open(); err != nil {
 		return err
 	}
@@ -313,6 +313,11 @@ func (i *Index) nextSequence() int {
 // ManifestPath returns the path to the index's manifest file.
 func (i *Index) ManifestPath() string {
 	return filepath.Join(i.Path, ManifestFileName)
+}
+
+// SeriesFilePath returns the path to the index's series file.
+func (i *Index) SeriesFilePath() string {
+	return filepath.Join(i.Path, SeriesFileName)
 }
 
 // Manifest returns a manifest for the index.
@@ -530,26 +535,7 @@ func (i *Index) InitializeSeries(key, name []byte, tags models.Tags) error {
 
 // CreateSeriesIfNotExists creates a series if it doesn't exist or is deleted.
 func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error {
-	if err := func() error {
-		i.mu.RLock()
-		defer i.mu.RUnlock()
-
-		fs := i.retainFileSet()
-		defer fs.Release()
-
-		if err := i.activeLogFile.AddSeries(name, tags); err != nil {
-			return err
-		}
-		return nil
-	}(); err != nil {
-		return err
-	}
-
-	// Swap log file, if necesssary.
-	if err := i.CheckLogFile(); err != nil {
-		return err
-	}
-	return nil
+	return i.CreateSeriesListIfNotExists(nil, [][]byte{name}, []models.Tags{tags})
 }
 
 func (i *Index) DropSeries(key []byte) error {
@@ -796,6 +782,11 @@ func (i *Index) SnapshotTo(path string) error {
 	// Link manifest.
 	if err := os.Link(i.ManifestPath(), filepath.Join(path, "index", filepath.Base(i.ManifestPath()))); err != nil {
 		return fmt.Errorf("error creating tsi manifest hard link: %q", err)
+	}
+
+	// Link series file.
+	if err := os.Link(i.SeriesFilePath(), filepath.Join(path, "index", filepath.Base(i.SeriesFilePath()))); err != nil {
+		return fmt.Errorf("error creating tsi series file hard link: %q", err)
 	}
 
 	// Link files in directory.

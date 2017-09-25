@@ -388,7 +388,7 @@ func (idx *Index) Run(t *testing.T, fn func(t *testing.T)) {
 // CreateSeriesSliceIfNotExists creates multiple series at a time.
 func (idx *Index) CreateSeriesSliceIfNotExists(a []Series) error {
 	for i, s := range a {
-		if err := idx.CreateSeriesIfNotExists(nil, s.Name, s.Tags); err != nil {
+		if err := idx.CreateSeriesListIfNotExists(nil, [][]byte{s.Name}, []models.Tags{s.Tags}); err != nil {
 			return fmt.Errorf("i=%d, name=%s, tags=%v, err=%s", i, s.Name, s.Tags, err)
 		}
 	}

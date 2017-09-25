@@ -19,7 +19,7 @@ import (
 )
 
 // Ensure log file can append series.
-func TestLogFile_AddSeries(t *testing.T) {
+func TestLogFile_AddSeriesList(t *testing.T) {
 	sfile := MustOpenSeriesFile()
 	defer sfile.Close()
 
@@ -27,11 +27,15 @@ func TestLogFile_AddSeries(t *testing.T) {
 	defer f.Close()
 
 	// Add test data.
-	if err := f.AddSeries([]byte("mem"), models.Tags{{Key: []byte("host"), Value: []byte("serverA")}}); err != nil {
-		t.Fatal(err)
-	} else if err := f.AddSeries([]byte("cpu"), models.Tags{{Key: []byte("region"), Value: []byte("us-east")}}); err != nil {
-		t.Fatal(err)
-	} else if err := f.AddSeries([]byte("cpu"), models.Tags{{Key: []byte("region"), Value: []byte("us-west")}}); err != nil {
+	if err := f.AddSeriesList([][]byte{
+		[]byte("mem"),
+		[]byte("cpu"),
+		[]byte("cpu"),
+	}, []models.Tags{
+		{{Key: []byte("host"), Value: []byte("serverA")}},
+		{{Key: []byte("region"), Value: []byte("us-east")}},
+		{{Key: []byte("region"), Value: []byte("us-west")}},
+	}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -75,11 +79,13 @@ func TestLogFile_SeriesStoredInOrder(t *testing.T) {
 		tv := fmt.Sprintf("server-%d", rand.Intn(50)) // Encourage adding duplicate series.
 		tvm[tv] = struct{}{}
 
-		if err := f.AddSeries([]byte("mem"), models.Tags{models.NewTag([]byte("host"), []byte(tv))}); err != nil {
-			t.Fatal(err)
-		}
-
-		if err := f.AddSeries([]byte("cpu"), models.Tags{models.NewTag([]byte("host"), []byte(tv))}); err != nil {
+		if err := f.AddSeriesList([][]byte{
+			[]byte("mem"),
+			[]byte("cpu"),
+		}, []models.Tags{
+			{models.NewTag([]byte("host"), []byte(tv))},
+			{models.NewTag([]byte("host"), []byte(tv))},
+		}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -121,11 +127,15 @@ func TestLogFile_DeleteMeasurement(t *testing.T) {
 	defer f.Close()
 
 	// Add test data.
-	if err := f.AddSeries([]byte("mem"), models.Tags{{Key: []byte("host"), Value: []byte("serverA")}}); err != nil {
-		t.Fatal(err)
-	} else if err := f.AddSeries([]byte("cpu"), models.Tags{{Key: []byte("region"), Value: []byte("us-east")}}); err != nil {
-		t.Fatal(err)
-	} else if err := f.AddSeries([]byte("cpu"), models.Tags{{Key: []byte("region"), Value: []byte("us-west")}}); err != nil {
+	if err := f.AddSeriesList([][]byte{
+		[]byte("mem"),
+		[]byte("cpu"),
+		[]byte("cpu"),
+	}, []models.Tags{
+		{{Key: []byte("host"), Value: []byte("serverA")}},
+		{{Key: []byte("region"), Value: []byte("us-east")}},
+		{{Key: []byte("region"), Value: []byte("us-west")}},
+	}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -191,7 +201,7 @@ func (f *LogFile) Reopen() error {
 func CreateLogFile(sfile *tsi1.SeriesFile, series []Series) (*LogFile, error) {
 	f := MustOpenLogFile(sfile)
 	for _, serie := range series {
-		if err := f.AddSeries(serie.Name, serie.Tags); err != nil {
+		if err := f.AddSeriesList([][]byte{serie.Name}, []models.Tags{serie.Tags}); err != nil {
 			return nil, err
 		}
 	}
@@ -215,7 +225,7 @@ func GenerateLogFile(sfile *tsi1.SeriesFile, measurementN, tagN, valueN int) (*L
 				value := []byte(fmt.Sprintf("value%d", (j / pow(valueN, k) % valueN)))
 				tags = append(tags, models.NewTag(key, value))
 			}
-			if err := f.AddSeries(name, tags); err != nil {
+			if err := f.AddSeriesList([][]byte{name}, []models.Tags{tags}); err != nil {
 				return nil, err
 			}
 		}
@@ -269,7 +279,7 @@ func benchmarkLogFile_AddSeries(b *testing.B, measurementN, seriesKeyN, seriesVa
 
 	for i := 0; i < b.N; i++ {
 		for _, d := range data {
-			if err := f.AddSeries(d.Name, d.Tags); err != nil {
+			if err := f.AddSeriesList([][]byte{d.Name}, []models.Tags{d.Tags}); err != nil {
 				b.Fatal(err)
 			}
 		}
@@ -300,12 +310,12 @@ func BenchmarkLogFile_WriteTo(b *testing.B) {
 
 			// Initialize log file with series data.
 			for i := 0; i < seriesN; i++ {
-				if err := f.AddSeries(
-					[]byte("cpu"),
-					models.Tags{
+				if err := f.AddSeriesList(
+					[][]byte{[]byte("cpu")},
+					[]models.Tags{{
 						{Key: []byte("host"), Value: []byte(fmt.Sprintf("server-%d", i))},
 						{Key: []byte("location"), Value: []byte("us-west")},
-					},
+					}},
 				); err != nil {
 					b.Fatal(err)
 				}
