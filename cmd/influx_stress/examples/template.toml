@@ -7,7 +7,7 @@
     enabled = true
     # Address of the instance that is to be provisioned
     address = "localhost:8086"
-    # Database the will be created/deleted
+    # Database that will be created/deleted
     database = "stress"
     # Attempt to delete database
     reset_database = true
