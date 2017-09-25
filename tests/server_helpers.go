@@ -36,6 +36,7 @@ type Server interface {
 	CreateDatabase(db string) (*meta.DatabaseInfo, error)
 	CreateDatabaseAndRetentionPolicy(db string, rp *meta.RetentionPolicySpec, makeDefault bool) error
 	CreateSubscription(database, rp, name, mode string, destinations []string) error
+	DropDatabase(db string) error
 	Reset() error
 
 	Query(query string) (results string, err error)
@@ -316,6 +317,10 @@ func (s *LocalServer) CreateSubscription(database, rp, name, mode string, destin
 func (s *LocalServer) DropDatabase(db string) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
+	if err := s.TSDBStore.DeleteDatabase(db); err != nil {
+		return err
+	}
 	return s.MetaClient.DropDatabase(db)
 }
 
