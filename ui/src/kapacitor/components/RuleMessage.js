@@ -70,6 +70,16 @@ class RuleMessage extends Component {
 
     const selectedAlertNodeName = rule.alerts[0] || alerts[0].text
 
+    const dropdownDummyClick = selectedItem => {
+      console.log(selectedItem.text)
+    }
+    const dropdownDummyItems = [
+      {text: 'swoggle'},
+      {text: 'yoggle'},
+      {text: 'zoggle'},
+      {text: 'doggle'},
+    ]
+
     return (
       <div className="rule-section">
         <h3 className="rule-section--heading">Alert Message</h3>
