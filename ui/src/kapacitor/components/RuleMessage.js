@@ -5,6 +5,7 @@ import classnames from 'classnames'
 import RuleMessageOptions from 'src/kapacitor/components/RuleMessageOptions'
 import RuleMessageText from 'src/kapacitor/components/RuleMessageText'
 import RuleMessageTemplates from 'src/kapacitor/components/RuleMessageTemplates'
+import Dropdown from 'shared/components/Dropdown'
 
 import {DEFAULT_ALERTS, RULE_ALERT_OPTIONS} from 'src/kapacitor/constants'
 
@@ -44,6 +45,16 @@ class RuleMessage extends Component {
 
     const selectedAlertNodeName = rule.alerts[0] || alerts[0].text
 
+    const dropdownDummyClick = selectedItem => {
+      console.log(selectedItem.text)
+    }
+    const dropdownDummyItems = [
+      {text: 'swoggle'},
+      {text: 'yoggle'},
+      {text: 'zoggle'},
+      {text: 'doggle'},
+    ]
+
     return (
       <div className="rule-section">
         <h3 className="rule-section--heading">Alert Message</h3>
@@ -66,6 +77,13 @@ class RuleMessage extends Component {
                   </li>
                 )}
             </ul>
+            <Dropdown
+              items={dropdownDummyItems}
+              menuClass="dropdown-malachite"
+              selected="Add an Endpoint"
+              onChoose={dropdownDummyClick}
+              className="dropdown-140"
+            />
           </div>
           <RuleMessageOptions
             rule={rule}
