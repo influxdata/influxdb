@@ -1,6 +1,7 @@
 import React, {Component, PropTypes} from 'react'
 import _ from 'lodash'
 import classnames from 'classnames'
+import uuid from 'node-uuid'
 
 import RuleMessageOptions from 'src/kapacitor/components/RuleMessageOptions'
 import RuleMessageText from 'src/kapacitor/components/RuleMessageText'
@@ -67,7 +68,7 @@ class RuleMessage extends Component {
                 .filter(alert => _.get(RULE_ALERT_OPTIONS, alert.text, false))
                 .map(alert =>
                   <li
-                    key={alert.text}
+                    key={uuid.v4()}
                     className={classnames({
                       active: alert.text === selectedAlertNodeName,
                     })}
