@@ -104,9 +104,9 @@ func TestMeasurementBlockTrailer_WriteTo(t *testing.T) {
 // Ensure measurement blocks can be written and opened.
 func TestMeasurementBlockWriter(t *testing.T) {
 	ms := Measurements{
-		NewMeasurement([]byte("foo"), false, 100, 10, []uint32{1, 3, 4}),
-		NewMeasurement([]byte("bar"), false, 200, 20, []uint32{2}),
-		NewMeasurement([]byte("baz"), false, 300, 30, []uint32{5, 6}),
+		NewMeasurement([]byte("foo"), false, 100, 10, []uint64{1, 3, 4}),
+		NewMeasurement([]byte("bar"), false, 200, 20, []uint64{2}),
+		NewMeasurement([]byte("baz"), false, 300, 30, []uint64{5, 6}),
 	}
 
 	// Write the measurements to writer.
@@ -134,7 +134,7 @@ func TestMeasurementBlockWriter(t *testing.T) {
 		t.Fatal("expected element")
 	} else if e.TagBlockOffset() != 100 || e.TagBlockSize() != 10 {
 		t.Fatalf("unexpected offset/size: %v/%v", e.TagBlockOffset(), e.TagBlockSize())
-	} else if !reflect.DeepEqual(e.SeriesIDs(), []uint32{1, 3, 4}) {
+	} else if !reflect.DeepEqual(e.SeriesIDs(), []uint64{1, 3, 4}) {
 		t.Fatalf("unexpected series data: %#v", e.SeriesIDs())
 	}
 
@@ -142,7 +142,7 @@ func TestMeasurementBlockWriter(t *testing.T) {
 		t.Fatal("expected element")
 	} else if e.TagBlockOffset() != 200 || e.TagBlockSize() != 20 {
 		t.Fatalf("unexpected offset/size: %v/%v", e.TagBlockOffset(), e.TagBlockSize())
-	} else if !reflect.DeepEqual(e.SeriesIDs(), []uint32{2}) {
+	} else if !reflect.DeepEqual(e.SeriesIDs(), []uint64{2}) {
 		t.Fatalf("unexpected series data: %#v", e.SeriesIDs())
 	}
 
@@ -150,7 +150,7 @@ func TestMeasurementBlockWriter(t *testing.T) {
 		t.Fatal("expected element")
 	} else if e.TagBlockOffset() != 300 || e.TagBlockSize() != 30 {
 		t.Fatalf("unexpected offset/size: %v/%v", e.TagBlockOffset(), e.TagBlockSize())
-	} else if !reflect.DeepEqual(e.SeriesIDs(), []uint32{5, 6}) {
+	} else if !reflect.DeepEqual(e.SeriesIDs(), []uint64{5, 6}) {
 		t.Fatalf("unexpected series data: %#v", e.SeriesIDs())
 	}
 
@@ -167,10 +167,10 @@ type Measurement struct {
 	Deleted bool
 	Offset  int64
 	Size    int64
-	ids     []uint32
+	ids     []uint64
 }
 
-func NewMeasurement(name []byte, deleted bool, offset, size int64, ids []uint32) Measurement {
+func NewMeasurement(name []byte, deleted bool, offset, size int64, ids []uint64) Measurement {
 	return Measurement{
 		Name:    name,
 		Deleted: deleted,
