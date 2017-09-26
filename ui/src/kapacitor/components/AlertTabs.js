@@ -207,7 +207,8 @@ class AlertTabs extends Component {
               (acc, _cur, k) =>
                 supportedConfigs[k]
                   ? acc.concat(
-                      <Tab key={supportedConfigs[k].type}>
+                      /* All endpoints appear "configured" by default (as a test) */
+                      <Tab key={supportedConfigs[k].type} isConfigured={true}>
                         {supportedConfigs[k].type}
                       </Tab>
                     )
