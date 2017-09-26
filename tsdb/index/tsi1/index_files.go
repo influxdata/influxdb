@@ -165,7 +165,7 @@ func (p IndexFiles) writeTagsetsTo(w io.Writer, info *indexCompactInfo, n *int64
 
 // writeTagsetTo writes a single tagset to w and saves the tagset offset.
 func (p IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactInfo, n *int64) error {
-	var seriesIDs []uint32
+	var seriesIDs []uint64
 
 	kitr, err := p.TagKeyIterator(name)
 	if err != nil {
@@ -189,7 +189,6 @@ func (p IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactIn
 			for se := sitr.Next(); se.SeriesID != 0; se = sitr.Next() {
 				seriesIDs = append(seriesIDs, se.SeriesID)
 			}
-			// sort.Sort(uint32Slice(seriesIDs))
 
 			// Encode value.
 			if err := enc.EncodeValue(ve.Value(), ve.Deleted(), seriesIDs); err != nil {
@@ -227,11 +226,11 @@ func (p IndexFiles) writeMeasurementBlockTo(w io.Writer, info *indexCompactInfo,
 
 		// Look-up series ids.
 		itr := p.MeasurementSeriesIDIterator(name)
-		var seriesIDs []uint32
+		var seriesIDs []uint64
 		for e := itr.Next(); e.SeriesID != 0; e = itr.Next() {
 			seriesIDs = append(seriesIDs, e.SeriesID)
 		}
-		sort.Sort(uint32Slice(seriesIDs))
+		sort.Sort(uint64Slice(seriesIDs))
 
 		// Add measurement to writer.
 		pos := info.tagSets[string(name)]

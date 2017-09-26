@@ -18,7 +18,7 @@ import (
 var ErrSeriesOverflow = errors.New("series overflow")
 
 // Series list field size constants.
-const SeriesIDSize = 4
+const SeriesIDSize = 8
 
 // Series flag constants.
 const (
@@ -43,7 +43,7 @@ type SeriesFile struct {
 	file *os.File
 	w    *bufio.Writer
 
-	n       uint32
+	n       uint64
 	hashMap *rhh.HashMap
 
 	// MaxSize is the maximum size of the file.
@@ -72,7 +72,7 @@ func (f *SeriesFile) Open() error {
 	if fi, err := file.Stat(); err != nil {
 		return err
 	} else if fi.Size() > 0 {
-		f.n = uint32(fi.Size())
+		f.n = uint64(fi.Size())
 	} else {
 		if _, err := f.file.Write([]byte{0}); err != nil {
 			return err
@@ -131,14 +131,14 @@ func (f *SeriesFile) reindex() error {
 
 	// Series data begins with an offset of 1.
 	data := f.data[1:f.n]
-	offset := uint32(1)
+	offset := uint64(1)
 
 	for len(data) > 0 {
 		var key []byte
 		key, data = ReadSeriesKey(data)
 
 		m.Put(key, offset)
-		offset += uint32(len(key))
+		offset += uint64(len(key))
 	}
 
 	f.hashMap = m
@@ -147,17 +147,17 @@ func (f *SeriesFile) reindex() error {
 }
 
 // CreateSeriesListIfNotExists creates a list of series in bulk if they don't exist. Returns the offset of the series.
-func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []models.Tags, buf []byte) (offsets []uint32, err error) {
+func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []models.Tags, buf []byte) (offsets []uint64, err error) {
 	var createRequired bool
 
 	type byteRange struct {
-		offset, size uint32
+		offset, size uint64
 	}
 	newKeyRanges := make([]byteRange, 0, len(names))
 
 	// Find existing series under read-only lock.
 	f.mu.RLock()
-	offsets = make([]uint32, len(names))
+	offsets = make([]uint64, len(names))
 	for i := range names {
 		offsets[i] = f.offset(names[i], tagsSlice[i], buf)
 		if offsets[i] == 0 {
@@ -196,7 +196,7 @@ func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []mod
 		}
 
 		// Move current offset to the end.
-		sz := uint32(len(buf))
+		sz := uint64(len(buf))
 		f.n += sz
 
 		// Append new key to be added to hash map after flush.
@@ -218,20 +218,20 @@ func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []mod
 }
 
 // Offset returns the byte offset of the series within the block.
-func (f *SeriesFile) Offset(name []byte, tags models.Tags, buf []byte) (offset uint32) {
+func (f *SeriesFile) Offset(name []byte, tags models.Tags, buf []byte) (offset uint64) {
 	f.mu.RLock()
 	offset = f.offset(name, tags, buf)
 	f.mu.RUnlock()
 	return offset
 }
 
-func (f *SeriesFile) offset(name []byte, tags models.Tags, buf []byte) uint32 {
-	offset, _ := f.hashMap.Get(AppendSeriesKey(buf[:0], name, tags)).(uint32)
+func (f *SeriesFile) offset(name []byte, tags models.Tags, buf []byte) uint64 {
+	offset, _ := f.hashMap.Get(AppendSeriesKey(buf[:0], name, tags)).(uint64)
 	return offset
 }
 
 // SeriesKey returns the series key for a given offset.
-func (f *SeriesFile) SeriesKey(offset uint32) []byte {
+func (f *SeriesFile) SeriesKey(offset uint64) []byte {
 	if offset == 0 {
 		return nil
 	}
@@ -242,7 +242,7 @@ func (f *SeriesFile) SeriesKey(offset uint32) []byte {
 }
 
 // Series returns the parsed series name and tags for an offset.
-func (f *SeriesFile) Series(offset uint32) ([]byte, models.Tags) {
+func (f *SeriesFile) Series(offset uint64) ([]byte, models.Tags) {
 	key := f.SeriesKey(offset)
 	if key == nil {
 		return nil, nil
@@ -256,8 +256,8 @@ func (f *SeriesFile) HasSeries(name []byte, tags models.Tags, buf []byte) bool {
 }
 
 // SeriesCount returns the number of series.
-func (f *SeriesFile) SeriesCount() uint32 {
-	return uint32(f.hashMap.Len())
+func (f *SeriesFile) SeriesCount() uint64 {
+	return uint64(f.hashMap.Len())
 }
 
 // SeriesIterator returns an iterator over all the series.
@@ -271,7 +271,7 @@ func (f *SeriesFile) SeriesIDIterator() SeriesIDIterator {
 // seriesFileIterator is an iterator over a series ids in a series list.
 type seriesFileIterator struct {
 	data   []byte
-	offset uint32
+	offset uint64
 }
 
 // Next returns the next series element.
@@ -284,19 +284,19 @@ func (itr *seriesFileIterator) Next() SeriesIDElem {
 	key, itr.data = ReadSeriesKey(itr.data)
 
 	elem := SeriesIDElem{SeriesID: itr.offset}
-	itr.offset += uint32(len(key))
+	itr.offset += uint64(len(key))
 	return elem
 }
 
 // AppendSeriesKey serializes name and tags to a byte slice.
 // The total length is prepended as a uvarint.
 func AppendSeriesKey(dst []byte, name []byte, tags models.Tags) []byte {
-	buf := make([]byte, binary.MaxVarintLen32)
+	buf := make([]byte, binary.MaxVarintLen64)
 	origLen := len(dst)
 
 	// The tag count is variable encoded, so we need to know ahead of time what
 	// the size of the tag count value will be.
-	tcBuf := make([]byte, binary.MaxVarintLen32)
+	tcBuf := make([]byte, binary.MaxVarintLen64)
 	tcSz := binary.PutUvarint(tcBuf, uint64(len(tags)))
 
 	// Size of name/tags. Does not include total length.

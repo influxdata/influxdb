@@ -341,7 +341,7 @@ func (p tagValueMergeElem) Deleted() bool {
 }
 
 type SeriesIDElem struct {
-	SeriesID uint32
+	SeriesID uint64
 	Deleted  bool
 	Expr     influxql.Expr
 }
