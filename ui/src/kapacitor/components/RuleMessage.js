@@ -56,6 +56,7 @@ class RuleMessage extends Component {
 
   render() {
     const {rule, actions, enabledAlerts} = this.props
+    const {endpointsOnThisAlert} = this.state
     const defaultAlertEndpoints = DEFAULT_ALERTS.map(text => {
       return {text, kind: text, ruleID: rule.id}
     })
@@ -75,22 +76,26 @@ class RuleMessage extends Component {
         <div className="rule-section--body">
           <div className="rule-section--row rule-section--row-first rule-section--border-bottom">
             <p>Send this Alert to:</p>
-            <ul className="nav nav-tablist nav-tablist-sm nav-tablist-malachite">
-              {this.state.endpointsOnThisAlert
-                .filter(alert => _.get(RULE_ALERT_OPTIONS, alert.kind, false)) // / TODO this looks like a problem
-                .map(alert =>
-                  <li
-                    key={uuid.v4()}
-                    className={classnames({
-                      active: alert.text === selectedAlertNodeName,
-                    })}
-                    onClick={this.handleChooseAlert(alert)}
-                  >
-                    {alert.text}
-                    <div className="nav-tab--delete" />
-                  </li>
-                )}
-            </ul>
+            {endpointsOnThisAlert.length
+              ? <ul className="nav nav-tablist nav-tablist-sm nav-tablist-malachite">
+                  {endpointsOnThisAlert
+                    .filter(alert =>
+                      _.get(RULE_ALERT_OPTIONS, alert.kind, false)
+                    ) // / TODO this looks like a problem
+                    .map(alert =>
+                      <li
+                        key={uuid.v4()}
+                        className={classnames({
+                          active: alert.text === selectedAlertNodeName,
+                        })}
+                        onClick={this.handleChooseAlert(alert)}
+                      >
+                        {alert.text}
+                        <div className="nav-tab--delete" />
+                      </li>
+                    )}
+                </ul>
+              : null}
             <Dropdown
               items={alerts}
               menuClass="dropdown-malachite"
