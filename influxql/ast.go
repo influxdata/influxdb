@@ -4117,6 +4117,8 @@ func EvalType(expr Expr, sources Sources, typmap TypeMapper) DataType {
 		return Float
 	case *IntegerLiteral:
 		return Integer
+	case *UnsignedLiteral:
+		return Unsigned
 	case *StringLiteral:
 		return String
 	case *BooleanLiteral:
@@ -4124,13 +4126,7 @@ func EvalType(expr Expr, sources Sources, typmap TypeMapper) DataType {
 	case *BinaryExpr:
 		lhs := EvalType(expr.LHS, sources, typmap)
 		rhs := EvalType(expr.RHS, sources, typmap)
-		if lhs != Unknown && rhs != Unknown {
-			if lhs < rhs {
-				return lhs
-			} else {
-				return rhs
-			}
-		} else if lhs != Unknown {
+		if rhs.LessThan(lhs) {
 			return lhs
 		} else {
 			return rhs
