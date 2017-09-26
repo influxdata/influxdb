@@ -475,7 +475,7 @@ type tsmWriter struct {
 func NewTSMWriter(w io.Writer) (TSMWriter, error) {
 	var index IndexWriter
 	if fw, ok := w.(*os.File); ok && !strings.HasSuffix(fw.Name(), "01.tsm.tmp") {
-		f, err := os.Create(strings.TrimSuffix(fw.Name(), ".tsm.tmp") + ".idx.tmp")
+		f, err := os.OpenFile(strings.TrimSuffix(fw.Name(), ".tsm.tmp")+".idx.tmp", os.O_CREATE|os.O_RDWR|os.O_EXCL|os.O_SYNC, 0666)
 		if err != nil {
 			return nil, err
 		}
