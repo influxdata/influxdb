@@ -10,7 +10,6 @@ class VisualizationName extends Component {
   }
 
   handleInputBlur = reset => e => {
-    console.log(reset, this.props.defaultName)
     this.props.onCellRename(reset ? this.props.defaultName : e.target.value)
     this.setState({reset: false})
   }
