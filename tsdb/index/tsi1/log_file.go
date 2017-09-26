@@ -475,7 +475,7 @@ func (f *LogFile) AddSeries(name []byte, tags models.Tags) error {
 }
 */
 // DeleteSeries adds a tombstone for a series to the log file.
-func (f *LogFile) DeleteSeriesID(seriesID uint32) error {
+func (f *LogFile) DeleteSeriesID(seriesID uint64) error {
 	if seriesID == 0 {
 		return nil
 	}
@@ -616,7 +616,7 @@ func (f *LogFile) execDeleteMeasurementEntry(e *LogEntry) {
 	mm := f.createMeasurementIfNotExists(e.Name)
 	mm.deleted = true
 	mm.tagSet = make(map[string]logTagKey)
-	mm.series = make(map[uint32]bool)
+	mm.series = make(map[uint64]bool)
 
 	// Update measurement tombstone sketch.
 	f.mTSketch.Add(e.Name)
@@ -750,7 +750,7 @@ func (f *LogFile) createMeasurementIfNotExists(name []byte) *logMeasurement {
 		mm = &logMeasurement{
 			name:   name,
 			tagSet: make(map[string]logTagKey),
-			series: make(map[uint32]bool),
+			series: make(map[uint64]bool),
 		}
 		f.mms[string(name)] = mm
 	}
@@ -900,8 +900,6 @@ func (f *LogFile) writeMeasurementBlockTo(w io.Writer, names []string, info *log
 		mm := f.mms[name]
 		mmInfo := info.mms[name]
 		assert(mmInfo != nil, "measurement info not found")
-
-		// sort.Sort(uint32Slice(mm.seriesIDs))
 		mw.Add(mm.name, mm.deleted, mmInfo.offset, mmInfo.size, mm.seriesIDs())
 	}
 
@@ -959,7 +957,7 @@ func (f *LogFile) MergeMeasurementsSketches(sketch, tsketch estimator.Sketch) er
 // LogEntry represents a single log entry in the write-ahead log.
 type LogEntry struct {
 	Flag     byte   // flag
-	SeriesID uint32 // series id
+	SeriesID uint64 // series id
 	Name     []byte // measurement name
 	Key      []byte // tag key
 	Value    []byte // tag value
@@ -983,7 +981,7 @@ func (e *LogEntry) UnmarshalBinary(data []byte) error {
 		return io.ErrShortBuffer
 	}
 	seriesID, n := binary.Uvarint(data)
-	e.SeriesID, data = uint32(seriesID), data[n:]
+	e.SeriesID, data = uint64(seriesID), data[n:]
 
 	// Parse name length.
 	if len(data) < 1 {
@@ -1125,15 +1123,15 @@ type logMeasurement struct {
 	name    []byte
 	tagSet  map[string]logTagKey
 	deleted bool
-	series  map[uint32]bool
+	series  map[uint64]bool
 }
 
-func (mm *logMeasurement) seriesIDs() []uint32 {
-	a := make([]uint32, 0, len(mm.series))
+func (mm *logMeasurement) seriesIDs() []uint64 {
+	a := make([]uint64, 0, len(mm.series))
 	for seriesID := range mm.series {
 		a = append(a, seriesID)
 	}
-	sort.Sort(uint32Slice(a))
+	sort.Sort(uint64Slice(a))
 	return a
 }
 
@@ -1199,7 +1197,7 @@ func (tk *logTagKey) TagValueIterator() TagValueIterator {
 func (tk *logTagKey) createTagValueIfNotExists(value []byte) logTagValue {
 	tv, ok := tk.tagValues[string(value)]
 	if !ok {
-		tv = logTagValue{name: value, series: make(map[uint32]bool)}
+		tv = logTagValue{name: value, series: make(map[uint64]bool)}
 	}
 	return tv
 }
@@ -1214,15 +1212,15 @@ func (a logTagKeySlice) Less(i, j int) bool { return bytes.Compare(a[i].name, a[
 type logTagValue struct {
 	name    []byte
 	deleted bool
-	series  map[uint32]bool
+	series  map[uint64]bool
 }
 
-func (tv *logTagValue) seriesIDs() []uint32 {
-	a := make([]uint32, 0, len(tv.series))
+func (tv *logTagValue) seriesIDs() []uint64 {
+	a := make([]uint64, 0, len(tv.series))
 	for seriesID := range tv.series {
 		a = append(a, seriesID)
 	}
-	sort.Sort(uint32Slice(a))
+	sort.Sort(uint64Slice(a))
 	return a
 }
 
@@ -1283,7 +1281,7 @@ type logSeriesIDIterator struct {
 
 // newLogSeriesIDIterator returns a new instance of logSeriesIDIterator.
 // All series are copied to the iterator.
-func newLogSeriesIDIterator(m map[uint32]bool) *logSeriesIDIterator {
+func newLogSeriesIDIterator(m map[uint64]bool) *logSeriesIDIterator {
 	if len(m) == 0 {
 		return nil
 	}

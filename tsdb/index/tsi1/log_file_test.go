@@ -106,7 +106,7 @@ func TestLogFile_SeriesStoredInOrder(t *testing.T) {
 		t.Fatal("nil iterator")
 	}
 
-	var prevSeriesID uint32
+	var prevSeriesID uint64
 	for i := 0; i < len(tvs); i++ {
 		elem := itr.Next()
 		if elem.SeriesID == 0 {
