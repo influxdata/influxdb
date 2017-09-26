@@ -110,18 +110,6 @@ class DashboardPage extends Component {
     this.props.dashboardActions.putDashboard(newDashboard)
   }
 
-  // Places cell into editing mode.
-  handleEditDashboardCell = (x, y, isEditing) => {
-    return () => {
-      this.props.dashboardActions.editDashboardCell(
-        this.getActiveDashboard(),
-        x,
-        y,
-        !isEditing
-      ) /* eslint-disable no-negated-condition */
-    }
-  }
-
   handleUpdateDashboardCell = newCell => {
     return () => {
       this.props.dashboardActions.updateDashboardCell(
@@ -185,13 +173,6 @@ class DashboardPage extends Component {
 
   handleToggleTempVarControls = () => {
     this.props.templateControlBarVisibilityToggled()
-  }
-
-  handleCancelEditCell = cellID => {
-    this.props.dashboardActions.cancelEditCell(
-      this.getActiveDashboard().id,
-      cellID
-    )
   }
 
   handleZoomedTimeRange = (zoomedLower, zoomedUpper) => {
@@ -350,12 +331,9 @@ class DashboardPage extends Component {
               onAddCell={this.handleAddCell}
               synchronizer={this.synchronizer}
               inPresentationMode={inPresentationMode}
-              onEditCell={this.handleEditDashboardCell}
               onPositionChange={this.handleUpdatePosition}
               onSelectTemplate={this.handleSelectTemplate}
-              onCancelEditCell={this.handleCancelEditCell}
               onDeleteCell={this.handleDeleteDashboardCell}
-              onUpdateCell={this.handleUpdateDashboardCell}
               showTemplateControlBar={showTemplateControlBar}
               onOpenTemplateManager={this.handleOpenTemplateManager}
               templatesIncludingDashTime={templatesIncludingDashTime}

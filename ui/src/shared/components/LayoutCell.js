@@ -1,39 +1,25 @@
 import React, {Component, PropTypes} from 'react'
 import _ from 'lodash'
 
-import NameableGraphHeader from 'shared/components/NameableGraphHeader'
-import ContextMenu from 'shared/components/ContextMenu'
+import LayoutCellMenu from 'shared/components/LayoutCellMenu'
+import LayoutCellHeader from 'shared/components/LayoutCellHeader'
 
-class NameableGraph extends Component {
+class LayoutCell extends Component {
   constructor(props) {
     super(props)
     this.state = {
-      isMenuOpen: false,
-      cellName: props.cell.name,
+      isDeleting: false,
     }
-  }
-
-  toggleMenu = () => {
-    this.setState({
-      isMenuOpen: !this.state.isMenuOpen,
-    })
-  }
-
-  handleRenameCell = e => {
-    const cellName = e.target.value
-    this.setState({cellName})
-  }
-
-  handleCancelEdit = cellID => {
-    const {cell, onCancelEditCell} = this.props
-    this.setState({cellName: cell.name})
-    onCancelEditCell(cellID)
   }
 
   closeMenu = () => {
     this.setState({
-      isMenuOpen: false,
+      isDeleting: false,
     })
+  }
+
+  handleDeleteClick = () => {
+    this.setState({isDeleting: true})
   }
 
   handleDeleteCell = cell => () => {
@@ -45,30 +31,26 @@ class NameableGraph extends Component {
   }
 
   render() {
-    const {cell, children, isEditable, onEditCell, onUpdateCell} = this.props
+    const {cell, children, isEditable} = this.props
 
-    const {cellName, isMenuOpen} = this.state
+    const {isDeleting} = this.state
     const queries = _.get(cell, ['queries'], [])
 
     return (
       <div className="dash-graph">
-        <NameableGraphHeader
+        <LayoutCellMenu
           cell={cell}
-          cellName={cellName}
-          isEditable={isEditable}
-          onUpdateCell={onUpdateCell}
-          onRenameCell={this.handleRenameCell}
-          onCancelEditCell={this.handleCancelEdit}
-        />
-        <ContextMenu
-          cell={cell}
+          onDeleteClick={this.handleDeleteClick}
           onDelete={this.handleDeleteCell}
-          onRename={!cell.isEditing && isEditable ? onEditCell : () => {}}
-          toggleMenu={this.toggleMenu}
-          isOpen={isMenuOpen}
+          isDeleting={isDeleting}
           isEditable={isEditable}
           handleClickOutside={this.closeMenu}
           onEdit={this.handleSummonOverlay}
+        />
+        <LayoutCellHeader
+          cellName={cell.name}
+          queries={queries}
+          isEditable={isEditable}
         />
         <div className="dash-graph--container">
           {queries.length
@@ -89,7 +71,7 @@ class NameableGraph extends Component {
 
 const {array, bool, func, node, number, shape, string} = PropTypes
 
-NameableGraph.propTypes = {
+LayoutCell.propTypes = {
   cell: shape({
     name: string.isRequired,
     isEditing: bool,
@@ -98,13 +80,10 @@ NameableGraph.propTypes = {
     queries: array,
   }).isRequired,
   children: node.isRequired,
-  onEditCell: func,
-  onRenameCell: func,
-  onUpdateCell: func,
   onDeleteCell: func,
   onSummonOverlayTechnologies: func,
   isEditable: bool,
   onCancelEditCell: func,
 }
 
-export default NameableGraph
+export default LayoutCell

@@ -10,11 +10,8 @@ const Dashboard = ({
   onZoom,
   dashboard,
   onAddCell,
-  onEditCell,
   timeRange,
   autoRefresh,
-  onRenameCell,
-  onUpdateCell,
   onDeleteCell,
   synchronizer,
   onPositionChange,
@@ -24,7 +21,6 @@ const Dashboard = ({
   onSummonOverlayTechnologies,
   onSelectTemplate,
   showTemplateControlBar,
-  onCancelEditCell,
 }) => {
   const cells = dashboard.cells.map(cell => {
     const dashboardCell = {...cell}
@@ -58,7 +54,6 @@ const Dashboard = ({
             />}
         {cells.length
           ? <LayoutRenderer
-              onCancelEditCell={onCancelEditCell}
               templates={templatesIncludingDashTime}
               isEditable={true}
               cells={cells}
@@ -66,9 +61,6 @@ const Dashboard = ({
               autoRefresh={autoRefresh}
               source={source}
               onPositionChange={onPositionChange}
-              onEditCell={onEditCell}
-              onRenameCell={onRenameCell}
-              onUpdateCell={onUpdateCell}
               onDeleteCell={onDeleteCell}
               onSummonOverlayTechnologies={onSummonOverlayTechnologies}
               synchronizer={synchronizer}
@@ -112,9 +104,6 @@ Dashboard.propTypes = {
   inPresentationMode: bool,
   onAddCell: func,
   onPositionChange: func,
-  onEditCell: func,
-  onRenameCell: func,
-  onUpdateCell: func,
   onDeleteCell: func,
   onSummonOverlayTechnologies: func,
   synchronizer: func,
@@ -128,7 +117,6 @@ Dashboard.propTypes = {
   onOpenTemplateManager: func.isRequired,
   onSelectTemplate: func.isRequired,
   showTemplateControlBar: bool,
-  onCancelEditCell: func,
   onZoom: func,
 }
 

@@ -12,6 +12,10 @@
 1. [#1992](https://github.com/influxdata/chronograf/pull/1992): Add .csv download button to data explorer
 
 ### UI Improvements
+1. [#2002](https://github.com/influxdata/chronograf/pull/2002): Require a second click when deleting a dashboard cell
+1. [#2002](https://github.com/influxdata/chronograf/pull/2002): Sort database list in Schema Explorer alphabetically
+1. [#2002](https://github.com/influxdata/chronograf/pull/2002): Improve usability of dashboard cell context menus
+1. [#2002](https://github.com/influxdata/chronograf/pull/2002): Move dashboard cell renaming UI into Cell Editor Overlay
 
 ## v1.3.8.1 [unreleased]
 ### Bug Fixes

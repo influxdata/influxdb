@@ -64,13 +64,17 @@ const DatabaseList = React.createClass({
 
   render() {
     const {query, onChooseNamespace} = this.props
+    const {namespaces} = this.state
+    const sortedNamespaces = namespaces.length
+      ? _.sortBy(namespaces, n => n.database.toLowerCase())
+      : namespaces
 
     return (
       <div className="query-builder--column query-builder--column-db">
         <div className="query-builder--heading">Databases</div>
         <div className="query-builder--list">
           <FancyScrollbar>
-            {this.state.namespaces.map(namespace => {
+            {sortedNamespaces.map(namespace => {
               const {database, retentionPolicy} = namespace
               const isActive =
                 database === query.database &&
