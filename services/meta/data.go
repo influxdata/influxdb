@@ -441,7 +441,7 @@ func (data *Data) CreateContinuousQuery(database, name, query string) error {
 func (data *Data) DropContinuousQuery(database, name string) error {
 	di := data.Database(database)
 	if di == nil {
-		return influxdb.ErrDatabaseNotFound(database)
+		return nil
 	}
 
 	for i := range di.ContinuousQueries {
@@ -450,7 +450,7 @@ func (data *Data) DropContinuousQuery(database, name string) error {
 			return nil
 		}
 	}
-	return ErrContinuousQueryNotFound
+	return nil
 }
 
 // validateURL returns an error if the URL does not have a port or uses a scheme other than UDP or HTTP.

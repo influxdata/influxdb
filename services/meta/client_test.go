@@ -808,9 +808,9 @@ func TestMetaClient_ContinuousQueries(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Dropping a nonexistent CQ should return an error.
-	if err := c.DropContinuousQuery("db0", "not-a-cq"); err == nil {
-		t.Fatal("expected an error, got nil")
+	// Dropping a nonexistent CQ should not return an error.
+	if err := c.DropContinuousQuery("db0", "not-a-cq"); err != nil {
+		t.Fatal(err)
 	}
 }
 
