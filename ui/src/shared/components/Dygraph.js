@@ -367,9 +367,7 @@ export default class Dygraph extends Component {
     // Disallow screen overflow of legend
     const isLegendBottomClipped = graphBottom + legendHeight > screenHeight
 
-    const legendTop = isLegendBottomClipped
-      ? -(legendHeight + 8)
-      : graphHeight + 8
+    const legendTop = isLegendBottomClipped ? -legendHeight : graphHeight + 8
 
     if (isLegendBottomClipped) {
       this.legendRef.classList.add('dygraph-legend--above')
