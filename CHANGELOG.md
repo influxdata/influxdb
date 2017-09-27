@@ -9,6 +9,7 @@
 ### Features
 1. [#1885](https://github.com/influxdata/chronograf/pull/1885): Add `fill` options to data explorer and dashboard queries
 1. [#1978](https://github.com/influxdata/chronograf/pull/1978): Support editing kapacitor TICKScript
+1. [#1721](https://github.com/influxdata/chronograf/pull/1721): Introduce the TICKscript editor UI
 1. [#1992](https://github.com/influxdata/chronograf/pull/1992): Add .csv download button to data explorer
 
 ### UI Improvements
@@ -157,6 +158,8 @@
 1. [#1738](https://github.com/influxdata/chronograf/pull/1738): Add shared secret JWT authorization to InfluxDB
 1. [#1724](https://github.com/influxdata/chronograf/pull/1724): Add Pushover alert support
 1. [#1762](https://github.com/influxdata/chronograf/pull/1762): Restore all supported Kapacitor services when creating rules, and add most optional message parameters
+1. [#1681](https://github.com/influxdata/chronograf/pull/1681): Add the ability to select Custom Time Ranges in the Hostpages, Data Explorer, and Dashboards.
+1. [#1717](https://github.com/influxdata/chronograf/pull/1717): View server generated TICKscripts
 
 ### UI Improvements
 1. [#1707](https://github.com/influxdata/chronograf/pull/1707): Polish alerts table in status page to wrap text less

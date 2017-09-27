@@ -12,7 +12,7 @@ import ChangePassRow from 'src/admin/components/ChangePassRow'
 import {USERS_TABLE} from 'src/admin/constants/tableSizing'
 
 const UserRow = ({
-  user: {name, roles, permissions, password},
+  user: {name, roles = [], permissions, password},
   user,
   allRoles,
   allPermissions,
@@ -27,20 +27,23 @@ const UserRow = ({
   onUpdateRoles,
   onUpdatePassword,
 }) => {
-  const handleUpdatePermissions = allowed => {
+  const handleUpdatePermissions = perms => {
+    const allowed = perms.map(p => p.name)
     onUpdatePermissions(user, [{scope: 'all', allowed}])
   }
 
   const handleUpdateRoles = roleNames => {
     onUpdateRoles(
       user,
-      allRoles.filter(r => roleNames.find(rn => rn === r.name))
+      allRoles.filter(r => roleNames.find(rn => rn.name === r.name))
     )
   }
 
   const handleUpdatePassword = () => {
     onUpdatePassword(user, password)
   }
+
+  const perms = _.get(permissions, ['0', 'allowed'], [])
 
   if (isEditing) {
     return (
@@ -85,13 +88,9 @@ const UserRow = ({
       {hasRoles
         ? <td>
             <MultiSelectDropdown
-              items={allRoles.map(r => r.name)}
-              selectedItems={
-                roles
-                  ? roles.map(r => r.name)
-                  : [] /* TODO remove check when server returns empty list */
-              }
-              label={roles && roles.length ? '' : 'Select Roles'}
+              items={allRoles}
+              selectedItems={roles.map(r => ({name: r.name}))}
+              label={roles.length ? '' : 'Select Roles'}
               onApply={handleUpdateRoles}
               buttonSize="btn-xs"
               buttonColor="btn-primary"
@@ -104,8 +103,8 @@ const UserRow = ({
       <td>
         {allPermissions && allPermissions.length
           ? <MultiSelectDropdown
-              items={allPermissions}
-              selectedItems={_.get(permissions, ['0', 'allowed'], [])}
+              items={allPermissions.map(p => ({name: p}))}
+              selectedItems={perms.map(p => ({name: p}))}
               label={
                 permissions && permissions.length ? '' : 'Select Permissions'
               }

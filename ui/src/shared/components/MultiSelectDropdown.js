@@ -8,16 +8,19 @@ import FancyScrollbar from 'shared/components/FancyScrollbar'
 import {DROPDOWN_MENU_MAX_HEIGHT} from 'shared/constants/index'
 
 const labelText = ({localSelectedItems, isOpen, label}) => {
+  if (localSelectedItems.length) {
+    return localSelectedItems.map(s => s.name).join(', ')
+  }
+
   if (label) {
     return label
-  } else if (localSelectedItems.length) {
-    return localSelectedItems.map(s => s).join(', ')
   }
 
   // TODO: be smarter about the text displayed here
   if (isOpen) {
     return '0 Selected'
   }
+
   return 'None'
 }
 
@@ -27,15 +30,20 @@ class MultiSelectDropdown extends Component {
 
     this.state = {
       isOpen: false,
-      localSelectedItems: this.props.selectedItems,
+      localSelectedItems: props.selectedItems,
     }
-
-    this.onSelect = ::this.onSelect
-    this.onApplyFunctions = ::this.onApplyFunctions
   }
 
   handleClickOutside() {
     this.setState({isOpen: false})
+  }
+
+  componentWillReceiveProps(nextProps) {
+    if (!_.isEqual(this.props.selectedItems, nextProps.selectedItems)) {
+      return
+    }
+
+    this.setState({localSelectedItems: nextProps.selectedItems})
   }
 
   toggleMenu = e => {
@@ -43,26 +51,31 @@ class MultiSelectDropdown extends Component {
     this.setState({isOpen: !this.state.isOpen})
   }
 
-  onSelect(item, e) {
+  onSelect = (item, e) => {
     e.stopPropagation()
 
+    const {onApply, isApplyShown} = this.props
     const {localSelectedItems} = this.state
 
     let nextItems
     if (this.isSelected(item)) {
-      nextItems = localSelectedItems.filter(i => i !== item)
+      nextItems = localSelectedItems.filter(i => i.name !== item.name)
     } else {
       nextItems = [...localSelectedItems, item]
+    }
+
+    if (!isApplyShown) {
+      onApply(nextItems)
     }
 
     this.setState({localSelectedItems: nextItems})
   }
 
   isSelected(item) {
-    return !!this.state.localSelectedItems.find(text => text === item)
+    return !!this.state.localSelectedItems.find(({name}) => name === item.name)
   }
 
-  onApplyFunctions(e) {
+  handleApply = e => {
     e.stopPropagation()
 
     this.setState({isOpen: false})
@@ -91,18 +104,18 @@ class MultiSelectDropdown extends Component {
   }
 
   renderMenu() {
-    const {items} = this.props
-
-    return (
-      <ul className="dropdown-menu">
-        <li className="multi-select--apply">
-          <button
-            className="btn btn-xs btn-info"
-            onClick={this.onApplyFunctions}
-          >
+    const {items, isApplyShown} = this.props
+    const applyButton = isApplyShown
+      ? <li className="multi-select--apply">
+          <button className="btn btn-xs btn-info" onClick={this.handleApply}>
             Apply
           </button>
         </li>
+      : null
+
+    return (
+      <ul className="dropdown-menu">
+        {applyButton}
         <FancyScrollbar
           autoHide={false}
           autoHeight={true}
@@ -119,7 +132,7 @@ class MultiSelectDropdown extends Component {
               >
                 <div className="multi-select--checkbox" />
                 <span>
-                  {listItem}
+                  {listItem.name}
                 </span>
               </li>
             )
@@ -130,22 +143,34 @@ class MultiSelectDropdown extends Component {
   }
 }
 
-const {arrayOf, func, string} = PropTypes
+const {arrayOf, bool, func, shape, string} = PropTypes
 
 MultiSelectDropdown.propTypes = {
   onApply: func.isRequired,
-  items: arrayOf(string.isRequired).isRequired,
-  selectedItems: arrayOf(string.isRequired).isRequired,
+  items: arrayOf(
+    shape({
+      name: string.isRequired,
+    })
+  ).isRequired,
+  selectedItems: arrayOf(
+    shape({
+      name: string.isRequired,
+    })
+  ),
   label: string,
   buttonSize: string,
   buttonColor: string,
   customClass: string,
   iconName: string,
+  isApplyShown: bool,
 }
+
 MultiSelectDropdown.defaultProps = {
   buttonSize: 'btn-sm',
   buttonColor: 'btn-default',
   customClass: 'dropdown-160',
+  selectedItems: [],
+  isApplyShown: true,
 }
 
 export default OnClickOutside(MultiSelectDropdown)

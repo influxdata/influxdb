@@ -4,8 +4,8 @@ import {Link} from 'react-router'
 import NoKapacitorError from 'shared/components/NoKapacitorError'
 import SourceIndicator from 'shared/components/SourceIndicator'
 import KapacitorRulesTable from 'src/kapacitor/components/KapacitorRulesTable'
+import TasksTable from 'src/kapacitor/components/TasksTable'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
-import TICKscriptOverlay from 'src/kapacitor/components/TICKscriptOverlay'
 
 const KapacitorRules = ({
   source,
@@ -13,10 +13,7 @@ const KapacitorRules = ({
   hasKapacitor,
   loading,
   onDelete,
-  tickscript,
   onChangeRuleStatus,
-  onReadTickscript,
-  onCloseTickscript,
 }) => {
   if (loading) {
     return (
@@ -44,43 +41,72 @@ const KapacitorRules = ({
     )
   }
 
-  const tableHeader =
-    rules.length === 1 ? '1 Alert Rule' : `${rules.length} Alert Rules`
+  const rulez = rules.filter(r => r.query)
+  const tasks = rules.filter(r => !r.query)
+
+  const rHeader = `${rulez.length} Alert Rule${rulez.length === 1 ? '' : 's'}`
+  const tHeader = `${tasks.length} TICKscript${tasks.length === 1 ? '' : 's'}`
+
   return (
-    <PageContents
-      source={source}
-      tickscript={tickscript}
-      onReadTickscript={onReadTickscript}
-      onCloseTickscript={onCloseTickscript}
-    >
+    <PageContents source={source}>
       <div className="panel-heading u-flex u-ai-center u-jc-space-between">
         <h2 className="panel-title">
-          {tableHeader}
+          {rHeader}
         </h2>
-        <Link
-          to={`/sources/${source.id}/alert-rules/new`}
-          className="btn btn-sm btn-primary"
-        >
-          Create Rule
-        </Link>
+        <div className="u-flex u-ai-center u-jc-space-between">
+          <Link
+            to={`/sources/${source.id}/alert-rules/new`}
+            className="btn btn-sm btn-primary"
+            style={{marginRight: '4px'}}
+          >
+            Build Rule
+          </Link>
+        </div>
       </div>
       <KapacitorRulesTable
         source={source}
-        rules={rules}
+        rules={rulez}
         onDelete={onDelete}
-        onReadTickscript={onReadTickscript}
         onChangeRuleStatus={onChangeRuleStatus}
       />
+
+      <div className="row">
+        <div className="col-md-12">
+          <div className="panel panel-minimal">
+            <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+              <h2 className="panel-title">
+                {tHeader}
+              </h2>
+              <div className="u-flex u-ai-center u-jc-space-between">
+                <Link
+                  to={`/sources/${source.id}/tickscript/new`}
+                  className="btn btn-sm btn-info"
+                >
+                  Write TICKscript
+                </Link>
+              </div>
+            </div>
+            <TasksTable
+              source={source}
+              tasks={tasks}
+              onDelete={onDelete}
+              onChangeRuleStatus={onChangeRuleStatus}
+            />
+          </div>
+        </div>
+      </div>
     </PageContents>
   )
 }
 
-const PageContents = ({children, source, tickscript, onCloseTickscript}) =>
+const PageContents = ({children, source}) =>
   <div className="page">
     <div className="page-header">
       <div className="page-header__container">
         <div className="page-header__left">
-          <h1 className="page-header__title">Alert Rules</h1>
+          <h1 className="page-header__title">
+            Build Alert Rules or Write TICKscripts
+          </h1>
         </div>
         <div className="page-header__right">
           <SourceIndicator sourceName={source && source.name} />
@@ -98,15 +124,9 @@ const PageContents = ({children, source, tickscript, onCloseTickscript}) =>
         </div>
       </div>
     </FancyScrollbar>
-    {tickscript
-      ? <TICKscriptOverlay
-          tickscript={tickscript}
-          onClose={onCloseTickscript}
-        />
-      : null}
   </div>
 
-const {arrayOf, bool, func, node, shape, string} = PropTypes
+const {arrayOf, bool, func, node, shape} = PropTypes
 
 KapacitorRules.propTypes = {
   source: shape(),
@@ -115,15 +135,11 @@ KapacitorRules.propTypes = {
   loading: bool,
   onChangeRuleStatus: func,
   onDelete: func,
-  tickscript: string,
-  onReadTickscript: func,
-  onCloseTickscript: func,
 }
 
 PageContents.propTypes = {
   children: node,
   source: shape(),
-  tickscript: string,
   onCloseTickscript: func,
 }
 

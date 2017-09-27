@@ -3,9 +3,11 @@ import {getActiveKapacitor} from 'shared/apis'
 import {publishNotification} from 'shared/actions/notifications'
 import {
   getRules,
-  getRule,
+  getRule as getRuleAJAX,
   deleteRule as deleteRuleAPI,
   updateRuleStatus as updateRuleStatusAPI,
+  createTask as createTaskAJAX,
+  updateTask as updateTaskAJAX,
 } from 'src/kapacitor/apis'
 import {errorThrown} from 'shared/actions/errors'
 
@@ -19,7 +21,7 @@ const loadQuery = query => ({
 export function fetchRule(source, ruleID) {
   return dispatch => {
     getActiveKapacitor(source).then(kapacitor => {
-      getRule(kapacitor, ruleID).then(({data: rule}) => {
+      getRuleAJAX(kapacitor, ruleID).then(({data: rule}) => {
         dispatch({
           type: 'LOAD_RULE',
           payload: {
@@ -38,6 +40,31 @@ const addQuery = queryID => ({
     queryID,
   },
 })
+
+export const getRule = (kapacitor, ruleID) => async dispatch => {
+  try {
+    const {data: rule} = await getRuleAJAX(kapacitor, ruleID)
+
+    dispatch({
+      type: 'LOAD_RULE',
+      payload: {
+        rule: {...rule, queryID: rule.query && rule.query.id},
+      },
+    })
+
+    if (rule.query) {
+      dispatch({
+        type: 'LOAD_KAPACITOR_QUERY',
+        payload: {
+          query: rule.query,
+        },
+      })
+    }
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}
 
 export function loadDefaultRule() {
   return dispatch => {
@@ -206,5 +233,48 @@ export function updateRuleStatus(rule, status) {
           publishNotification('error', `${rule.name} could not be ${status}`)
         )
       })
+  }
+}
+
+export const createTask = (
+  kapacitor,
+  task,
+  router,
+  sourceID
+) => async dispatch => {
+  try {
+    const {data} = await createTaskAJAX(kapacitor, task)
+    router.push(`/sources/${sourceID}/alert-rules`)
+    dispatch(publishNotification('success', 'You made a TICKscript!'))
+    return data
+  } catch (error) {
+    if (!error) {
+      dispatch(errorThrown('Could not communicate with server'))
+      return
+    }
+
+    return error.data
+  }
+}
+
+export const updateTask = (
+  kapacitor,
+  task,
+  ruleID,
+  router,
+  sourceID
+) => async dispatch => {
+  try {
+    const {data} = await updateTaskAJAX(kapacitor, task, ruleID, sourceID)
+    router.push(`/sources/${sourceID}/alert-rules`)
+    dispatch(publishNotification('success', 'TICKscript updated successully'))
+    return data
+  } catch (error) {
+    if (!error) {
+      dispatch(errorThrown('Could not communicate with server'))
+      return
+    }
+
+    return error.data
   }
 }

@@ -5,26 +5,20 @@ import _ from 'lodash'
 import {KAPACITOR_RULES_TABLE} from 'src/kapacitor/constants/tableSizing'
 const {
   colName,
-  colType,
+  colTrigger,
   colMessage,
   colAlerts,
   colEnabled,
   colActions,
 } = KAPACITOR_RULES_TABLE
 
-const KapacitorRulesTable = ({
-  rules,
-  source,
-  onDelete,
-  onReadTickscript,
-  onChangeRuleStatus,
-}) =>
+const KapacitorRulesTable = ({rules, source, onDelete, onChangeRuleStatus}) =>
   <div className="panel-body">
     <table className="table v-center">
       <thead>
         <tr>
           <th style={{width: colName}}>Name</th>
-          <th style={{width: colType}}>Rule Type</th>
+          <th style={{width: colTrigger}}>Rule Trigger</th>
           <th style={{width: colMessage}}>Message</th>
           <th style={{width: colAlerts}}>Alerts</th>
           <th style={{width: colEnabled}} className="text-center">
@@ -42,7 +36,6 @@ const KapacitorRulesTable = ({
               source={source}
               onDelete={onDelete}
               onChangeRuleStatus={onChangeRuleStatus}
-              onRead={onReadTickscript}
             />
           )
         })}
@@ -50,12 +43,14 @@ const KapacitorRulesTable = ({
     </table>
   </div>
 
-const RuleRow = ({rule, source, onRead, onDelete, onChangeRuleStatus}) =>
+const handleDelete = (rule, onDelete) => onDelete(rule)
+
+const RuleRow = ({rule, source, onDelete, onChangeRuleStatus}) =>
   <tr key={rule.id}>
     <td style={{width: colName}} className="monotype">
       <RuleTitle rule={rule} source={source} />
     </td>
-    <td style={{width: colType}} className="monotype">
+    <td style={{width: colTrigger}} className="monotype">
       {rule.trigger}
     </td>
     <td className="monotype">
@@ -82,10 +77,16 @@ const RuleRow = ({rule, source, onRead, onDelete, onChangeRuleStatus}) =>
       </div>
     </td>
     <td style={{width: colActions}} className="text-right table-cell-nowrap">
-      <button className="btn btn-info btn-xs" onClick={onRead(rule)}>
-        View TICKscript
-      </button>
-      <button className="btn btn-danger btn-xs" onClick={onDelete(rule)}>
+      <Link
+        className="btn btn-info btn-xs"
+        to={`/sources/${source.id}/tickscript/${rule.id}`}
+      >
+        Edit TICKscript
+      </Link>
+      <button
+        className="btn btn-danger btn-xs"
+        onClick={handleDelete(rule, onDelete)}
+      >
         Delete
       </button>
     </td>
@@ -117,7 +118,6 @@ KapacitorRulesTable.propTypes = {
   source: shape({
     id: string.isRequired,
   }).isRequired,
-  onReadTickscript: func,
 }
 
 RuleRow.propTypes = {
@@ -125,7 +125,6 @@ RuleRow.propTypes = {
   source: shape(),
   onChangeRuleStatus: func,
   onDelete: func,
-  onRead: func,
 }
 
 RuleTitle.propTypes = {

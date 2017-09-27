@@ -54,7 +54,7 @@ export function deleteSource(source) {
 export function pingKapacitor(kapacitor) {
   return AJAX({
     method: 'GET',
-    url: `${kapacitor.links.proxy}?path=/kapacitor/v1/ping`,
+    url: kapacitor.links.ping,
   })
 }
 

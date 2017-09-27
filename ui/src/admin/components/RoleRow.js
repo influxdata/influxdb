@@ -10,7 +10,7 @@ import DeleteConfirmTableCell from 'shared/components/DeleteConfirmTableCell'
 import {ROLES_TABLE} from 'src/admin/constants/tableSizing'
 
 const RoleRow = ({
-  role: {name, permissions, users},
+  role: {name: roleName, permissions, users = []},
   role,
   allUsers,
   allPermissions,
@@ -23,12 +23,14 @@ const RoleRow = ({
   onUpdateRoleUsers,
   onUpdateRolePermissions,
 }) => {
-  const handleUpdateUsers = u => {
-    onUpdateRoleUsers(role, u.map(n => ({name: n})))
+  const handleUpdateUsers = usrs => {
+    onUpdateRoleUsers(role, usrs)
   }
 
   const handleUpdatePermissions = allowed => {
-    onUpdateRolePermissions(role, [{scope: 'all', allowed}])
+    onUpdateRolePermissions(role, [
+      {scope: 'all', allowed: allowed.map(({name}) => name)},
+    ])
   }
 
   const perms = _.get(permissions, ['0', 'allowed'], [])
@@ -62,13 +64,13 @@ const RoleRow = ({
   return (
     <tr>
       <td style={{width: `${ROLES_TABLE.colName}px`}}>
-        {name}
+        {roleName}
       </td>
       <td>
         {allPermissions && allPermissions.length
           ? <MultiSelectDropdown
-              items={allPermissions}
-              selectedItems={perms}
+              items={allPermissions.map(name => ({name}))}
+              selectedItems={perms.map(name => ({name}))}
               label={perms.length ? '' : 'Select Permissions'}
               onApply={handleUpdatePermissions}
               buttonSize="btn-xs"
@@ -85,9 +87,9 @@ const RoleRow = ({
       <td>
         {allUsers && allUsers.length
           ? <MultiSelectDropdown
-              items={allUsers.map(u => u.name)}
-              selectedItems={users === undefined ? [] : users.map(u => u.name)}
-              label={users && users.length ? '' : 'Select Users'}
+              items={allUsers}
+              selectedItems={users}
+              label={users.length ? '' : 'Select Users'}
               onApply={handleUpdateUsers}
               buttonSize="btn-xs"
               buttonColor="btn-primary"
