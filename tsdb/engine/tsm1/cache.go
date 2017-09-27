@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/uber-go/zap"
@@ -145,6 +146,13 @@ func (e *entry) size() int {
 	sz := e.values.Size()
 	e.mu.RUnlock()
 	return sz
+}
+
+// InfluxQLType returns for the entry the data type of its values.
+func (e *entry) InfluxQLType() (influxql.DataType, error) {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.values.InfluxQLType()
 }
 
 // Statistics gathered by the Cache.

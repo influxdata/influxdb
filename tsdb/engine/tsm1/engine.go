@@ -1331,7 +1331,7 @@ func (e *Engine) onFileStoreReplace(newFiles []TSMFile) {
 
 	// load metadata from the Cache
 	e.Cache.ApplyEntryFn(func(key []byte, entry *entry) error {
-		fieldType, err := entry.values.InfluxQLType()
+		fieldType, err := entry.InfluxQLType()
 		if err != nil {
 			e.logger.Error(fmt.Sprintf("refresh index (3): %v", err))
 			return nil
