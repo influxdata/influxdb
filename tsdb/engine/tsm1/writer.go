@@ -142,6 +142,8 @@ type TSMWriter interface {
 
 	// Size returns the current size in bytes of the file.
 	Size() uint32
+
+	Remove() error
 }
 
 // IndexWriter writes a TSMIndex.
@@ -165,6 +167,8 @@ type IndexWriter interface {
 	WriteTo(w io.Writer) (int64, error)
 
 	Close() error
+
+	Remove() error
 }
 
 // IndexEntry is the index information for a given block in a TSM file.
@@ -463,6 +467,18 @@ func (d *directIndex) Close() error {
 	return os.Remove(d.fd.Name())
 }
 
+// Remove removes the index from any tempory storage
+func (d *directIndex) Remove() error {
+	if d.fd == nil {
+		return nil
+	}
+
+	if err := d.fd.Close(); err != nil {
+		return nil
+	}
+	return os.Remove(d.fd.Name())
+}
+
 // tsmWriter writes keys and values in the TSM format
 type tsmWriter struct {
 	wrapped io.Writer
@@ -648,6 +664,19 @@ func (t *tsmWriter) Close() error {
 
 	if c, ok := t.wrapped.(io.Closer); ok {
 		return c.Close()
+	}
+	return nil
+}
+
+// Remove removes any temporary storage used by the writer.
+func (t *tsmWriter) Remove() error {
+	if err := t.index.Remove(); err != nil {
+		return err
+	}
+
+	if f, ok := t.wrapped.(*os.File); ok {
+		f.Close()
+		return os.Remove(f.Name())
 	}
 	return nil
 }

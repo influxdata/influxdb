@@ -973,6 +973,18 @@ func (c *Compactor) write(path string, iter KeyIterator) (err error) {
 		if err == nil {
 			err = closeErr
 		}
+
+		// Check for errors where we should not remove the file
+		_, inProgress := err.(errCompactionInProgress)
+		maxBlocks := err == ErrMaxBlocksExceeded
+		maxFileSize := err == errMaxFileExceeded
+		if inProgress || maxBlocks || maxFileSize {
+			return
+		}
+
+		if err != nil {
+			w.Remove()
+		}
 	}()
 
 	for iter.Next() {
