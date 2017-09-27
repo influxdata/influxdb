@@ -237,14 +237,6 @@ func (p IndexFiles) writeMeasurementBlockTo(w io.Writer, info *indexCompactInfo,
 
 			// Look-up series ids.
 			itr := p.MeasurementSeriesIDIterator(name)
-			var seriesIDs []uint32
-			for e := itr.Next(); e.SeriesID != 0; e = itr.Next() {
-				seriesIDs = append(seriesIDs, e.SeriesID)
-			}
-			sort.Sort(uint32Slice(seriesIDs))
-
-			// Look-up series ids.
-			itr := p.MeasurementSeriesIDIterator(name)
 			var seriesIDs []uint64
 			for e := itr.Next(); e.SeriesID != 0; e = itr.Next() {
 				seriesIDs = append(seriesIDs, e.SeriesID)
