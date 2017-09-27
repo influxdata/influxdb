@@ -35,8 +35,6 @@ deployment:
       - docker login -e $QUAY_EMAIL -u "$QUAY_USER" -p $QUAY_PASS quay.io
       - docker tag chronograf quay.io/influxdb/chronograf:${CIRCLE_SHA1:0:7}
       - docker push quay.io/influxdb/chronograf:${CIRCLE_SHA1:0:7}
-      - docker tag chronograf quay.io/influxdb/chronograf:latest
-      - docker push quay.io/influxdb/chronograf:latest
       - mv ./build/* $CIRCLE_ARTIFACTS
   pre-release:
     tag: /^[0-9]+(\.[0-9]+)*(\S*)([a|rc|beta]([0-9]+))+$/
@@ -83,4 +81,6 @@ deployment:
       - docker push quay.io/influxdb/chronograf:${CIRCLE_SHA1:0:7}
       - docker tag chronograf quay.io/influxdb/chronograf:${CIRCLE_TAG}
       - docker push quay.io/influxdb/chronograf:${CIRCLE_TAG}
+      - docker tag chronograf quay.io/influxdb/chronograf:latest
+      - docker push quay.io/influxdb/chronograf:latest
       - mv ./build/* $CIRCLE_ARTIFACTS
