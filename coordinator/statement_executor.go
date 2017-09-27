@@ -189,6 +189,8 @@ func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx query.
 	case *influxql.ShowQueriesStatement, *influxql.KillQueryStatement:
 		// Send query related statements to the task manager.
 		return e.TaskManager.ExecuteStatement(stmt, ctx)
+	case *influxql.ShowVersionStatement:
+		rows, err = e.executeShowVersionStatement(stmt)
 	default:
 		return query.ErrInvalidQuery
 	}
@@ -612,6 +614,16 @@ func (e *StatementExecutor) executeShowDatabasesStatement(q *influxql.ShowDataba
 		}
 	}
 	return []*models.Row{row}, nil
+}
+
+func (e *StatementExecutor) executeShowVersionStatement(stmt *influxql.ShowVersionStatement) (models.Rows, error) {
+	diags := e.Monitor.Version
+
+	rows := make([]*models.Row, 0, len(diags))
+	row := &models.Row{Columns: []string{"name", "version"}}
+	row.Values = append(row.Values, []interface{}{"version", diags})
+	rows = append(rows, row)
+	return rows, nil
 }
 
 func (e *StatementExecutor) executeShowDiagnosticsStatement(stmt *influxql.ShowDiagnosticsStatement) (models.Rows, error) {

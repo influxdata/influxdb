@@ -16,6 +16,9 @@ All statistics are written, by default, by each node to a "monitor" database wit
 ## System Diagnostics
 `SHOW DIAGNOSTICS [FOR <module>]` displays various diagnostic information about the `influxd` process. This information is not stored persistently within the InfluxDB system. If _module_ is specified, it must be single-quoted. For example `SHOW STATS FOR 'build'`.
 
+## System Version
+`SHOW VERSION` displays the version string of the `influxd` process.
+
 ## Standard expvar support
 All statistical information is available at HTTP API endpoint `/debug/vars`, in [expvar](https://golang.org/pkg/expvar/) format, allowing external systems to monitor an InfluxDB node. By default, the full path to this endpoint is `http://localhost:8086/debug/vars`.
 

@@ -177,6 +177,7 @@ func (*ShowShardsStatement) node()                 {}
 func (*ShowStatsStatement) node()                  {}
 func (*ShowSubscriptionsStatement) node()          {}
 func (*ShowDiagnosticsStatement) node()            {}
+func (*ShowVersionStatement) node()                {}
 func (*ShowTagKeyCardinalityStatement) node()      {}
 func (*ShowTagKeysStatement) node()                {}
 func (*ShowTagValuesCardinalityStatement) node()   {}
@@ -300,6 +301,7 @@ func (*ShowStatsStatement) stmt()                  {}
 func (*DropShardStatement) stmt()                  {}
 func (*ShowSubscriptionsStatement) stmt()          {}
 func (*ShowDiagnosticsStatement) stmt()            {}
+func (*ShowVersionStatement) stmt()                {}
 func (*ShowTagKeyCardinalityStatement) stmt()      {}
 func (*ShowTagKeysStatement) stmt()                {}
 func (*ShowTagValuesCardinalityStatement) stmt()   {}
@@ -2519,6 +2521,24 @@ func (s *ShowShardsStatement) String() string { return "SHOW SHARDS" }
 // RequiredPrivileges returns the privileges required to execute the statement.
 func (s *ShowShardsStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
 	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}, nil
+}
+
+// ShowVersionStatement represents a command for show version
+type ShowVersionStatement struct {
+	// Module
+	Module string
+}
+
+// String returns a string representation of the ShowVersionStatement.
+func (s *ShowVersionStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("SHOW VERSION")
+	return buf.String()
+}
+
+// RequiredPrivileges returns the privilege required to execute a ShowDiagnosticsStatement
+func (s *ShowVersionStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
+	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: ReadPrivilege}}, nil
 }
 
 // ShowDiagnosticsStatement represents a command for show node diagnostics.
