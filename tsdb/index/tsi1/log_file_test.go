@@ -112,7 +112,7 @@ func TestLogFile_SeriesStoredInOrder(t *testing.T) {
 		if elem.SeriesID == 0 {
 			t.Fatal("got nil series")
 		} else if elem.SeriesID < prevSeriesID {
-			t.Fatal("series out of order: %d !< %d ", elem.SeriesID, prevSeriesID)
+			t.Fatalf("series out of order: %d !< %d ", elem.SeriesID, prevSeriesID)
 		}
 		prevSeriesID = elem.SeriesID
 	}
