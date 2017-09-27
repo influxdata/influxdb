@@ -2,9 +2,12 @@ package tsi1
 
 import (
 	"errors"
+	"fmt"
+	"path/filepath"
 	"regexp"
 	"sync"
 
+	"github.com/cespare/xxhash"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/query"
@@ -15,6 +18,18 @@ import (
 
 // IndexName is the name of the index.
 const IndexName = "tsi1"
+
+// TotalPartitions determines how many shards the index will be partitioned into.
+//
+// NOTE: Currently, this *must* not be variable. If this package is recompiled
+// with a different TotalPartitions value, and ran against an existing TSI index
+// the database will be unable to locate existing series properly.
+//
+// TODO(edd): If this sharding spike is successful then implement a consistent
+// hashring so that we can fiddle with this.
+//
+// NOTE(edd): Currently this must be a power of 2.
+const TotalPartitions = 16
 
 // An IndexOption is a functional option for changing the configuration of
 // an Index.
@@ -27,10 +42,10 @@ var WithPath = func(path string) IndexOption {
 	}
 }
 
-// WithCompactions enables or disabled compactions on the Index.
-var WithCompactions = func(enabled bool) IndexOption {
+// DisableCompactions disables compactions on the Index.
+var DisableCompactions = func() IndexOption {
 	return func(i *Index) {
-		i.CompactionEnabled = enabled
+		i.disableCompactions = true
 	}
 }
 
@@ -43,17 +58,14 @@ var WithLogger = func(l zap.Logger) IndexOption {
 
 // Index represents a collection of layered index files and WAL.
 type Index struct {
-	mu     sync.RWMutex
-	opened bool
+	mu         sync.RWMutex
+	partitions []*Partition
+	opened     bool
 
 	// The following can be set when initialising an Index.
-	path              string     // Root directory of the index files.
-	CompactionEnabled bool       // Frequency of compaction checks.
-	logger            zap.Logger // Index's logger.
-
-	// Close management.
-	once    sync.Once
-	closing chan struct{}
+	path               string     // Root directory of the index partitions.
+	disableCompactions bool       // Initially disables compactions on the index.
+	logger             zap.Logger // Index's logger.
 
 	// Index's version.
 	version int
@@ -61,17 +73,25 @@ type Index struct {
 
 // NewIndex returns a new instance of Index.
 func NewIndex(options ...IndexOption) *Index {
-	i := &Index{
-		closing: make(chan struct{}),
-
-		logger:  zap.New(zap.NullEncoder()),
-		version: Version,
+	idx := &Index{
+		partitions: make([]*Partition, TotalPartitions),
+		logger:     zap.New(zap.NullEncoder()),
+		version:    Version,
 	}
 
 	for _, option := range options {
-		option(i)
+		option(idx)
 	}
-	return i
+
+	// Inititalise index partitions.
+	for i := 0; i < len(idx.partitions); i++ {
+		p := NewPartition(filepath.Join(idx.path, fmt.Sprint(i)))
+		p.compactionsDisabled = idx.disableCompactions
+		p.logger = idx.logger
+
+		idx.partitions[i] = p
+	}
+	return idx
 }
 
 // Type returns the type of Index this is.
@@ -86,7 +106,12 @@ func (i *Index) Open() error {
 		return errors.New("index already open")
 	}
 
-	// TODO(edd): Open all the Partitions.
+	// Open all the Partitions.
+	for _, p := range i.partitions {
+		if err := p.Open(); err != nil {
+			return err
+		}
+	}
 
 	// Mark opened.
 	i.opened = true
@@ -94,24 +119,32 @@ func (i *Index) Open() error {
 	return nil
 }
 
-// Wait returns once outstanding compactions have finished.
+// Wait blocks until all outstanding compactions have completed.
 func (i *Index) Wait() {
-	// TODO(edd): Wait on each partition.
+	for _, p := range i.partitions {
+		p.Wait()
+	}
 }
 
 // Close closes the index.
 func (i *Index) Close() error {
-	// Wait for goroutines to finish.
-	i.once.Do(func() { close(i.closing) })
-	i.Wait()
-
 	// Lock index and close partitions.
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
 	// TODO(edd): Close Partitions.
+	for _, p := range i.partitions {
+		if err := p.Close(); err != nil {
+			return err
+		}
+	}
 
 	return nil
+}
+
+// partition returns the appropriate Partition for a provided series key.
+func (i *Index) partition(key []byte) *Partition {
+	return i.partitions[int(xxhash.Sum64(key)&TotalPartitions)]
 }
 
 // RetainFileSet returns the current fileset for all partitions in the Index.

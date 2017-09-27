@@ -140,7 +140,7 @@ func (cmd *Command) readFileSet() (*tsi1.Index, *tsi1.FileSet, error) {
 		} else if fi.IsDir() {
 			idx := tsi1.NewIndex(
 				tsi1.WithPath(cmd.paths[0]),
-				tsi1.WithCompactions(false),
+				tsi1.DisableCompactions(),
 			)
 			if err := idx.Open(); err != nil {
 				return nil, nil, err
