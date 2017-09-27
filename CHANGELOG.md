@@ -33,6 +33,7 @@
 1. [#1992](https://github.com/influxdata/chronograf/pull/1992): Add .csv download button to data explorer
 1. [#2082](https://github.com/influxdata/chronograf/pull/2082): Add Data Explorer InfluxQL query and location query synchronization, so queries can be shared via a a URL
 1. [#1996](https://github.com/influxdata/chronograf/pull/1996): Able to switch InfluxDB sources on a per graph basis
+1. [#2041](https://github.com/influxdata/chronograf/pull/2041): Add now() as an option in the Dashboard date picker
 
 ### UI Improvements
 1. [#2002](https://github.com/influxdata/chronograf/pull/2002): Require a second click when deleting a dashboard cell
