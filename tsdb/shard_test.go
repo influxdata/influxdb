@@ -809,16 +809,16 @@ func TestShard_Closed_Functions(t *testing.T) {
 
 	sh.Close()
 
-	// Should not panic, just a no-op when shard is closed
+	// Should not panic, but returns an error when shard is closed
 	if err := sh.ForEachMeasurementTagKey([]byte("cpu"), func(k []byte) error {
 		return nil
-	}); err != nil {
-		t.Fatalf("expected nil: got %v", err)
+	}); err == nil {
+		t.Fatal("expected error: got nil")
 	}
 
-	// Should not panic, just a no-op when shard is closed
+	// Should not panic.
 	if exp, got := 0, sh.TagKeyCardinality([]byte("cpu"), []byte("host")); exp != got {
-		t.Fatalf("expected nil: exp %v, got %v", exp, got)
+		t.Fatalf("got %d, expected %d", got, exp)
 	}
 }
 

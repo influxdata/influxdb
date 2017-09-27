@@ -769,7 +769,7 @@ func (s *Store) BackupShard(id uint64, since time.Time, w io.Writer) error {
 		return err
 	}
 
-	return shard.engine.Backup(w, path, since)
+	return shard.Backup(w, path, since)
 }
 
 // RestoreShard restores a backup from r to a given shard.
@@ -854,7 +854,7 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 				names = append(names, source.(*influxql.Measurement).Name)
 			}
 		} else {
-			if err := sh.engine.ForEachMeasurementName(func(name []byte) error {
+			if err := sh.ForEachMeasurementName(func(name []byte) error {
 				names = append(names, string(name))
 				return nil
 			}); err != nil {
@@ -869,7 +869,7 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 		// Find matching series keys for each measurement.
 		var keys [][]byte
 		for _, name := range names {
-			a, err := sh.engine.MeasurementSeriesKeysByExpr([]byte(name), condition)
+			a, err := sh.MeasurementSeriesKeysByExpr([]byte(name), condition)
 			if err != nil {
 				return err
 			}
@@ -1057,7 +1057,7 @@ func (s *Store) TagValues(database string, cond influxql.Expr) ([]TagValues, err
 		// filter.
 		for _, name := range names {
 			// Determine a list of keys from condition.
-			keySet, err := sh.engine.MeasurementTagKeysByExpr(name, cond)
+			keySet, err := sh.MeasurementTagKeysByExpr(name, cond)
 			if err != nil {
 				return nil, err
 			}
@@ -1081,7 +1081,7 @@ func (s *Store) TagValues(database string, cond influxql.Expr) ([]TagValues, err
 			// get all the tag values for each key in the keyset.
 			// Each slice in the results contains the sorted values associated
 			// associated with each tag key for the measurement from the key set.
-			if result.values, err = sh.engine.MeasurementTagKeyValuesByExpr(name, result.keys, filterExpr, true); err != nil {
+			if result.values, err = sh.MeasurementTagKeyValuesByExpr(name, result.keys, filterExpr, true); err != nil {
 				return nil, err
 			}
 			allResults = append(allResults, result)
