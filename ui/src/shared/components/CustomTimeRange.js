@@ -9,7 +9,7 @@ class CustomTimeRange extends Component {
   constructor(props) {
     super(props)
     this.state = {
-      isNow: this.props.timeRange.upper.match(/^now/),
+      isNow: this.props.timeRange.upper === 'now()',
     }
   }
 
