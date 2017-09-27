@@ -94,9 +94,10 @@ func (cmd *Command) run(path, walPath string, verbose bool) error {
 	}
 
 	// Open TSI index in temporary path.
-	tsiIndex := tsi1.NewIndex()
-	tsiIndex.Path = tmpPath
-	tsiIndex.WithLogger(cmd.Logger)
+	tsiIndex := tsi1.NewIndex(
+		tsi1.WithPath(tmpPath),
+		tsi1.WithLogger(cmd.Logger),
+	)
 	cmd.Logger.Info("opening tsi index in temporary location", zap.String("path", tmpPath))
 	if err := tsiIndex.Open(); err != nil {
 		return err

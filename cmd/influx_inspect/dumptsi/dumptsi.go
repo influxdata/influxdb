@@ -138,9 +138,10 @@ func (cmd *Command) readFileSet() (*tsi1.Index, *tsi1.FileSet, error) {
 		if err != nil {
 			return nil, nil, err
 		} else if fi.IsDir() {
-			idx := tsi1.NewIndex()
-			idx.Path = cmd.paths[0]
-			idx.CompactionEnabled = false
+			idx := tsi1.NewIndex(
+				tsi1.WithPath(cmd.paths[0]),
+				tsi1.WithCompactions(false),
+			)
 			if err := idx.Open(); err != nil {
 				return nil, nil, err
 			}

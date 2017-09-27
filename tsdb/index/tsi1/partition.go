@@ -23,29 +23,11 @@ import (
 	"github.com/uber-go/zap"
 )
 
-const (
-	// IndexName is the name of the index.
-	IndexName = "tsi1"
+// Version is the current version of the TSI index.
+const Version = 1
 
-	// Version is the current version of the TSI index.
-	Version = 1
-)
-
-// Default compaction thresholds.
-const (
-	DefaultMaxLogFileSize = 5 * 1024 * 1024
-)
-
-func init() {
-	tsdb.RegisterIndex(IndexName, func(id uint64, database, path string, opt tsdb.EngineOptions) tsdb.Index {
-		idx := NewIndex()
-		idx.ShardID = id
-		idx.Database = database
-		idx.Path = path
-		idx.options = opt
-		return idx
-	})
-}
+// DefaultMaxLogFileSize is the default compaction threshold.
+const DefaultMaxLogFileSize = 5 * 1024 * 1024
 
 // File extensions.
 const (
@@ -55,22 +37,16 @@ const (
 	CompactingExt = ".compacting"
 )
 
-const (
-	// ManifestFileName is the name of the index manifest file.
-	ManifestFileName = "MANIFEST"
+// ManifestFileName is the name of the index manifest file.
+const ManifestFileName = "MANIFEST"
 
-	// SeriesFileName is the name of the series file.
-	SeriesFileName = "series"
-)
+// SeriesFileName is the name of the series file.
+const SeriesFileName = "series"
 
-// Ensure index implements the interface.
-var _ tsdb.Index = &Index{}
-
-// Index represents a collection of layered index files and WAL.
-type Index struct {
-	mu      sync.RWMutex
-	opened  bool
-	options tsdb.EngineOptions
+// Partition represents a collection of layered index files and WAL.
+type Partition struct {
+	mu     sync.RWMutex
+	opened bool
 
 	sfile         *SeriesFile // series lookup file
 	activeLogFile *LogFile    // current log file
@@ -88,9 +64,6 @@ type Index struct {
 
 	// Fieldset shared with engine.
 	fieldset *tsdb.MeasurementFieldSet
-
-	// Associated shard info.
-	ShardID uint64
 
 	// Name of database.
 	Database string
@@ -111,9 +84,9 @@ type Index struct {
 	version int
 }
 
-// NewIndex returns a new instance of Index.
-func NewIndex() *Index {
-	return &Index{
+// NewPartition returns a new instance of Partition.
+func NewPartition() *Partition {
+	return &Partition{
 		closing: make(chan struct{}),
 
 		// Default compaction thresholds.
@@ -129,15 +102,13 @@ func NewIndex() *Index {
 // incompatible tsi1 manifest file.
 var ErrIncompatibleVersion = errors.New("incompatible tsi1 index MANIFEST")
 
-func (i *Index) Type() string { return IndexName }
-
-// Open opens the index.
-func (i *Index) Open() error {
+// Open opens the partition.
+func (i *Partition) Open() error {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
 	if i.opened {
-		return errors.New("index already open")
+		return errors.New("index partition already open")
 	}
 
 	// Create directory if it doesn't exist.
@@ -228,7 +199,7 @@ func (i *Index) Open() error {
 }
 
 // openLogFile opens a log file and appends it to the index.
-func (i *Index) openLogFile(path string) (*LogFile, error) {
+func (i *Partition) openLogFile(path string) (*LogFile, error) {
 	f := NewLogFile(i.sfile, path)
 	if err := f.Open(); err != nil {
 		return nil, err
@@ -237,7 +208,7 @@ func (i *Index) openLogFile(path string) (*LogFile, error) {
 }
 
 // openIndexFile opens a log file and appends it to the index.
-func (i *Index) openIndexFile(path string) (*IndexFile, error) {
+func (i *Partition) openIndexFile(path string) (*IndexFile, error) {
 	f := NewIndexFile(i.sfile)
 	f.SetPath(path)
 	if err := f.Open(); err != nil {
@@ -247,7 +218,7 @@ func (i *Index) openIndexFile(path string) (*IndexFile, error) {
 }
 
 // deleteNonManifestFiles removes all files not in the manifest.
-func (i *Index) deleteNonManifestFiles(m *Manifest) error {
+func (i *Partition) deleteNonManifestFiles(m *Manifest) error {
 	dir, err := os.Open(i.Path)
 	if err != nil {
 		return err
@@ -275,12 +246,12 @@ func (i *Index) deleteNonManifestFiles(m *Manifest) error {
 }
 
 // Wait returns once outstanding compactions have finished.
-func (i *Index) Wait() {
+func (i *Partition) Wait() {
 	i.wg.Wait()
 }
 
 // Close closes the index.
-func (i *Index) Close() error {
+func (i *Partition) Close() error {
 	// Wait for goroutines to finish.
 	i.once.Do(func() { close(i.closing) })
 	i.wg.Wait()
@@ -299,29 +270,29 @@ func (i *Index) Close() error {
 }
 
 // NextSequence returns the next file identifier.
-func (i *Index) NextSequence() int {
+func (i *Partition) NextSequence() int {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	return i.nextSequence()
 }
 
-func (i *Index) nextSequence() int {
+func (i *Partition) nextSequence() int {
 	i.seq++
 	return i.seq
 }
 
 // ManifestPath returns the path to the index's manifest file.
-func (i *Index) ManifestPath() string {
+func (i *Partition) ManifestPath() string {
 	return filepath.Join(i.Path, ManifestFileName)
 }
 
 // SeriesFilePath returns the path to the index's series file.
-func (i *Index) SeriesFilePath() string {
+func (i *Partition) SeriesFilePath() string {
 	return filepath.Join(i.Path, SeriesFileName)
 }
 
 // Manifest returns a manifest for the index.
-func (i *Index) Manifest() *Manifest {
+func (i *Partition) Manifest() *Manifest {
 	m := &Manifest{
 		Levels:  i.levels,
 		Files:   make([]string, len(i.fileSet.files)),
@@ -336,41 +307,41 @@ func (i *Index) Manifest() *Manifest {
 }
 
 // writeManifestFile writes the manifest to the appropriate file path.
-func (i *Index) writeManifestFile() error {
+func (i *Partition) writeManifestFile() error {
 	return WriteManifestFile(i.ManifestPath(), i.Manifest())
 }
 
 // WithLogger sets the logger for the index.
-func (i *Index) WithLogger(logger zap.Logger) {
+func (i *Partition) WithLogger(logger zap.Logger) {
 	i.logger = logger.With(zap.String("index", "tsi"))
 }
 
 // SetFieldSet sets a shared field set from the engine.
-func (i *Index) SetFieldSet(fs *tsdb.MeasurementFieldSet) {
+func (i *Partition) SetFieldSet(fs *tsdb.MeasurementFieldSet) {
 	i.mu.Lock()
 	i.fieldset = fs
 	i.mu.Unlock()
 }
 
 // RetainFileSet returns the current fileset and adds a reference count.
-func (i *Index) RetainFileSet() *FileSet {
+func (i *Partition) RetainFileSet() *FileSet {
 	i.mu.RLock()
 	fs := i.retainFileSet()
 	i.mu.RUnlock()
 	return fs
 }
 
-func (i *Index) retainFileSet() *FileSet {
+func (i *Partition) retainFileSet() *FileSet {
 	fs := i.fileSet
 	fs.Retain()
 	return fs
 }
 
 // FileN returns the active files in the file set.
-func (i *Index) FileN() int { return len(i.fileSet.files) }
+func (i *Partition) FileN() int { return len(i.fileSet.files) }
 
 // prependActiveLogFile adds a new log file so that the current log file can be compacted.
-func (i *Index) prependActiveLogFile() error {
+func (i *Partition) prependActiveLogFile() error {
 	// Open file and insert it into the first position.
 	f, err := i.openLogFile(filepath.Join(i.Path, FormatLogFileName(i.nextSequence())))
 	if err != nil {
@@ -391,7 +362,7 @@ func (i *Index) prependActiveLogFile() error {
 }
 
 // ForEachMeasurementName iterates over all measurement names in the index.
-func (i *Index) ForEachMeasurementName(fn func(name []byte) error) error {
+func (i *Partition) ForEachMeasurementName(fn func(name []byte) error) error {
 	fs := i.RetainFileSet()
 	defer fs.Release()
 
@@ -410,20 +381,20 @@ func (i *Index) ForEachMeasurementName(fn func(name []byte) error) error {
 }
 
 // MeasurementExists returns true if a measurement exists.
-func (i *Index) MeasurementExists(name []byte) (bool, error) {
+func (i *Partition) MeasurementExists(name []byte) (bool, error) {
 	fs := i.RetainFileSet()
 	defer fs.Release()
 	m := fs.Measurement(name)
 	return m != nil && !m.Deleted(), nil
 }
 
-func (i *Index) MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
+func (i *Partition) MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
 	fs := i.RetainFileSet()
 	defer fs.Release()
 	return fs.MeasurementNamesByExpr(expr)
 }
 
-func (i *Index) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
+func (i *Partition) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
 	fs := i.RetainFileSet()
 	defer fs.Release()
 
@@ -438,7 +409,7 @@ func (i *Index) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
 }
 
 // DropMeasurement deletes a measurement from the index.
-func (i *Index) DropMeasurement(name []byte) error {
+func (i *Partition) DropMeasurement(name []byte) error {
 	fs := i.RetainFileSet()
 	defer fs.Release()
 
@@ -506,7 +477,7 @@ func (i *Index) DropMeasurement(name []byte) error {
 }
 
 // CreateSeriesListIfNotExists creates a list of series if they doesn't exist in bulk.
-func (i *Index) CreateSeriesListIfNotExists(_, names [][]byte, tagsSlice []models.Tags) error {
+func (i *Partition) CreateSeriesListIfNotExists(_, names [][]byte, tagsSlice []models.Tags) error {
 	// All slices must be of equal length.
 	if len(names) != len(tagsSlice) {
 		return errors.New("names/tags length mismatch")
@@ -529,16 +500,16 @@ func (i *Index) CreateSeriesListIfNotExists(_, names [][]byte, tagsSlice []model
 }
 
 // InitializeSeries is a no-op. This only applies to the in-memory index.
-func (i *Index) InitializeSeries(key, name []byte, tags models.Tags) error {
+func (i *Partition) InitializeSeries(key, name []byte, tags models.Tags) error {
 	return nil
 }
 
 // CreateSeriesIfNotExists creates a series if it doesn't exist or is deleted.
-func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error {
+func (i *Partition) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error {
 	return i.CreateSeriesListIfNotExists(nil, [][]byte{name}, []models.Tags{tags})
 }
 
-func (i *Index) DropSeries(key []byte) error {
+func (i *Partition) DropSeries(key []byte) error {
 	if err := func() error {
 		i.mu.RLock()
 		defer i.mu.RUnlock()
@@ -582,7 +553,7 @@ func (i *Index) DropSeries(key []byte) error {
 
 // MeasurementsSketches returns the two sketches for the index by merging all
 // instances of the type sketch types in all the index files.
-func (i *Index) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
+func (i *Partition) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
 	fs := i.RetainFileSet()
 	defer fs.Release()
 	return fs.MeasurementsSketches()
@@ -593,19 +564,19 @@ func (i *Index) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, erro
 // cannot be combined with other shard's results. If you need to count series
 // across indexes then use SeriesSketches and merge the results from other
 // indexes.
-func (i *Index) SeriesN() int64 {
+func (i *Partition) SeriesN() int64 {
 	return int64(i.sfile.SeriesCount())
 }
 
 // HasTagKey returns true if tag key exists.
-func (i *Index) HasTagKey(name, key []byte) (bool, error) {
+func (i *Partition) HasTagKey(name, key []byte) (bool, error) {
 	fs := i.RetainFileSet()
 	defer fs.Release()
 	return fs.HasTagKey(name, key), nil
 }
 
 // MeasurementTagKeysByExpr extracts the tag keys wanted by the expression.
-func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error) {
+func (i *Partition) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error) {
 	fs := i.RetainFileSet()
 	defer fs.Release()
 	return fs.MeasurementTagKeysByExpr(name, expr)
@@ -615,7 +586,7 @@ func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[s
 //
 // See tsm1.Engine.MeasurementTagKeyValuesByExpr for a fuller description of this
 // method.
-func (i *Index) MeasurementTagKeyValuesByExpr(name []byte, keys []string, expr influxql.Expr, keysSorted bool) ([][]string, error) {
+func (i *Partition) MeasurementTagKeyValuesByExpr(name []byte, keys []string, expr influxql.Expr, keysSorted bool) ([][]string, error) {
 	fs := i.RetainFileSet()
 	defer fs.Release()
 
@@ -662,7 +633,7 @@ func (i *Index) MeasurementTagKeyValuesByExpr(name []byte, keys []string, expr i
 }
 
 // ForEachMeasurementTagKey iterates over all tag keys in a measurement.
-func (i *Index) ForEachMeasurementTagKey(name []byte, fn func(key []byte) error) error {
+func (i *Partition) ForEachMeasurementTagKey(name []byte, fn func(key []byte) error) error {
 	fs := i.RetainFileSet()
 	defer fs.Release()
 
@@ -682,12 +653,12 @@ func (i *Index) ForEachMeasurementTagKey(name []byte, fn func(key []byte) error)
 
 // TagKeyCardinality always returns zero.
 // It is not possible to determine cardinality of tags across index files.
-func (i *Index) TagKeyCardinality(name, key []byte) int {
+func (i *Partition) TagKeyCardinality(name, key []byte) int {
 	return 0
 }
 
 // MeasurementSeriesKeysByExpr returns a list of series keys matching expr.
-func (i *Index) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr) ([][]byte, error) {
+func (i *Partition) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr) ([][]byte, error) {
 	fs := i.RetainFileSet()
 	defer fs.Release()
 	return fs.MeasurementSeriesKeysByExpr(name, expr, i.fieldset)
@@ -695,7 +666,7 @@ func (i *Index) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr) ([]
 
 // TagSets returns an ordered list of tag sets for a measurement by dimension
 // and filtered by an optional conditional expression.
-func (i *Index) TagSets(name []byte, opt query.IteratorOptions) ([]*query.TagSet, error) {
+func (i *Partition) TagSets(name []byte, opt query.IteratorOptions) ([]*query.TagSet, error) {
 	fs := i.RetainFileSet()
 	defer fs.Release()
 
@@ -763,7 +734,7 @@ func (i *Index) TagSets(name []byte, opt query.IteratorOptions) ([]*query.TagSet
 }
 
 // SnapshotTo creates hard links to the file set into path.
-func (i *Index) SnapshotTo(path string) error {
+func (i *Partition) SnapshotTo(path string) error {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
@@ -799,31 +770,31 @@ func (i *Index) SnapshotTo(path string) error {
 	return nil
 }
 
-func (i *Index) SetFieldName(measurement []byte, name string) {}
-func (i *Index) RemoveShard(shardID uint64)                   {}
-func (i *Index) AssignShard(k string, shardID uint64)         {}
+func (i *Partition) SetFieldName(measurement []byte, name string) {}
+func (i *Partition) RemoveShard(shardID uint64)                   {}
+func (i *Partition) AssignShard(k string, shardID uint64)         {}
 
-func (i *Index) UnassignShard(k string, shardID uint64) error {
+func (i *Partition) UnassignShard(k string, shardID uint64) error {
 	// This can be called directly once inmem is gone.
 	return i.DropSeries([]byte(k))
 }
 
 // SeriesPointIterator returns an influxql iterator over all series.
-func (i *Index) SeriesPointIterator(opt query.IteratorOptions) (query.Iterator, error) {
+func (i *Partition) SeriesPointIterator(opt query.IteratorOptions) (query.Iterator, error) {
 	// NOTE: The iterator handles releasing the file set.
 	fs := i.RetainFileSet()
 	return newSeriesPointIterator(fs, i.fieldset, opt), nil
 }
 
 // Compact requests a compaction of log files.
-func (i *Index) Compact() {
+func (i *Partition) Compact() {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	i.compact()
 }
 
 // compact compacts continguous groups of files that are not currently compacting.
-func (i *Index) compact() {
+func (i *Partition) compact() {
 	if !i.CompactionEnabled {
 		return
 	}
@@ -879,7 +850,7 @@ func (i *Index) compact() {
 
 // compactToLevel compacts a set of files into a new file. Replaces old files with
 // compacted file on successful completion. This runs in a separate goroutine.
-func (i *Index) compactToLevel(files []*IndexFile, level int) {
+func (i *Partition) compactToLevel(files []*IndexFile, level int) {
 	assert(len(files) >= 2, "at least two index files are required for compaction")
 	assert(level > 0, "cannot compact level zero")
 
@@ -974,9 +945,9 @@ func (i *Index) compactToLevel(files []*IndexFile, level int) {
 	}
 }
 
-func (i *Index) Rebuild() {}
+func (i *Partition) Rebuild() {}
 
-func (i *Index) CheckLogFile() error {
+func (i *Partition) CheckLogFile() error {
 	// Check log file size under read lock.
 	if size := func() int64 {
 		i.mu.RLock()
@@ -992,7 +963,7 @@ func (i *Index) CheckLogFile() error {
 	return i.checkLogFile()
 }
 
-func (i *Index) checkLogFile() error {
+func (i *Partition) checkLogFile() error {
 	if i.activeLogFile.Size() < i.MaxLogFileSize {
 		return nil
 	}
@@ -1019,7 +990,7 @@ func (i *Index) checkLogFile() error {
 // compactLogFile compacts f into a tsi file. The new file will share the
 // same identifier but will have a ".tsi" extension. Once the log file is
 // compacted then the manifest is updated and the log file is discarded.
-func (i *Index) compactLogFile(logFile *LogFile) {
+func (i *Partition) compactLogFile(logFile *LogFile) {
 	start := time.Now()
 
 	// Retrieve identifier from current path.
