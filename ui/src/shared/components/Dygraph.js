@@ -371,6 +371,12 @@ export default class Dygraph extends Component {
       ? -(legendHeight + 8)
       : graphHeight + 8
 
+    if (isLegendBottomClipped) {
+      this.legendRef.classList.add('dygraph-legend--above')
+    } else {
+      this.legendRef.classList.remove('dygraph-legend--above')
+    }
+
     this.legendRef.style.left = `${legendLeft}px`
     this.legendRef.style.top = `${legendTop}px`
 
