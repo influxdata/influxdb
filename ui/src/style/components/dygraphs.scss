@@ -147,6 +147,25 @@
   &.hidden {
     display: none !important;
   }
+
+  // Arrow
+  &:after {
+    content: '';
+    position: absolute;
+    border-width: 8px;
+    border-style: solid;
+    border-color: transparent;
+    border-bottom-color: $g0-obsidian;
+    left: 50%;
+    top: -16px;
+    transform: translateX(-50%);
+  }
+  &.dygraph-legend--above:after {
+    top: initial;
+    border-color: transparent;
+    border-top-color: $g0-obsidian;
+    bottom: -16px;
+  }
 }
 .dygraph-legend--header {
   display: flex;
