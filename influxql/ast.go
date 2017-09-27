@@ -3520,6 +3520,8 @@ func CloneExpr(expr Expr) Expr {
 		return &DurationLiteral{Val: expr.Val}
 	case *IntegerLiteral:
 		return &IntegerLiteral{Val: expr.Val}
+	case *UnsignedLiteral:
+		return &UnsignedLiteral{Val: expr.Val}
 	case *NumberLiteral:
 		return &NumberLiteral{Val: expr.Val}
 	case *ParenExpr:
@@ -4407,6 +4409,8 @@ func reduceBinaryExpr(expr *BinaryExpr, valuer Valuer) Expr {
 		return reduceBinaryExprDurationLHS(op, lhs, rhs, loc)
 	case *IntegerLiteral:
 		return reduceBinaryExprIntegerLHS(op, lhs, rhs, loc)
+	case *UnsignedLiteral:
+		return reduceBinaryExprUnsignedLHS(op, lhs, rhs)
 	case *NilLiteral:
 		return reduceBinaryExprNilLHS(op, lhs, rhs)
 	case *NumberLiteral:
@@ -4550,6 +4554,19 @@ func reduceBinaryExprIntegerLHS(op Token, lhs *IntegerLiteral, rhs Expr, loc *ti
 		case LTE:
 			return &BooleanLiteral{Val: lhs.Val <= rhs.Val}
 		}
+	case *UnsignedLiteral:
+		// Comparisons between an unsigned and integer literal will not involve
+		// a cast if the integer is negative as that will have an improper result.
+		// Look for those situations here.
+		if lhs.Val < 0 {
+			switch op {
+			case LT, LTE:
+				return &BooleanLiteral{Val: true}
+			case GT, GTE:
+				return &BooleanLiteral{Val: false}
+			}
+		}
+		return reduceBinaryExprUnsignedLHS(op, &UnsignedLiteral{Val: uint64(lhs.Val)}, rhs)
 	case *DurationLiteral:
 		// Treat the integer as a timestamp.
 		switch op {
@@ -4576,6 +4593,58 @@ func reduceBinaryExprIntegerLHS(op Token, lhs *IntegerLiteral, rhs Expr, loc *ti
 		}
 	case *NilLiteral:
 		return &BooleanLiteral{Val: false}
+	}
+	return &BinaryExpr{Op: op, LHS: lhs, RHS: rhs}
+}
+
+func reduceBinaryExprUnsignedLHS(op Token, lhs *UnsignedLiteral, rhs Expr) Expr {
+	switch rhs := rhs.(type) {
+	case *NumberLiteral:
+		return reduceBinaryExprNumberLHS(op, &NumberLiteral{Val: float64(lhs.Val)}, rhs)
+	case *IntegerLiteral:
+		// Comparisons between an unsigned and integer literal will not involve
+		// a cast if the integer is negative as that will have an improper result.
+		// Look for those situations here.
+		if rhs.Val < 0 {
+			switch op {
+			case LT, LTE:
+				return &BooleanLiteral{Val: false}
+			case GT, GTE:
+				return &BooleanLiteral{Val: true}
+			}
+		}
+		return reduceBinaryExprUnsignedLHS(op, lhs, &UnsignedLiteral{Val: uint64(rhs.Val)})
+	case *UnsignedLiteral:
+		switch op {
+		case ADD:
+			return &UnsignedLiteral{Val: lhs.Val + rhs.Val}
+		case SUB:
+			return &UnsignedLiteral{Val: lhs.Val - rhs.Val}
+		case MUL:
+			return &UnsignedLiteral{Val: lhs.Val * rhs.Val}
+		case DIV:
+			if rhs.Val == 0 {
+				return &UnsignedLiteral{Val: 0}
+			}
+			return &UnsignedLiteral{Val: lhs.Val / rhs.Val}
+		case MOD:
+			if rhs.Val == 0 {
+				return &UnsignedLiteral{Val: 0}
+			}
+			return &UnsignedLiteral{Val: lhs.Val % rhs.Val}
+		case EQ:
+			return &BooleanLiteral{Val: lhs.Val == rhs.Val}
+		case NEQ:
+			return &BooleanLiteral{Val: lhs.Val != rhs.Val}
+		case GT:
+			return &BooleanLiteral{Val: lhs.Val > rhs.Val}
+		case GTE:
+			return &BooleanLiteral{Val: lhs.Val >= rhs.Val}
+		case LT:
+			return &BooleanLiteral{Val: lhs.Val < rhs.Val}
+		case LTE:
+			return &BooleanLiteral{Val: lhs.Val <= rhs.Val}
+		}
 	}
 	return &BinaryExpr{Op: op, LHS: lhs, RHS: rhs}
 }
@@ -4646,6 +4715,8 @@ func reduceBinaryExprNumberLHS(op Token, lhs *NumberLiteral, rhs Expr) Expr {
 		case LTE:
 			return &BooleanLiteral{Val: lhs.Val <= float64(rhs.Val)}
 		}
+	case *UnsignedLiteral:
+		return reduceBinaryExprNumberLHS(op, lhs, &NumberLiteral{Val: float64(rhs.Val)})
 	case *NilLiteral:
 		return &BooleanLiteral{Val: false}
 	}
