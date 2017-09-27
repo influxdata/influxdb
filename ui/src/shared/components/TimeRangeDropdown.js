@@ -32,7 +32,7 @@ class TimeRangeDropdown extends Component {
   findTimeRangeInputValue = ({upper, lower}) => {
     if (upper && lower) {
       if (upper === 'now()') {
-        return `${format(lower)} - ${upper}`
+        return `${format(lower)} - Now`
       }
 
       return `${format(lower)} - ${format(upper)}`
@@ -76,13 +76,15 @@ class TimeRangeDropdown extends Component {
     const {selected, preventCustomTimeRange} = this.props
     const {isOpen, customTimeRange, isCustomTimeRangeOpen} = this.state
     const isRelativeTimeRange = selected.upper === null
+    const isNow = selected.upper === 'now()'
 
     return (
       <div className="time-range-dropdown">
         <div
           className={classnames('dropdown', {
             'dropdown-160': isRelativeTimeRange,
-            'dropdown-290': !isRelativeTimeRange,
+            'dropdown-210': isNow,
+            'dropdown-290': !isRelativeTimeRange && !isNow,
             open: isOpen,
           })}
         >

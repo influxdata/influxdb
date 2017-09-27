@@ -203,7 +203,7 @@ class CustomTimeRange extends Component {
                   : 'btn-default'}`}
                 onClick={this.handleToggleNow}
               >
-                now()
+                Now
               </div>
               <input
                 className="custom-time--upper form-control input-sm"
