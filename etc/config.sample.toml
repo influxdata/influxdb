@@ -71,10 +71,12 @@
 
   # CacheMaxMemorySize is the maximum size a shard's cache can
   # reach before it starts rejecting writes.
+  # Values without a size suffix (e.g. 30k, 20m, 10g) are in bytes.
   # cache-max-memory-size = 1048576000
 
   # CacheSnapshotMemorySize is the size at which the engine will
   # snapshot the cache and write it to a TSM file, freeing up memory
+  # Values without a size suffix (e.g. 30k, 20m, 10g) are in bytes.
   # cache-snapshot-memory-size = 26214400
 
   # CacheSnapshotWriteColdDuration is the length of time at
