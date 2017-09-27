@@ -368,7 +368,7 @@ export default class Dygraph extends Component {
     const isLegendBottomClipped = graphBottom + legendHeight > screenHeight
 
     const legendTop = isLegendBottomClipped
-      ? graphHeight + 8 - legendHeight
+      ? -(legendHeight + 8)
       : graphHeight + 8
 
     this.legendRef.style.left = `${legendLeft}px`
