@@ -9,7 +9,9 @@ import CustomTimeRangeOverlay from 'shared/components/CustomTimeRangeOverlay'
 import timeRanges from 'hson!shared/data/timeRanges.hson'
 import {DROPDOWN_MENU_MAX_HEIGHT} from 'shared/constants/index'
 
+const dateFormat = 'YYYY-MM-DD HH:mm'
 const emptyTime = {lower: '', upper: ''}
+const format = t => moment(t.replace(/\'/g, '')).format(dateFormat)
 
 class TimeRangeDropdown extends Component {
   constructor(props) {
@@ -29,8 +31,10 @@ class TimeRangeDropdown extends Component {
 
   findTimeRangeInputValue = ({upper, lower}) => {
     if (upper && lower) {
-      const format = t =>
-        moment(t.replace(/\'/g, '')).format('YYYY-MM-DD HH:mm')
+      if (upper === 'now()') {
+        return `${format(lower)} - ${upper}`
+      }
+
       return `${format(lower)} - ${format(upper)}`
     }
 
