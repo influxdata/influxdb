@@ -68,15 +68,15 @@ type Partition struct {
 	// Name of database.
 	Database string
 
-	// Root directory of the index files.
-	Path string
+	// Directory of the Partition's index files.
+	path string
 
 	// Log file compaction thresholds.
 	MaxLogFileSize int64
 
 	// Frequency of compaction checks.
-	CompactionEnabled         bool
-	CompactionMonitorInterval time.Duration
+	compactionsDisabled       bool
+	compactionMonitorInterval time.Duration
 
 	logger zap.Logger
 
@@ -85,13 +85,15 @@ type Partition struct {
 }
 
 // NewPartition returns a new instance of Partition.
-func NewPartition() *Partition {
+func NewPartition(path string) *Partition {
 	return &Partition{
 		closing: make(chan struct{}),
 
+		path: path,
+
 		// Default compaction thresholds.
-		MaxLogFileSize:    DefaultMaxLogFileSize,
-		CompactionEnabled: true,
+		MaxLogFileSize: DefaultMaxLogFileSize,
+		// compactionEnabled: true,
 
 		logger:  zap.New(zap.NullEncoder()),
 		version: Version,
@@ -112,7 +114,7 @@ func (i *Partition) Open() error {
 	}
 
 	// Create directory if it doesn't exist.
-	if err := os.MkdirAll(i.Path, 0777); err != nil {
+	if err := os.MkdirAll(i.path, 0777); err != nil {
 		return err
 	}
 
@@ -124,7 +126,7 @@ func (i *Partition) Open() error {
 	i.sfile = sfile
 
 	// Read manifest file.
-	m, err := ReadManifestFile(filepath.Join(i.Path, ManifestFileName))
+	m, err := ReadManifestFile(filepath.Join(i.path, ManifestFileName))
 	if os.IsNotExist(err) {
 		m = NewManifest()
 	} else if err != nil {
@@ -148,7 +150,7 @@ func (i *Partition) Open() error {
 	for _, filename := range m.Files {
 		switch filepath.Ext(filename) {
 		case LogFileExt:
-			f, err := i.openLogFile(filepath.Join(i.Path, filename))
+			f, err := i.openLogFile(filepath.Join(i.path, filename))
 			if err != nil {
 				return err
 			}
@@ -161,7 +163,7 @@ func (i *Partition) Open() error {
 			}
 
 		case IndexFileExt:
-			f, err := i.openIndexFile(filepath.Join(i.Path, filename))
+			f, err := i.openIndexFile(filepath.Join(i.path, filename))
 			if err != nil {
 				return err
 			}
@@ -219,7 +221,7 @@ func (i *Partition) openIndexFile(path string) (*IndexFile, error) {
 
 // deleteNonManifestFiles removes all files not in the manifest.
 func (i *Partition) deleteNonManifestFiles(m *Manifest) error {
-	dir, err := os.Open(i.Path)
+	dir, err := os.Open(i.path)
 	if err != nil {
 		return err
 	}
@@ -252,7 +254,7 @@ func (i *Partition) Wait() {
 
 // Close closes the index.
 func (i *Partition) Close() error {
-	// Wait for goroutines to finish.
+	// Wait for goroutines to finish outstanding compactions.
 	i.once.Do(func() { close(i.closing) })
 	i.wg.Wait()
 
@@ -283,12 +285,12 @@ func (i *Partition) nextSequence() int {
 
 // ManifestPath returns the path to the index's manifest file.
 func (i *Partition) ManifestPath() string {
-	return filepath.Join(i.Path, ManifestFileName)
+	return filepath.Join(i.path, ManifestFileName)
 }
 
 // SeriesFilePath returns the path to the index's series file.
 func (i *Partition) SeriesFilePath() string {
-	return filepath.Join(i.Path, SeriesFileName)
+	return filepath.Join(i.path, SeriesFileName)
 }
 
 // Manifest returns a manifest for the index.
@@ -343,7 +345,7 @@ func (i *Partition) FileN() int { return len(i.fileSet.files) }
 // prependActiveLogFile adds a new log file so that the current log file can be compacted.
 func (i *Partition) prependActiveLogFile() error {
 	// Open file and insert it into the first position.
-	f, err := i.openLogFile(filepath.Join(i.Path, FormatLogFileName(i.nextSequence())))
+	f, err := i.openLogFile(filepath.Join(i.path, FormatLogFileName(i.nextSequence())))
 	if err != nil {
 		return err
 	}
@@ -795,7 +797,7 @@ func (i *Partition) Compact() {
 
 // compact compacts continguous groups of files that are not currently compacting.
 func (i *Partition) compact() {
-	if !i.CompactionEnabled {
+	if i.compactionsDisabled {
 		return
 	}
 
@@ -866,7 +868,7 @@ func (i *Partition) compactToLevel(files []*IndexFile, level int) {
 	start := time.Now()
 
 	// Create new index file.
-	path := filepath.Join(i.Path, FormatIndexFileName(i.NextSequence(), level))
+	path := filepath.Join(i.path, FormatIndexFileName(i.NextSequence(), level))
 	f, err := os.Create(path)
 	if err != nil {
 		logger.Error("cannot create compation files", zap.Error(err))
@@ -1004,7 +1006,7 @@ func (i *Partition) compactLogFile(logFile *LogFile) {
 	)
 
 	// Create new index file.
-	path := filepath.Join(i.Path, FormatIndexFileName(id, 1))
+	path := filepath.Join(i.path, FormatIndexFileName(id, 1))
 	f, err := os.Create(path)
 	if err != nil {
 		logger.Error("cannot create index file", zap.Error(err))
