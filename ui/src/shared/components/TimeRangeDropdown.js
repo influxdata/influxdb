@@ -48,7 +48,7 @@ class TimeRangeDropdown extends Component {
 
   handleSelection = timeRange => () => {
     this.props.onChooseTimeRange(timeRange)
-    this.setState({isOpen: false})
+    this.setState({customTimeRange: emptyTime, isOpen: false})
   }
 
   toggleMenu = () => {
