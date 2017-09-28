@@ -6759,15 +6759,17 @@ func TestServer_Query_TimeZone(t *testing.T) {
 
 func TestServer_Query_Chunk(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig())
+	config := NewConfig()
+	config.HTTPD.MaxRowLimit = 100
+	s := OpenServer(config)
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
-	writes := make([]string, 10001) // 10,000 is the default chunking size, even when no chunking requested.
-	expectedValues := make([]string, len(writes))
+	writes := make([]string, 101) // 10,000 is the default chunking size, even when no chunking requested.
+	expectedValues := make([]string, config.HTTPD.MaxRowLimit)
 	for i := 0; i < len(writes); i++ {
 		writes[i] = fmt.Sprintf(`cpu value=%d %d`, i, time.Unix(0, int64(i)).UnixNano())
 		if i < len(expectedValues) {

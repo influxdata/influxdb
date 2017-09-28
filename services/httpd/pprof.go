@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/query"
 )
 
 // handleProfiles determines which profile to return to the requester.
@@ -283,7 +284,7 @@ func (h *Handler) showDiagnostics() ([]*models.Row, error) {
 	for _, k := range sortedKeys {
 		row := &models.Row{Name: k}
 
-		row.Columns = diags[k].Columns
+		row.Columns = query.Columns(diags[k].Columns).Names()
 		row.Values = diags[k].Rows
 		rows = append(rows, row)
 	}
@@ -303,9 +304,9 @@ func (h *Handler) showStats() ([]*models.Row, error) {
 		row := &models.Row{Name: stat.Name, Tags: stat.Tags}
 
 		values := make([]interface{}, 0, len(stat.Values))
-		for _, k := range stat.ValueNames() {
-			row.Columns = append(row.Columns, k)
-			values = append(values, stat.Values[k])
+		for _, k := range stat.Columns() {
+			row.Columns = append(row.Columns, k.Name)
+			values = append(values, stat.Values[k.Name])
 		}
 		row.Values = [][]interface{}{values}
 		rows = append(rows, row)

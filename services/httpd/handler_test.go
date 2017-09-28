@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
+	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
 	"github.com/influxdata/influxdb/influxql"
@@ -37,8 +37,17 @@ func TestHandler_Query(t *testing.T) {
 		} else if ctx.Database != `foo` {
 			t.Fatalf("unexpected db: %s", ctx.Database)
 		}
-		ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
-		ctx.Results <- &query.Result{StatementID: 2, Series: models.Rows([]*models.Row{{Name: "series1"}})}
+		ctx.StatementID = 1
+		result, _ := ctx.CreateResult()
+		series, _ := result.CreateSeries("series0")
+		series.Close()
+		result.Close()
+
+		ctx.StatementID = 2
+		result, _ = ctx.CreateResult()
+		series, _ = result.CreateSeries("series1")
+		series.Close()
+		result.Close()
 		return nil
 	}
 
@@ -60,8 +69,17 @@ func TestHandler_Query_File(t *testing.T) {
 		} else if ctx.Database != `foo` {
 			t.Fatalf("unexpected db: %s", ctx.Database)
 		}
-		ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
-		ctx.Results <- &query.Result{StatementID: 2, Series: models.Rows([]*models.Row{{Name: "series1"}})}
+		ctx.StatementID = 1
+		result, _ := ctx.CreateResult()
+		series, _ := result.CreateSeries("series0")
+		series.Close()
+		result.Close()
+
+		ctx.StatementID = 2
+		result, _ = ctx.CreateResult()
+		series, _ = result.CreateSeries("series1")
+		series.Close()
+		result.Close()
 		return nil
 	}
 
@@ -129,8 +147,17 @@ func TestHandler_Query_Auth(t *testing.T) {
 		} else if ctx.Database != `foo` {
 			t.Fatalf("unexpected db: %s", ctx.Database)
 		}
-		ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
-		ctx.Results <- &query.Result{StatementID: 2, Series: models.Rows([]*models.Row{{Name: "series1"}})}
+		ctx.StatementID = 1
+		result, _ := ctx.CreateResult()
+		series, _ := result.CreateSeries("series0")
+		series.Close()
+		result.Close()
+
+		ctx.StatementID = 2
+		result, _ = ctx.CreateResult()
+		series, _ = result.CreateSeries("series1")
+		series.Close()
+		result.Close()
 		return nil
 	}
 
@@ -244,71 +271,11 @@ func TestHandler_QueryRegex(t *testing.T) {
 		} else if ctx.Database != `test` {
 			t.Fatalf("unexpected db: %s", ctx.Database)
 		}
-		ctx.Results <- nil
-		return nil
+		return ctx.Ok()
 	}
 
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, MustNewRequest("GET", "/query?db=test&q=SELECT%20%2A%20FROM%20test%20WHERE%20url%20%3D~%20%2Fhttp%5C%3A%5C%2F%5C%2Fwww.akamai%5C.com%2F", nil))
-}
-
-// Ensure the handler merges results from the same statement.
-func TestHandler_Query_MergeResults(t *testing.T) {
-	h := NewHandler(false)
-	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx query.ExecutionContext) error {
-		ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
-		ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series1"}})}
-		return nil
-	}
-
-	w := httptest.NewRecorder()
-	h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?db=foo&q=SELECT+*+FROM+bar", nil))
-	if w.Code != http.StatusOK {
-		t.Fatalf("unexpected status: %d", w.Code)
-	} else if body := strings.TrimSpace(w.Body.String()); body != `{"results":[{"statement_id":1,"series":[{"name":"series0"},{"name":"series1"}]}]}` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-// Ensure the handler merges results from the same statement.
-func TestHandler_Query_MergeEmptyResults(t *testing.T) {
-	h := NewHandler(false)
-	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx query.ExecutionContext) error {
-		ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows{}}
-		ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series1"}})}
-		return nil
-	}
-
-	w := httptest.NewRecorder()
-	h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?db=foo&q=SELECT+*+FROM+bar", nil))
-	if w.Code != http.StatusOK {
-		t.Fatalf("unexpected status: %d", w.Code)
-	} else if body := strings.TrimSpace(w.Body.String()); body != `{"results":[{"statement_id":1,"series":[{"name":"series1"}]}]}` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-// Ensure the handler can parse chunked and chunk size query parameters.
-func TestHandler_Query_Chunked(t *testing.T) {
-	h := NewHandler(false)
-	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx query.ExecutionContext) error {
-		if ctx.ChunkSize != 2 {
-			t.Fatalf("unexpected chunk size: %d", ctx.ChunkSize)
-		}
-		ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
-		ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series1"}})}
-		return nil
-	}
-
-	w := httptest.NewRecorder()
-	h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?db=foo&q=SELECT+*+FROM+bar&chunked=true&chunk_size=2", nil))
-	if w.Code != http.StatusOK {
-		t.Fatalf("unexpected status: %d", w.Code)
-	} else if w.Body.String() != `{"results":[{"statement_id":1,"series":[{"name":"series0"}]}]}
-{"results":[{"statement_id":1,"series":[{"name":"series1"}]}]}
-` {
-		t.Fatalf("unexpected body: %s", w.Body.String())
-	}
 }
 
 // Ensure the handler can accept an async query.
@@ -321,8 +288,17 @@ func TestHandler_Query_Async(t *testing.T) {
 		} else if ctx.Database != `foo` {
 			t.Fatalf("unexpected db: %s", ctx.Database)
 		}
-		ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
-		ctx.Results <- &query.Result{StatementID: 2, Series: models.Rows([]*models.Row{{Name: "series1"}})}
+		ctx.StatementID = 1
+		result, _ := ctx.CreateResult()
+		series, _ := result.CreateSeries("series0")
+		series.Close()
+		result.Close()
+
+		ctx.StatementID = 2
+		result, _ = ctx.CreateResult()
+		series, _ = result.CreateSeries("series1")
+		series.Close()
+		result.Close()
 		close(done)
 		return nil
 	}
@@ -620,13 +596,18 @@ func TestHandler_PromRead(t *testing.T) {
 		} else if ctx.Database != `foo` {
 			t.Fatalf("unexpected db: %s", ctx.Database)
 		}
-		row := &models.Row{
-			Name:    "_",
-			Tags:    map[string]string{"foo": "bar"},
-			Columns: []string{"time", "f64"},
-			Values:  [][]interface{}{{time.Unix(23, 0), 1.2}},
-		}
-		ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{row})}
+		ctx.StatementID = 1
+		result, _ := ctx.CreateResult()
+		result = result.WithColumns(
+			query.Column{Name: "time", Type: influxql.Time},
+			query.Column{Name: "f64", Type: influxql.Float},
+		)
+		series, _ := result.CreateSeriesWithTags("_", query.NewTags(map[string]string{
+			"foo": "bar",
+		}))
+		series.Emit([]interface{}{time.Unix(23, 0), 1.2})
+		series.Close()
+		result.Close()
 		return nil
 	}
 

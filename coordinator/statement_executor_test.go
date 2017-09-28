@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"io/ioutil"
 	"os"
 	"reflect"
 	"regexp"
@@ -16,6 +17,7 @@ import (
 	"github.com/influxdata/influxdb/internal"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/services/httpd"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/uber-go/zap"
@@ -66,7 +68,7 @@ func TestQueryExecutor_ExecuteQuery_SelectStatement(t *testing.T) {
 	}
 
 	// Verify all results from the query.
-	if a := ReadAllResults(e.ExecuteQuery(`SELECT * FROM cpu`, "db0", 0)); !reflect.DeepEqual(a, []*query.Result{
+	if a := ReadAllResults(t, e.ExecuteQuery(`SELECT * FROM cpu`, "db0")); !reflect.DeepEqual(a, []*query.Result{
 		{
 			StatementID: 0,
 			Series: []*models.Row{{
@@ -118,7 +120,7 @@ func TestQueryExecutor_ExecuteQuery_MaxSelectBucketsN(t *testing.T) {
 	}
 
 	// Verify all results from the query.
-	if a := ReadAllResults(e.ExecuteQuery(`SELECT count(value) FROM cpu WHERE time >= '2000-01-01T00:00:05Z' AND time < '2000-01-01T00:00:35Z' GROUP BY time(10s)`, "db0", 0)); !reflect.DeepEqual(a, []*query.Result{
+	if a := ReadAllResults(t, e.ExecuteQuery(`SELECT count(value) FROM cpu WHERE time >= '2000-01-01T00:00:05Z' AND time < '2000-01-01T00:00:35Z' GROUP BY time(10s)`, "db0")); !reflect.DeepEqual(a, []*query.Result{
 		{
 			StatementID: 0,
 			Err:         errors.New("max-select-buckets limit exceeded: (4/3)"),
@@ -239,7 +241,7 @@ func TestQueryExecutor_ExecuteQuery_ShowDatabases(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	results := ReadAllResults(qe.ExecuteQuery(q, opt, make(chan struct{})))
+	results := ReadAllResults(t, qe.ExecuteQuery(q, opt, make(chan struct{})))
 	exp := []*query.Result{
 		{
 			StatementID: 0,
@@ -303,10 +305,9 @@ func DefaultQueryExecutor() *QueryExecutor {
 }
 
 // ExecuteQuery parses query and executes against the database.
-func (e *QueryExecutor) ExecuteQuery(q, database string, chunkSize int) <-chan *query.Result {
+func (e *QueryExecutor) ExecuteQuery(q, database string) <-chan *query.ResultSet {
 	return e.QueryExecutor.ExecuteQuery(MustParseQuery(q), query.ExecutionOptions{
-		Database:  database,
-		ChunkSize: chunkSize,
+		Database: database,
 	}, make(chan struct{}))
 }
 
@@ -438,13 +439,25 @@ func MustParseQuery(s string) *influxql.Query {
 	return q
 }
 
+type mockResponseWriter struct {
+	T       *testing.T
+	Results []*query.Result
+}
+
+func (m *mockResponseWriter) ContentType() string               { return "" }
+func (m *mockResponseWriter) WriteError(w io.Writer, err error) { m.T.Error(err) }
+
+func (m *mockResponseWriter) WriteResponse(w io.Writer, resp httpd.Response) (int, error) {
+	m.Results = append(m.Results, resp.Results...)
+	return 0, nil
+}
+
 // ReadAllResults reads all results from c and returns as a slice.
-func ReadAllResults(c <-chan *query.Result) []*query.Result {
-	var a []*query.Result
-	for result := range c {
-		a = append(a, result)
-	}
-	return a
+func ReadAllResults(t *testing.T, c <-chan *query.ResultSet) []*query.Result {
+	rw := mockResponseWriter{T: t}
+	enc := httpd.NewDefaultEncoder(&rw)
+	enc.Encode(ioutil.Discard, httpd.ResponseHeader{}, c)
+	return rw.Results
 }
 
 // FloatIterator is a represents an iterator that reads from a slice.
