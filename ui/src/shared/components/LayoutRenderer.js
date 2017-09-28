@@ -48,10 +48,7 @@ class LayoutRenderer extends Component {
         queryText = buildCannedDashboardQuery(query, timeRange, host)
       }
 
-      return Object.assign({}, query, {
-        host: source.links.proxy,
-        text: queryText,
-      })
+      return {...query, host: source.links.proxy, text: queryText}
     })
   }
 
