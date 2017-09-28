@@ -37,7 +37,7 @@ export default class Dygraph extends Component {
       isAscending: true,
       isSnipped: false,
       isFilterVisible: false,
-      arrowPosition: 'top',
+      legendArrowPosition: 'top',
     }
   }
 
@@ -374,11 +374,11 @@ export default class Dygraph extends Component {
     const willLegendFitLeft = e.pageX - chronografChromeSize > legendWidth
 
     let legendTop = graphHeight + 8
-    this.setState({arrowPosition: 'top'})
+    this.setState({legendArrowPosition: 'top'})
 
     // If legend is only clipped on the bottom, position above graph
     if (isLegendBottomClipped && !isLegendTopClipped) {
-      this.setState({arrowPosition: 'bottom'})
+      this.setState({legendArrowPosition: 'bottom'})
       legendTop = -legendHeight
     }
     // If legend is clipped on top and bottom, posiition on either side of crosshair
@@ -386,11 +386,11 @@ export default class Dygraph extends Component {
       legendTop = 0
 
       if (willLegendFitLeft) {
-        this.setState({arrowPosition: 'right'})
+        this.setState({legendArrowPosition: 'right'})
         legendLeft = trueGraphX - legendWidth / 2
         legendLeft -= 8
       } else {
-        this.setState({arrowPosition: 'left'})
+        this.setState({legendArrowPosition: 'left'})
         legendLeft = trueGraphX + legendWidth / 2
         legendLeft += 32
       }
@@ -430,7 +430,7 @@ export default class Dygraph extends Component {
       isSnipped,
       filterText,
       isAscending,
-      arrowPosition,
+      legendArrowPosition,
       isFilterVisible,
     } = this.state
 
@@ -450,7 +450,7 @@ export default class Dygraph extends Component {
           legendRef={this.handleLegendRef}
           onToggleFilter={this.handleToggleFilter}
           onInputChange={this.handleLegendInputChange}
-          arrowPosition={arrowPosition}
+          arrowPosition={legendArrowPosition}
         />
         <div
           ref={r => {
