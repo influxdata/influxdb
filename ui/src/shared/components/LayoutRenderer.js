@@ -30,18 +30,9 @@ class LayoutRenderer extends Component {
     this.state = {
       rowHeight: this.calculateRowHeight(),
     }
-
-    this.buildQueryForOldQuerySchema = ::this.buildQueryForOldQuerySchema
-    this.standardizeQueries = ::this.standardizeQueries
-    this.generateWidgetCell = ::this.generateWidgetCell
-    this.generateVisualizations = ::this.generateVisualizations
-    this.handleLayoutChange = ::this.handleLayoutChange
-    this.triggerWindowResize = ::this.triggerWindowResize
-    this.calculateRowHeight = ::this.calculateRowHeight
-    this.updateWindowDimensions = ::this.updateWindowDimensions
   }
 
-  buildQueryForOldQuerySchema(q) {
+  buildQueryForOldQuerySchema = q => {
     const {timeRange: {lower, upper}, host} = this.props
     const {defaultGroupBy} = timeRanges.find(
       range => range.lower === lower
@@ -79,7 +70,7 @@ class LayoutRenderer extends Component {
     return text
   }
 
-  standardizeQueries(cell, source) {
+  standardizeQueries = (cell, source) => {
     return cell.queries.map(query => {
       // TODO: Canned dashboards (and possibly Kubernetes dashboard) use an old query schema,
       // which does not have enough information for the new `buildInfluxQLQuery` function
@@ -104,7 +95,7 @@ class LayoutRenderer extends Component {
     })
   }
 
-  generateWidgetCell(cell) {
+  generateWidgetCell = cell => {
     const {source, timeRange} = this.props
 
     switch (cell.type) {
@@ -125,15 +116,16 @@ class LayoutRenderer extends Component {
         return <GettingStarted />
       }
     }
+
     return (
       <div className="graph-empty">
-        <p data-test="data-explorer-no-results">No Results</p>
+        <p data-test="data-explorer-no-results">Nothing to show</p>
       </div>
     )
   }
 
   // Generates cell contents based on cell type, i.e. graphs, news feeds, etc.
-  generateVisualizations() {
+  generateVisualizations = () => {
     const {
       source,
       cells,
@@ -181,7 +173,7 @@ class LayoutRenderer extends Component {
     })
   }
 
-  handleLayoutChange(layout) {
+  handleLayoutChange = layout => {
     this.triggerWindowResize()
 
     if (!this.props.onPositionChange) {
@@ -197,7 +189,7 @@ class LayoutRenderer extends Component {
     this.props.onPositionChange(newCells)
   }
 
-  triggerWindowResize() {
+  triggerWindowResize = () => {
     // Hack to get dygraphs to fit properly during and after resize (dispatchEvent is a global method on window).
     const evt = document.createEvent('CustomEvent') // MUST be 'CustomEvent'
     evt.initCustomEvent('resize', false, false, null)
@@ -205,7 +197,7 @@ class LayoutRenderer extends Component {
   }
 
   // ensures that Status Page height fits the window
-  calculateRowHeight() {
+  calculateRowHeight = () => {
     const {isStatusPage} = this.props
 
     return isStatusPage
@@ -219,7 +211,7 @@ class LayoutRenderer extends Component {
   }
 
   // idea adopted from https://stackoverflow.com/questions/36862334/get-viewport-window-height-in-reactjs
-  updateWindowDimensions() {
+  updateWindowDimensions = () => {
     this.setState({rowHeight: this.calculateRowHeight()})
   }
 
