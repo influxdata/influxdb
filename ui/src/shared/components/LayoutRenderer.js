@@ -1,6 +1,7 @@
 import React, {Component, PropTypes} from 'react'
 
 import ReactGridLayout, {WidthProvider} from 'react-grid-layout'
+import Resizeable from 'react-component-resizable'
 import Layout from 'src/shared/components/Layout'
 
 import {
@@ -20,15 +21,8 @@ class LayoutRenderer extends Component {
 
     this.state = {
       rowHeight: this.calculateRowHeight(),
+      resizeCounter: 0,
     }
-  }
-
-  componentDidMount() {
-    window.addEventListener('resize', this.updateWindowDimensions)
-  }
-
-  componentWillUnmount() {
-    window.removeEventListener('resize', this.updateWindowDimensions)
   }
 
   // idea adopted from https://stackoverflow.com/questions/36862334/get-viewport-window-height-in-reactjs
@@ -53,6 +47,8 @@ class LayoutRenderer extends Component {
   }
 
   triggerWindowResize = () => {
+    const resizeCounter = (this.state.resizeCounter += 1)
+    this.setState({resizeCounter})
     // Hack to get dygraphs to fit properly during and after resize (dispatchEvent is a global method on window).
     const evt = document.createEvent('CustomEvent') // MUST be 'CustomEvent'
     evt.initCustomEvent('resize', false, false, null)
@@ -90,44 +86,46 @@ class LayoutRenderer extends Component {
       onSummonOverlayTechnologies,
     } = this.props
 
-    const {rowHeight} = this.state
+    const {rowHeight, resizeCounter} = this.state
     const isDashboard = !!this.props.onPositionChange
 
     return (
-      <GridLayout
-        layout={cells}
-        cols={12}
-        rowHeight={rowHeight}
-        margin={[LAYOUT_MARGIN, LAYOUT_MARGIN]}
-        containerPadding={[0, 0]}
-        useCSSTransforms={false}
-        onResize={this.triggerWindowResize}
-        onLayoutChange={this.handleLayoutChange}
-        draggableHandle={'.dash-graph--name'}
-        isDraggable={isDashboard}
-        isResizable={isDashboard}
-      >
-        {cells.map(cell =>
-          <div key={cell.i}>
-            <Layout
-              key={cell.i}
-              cell={cell}
-              host={host}
-              source={source}
-              onZoom={onZoom}
-              templates={templates}
-              timeRange={timeRange}
-              isEditable={isEditable}
-              onEditCell={onEditCell}
-              autoRefresh={autoRefresh}
-              onDeleteCell={onDeleteCell}
-              synchronizer={synchronizer}
-              onCancelEditCell={onCancelEditCell}
-              onSummonOverlayTechnologies={onSummonOverlayTechnologies}
-            />
-          </div>
-        )}
-      </GridLayout>
+      <Resizeable onResize={this.updateWindowDimensions}>
+        <GridLayout
+          layout={cells}
+          cols={12}
+          rowHeight={rowHeight}
+          margin={[LAYOUT_MARGIN, LAYOUT_MARGIN]}
+          containerPadding={[0, 0]}
+          useCSSTransforms={false}
+          onResize={this.triggerWindowResize}
+          onLayoutChange={this.handleLayoutChange}
+          draggableHandle={'.dash-graph--name'}
+          isDraggable={isDashboard}
+          isResizable={isDashboard}
+        >
+          {cells.map(cell =>
+            <div key={cell.i}>
+              <Layout
+                key={cell.i}
+                cell={cell}
+                host={host}
+                source={source}
+                onZoom={onZoom}
+                templates={templates}
+                timeRange={timeRange}
+                isEditable={isEditable}
+                onEditCell={onEditCell}
+                autoRefresh={autoRefresh}
+                onDeleteCell={onDeleteCell}
+                synchronizer={synchronizer}
+                onCancelEditCell={onCancelEditCell}
+                onSummonOverlayTechnologies={onSummonOverlayTechnologies}
+              />
+            </div>
+          )}
+        </GridLayout>
+      </Resizeable>
     )
   }
 }
