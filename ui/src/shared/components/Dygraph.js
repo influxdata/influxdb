@@ -342,6 +342,8 @@ export default class Dygraph extends Component {
   }
 
   highlightCallback = e => {
+    const chronografChromeSize = 60 // Width & Height of navigation page elements
+
     // Move the Legend on hover
     const graphRect = this.graphRef.getBoundingClientRect()
     const legendRect = this.legendRef.getBoundingClientRect()
@@ -366,13 +368,45 @@ export default class Dygraph extends Component {
 
     // Disallow screen overflow of legend
     const isLegendBottomClipped = graphBottom + legendHeight > screenHeight
+    const isLegendTopClipped =
+      legendHeight > graphRect.top - chronografChromeSize
+    const willLegendFitLeft = e.pageX - chronografChromeSize > legendWidth
 
-    const legendTop = isLegendBottomClipped ? -legendHeight : graphHeight + 8
+    let legendTop = graphHeight + 8
+    if (!isLegendBottomClipped && !isLegendTopClipped) {
+      this.legendRef.classList.add('dygraph-legend--top')
+      this.legendRef.classList.remove('dygraph-legend--bottom')
+      this.legendRef.classList.remove('dygraph-legend--left')
+      this.legendRef.classList.remove('dygraph-legend--right')
+    }
 
-    if (isLegendBottomClipped) {
-      this.legendRef.classList.add('dygraph-legend--above')
-    } else {
-      this.legendRef.classList.remove('dygraph-legend--above')
+    // If legend is only clipped on the bottom, position above graph
+    if (isLegendBottomClipped && !isLegendTopClipped) {
+      this.legendRef.classList.add('dygraph-legend--bottom')
+      this.legendRef.classList.remove('dygraph-legend--top')
+      this.legendRef.classList.remove('dygraph-legend--left')
+      this.legendRef.classList.remove('dygraph-legend--right')
+      legendTop = -legendHeight
+    }
+    // If legend is clipped on top and bottom, posiition on either side of crosshair
+    if (isLegendBottomClipped && isLegendTopClipped) {
+      legendTop = 0
+
+      if (willLegendFitLeft) {
+        legendLeft = trueGraphX - legendWidth / 2
+        legendLeft -= 8
+        this.legendRef.classList.add('dygraph-legend--right')
+        this.legendRef.classList.remove('dygraph-legend--top')
+        this.legendRef.classList.remove('dygraph-legend--bottom')
+        this.legendRef.classList.remove('dygraph-legend--left')
+      } else {
+        legendLeft = trueGraphX + legendWidth / 2
+        legendLeft += 32
+        this.legendRef.classList.add('dygraph-legend--left')
+        this.legendRef.classList.remove('dygraph-legend--top')
+        this.legendRef.classList.remove('dygraph-legend--right')
+        this.legendRef.classList.remove('dygraph-legend--bottom')
+      }
     }
 
     this.legendRef.style.left = `${legendLeft}px`
