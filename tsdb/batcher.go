@@ -55,14 +55,23 @@ func (b *PointBatcher) Start() {
 		return
 	}
 
-	var timer *time.Timer
+	// initialize the timer variable
+	timer := &time.NewTimer(b.duration)
+	timer.Stop()
 	var batch []models.Point
-	var timerCh <-chan time.Time
 
 	emit := func() {
+
+		timer.Stop()
+
+		// Nothing batched?
+		if len(batch) == 0 {
+			return
+		}
 		b.out <- batch
 		atomic.AddUint64(&b.stats.BatchTotal, 1)
 		batch = nil
+
 	}
 
 	b.wg = &sync.WaitGroup{}
@@ -75,16 +84,15 @@ func (b *PointBatcher) Start() {
 			case <-b.stop:
 				if len(batch) > 0 {
 					emit()
-					timerCh = nil
 				}
 				return
 			case p := <-b.in:
 				atomic.AddUint64(&b.stats.PointTotal, 1)
 				if batch == nil {
 					batch = make([]models.Point, 0, b.size)
+
 					if b.duration > 0 {
-						timer = time.NewTimer(b.duration)
-						timerCh = timer.C
+						timer.Reset(b.duration)
 					}
 				}
 
@@ -92,16 +100,14 @@ func (b *PointBatcher) Start() {
 				if len(batch) >= b.size { // 0 means send immediately.
 					atomic.AddUint64(&b.stats.SizeTotal, 1)
 					emit()
-					timerCh = nil
 				}
 
 			case <-b.flush:
 				if len(batch) > 0 {
 					emit()
-					timerCh = nil
 				}
 
-			case <-timerCh:
+			case <-timer.C:
 				atomic.AddUint64(&b.stats.TimeoutTotal, 1)
 				emit()
 			}
