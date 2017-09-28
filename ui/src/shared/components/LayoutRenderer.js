@@ -3,10 +3,8 @@ import React, {Component, PropTypes} from 'react'
 import ReactGridLayout, {WidthProvider} from 'react-grid-layout'
 
 import LayoutCell from 'shared/components/LayoutCell'
+import WidgetCell from 'shared/components/WidgetCell'
 import RefreshingGraph from 'shared/components/RefreshingGraph'
-import AlertsApp from 'src/alerts/containers/AlertsApp'
-import NewsFeed from 'src/status/components/NewsFeed'
-import GettingStarted from 'src/status/components/GettingStarted'
 
 import buildInfluxQLQuery, {buildCannedDashboardQuery} from 'utils/influxql'
 
@@ -18,8 +16,6 @@ import {
   LAYOUT_MARGIN,
   DASHBOARD_LAYOUT_ROW_HEIGHT,
 } from 'shared/constants'
-
-import {RECENT_ALERTS_LIMIT} from 'src/status/constants'
 
 const GridLayout = WidthProvider(ReactGridLayout)
 
@@ -50,35 +46,6 @@ class LayoutRenderer extends Component {
 
       return {...query, host: source.links.proxy, text: queryText}
     })
-  }
-
-  generateWidgetCell = cell => {
-    const {source, timeRange} = this.props
-
-    switch (cell.type) {
-      case 'alerts': {
-        return (
-          <AlertsApp
-            source={source}
-            timeRange={timeRange}
-            isWidget={true}
-            limit={RECENT_ALERTS_LIMIT}
-          />
-        )
-      }
-      case 'news': {
-        return <NewsFeed source={source} />
-      }
-      case 'guide': {
-        return <GettingStarted />
-      }
-    }
-
-    return (
-      <div className="graph-empty">
-        <p data-test="data-explorer-no-results">Nothing to show</p>
-      </div>
-    )
   }
 
   // Generates cell contents based on cell type, i.e. graphs, news feeds, etc.
@@ -112,7 +79,7 @@ class LayoutRenderer extends Component {
             cell={cell}
           >
             {cell.isWidget
-              ? this.generateWidgetCell(cell)
+              ? <WidgetCell cell={cell} timeRange={timeRange} source={source} />
               : <RefreshingGraph
                   timeRange={timeRange}
                   autoRefresh={autoRefresh}
