@@ -37,6 +37,7 @@ export default class Dygraph extends Component {
       isAscending: true,
       isSnipped: false,
       isFilterVisible: false,
+      arrowPosition: 'top',
     }
   }
 
@@ -373,19 +374,11 @@ export default class Dygraph extends Component {
     const willLegendFitLeft = e.pageX - chronografChromeSize > legendWidth
 
     let legendTop = graphHeight + 8
-    if (!isLegendBottomClipped && !isLegendTopClipped) {
-      this.legendRef.classList.add('dygraph-legend--top')
-      this.legendRef.classList.remove('dygraph-legend--bottom')
-      this.legendRef.classList.remove('dygraph-legend--left')
-      this.legendRef.classList.remove('dygraph-legend--right')
-    }
+    this.setState({arrowPosition: 'top'})
 
     // If legend is only clipped on the bottom, position above graph
     if (isLegendBottomClipped && !isLegendTopClipped) {
-      this.legendRef.classList.add('dygraph-legend--bottom')
-      this.legendRef.classList.remove('dygraph-legend--top')
-      this.legendRef.classList.remove('dygraph-legend--left')
-      this.legendRef.classList.remove('dygraph-legend--right')
+      this.setState({arrowPosition: 'bottom'})
       legendTop = -legendHeight
     }
     // If legend is clipped on top and bottom, posiition on either side of crosshair
@@ -393,19 +386,13 @@ export default class Dygraph extends Component {
       legendTop = 0
 
       if (willLegendFitLeft) {
+        this.setState({arrowPosition: 'right'})
         legendLeft = trueGraphX - legendWidth / 2
         legendLeft -= 8
-        this.legendRef.classList.add('dygraph-legend--right')
-        this.legendRef.classList.remove('dygraph-legend--top')
-        this.legendRef.classList.remove('dygraph-legend--bottom')
-        this.legendRef.classList.remove('dygraph-legend--left')
       } else {
+        this.setState({arrowPosition: 'left'})
         legendLeft = trueGraphX + legendWidth / 2
         legendLeft += 32
-        this.legendRef.classList.add('dygraph-legend--left')
-        this.legendRef.classList.remove('dygraph-legend--top')
-        this.legendRef.classList.remove('dygraph-legend--right')
-        this.legendRef.classList.remove('dygraph-legend--bottom')
       }
     }
 
@@ -438,11 +425,12 @@ export default class Dygraph extends Component {
   render() {
     const {
       legend,
-      filterText,
-      isAscending,
       sortType,
       isHidden,
       isSnipped,
+      filterText,
+      isAscending,
+      arrowPosition,
       isFilterVisible,
     } = this.state
 
@@ -462,6 +450,7 @@ export default class Dygraph extends Component {
           legendRef={this.handleLegendRef}
           onToggleFilter={this.handleToggleFilter}
           onInputChange={this.handleLegendInputChange}
+          arrowPosition={arrowPosition}
         />
         <div
           ref={r => {
