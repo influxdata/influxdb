@@ -3520,6 +3520,8 @@ func CloneExpr(expr Expr) Expr {
 		return &DurationLiteral{Val: expr.Val}
 	case *IntegerLiteral:
 		return &IntegerLiteral{Val: expr.Val}
+	case *UnsignedLiteral:
+		return &UnsignedLiteral{Val: expr.Val}
 	case *NumberLiteral:
 		return &NumberLiteral{Val: expr.Val}
 	case *ParenExpr:
@@ -3820,6 +3822,8 @@ func Eval(expr Expr, m map[string]interface{}) interface{} {
 		return expr.Val
 	case *NumberLiteral:
 		return expr.Val
+	case *UnsignedLiteral:
+		return expr.Val
 	case *ParenExpr:
 		return Eval(expr.Expr, m)
 	case *RegexLiteral:
@@ -3870,12 +3874,14 @@ func evalBinaryExpr(expr *BinaryExpr, m map[string]interface{}) interface{} {
 			return ok && (lhs != rhs)
 		}
 	case float64:
-		// Try the rhs as a float64 or int64
+		// Try the rhs as a float64, int64, or uint64
 		rhsf, ok := rhs.(float64)
 		if !ok {
-			var rhsi int64
-			if rhsi, ok = rhs.(int64); ok {
-				rhsf = float64(rhsi)
+			switch val := rhs.(type) {
+			case int64:
+				rhsf, ok = float64(val), true
+			case uint64:
+				rhsf, ok = float64(val), true
 			}
 		}
 
@@ -3923,10 +3929,9 @@ func evalBinaryExpr(expr *BinaryExpr, m map[string]interface{}) interface{} {
 		}
 	case int64:
 		// Try as a float64 to see if a float cast is required.
-		rhsf, ok := rhs.(float64)
-		if ok {
+		switch rhs := rhs.(type) {
+		case float64:
 			lhs := float64(lhs)
-			rhs := rhsf
 			switch expr.Op {
 			case EQ:
 				return lhs == rhs
@@ -3954,64 +3959,209 @@ func evalBinaryExpr(expr *BinaryExpr, m map[string]interface{}) interface{} {
 			case MOD:
 				return math.Mod(lhs, rhs)
 			}
-		} else {
-			rhs, ok := rhs.(int64)
+		case int64:
 			switch expr.Op {
 			case EQ:
-				return ok && (lhs == rhs)
+				return lhs == rhs
 			case NEQ:
-				return ok && (lhs != rhs)
+				return lhs != rhs
 			case LT:
-				return ok && (lhs < rhs)
+				return lhs < rhs
 			case LTE:
-				return ok && (lhs <= rhs)
+				return lhs <= rhs
 			case GT:
-				return ok && (lhs > rhs)
+				return lhs > rhs
 			case GTE:
-				return ok && (lhs >= rhs)
+				return lhs >= rhs
 			case ADD:
-				if !ok {
-					return nil
-				}
 				return lhs + rhs
 			case SUB:
-				if !ok {
-					return nil
-				}
 				return lhs - rhs
 			case MUL:
-				if !ok {
-					return nil
-				}
 				return lhs * rhs
 			case DIV:
-				if !ok {
-					return nil
-				} else if rhs == 0 {
+				if rhs == 0 {
 					return float64(0)
 				}
 				return lhs / rhs
 			case MOD:
-				if !ok {
-					return nil
-				} else if rhs == 0 {
+				if rhs == 0 {
 					return int64(0)
 				}
 				return lhs % rhs
 			case BITWISE_AND:
-				if !ok {
-					return nil
-				}
 				return lhs & rhs
 			case BITWISE_OR:
-				if !ok {
-					return nil
-				}
 				return lhs | rhs
 			case BITWISE_XOR:
-				if !ok {
-					return nil
+				return lhs ^ rhs
+			}
+		case uint64:
+			switch expr.Op {
+			case EQ:
+				return uint64(lhs) == rhs
+			case NEQ:
+				return uint64(lhs) != rhs
+			case LT:
+				if lhs < 0 {
+					return true
 				}
+				return uint64(lhs) < rhs
+			case LTE:
+				if lhs < 0 {
+					return true
+				}
+				return uint64(lhs) <= rhs
+			case GT:
+				if lhs < 0 {
+					return false
+				}
+				return uint64(lhs) > rhs
+			case GTE:
+				if lhs < 0 {
+					return false
+				}
+				return uint64(lhs) >= rhs
+			case ADD:
+				return uint64(lhs) + rhs
+			case SUB:
+				return uint64(lhs) - rhs
+			case MUL:
+				return uint64(lhs) * rhs
+			case DIV:
+				if rhs == 0 {
+					return uint64(0)
+				}
+				return uint64(lhs) / rhs
+			case MOD:
+				if rhs == 0 {
+					return uint64(0)
+				}
+				return uint64(lhs) % rhs
+			case BITWISE_AND:
+				return uint64(lhs) & rhs
+			case BITWISE_OR:
+				return uint64(lhs) | rhs
+			case BITWISE_XOR:
+				return uint64(lhs) ^ rhs
+			}
+		}
+	case uint64:
+		// Try as a float64 to see if a float cast is required.
+		switch rhs := rhs.(type) {
+		case float64:
+			lhs := float64(lhs)
+			switch expr.Op {
+			case EQ:
+				return lhs == rhs
+			case NEQ:
+				return lhs != rhs
+			case LT:
+				return lhs < rhs
+			case LTE:
+				return lhs <= rhs
+			case GT:
+				return lhs > rhs
+			case GTE:
+				return lhs >= rhs
+			case ADD:
+				return lhs + rhs
+			case SUB:
+				return lhs - rhs
+			case MUL:
+				return lhs * rhs
+			case DIV:
+				if rhs == 0 {
+					return float64(0)
+				}
+				return lhs / rhs
+			case MOD:
+				return math.Mod(lhs, rhs)
+			}
+		case int64:
+			switch expr.Op {
+			case EQ:
+				return lhs == uint64(rhs)
+			case NEQ:
+				return lhs != uint64(rhs)
+			case LT:
+				if rhs < 0 {
+					return false
+				}
+				return lhs < uint64(rhs)
+			case LTE:
+				if rhs < 0 {
+					return false
+				}
+				return lhs <= uint64(rhs)
+			case GT:
+				if rhs < 0 {
+					return true
+				}
+				return lhs > uint64(rhs)
+			case GTE:
+				if rhs < 0 {
+					return true
+				}
+				return lhs >= uint64(rhs)
+			case ADD:
+				return lhs + uint64(rhs)
+			case SUB:
+				return lhs - uint64(rhs)
+			case MUL:
+				return lhs * uint64(rhs)
+			case DIV:
+				if rhs == 0 {
+					return uint64(0)
+				}
+				return lhs / uint64(rhs)
+			case MOD:
+				if rhs == 0 {
+					return uint64(0)
+				}
+				return lhs % uint64(rhs)
+			case BITWISE_AND:
+				return lhs & uint64(rhs)
+			case BITWISE_OR:
+				return lhs | uint64(rhs)
+			case BITWISE_XOR:
+				return lhs ^ uint64(rhs)
+			}
+		case uint64:
+			switch expr.Op {
+			case EQ:
+				return lhs == rhs
+			case NEQ:
+				return lhs != rhs
+			case LT:
+				return lhs < rhs
+			case LTE:
+				return lhs <= rhs
+			case GT:
+				return lhs > rhs
+			case GTE:
+				return lhs >= rhs
+			case ADD:
+				return lhs + rhs
+			case SUB:
+				return lhs - rhs
+			case MUL:
+				return lhs * rhs
+			case DIV:
+				if rhs == 0 {
+					return uint64(0)
+				}
+				return lhs / rhs
+			case MOD:
+				if rhs == 0 {
+					return uint64(0)
+				}
+				return lhs % rhs
+			case BITWISE_AND:
+				return lhs & rhs
+			case BITWISE_OR:
+				return lhs | rhs
+			case BITWISE_XOR:
 				return lhs ^ rhs
 			}
 		}
@@ -4020,28 +4170,35 @@ func evalBinaryExpr(expr *BinaryExpr, m map[string]interface{}) interface{} {
 		case EQ:
 			rhs, ok := rhs.(string)
 			if !ok {
-				return nil
+				return false
 			}
 			return lhs == rhs
 		case NEQ:
 			rhs, ok := rhs.(string)
 			if !ok {
-				return nil
+				return false
 			}
 			return lhs != rhs
 		case EQREGEX:
 			rhs, ok := rhs.(*regexp.Regexp)
 			if !ok {
-				return nil
+				return false
 			}
 			return rhs.MatchString(lhs)
 		case NEQREGEX:
 			rhs, ok := rhs.(*regexp.Regexp)
 			if !ok {
-				return nil
+				return false
 			}
 			return !rhs.MatchString(lhs)
 		}
+	}
+
+	// The types were not comparable. If our operation was an equality operation,
+	// return false instead of true.
+	switch expr.Op {
+	case EQ, NEQ, LT, LTE, GT, GTE:
+		return false
 	}
 	return nil
 }
@@ -4117,6 +4274,8 @@ func EvalType(expr Expr, sources Sources, typmap TypeMapper) DataType {
 		return Float
 	case *IntegerLiteral:
 		return Integer
+	case *UnsignedLiteral:
+		return Unsigned
 	case *StringLiteral:
 		return String
 	case *BooleanLiteral:
@@ -4124,13 +4283,7 @@ func EvalType(expr Expr, sources Sources, typmap TypeMapper) DataType {
 	case *BinaryExpr:
 		lhs := EvalType(expr.LHS, sources, typmap)
 		rhs := EvalType(expr.RHS, sources, typmap)
-		if lhs != Unknown && rhs != Unknown {
-			if lhs < rhs {
-				return lhs
-			} else {
-				return rhs
-			}
-		} else if lhs != Unknown {
+		if rhs.LessThan(lhs) {
 			return lhs
 		} else {
 			return rhs
@@ -4256,6 +4409,8 @@ func reduceBinaryExpr(expr *BinaryExpr, valuer Valuer) Expr {
 		return reduceBinaryExprDurationLHS(op, lhs, rhs, loc)
 	case *IntegerLiteral:
 		return reduceBinaryExprIntegerLHS(op, lhs, rhs, loc)
+	case *UnsignedLiteral:
+		return reduceBinaryExprUnsignedLHS(op, lhs, rhs)
 	case *NilLiteral:
 		return reduceBinaryExprNilLHS(op, lhs, rhs)
 	case *NumberLiteral:
@@ -4399,6 +4554,19 @@ func reduceBinaryExprIntegerLHS(op Token, lhs *IntegerLiteral, rhs Expr, loc *ti
 		case LTE:
 			return &BooleanLiteral{Val: lhs.Val <= rhs.Val}
 		}
+	case *UnsignedLiteral:
+		// Comparisons between an unsigned and integer literal will not involve
+		// a cast if the integer is negative as that will have an improper result.
+		// Look for those situations here.
+		if lhs.Val < 0 {
+			switch op {
+			case LT, LTE:
+				return &BooleanLiteral{Val: true}
+			case GT, GTE:
+				return &BooleanLiteral{Val: false}
+			}
+		}
+		return reduceBinaryExprUnsignedLHS(op, &UnsignedLiteral{Val: uint64(lhs.Val)}, rhs)
 	case *DurationLiteral:
 		// Treat the integer as a timestamp.
 		switch op {
@@ -4425,6 +4593,58 @@ func reduceBinaryExprIntegerLHS(op Token, lhs *IntegerLiteral, rhs Expr, loc *ti
 		}
 	case *NilLiteral:
 		return &BooleanLiteral{Val: false}
+	}
+	return &BinaryExpr{Op: op, LHS: lhs, RHS: rhs}
+}
+
+func reduceBinaryExprUnsignedLHS(op Token, lhs *UnsignedLiteral, rhs Expr) Expr {
+	switch rhs := rhs.(type) {
+	case *NumberLiteral:
+		return reduceBinaryExprNumberLHS(op, &NumberLiteral{Val: float64(lhs.Val)}, rhs)
+	case *IntegerLiteral:
+		// Comparisons between an unsigned and integer literal will not involve
+		// a cast if the integer is negative as that will have an improper result.
+		// Look for those situations here.
+		if rhs.Val < 0 {
+			switch op {
+			case LT, LTE:
+				return &BooleanLiteral{Val: false}
+			case GT, GTE:
+				return &BooleanLiteral{Val: true}
+			}
+		}
+		return reduceBinaryExprUnsignedLHS(op, lhs, &UnsignedLiteral{Val: uint64(rhs.Val)})
+	case *UnsignedLiteral:
+		switch op {
+		case ADD:
+			return &UnsignedLiteral{Val: lhs.Val + rhs.Val}
+		case SUB:
+			return &UnsignedLiteral{Val: lhs.Val - rhs.Val}
+		case MUL:
+			return &UnsignedLiteral{Val: lhs.Val * rhs.Val}
+		case DIV:
+			if rhs.Val == 0 {
+				return &UnsignedLiteral{Val: 0}
+			}
+			return &UnsignedLiteral{Val: lhs.Val / rhs.Val}
+		case MOD:
+			if rhs.Val == 0 {
+				return &UnsignedLiteral{Val: 0}
+			}
+			return &UnsignedLiteral{Val: lhs.Val % rhs.Val}
+		case EQ:
+			return &BooleanLiteral{Val: lhs.Val == rhs.Val}
+		case NEQ:
+			return &BooleanLiteral{Val: lhs.Val != rhs.Val}
+		case GT:
+			return &BooleanLiteral{Val: lhs.Val > rhs.Val}
+		case GTE:
+			return &BooleanLiteral{Val: lhs.Val >= rhs.Val}
+		case LT:
+			return &BooleanLiteral{Val: lhs.Val < rhs.Val}
+		case LTE:
+			return &BooleanLiteral{Val: lhs.Val <= rhs.Val}
+		}
 	}
 	return &BinaryExpr{Op: op, LHS: lhs, RHS: rhs}
 }
@@ -4495,6 +4715,8 @@ func reduceBinaryExprNumberLHS(op Token, lhs *NumberLiteral, rhs Expr) Expr {
 		case LTE:
 			return &BooleanLiteral{Val: lhs.Val <= float64(rhs.Val)}
 		}
+	case *UnsignedLiteral:
+		return reduceBinaryExprNumberLHS(op, lhs, &NumberLiteral{Val: float64(rhs.Val)})
 	case *NilLiteral:
 		return &BooleanLiteral{Val: false}
 	}
