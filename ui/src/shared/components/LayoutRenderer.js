@@ -8,8 +8,7 @@ import AlertsApp from 'src/alerts/containers/AlertsApp'
 import NewsFeed from 'src/status/components/NewsFeed'
 import GettingStarted from 'src/status/components/GettingStarted'
 
-import timeRanges from 'hson!shared/data/timeRanges.hson'
-import buildInfluxQLQuery from 'utils/influxql'
+import buildInfluxQLQuery, {buildCannedDashboardQuery} from 'utils/influxql'
 
 import {
   // TODO: get these const values dynamically
@@ -19,6 +18,7 @@ import {
   LAYOUT_MARGIN,
   DASHBOARD_LAYOUT_ROW_HEIGHT,
 } from 'shared/constants'
+
 import {RECENT_ALERTS_LIMIT} from 'src/status/constants'
 
 const GridLayout = WidthProvider(ReactGridLayout)
@@ -32,60 +32,20 @@ class LayoutRenderer extends Component {
     }
   }
 
-  buildQueryForOldQuerySchema = q => {
-    const {timeRange: {lower, upper}, host} = this.props
-    const {defaultGroupBy} = timeRanges.find(
-      range => range.lower === lower
-    ) || {defaultGroupBy: '5m'}
-    const {wheres, groupbys} = q
-
-    let text = q.text
-
-    if (upper) {
-      text += ` where time > '${lower}' AND time < '${upper}'`
-    } else {
-      text += ` where time > ${lower}`
-    }
-
-    if (host) {
-      text += ` and \"host\" = '${host}'`
-    }
-
-    if (wheres && wheres.length > 0) {
-      text += ` and ${wheres.join(' and ')}`
-    }
-
-    if (groupbys) {
-      if (groupbys.find(g => g.includes('time'))) {
-        text += ` group by ${groupbys.join(',')}`
-      } else if (groupbys.length > 0) {
-        text += ` group by time(${defaultGroupBy}),${groupbys.join(',')}`
-      } else {
-        text += ` group by time(${defaultGroupBy})`
-      }
-    } else {
-      text += ` group by time(${defaultGroupBy})`
-    }
-
-    return text
-  }
-
-  standardizeQueries = (cell, source) => {
+  buildQueries = (cell, source) => {
+    const {timeRange, host} = this.props
     return cell.queries.map(query => {
-      // TODO: Canned dashboards (and possibly Kubernetes dashboard) use an old query schema,
-      // which does not have enough information for the new `buildInfluxQLQuery` function
-      // to operate on. We will use `buildQueryForOldQuerySchema` until we conform
-      // on a stable query representation.
       let queryText
+      // Canned dashboards use an different a schema different from queryConfig.
       if (query.queryConfig) {
         const {queryConfig: {rawText, range}} = query
-        const timeRange = range || {
+        const tR = range || {
           upper: ':upperDashboardTime:',
           lower: ':dashboardTime:',
         }
-        queryText = rawText || buildInfluxQLQuery(timeRange, query.queryConfig)
+        queryText = rawText || buildInfluxQLQuery(tR, query.queryConfig)
       } else {
-        queryText = this.buildQueryForOldQuerySchema(query)
+        queryText = buildCannedDashboardQuery(query, timeRange, host)
       }
 
       return Object.assign({}, query, {
@@ -162,7 +122,7 @@ class LayoutRenderer extends Component {
                   templates={templates}
                   synchronizer={synchronizer}
                   type={type}
-                  queries={this.standardizeQueries(cell, source)}
+                  queries={this.buildQueries(cell, source)}
                   cellHeight={h}
                   axes={axes}
                   onZoom={onZoom}
