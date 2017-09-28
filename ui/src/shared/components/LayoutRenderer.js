@@ -1,12 +1,7 @@
 import React, {Component, PropTypes} from 'react'
 
 import ReactGridLayout, {WidthProvider} from 'react-grid-layout'
-
-import LayoutCell from 'shared/components/LayoutCell'
-import WidgetCell from 'shared/components/WidgetCell'
-import RefreshingGraph from 'shared/components/RefreshingGraph'
-
-import buildInfluxQLQuery, {buildCannedDashboardQuery} from 'utils/influxql'
+import Layout from 'src/shared/components/Layout'
 
 import {
   // TODO: get these const values dynamically
@@ -28,73 +23,17 @@ class LayoutRenderer extends Component {
     }
   }
 
-  buildQueries = (cell, source) => {
-    const {timeRange, host} = this.props
-    return cell.queries.map(query => {
-      let queryText
-      // Canned dashboards use an different a schema different from queryConfig.
-      if (query.queryConfig) {
-        const {queryConfig: {rawText, range}} = query
-        const tR = range || {
-          upper: ':upperDashboardTime:',
-          lower: ':dashboardTime:',
-        }
-        queryText = rawText || buildInfluxQLQuery(tR, query.queryConfig)
-      } else {
-        queryText = buildCannedDashboardQuery(query, timeRange, host)
-      }
-
-      return {...query, host: source.links.proxy, text: queryText}
-    })
+  componentDidMount() {
+    window.addEventListener('resize', this.updateWindowDimensions)
   }
 
-  // Generates cell contents based on cell type, i.e. graphs, news feeds, etc.
-  generateVisualizations = () => {
-    const {
-      source,
-      cells,
-      onEditCell,
-      onCancelEditCell,
-      onDeleteCell,
-      onSummonOverlayTechnologies,
-      timeRange,
-      autoRefresh,
-      templates,
-      synchronizer,
-      isEditable,
-      onZoom,
-    } = this.props
+  componentWillUnmount() {
+    window.removeEventListener('resize', this.updateWindowDimensions)
+  }
 
-    return cells.map(cell => {
-      const {type, h, axes} = cell
-
-      return (
-        <div key={cell.i}>
-          <LayoutCell
-            onCancelEditCell={onCancelEditCell}
-            isEditable={isEditable}
-            onEditCell={onEditCell}
-            onDeleteCell={onDeleteCell}
-            onSummonOverlayTechnologies={onSummonOverlayTechnologies}
-            cell={cell}
-          >
-            {cell.isWidget
-              ? <WidgetCell cell={cell} timeRange={timeRange} source={source} />
-              : <RefreshingGraph
-                  timeRange={timeRange}
-                  autoRefresh={autoRefresh}
-                  templates={templates}
-                  synchronizer={synchronizer}
-                  type={type}
-                  queries={this.buildQueries(cell, source)}
-                  cellHeight={h}
-                  axes={axes}
-                  onZoom={onZoom}
-                />}
-          </LayoutCell>
-        </div>
-      )
-    })
+  // idea adopted from https://stackoverflow.com/questions/36862334/get-viewport-window-height-in-reactjs
+  updateWindowDimensions = () => {
+    this.setState({rowHeight: this.calculateRowHeight()})
   }
 
   handleLayoutChange = layout => {
@@ -134,15 +73,24 @@ class LayoutRenderer extends Component {
       : DASHBOARD_LAYOUT_ROW_HEIGHT
   }
 
-  // idea adopted from https://stackoverflow.com/questions/36862334/get-viewport-window-height-in-reactjs
-  updateWindowDimensions = () => {
-    this.setState({rowHeight: this.calculateRowHeight()})
-  }
-
   render() {
-    const {cells} = this.props
-    const {rowHeight} = this.state
+    const {
+      host,
+      cells,
+      source,
+      onZoom,
+      templates,
+      timeRange,
+      isEditable,
+      onEditCell,
+      autoRefresh,
+      onDeleteCell,
+      synchronizer,
+      onCancelEditCell,
+      onSummonOverlayTechnologies,
+    } = this.props
 
+    const {rowHeight} = this.state
     const isDashboard = !!this.props.onPositionChange
 
     return (
@@ -159,17 +107,28 @@ class LayoutRenderer extends Component {
         isDraggable={isDashboard}
         isResizable={isDashboard}
       >
-        {this.generateVisualizations()}
+        {cells.map(cell =>
+          <div key={cell.i}>
+            <Layout
+              key={cell.i}
+              cell={cell}
+              host={host}
+              source={source}
+              onZoom={onZoom}
+              templates={templates}
+              timeRange={timeRange}
+              isEditable={isEditable}
+              onEditCell={onEditCell}
+              autoRefresh={autoRefresh}
+              onDeleteCell={onDeleteCell}
+              synchronizer={synchronizer}
+              onCancelEditCell={onCancelEditCell}
+              onSummonOverlayTechnologies={onSummonOverlayTechnologies}
+            />
+          </div>
+        )}
       </GridLayout>
     )
-  }
-
-  componentDidMount() {
-    window.addEventListener('resize', this.updateWindowDimensions)
-  }
-
-  componentWillUnmount() {
-    window.removeEventListener('resize', this.updateWindowDimensions)
   }
 }
 

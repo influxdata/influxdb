@@ -144,7 +144,7 @@ function _buildFill(fill) {
   return ` FILL(${fill})`
 }
 
-export const buildCannedDashboardQuery = (query, {lower, upper}, host) => {
+const buildCannedDashboardQuery = (query, {lower, upper}, host) => {
   const {defaultGroupBy} = timeRanges.find(range => range.lower === lower) || {
     defaultGroupBy: '5m',
   }
@@ -179,4 +179,23 @@ export const buildCannedDashboardQuery = (query, {lower, upper}, host) => {
   }
 
   return text
+}
+
+export const buildQueriesForLayouts = (cell, source, timeRange, host) => {
+  return cell.queries.map(query => {
+    let queryText
+    // Canned dashboards use an different a schema different from queryConfig.
+    if (query.queryConfig) {
+      const {queryConfig: {rawText, range}} = query
+      const tR = range || {
+        upper: ':upperDashboardTime:',
+        lower: ':dashboardTime:',
+      }
+      queryText = rawText || buildInfluxQLQuery(tR, query.queryConfig)
+    } else {
+      queryText = buildCannedDashboardQuery(query, timeRange, host)
+    }
+
+    return {...query, host: source.links.proxy, text: queryText}
+  })
 }
