@@ -528,9 +528,13 @@ func (fs *FileSet) MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error) 
 		return fs.measurementNamesByExpr(expr)
 	}
 
+	itr := fs.MeasurementIterator()
+	if itr == nil {
+		return nil, nil
+	}
+
 	// Iterate over all measurements if no condition exists.
 	var names [][]byte
-	itr := fs.MeasurementIterator()
 	for e := itr.Next(); e != nil; e = itr.Next() {
 		names = append(names, e.Name())
 	}
@@ -605,8 +609,12 @@ func (fs *FileSet) measurementNamesByExpr(expr influxql.Expr) ([][]byte, error) 
 
 // measurementNamesByNameFilter returns matching measurement names in sorted order.
 func (fs *FileSet) measurementNamesByNameFilter(op influxql.Token, val string, regex *regexp.Regexp) [][]byte {
-	var names [][]byte
 	itr := fs.MeasurementIterator()
+	if itr == nil {
+		return nil
+	}
+
+	var names [][]byte
 	for e := itr.Next(); e != nil; e = itr.Next() {
 		var matched bool
 		switch op {
@@ -632,6 +640,10 @@ func (fs *FileSet) measurementNamesByTagFilter(op influxql.Token, key, val strin
 	var names [][]byte
 
 	mitr := fs.MeasurementIterator()
+	if mitr == nil {
+		return nil
+	}
+
 	for me := mitr.Next(); me != nil; me = mitr.Next() {
 		// If the operator is non-regex, only check the specified value.
 		var tagMatch bool
