@@ -71,6 +71,7 @@ type Partition struct {
 
 	// Directory of the Partition's index files.
 	path string
+	id   string // id portion of path.
 
 	// Log file compaction thresholds.
 	MaxLogFileSize int64
@@ -112,6 +113,13 @@ func (i *Partition) Open() error {
 
 	if i.opened {
 		return errors.New("index partition already open")
+	}
+
+	// Validate path is correct.
+	i.id = filepath.Base(i.path)
+	_, err := strconv.Atoi(i.id)
+	if err != nil {
+		return err
 	}
 
 	// Create directory if it doesn't exist.
@@ -776,40 +784,40 @@ func (i *Partition) TagSets(name []byte, opt query.IteratorOptions) ([]*query.Ta
 
 // SnapshotTo creates hard links to the file set into path.
 func (i *Partition) SnapshotTo(path string) error {
-	panic("NEED TO MAKE THIS PARTITION AWARE")
-	// i.mu.Lock()
-	// defer i.mu.Unlock()
+	i.mu.Lock()
+	defer i.mu.Unlock()
 
-	// fs := i.retainFileSet()
-	// defer fs.Release()
+	fs := i.retainFileSet()
+	defer fs.Release()
 
-	// // Flush active log file, if any.
-	// if err := i.activeLogFile.Flush(); err != nil {
-	// 	return err
-	// }
+	// Flush active log file, if any.
+	if err := i.activeLogFile.Flush(); err != nil {
+		return err
+	}
 
-	// if err := os.Mkdir(filepath.Join(path, "index"), 0777); err != nil {
-	// 	return err
-	// }
+	newRoot := filepath.Join(path, "index", i.id)
+	if err := os.Mkdir(newRoot, 0777); err != nil {
+		return err
+	}
 
-	// // Link manifest.
-	// if err := os.Link(i.ManifestPath(), filepath.Join(path, "index", filepath.Base(i.ManifestPath()))); err != nil {
-	// 	return fmt.Errorf("error creating tsi manifest hard link: %q", err)
-	// }
+	// Link manifest.
+	if err := os.Link(i.ManifestPath(), filepath.Join(newRoot, filepath.Base(i.ManifestPath()))); err != nil {
+		return fmt.Errorf("error creating tsi manifest hard link: %q", err)
+	}
 
-	// // Link series file.
-	// if err := os.Link(i.SeriesFilePath(), filepath.Join(path, "index", filepath.Base(i.SeriesFilePath()))); err != nil {
-	// 	return fmt.Errorf("error creating tsi series file hard link: %q", err)
-	// }
+	// Link series file.
+	if err := os.Link(i.SeriesFilePath(), filepath.Join(newRoot, filepath.Base(i.SeriesFilePath()))); err != nil {
+		return fmt.Errorf("error creating tsi series file hard link: %q", err)
+	}
 
-	// // Link files in directory.
-	// for _, f := range fs.files {
-	// 	if err := os.Link(f.Path(), filepath.Join(path, "index", filepath.Base(f.Path()))); err != nil {
-	// 		return fmt.Errorf("error creating tsi hard link: %q", err)
-	// 	}
-	// }
+	// Link files in directory.
+	for _, f := range fs.files {
+		if err := os.Link(f.Path(), filepath.Join(newRoot, filepath.Base(f.Path()))); err != nil {
+			return fmt.Errorf("error creating tsi hard link: %q", err)
+		}
+	}
 
-	// return nil
+	return nil
 }
 
 func (i *Partition) SetFieldName(measurement []byte, name string) {}

@@ -3,9 +3,11 @@ package tsi1
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"sync"
 	"sync/atomic"
 
@@ -25,6 +27,22 @@ import (
 // IndexName is the name of the index.
 const IndexName = "tsi1"
 
+func init() {
+	// FIXME(edd): Remove this.
+	if os.Getenv("TSI_PARTITIONS") != "" {
+		i, err := strconv.Atoi(os.Getenv("TSI_PARTITIONS"))
+		if err != nil {
+			panic(err)
+		}
+		TotalPartitions = uint64(i)
+	}
+
+	tsdb.RegisterIndex(IndexName, func(_ uint64, _, path string, _ tsdb.EngineOptions) tsdb.Index {
+		idx := NewIndex(WithPath(path))
+		return idx
+	})
+}
+
 // TotalPartitions determines how many shards the index will be partitioned into.
 //
 // NOTE: Currently, this *must* not be variable. If this package is recompiled
@@ -35,7 +53,9 @@ const IndexName = "tsi1"
 // hashring so that we can fiddle with this.
 //
 // NOTE(edd): Currently this must be a power of 2.
-const TotalPartitions = 16
+//
+// FIXME(edd): This is variable for testing purposes during development.
+var TotalPartitions uint64 = 16
 
 // An IndexOption is a functional option for changing the configuration of
 // an Index.
@@ -93,11 +113,25 @@ func NewIndex(options ...IndexOption) *Index {
 	for i := 0; i < len(idx.partitions); i++ {
 		p := NewPartition(filepath.Join(idx.path, fmt.Sprint(i)))
 		p.compactionsDisabled = idx.disableCompactions
-		p.logger = idx.logger
+		p.logger = idx.logger.With(zap.String("partition", fmt.Sprint(i+1)))
 
 		idx.partitions[i] = p
 	}
 	return idx
+}
+
+// WithLogger sets the logger on the index after it's been created.
+//
+// It's not safe to call WithLogger after the index has been opened, or before
+// it has been closed.
+func (i *Index) WithLogger(l zap.Logger) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	for i, p := range i.partitions {
+		p.logger = l.With(zap.String("index", "tsi"), zap.String("partition", fmt.Sprint(i+1)))
+	}
+	i.logger = l.With(zap.String("index", "tsi"))
 }
 
 // Type returns the type of Index this is.
@@ -121,7 +155,7 @@ func (i *Index) Open() error {
 
 	// Mark opened.
 	i.opened = true
-
+	i.logger.Info(fmt.Sprintf("index opened with %d partitions", len(i.partitions)))
 	return nil
 }
 
@@ -172,15 +206,15 @@ func (i *Index) availableThreads() int {
 func (i *Index) RetainFileSet() *FileSet {
 	// TODO(edd): Merge all FileSets for all partitions. For the moment we will
 	// just append them from each partition.
+	panic("TODO(edd)")
 	return nil
 }
 
 // SetFieldSet sets a shared field set from the engine.
 func (i *Index) SetFieldSet(fs *tsdb.MeasurementFieldSet) {
-	i.mu.Lock()
-	// TODO(edd): set the field set on all the Partitions?
-	// since fs is a pointer, it probably can't be shared...
-	i.mu.Unlock()
+	for _, p := range i.partitions {
+		p.SetFieldSet(fs)
+	}
 }
 
 // ForEachMeasurementName iterates over all measurement names in the index,
@@ -200,7 +234,7 @@ func (i *Index) ForEachMeasurementName(fn func(name []byte) error) error {
 		go func() {
 			for {
 				idx := int(atomic.AddUint32(&pidx, 1) - 1) // Get next partition to work on.
-				if idx > len(i.partitions) {
+				if idx >= len(i.partitions) {
 					return // No more work.
 				}
 				errC <- i.partitions[idx].ForEachMeasurementName(fn)
@@ -231,7 +265,7 @@ func (i *Index) MeasurementExists(name []byte) (bool, error) {
 		go func() {
 			for {
 				idx := int(atomic.AddUint32(&pidx, 1) - 1) // Get next partition to check
-				if idx > len(i.partitions) {
+				if idx >= len(i.partitions) {
 					return // No more work.
 				}
 
@@ -271,7 +305,7 @@ func (i *Index) fetchByteValues(fn func(idx int) ([][]byte, error)) ([][]byte, e
 	n := i.availableThreads()
 
 	// Store results.
-	var names [TotalPartitions][][]byte
+	names := make([][][]byte, TotalPartitions)
 	errC := make(chan error, n)
 
 	var pidx uint32 // Index of maximum Partition being worked on.
@@ -279,7 +313,7 @@ func (i *Index) fetchByteValues(fn func(idx int) ([][]byte, error)) ([][]byte, e
 		go func() {
 			for {
 				idx := int(atomic.AddUint32(&pidx, 1) - 1) // Get next partition to work on.
-				if idx > len(i.partitions) {
+				if idx >= len(i.partitions) {
 					return // No more work.
 				}
 
@@ -338,7 +372,7 @@ func (i *Index) DropMeasurement(name []byte) error {
 		go func() {
 			for {
 				idx := int(atomic.AddUint32(&pidx, 1) - 1) // Get next partition to work on.
-				if idx > len(i.partitions) {
+				if idx >= len(i.partitions) {
 					return // No more work.
 				}
 				errC <- i.partitions[idx].DropMeasurement(name)
@@ -364,8 +398,8 @@ func (i *Index) CreateSeriesListIfNotExists(keys [][]byte, names [][]byte, tagsS
 
 	// We need to move different series into collections for each partition
 	// to process.
-	pNames := [TotalPartitions][][]byte{}
-	pTags := [TotalPartitions][]models.Tags{}
+	pNames := make([][][]byte, TotalPartitions)
+	pTags := make([][]models.Tags, TotalPartitions)
 
 	// determine appropriate where series shoud live using each series key.
 	for k, key := range keys {
@@ -385,7 +419,7 @@ func (i *Index) CreateSeriesListIfNotExists(keys [][]byte, names [][]byte, tagsS
 		go func() {
 			for {
 				idx := int(atomic.AddUint32(&pidx, 1) - 1) // Get next partition to work on.
-				if idx > len(i.partitions) {
+				if idx >= len(i.partitions) {
 					return // No more work.
 				}
 				errC <- i.partitions[idx].createSeriesListIfNotExists(pNames[idx], pTags[idx])
@@ -463,7 +497,7 @@ func (i *Index) HasTagKey(name, key []byte) (bool, error) {
 		go func() {
 			for {
 				idx := int(atomic.AddUint32(&pidx, 1) - 1) // Get next partition to check
-				if idx > len(i.partitions) {
+				if idx >= len(i.partitions) {
 					return // No more work.
 				}
 
@@ -499,7 +533,7 @@ func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[s
 	n := i.availableThreads()
 
 	// Store results.
-	var keys [TotalPartitions]map[string]struct{}
+	keys := make([]map[string]struct{}, TotalPartitions)
 	errC := make(chan error, n)
 
 	var pidx uint32 // Index of maximum Partition being worked on.
@@ -508,7 +542,7 @@ func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[s
 		go func() {
 			for {
 				idx := int(atomic.AddUint32(&pidx, 1) - 1) // Get next partition to work on.
-				if idx > len(i.partitions) {
+				if idx >= len(i.partitions) {
 					return // No more work.
 				}
 
@@ -559,7 +593,7 @@ func (i *Index) ForEachMeasurementTagKey(name []byte, fn func(key []byte) error)
 		go func() {
 			for {
 				idx := int(atomic.AddUint32(&pidx, 1) - 1) // Get next partition to work on.
-				if idx > len(i.partitions) {
+				if idx >= len(i.partitions) {
 					return // No more work.
 				}
 				errC <- i.partitions[idx].ForEachMeasurementTagKey(name, fn)
@@ -589,7 +623,7 @@ func (i *Index) TagSets(name []byte, opt query.IteratorOptions) ([]*query.TagSet
 	n := i.availableThreads()
 
 	// Store results.
-	var sets [TotalPartitions][]*query.TagSet
+	sets := make([][]*query.TagSet, TotalPartitions)
 	errC := make(chan error, n)
 
 	// Run fn on each partition using a fixed number of goroutines.
@@ -600,7 +634,7 @@ func (i *Index) TagSets(name []byte, opt query.IteratorOptions) ([]*query.TagSet
 		go func() {
 			for {
 				idx := int(atomic.AddUint32(&pidx, 1) - 1) // Get next partition to work on.
-				if idx > len(i.partitions) {
+				if idx >= len(i.partitions) {
 					return // No more work.
 				}
 
@@ -677,7 +711,7 @@ func (i *Index) Compact() {
 			defer wg.Done()
 			for {
 				idx := int(atomic.AddUint32(&pidx, 1) - 1) // Get next partition to work on.
-				if idx > len(i.partitions) {
+				if idx >= len(i.partitions) {
 					return // No more work.
 				}
 				i.partitions[idx].Compact()
