@@ -2411,7 +2411,7 @@ func (s *ShowMeasurementsStatement) String() string {
 
 // RequiredPrivileges returns the privilege(s) required to execute a ShowMeasurementsStatement.
 func (s *ShowMeasurementsStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
-	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: ReadPrivilege}}, nil
+	return ExecutionPrivileges{{Admin: false, Name: s.Database, Privilege: ReadPrivilege}}, nil
 }
 
 // DefaultDatabase returns the default database from the statement.

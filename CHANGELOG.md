@@ -63,6 +63,7 @@
 - [#8787](https://github.com/influxdata/influxdb/issues/8787): panic: runtime error: invalid memory address or nil pointer dereference.
 - [#8697](https://github.com/influxdata/influxdb/issues/8697): Drop Series Cause Write Fail/Write Timeouts/High Memory Usage
 - [#8741](https://github.com/influxdata/influxdb/issues/8741): Fix increased memory usage in cache and wal readers
+- [#8749](https://github.com/influxdata/influxdb/issues/8749): An OSS read-only user should be able to list measurements on a database
 - [#8678](https://github.com/influxdata/influxdb/issues/8678): Ensure time and tag-based condition can be used with tsi1 index when deleting.
 - [#8848](https://github.com/influxdata/influxdb/issues/8848): Prevent deadlock when doing math on the result of a subquery.
 - [#8813](https://github.com/influxdata/influxdb/issues/8813): Fix retention policy duration format
