@@ -99,30 +99,28 @@ class LayoutRenderer extends Component {
           isDraggable={isDashboard}
           isResizable={isDashboard}
         >
-          {cells.map(cell => {
-            return (
-              <div key={cell.i}>
-                <Layout
-                  key={cell.i}
-                  cell={cell}
-                  host={host}
-                  source={source}
-                  onZoom={onZoom}
-                  sources={sources}
-                  templates={templates}
-                  timeRange={timeRange}
-                  isEditable={isEditable}
-                  onEditCell={onEditCell}
-                  resizeCoords={resizeCoords}
-                  autoRefresh={autoRefresh}
-                  onDeleteCell={onDeleteCell}
-                  synchronizer={synchronizer}
-                  onCancelEditCell={onCancelEditCell}
-                  onSummonOverlayTechnologies={onSummonOverlayTechnologies}
-                />
-              </div>
-            )
-          })}
+          {cells.map(cell =>
+            <div key={cell.i}>
+              <Layout
+                key={cell.i}
+                cell={cell}
+                host={host}
+                source={source}
+                onZoom={onZoom}
+                sources={sources}
+                templates={templates}
+                timeRange={timeRange}
+                isEditable={isEditable}
+                onEditCell={onEditCell}
+                resizeCoords={resizeCoords}
+                autoRefresh={autoRefresh}
+                onDeleteCell={onDeleteCell}
+                synchronizer={synchronizer}
+                onCancelEditCell={onCancelEditCell}
+                onSummonOverlayTechnologies={onSummonOverlayTechnologies}
+              />
+            </div>
+          )}
         </GridLayout>
       </Resizeable>
     )
