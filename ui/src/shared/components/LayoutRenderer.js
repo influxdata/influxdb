@@ -1,7 +1,8 @@
 import React, {Component, PropTypes} from 'react'
-
 import ReactGridLayout, {WidthProvider} from 'react-grid-layout'
 import Resizeable from 'react-component-resizable'
+import _ from 'lodash'
+
 import Layout from 'src/shared/components/Layout'
 
 import {
@@ -58,7 +59,7 @@ class LayoutRenderer extends Component {
       : DASHBOARD_LAYOUT_ROW_HEIGHT
   }
 
-  handleCellResize = (_, oldCoords, resizeCoords) => {
+  handleCellResize = (__, oldCoords, resizeCoords) => {
     if (_.isEqual(oldCoords, resizeCoords)) {
       return
     }
