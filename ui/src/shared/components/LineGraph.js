@@ -72,18 +72,18 @@ class LineGraph extends Component {
     }
 
     const options = {
-      labels,
-      connectSeparatedPoints: true,
-      labelsKMB: true,
-      axisLineColor: '#383846',
-      gridLineColor: '#383846',
+      ...displayOptions,
       title,
+      labels,
       rightGap: 0,
       yRangePad: 10,
+      labelsKMB: true,
+      underlayCallback,
       axisLabelWidth: 60,
       drawAxesAtZero: true,
-      underlayCallback,
-      ...displayOptions,
+      axisLineColor: '#383846',
+      gridLineColor: '#383846',
+      connectSeparatedPoints: true,
     }
 
     const lineColors = showSingleStat
