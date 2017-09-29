@@ -6,9 +6,12 @@ import shallowCompare from 'react-addons-shallow-compare'
 import timeSeriesToDygraph from 'utils/timeSeriesToDygraph'
 import lastValues from 'shared/parsing/lastValues'
 
-const {array, arrayOf, bool, func, number, shape, string} = PropTypes
+import {
+  SINGLE_STAT_LINE_COLORS,
+  SMALL_CELL_HEIGHT,
+} from 'src/shared/graphs/helpers'
 
-const SMALL_CELL_HEIGHT = 1
+const {array, arrayOf, bool, func, number, shape, string} = PropTypes
 
 class LineGraph extends Component {
   constructor(props) {
@@ -97,17 +100,6 @@ class LineGraph extends Component {
         strokeWidth: 1.5,
       },
     }
-    const singleStatLineColors = [
-      '#7A65F2',
-      '#FFD255',
-      '#7CE490',
-      '#F95F53',
-      '#4591ED',
-      '#B1B6FF',
-      '#FFF6B8',
-      '#C6FFD0',
-      '#6BDFFF',
-    ]
 
     let roundedValue
     if (showSingleStat) {
@@ -118,7 +110,7 @@ class LineGraph extends Component {
     }
 
     const lineColors = showSingleStat
-      ? singleStatLineColors
+      ? SINGLE_STAT_LINE_COLORS
       : overrideLineColors
 
     return (

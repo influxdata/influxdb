@@ -17,6 +17,20 @@ export const LINE_COLORS = [
   '#a0725b',
 ]
 
+export const SMALL_CELL_HEIGHT = 1
+
+export const SINGLE_STAT_LINE_COLORS = [
+  '#7A65F2',
+  '#FFD255',
+  '#7CE490',
+  '#F95F53',
+  '#4591ED',
+  '#B1B6FF',
+  '#FFF6B8',
+  '#C6FFD0',
+  '#6BDFFF',
+]
+
 export const darkenColor = colorStr => {
   // Defined in dygraph-utils.js
   const color = Dygraphs.toRGB_(colorStr)
