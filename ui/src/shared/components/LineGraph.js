@@ -1,15 +1,11 @@
 import React, {PropTypes, Component} from 'react'
 import Dygraph from 'shared/components/Dygraph'
-import classnames from 'classnames'
 import shallowCompare from 'react-addons-shallow-compare'
 
+import SingleStat from 'src/shared/components/SingleStat'
 import timeSeriesToDygraph from 'utils/timeSeriesToDygraph'
-import lastValues from 'shared/parsing/lastValues'
 
-import {
-  SINGLE_STAT_LINE_COLORS,
-  SMALL_CELL_HEIGHT,
-} from 'src/shared/graphs/helpers'
+import {SINGLE_STAT_LINE_COLORS} from 'src/shared/graphs/helpers'
 
 const {array, arrayOf, bool, func, number, shape, string} = PropTypes
 
@@ -97,14 +93,6 @@ class LineGraph extends Component {
       },
     }
 
-    let roundedValue
-    if (showSingleStat) {
-      const lastValue = lastValues(data)[1]
-
-      const precision = 100.0
-      roundedValue = Math.round(+lastValue * precision) / precision
-    }
-
     const lineColors = showSingleStat
       ? SINGLE_STAT_LINE_COLORS
       : overrideLineColors
@@ -132,17 +120,7 @@ class LineGraph extends Component {
           onZoom={onZoom}
         />
         {showSingleStat
-          ? <div className="single-stat single-stat-line">
-              <span
-                className={classnames('single-stat--value', {
-                  'single-stat--small': cellHeight === SMALL_CELL_HEIGHT,
-                })}
-              >
-                <span className="single-stat--shadow">
-                  {roundedValue}
-                </span>
-              </span>
-            </div>
+          ? <SingleStat data={data} cellHeight={cellHeight} />
           : null}
       </div>
     )

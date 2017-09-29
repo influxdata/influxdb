@@ -3,13 +3,12 @@ import classnames from 'classnames'
 import shallowCompare from 'react-addons-shallow-compare'
 import lastValues from 'shared/parsing/lastValues'
 
-const SMALL_CELL_HEIGHT = 1
+import {SMALL_CELL_HEIGHT} from 'src/shared/graphs/helpers'
 
 export default React.createClass({
   displayName: 'LineGraph',
   propTypes: {
     data: PropTypes.arrayOf(PropTypes.shape({})).isRequired,
-    title: PropTypes.string,
     isFetchingInitially: PropTypes.bool,
     cellHeight: PropTypes.number,
   },
