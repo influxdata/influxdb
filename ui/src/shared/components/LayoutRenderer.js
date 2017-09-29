@@ -21,7 +21,7 @@ class LayoutRenderer extends Component {
 
     this.state = {
       rowHeight: this.calculateRowHeight(),
-      resizeCounter: 0,
+      resizeCoords: null,
     }
   }
 
@@ -31,8 +31,6 @@ class LayoutRenderer extends Component {
   }
 
   handleLayoutChange = layout => {
-    this.triggerWindowResize()
-
     if (!this.props.onPositionChange) {
       return
     }
@@ -44,15 +42,6 @@ class LayoutRenderer extends Component {
     })
 
     this.props.onPositionChange(newCells)
-  }
-
-  triggerWindowResize = () => {
-    const resizeCounter = (this.state.resizeCounter += 1)
-    this.setState({resizeCounter})
-    // Hack to get dygraphs to fit properly during and after resize (dispatchEvent is a global method on window).
-    const evt = document.createEvent('CustomEvent') // MUST be 'CustomEvent'
-    evt.initCustomEvent('resize', false, false, null)
-    dispatchEvent(evt)
   }
 
   // ensures that Status Page height fits the window
@@ -67,6 +56,14 @@ class LayoutRenderer extends Component {
           PAGE_CONTAINER_MARGIN) /
         STATUS_PAGE_ROW_COUNT
       : DASHBOARD_LAYOUT_ROW_HEIGHT
+  }
+
+  handleCellResize = (_, oldCoords, resizeCoords) => {
+    if (_.isEqual(oldCoords, resizeCoords)) {
+      return
+    }
+
+    this.setState({resizeCoords})
   }
 
   render() {
@@ -86,7 +83,7 @@ class LayoutRenderer extends Component {
       onSummonOverlayTechnologies,
     } = this.props
 
-    const {rowHeight, resizeCounter} = this.state
+    const {rowHeight, resizeCoords} = this.state
     const isDashboard = !!this.props.onPositionChange
 
     return (
@@ -98,7 +95,7 @@ class LayoutRenderer extends Component {
           margin={[LAYOUT_MARGIN, LAYOUT_MARGIN]}
           containerPadding={[0, 0]}
           useCSSTransforms={false}
-          onResize={this.triggerWindowResize}
+          onResize={this.handleCellResize}
           onLayoutChange={this.handleLayoutChange}
           draggableHandle={'.dash-graph--name'}
           isDraggable={isDashboard}
@@ -116,6 +113,7 @@ class LayoutRenderer extends Component {
                 timeRange={timeRange}
                 isEditable={isEditable}
                 onEditCell={onEditCell}
+                resizeCoords={resizeCoords}
                 autoRefresh={autoRefresh}
                 onDeleteCell={onDeleteCell}
                 synchronizer={synchronizer}

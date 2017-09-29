@@ -17,6 +17,7 @@ const Layout = ({
   autoRefresh,
   onDeleteCell,
   synchronizer,
+  resizeCoords,
   onCancelEditCell,
   onSummonOverlayTechnologies,
 }) =>
@@ -39,6 +40,7 @@ const Layout = ({
           templates={templates}
           autoRefresh={autoRefresh}
           synchronizer={synchronizer}
+          resizeCoords={resizeCoords}
           queries={buildQueriesForLayouts(cell, source, timeRange, host)}
         />}
   </LayoutCell>
@@ -83,6 +85,7 @@ Layout.propTypes = {
   isStatusPage: bool,
   isEditable: bool,
   onCancelEditCell: func,
+  resizeCoords: shape(),
   onZoom: func,
 }
 
