@@ -244,11 +244,16 @@ func (c *Client) ping(u *url.URL) (string, string, error) {
 		return "", "", err
 	}
 
-	version := resp.Header.Get("X-Influxdb-Version")
+	version := resp.Header.Get("X-Influxdb-Build")
+	if version == "ENT" {
+		return version, chronograf.InfluxEnterprise, nil
+	}
+	version = resp.Header.Get("X-Influxdb-Version")
 	if strings.Contains(version, "-c") {
 		return version, chronograf.InfluxEnterprise, nil
 	} else if strings.Contains(version, "relay") {
 		return version, chronograf.InfluxRelay, nil
 	}
+
 	return version, chronograf.InfluxDB, nil
 }

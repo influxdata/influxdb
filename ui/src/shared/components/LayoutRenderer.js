@@ -1,15 +1,8 @@
 import React, {Component, PropTypes} from 'react'
 
 import ReactGridLayout, {WidthProvider} from 'react-grid-layout'
-
-import LayoutCell from 'shared/components/LayoutCell'
-import RefreshingGraph from 'shared/components/RefreshingGraph'
-import AlertsApp from 'src/alerts/containers/AlertsApp'
-import NewsFeed from 'src/status/components/NewsFeed'
-import GettingStarted from 'src/status/components/GettingStarted'
-
-import timeRanges from 'hson!shared/data/timeRanges.hson'
-import buildInfluxQLQuery from 'utils/influxql'
+import Resizeable from 'react-component-resizable'
+import Layout from 'src/shared/components/Layout'
 
 import {
   // TODO: get these const values dynamically
@@ -19,7 +12,6 @@ import {
   LAYOUT_MARGIN,
   DASHBOARD_LAYOUT_ROW_HEIGHT,
 } from 'shared/constants'
-import {RECENT_ALERTS_LIMIT} from 'src/status/constants'
 
 const GridLayout = WidthProvider(ReactGridLayout)
 
@@ -29,161 +21,16 @@ class LayoutRenderer extends Component {
 
     this.state = {
       rowHeight: this.calculateRowHeight(),
+      resizeCoords: null,
     }
-
-    this.buildQueryForOldQuerySchema = ::this.buildQueryForOldQuerySchema
-    this.standardizeQueries = ::this.standardizeQueries
-    this.generateWidgetCell = ::this.generateWidgetCell
-    this.generateVisualizations = ::this.generateVisualizations
-    this.handleLayoutChange = ::this.handleLayoutChange
-    this.triggerWindowResize = ::this.triggerWindowResize
-    this.calculateRowHeight = ::this.calculateRowHeight
-    this.updateWindowDimensions = ::this.updateWindowDimensions
   }
 
-  buildQueryForOldQuerySchema(q) {
-    const {timeRange: {lower, upper}, host} = this.props
-    const {defaultGroupBy} = timeRanges.find(
-      range => range.lower === lower
-    ) || {defaultGroupBy: '5m'}
-    const {wheres, groupbys} = q
-
-    let text = q.text
-
-    if (upper) {
-      text += ` where time > '${lower}' AND time < '${upper}'`
-    } else {
-      text += ` where time > ${lower}`
-    }
-
-    if (host) {
-      text += ` and \"host\" = '${host}'`
-    }
-
-    if (wheres && wheres.length > 0) {
-      text += ` and ${wheres.join(' and ')}`
-    }
-
-    if (groupbys) {
-      if (groupbys.find(g => g.includes('time'))) {
-        text += ` group by ${groupbys.join(',')}`
-      } else if (groupbys.length > 0) {
-        text += ` group by time(${defaultGroupBy}),${groupbys.join(',')}`
-      } else {
-        text += ` group by time(${defaultGroupBy})`
-      }
-    } else {
-      text += ` group by time(${defaultGroupBy})`
-    }
-
-    return text
+  // idea adopted from https://stackoverflow.com/questions/36862334/get-viewport-window-height-in-reactjs
+  updateWindowDimensions = () => {
+    this.setState({rowHeight: this.calculateRowHeight()})
   }
 
-  standardizeQueries(cell, source) {
-    return cell.queries.map(query => {
-      // TODO: Canned dashboards (and possibly Kubernetes dashboard) use an old query schema,
-      // which does not have enough information for the new `buildInfluxQLQuery` function
-      // to operate on. We will use `buildQueryForOldQuerySchema` until we conform
-      // on a stable query representation.
-      let queryText
-      if (query.queryConfig) {
-        const {queryConfig: {rawText, range}} = query
-        const timeRange = range || {
-          upper: ':upperDashboardTime:',
-          lower: ':dashboardTime:',
-        }
-        queryText = rawText || buildInfluxQLQuery(timeRange, query.queryConfig)
-      } else {
-        queryText = this.buildQueryForOldQuerySchema(query)
-      }
-
-      return Object.assign({}, query, {
-        host: source.links.proxy,
-        text: queryText,
-      })
-    })
-  }
-
-  generateWidgetCell(cell) {
-    const {source, timeRange} = this.props
-
-    switch (cell.type) {
-      case 'alerts': {
-        return (
-          <AlertsApp
-            source={source}
-            timeRange={timeRange}
-            isWidget={true}
-            limit={RECENT_ALERTS_LIMIT}
-          />
-        )
-      }
-      case 'news': {
-        return <NewsFeed source={source} />
-      }
-      case 'guide': {
-        return <GettingStarted />
-      }
-    }
-    return (
-      <div className="graph-empty">
-        <p data-test="data-explorer-no-results">No Results</p>
-      </div>
-    )
-  }
-
-  // Generates cell contents based on cell type, i.e. graphs, news feeds, etc.
-  generateVisualizations() {
-    const {
-      source,
-      cells,
-      onEditCell,
-      onCancelEditCell,
-      onDeleteCell,
-      onSummonOverlayTechnologies,
-      timeRange,
-      autoRefresh,
-      templates,
-      synchronizer,
-      isEditable,
-      onZoom,
-    } = this.props
-
-    return cells.map(cell => {
-      const {type, h, axes} = cell
-
-      return (
-        <div key={cell.i}>
-          <LayoutCell
-            onCancelEditCell={onCancelEditCell}
-            isEditable={isEditable}
-            onEditCell={onEditCell}
-            onDeleteCell={onDeleteCell}
-            onSummonOverlayTechnologies={onSummonOverlayTechnologies}
-            cell={cell}
-          >
-            {cell.isWidget
-              ? this.generateWidgetCell(cell)
-              : <RefreshingGraph
-                  timeRange={timeRange}
-                  autoRefresh={autoRefresh}
-                  templates={templates}
-                  synchronizer={synchronizer}
-                  type={type}
-                  queries={this.standardizeQueries(cell, source)}
-                  cellHeight={h}
-                  axes={axes}
-                  onZoom={onZoom}
-                />}
-          </LayoutCell>
-        </div>
-      )
-    })
-  }
-
-  handleLayoutChange(layout) {
-    this.triggerWindowResize()
-
+  handleLayoutChange = layout => {
     if (!this.props.onPositionChange) {
       return
     }
@@ -197,15 +44,8 @@ class LayoutRenderer extends Component {
     this.props.onPositionChange(newCells)
   }
 
-  triggerWindowResize() {
-    // Hack to get dygraphs to fit properly during and after resize (dispatchEvent is a global method on window).
-    const evt = document.createEvent('CustomEvent') // MUST be 'CustomEvent'
-    evt.initCustomEvent('resize', false, false, null)
-    dispatchEvent(evt)
-  }
-
   // ensures that Status Page height fits the window
-  calculateRowHeight() {
+  calculateRowHeight = () => {
     const {isStatusPage} = this.props
 
     return isStatusPage
@@ -218,42 +58,73 @@ class LayoutRenderer extends Component {
       : DASHBOARD_LAYOUT_ROW_HEIGHT
   }
 
-  // idea adopted from https://stackoverflow.com/questions/36862334/get-viewport-window-height-in-reactjs
-  updateWindowDimensions() {
-    this.setState({rowHeight: this.calculateRowHeight()})
+  handleCellResize = (_, oldCoords, resizeCoords) => {
+    if (_.isEqual(oldCoords, resizeCoords)) {
+      return
+    }
+
+    this.setState({resizeCoords})
   }
 
   render() {
-    const {cells} = this.props
-    const {rowHeight} = this.state
+    const {
+      host,
+      cells,
+      source,
+      onZoom,
+      templates,
+      timeRange,
+      isEditable,
+      onEditCell,
+      autoRefresh,
+      onDeleteCell,
+      synchronizer,
+      onCancelEditCell,
+      onSummonOverlayTechnologies,
+    } = this.props
 
+    const {rowHeight, resizeCoords} = this.state
     const isDashboard = !!this.props.onPositionChange
 
     return (
-      <GridLayout
-        layout={cells}
-        cols={12}
-        rowHeight={rowHeight}
-        margin={[LAYOUT_MARGIN, LAYOUT_MARGIN]}
-        containerPadding={[0, 0]}
-        useCSSTransforms={false}
-        onResize={this.triggerWindowResize}
-        onLayoutChange={this.handleLayoutChange}
-        draggableHandle={'.dash-graph--name'}
-        isDraggable={isDashboard}
-        isResizable={isDashboard}
-      >
-        {this.generateVisualizations()}
-      </GridLayout>
+      <Resizeable onResize={this.updateWindowDimensions}>
+        <GridLayout
+          layout={cells}
+          cols={12}
+          rowHeight={rowHeight}
+          margin={[LAYOUT_MARGIN, LAYOUT_MARGIN]}
+          containerPadding={[0, 0]}
+          useCSSTransforms={false}
+          onResize={this.handleCellResize}
+          onLayoutChange={this.handleLayoutChange}
+          draggableHandle={'.dash-graph--name'}
+          isDraggable={isDashboard}
+          isResizable={isDashboard}
+        >
+          {cells.map(cell =>
+            <div key={cell.i}>
+              <Layout
+                key={cell.i}
+                cell={cell}
+                host={host}
+                source={source}
+                onZoom={onZoom}
+                templates={templates}
+                timeRange={timeRange}
+                isEditable={isEditable}
+                onEditCell={onEditCell}
+                resizeCoords={resizeCoords}
+                autoRefresh={autoRefresh}
+                onDeleteCell={onDeleteCell}
+                synchronizer={synchronizer}
+                onCancelEditCell={onCancelEditCell}
+                onSummonOverlayTechnologies={onSummonOverlayTechnologies}
+              />
+            </div>
+          )}
+        </GridLayout>
+      </Resizeable>
     )
-  }
-
-  componentDidMount() {
-    window.addEventListener('resize', this.updateWindowDimensions)
-  }
-
-  componentWillUnmount() {
-    window.removeEventListener('resize', this.updateWindowDimensions)
   }
 }
 

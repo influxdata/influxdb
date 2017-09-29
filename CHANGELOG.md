@@ -19,6 +19,7 @@
 1. [#2002](https://github.com/influxdata/chronograf/pull/2002): Move dashboard cell renaming UI into Cell Editor Overlay
 1. [#2040](https://github.com/influxdata/chronograf/pull/2040): Prevent the legend from overlapping graphs at the bottom of the screen
 1. [#2054](https://github.com/influxdata/chronograf/pull/2054): Add a "Plus" icon to every button with an Add or Create action for clarity and consistency
+1. [#2052](https://github.com/influxdata/chronograf/pull/2052): Make hovering over series smoother
 
 ## v1.3.8.1 [unreleased]
 ### Bug Fixes

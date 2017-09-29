@@ -112,7 +112,6 @@ export const OPTIONS = {
 }
 
 export const highlightSeriesOpts = {
-  strokeWidth: 2,
   highlightCircleSize: 5,
 }
 

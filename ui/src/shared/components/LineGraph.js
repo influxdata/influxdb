@@ -46,7 +46,9 @@ export default React.createClass({
     synchronizer: func,
     setResolution: func,
     cellHeight: number,
+    cell: shape({}),
     onZoom: func,
+    resizeCoords: shape(),
   },
 
   getDefaultProps() {
@@ -88,6 +90,7 @@ export default React.createClass({
     const {
       data,
       axes,
+      cell,
       isFetchingInitially,
       isRefreshing,
       isGraphFilled,
@@ -103,6 +106,7 @@ export default React.createClass({
       timeRange,
       cellHeight,
       onZoom,
+      resizeCoords,
     } = this.props
     const {labels, timeSeries, dygraphSeries} = this._timeSeries
 
@@ -164,6 +168,8 @@ export default React.createClass({
       <div className="dygraph graph--hasYLabel" style={{height: '100%'}}>
         {isRefreshing ? this.renderSpinner() : null}
         <Dygraph
+          cell={cell}
+          resizeCoords={resizeCoords}
           axes={axes}
           queries={queries}
           containerStyle={{width: '100%', height: '100%'}}
