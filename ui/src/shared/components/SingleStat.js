@@ -1,27 +1,20 @@
-import React, {PropTypes} from 'react'
+import React, {PropTypes, Component} from 'react'
 import classnames from 'classnames'
 import shallowCompare from 'react-addons-shallow-compare'
 import lastValues from 'shared/parsing/lastValues'
 
 import {SMALL_CELL_HEIGHT} from 'src/shared/graphs/helpers'
 
-export default React.createClass({
-  displayName: 'LineGraph',
-  propTypes: {
-    data: PropTypes.arrayOf(PropTypes.shape({})).isRequired,
-    isFetchingInitially: PropTypes.bool,
-    cellHeight: PropTypes.number,
-  },
-
+class SingleStat extends Component {
   shouldComponentUpdate(nextProps, nextState) {
     return shallowCompare(this, nextProps, nextState)
-  },
+  }
 
   render() {
-    const {data, cellHeight} = this.props
+    const {data, cellHeight, isFetchingInitially} = this.props
 
     // If data for this graph is being fetched for the first time, show a graph-wide spinner.
-    if (this.props.isFetchingInitially) {
+    if (isFetchingInitially) {
       return (
         <div className="graph-empty">
           <h3 className="graph-spinner" />
@@ -45,5 +38,15 @@ export default React.createClass({
         </span>
       </div>
     )
-  },
-})
+  }
+}
+
+const {arrayOf, bool, number, shape} = PropTypes
+
+SingleStat.propTypes = {
+  data: arrayOf(shape()).isRequired,
+  isFetchingInitially: bool,
+  cellHeight: number,
+}
+
+export default SingleStat
