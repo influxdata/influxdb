@@ -488,13 +488,9 @@ func (i *Partition) DropMeasurement(name []byte) error {
 	return nil
 }
 
-// CreateSeriesListIfNotExists creates a list of series if they doesn't exist in bulk.
-func (i *Partition) CreateSeriesListIfNotExists(_, names [][]byte, tagsSlice []models.Tags) error {
-	// All slices must be of equal length.
-	if len(names) != len(tagsSlice) {
-		return errors.New("names/tags length mismatch")
-	}
-
+// createSeriesListIfNotExists creates a list of series if they doesn't exist in
+// bulk.
+func (i *Partition) createSeriesListIfNotExists(names [][]byte, tagsSlice []models.Tags) error {
 	// Maintain reference count on files in file set.
 	fs := i.RetainFileSet()
 	defer fs.Release()
@@ -514,11 +510,6 @@ func (i *Partition) CreateSeriesListIfNotExists(_, names [][]byte, tagsSlice []m
 // InitializeSeries is a no-op. This only applies to the in-memory index.
 func (i *Partition) InitializeSeries(key, name []byte, tags models.Tags) error {
 	return nil
-}
-
-// CreateSeriesIfNotExists creates a series if it doesn't exist or is deleted.
-func (i *Partition) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error {
-	return i.CreateSeriesListIfNotExists(nil, [][]byte{name}, []models.Tags{tags})
 }
 
 func (i *Partition) DropSeries(key []byte) error {
