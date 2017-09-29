@@ -1,4 +1,4 @@
-import React, {PropTypes} from 'react'
+import React, {PropTypes, Component} from 'react'
 import Dygraph from 'shared/components/Dygraph'
 import classnames from 'classnames'
 import shallowCompare from 'react-addons-shallow-compare'
@@ -10,58 +10,14 @@ const {array, arrayOf, bool, func, number, shape, string} = PropTypes
 
 const SMALL_CELL_HEIGHT = 1
 
-export default React.createClass({
-  displayName: 'LineGraph',
-  propTypes: {
-    data: arrayOf(shape({}).isRequired).isRequired,
-    axes: shape({
-      y: shape({
-        bounds: array,
-        label: string,
-      }),
-      y2: shape({
-        bounds: array,
-        label: string,
-      }),
-    }),
-    title: string,
-    isFetchingInitially: bool,
-    isRefreshing: bool,
-    underlayCallback: func,
-    isGraphFilled: bool,
-    isBarGraph: bool,
-    overrideLineColors: array,
-    queries: arrayOf(shape({}).isRequired).isRequired,
-    showSingleStat: bool,
-    displayOptions: shape({
-      stepPlot: bool,
-      stackedGraph: bool,
-    }),
-    activeQueryIndex: number,
-    ruleValues: shape({}),
-    timeRange: shape({
-      lower: string.isRequired,
-    }),
-    isInDataExplorer: bool,
-    synchronizer: func,
-    setResolution: func,
-    cellHeight: number,
-    cell: shape({}),
-    onZoom: func,
-    resizeCoords: shape(),
-  },
-
-  getDefaultProps() {
-    return {
-      underlayCallback: () => {},
-      isGraphFilled: true,
-      overrideLineColors: null,
-    }
-  },
+class LineGraph extends Component {
+  constructor(props) {
+    super(props)
+  }
 
   shouldComponentUpdate(nextProps, nextState) {
     return shallowCompare(this, nextProps, nextState)
-  },
+  }
 
   componentWillMount() {
     const {data, activeQueryIndex, isInDataExplorer} = this.props
@@ -70,7 +26,7 @@ export default React.createClass({
       activeQueryIndex,
       isInDataExplorer
     )
-  },
+  }
 
   componentWillUpdate(nextProps) {
     const {data, activeQueryIndex} = this.props
@@ -84,7 +40,7 @@ export default React.createClass({
         nextProps.isInDataExplorer
       )
     }
-  },
+  }
 
   render() {
     const {
@@ -166,7 +122,7 @@ export default React.createClass({
 
     return (
       <div className="dygraph graph--hasYLabel" style={{height: '100%'}}>
-        {isRefreshing ? this.renderSpinner() : null}
+        {isRefreshing ? <GraphLoadingDots /> : null}
         <Dygraph
           cell={cell}
           resizeCoords={resizeCoords}
@@ -201,15 +157,59 @@ export default React.createClass({
           : null}
       </div>
     )
-  },
+  }
+}
 
-  renderSpinner() {
-    return (
-      <div className="graph-panel__refreshing">
-        <div />
-        <div />
-        <div />
-      </div>
-    )
-  },
-})
+const GraphLoadingDots = () =>
+  <div className="graph-panel__refreshing">
+    <div />
+    <div />
+    <div />
+  </div>
+
+LineGraph.defaultProps = {
+  underlayCallback: () => {},
+  isGraphFilled: true,
+  overrideLineColors: null,
+}
+
+LineGraph.propTypes = {
+  axes: shape({
+    y: shape({
+      bounds: array,
+      label: string,
+    }),
+    y2: shape({
+      bounds: array,
+      label: string,
+    }),
+  }),
+  title: string,
+  isFetchingInitially: bool,
+  isRefreshing: bool,
+  underlayCallback: func,
+  isGraphFilled: bool,
+  isBarGraph: bool,
+  overrideLineColors: array,
+  showSingleStat: bool,
+  displayOptions: shape({
+    stepPlot: bool,
+    stackedGraph: bool,
+  }),
+  activeQueryIndex: number,
+  ruleValues: shape({}),
+  timeRange: shape({
+    lower: string.isRequired,
+  }),
+  isInDataExplorer: bool,
+  synchronizer: func,
+  setResolution: func,
+  cellHeight: number,
+  cell: shape(),
+  onZoom: func,
+  resizeCoords: shape(),
+  queries: arrayOf(shape({}).isRequired).isRequired,
+  data: arrayOf(shape({}).isRequired).isRequired,
+}
+
+export default LineGraph
