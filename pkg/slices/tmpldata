@@ -1,0 +1,22 @@
+[
+	{
+		"Name":"Floats",
+		"Type":"float64"
+	},
+	{
+		"Name":"Ints",
+		"Type":"int64"
+	},
+	{
+		"Name":"UInts",
+		"Type":"uint64"
+	},
+	{
+		"Name":"Strings",
+		"Type":"string"
+	},
+    {
+		"Name":"Bytes",
+		"Type":"[]byte"
+	}
+]
