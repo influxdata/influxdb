@@ -1,6 +1,7 @@
 import React, {Component, PropTypes} from 'react'
 import ReactGridLayout, {WidthProvider} from 'react-grid-layout'
 import Resizeable from 'react-component-resizable'
+
 import _ from 'lodash'
 
 import Layout from 'src/shared/components/Layout'
@@ -67,6 +68,7 @@ class LayoutRenderer extends Component {
       host,
       cells,
       source,
+      sources,
       onZoom,
       templates,
       timeRange,
@@ -83,7 +85,7 @@ class LayoutRenderer extends Component {
     const isDashboard = !!this.props.onPositionChange
 
     return (
-      <Resizeable onResize={this.updateWindowDimensions}>
+      <Resizeable onResize={this.handleCellResize}>
         <GridLayout
           layout={cells}
           cols={12}
@@ -97,27 +99,30 @@ class LayoutRenderer extends Component {
           isDraggable={isDashboard}
           isResizable={isDashboard}
         >
-          {cells.map(cell =>
-            <div key={cell.i}>
-              <Layout
-                key={cell.i}
-                cell={cell}
-                host={host}
-                source={source}
-                onZoom={onZoom}
-                templates={templates}
-                timeRange={timeRange}
-                isEditable={isEditable}
-                onEditCell={onEditCell}
-                resizeCoords={resizeCoords}
-                autoRefresh={autoRefresh}
-                onDeleteCell={onDeleteCell}
-                synchronizer={synchronizer}
-                onCancelEditCell={onCancelEditCell}
-                onSummonOverlayTechnologies={onSummonOverlayTechnologies}
-              />
-            </div>
-          )}
+          {cells.map(cell => {
+            return (
+              <div key={cell.i}>
+                <Layout
+                  key={cell.i}
+                  cell={cell}
+                  host={host}
+                  source={source}
+                  onZoom={onZoom}
+                  sources={sources}
+                  templates={templates}
+                  timeRange={timeRange}
+                  isEditable={isEditable}
+                  onEditCell={onEditCell}
+                  resizeCoords={resizeCoords}
+                  autoRefresh={autoRefresh}
+                  onDeleteCell={onDeleteCell}
+                  synchronizer={synchronizer}
+                  onCancelEditCell={onCancelEditCell}
+                  onSummonOverlayTechnologies={onSummonOverlayTechnologies}
+                />
+              </div>
+            )
+          })}
         </GridLayout>
       </Resizeable>
     )

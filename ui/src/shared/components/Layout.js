@@ -4,11 +4,23 @@ import LayoutCell from 'shared/components/LayoutCell'
 import RefreshingGraph from 'shared/components/RefreshingGraph'
 import {buildQueriesForLayouts} from 'utils/influxql'
 
+import _ from 'lodash'
+
+const getSource = (cell, source, sources) => {
+  const s = _.get(cell, ['queries', '0', 'source'], null)
+  if (!s) {
+    return source
+  }
+
+  return sources.find(src => src.links.self === s)
+}
+
 const Layout = ({
   host,
   cell,
   cell: {h, axes, type},
   source,
+  sources,
   onZoom,
   templates,
   timeRange,
@@ -41,7 +53,12 @@ const Layout = ({
           autoRefresh={autoRefresh}
           synchronizer={synchronizer}
           resizeCoords={resizeCoords}
-          queries={buildQueriesForLayouts(cell, source, timeRange, host)}
+          queries={buildQueriesForLayouts(
+            cell,
+            getSource(cell, source, sources),
+            timeRange,
+            host
+          )}
         />}
   </LayoutCell>
 
@@ -87,6 +104,7 @@ Layout.propTypes = {
   onCancelEditCell: func,
   resizeCoords: shape(),
   onZoom: func,
+  sources: arrayOf(shape()),
 }
 
 export default Layout
