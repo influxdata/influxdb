@@ -87,7 +87,7 @@ $dash-graph-options-arrow: 8px;
   left: 0;
   padding: 0;
 
-  & > .dygraph {
+  .dygraph {
     position: absolute;
     left: 0;
     top: 0;
@@ -95,7 +95,7 @@ $dash-graph-options-arrow: 8px;
     height: 100%;
 
   }
-  & > .dygraph > .dygraph-child {
+  .dygraph .dygraph-child {
     position: absolute;
     width: 100%;
     height: 100%;
