@@ -25,9 +25,8 @@ class CellEditorOverlay extends Component {
 
     const {cell: {name, type, queries, axes}, sources} = props
 
-    let source = _.get(queries, ['0', 'source'], props.source.links.self)
-    source = sources.find(s => s.links.self === source)
-    source = source && source.links.self
+    let source = _.get(queries, ['0', 'source'], null)
+    source = sources.find(s => s.links.self === source) || props.source
 
     const queriesWorkingDraft = _.cloneDeep(
       queries.map(({queryConfig}) => ({
@@ -149,7 +148,7 @@ class CellEditorOverlay extends Component {
       return {
         queryConfig: q,
         query,
-        source: q.source,
+        source: q.source.links.self,
       }
     })
 
@@ -209,7 +208,7 @@ class CellEditorOverlay extends Component {
   handleSetQuerySource = source => {
     const queriesWorkingDraft = this.state.queriesWorkingDraft.map(q => ({
       ..._.cloneDeep(q),
-      source: source.links.self,
+      source,
     }))
 
     this.setState({queriesWorkingDraft})

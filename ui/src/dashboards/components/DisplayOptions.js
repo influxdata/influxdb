@@ -43,7 +43,7 @@ class DisplayOptions extends Component {
       return (defaultSource && defaultSource.text) || 'No source selected'
     }
 
-    const selected = sources.find(s => s.links.self === query.source)
+    const selected = sources.find(s => s.links.self === query.source.links.self)
     return (selected && selected.text) || 'No source selected'
   }
 
