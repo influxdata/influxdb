@@ -102,22 +102,22 @@ class LineGraph extends Component {
         {isRefreshing ? <GraphLoadingDots /> : null}
         <Dygraph
           cell={cell}
-          resizeCoords={resizeCoords}
           axes={axes}
+          onZoom={onZoom}
+          labels={labels}
           queries={queries}
-          containerStyle={{width: '100%', height: '100%'}}
-          overrideLineColors={lineColors}
-          isGraphFilled={showSingleStat ? false : isGraphFilled}
+          timeRange={timeRange}
           isBarGraph={isBarGraph}
           timeSeries={timeSeries}
-          labels={labels}
-          options={showSingleStat ? singleStatOptions : options}
-          dygraphSeries={dygraphSeries}
           ruleValues={ruleValues}
           synchronizer={synchronizer}
-          timeRange={timeRange}
+          resizeCoords={resizeCoords}
+          overrideLineColors={lineColors}
+          dygraphSeries={dygraphSeries}
           setResolution={this.props.setResolution}
-          onZoom={onZoom}
+          containerStyle={{width: '100%', height: '100%'}}
+          isGraphFilled={showSingleStat ? false : isGraphFilled}
+          options={showSingleStat ? singleStatOptions : options}
         />
         {showSingleStat
           ? <SingleStat data={data} cellHeight={cellHeight} />
