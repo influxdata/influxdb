@@ -148,23 +148,37 @@
     display: none !important;
   }
 
-  // Arrow
+  // Arrow (default is on top of legend aka below graph)
   &:after {
     content: '';
     position: absolute;
     border-width: 8px;
     border-style: solid;
     border-color: transparent;
+  }
+  &.dygraph-legend--top:after {
+    top: -16px;
     border-bottom-color: $g0-obsidian;
     left: 50%;
-    top: -16px;
     transform: translateX(-50%);
   }
-  &.dygraph-legend--above:after {
-    top: initial;
-    border-color: transparent;
-    border-top-color: $g0-obsidian;
+  &.dygraph-legend--bottom:after {
     bottom: -16px;
+    border-top-color: $g0-obsidian;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  &.dygraph-legend--left:after {
+    left: -16px;
+    border-right-color: $g0-obsidian;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  &.dygraph-legend--right:after {
+    right: -16px;
+    border-left-color: $g0-obsidian;
+    top: 50%;
+    transform: translateY(-50%);
   }
 }
 .dygraph-legend--header {

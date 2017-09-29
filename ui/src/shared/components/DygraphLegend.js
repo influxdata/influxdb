@@ -8,20 +8,21 @@ const removeMeasurement = (label = '') => {
 }
 
 const DygraphLegend = ({
+  xHTML,
   series,
   onSort,
   onSnip,
   onHide,
   isHidden,
-  isFilterVisible,
   isSnipped,
   sortType,
   legendRef,
   filterText,
   isAscending,
   onInputChange,
+  arrowPosition,
+  isFilterVisible,
   onToggleFilter,
-  xHTML,
 }) => {
   const sorted = _.sortBy(
     series,
@@ -64,7 +65,7 @@ const DygraphLegend = ({
 
   return (
     <div
-      className={`dygraph-legend ${hidden}`}
+      className={`dygraph-legend dygraph-legend--${arrowPosition} ${hidden}`}
       ref={legendRef}
       onMouseLeave={onHide}
     >
@@ -153,6 +154,7 @@ DygraphLegend.propTypes = {
   legendRef: func.isRequired,
   isSnipped: bool.isRequired,
   isFilterVisible: bool.isRequired,
+  arrowPosition: string.isRequired,
 }
 
 export default DygraphLegend
