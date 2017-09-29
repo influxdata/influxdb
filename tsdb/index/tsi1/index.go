@@ -9,6 +9,8 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/influxdata/influxdb/pkg/slices"
+
 	"github.com/influxdata/influxdb/pkg/estimator/hll"
 
 	"github.com/cespare/xxhash"
@@ -260,16 +262,67 @@ func (i *Index) MeasurementExists(name []byte) (bool, error) {
 	return atomic.LoadUint32(&found) == 1, nil
 }
 
+// fetchByteValues is a helper for gathering values from each partition in the index,
+// based on some criteria.
+//
+// fn is a function that works on partition idx and calls into some method on
+// the partition that returns some ordered values.
+func (i *Index) fetchByteValues(fn func(idx int) ([][]byte, error)) ([][]byte, error) {
+	n := i.availableThreads()
+
+	// Store results.
+	var names [TotalPartitions][][]byte
+	errC := make(chan error, n)
+
+	var pidx uint32 // Index of maximum Partition being worked on.
+	for k := 0; k < n; k++ {
+		go func() {
+			for {
+				idx := int(atomic.AddUint32(&pidx, 1) - 1) // Get next partition to work on.
+				if idx > len(i.partitions) {
+					return // No more work.
+				}
+
+				pnames, err := fn(idx)
+
+				// This is safe since there are no readers on names until all
+				// the writers are done.
+				names[idx] = pnames
+				errC <- err
+			}
+		}()
+	}
+
+	// Check for error
+	for i := 0; i < cap(errC); i++ {
+		if err := <-errC; err != nil {
+			return nil, err
+		}
+	}
+
+	// It's now safe to read from names.
+	return slices.MergeSortedBytes(names[:]...), nil
+}
+
 // MeasurementNamesByExpr returns measurement names for the provided expression.
 func (i *Index) MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
-	// TODO(edd): Call on each partition. Merge results.
-	return nil, nil
+	return i.fetchByteValues(func(idx int) ([][]byte, error) {
+		return i.partitions[idx].MeasurementNamesByExpr(expr)
+	})
 }
 
 // MeasurementNamesByRegex returns measurement names for the provided regex.
 func (i *Index) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
-	// TODO(edd): Call on each Partition. Merge results.
-	return nil, nil
+	return i.fetchByteValues(func(idx int) ([][]byte, error) {
+		return i.partitions[idx].MeasurementNamesByRegex(re)
+	})
+}
+
+// MeasurementSeriesKeysByExpr returns a list of series keys matching expr.
+func (i *Index) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr) ([][]byte, error) {
+	return i.fetchByteValues(func(idx int) ([][]byte, error) {
+		return i.partitions[idx].MeasurementSeriesKeysByExpr(name, expr)
+	})
 }
 
 // DropMeasurement deletes a measurement from the index. It returns the first
@@ -327,7 +380,6 @@ func (i *Index) CreateSeriesListIfNotExists(keys [][]byte, names [][]byte, tagsS
 	// Store errors.
 	errC := make(chan error, n)
 
-	// Run fn on each partition using a fixed number of goroutines.
 	var pidx uint32 // Index of maximum Partition being worked on.
 	for k := 0; k < n; k++ {
 		go func() {
@@ -444,8 +496,45 @@ func (i *Index) HasTagKey(name, key []byte) (bool, error) {
 
 // MeasurementTagKeysByExpr extracts the tag keys wanted by the expression.
 func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error) {
-	// TODO(edd): Call on each partition. Merge results.
-	return nil, nil
+	n := i.availableThreads()
+
+	// Store results.
+	var keys [TotalPartitions]map[string]struct{}
+	errC := make(chan error, n)
+
+	var pidx uint32 // Index of maximum Partition being worked on.
+	var err error
+	for k := 0; k < n; k++ {
+		go func() {
+			for {
+				idx := int(atomic.AddUint32(&pidx, 1) - 1) // Get next partition to work on.
+				if idx > len(i.partitions) {
+					return // No more work.
+				}
+
+				// This is safe since there are no readers on keys until all
+				// the writers are done.
+				keys[idx], err = i.partitions[idx].MeasurementTagKeysByExpr(name, expr)
+				errC <- err
+			}
+		}()
+	}
+
+	// Check for error
+	for i := 0; i < cap(errC); i++ {
+		if err := <-errC; err != nil {
+			return nil, err
+		}
+	}
+
+	// Merge into single map.
+	result := keys[0]
+	for k := 1; k < len(i.partitions); k++ {
+		for k := range keys[k] {
+			result[k] = struct{}{}
+		}
+	}
+	return result, nil
 }
 
 // MeasurementTagKeyValuesByExpr returns a set of tag values filtered by an expression.
@@ -453,8 +542,7 @@ func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[s
 // See tsm1.Engine.MeasurementTagKeyValuesByExpr for a fuller description of this
 // method.
 func (i *Index) MeasurementTagKeyValuesByExpr(name []byte, keys []string, expr influxql.Expr, keysSorted bool) ([][]string, error) {
-	// TODO(edd): Merge results from each Partition.
-	return nil, nil
+	panic("TODO(edd)")
 }
 
 // ForEachMeasurementTagKey iterates over all tag keys in a measurement and applies
@@ -495,17 +583,44 @@ func (i *Index) TagKeyCardinality(name, key []byte) int {
 	return 0
 }
 
-// MeasurementSeriesKeysByExpr returns a list of series keys matching expr.
-func (i *Index) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr) ([][]byte, error) {
-	// TODO(edd): Merge results from each Partition.
-	return nil, nil
-}
-
 // TagSets returns an ordered list of tag sets for a measurement by dimension
 // and filtered by an optional conditional expression.
 func (i *Index) TagSets(name []byte, opt query.IteratorOptions) ([]*query.TagSet, error) {
+	n := i.availableThreads()
+
+	// Store results.
+	var sets [TotalPartitions][]*query.TagSet
+	errC := make(chan error, n)
+
+	// Run fn on each partition using a fixed number of goroutines.
+	var pidx uint32 // Index of maximum Partition being worked on.
+	var err error
+
+	for k := 0; k < n; k++ {
+		go func() {
+			for {
+				idx := int(atomic.AddUint32(&pidx, 1) - 1) // Get next partition to work on.
+				if idx > len(i.partitions) {
+					return // No more work.
+				}
+
+				// This is safe since there are no readers on sets until all
+				// the writers are done.
+				sets[idx], err = i.partitions[idx].TagSets(name, opt)
+				errC <- err
+			}
+		}()
+	}
+
+	// Check for error
+	for i := 0; i < cap(errC); i++ {
+		if err := <-errC; err != nil {
+			return nil, err
+		}
+	}
+
 	// TODO(edd): Merge results from each Partition.
-	return nil, nil
+	panic("TODO(edd)")
 }
 
 // SnapshotTo creates hard links to the file set into path.
