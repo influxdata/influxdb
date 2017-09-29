@@ -535,9 +535,16 @@ func (i *Index) UnassignShard(k string, shardID uint64) error {
 
 // SeriesPointIterator returns an influxql iterator over all series.
 func (i *Index) SeriesPointIterator(opt query.IteratorOptions) (query.Iterator, error) {
-	// TODO(edd): Create iterators for each Partition and return a merged
-	// iterator.
-	return nil, nil
+	// FIXME(edd): This needs implementing.
+	itrs := make([]*seriesPointIterator, len(i.partitions))
+	var err error
+	for k, p := range i.partitions {
+		if itrs[k], err = p.seriesPointIterator(opt); err != nil {
+			return nil, err
+		}
+	}
+
+	return MergeSeriesPointIterators(itrs...), nil
 }
 
 // Compact requests a compaction of log files in the index.

@@ -414,6 +414,78 @@ func (itr *seriesIDMergeIterator) Next() SeriesIDElem {
 	return elem
 }
 
+// TODO(edd)
+type SeriesPointMergeIterator interface {
+	Next() (*query.FloatPoint, error)
+	Close() error
+	Stats() query.IteratorStats
+}
+
+// TODO(edd)
+func MergeSeriesPointIterators(itrs ...*seriesPointIterator) SeriesPointMergeIterator {
+	if n := len(itrs); n == 0 {
+		return nil
+	} else if n == 1 {
+		return itrs[0]
+	}
+
+	return &seriesPointMergeIterator{
+		buf:  make([]*query.FloatPoint, len(itrs)),
+		itrs: itrs,
+	}
+}
+
+type seriesPointMergeIterator struct {
+	buf  []*query.FloatPoint
+	itrs []*seriesPointIterator
+}
+
+// TODO(edd):
+func (itr *seriesPointMergeIterator) Close() error { return nil }
+func (itr *seriesPointMergeIterator) Stats() query.IteratorStats {
+	return query.IteratorStats{}
+}
+
+// TODO(edd)....
+func (itr *seriesPointMergeIterator) Next() (*query.FloatPoint, error) {
+	// TODO(edd)...
+	// Find next lowest point amongst the buffers.
+	// var key []byte
+	// for i, buf := range itr.buf {
+	// 	// Fill buffer.
+	// 	if buf == nil {
+	// 		if buf = itr.itrs[i].Next(); buf != nil {
+	// 			itr.buf[i] = buf
+	// 		} else {
+	// 			continue
+	// 		}
+	// 	}
+
+	// 	// Find next lowest key.
+	// 	if key == nil || bytes.Compare(buf.Key(), key) == -1 {
+	// 		key = buf.Key()
+	// 	}
+	// }
+
+	// // Return nil if no elements remaining.
+	// if key == nil {
+	// 	return nil
+	// }
+
+	// // Merge elements together & clear buffer.
+	// itr.e = itr.e[:0]
+	// for i, buf := range itr.buf {
+	// 	if buf == nil || !bytes.Equal(buf.Key(), key) {
+	// 		continue
+	// 	}
+	// 	itr.e = append(itr.e, buf)
+	// 	itr.buf[i] = nil
+	// }
+
+	// return itr.e
+	return nil, nil
+}
+
 // IntersectSeriesIDIterators returns an iterator that only returns series which
 // occur in both iterators. If both series have associated expressions then
 // they are combined together.
