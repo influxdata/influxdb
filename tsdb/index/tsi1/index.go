@@ -146,7 +146,12 @@ func (i *Index) Close() error {
 
 // partition returns the appropriate Partition for a provided series key.
 func (i *Index) partition(key []byte) *Partition {
-	return i.partitions[int(xxhash.Sum64(key)&TotalPartitions)]
+	return i.partitions[int(xxhash.Sum64(key)&(TotalPartitions-1))]
+}
+
+// partitionIdx returns the index of the partition that key belongs in.
+func (i *Index) partitionIdx(key []byte) int {
+	return int(xxhash.Sum64(key) & (TotalPartitions - 1))
 }
 
 // availableThreads returns the minimum of GOMAXPROCS and the number of
@@ -296,21 +301,61 @@ func (i *Index) DropMeasurement(name []byte) error {
 }
 
 // CreateSeriesListIfNotExists creates a list of series if they doesn't exist in bulk.
-func (i *Index) CreateSeriesListIfNotExists(_, names [][]byte, tagsSlice []models.Tags) error {
-	// TODO(edd): Call on correct Partition.
+func (i *Index) CreateSeriesListIfNotExists(keys [][]byte, names [][]byte, tagsSlice []models.Tags) error {
+	// All slices must be of equal length.
+	if len(names) != len(tagsSlice) {
+		return errors.New("names/tags length mismatch in index")
+	}
+
+	// We need to move different series into collections for each partition
+	// to process.
+	pNames := [TotalPartitions][][]byte{}
+	pTags := [TotalPartitions][]models.Tags{}
+
+	// determine appropriate where series shoud live using each series key.
+	for k, key := range keys {
+		pidx := i.partitionIdx(key)
+		pNames[pidx] = append(pNames[pidx], names[k])
+		pTags[pidx] = append(pTags[pidx], tagsSlice[k])
+	}
+
+	// Process each subset of series on each partition.
+	n := i.availableThreads()
+
+	// Store errors.
+	errC := make(chan error, n)
+
+	// Run fn on each partition using a fixed number of goroutines.
+	var pidx uint32 // Index of maximum Partition being worked on.
+	for k := 0; k < n; k++ {
+		go func() {
+			for {
+				idx := int(atomic.AddUint32(&pidx, 1) - 1) // Get next partition to work on.
+				if idx > len(i.partitions) {
+					return // No more work.
+				}
+				errC <- i.partitions[idx].createSeriesListIfNotExists(pNames[idx], pTags[idx])
+			}
+		}()
+	}
+
+	// Check for error
+	for i := 0; i < cap(errC); i++ {
+		if err := <-errC; err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 // CreateSeriesIfNotExists creates a series if it doesn't exist or is deleted.
 func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error {
-	// TODO(edd): Call on correct Partition.
-	return nil
+	return i.partition(key).createSeriesListIfNotExists([][]byte{name}, []models.Tags{tags})
 }
 
 // DropSeries drops the provided series from the index.
 func (i *Index) DropSeries(key []byte) error {
-	// TODO(edd): Call on correct Partition.
-	return nil
+	return i.partition(key).DropSeries(key)
 }
 
 // MeasurementsSketches returns the two sketches for the index by merging all
