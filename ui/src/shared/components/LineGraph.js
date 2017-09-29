@@ -7,8 +7,6 @@ import timeSeriesToDygraph from 'utils/timeSeriesToDygraph'
 
 import {SINGLE_STAT_LINE_COLORS} from 'src/shared/graphs/helpers'
 
-const {array, arrayOf, bool, func, number, shape, string} = PropTypes
-
 class LineGraph extends Component {
   constructor(props) {
     super(props)
@@ -131,6 +129,8 @@ const GraphSpinner = () =>
   <div className="graph-fetching">
     <div className="graph-spinner" />
   </div>
+
+const {array, arrayOf, bool, func, number, shape, string} = PropTypes
 
 LineGraph.defaultProps = {
   underlayCallback: () => {},
