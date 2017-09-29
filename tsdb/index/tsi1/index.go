@@ -9,6 +9,8 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/influxdata/influxdb/pkg/estimator/hll"
+
 	"github.com/cespare/xxhash"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
@@ -361,8 +363,24 @@ func (i *Index) DropSeries(key []byte) error {
 // MeasurementsSketches returns the two sketches for the index by merging all
 // instances of the type sketch types in all the index files.
 func (i *Index) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
-	// TODO(edd): Merge sketches for each partition.
-	return nil, nil, nil
+	s, ts := hll.NewDefaultPlus(), hll.NewDefaultPlus()
+	for _, p := range i.partitions {
+		// Get partition's measurement sketches and merge.
+		ps, pts, err := p.MeasurementsSketches()
+		if err != nil {
+			return nil, nil, err
+		}
+
+		if err := s.Merge(ps); err != nil {
+			return nil, nil, err
+		}
+
+		if err := ts.Merge(pts); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	return s, ts, nil
 }
 
 // SeriesN returns the number of unique non-tombstoned series in the index.
