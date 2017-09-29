@@ -72,11 +72,7 @@ class LineGraph extends Component {
 
     // If data for this graph is being fetched for the first time, show a graph-wide spinner.
     if (isFetchingInitially) {
-      return (
-        <div className="graph-fetching">
-          <div className="graph-spinner" />
-        </div>
-      )
+      return <GraphSpinner />
     }
 
     const options = {
@@ -158,6 +154,11 @@ const GraphLoadingDots = () =>
     <div />
     <div />
     <div />
+  </div>
+
+const GraphSpinner = () =>
+  <div className="graph-fetching">
+    <div className="graph-spinner" />
   </div>
 
 LineGraph.defaultProps = {
