@@ -61,14 +61,14 @@ type TSMIndex interface {
 	Entries(key []byte) []IndexEntry
 
 	// ReadEntries reads the index entries for key into entries.
-	ReadEntries(key []byte, entries *[]IndexEntry)
+	ReadEntries(key []byte, entries *[]IndexEntry) []IndexEntry
 
 	// Entry returns the index entry for the specified key and timestamp.  If no entry
 	// matches the key and timestamp, nil is returned.
 	Entry(key []byte, timestamp int64) *IndexEntry
 
-	// Key returns the key in the index at the given position.
-	Key(index int) ([]byte, byte, []IndexEntry)
+	// Key returns the key in the index at the given position, using entries to avoid allocations.
+	Key(index int, entries *[]IndexEntry) ([]byte, byte, []IndexEntry)
 
 	// KeyAt returns the key in the index at the given position.
 	KeyAt(index int) ([]byte, byte)
@@ -119,6 +119,7 @@ type BlockIterator struct {
 	n int
 
 	key     []byte
+	cache   []IndexEntry
 	entries []IndexEntry
 	err     error
 	typ     byte
@@ -149,7 +150,7 @@ func (b *BlockIterator) Next() bool {
 	}
 
 	if b.n-b.i > 0 {
-		b.key, b.typ, b.entries = b.r.Key(b.i)
+		b.key, b.typ, b.entries = b.r.Key(b.i, &b.cache)
 		b.i++
 
 		if len(b.entries) > 0 {
@@ -188,6 +189,7 @@ type blockAccessor interface {
 	rename(path string) error
 	path() string
 	close() error
+	free() error
 }
 
 // NewTSMReader returns a new TSMReader from the given file.
@@ -249,6 +251,12 @@ func (t *TSMReader) applyTombstones() error {
 	return nil
 }
 
+func (t *TSMReader) Free() error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.accessor.free()
+}
+
 // Path returns the path of the file the TSMReader was initialized with.
 func (t *TSMReader) Path() string {
 	t.mu.RLock()
@@ -258,8 +266,8 @@ func (t *TSMReader) Path() string {
 }
 
 // Key returns the key and the underlying entry at the numeric index.
-func (t *TSMReader) Key(index int) ([]byte, byte, []IndexEntry) {
-	return t.index.Key(index)
+func (t *TSMReader) Key(index int, entries *[]IndexEntry) ([]byte, byte, []IndexEntry) {
+	return t.index.Key(index, entries)
 }
 
 // KeyAt returns the key and key type at position idx in the index.
@@ -480,8 +488,8 @@ func (t *TSMReader) Entries(key []byte) []IndexEntry {
 }
 
 // ReadEntries reads the index entries for key into entries.
-func (t *TSMReader) ReadEntries(key []byte, entries *[]IndexEntry) {
-	t.index.ReadEntries(key, entries)
+func (t *TSMReader) ReadEntries(key []byte, entries *[]IndexEntry) []IndexEntry {
+	return t.index.ReadEntries(key, entries)
 }
 
 // IndexSize returns the size of the index in bytes.
@@ -671,6 +679,11 @@ func (d *indirectIndex) search(key []byte) int {
 
 // Entries returns all index entries for a key.
 func (d *indirectIndex) Entries(key []byte) []IndexEntry {
+	return d.ReadEntries(key, nil)
+}
+
+// ReadEntries returns all index entries for a key.
+func (d *indirectIndex) ReadEntries(key []byte, entries *[]IndexEntry) []IndexEntry {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -690,20 +703,21 @@ func (d *indirectIndex) Entries(key []byte) []IndexEntry {
 
 		// Read and return all the entries
 		ofs += n
-		var entries indexEntries
-		if _, err := readEntries(d.b[ofs:], &entries); err != nil {
+		var ie indexEntries
+		if entries != nil {
+			ie.entries = *entries
+		}
+		if _, err = readEntries(d.b[ofs:], &ie); err != nil {
 			panic(fmt.Sprintf("error reading entries: %v", err))
 		}
-		return entries.entries
+		if entries != nil {
+			*entries = ie.entries
+		}
+		return ie.entries
 	}
 
 	// The key is not in the index.  i is the index where it would be inserted.
 	return nil
-}
-
-// ReadEntries returns all index entries for a key.
-func (d *indirectIndex) ReadEntries(key []byte, entries *[]IndexEntry) {
-	*entries = d.Entries(key)
 }
 
 // Entry returns the index entry for the specified key and timestamp.  If no entry
@@ -719,7 +733,7 @@ func (d *indirectIndex) Entry(key []byte, timestamp int64) *IndexEntry {
 }
 
 // Key returns the key in the index at the given position.
-func (d *indirectIndex) Key(idx int) ([]byte, byte, []IndexEntry) {
+func (d *indirectIndex) Key(idx int, entries *[]IndexEntry) ([]byte, byte, []IndexEntry) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -734,11 +748,18 @@ func (d *indirectIndex) Key(idx int) ([]byte, byte, []IndexEntry) {
 
 	typ := d.b[int(ofs)+n]
 
-	var entries indexEntries
-	if _, err := readEntries(d.b[int(ofs)+n:], &entries); err != nil {
+	var ie indexEntries
+	if entries != nil {
+		ie.entries = *entries
+	}
+	if _, err = readEntries(d.b[int(ofs)+n:], &ie); err != nil {
 		return nil, 0, nil
 	}
-	return key, typ, entries.entries
+	if entries != nil {
+		*entries = ie.entries
+	}
+
+	return key, typ, ie.entries
 }
 
 // KeyAt returns the key in the index at the given position.
@@ -1044,6 +1065,11 @@ func (d *indirectIndex) Close() error {
 // mmapAccess is mmap based block accessor.  It access blocks through an
 // MMAP file interface.
 type mmapAccessor struct {
+	// Counter incremented everytime the mmapAccessor is accessed
+	accessCount uint64
+	// Counter to determine whether the accessor can free its resources
+	freeCount uint64
+
 	mu sync.RWMutex
 
 	f     *os.File
@@ -1089,10 +1115,47 @@ func (m *mmapAccessor) init() (*indirectIndex, error) {
 		return nil, err
 	}
 
+	// Allow resources to be freed immediately if requested
+	m.incAccess()
+	atomic.StoreUint64(&m.freeCount, 1)
+
 	return m.index, nil
 }
 
+func (m *mmapAccessor) free() error {
+	accessCount := atomic.LoadUint64(&m.accessCount)
+	freeCount := atomic.LoadUint64(&m.freeCount)
+
+	// Already freed everything.
+	if freeCount == 0 && accessCount == 0 {
+		return nil
+	}
+
+	// Were there accesses after the last time we tried to free?
+	// If so, don't free anything and record the access count that we
+	// see now for the next check.
+	if accessCount != freeCount {
+		atomic.StoreUint64(&m.freeCount, accessCount)
+		return nil
+	}
+
+	// Reset both counters to zero to indicate that we have freed everything.
+	atomic.StoreUint64(&m.accessCount, 0)
+	atomic.StoreUint64(&m.freeCount, 0)
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	return madviseDontNeed(m.b)
+}
+
+func (m *mmapAccessor) incAccess() {
+	atomic.AddUint64(&m.accessCount, 1)
+}
+
 func (m *mmapAccessor) rename(path string) error {
+	m.incAccess()
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -1141,6 +1204,8 @@ func (m *mmapAccessor) read(key []byte, timestamp int64) ([]Value, error) {
 }
 
 func (m *mmapAccessor) readBlock(entry *IndexEntry, values []Value) ([]Value, error) {
+	m.incAccess()
+
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -1158,8 +1223,9 @@ func (m *mmapAccessor) readBlock(entry *IndexEntry, values []Value) ([]Value, er
 }
 
 func (m *mmapAccessor) readFloatBlock(entry *IndexEntry, values *[]FloatValue) ([]FloatValue, error) {
-	m.mu.RLock()
+	m.incAccess()
 
+	m.mu.RLock()
 	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
 		m.mu.RUnlock()
 		return nil, ErrTSMClosed
@@ -1176,8 +1242,9 @@ func (m *mmapAccessor) readFloatBlock(entry *IndexEntry, values *[]FloatValue) (
 }
 
 func (m *mmapAccessor) readIntegerBlock(entry *IndexEntry, values *[]IntegerValue) ([]IntegerValue, error) {
-	m.mu.RLock()
+	m.incAccess()
 
+	m.mu.RLock()
 	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
 		m.mu.RUnlock()
 		return nil, ErrTSMClosed
@@ -1194,8 +1261,9 @@ func (m *mmapAccessor) readIntegerBlock(entry *IndexEntry, values *[]IntegerValu
 }
 
 func (m *mmapAccessor) readUnsignedBlock(entry *IndexEntry, values *[]UnsignedValue) ([]UnsignedValue, error) {
-	m.mu.RLock()
+	m.incAccess()
 
+	m.mu.RLock()
 	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
 		m.mu.RUnlock()
 		return nil, ErrTSMClosed
@@ -1212,8 +1280,9 @@ func (m *mmapAccessor) readUnsignedBlock(entry *IndexEntry, values *[]UnsignedVa
 }
 
 func (m *mmapAccessor) readStringBlock(entry *IndexEntry, values *[]StringValue) ([]StringValue, error) {
-	m.mu.RLock()
+	m.incAccess()
 
+	m.mu.RLock()
 	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
 		m.mu.RUnlock()
 		return nil, ErrTSMClosed
@@ -1230,8 +1299,9 @@ func (m *mmapAccessor) readStringBlock(entry *IndexEntry, values *[]StringValue)
 }
 
 func (m *mmapAccessor) readBooleanBlock(entry *IndexEntry, values *[]BooleanValue) ([]BooleanValue, error) {
-	m.mu.RLock()
+	m.incAccess()
 
+	m.mu.RLock()
 	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
 		m.mu.RUnlock()
 		return nil, ErrTSMClosed
@@ -1248,6 +1318,8 @@ func (m *mmapAccessor) readBooleanBlock(entry *IndexEntry, values *[]BooleanValu
 }
 
 func (m *mmapAccessor) readBytes(entry *IndexEntry, b []byte) (uint32, []byte, error) {
+	m.incAccess()
+
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -1261,6 +1333,8 @@ func (m *mmapAccessor) readBytes(entry *IndexEntry, b []byte) (uint32, []byte, e
 
 // readAll returns all values for a key in all blocks.
 func (m *mmapAccessor) readAll(key []byte) ([]Value, error) {
+	m.incAccess()
+
 	blocks := m.index.Entries(key)
 	if len(blocks) == 0 {
 		return nil, nil
@@ -1391,19 +1465,21 @@ func readEntries(b []byte, entries *indexEntries) (n int, err error) {
 	count := int(binary.BigEndian.Uint16(b[n : n+indexCountSize]))
 	n += indexCountSize
 
-	entries.entries = make([]IndexEntry, count)
-	for i := 0; i < count; i++ {
-		var ie IndexEntry
-		start := i*indexEntrySize + indexCountSize + indexTypeSize
-		end := start + indexEntrySize
-		if end > len(b) {
-			return 0, fmt.Errorf("readEntries: data too short for indexEntry %d", i)
-		}
-		if err := ie.UnmarshalBinary(b[start:end]); err != nil {
+	if cap(entries.entries) < count {
+		entries.entries = make([]IndexEntry, count)
+	} else {
+		entries.entries = entries.entries[:count]
+	}
+
+	b = b[indexCountSize+indexTypeSize:]
+	for i := 0; i < len(entries.entries); i++ {
+		if err = entries.entries[i].UnmarshalBinary(b); err != nil {
 			return 0, fmt.Errorf("readEntries: unmarshal error: %v", err)
 		}
-		entries.entries[i] = ie
-		n += indexEntrySize
+		b = b[indexEntrySize:]
 	}
+
+	n += count * indexEntrySize
+
 	return
 }

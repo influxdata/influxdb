@@ -49,7 +49,7 @@ const (
 	DefaultMaxValuesPerTag = 100000
 
 	// DefaultMaxConcurrentCompactions is the maximum number of concurrent full and level compactions
-	// that can run at one time.  A value of results in runtime.GOMAXPROCS(0) used at runtime.
+	// that can run at one time.  A value of 0 results in 50% of runtime.GOMAXPROCS(0) used at runtime.
 	DefaultMaxConcurrentCompactions = 0
 )
 

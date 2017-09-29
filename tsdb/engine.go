@@ -78,6 +78,7 @@ type Engine interface {
 	LastModified() time.Time
 	DiskSize() int64
 	IsIdle() bool
+	Free() error
 
 	io.WriterTo
 }
@@ -143,11 +144,13 @@ func NewEngine(id uint64, i Index, database, path string, walPath string, option
 
 // EngineOptions represents the options used to initialize the engine.
 type EngineOptions struct {
-	EngineVersion     string
-	IndexVersion      string
-	ShardID           uint64
-	InmemIndex        interface{} // shared in-memory index
-	CompactionLimiter limiter.Fixed
+	EngineVersion string
+	IndexVersion  string
+	ShardID       uint64
+	InmemIndex    interface{} // shared in-memory index
+
+	HiPriCompactionLimiter limiter.Fixed
+	LoPriCompactionLimiter limiter.Fixed
 
 	Config Config
 }

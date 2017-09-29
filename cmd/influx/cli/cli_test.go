@@ -147,9 +147,24 @@ func TestSetPrecision(t *testing.T) {
 	if c.ClientConfig.Precision != p {
 		t.Fatalf("Precision is %s but should be %s", c.ClientConfig.Precision, p)
 	}
+	up := "NS"
+	c.SetPrecision("PRECISION " + up)
+	if c.ClientConfig.Precision != p {
+		t.Fatalf("Precision is %s but should be %s", c.ClientConfig.Precision, p)
+	}
+	mixed := "ns"
+	c.SetPrecision("PRECISION " + mixed)
+	if c.ClientConfig.Precision != p {
+		t.Fatalf("Precision is %s but should be %s", c.ClientConfig.Precision, p)
+	}
 
 	// validate set default precision which equals empty string
 	p = "rfc3339"
+	c.SetPrecision("precision " + p)
+	if c.ClientConfig.Precision != "" {
+		t.Fatalf("Precision is %s but should be empty", c.ClientConfig.Precision)
+	}
+	p = "RFC3339"
 	c.SetPrecision("precision " + p)
 	if c.ClientConfig.Precision != "" {
 		t.Fatalf("Precision is %s but should be empty", c.ClientConfig.Precision)
@@ -166,6 +181,17 @@ func TestSetFormat(t *testing.T) {
 	// validate set non-default format
 	f := "json"
 	c.SetFormat("format " + f)
+	if c.Format != f {
+		t.Fatalf("Format is %s but should be %s", c.Format, f)
+	}
+
+	uf := "JSON"
+	c.SetFormat("format " + uf)
+	if c.Format != f {
+		t.Fatalf("Format is %s but should be %s", c.Format, f)
+	}
+	mixed := "json"
+	c.SetFormat("FORMAT " + mixed)
 	if c.Format != f {
 		t.Fatalf("Format is %s but should be %s", c.Format, f)
 	}
@@ -259,6 +285,18 @@ func TestSetWriteConsistency(t *testing.T) {
 	// set different valid write consistency and validate change
 	consistency = "quorum"
 	c.SetWriteConsistency("consistency " + consistency)
+	if c.ClientConfig.WriteConsistency != consistency {
+		t.Fatalf("WriteConsistency is %s but should be %s", c.ClientConfig.WriteConsistency, consistency)
+	}
+
+	consistency = "QUORUM"
+	c.SetWriteConsistency("consistency " + consistency)
+	if c.ClientConfig.WriteConsistency != "quorum" {
+		t.Fatalf("WriteConsistency is %s but should be %s", c.ClientConfig.WriteConsistency, "quorum")
+	}
+
+	consistency = "quorum"
+	c.SetWriteConsistency("CONSISTENCY " + consistency)
 	if c.ClientConfig.WriteConsistency != consistency {
 		t.Fatalf("WriteConsistency is %s but should be %s", c.ClientConfig.WriteConsistency, consistency)
 	}

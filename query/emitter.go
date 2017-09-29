@@ -213,6 +213,12 @@ func (e *Emitter) readIterator(itr Iterator) (Point, error) {
 		} else if p != nil {
 			return p, nil
 		}
+	case UnsignedIterator:
+		if p, err := itr.Next(); err != nil {
+			return nil, err
+		} else if p != nil {
+			return p, nil
+		}
 	case StringIterator:
 		if p, err := itr.Next(); err != nil {
 			return nil, err

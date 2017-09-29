@@ -61,45 +61,42 @@ func (a Iterators) filterNonNil() []Iterator {
 	return other
 }
 
-// castType determines what type to cast the set of iterators to.
-// An iterator type is chosen using this hierarchy:
-//   float > integer > string > boolean
-func (a Iterators) castType() influxql.DataType {
+// dataType determines what slice type this set of iterators should be.
+// An iterator type is chosen by looking at the first element in the slice
+// and then returning the data type for that iterator.
+func (a Iterators) dataType() influxql.DataType {
 	if len(a) == 0 {
 		return influxql.Unknown
 	}
 
-	typ := influxql.DataType(influxql.Boolean)
-	for _, input := range a {
-		switch input.(type) {
-		case FloatIterator:
-			// Once a float iterator is found, short circuit the end.
-			return influxql.Float
-		case IntegerIterator:
-			if typ > influxql.Integer {
-				typ = influxql.Integer
-			}
-		case StringIterator:
-			if typ > influxql.String {
-				typ = influxql.String
-			}
-		case BooleanIterator:
-			// Boolean is the lowest type.
-		}
+	switch a[0].(type) {
+	case FloatIterator:
+		return influxql.Float
+	case IntegerIterator:
+		return influxql.Integer
+	case UnsignedIterator:
+		return influxql.Unsigned
+	case StringIterator:
+		return influxql.String
+	case BooleanIterator:
+		return influxql.Boolean
+	default:
+		return influxql.Unknown
 	}
-	return typ
 }
 
-// cast casts an array of iterators to a single type.
-// Iterators that are not compatible or cannot be cast to the
-// chosen iterator type are closed and dropped.
-func (a Iterators) cast() interface{} {
-	typ := a.castType()
+// coerce forces an array of iterators to be a single type.
+// Iterators that are not of the same type as the first element in the slice
+// will be closed and dropped.
+func (a Iterators) coerce() interface{} {
+	typ := a.dataType()
 	switch typ {
 	case influxql.Float:
 		return newFloatIterators(a)
 	case influxql.Integer:
 		return newIntegerIterators(a)
+	case influxql.Unsigned:
+		return newUnsignedIterators(a)
 	case influxql.String:
 		return newStringIterators(a)
 	case influxql.Boolean:
@@ -163,11 +160,13 @@ func NewMergeIterator(inputs []Iterator, opt IteratorOptions) Iterator {
 
 	// Aggregate functions can use a more relaxed sorting so that points
 	// within a window are grouped. This is much more efficient.
-	switch inputs := Iterators(inputs).cast().(type) {
+	switch inputs := Iterators(inputs).coerce().(type) {
 	case []FloatIterator:
 		return newFloatMergeIterator(inputs, opt)
 	case []IntegerIterator:
 		return newIntegerMergeIterator(inputs, opt)
+	case []UnsignedIterator:
+		return newUnsignedMergeIterator(inputs, opt)
 	case []StringIterator:
 		return newStringMergeIterator(inputs, opt)
 	case []BooleanIterator:
@@ -225,11 +224,13 @@ func NewSortedMergeIterator(inputs []Iterator, opt IteratorOptions) Iterator {
 		return inputs[0]
 	}
 
-	switch inputs := Iterators(inputs).cast().(type) {
+	switch inputs := Iterators(inputs).coerce().(type) {
 	case []FloatIterator:
 		return newFloatSortedMergeIterator(inputs, opt)
 	case []IntegerIterator:
 		return newIntegerSortedMergeIterator(inputs, opt)
+	case []UnsignedIterator:
+		return newUnsignedSortedMergeIterator(inputs, opt)
 	case []StringIterator:
 		return newStringSortedMergeIterator(inputs, opt)
 	case []BooleanIterator:
@@ -250,6 +251,8 @@ func newParallelIterator(input Iterator) Iterator {
 		return newFloatParallelIterator(itr)
 	case IntegerIterator:
 		return newIntegerParallelIterator(itr)
+	case UnsignedIterator:
+		return newUnsignedParallelIterator(itr)
 	case StringIterator:
 		return newStringParallelIterator(itr)
 	case BooleanIterator:
@@ -266,6 +269,8 @@ func NewLimitIterator(input Iterator, opt IteratorOptions) Iterator {
 		return newFloatLimitIterator(input, opt)
 	case IntegerIterator:
 		return newIntegerLimitIterator(input, opt)
+	case UnsignedIterator:
+		return newUnsignedLimitIterator(input, opt)
 	case StringIterator:
 		return newStringLimitIterator(input, opt)
 	case BooleanIterator:
@@ -288,6 +293,8 @@ func NewFilterIterator(input Iterator, cond influxql.Expr, opt IteratorOptions) 
 		return newFloatFilterIterator(input, cond, opt)
 	case IntegerIterator:
 		return newIntegerFilterIterator(input, cond, opt)
+	case UnsignedIterator:
+		return newUnsignedFilterIterator(input, cond, opt)
 	case StringIterator:
 		return newStringFilterIterator(input, cond, opt)
 	case BooleanIterator:
@@ -310,6 +317,8 @@ func NewDedupeIterator(input Iterator) Iterator {
 		return newFloatDedupeIterator(input)
 	case IntegerIterator:
 		return newIntegerDedupeIterator(input)
+	case UnsignedIterator:
+		return newUnsignedDedupeIterator(input)
 	case StringIterator:
 		return newStringDedupeIterator(input)
 	case BooleanIterator:
@@ -326,6 +335,8 @@ func NewFillIterator(input Iterator, expr influxql.Expr, opt IteratorOptions) It
 		return newFloatFillIterator(input, expr, opt)
 	case IntegerIterator:
 		return newIntegerFillIterator(input, expr, opt)
+	case UnsignedIterator:
+		return newUnsignedFillIterator(input, expr, opt)
 	case StringIterator:
 		return newStringFillIterator(input, expr, opt)
 	case BooleanIterator:
@@ -342,6 +353,8 @@ func NewIntervalIterator(input Iterator, opt IteratorOptions) Iterator {
 		return newFloatIntervalIterator(input, opt)
 	case IntegerIterator:
 		return newIntegerIntervalIterator(input, opt)
+	case UnsignedIterator:
+		return newUnsignedIntervalIterator(input, opt)
 	case StringIterator:
 		return newStringIntervalIterator(input, opt)
 	case BooleanIterator:
@@ -359,6 +372,8 @@ func NewInterruptIterator(input Iterator, closing <-chan struct{}) Iterator {
 		return newFloatInterruptIterator(input, closing)
 	case IntegerIterator:
 		return newIntegerInterruptIterator(input, closing)
+	case UnsignedIterator:
+		return newUnsignedInterruptIterator(input, closing)
 	case StringIterator:
 		return newStringInterruptIterator(input, closing)
 	case BooleanIterator:
@@ -376,6 +391,8 @@ func NewCloseInterruptIterator(input Iterator, closing <-chan struct{}) Iterator
 		return newFloatCloseInterruptIterator(input, closing)
 	case IntegerIterator:
 		return newIntegerCloseInterruptIterator(input, closing)
+	case UnsignedIterator:
+		return newUnsignedCloseInterruptIterator(input, closing)
 	case StringIterator:
 		return newStringCloseInterruptIterator(input, closing)
 	case BooleanIterator:
@@ -407,6 +424,8 @@ func NewAuxIterator(input Iterator, opt IteratorOptions) AuxIterator {
 		return newFloatAuxIterator(input, opt)
 	case IntegerIterator:
 		return newIntegerAuxIterator(input, opt)
+	case UnsignedIterator:
+		return newUnsignedAuxIterator(input, opt)
 	case StringIterator:
 		return newStringAuxIterator(input, opt)
 	case BooleanIterator:
@@ -481,6 +500,10 @@ func (a *auxIteratorFields) iterator(name string, typ influxql.DataType) Iterato
 			itr := &integerChanIterator{cond: sync.NewCond(&sync.Mutex{})}
 			f.append(itr)
 			return itr
+		case influxql.Unsigned:
+			itr := &unsignedChanIterator{cond: sync.NewCond(&sync.Mutex{})}
+			f.append(itr)
+			return itr
 		case influxql.String, influxql.Tag:
 			itr := &stringChanIterator{cond: sync.NewCond(&sync.Mutex{})}
 			f.append(itr)
@@ -517,6 +540,8 @@ func (a *auxIteratorFields) send(p Point) (ok bool) {
 				ok = itr.setBuf(p.name(), tags, p.time(), v) || ok
 			case *integerChanIterator:
 				ok = itr.setBuf(p.name(), tags, p.time(), v) || ok
+			case *unsignedChanIterator:
+				ok = itr.setBuf(p.name(), tags, p.time(), v) || ok
 			case *stringChanIterator:
 				ok = itr.setBuf(p.name(), tags, p.time(), v) || ok
 			case *booleanChanIterator:
@@ -537,6 +562,8 @@ func (a *auxIteratorFields) sendError(err error) {
 				itr.setErr(err)
 			case *integerChanIterator:
 				itr.setErr(err)
+			case *unsignedChanIterator:
+				itr.setErr(err)
 			case *stringChanIterator:
 				itr.setErr(err)
 			case *booleanChanIterator:
@@ -556,6 +583,9 @@ func DrainIterator(itr Iterator) {
 		for p, _ := itr.Next(); p != nil; p, _ = itr.Next() {
 		}
 	case IntegerIterator:
+		for p, _ := itr.Next(); p != nil; p, _ = itr.Next() {
+		}
+	case UnsignedIterator:
 		for p, _ := itr.Next(); p != nil; p, _ = itr.Next() {
 		}
 	case StringIterator:
@@ -582,6 +612,10 @@ func DrainIterators(itrs []Iterator) {
 					hasData = true
 				}
 			case IntegerIterator:
+				if p, _ := itr.Next(); p != nil {
+					hasData = true
+				}
+			case UnsignedIterator:
 				if p, _ := itr.Next(); p != nil {
 					hasData = true
 				}
@@ -612,6 +646,8 @@ func NewReaderIterator(r io.Reader, typ influxql.DataType, stats IteratorStats) 
 		return newFloatReaderIterator(r, stats)
 	case influxql.Integer:
 		return newIntegerReaderIterator(r, stats)
+	case influxql.Unsigned:
+		return newUnsignedReaderIterator(r, stats)
 	case influxql.String:
 		return newStringReaderIterator(r, stats)
 	case influxql.Boolean:
@@ -685,7 +721,7 @@ type IteratorOptions struct {
 	// and close as soon as possible.
 	InterruptCh <-chan struct{}
 
-	// Authorizer can limit acccess to data
+	// Authorizer can limit access to data
 	Authorizer Authorizer
 }
 
@@ -801,12 +837,15 @@ func newIteratorOptionsSubstatement(stmt *influxql.SelectStatement, opt Iterator
 	// Propagate the ordering from the parent query.
 	subOpt.Ascending = opt.Ascending
 
-	// If the inner query uses a null fill option, switch it to none so we
-	// don't hit an unnecessary penalty from the fill iterator. Null values
-	// will end up getting stripped by an outer query anyway so there's no
-	// point in having them here. We still need all other types of fill
-	// iterators because they can affect the result of the outer query.
-	if subOpt.Fill == influxql.NullFill {
+	// If the inner query uses a null fill option and is not a raw query,
+	// switch it to none so we don't hit an unnecessary penalty from the
+	// fill iterator. Null values will end up getting stripped by an outer
+	// query anyway so there's no point in having them here. We still need
+	// all other types of fill iterators because they can affect the result
+	// of the outer query. We also do not do this for raw queries because
+	// there is no fill iterator for them and fill(none) doesn't work with
+	// raw queries.
+	if !stmt.IsRawQuery && subOpt.Fill == influxql.NullFill {
 		subOpt.Fill = influxql.NoFill
 	}
 
@@ -1025,15 +1064,17 @@ func encodeIteratorOptions(opt *IteratorOptions) *internal.IteratorOptions {
 	}
 
 	// Convert and encode aux fields as variable references.
-	pb.Fields = make([]*internal.VarRef, len(opt.Aux))
-	pb.Aux = make([]string, len(opt.Aux))
-	for i, ref := range opt.Aux {
-		pb.Fields[i] = encodeVarRef(ref)
-		pb.Aux[i] = ref.Val
+	if opt.Aux != nil {
+		pb.Fields = make([]*internal.VarRef, len(opt.Aux))
+		pb.Aux = make([]string, len(opt.Aux))
+		for i, ref := range opt.Aux {
+			pb.Fields[i] = encodeVarRef(ref)
+			pb.Aux[i] = ref.Val
+		}
 	}
 
 	// Encode group by dimensions from a map.
-	if pb.GroupBy != nil {
+	if opt.GroupBy != nil {
 		dimensions := make([]string, 0, len(opt.GroupBy))
 		for dim := range opt.GroupBy {
 			dimensions = append(dimensions, dim)
@@ -1069,7 +1110,6 @@ func decodeIteratorOptions(pb *internal.IteratorOptions) (*IteratorOptions, erro
 		Interval:   decodeInterval(pb.GetInterval()),
 		Dimensions: pb.GetDimensions(),
 		Fill:       influxql.FillOption(pb.GetFill()),
-		FillValue:  pb.GetFillValue(),
 		StartTime:  pb.GetStartTime(),
 		EndTime:    pb.GetEndTime(),
 		Ascending:  pb.GetAscending(),
@@ -1106,9 +1146,9 @@ func decodeIteratorOptions(pb *internal.IteratorOptions) (*IteratorOptions, erro
 		for i, ref := range fields {
 			opt.Aux[i] = decodeVarRef(ref)
 		}
-	} else {
-		opt.Aux = make([]influxql.VarRef, len(pb.GetAux()))
-		for i, name := range pb.GetAux() {
+	} else if aux := pb.GetAux(); aux != nil {
+		opt.Aux = make([]influxql.VarRef, len(aux))
+		for i, name := range aux {
 			opt.Aux[i] = influxql.VarRef{Val: name}
 		}
 	}
@@ -1133,6 +1173,11 @@ func decodeIteratorOptions(pb *internal.IteratorOptions) (*IteratorOptions, erro
 			dimensions[dim] = struct{}{}
 		}
 		opt.GroupBy = dimensions
+	}
+
+	// Set the fill value, if set.
+	if pb.FillValue != nil {
+		opt.FillValue = pb.GetFillValue()
 	}
 
 	// Set condition, if set.

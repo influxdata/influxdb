@@ -14,8 +14,8 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/dgryski/go-bits"
 	"github.com/dgryski/go-bitstream"
+	"github.com/influxdata/influxdb/pkg/bits"
 )
 
 const (
@@ -110,8 +110,8 @@ func (s *FloatEncoder) Write(v float64) {
 	} else {
 		s.bw.WriteBit(bitstream.One)
 
-		leading := bits.Clz(vDelta)
-		trailing := bits.Ctz(vDelta)
+		leading := uint64(bits.LeadingZeros64(vDelta))
+		trailing := uint64(bits.TrailingZeros64(vDelta))
 
 		// Clamp number of leading zeros to avoid overflow when encoding
 		leading &= 0x1F

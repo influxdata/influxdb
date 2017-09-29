@@ -6,10 +6,6 @@
 
 package tsm1
 
-import (
-	"runtime"
-)
-
 // merge combines the next set of blocks into merged blocks.
 func (k *tsmKeyIterator) mergeFloat() {
 	// No blocks left, or pending merged values, we're done
@@ -92,10 +88,6 @@ func (k *tsmKeyIterator) combineFloat(dedup bool) blocks {
 				}
 
 				k.mergedFloatValues = k.mergedFloatValues.Merge(v)
-
-				// Allow other goroutines to run
-				runtime.Gosched()
-
 			}
 		}
 
@@ -120,8 +112,6 @@ func (k *tsmKeyIterator) combineFloat(dedup bool) blocks {
 				break
 			}
 			i++
-			// Allow other goroutines to run
-			runtime.Gosched()
 		}
 
 		if k.fast {
@@ -134,8 +124,6 @@ func (k *tsmKeyIterator) combineFloat(dedup bool) blocks {
 
 				chunked = append(chunked, k.blocks[i])
 				i++
-				// Allow other goroutines to run
-				runtime.Gosched()
 			}
 		}
 
@@ -170,8 +158,6 @@ func (k *tsmKeyIterator) combineFloat(dedup bool) blocks {
 
 			k.mergedFloatValues = k.mergedFloatValues.Merge(v)
 			i++
-			// Allow other goroutines to run
-			runtime.Gosched()
 		}
 
 		k.blocks = k.blocks[i:]
@@ -300,10 +286,6 @@ func (k *tsmKeyIterator) combineInteger(dedup bool) blocks {
 				}
 
 				k.mergedIntegerValues = k.mergedIntegerValues.Merge(v)
-
-				// Allow other goroutines to run
-				runtime.Gosched()
-
 			}
 		}
 
@@ -328,8 +310,6 @@ func (k *tsmKeyIterator) combineInteger(dedup bool) blocks {
 				break
 			}
 			i++
-			// Allow other goroutines to run
-			runtime.Gosched()
 		}
 
 		if k.fast {
@@ -342,8 +322,6 @@ func (k *tsmKeyIterator) combineInteger(dedup bool) blocks {
 
 				chunked = append(chunked, k.blocks[i])
 				i++
-				// Allow other goroutines to run
-				runtime.Gosched()
 			}
 		}
 
@@ -378,8 +356,6 @@ func (k *tsmKeyIterator) combineInteger(dedup bool) blocks {
 
 			k.mergedIntegerValues = k.mergedIntegerValues.Merge(v)
 			i++
-			// Allow other goroutines to run
-			runtime.Gosched()
 		}
 
 		k.blocks = k.blocks[i:]
@@ -508,10 +484,6 @@ func (k *tsmKeyIterator) combineUnsigned(dedup bool) blocks {
 				}
 
 				k.mergedUnsignedValues = k.mergedUnsignedValues.Merge(v)
-
-				// Allow other goroutines to run
-				runtime.Gosched()
-
 			}
 		}
 
@@ -536,8 +508,6 @@ func (k *tsmKeyIterator) combineUnsigned(dedup bool) blocks {
 				break
 			}
 			i++
-			// Allow other goroutines to run
-			runtime.Gosched()
 		}
 
 		if k.fast {
@@ -550,8 +520,6 @@ func (k *tsmKeyIterator) combineUnsigned(dedup bool) blocks {
 
 				chunked = append(chunked, k.blocks[i])
 				i++
-				// Allow other goroutines to run
-				runtime.Gosched()
 			}
 		}
 
@@ -586,8 +554,6 @@ func (k *tsmKeyIterator) combineUnsigned(dedup bool) blocks {
 
 			k.mergedUnsignedValues = k.mergedUnsignedValues.Merge(v)
 			i++
-			// Allow other goroutines to run
-			runtime.Gosched()
 		}
 
 		k.blocks = k.blocks[i:]
@@ -716,10 +682,6 @@ func (k *tsmKeyIterator) combineString(dedup bool) blocks {
 				}
 
 				k.mergedStringValues = k.mergedStringValues.Merge(v)
-
-				// Allow other goroutines to run
-				runtime.Gosched()
-
 			}
 		}
 
@@ -744,8 +706,6 @@ func (k *tsmKeyIterator) combineString(dedup bool) blocks {
 				break
 			}
 			i++
-			// Allow other goroutines to run
-			runtime.Gosched()
 		}
 
 		if k.fast {
@@ -758,8 +718,6 @@ func (k *tsmKeyIterator) combineString(dedup bool) blocks {
 
 				chunked = append(chunked, k.blocks[i])
 				i++
-				// Allow other goroutines to run
-				runtime.Gosched()
 			}
 		}
 
@@ -794,8 +752,6 @@ func (k *tsmKeyIterator) combineString(dedup bool) blocks {
 
 			k.mergedStringValues = k.mergedStringValues.Merge(v)
 			i++
-			// Allow other goroutines to run
-			runtime.Gosched()
 		}
 
 		k.blocks = k.blocks[i:]
@@ -924,10 +880,6 @@ func (k *tsmKeyIterator) combineBoolean(dedup bool) blocks {
 				}
 
 				k.mergedBooleanValues = k.mergedBooleanValues.Merge(v)
-
-				// Allow other goroutines to run
-				runtime.Gosched()
-
 			}
 		}
 
@@ -952,8 +904,6 @@ func (k *tsmKeyIterator) combineBoolean(dedup bool) blocks {
 				break
 			}
 			i++
-			// Allow other goroutines to run
-			runtime.Gosched()
 		}
 
 		if k.fast {
@@ -966,8 +916,6 @@ func (k *tsmKeyIterator) combineBoolean(dedup bool) blocks {
 
 				chunked = append(chunked, k.blocks[i])
 				i++
-				// Allow other goroutines to run
-				runtime.Gosched()
 			}
 		}
 
@@ -1002,8 +950,6 @@ func (k *tsmKeyIterator) combineBoolean(dedup bool) blocks {
 
 			k.mergedBooleanValues = k.mergedBooleanValues.Merge(v)
 			i++
-			// Allow other goroutines to run
-			runtime.Gosched()
 		}
 
 		k.blocks = k.blocks[i:]

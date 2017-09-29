@@ -120,3 +120,13 @@ func munmap(b []byte) (err error) {
 	}
 	return nil
 }
+
+func madviseDontNeed(b []byte) error {
+	// Not supported
+	return nil
+}
+
+func madvise(b []byte, advice int) error {
+	// Not implemented
+	return nil
+}

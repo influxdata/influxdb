@@ -2462,12 +2462,14 @@ func (p *Parser) ParseVarRef() (*VarRef, error) {
 				dtype = Float
 			case "integer":
 				dtype = Integer
+			case "unsigned":
+				dtype = Unsigned
 			case "string":
 				dtype = String
 			case "boolean":
 				dtype = Boolean
 			default:
-				return nil, newParseError(tokstr(tok, lit), []string{"float", "integer", "string", "boolean", "field", "tag"}, pos)
+				return nil, newParseError(tokstr(tok, lit), []string{"float", "integer", "unsigned", "string", "boolean", "field", "tag"}, pos)
 			}
 		case FIELD:
 			dtype = AnyField
@@ -2601,6 +2603,11 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 	case INTEGER:
 		v, err := strconv.ParseInt(lit, 10, 64)
 		if err != nil {
+			// The literal may be too large to fit into an int64. If it is, use an unsigned integer.
+			// The check for negative numbers is handled somewhere else so this should always be a positive number.
+			if v, err := strconv.ParseUint(lit, 10, 64); err == nil {
+				return &UnsignedLiteral{Val: v}, nil
+			}
 			return nil, &ParseError{Message: "unable to parse integer", Pos: pos}
 		}
 		return &IntegerLiteral{Val: v}, nil
@@ -2677,6 +2684,16 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 				lit.Val *= float64(mul)
 			case *IntegerLiteral:
 				lit.Val *= int64(mul)
+			case *UnsignedLiteral:
+				if tok == SUB {
+					// Because of twos-complement integers and the method we parse, math.MinInt64 will be parsed
+					// as an UnsignedLiteral because it overflows an int64, but it fits into int64 if it were parsed
+					// as a negative number instead.
+					if lit.Val == uint64(math.MaxInt64+1) {
+						return &IntegerLiteral{Val: int64(-lit.Val)}, nil
+					}
+					return nil, fmt.Errorf("constant -%d underflows int64", lit.Val)
+				}
 			case *DurationLiteral:
 				lit.Val *= time.Duration(mul)
 			case *VarRef, *Call, *ParenExpr:

@@ -26,6 +26,7 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 	_ "github.com/influxdata/influxdb/tsdb/index"
 	"github.com/influxdata/influxdb/tsdb/index/inmem"
+	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 	"github.com/uber-go/zap"
 )
 
@@ -136,8 +137,10 @@ type Engine struct {
 
 	stats *EngineStatistics
 
-	// The limiter for concurrent compactions
-	compactionLimiter limiter.Fixed
+	// Limiters for concurrent compactions.  The low priority limiter is for level 3 and 4
+	// compactions.  The high priority is for level 1 and 2 compactions.
+	loPriCompactionLimiter limiter.Fixed
+	hiPriCompactionLimiter limiter.Fixed
 }
 
 // NewEngine returns a new instance of Engine.
@@ -175,8 +178,9 @@ func NewEngine(id uint64, idx tsdb.Index, database, path string, walPath string,
 		CacheFlushMemorySizeThreshold: opt.Config.CacheSnapshotMemorySize,
 		CacheFlushWriteColdDuration:   time.Duration(opt.Config.CacheSnapshotWriteColdDuration),
 		enableCompactionsOnOpen:       true,
-		stats:             &EngineStatistics{},
-		compactionLimiter: opt.CompactionLimiter,
+		stats: &EngineStatistics{},
+		loPriCompactionLimiter: opt.LoPriCompactionLimiter,
+		hiPriCompactionLimiter: opt.HiPriCompactionLimiter,
 	}
 
 	// Attach fieldset to index.
@@ -577,6 +581,12 @@ func (e *Engine) IsIdle() bool {
 	runningCompactions += atomic.LoadInt64(&e.stats.TSMOptimizeCompactionsActive)
 
 	return cacheEmpty && runningCompactions == 0 && e.CompactionPlan.FullyCompacted()
+}
+
+// Free releases any resources held by the engine to free up memory or CPU.
+func (e *Engine) Free() error {
+	e.Cache.Free()
+	return e.FileStore.Free()
 }
 
 // Backup writes a tar archive of any TSM files modified since the passed
@@ -1283,6 +1293,10 @@ func (e *Engine) compactTSMFull(quit <-chan struct{}) {
 // onFileStoreReplace is callback handler invoked when the FileStore
 // has replaced one set of TSM files with a new set.
 func (e *Engine) onFileStoreReplace(newFiles []TSMFile) {
+	if e.index.Type() == tsi1.IndexName {
+		return
+	}
+
 	// Load any new series keys to the index
 	readers := make([]chan seriesKey, 0, len(newFiles))
 	for _, r := range newFiles {
@@ -1317,7 +1331,7 @@ func (e *Engine) onFileStoreReplace(newFiles []TSMFile) {
 
 	// load metadata from the Cache
 	e.Cache.ApplyEntryFn(func(key []byte, entry *entry) error {
-		fieldType, err := entry.values.InfluxQLType()
+		fieldType, err := entry.InfluxQLType()
 		if err != nil {
 			e.logger.Error(fmt.Sprintf("refresh index (3): %v", err))
 			return nil
@@ -1335,46 +1349,33 @@ func (e *Engine) onFileStoreReplace(newFiles []TSMFile) {
 type compactionStrategy struct {
 	compactionGroups []CompactionGroup
 
-	// concurrency determines how many compactions groups will be started
-	// concurrently.  These groups may be limited by the global limiter if
-	// enabled.
-	concurrency int
 	fast        bool
 	description string
+	level       int
 
 	durationStat *int64
 	activeStat   *int64
 	successStat  *int64
 	errorStat    *int64
 
-	logger    zap.Logger
-	compactor *Compactor
-	fileStore *FileStore
-	limiter   limiter.Fixed
-	engine    *Engine
+	logger       zap.Logger
+	compactor    *Compactor
+	fileStore    *FileStore
+	loPriLimiter limiter.Fixed
+	hiPriLimiter limiter.Fixed
+
+	engine *Engine
 }
 
 // Apply concurrently compacts all the groups in a compaction strategy.
 func (s *compactionStrategy) Apply() {
 	start := time.Now()
 
-	// cap concurrent compaction groups to no more than 4 at a time.
-	concurrency := s.concurrency
-	if concurrency == 0 {
-		concurrency = 4
-	}
-
-	throttle := limiter.NewFixed(concurrency)
 	var wg sync.WaitGroup
 	for i := range s.compactionGroups {
 		wg.Add(1)
 		go func(groupNum int) {
 			defer wg.Done()
-
-			// limit concurrent compaction groups
-			throttle.Take()
-			defer throttle.Release()
-
 			s.compactGroup(groupNum)
 		}(i)
 	}
@@ -1385,10 +1386,31 @@ func (s *compactionStrategy) Apply() {
 
 // compactGroup executes the compaction strategy against a single CompactionGroup.
 func (s *compactionStrategy) compactGroup(groupNum int) {
-	// Limit concurrent compactions if we have a limiter
-	if cap(s.limiter) > 0 {
-		s.limiter.Take()
-		defer s.limiter.Release()
+	// Level 1 and 2 are high priority and have a larger slice of the pool.  If all
+	// the high priority capacity is used up, they can steal from the low priority
+	// pool as well if there is capacity.  Otherwise, it wait on the high priority
+	// limiter until an running compaction completes.  Level 3 and 4 are low priority
+	// as they are generally larger compactions and more expensive to run.  They can
+	// steal a little from the high priority limiter if there is no high priority work.
+	switch s.level {
+	case 1, 2:
+		if s.hiPriLimiter.TryTake() {
+			defer s.hiPriLimiter.Release()
+		} else if s.loPriLimiter.TryTake() {
+			defer s.loPriLimiter.Release()
+		} else {
+			s.hiPriLimiter.Take()
+			defer s.hiPriLimiter.Release()
+		}
+	default:
+		if s.loPriLimiter.TryTake() {
+			defer s.loPriLimiter.Release()
+		} else if s.hiPriLimiter.Idle() && s.hiPriLimiter.TryTake() {
+			defer s.hiPriLimiter.Release()
+		} else {
+			s.loPriLimiter.Take()
+			defer s.loPriLimiter.Release()
+		}
 	}
 
 	group := s.compactionGroups[groupNum]
@@ -1451,14 +1473,15 @@ func (e *Engine) levelCompactionStrategy(fast bool, level int) *compactionStrate
 	}
 
 	return &compactionStrategy{
-		concurrency:      4,
 		compactionGroups: compactionGroups,
 		logger:           e.logger,
 		fileStore:        e.FileStore,
 		compactor:        e.Compactor,
 		fast:             fast,
-		limiter:          e.compactionLimiter,
+		loPriLimiter:     e.loPriCompactionLimiter,
+		hiPriLimiter:     e.hiPriCompactionLimiter,
 		engine:           e,
+		level:            level,
 
 		description:  fmt.Sprintf("level %d", level),
 		activeStat:   &e.stats.TSMCompactionsActive[level-1],
@@ -1484,14 +1507,15 @@ func (e *Engine) fullCompactionStrategy() *compactionStrategy {
 	}
 
 	s := &compactionStrategy{
-		concurrency:      1,
 		compactionGroups: compactionGroups,
 		logger:           e.logger,
 		fileStore:        e.FileStore,
 		compactor:        e.Compactor,
 		fast:             optimize,
-		limiter:          e.compactionLimiter,
+		loPriLimiter:     e.loPriCompactionLimiter,
+		hiPriLimiter:     e.hiPriCompactionLimiter,
 		engine:           e,
+		level:            4,
 	}
 
 	if optimize {

@@ -1,6 +1,7 @@
 package httpd_test
 
 import (
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -41,6 +42,7 @@ func TestResponseWriter_CSV(t *testing.T) {
 							{time.Unix(0, 40), "foobar"},
 							{time.Unix(0, 50), true},
 							{time.Unix(0, 60), false},
+							{time.Unix(0, 70), uint64(math.MaxInt64 + 1)},
 						},
 					},
 				},
@@ -55,6 +57,7 @@ cpu,"host=server01,region=uswest",30,
 cpu,"host=server01,region=uswest",40,foobar
 cpu,"host=server01,region=uswest",50,true
 cpu,"host=server01,region=uswest",60,false
+cpu,"host=server01,region=uswest",70,9223372036854775808
 `; got != want {
 		t.Errorf("unexpected output:\n\ngot=%v\nwant=%s", got, want)
 	}

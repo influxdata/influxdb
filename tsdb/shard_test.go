@@ -842,16 +842,16 @@ func TestShard_Closed_Functions(t *testing.T) {
 
 		sh.Close()
 
-		// Should not panic, just a no-op when shard is closed
+		// Should not panic, but returns an error when shard is closed
 		if err := sh.ForEachMeasurementTagKey([]byte("cpu"), func(k []byte) error {
 			return nil
-		}); err != nil {
-			t.Fatalf("expected nil: got %v", err)
+		}); err == nil {
+			t.Fatal("expected error: got nil")
 		}
 
-		// Should not panic, just a no-op when shard is closed
+		// Should not panic.
 		if exp, got := 0, sh.TagKeyCardinality([]byte("cpu"), []byte("host")); exp != got {
-			t.Fatalf("expected nil: exp %v, got %v", exp, got)
+			t.Fatalf("got %d, expected %d", got, exp)
 		}
 	}
 
@@ -969,179 +969,6 @@ _reserved,region=uswest value="foo" 0
 				}
 				if diff := cmp.Diff(tt.d, d, cmpopts.EquateEmpty()); diff != "" {
 					t.Errorf("unexpected dimensions:\n%s", diff)
-				}
-			})
-		}
-		sh.Close()
-	}
-}
-
-func TestShard_MapType(t *testing.T) {
-	var sh *Shard
-
-	setup := func(index string) {
-		sh = NewShard(index)
-
-		if err := sh.Open(); err != nil {
-			t.Fatal(err)
-		}
-
-		sh.MustWritePointsString(`
-cpu,host=serverA,region=uswest value=100 0
-cpu,host=serverA,region=uswest value=50,val2=5  10
-cpu,host=serverB,region=uswest value=25  0
-mem,host=serverA value=25i 0
-mem,host=serverB value=50i,val3=t 10
-_reserved,region=uswest value="foo" 0
-`)
-	}
-
-	for _, index := range tsdb.RegisteredIndexes() {
-		setup(index)
-		for _, tt := range []struct {
-			measurement string
-			field       string
-			typ         influxql.DataType
-		}{
-			{
-				measurement: "cpu",
-				field:       "value",
-				typ:         influxql.Float,
-			},
-			{
-				measurement: "cpu",
-				field:       "host",
-				typ:         influxql.Tag,
-			},
-			{
-				measurement: "cpu",
-				field:       "region",
-				typ:         influxql.Tag,
-			},
-			{
-				measurement: "cpu",
-				field:       "val2",
-				typ:         influxql.Float,
-			},
-			{
-				measurement: "cpu",
-				field:       "unknown",
-				typ:         influxql.Unknown,
-			},
-			{
-				measurement: "mem",
-				field:       "value",
-				typ:         influxql.Integer,
-			},
-			{
-				measurement: "mem",
-				field:       "val3",
-				typ:         influxql.Boolean,
-			},
-			{
-				measurement: "mem",
-				field:       "host",
-				typ:         influxql.Tag,
-			},
-			{
-				measurement: "unknown",
-				field:       "unknown",
-				typ:         influxql.Unknown,
-			},
-			{
-				measurement: "_fieldKeys",
-				field:       "fieldKey",
-				typ:         influxql.String,
-			},
-			{
-				measurement: "_fieldKeys",
-				field:       "fieldType",
-				typ:         influxql.String,
-			},
-			{
-				measurement: "_fieldKeys",
-				field:       "unknown",
-				typ:         influxql.Unknown,
-			},
-			{
-				measurement: "_series",
-				field:       "key",
-				typ:         influxql.String,
-			},
-			{
-				measurement: "_series",
-				field:       "unknown",
-				typ:         influxql.Unknown,
-			},
-			{
-				measurement: "_tagKeys",
-				field:       "tagKey",
-				typ:         influxql.String,
-			},
-			{
-				measurement: "_tagKeys",
-				field:       "unknown",
-				typ:         influxql.Unknown,
-			},
-			{
-				measurement: "_reserved",
-				field:       "value",
-				typ:         influxql.String,
-			},
-			{
-				measurement: "_reserved",
-				field:       "region",
-				typ:         influxql.Tag,
-			},
-		} {
-			name := fmt.Sprintf("%s_%s_%s", index, tt.measurement, tt.field)
-			t.Run(name, func(t *testing.T) {
-				typ := sh.MapType(tt.measurement, tt.field)
-				if have, want := typ, tt.typ; have != want {
-					t.Errorf("unexpected data type: have=%#v want=%#v", have, want)
-				}
-			})
-		}
-		sh.Close()
-	}
-}
-
-func TestShard_MeasurementsByRegex(t *testing.T) {
-	var sh *Shard
-	setup := func(index string) {
-		sh = NewShard(index)
-		if err := sh.Open(); err != nil {
-			t.Fatal(err)
-		}
-
-		sh.MustWritePointsString(`
-cpu,host=serverA,region=uswest value=100 0
-cpu,host=serverA,region=uswest value=50,val2=5  10
-cpu,host=serverB,region=uswest value=25  0
-mem,host=serverA value=25i 0
-mem,host=serverB value=50i,val3=t 10
-`)
-	}
-
-	for _, index := range tsdb.RegisteredIndexes() {
-		setup(index)
-		for _, tt := range []struct {
-			regex        string
-			measurements []string
-		}{
-			{regex: `cpu`, measurements: []string{"cpu"}},
-			{regex: `mem`, measurements: []string{"mem"}},
-			{regex: `cpu|mem`, measurements: []string{"cpu", "mem"}},
-			{regex: `gpu`, measurements: []string{}},
-			{regex: `pu`, measurements: []string{"cpu"}},
-			{regex: `p|m`, measurements: []string{"cpu", "mem"}},
-		} {
-			t.Run(index+"_"+tt.regex, func(t *testing.T) {
-				re := regexp.MustCompile(tt.regex)
-				measurements := sh.MeasurementsByRegex(re)
-				sort.Strings(measurements)
-				if diff := cmp.Diff(tt.measurements, measurements, cmpopts.EquateEmpty()); diff != "" {
-					t.Errorf("unexpected measurements:\n%s", diff)
 				}
 			})
 		}

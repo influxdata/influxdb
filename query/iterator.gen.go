@@ -38,10 +38,6 @@ func newFloatIterators(itrs []Iterator) []FloatIterator {
 		switch itr := itr.(type) {
 		case FloatIterator:
 			a = append(a, itr)
-
-		case IntegerIterator:
-			a = append(a, &integerFloatCastIterator{input: itr})
-
 		default:
 			itr.Close()
 		}
@@ -3432,7 +3428,6 @@ func newIntegerIterators(itrs []Iterator) []IntegerIterator {
 		switch itr := itr.(type) {
 		case IntegerIterator:
 			a = append(a, itr)
-
 		default:
 			itr.Close()
 		}
@@ -6820,7 +6815,6 @@ func newUnsignedIterators(itrs []Iterator) []UnsignedIterator {
 		switch itr := itr.(type) {
 		case UnsignedIterator:
 			a = append(a, itr)
-
 		default:
 			itr.Close()
 		}
@@ -7507,7 +7501,21 @@ func (itr *unsignedFillIterator) Next() (*UnsignedPoint, error) {
 
 		switch itr.opt.Fill {
 		case influxql.LinearFill:
-			fallthrough
+			if !itr.prev.Nil {
+				next, err := itr.input.peek()
+				if err != nil {
+					return nil, err
+				} else if next != nil && next.Name == itr.window.name && next.Tags.ID() == itr.window.tags.ID() {
+					interval := int64(itr.opt.Interval.Duration)
+					start := itr.window.time / interval
+					p.Value = linearUnsigned(start, itr.prev.Time/interval, next.Time/interval, itr.prev.Value, next.Value)
+				} else {
+					p.Nil = true
+				}
+			} else {
+				p.Nil = true
+			}
+
 		case influxql.NullFill:
 			p.Nil = true
 		case influxql.NumberFill:
@@ -10194,7 +10202,6 @@ func newStringIterators(itrs []Iterator) []StringIterator {
 		switch itr := itr.(type) {
 		case StringIterator:
 			a = append(a, itr)
-
 		default:
 			itr.Close()
 		}
@@ -13568,7 +13575,6 @@ func newBooleanIterators(itrs []Iterator) []BooleanIterator {
 		switch itr := itr.(type) {
 		case BooleanIterator:
 			a = append(a, itr)
-
 		default:
 			itr.Close()
 		}

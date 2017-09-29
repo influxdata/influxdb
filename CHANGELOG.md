@@ -1,5 +1,9 @@
 ## v1.4.0 [unreleased]
 
+### Breaking changes
+
+* You can no longer specify a different `ORDER BY` clause in a subquery than the one in the top level query. This functionality never worked properly, but was not explicitly forbidden.
+
 ### Configuration Changes
 
 #### `[collectd]` Section
@@ -26,6 +30,11 @@
 - [#8776](https://github.com/influxdata/influxdb/pull/8776): Initial implementation of explain plan.
 - [#8791](https://github.com/influxdata/influxdb/pull/8791): Include the number of scanned cached values in the iterator cost.
 - [#8784](https://github.com/influxdata/influxdb/pull/8784): Add support for the Prometheus remote read and write APIs.
+- [#8851](https://github.com/influxdata/influxdb/pull/8851): Improve performance of `Include` and `Exclude` functions
+- [#8854](https://github.com/influxdata/influxdb/pull/8854): Report the task status for a query.
+- [#8853](https://github.com/influxdata/influxdb/pull/8853): Reduce allocations, improve `readEntries` performance by simplifying loop
+- [#8830](https://github.com/influxdata/influxdb/issues/8830): Separate importer log statements to stdout and stderr.
+- [#8857](https://github.com/influxdata/influxdb/pull/8857): Improve performance of Bloom Filter in TSI index.
 
 ### Bugfixes
 
@@ -35,6 +44,7 @@
 - [#8461](https://github.com/influxdata/influxdb/issues/8461) influxd backup tool will now separate out its logging to stdout and stderr. Thanks @xginn8!
 - [#8558](https://github.com/influxdata/influxdb/issues/8558): Dropping measurement used several GB disk space
 - [#8569](https://github.com/influxdata/influxdb/issues/8569): Fix the cq start and end times to use unix timestamps.
+- [#8590](https://github.com/influxdata/influxdb/issues/8590): influx cli case sensitivity.
 - [#8601](https://github.com/influxdata/influxdb/pull/8601): Fixed time boundaries for continuous queries with time zones.
 - [#8097](https://github.com/influxdata/influxdb/pull/8097): Return query parsing errors in CSV formats.
 - [#8607](https://github.com/influxdata/influxdb/issues/8607): Fix time zone shifts when the shift happens on a time zone boundary.
@@ -54,6 +64,9 @@
 - [#8697](https://github.com/influxdata/influxdb/issues/8697): Drop Series Cause Write Fail/Write Timeouts/High Memory Usage
 - [#8741](https://github.com/influxdata/influxdb/issues/8741): Fix increased memory usage in cache and wal readers
 - [#8749](https://github.com/influxdata/influxdb/issues/8749): An OSS read-only user should be able to list measurements on a database
+- [#8678](https://github.com/influxdata/influxdb/issues/8678): Ensure time and tag-based condition can be used with tsi1 index when deleting.
+- [#8848](https://github.com/influxdata/influxdb/issues/8848): Prevent deadlock when doing math on the result of a subquery.
+- [#8813](https://github.com/influxdata/influxdb/issues/8813): Fix retention policy duration format
 
 ## v1.3.4 [unreleased]
 
@@ -62,6 +75,7 @@
 - [#8701](https://github.com/influxdata/influxdb/pull/8701): Fix drop measurement not dropping all data
 - [#8713](https://github.com/influxdata/influxdb/issues/8713): Deadlock when dropping measurement and writing
 - [#8726](https://github.com/influxdata/influxdb/pull/8726): Fix leaking tmp file when large compaction aborted
+
 
 ## v1.3.3 [unreleased]
 

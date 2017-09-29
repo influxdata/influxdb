@@ -759,6 +759,45 @@ func TestCacheLoader_LoadDeleted(t *testing.T) {
 	}
 }
 
+func TestCache_Split(t *testing.T) {
+	v0 := NewValue(1, 1.0)
+	v1 := NewValue(2, 2.0)
+	v2 := NewValue(3, 3.0)
+	values := Values{v0, v1, v2}
+	valuesSize := uint64(v0.Size() + v1.Size() + v2.Size())
+
+	c := NewCache(0, "")
+
+	if err := c.Write([]byte("foo"), values); err != nil {
+		t.Fatalf("failed to write key foo to cache: %s", err.Error())
+	}
+	if err := c.Write([]byte("bar"), values); err != nil {
+		t.Fatalf("failed to write key foo to cache: %s", err.Error())
+	}
+
+	if err := c.Write([]byte("baz"), values); err != nil {
+		t.Fatalf("failed to write key foo to cache: %s", err.Error())
+	}
+
+	if n := c.Size(); n != 3*valuesSize+9 {
+		t.Fatalf("cache size incorrect after 3 writes, exp %d, got %d", 3*valuesSize*9, n)
+	}
+
+	splits := c.Split(3)
+	keys := make(map[string]int)
+	for _, s := range splits {
+		for _, k := range s.Keys() {
+			keys[string(k)] = s.Values(k).Size()
+		}
+	}
+
+	for _, key := range []string{"foo", "bar", "baz"} {
+		if _, ok := keys[key]; !ok {
+			t.Fatalf("missing key, exp %s, got %v", key, nil)
+		}
+	}
+}
+
 func mustTempDir() string {
 	dir, err := ioutil.TempDir("", "tsm1-test")
 	if err != nil {
@@ -797,6 +836,8 @@ type TestStore struct {
 	applyf       func(f func([]byte, *entry) error) error
 	applySerialf func(f func([]byte, *entry) error) error
 	resetf       func()
+	splitf       func(n int) []storer
+	countf       func() int
 }
 
 func NewTestStore() *TestStore                                      { return &TestStore{} }
@@ -808,6 +849,8 @@ func (s *TestStore) keys(sorted bool) [][]byte                      { return s.k
 func (s *TestStore) apply(f func([]byte, *entry) error) error       { return s.applyf(f) }
 func (s *TestStore) applySerial(f func([]byte, *entry) error) error { return s.applySerialf(f) }
 func (s *TestStore) reset()                                         { s.resetf() }
+func (s *TestStore) split(n int) []storer                           { return s.splitf(n) }
+func (s *TestStore) count() int                                     { return s.countf() }
 
 var fvSize = uint64(NewValue(1, float64(1)).Size())
 

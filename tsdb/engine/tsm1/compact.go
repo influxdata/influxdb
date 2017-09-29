@@ -227,9 +227,16 @@ func (c *DefaultPlanner) PlanLevel(level int) []CompactionGroup {
 		minGenerations = level + 1
 	}
 
+	// Each compaction group should run against 4 generations.  For level 1, since these
+	// can get created much more quickly, bump the grouping to 8 to keep file counts lower.
+	groupSize := 4
+	if level == 1 || level == 3 {
+		groupSize = 8
+	}
+
 	var cGroups []CompactionGroup
 	for _, group := range levelGroups {
-		for _, chunk := range group.chunk(4) {
+		for _, chunk := range group.chunk(groupSize) {
 			var cGroup CompactionGroup
 			var hasTombstones bool
 			for _, gen := range chunk {
@@ -697,8 +704,43 @@ func (c *Compactor) WriteSnapshot(cache *Cache) ([]string, error) {
 		return nil, errSnapshotsDisabled
 	}
 
-	iter := NewCacheKeyIterator(cache, tsdb.DefaultMaxPointsPerBlock, intC)
-	files, err := c.writeNewFiles(c.FileStore.NextGeneration(), 0, iter)
+	concurrency := 1
+	card := cache.Count()
+	if card >= 1024*1024 {
+		concurrency = card / 1024 * 1024
+		if concurrency < 1 {
+			concurrency = 1
+		}
+		if concurrency > 4 {
+			concurrency = 4
+		}
+	}
+	splits := cache.Split(concurrency)
+
+	type res struct {
+		files []string
+		err   error
+	}
+
+	resC := make(chan res, concurrency)
+	for i := 0; i < concurrency; i++ {
+		go func(sp *Cache) {
+			iter := NewCacheKeyIterator(sp, tsdb.DefaultMaxPointsPerBlock, intC)
+			files, err := c.writeNewFiles(c.FileStore.NextGeneration(), 0, iter)
+			resC <- res{files: files, err: err}
+
+		}(splits[i])
+	}
+
+	var err error
+	files := make([]string, 0, concurrency)
+	for i := 0; i < concurrency; i++ {
+		result := <-resC
+		if result.err != nil {
+			err = result.err
+		}
+		files = append(files, result.files...)
+	}
 
 	// See if we were disabled while writing a snapshot
 	c.mu.RLock()
@@ -902,7 +944,7 @@ func (c *Compactor) writeNewFiles(generation, sequence int, iter KeyIterator) ([
 }
 
 func (c *Compactor) write(path string, iter KeyIterator) (err error) {
-	fd, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_EXCL, 0666)
+	fd, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_EXCL|os.O_SYNC, 0666)
 	if err != nil {
 		return errCompactionInProgress{err: err}
 	}
@@ -1337,53 +1379,84 @@ func (c *cacheKeyIterator) encode() {
 	n := len(c.ready)
 
 	// Divide the keyset across each CPU
-	chunkSize := 128
+	chunkSize := 1
 	idx := uint64(0)
+
 	for i := 0; i < concurrency; i++ {
 		// Run one goroutine per CPU and encode a section of the key space concurrently
 		go func() {
+			tenc := getTimeEncoder(tsdb.DefaultMaxPointsPerBlock)
+			fenc := getFloatEncoder(tsdb.DefaultMaxPointsPerBlock)
+			benc := getBooleanEncoder(tsdb.DefaultMaxPointsPerBlock)
+			uenc := getUnsignedEncoder(tsdb.DefaultMaxPointsPerBlock)
+			senc := getStringEncoder(tsdb.DefaultMaxPointsPerBlock)
+			ienc := getIntegerEncoder(tsdb.DefaultMaxPointsPerBlock)
+
+			defer putTimeEncoder(tenc)
+			defer putFloatEncoder(fenc)
+			defer putBooleanEncoder(benc)
+			defer putUnsignedEncoder(uenc)
+			defer putStringEncoder(senc)
+			defer putIntegerEncoder(ienc)
+
 			for {
-				start := int(atomic.AddUint64(&idx, uint64(chunkSize))) - chunkSize
-				if start >= n {
+				i := int(atomic.AddUint64(&idx, uint64(chunkSize))) - chunkSize
+
+				if i >= n {
 					break
 				}
-				end := start + chunkSize
-				if end > n {
-					end = n
+
+				key := c.order[i]
+				values := c.cache.values(key)
+
+				for len(values) > 0 {
+
+					end := len(values)
+					if end > c.size {
+						end = c.size
+					}
+
+					minTime, maxTime := values[0].UnixNano(), values[end-1].UnixNano()
+					var b []byte
+					var err error
+					tenc.Reset()
+
+					maxTime = values[end-1].UnixNano()
+
+					switch values[0].(type) {
+					case FloatValue:
+						fenc.Reset()
+						b, err = encodeFloatBlockUsing(nil, values[:end], tenc, fenc)
+					case IntegerValue:
+						ienc.Reset()
+						b, err = encodeIntegerBlockUsing(nil, values[:end], tenc, ienc)
+					case UnsignedValue:
+						uenc.Reset()
+						b, err = encodeUnsignedBlockUsing(nil, values[:end], tenc, uenc)
+					case BooleanValue:
+						benc.Reset()
+						b, err = encodeBooleanBlockUsing(nil, values[:end], tenc, benc)
+					case StringValue:
+						senc.Reset()
+						b, err = encodeStringBlockUsing(nil, values[:end], tenc, senc)
+					default:
+						b, err = Values(values[:end]).Encode(nil)
+					}
+
+					values = values[end:]
+
+					c.blocks[i] = append(c.blocks[i], cacheBlock{
+						k:       key,
+						minTime: minTime,
+						maxTime: maxTime,
+						b:       b,
+						err:     err,
+					})
 				}
-				c.encodeRange(start, end)
+				// Notify this key is fully encoded
+				c.ready[i] <- struct{}{}
 			}
 		}()
-	}
-}
-
-func (c *cacheKeyIterator) encodeRange(start, stop int) {
-	for i := start; i < stop; i++ {
-		key := c.order[i]
-		values := c.cache.values(key)
-
-		for len(values) > 0 {
-			minTime, maxTime := values[0].UnixNano(), values[len(values)-1].UnixNano()
-			var b []byte
-			var err error
-			if len(values) > c.size {
-				maxTime = values[c.size-1].UnixNano()
-				b, err = Values(values[:c.size]).Encode(nil)
-				values = values[c.size:]
-			} else {
-				b, err = Values(values).Encode(nil)
-				values = values[:0]
-			}
-			c.blocks[i] = append(c.blocks[i], cacheBlock{
-				k:       key,
-				minTime: minTime,
-				maxTime: maxTime,
-				b:       b,
-				err:     err,
-			})
-		}
-		// Notify this key is fully encoded
-		c.ready[i] <- struct{}{}
 	}
 }
 

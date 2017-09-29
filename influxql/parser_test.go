@@ -1112,7 +1112,7 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// SELECT casts
 		{
-			s: `SELECT field1::float, field2::integer, field3::string, field4::boolean, field5::field, tag1::tag FROM cpu`,
+			s: `SELECT field1::float, field2::integer, field6::unsigned, field3::string, field4::boolean, field5::field, tag1::tag FROM cpu`,
 			stmt: &influxql.SelectStatement{
 				IsRawQuery: true,
 				Fields: []*influxql.Field{
@@ -1126,6 +1126,12 @@ func TestParser_ParseStatement(t *testing.T) {
 						Expr: &influxql.VarRef{
 							Val:  "field2",
 							Type: influxql.Integer,
+						},
+					},
+					{
+						Expr: &influxql.VarRef{
+							Val:  "field6",
+							Type: influxql.Unsigned,
 						},
 					},
 					{
@@ -3069,6 +3075,9 @@ func TestParser_ParseExpr(t *testing.T) {
 		// Primitives
 		{s: `100.0`, expr: &influxql.NumberLiteral{Val: 100}},
 		{s: `100`, expr: &influxql.IntegerLiteral{Val: 100}},
+		{s: `9223372036854775808`, expr: &influxql.UnsignedLiteral{Val: 9223372036854775808}},
+		{s: `-9223372036854775808`, expr: &influxql.IntegerLiteral{Val: -9223372036854775808}},
+		{s: `-9223372036854775809`, err: `constant -9223372036854775809 underflows int64`},
 		{s: `-100.0`, expr: &influxql.NumberLiteral{Val: -100}},
 		{s: `-100`, expr: &influxql.IntegerLiteral{Val: -100}},
 		{s: `100.`, expr: &influxql.NumberLiteral{Val: 100}},
