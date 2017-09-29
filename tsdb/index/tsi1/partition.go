@@ -821,8 +821,8 @@ func (i *Partition) UnassignShard(k string, shardID uint64) error {
 	return i.DropSeries([]byte(k))
 }
 
-// SeriesPointIterator returns an influxql iterator over all series.
-func (i *Partition) SeriesPointIterator(opt query.IteratorOptions) (query.Iterator, error) {
+// seriesPointIterator returns an influxql iterator over all series.
+func (i *Partition) seriesPointIterator(opt query.IteratorOptions) (*seriesPointIterator, error) {
 	// NOTE: The iterator handles releasing the file set.
 	fs := i.RetainFileSet()
 	return newSeriesPointIterator(fs, i.fieldset, opt), nil
