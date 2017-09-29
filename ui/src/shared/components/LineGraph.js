@@ -86,13 +86,6 @@ class LineGraph extends Component {
       ...displayOptions,
     }
 
-    const singleStatOptions = {
-      ...options,
-      highlightSeriesOpts: {
-        strokeWidth: 1.5,
-      },
-    }
-
     const lineColors = showSingleStat
       ? SINGLE_STAT_LINE_COLORS
       : overrideLineColors
@@ -117,7 +110,7 @@ class LineGraph extends Component {
           setResolution={this.props.setResolution}
           containerStyle={{width: '100%', height: '100%'}}
           isGraphFilled={showSingleStat ? false : isGraphFilled}
-          options={showSingleStat ? singleStatOptions : options}
+          options={options}
         />
         {showSingleStat
           ? <SingleStat data={data} cellHeight={cellHeight} />
