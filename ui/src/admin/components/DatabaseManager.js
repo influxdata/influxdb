@@ -37,7 +37,7 @@ const DatabaseManager = ({
           disabled={isAddDBDisabled}
           onClick={addDatabase}
         >
-          Create Database
+          <span className="icon plus" /> Create Database
         </button>
       </div>
       <div className="panel-body">

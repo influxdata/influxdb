@@ -54,7 +54,7 @@ const DashboardsTable = ({
           onClick={onCreateDashboard}
           style={{marginBottom: '90px'}}
         >
-          Create Dashboard
+          <span className="icon plus" /> Create Dashboard
         </button>
       </div>
 }

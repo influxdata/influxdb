@@ -5,7 +5,7 @@ const EmptyQueryState = ({onAddQuery}) =>
     <h5>This Graph has no Queries</h5>
     <br />
     <div className="btn btn-primary" onClick={onAddQuery}>
-      Add a Query
+      <span className="icon plus" /> Add a Query
     </div>
   </div>
 
