@@ -38,13 +38,13 @@ class DisplayOptions extends Component {
     const {source, sources} = this.props
     const query = _.get(this.props.queryConfigs, 0, false)
 
-    if (!query) {
+    if (!query || !query.source) {
       const defaultSource = sources.find(s => s.id === source.id)
-      return (defaultSource && defaultSource.text) || 'No source selected'
+      return (defaultSource && defaultSource.text) || 'No sources'
     }
 
-    const selected = sources.find(s => s.links.self === query.source.links.self)
-    return (selected && selected.text) || 'No source selected'
+    const selected = sources.find(s => s.id === query.source.id)
+    return (selected && selected.text) || 'No sources'
   }
 
   render() {
