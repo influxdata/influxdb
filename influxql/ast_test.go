@@ -1535,6 +1535,10 @@ func TestShow_Privileges(t *testing.T) {
 			exp:  influxql.ExecutionPrivileges{{Admin: true, Privilege: influxql.AllPrivileges}},
 		},
 		{
+			stmt: &influxql.ShowVersionStatement{},
+			exp:  influxql.ExecutionPrivileges{{Admin: false, Privilege: influxql.ReadPrivileges}},
+		},
+		{
 			stmt: &influxql.ShowTagKeysStatement{},
 			exp:  influxql.ExecutionPrivileges{{Admin: false, Privilege: influxql.ReadPrivilege}},
 		},
@@ -1595,6 +1599,7 @@ func Test_EnforceHasDefaultDatabase(t *testing.T) {
 		"ShowStatsStatement",
 		"ShowSubscriptionsStatement",
 		"ShowUsersStatement",
+		"ShowVersionStatement",
 	}
 
 	exists := func(stmt string) bool {

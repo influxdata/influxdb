@@ -168,6 +168,9 @@ func init() {
 		show.Handle(USERS, func(p *Parser) (Statement, error) {
 			return p.parseShowUsersStatement()
 		})
+		show.Handle(VERSION, func(p *Parser) (Statement, error) {
+			return p.parseShowVersionStatement()
+		})
 	})
 	Language.Group(CREATE).With(func(create *ParseTree) {
 		create.Group(CONTINUOUS).Handle(QUERY, func(p *Parser) (Statement, error) {

@@ -1934,6 +1934,20 @@ func (p *Parser) parseShowStatsStatement() (*ShowStatsStatement, error) {
 	return stmt, err
 }
 
+// parseShowVersion parses a string and returns a ShowVersionStatement.
+func (p *Parser) parseShowVersionStatement() (*ShowVersionStatement, error) {
+	stmt := &ShowVersionStatement{}
+	var err error
+
+	if tok, _, _ := p.ScanIgnoreWhitespace(); tok == FOR {
+		stmt.Module, err = p.parseString()
+	} else {
+		p.Unscan()
+	}
+
+	return stmt, err
+}
+
 // parseShowDiagnostics parses a string and returns a ShowDiagnosticsStatement.
 func (p *Parser) parseShowDiagnosticsStatement() (*ShowDiagnosticsStatement, error) {
 	stmt := &ShowDiagnosticsStatement{}
