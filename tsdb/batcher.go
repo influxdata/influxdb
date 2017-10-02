@@ -56,13 +56,17 @@ func (b *PointBatcher) Start() {
 	}
 
 	// initialize the timer variable
-	timer := &time.NewTimer(b.duration)
+	timer := time.NewTimer(time.Hour)
 	timer.Stop()
 	var batch []models.Point
 
 	emit := func() {
 
 		timer.Stop()
+		select {
+		case <-timer.C:
+		default:
+		}
 
 		// Nothing batched?
 		if len(batch) == 0 {
