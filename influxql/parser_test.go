@@ -415,6 +415,57 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// exp_moving_average
+		{
+			s: `SELECT exp_moving_average(field1, 3) FROM myseries;`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: false,
+				Fields: []*influxql.Field{
+					{Expr: &influxql.Call{Name: "exp_moving_average", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.IntegerLiteral{Val: 3}}}},
+				},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "myseries"}},
+			},
+		},
+
+		{
+			s: fmt.Sprintf(`SELECT exp_moving_average(max(field1), 3) FROM myseries WHERE time > '%s' GROUP BY time(1m)`, now.UTC().Format(time.RFC3339Nano)),
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: false,
+				Fields: []*influxql.Field{
+					{
+						Expr: &influxql.Call{
+							Name: "exp_moving_average",
+							Args: []influxql.Expr{
+								&influxql.Call{
+									Name: "max",
+									Args: []influxql.Expr{
+										&influxql.VarRef{Val: "field1"},
+									},
+								},
+								&influxql.IntegerLiteral{Val: 3},
+							},
+						},
+					},
+				},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "myseries"}},
+				Dimensions: []*influxql.Dimension{
+					{
+						Expr: &influxql.Call{
+							Name: "time",
+							Args: []influxql.Expr{
+								&influxql.DurationLiteral{Val: time.Minute},
+							},
+						},
+					},
+				},
+				Condition: &influxql.BinaryExpr{
+					Op:  influxql.GT,
+					LHS: &influxql.VarRef{Val: "time"},
+					RHS: &influxql.StringLiteral{Val: now.UTC().Format(time.RFC3339Nano)},
+				},
+			},
+		},
+
 		// cumulative_sum
 		{
 			s: fmt.Sprintf(`SELECT cumulative_sum(field1) FROM myseries WHERE time > '%s'`, now.UTC().Format(time.RFC3339Nano)),
