@@ -70,6 +70,7 @@
 - [#8813](https://github.com/influxdata/influxdb/issues/8813): Fix retention policy duration format
 - [#8895](https://github.com/influxdata/influxdb/issues/8895): Fix a minor memory leak in batching points in tsdb. 
 - [#8900](https://github.com/influxdata/influxdb/issues/8900): Don't assume `which` is present in package post-install script.
+- [#8895](https://github.com/influxdata/influxdb/issues/8895): Fix a minor memory leak in batching points in tsdb.
 
 ## v1.3.4 [unreleased]
 
