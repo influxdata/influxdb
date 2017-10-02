@@ -45,29 +45,27 @@ fi
 # Distribution-specific logic
 if [[ -f /etc/redhat-release ]]; then
     # RHEL-variant logic
-    which systemctl &>/dev/null
-    if [[ $? -eq 0 ]]; then
-	install_systemd
+    if command -v systemctl &>/dev/null; then
+        install_systemd
     else
-	# Assuming sysv
-	install_init
-	install_chkconfig
+        # Assuming sysv
+        install_init
+        install_chkconfig
     fi
 elif [[ -f /etc/debian_version ]]; then
     # Debian/Ubuntu logic
-    which systemctl &>/dev/null
-    if [[ $? -eq 0 ]]; then
-	install_systemd
+    if command -v systemctl &>/dev/null; then
+        install_systemd
     else
-	# Assuming sysv
-	install_init
-	install_update_rcd
+        # Assuming sysv
+        install_init
+        install_update_rcd
     fi
 elif [[ -f /etc/os-release ]]; then
     source /etc/os-release
     if [[ $ID = "amzn" ]]; then
-	# Amazon Linux logic
-	install_init
-	install_chkconfig
+        # Amazon Linux logic
+        install_init
+        install_chkconfig
     fi
 fi
