@@ -711,7 +711,9 @@ func (c *Compactor) WriteSnapshot(cache *Cache) ([]string, error) {
 		return nil, errSnapshotsDisabled
 	}
 
-	concurrency, maxConcurrency := 1, runtime.GOMAXPROCS(0)/4
+	card := cache.Count()
+
+	concurrency, maxConcurrency := 1, runtime.GOMAXPROCS(0)/2
 	if maxConcurrency < 1 {
 		maxConcurrency = 1
 	}
@@ -719,16 +721,17 @@ func (c *Compactor) WriteSnapshot(cache *Cache) ([]string, error) {
 		maxConcurrency = 4
 	}
 
-	card := cache.Count()
-	if card >= 1024*1024 {
-		concurrency = card / 1024 * 1024
-		if concurrency < 1 {
-			concurrency = 1
-		}
-		if concurrency > maxConcurrency {
-			concurrency = maxConcurrency
-		}
+	concurrency = 1
+	if card >= 3*1024*1024 {
+		concurrency = 4
+	} else if card >= 1024*1024 {
+		concurrency = 2
 	}
+
+	if concurrency > maxConcurrency {
+		concurrency = maxConcurrency
+	}
+
 	splits := cache.Split(concurrency)
 
 	type res struct {
