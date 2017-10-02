@@ -148,7 +148,7 @@ class CellEditorOverlay extends Component {
       return {
         queryConfig: q,
         query,
-        source: q.source.links.self,
+        source: _.get(q, ['source', 'links', 'self'], null),
       }
     })
 

@@ -7,7 +7,7 @@ import CustomTimeIndicator from 'shared/components/CustomTimeIndicator'
 import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants/index'
 
 const LayoutCellHeader = (
-  {queries, isEditable, cellName, sources},
+  {queries, isEditable, cellName, sources = []},
   {source: defaultSource}
 ) => {
   const cellNameIsDefault = cellName === NEW_DEFAULT_DASHBOARD_CELL.name
