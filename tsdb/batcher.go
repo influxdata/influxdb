@@ -86,14 +86,14 @@ func (b *PointBatcher) Start() {
 		for {
 			select {
 			case <-b.stop:
-				if len(batch) > 0 {
-					emit()
-				}
+				emit()
 				return
 			case p := <-b.in:
 				atomic.AddUint64(&b.stats.PointTotal, 1)
 				if batch == nil {
-					batch = make([]models.Point, 0, b.size)
+					if b.size > 0 {
+						batch = make([]models.Point, 0, b.size)
+					}
 
 					if b.duration > 0 {
 						timer.Reset(b.duration)
@@ -107,9 +107,7 @@ func (b *PointBatcher) Start() {
 				}
 
 			case <-b.flush:
-				if len(batch) > 0 {
-					emit()
-				}
+				emit()
 
 			case <-timer.C:
 				atomic.AddUint64(&b.stats.TimeoutTotal, 1)
