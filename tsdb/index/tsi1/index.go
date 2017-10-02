@@ -146,9 +146,29 @@ func (i *Index) Open() error {
 		return errors.New("index already open")
 	}
 
-	// Open all the Partitions.
-	for _, p := range i.partitions {
-		if err := p.Open(); err != nil {
+	// Open all the Partitions in parallel.
+	n := i.availableThreads()
+
+	// Store results.
+	errC := make(chan error, n)
+
+	// Run fn on each partition using a fixed number of goroutines.
+	var pidx uint32 // Index of maximum Partition being worked on.
+	for k := 0; k < n; k++ {
+		go func() {
+			for {
+				idx := int(atomic.AddUint32(&pidx, 1) - 1) // Get next partition to work on.
+				if idx >= len(i.partitions) {
+					return // No more work.
+				}
+				errC <- i.partitions[idx].Open()
+			}
+		}()
+	}
+
+	// Check for error
+	for i := 0; i < cap(errC); i++ {
+		if err := <-errC; err != nil {
 			return err
 		}
 	}
@@ -207,7 +227,6 @@ func (i *Index) RetainFileSet() *FileSet {
 	// TODO(edd): Merge all FileSets for all partitions. For the moment we will
 	// just append them from each partition.
 	panic("TODO(edd)")
-	return nil
 }
 
 // SetFieldSet sets a shared field set from the engine.
