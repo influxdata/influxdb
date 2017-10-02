@@ -6,33 +6,36 @@ import {buildQueriesForLayouts} from 'utils/influxql'
 
 import _ from 'lodash'
 
-const getSource = (cell, source, sources) => {
+const getSource = (cell, source, sources, defaultSource) => {
   const s = _.get(cell, ['queries', '0', 'source'], null)
   if (!s) {
     return source
   }
 
-  return sources.find(src => src.links.self === s)
+  return sources.find(src => src.links.self === s) || defaultSource
 }
 
-const Layout = ({
-  host,
-  cell,
-  cell: {h, axes, type},
-  source,
-  sources,
-  onZoom,
-  templates,
-  timeRange,
-  isEditable,
-  onEditCell,
-  autoRefresh,
-  onDeleteCell,
-  synchronizer,
-  resizeCoords,
-  onCancelEditCell,
-  onSummonOverlayTechnologies,
-}) =>
+const Layout = (
+  {
+    host,
+    cell,
+    cell: {h, axes, type},
+    source,
+    sources,
+    onZoom,
+    templates,
+    timeRange,
+    isEditable,
+    onEditCell,
+    autoRefresh,
+    onDeleteCell,
+    synchronizer,
+    resizeCoords,
+    onCancelEditCell,
+    onSummonOverlayTechnologies,
+  },
+  {source: defaultSource}
+) =>
   <LayoutCell
     cell={cell}
     sources={sources}
@@ -57,7 +60,7 @@ const Layout = ({
           resizeCoords={resizeCoords}
           queries={buildQueriesForLayouts(
             cell,
-            getSource(cell, source, sources),
+            getSource(cell, source, sources, defaultSource),
             timeRange,
             host
           )}
@@ -65,6 +68,10 @@ const Layout = ({
   </LayoutCell>
 
 const {arrayOf, bool, func, number, shape, string} = PropTypes
+
+Layout.contextTypes = {
+  source: shape(),
+}
 
 Layout.propTypes = {
   autoRefresh: number.isRequired,
