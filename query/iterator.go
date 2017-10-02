@@ -1356,6 +1356,7 @@ type integerFloatTransformFunc func(p *IntegerPoint) *FloatPoint
 
 type integerFloatCastIterator struct {
 	input IntegerIterator
+	point FloatPoint
 }
 
 func (itr *integerFloatCastIterator) Stats() IteratorStats { return itr.input.Stats() }
@@ -1366,14 +1367,35 @@ func (itr *integerFloatCastIterator) Next() (*FloatPoint, error) {
 		return nil, err
 	}
 
-	return &FloatPoint{
-		Name:  p.Name,
-		Tags:  p.Tags,
-		Time:  p.Time,
-		Nil:   p.Nil,
-		Value: float64(p.Value),
-		Aux:   p.Aux,
-	}, nil
+	itr.point.Name = p.Name
+	itr.point.Tags = p.Tags
+	itr.point.Time = p.Time
+	itr.point.Nil = p.Nil
+	itr.point.Value = float64(p.Value)
+	itr.point.Aux = p.Aux
+	return &itr.point, nil
+}
+
+type unsignedFloatCastIterator struct {
+	input UnsignedIterator
+	point FloatPoint
+}
+
+func (itr *unsignedFloatCastIterator) Stats() IteratorStats { return itr.input.Stats() }
+func (itr *unsignedFloatCastIterator) Close() error         { return itr.input.Close() }
+func (itr *unsignedFloatCastIterator) Next() (*FloatPoint, error) {
+	p, err := itr.input.Next()
+	if p == nil || err != nil {
+		return nil, err
+	}
+
+	itr.point.Name = p.Name
+	itr.point.Tags = p.Tags
+	itr.point.Time = p.Time
+	itr.point.Nil = p.Nil
+	itr.point.Value = float64(p.Value)
+	itr.point.Aux = p.Aux
+	return &itr.point, nil
 }
 
 // IteratorStats represents statistics about an iterator.
