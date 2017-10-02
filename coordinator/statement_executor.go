@@ -715,13 +715,7 @@ func (e *StatementExecutor) executeShowRetentionPoliciesStatement(q *influxql.Sh
 
 	row := &models.Row{Columns: []string{"name", "duration", "shardGroupDuration", "replicaN", "default"}}
 	for _, rpi := range di.RetentionPolicies {
-		row.Values = append(row.Values, []interface{}{
-			rpi.Name,
-			influxql.FormatDuration(rpi.Duration),
-			influxql.FormatDuration(rpi.ShardGroupDuration),
-			rpi.ReplicaN,
-			di.DefaultRetentionPolicy == rpi.Name,
-		})
+		row.Values = append(row.Values, []interface{}{rpi.Name, rpi.Duration.String(), rpi.ShardGroupDuration.String(), rpi.ReplicaN, di.DefaultRetentionPolicy == rpi.Name})
 	}
 	return []*models.Row{row}, nil
 }
