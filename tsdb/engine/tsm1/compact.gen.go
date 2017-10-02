@@ -95,7 +95,6 @@ func (k *tsmKeyIterator) combineFloat(dedup bool) blocks {
 		// a single block.  We need to chunk them up into groups and re-encode them.
 		return k.chunkFloat(nil)
 	} else {
-		var chunked blocks
 		var i int
 
 		for i < len(k.blocks) {
@@ -107,7 +106,7 @@ func (k *tsmKeyIterator) combineFloat(dedup bool) blocks {
 			}
 			// If we this block is already full, just add it as is
 			if BlockCount(k.blocks[i].b) >= k.size {
-				chunked = append(chunked, k.blocks[i])
+				k.merged = append(k.merged, k.blocks[i])
 			} else {
 				break
 			}
@@ -122,7 +121,7 @@ func (k *tsmKeyIterator) combineFloat(dedup bool) blocks {
 					continue
 				}
 
-				chunked = append(chunked, k.blocks[i])
+				k.merged = append(k.merged, k.blocks[i])
 				i++
 			}
 		}
@@ -130,7 +129,7 @@ func (k *tsmKeyIterator) combineFloat(dedup bool) blocks {
 		// If we only have 1 blocks left, just append it as is and avoid decoding/recoding
 		if i == len(k.blocks)-1 {
 			if !k.blocks[i].read() {
-				chunked = append(chunked, k.blocks[i])
+				k.merged = append(k.merged, k.blocks[i])
 			}
 			i++
 		}
@@ -162,7 +161,7 @@ func (k *tsmKeyIterator) combineFloat(dedup bool) blocks {
 
 		k.blocks = k.blocks[i:]
 
-		return k.chunkFloat(chunked)
+		return k.chunkFloat(k.merged)
 	}
 }
 
@@ -293,7 +292,6 @@ func (k *tsmKeyIterator) combineInteger(dedup bool) blocks {
 		// a single block.  We need to chunk them up into groups and re-encode them.
 		return k.chunkInteger(nil)
 	} else {
-		var chunked blocks
 		var i int
 
 		for i < len(k.blocks) {
@@ -305,7 +303,7 @@ func (k *tsmKeyIterator) combineInteger(dedup bool) blocks {
 			}
 			// If we this block is already full, just add it as is
 			if BlockCount(k.blocks[i].b) >= k.size {
-				chunked = append(chunked, k.blocks[i])
+				k.merged = append(k.merged, k.blocks[i])
 			} else {
 				break
 			}
@@ -320,7 +318,7 @@ func (k *tsmKeyIterator) combineInteger(dedup bool) blocks {
 					continue
 				}
 
-				chunked = append(chunked, k.blocks[i])
+				k.merged = append(k.merged, k.blocks[i])
 				i++
 			}
 		}
@@ -328,7 +326,7 @@ func (k *tsmKeyIterator) combineInteger(dedup bool) blocks {
 		// If we only have 1 blocks left, just append it as is and avoid decoding/recoding
 		if i == len(k.blocks)-1 {
 			if !k.blocks[i].read() {
-				chunked = append(chunked, k.blocks[i])
+				k.merged = append(k.merged, k.blocks[i])
 			}
 			i++
 		}
@@ -360,7 +358,7 @@ func (k *tsmKeyIterator) combineInteger(dedup bool) blocks {
 
 		k.blocks = k.blocks[i:]
 
-		return k.chunkInteger(chunked)
+		return k.chunkInteger(k.merged)
 	}
 }
 
@@ -491,7 +489,6 @@ func (k *tsmKeyIterator) combineUnsigned(dedup bool) blocks {
 		// a single block.  We need to chunk them up into groups and re-encode them.
 		return k.chunkUnsigned(nil)
 	} else {
-		var chunked blocks
 		var i int
 
 		for i < len(k.blocks) {
@@ -503,7 +500,7 @@ func (k *tsmKeyIterator) combineUnsigned(dedup bool) blocks {
 			}
 			// If we this block is already full, just add it as is
 			if BlockCount(k.blocks[i].b) >= k.size {
-				chunked = append(chunked, k.blocks[i])
+				k.merged = append(k.merged, k.blocks[i])
 			} else {
 				break
 			}
@@ -518,7 +515,7 @@ func (k *tsmKeyIterator) combineUnsigned(dedup bool) blocks {
 					continue
 				}
 
-				chunked = append(chunked, k.blocks[i])
+				k.merged = append(k.merged, k.blocks[i])
 				i++
 			}
 		}
@@ -526,7 +523,7 @@ func (k *tsmKeyIterator) combineUnsigned(dedup bool) blocks {
 		// If we only have 1 blocks left, just append it as is and avoid decoding/recoding
 		if i == len(k.blocks)-1 {
 			if !k.blocks[i].read() {
-				chunked = append(chunked, k.blocks[i])
+				k.merged = append(k.merged, k.blocks[i])
 			}
 			i++
 		}
@@ -558,7 +555,7 @@ func (k *tsmKeyIterator) combineUnsigned(dedup bool) blocks {
 
 		k.blocks = k.blocks[i:]
 
-		return k.chunkUnsigned(chunked)
+		return k.chunkUnsigned(k.merged)
 	}
 }
 
@@ -689,7 +686,6 @@ func (k *tsmKeyIterator) combineString(dedup bool) blocks {
 		// a single block.  We need to chunk them up into groups and re-encode them.
 		return k.chunkString(nil)
 	} else {
-		var chunked blocks
 		var i int
 
 		for i < len(k.blocks) {
@@ -701,7 +697,7 @@ func (k *tsmKeyIterator) combineString(dedup bool) blocks {
 			}
 			// If we this block is already full, just add it as is
 			if BlockCount(k.blocks[i].b) >= k.size {
-				chunked = append(chunked, k.blocks[i])
+				k.merged = append(k.merged, k.blocks[i])
 			} else {
 				break
 			}
@@ -716,7 +712,7 @@ func (k *tsmKeyIterator) combineString(dedup bool) blocks {
 					continue
 				}
 
-				chunked = append(chunked, k.blocks[i])
+				k.merged = append(k.merged, k.blocks[i])
 				i++
 			}
 		}
@@ -724,7 +720,7 @@ func (k *tsmKeyIterator) combineString(dedup bool) blocks {
 		// If we only have 1 blocks left, just append it as is and avoid decoding/recoding
 		if i == len(k.blocks)-1 {
 			if !k.blocks[i].read() {
-				chunked = append(chunked, k.blocks[i])
+				k.merged = append(k.merged, k.blocks[i])
 			}
 			i++
 		}
@@ -756,7 +752,7 @@ func (k *tsmKeyIterator) combineString(dedup bool) blocks {
 
 		k.blocks = k.blocks[i:]
 
-		return k.chunkString(chunked)
+		return k.chunkString(k.merged)
 	}
 }
 
@@ -887,7 +883,6 @@ func (k *tsmKeyIterator) combineBoolean(dedup bool) blocks {
 		// a single block.  We need to chunk them up into groups and re-encode them.
 		return k.chunkBoolean(nil)
 	} else {
-		var chunked blocks
 		var i int
 
 		for i < len(k.blocks) {
@@ -899,7 +894,7 @@ func (k *tsmKeyIterator) combineBoolean(dedup bool) blocks {
 			}
 			// If we this block is already full, just add it as is
 			if BlockCount(k.blocks[i].b) >= k.size {
-				chunked = append(chunked, k.blocks[i])
+				k.merged = append(k.merged, k.blocks[i])
 			} else {
 				break
 			}
@@ -914,7 +909,7 @@ func (k *tsmKeyIterator) combineBoolean(dedup bool) blocks {
 					continue
 				}
 
-				chunked = append(chunked, k.blocks[i])
+				k.merged = append(k.merged, k.blocks[i])
 				i++
 			}
 		}
@@ -922,7 +917,7 @@ func (k *tsmKeyIterator) combineBoolean(dedup bool) blocks {
 		// If we only have 1 blocks left, just append it as is and avoid decoding/recoding
 		if i == len(k.blocks)-1 {
 			if !k.blocks[i].read() {
-				chunked = append(chunked, k.blocks[i])
+				k.merged = append(k.merged, k.blocks[i])
 			}
 			i++
 		}
@@ -954,7 +949,7 @@ func (k *tsmKeyIterator) combineBoolean(dedup bool) blocks {
 
 		k.blocks = k.blocks[i:]
 
-		return k.chunkBoolean(chunked)
+		return k.chunkBoolean(k.merged)
 	}
 }
 
