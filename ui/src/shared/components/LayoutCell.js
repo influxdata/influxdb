@@ -31,7 +31,7 @@ class LayoutCell extends Component {
   }
 
   render() {
-    const {cell, children, isEditable} = this.props
+    const {cell, children, isEditable, sources} = this.props
 
     const {isDeleting} = this.state
     const queries = _.get(cell, ['queries'], [])
@@ -40,16 +40,18 @@ class LayoutCell extends Component {
       <div className="dash-graph">
         <LayoutCellMenu
           cell={cell}
-          onDeleteClick={this.handleDeleteClick}
-          onDelete={this.handleDeleteCell}
+          sources={sources}
           isDeleting={isDeleting}
           isEditable={isEditable}
-          handleClickOutside={this.closeMenu}
+          onDelete={this.handleDeleteCell}
           onEdit={this.handleSummonOverlay}
+          handleClickOutside={this.closeMenu}
+          onDeleteClick={this.handleDeleteClick}
         />
         <LayoutCellHeader
-          cellName={cell.name}
           queries={queries}
+          sources={sources}
+          cellName={cell.name}
           isEditable={isEditable}
         />
         <div className="dash-graph--container">
@@ -69,7 +71,7 @@ class LayoutCell extends Component {
   }
 }
 
-const {array, bool, func, node, number, shape, string} = PropTypes
+const {arrayOf, bool, func, node, number, shape, string} = PropTypes
 
 LayoutCell.propTypes = {
   cell: shape({
@@ -77,8 +79,9 @@ LayoutCell.propTypes = {
     isEditing: bool,
     x: number.isRequired,
     y: number.isRequired,
-    queries: array,
+    queries: arrayOf(shape()),
   }).isRequired,
+  sources: arrayOf(shape()),
   children: node.isRequired,
   onDeleteCell: func,
   onSummonOverlayTechnologies: func,

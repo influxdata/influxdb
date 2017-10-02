@@ -34,12 +34,13 @@ const Layout = ({
   onSummonOverlayTechnologies,
 }) =>
   <LayoutCell
-    onCancelEditCell={onCancelEditCell}
+    cell={cell}
+    sources={sources}
     isEditable={isEditable}
     onEditCell={onEditCell}
     onDeleteCell={onDeleteCell}
+    onCancelEditCell={onCancelEditCell}
     onSummonOverlayTechnologies={onSummonOverlayTechnologies}
-    cell={cell}
   >
     {cell.isWidget
       ? <WidgetCell cell={cell} timeRange={timeRange} source={source} />
@@ -48,6 +49,7 @@ const Layout = ({
           type={type}
           cellHeight={h}
           onZoom={onZoom}
+          sources={sources}
           timeRange={timeRange}
           templates={templates}
           autoRefresh={autoRefresh}

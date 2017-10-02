@@ -170,7 +170,7 @@ LayoutRenderer.propTypes = {
   isEditable: bool,
   onCancelEditCell: func,
   onZoom: func,
-  sources: arrayOf(shape({})).isRequired,
+  sources: arrayOf(shape({})),
 }
 
 export default LayoutRenderer
