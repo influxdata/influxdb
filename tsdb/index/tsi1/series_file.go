@@ -35,6 +35,10 @@ const DefaultMaxSeriesFileSize = 32 * (1 << 30) // 32GB
 // MaxSeriesFileHashSize is the maximum number of series in a single hash.
 const MaxSeriesFileHashSize = (1048576 * LoadFactor) / 100
 
+// SeriesMapThreshold is the number of series to hold in the in-memory series map
+// before compacting and rebuilding the on-disk map.
+const SeriesMapThreshold = 100000
+
 // SeriesFile represents the section of the index that holds series data.
 type SeriesFile struct {
 	mu   sync.RWMutex
@@ -42,9 +46,10 @@ type SeriesFile struct {
 	data []byte
 	file *os.File
 	w    *bufio.Writer
+	size int64
 
-	n       uint64
-	hashMap *rhh.HashMap
+	seriesMap           *seriesMap
+	compactingSeriesMap *seriesMap
 
 	// MaxSize is the maximum size of the file.
 	MaxSize int64
@@ -68,16 +73,16 @@ func (f *SeriesFile) Open() error {
 	f.file = file
 
 	// Ensure header byte exists.
-	f.n = 0
+	f.size = 0
 	if fi, err := file.Stat(); err != nil {
 		return err
 	} else if fi.Size() > 0 {
-		f.n = uint64(fi.Size())
+		f.size = fi.Size()
 	} else {
 		if _, err := f.file.Write([]byte{0}); err != nil {
 			return err
 		}
-		f.n = 1
+		f.size = 1
 	}
 
 	// Wrap file write a bufferred writer.
@@ -90,10 +95,12 @@ func (f *SeriesFile) Open() error {
 	}
 	f.data = data
 
-	// Index all series.
-	if err := f.reindex(); err != nil {
+	// Load series map.
+	m := newSeriesMap(f.path+SeriesMapFileSuffix, f)
+	if err := m.open(); err != nil {
 		return err
 	}
+	f.seriesMap = m
 
 	return nil
 }
@@ -117,34 +124,18 @@ func (f *SeriesFile) Close() error {
 		f.file = nil
 	}
 
-	f.hashMap = nil
+	if f.seriesMap != nil {
+		if err := f.seriesMap.close(); err != nil {
+			return err
+		}
+		f.seriesMap = nil
+	}
 
 	return nil
 }
 
 // Path returns the path to the file.
 func (f *SeriesFile) Path() string { return f.path }
-
-// reindex iterates over all series and builds a hash map index.
-func (f *SeriesFile) reindex() error {
-	m := rhh.NewHashMap(rhh.DefaultOptions)
-
-	// Series data begins with an offset of 1.
-	data := f.data[1:f.n]
-	offset := uint64(1)
-
-	for len(data) > 0 {
-		var key []byte
-		key, data = ReadSeriesKey(data)
-
-		m.Put(key, offset)
-		offset += uint64(len(key))
-	}
-
-	f.hashMap = m
-
-	return nil
-}
 
 // CreateSeriesListIfNotExists creates a list of series in bulk if they don't exist. Returns the offset of the series.
 func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []models.Tags, buf []byte) (offsets []uint64, err error) {
@@ -187,7 +178,7 @@ func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []mod
 		}
 
 		// Save current file offset.
-		offset := f.n
+		offset := uint64(f.size)
 
 		// Append series to the end of the file.
 		buf = AppendSeriesKey(buf[:0], names[i], tagsSlice[i])
@@ -196,12 +187,12 @@ func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []mod
 		}
 
 		// Move current offset to the end.
-		sz := uint64(len(buf))
-		f.n += sz
+		sz := int64(len(buf))
+		f.size += sz
 
 		// Append new key to be added to hash map after flush.
 		offsets[i] = offset
-		newKeyRanges = append(newKeyRanges, byteRange{offset, sz})
+		newKeyRanges = append(newKeyRanges, byteRange{offset, uint64(sz)})
 	}
 
 	// Flush writer.
@@ -209,9 +200,22 @@ func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []mod
 		return nil, err
 	}
 
-	// Add keys to hash map.
+	// Add keys to hash map(s).
 	for _, keyRange := range newKeyRanges {
-		f.hashMap.Put(f.data[keyRange.offset:keyRange.offset+keyRange.size], keyRange.offset)
+		key := f.data[keyRange.offset : keyRange.offset+keyRange.size]
+
+		f.seriesMap.inmem.Put(key, keyRange.offset)
+
+		if f.compactingSeriesMap != nil {
+			f.compactingSeriesMap.inmem.Put(key, keyRange.offset)
+		}
+	}
+
+	// Begin compaction if in-memory map is past threshold.
+	if f.seriesMap.inmem.Len() >= SeriesMapThreshold {
+		if err := f.compactSeriesMap(); err != nil {
+			return nil, err
+		}
 	}
 
 	return offsets, nil
@@ -226,8 +230,7 @@ func (f *SeriesFile) Offset(name []byte, tags models.Tags, buf []byte) (offset u
 }
 
 func (f *SeriesFile) offset(name []byte, tags models.Tags, buf []byte) uint64 {
-	offset, _ := f.hashMap.Get(AppendSeriesKey(buf[:0], name, tags)).(uint64)
-	return offset
+	return f.seriesMap.offset(AppendSeriesKey(buf[:0], name, tags))
 }
 
 // SeriesKey returns the series key for a given offset.
@@ -257,15 +260,59 @@ func (f *SeriesFile) HasSeries(name []byte, tags models.Tags, buf []byte) bool {
 
 // SeriesCount returns the number of series.
 func (f *SeriesFile) SeriesCount() uint64 {
-	return uint64(f.hashMap.Len())
+	f.mu.RLock()
+	n := uint64(f.seriesMap.n + f.seriesMap.inmem.Len())
+	f.mu.RUnlock()
+	return n
 }
 
 // SeriesIterator returns an iterator over all the series.
 func (f *SeriesFile) SeriesIDIterator() SeriesIDIterator {
 	return &seriesFileIterator{
 		offset: 1,
-		data:   f.data[1:f.n],
+		data:   f.data[1:f.size],
 	}
+}
+
+func (f *SeriesFile) compactSeriesMap() error {
+	// TEMP: Compaction should occur in parallel.
+
+	// Encode to a new buffer.
+	buf := encodeSeriesMap(f.data[:f.size], f.seriesMap.n+f.seriesMap.inmem.Len())
+
+	// Open temporary file.
+	path := f.seriesMap.path
+	compactionPath := path + ".compacting"
+	file, err := os.Create(compactionPath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// Write map to disk & close.
+	if _, err := file.Write(buf); err != nil {
+		return err
+	} else if err := file.Close(); err != nil {
+		return err
+	}
+
+	// Close series map.
+	if err := f.seriesMap.close(); err != nil {
+		return err
+	}
+
+	// Swap map to new location.
+	if err := os.Rename(compactionPath, path); err != nil {
+		return err
+	}
+
+	// Re-open series map.
+	f.seriesMap = newSeriesMap(path, f)
+	if err := f.seriesMap.open(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // seriesFileIterator is an iterator over a series ids in a series list.
@@ -449,4 +496,174 @@ func (a seriesKeys) Len() int      { return len(a) }
 func (a seriesKeys) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 func (a seriesKeys) Less(i, j int) bool {
 	return CompareSeriesKeys(a[i], a[j]) == -1
+}
+
+const (
+	SeriesMapFileSuffix = "map"
+
+	SeriesMapLoadFactor = 90
+
+	SeriesMapCountSize     = 8
+	SeriesMapMaxOffsetSize = 8
+	SeriesMapHeaderSize    = SeriesMapCountSize + SeriesMapMaxOffsetSize
+
+	SeriesMapElemSize = 8 + 8 // hash + value
+)
+
+// seriesMap represents a read-only hash map of series offsets.
+type seriesMap struct {
+	path  string
+	sfile *SeriesFile
+	inmem *rhh.HashMap
+
+	n         int64
+	maxOffset uint64
+	capacity  int64
+	data      []byte
+	mask      int64
+}
+
+func newSeriesMap(path string, sfile *SeriesFile) *seriesMap {
+	return &seriesMap{path: path, sfile: sfile}
+}
+
+func (m *seriesMap) open() error {
+	// Memory map file data.
+	data, err := mmap.Map(m.path, 0)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	m.data = data
+
+	// Read header if available.
+	if len(m.data) > 0 {
+		buf := data
+		m.n, buf = int64(binary.LittleEndian.Uint64(buf)), buf[SeriesMapCountSize:]
+		m.maxOffset, buf = uint64(binary.LittleEndian.Uint64(buf)), buf[SeriesMapMaxOffsetSize:]
+		m.capacity = int64(len(buf) / SeriesMapElemSize)
+		m.mask = int64(m.capacity - 1)
+	} else {
+		m.n, m.maxOffset = 0, 1
+	}
+
+	// Index all data created after the on-disk hash map.
+	inmem := rhh.NewHashMap(rhh.DefaultOptions)
+	for b, offset := m.sfile.data[m.maxOffset:m.sfile.size], m.maxOffset; len(b) > 0; {
+		var key []byte
+		key, b = ReadSeriesKey(b)
+		inmem.Put(key, offset)
+		offset += uint64(len(key))
+	}
+	m.inmem = inmem
+
+	return nil
+}
+
+func (m *seriesMap) close() error {
+	if m.data != nil {
+		if err := mmap.Unmap(m.data); err != nil {
+			return err
+		}
+		m.data = nil
+	}
+	return nil
+}
+
+// offset finds the series key's offset in either the on-disk or in-memory hash maps.
+func (m *seriesMap) offset(key []byte) uint64 {
+	if offset := m.onDiskOffset(key); offset != 0 {
+		return offset
+	}
+	offset, _ := m.inmem.Get(key).(uint64)
+	return offset
+}
+
+func (m *seriesMap) onDiskOffset(key []byte) uint64 {
+	if len(m.data) == 0 {
+		return 0
+	}
+
+	hash := rhh.HashKey(key)
+	for d, pos := int64(0), hash&m.mask; ; d, pos = d+1, (pos+1)&m.mask {
+		elem := m.data[SeriesMapHeaderSize+(pos*SeriesMapElemSize):]
+		elem = elem[:SeriesMapElemSize]
+
+		h := int64(binary.LittleEndian.Uint64(elem[:8]))
+		if h == 0 || d > rhh.Dist(h, pos, m.capacity) {
+			return 0
+		} else if h == hash {
+			if v := binary.LittleEndian.Uint64(elem[8:]); bytes.Equal(m.sfile.SeriesKey(v), key) {
+				return v
+			}
+		}
+	}
+}
+
+// encodeSeriesMap encodes series file data into a series map.
+func encodeSeriesMap(src []byte, n int64) []byte {
+	capacity := (n * 100) / SeriesMapLoadFactor
+	capacity = pow2(capacity)
+
+	// Build output buffer with count and max offset at the beginning.
+	buf := make([]byte, SeriesMapHeaderSize+(capacity*SeriesMapElemSize))
+	binary.LittleEndian.PutUint64(buf[0:8], uint64(n))
+	binary.LittleEndian.PutUint64(buf[8:16], uint64(len(src)))
+
+	// Loop over all series in data. Offset starts at 1.
+	for b, offset := src[1:], uint64(1); len(b) > 0; {
+		var key []byte
+		key, b = ReadSeriesKey(b)
+
+		insertSeriesMap(src, buf, key, offset, capacity)
+		offset += uint64(len(key))
+	}
+
+	return buf
+}
+
+func insertSeriesMap(src, buf, key []byte, val uint64, capacity int64) {
+	mask := int64(capacity - 1)
+	hash := rhh.HashKey(key)
+
+	// Continue searching until we find an empty slot or lower probe distance.
+	for dist, pos := int64(0), hash&mask; ; dist, pos = dist+1, (pos+1)&mask {
+		elem := buf[SeriesMapHeaderSize+(pos*SeriesMapElemSize):]
+		elem = elem[:SeriesMapElemSize]
+
+		h := int64(binary.LittleEndian.Uint64(elem[:8]))
+		v := binary.LittleEndian.Uint64(elem[8:])
+		k, _ := ReadSeriesKey(src[v:])
+
+		// Empty slot found or matching key, insert and exit.
+		if h == 0 || bytes.Equal(key, k) {
+			binary.LittleEndian.PutUint64(elem[:8], uint64(hash))
+			binary.LittleEndian.PutUint64(elem[8:], val)
+			return
+		}
+
+		// If the existing elem has probed less than us, then swap places with
+		// existing elem, and keep going to find another slot for that elem.
+		if d := rhh.Dist(h, pos, capacity); d < dist {
+			// Insert current values.
+			binary.LittleEndian.PutUint64(elem[:8], uint64(hash))
+			binary.LittleEndian.PutUint64(elem[8:], val)
+
+			// Swap with values in that position.
+			hash, key, val = h, k, v
+
+			// Update current distance.
+			dist = d
+		}
+	}
+}
+
+// pow2 returns the number that is the next highest power of 2.
+// Returns v if it is a power of 2.
+func pow2(v int64) int64 {
+	for i := int64(2); i < 1<<62; i *= 2 {
+		if i >= v {
+			return i
+		}
+	}
+	panic("unreachable")
 }
