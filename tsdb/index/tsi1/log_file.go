@@ -438,8 +438,17 @@ func (f *LogFile) AddSeriesList(names [][]byte, tagsSlice []models.Tags) error {
 		return err
 	}
 
+	if seriesIDs == nil {
+		// All of these series IDs exist in the index.
+		return nil
+	}
+
 	entries := make([]LogEntry, len(names))
 	for i := range names {
+		if seriesIDs[i] == 0 {
+			// We don't need to allocate anything for this series.
+			continue
+		}
 		entries[i] = LogEntry{SeriesID: seriesIDs[i]}
 	}
 
@@ -447,6 +456,10 @@ func (f *LogFile) AddSeriesList(names [][]byte, tagsSlice []models.Tags) error {
 	defer f.mu.Unlock()
 
 	for i := range entries {
+		if seriesIDs[i] == 0 {
+			// We don't need to add this series.
+			continue
+		}
 		if err := f.appendEntry(&entries[i]); err != nil {
 			return err
 		}

@@ -168,7 +168,7 @@ func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []mod
 
 	// Return immediately if no series need to be created.
 	if !createRequired {
-		return offsets, nil
+		return nil, nil
 	}
 
 	// Obtain write lock to create new series.
