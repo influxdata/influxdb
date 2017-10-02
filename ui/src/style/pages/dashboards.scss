@@ -170,6 +170,21 @@ $dash-graph-options-arrow: 8px;
   right: 2px;
 }
 
+.dash-graph--custom-source {
+  font-style: normal;
+  font-family: $code-font;
+  color: $c-pool;
+  background-color: $g2-kevlar;
+  height: 24px;
+  font-size: 10px;
+  line-height: 24px;
+  border-radius: 3px;
+  padding: 0 7px;
+  position: absolute;
+  top: 3px;
+  right: 86px;
+}
+
 .dash-graph-context {
   z-index: 2;
   position: absolute;

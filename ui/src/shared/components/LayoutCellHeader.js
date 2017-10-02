@@ -15,12 +15,12 @@ const LayoutCellHeader = (
     s => s.links.self === _.get(queries, ['0', 'source'], null)
   )
 
+  const headingClass = `dash-graph--heading ${isEditable
+    ? 'dash-graph--heading-draggable'
+    : ''}`
+
   return (
-    <div
-      className={classnames('dash-graph--heading', {
-        'dash-graph--heading-draggable': isEditable,
-      })}
-    >
+    <div className={headingClass}>
       <span
         className={
           cellNameIsDefault
@@ -29,7 +29,7 @@ const LayoutCellHeader = (
         }
       >
         {querySource && querySource.id !== defaultSource.id
-          ? <span className="dash-graph--custom-time">
+          ? <span className="dash-graph--custom-source">
               {querySource.name}
             </span>
           : null}
