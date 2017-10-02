@@ -50,18 +50,18 @@ const Dashboard = ({
             />}
         {cells.length
           ? <LayoutRenderer
-              templates={templatesIncludingDashTime}
-              isEditable={true}
               cells={cells}
-              timeRange={timeRange}
-              autoRefresh={autoRefresh}
+              onZoom={onZoom}
               source={source}
               sources={sources}
-              onPositionChange={onPositionChange}
-              onDeleteCell={onDeleteCell}
-              onSummonOverlayTechnologies={onSummonOverlayTechnologies}
+              isEditable={true}
+              timeRange={timeRange}
+              autoRefresh={autoRefresh}
               synchronizer={synchronizer}
-              onZoom={onZoom}
+              onDeleteCell={onDeleteCell}
+              onPositionChange={onPositionChange}
+              templates={templatesIncludingDashTime}
+              onSummonOverlayTechnologies={onSummonOverlayTechnologies}
             />
           : <div className="dashboard__empty">
               <p>This Dashboard has no Cells</p>
