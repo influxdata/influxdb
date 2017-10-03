@@ -1,11 +1,19 @@
 import React, {PropTypes} from 'react'
+import _ from 'lodash'
 import ReactTooltip from 'react-tooltip'
 
-const SourceIndicator = (_, {source: {name: sourceName, url}}) => {
+const SourceIndicator = ({sourceOverride}, {source: {name, url}}) => {
+  const sourceName = _.get(sourceOverride, 'name', null)
+    ? sourceOverride.name
+    : name
+  const sourceUrl = _.get(sourceOverride, 'url', null)
+    ? sourceOverride.url
+    : url
+
   if (!sourceName) {
     return null
   }
-  const sourceNameTooltip = `Connected to <code>${sourceName} @ ${url}</code>`
+  const sourceNameTooltip = `Connected to <code>${sourceName} @ ${sourceUrl}</code>`
   return (
     <div
       className="source-indicator"
@@ -26,6 +34,13 @@ const SourceIndicator = (_, {source: {name: sourceName, url}}) => {
 }
 
 const {shape, string} = PropTypes
+
+SourceIndicator.propTypes = {
+  sourceOverride: shape({
+    name: string,
+    url: string,
+  }),
+}
 
 SourceIndicator.contextTypes = {
   source: shape({
