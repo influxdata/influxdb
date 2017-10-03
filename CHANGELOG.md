@@ -69,6 +69,7 @@
 - [#8848](https://github.com/influxdata/influxdb/issues/8848): Prevent deadlock when doing math on the result of a subquery.
 - [#8895](https://github.com/influxdata/influxdb/issues/8895): Fix a minor memory leak in batching points in tsdb.
 - [#8900](https://github.com/influxdata/influxdb/issues/8900): Don't assume `which` is present in package post-install script.
+- [#8909](https://github.com/influxdata/influxdb/issues/8909): Fix use of `INFLUXD_OPTS` in service file
 
 ## v1.3.4 [unreleased]
 
