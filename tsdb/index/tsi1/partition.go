@@ -279,6 +279,9 @@ func (i *Partition) Close() error {
 	return nil
 }
 
+// Path returns the path to the partition.
+func (i *Partition) Path() string { return i.path }
+
 // NextSequence returns the next file identifier.
 func (i *Partition) NextSequence() int {
 	i.mu.Lock()

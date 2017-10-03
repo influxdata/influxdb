@@ -40,7 +40,7 @@ func TestPartition_Open(t *testing.T) {
 		t.Run(fmt.Sprintf("incompatible index version: %d", v), func(t *testing.T) {
 			p = NewPartition()
 			// Manually create a MANIFEST file for an incompatible index version.
-			mpath := filepath.Join(p.Path, tsi1.ManifestFileName)
+			mpath := filepath.Join(p.Path(), tsi1.ManifestFileName)
 			m := tsi1.NewManifest()
 			m.Levels = nil
 			m.Version = v // Set example MANIFEST version.
@@ -82,9 +82,7 @@ type Partition struct {
 
 // NewPartition returns a new instance of Partition at a temporary path.
 func NewPartition() *Partition {
-	p := &Partition{Partition: tsi1.NewPartition()}
-	p.Path = MustTempDir()
-	return p
+	return &Partition{Partition: tsi1.NewPartition(MustTempDir())}
 }
 
 // MustOpenPartition returns a new, open index. Panic on error.
@@ -98,7 +96,7 @@ func MustOpenPartition() *Partition {
 
 // Close closes and removes the index directory.
 func (p *Partition) Close() error {
-	defer os.RemoveAll(p.Path)
+	defer os.RemoveAll(p.Path())
 	return p.Partition.Close()
 }
 
@@ -108,8 +106,7 @@ func (p *Partition) Reopen() error {
 		return err
 	}
 
-	path := p.Path
-	p.Partition = tsi1.NewPartition()
-	p.Path = path
+	path := p.Path()
+	p.Partition = tsi1.NewPartition(path)
 	return p.Open()
 }
