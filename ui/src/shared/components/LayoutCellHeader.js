@@ -1,6 +1,7 @@
 import React, {PropTypes} from 'react'
 import _ from 'lodash'
 
+import SourceIndicator from 'shared/components/SourceIndicator'
 import CustomTimeIndicator from 'shared/components/CustomTimeIndicator'
 
 import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants/index'
@@ -30,9 +31,7 @@ const LayoutCellHeader = (
         {cellName}
         <div className="dash-graph--custom-indicators">
           {querySource && querySource.id !== defaultSource.id
-            ? <span className="custom-indicator">
-                {querySource.name}
-              </span>
+            ? <SourceIndicator sourceOverride={querySource} />
             : null}
           {queries && queries.length
             ? <CustomTimeIndicator queries={queries} />
