@@ -23,10 +23,17 @@ class CellEditorOverlay extends Component {
   constructor(props) {
     super(props)
 
-    const {cell: {name, type, queries, axes}} = props
+    const {cell: {name, type, queries, axes}, sources} = props
+
+    let source = _.get(queries, ['0', 'source'], null)
+    source = sources.find(s => s.links.self === source) || props.source
 
     const queriesWorkingDraft = _.cloneDeep(
-      queries.map(({queryConfig}) => ({...queryConfig, id: uuid.v4()}))
+      queries.map(({queryConfig}) => ({
+        ...queryConfig,
+        id: uuid.v4(),
+        source,
+      }))
     )
 
     this.state = {
@@ -141,6 +148,7 @@ class CellEditorOverlay extends Component {
       return {
         queryConfig: q,
         query,
+        source: _.get(q, ['source', 'links', 'self'], null),
       }
     })
 
@@ -197,6 +205,15 @@ class CellEditorOverlay extends Component {
     })
   }
 
+  handleSetQuerySource = source => {
+    const queriesWorkingDraft = this.state.queriesWorkingDraft.map(q => ({
+      ..._.cloneDeep(q),
+      source,
+    }))
+
+    this.setState({queriesWorkingDraft})
+  }
+
   getActiveQuery = () => {
     const {queriesWorkingDraft, activeQueryIndex} = this.state
     const activeQuery = queriesWorkingDraft[activeQueryIndex]
@@ -221,9 +238,39 @@ class CellEditorOverlay extends Component {
     }
   }
 
+  formatSources = this.props.sources.map(s => ({
+    ...s,
+    text: `${s.name} @ ${s.url}`,
+  }))
+
+  findSelectedSource = () => {
+    const {source} = this.props
+    const sources = this.formatSources
+    const query = _.get(this.state.queriesWorkingDraft, 0, false)
+
+    if (!query || !query.source) {
+      const defaultSource = sources.find(s => s.id === source.id)
+      return (defaultSource && defaultSource.text) || 'No sources'
+    }
+
+    const selected = sources.find(s => s.id === query.source.id)
+    return (selected && selected.text) || 'No sources'
+  }
+
+  getSource = () => {
+    const {source, sources} = this.props
+    const query = _.get(this.state.queriesWorkingDraft, 0, false)
+
+    if (!query || !query.source) {
+      return source
+    }
+
+    const querySource = sources.find(s => s.id === query.source.id)
+    return querySource || source
+  }
+
   render() {
     const {
-      source,
       onCancel,
       templates,
       timeRange,
@@ -232,12 +279,12 @@ class CellEditorOverlay extends Component {
     } = this.props
 
     const {
+      axes,
       activeQueryIndex,
       cellWorkingName,
       cellWorkingType,
       isDisplayOptionsTabActive,
       queriesWorkingDraft,
-      axes,
     } = this.state
 
     const queryActions = {
@@ -271,11 +318,14 @@ class CellEditorOverlay extends Component {
           />
           <CEOBottom>
             <OverlayControls
+              onCancel={onCancel}
+              sources={this.formatSources}
+              onSave={this.handleSaveCell}
+              selected={this.findSelectedSource()}
+              onSetQuerySource={this.handleSetQuerySource}
+              isSavable={queriesWorkingDraft.every(isQuerySavable)}
               isDisplayOptionsTabActive={isDisplayOptionsTabActive}
               onClickDisplayOptions={this.handleClickDisplayOptionsTab}
-              onCancel={onCancel}
-              onSave={this.handleSaveCell}
-              isSavable={queriesWorkingDraft.every(isQuerySavable)}
             />
             {isDisplayOptionsTabActive
               ? <DisplayOptions
@@ -291,7 +341,7 @@ class CellEditorOverlay extends Component {
                   onSetYAxisBoundMax={this.handleSetYAxisBoundMax}
                 />
               : <QueryMaker
-                  source={source}
+                  source={this.getSource()}
                   templates={templates}
                   queries={queriesWorkingDraft}
                   actions={queryActions}
@@ -343,6 +393,7 @@ CellEditorOverlay.propTypes = {
     status: shape({}),
   }).isRequired,
   dashboardID: string.isRequired,
+  sources: arrayOf(shape()),
 }
 
 CEOBottom.propTypes = {

@@ -1,6 +1,7 @@
 import React, {Component, PropTypes} from 'react'
 import ReactGridLayout, {WidthProvider} from 'react-grid-layout'
 import Resizeable from 'react-component-resizable'
+
 import _ from 'lodash'
 
 import Layout from 'src/shared/components/Layout'
@@ -24,11 +25,6 @@ class LayoutRenderer extends Component {
       rowHeight: this.calculateRowHeight(),
       resizeCoords: null,
     }
-  }
-
-  // idea adopted from https://stackoverflow.com/questions/36862334/get-viewport-window-height-in-reactjs
-  updateWindowDimensions = () => {
-    this.setState({rowHeight: this.calculateRowHeight()})
   }
 
   handleLayoutChange = layout => {
@@ -72,6 +68,7 @@ class LayoutRenderer extends Component {
       host,
       cells,
       source,
+      sources,
       onZoom,
       templates,
       timeRange,
@@ -88,7 +85,7 @@ class LayoutRenderer extends Component {
     const isDashboard = !!this.props.onPositionChange
 
     return (
-      <Resizeable onResize={this.updateWindowDimensions}>
+      <Resizeable onResize={this.handleCellResize}>
         <GridLayout
           layout={cells}
           cols={12}
@@ -110,6 +107,7 @@ class LayoutRenderer extends Component {
                 host={host}
                 source={source}
                 onZoom={onZoom}
+                sources={sources}
                 templates={templates}
                 timeRange={timeRange}
                 isEditable={isEditable}
@@ -172,6 +170,7 @@ LayoutRenderer.propTypes = {
   isEditable: bool,
   onCancelEditCell: func,
   onZoom: func,
+  sources: arrayOf(shape({})),
 }
 
 export default LayoutRenderer

@@ -217,6 +217,7 @@ func Test_newDashboardResponse(t *testing.T) {
 						H:  0,
 						Queries: []chronograf.DashboardQuery{
 							{
+								Source:  "/chronograf/v1/sources/1",
 								Command: "SELECT donors from hill_valley_preservation_society where time > '1985-10-25 08:00:00'",
 							},
 						},
@@ -236,6 +237,7 @@ func Test_newDashboardResponse(t *testing.T) {
 						H:  0,
 						Queries: []chronograf.DashboardQuery{
 							{
+								Source:  "/chronograf/v1/sources/2",
 								Command: "SELECT winning_horses from grays_sports_alamanc where time > now() - 15m",
 							},
 						},
@@ -256,6 +258,7 @@ func Test_newDashboardResponse(t *testing.T) {
 							Queries: []chronograf.DashboardQuery{
 								{
 									Command: "SELECT donors from hill_valley_preservation_society where time > '1985-10-25 08:00:00'",
+									Source:  "/chronograf/v1/sources/1",
 									QueryConfig: chronograf.QueryConfig{
 										RawText: &[]string{"SELECT donors from hill_valley_preservation_society where time > '1985-10-25 08:00:00'"}[0],
 										Fields:  []chronograf.Field{},
@@ -303,6 +306,7 @@ func Test_newDashboardResponse(t *testing.T) {
 							Queries: []chronograf.DashboardQuery{
 								{
 									Command: "SELECT winning_horses from grays_sports_alamanc where time > now() - 15m",
+									Source:  "/chronograf/v1/sources/2",
 									QueryConfig: chronograf.QueryConfig{
 										Measurement: "grays_sports_alamanc",
 										Fields: []chronograf.Field{

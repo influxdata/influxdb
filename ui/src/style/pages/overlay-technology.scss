@@ -44,10 +44,21 @@ $overlay-z: 100;
     border: 0;
     background-color: $g2-kevlar;
   }
+  .overlay-controls .nav-tablist {
+    width: 200px;
+
+    li {
+      white-space: nowrap;
+      justify-content: center;
+      flex: 1 0 50%;
+     }
+  }
   .overlay-controls--right {
     display: flex;
     align-items: center;
     flex-wrap: nowrap;
+    justify-content: flex-end;
+    flex: 1 0 0;
 
     .toggle {
       margin: 0 0 0 5px;

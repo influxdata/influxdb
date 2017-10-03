@@ -206,6 +206,7 @@ class Dropdown extends Component {
       iconName,
       buttonSize,
       buttonColor,
+      toggleStyle,
       useAutoComplete,
     } = this.props
     const {isOpen, searchTerm, filteredItems} = this.state
@@ -222,6 +223,7 @@ class Dropdown extends Component {
         {useAutoComplete && isOpen
           ? <div
               className={`dropdown-autocomplete dropdown-toggle ${buttonSize} ${buttonColor}`}
+              style={toggleStyle}
             >
               <input
                 ref="dropdownAutoComplete"
@@ -236,7 +238,10 @@ class Dropdown extends Component {
               />
               <span className="caret" />
             </div>
-          : <div className={`btn dropdown-toggle ${buttonSize} ${buttonColor}`}>
+          : <div
+              className={`btn dropdown-toggle ${buttonSize} ${buttonColor}`}
+              style={toggleStyle}
+            >
               {iconName
                 ? <span className={classnames('icon', {[iconName]: true})} />
                 : null}
@@ -291,6 +296,7 @@ Dropdown.propTypes = {
   menuLabel: string,
   menuClass: string,
   useAutoComplete: bool,
+  toggleStyle: shape(),
 }
 
 export default OnClickOutside(Dropdown)

@@ -7,6 +7,7 @@ import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 const Dashboard = ({
   source,
+  sources,
   onZoom,
   dashboard,
   onAddCell,
@@ -24,16 +25,11 @@ const Dashboard = ({
 }) => {
   const cells = dashboard.cells.map(cell => {
     const dashboardCell = {...cell}
-    dashboardCell.queries = dashboardCell.queries.map(
-      ({label, query, queryConfig, db}) => ({
-        label,
-        query,
-        queryConfig,
-        db,
-        database: db,
-        text: query,
-      })
-    )
+    dashboardCell.queries = dashboardCell.queries.map(q => ({
+      ...q,
+      database: q.db,
+      text: q.query,
+    }))
     return dashboardCell
   })
 
@@ -54,17 +50,18 @@ const Dashboard = ({
             />}
         {cells.length
           ? <LayoutRenderer
-              templates={templatesIncludingDashTime}
-              isEditable={true}
               cells={cells}
+              onZoom={onZoom}
+              source={source}
+              sources={sources}
+              isEditable={true}
               timeRange={timeRange}
               autoRefresh={autoRefresh}
-              source={source}
-              onPositionChange={onPositionChange}
-              onDeleteCell={onDeleteCell}
-              onSummonOverlayTechnologies={onSummonOverlayTechnologies}
               synchronizer={synchronizer}
-              onZoom={onZoom}
+              onDeleteCell={onDeleteCell}
+              onPositionChange={onPositionChange}
+              templates={templatesIncludingDashTime}
+              onSummonOverlayTechnologies={onSummonOverlayTechnologies}
             />
           : <div className="dashboard__empty">
               <p>This Dashboard has no Cells</p>
@@ -112,6 +109,7 @@ Dashboard.propTypes = {
       proxy: string,
     }).isRequired,
   }).isRequired,
+  sources: arrayOf(shape({})).isRequired,
   autoRefresh: number.isRequired,
   timeRange: shape({}).isRequired,
   onOpenTemplateManager: func.isRequired,
