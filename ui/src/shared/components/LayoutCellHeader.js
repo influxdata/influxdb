@@ -27,15 +27,17 @@ const LayoutCellHeader = (
             : 'dash-graph--name'
         }
       >
-        {querySource && querySource.id !== defaultSource.id
-          ? <span className="dash-graph--custom-source">
-              {querySource.name}
-            </span>
-          : null}
         {cellName}
-        {queries && queries.length
-          ? <CustomTimeIndicator queries={queries} />
-          : null}
+        <div className="dash-graph--custom-indicators">
+          {querySource && querySource.id !== defaultSource.id
+            ? <span className="custom-indicator">
+                {querySource.name}
+              </span>
+            : null}
+          {queries && queries.length
+            ? <CustomTimeIndicator queries={queries} />
+            : null}
+        </div>
       </span>
     </div>
   )

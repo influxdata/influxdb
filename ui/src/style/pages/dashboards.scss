@@ -154,37 +154,26 @@ $dash-graph-options-arrow: 8px;
 .dash-graph--name.dash-graph--name__default {
   font-style: italic;
 }
-
-.dash-graph--custom-time {
-  font-style: normal;
-  font-family: $code-font;
-  color: $c-pool;
-  background-color: $g2-kevlar;
+.dash-graph--custom-indicators {
   height: 24px;
-  font-size: 10px;
-  line-height: 24px;
   border-radius: 3px;
-  padding: 0 7px;
   position: absolute;
   top: 3px;
-  right: 2px;
-}
+  right: 0;
+  display: flex;
 
-.dash-graph--custom-source {
-  font-style: normal;
-  font-family: $code-font;
-  color: $c-pool;
-  background-color: $g2-kevlar;
-  height: 24px;
-  font-size: 10px;
-  line-height: 24px;
-  border-radius: 3px;
-  padding: 0 7px;
-  position: absolute;
-  top: 3px;
-  right: 86px;
+  > .custom-indicator {
+    font-size: 10px;
+    line-height: 24px;
+    padding: 0 7px;
+    font-style: normal;
+    font-family: $code-font;
+    color: $c-pool;
+    background-color: $g2-kevlar;
+    margin-right: 2px;
+    border-radius: 3px;
+  }
 }
-
 .dash-graph-context {
   z-index: 2;
   position: absolute;

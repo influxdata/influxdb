@@ -15,7 +15,7 @@ const CustomTimeIndicator = ({queries}) => {
     : customLower
 
   return (
-    <span className="dash-graph--custom-time">
+    <span className="custom-indicator">
       {customTimeRange}
     </span>
   )
