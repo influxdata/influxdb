@@ -76,7 +76,6 @@ DisplayOptions.propTypes = {
   onSetBase: func.isRequired,
   axes: shape({}).isRequired,
   queryConfigs: arrayOf(shape()).isRequired,
-  source: shape({}).isRequired,
 }
 
 export default DisplayOptions
