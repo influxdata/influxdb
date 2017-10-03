@@ -54,6 +54,7 @@ if [ "$OS" == "linux" ]; then
            /pkg/var/log/influxdb \
            /pkg/var/lib/influxdb \
            /pkg/usr/lib/influxdb/scripts \
+           /pkg/usr/share/man/man1 \
            /pkg/etc/influxdb \
            /pkg/etc/logrotate.d
   chmod -R 0755 /pkg
@@ -73,6 +74,9 @@ if [ "$OS" == "linux" ]; then
 
   # Copy data binaries.
   cp /ibin/* /pkg/usr/bin/
+
+  # Copy man pages.
+  cp /isrc/man/*.1.gz /pkg/usr/share/man/man1
 
   # Make tarball of files in packaging.
   BIN_GZ_NAME="/out/influxdb-oss-${VERSION}_${OS}_${ARCH}.tar.gz"
