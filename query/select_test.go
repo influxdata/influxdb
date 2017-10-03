@@ -2879,21 +2879,30 @@ func TestSelect_Raw(t *testing.T) {
 }
 
 // Ensure a SELECT binary expr queries can be executed as floats.
-func TestSelect_BinaryExpr_Float(t *testing.T) {
+func TestSelect_BinaryExpr(t *testing.T) {
 	shardMapper := ShardMapper{
 		MapShardsFn: func(sources influxql.Sources, _ influxql.TimeRange) query.ShardGroup {
 			return &ShardGroup{
 				Fields: map[string]influxql.DataType{
-					"value": influxql.Float,
+					"f": influxql.Float,
+					"i": influxql.Integer,
+					"u": influxql.Unsigned,
 				},
 				CreateIteratorFn: func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
 					if m.Name != "cpu" {
 						t.Fatalf("unexpected source: %s", m.Name)
 					}
-					makeAuxFields := func(value float64) []interface{} {
+					makeAuxFields := func(value int) []interface{} {
 						aux := make([]interface{}, len(opt.Aux))
 						for i := range aux {
-							aux[i] = value
+							switch opt.Aux[i].Type {
+							case influxql.Float:
+								aux[i] = float64(value)
+							case influxql.Integer:
+								aux[i] = int64(value)
+							case influxql.Unsigned:
+								aux[i] = uint64(value)
+							}
 						}
 						return aux
 					}
@@ -2911,10 +2920,11 @@ func TestSelect_BinaryExpr_Float(t *testing.T) {
 		Name      string
 		Statement string
 		Points    [][]query.Point
+		Err       string
 	}{
 		{
-			Name:      "AdditionRHS_Number",
-			Statement: `SELECT value + 2.0 FROM cpu`,
+			Name:      "Float_AdditionRHS_Number",
+			Statement: `SELECT f + 2.0 FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 22}},
 				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 12}},
@@ -2922,8 +2932,8 @@ func TestSelect_BinaryExpr_Float(t *testing.T) {
 			},
 		},
 		{
-			Name:      "AdditionRHS_Integer",
-			Statement: `SELECT value + 2 FROM cpu`,
+			Name:      "Integer_AdditionRHS_Number",
+			Statement: `SELECT i + 2.0 FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 22}},
 				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 12}},
@@ -2931,8 +2941,8 @@ func TestSelect_BinaryExpr_Float(t *testing.T) {
 			},
 		},
 		{
-			Name:      "AdditionLHS_Number",
-			Statement: `SELECT 2.0 + value FROM cpu`,
+			Name:      "Unsigned_AdditionRHS_Number",
+			Statement: `SELECT u + 2.0 FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 22}},
 				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 12}},
@@ -2940,8 +2950,8 @@ func TestSelect_BinaryExpr_Float(t *testing.T) {
 			},
 		},
 		{
-			Name:      "AdditionLHS_Integer",
-			Statement: `SELECT 2 + value FROM cpu`,
+			Name:      "Float_AdditionRHS_Integer",
+			Statement: `SELECT f + 2 FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 22}},
 				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 12}},
@@ -2949,8 +2959,126 @@ func TestSelect_BinaryExpr_Float(t *testing.T) {
 			},
 		},
 		{
-			Name:      "TwoVariableAddition",
-			Statement: `SELECT value + value FROM cpu`,
+			Name:      "Integer_AdditionRHS_Integer",
+			Statement: `SELECT i + 2 FROM cpu`,
+			Points: [][]query.Point{
+				{&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 22}},
+				{&query.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: 12}},
+				{&query.IntegerPoint{Name: "cpu", Time: 9 * Second, Value: 21}},
+			},
+		},
+		{
+			Name:      "Unsigned_AdditionRHS_Integer",
+			Statement: `SELECT u + 2 FROM cpu`,
+			Points: [][]query.Point{
+				{&query.UnsignedPoint{Name: "cpu", Time: 0 * Second, Value: 22}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 5 * Second, Value: 12}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 9 * Second, Value: 21}},
+			},
+		},
+		{
+			Name:      "Float_AdditionRHS_Unsigned",
+			Statement: `SELECT f + 9223372036854775808 FROM cpu`,
+			Points: [][]query.Point{ // adding small floats to this does not change the value, this is expected
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: float64(9223372036854775808)}},
+				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: float64(9223372036854775808)}},
+				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: float64(9223372036854775808)}},
+			},
+		},
+		{
+			Name:      "Integer_AdditionRHS_Unsigned",
+			Statement: `SELECT i + 9223372036854775808 FROM cpu`,
+			Err:       `cannot use + with an integer and unsigned`,
+		},
+		{
+			Name:      "Unsigned_AdditionRHS_Unsigned",
+			Statement: `SELECT u + 9223372036854775808 FROM cpu`,
+			Points: [][]query.Point{
+				{&query.UnsignedPoint{Name: "cpu", Time: 0 * Second, Value: 9223372036854775828}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 5 * Second, Value: 9223372036854775818}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 9 * Second, Value: 9223372036854775827}},
+			},
+		},
+		{
+			Name:      "Float_AdditionLHS_Number",
+			Statement: `SELECT 2.0 + f FROM cpu`,
+			Points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 22}},
+				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 12}},
+				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 21}},
+			},
+		},
+		{
+			Name:      "Integer_AdditionLHS_Number",
+			Statement: `SELECT 2.0 + i FROM cpu`,
+			Points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 22}},
+				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 12}},
+				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 21}},
+			},
+		},
+		{
+			Name:      "Unsigned_AdditionLHS_Number",
+			Statement: `SELECT 2.0 + u FROM cpu`,
+			Points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 22}},
+				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 12}},
+				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 21}},
+			},
+		},
+		{
+			Name:      "Float_AdditionLHS_Integer",
+			Statement: `SELECT 2 + f FROM cpu`,
+			Points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 22}},
+				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 12}},
+				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 21}},
+			},
+		},
+		{
+			Name:      "Integer_AdditionLHS_Integer",
+			Statement: `SELECT 2 + i FROM cpu`,
+			Points: [][]query.Point{
+				{&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 22}},
+				{&query.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: 12}},
+				{&query.IntegerPoint{Name: "cpu", Time: 9 * Second, Value: 21}},
+			},
+		},
+		{
+			Name:      "Unsigned_AdditionLHS_Integer",
+			Statement: `SELECT 2 + u FROM cpu`,
+			Points: [][]query.Point{
+				{&query.UnsignedPoint{Name: "cpu", Time: 0 * Second, Value: 22}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 5 * Second, Value: 12}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 9 * Second, Value: 21}},
+			},
+		},
+		{
+			Name:      "Float_AdditionLHS_Unsigned",
+			Statement: `SELECT 9223372036854775808 + f FROM cpu`,
+			Points: [][]query.Point{ // adding small floats to this does not change the value, this is expected
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: float64(9223372036854775808)}},
+				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: float64(9223372036854775808)}},
+				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: float64(9223372036854775808)}},
+			},
+		},
+		{
+			Name:      "Integer_AdditionLHS_Unsigned",
+			Statement: `SELECT 9223372036854775808 + i FROM cpu`,
+			Err:       `cannot use + with unsigned and an integer`,
+		},
+		{
+			Name:      "Unsigned_AdditionLHS_Unsigned",
+			Statement: `SELECT 9223372036854775808 + u FROM cpu`,
+			Points: [][]query.Point{
+				{&query.UnsignedPoint{Name: "cpu", Time: 0 * Second, Value: 9223372036854775828}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 5 * Second, Value: 9223372036854775818}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 9 * Second, Value: 9223372036854775827}},
+			},
+		},
+		{
+			Name:      "Float_Add_Float",
+			Statement: `SELECT f + f FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
 				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 20}},
@@ -2958,8 +3086,26 @@ func TestSelect_BinaryExpr_Float(t *testing.T) {
 			},
 		},
 		{
-			Name:      "MultiplicationRHS_Number",
-			Statement: `SELECT value * 2.0 FROM cpu`,
+			Name:      "Integer_Add_Integer",
+			Statement: `SELECT i + i FROM cpu`,
+			Points: [][]query.Point{
+				{&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
+				{&query.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: 20}},
+				{&query.IntegerPoint{Name: "cpu", Time: 9 * Second, Value: 38}},
+			},
+		},
+		{
+			Name:      "Unsigned_Add_Unsigned",
+			Statement: `SELECT u + u FROM cpu`,
+			Points: [][]query.Point{
+				{&query.UnsignedPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 5 * Second, Value: 20}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 9 * Second, Value: 38}},
+			},
+		},
+		{
+			Name:      "Float_Add_Integer",
+			Statement: `SELECT f + i FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
 				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 20}},
@@ -2967,8 +3113,8 @@ func TestSelect_BinaryExpr_Float(t *testing.T) {
 			},
 		},
 		{
-			Name:      "MultiplicationRHS_Integer",
-			Statement: `SELECT value * 2 FROM cpu`,
+			Name:      "Float_Add_Unsigned",
+			Statement: `SELECT f + u FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
 				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 20}},
@@ -2976,8 +3122,13 @@ func TestSelect_BinaryExpr_Float(t *testing.T) {
 			},
 		},
 		{
-			Name:      "MultiplicationLHS_Number",
-			Statement: `SELECT 2.0 * value FROM cpu`,
+			Name:      "Integer_Add_Unsigned",
+			Statement: `SELECT i + u FROM cpu`,
+			Err:       `cannot use + between an integer and unsigned, an explicit cast is required`,
+		},
+		{
+			Name:      "Float_MultiplicationRHS_Number",
+			Statement: `SELECT f * 2.0 FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
 				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 20}},
@@ -2985,8 +3136,8 @@ func TestSelect_BinaryExpr_Float(t *testing.T) {
 			},
 		},
 		{
-			Name:      "MultiplicationLHS_Integer",
-			Statement: `SELECT 2 * value FROM cpu`,
+			Name:      "Integer_MultiplicationRHS_Number",
+			Statement: `SELECT i * 2.0 FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
 				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 20}},
@@ -2994,8 +3145,105 @@ func TestSelect_BinaryExpr_Float(t *testing.T) {
 			},
 		},
 		{
-			Name:      "TwoVariableMultiplication",
-			Statement: `SELECT value * value FROM cpu`,
+			Name:      "Unsigned_MultiplicationRHS_Number",
+			Statement: `SELECT u * 2.0 FROM cpu`,
+			Points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
+				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 20}},
+				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 38}},
+			},
+		},
+		{
+			Name:      "Float_MultiplicationRHS_Integer",
+			Statement: `SELECT f * 2 FROM cpu`,
+			Points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
+				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 20}},
+				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 38}},
+			},
+		},
+		{
+			Name:      "Integer_MultiplicationRHS_Integer",
+			Statement: `SELECT i * 2 FROM cpu`,
+			Points: [][]query.Point{
+				{&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
+				{&query.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: 20}},
+				{&query.IntegerPoint{Name: "cpu", Time: 9 * Second, Value: 38}},
+			},
+		},
+		{
+			Name:      "Unsigned_MultiplicationRHS_Integer",
+			Statement: `SELECT u * 2 FROM cpu`,
+			Points: [][]query.Point{
+				{&query.UnsignedPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 5 * Second, Value: 20}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 9 * Second, Value: 38}},
+			},
+		},
+		// Skip unsigned literals for multiplication because there is inevitable
+		// overflow. While it is possible to do, the behavior is considered unsigned
+		// and it's not a very good test because it would result in just plugging
+		// the values into the computer anyway to figure out what the correct answer
+		// is rather than calculating it myself and testing that I get the correct
+		// value.
+		{
+			Name:      "Float_MultiplicationLHS_Number",
+			Statement: `SELECT 2.0 * f FROM cpu`,
+			Points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
+				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 20}},
+				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 38}},
+			},
+		},
+		{
+			Name:      "Integer_MultiplicationLHS_Number",
+			Statement: `SELECT 2.0 * i FROM cpu`,
+			Points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
+				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 20}},
+				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 38}},
+			},
+		},
+		{
+			Name:      "Unsigned_MultiplicationLHS_Number",
+			Statement: `SELECT 2.0 * u FROM cpu`,
+			Points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
+				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 20}},
+				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 38}},
+			},
+		},
+		{
+			Name:      "Float_MultiplicationLHS_Integer",
+			Statement: `SELECT 2 * f FROM cpu`,
+			Points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
+				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 20}},
+				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 38}},
+			},
+		},
+		{
+			Name:      "Integer_MultiplicationLHS_Integer",
+			Statement: `SELECT 2 * i FROM cpu`,
+			Points: [][]query.Point{
+				{&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
+				{&query.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: 20}},
+				{&query.IntegerPoint{Name: "cpu", Time: 9 * Second, Value: 38}},
+			},
+		},
+		{
+			Name:      "Unsigned_MultiplicationLHS_Integer",
+			Statement: `SELECT 2 * u FROM cpu`,
+			Points: [][]query.Point{
+				{&query.UnsignedPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 5 * Second, Value: 20}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 9 * Second, Value: 38}},
+			},
+		},
+		// Skip unsigned literals for multiplication. See above.
+		{
+			Name:      "Float_Multiply_Float",
+			Statement: `SELECT f * f FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 400}},
 				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 100}},
@@ -3003,228 +3251,8 @@ func TestSelect_BinaryExpr_Float(t *testing.T) {
 			},
 		},
 		{
-			Name:      "SubtractionRHS_Number",
-			Statement: `SELECT value - 2.0 FROM cpu`,
-			Points: [][]query.Point{
-				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 18}},
-				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 8}},
-				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 17}},
-			},
-		},
-		{
-			Name:      "SubtractionRHS_Integer",
-			Statement: `SELECT value - 2 FROM cpu`,
-			Points: [][]query.Point{
-				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 18}},
-				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 8}},
-				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 17}},
-			},
-		},
-		{
-			Name:      "SubtractionLHS_Number",
-			Statement: `SELECT 2.0 - value FROM cpu`,
-			Points: [][]query.Point{
-				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: -18}},
-				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: -8}},
-				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: -17}},
-			},
-		},
-		{
-			Name:      "SubtractionLHS_Integer",
-			Statement: `SELECT 2 - value FROM cpu`,
-			Points: [][]query.Point{
-				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: -18}},
-				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: -8}},
-				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: -17}},
-			},
-		},
-		{
-			Name:      "TwoVariableSubtraction",
-			Statement: `SELECT value - value FROM cpu`,
-			Points: [][]query.Point{
-				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 0}},
-				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 0}},
-				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 0}},
-			},
-		},
-		{
-			Name:      "DivisionRHS_Number",
-			Statement: `SELECT value / 2.0 FROM cpu`,
-			Points: [][]query.Point{
-				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 10}},
-				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 5}},
-				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: float64(19) / 2}},
-			},
-		},
-		{
-			Name:      "DivisionRHS_Integer",
-			Statement: `SELECT value / 2 FROM cpu`,
-			Points: [][]query.Point{
-				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 10}},
-				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 5}},
-				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: float64(19) / 2}},
-			},
-		},
-		{
-			Name:      "DivisionLHS_Number",
-			Statement: `SELECT 38.0 / value FROM cpu`,
-			Points: [][]query.Point{
-				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 1.9}},
-				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 3.8}},
-				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 2}},
-			},
-		},
-		{
-			Name:      "DivisionLHS_Integer",
-			Statement: `SELECT 38 / value FROM cpu`,
-			Points: [][]query.Point{
-				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 1.9}},
-				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 3.8}},
-				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 2}},
-			},
-		},
-		{
-			Name:      "TwoVariableDivision",
-			Statement: `SELECT value / value FROM cpu`,
-			Points: [][]query.Point{
-				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 1}},
-				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 1}},
-				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 1}},
-			},
-		},
-	} {
-		t.Run(test.Name, func(t *testing.T) {
-			stmt := MustParseSelectStatement(test.Statement)
-			itrs, _, err := query.Select(stmt, &shardMapper, query.SelectOptions{})
-			if err != nil {
-				t.Errorf("%s: parse error: %s", test.Name, err)
-			} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-				t.Fatalf("%s: unexpected error: %s", test.Name, err)
-			} else if diff := cmp.Diff(a, test.Points); diff != "" {
-				t.Errorf("%s: unexpected points:\n%s", test.Name, diff)
-			}
-		})
-	}
-}
-
-// Ensure a SELECT binary expr queries can be executed as integers.
-func TestSelect_BinaryExpr_Integer(t *testing.T) {
-	shardMapper := ShardMapper{
-		MapShardsFn: func(sources influxql.Sources, _ influxql.TimeRange) query.ShardGroup {
-			return &ShardGroup{
-				Fields: map[string]influxql.DataType{
-					"value": influxql.Integer,
-				},
-				CreateIteratorFn: func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-					if m.Name != "cpu" {
-						t.Fatalf("unexpected source: %s", m.Name)
-					}
-					makeAuxFields := func(value int64) []interface{} {
-						aux := make([]interface{}, len(opt.Aux))
-						for i := range aux {
-							aux[i] = value
-						}
-						return aux
-					}
-					return &FloatIterator{Points: []query.FloatPoint{
-						{Name: "cpu", Time: 0 * Second, Aux: makeAuxFields(20)},
-						{Name: "cpu", Time: 5 * Second, Aux: makeAuxFields(10)},
-						{Name: "cpu", Time: 9 * Second, Aux: makeAuxFields(19)},
-					}}, nil
-				},
-			}
-		},
-	}
-
-	for _, test := range []struct {
-		Name      string
-		Statement string
-		Points    [][]query.Point
-	}{
-		{
-			Name:      "AdditionRHS_Number",
-			Statement: `SELECT value + 2.0 FROM cpu`,
-			Points: [][]query.Point{
-				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 22}},
-				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 12}},
-				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 21}},
-			},
-		},
-		{
-			Name:      "AdditionRHS_Integer",
-			Statement: `SELECT value + 2 FROM cpu`,
-			Points: [][]query.Point{
-				{&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 22}},
-				{&query.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: 12}},
-				{&query.IntegerPoint{Name: "cpu", Time: 9 * Second, Value: 21}},
-			},
-		},
-		{
-			Name:      "AdditionLHS_Number",
-			Statement: `SELECT 2.0 + value FROM cpu`,
-			Points: [][]query.Point{
-				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 22}},
-				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 12}},
-				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 21}},
-			},
-		},
-		{
-			Name:      "AdditionLHS_Integer",
-			Statement: `SELECT 2 + value FROM cpu`,
-			Points: [][]query.Point{
-				{&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 22}},
-				{&query.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: 12}},
-				{&query.IntegerPoint{Name: "cpu", Time: 9 * Second, Value: 21}},
-			},
-		},
-		{
-			Name:      "TwoVariableAddition",
-			Statement: `SELECT value + value FROM cpu`,
-			Points: [][]query.Point{
-				{&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
-				{&query.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: 20}},
-				{&query.IntegerPoint{Name: "cpu", Time: 9 * Second, Value: 38}},
-			},
-		},
-		{
-			Name:      "MultiplicationRHS_Number",
-			Statement: `SELECT value * 2.0 FROM cpu`,
-			Points: [][]query.Point{
-				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
-				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 20}},
-				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 38}},
-			},
-		},
-		{
-			Name:      "MultiplicationRHS_Integer",
-			Statement: `SELECT value * 2 FROM cpu`,
-			Points: [][]query.Point{
-				{&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
-				{&query.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: 20}},
-				{&query.IntegerPoint{Name: "cpu", Time: 9 * Second, Value: 38}},
-			},
-		},
-		{
-			Name:      "MultiplicationLHS_Number",
-			Statement: `SELECT 2.0 * value FROM cpu`,
-			Points: [][]query.Point{
-				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
-				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 20}},
-				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 38}},
-			},
-		},
-		{
-			Name:      "MultiplicationLHS_Integer",
-			Statement: `SELECT 2 * value FROM cpu`,
-			Points: [][]query.Point{
-				{&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 40}},
-				{&query.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: 20}},
-				{&query.IntegerPoint{Name: "cpu", Time: 9 * Second, Value: 38}},
-			},
-		},
-		{
-			Name:      "TwoVariableMultiplication",
-			Statement: `SELECT value * value FROM cpu`,
+			Name:      "Integer_Multiply_Integer",
+			Statement: `SELECT i * i FROM cpu`,
 			Points: [][]query.Point{
 				{&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 400}},
 				{&query.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: 100}},
@@ -3232,8 +3260,40 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			},
 		},
 		{
-			Name:      "SubtractionRHS_Number",
-			Statement: `SELECT value - 2.0 FROM cpu`,
+			Name:      "Unsigned_Multiply_Unsigned",
+			Statement: `SELECT u * u FROM cpu`,
+			Points: [][]query.Point{
+				{&query.UnsignedPoint{Name: "cpu", Time: 0 * Second, Value: 400}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 5 * Second, Value: 100}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 9 * Second, Value: 361}},
+			},
+		},
+		{
+			Name:      "Float_Multiply_Integer",
+			Statement: `SELECT f * i FROM cpu`,
+			Points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 400}},
+				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 100}},
+				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 361}},
+			},
+		},
+		{
+			Name:      "Float_Multiply_Unsigned",
+			Statement: `SELECT f * u FROM cpu`,
+			Points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 400}},
+				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 100}},
+				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 361}},
+			},
+		},
+		{
+			Name:      "Integer_Multiply_Unsigned",
+			Statement: `SELECT i * u FROM cpu`,
+			Err:       `cannot use * between an integer and unsigned, an explicit cast is required`,
+		},
+		{
+			Name:      "Float_SubtractionRHS_Number",
+			Statement: `SELECT f - 2.0 FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 18}},
 				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 8}},
@@ -3241,8 +3301,35 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			},
 		},
 		{
-			Name:      "SubtractionRHS_Integer",
-			Statement: `SELECT value - 2 FROM cpu`,
+			Name:      "Integer_SubtractionRHS_Number",
+			Statement: `SELECT i - 2.0 FROM cpu`,
+			Points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 18}},
+				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 8}},
+				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 17}},
+			},
+		},
+		{
+			Name:      "Unsigned_SubtractionRHS_Number",
+			Statement: `SELECT u - 2.0 FROM cpu`,
+			Points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 18}},
+				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 8}},
+				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 17}},
+			},
+		},
+		{
+			Name:      "Float_SubtractionRHS_Integer",
+			Statement: `SELECT f - 2 FROM cpu`,
+			Points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 18}},
+				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 8}},
+				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 17}},
+			},
+		},
+		{
+			Name:      "Integer_SubtractionRHS_Integer",
+			Statement: `SELECT i - 2 FROM cpu`,
 			Points: [][]query.Point{
 				{&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 18}},
 				{&query.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: 8}},
@@ -3250,8 +3337,37 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			},
 		},
 		{
-			Name:      "SubtractionLHS_Number",
-			Statement: `SELECT 2.0 - value FROM cpu`,
+			Name:      "Unsigned_SubtractionRHS_Integer",
+			Statement: `SELECT u - 2 FROM cpu`,
+			Points: [][]query.Point{
+				{&query.UnsignedPoint{Name: "cpu", Time: 0 * Second, Value: 18}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 5 * Second, Value: 8}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 9 * Second, Value: 17}},
+			},
+		},
+		{
+			Name:      "Float_SubtractionRHS_Unsigned",
+			Statement: `SELECT f - 9223372036854775808 FROM cpu`,
+			Points: [][]query.Point{ // adding small floats to this does not change the value, this is expected
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: float64(-9223372036854775808)}},
+				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: float64(-9223372036854775808)}},
+				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: float64(-9223372036854775808)}},
+			},
+		},
+		{
+			Name:      "Integer_SubtractionRHS_Unsigned",
+			Statement: `SELECT i - 9223372036854775808 FROM cpu`,
+			Err:       `cannot use - with an integer and unsigned`,
+			Points: [][]query.Point{
+				{&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 18}},
+				{&query.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: 8}},
+				{&query.IntegerPoint{Name: "cpu", Time: 9 * Second, Value: 17}},
+			},
+		},
+		// Skip Unsigned_SubtractionRHS_Integer because it would result in underflow.
+		{
+			Name:      "Float_SubtractionLHS_Number",
+			Statement: `SELECT 2.0 - f FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: -18}},
 				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: -8}},
@@ -3259,8 +3375,35 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			},
 		},
 		{
-			Name:      "SubtractionLHS_Integer",
-			Statement: `SELECT 2 - value FROM cpu`,
+			Name:      "Integer_SubtractionLHS_Number",
+			Statement: `SELECT 2.0 - i FROM cpu`,
+			Points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: -18}},
+				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: -8}},
+				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: -17}},
+			},
+		},
+		{
+			Name:      "Unsigned_SubtractionLHS_Number",
+			Statement: `SELECT 2.0 - u FROM cpu`,
+			Points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: -18}},
+				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: -8}},
+				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: -17}},
+			},
+		},
+		{
+			Name:      "Float_SubtractionLHS_Integer",
+			Statement: `SELECT 2 - f FROM cpu`,
+			Points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: -18}},
+				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: -8}},
+				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: -17}},
+			},
+		},
+		{
+			Name:      "Integer_SubtractionLHS_Integer",
+			Statement: `SELECT 2 - i FROM cpu`,
 			Points: [][]query.Point{
 				{&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: -18}},
 				{&query.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: -8}},
@@ -3268,8 +3411,49 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			},
 		},
 		{
-			Name:      "TwoVariableSubtraction",
-			Statement: `SELECT value - value FROM cpu`,
+			Name:      "Unsigned_SubtractionLHS_Integer",
+			Statement: `SELECT 30 - u FROM cpu`,
+			Points: [][]query.Point{
+				{&query.UnsignedPoint{Name: "cpu", Time: 0 * Second, Value: 10}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 5 * Second, Value: 20}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 9 * Second, Value: 11}},
+			},
+		},
+		{
+			Name:      "Float_SubtractionLHS_Unsigned",
+			Statement: `SELECT 9223372036854775808 - f FROM cpu`, // subtracting small floats to this does not change the value, this is expected
+			Points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: float64(9223372036854775828)}},
+				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: float64(9223372036854775828)}},
+				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: float64(9223372036854775828)}},
+			},
+		},
+		{
+			Name:      "Integer_SubtractionLHS_Unsigned",
+			Statement: `SELECT 9223372036854775808 - i FROM cpu`,
+			Err:       `cannot use - with unsigned and an integer`,
+		},
+		{
+			Name:      "Unsigned_SubtractionLHS_Unsigned",
+			Statement: `SELECT 9223372036854775808 - u FROM cpu`,
+			Points: [][]query.Point{
+				{&query.UnsignedPoint{Name: "cpu", Time: 0 * Second, Value: 9223372036854775788}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 5 * Second, Value: 9223372036854775798}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 9 * Second, Value: 9223372036854775789}},
+			},
+		},
+		{
+			Name:      "Float_Subtract_Float",
+			Statement: `SELECT f - f FROM cpu`,
+			Points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 0}},
+				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 0}},
+				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 0}},
+			},
+		},
+		{
+			Name:      "Integer_Subtract_Integer",
+			Statement: `SELECT i - i FROM cpu`,
 			Points: [][]query.Point{
 				{&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 0}},
 				{&query.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: 0}},
@@ -3277,17 +3461,40 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			},
 		},
 		{
-			Name:      "DivisionRHS_Number",
-			Statement: `SELECT value / 2.0 FROM cpu`,
+			Name:      "Unsigned_Subtract_Unsigned",
+			Statement: `SELECT u - u FROM cpu`,
 			Points: [][]query.Point{
-				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 10}},
-				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 5}},
-				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 9.5}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 0 * Second, Value: 0}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 5 * Second, Value: 0}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 9 * Second, Value: 0}},
 			},
 		},
 		{
-			Name:      "DivisionRHS_Integer",
-			Statement: `SELECT value / 2 FROM cpu`,
+			Name:      "Float_Subtract_Integer",
+			Statement: `SELECT f - i FROM cpu`,
+			Points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 0}},
+				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 0}},
+				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 0}},
+			},
+		},
+		{
+			Name:      "Float_Subtract_Unsigned",
+			Statement: `SELECT f - u FROM cpu`,
+			Points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 0}},
+				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 0}},
+				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 0}},
+			},
+		},
+		{
+			Name:      "Integer_Subtract_Unsigned",
+			Statement: `SELECT i - u FROM cpu`,
+			Err:       `cannot use - between an integer and unsigned, an explicit cast is required`,
+		},
+		{
+			Name:      "Float_DivisionRHS_Number",
+			Statement: `SELECT f / 2.0 FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 10}},
 				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 5}},
@@ -3295,17 +3502,76 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			},
 		},
 		{
-			Name:      "DivisionLHS_Number",
-			Statement: `SELECT 38.0 / value FROM cpu`,
+			Name:      "Integer_DivisionRHS_Number",
+			Statement: `SELECT i / 2.0 FROM cpu`,
 			Points: [][]query.Point{
-				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 1.9}},
-				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 3.8}},
-				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 2.0}},
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 10}},
+				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 5}},
+				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 9.5}},
 			},
 		},
 		{
-			Name:      "DivisionLHS_Integer",
-			Statement: `SELECT 38 / value FROM cpu`,
+			Name:      "Unsigned_DivisionRHS_Number",
+			Statement: `SELECT u / 2.0 FROM cpu`,
+			Points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 10}},
+				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 5}},
+				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 9.5}},
+			},
+		},
+		{
+			Name:      "Float_DivisionRHS_Integer",
+			Statement: `SELECT f / 2 FROM cpu`,
+			Points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 10}},
+				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 5}},
+				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: float64(19) / 2}},
+			},
+		},
+		{
+			Name:      "Integer_DivisionRHS_Integer",
+			Statement: `SELECT i / 2 FROM cpu`,
+			Points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 10}},
+				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 5}},
+				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: float64(19) / 2}},
+			},
+		},
+		{
+			Name:      "Unsigned_DivisionRHS_Integer",
+			Statement: `SELECT u / 2 FROM cpu`,
+			Points: [][]query.Point{
+				{&query.UnsignedPoint{Name: "cpu", Time: 0 * Second, Value: 10}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 5 * Second, Value: 5}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 9 * Second, Value: 9}},
+			},
+		},
+		{
+			Name:      "Float_DivisionRHS_Unsigned",
+			Statement: `SELECT f / 9223372036854775808 FROM cpu`,
+			Points: [][]query.Point{ // dividing small floats does not result in a meaningful result, this is expected
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: float64(20) / float64(9223372036854775808)}},
+				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: float64(10) / float64(9223372036854775808)}},
+				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: float64(19) / float64(9223372036854775808)}},
+			},
+		},
+		{
+			Name:      "Integer_DivisionRHS_Unsigned",
+			Statement: `SELECT i / 9223372036854775808 FROM cpu`,
+			Err:       `cannot use / with an integer and unsigned`,
+		},
+		{
+			Name:      "Unsigned_DivisionRHS_Unsigned",
+			Statement: `SELECT u / 9223372036854775808 FROM cpu`,
+			Points: [][]query.Point{
+				{&query.UnsignedPoint{Name: "cpu", Time: 0 * Second, Value: 0}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 5 * Second, Value: 0}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 9 * Second, Value: 0}},
+			},
+		},
+		{
+			Name:      "Float_DivisionLHS_Number",
+			Statement: `SELECT 38.0 / f FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 1.9}},
 				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 3.8}},
@@ -3313,8 +3579,76 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			},
 		},
 		{
-			Name:      "TwoVariablesDivision",
-			Statement: `SELECT value / value FROM cpu`,
+			Name:      "Integer_DivisionLHS_Number",
+			Statement: `SELECT 38.0 / i FROM cpu`,
+			Points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 1.9}},
+				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 3.8}},
+				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 2.0}},
+			},
+		},
+		{
+			Name:      "Unsigned_DivisionLHS_Number",
+			Statement: `SELECT 38.0 / u FROM cpu`,
+			Points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 1.9}},
+				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 3.8}},
+				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 2.0}},
+			},
+		},
+		{
+			Name:      "Float_DivisionLHS_Integer",
+			Statement: `SELECT 38 / f FROM cpu`,
+			Points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 1.9}},
+				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 3.8}},
+				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 2}},
+			},
+		},
+		{
+			Name:      "Integer_DivisionLHS_Integer",
+			Statement: `SELECT 38 / i FROM cpu`,
+			Points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 1.9}},
+				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 3.8}},
+				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 2}},
+			},
+		},
+		{
+			Name:      "Unsigned_DivisionLHS_Integer",
+			Statement: `SELECT 38 / u FROM cpu`,
+			Points: [][]query.Point{
+				{&query.UnsignedPoint{Name: "cpu", Time: 0 * Second, Value: 1}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 5 * Second, Value: 3}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 9 * Second, Value: 2}},
+			},
+		},
+		{
+			Name:      "Float_DivisionLHS_Unsigned",
+			Statement: `SELECT 9223372036854775808 / f FROM cpu`,
+			Points: [][]query.Point{ // dividing large floats results in inaccurate outputs so these may not be correct, but that is considered normal for floating point
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 461168601842738816}},
+				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 922337203685477632}},
+				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 485440633518672384}},
+			},
+		},
+		{
+			Name:      "Integer_DivisionLHS_Unsigned",
+			Statement: `SELECT 9223372036854775808 / i FROM cpu`,
+			Err:       `cannot use / with unsigned and an integer`,
+		},
+		{
+			Name:      "Unsigned_DivisionLHS_Unsigned",
+			Statement: `SELECT 9223372036854775808 / u FROM cpu`,
+			Points: [][]query.Point{
+				{&query.UnsignedPoint{Name: "cpu", Time: 0 * Second, Value: 461168601842738790}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 5 * Second, Value: 922337203685477580}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 9 * Second, Value: 485440633518672410}},
+			},
+		},
+		{
+			Name:      "Float_Divide_Float",
+			Statement: `SELECT f / f FROM cpu`,
 			Points: [][]query.Point{
 				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 1}},
 				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 1}},
@@ -3322,8 +3656,49 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			},
 		},
 		{
-			Name:      "BitwiseAndRHS",
-			Statement: `SELECT value & 254 FROM cpu`,
+			Name:      "Integer_Divide_Integer",
+			Statement: `SELECT i / i FROM cpu`,
+			Points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 1}},
+				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 1}},
+				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 1}},
+			},
+		},
+		{
+			Name:      "Unsigned_Divide_Unsigned",
+			Statement: `SELECT u / u FROM cpu`,
+			Points: [][]query.Point{
+				{&query.UnsignedPoint{Name: "cpu", Time: 0 * Second, Value: 1}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 5 * Second, Value: 1}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 9 * Second, Value: 1}},
+			},
+		},
+		{
+			Name:      "Float_Divide_Integer",
+			Statement: `SELECT f / i FROM cpu`,
+			Points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 1}},
+				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 1}},
+				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 1}},
+			},
+		},
+		{
+			Name:      "Float_Divide_Unsigned",
+			Statement: `SELECT f / u FROM cpu`,
+			Points: [][]query.Point{
+				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 1}},
+				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 1}},
+				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 1}},
+			},
+		},
+		{
+			Name:      "Integer_Divide_Unsigned",
+			Statement: `SELECT i / u FROM cpu`,
+			Err:       `cannot use / between an integer and unsigned, an explicit cast is required`,
+		},
+		{
+			Name:      "Integer_BitwiseAndRHS",
+			Statement: `SELECT i & 254 FROM cpu`,
 			Points: [][]query.Point{
 				{&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 20}},
 				{&query.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: 10}},
@@ -3331,8 +3706,17 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			},
 		},
 		{
-			Name:      "BitwiseOrLHS",
-			Statement: `SELECT 4 | value FROM cpu`,
+			Name:      "Unsigned_BitwiseAndRHS",
+			Statement: `SELECT u & 254 FROM cpu`,
+			Points: [][]query.Point{
+				{&query.UnsignedPoint{Name: "cpu", Time: 0 * Second, Value: 20}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 5 * Second, Value: 10}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 9 * Second, Value: 18}},
+			},
+		},
+		{
+			Name:      "Integer_BitwiseOrLHS",
+			Statement: `SELECT 4 | i FROM cpu`,
 			Points: [][]query.Point{
 				{&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 20}},
 				{&query.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: 14}},
@@ -3340,99 +3724,46 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			},
 		},
 		{
-			Name:      "TwoVariableBitwiseXOr",
-			Statement: `SELECT value ^ value FROM cpu`,
+			Name:      "Unsigned_BitwiseOrLHS",
+			Statement: `SELECT 4 | u FROM cpu`,
+			Points: [][]query.Point{
+				{&query.UnsignedPoint{Name: "cpu", Time: 0 * Second, Value: 20}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 5 * Second, Value: 14}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 9 * Second, Value: 23}},
+			},
+		},
+		{
+			Name:      "Integer_BitwiseXOr_Integer",
+			Statement: `SELECT i ^ i FROM cpu`,
 			Points: [][]query.Point{
 				{&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 0}},
 				{&query.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: 0}},
 				{&query.IntegerPoint{Name: "cpu", Time: 9 * Second, Value: 0}},
 			},
 		},
+		{
+			Name:      "Unsigned_BitwiseXOr_Integer",
+			Statement: `SELECT u ^ u FROM cpu`,
+			Points: [][]query.Point{
+				{&query.UnsignedPoint{Name: "cpu", Time: 0 * Second, Value: 0}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 5 * Second, Value: 0}},
+				{&query.UnsignedPoint{Name: "cpu", Time: 9 * Second, Value: 0}},
+			},
+		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			stmt := MustParseSelectStatement(test.Statement)
 			itrs, _, err := query.Select(stmt, &shardMapper, query.SelectOptions{})
 			if err != nil {
-				t.Errorf("%s: parse error: %s", test.Name, err)
-			} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-				t.Fatalf("%s: unexpected error: %s", test.Name, err)
-			} else if diff := cmp.Diff(a, test.Points); diff != "" {
-				t.Errorf("%s: unexpected points:\n%s", test.Name, diff)
-			}
-		})
-	}
-}
-
-// Ensure a SELECT binary expr queries can be executed on mixed iterators.
-func TestSelect_BinaryExpr_Mixed(t *testing.T) {
-	shardMapper := ShardMapper{
-		MapShardsFn: func(sources influxql.Sources, _ influxql.TimeRange) query.ShardGroup {
-			return &ShardGroup{
-				Fields: map[string]influxql.DataType{
-					"total": influxql.Float,
-					"value": influxql.Integer,
-				},
-				CreateIteratorFn: func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-					if m.Name != "cpu" {
-						t.Fatalf("unexpected source: %s", m.Name)
+				if have, want := err.Error(), test.Err; want != "" {
+					if have != want {
+						t.Errorf("%s: unexpected parse error: %s != %s", test.Name, have, want)
 					}
-					return &FloatIterator{Points: []query.FloatPoint{
-						{Name: "cpu", Time: 0 * Second, Aux: []interface{}{float64(20), int64(10)}},
-						{Name: "cpu", Time: 5 * Second, Aux: []interface{}{float64(10), int64(15)}},
-						{Name: "cpu", Time: 9 * Second, Aux: []interface{}{float64(19), int64(5)}},
-					}}, nil
-				},
-			}
-		},
-	}
-
-	for _, test := range []struct {
-		Name      string
-		Statement string
-		Points    [][]query.Point
-	}{
-		{
-			Name:      "Addition",
-			Statement: `SELECT total + value FROM cpu`,
-			Points: [][]query.Point{
-				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 30}},
-				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 25}},
-				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 24}},
-			},
-		},
-		{
-			Name:      "Subtraction",
-			Statement: `SELECT total - value FROM cpu`,
-			Points: [][]query.Point{
-				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 10}},
-				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: -5}},
-				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 14}},
-			},
-		},
-		{
-			Name:      "Multiplication",
-			Statement: `SELECT total * value FROM cpu`,
-			Points: [][]query.Point{
-				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 200}},
-				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 150}},
-				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 95}},
-			},
-		},
-		{
-			Name:      "Division",
-			Statement: `SELECT total / value FROM cpu`,
-			Points: [][]query.Point{
-				{&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 2}},
-				{&query.FloatPoint{Name: "cpu", Time: 5 * Second, Value: float64(10) / float64(15)}},
-				{&query.FloatPoint{Name: "cpu", Time: 9 * Second, Value: float64(19) / float64(5)}},
-			},
-		},
-	} {
-		t.Run(test.Name, func(t *testing.T) {
-			stmt := MustParseSelectStatement(test.Statement)
-			itrs, _, err := query.Select(stmt, &shardMapper, query.SelectOptions{})
-			if err != nil {
-				t.Errorf("%s: parse error: %s", test.Name, err)
+				} else {
+					t.Errorf("%s: unexpected parse error: %s", test.Name, have)
+				}
+			} else if test.Err != "" {
+				t.Fatalf("%s: expected error", test.Name)
 			} else if a, err := Iterators(itrs).ReadAll(); err != nil {
 				t.Fatalf("%s: unexpected error: %s", test.Name, err)
 			} else if diff := cmp.Diff(a, test.Points); diff != "" {
