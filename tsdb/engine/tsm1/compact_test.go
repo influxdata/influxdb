@@ -1400,11 +1400,11 @@ func TestDefaultPlanner_PlanLevel_SplitFile(t *testing.T) {
 			Size: 1 * 1024 * 1024,
 		},
 		tsm1.FileStat{
-			Path: "03-02.tsm1",
+			Path: "03-03.tsm1",
 			Size: 2 * 1024 * 1024 * 1024,
 		},
 		tsm1.FileStat{
-			Path: "03-03.tsm1",
+			Path: "03-04.tsm1",
 			Size: 10 * 1024 * 1024,
 		},
 		tsm1.FileStat{
