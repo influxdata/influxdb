@@ -119,7 +119,7 @@ function start() {
 
     # Launch process
     echo "Starting $NAME..."
-    if which start-stop-daemon &>/dev/null; then
+    if command -v start-stop-daemon &>/dev/null; then
         start-stop-daemon \
             --chuid $USER:$GROUP \
             --start \
