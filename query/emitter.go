@@ -20,6 +20,9 @@ type Emitter struct {
 	// The columns to attach to each row.
 	Columns []string
 
+	// Overridden measurement name to emit.
+	EmitName string
+
 	// The time zone location.
 	Location *time.Location
 
@@ -139,6 +142,10 @@ func (e *Emitter) loadBuf() (t int64, name string, tags Tags, err error) {
 
 // createRow creates a new row attached to the emitter.
 func (e *Emitter) createRow(name string, tags Tags, values []interface{}) {
+	if e.EmitName != "" {
+		name = e.EmitName
+	}
+
 	e.tags = tags
 	e.row = &models.Row{
 		Name:    name,
@@ -201,6 +208,12 @@ func (e *Emitter) readIterator(itr Iterator) (Point, error) {
 			return p, nil
 		}
 	case IntegerIterator:
+		if p, err := itr.Next(); err != nil {
+			return nil, err
+		} else if p != nil {
+			return p, nil
+		}
+	case UnsignedIterator:
 		if p, err := itr.Next(); err != nil {
 			return nil, err
 		} else if p != nil {

@@ -3,6 +3,7 @@ package cli // import "github.com/influxdata/influxdb/cmd/influx/cli"
 
 import (
 	"bytes"
+	"context"
 	"encoding/csv"
 	"encoding/json"
 	"errors"
@@ -293,6 +294,9 @@ func (c *CommandLine) ParseCommand(cmd string) error {
 
 // Connect connects to a server.
 func (c *CommandLine) Connect(cmd string) error {
+	// normalize cmd
+	cmd = strings.ToLower(cmd)
+
 	// Remove the "connect" keyword if it exists
 	addr := strings.TrimSpace(strings.Replace(cmd, "connect", "", -1))
 	if addr == "" {
@@ -550,10 +554,10 @@ func (c *CommandLine) SetPrecision(cmd string) {
 
 // SetFormat sets output format.
 func (c *CommandLine) SetFormat(cmd string) {
-	// Remove the "format" keyword if it exists
-	cmd = strings.TrimSpace(strings.Replace(cmd, "format", "", -1))
 	// normalize cmd
 	cmd = strings.ToLower(cmd)
+	// Remove the "format" keyword if it exists
+	cmd = strings.TrimSpace(strings.Replace(cmd, "format", "", -1))
 
 	switch cmd {
 	case "json", "csv", "column":
@@ -565,10 +569,10 @@ func (c *CommandLine) SetFormat(cmd string) {
 
 // SetWriteConsistency sets write consistency level.
 func (c *CommandLine) SetWriteConsistency(cmd string) {
-	// Remove the "consistency" keyword if it exists
-	cmd = strings.TrimSpace(strings.Replace(cmd, "consistency", "", -1))
 	// normalize cmd
 	cmd = strings.ToLower(cmd)
+	// Remove the "consistency" keyword if it exists
+	cmd = strings.TrimSpace(strings.Replace(cmd, "consistency", "", -1))
 
 	_, err := models.ParseConsistencyLevel(cmd)
 	if err != nil {
@@ -729,8 +733,31 @@ func (c *CommandLine) ExecuteQuery(query string) error {
 		}
 		query = pq.String()
 	}
-	response, err := c.Client.Query(c.query(query))
+
+	ctx := context.Background()
+	if !c.IgnoreSignals {
+		done := make(chan struct{})
+		defer close(done)
+
+		var cancel func()
+		ctx, cancel = context.WithCancel(ctx)
+		go func() {
+			select {
+			case <-done:
+			case <-c.osSignals:
+				cancel()
+			}
+		}()
+	}
+
+	response, err := c.Client.QueryContext(ctx, c.query(query))
 	if err != nil {
+		if err.Error() == "" {
+			err = ctx.Err()
+			if err == context.Canceled {
+				err = errors.New("aborted by user")
+			}
+		}
 		fmt.Printf("ERR: %s\n", err)
 		return err
 	}

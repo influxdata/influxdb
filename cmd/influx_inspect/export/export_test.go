@@ -95,6 +95,12 @@ func Test_exportWALFile(t *testing.T) {
 			}
 		}
 	}
+
+	// Missing .wal file should not cause a failure.
+	var out bytes.Buffer
+	if err := newCommand().exportWALFile("file-that-does-not-exist.wal", &out, func() {}); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func Test_exportTSMFile(t *testing.T) {
@@ -127,6 +133,12 @@ func Test_exportTSMFile(t *testing.T) {
 				t.Fatalf("expected line %q to be in exported output:\n%s", exp, out.String())
 			}
 		}
+	}
+
+	// Missing .tsm file should not cause a failure.
+	var out bytes.Buffer
+	if err := newCommand().exportTSMFile("file-that-does-not-exist.tsm", &out); err != nil {
+		t.Fatal(err)
 	}
 }
 

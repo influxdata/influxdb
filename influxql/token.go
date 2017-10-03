@@ -67,6 +67,7 @@ const (
 	// ALL and the following are InfluxQL Keywords
 	ALL
 	ALTER
+	ANALYZE
 	ANY
 	AS
 	ASC
@@ -188,6 +189,7 @@ var tokens = [...]string{
 
 	ALL:           "ALL",
 	ALTER:         "ALTER",
+	ANALYZE:       "ANALYZE",
 	ANY:           "ANY",
 	AS:            "AS",
 	ASC:           "ASC",

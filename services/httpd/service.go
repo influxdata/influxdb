@@ -38,6 +38,10 @@ const (
 	statClientError                  = "clientError"          // Number of HTTP responses due to client error.
 	statServerError                  = "serverError"          // Number of HTTP responses due to server error.
 	statRecoveredPanics              = "recoveredPanics"      // Number of panics recovered by HTTP handler.
+
+	// Prometheus stats
+	statPromWriteRequest = "promWriteReq" // Number of write requests to the promtheus endpoint
+	statPromReadRequest  = "promReadReq"  // Number of read requests to the prometheus endpoint
 )
 
 // Service manages the listener and handler for an HTTP endpoint.

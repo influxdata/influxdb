@@ -56,6 +56,9 @@ type Index struct {
 
 	seriesSketch, seriesTSSketch             *hll.Plus
 	measurementsSketch, measurementsTSSketch *hll.Plus
+
+	// Mutex to control rebuilds of the index
+	rebuildQueue sync.Mutex
 }
 
 // NewIndex returns a new initialized Index.
@@ -316,8 +319,8 @@ func (i *Index) MeasurementTagKeyValuesByExpr(name []byte, keys []string, expr i
 
 	// Iterate all series to collect tag values.
 	for _, id := range ids {
-		s, ok := mm.seriesByID[id]
-		if !ok {
+		s := mm.SeriesByID(id)
+		if s == nil {
 			continue
 		}
 
@@ -606,6 +609,9 @@ func (i *Index) DropSeries(key []byte) error {
 	// Remove the measurement's reference.
 	series.Measurement().DropSeries(series)
 
+	// Mark the series as deleted.
+	series.Delete()
+
 	// If the measurement no longer has any series, remove it as well.
 	if !series.Measurement().HasSeries() {
 		i.dropMeasurement(series.Measurement().Name)
@@ -654,13 +660,12 @@ func (i *Index) SetFieldName(measurement []byte, name string) {
 // ForEachMeasurementName iterates over each measurement name.
 func (i *Index) ForEachMeasurementName(fn func(name []byte) error) error {
 	i.mu.RLock()
-	defer i.mu.RUnlock()
-
 	mms := make(Measurements, 0, len(i.measurements))
 	for _, m := range i.measurements {
 		mms = append(mms, m)
 	}
 	sort.Sort(mms)
+	i.mu.RUnlock()
 
 	for _, m := range mms {
 		if err := fn([]byte(m.Name)); err != nil {
@@ -752,6 +757,30 @@ func (i *Index) UnassignShard(k string, shardID uint64) error {
 	return nil
 }
 
+// Rebuild recreates the measurement indexes to allow deleted series to be removed
+// and garbage collected.
+func (i *Index) Rebuild() {
+	// Only allow one rebuild at a time.  This will cause all subsequent rebuilds
+	// to queue.  The measurement rebuild is idempotent and will not be rebuilt if
+	// it does not need to be.
+	i.rebuildQueue.Lock()
+	defer i.rebuildQueue.Unlock()
+
+	i.ForEachMeasurementName(func(name []byte) error {
+		// Measurement never returns an error
+		m, _ := i.Measurement(name)
+		if m == nil {
+			return nil
+		}
+
+		nm := m.Rebuild()
+		i.mu.Lock()
+		i.measurements[string(name)] = nm
+		i.mu.Unlock()
+		return nil
+	})
+}
+
 // RemoveShard removes all references to shardID from any series or measurements
 // in the index.  If the shard was the only owner of data for the series, the series
 // is removed from the index.
@@ -767,7 +796,7 @@ func (i *Index) assignExistingSeries(shardID uint64, keys, names [][]byte, tagsS
 	i.mu.RLock()
 	var n int
 	for j, key := range keys {
-		if ss, ok := i.series[string(key)]; !ok {
+		if ss := i.series[string(key)]; ss == nil {
 			keys[n] = keys[j]
 			names[n] = names[j]
 			tagsSlice[n] = tagsSlice[j]

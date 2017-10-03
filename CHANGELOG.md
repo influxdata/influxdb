@@ -1,5 +1,9 @@
 ## v1.4.0 [unreleased]
 
+### Breaking changes
+
+* You can no longer specify a different `ORDER BY` clause in a subquery than the one in the top level query. This functionality never worked properly, but was not explicitly forbidden.
+
 ### Configuration Changes
 
 #### `[collectd]` Section
@@ -18,6 +22,20 @@
 - [#7195](https://github.com/influxdata/influxdb/issues/7195): Support SHOW CARDINALITY queries.
 - [#8711](https://github.com/influxdata/influxdb/pull/8711): Batch up writes for monitor service
 - [#8572](https://github.com/influxdata/influxdb/pull/8572): All errors from queries or writes are available via X-InfluxDB-Error header, and 5xx error messages will be written to server logs.
+- [#8662](https://github.com/influxdata/influxdb/pull/8662): Improve test coverage across both indexes.
+- [#8611](https://github.com/influxdata/influxdb/issues/8611): Respect X-Request-Id/Request-Id headers.
+- [#8572](https://github.com/influxdata/influxdb/issues/8668): InfluxDB now uses MIT licensed version of BurntSushi/toml.
+- [#8752](https://github.com/influxdata/influxdb/pull/8752): Use system cursors for measurement, series, and tag key meta queries.
+- [#6563](https://github.com/influxdata/influxdb/issues/6563): Support Ctrl+C to cancel a running query in the Influx CLI. Thanks @emluque!
+- [#8776](https://github.com/influxdata/influxdb/pull/8776): Initial implementation of explain plan.
+- [#8791](https://github.com/influxdata/influxdb/pull/8791): Include the number of scanned cached values in the iterator cost.
+- [#8784](https://github.com/influxdata/influxdb/pull/8784): Add support for the Prometheus remote read and write APIs.
+- [#8851](https://github.com/influxdata/influxdb/pull/8851): Improve performance of `Include` and `Exclude` functions
+- [#8854](https://github.com/influxdata/influxdb/pull/8854): Report the task status for a query.
+- [#8853](https://github.com/influxdata/influxdb/pull/8853): Reduce allocations, improve `readEntries` performance by simplifying loop
+- [#8830](https://github.com/influxdata/influxdb/issues/8830): Separate importer log statements to stdout and stderr.
+- [#8857](https://github.com/influxdata/influxdb/pull/8857): Improve performance of Bloom Filter in TSI index.
+- [#8897](https://github.com/influxdata/influxdb/pull/8897): Add message pack format for query responses.
 
 ### Bugfixes
 
@@ -27,6 +45,7 @@
 - [#8461](https://github.com/influxdata/influxdb/issues/8461) influxd backup tool will now separate out its logging to stdout and stderr. Thanks @xginn8!
 - [#8558](https://github.com/influxdata/influxdb/issues/8558): Dropping measurement used several GB disk space
 - [#8569](https://github.com/influxdata/influxdb/issues/8569): Fix the cq start and end times to use unix timestamps.
+- [#8590](https://github.com/influxdata/influxdb/issues/8590): influx cli case sensitivity.
 - [#8601](https://github.com/influxdata/influxdb/pull/8601): Fixed time boundaries for continuous queries with time zones.
 - [#8097](https://github.com/influxdata/influxdb/pull/8097): Return query parsing errors in CSV formats.
 - [#8607](https://github.com/influxdata/influxdb/issues/8607): Fix time zone shifts when the shift happens on a time zone boundary.
@@ -34,8 +53,21 @@
 - [#8694](https://github.com/influxdata/influxdb/issues/8694): Reduce CPU usage when checking series cardinality
 - [#8677](https://github.com/influxdata/influxdb/issues/8677): Fix backups when snapshot is empty.
 - [#8706](https://github.com/influxdata/influxdb/pull/8706): Cursor leak, resulting in an accumulation of `.tsm.tmp` files after compactions.
-- [#8712](https://github.com/influxdata/influxdb/pull/8712): Force time expressions to use AND and improve condition parsing.
+- [#8712](https://github.com/influxdata/influxdb/pull/8712): Improve condition parsing.
 - [#8716](https://github.com/influxdata/influxdb/pull/8716): Ensure inputs are closed on error. Add runtime GC finalizer as additional guard to close iterators
+- [#8695](https://github.com/influxdata/influxdb/issues/8695): Fix merging bug on system iterators.
+- [#8699](https://github.com/influxdata/influxdb/issues/8699): Force subqueries to match the parent queries ordering.
+- [#8755](https://github.com/influxdata/influxdb/pull/8755): Fix race condition accessing `seriesByID` map.
+- [#8766](https://github.com/influxdata/influxdb/pull/8766): Fix deadlock when calling `SeriesIDsAllOrByExpr`
+- [#8638](https://github.com/influxdata/influxdb/issues/8638): Fix `influx_inspect export` so it skips missing files.
+- [#8770](https://github.com/influxdata/influxdb/pull/8770): Reduce how long it takes to walk the varrefs in an expression.
+- [#8787](https://github.com/influxdata/influxdb/issues/8787): panic: runtime error: invalid memory address or nil pointer dereference.
+- [#8697](https://github.com/influxdata/influxdb/issues/8697): Drop Series Cause Write Fail/Write Timeouts/High Memory Usage
+- [#8741](https://github.com/influxdata/influxdb/issues/8741): Fix increased memory usage in cache and wal readers
+- [#8749](https://github.com/influxdata/influxdb/issues/8749): An OSS read-only user should be able to list measurements on a database
+- [#8678](https://github.com/influxdata/influxdb/issues/8678): Ensure time and tag-based condition can be used with tsi1 index when deleting.
+- [#8848](https://github.com/influxdata/influxdb/issues/8848): Prevent deadlock when doing math on the result of a subquery.
+- [#8895](https://github.com/influxdata/influxdb/issues/8895): Fix a minor memory leak in batching points in tsdb.
 
 ## v1.3.4 [unreleased]
 
@@ -186,6 +218,7 @@ The following new configuration options are available.
 - [#8470](https://github.com/influxdata/influxdb/issues/8470): index file fd leak in tsi branch
 - [#8468](https://github.com/influxdata/influxdb/pull/8468): Fix TSI non-contiguous compaction panic.
 - [#8500](https://github.com/influxdata/influxdb/issues/8500): InfluxDB goes unresponsive
+
 ## v1.2.4 [2017-05-08]
 
 ### Bugfixes

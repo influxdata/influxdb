@@ -71,36 +71,49 @@ func TestDataType_LessThan(t *testing.T) {
 		{typ: influxql.Unknown, other: influxql.Unknown, exp: true},
 		{typ: influxql.Unknown, other: influxql.Float, exp: true},
 		{typ: influxql.Unknown, other: influxql.Integer, exp: true},
+		{typ: influxql.Unknown, other: influxql.Unsigned, exp: true},
 		{typ: influxql.Unknown, other: influxql.String, exp: true},
 		{typ: influxql.Unknown, other: influxql.Boolean, exp: true},
 		{typ: influxql.Unknown, other: influxql.Tag, exp: true},
 		{typ: influxql.Float, other: influxql.Unknown, exp: false},
 		{typ: influxql.Integer, other: influxql.Unknown, exp: false},
+		{typ: influxql.Unsigned, other: influxql.Unknown, exp: false},
 		{typ: influxql.String, other: influxql.Unknown, exp: false},
 		{typ: influxql.Boolean, other: influxql.Unknown, exp: false},
 		{typ: influxql.Tag, other: influxql.Unknown, exp: false},
 		{typ: influxql.Float, other: influxql.Float, exp: false},
 		{typ: influxql.Float, other: influxql.Integer, exp: false},
+		{typ: influxql.Float, other: influxql.Unsigned, exp: false},
 		{typ: influxql.Float, other: influxql.String, exp: false},
 		{typ: influxql.Float, other: influxql.Boolean, exp: false},
 		{typ: influxql.Float, other: influxql.Tag, exp: false},
 		{typ: influxql.Integer, other: influxql.Float, exp: true},
 		{typ: influxql.Integer, other: influxql.Integer, exp: false},
+		{typ: influxql.Integer, other: influxql.Unsigned, exp: false},
 		{typ: influxql.Integer, other: influxql.String, exp: false},
 		{typ: influxql.Integer, other: influxql.Boolean, exp: false},
 		{typ: influxql.Integer, other: influxql.Tag, exp: false},
+		{typ: influxql.Unsigned, other: influxql.Float, exp: true},
+		{typ: influxql.Unsigned, other: influxql.Integer, exp: true},
+		{typ: influxql.Unsigned, other: influxql.Unsigned, exp: false},
+		{typ: influxql.Unsigned, other: influxql.String, exp: false},
+		{typ: influxql.Unsigned, other: influxql.Boolean, exp: false},
+		{typ: influxql.Unsigned, other: influxql.Tag, exp: false},
 		{typ: influxql.String, other: influxql.Float, exp: true},
 		{typ: influxql.String, other: influxql.Integer, exp: true},
+		{typ: influxql.String, other: influxql.Unsigned, exp: true},
 		{typ: influxql.String, other: influxql.String, exp: false},
 		{typ: influxql.String, other: influxql.Boolean, exp: false},
 		{typ: influxql.String, other: influxql.Tag, exp: false},
 		{typ: influxql.Boolean, other: influxql.Float, exp: true},
 		{typ: influxql.Boolean, other: influxql.Integer, exp: true},
+		{typ: influxql.Boolean, other: influxql.Unsigned, exp: true},
 		{typ: influxql.Boolean, other: influxql.String, exp: true},
 		{typ: influxql.Boolean, other: influxql.Boolean, exp: false},
 		{typ: influxql.Boolean, other: influxql.Tag, exp: false},
 		{typ: influxql.Tag, other: influxql.Float, exp: true},
 		{typ: influxql.Tag, other: influxql.Integer, exp: true},
+		{typ: influxql.Tag, other: influxql.Unsigned, exp: true},
 		{typ: influxql.Tag, other: influxql.String, exp: true},
 		{typ: influxql.Tag, other: influxql.Boolean, exp: true},
 		{typ: influxql.Tag, other: influxql.Tag, exp: false},
@@ -226,24 +239,6 @@ func TestSelectStatement_SetTimeRange(t *testing.T) {
 	})
 	if !hasWhere {
 		t.Fatal("set time range cleared out the where clause")
-	}
-}
-
-// Ensure the idents from the select clause can come out
-func TestSelect_NamesInSelect(t *testing.T) {
-	s := MustParseSelectStatement("select count(asdf), count(bar) from cpu")
-	a := s.NamesInSelect()
-	if !reflect.DeepEqual(a, []string{"asdf", "bar"}) {
-		t.Fatal("expected names asdf and bar")
-	}
-}
-
-// Ensure the idents from the where clause can come out
-func TestSelect_NamesInWhere(t *testing.T) {
-	s := MustParseSelectStatement("select * from cpu where time > 23s AND (asdf = 'jkl' OR (foo = 'bar' AND baz = 'bar'))")
-	a := s.NamesInWhere()
-	if !reflect.DeepEqual(a, []string{"time", "asdf", "foo", "baz"}) {
-		t.Fatalf("exp: time,asdf,foo,baz\ngot: %s\n", strings.Join(a, ","))
 	}
 }
 
@@ -708,133 +703,6 @@ func TestSelectStatement_IsRawQuerySet(t *testing.T) {
 	}
 }
 
-func TestSelectStatement_HasDerivative(t *testing.T) {
-	var tests = []struct {
-		stmt       string
-		derivative bool
-	}{
-		// No derivatives
-		{
-			stmt:       `SELECT value FROM cpu`,
-			derivative: false,
-		},
-
-		// Query derivative
-		{
-			stmt:       `SELECT derivative(value) FROM cpu`,
-			derivative: true,
-		},
-
-		// No GROUP BY time only
-		{
-			stmt:       `SELECT mean(value) FROM cpu where time < now() GROUP BY time(5ms)`,
-			derivative: false,
-		},
-
-		// No GROUP BY derivatives, time only
-		{
-			stmt:       `SELECT derivative(mean(value)) FROM cpu where time < now() GROUP BY time(5ms)`,
-			derivative: true,
-		},
-
-		{
-			stmt:       `SELECT value FROM cpu`,
-			derivative: false,
-		},
-
-		// Query derivative
-		{
-			stmt:       `SELECT non_negative_derivative(value) FROM cpu`,
-			derivative: true,
-		},
-
-		// No GROUP BY derivatives, time only
-		{
-			stmt:       `SELECT non_negative_derivative(mean(value)) FROM cpu where time < now() GROUP BY time(5ms)`,
-			derivative: true,
-		},
-
-		// Invalid derivative function name
-		{
-			stmt:       `SELECT typoDerivative(value) FROM cpu where time < now()`,
-			derivative: false,
-		},
-	}
-
-	for i, tt := range tests {
-		// Parse statement.
-		t.Logf("index: %d, statement: %s", i, tt.stmt)
-		stmt, err := influxql.NewParser(strings.NewReader(tt.stmt)).ParseStatement()
-		if err != nil {
-			t.Fatalf("invalid statement: %q: %s", tt.stmt, err)
-		}
-
-		// Test derivative detection.
-		if d := stmt.(*influxql.SelectStatement).HasDerivative(); tt.derivative != d {
-			t.Errorf("%d. %q: unexpected derivative detection:\n\nexp=%v\n\ngot=%v\n\n", i, tt.stmt, tt.derivative, d)
-			continue
-		}
-	}
-}
-
-func TestSelectStatement_IsSimpleDerivative(t *testing.T) {
-	var tests = []struct {
-		stmt       string
-		derivative bool
-	}{
-		// No derivatives
-		{
-			stmt:       `SELECT value FROM cpu`,
-			derivative: false,
-		},
-
-		// Query derivative
-		{
-			stmt:       `SELECT derivative(value) FROM cpu`,
-			derivative: true,
-		},
-
-		// Query derivative
-		{
-			stmt:       `SELECT non_negative_derivative(value) FROM cpu`,
-			derivative: true,
-		},
-
-		// No GROUP BY time only
-		{
-			stmt:       `SELECT mean(value) FROM cpu where time < now() GROUP BY time(5ms)`,
-			derivative: false,
-		},
-
-		// No GROUP BY derivatives, time only
-		{
-			stmt:       `SELECT non_negative_derivative(mean(value)) FROM cpu where time < now() GROUP BY time(5ms)`,
-			derivative: false,
-		},
-
-		// Invalid derivative function name
-		{
-			stmt:       `SELECT typoDerivative(value) FROM cpu where time < now()`,
-			derivative: false,
-		},
-	}
-
-	for i, tt := range tests {
-		// Parse statement.
-		t.Logf("index: %d, statement: %s", i, tt.stmt)
-		stmt, err := influxql.NewParser(strings.NewReader(tt.stmt)).ParseStatement()
-		if err != nil {
-			t.Fatalf("invalid statement: %q: %s", tt.stmt, err)
-		}
-
-		// Test derivative detection.
-		if d := stmt.(*influxql.SelectStatement).IsSimpleDerivative(); tt.derivative != d {
-			t.Errorf("%d. %q: unexpected derivative detection:\n\nexp=%v\n\ngot=%v\n\n", i, tt.stmt, tt.derivative, d)
-			continue
-		}
-	}
-}
-
 // Ensure binary expression names can be evaluated.
 func TestBinaryExprName(t *testing.T) {
 	for i, tt := range []struct {
@@ -910,7 +778,18 @@ func TestConditionExpr(t *testing.T) {
 		{s: `4`, err: `invalid condition expression: 4`},
 		{s: `time >= 'today'`, err: `invalid operation: time and *influxql.StringLiteral are not compatible`},
 		{s: `time != '2000-01-01T00:00:00Z'`, err: `invalid time comparison operator: !=`},
-		{s: `host = 'server01' OR (time >= now() - 10m AND host = 'server02')`, err: `cannot use OR with time conditions`},
+		// This query makes no logical sense, but it's common enough that we pretend
+		// it does. Technically, this should be illegal because the AND has higher precedence
+		// than the OR so the AND only applies to the server02 tag, but a person's intention
+		// is to have it apply to both and previous versions worked that way.
+		{s: `host = 'server01' OR host = 'server02' AND time >= now() - 10m`,
+			cond: `host = 'server01' OR host = 'server02'`,
+			min:  mustParseTime("1999-12-31T23:50:00Z")},
+		// TODO(jsternberg): This should be an error, but we can't because the above query
+		// needs to work. Until we can work a way for the above to work or at least get
+		// a warning message for people to transition to a correct syntax, the bad behavior
+		// stays.
+		//{s: `host = 'server01' OR (time >= now() - 10m AND host = 'server02')`, err: `cannot use OR with time conditions`},
 		{s: `value AND host = 'server01'`, err: `invalid condition expression: value`},
 		{s: `host = 'server01' OR (value)`, err: `invalid condition expression: value`},
 		{s: `time > '2262-04-11 23:47:17'`, err: `time 2262-04-11T23:47:17Z overflows time literal`},
@@ -1116,6 +995,34 @@ func TestEval(t *testing.T) {
 		{in: `0 = 'test'`, out: false},
 		{in: `1.0 = 1`, out: true},
 		{in: `1.2 = 1`, out: false},
+		{in: `-1 = 9223372036854775808`, out: false},
+		{in: `-1 != 9223372036854775808`, out: true},
+		{in: `-1 < 9223372036854775808`, out: true},
+		{in: `-1 <= 9223372036854775808`, out: true},
+		{in: `-1 > 9223372036854775808`, out: false},
+		{in: `-1 >= 9223372036854775808`, out: false},
+		{in: `9223372036854775808 = -1`, out: false},
+		{in: `9223372036854775808 != -1`, out: true},
+		{in: `9223372036854775808 < -1`, out: false},
+		{in: `9223372036854775808 <= -1`, out: false},
+		{in: `9223372036854775808 > -1`, out: true},
+		{in: `9223372036854775808 >= -1`, out: true},
+		{in: `9223372036854775808 = 9223372036854775808`, out: true},
+		{in: `9223372036854775808 != 9223372036854775808`, out: false},
+		{in: `9223372036854775808 < 9223372036854775808`, out: false},
+		{in: `9223372036854775808 <= 9223372036854775808`, out: true},
+		{in: `9223372036854775808 > 9223372036854775808`, out: false},
+		{in: `9223372036854775808 >= 9223372036854775808`, out: true},
+		{in: `9223372036854775809 = 9223372036854775808`, out: false},
+		{in: `9223372036854775809 != 9223372036854775808`, out: true},
+		{in: `9223372036854775809 < 9223372036854775808`, out: false},
+		{in: `9223372036854775809 <= 9223372036854775808`, out: false},
+		{in: `9223372036854775809 > 9223372036854775808`, out: true},
+		{in: `9223372036854775809 >= 9223372036854775808`, out: true},
+		{in: `9223372036854775808 / 0`, out: uint64(0)},
+		{in: `9223372036854775808 + 1`, out: uint64(9223372036854775809)},
+		{in: `9223372036854775808 - 1`, out: uint64(9223372036854775807)},
+		{in: `9223372036854775809 - 9223372036854775808`, out: uint64(1)},
 
 		// Boolean literals.
 		{in: `true AND false`, out: false},
@@ -1125,7 +1032,7 @@ func TestEval(t *testing.T) {
 		// String literals.
 		{in: `'foo' = 'bar'`, out: false},
 		{in: `'foo' = 'foo'`, out: true},
-		{in: `'' = 4`, out: nil},
+		{in: `'' = 4`, out: false},
 
 		// Regex literals.
 		{in: `'foo' =~ /f.*/`, out: true},
@@ -1136,8 +1043,8 @@ func TestEval(t *testing.T) {
 		// Variable references.
 		{in: `foo`, out: "bar", data: map[string]interface{}{"foo": "bar"}},
 		{in: `foo = 'bar'`, out: true, data: map[string]interface{}{"foo": "bar"}},
-		{in: `foo = 'bar'`, out: nil, data: map[string]interface{}{"foo": nil}},
-		{in: `'bar' = foo`, out: nil, data: map[string]interface{}{"foo": nil}},
+		{in: `foo = 'bar'`, out: false, data: map[string]interface{}{"foo": nil}},
+		{in: `'bar' = foo`, out: false, data: map[string]interface{}{"foo": nil}},
 		{in: `foo <> 'bar'`, out: true, data: map[string]interface{}{"foo": "xxx"}},
 		{in: `foo =~ /b.*/`, out: true, data: map[string]interface{}{"foo": "bar"}},
 		{in: `foo !~ /b.*/`, out: false, data: map[string]interface{}{"foo": "bar"}},
@@ -1271,6 +1178,34 @@ func TestReduce(t *testing.T) {
 		{in: `4 < 6`, out: `true`},
 		{in: `4 <= 4`, out: `true`},
 		{in: `4 AND 5`, out: `4 AND 5`},
+		{in: `-1 = 9223372036854775808`, out: `false`},
+		{in: `-1 != 9223372036854775808`, out: `true`},
+		{in: `-1 < 9223372036854775808`, out: `true`},
+		{in: `-1 <= 9223372036854775808`, out: `true`},
+		{in: `-1 > 9223372036854775808`, out: `false`},
+		{in: `-1 >= 9223372036854775808`, out: `false`},
+		{in: `9223372036854775808 = -1`, out: `false`},
+		{in: `9223372036854775808 != -1`, out: `true`},
+		{in: `9223372036854775808 < -1`, out: `false`},
+		{in: `9223372036854775808 <= -1`, out: `false`},
+		{in: `9223372036854775808 > -1`, out: `true`},
+		{in: `9223372036854775808 >= -1`, out: `true`},
+		{in: `9223372036854775808 = 9223372036854775808`, out: `true`},
+		{in: `9223372036854775808 != 9223372036854775808`, out: `false`},
+		{in: `9223372036854775808 < 9223372036854775808`, out: `false`},
+		{in: `9223372036854775808 <= 9223372036854775808`, out: `true`},
+		{in: `9223372036854775808 > 9223372036854775808`, out: `false`},
+		{in: `9223372036854775808 >= 9223372036854775808`, out: `true`},
+		{in: `9223372036854775809 = 9223372036854775808`, out: `false`},
+		{in: `9223372036854775809 != 9223372036854775808`, out: `true`},
+		{in: `9223372036854775809 < 9223372036854775808`, out: `false`},
+		{in: `9223372036854775809 <= 9223372036854775808`, out: `false`},
+		{in: `9223372036854775809 > 9223372036854775808`, out: `true`},
+		{in: `9223372036854775809 >= 9223372036854775808`, out: `true`},
+		{in: `9223372036854775808 / 0`, out: `0`},
+		{in: `9223372036854775808 + 1`, out: `9223372036854775809`},
+		{in: `9223372036854775808 - 1`, out: `9223372036854775807`},
+		{in: `9223372036854775809 - 9223372036854775808`, out: `1`},
 
 		// Boolean literals.
 		{in: `true AND false`, out: `false`},
@@ -1623,72 +1558,6 @@ func TestShow_Privileges(t *testing.T) {
 	}
 }
 
-func TestSources_Names(t *testing.T) {
-	sources := influxql.Sources([]influxql.Source{
-		&influxql.Measurement{
-			Name: "cpu",
-		},
-		&influxql.Measurement{
-			Name: "mem",
-		},
-	})
-
-	names := sources.Names()
-	if names[0] != "cpu" {
-		t.Errorf("expected cpu, got %s", names[0])
-	}
-	if names[1] != "mem" {
-		t.Errorf("expected mem, got %s", names[1])
-	}
-}
-
-func TestSources_HasSystemSource(t *testing.T) {
-	sources := influxql.Sources([]influxql.Source{
-		&influxql.Measurement{
-			Name: "_measurements",
-		},
-	})
-
-	ok := sources.HasSystemSource()
-	if !ok {
-		t.Errorf("expected to find a system source, found none")
-	}
-
-	sources = influxql.Sources([]influxql.Source{
-		&influxql.Measurement{
-			Name: "cpu",
-		},
-	})
-
-	ok = sources.HasSystemSource()
-	if ok {
-		t.Errorf("expected to find no system source, found one")
-	}
-}
-
-// Parse statements that might appear valid but should return an error.
-// If allowed to execute, at least some of these statements would result in a panic.
-func TestParse_Errors(t *testing.T) {
-	for _, tt := range []struct {
-		tmpl string
-		good string
-		bad  string
-	}{
-		// Second argument to derivative must be duration
-		{tmpl: `SELECT derivative(f, %s) FROM m`, good: "1h", bad: "true"},
-	} {
-		good := fmt.Sprintf(tt.tmpl, tt.good)
-		if _, err := influxql.ParseStatement(good); err != nil {
-			t.Fatalf("statement %q should have parsed correctly but returned error: %s", good, err)
-		}
-
-		bad := fmt.Sprintf(tt.tmpl, tt.bad)
-		if _, err := influxql.ParseStatement(bad); err == nil {
-			t.Fatalf("statement %q should have resulted in a parse error but did not", bad)
-		}
-	}
-}
-
 // This test checks to ensure that we have given thought to the database
 // context required for security checks.  If a new statement is added, this
 // test will fail until it is categorized into the correct bucket below.
@@ -1710,6 +1579,7 @@ func Test_EnforceHasDefaultDatabase(t *testing.T) {
 		"DropSeriesStatement",
 		"DropShardStatement",
 		"DropUserStatement",
+		"ExplainStatement",
 		"GrantAdminStatement",
 		"KillQueryStatement",
 		"RevokeAdminStatement",
@@ -1839,4 +1709,23 @@ func (fm *FieldMapper) MapType(m *influxql.Measurement, field string) influxql.D
 		return influxql.Tag
 	}
 	return influxql.Unknown
+}
+
+// BenchmarkExprNames benchmarks how long it takes to run ExprNames.
+func BenchmarkExprNames(b *testing.B) {
+	exprs := make([]string, 100)
+	for i := range exprs {
+		exprs[i] = fmt.Sprintf("host = 'server%02d'", i)
+	}
+	condition := MustParseExpr(strings.Join(exprs, " OR "))
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		refs := influxql.ExprNames(condition)
+		if have, want := refs, []influxql.VarRef{{Val: "host"}}; !reflect.DeepEqual(have, want) {
+			b.Fatalf("unexpected expression names: have=%s want=%s", have, want)
+		}
+	}
 }

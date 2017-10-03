@@ -38,10 +38,6 @@ func newFloatIterators(itrs []Iterator) []FloatIterator {
 		switch itr := itr.(type) {
 		case FloatIterator:
 			a = append(a, itr)
-
-		case IntegerIterator:
-			a = append(a, &integerFloatCastIterator{input: itr})
-
 		default:
 			itr.Close()
 		}
@@ -395,6 +391,12 @@ func (itr *floatSortedMergeIterator) pop() (*FloatPoint, error) {
 }
 
 // floatSortedMergeHeap represents a heap of floatSortedMergeHeapItems.
+// Items are sorted with the following priority:
+//     - By their measurement name;
+//     - By their tag keys/values;
+//     - By time; or
+//     - By their Aux field values.
+//
 type floatSortedMergeHeap struct {
 	opt   IteratorOptions
 	items []*floatSortedMergeHeapItem
@@ -411,7 +413,26 @@ func (h *floatSortedMergeHeap) Less(i, j int) bool {
 		} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); !xTags.Equals(&yTags) {
 			return xTags.ID() < yTags.ID()
 		}
-		return x.Time < y.Time
+
+		if x.Time != y.Time {
+			return x.Time < y.Time
+		}
+
+		if len(x.Aux) > 0 && len(x.Aux) == len(y.Aux) {
+			for i := 0; i < len(x.Aux); i++ {
+				v1, ok1 := x.Aux[i].(string)
+				v2, ok2 := y.Aux[i].(string)
+				if !ok1 || !ok2 {
+					// Unsupported types used in Aux fields. Maybe they
+					// need to be added here?
+					return false
+				} else if v1 == v2 {
+					continue
+				}
+				return v1 < v2
+			}
+		}
+		return false // Times and/or Aux fields are equal.
 	}
 
 	if x.Name != y.Name {
@@ -419,7 +440,26 @@ func (h *floatSortedMergeHeap) Less(i, j int) bool {
 	} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); !xTags.Equals(&yTags) {
 		return xTags.ID() > yTags.ID()
 	}
-	return x.Time > y.Time
+
+	if x.Time != y.Time {
+		return x.Time > y.Time
+	}
+
+	if len(x.Aux) > 0 && len(x.Aux) == len(y.Aux) {
+		for i := 0; i < len(x.Aux); i++ {
+			v1, ok1 := x.Aux[i].(string)
+			v2, ok2 := y.Aux[i].(string)
+			if !ok1 || !ok2 {
+				// Unsupported types used in Aux fields. Maybe they
+				// need to be added here?
+				return false
+			} else if v1 == v2 {
+				continue
+			}
+			return v1 > v2
+		}
+	}
+	return false // Times and/or Aux fields are equal.
 }
 
 func (h *floatSortedMergeHeap) Push(x interface{}) {
@@ -3388,7 +3428,6 @@ func newIntegerIterators(itrs []Iterator) []IntegerIterator {
 		switch itr := itr.(type) {
 		case IntegerIterator:
 			a = append(a, itr)
-
 		default:
 			itr.Close()
 		}
@@ -3742,6 +3781,12 @@ func (itr *integerSortedMergeIterator) pop() (*IntegerPoint, error) {
 }
 
 // integerSortedMergeHeap represents a heap of integerSortedMergeHeapItems.
+// Items are sorted with the following priority:
+//     - By their measurement name;
+//     - By their tag keys/values;
+//     - By time; or
+//     - By their Aux field values.
+//
 type integerSortedMergeHeap struct {
 	opt   IteratorOptions
 	items []*integerSortedMergeHeapItem
@@ -3758,7 +3803,26 @@ func (h *integerSortedMergeHeap) Less(i, j int) bool {
 		} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); !xTags.Equals(&yTags) {
 			return xTags.ID() < yTags.ID()
 		}
-		return x.Time < y.Time
+
+		if x.Time != y.Time {
+			return x.Time < y.Time
+		}
+
+		if len(x.Aux) > 0 && len(x.Aux) == len(y.Aux) {
+			for i := 0; i < len(x.Aux); i++ {
+				v1, ok1 := x.Aux[i].(string)
+				v2, ok2 := y.Aux[i].(string)
+				if !ok1 || !ok2 {
+					// Unsupported types used in Aux fields. Maybe they
+					// need to be added here?
+					return false
+				} else if v1 == v2 {
+					continue
+				}
+				return v1 < v2
+			}
+		}
+		return false // Times and/or Aux fields are equal.
 	}
 
 	if x.Name != y.Name {
@@ -3766,7 +3830,26 @@ func (h *integerSortedMergeHeap) Less(i, j int) bool {
 	} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); !xTags.Equals(&yTags) {
 		return xTags.ID() > yTags.ID()
 	}
-	return x.Time > y.Time
+
+	if x.Time != y.Time {
+		return x.Time > y.Time
+	}
+
+	if len(x.Aux) > 0 && len(x.Aux) == len(y.Aux) {
+		for i := 0; i < len(x.Aux); i++ {
+			v1, ok1 := x.Aux[i].(string)
+			v2, ok2 := y.Aux[i].(string)
+			if !ok1 || !ok2 {
+				// Unsupported types used in Aux fields. Maybe they
+				// need to be added here?
+				return false
+			} else if v1 == v2 {
+				continue
+			}
+			return v1 > v2
+		}
+	}
+	return false // Times and/or Aux fields are equal.
 }
 
 func (h *integerSortedMergeHeap) Push(x interface{}) {
@@ -6732,7 +6815,6 @@ func newUnsignedIterators(itrs []Iterator) []UnsignedIterator {
 		switch itr := itr.(type) {
 		case UnsignedIterator:
 			a = append(a, itr)
-
 		default:
 			itr.Close()
 		}
@@ -7086,6 +7168,12 @@ func (itr *unsignedSortedMergeIterator) pop() (*UnsignedPoint, error) {
 }
 
 // unsignedSortedMergeHeap represents a heap of unsignedSortedMergeHeapItems.
+// Items are sorted with the following priority:
+//     - By their measurement name;
+//     - By their tag keys/values;
+//     - By time; or
+//     - By their Aux field values.
+//
 type unsignedSortedMergeHeap struct {
 	opt   IteratorOptions
 	items []*unsignedSortedMergeHeapItem
@@ -7102,7 +7190,26 @@ func (h *unsignedSortedMergeHeap) Less(i, j int) bool {
 		} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); !xTags.Equals(&yTags) {
 			return xTags.ID() < yTags.ID()
 		}
-		return x.Time < y.Time
+
+		if x.Time != y.Time {
+			return x.Time < y.Time
+		}
+
+		if len(x.Aux) > 0 && len(x.Aux) == len(y.Aux) {
+			for i := 0; i < len(x.Aux); i++ {
+				v1, ok1 := x.Aux[i].(string)
+				v2, ok2 := y.Aux[i].(string)
+				if !ok1 || !ok2 {
+					// Unsupported types used in Aux fields. Maybe they
+					// need to be added here?
+					return false
+				} else if v1 == v2 {
+					continue
+				}
+				return v1 < v2
+			}
+		}
+		return false // Times and/or Aux fields are equal.
 	}
 
 	if x.Name != y.Name {
@@ -7110,7 +7217,26 @@ func (h *unsignedSortedMergeHeap) Less(i, j int) bool {
 	} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); !xTags.Equals(&yTags) {
 		return xTags.ID() > yTags.ID()
 	}
-	return x.Time > y.Time
+
+	if x.Time != y.Time {
+		return x.Time > y.Time
+	}
+
+	if len(x.Aux) > 0 && len(x.Aux) == len(y.Aux) {
+		for i := 0; i < len(x.Aux); i++ {
+			v1, ok1 := x.Aux[i].(string)
+			v2, ok2 := y.Aux[i].(string)
+			if !ok1 || !ok2 {
+				// Unsupported types used in Aux fields. Maybe they
+				// need to be added here?
+				return false
+			} else if v1 == v2 {
+				continue
+			}
+			return v1 > v2
+		}
+	}
+	return false // Times and/or Aux fields are equal.
 }
 
 func (h *unsignedSortedMergeHeap) Push(x interface{}) {
@@ -7375,7 +7501,21 @@ func (itr *unsignedFillIterator) Next() (*UnsignedPoint, error) {
 
 		switch itr.opt.Fill {
 		case influxql.LinearFill:
-			fallthrough
+			if !itr.prev.Nil {
+				next, err := itr.input.peek()
+				if err != nil {
+					return nil, err
+				} else if next != nil && next.Name == itr.window.name && next.Tags.ID() == itr.window.tags.ID() {
+					interval := int64(itr.opt.Interval.Duration)
+					start := itr.window.time / interval
+					p.Value = linearUnsigned(start, itr.prev.Time/interval, next.Time/interval, itr.prev.Value, next.Value)
+				} else {
+					p.Nil = true
+				}
+			} else {
+				p.Nil = true
+			}
+
 		case influxql.NullFill:
 			p.Nil = true
 		case influxql.NumberFill:
@@ -10062,7 +10202,6 @@ func newStringIterators(itrs []Iterator) []StringIterator {
 		switch itr := itr.(type) {
 		case StringIterator:
 			a = append(a, itr)
-
 		default:
 			itr.Close()
 		}
@@ -10416,6 +10555,12 @@ func (itr *stringSortedMergeIterator) pop() (*StringPoint, error) {
 }
 
 // stringSortedMergeHeap represents a heap of stringSortedMergeHeapItems.
+// Items are sorted with the following priority:
+//     - By their measurement name;
+//     - By their tag keys/values;
+//     - By time; or
+//     - By their Aux field values.
+//
 type stringSortedMergeHeap struct {
 	opt   IteratorOptions
 	items []*stringSortedMergeHeapItem
@@ -10432,7 +10577,26 @@ func (h *stringSortedMergeHeap) Less(i, j int) bool {
 		} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); !xTags.Equals(&yTags) {
 			return xTags.ID() < yTags.ID()
 		}
-		return x.Time < y.Time
+
+		if x.Time != y.Time {
+			return x.Time < y.Time
+		}
+
+		if len(x.Aux) > 0 && len(x.Aux) == len(y.Aux) {
+			for i := 0; i < len(x.Aux); i++ {
+				v1, ok1 := x.Aux[i].(string)
+				v2, ok2 := y.Aux[i].(string)
+				if !ok1 || !ok2 {
+					// Unsupported types used in Aux fields. Maybe they
+					// need to be added here?
+					return false
+				} else if v1 == v2 {
+					continue
+				}
+				return v1 < v2
+			}
+		}
+		return false // Times and/or Aux fields are equal.
 	}
 
 	if x.Name != y.Name {
@@ -10440,7 +10604,26 @@ func (h *stringSortedMergeHeap) Less(i, j int) bool {
 	} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); !xTags.Equals(&yTags) {
 		return xTags.ID() > yTags.ID()
 	}
-	return x.Time > y.Time
+
+	if x.Time != y.Time {
+		return x.Time > y.Time
+	}
+
+	if len(x.Aux) > 0 && len(x.Aux) == len(y.Aux) {
+		for i := 0; i < len(x.Aux); i++ {
+			v1, ok1 := x.Aux[i].(string)
+			v2, ok2 := y.Aux[i].(string)
+			if !ok1 || !ok2 {
+				// Unsupported types used in Aux fields. Maybe they
+				// need to be added here?
+				return false
+			} else if v1 == v2 {
+				continue
+			}
+			return v1 > v2
+		}
+	}
+	return false // Times and/or Aux fields are equal.
 }
 
 func (h *stringSortedMergeHeap) Push(x interface{}) {
@@ -13392,7 +13575,6 @@ func newBooleanIterators(itrs []Iterator) []BooleanIterator {
 		switch itr := itr.(type) {
 		case BooleanIterator:
 			a = append(a, itr)
-
 		default:
 			itr.Close()
 		}
@@ -13746,6 +13928,12 @@ func (itr *booleanSortedMergeIterator) pop() (*BooleanPoint, error) {
 }
 
 // booleanSortedMergeHeap represents a heap of booleanSortedMergeHeapItems.
+// Items are sorted with the following priority:
+//     - By their measurement name;
+//     - By their tag keys/values;
+//     - By time; or
+//     - By their Aux field values.
+//
 type booleanSortedMergeHeap struct {
 	opt   IteratorOptions
 	items []*booleanSortedMergeHeapItem
@@ -13762,7 +13950,26 @@ func (h *booleanSortedMergeHeap) Less(i, j int) bool {
 		} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); !xTags.Equals(&yTags) {
 			return xTags.ID() < yTags.ID()
 		}
-		return x.Time < y.Time
+
+		if x.Time != y.Time {
+			return x.Time < y.Time
+		}
+
+		if len(x.Aux) > 0 && len(x.Aux) == len(y.Aux) {
+			for i := 0; i < len(x.Aux); i++ {
+				v1, ok1 := x.Aux[i].(string)
+				v2, ok2 := y.Aux[i].(string)
+				if !ok1 || !ok2 {
+					// Unsupported types used in Aux fields. Maybe they
+					// need to be added here?
+					return false
+				} else if v1 == v2 {
+					continue
+				}
+				return v1 < v2
+			}
+		}
+		return false // Times and/or Aux fields are equal.
 	}
 
 	if x.Name != y.Name {
@@ -13770,7 +13977,26 @@ func (h *booleanSortedMergeHeap) Less(i, j int) bool {
 	} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); !xTags.Equals(&yTags) {
 		return xTags.ID() > yTags.ID()
 	}
-	return x.Time > y.Time
+
+	if x.Time != y.Time {
+		return x.Time > y.Time
+	}
+
+	if len(x.Aux) > 0 && len(x.Aux) == len(y.Aux) {
+		for i := 0; i < len(x.Aux); i++ {
+			v1, ok1 := x.Aux[i].(string)
+			v2, ok2 := y.Aux[i].(string)
+			if !ok1 || !ok2 {
+				// Unsupported types used in Aux fields. Maybe they
+				// need to be added here?
+				return false
+			} else if v1 == v2 {
+				continue
+			}
+			return v1 > v2
+		}
+	}
+	return false // Times and/or Aux fields are equal.
 }
 
 func (h *booleanSortedMergeHeap) Push(x interface{}) {

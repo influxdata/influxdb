@@ -53,91 +53,91 @@ func TestRewriteStatement(t *testing.T) {
 		},
 		{
 			stmt: `SHOW SERIES`,
-			s:    `SELECT "key" FROM _series`,
+			s:    `SELECT _seriesKey AS "key" FROM /.+/`,
 		},
 		{
 			stmt: `SHOW SERIES ON db0`,
-			s:    `SELECT "key" FROM db0.._series`,
+			s:    `SELECT _seriesKey AS "key" FROM db0../.+/`,
 		},
 		{
 			stmt: `SHOW SERIES FROM cpu`,
-			s:    `SELECT "key" FROM _series WHERE _name = 'cpu'`,
+			s:    `SELECT _seriesKey AS "key" FROM cpu`,
 		},
 		{
 			stmt: `SHOW SERIES ON db0 FROM cpu`,
-			s:    `SELECT "key" FROM db0.._series WHERE _name = 'cpu'`,
+			s:    `SELECT _seriesKey AS "key" FROM db0..cpu`,
 		},
 		{
 			stmt: `SHOW SERIES FROM mydb.myrp1.cpu`,
-			s:    `SELECT "key" FROM mydb.myrp1._series WHERE _name = 'cpu'`,
+			s:    `SELECT _seriesKey AS "key" FROM mydb.myrp1.cpu`,
 		},
 		{
 			stmt: `SHOW SERIES ON db0 FROM mydb.myrp1.cpu`,
-			s:    `SELECT "key" FROM mydb.myrp1._series WHERE _name = 'cpu'`,
+			s:    `SELECT _seriesKey AS "key" FROM mydb.myrp1.cpu`,
 		},
 		{
 			stmt: `SHOW SERIES FROM mydb.myrp1./c.*/`,
-			s:    `SELECT "key" FROM mydb.myrp1._series WHERE _name =~ /c.*/`,
+			s:    `SELECT _seriesKey AS "key" FROM mydb.myrp1./c.*/`,
 		},
 		{
 			stmt: `SHOW SERIES ON db0 FROM mydb.myrp1./c.*/`,
-			s:    `SELECT "key" FROM mydb.myrp1._series WHERE _name =~ /c.*/`,
+			s:    `SELECT _seriesKey AS "key" FROM mydb.myrp1./c.*/`,
 		},
 		{
 			stmt: `SHOW TAG KEYS`,
-			s:    `SELECT tagKey FROM _tagKeys`,
+			s:    `SELECT distinct(_tagKey) AS tagKey FROM /.+/`,
 		},
 		{
 			stmt: `SHOW TAG KEYS ON db0`,
-			s:    `SELECT tagKey FROM db0.._tagKeys`,
+			s:    `SELECT distinct(_tagKey) AS tagKey FROM db0../.+/`,
 		},
 		{
 			stmt: `SHOW TAG KEYS FROM cpu`,
-			s:    `SELECT tagKey FROM _tagKeys WHERE _name = 'cpu'`,
+			s:    `SELECT distinct(_tagKey) AS tagKey FROM cpu`,
 		},
 		{
 			stmt: `SHOW TAG KEYS ON db0 FROM cpu`,
-			s:    `SELECT tagKey FROM db0.._tagKeys WHERE _name = 'cpu'`,
+			s:    `SELECT distinct(_tagKey) AS tagKey FROM db0..cpu`,
 		},
 		{
 			stmt: `SHOW TAG KEYS FROM /c.*/`,
-			s:    `SELECT tagKey FROM _tagKeys WHERE _name =~ /c.*/`,
+			s:    `SELECT distinct(_tagKey) AS tagKey FROM /c.*/`,
 		},
 		{
 			stmt: `SHOW TAG KEYS ON db0 FROM /c.*/`,
-			s:    `SELECT tagKey FROM db0.._tagKeys WHERE _name =~ /c.*/`,
+			s:    `SELECT distinct(_tagKey) AS tagKey FROM db0../c.*/`,
 		},
 		{
 			stmt: `SHOW TAG KEYS FROM cpu WHERE region = 'uswest'`,
-			s:    `SELECT tagKey FROM _tagKeys WHERE (_name = 'cpu') AND (region = 'uswest')`,
+			s:    `SELECT distinct(_tagKey) AS tagKey FROM cpu WHERE region = 'uswest'`,
 		},
 		{
 			stmt: `SHOW TAG KEYS ON db0 FROM cpu WHERE region = 'uswest'`,
-			s:    `SELECT tagKey FROM db0.._tagKeys WHERE (_name = 'cpu') AND (region = 'uswest')`,
+			s:    `SELECT distinct(_tagKey) AS tagKey FROM db0..cpu WHERE region = 'uswest'`,
 		},
 		{
 			stmt: `SHOW TAG KEYS FROM mydb.myrp1.cpu`,
-			s:    `SELECT tagKey FROM mydb.myrp1._tagKeys WHERE _name = 'cpu'`,
+			s:    `SELECT distinct(_tagKey) AS tagKey FROM mydb.myrp1.cpu`,
 		},
 		{
 			stmt: `SHOW TAG KEYS ON db0 FROM mydb.myrp1.cpu`,
-			s:    `SELECT tagKey FROM mydb.myrp1._tagKeys WHERE _name = 'cpu'`,
+			s:    `SELECT distinct(_tagKey) AS tagKey FROM mydb.myrp1.cpu`,
 		},
 		{
 			stmt: `SHOW TAG KEYS FROM mydb.myrp1./c.*/`,
-			s:    `SELECT tagKey FROM mydb.myrp1._tagKeys WHERE _name =~ /c.*/`,
+			s:    `SELECT distinct(_tagKey) AS tagKey FROM mydb.myrp1./c.*/`,
 		},
 		{
 			stmt: `SHOW TAG KEYS ON db0 FROM mydb.myrp1./c.*/`,
-			s:    `SELECT tagKey FROM mydb.myrp1._tagKeys WHERE _name =~ /c.*/`,
+			s:    `SELECT distinct(_tagKey) AS tagKey FROM mydb.myrp1./c.*/`,
 		},
 		{
 			stmt: `SHOW TAG KEYS FROM mydb.myrp1.cpu WHERE region = 'uswest'`,
-			s:    `SELECT tagKey FROM mydb.myrp1._tagKeys WHERE (_name = 'cpu') AND (region = 'uswest')`,
+			s:    `SELECT distinct(_tagKey) AS tagKey FROM mydb.myrp1.cpu WHERE region = 'uswest'`,
 		},
 		{
 			stmt: `SHOW TAG KEYS ON db0 FROM mydb.myrp1.cpu WHERE region = 'uswest'`,
-			s:    `SELECT tagKey FROM mydb.myrp1._tagKeys WHERE (_name = 'cpu') AND (region = 'uswest')`,
+			s:    `SELECT distinct(_tagKey) AS tagKey FROM mydb.myrp1.cpu WHERE region = 'uswest'`,
 		},
 		{
 			stmt: `SELECT value FROM cpu`,

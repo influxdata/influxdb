@@ -5,6 +5,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"sort"
 	"testing"
 	"time"
 
@@ -116,9 +117,11 @@ func TestCompactor_CompactFull(t *testing.T) {
 	}
 	f3 := MustWriteTSM(dir, 3, writes)
 
+	fs := &fakeFileStore{}
+	defer fs.Close()
 	compactor := &tsm1.Compactor{
 		Dir:       dir,
-		FileStore: &fakeFileStore{},
+		FileStore: fs,
 	}
 
 	files, err := compactor.CompactFull([]string{f1, f2, f3})
@@ -215,9 +218,11 @@ func TestCompactor_Compact_OverlappingBlocks(t *testing.T) {
 	}
 	f3 := MustWriteTSM(dir, 3, writes)
 
+	fs := &fakeFileStore{}
+	defer fs.Close()
 	compactor := &tsm1.Compactor{
 		Dir:       dir,
-		FileStore: &fakeFileStore{},
+		FileStore: fs,
 		Size:      2,
 	}
 
@@ -294,9 +299,11 @@ func TestCompactor_Compact_OverlappingBlocksMultiple(t *testing.T) {
 	}
 	f3 := MustWriteTSM(dir, 3, writes)
 
+	fs := &fakeFileStore{}
+	defer fs.Close()
 	compactor := &tsm1.Compactor{
 		Dir:       dir,
-		FileStore: &fakeFileStore{},
+		FileStore: fs,
 		Size:      2,
 	}
 
@@ -365,9 +372,11 @@ func TestCompactor_CompactFull_SkipFullBlocks(t *testing.T) {
 	}
 	f3 := MustWriteTSM(dir, 3, writes)
 
+	fs := &fakeFileStore{}
+	defer fs.Close()
 	compactor := &tsm1.Compactor{
 		Dir:       dir,
-		FileStore: &fakeFileStore{},
+		FileStore: fs,
 		Size:      2,
 	}
 	compactor.Open()
@@ -464,9 +473,11 @@ func TestCompactor_CompactFull_TombstonedSkipBlock(t *testing.T) {
 	}
 	f3 := MustWriteTSM(dir, 3, writes)
 
+	fs := &fakeFileStore{}
+	defer fs.Close()
 	compactor := &tsm1.Compactor{
 		Dir:       dir,
-		FileStore: &fakeFileStore{},
+		FileStore: fs,
 		Size:      2,
 	}
 	compactor.Open()
@@ -564,9 +575,11 @@ func TestCompactor_CompactFull_TombstonedPartialBlock(t *testing.T) {
 	}
 	f3 := MustWriteTSM(dir, 3, writes)
 
+	fs := &fakeFileStore{}
+	defer fs.Close()
 	compactor := &tsm1.Compactor{
 		Dir:       dir,
-		FileStore: &fakeFileStore{},
+		FileStore: fs,
 		Size:      2,
 	}
 	compactor.Open()
@@ -669,9 +682,11 @@ func TestCompactor_CompactFull_TombstonedMultipleRanges(t *testing.T) {
 	}
 	f3 := MustWriteTSM(dir, 3, writes)
 
+	fs := &fakeFileStore{}
+	defer fs.Close()
 	compactor := &tsm1.Compactor{
 		Dir:       dir,
-		FileStore: &fakeFileStore{},
+		FileStore: fs,
 		Size:      2,
 	}
 	compactor.Open()
@@ -782,9 +797,11 @@ func TestCompactor_CompactFull_MaxKeys(t *testing.T) {
 	}
 	f2.Close()
 
+	fs := &fakeFileStore{}
+	defer fs.Close()
 	compactor := &tsm1.Compactor{
 		Dir:       dir,
-		FileStore: &fakeFileStore{},
+		FileStore: fs,
 	}
 	compactor.Open()
 
@@ -1672,6 +1689,22 @@ func TestDefaultPlanner_PlanLevel_Multiple(t *testing.T) {
 			Path: "06-01.tsm1",
 			Size: 1 * 1024 * 1024,
 		},
+		tsm1.FileStat{
+			Path: "07-01.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "08-01.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "09-01.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "10-01.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
 	}
 
 	cp := tsm1.NewDefaultPlanner(
@@ -1682,8 +1715,8 @@ func TestDefaultPlanner_PlanLevel_Multiple(t *testing.T) {
 		}, tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
-	expFiles1 := []tsm1.FileStat{data[0], data[1], data[2], data[3]}
-	expFiles2 := []tsm1.FileStat{data[4], data[5]}
+	expFiles1 := []tsm1.FileStat{data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7]}
+	expFiles2 := []tsm1.FileStat{data[8], data[9]}
 
 	tsm := cp.PlanLevel(1)
 	if exp, got := len(expFiles1), len(tsm[0]); got != exp {
@@ -2396,8 +2429,14 @@ func MustTSMWriter(dir string, gen int) (tsm1.TSMWriter, string) {
 func MustWriteTSM(dir string, gen int, values map[string][]tsm1.Value) string {
 	w, name := MustTSMWriter(dir, gen)
 
-	for k, v := range values {
-		if err := w.Write([]byte(k), v); err != nil {
+	keys := make([]string, 0, len(values))
+	for k := range values {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		if err := w.Write([]byte(k), values[k]); err != nil {
 			panic(fmt.Sprintf("write TSM value: %v", err))
 		}
 	}
@@ -2434,6 +2473,7 @@ type fakeFileStore struct {
 	PathsFn      func() []tsm1.FileStat
 	lastModified time.Time
 	blockCount   int
+	readers      []*tsm1.TSMReader
 }
 
 func (w *fakeFileStore) Stats() []tsm1.FileStat {
@@ -2450,4 +2490,17 @@ func (w *fakeFileStore) LastModified() time.Time {
 
 func (w *fakeFileStore) BlockCount(path string, idx int) int {
 	return w.blockCount
+}
+
+func (w *fakeFileStore) TSMReader(path string) *tsm1.TSMReader {
+	r := MustOpenTSMReader(path)
+	w.readers = append(w.readers, r)
+	return r
+}
+
+func (w *fakeFileStore) Close() {
+	for _, r := range w.readers {
+		r.Close()
+	}
+	w.readers = nil
 }

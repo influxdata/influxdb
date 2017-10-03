@@ -31,7 +31,7 @@ func TestRing_newRing(t *testing.T) {
 
 		// Check partitions distributed correctly
 		partitions := make([]*partition, 0)
-		for i, partition := range r.continuum {
+		for i, partition := range r.partitions {
 			if i == 0 || partition != partitions[len(partitions)-1] {
 				partitions = append(partitions, partition)
 			}
@@ -94,7 +94,7 @@ func benchmarkRingWrite(b *testing.B, r *ring, n int) {
 			go func() {
 				defer wg.Done()
 				for j := 0; j < n; j++ {
-					if err := r.write([]byte(fmt.Sprintf("cpu,host=server-%d value=1", j)), Values{}); err != nil {
+					if _, err := r.write([]byte(fmt.Sprintf("cpu,host=server-%d value=1", j)), Values{}); err != nil {
 						errC <- err
 					}
 				}

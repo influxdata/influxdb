@@ -13,30 +13,44 @@ import (
 
 	"github.com/influxdata/influxdb/coordinator"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 // Global server used by benchmarks
 var benchServer Server
 
 func TestMain(m *testing.M) {
+	vv := flag.Bool("vv", false, "Turn on very verbose server logging.")
 	flag.Parse()
 
-	// Setup
-	c := NewConfig()
-	c.Retention.Enabled = false
-	c.Monitor.StoreEnabled = false
-	c.Meta.LoggingEnabled = false
-	c.Subscriber.Enabled = false
-	c.ContinuousQuery.Enabled = false
-	c.Data.MaxValuesPerTag = 1000000 // 1M
-	benchServer = OpenDefaultServer(c)
+	verboseServerLogs = *vv
+	var r int
+	for _, indexType = range tsdb.RegisteredIndexes() {
+		// Setup benchmark server
+		c := NewConfig()
+		c.Retention.Enabled = false
+		c.Monitor.StoreEnabled = false
+		c.Meta.LoggingEnabled = false
+		c.Subscriber.Enabled = false
+		c.ContinuousQuery.Enabled = false
+		c.Data.MaxValuesPerTag = 1000000 // 1M
+		c.Data.Index = indexType
+		benchServer = OpenDefaultServer(c)
 
-	// Run suite.
-	r := m.Run()
+		// Run test suite.
+		if testing.Verbose() {
+			fmt.Printf("============= Running all tests for %q index =============\n", indexType)
+		}
+		if thisr := m.Run(); r == 0 {
+			r = thisr // We'll always remember the first time r is non-zero
+		}
 
-	// Cleanup
-	benchServer.Close()
-
+		// Cleanup
+		benchServer.Close()
+		if testing.Verbose() {
+			fmt.Println()
+		}
+	}
 	os.Exit(r)
 }
 
@@ -66,15 +80,16 @@ func TestServer_DatabaseCommands(t *testing.T) {
 	test := tests.load(t, "database_commands")
 
 	for _, query := range test.queries {
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+		t.Run(query.name, func(t *testing.T) {
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -90,20 +105,21 @@ func TestServer_Query_DropAndRecreateDatabase(t *testing.T) {
 	}
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -122,20 +138,21 @@ func TestServer_Query_DropDatabaseIsolated(t *testing.T) {
 	}
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -144,7 +161,7 @@ func TestServer_Query_DeleteSeries(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	test := tests.load(t, "delete_series")
+	test := tests.load(t, "delete_series_time")
 
 	if err := s.CreateDatabaseAndRetentionPolicy(test.database(), newRetentionPolicySpec(test.retentionPolicy(), 1, 0), true); err != nil {
 		t.Fatal(err)
@@ -165,6 +182,36 @@ func TestServer_Query_DeleteSeries(t *testing.T) {
 		} else if !query.success() {
 			t.Error(query.failureMessage())
 		}
+	}
+}
+
+func TestServer_Query_DeleteSeries_TagFilter(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	test := tests.load(t, "delete_series_time_tag_filter")
+
+	if err := s.CreateDatabaseAndRetentionPolicy(test.database(), newRetentionPolicySpec(test.retentionPolicy(), 1, 0), true); err != nil {
+		t.Fatal(err)
+	}
+
+	for i, query := range test.queries {
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
+			}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -180,40 +227,42 @@ func TestServer_Query_DropAndRecreateSeries(t *testing.T) {
 	}
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 
 	// Re-write data and test again.
 	retest := tests.load(t, "drop_and_recreate_series_retest")
 
 	for i, query := range retest.queries {
-		if i == 0 {
-			if err := retest.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := retest.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -229,20 +278,21 @@ func TestServer_Query_DropSeriesFromRegex(t *testing.T) {
 	}
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -266,15 +316,16 @@ func TestServer_RetentionPolicyCommands(t *testing.T) {
 	}
 
 	for _, query := range test.queries {
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+		t.Run(query.name, func(t *testing.T) {
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -287,15 +338,16 @@ func TestServer_DatabaseRetentionPolicyAutoCreate(t *testing.T) {
 	test := tests.load(t, "retention_policy_auto_create")
 
 	for _, query := range test.queries {
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+		t.Run(query.name, func(t *testing.T) {
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -325,15 +377,16 @@ func TestServer_ShowDatabases_NoAuth(t *testing.T) {
 	}
 
 	for _, query := range test.queries {
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(fmt.Sprintf("command: %s - err: %s", query.command, query.Error(err)))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+		t.Run(query.name, func(t *testing.T) {
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(fmt.Sprintf("command: %s - err: %s", query.command, query.Error(err)))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -400,11 +453,13 @@ func TestServer_ShowDatabases_WithAuth(t *testing.T) {
 	}
 
 	for _, query := range test.queries {
-		if err := query.Execute(s); err != nil {
-			t.Error(fmt.Sprintf("command: %s - err: %s", query.command, query.Error(err)))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+		t.Run(query.name, func(t *testing.T) {
+			if err := query.Execute(s); err != nil {
+				t.Error(fmt.Sprintf("command: %s - err: %s", query.command, query.Error(err)))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -490,15 +545,16 @@ func TestServer_UserCommands(t *testing.T) {
 	}
 
 	for _, query := range test.queries {
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(fmt.Sprintf("command: %s - err: %s", query.command, query.Error(err)))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+		t.Run(query.name, func(t *testing.T) {
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(fmt.Sprintf("command: %s - err: %s", query.command, query.Error(err)))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -728,15 +784,16 @@ func TestServer_Query_DefaultDBAndRP(t *testing.T) {
 	}
 
 	for _, query := range test.queries {
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+		t.Run(query.name, func(t *testing.T) {
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -774,15 +831,16 @@ func TestServer_Query_Multiple_Measurements(t *testing.T) {
 	}
 
 	for _, query := range test.queries {
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+		t.Run(query.name, func(t *testing.T) {
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -825,15 +883,16 @@ func TestServer_Query_IdenticalTagValues(t *testing.T) {
 	}
 
 	for _, query := range test.queries {
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+		t.Run(query.name, func(t *testing.T) {
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -863,15 +922,16 @@ func TestServer_Query_NoShards(t *testing.T) {
 	}
 
 	for _, query := range test.queries {
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+		t.Run(query.name, func(t *testing.T) {
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -906,15 +966,16 @@ func TestServer_Query_NonExistent(t *testing.T) {
 	}
 
 	for _, query := range test.queries {
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+		t.Run(query.name, func(t *testing.T) {
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -998,15 +1059,16 @@ func TestServer_Query_Math(t *testing.T) {
 	}
 
 	for _, query := range test.queries {
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+		t.Run(query.name, func(t *testing.T) {
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -1064,7 +1126,7 @@ func TestServer_Query_Count(t *testing.T) {
 		&Query{
 			name:    "selecting count(2) should error",
 			command: `SELECT count(2) FROM db0.rp0.cpu`,
-			exp:     `{"error":"error parsing query: expected field argument in count()"}`,
+			exp:     `{"results":[{"statement_id":0,"error":"expected field argument in count()"}]}`,
 		},
 	}...)
 
@@ -1073,15 +1135,16 @@ func TestServer_Query_Count(t *testing.T) {
 	}
 
 	for _, query := range test.queries {
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+		t.Run(query.name, func(t *testing.T) {
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -1118,15 +1181,16 @@ func TestServer_Query_MaxSelectSeriesN(t *testing.T) {
 	}
 
 	for _, query := range test.queries {
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+		t.Run(query.name, func(t *testing.T) {
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -1171,15 +1235,16 @@ func TestServer_Query_Now(t *testing.T) {
 	}
 
 	for _, query := range test.queries {
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+		t.Run(query.name, func(t *testing.T) {
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -1240,15 +1305,16 @@ func TestServer_Query_EpochPrecision(t *testing.T) {
 	}
 
 	for _, query := range test.queries {
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+		t.Run(query.name, func(t *testing.T) {
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -1417,15 +1483,16 @@ func TestServer_Query_Tags(t *testing.T) {
 	}
 
 	for _, query := range test.queries {
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+		t.Run(query.name, func(t *testing.T) {
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -1492,15 +1559,16 @@ func TestServer_Query_Alias(t *testing.T) {
 	}
 
 	for _, query := range test.queries {
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+		t.Run(query.name, func(t *testing.T) {
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -1565,15 +1633,16 @@ func TestServer_Query_Common(t *testing.T) {
 	}
 
 	for _, query := range test.queries {
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+		t.Run(query.name, func(t *testing.T) {
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -1604,20 +1673,21 @@ func TestServer_Query_SelectTwoPoints(t *testing.T) {
 	)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -1641,20 +1711,21 @@ func TestServer_Query_SelectTwoNegativePoints(t *testing.T) {
 	})
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -1686,20 +1757,21 @@ func TestServer_Query_SelectRelativeTime(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -1728,20 +1800,21 @@ func TestServer_Query_SelectRawDerivative(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -1774,20 +1847,21 @@ cpu value=20 1278010024000000000
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -1925,20 +1999,21 @@ cpu0,host=server02 ticks=101,total=100 1278010023000000000
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -2159,20 +2234,21 @@ cpu value=20 1278010021000000000
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -2245,20 +2321,21 @@ cpu value=25 1278010023000000000
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -2379,20 +2456,21 @@ cpu value=20 1278010021000000000
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -2467,20 +2545,21 @@ cpu value=35 1278010025000000000
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -2603,20 +2682,21 @@ cpu value=35 1278010025000000000
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -2689,20 +2769,21 @@ cpu value=25 1278010023000000000
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -2823,20 +2904,21 @@ cpu value=20 1278010021000000000
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -2865,20 +2947,21 @@ events signup=t 3838400000
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -2907,20 +2990,21 @@ test,t=b y=3i 3000000000
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -2949,20 +3033,21 @@ func TestServer_Query_MathWithFill(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -3011,20 +3096,21 @@ func TestServer_Query_MergeMany(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -3068,20 +3154,21 @@ func TestServer_Query_SLimitAndSOffset(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -3143,20 +3230,21 @@ func TestServer_Query_Regex(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -3183,20 +3271,21 @@ func TestServer_Query_Aggregates_Int(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -3223,20 +3312,21 @@ func TestServer_Query_Aggregates_IntMax(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -3369,20 +3459,21 @@ func TestServer_Query_Aggregates_IntMany(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -3463,20 +3554,21 @@ func TestServer_Query_Aggregates_IntMany_GroupBy(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -3509,20 +3601,21 @@ func TestServer_Query_Aggregates_IntMany_OrderByDesc(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -3576,20 +3669,21 @@ func TestServer_Query_Aggregates_IntOverlap(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -3615,20 +3709,21 @@ func TestServer_Query_Aggregates_FloatSingle(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -3755,20 +3850,21 @@ func TestServer_Query_Aggregates_FloatMany(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -3821,20 +3917,21 @@ func TestServer_Query_Aggregates_FloatOverlap(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -3880,20 +3977,21 @@ func TestServer_Query_Aggregates_GroupByOffset(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -3933,20 +4031,21 @@ func TestServer_Query_Aggregates_Load(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -3973,20 +4072,21 @@ func TestServer_Query_Aggregates_CPU(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -4050,20 +4150,21 @@ func TestServer_Query_Aggregates_String(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -4115,21 +4216,22 @@ func TestServer_Query_Aggregates_Math(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
 
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -4289,13 +4391,13 @@ func TestServer_Query_AggregateSelectors(t *testing.T) {
 			name:    "count - time",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT time, count(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"network","columns":["time","count"],"values":[["2000-01-01T00:00:00Z",3],["2000-01-01T00:00:30Z",3],["2000-01-01T00:01:00Z",3]]}]}]}`,
 		},
 		&Query{
 			name:    "count - tx",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT tx, count(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
+			exp:     `{"results":[{"statement_id":0,"error":"mixing aggregate and non-aggregate queries is not supported"}]}`,
 		},
 		&Query{
 			name:    "distinct - baseline 30s",
@@ -4307,13 +4409,13 @@ func TestServer_Query_AggregateSelectors(t *testing.T) {
 			name:    "distinct - time",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT time, distinct(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"error":"error parsing query: aggregate function distinct() cannot be combined with other functions or fields"}`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"network","columns":["time","distinct"],"values":[["2000-01-01T00:00:00Z",10],["2000-01-01T00:00:00Z",40],["2000-01-01T00:00:30Z",40],["2000-01-01T00:00:30Z",50],["2000-01-01T00:01:00Z",70],["2000-01-01T00:01:00Z",90],["2000-01-01T00:01:00Z",5]]}]}]}`,
 		},
 		&Query{
 			name:    "distinct - tx",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT tx, distinct(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"error":"error parsing query: aggregate function distinct() cannot be combined with other functions or fields"}`,
+			exp:     `{"results":[{"statement_id":0,"error":"aggregate function distinct() cannot be combined with other functions or fields"}]}`,
 		},
 		&Query{
 			name:    "mean - baseline 30s",
@@ -4325,13 +4427,13 @@ func TestServer_Query_AggregateSelectors(t *testing.T) {
 			name:    "mean - time",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT time, mean(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"network","columns":["time","mean"],"values":[["2000-01-01T00:00:00Z",30],["2000-01-01T00:00:30Z",46.666666666666664],["2000-01-01T00:01:00Z",55]]}]}]}`,
 		},
 		&Query{
 			name:    "mean - tx",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT tx, mean(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
+			exp:     `{"results":[{"statement_id":0,"error":"mixing aggregate and non-aggregate queries is not supported"}]}`,
 		},
 		&Query{
 			name:    "median - baseline 30s",
@@ -4343,13 +4445,13 @@ func TestServer_Query_AggregateSelectors(t *testing.T) {
 			name:    "median - time",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT time, median(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"network","columns":["time","median"],"values":[["2000-01-01T00:00:00Z",40],["2000-01-01T00:00:30Z",50],["2000-01-01T00:01:00Z",70]]}]}]}`,
 		},
 		&Query{
 			name:    "median - tx",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT tx, median(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
+			exp:     `{"results":[{"statement_id":0,"error":"mixing aggregate and non-aggregate queries is not supported"}]}`,
 		},
 		&Query{
 			name:    "mode - baseline 30s",
@@ -4361,31 +4463,13 @@ func TestServer_Query_AggregateSelectors(t *testing.T) {
 			name:    "mode - time",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT time, mode(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
-		},
-		&Query{
-			name:    "mode - tx",
-			params:  url.Values{"db": []string{"db0"}},
-			command: `SELECT tx, mode(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
-		},
-		&Query{
-			name:    "mode - baseline 30s",
-			params:  url.Values{"db": []string{"db0"}},
-			command: `SELECT mode(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"network","columns":["time","mode"],"values":[["2000-01-01T00:00:00Z",40],["2000-01-01T00:00:30Z",50],["2000-01-01T00:01:00Z",5]]}]}]}`,
 		},
 		&Query{
-			name:    "mode - time",
-			params:  url.Values{"db": []string{"db0"}},
-			command: `SELECT time, mode(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
-		},
-		&Query{
 			name:    "mode - tx",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT tx, mode(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
+			exp:     `{"results":[{"statement_id":0,"error":"mixing aggregate and non-aggregate queries is not supported"}]}`,
 		},
 		&Query{
 			name:    "spread - baseline 30s",
@@ -4397,13 +4481,13 @@ func TestServer_Query_AggregateSelectors(t *testing.T) {
 			name:    "spread - time",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT time, spread(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"network","columns":["time","spread"],"values":[["2000-01-01T00:00:00Z",30],["2000-01-01T00:00:30Z",10],["2000-01-01T00:01:00Z",85]]}]}]}`,
 		},
 		&Query{
 			name:    "spread - tx",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT tx, spread(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
+			exp:     `{"results":[{"statement_id":0,"error":"mixing aggregate and non-aggregate queries is not supported"}]}`,
 		},
 		&Query{
 			name:    "stddev - baseline 30s",
@@ -4415,13 +4499,13 @@ func TestServer_Query_AggregateSelectors(t *testing.T) {
 			name:    "stddev - time",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT time, stddev(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"network","columns":["time","stddev"],"values":[["2000-01-01T00:00:00Z",17.320508075688775],["2000-01-01T00:00:30Z",5.773502691896258],["2000-01-01T00:01:00Z",44.44097208657794]]}]}]}`,
 		},
 		&Query{
 			name:    "stddev - tx",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT tx, stddev(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
+			exp:     `{"results":[{"statement_id":0,"error":"mixing aggregate and non-aggregate queries is not supported"}]}`,
 		},
 		&Query{
 			name:    "percentile - baseline 30s",
@@ -4444,21 +4528,22 @@ func TestServer_Query_AggregateSelectors(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
 
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -4498,21 +4583,22 @@ func TestServer_Query_ExactTimeRange(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
 
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -4576,21 +4662,22 @@ func TestServer_Query_Selectors(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
 
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -4690,13 +4777,13 @@ func TestServer_Query_TopBottomInt(t *testing.T) {
 			name:    "top - cpu - 3 values with limit 2",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT TOP(value, 3) FROM cpu limit 2`,
-			exp:     `{"error":"error parsing query: limit (3) in top function can not be larger than the LIMIT (2) in the select statement"}`,
+			exp:     `{"results":[{"statement_id":0,"error":"limit (3) in top function can not be larger than the LIMIT (2) in the select statement"}]}`,
 		},
 		&Query{
 			name:    "bottom - cpu - 3 values with limit 2",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT BOTTOM(value, 3) FROM cpu limit 2`,
-			exp:     `{"error":"error parsing query: limit (3) in bottom function can not be larger than the LIMIT (2) in the select statement"}`,
+			exp:     `{"results":[{"statement_id":0,"error":"limit (3) in bottom function can not be larger than the LIMIT (2) in the select statement"}]}`,
 		},
 		&Query{
 			name:    "top - cpu - hourly",
@@ -4829,21 +4916,22 @@ func TestServer_Query_TopBottomInt(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP: %s", query.name)
-			continue
-		}
+			if query.skip {
+				t.Skipf("SKIP: %s", query.name)
+			}
 
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -4896,21 +4984,22 @@ func TestServer_Query_TopBottomWriteTags(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP: %s", query.name)
-			continue
-		}
+			if query.skip {
+				t.Skipf("SKIP: %s", query.name)
+			}
 
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -4959,22 +5048,23 @@ func TestServer_Query_Aggregates_IdenticalTime(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		for n := 0; n <= query.repeat; n++ {
-			if err := query.Execute(s); err != nil {
-				t.Error(query.Error(err))
-			} else if !query.success() {
-				t.Error(query.failureMessage())
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
 			}
-		}
+			for n := 0; n <= query.repeat; n++ {
+				if err := query.Execute(s); err != nil {
+					t.Error(query.Error(err))
+				} else if !query.success() {
+					t.Error(query.failureMessage())
+				}
+			}
+		})
 	}
 }
 
@@ -5042,20 +5132,21 @@ func TestServer_Query_GroupByTimeCutoffs(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -5117,20 +5208,21 @@ func TestServer_Query_MapType(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -5349,20 +5441,67 @@ func TestServer_Query_SubqueryWithGroupBy(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
+	}
+}
+
+func TestServer_Query_SubqueryMath(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		fmt.Sprintf("m0 f2=4,f3=2 %d", mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf("m0 f1=5,f3=8 %d", mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
+		fmt.Sprintf("m0 f1=5,f2=3,f3=6 %d", mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:20Z").UnixNano()),
+	}
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "SumThreeValues",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT sum FROM (SELECT f1 + f2 + f3 AS sum FROM m0)`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"m0","columns":["time","sum"],"values":[["2000-01-01T00:00:00Z",null],["2000-01-01T00:00:10Z",null],["2000-01-01T00:00:20Z",14]]}]}]}`,
+		},
+	}...)
+
+	if err := test.init(s); err != nil {
+		t.Fatalf("test init failed: %s", err)
+	}
+
+	for _, query := range test.queries {
+		t.Run(query.name, func(t *testing.T) {
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -5397,20 +5536,21 @@ func TestServer_Query_PercentileDerivative(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -5441,20 +5581,21 @@ func TestServer_Query_UnderscoreMeasurement(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -5560,15 +5701,16 @@ func TestServer_Write_Precision(t *testing.T) {
 	}
 
 	for _, query := range test.queries {
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+		t.Run(query.name, func(t *testing.T) {
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -5669,21 +5811,22 @@ func TestServer_Query_Wildcards(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
 
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -5747,20 +5890,21 @@ func TestServer_Query_WildcardExpansion(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -5818,20 +5962,21 @@ func TestServer_Query_AcrossShardsAndFields(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -5885,20 +6030,21 @@ func TestServer_Query_OrderedAcrossShards(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -6103,21 +6249,22 @@ func TestServer_Query_Where_Fields(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
 
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -6169,12 +6316,6 @@ func TestServer_Query_Where_With_Tags(t *testing.T) {
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"where_events","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z","bar"],["2009-11-10T23:00:03Z","baz"],["2009-11-10T23:00:04Z","bat"],["2009-11-10T23:00:05Z","bar"],["2009-11-10T23:00:06Z","bap"]]}]}]}`,
 		},
 		&Query{
-			name:    "where on tag that should be double quoted but isn't",
-			params:  url.Values{"db": []string{"db0"}},
-			command: `show series where data-center = 'foo'`,
-			exp:     `{"results":[{"statement_id":0,"error":"invalid tag comparison operator"}]}`,
-		},
-		&Query{
 			name:    "where comparing tag and field",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `select foo from where_events where tennant != foo`,
@@ -6189,20 +6330,21 @@ func TestServer_Query_Where_With_Tags(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -6289,20 +6431,21 @@ func TestServer_Query_With_EmptyTags(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -6403,20 +6546,21 @@ func TestServer_Query_LimitAndOffset(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -6499,20 +6643,21 @@ func TestServer_Query_Fill(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -6594,20 +6739,21 @@ func TestServer_Query_TimeZone(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -6645,20 +6791,21 @@ func TestServer_Query_Chunk(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -6768,20 +6915,21 @@ func TestServer_Query_DropAndRecreateMeasurement(t *testing.T) {
 
 	// Test that re-inserting the measurement works fine.
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 
 	test = NewTest("db0", "rp0")
@@ -6805,20 +6953,21 @@ func TestServer_Query_DropAndRecreateMeasurement(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -6874,25 +7023,27 @@ func TestServer_Query_ShowQueries_Future(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
 func TestServer_Query_ShowSeries(t *testing.T) {
 	t.Parallel()
+
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
@@ -6904,8 +7055,8 @@ func TestServer_Query_ShowSeries(t *testing.T) {
 		fmt.Sprintf(`cpu,host=server01 value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:01Z").UnixNano()),
 		fmt.Sprintf(`cpu,host=server01,region=uswest value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:02Z").UnixNano()),
 		fmt.Sprintf(`cpu,host=server01,region=useast value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:03Z").UnixNano()),
-		fmt.Sprintf(`cpu,host=server02,region=useast value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:04Z").UnixNano()),
-		fmt.Sprintf(`gpu,host=server02,region=useast value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:05Z").UnixNano()),
+		fmt.Sprintf(`cpu,host=server02,region=useast value=100 %d`, mustParseTime(time.RFC3339Nano, "2020-11-10T23:00:04Z").UnixNano()),
+		fmt.Sprintf(`gpu,host=server02,region=useast value=100 %d`, mustParseTime(time.RFC3339Nano, "2020-11-10T23:00:05Z").UnixNano()),
 		fmt.Sprintf(`gpu,host=server03,region=caeast value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:06Z").UnixNano()),
 		fmt.Sprintf(`disk,host=server03,region=caeast value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:07Z").UnixNano()),
 	}
@@ -6958,35 +7109,24 @@ func TestServer_Query_ShowSeries(t *testing.T) {
 			exp:     `{"results":[{"statement_id":0,"series":[{"columns":["key"],"values":[["cpu,host=server01,region=useast"],["cpu,host=server02,region=useast"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
-		&Query{
-			name:    `show series with WHERE time should fail`,
-			command: "SHOW SERIES WHERE time > now() - 1h",
-			exp:     `{"results":[{"statement_id":0,"error":"SHOW SERIES doesn't support time in WHERE clause"}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    `show series with WHERE field should fail`,
-			command: "SHOW SERIES WHERE value > 10.0",
-			exp:     `{"results":[{"statement_id":0,"error":"invalid tag comparison operator"}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -7066,20 +7206,21 @@ func TestServer_Query_ShowSeriesCardinality(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -7107,20 +7248,21 @@ func TestServer_Query_ShowStats(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -7182,13 +7324,7 @@ func TestServer_Query_ShowMeasurements(t *testing.T) {
 		&Query{
 			name:    `show measurements where tag does not match a regular expression`,
 			command: "SHOW MEASUREMENTS WHERE region !~ /ca.*/",
-			exp:     `{"results":[{"statement_id":0,"series":[{"name":"measurements","columns":["name"],"values":[["cpu"]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    `show measurements with time in WHERE clauses errors`,
-			command: `SHOW MEASUREMENTS WHERE time > now() - 1h`,
-			exp:     `{"results":[{"statement_id":0,"error":"SHOW MEASUREMENTS doesn't support time in WHERE clause"}]}`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"measurements","columns":["name"],"values":[["cpu"],["gpu"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 	}...)
@@ -7281,20 +7417,21 @@ func TestServer_Query_ShowMeasurementCardinality(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -7345,12 +7482,6 @@ func TestServer_Query_ShowTagKeys(t *testing.T) {
 			name:    "show tag keys measurement not found",
 			command: "SHOW TAG KEYS FROM doesntexist",
 			exp:     `{"results":[{"statement_id":0}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "show tag keys with time in WHERE clause errors",
-			command: "SHOW TAG KEYS FROM cpu WHERE time > now() - 1h",
-			exp:     `{"results":[{"statement_id":0,"error":"SHOW TAG KEYS doesn't support time in WHERE clause"}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
@@ -7428,20 +7559,21 @@ func TestServer_Query_ShowTagKeys(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -7542,29 +7674,24 @@ func TestServer_Query_ShowTagKeyCardinality(t *testing.T) {
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["count"],"values":[[2]]},{"name":"gpu","columns":["count"],"values":[[2]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
-		&Query{
-			name:    `show tag values cardinality with key and time in WHERE clause should error`,
-			command: `SHOW TAG VALUES CARDINALITY WITH KEY = host WHERE time > now() - 1h`,
-			exp:     `{"results":[{"statement_id":0,"error":"SHOW TAG VALUES CARDINALITY doesn't support time in WHERE clause"}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -7614,20 +7741,21 @@ func TestServer_Query_ShowFieldKeys(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -7677,20 +7805,21 @@ func TestServer_Query_ShowFieldKeyCardinality(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -7705,20 +7834,21 @@ func TestServer_ContinuousQuery(t *testing.T) {
 
 	runTest := func(test *Test, t *testing.T) {
 		for i, query := range test.queries {
-			if i == 0 {
-				if err := test.init(s); err != nil {
-					t.Fatalf("test init failed: %s", err)
+			t.Run(query.name, func(t *testing.T) {
+				if i == 0 {
+					if err := test.init(s); err != nil {
+						t.Fatalf("test init failed: %s", err)
+					}
 				}
-			}
-			if query.skip {
-				t.Logf("SKIP:: %s", query.name)
-				continue
-			}
-			if err := query.Execute(s); err != nil {
-				t.Error(query.Error(err))
-			} else if !query.success() {
-				t.Error(query.failureMessage())
-			}
+				if query.skip {
+					t.Skipf("SKIP:: %s", query.name)
+				}
+				if err := query.Execute(s); err != nil {
+					t.Error(query.Error(err))
+				} else if !query.success() {
+					t.Error(query.failureMessage())
+				}
+			})
 		}
 	}
 
@@ -7834,20 +7964,21 @@ func TestServer_ContinuousQuery_Deadlock(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 
 	// Deadlock detector.  If the deadlock is fixed, this test should complete all the writes in ~2.5s seconds (with artifical delays
@@ -7908,20 +8039,21 @@ func TestServer_Query_EvilIdentifiers(t *testing.T) {
 	}...)
 
 	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
 			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -8147,15 +8279,16 @@ func TestServer_Query_IntoTarget(t *testing.T) {
 	}
 
 	for _, query := range test.queries {
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+		t.Run(query.name, func(t *testing.T) {
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -8204,15 +8337,16 @@ func TestServer_Query_IntoTarget_Sparse(t *testing.T) {
 	}
 
 	for _, query := range test.queries {
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+		t.Run(query.name, func(t *testing.T) {
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -8256,15 +8390,16 @@ func TestServer_Query_DuplicateMeasurements(t *testing.T) {
 	}...)
 
 	for _, query := range test.queries {
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+		t.Run(query.name, func(t *testing.T) {
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -8302,18 +8437,19 @@ func TestServer_Query_LargeTimestamp(t *testing.T) {
 	// Open a new server with the same configuration file.
 	// This is to ensure the meta data was marshaled correctly.
 	s2 := OpenServer((s.(*LocalServer)).Config)
-	defer s2.Close()
+	defer s2.(*LocalServer).Server.Close()
 
 	for _, query := range test.queries {
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+		t.Run(query.name, func(t *testing.T) {
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -8352,15 +8488,16 @@ func TestServer_Query_DotProduct(t *testing.T) {
 	}...)
 
 	for _, query := range test.queries {
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+		t.Run(query.name, func(t *testing.T) {
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -8491,15 +8628,16 @@ func TestServer_WhereTimeInclusive(t *testing.T) {
 	}
 
 	for _, query := range test.queries {
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+		t.Run(query.name, func(t *testing.T) {
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -8546,15 +8684,16 @@ func TestServer_Query_ImplicitEndTime(t *testing.T) {
 	}
 
 	for _, query := range test.queries {
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+		t.Run(query.name, func(t *testing.T) {
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -8590,15 +8729,16 @@ func TestServer_Query_Sample_Wildcard(t *testing.T) {
 	}
 
 	for _, query := range test.queries {
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+		t.Run(query.name, func(t *testing.T) {
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -8648,15 +8788,16 @@ func TestServer_Query_Sample_LimitOffset(t *testing.T) {
 	}
 
 	for _, query := range test.queries {
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+		t.Run(query.name, func(t *testing.T) {
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }
 
@@ -8699,14 +8840,15 @@ func TestServer_NestedAggregateWithMathPanics(t *testing.T) {
 	}
 
 	for _, query := range test.queries {
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+		t.Run(query.name, func(t *testing.T) {
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
 	}
 }

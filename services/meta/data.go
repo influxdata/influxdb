@@ -1557,8 +1557,8 @@ func (leases *Leases) Acquire(name string, nodeID uint64) (*Lease, error) {
 	leases.mu.Lock()
 	defer leases.mu.Unlock()
 
-	l, ok := leases.m[name]
-	if ok {
+	l := leases.m[name]
+	if l != nil {
 		if time.Now().After(l.Expiration) || l.Owner == nodeID {
 			l.Expiration = time.Now().Add(leases.d)
 			l.Owner = nodeID

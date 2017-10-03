@@ -76,6 +76,45 @@ func TestRunCLI_ExecuteInsert(t *testing.T) {
 	}
 }
 
+func TestRunCLI_WithSignals(t *testing.T) {
+	t.Parallel()
+	ts := emptyTestServer()
+	defer ts.Close()
+
+	u, _ := url.Parse(ts.URL)
+	h, p, _ := net.SplitHostPort(u.Host)
+	c := cli.New(CLIENT_VERSION)
+	c.Host = h
+	c.Port, _ = strconv.Atoi(p)
+	c.IgnoreSignals = false
+	c.ForceTTY = true
+	go func() {
+		close(c.Quit)
+	}()
+	if err := c.Run(); err != nil {
+		t.Fatalf("Run failed with error: %s", err)
+	}
+}
+
+func TestRunCLI_ExecuteInsert_WithSignals(t *testing.T) {
+	t.Parallel()
+	ts := emptyTestServer()
+	defer ts.Close()
+
+	u, _ := url.Parse(ts.URL)
+	h, p, _ := net.SplitHostPort(u.Host)
+	c := cli.New(CLIENT_VERSION)
+	c.Host = h
+	c.Port, _ = strconv.Atoi(p)
+	c.ClientConfig.Precision = "ms"
+	c.Execute = "INSERT sensor,floor=1 value=2"
+	c.IgnoreSignals = false
+	c.ForceTTY = true
+	if err := c.Run(); err != nil {
+		t.Fatalf("Run failed with error: %s", err)
+	}
+}
+
 func TestSetAuth(t *testing.T) {
 	t.Parallel()
 	c := cli.New(CLIENT_VERSION)
@@ -108,9 +147,24 @@ func TestSetPrecision(t *testing.T) {
 	if c.ClientConfig.Precision != p {
 		t.Fatalf("Precision is %s but should be %s", c.ClientConfig.Precision, p)
 	}
+	up := "NS"
+	c.SetPrecision("PRECISION " + up)
+	if c.ClientConfig.Precision != p {
+		t.Fatalf("Precision is %s but should be %s", c.ClientConfig.Precision, p)
+	}
+	mixed := "ns"
+	c.SetPrecision("PRECISION " + mixed)
+	if c.ClientConfig.Precision != p {
+		t.Fatalf("Precision is %s but should be %s", c.ClientConfig.Precision, p)
+	}
 
 	// validate set default precision which equals empty string
 	p = "rfc3339"
+	c.SetPrecision("precision " + p)
+	if c.ClientConfig.Precision != "" {
+		t.Fatalf("Precision is %s but should be empty", c.ClientConfig.Precision)
+	}
+	p = "RFC3339"
 	c.SetPrecision("precision " + p)
 	if c.ClientConfig.Precision != "" {
 		t.Fatalf("Precision is %s but should be empty", c.ClientConfig.Precision)
@@ -127,6 +181,17 @@ func TestSetFormat(t *testing.T) {
 	// validate set non-default format
 	f := "json"
 	c.SetFormat("format " + f)
+	if c.Format != f {
+		t.Fatalf("Format is %s but should be %s", c.Format, f)
+	}
+
+	uf := "JSON"
+	c.SetFormat("format " + uf)
+	if c.Format != f {
+		t.Fatalf("Format is %s but should be %s", c.Format, f)
+	}
+	mixed := "json"
+	c.SetFormat("FORMAT " + mixed)
 	if c.Format != f {
 		t.Fatalf("Format is %s but should be %s", c.Format, f)
 	}
@@ -220,6 +285,18 @@ func TestSetWriteConsistency(t *testing.T) {
 	// set different valid write consistency and validate change
 	consistency = "quorum"
 	c.SetWriteConsistency("consistency " + consistency)
+	if c.ClientConfig.WriteConsistency != consistency {
+		t.Fatalf("WriteConsistency is %s but should be %s", c.ClientConfig.WriteConsistency, consistency)
+	}
+
+	consistency = "QUORUM"
+	c.SetWriteConsistency("consistency " + consistency)
+	if c.ClientConfig.WriteConsistency != "quorum" {
+		t.Fatalf("WriteConsistency is %s but should be %s", c.ClientConfig.WriteConsistency, "quorum")
+	}
+
+	consistency = "quorum"
+	c.SetWriteConsistency("CONSISTENCY " + consistency)
 	if c.ClientConfig.WriteConsistency != consistency {
 		t.Fatalf("WriteConsistency is %s but should be %s", c.ClientConfig.WriteConsistency, consistency)
 	}

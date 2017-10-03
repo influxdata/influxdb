@@ -7,6 +7,7 @@ import (
 	"io"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/influxdata/influxdb"
@@ -37,7 +38,7 @@ type StatementExecutor struct {
 	TSDBStore TSDBStore
 
 	// ShardMapper for mapping shards when executing a SELECT statement.
-	ShardMapper ShardMapper
+	ShardMapper query.ShardMapper
 
 	// Holds monitoring data for SHOW STATS and SHOW DIAGNOSTICS.
 	Monitor *monitor.Monitor
@@ -134,6 +135,8 @@ func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx query.
 			messages = append(messages, query.ReadOnlyWarning(stmt.String()))
 		}
 		err = e.executeDropUserStatement(stmt)
+	case *influxql.ExplainStatement:
+		rows, err = e.executeExplainStatement(stmt, &ctx)
 	case *influxql.GrantStatement:
 		if ctx.ReadOnly {
 			messages = append(messages, query.ReadOnlyWarning(stmt.String()))
@@ -398,6 +401,42 @@ func (e *StatementExecutor) executeDropUserStatement(q *influxql.DropUserStateme
 	return e.MetaClient.DropUser(q.Name)
 }
 
+func (e *StatementExecutor) executeExplainStatement(q *influxql.ExplainStatement, ctx *query.ExecutionContext) (models.Rows, error) {
+	if q.Analyze {
+		return nil, errors.New("analyze is currently unimplemented")
+	}
+
+	opt := query.SelectOptions{
+		InterruptCh: ctx.InterruptCh,
+		NodeID:      ctx.ExecutionOptions.NodeID,
+		MaxSeriesN:  e.MaxSelectSeriesN,
+		MaxBucketsN: e.MaxSelectBucketsN,
+		Authorizer:  ctx.Authorizer,
+	}
+
+	// Prepare the query for execution, but do not actually execute it.
+	// This should perform any needed substitutions.
+	p, err := query.Prepare(q.Statement, e.ShardMapper, opt)
+	if err != nil {
+		return nil, err
+	}
+	defer p.Close()
+
+	plan, err := p.Explain()
+	if err != nil {
+		return nil, err
+	}
+	plan = strings.TrimSpace(plan)
+
+	row := &models.Row{
+		Columns: []string{"QUERY PLAN"},
+	}
+	for _, s := range strings.Split(plan, "\n") {
+		row.Values = append(row.Values, []interface{}{s})
+	}
+	return models.Rows{row}, nil
+}
+
 func (e *StatementExecutor) executeGrantStatement(stmt *influxql.GrantStatement) error {
 	return e.MetaClient.SetPrivilege(stmt.User, stmt.On, stmt.Privilege)
 }
@@ -431,18 +470,19 @@ func (e *StatementExecutor) executeSetPasswordUserStatement(q *influxql.SetPassw
 }
 
 func (e *StatementExecutor) executeSelectStatement(stmt *influxql.SelectStatement, ctx *query.ExecutionContext) error {
-	itrs, stmt, err := e.createIterators(stmt, ctx)
+	itrs, columns, err := e.createIterators(stmt, ctx)
 	if err != nil {
 		return err
 	}
 
 	// Generate a row emitter from the iterator set.
 	em := query.NewEmitter(itrs, stmt.TimeAscending(), ctx.ChunkSize)
-	em.Columns = stmt.ColumnNames()
+	em.Columns = columns
 	if stmt.Location != nil {
 		em.Location = stmt.Location
 	}
 	em.OmitTime = stmt.OmitTime
+	em.EmitName = stmt.EmitName
 	defer em.Close()
 
 	// Emit rows to the results channel.
@@ -524,91 +564,26 @@ func (e *StatementExecutor) executeSelectStatement(stmt *influxql.SelectStatemen
 	return nil
 }
 
-func (e *StatementExecutor) createIterators(stmt *influxql.SelectStatement, ctx *query.ExecutionContext) ([]query.Iterator, *influxql.SelectStatement, error) {
-	// It is important to "stamp" this time so that everywhere we evaluate `now()` in the statement is EXACTLY the same `now`
-	now := time.Now().UTC()
+func (e *StatementExecutor) createIterators(stmt *influxql.SelectStatement, ctx *query.ExecutionContext) ([]query.Iterator, []string, error) {
 	opt := query.SelectOptions{
 		InterruptCh: ctx.InterruptCh,
 		NodeID:      ctx.ExecutionOptions.NodeID,
 		MaxSeriesN:  e.MaxSelectSeriesN,
+		MaxBucketsN: e.MaxSelectBucketsN,
 		Authorizer:  ctx.Authorizer,
 	}
 
-	// Replace instances of "now()" with the current time, and check the resultant times.
-	nowValuer := influxql.NowValuer{Now: now, Location: stmt.Location}
-	stmt = stmt.Reduce(&nowValuer)
-
-	_, timeRange, err := influxql.ConditionExpr(stmt.Condition, &nowValuer)
-	if err != nil {
-		return nil, stmt, err
-	}
-	opt.MinTime, opt.MaxTime = timeRange.Min, timeRange.Max
-
-	if opt.MaxTime.IsZero() {
-		opt.MaxTime = time.Unix(0, influxql.MaxTime)
-	}
-	if opt.MinTime.IsZero() {
-		opt.MinTime = time.Unix(0, influxql.MinTime).UTC()
-	}
-
-	// Convert DISTINCT into a call.
-	stmt.RewriteDistinct()
-
-	// Remove "time" from fields list.
-	stmt.RewriteTimeFields()
-
-	// Rewrite time condition.
-	if err := stmt.RewriteTimeCondition(now); err != nil {
-		return nil, stmt, err
-	}
-
-	// Rewrite any regex conditions that could make use of the index.
-	stmt.RewriteRegexConditions()
-
-	// Create an iterator creator based on the shards in the cluster.
-	ic, err := e.ShardMapper.MapShards(stmt.Sources, &opt)
-	if err != nil {
-		return nil, stmt, err
-	}
-	defer ic.Close()
-
-	// Rewrite wildcards, if any exist.
-	tmp, err := stmt.RewriteFields(ic)
-	if err != nil {
-		return nil, stmt, err
-	}
-	stmt = tmp
-
-	if e.MaxSelectBucketsN > 0 && !stmt.IsRawQuery {
-		interval, err := stmt.GroupByInterval()
-		if err != nil {
-			return nil, stmt, err
-		}
-
-		if interval > 0 {
-			// Determine the start and end time matched to the interval (may not match the actual times).
-			min := opt.MinTime.Truncate(interval)
-			max := opt.MaxTime.Truncate(interval).Add(interval)
-
-			// Determine the number of buckets by finding the time span and dividing by the interval.
-			buckets := int64(max.Sub(min)) / int64(interval)
-			if int(buckets) > e.MaxSelectBucketsN {
-				return nil, stmt, fmt.Errorf("max-select-buckets limit exceeded: (%d/%d)", buckets, e.MaxSelectBucketsN)
-			}
-		}
-	}
-
 	// Create a set of iterators from a selection.
-	itrs, err := query.Select(stmt, ic, &opt)
+	itrs, columns, err := query.Select(stmt, e.ShardMapper, opt)
 	if err != nil {
-		return nil, stmt, err
+		return nil, nil, err
 	}
 
 	if e.MaxSelectPointN > 0 {
 		monitor := query.PointLimitMonitor(itrs, query.DefaultStatsInterval, e.MaxSelectPointN)
 		ctx.Query.Monitor(monitor)
 	}
-	return itrs, stmt, nil
+	return itrs, columns, nil
 }
 
 func (e *StatementExecutor) executeShowContinuousQueriesStatement(stmt *influxql.ShowContinuousQueriesStatement) (models.Rows, error) {

@@ -16,6 +16,27 @@ const (
 	DefaultQueryTimeout = time.Duration(0)
 )
 
+type TaskStatus int
+
+const (
+	// RunningTask is set when the task is running.
+	RunningTask TaskStatus = iota
+
+	// KilledTask is set when the task is killed, but resources are still
+	// being used.
+	KilledTask
+)
+
+func (t TaskStatus) String() string {
+	switch t {
+	case RunningTask:
+		return "running"
+	case KilledTask:
+		return "killed"
+	}
+	panic(fmt.Sprintf("unknown task status: %d", int(t)))
+}
+
 // TaskManager takes care of all aspects related to managing running queries.
 type TaskManager struct {
 	// Query execution timeout.
@@ -104,20 +125,22 @@ func (t *TaskManager) executeShowQueriesStatement(q *influxql.ShowQueriesStateme
 			d = d - (d % time.Microsecond)
 		}
 
-		values = append(values, []interface{}{id, qi.query, qi.database, d.String()})
+		values = append(values, []interface{}{id, qi.query, qi.database, d.String(), qi.status.String()})
 	}
 
 	return []*models.Row{{
-		Columns: []string{"qid", "query", "database", "duration"},
+		Columns: []string{"qid", "query", "database", "duration", "status"},
 		Values:  values,
 	}}, nil
 }
 
-func (t *TaskManager) query(qid uint64) (*QueryTask, bool) {
+func (t *TaskManager) queryError(qid uint64, err error) {
 	t.mu.RLock()
-	query, ok := t.queries[qid]
+	query := t.queries[qid]
 	t.mu.RUnlock()
-	return query, ok
+	if query != nil {
+		query.setError(err)
+	}
 }
 
 // AttachQuery attaches a running query to be managed by the TaskManager.
@@ -143,6 +166,7 @@ func (t *TaskManager) AttachQuery(q *influxql.Query, database string, interrupt 
 	query := &QueryTask{
 		query:     q.String(),
 		database:  database,
+		status:    RunningTask,
 		startTime: time.Now(),
 		closing:   make(chan struct{}),
 		monitorCh: make(chan error),
@@ -168,18 +192,37 @@ func (t *TaskManager) AttachQuery(q *influxql.Query, database string, interrupt 
 	return qid, query, nil
 }
 
-// KillQuery stops and removes a query from the TaskManager.
-// This method can be used to forcefully terminate a running query.
+// KillQuery enters a query into the killed state and closes the channel
+// from the TaskManager. This method can be used to forcefully terminate a
+// running query.
 func (t *TaskManager) KillQuery(qid uint64) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	query, ok := t.queries[qid]
-	if !ok {
+	query := t.queries[qid]
+	if query == nil {
 		return fmt.Errorf("no such query id: %d", qid)
 	}
 
 	close(query.closing)
+	query.status = KilledTask
+	return nil
+}
+
+// DetachQuery removes a query from the query table. If the query is not in the
+// killed state, this will also close the related channel.
+func (t *TaskManager) DetachQuery(qid uint64) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	query := t.queries[qid]
+	if query == nil {
+		return fmt.Errorf("no such query id: %d", qid)
+	}
+
+	if query.status != KilledTask {
+		close(query.closing)
+	}
 	delete(t.queries, qid)
 	return nil
 }
@@ -220,27 +263,15 @@ func (t *TaskManager) waitForQuery(qid uint64, interrupt <-chan struct{}, closin
 
 	select {
 	case <-closing:
-		query, ok := t.query(qid)
-		if !ok {
-			break
-		}
-		query.setError(ErrQueryInterrupted)
+		t.queryError(qid, ErrQueryInterrupted)
 	case err := <-monitorCh:
 		if err == nil {
 			break
 		}
 
-		query, ok := t.query(qid)
-		if !ok {
-			break
-		}
-		query.setError(err)
+		t.queryError(qid, err)
 	case <-timerCh:
-		query, ok := t.query(qid)
-		if !ok {
-			break
-		}
-		query.setError(ErrQueryTimeoutLimitExceeded)
+		t.queryError(qid, ErrQueryTimeoutLimitExceeded)
 	case <-interrupt:
 		// Query was manually closed so exit the select.
 		return

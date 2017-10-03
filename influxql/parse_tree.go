@@ -1,6 +1,8 @@
 package influxql
 
-import "fmt"
+import (
+	"fmt"
+)
 
 var Language = &ParseTree{}
 
@@ -19,7 +21,7 @@ func (t *ParseTree) With(fn func(*ParseTree)) {
 func (t *ParseTree) Group(tokens ...Token) *ParseTree {
 	for _, tok := range tokens {
 		// Look for the parse tree for this token.
-		if subtree, ok := t.Tokens[tok]; ok {
+		if subtree := t.Tokens[tok]; subtree != nil {
 			t = subtree
 			continue
 		}
@@ -65,12 +67,12 @@ func (t *ParseTree) Handle(tok Token, fn func(*Parser) (Statement, error)) {
 func (t *ParseTree) Parse(p *Parser) (Statement, error) {
 	for {
 		tok, pos, lit := p.ScanIgnoreWhitespace()
-		if subtree, ok := t.Tokens[tok]; ok {
+		if subtree := t.Tokens[tok]; subtree != nil {
 			t = subtree
 			continue
 		}
 
-		if stmt, ok := t.Handlers[tok]; ok {
+		if stmt := t.Handlers[tok]; stmt != nil {
 			return stmt(p)
 		}
 
@@ -209,6 +211,9 @@ func init() {
 		drop.Handle(USER, func(p *Parser) (Statement, error) {
 			return p.parseDropUserStatement()
 		})
+	})
+	Language.Handle(EXPLAIN, func(p *Parser) (Statement, error) {
+		return p.parseExplainStatement()
 	})
 	Language.Handle(GRANT, func(p *Parser) (Statement, error) {
 		return p.parseGrantStatement()
