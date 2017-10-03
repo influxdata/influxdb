@@ -421,7 +421,7 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []CompactionGroup {
 		// Skip the file if it's over the max size and contains a full block or the generation is split
 		// over multiple files.  In the latter case, that would mean the data in the file spilled over
 		// the 2GB limit.
-		if g.size() > uint64(maxTSMFileSize) && c.FileStore.BlockCount(g.files[0].Path, 1) == tsdb.DefaultMaxPointsPerBlock || g.count() > 1 {
+		if g.size() > uint64(maxTSMFileSize) && c.FileStore.BlockCount(g.files[0].Path, 1) == tsdb.DefaultMaxPointsPerBlock {
 			start = i + 1
 		}
 

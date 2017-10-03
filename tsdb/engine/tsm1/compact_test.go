@@ -2406,42 +2406,6 @@ func TestDefaultPlanner_Plan_CompactsMiddleSteps(t *testing.T) {
 	}
 }
 
-func TestDefaultPlanner_Plan_LargeSets(t *testing.T) {
-	cp := tsm1.NewDefaultPlanner(
-		&fakeFileStore{
-			PathsFn: func() []tsm1.FileStat {
-				return []tsm1.FileStat{
-					tsm1.FileStat{
-						Path: "000000278-000000006.tsm",
-						Size: 2148340232,
-					},
-					tsm1.FileStat{
-						Path: "000000278-000000007.tsm",
-						Size: 2148356556,
-					},
-					tsm1.FileStat{
-						Path: "000000278-000000008.tsm",
-						Size: 167780181,
-					},
-					tsm1.FileStat{
-						Path: "000000446-000047040.tsm",
-						Size: 2148728539,
-					},
-					tsm1.FileStat{
-						Path: "000000446-000047041.tsm",
-						Size: 701863692,
-					},
-				}
-			},
-		}, tsdb.DefaultCompactFullWriteColdDuration,
-	)
-
-	tsm := cp.Plan(time.Now())
-	if exp, got := 0, len(tsm); got != exp {
-		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
-	}
-}
-
 func TestDefaultPlanner_Plan_LargeGeneration(t *testing.T) {
 	cp := tsm1.NewDefaultPlanner(
 		&fakeFileStore{
