@@ -184,7 +184,8 @@ $dash-graph-options-arrow: 8px;
   right: 0;
   display: flex;
 
-  > .custom-indicator {
+  > .custom-indicator,
+  > .source-indicator {
     font-size: 10px;
     line-height: 24px;
     padding: 0 7px;
@@ -194,6 +195,14 @@ $dash-graph-options-arrow: 8px;
     background-color: $g2-kevlar;
     margin-right: 2px;
     border-radius: 3px;
+  }
+  > .source-indicator {
+    height: 24px;
+
+    > .icon {
+      font-size: 12px;
+      margin: 0;
+    }
   }
 }
 .dash-graph-context {
