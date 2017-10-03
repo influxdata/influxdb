@@ -2,23 +2,18 @@ import React, {PropTypes} from 'react'
 import Dropdown from 'shared/components/Dropdown'
 
 const SourceSelector = ({sources = [], selected, onSetQuerySource}) =>
-  <div className="display-options--cell">
-    <h5 className="display-options--header">InfluxDB Source Selector</h5>
-    <div
-      className="form-group col-md-12"
-      style={{display: 'flex', flexDirection: 'column'}}
-    >
-      <label>Using data from</label>
-      <Dropdown
-        items={sources}
-        buttonSize="btn-sm"
-        menuClass="dropdown-astronaut"
-        useAutoComplete={true}
-        selected={selected}
-        onChoose={onSetQuerySource}
-        toggleStyle={{width: '50%', maxWidth: '300px'}}
-      />
-    </div>
+  <div className="source-selector">
+    {sources.length > 1
+      ? <Dropdown
+          items={sources}
+          buttonSize="btn-sm"
+          menuClass="dropdown-astronaut"
+          useAutoComplete={true}
+          selected={selected}
+          onChoose={onSetQuerySource}
+          className="dropdown-240"
+        />
+      : null}
   </div>
 
 const {arrayOf, func, shape, string} = PropTypes

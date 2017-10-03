@@ -1,5 +1,4 @@
 import React, {PropTypes} from 'react'
-import classnames from 'classnames'
 import _ from 'lodash'
 
 import CustomTimeIndicator from 'shared/components/CustomTimeIndicator'

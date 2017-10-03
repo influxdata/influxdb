@@ -243,6 +243,20 @@ class CellEditorOverlay extends Component {
     text: `${s.name} @ ${s.url}`,
   }))
 
+  findSelectedSource = () => {
+    const {source} = this.props
+    const sources = this.formatSources
+    const query = _.get(this.state.queriesWorkingDraft, 0, false)
+
+    if (!query || !query.source) {
+      const defaultSource = sources.find(s => s.id === source.id)
+      return (defaultSource && defaultSource.text) || 'No sources'
+    }
+
+    const selected = sources.find(s => s.id === query.source.id)
+    return (selected && selected.text) || 'No sources'
+  }
+
   render() {
     const {
       source,
@@ -293,23 +307,24 @@ class CellEditorOverlay extends Component {
           />
           <CEOBottom>
             <OverlayControls
+              onCancel={onCancel}
+              sources={this.formatSources}
+              onSave={this.handleSaveCell}
+              selected={this.findSelectedSource()}
+              onSetQuerySource={this.handleSetQuerySource}
+              isSavable={queriesWorkingDraft.every(isQuerySavable)}
               isDisplayOptionsTabActive={isDisplayOptionsTabActive}
               onClickDisplayOptions={this.handleClickDisplayOptionsTab}
-              onCancel={onCancel}
-              onSave={this.handleSaveCell}
-              isSavable={queriesWorkingDraft.every(isQuerySavable)}
             />
             {isDisplayOptionsTabActive
               ? <DisplayOptions
                   axes={axes}
                   source={source}
-                  sources={this.formatSources}
                   onSetBase={this.handleSetBase}
                   onSetLabel={this.handleSetLabel}
                   onSetScale={this.handleSetScale}
                   queryConfigs={queriesWorkingDraft}
                   selectedGraphType={cellWorkingType}
-                  onSetQuerySource={this.handleSetQuerySource}
                   onSetPrefixSuffix={this.handleSetPrefixSuffix}
                   onSelectGraphType={this.handleSelectGraphType}
                   onSetYAxisBoundMin={this.handleSetYAxisBoundMin}

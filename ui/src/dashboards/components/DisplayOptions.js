@@ -2,9 +2,6 @@ import React, {Component, PropTypes} from 'react'
 
 import GraphTypeSelector from 'src/dashboards/components/GraphTypeSelector'
 import AxesOptions from 'src/dashboards/components/AxesOptions'
-import SourceSelector from 'src/dashboards/components/SourceSelector'
-
-import _ from 'lodash'
 
 import {buildDefaultYLabel} from 'shared/presenters'
 
@@ -34,26 +31,11 @@ class DisplayOptions extends Component {
       : axes
   }
 
-  findSelectedSource = () => {
-    const {source, sources} = this.props
-    const query = _.get(this.props.queryConfigs, 0, false)
-
-    if (!query || !query.source) {
-      const defaultSource = sources.find(s => s.id === source.id)
-      return (defaultSource && defaultSource.text) || 'No sources'
-    }
-
-    const selected = sources.find(s => s.id === query.source.id)
-    return (selected && selected.text) || 'No sources'
-  }
-
   render() {
     const {
-      sources,
       onSetBase,
       onSetScale,
       onSetLabel,
-      onSetQuerySource,
       selectedGraphType,
       onSelectGraphType,
       onSetPrefixSuffix,
@@ -64,22 +46,15 @@ class DisplayOptions extends Component {
 
     return (
       <div className="display-options">
-        <div style={{display: 'flex', flexDirection: 'column', flex: 1}}>
-          <AxesOptions
-            axes={axes}
-            onSetBase={onSetBase}
-            onSetLabel={onSetLabel}
-            onSetScale={onSetScale}
-            onSetPrefixSuffix={onSetPrefixSuffix}
-            onSetYAxisBoundMin={onSetYAxisBoundMin}
-            onSetYAxisBoundMax={onSetYAxisBoundMax}
-          />
-          <SourceSelector
-            sources={sources}
-            onSetQuerySource={onSetQuerySource}
-            selected={this.findSelectedSource()}
-          />
-        </div>
+        <AxesOptions
+          axes={axes}
+          onSetBase={onSetBase}
+          onSetLabel={onSetLabel}
+          onSetScale={onSetScale}
+          onSetPrefixSuffix={onSetPrefixSuffix}
+          onSetYAxisBoundMin={onSetYAxisBoundMin}
+          onSetYAxisBoundMax={onSetYAxisBoundMax}
+        />
         <GraphTypeSelector
           selectedGraphType={selectedGraphType}
           onSelectGraphType={onSelectGraphType}
@@ -91,13 +66,11 @@ class DisplayOptions extends Component {
 const {arrayOf, func, shape, string} = PropTypes
 
 DisplayOptions.propTypes = {
-  sources: arrayOf(shape()).isRequired,
   selectedGraphType: string.isRequired,
   onSelectGraphType: func.isRequired,
   onSetPrefixSuffix: func.isRequired,
   onSetYAxisBoundMin: func.isRequired,
   onSetYAxisBoundMax: func.isRequired,
-  onSetQuerySource: func.isRequired,
   onSetScale: func.isRequired,
   onSetLabel: func.isRequired,
   onSetBase: func.isRequired,

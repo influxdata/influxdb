@@ -27,9 +27,6 @@
   color: $g11-sidewalk;
   @include no-user-select();
 }
-.y-axis-controls {
-  margin-bottom: 8px;
-}
 .viz-type-selector {
   display: flex;
   flex-wrap: wrap;
