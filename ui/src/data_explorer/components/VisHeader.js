@@ -33,13 +33,15 @@ const VisHeader = ({views, view, onToggleView, name, query, errorThrown}) =>
               </li>
             )}
           </ul>
-          <div
-            className="btn btn-sm btn-default dlcsv"
-            onClick={getCSV(query, errorThrown)}
-          >
-            <span className="icon download dlcsv" />
-            .csv
-          </div>
+          {query
+            ? <div
+                className="btn btn-sm btn-default dlcsv"
+                onClick={getCSV(query, errorThrown)}
+              >
+                <span className="icon download dlcsv" />
+                .csv
+              </div>
+            : null}
         </div>
       : null}
     <div className="graph-title">
@@ -54,7 +56,7 @@ VisHeader.propTypes = {
   view: string.isRequired,
   onToggleView: func.isRequired,
   name: string.isRequired,
-  query: shape().isRequired,
+  query: shape(),
   errorThrown: func.isRequired,
 }
 
