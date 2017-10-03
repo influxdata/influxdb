@@ -82,7 +82,7 @@ func TestConcurrentServer_TagValues(t *testing.T) {
 		if !ok {
 			t.Fatal("Not a local server")
 		}
-		srv.TSDBStore.TagValues("db0", cond)
+		srv.TSDBStore.TagValues(nil, "db0", cond)
 	}
 
 	var f3 = func() { s.DropDatabase("db0") }

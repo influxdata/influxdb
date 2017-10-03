@@ -810,6 +810,13 @@ func (b *exprIteratorBuilder) callIterator(expr *influxql.Call, opt IteratorOpti
 }
 
 func buildRHSTransformIterator(lhs Iterator, rhs influxql.Literal, op influxql.Token, opt IteratorOptions) (Iterator, error) {
+	itrType, litType := iteratorDataType(lhs), literalDataType(rhs)
+	if litType == influxql.Unsigned && itrType == influxql.Integer {
+		// If the literal is unsigned but the iterator is an integer, return
+		// an error since we cannot add an unsigned to an integer.
+		return nil, fmt.Errorf("cannot use %s with an integer and unsigned", op)
+	}
+
 	fn := binaryExprFunc(iteratorDataType(lhs), literalDataType(rhs), op)
 	switch fn := fn.(type) {
 	case func(float64, float64) float64:
@@ -819,6 +826,8 @@ func buildRHSTransformIterator(lhs Iterator, rhs influxql.Literal, op influxql.T
 			input = lhs
 		case IntegerIterator:
 			input = &integerFloatCastIterator{input: lhs}
+		case UnsignedIterator:
+			input = &unsignedFloatCastIterator{input: lhs}
 		default:
 			return nil, fmt.Errorf("type mismatch on LHS, unable to use %T as a FloatIterator", lhs)
 		}
@@ -828,6 +837,8 @@ func buildRHSTransformIterator(lhs Iterator, rhs influxql.Literal, op influxql.T
 		case *influxql.NumberLiteral:
 			val = rhs.Val
 		case *influxql.IntegerLiteral:
+			val = float64(rhs.Val)
+		case *influxql.UnsignedLiteral:
 			val = float64(rhs.Val)
 		default:
 			return nil, fmt.Errorf("type mismatch on RHS, unable to use %T as a NumberLiteral", rhs)
@@ -885,6 +896,8 @@ func buildRHSTransformIterator(lhs Iterator, rhs influxql.Literal, op influxql.T
 			input = lhs
 		case IntegerIterator:
 			input = &integerFloatCastIterator{input: lhs}
+		case UnsignedIterator:
+			input = &unsignedFloatCastIterator{input: lhs}
 		default:
 			return nil, fmt.Errorf("type mismatch on LHS, unable to use %T as a FloatIterator", lhs)
 		}
@@ -894,6 +907,8 @@ func buildRHSTransformIterator(lhs Iterator, rhs influxql.Literal, op influxql.T
 		case *influxql.NumberLiteral:
 			val = rhs.Val
 		case *influxql.IntegerLiteral:
+			val = float64(rhs.Val)
+		case *influxql.UnsignedLiteral:
 			val = float64(rhs.Val)
 		default:
 			return nil, fmt.Errorf("type mismatch on RHS, unable to use %T as a NumberLiteral", rhs)
@@ -966,6 +981,81 @@ func buildRHSTransformIterator(lhs Iterator, rhs influxql.Literal, op influxql.T
 		return &integerBoolTransformIterator{
 			input: input,
 			fn: func(p *IntegerPoint) *BooleanPoint {
+				if p == nil {
+					return nil
+				}
+
+				bp := &BooleanPoint{
+					Name: p.Name,
+					Tags: p.Tags,
+					Time: p.Time,
+					Aux:  p.Aux,
+				}
+				if p.Nil {
+					bp.Nil = true
+				} else {
+					bp.Value = fn(p.Value, val)
+				}
+				return bp
+			},
+		}, nil
+	case func(uint64, uint64) uint64:
+		var input UnsignedIterator
+		switch lhs := lhs.(type) {
+		case UnsignedIterator:
+			input = lhs
+		default:
+			return nil, fmt.Errorf("type mismatch on LHS, unable to use %T as a FloatIterator", lhs)
+		}
+
+		var val uint64
+		switch rhs := rhs.(type) {
+		case *influxql.IntegerLiteral:
+			if rhs.Val < 0 {
+				return nil, fmt.Errorf("cannot use negative integer '%s' in math with unsigned", rhs)
+			}
+			val = uint64(rhs.Val)
+		case *influxql.UnsignedLiteral:
+			val = rhs.Val
+		default:
+			return nil, fmt.Errorf("type mismatch on RHS, unable to use %T as a NumberLiteral", rhs)
+		}
+		return &unsignedTransformIterator{
+			input: input,
+			fn: func(p *UnsignedPoint) *UnsignedPoint {
+				if p == nil {
+					return nil
+				} else if p.Nil {
+					return p
+				}
+				p.Value = fn(p.Value, val)
+				return p
+			},
+		}, nil
+	case func(uint64, uint64) bool:
+		var input UnsignedIterator
+		switch lhs := lhs.(type) {
+		case UnsignedIterator:
+			input = lhs
+		default:
+			return nil, fmt.Errorf("type mismatch on LHS, unable to use %T as a FloatIterator", lhs)
+		}
+
+		var val uint64
+		switch rhs := rhs.(type) {
+		case *influxql.IntegerLiteral:
+			if rhs.Val < 0 {
+				return nil, fmt.Errorf("cannot use negative integer '%s' in math with unsigned", rhs)
+			}
+			val = uint64(rhs.Val)
+		case *influxql.UnsignedLiteral:
+			val = rhs.Val
+		default:
+			return nil, fmt.Errorf("type mismatch on RHS, unable to use %T as a NumberLiteral", rhs)
+		}
+		return &unsignedBoolTransformIterator{
+			input: input,
+			fn: func(p *UnsignedPoint) *BooleanPoint {
 				if p == nil {
 					return nil
 				}
@@ -1026,7 +1116,14 @@ func buildRHSTransformIterator(lhs Iterator, rhs influxql.Literal, op influxql.T
 }
 
 func buildLHSTransformIterator(lhs influxql.Literal, rhs Iterator, op influxql.Token, opt IteratorOptions) (Iterator, error) {
-	fn := binaryExprFunc(literalDataType(lhs), iteratorDataType(rhs), op)
+	litType, itrType := literalDataType(lhs), iteratorDataType(rhs)
+	if litType == influxql.Unsigned && itrType == influxql.Integer {
+		// If the literal is unsigned but the iterator is an integer, return
+		// an error since we cannot add an unsigned to an integer.
+		return nil, fmt.Errorf("cannot use %s with unsigned and an integer", op)
+	}
+
+	fn := binaryExprFunc(litType, itrType, op)
 	switch fn := fn.(type) {
 	case func(float64, float64) float64:
 		var input FloatIterator
@@ -1035,6 +1132,8 @@ func buildLHSTransformIterator(lhs influxql.Literal, rhs Iterator, op influxql.T
 			input = rhs
 		case IntegerIterator:
 			input = &integerFloatCastIterator{input: rhs}
+		case UnsignedIterator:
+			input = &unsignedFloatCastIterator{input: rhs}
 		default:
 			return nil, fmt.Errorf("type mismatch on RHS, unable to use %T as a FloatIterator", rhs)
 		}
@@ -1044,6 +1143,8 @@ func buildLHSTransformIterator(lhs influxql.Literal, rhs Iterator, op influxql.T
 		case *influxql.NumberLiteral:
 			val = lhs.Val
 		case *influxql.IntegerLiteral:
+			val = float64(lhs.Val)
+		case *influxql.UnsignedLiteral:
 			val = float64(lhs.Val)
 		default:
 			return nil, fmt.Errorf("type mismatch on LHS, unable to use %T as a NumberLiteral", lhs)
@@ -1101,6 +1202,8 @@ func buildLHSTransformIterator(lhs influxql.Literal, rhs Iterator, op influxql.T
 			input = rhs
 		case IntegerIterator:
 			input = &integerFloatCastIterator{input: rhs}
+		case UnsignedIterator:
+			input = &unsignedFloatCastIterator{input: rhs}
 		default:
 			return nil, fmt.Errorf("type mismatch on RHS, unable to use %T as a FloatIterator", rhs)
 		}
@@ -1110,6 +1213,8 @@ func buildLHSTransformIterator(lhs influxql.Literal, rhs Iterator, op influxql.T
 		case *influxql.NumberLiteral:
 			val = lhs.Val
 		case *influxql.IntegerLiteral:
+			val = float64(lhs.Val)
+		case *influxql.UnsignedLiteral:
 			val = float64(lhs.Val)
 		default:
 			return nil, fmt.Errorf("type mismatch on LHS, unable to use %T as a NumberLiteral", lhs)
@@ -1200,6 +1305,81 @@ func buildLHSTransformIterator(lhs influxql.Literal, rhs Iterator, op influxql.T
 				return bp
 			},
 		}, nil
+	case func(uint64, uint64) uint64:
+		var input UnsignedIterator
+		switch rhs := rhs.(type) {
+		case UnsignedIterator:
+			input = rhs
+		default:
+			return nil, fmt.Errorf("type mismatch on LHS, unable to use %T as a FloatIterator", lhs)
+		}
+
+		var val uint64
+		switch lhs := lhs.(type) {
+		case *influxql.IntegerLiteral:
+			if lhs.Val < 0 {
+				return nil, fmt.Errorf("cannot use negative integer '%s' in math with unsigned", rhs)
+			}
+			val = uint64(lhs.Val)
+		case *influxql.UnsignedLiteral:
+			val = lhs.Val
+		default:
+			return nil, fmt.Errorf("type mismatch on RHS, unable to use %T as a NumberLiteral", rhs)
+		}
+		return &unsignedTransformIterator{
+			input: input,
+			fn: func(p *UnsignedPoint) *UnsignedPoint {
+				if p == nil {
+					return nil
+				} else if p.Nil {
+					return p
+				}
+				p.Value = fn(val, p.Value)
+				return p
+			},
+		}, nil
+	case func(uint64, uint64) bool:
+		var input UnsignedIterator
+		switch rhs := rhs.(type) {
+		case UnsignedIterator:
+			input = rhs
+		default:
+			return nil, fmt.Errorf("type mismatch on LHS, unable to use %T as a FloatIterator", lhs)
+		}
+
+		var val uint64
+		switch lhs := lhs.(type) {
+		case *influxql.IntegerLiteral:
+			if lhs.Val < 0 {
+				return nil, fmt.Errorf("cannot use negative integer '%s' in math with unsigned", rhs)
+			}
+			val = uint64(lhs.Val)
+		case *influxql.UnsignedLiteral:
+			val = lhs.Val
+		default:
+			return nil, fmt.Errorf("type mismatch on RHS, unable to use %T as a NumberLiteral", rhs)
+		}
+		return &unsignedBoolTransformIterator{
+			input: input,
+			fn: func(p *UnsignedPoint) *BooleanPoint {
+				if p == nil {
+					return nil
+				}
+
+				bp := &BooleanPoint{
+					Name: p.Name,
+					Tags: p.Tags,
+					Time: p.Time,
+					Aux:  p.Aux,
+				}
+				if p.Nil {
+					bp.Nil = true
+				} else {
+					bp.Value = fn(val, p.Value)
+				}
+				return bp
+			},
+		}, nil
 	case func(bool, bool) bool:
 		var input BooleanIterator
 		switch rhs := rhs.(type) {
@@ -1242,7 +1422,14 @@ func buildLHSTransformIterator(lhs influxql.Literal, rhs Iterator, op influxql.T
 }
 
 func buildTransformIterator(lhs Iterator, rhs Iterator, op influxql.Token, opt IteratorOptions) (Iterator, error) {
-	fn := binaryExprFunc(iteratorDataType(lhs), iteratorDataType(rhs), op)
+	lhsType, rhsType := iteratorDataType(lhs), iteratorDataType(rhs)
+	if lhsType == influxql.Integer && rhsType == influxql.Unsigned {
+		return nil, fmt.Errorf("cannot use %s between an integer and unsigned, an explicit cast is required", op)
+	} else if lhsType == influxql.Unsigned && rhsType == influxql.Integer {
+		return nil, fmt.Errorf("cannot use %s between unsigned and an integer, an explicit cast is required", op)
+	}
+
+	fn := binaryExprFunc(lhsType, rhsType, op)
 	switch fn := fn.(type) {
 	case func(float64, float64) float64:
 		var left FloatIterator
@@ -1251,6 +1438,8 @@ func buildTransformIterator(lhs Iterator, rhs Iterator, op influxql.Token, opt I
 			left = lhs
 		case IntegerIterator:
 			left = &integerFloatCastIterator{input: lhs}
+		case UnsignedIterator:
+			left = &unsignedFloatCastIterator{input: lhs}
 		default:
 			return nil, fmt.Errorf("type mismatch on LHS, unable to use %T as a FloatIterator", lhs)
 		}
@@ -1261,6 +1450,8 @@ func buildTransformIterator(lhs Iterator, rhs Iterator, op influxql.Token, opt I
 			right = rhs
 		case IntegerIterator:
 			right = &integerFloatCastIterator{input: rhs}
+		case UnsignedIterator:
+			right = &unsignedFloatCastIterator{input: rhs}
 		default:
 			return nil, fmt.Errorf("type mismatch on RHS, unable to use %T as a FloatIterator", rhs)
 		}
@@ -1285,6 +1476,16 @@ func buildTransformIterator(lhs Iterator, rhs Iterator, op influxql.Token, opt I
 			return nil, fmt.Errorf("type mismatch on RHS, unable to use %T as a IntegerIterator", rhs)
 		}
 		return newIntegerExprIterator(left, right, opt, fn), nil
+	case func(uint64, uint64) uint64:
+		left, ok := lhs.(UnsignedIterator)
+		if !ok {
+			return nil, fmt.Errorf("type mismatch on LHS, unable to use %T as an UnsignedIterator", lhs)
+		}
+		right, ok := rhs.(UnsignedIterator)
+		if !ok {
+			return nil, fmt.Errorf("type mismatch on RHS, unable to use %T as an UnsignedIterator", lhs)
+		}
+		return newUnsignedExprIterator(left, right, opt, fn), nil
 	case func(float64, float64) bool:
 		var left FloatIterator
 		switch lhs := lhs.(type) {
@@ -1292,6 +1493,8 @@ func buildTransformIterator(lhs Iterator, rhs Iterator, op influxql.Token, opt I
 			left = lhs
 		case IntegerIterator:
 			left = &integerFloatCastIterator{input: lhs}
+		case UnsignedIterator:
+			left = &unsignedFloatCastIterator{input: lhs}
 		default:
 			return nil, fmt.Errorf("type mismatch on LHS, unable to use %T as a FloatIterator", lhs)
 		}
@@ -1302,6 +1505,8 @@ func buildTransformIterator(lhs Iterator, rhs Iterator, op influxql.Token, opt I
 			right = rhs
 		case IntegerIterator:
 			right = &integerFloatCastIterator{input: rhs}
+		case UnsignedIterator:
+			right = &unsignedFloatCastIterator{input: rhs}
 		default:
 			return nil, fmt.Errorf("type mismatch on RHS, unable to use %T as a FloatIterator", rhs)
 		}
@@ -1316,6 +1521,16 @@ func buildTransformIterator(lhs Iterator, rhs Iterator, op influxql.Token, opt I
 			return nil, fmt.Errorf("type mismatch on RHS, unable to use %T as a IntegerIterator", rhs)
 		}
 		return newIntegerBooleanExprIterator(left, right, opt, fn), nil
+	case func(uint64, uint64) bool:
+		left, ok := lhs.(UnsignedIterator)
+		if !ok {
+			return nil, fmt.Errorf("type mismatch on LHS, unable to use %T as an UnsignedIterator", lhs)
+		}
+		right, ok := rhs.(UnsignedIterator)
+		if !ok {
+			return nil, fmt.Errorf("type mismatch on RHS, unable to use %T as an UnsignedIterator", lhs)
+		}
+		return newUnsignedBooleanExprIterator(left, right, opt, fn), nil
 	case func(bool, bool) bool:
 		left, ok := lhs.(BooleanIterator)
 		if !ok {
@@ -1336,6 +1551,8 @@ func iteratorDataType(itr Iterator) influxql.DataType {
 		return influxql.Float
 	case IntegerIterator:
 		return influxql.Integer
+	case UnsignedIterator:
+		return influxql.Unsigned
 	case StringIterator:
 		return influxql.String
 	case BooleanIterator:
@@ -1351,6 +1568,8 @@ func literalDataType(lit influxql.Literal) influxql.DataType {
 		return influxql.Float
 	case *influxql.IntegerLiteral:
 		return influxql.Integer
+	case *influxql.UnsignedLiteral:
+		return influxql.Unsigned
 	case *influxql.StringLiteral:
 		return influxql.String
 	case *influxql.BooleanLiteral:
@@ -1369,8 +1588,53 @@ func binaryExprFunc(typ1 influxql.DataType, typ2 influxql.DataType, op influxql.
 		switch typ2 {
 		case influxql.Float:
 			fn = floatBinaryExprFunc(op)
+		case influxql.Unsigned:
+			// Special case for LT, LTE, GT, and GTE.
+			fn = unsignedBinaryExprFunc(op)
 		default:
 			fn = integerBinaryExprFunc(op)
+		}
+	case influxql.Unsigned:
+		switch typ2 {
+		case influxql.Float:
+			fn = floatBinaryExprFunc(op)
+		case influxql.Integer:
+			// Special case for LT, LTE, GT, and GTE.
+			// Since the RHS is an integer, we need to check if it is less than
+			// zero for the comparison operators to not be subject to overflow.
+			switch op {
+			case influxql.LT:
+				return func(lhs, rhs uint64) bool {
+					if int64(rhs) < 0 {
+						return false
+					}
+					return lhs < rhs
+				}
+			case influxql.LTE:
+				return func(lhs, rhs uint64) bool {
+					if int64(rhs) < 0 {
+						return false
+					}
+					return lhs <= rhs
+				}
+			case influxql.GT:
+				return func(lhs, rhs uint64) bool {
+					if int64(rhs) < 0 {
+						return true
+					}
+					return lhs > rhs
+				}
+			case influxql.GTE:
+				return func(lhs, rhs uint64) bool {
+					if int64(rhs) < 0 {
+						return true
+					}
+					return lhs >= rhs
+				}
+			}
+			fallthrough
+		default:
+			fn = unsignedBinaryExprFunc(op)
 		}
 	case influxql.Boolean:
 		fn = booleanBinaryExprFunc(op)
@@ -1451,6 +1715,50 @@ func integerBinaryExprFunc(op influxql.Token) interface{} {
 		return func(lhs, rhs int64) bool { return lhs > rhs }
 	case influxql.GTE:
 		return func(lhs, rhs int64) bool { return lhs >= rhs }
+	}
+	return nil
+}
+
+func unsignedBinaryExprFunc(op influxql.Token) interface{} {
+	switch op {
+	case influxql.ADD:
+		return func(lhs, rhs uint64) uint64 { return lhs + rhs }
+	case influxql.SUB:
+		return func(lhs, rhs uint64) uint64 { return lhs - rhs }
+	case influxql.MUL:
+		return func(lhs, rhs uint64) uint64 { return lhs * rhs }
+	case influxql.DIV:
+		return func(lhs, rhs uint64) uint64 {
+			if rhs == 0 {
+				return uint64(0)
+			}
+			return lhs / rhs
+		}
+	case influxql.MOD:
+		return func(lhs, rhs uint64) uint64 {
+			if rhs == 0 {
+				return uint64(0)
+			}
+			return lhs % rhs
+		}
+	case influxql.BITWISE_AND:
+		return func(lhs, rhs uint64) uint64 { return lhs & rhs }
+	case influxql.BITWISE_OR:
+		return func(lhs, rhs uint64) uint64 { return lhs | rhs }
+	case influxql.BITWISE_XOR:
+		return func(lhs, rhs uint64) uint64 { return lhs ^ rhs }
+	case influxql.EQ:
+		return func(lhs, rhs uint64) bool { return lhs == rhs }
+	case influxql.NEQ:
+		return func(lhs, rhs uint64) bool { return lhs != rhs }
+	case influxql.LT:
+		return func(lhs, rhs uint64) bool { return lhs < rhs }
+	case influxql.LTE:
+		return func(lhs, rhs uint64) bool { return lhs <= rhs }
+	case influxql.GT:
+		return func(lhs, rhs uint64) bool { return lhs > rhs }
+	case influxql.GTE:
+		return func(lhs, rhs uint64) bool { return lhs >= rhs }
 	}
 	return nil
 }

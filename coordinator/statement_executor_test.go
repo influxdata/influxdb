@@ -377,7 +377,7 @@ func (s *TSDBStore) MeasurementNames(database string, cond influxql.Expr) ([][]b
 	return nil, nil
 }
 
-func (s *TSDBStore) TagValues(database string, cond influxql.Expr) ([]tsdb.TagValues, error) {
+func (s *TSDBStore) TagValues(_ query.Authorizer, database string, cond influxql.Expr) ([]tsdb.TagValues, error) {
 	return nil, nil
 }
 

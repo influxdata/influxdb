@@ -1455,12 +1455,26 @@ func (m *Measurement) TagKeys() []string {
 }
 
 // TagValues returns all the values for the given tag key, in an arbitrary order.
-func (m *Measurement) TagValues(key string) []string {
+func (m *Measurement) TagValues(auth query.Authorizer, key string) []string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	values := make([]string, 0, len(m.seriesByTagKeyValue[key]))
-	for v := range m.seriesByTagKeyValue[key] {
-		values = append(values, v)
+VALUES:
+	for v, series := range m.seriesByTagKeyValue[key] {
+		if auth == nil {
+			values = append(values, v)
+		} else {
+			for _, sid := range series {
+				s := m.seriesByID[sid]
+				if s == nil {
+					continue
+				}
+				if auth.AuthorizeSeriesRead(m.database, m.name, s.Tags()) {
+					values = append(values, v)
+					continue VALUES
+				}
+			}
+		}
 	}
 	return values
 }

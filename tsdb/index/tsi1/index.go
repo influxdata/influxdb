@@ -184,7 +184,7 @@ func (i *Index) Open() error {
 			files = append(files, f)
 		}
 	}
-	fs, err := NewFileSet(i.levels, files)
+	fs, err := NewFileSet(i.Database, i.levels, files)
 	if err != nil {
 		return err
 	}
@@ -639,7 +639,7 @@ func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[s
 //
 // See tsm1.Engine.MeasurementTagKeyValuesByExpr for a fuller description of this
 // method.
-func (i *Index) MeasurementTagKeyValuesByExpr(name []byte, keys []string, expr influxql.Expr, keysSorted bool) ([][]string, error) {
+func (i *Index) MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []byte, keys []string, expr influxql.Expr, keysSorted bool) ([][]string, error) {
 	fs := i.RetainFileSet()
 	defer fs.Release()
 
@@ -658,8 +658,20 @@ func (i *Index) MeasurementTagKeyValuesByExpr(name []byte, keys []string, expr i
 	if expr == nil {
 		for ki, key := range keys {
 			itr := fs.TagValueIterator(name, []byte(key))
-			for val := itr.Next(); val != nil; val = itr.Next() {
-				results[ki] = append(results[ki], string(val.Value()))
+			if auth != nil {
+				for val := itr.Next(); val != nil; val = itr.Next() {
+					si := fs.TagValueSeriesIterator(name, []byte(key), val.Value())
+					for se := si.Next(); se != nil; se = si.Next() {
+						if auth.AuthorizeSeriesRead(i.Database, se.Name(), se.Tags()) {
+							results[ki] = append(results[ki], string(val.Value()))
+							break
+						}
+					}
+				}
+			} else {
+				for val := itr.Next(); val != nil; val = itr.Next() {
+					results[ki] = append(results[ki], string(val.Value()))
+				}
 			}
 		}
 		return results, nil
@@ -668,7 +680,7 @@ func (i *Index) MeasurementTagKeyValuesByExpr(name []byte, keys []string, expr i
 	// This is the case where we have filtered series by some WHERE condition.
 	// We only care about the tag values for the keys given the
 	// filtered set of series ids.
-	resultSet, err := fs.tagValuesByKeyAndExpr(name, keys, expr, i.fieldset)
+	resultSet, err := fs.tagValuesByKeyAndExpr(auth, name, keys, expr, i.fieldset)
 	if err != nil {
 		return nil, err
 	}
