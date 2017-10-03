@@ -22,12 +22,6 @@ const Header = React.createClass({
     }).isRequired,
   },
 
-  contextTypes: {
-    source: shape({
-      name: string,
-    }),
-  },
-
   handleChooseTimeRange(bounds) {
     this.props.actions.setTimeRange(bounds)
   },
@@ -48,7 +42,7 @@ const Header = React.createClass({
           </div>
           <div className="page-header__right">
             <GraphTips />
-            <SourceIndicator sourceName={this.context.source.name} />
+            <SourceIndicator />
             <div
               className="btn btn-sm btn-default"
               onClick={showWriteForm}
