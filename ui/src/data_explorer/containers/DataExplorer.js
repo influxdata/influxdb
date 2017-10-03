@@ -23,34 +23,16 @@ class DataExplorer extends Component {
     super(props)
 
     this.state = {
-      activeQueryIndex: 0,
       showWriteForm: false,
     }
   }
 
-  handleSetActiveQueryIndex = index => {
-    this.setState({activeQueryIndex: index})
-  }
-
-  handleDeleteQuery = index => {
-    const {queryConfigs, queryConfigActions} = this.props
-    const query = queryConfigs[index]
-    queryConfigActions.deleteQuery(query.id)
-  }
-
-  handleAddQuery = () => {
-    const newIndex = this.props.queryConfigs.length
-    this.props.queryConfigActions.addQuery()
-    this.handleSetActiveQueryIndex(newIndex)
-  }
-
   getActiveQuery = () => {
-    const {activeQueryIndex} = this.state
     const {queryConfigs} = this.props
-    const activeQuery = queryConfigs[activeQueryIndex]
-    const defaultQuery = queryConfigs[0]
-
-    return activeQuery || defaultQuery
+    if (queryConfigs.length === 0) {
+      this.props.queryConfigActions.addQuery()
+    }
+    return queryConfigs[0]
   }
 
   handleCloseWriteData = () => {
@@ -109,14 +91,8 @@ class DataExplorer extends Component {
         >
           <QueryMaker
             source={source}
-            queries={queryConfigs}
             actions={queryConfigActions}
-            autoRefresh={autoRefresh}
             timeRange={timeRange}
-            setActiveQueryIndex={this.handleSetActiveQueryIndex}
-            onDeleteQuery={this.handleDeleteQuery}
-            onAddQuery={this.handleAddQuery}
-            activeQueryIndex={activeQueryIndex}
             activeQuery={this.getActiveQuery()}
           />
           <Visualization
