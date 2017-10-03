@@ -298,11 +298,12 @@ func (g *GroupByVar) parseAbsolute(fragment string) (time.Duration, error) {
 }
 
 func (g *GroupByVar) String() string {
-	duration := g.Duration.Nanoseconds() / (g.ReportingInterval.Nanoseconds() * int64(g.Resolution))
+	duration := int64(g.Duration/time.Second) / int64(g.Resolution) * 3
 	if duration == 0 {
 		duration = 1
 	}
-	return "time(" + strconv.Itoa(int(duration)) + "s)"
+	ress := "time(" + strconv.Itoa(int(duration)) + "s)"
+	return ress
 }
 
 func (g *GroupByVar) Name() string {

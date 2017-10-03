@@ -135,7 +135,7 @@ func TestTemplateReplace(t *testing.T) {
 					ReportingInterval: 10 * time.Second,
 				},
 			},
-			want: `SELECT mean(usage_idle) from "cpu" where time > now() - 4320h group by time(1555s)`,
+			want: `SELECT mean(usage_idle) from "cpu" where time > now() - 4320h group by time(46656s)`,
 		},
 		{
 			name:  "auto group by without duration",
@@ -148,7 +148,7 @@ func TestTemplateReplace(t *testing.T) {
 					ReportingInterval: 10 * time.Second,
 				},
 			},
-			want: `SELECT mean(usage_idle) from "cpu" WHERE time > now() - 4320h group by time(1555s)`,
+			want: `SELECT mean(usage_idle) from "cpu" WHERE time > now() - 4320h group by time(46656s)`,
 		},
 		{
 			name:  "auto group by with :dashboardTime:",
@@ -170,7 +170,7 @@ func TestTemplateReplace(t *testing.T) {
 					},
 				},
 			},
-			want: `SELECT mean(usage_idle) from "cpu" WHERE time > now() - 4320h group by time(1555s)`,
+			want: `SELECT mean(usage_idle) from "cpu" WHERE time > now() - 4320h group by time(46656s)`,
 		},
 		{
 			name:  "auto group by failing condition",
@@ -192,7 +192,7 @@ func TestTemplateReplace(t *testing.T) {
 					},
 				},
 			},
-			want: `SELECT mean(usage_idle) FROM "cpu" WHERE time > now() - 1h GROUP BY time(3s)`,
+			want: `SELECT mean(usage_idle) FROM "cpu" WHERE time > now() - 1h GROUP BY time(93s)`,
 		},
 	}
 	for _, tt := range tests {
@@ -274,7 +274,7 @@ func TestGroupByVarString(t *testing.T) {
 				ReportingInterval: 10 * time.Second,
 				Duration:          24 * time.Hour,
 			},
-			want: "time(12s)",
+			want: "time(369s)",
 		},
 		{
 			name: "String() outputs a minimum of 1s intervals",
