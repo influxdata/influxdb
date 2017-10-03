@@ -24,7 +24,7 @@ const RuleHeaderEdit = ({
           className="page-header__title page-header--editable kapacitor-theme"
           onClick={onToggleEdit}
           data-for="rename-kapacitor-tooltip"
-          data-tip="Click to Rename"
+          data-tip={'<p>Click to Rename</p>'}
         >
           {rule.name}
           <span className="icon pencil" />

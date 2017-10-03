@@ -6,7 +6,6 @@
     http://wwayne.com/react-tooltip/
 */
 
-$tooltip-max-width: 260px;
 $tooltip-padding: 8px;
 $tooltip-radius: 5px;
 $tooltip-font: 13px;
@@ -19,13 +18,13 @@ $tooltip-code-bg: $g2-kevlar;
 $tooltip-code-color: $c-potassium;
 
 .influx-tooltip {
+  width: min-content;
   background-color: $tooltip-bg !important;
   color: $tooltip-text !important;
   font-size: $tooltip-font !important;
   font-weight: 500 !important;
   line-height: 1.3em !important;
   padding: $tooltip-padding !important;
-  max-width: $tooltip-max-width !important;
   white-space: pre-wrap !important;
   word-break: keep-all !important;
   border: 2px solid $tooltip-accent !important;
@@ -47,6 +46,7 @@ $tooltip-code-color: $c-potassium;
     width: 100%;
     display: inline-block;
     padding: 0;
+    white-space: nowrap;
   }
 
   code {
