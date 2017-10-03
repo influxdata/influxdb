@@ -257,9 +257,20 @@ class CellEditorOverlay extends Component {
     return (selected && selected.text) || 'No sources'
   }
 
+  getSource = () => {
+    const {source, sources} = this.props
+    const query = _.get(this.state.queriesWorkingDraft, 0, false)
+
+    if (!query || !query.source) {
+      return source
+    }
+
+    const querySource = sources.find(s => s.id === query.source.id)
+    return querySource || source
+  }
+
   render() {
     const {
-      source,
       onCancel,
       templates,
       timeRange,
@@ -330,7 +341,7 @@ class CellEditorOverlay extends Component {
                   onSetYAxisBoundMax={this.handleSetYAxisBoundMax}
                 />
               : <QueryMaker
-                  source={source}
+                  source={this.getSource()}
                   templates={templates}
                   queries={queriesWorkingDraft}
                   actions={queryActions}
