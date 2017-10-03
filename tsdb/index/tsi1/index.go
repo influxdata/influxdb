@@ -245,7 +245,7 @@ func (i *Index) ForEachMeasurementName(fn func(name []byte) error) error {
 	n := i.availableThreads()
 
 	// Store results.
-	errC := make(chan error, n)
+	errC := make(chan error, TotalPartitions)
 
 	// Run fn on each partition using a fixed number of goroutines.
 	var pidx uint32 // Index of maximum Partition being worked on.
@@ -276,7 +276,7 @@ func (i *Index) MeasurementExists(name []byte) (bool, error) {
 
 	// Store errors
 	var found uint32 // Use this to signal we found the measurement.
-	errC := make(chan error, n)
+	errC := make(chan error, TotalPartitions)
 
 	// Check each partition for the measurement concurrently.
 	var pidx uint32 // Index of maximum Partition being worked on.
@@ -325,7 +325,7 @@ func (i *Index) fetchByteValues(fn func(idx int) ([][]byte, error)) ([][]byte, e
 
 	// Store results.
 	names := make([][][]byte, TotalPartitions)
-	errC := make(chan error, n)
+	errC := make(chan error, TotalPartitions)
 
 	var pidx uint32 // Index of maximum Partition being worked on.
 	for k := 0; k < n; k++ {
@@ -384,7 +384,7 @@ func (i *Index) DropMeasurement(name []byte) error {
 	n := i.availableThreads()
 
 	// Store results.
-	errC := make(chan error, n)
+	errC := make(chan error, TotalPartitions)
 
 	var pidx uint32 // Index of maximum Partition being worked on.
 	for k := 0; k < n; k++ {
@@ -431,7 +431,7 @@ func (i *Index) CreateSeriesListIfNotExists(keys [][]byte, names [][]byte, tagsS
 	n := i.availableThreads()
 
 	// Store errors.
-	errC := make(chan error, n)
+	errC := make(chan error, TotalPartitions)
 
 	var pidx uint32 // Index of maximum Partition being worked on.
 	for k := 0; k < n; k++ {
@@ -508,7 +508,7 @@ func (i *Index) HasTagKey(name, key []byte) (bool, error) {
 
 	// Store errors
 	var found uint32 // Use this to signal we found the tag key.
-	errC := make(chan error, n)
+	errC := make(chan error, TotalPartitions)
 
 	// Check each partition for the tag key concurrently.
 	var pidx uint32 // Index of maximum Partition being worked on.
@@ -553,7 +553,7 @@ func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[s
 
 	// Store results.
 	keys := make([]map[string]struct{}, TotalPartitions)
-	errC := make(chan error, n)
+	errC := make(chan error, TotalPartitions)
 
 	var pidx uint32 // Index of maximum Partition being worked on.
 	var err error
@@ -604,7 +604,7 @@ func (i *Index) ForEachMeasurementTagKey(name []byte, fn func(key []byte) error)
 	n := i.availableThreads()
 
 	// Store results.
-	errC := make(chan error, n)
+	errC := make(chan error, TotalPartitions)
 
 	// Run fn on each partition using a fixed number of goroutines.
 	var pidx uint32 // Index of maximum Partition being worked on.
@@ -643,7 +643,7 @@ func (i *Index) TagSets(name []byte, opt query.IteratorOptions) ([]*query.TagSet
 
 	// Store results.
 	sets := make([][]*query.TagSet, TotalPartitions)
-	errC := make(chan error, n)
+	errC := make(chan error, TotalPartitions)
 
 	// Run fn on each partition using a fixed number of goroutines.
 	var pidx uint32 // Index of maximum Partition being worked on.
