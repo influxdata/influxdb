@@ -13,7 +13,8 @@ const SourceIndicator = ({sourceOverride}, {source: {name, url}}) => {
   if (!sourceName) {
     return null
   }
-  const sourceNameTooltip = `Connected to <code>${sourceName} @ ${sourceUrl}</code>`
+  const sourceNameTooltip = `<h1>Connected to Source:</h1><p><code>${sourceName} @ ${sourceUrl}</code></p>`
+
   return (
     <div
       className="source-indicator"

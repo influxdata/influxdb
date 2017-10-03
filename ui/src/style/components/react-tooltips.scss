@@ -33,6 +33,15 @@ $tooltip-code-color: $c-potassium;
   text-transform: none !important;
   cursor: default;
 
+  h1 {
+    font-size: 14px;
+    font-weight: 600;
+    margin: 0 0 6px 0;
+    line-height: 1.125em;
+    letter-spacing: 0;
+    font-family: $default-font;
+  }
+
   p {
     margin: 0;
     width: 100%;
