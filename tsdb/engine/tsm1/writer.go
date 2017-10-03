@@ -462,7 +462,7 @@ func (d *directIndex) Close() error {
 	}
 
 	if err := d.fd.Close(); err != nil {
-		return nil
+		return err
 	}
 	return os.Remove(d.fd.Name())
 }
@@ -473,9 +473,10 @@ func (d *directIndex) Remove() error {
 		return nil
 	}
 
-	if err := d.fd.Close(); err != nil {
-		return nil
-	}
+	// Close the file handle to prevent leaking.  We ignore the error because
+	// we just want to cleanup and remove the file.
+	_ = d.fd.Close()
+
 	return os.Remove(d.fd.Name())
 }
 
@@ -675,7 +676,10 @@ func (t *tsmWriter) Remove() error {
 	}
 
 	if f, ok := t.wrapped.(*os.File); ok {
-		f.Close()
+		// Close the file handle to prevent leaking.  We ignore the error because
+		// we just want to cleanup and remove the file.
+		_ = f.Close()
+
 		return os.Remove(f.Name())
 	}
 	return nil
