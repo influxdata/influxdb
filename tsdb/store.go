@@ -1292,7 +1292,7 @@ func (s *Store) monitorShards() {
 			for _, sh := range s.shards {
 				if sh.IsIdle() {
 					if err := sh.Free(); err != nil {
-						s.Logger.Warn("error free cold shard resources: %v", zap.Error(err))
+						s.Logger.Warn("error free cold shard resources:", zap.Error(err))
 					}
 				} else {
 					sh.SetCompactionsEnabled(true)
