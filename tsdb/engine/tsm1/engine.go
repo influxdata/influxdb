@@ -1319,27 +1319,32 @@ func (e *Engine) compact(quit <-chan struct{}) {
 
 				switch level {
 				case 1:
-					if e.compactHiPriorityLevel(level1Groups[0], 1) {
-						level1Groups = level1Groups[1:]
-						e.scheduler.setDepth(1, len(level1Groups))
+					if !e.compactHiPriorityLevel(level1Groups[0], 1) {
+						goto RELEASE
 					}
+					level1Groups = level1Groups[1:]
+					e.scheduler.setDepth(1, len(level1Groups))
 				case 2:
-					if e.compactHiPriorityLevel(level2Groups[0], 2) {
-						level2Groups = level2Groups[1:]
-						e.scheduler.setDepth(2, len(level2Groups))
+					if !e.compactHiPriorityLevel(level2Groups[0], 2) {
+						goto RELEASE
 					}
+					level2Groups = level2Groups[1:]
+					e.scheduler.setDepth(2, len(level2Groups))
 				case 3:
-					if e.compactLoPriorityLevel(level3Groups[0], 3) {
-						level3Groups = level3Groups[1:]
-						e.scheduler.setDepth(3, len(level3Groups))
+					if !e.compactLoPriorityLevel(level3Groups[0], 3) {
+						goto RELEASE
 					}
+					level3Groups = level3Groups[1:]
+					e.scheduler.setDepth(3, len(level3Groups))
 				case 4:
-					if e.compactFull(level4Groups[0]) {
-						level4Groups = level4Groups[1:]
-						e.scheduler.setDepth(4, len(level4Groups))
+					if !e.compactFull(level4Groups[0]) {
+						goto RELEASE
 					}
+					level4Groups = level4Groups[1:]
+					e.scheduler.setDepth(4, len(level4Groups))
 				}
 			}
+		RELEASE:
 
 			// Release all the plans we didn't start.
 			e.CompactionPlan.Release(level1Groups)
