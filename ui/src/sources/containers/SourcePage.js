@@ -125,7 +125,7 @@ export const SourcePage = React.createClass({
               </h1>
             </div>
             <div className="page-header__right">
-              <SourceIndicator sourceName={source.name} />
+              <SourceIndicator />
             </div>
           </div>
         </div>

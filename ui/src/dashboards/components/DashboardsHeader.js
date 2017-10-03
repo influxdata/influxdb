@@ -1,26 +1,17 @@
-import React, {PropTypes} from 'react'
+import React from 'react'
 
 import SourceIndicator from 'shared/components/SourceIndicator'
 
-const DashboardsHeader = ({sourceName}) => {
-  return (
-    <div className="page-header">
-      <div className="page-header__container">
-        <div className="page-header__left">
-          <h1 className="page-header__title">Dashboards</h1>
-        </div>
-        <div className="page-header__right">
-          <SourceIndicator sourceName={sourceName} />
-        </div>
+const DashboardsHeader = () =>
+  <div className="page-header">
+    <div className="page-header__container">
+      <div className="page-header__left">
+        <h1 className="page-header__title">Dashboards</h1>
+      </div>
+      <div className="page-header__right">
+        <SourceIndicator />
       </div>
     </div>
-  )
-}
-
-const {string} = PropTypes
-
-DashboardsHeader.propTypes = {
-  sourceName: string.isRequired,
-}
+  </div>
 
 export default DashboardsHeader

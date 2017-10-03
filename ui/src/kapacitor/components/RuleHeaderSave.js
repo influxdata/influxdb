@@ -4,14 +4,13 @@ import TimeRangeDropdown from 'shared/components/TimeRangeDropdown'
 import SourceIndicator from 'shared/components/SourceIndicator'
 
 const RuleHeaderSave = ({
-  source,
   onSave,
   timeRange,
   validationError,
   onChooseTimeRange,
 }) =>
   <div className="page-header__right">
-    <SourceIndicator sourceName={source.name} />
+    <SourceIndicator />
     <TimeRangeDropdown
       onChooseTimeRange={onChooseTimeRange}
       selected={timeRange}
@@ -41,7 +40,6 @@ const RuleHeaderSave = ({
 const {func, shape, string} = PropTypes
 
 RuleHeaderSave.propTypes = {
-  source: shape({}).isRequired,
   onSave: func.isRequired,
   validationError: string.isRequired,
   onChooseTimeRange: func.isRequired,

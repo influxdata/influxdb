@@ -18,7 +18,6 @@ const DashboardHeader = ({
   handleChooseTimeRange,
   handleChooseAutoRefresh,
   handleClickPresentationButton,
-  source,
   onAddCell,
   onEditDashboard,
   onToggleTempVarControls,
@@ -49,7 +48,7 @@ const DashboardHeader = ({
           </div>
           <div className="page-header__right">
             <GraphTips />
-            <SourceIndicator sourceName={source.name} />
+            <SourceIndicator />
             {dashboard
               ? <button className="btn btn-primary btn-sm" onClick={onAddCell}>
                   <span className="icon plus" />
@@ -107,7 +106,6 @@ DashboardHeader.defaultProps = {
 }
 
 DashboardHeader.propTypes = {
-  sourceID: string,
   children: array,
   buttonText: string,
   dashboard: shape({}),
@@ -121,7 +119,6 @@ DashboardHeader.propTypes = {
   handleChooseTimeRange: func.isRequired,
   handleChooseAutoRefresh: func.isRequired,
   handleClickPresentationButton: func.isRequired,
-  source: shape({}),
   onAddCell: func,
   onEditDashboard: func,
   onToggleTempVarControls: func,
