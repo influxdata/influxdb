@@ -18,7 +18,6 @@ Exactly one of -D or -R must be provided to indicate Debian or RPM packages.
 
 BINS=( influx influxd influx_stress influx_inspect influx_tsm )
 
-
 function testInstalled() {
   if ! command -v "$1" >/dev/null 2>&1 ; then
     >&2 echo "$1 not on \$PATH after install"
@@ -31,6 +30,19 @@ function testUninstalled() {
     >&2 echo "$1 still on \$PATH after install"
     exit 1
   fi
+}
+
+function testManpages() {
+  for p in influxd influxd-backup influxd-config influxd-restore influxd-run influxd-version \
+    influx \
+    influx_inspect \
+    influx_stress \
+    influx_tsm ; do
+    if [[ ! -r "/usr/share/man/man1/$p.1.gz" ]]; then
+      >&2 echo "No man page found for $p"
+      exit 1
+    fi
+  done
 }
 
 function testInstall() {
@@ -46,6 +58,7 @@ function testInstall() {
   for x in "${BINS[@]}"; do
     testInstalled "$x"
   done
+  testManpages
 
   if [ "$TYPE" == "deb" ]; then
     dpkg -r influxdb

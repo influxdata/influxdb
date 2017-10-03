@@ -79,6 +79,9 @@ printf 'package main
 	version = "%s"
 }' "$VERSION" > "./influxdb/cmd/influx/version.generated.go"
 
+# Prebuild the man pages so that consumers of the source tarball don't have to build it themselves.
+(cd /go/src/github.com/influxdata/influxdb/man && make build && gzip -9 ./*.1)
+
 TARBALL_NAME="influxdb-src-$SHA.tar.gz"
 (cd /go && tar czf "/out/$TARBALL_NAME" --exclude-vcs ./*) # --exclude-vcs is a GNU tar option.
 (cd /out && md5sum "$TARBALL_NAME" > "$TARBALL_NAME.md5")
