@@ -31,7 +31,7 @@ class LayoutCell extends Component {
   }
 
   render() {
-    const {cell, children, isEditable, sources} = this.props
+    const {cell, children, isEditable} = this.props
 
     const {isDeleting} = this.state
     const queries = _.get(cell, ['queries'], [])
@@ -40,7 +40,6 @@ class LayoutCell extends Component {
       <div className="dash-graph">
         <LayoutCellMenu
           cell={cell}
-          sources={sources}
           isDeleting={isDeleting}
           isEditable={isEditable}
           onDelete={this.handleDeleteCell}
@@ -50,7 +49,6 @@ class LayoutCell extends Component {
         />
         <LayoutCellHeader
           queries={queries}
-          sources={sources}
           cellName={cell.name}
           isEditable={isEditable}
         />
@@ -81,7 +79,6 @@ LayoutCell.propTypes = {
     y: number.isRequired,
     queries: arrayOf(shape()),
   }).isRequired,
-  sources: arrayOf(shape()),
   children: node.isRequired,
   onDeleteCell: func,
   onSummonOverlayTechnologies: func,

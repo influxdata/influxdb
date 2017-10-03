@@ -38,7 +38,6 @@ const Layout = (
 ) =>
   <LayoutCell
     cell={cell}
-    sources={sources}
     isEditable={isEditable}
     onEditCell={onEditCell}
     onDeleteCell={onDeleteCell}
