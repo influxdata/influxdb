@@ -8,6 +8,7 @@ After=network-online.target
 [Service]
 User=chronograf
 Group=chronograf
+EnvironmentFile=-/etc/default/chronograf
 ExecStart=/usr/bin/chronograf --host 0.0.0.0 --port 8888 -b /var/lib/chronograf/chronograf-v1.db -c /usr/share/chronograf/canned
 KillMode=control-group
 Restart=on-failure
