@@ -13,7 +13,7 @@ const buildText = q =>
   q.rawText || buildInfluxQLQuery(q.range || TEMPLATE_RANGE, q) || ''
 
 const QueryMaker = ({
-  source: {links},
+  source,
   actions,
   queries,
   timeRange,
@@ -39,7 +39,7 @@ const QueryMaker = ({
             query={buildText(activeQuery)}
             config={activeQuery}
             onUpdate={rawTextBinder(
-              links,
+              source.links,
               activeQuery.id,
               actions.editRawTextAsync
             )}
@@ -49,6 +49,7 @@ const QueryMaker = ({
             query={activeQuery}
             actions={actions}
             onAddQuery={onAddQuery}
+            source={source}
           />
         </div>
       : <EmptyQuery onAddQuery={onAddQuery} />}

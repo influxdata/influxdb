@@ -154,7 +154,7 @@ class AdminPage extends Component {
               <h1 className="page-header__title">Admin</h1>
             </div>
             <div className="page-header__right">
-              <SourceIndicator sourceName={source.name} />
+              <SourceIndicator />
             </div>
           </div>
         </div>

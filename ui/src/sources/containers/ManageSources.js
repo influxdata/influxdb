@@ -62,7 +62,7 @@ class ManageSources extends Component {
               <h1 className="page-header__title">Configuration</h1>
             </div>
             <div className="page-header__right">
-              <SourceIndicator sourceName={source.name} />
+              <SourceIndicator />
             </div>
           </div>
         </div>

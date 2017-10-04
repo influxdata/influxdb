@@ -59,7 +59,7 @@ const KapacitorRules = ({
             className="btn btn-sm btn-primary"
             style={{marginRight: '4px'}}
           >
-            Build Rule
+            <span className="icon plus" /> Build Rule
           </Link>
         </div>
       </div>
@@ -99,7 +99,7 @@ const KapacitorRules = ({
   )
 }
 
-const PageContents = ({children, source}) =>
+const PageContents = ({children}) =>
   <div className="page">
     <div className="page-header">
       <div className="page-header__container">
@@ -109,7 +109,7 @@ const PageContents = ({children, source}) =>
           </h1>
         </div>
         <div className="page-header__right">
-          <SourceIndicator sourceName={source && source.name} />
+          <SourceIndicator />
         </div>
       </div>
     </div>
@@ -139,7 +139,6 @@ KapacitorRules.propTypes = {
 
 PageContents.propTypes = {
   children: node,
-  source: shape(),
   onCloseTickscript: func,
 }
 

@@ -11,7 +11,6 @@ const addName = list => list.map(l => ({...l, name: `${l.db}.${l.rp}`}))
 const TickscriptHeader = ({
   task: {id, type, dbrps},
   task,
-  source: {name},
   onSave,
   onChangeType,
   onChangeID,
@@ -26,7 +25,7 @@ const TickscriptHeader = ({
           : <TickscriptStaticID id={task.name} />}
       </div>
       <div className="page-header__right">
-        <SourceIndicator sourceName={name} />
+        <SourceIndicator />
         <TickscriptType type={type} onChangeType={onChangeType} />
         <MultiSelectDBDropdown
           selectedItems={addName(dbrps)}
@@ -48,7 +47,6 @@ const {arrayOf, bool, func, shape, string} = PropTypes
 
 TickscriptHeader.propTypes = {
   onSave: func,
-  source: shape(),
   onSelectDbrps: func.isRequired,
   task: shape({
     dbrps: arrayOf(

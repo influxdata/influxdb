@@ -3766,6 +3766,11 @@
         "query": {
           "type": "string"
         },
+        "source": {
+          "type": "string",
+          "format": "url",
+          "description": "Optional URI for data source for this query"
+        },
         "queryConfig": {
           "$ref": "#/definitions/QueryConfig"
         }

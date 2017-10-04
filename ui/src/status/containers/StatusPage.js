@@ -56,7 +56,7 @@ class StatusPage extends Component {
               <h1 className="page-header__title">Status</h1>
             </div>
             <div className="page-header__right">
-              <SourceIndicator sourceName={source.name} />
+              <SourceIndicator />
             </div>
           </div>
         </div>
