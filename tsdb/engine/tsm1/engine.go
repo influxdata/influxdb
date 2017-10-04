@@ -1371,7 +1371,9 @@ func (e *Engine) compactHiPriorityLevel(grp CompactionGroup, level int) bool {
 	if e.compactionLimiter.TryTake() {
 		atomic.AddInt64(&e.stats.TSMCompactionsActive[level-1], 1)
 
+		e.wg.Add(1)
 		go func() {
+			defer e.wg.Done()
 			defer atomic.AddInt64(&e.stats.TSMCompactionsActive[level-1], -1)
 
 			defer e.compactionLimiter.Release()
@@ -1397,8 +1399,9 @@ func (e *Engine) compactLoPriorityLevel(grp CompactionGroup, level int) bool {
 	// Try the lo priority limiter, otherwise steal a little from the high priority if we can.
 	if e.compactionLimiter.TryTake() {
 		atomic.AddInt64(&e.stats.TSMCompactionsActive[level-1], 1)
-
+		e.wg.Add(1)
 		go func() {
+			defer e.wg.Done()
 			defer atomic.AddInt64(&e.stats.TSMCompactionsActive[level-1], -1)
 			defer e.compactionLimiter.Release()
 			s.Apply()
@@ -1421,8 +1424,9 @@ func (e *Engine) compactFull(grp CompactionGroup) bool {
 	// Try the lo priority limiter, otherwise steal a little from the high priority if we can.
 	if e.compactionLimiter.TryTake() {
 		atomic.AddInt64(&e.stats.TSMFullCompactionsActive, 1)
-
+		e.wg.Add(1)
 		go func() {
+			defer e.wg.Done()
 			defer atomic.AddInt64(&e.stats.TSMFullCompactionsActive, -1)
 			defer e.compactionLimiter.Release()
 			s.Apply()
