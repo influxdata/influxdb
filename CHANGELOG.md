@@ -1,4 +1,10 @@
-## v1.3.6 [unreleased]
+## v1.3.7 [unreleased]
+
+### Bugfixes
+
+[#8909](https://github.com/influxdata/influxdb/issues/8909): Fix use of `INFLUXD_OPTS` in service file
+
+## v1.3.6 [2017-09-29]
 
 ### Bugfixes
 
