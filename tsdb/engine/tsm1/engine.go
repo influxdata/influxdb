@@ -642,6 +642,82 @@ func (e *Engine) Backup(w io.Writer, basePath string, since time.Time) error {
 	return nil
 }
 
+// TODO(Adam): this is copied from another branch, needs more work.
+func (e *Engine) Export(w io.Writer, basePath string, since time.Time) error {
+	path, err := e.CreateSnapshot()
+	if err != nil {
+		return err
+	}
+
+	if err := e.index.SnapshotTo(path); err != nil {
+		return err
+	}
+
+	tw := tar.NewWriter(w)
+	defer tw.Close()
+
+	// Remove the temporary snapshot dir
+	defer os.RemoveAll(path)
+
+	// Recursively read all files from path.
+	files, err := readDir(path, "")
+	if err != nil {
+		return err
+	}
+
+	// Filter paths to only changed files.
+	var filtered []string
+	for _, file := range files {
+		if !strings.HasSuffix(file, ".tsm") {
+			continue
+		}
+
+		var skip bool
+		var tombstonePath string
+		f, err := os.Open(filepath.Join(path, file))
+		if err != nil {
+			return err
+		}
+		r, err := NewTSMReader(f)
+		if err != nil {
+			return err
+		}
+
+		// Grab the tombstone file if one exists.
+		if r.HasTombstones() {
+			tombstonePath = filepath.Base(r.TombstoneFiles()[0].Path)
+		}
+
+		// Skip this file since it doesn't contain data after cutoff
+		min, max := r.TimeRange()
+		if min < since.UnixNano() && max < since.UnixNano() {
+			skip = true
+		}
+
+		r.Close()
+
+		if skip {
+			continue
+		}
+
+		filtered = append(filtered, file)
+		if tombstonePath != "" {
+			filtered = append(filtered, tombstonePath)
+		}
+	}
+	if len(filtered) == 0 {
+		return nil
+	}
+
+	for _, f := range filtered {
+		if err := e.writeFileToBackup(f, basePath, filepath.Join(path, f), tw); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // writeFileToBackup copies the file into the tar archive. Files will use the shardRelativePath
 // in their names. This should be the <db>/<retention policy>/<id> part of the path.
 func (e *Engine) writeFileToBackup(name string, shardRelativePath, fullPath string, tw *tar.Writer) error {
