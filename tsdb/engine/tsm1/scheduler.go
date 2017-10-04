@@ -50,7 +50,7 @@ func (s *scheduler) next() (int, bool) {
 	loLimit, _ := s.limits()
 
 	end := len(s.queues)
-	if level3Running+level4Running >= loLimit {
+	if level3Running+level4Running >= loLimit && s.maxConcurrency-(level1Running+level2Running) == 0 {
 		end = 2
 	}
 
