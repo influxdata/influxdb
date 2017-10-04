@@ -66,8 +66,12 @@ class CellEditorOverlay extends Component {
     const nextQuery = queryModifier(query, payload)
 
     const nextQueries = queriesWorkingDraft.map(
-      q => (q.id === query.id ? nextQuery : q)
+      q =>
+        q.id === query.id
+          ? {...nextQuery, source: this.nextSource(q, nextQuery)}
+          : q
     )
+
     this.setState({queriesWorkingDraft: nextQueries})
   }
 
@@ -267,6 +271,14 @@ class CellEditorOverlay extends Component {
 
     const querySource = sources.find(s => s.id === query.source.id)
     return querySource || source
+  }
+
+  nextSource = (prevQuery, nextQuery) => {
+    if (nextQuery.source) {
+      return nextQuery.source
+    }
+
+    return prevQuery.source
   }
 
   render() {
