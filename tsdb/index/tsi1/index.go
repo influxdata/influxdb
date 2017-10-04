@@ -147,28 +147,27 @@ func (i *Index) Open() error {
 	}
 
 	// Open all the Partitions in parallel.
-	partitionN := len(i.partitions)
 	n := i.availableThreads()
 
 	// Store results.
-	errC := make(chan error, partitionN)
+	errC := make(chan error, TotalPartitions)
 
 	// Run fn on each partition using a fixed number of goroutines.
 	var pidx uint32 // Index of maximum Partition being worked on.
 	for k := 0; k < n; k++ {
-		go func(k int) {
+		go func() {
 			for {
 				idx := int(atomic.AddUint32(&pidx, 1) - 1) // Get next partition to work on.
-				if idx >= partitionN {
+				if idx >= int(TotalPartitions) {
 					return // No more work.
 				}
 				errC <- i.partitions[idx].Open()
 			}
-		}(k)
+		}()
 	}
 
 	// Check for error
-	for i := 0; i < partitionN; i++ {
+	for i := 0; i < int(TotalPartitions); i++ {
 		if err := <-errC; err != nil {
 			return err
 		}
@@ -176,7 +175,7 @@ func (i *Index) Open() error {
 
 	// Mark opened.
 	i.opened = true
-	i.logger.Info(fmt.Sprintf("index opened with %d partitions", partitionN))
+	i.logger.Info(fmt.Sprintf("index opened with %d partitions", TotalPartitions))
 	return nil
 }
 

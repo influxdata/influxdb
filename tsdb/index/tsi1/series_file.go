@@ -275,7 +275,7 @@ func (f *SeriesFile) SeriesIDIterator() SeriesIDIterator {
 }
 
 func (f *SeriesFile) compactSeriesMap() error {
-	// TEMP: Compaction should occur in parallel.
+	// TODO: Compaction should occur in parallel.
 
 	// Encode to a new buffer.
 	buf := encodeSeriesMap(f.data[:f.size], f.seriesMap.n+f.seriesMap.inmem.Len())
@@ -538,8 +538,8 @@ func (m *seriesMap) open() error {
 	// Read header if available.
 	if len(m.data) > 0 {
 		buf := data
-		m.n, buf = int64(binary.LittleEndian.Uint64(buf)), buf[SeriesMapCountSize:]
-		m.maxOffset, buf = uint64(binary.LittleEndian.Uint64(buf)), buf[SeriesMapMaxOffsetSize:]
+		m.n, buf = int64(binary.BigEndian.Uint64(buf)), buf[SeriesMapCountSize:]
+		m.maxOffset, buf = uint64(binary.BigEndian.Uint64(buf)), buf[SeriesMapMaxOffsetSize:]
 		m.capacity = int64(len(buf) / SeriesMapElemSize)
 		m.mask = int64(m.capacity - 1)
 	} else {
@@ -588,11 +588,11 @@ func (m *seriesMap) onDiskOffset(key []byte) uint64 {
 		elem := m.data[SeriesMapHeaderSize+(pos*SeriesMapElemSize):]
 		elem = elem[:SeriesMapElemSize]
 
-		h := int64(binary.LittleEndian.Uint64(elem[:8]))
+		h := int64(binary.BigEndian.Uint64(elem[:8]))
 		if h == 0 || d > rhh.Dist(h, pos, m.capacity) {
 			return 0
 		} else if h == hash {
-			if v := binary.LittleEndian.Uint64(elem[8:]); bytes.Equal(m.sfile.SeriesKey(v), key) {
+			if v := binary.BigEndian.Uint64(elem[8:]); bytes.Equal(m.sfile.SeriesKey(v), key) {
 				return v
 			}
 		}
@@ -606,8 +606,8 @@ func encodeSeriesMap(src []byte, n int64) []byte {
 
 	// Build output buffer with count and max offset at the beginning.
 	buf := make([]byte, SeriesMapHeaderSize+(capacity*SeriesMapElemSize))
-	binary.LittleEndian.PutUint64(buf[0:8], uint64(n))
-	binary.LittleEndian.PutUint64(buf[8:16], uint64(len(src)))
+	binary.BigEndian.PutUint64(buf[0:8], uint64(n))
+	binary.BigEndian.PutUint64(buf[8:16], uint64(len(src)))
 
 	// Loop over all series in data. Offset starts at 1.
 	for b, offset := src[1:], uint64(1); len(b) > 0; {
@@ -630,14 +630,14 @@ func insertSeriesMap(src, buf, key []byte, val uint64, capacity int64) {
 		elem := buf[SeriesMapHeaderSize+(pos*SeriesMapElemSize):]
 		elem = elem[:SeriesMapElemSize]
 
-		h := int64(binary.LittleEndian.Uint64(elem[:8]))
-		v := binary.LittleEndian.Uint64(elem[8:])
+		h := int64(binary.BigEndian.Uint64(elem[:8]))
+		v := binary.BigEndian.Uint64(elem[8:])
 		k, _ := ReadSeriesKey(src[v:])
 
 		// Empty slot found or matching key, insert and exit.
 		if h == 0 || bytes.Equal(key, k) {
-			binary.LittleEndian.PutUint64(elem[:8], uint64(hash))
-			binary.LittleEndian.PutUint64(elem[8:], val)
+			binary.BigEndian.PutUint64(elem[:8], uint64(hash))
+			binary.BigEndian.PutUint64(elem[8:], val)
 			return
 		}
 
@@ -645,8 +645,8 @@ func insertSeriesMap(src, buf, key []byte, val uint64, capacity int64) {
 		// existing elem, and keep going to find another slot for that elem.
 		if d := rhh.Dist(h, pos, capacity); d < dist {
 			// Insert current values.
-			binary.LittleEndian.PutUint64(elem[:8], uint64(hash))
-			binary.LittleEndian.PutUint64(elem[8:], val)
+			binary.BigEndian.PutUint64(elem[:8], uint64(hash))
+			binary.BigEndian.PutUint64(elem[8:], val)
 
 			// Swap with values in that position.
 			hash, key, val = h, k, v
