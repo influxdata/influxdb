@@ -24,6 +24,7 @@
 1. [#2072](https://github.com/influxdata/chronograf/pull/2072): Remove tabs from Data Explorer
 1. [#2057](https://github.com/influxdata/chronograf/pull/2057): Improve appearance of placeholder text in inputs
 1. [#2057](https://github.com/influxdata/chronograf/pull/2057): Add ability to use "Default" values in Source Connection form
+1. [#2069](https://github.com/influxdata/chronograf/pull/2069): Display name & port in SourceIndicator tooltip
 
 ## v1.3.8.1 [unreleased]
 ### Bug Fixes
