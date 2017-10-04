@@ -49,7 +49,7 @@ const ValuesSection = ({
           )}
         </TabList>
         <div>
-          <h3 className="rule-builder--sub-header">Time Series</h3>
+          <h3 className="rule-section--sub-heading">Time Series</h3>
           <DataSection
             query={query}
             timeRange={timeRange}
@@ -60,7 +60,7 @@ const ValuesSection = ({
             isDeadman={isDeadman(rule)}
           />
         </div>
-        <h3 className="rule-builder--sub-header">Rule Conditions</h3>
+        <h3 className="rule-section--sub-heading">Rule Conditions</h3>
         <TabPanels>
           <TabPanel>
             <Threshold

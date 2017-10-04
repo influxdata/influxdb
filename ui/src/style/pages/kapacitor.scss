@@ -82,6 +82,27 @@ $rule-builder--radius-lg: 5px;
     left: ($rule-builder--dot / 2);
   }
 }
+.rule-section--sub-heading {
+  margin: 0;
+  padding: $rule-builder--section-gap 0 $rule-builder--padding-md 0;
+  font-size: $page-header-size;
+  font-weight: $page-header-weight;
+  color: $g12-forge;
+  position: relative;
+
+  // Dot
+  &:after {
+    content: '';
+    position: absolute;
+    width: $rule-builder--dot;
+    height: $rule-builder--dot;
+    background-color: $rule-builder--accent-color;
+    border: 6px solid $rule-builder--accent-line-color;
+    border-radius: 50%;
+    top: ($rule-builder--section-gap + 3px);
+    left: -$rule-builder--left-gutter;
+  }
+}
 // Override appearance of lines and dots for first section
 .rule-section:first-of-type {
   .rule-section--heading {
@@ -213,13 +234,6 @@ $rule-builder--radius-lg: 5px;
   Sectiom 2 - Rule Conditions
   -----------------------------------------------------------------------------
 */
-.rule-builder--sub-header {
-  margin: 0;
-  padding: 30px 0 13px 0;
-  font-size: 19px;
-  font-weight: 400 !important;
-  color: #a4a8b6;
-}
 .rule-builder--metric {
   height: 30px;
   line-height: 30px;
