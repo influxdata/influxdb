@@ -283,6 +283,10 @@ func (g *GroupByVar) parseAbsolute(fragment string) (time.Duration, error) {
 		}
 	}
 
+	if len(durs) == 1 {
+		durs = append(durs, time.Now())
+	}
+
 	// reject more than 2 times found
 	if len(durs) != 2 {
 		return time.Duration(0), errors.New("must provide exactly two absolute times")
@@ -294,7 +298,7 @@ func (g *GroupByVar) parseAbsolute(fragment string) (time.Duration, error) {
 }
 
 func (g *GroupByVar) String() string {
-	duration := g.Duration.Nanoseconds() / (g.ReportingInterval.Nanoseconds() * int64(g.Resolution))
+	duration := int64(g.Duration/time.Second) / int64(g.Resolution) * 3
 	if duration == 0 {
 		duration = 1
 	}
