@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode"
 
+	"fmt"
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/models"
@@ -781,6 +782,62 @@ func (data *Data) hasAdminUser() bool {
 		}
 	}
 	return false
+}
+
+// ImportData imports selected data into the current metadata.
+// opts provides options to possibly rename the Database or Retention Policy, or change the Replication Factor.
+func (data *Data) ImportData(other Data, backupDBName, restoreDBName, backupRPName, restoreRPName string) (map[uint64]uint64, error) {
+
+	shardIDMap := make(map[uint64]uint64)
+
+	dbImport := other.Database(backupDBName)
+	if dbImport == nil {
+		return shardIDMap, fmt.Errorf("imported metadata does not have datbase named %s", backupDBName)
+	}
+
+	if restoreDBName == "" {
+		restoreDBName = backupDBName
+	}
+
+	// change the names if we want/need to
+	dbImport.Name = restoreDBName
+
+	if backupRPName != "" {
+		rpImport, err := other.RetentionPolicy(restoreDBName, backupRPName)
+		if err != nil {
+			return shardIDMap, err
+		}
+
+		if rpImport != nil {
+			if restoreRPName == "" {
+				restoreRPName = backupRPName
+			}
+			rpImport.Name = restoreRPName
+			dbImport.RetentionPolicies = []RetentionPolicyInfo{*rpImport}
+		} else {
+			return shardIDMap, fmt.Errorf("retention Policy not found in meta backup: %s", backupRPName)
+		}
+
+	}
+	if data.Database(restoreDBName) != nil {
+		return shardIDMap, errors.New("database already exists")
+	}
+
+	for _, rpImport := range dbImport.RetentionPolicies {
+		for j, sgImport := range rpImport.ShardGroups {
+			data.MaxShardGroupID++
+			rpImport.ShardGroups[j].ID = data.MaxShardGroupID
+			for k, _ := range sgImport.Shards {
+				data.MaxShardID++
+				shardIDMap[sgImport.Shards[k].ID] = data.MaxShardID
+				sgImport.Shards[k].ID = data.MaxShardID
+			}
+		}
+	}
+
+	data.Databases = append(data.Databases, *dbImport)
+
+	return shardIDMap, nil
 }
 
 // NodeInfo represents information about a single node in the cluster.
