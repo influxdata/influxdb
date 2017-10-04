@@ -51,13 +51,14 @@ class KapacitorRule extends Component {
   }
 
   handleEdit = () => {
-    const {addFlashMessage, queryConfigs, rule} = this.props
+    const {addFlashMessage, queryConfigs, rule, router, source} = this.props
     const updatedRule = Object.assign({}, rule, {
       query: queryConfigs[rule.queryID],
     })
 
     editRule(updatedRule)
       .then(() => {
+        router.push(`/sources/${source.id}/alert-rules`)
         addFlashMessage({
           type: 'success',
           text: `${rule.name} successfully saved!`,
