@@ -1,5 +1,6 @@
 import React, {PropTypes, Component} from 'react'
 
+import NameSection from 'src/kapacitor/components/NameSection'
 import ValuesSection from 'src/kapacitor/components/ValuesSection'
 import RuleHeader from 'src/kapacitor/components/RuleHeader'
 import RuleMessage from 'src/kapacitor/components/RuleMessage'
@@ -161,6 +162,12 @@ class KapacitorRule extends Component {
             <div className="row">
               <div className="col-xs-12">
                 <div className="rule-builder">
+                  <NameSection
+                    isEditing={isEditing}
+                    defaultName={rule.name}
+                    onRuleRename={ruleActions.updateRuleName}
+                    ruleID={rule.id}
+                  />
                   <ValuesSection
                     rule={rule}
                     source={source}
