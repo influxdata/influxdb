@@ -142,6 +142,8 @@ type TSMWriter interface {
 
 	// Size returns the current size in bytes of the file.
 	Size() uint32
+
+	Remove() error
 }
 
 // IndexWriter writes a TSMIndex.
@@ -165,6 +167,8 @@ type IndexWriter interface {
 	WriteTo(w io.Writer) (int64, error)
 
 	Close() error
+
+	Remove() error
 }
 
 // IndexEntry is the index information for a given block in a TSM file.
@@ -458,8 +462,21 @@ func (d *directIndex) Close() error {
 	}
 
 	if err := d.fd.Close(); err != nil {
+		return err
+	}
+	return os.Remove(d.fd.Name())
+}
+
+// Remove removes the index from any tempory storage
+func (d *directIndex) Remove() error {
+	if d.fd == nil {
 		return nil
 	}
+
+	// Close the file handle to prevent leaking.  We ignore the error because
+	// we just want to cleanup and remove the file.
+	_ = d.fd.Close()
+
 	return os.Remove(d.fd.Name())
 }
 
@@ -475,7 +492,7 @@ type tsmWriter struct {
 func NewTSMWriter(w io.Writer) (TSMWriter, error) {
 	var index IndexWriter
 	if fw, ok := w.(*os.File); ok && !strings.HasSuffix(fw.Name(), "01.tsm.tmp") {
-		f, err := os.Create(strings.TrimSuffix(fw.Name(), ".tsm.tmp") + ".idx.tmp")
+		f, err := os.OpenFile(strings.TrimSuffix(fw.Name(), ".tsm.tmp")+".idx.tmp", os.O_CREATE|os.O_RDWR|os.O_EXCL|os.O_SYNC, 0666)
 		if err != nil {
 			return nil, err
 		}
@@ -648,6 +665,22 @@ func (t *tsmWriter) Close() error {
 
 	if c, ok := t.wrapped.(io.Closer); ok {
 		return c.Close()
+	}
+	return nil
+}
+
+// Remove removes any temporary storage used by the writer.
+func (t *tsmWriter) Remove() error {
+	if err := t.index.Remove(); err != nil {
+		return err
+	}
+
+	if f, ok := t.wrapped.(*os.File); ok {
+		// Close the file handle to prevent leaking.  We ignore the error because
+		// we just want to cleanup and remove the file.
+		_ = f.Close()
+
+		return os.Remove(f.Name())
 	}
 	return nil
 }

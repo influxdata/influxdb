@@ -36,6 +36,7 @@
 - [#8830](https://github.com/influxdata/influxdb/issues/8830): Separate importer log statements to stdout and stderr.
 - [#8857](https://github.com/influxdata/influxdb/pull/8857): Improve performance of Bloom Filter in TSI index.
 - [#8897](https://github.com/influxdata/influxdb/pull/8897): Add message pack format for query responses.
+- [#8886](https://github.com/influxdata/influxdb/pull/8886): Improved compaction scheduling
 
 ### Bugfixes
 
