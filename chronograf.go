@@ -302,8 +302,7 @@ func (g *GroupByVar) String() string {
 	if duration == 0 {
 		duration = 1
 	}
-	ress := "time(" + strconv.Itoa(int(duration)) + "s)"
-	return ress
+	return "time(" + strconv.Itoa(int(duration)) + "s)"
 }
 
 func (g *GroupByVar) Name() string {
