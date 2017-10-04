@@ -44,7 +44,7 @@ VERSION=$(jq -r .version < "/isrc/.metadata.json")
 mkdir -p /ibin
 (cd /ibin && tar xzf /influxdb-bin.tar.gz)
 
-if [ "$OS" == "linux" ]; then
+if [ "$OS" == "linux" ] || [ "$OS" == "darwin" ]; then
   #############################
   ####### Data packages #######
   #############################
@@ -79,17 +79,18 @@ if [ "$OS" == "linux" ]; then
   cp /isrc/man/*.1.gz /pkg/usr/share/man/man1
 
   # Make tarball of files in packaging.
-  BIN_GZ_NAME="/out/influxdb-oss-${VERSION}_${OS}_${ARCH}.tar.gz"
+  BIN_GZ_NAME="/out/influxdb-${VERSION}_${OS}_${ARCH}.tar.gz"
   if [ "$STATIC" == "1" ]; then
-    BIN_GZ_NAME="/out/influxdb-oss-static_${VERSION}_${OS}_${ARCH}.tar.gz"
+    BIN_GZ_NAME="/out/influxdb-${VERSION}-static_${OS}_${ARCH}.tar.gz"
   fi
 
   (cd /pkg && tar czf $BIN_GZ_NAME ./*)
 
   # don't need static install packages.
-  if [ "$STATIC" != "1" ]; then
+  if [ "$OS" == "linux" ] && [ "$STATIC" != "1" ]; then
     # Call fpm to build .deb and .rpm packages.
     for typeargs in "-t deb" "-t rpm --depends coreutils"; do
+      FPM_NAME=$(
       fpm \
         -s dir \
         $typeargs \
@@ -111,7 +112,13 @@ if [ "$OS" == "linux" ]; then
         --version "$VERSION" \
         --iteration 1 \
         -C /pkg \
-        -p /out
+        -p /out \
+         | ruby -e 'puts (eval ARGF.read)[:path]' )
+
+        echo "fpm created $FPM_NAME"
+        NEW_NAME=$(echo "$FPM_NAME" | sed "s/${VERSION}-1/${VERSION}/")
+        echo "renaming to ${NEW_NAME}"
+        mv "${FPM_NAME}" "${NEW_NAME}"
     done
   fi
 
@@ -125,7 +132,7 @@ if [ "$OS" == "linux" ]; then
 elif [ "$OS" == "windows" ]; then
   # Windows gets the binaries and nothing else.
   # TODO: should Windows get the sample config files?
-  (cd /ibin && zip -9 -r "/out/influxdb_${VERSION}.zip" ./*)
+  (cd /ibin && zip -9 -r "/out/influxdb-${VERSION}_${OS}_${ARCH}.zip" ./*)
   (cd /out && for f in *.zip; do
     md5sum "$f" > "$f.md5"
     sha256sum "$f" > "$f.sha256"
