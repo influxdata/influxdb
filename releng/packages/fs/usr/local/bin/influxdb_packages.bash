@@ -116,7 +116,7 @@ if [ "$OS" == "linux" ] || [ "$OS" == "darwin" ]; then
          | ruby -e 'puts (eval ARGF.read)[:path]' )
 
         echo "fpm created $FPM_NAME"
-        NEW_NAME=$(echo "$FPM_NAME" | sed "s/${VERSION}-1/${VERSION}/")
+        NEW_NAME=$(echo "$FPM_NAME" | rev | sed "s/1-//" | rev)
         echo "renaming to ${NEW_NAME}"
         mv "${FPM_NAME}" "${NEW_NAME}"
     done
