@@ -16,9 +16,8 @@ const GraphTips = React.createClass({
           id="graph-tips-tooltip"
           effect="solid"
           html={true}
-          offset={{top: 2}}
           place="bottom"
-          class="influx-tooltip place-bottom"
+          class="influx-tooltip"
         />
       </div>
     )

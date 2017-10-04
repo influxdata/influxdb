@@ -31,9 +31,8 @@ const RuleHeaderSave = ({
       id="save-kapacitor-tooltip"
       effect="solid"
       html={true}
-      offset={{bottom: 4}}
       place="bottom"
-      class="influx-tooltip kapacitor-tooltip place-bottom"
+      class="influx-tooltip kapacitor-tooltip"
     />
   </div>
 

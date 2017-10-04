@@ -9,9 +9,8 @@ const Tooltip = ({tip, children}) =>
     <ReactTooltip
       effect="solid"
       html={true}
-      offset={{top: 2}}
       place="bottom"
-      class="influx-tooltip place-bottom"
+      class="influx-tooltip"
     />
   </div>
 

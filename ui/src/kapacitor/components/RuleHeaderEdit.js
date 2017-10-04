@@ -30,12 +30,10 @@ const RuleHeaderEdit = ({
           <span className="icon pencil" />
           <ReactTooltip
             id="rename-kapacitor-tooltip"
-            delayShow={200}
             effect="solid"
             html={true}
-            offset={{top: 2}}
             place="bottom"
-            class="influx-tooltip kapacitor-tooltip place-bottom"
+            class="influx-tooltip kapacitor-tooltip"
           />
         </h1>
       </div>
