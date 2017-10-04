@@ -94,7 +94,7 @@ class KapacitorRule extends Component {
     }
 
     if (!rule.values.value) {
-      return 'Please enter a value in the Rule Conditions section'
+      return 'Please enter a value in the Conditions section'
     }
 
     return ''

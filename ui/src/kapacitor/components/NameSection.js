@@ -33,7 +33,7 @@ class NameSection extends Component {
     return (
       <div className="rule-section">
         <h3 className="rule-section--heading">
-          {isEditing ? 'Alert Rule Name' : 'Name this Alert Rule'}
+          {isEditing ? 'Name' : 'Name this Alert Rule'}
         </h3>
         <div className="rule-section--body">
           <div className="rule-section--row rule-section--row-first rule-section--row-last">
@@ -43,7 +43,7 @@ class NameSection extends Component {
               defaultValue={defaultName}
               onBlur={this.handleInputBlur(reset)}
               onKeyDown={this.handleKeyDown}
-              placeholder="Ruley McRuleface"
+              placeholder="ex: Ruley McRuleface"
               ref={r => (this.inputRef = r)}
             />
           </div>
