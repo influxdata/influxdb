@@ -230,7 +230,7 @@ class CellEditorOverlay extends Component {
       const {data} = await getQueryConfig(url, [{query: text, id}], templates)
       const config = data.queries.find(q => q.id === id)
       const nextQueries = this.state.queriesWorkingDraft.map(
-        q => (q.id === id ? config.queryConfig : q)
+        q => (q.id === id ? {...config.queryConfig, source: q.source} : q)
       )
       this.setState({queriesWorkingDraft: nextQueries})
     } catch (error) {
