@@ -100,7 +100,7 @@ const MeasurementList = React.createClass({
     return (
       <div className="query-builder--column">
         <div className="query-builder--heading">
-          <span>Measurements</span>
+          <span>Measurements & Tags</span>
           {this.props.query.database
             ? <div className="query-builder--filter">
                 <input
