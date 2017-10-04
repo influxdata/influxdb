@@ -55,8 +55,13 @@ const (
 	CompactingExt = ".compacting"
 )
 
-// ManifestFileName is the name of the index manifest file.
-const ManifestFileName = "MANIFEST"
+const (
+	// ManifestFileName is the name of the index manifest file.
+	ManifestFileName = "MANIFEST"
+
+	// SeriesFileName is the name of the series file.
+	SeriesFileName = "series"
+)
 
 // Ensure index implements the interface.
 var _ tsdb.Index = &Index{}
@@ -67,9 +72,10 @@ type Index struct {
 	opened  bool
 	options tsdb.EngineOptions
 
-	activeLogFile *LogFile // current log file
-	fileSet       *FileSet // current file set
-	seq           int      // file id sequence
+	sfile         *SeriesFile // series lookup file
+	activeLogFile *LogFile    // current log file
+	fileSet       *FileSet    // current file set
+	seq           int         // file id sequence
 
 	// Compaction management
 	levels          []CompactionLevel // compaction levels
@@ -139,6 +145,13 @@ func (i *Index) Open() error {
 		return err
 	}
 
+	// Open series file.
+	sfile := NewSeriesFile(i.SeriesFilePath())
+	if err := sfile.Open(); err != nil {
+		return err
+	}
+	i.sfile = sfile
+
 	// Read manifest file.
 	m, err := ReadManifestFile(filepath.Join(i.Path, ManifestFileName))
 	if os.IsNotExist(err) {
@@ -184,7 +197,7 @@ func (i *Index) Open() error {
 			files = append(files, f)
 		}
 	}
-	fs, err := NewFileSet(i.Database, i.levels, files)
+	fs, err := NewFileSet(i.Database, i.levels, i.sfile, files)
 	if err != nil {
 		return err
 	}
@@ -216,7 +229,7 @@ func (i *Index) Open() error {
 
 // openLogFile opens a log file and appends it to the index.
 func (i *Index) openLogFile(path string) (*LogFile, error) {
-	f := NewLogFile(path)
+	f := NewLogFile(i.sfile, path)
 	if err := f.Open(); err != nil {
 		return nil, err
 	}
@@ -225,7 +238,7 @@ func (i *Index) openLogFile(path string) (*LogFile, error) {
 
 // openIndexFile opens a log file and appends it to the index.
 func (i *Index) openIndexFile(path string) (*IndexFile, error) {
-	f := NewIndexFile()
+	f := NewIndexFile(i.sfile)
 	f.SetPath(path)
 	if err := f.Open(); err != nil {
 		return nil, err
@@ -300,6 +313,11 @@ func (i *Index) nextSequence() int {
 // ManifestPath returns the path to the index's manifest file.
 func (i *Index) ManifestPath() string {
 	return filepath.Join(i.Path, ManifestFileName)
+}
+
+// SeriesFilePath returns the path to the index's series file.
+func (i *Index) SeriesFilePath() string {
+	return filepath.Join(i.Path, SeriesFileName)
 }
 
 // Manifest returns a manifest for the index.
@@ -456,13 +474,13 @@ func (i *Index) DropMeasurement(name []byte) error {
 	}
 
 	// Delete all series in measurement.
-	if sitr := fs.MeasurementSeriesIterator(name); sitr != nil {
-		for s := sitr.Next(); s != nil; s = sitr.Next() {
-			if !s.Deleted() {
+	if sitr := fs.MeasurementSeriesIDIterator(name); sitr != nil {
+		for s := sitr.Next(); s.SeriesID != 0; s = sitr.Next() {
+			if !s.Deleted {
 				if err := func() error {
 					i.mu.RLock()
 					defer i.mu.RUnlock()
-					return i.activeLogFile.DeleteSeries(s.Name(), s.Tags())
+					return i.activeLogFile.DeleteSeriesID(s.SeriesID)
 				}(); err != nil {
 					return err
 				}
@@ -498,12 +516,6 @@ func (i *Index) CreateSeriesListIfNotExists(_, names [][]byte, tagsSlice []model
 	fs := i.RetainFileSet()
 	defer fs.Release()
 
-	// Filter out existing series. Exit if no new series exist.
-	names, tagsSlice = fs.FilterNamesTags(names, tagsSlice)
-	if len(names) == 0 {
-		return nil
-	}
-
 	// Ensure fileset cannot change during insert.
 	i.mu.RLock()
 	// Insert series into log file.
@@ -523,30 +535,7 @@ func (i *Index) InitializeSeries(key, name []byte, tags models.Tags) error {
 
 // CreateSeriesIfNotExists creates a series if it doesn't exist or is deleted.
 func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error {
-	if err := func() error {
-		i.mu.RLock()
-		defer i.mu.RUnlock()
-
-		fs := i.retainFileSet()
-		defer fs.Release()
-
-		if fs.HasSeries(name, tags, nil) {
-			return nil
-		}
-
-		if err := i.activeLogFile.AddSeries(name, tags); err != nil {
-			return err
-		}
-		return nil
-	}(); err != nil {
-		return err
-	}
-
-	// Swap log file, if necesssary.
-	if err := i.CheckLogFile(); err != nil {
-		return err
-	}
-	return nil
+	return i.CreateSeriesListIfNotExists(nil, [][]byte{name}, []models.Tags{tags})
 }
 
 func (i *Index) DropSeries(key []byte) error {
@@ -557,7 +546,9 @@ func (i *Index) DropSeries(key []byte) error {
 		name, tags := models.ParseKey(key)
 
 		mname := []byte(name)
-		if err := i.activeLogFile.DeleteSeries(mname, tags); err != nil {
+		seriesID := i.sfile.Offset(mname, tags, nil)
+
+		if err := i.activeLogFile.DeleteSeriesID(seriesID); err != nil {
 			return err
 		}
 
@@ -566,10 +557,10 @@ func (i *Index) DropSeries(key []byte) error {
 		defer fs.Release()
 
 		// Check if that was the last series for the measurement in the entire index.
-		itr := fs.MeasurementSeriesIterator(mname)
+		itr := fs.MeasurementSeriesIDIterator(mname)
 		if itr == nil {
 			return nil
-		} else if e := itr.Next(); e != nil {
+		} else if e := itr.Next(); e.SeriesID != 0 {
 			return nil
 		}
 
@@ -589,14 +580,6 @@ func (i *Index) DropSeries(key []byte) error {
 	return nil
 }
 
-// SeriesSketches returns the two sketches for the index by merging all
-// instances sketches from TSI files and the WAL.
-func (i *Index) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
-	fs := i.RetainFileSet()
-	defer fs.Release()
-	return fs.SeriesSketches()
-}
-
 // MeasurementsSketches returns the two sketches for the index by merging all
 // instances of the type sketch types in all the index files.
 func (i *Index) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
@@ -611,14 +594,7 @@ func (i *Index) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, erro
 // across indexes then use SeriesSketches and merge the results from other
 // indexes.
 func (i *Index) SeriesN() int64 {
-	fs := i.RetainFileSet()
-	defer fs.Release()
-
-	var total int64
-	for _, f := range fs.files {
-		total += int64(f.SeriesN())
-	}
-	return total
+	return int64(i.sfile.SeriesCount())
 }
 
 // HasTagKey returns true if tag key exists.
@@ -660,9 +636,10 @@ func (i *Index) MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []byte
 			itr := fs.TagValueIterator(name, []byte(key))
 			if auth != nil {
 				for val := itr.Next(); val != nil; val = itr.Next() {
-					si := fs.TagValueSeriesIterator(name, []byte(key), val.Value())
-					for se := si.Next(); se != nil; se = si.Next() {
-						if auth.AuthorizeSeriesRead(i.Database, se.Name(), se.Tags()) {
+					si := fs.TagValueSeriesIDIterator(name, []byte(key), val.Value())
+					for se := si.Next(); se.SeriesID != 0; se = si.Next() {
+						name, tags := ParseSeriesKey(i.sfile.SeriesKey(se.SeriesID))
+						if auth.AuthorizeSeriesRead(i.Database, name, tags) {
 							results[ki] = append(results[ki], string(val.Value()))
 							break
 						}
@@ -749,31 +726,33 @@ func (i *Index) TagSets(name []byte, opt query.IteratorOptions) ([]*query.TagSet
 	tagSets := make(map[string]*query.TagSet, 64)
 
 	if itr != nil {
-		for e := itr.Next(); e != nil; e = itr.Next() {
-			if opt.Authorizer != nil && !opt.Authorizer.AuthorizeSeriesRead(i.Database, name, e.Tags()) {
+		for e := itr.Next(); e.SeriesID != 0; e = itr.Next() {
+			_, tags := ParseSeriesKey(i.sfile.SeriesKey(e.SeriesID))
+			if opt.Authorizer != nil && !opt.Authorizer.AuthorizeSeriesRead(i.Database, name, tags) {
 				continue
 			}
 
-			tags := make(map[string]string, len(opt.Dimensions))
+			tagsMap := make(map[string]string, len(opt.Dimensions))
 
 			// Build the TagSet for this series.
 			for _, dim := range opt.Dimensions {
-				tags[dim] = e.Tags().GetString(dim)
+				tagsMap[dim] = tags.GetString(dim)
 			}
 
 			// Convert the TagSet to a string, so it can be added to a map
 			// allowing TagSets to be handled as a set.
-			tagsAsKey := tsdb.MarshalTags(tags)
+			tagsAsKey := tsdb.MarshalTags(tagsMap)
 			tagSet, ok := tagSets[string(tagsAsKey)]
 			if !ok {
 				// This TagSet is new, create a new entry for it.
 				tagSet = &query.TagSet{
-					Tags: tags,
+					Tags: tagsMap,
 					Key:  tagsAsKey,
 				}
 			}
+
 			// Associate the series and filter with the Tagset.
-			tagSet.AddFilter(string(models.MakeKey(e.Name(), e.Tags())), e.Expr())
+			tagSet.AddFilter(string(models.MakeKey(name, tags)), e.Expr)
 
 			// Ensure it's back in the map.
 			tagSets[string(tagsAsKey)] = tagSet
@@ -816,6 +795,11 @@ func (i *Index) SnapshotTo(path string) error {
 	// Link manifest.
 	if err := os.Link(i.ManifestPath(), filepath.Join(path, "index", filepath.Base(i.ManifestPath()))); err != nil {
 		return fmt.Errorf("error creating tsi manifest hard link: %q", err)
+	}
+
+	// Link series file.
+	if err := os.Link(i.SeriesFilePath(), filepath.Join(path, "index", filepath.Base(i.SeriesFilePath()))); err != nil {
+		return fmt.Errorf("error creating tsi series file hard link: %q", err)
 	}
 
 	// Link files in directory.
@@ -939,7 +923,7 @@ func (i *Index) compactToLevel(files []*IndexFile, level int) {
 
 	// Compact all index files to new index file.
 	lvl := i.levels[level]
-	n, err := IndexFiles(files).CompactTo(f, lvl.M, lvl.K)
+	n, err := IndexFiles(files).CompactTo(f, i.sfile, lvl.M, lvl.K)
 	if err != nil {
 		logger.Error("cannot compact index files", zap.Error(err))
 		return
@@ -952,7 +936,7 @@ func (i *Index) compactToLevel(files []*IndexFile, level int) {
 	}
 
 	// Reopen as an index file.
-	file := NewIndexFile()
+	file := NewIndexFile(i.sfile)
 	file.SetPath(path)
 	if err := file.Open(); err != nil {
 		logger.Error("cannot open new index file", zap.Error(err))
@@ -1085,7 +1069,7 @@ func (i *Index) compactLogFile(logFile *LogFile) {
 	}
 
 	// Reopen as an index file.
-	file := NewIndexFile()
+	file := NewIndexFile(i.sfile)
 	file.SetPath(path)
 	if err := file.Open(); err != nil {
 		logger.Error("cannot open compacted index file", zap.Error(err), zap.String("path", file.Path()))
@@ -1136,7 +1120,7 @@ type seriesPointIterator struct {
 	fs       *FileSet
 	fieldset *tsdb.MeasurementFieldSet
 	mitr     MeasurementIterator
-	sitr     SeriesIterator
+	sitr     SeriesIDIterator
 	opt      query.IteratorOptions
 
 	point query.FloatPoint // reusable point
@@ -1185,16 +1169,21 @@ func (itr *seriesPointIterator) Next() (*query.FloatPoint, error) {
 		}
 
 		// Read next series element.
-		e := itr.sitr.Next()
-		if e == nil {
+		elem := itr.sitr.Next()
+		if elem.SeriesID == 0 {
 			itr.sitr = nil
 			continue
 		}
 
 		// Convert to a key.
-		key := string(models.MakeKey(e.Name(), e.Tags()))
+		seriesKey := itr.fs.sfile.SeriesKey(elem.SeriesID)
+		if seriesKey == nil {
+			continue
+		}
 
 		// Write auxiliary fields.
+		name, tags := ParseSeriesKey(seriesKey)
+		key := models.MakeKey(name, tags)
 		for i, f := range itr.opt.Aux {
 			switch f.Val {
 			case "key":

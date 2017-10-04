@@ -717,15 +717,6 @@ func (s *Shard) SeriesN() int64 {
 	return engine.SeriesN()
 }
 
-// SeriesSketches returns the series sketches for the shard.
-func (s *Shard) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
-	engine, err := s.engine()
-	if err != nil {
-		return nil, nil, err
-	}
-	return engine.SeriesSketches()
-}
-
 // MeasurementsSketches returns the measurement sketches for the shard.
 func (s *Shard) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
 	engine, err := s.engine()

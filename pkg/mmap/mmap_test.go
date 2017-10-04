@@ -9,7 +9,7 @@ import (
 )
 
 func TestMap(t *testing.T) {
-	data, err := mmap.Map("mmap_test.go")
+	data, err := mmap.Map("mmap_test.go", 0)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

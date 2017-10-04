@@ -300,7 +300,7 @@ type TagBlockValueElem struct {
 	flag   byte
 	value  []byte
 	series struct {
-		n    uint32 // Series count
+		n    uint64 // Series count
 		data []byte // Raw series data
 	}
 
@@ -314,25 +314,25 @@ func (e *TagBlockValueElem) Deleted() bool { return (e.flag & TagValueTombstoneF
 func (e *TagBlockValueElem) Value() []byte { return e.value }
 
 // SeriesN returns the series count.
-func (e *TagBlockValueElem) SeriesN() uint32 { return e.series.n }
+func (e *TagBlockValueElem) SeriesN() uint64 { return e.series.n }
 
 // SeriesData returns the raw series data.
 func (e *TagBlockValueElem) SeriesData() []byte { return e.series.data }
 
 // SeriesID returns series ID at an index.
-func (e *TagBlockValueElem) SeriesID(i int) uint32 {
-	return binary.BigEndian.Uint32(e.series.data[i*SeriesIDSize:])
+func (e *TagBlockValueElem) SeriesID(i int) uint64 {
+	return binary.BigEndian.Uint64(e.series.data[i*SeriesIDSize:])
 }
 
 // SeriesIDs returns a list decoded series ids.
-func (e *TagBlockValueElem) SeriesIDs() []uint32 {
-	a := make([]uint32, 0, e.series.n)
-	var prev uint32
+func (e *TagBlockValueElem) SeriesIDs() []uint64 {
+	a := make([]uint64, 0, e.series.n)
+	var prev uint64
 	for data := e.series.data; len(data) > 0; {
 		delta, n := binary.Uvarint(data)
 		data = data[n:]
 
-		seriesID := prev + uint32(delta)
+		seriesID := prev + uint64(delta)
 		a = append(a, seriesID)
 		prev = seriesID
 	}
@@ -355,7 +355,7 @@ func (e *TagBlockValueElem) unmarshal(buf []byte) {
 
 	// Parse series count.
 	v, n := binary.Uvarint(buf)
-	e.series.n = uint32(v)
+	e.series.n = uint64(v)
 	buf = buf[n:]
 
 	// Parse data block size.
@@ -532,7 +532,7 @@ func (enc *TagBlockEncoder) EncodeKey(key []byte, deleted bool) error {
 
 // EncodeValue writes a tag value to the underlying writer.
 // The tag key must be lexicographical sorted after the previous encoded tag key.
-func (enc *TagBlockEncoder) EncodeValue(value []byte, deleted bool, seriesIDs []uint32) error {
+func (enc *TagBlockEncoder) EncodeValue(value []byte, deleted bool, seriesIDs []uint64) error {
 	if len(enc.keys) == 0 {
 		return fmt.Errorf("tag key must be encoded before encoding values")
 	} else if len(value) == 0 {
@@ -556,7 +556,7 @@ func (enc *TagBlockEncoder) EncodeValue(value []byte, deleted bool, seriesIDs []
 
 	// Build series data in buffer.
 	enc.buf.Reset()
-	var prev uint32
+	var prev uint64
 	for _, seriesID := range seriesIDs {
 		delta := seriesID - prev
 
