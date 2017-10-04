@@ -3,6 +3,7 @@ package client
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -330,6 +331,12 @@ func TestClient_Concurrent_Use(t *testing.T) {
 
 func TestClient_Write(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		in, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		} else if have, want := strings.TrimSpace(string(in)), `m0,host=server01 v1=2,v2=2i,v3=2u,v4="foobar",v5=true 0`; have != want {
+			t.Errorf("unexpected write protocol: %s != %s", have, want)
+		}
 		var data Response
 		w.WriteHeader(http.StatusNoContent)
 		_ = json.NewEncoder(w).Encode(data)
@@ -344,6 +351,24 @@ func TestClient_Write(t *testing.T) {
 	if err != nil {
 		t.Errorf("unexpected error.  expected %v, actual %v", nil, err)
 	}
+	pt, err := NewPoint(
+		"m0",
+		map[string]string{
+			"host": "server01",
+		},
+		map[string]interface{}{
+			"v1": float64(2),
+			"v2": int64(2),
+			"v3": uint64(2),
+			"v4": "foobar",
+			"v5": true,
+		},
+		time.Unix(0, 0).UTC(),
+	)
+	if err != nil {
+		t.Errorf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+	bp.AddPoint(pt)
 	err = c.Write(bp)
 	if err != nil {
 		t.Errorf("unexpected error.  expected %v, actual %v", nil, err)

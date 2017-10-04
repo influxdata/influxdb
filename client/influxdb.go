@@ -785,7 +785,7 @@ func (c *Client) Addr() string {
 func checkPointTypes(p Point) error {
 	for _, v := range p.Fields {
 		switch v.(type) {
-		case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, float32, float64, bool, string, nil:
+		case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64, bool, string, nil:
 			return nil
 		default:
 			return fmt.Errorf("unsupported point type: %T", v)

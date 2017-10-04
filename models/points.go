@@ -2248,6 +2248,9 @@ func appendField(b []byte, k string, v interface{}) []byte {
 	case int:
 		b = strconv.AppendInt(b, int64(v), 10)
 		b = append(b, 'i')
+	case uint64:
+		b = strconv.AppendUint(b, v, 10)
+		b = append(b, 'u')
 	case uint32:
 		b = strconv.AppendInt(b, int64(v), 10)
 		b = append(b, 'i')
@@ -2257,10 +2260,9 @@ func appendField(b []byte, k string, v interface{}) []byte {
 	case uint8:
 		b = strconv.AppendInt(b, int64(v), 10)
 		b = append(b, 'i')
-	// TODO: 'uint' should be considered just as "dangerous" as a uint64,
-	// perhaps the value should be checked and capped at MaxInt64? We could
-	// then include uint64 as an accepted value
 	case uint:
+		// TODO: 'uint' should be converted to writing as an unsigned integer,
+		// but we cannot since that would break backwards compatibility.
 		b = strconv.AppendInt(b, int64(v), 10)
 		b = append(b, 'i')
 	case float32:
