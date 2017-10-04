@@ -5,6 +5,7 @@
 1.[#2015](https://github.com/influxdata/chronograf/pull/2015): Chronograf shows real status for windows hosts when metrics are saved in non-default db - thank you, @ar7z1!
 1.[#2019](https://github.com/influxdata/chronograf/pull/2006): Fix false error warning for duplicate kapacitor name
 1.[#2018](https://github.com/influxdata/chronograf/pull/2018): Fix unresponsive display options and query builder in dashboards
+1.[#1996](https://github.com/influxdata/chronograf/pull/1996): Able to switch InfluxDB sources on a per graph basis
 
 ### Features
 1. [#1885](https://github.com/influxdata/chronograf/pull/1885): Add `fill` options to data explorer and dashboard queries
@@ -18,8 +19,12 @@
 1. [#2002](https://github.com/influxdata/chronograf/pull/2002): Improve usability of dashboard cell context menus
 1. [#2002](https://github.com/influxdata/chronograf/pull/2002): Move dashboard cell renaming UI into Cell Editor Overlay
 1. [#2040](https://github.com/influxdata/chronograf/pull/2040): Prevent the legend from overlapping graphs at the bottom of the screen
+1. [#2054](https://github.com/influxdata/chronograf/pull/2054): Add a "Plus" icon to every button with an Add or Create action for clarity and consistency
 1. [#2052](https://github.com/influxdata/chronograf/pull/2052): Make hovering over series smoother
 1. [#2071](https://github.com/influxdata/chronograf/pull/2071): Reduce the number of pixels per cell to one point per 3 pixels
+1. [#2072](https://github.com/influxdata/chronograf/pull/2072): Remove tabs from Data Explorer
+1. [#2057](https://github.com/influxdata/chronograf/pull/2057): Improve appearance of placeholder text in inputs
+1. [#2057](https://github.com/influxdata/chronograf/pull/2057): Add ability to use "Default" values in Source Connection form
 
 ## v1.3.8.1 [unreleased]
 ### Bug Fixes

@@ -84,7 +84,7 @@ export const HostsPage = React.createClass({
               <h1 className="page-header__title">Host List</h1>
             </div>
             <div className="page-header__right">
-              <SourceIndicator sourceName={source.name} />
+              <SourceIndicator />
             </div>
           </div>
         </div>

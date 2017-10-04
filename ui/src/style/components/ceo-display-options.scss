@@ -17,8 +17,6 @@
   padding: 30px;
   flex: 1 0 0;
   margin-right: 8px;
-
-  &:last-child { margin-right: 0; }
 }
 .display-options--cellx2 {
   flex: 2 0 0;
@@ -29,8 +27,6 @@
   color: $g11-sidewalk;
   @include no-user-select();
 }
-
-
 .viz-type-selector {
   display: flex;
   flex-wrap: wrap;

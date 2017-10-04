@@ -1293,7 +1293,7 @@ div.btn > .icon,
 button.btn > .icon,
 input.btn > .icon {
   position: relative;
-  top: -.5px;
+  top: -1px;
   margin: 0 4px 0 0;
   font-size: 1em;
 }
@@ -3727,9 +3727,10 @@ fieldset[disabled] button.btn-link-alert:after {
 }
 .label {
   display: inline-block;
-  padding: .2em .6em;
-  font-size: .75em;
-  line-height: 1.2em;
+  padding: .3em .5em;
+  margin: 0 3px;
+  font-size: .9em;
+  line-height: 1.1em;
   vertical-align: middle;
   user-select: none;
 }
@@ -3887,7 +3888,7 @@ p .label {
   text-overflow: ellipsis;
   white-space: nowrap;
 
-  flex: 1 0 0%;
+  flex: 1 0 0;
 }
 .dropdown-toggle.btn-xs .caret {
   right: 7px;
@@ -4010,14 +4011,10 @@ p .label {
 }
 .dropdown-menu li.dropdown-item {
   position: relative;
-  display: flex;
   width: 100%;
   padding: 0;
   margin: 0;
   user-select: none;
-
-  align-items: center;
-  justify-content: space-between;
 }
 .dropdown-menu li.dropdown-item,
 .dropdown-menu li.dropdown-item:hover {
@@ -4034,14 +4031,14 @@ p .label {
 }
 .dropdown-menu li.dropdown-item > a {
   padding: 7px 9px;
+  overflow: hidden;
   font-size: 13px;
   font-weight: 500;
   line-height: 13px;
   color: #f0fcff;
+  text-overflow: ellipsis;
   outline: none;
   transition: color .25s ease;
-
-  flex: 1 0 0%;
 }
 .dropdown-menu li.dropdown-item > a,
 .dropdown-menu li.dropdown-item > a:hover,
@@ -4072,6 +4069,21 @@ p .label {
   background: -webkit-linear-gradient(left, #326bba 0%, #22adf6 100%);
   background:         linear-gradient(to right, #326bba 0%, #22adf6 100%);
   filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='@color1', endColorstr='@color2', GradientType=1);
+}
+.dropdown-menu .dropdown-sub-item {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 12px;
+  white-space: pre-wrap;
+  opacity: .66;
+}
+.dropdown-menu .dropdown-sub-item.dropdown-sub-item--success {
+  color: #a5f3b4;
+  opacity: 1;
+}
+.dropdown-menu .dropdown-sub-item span.icon {
+  margin-right: 3px;
 }
 .dropdown .dropdown-menu .dropdown-actions {
   position: absolute;
@@ -5005,6 +5017,7 @@ p .label {
   padding: 0;
   margin: 0;
   overflow: hidden;
+  background-color: #383846;
   border: 2px solid #383846;
   border-radius: 4px;
 
@@ -5013,7 +5026,7 @@ p .label {
 .nav-tablist > li {
   display: flex;
   padding: 0 14px;
-  margin: 0;
+  margin: 0 2px 0 0;
   font-size: 15px;
   font-weight: 600;
   color: #999dab;
@@ -5044,6 +5057,9 @@ p .label {
   color: #545667;
   cursor: not-allowed;
   background-color: #202028;
+}
+.nav-tablist > li:last-child {
+  margin-right: 0;
 }
 /* Size Modifiers */
 .nav-tablist.nav-tablist-lg {
@@ -5336,24 +5352,28 @@ pre[data-lang="js"]:before {
 .form-control::-webkit-input-placeholder,
 textarea::-webkit-input-placeholder,
 input::-webkit-input-placeholder {
+  font-style: italic;
   font-weight: 500 !important;
   color: #757888;
 }
 .form-control::-moz-placeholder,
 textarea::-moz-placeholder,
 input::-moz-placeholder {
+  font-style: italic;
   font-weight: 500 !important;
   color: #757888;
 }
 .form-control:-ms-input-placeholder,
 textarea:-ms-input-placeholder,
 input:-ms-input-placeholder {
+  font-style: italic;
   font-weight: 500 !important;
   color: #757888;
 }
 .form-control:-moz-placeholder,
 textarea:-moz-placeholder,
 input:-moz-placeholder {
+  font-style: italic;
   font-weight: 500 !important;
   color: #757888;
 }

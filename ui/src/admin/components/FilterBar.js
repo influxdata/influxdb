@@ -44,7 +44,8 @@ class FilterBar extends Component {
           disabled={isEditing}
           onClick={onClickCreate(type)}
         >
-          Create {placeholderText.substring(0, placeholderText.length - 1)}
+          <span className="icon plus" /> Create{' '}
+          {placeholderText.substring(0, placeholderText.length - 1)}
         </button>
       </div>
     )

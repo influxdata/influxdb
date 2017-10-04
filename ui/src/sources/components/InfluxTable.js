@@ -17,7 +17,7 @@ const kapacitorDropdown = (
         to={`/sources/${source.id}/kapacitors/new`}
         className="btn btn-xs btn-default"
       >
-        Add Config
+        <span className="icon plus" /> Add Config
       </Link>
     )
   }
@@ -89,7 +89,7 @@ const InfluxTable = ({
             to={`/sources/${source.id}/manage-sources/new`}
             className="btn btn-sm btn-primary"
           >
-            Add Source
+            <span className="icon plus" /> Add Source
           </Link>
         </div>
         <div className="panel-body">

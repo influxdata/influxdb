@@ -400,6 +400,7 @@ type DashboardQuery struct {
 	Label       string      `json:"label,omitempty"`       // Label is the Y-Axis label for the data
 	Range       *Range      `json:"range,omitempty"`       // Range is the default Y-Axis range for the data
 	QueryConfig QueryConfig `json:"queryConfig,omitempty"` // QueryConfig represents the query state that is understood by the data explorer
+	Source      string      `json:"source"`                // Source is the optional URI to the data source for this queryConfig
 }
 
 // TemplateQuery is used to retrieve choices for template replacement

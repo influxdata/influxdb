@@ -1,4 +1,5 @@
 import React, {PropTypes, Component} from 'react'
+import _ from 'lodash'
 
 import FieldListItem from 'src/data_explorer/components/FieldListItem'
 import GroupByTimeDropdown from 'src/data_explorer/components/GroupByTimeDropdown'
@@ -26,7 +27,8 @@ class FieldList extends Component {
   }
 
   componentDidUpdate(prevProps) {
-    const {database, measurement, retentionPolicy} = this.props.query
+    const {querySource, query} = this.props
+    const {database, measurement, retentionPolicy} = query
     const {
       database: prevDB,
       measurement: prevMeas,
@@ -39,7 +41,8 @@ class FieldList extends Component {
     if (
       database === prevDB &&
       measurement === prevMeas &&
-      retentionPolicy === prevRP
+      retentionPolicy === prevRP &&
+      _.isEqual(prevProps.querySource, querySource)
     ) {
       return
     }
@@ -58,14 +61,12 @@ class FieldList extends Component {
   _getFields = () => {
     const {database, measurement, retentionPolicy} = this.props.query
     const {source} = this.context
-    const proxySource = source.links.proxy
+    const {querySource} = this.props
 
-    showFieldKeys(
-      proxySource,
-      database,
-      measurement,
-      retentionPolicy
-    ).then(resp => {
+    const proxy =
+      _.get(querySource, ['links', 'proxy'], null) || source.links.proxy
+
+    showFieldKeys(proxy, database, measurement, retentionPolicy).then(resp => {
       const {errors, fieldSets} = showFieldKeysParser(resp.data)
       if (errors.length) {
         console.error('Error parsing fields keys: ', errors)
@@ -171,6 +172,11 @@ FieldList.propTypes = {
   applyFuncsToField: func.isRequired,
   isKapacitorRule: bool,
   isInDataExplorer: bool,
+  querySource: shape({
+    links: shape({
+      proxy: string.isRequired,
+    }).isRequired,
+  }),
 }
 
 export default FieldList
