@@ -2,10 +2,13 @@ ARG GO_VERSION
 FROM golang:${GO_VERSION}-alpine
 
 RUN apk add --no-cache \
+      asciidoc \
       bash \
       git \
       openssh-client \
-      tar
+      make \
+      tar \
+      xmlto
 
 # Build the gdm binary and then clean out /go.
 RUN go get github.com/sparrc/gdm && \

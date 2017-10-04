@@ -21,13 +21,13 @@ IS_RPM=""
 while getopts hp:DR arg; do
   case "$arg" in
     h) printHelp; exit 1;;
-    p) DATA_PKG="$OPTARG";;
+    p) PKG="$OPTARG";;
     D) IS_DEB="1";;
     R) IS_RPM="1";;
   esac
 done
 
-if [ -z "PKG" ] ; then
+if [ -z "$PKG" ] ; then
   printHelp
   exit 1
 fi
