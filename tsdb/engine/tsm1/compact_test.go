@@ -1887,6 +1887,10 @@ func TestDefaultPlanner_PlanOptimize_Level4(t *testing.T) {
 			Path: "06-04.tsm1",
 			Size: 2 * 1024 * 1024 * 1024,
 		},
+		tsm1.FileStat{
+			Path: "07-03.tsm1",
+			Size: 2 * 1024 * 1024 * 1024,
+		},
 	}
 
 	cp := tsm1.NewDefaultPlanner(
@@ -1897,7 +1901,7 @@ func TestDefaultPlanner_PlanOptimize_Level4(t *testing.T) {
 		}, tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
-	expFiles1 := []tsm1.FileStat{data[0], data[1], data[2], data[3]}
+	expFiles1 := []tsm1.FileStat{data[0], data[1], data[2], data[3], data[4], data[5]}
 	tsm := cp.PlanOptimize()
 	if exp, got := 1, len(tsm); exp != got {
 		t.Fatalf("group length mismatch: got %v, exp %v", got, exp)
@@ -1937,7 +1941,7 @@ func TestDefaultPlanner_PlanOptimize_Multiple(t *testing.T) {
 			Size: 2 * 1024 * 1024 * 1024,
 		},
 		tsm1.FileStat{
-			Path: "06-04.tsm1",
+			Path: "06-03.tsm1",
 			Size: 2 * 1024 * 1024 * 1024,
 		},
 		tsm1.FileStat{
@@ -1952,6 +1956,10 @@ func TestDefaultPlanner_PlanOptimize_Multiple(t *testing.T) {
 			Path: "09-04.tsm1",
 			Size: 2 * 1024 * 1024 * 1024,
 		},
+		tsm1.FileStat{
+			Path: "10-04.tsm1",
+			Size: 2 * 1024 * 1024 * 1024,
+		},
 	}
 
 	cp := tsm1.NewDefaultPlanner(
@@ -1963,7 +1971,7 @@ func TestDefaultPlanner_PlanOptimize_Multiple(t *testing.T) {
 	)
 
 	expFiles1 := []tsm1.FileStat{data[0], data[1], data[2], data[3]}
-	expFiles2 := []tsm1.FileStat{data[5], data[6], data[7], data[8]}
+	expFiles2 := []tsm1.FileStat{data[6], data[7], data[8], data[9]}
 
 	tsm := cp.PlanOptimize()
 	if exp, got := 2, len(tsm); exp != got {
