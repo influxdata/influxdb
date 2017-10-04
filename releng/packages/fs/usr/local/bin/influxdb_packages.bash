@@ -79,7 +79,7 @@ if [ "$OS" == "linux" ] || [ "$OS" == "darwin" ]; then
   cp /isrc/man/*.1.gz /pkg/usr/share/man/man1
 
   # Make tarball of files in packaging.
-  BIN_GZ_NAME="/out/influxdb-oss-${VERSION}_${OS}_${ARCH}.tar.gz"
+  BIN_GZ_NAME="/out/influxdb-${VERSION}_${OS}_${ARCH}.tar.gz"
   if [ "$STATIC" == "1" ]; then
     BIN_GZ_NAME="/out/influxdb-${VERSION}-static_${OS}_${ARCH}.tar.gz"
   fi
