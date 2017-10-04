@@ -1140,15 +1140,6 @@ func (mm *logMeasurement) seriesIDs() []uint64 {
 	return a
 }
 
-func (mm *logMeasurement) seriesIDs() []uint32 {
-	a := make([]uint32, 0, len(mm.series))
-	for seriesID := range mm.series {
-		a = append(a, seriesID)
-	}
-	sort.Sort(uint32Slice(a))
-	return a
-}
-
 func (m *logMeasurement) Name() []byte  { return m.name }
 func (m *logMeasurement) Deleted() bool { return m.deleted }
 
@@ -1235,15 +1226,6 @@ func (tv *logTagValue) seriesIDs() []uint64 {
 		a = append(a, seriesID)
 	}
 	sort.Sort(uint64Slice(a))
-	return a
-}
-
-func (tv *logTagValue) seriesIDs() []uint32 {
-	a := make([]uint32, 0, len(tv.series))
-	for seriesID := range tv.series {
-		a = append(a, seriesID)
-	}
-	sort.Sort(uint32Slice(a))
 	return a
 }
 
