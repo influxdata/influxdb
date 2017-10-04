@@ -331,6 +331,7 @@ class CellEditorOverlay extends Component {
           <CEOBottom>
             <OverlayControls
               onCancel={onCancel}
+              queries={queriesWorkingDraft}
               sources={this.formatSources}
               onSave={this.handleSaveCell}
               selected={this.findSelectedSource()}
