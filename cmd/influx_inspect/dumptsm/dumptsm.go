@@ -282,10 +282,10 @@ Usage: influx_inspect dumptsm [flags] <path
 
 var (
 	fieldType = []string{
-		"timestamp", "float", "int", "bool", "string",
+		"timestamp", "float", "int", "bool", "string", "unsigned",
 	}
 	blockTypes = []string{
-		"float64", "int64", "bool", "string",
+		"float64", "int64", "bool", "string", "unsigned",
 	}
 	timeEnc = []string{
 		"none", "s8b", "rle",
@@ -302,8 +302,11 @@ var (
 	stringEnc = []string{
 		"none", "snpy",
 	}
+	unsignedEnc = []string{
+		"none", "s8b", "rle",
+	}
 	encDescs = [][]string{
-		timeEnc, floatEnc, intEnc, boolEnc, stringEnc,
+		timeEnc, floatEnc, intEnc, boolEnc, stringEnc, unsignedEnc,
 	}
 )
 

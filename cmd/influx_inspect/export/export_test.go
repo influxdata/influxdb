@@ -36,6 +36,10 @@ var (
 			tsm1.NewValue(1000, "1k"),
 			tsm1.NewValue(2000, "2k"),
 		},
+		tsm1.SeriesFieldKey("uints,k=u", "u"): []tsm1.Value{
+			tsm1.NewValue(3000, uint64(45)),
+			tsm1.NewValue(4000, uint64(60)),
+		},
 	}
 
 	basicCorpusExpLines = []string{
@@ -47,6 +51,8 @@ var (
 		"bools,k=b b=false 200",
 		`strings,k=s s="1k" 1000`,
 		`strings,k=s s="2k" 2000`,
+		`uints,k=u u=45u 3000`,
+		`uints,k=u u=60u 4000`,
 	}
 
 	escapeStringCorpus = corpus{
