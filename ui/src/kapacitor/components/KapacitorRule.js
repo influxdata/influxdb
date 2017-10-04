@@ -149,13 +149,11 @@ class KapacitorRule extends Component {
     return (
       <div className="page">
         <RuleHeader
-          rule={rule}
-          actions={ruleActions}
-          onSave={isEditing ? this.handleEdit : this.handleCreate}
-          onChooseTimeRange={this.handleChooseTimeRange}
-          validationError={this.validationError()}
-          timeRange={timeRange}
           source={source}
+          onSave={isEditing ? this.handleEdit : this.handleCreate}
+          validationError={this.validationError()}
+          onChooseTimeRange={this.handleChooseTimeRange}
+          timeRange={timeRange}
         />
         <FancyScrollbar className="page-contents fancy-scroll--kapacitor">
           <div className="container-fluid">
