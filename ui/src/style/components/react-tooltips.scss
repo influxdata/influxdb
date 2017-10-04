@@ -17,25 +17,32 @@ $tooltip-accent: $c-pool;
 $tooltip-code-bg: $g2-kevlar;
 $tooltip-code-color: $c-potassium;
 
-.influx-tooltip {
-  width: min-content;
-  background-color: $tooltip-bg !important;
-  color: $tooltip-text !important;
-  font-size: $tooltip-font !important;
-  font-weight: 500 !important;
-  line-height: 1.3em !important;
-  padding: $tooltip-padding !important;
-  white-space: pre-wrap !important;
-  word-break: keep-all !important;
-  border: 2px solid $tooltip-accent !important;
-  border-radius: $tooltip-radius !important;
-  text-transform: none !important;
+.__react_component_tooltip.influx-tooltip {
+  font-size: $tooltip-font;
+  font-weight: 500;
+  line-height: 1.3em;
+  padding: $tooltip-padding;
+  white-space: pre-wrap;
+  word-break: keep-all;
+  border-radius: $tooltip-radius;
+  text-transform: none;
   cursor: default;
+
+  &.type-dark {
+    background-color: $tooltip-bg;
+    color: $tooltip-text;
+    border: 2px solid $tooltip-accent;
+  }
+  &.type-dark.place-top:after {border-top-color: $tooltip-accent;}
+  &.type-dark.place-right:after {border-right-color: $tooltip-accent;}
+  &.type-dark.place-bottom:after {border-bottom-color: $tooltip-accent;}
+  &.type-dark.place-left:after {border-left-color: $tooltip-accent;}
+
 
   h1 {
     font-size: 14px;
     font-weight: 600;
-    margin: 0 0 6px 0;
+    margin: 0 0 8px 0;
     line-height: 1.125em;
     letter-spacing: 0;
     font-family: $default-font;
@@ -50,33 +57,16 @@ $tooltip-code-color: $c-potassium;
   }
 
   code {
-    background-color: $tooltip-code-bg !important;
-    border: 0 !important;
-    padding: 2px ($tooltip-padding / 2) !important;
-    font-size: ($tooltip-font - 2px) !important;
-    border-radius: 3px !important;
-    margin: 1px 2px 1px 0 !important;
-    color: $tooltip-code-color !important;
-    white-space: nowrap !important;
-    display: inline-block !important;
-  }
-
-  // Top placement by default
-  &:after {
-    margin: 0 !important;
-    transform: translateX(-50%) !important;
-    top: initial !important;
-    left: 50% !important;
-    bottom: -16px !important;
-    border-style: solid !important;
-    border-width: $tooltip-padding !important;
-    border-color: $tooltip-accent transparent transparent transparent !important;
-  }
-  // Bottom placement
-  &.place-bottom:after {
-    top: -16px !important;
-    bottom: initial !important;
-    border-color: transparent transparent $tooltip-accent transparent !important;
+    background-color: $tooltip-code-bg;
+    border: 0;
+    padding: 3px 6px 4px 6px;
+    font-size: ($tooltip-font - 2px);
+    border-radius: 3px;
+    margin: 1px 2px 1px 0;
+    color: $tooltip-code-color;
+    white-space: nowrap;
+    display: inline-block;
+    font-weight: 900;
   }
 
   /* Kapacitor Style Tooltip */
