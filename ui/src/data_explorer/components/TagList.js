@@ -8,6 +8,7 @@ import showTagKeysParser from 'shared/parsing/showTagKeys'
 import showTagValuesParser from 'shared/parsing/showTagValues'
 
 const {string, shape, func, bool} = PropTypes
+
 const TagList = React.createClass({
   propTypes: {
     query: shape({
@@ -18,14 +19,25 @@ const TagList = React.createClass({
     }).isRequired,
     onChooseTag: func.isRequired,
     onGroupByTag: func.isRequired,
+    querySource: shape({
+      links: shape({
+        proxy: string.isRequired,
+      }).isRequired,
+    }),
   },
 
   contextTypes: {
-    source: PropTypes.shape({
-      links: PropTypes.shape({
-        proxy: PropTypes.string.isRequired,
+    source: shape({
+      links: shape({
+        proxy: string.isRequired,
       }).isRequired,
     }).isRequired,
+  },
+
+  getDefaultProps() {
+    return {
+      querySource: null,
+    }
   },
 
   getInitialState() {
@@ -37,9 +49,12 @@ const TagList = React.createClass({
   _getTags() {
     const {database, measurement, retentionPolicy} = this.props.query
     const {source} = this.context
-    const sourceProxy = source.links.proxy
+    const {querySource} = this.props
 
-    showTagKeys({source: sourceProxy, database, retentionPolicy, measurement})
+    const proxy =
+      _.get(querySource, ['links', 'proxy'], null) || source.links.proxy
+
+    showTagKeys({source: proxy, database, retentionPolicy, measurement})
       .then(resp => {
         const {errors, tagKeys} = showTagKeysParser(resp.data)
         if (errors.length) {
@@ -47,7 +62,7 @@ const TagList = React.createClass({
         }
 
         return showTagValues({
-          source: sourceProxy,
+          source: proxy,
           database,
           retentionPolicy,
           measurement,
@@ -74,7 +89,9 @@ const TagList = React.createClass({
   },
 
   componentDidUpdate(prevProps) {
-    const {database, measurement, retentionPolicy} = this.props.query
+    const {query, querySource} = this.props
+    const {database, measurement, retentionPolicy} = query
+
     const {
       database: prevDB,
       measurement: prevMeas,
@@ -87,7 +104,8 @@ const TagList = React.createClass({
     if (
       database === prevDB &&
       measurement === prevMeas &&
-      retentionPolicy === prevRP
+      retentionPolicy === prevRP &&
+      _.isEqual(prevProps.querySource, querySource)
     ) {
       return
     }
