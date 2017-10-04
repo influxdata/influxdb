@@ -104,7 +104,7 @@ const InfluxTable = ({
                   <QuestionMarkTooltip
                     tipID="kapacitor-node-helper"
                     tipContent={
-                      '<p>Kapacitor Configurations are scoped per InfluxDB Source.<br/>Only one can be active at a time.</p>'
+                      '<p>Kapacitor Configurations are<br/>scoped per InfluxDB Source.<br/>Only one can be active at a time.</p>'
                     }
                   />
                 </th>
