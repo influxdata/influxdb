@@ -29,9 +29,8 @@ const SourceIndicator = ({sourceOverride}, {source: {name, url}}) => {
         id={uuidTooltip}
         effect="solid"
         html={true}
-        offset={{top: 2}}
-        place="bottom"
-        class="influx-tooltip place-bottom"
+        place="left"
+        class="influx-tooltip"
       />
     </div>
   )

@@ -33,7 +33,6 @@ class RuleMessageTemplates extends Component {
         <ReactTooltip
           effect="solid"
           html={true}
-          offset={{top: -4}}
           class="influx-tooltip kapacitor-tooltip"
         />
       </div>

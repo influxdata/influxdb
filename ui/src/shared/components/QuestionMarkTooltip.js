@@ -14,9 +14,8 @@ const QuestionMarkTooltip = ({tipID, tipContent}) =>
       id={`${tipID}-tooltip`}
       effect="solid"
       html={true}
-      offset={{top: 2}}
       place="bottom"
-      class="influx-tooltip__hover place-bottom"
+      class="influx-tooltip"
     />
   </div>
 
