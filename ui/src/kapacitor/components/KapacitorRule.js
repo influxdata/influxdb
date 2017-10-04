@@ -58,12 +58,15 @@ class KapacitorRule extends Component {
 
     editRule(updatedRule)
       .then(() => {
-        addFlashMessage({type: 'success', text: 'Rule successfully updated!'})
+        addFlashMessage({
+          type: 'success',
+          text: `${rule.name} successfully saved!`,
+        })
       })
       .catch(() => {
         addFlashMessage({
           type: 'error',
-          text: 'There was a problem updating the rule',
+          text: `There was a problem saving ${rule.name}`,
         })
       })
   }
@@ -85,7 +88,7 @@ class KapacitorRule extends Component {
     }
 
     if (!buildInfluxQLQuery({}, query)) {
-      return 'Please select a database, measurement, and field'
+      return 'Please select a Database, Measurement, and Field'
     }
 
     if (!rule.values.value) {
@@ -98,7 +101,7 @@ class KapacitorRule extends Component {
   deadmanValidation = () => {
     const {query} = this.props
     if (query && (!query.database || !query.measurement)) {
-      return 'Deadman requires a database and measurement'
+      return 'Deadman rules require a Database and Measurement'
     }
 
     return ''
