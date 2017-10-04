@@ -58,7 +58,7 @@ export const TabList = React.createClass({
 
     if (this.props.isKapacitorTabs === 'true') {
       return (
-        <div className="rule-section--row rule-section--row-first rule-section--border-bottom">
+        <div className="rule-section--row rule-section--row-first rule-section--row-last">
           <p>Choose One:</p>
           <div className="nav nav-tablist nav-tablist-sm nav-tablist-malachite">
             {children}

@@ -165,9 +165,18 @@ $rule-builder--radius-lg: 5px;
       margin-right: 0;
     }
   }
-  .query-builder--column:nth-child(4) .query-builder--list,
-  .query-builder--column:nth-child(4) .query-builder--list-empty {
+  .query-builder--column:first-of-type .query-builder--list {
+    border-bottom-left-radius: $rule-builder--radius-lg;
+  }
+  .query-builder--column:first-of-type .query-builder--heading {
+    border-top-left-radius: $rule-builder--radius-lg;
+  }
+  .query-builder--column:last-of-type .query-builder--list,
+  .query-builder--column:last-of-type .query-builder--list-empty {
     border-bottom-right-radius: $rule-builder--radius-lg;
+  }
+  .query-builder--column:last-of-type .query-builder--heading {
+    border-top-right-radius: $rule-builder--radius-lg;
   }
   .query-builder--heading {
     background-color: $rule-builder--section-bg;
