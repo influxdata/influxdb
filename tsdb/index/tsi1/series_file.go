@@ -440,18 +440,8 @@ func ParseSeriesKey(data []byte) (name []byte, tags models.Tags) {
 
 // ModelSeriesKey converts a tsi series key to models.MakeKey() format.
 func ModelSeriesKey(data []byte) []byte {
-	_, data = ReadSeriesKeyLen(data)
-	name, data = ReadSeriesKeyMeasurement(data)
-
-	tagN, data := ReadSeriesKeyTagN(data)
-	tags = make(models.Tags, tagN)
-	for i := 0; i < tagN; i++ {
-		var key, value []byte
-		key, value, data = ReadSeriesKeyTag(data)
-		tags[i] = models.Tag{Key: key, Value: value}
-	}
-
-	return name, tags
+	name, tags := ParseSeriesKey(data)
+	return models.MakeKey(name, tags)
 }
 
 func CompareSeriesKeys(a, b []byte) int {

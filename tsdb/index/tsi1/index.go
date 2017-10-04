@@ -636,9 +636,10 @@ func (i *Index) MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []byte
 			itr := fs.TagValueIterator(name, []byte(key))
 			if auth != nil {
 				for val := itr.Next(); val != nil; val = itr.Next() {
-					si := fs.TagValueSeriesIterator(name, []byte(key), val.Value())
-					for se := si.Next(); se != nil; se = si.Next() {
-						if auth.AuthorizeSeriesRead(i.Database, se.Name(), se.Tags()) {
+					si := fs.TagValueSeriesIDIterator(name, []byte(key), val.Value())
+					for se := si.Next(); se.SeriesID != 0; se = si.Next() {
+						name, tags := ParseSeriesKey(i.sfile.SeriesKey(se.SeriesID))
+						if auth.AuthorizeSeriesRead(i.Database, name, tags) {
 							results[ki] = append(results[ki], string(val.Value()))
 							break
 						}
