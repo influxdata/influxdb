@@ -59,7 +59,7 @@ const KapacitorRules = ({
             className="btn btn-sm btn-primary"
             style={{marginRight: '4px'}}
           >
-            Build Rule
+            <span className="icon plus" /> Build Rule
           </Link>
         </div>
       </div>

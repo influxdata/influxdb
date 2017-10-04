@@ -60,7 +60,7 @@ class LayoutCell extends Component {
                   className="no-query--button btn btn-md btn-primary"
                   onClick={this.handleSummonOverlay(cell)}
                 >
-                  Add Graph
+                  <span className="icon plus" /> Add Graph
                 </button>
               </div>}
         </div>

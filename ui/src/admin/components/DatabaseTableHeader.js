@@ -59,7 +59,7 @@ const Header = ({
         disabled={isAddRPDisabled}
         onClick={onAddRetentionPolicy(database)}
       >
-        Add Retention Policy
+        <span className="icon plus" /> Add Retention Policy
       </button>
       {database.name === '_internal'
         ? null

@@ -32,7 +32,7 @@ const DashboardsPageContents = ({
                   className="btn btn-sm btn-primary"
                   onClick={onCreateDashboard}
                 >
-                  Create Dashboard
+                  <span className="icon plus" /> Create Dashboard
                 </button>
               </div>
               <div className="panel-body">
