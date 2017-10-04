@@ -193,6 +193,15 @@ func (c *DefaultPlanner) PlanLevel(level int) []CompactionGroup {
 	for i := 0; i < len(generations); i++ {
 		cur := generations[i]
 
+		// See if this generation is orphan'd which would prevent it from being further
+		// compacted until a final full compactin runs.
+		if i < len(generations)-1 {
+			if cur.level() < generations[i+1].level() {
+				currentGen = append(currentGen, cur)
+				continue
+			}
+		}
+
 		if len(currentGen) == 0 || currentGen.level() == cur.level() {
 			currentGen = append(currentGen, cur)
 			continue
@@ -284,6 +293,15 @@ func (c *DefaultPlanner) PlanOptimize() []CompactionGroup {
 	var groups []tsmGenerations
 	for i := 0; i < len(generations); i++ {
 		cur := generations[i]
+
+		// See if this generation is orphan'd which would prevent it from being further
+		// compacted until a final full compactin runs.
+		if i < len(generations)-1 {
+			if cur.level() < generations[i+1].level() {
+				currentGen = append(currentGen, cur)
+				continue
+			}
+		}
 
 		if len(currentGen) == 0 || currentGen.level() == cur.level() {
 			currentGen = append(currentGen, cur)
