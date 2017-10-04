@@ -76,13 +76,10 @@ $tooltip-code-color: $c-potassium;
     code {
       color: $c-pool !important;
     }
-    &:after {
-      border-color: $c-rainforest transparent transparent transparent !important;
-    }
-    // Bottom placement
-    &.place-bottom:after {
-      border-color: transparent transparent $c-rainforest transparent !important;
-    }
+    &.type-dark.place-top:after {border-top-color: $c-rainforest;}
+    &.type-dark.place-right:after {border-right-color: $c-rainforest;}
+    &.type-dark.place-bottom:after {border-bottom-color: $c-rainforest;}
+    &.type-dark.place-left:after {border-left-color: $c-rainforest;}
   }
 }
 
