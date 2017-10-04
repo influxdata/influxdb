@@ -4,30 +4,45 @@ import LayoutCell from 'shared/components/LayoutCell'
 import RefreshingGraph from 'shared/components/RefreshingGraph'
 import {buildQueriesForLayouts} from 'utils/influxql'
 
-const Layout = ({
-  host,
-  cell,
-  cell: {h, axes, type},
-  source,
-  onZoom,
-  templates,
-  timeRange,
-  isEditable,
-  onEditCell,
-  autoRefresh,
-  onDeleteCell,
-  synchronizer,
-  resizeCoords,
-  onCancelEditCell,
-  onSummonOverlayTechnologies,
-}) =>
+import _ from 'lodash'
+
+const getSource = (cell, source, sources, defaultSource) => {
+  const s = _.get(cell, ['queries', '0', 'source'], null)
+  if (!s) {
+    return source
+  }
+
+  return sources.find(src => src.links.self === s) || defaultSource
+}
+
+const Layout = (
+  {
+    host,
+    cell,
+    cell: {h, axes, type},
+    source,
+    sources,
+    onZoom,
+    templates,
+    timeRange,
+    isEditable,
+    onEditCell,
+    autoRefresh,
+    onDeleteCell,
+    synchronizer,
+    resizeCoords,
+    onCancelEditCell,
+    onSummonOverlayTechnologies,
+  },
+  {source: defaultSource}
+) =>
   <LayoutCell
-    onCancelEditCell={onCancelEditCell}
+    cell={cell}
     isEditable={isEditable}
     onEditCell={onEditCell}
     onDeleteCell={onDeleteCell}
+    onCancelEditCell={onCancelEditCell}
     onSummonOverlayTechnologies={onSummonOverlayTechnologies}
-    cell={cell}
   >
     {cell.isWidget
       ? <WidgetCell cell={cell} timeRange={timeRange} source={source} />
@@ -36,16 +51,26 @@ const Layout = ({
           type={type}
           cellHeight={h}
           onZoom={onZoom}
+          sources={sources}
           timeRange={timeRange}
           templates={templates}
           autoRefresh={autoRefresh}
           synchronizer={synchronizer}
           resizeCoords={resizeCoords}
-          queries={buildQueriesForLayouts(cell, source, timeRange, host)}
+          queries={buildQueriesForLayouts(
+            cell,
+            getSource(cell, source, sources, defaultSource),
+            timeRange,
+            host
+          )}
         />}
   </LayoutCell>
 
 const {arrayOf, bool, func, number, shape, string} = PropTypes
+
+Layout.contextTypes = {
+  source: shape(),
+}
 
 Layout.propTypes = {
   autoRefresh: number.isRequired,
@@ -87,6 +112,7 @@ Layout.propTypes = {
   onCancelEditCell: func,
   resizeCoords: shape(),
   onZoom: func,
+  sources: arrayOf(shape()),
 }
 
 export default Layout

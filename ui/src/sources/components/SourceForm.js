@@ -1,20 +1,14 @@
-import React, {PropTypes} from 'react'
+import React, {PropTypes, Component} from 'react'
 import classnames from 'classnames'
 import {insecureSkipVerifyText} from 'shared/copy/tooltipText'
 import _ from 'lodash'
 
-const {bool, func, shape} = PropTypes
+class SourceForm extends Component {
+  constructor(props) {
+    super(props)
+  }
 
-export const SourceForm = React.createClass({
-  propTypes: {
-    source: shape({}).isRequired,
-    editMode: bool.isRequired,
-    onInputChange: func.isRequired,
-    onSubmit: func.isRequired,
-    onBlurSourceURL: func.isRequired,
-  },
-
-  handleSubmitForm(e) {
+  handleSubmitForm = e => {
     e.preventDefault()
     const newSource = {
       ...this.props.source,
@@ -31,9 +25,14 @@ export const SourceForm = React.createClass({
     }
 
     this.props.onSubmit(newSource)
-  },
+  }
 
-  handleBlurSourceURL() {
+  handleUseDefaultValues = () => {
+    this.sourceURL.value = 'http://localhost:8086'
+    this.sourceName.value = 'My InfluxDB'
+  }
+
+  handleBlurSourceURL = () => {
     const url = this.sourceURL.value.trim()
 
     if (!url) {
@@ -46,7 +45,7 @@ export const SourceForm = React.createClass({
     }
 
     this.props.onBlurSourceURL(newSource)
-  },
+  }
 
   render() {
     const {source, editMode, onInputChange} = this.props
@@ -58,14 +57,14 @@ export const SourceForm = React.createClass({
 
         <form onSubmit={this.handleSubmitForm}>
           <div className="form-group col-xs-12 col-sm-6">
-            <label htmlFor="connect-string"> Connection String</label>
+            <label htmlFor="connect-string">Connection String</label>
             <input
               type="text"
               name="url"
               ref={r => (this.sourceURL = r)}
               className="form-control"
               id="connect-string"
-              placeholder="http://localhost:8086"
+              placeholder="Address of InfluxDB"
               onChange={onInputChange}
               value={source.url || ''}
               onBlur={this.handleBlurSourceURL}
@@ -80,7 +79,7 @@ export const SourceForm = React.createClass({
               ref={r => (this.sourceName = r)}
               className="form-control"
               id="name"
-              placeholder="Influx 1"
+              placeholder="Name this source"
               onChange={onInputChange}
               value={source.name || ''}
               required={true}
@@ -166,7 +165,7 @@ export const SourceForm = React.createClass({
                 </label>
               </div>
             : null}
-          <div className="form-group form-group-submit col-xs-12 col-sm-6 col-sm-offset-3">
+          <div className="form-group form-group-submit col-xs-12 col-sm-6 col-sm-offset-3 text-center">
             <button
               className={classnames('btn btn-block', {
                 'btn-primary': editMode,
@@ -176,11 +175,29 @@ export const SourceForm = React.createClass({
             >
               {editMode ? 'Save Changes' : 'Add Source'}
             </button>
+            <br />
+            <a
+              href="#"
+              className="btn btn-link btn-sm"
+              onClick={this.handleUseDefaultValues}
+            >
+              Use Default Values
+            </a>
           </div>
         </form>
       </div>
     )
-  },
-})
+  }
+}
+
+const {bool, func, shape} = PropTypes
+
+SourceForm.propTypes = {
+  source: shape({}).isRequired,
+  editMode: bool.isRequired,
+  onInputChange: func.isRequired,
+  onSubmit: func.isRequired,
+  onBlurSourceURL: func.isRequired,
+}
 
 export default SourceForm

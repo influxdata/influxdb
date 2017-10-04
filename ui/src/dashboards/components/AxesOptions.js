@@ -19,7 +19,7 @@ const AxesOptions = ({
   const [min, max] = bounds
 
   return (
-    <div className="display-options--cell">
+    <div className="display-options--cell y-axis-controls">
       <h5 className="display-options--header">Y Axis Controls</h5>
       <form autoComplete="off" style={{margin: '0 -6px'}}>
         <div className="form-group col-sm-12">

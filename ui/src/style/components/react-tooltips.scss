@@ -79,7 +79,6 @@ $tooltip-code-color: $c-potassium;
     border-color: transparent transparent $tooltip-accent transparent !important;
   }
 
-
   /* Kapacitor Style Tooltip */
   &.kapacitor-tooltip {
     border-color: $c-rainforest !important;
@@ -99,13 +98,12 @@ $tooltip-code-color: $c-potassium;
 
 .influx-tooltip__hover {
   @extend .influx-tooltip;
-  pointer-events: auto!important;
+  pointer-events: auto !important;
   &:hover {
-    visibility: visible!important;
-    opacity: 1!important;
+    visibility: visible !important;
+    opacity: 1 !important;
   }
 }
-
 
 /*
     Question Mark Tooltip
@@ -130,8 +128,7 @@ $qmark-tooltip-size: 15px;
   background-color: $g10-wolf;
   color: $g0-obsidian;
   margin: 0 5px;
-  transition:
-    background-color 0.25s ease;
+  transition: background-color 0.25s ease;
 }
 .question-mark-tooltip:hover {
   cursor: default;

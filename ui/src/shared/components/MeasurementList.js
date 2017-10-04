@@ -1,5 +1,6 @@
 import React, {PropTypes} from 'react'
 import classnames from 'classnames'
+import _ from 'lodash'
 
 import {showMeasurements} from 'shared/apis/metaQuery'
 import showMeasurementsParser from 'shared/parsing/showMeasurements'
@@ -19,6 +20,11 @@ const MeasurementList = React.createClass({
     onChooseTag: func.isRequired,
     onToggleTagAcceptance: func.isRequired,
     onGroupByTag: func.isRequired,
+    querySource: shape({
+      links: shape({
+        proxy: string.isRequired,
+      }).isRequired,
+    }),
   },
 
   contextTypes: {
@@ -36,6 +42,12 @@ const MeasurementList = React.createClass({
     }
   },
 
+  getDefaultProps() {
+    return {
+      querySource: null,
+    }
+  },
+
   componentDidMount() {
     if (!this.props.query.database) {
       return
@@ -45,13 +57,16 @@ const MeasurementList = React.createClass({
   },
 
   componentDidUpdate(prevProps) {
-    const {query} = this.props
+    const {query, querySource} = this.props
 
     if (!query.database) {
       return
     }
 
-    if (prevProps.query.database === query.database) {
+    if (
+      prevProps.query.database === query.database &&
+      _.isEqual(prevProps.querySource, querySource)
+    ) {
       return
     }
 
@@ -181,7 +196,11 @@ const MeasurementList = React.createClass({
 
   _getMeasurements() {
     const {source} = this.context
-    const proxy = source.links.proxy
+    const {querySource} = this.props
+
+    const proxy =
+      _.get(querySource, ['links', 'proxy'], null) || source.links.proxy
+
     showMeasurements(proxy, this.props.query.database).then(resp => {
       const {errors, measurementSets} = showMeasurementsParser(resp.data)
       if (errors.length) {
