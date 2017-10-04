@@ -3,6 +3,7 @@
 ### Bugfixes
 
 [#8909](https://github.com/influxdata/influxdb/issues/8909): Fix use of `INFLUXD_OPTS` in service file
+[#8908](https://github.com/influxdata/influxdb/issues/8908): Fix missing man pages in new packaging output
 
 ## v1.3.6 [2017-09-29]
 
