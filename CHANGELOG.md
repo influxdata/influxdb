@@ -36,6 +36,7 @@
 - [#8830](https://github.com/influxdata/influxdb/issues/8830): Separate importer log statements to stdout and stderr.
 - [#8857](https://github.com/influxdata/influxdb/pull/8857): Improve performance of Bloom Filter in TSI index.
 - [#8897](https://github.com/influxdata/influxdb/pull/8897): Add message pack format for query responses.
+- [#8886](https://github.com/influxdata/influxdb/pull/8886): Improved compaction scheduling
 
 ### Bugfixes
 
@@ -69,6 +70,8 @@
 - [#8848](https://github.com/influxdata/influxdb/issues/8848): Prevent deadlock when doing math on the result of a subquery.
 - [#8895](https://github.com/influxdata/influxdb/issues/8895): Fix a minor memory leak in batching points in tsdb.
 - [#8900](https://github.com/influxdata/influxdb/issues/8900): Don't assume `which` is present in package post-install script.
+- [#8908](https://github.com/influxdata/influxdb/issues/8908): Fix missing man pages in new packaging output
+- [#8909](https://github.com/influxdata/influxdb/issues/8909): Fix use of `INFLUXD_OPTS` in service file
 
 ## v1.3.4 [unreleased]
 

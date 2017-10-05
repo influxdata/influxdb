@@ -174,19 +174,7 @@ func (s *Store) loadShards() error {
 		lim = runtime.GOMAXPROCS(0)
 	}
 
-	// If only one compacttion can run at time, use the same limiter for high and low
-	// priority work.
-	if lim == 1 {
-		s.EngineOptions.HiPriCompactionLimiter = limiter.NewFixed(1)
-		s.EngineOptions.LoPriCompactionLimiter = s.EngineOptions.HiPriCompactionLimiter
-	} else {
-		// Split the available high and low priority limiters between the available cores.
-		// The high priority work can steal from low priority at times so it can use the
-		// full limit if there is pending work.  The low priority is capped at half the
-		// limit.
-		s.EngineOptions.HiPriCompactionLimiter = limiter.NewFixed(lim/2 + lim%2)
-		s.EngineOptions.LoPriCompactionLimiter = limiter.NewFixed(lim / 2)
-	}
+	s.EngineOptions.CompactionLimiter = limiter.NewFixed(lim)
 
 	t := limiter.NewFixed(runtime.GOMAXPROCS(0))
 	resC := make(chan *res)
@@ -1304,7 +1292,7 @@ func (s *Store) monitorShards() {
 			for _, sh := range s.shards {
 				if sh.IsIdle() {
 					if err := sh.Free(); err != nil {
-						s.Logger.Warn("error free cold shard resources: %v", zap.Error(err))
+						s.Logger.Warn("error free cold shard resources:", zap.Error(err))
 					}
 				} else {
 					sh.SetCompactionsEnabled(true)
