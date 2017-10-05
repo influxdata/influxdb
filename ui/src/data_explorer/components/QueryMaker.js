@@ -2,19 +2,16 @@ import React, {PropTypes} from 'react'
 
 import QueryEditor from './QueryEditor'
 import SchemaExplorer from 'src/shared/components/SchemaExplorer'
-import buildInfluxQLQuery from 'utils/influxql'
+import {buildRawText} from 'utils/influxql'
 
 const rawTextBinder = (links, id, action) => text =>
   action(links.queries, id, text)
-
-const buildText = (q, timeRange) =>
-  q.rawText || buildInfluxQLQuery(timeRange, q) || ''
 
 const QueryMaker = ({source, actions, timeRange, activeQuery}) =>
   <div className="query-maker query-maker--panel">
     <div className="query-maker--tab-contents">
       <QueryEditor
-        query={buildText(activeQuery, timeRange)}
+        query={buildRawText(activeQuery, timeRange)}
         config={activeQuery}
         onUpdate={rawTextBinder(
           source.links,
