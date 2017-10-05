@@ -307,23 +307,15 @@ $rule-builder--radius-lg: 5px;
   Section 3 - Rule Message
   -----------------------------------------------------------------------------
 */
-
-textarea.rule-builder--message {
-  border-color: $rule-builder--section-bg;
+.rule-builder--message {
   background-color: $rule-builder--section-bg;
   padding: $rule-builder--padding-sm ($rule-builder--padding-lg - 2px);
+}
+.rule-builder--message textarea {
   height: 100px;
   min-width: 100%;
   max-width: 100%;
-  border-radius: 0;
   @include custom-scrollbar($rule-builder--section-bg,$rule-builder--accent-color);
-
-  &:hover {
-    border-color: $g4-onyx;
-  }
-  &:focus {
-    background-color: $rule-builder--section-bg;
-  }
 }
 .rule-builder--message-template {
   height: 30px;
