@@ -33,13 +33,26 @@ function testUninstalled() {
 }
 
 function testManpages() {
+  # We can't simply check that the man pages show up correctly,
+  # because the docker images for Ubuntu and CentOS disable man page support: https://unix.stackexchange.com/q/259478
+  # Instead, we will just list the contents of the package
+  # and ensure that the man pages would be extracted to the right location.
+  echo 'Checking that man pages would be installed correctly.'
+
+  local f=$(mktemp)
+  if [ "$TYPE" == "deb" ]; then
+    dpkg -c /data.deb > "$f"
+  elif [ "$TYPE" == "rpm" ]; then
+    rpm -qlp /data.rpm > "$f"
+  fi
+
   for p in influxd influxd-backup influxd-config influxd-restore influxd-run influxd-version \
     influx \
     influx_inspect \
     influx_stress \
     influx_tsm ; do
-    if [[ ! -r "/usr/share/man/man1/$p.1.gz" ]]; then
-      >&2 echo "No man page found for $p"
+    if ! grep -F "/usr/share/man/man1/$p.1.gz" < "$f" > /dev/null; then
+      >&2 echo "Package is missing man page for $p"
       exit 1
     fi
   done
@@ -73,7 +86,6 @@ function testInstall() {
   true # So we don't return 1 if `which` didn't find the executable after uninstall.
 }
 
-PKG=""
 TYPE=""
 
 while getopts DR arg; do
