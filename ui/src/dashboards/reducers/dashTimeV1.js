@@ -4,7 +4,15 @@ const initialState = {
 
 const dashTimeV1 = (state = initialState, action) => {
   switch (action.type) {
-    case 'ADD_DASHBOARD_TIME_RANGE_V1': {
+    case 'LOAD_DEFAULT_DASHBOARD_TIME_V1': {
+      const {dashboardID} = action.payload
+      const timeRange = {upper: null, lower: 'now() - 15m'}
+      const ranges = [...state.ranges, {dashboardID, timeRange}]
+
+      return {...state, ranges}
+    }
+
+    case 'ADD_DASHBOARD_TIME_V1': {
       const {dashboardID, timeRange} = action.payload
       const ranges = [...state.ranges, {dashboardID, timeRange}]
 
@@ -20,8 +28,18 @@ const dashTimeV1 = (state = initialState, action) => {
 
     case 'UPDATE_DASHBOARD_TIME_V1': {
       const {dashboardID, timeRange} = action.payload
+      const exists = state.ranges.find(r => r.dashboardID === dashboardID)
+      const {upper, lower} = timeRange
+
+      if (!exists) {
+        return {
+          ...state,
+          ranges: [...state.ranges, {dashboardID, upper, lower}],
+        }
+      }
+
       const ranges = state.ranges.map(
-        d => (d.dashboardID === dashboardID ? {dashboardID, timeRange} : d)
+        d => (d.dashboardID === dashboardID ? {dashboardID, upper, lower} : d)
       )
 
       return {...state, ranges}

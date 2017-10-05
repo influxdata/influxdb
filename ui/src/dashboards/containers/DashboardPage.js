@@ -22,6 +22,8 @@ import {
 } from 'shared/actions/app'
 import {presentationButtonDispatcher} from 'shared/dispatchers'
 
+const defaultTimeRange = {upper: null, lower: 'now() - 15m'}
+
 class DashboardPage extends Component {
   constructor(props) {
     super(props)
@@ -48,7 +50,6 @@ class DashboardPage extends Component {
 
     const dashboards = await getDashboardsAsync()
     const dashboard = dashboards.find(d => d.id === +dashboardID)
-
     // Refresh and persists influxql generated template variable values
     await updateTempVarValues(source, dashboard)
     await putDashboardByID(dashboardID)
@@ -81,8 +82,9 @@ class DashboardPage extends Component {
     this.setState({selectedCell: cell})
   }
 
-  handleChooseTimeRange = timeRange => {
-    this.props.dashboardActions.setTimeRange(timeRange)
+  handleChooseTimeRange = ({upper, lower}) => {
+    const {params: {dashboardID}, dashboardActions} = this.props
+    dashboardActions.updateDashTimeV1(+dashboardID, {upper, lower})
   }
 
   handleUpdatePosition = cells => {
@@ -401,7 +403,7 @@ DashboardPage.propTypes = {
   handleChooseAutoRefresh: func.isRequired,
   autoRefresh: number.isRequired,
   templateControlBarVisibilityToggled: func.isRequired,
-  timeRange: shape({}).isRequired,
+  timeRange: shape({}),
   showTemplateControlBar: bool.isRequired,
   inPresentationMode: bool.isRequired,
   handleClickPresentationButton: func,
@@ -412,15 +414,21 @@ DashboardPage.propTypes = {
   errorThrown: func,
 }
 
-const mapStateToProps = state => {
+const mapStateToProps = (state, {params}) => {
   const {
     app: {
       ephemeral: {inPresentationMode},
       persisted: {autoRefresh, showTemplateControlBar},
     },
-    dashboardUI: {dashboards, timeRange, cellQueryStatus},
+    dashboardUI: {dashboards, cellQueryStatus},
     sources,
+    dashTimeV1,
   } = state
+
+  const timeRange =
+    dashTimeV1.ranges.find(
+      ({dashboardID}) => dashboardID === +params.dashboardID
+    ) || defaultTimeRange
 
   return {
     dashboards,

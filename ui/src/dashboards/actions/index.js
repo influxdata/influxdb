@@ -28,8 +28,15 @@ export const loadDashboards = (dashboards, dashboardID) => ({
   },
 })
 
+export const loadDeafaultDashTimeV1 = dashboardID => ({
+  type: 'ADD_DASHBOARD_TIME_V1',
+  payload: {
+    dashboardID,
+  },
+})
+
 export const addDashTimeV1 = (dashboardID, timeRange) => ({
-  type: 'ADD_DASHBOARD_TIME_RANGE_V1',
+  type: 'ADD_DASHBOARD_TIME_V1',
   payload: {
     dashboardID,
     timeRange,
