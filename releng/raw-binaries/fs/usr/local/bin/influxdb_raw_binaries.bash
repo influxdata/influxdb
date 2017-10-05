@@ -3,8 +3,8 @@
 function printHelp() {
   >&2 echo "USAGE: $0 [-r]
 
-Untars the plutonium source tarball mounted at /plutonium-src.tar.gz,
-then emits a tarball of plutonium binaries to /out,
+Untars the influxdb source tarball mounted at /influxdb-src.tar.gz,
+then emits a tarball of influxdb binaries to /out,
 which must be a mounted volume if you want to access the file.
 
 Relies upon environment variables GOOS and GOARCH to determine what to build.
@@ -71,7 +71,9 @@ for cmd in \
   influxdb/cmd/influx_inspect \
   influxdb/cmd/influx_tsm \
   ; do
-    go build $RACE_FLAG -i -o "$OUTDIR/$(basename $cmd)" "github.com/influxdata/$cmd"
+    # Build all the binaries into $OUTDIR.
+    # Windows binaries will get the .exe suffix as expected.
+    (cd "$OUTDIR" && go build $RACE_FLAG -i "github.com/influxdata/$cmd")
 done
 
 
