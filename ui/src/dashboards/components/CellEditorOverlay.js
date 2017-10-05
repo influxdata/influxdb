@@ -66,8 +66,12 @@ class CellEditorOverlay extends Component {
     const nextQuery = queryModifier(query, payload)
 
     const nextQueries = queriesWorkingDraft.map(
-      q => (q.id === query.id ? nextQuery : q)
+      q =>
+        q.id === query.id
+          ? {...nextQuery, source: this.nextSource(q, nextQuery)}
+          : q
     )
+
     this.setState({queriesWorkingDraft: nextQueries})
   }
 
@@ -230,7 +234,7 @@ class CellEditorOverlay extends Component {
       const {data} = await getQueryConfig(url, [{query: text, id}], templates)
       const config = data.queries.find(q => q.id === id)
       const nextQueries = this.state.queriesWorkingDraft.map(
-        q => (q.id === id ? config.queryConfig : q)
+        q => (q.id === id ? {...config.queryConfig, source: q.source} : q)
       )
       this.setState({queriesWorkingDraft: nextQueries})
     } catch (error) {
@@ -267,6 +271,14 @@ class CellEditorOverlay extends Component {
 
     const querySource = sources.find(s => s.id === query.source.id)
     return querySource || source
+  }
+
+  nextSource = (prevQuery, nextQuery) => {
+    if (nextQuery.source) {
+      return nextQuery.source
+    }
+
+    return prevQuery.source
   }
 
   render() {
@@ -319,6 +331,7 @@ class CellEditorOverlay extends Component {
           <CEOBottom>
             <OverlayControls
               onCancel={onCancel}
+              queries={queriesWorkingDraft}
               sources={this.formatSources}
               onSave={this.handleSaveCell}
               selected={this.findSelectedSource()}

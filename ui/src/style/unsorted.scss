@@ -293,6 +293,7 @@ $tick-script-overlay-margin: 30px;
     display: none;
   }
 }
+
 /*
   Data Explorer download CSV button
   -----------------------------------------------------------------------------
@@ -304,4 +305,16 @@ $tick-script-overlay-margin: 30px;
 }
 .btn.btn-sm.btn-default.dlcsv {
   margin-left: 10px;
+}
+
+/*
+  Dropdown clickable area fix
+  -----------------------------------------------------------------------------
+  TODO: Move this into theme, not sure how this broke
+*/
+
+.dropdown .dropdown-menu li.dropdown-item {
+  display: block;
+
+  > a {display: block;}
 }

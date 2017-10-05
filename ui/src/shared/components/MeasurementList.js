@@ -182,6 +182,7 @@ const MeasurementList = React.createClass({
                 {isActive
                   ? <TagList
                       query={this.props.query}
+                      querySource={this.props.querySource}
                       onChooseTag={this.props.onChooseTag}
                       onGroupByTag={this.props.onGroupByTag}
                     />
