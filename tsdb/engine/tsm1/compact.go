@@ -1250,7 +1250,7 @@ func (k *tsmKeyIterator) Next() bool {
 
 	// Read the next block from each TSM iterator
 	for i, v := range k.buf {
-		if v == nil {
+		if len(v) == 0 {
 			iter := k.iterators[i]
 			if iter.Next() {
 				key, minTime, maxTime, typ, _, b, err := iter.Read()
@@ -1261,16 +1261,27 @@ func (k *tsmKeyIterator) Next() bool {
 				// This block may have ranges of time removed from it that would
 				// reduce the block min and max time.
 				tombstones := iter.r.TombstoneRange(key)
-				k.buf[i] = append(k.buf[i], &block{
-					minTime:    minTime,
-					maxTime:    maxTime,
-					key:        key,
-					typ:        typ,
-					b:          b,
-					tombstones: tombstones,
-					readMin:    math.MaxInt64,
-					readMax:    math.MinInt64,
-				})
+
+				var blk *block
+				if cap(k.buf[i]) > len(k.buf[i]) {
+					k.buf[i] = k.buf[i][:len(k.buf[i])+1]
+					blk = k.buf[i][len(k.buf[i])-1]
+					if blk == nil {
+						blk = &block{}
+						k.buf[i][len(k.buf[i])-1] = blk
+					}
+				} else {
+					blk = &block{}
+					k.buf[i] = append(k.buf[i], blk)
+				}
+				blk.minTime = minTime
+				blk.maxTime = maxTime
+				blk.key = key
+				blk.typ = typ
+				blk.b = b
+				blk.tombstones = tombstones
+				blk.readMin = math.MaxInt64
+				blk.readMax = math.MinInt64
 
 				blockKey := key
 				for bytes.Equal(iter.PeekNext(), blockKey) {
@@ -1282,16 +1293,27 @@ func (k *tsmKeyIterator) Next() bool {
 
 					tombstones := iter.r.TombstoneRange(key)
 
-					k.buf[i] = append(k.buf[i], &block{
-						minTime:    minTime,
-						maxTime:    maxTime,
-						key:        key,
-						typ:        typ,
-						b:          b,
-						tombstones: tombstones,
-						readMin:    math.MaxInt64,
-						readMax:    math.MinInt64,
-					})
+					var blk *block
+					if cap(k.buf[i]) > len(k.buf[i]) {
+						k.buf[i] = k.buf[i][:len(k.buf[i])+1]
+						blk = k.buf[i][len(k.buf[i])-1]
+						if blk == nil {
+							blk = &block{}
+							k.buf[i][len(k.buf[i])-1] = blk
+						}
+					} else {
+						blk = &block{}
+						k.buf[i] = append(k.buf[i], blk)
+					}
+
+					blk.minTime = minTime
+					blk.maxTime = maxTime
+					blk.key = key
+					blk.typ = typ
+					blk.b = b
+					blk.tombstones = tombstones
+					blk.readMin = math.MaxInt64
+					blk.readMax = math.MinInt64
 				}
 			}
 		}
@@ -1322,7 +1344,7 @@ func (k *tsmKeyIterator) Next() bool {
 		}
 		if bytes.Equal(b[0].key, k.key) {
 			k.blocks = append(k.blocks, b...)
-			k.buf[i] = nil
+			k.buf[i] = k.buf[i][:0]
 		}
 	}
 
