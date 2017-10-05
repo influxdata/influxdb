@@ -39,7 +39,8 @@ class DataExplorer extends Component {
   }
 
   componentDidMount() {
-    const {query} = queryString.parse(window.location.search)
+    const {router} = this.props
+    const {query} = queryString.parse(router.location.search)
     if (query && query.length) {
       const qc = this.props.queryConfigs[0]
       this.props.queryConfigActions.editRawText(qc.id, query)
@@ -49,11 +50,11 @@ class DataExplorer extends Component {
   componentWillReceiveProps(nextProps) {
     const {router} = this.props
     const {queryConfigs, timeRange} = nextProps
-    const query = buildRawText(queryConfigs[0], timeRange)
+    const query = buildRawText(_.get(queryConfigs, ['0'], ''), timeRange)
     const qsCurrent = queryString.parse(router.location.search)
     if (query.length && qsCurrent.query !== query) {
       const qsNew = queryString.stringify({query})
-      router.push(`${window.location.pathname}?${qsNew}`)
+      router.push(`${router.location.pathname}?${qsNew}`)
     }
   }
 
