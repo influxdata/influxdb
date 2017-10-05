@@ -7,6 +7,7 @@ import SourceSelector from 'src/dashboards/components/SourceSelector'
 const OverlayControls = ({
   onSave,
   sources,
+  queries,
   selected,
   onCancel,
   isSavable,
@@ -15,11 +16,13 @@ const OverlayControls = ({
   onClickDisplayOptions,
 }) =>
   <div className="overlay-controls">
-    <SourceSelector
-      sources={sources}
-      selected={selected}
-      onSetQuerySource={onSetQuerySource}
-    />
+    {queries.length
+      ? <SourceSelector
+          sources={sources}
+          selected={selected}
+          onSetQuerySource={onSetQuerySource}
+        />
+      : null}
     <ul className="nav nav-tablist nav-tablist-sm">
       <li
         key="queries"
@@ -60,6 +63,7 @@ OverlayControls.propTypes = {
   sources: arrayOf(shape()),
   onSetQuerySource: func,
   selected: string,
+  queries: arrayOf(shape()),
 }
 
 export default OverlayControls
