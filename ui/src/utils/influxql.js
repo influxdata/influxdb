@@ -199,3 +199,6 @@ export const buildQueriesForLayouts = (cell, source, timeRange, host) => {
     return {...query, host: source.links.proxy, text: queryText}
   })
 }
+
+export const buildRawText = (q, timeRange) =>
+  q.rawText || buildInfluxQLQuery(timeRange, q) || ''
