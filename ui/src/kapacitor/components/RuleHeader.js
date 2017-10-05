@@ -7,13 +7,7 @@ class RuleHeader extends Component {
   }
 
   render() {
-    const {
-      source,
-      onSave,
-      timeRange,
-      validationError,
-      onChooseTimeRange,
-    } = this.props
+    const {source, onSave, validationError} = this.props
 
     return (
       <div className="page-header">
@@ -24,9 +18,7 @@ class RuleHeader extends Component {
           <RuleHeaderSave
             source={source}
             onSave={onSave}
-            timeRange={timeRange}
             validationError={validationError}
-            onChooseTimeRange={onChooseTimeRange}
           />
         </div>
       </div>
@@ -40,8 +32,6 @@ RuleHeader.propTypes = {
   source: shape({}).isRequired,
   onSave: func.isRequired,
   validationError: string.isRequired,
-  onChooseTimeRange: func.isRequired,
-  timeRange: shape({}).isRequired,
 }
 
 export default RuleHeader

@@ -28,11 +28,12 @@ const ValuesSection = ({
   timeRange,
   onAddEvery,
   onRemoveEvery,
+  onChooseTrigger,
   onDeadmanChange,
+  onChooseTimeRange,
   queryConfigActions,
   onRuleTypeInputChange,
   onRuleTypeDropdownChange,
-  onChooseTrigger,
 }) =>
   <div className="rule-section">
     <h3 className="rule-section--heading">Alert Type</h3>
@@ -88,6 +89,7 @@ const ValuesSection = ({
               query={query}
               source={source}
               timeRange={timeRange}
+              onChooseTimeRange={onChooseTimeRange}
             />}
       </Tabs>
     </div>
@@ -110,6 +112,7 @@ ValuesSection.propTypes = {
   timeRange: shape({}).isRequired,
   queryConfigActions: shape({}).isRequired,
   source: shape({}).isRequired,
+  onChooseTimeRange: func.isRequired,
 }
 
 export default ValuesSection

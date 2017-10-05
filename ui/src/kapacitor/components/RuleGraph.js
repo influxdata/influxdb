@@ -2,30 +2,34 @@ import React, {PropTypes} from 'react'
 import buildInfluxQLQuery from 'utils/influxql'
 import AutoRefresh from 'shared/components/AutoRefresh'
 import LineGraph from 'shared/components/LineGraph'
+import TimeRangeDropdown from 'shared/components/TimeRangeDropdown'
+
 const RefreshingLineGraph = AutoRefresh(LineGraph)
+
+const {shape, string, func} = PropTypes
 
 export const RuleGraph = React.createClass({
   propTypes: {
-    source: PropTypes.shape({
-      links: PropTypes.shape({
-        proxy: PropTypes.string.isRequired,
+    source: shape({
+      links: shape({
+        proxy: string.isRequired,
       }).isRequired,
     }).isRequired,
-    query: PropTypes.shape({}).isRequired,
-    rule: PropTypes.shape({}).isRequired,
-    timeRange: PropTypes.shape({}).isRequired,
+    query: shape({}).isRequired,
+    rule: shape({}).isRequired,
+    timeRange: shape({}).isRequired,
+    onChooseTimeRange: func.isRequired,
   },
 
   render() {
-    return (
-      <div className="rule-builder--graph">
-        {this.renderGraph()}
-      </div>
-    )
-  },
-
-  renderGraph() {
-    const {query, source, timeRange: {lower}, rule} = this.props
+    const {
+      query,
+      source,
+      timeRange: {lower},
+      timeRange,
+      rule,
+      onChooseTimeRange,
+    } = this.props
     const autoRefreshMs = 30000
     const queryText = buildInfluxQLQuery({lower}, query)
     const queries = [{host: source.links.proxy, text: queryText}]
@@ -42,14 +46,24 @@ export const RuleGraph = React.createClass({
     }
 
     return (
-      <RefreshingLineGraph
-        queries={queries}
-        autoRefresh={autoRefreshMs}
-        underlayCallback={this.createUnderlayCallback()}
-        isGraphFilled={false}
-        overrideLineColors={kapacitorLineColors}
-        ruleValues={rule.values}
-      />
+      <div className="rule-builder--graph">
+        <div className="rule-builder--graph-options">
+          <p>Preview Data from</p>
+          <TimeRangeDropdown
+            onChooseTimeRange={onChooseTimeRange}
+            selected={timeRange}
+            preventCustomTimeRange={true}
+          />
+        </div>
+        <RefreshingLineGraph
+          queries={queries}
+          autoRefresh={autoRefreshMs}
+          underlayCallback={this.createUnderlayCallback()}
+          isGraphFilled={false}
+          overrideLineColors={kapacitorLineColors}
+          ruleValues={rule.values}
+        />
+      </div>
     )
   },
 

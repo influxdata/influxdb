@@ -152,8 +152,6 @@ class KapacitorRule extends Component {
           source={source}
           onSave={isEditing ? this.handleEdit : this.handleCreate}
           validationError={this.validationError()}
-          onChooseTimeRange={this.handleChooseTimeRange}
-          timeRange={timeRange}
         />
         <FancyScrollbar className="page-contents fancy-scroll--kapacitor">
           <div className="container-fluid">
@@ -179,6 +177,7 @@ class KapacitorRule extends Component {
                     onDeadmanChange={this.handleDeadmanChange}
                     onRuleTypeInputChange={this.handleRuleTypeInputChange}
                     onRuleTypeDropdownChange={this.handleRuleTypeDropdownChange}
+                    onChooseTimeRange={this.handleChooseTimeRange}
                   />
                   <RuleMessage
                     rule={rule}
