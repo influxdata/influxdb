@@ -4,14 +4,6 @@ const initialState = {
 
 const dashTimeV1 = (state = initialState, action) => {
   switch (action.type) {
-    case 'LOAD_DEFAULT_DASHBOARD_TIME_V1': {
-      const {dashboardID} = action.payload
-      const timeRange = {upper: null, lower: 'now() - 15m'}
-      const ranges = [...state.ranges, {dashboardID, timeRange}]
-
-      return {...state, ranges}
-    }
-
     case 'ADD_DASHBOARD_TIME_V1': {
       const {dashboardID, timeRange} = action.payload
       const ranges = [...state.ranges, {dashboardID, timeRange}]
