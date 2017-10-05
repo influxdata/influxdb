@@ -13,7 +13,7 @@ const dashTimeV1 = (state = initialState, action) => {
 
     case 'DELETE_DASHBOARD': {
       const {dashboardID} = action.payload
-      const ranges = state.ranges.filter(d => d.id !== dashboardID)
+      const ranges = state.ranges.filter(r => r.dashboardID !== dashboardID)
 
       return {...state, ranges}
     }
