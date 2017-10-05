@@ -28,8 +28,8 @@ export const loadDashboards = (dashboards, dashboardID) => ({
   },
 })
 
-export const setDashTimeV1 = (dashboardID, timeRange) => ({
-  type: 'SET_DASHBOARD_TIME_RANGE_V1',
+export const addDashTimeV1 = (dashboardID, timeRange) => ({
+  type: 'ADD_DASHBOARD_TIME_RANGE_V1',
   payload: {
     dashboardID,
     timeRange,
