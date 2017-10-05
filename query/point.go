@@ -251,6 +251,10 @@ func encodeAux(aux []interface{}) []*internal.Aux {
 			pb[i] = &internal.Aux{DataType: proto.Int32(influxql.Integer), IntegerValue: proto.Int64(v)}
 		case *int64:
 			pb[i] = &internal.Aux{DataType: proto.Int32(influxql.Integer)}
+		case uint64:
+			pb[i] = &internal.Aux{DataType: proto.Int32(influxql.Unsigned), UnsignedValue: proto.Uint64(v)}
+		case *uint64:
+			pb[i] = &internal.Aux{DataType: proto.Int32(influxql.Unsigned)}
 		case string:
 			pb[i] = &internal.Aux{DataType: proto.Int32(influxql.String), StringValue: proto.String(v)}
 		case *string:
@@ -285,6 +289,12 @@ func decodeAux(pb []*internal.Aux) []interface{} {
 				aux[i] = *pb[i].IntegerValue
 			} else {
 				aux[i] = (*int64)(nil)
+			}
+		case influxql.Unsigned:
+			if pb[i].UnsignedValue != nil {
+				aux[i] = *pb[i].UnsignedValue
+			} else {
+				aux[i] = (*uint64)(nil)
 			}
 		case influxql.String:
 			if pb[i].StringValue != nil {
@@ -357,6 +367,8 @@ func (dec *PointDecoder) DecodePoint(p *Point) error {
 
 		if pb.IntegerValue != nil {
 			*p = decodeIntegerPoint(&pb)
+		} else if pb.UnsignedValue != nil {
+			*p = decodeUnsignedPoint(&pb)
 		} else if pb.StringValue != nil {
 			*p = decodeStringPoint(&pb)
 		} else if pb.BooleanValue != nil {
