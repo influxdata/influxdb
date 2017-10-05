@@ -48,8 +48,8 @@ describe.only('Normalizers.DashboardTime', () => {
   })
 
   it('can remove a timeRange when upper and lower bounds are of the wrong type', () => {
-    const badTime = {dashboardID, upper: 2017, lower}
-    const reallyBadTime = {dashboardID, upper, lower: {foo: 'bar'}}
+    const badTime = {dashboardID, upper: [], lower}
+    const reallyBadTime = {dashboardID, upper, lower: {bad: 'time'}}
     const ranges = [timeRange, badTime, reallyBadTime]
 
     const actual = normalizer(ranges)

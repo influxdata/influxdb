@@ -1,3 +1,5 @@
+import _ from 'lodash'
+
 const dashtime = ranges => {
   if (!Array.isArray(ranges)) {
     return []
@@ -27,7 +29,8 @@ const dashtime = ranges => {
       return false
     }
 
-    const isCorrectType = bound => typeof bound === 'string' || bound === null
+    const isCorrectType = bound =>
+      _.isString(bound) || _.isNull(bound) || _.isInteger(bound)
 
     if (!isCorrectType(lower) || !isCorrectType(upper)) {
       return false
