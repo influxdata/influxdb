@@ -198,7 +198,8 @@
   }
 }
 .query-builder--list-item:hover .group-by-tag,
-.query-builder--list-item.active .group-by-tag {
+.query-builder--list-item.active .group-by-tag,
+.query-builder--list-item .group-by-tag.btn-primary {
   visibility: visible;
 }
 .query-builder--db-dropdown {
