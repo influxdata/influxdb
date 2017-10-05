@@ -307,6 +307,12 @@ func TestClient_BasicAuth(t *testing.T) {
 
 func TestClient_Write(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		in, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		} else if have, want := strings.TrimSpace(string(in)), `m0,host=server01 v1=2,v2=2i,v3=2u,v4="foobar",v5=true 0`; have != want {
+			t.Errorf("unexpected write protocol: %s != %s", have, want)
+		}
 		var data client.Response
 		w.WriteHeader(http.StatusNoContent)
 		_ = json.NewEncoder(w).Encode(data)
@@ -320,7 +326,24 @@ func TestClient_Write(t *testing.T) {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
 	}
 
-	bp := client.BatchPoints{}
+	bp := client.BatchPoints{
+		Points: []client.Point{
+			{
+				Measurement: "m0",
+				Tags: map[string]string{
+					"host": "server01",
+				},
+				Time: time.Unix(0, 0).UTC(),
+				Fields: map[string]interface{}{
+					"v1": float64(2),
+					"v2": int64(2),
+					"v3": uint64(2),
+					"v4": "foobar",
+					"v5": true,
+				},
+			},
+		},
+	}
 	r, err := c.Write(bp)
 	if err != nil {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
@@ -721,36 +744,6 @@ func TestClient_NoTimeout(t *testing.T) {
 	_, err = c.Query(query)
 	if err != nil {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
-	}
-}
-
-func TestClient_WriteUint64(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var data client.Response
-		w.WriteHeader(http.StatusNoContent)
-		_ = json.NewEncoder(w).Encode(data)
-	}))
-	defer ts.Close()
-
-	u, _ := url.Parse(ts.URL)
-	config := client.Config{URL: *u}
-	c, err := client.NewClient(config)
-	if err != nil {
-		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
-	}
-	bp := client.BatchPoints{
-		Points: []client.Point{
-			{
-				Fields: map[string]interface{}{"value": uint64(10)},
-			},
-		},
-	}
-	r, err := c.Write(bp)
-	if err == nil {
-		t.Fatalf("unexpected error. expected err, actual %v", err)
-	}
-	if r != nil {
-		t.Fatalf("unexpected response. expected %v, actual %v", nil, r)
 	}
 }
 

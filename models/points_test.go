@@ -40,6 +40,47 @@ func TestMarshal(t *testing.T) {
 	}
 }
 
+func TestMarshalFields(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		value interface{}
+		exp   string
+	}{
+		{
+			name:  "Float",
+			value: float64(2),
+			exp:   `value=2`,
+		},
+		{
+			name:  "Integer",
+			value: int64(2),
+			exp:   `value=2i`,
+		},
+		{
+			name:  "Unsigned",
+			value: uint64(2),
+			exp:   `value=2u`,
+		},
+		{
+			name:  "String",
+			value: "foobar",
+			exp:   `value="foobar"`,
+		},
+		{
+			name:  "Boolean",
+			value: true,
+			exp:   `value=true`,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			fields := map[string]interface{}{"value": tt.value}
+			if have, want := models.Fields(fields).MarshalBinary(), []byte(tt.exp); !bytes.Equal(have, want) {
+				t.Fatalf("unexpected field output: %s != %s", string(have), string(want))
+			}
+		})
+	}
+}
+
 func TestTags_HashKey(t *testing.T) {
 	tags = models.NewTags(map[string]string{"A FOO": "bar", "APPLE": "orange", "host": "serverA", "region": "uswest"})
 	got := tags.HashKey()
