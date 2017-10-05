@@ -13,7 +13,7 @@ const emptyState = undefined
 const dashboardID = 1
 const timeRange = {upper: null, lower: 'now() - 15m'}
 
-describe.only('Dashboards.Reducers.DashTimeV1', () => {
+describe('Dashboards.Reducers.DashTimeV1', () => {
   it('can load initial state', () => {
     const noopAction = () => ({type: 'NOOP'})
     const actual = reducer(emptyState, noopAction)
