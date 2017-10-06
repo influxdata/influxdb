@@ -834,6 +834,35 @@ func TestLimitIterator(t *testing.T) {
 	}
 }
 
+func TestFillIterator_ImplicitStartTime(t *testing.T) {
+	opt := query.IteratorOptions{
+		StartTime: influxql.MinTime,
+		EndTime:   mustParseTime("2000-01-01T01:00:00Z").UnixNano() - 1,
+		Interval: query.Interval{
+			Duration: 20 * time.Minute,
+		},
+		Ascending: true,
+	}
+	start := mustParseTime("2000-01-01T00:00:00Z").UnixNano()
+	itr := query.NewFillIterator(
+		&FloatIterator{Points: []query.FloatPoint{
+			{Time: start, Value: 0},
+		}},
+		nil,
+		opt,
+	)
+
+	if a, err := (Iterators{itr}).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if !deep.Equal(a, [][]query.Point{
+		{&query.FloatPoint{Time: start, Value: 0}},
+		{&query.FloatPoint{Time: start + int64(20*time.Minute), Nil: true}},
+		{&query.FloatPoint{Time: start + int64(40*time.Minute), Nil: true}},
+	}) {
+		t.Fatalf("unexpected points: %s", spew.Sdump(a))
+	}
+}
+
 func TestFillIterator_DST(t *testing.T) {
 	for _, tt := range []struct {
 		name       string
