@@ -1,4 +1,3 @@
-import sinon from 'sinon'
 import normalizer from 'src/normalizers/dashboardTime'
 
 const dashboardID = 1
@@ -6,7 +5,7 @@ const upper = null
 const lower = 'now() - 15m'
 const timeRange = {dashboardID, upper, lower}
 
-describe.only('Normalizers.DashboardTime', () => {
+describe('Normalizers.DashboardTime', () => {
   it('can filter out non-objects', () => {
     const ranges = [1, null, undefined, 'string', timeRange]
 

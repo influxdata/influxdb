@@ -33,22 +33,26 @@ describe('Dashboards.Reducers.DashTimeV1', () => {
     const state = {
       ranges: [{dashboardID, timeRange}],
     }
+    const dashboard = {id: dashboardID}
 
-    const actual = reducer(state, deleteDashboard({}, dashboardID))
+    const actual = reducer(state, deleteDashboard(dashboard))
     const expected = []
 
     expect(actual.ranges).to.deep.equal(expected)
   })
 
-  it('can updated a dashboard time range', () => {
+  it('can update a dashboard time range', () => {
     const state = {
       ranges: [{dashboardID, timeRange}],
     }
 
-    const newTimeRange = {upper: '2017-10-07 12:05', lower: '2017-10-05 12:04'}
+    const {upper, lower} = {
+      upper: '2017-10-07 12:05',
+      lower: '2017-10-05 12:04',
+    }
 
-    const actual = reducer(state, updateDashTimeV1(dashboardID, newTimeRange))
-    const expected = [{dashboardID, timeRange: newTimeRange}]
+    const actual = reducer(state, updateDashTimeV1(dashboardID, {upper, lower}))
+    const expected = [{dashboardID, upper, lower}]
 
     expect(actual.ranges).to.deep.equal(expected)
   })
