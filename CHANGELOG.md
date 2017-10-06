@@ -1,11 +1,10 @@
-## v1.3.9.0 [unreleased]
+## v1.3.9.0 [2017-10-06]
 ### Bug Fixes
-1.[#2004](https://github.com/influxdata/chronograf/pull/2004): Fix DE query templates dropdown disappearance
-1.[#2006](https://github.com/influxdata/chronograf/pull/2006): Fix no alert for duplicate db name
-1.[#2015](https://github.com/influxdata/chronograf/pull/2015): Chronograf shows real status for windows hosts when metrics are saved in non-default db - thank you, @ar7z1!
-1.[#2019](https://github.com/influxdata/chronograf/pull/2006): Fix false error warning for duplicate kapacitor name
-1.[#2018](https://github.com/influxdata/chronograf/pull/2018): Fix unresponsive display options and query builder in dashboards
-1.[#1996](https://github.com/influxdata/chronograf/pull/1996): Able to switch InfluxDB sources on a per graph basis
+1. [#2004](https://github.com/influxdata/chronograf/pull/2004): Fix Data Explorer disappearing query templates in dropdown
+1. [#2006](https://github.com/influxdata/chronograf/pull/2006): Fix missing alert for duplicate db name
+1. [#2015](https://github.com/influxdata/chronograf/pull/2015): Chronograf shows real status for windows hosts when metrics are saved in non-default db - thank you, @ar7z1!
+1. [#2019](https://github.com/influxdata/chronograf/pull/2006): Fix false error warning for duplicate kapacitor name
+1. [#2018](https://github.com/influxdata/chronograf/pull/2018): Fix unresponsive display options and query builder in dashboards
 
 ### Features
 1. [#1885](https://github.com/influxdata/chronograf/pull/1885): Add `fill` options to data explorer and dashboard queries
@@ -13,6 +12,7 @@
 1. [#1721](https://github.com/influxdata/chronograf/pull/1721): Introduce the TICKscript editor UI
 1. [#1992](https://github.com/influxdata/chronograf/pull/1992): Add .csv download button to data explorer
 1. [#2082](https://github.com/influxdata/chronograf/pull/2082): Add Data Explorer InfluxQL query and location query synchronization, so queries can be shared via a a URL
+1. [#1996](https://github.com/influxdata/chronograf/pull/1996): Able to switch InfluxDB sources on a per graph basis
 
 ### UI Improvements
 1. [#2002](https://github.com/influxdata/chronograf/pull/2002): Require a second click when deleting a dashboard cell
