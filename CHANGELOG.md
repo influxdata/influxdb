@@ -5,6 +5,13 @@
 1. [#2015](https://github.com/influxdata/chronograf/pull/2015): Chronograf shows real status for windows hosts when metrics are saved in non-default db - thank you, @ar7z1!
 1. [#2019](https://github.com/influxdata/chronograf/pull/2006): Fix false error warning for duplicate kapacitor name
 1. [#2018](https://github.com/influxdata/chronograf/pull/2018): Fix unresponsive display options and query builder in dashboards
+1.[#2004](https://github.com/influxdata/chronograf/pull/2004): Fix DE query templates dropdown disappearance
+1.[#2006](https://github.com/influxdata/chronograf/pull/2006): Fix no alert for duplicate db name
+1.[#2015](https://github.com/influxdata/chronograf/pull/2015): Chronograf shows real status for windows hosts when metrics are saved in non-default db - thank you, @ar7z1!
+1.[#2019](https://github.com/influxdata/chronograf/pull/2006): Fix false error warning for duplicate kapacitor name
+1.[#2018](https://github.com/influxdata/chronograf/pull/2018): Fix unresponsive display options and query builder in dashboards
+1.[#1996](https://github.com/influxdata/chronograf/pull/1996): Able to switch InfluxDB sources on a per graph basis
+1.[#2083](https://github.com/influxdata/chronograf/pull/2083): Persist dashboard time ranges per dashboard
 
 ### Features
 1. [#1885](https://github.com/influxdata/chronograf/pull/1885): Add `fill` options to data explorer and dashboard queries
