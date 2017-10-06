@@ -654,7 +654,7 @@ func (e *Engine) Backup(w io.Writer, basePath string, since time.Time) error {
 }
 
 // TODO(Adam): this is copied from another branch, needs more work.
-func (e *Engine) Export(w io.Writer, basePath string, since time.Time) error {
+func (e *Engine) Export(w io.Writer, basePath string, start time.Time, end time.Time) error {
 	path, err := e.CreateSnapshot()
 	if err != nil {
 		return err
@@ -699,9 +699,9 @@ func (e *Engine) Export(w io.Writer, basePath string, since time.Time) error {
 			tombstonePath = filepath.Base(r.TombstoneFiles()[0].Path)
 		}
 
-		// Skip this file since it doesn't contain data after cutoff
+		// Skip this file if no overlap with start/end
 		min, max := r.TimeRange()
-		if min < since.UnixNano() && max < since.UnixNano() {
+		if min > end.UnixNano() || max < start.UnixNano() {
 			skip = true
 		}
 

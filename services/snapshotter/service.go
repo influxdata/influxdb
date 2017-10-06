@@ -118,6 +118,10 @@ func (s *Service) handleConn(conn net.Conn) error {
 		if err := s.TSDBStore.BackupShard(r.ShardID, r.Since, conn); err != nil {
 			return err
 		}
+	case RequestShardExport:
+		if err := s.TSDBStore.ExportShard(r.ShardID, r.ExportStart, r.ExportEnd, conn); err != nil {
+			return err
+		}
 	case RequestMetastoreBackup:
 		if err := s.writeMetaStore(conn); err != nil {
 			return err
@@ -273,6 +277,10 @@ const (
 
 	// RequestRetentionPolicyInfo represents a request for retention policy info.
 	RequestRetentionPolicyInfo
+
+	// RequestShardExport represents a request to export Shard data.  Similar to a backup, but shards
+	// may be filtered based on the start/end times on each block.
+	RequestShardExport
 )
 
 // Request represents a request for a specific backup or for information
@@ -283,6 +291,8 @@ type Request struct {
 	RetentionPolicy string
 	ShardID         uint64
 	Since           time.Time
+	ExportStart     time.Time
+	ExportEnd       time.Time
 }
 
 // Response contains the relative paths for all the shards on this server
