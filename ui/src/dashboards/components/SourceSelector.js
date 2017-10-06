@@ -1,8 +1,8 @@
 import React, {PropTypes} from 'react'
 import Dropdown from 'shared/components/Dropdown'
 
-const SourceSelector = ({sources = [], selected, onSetQuerySource}) =>
-  sources.length > 1
+const SourceSelector = ({sources = [], selected, onSetQuerySource, queries}) =>
+  sources.length > 1 && queries.length
     ? <div className="source-selector">
         <h3>Source:</h3>
         <Dropdown
@@ -15,14 +15,15 @@ const SourceSelector = ({sources = [], selected, onSetQuerySource}) =>
           className="dropdown-240"
         />
       </div>
-    : null
+    : <div className="source-selector" />
 
-const {arrayOf, func, shape, string} = PropTypes
+const {array, arrayOf, func, shape, string} = PropTypes
 
 SourceSelector.propTypes = {
   sources: arrayOf(shape()).isRequired,
   onSetQuerySource: func.isRequired,
   selected: string,
+  queries: array,
 }
 
 export default SourceSelector

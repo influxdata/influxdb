@@ -16,13 +16,12 @@ const OverlayControls = ({
   onClickDisplayOptions,
 }) =>
   <div className="overlay-controls">
-    {queries.length
-      ? <SourceSelector
-          sources={sources}
-          selected={selected}
-          onSetQuerySource={onSetQuerySource}
-        />
-      : null}
+    <SourceSelector
+      sources={sources}
+      selected={selected}
+      onSetQuerySource={onSetQuerySource}
+      queries={queries}
+    />
     <ul className="nav nav-tablist nav-tablist-sm">
       <li
         key="queries"
