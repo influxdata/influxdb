@@ -18,7 +18,7 @@ const dashTimeV1 = (state = initialState, action) => {
       return {...state, ranges}
     }
 
-    case 'UPDATE_DASHBOARD_TIME_V1': {
+    case 'SET_DASHBOARD_TIME_V1': {
       const {dashboardID, timeRange} = action.payload
       const exists = state.ranges.find(r => r.dashboardID === dashboardID)
       const {upper, lower} = timeRange

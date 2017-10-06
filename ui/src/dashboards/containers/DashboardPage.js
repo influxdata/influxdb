@@ -84,7 +84,7 @@ class DashboardPage extends Component {
 
   handleChooseTimeRange = ({upper, lower}) => {
     const {params: {dashboardID}, dashboardActions} = this.props
-    dashboardActions.updateDashTimeV1(+dashboardID, {upper, lower})
+    dashboardActions.setDashTimeV1(+dashboardID, {upper, lower})
   }
 
   handleUpdatePosition = cells => {
