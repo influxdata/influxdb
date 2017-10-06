@@ -6,7 +6,7 @@ const dashtime = ranges => {
   }
 
   const normalized = ranges.filter(r => {
-    if (r !== Object(r)) {
+    if (!_.isObject(r)) {
       return false
     }
 
