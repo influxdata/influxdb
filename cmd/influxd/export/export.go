@@ -69,7 +69,9 @@ func (cmd *Command) Run(args ...string) error {
 
 	cmd.StdoutLogger.Printf("EXPORT: db=%s tsStart=%s tsEnd=%s",
 		cmd.database, tsStart, tsEnd)
-	cmd.exportDatabase(tsStart, tsEnd)
+	if err := cmd.exportDatabase(tsStart, tsEnd); err != nil {
+		cmd.StderrLogger.Printf("export failed: %s", err)
+	}
 	return nil
 }
 
@@ -159,12 +161,12 @@ func (cmd *Command) exportDatabase(tsStart, tsEnd time.Time) error {
 		Type:     snapshotter.RequestDatabaseInfo,
 		Database: cmd.database,
 	}
-
+	cmd.StdoutLogger.Println("made it to before the export response paths")
 	response, err := cmd.requestInfo(req)
 	if err != nil {
 		return err
 	}
-
+	cmd.StdoutLogger.Println("made it to the export response paths")
 	return cmd.exportResponsePaths(response, tsStart, tsEnd)
 }
 

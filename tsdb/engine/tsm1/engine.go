@@ -676,14 +676,15 @@ func (e *Engine) Export(w io.Writer, basePath string, start time.Time, end time.
 		return err
 	}
 
-	// Filter paths to only changed files.
+	// filtered is different here, these are files we need to trim based on timestamps.
+	// whole is an optimisation: if a TSM is fully contained in the range, then we keep the whole thing.
 	var filtered []string
+	var whole []string
 	for _, file := range files {
 		if !strings.HasSuffix(file, ".tsm") {
 			continue
 		}
 
-		var skip bool
 		var tombstonePath string
 		f, err := os.Open(filepath.Join(path, file))
 		if err != nil {
@@ -702,18 +703,24 @@ func (e *Engine) Export(w io.Writer, basePath string, start time.Time, end time.
 		// Skip this file if no overlap with start/end
 		min, max := r.TimeRange()
 		if min > end.UnixNano() || max < start.UnixNano() {
-			skip = true
+			r.Close()
+			continue
 		}
 
 		r.Close()
 
-		if skip {
-			continue
-		}
+		if min > start.UnixNano() && max < end.UnixNano() {
+			whole = append(filtered, file)
+			if tombstonePath != "" {
+				filtered = append(filtered, tombstonePath)
+			}
+		} else {
+			// at this point, we know we're not totally outside or inside start and end so we'll need to scan the blocks
+			filtered = append(filtered, file)
 
-		filtered = append(filtered, file)
-		if tombstonePath != "" {
-			filtered = append(filtered, tombstonePath)
+			if tombstonePath != "" {
+				filtered = append(filtered, tombstonePath)
+			}
 		}
 	}
 	if len(filtered) == 0 {
@@ -721,12 +728,80 @@ func (e *Engine) Export(w io.Writer, basePath string, start time.Time, end time.
 	}
 
 	for _, f := range filtered {
+		if err := e.filterFileToBackup(f, basePath, filepath.Join(path, f), tw); err != nil {
+			return err
+		}
+	}
+
+	for _, f := range whole {
 		if err := e.writeFileToBackup(f, basePath, filepath.Join(path, f), tw); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func (e *Engine) filterFileToBackup(name, shardRelativePath, fullPath string, start time.Time, end time.Time, tw *tar.Writer) error {
+	f, err := os.Stat(fullPath)
+	if err != nil {
+		return err
+	}
+
+	h := &tar.Header{
+		Name:    filepath.ToSlash(filepath.Join(shardRelativePath, name)),
+		ModTime: f.ModTime(),
+		Size:    f.Size(),
+		Mode:    int64(f.Mode()),
+	}
+	if err := tw.WriteHeader(h); err != nil {
+		return err
+	}
+	fr, err := os.Open(fullPath)
+	if err != nil {
+		return err
+	}
+
+	defer fr.Close()
+
+	// TODO (Adam):  instead of io.copy as in writeFileToBackup, we will need to:
+	// 1.  write a new tsm file header (variation of existing?)
+	// 2.  write the blocks we want to keep
+	// 3.  write an index?????
+	// 4.  write a footer
+
+	// will probably need most of this
+
+	w, err := NewTSMWriter(tw)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		closeErr := w.Close()
+		if err == nil {
+			err = closeErr
+		}
+
+		// Check for errors where we should not remove the file
+		_, inProgress := err.(errCompactionInProgress)
+		maxBlocks := err == ErrMaxBlocksExceeded
+		maxFileSize := err == errMaxFileExceeded
+		if inProgress || maxBlocks || maxFileSize {
+			return
+		}
+
+		if err != nil {
+			w.Remove()
+		}
+	}()
+
+	// implicit else: here we iterate over the blocks and only keep the ones we really want.
+	var bi *BlockIterator
+	bi = r.BlockIterator()
+
+	bi.Next()
+
+	return err
 }
 
 // writeFileToBackup copies the file into the tar archive. Files will use the shardRelativePath
