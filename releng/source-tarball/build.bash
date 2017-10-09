@@ -9,8 +9,6 @@ Emits a tarball of influxdb source code and dependencies to OUTDIR.
 
 If using -p flag, directory containing influxdb source code will be used as source of truth.
 This is helpful if you have local commits that have not been pushed.
-
-If not using -p, you must provide -S to clone over SSH.
 "
 }
 
@@ -31,7 +29,7 @@ OUTDIR=""
 INFLUXDB_GIT_MOUNT=""
 
 
-while getopts hs:b:v:o:p:S: arg; do
+while getopts hs:b:v:o:p: arg; do
   case "$arg" in
     h) printHelp; exit 1;;
     s) SHA="$OPTARG";;
