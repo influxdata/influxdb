@@ -82,7 +82,7 @@ func (h *Service) SourceUsers(w http.ResponseWriter, r *http.Request) {
 		ur[i] = *usr
 	}
 
-	res := usersResponse{
+	res := sourceUsersResponse{
 		Users: ur,
 	}
 
@@ -240,7 +240,7 @@ func (r *sourceUserRequest) ValidCreate() error {
 	return validPermissions(&r.Permissions)
 }
 
-type usersResponse struct {
+type sourceUsersResponse struct {
 	Users []sourceUserResponse `json:"users"`
 }
 

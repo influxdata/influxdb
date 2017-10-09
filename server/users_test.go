@@ -371,6 +371,86 @@ func TestService_UpdateUser(t *testing.T) {
 	}
 }
 
+func TestService_Users(t *testing.T) {
+	type fields struct {
+		UsersStore chronograf.UsersStore
+		Logger     chronograf.Logger
+	}
+	type args struct {
+		w *httptest.ResponseRecorder
+		r *http.Request
+	}
+	tests := []struct {
+		name            string
+		fields          fields
+		args            args
+		wantStatus      int
+		wantContentType string
+		wantBody        string
+	}{
+		{
+			name: "Get all Chronograf users",
+			fields: fields{
+				Logger: log.New(log.DebugLevel),
+				UsersStore: &mocks.UsersStore{
+					AllF: func(ctx context.Context) ([]chronograf.User, error) {
+						return []chronograf.User{
+							{
+								ID:       1337,
+								Name:     "billysteve",
+								Provider: "Google",
+								Scheme:   "OAuth2",
+							},
+							{
+								ID:       1338,
+								Name:     "bobbettastuhvetta",
+								Provider: "Auth0",
+								Scheme:   "LDAP",
+							},
+						}, nil
+					},
+				},
+			},
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					"GET",
+					"http://any.url", // can be any valid URL as we are bypassing mux
+					nil,
+				),
+			},
+			wantStatus:      http.StatusOK,
+			wantContentType: "application/json",
+			wantBody:        `{"users":[{"id":1337,"name":"billysteve","provider":"Google","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1337"}},{"id":1338,"name":"bobbettastuhvetta","provider":"Auth0","scheme":"LDAP","links":{"self":"/chronograf/v1/users/1338"}}],"links":{"self":"/chronograf/v1/users"}}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &Service{
+				UsersStore: tt.fields.UsersStore,
+				Logger:     tt.fields.Logger,
+			}
+
+			s.Users(tt.args.w, tt.args.r)
+
+			resp := tt.args.w.Result()
+			content := resp.Header.Get("Content-Type")
+			body, _ := ioutil.ReadAll(resp.Body)
+
+			if resp.StatusCode != tt.wantStatus {
+				t.Errorf("%q. Users() = %v, want %v", tt.name, resp.StatusCode, tt.wantStatus)
+			}
+			if tt.wantContentType != "" && content != tt.wantContentType {
+				t.Errorf("%q. Users() = %v, want %v", tt.name, content, tt.wantContentType)
+			}
+			if eq, _ := jsonEqual(string(body), tt.wantBody); tt.wantBody != "" && !eq {
+				t.Errorf("%q. Users() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wantBody)
+			}
+		})
+	}
+}
+
 func jsonEqual(s1, s2 string) (eq bool, err error) {
 	var o1, o2 interface{}
 

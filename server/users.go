@@ -57,6 +57,24 @@ func newUserResponse(u *chronograf.User) *userResponse {
 	}
 }
 
+type usersResponse struct {
+	Links selfLinks       `json:"links"`
+	Users []*userResponse `json:"users"`
+}
+
+func newUsersResponse(users []chronograf.User) *usersResponse {
+	usersResp := make([]*userResponse, len(users))
+	for i, user := range users {
+		usersResp[i] = newUserResponse(&user)
+	}
+	return &usersResponse{
+		Users: usersResp,
+		Links: selfLinks{
+			Self: "/chronograf/v1/users",
+		},
+	}
+}
+
 func (s *Service) UserID(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -150,4 +168,17 @@ func (s *Service) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	cu := newUserResponse(u)
 	w.Header().Add("Location", cu.Links.Self)
 	encodeJSON(w, http.StatusOK, cu, s.Logger)
+}
+
+func (s *Service) Users(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	users, err := s.UsersStore.All(ctx)
+	if err != nil {
+		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
+		return
+	}
+
+	res := newUsersResponse(users)
+	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
