@@ -411,7 +411,10 @@ DashboardPage.propTypes = {
   handleChooseAutoRefresh: func.isRequired,
   autoRefresh: number.isRequired,
   templateControlBarVisibilityToggled: func.isRequired,
-  timeRange: shape({}),
+  timeRange: shape({
+    upper: string,
+    lower: string,
+  }),
   showTemplateControlBar: bool.isRequired,
   inPresentationMode: bool.isRequired,
   handleClickPresentationButton: func,
