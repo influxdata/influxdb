@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -74,8 +75,10 @@ func (cmd *Command) Run(args ...string) error {
 	start := time.Now()
 
 	tw := tabwriter.NewWriter(cmd.Stdout, 8, 2, 1, ' ', 0)
-	fmt.Fprintln(tw, strings.Join([]string{"DB", "RP", "Shard", "File", "Series", "New" + estTitle, "Load Time"}, "\t"))
+	fmt.Fprintln(tw, strings.Join([]string{"DB", "RP", "Shard", "File", "Series", "New" + estTitle, "Min Time", "Max Time", "Load Time"}, "\t"))
 
+	minTime, maxTime := int64(math.MaxInt64), int64(math.MinInt64)
+	var fileCount int
 	if err := cmd.WalkShardDirs(cmd.dir, func(db, rp, id, path string) error {
 		if cmd.pattern != "" && strings.Contains(path, cmd.pattern) {
 			return nil
@@ -94,6 +97,7 @@ func (cmd *Command) Run(args ...string) error {
 			return nil
 		}
 		loadTime := time.Since(loadStart)
+		fileCount++
 
 		dbCount := dbCardinalities[db]
 		if dbCount == nil {
@@ -138,6 +142,13 @@ func (cmd *Command) Run(args ...string) error {
 				}
 			}
 		}
+		minT, maxT := reader.TimeRange()
+		if minT < minTime {
+			minTime = minT
+		}
+		if maxT > maxTime {
+			maxTime = maxT
+		}
 		reader.Close()
 
 		fmt.Fprintln(tw, strings.Join([]string{
@@ -145,7 +156,8 @@ func (cmd *Command) Run(args ...string) error {
 			filepath.Base(file.Name()),
 			strconv.FormatInt(int64(seriesCount), 10),
 			strconv.FormatInt(int64(dbCount.Count()-oldCount), 10),
-
+			time.Unix(0, minT).UTC().Format(time.RFC3339Nano),
+			time.Unix(0, maxT).UTC().Format(time.RFC3339Nano),
 			loadTime.String(),
 		}, "\t"))
 		if cmd.detailed {
@@ -158,6 +170,16 @@ func (cmd *Command) Run(args ...string) error {
 
 	tw.Flush()
 	println()
+
+	println("Summary:")
+	fmt.Printf("  Files: %d\n", fileCount)
+	fmt.Printf("  Time Range: %s - %s\n",
+		time.Unix(0, minTime).UTC().Format(time.RFC3339Nano),
+		time.Unix(0, maxTime).UTC().Format(time.RFC3339Nano),
+	)
+	fmt.Printf("  Duration: %s \n", time.Unix(0, maxTime).Sub(time.Unix(0, minTime)))
+	println()
+
 	fmt.Printf("Statistics\n")
 	fmt.Printf("  Series:\n")
 	for db, counts := range dbCardinalities {
