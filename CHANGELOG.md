@@ -1,3 +1,9 @@
+## v1.3.10.0 [unreleased]
+### Bug Fixes
+1. [#2095](https://github.com/influxdata/chronograf/pull/2095): Improve the copy in the retention policy edit page
+### Features
+### UI Improvements
+
 ## v1.3.9.0 [2017-10-06]
 ### Bug Fixes
 1. [#2004](https://github.com/influxdata/chronograf/pull/2004): Fix Data Explorer disappearing query templates in dropdown
