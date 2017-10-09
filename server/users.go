@@ -91,6 +91,7 @@ func newUsersResponse(users []chronograf.User) *usersResponse {
 	}
 }
 
+// UserID retrieves a Chronograf user with ID from store
 func (s *Service) UserID(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -105,6 +106,7 @@ func (s *Service) UserID(w http.ResponseWriter, r *http.Request) {
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
 
+// NewUser adds a new Chronograf user to store
 func (s *Service) NewUser(w http.ResponseWriter, r *http.Request) {
 	var req userRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -135,6 +137,7 @@ func (s *Service) NewUser(w http.ResponseWriter, r *http.Request) {
 	encodeJSON(w, http.StatusCreated, cu, s.Logger)
 }
 
+// RemoveUser deletes a Chronograf user from store
 func (s *Service) RemoveUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id := httprouter.GetParamFromContext(ctx, "id")
@@ -150,6 +153,7 @@ func (s *Service) RemoveUser(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// UpdateUser updates a Chronograf user in store
 func (s *Service) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	var req userRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -186,6 +190,7 @@ func (s *Service) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	encodeJSON(w, http.StatusOK, cu, s.Logger)
 }
 
+// Users retrieves all Chronograf users from store
 func (s *Service) Users(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
