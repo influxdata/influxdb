@@ -198,7 +198,12 @@ func (cmd *Command) isShardDir(dir string) error {
 }
 
 func (cmd *Command) WalkShardDirs(root string, fn func(db, rp, id, path string) error) error {
-	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+	type location struct {
+		db, rp, id, path string
+	}
+
+	var dirs []location
+	if err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -219,11 +224,26 @@ func (cmd *Command) WalkShardDirs(root string, fn func(db, rp, id, path string) 
 			}
 			parts := strings.Split(absPath, string(filepath.Separator))
 			db, rp, id := parts[len(parts)-4], parts[len(parts)-3], parts[len(parts)-2]
-
-			return fn(db, rp, id, path)
+			dirs = append(dirs, location{db: db, rp: rp, id: id, path: path})
+			return nil
 		}
 		return nil
+	}); err != nil {
+		return err
+	}
+
+	sort.Slice(dirs, func(i, j int) bool {
+		a, _ := strconv.Atoi(dirs[i].id)
+		b, _ := strconv.Atoi(dirs[j].id)
+		return a < b
 	})
+
+	for _, shard := range dirs {
+		if err := fn(shard.db, shard.rp, shard.id, shard.path); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // printUsage prints the usage message to STDERR.
