@@ -696,7 +696,32 @@ func TestServer_Write_LineProtocol_Integer(t *testing.T) {
 	}
 
 	now := now()
-	if res, err := s.Write("db0", "rp0", `cpu,host=server01 value=100 `+strconv.FormatInt(now.UnixNano(), 10), nil); err != nil {
+	if res, err := s.Write("db0", "rp0", `cpu,host=server01 value=100i `+strconv.FormatInt(now.UnixNano(), 10), nil); err != nil {
+		t.Fatal(err)
+	} else if exp := ``; exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+
+	// Verify the data was written.
+	if res, err := s.Query(`SELECT * FROM db0.rp0.cpu GROUP BY *`); err != nil {
+		t.Fatal(err)
+	} else if exp := fmt.Sprintf(`{"results":[{"statement_id":0,"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value"],"values":[["%s",100]]}]}]}`, now.Format(time.RFC3339Nano)); exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+}
+
+// Ensure the server can create a single point via line protocol with unsigned type and read it back.
+func TestServer_Write_LineProtocol_Unsigned(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 1*time.Hour), true); err != nil {
+		t.Fatal(err)
+	}
+
+	now := now()
+	if res, err := s.Write("db0", "rp0", `cpu,host=server01 value=100u `+strconv.FormatInt(now.UnixNano(), 10), nil); err != nil {
 		t.Fatal(err)
 	} else if exp := ``; exp != res {
 		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
@@ -8913,4 +8938,9 @@ func TestServer_NestedAggregateWithMathPanics(t *testing.T) {
 			}
 		})
 	}
+}
+
+func init() {
+	// Force uint support to be enabled for testing.
+	models.EnableUintSupport()
 }
