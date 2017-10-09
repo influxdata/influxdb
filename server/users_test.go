@@ -423,6 +423,41 @@ func TestService_Users(t *testing.T) {
 			wantContentType: "application/json",
 			wantBody:        `{"users":[{"id":1337,"name":"billysteve","provider":"Google","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1337"}},{"id":1338,"name":"bobbettastuhvetta","provider":"Auth0","scheme":"LDAP","links":{"self":"/chronograf/v1/users/1338"}}],"links":{"self":"/chronograf/v1/users"}}`,
 		},
+		{
+			name: "Get all Chronograf users, ensuring order of users in response",
+			fields: fields{
+				Logger: log.New(log.DebugLevel),
+				UsersStore: &mocks.UsersStore{
+					AllF: func(ctx context.Context) ([]chronograf.User, error) {
+						return []chronograf.User{
+							{
+								ID:       1338,
+								Name:     "bobbettastuhvetta",
+								Provider: "Auth0",
+								Scheme:   "LDAP",
+							},
+							{
+								ID:       1337,
+								Name:     "billysteve",
+								Provider: "Google",
+								Scheme:   "OAuth2",
+							},
+						}, nil
+					},
+				},
+			},
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					"GET",
+					"http://any.url", // can be any valid URL as we are bypassing mux
+					nil,
+				),
+			},
+			wantStatus:      http.StatusOK,
+			wantContentType: "application/json",
+			wantBody:        `{"users":[{"id":1337,"name":"billysteve","provider":"Google","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1337"}},{"id":1338,"name":"bobbettastuhvetta","provider":"Auth0","scheme":"LDAP","links":{"self":"/chronograf/v1/users/1338"}}],"links":{"self":"/chronograf/v1/users"}}`,
+		},
 	}
 
 	for _, tt := range tests {

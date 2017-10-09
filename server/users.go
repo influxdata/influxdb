@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 
 	"github.com/bouk/httprouter"
 	"github.com/influxdata/chronograf"
@@ -62,11 +63,26 @@ type usersResponse struct {
 	Users []*userResponse `json:"users"`
 }
 
+type usersResponseSlice []*userResponse
+
+func (u usersResponseSlice) Len() int {
+	return len(u)
+}
+
+func (u usersResponseSlice) Less(i, j int) bool {
+	return u[i].ID < u[j].ID
+}
+
+func (u usersResponseSlice) Swap(i, j int) {
+	u[i], u[j] = u[j], u[i]
+}
+
 func newUsersResponse(users []chronograf.User) *usersResponse {
-	usersResp := make([]*userResponse, len(users))
+	usersResp := make(usersResponseSlice, len(users))
 	for i, user := range users {
 		usersResp[i] = newUserResponse(&user)
 	}
+	sort.Sort(usersResp)
 	return &usersResponse{
 		Users: usersResp,
 		Links: selfLinks{
