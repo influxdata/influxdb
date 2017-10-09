@@ -43,6 +43,16 @@ const (
 	MaxKeyLength = 65535
 )
 
+// enableUint64Support will enable uint64 support if set to true.
+var enableUint64Support = false
+
+// EnableUintSupport manually enables uint support for the point parser.
+// This function will be removed in the future and only exists for unit tests during the
+// transition.
+func EnableUintSupport() {
+	enableUint64Support = true
+}
+
 // Point defines the values that will be written to the database.
 type Point interface {
 	// Name return the measurement name for the point.
@@ -223,6 +233,9 @@ const (
 
 	// the number of characters for the smallest possible int64 (-9223372036854775808)
 	minInt64Digits = 20
+
+	// the number of characters for the largest possible uint64 (18446744073709551615)
+	maxUint64Digits = 20
 
 	// the number of characters required for the largest float64 before a range check
 	// would occur during parsing
@@ -827,7 +840,7 @@ func isNumeric(b byte) bool {
 // error if a invalid number is scanned.
 func scanNumber(buf []byte, i int) (int, error) {
 	start := i
-	var isInt bool
+	var isInt, isUnsigned bool
 
 	// Is negative number?
 	if i < len(buf) && buf[i] == '-' {
@@ -853,8 +866,12 @@ func scanNumber(buf []byte, i int) (int, error) {
 			break
 		}
 
-		if buf[i] == 'i' && i > start && !isInt {
+		if buf[i] == 'i' && i > start && !(isInt || isUnsigned) {
 			isInt = true
+			i++
+			continue
+		} else if buf[i] == 'u' && i > start && !(isInt || isUnsigned) {
+			isUnsigned = true
 			i++
 			continue
 		}
@@ -891,7 +908,7 @@ func scanNumber(buf []byte, i int) (int, error) {
 		i++
 	}
 
-	if isInt && (decimal || scientific) {
+	if (isInt || isUnsigned) && (decimal || scientific) {
 		return i, ErrInvalidNumber
 	}
 
@@ -924,6 +941,26 @@ func scanNumber(buf []byte, i int) (int, error) {
 		if len(buf[start:i-1]) >= maxInt64Digits || len(buf[start:i-1]) >= minInt64Digits {
 			if _, err := parseIntBytes(buf[start:i-1], 10, 64); err != nil {
 				return i, fmt.Errorf("unable to parse integer %s: %s", buf[start:i-1], err)
+			}
+		}
+	} else if isUnsigned {
+		// Return an error if uint64 support has not been enabled.
+		if !enableUint64Support {
+			return i, ErrInvalidNumber
+		}
+		// Make sure the last char is a 'u' for unsigned
+		if buf[i-1] != 'u' {
+			return i, ErrInvalidNumber
+		}
+		// Make sure the first char is not a '-' for unsigned
+		if buf[start] == '-' {
+			return i, ErrInvalidNumber
+		}
+		// Parse the uint to check bounds the number of digits could be larger than the max range
+		// We subtract 1 from the index to remove the `u` from our tests
+		if len(buf[start:i-1]) >= maxUint64Digits {
+			if _, err := parseUintBytes(buf[start:i-1], 10, 64); err != nil {
+				return i, fmt.Errorf("unable to parse unsigned %s: %s", buf[start:i-1], err)
 			}
 		}
 	} else {
@@ -2118,9 +2155,12 @@ func (p *point) Next() bool {
 		return true
 	}
 
-	if strings.IndexByte(`0123456789-.nNiI`, c) >= 0 {
+	if strings.IndexByte(`0123456789-.nNiIu`, c) >= 0 {
 		if p.it.valueBuf[len(p.it.valueBuf)-1] == 'i' {
 			p.it.fieldType = Integer
+			p.it.valueBuf = p.it.valueBuf[:len(p.it.valueBuf)-1]
+		} else if p.it.valueBuf[len(p.it.valueBuf)-1] == 'u' {
+			p.it.fieldType = Unsigned
 			p.it.valueBuf = p.it.valueBuf[:len(p.it.valueBuf)-1]
 		} else {
 			p.it.fieldType = Float
