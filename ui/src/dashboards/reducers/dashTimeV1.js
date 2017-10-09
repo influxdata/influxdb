@@ -1,3 +1,4 @@
+import _ from 'lodash'
 const initialState = {
   ranges: [],
 }
@@ -19,20 +20,9 @@ const dashTimeV1 = (state = initialState, action) => {
     }
 
     case 'SET_DASHBOARD_TIME_V1': {
-      const {dashboardID, timeRange} = action.payload
-      const exists = state.ranges.find(r => r.dashboardID === dashboardID)
-      const {upper, lower} = timeRange
-
-      if (!exists) {
-        return {
-          ...state,
-          ranges: [...state.ranges, {dashboardID, upper, lower}],
-        }
-      }
-
-      const ranges = state.ranges.map(
-        d => (d.dashboardID === dashboardID ? {dashboardID, upper, lower} : d)
-      )
+      const {dashboardID, timeRange: {upper, lower}} = action.payload
+      const newTimeRange = [{dashboardID, upper, lower}]
+      const ranges = _.unionBy(newTimeRange, state.ranges, 'dashboardID')
 
       return {...state, ranges}
     }
