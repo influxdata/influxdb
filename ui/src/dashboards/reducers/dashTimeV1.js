@@ -20,8 +20,8 @@ const dashTimeV1 = (state = initialState, action) => {
     }
 
     case 'SET_DASHBOARD_TIME_V1': {
-      const {dashboardID, timeRange: {upper, lower, format}} = action.payload
-      const newTimeRange = [{dashboardID, upper, lower, format}]
+      const {dashboardID, timeRange} = action.payload
+      const newTimeRange = [{dashboardID, ...timeRange}]
       const ranges = _.unionBy(newTimeRange, state.ranges, 'dashboardID')
 
       return {...state, ranges}

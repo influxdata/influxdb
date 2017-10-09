@@ -156,7 +156,7 @@ describe('buildInfluxQLQuery', () => {
 
     it('builds the right query', () => {
       const expected =
-        'SELECT min("value") AS "min_value" FROM "db1"."rp1"."m0" WHERE time > now() - 12h GROUP BY time(10m), "t1", "t2"'
+        'SELECT min("value") AS "min_value" FROM "db1"."rp1"."m0" WHERE time > now() - 12h GROUP BY time(10m), "t1", "t2" FILL(null)'
       expect(buildInfluxQLQuery(timeBounds, config)).to.equal(expected)
     })
   })
