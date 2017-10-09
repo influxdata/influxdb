@@ -23,7 +23,12 @@ import {
 } from 'shared/actions/app'
 import {presentationButtonDispatcher} from 'shared/dispatchers'
 
-const defaultTimeRange = {upper: null, lower: 'now() - 15m'}
+const FORMAT_INFLUXQL = 'influxql'
+const defaultTimeRange = {
+  upper: null,
+  lower: 'now() - 15m',
+  format: FORMAT_INFLUXQL,
+}
 
 class DashboardPage extends Component {
   constructor(props) {
@@ -92,6 +97,7 @@ class DashboardPage extends Component {
     dashboardActions.setDashTimeV1(dashboard.id, {
       upper,
       lower,
+      format: FORMAT_INFLUXQL,
     })
   }
 
