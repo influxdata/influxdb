@@ -1,3 +1,4 @@
+import _ from 'lodash'
 import normalizer from 'src/normalizers/dashboardTime'
 
 export const loadLocalStorage = errorsQueue => {
@@ -19,7 +20,7 @@ export const loadLocalStorage = errorsQueue => {
         return {}
       }
 
-      const ranges = normalizer(state.dashTimeV1.ranges)
+      const ranges = normalizer(_.get(state, ['dashTimeV1', 'ranges'], []))
       const dashTimeV1 = {ranges}
 
       window.localStorage.setItem(
