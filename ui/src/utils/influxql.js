@@ -5,6 +5,7 @@ import {
   DEFAULT_DASHBOARD_GROUP_BY_INTERVAL,
 } from 'shared/constants'
 import {NULL_STRING} from 'shared/constants/queryFillOptions'
+import {TYPE_QUERY_CONFIG, TYPE_IFQL} from 'src/dashboards/constants'
 import timeRanges from 'hson!shared/data/timeRanges.hson'
 
 /* eslint-disable quotes */
@@ -21,13 +22,9 @@ export const quoteIfTimestamp = ({lower, upper}) => {
 }
 /* eslint-enable quotes */
 
-export default function buildInfluxQLQuery(
-  timeBounds,
-  config,
-  isKapacitorRule
-) {
+export default function buildInfluxQLQuery(timeRange, config) {
   const {groupBy, fill = NULL_STRING, tags, areTagsAccepted} = config
-  const {upper, lower} = quoteIfTimestamp(timeBounds)
+  const {upper, lower} = quoteIfTimestamp(timeRange)
 
   const select = _buildSelect(config)
   if (select === null) {
@@ -36,7 +33,7 @@ export default function buildInfluxQLQuery(
 
   const condition = _buildWhereClause({lower, upper, tags, areTagsAccepted})
   const dimensions = _buildGroupBy(groupBy)
-  const fillClause = isKapacitorRule || !groupBy.time ? '' : _buildFill(fill)
+  const fillClause = groupBy.time ? _buildFill(fill) : ''
 
   return `${select}${condition}${dimensions}${fillClause}`
 }
@@ -51,6 +48,21 @@ function _buildSelect({fields, database, retentionPolicy, measurement}) {
   const fullyQualifiedMeasurement = `"${database}".${rpSegment}."${measurement}"`
   const statement = `SELECT ${fieldsClause} FROM ${fullyQualifiedMeasurement}`
   return statement
+}
+
+// type arg will reason about new query types i.e. IFQL, GraphQL, or queryConfig
+export const buildQuery = (type, timeRange, config) => {
+  switch (type) {
+    case `${TYPE_QUERY_CONFIG}`: {
+      return buildInfluxQLQuery(timeRange, config)
+    }
+
+    case `${TYPE_IFQL}`: {
+      // build query usining IFQL here
+    }
+  }
+
+  return buildInfluxQLQuery(timeRange, config)
 }
 
 export function buildSelectStatement(config) {

@@ -1,9 +1,11 @@
-import buildInfluxQLQuery from 'utils/influxql'
+import {buildQuery} from 'utils/influxql'
+import {TYPE_QUERY_CONFIG} from 'src/dashboards/constants'
 
 const buildQueries = (proxy, queryConfigs, timeRange) => {
   const statements = queryConfigs.map(query => {
     const text =
-      query.rawText || buildInfluxQLQuery(query.range || timeRange, query)
+      query.rawText ||
+      buildQuery(TYPE_QUERY_CONFIG, query.range || timeRange, query)
     return {text, id: query.id, queryConfig: query}
   })
 

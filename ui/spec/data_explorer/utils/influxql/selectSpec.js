@@ -1,7 +1,8 @@
-import buildInfluxQLQuery from 'utils/influxql'
+import buildInfluxQLQuery, {buildQuery} from 'utils/influxql'
 import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 
 import {NONE, NULL_STRING} from 'shared/constants/queryFillOptions'
+import {TYPE_QUERY_CONFIG} from 'src/dashboards/constants'
 
 function mergeConfig(options) {
   return Object.assign({}, defaultQueryConfig(123), options)
@@ -155,7 +156,7 @@ describe('buildInfluxQLQuery', () => {
 
     it('builds the right query', () => {
       const expected =
-        'SELECT min("value") AS "min_value" FROM "db1"."rp1"."m0" WHERE time > now() - 12h GROUP BY time(10m), "t1", "t2" FILL(null)'
+        'SELECT min("value") AS "min_value" FROM "db1"."rp1"."m0" WHERE time > now() - 12h GROUP BY time(10m), "t1", "t2"'
       expect(buildInfluxQLQuery(timeBounds, config)).to.equal(expected)
     })
   })
@@ -269,6 +270,27 @@ describe('buildInfluxQLQuery', () => {
           'SELECT min("value") AS "min_value" FROM "db1"."rp1"."m0" WHERE time > now() - 12h GROUP BY time(10m), "t1", "t2" FILL(1337)'
         expect(buildInfluxQLQuery(timeBounds, config)).to.equal(expected)
       })
+    })
+  })
+
+  describe('build query', () => {
+    beforeEach(() => {
+      config = mergeConfig({
+        database: 'db1',
+        measurement: 'm1',
+        retentionPolicy: 'rp1',
+        fields: [{field: 'f1', func: null}],
+        groupBy: {time: '10m', tags: []},
+      })
+    })
+
+    it('builds an influxql relative time bound query', () => {
+      const timeRange = {upper: null, lower: 'now() - 15m'}
+      const expected =
+        'SELECT "f1" FROM "db1"."rp1"."m1" WHERE time > now() - 15m GROUP BY time(10m) FILL(null)'
+      const actual = buildQuery(TYPE_QUERY_CONFIG, timeRange, config)
+
+      expect(actual).to.equal(expected)
     })
   })
 })
