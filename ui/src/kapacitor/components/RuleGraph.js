@@ -67,6 +67,21 @@ export const RuleGraph = React.createClass({
     )
   },
 
+  _getFillColor(operator) {
+    const backgroundColor = 'rgba(41, 41, 51, 1)'
+    const highlightColor = 'rgba(78, 216, 160, 0.3)'
+
+    if (operator === 'outside range') {
+      return backgroundColor
+    }
+
+    if (operator === 'not equal to') {
+      return backgroundColor
+    }
+
+    return highlightColor
+  },
+
   createUnderlayCallback() {
     const {rule} = this.props
     return (canvas, area, dygraph) => {
@@ -93,12 +108,22 @@ export const RuleGraph = React.createClass({
           break
         }
 
-        case 'not equal to':
         case 'equal to': {
           const width =
             theOnePercent * (dygraph.yAxisRange()[1] - dygraph.yAxisRange()[0])
           highlightStart = +rule.values.value - width
           highlightEnd = +rule.values.value + width
+          break
+        }
+
+        case 'not equal to': {
+          const width =
+            theOnePercent * (dygraph.yAxisRange()[1] - dygraph.yAxisRange()[0])
+          highlightStart = +rule.values.value - width
+          highlightEnd = +rule.values.value + width
+
+          canvas.fillStyle = 'rgba(78, 216, 160, 0.3)'
+          canvas.fillRect(area.x, area.y, area.w, area.h)
           break
         }
 
@@ -122,10 +147,8 @@ export const RuleGraph = React.createClass({
       const bottom = dygraph.toDomYCoord(highlightStart)
       const top = dygraph.toDomYCoord(highlightEnd)
 
-      canvas.fillStyle =
-        rule.values.operator === 'outside range'
-          ? 'rgba(41, 41, 51, 1)'
-          : 'rgba(78, 216, 160, 0.3)'
+      const fillColor = this._getFillColor(rule.values.operator)
+      canvas.fillStyle = fillColor
       canvas.fillRect(area.x, top, area.w, bottom - top)
     }
   },
