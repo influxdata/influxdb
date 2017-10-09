@@ -13,6 +13,7 @@ import Dashboard from 'src/dashboards/components/Dashboard'
 import TemplateVariableManager from 'src/dashboards/components/template_variables/Manager'
 
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
+import idNormalizer, {TYPE_ID} from 'src/normalizers/id'
 
 import * as dashboardActionCreators from 'src/dashboards/actions'
 
@@ -49,7 +50,9 @@ class DashboardPage extends Component {
     } = this.props
 
     const dashboards = await getDashboardsAsync()
-    const dashboard = dashboards.find(d => d.id === +dashboardID)
+    const dashboard = dashboards.find(
+      d => d.id === idNormalizer(TYPE_ID, dashboardID)
+    )
     // Refresh and persists influxql generated template variable values
     await updateTempVarValues(source, dashboard)
     await putDashboardByID(dashboardID)
@@ -84,7 +87,10 @@ class DashboardPage extends Component {
 
   handleChooseTimeRange = ({upper, lower}) => {
     const {params: {dashboardID}, dashboardActions} = this.props
-    dashboardActions.setDashTimeV1(+dashboardID, {upper, lower})
+    dashboardActions.setDashTimeV1(idNormalizer(TYPE_ID, dashboardID), {
+      upper,
+      lower,
+    })
   }
 
   handleUpdatePosition = cells => {
@@ -129,7 +135,7 @@ class DashboardPage extends Component {
   handleSelectTemplate = templateID => values => {
     const {params: {dashboardID}} = this.props
     this.props.dashboardActions.templateVariableSelected(
-      +dashboardID,
+      idNormalizer(TYPE_ID, dashboardID),
       templateID,
       [values]
     )
@@ -157,8 +163,12 @@ class DashboardPage extends Component {
 
   synchronizer = dygraph => {
     const dygraphs = [...this.state.dygraphs, dygraph]
-    const {dashboards, params} = this.props
-    const dashboard = dashboards.find(d => d.id === +params.dashboardID)
+    const {dashboards, params: {dashboardID}} = this.props
+
+    const dashboard = dashboards.find(
+      d => d.id === idNormalizer(TYPE_ID, dashboardID)
+    )
+
     if (
       dashboard &&
       dygraphs.length === dashboard.cells.length &&
@@ -183,7 +193,7 @@ class DashboardPage extends Component {
 
   getActiveDashboard() {
     const {params: {dashboardID}, dashboards} = this.props
-    return dashboards.find(d => d.id === +dashboardID)
+    return dashboards.find(d => d.id === idNormalizer(TYPE_ID, dashboardID))
   }
 
   render() {
@@ -414,7 +424,7 @@ DashboardPage.propTypes = {
   errorThrown: func,
 }
 
-const mapStateToProps = (state, {params}) => {
+const mapStateToProps = (state, {params: {dashboardID}}) => {
   const {
     app: {
       ephemeral: {inPresentationMode},
@@ -427,7 +437,7 @@ const mapStateToProps = (state, {params}) => {
 
   const timeRange =
     dashTimeV1.ranges.find(
-      ({dashboardID}) => dashboardID === +params.dashboardID
+      r => r.dashboardID === idNormalizer(TYPE_ID, dashboardID)
     ) || defaultTimeRange
 
   return {
