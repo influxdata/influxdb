@@ -2,7 +2,7 @@
 ### Bug Fixes
 
 ### Features
-1.[#2083](https://github.com/influxdata/chronograf/pull/2083): Persist dashboard time ranges per dashboard
+1.[#2083](https://github.com/influxdata/chronograf/pull/2083): Every dashboard can now have its own time range
 
 ### UI Improvements
 
