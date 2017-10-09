@@ -23,9 +23,9 @@ type Command struct {
 	Stderr io.Writer
 	Stdout io.Writer
 
-	dir      string
-	pattern  string
-	detailed bool
+	dir             string
+	pattern         string
+	detailed, exact bool
 }
 
 // NewCommand returns a new instance of Command.
@@ -40,8 +40,8 @@ func NewCommand() *Command {
 func (cmd *Command) Run(args ...string) error {
 	fs := flag.NewFlagSet("report", flag.ExitOnError)
 	fs.StringVar(&cmd.pattern, "pattern", "", "Include only files matching a pattern")
-
 	fs.BoolVar(&cmd.detailed, "detailed", false, "Report detailed cardinality estimates")
+	fs.BoolVar(&cmd.exact, "exact", false, "Report exact counts")
 
 	fs.SetOutput(cmd.Stdout)
 	fs.Usage = cmd.printUsage
@@ -49,6 +49,14 @@ func (cmd *Command) Run(args ...string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+
+	newCounterFn := newHLLCounter
+	estTitle := " (est)"
+	if cmd.exact {
+		estTitle = ""
+		newCounterFn = newExactCounter
+	}
+
 	cmd.dir = fs.Arg(0)
 
 	err := cmd.isShardDir(cmd.dir)
@@ -56,17 +64,17 @@ func (cmd *Command) Run(args ...string) error {
 		return fmt.Errorf("-detailed only supported for shard dirs.")
 	}
 
-	totalSeries := hllpp.New()
-	tagCardinalities := map[string]*hllpp.HLLPP{}
-	measCardinalities := map[string]*hllpp.HLLPP{}
-	fieldCardinalities := map[string]*hllpp.HLLPP{}
+	totalSeries := newCounterFn()
+	tagCardinalities := map[string]counter{}
+	measCardinalities := map[string]counter{}
+	fieldCardinalities := map[string]counter{}
 
-	dbCardinalities := map[string]*hllpp.HLLPP{}
+	dbCardinalities := map[string]counter{}
 
 	start := time.Now()
 
 	tw := tabwriter.NewWriter(cmd.Stdout, 8, 2, 1, ' ', 0)
-	fmt.Fprintln(tw, strings.Join([]string{"DB", "RP", "Shard", "File", "Series", "New (Est)", "Load Time"}, "\t"))
+	fmt.Fprintln(tw, strings.Join([]string{"DB", "RP", "Shard", "File", "Series", "New" + estTitle, "Load Time"}, "\t"))
 
 	if err := cmd.WalkShardDirs(cmd.dir, func(db, rp, id, path string) error {
 		if cmd.pattern != "" && strings.Contains(path, cmd.pattern) {
@@ -89,7 +97,7 @@ func (cmd *Command) Run(args ...string) error {
 
 		dbCount := dbCardinalities[db]
 		if dbCount == nil {
-			dbCount = hllpp.New()
+			dbCount = newCounterFn()
 			dbCardinalities[db] = dbCount
 		}
 
@@ -108,14 +116,14 @@ func (cmd *Command) Run(args ...string) error {
 
 				measCount := measCardinalities[measurement]
 				if measCount == nil {
-					measCount = hllpp.New()
+					measCount = newCounterFn()
 					measCardinalities[measurement] = measCount
 				}
 				measCount.Add([]byte(key))
 
 				fieldCount := fieldCardinalities[measurement]
 				if fieldCount == nil {
-					fieldCount = hllpp.New()
+					fieldCount = newCounterFn()
 					fieldCardinalities[measurement] = fieldCount
 				}
 				fieldCount.Add([]byte(field))
@@ -123,7 +131,7 @@ func (cmd *Command) Run(args ...string) error {
 				for _, t := range tags {
 					tagCount := tagCardinalities[string(t.Key)]
 					if tagCount == nil {
-						tagCount = hllpp.New()
+						tagCount = newCounterFn()
 						tagCardinalities[string(t.Key)] = tagCount
 					}
 					tagCount.Add(t.Value)
@@ -153,9 +161,9 @@ func (cmd *Command) Run(args ...string) error {
 	fmt.Printf("Statistics\n")
 	fmt.Printf("  Series:\n")
 	for db, counts := range dbCardinalities {
-		fmt.Printf("     - %s (est): %d (%d%%)\n", db, counts.Count(), int(float64(counts.Count())/float64(totalSeries.Count())*100))
+		fmt.Printf("     - %s%s: %d (%d%%)\n", db, estTitle, counts.Count(), int(float64(counts.Count())/float64(totalSeries.Count())*100))
 	}
-	fmt.Printf("  Total (est): %d\n", totalSeries.Count())
+	fmt.Printf("  Total%s: %d\n", estTitle, totalSeries.Count())
 
 	if cmd.detailed {
 		fmt.Printf("\n  Measurements (est):\n")
@@ -179,7 +187,7 @@ func (cmd *Command) Run(args ...string) error {
 }
 
 // sortKeys is a quick helper to return the sorted set of a map's keys
-func sortKeys(vals map[string]*hllpp.HLLPP) (keys []string) {
+func sortKeys(vals map[string]counter) (keys []string) {
 	for k := range vals {
 		keys = append(keys, k)
 	}
@@ -254,10 +262,43 @@ Usage: influx_inspect report [flags]
 
     -pattern <pattern>
             Include only files matching a pattern.
+    -exact
+            Report exact cardinality counts instead of estimates.  Note: this can use a lot of memory.
+            Defaults to "false".
     -detailed
             Report detailed cardinality estimates.
             Defaults to "false".
 `
 
 	fmt.Fprintf(cmd.Stdout, usage)
+}
+
+// counter abstracts a a method of counting keys.
+type counter interface {
+	Add(key []byte)
+	Count() uint64
+}
+
+// newHLLCounter returns an approximate counter using HyperLogLogs for cardinality estimation.
+func newHLLCounter() counter {
+	return hllpp.New()
+}
+
+// exactCounter returns an exact count for keys using counting all distinct items in a set.
+type exactCounter struct {
+	m map[string]struct{}
+}
+
+func (c *exactCounter) Add(key []byte) {
+	c.m[string(key)] = struct{}{}
+}
+
+func (c *exactCounter) Count() uint64 {
+	return uint64(len(c.m))
+}
+
+func newExactCounter() counter {
+	return &exactCounter{
+		m: make(map[string]struct{}),
+	}
 }
