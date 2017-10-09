@@ -1308,7 +1308,7 @@ func (e *Engine) compact(quit <-chan struct{}) {
 			e.scheduler.setDepth(4, len(level4Groups))
 
 			// Find the next compaction that can run and try to kick it off
-			for level, runnable := e.scheduler.next(); runnable; level, runnable = e.scheduler.next() {
+			if level, runnable := e.scheduler.next(); runnable {
 				run1 := atomic.LoadInt64(&e.stats.TSMCompactionsActive[0])
 				run2 := atomic.LoadInt64(&e.stats.TSMCompactionsActive[1])
 				run3 := atomic.LoadInt64(&e.stats.TSMCompactionsActive[2])
@@ -1323,32 +1323,23 @@ func (e *Engine) compact(quit <-chan struct{}) {
 
 				switch level {
 				case 1:
-					if !e.compactHiPriorityLevel(level1Groups[0], 1) {
-						goto RELEASE
+					if e.compactHiPriorityLevel(level1Groups[0], 1) {
+						level1Groups = level1Groups[1:]
 					}
-					level1Groups = level1Groups[1:]
-					e.scheduler.setDepth(1, len(level1Groups))
 				case 2:
-					if !e.compactHiPriorityLevel(level2Groups[0], 2) {
-						goto RELEASE
+					if e.compactHiPriorityLevel(level2Groups[0], 2) {
+						level2Groups = level2Groups[1:]
 					}
-					level2Groups = level2Groups[1:]
-					e.scheduler.setDepth(2, len(level2Groups))
 				case 3:
-					if !e.compactLoPriorityLevel(level3Groups[0], 3) {
-						goto RELEASE
+					if e.compactLoPriorityLevel(level3Groups[0], 3) {
+						level3Groups = level3Groups[1:]
 					}
-					level3Groups = level3Groups[1:]
-					e.scheduler.setDepth(3, len(level3Groups))
 				case 4:
-					if !e.compactFull(level4Groups[0]) {
-						goto RELEASE
+					if e.compactFull(level4Groups[0]) {
+						level4Groups = level4Groups[1:]
 					}
-					level4Groups = level4Groups[1:]
-					e.scheduler.setDepth(4, len(level4Groups))
 				}
 			}
-		RELEASE:
 
 			// Release all the plans we didn't start.
 			e.CompactionPlan.Release(level1Groups)
