@@ -709,26 +709,20 @@ func (e *Engine) Export(w io.Writer, basePath string, start time.Time, end time.
 
 		r.Close()
 
+		if tombstonePath != "" {
+			whole = append(filtered, tombstonePath)
+		}
+
 		if min > start.UnixNano() && max < end.UnixNano() {
 			whole = append(filtered, file)
-			if tombstonePath != "" {
-				filtered = append(filtered, tombstonePath)
-			}
 		} else {
 			// at this point, we know we're not totally outside or inside start and end so we'll need to scan the blocks
 			filtered = append(filtered, file)
-
-			if tombstonePath != "" {
-				filtered = append(filtered, tombstonePath)
-			}
 		}
-	}
-	if len(filtered) == 0 {
-		return nil
 	}
 
 	for _, f := range filtered {
-		if err := e.filterFileToBackup(f, basePath, filepath.Join(path, f), tw); err != nil {
+		if err := e.filterFileToBackup(f, basePath, filepath.Join(path, f), start.UnixNano(), end.UnixNano(), tw); err != nil {
 			return err
 		}
 	}
@@ -742,7 +736,7 @@ func (e *Engine) Export(w io.Writer, basePath string, start time.Time, end time.
 	return nil
 }
 
-func (e *Engine) filterFileToBackup(name, shardRelativePath, fullPath string, start time.Time, end time.Time, tw *tar.Writer) error {
+func (e *Engine) filterFileToBackup(name, shardRelativePath, fullPath string, start, end int64, tw *tar.Writer) error {
 	f, err := os.Stat(fullPath)
 	if err != nil {
 		return err
@@ -765,12 +759,17 @@ func (e *Engine) filterFileToBackup(name, shardRelativePath, fullPath string, st
 	defer fr.Close()
 
 	// TODO (Adam):  instead of io.copy as in writeFileToBackup, we will need to:
-	// 1.  write a new tsm file header (variation of existing?)
+
 	// 2.  write the blocks we want to keep
 	// 3.  write an index?????
 	// 4.  write a footer
 
 	// will probably need most of this
+	r, err := NewTSMReader(fr)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
 
 	w, err := NewTSMWriter(tw)
 	if err != nil {
@@ -783,12 +782,7 @@ func (e *Engine) filterFileToBackup(name, shardRelativePath, fullPath string, st
 		}
 
 		// Check for errors where we should not remove the file
-		_, inProgress := err.(errCompactionInProgress)
-		maxBlocks := err == ErrMaxBlocksExceeded
-		maxFileSize := err == errMaxFileExceeded
-		if inProgress || maxBlocks || maxFileSize {
-			return
-		}
+		// REVIEWER:  do I need to check anything here? lifted this code from compact.go
 
 		if err != nil {
 			w.Remove()
@@ -799,7 +793,18 @@ func (e *Engine) filterFileToBackup(name, shardRelativePath, fullPath string, st
 	var bi *BlockIterator
 	bi = r.BlockIterator()
 
-	bi.Next()
+	for bi.Next() {
+		// not concerned with typ of checksum since we are just blindly writing back, with no decoding
+		key, minTime, maxTime, _, _, buf, err := bi.Read()
+		if err != nil {
+			return err
+		}
+		if minTime >= start && minTime <= end ||
+			maxTime >= start && maxTime <= end {
+			w.WriteBlock(key, minTime, maxTime, buf)
+		}
+	}
+	w.WriteIndex()
 
 	return err
 }
