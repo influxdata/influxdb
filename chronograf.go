@@ -597,10 +597,13 @@ type Scope string
 
 // User represents an authenticated user.
 type User struct {
+	ID          uint64      `json:"id,omitempty"`
 	Name        string      `json:"name"`
-	Passwd      string      `json:"password"`
+	Passwd      string      `json:"password,omitempty"`
 	Permissions Permissions `json:"permissions,omitempty"`
 	Roles       []Role      `json:"roles,omitempty"`
+	Provider    string      `json:"provider,omitempty"`
+	Scheme      string      `json:"scheme,omitempty"`
 }
 
 // UsersStore is the Storage and retrieval of authentication information

@@ -199,17 +199,17 @@ func (r *sourceRoleRequest) ValidUpdate() error {
 }
 
 type roleResponse struct {
-	Users       []*userResponse        `json:"users"`
+	Users       []*sourceUserResponse  `json:"users"`
 	Name        string                 `json:"name"`
 	Permissions chronograf.Permissions `json:"permissions"`
 	Links       selfLinks              `json:"links"`
 }
 
 func newRoleResponse(srcID int, res *chronograf.Role) roleResponse {
-	su := make([]*userResponse, len(res.Users))
+	su := make([]*sourceUserResponse, len(res.Users))
 	for i := range res.Users {
 		name := res.Users[i].Name
-		su[i] = newUserResponse(srcID, name)
+		su[i] = newSourceUserResponse(srcID, name)
 	}
 
 	if res.Permissions == nil {
