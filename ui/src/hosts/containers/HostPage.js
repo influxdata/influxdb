@@ -182,7 +182,7 @@ class HostPage extends Component {
       <div className="page">
         <DashboardHeader
           source={source}
-          buttonText={hostID}
+          dashboardName={hostID}
           timeRange={timeRange}
           autoRefresh={autoRefresh}
           isHidden={inPresentationMode}

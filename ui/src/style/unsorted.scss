@@ -340,8 +340,48 @@ $tick-script-overlay-margin: 30px;
   -----------------------------------------------------------------------------
 */
 .dropdown.dashboard-switcher {
-  margin-right: 4px;
+  margin-right: 10px;
 }
 .dropdown.dashboard-switcher .btn.dropdown-toggle {
   justify-content: center;
+}
+
+/*
+  Dashboard Name Editing
+  -----------------------------------------------------------------------------
+*/
+.page-header__left.page-header__dash-editable,
+.dashboard-title,
+.dashboard-title input[type="text"].form-control.dashboard-title--input {
+  flex: 1 0 0;
+}
+.dashboard-title {
+  display: flex;
+
+  input[type="text"].form-control.dashboard-title--input,
+  input[type="text"].form-control.dashboard-title--input:focus {
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    font-size: $page-header-size;
+    font-weight: $page-header-weight;
+    color: $c-pool;
+    box-shadow: none;
+    background-color: transparent;
+  }
+
+  h1 {
+    margin: 0;
+    letter-spacing: 0;
+    text-transform: none;
+    font-size: $page-header-size;
+    font-weight: $page-header-weight;
+    transition: color 0.25s ease;
+
+    &:hover {
+      cursor: text;
+      color: $c-pool;
+    }
+  }
+
 }

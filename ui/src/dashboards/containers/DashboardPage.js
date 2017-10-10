@@ -8,7 +8,6 @@ import Dygraph from 'src/external/dygraph'
 import OverlayTechnologies from 'shared/components/OverlayTechnologies'
 import CellEditorOverlay from 'src/dashboards/components/CellEditorOverlay'
 import DashboardHeader from 'src/dashboards/components/DashboardHeader'
-import DashboardHeaderEdit from 'src/dashboards/components/DashboardHeaderEdit'
 import Dashboard from 'src/dashboards/components/Dashboard'
 import TemplateVariableManager from 'src/dashboards/components/template_variables/Manager'
 import ManualRefresh from 'src/shared/components/ManualRefresh'
@@ -309,40 +308,36 @@ class DashboardPage extends Component {
               editQueryStatus={dashboardActions.editCellQueryStatus}
             />
           : null}
-        {isEditMode
-          ? <DashboardHeaderEdit
-              dashboard={dashboard}
-              onSave={this.handleRenameDashboard}
-              onCancel={this.handleCancelEditDashboard}
-            />
-          : <DashboardHeader
-              source={source}
-              sourceID={sourceID}
-              dashboard={dashboard}
-              timeRange={timeRange}
-              zoomedTimeRange={zoomedTimeRange}
-              autoRefresh={autoRefresh}
-              isHidden={inPresentationMode}
-              onAddCell={this.handleAddCell}
-              onEditDashboard={this.handleEditDashboard}
-              buttonText={dashboard ? dashboard.name : ''}
-              showTemplateControlBar={showTemplateControlBar}
-              handleChooseAutoRefresh={handleChooseAutoRefresh}
-              onManualRefresh={onManualRefresh}
-              handleChooseTimeRange={this.handleChooseTimeRange}
-              onToggleTempVarControls={this.handleToggleTempVarControls}
-              handleClickPresentationButton={handleClickPresentationButton}
-            >
-              {dashboards
-                ? dashboards.map((d, i) =>
-                    <li className="dropdown-item" key={i}>
-                      <Link to={`/sources/${sourceID}/dashboards/${d.id}`}>
-                        {d.name}
-                      </Link>
-                    </li>
-                  )
-                : null}
-            </DashboardHeader>}
+        <DashboardHeader
+          source={source}
+          sourceID={sourceID}
+          dashboard={dashboard}
+          timeRange={timeRange}
+          isEditMode={isEditMode}
+          autoRefresh={autoRefresh}
+          isHidden={inPresentationMode}
+          onAddCell={this.handleAddCell}
+          zoomedTimeRange={zoomedTimeRange}
+          onSave={this.handleRenameDashboard}
+          onCancel={this.handleCancelEditDashboard}
+          onEditDashboard={this.handleEditDashboard}
+          dashboardName={dashboard ? dashboard.name : ''}
+          showTemplateControlBar={showTemplateControlBar}
+          handleChooseAutoRefresh={handleChooseAutoRefresh}
+          handleChooseTimeRange={this.handleChooseTimeRange}
+          onToggleTempVarControls={this.handleToggleTempVarControls}
+          handleClickPresentationButton={handleClickPresentationButton}
+        >
+          {dashboards
+            ? dashboards.map((d, i) =>
+                <li className="dropdown-item" key={i}>
+                  <Link to={`/sources/${sourceID}/dashboards/${d.id}`}>
+                    {d.name}
+                  </Link>
+                </li>
+              )
+            : null}
+        </DashboardHeader>
         {dashboard
           ? <Dashboard
               source={source}
