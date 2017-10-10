@@ -65,7 +65,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
     })
   })
 
-  describe('a query has measurements and fields', () => {
+  describe.only('a query has measurements and fields', () => {
     let state
     beforeEach(() => {
       const one = reducer({}, fakeAddQueryAction('any', queryId))
@@ -79,7 +79,12 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
       const three = reducer(two, chooseMeasurement(queryId, 'disk'))
       state = reducer(
         three,
-        toggleField(queryId, {field: 'a great field', funcs: []})
+        toggleField(queryId, {
+          name: 'a great field',
+          alias: null,
+          args: [],
+          type: 'field',
+        })
       )
     })
 
@@ -138,16 +143,29 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
 
         const oneFieldOneFunc = reducer(
           state,
-          applyFuncsToField(queryId, {field: 'a great field', funcs: ['func1']})
+          applyFuncsToField(queryId, {
+            name: 'mean',
+            alias: `mean_usage_user`,
+            args: ['usage_user'],
+            type: 'func',
+          })
         )
 
         const newState = reducer(
           oneFieldOneFunc,
-          toggleField(queryId, {field: 'a different field', funcs: []})
+          toggleField(queryId, {
+            name: 'f1',
+            alias: null,
+            args: [],
+            type: 'field',
+          })
         )
 
-        expect(newState[queryId].fields[1].funcs.length).to.equal(1)
-        expect(newState[queryId].fields[1].funcs[0]).to.equal('func1')
+        expect(newState[queryId].fields[1].name).to.equal('mean')
+        expect(newState[queryId].fields[1].alias).to.equal('mean_f1')
+        expect(newState[queryId].fields[1].args).to.deep.equal(['f1'])
+        expect(newState[queryId].fields[1].type).to.equal('func')
+        expect(newState[queryId].fields[1].type).to.equal('field')
       })
 
       it('adds the field property to query config if not found', () => {
