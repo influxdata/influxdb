@@ -334,6 +334,47 @@ func TestService_UpdateUser(t *testing.T) {
 			wantContentType: "application/json",
 			wantBody:        `{"id":1336,"name":"bobbetta","provider":"Google","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1336"}}`,
 		},
+
+		{
+			name: "Update only one field of a Chronograf user",
+			fields: fields{
+				Logger: log.New(log.DebugLevel),
+				UsersStore: &mocks.UsersStore{
+					UpdateF: func(ctx context.Context, user *chronograf.User) error {
+						return nil
+					},
+					GetF: func(ctx context.Context, ID string) (*chronograf.User, error) {
+						switch ID {
+						case "1336":
+							return &chronograf.User{
+								ID:       1336,
+								Name:     "bobbetta2",
+								Provider: "GitHub",
+								Scheme:   "OAuth2",
+							}, nil
+						default:
+							return nil, fmt.Errorf("User with ID %v not found", ID)
+						}
+					},
+				},
+			},
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					"PATCH",
+					"http://any.url",
+					nil,
+				),
+				user: &chronograf.User{
+					ID:   1336,
+					Name: "burnetta",
+				},
+			},
+			id:              "1336",
+			wantStatus:      http.StatusOK,
+			wantContentType: "application/json",
+			wantBody:        `{"id":1336,"name":"burnetta","provider":"GitHub","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1336"}}`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

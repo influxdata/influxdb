@@ -162,10 +162,15 @@ func (s *Service) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		Error(w, http.StatusNotFound, err.Error(), s.Logger)
 	}
 
-	// TODO: should we diff and only set non-nil fields?
-	u.Name = req.Name
-	u.Provider = req.Provider
-	u.Scheme = req.Scheme
+	if req.Name != "" {
+		u.Name = req.Name
+	}
+	if req.Provider != "" {
+		u.Provider = req.Provider
+	}
+	if req.Scheme != "" {
+		u.Scheme = req.Scheme
+	}
 
 	err = s.UsersStore.Update(ctx, u)
 	if err != nil {
