@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/chronograf"
 )
 
@@ -112,10 +113,9 @@ func TestReverse(t *testing.T) {
 					Measurement:     "cpu",
 					Fields: []chronograf.Field{
 						{
-							Field: "usage_user",
-							Funcs: []string{
-								"mean",
-							},
+							Name: "mean",
+							Args: []string{"usage_user"},
+							Type: "func",
 						},
 					},
 					GroupBy: chronograf.GroupBy{
@@ -220,9 +220,10 @@ func TestReverse(t *testing.T) {
 					Measurement:     "cpu",
 					RetentionPolicy: "autogen",
 					Fields: []chronograf.Field{
-						chronograf.Field{
-							Field: "usage_user",
-							Funcs: []string{"mean"},
+						{
+							Name: "mean",
+							Args: []string{"usage_user"},
+							Type: "func",
 						},
 					},
 					Tags: map[string][]string{
@@ -360,8 +361,9 @@ func TestReverse(t *testing.T) {
 					Measurement:     "haproxy",
 					Fields: []chronograf.Field{
 						{
-							Field: "status",
-							Funcs: []string{"last"},
+							Name: "last",
+							Args: []string{"status"},
+							Type: "func",
 						},
 					},
 					GroupBy: chronograf.GroupBy{
@@ -475,8 +477,9 @@ func TestReverse(t *testing.T) {
 					Measurement:     "haproxy",
 					Fields: []chronograf.Field{
 						{
-							Field: "status",
-							Funcs: []string{"last"},
+							Name: "last",
+							Args: []string{"status"},
+							Type: "func",
 						},
 					},
 					GroupBy: chronograf.GroupBy{
@@ -592,8 +595,9 @@ func TestReverse(t *testing.T) {
 					RetentionPolicy: "autogen",
 					Fields: []chronograf.Field{
 						{
-							Field: "usage_user",
-							Funcs: []string{"mean"},
+							Name: "mean",
+							Args: []string{"usage_user"},
+							Type: "func",
 						},
 					},
 					Tags: map[string][]string{
@@ -717,8 +721,9 @@ func TestReverse(t *testing.T) {
 					RetentionPolicy: "autogen",
 					Fields: []chronograf.Field{
 						{
-							Field: "usage_user",
-							Funcs: []string{"mean"},
+							Name: "mean",
+							Args: []string{"usage_user"},
+							Type: "func",
 						},
 					},
 					Tags: map[string][]string{
@@ -842,8 +847,9 @@ func TestReverse(t *testing.T) {
 					RetentionPolicy: "autogen",
 					Fields: []chronograf.Field{
 						{
-							Field: "usage_user",
-							Funcs: []string{"mean"},
+							Name: "mean",
+							Args: []string{"usage_user"},
+							Type: "func",
 						},
 					},
 					Tags: map[string][]string{
@@ -955,8 +961,9 @@ func TestReverse(t *testing.T) {
 					RetentionPolicy: "autogen",
 					Fields: []chronograf.Field{
 						{
-							Field: "usage_user",
-							Funcs: []string{},
+							Name: "usage_user",
+							Args: []string{},
+							Type: "field",
 						},
 					},
 					Tags: map[string][]string{
@@ -1090,8 +1097,9 @@ trigger
 					RetentionPolicy: "autogen",
 					Fields: []chronograf.Field{
 						{
-							Field: "usage_user",
-							Funcs: []string{"mean"},
+							Name: "mean",
+							Args: []string{"usage_user"},
+							Type: "func",
 						},
 					},
 					Tags: map[string][]string{
@@ -1226,8 +1234,9 @@ trigger
 					RetentionPolicy: "autogen",
 					Fields: []chronograf.Field{
 						{
-							Field: "usage_user",
-							Funcs: []string{"mean"},
+							Name: "mean",
+							Args: []string{"usage_user"},
+							Type: "func",
 						},
 					},
 					Tags: map[string][]string{
@@ -1441,8 +1450,9 @@ trigger
 					Measurement:     "cq",
 					Fields: []chronograf.Field{
 						{
-							Field: "queryOk",
-							Funcs: []string{},
+							Name: "queryOk",
+							Args: []string{},
+							Type: "field",
 						},
 					},
 					GroupBy: chronograf.GroupBy{
@@ -1465,8 +1475,8 @@ trigger
 				if tt.want.Query != nil {
 					if got.Query == nil {
 						t.Errorf("Reverse() = got nil QueryConfig")
-					} else if !reflect.DeepEqual(*got.Query, *tt.want.Query) {
-						t.Errorf("Reverse() = QueryConfig not equal\n%#v\n, want \n%#v\n", *got.Query, *tt.want.Query)
+					} else if !cmp.Equal(*got.Query, *tt.want.Query) {
+						t.Errorf("Reverse() = QueryConfig not equal %s", cmp.Diff(*got.Query, *tt.want.Query))
 					}
 				}
 			}

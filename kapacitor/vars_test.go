@@ -22,7 +22,9 @@ func TestVarsCritStringEqual(t *testing.T) {
 			RetentionPolicy: "autogen",
 			Fields: []chronograf.Field{
 				{
-					Field: "status",
+					Name: "status",
+					Type: "field",
+					Args: []string{},
 				},
 			},
 			GroupBy: chronograf.GroupBy{

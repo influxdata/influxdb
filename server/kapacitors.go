@@ -382,8 +382,8 @@ func newAlertResponse(task *kapa.Task, srcID, kapaID int) *alertResponse {
 		}
 
 		for _, f := range res.Query.Fields {
-			if f.Funcs == nil {
-				f.Funcs = make([]string, 0)
+			if f.Type == "func" && f.Args == nil {
+				f.Args = make([]string, 0)
 			}
 		}
 
@@ -405,9 +405,8 @@ func ValidRuleRequest(rule chronograf.AlertRule) error {
 	}
 	var hasFuncs bool
 	for _, f := range rule.Query.Fields {
-		if len(f.Funcs) > 0 {
+		if f.Type == "func" && len(f.Args) > 0 {
 			hasFuncs = true
-			break
 		}
 	}
 	// All kapacitor rules with functions must have a window that is applied

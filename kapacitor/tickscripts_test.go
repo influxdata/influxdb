@@ -26,8 +26,9 @@ func TestGenerate(t *testing.T) {
 			RetentionPolicy: "autogen",
 			Fields: []chronograf.Field{
 				{
-					Field: "usage_user",
-					Funcs: []string{"mean"},
+					Name: "mean",
+					Type: "func",
+					Args: []string{"usage_user"},
 				},
 			},
 			Tags: map[string][]string{
@@ -71,8 +72,9 @@ func TestThreshold(t *testing.T) {
 			RetentionPolicy: "autogen",
 			Fields: []chronograf.Field{
 				{
-					Field: "usage_user",
-					Funcs: []string{"mean"},
+					Name: "mean",
+					Type: "func",
+					Args: []string{"usage_user"},
 				},
 			},
 			Tags: map[string][]string{
@@ -215,8 +217,9 @@ func TestThresholdStringCrit(t *testing.T) {
 			Measurement:     "haproxy",
 			Fields: []chronograf.Field{
 				{
-					Field: "status",
-					Funcs: []string{"last"},
+					Name: "last",
+					Type: "func",
+					Args: []string{"status"},
 				},
 			},
 			GroupBy: chronograf.GroupBy{
@@ -353,8 +356,9 @@ func TestThresholdStringCritGreater(t *testing.T) {
 			Measurement:     "haproxy",
 			Fields: []chronograf.Field{
 				{
-					Field: "status",
-					Funcs: []string{"last"},
+					Name: "last",
+					Type: "func",
+					Args: []string{"status"},
 				},
 			},
 			GroupBy: chronograf.GroupBy{
@@ -489,8 +493,9 @@ func TestThresholdDetail(t *testing.T) {
 			RetentionPolicy: "autogen",
 			Fields: []chronograf.Field{
 				{
-					Field: "usage_user",
-					Funcs: []string{"mean"},
+					Name: "mean",
+					Type: "func",
+					Args: []string{"usage_user"},
 				},
 			},
 			Tags: map[string][]string{
@@ -636,8 +641,9 @@ func TestThresholdInsideRange(t *testing.T) {
 			RetentionPolicy: "autogen",
 			Fields: []chronograf.Field{
 				{
-					Field: "usage_user",
-					Funcs: []string{"mean"},
+					Name: "mean",
+					Type: "func",
+					Args: []string{"usage_user"},
 				},
 			},
 			Tags: map[string][]string{
@@ -782,8 +788,9 @@ func TestThresholdOutsideRange(t *testing.T) {
 			RetentionPolicy: "autogen",
 			Fields: []chronograf.Field{
 				{
-					Field: "usage_user",
-					Funcs: []string{"mean"},
+					Name: "mean",
+					Type: "func",
+					Args: []string{"usage_user"},
 				},
 			},
 			Tags: map[string][]string{
@@ -927,8 +934,9 @@ func TestThresholdNoAggregate(t *testing.T) {
 			RetentionPolicy: "autogen",
 			Fields: []chronograf.Field{
 				{
-					Field: "usage_user",
-					Funcs: []string{},
+					Name: "usage_user",
+					Type: "field",
+					Args: []string{},
 				},
 			},
 			Tags: map[string][]string{
@@ -1064,8 +1072,9 @@ func TestRelative(t *testing.T) {
 			RetentionPolicy: "autogen",
 			Fields: []chronograf.Field{
 				{
-					Field: "usage_user",
-					Funcs: []string{"mean"},
+					Name: "mean",
+					Type: "func",
+					Args: []string{"usage_user"},
 				},
 			},
 			Tags: map[string][]string{
@@ -1221,8 +1230,9 @@ func TestRelativeChange(t *testing.T) {
 			RetentionPolicy: "autogen",
 			Fields: []chronograf.Field{
 				{
-					Field: "usage_user",
-					Funcs: []string{"mean"},
+					Name: "mean",
+					Type: "func",
+					Args: []string{"usage_user"},
 				},
 			},
 			Tags: map[string][]string{
@@ -1375,8 +1385,9 @@ func TestDeadman(t *testing.T) {
 			RetentionPolicy: "autogen",
 			Fields: []chronograf.Field{
 				{
-					Field: "usage_user",
-					Funcs: []string{"mean"},
+					Name: "mean",
+					Type: "func",
+					Args: []string{"usage_user"},
 				},
 			},
 			Tags: map[string][]string{

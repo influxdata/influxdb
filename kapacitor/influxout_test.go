@@ -31,8 +31,9 @@ func TestInfluxOut(t *testing.T) {
 			Query: &chronograf.QueryConfig{
 				Fields: []chronograf.Field{
 					{
-						Field: "usage_user",
-						Funcs: []string{"mean"},
+						Name: "mean",
+						Type: "func",
+						Args: []string{"usage_user"},
 					},
 				},
 			},

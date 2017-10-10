@@ -37,8 +37,9 @@ func TestValidRuleRequest(t *testing.T) {
 				Query: &chronograf.QueryConfig{
 					Fields: []chronograf.Field{
 						{
-							Field: "oldmanpeabody",
-							Funcs: []string{"max"},
+							Name: "max",
+							Type: "func",
+							Args: []string{"oldmanpeabody"},
 						},
 					},
 				},
@@ -52,8 +53,9 @@ func TestValidRuleRequest(t *testing.T) {
 				Query: &chronograf.QueryConfig{
 					Fields: []chronograf.Field{
 						{
-							Field: "oldmanpeabody",
-							Funcs: []string{"max"},
+							Name: "max",
+							Type: "func",
+							Args: []string{"oldmanpeabody"},
 						},
 					},
 				},
