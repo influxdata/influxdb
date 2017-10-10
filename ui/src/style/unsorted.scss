@@ -318,3 +318,16 @@ $tick-script-overlay-margin: 30px;
 
   > a {display: block;}
 }
+
+/*
+  Auto Refresh Dropdown
+  -----------------------------------------------------------------------------
+*/
+.autorefresh-dropdown {
+  &.paused .dropdown {
+    margin-right: 4px;
+  }
+  &.paused .dropdown > .btn.dropdown-toggle {
+    width: 126px;
+  }
+}
