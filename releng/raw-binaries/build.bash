@@ -4,6 +4,7 @@ function printHelp() {
   >&2 echo "USAGE: $0 -i PATH_TO_SOURCE_TARBALL -o OUTDIR
 
 Emits an archive of influxdb binaries based on the current environment's GOOS and GOARCH.
+Respects CGO_ENABLED.
 
 If the environment variable GO_NEXT is not empty, builds the binaries with the 'next' version of Go.
 "
