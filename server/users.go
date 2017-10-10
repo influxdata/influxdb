@@ -31,6 +31,8 @@ func (r *userRequest) ValidCreate() error {
 	return nil
 }
 
+// TODO: Provide detailed error message
+// TODO: Reconsider what fields should actually be updateable once this is more robust
 func (r *userRequest) ValidUpdate() error {
 	if r.Name == "" && r.Provider == "" && r.Scheme == "" {
 		return errors.New("No fields to update")
