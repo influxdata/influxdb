@@ -12,10 +12,13 @@ import DisplayOptions from 'src/dashboards/components/DisplayOptions'
 import * as queryModifiers from 'src/utils/queryTransitions'
 
 import defaultQueryConfig from 'src/utils/defaultQueryConfig'
-import buildInfluxQLQuery from 'utils/influxql'
+import {buildQuery} from 'utils/influxql'
 import {getQueryConfig} from 'shared/apis'
 
-import {removeUnselectedTemplateValues} from 'src/dashboards/constants'
+import {
+  removeUnselectedTemplateValues,
+  TYPE_QUERY_CONFIG,
+} from 'src/dashboards/constants'
 import {OVERLAY_TECHNOLOGY} from 'shared/constants/classNames'
 import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from 'src/data_explorer/constants'
 
@@ -147,7 +150,7 @@ class CellEditorOverlay extends Component {
 
     const queries = queriesWorkingDraft.map(q => {
       const timeRange = q.range || {upper: null, lower: ':dashboardTime:'}
-      const query = q.rawText || buildInfluxQLQuery(timeRange, q)
+      const query = q.rawText || buildQuery(TYPE_QUERY_CONFIG, timeRange, q)
 
       return {
         queryConfig: q,

@@ -11,7 +11,7 @@ const Threshold = ({
   onDropdownChange,
   onRuleTypeInputChange,
 }) =>
-  <div className="rule-section--row rule-section--border-bottom">
+  <div className="rule-section--row rule-section--row-first rule-section--border-bottom">
     <p>Send Alert where</p>
     <span className="rule-builder--metric">
       {query.fields.length ? query.fields[0].field : 'Select a Time-Series'}
