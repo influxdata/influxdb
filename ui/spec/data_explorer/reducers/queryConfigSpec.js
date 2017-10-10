@@ -144,9 +144,9 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
         const oneFieldOneFunc = reducer(
           state,
           applyFuncsToField(queryId, {
-            name: 'mean',
-            alias: `mean_usage_user`,
-            args: ['usage_user'],
+            name: 'func1',
+            alias: 'func1_field1',
+            args: ['field1'],
             type: 'func',
           })
         )
@@ -154,18 +154,17 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
         const newState = reducer(
           oneFieldOneFunc,
           toggleField(queryId, {
-            name: 'f1',
+            name: 'f2',
             alias: null,
             args: [],
             type: 'field',
           })
         )
 
-        expect(newState[queryId].fields[1].name).to.equal('mean')
-        expect(newState[queryId].fields[1].alias).to.equal('mean_f1')
-        expect(newState[queryId].fields[1].args).to.deep.equal(['f1'])
+        expect(newState[queryId].fields[1].name).to.equal('func1')
+        expect(newState[queryId].fields[1].alias).to.equal('func1_f2')
+        expect(newState[queryId].fields[1].args).to.deep.equal(['f2'])
         expect(newState[queryId].fields[1].type).to.equal('func')
-        expect(newState[queryId].fields[1].type).to.equal('field')
       })
 
       it('adds the field property to query config if not found', () => {

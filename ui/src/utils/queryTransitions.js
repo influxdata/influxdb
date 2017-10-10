@@ -23,13 +23,19 @@ export const chooseMeasurement = (
   measurement,
 })
 
-export const toggleField = (query, {field, funcs}, isKapacitorRule = false) => {
+export const toggleField = (
+  query,
+  {name, alias, args, type},
+  isKapacitorRule = false
+) => {
   const {fields, groupBy} = query
 
-  if (!fields) {
+  if (!fields && !fields.length) {
     return {
       ...query,
-      fields: [{field, funcs: ['mean']}],
+      fields: [
+        {type: 'func', alias: `mean_${name}`, args: [name], name: 'mean'},
+      ],
     }
   }
 
