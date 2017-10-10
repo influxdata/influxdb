@@ -8,36 +8,36 @@ import (
 )
 
 // Permissions returns all possible permissions for this source.
-func (h *Service) Permissions(w http.ResponseWriter, r *http.Request) {
+func (s *Service) Permissions(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	srcID, err := paramID("id", r)
 	if err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
+		Error(w, http.StatusUnprocessableEntity, err.Error(), s.Logger)
 		return
 	}
 
-	src, err := h.SourcesStore.Get(ctx, srcID)
+	src, err := s.SourcesStore.Get(ctx, srcID)
 	if err != nil {
-		notFound(w, srcID, h.Logger)
+		notFound(w, srcID, s.Logger)
 		return
 	}
 
-	ts, err := h.TimeSeries(src)
+	ts, err := s.TimeSeries(src)
 	if err != nil {
 		msg := fmt.Sprintf("Unable to connect to source %d: %v", srcID, err)
-		Error(w, http.StatusBadRequest, msg, h.Logger)
+		Error(w, http.StatusBadRequest, msg, s.Logger)
 		return
 	}
 
 	if err = ts.Connect(ctx, &src); err != nil {
 		msg := fmt.Sprintf("Unable to connect to source %d: %v", srcID, err)
-		Error(w, http.StatusBadRequest, msg, h.Logger)
+		Error(w, http.StatusBadRequest, msg, s.Logger)
 		return
 	}
 
 	perms := ts.Permissions(ctx)
 	if err != nil {
-		Error(w, http.StatusBadRequest, err.Error(), h.Logger)
+		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 		return
 	}
 	httpAPISrcs := "/chronograf/v1/sources"
@@ -51,7 +51,7 @@ func (h *Service) Permissions(w http.ResponseWriter, r *http.Request) {
 			"source": fmt.Sprintf("%s/%d", httpAPISrcs, srcID),
 		},
 	}
-	encodeJSON(w, http.StatusOK, res, h.Logger)
+	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
 
 func validPermissions(perms *chronograf.Permissions) error {
