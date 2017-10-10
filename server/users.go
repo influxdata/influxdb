@@ -13,8 +13,8 @@ import (
 type userRequest struct {
 	ID       uint64 `json:"id,string"`
 	Name     string `json:"name"`
-	Provider string `json:"provider,omitempty"`
-	Scheme   string `json:"scheme,omitempty"`
+	Provider string `json:"provider"`
+	Scheme   string `json:"scheme"`
 }
 
 func (r *userRequest) ValidCreate() error {
@@ -43,8 +43,8 @@ type userResponse struct {
 	Links    selfLinks `json:"links"`
 	ID       uint64    `json:"id,string"`
 	Name     string    `json:"name"`
-	Provider string    `json:"provider,omitempty"`
-	Scheme   string    `json:"scheme,omitempty"`
+	Provider string    `json:"provider"`
+	Scheme   string    `json:"scheme"`
 }
 
 func newUserResponse(u *chronograf.User) *userResponse {
