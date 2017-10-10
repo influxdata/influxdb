@@ -122,7 +122,7 @@ func (s *Service) NewUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cu := newUserResponse(res)
-	w.Header().Add("Location", cu.Links.Self)
+	location(w, cu.Links.Self)
 	encodeJSON(w, http.StatusCreated, cu, s.Logger)
 }
 
@@ -180,7 +180,7 @@ func (s *Service) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cu := newUserResponse(u)
-	w.Header().Add("Location", cu.Links.Self)
+	location(w, cu.Links.Self)
 	encodeJSON(w, http.StatusOK, cu, s.Logger)
 }
 
@@ -196,4 +196,8 @@ func (s *Service) Users(w http.ResponseWriter, r *http.Request) {
 
 	res := newUsersResponse(users)
 	encodeJSON(w, http.StatusOK, res, s.Logger)
+}
+
+func location(w http.ResponseWriter, self string) {
+	w.Header().Add("Location", self)
 }
