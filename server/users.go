@@ -41,7 +41,7 @@ func (r *userRequest) ValidUpdate() error {
 type userResponse struct {
 	Links    selfLinks `json:"links"`
 	ID       uint64    `json:"id,string"`
-	Name     string    `json:"name,omitempty"`
+	Name     string    `json:"name"`
 	Provider string    `json:"provider,omitempty"`
 	Scheme   string    `json:"scheme,omitempty"`
 }
