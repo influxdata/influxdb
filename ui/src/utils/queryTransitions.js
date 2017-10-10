@@ -23,57 +23,80 @@ export const chooseMeasurement = (
   measurement,
 })
 
-export const toggleField = (
-  query,
-  {name, alias, args, type},
-  isKapacitorRule = false
-) => {
+export const toggleField = (query, {name, type}, isKapacitorRule = false) => {
   const {fields, groupBy} = query
 
-  if (!fields && !fields.length) {
+  if (!fields || !fields.length) {
     return {
       ...query,
       fields: [
-        {type: 'func', alias: `mean_${name}`, args: [name], name: 'mean'},
+        {
+          type: 'func',
+          alias: `mean_${name}`,
+          args: [{name, type: 'field'}],
+          name: 'mean',
+        },
       ],
     }
   }
 
-  const isSelected = fields.find(f => f.field === field)
-  if (isSelected) {
-    const nextFields = fields.filter(f => f.field !== field)
-    if (!nextFields.length) {
-      return {
-        ...query,
-        fields: nextFields,
-        groupBy: {...groupBy, time: null},
-      }
-    }
+  const newFuncs = fields.filter(f => f.type === 'func')
 
+  if (!newFuncs) {
     return {
       ...query,
-      fields: nextFields,
+      fields: [
+        ...fields,
+        {
+          type: 'func',
+          alias: `mean_${name}`,
+          args: [{name, type: 'field'}],
+          name: 'mean',
+        },
+      ],
     }
   }
 
-  if (isKapacitorRule) {
+  const newField = newFuncs.map(func => {
     return {
-      ...query,
-      fields: [{field, funcs}],
+      name: func.name,
+      type: 'func',
+      alias: `${func.name}_${name}`,
+      args: [{name, type}],
     }
-  }
+  })
+  // const isSelected = fields.find(f => f.field === field)
+  // if (isSelected) {
+  //   const nextFields = fields.filter(f => f.field !== field)
+  //   if (!nextFields.length) {
+  //     return {
+  //       ...query,
+  //       fields: nextFields,
+  //       groupBy: {...groupBy, time: null},
+  //     }
+  //   }
 
-  let newFuncs = ['mean']
-  if (query.fields.length) {
-    newFuncs = query.fields.find(f => f.funcs).funcs
-  }
+  //   return {
+  //     ...query,
+  //     fields: nextFields,
+  //   }
+  // }
+
+  // if (isKapacitorRule) {
+  //   return {
+  //     ...query,
+  //     fields: [{field, funcs}],
+  //   }
+  // }
+
+  // let newFuncs = ['mean']
+  // if (query.fields.length) {
+  //   newFuncs = query.fields.find(f => f.funcs).funcs
+  // }
 
   return {
     ...query,
-    fields: query.fields.concat({
-      field,
-      funcs: newFuncs,
-    }),
+    fields: [...fields, ...newField],
   }
 }
 
@@ -109,20 +132,39 @@ export function applyFuncsToField(
   {field, funcs},
   {preventAutoGroupBy = false, isKapacitorRule = false} = {}
 ) {
-  const shouldRemoveFuncs = funcs.length === 0
-  const nextFields = query.fields.map(f => {
+  const shouldRemoveFuncs = funcs && funcs.length === 0
+  let nextFields = query.fields.map(f => {
     // If one field has no funcs, all fields must have no funcs
     if (shouldRemoveFuncs) {
-      return Object.assign({}, f, {funcs: []})
+      return f.args.filter(a => a.type === 'field')
     }
 
     // If there is a func applied to only one field, add it to the other fields
-    if (f.field === field || !f.funcs || !f.funcs.length) {
-      return Object.assign({}, f, {funcs})
+    if (f.type === 'field') {
+      return funcs.map(func => {
+        return {
+          name: func.name,
+          type: func.type,
+          args: [{name: f.name, type: 'field'}],
+          alias: `${name}_${f.name}`,
+        }
+      })
     }
 
     return f
   })
+
+  if (!shouldRemoveFuncs) {
+    nextFields = query.fields.filter(f =>
+      f.args.find(a => a.name !== field.name)
+    )
+
+    const modifiedFields = funcs.map(func => {
+      return {...func, args: [field], alias: `${func.name}_${field.name}`}
+    })
+
+    nextFields = [...nextFields, ...modifiedFields]
+  }
 
   const defaultGroupBy = preventAutoGroupBy
     ? DEFAULT_DATA_EXPLORER_GROUP_BY_INTERVAL
