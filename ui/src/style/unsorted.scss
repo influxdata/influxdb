@@ -326,11 +326,22 @@ $tick-script-overlay-margin: 30px;
 .autorefresh-dropdown {
   display: flex;
   flex-wrap: nowrap;
-  
+
   &.paused .dropdown {
     margin-right: 4px;
   }
   &.paused .dropdown > .btn.dropdown-toggle {
     width: 126px;
   }
+}
+
+/*
+  Dashboard Switcher
+  -----------------------------------------------------------------------------
+*/
+.dropdown.dashboard-switcher {
+  margin-right: 4px;
+}
+.dropdown.dashboard-switcher .btn.dropdown-toggle {
+  justify-content: center;
 }

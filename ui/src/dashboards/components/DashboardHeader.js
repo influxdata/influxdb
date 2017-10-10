@@ -44,6 +44,22 @@ const DashboardHeader = ({
                   {children}
                 </ul>
               </div>}
+            {children.length > 1
+              ? <div className="dropdown dashboard-switcher">
+                  <button
+                    className="btn btn-square btn-default btn-sm dropdown-toggle"
+                    type="button"
+                    data-toggle="dropdown"
+                  >
+                    <span className="icon dash-f" />
+                  </button>
+                  <ul className="dropdown-menu">
+                    {_.sortBy(children, c =>
+                      c.props.children.props.children.toLowerCase()
+                    )}
+                  </ul>
+                </div>
+              : null}
           </div>
           <div className="page-header__right">
             <GraphTips />
