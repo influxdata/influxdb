@@ -360,6 +360,8 @@ $tick-script-overlay-margin: 30px;
 
   input[type="text"].form-control.dashboard-title--input,
   input[type="text"].form-control.dashboard-title--input:focus {
+    position: relative;
+    top: -1px;
     border: 0;
     border-radius: 0;
     padding: 0;
@@ -378,9 +380,19 @@ $tick-script-overlay-margin: 30px;
     font-weight: $page-header-weight;
     transition: color 0.25s ease;
 
+    &:after {
+      display: inline-block;
+      margin-left: 4px;
+      content: "\f058";
+      font-family: 'icomoon';
+      color: $g5-pepper;
+      transition: color 0.25s ease;
+    }
+
     &:hover {
       cursor: text;
       color: $c-pool;
+      &:after {color: $c-pool;}
     }
   }
 
