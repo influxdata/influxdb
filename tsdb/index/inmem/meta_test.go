@@ -93,6 +93,13 @@ func TestSeriesIDs_Reject(t *testing.T) {
 	}
 }
 
+func TestMeasurement_AddSeries_Nil(t *testing.T) {
+	m := inmem.NewMeasurement("foo", "cpu")
+	if m.AddSeries(nil) {
+		t.Fatalf("AddSeries mismatch: exp false, got true")
+	}
+}
+
 func TestMeasurement_AppendSeriesKeysByID_Missing(t *testing.T) {
 	m := inmem.NewMeasurement("foo", "cpu")
 	var dst []string

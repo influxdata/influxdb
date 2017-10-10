@@ -207,6 +207,10 @@ func (m *Measurement) CardinalityBytes(key []byte) int {
 // AddSeries adds a series to the measurement's index.
 // It returns true if the series was added successfully or false if the series was already present.
 func (m *Measurement) AddSeries(s *Series) bool {
+	if s == nil {
+		return false
+	}
+
 	m.mu.RLock()
 	if m.seriesByID[s.ID] != nil {
 		m.mu.RUnlock()
@@ -286,7 +290,9 @@ func (m *Measurement) Rebuild() *Measurement {
 	// expunged.  Note: we're using SeriesIDs which returns the series in sorted order so that
 	// re-adding does not incur a sort for each series added.
 	for _, id := range m.SeriesIDs() {
-		nm.AddSeries(m.SeriesByID(id))
+		if s := m.SeriesByID(id); s != nil {
+			nm.AddSeries(s)
+		}
 	}
 	return nm
 }
