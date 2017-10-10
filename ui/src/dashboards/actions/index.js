@@ -28,6 +28,29 @@ export const loadDashboards = (dashboards, dashboardID) => ({
   },
 })
 
+export const loadDeafaultDashTimeV1 = dashboardID => ({
+  type: 'ADD_DASHBOARD_TIME_V1',
+  payload: {
+    dashboardID,
+  },
+})
+
+export const addDashTimeV1 = (dashboardID, timeRange) => ({
+  type: 'ADD_DASHBOARD_TIME_V1',
+  payload: {
+    dashboardID,
+    timeRange,
+  },
+})
+
+export const setDashTimeV1 = (dashboardID, timeRange) => ({
+  type: 'SET_DASHBOARD_TIME_V1',
+  payload: {
+    dashboardID,
+    timeRange,
+  },
+})
+
 export const setTimeRange = timeRange => ({
   type: 'SET_DASHBOARD_TIME_RANGE',
   payload: {
@@ -46,6 +69,7 @@ export const deleteDashboard = dashboard => ({
   type: 'DELETE_DASHBOARD',
   payload: {
     dashboard,
+    dashboardID: dashboard.id,
   },
 })
 
