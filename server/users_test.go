@@ -324,15 +324,15 @@ func TestService_UpdateUser(t *testing.T) {
 				),
 				user: &chronograf.User{
 					ID:       1336,
-					Name:     "bobbetta2",
-					Provider: "GitHub",
+					Name:     "bobbetta",
+					Provider: "Google",
 					Scheme:   "OAuth2",
 				},
 			},
 			id:              "1336",
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"id":1336,"name":"bobbetta2","provider":"GitHub","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1336"}}`,
+			wantBody:        `{"id":1336,"name":"bobbetta","provider":"Google","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1336"}}`,
 		},
 	}
 	for _, tt := range tests {
