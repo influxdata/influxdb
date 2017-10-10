@@ -10,7 +10,6 @@ const DashboardHeader = ({
   children,
   buttonText,
   dashboard,
-  headerText,
   timeRange: {upper, lower},
   zoomedTimeRange: {zoomedLower, zoomedUpper},
   autoRefresh,
@@ -45,7 +44,6 @@ const DashboardHeader = ({
                   {children}
                 </ul>
               </div>}
-            {headerText}
           </div>
           <div className="page-header__right">
             <GraphTips />
@@ -111,7 +109,6 @@ DashboardHeader.propTypes = {
   children: array,
   buttonText: string,
   dashboard: shape({}),
-  headerText: string,
   timeRange: shape({
     lower: string,
     upper: string,
