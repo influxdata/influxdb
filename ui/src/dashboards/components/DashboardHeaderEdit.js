@@ -36,6 +36,10 @@ class DashboardEditHeader extends Component {
     }
   }
 
+  handleFocus = e => {
+    e.target.select()
+  }
+
   render() {
     const {onEditDashboard, isEditMode, dashboardName} = this.props
 
@@ -52,6 +56,7 @@ class DashboardEditHeader extends Component {
               spellCheck={false}
               onBlur={this.handleInputBlur}
               onKeyDown={this.handleKeyDown}
+              onFocus={this.handleFocus}
               placeholder="Name this Dashboard"
               ref={r => (this.inputRef = r)}
             />
