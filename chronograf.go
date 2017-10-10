@@ -597,7 +597,7 @@ type Scope string
 
 // User represents an authenticated user.
 type User struct {
-	ID          uint64      `json:"id,omitempty"`
+	ID          uint64      `json:"id,string,omitempty"`
 	Name        string      `json:"name"`
 	Passwd      string      `json:"password,omitempty"`
 	Permissions Permissions `json:"permissions,omitempty"`

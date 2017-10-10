@@ -58,7 +58,7 @@ func TestService_UserID(t *testing.T) {
 								Scheme:   "OAuth2",
 							}, nil
 						default:
-							return nil, fmt.Errorf("User with ID %v not found", ID)
+							return nil, fmt.Errorf("User with ID %s not found", ID)
 						}
 					},
 				},
@@ -66,7 +66,7 @@ func TestService_UserID(t *testing.T) {
 			id:              "1337",
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"id":1337,"name":"billysteve","provider":"Google","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1337"}}`,
+			wantBody:        `{"id":"1337","name":"billysteve","provider":"Google","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1337"}}`,
 		},
 	}
 
@@ -153,7 +153,7 @@ func TestService_NewUser(t *testing.T) {
 			},
 			wantStatus:      http.StatusCreated,
 			wantContentType: "application/json",
-			wantBody:        `{"id":1338,"name":"bob","provider":"GitHub","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1338"}}`,
+			wantBody:        `{"id":"1338","name":"bob","provider":"GitHub","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1338"}}`,
 		},
 	}
 
@@ -219,7 +219,7 @@ func TestService_RemoveUser(t *testing.T) {
 								Scheme:   "LDAP",
 							}, nil
 						default:
-							return nil, fmt.Errorf("User with ID %v not found", ID)
+							return nil, fmt.Errorf("User with ID %s not found", ID)
 						}
 					},
 					DeleteF: func(ctx context.Context, user *chronograf.User) error {
@@ -310,7 +310,7 @@ func TestService_UpdateUser(t *testing.T) {
 								Scheme:   "OAuth2",
 							}, nil
 						default:
-							return nil, fmt.Errorf("User with ID %v not found", ID)
+							return nil, fmt.Errorf("User with ID %s not found", ID)
 						}
 					},
 				},
@@ -332,7 +332,7 @@ func TestService_UpdateUser(t *testing.T) {
 			id:              "1336",
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"id":1336,"name":"bobbetta","provider":"Google","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1336"}}`,
+			wantBody:        `{"id":"1336","name":"bobbetta","provider":"Google","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1336"}}`,
 		},
 
 		{
@@ -353,7 +353,7 @@ func TestService_UpdateUser(t *testing.T) {
 								Scheme:   "OAuth2",
 							}, nil
 						default:
-							return nil, fmt.Errorf("User with ID %v not found", ID)
+							return nil, fmt.Errorf("User with ID %s not found", ID)
 						}
 					},
 				},
@@ -373,7 +373,7 @@ func TestService_UpdateUser(t *testing.T) {
 			id:              "1336",
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"id":1336,"name":"burnetta","provider":"GitHub","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1336"}}`,
+			wantBody:        `{"id":"1336","name":"burnetta","provider":"GitHub","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1336"}}`,
 		},
 	}
 	for _, tt := range tests {
@@ -462,7 +462,7 @@ func TestService_Users(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"users":[{"id":1337,"name":"billysteve","provider":"Google","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1337"}},{"id":1338,"name":"bobbettastuhvetta","provider":"Auth0","scheme":"LDAP","links":{"self":"/chronograf/v1/users/1338"}}],"links":{"self":"/chronograf/v1/users"}}`,
+			wantBody:        `{"users":[{"id":"1337","name":"billysteve","provider":"Google","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1337"}},{"id":"1338","name":"bobbettastuhvetta","provider":"Auth0","scheme":"LDAP","links":{"self":"/chronograf/v1/users/1338"}}],"links":{"self":"/chronograf/v1/users"}}`,
 		},
 		{
 			name: "Get all Chronograf users, ensuring order of users in response",
@@ -497,7 +497,7 @@ func TestService_Users(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"users":[{"id":1337,"name":"billysteve","provider":"Google","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1337"}},{"id":1338,"name":"bobbettastuhvetta","provider":"Auth0","scheme":"LDAP","links":{"self":"/chronograf/v1/users/1338"}}],"links":{"self":"/chronograf/v1/users"}}`,
+			wantBody:        `{"users":[{"id":"1337","name":"billysteve","provider":"Google","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1337"}},{"id":"1338","name":"bobbettastuhvetta","provider":"Auth0","scheme":"LDAP","links":{"self":"/chronograf/v1/users/1338"}}],"links":{"self":"/chronograf/v1/users"}}`,
 		},
 	}
 

@@ -127,7 +127,7 @@ message User {
 	uint64 ID               = 1; // ID is the unique ID of this user
 	string Name             = 2; // Name is the user's login name
 	string Provider         = 3; // Provider is the provider that certifies and issues this user's authentication, e.g. GitHub
-  string Scheme           = 4; // Scheme is the scheme used to perform this user's authentication, e.g. OAuth2 or LDAP
+	string Scheme           = 4; // Scheme is the scheme used to perform this user's authentication, e.g. OAuth2 or LDAP
 }
 
 // The following is a vim modeline, it autoconfigures vim to have the

@@ -12,7 +12,7 @@ import (
 )
 
 type userRequest struct {
-	ID       uint64 `json:"id"`
+	ID       uint64 `json:"id,string"`
 	Name     string `json:"name"`
 	Provider string `json:"provider,omitempty"`
 	Scheme   string `json:"scheme,omitempty"`
@@ -40,7 +40,7 @@ func (r *userRequest) ValidUpdate() error {
 
 type userResponse struct {
 	Links    selfLinks `json:"links"`
-	ID       uint64    `json:"id"`
+	ID       uint64    `json:"id,string"`
 	Name     string    `json:"name,omitempty"`
 	Provider string    `json:"provider,omitempty"`
 	Scheme   string    `json:"scheme,omitempty"`
@@ -53,7 +53,7 @@ func newUserResponse(u *chronograf.User) *userResponse {
 		Provider: u.Provider,
 		Scheme:   u.Scheme,
 		Links: selfLinks{
-			Self: fmt.Sprintf("/chronograf/v1/users/%v", u.ID),
+			Self: fmt.Sprintf("/chronograf/v1/users/%d", u.ID),
 		},
 	}
 }
