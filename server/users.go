@@ -2,7 +2,6 @@ package server
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -20,13 +19,13 @@ type userRequest struct {
 
 func (r *userRequest) ValidCreate() error {
 	if r.Name == "" {
-		return errors.New("Name required on Chronograf User request body")
+		return fmt.Errorf("Name required on Chronograf User request body")
 	}
 	if r.Provider == "" {
-		return errors.New("Provider required on Chronograf User request body")
+		return fmt.Errorf("Provider required on Chronograf User request body")
 	}
 	if r.Scheme == "" {
-		return errors.New("Scheme required on Chronograf User request body")
+		return fmt.Errorf("Scheme required on Chronograf User request body")
 	}
 	return nil
 }
@@ -35,7 +34,7 @@ func (r *userRequest) ValidCreate() error {
 // TODO: Reconsider what fields should actually be updateable once this is more robust
 func (r *userRequest) ValidUpdate() error {
 	if r.Name == "" && r.Provider == "" && r.Scheme == "" {
-		return errors.New("No fields to update")
+		return fmt.Errorf("No fields to update")
 	}
 	return nil
 }
