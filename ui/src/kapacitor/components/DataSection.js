@@ -67,7 +67,7 @@ const DataSection = ({
 
   return (
     <div className="rule-section">
-      <div className="query-builder rule-section--border-bottom">
+      <div className="query-builder">
         <DatabaseList query={query} onChooseNamespace={handleChooseNamespace} />
         <MeasurementList
           query={query}

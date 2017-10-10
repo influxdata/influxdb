@@ -41,6 +41,8 @@
 1. [#2057](https://github.com/influxdata/chronograf/pull/2057): Improve appearance of placeholder text in inputs
 1. [#2057](https://github.com/influxdata/chronograf/pull/2057): Add ability to use "Default" values in Source Connection form
 1. [#2069](https://github.com/influxdata/chronograf/pull/2069): Display name & port in SourceIndicator tooltip
+1. [#2078](https://github.com/influxdata/chronograf/pull/2078): Improve UX/UI of Kapacitor Rule Builder to be more intuitive
+1. [#2078](https://github.com/influxdata/chronograf/pull/2078): Rename "Measurements" to "Measurements & Tags" in Query Builder
 
 ## v1.3.8.1 [unreleased]
 ### Bug Fixes
