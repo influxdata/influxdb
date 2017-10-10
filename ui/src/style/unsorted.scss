@@ -324,6 +324,9 @@ $tick-script-overlay-margin: 30px;
   -----------------------------------------------------------------------------
 */
 .autorefresh-dropdown {
+  display: flex;
+  flex-wrap: nowrap;
+  
   &.paused .dropdown {
     margin-right: 4px;
   }
