@@ -39,7 +39,12 @@ func TestValidRuleRequest(t *testing.T) {
 						{
 							Name: "max",
 							Type: "func",
-							Args: []string{"oldmanpeabody"},
+							Args: []chronograf.Field{
+								{
+									Name: "oldmanpeabody",
+									Type: "field",
+								},
+							},
 						},
 					},
 				},
@@ -55,7 +60,12 @@ func TestValidRuleRequest(t *testing.T) {
 						{
 							Name: "max",
 							Type: "func",
-							Args: []string{"oldmanpeabody"},
+							Args: []chronograf.Field{
+								{
+									Name: "oldmanpeabody",
+									Type: "field",
+								},
+							},
 						},
 					},
 				},

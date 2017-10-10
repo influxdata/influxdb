@@ -381,12 +381,6 @@ func newAlertResponse(task *kapa.Task, srcID, kapaID int) *alertResponse {
 			res.Query.Fields = make([]chronograf.Field, 0)
 		}
 
-		for _, f := range res.Query.Fields {
-			if f.Type == "func" && f.Args == nil {
-				f.Args = make([]string, 0)
-			}
-		}
-
 		if res.Query.GroupBy.Tags == nil {
 			res.Query.GroupBy.Tags = make([]string, 0)
 		}

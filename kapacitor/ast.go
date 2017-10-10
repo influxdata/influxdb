@@ -427,7 +427,12 @@ func Reverse(script chronograf.TICKScript) (chronograf.AlertRule, error) {
 				{
 					Type: "func",
 					Name: fieldFunc.Func,
-					Args: []string{fieldFunc.Field},
+					Args: []chronograf.Field{
+						{
+							Name: fieldFunc.Field,
+							Type: "field",
+						},
+					},
 				},
 			}
 		} else {
@@ -435,7 +440,6 @@ func Reverse(script chronograf.TICKScript) (chronograf.AlertRule, error) {
 				{
 					Type: "field",
 					Name: fieldFunc.Field,
-					Args: []string{},
 				},
 			}
 		}

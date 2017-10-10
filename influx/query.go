@@ -121,16 +121,12 @@ func Convert(influxQL string) (chronograf.QueryConfig, error) {
 				return raw, nil
 			case influxql.NullFill:
 				qc.Fill = "null"
-
 			case influxql.NoFill:
 				qc.Fill = "none"
-
 			case influxql.NumberFill:
 				qc.Fill = fmt.Sprint(stmt.FillValue)
-
 			case influxql.PreviousFill:
 				qc.Fill = "previous"
-
 			case influxql.LinearFill:
 				qc.Fill = "linear"
 
@@ -167,7 +163,12 @@ func Convert(influxQL string) (chronograf.QueryConfig, error) {
 				Name:  f.Name,
 				Type:  "func",
 				Alias: fld.Alias,
-				Args:  []string{ref.Val},
+				Args: []chronograf.Field{
+					{
+						Name: ref.Val,
+						Type: "field",
+					},
+				},
 			})
 		case *influxql.VarRef:
 			if f.Type != influxql.Unknown {
@@ -177,7 +178,6 @@ func Convert(influxQL string) (chronograf.QueryConfig, error) {
 				Name:  f.Val,
 				Type:  "field",
 				Alias: fld.Alias,
-				Args:  []string{},
 			})
 		}
 	}

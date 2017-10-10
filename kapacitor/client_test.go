@@ -324,7 +324,6 @@ trigger
 								{
 									Name: "queryOk",
 									Type: "field",
-									Args: []string{},
 								},
 							},
 							GroupBy: chronograf.GroupBy{
@@ -648,7 +647,6 @@ trigger
 							{
 								Name: "queryOk",
 								Type: "field",
-								Args: []string{},
 							},
 						},
 						GroupBy: chronograf.GroupBy{

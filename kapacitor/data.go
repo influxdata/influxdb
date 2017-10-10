@@ -41,10 +41,10 @@ func Data(rule chronograf.AlertRule) (string, error) {
 		}
 		value := ""
 		for _, field := range rule.Query.Fields {
-			if field.Type == "func" && len(field.Args) > 0 {
+			if field.Type == "func" && len(field.Args) > 0 && field.Args[0].Type == "field" {
 				// Only need a window if we have an aggregate function
 				value = value + "|window().period(period).every(every).align()\n"
-				value = value + fmt.Sprintf(`|%s('%s').as('value')`, field.Name, field.Args[0])
+				value = value + fmt.Sprintf(`|%s('%s').as('value')`, field.Name, field.Args[0].Name)
 				break // only support a single field
 			}
 			if value != "" {

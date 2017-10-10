@@ -33,7 +33,12 @@ func TestInfluxOut(t *testing.T) {
 					{
 						Name: "mean",
 						Type: "func",
-						Args: []string{"usage_user"},
+						Args: []chronograf.Field{
+							{
+								Name: "usage_user",
+								Type: "field",
+							},
+						},
 					},
 				},
 			},

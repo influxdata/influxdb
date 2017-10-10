@@ -313,7 +313,6 @@ func Test_newDashboardResponse(t *testing.T) {
 											{
 												Type: "field",
 												Name: "winning_horses",
-												Args: []string{},
 											},
 										},
 										GroupBy: chronograf.GroupBy{

@@ -24,7 +24,6 @@ func TestVarsCritStringEqual(t *testing.T) {
 				{
 					Name: "status",
 					Type: "field",
-					Args: []string{},
 				},
 			},
 			GroupBy: chronograf.GroupBy{

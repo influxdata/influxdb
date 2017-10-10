@@ -26,22 +26,18 @@ func TestConvert(t *testing.T) {
 					chronograf.Field{
 						Name: "usage_idle",
 						Type: "field",
-						Args: []string{},
 					},
 					chronograf.Field{
 						Name: "usage_guest_nice",
 						Type: "field",
-						Args: []string{},
 					},
 					chronograf.Field{
 						Name: "usage_system",
 						Type: "field",
-						Args: []string{},
 					},
 					chronograf.Field{
 						Name: "usage_guest",
 						Type: "field",
-						Args: []string{},
 					},
 				},
 				Tags: map[string][]string{},
@@ -61,22 +57,42 @@ func TestConvert(t *testing.T) {
 					chronograf.Field{
 						Name: "mean",
 						Type: "func",
-						Args: []string{"usage_idle"},
+						Args: []chronograf.Field{
+							{
+								Name: "usage_idle",
+								Type: "field",
+							},
+						},
 					},
 					chronograf.Field{
 						Name: "median",
 						Type: "func",
-						Args: []string{"usage_idle"},
+						Args: []chronograf.Field{
+							{
+								Name: "usage_idle",
+								Type: "field",
+							},
+						},
 					},
 					chronograf.Field{
 						Name: "count",
 						Type: "func",
-						Args: []string{"usage_guest_nice"},
+						Args: []chronograf.Field{
+							{
+								Name: "usage_guest_nice",
+								Type: "field",
+							},
+						},
 					},
 					chronograf.Field{
 						Name: "mean",
 						Type: "func",
-						Args: []string{"usage_guest_nice"},
+						Args: []chronograf.Field{
+							{
+								Name: "usage_guest_nice",
+								Type: "field",
+							},
+						},
 					},
 				},
 				Tags: map[string][]string{},
@@ -120,7 +136,6 @@ func TestConvert(t *testing.T) {
 					chronograf.Field{
 						Name: "usage_user",
 						Type: "field",
-						Args: []string{},
 					},
 				},
 				Tags: map[string][]string{"host": []string{"myhost"}},
@@ -157,7 +172,6 @@ func TestConvert(t *testing.T) {
 					chronograf.Field{
 						Name: "usage_user",
 						Type: "field",
-						Args: []string{},
 					},
 				},
 				Tags: map[string][]string{"host": []string{"myhost"}},
@@ -183,7 +197,6 @@ func TestConvert(t *testing.T) {
 					chronograf.Field{
 						Name: "usage_user",
 						Type: "field",
-						Args: []string{},
 					},
 				},
 				GroupBy: chronograf.GroupBy{
@@ -231,7 +244,6 @@ func TestConvert(t *testing.T) {
 					chronograf.Field{
 						Name: "usage_user",
 						Type: "field",
-						Args: []string{},
 					},
 				},
 				Tags: map[string][]string{},
@@ -252,7 +264,6 @@ func TestConvert(t *testing.T) {
 					chronograf.Field{
 						Name: "usage_user",
 						Type: "field",
-						Args: []string{},
 					},
 				},
 				Tags: map[string][]string{"host": []string{"myhost"}},
@@ -278,7 +289,6 @@ func TestConvert(t *testing.T) {
 					chronograf.Field{
 						Name: "usage_user",
 						Type: "field",
-						Args: []string{},
 					},
 				},
 				Tags: map[string][]string{
@@ -323,7 +333,6 @@ func TestConvert(t *testing.T) {
 					chronograf.Field{
 						Name: "usage_user",
 						Type: "field",
-						Args: []string{},
 					},
 				},
 				Tags: map[string][]string{
@@ -351,22 +360,18 @@ func TestConvert(t *testing.T) {
 					chronograf.Field{
 						Name: "usage_idle",
 						Type: "field",
-						Args: []string{},
 					},
 					chronograf.Field{
 						Name: "usage_guest_nice",
 						Type: "field",
-						Args: []string{},
 					},
 					chronograf.Field{
 						Name: "usage_system",
 						Type: "field",
-						Args: []string{},
 					},
 					chronograf.Field{
 						Name: "usage_guest",
 						Type: "field",
-						Args: []string{},
 					},
 				},
 				Tags: map[string][]string{
@@ -402,22 +407,18 @@ func TestConvert(t *testing.T) {
 					chronograf.Field{
 						Name: "usage_idle",
 						Type: "field",
-						Args: []string{},
 					},
 					chronograf.Field{
 						Name: "usage_guest_nice",
 						Type: "field",
-						Args: []string{},
 					},
 					chronograf.Field{
 						Name: "usage_system",
 						Type: "field",
-						Args: []string{},
 					},
 					chronograf.Field{
 						Name: "usage_guest",
 						Type: "field",
-						Args: []string{},
 					},
 				},
 				Tags: map[string][]string{
@@ -453,8 +454,11 @@ func TestConvert(t *testing.T) {
 					chronograf.Field{
 						Name: "mean",
 						Type: "func",
-						Args: []string{
-							"usage_idle",
+						Args: []chronograf.Field{
+							{
+								Name: "usage_idle",
+								Type: "field",
+							},
 						},
 					},
 				},
@@ -481,8 +485,11 @@ func TestConvert(t *testing.T) {
 					chronograf.Field{
 						Name: "mean",
 						Type: "func",
-						Args: []string{
-							"usage_idle",
+						Args: []chronograf.Field{
+							{
+								Name: "usage_idle",
+								Type: "field",
+							},
 						},
 					},
 				},
@@ -509,8 +516,11 @@ func TestConvert(t *testing.T) {
 					chronograf.Field{
 						Name: "mean",
 						Type: "func",
-						Args: []string{
-							"usage_idle",
+						Args: []chronograf.Field{
+							{
+								Name: "usage_idle",
+								Type: "field",
+							},
 						},
 					},
 				},
@@ -537,8 +547,11 @@ func TestConvert(t *testing.T) {
 					chronograf.Field{
 						Name: "mean",
 						Type: "func",
-						Args: []string{
-							"usage_idle",
+						Args: []chronograf.Field{
+							{
+								Name: "usage_idle",
+								Type: "field",
+							},
 						},
 					},
 				},
@@ -565,8 +578,11 @@ func TestConvert(t *testing.T) {
 					chronograf.Field{
 						Name: "mean",
 						Type: "func",
-						Args: []string{
-							"usage_idle",
+						Args: []chronograf.Field{
+							{
+								Name: "usage_idle",
+								Type: "field",
+							},
 						},
 					},
 				},

@@ -114,7 +114,12 @@ func TestReverse(t *testing.T) {
 					Fields: []chronograf.Field{
 						{
 							Name: "mean",
-							Args: []string{"usage_user"},
+							Args: []chronograf.Field{
+								{
+									Name: "usage_user",
+									Type: "field",
+								},
+							},
 							Type: "func",
 						},
 					},
@@ -222,7 +227,12 @@ func TestReverse(t *testing.T) {
 					Fields: []chronograf.Field{
 						{
 							Name: "mean",
-							Args: []string{"usage_user"},
+							Args: []chronograf.Field{
+								{
+									Name: "usage_user",
+									Type: "field",
+								},
+							},
 							Type: "func",
 						},
 					},
@@ -362,7 +372,12 @@ func TestReverse(t *testing.T) {
 					Fields: []chronograf.Field{
 						{
 							Name: "last",
-							Args: []string{"status"},
+							Args: []chronograf.Field{
+								{
+									Name: "status",
+									Type: "field",
+								},
+							},
 							Type: "func",
 						},
 					},
@@ -478,7 +493,12 @@ func TestReverse(t *testing.T) {
 					Fields: []chronograf.Field{
 						{
 							Name: "last",
-							Args: []string{"status"},
+							Args: []chronograf.Field{
+								{
+									Name: "status",
+									Type: "field",
+								},
+							},
 							Type: "func",
 						},
 					},
@@ -596,7 +616,12 @@ func TestReverse(t *testing.T) {
 					Fields: []chronograf.Field{
 						{
 							Name: "mean",
-							Args: []string{"usage_user"},
+							Args: []chronograf.Field{
+								{
+									Name: "usage_user",
+									Type: "field",
+								},
+							},
 							Type: "func",
 						},
 					},
@@ -722,7 +747,12 @@ func TestReverse(t *testing.T) {
 					Fields: []chronograf.Field{
 						{
 							Name: "mean",
-							Args: []string{"usage_user"},
+							Args: []chronograf.Field{
+								{
+									Name: "usage_user",
+									Type: "field",
+								},
+							},
 							Type: "func",
 						},
 					},
@@ -848,7 +878,12 @@ func TestReverse(t *testing.T) {
 					Fields: []chronograf.Field{
 						{
 							Name: "mean",
-							Args: []string{"usage_user"},
+							Args: []chronograf.Field{
+								{
+									Name: "usage_user",
+									Type: "field",
+								},
+							},
 							Type: "func",
 						},
 					},
@@ -962,7 +997,6 @@ func TestReverse(t *testing.T) {
 					Fields: []chronograf.Field{
 						{
 							Name: "usage_user",
-							Args: []string{},
 							Type: "field",
 						},
 					},
@@ -1098,7 +1132,12 @@ trigger
 					Fields: []chronograf.Field{
 						{
 							Name: "mean",
-							Args: []string{"usage_user"},
+							Args: []chronograf.Field{
+								{
+									Name: "usage_user",
+									Type: "field",
+								},
+							},
 							Type: "func",
 						},
 					},
@@ -1235,7 +1274,12 @@ trigger
 					Fields: []chronograf.Field{
 						{
 							Name: "mean",
-							Args: []string{"usage_user"},
+							Args: []chronograf.Field{
+								{
+									Name: "usage_user",
+									Type: "field",
+								},
+							},
 							Type: "func",
 						},
 					},
@@ -1451,7 +1495,6 @@ trigger
 					Fields: []chronograf.Field{
 						{
 							Name: "queryOk",
-							Args: []string{},
 							Type: "field",
 						},
 					},

@@ -495,10 +495,10 @@ type TriggerValues struct {
 
 // Field represent influxql fields and functions from the UI
 type Field struct {
-	Name  string   `json:"name"`
-	Type  string   `json:"type"`
-	Alias string   `json:"alias"`
-	Args  []string `json:"args"`
+	Name  string  `json:"name"`
+	Type  string  `json:"type"`
+	Alias string  `json:"alias"`
+	Args  []Field `json:"args"`
 }
 
 // GroupBy represents influxql group by tags from the UI
