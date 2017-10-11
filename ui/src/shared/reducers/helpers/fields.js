@@ -1,8 +1,15 @@
 import _ from 'lodash'
 
-// fieldWalk traverses fields rescursively into args
-export const fieldWalk = (fields, fn) =>
-  fields.each(f => _.concat(fn(f), fieldWalk(_.get(f, 'args', []), fn)))
+// fieldWalk traverses fields rescursively into args mapping fn on every
+// field
+export const fieldWalk = (fields, fn, acc = []) =>
+  _.compact(
+    _.flattenDeep(
+      fields.reduce((a, f) => {
+        return [...a, fn(f), fieldWalk(_.get(f, 'args', []), fn, acc)]
+      }, acc)
+    )
+  )
 
 // functions returns all top-level fields with type
 export const ofType = (fields, type) =>
@@ -20,11 +27,14 @@ export const functionNames = fields => functions(fields).map(f => f.name)
 // getFields returns all of the top-level fields of type field
 export const getFields = fields => ofType(fields, 'field')
 
-export const fieldsDeep = fields =>
-  _.uniqBy(fieldWalk(fields, f => getFields(f)), 'name')
+export const getFieldsDeep = fields =>
+  _.uniqBy(
+    fieldWalk(fields, f => (_.get(f, 'type') === 'field' ? f : null)),
+    'name'
+  )
 
 export const fieldNamesDeep = fields =>
-  fieldsDeep(fields).map(f => _.get(f, 'name'))
+  getFieldsDeep(fields).map(f => _.get(f, 'name'))
 
 // firstFieldName returns the name of the first of type field
 export const firstFieldName = fields => _.head(fieldNamesDeep(fields))
@@ -43,17 +53,18 @@ export const everyField = fields => everyOfType(fields, 'field')
 export const everyFunction = fields => everyOfType(fields, 'func')
 
 // removeField will remove the field or function from the field list with the
-// given fieldName
+// given fieldName. Preconditions: only type field OR only type func
 export const removeField = (fieldName, fields) => {
   if (everyField(fields)) {
     return fields.filter(f => f.name !== fieldName)
   }
 
   return fields.reduce((acc, f) => {
-    const has = fieldNamesDeep(f.args).some(n => n.name === fieldName)
+    const has = fieldNamesDeep(f.args).some(n => n === fieldName)
     if (has) {
-      return [...acc, f]
+      return acc
     }
-    return acc
+
+    return [...acc, f]
   }, [])
 }
