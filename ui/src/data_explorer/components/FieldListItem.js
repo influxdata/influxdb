@@ -6,7 +6,7 @@ import {
   numFunctions,
   firstFieldName,
   functionNames,
-} from 'shared/reducers/helpers/field'
+} from 'shared/reducers/helpers/fields'
 
 class FieldListItem extends Component {
   constructor(props) {

@@ -8,7 +8,7 @@ import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 import {showFieldKeys} from 'shared/apis/metaQuery'
 import showFieldKeysParser from 'shared/parsing/showFieldKeys'
-import {numFunctions} from 'shared/reducers/helpers/field'
+import {numFunctions} from 'shared/reducers/helpers/fields'
 
 class FieldList extends Component {
   constructor(props) {
