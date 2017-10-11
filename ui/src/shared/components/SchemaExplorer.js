@@ -15,11 +15,11 @@ const SchemaExplorer = ({
     groupByTag,
     groupByTime,
     fill,
+    toggleField,
     chooseNamespace,
     chooseMeasurement,
     applyFuncsToField,
     toggleTagAcceptance,
-    toggleFieldWithGroupByInterval,
   },
 }) =>
   <div className="query-builder">
@@ -41,7 +41,7 @@ const SchemaExplorer = ({
       source={source}
       query={query}
       querySource={source}
-      onToggleField={actionBinder(id, toggleFieldWithGroupByInterval)}
+      onToggleField={actionBinder(id, toggleField)}
       onFill={actionBinder(id, fill)}
       onGroupByTime={actionBinder(id, groupByTime)}
       applyFuncsToField={actionBinder(id, applyFuncsToField)}

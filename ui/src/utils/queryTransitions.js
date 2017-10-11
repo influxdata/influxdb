@@ -102,16 +102,19 @@ export const toggleField = (query, {name, type}, isKapacitorRule = false) => {
   }
 }
 
+/*
 // all fields implicitly have a function applied to them, so consequently
 // we need to set the auto group by time
 export const toggleFieldWithGroupByInterval = (
   query,
-  {field, funcs},
+  fieldFunc,
   isKapacitorRule
 ) => {
-  const queryWithField = toggleField(query, {field, funcs}, isKapacitorRule)
+
+  const queryWithField = toggleField(query, fieldFunc, isKapacitorRule)
   return groupByTime(queryWithField, DEFAULT_DASHBOARD_GROUP_BY_INTERVAL)
 }
+*/
 
 export function groupByTime(query, time) {
   return Object.assign({}, query, {

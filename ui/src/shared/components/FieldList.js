@@ -81,13 +81,14 @@ class FieldList extends Component {
 
   render() {
     const {
-      query: {fields = [], groupBy, fill},
+      query: {database, measurement, fields = [], groupBy, fill},
       isKapacitorRule,
       isInDataExplorer,
     } = this.props
 
     const hasAggregates = numFunctions(fields) > 0
     const hasGroupByTime = groupBy.time
+    const noDBorMeas = !database || !measurement
 
     return (
       <div className="query-builder--column">
@@ -108,40 +109,31 @@ class FieldList extends Component {
               </div>
             : null}
         </div>
-        {this.renderList()}
-      </div>
-    )
-  }
-
-  renderList() {
-    const {database, measurement, fields = []} = this.props.query
-    if (!database || !measurement) {
-      return (
-        <div className="query-builder--list-empty">
-          <span>
-            No <strong>Measurement</strong> selected
-          </span>
-        </div>
-      )
-    }
-
-    return (
-      <div className="query-builder--list">
-        <FancyScrollbar>
-          {this.state.fields.map(fieldFunc => {
-            const selectedField = fields.find(f => f.field === fieldFunc.field)
-            return (
-              <FieldListItem
-                key={fieldFunc.field}
-                onToggleField={this.props.onToggleField}
-                onApplyFuncsToField={this.props.applyFuncsToField}
-                isSelected={!!selectedField}
-                fieldFunc={selectedField || fieldFunc}
-                isKapacitorRule={this.props.isKapacitorRule}
-              />
-            )
-          })}
-        </FancyScrollbar>
+        {noDBorMeas
+          ? <div className="query-builder--list-empty">
+              <span>
+                No <strong>Measurement</strong> selected
+              </span>
+            </div>
+          : <div className="query-builder--list">
+              <FancyScrollbar>
+                {this.state.fields.map((fieldFunc, i) => {
+                  const selectedField = fields.find(
+                    f => f.field === fieldFunc.field
+                  )
+                  return (
+                    <FieldListItem
+                      key={i}
+                      onToggleField={this.props.onToggleField}
+                      onApplyFuncsToField={this.props.applyFuncsToField}
+                      isSelected={!!selectedField}
+                      fieldFunc={selectedField || fieldFunc}
+                      isKapacitorRule={this.props.isKapacitorRule}
+                    />
+                  )
+                })}
+              </FancyScrollbar>
+            </div>}
       </div>
     )
   }

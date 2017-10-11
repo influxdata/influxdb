@@ -1,5 +1,6 @@
 import React, {PropTypes, Component} from 'react'
 import classnames from 'classnames'
+import _ from 'lodash'
 
 import FunctionSelector from 'shared/components/FunctionSelector'
 import {
@@ -42,10 +43,17 @@ class FieldListItem extends Component {
     this.close()
   }
 
+  _getFieldName = () => {
+    const {fieldFunc} = this.props
+    return _.get(fieldFunc, 'type') === 'field'
+      ? _.get(fieldFunc, 'name')
+      : firstFieldName(_.get(fieldFunc, 'args'))
+  }
+
   render() {
     const {isKapacitorRule, fieldFunc, isSelected} = this.props
     const {isOpen} = this.state
-    const fieldName = firstFieldName(fieldFunc)
+    const fieldName = this._getFieldName()
     const funcs = functionNames(fieldFunc)
 
     let fieldFuncsLabel
@@ -62,7 +70,7 @@ class FieldListItem extends Component {
         break
     }
     return (
-      <div key={fieldName}>
+      <div key={fieldFunc}>
         <div
           className={classnames('query-builder--list-item', {
             active: isSelected,
@@ -102,19 +110,17 @@ class FieldListItem extends Component {
 
 const {string, shape, func, arrayOf, bool} = PropTypes
 FieldListItem.propTypes = {
-  fieldFunc: arrayOf(
-    shape({
-      type: string.isRequired,
-      name: string.isRequired,
-      alias: string,
-      args: arrayOf(
-        shape({
-          type: string.isRequired,
-          name: string.isRequired,
-        })
-      ),
-    })
-  ).isRequired,
+  fieldFunc: shape({
+    type: string.isRequired,
+    name: string.isRequired,
+    alias: string,
+    args: arrayOf(
+      shape({
+        type: string.isRequired,
+        name: string.isRequired,
+      })
+    ),
+  }).isRequired,
   isSelected: bool.isRequired,
   onToggleField: func.isRequired,
   onApplyFuncsToField: func.isRequired,

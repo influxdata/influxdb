@@ -4,8 +4,6 @@ import {getQueryConfig} from 'shared/apis'
 
 import {errorThrown} from 'shared/actions/errors'
 
-import {DEFAULT_DATA_EXPLORER_GROUP_BY_INTERVAL} from 'src/data_explorer/constants'
-
 export const addQuery = () => ({
   type: 'DE_ADD_QUERY',
   payload: {
@@ -44,6 +42,7 @@ export const fill = (queryId, value) => ({
   },
 })
 
+/*
 // all fields implicitly have a function applied to them by default, unless
 // it was explicitly removed previously, so set the auto group by time except
 // under that removal condition
@@ -62,6 +61,7 @@ export const toggleFieldWithGroupByInterval = (queryID, fieldFunc) => (
     dispatch(groupByTime(queryID, DEFAULT_DATA_EXPLORER_GROUP_BY_INTERVAL))
   }
 }
+*/
 
 export const applyFuncsToField = (queryId, fieldFunc) => ({
   type: 'DE_APPLY_FUNCS_TO_FIELD',
