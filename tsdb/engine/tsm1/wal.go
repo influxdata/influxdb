@@ -21,7 +21,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/pkg/pool"
-	"github.com/uber-go/zap"
+	"github.com/influxdata/influxdb/tsdb/engine/tsm1/diagnostic"
 )
 
 const (
@@ -103,9 +103,7 @@ type WAL struct {
 	// is opened if a non-default value is required.
 	syncDelay time.Duration
 
-	// WALOutput is the writer used by the logger.
-	logger       zap.Logger // Logger to be used for important messages
-	traceLogger  zap.Logger // Logger to be used when trace-logging is on.
+	diag         diagnostic.WALContext
 	traceLogging bool
 
 	// SegmentSize is the file size at which a segment file will be rotated
@@ -118,7 +116,6 @@ type WAL struct {
 
 // NewWAL initializes a new WAL at the given directory.
 func NewWAL(path string) *WAL {
-	logger := zap.New(zap.NullEncoder())
 	return &WAL{
 		path: path,
 
@@ -128,26 +125,17 @@ func NewWAL(path string) *WAL {
 		syncWaiters: make(chan chan error, 1024),
 		stats:       &WALStatistics{},
 		limiter:     limiter.NewFixed(defaultWaitingWALWrites),
-		logger:      logger,
-		traceLogger: logger,
 	}
 }
 
 // enableTraceLogging must be called before the WAL is opened.
 func (l *WAL) enableTraceLogging(enabled bool) {
 	l.traceLogging = enabled
-	if enabled {
-		l.traceLogger = l.logger
-	}
 }
 
-// WithLogger sets the WAL's logger.
-func (l *WAL) WithLogger(log zap.Logger) {
-	l.logger = log.With(zap.String("service", "wal"))
-
-	if l.traceLogging {
-		l.traceLogger = l.logger
-	}
+// WithDiagnosticContext sets the WAL's diagnostic.
+func (l *WAL) WithDiagnosticContext(d diagnostic.WALContext) {
+	l.diag = d
 }
 
 // WALStatistics maintains statistics about the WAL.
@@ -184,8 +172,9 @@ func (l *WAL) Open() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	l.traceLogger.Info(fmt.Sprintf("tsm1 WAL starting with %d segment size", l.SegmentSize))
-	l.traceLogger.Info(fmt.Sprintf("tsm1 WAL writing to %s", l.path))
+	if l.traceLogging && l.diag != nil {
+		l.diag.StartingWAL(l.path, l.SegmentSize)
+	}
 
 	if err := os.MkdirAll(l.path, 0777); err != nil {
 		return err
@@ -348,7 +337,9 @@ func (l *WAL) Remove(files []string) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	for _, fn := range files {
-		l.traceLogger.Info(fmt.Sprintf("Removing %s", fn))
+		if l.traceLogging && l.diag != nil {
+			l.diag.RemovingWALFile(fn)
+		}
 		os.RemoveAll(fn)
 	}
 
@@ -521,7 +512,9 @@ func (l *WAL) Close() error {
 
 	l.once.Do(func() {
 		// Close, but don't set to nil so future goroutines can still be signaled
-		l.traceLogger.Info(fmt.Sprintf("Closing %s", l.path))
+		if l.traceLogging && l.diag != nil {
+			l.diag.ClosingWALFile(l.path)
+		}
 		close(l.closing)
 
 		if l.currentSegmentWriter != nil {

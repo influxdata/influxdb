@@ -13,11 +13,11 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/influxdata/influxdb/diagnostic"
 	"github.com/influxdata/influxdb/internal"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/services/opentsdb"
-	"github.com/uber-go/zap"
 )
 
 func Test_Service_OpenClose(t *testing.T) {
@@ -277,10 +277,8 @@ func NewTestService(database string, bind string) *TestService {
 	}
 
 	if testing.Verbose() {
-		service.Service.WithLogger(zap.New(
-			zap.NewTextEncoder(),
-			zap.Output(os.Stderr),
-		))
+		diag := diagnostic.New(os.Stderr)
+		service.Service.With(diag.OpenTSDBContext())
 	}
 
 	service.Service.MetaClient = service.MetaClient

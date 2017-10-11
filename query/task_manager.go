@@ -7,7 +7,6 @@ import (
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
-	"github.com/uber-go/zap"
 )
 
 const (
@@ -49,9 +48,10 @@ type TaskManager struct {
 	// Maximum number of concurrent queries.
 	MaxConcurrentQueries int
 
-	// Logger to use for all logging.
-	// Defaults to discarding all log output.
-	Logger zap.Logger
+	// Diagnostic is used to report any messages sent from the TaskManager.
+	Diagnostic interface {
+		DetectedSlowQuery(query string, id uint64, database string, threshold time.Duration)
+	}
 
 	// Used for managing and tracking running queries.
 	queries  map[uint64]*QueryTask
@@ -64,7 +64,6 @@ type TaskManager struct {
 func NewTaskManager() *TaskManager {
 	return &TaskManager{
 		QueryTimeout: DefaultQueryTimeout,
-		Logger:       zap.New(zap.NullEncoder()),
 		queries:      make(map[uint64]*QueryTask),
 		nextID:       1,
 	}
@@ -174,15 +173,14 @@ func (t *TaskManager) AttachQuery(q *influxql.Query, database string, interrupt 
 	t.queries[qid] = query
 
 	go t.waitForQuery(qid, query.closing, interrupt, query.monitorCh)
-	if t.LogQueriesAfter != 0 {
+	if t.LogQueriesAfter != 0 && t.Diagnostic != nil {
 		go query.monitor(func(closing <-chan struct{}) error {
 			timer := time.NewTimer(t.LogQueriesAfter)
 			defer timer.Stop()
 
 			select {
 			case <-timer.C:
-				t.Logger.Warn(fmt.Sprintf("Detected slow query: %s (qid: %d, database: %s, threshold: %s)",
-					query.query, qid, query.database, t.LogQueriesAfter))
+				t.Diagnostic.DetectedSlowQuery(query.query, qid, query.database, t.LogQueriesAfter)
 			case <-closing:
 			}
 			return nil

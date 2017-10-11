@@ -112,6 +112,7 @@ func (cmd *Command) Run(args ...string) error {
 	if err != nil {
 		return fmt.Errorf("create server: %s", err)
 	}
+	s.SetLogOutput(os.Stderr)
 	s.Logger = cmd.Logger
 	s.CPUProfile = options.CPUProfile
 	s.MemProfile = options.MemProfile

@@ -24,10 +24,10 @@ import (
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/engine/tsm1/diagnostic"
 	_ "github.com/influxdata/influxdb/tsdb/index"
 	"github.com/influxdata/influxdb/tsdb/index/inmem"
 	"github.com/influxdata/influxdb/tsdb/index/tsi1"
-	"github.com/uber-go/zap"
 )
 
 //go:generate tmpl -data=@iterator.gen.go.tmpldata iterator.gen.go.tmpl
@@ -113,8 +113,7 @@ type Engine struct {
 	id           uint64
 	database     string
 	path         string
-	logger       zap.Logger // Logger to be used for important messages
-	traceLogger  zap.Logger // Logger to be used when trace-logging is on.
+	diag         diagnostic.Context
 	traceLogging bool
 
 	index    tsdb.Index
@@ -128,7 +127,7 @@ type Engine struct {
 
 	MaxPointsPerBlock int
 
-	// CacheFlushMemorySizeThreshold specifies the minimum size threshodl for
+	// CacheFlushMemorySizeThreshold specifies the minimum size threshold for
 	// the cache when the engine should write a snapshot to a TSM file
 	CacheFlushMemorySizeThreshold uint64
 
@@ -161,15 +160,12 @@ func NewEngine(id uint64, idx tsdb.Index, database, path string, walPath string,
 		FileStore: fs,
 	}
 
-	logger := zap.New(zap.NullEncoder())
 	stats := &EngineStatistics{}
 	e := &Engine{
 		id:           id,
 		database:     database,
 		path:         path,
 		index:        idx,
-		logger:       logger,
-		traceLogger:  logger,
 		traceLogging: opt.Config.TraceLoggingEnabled,
 
 		fieldset: tsdb.NewMeasurementFieldSet(),
@@ -527,16 +523,11 @@ func (e *Engine) Close() error {
 	return e.WAL.Close()
 }
 
-// WithLogger sets the logger for the engine.
-func (e *Engine) WithLogger(log zap.Logger) {
-	e.logger = log.With(zap.String("engine", "tsm1"))
-
-	if e.traceLogging {
-		e.traceLogger = e.logger
-	}
-
-	e.WAL.WithLogger(e.logger)
-	e.FileStore.WithLogger(e.logger)
+// WithDiagnosticContext sets the diagnostic for the engine.
+func (e *Engine) WithDiagnosticContext(d diagnostic.Context) {
+	e.diag = d
+	e.WAL.WithDiagnosticContext(d)
+	e.FileStore.WithDiagnosticContext(d)
 }
 
 // LoadMetadataIndex loads the shard metadata into memory.
@@ -563,8 +554,8 @@ func (e *Engine) LoadMetadataIndex(shardID uint64, index tsdb.Index) error {
 	// load metadata from the Cache
 	if err := e.Cache.ApplyEntryFn(func(key []byte, entry *entry) error {
 		fieldType, err := entry.values.InfluxQLType()
-		if err != nil {
-			e.logger.Info(fmt.Sprintf("error getting the data type of values for key %s: %s", key, err.Error()))
+		if err != nil && e.diag != nil {
+			e.diag.DataTypeRetrievalError(key, err)
 		}
 
 		if err := e.addToIndexFromKey(key, fieldType); err != nil {
@@ -575,7 +566,9 @@ func (e *Engine) LoadMetadataIndex(shardID uint64, index tsdb.Index) error {
 		return err
 	}
 
-	e.traceLogger.Info(fmt.Sprintf("Meta data index for shard %d loaded in %v", shardID, time.Since(now)))
+	if e.traceLogging && e.diag != nil {
+		e.diag.MetaDataIndexLoaded(shardID, time.Since(now))
+	}
 	return nil
 }
 
@@ -1126,7 +1119,9 @@ func (e *Engine) WriteSnapshot() error {
 	defer func() {
 		if started != nil {
 			e.Cache.UpdateCompactTime(time.Since(*started))
-			e.logger.Info(fmt.Sprintf("Snapshot for path %s written in %v", e.path, time.Since(*started)))
+			if e.diag != nil {
+				e.diag.SnapshotWritten(e.path, time.Since(*started))
+			}
 		}
 	}()
 
@@ -1168,7 +1163,9 @@ func (e *Engine) WriteSnapshot() error {
 	// holding the engine write lock.
 	dedup := time.Now()
 	snapshot.Deduplicate()
-	e.traceLogger.Info(fmt.Sprintf("Snapshot for path %s deduplicated in %v", e.path, time.Since(dedup)))
+	if e.traceLogging && e.diag != nil {
+		e.diag.SnapshotDeduplicated(e.path, time.Since(dedup))
+	}
 
 	return e.writeSnapshotAndCommit(closedFiles, snapshot)
 }
@@ -1197,7 +1194,9 @@ func (e *Engine) writeSnapshotAndCommit(closedFiles []string, snapshot *Cache) (
 	// write the new snapshot files
 	newFiles, err := e.Compactor.WriteSnapshot(snapshot)
 	if err != nil {
-		e.logger.Info(fmt.Sprintf("error writing snapshot from compactor: %v", err))
+		if e.diag != nil {
+			e.diag.WriteCompactorSnapshotError(err)
+		}
 		return err
 	}
 
@@ -1206,15 +1205,17 @@ func (e *Engine) writeSnapshotAndCommit(closedFiles []string, snapshot *Cache) (
 
 	// update the file store with these new files
 	if err := e.FileStore.Replace(nil, newFiles); err != nil {
-		e.logger.Info(fmt.Sprintf("error adding new TSM files from snapshot: %v", err))
+		if e.diag != nil {
+			e.diag.AddNewTSMFilesFromSnapshotError(err)
+		}
 		return err
 	}
 
 	// clear the snapshot from the in-memory cache, then the old WAL files
 	e.Cache.ClearSnapshot(true)
 
-	if err := e.WAL.Remove(closedFiles); err != nil {
-		e.logger.Info(fmt.Sprintf("error removing closed wal segments: %v", err))
+	if err := e.WAL.Remove(closedFiles); err != nil && e.diag != nil {
+		e.diag.RemovingClosedWALSegmentsError(err)
 	}
 
 	return nil
@@ -1233,10 +1234,14 @@ func (e *Engine) compactCache(quit <-chan struct{}) {
 			e.Cache.UpdateAge()
 			if e.ShouldCompactCache(e.WAL.LastWriteTime()) {
 				start := time.Now()
-				e.traceLogger.Info(fmt.Sprintf("Compacting cache for %s", e.path))
+				if e.traceLogging && e.diag != nil {
+					e.diag.CompactingCache(e.path)
+				}
 				err := e.WriteSnapshot()
 				if err != nil && err != errCompactionsDisabled {
-					e.logger.Info(fmt.Sprintf("error writing snapshot: %v", err))
+					if e.diag != nil {
+						e.diag.SnapshotWriteError(err)
+					}
 					atomic.AddInt64(&e.stats.CacheCompactionErrors, 1)
 				} else {
 					atomic.AddInt64(&e.stats.CacheCompactions, 1)
@@ -1294,12 +1299,14 @@ func (e *Engine) compact(quit <-chan struct{}) {
 			run3 := atomic.LoadInt64(&e.stats.TSMCompactionsActive[2])
 			run4 := atomic.LoadInt64(&e.stats.TSMFullCompactionsActive)
 
-			e.traceLogger.Info(fmt.Sprintf("compact id=%d (%d/%d) (%d/%d) (%d/%d) (%d/%d)",
-				e.id,
-				run1, len(level1Groups),
-				run2, len(level2Groups),
-				run3, len(level3Groups),
-				run4, len(level4Groups)))
+			if e.traceLogging && e.diag != nil {
+				e.diag.StartCompactionLoop(e.id, [][]int{
+					{int(run1), len(level1Groups)},
+					{int(run2), len(level2Groups)},
+					{int(run3), len(level3Groups)},
+					{int(run4), len(level4Groups)},
+				})
+			}
 
 			// Set the queue depths on the scheduler
 			e.scheduler.setDepth(1, len(level1Groups))
@@ -1314,12 +1321,14 @@ func (e *Engine) compact(quit <-chan struct{}) {
 				run3 := atomic.LoadInt64(&e.stats.TSMCompactionsActive[2])
 				run4 := atomic.LoadInt64(&e.stats.TSMFullCompactionsActive)
 
-				e.traceLogger.Info(fmt.Sprintf("compact run=%d id=%d (%d/%d) (%d/%d) (%d/%d) (%d/%d)",
-					level, e.id,
-					run1, len(level1Groups),
-					run2, len(level2Groups),
-					run3, len(level3Groups),
-					run4, len(level4Groups)))
+				if e.traceLogging && e.diag != nil {
+					e.diag.RunCompaction(level, e.id, [][]int{
+						{int(run1), len(level1Groups)},
+						{int(run2), len(level2Groups)},
+						{int(run3), len(level3Groups)},
+						{int(run4), len(level4Groups)},
+					})
+				}
 
 				switch level {
 				case 1:
@@ -1467,12 +1476,16 @@ func (e *Engine) onFileStoreReplace(newFiles []TSMFile) {
 	for v := range merged {
 		fieldType, err := tsmFieldTypeToInfluxQLDataType(v.typ)
 		if err != nil {
-			e.logger.Error(fmt.Sprintf("refresh index (1): %v", err))
+			if e.diag != nil {
+				e.diag.RefreshIndexError(1, err)
+			}
 			continue
 		}
 
 		if err := e.addToIndexFromKey(v.key, fieldType); err != nil {
-			e.logger.Error(fmt.Sprintf("refresh index (2): %v", err))
+			if e.diag != nil {
+				e.diag.RefreshIndexError(2, err)
+			}
 			continue
 		}
 	}
@@ -1481,12 +1494,16 @@ func (e *Engine) onFileStoreReplace(newFiles []TSMFile) {
 	e.Cache.ApplyEntryFn(func(key []byte, entry *entry) error {
 		fieldType, err := entry.InfluxQLType()
 		if err != nil {
-			e.logger.Error(fmt.Sprintf("refresh index (3): %v", err))
+			if e.diag != nil {
+				e.diag.RefreshIndexError(3, err)
+			}
 			return nil
 		}
 
 		if err := e.addToIndexFromKey(key, fieldType); err != nil {
-			e.logger.Error(fmt.Sprintf("refresh index (4): %v", err))
+			if e.diag != nil {
+				e.diag.RefreshIndexError(4, err)
+			}
 			return nil
 		}
 		return nil
@@ -1506,7 +1523,13 @@ type compactionStrategy struct {
 	successStat  *int64
 	errorStat    *int64
 
-	logger    zap.Logger
+	diag interface {
+		BeginningCompaction(description string, group []string)
+		AbortedCompaction(description string, err error)
+		CompactionError(err error)
+		FinishedCompaction(description string, group []string, files []string, dur time.Duration)
+		ReplaceNewTSMFilesError(err error)
+	}
 	compactor *Compactor
 	fileStore *FileStore
 
@@ -1532,9 +1555,8 @@ func (s *compactionStrategy) Apply() {
 func (s *compactionStrategy) compactGroup() {
 	group := s.group
 	start := time.Now()
-	s.logger.Info(fmt.Sprintf("beginning %s compaction, %d TSM files", s.description, len(group)))
-	for i, f := range group {
-		s.logger.Info(fmt.Sprintf("compacting %s %s (#%d)", s.description, f, i))
+	if s.diag != nil {
+		s.diag.BeginningCompaction(s.description, group)
 	}
 
 	var (
@@ -1551,7 +1573,9 @@ func (s *compactionStrategy) compactGroup() {
 	if err != nil {
 		_, inProgress := err.(errCompactionInProgress)
 		if err == errCompactionsDisabled || inProgress {
-			s.logger.Info(fmt.Sprintf("aborted %s compaction. %v", s.description, err))
+			if s.diag != nil {
+				s.diag.AbortedCompaction(s.description, err)
+			}
 
 			if _, ok := err.(errCompactionInProgress); ok {
 				time.Sleep(time.Second)
@@ -1559,23 +1583,26 @@ func (s *compactionStrategy) compactGroup() {
 			return
 		}
 
-		s.logger.Info(fmt.Sprintf("error compacting TSM files: %v", err))
+		if s.diag != nil {
+			s.diag.CompactionError(err)
+		}
 		atomic.AddInt64(s.errorStat, 1)
 		time.Sleep(time.Second)
 		return
 	}
 
 	if err := s.fileStore.ReplaceWithCallback(group, files, s.engine.onFileStoreReplace); err != nil {
-		s.logger.Info(fmt.Sprintf("error replacing new TSM files: %v", err))
+		if s.diag != nil {
+			s.diag.ReplaceNewTSMFilesError(err)
+		}
 		atomic.AddInt64(s.errorStat, 1)
 		time.Sleep(time.Second)
 		return
 	}
 
-	for i, f := range files {
-		s.logger.Info(fmt.Sprintf("compacted %s into %s (#%d)", s.description, f, i))
+	if s.diag != nil {
+		s.diag.FinishedCompaction(s.description, group, files, time.Since(start))
 	}
-	s.logger.Info(fmt.Sprintf("compacted %s %d files into %d files in %s", s.description, len(group), len(files), time.Since(start)))
 	atomic.AddInt64(s.successStat, 1)
 }
 
@@ -1584,7 +1611,7 @@ func (s *compactionStrategy) compactGroup() {
 func (e *Engine) levelCompactionStrategy(group CompactionGroup, fast bool, level int) *compactionStrategy {
 	return &compactionStrategy{
 		group:     group,
-		logger:    e.logger,
+		diag:      e.diag,
 		fileStore: e.FileStore,
 		compactor: e.Compactor,
 		fast:      fast,
@@ -1604,7 +1631,7 @@ func (e *Engine) levelCompactionStrategy(group CompactionGroup, fast bool, level
 func (e *Engine) fullCompactionStrategy(group CompactionGroup, optimize bool) *compactionStrategy {
 	s := &compactionStrategy{
 		group:     group,
-		logger:    e.logger,
+		diag:      e.diag,
 		fileStore: e.FileStore,
 		compactor: e.Compactor,
 		fast:      optimize,
@@ -1646,12 +1673,14 @@ func (e *Engine) reloadCache() error {
 	e.Cache.SetMaxSize(0)
 
 	loader := NewCacheLoader(files)
-	loader.WithLogger(e.logger)
+	loader.WithDiagnosticContext(e.diag)
 	if err := loader.Load(e.Cache); err != nil {
 		return err
 	}
 
-	e.traceLogger.Info(fmt.Sprintf("Reloaded WAL cache %s in %v", e.WAL.Path(), time.Since(now)))
+	if e.traceLogging && e.diag != nil {
+		e.diag.ReloadedWALCache(e.WAL.Path(), time.Since(now))
+	}
 	return nil
 }
 
@@ -1711,7 +1740,7 @@ func (e *Engine) CreateIterator(measurement string, opt query.IteratorOptions) (
 				if err != nil {
 					return nil, err
 				}
-				return newMergeFinalizerIterator(itrs, opt, e.logger)
+				return newMergeFinalizerIterator(itrs, opt, e.diag)
 			}
 		}
 
@@ -1721,14 +1750,14 @@ func (e *Engine) CreateIterator(measurement string, opt query.IteratorOptions) (
 		} else if len(inputs) == 0 {
 			return nil, nil
 		}
-		return newMergeFinalizerIterator(inputs, opt, e.logger)
+		return newMergeFinalizerIterator(inputs, opt, e.diag)
 	}
 
 	itrs, err := e.createVarRefIterator(measurement, opt)
 	if err != nil {
 		return nil, err
 	}
-	return newMergeFinalizerIterator(itrs, opt, e.logger)
+	return newMergeFinalizerIterator(itrs, opt, e.diag)
 }
 
 func (e *Engine) createCallIterator(measurement string, call *influxql.Call, opt query.IteratorOptions) ([]query.Iterator, error) {

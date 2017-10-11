@@ -21,8 +21,8 @@ import (
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/tsdb/diagnostic"
 	internal "github.com/influxdata/influxdb/tsdb/internal"
-	"github.com/uber-go/zap"
 )
 
 // monitorStatInterval is the interval at which the shard is inspected
@@ -129,16 +129,13 @@ type Shard struct {
 	stats       *ShardStatistics
 	defaultTags models.StatisticTags
 
-	baseLogger zap.Logger
-	logger     zap.Logger
-
+	diag         diagnostic.ShardContext
 	EnableOnOpen bool
 }
 
 // NewShard returns a new initialized Shard. walPath doesn't apply to the b1 type index
 func NewShard(id uint64, path string, walPath string, opt EngineOptions) *Shard {
 	db, rp := decodeStorePath(path)
-	logger := zap.New(zap.NullEncoder())
 
 	s := &Shard{
 		id:      id,
@@ -160,22 +157,20 @@ func NewShard(id uint64, path string, walPath string, opt EngineOptions) *Shard 
 		database:        db,
 		retentionPolicy: rp,
 
-		logger:       logger,
-		baseLogger:   logger,
 		EnableOnOpen: true,
 	}
 	return s
 }
 
-// WithLogger sets the logger on the shard.
-func (s *Shard) WithLogger(log zap.Logger) {
-	s.baseLogger = log
-	engine, err := s.engine()
-	if err == nil {
-		engine.WithLogger(s.baseLogger)
-		s.index.WithLogger(s.baseLogger)
+func (s *Shard) WithDiagnosticContext(d diagnostic.ShardContext) {
+	s.diag = d
+	if s.diag != nil {
+		engine, err := s.engine()
+		if err == nil {
+			s.diag.AttachEngine(s.options.EngineVersion, engine)
+			s.diag.AttachIndex(s.index.Type(), s.index)
+		}
 	}
-	s.logger = s.baseLogger.With(zap.String("service", "shard"))
 }
 
 // SetEnabled enables the shard for queries and write.  When disabled, all
@@ -281,7 +276,9 @@ func (s *Shard) Open() error {
 			return err
 		}
 		s.index = idx
-		idx.WithLogger(s.baseLogger)
+		if s.diag != nil {
+			s.diag.AttachIndex(idx.Type(), idx)
+		}
 
 		// Initialize underlying engine.
 		e, err := NewEngine(s.id, idx, s.database, s.path, s.walPath, s.options)
@@ -290,7 +287,9 @@ func (s *Shard) Open() error {
 		}
 
 		// Set log output on the engine.
-		e.WithLogger(s.baseLogger)
+		if s.diag != nil {
+			s.diag.AttachEngine(s.options.EngineVersion, e)
+		}
 
 		// Disable compactions while loading the index
 		e.SetEnabled(false)

@@ -9,18 +9,20 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/influxdata/influxdb/diagnostic"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/index/inmem"
 	"github.com/influxdata/influxdb/tsdb/index/tsi1"
+	tsi1diag "github.com/influxdata/influxdb/tsdb/index/tsi1/diagnostic"
 	"github.com/uber-go/zap"
 )
 
 // Command represents the program execution for "influx_inspect inmem2tsi".
 type Command struct {
-	Stderr io.Writer
-	Stdout io.Writer
-	Logger zap.Logger
+	Stderr     io.Writer
+	Stdout     io.Writer
+	Diagnostic *diagnostic.Service
 }
 
 // NewCommand returns a new instance of Command.
@@ -28,7 +30,6 @@ func NewCommand() *Command {
 	return &Command{
 		Stderr: os.Stderr,
 		Stdout: os.Stdout,
-		Logger: zap.New(zap.NullEncoder()),
 	}
 }
 
@@ -48,10 +49,7 @@ func (cmd *Command) Run(args ...string) error {
 	}
 
 	if *verbose {
-		cmd.Logger = zap.New(
-			zap.NewTextEncoder(),
-			zap.Output(os.Stderr),
-		)
+		cmd.Diagnostic = diagnostic.New(os.Stderr)
 	}
 
 	return cmd.run(*path, *walPath, *verbose)
@@ -60,12 +58,12 @@ func (cmd *Command) Run(args ...string) error {
 func (cmd *Command) run(path, walPath string, verbose bool) error {
 	// Check if shard already has a TSI index.
 	indexPath := filepath.Join(path, "index")
-	cmd.Logger.Info("checking index path", zap.String("path", indexPath))
+	cmd.Logger().Info("checking index path", zap.String("path", indexPath))
 	if _, err := os.Stat(indexPath); !os.IsNotExist(err) {
 		return errors.New("tsi1 index already exists")
 	}
 
-	cmd.Logger.Info("opening shard", zap.String("path", path), zap.String("wal-path", walPath))
+	cmd.Logger().Info("opening shard", zap.String("path", path), zap.String("wal-path", walPath))
 
 	// Open shard at path.
 	sh := tsdb.NewShard(0, path, walPath, tsdb.EngineOptions{
@@ -78,7 +76,7 @@ func (cmd *Command) run(path, walPath string, verbose bool) error {
 	}
 	defer sh.CloseFast()
 
-	cmd.Logger.Info("reading in-memory index")
+	cmd.Logger().Info("reading in-memory index")
 
 	// Retrieve in-memory index reference.
 	inmemIndex, ok := sh.Index().(*inmem.ShardIndex)
@@ -88,7 +86,7 @@ func (cmd *Command) run(path, walPath string, verbose bool) error {
 
 	// Remove temporary index files if this is being re-run.
 	tmpPath := filepath.Join(path, ".index")
-	cmd.Logger.Info("cleaning up partial index from previous run, if any")
+	cmd.Logger().Info("cleaning up partial index from previous run, if any")
 	if err := os.RemoveAll(tmpPath); err != nil {
 		return err
 	}
@@ -96,18 +94,22 @@ func (cmd *Command) run(path, walPath string, verbose bool) error {
 	// Open TSI index in temporary path.
 	tsiIndex := tsi1.NewIndex()
 	tsiIndex.Path = tmpPath
-	tsiIndex.WithLogger(cmd.Logger)
-	cmd.Logger.Info("opening tsi index in temporary location", zap.String("path", tmpPath))
+	if ctx, ok := cmd.Diagnostic.StoreContext().(interface {
+		TSI1Context() tsi1diag.Context
+	}); ok {
+		tsiIndex.WithDiagnosticContext(ctx.TSI1Context())
+	}
+	cmd.Logger().Info("opening tsi index in temporary location", zap.String("path", tmpPath))
 	if err := tsiIndex.Open(); err != nil {
 		return err
 	}
 	defer tsiIndex.Close()
 
-	cmd.Logger.Info("iterating over measurements")
+	cmd.Logger().Info("iterating over measurements")
 
 	// Iterate over each series & insert into new index.
 	if err := inmemIndex.ForEachMeasurementName(func(name []byte) error {
-		cmd.Logger.Info("processing measurement", zap.String("name", string(name)))
+		cmd.Logger().Info("processing measurement", zap.String("name", string(name)))
 
 		mm, err := inmemIndex.Measurement(name)
 		if err != nil {
@@ -117,7 +119,7 @@ func (cmd *Command) run(path, walPath string, verbose bool) error {
 		}
 
 		if err := mm.ForEachSeriesByExpr(nil, func(tags models.Tags) error {
-			cmd.Logger.Info("series", zap.String("name", string(name)), zap.String("tags", tags.String()))
+			cmd.Logger().Info("series", zap.String("name", string(name)), zap.String("tags", tags.String()))
 			if err := tsiIndex.CreateSeriesIfNotExists(nil, name, tags); err != nil {
 				return fmt.Errorf("cannot create series: %s %s (%s)", name, tags.String(), err)
 			}
@@ -131,20 +133,20 @@ func (cmd *Command) run(path, walPath string, verbose bool) error {
 		return err
 	}
 
-	cmd.Logger.Info("compacting index")
+	cmd.Logger().Info("compacting index")
 
 	// Attempt to compact the index & wait for all compactions to complete.
 	tsiIndex.Compact()
 	tsiIndex.Wait()
 
-	cmd.Logger.Info("closing tsi index")
+	cmd.Logger().Info("closing tsi index")
 
 	// Close TSI index.
 	if err := tsiIndex.Close(); err != nil {
 		return err
 	}
 
-	cmd.Logger.Info("moving tsi to permanent location")
+	cmd.Logger().Info("moving tsi to permanent location")
 
 	// Rename TSI to standard path.
 	if err := os.Rename(tmpPath, indexPath); err != nil {
@@ -161,4 +163,8 @@ Usage: influx_inspect inmem2tsi -path DATA_PATH -wal-path WAL_PATH
 `
 
 	fmt.Fprintf(cmd.Stdout, usage)
+}
+
+func (cmd *Command) Logger() zap.Logger {
+	return cmd.Diagnostic.Logger()
 }

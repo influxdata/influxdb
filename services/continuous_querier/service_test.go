@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/diagnostic"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/continuous_querier"
 	"github.com/influxdata/influxdb/services/meta"
-	"github.com/uber-go/zap"
 )
 
 var (
@@ -699,10 +699,8 @@ func NewTestService(t *testing.T, c *continuous_querier.Config) *continuous_quer
 
 	// Set Logger to write to dev/null so stdout isn't polluted.
 	if testing.Verbose() {
-		s.WithLogger(zap.New(
-			zap.NewTextEncoder(),
-			zap.Output(os.Stderr),
-		))
+		diag := diagnostic.New(os.Stderr)
+		s.With(diag.ContinuousQuerierContext())
 	}
 
 	// Add a couple test databases and CQs.

@@ -13,6 +13,7 @@ import (
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/coordinator"
+	"github.com/influxdata/influxdb/diagnostic"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
 	"github.com/influxdata/influxdb/query"
@@ -63,7 +64,8 @@ type Server struct {
 	BindAddress string
 	Listener    net.Listener
 
-	Logger zap.Logger
+	Logger            zap.Logger
+	DiagnosticService *diagnostic.Service
 
 	MetaClient *meta.Client
 
@@ -226,6 +228,7 @@ func (s *Server) appendSnapshotterService() {
 	srv := snapshotter.NewService()
 	srv.TSDBStore = s.TSDBStore
 	srv.MetaClient = s.MetaClient
+	srv.With(s.DiagnosticService.SnapshotterContext())
 	s.Services = append(s.Services, srv)
 	s.SnapshotterService = srv
 }
@@ -234,9 +237,11 @@ func (s *Server) appendSnapshotterService() {
 // after the Open method has been called.
 func (s *Server) SetLogOutput(w io.Writer) {
 	s.Logger = zap.New(zap.NewTextEncoder(), zap.Output(zap.AddSync(w)))
+	s.DiagnosticService = diagnostic.New(w)
 }
 
 func (s *Server) appendMonitorService() {
+	s.Monitor.With(s.DiagnosticService.MonitorContext())
 	s.Services = append(s.Services, s.Monitor)
 }
 
@@ -247,6 +252,7 @@ func (s *Server) appendRetentionPolicyService(c retention.Config) {
 	srv := retention.NewService(c)
 	srv.MetaClient = s.MetaClient
 	srv.TSDBStore = s.TSDBStore
+	srv.With(s.DiagnosticService.RetentionContext())
 	s.Services = append(s.Services, srv)
 }
 
@@ -263,6 +269,7 @@ func (s *Server) appendHTTPDService(c httpd.Config) {
 	srv.Handler.PointsWriter = s.PointsWriter
 	srv.Handler.Version = s.buildInfo.Version
 	srv.Handler.BuildType = "OSS"
+	srv.With(s.DiagnosticService.HTTPDContext())
 
 	s.Services = append(s.Services, srv)
 }
@@ -274,6 +281,7 @@ func (s *Server) appendCollectdService(c collectd.Config) {
 	srv := collectd.NewService(c)
 	srv.MetaClient = s.MetaClient
 	srv.PointsWriter = s.PointsWriter
+	srv.With(s.DiagnosticService.CollectdContext())
 	s.Services = append(s.Services, srv)
 }
 
@@ -287,6 +295,7 @@ func (s *Server) appendOpenTSDBService(c opentsdb.Config) error {
 	}
 	srv.PointsWriter = s.PointsWriter
 	srv.MetaClient = s.MetaClient
+	srv.With(s.DiagnosticService.OpenTSDBContext())
 	s.Services = append(s.Services, srv)
 	return nil
 }
@@ -303,6 +312,7 @@ func (s *Server) appendGraphiteService(c graphite.Config) error {
 	srv.PointsWriter = s.PointsWriter
 	srv.MetaClient = s.MetaClient
 	srv.Monitor = s.Monitor
+	srv.With(s.DiagnosticService.GraphiteContext())
 	s.Services = append(s.Services, srv)
 	return nil
 }
@@ -317,6 +327,7 @@ func (s *Server) appendPrecreatorService(c precreator.Config) error {
 	}
 
 	srv.MetaClient = s.MetaClient
+	srv.With(s.DiagnosticService.PrecreatorContext())
 	s.Services = append(s.Services, srv)
 	return nil
 }
@@ -328,6 +339,7 @@ func (s *Server) appendUDPService(c udp.Config) {
 	srv := udp.NewService(c)
 	srv.PointsWriter = s.PointsWriter
 	srv.MetaClient = s.MetaClient
+	srv.With(s.DiagnosticService.UDPContext())
 	s.Services = append(s.Services, srv)
 }
 
@@ -339,6 +351,7 @@ func (s *Server) appendContinuousQueryService(c continuous_querier.Config) {
 	srv.MetaClient = s.MetaClient
 	srv.QueryExecutor = s.QueryExecutor
 	srv.Monitor = s.Monitor
+	srv.With(s.DiagnosticService.ContinuousQuerierContext())
 	s.Services = append(s.Services, srv)
 }
 
@@ -393,19 +406,14 @@ func (s *Server) Open() error {
 
 	// Configure logging for all services and clients.
 	if s.config.Meta.LoggingEnabled {
-		s.MetaClient.WithLogger(s.Logger)
+		s.MetaClient.With(s.DiagnosticService.MetaClientContext())
 	}
-	s.TSDBStore.WithLogger(s.Logger)
+	s.TSDBStore.With(s.DiagnosticService.StoreContext())
 	if s.config.Data.QueryLogEnabled {
-		s.QueryExecutor.WithLogger(s.Logger)
+		s.QueryExecutor.With(s.DiagnosticService.QueryContext())
 	}
-	s.PointsWriter.WithLogger(s.Logger)
-	s.Subscriber.WithLogger(s.Logger)
-	for _, svc := range s.Services {
-		svc.WithLogger(s.Logger)
-	}
-	s.SnapshotterService.WithLogger(s.Logger)
-	s.Monitor.WithLogger(s.Logger)
+	s.PointsWriter.With(s.DiagnosticService.PointsWriterContext())
+	s.Subscriber.With(s.DiagnosticService.SubscriberContext())
 
 	// Open TSDB store.
 	if err := s.TSDBStore.Open(); err != nil {
@@ -550,7 +558,6 @@ func (s *Server) reportServer() {
 
 // Service represents a service attached to the server.
 type Service interface {
-	WithLogger(log zap.Logger)
 	Open() error
 	Close() error
 }

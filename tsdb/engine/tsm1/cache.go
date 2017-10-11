@@ -11,7 +11,7 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
-	"github.com/uber-go/zap"
+	"github.com/influxdata/influxdb/tsdb/engine/tsm1/diagnostic"
 )
 
 // ringShards specifies the number of partitions that the hash ring used to
@@ -670,14 +670,13 @@ func (c *Cache) ApplyEntryFn(f func(key []byte, entry *entry) error) error {
 type CacheLoader struct {
 	files []string
 
-	Logger zap.Logger
+	Diagnostic diagnostic.CacheLoaderContext
 }
 
 // NewCacheLoader returns a new instance of a CacheLoader.
 func NewCacheLoader(files []string) *CacheLoader {
 	return &CacheLoader{
-		files:  files,
-		Logger: zap.New(zap.NullEncoder()),
+		files: files,
 	}
 }
 
@@ -701,7 +700,9 @@ func (cl *CacheLoader) Load(cache *Cache) error {
 			if err != nil {
 				return err
 			}
-			cl.Logger.Info(fmt.Sprintf("reading file %s, size %d", f.Name(), stat.Size()))
+			if cl.Diagnostic != nil {
+				cl.Diagnostic.CacheReadingFile(f.Name(), stat.Size())
+			}
 
 			// Nothing to read, skip it
 			if stat.Size() == 0 {
@@ -719,7 +720,9 @@ func (cl *CacheLoader) Load(cache *Cache) error {
 				entry, err := r.Read()
 				if err != nil {
 					n := r.Count()
-					cl.Logger.Info(fmt.Sprintf("file %s corrupt at position %d, truncating", f.Name(), n))
+					if cl.Diagnostic != nil {
+						cl.Diagnostic.CacheFileCorrupt(f.Name(), n)
+					}
 					if err := f.Truncate(n); err != nil {
 						return err
 					}
@@ -746,9 +749,9 @@ func (cl *CacheLoader) Load(cache *Cache) error {
 	return nil
 }
 
-// WithLogger sets the logger on the CacheLoader.
-func (cl *CacheLoader) WithLogger(log zap.Logger) {
-	cl.Logger = log.With(zap.String("service", "cacheloader"))
+// WithDiagnosticContext sets the diagnostic on the CacheLoader.
+func (cl *CacheLoader) WithDiagnosticContext(d diagnostic.CacheLoaderContext) {
+	cl.Diagnostic = d
 }
 
 // UpdateAge updates the age statistic based on the current time.

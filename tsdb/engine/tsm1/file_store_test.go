@@ -10,8 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/diagnostic"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
-	"github.com/uber-go/zap"
+	tsm1diag "github.com/influxdata/influxdb/tsdb/engine/tsm1/diagnostic"
 )
 
 func TestFileStore_Read(t *testing.T) {
@@ -2783,10 +2784,10 @@ func BenchmarkFileStore_Stats(b *testing.B) {
 
 	fs := tsm1.NewFileStore(dir)
 	if testing.Verbose() {
-		fs.WithLogger(zap.New(
-			zap.NewTextEncoder(),
-			zap.Output(os.Stderr),
-		))
+		diag := diagnostic.New(os.Stderr)
+		fs.WithDiagnosticContext(diag.StoreContext().(interface {
+			TSM1Context() tsm1diag.Context
+		}).TSM1Context())
 	}
 
 	if err := fs.Open(); err != nil {
