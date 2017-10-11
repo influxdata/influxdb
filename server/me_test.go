@@ -82,7 +82,7 @@ func TestService_Me(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody: `{"name":"secret","password":"","links":{"self":"/chronograf/v1/users/secret"}}
+			wantBody: `{"name":"secret","links":{"self":"/chronograf/v1/users/secret"}}
 `,
 		},
 		{

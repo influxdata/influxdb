@@ -50,28 +50,28 @@ func newLayoutResponse(layout chronograf.Layout) layoutResponse {
 }
 
 // NewLayout adds a valid layout to store.
-func (h *Service) NewLayout(w http.ResponseWriter, r *http.Request) {
+func (s *Service) NewLayout(w http.ResponseWriter, r *http.Request) {
 	var layout chronograf.Layout
 	if err := json.NewDecoder(r.Body).Decode(&layout); err != nil {
-		invalidJSON(w, h.Logger)
+		invalidJSON(w, s.Logger)
 		return
 	}
 
 	if err := ValidLayoutRequest(layout); err != nil {
-		invalidData(w, err, h.Logger)
+		invalidData(w, err, s.Logger)
 		return
 	}
 
 	var err error
-	if layout, err = h.LayoutStore.Add(r.Context(), layout); err != nil {
+	if layout, err = s.LayoutStore.Add(r.Context(), layout); err != nil {
 		msg := fmt.Errorf("Error storing layout %v: %v", layout, err)
-		unknownErrorWithMessage(w, msg, h.Logger)
+		unknownErrorWithMessage(w, msg, s.Logger)
 		return
 	}
 
 	res := newLayoutResponse(layout)
-	w.Header().Add("Location", res.Link.Href)
-	encodeJSON(w, http.StatusCreated, res, h.Logger)
+	location(w, res.Link.Href)
+	encodeJSON(w, http.StatusCreated, res, s.Logger)
 }
 
 type getLayoutsResponse struct {
@@ -79,7 +79,7 @@ type getLayoutsResponse struct {
 }
 
 // Layouts retrieves all layouts from store
-func (h *Service) Layouts(w http.ResponseWriter, r *http.Request) {
+func (s *Service) Layouts(w http.ResponseWriter, r *http.Request) {
 	// Construct a filter sieve for both applications and measurements
 	filtered := map[string]bool{}
 	for _, a := range r.URL.Query()["app"] {
@@ -91,9 +91,9 @@ func (h *Service) Layouts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	layouts, err := h.LayoutStore.All(ctx)
+	layouts, err := s.LayoutStore.All(ctx)
 	if err != nil {
-		Error(w, http.StatusInternalServerError, "Error loading layouts", h.Logger)
+		Error(w, http.StatusInternalServerError, "Error loading layouts", s.Logger)
 		return
 	}
 
@@ -115,26 +115,26 @@ func (h *Service) Layouts(w http.ResponseWriter, r *http.Request) {
 			res.Layouts = append(res.Layouts, newLayoutResponse(layout))
 		}
 	}
-	encodeJSON(w, http.StatusOK, res, h.Logger)
+	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
 
 // LayoutsID retrieves layout with ID from store
-func (h *Service) LayoutsID(w http.ResponseWriter, r *http.Request) {
+func (s *Service) LayoutsID(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id := httprouter.GetParamFromContext(ctx, "id")
 
-	layout, err := h.LayoutStore.Get(ctx, id)
+	layout, err := s.LayoutStore.Get(ctx, id)
 	if err != nil {
-		Error(w, http.StatusNotFound, fmt.Sprintf("ID %s not found", id), h.Logger)
+		Error(w, http.StatusNotFound, fmt.Sprintf("ID %s not found", id), s.Logger)
 		return
 	}
 
 	res := newLayoutResponse(layout)
-	encodeJSON(w, http.StatusOK, res, h.Logger)
+	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
 
 // RemoveLayout deletes layout from store.
-func (h *Service) RemoveLayout(w http.ResponseWriter, r *http.Request) {
+func (s *Service) RemoveLayout(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id := httprouter.GetParamFromContext(ctx, "id")
 
@@ -142,8 +142,8 @@ func (h *Service) RemoveLayout(w http.ResponseWriter, r *http.Request) {
 		ID: id,
 	}
 
-	if err := h.LayoutStore.Delete(ctx, layout); err != nil {
-		unknownErrorWithMessage(w, err, h.Logger)
+	if err := s.LayoutStore.Delete(ctx, layout); err != nil {
+		unknownErrorWithMessage(w, err, s.Logger)
 		return
 	}
 
@@ -151,36 +151,36 @@ func (h *Service) RemoveLayout(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateLayout replaces the layout of ID with new valid layout.
-func (h *Service) UpdateLayout(w http.ResponseWriter, r *http.Request) {
+func (s *Service) UpdateLayout(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id := httprouter.GetParamFromContext(ctx, "id")
 
-	_, err := h.LayoutStore.Get(ctx, id)
+	_, err := s.LayoutStore.Get(ctx, id)
 	if err != nil {
-		Error(w, http.StatusNotFound, fmt.Sprintf("ID %s not found", id), h.Logger)
+		Error(w, http.StatusNotFound, fmt.Sprintf("ID %s not found", id), s.Logger)
 		return
 	}
 
 	var req chronograf.Layout
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		invalidJSON(w, h.Logger)
+		invalidJSON(w, s.Logger)
 		return
 	}
 	req.ID = id
 
 	if err := ValidLayoutRequest(req); err != nil {
-		invalidData(w, err, h.Logger)
+		invalidData(w, err, s.Logger)
 		return
 	}
 
-	if err := h.LayoutStore.Update(ctx, req); err != nil {
+	if err := s.LayoutStore.Update(ctx, req); err != nil {
 		msg := fmt.Sprintf("Error updating layout ID %s: %v", id, err)
-		Error(w, http.StatusInternalServerError, msg, h.Logger)
+		Error(w, http.StatusInternalServerError, msg, s.Logger)
 		return
 	}
 
 	res := newLayoutResponse(req)
-	encodeJSON(w, http.StatusOK, res, h.Logger)
+	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
 
 // ValidLayoutRequest checks if the layout has valid application, measurement and cells.

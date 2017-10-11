@@ -355,25 +355,25 @@ func (h *Service) UpdateRetentionPolicy(w http.ResponseWriter, r *http.Request) 
 }
 
 // DropRetentionPolicy removes a retention policy from a database
-func (h *Service) DropRetentionPolicy(w http.ResponseWriter, r *http.Request) {
+func (s *Service) DropRetentionPolicy(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	srcID, err := paramID("id", r)
 	if err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
+		Error(w, http.StatusUnprocessableEntity, err.Error(), s.Logger)
 		return
 	}
 
-	src, err := h.SourcesStore.Get(ctx, srcID)
+	src, err := s.SourcesStore.Get(ctx, srcID)
 	if err != nil {
-		notFound(w, srcID, h.Logger)
+		notFound(w, srcID, s.Logger)
 		return
 	}
 
-	db := h.Databases
+	db := s.Databases
 	if err = db.Connect(ctx, &src); err != nil {
 		msg := fmt.Sprintf("Unable to connect to source %d: %v", srcID, err)
-		Error(w, http.StatusBadRequest, msg, h.Logger)
+		Error(w, http.StatusBadRequest, msg, s.Logger)
 		return
 	}
 
@@ -381,7 +381,7 @@ func (h *Service) DropRetentionPolicy(w http.ResponseWriter, r *http.Request) {
 	rpID := httprouter.GetParamFromContext(ctx, "rpid")
 	dropErr := db.DropRP(ctx, dbID, rpID)
 	if dropErr != nil {
-		Error(w, http.StatusBadRequest, dropErr.Error(), h.Logger)
+		Error(w, http.StatusBadRequest, dropErr.Error(), s.Logger)
 		return
 	}
 

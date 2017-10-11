@@ -57,25 +57,25 @@ func getPrincipal(ctx context.Context) (oauth2.Principal, error) {
 }
 
 // Me does a findOrCreate based on the email in the context
-func (h *Service) Me(w http.ResponseWriter, r *http.Request) {
+func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	if !h.UseAuth {
+	if !s.UseAuth {
 		// If there's no authentication, return an empty user
 		res := newMeResponse(nil)
-		encodeJSON(w, http.StatusOK, res, h.Logger)
+		encodeJSON(w, http.StatusOK, res, s.Logger)
 		return
 	}
 
 	email, err := getEmail(ctx)
 	if err != nil {
-		invalidData(w, err, h.Logger)
+		invalidData(w, err, s.Logger)
 		return
 	}
 
-	usr, err := h.UsersStore.Get(ctx, email)
+	usr, err := s.UsersStore.Get(ctx, email)
 	if err == nil {
 		res := newMeResponse(usr)
-		encodeJSON(w, http.StatusOK, res, h.Logger)
+		encodeJSON(w, http.StatusOK, res, s.Logger)
 		return
 	}
 
@@ -84,13 +84,13 @@ func (h *Service) Me(w http.ResponseWriter, r *http.Request) {
 		Name: email,
 	}
 
-	newUser, err := h.UsersStore.Add(ctx, user)
+	newUser, err := s.UsersStore.Add(ctx, user)
 	if err != nil {
 		msg := fmt.Errorf("error storing user %s: %v", user.Name, err)
-		unknownErrorWithMessage(w, msg, h.Logger)
+		unknownErrorWithMessage(w, msg, s.Logger)
 		return
 	}
 
 	res := newMeResponse(newUser)
-	encodeJSON(w, http.StatusOK, res, h.Logger)
+	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
