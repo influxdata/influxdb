@@ -68,7 +68,7 @@ export const toggleField = (query, {name, type}, isKapacitorRule = false) => {
     }
     return {
       ...query,
-      fields: removeField(name, fields),
+      fields: newFields,
     }
   }
 
@@ -95,23 +95,6 @@ export const toggleField = (query, {name, type}, isKapacitorRule = false) => {
       args: [{name, type}],
     }
   })
-
-  // const isSelected = fields.find(f => f.field === field)
-  // if (isSelected) {
-  //   const nextFields = fields.filter(f => f.field !== field)
-  //   if (!nextFields.length) {
-  //     return {
-  //       ...query,
-  //       fields: nextFields,
-  //       groupBy: {...groupBy, time: null},
-  //     }
-  //   }
-
-  //   return {
-  //     ...query,
-  //     fields: nextFields,
-  //   }
-  // }
 
   return {
     ...query,

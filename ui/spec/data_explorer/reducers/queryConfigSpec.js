@@ -87,10 +87,10 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
       )
     })
 
-    describe('choosing a new namespace', () => {
+    describe.only('choosing a new namespace', () => {
       it('clears out the old measurement and fields', () => {
         // what about tags?
-        expect(state[queryId].measurement).to.exist
+        expect(state[queryId].measurement).to.equal('disk')
         expect(state[queryId].fields.length).to.equal(1)
 
         const newState = reducer(
@@ -101,7 +101,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
           })
         )
 
-        expect(newState[queryId].measurement).not.to.exist
+        expect(newState[queryId].measurement).to.be.null
         expect(newState[queryId].fields.length).to.equal(0)
       })
     })
@@ -169,7 +169,6 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
         delete state[queryId].fields
         expect(state[queryId].fields).to.equal(undefined)
 
-        const field = 'fk1'
         const newState = reducer(
           state,
           toggleField(queryId, {name: 'fk1', type: 'field'})
