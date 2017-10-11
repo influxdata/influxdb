@@ -1,55 +1,47 @@
-import _ from 'lodash'
-import React, {PropTypes} from 'react'
+import React, {PropTypes, Component} from 'react'
 import classnames from 'classnames'
 
 import FunctionSelector from 'shared/components/FunctionSelector'
-import {numFunctions, fieldNamesDeep, functionNames} from 'utils/fields'
+import {numFunctions, firstFieldName, functionNames} from 'utils/fields'
 
-const {string, shape, func, arrayOf, bool} = PropTypes
-const FieldListItem = React.createClass({
-  propTypes: {
-    fieldFunc: arrayOf(
-      shape({
-        type: string,
-        name: string,
-      })
-    ).isRequired,
-    isSelected: bool.isRequired,
-    onToggleField: func.isRequired,
-    onApplyFuncsToField: func.isRequired,
-    isKapacitorRule: bool.isRequired,
-  },
-
-  getInitialState() {
-    return {
+class FieldListItem extends Component {
+  constructor(props) {
+    super(props)
+    this.state = {
       isOpen: false,
     }
-  },
+  }
 
-  toggleFunctionsMenu(e) {
+  toggleFunctionsMenu = e => {
     if (e) {
       e.stopPropagation()
     }
     this.setState({isOpen: !this.state.isOpen})
-  },
+  }
 
-  handleToggleField() {
-    this.props.onToggleField(this.props.fieldFunc)
+  close = () => {
     this.setState({isOpen: false})
-  },
+  }
 
-  handleApplyFunctions(selectedFuncs) {
-    this.props.onApplyFuncsToField({
-      field: this.props.fieldFunc.field,
+  handleToggleField = () => {
+    const {onToggleField, fieldFunc} = this.props
+    onToggleField(fieldFunc)
+    this.close()
+  }
+
+  handleApplyFunctions = selectedFuncs => {
+    const {onApplyFuncsToField, fieldFunc} = this.props
+    onApplyFuncsToField({
+      field: fieldFunc.field,
       funcs: selectedFuncs,
     })
-    this.setState({isOpen: false})
-  },
+    this.close()
+  }
 
   render() {
     const {isKapacitorRule, fieldFunc, isSelected} = this.props
     const {isOpen} = this.state
-    const fieldText = _.head(fieldNamesDeep(fieldFunc))
+    const fieldName = firstFieldName(fieldFunc)
     const funcs = functionNames(fieldFunc)
 
     let fieldFuncsLabel
@@ -57,23 +49,26 @@ const FieldListItem = React.createClass({
     switch (num) {
       case 0:
         fieldFuncsLabel = '0 Functions'
+        break
       case 1:
         fieldFuncsLabel = `${num} Function`
+        break
       default:
         fieldFuncsLabel = `${num} Functions`
+        break
     }
     return (
-      <div key={fieldFunc}>
+      <div key={fieldName}>
         <div
           className={classnames('query-builder--list-item', {
             active: isSelected,
           })}
-          onClick={_.wrap(fieldFunc, this.handleToggleField)}
-          data-test={`query-builder-list-item-field-${fieldText}`}
+          onClick={this.handleToggleField}
+          data-test={`query-builder-list-item-field-${fieldName}`}
         >
           <span>
             <div className="query-builder--checkbox" />
-            {fieldText}
+            {fieldName}
           </span>
           {isSelected
             ? <div
@@ -83,7 +78,7 @@ const FieldListItem = React.createClass({
                   'btn-primary': num,
                 })}
                 onClick={this.toggleFunctionsMenu}
-                data-test={`query-builder-list-item-function-${fieldText}`}
+                data-test={`query-builder-list-item-function-${fieldName}`}
               >
                 {fieldFuncsLabel}
               </div>
@@ -98,7 +93,27 @@ const FieldListItem = React.createClass({
           : null}
       </div>
     )
-  },
-})
+  }
+}
 
+const {string, shape, func, arrayOf, bool} = PropTypes
+FieldListItem.propTypes = {
+  fieldFunc: arrayOf(
+    shape({
+      type: string.isRequired,
+      name: string.isRequired,
+      alias: string,
+      args: arrayOf(
+        shape({
+          type: string.isRequired,
+          name: string.isRequired,
+        })
+      ),
+    })
+  ).isRequired,
+  isSelected: bool.isRequired,
+  onToggleField: func.isRequired,
+  onApplyFuncsToField: func.isRequired,
+  isKapacitorRule: bool.isRequired,
+}
 export default FieldListItem

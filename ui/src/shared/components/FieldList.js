@@ -74,7 +74,7 @@ class FieldList extends Component {
       }
 
       this.setState({
-        fields: fieldSets[measurement].map(f => ({field: f, funcs: []})),
+        fields: fieldSets[measurement].map(f => ({name: f, type: 'field'})),
       })
     })
   }
