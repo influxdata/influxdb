@@ -49,7 +49,7 @@ class DashboardEditHeader extends Component {
           ? <input
               maxLength={DASHBOARD_NAME_MAX_LENGTH}
               type="text"
-              className="dashboard-title--input form-control"
+              className="dashboard-title--input form-control input-sm"
               defaultValue={dashboardName}
               autoComplete="off"
               autoFocus={true}

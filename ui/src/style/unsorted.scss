@@ -340,10 +340,13 @@ $tick-script-overlay-margin: 30px;
   -----------------------------------------------------------------------------
 */
 .dropdown.dashboard-switcher {
-  margin-right: 10px;
+  margin-right: 4px;
 }
 .dropdown.dashboard-switcher .btn.dropdown-toggle {
   justify-content: center;
+}
+.dropdown.dashboard-switcher + h1.page-header__title {
+  margin-left: 6px;
 }
 
 /*
@@ -352,47 +355,47 @@ $tick-script-overlay-margin: 30px;
 */
 .page-header__left.page-header__dash-editable,
 .dashboard-title,
-.dashboard-title input[type="text"].form-control.dashboard-title--input {
+.dashboard-title input[type="text"].form-control.dashboard-title--input,
+.dashboard-title h1 {
   flex: 1 0 0;
 }
 .dashboard-title {
   display: flex;
 
   input[type="text"].form-control.dashboard-title--input,
-  input[type="text"].form-control.dashboard-title--input:focus {
-    position: relative;
-    top: -1px;
-    border: 0;
-    border-radius: 0;
-    padding: 0;
+  input[type="text"].form-control.dashboard-title--input:focus,
+  h1 {
     font-size: $page-header-size;
     font-weight: $page-header-weight;
-    color: $c-pool;
-    box-shadow: none;
-    background-color: transparent;
+    padding: 0 7px;
+  }
+
+  input[type="text"].form-control.dashboard-title--input,
+  input[type="text"].form-control.dashboard-title--input:focus {
+    font-size: $page-header-size;
+    font-weight: $page-header-weight;
   }
 
   h1 {
+    @include no-user-select();
+    border: 2px solid $g0-obsidian;
+    color: $g17-whisper;
+    height: 30px;
+    line-height: 28px;
+    border-radius: 4px;
     margin: 0;
     letter-spacing: 0;
     text-transform: none;
-    font-size: $page-header-size;
-    font-weight: $page-header-weight;
-    transition: color 0.25s ease;
-
-    &:after {
-      display: inline-block;
-      margin-left: 4px;
-      content: "\f058";
-      font-family: 'icomoon';
-      color: $g5-pepper;
-      transition: color 0.25s ease;
-    }
+    transition:
+      color 0.25s ease,
+      background-color 0.25s ease,
+      border-color 0.25s ease;
 
     &:hover {
       cursor: text;
-      color: $c-pool;
-      &:after {color: $c-pool;}
+      color: $g20-white;
+      background-color: $g3-castle;
+      border-color: $g3-castle;
     }
   }
 
