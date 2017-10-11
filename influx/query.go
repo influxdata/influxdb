@@ -146,29 +146,35 @@ func Convert(influxQL string) (chronograf.QueryConfig, error) {
 			if _, ok = supportedFuncs[f.Name]; !ok {
 				return raw, nil
 			}
-			// Query configs only support single argument functions
-			if len(f.Args) != 1 {
-				return raw, nil
+
+			fldArgs := []chronograf.Field{}
+			for _, arg := range f.Args {
+				switch ref := arg.(type) {
+				case *influxql.VarRef:
+					fldArgs = append(fldArgs, chronograf.Field{
+						Name: ref.Val,
+						Type: "field",
+					})
+				case *influxql.IntegerLiteral:
+					fldArgs = append(fldArgs, chronograf.Field{
+						Name: ref.Val,
+						Type: "integer",
+					})
+				case *influxql.NumberLiteral:
+					fldArgs = append(fldArgs, chronograf.Field{
+						Name: ref.Val,
+						Type: "number",
+					})
+				default:
+					return raw, nil
+				}
 			}
-			ref, ok := f.Args[0].(*influxql.VarRef)
-			// query config only support fields in the function
-			if !ok {
-				return raw, nil
-			}
-			// We only support field strings
-			if ref.Type != influxql.Unknown {
-				return raw, nil
-			}
+
 			qc.Fields = append(qc.Fields, chronograf.Field{
 				Name:  f.Name,
 				Type:  "func",
 				Alias: fld.Alias,
-				Args: []chronograf.Field{
-					{
-						Name: ref.Val,
-						Type: "field",
-					},
-				},
+				Args:  fldArgs,
 			})
 		case *influxql.VarRef:
 			if f.Type != influxql.Unknown {
@@ -443,16 +449,17 @@ func isTagFilter(exp influxql.Expr) (tagFilter, bool) {
 }
 
 var supportedFuncs = map[string]bool{
-	"mean":   true,
-	"median": true,
-	"count":  true,
-	"min":    true,
-	"max":    true,
-	"sum":    true,
-	"first":  true,
-	"last":   true,
-	"spread": true,
-	"stddev": true,
+	"mean":       true,
+	"median":     true,
+	"count":      true,
+	"min":        true,
+	"max":        true,
+	"sum":        true,
+	"first":      true,
+	"last":       true,
+	"spread":     true,
+	"stddev":     true,
+	"percentile": true,
 }
 
 // shortDur converts duration into the queryConfig duration format

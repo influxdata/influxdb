@@ -156,12 +156,12 @@ func field(q *chronograf.QueryConfig) (string, error) {
 			if field.Type == "func" && len(field.Args) > 0 {
 				for _, arg := range field.Args {
 					if arg.Type == "field" {
-						return arg.Name, nil
+						return arg.Name.(string), nil
 					}
 				}
 				return "", fmt.Errorf("No fields set in query")
 			}
-			return field.Name, nil
+			return field.Name.(string), nil
 		}
 	}
 	return "", fmt.Errorf("No fields set in query")
