@@ -498,7 +498,7 @@ type Field struct {
 	Name  string  `json:"name"`
 	Type  string  `json:"type"`
 	Alias string  `json:"alias"`
-	Args  []Field `json:"args"`
+	Args  []Field `json:"args,omitempty"`
 }
 
 // GroupBy represents influxql group by tags from the UI
