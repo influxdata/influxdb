@@ -8,6 +8,7 @@ import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 import {showFieldKeys} from 'shared/apis/metaQuery'
 import showFieldKeysParser from 'shared/parsing/showFieldKeys'
+import {numFunctions} from 'utils/fields'
 
 class FieldList extends Component {
   constructor(props) {
@@ -85,7 +86,7 @@ class FieldList extends Component {
       isInDataExplorer,
     } = this.props
 
-    const hasAggregates = fields.some(f => f.funcs && f.funcs.length)
+    const hasAggregates = numFunctions(fields) > 0
     const hasGroupByTime = groupBy.time
 
     return (

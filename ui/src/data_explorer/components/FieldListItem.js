@@ -1,16 +1,19 @@
+import _ from 'lodash'
 import React, {PropTypes} from 'react'
 import classnames from 'classnames'
-import _ from 'lodash'
 
 import FunctionSelector from 'shared/components/FunctionSelector'
+import {numFunctions, fieldNamesDeep, functionNames} from 'utils/fields'
 
 const {string, shape, func, arrayOf, bool} = PropTypes
 const FieldListItem = React.createClass({
   propTypes: {
-    fieldFunc: shape({
-      field: string.isRequired,
-      funcs: arrayOf(string).isRequired,
-    }).isRequired,
+    fieldFunc: arrayOf(
+      shape({
+        type: string,
+        name: string,
+      })
+    ).isRequired,
     isSelected: bool.isRequired,
     onToggleField: func.isRequired,
     onApplyFuncsToField: func.isRequired,
@@ -46,17 +49,19 @@ const FieldListItem = React.createClass({
   render() {
     const {isKapacitorRule, fieldFunc, isSelected} = this.props
     const {isOpen} = this.state
-    const {field: fieldText} = fieldFunc
+    const fieldText = _.head(fieldNamesDeep(fieldFunc))
+    const funcs = functionNames(fieldFunc)
 
     let fieldFuncsLabel
-    if (!fieldFunc.funcs.length) {
-      fieldFuncsLabel = '0 Functions'
-    } else if (fieldFunc.funcs.length === 1) {
-      fieldFuncsLabel = `${fieldFunc.funcs.length} Function`
-    } else if (fieldFunc.funcs.length > 1) {
-      fieldFuncsLabel = `${fieldFunc.funcs.length} Functions`
+    const num = numFunctions(fieldFunc)
+    switch (num) {
+      case 0:
+        fieldFuncsLabel = '0 Functions'
+      case 1:
+        fieldFuncsLabel = `${num} Function`
+      default:
+        fieldFuncsLabel = `${num} Functions`
     }
-
     return (
       <div key={fieldFunc}>
         <div
@@ -74,8 +79,8 @@ const FieldListItem = React.createClass({
             ? <div
                 className={classnames('btn btn-xs', {
                   active: isOpen,
-                  'btn-default': !fieldFunc.funcs.length,
-                  'btn-primary': fieldFunc.funcs.length,
+                  'btn-default': !num,
+                  'btn-primary': num,
                 })}
                 onClick={this.toggleFunctionsMenu}
                 data-test={`query-builder-list-item-function-${fieldText}`}
@@ -87,7 +92,7 @@ const FieldListItem = React.createClass({
         {isSelected && isOpen
           ? <FunctionSelector
               onApply={this.handleApplyFunctions}
-              selectedItems={fieldFunc.funcs || []}
+              selectedItems={funcs}
               singleSelect={isKapacitorRule}
             />
           : null}
