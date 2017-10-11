@@ -3,6 +3,8 @@ import _ from 'lodash'
 
 import LayoutCellMenu from 'shared/components/LayoutCellMenu'
 import LayoutCellHeader from 'shared/components/LayoutCellHeader'
+import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
+import {removeUnselectedTemplateValues} from 'src/dashboards/constants'
 
 class LayoutCell extends Component {
   constructor(props) {
@@ -30,6 +32,43 @@ class LayoutCell extends Component {
     this.props.onSummonOverlayTechnologies(cell)
   }
 
+  handleDataDownload = cell => async () => {
+    console.log(cell.name)
+    const qs = this.props.queries
+    const templates = this.props.templates
+    const resolution = 740
+
+    if (!qs.length) {
+      console.log('empty!') // TODO
+    }
+
+    const timeSeriesPromises = qs.map(query => {
+      const {host, database, rp} = query
+      const templatesWithResolution = templates.map(temp => {
+        if (temp.tempVar === ':interval:') {
+          if (resolution) {
+            return {...temp, resolution}
+          }
+          return {...temp, resolution: 1000}
+        }
+        return {...temp}
+      })
+      return fetchTimeSeriesAsync({
+        source: host,
+        db: database,
+        rp,
+        query,
+        tempVars: removeUnselectedTemplateValues(templatesWithResolution),
+        resolution,
+      })
+    })
+    Promise.all(timeSeriesPromises).then(timeSeries => {
+      console.log('zomG successfull')
+      const newSeries = timeSeries.map(response => ({response}))
+      console.log(newSeries)
+    })
+  }
+
   render() {
     const {cell, children, isEditable} = this.props
 
@@ -46,6 +85,7 @@ class LayoutCell extends Component {
           onEdit={this.handleSummonOverlay}
           handleClickOutside={this.closeMenu}
           onDeleteClick={this.handleDeleteClick}
+          onDataDownload={this.handleDataDownload}
         />
         <LayoutCellHeader
           queries={queries}
