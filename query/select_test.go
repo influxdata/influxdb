@@ -1,6 +1,7 @@
 package query_test
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"reflect"
@@ -2765,7 +2766,7 @@ func TestSelect(t *testing.T) {
 							"value": tt.typ,
 						},
 						Dimensions: []string{"host", "region"},
-						CreateIteratorFn: func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
+						CreateIteratorFn: func(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
 							if m.Name != "cpu" {
 								t.Fatalf("unexpected source: %s", m.Name)
 							}
@@ -2789,7 +2790,7 @@ func TestSelect(t *testing.T) {
 				},
 			}
 
-			itrs, _, err := query.Select(MustParseSelectStatement(tt.q), &shardMapper, query.SelectOptions{})
+			itrs, _, err := query.Select(context.Background(), MustParseSelectStatement(tt.q), &shardMapper, query.SelectOptions{})
 			if err != nil {
 				if tt.err == "" {
 					t.Fatal(err)
@@ -2819,7 +2820,7 @@ func TestSelect_Raw(t *testing.T) {
 					"s": influxql.String,
 					"b": influxql.Boolean,
 				},
-				CreateIteratorFn: func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
+				CreateIteratorFn: func(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
 					if m.Name != "cpu" {
 						t.Fatalf("unexpected source: %s", m.Name)
 					}
@@ -2846,7 +2847,7 @@ func TestSelect_Raw(t *testing.T) {
 	}
 
 	stmt := MustParseSelectStatement(`SELECT f, i, u, s, b FROM cpu`)
-	itrs, _, err := query.Select(stmt, &shardMapper, query.SelectOptions{})
+	itrs, _, err := query.Select(context.Background(), stmt, &shardMapper, query.SelectOptions{})
 	if err != nil {
 		t.Errorf("parse error: %s", err)
 	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
@@ -2888,7 +2889,7 @@ func TestSelect_BinaryExpr(t *testing.T) {
 					"i": influxql.Integer,
 					"u": influxql.Unsigned,
 				},
-				CreateIteratorFn: func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
+				CreateIteratorFn: func(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
 					if m.Name != "cpu" {
 						t.Fatalf("unexpected source: %s", m.Name)
 					}
@@ -3753,7 +3754,7 @@ func TestSelect_BinaryExpr(t *testing.T) {
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			stmt := MustParseSelectStatement(test.Statement)
-			itrs, _, err := query.Select(stmt, &shardMapper, query.SelectOptions{})
+			itrs, _, err := query.Select(context.Background(), stmt, &shardMapper, query.SelectOptions{})
 			if err != nil {
 				if have, want := err.Error(), test.Err; want != "" {
 					if have != want {
@@ -3782,7 +3783,7 @@ func TestSelect_BinaryExpr_Boolean(t *testing.T) {
 					"one": influxql.Boolean,
 					"two": influxql.Boolean,
 				},
-				CreateIteratorFn: func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
+				CreateIteratorFn: func(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
 					if m.Name != "cpu" {
 						t.Fatalf("unexpected source: %s", m.Name)
 					}
@@ -3838,7 +3839,7 @@ func TestSelect_BinaryExpr_Boolean(t *testing.T) {
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			stmt := MustParseSelectStatement(test.Statement)
-			itrs, _, err := query.Select(stmt, &shardMapper, query.SelectOptions{})
+			itrs, _, err := query.Select(context.Background(), stmt, &shardMapper, query.SelectOptions{})
 			if err != nil {
 				t.Errorf("%s: parse error: %s", test.Name, err)
 			} else if a, err := Iterators(itrs).ReadAll(); err != nil {
@@ -3861,7 +3862,7 @@ func TestSelect_BinaryExpr_NilValues(t *testing.T) {
 					"total": influxql.Float,
 					"value": influxql.Float,
 				},
-				CreateIteratorFn: func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
+				CreateIteratorFn: func(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
 					if m.Name != "cpu" {
 						t.Fatalf("unexpected source: %s", m.Name)
 					}
@@ -3919,7 +3920,7 @@ func TestSelect_BinaryExpr_NilValues(t *testing.T) {
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			stmt := MustParseSelectStatement(test.Statement)
-			itrs, _, err := query.Select(stmt, &shardMapper, query.SelectOptions{})
+			itrs, _, err := query.Select(context.Background(), stmt, &shardMapper, query.SelectOptions{})
 			if err != nil {
 				t.Errorf("%s: parse error: %s", test.Name, err)
 			} else if a, err := Iterators(itrs).ReadAll(); err != nil {
@@ -3941,13 +3942,13 @@ func (m *ShardMapper) MapShards(sources influxql.Sources, t influxql.TimeRange, 
 }
 
 type ShardGroup struct {
-	CreateIteratorFn func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error)
+	CreateIteratorFn func(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error)
 	Fields           map[string]influxql.DataType
 	Dimensions       []string
 }
 
-func (sh *ShardGroup) CreateIterator(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-	return sh.CreateIteratorFn(m, opt)
+func (sh *ShardGroup) CreateIterator(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
+	return sh.CreateIteratorFn(ctx, m, opt)
 }
 
 func (sh *ShardGroup) IteratorCost(m *influxql.Measurement, opt query.IteratorOptions) (query.IteratorCost, error) {
@@ -3994,7 +3995,7 @@ func benchmarkSelect(b *testing.B, stmt *influxql.SelectStatement, shardMapper q
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		itrs, _, err := query.Select(stmt, shardMapper, query.SelectOptions{})
+		itrs, _, err := query.Select(context.Background(), stmt, shardMapper, query.SelectOptions{})
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -4010,7 +4011,7 @@ func NewRawBenchmarkIteratorCreator(pointN int) query.ShardMapper {
 				Fields: map[string]influxql.DataType{
 					"fval": influxql.Float,
 				},
-				CreateIteratorFn: func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
+				CreateIteratorFn: func(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
 					if opt.Expr != nil {
 						panic("unexpected expression")
 					}
@@ -4049,7 +4050,7 @@ func benchmarkSelectDedupe(b *testing.B, seriesN, pointsPerSeries int) {
 				Fields: map[string]influxql.DataType{
 					"sval": influxql.String,
 				},
-				CreateIteratorFn: func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
+				CreateIteratorFn: func(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
 					if opt.Expr != nil {
 						panic("unexpected expression")
 					}
@@ -4083,7 +4084,7 @@ func benchmarkSelectTop(b *testing.B, seriesN, pointsPerSeries int) {
 				Fields: map[string]influxql.DataType{
 					"sval": influxql.Float,
 				},
-				CreateIteratorFn: func(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
+				CreateIteratorFn: func(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
 					if m.Name != "cpu" {
 						b.Fatalf("unexpected source: %s", m.Name)
 					}

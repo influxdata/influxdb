@@ -8,8 +8,7 @@ package query
 
 import (
 	"container/heap"
-	"encoding/binary"
-	"fmt"
+	"context"
 	"io"
 	"sort"
 	"sync"
@@ -17,7 +16,6 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb/influxql"
-	internal "github.com/influxdata/influxdb/query/internal"
 )
 
 // DefaultStatsInterval is the default value for IteratorEncoder.StatsInterval.
@@ -3384,8 +3382,8 @@ type floatReaderIterator struct {
 }
 
 // newFloatReaderIterator returns a new instance of floatReaderIterator.
-func newFloatReaderIterator(r io.Reader, stats IteratorStats) *floatReaderIterator {
-	dec := NewFloatPointDecoder(r)
+func newFloatReaderIterator(ctx context.Context, r io.Reader, stats IteratorStats) *floatReaderIterator {
+	dec := NewFloatPointDecoder(ctx, r)
 	dec.stats = stats
 
 	return &floatReaderIterator{
@@ -6777,8 +6775,8 @@ type integerReaderIterator struct {
 }
 
 // newIntegerReaderIterator returns a new instance of integerReaderIterator.
-func newIntegerReaderIterator(r io.Reader, stats IteratorStats) *integerReaderIterator {
-	dec := NewIntegerPointDecoder(r)
+func newIntegerReaderIterator(ctx context.Context, r io.Reader, stats IteratorStats) *integerReaderIterator {
+	dec := NewIntegerPointDecoder(ctx, r)
 	dec.stats = stats
 
 	return &integerReaderIterator{
@@ -10170,8 +10168,8 @@ type unsignedReaderIterator struct {
 }
 
 // newUnsignedReaderIterator returns a new instance of unsignedReaderIterator.
-func newUnsignedReaderIterator(r io.Reader, stats IteratorStats) *unsignedReaderIterator {
-	dec := NewUnsignedPointDecoder(r)
+func newUnsignedReaderIterator(ctx context.Context, r io.Reader, stats IteratorStats) *unsignedReaderIterator {
+	dec := NewUnsignedPointDecoder(ctx, r)
 	dec.stats = stats
 
 	return &unsignedReaderIterator{
@@ -13549,8 +13547,8 @@ type stringReaderIterator struct {
 }
 
 // newStringReaderIterator returns a new instance of stringReaderIterator.
-func newStringReaderIterator(r io.Reader, stats IteratorStats) *stringReaderIterator {
-	dec := NewStringPointDecoder(r)
+func newStringReaderIterator(ctx context.Context, r io.Reader, stats IteratorStats) *stringReaderIterator {
+	dec := NewStringPointDecoder(ctx, r)
 	dec.stats = stats
 
 	return &stringReaderIterator{
@@ -16928,8 +16926,8 @@ type booleanReaderIterator struct {
 }
 
 // newBooleanReaderIterator returns a new instance of booleanReaderIterator.
-func newBooleanReaderIterator(r io.Reader, stats IteratorStats) *booleanReaderIterator {
-	dec := NewBooleanPointDecoder(r)
+func newBooleanReaderIterator(ctx context.Context, r io.Reader, stats IteratorStats) *booleanReaderIterator {
+	dec := NewBooleanPointDecoder(ctx, r)
 	dec.stats = stats
 
 	return &booleanReaderIterator{
@@ -16961,39 +16959,6 @@ func (itr *booleanReaderIterator) Next() (*BooleanPoint, error) {
 		return nil, err
 	}
 	return p, nil
-}
-
-// IteratorEncoder is an encoder for encoding an iterator's points to w.
-type IteratorEncoder struct {
-	w io.Writer
-
-	// Frequency with which stats are emitted.
-	StatsInterval time.Duration
-}
-
-// NewIteratorEncoder encodes an iterator's points to w.
-func NewIteratorEncoder(w io.Writer) *IteratorEncoder {
-	return &IteratorEncoder{
-		w: w,
-
-		StatsInterval: DefaultStatsInterval,
-	}
-}
-
-// EncodeIterator encodes and writes all of itr's points to the underlying writer.
-func (enc *IteratorEncoder) EncodeIterator(itr Iterator) error {
-	switch itr := itr.(type) {
-	case FloatIterator:
-		return enc.encodeFloatIterator(itr)
-	case IntegerIterator:
-		return enc.encodeIntegerIterator(itr)
-	case StringIterator:
-		return enc.encodeStringIterator(itr)
-	case BooleanIterator:
-		return enc.encodeBooleanIterator(itr)
-	default:
-		panic(fmt.Sprintf("unsupported iterator for encoder: %T", itr))
-	}
 }
 
 // encodeFloatIterator encodes all points from itr to the underlying writer.
@@ -17206,29 +17171,6 @@ func (enc *IteratorEncoder) encodeBooleanIterator(itr BooleanIterator) error {
 
 	// Emit final stats.
 	if err := enc.encodeStats(itr.Stats()); err != nil {
-		return err
-	}
-	return nil
-}
-
-// encode a stats object in the point stream.
-func (enc *IteratorEncoder) encodeStats(stats IteratorStats) error {
-	buf, err := proto.Marshal(&internal.Point{
-		Name: proto.String(""),
-		Tags: proto.String(""),
-		Time: proto.Int64(0),
-		Nil:  proto.Bool(false),
-
-		Stats: encodeIteratorStats(&stats),
-	})
-	if err != nil {
-		return err
-	}
-
-	if err := binary.Write(enc.w, binary.BigEndian, uint32(len(buf))); err != nil {
-		return err
-	}
-	if _, err := enc.w.Write(buf); err != nil {
 		return err
 	}
 	return nil

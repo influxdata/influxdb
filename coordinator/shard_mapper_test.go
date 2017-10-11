@@ -1,6 +1,7 @@
 package coordinator_test
 
 import (
+	"context"
 	"reflect"
 	"testing"
 	"time"
@@ -40,7 +41,7 @@ func TestLocalShardMapper(t *testing.T) {
 		}
 
 		var sh MockShard
-		sh.CreateIteratorFn = func(measurement string, opt query.IteratorOptions) (query.Iterator, error) {
+		sh.CreateIteratorFn = func(ctx context.Context, measurement string, opt query.IteratorOptions) (query.Iterator, error) {
 			if measurement != "cpu" {
 				t.Errorf("unexpected measurement: %s", measurement)
 			}
@@ -74,7 +75,7 @@ func TestLocalShardMapper(t *testing.T) {
 		t.Fatalf("unexpected number of shard mappings: %d", len(m.ShardMap))
 	}
 
-	if _, err := ic.CreateIterator(measurement, query.IteratorOptions{}); err != nil {
+	if _, err := ic.CreateIterator(context.Background(), measurement, query.IteratorOptions{}); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
 
@@ -97,7 +98,7 @@ func TestLocalShardMapper(t *testing.T) {
 		t.Fatalf("unexpected number of shard mappings: %d", len(m.ShardMap))
 	}
 
-	if _, err := ic.CreateIterator(measurement, query.IteratorOptions{}); err != nil {
+	if _, err := ic.CreateIterator(context.Background(), measurement, query.IteratorOptions{}); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }

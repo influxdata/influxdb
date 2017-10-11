@@ -1,6 +1,7 @@
 package coordinator
 
 import (
+	"context"
 	"io"
 	"time"
 
@@ -160,7 +161,7 @@ func (a *LocalShardMapping) MapType(m *influxql.Measurement, field string) influ
 	return typ
 }
 
-func (a *LocalShardMapping) CreateIterator(m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
+func (a *LocalShardMapping) CreateIterator(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
 	source := Source{
 		Database:        m.Database,
 		RetentionPolicy: m.RetentionPolicy,
@@ -184,7 +185,7 @@ func (a *LocalShardMapping) CreateIterator(m *influxql.Measurement, opt query.It
 		inputs := make([]query.Iterator, 0, len(measurements))
 		if err := func() error {
 			for _, measurement := range measurements {
-				input, err := sg.CreateIterator(measurement, opt)
+				input, err := sg.CreateIterator(ctx, measurement, opt)
 				if err != nil {
 					return err
 				}
@@ -197,7 +198,7 @@ func (a *LocalShardMapping) CreateIterator(m *influxql.Measurement, opt query.It
 		}
 		return query.Iterators(inputs).Merge(opt)
 	}
-	return sg.CreateIterator(m.Name, opt)
+	return sg.CreateIterator(ctx, m.Name, opt)
 }
 
 func (a *LocalShardMapping) IteratorCost(m *influxql.Measurement, opt query.IteratorOptions) (query.IteratorCost, error) {

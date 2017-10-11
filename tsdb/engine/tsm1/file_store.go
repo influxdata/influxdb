@@ -2,6 +2,7 @@ package tsm1
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io/ioutil"
 	"math"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/metrics"
 	"github.com/influxdata/influxdb/query"
 	"github.com/uber-go/zap"
 )
@@ -118,6 +120,19 @@ type TSMFile interface {
 const (
 	statFileStoreBytes = "diskBytes"
 	statFileStoreCount = "numFiles"
+)
+
+var (
+	floatBlocksDecodedCounter    = metrics.MustRegisterCounter("float_blocks_decoded", metrics.WithGroup(tsmGroup))
+	floatBlocksSizeCounter       = metrics.MustRegisterCounter("float_blocks_size_bytes", metrics.WithGroup(tsmGroup))
+	integerBlocksDecodedCounter  = metrics.MustRegisterCounter("integer_blocks_decoded", metrics.WithGroup(tsmGroup))
+	integerBlocksSizeCounter     = metrics.MustRegisterCounter("integer_blocks_size_bytes", metrics.WithGroup(tsmGroup))
+	unsignedBlocksDecodedCounter = metrics.MustRegisterCounter("unsigned_blocks_decoded", metrics.WithGroup(tsmGroup))
+	unsignedBlocksSizeCounter    = metrics.MustRegisterCounter("unsigned_blocks_size_bytes", metrics.WithGroup(tsmGroup))
+	stringBlocksDecodedCounter   = metrics.MustRegisterCounter("string_blocks_decoded", metrics.WithGroup(tsmGroup))
+	stringBlocksSizeCounter      = metrics.MustRegisterCounter("string_blocks_size_bytes", metrics.WithGroup(tsmGroup))
+	booleanBlocksDecodedCounter  = metrics.MustRegisterCounter("boolean_blocks_decoded", metrics.WithGroup(tsmGroup))
+	booleanBlocksSizeCounter     = metrics.MustRegisterCounter("boolean_blocks_size_bytes", metrics.WithGroup(tsmGroup))
 )
 
 // FileStore is an abstraction around multiple TSM files.
@@ -509,10 +524,10 @@ func (f *FileStore) TSMReader(path string) *TSMReader {
 }
 
 // KeyCursor returns a KeyCursor for key and t across the files in the FileStore.
-func (f *FileStore) KeyCursor(key []byte, t int64, ascending bool) *KeyCursor {
+func (f *FileStore) KeyCursor(ctx context.Context, key []byte, t int64, ascending bool) *KeyCursor {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
-	return newKeyCursor(f, key, t, ascending)
+	return newKeyCursor(ctx, f, key, t, ascending)
 }
 
 // Stats returns the stats of the underlying files, preferring the cached version if it is still valid.
@@ -952,6 +967,9 @@ type KeyCursor struct {
 	current []*location
 	buf     []Value
 
+	ctx context.Context
+	col *metrics.Group
+
 	// pos is the index within seeks.  Based on ascending, it will increment or
 	// decrement through the size of seeks slice.
 	pos       int
@@ -1011,10 +1029,12 @@ func (a ascLocations) Less(i, j int) bool {
 
 // newKeyCursor returns a new instance of KeyCursor.
 // This function assumes the read-lock has been taken.
-func newKeyCursor(fs *FileStore, key []byte, t int64, ascending bool) *KeyCursor {
+func newKeyCursor(ctx context.Context, fs *FileStore, key []byte, t int64, ascending bool) *KeyCursor {
 	c := &KeyCursor{
 		key:       key,
 		seeks:     fs.locations(key, t, ascending),
+		ctx:       ctx,
+		col:       metrics.GroupFromContext(ctx),
 		ascending: ascending,
 	}
 

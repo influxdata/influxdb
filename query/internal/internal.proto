@@ -16,6 +16,7 @@ message Point {
     optional uint64 UnsignedValue = 12;
 
     optional IteratorStats Stats = 11;
+    optional bytes Trace = 13;
 }
 
 message Aux {

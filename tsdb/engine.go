@@ -1,6 +1,7 @@
 package tsdb
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -43,7 +44,7 @@ type Engine interface {
 	Restore(r io.Reader, basePath string) error
 	Import(r io.Reader, basePath string) error
 
-	CreateIterator(measurement string, opt query.IteratorOptions) (query.Iterator, error)
+	CreateIterator(ctx context.Context, measurement string, opt query.IteratorOptions) (query.Iterator, error)
 	IteratorCost(measurement string, opt query.IteratorOptions) (query.IteratorCost, error)
 	WritePoints(points []models.Point) error
 

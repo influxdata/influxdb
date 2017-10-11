@@ -16,6 +16,10 @@ func (c *KeyCursor) Read{{.Name}}Block(buf *[]{{.Name}}Value) ([]{{.Name}}Value,
 	if err != nil {
 		return nil, err
 	}
+	if c.col != nil {
+		c.col.GetCounter({{.name}}BlocksDecodedCounter).Add(1)
+		c.col.GetCounter({{.name}}BlocksSizeCounter).Add(int64(first.entry.Size))
+	}
 
 	// Remove values we already read
 	values = {{.Name}}Values(values).Exclude(first.readMin, first.readMax)
@@ -84,6 +88,11 @@ func (c *KeyCursor) Read{{.Name}}Block(buf *[]{{.Name}}Value) ([]{{.Name}}Value,
 			if err != nil {
 				return nil, err
 			}
+			if c.col != nil {
+				c.col.GetCounter({{.name}}BlocksDecodedCounter).Add(1)
+				c.col.GetCounter({{.name}}BlocksSizeCounter).Add(int64(cur.entry.Size))
+			}
+
 			// Remove any tombstoned values
 			v = c.filter{{.Name}}Values(tombstones, v)
 
@@ -143,6 +152,11 @@ func (c *KeyCursor) Read{{.Name}}Block(buf *[]{{.Name}}Value) ([]{{.Name}}Value,
 			if err != nil {
 				return nil, err
 			}
+			if c.col != nil {
+				c.col.GetCounter({{.name}}BlocksDecodedCounter).Add(1)
+				c.col.GetCounter({{.name}}BlocksSizeCounter).Add(int64(cur.entry.Size))
+			}
+
 			// Remove any tombstoned values
 			v = c.filter{{.Name}}Values(tombstones, v)
 

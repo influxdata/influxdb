@@ -2,6 +2,7 @@ package coordinator_test
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"os"
@@ -50,7 +51,7 @@ func TestQueryExecutor_ExecuteQuery_SelectStatement(t *testing.T) {
 		}
 
 		var sh MockShard
-		sh.CreateIteratorFn = func(m string, opt query.IteratorOptions) (query.Iterator, error) {
+		sh.CreateIteratorFn = func(ctx context.Context, m string, opt query.IteratorOptions) (query.Iterator, error) {
 			return &FloatIterator{Points: []query.FloatPoint{
 				{Name: "cpu", Time: int64(0 * time.Second), Aux: []interface{}{float64(100)}},
 				{Name: "cpu", Time: int64(1 * time.Second), Aux: []interface{}{float64(200)}},
@@ -103,7 +104,7 @@ func TestQueryExecutor_ExecuteQuery_MaxSelectBucketsN(t *testing.T) {
 		}
 
 		var sh MockShard
-		sh.CreateIteratorFn = func(m string, opt query.IteratorOptions) (query.Iterator, error) {
+		sh.CreateIteratorFn = func(ctx context.Context, m string, opt query.IteratorOptions) (query.Iterator, error) {
 			return &FloatIterator{
 				Points: []query.FloatPoint{{Name: "cpu", Time: int64(0 * time.Second), Aux: []interface{}{float64(100)}}},
 			}, nil
@@ -384,7 +385,7 @@ func (s *TSDBStore) TagValues(_ query.Authorizer, database string, cond influxql
 type MockShard struct {
 	Measurements      []string
 	FieldDimensionsFn func(measurements []string) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error)
-	CreateIteratorFn  func(m string, opt query.IteratorOptions) (query.Iterator, error)
+	CreateIteratorFn  func(ctx context.Context, m string, opt query.IteratorOptions) (query.Iterator, error)
 	IteratorCostFn    func(m string, opt query.IteratorOptions) (query.IteratorCost, error)
 	ExpandSourcesFn   func(sources influxql.Sources) (influxql.Sources, error)
 }
@@ -417,8 +418,8 @@ func (sh *MockShard) MapType(measurement, field string) influxql.DataType {
 	return influxql.Unknown
 }
 
-func (sh *MockShard) CreateIterator(measurement string, opt query.IteratorOptions) (query.Iterator, error) {
-	return sh.CreateIteratorFn(measurement, opt)
+func (sh *MockShard) CreateIterator(ctx context.Context, measurement string, opt query.IteratorOptions) (query.Iterator, error) {
+	return sh.CreateIteratorFn(ctx, measurement, opt)
 }
 
 func (sh *MockShard) IteratorCost(measurement string, opt query.IteratorOptions) (query.IteratorCost, error) {
