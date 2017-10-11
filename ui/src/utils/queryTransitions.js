@@ -1,7 +1,7 @@
 import defaultQueryConfig from 'utils/defaultQueryConfig'
 import {DEFAULT_DASHBOARD_GROUP_BY_INTERVAL} from 'shared/constants'
 import {DEFAULT_DATA_EXPLORER_GROUP_BY_INTERVAL} from 'src/data_explorer/constants'
-import {NULL_STRING} from 'shared/constants/queryFillOptions'
+import {hasField, removeField} from 'utils/fields'
 import _ from 'lodash'
 
 export function editRawText(query, rawText) {
@@ -48,7 +48,29 @@ export const toggleField = (query, {name, type}, isKapacitorRule = false) => {
     }
   }
 
+  const isSelected = hasField(name, fields)
   const newFuncs = fields.filter(f => f.type === 'func')
+
+  if (isSelected) {
+    // if list is all fields, remove that field
+    // if list is all funcs,. remove all funcs that match
+
+    const newFields = removeField(name, fields)
+    if (!newFields.length) {
+      return {
+        ...query,
+        groupBy: {
+          ...groupBy,
+          time: null,
+        },
+        fields: [],
+      }
+    }
+    return {
+      ...query,
+      fields: removeField(name, fields),
+    }
+  }
 
   if (!newFuncs) {
     return {
@@ -127,7 +149,7 @@ export function toggleTagAcceptance(query) {
 export function applyFuncsToField(
   query,
   {field, funcs = []},
-  {preventAutoGroupBy = false, isKapacitorRule = false} = {}
+  {preventAutoGroupBy = false} = {}
 ) {
   const shouldRemoveFuncs = funcs.length === 0
   const nextFields = query.fields.reduce((acc, f) => {
