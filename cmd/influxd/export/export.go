@@ -148,7 +148,6 @@ func (cmd *Command) exportShard(retentionPolicy string, shardID string, tsStart,
 		ExportEnd:       tsEnd,
 	}
 
-	// TODO: verify shard backup data
 	return cmd.downloadAndVerify(req, shardArchivePath, nil)
 }
 

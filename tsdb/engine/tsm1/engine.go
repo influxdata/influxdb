@@ -4,6 +4,7 @@ package tsm1 // import "github.com/influxdata/influxdb/tsdb/engine/tsm1"
 import (
 	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -660,15 +661,16 @@ func (e *Engine) Export(w io.Writer, basePath string, start time.Time, end time.
 		return err
 	}
 
+	// Remove the temporary snapshot dir
+	defer os.RemoveAll(path)
 	if err := e.index.SnapshotTo(path); err != nil {
 		return err
 	}
 
-	tw := tar.NewWriter(w)
-	defer tw.Close()
-
-	// Remove the temporary snapshot dir
-	defer os.RemoveAll(path)
+	zw := gzip.NewWriter(w)
+	// NOTE: in some cases, zw will be closed by filterFileToGzip(...).
+	// checked the source.  closing an already-closed stream is OK.  No errors or panics, etc.
+	defer zw.Close()
 
 	// Recursively read all files from path.
 	files, err := readDir(path, "")
@@ -676,10 +678,6 @@ func (e *Engine) Export(w io.Writer, basePath string, start time.Time, end time.
 		return err
 	}
 
-	// filtered is different here, these are files we need to trim based on timestamps.
-	// whole is an optimisation: if a TSM is fully contained in the range, then we keep the whole thing.
-	var filtered []string
-	var whole []string
 	for _, file := range files {
 		if !strings.HasSuffix(file, ".tsm") {
 			continue
@@ -700,94 +698,63 @@ func (e *Engine) Export(w io.Writer, basePath string, start time.Time, end time.
 			tombstonePath = filepath.Base(r.TombstoneFiles()[0].Path)
 		}
 
-		// Skip this file if no overlap with start/end
 		min, max := r.TimeRange()
-		if min > end.UnixNano() || max < start.UnixNano() {
-			r.Close()
-			continue
+
+		// We overlap time ranges, we need to filter the file
+		if min >= start.UnixNano() && min <= end.UnixNano() ||
+			max >= start.UnixNano() && max <= end.UnixNano() {
+			if err := e.filterFileToGzip(r, file, basePath, filepath.Join(path, file), start.UnixNano(), end.UnixNano(), zw); err != nil {
+				return err
+			}
+
 		}
 
+		// above is the only case where we need to keep the reader open.
 		r.Close()
 
-		if tombstonePath != "" {
-			whole = append(filtered, tombstonePath)
-		}
-
+		// the TSM file is 100% inside the range, so we can just write it without scanning each block
 		if min > start.UnixNano() && max < end.UnixNano() {
-			whole = append(filtered, file)
-		} else {
-			// at this point, we know we're not totally outside or inside start and end so we'll need to scan the blocks
-			filtered = append(filtered, file)
+			if err := e.writeFileToGzip(file, basePath, filepath.Join(path, file), zw); err != nil {
+				return err
+			}
 		}
-	}
 
-	for _, f := range filtered {
-		if err := e.filterFileToBackup(f, basePath, filepath.Join(path, f), start.UnixNano(), end.UnixNano(), tw); err != nil {
-			return err
+		// if this TSM file had a tombstone we'll write out the whole thing too.
+		if tombstonePath != "" {
+			if err := e.writeFileToGzip(tombstonePath, basePath, filepath.Join(path, tombstonePath), zw); err != nil {
+				return err
+			}
 		}
-	}
-
-	for _, f := range whole {
-		if err := e.writeFileToBackup(f, basePath, filepath.Join(path, f), tw); err != nil {
-			return err
-		}
+		// when writing a file to Gzip, zw.Close() is how you signify you are done writing the file.
+		// so the helper functions will do the closing.
+		// to write the next file to the gzip stream, we just reset the gzip writer.
+		// later, this zipped stream must be read with zr.Multistream(false) so that it will stop reading on each new file.
+		zw.Reset(w)
 	}
 
 	return nil
 }
 
-func (e *Engine) filterFileToBackup(name, shardRelativePath, fullPath string, start, end int64, tw *tar.Writer) error {
+func (e *Engine) filterFileToGzip(r *TSMReader, name, shardRelativePath, fullPath string, start, end int64, zw *gzip.Writer) error {
 	f, err := os.Stat(fullPath)
 	if err != nil {
 		return err
 	}
 
-	h := &tar.Header{
-		Name:    filepath.ToSlash(filepath.Join(shardRelativePath, name)),
-		ModTime: f.ModTime(),
-		Size:    f.Size(),
-		Mode:    int64(f.Mode()),
-	}
-	if err := tw.WriteHeader(h); err != nil {
-		return err
-	}
+	zw.Name = filepath.ToSlash(filepath.Join(shardRelativePath, name))
+	zw.ModTime = f.ModTime()
+
 	fr, err := os.Open(fullPath)
 	if err != nil {
 		return err
 	}
-
 	defer fr.Close()
 
-	// TODO (Adam):  instead of io.copy as in writeFileToBackup, we will need to:
-
-	// 2.  write the blocks we want to keep
-	// 3.  write an index?????
-	// 4.  write a footer
-
-	// will probably need most of this
-	r, err := NewTSMReader(fr)
+	w, err := NewTSMWriter(zw)
 	if err != nil {
 		return err
 	}
-	defer r.Close()
-
-	w, err := NewTSMWriter(tw)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		closeErr := w.Close()
-		if err == nil {
-			err = closeErr
-		}
-
-		// Check for errors where we should not remove the file
-		// REVIEWER:  do I need to check anything here? lifted this code from compact.go
-
-		if err != nil {
-			w.Remove()
-		}
-	}()
+	defer w.Close()
 
 	// implicit else: here we iterate over the blocks and only keep the ones we really want.
 	var bi *BlockIterator
@@ -801,10 +768,17 @@ func (e *Engine) filterFileToBackup(name, shardRelativePath, fullPath string, st
 		}
 		if minTime >= start && minTime <= end ||
 			maxTime >= start && maxTime <= end {
-			w.WriteBlock(key, minTime, maxTime, buf)
+			err := w.WriteBlock(key, minTime, maxTime, buf)
+			if err != nil {
+				return err
+			}
 		}
 	}
-	w.WriteIndex()
+
+	err = w.WriteIndex()
+	if err != nil {
+		return err
+	}
 
 	return err
 }
@@ -834,6 +808,28 @@ func (e *Engine) writeFileToBackup(name string, shardRelativePath, fullPath stri
 	defer fr.Close()
 
 	_, err = io.CopyN(tw, fr, h.Size)
+
+	return err
+}
+
+// writeFileToBackup copies the file into the tar archive. Files will use the shardRelativePath
+// in their names. This should be the <db>/<retention policy>/<id> part of the path.
+func (e *Engine) writeFileToGzip(name string, shardRelativePath, fullPath string, zw *gzip.Writer) error {
+	f, err := os.Stat(fullPath)
+	if err != nil {
+		return err
+	}
+
+	fr, err := os.Open(fullPath)
+	if err != nil {
+		return err
+	}
+
+	defer fr.Close()
+
+	_, err = io.CopyN(zw, fr, f.Size())
+
+	err = zw.Close()
 
 	return err
 }
