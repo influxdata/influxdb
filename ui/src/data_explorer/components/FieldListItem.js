@@ -2,7 +2,11 @@ import React, {PropTypes, Component} from 'react'
 import classnames from 'classnames'
 
 import FunctionSelector from 'shared/components/FunctionSelector'
-import {numFunctions, firstFieldName, functionNames} from 'utils/fields'
+import {
+  numFunctions,
+  firstFieldName,
+  functionNames,
+} from 'shared/reducers/helpers/field'
 
 class FieldListItem extends Component {
   constructor(props) {

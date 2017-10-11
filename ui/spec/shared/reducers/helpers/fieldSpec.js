@@ -1,4 +1,4 @@
-import {numFunctions} from 'utils/fields'
+import {numFunctions} from 'shared/reducers/helpers/field'
 
 describe('Formatting helpers', () => {
   describe('formatBytes', () => {

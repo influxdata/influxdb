@@ -1,7 +1,7 @@
 import defaultQueryConfig from 'utils/defaultQueryConfig'
 import {DEFAULT_DASHBOARD_GROUP_BY_INTERVAL} from 'shared/constants'
 import {DEFAULT_DATA_EXPLORER_GROUP_BY_INTERVAL} from 'src/data_explorer/constants'
-import {hasField, removeField} from 'utils/fields'
+import {hasField, removeField} from 'shared/reducers/helpers/fields'
 import _ from 'lodash'
 
 export function editRawText(query, rawText) {
