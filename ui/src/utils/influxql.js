@@ -70,16 +70,18 @@ export function buildSelectStatement(config) {
 }
 
 function _buildFields(fieldFuncs) {
-  if (!!fieldFuncs) {
+  if (fieldFuncs) {
     return fieldFuncs
       .map(f => {
         switch (f.type) {
-          case 'field':
+          case 'field': {
             return f.name === '*' ? '*' : `"${f.name}"`
-          case 'func':
+          }
+          case 'func': {
             const args = _buildFields(f.args)
             const alias = f.alias ? ` AS "${f.alias}"` : ''
             return `${f.name}(${args})${alias}`
+          }
         }
       })
       .join(', ')
