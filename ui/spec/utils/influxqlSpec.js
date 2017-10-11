@@ -30,7 +30,7 @@ describe('buildInfluxQLQuery', () => {
       config = mergeConfig({
         database: 'db1',
         measurement: 'm1',
-        fields: [{field: 'f1', func: null}],
+        fields: [{name: 'f1', type: 'field'}],
       })
     })
 
@@ -47,7 +47,7 @@ describe('buildInfluxQLQuery', () => {
         database: 'db1',
         measurement: 'm1',
         retentionPolicy: 'rp1',
-        fields: [{field: 'f1', func: null}],
+        fields: [{name: 'f1', type: 'field'}],
       })
       timeBounds = {lower: 'now() - 1hr'}
     })
@@ -71,7 +71,7 @@ describe('buildInfluxQLQuery', () => {
         database: 'db1',
         measurement: 'm1',
         retentionPolicy: 'rp1',
-        fields: [{field: '*', func: null}],
+        fields: [{name: '*', type: 'field'}],
       })
     })
 
@@ -88,7 +88,14 @@ describe('buildInfluxQLQuery', () => {
         database: 'db1',
         measurement: 'm0',
         retentionPolicy: 'rp1',
-        fields: [{field: 'value', funcs: ['min']}],
+        fields: [
+          {
+            name: 'min',
+            type: 'func',
+            alias: 'min_value',
+            args: [{name: 'value', type: 'field'}],
+          },
+        ],
         groupBy: {time: '10m', tags: []},
         fill: NULL_STRING,
       })
@@ -108,7 +115,14 @@ describe('buildInfluxQLQuery', () => {
         database: 'db1',
         measurement: 'm0',
         retentionPolicy: 'rp1',
-        fields: [{field: 'value', funcs: ['min']}],
+        fields: [
+          {
+            name: 'min',
+            type: 'func',
+            alias: 'min_value',
+            args: [{name: 'value', type: 'field'}],
+          },
+        ],
         groupBy: {time: null, tags: ['t1', 't2']},
       })
       timeBounds = {lower: 'now() - 12h'}
@@ -126,7 +140,7 @@ describe('buildInfluxQLQuery', () => {
         database: 'db1',
         retentionPolicy: 'rp1',
         measurement: 'm0',
-        fields: [{field: 'value', funcs: []}],
+        fields: [{name: 'value', type: 'field'}],
       })
       timeBounds = {
         lower: "'2015-07-23T15:52:24.447Z'",
@@ -147,7 +161,7 @@ describe('buildInfluxQLQuery', () => {
         database: 'db1',
         retentionPolicy: 'rp1',
         measurement: 'm0',
-        fields: [{field: 'value', funcs: ['min']}],
+        fields: [{name: 'min', type: 'func', alias: 'min_value', args: [{name: 'value', type: 'field'}]}],
         groupBy: {time: '10m', tags: ['t1', 't2']},
         fill: NULL_STRING,
       })
@@ -167,7 +181,7 @@ describe('buildInfluxQLQuery', () => {
         database: 'db1',
         retentionPolicy: 'rp1',
         measurement: 'm0',
-        fields: [{field: 'f0', funcs: []}, {field: 'f1', funcs: []}],
+        fields: [{name: 'f0', type: 'field'}, {name: 'f1', type: 'field'}],
       })
       timeBounds = {upper: "'2015-02-24T00:00:00Z'"}
     })
@@ -189,7 +203,7 @@ describe('buildInfluxQLQuery', () => {
           database: 'db1',
           measurement: 'm0',
           retentionPolicy: 'rp1',
-          fields: [{field: 'f0', funcs: []}],
+          fields: [{name: 'f0', type: 'field'}],
           tags: {
             k1: ['v1', 'v3', 'v4'],
             k2: ['v2'],
@@ -212,7 +226,14 @@ describe('buildInfluxQLQuery', () => {
           database: 'db1',
           retentionPolicy: 'rp1',
           measurement: 'm0',
-          fields: [{field: 'value', funcs: ['min']}],
+          fields: [
+            {
+              name: 'min',
+              type: 'func',
+              alias: 'min_value',
+              args: [{name: 'value', type: 'field'}],
+            },
+          ],
           groupBy: {time: '10m', tags: []},
         })
         timeBounds = {lower: 'now() - 12h'}
@@ -230,7 +251,14 @@ describe('buildInfluxQLQuery', () => {
           database: 'db1',
           retentionPolicy: 'rp1',
           measurement: 'm0',
-          fields: [{field: 'value', funcs: ['min']}],
+          fields: [
+            {
+              name: 'min',
+              type: 'func',
+              alias: 'min_value',
+              args: [{name: 'value', type: 'field'}],
+            },
+          ],
           groupBy: {time: '10m', tags: []},
           fill: NULL_STRING,
         })
@@ -245,7 +273,14 @@ describe('buildInfluxQLQuery', () => {
           database: 'db1',
           retentionPolicy: 'rp1',
           measurement: 'm0',
-          fields: [{field: 'value', funcs: ['min']}],
+          fields: [
+            {
+              name: 'min',
+              type: 'func',
+              alias: 'min_value',
+              args: [{name: 'value', type: 'field'}],
+            },
+          ],
           groupBy: {time: '10m', tags: []},
           fill: NONE,
         })
@@ -260,7 +295,14 @@ describe('buildInfluxQLQuery', () => {
           database: 'db1',
           retentionPolicy: 'rp1',
           measurement: 'm0',
-          fields: [{field: 'value', funcs: ['min']}],
+          fields: [
+            {
+              name: 'min',
+              type: 'func',
+              alias: 'min_value',
+              args: [{name: 'value', type: 'field'}],
+            },
+          ],
           groupBy: {time: '10m', tags: ['t1', 't2']},
           fill: '1337',
         })
@@ -279,7 +321,7 @@ describe('buildInfluxQLQuery', () => {
         database: 'db1',
         measurement: 'm1',
         retentionPolicy: 'rp1',
-        fields: [{field: 'f1', func: null}],
+        fields: [{name: 'f1', type: 'field'}],
         groupBy: {time: '10m', tags: []},
       })
     })

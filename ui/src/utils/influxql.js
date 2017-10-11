@@ -70,22 +70,21 @@ export function buildSelectStatement(config) {
 }
 
 function _buildFields(fieldFuncs) {
-  const hasAggregate = fieldFuncs.some(f => f.funcs && f.funcs.length)
-  if (hasAggregate) {
+  if (!!fieldFuncs) {
     return fieldFuncs
       .map(f => {
-        return f.funcs
-          .map(func => `${func}("${f.field}") AS "${func}_${f.field}"`)
-          .join(', ')
+        switch (f.type) {
+          case 'field':
+            return f.name === '*' ? '*' : `"${f.name}"`
+          case 'func':
+            const args = _buildFields(f.args)
+            const alias = f.alias ? ` AS "${f.alias}"` : ''
+            return `${f.name}(${args})${alias}`
+        }
       })
       .join(', ')
   }
-
-  return fieldFuncs
-    .map(f => {
-      return f.field === '*' ? '*' : `"${f.field}"`
-    })
-    .join(', ')
+  return ''
 }
 
 function _buildWhereClause({lower, upper, tags, areTagsAccepted}) {
