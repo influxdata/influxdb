@@ -216,14 +216,14 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
 
       const nextState = reducer(initialState, action)
 
-      console.log('foo: ', JSON.stringify(nextState[queryId].fields, null, 2))
       expect(nextState[queryId].fields).to.deep.equal([
-        {name: 'fn1', type: 'func', args: [f2], alias: `fn1_${f2.name}`},
         {name: 'fn3', type: 'func', args: [f1], alias: `fn3_${f1.name}`},
         {name: 'fn4', type: 'func', args: [f1], alias: `fn4_${f1.name}`},
+        {name: 'fn1', type: 'func', args: [f2], alias: `fn1_${f2.name}`},
       ])
     })
 
+    // TODO: start here 10/10/2017
     it('removes all functions and group by time when one field has no funcs applied', () => {
       const initialState = {
         [queryId]: {

@@ -133,38 +133,53 @@ export function applyFuncsToField(
   {preventAutoGroupBy = false, isKapacitorRule = false} = {}
 ) {
   const shouldRemoveFuncs = funcs && funcs.length === 0
-  let nextFields = query.fields.map(f => {
+  const nextFields = query.fields.reduce((acc, f) => {
     // If one field has no funcs, all fields must have no funcs
     if (shouldRemoveFuncs) {
-      return f.args.filter(a => a.type === 'field')
+      return [...acc, f.args.filter(a => a.type === 'field')]
     }
 
     // If there is a func applied to only one field, add it to the other fields
     if (f.type === 'field') {
-      return funcs.map(func => {
-        return {
-          name: func.name,
-          type: func.type,
-          args: [{name: f.name, type: 'field'}],
-          alias: `${name}_${f.name}`,
-        }
-      })
+      return [
+        ...acc,
+        funcs.map(func => {
+          return {
+            name: func.name,
+            type: func.type,
+            args: [{name: f.name, type: 'field'}],
+            alias: `${name}_${f.name}`,
+          }
+        }),
+      ]
     }
 
-    return f
-  })
+    const isFieldToChange = f.args.find(a => a.name === field.name)
 
-  if (!shouldRemoveFuncs) {
-    nextFields = query.fields.filter(f =>
-      f.args.find(a => a.name !== field.name)
-    )
+    // Apply new funcs to field
+    if (isFieldToChange) {
+      const newFuncs = funcs.reduce((acc2, func) => {
+        const isDup = acc.find(a => a.name === func.name)
+        if (isDup) {
+          return acc2
+        }
 
-    const modifiedFields = funcs.map(func => {
-      return {...func, args: [field], alias: `${func.name}_${field.name}`}
-    })
+        return [
+          ...acc2,
+          {
+            ...func,
+            args: [field],
+            alias: `${func.name}_${field.name}`,
+          },
+        ]
+      }, [])
 
-    nextFields = [...nextFields, ...modifiedFields]
-  }
+      // console.log('newFuncs: ', newFuncs)
+      return [...acc, ...newFuncs]
+    }
+
+    return [...acc, f]
+  }, [])
 
   const defaultGroupBy = preventAutoGroupBy
     ? DEFAULT_DATA_EXPLORER_GROUP_BY_INTERVAL
