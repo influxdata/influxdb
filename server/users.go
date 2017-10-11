@@ -197,7 +197,3 @@ func (s *Service) Users(w http.ResponseWriter, r *http.Request) {
 	res := newUsersResponse(users)
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
-
-func location(w http.ResponseWriter, self string) {
-	w.Header().Add("Location", self)
-}

@@ -70,7 +70,7 @@ func (s *Service) NewLayout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res := newLayoutResponse(layout)
-	w.Header().Add("Location", res.Link.Href)
+	location(w, res.Link.Href)
 	encodeJSON(w, http.StatusCreated, res, s.Logger)
 }
 

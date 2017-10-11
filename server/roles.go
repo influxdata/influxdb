@@ -46,7 +46,7 @@ func (s *Service) NewRole(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rr := newRoleResponse(srcID, res)
-	w.Header().Add("Location", rr.Links.Self)
+	location(w, rr.Links.Self)
 	encodeJSON(w, http.StatusCreated, rr, s.Logger)
 }
 
@@ -88,7 +88,7 @@ func (s *Service) UpdateRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rr := newRoleResponse(srcID, role)
-	w.Header().Add("Location", rr.Links.Self)
+	location(w, rr.Links.Self)
 	encodeJSON(w, http.StatusOK, rr, s.Logger)
 }
 

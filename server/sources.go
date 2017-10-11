@@ -93,7 +93,7 @@ func (s *Service) NewSource(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res := newSourceResponse(src)
-	w.Header().Add("Location", res.Links.Self)
+	location(w, res.Links.Self)
 	encodeJSON(w, http.StatusCreated, res, s.Logger)
 }
 
@@ -405,7 +405,7 @@ func (s *Service) NewSourceUser(w http.ResponseWriter, r *http.Request) {
 	if _, hasRoles := s.hasRoles(ctx, ts); hasRoles {
 		su.WithRoles(srcID, res.Roles)
 	}
-	w.Header().Add("Location", su.Links.Self)
+	location(w, su.Links.Self)
 	encodeJSON(w, http.StatusCreated, su, s.Logger)
 }
 
@@ -524,7 +524,7 @@ func (s *Service) UpdateSourceUser(w http.ResponseWriter, r *http.Request) {
 	if _, hasRoles := s.hasRoles(ctx, ts); hasRoles {
 		res.WithRoles(srcID, u.Roles)
 	}
-	w.Header().Add("Location", res.Links.Self)
+	location(w, res.Links.Self)
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
 

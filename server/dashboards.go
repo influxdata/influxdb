@@ -104,7 +104,7 @@ func (s *Service) NewDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res := newDashboardResponse(dashboard)
-	w.Header().Add("Location", res.Links.Self)
+	location(w, res.Links.Self)
 	encodeJSON(w, http.StatusCreated, res, s.Logger)
 }
 

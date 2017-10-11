@@ -94,7 +94,7 @@ func (s *Service) NewKapacitor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res := newKapacitor(srv)
-	w.Header().Add("Location", res.Links.Self)
+	location(w, res.Links.Self)
 	encodeJSON(w, http.StatusCreated, res, s.Logger)
 }
 
@@ -324,7 +324,7 @@ func (s *Service) KapacitorRulesPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	res := newAlertResponse(task, srv.SrcID, srv.ID)
-	w.Header().Add("Location", res.Links.Self)
+	location(w, res.Links.Self)
 	encodeJSON(w, http.StatusCreated, res, s.Logger)
 }
 
