@@ -8,7 +8,7 @@ import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 import {showFieldKeys} from 'shared/apis/metaQuery'
 import showFieldKeysParser from 'shared/parsing/showFieldKeys'
-import {numFunctions} from 'shared/reducers/helpers/fields'
+import {numFunctions, hasField} from 'shared/reducers/helpers/fields'
 
 class FieldList extends Component {
   constructor(props) {
@@ -84,6 +84,8 @@ class FieldList extends Component {
       query: {database, measurement, fields = [], groupBy, fill},
       isKapacitorRule,
       isInDataExplorer,
+      onToggleField,
+      applyFuncsToField,
     } = this.props
 
     const hasAggregates = numFunctions(fields) > 0
@@ -118,17 +120,15 @@ class FieldList extends Component {
           : <div className="query-builder--list">
               <FancyScrollbar>
                 {this.state.fields.map((fieldFunc, i) => {
-                  const selectedField = fields.find(
-                    f => f.field === fieldFunc.field
-                  )
+                  const selectedField = hasField(fieldFunc.name, fields)
                   return (
                     <FieldListItem
                       key={i}
-                      onToggleField={this.props.onToggleField}
-                      onApplyFuncsToField={this.props.applyFuncsToField}
+                      onToggleField={onToggleField}
+                      onApplyFuncsToField={applyFuncsToField}
                       isSelected={!!selectedField}
-                      fieldFunc={selectedField || fieldFunc}
-                      isKapacitorRule={this.props.isKapacitorRule}
+                      fieldFunc={fieldFunc}
+                      isKapacitorRule={isKapacitorRule}
                     />
                   )
                 })}
