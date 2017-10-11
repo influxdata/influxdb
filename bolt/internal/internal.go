@@ -439,3 +439,62 @@ func UnmarshalUserPB(data []byte, u *User) error {
 	}
 	return nil
 }
+
+// MarshalRole encodes a role to binary protobuf format.
+func MarshalRole(r *chronograf.Role) ([]byte, error) {
+	pbUsers := make([]uint64, len(r.Users))
+	for i, u := range r.Users {
+		pbUsers[i] = u.ID
+	}
+
+	pbPermissions := make([]string, len(r.Permissions))
+	for i, m := range r.Permissions {
+		pbPermissions[i] = m.Name
+	}
+
+	return MarshalRolePB(&Role{
+		Name:        r.Name,
+		Permissions: pbPermissions,
+		Users:       pbUsers,
+	})
+}
+
+// MarshalRolePB encodes a role to binary protobuf format.
+func MarshalRolePB(r *Role) ([]byte, error) {
+	return proto.Marshal(r)
+}
+
+// UnmarshalRole decodes a role from binary protobuf data.
+func UnmarshalRole(data []byte, r *chronograf.Role) error {
+	var pb Role
+	if err := UnmarshalRolePB(data, &pb); err != nil {
+		return err
+	}
+
+	perms := make(chronograf.Permissions, len(pb.Permissions))
+	for i, m := range pb.Permissions {
+		perms[i] = chronograf.Permission{
+			Name: m,
+		}
+	}
+
+	users := make([]chronograf.User, len(pb.Users))
+	for i, u := range pb.Users {
+		users[i] = chronograf.User{
+			ID: u,
+		}
+	}
+
+	r.Name = pb.Name
+	r.Permissions = perms
+	r.Users = users
+	return nil
+}
+
+// UnmarshalRolePB decodes a role from binary protobuf data.
+func UnmarshalRolePB(data []byte, r *Role) error {
+	if err := proto.Unmarshal(data, r); err != nil {
+		return err
+	}
+	return nil
+}
