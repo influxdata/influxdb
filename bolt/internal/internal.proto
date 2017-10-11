@@ -130,6 +130,18 @@ message User {
 	string Scheme           = 4; // Scheme is the scheme used to perform this user's authentication, e.g. OAuth2 or LDAP
 }
 
+message Permission {
+	string Scope            = 1; // Scope defines the location of access of a permission
+	string Name             = 2; // Name is the name of the permission
+	repeated string Allowed = 3; // Allowed is the set of allowances for what actions a user can have on a scoped permission
+}
+
+message Role {
+	string Name                 = 1; // Name is the role's name
+	repeated string Permissions = 2; // Permissions are the Names of the permissions a role has
+	repeated uint64 Users       = 3; // Users are IDs of the users that belong to that role
+}
+
 // The following is a vim modeline, it autoconfigures vim to have the
 // appropriate tabbing and whitespace management to edit this file
 //
