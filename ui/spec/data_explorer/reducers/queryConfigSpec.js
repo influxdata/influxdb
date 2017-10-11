@@ -65,7 +65,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
     })
   })
 
-  describe.only('a query has measurements and fields', () => {
+  describe('a query has measurements and fields', () => {
     let state
     beforeEach(() => {
       const one = reducer({}, fakeAddQueryAction('any', queryId))
@@ -82,8 +82,6 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
         three,
         toggleField(queryId, {
           name: 'a great field',
-          alias: null,
-          args: [],
           type: 'field',
         })
       )
@@ -186,7 +184,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
     })
   })
 
-  describe.only('DE_APPLY_FUNCS_TO_FIELD', () => {
+  describe('DE_APPLY_FUNCS_TO_FIELD', () => {
     it('applies new functions to a field', () => {
       const f1 = {name: 'f1', type: 'field'}
       const f2 = {name: 'f2', type: 'field'}
@@ -223,16 +221,17 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
       ])
     })
 
-    // TODO: start here 10/10/2017
     it('removes all functions and group by time when one field has no funcs applied', () => {
+      const f1 = {name: 'f1', type: 'field'}
+      const f2 = {name: 'f2', type: 'field'}
       const initialState = {
         [queryId]: {
           id: 123,
           database: 'db1',
           measurement: 'm1',
           fields: [
-            {field: 'f1', funcs: ['fn1', 'fn2']},
-            {field: 'f2', funcs: ['fn3', 'fn4']},
+            {name: 'fn1', type: 'func', args: [f1], alias: `fn1_${f1.name}`},
+            {name: 'fn1', type: 'func', args: [f2], alias: `fn1_${f2.name}`},
           ],
           groupBy: {
             time: '1m',
@@ -242,16 +241,15 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
       }
 
       const action = applyFuncsToField(queryId, {
-        field: 'f1',
+        field: {name: 'f1', type: 'field'},
         funcs: [],
       })
 
       const nextState = reducer(initialState, action)
+      const actual = nextState[queryId].fields
+      const expected = [f1, f2]
 
-      expect(nextState[queryId].fields).to.eql([
-        {field: 'f1', funcs: []},
-        {field: 'f2', funcs: []},
-      ])
+      expect(actual).to.eql(expected)
       expect(nextState[queryId].groupBy.time).to.equal(null)
     })
   })

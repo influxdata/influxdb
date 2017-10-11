@@ -2,6 +2,7 @@ import defaultQueryConfig from 'utils/defaultQueryConfig'
 import {DEFAULT_DASHBOARD_GROUP_BY_INTERVAL} from 'shared/constants'
 import {DEFAULT_DATA_EXPLORER_GROUP_BY_INTERVAL} from 'src/data_explorer/constants'
 import {NULL_STRING} from 'shared/constants/queryFillOptions'
+import _ from 'lodash'
 
 export function editRawText(query, rawText) {
   return Object.assign({}, query, {rawText})
@@ -25,6 +26,13 @@ export const chooseMeasurement = (
 
 export const toggleField = (query, {name, type}, isKapacitorRule = false) => {
   const {fields, groupBy} = query
+
+  if (isKapacitorRule) {
+    return {
+      ...query,
+      fields: [{name, type: 'field'}],
+    }
+  }
 
   if (!fields || !fields.length) {
     return {
@@ -65,6 +73,7 @@ export const toggleField = (query, {name, type}, isKapacitorRule = false) => {
       args: [{name, type}],
     }
   })
+
   // const isSelected = fields.find(f => f.field === field)
   // if (isSelected) {
   //   const nextFields = fields.filter(f => f.field !== field)
@@ -80,18 +89,6 @@ export const toggleField = (query, {name, type}, isKapacitorRule = false) => {
   //     ...query,
   //     fields: nextFields,
   //   }
-  // }
-
-  // if (isKapacitorRule) {
-  //   return {
-  //     ...query,
-  //     fields: [{field, funcs}],
-  //   }
-  // }
-
-  // let newFuncs = ['mean']
-  // if (query.fields.length) {
-  //   newFuncs = query.fields.find(f => f.funcs).funcs
   // }
 
   return {
@@ -129,14 +126,17 @@ export function toggleTagAcceptance(query) {
 
 export function applyFuncsToField(
   query,
-  {field, funcs},
+  {field, funcs = []},
   {preventAutoGroupBy = false, isKapacitorRule = false} = {}
 ) {
-  const shouldRemoveFuncs = funcs && funcs.length === 0
+  const shouldRemoveFuncs = funcs.length === 0
   const nextFields = query.fields.reduce((acc, f) => {
     // If one field has no funcs, all fields must have no funcs
     if (shouldRemoveFuncs) {
-      return [...acc, f.args.filter(a => a.type === 'field')]
+      return _.uniq(
+        [...acc, ...f.args.filter(a => a.type === 'field')],
+        fld => fld.name
+      )
     }
 
     // If there is a func applied to only one field, add it to the other fields
@@ -148,7 +148,7 @@ export function applyFuncsToField(
             name: func.name,
             type: func.type,
             args: [{name: f.name, type: 'field'}],
-            alias: `${name}_${f.name}`,
+            alias: `${func.name}_${f.name}`,
           }
         }),
       ]
@@ -174,7 +174,6 @@ export function applyFuncsToField(
         ]
       }, [])
 
-      // console.log('newFuncs: ', newFuncs)
       return [...acc, ...newFuncs]
     }
 
@@ -184,16 +183,12 @@ export function applyFuncsToField(
   const defaultGroupBy = preventAutoGroupBy
     ? DEFAULT_DATA_EXPLORER_GROUP_BY_INTERVAL
     : DEFAULT_DASHBOARD_GROUP_BY_INTERVAL
+
   // If there are no functions, then there should be no GROUP BY time
-  const nextGroupBy = Object.assign({}, query.groupBy, {
-    time: shouldRemoveFuncs ? null : defaultGroupBy,
-  })
+  const nextTime = shouldRemoveFuncs ? null : defaultGroupBy
+  const nextGroupBy = {...query.groupBy, time: nextTime}
 
-  const nextQuery = {...query, fields: nextFields, groupBy: nextGroupBy}
-
-  // fill is not valid for kapacitor query configs since there is no actual
-  // query and all alert rules create stream-based tasks currently
-  return isKapacitorRule ? nextQuery : {...nextQuery, fill: NULL_STRING}
+  return {...query, fields: _.flatten(nextFields), groupBy: nextGroupBy}
 }
 
 export function updateRawQuery(query, rawText) {
