@@ -1,9 +1,8 @@
 import defaultQueryConfig from 'utils/defaultQueryConfig'
-import {DEFAULT_DASHBOARD_GROUP_BY_INTERVAL} from 'shared/constants'
-import {DEFAULT_DATA_EXPLORER_GROUP_BY_INTERVAL} from 'src/data_explorer/constants'
 import {
   hasField,
   removeField,
+  getFieldsDeep,
   getFuncsByFieldName,
 } from 'shared/reducers/helpers/fields'
 import _ from 'lodash'
@@ -136,21 +135,10 @@ export function toggleTagAcceptance(query) {
   })
 }
 
-export function applyFuncsToField(
-  query,
-  {field, funcs = []},
-  {preventAutoGroupBy = false} = {}
-) {
-  const shouldRemoveFuncs = funcs.length === 0
-  const nextFields = query.fields.reduce((acc, f) => {
-    // If one field has no funcs, all fields must have no funcs
-    if (shouldRemoveFuncs) {
-      return _.uniq(
-        [...acc, ...f.args.filter(a => a.type === 'field')],
-        fld => fld.name
-      )
-    }
+export const removeFuncs = fields => getFieldsDeep(fields)
 
+export const applyFuncsToField = (query, {field, funcs = []}, time) => {
+  const nextFields = query.fields.reduce((acc, f) => {
     // If there is a func applied to only one field, add it to the other fields
     if (f.type === 'field') {
       return [
@@ -194,15 +182,11 @@ export function applyFuncsToField(
     return [...acc, f]
   }, [])
 
-  const defaultGroupBy = preventAutoGroupBy
-    ? DEFAULT_DATA_EXPLORER_GROUP_BY_INTERVAL
-    : DEFAULT_DASHBOARD_GROUP_BY_INTERVAL
-
-  // If there are no functions, then there should be no GROUP BY time
-  const nextTime = shouldRemoveFuncs ? null : defaultGroupBy
-  const nextGroupBy = {...query.groupBy, time: nextTime}
-
-  return {...query, fields: _.flatten(nextFields), groupBy: nextGroupBy}
+  return {
+    ...query,
+    fields: _.flatten(nextFields),
+    groupBy: {...query.groupBy, time},
+  }
 }
 
 export function updateRawQuery(query, rawText) {

@@ -42,26 +42,14 @@ export const fill = (queryId, value) => ({
   },
 })
 
-/*
-// all fields implicitly have a function applied to them by default, unless
-// it was explicitly removed previously, so set the auto group by time except
-// under that removal condition
-export const toggleFieldWithGroupByInterval = (queryID, fieldFunc) => (
-  dispatch,
-  getState
-) => {
-  dispatch(toggleField(queryID, fieldFunc))
-  // toggleField determines whether to add a func, so now check state for funcs
-  // presence, and if present then apply default group by time
-  const updatedFieldFunc = getState().dataExplorerQueryConfigs[
-    queryID
-  ].fields.find(({field}) => field === fieldFunc.field)
-  // updatedFieldFunc could be undefined if it was toggled for removal
-  if (updatedFieldFunc && updatedFieldFunc.funcs.length) {
-    dispatch(groupByTime(queryID, DEFAULT_DATA_EXPLORER_GROUP_BY_INTERVAL))
-  }
-}
-*/
+export const removeFuncs = (queryID, fields, groupBy) => ({
+  type: 'DE_REMOVE_FUNCS',
+  payload: {
+    queryID,
+    fields,
+    groupBy,
+  },
+})
 
 export const applyFuncsToField = (queryId, fieldFunc) => ({
   type: 'DE_APPLY_FUNCS_TO_FIELD',

@@ -4,7 +4,8 @@ import DatabaseList from 'src/shared/components/DatabaseList'
 import MeasurementList from 'src/shared/components/MeasurementList'
 import FieldList from 'src/shared/components/FieldList'
 
-const actionBinder = (id, action) => item => action(id, item)
+const actionBinder = (id, action) => (item, ...args) =>
+  action(id, item, ...args)
 
 const SchemaExplorer = ({
   query,
@@ -19,6 +20,7 @@ const SchemaExplorer = ({
     chooseNamespace,
     chooseMeasurement,
     applyFuncsToField,
+    removeFuncs,
     toggleTagAcceptance,
   },
 }) =>
@@ -45,6 +47,7 @@ const SchemaExplorer = ({
       onFill={actionBinder(id, fill)}
       onGroupByTime={actionBinder(id, groupByTime)}
       applyFuncsToField={actionBinder(id, applyFuncsToField)}
+      removeFuncs={actionBinder(id, removeFuncs)}
     />
   </div>
 

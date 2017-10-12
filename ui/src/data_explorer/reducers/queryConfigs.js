@@ -2,18 +2,20 @@ import _ from 'lodash'
 
 import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 import {
-  editRawText,
-  applyFuncsToField,
-  chooseMeasurement,
-  chooseNamespace,
+  fill,
   chooseTag,
   groupByTag,
+  removeFuncs,
   groupByTime,
   toggleField,
-  toggleTagAcceptance,
-  fill,
+  editRawText,
   updateRawQuery,
+  chooseNamespace,
+  chooseMeasurement,
+  applyFuncsToField,
+  toggleTagAcceptance,
 } from 'src/utils/queryTransitions'
+import {INITIAL_GROUP_BY_TIME} from 'src/data_explorer/constants'
 
 const queryConfigs = (state = {}, action) => {
   switch (action.type) {
@@ -99,9 +101,11 @@ const queryConfigs = (state = {}, action) => {
 
     case 'DE_APPLY_FUNCS_TO_FIELD': {
       const {queryId, fieldFunc} = action.payload
-      const nextQueryConfig = applyFuncsToField(state[queryId], fieldFunc, {
-        preventAutoGroupBy: true,
-      })
+      const nextQueryConfig = applyFuncsToField(
+        state[queryId],
+        fieldFunc,
+        INITIAL_GROUP_BY_TIME
+      )
 
       return Object.assign({}, state, {
         [queryId]: nextQueryConfig,
@@ -147,6 +151,21 @@ const queryConfigs = (state = {}, action) => {
       const {queryID, status} = action.payload
       const nextState = {
         [queryID]: {...state[queryID], status},
+      }
+
+      return {...state, ...nextState}
+    }
+
+    case 'DE_REMOVE_FUNCS': {
+      const {queryID, fields, groupBy} = action.payload
+
+      // fields with no functions cannot have a group by time
+      const nextState = {
+        [queryID]: {
+          ...state[queryID],
+          fields: removeFuncs(fields),
+          groupBy: {...groupBy, time: null},
+        },
       }
 
       return {...state, ...nextState}

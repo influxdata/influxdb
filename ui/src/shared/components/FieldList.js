@@ -64,6 +64,19 @@ class FieldList extends Component {
     this.props.onFill(fill)
   }
 
+  handleApplyFuncs = fieldFunc => {
+    const {removeFuncs, query, applyFuncsToField} = this.props
+    const {id, fields, groupBy} = query
+    const {field, funcs} = fieldFunc
+
+    // If one field has no funcs, all fields must have no funcs
+    if (!_.size(funcs)) {
+      return removeFuncs(fields, groupBy)
+    }
+
+    applyFuncsToField(fieldFunc)
+  }
+
   _getFields = () => {
     const {database, measurement, retentionPolicy} = this.props.query
     const {source} = this.context
@@ -90,7 +103,6 @@ class FieldList extends Component {
       isKapacitorRule,
       isInDataExplorer,
       onToggleField,
-      applyFuncsToField,
     } = this.props
 
     const hasAggregates = numFunctions(fields) > 0
@@ -136,7 +148,7 @@ class FieldList extends Component {
                     <FieldListItem
                       key={i}
                       onToggleField={onToggleField}
-                      onApplyFuncsToField={applyFuncsToField}
+                      onApplyFuncsToField={this.handleApplyFuncs}
                       isSelected={!!selectedFields.length}
                       fieldFuncs={
                         selectedFields.length ? selectedFields : [fieldFunc]
@@ -184,6 +196,7 @@ FieldList.propTypes = {
       proxy: string.isRequired,
     }).isRequired,
   }),
+  removeFuncs: func.isRequired,
 }
 
 export default FieldList
