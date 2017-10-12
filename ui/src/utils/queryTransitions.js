@@ -75,16 +75,15 @@ export const toggleField = (query, {name, type}) => {
     }
   }
 
-  if (!newFuncs) {
+  // if we are not applying functions apply a field
+  if (!newFuncs.length) {
     return {
       ...query,
       fields: [
         ...fields,
         {
-          type: 'func',
-          alias: `mean_${name}`,
-          args: [{name, type: 'field'}],
-          name: 'mean',
+          name,
+          type: 'field',
         },
       ],
     }
