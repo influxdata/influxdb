@@ -60,83 +60,6 @@ func (m *Source) String() string            { return proto.CompactTextString(m) 
 func (*Source) ProtoMessage()               {}
 func (*Source) Descriptor() ([]byte, []int) { return fileDescriptorInternal, []int{0} }
 
-func (m *Source) GetID() int64 {
-	if m != nil {
-		return m.ID
-	}
-	return 0
-}
-
-func (m *Source) GetName() string {
-	if m != nil {
-		return m.Name
-	}
-	return ""
-}
-
-func (m *Source) GetType() string {
-	if m != nil {
-		return m.Type
-	}
-	return ""
-}
-
-func (m *Source) GetUsername() string {
-	if m != nil {
-		return m.Username
-	}
-	return ""
-}
-
-func (m *Source) GetPassword() string {
-	if m != nil {
-		return m.Password
-	}
-	return ""
-}
-
-func (m *Source) GetURL() string {
-	if m != nil {
-		return m.URL
-	}
-	return ""
-}
-
-func (m *Source) GetDefault() bool {
-	if m != nil {
-		return m.Default
-	}
-	return false
-}
-
-func (m *Source) GetTelegraf() string {
-	if m != nil {
-		return m.Telegraf
-	}
-	return ""
-}
-
-func (m *Source) GetInsecureSkipVerify() bool {
-	if m != nil {
-		return m.InsecureSkipVerify
-	}
-	return false
-}
-
-func (m *Source) GetMetaURL() string {
-	if m != nil {
-		return m.MetaURL
-	}
-	return ""
-}
-
-func (m *Source) GetSharedSecret() string {
-	if m != nil {
-		return m.SharedSecret
-	}
-	return ""
-}
-
 type Dashboard struct {
 	ID        int64            `protobuf:"varint,1,opt,name=ID,proto3" json:"ID,omitempty"`
 	Name      string           `protobuf:"bytes,2,opt,name=Name,proto3" json:"Name,omitempty"`
@@ -148,20 +71,6 @@ func (m *Dashboard) Reset()                    { *m = Dashboard{} }
 func (m *Dashboard) String() string            { return proto.CompactTextString(m) }
 func (*Dashboard) ProtoMessage()               {}
 func (*Dashboard) Descriptor() ([]byte, []int) { return fileDescriptorInternal, []int{1} }
-
-func (m *Dashboard) GetID() int64 {
-	if m != nil {
-		return m.ID
-	}
-	return 0
-}
-
-func (m *Dashboard) GetName() string {
-	if m != nil {
-		return m.Name
-	}
-	return ""
-}
 
 func (m *Dashboard) GetCells() []*DashboardCell {
 	if m != nil {
@@ -194,60 +103,11 @@ func (m *DashboardCell) String() string            { return proto.CompactTextStr
 func (*DashboardCell) ProtoMessage()               {}
 func (*DashboardCell) Descriptor() ([]byte, []int) { return fileDescriptorInternal, []int{2} }
 
-func (m *DashboardCell) GetX() int32 {
-	if m != nil {
-		return m.X
-	}
-	return 0
-}
-
-func (m *DashboardCell) GetY() int32 {
-	if m != nil {
-		return m.Y
-	}
-	return 0
-}
-
-func (m *DashboardCell) GetW() int32 {
-	if m != nil {
-		return m.W
-	}
-	return 0
-}
-
-func (m *DashboardCell) GetH() int32 {
-	if m != nil {
-		return m.H
-	}
-	return 0
-}
-
 func (m *DashboardCell) GetQueries() []*Query {
 	if m != nil {
 		return m.Queries
 	}
 	return nil
-}
-
-func (m *DashboardCell) GetName() string {
-	if m != nil {
-		return m.Name
-	}
-	return ""
-}
-
-func (m *DashboardCell) GetType() string {
-	if m != nil {
-		return m.Type
-	}
-	return ""
-}
-
-func (m *DashboardCell) GetID() string {
-	if m != nil {
-		return m.ID
-	}
-	return ""
 }
 
 func (m *DashboardCell) GetAxes() map[string]*Axis {
@@ -258,7 +118,7 @@ func (m *DashboardCell) GetAxes() map[string]*Axis {
 }
 
 type Axis struct {
-	LegacyBounds []int64  `protobuf:"varint,1,rep,packed,name=legacyBounds" json:"legacyBounds,omitempty"`
+	LegacyBounds []int64  `protobuf:"varint,1,rep,name=legacyBounds" json:"legacyBounds,omitempty"`
 	Bounds       []string `protobuf:"bytes,2,rep,name=bounds" json:"bounds,omitempty"`
 	Label        string   `protobuf:"bytes,3,opt,name=label,proto3" json:"label,omitempty"`
 	Prefix       string   `protobuf:"bytes,4,opt,name=prefix,proto3" json:"prefix,omitempty"`
@@ -271,55 +131,6 @@ func (m *Axis) Reset()                    { *m = Axis{} }
 func (m *Axis) String() string            { return proto.CompactTextString(m) }
 func (*Axis) ProtoMessage()               {}
 func (*Axis) Descriptor() ([]byte, []int) { return fileDescriptorInternal, []int{3} }
-
-func (m *Axis) GetLegacyBounds() []int64 {
-	if m != nil {
-		return m.LegacyBounds
-	}
-	return nil
-}
-
-func (m *Axis) GetBounds() []string {
-	if m != nil {
-		return m.Bounds
-	}
-	return nil
-}
-
-func (m *Axis) GetLabel() string {
-	if m != nil {
-		return m.Label
-	}
-	return ""
-}
-
-func (m *Axis) GetPrefix() string {
-	if m != nil {
-		return m.Prefix
-	}
-	return ""
-}
-
-func (m *Axis) GetSuffix() string {
-	if m != nil {
-		return m.Suffix
-	}
-	return ""
-}
-
-func (m *Axis) GetBase() string {
-	if m != nil {
-		return m.Base
-	}
-	return ""
-}
-
-func (m *Axis) GetScale() string {
-	if m != nil {
-		return m.Scale
-	}
-	return ""
-}
 
 type Template struct {
 	ID      string           `protobuf:"bytes,1,opt,name=ID,proto3" json:"ID,omitempty"`
@@ -335,39 +146,11 @@ func (m *Template) String() string            { return proto.CompactTextString(m
 func (*Template) ProtoMessage()               {}
 func (*Template) Descriptor() ([]byte, []int) { return fileDescriptorInternal, []int{4} }
 
-func (m *Template) GetID() string {
-	if m != nil {
-		return m.ID
-	}
-	return ""
-}
-
-func (m *Template) GetTempVar() string {
-	if m != nil {
-		return m.TempVar
-	}
-	return ""
-}
-
 func (m *Template) GetValues() []*TemplateValue {
 	if m != nil {
 		return m.Values
 	}
 	return nil
-}
-
-func (m *Template) GetType() string {
-	if m != nil {
-		return m.Type
-	}
-	return ""
-}
-
-func (m *Template) GetLabel() string {
-	if m != nil {
-		return m.Label
-	}
-	return ""
 }
 
 func (m *Template) GetQuery() *TemplateQuery {
@@ -388,27 +171,6 @@ func (m *TemplateValue) String() string            { return proto.CompactTextStr
 func (*TemplateValue) ProtoMessage()               {}
 func (*TemplateValue) Descriptor() ([]byte, []int) { return fileDescriptorInternal, []int{5} }
 
-func (m *TemplateValue) GetType() string {
-	if m != nil {
-		return m.Type
-	}
-	return ""
-}
-
-func (m *TemplateValue) GetValue() string {
-	if m != nil {
-		return m.Value
-	}
-	return ""
-}
-
-func (m *TemplateValue) GetSelected() bool {
-	if m != nil {
-		return m.Selected
-	}
-	return false
-}
-
 type TemplateQuery struct {
 	Command     string `protobuf:"bytes,1,opt,name=command,proto3" json:"command,omitempty"`
 	Db          string `protobuf:"bytes,2,opt,name=db,proto3" json:"db,omitempty"`
@@ -422,48 +184,6 @@ func (m *TemplateQuery) Reset()                    { *m = TemplateQuery{} }
 func (m *TemplateQuery) String() string            { return proto.CompactTextString(m) }
 func (*TemplateQuery) ProtoMessage()               {}
 func (*TemplateQuery) Descriptor() ([]byte, []int) { return fileDescriptorInternal, []int{6} }
-
-func (m *TemplateQuery) GetCommand() string {
-	if m != nil {
-		return m.Command
-	}
-	return ""
-}
-
-func (m *TemplateQuery) GetDb() string {
-	if m != nil {
-		return m.Db
-	}
-	return ""
-}
-
-func (m *TemplateQuery) GetRp() string {
-	if m != nil {
-		return m.Rp
-	}
-	return ""
-}
-
-func (m *TemplateQuery) GetMeasurement() string {
-	if m != nil {
-		return m.Measurement
-	}
-	return ""
-}
-
-func (m *TemplateQuery) GetTagKey() string {
-	if m != nil {
-		return m.TagKey
-	}
-	return ""
-}
-
-func (m *TemplateQuery) GetFieldKey() string {
-	if m != nil {
-		return m.FieldKey
-	}
-	return ""
-}
 
 type Server struct {
 	ID       int64  `protobuf:"varint,1,opt,name=ID,proto3" json:"ID,omitempty"`
@@ -480,55 +200,6 @@ func (m *Server) String() string            { return proto.CompactTextString(m) 
 func (*Server) ProtoMessage()               {}
 func (*Server) Descriptor() ([]byte, []int) { return fileDescriptorInternal, []int{7} }
 
-func (m *Server) GetID() int64 {
-	if m != nil {
-		return m.ID
-	}
-	return 0
-}
-
-func (m *Server) GetName() string {
-	if m != nil {
-		return m.Name
-	}
-	return ""
-}
-
-func (m *Server) GetUsername() string {
-	if m != nil {
-		return m.Username
-	}
-	return ""
-}
-
-func (m *Server) GetPassword() string {
-	if m != nil {
-		return m.Password
-	}
-	return ""
-}
-
-func (m *Server) GetURL() string {
-	if m != nil {
-		return m.URL
-	}
-	return ""
-}
-
-func (m *Server) GetSrcID() int64 {
-	if m != nil {
-		return m.SrcID
-	}
-	return 0
-}
-
-func (m *Server) GetActive() bool {
-	if m != nil {
-		return m.Active
-	}
-	return false
-}
-
 type Layout struct {
 	ID          string  `protobuf:"bytes,1,opt,name=ID,proto3" json:"ID,omitempty"`
 	Application string  `protobuf:"bytes,2,opt,name=Application,proto3" json:"Application,omitempty"`
@@ -542,39 +213,11 @@ func (m *Layout) String() string            { return proto.CompactTextString(m) 
 func (*Layout) ProtoMessage()               {}
 func (*Layout) Descriptor() ([]byte, []int) { return fileDescriptorInternal, []int{8} }
 
-func (m *Layout) GetID() string {
-	if m != nil {
-		return m.ID
-	}
-	return ""
-}
-
-func (m *Layout) GetApplication() string {
-	if m != nil {
-		return m.Application
-	}
-	return ""
-}
-
-func (m *Layout) GetMeasurement() string {
-	if m != nil {
-		return m.Measurement
-	}
-	return ""
-}
-
 func (m *Layout) GetCells() []*Cell {
 	if m != nil {
 		return m.Cells
 	}
 	return nil
-}
-
-func (m *Layout) GetAutoflow() bool {
-	if m != nil {
-		return m.Autoflow
-	}
-	return false
 }
 
 type Cell struct {
@@ -585,7 +228,7 @@ type Cell struct {
 	Queries []*Query         `protobuf:"bytes,5,rep,name=queries" json:"queries,omitempty"`
 	I       string           `protobuf:"bytes,6,opt,name=i,proto3" json:"i,omitempty"`
 	Name    string           `protobuf:"bytes,7,opt,name=name,proto3" json:"name,omitempty"`
-	Yranges []int64          `protobuf:"varint,8,rep,packed,name=yranges" json:"yranges,omitempty"`
+	Yranges []int64          `protobuf:"varint,8,rep,name=yranges" json:"yranges,omitempty"`
 	Ylabels []string         `protobuf:"bytes,9,rep,name=ylabels" json:"ylabels,omitempty"`
 	Type    string           `protobuf:"bytes,10,opt,name=type,proto3" json:"type,omitempty"`
 	Axes    map[string]*Axis `protobuf:"bytes,11,rep,name=axes" json:"axes,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value"`
@@ -596,74 +239,11 @@ func (m *Cell) String() string            { return proto.CompactTextString(m) }
 func (*Cell) ProtoMessage()               {}
 func (*Cell) Descriptor() ([]byte, []int) { return fileDescriptorInternal, []int{9} }
 
-func (m *Cell) GetX() int32 {
-	if m != nil {
-		return m.X
-	}
-	return 0
-}
-
-func (m *Cell) GetY() int32 {
-	if m != nil {
-		return m.Y
-	}
-	return 0
-}
-
-func (m *Cell) GetW() int32 {
-	if m != nil {
-		return m.W
-	}
-	return 0
-}
-
-func (m *Cell) GetH() int32 {
-	if m != nil {
-		return m.H
-	}
-	return 0
-}
-
 func (m *Cell) GetQueries() []*Query {
 	if m != nil {
 		return m.Queries
 	}
 	return nil
-}
-
-func (m *Cell) GetI() string {
-	if m != nil {
-		return m.I
-	}
-	return ""
-}
-
-func (m *Cell) GetName() string {
-	if m != nil {
-		return m.Name
-	}
-	return ""
-}
-
-func (m *Cell) GetYranges() []int64 {
-	if m != nil {
-		return m.Yranges
-	}
-	return nil
-}
-
-func (m *Cell) GetYlabels() []string {
-	if m != nil {
-		return m.Ylabels
-	}
-	return nil
-}
-
-func (m *Cell) GetType() string {
-	if m != nil {
-		return m.Type
-	}
-	return ""
 }
 
 func (m *Cell) GetAxes() map[string]*Axis {
@@ -689,60 +269,11 @@ func (m *Query) String() string            { return proto.CompactTextString(m) }
 func (*Query) ProtoMessage()               {}
 func (*Query) Descriptor() ([]byte, []int) { return fileDescriptorInternal, []int{10} }
 
-func (m *Query) GetCommand() string {
-	if m != nil {
-		return m.Command
-	}
-	return ""
-}
-
-func (m *Query) GetDB() string {
-	if m != nil {
-		return m.DB
-	}
-	return ""
-}
-
-func (m *Query) GetRP() string {
-	if m != nil {
-		return m.RP
-	}
-	return ""
-}
-
-func (m *Query) GetGroupBys() []string {
-	if m != nil {
-		return m.GroupBys
-	}
-	return nil
-}
-
-func (m *Query) GetWheres() []string {
-	if m != nil {
-		return m.Wheres
-	}
-	return nil
-}
-
-func (m *Query) GetLabel() string {
-	if m != nil {
-		return m.Label
-	}
-	return ""
-}
-
 func (m *Query) GetRange() *Range {
 	if m != nil {
 		return m.Range
 	}
 	return nil
-}
-
-func (m *Query) GetSource() string {
-	if m != nil {
-		return m.Source
-	}
-	return ""
 }
 
 type Range struct {
@@ -754,20 +285,6 @@ func (m *Range) Reset()                    { *m = Range{} }
 func (m *Range) String() string            { return proto.CompactTextString(m) }
 func (*Range) ProtoMessage()               {}
 func (*Range) Descriptor() ([]byte, []int) { return fileDescriptorInternal, []int{11} }
-
-func (m *Range) GetUpper() int64 {
-	if m != nil {
-		return m.Upper
-	}
-	return 0
-}
-
-func (m *Range) GetLower() int64 {
-	if m != nil {
-		return m.Lower
-	}
-	return 0
-}
 
 type AlertRule struct {
 	ID     string `protobuf:"bytes,1,opt,name=ID,proto3" json:"ID,omitempty"`
@@ -781,34 +298,6 @@ func (m *AlertRule) String() string            { return proto.CompactTextString(
 func (*AlertRule) ProtoMessage()               {}
 func (*AlertRule) Descriptor() ([]byte, []int) { return fileDescriptorInternal, []int{12} }
 
-func (m *AlertRule) GetID() string {
-	if m != nil {
-		return m.ID
-	}
-	return ""
-}
-
-func (m *AlertRule) GetJSON() string {
-	if m != nil {
-		return m.JSON
-	}
-	return ""
-}
-
-func (m *AlertRule) GetSrcID() int64 {
-	if m != nil {
-		return m.SrcID
-	}
-	return 0
-}
-
-func (m *AlertRule) GetKapaID() int64 {
-	if m != nil {
-		return m.KapaID
-	}
-	return 0
-}
-
 type User struct {
 	ID       uint64   `protobuf:"varint,1,opt,name=ID,proto3" json:"ID,omitempty"`
 	Name     string   `protobuf:"bytes,2,opt,name=Name,proto3" json:"Name,omitempty"`
@@ -821,41 +310,6 @@ func (m *User) Reset()                    { *m = User{} }
 func (m *User) String() string            { return proto.CompactTextString(m) }
 func (*User) ProtoMessage()               {}
 func (*User) Descriptor() ([]byte, []int) { return fileDescriptorInternal, []int{13} }
-
-func (m *User) GetID() uint64 {
-	if m != nil {
-		return m.ID
-	}
-	return 0
-}
-
-func (m *User) GetName() string {
-	if m != nil {
-		return m.Name
-	}
-	return ""
-}
-
-func (m *User) GetProvider() string {
-	if m != nil {
-		return m.Provider
-	}
-	return ""
-}
-
-func (m *User) GetScheme() string {
-	if m != nil {
-		return m.Scheme
-	}
-	return ""
-}
-
-func (m *User) GetRoles() []string {
-	if m != nil {
-		return m.Roles
-	}
-	return nil
-}
 
 func init() {
 	proto.RegisterType((*Source)(nil), "internal.Source")
@@ -878,7 +332,7 @@ func init() { proto.RegisterFile("internal.proto", fileDescriptorInternal) }
 
 var fileDescriptorInternal = []byte{
 	// 1052 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x56, 0x41, 0x8f, 0xdb, 0x44,
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x09, 0x6e, 0x88, 0x02, 0xff, 0xbc, 0x56, 0x41, 0x8f, 0xdb, 0x44,
 	0x14, 0xd6, 0xc4, 0x76, 0x12, 0xbf, 0x6c, 0x17, 0x34, 0xaa, 0xa8, 0x29, 0x97, 0x60, 0x81, 0x14,
 	0x24, 0xba, 0xa0, 0x56, 0x48, 0x88, 0x5b, 0x76, 0x83, 0xaa, 0x65, 0xb7, 0x65, 0x99, 0xec, 0x2e,
 	0x27, 0x54, 0x4d, 0x9c, 0x97, 0x8d, 0x55, 0x27, 0x36, 0x63, 0x7b, 0x13, 0xff, 0x0b, 0x7e, 0x01,
