@@ -657,10 +657,7 @@ func (d *indirectIndex) search(key []byte) int {
 	// See if we might have found the right index
 	if i < len(d.offsets) {
 		ofs := binary.BigEndian.Uint32(d.offsets[i : i+4])
-		_, k, err := readKey(d.b[ofs:])
-		if err != nil {
-			panic(fmt.Sprintf("error reading key: %v", err))
-		}
+		_, k := readKey(d.b[ofs:])
 
 		// The search may have returned an i == 0 which could indicated that the value
 		// searched should be inserted at postion 0.  Make sure the key in the index
@@ -689,10 +686,7 @@ func (d *indirectIndex) ReadEntries(key []byte, entries *[]IndexEntry) []IndexEn
 
 	ofs := d.search(key)
 	if ofs < len(d.b) {
-		n, k, err := readKey(d.b[ofs:])
-		if err != nil {
-			panic(fmt.Sprintf("error reading key: %v", err))
-		}
+		n, k := readKey(d.b[ofs:])
 
 		// The search may have returned an i == 0 which could indicated that the value
 		// searched should be inserted at position 0.  Make sure the key in the index
@@ -707,7 +701,7 @@ func (d *indirectIndex) ReadEntries(key []byte, entries *[]IndexEntry) []IndexEn
 		if entries != nil {
 			ie.entries = *entries
 		}
-		if _, err = readEntries(d.b[ofs:], &ie); err != nil {
+		if _, err := readEntries(d.b[ofs:], &ie); err != nil {
 			panic(fmt.Sprintf("error reading entries: %v", err))
 		}
 		if entries != nil {
@@ -741,10 +735,7 @@ func (d *indirectIndex) Key(idx int, entries *[]IndexEntry) ([]byte, byte, []Ind
 		return nil, 0, nil
 	}
 	ofs := binary.BigEndian.Uint32(d.offsets[idx*4 : idx*4+4])
-	n, key, err := readKey(d.b[ofs:])
-	if err != nil {
-		return nil, 0, nil
-	}
+	n, key := readKey(d.b[ofs:])
 
 	typ := d.b[int(ofs)+n]
 
@@ -752,7 +743,7 @@ func (d *indirectIndex) Key(idx int, entries *[]IndexEntry) ([]byte, byte, []Ind
 	if entries != nil {
 		ie.entries = *entries
 	}
-	if _, err = readEntries(d.b[int(ofs)+n:], &ie); err != nil {
+	if _, err := readEntries(d.b[int(ofs)+n:], &ie); err != nil {
 		return nil, 0, nil
 	}
 	if entries != nil {
@@ -772,7 +763,7 @@ func (d *indirectIndex) KeyAt(idx int) ([]byte, byte) {
 	}
 	ofs := int32(binary.BigEndian.Uint32(d.offsets[idx*4 : idx*4+4]))
 
-	n, key, _ := readKey(d.b[ofs:])
+	n, key := readKey(d.b[ofs:])
 	ofs = ofs + int32(n)
 	typ := d.b[ofs]
 	d.mu.RUnlock()
@@ -805,7 +796,7 @@ func (d *indirectIndex) Delete(keys [][]byte) {
 	var j int
 	for i := 0; i+4 <= len(d.offsets); i += 4 {
 		offset := binary.BigEndian.Uint32(d.offsets[i : i+4])
-		_, indexKey, _ := readKey(d.b[offset:])
+		_, indexKey := readKey(d.b[offset:])
 
 		for len(keys) > 0 && bytes.Compare(keys[0], indexKey) < 0 {
 			keys = keys[1:]
@@ -916,11 +907,7 @@ func (d *indirectIndex) Type(key []byte) (byte, error) {
 
 	ofs := d.search(key)
 	if ofs < len(d.b) {
-		n, _, err := readKey(d.b[ofs:])
-		if err != nil {
-			panic(fmt.Sprintf("error reading key: %v", err))
-		}
-
+		n, _ := readKey(d.b[ofs:])
 		ofs += n
 		return d.b[ofs], nil
 	}
@@ -1019,22 +1006,17 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 	}
 
 	firstOfs := offsets[0]
-	_, key, err := readKey(b[firstOfs:])
-	if err != nil {
-		return err
-	}
+	_, key := readKey(b[firstOfs:])
 	d.minKey = key
 
 	lastOfs := offsets[len(offsets)-1]
-	_, key, err = readKey(b[lastOfs:])
-	if err != nil {
-		return err
-	}
+	_, key = readKey(b[lastOfs:])
 	d.maxKey = key
 
 	d.minTime = minTime
 	d.maxTime = maxTime
 
+	var err error
 	d.offsets, err = mmap(nil, 0, len(offsets)*4)
 	if err != nil {
 		return err
@@ -1443,7 +1425,7 @@ func (a *indexEntries) WriteTo(w io.Writer) (total int64, err error) {
 	return total, nil
 }
 
-func readKey(b []byte) (n int, key []byte, err error) {
+func readKey(b []byte) (n int, key []byte) {
 	// 2 byte size of key
 	n, size := 2, int(binary.BigEndian.Uint16(b[:2]))
 
