@@ -20,9 +20,9 @@ import (
 
 // Chronograf User Roles
 const (
-	ViewerRole = "Viewer"
-	EditorRole = "Editor"
-	AdminRole  = "Admin"
+	ViewerRoleName = "Viewer"
+	EditorRoleName = "Editor"
+	AdminRoleName  = "Admin"
 )
 
 // Chronograf User Permissions
@@ -73,17 +73,18 @@ var (
 )
 
 // Default roles for chronograf Users
-var DefaultUserRoles = map[string]Role{
-	ViewerRole: {
-		Name: ViewerRole,
+var (
+	ViewerRole = Role{
+		Name: ViewerRoleName,
 		Permissions: Permissions{
 			ReadDashboardsPermission,
 			ReadSourcesPermission,
 			ReadRulesPermission,
 		},
-	},
-	EditorRole: {
-		Name: EditorRole,
+	}
+
+	EditorRole = Role{
+		Name: EditorRoleName,
 		Permissions: Permissions{
 			ReadDashboardsPermission,
 			ReadSourcesPermission,
@@ -92,9 +93,10 @@ var DefaultUserRoles = map[string]Role{
 			WriteSourcesPermission,
 			WriteRulesPermission,
 		},
-	},
-	AdminRole: {
-		Name: AdminRole,
+	}
+
+	AdminRole = Role{
+		Name: AdminRoleName,
 		Permissions: Permissions{
 			ReadDashboardsPermission,
 			ReadSourcesPermission,
@@ -105,8 +107,8 @@ var DefaultUserRoles = map[string]Role{
 			WriteRulesPermission,
 			WriteUsersPermission,
 		},
-	},
-}
+	}
+)
 
 // General errors.
 const (
