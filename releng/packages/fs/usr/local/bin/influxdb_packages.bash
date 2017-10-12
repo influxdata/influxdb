@@ -89,7 +89,7 @@ if [ "$OS" == "linux" ] || [ "$OS" == "darwin" ]; then
   # don't need static install packages.
   if [ "$OS" == "linux" ] && [ "$STATIC" != "1" ]; then
     # Call fpm to build .deb and .rpm packages.
-    for typeargs in "-t deb" "-t rpm --depends coreutils"; do
+    for typeargs in "-t deb" "-t rpm --depends coreutils --depends shadow-utils"; do
       FPM_NAME=$(
       fpm \
         -s dir \
