@@ -18,6 +18,7 @@ const SchemaExplorer = ({
     groupByTime,
     toggleField,
     removeFuncs,
+    addInitialField,
     chooseNamespace,
     chooseMeasurement,
     applyFuncsToField,
@@ -48,6 +49,7 @@ const SchemaExplorer = ({
       onGroupByTime={actionBinder(id, groupByTime)}
       applyFuncsToField={actionBinder(id, applyFuncsToField)}
       removeFuncs={actionBinder(id, removeFuncs)}
+      addInitialField={actionBinder(id, addInitialField)}
     />
   </div>
 

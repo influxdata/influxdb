@@ -12,6 +12,7 @@ import {
   updateRawQuery,
   chooseNamespace,
   chooseMeasurement,
+  addInitialField,
   applyFuncsToField,
   toggleTagAcceptance,
 } from 'src/utils/queryTransitions'
@@ -169,6 +170,14 @@ const queryConfigs = (state = {}, action) => {
       }
 
       return {...state, ...nextState}
+    }
+
+    // Adding the first feild applies a groupBy time
+    case 'DE_ADD_INITIAL_FIELD': {
+      const {queryID, field, groupBy} = action.payload
+      const nextQuery = addInitialField(state[queryID], field, groupBy)
+
+      return {...state, [queryID]: nextQuery}
     }
   }
   return state

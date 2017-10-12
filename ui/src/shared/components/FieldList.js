@@ -97,12 +97,23 @@ class FieldList extends Component {
     })
   }
 
+  handleToggleField = field => {
+    const {addInitialField, onToggleField, query} = this.props
+    const {fields, groupBy} = query
+    const defaultGroupBy = {...groupBy, time: '10s'}
+
+    if (_.size(fields)) {
+      addInitialField(field, defaultGroupBy)
+    }
+
+    onToggleField(field)
+  }
+
   render() {
     const {
       query: {database, measurement, fields = [], groupBy, fill},
       isKapacitorRule,
       isInDataExplorer,
-      onToggleField,
     } = this.props
 
     const hasAggregates = numFunctions(fields) > 0
@@ -143,16 +154,17 @@ class FieldList extends Component {
                   )
 
                   const funcs = getFuncsByFieldName(fieldFunc.name, fields)
+                  const fieldFuncs = selectedFields.length
+                    ? selectedFields
+                    : [fieldFunc]
 
                   return (
                     <FieldListItem
                       key={i}
-                      onToggleField={onToggleField}
+                      onToggleField={this.handleToggleField}
                       onApplyFuncsToField={this.handleApplyFuncs}
                       isSelected={!!selectedFields.length}
-                      fieldFuncs={
-                        selectedFields.length ? selectedFields : [fieldFunc]
-                      }
+                      fieldFuncs={fieldFuncs}
                       funcs={functionNames(funcs)}
                       isKapacitorRule={isKapacitorRule}
                     />
@@ -197,6 +209,7 @@ FieldList.propTypes = {
     }).isRequired,
   }),
   removeFuncs: func.isRequired,
+  addInitialField: func.isRequired,
 }
 
 export default FieldList

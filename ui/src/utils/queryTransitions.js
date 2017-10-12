@@ -1,3 +1,4 @@
+import _ from 'lodash'
 import defaultQueryConfig from 'utils/defaultQueryConfig'
 import {
   hasField,
@@ -5,7 +6,6 @@ import {
   getFieldsDeep,
   getFuncsByFieldName,
 } from 'shared/reducers/helpers/fields'
-import _ from 'lodash'
 
 export function editRawText(query, rawText) {
   return Object.assign({}, query, {rawText})
@@ -34,6 +34,23 @@ export const toggleKapaField = (query, {name}) => {
   }
 }
 
+export const buildInitialField = name => [
+  {
+    type: 'func',
+    alias: `mean_${name}`,
+    args: [{name, type: 'field'}],
+    name: 'mean',
+  },
+]
+
+export const addInitialField = (query, field, groupBy) => {
+  return {
+    ...query,
+    fields: buildInitialField(field.name),
+    groupBy,
+  }
+}
+
 export const toggleField = (query, {name}) => {
   const {fields, groupBy} = query
   const defaultField = {
@@ -47,6 +64,7 @@ export const toggleField = (query, {name}) => {
     return {
       ...query,
       fields: [defaultField],
+      groupBy: {...query.groupBy, time: '10s'},
     }
   }
 
