@@ -2,7 +2,15 @@ import React, {PropTypes} from 'react'
 import OnClickOutside from 'react-onclickoutside'
 
 const LayoutCellMenu = OnClickOutside(
-  ({isDeleting, onEdit, onDeleteClick, onDelete, onDataDownload, cell}) =>
+  ({
+    isDeleting,
+    onEdit,
+    onDeleteClick,
+    onDelete,
+    onCSVDownload,
+    queriesExist,
+    cell,
+  }) =>
     <div
       className={
         isDeleting
@@ -13,12 +21,14 @@ const LayoutCellMenu = OnClickOutside(
       <div className="dash-graph-context--button" onClick={onEdit(cell)}>
         <span className="icon pencil" />
       </div>
-      <div
-        className="dash-graph-context--button"
-        onClick={onDataDownload(cell)}
-      >
-        <span className="icon download" />
-      </div>
+      {queriesExist
+        ? <div
+            className="dash-graph-context--button"
+            onClick={onCSVDownload(cell)}
+          >
+            <span className="icon download" />
+          </div>
+        : null}
       {isDeleting
         ? <div className="dash-graph-context--button active">
             <span className="icon trash" />

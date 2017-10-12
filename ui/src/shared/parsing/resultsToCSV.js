@@ -4,7 +4,7 @@ import moment from 'moment'
 export const formatDate = timestamp =>
   moment(timestamp).format('M/D/YYYY h:mm:ss A')
 
-const resultsToCSV = results => {
+export const resultsToCSV = results => {
   if (!_.get(results, ['0', 'series', '0'])) {
     return {flag: 'no_data', name: '', CSVString: ''}
   }
@@ -30,4 +30,24 @@ const resultsToCSV = results => {
   return {flag: 'ok', name, CSVString}
 }
 
-export default resultsToCSV
+export const dashboardtoCSV = data => {
+  const columnNames = _.flatten(
+    data.map(r => _.get(r, 'results[0].series[0].columns')) // TODO default?
+  )
+  const timeIndices = columnNames
+    .map((e, i) => (e === 'time' ? i : -1))
+    .filter(e => e >= 0)
+
+  let values = data.map(r => _.get(r, 'results[0].series[0].values')) // TODO default?
+  values = _.unzip(values).map(v => _.flatten(v))
+  if (timeIndices) {
+    values.map(v => {
+      timeIndices.forEach(i => (v[i] = formatDate(v[i])))
+      return v
+    })
+  }
+  const CSVString = [columnNames.join(',')]
+    .concat(values.map(v => v.join(',')))
+    .join('\n')
+  return CSVString
+}

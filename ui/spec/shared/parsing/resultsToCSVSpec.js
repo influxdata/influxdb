@@ -1,4 +1,4 @@
-import resultsToCSV, {formatDate} from 'shared/parsing/resultsToCSV'
+import {resultsToCSV, formatDate} from 'shared/parsing/resultsToCSV'
 
 describe('formatDate', () => {
   it('converts timestamp to an excel compatible date string', () => {

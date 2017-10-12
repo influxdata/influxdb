@@ -5,6 +5,9 @@ import LayoutCellMenu from 'shared/components/LayoutCellMenu'
 import LayoutCellHeader from 'shared/components/LayoutCellHeader'
 import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
 import {removeUnselectedTemplateValues} from 'src/dashboards/constants'
+import {errorThrown} from 'shared/actions/errors'
+import {dashboardtoCSV} from 'shared/parsing/resultsToCSV'
+import download from 'src/external/download.js'
 
 class LayoutCell extends Component {
   constructor(props) {
@@ -32,17 +35,12 @@ class LayoutCell extends Component {
     this.props.onSummonOverlayTechnologies(cell)
   }
 
-  handleDataDownload = cell => async () => {
-    console.log(cell.name)
-    const qs = this.props.queries
-    const templates = this.props.templates
-    const resolution = 740
+  handleCSVDownload = cell => () => {
+    const {queries, templates} = this.props
+    const joined_name = cell.name.split(' ').join('_')
+    const resolution = undefined // TODO
 
-    if (!qs.length) {
-      console.log('empty!') // TODO
-    }
-
-    const timeSeriesPromises = qs.map(query => {
+    const timeSeriesPromises = queries.map(query => {
       const {host, database, rp} = query
       const templatesWithResolution = templates.map(temp => {
         if (temp.tempVar === ':interval:') {
@@ -62,10 +60,16 @@ class LayoutCell extends Component {
         resolution,
       })
     })
-    Promise.all(timeSeriesPromises).then(timeSeries => {
-      console.log('zomG successfull')
-      const newSeries = timeSeries.map(response => ({response}))
-      console.log(newSeries)
+
+    Promise.all(timeSeriesPromises).then(results => {
+      console.log(results)
+      const CSVString = dashboardtoCSV(results)
+      try {
+        download(CSVString, `${joined_name}.csv`, 'text/plain')
+      } catch (error) {
+        errorThrown(error, 'Unable to download .csv file')
+        console.error(error)
+      }
     })
   }
 
@@ -79,13 +83,14 @@ class LayoutCell extends Component {
       <div className="dash-graph">
         <LayoutCellMenu
           cell={cell}
+          queriesExist={queries.length}
           isDeleting={isDeleting}
           isEditable={isEditable}
           onDelete={this.handleDeleteCell}
           onEdit={this.handleSummonOverlay}
           handleClickOutside={this.closeMenu}
           onDeleteClick={this.handleDeleteClick}
-          onDataDownload={this.handleDataDownload}
+          onCSVDownload={this.handleCSVDownload}
         />
         <LayoutCellHeader
           queries={queries}

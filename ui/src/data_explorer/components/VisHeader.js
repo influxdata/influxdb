@@ -3,7 +3,7 @@ import classnames from 'classnames'
 import _ from 'lodash'
 
 import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
-import resultsToCSV from 'src/shared/parsing/resultsToCSV.js'
+import {resultsToCSV} from 'src/shared/parsing/resultsToCSV.js'
 import download from 'src/external/download.js'
 
 const getCSV = (query, errorThrown) => async () => {
