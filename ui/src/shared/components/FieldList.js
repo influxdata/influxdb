@@ -74,6 +74,8 @@ class FieldList extends Component {
       return removeFuncs(fields, groupBy)
     }
 
+    console.log('queryfields: funcs: ', fields, funcs)
+
     applyFuncsToField(fieldFunc)
   }
 

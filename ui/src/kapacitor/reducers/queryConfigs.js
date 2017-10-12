@@ -6,7 +6,7 @@ import {
   chooseTag,
   groupByTag,
   groupByTime,
-  toggleField,
+  toggleKapaField,
   toggleTagAcceptance,
 } from 'src/utils/queryTransitions'
 
@@ -91,12 +91,9 @@ const queryConfigs = (state = {}, action) => {
 
     case 'KAPA_TOGGLE_FIELD': {
       const {queryId, fieldFunc} = action.payload
-      // 3rd arg is true to prevent func from automatically being added
-      const nextQueryConfig = toggleField(state[queryId], fieldFunc, true)
+      const nextQueryConfig = toggleKapaField(state[queryId], fieldFunc)
 
-      return Object.assign({}, state, {
-        [queryId]: {...nextQueryConfig, rawText: null},
-      })
+      return {...state, [queryId]: {...nextQueryConfig, rawText: null}}
     }
 
     case 'KAPA_APPLY_FUNCS_TO_FIELD': {

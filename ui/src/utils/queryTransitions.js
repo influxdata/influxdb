@@ -27,15 +27,15 @@ export const chooseMeasurement = (
   measurement,
 })
 
-export const toggleField = (query, {name, type}, isKapacitorRule = false) => {
-  const {fields, groupBy} = query
-
-  if (isKapacitorRule) {
-    return {
-      ...query,
-      fields: [{name, type: 'field'}],
-    }
+export const toggleKapaField = (query, {name}) => {
+  return {
+    ...query,
+    fields: [{name, type: 'field'}],
   }
+}
+
+export const toggleField = (query, {name, type}) => {
+  const {fields, groupBy} = query
 
   if (!fields || !fields.length) {
     return {
