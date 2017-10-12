@@ -69,6 +69,7 @@ func (s *UsersStore) Add(ctx context.Context, u *chronograf.User) (*chronograf.U
 		if err != nil {
 			return err
 		}
+		u.ID = seq
 		if v, err := internal.MarshalUser(u); err != nil {
 			return err
 		} else if err := b.Put(u64tob(seq), v); err != nil {

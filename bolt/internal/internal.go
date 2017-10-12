@@ -414,6 +414,7 @@ func MarshalUser(u *chronograf.User) ([]byte, error) {
 		roles[i] = role.Name
 	}
 	return MarshalUserPB(&User{
+		ID:       u.ID,
 		Name:     u.Name,
 		Provider: u.Provider,
 		Scheme:   u.Scheme,
