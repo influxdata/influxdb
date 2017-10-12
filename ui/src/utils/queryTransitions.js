@@ -34,20 +34,19 @@ export const toggleKapaField = (query, {name}) => {
   }
 }
 
-export const toggleField = (query, {name, type}) => {
+export const toggleField = (query, {name}) => {
   const {fields, groupBy} = query
+  const defaultField = {
+    type: 'func',
+    alias: `mean_${name}`,
+    args: [{name, type: 'field'}],
+    name: 'mean',
+  }
 
   if (!fields || !fields.length) {
     return {
       ...query,
-      fields: [
-        {
-          type: 'func',
-          alias: `mean_${name}`,
-          args: [{name, type: 'field'}],
-          name: 'mean',
-        },
-      ],
+      fields: [defaultField],
     }
   }
 
@@ -56,8 +55,7 @@ export const toggleField = (query, {name, type}) => {
 
   if (isSelected) {
     // if list is all fields, remove that field
-    // if list is all funcs,. remove all funcs that match
-
+    // if list is all funcs, remove all funcs that match
     const newFields = removeField(name, fields)
     if (!newFields.length) {
       return {
@@ -79,28 +77,13 @@ export const toggleField = (query, {name, type}) => {
   if (!newFuncs.length) {
     return {
       ...query,
-      fields: [
-        ...fields,
-        {
-          name,
-          type: 'field',
-        },
-      ],
+      fields: [...fields, {name, type: 'field'}],
     }
   }
 
-  const newField = newFuncs.map(func => {
-    return {
-      name: func.name,
-      type: 'func',
-      alias: `${func.name}_${name}`,
-      args: [{name, type}],
-    }
-  })
-
   return {
     ...query,
-    fields: [...fields, ...newField],
+    fields: [...fields, defaultField],
   }
 }
 
