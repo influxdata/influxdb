@@ -1,18 +1,19 @@
 import reducer from 'src/data_explorer/reducers/queryConfigs'
 import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 import {
-  chooseNamespace,
-  chooseMeasurement,
-  toggleField,
-  applyFuncsToField,
+  fill,
   chooseTag,
   groupByTag,
   groupByTime,
-  toggleTagAcceptance,
-  fill,
-  updateQueryConfig,
+  toggleField,
+  removeFuncs,
   updateRawQuery,
   editQueryStatus,
+  chooseNamespace,
+  chooseMeasurement,
+  applyFuncsToField,
+  updateQueryConfig,
+  toggleTagAcceptance,
 } from 'src/data_explorer/actions/view'
 
 import {LINEAR, NULL_STRING} from 'shared/constants/queryFillOptions'
@@ -87,7 +88,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
       )
     })
 
-    describe.only('choosing a new namespace', () => {
+    describe('choosing a new namespace', () => {
       it('clears out the old measurement and fields', () => {
         // what about tags?
         expect(state[queryId].measurement).to.equal('disk')
@@ -219,30 +220,29 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
         {name: 'fn1', type: 'func', args: [f2], alias: `fn1_${f2.name}`},
       ])
     })
+  })
 
+  describe('DE_REMOVE_FUNCS', () => {
     it('removes all functions and group by time when one field has no funcs applied', () => {
       const f1 = {name: 'f1', type: 'field'}
       const f2 = {name: 'f2', type: 'field'}
+      const fields = [
+        {name: 'fn1', type: 'func', args: [f1], alias: `fn1_${f1.name}`},
+        {name: 'fn1', type: 'func', args: [f2], alias: `fn1_${f2.name}`},
+      ]
+      const groupBy = {time: '1m', tags: []}
+
       const initialState = {
         [queryId]: {
           id: 123,
           database: 'db1',
           measurement: 'm1',
-          fields: [
-            {name: 'fn1', type: 'func', args: [f1], alias: `fn1_${f1.name}`},
-            {name: 'fn1', type: 'func', args: [f2], alias: `fn1_${f2.name}`},
-          ],
-          groupBy: {
-            time: '1m',
-            tags: [],
-          },
+          fields,
+          groupBy,
         },
       }
 
-      const action = applyFuncsToField(queryId, {
-        field: {name: 'f1', type: 'field'},
-        funcs: [],
-      })
+      const action = removeFuncs(queryId, fields, groupBy)
 
       const nextState = reducer(initialState, action)
       const actual = nextState[queryId].fields

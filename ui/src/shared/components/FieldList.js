@@ -66,8 +66,8 @@ class FieldList extends Component {
 
   handleApplyFuncs = fieldFunc => {
     const {removeFuncs, query, applyFuncsToField} = this.props
-    const {id, fields, groupBy} = query
-    const {field, funcs} = fieldFunc
+    const {fields, groupBy} = query
+    const {funcs} = fieldFunc
 
     // If one field has no funcs, all fields must have no funcs
     if (!_.size(funcs)) {
