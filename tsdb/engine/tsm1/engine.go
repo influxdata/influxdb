@@ -668,9 +668,9 @@ func (e *Engine) Export(w io.Writer, basePath string, start time.Time, end time.
 	}
 
 	zw := gzip.NewWriter(w)
-	// NOTE: in some cases, zw will be closed by filterFileToGzip(...).
-	// checked the source.  closing an already-closed stream is OK.  No errors or panics, etc.
-	defer zw.Close()
+	// used to have a defer zw.Close() here, but combined with the call to reset below, that was
+	// making it look like there was one extra file on the stream.  Test code for the gzip lib
+	// behaves similarly: https://golang.org/src/compress/gzip/example_test.go
 
 	// Recursively read all files from path.
 	files, err := readDir(path, "")
@@ -761,7 +761,7 @@ func (e *Engine) filterFileToGzip(r *TSMReader, name, shardRelativePath, fullPat
 	bi = r.BlockIterator()
 
 	for bi.Next() {
-		// not concerned with typ of checksum since we are just blindly writing back, with no decoding
+		// not concerned with typ or checksum since we are just blindly writing back, with no decoding
 		key, minTime, maxTime, _, _, buf, err := bi.Read()
 		if err != nil {
 			return err
@@ -819,6 +819,9 @@ func (e *Engine) writeFileToGzip(name string, shardRelativePath, fullPath string
 	if err != nil {
 		return err
 	}
+
+	zw.Name = filepath.ToSlash(filepath.Join(shardRelativePath, name))
+	zw.ModTime = f.ModTime()
 
 	fr, err := os.Open(fullPath)
 	if err != nil {

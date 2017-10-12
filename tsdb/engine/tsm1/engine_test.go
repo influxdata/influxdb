@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"compress/gzip"
-	"github.com/influxdata/enterprise/th"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/deep"
@@ -292,19 +291,27 @@ func TestEngine_Export(t *testing.T) {
 	if err := e.WritePoints([]models.Point{p2}); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
+	if err := e.WriteSnapshot(); err != nil {
+		t.Fatalf("failed to snapshot: %s", err.Error())
+	}
 
 	if err := e.WritePoints([]models.Point{p3}); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
 	// export the whole DB
-	b := bytes.NewBuffer(nil)
-	if err := e.Export(b, "", time.Unix(0, 0), time.Unix(0, 4000000000)); err != nil {
+	var exBuf bytes.Buffer
+	if err := e.Export(&exBuf, "", time.Unix(0, 0), time.Unix(0, 4000000000)); err != nil {
+		t.Fatalf("failed to export: %s", err.Error())
+	}
+
+	var bkBuf bytes.Buffer
+	if err := e.Backup(&bkBuf, "", time.Unix(0, 0)); err != nil {
 		t.Fatalf("failed to backup: %s", err.Error())
 	}
 
-	if len(e.FileStore.Files()) != 2 {
-		t.Fatalf("file count wrong: exp: %d, got: %d", 2, len(e.FileStore.Files()))
+	if len(e.FileStore.Files()) != 3 {
+		t.Fatalf("file count wrong: exp: %d, got: %d", 3, len(e.FileStore.Files()))
 	}
 
 	fileNames := map[string]bool{}
@@ -312,63 +319,204 @@ func TestEngine_Export(t *testing.T) {
 		fileNames[filepath.Base(f.Path())] = true
 	}
 
-	zr, err := gzip.NewReader(b)
+	fileData, err := getExportData(&exBuf)
 	if err != nil {
-		t.Fatalf("failed to create gzip reader on stream b %s", err)
+		t.Errorf("Error extracting data from export: %s", err.Error())
 	}
 
-	for {
-		zr.Multistream(false)
-		if !fileNames[zr.Name] {
-			t.Errorf("Extra file in backup: %q", zr.Name)
+	// TEST 1: did we get any extra files not found in the store?
+	for k, _ := range fileData {
+		if _, ok := fileNames[k]; !ok {
+			t.Errorf("exported a file not in the store: %s", k)
 		}
-		delete(fileNames, th.Name)
-		err = zr.Reset(b)
-		if err == io.EOF {
-			break
+	}
+
+	// TEST 2: did we miss any files that the store had?
+	for k, _ := range fileNames {
+		if _, ok := fileData[k]; !ok {
+			t.Errorf("failed to export a file from the store: %s", k)
 		}
-		if err != nil {
+	}
+
+	// TEST 3: Does 'backup' get the same files + bits?
+	tr := tar.NewReader(&bkBuf)
+
+	th, err := tr.Next()
+	for err == nil {
+		expData, ok := fileData[th.Name]
+		if !ok {
+			t.Errorf("Extra file in backup: %q", th.Name)
+			continue
+		}
+
+		buf := new(bytes.Buffer)
+		if _, err := io.Copy(buf, tr); err != nil {
 			t.Fatal(err)
 		}
-	}
 
-	if err := zr.Close(); err != nil {
-		t.Fatal(err)
-	}
+		if !equalBuffers(expData, buf) {
+			t.Errorf("2Difference in data between backup and Export for file %s", th.Name)
+		}
 
-	for f := range fileNames {
-		t.Errorf("File missing from backup: %s", f)
+		th, err = tr.Next()
 	}
 
 	if t.Failed() {
 		t.FailNow()
 	}
 
-	//lastBackup := time.Now()
-	//
-	//// we have to sleep for a second because last modified times only have second level precision.
-	//// so this test won't work properly unless the file is at least a second past the last one
-	//time.Sleep(time.Second)
-	//
-	//if err := e.WritePoints([]models.Point{p3}); err != nil {
-	//	t.Fatalf("failed to write points: %s", err.Error())
-	//}
-	//
-	//b = bytes.NewBuffer(nil)
-	//if err := e.Backup(b, "", lastBackup); err != nil {
-	//	t.Fatalf("failed to backup: %s", err.Error())
-	//}
-	//
-	//tr = tar.NewReader(b)
-	//th, err = tr.Next()
-	//if err != nil {
-	//	t.Fatalf("error getting next tar header: %s", err.Error())
-	//}
-	//
-	//mostRecentFile := e.FileStore.Files()[e.FileStore.Count()-1].Path()
-	//if !strings.Contains(mostRecentFile, th.Name) || th.Name == "" {
-	//	t.Fatalf("file name doesn't match:\n\tgot: %s\n\texp: %s", th.Name, mostRecentFile)
-	//}
+	// TEST 4:  Are subsets (1), (2), (3), (1,2), (2,3) accurately found in the larger export?
+	// export the whole DB
+	var ex1 bytes.Buffer
+	if err := e.Export(&ex1, "", time.Unix(0, 0), time.Unix(0, 1000000000)); err != nil {
+		t.Fatalf("failed to export: %s", err.Error())
+	}
+	ex1Data, err := getExportData(&ex1)
+	if err != nil {
+		t.Errorf("Error extracting data from export: %s", err.Error())
+	}
+
+	for k, v := range ex1Data {
+		fullExp, ok := fileData[k]
+		if !ok {
+			t.Errorf("Extracting subset resulted in file not found in full export: %s", err.Error())
+			continue
+		}
+		if !equalBuffers(fullExp, v) {
+			t.Errorf("2Difference in data between backup and Export for file %s", th.Name)
+		}
+
+	}
+
+	var ex2 bytes.Buffer
+	if err := e.Export(&ex2, "", time.Unix(0, 1000000001), time.Unix(0, 2000000000)); err != nil {
+		t.Fatalf("failed to export: %s", err.Error())
+	}
+
+	ex2Data, err := getExportData(&ex2)
+	if err != nil {
+		t.Errorf("Error extracting data from export: %s", err.Error())
+	}
+
+	for k, v := range ex2Data {
+		fullExp, ok := fileData[k]
+		if !ok {
+			t.Errorf("Extracting subset resulted in file not found in full export: %s", err.Error())
+			continue
+		}
+		if !equalBuffers(fullExp, v) {
+			t.Errorf("2Difference in data between backup and Export for file %s", th.Name)
+		}
+
+	}
+
+	var ex3 bytes.Buffer
+	if err := e.Export(&ex3, "", time.Unix(0, 2000000001), time.Unix(0, 3000000000)); err != nil {
+		t.Fatalf("failed to export: %s", err.Error())
+	}
+
+	ex3Data, err := getExportData(&ex3)
+	if err != nil {
+		t.Errorf("Error extracting data from export: %s", err.Error())
+	}
+
+	for k, v := range ex3Data {
+		fullExp, ok := fileData[k]
+		if !ok {
+			t.Errorf("Extracting subset resulted in file not found in full export: %s", err.Error())
+			continue
+		}
+		if !equalBuffers(fullExp, v) {
+			t.Errorf("2Difference in data between backup and Export for file %s", th.Name)
+		}
+
+	}
+
+	var ex12 bytes.Buffer
+	if err := e.Export(&ex12, "", time.Unix(0, 0), time.Unix(0, 2000000000)); err != nil {
+		t.Fatalf("failed to export: %s", err.Error())
+	}
+
+	ex12Data, err := getExportData(&ex12)
+	if err != nil {
+		t.Errorf("Error extracting data from export: %s", err.Error())
+	}
+
+	for k, v := range ex12Data {
+		fullExp, ok := fileData[k]
+		if !ok {
+			t.Errorf("Extracting subset resulted in file not found in full export: %s", err.Error())
+			continue
+		}
+		if !equalBuffers(fullExp, v) {
+			t.Errorf("2Difference in data between backup and Export for file %s", th.Name)
+		}
+
+	}
+
+	var ex23 bytes.Buffer
+	if err := e.Export(&ex23, "", time.Unix(0, 1000000001), time.Unix(0, 3000000000)); err != nil {
+		t.Fatalf("failed to export: %s", err.Error())
+	}
+
+	ex23Data, err := getExportData(&ex23)
+	if err != nil {
+		t.Errorf("Error extracting data from export: %s", err.Error())
+	}
+
+	for k, v := range ex23Data {
+		fullExp, ok := fileData[k]
+		if !ok {
+			t.Errorf("Extracting subset resulted in file not found in full export: %s", err.Error())
+			continue
+		}
+		if !equalBuffers(fullExp, v) {
+			t.Errorf("2Difference in data between backup and Export for file %s", th.Name)
+		}
+
+	}
+}
+
+func equalBuffers(bufA, bufB *bytes.Buffer) bool {
+	for i, v := range bufA.Bytes() {
+		if v != bufB.Bytes()[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func getExportData(exBuf *bytes.Buffer) (map[string]*bytes.Buffer, error) {
+
+	zr, err := gzip.NewReader(exBuf)
+	if err != nil {
+		return nil, err
+	}
+
+	fileData := make(map[string]*bytes.Buffer)
+
+	// TEST 1: Get the bits for each file.  If we got a file the store doesn't know about, report error
+	for {
+		zr.Multistream(false)
+
+		buf := new(bytes.Buffer)
+		if _, err := io.Copy(buf, zr); err != nil {
+			return nil, err
+		}
+		fileData[zr.Name] = buf
+
+		err = zr.Reset(exBuf)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	if err := zr.Close(); err != nil {
+		return nil, err
+	}
+	return fileData, nil
 }
 
 // Ensure engine can create an ascending iterator for cached values.
