@@ -105,27 +105,7 @@ func TestUsersStore_Add(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to get user: %v", err)
 		}
-		if got.Name != tt.want.Name {
-			t.Errorf("%q. UsersStore.Add() .Name:\ngot %v, want %v", tt.name, got.Name, tt.want.Name)
-		}
-		if got.Provider != tt.want.Provider {
-			t.Errorf("%q. UsersStore.Add() .Provider:\ngot %v, want %v", tt.name, got.Provider, tt.want.Provider)
-		}
-		if got.Scheme != tt.want.Scheme {
-			t.Errorf("%q. UsersStore.Add() .Scheme:\ngot %v, want %v", tt.name, got.Scheme, tt.want.Scheme)
-		}
-		if len(got.Roles) != len(tt.want.Roles) {
-			t.Errorf("%q. UsersStore.Add() .Roles:\ngot %v, want %v", tt.name, got.Roles, tt.want.Roles)
-			continue
-		}
-		if len(got.Roles) > 0 && len(tt.want.Roles) > 0 {
-			for i, gotRole := range got.Roles {
-				wantRole := tt.want.Roles[i]
-				if wantRole.Name != gotRole.Name {
-					t.Errorf("%q. UsersStore.Add() .Roles[%d]:\ngot %v, want %v", tt.name, i, gotRole, wantRole)
-				}
-			}
-		}
+		usersEqual(t, tt.name, "Add", got, tt.want)
 	}
 }
 
@@ -296,31 +276,7 @@ func TestUsersStore_Update(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to get user: %v", err)
 		}
-		if got.Name != tt.want.Name {
-			t.Errorf("%q. UsersStore.Update() .Name:\ngot %v, want %v", tt.name, got.Name, tt.want.Name)
-		}
-		if got.Provider != tt.want.Provider {
-			t.Errorf("%q. UsersStore.Update() .Provider:\ngot %v, want %v", tt.name, got.Provider, tt.want.Provider)
-		}
-		if got.Scheme != tt.want.Scheme {
-			t.Errorf("%q. UsersStore.Update() .Scheme:\ngot %v, want %v", tt.name, got.Scheme, tt.want.Scheme)
-		}
-		if len(got.Roles) != len(tt.want.Roles) {
-			t.Errorf("%q. UsersStore.Update() .Roles:\ngot %v, want %v", tt.name, got.Roles, tt.want.Roles)
-			continue
-		}
-		if len(got.Roles) != len(tt.want.Roles) {
-			t.Errorf("%q. UsersStore.Update() .Roles:\ngot %v, want %v", tt.name, got.Roles, tt.want.Roles)
-			continue
-		}
-		if len(got.Roles) > 0 && len(tt.want.Roles) > 0 {
-			for i, gotRole := range got.Roles {
-				wantRole := tt.want.Roles[i]
-				if wantRole.Name != gotRole.Name {
-					t.Errorf("%q. UsersStore.Update() .Roles[%d]:\ngot %v, want %v", tt.name, i, gotRole, wantRole)
-				}
-			}
-		}
+		usersEqual(t, tt.name, "Update", got, tt.want)
 	}
 }
 
@@ -380,27 +336,30 @@ func TestUsersStore_All(t *testing.T) {
 			continue
 		}
 		for i, got := range gots {
-			want := tt.want[i]
-			if got.Name != want.Name {
-				t.Errorf("%q. UsersStore.All() .Name:\ngot %v, want %v", tt.name, got.Name, want.Name)
-			}
-			if got.Provider != want.Provider {
-				t.Errorf("%q. UsersStore.All() .Provider:\ngot %v, want %v", tt.name, got.Provider, want.Provider)
-			}
-			if got.Scheme != want.Scheme {
-				t.Errorf("%q. UsersStore.All() .Scheme:\ngot %v, want %v", tt.name, got.Scheme, want.Scheme)
-			}
-			if len(got.Roles) != len(want.Roles) {
-				t.Errorf("%q. UsersStore.All() .Roles:\ngot %v, want %v", tt.name, got.Roles, want.Roles)
-				continue
-			}
-			if len(got.Roles) > 0 && len(want.Roles) > 0 {
-				for i, gotRole := range got.Roles {
-					wantRole := want.Roles[i]
-					if wantRole.Name != gotRole.Name {
-						t.Errorf("%q. UsersStore.All() .Roles[%d]:\ngot %v, want %v", tt.name, i, gotRole, wantRole)
-					}
-				}
+			usersEqual(t, tt.name, "All", &got, &tt.want[i])
+		}
+	}
+}
+
+func usersEqual(t *testing.T, name, method string, u1, u2 *chronograf.User) {
+	if u1.Name != u2.Name {
+		t.Errorf("%q. UsersStore.%s() .Name:\ngot %v, want %v", name, method, u1.Name, u2.Name)
+	}
+	if u1.Provider != u2.Provider {
+		t.Errorf("%q. UsersStore.%s() .Provider:\ngot %v, want %v", name, method, u1.Provider, u2.Provider)
+	}
+	if u1.Scheme != u2.Scheme {
+		t.Errorf("%q. UsersStore.%s() .Scheme:\ngot %v, want %v", name, method, u1.Scheme, u2.Scheme)
+	}
+	if len(u1.Roles) != len(u2.Roles) {
+		t.Errorf("%q. UsersStore.%s() .Roles:\ngot %v, want %v", name, method, u1.Roles, u2.Roles)
+		return
+	}
+	if len(u1.Roles) > 0 && len(u2.Roles) > 0 {
+		for i, gotRole := range u1.Roles {
+			wantRole := u2.Roles[i]
+			if wantRole.Name != gotRole.Name {
+				t.Errorf("%q. UsersStore.%s() .Roles[%d]:\ngot %v, want %v", name, method, i, gotRole, wantRole)
 			}
 		}
 	}
