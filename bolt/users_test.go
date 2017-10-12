@@ -99,9 +99,6 @@ func TestUsersStore_Add(t *testing.T) {
 			t.Errorf("%q. UsersStore.Add() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
 		}
-		if !reflect.DeepEqual(got, tt.want) {
-			t.Errorf("%q. UsersStore.Add() = %v, want %v", tt.name, got, tt.want)
-		}
 
 		got, _ = s.Get(tt.args.ctx, got.Name)
 		if got.Name != tt.want.Name {
@@ -182,13 +179,18 @@ func TestUsersStore_Delete(t *testing.T) {
 
 func TestUsersStore_Update(t *testing.T) {
 	type args struct {
-		ctx context.Context
-		usr *chronograf.User
+		ctx      context.Context
+		usr      *chronograf.User
+		roles    []chronograf.Role
+		provider string
+		scheme   string
+		// TODO: add name
 	}
 	tests := []struct {
 		name     string
 		args     args
 		addFirst bool
+		want     *chronograf.User
 		wantErr  bool
 	}{
 		{
@@ -202,12 +204,47 @@ func TestUsersStore_Update(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "Update new user",
+			name: "Update user role",
 			args: args{
 				ctx: context.Background(),
 				usr: &chronograf.User{
-					Name: "noone",
+					Name:     "bobetta",
+					Provider: "GitHub",
+					Scheme:   "OAuth2",
+					Roles: []chronograf.Role{
+						chronograf.DefaultUserRoles[chronograf.ViewerRole],
+					},
 				},
+				roles: []chronograf.Role{
+					chronograf.DefaultUserRoles[chronograf.EditorRole],
+				},
+			},
+			want: &chronograf.User{
+				Name:     "bobetta",
+				Provider: "GitHub",
+				Scheme:   "OAuth2",
+				Roles: []chronograf.Role{
+					chronograf.DefaultUserRoles[chronograf.EditorRole],
+				},
+			},
+			addFirst: true,
+		},
+		{
+			name: "Update user provider and scheme",
+			args: args{
+				ctx: context.Background(),
+				usr: &chronograf.User{
+					Name:     "bobetta",
+					Provider: "GitHub",
+					Scheme:   "OAuth2",
+				},
+				provider: "Google",
+				scheme:   "LDAP",
+			},
+			want: &chronograf.User{
+				Name:     "bobetta",
+				Provider: "Google",
+				Scheme:   "LDAP",
 			},
 			addFirst: true,
 		},
@@ -224,11 +261,55 @@ func TestUsersStore_Update(t *testing.T) {
 		s := client.UsersStore
 
 		if tt.addFirst {
-			s.Add(tt.args.ctx, tt.args.usr)
+			tt.args.usr, _ = s.Add(tt.args.ctx, tt.args.usr)
+		}
+
+		if tt.args.roles != nil {
+			tt.args.usr.Roles = tt.args.roles
+		}
+
+		if tt.args.provider != "" {
+			tt.args.usr.Provider = tt.args.provider
+		}
+
+		if tt.args.scheme != "" {
+			tt.args.usr.Scheme = tt.args.scheme
 		}
 
 		if err := s.Update(tt.args.ctx, tt.args.usr); (err != nil) != tt.wantErr {
 			t.Errorf("%q. UsersStore.Update() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+		}
+
+		// for the empty test
+		if tt.want == nil {
+			continue
+		}
+
+		got, _ := s.Get(tt.args.ctx, tt.args.usr.Name)
+		if got.Name != tt.want.Name {
+			t.Errorf("%q. UsersStore.Update() .Name:\ngot %v, want %v", tt.name, got.Name, tt.want.Name)
+		}
+		if got.Provider != tt.want.Provider {
+			t.Errorf("%q. UsersStore.Update() .Provider:\ngot %v, want %v", tt.name, got.Provider, tt.want.Provider)
+		}
+		if got.Scheme != tt.want.Scheme {
+			t.Errorf("%q. UsersStore.Update() .Scheme:\ngot %v, want %v", tt.name, got.Scheme, tt.want.Scheme)
+		}
+		if len(got.Roles) != len(tt.want.Roles) {
+			t.Errorf("%q. UsersStore.Update() .Roles:\ngot %v, want %v", tt.name, got.Roles, tt.want.Roles)
+			continue
+		}
+		if len(got.Roles) != len(tt.want.Roles) {
+			t.Errorf("%q. UsersStore.Update() .Roles:\ngot %v, want %v", tt.name, got.Roles, tt.want.Roles)
+			continue
+		}
+		if len(got.Roles) > 0 && len(tt.want.Roles) > 0 {
+			for i, gotRole := range got.Roles {
+				wantRole := tt.want.Roles[i]
+				if wantRole.Name != gotRole.Name {
+					t.Errorf("%q. UsersStore.Update() .Roles[%d]:\ngot %v, want %v", tt.name, i, gotRole, wantRole)
+				}
+			}
 		}
 	}
 }
