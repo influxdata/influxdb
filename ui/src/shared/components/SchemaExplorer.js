@@ -12,15 +12,15 @@ const SchemaExplorer = ({
   query: {id},
   source,
   actions: {
+    fill,
     chooseTag,
     groupByTag,
     groupByTime,
-    fill,
     toggleField,
+    removeFuncs,
     chooseNamespace,
     chooseMeasurement,
     applyFuncsToField,
-    removeFuncs,
     toggleTagAcceptance,
   },
 }) =>
