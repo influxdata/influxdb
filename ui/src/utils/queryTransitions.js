@@ -126,11 +126,15 @@ export const applyFuncsToField = (query, {field, funcs = []}, time) => {
       return [
         ...acc,
         funcs.map(func => {
+          const {name, type} = func
+          const args = [{name: f.name, type: 'field'}]
+          const alias = func.alias ? func.alias : `${func.name}_${f.name}`
+
           return {
-            name: func.name,
-            type: func.type,
-            args: [{name: f.name, type: 'field'}],
-            alias: `${func.name}_${f.name}`,
+            name,
+            type,
+            args,
+            alias,
           }
         }),
       ]
