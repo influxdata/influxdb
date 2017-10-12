@@ -20,7 +20,6 @@ type Client struct {
 	ServersStore    *ServersStore
 	LayoutStore     *LayoutStore
 	UsersStore      *UsersStore
-	RolesStore      *RolesStore
 	DashboardsStore *DashboardsStore
 }
 
@@ -30,7 +29,6 @@ func NewClient() *Client {
 	c.SourcesStore = &SourcesStore{client: c}
 	c.ServersStore = &ServersStore{client: c}
 	c.UsersStore = &UsersStore{client: c}
-	c.RolesStore = newRolesStore(c.UsersStore)
 	c.LayoutStore = &LayoutStore{
 		client: c,
 		IDs:    &uuid.V4{},
