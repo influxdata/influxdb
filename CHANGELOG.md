@@ -6,6 +6,7 @@
 1. [#2083](https://github.com/influxdata/chronograf/pull/2083): Every dashboard can now have its own time range
 
 ### UI Improvements
+1. [#2111](https://github.com/influxdata/chronograf/pull/2111): Increase size of Cell Editor query tabs to reveal more of their query strings
 
 ## v1.3.9.0 [2017-10-06]
 ### Bug Fixes
