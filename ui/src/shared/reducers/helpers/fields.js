@@ -42,6 +42,10 @@ export const firstFieldName = fields => _.head(fieldNamesDeep(fields))
 export const hasField = (fieldName, fields) =>
   fieldNamesDeep(fields).some(f => f === fieldName)
 
+// getAllFields and funcs with fieldName
+export const getFieldsWithName = (fieldName, fields) =>
+  getFieldsDeep(fields).filter(f => f.name === fieldName)
+
 // everyOfType returns true if all top-level field types are type
 export const everyOfType = (fields, type) =>
   fields.every(f => _.get(f, 'type') === type)
@@ -51,6 +55,11 @@ export const everyField = fields => everyOfType(fields, 'field')
 
 // everyFunction returns if all top-level field types are functions
 export const everyFunction = fields => everyOfType(fields, 'func')
+
+export const getFuncsByFieldName = (fieldName, fields) =>
+  functions(fields).filter(f =>
+    _.get(f, 'args', []).some(a => a.name === fieldName)
+  )
 
 // removeField will remove the field or function from the field list with the
 // given fieldName. Preconditions: only type field OR only type func

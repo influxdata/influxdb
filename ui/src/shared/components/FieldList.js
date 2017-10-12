@@ -8,7 +8,12 @@ import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 import {showFieldKeys} from 'shared/apis/metaQuery'
 import showFieldKeysParser from 'shared/parsing/showFieldKeys'
-import {numFunctions, hasField} from 'shared/reducers/helpers/fields'
+import {
+  functionNames,
+  numFunctions,
+  getFieldsWithName,
+  getFuncsByFieldName,
+} from 'shared/reducers/helpers/fields'
 
 class FieldList extends Component {
   constructor(props) {
@@ -120,14 +125,23 @@ class FieldList extends Component {
           : <div className="query-builder--list">
               <FancyScrollbar>
                 {this.state.fields.map((fieldFunc, i) => {
-                  const selectedField = hasField(fieldFunc.name, fields)
+                  const selectedFields = getFieldsWithName(
+                    fieldFunc.name,
+                    fields
+                  )
+
+                  const funcs = getFuncsByFieldName(fieldFunc.name, fields)
+
                   return (
                     <FieldListItem
                       key={i}
                       onToggleField={onToggleField}
                       onApplyFuncsToField={applyFuncsToField}
-                      isSelected={!!selectedField}
-                      fieldFunc={fieldFunc}
+                      isSelected={!!selectedFields.length}
+                      fieldFuncs={
+                        selectedFields.length ? selectedFields : [fieldFunc]
+                      }
+                      funcs={functionNames(funcs)}
                       isKapacitorRule={isKapacitorRule}
                     />
                   )

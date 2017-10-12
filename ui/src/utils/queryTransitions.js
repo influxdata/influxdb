@@ -1,7 +1,11 @@
 import defaultQueryConfig from 'utils/defaultQueryConfig'
 import {DEFAULT_DASHBOARD_GROUP_BY_INTERVAL} from 'shared/constants'
 import {DEFAULT_DATA_EXPLORER_GROUP_BY_INTERVAL} from 'src/data_explorer/constants'
-import {hasField, removeField} from 'shared/reducers/helpers/fields'
+import {
+  hasField,
+  removeField,
+  getFuncsByFieldName,
+} from 'shared/reducers/helpers/fields'
 import _ from 'lodash'
 
 export function editRawText(query, rawText) {
@@ -162,13 +166,15 @@ export function applyFuncsToField(
       ]
     }
 
-    const isFieldToChange = f.args.find(a => a.name === field.name)
+    const fieldToChange = f.args.find(a => a.name === field.name)
 
     // Apply new funcs to field
-    if (isFieldToChange) {
+    if (fieldToChange) {
       const newFuncs = funcs.reduce((acc2, func) => {
-        const isDup = acc.find(a => a.name === func.name)
-        if (isDup) {
+        const funcsToChange = getFuncsByFieldName(fieldToChange.name, acc)
+        const dup = funcsToChange.find(a => a.name === func.name)
+
+        if (dup) {
           return acc2
         }
 
