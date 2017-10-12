@@ -180,7 +180,7 @@ enabled = true
 		t.Fatalf("failed to set env var: %v", err)
 	}
 
-	if err := c.ApplyEnvOverrides(); err != nil {
+	if err := c.ApplyEnvOverrides(os.Getenv); err != nil {
 		t.Fatalf("failed to apply env overrides: %v", err)
 	}
 
