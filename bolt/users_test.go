@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/chronograf"
 )
 
@@ -66,11 +67,15 @@ func TestUsersStore_Add(t *testing.T) {
 			args: args{
 				ctx: context.Background(),
 				u: &chronograf.User{
-					Name: "docbrown",
+					Name:     "docbrown",
+					Provider: "GitHub",
+					Scheme:   "OAuth2",
 				},
 			},
 			want: &chronograf.User{
-				Name: "docbrown",
+				Name:     "docbrown",
+				Provider: "GitHub",
+				Scheme:   "OAuth2",
 			},
 		},
 	}
@@ -94,8 +99,17 @@ func TestUsersStore_Add(t *testing.T) {
 		}
 
 		got, _ = s.Get(tt.args.ctx, got.Name)
-		if !reflect.DeepEqual(got, tt.want) {
-			t.Errorf("%q. UsersStore.Add() = %v, want %v", tt.name, got, tt.want)
+		if got.Name != tt.want.Name {
+			t.Errorf("%q. UsersStore.Add() .Name:\ngot %v, want %v", tt.name, got.Name, tt.want.Name)
+		}
+		if got.Provider != tt.want.Provider {
+			t.Errorf("%q. UsersStore.Add() .Provider:\ngot %v, want %v", tt.name, got.Provider, tt.want.Provider)
+		}
+		if got.Scheme != tt.want.Scheme {
+			t.Errorf("%q. UsersStore.Add() .Scheme:\ngot %v, want %v", tt.name, got.Scheme, tt.want.Scheme)
+		}
+		if len(got.Roles) > 0 && len(tt.want.Roles) > 0 && !cmp.Equal(got.Roles, tt.want.Roles) {
+			t.Errorf("%q. UsersStore.Add() .Roles:\ngot %v, want %v", tt.name, got.Roles, tt.want.Roles)
 		}
 	}
 }
@@ -220,10 +234,14 @@ func TestUsersStore_All(t *testing.T) {
 			name: "Update new user",
 			want: []chronograf.User{
 				{
-					Name: "howdy",
+					Name:     "howdy",
+					Provider: "GitHub",
+					Scheme:   "OAuth2",
 				},
 				{
-					Name: "doody",
+					Name:     "doody",
+					Provider: "GitHub",
+					Scheme:   "OAuth2",
 				},
 			},
 			addFirst: true,
@@ -245,13 +263,25 @@ func TestUsersStore_All(t *testing.T) {
 				s.Add(tt.ctx, &u)
 			}
 		}
-		got, err := s.All(tt.ctx)
+		gots, err := s.All(tt.ctx)
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. UsersStore.All() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
 		}
-		if !reflect.DeepEqual(got, tt.want) {
-			t.Errorf("%q. UsersStore.All() = %v, want %v", tt.name, got, tt.want)
+		for i, got := range gots {
+			want := tt.want[i]
+			if got.Name != want.Name {
+				t.Errorf("%q. UsersStore.All() .Name:\ngot %v, want %v", tt.name, got.Name, want.Name)
+			}
+			if got.Provider != want.Provider {
+				t.Errorf("%q. UsersStore.All() .Provider:\ngot %v, want %v", tt.name, got.Provider, want.Provider)
+			}
+			if got.Scheme != want.Scheme {
+				t.Errorf("%q. UsersStore.All() .Scheme:\ngot %v, want %v", tt.name, got.Scheme, want.Scheme)
+			}
+			if len(got.Roles) > 0 && len(want.Roles) > 0 && !cmp.Equal(got.Roles, want.Roles) {
+				t.Errorf("%q. UsersStore.All() .Roles:\ngot %v, want %v", tt.name, got.Roles, want.Roles)
+			}
 		}
 	}
 }

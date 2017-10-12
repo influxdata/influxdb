@@ -20,9 +20,9 @@ type UsersStore struct {
 }
 
 // get searches the UsersStore for user with name and returns the bolt representation
-func (s *UsersStore) get(ctx context.Context, name string) (*internal.User, error) {
+func (s *UsersStore) get(ctx context.Context, name string) (*chronograf.User, error) {
 	found := false
-	var user internal.User
+	var returnUser chronograf.User
 	err := s.client.db.View(func(tx *bolt.Tx) error {
 		err := tx.Bucket(UsersBucket).ForEach(func(k, v []byte) error {
 			var u chronograf.User
@@ -32,7 +32,7 @@ func (s *UsersStore) get(ctx context.Context, name string) (*internal.User, erro
 				return nil
 			}
 			found = true
-			if err := internal.UnmarshalUserPB(v, &user); err != nil {
+			if err := internal.UnmarshalUser(v, &returnUser); err != nil {
 				return err
 			}
 			return nil
@@ -49,7 +49,7 @@ func (s *UsersStore) get(ctx context.Context, name string) (*internal.User, erro
 		return nil, err
 	}
 
-	return &user, nil
+	return &returnUser, nil
 }
 
 // Get searches the UsersStore for user with name
@@ -58,9 +58,7 @@ func (s *UsersStore) Get(ctx context.Context, name string) (*chronograf.User, er
 	if err != nil {
 		return nil, err
 	}
-	return &chronograf.User{
-		Name: u.Name,
-	}, nil
+	return u, nil
 }
 
 // Add a new Users in the UsersStore.
@@ -110,7 +108,10 @@ func (s *UsersStore) Update(ctx context.Context, usr *chronograf.User) error {
 	}
 	if err := s.client.db.Update(func(tx *bolt.Tx) error {
 		u.Name = usr.Name
-		if v, err := internal.MarshalUserPB(u); err != nil {
+		u.Provider = usr.Provider
+		u.Scheme = usr.Scheme
+		u.Roles = usr.Roles
+		if v, err := internal.MarshalUser(u); err != nil {
 			return err
 		} else if err := tx.Bucket(UsersBucket).Put(u64tob(u.ID), v); err != nil {
 			return err
