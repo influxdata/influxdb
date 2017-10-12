@@ -30,7 +30,7 @@ func NewClient() *Client {
 	c.SourcesStore = &SourcesStore{client: c}
 	c.ServersStore = &ServersStore{client: c}
 	c.UsersStore = &UsersStore{client: c}
-	c.RolesStore = &RolesStore{client: c}
+	c.RolesStore = newRolesStore(c.UsersStore)
 	c.LayoutStore = &LayoutStore{
 		client: c,
 		IDs:    &uuid.V4{},
@@ -70,10 +70,6 @@ func (c *Client) Open(ctx context.Context) error {
 		}
 		// Always create Users bucket.
 		if _, err := tx.CreateBucketIfNotExists(UsersBucket); err != nil {
-			return err
-		}
-		// Always create Roles bucket.
-		if _, err := tx.CreateBucketIfNotExists(RolesBucket); err != nil {
 			return err
 		}
 		return nil

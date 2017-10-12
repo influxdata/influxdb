@@ -18,6 +18,96 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 )
 
+// Chronograf User Roles
+const (
+	ViewerRole = "Viewer"
+	EditorRole = "Editor"
+	AdminRole  = "Admin"
+)
+
+// Chronograf User Permissions
+var (
+	// Read Permissions
+	ReadDashboardsPermission = Permission{
+		Scope:   "dashboards",
+		Name:    "Read Dashboards",
+		Allowed: Allowances{"read"},
+	}
+	ReadSourcesPermission = Permission{
+		Scope:   "sources",
+		Name:    "Read Sources",
+		Allowed: Allowances{"read"},
+	}
+	ReadRulesPermission = Permission{
+		Scope:   "rules",
+		Name:    "Read Rules",
+		Allowed: Allowances{"read"},
+	}
+	ReadUsersPermission = Permission{
+		Scope:   "users",
+		Name:    "Read Users",
+		Allowed: Allowances{"read"},
+	}
+
+	// Write Permissions
+	WriteDashboardsPermission = Permission{
+		Scope:   "dashboards",
+		Name:    "Write Dashboards",
+		Allowed: Allowances{"write"},
+	}
+	WriteSourcesPermission = Permission{
+		Scope:   "sources",
+		Name:    "Write Sources",
+		Allowed: Allowances{"write"},
+	}
+	WriteRulesPermission = Permission{
+		Scope:   "rules",
+		Name:    "Write Rules",
+		Allowed: Allowances{"write"},
+	}
+	WriteUsersPermission = Permission{
+		Scope:   "users",
+		Name:    "Write Users",
+		Allowed: Allowances{"write"},
+	}
+)
+
+// Default roles for chronograf Users
+var DefaultUserRoles = [5]Role{
+	{
+		Name: ViewerRole,
+		Permissions: Permissions{
+			ReadDashboardsPermission,
+			ReadSourcesPermission,
+			ReadRulesPermission,
+		},
+	},
+	{
+		Name: EditorRole,
+		Permissions: Permissions{
+			ReadDashboardsPermission,
+			ReadSourcesPermission,
+			ReadRulesPermission,
+			WriteDashboardsPermission,
+			WriteSourcesPermission,
+			WriteRulesPermission,
+		},
+	},
+	{
+		Name: AdminRole,
+		Permissions: Permissions{
+			ReadDashboardsPermission,
+			ReadSourcesPermission,
+			ReadRulesPermission,
+			ReadUsersPermission,
+			WriteDashboardsPermission,
+			WriteSourcesPermission,
+			WriteRulesPermission,
+			WriteUsersPermission,
+		},
+	},
+}
+
 // General errors.
 const (
 	ErrUpstreamTimeout   = Error("request to backend timed out")
