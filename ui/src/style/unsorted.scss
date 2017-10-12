@@ -353,6 +353,8 @@ $tick-script-overlay-margin: 30px;
   Dashboard Name Editing
   -----------------------------------------------------------------------------
 */
+$dash-editable-header-padding: 7px;
+
 .page-header__left.page-header__dash-editable,
 .dashboard-title,
 .dashboard-title input[type="text"].form-control.dashboard-title--input,
@@ -367,7 +369,7 @@ $tick-script-overlay-margin: 30px;
   h1 {
     font-size: $page-header-size;
     font-weight: $page-header-weight;
-    padding: 0 7px;
+    padding: 0 $dash-editable-header-padding;
   }
 
   input[type="text"].form-control.dashboard-title--input,
@@ -378,6 +380,7 @@ $tick-script-overlay-margin: 30px;
 
   h1 {
     @include no-user-select();
+    position: relative;
     border: 2px solid $g0-obsidian;
     color: $g17-whisper;
     height: 30px;
@@ -391,11 +394,28 @@ $tick-script-overlay-margin: 30px;
       background-color 0.25s ease,
       border-color 0.25s ease;
 
+    &:after {
+      content: "\f058";
+      font-family: 'icomoon';
+      position: absolute;
+      font-size: 15px;
+      top: 50%;
+      right: $dash-editable-header-padding;
+      transform: translateY(-50%);
+      opacity: 0;
+      transition: opacity 0.25s ease;
+      color: $g11-sidewalk;
+    }
+
     &:hover {
       cursor: text;
       color: $g20-white;
       background-color: $g3-castle;
       border-color: $g3-castle;
+
+      &:after {
+        opacity: 1;
+      }
     }
   }
 

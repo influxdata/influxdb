@@ -49,15 +49,30 @@ $graph-gutter: 16px;
   color: $g13-mist;
   border-radius: 4px;
   border: 2px solid transparent;
+  position: relative;
   transition:
     background-color 0.25s ease,
     border-color 0.25s ease,
     color 0.25s ease;
 
+  &:after {
+    content: "\f058";
+    font-family: 'icomoon';
+    position: absolute;
+    font-size: 15px;
+    top: 50%;
+    right: 11px;
+    transform: translateY(-50%);
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    color: $g11-sidewalk;
+  }
   &:hover {
     cursor: text;
     background-color: $g5-pepper;
     color: $g20-white;
+
+    &:after {opacity: 1;}
   }
 }
 .graph-name__untitled {
