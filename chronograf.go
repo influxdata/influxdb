@@ -73,8 +73,8 @@ var (
 )
 
 // Default roles for chronograf Users
-var DefaultUserRoles = [5]Role{
-	{
+var DefaultUserRoles = map[string]Role{
+	ViewerRole: {
 		Name: ViewerRole,
 		Permissions: Permissions{
 			ReadDashboardsPermission,
@@ -82,7 +82,7 @@ var DefaultUserRoles = [5]Role{
 			ReadRulesPermission,
 		},
 	},
-	{
+	EditorRole: {
 		Name: EditorRole,
 		Permissions: Permissions{
 			ReadDashboardsPermission,
@@ -93,7 +93,7 @@ var DefaultUserRoles = [5]Role{
 			WriteRulesPermission,
 		},
 	},
-	{
+	AdminRole: {
 		Name: AdminRole,
 		Permissions: Permissions{
 			ReadDashboardsPermission,

@@ -5,7 +5,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/chronograf"
 )
 
@@ -70,12 +69,18 @@ func TestUsersStore_Add(t *testing.T) {
 					Name:     "docbrown",
 					Provider: "GitHub",
 					Scheme:   "OAuth2",
+					Roles: []chronograf.Role{
+						chronograf.DefaultUserRoles[chronograf.EditorRole],
+					},
 				},
 			},
 			want: &chronograf.User{
 				Name:     "docbrown",
 				Provider: "GitHub",
 				Scheme:   "OAuth2",
+				Roles: []chronograf.Role{
+					chronograf.DefaultUserRoles[chronograf.EditorRole],
+				},
 			},
 		},
 	}
@@ -108,8 +113,17 @@ func TestUsersStore_Add(t *testing.T) {
 		if got.Scheme != tt.want.Scheme {
 			t.Errorf("%q. UsersStore.Add() .Scheme:\ngot %v, want %v", tt.name, got.Scheme, tt.want.Scheme)
 		}
-		if len(got.Roles) > 0 && len(tt.want.Roles) > 0 && !cmp.Equal(got.Roles, tt.want.Roles) {
+		if len(got.Roles) != len(tt.want.Roles) {
 			t.Errorf("%q. UsersStore.Add() .Roles:\ngot %v, want %v", tt.name, got.Roles, tt.want.Roles)
+			continue
+		}
+		if len(got.Roles) > 0 && len(tt.want.Roles) > 0 {
+			for i, gotRole := range got.Roles {
+				wantRole := tt.want.Roles[i]
+				if wantRole.Name != gotRole.Name {
+					t.Errorf("%q. UsersStore.Add() .Roles[%d]:\ngot %v, want %v", tt.name, i, gotRole, wantRole)
+				}
+			}
 		}
 	}
 }
@@ -237,11 +251,17 @@ func TestUsersStore_All(t *testing.T) {
 					Name:     "howdy",
 					Provider: "GitHub",
 					Scheme:   "OAuth2",
+					Roles: []chronograf.Role{
+						chronograf.DefaultUserRoles[chronograf.ViewerRole],
+					},
 				},
 				{
 					Name:     "doody",
 					Provider: "GitHub",
 					Scheme:   "OAuth2",
+					Roles: []chronograf.Role{
+						chronograf.DefaultUserRoles[chronograf.EditorRole],
+					},
 				},
 			},
 			addFirst: true,
@@ -279,8 +299,17 @@ func TestUsersStore_All(t *testing.T) {
 			if got.Scheme != want.Scheme {
 				t.Errorf("%q. UsersStore.All() .Scheme:\ngot %v, want %v", tt.name, got.Scheme, want.Scheme)
 			}
-			if len(got.Roles) > 0 && len(want.Roles) > 0 && !cmp.Equal(got.Roles, want.Roles) {
+			if len(got.Roles) != len(want.Roles) {
 				t.Errorf("%q. UsersStore.All() .Roles:\ngot %v, want %v", tt.name, got.Roles, want.Roles)
+				continue
+			}
+			if len(got.Roles) > 0 && len(want.Roles) > 0 {
+				for i, gotRole := range got.Roles {
+					wantRole := want.Roles[i]
+					if wantRole.Name != gotRole.Name {
+						t.Errorf("%q. UsersStore.All() .Roles[%d]:\ngot %v, want %v", tt.name, i, gotRole, wantRole)
+					}
+				}
 			}
 		}
 	}

@@ -26,8 +26,8 @@ func newRolesStore(u *UsersStore) *RolesStore {
 		roles:      map[string]chronograf.Role{},
 	}
 
-	for _, role := range chronograf.DefaultUserRoles {
-		s.roles[role.Name] = role
+	for name, role := range chronograf.DefaultUserRoles {
+		s.roles[name] = role
 	}
 
 	return s
