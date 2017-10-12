@@ -2,6 +2,7 @@ package bolt_test
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -10,8 +11,8 @@ import (
 
 func TestUsersStore_Get(t *testing.T) {
 	type args struct {
-		ctx  context.Context
-		name string
+		ctx context.Context
+		ID  string
 	}
 	tests := []struct {
 		name    string
@@ -22,8 +23,8 @@ func TestUsersStore_Get(t *testing.T) {
 		{
 			name: "User not found",
 			args: args{
-				ctx:  context.Background(),
-				name: "unknown",
+				ctx: context.Background(),
+				ID:  "unknown",
 			},
 			wantErr: true,
 		},
@@ -39,7 +40,7 @@ func TestUsersStore_Get(t *testing.T) {
 		defer client.Close()
 
 		s := client.UsersStore
-		got, err := s.Get(tt.args.ctx, tt.args.name)
+		got, err := s.Get(tt.args.ctx, tt.args.ID)
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. UsersStore.Get() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
@@ -100,7 +101,10 @@ func TestUsersStore_Add(t *testing.T) {
 			continue
 		}
 
-		got, _ = s.Get(tt.args.ctx, got.Name)
+		got, err = s.Get(tt.args.ctx, fmt.Sprintf("%d", got.ID))
+		if err != nil {
+			t.Fatalf("failed to get user: %v", err)
+		}
 		if got.Name != tt.want.Name {
 			t.Errorf("%q. UsersStore.Add() .Name:\ngot %v, want %v", tt.name, got.Name, tt.want.Name)
 		}
@@ -141,7 +145,7 @@ func TestUsersStore_Delete(t *testing.T) {
 			args: args{
 				ctx: context.Background(),
 				user: &chronograf.User{
-					Name: "noone",
+					ID: 10,
 				},
 			},
 			wantErr: true,
@@ -169,7 +173,7 @@ func TestUsersStore_Delete(t *testing.T) {
 		s := client.UsersStore
 
 		if tt.addFirst {
-			s.Add(tt.args.ctx, tt.args.user)
+			tt.args.user, _ = s.Add(tt.args.ctx, tt.args.user)
 		}
 		if err := s.Delete(tt.args.ctx, tt.args.user); (err != nil) != tt.wantErr {
 			t.Errorf("%q. UsersStore.Delete() error = %v, wantErr %v", tt.name, err, tt.wantErr)
@@ -198,7 +202,7 @@ func TestUsersStore_Update(t *testing.T) {
 			args: args{
 				ctx: context.Background(),
 				usr: &chronograf.User{
-					Name: "noone",
+					ID: 10,
 				},
 			},
 			wantErr: true,
@@ -261,7 +265,10 @@ func TestUsersStore_Update(t *testing.T) {
 		s := client.UsersStore
 
 		if tt.addFirst {
-			tt.args.usr, _ = s.Add(tt.args.ctx, tt.args.usr)
+			tt.args.usr, err = s.Add(tt.args.ctx, tt.args.usr)
+			if err != nil {
+				t.Fatal(err)
+			}
 		}
 
 		if tt.args.roles != nil {
@@ -285,7 +292,10 @@ func TestUsersStore_Update(t *testing.T) {
 			continue
 		}
 
-		got, _ := s.Get(tt.args.ctx, tt.args.usr.Name)
+		got, err := s.Get(tt.args.ctx, fmt.Sprintf("%d", tt.args.usr.ID))
+		if err != nil {
+			t.Fatalf("failed to get user: %v", err)
+		}
 		if got.Name != tt.want.Name {
 			t.Errorf("%q. UsersStore.Update() .Name:\ngot %v, want %v", tt.name, got.Name, tt.want.Name)
 		}
