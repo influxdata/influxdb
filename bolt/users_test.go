@@ -24,7 +24,7 @@ func TestUsersStore_Get(t *testing.T) {
 			name: "User not found",
 			args: args{
 				ctx: context.Background(),
-				ID:  "unknown",
+				ID:  "1337",
 			},
 			wantErr: true,
 		},
