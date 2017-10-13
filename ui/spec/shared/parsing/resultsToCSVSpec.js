@@ -36,7 +36,9 @@ describe('resultsToCSV', () => {
         1505264400000
       )},2.616484718180463\n${formatDate(1505266200000)},1.6174323943535571`,
     }
-    expect(response).to.have.all.keys('name', 'CSVString')
+    expect(response).to.have.all.keys('flag', 'name', 'CSVString')
+    expect(response.flag).to.be.a('string')
+    expect(response.name).to.equal('ok')
     expect(response.name).to.be.a('string')
     expect(response.CSVString).to.be.a('string')
     expect(response.name).to.equal(expected.name)
