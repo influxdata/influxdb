@@ -200,6 +200,21 @@ func (s *Service) closed() bool {
 	}
 }
 
+// Ready returns true if the internal storage has been created successfully.
+func (s *Service) Ready() bool {
+	s.mu.RLock()
+	ready := s.ready
+	s.mu.RUnlock()
+	return ready
+}
+
+// Batcher returns the incoming point batcher for this service.
+// This is primarily meant to be used for tests, but could also be used for manually
+// inserting points into the udp database.
+func (s *Service) Batcher() *tsdb.PointBatcher {
+	return s.batcher
+}
+
 // createInternalStorage ensures that the required database has been created.
 func (s *Service) createInternalStorage() error {
 	s.mu.RLock()

@@ -1,4 +1,4 @@
-package collectd
+package collectd_test
 
 import (
 	"encoding/hex"
@@ -13,6 +13,7 @@ import (
 
 	"github.com/influxdata/influxdb/internal"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/services/collectd"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/toml"
 	"github.com/uber-go/zap"
@@ -72,7 +73,7 @@ func TestService_Open_TypesDBDir(t *testing.T) {
 	}
 
 	// Setup config to read all files in the temp dir.
-	c := Config{
+	c := collectd.Config{
 		BindAddress:   "127.0.0.1:0",
 		Database:      "collectd_test",
 		BatchSize:     1000,
@@ -82,7 +83,7 @@ func TestService_Open_TypesDBDir(t *testing.T) {
 
 	s := &TestService{
 		Config:     c,
-		Service:    NewService(c),
+		Service:    collectd.NewService(c),
 		MetaClient: &internal.MetaClientMock{},
 	}
 
@@ -140,8 +141,9 @@ func TestService_CreatesDatabase(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	s.Service.batcher.In() <- points[0] // Send a point.
-	s.Service.batcher.Flush()
+	batcher := s.Service.Batcher()
+	batcher.In() <- points[0] // Send a point.
+	batcher.Flush()
 	select {
 	case <-called:
 		// OK
@@ -150,9 +152,7 @@ func TestService_CreatesDatabase(t *testing.T) {
 	}
 
 	// ready status should not have been switched due to meta client error.
-	s.Service.mu.RLock()
-	ready := s.Service.ready
-	s.Service.mu.RUnlock()
+	ready := s.Service.Ready()
 
 	if got, exp := ready, false; got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
@@ -166,8 +166,8 @@ func TestService_CreatesDatabase(t *testing.T) {
 		return nil, nil
 	}
 
-	s.Service.batcher.In() <- points[0] // Send a point.
-	s.Service.batcher.Flush()
+	batcher.In() <- points[0] // Send a point.
+	batcher.Flush()
 	select {
 	case <-called:
 		// OK
@@ -176,9 +176,7 @@ func TestService_CreatesDatabase(t *testing.T) {
 	}
 
 	// ready status should not have been switched due to meta client error.
-	s.Service.mu.RLock()
-	ready = s.Service.ready
-	s.Service.mu.RUnlock()
+	ready = s.Service.Ready()
 
 	if got, exp := ready, true; got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
@@ -390,14 +388,14 @@ Loop:
 }
 
 type TestService struct {
-	Service       *Service
-	Config        Config
+	Service       *collectd.Service
+	Config        collectd.Config
 	MetaClient    *internal.MetaClientMock
 	WritePointsFn func(string, string, models.ConsistencyLevel, []models.Point) error
 }
 
 func NewTestService(batchSize int, batchDuration time.Duration, parseOpt string) *TestService {
-	c := Config{
+	c := collectd.Config{
 		BindAddress:           "127.0.0.1:0",
 		Database:              "collectd_test",
 		BatchSize:             batchSize,
@@ -407,7 +405,7 @@ func NewTestService(batchSize int, batchDuration time.Duration, parseOpt string)
 
 	s := &TestService{
 		Config:     c,
-		Service:    NewService(c),
+		Service:    collectd.NewService(c),
 		MetaClient: &internal.MetaClientMock{},
 	}
 

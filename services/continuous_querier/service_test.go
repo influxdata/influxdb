@@ -1,4 +1,4 @@
-package continuous_querier
+package continuous_querier_test
 
 import (
 	"errors"
@@ -11,6 +11,7 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/services/continuous_querier"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/uber-go/zap"
 )
@@ -22,7 +23,7 @@ var (
 
 // Test closing never opened, open, open already open, close, and close already closed.
 func TestOpenAndClose(t *testing.T) {
-	s := NewTestService(t)
+	s := NewTestService(t, nil)
 
 	if err := s.Close(); err != nil {
 		t.Error(err)
@@ -39,7 +40,7 @@ func TestOpenAndClose(t *testing.T) {
 
 // Test Run method.
 func TestContinuousQueryService_Run(t *testing.T) {
-	s := NewTestService(t)
+	s := NewTestService(t, nil)
 
 	// Set RunInterval high so we can trigger using Run method.
 	s.RunInterval = 10 * time.Minute
@@ -94,7 +95,7 @@ func TestContinuousQueryService_Run(t *testing.T) {
 }
 
 func TestContinuousQueryService_ResampleOptions(t *testing.T) {
-	s := NewTestService(t)
+	s := NewTestService(t, nil)
 	mc := NewMetaClient(t)
 	mc.CreateDatabase("db", "")
 	mc.CreateContinuousQuery("db", "cq", `CREATE CONTINUOUS QUERY cq ON db RESAMPLE EVERY 10s FOR 2m BEGIN SELECT mean(value) INTO cpu_mean FROM cpu GROUP BY time(1m) END`)
@@ -102,7 +103,7 @@ func TestContinuousQueryService_ResampleOptions(t *testing.T) {
 
 	db := s.MetaClient.Database("db")
 
-	cq, err := NewContinuousQuery(db.Name, &db.ContinuousQueries[0])
+	cq, err := continuous_querier.NewContinuousQuery(db.Name, &db.ContinuousQueries[0])
 	if err != nil {
 		t.Fatal(err)
 	} else if cq.Resample.Every != 10*time.Second {
@@ -145,7 +146,7 @@ func TestContinuousQueryService_ResampleOptions(t *testing.T) {
 	now := time.Now().UTC().Truncate(10 * time.Minute)
 	expected.min = now.Add(-2 * time.Minute)
 	expected.max = now.Add(-1)
-	s.RunCh <- &RunRequest{Now: now}
+	s.RunCh <- &continuous_querier.RunRequest{Now: now}
 
 	if err := wait(done, 100*time.Millisecond); err != nil {
 		t.Fatal(err)
@@ -155,7 +156,7 @@ func TestContinuousQueryService_ResampleOptions(t *testing.T) {
 	// but it will be a different two queries.
 	expected.min = expected.min.Add(time.Minute)
 	expected.max = expected.max.Add(time.Minute)
-	s.RunCh <- &RunRequest{Now: now.Add(10 * time.Second)}
+	s.RunCh <- &continuous_querier.RunRequest{Now: now.Add(10 * time.Second)}
 
 	if err := wait(done, 100*time.Millisecond); err != nil {
 		t.Fatal(err)
@@ -174,7 +175,7 @@ func TestContinuousQueryService_ResampleOptions(t *testing.T) {
 
 	// Send a message 10 minutes later and ensure that the system plays catchup.
 	expected.max = now.Add(10*time.Minute - 1)
-	s.RunCh <- &RunRequest{Now: now.Add(10 * time.Minute)}
+	s.RunCh <- &continuous_querier.RunRequest{Now: now.Add(10 * time.Minute)}
 
 	if err := wait(done, 100*time.Millisecond); err != nil {
 		t.Fatal(err)
@@ -187,7 +188,7 @@ func TestContinuousQueryService_ResampleOptions(t *testing.T) {
 }
 
 func TestContinuousQueryService_EveryHigherThanInterval(t *testing.T) {
-	s := NewTestService(t)
+	s := NewTestService(t, nil)
 	ms := NewMetaClient(t)
 	ms.CreateDatabase("db", "")
 	ms.CreateContinuousQuery("db", "cq", `CREATE CONTINUOUS QUERY cq ON db RESAMPLE EVERY 1m BEGIN SELECT mean(value) INTO cpu_mean FROM cpu GROUP BY time(30s) END`)
@@ -228,14 +229,14 @@ func TestContinuousQueryService_EveryHigherThanInterval(t *testing.T) {
 	now := time.Now().Truncate(10 * time.Minute)
 	expected.min = now.Add(-time.Minute)
 	expected.max = now.Add(-1)
-	s.RunCh <- &RunRequest{Now: now}
+	s.RunCh <- &continuous_querier.RunRequest{Now: now}
 
 	if err := wait(done, 100*time.Millisecond); err != nil {
 		t.Fatal(err)
 	}
 
 	// Trigger 30 seconds later. Nothing should run.
-	s.RunCh <- &RunRequest{Now: now.Add(30 * time.Second)}
+	s.RunCh <- &continuous_querier.RunRequest{Now: now.Add(30 * time.Second)}
 
 	if err := wait(done, 100*time.Millisecond); err == nil {
 		t.Fatal("too many queries")
@@ -244,7 +245,7 @@ func TestContinuousQueryService_EveryHigherThanInterval(t *testing.T) {
 	// Run again 1 minute later. Another two queries should run.
 	expected.min = now
 	expected.max = now.Add(time.Minute - 1)
-	s.RunCh <- &RunRequest{Now: now.Add(time.Minute)}
+	s.RunCh <- &continuous_querier.RunRequest{Now: now.Add(time.Minute)}
 
 	if err := wait(done, 100*time.Millisecond); err != nil {
 		t.Fatal(err)
@@ -257,7 +258,7 @@ func TestContinuousQueryService_EveryHigherThanInterval(t *testing.T) {
 }
 
 func TestContinuousQueryService_GroupByOffset(t *testing.T) {
-	s := NewTestService(t)
+	s := NewTestService(t, nil)
 	mc := NewMetaClient(t)
 	mc.CreateDatabase("db", "")
 	mc.CreateContinuousQuery("db", "cq", `CREATE CONTINUOUS QUERY cq ON db BEGIN SELECT mean(value) INTO cpu_mean FROM cpu GROUP BY time(1m, 30s) END`)
@@ -298,7 +299,7 @@ func TestContinuousQueryService_GroupByOffset(t *testing.T) {
 	now := time.Now().UTC().Truncate(10 * time.Minute).Add(30 * time.Second)
 	expected.min = now.Add(-time.Minute)
 	expected.max = now.Add(-1)
-	s.RunCh <- &RunRequest{Now: now}
+	s.RunCh <- &continuous_querier.RunRequest{Now: now}
 
 	if err := wait(done, 100*time.Millisecond); err != nil {
 		t.Fatal(err)
@@ -307,7 +308,7 @@ func TestContinuousQueryService_GroupByOffset(t *testing.T) {
 
 // Test service when not the cluster leader (CQs shouldn't run).
 func TestContinuousQueryService_NotLeader(t *testing.T) {
-	s := NewTestService(t)
+	s := NewTestService(t, nil)
 	// Set RunInterval high so we can test triggering with the RunCh below.
 	s.RunInterval = 10 * time.Second
 	s.MetaClient.(*MetaClient).Leader = false
@@ -324,7 +325,7 @@ func TestContinuousQueryService_NotLeader(t *testing.T) {
 
 	s.Open()
 	// Trigger service to run CQs.
-	s.RunCh <- &RunRequest{Now: time.Now()}
+	s.RunCh <- &continuous_querier.RunRequest{Now: time.Now()}
 	// Expect timeout error because ExecuteQuery callback wasn't called.
 	if err := wait(done, 100*time.Millisecond); err == nil {
 		t.Error(err)
@@ -334,7 +335,7 @@ func TestContinuousQueryService_NotLeader(t *testing.T) {
 
 // Test ExecuteContinuousQuery with invalid queries.
 func TestExecuteContinuousQuery_InvalidQueries(t *testing.T) {
-	s := NewTestService(t)
+	s := NewTestService(t, nil)
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
 		ExecuteStatementFn: func(stmt influxql.Statement, ctx query.ExecutionContext) error {
 			return errUnexpected
@@ -422,7 +423,7 @@ func TestExecuteContinuousQuery_TimeRange(t *testing.T) {
 				t.Fatalf("unable to parse duration: %s", err)
 			}
 
-			s := NewTestService(t)
+			s := NewTestService(t, nil)
 			mc := NewMetaClient(t)
 			mc.CreateDatabase("db", "")
 			mc.CreateContinuousQuery("db", "cq",
@@ -456,9 +457,9 @@ func TestExecuteContinuousQuery_TimeRange(t *testing.T) {
 
 			// Send an initial run request one nanosecond after the start to
 			// prime the last CQ map.
-			s.RunCh <- &RunRequest{Now: now.Add(time.Nanosecond)}
+			s.RunCh <- &continuous_querier.RunRequest{Now: now.Add(time.Nanosecond)}
 			// Execute the real request after the time interval.
-			s.RunCh <- &RunRequest{Now: now.Add(d)}
+			s.RunCh <- &continuous_querier.RunRequest{Now: now.Add(d)}
 			if err := wait(done, 100*time.Millisecond); err != nil {
 				t.Fatal(err)
 			}
@@ -535,7 +536,7 @@ func TestExecuteContinuousQuery_TimeZone(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewTestService(t)
+			s := NewTestService(t, nil)
 			mc := NewMetaClient(t)
 			mc.CreateDatabase("db", "")
 			mc.CreateContinuousQuery("db", "cq",
@@ -571,7 +572,7 @@ func TestExecuteContinuousQuery_TimeZone(t *testing.T) {
 
 			// Send an initial run request one nanosecond after the start to
 			// prime the last CQ map.
-			s.RunCh <- &RunRequest{Now: tt.initial.Add(time.Nanosecond)}
+			s.RunCh <- &continuous_querier.RunRequest{Now: tt.initial.Add(time.Nanosecond)}
 			// Execute each of the tests and ensure the times are correct.
 			for i, test := range tt.tests {
 				tests <- test
@@ -579,7 +580,7 @@ func TestExecuteContinuousQuery_TimeZone(t *testing.T) {
 				if now.IsZero() {
 					now = test.end
 				}
-				s.RunCh <- &RunRequest{Now: now}
+				s.RunCh <- &continuous_querier.RunRequest{Now: now}
 				if err := wait(done, 100*time.Millisecond); err != nil {
 					t.Fatal(fmt.Errorf("%d. %s", i+1, err))
 				}
@@ -590,7 +591,7 @@ func TestExecuteContinuousQuery_TimeZone(t *testing.T) {
 
 // Test ExecuteContinuousQuery when QueryExecutor returns an error.
 func TestExecuteContinuousQuery_QueryExecutor_Error(t *testing.T) {
-	s := NewTestService(t)
+	s := NewTestService(t, nil)
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
 		ExecuteStatementFn: func(stmt influxql.Statement, ctx query.ExecutionContext) error {
 			return errExpected
@@ -608,7 +609,9 @@ func TestExecuteContinuousQuery_QueryExecutor_Error(t *testing.T) {
 }
 
 func TestService_ExecuteContinuousQuery_LogsToMonitor(t *testing.T) {
-	s := NewTestService(t)
+	config := continuous_querier.NewConfig()
+	config.QueryStatsEnabled = true
+	s := NewTestService(t, &config)
 	const writeN = int64(50)
 
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
@@ -623,7 +626,6 @@ func TestService_ExecuteContinuousQuery_LogsToMonitor(t *testing.T) {
 			return nil
 		},
 	}
-	s.queryStatsEnabled = true
 	var point models.Point
 	s.Monitor = &monitor{
 		EnabledFn: func() bool { return true },
@@ -656,7 +658,7 @@ func TestService_ExecuteContinuousQuery_LogsToMonitor(t *testing.T) {
 }
 
 func TestService_ExecuteContinuousQuery_LogToMonitor_DisabledByDefault(t *testing.T) {
-	s := NewTestService(t)
+	s := NewTestService(t, nil)
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
 		ExecuteStatementFn: func(stmt influxql.Statement, ctx query.ExecutionContext) error {
 			ctx.Results <- &query.Result{}
@@ -682,8 +684,14 @@ func TestService_ExecuteContinuousQuery_LogToMonitor_DisabledByDefault(t *testin
 }
 
 // NewTestService returns a new *Service with default mock object members.
-func NewTestService(t *testing.T) *Service {
-	s := NewService(NewConfig())
+func NewTestService(t *testing.T, c *continuous_querier.Config) *continuous_querier.Service {
+	var config continuous_querier.Config
+	if c != nil {
+		config = *c
+	} else {
+		config = continuous_querier.NewConfig()
+	}
+	s := continuous_querier.NewService(config)
 	ms := NewMetaClient(t)
 	s.MetaClient = ms
 	s.QueryExecutor = query.NewQueryExecutor()

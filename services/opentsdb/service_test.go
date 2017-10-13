@@ -1,4 +1,4 @@
-package opentsdb
+package opentsdb_test
 
 import (
 	"errors"
@@ -16,6 +16,7 @@ import (
 	"github.com/influxdata/influxdb/internal"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxdb/services/opentsdb"
 	"github.com/uber-go/zap"
 )
 
@@ -88,8 +89,9 @@ func TestService_CreatesDatabase(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	s.Service.batcher.In() <- points[0] // Send a point.
-	s.Service.batcher.Flush()
+	batcher := s.Service.Batcher()
+	batcher.In() <- points[0] // Send a point.
+	batcher.Flush()
 	select {
 	case <-called:
 		// OK
@@ -98,9 +100,7 @@ func TestService_CreatesDatabase(t *testing.T) {
 	}
 
 	// ready status should not have been switched due to meta client error.
-	s.Service.mu.RLock()
-	ready := s.Service.ready
-	s.Service.mu.RUnlock()
+	ready := s.Service.Ready()
 
 	if got, exp := ready, false; got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
@@ -114,8 +114,8 @@ func TestService_CreatesDatabase(t *testing.T) {
 		return nil, nil
 	}
 
-	s.Service.batcher.In() <- points[0] // Send a point.
-	s.Service.batcher.Flush()
+	batcher.In() <- points[0] // Send a point.
+	batcher.Flush()
 	select {
 	case <-called:
 		// OK
@@ -124,9 +124,7 @@ func TestService_CreatesDatabase(t *testing.T) {
 	}
 
 	// ready status should not have been switched due to meta client error.
-	s.Service.mu.RLock()
-	ready = s.Service.ready
-	s.Service.mu.RUnlock()
+	ready = s.Service.Ready()
 
 	if got, exp := ready, true; got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
@@ -249,14 +247,14 @@ func TestService_HTTP(t *testing.T) {
 }
 
 type TestService struct {
-	Service       *Service
+	Service       *opentsdb.Service
 	MetaClient    *internal.MetaClientMock
 	WritePointsFn func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error
 }
 
 // NewTestService returns a new instance of Service.
 func NewTestService(database string, bind string) *TestService {
-	s, err := NewService(Config{
+	s, err := opentsdb.NewService(opentsdb.Config{
 		BindAddress:      bind,
 		Database:         database,
 		ConsistencyLevel: "one",

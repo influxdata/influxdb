@@ -1,4 +1,4 @@
-package graphite
+package graphite_test
 
 import (
 	"errors"
@@ -11,6 +11,7 @@ import (
 
 	"github.com/influxdata/influxdb/internal"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/services/graphite"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/toml"
 	"github.com/uber-go/zap"
@@ -19,7 +20,7 @@ import (
 func Test_Service_OpenClose(t *testing.T) {
 	// Let the OS assign a random port since we are only opening and closing the service,
 	// not actually connecting to it.
-	c := Config{BindAddress: "127.0.0.1:0"}
+	c := graphite.Config{BindAddress: "127.0.0.1:0"}
 	service := NewTestService(&c)
 
 	// Closing a closed service is fine.
@@ -59,15 +60,16 @@ func Test_Service_OpenClose(t *testing.T) {
 func TestService_CreatesDatabase(t *testing.T) {
 	t.Parallel()
 
-	s := NewTestService(nil)
+	config := graphite.NewConfig()
+	s := NewTestService(&config)
 	s.WritePointsFn = func(string, string, models.ConsistencyLevel, []models.Point) error {
 		return nil
 	}
 
 	called := make(chan struct{})
 	s.MetaClient.CreateDatabaseWithRetentionPolicyFn = func(name string, _ *meta.RetentionPolicySpec) (*meta.DatabaseInfo, error) {
-		if name != s.Service.database {
-			t.Errorf("\n\texp = %s\n\tgot = %s\n", s.Service.database, name)
+		if name != config.Database {
+			t.Errorf("\n\texp = %s\n\tgot = %s\n", config.Database, name)
 		}
 		// Allow some time for the caller to return and the ready status to
 		// be set.
@@ -84,8 +86,9 @@ func TestService_CreatesDatabase(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	s.Service.batcher.In() <- points[0] // Send a point.
-	s.Service.batcher.Flush()
+	batcher := s.Service.Batcher()
+	batcher.In() <- points[0] // Send a point.
+	batcher.Flush()
 	select {
 	case <-called:
 		// OK
@@ -94,9 +97,7 @@ func TestService_CreatesDatabase(t *testing.T) {
 	}
 
 	// ready status should not have been switched due to meta client error.
-	s.Service.mu.RLock()
-	ready := s.Service.ready
-	s.Service.mu.RUnlock()
+	ready := s.Service.Ready()
 
 	if got, exp := ready, false; got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
@@ -110,8 +111,8 @@ func TestService_CreatesDatabase(t *testing.T) {
 		return nil, nil
 	}
 
-	s.Service.batcher.In() <- points[0] // Send a point.
-	s.Service.batcher.Flush()
+	batcher.In() <- points[0] // Send a point.
+	batcher.Flush()
 	select {
 	case <-called:
 		// OK
@@ -120,9 +121,7 @@ func TestService_CreatesDatabase(t *testing.T) {
 	}
 
 	// ready status should now be true.
-	s.Service.mu.RLock()
-	ready = s.Service.ready
-	s.Service.mu.RUnlock()
+	ready = s.Service.Ready()
 
 	if got, exp := ready, true; got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
@@ -136,7 +135,7 @@ func Test_Service_TCP(t *testing.T) {
 
 	now := time.Now().UTC().Round(time.Second)
 
-	config := Config{}
+	config := graphite.Config{}
 	config.Database = "graphitedb"
 	config.BatchSize = 0 // No batching.
 	config.BatchTimeout = toml.Duration(time.Second)
@@ -199,7 +198,7 @@ func Test_Service_UDP(t *testing.T) {
 
 	now := time.Now().UTC().Round(time.Second)
 
-	config := Config{}
+	config := graphite.Config{}
 	config.Database = "graphitedb"
 	config.BatchSize = 0 // No batching.
 	config.BatchTimeout = toml.Duration(time.Second)
@@ -253,18 +252,18 @@ func Test_Service_UDP(t *testing.T) {
 }
 
 type TestService struct {
-	Service       *Service
+	Service       *graphite.Service
 	MetaClient    *internal.MetaClientMock
 	WritePointsFn func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error
 }
 
-func NewTestService(c *Config) *TestService {
+func NewTestService(c *graphite.Config) *TestService {
 	if c == nil {
-		defaultC := NewConfig()
+		defaultC := graphite.NewConfig()
 		c = &defaultC
 	}
 
-	gservice, err := NewService(*c)
+	gservice, err := graphite.NewService(*c)
 	if err != nil {
 		panic(err)
 	}
