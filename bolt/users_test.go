@@ -168,7 +168,7 @@ func TestUsersStore_Update(t *testing.T) {
 		roles    []chronograf.Role
 		provider string
 		scheme   string
-		// TODO: add name
+		name     string
 	}
 	tests := []struct {
 		name     string
@@ -224,9 +224,10 @@ func TestUsersStore_Update(t *testing.T) {
 				},
 				provider: "Google",
 				scheme:   "LDAP",
+				name:     "billietta",
 			},
 			want: &chronograf.User{
-				Name:     "bobetta",
+				Name:     "billietta",
 				Provider: "Google",
 				Scheme:   "LDAP",
 			},
@@ -261,6 +262,10 @@ func TestUsersStore_Update(t *testing.T) {
 
 		if tt.args.scheme != "" {
 			tt.args.usr.Scheme = tt.args.scheme
+		}
+
+		if tt.args.name != "" {
+			tt.args.usr.Name = tt.args.name
 		}
 
 		if err := s.Update(tt.args.ctx, tt.args.usr); (err != nil) != tt.wantErr {
