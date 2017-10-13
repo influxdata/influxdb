@@ -13,7 +13,7 @@ import Header from '../containers/Header'
 import ResizeContainer from 'shared/components/ResizeContainer'
 import OverlayTechnologies from 'shared/components/OverlayTechnologies'
 
-import {VIS_VIEWS} from 'shared/constants'
+import {VIS_VIEWS, INITIAL_GROUP_BY_TIME} from 'shared/constants'
 import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from '../constants'
 import {errorThrown} from 'shared/actions/errors'
 import {setAutoRefresh} from 'shared/actions/app'
@@ -114,6 +114,7 @@ class DataExplorer extends Component {
             actions={queryConfigActions}
             timeRange={timeRange}
             activeQuery={this.getActiveQuery()}
+            initialGroupByTime={INITIAL_GROUP_BY_TIME}
           />
           <Visualization
             isInDataExplorer={true}

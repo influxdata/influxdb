@@ -21,6 +21,7 @@ import {
 } from 'src/dashboards/constants'
 import {OVERLAY_TECHNOLOGY} from 'shared/constants/classNames'
 import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from 'src/data_explorer/constants'
+import {AUTO_GROUP_BY} from 'shared/constants'
 
 class CellEditorOverlay extends Component {
   constructor(props) {
@@ -368,6 +369,7 @@ class CellEditorOverlay extends Component {
                   activeQueryIndex={activeQueryIndex}
                   activeQuery={this.getActiveQuery()}
                   setActiveQueryIndex={this.handleSetActiveQueryIndex}
+                  initialGroupByTime={AUTO_GROUP_BY}
                 />}
           </CEOBottom>
         </ResizeContainer>

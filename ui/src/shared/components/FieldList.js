@@ -98,12 +98,17 @@ class FieldList extends Component {
   }
 
   handleToggleField = field => {
-    const {addInitialField, onToggleField, query} = this.props
+    const {
+      addInitialField,
+      onToggleField,
+      query,
+      initialGroupByTime: time,
+    } = this.props
     const {fields, groupBy} = query
-    const defaultGroupBy = {...groupBy, time: '10s'}
+    const initialGroupBy = {...groupBy, time}
 
     if (_.size(fields)) {
-      addInitialField(field, defaultGroupBy)
+      addInitialField(field, initialGroupBy)
     }
 
     onToggleField(field)
@@ -210,6 +215,7 @@ FieldList.propTypes = {
   }),
   removeFuncs: func.isRequired,
   addInitialField: func.isRequired,
+  initialGroupByTime: string.isRequired,
 }
 
 export default FieldList

@@ -7,7 +7,13 @@ import {buildRawText} from 'utils/influxql'
 const rawTextBinder = (links, id, action) => text =>
   action(links.queries, id, text)
 
-const QueryMaker = ({source, actions, timeRange, activeQuery}) =>
+const QueryMaker = ({
+  source,
+  actions,
+  timeRange,
+  activeQuery,
+  initialGroupByTime,
+}) =>
   <div className="query-maker query-maker--panel">
     <div className="query-maker--tab-contents">
       <QueryEditor
@@ -19,7 +25,11 @@ const QueryMaker = ({source, actions, timeRange, activeQuery}) =>
           actions.editRawTextAsync
         )}
       />
-      <SchemaExplorer query={activeQuery} actions={actions} />
+      <SchemaExplorer
+        initialGroupByTime={initialGroupByTime}
+        query={activeQuery}
+        actions={actions}
+      />
     </div>
   </div>
 
@@ -48,6 +58,7 @@ QueryMaker.propTypes = {
     editRawTextAsync: func.isRequired,
   }).isRequired,
   activeQuery: shape({}),
+  initialGroupByTime: string.isRequired,
 }
 
 export default QueryMaker

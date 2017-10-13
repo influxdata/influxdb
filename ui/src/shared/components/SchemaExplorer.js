@@ -11,6 +11,7 @@ const SchemaExplorer = ({
   query,
   query: {id},
   source,
+  initialGroupByTime,
   actions: {
     fill,
     chooseTag,
@@ -44,6 +45,7 @@ const SchemaExplorer = ({
       source={source}
       query={query}
       querySource={source}
+      initialGroupByTime={initialGroupByTime}
       onToggleField={actionBinder(id, toggleField)}
       onFill={actionBinder(id, fill)}
       onGroupByTime={actionBinder(id, groupByTime)}
@@ -72,6 +74,7 @@ SchemaExplorer.propTypes = {
     editRawTextAsync: func.isRequired,
   }).isRequired,
   source: shape({}),
+  initialGroupByTime: string.isRequired,
 }
 
 export default SchemaExplorer
