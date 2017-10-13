@@ -1488,25 +1488,17 @@ func (c *cacheKeyIterator) encode() {
 					minTime, maxTime := values[0].UnixNano(), values[end-1].UnixNano()
 					var b []byte
 					var err error
-					tenc.Reset()
-
-					maxTime = values[end-1].UnixNano()
 
 					switch values[0].(type) {
 					case FloatValue:
-						fenc.Reset()
 						b, err = encodeFloatBlockUsing(nil, values[:end], tenc, fenc)
 					case IntegerValue:
-						ienc.Reset()
 						b, err = encodeIntegerBlockUsing(nil, values[:end], tenc, ienc)
 					case UnsignedValue:
-						uenc.Reset()
 						b, err = encodeUnsignedBlockUsing(nil, values[:end], tenc, uenc)
 					case BooleanValue:
-						benc.Reset()
 						b, err = encodeBooleanBlockUsing(nil, values[:end], tenc, benc)
 					case StringValue:
-						senc.Reset()
 						b, err = encodeStringBlockUsing(nil, values[:end], tenc, senc)
 					default:
 						b, err = Values(values[:end]).Encode(nil)
