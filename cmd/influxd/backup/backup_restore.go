@@ -1,4 +1,4 @@
-// Package backup is the backup subcommand for the influxd command.
+// Package backup implements both the backup and export subcommands for the influxd command.
 package backup
 
 import (
@@ -8,7 +8,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -91,17 +90,10 @@ func (cmd *Command) Run(op string, args ...string) error {
 		}
 
 		if err != nil {
-			cmd.StderrLogger.Printf("backup failed: %v", err)
+			cmd.StderrLogger.Printf("%s failed: %v", op, err)
 			return err
 		}
-		cmd.StdoutLogger.Println("backup complete")
-	} else {
-		cmd.StdoutLogger.Printf("EXPORT: db=%s tsStart=%s tsEnd=%s",
-			cmd.database, cmd.start, cmd.end)
-		if err := cmd.extractDatabase(); err != nil {
-			cmd.StderrLogger.Printf("export failed: %s", err)
-		}
-		cmd.StdoutLogger.Println("export complete")
+		cmd.StdoutLogger.Printf("%s complete", op)
 	}
 
 	return nil
@@ -127,38 +119,38 @@ func (cmd *Command) parseFlags(args []string) (err error) {
 
 	err = fs.Parse(args)
 	if err != nil {
-		return
+		return err
 	}
 
 	if sinceArg != "" {
 		cmd.since, err = time.Parse(time.RFC3339, sinceArg)
 		if err != nil {
-			return
+			return err
 		}
 	}
 	if startArg != "" {
 		cmd.start, err = time.Parse(time.RFC3339, startArg)
 		if err != nil {
-			return
+			return err
 		}
 	}
 
 	if endArg != "" {
 		cmd.end, err = time.Parse(time.RFC3339, endArg)
 		if err != nil {
-			return
+			return err
 		}
 	}
 
 	// Ensure that only one arg is specified.
 	if fs.NArg() != 1 {
-		return errors.New("exactly one backup path allowed")
+		return errors.New("Exactly one backup path is required.")
 	}
 	cmd.path = fs.Arg(0)
 
 	err = os.MkdirAll(cmd.path, 0700)
 
-	return
+	return err
 }
 
 func (cmd *Command) extractShard(rp, sid string) error {
@@ -225,8 +217,8 @@ func (cmd *Command) exportShard(rp, sid string) error {
 	return cmd.downloadAndVerify(req, shardArchivePath, nil)
 }
 
-// backupDatabase will request the database information from the server and then backup the metastore and
-// every shard in every retention policy in the database. Each shard will be written to a separate tar.
+// extractDatabase will request the database information from the server and then extract
+// every shard in every retention policy in the database. Each shard will be written to a separate file.
 func (cmd *Command) extractDatabase() error {
 	cmd.StdoutLogger.Printf("extracting db=%s", cmd.database)
 
@@ -243,8 +235,8 @@ func (cmd *Command) extractDatabase() error {
 	return cmd.extractResponsePaths(response)
 }
 
-// extractRetentionPolicy will request the retention policy information from the server and then backup
-// the metastore and every shard in the retention policy. Each shard will be written to a separate tar.
+// extractRetentionPolicy will request the retention policy information from the server and then extract
+// every shard in the retention policy. Each shard will be written to a separate file.
 func (cmd *Command) extractRetentionPolicy() error {
 	cmd.StdoutLogger.Printf("backing up rp=%s since %s", cmd.retentionPolicy, cmd.since)
 
@@ -262,7 +254,7 @@ func (cmd *Command) extractRetentionPolicy() error {
 	return cmd.extractResponsePaths(response)
 }
 
-// backupResponsePaths will backup the metastore and all shard paths in the response struct
+// extractResponsePaths will extract all shards identified by shard paths in the response struct
 func (cmd *Command) extractResponsePaths(response *snapshotter.Response) error {
 
 	// loop through the returned paths and back up each shard
@@ -283,8 +275,7 @@ func (cmd *Command) extractResponsePaths(response *snapshotter.Response) error {
 	return nil
 }
 
-// backupMetastore will backup the metastore on the host to the passed in path. Database and retention policy backups
-// will force a backup of the metastore as well as requesting a specific shard backup from the command line
+// extractMetastore will backup the whole metastore on the host to the passed in path.
 func (cmd *Command) extractMetastore() error {
 	metastoreArchivePath, err := cmd.nextPath(filepath.Join(cmd.path, Metafile))
 	if err != nil {
@@ -298,12 +289,22 @@ func (cmd *Command) extractMetastore() error {
 	}
 
 	return cmd.downloadAndVerify(req, metastoreArchivePath, func(file string) error {
-		binData, err := ioutil.ReadFile(file)
+		f, err := os.Open(file)
 		if err != nil {
 			return err
 		}
 
-		magic := binary.BigEndian.Uint64(binData[:8])
+		magicByte := make([]byte, 8)
+		n, err := f.Read(magicByte)
+		if err != nil {
+			return err
+		}
+
+		if n < 8 {
+			return errors.New("Not enough bytes data to verify")
+		}
+
+		magic := binary.BigEndian.Uint64(magicByte)
 		if magic != snapshotter.BackupMagicHeader {
 			cmd.StderrLogger.Println("Invalid metadata blob, ensure the metadata service is running (default port 8088)")
 			return errors.New("invalid metadata received")
