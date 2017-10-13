@@ -29,6 +29,7 @@ describe('resultsToCSV', () => {
     ]
     const response = resultsToCSV(results)
     const expected = {
+      flag: 'ok',
       name: 'procstat',
       CSVString: `date,mean_cpu_usage\n${formatDate(
         1505262600000
@@ -38,9 +39,9 @@ describe('resultsToCSV', () => {
     }
     expect(response).to.have.all.keys('flag', 'name', 'CSVString')
     expect(response.flag).to.be.a('string')
-    expect(response.name).to.equal('ok')
     expect(response.name).to.be.a('string')
     expect(response.CSVString).to.be.a('string')
+    expect(response.flag).to.equal(expected.flag)
     expect(response.name).to.equal(expected.name)
     expect(response.CSVString).to.equal(expected.CSVString)
   })
