@@ -11,11 +11,11 @@ import (
 )
 
 type userRequest struct {
-	ID       uint64            `json:"id,string"`
-	Name     string            `json:"name"`
-	Provider string            `json:"provider"`
-	Scheme   string            `json:"scheme"`
-	Roles    []chronograf.Role `json:"roles"`
+	ID       uint64   `json:"id,string"`
+	Name     string   `json:"name"`
+	Provider string   `json:"provider"`
+	Scheme   string   `json:"scheme"`
+	Roles    []string `json:"roles"`
 }
 
 func (r *userRequest) ValidCreate() error {
@@ -28,7 +28,7 @@ func (r *userRequest) ValidCreate() error {
 	if r.Scheme == "" {
 		return fmt.Errorf("Scheme required on Chronograf User request body")
 	}
-	return nil
+	return r.ValidRoles()
 }
 
 // TODO: Provide detailed error message
@@ -37,29 +37,53 @@ func (r *userRequest) ValidUpdate() error {
 	if r.Name == "" && r.Provider == "" && r.Scheme == "" && r.Roles == nil {
 		return fmt.Errorf("No fields to update")
 	}
+	return r.ValidRoles()
+}
+
+func (r *userRequest) ValidRoles() error {
+	if r.Roles != nil && len(r.Roles) > 0 {
+		for _, r := range r.Roles {
+			if r != chronograf.ViewerRole && r != chronograf.EditorRole && r != chronograf.AdminRole {
+				return fmt.Errorf("Invalid role assignment '%s' on Chronograf User request body", r)
+			}
+		}
+	}
 	return nil
 }
 
 type userResponse struct {
-	Links    selfLinks         `json:"links"`
-	ID       uint64            `json:"id,string"`
-	Name     string            `json:"name"`
-	Provider string            `json:"provider"`
-	Scheme   string            `json:"scheme"`
-	Roles    []chronograf.Role `json:"roles"`
+	Links    selfLinks `json:"links"`
+	ID       uint64    `json:"id,string"`
+	Name     string    `json:"name"`
+	Provider string    `json:"provider"`
+	Scheme   string    `json:"scheme"`
+	Roles    []string  `json:"roles"`
 }
 
 func newUserResponse(u *chronograf.User) *userResponse {
+	roles := make([]string, len(u.Roles))
+	for i, r := range u.Roles {
+		roles[i] = r.Name
+	}
 	return &userResponse{
 		ID:       u.ID,
 		Name:     u.Name,
 		Provider: u.Provider,
 		Scheme:   u.Scheme,
-		Roles:    u.Roles,
+		Roles:    roles,
 		Links: selfLinks{
 			Self: fmt.Sprintf("/chronograf/v1/users/%d", u.ID),
 		},
 	}
+}
+
+// ExplicatedRoles fills out a set of roles to include its members explicitly
+func ExplicatedRoles(reqRoles []string) []chronograf.Role {
+	roles := make([]chronograf.Role, len(reqRoles))
+	for i, r := range reqRoles {
+		roles[i] = chronograf.DefaultUserRoles[r]
+	}
+	return roles
 }
 
 type usersResponse struct {
@@ -116,6 +140,7 @@ func (s *Service) NewUser(w http.ResponseWriter, r *http.Request) {
 		Name:     req.Name,
 		Provider: req.Provider,
 		Scheme:   req.Scheme,
+		Roles:    ExplicatedRoles(req.Roles),
 	}
 
 	res, err := s.UsersStore.Add(ctx, user)
@@ -176,7 +201,7 @@ func (s *Service) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		u.Scheme = req.Scheme
 	}
 	if req.Roles != nil {
-		u.Roles = req.Roles
+		u.Roles = ExplicatedRoles(req.Roles)
 	}
 
 	err = s.UsersStore.Update(ctx, u)

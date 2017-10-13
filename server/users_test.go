@@ -68,7 +68,7 @@ func TestService_UserID(t *testing.T) {
 			id:              "1337",
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"id":"1337","name":"billysteve","provider":"Google","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1337"},"roles":[{"name":"Viewer","permissions":[{"scope":"dashboards","name":"Read Dashboards","allowed":["read"]},{"scope":"sources","name":"Read Sources","allowed":["read"]},{"scope":"rules","name":"Read Rules","allowed":["read"]}]}]}`,
+			wantBody:        `{"id":"1337","name":"billysteve","provider":"Google","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1337"},"roles":["Viewer"]}`,
 		},
 	}
 
@@ -115,7 +115,7 @@ func TestService_NewUser(t *testing.T) {
 	type args struct {
 		w    *httptest.ResponseRecorder
 		r    *http.Request
-		user chronograf.User
+		user *userRequest
 	}
 	tests := []struct {
 		name            string
@@ -134,7 +134,7 @@ func TestService_NewUser(t *testing.T) {
 					"http://any.url",
 					nil,
 				),
-				user: chronograf.User{
+				user: &userRequest{
 					Name:     "bob",
 					Provider: "GitHub",
 					Scheme:   "OAuth2",
@@ -149,13 +149,14 @@ func TestService_NewUser(t *testing.T) {
 							Name:     "bob",
 							Provider: "GitHub",
 							Scheme:   "OAuth2",
+							Roles:    []chronograf.Role{},
 						}, nil
 					},
 				},
 			},
 			wantStatus:      http.StatusCreated,
 			wantContentType: "application/json",
-			wantBody:        `{"id":"1338","name":"bob","provider":"GitHub","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1338"},"roles":null}`,
+			wantBody:        `{"id":"1338","name":"bob","provider":"GitHub","scheme":"OAuth2","roles":[],"links":{"self":"/chronograf/v1/users/1338"}}`,
 		},
 	}
 
@@ -196,7 +197,7 @@ func TestService_RemoveUser(t *testing.T) {
 	type args struct {
 		w    *httptest.ResponseRecorder
 		r    *http.Request
-		user chronograf.User
+		user *userRequest
 	}
 	tests := []struct {
 		name       string
@@ -236,7 +237,7 @@ func TestService_RemoveUser(t *testing.T) {
 					"http://any.url",
 					nil,
 				),
-				user: chronograf.User{
+				user: &userRequest{
 					ID:       1339,
 					Name:     "helena",
 					Provider: "Heroku",
@@ -283,7 +284,7 @@ func TestService_UpdateUser(t *testing.T) {
 	type args struct {
 		w    *httptest.ResponseRecorder
 		r    *http.Request
-		user *chronograf.User
+		user *userRequest
 	}
 	tests := []struct {
 		name            string
@@ -327,12 +328,12 @@ func TestService_UpdateUser(t *testing.T) {
 					"http://any.url",
 					nil,
 				),
-				user: &chronograf.User{
+				user: &userRequest{
 					ID:       1336,
 					Name:     "bobbetta",
 					Provider: "Google",
 					Scheme:   "OAuth2",
-					Roles: []chronograf.Role{
+					Roles: []string{
 						chronograf.AdminRole,
 					},
 				},
@@ -340,9 +341,8 @@ func TestService_UpdateUser(t *testing.T) {
 			id:              "1336",
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"id":"1336","name":"bobbetta","provider":"Google","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1336"},"roles":[{"name":"Admin","permissions":[{"scope":"dashboards","name":"Read Dashboards","allowed":["read"]},{"scope":"sources","name":"Read Sources","allowed":["read"]},{"scope":"rules","name":"Read Rules","allowed":["read"]},{"scope":"users","name":"Read Users","allowed":["read"]},{"scope":"dashboards","name":"Write Dashboards","allowed":["write"]},{"scope":"sources","name":"Write Sources","allowed":["write"]},{"scope":"rules","name":"Write Rules","allowed":["write"]},{"scope":"users","name":"Write Users","allowed":["write"]}]}]}`,
+			wantBody:        `{"id":"1336","name":"bobbetta","provider":"Google","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1336"},"roles":["Admin"]}`,
 		},
-
 		{
 			name: "Update only one field of a Chronograf user",
 			fields: fields{
@@ -373,7 +373,7 @@ func TestService_UpdateUser(t *testing.T) {
 					"http://any.url",
 					nil,
 				),
-				user: &chronograf.User{
+				user: &userRequest{
 					ID:   1336,
 					Name: "burnetta",
 				},
@@ -381,7 +381,7 @@ func TestService_UpdateUser(t *testing.T) {
 			id:              "1336",
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"id":"1336","name":"burnetta","provider":"GitHub","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1336"},"roles":null}`,
+			wantBody:        `{"id":"1336","name":"burnetta","provider":"GitHub","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1336"},"roles":[]}`,
 		},
 	}
 	for _, tt := range tests {
@@ -473,7 +473,7 @@ func TestService_Users(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"users":[{"id":"1337","name":"billysteve","provider":"Google","scheme":"OAuth2","roles":[{"name":"Editor","permissions":[{"scope":"dashboards","name":"Read Dashboards","allowed":["read"]},{"scope":"sources","name":"Read Sources","allowed":["read"]},{"scope":"rules","name":"Read Rules","allowed":["read"]},{"scope":"dashboards","name":"Write Dashboards","allowed":["write"]},{"scope":"sources","name":"Write Sources","allowed":["write"]},{"scope":"rules","name":"Write Rules","allowed":["write"]}]}],"links":{"self":"/chronograf/v1/users/1337"}},{"id":"1338","name":"bobbettastuhvetta","provider":"Auth0","scheme":"LDAP","roles":null,"links":{"self":"/chronograf/v1/users/1338"}}],"links":{"self":"/chronograf/v1/users"}}`,
+			wantBody:        `{"users":[{"id":"1337","name":"billysteve","provider":"Google","scheme":"OAuth2","roles":["Editor"],"links":{"self":"/chronograf/v1/users/1337"}},{"id":"1338","name":"bobbettastuhvetta","provider":"Auth0","scheme":"LDAP","roles":[],"links":{"self":"/chronograf/v1/users/1338"}}],"links":{"self":"/chronograf/v1/users"}}`,
 		},
 		{
 			name: "Get all Chronograf users, ensuring order of users in response",
@@ -511,7 +511,7 @@ func TestService_Users(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"users":[{"id":"1337","name":"billysteve","provider":"Google","scheme":"OAuth2","roles":[{"name":"Editor","permissions":[{"scope":"dashboards","name":"Read Dashboards","allowed":["read"]},{"scope":"sources","name":"Read Sources","allowed":["read"]},{"scope":"rules","name":"Read Rules","allowed":["read"]},{"scope":"dashboards","name":"Write Dashboards","allowed":["write"]},{"scope":"sources","name":"Write Sources","allowed":["write"]},{"scope":"rules","name":"Write Rules","allowed":["write"]}]}],"links":{"self":"/chronograf/v1/users/1337"}},{"id":"1338","name":"bobbettastuhvetta","provider":"Auth0","scheme":"LDAP","roles":null,"links":{"self":"/chronograf/v1/users/1338"}}],"links":{"self":"/chronograf/v1/users"}}`,
+			wantBody:        `{"users":[{"id":"1337","name":"billysteve","provider":"Google","scheme":"OAuth2","roles":["Editor"],"links":{"self":"/chronograf/v1/users/1337"}},{"id":"1338","name":"bobbettastuhvetta","provider":"Auth0","scheme":"LDAP","roles":[],"links":{"self":"/chronograf/v1/users/1338"}}],"links":{"self":"/chronograf/v1/users"}}`,
 		},
 	}
 
