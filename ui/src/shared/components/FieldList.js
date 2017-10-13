@@ -70,12 +70,15 @@ class FieldList extends Component {
       onToggleField,
       addInitialField,
       initialGroupByTime: time,
+      isKapacitorRule,
     } = this.props
     const {fields, groupBy} = query
     const initialGroupBy = {...groupBy, time}
 
     if (!_.size(fields)) {
-      return addInitialField(field, initialGroupBy)
+      return isKapacitorRule
+        ? onToggleField(field)
+        : addInitialField(field, initialGroupBy)
     }
 
     onToggleField(field)
@@ -83,8 +86,8 @@ class FieldList extends Component {
 
   handleApplyFuncs = fieldFunc => {
     const {
-      removeFuncs,
       query,
+      removeFuncs,
       applyFuncsToField,
       initialGroupByTime: time,
     } = this.props
@@ -196,6 +199,7 @@ const {bool, func, shape, string} = PropTypes
 
 FieldList.defaultProps = {
   isKapacitorRule: false,
+  initialGroupByTime: null,
 }
 
 FieldList.contextTypes = {
@@ -224,8 +228,8 @@ FieldList.propTypes = {
     }).isRequired,
   }),
   removeFuncs: func.isRequired,
-  addInitialField: func.isRequired,
-  initialGroupByTime: string.isRequired,
+  addInitialField: func,
+  initialGroupByTime: string,
 }
 
 export default FieldList

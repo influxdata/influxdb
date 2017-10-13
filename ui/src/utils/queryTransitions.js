@@ -27,10 +27,21 @@ export const chooseMeasurement = (
   measurement,
 })
 
-export const toggleKapaField = (query, {name}) => {
+export const toggleKapaField = (query, field) => {
+  if (field.type === 'field') {
+    return {
+      ...query,
+      fields: [field],
+      groupBy: {
+        ...query.groupBy,
+        time: null,
+      },
+    }
+  }
+
   return {
     ...query,
-    fields: [{name, type: 'field'}],
+    fields: [field],
   }
 }
 
@@ -52,7 +63,7 @@ export const addInitialField = (query, field, groupBy) => {
 }
 
 export const toggleField = (query, {name}) => {
-  const {fields, groupBy} = query
+  const {fields = [], groupBy} = query
   const isSelected = hasField(name, fields)
   const newFuncs = fields.filter(f => f.type === 'func')
 
@@ -96,20 +107,6 @@ export const toggleField = (query, {name}) => {
     fields: [...fields, defaultField],
   }
 }
-
-/*
-// all fields implicitly have a function applied to them, so consequently
-// we need to set the auto group by time
-export const toggleFieldWithGroupByInterval = (
-  query,
-  fieldFunc,
-  isKapacitorRule
-) => {
-
-  const queryWithField = toggleField(query, fieldFunc, isKapacitorRule)
-  return groupByTime(queryWithField, DEFAULT_DASHBOARD_GROUP_BY_INTERVAL)
-}
-*/
 
 export function groupByTime(query, time) {
   return Object.assign({}, query, {

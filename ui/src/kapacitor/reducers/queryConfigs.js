@@ -6,6 +6,7 @@ import {
   chooseTag,
   groupByTag,
   groupByTime,
+  removeFuncs,
   toggleKapaField,
   toggleTagAcceptance,
 } from 'src/utils/queryTransitions'
@@ -98,9 +99,10 @@ const queryConfigs = (state = {}, action) => {
 
     case 'KAPA_APPLY_FUNCS_TO_FIELD': {
       const {queryId, fieldFunc} = action.payload
+      const {groupBy} = state[queryId]
       const nextQueryConfig = applyFuncsToField(state[queryId], fieldFunc, {
-        preventAutoGroupBy: true,
-        isKapacitorRule: true,
+        ...groupBy,
+        time: groupBy.time ? groupBy.time : '10s',
       })
 
       return Object.assign({}, state, {
@@ -115,6 +117,14 @@ const queryConfigs = (state = {}, action) => {
       return Object.assign({}, state, {
         [queryId]: nextQueryConfig,
       })
+    }
+
+    case 'KAPA_REMOVE_FUNCS': {
+      const {queryID, fields} = action.payload
+      const nextQuery = removeFuncs(state[queryID], fields)
+
+      // fields with no functions cannot have a group by time
+      return {...state, [queryID]: nextQuery}
     }
   }
   return state

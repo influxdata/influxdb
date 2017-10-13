@@ -12,6 +12,7 @@ import {
   chooseNamespace,
   chooseMeasurement,
   applyFuncsToField,
+  addInitialField,
   updateQueryConfig,
   toggleTagAcceptance,
 } from 'src/data_explorer/actions/view'
@@ -81,7 +82,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
 
       state = reducer(
         three,
-        toggleField(queryId, {
+        addInitialField(queryId, {
           name: 'a great field',
           type: 'field',
         })
@@ -176,10 +177,6 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
         )
 
         expect(newState[queryId].fields.length).to.equal(1)
-        expect(newState[queryId].fields[0].alias).to.equal('mean_fk1')
-        expect(newState[queryId].fields[0].args).to.deep.equal([
-          {name: 'fk1', type: 'field'},
-        ])
       })
     })
   })
