@@ -56,6 +56,7 @@ QueryMaker.propTypes = {
     toggleTagAcceptance: func.isRequired,
     applyFuncsToField: func.isRequired,
     editRawTextAsync: func.isRequired,
+    addInitialField: func.isRequired,
   }).isRequired,
   activeQuery: shape({}),
   initialGroupByTime: string.isRequired,

@@ -107,8 +107,8 @@ class FieldList extends Component {
     const {fields, groupBy} = query
     const initialGroupBy = {...groupBy, time}
 
-    if (_.size(fields)) {
-      addInitialField(field, initialGroupBy)
+    if (!_.size(fields)) {
+      return addInitialField(field, initialGroupBy)
     }
 
     onToggleField(field)

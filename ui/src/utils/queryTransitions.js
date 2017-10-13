@@ -53,21 +53,6 @@ export const addInitialField = (query, field, groupBy) => {
 
 export const toggleField = (query, {name}) => {
   const {fields, groupBy} = query
-  const defaultField = {
-    type: 'func',
-    alias: `mean_${name}`,
-    args: [{name, type: 'field'}],
-    name: 'mean',
-  }
-
-  if (!fields || !fields.length) {
-    return {
-      ...query,
-      fields: [defaultField],
-      groupBy: {...query.groupBy, time: '10s'},
-    }
-  }
-
   const isSelected = hasField(name, fields)
   const newFuncs = fields.filter(f => f.type === 'func')
 
@@ -97,6 +82,13 @@ export const toggleField = (query, {name}) => {
       ...query,
       fields: [...fields, {name, type: 'field'}],
     }
+  }
+
+  const defaultField = {
+    type: 'func',
+    alias: `mean_${name}`,
+    args: [{name, type: 'field'}],
+    name: 'mean',
   }
 
   return {
@@ -137,7 +129,7 @@ export function toggleTagAcceptance(query) {
 
 export const removeFuncs = fields => getFieldsDeep(fields)
 
-export const applyFuncsToField = (query, {field, funcs = []}, time) => {
+export const applyFuncsToField = (query, {field, funcs = []}) => {
   const nextFields = query.fields.reduce((acc, f) => {
     // If there is a func applied to only one field, add it to the other fields
     if (f.type === 'field') {
@@ -189,7 +181,6 @@ export const applyFuncsToField = (query, {field, funcs = []}, time) => {
   return {
     ...query,
     fields: _.flatten(nextFields),
-    groupBy: {...query.groupBy, time},
   }
 }
 

@@ -63,11 +63,11 @@ class CellEditorOverlay extends Component {
     }
   }
 
-  queryStateReducer = queryModifier => (queryID, payload) => {
+  queryStateReducer = queryModifier => (queryID, ...payload) => {
     const {queriesWorkingDraft} = this.state
     const query = queriesWorkingDraft.find(q => q.id === queryID)
 
-    const nextQuery = queryModifier(query, payload)
+    const nextQuery = queryModifier(query, ...payload)
 
     const nextQueries = queriesWorkingDraft.map(
       q =>

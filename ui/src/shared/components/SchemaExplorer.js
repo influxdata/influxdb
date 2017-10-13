@@ -4,8 +4,7 @@ import DatabaseList from 'src/shared/components/DatabaseList'
 import MeasurementList from 'src/shared/components/MeasurementList'
 import FieldList from 'src/shared/components/FieldList'
 
-const actionBinder = (id, action) => (item, ...args) =>
-  action(id, item, ...args)
+const actionBinder = (id, action) => (...args) => action(id, ...args)
 
 const SchemaExplorer = ({
   query,
@@ -72,6 +71,7 @@ SchemaExplorer.propTypes = {
     toggleTagAcceptance: func.isRequired,
     fill: func.isRequired,
     editRawTextAsync: func.isRequired,
+    addInitialField: func.isRequired,
   }).isRequired,
   source: shape({}),
   initialGroupByTime: string.isRequired,

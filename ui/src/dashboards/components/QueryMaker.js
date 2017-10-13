@@ -22,8 +22,8 @@ const QueryMaker = ({
   onAddQuery,
   activeQuery,
   onDeleteQuery,
-  initialGroupByTime,
   activeQueryIndex,
+  initialGroupByTime,
   setActiveQueryIndex,
 }) =>
   <div className="query-maker query-maker--panel">
@@ -83,6 +83,7 @@ QueryMaker.propTypes = {
     fill: func,
     applyFuncsToField: func.isRequired,
     editRawTextAsync: func.isRequired,
+    addInitialField: func.isRequired,
   }).isRequired,
   setActiveQueryIndex: func.isRequired,
   onDeleteQuery: func.isRequired,

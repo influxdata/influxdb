@@ -129,6 +129,15 @@ export const updateQueryConfig = config => ({
   },
 })
 
+export const addInitialField = (queryID, field, groupBy) => ({
+  type: 'DE_ADD_INITIAL_FIELD',
+  payload: {
+    queryID,
+    field,
+    groupBy,
+  },
+})
+
 export const editQueryStatus = (queryID, status) => ({
   type: 'DE_EDIT_QUERY_STATUS',
   payload: {
