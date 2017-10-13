@@ -51,6 +51,7 @@ const AutoRefresh = ComposedComponent => {
         }),
       }),
       editQueryStatus: func,
+      grabDataForDownload: func,
     },
 
     getInitialState() {
@@ -111,7 +112,7 @@ const AutoRefresh = ComposedComponent => {
     },
 
     executeQueries(queries, templates = []) {
-      const {editQueryStatus} = this.props
+      const {editQueryStatus, grabDataForDownload} = this.props
       const {resolution} = this.state
 
       if (!queries.length) {
@@ -150,12 +151,12 @@ const AutoRefresh = ComposedComponent => {
       Promise.all(timeSeriesPromises).then(timeSeries => {
         const newSeries = timeSeries.map(response => ({response}))
         const lastQuerySuccessful = !this._noResultsForQuery(newSeries)
-
         this.setState({
           timeSeries: newSeries,
           lastQuerySuccessful,
           isFetching: false,
         })
+        grabDataForDownload(timeSeries)
       })
     },
 

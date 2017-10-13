@@ -3,8 +3,6 @@ import _ from 'lodash'
 
 import LayoutCellMenu from 'shared/components/LayoutCellMenu'
 import LayoutCellHeader from 'shared/components/LayoutCellHeader'
-import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
-import {removeUnselectedTemplateValues} from 'src/dashboards/constants'
 import {errorThrown} from 'shared/actions/errors'
 import {dashboardtoCSV} from 'shared/parsing/resultsToCSV'
 import download from 'src/external/download.js'
@@ -14,6 +12,7 @@ class LayoutCell extends Component {
     super(props)
     this.state = {
       isDeleting: false,
+      celldata: [],
     }
   }
 
@@ -35,55 +34,32 @@ class LayoutCell extends Component {
     this.props.onSummonOverlayTechnologies(cell)
   }
 
+  grabDataForDownload = celldata => {
+    this.setState({celldata})
+  }
+
   handleCSVDownload = cell => () => {
-    const {queries, templates} = this.props
-    const joined_name = cell.name.split(' ').join('_')
-    const resolution = undefined // TODO
-
-    const timeSeriesPromises = queries.map(query => {
-      const {host, database, rp} = query
-      const templatesWithResolution = templates.map(temp => {
-        if (temp.tempVar === ':interval:') {
-          if (resolution) {
-            return {...temp, resolution}
-          }
-          return {...temp, resolution: 1000}
-        }
-        return {...temp}
-      })
-      return fetchTimeSeriesAsync({
-        source: host,
-        db: database,
-        rp,
-        query,
-        tempVars: removeUnselectedTemplateValues(templatesWithResolution),
-        resolution,
-      })
-    })
-
-    Promise.all(timeSeriesPromises).then(results => {
-      console.log(results)
-      const CSVString = dashboardtoCSV(results)
-      try {
-        download(CSVString, `${joined_name}.csv`, 'text/plain')
-      } catch (error) {
-        errorThrown(error, 'Unable to download .csv file')
-        console.error(error)
-      }
-    })
+    const joinedName = cell.name.split(' ').join('_')
+    const {celldata} = this.state
+    try {
+      download(dashboardtoCSV(celldata), `${joinedName}.csv`, 'text/plain')
+    } catch (error) {
+      errorThrown(error, 'Unable to download .csv file')
+      console.error(error)
+    }
   }
 
   render() {
     const {cell, children, isEditable} = this.props
 
-    const {isDeleting} = this.state
+    const {isDeleting, celldata} = this.state
     const queries = _.get(cell, ['queries'], [])
 
     return (
       <div className="dash-graph">
         <LayoutCellMenu
           cell={cell}
-          queriesExist={queries.length}
+          dataExists={celldata.length}
           isDeleting={isDeleting}
           isEditable={isEditable}
           onDelete={this.handleDeleteCell}
@@ -99,7 +75,13 @@ class LayoutCell extends Component {
         />
         <div className="dash-graph--container">
           {queries.length
-            ? children
+            ? React.Children.map(children, child => {
+                if (child && child.props && child.props.autoRefresh) {
+                  return React.cloneElement(child, {
+                    grabDataForDownload: this.grabDataForDownload,
+                  })
+                }
+              })
             : <div className="graph-empty">
                 <button
                   className="no-query--button btn btn-md btn-primary"

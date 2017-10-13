@@ -32,13 +32,13 @@ export const resultsToCSV = results => {
 
 export const dashboardtoCSV = data => {
   const columnNames = _.flatten(
-    data.map(r => _.get(r, 'results[0].series[0].columns')) // TODO default?
+    data.map(r => _.get(r, 'results[0].series[0].columns', []))
   )
   const timeIndices = columnNames
     .map((e, i) => (e === 'time' ? i : -1))
     .filter(e => e >= 0)
 
-  let values = data.map(r => _.get(r, 'results[0].series[0].values')) // TODO default?
+  let values = data.map(r => _.get(r, 'results[0].series[0].values', []))
   values = _.unzip(values).map(v => _.flatten(v))
   if (timeIndices) {
     values.map(v => {

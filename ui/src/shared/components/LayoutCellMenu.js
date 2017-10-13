@@ -8,7 +8,7 @@ const LayoutCellMenu = OnClickOutside(
     onDeleteClick,
     onDelete,
     onCSVDownload,
-    queriesExist,
+    dataExists,
     cell,
   }) =>
     <div
@@ -21,7 +21,7 @@ const LayoutCellMenu = OnClickOutside(
       <div className="dash-graph-context--button" onClick={onEdit(cell)}>
         <span className="icon pencil" />
       </div>
-      {queriesExist
+      {dataExists
         ? <div
             className="dash-graph-context--button"
             onClick={onCSVDownload(cell)}
@@ -53,7 +53,7 @@ const LayoutCellMenuContainer = props => {
   return <LayoutCellMenu {...props} />
 }
 
-const {bool, func, shape} = PropTypes
+const {bool, func, shape, number} = PropTypes
 
 LayoutCellMenuContainer.propTypes = {
   isDeleting: bool,
@@ -62,6 +62,7 @@ LayoutCellMenuContainer.propTypes = {
   onDeleteClick: func,
   cell: shape(),
   isEditable: bool,
+  dataExists: number,
 }
 
 LayoutCellMenu.propTypes = LayoutCellMenuContainer.propTypes
