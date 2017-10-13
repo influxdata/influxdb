@@ -55,6 +55,9 @@ func TestService_UserID(t *testing.T) {
 								Name:     "billysteve",
 								Provider: "Google",
 								Scheme:   "OAuth2",
+								Roles: []chronograf.Role{
+									chronograf.ViewerRole,
+								},
 							}, nil
 						default:
 							return nil, fmt.Errorf("User with ID %s not found", ID)
@@ -65,7 +68,7 @@ func TestService_UserID(t *testing.T) {
 			id:              "1337",
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"id":"1337","name":"billysteve","provider":"Google","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1337"}}`,
+			wantBody:        `{"id":"1337","name":"billysteve","provider":"Google","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1337"},"roles":[{"name":"Viewer","permissions":[{"scope":"dashboards","name":"Read Dashboards","allowed":["read"]},{"scope":"sources","name":"Read Sources","allowed":["read"]},{"scope":"rules","name":"Read Rules","allowed":["read"]}]}]}`,
 		},
 	}
 
@@ -152,7 +155,7 @@ func TestService_NewUser(t *testing.T) {
 			},
 			wantStatus:      http.StatusCreated,
 			wantContentType: "application/json",
-			wantBody:        `{"id":"1338","name":"bob","provider":"GitHub","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1338"}}`,
+			wantBody:        `{"id":"1338","name":"bob","provider":"GitHub","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1338"},"roles":null}`,
 		},
 	}
 
@@ -307,6 +310,9 @@ func TestService_UpdateUser(t *testing.T) {
 								Name:     "bobbetta2",
 								Provider: "GitHub",
 								Scheme:   "OAuth2",
+								Roles: []chronograf.Role{
+									chronograf.EditorRole,
+								},
 							}, nil
 						default:
 							return nil, fmt.Errorf("User with ID %s not found", ID)
@@ -326,12 +332,15 @@ func TestService_UpdateUser(t *testing.T) {
 					Name:     "bobbetta",
 					Provider: "Google",
 					Scheme:   "OAuth2",
+					Roles: []chronograf.Role{
+						chronograf.AdminRole,
+					},
 				},
 			},
 			id:              "1336",
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"id":"1336","name":"bobbetta","provider":"Google","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1336"}}`,
+			wantBody:        `{"id":"1336","name":"bobbetta","provider":"Google","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1336"},"roles":[{"name":"Admin","permissions":[{"scope":"dashboards","name":"Read Dashboards","allowed":["read"]},{"scope":"sources","name":"Read Sources","allowed":["read"]},{"scope":"rules","name":"Read Rules","allowed":["read"]},{"scope":"users","name":"Read Users","allowed":["read"]},{"scope":"dashboards","name":"Write Dashboards","allowed":["write"]},{"scope":"sources","name":"Write Sources","allowed":["write"]},{"scope":"rules","name":"Write Rules","allowed":["write"]},{"scope":"users","name":"Write Users","allowed":["write"]}]}]}`,
 		},
 
 		{
@@ -372,7 +381,7 @@ func TestService_UpdateUser(t *testing.T) {
 			id:              "1336",
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"id":"1336","name":"burnetta","provider":"GitHub","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1336"}}`,
+			wantBody:        `{"id":"1336","name":"burnetta","provider":"GitHub","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1336"},"roles":null}`,
 		},
 	}
 	for _, tt := range tests {
@@ -440,6 +449,9 @@ func TestService_Users(t *testing.T) {
 								Name:     "billysteve",
 								Provider: "Google",
 								Scheme:   "OAuth2",
+								Roles: []chronograf.Role{
+									chronograf.EditorRole,
+								},
 							},
 							{
 								ID:       1338,
@@ -461,7 +473,7 @@ func TestService_Users(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"users":[{"id":"1337","name":"billysteve","provider":"Google","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1337"}},{"id":"1338","name":"bobbettastuhvetta","provider":"Auth0","scheme":"LDAP","links":{"self":"/chronograf/v1/users/1338"}}],"links":{"self":"/chronograf/v1/users"}}`,
+			wantBody:        `{"users":[{"id":"1337","name":"billysteve","provider":"Google","scheme":"OAuth2","roles":[{"name":"Editor","permissions":[{"scope":"dashboards","name":"Read Dashboards","allowed":["read"]},{"scope":"sources","name":"Read Sources","allowed":["read"]},{"scope":"rules","name":"Read Rules","allowed":["read"]},{"scope":"dashboards","name":"Write Dashboards","allowed":["write"]},{"scope":"sources","name":"Write Sources","allowed":["write"]},{"scope":"rules","name":"Write Rules","allowed":["write"]}]}],"links":{"self":"/chronograf/v1/users/1337"}},{"id":"1338","name":"bobbettastuhvetta","provider":"Auth0","scheme":"LDAP","roles":null,"links":{"self":"/chronograf/v1/users/1338"}}],"links":{"self":"/chronograf/v1/users"}}`,
 		},
 		{
 			name: "Get all Chronograf users, ensuring order of users in response",
@@ -481,6 +493,9 @@ func TestService_Users(t *testing.T) {
 								Name:     "billysteve",
 								Provider: "Google",
 								Scheme:   "OAuth2",
+								Roles: []chronograf.Role{
+									chronograf.EditorRole,
+								},
 							},
 						}, nil
 					},
@@ -496,7 +511,7 @@ func TestService_Users(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"users":[{"id":"1337","name":"billysteve","provider":"Google","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1337"}},{"id":"1338","name":"bobbettastuhvetta","provider":"Auth0","scheme":"LDAP","links":{"self":"/chronograf/v1/users/1338"}}],"links":{"self":"/chronograf/v1/users"}}`,
+			wantBody:        `{"users":[{"id":"1337","name":"billysteve","provider":"Google","scheme":"OAuth2","roles":[{"name":"Editor","permissions":[{"scope":"dashboards","name":"Read Dashboards","allowed":["read"]},{"scope":"sources","name":"Read Sources","allowed":["read"]},{"scope":"rules","name":"Read Rules","allowed":["read"]},{"scope":"dashboards","name":"Write Dashboards","allowed":["write"]},{"scope":"sources","name":"Write Sources","allowed":["write"]},{"scope":"rules","name":"Write Rules","allowed":["write"]}]}],"links":{"self":"/chronograf/v1/users/1337"}},{"id":"1338","name":"bobbettastuhvetta","provider":"Auth0","scheme":"LDAP","roles":null,"links":{"self":"/chronograf/v1/users/1338"}}],"links":{"self":"/chronograf/v1/users"}}`,
 		},
 	}
 

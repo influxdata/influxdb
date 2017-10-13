@@ -11,10 +11,11 @@ import (
 )
 
 type userRequest struct {
-	ID       uint64 `json:"id,string"`
-	Name     string `json:"name"`
-	Provider string `json:"provider"`
-	Scheme   string `json:"scheme"`
+	ID       uint64            `json:"id,string"`
+	Name     string            `json:"name"`
+	Provider string            `json:"provider"`
+	Scheme   string            `json:"scheme"`
+	Roles    []chronograf.Role `json:"roles"`
 }
 
 func (r *userRequest) ValidCreate() error {
@@ -33,18 +34,19 @@ func (r *userRequest) ValidCreate() error {
 // TODO: Provide detailed error message
 // TODO: Reconsider what fields should actually be updateable once this is more robust
 func (r *userRequest) ValidUpdate() error {
-	if r.Name == "" && r.Provider == "" && r.Scheme == "" {
+	if r.Name == "" && r.Provider == "" && r.Scheme == "" && r.Roles == nil {
 		return fmt.Errorf("No fields to update")
 	}
 	return nil
 }
 
 type userResponse struct {
-	Links    selfLinks `json:"links"`
-	ID       uint64    `json:"id,string"`
-	Name     string    `json:"name"`
-	Provider string    `json:"provider"`
-	Scheme   string    `json:"scheme"`
+	Links    selfLinks         `json:"links"`
+	ID       uint64            `json:"id,string"`
+	Name     string            `json:"name"`
+	Provider string            `json:"provider"`
+	Scheme   string            `json:"scheme"`
+	Roles    []chronograf.Role `json:"roles"`
 }
 
 func newUserResponse(u *chronograf.User) *userResponse {
@@ -53,6 +55,7 @@ func newUserResponse(u *chronograf.User) *userResponse {
 		Name:     u.Name,
 		Provider: u.Provider,
 		Scheme:   u.Scheme,
+		Roles:    u.Roles,
 		Links: selfLinks{
 			Self: fmt.Sprintf("/chronograf/v1/users/%d", u.ID),
 		},
@@ -171,6 +174,9 @@ func (s *Service) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Scheme != "" {
 		u.Scheme = req.Scheme
+	}
+	if req.Roles != nil {
+		u.Roles = req.Roles
 	}
 
 	err = s.UsersStore.Update(ctx, u)
