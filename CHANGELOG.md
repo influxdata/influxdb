@@ -1,9 +1,11 @@
 ## v1.3.10.0 [unreleased]
 ### Bug Fixes
 1. [#2095](https://github.com/influxdata/chronograf/pull/2095): Improve the copy in the retention policy edit page
+1. [#2093](https://github.com/influxdata/chronograf/pull/2093): Fix when exporting `SHOW DATABASES` CSV has bad data
 
 ### Features
 1. [#2083](https://github.com/influxdata/chronograf/pull/2083): Every dashboard can now have its own time range
+1. [#2045](https://github.com/influxdata/chronograf/pull/2045): Add CSV download option in dashboard cells
 
 ### UI Improvements
 1. [#2111](https://github.com/influxdata/chronograf/pull/2111): Increase size of Cell Editor query tabs to reveal more of their query strings
