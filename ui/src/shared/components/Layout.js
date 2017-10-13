@@ -38,13 +38,6 @@ const Layout = (
 ) =>
   <LayoutCell
     cell={cell}
-    templates={templates}
-    queries={buildQueriesForLayouts(
-      cell,
-      getSource(cell, source, sources, defaultSource),
-      timeRange,
-      host
-    )}
     isEditable={isEditable}
     onEditCell={onEditCell}
     onDeleteCell={onDeleteCell}
