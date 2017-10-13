@@ -42,9 +42,16 @@ type Command struct {
 	Stderr io.Writer
 	Stdout io.Writer
 
-	host     string
-	path     string
-	database string
+	host            string
+	path            string
+	database        string
+	retentionPolicy string
+	shardID         string
+
+	isBackup bool
+	since    time.Time
+	start    time.Time
+	end      time.Time
 }
 
 // NewCommand returns a new instance of Command with default settings.
@@ -56,52 +63,64 @@ func NewCommand() *Command {
 }
 
 // Run executes the program.
-func (cmd *Command) Run(args ...string) error {
+func (cmd *Command) Run(op string, args ...string) error {
 	// Set up logger.
 	cmd.StdoutLogger = log.New(cmd.Stdout, "", log.LstdFlags)
 	cmd.StderrLogger = log.New(cmd.Stderr, "", log.LstdFlags)
+	cmd.isBackup = op == "backup"
 
 	// Parse command line arguments.
-	retentionPolicy, shardID, since, err := cmd.parseFlags(args)
+	err := cmd.parseFlags(args)
 	if err != nil {
 		return err
 	}
 
-	// based on the arguments passed in we only backup the minimum
-	if shardID != "" {
-		// always backup the metastore
-		if err := cmd.backupMetastore(); err != nil {
+	// always backup the metastore
+	if err := cmd.extractMetastore(); err != nil {
+		return err
+	}
+
+	if cmd.isBackup {
+		// based on the arguments passed in we only backup the minimum
+		if cmd.shardID != "" {
+			err = cmd.extractShard(cmd.retentionPolicy, cmd.shardID)
+		} else if cmd.retentionPolicy != "" {
+			err = cmd.extractRetentionPolicy()
+		} else if cmd.database != "" {
+			err = cmd.extractDatabase()
+		}
+
+		if err != nil {
+			cmd.StderrLogger.Printf("backup failed: %v", err)
 			return err
 		}
-		err = cmd.backupShard(retentionPolicy, shardID, since)
-	} else if retentionPolicy != "" {
-		err = cmd.backupRetentionPolicy(retentionPolicy, since)
-	} else if cmd.database != "" {
-		err = cmd.backupDatabase(since)
+		cmd.StdoutLogger.Println("backup complete")
 	} else {
-		err = cmd.backupMetastore()
+		cmd.StdoutLogger.Printf("EXPORT: db=%s tsStart=%s tsEnd=%s",
+			cmd.database, cmd.start, cmd.end)
+		if err := cmd.extractDatabase(); err != nil {
+			cmd.StderrLogger.Printf("export failed: %s", err)
+		}
+		cmd.StdoutLogger.Println("export complete")
 	}
-
-	if err != nil {
-		cmd.StderrLogger.Printf("backup failed: %v", err)
-		return err
-	}
-
-	cmd.StdoutLogger.Println("backup complete")
 
 	return nil
 }
 
 // parseFlags parses and validates the command line arguments into a request object.
-func (cmd *Command) parseFlags(args []string) (retentionPolicy, shardID string, since time.Time, err error) {
+func (cmd *Command) parseFlags(args []string) (err error) {
 	fs := flag.NewFlagSet("", flag.ContinueOnError)
 
 	fs.StringVar(&cmd.host, "host", "localhost:8088", "")
 	fs.StringVar(&cmd.database, "database", "", "")
-	fs.StringVar(&retentionPolicy, "retention", "", "")
-	fs.StringVar(&shardID, "shard", "", "")
+	fs.StringVar(&cmd.retentionPolicy, "retention", "", "")
+	fs.StringVar(&cmd.shardID, "shard", "", "")
 	var sinceArg string
+	var startArg string
+	var endArg string
 	fs.StringVar(&sinceArg, "since", "", "")
+	fs.StringVar(&startArg, "start", "", "")
+	fs.StringVar(&endArg, "end", "", "")
 
 	fs.SetOutput(cmd.Stderr)
 	fs.Usage = cmd.printUsage
@@ -110,18 +129,30 @@ func (cmd *Command) parseFlags(args []string) (retentionPolicy, shardID string, 
 	if err != nil {
 		return
 	}
+
 	if sinceArg != "" {
-		since, err = time.Parse(time.RFC3339, sinceArg)
+		cmd.since, err = time.Parse(time.RFC3339, sinceArg)
+		if err != nil {
+			return
+		}
+	}
+	if startArg != "" {
+		cmd.start, err = time.Parse(time.RFC3339, startArg)
+		if err != nil {
+			return
+		}
+	}
+
+	if endArg != "" {
+		cmd.end, err = time.Parse(time.RFC3339, endArg)
 		if err != nil {
 			return
 		}
 	}
 
 	// Ensure that only one arg is specified.
-	if fs.NArg() == 0 {
-		return "", "", time.Unix(0, 0), errors.New("backup destination path required")
-	} else if fs.NArg() != 1 {
-		return "", "", time.Unix(0, 0), errors.New("only one backup path allowed")
+	if fs.NArg() != 1 {
+		return errors.New("exactly one backup path allowed")
 	}
 	cmd.path = fs.Arg(0)
 
@@ -130,28 +161,64 @@ func (cmd *Command) parseFlags(args []string) (retentionPolicy, shardID string, 
 	return
 }
 
+func (cmd *Command) extractShard(rp, sid string) error {
+	if cmd.isBackup {
+		return cmd.backupShard(rp, sid)
+	}
+	return cmd.exportShard(rp, sid)
+}
+
 // backupShard will write a tar archive of the passed in shard with any TSM files that have been
 // created since the time passed in
-func (cmd *Command) backupShard(retentionPolicy string, shardID string, since time.Time) error {
-	id, err := strconv.ParseUint(shardID, 10, 64)
+func (cmd *Command) backupShard(rp, sid string) error {
+	id, err := strconv.ParseUint(sid, 10, 64)
 	if err != nil {
 		return err
 	}
 
-	shardArchivePath, err := cmd.nextPath(filepath.Join(cmd.path, fmt.Sprintf(BackupFilePattern, cmd.database, retentionPolicy, id)))
+	shardArchivePath, err := cmd.nextPath(filepath.Join(cmd.path, fmt.Sprintf(BackupFilePattern, cmd.database, rp, id)))
 	if err != nil {
 		return err
 	}
 
 	cmd.StdoutLogger.Printf("backing up db=%v rp=%v shard=%v to %s since %s",
-		cmd.database, retentionPolicy, shardID, shardArchivePath, since)
+		cmd.database, rp, sid, shardArchivePath, cmd.since)
 
 	req := &snapshotter.Request{
 		Type:            snapshotter.RequestShardBackup,
 		Database:        cmd.database,
-		RetentionPolicy: retentionPolicy,
+		RetentionPolicy: rp,
 		ShardID:         id,
-		Since:           since,
+		Since:           cmd.since,
+	}
+
+	// TODO: verify shard backup data
+	return cmd.downloadAndVerify(req, shardArchivePath, nil)
+}
+
+// exportShard will write a gzip archive of the passed in shard with any TSM files that have been
+// created since the time passed in
+func (cmd *Command) exportShard(rp, sid string) error {
+	id, err := strconv.ParseUint(sid, 10, 64)
+	if err != nil {
+		return err
+	}
+
+	shardArchivePath, err := cmd.nextPath(filepath.Join(cmd.path, fmt.Sprintf(BackupFilePattern, cmd.database, rp, id)))
+	if err != nil {
+		return err
+	}
+
+	cmd.StdoutLogger.Printf("exporting db=%v rp=%v shard=%v to %s start %s end  %s",
+		cmd.database, rp, sid, shardArchivePath, cmd.start, cmd.end)
+
+	req := &snapshotter.Request{
+		Type:            snapshotter.RequestShardExport,
+		Database:        cmd.database,
+		RetentionPolicy: rp,
+		ShardID:         id,
+		ExportStart:     cmd.start,
+		ExportEnd:       cmd.end,
 	}
 
 	// TODO: verify shard backup data
@@ -160,8 +227,8 @@ func (cmd *Command) backupShard(retentionPolicy string, shardID string, since ti
 
 // backupDatabase will request the database information from the server and then backup the metastore and
 // every shard in every retention policy in the database. Each shard will be written to a separate tar.
-func (cmd *Command) backupDatabase(since time.Time) error {
-	cmd.StdoutLogger.Printf("backing up db=%s since %s", cmd.database, since)
+func (cmd *Command) extractDatabase() error {
+	cmd.StdoutLogger.Printf("extracting db=%s", cmd.database)
 
 	req := &snapshotter.Request{
 		Type:     snapshotter.RequestDatabaseInfo,
@@ -173,18 +240,18 @@ func (cmd *Command) backupDatabase(since time.Time) error {
 		return err
 	}
 
-	return cmd.backupResponsePaths(response, since)
+	return cmd.extractResponsePaths(response)
 }
 
-// backupRetentionPolicy will request the retention policy information from the server and then backup
+// extractRetentionPolicy will request the retention policy information from the server and then backup
 // the metastore and every shard in the retention policy. Each shard will be written to a separate tar.
-func (cmd *Command) backupRetentionPolicy(retentionPolicy string, since time.Time) error {
-	cmd.StdoutLogger.Printf("backing up rp=%s since %s", retentionPolicy, since)
+func (cmd *Command) extractRetentionPolicy() error {
+	cmd.StdoutLogger.Printf("backing up rp=%s since %s", cmd.retentionPolicy, cmd.since)
 
 	req := &snapshotter.Request{
 		Type:            snapshotter.RequestRetentionPolicyInfo,
 		Database:        cmd.database,
-		RetentionPolicy: retentionPolicy,
+		RetentionPolicy: cmd.retentionPolicy,
 	}
 
 	response, err := cmd.requestInfo(req)
@@ -192,23 +259,23 @@ func (cmd *Command) backupRetentionPolicy(retentionPolicy string, since time.Tim
 		return err
 	}
 
-	return cmd.backupResponsePaths(response, since)
+	return cmd.extractResponsePaths(response)
 }
 
 // backupResponsePaths will backup the metastore and all shard paths in the response struct
-func (cmd *Command) backupResponsePaths(response *snapshotter.Response, since time.Time) error {
-	if err := cmd.backupMetastore(); err != nil {
-		return err
-	}
+func (cmd *Command) extractResponsePaths(response *snapshotter.Response) error {
 
 	// loop through the returned paths and back up each shard
 	for _, path := range response.Paths {
+		fmt.Printf("path: %s", path)
 		rp, id, err := retentionAndShardFromPath(path)
 		if err != nil {
 			return err
 		}
 
-		if err := cmd.backupShard(rp, id, since); err != nil {
+		err = cmd.extractShard(rp, id)
+
+		if err != nil {
 			return err
 		}
 	}
@@ -218,7 +285,7 @@ func (cmd *Command) backupResponsePaths(response *snapshotter.Response, since ti
 
 // backupMetastore will backup the metastore on the host to the passed in path. Database and retention policy backups
 // will force a backup of the metastore as well as requesting a specific shard backup from the command line
-func (cmd *Command) backupMetastore() error {
+func (cmd *Command) extractMetastore() error {
 	metastoreArchivePath, err := cmd.nextPath(filepath.Join(cmd.path, Metafile))
 	if err != nil {
 		return err

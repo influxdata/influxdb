@@ -13,7 +13,6 @@ import (
 
 	"github.com/influxdata/influxdb/cmd"
 	"github.com/influxdata/influxdb/cmd/influxd/backup"
-	"github.com/influxdata/influxdb/cmd/influxd/export"
 	"github.com/influxdata/influxdb/cmd/influxd/help"
 	"github.com/influxdata/influxdb/cmd/influxd/restore"
 	"github.com/influxdata/influxdb/cmd/influxd/run"
@@ -116,7 +115,7 @@ func (m *Main) Run(args ...string) error {
 
 	case "backup":
 		name := backup.NewCommand()
-		if err := name.Run(args...); err != nil {
+		if err := name.Run("backup", args...); err != nil {
 			return fmt.Errorf("backup: %s", err)
 		}
 	case "restore":
@@ -125,8 +124,8 @@ func (m *Main) Run(args ...string) error {
 			return fmt.Errorf("restore: %s", err)
 		}
 	case "export":
-		name := export.NewCommand()
-		if err := name.Run(args...); err != nil {
+		name := backup.NewCommand()
+		if err := name.Run("export", args...); err != nil {
 			return fmt.Errorf("export: %s", err)
 		}
 	case "config":

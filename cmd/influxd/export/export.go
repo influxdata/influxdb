@@ -123,7 +123,7 @@ func (cmd *Command) parseFlags(args []string) (tsStart, tsEnd time.Time, err err
 	return
 }
 
-// exportShard will write a tar archive of the passed in shard with any TSM files that have been
+// exportShard will write a gzip archive of the passed in shard with any TSM files that have been
 // created since the time passed in
 func (cmd *Command) exportShard(retentionPolicy string, shardID string, tsStart, tsEnd time.Time) error {
 	id, err := strconv.ParseUint(shardID, 10, 64)
@@ -136,7 +136,7 @@ func (cmd *Command) exportShard(retentionPolicy string, shardID string, tsStart,
 		return err
 	}
 
-	cmd.StdoutLogger.Printf("backing up db=%v rp=%v shard=%v to %s start %s end  %s",
+	cmd.StdoutLogger.Printf("exporting db=%v rp=%v shard=%v to %s start %s end  %s",
 		cmd.database, retentionPolicy, shardID, shardArchivePath, tsStart, tsEnd)
 
 	req := &snapshotter.Request{
@@ -144,10 +144,11 @@ func (cmd *Command) exportShard(retentionPolicy string, shardID string, tsStart,
 		Database:        cmd.database,
 		RetentionPolicy: retentionPolicy,
 		ShardID:         id,
-		ExportStart:     tsStart,
-		ExportEnd:       tsEnd,
+		ExportStart:     cmd.start,
+		ExportEnd:       cmd.end,
 	}
 
+	// TODO: verify shard backup data
 	return cmd.downloadAndVerify(req, shardArchivePath, nil)
 }
 
