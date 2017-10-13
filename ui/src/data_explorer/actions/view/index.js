@@ -51,11 +51,12 @@ export const removeFuncs = (queryID, fields, groupBy) => ({
   },
 })
 
-export const applyFuncsToField = (queryId, fieldFunc) => ({
+export const applyFuncsToField = (queryId, fieldFunc, groupBy) => ({
   type: 'DE_APPLY_FUNCS_TO_FIELD',
   payload: {
     queryId,
     fieldFunc,
+    groupBy,
   },
 })
 

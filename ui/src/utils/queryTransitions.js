@@ -127,9 +127,13 @@ export function toggleTagAcceptance(query) {
   })
 }
 
-export const removeFuncs = fields => getFieldsDeep(fields)
+export const removeFuncs = (query, fields) => ({
+  ...query,
+  fields: getFieldsDeep(fields),
+  groupBy: {...query.groupBy, time: null},
+})
 
-export const applyFuncsToField = (query, {field, funcs = []}) => {
+export const applyFuncsToField = (query, {field, funcs = []}, groupBy) => {
   const nextFields = query.fields.reduce((acc, f) => {
     // If there is a func applied to only one field, add it to the other fields
     if (f.type === 'field') {
@@ -181,6 +185,7 @@ export const applyFuncsToField = (query, {field, funcs = []}) => {
   return {
     ...query,
     fields: _.flatten(nextFields),
+    groupBy,
   }
 }
 

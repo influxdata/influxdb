@@ -64,17 +64,44 @@ class FieldList extends Component {
     this.props.onFill(fill)
   }
 
-  handleApplyFuncs = fieldFunc => {
-    const {removeFuncs, query, applyFuncsToField} = this.props
+  handleToggleField = field => {
+    const {
+      query,
+      onToggleField,
+      addInitialField,
+      initialGroupByTime: time,
+    } = this.props
     const {fields, groupBy} = query
+    const initialGroupBy = {...groupBy, time}
+
+    if (!_.size(fields)) {
+      return addInitialField(field, initialGroupBy)
+    }
+
+    onToggleField(field)
+  }
+
+  handleApplyFuncs = fieldFunc => {
+    const {
+      removeFuncs,
+      query,
+      applyFuncsToField,
+      initialGroupByTime: time,
+    } = this.props
+    const {groupBy, fields} = query
     const {funcs} = fieldFunc
 
     // If one field has no funcs, all fields must have no funcs
     if (!_.size(funcs)) {
-      return removeFuncs(fields, groupBy)
+      return removeFuncs(fields)
     }
 
-    applyFuncsToField(fieldFunc)
+    // If there is no groupBy time set apple one
+    if (!groupBy.time) {
+      return applyFuncsToField(fieldFunc, {...groupBy, time})
+    }
+
+    applyFuncsToField(fieldFunc, groupBy)
   }
 
   _getFields = () => {
@@ -95,23 +122,6 @@ class FieldList extends Component {
         fields: fieldSets[measurement].map(f => ({name: f, type: 'field'})),
       })
     })
-  }
-
-  handleToggleField = field => {
-    const {
-      addInitialField,
-      onToggleField,
-      query,
-      initialGroupByTime: time,
-    } = this.props
-    const {fields, groupBy} = query
-    const initialGroupBy = {...groupBy, time}
-
-    if (!_.size(fields)) {
-      return addInitialField(field, initialGroupBy)
-    }
-
-    onToggleField(field)
   }
 
   render() {

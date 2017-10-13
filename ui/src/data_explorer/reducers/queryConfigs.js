@@ -16,7 +16,6 @@ import {
   applyFuncsToField,
   toggleTagAcceptance,
 } from 'src/utils/queryTransitions'
-import {INITIAL_GROUP_BY_TIME} from 'src/data_explorer/constants'
 
 const queryConfigs = (state = {}, action) => {
   switch (action.type) {
@@ -101,11 +100,11 @@ const queryConfigs = (state = {}, action) => {
     }
 
     case 'DE_APPLY_FUNCS_TO_FIELD': {
-      const {queryId, fieldFunc} = action.payload
+      const {queryId, fieldFunc, groupBy} = action.payload
       const nextQueryConfig = applyFuncsToField(
         state[queryId],
         fieldFunc,
-        INITIAL_GROUP_BY_TIME
+        groupBy
       )
 
       return Object.assign({}, state, {
@@ -158,18 +157,11 @@ const queryConfigs = (state = {}, action) => {
     }
 
     case 'DE_REMOVE_FUNCS': {
-      const {queryID, fields, groupBy} = action.payload
+      const {queryID, fields} = action.payload
+      const nextQuery = removeFuncs(state[queryID], fields)
 
       // fields with no functions cannot have a group by time
-      const nextState = {
-        [queryID]: {
-          ...state[queryID],
-          fields: removeFuncs(fields),
-          groupBy: {...groupBy, time: null},
-        },
-      }
-
-      return {...state, ...nextState}
+      return {...state, [queryID]: nextQuery}
     }
 
     // Adding the first feild applies a groupBy time
