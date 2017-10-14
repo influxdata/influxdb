@@ -167,6 +167,10 @@ describe('Chronograf.Reducers.Kapacitor.queryConfigs', () => {
           database: 'db1',
           measurement: 'm1',
           fields: [f1],
+          groupBy: {
+            tags: [],
+            time: null,
+          },
         },
       }
 
