@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/influxdata/influxdb/pkg/escape"
@@ -36,6 +37,9 @@ var (
 
 	// ErrInvalidPoint is returned when a point cannot be parsed correctly.
 	ErrInvalidPoint = errors.New("point is invalid")
+
+	// ErrConcurrentParsingPoint is returned when multiple goroutines are parsing same point
+	ErrConcurrentParsingPoint = errors.New("point is parsing by multiple goroutines")
 )
 
 const (
@@ -211,6 +215,9 @@ type point struct {
 
 	// cached version of parsed fields from data
 	cachedFields map[string]interface{}
+
+	// point fields is being parsed or has been parsed when touched > 0
+	touched uint32
 
 	// cached version of parsed name from key
 	cachedName string
@@ -1557,6 +1564,9 @@ func (p *point) AddTag(key, value string) {
 func (p *point) Fields() (Fields, error) {
 	if p.cachedFields != nil {
 		return p.cachedFields, nil
+	}
+	if !atomic.CompareAndSwapUint32(&p.touched, 0, 1) {
+		return nil, ErrConcurrentParsingPoint
 	}
 	cf, err := p.unmarshalBinary()
 	if err != nil {
