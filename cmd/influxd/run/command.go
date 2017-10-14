@@ -44,6 +44,9 @@ type Command struct {
 	Logger zap.Logger
 
 	Server *Server
+
+	// How to get environment variables. Normally set to os.Getenv, except for tests.
+	Getenv func(string) string
 }
 
 // NewCommand return a new instance of Command.
@@ -67,7 +70,7 @@ func (cmd *Command) Run(args ...string) error {
 	}
 
 	// Print sweet InfluxDB logo.
-	fmt.Print(logo)
+	fmt.Fprint(cmd.Stdout, logo)
 
 	// Mark start-up in log.
 	cmd.Logger.Info(fmt.Sprintf("InfluxDB starting, version %s, branch %s, commit %s",
@@ -86,7 +89,7 @@ func (cmd *Command) Run(args ...string) error {
 	}
 
 	// Apply any environment variables on top of the parsed config
-	if err := config.ApplyEnvOverrides(); err != nil {
+	if err := config.ApplyEnvOverrides(cmd.Getenv); err != nil {
 		return fmt.Errorf("apply env config: %v", err)
 	}
 

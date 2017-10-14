@@ -185,18 +185,21 @@ func (c *Config) Validate() error {
 }
 
 // ApplyEnvOverrides apply the environment configuration on top of the config.
-func (c *Config) ApplyEnvOverrides() error {
-	return c.applyEnvOverrides("INFLUXDB", reflect.ValueOf(c), "")
+func (c *Config) ApplyEnvOverrides(getenv func(string) string) error {
+	if getenv == nil {
+		getenv = os.Getenv
+	}
+	return c.applyEnvOverrides(getenv, "INFLUXDB", reflect.ValueOf(c), "")
 }
 
-func (c *Config) applyEnvOverrides(prefix string, spec reflect.Value, structKey string) error {
+func (c *Config) applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.Value, structKey string) error {
 	// If we have a pointer, dereference it
 	element := spec
 	if spec.Kind() == reflect.Ptr {
 		element = spec.Elem()
 	}
 
-	value := os.Getenv(prefix)
+	value := getenv(prefix)
 
 	switch element.Kind() {
 	case reflect.String:
@@ -244,11 +247,11 @@ func (c *Config) applyEnvOverrides(prefix string, spec reflect.Value, structKey 
 		// If the type is s slice, apply to each using the index as a suffix, e.g. GRAPHITE_0, GRAPHITE_0_TEMPLATES_0 or GRAPHITE_0_TEMPLATES="item1,item2"
 		for j := 0; j < element.Len(); j++ {
 			f := element.Index(j)
-			if err := c.applyEnvOverrides(prefix, f, structKey); err != nil {
+			if err := c.applyEnvOverrides(getenv, prefix, f, structKey); err != nil {
 				return err
 			}
 
-			if err := c.applyEnvOverrides(fmt.Sprintf("%s_%d", prefix, j), f, structKey); err != nil {
+			if err := c.applyEnvOverrides(getenv, fmt.Sprintf("%s_%d", prefix, j), f, structKey); err != nil {
 				return err
 			}
 		}
@@ -285,19 +288,19 @@ func (c *Config) applyEnvOverrides(prefix string, spec reflect.Value, structKey 
 			// If it's a sub-config, recursively apply
 			if field.Kind() == reflect.Struct || field.Kind() == reflect.Ptr ||
 				field.Kind() == reflect.Slice || field.Kind() == reflect.Array {
-				if err := c.applyEnvOverrides(envKey, field, fieldName); err != nil {
+				if err := c.applyEnvOverrides(getenv, envKey, field, fieldName); err != nil {
 					return err
 				}
 				continue
 			}
 
-			value := os.Getenv(envKey)
+			value := getenv(envKey)
 			// Skip any fields we don't have a value to set
 			if len(value) == 0 {
 				continue
 			}
 
-			if err := c.applyEnvOverrides(envKey, field, fieldName); err != nil {
+			if err := c.applyEnvOverrides(getenv, envKey, field, fieldName); err != nil {
 				return err
 			}
 		}
