@@ -25,7 +25,7 @@ func TestRetentionAutocreate(t *testing.T) {
 			cmd.MustRun()
 
 			c, err := client.NewHTTPClient(client.HTTPConfig{
-				Addr: "http://" + cmd.HTTPAddr(),
+				Addr: "http://" + cmd.BoundHTTPAddr(),
 			})
 			if err != nil {
 				t.Fatal(err)

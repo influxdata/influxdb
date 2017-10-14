@@ -26,12 +26,10 @@ func NewTestRunCommand(env map[string]string) *TestRunCommand {
 	cmd := run.NewCommand()
 	cmd.Getenv = func(k string) string {
 		// Return value in env map, if set.
-		var v string
 		if env != nil {
-			v = env[k]
-		}
-		if v != "" {
-			return v
+			if v, ok := env[k]; ok {
+				return v
+			}
 		}
 
 		// If the key wasn't explicitly set in env, use some reasonable defaults for test.
@@ -61,7 +59,7 @@ func NewTestRunCommand(env map[string]string) *TestRunCommand {
 
 // MustRun calls Command.Run and panics if there is an error.
 func (c *TestRunCommand) MustRun() {
-	if err := c.Command.Run(); err != nil {
+	if err := c.Command.Run("-config", os.DevNull); err != nil {
 		panic(err)
 	}
 }
@@ -69,7 +67,7 @@ func (c *TestRunCommand) MustRun() {
 // HTTPClient returns a new v2 HTTP client.
 func (c *TestRunCommand) HTTPClient() client.Client {
 	cl, err := client.NewHTTPClient(client.HTTPConfig{
-		Addr: "http://" + c.HTTPAddr(),
+		Addr: "http://" + c.BoundHTTPAddr(),
 	})
 	if err != nil {
 		panic(err)
@@ -77,11 +75,11 @@ func (c *TestRunCommand) HTTPClient() client.Client {
 	return cl
 }
 
-// HTTPAddr returns the bind address of the HTTP service, in form "localhost:65432".
-func (c *TestRunCommand) HTTPAddr() string {
+// BoundHTTPAddr returns the bind address of the HTTP service, in form "localhost:65432".
+func (c *TestRunCommand) BoundHTTPAddr() string {
 	for _, s := range c.Command.Server.Services {
 		if s, ok := s.(*httpd.Service); ok {
-			return s.HTTPAddr()
+			return s.BoundHTTPAddr()
 		}
 	}
 	panic("Did not find HTTPD service!")

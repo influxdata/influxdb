@@ -198,9 +198,9 @@ func (s *Service) Statistics(tags map[string]string) []models.Statistic {
 	return s.Handler.Statistics(models.NewTags(map[string]string{"bind": s.addr}).Merge(tags).Map())
 }
 
-// HTTPAddr returns the string version of the address that the HTTP server is listening on.
+// BoundHTTPAddr returns the string version of the address that the HTTP server is listening on.
 // This is useful if you start an ephemeral server in test with bind address localhost:0.
-func (s *Service) HTTPAddr() string {
+func (s *Service) BoundHTTPAddr() string {
 	return s.ln.Addr().String()
 }
 
