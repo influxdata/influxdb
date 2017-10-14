@@ -152,7 +152,6 @@ export const applyFuncsToField = (query, {field, funcs = []}, groupBy) => {
     }
 
     const fieldToChange = f.args.find(a => a.name === field.name)
-
     // Apply new funcs to field
     if (fieldToChange) {
       const newFuncs = funcs.reduce((acc2, func) => {

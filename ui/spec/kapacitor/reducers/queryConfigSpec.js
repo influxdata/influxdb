@@ -188,37 +188,6 @@ describe('Chronograf.Reducers.Kapacitor.queryConfigs', () => {
 
       expect(actual).to.eql(expected)
     })
-
-    it('removes all functions and group by time when one field has no funcs applied', () => {
-      const f1 = {name: 'f1', type: 'field'}
-      const initialState = {
-        [queryId]: {
-          id: 123,
-          database: 'db1',
-          measurement: 'm1',
-          fields: [
-            {name: 'fn3', type: 'func', args: [f1], alias: `fn3_${f1.name}`},
-            {name: 'fn4', type: 'func', args: [f1], alias: `fn4_${f1.name}`},
-          ],
-          groupBy: {
-            time: '1m',
-            tags: [],
-          },
-        },
-      }
-
-      const action = applyFuncsToField(queryId, {
-        field: f1,
-        funcs: [],
-      })
-
-      const nextState = reducer(initialState, action)
-      const actual = nextState[queryId].fields
-      const expected = [f1]
-
-      expect(actual).to.eql(expected)
-      expect(nextState[queryId].groupBy.time).to.equal(null)
-    })
   })
 
   describe('KAPA_CHOOSE_TAG', () => {
