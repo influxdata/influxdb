@@ -73,6 +73,7 @@
 - [#8900](https://github.com/influxdata/influxdb/issues/8900): Don't assume `which` is present in package post-install script.
 - [#8908](https://github.com/influxdata/influxdb/issues/8908): Fix missing man pages in new packaging output
 - [#8909](https://github.com/influxdata/influxdb/issues/8909): Fix use of `INFLUXD_OPTS` in service file
+- [#8952](https://github.com/influxdata/influxdb/issues/8952): Fix WAL panic: runtime error: makeslice: cap out of range
 
 ## v1.3.4 [unreleased]
 
