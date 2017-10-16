@@ -35,6 +35,7 @@ export const CreateSource = React.createClass({
   getInitialState() {
     return {
       source: {},
+      error: null,
     }
   },
 
@@ -58,7 +59,7 @@ export const CreateSource = React.createClass({
       const newSource = Object.assign({}, prevState.source, {
         [name]: val,
       })
-      return Object.assign({}, prevState, {source: newSource})
+      return Object.assign({}, prevState, {source: newSource, error: null})
     })
   },
 
@@ -79,7 +80,7 @@ export const CreateSource = React.createClass({
     createSourceAJAX(newSource)
       .then(({data: sourceFromServer}) => {
         this.props.addSource(sourceFromServer)
-        this.setState({source: sourceFromServer, error: null})
+        this.setState({source: sourceFromServer, isCreated: true})
       })
       .catch(({data: error}) => {
         this.setState({error: error.message})
@@ -87,11 +88,23 @@ export const CreateSource = React.createClass({
   },
 
   handleSubmit(newSource) {
-    const {error} = this.state
     const {notify, updateSource} = this.props
+    const {isCreated} = this.state
 
-    if (error) {
-      return notify('error', error)
+    if (!isCreated) {
+      return createSourceAJAX(newSource)
+        .then(({data: sourceFromServer}) => {
+          this.props.addSource(sourceFromServer)
+          this.setState({source: sourceFromServer, error: null})
+          this.redirectToApp(sourceFromServer)
+        })
+        .catch(({data: error}) => {
+          this.setState({error: error.message})
+          notify(
+            'error',
+            `There was a problem creating source: ${error.message}`
+          )
+        })
     }
 
     updateSourceAJAX(newSource)
@@ -99,11 +112,8 @@ export const CreateSource = React.createClass({
         updateSource(sourceFromServer)
         this.redirectToApp(sourceFromServer)
       })
-      .catch(() => {
-        notify(
-          'error',
-          'There was a problem updating the source. Check the settings'
-        )
+      .catch(({data: error}) => {
+        notify('error', `There was a problem: ${error.message}`)
       })
   },
 
