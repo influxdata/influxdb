@@ -12,7 +12,6 @@ class LayoutCell extends Component {
     super(props)
     this.state = {
       isDeleting: false,
-      celldata: [],
     }
   }
 
@@ -34,13 +33,9 @@ class LayoutCell extends Component {
     this.props.onSummonOverlayTechnologies(cell)
   }
 
-  grabDataForDownload = celldata => {
-    this.setState({celldata})
-  }
-
   handleCSVDownload = cell => () => {
     const joinedName = cell.name.split(' ').join('_')
-    const {celldata} = this.state
+    const {celldata} = this.props
     try {
       download(dashboardtoCSV(celldata), `${joinedName}.csv`, 'text/plain')
     } catch (error) {
@@ -50,9 +45,9 @@ class LayoutCell extends Component {
   }
 
   render() {
-    const {cell, children, isEditable} = this.props
+    const {cell, children, isEditable, celldata} = this.props
 
-    const {isDeleting, celldata} = this.state
+    const {isDeleting} = this.state
     const queries = _.get(cell, ['queries'], [])
 
     return (
@@ -75,13 +70,7 @@ class LayoutCell extends Component {
         />
         <div className="dash-graph--container">
           {queries.length
-            ? React.Children.map(children, child => {
-                if (child && child.props && child.props.autoRefresh) {
-                  return React.cloneElement(child, {
-                    grabDataForDownload: this.grabDataForDownload,
-                  })
-                }
-              })
+            ? children
             : <div className="graph-empty">
                 <button
                   className="no-query--button btn btn-md btn-primary"
@@ -111,6 +100,7 @@ LayoutCell.propTypes = {
   onSummonOverlayTechnologies: func,
   isEditable: bool,
   onCancelEditCell: func,
+  celldata: arrayOf(shape()),
 }
 
 export default LayoutCell
