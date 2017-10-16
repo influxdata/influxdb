@@ -31,7 +31,7 @@ const Tickscript = ({
     />
     {areLogsVisible
       ? <ResizeContainer containerClass="page-contents">
-          <div>
+          <div className="tickscript">
             <div className="tickscript-console">
               <div className="tickscript-console--output">
                 {validation

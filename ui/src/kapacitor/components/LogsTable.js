@@ -38,18 +38,14 @@ class LogsTable extends Component {
 
     const output = isWidget
       ? this.renderTable()
-      : <div className="container-fluid logs-table-container">
-          <div className="row">
-            <div className="col-xs-12">
-              <div className="panel panel-minimal">
-                <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-                  <h2 className="panel-title">Logs</h2>
-                  <div className="filterthing">FILTER</div>
-                </div>
-                <div className="panel-body">
-                  {this.renderTable()}
-                </div>
-              </div>
+      : <div className="logs-table-container">
+          <div className="panel panel-minimal">
+            <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+              <h2 className="panel-title">Logs</h2>
+              <div className="filterthing">FILTER</div>
+            </div>
+            <div className="panel-body">
+              {this.renderTable()}
             </div>
           </div>
         </div>
