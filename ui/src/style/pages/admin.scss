@@ -1,30 +1,21 @@
 /*
     Styles for Admin Pages
-    ----------------------------------------------
+    ----------------------------------------------------------------------------
 */
-
-
-
 
 /*
     Admin Tabs
-    ----------------------------------------------
+    ----------------------------------------------------------------------------
 */
-.admin-tabs {
-  padding-right: 0;
-  & + div {padding-left: 0;}
-}
 .admin-tabs .btn-group {
   margin: 0;
   width: 100%;
   display: flex;
-  flex-direction: column;
   align-items: stretch;
 
   .tab {
     font-weight: 500 !important;
-    border-radius: $radius 0 0 $radius !important;
-    margin-bottom: 2px !important;
+    border-radius: $radius $radius 0 0 !important;
     transition:
       background-color 0.25s ease,
       color 0.25s ease !important;
@@ -32,7 +23,7 @@
     text-align: left;
     height: 60px !important;
     line-height: 60px !important;
-    padding: 0 0 0 16px !important;
+    padding: 0 30px !important;
     font-size: 17px;
     background-color: transparent !important;
     color: $g11-sidewalk !important;
@@ -63,8 +54,28 @@
 }
 
 /*
+    Responsive Layout for Admin Tabs on Small Screens
+    ----------------------------------------------------------------------------
+*/
+
+@media screen and (min-width: 992px) {
+  .admin-tabs {
+    padding-right: 0px;
+
+    .btn-group {
+      flex-direction: column;
+    }
+    .btn-group .tab {
+      border-radius: $radius 0 0 $radius !important;
+      padding: 0 0 0 16px !important;
+    }
+    & + div {padding-left: 0px;}
+  }
+}
+
+/*
     Admin Table
-    ----------------------------------------------
+    ----------------------------------------------------------------------------
 */
 .admin-table .dropdown-toggle {
   background-color: transparent;
@@ -125,7 +136,7 @@ pre.admin-table--query {
 
 /*
     Database Manager
-    ----------------------------------------------
+    ----------------------------------------------------------------------------
 */
 .db-manager {
   margin-bottom: 8px;
