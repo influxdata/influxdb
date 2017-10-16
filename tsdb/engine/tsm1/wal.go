@@ -772,6 +772,10 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 		nvals := int(binary.BigEndian.Uint32(b[i : i+4]))
 		i += 4
 
+		if nvals <= 0 || nvals > len(b) {
+			return ErrWALCorrupt
+		}
+
 		switch typ {
 		case float64EntryType:
 			if i+16*nvals > len(b) {

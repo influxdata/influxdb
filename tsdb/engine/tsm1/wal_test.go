@@ -603,6 +603,52 @@ func TestWALWriter_Corrupt(t *testing.T) {
 	}
 }
 
+// Reproduces a `panic: runtime error: makeslice: cap out of range` when run with
+// GOARCH=386 go test -run TestWALSegmentReader_Corrupt -v ./tsdb/engine/tsm1/
+func TestWALSegmentReader_Corrupt(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	f := MustTempFile(dir)
+	w := tsm1.NewWALSegmentWriter(f)
+
+	p4 := tsm1.NewValue(1, "string")
+
+	values := map[string][]tsm1.Value{
+		"cpu,host=A#!~#string": []tsm1.Value{p4, p4},
+	}
+
+	entry := &tsm1.WriteWALEntry{
+		Values: values,
+	}
+
+	typ, b := mustMarshalEntry(entry)
+
+	// This causes the nvals field to overflow on 32 bit systems which produces a
+	// negative count and a panic when reading the segment.
+	b[25] = 255
+
+	if err := w.Write(typ, b); err != nil {
+		fatal(t, "write points", err)
+	}
+
+	if err := w.Flush(); err != nil {
+		fatal(t, "flush", err)
+	}
+
+	// Create the WAL segment reader.
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		fatal(t, "seek", err)
+	}
+
+	r := tsm1.NewWALSegmentReader(f)
+	defer r.Close()
+
+	// Try to decode two entries.
+	for r.Next() {
+		r.Read()
+	}
+}
+
 func TestWriteWALSegment_UnmarshalBinary_WriteWALCorrupt(t *testing.T) {
 	p1 := tsm1.NewValue(1, 1.1)
 	p2 := tsm1.NewValue(1, int64(1))
