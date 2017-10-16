@@ -14,21 +14,13 @@ import {
   updateSource as updateSourceAction,
 } from 'shared/actions/sources'
 import {publishNotification} from 'shared/actions/notifications'
+import {DEFAULT_SOURCE} from 'shared/constants'
 
 class CreateSource extends Component {
   constructor(props) {
     super(props)
     this.state = {
-      source: {
-        url: 'http://localhost:8086',
-        name: 'Influx 1',
-        username: '',
-        password: '',
-        default: true,
-        telegraf: 'telegraf',
-        insecureSkipVerify: false,
-        metaUrl: '',
-      },
+      source: DEFAULT_SOURCE,
       error: null,
     }
   }
@@ -81,7 +73,10 @@ class CreateSource extends Component {
     createSourceAJAX(newSource)
       .then(({data: sourceFromServer}) => {
         this.props.addSource(sourceFromServer)
-        this.setState({source: sourceFromServer, isCreated: true})
+        this.setState({
+          source: {...DEFAULT_SOURCE, ...sourceFromServer},
+          isCreated: true,
+        })
       })
       .catch(({data: error}) => {
         // dont want to flash this until they submit
@@ -98,7 +93,10 @@ class CreateSource extends Component {
       return createSourceAJAX(source)
         .then(({data: sourceFromServer}) => {
           this.props.addSource(sourceFromServer)
-          this.setState({source: sourceFromServer, error: null})
+          this.setState({
+            source: {...DEFAULT_SOURCE, ...sourceFromServer},
+            error: null,
+          })
           this.redirectToApp(sourceFromServer)
         })
         .catch(({data: error}) => {

@@ -12,22 +12,14 @@ import {connect} from 'react-redux'
 import SourceForm from 'src/sources/components/SourceForm'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 import SourceIndicator from 'shared/components/SourceIndicator'
+import {DEFAULT_SOURCE} from 'shared/constants'
 
 class SourcePage extends Component {
   constructor(props) {
     super(props)
 
     this.state = {
-      source: {
-        url: 'http://localhost:8086',
-        name: 'Influx 1',
-        username: '',
-        password: '',
-        default: true,
-        telegraf: 'telegraf',
-        insecureSkipVerify: false,
-        metaUrl: '',
-      },
+      source: DEFAULT_SOURCE,
       editMode: this.props.params.id !== undefined,
       error: '',
     }
@@ -39,7 +31,7 @@ class SourcePage extends Component {
     }
 
     getSource(this.props.params.id).then(({data: source}) => {
-      this.setState({source})
+      this.setState({source: {...DEFAULT_SOURCE, ...source}})
     })
   }
 
@@ -78,7 +70,10 @@ class SourcePage extends Component {
     createSource(newSource)
       .then(({data: sourceFromServer}) => {
         this.props.addSourceAction(sourceFromServer)
-        this.setState({source: sourceFromServer, isCreated: true})
+        this.setState({
+          source: {...DEFAULT_SOURCE, ...sourceFromServer},
+          isCreated: true,
+        })
       })
       .catch(({data: error}) => {
         // dont want to flash this until they submit

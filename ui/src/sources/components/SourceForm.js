@@ -112,7 +112,7 @@ class SourceForm extends Component {
                 type="checkbox"
                 id="defaultSourceCheckbox"
                 name="default"
-                defaultChecked={source.default}
+                checked={source.default}
                 onChange={onInputChange}
               />
               <label htmlFor="defaultSourceCheckbox">
@@ -127,7 +127,7 @@ class SourceForm extends Component {
                     type="checkbox"
                     id="insecureSkipVerifyCheckbox"
                     name="insecureSkipVerify"
-                    defaultChecked={source.insecureSkipVerify}
+                    checked={source.insecureSkipVerify}
                     onChange={onInputChange}
                   />
                   <label htmlFor="insecureSkipVerifyCheckbox">Unsafe SSL</label>
@@ -155,10 +155,19 @@ class SourceForm extends Component {
   }
 }
 
-const {bool, func, shape} = PropTypes
+const {bool, func, shape, string} = PropTypes
 
 SourceForm.propTypes = {
-  source: shape({}).isRequired,
+  source: shape({
+    url: string.isRequired,
+    name: string.isRequired,
+    username: string.isRequired,
+    password: string.isRequired,
+    telegraf: string.isRequired,
+    insecureSkipVerify: bool.isRequired,
+    default: bool.isRequired,
+    metaUrl: string.isRequired,
+  }).isRequired,
   editMode: bool.isRequired,
   onInputChange: func.isRequired,
   onSubmit: func.isRequired,
