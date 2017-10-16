@@ -20,12 +20,12 @@ class CreateSource extends Component {
     super(props)
     this.state = {
       source: {
-        url: '',
-        name: '',
+        url: 'http://localhost:8086',
+        name: 'Influx 1',
         username: '',
         password: '',
-        default: '',
-        telegraf: '',
+        default: true,
+        telegraf: 'telegraf',
         insecureSkipVerify: false,
         metaUrl: '',
       },
@@ -47,13 +47,20 @@ class CreateSource extends Component {
   }
 
   handleInputChange = e => {
-    const val = e.target.value
+    let val = e.target.value
     const name = e.target.name
+
+    if (e.target.type === 'checkbox') {
+      val = e.target.checked
+    }
+
     this.setState(prevState => {
-      const newSource = Object.assign({}, prevState.source, {
+      const source = {
+        ...prevState.source,
         [name]: val,
-      })
-      return Object.assign({}, prevState, {source: newSource, error: null})
+      }
+
+      return {...prevState, source}
     })
   }
 
@@ -81,12 +88,13 @@ class CreateSource extends Component {
       })
   }
 
-  handleSubmit = newSource => {
+  handleSubmit = e => {
+    e.preventDefault()
     const {notify, updateSource} = this.props
-    const {isCreated} = this.state
+    const {isCreated, source} = this.state
 
     if (!isCreated) {
-      return createSourceAJAX(newSource)
+      return createSourceAJAX(source)
         .then(({data: sourceFromServer}) => {
           this.props.addSource(sourceFromServer)
           this.setState({source: sourceFromServer, error: null})
@@ -101,7 +109,7 @@ class CreateSource extends Component {
         })
     }
 
-    updateSourceAJAX(newSource)
+    updateSourceAJAX(source)
       .then(({data: sourceFromServer}) => {
         updateSource(sourceFromServer)
         this.redirectToApp(sourceFromServer)
