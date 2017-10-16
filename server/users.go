@@ -41,7 +41,7 @@ func (r *userRequest) ValidUpdate() error {
 }
 
 func (r *userRequest) ValidRoles() error {
-	if r.Roles != nil && len(r.Roles) > 0 {
+	if len(r.Roles) > 0 {
 		for _, r := range r.Roles {
 			if r != chronograf.ViewerRoleName && r != chronograf.EditorRoleName && r != chronograf.AdminRoleName {
 				return fmt.Errorf("Invalid role assignment '%s' on Chronograf User request body", r)
