@@ -285,6 +285,15 @@ func TestGroupByVarString(t *testing.T) {
 			},
 			want: "time(107ms)",
 		},
+		{
+			name: "String() milliseconds if less than one millisecond",
+			tvar: &chronograf.GroupByVar{
+				Resolution:        100000,
+				ReportingInterval: 10 * time.Second,
+				Duration:          time.Second,
+			},
+			want: "time(1ms)",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

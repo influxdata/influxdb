@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -305,11 +304,12 @@ func (g *GroupByVar) String() string {
 	msPerPixel := float64(g.Duration/time.Millisecond) / pixels
 	secPerPixel := float64(g.Duration/time.Second) / pixels
 	if secPerPixel < 1.0 {
-		log.Printf("%s", "time("+strconv.FormatInt(int64(msPerPixel), 10)+"ms)")
+		if msPerPixel < 1.0 {
+			msPerPixel = 1.0
+		}
 		return "time(" + strconv.FormatInt(int64(msPerPixel), 10) + "ms)"
 	}
 	// If groupby is more than 1 second round to the second
-	log.Printf("%s", "time("+strconv.FormatInt(int64(secPerPixel), 10)+"s)")
 	return "time(" + strconv.FormatInt(int64(secPerPixel), 10) + "s)"
 }
 
