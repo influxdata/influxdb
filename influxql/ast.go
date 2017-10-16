@@ -2163,7 +2163,7 @@ func (s *ShowSeriesCardinalityStatement) String() string {
 // RequiredPrivileges returns the privilege required to execute a ShowSeriesCardinalityStatement.
 func (s *ShowSeriesCardinalityStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
 	if !s.Exact {
-		return ExecutionPrivileges{{Admin: false, Name: "", Privilege: ReadPrivilege}}, nil
+		return ExecutionPrivileges{{Admin: false, Name: s.Database, Privilege: ReadPrivilege}}, nil
 	}
 	return s.Sources.RequiredPrivileges()
 }

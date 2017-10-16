@@ -7287,7 +7287,7 @@ func TestServer_Query_ShowSeriesExactCardinality(t *testing.T) {
 		&Query{
 			name:    `show series exact cardinality with WHERE time should fail`,
 			command: "SHOW SERIES EXACT CARDINALITY WHERE time > now() - 1h",
-			exp:     `{"results":[{"statement_id":0,"error":"SHOW SERIES CARDINALITY doesn't support time in WHERE clause"}]}`,
+			exp:     `{"results":[{"statement_id":0,"error":"SHOW SERIES EXACT CARDINALITY doesn't support time in WHERE clause"}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 	}...)

@@ -166,9 +166,13 @@ func rewriteShowSeriesStatement(stmt *ShowSeriesStatement) (Statement, error) {
 }
 
 func rewriteShowSeriesCardinalityStatement(stmt *ShowSeriesCardinalityStatement) (Statement, error) {
+	if !stmt.Exact {
+		return stmt, nil
+	}
+
 	// Check for time in WHERE clause (not supported).
 	if HasTimeExpr(stmt.Condition) {
-		return nil, errors.New("SHOW SERIES CARDINALITY doesn't support time in WHERE clause")
+		return nil, errors.New("SHOW SERIES EXACT CARDINALITY doesn't support time in WHERE clause")
 	}
 
 	// Use all measurements, if zero.
