@@ -7217,7 +7217,7 @@ func TestServer_Query_ShowSeries(t *testing.T) {
 	}
 }
 
-func TestServer_Query_ShowSeriesCardinality(t *testing.T) {
+func TestServer_Query_ShowSeriesExactCardinality(t *testing.T) {
 	t.Parallel()
 	s := OpenServer(NewConfig())
 	defer s.Close()
@@ -7243,50 +7243,50 @@ func TestServer_Query_ShowSeriesCardinality(t *testing.T) {
 
 	test.addQueries([]*Query{
 		&Query{
-			name:    `show series cardinality`,
-			command: "SHOW SERIES CARDINALITY",
+			name:    `show series exact cardinality`,
+			command: "SHOW SERIES EXACT CARDINALITY",
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["count"],"values":[[4]]},{"name":"disk","columns":["count"],"values":[[1]]},{"name":"gpu","columns":["count"],"values":[[2]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
-			name:    `show series cardinality from measurement`,
-			command: "SHOW SERIES CARDINALITY FROM cpu",
+			name:    `show series exact cardinality from measurement`,
+			command: "SHOW SERIES EXACT CARDINALITY FROM cpu",
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["count"],"values":[[4]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
-			name:    `show series cardinality from regular expression`,
-			command: "SHOW SERIES CARDINALITY FROM /[cg]pu/",
+			name:    `show series exact cardinality from regular expression`,
+			command: "SHOW SERIES EXACT CARDINALITY FROM /[cg]pu/",
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["count"],"values":[[4]]},{"name":"gpu","columns":["count"],"values":[[2]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
-			name:    `show series cardinality with where tag`,
-			command: "SHOW SERIES CARDINALITY WHERE region = 'uswest'",
+			name:    `show series exact cardinality with where tag`,
+			command: "SHOW SERIES EXACT CARDINALITY WHERE region = 'uswest'",
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["count"],"values":[[1]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
-			name:    `show series cardinality where tag matches regular expression`,
-			command: "SHOW SERIES CARDINALITY WHERE region =~ /ca.*/",
+			name:    `show series exact cardinality where tag matches regular expression`,
+			command: "SHOW SERIES EXACT CARDINALITY WHERE region =~ /ca.*/",
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"disk","columns":["count"],"values":[[1]]},{"name":"gpu","columns":["count"],"values":[[1]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
-			name:    `show series cardinality`,
-			command: "SHOW SERIES CARDINALITY WHERE host !~ /server0[12]/",
+			name:    `show series exact cardinality`,
+			command: "SHOW SERIES EXACT CARDINALITY WHERE host !~ /server0[12]/",
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"disk","columns":["count"],"values":[[1]]},{"name":"gpu","columns":["count"],"values":[[1]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
-			name:    `show series cardinality with from and where`,
-			command: "SHOW SERIES CARDINALITY FROM cpu WHERE region = 'useast'",
+			name:    `show series exact cardinality with from and where`,
+			command: "SHOW SERIES EXACT CARDINALITY FROM cpu WHERE region = 'useast'",
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["count"],"values":[[2]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
-			name:    `show series cardinality with WHERE time should fail`,
-			command: "SHOW SERIES CARDINALITY WHERE time > now() - 1h",
+			name:    `show series exact cardinality with WHERE time should fail`,
+			command: "SHOW SERIES EXACT CARDINALITY WHERE time > now() - 1h",
 			exp:     `{"results":[{"statement_id":0,"error":"SHOW SERIES CARDINALITY doesn't support time in WHERE clause"}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},

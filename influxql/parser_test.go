@@ -1570,26 +1570,41 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: &influxql.ShowSeriesCardinalityStatement{},
 		},
 
-		// SHOW SERIES CARDINALITY FROM cpu
+		// SHOW SERIES CARDINALITY ON dbz statement
 		{
-			s: `SHOW SERIES CARDINALITY FROM cpu`,
+			s:    `SHOW SERIES CARDINALITY ON dbz`,
+			stmt: &influxql.ShowSeriesCardinalityStatement{Database: "dbz"},
+		},
+
+		// SHOW SERIES EXACT CARDINALITY statement
+		{
+			s:    `SHOW SERIES EXACT CARDINALITY`,
+			stmt: &influxql.ShowSeriesCardinalityStatement{Exact: true},
+		},
+
+		// SHOW SERIES EXACT CARDINALITY FROM cpu
+		{
+			s: `SHOW SERIES EXACT CARDINALITY FROM cpu`,
 			stmt: &influxql.ShowSeriesCardinalityStatement{
+				Exact:   true,
 				Sources: []influxql.Source{&influxql.Measurement{Name: "cpu"}},
 			},
 		},
 
-		// SHOW SERIES CARDINALITY ON db0
+		// SHOW SERIES EXACT CARDINALITY ON db0
 		{
-			s: `SHOW SERIES CARDINALITY ON db0`,
+			s: `SHOW SERIES EXACT CARDINALITY ON db0`,
 			stmt: &influxql.ShowSeriesCardinalityStatement{
+				Exact:    true,
 				Database: "db0",
 			},
 		},
 
-		// SHOW SERIES CARDINALITY FROM /<regex>/
+		// SHOW SERIES EXACT CARDINALITY FROM /<regex>/
 		{
-			s: `SHOW SERIES CARDINALITY FROM /[cg]pu/`,
+			s: `SHOW SERIES EXACT CARDINALITY FROM /[cg]pu/`,
 			stmt: &influxql.ShowSeriesCardinalityStatement{
+				Exact: true,
 				Sources: []influxql.Source{
 					&influxql.Measurement{
 						Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`[cg]pu`)},
@@ -1598,22 +1613,23 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
-		// SHOW SERIES CARDINALITY with OFFSET 0
+		// SHOW SERIES EXACT CARDINALITY with OFFSET 0
 		{
-			s:    `SHOW SERIES CARDINALITY OFFSET 0`,
-			stmt: &influxql.ShowSeriesCardinalityStatement{Offset: 0},
+			s:    `SHOW SERIES EXACT CARDINALITY OFFSET 0`,
+			stmt: &influxql.ShowSeriesCardinalityStatement{Exact: true, Offset: 0},
 		},
 
-		// SHOW SERIES CARDINALITY with LIMIT 2 OFFSET 0
+		// SHOW SERIES EXACT CARDINALITY with LIMIT 2 OFFSET 0
 		{
-			s:    `SHOW SERIES CARDINALITY LIMIT 2 OFFSET 0`,
-			stmt: &influxql.ShowSeriesCardinalityStatement{Offset: 0, Limit: 2},
+			s:    `SHOW SERIES EXACT CARDINALITY LIMIT 2 OFFSET 0`,
+			stmt: &influxql.ShowSeriesCardinalityStatement{Exact: true, Offset: 0, Limit: 2},
 		},
 
-		// SHOW SERIES CARDINALITY WHERE with ORDER BY and LIMIT
+		// SHOW SERIES EXACT CARDINALITY WHERE with ORDER BY and LIMIT
 		{
-			s: `SHOW SERIES CARDINALITY WHERE region = 'order by desc' LIMIT 10`,
+			s: `SHOW SERIES EXACT CARDINALITY WHERE region = 'order by desc' LIMIT 10`,
 			stmt: &influxql.ShowSeriesCardinalityStatement{
+				Exact: true,
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.EQ,
 					LHS: &influxql.VarRef{Val: "region"},

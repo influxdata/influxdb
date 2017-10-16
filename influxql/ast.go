@@ -2102,6 +2102,9 @@ type ShowSeriesCardinalityStatement struct {
 	// The database can also be specified per source in the Sources.
 	Database string
 
+	// If exact is false then the cardinality estimation approach is used.
+	Exact bool
+
 	// Measurement(s) the series are listed for.
 	Sources Sources
 
@@ -2117,12 +2120,24 @@ type ShowSeriesCardinalityStatement struct {
 // String returns a string representation of the show continuous queries statement.
 func (s *ShowSeriesCardinalityStatement) String() string {
 	var buf bytes.Buffer
-	_, _ = buf.WriteString("SHOW SERIES CARDINALITY")
+	_, _ = buf.WriteString("SHOW SERIES")
+
+	if !s.Exact {
+		_, _ = buf.WriteString(" CARDINALITY")
+		if s.Database != "" {
+			_, _ = buf.WriteString(" ON ")
+			_, _ = buf.WriteString(QuoteIdent(s.Database))
+		}
+		return buf.String()
+	}
+
+	_, _ = buf.WriteString(" EXACT CARDINALITY")
 
 	if s.Database != "" {
 		_, _ = buf.WriteString(" ON ")
 		_, _ = buf.WriteString(QuoteIdent(s.Database))
 	}
+
 	if s.Sources != nil {
 		_, _ = buf.WriteString(" FROM ")
 		_, _ = buf.WriteString(s.Sources.String())
@@ -2147,6 +2162,9 @@ func (s *ShowSeriesCardinalityStatement) String() string {
 
 // RequiredPrivileges returns the privilege required to execute a ShowSeriesCardinalityStatement.
 func (s *ShowSeriesCardinalityStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
+	if !s.Exact {
+		return ExecutionPrivileges{{Admin: false, Name: "", Privilege: ReadPrivilege}}, nil
+	}
 	return s.Sources.RequiredPrivileges()
 }
 

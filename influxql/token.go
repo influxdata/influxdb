@@ -88,6 +88,7 @@ const (
 	DURATION
 	END
 	EVERY
+	EXACT
 	EXPLAIN
 	FIELD
 	FOR
@@ -210,6 +211,7 @@ var tokens = [...]string{
 	DURATION:      "DURATION",
 	END:           "END",
 	EVERY:         "EVERY",
+	EXACT:         "EXACT",
 	EXPLAIN:       "EXPLAIN",
 	FIELD:         "FIELD",
 	FOR:           "FOR",

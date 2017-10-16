@@ -899,13 +899,22 @@ func (p *Parser) parseDeleteStatement() (Statement, error) {
 // parseShowSeriesStatement parses a string and returns a Statement.
 // This function assumes the "SHOW SERIES" tokens have already been consumed.
 func (p *Parser) parseShowSeriesStatement() (Statement, error) {
-	stmt := &ShowSeriesStatement{}
-	var err error
+	var exactCardinality bool
+	if tok, _, _ := p.ScanIgnoreWhitespace(); tok == EXACT {
+		exactCardinality = true
+	} else {
+		p.Unscan()
+	}
 
 	if tok, _, _ := p.ScanIgnoreWhitespace(); tok == CARDINALITY {
-		return p.parseShowSeriesCardinalityStatement()
+		return p.parseShowSeriesCardinalityStatement(exactCardinality)
 	}
 	p.Unscan()
+
+	// Handle SHOW SERIES statments.
+
+	stmt := &ShowSeriesStatement{}
+	var err error
 
 	// Parse optional ON clause.
 	if tok, _, _ := p.ScanIgnoreWhitespace(); tok == ON {
@@ -950,10 +959,11 @@ func (p *Parser) parseShowSeriesStatement() (Statement, error) {
 	return stmt, nil
 }
 
-// This function assumes the "SHOW SERIES CARDINALITY" tokens have already been consumed.
-func (p *Parser) parseShowSeriesCardinalityStatement() (Statement, error) {
+// This function assumes the "SHOW SERIES EXACT CARDINALITY" or the
+// "SHOW SERIES CARDINALITY" tokens have already been consumed.
+func (p *Parser) parseShowSeriesCardinalityStatement(exact bool) (Statement, error) {
 	var err error
-	stmt := &ShowSeriesCardinalityStatement{}
+	stmt := &ShowSeriesCardinalityStatement{Exact: exact}
 
 	// Parse optional ON clause.
 	if tok, _, _ := p.ScanIgnoreWhitespace(); tok == ON {
@@ -962,6 +972,11 @@ func (p *Parser) parseShowSeriesCardinalityStatement() (Statement, error) {
 		}
 	} else {
 		p.Unscan()
+	}
+
+	// Estimation command doesn't support any further versions of the command.
+	if !exact {
+		return stmt, nil
 	}
 
 	// Parse optional FROM.
