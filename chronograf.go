@@ -298,11 +298,19 @@ func (g *GroupByVar) parseAbsolute(fragment string) (time.Duration, error) {
 }
 
 func (g *GroupByVar) String() string {
-	duration := int64(g.Duration/time.Second) / int64(g.Resolution) * 3
-	if duration == 0 {
-		duration = 1
+	// The function is: ((total_seconds * millisecond_converstion) / group_by) = pixels / 3
+	// Number of points given the pixels
+	pixels := float64(g.Resolution) / 3.0
+	msPerPixel := float64(g.Duration/time.Millisecond) / pixels
+	secPerPixel := float64(g.Duration/time.Second) / pixels
+	if secPerPixel < 1.0 {
+		if msPerPixel < 1.0 {
+			msPerPixel = 1.0
+		}
+		return "time(" + strconv.FormatInt(int64(msPerPixel), 10) + "ms)"
 	}
-	return "time(" + strconv.Itoa(int(duration)) + "s)"
+	// If groupby is more than 1 second round to the second
+	return "time(" + strconv.FormatInt(int64(secPerPixel), 10) + "s)"
 }
 
 func (g *GroupByVar) Name() string {
