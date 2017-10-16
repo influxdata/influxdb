@@ -23,6 +23,7 @@ class TickscriptPage extends Component {
       },
       validation: '',
       isEditingID: true,
+      areLogsVisible: true,
     }
   }
 
@@ -96,9 +97,13 @@ class TickscriptPage extends Component {
     this.setState({task: {...this.state.task, id: e.target.value}})
   }
 
+  HandleToggleLogsVisbility = () => {
+    this.setState({areLogsVisible: !this.state.areLogsVisible})
+  }
+
   render() {
     const {source} = this.props
-    const {task, validation} = this.state
+    const {task, validation, areLogsVisible} = this.state
 
     return (
       <Tickscript
@@ -111,6 +116,8 @@ class TickscriptPage extends Component {
         onChangeScript={this.handleChangeScript}
         onChangeType={this.handleChangeType}
         onChangeID={this.handleChangeID}
+        areLogsVisible={areLogsVisible}
+        onToggleLogsVisbility={this.HandleToggleLogsVisbility}
       />
     )
   }

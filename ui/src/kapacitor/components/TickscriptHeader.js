@@ -5,6 +5,7 @@ import MultiSelectDBDropdown from 'shared/components/MultiSelectDBDropdown'
 import TickscriptID, {
   TickscriptStaticID,
 } from 'src/kapacitor/components/TickscriptID'
+import LogsToggle from 'src/kapacitor/components/LogsToggle'
 
 const addName = list => list.map(l => ({...l, name: `${l.db}.${l.rp}`}))
 
@@ -16,6 +17,8 @@ const TickscriptHeader = ({
   onChangeID,
   onSelectDbrps,
   isNewTickscript,
+  areLogsVisible,
+  onToggleLogsVisbility,
 }) =>
   <div className="page-header">
     <div className="page-header__container">
@@ -26,6 +29,10 @@ const TickscriptHeader = ({
       </div>
       <div className="page-header__right">
         <SourceIndicator />
+        <LogsToggle
+          areLogsVisible={areLogsVisible}
+          onToggleLogsVisbility={onToggleLogsVisbility}
+        />
         <TickscriptType type={type} onChangeType={onChangeType} />
         <MultiSelectDBDropdown
           selectedItems={addName(dbrps)}
@@ -48,6 +55,8 @@ const {arrayOf, bool, func, shape, string} = PropTypes
 TickscriptHeader.propTypes = {
   onSave: func,
   onSelectDbrps: func.isRequired,
+  areLogsVisible: bool,
+  onToggleLogsVisbility: func.isRequired,
   task: shape({
     dbrps: arrayOf(
       shape({
