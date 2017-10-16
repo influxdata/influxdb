@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -301,17 +302,15 @@ func (g *GroupByVar) String() string {
 	// The function is: ((total_seconds * millisecond_converstion) / group_by) = pixels / 3
 	// Number of points given the pixels
 	pixels := float64(g.Resolution) / 3.0
-	// Move the milliseconds to the other side of the equation
-	pixels = pixels / 1000.0
-	// Remove the number of pixels from the number of seconds
-	groupby := float64(g.Duration/time.Second) / pixels
-	if groupby < 1000.0 {
-		// If groupby is less than 1 second
-		return "time(" + strconv.Itoa(int(groupby)) + "ms)"
+	msPerPixel := float64(g.Duration/time.Millisecond) / pixels
+	secPerPixel := float64(g.Duration/time.Second) / pixels
+	if secPerPixel < 1.0 {
+		log.Printf("%s", "time("+strconv.FormatInt(int64(msPerPixel), 10)+"ms)")
+		return "time(" + strconv.FormatInt(int64(msPerPixel), 10) + "ms)"
 	}
 	// If groupby is more than 1 second round to the second
-	seconds := int(groupby) / 1000
-	return "time(" + strconv.Itoa(seconds) + "s)"
+	log.Printf("%s", "time("+strconv.FormatInt(int64(secPerPixel), 10)+"s)")
+	return "time(" + strconv.FormatInt(int64(secPerPixel), 10) + "s)"
 }
 
 func (g *GroupByVar) Name() string {

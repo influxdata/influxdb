@@ -277,7 +277,7 @@ func TestGroupByVarString(t *testing.T) {
 			want: "time(370s)",
 		},
 		{
-			name: "String() outputs a minimum of 1s intervals",
+			name: "String() milliseconds if less than one second intervals",
 			tvar: &chronograf.GroupByVar{
 				Resolution:        100000,
 				ReportingInterval: 10 * time.Second,
