@@ -84,6 +84,7 @@ class CreateSource extends Component {
         this.setState({source: sourceFromServer, isCreated: true})
       })
       .catch(({data: error}) => {
+        // dont want to flash this until they submit
         this.setState({error: error.message})
       })
   }
