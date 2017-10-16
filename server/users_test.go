@@ -540,3 +540,152 @@ func TestService_Users(t *testing.T) {
 		})
 	}
 }
+
+func TestUserRequest_ValidCreate(t *testing.T) {
+	type args struct {
+		u *userRequest
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+		err     error
+	}{
+		{
+			name: "Valid",
+			args: args{
+				u: &userRequest{
+					ID:       1337,
+					Name:     "billietta",
+					Provider: "Auth0",
+					Scheme:   "LDAP",
+					Roles:    []string{"Editor"},
+				},
+			},
+			wantErr: false,
+			err:     nil,
+		},
+		{
+			name: "Invalid – Name missing",
+			args: args{
+				u: &userRequest{
+					ID:       1337,
+					Provider: "Auth0",
+					Scheme:   "LDAP",
+					Roles:    []string{"Editor"},
+				},
+			},
+			wantErr: true,
+			err:     fmt.Errorf("Name required on Chronograf User request body"),
+		},
+		{
+			name: "Invalid – Provider missing",
+			args: args{
+				u: &userRequest{
+					ID:     1337,
+					Name:   "billietta",
+					Scheme: "LDAP",
+					Roles:  []string{"Editor"},
+				},
+			},
+			wantErr: true,
+			err:     fmt.Errorf("Provider required on Chronograf User request body"),
+		},
+		{
+			name: "Invalid – Scheme missing",
+			args: args{
+				u: &userRequest{
+					ID:       1337,
+					Name:     "billietta",
+					Provider: "Auth0",
+					Roles:    []string{"Editor"},
+				},
+			},
+			wantErr: true,
+			err:     fmt.Errorf("Scheme required on Chronograf User request body"),
+		},
+		{
+			name: "Invalid roles",
+			args: args{
+				u: &userRequest{
+					ID:       1337,
+					Name:     "billietta",
+					Provider: "Auth0",
+					Scheme:   "LDAP",
+					Roles:    []string{"BilliettaSpecialRole"},
+				},
+			},
+			wantErr: true,
+			err:     fmt.Errorf("Invalid role assignment 'BilliettaSpecialRole' on Chronograf User request body"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.args.u.ValidCreate()
+
+			if tt.wantErr {
+				if err == nil || err.Error() != tt.err.Error() {
+					t.Errorf("%q. ValidCreate(): wantErr %v,\nwant %v,\ngot %v", tt.name, tt.wantErr, tt.err, err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("%q. ValidCreate(): wantErr %v,\nwant %v,\ngot %v", tt.name, tt.wantErr, tt.err, err)
+				}
+			}
+		})
+	}
+}
+
+func TestUserRequest_ValidUpdate(t *testing.T) {
+	type args struct {
+		u *userRequest
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+		err     error
+	}{
+		{
+			name: "Valid",
+			args: args{
+				u: &userRequest{
+					ID:       1337,
+					Name:     "billietta",
+					Provider: "Auth0",
+					Scheme:   "LDAP",
+					Roles:    []string{"Editor"},
+				},
+			},
+			wantErr: false,
+			err:     nil,
+		},
+		{
+			name: "Invalid – field missing",
+			args: args{
+				u: &userRequest{
+					ID: 1337,
+				},
+			},
+			wantErr: true,
+			err:     fmt.Errorf("No fields to update"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.args.u.ValidUpdate()
+
+			if tt.wantErr {
+				if err == nil || err.Error() != tt.err.Error() {
+					t.Errorf("%q. ValidCreate(): wantErr %v,\nwant %v,\ngot %v", tt.name, tt.wantErr, tt.err, err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("%q. ValidCreate(): wantErr %v,\nwant %v,\ngot %v", tt.name, tt.wantErr, tt.err, err)
+				}
+			}
+		})
+	}
+}
