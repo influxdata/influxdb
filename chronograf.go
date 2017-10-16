@@ -25,16 +25,18 @@ const (
 	AdminRoleName  = "Admin"
 )
 
-// Default roles for chronograf Users
 var (
+	// ViewerRole is the role for a user who can only perform READ operations on Dashboards, Rules, and Sources
 	ViewerRole = Role{
 		Name: ViewerRoleName,
 	}
 
+	// EditorRole is the role for a user who can perform READ and WRITE operations on Dashboards, Rules, and Sources
 	EditorRole = Role{
 		Name: EditorRoleName,
 	}
 
+	// AdminRole is the role for a user who can perform READ and WRITE operations on Dashboards, Rules, Sources, and Users
 	AdminRole = Role{
 		Name: AdminRoleName,
 	}
