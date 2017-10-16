@@ -68,7 +68,7 @@ func TestService_UserID(t *testing.T) {
 			id:              "1337",
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"id":"1337","name":"billysteve","provider":"Google","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1337"},"roles":["Viewer"]}`,
+			wantBody:        `{"id":"1337","name":"billysteve","provider":"Google","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1337"},"roles":[{"name":"Viewer"}]}`,
 		},
 	}
 
@@ -333,15 +333,15 @@ func TestService_UpdateUser(t *testing.T) {
 					Name:     "bobbetta",
 					Provider: "Google",
 					Scheme:   "OAuth2",
-					Roles: []string{
-						chronograf.AdminRoleName,
+					Roles: []chronograf.Role{
+						chronograf.AdminRole,
 					},
 				},
 			},
 			id:              "1336",
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"id":"1336","name":"bobbetta","provider":"Google","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1336"},"roles":["Admin"]}`,
+			wantBody:        `{"id":"1336","name":"bobbetta","provider":"Google","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1336"},"roles":[{"name":"Admin"}]}`,
 		},
 		{
 			name: "Update only one field of a Chronograf user",
@@ -473,7 +473,7 @@ func TestService_Users(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"users":[{"id":"1337","name":"billysteve","provider":"Google","scheme":"OAuth2","roles":["Editor"],"links":{"self":"/chronograf/v1/users/1337"}},{"id":"1338","name":"bobbettastuhvetta","provider":"Auth0","scheme":"LDAP","roles":[],"links":{"self":"/chronograf/v1/users/1338"}}],"links":{"self":"/chronograf/v1/users"}}`,
+			wantBody:        `{"users":[{"id":"1337","name":"billysteve","provider":"Google","scheme":"OAuth2","roles":[{"name":"Editor"}],"links":{"self":"/chronograf/v1/users/1337"}},{"id":"1338","name":"bobbettastuhvetta","provider":"Auth0","scheme":"LDAP","roles":[],"links":{"self":"/chronograf/v1/users/1338"}}],"links":{"self":"/chronograf/v1/users"}}`,
 		},
 		{
 			name: "Get all Chronograf users, ensuring order of users in response",
@@ -511,7 +511,7 @@ func TestService_Users(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"users":[{"id":"1337","name":"billysteve","provider":"Google","scheme":"OAuth2","roles":["Editor"],"links":{"self":"/chronograf/v1/users/1337"}},{"id":"1338","name":"bobbettastuhvetta","provider":"Auth0","scheme":"LDAP","roles":[],"links":{"self":"/chronograf/v1/users/1338"}}],"links":{"self":"/chronograf/v1/users"}}`,
+			wantBody:        `{"users":[{"id":"1337","name":"billysteve","provider":"Google","scheme":"OAuth2","roles":[{"name":"Editor"}],"links":{"self":"/chronograf/v1/users/1337"}},{"id":"1338","name":"bobbettastuhvetta","provider":"Auth0","scheme":"LDAP","roles":[],"links":{"self":"/chronograf/v1/users/1338"}}],"links":{"self":"/chronograf/v1/users"}}`,
 		},
 	}
 
@@ -559,7 +559,9 @@ func TestUserRequest_ValidCreate(t *testing.T) {
 					Name:     "billietta",
 					Provider: "Auth0",
 					Scheme:   "LDAP",
-					Roles:    []string{"Editor"},
+					Roles: []chronograf.Role{
+						chronograf.EditorRole,
+					},
 				},
 			},
 			wantErr: false,
@@ -572,7 +574,9 @@ func TestUserRequest_ValidCreate(t *testing.T) {
 					ID:       1337,
 					Provider: "Auth0",
 					Scheme:   "LDAP",
-					Roles:    []string{"Editor"},
+					Roles: []chronograf.Role{
+						chronograf.EditorRole,
+					},
 				},
 			},
 			wantErr: true,
@@ -585,7 +589,9 @@ func TestUserRequest_ValidCreate(t *testing.T) {
 					ID:     1337,
 					Name:   "billietta",
 					Scheme: "LDAP",
-					Roles:  []string{"Editor"},
+					Roles: []chronograf.Role{
+						chronograf.EditorRole,
+					},
 				},
 			},
 			wantErr: true,
@@ -598,7 +604,9 @@ func TestUserRequest_ValidCreate(t *testing.T) {
 					ID:       1337,
 					Name:     "billietta",
 					Provider: "Auth0",
-					Roles:    []string{"Editor"},
+					Roles: []chronograf.Role{
+						chronograf.EditorRole,
+					},
 				},
 			},
 			wantErr: true,
@@ -612,7 +620,11 @@ func TestUserRequest_ValidCreate(t *testing.T) {
 					Name:     "billietta",
 					Provider: "Auth0",
 					Scheme:   "LDAP",
-					Roles:    []string{"BilliettaSpecialRole"},
+					Roles: []chronograf.Role{
+						{
+							Name: "BilliettaSpecialRole",
+						},
+					},
 				},
 			},
 			wantErr: true,
@@ -655,7 +667,9 @@ func TestUserRequest_ValidUpdate(t *testing.T) {
 					Name:     "billietta",
 					Provider: "Auth0",
 					Scheme:   "LDAP",
-					Roles:    []string{"Editor"},
+					Roles: []chronograf.Role{
+						chronograf.EditorRole,
+					},
 				},
 			},
 			wantErr: false,

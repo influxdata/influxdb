@@ -11,11 +11,11 @@ import (
 )
 
 type userRequest struct {
-	ID       uint64   `json:"id,string"`
-	Name     string   `json:"name"`
-	Provider string   `json:"provider"`
-	Scheme   string   `json:"scheme"`
-	Roles    []string `json:"roles"`
+	ID       uint64            `json:"id,string"`
+	Name     string            `json:"name"`
+	Provider string            `json:"provider"`
+	Scheme   string            `json:"scheme"`
+	Roles    []chronograf.Role `json:"roles"`
 }
 
 func (r *userRequest) ValidCreate() error {
@@ -43,8 +43,12 @@ func (r *userRequest) ValidUpdate() error {
 func (r *userRequest) ValidRoles() error {
 	if len(r.Roles) > 0 {
 		for _, r := range r.Roles {
-			if r != chronograf.ViewerRoleName && r != chronograf.EditorRoleName && r != chronograf.AdminRoleName {
-				return fmt.Errorf("Unknown role %s. Valid roles are 'Viewer', 'Editor', 'Admin', and 'SuperAdmin'", r)
+			switch r.Name {
+			// TODO: add SuperAdmin
+			case chronograf.ViewerRoleName, chronograf.EditorRoleName, chronograf.AdminRoleName:
+				continue
+			default:
+				return fmt.Errorf("Unknown role %s. Valid roles are 'Viewer', 'Editor', 'Admin', and 'SuperAdmin'", r.Name)
 			}
 		}
 	}
@@ -52,42 +56,31 @@ func (r *userRequest) ValidRoles() error {
 }
 
 type userResponse struct {
-	Links    selfLinks `json:"links"`
-	ID       uint64    `json:"id,string"`
-	Name     string    `json:"name"`
-	Provider string    `json:"provider"`
-	Scheme   string    `json:"scheme"`
-	Roles    []string  `json:"roles"`
+	Links    selfLinks         `json:"links"`
+	ID       uint64            `json:"id,string"`
+	Name     string            `json:"name"`
+	Provider string            `json:"provider"`
+	Scheme   string            `json:"scheme"`
+	Roles    []chronograf.Role `json:"roles"`
 }
 
 func newUserResponse(u *chronograf.User) *userResponse {
-	roles := make([]string, len(u.Roles))
-	for i, r := range u.Roles {
-		roles[i] = r.Name
+	// This ensures that any user response with no roles returns an empty array instead of
+	// null when marshaled into JSON. That way, JavaScript doesn't need any guard on the
+	// key existing and it can simply be iterated over.
+	if u.Roles == nil {
+		u.Roles = []chronograf.Role{}
 	}
 	return &userResponse{
 		ID:       u.ID,
 		Name:     u.Name,
 		Provider: u.Provider,
 		Scheme:   u.Scheme,
-		Roles:    roles,
+		Roles:    u.Roles,
 		Links: selfLinks{
 			Self: fmt.Sprintf("/chronograf/v1/users/%d", u.ID),
 		},
 	}
-}
-
-// ExplicatedRoles fills out a set of roles to include its members explicitly
-func ExplicatedRoles(reqRoles []string) ([]chronograf.Role, error) {
-	roles := make([]chronograf.Role, len(reqRoles))
-	for i, r := range reqRoles {
-		role, err := chronograf.RoleFromName(r)
-		if err != nil {
-			return nil, err
-		}
-		roles[i] = role
-	}
-	return roles, nil
 }
 
 type usersResponse struct {
@@ -139,18 +132,12 @@ func (s *Service) NewUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	roles, err := ExplicatedRoles(req.Roles)
-	if err != nil {
-		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
-		return
-	}
-
 	ctx := r.Context()
 	user := &chronograf.User{
 		Name:     req.Name,
 		Provider: req.Provider,
 		Scheme:   req.Scheme,
-		Roles:    roles,
+		Roles:    req.Roles,
 	}
 
 	res, err := s.UsersStore.Add(ctx, user)
@@ -211,12 +198,7 @@ func (s *Service) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		u.Scheme = req.Scheme
 	}
 	if req.Roles != nil {
-		roles, err := ExplicatedRoles(req.Roles)
-		if err != nil {
-			Error(w, http.StatusBadRequest, err.Error(), s.Logger)
-			return
-		}
-		u.Roles = roles
+		u.Roles = req.Roles
 	}
 
 	err = s.UsersStore.Update(ctx, u)
