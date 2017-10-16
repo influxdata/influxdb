@@ -6,8 +6,17 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/chronograf"
 )
+
+// IgnoreFields is used because ID is created by BoltDB and cannot be predicted reliably
+// EquateEmpty is used because we want nil slices, arrays, and maps to be equal to the empty map
+var cmpOptions = cmp.Options{
+	cmpopts.IgnoreFields(chronograf.User{}, "ID"),
+	cmpopts.EquateEmpty(),
+}
 
 func TestUsersStore_Get(t *testing.T) {
 	type args struct {
@@ -105,7 +114,9 @@ func TestUsersStore_Add(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to get user: %v", err)
 		}
-		usersEqual(t, tt.name, "Add", got, tt.want)
+		if diff := cmp.Diff(got, tt.want, cmpOptions...); diff != "" {
+			t.Errorf("%q. UsersStore.Add():\n-got/+want\ndiff %s", tt.name, diff)
+		}
 	}
 }
 
@@ -281,7 +292,9 @@ func TestUsersStore_Update(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to get user: %v", err)
 		}
-		usersEqual(t, tt.name, "Update", got, tt.want)
+		if diff := cmp.Diff(got, tt.want, cmpOptions...); diff != "" {
+			t.Errorf("%q. UsersStore.Update():\n-got/+want\ndiff %s", tt.name, diff)
+		}
 	}
 }
 
@@ -341,30 +354,8 @@ func TestUsersStore_All(t *testing.T) {
 			continue
 		}
 		for i, got := range gots {
-			usersEqual(t, tt.name, "All", &got, &tt.want[i])
-		}
-	}
-}
-
-func usersEqual(t *testing.T, name, method string, u1, u2 *chronograf.User) {
-	if u1.Name != u2.Name {
-		t.Errorf("%q. UsersStore.%s() .Name:\ngot %v, want %v", name, method, u1.Name, u2.Name)
-	}
-	if u1.Provider != u2.Provider {
-		t.Errorf("%q. UsersStore.%s() .Provider:\ngot %v, want %v", name, method, u1.Provider, u2.Provider)
-	}
-	if u1.Scheme != u2.Scheme {
-		t.Errorf("%q. UsersStore.%s() .Scheme:\ngot %v, want %v", name, method, u1.Scheme, u2.Scheme)
-	}
-	if len(u1.Roles) != len(u2.Roles) {
-		t.Errorf("%q. UsersStore.%s() .Roles:\ngot %v, want %v", name, method, u1.Roles, u2.Roles)
-		return
-	}
-	if len(u1.Roles) > 0 && len(u2.Roles) > 0 {
-		for i, gotRole := range u1.Roles {
-			wantRole := u2.Roles[i]
-			if wantRole.Name != gotRole.Name {
-				t.Errorf("%q. UsersStore.%s() .Roles[%d]:\ngot %v, want %v", name, method, i, gotRole, wantRole)
+			if diff := cmp.Diff(got, tt.want[i], cmpOptions...); diff != "" {
+				t.Errorf("%q. UsersStore.All():\n-got/+want\ndiff %s", tt.name, diff)
 			}
 		}
 	}
