@@ -36,7 +36,7 @@ func newMeResponse(usr *chronograf.User) meResponse {
 	}
 }
 
-func getEmail(ctx context.Context) (string, error) {
+func getUsername(ctx context.Context) (string, error) {
 	principal, err := getPrincipal(ctx)
 	if err != nil {
 		return "", err
@@ -56,7 +56,7 @@ func getPrincipal(ctx context.Context) (oauth2.Principal, error) {
 	return principal, nil
 }
 
-// Me does a findOrCreate based on the email in the context
+// Me does a findOrCreate based on the username in the context
 func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !s.UseAuth {
@@ -66,13 +66,13 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	email, err := getEmail(ctx)
+	username, err := getUsername(ctx)
 	if err != nil {
 		invalidData(w, err, s.Logger)
 		return
 	}
 
-	usr, err := s.UsersStore.Get(ctx, email)
+	usr, err := s.UsersStore.Get(ctx, username)
 	if err == nil {
 		res := newMeResponse(usr)
 		encodeJSON(w, http.StatusOK, res, s.Logger)
@@ -81,7 +81,7 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 
 	// Because we didnt find a user, making a new one
 	user := &chronograf.User{
-		Name: email,
+		Name: username,
 	}
 
 	newUser, err := s.UsersStore.Add(ctx, user)
