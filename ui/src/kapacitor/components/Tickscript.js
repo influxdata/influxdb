@@ -30,7 +30,12 @@ const Tickscript = ({
       onToggleLogsVisbility={onToggleLogsVisbility}
     />
     {areLogsVisible
-      ? <ResizeContainer containerClass="page-contents">
+      ? <ResizeContainer
+          containerClass="page-contents"
+          isKapacitorTheme={true}
+          minTopHeight={300}
+          minBottomHeight={300}
+        >
           <div className="tickscript">
             <div className="tickscript-console">
               <div className="tickscript-console--output">

@@ -13,6 +13,7 @@ $resizer-dots: $g3-castle;
 $resizer-color: $g5-pepper;
 $resizer-color-hover: $g8-storm;
 $resizer-color-active: $c-pool;
+$resizer-color-kapacitor: $c-rainforest;
 
 .resize--container {
   overflow: hidden !important;
@@ -108,5 +109,14 @@ $resizer-color-active: $c-pool;
       background-color: $resizer-color-active;
       box-shadow: 0 0 $resizer-glow $resizer-color-active;
     }
+  }
+}
+
+/* Kapacitor Theme */
+.resizer--handle.resizer--malachite.dragging {
+  &:before,
+  &:after {
+    background-color: $resizer-color-kapacitor;
+    box-shadow: 0 0 $resizer-glow $resizer-color-kapacitor;
   }
 }
