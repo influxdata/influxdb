@@ -53,7 +53,7 @@ const LayoutCellMenuContainer = props => {
   return <LayoutCellMenu {...props} />
 }
 
-const {bool, func, shape, number} = PropTypes
+const {bool, func, shape} = PropTypes
 
 LayoutCellMenuContainer.propTypes = {
   isDeleting: bool,
@@ -62,7 +62,7 @@ LayoutCellMenuContainer.propTypes = {
   onDeleteClick: func,
   cell: shape(),
   isEditable: bool,
-  dataExists: number,
+  dataExists: bool,
 }
 
 LayoutCellMenu.propTypes = LayoutCellMenuContainer.propTypes

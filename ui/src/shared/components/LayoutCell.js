@@ -59,7 +59,7 @@ class LayoutCell extends Component {
       <div className="dash-graph">
         <LayoutCellMenu
           cell={cell}
-          dataExists={celldata.length}
+          dataExists={!!celldata.length}
           isDeleting={isDeleting}
           isEditable={isEditable}
           onDelete={this.handleDeleteCell}

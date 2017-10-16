@@ -156,7 +156,9 @@ const AutoRefresh = ComposedComponent => {
           lastQuerySuccessful,
           isFetching: false,
         })
-        grabDataForDownload(timeSeries)
+        if (grabDataForDownload) {
+          grabDataForDownload(timeSeries)
+        }
       })
     },
 
