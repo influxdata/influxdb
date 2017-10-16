@@ -37,12 +37,12 @@ func TestValidRuleRequest(t *testing.T) {
 				Query: &chronograf.QueryConfig{
 					Fields: []chronograf.Field{
 						{
-							Name: "max",
-							Type: "func",
+							Value: "max",
+							Type:  "func",
 							Args: []chronograf.Field{
 								{
-									Name: "oldmanpeabody",
-									Type: "field",
+									Value: "oldmanpeabody",
+									Type:  "field",
 								},
 							},
 						},
@@ -58,12 +58,12 @@ func TestValidRuleRequest(t *testing.T) {
 				Query: &chronograf.QueryConfig{
 					Fields: []chronograf.Field{
 						{
-							Name: "max",
-							Type: "func",
+							Value: "max",
+							Type:  "func",
 							Args: []chronograf.Field{
 								{
-									Name: "oldmanpeabody",
-									Type: "field",
+									Value: "oldmanpeabody",
+									Type:  "field",
 								},
 							},
 						},

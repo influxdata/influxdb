@@ -44,14 +44,14 @@ func Data(rule chronograf.AlertRule) (string, error) {
 			if field.Type == "func" && len(field.Args) > 0 && field.Args[0].Type == "field" {
 				// Only need a window if we have an aggregate function
 				value = value + "|window().period(period).every(every).align()\n"
-				value = value + fmt.Sprintf(`|%s('%s').as('value')`, field.Name, field.Args[0].Name)
+				value = value + fmt.Sprintf(`|%s('%s').as('value')`, field.Value, field.Args[0].Value)
 				break // only support a single field
 			}
 			if value != "" {
 				break // only support a single field
 			}
 			if field.Type == "field" {
-				value = fmt.Sprintf(`|eval(lambda: "%s").as('value')`, field.Name)
+				value = fmt.Sprintf(`|eval(lambda: "%s").as('value')`, field.Value)
 			}
 		}
 		if value == "" {

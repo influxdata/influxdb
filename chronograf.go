@@ -495,7 +495,7 @@ type TriggerValues struct {
 
 // Field represent influxql fields and functions from the UI
 type Field struct {
-	Name  interface{} `json:"name"`
+	Value interface{} `json:"value"`
 	Type  string      `json:"type"`
 	Alias string      `json:"alias"`
 	Args  []Field     `json:"args,omitempty"`

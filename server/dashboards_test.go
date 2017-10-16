@@ -311,8 +311,8 @@ func Test_newDashboardResponse(t *testing.T) {
 										Measurement: "grays_sports_alamanc",
 										Fields: []chronograf.Field{
 											{
-												Type: "field",
-												Name: "winning_horses",
+												Type:  "field",
+												Value: "winning_horses",
 											},
 										},
 										GroupBy: chronograf.GroupBy{

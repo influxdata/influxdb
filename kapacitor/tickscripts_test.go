@@ -27,12 +27,12 @@ func TestGenerate(t *testing.T) {
 			RetentionPolicy: "autogen",
 			Fields: []chronograf.Field{
 				{
-					Name: "mean",
-					Type: "func",
+					Value: "mean",
+					Type:  "func",
 					Args: []chronograf.Field{
 						{
-							Name: "usage_user",
-							Type: "field",
+							Value: "usage_user",
+							Type:  "field",
 						},
 					},
 				},
@@ -78,12 +78,12 @@ func TestThreshold(t *testing.T) {
 			RetentionPolicy: "autogen",
 			Fields: []chronograf.Field{
 				{
-					Name: "mean",
-					Type: "func",
+					Value: "mean",
+					Type:  "func",
 					Args: []chronograf.Field{
 						{
-							Name: "usage_user",
-							Type: "field",
+							Value: "usage_user",
+							Type:  "field",
 						},
 					},
 				},
@@ -228,12 +228,12 @@ func TestThresholdStringCrit(t *testing.T) {
 			Measurement:     "haproxy",
 			Fields: []chronograf.Field{
 				{
-					Name: "last",
-					Type: "func",
+					Value: "last",
+					Type:  "func",
 					Args: []chronograf.Field{
 						{
-							Name: "status",
-							Type: "field",
+							Value: "status",
+							Type:  "field",
 						},
 					},
 				},
@@ -372,12 +372,12 @@ func TestThresholdStringCritGreater(t *testing.T) {
 			Measurement:     "haproxy",
 			Fields: []chronograf.Field{
 				{
-					Name: "last",
-					Type: "func",
+					Value: "last",
+					Type:  "func",
 					Args: []chronograf.Field{
 						{
-							Name: "status",
-							Type: "field",
+							Value: "status",
+							Type:  "field",
 						},
 					},
 				},
@@ -514,12 +514,12 @@ func TestThresholdDetail(t *testing.T) {
 			RetentionPolicy: "autogen",
 			Fields: []chronograf.Field{
 				{
-					Name: "mean",
-					Type: "func",
+					Value: "mean",
+					Type:  "func",
 					Args: []chronograf.Field{
 						{
-							Name: "usage_user",
-							Type: "field",
+							Value: "usage_user",
+							Type:  "field",
 						},
 					},
 				},
@@ -667,12 +667,12 @@ func TestThresholdInsideRange(t *testing.T) {
 			RetentionPolicy: "autogen",
 			Fields: []chronograf.Field{
 				{
-					Name: "mean",
-					Type: "func",
+					Value: "mean",
+					Type:  "func",
 					Args: []chronograf.Field{
 						{
-							Name: "usage_user",
-							Type: "field",
+							Value: "usage_user",
+							Type:  "field",
 						},
 					},
 				},
@@ -819,12 +819,12 @@ func TestThresholdOutsideRange(t *testing.T) {
 			RetentionPolicy: "autogen",
 			Fields: []chronograf.Field{
 				{
-					Name: "mean",
-					Type: "func",
+					Value: "mean",
+					Type:  "func",
 					Args: []chronograf.Field{
 						{
-							Name: "usage_user",
-							Type: "field",
+							Value: "usage_user",
+							Type:  "field",
 						},
 					},
 				},
@@ -970,8 +970,8 @@ func TestThresholdNoAggregate(t *testing.T) {
 			RetentionPolicy: "autogen",
 			Fields: []chronograf.Field{
 				{
-					Name: "usage_user",
-					Type: "field",
+					Value: "usage_user",
+					Type:  "field",
 				},
 			},
 			Tags: map[string][]string{
@@ -1107,12 +1107,12 @@ func TestRelative(t *testing.T) {
 			RetentionPolicy: "autogen",
 			Fields: []chronograf.Field{
 				{
-					Name: "mean",
-					Type: "func",
+					Value: "mean",
+					Type:  "func",
 					Args: []chronograf.Field{
 						{
-							Name: "usage_user",
-							Type: "field",
+							Value: "usage_user",
+							Type:  "field",
 						},
 					},
 				},
@@ -1270,12 +1270,12 @@ func TestRelativeChange(t *testing.T) {
 			RetentionPolicy: "autogen",
 			Fields: []chronograf.Field{
 				{
-					Name: "mean",
-					Type: "func",
+					Value: "mean",
+					Type:  "func",
 					Args: []chronograf.Field{
 						{
-							Name: "usage_user",
-							Type: "field",
+							Value: "usage_user",
+							Type:  "field",
 						},
 					},
 				},
@@ -1430,12 +1430,12 @@ func TestDeadman(t *testing.T) {
 			RetentionPolicy: "autogen",
 			Fields: []chronograf.Field{
 				{
-					Name: "mean",
-					Type: "func",
+					Value: "mean",
+					Type:  "func",
 					Args: []chronograf.Field{
 						{
-							Name: "usage_user",
-							Type: "field",
+							Value: "usage_user",
+							Type:  "field",
 						},
 					},
 				},

@@ -425,12 +425,12 @@ func Reverse(script chronograf.TICKScript) (chronograf.AlertRule, error) {
 		if fieldFunc.Func != "" {
 			rule.Query.Fields = []chronograf.Field{
 				{
-					Type: "func",
-					Name: fieldFunc.Func,
+					Type:  "func",
+					Value: fieldFunc.Func,
 					Args: []chronograf.Field{
 						{
-							Name: fieldFunc.Field,
-							Type: "field",
+							Value: fieldFunc.Field,
+							Type:  "field",
 						},
 					},
 				},
@@ -438,8 +438,8 @@ func Reverse(script chronograf.TICKScript) (chronograf.AlertRule, error) {
 		} else {
 			rule.Query.Fields = []chronograf.Field{
 				{
-					Type: "field",
-					Name: fieldFunc.Field,
+					Type:  "field",
+					Value: fieldFunc.Field,
 				},
 			}
 		}

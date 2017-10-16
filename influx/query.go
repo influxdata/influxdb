@@ -152,18 +152,28 @@ func Convert(influxQL string) (chronograf.QueryConfig, error) {
 				switch ref := arg.(type) {
 				case *influxql.VarRef:
 					fldArgs = append(fldArgs, chronograf.Field{
-						Name: ref.Val,
-						Type: "field",
+						Value: ref.Val,
+						Type:  "field",
 					})
 				case *influxql.IntegerLiteral:
 					fldArgs = append(fldArgs, chronograf.Field{
-						Name: ref.Val,
-						Type: "integer",
+						Value: ref.Val,
+						Type:  "integer",
 					})
 				case *influxql.NumberLiteral:
 					fldArgs = append(fldArgs, chronograf.Field{
-						Name: ref.Val,
-						Type: "number",
+						Value: ref.Val,
+						Type:  "number",
+					})
+				case *influxql.RegexLiteral:
+					fldArgs = append(fldArgs, chronograf.Field{
+						Value: ref.Val.String(),
+						Type:  "regex",
+					})
+				case *influxql.Wildcard:
+					fldArgs = append(fldArgs, chronograf.Field{
+						Value: "*",
+						Type:  "wildcard",
 					})
 				default:
 					return raw, nil
@@ -171,7 +181,7 @@ func Convert(influxQL string) (chronograf.QueryConfig, error) {
 			}
 
 			qc.Fields = append(qc.Fields, chronograf.Field{
-				Name:  f.Name,
+				Value: f.Name,
 				Type:  "func",
 				Alias: fld.Alias,
 				Args:  fldArgs,
@@ -181,7 +191,7 @@ func Convert(influxQL string) (chronograf.QueryConfig, error) {
 				return raw, nil
 			}
 			qc.Fields = append(qc.Fields, chronograf.Field{
-				Name:  f.Val,
+				Value: f.Val,
 				Type:  "field",
 				Alias: fld.Alias,
 			})
@@ -460,6 +470,8 @@ var supportedFuncs = map[string]bool{
 	"spread":     true,
 	"stddev":     true,
 	"percentile": true,
+	"top":        true,
+	"bottom":     true,
 }
 
 // shortDur converts duration into the queryConfig duration format
