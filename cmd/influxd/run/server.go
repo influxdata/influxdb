@@ -31,7 +31,7 @@ import (
 	"github.com/influxdata/influxdb/tcp"
 	"github.com/influxdata/influxdb/tsdb"
 	client "github.com/influxdata/usage-client/v1"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 
 	// Initialize the engine & index packages
 	_ "github.com/influxdata/influxdb/tsdb/engine"
@@ -64,7 +64,6 @@ type Server struct {
 	BindAddress string
 	Listener    net.Listener
 
-	Logger            zap.Logger
 	DiagnosticService *diagnostic.Service
 
 	MetaClient *meta.Client
@@ -142,11 +141,6 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		closing:   make(chan struct{}),
 
 		BindAddress: bind,
-
-		Logger: zap.New(
-			zap.NewTextEncoder(),
-			zap.Output(os.Stderr),
-		),
 
 		MetaClient: meta.NewClient(c.Meta),
 
@@ -236,8 +230,12 @@ func (s *Server) appendSnapshotterService() {
 // SetLogOutput sets the logger used for all messages. It must not be called
 // after the Open method has been called.
 func (s *Server) SetLogOutput(w io.Writer) {
-	s.Logger = zap.New(zap.NewTextEncoder(), zap.Output(zap.AddSync(w)))
 	s.DiagnosticService = diagnostic.New(w)
+}
+
+// Logger returns the configured zap logger from the diagnostic service.
+func (s *Server) Logger() *zap.Logger {
+	return s.DiagnosticService.Logger()
 }
 
 func (s *Server) appendMonitorService() {
@@ -518,14 +516,14 @@ func (s *Server) reportServer() {
 		name := db.Name
 		n, err := s.TSDBStore.SeriesCardinality(name)
 		if err != nil {
-			s.Logger.Error(fmt.Sprintf("Unable to get series cardinality for database %s: %v", name, err))
+			s.Logger().Error(fmt.Sprintf("Unable to get series cardinality for database %s: %v", name, err))
 		} else {
 			numSeries += n
 		}
 
 		n, err = s.TSDBStore.MeasurementsCardinality(name)
 		if err != nil {
-			s.Logger.Error(fmt.Sprintf("Unable to get measurement cardinality for database %s: %v", name, err))
+			s.Logger().Error(fmt.Sprintf("Unable to get measurement cardinality for database %s: %v", name, err))
 		} else {
 			numMeasurements += n
 		}
@@ -551,7 +549,7 @@ func (s *Server) reportServer() {
 		},
 	}
 
-	s.Logger.Info("Sending usage statistics to usage.influxdata.com")
+	s.Logger().Info("Sending usage statistics to usage.influxdata.com")
 
 	go cl.Save(usage)
 }

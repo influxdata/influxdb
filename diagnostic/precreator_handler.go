@@ -5,11 +5,11 @@ import (
 	"time"
 
 	precreator "github.com/influxdata/influxdb/services/precreator/diagnostic"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 type PrecreatorHandler struct {
-	l zap.Logger
+	l *zap.Logger
 }
 
 func (s *Service) PrecreatorContext() precreator.Context {

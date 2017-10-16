@@ -5,11 +5,11 @@ import (
 	"net"
 
 	collectd "github.com/influxdata/influxdb/services/collectd/diagnostic"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 type CollectdHandler struct {
-	l zap.Logger
+	l *zap.Logger
 }
 
 func (s *Service) CollectdContext() collectd.Context {

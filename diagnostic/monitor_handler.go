@@ -5,11 +5,11 @@ import (
 	"time"
 
 	monitor "github.com/influxdata/influxdb/monitor/diagnostic"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 type MonitorHandler struct {
-	l zap.Logger
+	l *zap.Logger
 }
 
 func (s *Service) MonitorContext() monitor.Context {

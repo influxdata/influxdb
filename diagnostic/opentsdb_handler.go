@@ -5,11 +5,11 @@ import (
 	"net"
 
 	opentsdb "github.com/influxdata/influxdb/services/opentsdb/diagnostic"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 type OpenTSDBHandler struct {
-	l zap.Logger
+	l *zap.Logger
 }
 
 func (s *Service) OpenTSDBContext() opentsdb.Context {

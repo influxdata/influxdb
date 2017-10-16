@@ -5,11 +5,11 @@ import (
 	"time"
 
 	query "github.com/influxdata/influxdb/query/diagnostic"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 type QueryExecutorHandler struct {
-	l zap.Logger
+	l *zap.Logger
 }
 
 func (s *Service) QueryContext() query.Context {

@@ -6,11 +6,11 @@ import (
 	"time"
 
 	graphite "github.com/influxdata/influxdb/services/graphite/diagnostic"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 type GraphiteHandlerBuilder struct {
-	l zap.Logger
+	l *zap.Logger
 }
 
 func (s *Service) GraphiteContext() graphite.ContextBuilder {
@@ -21,7 +21,7 @@ func (s *Service) GraphiteContext() graphite.ContextBuilder {
 }
 
 type GraphiteHandler struct {
-	l zap.Logger
+	l *zap.Logger
 }
 
 func (h *GraphiteHandlerBuilder) WithContext(bindAddress string) graphite.Context {

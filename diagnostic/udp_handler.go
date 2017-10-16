@@ -4,11 +4,11 @@ import (
 	"fmt"
 
 	udp "github.com/influxdata/influxdb/services/udp/diagnostic"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 type UDPHandler struct {
-	l zap.Logger
+	l *zap.Logger
 }
 
 func (s *Service) UDPContext() udp.Context {

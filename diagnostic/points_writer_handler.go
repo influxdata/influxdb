@@ -4,11 +4,11 @@ import (
 	"fmt"
 
 	coordinator "github.com/influxdata/influxdb/coordinator/diagnostic"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 type PointsWriterHandler struct {
-	l zap.Logger
+	l *zap.Logger
 }
 
 func (s *Service) PointsWriterContext() coordinator.PointsWriterContext {

@@ -5,11 +5,11 @@ import (
 	"time"
 
 	continuous_querier "github.com/influxdata/influxdb/services/continuous_querier/diagnostic"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 type ContinuousQuerierHandler struct {
-	l zap.Logger
+	l *zap.Logger
 }
 
 func (s *Service) ContinuousQuerierContext() continuous_querier.Context {

@@ -18,7 +18,8 @@ github.com/philhofer/fwd 1612a298117663d7bc9a760ae20d383413859798
 github.com/retailnext/hllpp 38a7bb71b483e855d35010808143beaf05b67f9d
 github.com/spaolacci/murmur3 0d12bf811670bf6a1a63828dfbd003eded177fce
 github.com/tinylib/msgp ad0ff2e232ad2e37faf67087fb24bf8d04a8ce20
-github.com/uber-go/atomic 74ca5ec650841aee9f289dce76e928313a37cbc6
-github.com/uber-go/zap fbae0281ffd546fa6d1959fec6075ac5da7fb577
+go.uber.org/atomic 54f72d32435d760d5604f17a82e2435b28dc4ba5
+go.uber.org/multierr fb7d312c2c04c34f0ad621048bbb953b168f9ff6
+go.uber.org/zap 35aad584952c3e7020db7b839f6b102de6271f89
 golang.org/x/crypto 9477e0b78b9ac3d0b03822fd95422e2fe07627cd
 golang.org/x/sys 062cd7e4e68206d8bab9b18396626e855c992658

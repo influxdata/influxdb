@@ -4,11 +4,11 @@ import (
 	"fmt"
 
 	subscriber "github.com/influxdata/influxdb/services/subscriber/diagnostic"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 type SubscriberHandler struct {
-	l zap.Logger
+	l *zap.Logger
 }
 
 func (s *Service) SubscriberContext() subscriber.Context {

@@ -4,11 +4,11 @@ import (
 	"fmt"
 
 	meta "github.com/influxdata/influxdb/services/meta/diagnostic"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 type MetaClientHandler struct {
-	l zap.Logger
+	l *zap.Logger
 }
 
 func (s *Service) MetaClientContext() meta.Context {

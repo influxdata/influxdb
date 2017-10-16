@@ -5,11 +5,11 @@ import (
 	"time"
 
 	retention "github.com/influxdata/influxdb/services/retention/diagnostic"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 type RetentionHandler struct {
-	l zap.Logger
+	l *zap.Logger
 }
 
 func (s *Service) RetentionContext() retention.Context {

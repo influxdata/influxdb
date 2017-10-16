@@ -13,7 +13,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/uber-go/zap"
+	"github.com/influxdata/influxdb/diagnostic"
+	"go.uber.org/zap"
 )
 
 const logo = `
@@ -38,10 +39,10 @@ type Command struct {
 	closing chan struct{}
 	Closed  chan struct{}
 
-	Stdin  io.Reader
-	Stdout io.Writer
-	Stderr io.Writer
-	Logger zap.Logger
+	Stdin      io.Reader
+	Stdout     io.Writer
+	Stderr     io.Writer
+	Diagnostic *diagnostic.Service
 
 	Server *Server
 }
@@ -54,7 +55,6 @@ func NewCommand() *Command {
 		Stdin:   os.Stdin,
 		Stdout:  os.Stdout,
 		Stderr:  os.Stderr,
-		Logger:  zap.New(zap.NullEncoder()),
 	}
 }
 
@@ -70,9 +70,9 @@ func (cmd *Command) Run(args ...string) error {
 	fmt.Print(logo)
 
 	// Mark start-up in log.
-	cmd.Logger.Info(fmt.Sprintf("InfluxDB starting, version %s, branch %s, commit %s",
+	cmd.Logger().Info(fmt.Sprintf("InfluxDB starting, version %s, branch %s, commit %s",
 		cmd.Version, cmd.Branch, cmd.Commit))
-	cmd.Logger.Info(fmt.Sprintf("Go version %s, GOMAXPROCS set to %d", runtime.Version(), runtime.GOMAXPROCS(0)))
+	cmd.Logger().Info(fmt.Sprintf("Go version %s, GOMAXPROCS set to %d", runtime.Version(), runtime.GOMAXPROCS(0)))
 
 	// Write the PID file.
 	if err := cmd.writePIDFile(options.PIDFile); err != nil {
@@ -112,8 +112,7 @@ func (cmd *Command) Run(args ...string) error {
 	if err != nil {
 		return fmt.Errorf("create server: %s", err)
 	}
-	s.SetLogOutput(os.Stderr)
-	s.Logger = cmd.Logger
+	s.DiagnosticService = cmd.Diagnostic
 	s.CPUProfile = options.CPUProfile
 	s.MemProfile = options.MemProfile
 	if err := s.Open(); err != nil {
@@ -193,11 +192,11 @@ func (cmd *Command) writePIDFile(path string) error {
 func (cmd *Command) ParseConfig(path string) (*Config, error) {
 	// Use demo configuration if no config path is specified.
 	if path == "" {
-		cmd.Logger.Info("no configuration provided, using default settings")
+		cmd.Logger().Info("no configuration provided, using default settings")
 		return NewDemoConfig()
 	}
 
-	cmd.Logger.Info(fmt.Sprintf("Using configuration at: %s", path))
+	cmd.Logger().Info(fmt.Sprintf("Using configuration at: %s", path))
 
 	config := NewConfig()
 	if err := config.FromTomlFile(path); err != nil {
@@ -205,6 +204,10 @@ func (cmd *Command) ParseConfig(path string) (*Config, error) {
 	}
 
 	return config, nil
+}
+
+func (cmd *Command) Logger() *zap.Logger {
+	return cmd.Diagnostic.Logger()
 }
 
 const usage = `Runs the InfluxDB server.

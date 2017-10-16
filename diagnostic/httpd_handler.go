@@ -5,11 +5,11 @@ import (
 	"net"
 
 	httpd "github.com/influxdata/influxdb/services/httpd/diagnostic"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 type HTTPDHandler struct {
-	l zap.Logger
+	l *zap.Logger
 }
 
 func (s *Service) HTTPDContext() httpd.Context {

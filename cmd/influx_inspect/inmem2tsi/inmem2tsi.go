@@ -15,7 +15,7 @@ import (
 	"github.com/influxdata/influxdb/tsdb/index/inmem"
 	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 	tsi1diag "github.com/influxdata/influxdb/tsdb/index/tsi1/diagnostic"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 // Command represents the program execution for "influx_inspect inmem2tsi".
@@ -165,6 +165,6 @@ Usage: influx_inspect inmem2tsi -path DATA_PATH -wal-path WAL_PATH
 	fmt.Fprintf(cmd.Stdout, usage)
 }
 
-func (cmd *Command) Logger() zap.Logger {
+func (cmd *Command) Logger() *zap.Logger {
 	return cmd.Diagnostic.Logger()
 }

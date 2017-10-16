@@ -4,11 +4,11 @@ import (
 	"fmt"
 
 	snapshotter "github.com/influxdata/influxdb/services/snapshotter/diagnostic"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 type SnapshotterHandler struct {
-	l zap.Logger
+	l *zap.Logger
 }
 
 func (s *Service) SnapshotterContext() snapshotter.Context {

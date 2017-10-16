@@ -9,12 +9,12 @@ import (
 
 	tsdb "github.com/influxdata/influxdb/tsdb/diagnostic"
 	tsm1 "github.com/influxdata/influxdb/tsdb/engine/tsm1/diagnostic"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 type StoreHandler struct {
-	base zap.Logger
-	l    zap.Logger
+	base *zap.Logger
+	l    *zap.Logger
 }
 
 func (s *Service) StoreContext() tsdb.Context {
@@ -95,10 +95,10 @@ func (h *StoreHandler) WarnMaxValuesPerTagLimitExceeded(perc, n, max int, db str
 }
 
 type TSM1Handler struct {
-	l           zap.Logger
-	cacheLoader zap.Logger
-	wal         zap.Logger
-	fs          zap.Logger
+	l           *zap.Logger
+	cacheLoader *zap.Logger
+	wal         *zap.Logger
+	fs          *zap.Logger
 }
 
 func (h *StoreHandler) TSM1Context() tsm1.Context {
@@ -283,7 +283,7 @@ type TSI1LogFileCompactionContext interface {
 }
 
 type TSI1Handler struct {
-	l zap.Logger
+	l *zap.Logger
 }
 
 func (h *StoreHandler) TSI1Context() TSI1Context {
@@ -292,7 +292,7 @@ func (h *StoreHandler) TSI1Context() TSI1Context {
 }
 
 type TSI1CompactionHandler struct {
-	l zap.Logger
+	l *zap.Logger
 }
 
 func (h *TSI1Handler) WithCompactionToken(token string) TSI1CompactionContext {
@@ -349,7 +349,7 @@ func (h *TSI1CompactionHandler) CannotRemoveIndexFile(err error) {
 }
 
 type TSI1LogFileCompactionHandler struct {
-	l zap.Logger
+	l *zap.Logger
 }
 
 func (h *TSI1Handler) WithLogFileCompactionToken(token string, id int) TSI1LogFileCompactionContext {
