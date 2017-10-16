@@ -1,4 +1,4 @@
-import React, {PropTypes} from 'react'
+import React, {PropTypes, Component} from 'react'
 import {withRouter} from 'react-router'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
@@ -15,31 +15,25 @@ import {
 } from 'shared/actions/sources'
 import {publishNotification} from 'shared/actions/notifications'
 
-const {func, shape, string} = PropTypes
-
-export const CreateSource = React.createClass({
-  propTypes: {
-    router: shape({
-      push: func.isRequired,
-    }).isRequired,
-    location: shape({
-      query: shape({
-        redirectPath: string,
-      }).isRequired,
-    }).isRequired,
-    addSource: func,
-    updateSource: func,
-    notify: func,
-  },
-
-  getInitialState() {
-    return {
-      source: {},
+class CreateSource extends Component {
+  constructor(props) {
+    super(props)
+    this.state = {
+      source: {
+        url: '',
+        name: '',
+        username: '',
+        password: '',
+        default: '',
+        telegraf: '',
+        insecureSkipVerify: false,
+        metaUrl: '',
+      },
       error: null,
     }
-  },
+  }
 
-  redirectToApp(source) {
+  redirectToApp = source => {
     const {redirectPath} = this.props.location.query
     if (!redirectPath) {
       return this.props.router.push(`/sources/${source.id}/hosts`)
@@ -50,9 +44,9 @@ export const CreateSource = React.createClass({
       `/sources/${source.id}`
     )
     return this.props.router.push(fixedPath)
-  },
+  }
 
-  handleInputChange(e) {
+  handleInputChange = e => {
     const val = e.target.value
     const name = e.target.name
     this.setState(prevState => {
@@ -61,9 +55,9 @@ export const CreateSource = React.createClass({
       })
       return Object.assign({}, prevState, {source: newSource, error: null})
     })
-  },
+  }
 
-  handleBlurSourceURL(newSource) {
+  handleBlurSourceURL = newSource => {
     if (this.state.editMode) {
       return
     }
@@ -85,9 +79,9 @@ export const CreateSource = React.createClass({
       .catch(({data: error}) => {
         this.setState({error: error.message})
       })
-  },
+  }
 
-  handleSubmit(newSource) {
+  handleSubmit = newSource => {
     const {notify, updateSource} = this.props
     const {isCreated} = this.state
 
@@ -115,7 +109,7 @@ export const CreateSource = React.createClass({
       .catch(({data: error}) => {
         notify('error', `There was a problem: ${error.message}`)
       })
-  },
+  }
 
   render() {
     const {source} = this.state
@@ -145,15 +139,29 @@ export const CreateSource = React.createClass({
         </div>
       </div>
     )
-  },
-})
-
-function mapDispatchToProps(dispatch) {
-  return {
-    addSource: bindActionCreators(addSourceAction, dispatch),
-    updateSource: bindActionCreators(updateSourceAction, dispatch),
-    notify: bindActionCreators(publishNotification, dispatch),
   }
 }
+
+const {func, shape, string} = PropTypes
+
+CreateSource.propTypes = {
+  router: shape({
+    push: func.isRequired,
+  }).isRequired,
+  location: shape({
+    query: shape({
+      redirectPath: string,
+    }).isRequired,
+  }).isRequired,
+  addSource: func,
+  updateSource: func,
+  notify: func,
+}
+
+const mapDispatchToProps = dispatch => ({
+  addSource: bindActionCreators(addSourceAction, dispatch),
+  updateSource: bindActionCreators(updateSourceAction, dispatch),
+  notify: bindActionCreators(publishNotification, dispatch),
+})
 
 export default connect(null, mapDispatchToProps)(withRouter(CreateSource))
