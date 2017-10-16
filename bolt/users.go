@@ -28,10 +28,7 @@ func (s *UsersStore) get(ctx context.Context, id uint64) (*chronograf.User, erro
 		if v == nil {
 			return chronograf.ErrUserNotFound
 		}
-		if err := internal.UnmarshalUser(v, &u); err != nil {
-			return err
-		}
-		return nil
+		return internal.UnmarshalUser(v, &u)
 	})
 
 	if err != nil {
@@ -82,16 +79,9 @@ func (s *UsersStore) Delete(ctx context.Context, usr *chronograf.User) error {
 	if err != nil {
 		return err
 	}
-	if err := s.client.db.Update(func(tx *bolt.Tx) error {
-		if err := tx.Bucket(UsersBucket).Delete(u64tob(usr.ID)); err != nil {
-			return err
-		}
-		return nil
-	}); err != nil {
-		return err
-	}
-
-	return nil
+	return s.client.db.Update(func(tx *bolt.Tx) error {
+		return tx.Bucket(UsersBucket).Delete(u64tob(usr.ID))
+	})
 }
 
 // Update a user
@@ -100,35 +90,28 @@ func (s *UsersStore) Update(ctx context.Context, usr *chronograf.User) error {
 	if err != nil {
 		return err
 	}
-	if err := s.client.db.Update(func(tx *bolt.Tx) error {
+	return s.client.db.Update(func(tx *bolt.Tx) error {
 		if v, err := internal.MarshalUser(usr); err != nil {
 			return err
 		} else if err := tx.Bucket(UsersBucket).Put(u64tob(usr.ID), v); err != nil {
 			return err
 		}
 		return nil
-	}); err != nil {
-		return err
-	}
-
-	return nil
+	})
 }
 
 // All returns all users
 func (s *UsersStore) All(ctx context.Context) ([]chronograf.User, error) {
 	var users []chronograf.User
 	if err := s.client.db.View(func(tx *bolt.Tx) error {
-		if err := tx.Bucket(UsersBucket).ForEach(func(k, v []byte) error {
+		return tx.Bucket(UsersBucket).ForEach(func(k, v []byte) error {
 			var user chronograf.User
 			if err := internal.UnmarshalUser(v, &user); err != nil {
 				return err
 			}
 			users = append(users, user)
 			return nil
-		}); err != nil {
-			return err
-		}
-		return nil
+		})
 	}); err != nil {
 		return nil, err
 	}
