@@ -40,6 +40,19 @@ var (
 	}
 )
 
+func RoleFromName(name string) (Role, error) {
+	switch name {
+	case ViewerRoleName:
+		return ViewerRole, nil
+	case EditorRoleName:
+		return EditorRole, nil
+	case AdminRoleName:
+		return AdminRole, nil
+	default:
+		return Role{}, fmt.Errorf("Unknown chronograf user role")
+	}
+}
+
 // General errors.
 const (
 	ErrUpstreamTimeout   = Error("request to backend timed out")

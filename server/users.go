@@ -43,7 +43,7 @@ func (r *userRequest) ValidUpdate() error {
 func (r *userRequest) ValidRoles() error {
 	if r.Roles != nil && len(r.Roles) > 0 {
 		for _, r := range r.Roles {
-			if r != chronograf.ViewerRole && r != chronograf.EditorRole && r != chronograf.AdminRole {
+			if r != chronograf.ViewerRoleName && r != chronograf.EditorRoleName && r != chronograf.AdminRoleName {
 				return fmt.Errorf("Invalid role assignment '%s' on Chronograf User request body", r)
 			}
 		}
@@ -78,12 +78,16 @@ func newUserResponse(u *chronograf.User) *userResponse {
 }
 
 // ExplicatedRoles fills out a set of roles to include its members explicitly
-func ExplicatedRoles(reqRoles []string) []chronograf.Role {
+func ExplicatedRoles(reqRoles []string) ([]chronograf.Role, error) {
 	roles := make([]chronograf.Role, len(reqRoles))
 	for i, r := range reqRoles {
-		roles[i] = chronograf.DefaultUserRoles[r]
+		role, err := chronograf.RoleFromName(r)
+		if err != nil {
+			return nil, err
+		}
+		roles[i] = role
 	}
-	return roles
+	return roles, nil
 }
 
 type usersResponse struct {
@@ -135,12 +139,18 @@ func (s *Service) NewUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	roles, err := ExplicatedRoles(req.Roles)
+	if err != nil {
+		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
+		return
+	}
+
 	ctx := r.Context()
 	user := &chronograf.User{
 		Name:     req.Name,
 		Provider: req.Provider,
 		Scheme:   req.Scheme,
-		Roles:    ExplicatedRoles(req.Roles),
+		Roles:    roles,
 	}
 
 	res, err := s.UsersStore.Add(ctx, user)
@@ -201,7 +211,12 @@ func (s *Service) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		u.Scheme = req.Scheme
 	}
 	if req.Roles != nil {
-		u.Roles = ExplicatedRoles(req.Roles)
+		roles, err := ExplicatedRoles(req.Roles)
+		if err != nil {
+			Error(w, http.StatusBadRequest, err.Error(), s.Logger)
+			return
+		}
+		u.Roles = roles
 	}
 
 	err = s.UsersStore.Update(ctx, u)

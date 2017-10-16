@@ -334,7 +334,7 @@ func TestService_UpdateUser(t *testing.T) {
 					Provider: "Google",
 					Scheme:   "OAuth2",
 					Roles: []string{
-						chronograf.AdminRole,
+						chronograf.AdminRoleName,
 					},
 				},
 			},
