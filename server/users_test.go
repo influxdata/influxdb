@@ -56,7 +56,7 @@ func TestService_UserID(t *testing.T) {
 								Provider: "Google",
 								Scheme:   "OAuth2",
 								Roles: []chronograf.Role{
-									chronograf.ViewerRole,
+									ViewerRole,
 								},
 							}, nil
 						default:
@@ -312,7 +312,7 @@ func TestService_UpdateUser(t *testing.T) {
 								Provider: "GitHub",
 								Scheme:   "OAuth2",
 								Roles: []chronograf.Role{
-									chronograf.EditorRole,
+									EditorRole,
 								},
 							}, nil
 						default:
@@ -334,7 +334,7 @@ func TestService_UpdateUser(t *testing.T) {
 					Provider: "Google",
 					Scheme:   "OAuth2",
 					Roles: []chronograf.Role{
-						chronograf.AdminRole,
+						AdminRole,
 					},
 				},
 			},
@@ -450,7 +450,7 @@ func TestService_Users(t *testing.T) {
 								Provider: "Google",
 								Scheme:   "OAuth2",
 								Roles: []chronograf.Role{
-									chronograf.EditorRole,
+									EditorRole,
 								},
 							},
 							{
@@ -494,7 +494,7 @@ func TestService_Users(t *testing.T) {
 								Provider: "Google",
 								Scheme:   "OAuth2",
 								Roles: []chronograf.Role{
-									chronograf.EditorRole,
+									EditorRole,
 								},
 							},
 						}, nil
@@ -560,7 +560,7 @@ func TestUserRequest_ValidCreate(t *testing.T) {
 					Provider: "Auth0",
 					Scheme:   "LDAP",
 					Roles: []chronograf.Role{
-						chronograf.EditorRole,
+						EditorRole,
 					},
 				},
 			},
@@ -575,7 +575,7 @@ func TestUserRequest_ValidCreate(t *testing.T) {
 					Provider: "Auth0",
 					Scheme:   "LDAP",
 					Roles: []chronograf.Role{
-						chronograf.EditorRole,
+						EditorRole,
 					},
 				},
 			},
@@ -590,7 +590,7 @@ func TestUserRequest_ValidCreate(t *testing.T) {
 					Name:   "billietta",
 					Scheme: "LDAP",
 					Roles: []chronograf.Role{
-						chronograf.EditorRole,
+						EditorRole,
 					},
 				},
 			},
@@ -605,7 +605,7 @@ func TestUserRequest_ValidCreate(t *testing.T) {
 					Name:     "billietta",
 					Provider: "Auth0",
 					Roles: []chronograf.Role{
-						chronograf.EditorRole,
+						EditorRole,
 					},
 				},
 			},
@@ -668,7 +668,7 @@ func TestUserRequest_ValidUpdate(t *testing.T) {
 					Provider: "Auth0",
 					Scheme:   "LDAP",
 					Roles: []chronograf.Role{
-						chronograf.EditorRole,
+						EditorRole,
 					},
 				},
 			},

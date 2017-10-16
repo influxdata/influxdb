@@ -18,43 +18,6 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 )
 
-// Chronograf User Roles
-const (
-	ViewerRoleName = "Viewer"
-	EditorRoleName = "Editor"
-	AdminRoleName  = "Admin"
-)
-
-var (
-	// ViewerRole is the role for a user who can only perform READ operations on Dashboards, Rules, and Sources
-	ViewerRole = Role{
-		Name: ViewerRoleName,
-	}
-
-	// EditorRole is the role for a user who can perform READ and WRITE operations on Dashboards, Rules, and Sources
-	EditorRole = Role{
-		Name: EditorRoleName,
-	}
-
-	// AdminRole is the role for a user who can perform READ and WRITE operations on Dashboards, Rules, Sources, and Users
-	AdminRole = Role{
-		Name: AdminRoleName,
-	}
-)
-
-func RoleFromName(name string) (Role, error) {
-	switch name {
-	case ViewerRoleName:
-		return ViewerRole, nil
-	case EditorRoleName:
-		return EditorRole, nil
-	case AdminRoleName:
-		return AdminRole, nil
-	default:
-		return Role{}, fmt.Errorf("Unknown chronograf user role")
-	}
-}
-
 // General errors.
 const (
 	ErrUpstreamTimeout   = Error("request to backend timed out")

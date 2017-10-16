@@ -45,7 +45,7 @@ func (r *userRequest) ValidRoles() error {
 		for _, r := range r.Roles {
 			switch r.Name {
 			// TODO: add SuperAdmin
-			case chronograf.ViewerRoleName, chronograf.EditorRoleName, chronograf.AdminRoleName:
+			case ViewerRoleName, EditorRoleName, AdminRoleName:
 				continue
 			default:
 				return fmt.Errorf("Unknown role %s. Valid roles are 'Viewer', 'Editor', 'Admin', and 'SuperAdmin'", r.Name)
@@ -103,6 +103,30 @@ func newUsersResponse(users []chronograf.User) *usersResponse {
 		},
 	}
 }
+
+// Chronograf User Roles
+const (
+	ViewerRoleName = "Viewer"
+	EditorRoleName = "Editor"
+	AdminRoleName  = "Admin"
+)
+
+var (
+	// ViewerRole is the role for a user who can only perform READ operations on Dashboards, Rules, and Sources
+	ViewerRole = chronograf.Role{
+		Name: ViewerRoleName,
+	}
+
+	// EditorRole is the role for a user who can perform READ and WRITE operations on Dashboards, Rules, and Sources
+	EditorRole = chronograf.Role{
+		Name: EditorRoleName,
+	}
+
+	// AdminRole is the role for a user who can perform READ and WRITE operations on Dashboards, Rules, Sources, and Users
+	AdminRole = chronograf.Role{
+		Name: AdminRoleName,
+	}
+)
 
 // UserID retrieves a Chronograf user with ID from store
 func (s *Service) UserID(w http.ResponseWriter, r *http.Request) {

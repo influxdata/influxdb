@@ -80,7 +80,9 @@ func TestUsersStore_Add(t *testing.T) {
 					Provider: "GitHub",
 					Scheme:   "OAuth2",
 					Roles: []chronograf.Role{
-						chronograf.EditorRole,
+						{
+							Name: "Editor",
+						},
 					},
 				},
 			},
@@ -89,7 +91,9 @@ func TestUsersStore_Add(t *testing.T) {
 				Provider: "GitHub",
 				Scheme:   "OAuth2",
 				Roles: []chronograf.Role{
-					chronograf.EditorRole,
+					{
+						Name: "Editor",
+					},
 				},
 			},
 		},
@@ -207,11 +211,15 @@ func TestUsersStore_Update(t *testing.T) {
 					Provider: "GitHub",
 					Scheme:   "OAuth2",
 					Roles: []chronograf.Role{
-						chronograf.ViewerRole,
+						{
+							Name: "Viewer",
+						},
 					},
 				},
 				roles: []chronograf.Role{
-					chronograf.EditorRole,
+					{
+						Name: "Editor",
+					},
 				},
 			},
 			want: &chronograf.User{
@@ -219,7 +227,9 @@ func TestUsersStore_Update(t *testing.T) {
 				Provider: "GitHub",
 				Scheme:   "OAuth2",
 				Roles: []chronograf.Role{
-					chronograf.EditorRole,
+					{
+						Name: "Editor",
+					},
 				},
 			},
 			addFirst: true,
@@ -317,7 +327,9 @@ func TestUsersStore_All(t *testing.T) {
 					Provider: "GitHub",
 					Scheme:   "OAuth2",
 					Roles: []chronograf.Role{
-						chronograf.ViewerRole,
+						{
+							Name: "Viewer",
+						},
 					},
 				},
 				{
@@ -325,7 +337,9 @@ func TestUsersStore_All(t *testing.T) {
 					Provider: "GitHub",
 					Scheme:   "OAuth2",
 					Roles: []chronograf.Role{
-						chronograf.EditorRole,
+						{
+							Name: "Editor",
+						},
 					},
 				},
 			},
