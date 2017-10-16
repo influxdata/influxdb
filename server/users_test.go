@@ -616,7 +616,7 @@ func TestUserRequest_ValidCreate(t *testing.T) {
 				},
 			},
 			wantErr: true,
-			err:     fmt.Errorf("Invalid role assignment 'BilliettaSpecialRole' on Chronograf User request body"),
+			err:     fmt.Errorf("Unknown role BilliettaSpecialRole. Valid roles are 'Viewer', 'Editor', 'Admin', and 'SuperAdmin'"),
 		},
 	}
 

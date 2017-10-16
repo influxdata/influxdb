@@ -44,7 +44,7 @@ func (r *userRequest) ValidRoles() error {
 	if len(r.Roles) > 0 {
 		for _, r := range r.Roles {
 			if r != chronograf.ViewerRoleName && r != chronograf.EditorRoleName && r != chronograf.AdminRoleName {
-				return fmt.Errorf("Invalid role assignment '%s' on Chronograf User request body", r)
+				return fmt.Errorf("Unknown role %s. Valid roles are 'Viewer', 'Editor', 'Admin', and 'SuperAdmin'", r)
 			}
 		}
 	}
