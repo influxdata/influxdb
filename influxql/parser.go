@@ -1008,9 +1008,17 @@ func (p *Parser) parseShowSeriesCardinalityStatement(exact bool) (Statement, err
 	return stmt, nil
 }
 
-// This function assumes the "SHOW MEASUREMENT CARDINALITY" tokens have already been consumed.
-func (p *Parser) parseShowMeasurementCardinalityStatement() (Statement, error) {
-	stmt := &ShowMeasurementCardinalityStatement{}
+// This function assumes the "SHOW MEASUREMENT EXACT" or "SHOW MEASUREMENT CARDINALITY"
+// tokens have already been consumed.
+func (p *Parser) parseShowMeasurementCardinalityStatement(exact bool) (Statement, error) {
+	stmt := &ShowMeasurementCardinalityStatement{Exact: exact}
+
+	if stmt.Exact {
+		// Parse remaining CARDINALITY token
+		if tok, pos, lit := p.ScanIgnoreWhitespace(); tok != CARDINALITY {
+			return nil, newParseError(tokstr(tok, lit), []string{"CARDINALITY"}, pos)
+		}
+	}
 
 	// Parse optional ON clause.
 	var err error
@@ -1020,6 +1028,11 @@ func (p *Parser) parseShowMeasurementCardinalityStatement() (Statement, error) {
 		}
 	} else {
 		p.Unscan()
+	}
+
+	// Estimation command doesn't support any further versions of the command.
+	if !stmt.Exact {
+		return stmt, nil
 	}
 
 	// Parse optional FROM.

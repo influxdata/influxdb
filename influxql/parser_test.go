@@ -1690,26 +1690,46 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: &influxql.ShowMeasurementCardinalityStatement{},
 		},
 
-		// SHOW MEASUREMENT CARDINALITY FROM cpu
-		{
-			s: `SHOW MEASUREMENT CARDINALITY FROM cpu`,
-			stmt: &influxql.ShowMeasurementCardinalityStatement{
-				Sources: []influxql.Source{&influxql.Measurement{Name: "cpu"}},
-			},
-		},
-
-		// SHOW MEASUREMENT CARDINALITY ON db0
+		// SHOW MEASUREMENT CARDINALITY ON db0 statement
 		{
 			s: `SHOW MEASUREMENT CARDINALITY ON db0`,
 			stmt: &influxql.ShowMeasurementCardinalityStatement{
+				Exact:    false,
 				Database: "db0",
 			},
 		},
 
-		// SHOW MEASUREMENT CARDINALITY FROM /<regex>/
+		// SHOW MEASUREMENT EXACT CARDINALITY statement
 		{
-			s: `SHOW MEASUREMENT CARDINALITY FROM /[cg]pu/`,
+			s: `SHOW MEASUREMENT EXACT CARDINALITY`,
 			stmt: &influxql.ShowMeasurementCardinalityStatement{
+				Exact: true,
+			},
+		},
+
+		// SHOW MEASUREMENT EXACT CARDINALITY FROM cpu
+		{
+			s: `SHOW MEASUREMENT EXACT CARDINALITY FROM cpu`,
+			stmt: &influxql.ShowMeasurementCardinalityStatement{
+				Exact:   true,
+				Sources: []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+			},
+		},
+
+		// SHOW MEASUREMENT EXACT CARDINALITY ON db0
+		{
+			s: `SHOW MEASUREMENT EXACT CARDINALITY ON db0`,
+			stmt: &influxql.ShowMeasurementCardinalityStatement{
+				Exact:    true,
+				Database: "db0",
+			},
+		},
+
+		// SHOW MEASUREMENT EXACT CARDINALITY FROM /<regex>/
+		{
+			s: `SHOW MEASUREMENT EXACT CARDINALITY FROM /[cg]pu/`,
+			stmt: &influxql.ShowMeasurementCardinalityStatement{
+				Exact: true,
 				Sources: []influxql.Source{
 					&influxql.Measurement{
 						Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`[cg]pu`)},
@@ -1718,22 +1738,25 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
-		// SHOW MEASUREMENT CARDINALITY with OFFSET 0
+		// SHOW MEASUREMENT EXACT CARDINALITY with OFFSET 0
 		{
-			s:    `SHOW MEASUREMENT CARDINALITY OFFSET 0`,
-			stmt: &influxql.ShowMeasurementCardinalityStatement{Offset: 0},
-		},
-
-		// SHOW MEASUREMENT CARDINALITY with LIMIT 2 OFFSET 0
-		{
-			s:    `SHOW MEASUREMENT CARDINALITY LIMIT 2 OFFSET 0`,
-			stmt: &influxql.ShowMeasurementCardinalityStatement{Offset: 0, Limit: 2},
-		},
-
-		// SHOW MEASUREMENT CARDINALITY WHERE with ORDER BY and LIMIT
-		{
-			s: `SHOW MEASUREMENT CARDINALITY WHERE region = 'order by desc' LIMIT 10`,
+			s: `SHOW MEASUREMENT EXACT CARDINALITY OFFSET 0`,
 			stmt: &influxql.ShowMeasurementCardinalityStatement{
+				Exact: true, Offset: 0},
+		},
+
+		// SHOW MEASUREMENT EXACT CARDINALITY with LIMIT 2 OFFSET 0
+		{
+			s: `SHOW MEASUREMENT EXACT CARDINALITY LIMIT 2 OFFSET 0`,
+			stmt: &influxql.ShowMeasurementCardinalityStatement{
+				Exact: true, Offset: 0, Limit: 2},
+		},
+
+		// SHOW MEASUREMENT EXACT CARDINALITY WHERE with ORDER BY and LIMIT
+		{
+			s: `SHOW MEASUREMENT EXACT CARDINALITY WHERE region = 'order by desc' LIMIT 10`,
+			stmt: &influxql.ShowMeasurementCardinalityStatement{
+				Exact: true,
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.EQ,
 					LHS: &influxql.VarRef{Val: "region"},

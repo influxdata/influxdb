@@ -174,6 +174,8 @@ func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx query.
 		rows, err = e.executeShowGrantsForUserStatement(stmt)
 	case *influxql.ShowMeasurementsStatement:
 		return e.executeShowMeasurementsStatement(stmt, &ctx)
+	case *influxql.ShowMeasurementCardinalityStatement:
+		rows, err = e.executeShowMeasurementCardinalityStatement(stmt)
 	case *influxql.ShowRetentionPoliciesStatement:
 		rows, err = e.executeShowRetentionPoliciesStatement(stmt)
 	case *influxql.ShowSeriesCardinalityStatement:
@@ -781,6 +783,18 @@ func (e *StatementExecutor) executeShowMeasurementsStatement(q *influxql.ShowMea
 	})
 }
 
+func (e *StatementExecutor) executeShowMeasurementCardinalityStatement(stmt *influxql.ShowMeasurementCardinalityStatement) (models.Rows, error) {
+	n, err := e.TSDBStore.MeasurementsCardinality(stmt.Database)
+	if err != nil {
+		return nil, err
+	}
+
+	return []*models.Row{&models.Row{
+		Columns: []string{"cardinality"},
+		Values:  [][]interface{}{{n}},
+	}}, nil
+}
+
 func (e *StatementExecutor) executeShowRetentionPoliciesStatement(q *influxql.ShowRetentionPoliciesStatement) (models.Rows, error) {
 	if q.Database == "" {
 		return nil, ErrDatabaseNameRequired
@@ -1165,6 +1179,10 @@ func (e *StatementExecutor) NormalizeStatement(stmt influxql.Statement, defaultD
 			if node.Database == "" {
 				node.Database = defaultDatabase
 			}
+		case *influxql.ShowMeasurementCardinalityStatement:
+			if node.Database == "" {
+				node.Database = defaultDatabase
+			}
 		case *influxql.Measurement:
 			switch stmt.(type) {
 			case *influxql.DropSeriesStatement, *influxql.DeleteSeriesStatement:
@@ -1237,6 +1255,7 @@ type TSDBStore interface {
 	TagValues(auth query.Authorizer, database string, cond influxql.Expr) ([]tsdb.TagValues, error)
 
 	SeriesCardinality(database string) (int64, error)
+	MeasurementsCardinality(database string) (int64, error)
 }
 
 var _ TSDBStore = LocalTSDBStore{}

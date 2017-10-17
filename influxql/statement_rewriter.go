@@ -111,9 +111,13 @@ func rewriteShowMeasurementsStatement(stmt *ShowMeasurementsStatement) (Statemen
 }
 
 func rewriteShowMeasurementCardinalityStatement(stmt *ShowMeasurementCardinalityStatement) (Statement, error) {
+	if !stmt.Exact { // Use cardinality estimation and don't rewrite.
+		return stmt, nil
+	}
+
 	// Check for time in WHERE clause (not supported).
 	if HasTimeExpr(stmt.Condition) {
-		return nil, errors.New("SHOW MEASUREMENT CARDINALITY doesn't support time in WHERE clause")
+		return nil, errors.New("SHOW MEASUREMENT EXACT CARDINALITY doesn't support time in WHERE clause")
 	}
 
 	// Use all measurements, if zero.

@@ -319,13 +319,14 @@ type TSDBStore struct {
 	RestoreShardFn func(id uint64, r io.Reader) error
 	BackupShardFn  func(id uint64, since time.Time, w io.Writer) error
 
-	DeleteDatabaseFn        func(name string) error
-	DeleteMeasurementFn     func(database, name string) error
-	DeleteRetentionPolicyFn func(database, name string) error
-	DeleteShardFn           func(id uint64) error
-	DeleteSeriesFn          func(database string, sources []influxql.Source, condition influxql.Expr) error
-	ShardGroupFn            func(ids []uint64) tsdb.ShardGroup
-	SeriesCardinalityFn     func(database string) (int64, error)
+	DeleteDatabaseFn          func(name string) error
+	DeleteMeasurementFn       func(database, name string) error
+	DeleteRetentionPolicyFn   func(database, name string) error
+	DeleteShardFn             func(id uint64) error
+	DeleteSeriesFn            func(database string, sources []influxql.Source, condition influxql.Expr) error
+	ShardGroupFn              func(ids []uint64) tsdb.ShardGroup
+	MeasurementsCardinalityFn func(database string) (int64, error)
+	SeriesCardinalityFn       func(database string) (int64, error)
 }
 
 func (s *TSDBStore) CreateShard(database, policy string, shardID uint64, enabled bool) error {
@@ -377,6 +378,10 @@ func (s *TSDBStore) Measurements(database string, cond influxql.Expr) ([]string,
 
 func (s *TSDBStore) MeasurementNames(database string, cond influxql.Expr) ([][]byte, error) {
 	return nil, nil
+}
+
+func (s *TSDBStore) MeasurementsCardinality(database string) (int64, error) {
+	return s.MeasurementsCardinalityFn(database)
 }
 
 func (s *TSDBStore) TagValues(_ query.Authorizer, database string, cond influxql.Expr) ([]tsdb.TagValues, error) {

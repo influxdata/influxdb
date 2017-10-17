@@ -2320,6 +2320,7 @@ func (s *DropContinuousQueryStatement) DefaultDatabase() string {
 
 // ShowMeasurementCardinalityStatement represents a command for listing measurement cardinality.
 type ShowMeasurementCardinalityStatement struct {
+	Exact         bool // If false then cardinality estimation will be used.
 	Database      string
 	Sources       Sources
 	Condition     Expr
@@ -2330,7 +2331,18 @@ type ShowMeasurementCardinalityStatement struct {
 // String returns a string representation of the statement.
 func (s *ShowMeasurementCardinalityStatement) String() string {
 	var buf bytes.Buffer
-	_, _ = buf.WriteString("SHOW MEASUREMENT CARDINALITY")
+	_, _ = buf.WriteString("SHOW MEASUREMENT")
+
+	if !s.Exact {
+		_, _ = buf.WriteString(" CARDINALITY")
+		if s.Database != "" {
+			_, _ = buf.WriteString(" ON ")
+			_, _ = buf.WriteString(QuoteIdent(s.Database))
+		}
+		return buf.String()
+	}
+
+	_, _ = buf.WriteString(" EXACT CARDINALITY")
 
 	if s.Database != "" {
 		_, _ = buf.WriteString(" ON ")
@@ -2360,6 +2372,9 @@ func (s *ShowMeasurementCardinalityStatement) String() string {
 
 // RequiredPrivileges returns the privilege required to execute a ShowMeasurementCardinalityStatement.
 func (s *ShowMeasurementCardinalityStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
+	if !s.Exact {
+		return ExecutionPrivileges{{Admin: false, Name: s.Database, Privilege: ReadPrivilege}}, nil
+	}
 	return s.Sources.RequiredPrivileges()
 }
 
