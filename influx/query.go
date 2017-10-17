@@ -117,8 +117,6 @@ func Convert(influxQL string) (chronograf.QueryConfig, error) {
 			}
 			// Add fill to queryConfig only if there's a `GROUP BY time`
 			switch stmt.Fill {
-			default:
-				return raw, nil
 			case influxql.NullFill:
 				qc.Fill = "null"
 			case influxql.NoFill:
@@ -129,7 +127,8 @@ func Convert(influxQL string) (chronograf.QueryConfig, error) {
 				qc.Fill = "previous"
 			case influxql.LinearFill:
 				qc.Fill = "linear"
-
+			default:
+				return raw, nil
 			}
 		case *influxql.VarRef:
 			qc.GroupBy.Tags = append(qc.GroupBy.Tags, v.Val)
