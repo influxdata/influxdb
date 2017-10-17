@@ -151,28 +151,30 @@ func groupBy(q *chronograf.QueryConfig) string {
 }
 
 func field(q *chronograf.QueryConfig) (string, error) {
-	if q != nil {
-		for _, field := range q.Fields {
-			if field.Type == "func" && len(field.Args) > 0 {
-				for _, arg := range field.Args {
-					if arg.Type == "field" {
-						f, ok := arg.Value.(string)
-						if !ok {
-							return "", fmt.Errorf("field value %v is should be string but is %T", arg.Value, arg.Value)
-						}
-						return f, nil
-					}
-				}
-				return "", fmt.Errorf("No fields set in query")
-			}
-			f, ok := field.Value.(string)
-			if !ok {
-				return "", fmt.Errorf("field value %v is should be string but is %T", field.Value, field.Value)
-			}
-			return f, nil
-		}
+	if q == nil {
+		return "", fmt.Errorf("No fields set in query")
 	}
-	return "", fmt.Errorf("No fields set in query")
+	if len(q.Fields) != 1 {
+		return "", fmt.Errorf("expect only one field but found %d", len(q.Fields))
+	}
+	field := q.Fields[0]
+	if field.Type == "func" {
+		for _, arg := range field.Args {
+			if arg.Type == "field" {
+				f, ok := arg.Value.(string)
+				if !ok {
+					return "", fmt.Errorf("field value %v is should be string but is %T", arg.Value, arg.Value)
+				}
+				return f, nil
+			}
+		}
+		return "", fmt.Errorf("No fields set in query")
+	}
+	f, ok := field.Value.(string)
+	if !ok {
+		return "", fmt.Errorf("field value %v is should be string but is %T", field.Value, field.Value)
+	}
+	return f, nil
 }
 
 func whereFilter(q *chronograf.QueryConfig) string {
