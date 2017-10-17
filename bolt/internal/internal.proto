@@ -128,6 +128,7 @@ message User {
 	string Name             = 2; // Name is the user's login name
 	string Provider         = 3; // Provider is the provider that certifies and issues this user's authentication, e.g. GitHub
 	string Scheme           = 4; // Scheme is the scheme used to perform this user's authentication, e.g. OAuth2 or LDAP
+	repeated string Roles   = 5; // Roles is list of roles a user has
 }
 
 // The following is a vim modeline, it autoconfigures vim to have the

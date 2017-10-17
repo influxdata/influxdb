@@ -2,16 +2,26 @@ package bolt_test
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/chronograf"
 )
 
+// IgnoreFields is used because ID is created by BoltDB and cannot be predicted reliably
+// EquateEmpty is used because we want nil slices, arrays, and maps to be equal to the empty map
+var cmpOptions = cmp.Options{
+	cmpopts.IgnoreFields(chronograf.User{}, "ID"),
+	cmpopts.EquateEmpty(),
+}
+
 func TestUsersStore_Get(t *testing.T) {
 	type args struct {
-		ctx  context.Context
-		name string
+		ctx context.Context
+		ID  string
 	}
 	tests := []struct {
 		name    string
@@ -22,8 +32,8 @@ func TestUsersStore_Get(t *testing.T) {
 		{
 			name: "User not found",
 			args: args{
-				ctx:  context.Background(),
-				name: "unknown",
+				ctx: context.Background(),
+				ID:  "1337",
 			},
 			wantErr: true,
 		},
@@ -39,7 +49,7 @@ func TestUsersStore_Get(t *testing.T) {
 		defer client.Close()
 
 		s := client.UsersStore
-		got, err := s.Get(tt.args.ctx, tt.args.name)
+		got, err := s.Get(tt.args.ctx, tt.args.ID)
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. UsersStore.Get() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
@@ -66,11 +76,25 @@ func TestUsersStore_Add(t *testing.T) {
 			args: args{
 				ctx: context.Background(),
 				u: &chronograf.User{
-					Name: "docbrown",
+					Name:     "docbrown",
+					Provider: "GitHub",
+					Scheme:   "OAuth2",
+					Roles: []chronograf.Role{
+						{
+							Name: "Editor",
+						},
+					},
 				},
 			},
 			want: &chronograf.User{
-				Name: "docbrown",
+				Name:     "docbrown",
+				Provider: "GitHub",
+				Scheme:   "OAuth2",
+				Roles: []chronograf.Role{
+					{
+						Name: "Editor",
+					},
+				},
 			},
 		},
 	}
@@ -89,13 +113,13 @@ func TestUsersStore_Add(t *testing.T) {
 			t.Errorf("%q. UsersStore.Add() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
 		}
-		if !reflect.DeepEqual(got, tt.want) {
-			t.Errorf("%q. UsersStore.Add() = %v, want %v", tt.name, got, tt.want)
-		}
 
-		got, _ = s.Get(tt.args.ctx, got.Name)
-		if !reflect.DeepEqual(got, tt.want) {
-			t.Errorf("%q. UsersStore.Add() = %v, want %v", tt.name, got, tt.want)
+		got, err = s.Get(tt.args.ctx, fmt.Sprintf("%d", got.ID))
+		if err != nil {
+			t.Fatalf("failed to get user: %v", err)
+		}
+		if diff := cmp.Diff(got, tt.want, cmpOptions...); diff != "" {
+			t.Errorf("%q. UsersStore.Add():\n-got/+want\ndiff %s", tt.name, diff)
 		}
 	}
 }
@@ -116,7 +140,7 @@ func TestUsersStore_Delete(t *testing.T) {
 			args: args{
 				ctx: context.Background(),
 				user: &chronograf.User{
-					Name: "noone",
+					ID: 10,
 				},
 			},
 			wantErr: true,
@@ -144,7 +168,7 @@ func TestUsersStore_Delete(t *testing.T) {
 		s := client.UsersStore
 
 		if tt.addFirst {
-			s.Add(tt.args.ctx, tt.args.user)
+			tt.args.user, _ = s.Add(tt.args.ctx, tt.args.user)
 		}
 		if err := s.Delete(tt.args.ctx, tt.args.user); (err != nil) != tt.wantErr {
 			t.Errorf("%q. UsersStore.Delete() error = %v, wantErr %v", tt.name, err, tt.wantErr)
@@ -154,13 +178,18 @@ func TestUsersStore_Delete(t *testing.T) {
 
 func TestUsersStore_Update(t *testing.T) {
 	type args struct {
-		ctx context.Context
-		usr *chronograf.User
+		ctx      context.Context
+		usr      *chronograf.User
+		roles    []chronograf.Role
+		provider string
+		scheme   string
+		name     string
 	}
 	tests := []struct {
 		name     string
 		args     args
 		addFirst bool
+		want     *chronograf.User
 		wantErr  bool
 	}{
 		{
@@ -168,18 +197,60 @@ func TestUsersStore_Update(t *testing.T) {
 			args: args{
 				ctx: context.Background(),
 				usr: &chronograf.User{
-					Name: "noone",
+					ID: 10,
 				},
 			},
 			wantErr: true,
 		},
 		{
-			name: "Update new user",
+			name: "Update user role",
 			args: args{
 				ctx: context.Background(),
 				usr: &chronograf.User{
-					Name: "noone",
+					Name:     "bobetta",
+					Provider: "GitHub",
+					Scheme:   "OAuth2",
+					Roles: []chronograf.Role{
+						{
+							Name: "Viewer",
+						},
+					},
 				},
+				roles: []chronograf.Role{
+					{
+						Name: "Editor",
+					},
+				},
+			},
+			want: &chronograf.User{
+				Name:     "bobetta",
+				Provider: "GitHub",
+				Scheme:   "OAuth2",
+				Roles: []chronograf.Role{
+					{
+						Name: "Editor",
+					},
+				},
+			},
+			addFirst: true,
+		},
+		{
+			name: "Update user provider and scheme",
+			args: args{
+				ctx: context.Background(),
+				usr: &chronograf.User{
+					Name:     "bobetta",
+					Provider: "GitHub",
+					Scheme:   "OAuth2",
+				},
+				provider: "Google",
+				scheme:   "LDAP",
+				name:     "billietta",
+			},
+			want: &chronograf.User{
+				Name:     "billietta",
+				Provider: "Google",
+				Scheme:   "LDAP",
 			},
 			addFirst: true,
 		},
@@ -196,11 +267,43 @@ func TestUsersStore_Update(t *testing.T) {
 		s := client.UsersStore
 
 		if tt.addFirst {
-			s.Add(tt.args.ctx, tt.args.usr)
+			tt.args.usr, err = s.Add(tt.args.ctx, tt.args.usr)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		if tt.args.roles != nil {
+			tt.args.usr.Roles = tt.args.roles
+		}
+
+		if tt.args.provider != "" {
+			tt.args.usr.Provider = tt.args.provider
+		}
+
+		if tt.args.scheme != "" {
+			tt.args.usr.Scheme = tt.args.scheme
+		}
+
+		if tt.args.name != "" {
+			tt.args.usr.Name = tt.args.name
 		}
 
 		if err := s.Update(tt.args.ctx, tt.args.usr); (err != nil) != tt.wantErr {
 			t.Errorf("%q. UsersStore.Update() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+		}
+
+		// for the empty test
+		if tt.want == nil {
+			continue
+		}
+
+		got, err := s.Get(tt.args.ctx, fmt.Sprintf("%d", tt.args.usr.ID))
+		if err != nil {
+			t.Fatalf("failed to get user: %v", err)
+		}
+		if diff := cmp.Diff(got, tt.want, cmpOptions...); diff != "" {
+			t.Errorf("%q. UsersStore.Update():\n-got/+want\ndiff %s", tt.name, diff)
 		}
 	}
 }
@@ -220,10 +323,24 @@ func TestUsersStore_All(t *testing.T) {
 			name: "Update new user",
 			want: []chronograf.User{
 				{
-					Name: "howdy",
+					Name:     "howdy",
+					Provider: "GitHub",
+					Scheme:   "OAuth2",
+					Roles: []chronograf.Role{
+						{
+							Name: "Viewer",
+						},
+					},
 				},
 				{
-					Name: "doody",
+					Name:     "doody",
+					Provider: "GitHub",
+					Scheme:   "OAuth2",
+					Roles: []chronograf.Role{
+						{
+							Name: "Editor",
+						},
+					},
 				},
 			},
 			addFirst: true,
@@ -245,13 +362,15 @@ func TestUsersStore_All(t *testing.T) {
 				s.Add(tt.ctx, &u)
 			}
 		}
-		got, err := s.All(tt.ctx)
+		gots, err := s.All(tt.ctx)
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. UsersStore.All() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
 		}
-		if !reflect.DeepEqual(got, tt.want) {
-			t.Errorf("%q. UsersStore.All() = %v, want %v", tt.name, got, tt.want)
+		for i, got := range gots {
+			if diff := cmp.Diff(got, tt.want[i], cmpOptions...); diff != "" {
+				t.Errorf("%q. UsersStore.All():\n-got/+want\ndiff %s", tt.name, diff)
+			}
 		}
 	}
 }

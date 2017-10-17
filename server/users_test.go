@@ -55,6 +55,9 @@ func TestService_UserID(t *testing.T) {
 								Name:     "billysteve",
 								Provider: "Google",
 								Scheme:   "OAuth2",
+								Roles: []chronograf.Role{
+									ViewerRole,
+								},
 							}, nil
 						default:
 							return nil, fmt.Errorf("User with ID %s not found", ID)
@@ -65,7 +68,7 @@ func TestService_UserID(t *testing.T) {
 			id:              "1337",
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"id":"1337","name":"billysteve","provider":"Google","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1337"}}`,
+			wantBody:        `{"id":"1337","name":"billysteve","provider":"Google","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1337"},"roles":[{"name":"viewer"}]}`,
 		},
 	}
 
@@ -112,7 +115,7 @@ func TestService_NewUser(t *testing.T) {
 	type args struct {
 		w    *httptest.ResponseRecorder
 		r    *http.Request
-		user chronograf.User
+		user *userRequest
 	}
 	tests := []struct {
 		name            string
@@ -131,7 +134,7 @@ func TestService_NewUser(t *testing.T) {
 					"http://any.url",
 					nil,
 				),
-				user: chronograf.User{
+				user: &userRequest{
 					Name:     "bob",
 					Provider: "GitHub",
 					Scheme:   "OAuth2",
@@ -146,13 +149,14 @@ func TestService_NewUser(t *testing.T) {
 							Name:     "bob",
 							Provider: "GitHub",
 							Scheme:   "OAuth2",
+							Roles:    []chronograf.Role{},
 						}, nil
 					},
 				},
 			},
 			wantStatus:      http.StatusCreated,
 			wantContentType: "application/json",
-			wantBody:        `{"id":"1338","name":"bob","provider":"GitHub","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1338"}}`,
+			wantBody:        `{"id":"1338","name":"bob","provider":"GitHub","scheme":"OAuth2","roles":[],"links":{"self":"/chronograf/v1/users/1338"}}`,
 		},
 	}
 
@@ -193,7 +197,7 @@ func TestService_RemoveUser(t *testing.T) {
 	type args struct {
 		w    *httptest.ResponseRecorder
 		r    *http.Request
-		user chronograf.User
+		user *userRequest
 	}
 	tests := []struct {
 		name       string
@@ -233,7 +237,7 @@ func TestService_RemoveUser(t *testing.T) {
 					"http://any.url",
 					nil,
 				),
-				user: chronograf.User{
+				user: &userRequest{
 					ID:       1339,
 					Name:     "helena",
 					Provider: "Heroku",
@@ -280,7 +284,7 @@ func TestService_UpdateUser(t *testing.T) {
 	type args struct {
 		w    *httptest.ResponseRecorder
 		r    *http.Request
-		user *chronograf.User
+		user *userRequest
 	}
 	tests := []struct {
 		name            string
@@ -307,6 +311,9 @@ func TestService_UpdateUser(t *testing.T) {
 								Name:     "bobbetta2",
 								Provider: "GitHub",
 								Scheme:   "OAuth2",
+								Roles: []chronograf.Role{
+									EditorRole,
+								},
 							}, nil
 						default:
 							return nil, fmt.Errorf("User with ID %s not found", ID)
@@ -321,19 +328,21 @@ func TestService_UpdateUser(t *testing.T) {
 					"http://any.url",
 					nil,
 				),
-				user: &chronograf.User{
+				user: &userRequest{
 					ID:       1336,
 					Name:     "bobbetta",
 					Provider: "Google",
 					Scheme:   "OAuth2",
+					Roles: []chronograf.Role{
+						AdminRole,
+					},
 				},
 			},
 			id:              "1336",
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"id":"1336","name":"bobbetta","provider":"Google","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1336"}}`,
+			wantBody:        `{"id":"1336","name":"bobbetta","provider":"Google","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1336"},"roles":[{"name":"admin"}]}`,
 		},
-
 		{
 			name: "Update only one field of a Chronograf user",
 			fields: fields{
@@ -364,7 +373,7 @@ func TestService_UpdateUser(t *testing.T) {
 					"http://any.url",
 					nil,
 				),
-				user: &chronograf.User{
+				user: &userRequest{
 					ID:   1336,
 					Name: "burnetta",
 				},
@@ -372,7 +381,7 @@ func TestService_UpdateUser(t *testing.T) {
 			id:              "1336",
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"id":"1336","name":"burnetta","provider":"GitHub","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1336"}}`,
+			wantBody:        `{"id":"1336","name":"burnetta","provider":"GitHub","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1336"},"roles":[]}`,
 		},
 	}
 	for _, tt := range tests {
@@ -440,6 +449,9 @@ func TestService_Users(t *testing.T) {
 								Name:     "billysteve",
 								Provider: "Google",
 								Scheme:   "OAuth2",
+								Roles: []chronograf.Role{
+									EditorRole,
+								},
 							},
 							{
 								ID:       1338,
@@ -461,7 +473,7 @@ func TestService_Users(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"users":[{"id":"1337","name":"billysteve","provider":"Google","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1337"}},{"id":"1338","name":"bobbettastuhvetta","provider":"Auth0","scheme":"LDAP","links":{"self":"/chronograf/v1/users/1338"}}],"links":{"self":"/chronograf/v1/users"}}`,
+			wantBody:        `{"users":[{"id":"1337","name":"billysteve","provider":"Google","scheme":"OAuth2","roles":[{"name":"editor"}],"links":{"self":"/chronograf/v1/users/1337"}},{"id":"1338","name":"bobbettastuhvetta","provider":"Auth0","scheme":"LDAP","roles":[],"links":{"self":"/chronograf/v1/users/1338"}}],"links":{"self":"/chronograf/v1/users"}}`,
 		},
 		{
 			name: "Get all Chronograf users, ensuring order of users in response",
@@ -481,6 +493,9 @@ func TestService_Users(t *testing.T) {
 								Name:     "billysteve",
 								Provider: "Google",
 								Scheme:   "OAuth2",
+								Roles: []chronograf.Role{
+									EditorRole,
+								},
 							},
 						}, nil
 					},
@@ -496,7 +511,7 @@ func TestService_Users(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody:        `{"users":[{"id":"1337","name":"billysteve","provider":"Google","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/1337"}},{"id":"1338","name":"bobbettastuhvetta","provider":"Auth0","scheme":"LDAP","links":{"self":"/chronograf/v1/users/1338"}}],"links":{"self":"/chronograf/v1/users"}}`,
+			wantBody:        `{"users":[{"id":"1337","name":"billysteve","provider":"Google","scheme":"OAuth2","roles":[{"name":"editor"}],"links":{"self":"/chronograf/v1/users/1337"}},{"id":"1338","name":"bobbettastuhvetta","provider":"Auth0","scheme":"LDAP","roles":[],"links":{"self":"/chronograf/v1/users/1338"}}],"links":{"self":"/chronograf/v1/users"}}`,
 		},
 	}
 
@@ -521,6 +536,169 @@ func TestService_Users(t *testing.T) {
 			}
 			if eq, _ := jsonEqual(string(body), tt.wantBody); tt.wantBody != "" && !eq {
 				t.Errorf("%q. Users() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wantBody)
+			}
+		})
+	}
+}
+
+func TestUserRequest_ValidCreate(t *testing.T) {
+	type args struct {
+		u *userRequest
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+		err     error
+	}{
+		{
+			name: "Valid",
+			args: args{
+				u: &userRequest{
+					ID:       1337,
+					Name:     "billietta",
+					Provider: "Auth0",
+					Scheme:   "LDAP",
+					Roles: []chronograf.Role{
+						EditorRole,
+					},
+				},
+			},
+			wantErr: false,
+			err:     nil,
+		},
+		{
+			name: "Invalid – Name missing",
+			args: args{
+				u: &userRequest{
+					ID:       1337,
+					Provider: "Auth0",
+					Scheme:   "LDAP",
+					Roles: []chronograf.Role{
+						EditorRole,
+					},
+				},
+			},
+			wantErr: true,
+			err:     fmt.Errorf("Name required on Chronograf User request body"),
+		},
+		{
+			name: "Invalid – Provider missing",
+			args: args{
+				u: &userRequest{
+					ID:     1337,
+					Name:   "billietta",
+					Scheme: "LDAP",
+					Roles: []chronograf.Role{
+						EditorRole,
+					},
+				},
+			},
+			wantErr: true,
+			err:     fmt.Errorf("Provider required on Chronograf User request body"),
+		},
+		{
+			name: "Invalid – Scheme missing",
+			args: args{
+				u: &userRequest{
+					ID:       1337,
+					Name:     "billietta",
+					Provider: "Auth0",
+					Roles: []chronograf.Role{
+						EditorRole,
+					},
+				},
+			},
+			wantErr: true,
+			err:     fmt.Errorf("Scheme required on Chronograf User request body"),
+		},
+		{
+			name: "Invalid roles",
+			args: args{
+				u: &userRequest{
+					ID:       1337,
+					Name:     "billietta",
+					Provider: "Auth0",
+					Scheme:   "LDAP",
+					Roles: []chronograf.Role{
+						{
+							Name: "BilliettaSpecialRole",
+						},
+					},
+				},
+			},
+			wantErr: true,
+			err:     fmt.Errorf("Unknown role BilliettaSpecialRole. Valid roles are 'viewer', 'editor', 'admin', and 'superadmin'"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.args.u.ValidCreate()
+
+			if tt.wantErr {
+				if err == nil || err.Error() != tt.err.Error() {
+					t.Errorf("%q. ValidCreate(): wantErr %v,\nwant %v,\ngot %v", tt.name, tt.wantErr, tt.err, err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("%q. ValidCreate(): wantErr %v,\nwant %v,\ngot %v", tt.name, tt.wantErr, tt.err, err)
+				}
+			}
+		})
+	}
+}
+
+func TestUserRequest_ValidUpdate(t *testing.T) {
+	type args struct {
+		u *userRequest
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+		err     error
+	}{
+		{
+			name: "Valid",
+			args: args{
+				u: &userRequest{
+					ID:       1337,
+					Name:     "billietta",
+					Provider: "Auth0",
+					Scheme:   "LDAP",
+					Roles: []chronograf.Role{
+						EditorRole,
+					},
+				},
+			},
+			wantErr: false,
+			err:     nil,
+		},
+		{
+			name: "Invalid – field missing",
+			args: args{
+				u: &userRequest{
+					ID: 1337,
+				},
+			},
+			wantErr: true,
+			err:     fmt.Errorf("No fields to update"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.args.u.ValidUpdate()
+
+			if tt.wantErr {
+				if err == nil || err.Error() != tt.err.Error() {
+					t.Errorf("%q. ValidCreate(): wantErr %v,\nwant %v,\ngot %v", tt.name, tt.wantErr, tt.err, err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("%q. ValidCreate(): wantErr %v,\nwant %v,\ngot %v", tt.name, tt.wantErr, tt.err, err)
+				}
 			}
 		})
 	}

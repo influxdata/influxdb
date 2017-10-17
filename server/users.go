@@ -11,10 +11,11 @@ import (
 )
 
 type userRequest struct {
-	ID       uint64 `json:"id,string"`
-	Name     string `json:"name"`
-	Provider string `json:"provider"`
-	Scheme   string `json:"scheme"`
+	ID       uint64            `json:"id,string"`
+	Name     string            `json:"name"`
+	Provider string            `json:"provider"`
+	Scheme   string            `json:"scheme"`
+	Roles    []chronograf.Role `json:"roles"`
 }
 
 func (r *userRequest) ValidCreate() error {
@@ -27,32 +28,55 @@ func (r *userRequest) ValidCreate() error {
 	if r.Scheme == "" {
 		return fmt.Errorf("Scheme required on Chronograf User request body")
 	}
-	return nil
+	return r.ValidRoles()
 }
 
 // TODO: Provide detailed error message
 // TODO: Reconsider what fields should actually be updateable once this is more robust
 func (r *userRequest) ValidUpdate() error {
-	if r.Name == "" && r.Provider == "" && r.Scheme == "" {
+	if r.Name == "" && r.Provider == "" && r.Scheme == "" && r.Roles == nil {
 		return fmt.Errorf("No fields to update")
+	}
+	return r.ValidRoles()
+}
+
+func (r *userRequest) ValidRoles() error {
+	if len(r.Roles) > 0 {
+		for _, r := range r.Roles {
+			switch r.Name {
+			// TODO: add SuperAdmin
+			case ViewerRoleName, EditorRoleName, AdminRoleName:
+				continue
+			default:
+				return fmt.Errorf("Unknown role %s. Valid roles are 'viewer', 'editor', 'admin', and 'superadmin'", r.Name)
+			}
+		}
 	}
 	return nil
 }
 
 type userResponse struct {
-	Links    selfLinks `json:"links"`
-	ID       uint64    `json:"id,string"`
-	Name     string    `json:"name"`
-	Provider string    `json:"provider"`
-	Scheme   string    `json:"scheme"`
+	Links    selfLinks         `json:"links"`
+	ID       uint64            `json:"id,string"`
+	Name     string            `json:"name"`
+	Provider string            `json:"provider"`
+	Scheme   string            `json:"scheme"`
+	Roles    []chronograf.Role `json:"roles"`
 }
 
 func newUserResponse(u *chronograf.User) *userResponse {
+	// This ensures that any user response with no roles returns an empty array instead of
+	// null when marshaled into JSON. That way, JavaScript doesn't need any guard on the
+	// key existing and it can simply be iterated over.
+	if u.Roles == nil {
+		u.Roles = []chronograf.Role{}
+	}
 	return &userResponse{
 		ID:       u.ID,
 		Name:     u.Name,
 		Provider: u.Provider,
 		Scheme:   u.Scheme,
+		Roles:    u.Roles,
 		Links: selfLinks{
 			Self: fmt.Sprintf("/chronograf/v1/users/%d", u.ID),
 		},
@@ -79,6 +103,30 @@ func newUsersResponse(users []chronograf.User) *usersResponse {
 		},
 	}
 }
+
+// Chronograf User Roles
+const (
+	ViewerRoleName = "viewer"
+	EditorRoleName = "editor"
+	AdminRoleName  = "admin"
+)
+
+var (
+	// ViewerRole is the role for a user who can only perform READ operations on Dashboards, Rules, and Sources
+	ViewerRole = chronograf.Role{
+		Name: ViewerRoleName,
+	}
+
+	// EditorRole is the role for a user who can perform READ and WRITE operations on Dashboards, Rules, and Sources
+	EditorRole = chronograf.Role{
+		Name: EditorRoleName,
+	}
+
+	// AdminRole is the role for a user who can perform READ and WRITE operations on Dashboards, Rules, Sources, and Users
+	AdminRole = chronograf.Role{
+		Name: AdminRoleName,
+	}
+)
 
 // UserID retrieves a Chronograf user with ID from store
 func (s *Service) UserID(w http.ResponseWriter, r *http.Request) {
@@ -113,6 +161,7 @@ func (s *Service) NewUser(w http.ResponseWriter, r *http.Request) {
 		Name:     req.Name,
 		Provider: req.Provider,
 		Scheme:   req.Scheme,
+		Roles:    req.Roles,
 	}
 
 	res, err := s.UsersStore.Add(ctx, user)
@@ -171,6 +220,9 @@ func (s *Service) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Scheme != "" {
 		u.Scheme = req.Scheme
+	}
+	if req.Roles != nil {
+		u.Roles = req.Roles
 	}
 
 	err = s.UsersStore.Update(ctx, u)
