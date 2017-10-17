@@ -169,7 +169,7 @@ class SourcePage extends Component {
     }
 
     return (
-      <div className={`${isInitialSource ? '' : 'page'}`} id="source-form-page">
+      <div className={`${isInitialSource ? '' : 'page'}`}>
         {isInitialSource
           ? null
           : <div className="page-header">
