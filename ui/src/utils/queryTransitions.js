@@ -45,32 +45,32 @@ export const toggleKapaField = (query, field) => {
   }
 }
 
-export const buildInitialField = name => [
+export const buildInitialField = value => [
   {
     type: 'func',
-    alias: `mean_${name}`,
-    args: [{name, type: 'field'}],
-    name: 'mean',
+    alias: `mean_${value}`,
+    args: [{value, type: 'field'}],
+    value: 'mean',
   },
 ]
 
 export const addInitialField = (query, field, groupBy) => {
   return {
     ...query,
-    fields: buildInitialField(field.name),
+    fields: buildInitialField(field.value),
     groupBy,
   }
 }
 
-export const toggleField = (query, {name}) => {
+export const toggleField = (query, {value}) => {
   const {fields = [], groupBy} = query
-  const isSelected = hasField(name, fields)
+  const isSelected = hasField(value, fields)
   const newFuncs = fields.filter(f => f.type === 'func')
 
   if (isSelected) {
     // if list is all fields, remove that field
     // if list is all funcs, remove all funcs that match
-    const newFields = removeField(name, fields)
+    const newFields = removeField(value, fields)
     if (!newFields.length) {
       return {
         ...query,
@@ -91,15 +91,15 @@ export const toggleField = (query, {name}) => {
   if (!newFuncs.length) {
     return {
       ...query,
-      fields: [...fields, {name, type: 'field'}],
+      fields: [...fields, {value, type: 'field'}],
     }
   }
 
   const defaultField = {
     type: 'func',
-    alias: `mean_${name}`,
-    args: [{name, type: 'field'}],
-    name: 'mean',
+    alias: `mean_${value}`,
+    args: [{value, type: 'field'}],
+    value: 'mean',
   }
 
   return {
@@ -137,12 +137,12 @@ export const applyFuncsToField = (query, {field, funcs = []}, groupBy) => {
       return [
         ...acc,
         funcs.map(func => {
-          const {name, type} = func
-          const args = [{name: f.name, type: 'field'}]
-          const alias = func.alias ? func.alias : `${func.name}_${f.name}`
+          const {value, type} = func
+          const args = [{value: f.value, type: 'field'}]
+          const alias = func.alias ? func.alias : `${func.value}_${f.value}`
 
           return {
-            name,
+            value,
             type,
             args,
             alias,
@@ -151,12 +151,12 @@ export const applyFuncsToField = (query, {field, funcs = []}, groupBy) => {
       ]
     }
 
-    const fieldToChange = f.args.find(a => a.name === field.name)
+    const fieldToChange = f.args.find(a => a.value === field.value)
     // Apply new funcs to field
     if (fieldToChange) {
       const newFuncs = funcs.reduce((acc2, func) => {
-        const funcsToChange = getFuncsByFieldName(fieldToChange.name, acc)
-        const dup = funcsToChange.find(a => a.name === func.name)
+        const funcsToChange = getFuncsByFieldName(fieldToChange.value, acc)
+        const dup = funcsToChange.find(a => a.value === func.value)
 
         if (dup) {
           return acc2
@@ -167,7 +167,7 @@ export const applyFuncsToField = (query, {field, funcs = []}, groupBy) => {
           {
             ...func,
             args: [field],
-            alias: `${func.name}_${field.name}`,
+            alias: `${func.value}_${field.value}`,
           },
         ]
       }, [])
