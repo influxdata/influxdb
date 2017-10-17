@@ -73,7 +73,7 @@ class TimeRangeDropdown extends Component {
   }
 
   render() {
-    const {selected, preventCustomTimeRange} = this.props
+    const {selected, preventCustomTimeRange, page} = this.props
     const {isOpen, customTimeRange, isCustomTimeRangeOpen} = this.state
     const isRelativeTimeRange = selected.upper === null
     const isNow = selected.upper === 'now()'
@@ -142,6 +142,7 @@ class TimeRangeDropdown extends Component {
               isVisible={isCustomTimeRangeOpen}
               onToggle={this.handleToggleCustomTimeRange}
               onClose={this.handleCloseCustomTimeRange}
+              page={page}
             />
           : null}
       </div>
@@ -151,6 +152,10 @@ class TimeRangeDropdown extends Component {
 
 const {bool, func, shape, string} = PropTypes
 
+TimeRangeDropdown.defaultProps = {
+  page: 'default',
+}
+
 TimeRangeDropdown.propTypes = {
   selected: shape({
     lower: string,
@@ -158,6 +163,7 @@ TimeRangeDropdown.propTypes = {
   }).isRequired,
   onChooseTimeRange: func.isRequired,
   preventCustomTimeRange: bool,
+  page: string,
 }
 
 export default OnClickOutside(TimeRangeDropdown)
