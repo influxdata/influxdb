@@ -62,11 +62,10 @@ func NewCommand() *Command {
 }
 
 // Run executes the program.
-func (cmd *Command) Run(op string, args ...string) error {
+func (cmd *Command) Run(args ...string) error {
 	// Set up logger.
 	cmd.StdoutLogger = log.New(cmd.Stdout, "", log.LstdFlags)
 	cmd.StderrLogger = log.New(cmd.Stderr, "", log.LstdFlags)
-	cmd.isBackup = op == "backup"
 
 	// Parse command line arguments.
 	err := cmd.parseFlags(args)
@@ -87,6 +86,8 @@ func (cmd *Command) Run(op string, args ...string) error {
 			err = cmd.extractRetentionPolicy()
 		} else if cmd.database != "" {
 			err = cmd.extractDatabase()
+		} else {
+			return errors.New("no database, retention policy or shard ID given")
 		}
 
 		if err != nil {
@@ -122,6 +123,8 @@ func (cmd *Command) parseFlags(args []string) (err error) {
 		return err
 	}
 
+	cmd.isBackup = sinceArg != ""
+
 	if sinceArg != "" {
 		cmd.since, err = time.Parse(time.RFC3339, sinceArg)
 		if err != nil {
@@ -129,6 +132,9 @@ func (cmd *Command) parseFlags(args []string) (err error) {
 		}
 	}
 	if startArg != "" {
+		if cmd.isBackup {
+			return errors.New("backup command uses one of -since or -start/-end")
+		}
 		cmd.start, err = time.Parse(time.RFC3339, startArg)
 		if err != nil {
 			return err
@@ -136,10 +142,24 @@ func (cmd *Command) parseFlags(args []string) (err error) {
 	}
 
 	if endArg != "" {
+		if cmd.isBackup {
+			return errors.New("backup command uses one of -since or -start/-end")
+		}
 		cmd.end, err = time.Parse(time.RFC3339, endArg)
 		if err != nil {
 			return err
 		}
+	}
+
+	// some validations
+	// 1.  -database is required
+	if cmd.database == "" {
+		return errors.New("-database <dbname> is a required argument")
+	}
+
+	// 2.  start should be < end
+	if cmd.start >= cmd.end {
+		return errors.New("start date must be before end date")
 	}
 
 	// Ensure that only one arg is specified.
@@ -426,7 +446,8 @@ func (cmd *Command) requestInfo(request *snapshotter.Request) (*snapshotter.Resp
 
 // printUsage prints the usage message to STDERR.
 func (cmd *Command) printUsage() {
-	fmt.Fprintf(cmd.Stdout, `Downloads a snapshot of a data node and saves it to disk.
+
+	fmt.Fprintf(cmd.Stdout, `Downloads a file level age-based snapshot of a data node and saves it to disk.
 
 Usage: influxd backup [flags] PATH
 
@@ -440,9 +461,14 @@ Usage: influxd backup [flags] PATH
             Optional. The shard id to backup. If specified, retention is required.
     -since <2015-12-24T08:12:23Z>
             Optional. Do an incremental backup since the passed in RFC3339
-            formatted time.
+            formatted time.  Not compatible with -start or -end.
+	-start <2015-12-24T08:12:23Z>
+            All points earlier than this time stamp will be excluded from the export. Not compatible with -since.
+	-end <2015-12-24T08:12:23Z>
+            All points later than this time stamp will be excluded from the export. Not compatible with -since.
 
 `)
+
 }
 
 // retentionAndShardFromPath will take the shard relative path and split it into the

@@ -115,7 +115,7 @@ func (m *Main) Run(args ...string) error {
 
 	case "backup":
 		name := backup.NewCommand()
-		if err := name.Run("backup", args...); err != nil {
+		if err := name.Run(args...); err != nil {
 			return fmt.Errorf("backup: %s", err)
 		}
 	case "restore":
@@ -123,11 +123,7 @@ func (m *Main) Run(args ...string) error {
 		if err := name.Run(args...); err != nil {
 			return fmt.Errorf("restore: %s", err)
 		}
-	case "export":
-		name := backup.NewCommand()
-		if err := name.Run("export", args...); err != nil {
-			return fmt.Errorf("export: %s", err)
-		}
+
 	case "config":
 		if err := run.NewPrintConfigCommand().Run(args...); err != nil {
 			return fmt.Errorf("config: %s", err)

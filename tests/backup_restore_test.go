@@ -63,7 +63,7 @@ func TestServer_BackupAndRestore(t *testing.T) {
 			t.Fatal(err)
 		}
 		hostAddress := net.JoinHostPort("localhost", port)
-		if err := cmd.Run("backup", "-host", hostAddress, "-database", "mydb", backupDir); err != nil {
+		if err := cmd.Run("-host", hostAddress, "-database", "mydb", backupDir); err != nil {
 			t.Fatalf("error backing up: %s, hostAddress: %s", err.Error(), hostAddress)
 		}
 	}()
