@@ -2516,9 +2516,9 @@ dot-prop@^3.0.0:
   dependencies:
     is-obj "^1.0.0"
 
-dygraphs@^2.0.0:
+dygraphs@influxdata/dygraphs:
   version "2.0.0"
-  resolved "https://registry.yarnpkg.com/dygraphs/-/dygraphs-2.0.0.tgz#30be283c7e32aa7536d4ea9da61ebe9f363d7c98"
+  resolved "https://codeload.github.com/influxdata/dygraphs/tar.gz/9cc90443f58c11b45473516a97d4bb3a68a620c2"
 
 ecc-jsbn@~0.1.1:
   version "0.1.1"
