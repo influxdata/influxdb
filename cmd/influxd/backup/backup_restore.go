@@ -91,10 +91,10 @@ func (cmd *Command) Run(args ...string) error {
 		}
 
 		if err != nil {
-			cmd.StderrLogger.Printf("%s failed: %v", op, err)
+			cmd.StderrLogger.Printf("backup failed: %v", err)
 			return err
 		}
-		cmd.StdoutLogger.Printf("%s complete", op)
+		cmd.StdoutLogger.Printf("backup complete")
 	}
 
 	return nil
@@ -158,7 +158,7 @@ func (cmd *Command) parseFlags(args []string) (err error) {
 	}
 
 	// 2.  start should be < end
-	if cmd.start >= cmd.end {
+	if cmd.start.After(cmd.end) {
 		return errors.New("start date must be before end date")
 	}
 
