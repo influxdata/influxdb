@@ -28,7 +28,10 @@ const getFillColor = operator => {
 }
 
 const underlayCallback = rule => (canvas, area, dygraph) => {
-  if (rule.trigger !== 'threshold' || rule.values.value === '') {
+  const {values} = rule
+  const {operator, value} = values
+
+  if (rule.trigger !== 'threshold' || value === '' || !isFinite(value)) {
     return
   }
 
@@ -36,10 +39,10 @@ const underlayCallback = rule => (canvas, area, dygraph) => {
   let highlightStart = 0
   let highlightEnd = 0
 
-  switch (rule.values.operator) {
+  switch (operator) {
     case `${EQUAL_TO_OR_GREATER_THAN}`:
     case `${GREATER_THAN}`: {
-      highlightStart = rule.values.value
+      highlightStart = value
       highlightEnd = dygraph.yAxisRange()[1]
       break
     }
@@ -47,23 +50,23 @@ const underlayCallback = rule => (canvas, area, dygraph) => {
     case `${EQUAL_TO_OR_LESS_THAN}`:
     case `${LESS_THAN}`: {
       highlightStart = dygraph.yAxisRange()[0]
-      highlightEnd = rule.values.value
+      highlightEnd = value
       break
     }
 
     case `${EQUAL_TO}`: {
       const width =
         theOnePercent * (dygraph.yAxisRange()[1] - dygraph.yAxisRange()[0])
-      highlightStart = +rule.values.value - width
-      highlightEnd = +rule.values.value + width
+      highlightStart = +value - width
+      highlightEnd = +value + width
       break
     }
 
     case `${NOT_EQUAL_TO}`: {
       const width =
         theOnePercent * (dygraph.yAxisRange()[1] - dygraph.yAxisRange()[0])
-      highlightStart = +rule.values.value - width
-      highlightEnd = +rule.values.value + width
+      highlightStart = +value - width
+      highlightEnd = +value + width
 
       canvas.fillStyle = HIGHLIGHT
       canvas.fillRect(area.x, area.y, area.w, area.h)
@@ -71,9 +74,8 @@ const underlayCallback = rule => (canvas, area, dygraph) => {
     }
 
     case `${OUTSIDE_RANGE}`: {
-      const {rangeValue, value} = rule.values
-      highlightStart = Math.min(+value, +rangeValue)
-      highlightEnd = Math.max(+value, +rangeValue)
+      highlightStart = Math.min(+value, +values.rangeValue)
+      highlightEnd = Math.max(+value, +values.rangeValue)
 
       canvas.fillStyle = HIGHLIGHT
       canvas.fillRect(area.x, area.y, area.w, area.h)
@@ -81,9 +83,8 @@ const underlayCallback = rule => (canvas, area, dygraph) => {
     }
 
     case `${INSIDE_RANGE}`: {
-      const {rangeValue, value} = rule.values
-      highlightStart = Math.min(+value, +rangeValue)
-      highlightEnd = Math.max(+value, +rangeValue)
+      highlightStart = Math.min(+value, +values.rangeValue)
+      highlightEnd = Math.max(+value, +values.rangeValue)
       break
     }
   }
@@ -91,7 +92,7 @@ const underlayCallback = rule => (canvas, area, dygraph) => {
   const bottom = dygraph.toDomYCoord(highlightStart)
   const top = dygraph.toDomYCoord(highlightEnd)
 
-  const fillColor = getFillColor(rule.values.operator)
+  const fillColor = getFillColor(operator)
   canvas.fillStyle = fillColor
   canvas.fillRect(area.x, top, area.w, bottom - top)
 }
