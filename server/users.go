@@ -48,7 +48,7 @@ func (r *userRequest) ValidRoles() error {
 			case ViewerRoleName, EditorRoleName, AdminRoleName:
 				continue
 			default:
-				return fmt.Errorf("Unknown role %s. Valid roles are 'Viewer', 'Editor', 'Admin', and 'SuperAdmin'", r.Name)
+				return fmt.Errorf("Unknown role %s. Valid roles are 'viewer', 'editor', 'admin', and 'superadmin'", r.Name)
 			}
 		}
 	}
@@ -106,9 +106,9 @@ func newUsersResponse(users []chronograf.User) *usersResponse {
 
 // Chronograf User Roles
 const (
-	ViewerRoleName = "Viewer"
-	EditorRoleName = "Editor"
-	AdminRoleName  = "Admin"
+	ViewerRoleName = "viewer"
+	EditorRoleName = "editor"
+	AdminRoleName  = "admin"
 )
 
 var (
