@@ -102,12 +102,12 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.PATCH("/chronograf/v1/sources/:id/users/:uid", service.UpdateSourceUser)
 
 	// Roles associated with the data source
-	router.GET("/chronograf/v1/sources/:id/roles", service.Roles)
-	router.POST("/chronograf/v1/sources/:id/roles", service.NewRole)
+	router.GET("/chronograf/v1/sources/:id/roles", service.SourceRoles)
+	router.POST("/chronograf/v1/sources/:id/roles", service.NewSourceRole)
 
-	router.GET("/chronograf/v1/sources/:id/roles/:rid", service.RoleID)
-	router.DELETE("/chronograf/v1/sources/:id/roles/:rid", service.RemoveRole)
-	router.PATCH("/chronograf/v1/sources/:id/roles/:rid", service.UpdateRole)
+	router.GET("/chronograf/v1/sources/:id/roles/:rid", service.SourceRoleID)
+	router.DELETE("/chronograf/v1/sources/:id/roles/:rid", service.RemoveSourceRole)
+	router.PATCH("/chronograf/v1/sources/:id/roles/:rid", service.UpdateSourceRole)
 
 	// Kapacitor
 	router.GET("/chronograf/v1/sources/:id/kapacitors", service.Kapacitors)
