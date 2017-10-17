@@ -72,12 +72,12 @@ function _buildFields(fieldFuncs) {
       .map(f => {
         switch (f.type) {
           case 'field': {
-            return f.name === '*' ? '*' : `"${f.name}"`
+            return f.value === '*' ? '*' : `"${f.value}"`
           }
           case 'func': {
             const args = _buildFields(f.args)
             const alias = f.alias ? ` AS "${f.alias}"` : ''
-            return `${f.name}(${args})${alias}`
+            return `${f.value}(${args})${alias}`
           }
         }
       })

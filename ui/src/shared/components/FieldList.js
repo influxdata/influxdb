@@ -122,7 +122,7 @@ class FieldList extends Component {
       }
 
       this.setState({
-        fields: fieldSets[measurement].map(f => ({name: f, type: 'field'})),
+        fields: fieldSets[measurement].map(f => ({value: f, type: 'field'})),
       })
     })
   }
@@ -167,11 +167,11 @@ class FieldList extends Component {
               <FancyScrollbar>
                 {this.state.fields.map((fieldFunc, i) => {
                   const selectedFields = getFieldsWithName(
-                    fieldFunc.name,
+                    fieldFunc.value,
                     fields
                   )
 
-                  const funcs = getFuncsByFieldName(fieldFunc.name, fields)
+                  const funcs = getFuncsByFieldName(fieldFunc.value, fields)
                   const fieldFuncs = selectedFields.length
                     ? selectedFields
                     : [fieldFunc]

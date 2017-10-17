@@ -26,16 +26,16 @@ class FieldListItem extends Component {
 
   handleToggleField = () => {
     const {onToggleField} = this.props
-    const name = this._getFieldName()
+    const value = this._getFieldName()
 
-    onToggleField({name, type: 'field'})
+    onToggleField({value, type: 'field'})
     this.close()
   }
 
   handleApplyFunctions = selectedFuncs => {
     const {onApplyFuncsToField} = this.props
     const fieldName = this._getFieldName()
-    const field = {name: fieldName, type: 'field'}
+    const field = {value: fieldName, type: 'field'}
 
     onApplyFuncsToField({
       field,
@@ -44,8 +44,8 @@ class FieldListItem extends Component {
     this.close()
   }
 
-  _makeFunc = name => ({
-    name,
+  _makeFunc = value => ({
+    value,
     type: 'func',
   })
 
@@ -54,7 +54,7 @@ class FieldListItem extends Component {
     const fieldFunc = _.head(fieldFuncs)
 
     return _.get(fieldFunc, 'type') === 'field'
-      ? _.get(fieldFunc, 'name')
+      ? _.get(fieldFunc, 'value')
       : firstFieldName(_.get(fieldFunc, 'args'))
   }
 
@@ -121,12 +121,12 @@ FieldListItem.propTypes = {
   fieldFuncs: arrayOf(
     shape({
       type: string.isRequired,
-      name: string.isRequired,
+      value: string.isRequired,
       alias: string,
       args: arrayOf(
         shape({
           type: string.isRequired,
-          name: string.isRequired,
+          value: string.isRequired,
         })
       ),
     })
