@@ -555,7 +555,7 @@ func TestConvert(t *testing.T) {
 								Type:  "field",
 							},
 							chronograf.Field{
-								Value: 3.14,
+								Value: "3.14",
 								Type:  "number",
 							},
 						},
@@ -592,7 +592,7 @@ func TestConvert(t *testing.T) {
 								Type:  "field",
 							},
 							chronograf.Field{
-								Value: int64(2),
+								Value: "2",
 								Type:  "integer",
 							},
 						},

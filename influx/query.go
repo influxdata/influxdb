@@ -2,6 +2,7 @@ package influx
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -156,12 +157,12 @@ func Convert(influxQL string) (chronograf.QueryConfig, error) {
 					})
 				case *influxql.IntegerLiteral:
 					fldArgs = append(fldArgs, chronograf.Field{
-						Value: ref.Val,
+						Value: strconv.FormatInt(ref.Val, 10),
 						Type:  "integer",
 					})
 				case *influxql.NumberLiteral:
 					fldArgs = append(fldArgs, chronograf.Field{
-						Value: ref.Val,
+						Value: strconv.FormatFloat(ref.Val, 'f', -1, 64),
 						Type:  "number",
 					})
 				case *influxql.RegexLiteral:
