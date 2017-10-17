@@ -746,6 +746,32 @@ func (data *Data) UnmarshalBinary(buf []byte) error {
 	return nil
 }
 
+// TruncateShardGroups truncates any shard group that could contain timestamps beyond t.
+func (data *Data) TruncateShardGroups(t time.Time) {
+	for i := range data.Databases {
+		dbi := &data.Databases[i]
+
+		for j := range dbi.RetentionPolicies {
+			rpi := &dbi.RetentionPolicies[j]
+
+			for k := range rpi.ShardGroups {
+				sgi := &rpi.ShardGroups[k]
+
+				if !t.Before(sgi.EndTime) || sgi.Deleted() || (sgi.Truncated() && sgi.TruncatedAt.Before(t)) {
+					continue
+				}
+
+				if !t.After(sgi.StartTime) {
+					// future shardgroup
+					sgi.TruncatedAt = sgi.StartTime
+				} else {
+					sgi.TruncatedAt = t
+				}
+			}
+		}
+	}
+}
+
 // hasAdminUser exhaustively checks for the presence of at least one admin
 // user.
 func (data *Data) hasAdminUser() bool {

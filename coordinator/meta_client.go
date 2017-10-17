@@ -27,6 +27,7 @@ type MetaClient interface {
 	SetAdminPrivilege(username string, admin bool) error
 	SetPrivilege(username, database string, p influxql.Privilege) error
 	ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
+	TruncateShardGroups(t time.Time) error
 	UpdateRetentionPolicy(database, name string, rpu *meta.RetentionPolicyUpdate, makeDefault bool) error
 	UpdateUser(name, password string) error
 	UserPrivilege(username, database string) (*influxql.Privilege, error)

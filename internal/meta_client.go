@@ -41,6 +41,7 @@ type MetaClientMock struct {
 	SetPrivilegeFn           func(username, database string, p influxql.Privilege) error
 	ShardGroupsByTimeRangeFn func(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
 	ShardOwnerFn             func(shardID uint64) (database, policy string, sgi *meta.ShardGroupInfo)
+	TruncateShardGroupsFn    func(t time.Time) error
 	UpdateRetentionPolicyFn  func(database, name string, rpu *meta.RetentionPolicyUpdate, makeDefault bool) error
 	UpdateUserFn             func(name, password string) error
 	UserPrivilegeFn          func(username, database string) (*influxql.Privilege, error)
@@ -135,6 +136,10 @@ func (c *MetaClientMock) ShardGroupsByTimeRange(database, policy string, min, ma
 
 func (c *MetaClientMock) ShardOwner(shardID uint64) (database, policy string, sgi *meta.ShardGroupInfo) {
 	return c.ShardOwnerFn(shardID)
+}
+
+func (c *MetaClientMock) TruncateShardGroups(t time.Time) error {
+	return c.TruncateShardGroupsFn(t)
 }
 
 func (c *MetaClientMock) UpdateRetentionPolicy(database, name string, rpu *meta.RetentionPolicyUpdate, makeDefault bool) error {
