@@ -7,10 +7,11 @@
 ### Features
 1. [#2083](https://github.com/influxdata/chronograf/pull/2083): Every dashboard can now have its own time range
 1. [#2045](https://github.com/influxdata/chronograf/pull/2045): Add CSV download option in dashboard cells
+1. [#2127](https://github.com/influxdata/chronograf/pull/2127): Add CSV download option in dashboard cells
 
 ### UI Improvements
 1. [#2111](https://github.com/influxdata/chronograf/pull/2111): Increase size of Cell Editor query tabs to reveal more of their query strings
-1. [#2119](https://github.com/influxdata/chronograf/pull/2119): Add cancel button to Tickscript editor
+1. [#2119](https://github.com/influxdata/chronograf/pull/2119): Add support for graph zooming and point display on the millisecond-level
 
 ## v1.3.9.0 [2017-10-06]
 ### Bug Fixes
