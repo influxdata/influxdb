@@ -133,7 +133,7 @@ const dummyLogs = [
   },
   {
     ts: '2017-10-16T15:36:40.313-04:00',
-    lvl: 'info',
+    lvl: 'warn',
     msg: 'http request',
     service: 'http',
     host: '::1',
@@ -150,7 +150,7 @@ const dummyLogs = [
   },
   {
     ts: '2017-10-16T15:36:40.313-04:00',
-    lvl: 'info',
+    lvl: 'ok',
     msg: 'point',
     service: 'kapacitor',
     task_master: 'main',
@@ -182,30 +182,101 @@ class LogsTable extends Component {
     super(props)
   }
 
+  renderAlertLevel = level => {
+    let alertCSS
+    switch (level) {
+      case 'ok':
+        alertCSS = 'label label-success'
+        break
+      case 'warn':
+        alertCSS = 'label label-info'
+        break
+      case 'error':
+        alertCSS = 'label label-danger'
+        break
+      case 'debug':
+        alertCSS = 'label label-primary'
+        break
+      default:
+        alertCSS = 'label label-default'
+    }
+    return alertCSS
+  }
+
+  renderKeysAndValues = object => {
+    if (!object) {
+      return <span className="logs-table--empty-cell">--</span>
+    }
+    const objKeys = Object.keys(object)
+    const objValues = Object.values(object)
+
+    const objElements = objKeys.map((objKey, i) =>
+      <div key={i} className="logs-table--key-value">
+        {objKey}: <span>{objValues[i]}</span>
+      </div>
+    )
+    return objElements
+  }
+
+  renderEmptyCell = () => {
+    return <span className="logs-table--empty-cell">--</span>
+  }
+  renderMessage = log => {
+    if (log.msg === 'http request') {
+      return `HTTP Request ${log.username}@${log.host}`
+    }
+    return log.msg
+  }
+
   renderTable = () => {
     return (
-      <table className="table logs-table">
+      <table className="table table-highlight logs-table">
         <thead>
           <tr>
-            <th>Blargh</th>
-            <th>Swoggle</th>
-            <th>Horgles</th>
-            <th>Chortle</th>
+            {/* <th>Timestamp</th> */}
+            <th>Service</th>
+            <th>Level</th>
+            <th>Task</th>
+            <th>Node</th>
+            <th>Duration</th>
+            <th>Message</th>
+            <th>Tags & Fields</th>
           </tr>
         </thead>
         <tbody>
-          <tr>
-            <td>sdfsdfsf</td>
-            <td>sdfsdfsdf</td>
-            <td>sdfsdfsdfjnsdfkjlnjsdjkfsf</td>
-            <td>sdbnds</td>
-          </tr>
-          <tr>
-            <td>sdfsdfsf</td>
-            <td>sdfsdfsdf</td>
-            <td>sdfsdfsdfjnsdfkjlnjsdjkfsf</td>
-            <td>sdbnds</td>
-          </tr>
+          {dummyLogs.map((l, i) =>
+            <tr key={i}>
+              {/* <td>
+                {l.ts}
+              </td> */}
+              <td>
+                {l.service}
+              </td>
+              <td>
+                <span className={this.renderAlertLevel(l.lvl)}>
+                  {l.lvl}
+                </span>
+              </td>
+              <td>
+                {l.task || this.renderEmptyCell()}
+              </td>
+              <td>
+                {l.node || this.renderEmptyCell()}
+              </td>
+              <td>
+                {l.duration || this.renderEmptyCell()}
+              </td>
+              <td>
+                {this.renderMessage(l)}
+              </td>
+              <td>
+                {l.tag ? <div>TAGS</div> : null}
+                {this.renderKeysAndValues(l.tag)}
+                {l.field ? <div>FIELDS</div> : null}
+                {this.renderKeysAndValues(l.field)}
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
     )
@@ -215,15 +286,13 @@ class LogsTable extends Component {
 
     const output = isWidget
       ? this.renderTable()
-      : <div className="logs-table-container">
-          <div className="panel panel-minimal">
-            <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-              <h2 className="panel-title">Logs</h2>
-              <div className="filterthing">FILTER</div>
-            </div>
-            <div className="panel-body">
-              {this.renderTable()}
-            </div>
+      : <div className="logs-table--container">
+          <div className="logs-table--header">
+            <h2 className="panel-title">Logs</h2>
+            <div className="filterthing">FILTER</div>
+          </div>
+          <div className="logs-table--panel">
+            {this.renderTable()}
           </div>
         </div>
 

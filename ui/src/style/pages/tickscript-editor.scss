@@ -3,6 +3,9 @@
     ----------------------------------------------
 */
 
+$logs-table-header-height: 60px;
+$logs-table-padding: 60px;
+
 .resize--container .tickscript {
   position: absolute;
   top: 0;
@@ -10,7 +13,7 @@
   width: 100%;
   height: 100%;
 }
-.resize--container .logs-table-container {
+.resize--container .logs-table--container {
   position: absolute;
   top: 0;
   left: 50%;
@@ -18,14 +21,40 @@
   transform: translateX(-50%);
   width: 100%;
   max-width: 1300px;
-  padding: 0 60px;
-  padding-bottom: 30px;
+  padding: 0 $logs-table-padding;
 }
-.resize--container .logs-table-container .panel {
+.logs-table--header {
   display: flex;
-  flex-direction: column;
-  height: 100%;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  height: $logs-table-header-height;
 }
-.resize--container .logs-table-container .panel-body {
-  flex: 1 0 0;
+.logs-table--panel {
+  padding: 30px;
+  position: absolute;
+  top: $logs-table-header-height;
+  left: $logs-table-padding;
+  width: calc(100% - #{$logs-table-padding * 2});
+  height: calc(100% - #{$logs-table-header-height + 30px});
+  background-color: $g3-castle;
+  border-radius: 4px;
+  overflow: auto;
+}
+
+.logs-table--empty-cell {
+  color: $g6-smoke;
+}
+table.logs-table {
+  margin: 0;
+}
+table.logs-table tbody tr td {
+  font-weight: 600;
+}
+table.logs-table tbody tr td .logs-table--key-value {
+  padding-left: 10px;
+}
+table.logs-table tbody tr td .logs-table--key-value span {
+  color: $g10-wolf;
+  font-weight: 400;
 }
