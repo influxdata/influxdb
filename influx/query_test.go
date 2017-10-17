@@ -630,6 +630,31 @@ func TestConvert(t *testing.T) {
 			},
 		},
 		{
+			name:     "count with aggregate",
+			influxQL: `SELECT COUNT(water) as "count_water" FROM "h2o_feet"`,
+			want: chronograf.QueryConfig{
+				Measurement: "h2o_feet",
+				Fields: []chronograf.Field{
+					chronograf.Field{
+						Value: "count",
+						Type:  "func",
+						Alias: "count_water",
+						Args: []chronograf.Field{
+							{
+								Value: "water",
+								Type:  "field",
+							},
+						},
+					},
+				},
+				GroupBy: chronograf.GroupBy{
+					Tags: []string{},
+				},
+				Tags:            map[string][]string{},
+				AreTagsAccepted: false,
+			},
+		},
+		{
 			name:     "count of a wildcard",
 			influxQL: ` SELECT COUNT(*) FROM "h2o_feet"`,
 			want: chronograf.QueryConfig{
