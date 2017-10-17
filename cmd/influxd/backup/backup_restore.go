@@ -123,7 +123,8 @@ func (cmd *Command) parseFlags(args []string) (err error) {
 		return err
 	}
 
-	cmd.isBackup = sinceArg != ""
+	// if startArg and endArg are unspecified, then assume we are doing a full backup of the DB
+	cmd.isBackup = startArg == "" && endArg == ""
 
 	if sinceArg != "" {
 		cmd.since, err = time.Parse(time.RFC3339, sinceArg)
