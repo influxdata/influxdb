@@ -44,7 +44,7 @@ class SourcePage extends Component {
         })
       })
       .catch(error => {
-        this.handleError(error)
+        this.handleError('Could not connect to source', error)
         this.setState({isLoading: false})
       })
   }
@@ -109,7 +109,7 @@ class SourcePage extends Component {
           this._redirect(sourceFromServer)
         })
         .catch(error => {
-          this.handleError(error)
+          this.handleError('Unable to create source', error)
         })
     }
 
@@ -117,18 +117,18 @@ class SourcePage extends Component {
       .then(({data: sourceFromServer}) => {
         this.props.updateSourceAction(sourceFromServer)
         this._redirect(sourceFromServer)
-        notify('success', 'The source info saved')
+        notify('success', `New source ${source.name} added`)
       })
       .catch(error => {
-        this.handleError(error)
+        this.handleError('Unable to update source', error)
       })
   }
 
-  handleError = err => {
+  handleError = (bannerText, err) => {
     const {notify} = this.props
     const error = this.parseError(err)
     console.error('Error: ', error)
-    notify('error', `There was a problem: ${error}`)
+    notify('error', `${bannerText}: ${error}`)
   }
 
   _redirect = source => {
