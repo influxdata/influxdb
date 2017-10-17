@@ -77,7 +77,7 @@ describe('Chronograf.Reducers.Kapacitor.queryConfigs', () => {
       const three = reducer(two, chooseMeasurement(queryId, 'disk'))
       state = reducer(
         three,
-        toggleField(queryId, {name: 'a great field', funcs: []})
+        toggleField(queryId, {value: 'a great field', funcs: []})
       )
     })
 
@@ -124,11 +124,11 @@ describe('Chronograf.Reducers.Kapacitor.queryConfigs', () => {
 
         const newState = reducer(
           state,
-          toggleField(queryId, {name: 'a different field', type: 'field'})
+          toggleField(queryId, {value: 'a different field', type: 'field'})
         )
 
         expect(newState[queryId].fields.length).to.equal(1)
-        expect(newState[queryId].fields[0].name).to.equal('a different field')
+        expect(newState[queryId].fields[0].value).to.equal('a different field')
       })
     })
 
@@ -138,11 +138,11 @@ describe('Chronograf.Reducers.Kapacitor.queryConfigs', () => {
 
         const newState = reducer(
           state,
-          toggleField(queryId, {name: 'a different field', type: 'field'})
+          toggleField(queryId, {value: 'a different field', type: 'field'})
         )
 
         expect(newState[queryId].fields.length).to.equal(1)
-        expect(newState[queryId].fields[0].name).to.equal('a different field')
+        expect(newState[queryId].fields[0].value).to.equal('a different field')
       })
 
       it('applies no funcs to newly selected fields', () => {
@@ -150,7 +150,7 @@ describe('Chronograf.Reducers.Kapacitor.queryConfigs', () => {
 
         const newState = reducer(
           state,
-          toggleField(queryId, {name: 'a different field', type: 'field'})
+          toggleField(queryId, {value: 'a different field', type: 'field'})
         )
 
         expect(newState[queryId].fields[0].type).to.equal('field')
@@ -160,7 +160,7 @@ describe('Chronograf.Reducers.Kapacitor.queryConfigs', () => {
 
   describe('KAPA_APPLY_FUNCS_TO_FIELD', () => {
     it('applies functions to a field without any existing functions', () => {
-      const f1 = {name: 'f1', type: 'field'}
+      const f1 = {value: 'f1', type: 'field'}
       const initialState = {
         [queryId]: {
           id: 123,
@@ -175,15 +175,15 @@ describe('Chronograf.Reducers.Kapacitor.queryConfigs', () => {
       }
 
       const action = applyFuncsToField(queryId, {
-        field: {name: 'f1', type: 'field'},
-        funcs: [{name: 'fn3', type: 'func'}, {name: 'fn4', type: 'func'}],
+        field: {value: 'f1', type: 'field'},
+        funcs: [{value: 'fn3', type: 'func'}, {value: 'fn4', type: 'func'}],
       })
 
       const nextState = reducer(initialState, action)
       const actual = nextState[queryId].fields
       const expected = [
-        {name: 'fn3', type: 'func', args: [f1], alias: `fn3_${f1.name}`},
-        {name: 'fn4', type: 'func', args: [f1], alias: `fn4_${f1.name}`},
+        {value: 'fn3', type: 'func', args: [f1], alias: `fn3_${f1.value}`},
+        {value: 'fn4', type: 'func', args: [f1], alias: `fn4_${f1.value}`},
       ]
 
       expect(actual).to.eql(expected)

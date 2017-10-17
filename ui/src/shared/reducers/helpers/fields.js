@@ -21,8 +21,8 @@ export const functions = fields => ofType(fields, 'func')
 // numFunctions searches queryConfig fields for functions
 export const numFunctions = fields => _.size(functions(fields))
 
-// functionNames returns the names of all top-level functions
-export const functionNames = fields => functions(fields).map(f => f.name)
+// functionNames returns the value of all top-level functions
+export const functionNames = fields => functions(fields).map(f => f.value)
 
 // getFields returns all of the top-level fields of type field
 export const getFields = fields => ofType(fields, 'field')
@@ -30,13 +30,13 @@ export const getFields = fields => ofType(fields, 'field')
 export const getFieldsDeep = fields =>
   _.uniqBy(
     fieldWalk(fields, f => (_.get(f, 'type') === 'field' ? f : null)),
-    'name'
+    'value'
   )
 
 export const fieldNamesDeep = fields =>
-  getFieldsDeep(fields).map(f => _.get(f, 'name'))
+  getFieldsDeep(fields).map(f => _.get(f, 'value'))
 
-// firstFieldName returns the name of the first of type field
+// firstFieldName returns the value of the first of type field
 export const firstFieldName = fields => _.head(fieldNamesDeep(fields))
 
 export const hasField = (fieldName, fields) =>
@@ -44,7 +44,7 @@ export const hasField = (fieldName, fields) =>
 
 // getAllFields and funcs with fieldName
 export const getFieldsWithName = (fieldName, fields) =>
-  getFieldsDeep(fields).filter(f => f.name === fieldName)
+  getFieldsDeep(fields).filter(f => f.value === fieldName)
 
 // everyOfType returns true if all top-level field types are type
 export const everyOfType = (fields, type) =>
@@ -58,14 +58,14 @@ export const everyFunction = fields => everyOfType(fields, 'func')
 
 export const getFuncsByFieldName = (fieldName, fields) =>
   functions(fields).filter(f =>
-    _.get(f, 'args', []).some(a => a.name === fieldName)
+    _.get(f, 'args', []).some(a => a.value === fieldName)
   )
 
 // removeField will remove the field or function from the field list with the
 // given fieldName. Preconditions: only type field OR only type func
 export const removeField = (fieldName, fields) => {
   if (everyField(fields)) {
-    return fields.filter(f => f.name !== fieldName)
+    return fields.filter(f => f.value !== fieldName)
   }
 
   return fields.reduce((acc, f) => {
