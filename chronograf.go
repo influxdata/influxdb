@@ -205,14 +205,23 @@ func (g *GroupByVar) Exec(query string) {
 	durStr := query[start+len(whereClause):]
 
 	// attempt to parse out a relative time range
-	dur, err := g.parseRelative(durStr)
+	// locate duration literal start
+	prefix := "time > now() - "
+	lowerDuration, err := g.parseRelative(durStr, prefix)
 	if err == nil {
-		// we parsed relative duration successfully
-		g.Duration = dur
-		return
+		prefix := "time < now() - "
+		upperDuration, err := g.parseRelative(durStr, prefix)
+		if err != nil {
+			g.Duration = lowerDuration
+			return
+		}
+		g.Duration = lowerDuration - upperDuration
+		if g.Duration < 0 {
+			g.Duration = -g.Duration
+		}
 	}
 
-	dur, err = g.parseAbsolute(durStr)
+	dur, err := g.parseAbsolute(durStr)
 	if err == nil {
 		// we found an absolute time range
 		g.Duration = dur
@@ -223,9 +232,7 @@ func (g *GroupByVar) Exec(query string) {
 // InfluxQL query following the "where" keyword. For example, in the fragment
 // "time > now() - 180d GROUP BY :interval:", parseRelative would return a
 // duration equal to 180d
-func (g *GroupByVar) parseRelative(fragment string) (time.Duration, error) {
-	// locate duration literal start
-	prefix := "time > now() - "
+func (g *GroupByVar) parseRelative(fragment string, prefix string) (time.Duration, error) {
 	start := strings.Index(fragment, prefix)
 	if start == -1 {
 		return time.Duration(0), errors.New("not a relative duration")
