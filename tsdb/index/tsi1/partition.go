@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -40,9 +39,6 @@ const (
 
 // ManifestFileName is the name of the index manifest file.
 const ManifestFileName = "MANIFEST"
-
-// SeriesFileName is the name of the series file.
-const SeriesFileName = "series"
 
 // Partition represents a collection of layered index files and WAL.
 type Partition struct {
@@ -87,11 +83,12 @@ type Partition struct {
 }
 
 // NewPartition returns a new instance of Partition.
-func NewPartition(path string) *Partition {
+func NewPartition(sfile *SeriesFile, path string) *Partition {
 	return &Partition{
 		closing: make(chan struct{}),
 
-		path: path,
+		path:  path,
+		sfile: sfile,
 
 		// Default compaction thresholds.
 		MaxLogFileSize: DefaultMaxLogFileSize,
@@ -126,13 +123,6 @@ func (i *Partition) Open() error {
 	if err := os.MkdirAll(i.path, 0777); err != nil {
 		return err
 	}
-
-	// Open series file.
-	sfile := NewSeriesFile(i.SeriesFilePath())
-	if err := sfile.Open(); err != nil {
-		return err
-	}
-	i.sfile = sfile
 
 	// Read manifest file.
 	m, err := ReadManifestFile(filepath.Join(i.path, ManifestFileName))
@@ -283,6 +273,9 @@ func (i *Partition) Close() error {
 // Path returns the path to the partition.
 func (i *Partition) Path() string { return i.path }
 
+// SeriesFile returns the attached series file.
+func (i *Partition) SeriesFile() *SeriesFile { return i.sfile }
+
 // NextSequence returns the next file identifier.
 func (i *Partition) NextSequence() int {
 	i.mu.Lock()
@@ -298,11 +291,6 @@ func (i *Partition) nextSequence() int {
 // ManifestPath returns the path to the index's manifest file.
 func (i *Partition) ManifestPath() string {
 	return filepath.Join(i.path, ManifestFileName)
-}
-
-// SeriesFilePath returns the path to the index's series file.
-func (i *Partition) SeriesFilePath() string {
-	return filepath.Join(i.path, SeriesFileName)
 }
 
 // Manifest returns a manifest for the index.
@@ -335,6 +323,14 @@ func (i *Partition) SetFieldSet(fs *tsdb.MeasurementFieldSet) {
 	i.mu.Lock()
 	i.fieldset = fs
 	i.mu.Unlock()
+}
+
+// FieldSet returns the fieldset.
+func (i *Partition) FieldSet() *tsdb.MeasurementFieldSet {
+	i.mu.Lock()
+	fs := i.fieldset
+	i.mu.Unlock()
+	return fs
 }
 
 // RetainFileSet returns the current fileset and adds a reference count.
@@ -573,15 +569,6 @@ func (i *Partition) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, 
 	return fs.MeasurementsSketches()
 }
 
-// SeriesN returns the number of unique non-tombstoned series in the index.
-// Since indexes are not shared across shards, the count returned by SeriesN
-// cannot be combined with other shard's results. If you need to count series
-// across indexes then use SeriesSketches and merge the results from other
-// indexes.
-func (i *Partition) SeriesN() int64 {
-	return int64(i.sfile.SeriesCount())
-}
-
 // HasTagKey returns true if tag key exists.
 func (i *Partition) HasTagKey(name, key []byte) (bool, error) {
 	fs := i.RetainFileSet()
@@ -594,69 +581,6 @@ func (i *Partition) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (m
 	fs := i.RetainFileSet()
 	defer fs.Release()
 	return fs.MeasurementTagKeysByExpr(name, expr)
-}
-
-// MeasurementTagKeyValuesByExpr returns a set of tag values filtered by an expression.
-//
-// See tsm1.Engine.MeasurementTagKeyValuesByExpr for a fuller description of this
-// method.
-func (i *Partition) MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []byte, keys []string, expr influxql.Expr, keysSorted bool) ([][]string, error) {
-	fs := i.RetainFileSet()
-	defer fs.Release()
-
-	if len(keys) == 0 {
-		return nil, nil
-	}
-
-	results := make([][]string, len(keys))
-	// If we haven't been provided sorted keys, then we need to sort them.
-	if !keysSorted {
-		sort.Sort(sort.StringSlice(keys))
-	}
-
-	// No expression means that the values shouldn't be filtered, so we can
-	// fetch them all.
-	if expr == nil {
-		for ki, key := range keys {
-			itr := fs.TagValueIterator(name, []byte(key))
-			if auth != nil {
-				for val := itr.Next(); val != nil; val = itr.Next() {
-					si := fs.TagValueSeriesIDIterator(name, []byte(key), val.Value())
-					for se := si.Next(); se.SeriesID != 0; se = si.Next() {
-						_, tags := ParseSeriesKey(i.sfile.SeriesKey(se.SeriesID))
-						if auth.AuthorizeSeriesRead(i.Database, name, tags) {
-							results[ki] = append(results[ki], string(val.Value()))
-							break
-						}
-					}
-				}
-			} else {
-				for val := itr.Next(); val != nil; val = itr.Next() {
-					results[ki] = append(results[ki], string(val.Value()))
-				}
-			}
-		}
-		return results, nil
-	}
-
-	// This is the case where we have filtered series by some WHERE condition.
-	// We only care about the tag values for the keys given the
-	// filtered set of series ids.
-	resultSet, err := fs.tagValuesByKeyAndExpr(auth, name, keys, expr, i.fieldset)
-	if err != nil {
-		return nil, err
-	}
-
-	// Convert result sets into []string
-	for i, s := range resultSet {
-		values := make([]string, 0, len(s))
-		for v := range s {
-			values = append(values, v)
-		}
-		sort.Sort(sort.StringSlice(values))
-		results[i] = values
-	}
-	return results, nil
 }
 
 // ForEachMeasurementTagKey iterates over all tag keys in a measurement.
@@ -695,96 +619,6 @@ func (i *Partition) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr)
 	return bytesutil.CloneSlice(keys), err
 }
 
-// TagSets returns an ordered list of tag sets for a measurement by dimension
-// and filtered by an optional conditional expression.
-func (i *Partition) TagSets(name []byte, opt query.IteratorOptions) ([]*query.TagSet, error) {
-	fs := i.RetainFileSet()
-	defer fs.Release()
-
-	itr, err := fs.MeasurementSeriesByExprIterator(name, opt.Condition, i.fieldset)
-	if err != nil {
-		return nil, err
-	} else if itr == nil {
-		return nil, nil
-	}
-
-	// For every series, get the tag values for the requested tag keys i.e.
-	// dimensions. This is the TagSet for that series. Series with the same
-	// TagSet are then grouped together, because for the purpose of GROUP BY
-	// they are part of the same composite series.
-	tagSets := make(map[string]*query.TagSet, 64)
-	var seriesN int
-
-	if itr != nil {
-		for e := itr.Next(); e.SeriesID != 0; e = itr.Next() {
-			_, tags := ParseSeriesKey(i.sfile.SeriesKey(e.SeriesID))
-
-			// Abort if the query was killed
-			select {
-			case <-opt.InterruptCh:
-				return nil, query.ErrQueryInterrupted
-			default:
-			}
-
-			if opt.MaxSeriesN > 0 && seriesN > opt.MaxSeriesN {
-				return nil, fmt.Errorf("max-select-series limit exceeded: (%d/%d)", seriesN, opt.MaxSeriesN)
-			}
-
-			if opt.Authorizer != nil && !opt.Authorizer.AuthorizeSeriesRead(i.Database, name, tags) {
-				continue
-			}
-
-			tagsMap := make(map[string]string, len(opt.Dimensions))
-
-			// Build the TagSet for this series.
-			for _, dim := range opt.Dimensions {
-				tagsMap[dim] = tags.GetString(dim)
-			}
-
-			// Convert the TagSet to a string, so it can be added to a map
-			// allowing TagSets to be handled as a set.
-			tagsAsKey := tsdb.MarshalTags(tagsMap)
-			tagSet, ok := tagSets[string(tagsAsKey)]
-			if !ok {
-				// This TagSet is new, create a new entry for it.
-				tagSet = &query.TagSet{
-					Tags: tagsMap,
-					Key:  tagsAsKey,
-				}
-			}
-
-			// Associate the series and filter with the Tagset.
-			tagSet.AddFilter(string(models.MakeKey(name, tags)), e.Expr)
-
-			// Ensure it's back in the map.
-			tagSets[string(tagsAsKey)] = tagSet
-			seriesN++
-		}
-	}
-
-	// Sort the series in each tag set.
-	for _, t := range tagSets {
-		// Abort if the query was killed
-		select {
-		case <-opt.InterruptCh:
-			return nil, query.ErrQueryInterrupted
-		default:
-		}
-
-		sort.Sort(t)
-	}
-
-	// The TagSets have been created, as a map of TagSets. Just send
-	// the values back as a slice, sorting for consistency.
-	sortedTagsSets := make([]*query.TagSet, 0, len(tagSets))
-	for _, v := range tagSets {
-		sortedTagsSets = append(sortedTagsSets, v)
-	}
-	sort.Sort(byTagKey(sortedTagsSets))
-
-	return sortedTagsSets, nil
-}
-
 // SnapshotTo creates hard links to the file set into path.
 func (i *Partition) SnapshotTo(path string) error {
 	i.mu.Lock()
@@ -806,11 +640,6 @@ func (i *Partition) SnapshotTo(path string) error {
 	// Link manifest.
 	if err := os.Link(i.ManifestPath(), filepath.Join(newRoot, filepath.Base(i.ManifestPath()))); err != nil {
 		return fmt.Errorf("error creating tsi manifest hard link: %q", err)
-	}
-
-	// Link series file.
-	if err := os.Link(i.SeriesFilePath(), filepath.Join(newRoot, filepath.Base(i.SeriesFilePath()))); err != nil {
-		return fmt.Errorf("error creating tsi series file hard link: %q", err)
 	}
 
 	// Link files in directory.

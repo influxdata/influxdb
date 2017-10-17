@@ -110,13 +110,28 @@ func (cmd *Command) run() error {
 		return err
 	}
 
-	if idx != nil {
-		defer idx.Close()
-	} else {
+	// If this is an ad-hoc fileset then process it and close afterward.
+	if fs != nil {
+		defer fs.Release()
 		defer fs.Close()
+		return cmd.printFileSet(fs)
 	}
-	defer fs.Release()
 
+	// Otherwise iterate over each partition in the index.
+	defer idx.Close()
+	for i := 0; i < int(idx.PartitionN); i++ {
+		if err := func() error {
+			fs := idx.PartitionAt(i).RetainFileSet()
+			defer fs.Release()
+			return cmd.printFileSet(fs)
+		}(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (cmd *Command) printFileSet(fs *tsi1.FileSet) error {
 	// Show either raw data or summary stats.
 	if cmd.showSeries || cmd.showMeasurements {
 		if err := cmd.printMerged(fs); err != nil {
@@ -145,7 +160,7 @@ func (cmd *Command) readFileSet() (*tsi1.Index, *tsi1.FileSet, error) {
 			if err := idx.Open(); err != nil {
 				return nil, nil, err
 			}
-			return idx, idx.RetainFileSet(), nil
+			return idx, nil, nil
 		}
 	}
 

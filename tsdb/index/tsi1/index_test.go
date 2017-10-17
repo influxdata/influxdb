@@ -17,7 +17,7 @@ const M, K = 4096, 6
 
 // Ensure index can iterate over all measurement names.
 func TestIndex_ForEachMeasurementName(t *testing.T) {
-	idx := MustOpenIndex()
+	idx := MustOpenIndex(1)
 	defer idx.Close()
 
 	// Add series to index.
@@ -70,7 +70,7 @@ func TestIndex_ForEachMeasurementName(t *testing.T) {
 
 // Ensure index can return whether a measurement exists.
 func TestIndex_MeasurementExists(t *testing.T) {
-	idx := MustOpenIndex()
+	idx := MustOpenIndex(1)
 	defer idx.Close()
 
 	// Add series to index.
@@ -121,7 +121,7 @@ func TestIndex_MeasurementExists(t *testing.T) {
 
 // Ensure index can return a list of matching measurements.
 func TestIndex_MeasurementNamesByExpr(t *testing.T) {
-	idx := MustOpenIndex()
+	idx := MustOpenIndex(1)
 	defer idx.Close()
 
 	// Add series to index.
@@ -176,7 +176,7 @@ func TestIndex_MeasurementNamesByExpr(t *testing.T) {
 
 // Ensure index can return a list of matching measurements.
 func TestIndex_MeasurementNamesByRegex(t *testing.T) {
-	idx := MustOpenIndex()
+	idx := MustOpenIndex(1)
 	defer idx.Close()
 
 	// Add series to index.
@@ -201,7 +201,7 @@ func TestIndex_MeasurementNamesByRegex(t *testing.T) {
 
 // Ensure index can delete a measurement and all related keys, values, & series.
 func TestIndex_DropMeasurement(t *testing.T) {
-	idx := MustOpenIndex()
+	idx := MustOpenIndex(1)
 	defer idx.Close()
 
 	// Add series to index.
@@ -229,7 +229,7 @@ func TestIndex_DropMeasurement(t *testing.T) {
 		}
 
 		// Obtain file set to perform lower level checks.
-		fs := idx.RetainFileSet()
+		fs := idx.PartitionAt(0).RetainFileSet()
 		defer fs.Release()
 
 		// Verify tags & values are gone.
@@ -245,20 +245,18 @@ func TestIndex_DropMeasurement(t *testing.T) {
 
 // Index is a test wrapper for tsi1.Index.
 type Index struct {
-	Path string
 	*tsi1.Index
 }
 
 // NewIndex returns a new instance of Index at a temporary path.
 func NewIndex() *Index {
-	var idx = &Index{Path: MustTempDir()}
-	idx.Index = tsi1.NewIndex(tsi1.WithPath(idx.Path))
-	return idx
+	return &Index{Index: tsi1.NewIndex(tsi1.WithPath(MustTempDir()))}
 }
 
 // MustOpenIndex returns a new, open index. Panic on error.
-func MustOpenIndex() *Index {
+func MustOpenIndex(partitionN uint64) *Index {
 	idx := NewIndex()
+	idx.PartitionN = partitionN
 	if err := idx.Open(); err != nil {
 		panic(err)
 	}
@@ -267,7 +265,7 @@ func MustOpenIndex() *Index {
 
 // Close closes and removes the index directory.
 func (idx *Index) Close() error {
-	defer os.RemoveAll(idx.Path)
+	defer os.RemoveAll(idx.Path())
 	return idx.Index.Close()
 }
 
@@ -277,9 +275,10 @@ func (idx *Index) Reopen() error {
 		return err
 	}
 
-	path := idx.Path
-	idx.Index = tsi1.NewIndex()
-	idx.Path = path
+	path, partitionN := idx.Path(), idx.PartitionN
+
+	idx.Index = tsi1.NewIndex(tsi1.WithPath(path))
+	idx.PartitionN = partitionN
 	if err := idx.Open(); err != nil {
 		return err
 	}

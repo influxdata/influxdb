@@ -166,25 +166,31 @@ func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []mod
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
+	// Track offsets of duplicate series.
+	newOffsets := make(map[string]uint64, len(offsets))
+
 	for i := range names {
 		// Skip series that have already been created.
 		if offsets[i] != 0 {
 			continue
 		}
 
+		// Generate series key.
+		buf = AppendSeriesKey(buf[:0], names[i], tagsSlice[i])
+
 		// Re-attempt lookup under write lock.
-		if offsets[i] = f.offset(names[i], tagsSlice[i], buf); offsets[i] != 0 {
+		if offsets[i] = newOffsets[string(buf)]; offsets[i] != 0 {
+			continue
+		} else if offsets[i] = f.offset(names[i], tagsSlice[i], buf); offsets[i] != 0 {
 			continue
 		}
 
-		// Save current file offset.
-		offset := uint64(f.size)
-
 		// Append series to the end of the file.
-		buf = AppendSeriesKey(buf[:0], names[i], tagsSlice[i])
+		offset := uint64(f.size)
 		if _, err := f.w.Write(buf); err != nil {
 			return nil, err
 		}
+		newOffsets[string(buf)] = offset
 
 		// Move current offset to the end.
 		sz := int64(len(buf))

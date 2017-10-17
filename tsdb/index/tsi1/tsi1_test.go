@@ -3,6 +3,8 @@ package tsi1_test
 import (
 	"bytes"
 	"io/ioutil"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -284,6 +286,16 @@ func (itr *SeriesIDIterator) Next() (elem tsi1.SeriesIDElem) {
 func MustTempDir() string {
 	path, err := ioutil.TempDir("", "tsi-")
 	if err != nil {
+		panic(err)
+	}
+	return path
+}
+
+// MustTempDir returns a temporary directory for a partition. Panic on error.
+func MustTempPartitionDir() string {
+	path := MustTempDir()
+	path = filepath.Join(path, "0")
+	if err := os.Mkdir(path, 0777); err != nil {
 		panic(err)
 	}
 	return path

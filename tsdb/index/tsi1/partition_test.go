@@ -11,8 +11,11 @@ import (
 )
 
 func TestPartition_Open(t *testing.T) {
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
+
 	// Opening a fresh index should set the MANIFEST version to current version.
-	p := NewPartition()
+	p := NewPartition(sfile.SeriesFile)
 	t.Run("open new index", func(t *testing.T) {
 		if err := p.Open(); err != nil {
 			t.Fatal(err)
@@ -38,7 +41,7 @@ func TestPartition_Open(t *testing.T) {
 	incompatibleVersions := []int{-1, 0, 2}
 	for _, v := range incompatibleVersions {
 		t.Run(fmt.Sprintf("incompatible index version: %d", v), func(t *testing.T) {
-			p = NewPartition()
+			p = NewPartition(sfile.SeriesFile)
 			// Manually create a MANIFEST file for an incompatible index version.
 			mpath := filepath.Join(p.Path(), tsi1.ManifestFileName)
 			m := tsi1.NewManifest()
@@ -68,7 +71,10 @@ func TestPartition_Open(t *testing.T) {
 
 func TestPartition_Manifest(t *testing.T) {
 	t.Run("current MANIFEST", func(t *testing.T) {
-		p := MustOpenPartition()
+		sfile := MustOpenSeriesFile()
+		defer sfile.Close()
+
+		p := MustOpenPartition(sfile.SeriesFile)
 		if got, exp := p.Manifest().Version, tsi1.Version; got != exp {
 			t.Fatalf("got MANIFEST version %d, expected %d", got, exp)
 		}
@@ -81,13 +87,13 @@ type Partition struct {
 }
 
 // NewPartition returns a new instance of Partition at a temporary path.
-func NewPartition() *Partition {
-	return &Partition{Partition: tsi1.NewPartition(MustTempDir())}
+func NewPartition(sfile *tsi1.SeriesFile) *Partition {
+	return &Partition{Partition: tsi1.NewPartition(sfile, MustTempPartitionDir())}
 }
 
 // MustOpenPartition returns a new, open index. Panic on error.
-func MustOpenPartition() *Partition {
-	p := NewPartition()
+func MustOpenPartition(sfile *tsi1.SeriesFile) *Partition {
+	p := NewPartition(sfile)
 	if err := p.Open(); err != nil {
 		panic(err)
 	}
@@ -106,7 +112,7 @@ func (p *Partition) Reopen() error {
 		return err
 	}
 
-	path := p.Path()
-	p.Partition = tsi1.NewPartition(path)
+	sfile, path := p.SeriesFile(), p.Path()
+	p.Partition = tsi1.NewPartition(sfile, path)
 	return p.Open()
 }

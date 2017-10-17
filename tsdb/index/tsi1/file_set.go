@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"sort"
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/bytesutil"
@@ -296,12 +297,12 @@ func (fs *FileSet) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (ma
 //
 // N.B tagValuesByKeyAndExpr relies on keys being sorted in ascending
 // lexicographic order.
-func (fs *FileSet) tagValuesByKeyAndExpr(auth query.Authorizer, name []byte, keys []string, expr influxql.Expr, fieldset *tsdb.MeasurementFieldSet) ([]map[string]struct{}, error) {
+func (fs *FileSet) tagValuesByKeyAndExpr(auth query.Authorizer, name []byte, keys []string, expr influxql.Expr, fieldset *tsdb.MeasurementFieldSet, resultSet []map[string]struct{}) error {
 	itr, err := fs.seriesByExprIterator(name, expr, fieldset.Fields(string(name)))
 	if err != nil {
-		return nil, err
+		return err
 	} else if itr == nil {
-		return nil, nil
+		return nil
 	}
 
 	keyIdxs := make(map[string]int, len(keys))
@@ -310,13 +311,8 @@ func (fs *FileSet) tagValuesByKeyAndExpr(auth query.Authorizer, name []byte, key
 
 		// Check that keys are in order.
 		if ki > 0 && key < keys[ki-1] {
-			return nil, fmt.Errorf("keys %v are not in ascending order", keys)
+			return fmt.Errorf("keys %v are not in ascending order", keys)
 		}
-	}
-
-	resultSet := make([]map[string]struct{}, len(keys))
-	for i := 0; i < len(resultSet); i++ {
-		resultSet[i] = make(map[string]struct{})
 	}
 
 	// Iterate all series to collect tag values.
@@ -348,30 +344,32 @@ func (fs *FileSet) tagValuesByKeyAndExpr(auth query.Authorizer, name []byte, key
 			}
 		}
 	}
-	return resultSet, nil
+	return nil
 }
 
 // tagKeysByFilter will filter the tag keys for the measurement.
 func (fs *FileSet) tagKeysByFilter(name []byte, op influxql.Token, val []byte, regex *regexp.Regexp) map[string]struct{} {
 	ss := make(map[string]struct{})
 	itr := fs.TagKeyIterator(name)
-	for e := itr.Next(); e != nil; e = itr.Next() {
-		var matched bool
-		switch op {
-		case influxql.EQ:
-			matched = bytes.Equal(e.Key(), val)
-		case influxql.NEQ:
-			matched = !bytes.Equal(e.Key(), val)
-		case influxql.EQREGEX:
-			matched = regex.Match(e.Key())
-		case influxql.NEQREGEX:
-			matched = !regex.Match(e.Key())
-		}
+	if itr != nil {
+		for e := itr.Next(); e != nil; e = itr.Next() {
+			var matched bool
+			switch op {
+			case influxql.EQ:
+				matched = bytes.Equal(e.Key(), val)
+			case influxql.NEQ:
+				matched = !bytes.Equal(e.Key(), val)
+			case influxql.EQREGEX:
+				matched = regex.Match(e.Key())
+			case influxql.NEQREGEX:
+				matched = !regex.Match(e.Key())
+			}
 
-		if !matched {
-			continue
+			if !matched {
+				continue
+			}
+			ss[string(e.Key())] = struct{}{}
 		}
-		ss[string(e.Key())] = struct{}{}
 	}
 	return ss
 }
@@ -680,6 +678,19 @@ func (fs *FileSet) measurementNamesByTagFilter(op influxql.Token, key, val strin
 	return names
 }
 
+// SeriesSketches returns the merged series sketches for the FileSet.
+func (fs *FileSet) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
+	sketch, tsketch := hll.NewDefaultPlus(), hll.NewDefaultPlus()
+
+	// Iterate over all the files and merge the sketches into the result.
+	for _, f := range fs.files {
+		if err := f.MergeSeriesSketches(sketch, tsketch); err != nil {
+			return nil, nil, err
+		}
+	}
+	return sketch, tsketch, nil
+}
+
 // MeasurementsSketches returns the merged measurement sketches for the FileSet.
 func (fs *FileSet) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
 	sketch, tsketch := hll.NewDefaultPlus(), hll.NewDefaultPlus()
@@ -731,6 +742,9 @@ func (fs *FileSet) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr, 
 		name, tags := ParseSeriesKey(seriesKey)
 		keys = append(keys, models.MakeKey(name, tags))
 	}
+
+	sort.Sort(byteSlices(keys))
+
 	return keys, nil
 }
 
@@ -905,6 +919,7 @@ type File interface {
 	TagValueSeriesIDIterator(name, key, value []byte) SeriesIDIterator
 
 	// Sketches for cardinality estimation
+	MergeSeriesSketches(s, t estimator.Sketch) error
 	MergeMeasurementsSketches(s, t estimator.Sketch) error
 
 	// Reference counting.

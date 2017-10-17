@@ -7,17 +7,16 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"sort"
 	"strconv"
 	"sync"
 	"sync/atomic"
 
-	"github.com/influxdata/influxdb/pkg/slices"
-
-	"github.com/influxdata/influxdb/pkg/estimator/hll"
-
 	"github.com/cespare/xxhash"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/estimator"
+	"github.com/influxdata/influxdb/pkg/estimator/hll"
+	"github.com/influxdata/influxdb/pkg/slices"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
@@ -27,6 +26,9 @@ import (
 // IndexName is the name of the index.
 const IndexName = "tsi1"
 
+// SeriesFileName is the name of the series file.
+const SeriesFileName = "series"
+
 func init() {
 	// FIXME(edd): Remove this.
 	if os.Getenv("TSI_PARTITIONS") != "" {
@@ -34,7 +36,7 @@ func init() {
 		if err != nil {
 			panic(err)
 		}
-		TotalPartitions = uint64(i)
+		DefaultPartitionN = uint64(i)
 	}
 
 	tsdb.RegisterIndex(IndexName, func(_ uint64, _, path string, _ tsdb.EngineOptions) tsdb.Index {
@@ -43,10 +45,10 @@ func init() {
 	})
 }
 
-// TotalPartitions determines how many shards the index will be partitioned into.
+// DefaultPartitionN determines how many shards the index will be partitioned into.
 //
 // NOTE: Currently, this *must* not be variable. If this package is recompiled
-// with a different TotalPartitions value, and ran against an existing TSI index
+// with a different DefaultPartitionN value, and ran against an existing TSI index
 // the database will be unable to locate existing series properly.
 //
 // TODO(edd): If this sharding spike is successful then implement a consistent
@@ -55,7 +57,7 @@ func init() {
 // NOTE(edd): Currently this must be a power of 2.
 //
 // FIXME(edd): This is variable for testing purposes during development.
-var TotalPartitions uint64 = 16
+var DefaultPartitionN uint64 = 16
 
 // An IndexOption is a functional option for changing the configuration of
 // an Index.
@@ -93,30 +95,30 @@ type Index struct {
 	disableCompactions bool       // Initially disables compactions on the index.
 	logger             zap.Logger // Index's logger.
 
+	sfile *SeriesFile // series lookup file
+
 	// Index's version.
 	version int
+
+	// Name of database.
+	Database string
+
+	// Number of partitions used by the index.
+	PartitionN uint64
 }
 
 // NewIndex returns a new instance of Index.
 func NewIndex(options ...IndexOption) *Index {
 	idx := &Index{
-		partitions: make([]*Partition, TotalPartitions),
 		logger:     zap.New(zap.NullEncoder()),
 		version:    Version,
+		PartitionN: DefaultPartitionN,
 	}
 
 	for _, option := range options {
 		option(idx)
 	}
 
-	// Inititalise index partitions.
-	for i := 0; i < len(idx.partitions); i++ {
-		p := NewPartition(filepath.Join(idx.path, fmt.Sprint(i)))
-		p.compactionsDisabled = idx.disableCompactions
-		p.logger = idx.logger.With(zap.String("partition", fmt.Sprint(i+1)))
-
-		idx.partitions[i] = p
-	}
 	return idx
 }
 
@@ -144,6 +146,28 @@ func (i *Index) Open() error {
 
 	if i.opened {
 		return errors.New("index already open")
+	}
+
+	// Ensure root exists.
+	if err := os.MkdirAll(i.path, 0777); err != nil {
+		return err
+	}
+
+	// Open series file.
+	sfile := NewSeriesFile(i.SeriesFilePath())
+	if err := sfile.Open(); err != nil {
+		return err
+	}
+	i.sfile = sfile
+
+	// Inititalise index partitions.
+	i.partitions = make([]*Partition, i.PartitionN)
+	for j := 0; j < len(i.partitions); j++ {
+		p := NewPartition(i.sfile, filepath.Join(i.path, fmt.Sprint(j)))
+		p.Database = i.Database
+		p.compactionsDisabled = i.disableCompactions
+		p.logger = i.logger.With(zap.String("partition", fmt.Sprint(j+1)))
+		i.partitions[j] = p
 	}
 
 	// Open all the Partitions in parallel.
@@ -203,14 +227,27 @@ func (i *Index) Close() error {
 	return nil
 }
 
+// Path returns the path the index was opened with.
+func (i *Index) Path() string { return i.path }
+
+// SeriesFilePath returns the path to the index's series file.
+func (i *Index) SeriesFilePath() string {
+	return filepath.Join(i.path, SeriesFileName)
+}
+
+// PartitionAt returns the partition by index.
+func (i *Index) PartitionAt(index int) *Partition {
+	return i.partitions[index]
+}
+
 // partition returns the appropriate Partition for a provided series key.
 func (i *Index) partition(key []byte) *Partition {
-	return i.partitions[int(xxhash.Sum64(key)&(TotalPartitions-1))]
+	return i.partitions[int(xxhash.Sum64(key)&(i.PartitionN-1))]
 }
 
 // partitionIdx returns the index of the partition that key belongs in.
 func (i *Index) partitionIdx(key []byte) int {
-	return int(xxhash.Sum64(key) & (TotalPartitions - 1))
+	return int(xxhash.Sum64(key) & (i.PartitionN - 1))
 }
 
 // availableThreads returns the minimum of GOMAXPROCS and the number of
@@ -221,13 +258,6 @@ func (i *Index) availableThreads() int {
 		return len(i.partitions)
 	}
 	return n
-}
-
-// RetainFileSet returns the current fileset for all partitions in the Index.
-func (i *Index) RetainFileSet() *FileSet {
-	// TODO(edd): Merge all FileSets for all partitions. For the moment we will
-	// just append them from each partition.
-	panic("TODO(edd)")
 }
 
 // SetFieldSet sets a shared field set from the engine.
@@ -246,7 +276,7 @@ func (i *Index) ForEachMeasurementName(fn func(name []byte) error) error {
 	n := i.availableThreads()
 
 	// Store results.
-	errC := make(chan error, TotalPartitions)
+	errC := make(chan error, i.PartitionN)
 
 	// Run fn on each partition using a fixed number of goroutines.
 	var pidx uint32 // Index of maximum Partition being worked on.
@@ -277,7 +307,7 @@ func (i *Index) MeasurementExists(name []byte) (bool, error) {
 
 	// Store errors
 	var found uint32 // Use this to signal we found the measurement.
-	errC := make(chan error, TotalPartitions)
+	errC := make(chan error, i.PartitionN)
 
 	// Check each partition for the measurement concurrently.
 	var pidx uint32 // Index of maximum Partition being worked on.
@@ -325,8 +355,8 @@ func (i *Index) fetchByteValues(fn func(idx int) ([][]byte, error)) ([][]byte, e
 	n := i.availableThreads()
 
 	// Store results.
-	names := make([][][]byte, TotalPartitions)
-	errC := make(chan error, TotalPartitions)
+	names := make([][][]byte, i.PartitionN)
+	errC := make(chan error, i.PartitionN)
 
 	var pidx uint32 // Index of maximum Partition being worked on.
 	for k := 0; k < n; k++ {
@@ -385,7 +415,7 @@ func (i *Index) DropMeasurement(name []byte) error {
 	n := i.availableThreads()
 
 	// Store results.
-	errC := make(chan error, TotalPartitions)
+	errC := make(chan error, i.PartitionN)
 
 	var pidx uint32 // Index of maximum Partition being worked on.
 	for k := 0; k < n; k++ {
@@ -410,7 +440,7 @@ func (i *Index) DropMeasurement(name []byte) error {
 }
 
 // CreateSeriesListIfNotExists creates a list of series if they doesn't exist in bulk.
-func (i *Index) CreateSeriesListIfNotExists(keys [][]byte, names [][]byte, tagsSlice []models.Tags) error {
+func (i *Index) CreateSeriesListIfNotExists(_ [][]byte, names [][]byte, tagsSlice []models.Tags) error {
 	// All slices must be of equal length.
 	if len(names) != len(tagsSlice) {
 		return errors.New("names/tags length mismatch in index")
@@ -418,12 +448,15 @@ func (i *Index) CreateSeriesListIfNotExists(keys [][]byte, names [][]byte, tagsS
 
 	// We need to move different series into collections for each partition
 	// to process.
-	pNames := make([][][]byte, TotalPartitions)
-	pTags := make([][]models.Tags, TotalPartitions)
+	pNames := make([][][]byte, i.PartitionN)
+	pTags := make([][]models.Tags, i.PartitionN)
 
 	// determine appropriate where series shoud live using each series key.
-	for k, key := range keys {
-		pidx := i.partitionIdx(key)
+	buf := make([]byte, 2048)
+	for k, _ := range names {
+		buf = AppendSeriesKey(buf[:0], names[k], tagsSlice[k])
+
+		pidx := i.partitionIdx(buf)
 		pNames[pidx] = append(pNames[pidx], names[k])
 		pTags[pidx] = append(pTags[pidx], tagsSlice[k])
 	}
@@ -432,7 +465,7 @@ func (i *Index) CreateSeriesListIfNotExists(keys [][]byte, names [][]byte, tagsS
 	n := i.availableThreads()
 
 	// Store errors.
-	errC := make(chan error, TotalPartitions)
+	errC := make(chan error, i.PartitionN)
 
 	var pidx uint32 // Index of maximum Partition being worked on.
 	for k := 0; k < n; k++ {
@@ -495,11 +528,7 @@ func (i *Index) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, erro
 // across indexes then use SeriesSketches and merge the results from other
 // indexes.
 func (i *Index) SeriesN() int64 {
-	var total int64
-	for _, p := range i.partitions {
-		total += p.SeriesN()
-	}
-	return total
+	return int64(i.sfile.SeriesCount())
 }
 
 // HasTagKey returns true if tag key exists. It returns the first error
@@ -509,7 +538,7 @@ func (i *Index) HasTagKey(name, key []byte) (bool, error) {
 
 	// Store errors
 	var found uint32 // Use this to signal we found the tag key.
-	errC := make(chan error, TotalPartitions)
+	errC := make(chan error, i.PartitionN)
 
 	// Check each partition for the tag key concurrently.
 	var pidx uint32 // Index of maximum Partition being worked on.
@@ -553,8 +582,8 @@ func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[s
 	n := i.availableThreads()
 
 	// Store results.
-	keys := make([]map[string]struct{}, TotalPartitions)
-	errC := make(chan error, TotalPartitions)
+	keys := make([]map[string]struct{}, i.PartitionN)
+	errC := make(chan error, i.PartitionN)
 
 	var pidx uint32 // Index of maximum Partition being worked on.
 	var err error
@@ -596,7 +625,76 @@ func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[s
 // See tsm1.Engine.MeasurementTagKeyValuesByExpr for a fuller description of this
 // method.
 func (i *Index) MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []byte, keys []string, expr influxql.Expr, keysSorted bool) ([][]string, error) {
-	panic("TODO(edd)")
+	if len(keys) == 0 {
+		return nil, nil
+	}
+
+	// If we haven't been provided sorted keys, then we need to sort them.
+	if !keysSorted {
+		sort.Sort(sort.StringSlice(keys))
+	}
+
+	resultSet := make([]map[string]struct{}, len(keys))
+	for i := 0; i < len(resultSet); i++ {
+		resultSet[i] = make(map[string]struct{})
+	}
+
+	// No expression means that the values shouldn't be filtered, so we can
+	// fetch them all.
+	for _, p := range i.partitions {
+		if err := func() error {
+			fs := p.RetainFileSet()
+			defer fs.Release()
+
+			if expr == nil {
+				for ki, key := range keys {
+					itr := fs.TagValueIterator(name, []byte(key))
+					if itr == nil {
+						continue
+					}
+					if auth != nil {
+						for val := itr.Next(); val != nil; val = itr.Next() {
+							si := fs.TagValueSeriesIDIterator(name, []byte(key), val.Value())
+							for se := si.Next(); se.SeriesID != 0; se = si.Next() {
+								name, tags := ParseSeriesKey(i.sfile.SeriesKey(se.SeriesID))
+								if auth.AuthorizeSeriesRead(i.Database, name, tags) {
+									resultSet[ki][string(val.Value())] = struct{}{}
+									break
+								}
+							}
+						}
+					} else {
+						for val := itr.Next(); val != nil; val = itr.Next() {
+							resultSet[ki][string(val.Value())] = struct{}{}
+						}
+					}
+				}
+				return nil
+			}
+
+			// This is the case where we have filtered series by some WHERE condition.
+			// We only care about the tag values for the keys given the
+			// filtered set of series ids.
+			if err := fs.tagValuesByKeyAndExpr(auth, name, keys, expr, p.FieldSet(), resultSet); err != nil {
+				return err
+			}
+			return nil
+		}(); err != nil {
+			return nil, err
+		}
+	}
+
+	// Convert result sets into []string
+	results := make([][]string, len(keys))
+	for i, s := range resultSet {
+		values := make([]string, 0, len(s))
+		for v := range s {
+			values = append(values, v)
+		}
+		sort.Sort(sort.StringSlice(values))
+		results[i] = values
+	}
+	return results, nil
 }
 
 // ForEachMeasurementTagKey iterates over all tag keys in a measurement and applies
@@ -605,7 +703,7 @@ func (i *Index) ForEachMeasurementTagKey(name []byte, fn func(key []byte) error)
 	n := i.availableThreads()
 
 	// Store results.
-	errC := make(chan error, TotalPartitions)
+	errC := make(chan error, i.PartitionN)
 
 	// Run fn on each partition using a fixed number of goroutines.
 	var pidx uint32 // Index of maximum Partition being worked on.
@@ -640,45 +738,98 @@ func (i *Index) TagKeyCardinality(name, key []byte) int {
 // TagSets returns an ordered list of tag sets for a measurement by dimension
 // and filtered by an optional conditional expression.
 func (i *Index) TagSets(name []byte, opt query.IteratorOptions) ([]*query.TagSet, error) {
-	n := i.availableThreads()
-
-	// Store results.
-	sets := make([][]*query.TagSet, TotalPartitions)
-	errC := make(chan error, TotalPartitions)
-
-	// Run fn on each partition using a fixed number of goroutines.
-	var pidx uint32 // Index of maximum Partition being worked on.
-	var err error
-
-	for k := 0; k < n; k++ {
-		go func() {
-			for {
-				idx := int(atomic.AddUint32(&pidx, 1) - 1) // Get next partition to work on.
-				if idx >= len(i.partitions) {
-					return // No more work.
-				}
-
-				// This is safe since there are no readers on sets until all
-				// the writers are done.
-				sets[idx], err = i.partitions[idx].TagSets(name, opt)
-				errC <- err
-			}
-		}()
+	// Obtain filesets for each partition.
+	fileSets := make([]*FileSet, i.PartitionN)
+	for j := range fileSets {
+		fileSets[j] = i.partitions[j].RetainFileSet()
 	}
+	defer func() {
+		for _, fs := range fileSets {
+			fs.Release()
+		}
+	}()
 
-	// Check for error
-	for i := 0; i < cap(errC); i++ {
-		if err := <-errC; err != nil {
+	// Merge all iterators together.
+	a := make([]SeriesIDIterator, 0, i.PartitionN)
+	for j, fs := range fileSets {
+		mitr, err := fs.MeasurementSeriesByExprIterator(name, opt.Condition, i.partitions[j].FieldSet())
+		if err != nil {
 			return nil, err
+		} else if mitr == nil {
+			continue
+		}
+		a = append(a, mitr)
+	}
+	itr := MergeSeriesIDIterators(a...)
+
+	// For every series, get the tag values for the requested tag keys i.e.
+	// dimensions. This is the TagSet for that series. Series with the same
+	// TagSet are then grouped together, because for the purpose of GROUP BY
+	// they are part of the same composite series.
+	tagSets := make(map[string]*query.TagSet, 64)
+
+	if itr != nil {
+		for e := itr.Next(); e.SeriesID != 0; e = itr.Next() {
+			_, tags := ParseSeriesKey(i.sfile.SeriesKey(e.SeriesID))
+			if opt.Authorizer != nil && !opt.Authorizer.AuthorizeSeriesRead(i.Database, name, tags) {
+				continue
+			}
+
+			tagsMap := make(map[string]string, len(opt.Dimensions))
+
+			// Build the TagSet for this series.
+			for _, dim := range opt.Dimensions {
+				tagsMap[dim] = tags.GetString(dim)
+			}
+
+			// Convert the TagSet to a string, so it can be added to a map
+			// allowing TagSets to be handled as a set.
+			tagsAsKey := tsdb.MarshalTags(tagsMap)
+			tagSet, ok := tagSets[string(tagsAsKey)]
+			if !ok {
+				// This TagSet is new, create a new entry for it.
+				tagSet = &query.TagSet{
+					Tags: tagsMap,
+					Key:  tagsAsKey,
+				}
+			}
+
+			// Associate the series and filter with the Tagset.
+			tagSet.AddFilter(string(models.MakeKey(name, tags)), e.Expr)
+
+			// Ensure it's back in the map.
+			tagSets[string(tagsAsKey)] = tagSet
 		}
 	}
 
-	// TODO(edd): Merge results from each Partition.
-	panic("TODO(edd)")
+	// Sort the series in each tag set.
+	for _, t := range tagSets {
+		sort.Sort(t)
+	}
+
+	// The TagSets have been created, as a map of TagSets. Just send
+	// the values back as a slice, sorting for consistency.
+	sortedTagsSets := make([]*query.TagSet, 0, len(tagSets))
+	for _, v := range tagSets {
+		sortedTagsSets = append(sortedTagsSets, v)
+	}
+	sort.Sort(byTagKey(sortedTagsSets))
+
+	return sortedTagsSets, nil
 }
 
 // SnapshotTo creates hard links to the file set into path.
 func (i *Index) SnapshotTo(path string) error {
+	newRoot := filepath.Join(path, "index")
+	if err := os.Mkdir(newRoot, 0777); err != nil {
+		return err
+	}
+
+	// Link series file.
+	if err := os.Link(i.SeriesFilePath(), filepath.Join(newRoot, filepath.Base(i.SeriesFilePath()))); err != nil {
+		return fmt.Errorf("error creating tsi series file hard link: %q", err)
+	}
+
 	// Store results.
 	errC := make(chan error, len(i.partitions))
 	for _, p := range i.partitions {
