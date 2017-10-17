@@ -802,6 +802,15 @@ func copyBytes(b []byte) []byte {
 	return buf
 }
 
+// copyBytes returns a copy of a slice of byte slices.
+func copyByteSlices(a [][]byte) [][]byte {
+	other := make([][]byte, len(a))
+	for i := range a {
+		other[i] = copyBytes(a[i])
+	}
+	return other
+}
+
 // assert will panic with a given formatted message if the given condition is false.
 func assert(condition bool, msg string, v ...interface{}) {
 	if !condition {
