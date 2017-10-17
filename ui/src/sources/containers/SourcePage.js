@@ -169,18 +169,20 @@ class SourcePage extends Component {
     }
 
     return (
-      <div className={`${isInitialSource ? '' : 'page'}`} id="source-form-page">
+      <div className={`${isInitialSource ? '' : 'page'}`}>
         {isInitialSource
           ? null
           : <div className="page-header">
-              <div className="page-header__container">
-                <div className="page-header__left">
-                  <h1 className="page-header__title">
-                    {editMode ? 'Edit Source' : 'Add a New Source'}
-                  </h1>
-                </div>
-                <div className="page-header__right">
-                  <SourceIndicator />
+              <div className="page-header__container page-header__source-page">
+                <div className="page-header__col-md-8">
+                  <div className="page-header__left">
+                    <h1 className="page-header__title">
+                      {editMode ? 'Edit Source' : 'Add a New Source'}
+                    </h1>
+                  </div>
+                  <div className="page-header__right">
+                    <SourceIndicator />
+                  </div>
                 </div>
               </div>
             </div>}
