@@ -46,18 +46,34 @@ func TestService_Me(t *testing.T) {
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, name string) (*chronograf.User, error) {
 						return &chronograf.User{
-							Name:   "me",
-							Passwd: "hunter2",
+							Name:     "me",
+							Provider: "GitHub",
+							Passwd:   "hunter2",
+						}, nil
+					},
+					AllF: func(ctx context.Context) ([]chronograf.User, error) {
+						return []chronograf.User{
+							{
+								Name:     "me",
+								Provider: "GitHub",
+								Passwd:   "hunter2",
+							},
+							{
+								Name:     "billietta",
+								Provider: "Google",
+								Passwd:   "billiettaspassword",
+							},
 						}, nil
 					},
 				},
 			},
 			principal: oauth2.Principal{
 				Subject: "me",
+				Issuer:  "GitHub",
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody: `{"name":"me","password":"hunter2","links":{"self":"/chronograf/v1/users/me"}}
+			wantBody: `{"name":"me","password":"hunter2","provider":"GitHub","links":{"self":"/chronograf/v1/users/me"}}
 `,
 		},
 		{
@@ -75,10 +91,25 @@ func TestService_Me(t *testing.T) {
 					AddF: func(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
 						return u, nil
 					},
+					AllF: func(ctx context.Context) ([]chronograf.User, error) {
+						return []chronograf.User{
+							{
+								Name:     "me",
+								Provider: "GitHub",
+								Passwd:   "hunter2",
+							},
+							{
+								Name:     "billietta",
+								Provider: "Google",
+								Passwd:   "billiettaspassword",
+							},
+						}, nil
+					},
 				},
 			},
 			principal: oauth2.Principal{
 				Subject: "secret",
+				Issuer:  "Auth0",
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
@@ -100,11 +131,26 @@ func TestService_Me(t *testing.T) {
 					AddF: func(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
 						return nil, fmt.Errorf("Why Heavy?")
 					},
+					AllF: func(ctx context.Context) ([]chronograf.User, error) {
+						return []chronograf.User{
+							{
+								Name:     "me",
+								Provider: "GitHub",
+								Passwd:   "hunter2",
+							},
+							{
+								Name:     "billietta",
+								Provider: "Google",
+								Passwd:   "billiettaspassword",
+							},
+						}, nil
+					},
 				},
 				Logger: log.New(log.DebugLevel),
 			},
 			principal: oauth2.Principal{
 				Subject: "secret",
+				Issuer:  "Heroku",
 			},
 			wantStatus:      http.StatusInternalServerError,
 			wantContentType: "application/json",
@@ -138,6 +184,7 @@ func TestService_Me(t *testing.T) {
 			wantStatus: http.StatusUnprocessableEntity,
 			principal: oauth2.Principal{
 				Subject: "",
+				Issuer:  "",
 			},
 		},
 	}

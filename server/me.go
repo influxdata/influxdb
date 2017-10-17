@@ -47,6 +47,17 @@ func getUsername(ctx context.Context) (string, error) {
 	return principal.Subject, nil
 }
 
+func getProvider(ctx context.Context) (string, error) {
+	principal, err := getPrincipal(ctx)
+	if err != nil {
+		return "", err
+	}
+	if principal.Issuer == "" {
+		return "", fmt.Errorf("Token not found")
+	}
+	return principal.Issuer, nil
+}
+
 func getPrincipal(ctx context.Context) (oauth2.Principal, error) {
 	principal, ok := ctx.Value(oauth2.PrincipalKey).(oauth2.Principal)
 	if !ok {
@@ -71,9 +82,28 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		invalidData(w, err, s.Logger)
 		return
 	}
+	provider, err := getProvider(ctx)
+	if err != nil {
+		invalidData(w, err, s.Logger)
+		return
+	}
 
-	usr, err := s.UsersStore.Get(ctx, username)
-	if err == nil {
+	usrs, err := s.UsersStore.All(ctx)
+	if err != nil {
+		msg := fmt.Errorf("error retrieving user with Username: %s, Provider: %s: %v", username, provider, err)
+		unknownErrorWithMessage(w, msg, s.Logger)
+		return
+	}
+
+	var usr *chronograf.User
+	for _, u := range usrs {
+		if u.Name == username && u.Provider == provider {
+			usr = &u
+			break
+		}
+	}
+
+	if usr != nil {
 		res := newMeResponse(usr)
 		encodeJSON(w, http.StatusOK, res, s.Logger)
 		return
