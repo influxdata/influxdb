@@ -12,7 +12,7 @@ type HTTPDHandler struct {
 	l *zap.Logger
 }
 
-func (s *Service) HTTPDContext() httpd.Context {
+func (s *Service) HTTPDHandler() httpd.Handler {
 	if s == nil {
 		return nil
 	}

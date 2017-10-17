@@ -288,7 +288,7 @@ func NewQueryExecutor() *QueryExecutor {
 		out = io.MultiWriter(out, os.Stderr)
 	}
 	diag := diagnostic.New(out)
-	e.QueryExecutor.With(diag.QueryContext())
+	e.QueryExecutor.WithDiagnosticHandler(diag.QueryHandler())
 
 	return e
 }

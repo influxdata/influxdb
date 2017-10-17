@@ -187,8 +187,8 @@ func (f *FileStore) enableTraceLogging(enabled bool) {
 }
 
 // WithDiagnosticContext sets the diagnostic on the file store.
-func (f *FileStore) WithDiagnosticContext(d diagnostic.FileStoreContext) {
-	f.diag = d
+func (f *FileStore) WithDiagnosticHandler(d diagnostic.FileStoreHandler) {
+	f.diag.Handler = d
 	f.purger.diag = d
 }
 
@@ -395,9 +395,7 @@ func (f *FileStore) Open() error {
 		go func(idx int, file *os.File) {
 			start := time.Now()
 			df, err := NewTSMReader(file)
-			if f.diag != nil {
-				f.diag.OpenedFile(file.Name(), idx, time.Since(start))
-			}
+			f.diag.OpenedFile(file.Name(), idx, time.Since(start))
 
 			if err != nil {
 				readerC <- &res{r: df, err: fmt.Errorf("error opening memory map for file %s: %v", file.Name(), err)}
@@ -867,7 +865,7 @@ func (f *FileStore) locations(key []byte, t int64, ascending bool) []*location {
 // CreateSnapshot creates hardlinks for all tsm and tombstone files
 // in the path provided.
 func (f *FileStore) CreateSnapshot() (string, error) {
-	if f.traceLogging && f.diag != nil {
+	if f.traceLogging {
 		f.diag.CreatingSnapshot(f.dir)
 	}
 	files := f.Files()

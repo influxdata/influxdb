@@ -100,9 +100,7 @@ func (s *Service) Open() error {
 		s.waitForMetaUpdates()
 	}()
 
-	if s.Diagnostic != nil {
-		s.Diagnostic.Opened()
-	}
+	s.Diagnostic.Opened()
 	return nil
 }
 
@@ -122,15 +120,13 @@ func (s *Service) Close() error {
 	close(s.closing)
 
 	s.wg.Wait()
-	if s.Diagnostic != nil {
-		s.Diagnostic.Closed()
-	}
+	s.Diagnostic.Closed()
 	return nil
 }
 
-// WithLogger sets the logger on the service.
-func (s *Service) With(d diagnostic.Context) {
-	s.Diagnostic = d
+// WithDiagnosticHandler sets the diagnostic handler on the service.
+func (s *Service) WithDiagnosticHandler(d diagnostic.Handler) {
+	s.Diagnostic.Handler = d
 }
 
 // Statistics maintains the statistics for the subscriber service.
@@ -167,7 +163,7 @@ func (s *Service) waitForMetaUpdates() {
 		select {
 		case <-ch:
 			err := s.Update()
-			if err != nil && s.Diagnostic != nil {
+			if err != nil {
 				s.Diagnostic.UpdateSubscriptionError(err)
 			}
 		case <-s.closing:
@@ -299,9 +295,7 @@ func (s *Service) updateSubs(wg *sync.WaitGroup) {
 				sub, err := s.createSubscription(se, si.Mode, si.Destinations)
 				if err != nil {
 					atomic.AddInt64(&s.stats.CreateFailures, 1)
-					if s.Diagnostic != nil {
-						s.Diagnostic.SubscriptionCreateError(si.Name, err)
-					}
+					s.Diagnostic.SubscriptionCreateError(si.Name, err)
 					continue
 				}
 				cw := chanWriter{
@@ -310,9 +304,7 @@ func (s *Service) updateSubs(wg *sync.WaitGroup) {
 					pointsWritten: &s.stats.PointsWritten,
 					failures:      &s.stats.WriteFailures,
 				}
-				if s.Diagnostic != nil {
-					cw.errorFn = s.Diagnostic.Error
-				}
+				cw.errorFn = s.Diagnostic.Error
 				for i := 0; i < s.conf.WriteConcurrency; i++ {
 					wg.Add(1)
 					go func() {
@@ -321,9 +313,7 @@ func (s *Service) updateSubs(wg *sync.WaitGroup) {
 					}()
 				}
 				s.subs[se] = cw
-				if s.Diagnostic != nil {
-					s.Diagnostic.AddedSubscription(se.db, se.rp)
-				}
+				s.Diagnostic.AddedSubscription(se.db, se.rp)
 			}
 		}
 	}
@@ -336,9 +326,7 @@ func (s *Service) updateSubs(wg *sync.WaitGroup) {
 
 			// Remove it from the set
 			delete(s.subs, se)
-			if s.Diagnostic != nil {
-				s.Diagnostic.DeletedSubscription(se.db, se.rp)
-			}
+			s.Diagnostic.DeletedSubscription(se.db, se.rp)
 		}
 	}
 }
@@ -351,7 +339,7 @@ func (s *Service) newPointsWriter(u url.URL) (PointsWriter, error) {
 	case "http":
 		return NewHTTP(u.String(), time.Duration(s.conf.HTTPTimeout))
 	case "https":
-		if s.conf.InsecureSkipVerify && s.Diagnostic != nil {
+		if s.conf.InsecureSkipVerify {
 			s.Diagnostic.SkipInsecureVerify()
 		}
 		return NewHTTPS(u.String(), time.Duration(s.conf.HTTPTimeout), s.conf.InsecureSkipVerify, s.conf.CaCerts)

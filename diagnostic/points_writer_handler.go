@@ -11,7 +11,7 @@ type PointsWriterHandler struct {
 	l *zap.Logger
 }
 
-func (s *Service) PointsWriterContext() coordinator.PointsWriterContext {
+func (s *Service) PointsWriterHandler() coordinator.PointsWriterHandler {
 	if s == nil {
 		return nil
 	}

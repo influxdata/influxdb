@@ -12,7 +12,7 @@ type OpenTSDBHandler struct {
 	l *zap.Logger
 }
 
-func (s *Service) OpenTSDBContext() opentsdb.Context {
+func (s *Service) OpenTSDBHandler() opentsdb.Handler {
 	if s == nil {
 		return nil
 	}

@@ -11,7 +11,7 @@ type SnapshotterHandler struct {
 	l *zap.Logger
 }
 
-func (s *Service) SnapshotterContext() snapshotter.Context {
+func (s *Service) SnapshotterHandler() snapshotter.Handler {
 	if s == nil {
 		return nil
 	}

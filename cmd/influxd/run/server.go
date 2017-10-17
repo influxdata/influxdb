@@ -222,7 +222,7 @@ func (s *Server) appendSnapshotterService() {
 	srv := snapshotter.NewService()
 	srv.TSDBStore = s.TSDBStore
 	srv.MetaClient = s.MetaClient
-	srv.With(s.DiagnosticService.SnapshotterContext())
+	srv.WithDiagnosticContext(s.DiagnosticService.SnapshotterHandler())
 	s.Services = append(s.Services, srv)
 	s.SnapshotterService = srv
 }
@@ -239,7 +239,7 @@ func (s *Server) Logger() *zap.Logger {
 }
 
 func (s *Server) appendMonitorService() {
-	s.Monitor.With(s.DiagnosticService.MonitorContext())
+	s.Monitor.WithDiagnosticHandler(s.DiagnosticService.MonitorHandler())
 	s.Services = append(s.Services, s.Monitor)
 }
 
@@ -250,7 +250,7 @@ func (s *Server) appendRetentionPolicyService(c retention.Config) {
 	srv := retention.NewService(c)
 	srv.MetaClient = s.MetaClient
 	srv.TSDBStore = s.TSDBStore
-	srv.With(s.DiagnosticService.RetentionContext())
+	srv.WithDiagnosticHandler(s.DiagnosticService.RetentionHandler())
 	s.Services = append(s.Services, srv)
 }
 
@@ -267,7 +267,7 @@ func (s *Server) appendHTTPDService(c httpd.Config) {
 	srv.Handler.PointsWriter = s.PointsWriter
 	srv.Handler.Version = s.buildInfo.Version
 	srv.Handler.BuildType = "OSS"
-	srv.With(s.DiagnosticService.HTTPDContext())
+	srv.With(s.DiagnosticService.HTTPDHandler())
 
 	s.Services = append(s.Services, srv)
 }
@@ -279,7 +279,7 @@ func (s *Server) appendCollectdService(c collectd.Config) {
 	srv := collectd.NewService(c)
 	srv.MetaClient = s.MetaClient
 	srv.PointsWriter = s.PointsWriter
-	srv.With(s.DiagnosticService.CollectdContext())
+	srv.WithDiagnosticHandler(s.DiagnosticService.CollectdHandler())
 	s.Services = append(s.Services, srv)
 }
 
@@ -293,7 +293,7 @@ func (s *Server) appendOpenTSDBService(c opentsdb.Config) error {
 	}
 	srv.PointsWriter = s.PointsWriter
 	srv.MetaClient = s.MetaClient
-	srv.With(s.DiagnosticService.OpenTSDBContext())
+	srv.WithDiagnosticHandler(s.DiagnosticService.OpenTSDBHandler())
 	s.Services = append(s.Services, srv)
 	return nil
 }
@@ -310,7 +310,7 @@ func (s *Server) appendGraphiteService(c graphite.Config) error {
 	srv.PointsWriter = s.PointsWriter
 	srv.MetaClient = s.MetaClient
 	srv.Monitor = s.Monitor
-	srv.With(s.DiagnosticService.GraphiteContext())
+	srv.WithDiagnosticHandler(s.DiagnosticService.GraphiteHandler())
 	s.Services = append(s.Services, srv)
 	return nil
 }
@@ -325,7 +325,7 @@ func (s *Server) appendPrecreatorService(c precreator.Config) error {
 	}
 
 	srv.MetaClient = s.MetaClient
-	srv.With(s.DiagnosticService.PrecreatorContext())
+	srv.WithDiagnosticHandler(s.DiagnosticService.PrecreatorHandler())
 	s.Services = append(s.Services, srv)
 	return nil
 }
@@ -337,7 +337,7 @@ func (s *Server) appendUDPService(c udp.Config) {
 	srv := udp.NewService(c)
 	srv.PointsWriter = s.PointsWriter
 	srv.MetaClient = s.MetaClient
-	srv.With(s.DiagnosticService.UDPContext())
+	srv.WithDiagnosticHandler(s.DiagnosticService.UDPHandler())
 	s.Services = append(s.Services, srv)
 }
 
@@ -349,7 +349,7 @@ func (s *Server) appendContinuousQueryService(c continuous_querier.Config) {
 	srv.MetaClient = s.MetaClient
 	srv.QueryExecutor = s.QueryExecutor
 	srv.Monitor = s.Monitor
-	srv.With(s.DiagnosticService.ContinuousQuerierContext())
+	srv.WithDiagnosticHandler(s.DiagnosticService.ContinuousQuerierHandler())
 	s.Services = append(s.Services, srv)
 }
 
@@ -404,14 +404,14 @@ func (s *Server) Open() error {
 
 	// Configure logging for all services and clients.
 	if s.config.Meta.LoggingEnabled {
-		s.MetaClient.With(s.DiagnosticService.MetaClientContext())
+		s.MetaClient.WithDiagnosticHandler(s.DiagnosticService.MetaClientHandler())
 	}
-	s.TSDBStore.With(s.DiagnosticService.StoreContext())
+	s.TSDBStore.WithDiagnosticHandler(s.DiagnosticService.StoreHandler())
 	if s.config.Data.QueryLogEnabled {
-		s.QueryExecutor.With(s.DiagnosticService.QueryContext())
+		s.QueryExecutor.WithDiagnosticHandler(s.DiagnosticService.QueryHandler())
 	}
-	s.PointsWriter.With(s.DiagnosticService.PointsWriterContext())
-	s.Subscriber.With(s.DiagnosticService.SubscriberContext())
+	s.PointsWriter.WithDiagnosticHandler(s.DiagnosticService.PointsWriterHandler())
+	s.Subscriber.WithDiagnosticHandler(s.DiagnosticService.SubscriberHandler())
 
 	// Open TSDB store.
 	if err := s.TSDBStore.Open(); err != nil {

@@ -11,7 +11,7 @@ type SubscriberHandler struct {
 	l *zap.Logger
 }
 
-func (s *Service) SubscriberContext() subscriber.Context {
+func (s *Service) SubscriberHandler() subscriber.Handler {
 	if s == nil {
 		return nil
 	}

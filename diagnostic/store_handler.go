@@ -9,6 +9,7 @@ import (
 
 	tsdb "github.com/influxdata/influxdb/tsdb/diagnostic"
 	tsm1 "github.com/influxdata/influxdb/tsdb/engine/tsm1/diagnostic"
+	tsi1 "github.com/influxdata/influxdb/tsdb/index/tsi1/diagnostic"
 	"go.uber.org/zap"
 )
 
@@ -17,7 +18,7 @@ type StoreHandler struct {
 	l    *zap.Logger
 }
 
-func (s *Service) StoreContext() tsdb.Context {
+func (s *Service) StoreHandler() tsdb.Handler {
 	if s == nil {
 		return nil
 	}
@@ -30,9 +31,9 @@ func (s *Service) StoreContext() tsdb.Context {
 func (h *StoreHandler) AttachEngine(name string, engine interface{}) {
 	switch engine := engine.(type) {
 	case interface {
-		WithDiagnosticContext(tsm1.Context)
+		WithDiagnosticHandler(tsm1.Handler)
 	}:
-		engine.WithDiagnosticContext(h.TSM1Context())
+		engine.WithDiagnosticHandler(h.TSM1Handler())
 	default:
 		h.l.Warn("no diagnostic handler found for engine", zap.String("engine", name))
 	}
@@ -41,9 +42,9 @@ func (h *StoreHandler) AttachEngine(name string, engine interface{}) {
 func (h *StoreHandler) AttachIndex(name string, index interface{}) {
 	switch index := index.(type) {
 	case interface {
-		WithDiagnosticContext(TSI1Context)
+		WithDiagnosticHandler(tsi1.Handler)
 	}:
-		index.WithDiagnosticContext(h.TSI1Context())
+		index.WithDiagnosticHandler(h.TSI1Handler())
 	default:
 		if name == "inmem" {
 			// This index does not have a diagnostic context.
@@ -101,7 +102,7 @@ type TSM1Handler struct {
 	fs          *zap.Logger
 }
 
-func (h *StoreHandler) TSM1Context() tsm1.Context {
+func (h *StoreHandler) TSM1Handler() tsm1.Handler {
 	logger := h.base.With(zap.String("engine", "tsm1"))
 	return &TSM1Handler{
 		l:           logger,
@@ -255,38 +256,15 @@ func (h *TSM1Handler) PurgeFileRemoveError(err error) {
 }
 
 type TSI1Context interface {
-	WithCompactionToken(token string) TSI1CompactionContext
-	WithLogFileCompactionToken(token string, id int) TSI1LogFileCompactionContext
-}
-
-type TSI1CompactionContext interface {
-	PerformingFullCompaction(src []int, dst string)
-	CompletedFullCompaction(path string, elapsed time.Duration, bytes int64)
-	CreateCompactionFilesError(err error)
-	ManifestWriteError(err error)
-	CannotCompactIndexFiles(err error)
-	ErrorClosingIndexFile(err error)
-	CannotOpenNewIndexFile(err error)
-	RemovingIndexFile(path string)
-	CannotCloseIndexFile(err error)
-	CannotRemoveIndexFile(err error)
-}
-
-type TSI1LogFileCompactionContext interface {
-	CannotCreateIndexFile(err error)
-	CannotCompactLogFile(path string, err error)
-	CannotOpenCompactedIndexFile(path string, err error)
-	UpdateManifestError(err error)
-	LogFileCompacted(elapsed time.Duration, bytes int64)
-	CannotCloseLogFile(err error)
-	CannotRemoveLogFile(err error)
+	WithCompactionToken(token string) tsi1.CompactionHandler
+	WithLogFileCompactionToken(token string, id int) tsi1.LogFileCompactionHandler
 }
 
 type TSI1Handler struct {
 	l *zap.Logger
 }
 
-func (h *StoreHandler) TSI1Context() TSI1Context {
+func (h *StoreHandler) TSI1Handler() tsi1.Handler {
 	logger := h.l.With(zap.String("index", "tsi"))
 	return &TSI1Handler{l: logger}
 }
@@ -295,7 +273,7 @@ type TSI1CompactionHandler struct {
 	l *zap.Logger
 }
 
-func (h *TSI1Handler) WithCompactionToken(token string) TSI1CompactionContext {
+func (h *TSI1Handler) WithCompactionToken(token string) tsi1.CompactionHandler {
 	logger := h.l.With(zap.String("token", token))
 	return &TSI1CompactionHandler{l: logger}
 }
@@ -352,7 +330,7 @@ type TSI1LogFileCompactionHandler struct {
 	l *zap.Logger
 }
 
-func (h *TSI1Handler) WithLogFileCompactionToken(token string, id int) TSI1LogFileCompactionContext {
+func (h *TSI1Handler) WithLogFileCompactionToken(token string, id int) tsi1.LogFileCompactionHandler {
 	logger := h.l.With(
 		zap.String("token", token),
 		zap.Int("id", id),

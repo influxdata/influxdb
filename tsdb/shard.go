@@ -162,14 +162,12 @@ func NewShard(id uint64, path string, walPath string, opt EngineOptions) *Shard 
 	return s
 }
 
-func (s *Shard) WithDiagnosticContext(d diagnostic.ShardContext) {
-	s.diag = d
-	if s.diag != nil {
-		engine, err := s.engine()
-		if err == nil {
-			s.diag.AttachEngine(s.options.EngineVersion, engine)
-			s.diag.AttachIndex(s.index.Type(), s.index)
-		}
+func (s *Shard) WithDiagnosticHandler(d diagnostic.ShardHandler) {
+	s.diag.Handler = d
+	engine, err := s.engine()
+	if err == nil {
+		s.diag.AttachEngine(s.options.EngineVersion, engine)
+		s.diag.AttachIndex(s.index.Type(), s.index)
 	}
 }
 
@@ -276,9 +274,7 @@ func (s *Shard) Open() error {
 			return err
 		}
 		s.index = idx
-		if s.diag != nil {
-			s.diag.AttachIndex(idx.Type(), idx)
-		}
+		s.diag.AttachIndex(idx.Type(), idx)
 
 		// Initialize underlying engine.
 		e, err := NewEngine(s.id, idx, s.database, s.path, s.walPath, s.options)
@@ -287,9 +283,7 @@ func (s *Shard) Open() error {
 		}
 
 		// Set log output on the engine.
-		if s.diag != nil {
-			s.diag.AttachEngine(s.options.EngineVersion, e)
-		}
+		s.diag.AttachEngine(s.options.EngineVersion, e)
 
 		// Disable compactions while loading the index
 		e.SetEnabled(false)

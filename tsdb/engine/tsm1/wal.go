@@ -133,9 +133,9 @@ func (l *WAL) enableTraceLogging(enabled bool) {
 	l.traceLogging = enabled
 }
 
-// WithDiagnosticContext sets the WAL's diagnostic.
-func (l *WAL) WithDiagnosticContext(d diagnostic.WALContext) {
-	l.diag = d
+// WithDiagnosticHandler sets the WAL's diagnostic.
+func (l *WAL) WithDiagnosticHandler(d diagnostic.WALHandler) {
+	l.diag.Handler = d
 }
 
 // WALStatistics maintains statistics about the WAL.
@@ -172,7 +172,7 @@ func (l *WAL) Open() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	if l.traceLogging && l.diag != nil {
+	if l.traceLogging {
 		l.diag.StartingWAL(l.path, l.SegmentSize)
 	}
 
@@ -337,7 +337,7 @@ func (l *WAL) Remove(files []string) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	for _, fn := range files {
-		if l.traceLogging && l.diag != nil {
+		if l.traceLogging {
 			l.diag.RemovingWALFile(fn)
 		}
 		os.RemoveAll(fn)
@@ -512,7 +512,7 @@ func (l *WAL) Close() error {
 
 	l.once.Do(func() {
 		// Close, but don't set to nil so future goroutines can still be signaled
-		if l.traceLogging && l.diag != nil {
+		if l.traceLogging {
 			l.diag.ClosingWALFile(l.path)
 		}
 		close(l.closing)

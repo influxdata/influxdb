@@ -132,9 +132,7 @@ func (s *Service) Open() error {
 	}
 	s.done = make(chan struct{})
 
-	if s.diag != nil {
-		s.diag.Starting(s.batchSize, s.batchTimeout)
-	}
+	s.diag.Starting(s.batchSize, s.batchTimeout)
 
 	// Register diagnostics if a Monitor service is available.
 	if s.Monitor != nil {
@@ -160,9 +158,7 @@ func (s *Service) Open() error {
 		return err
 	}
 
-	if s.diag != nil {
-		s.diag.Listening(s.protocol, s.addr)
-	}
+	s.diag.Listening(s.protocol, s.addr)
 	return nil
 }
 func (s *Service) closeAllConnections() {
@@ -269,8 +265,8 @@ func (s *Service) createInternalStorage() error {
 }
 
 // WithLogger sets the logger on the service.
-func (s *Service) With(d diagnostic.ContextBuilder) {
-	s.diag = d.WithContext(s.bindAddress)
+func (s *Service) WithDiagnosticHandler(d diagnostic.HandlerBuilder) {
+	s.diag.Handler = d.WithContext(s.bindAddress)
 }
 
 // Statistics maintains statistics for the graphite service.
@@ -324,15 +320,11 @@ func (s *Service) openTCPServer() (net.Addr, error) {
 		for {
 			conn, err := s.ln.Accept()
 			if opErr, ok := err.(*net.OpError); ok && !opErr.Temporary() {
-				if s.diag != nil {
-					s.diag.TCPListenerClosed()
-				}
+				s.diag.TCPListenerClosed()
 				return
 			}
 			if err != nil {
-				if s.diag != nil {
-					s.diag.TCPAcceptError(err)
-				}
+				s.diag.TCPAcceptError(err)
 				continue
 			}
 
@@ -443,9 +435,7 @@ func (s *Service) handleLine(line string) {
 				return
 			}
 		}
-		if s.diag != nil {
-			s.diag.LineParseError(line, err)
-		}
+		s.diag.LineParseError(line, err)
 		atomic.AddInt64(&s.stats.PointsParseFail, 1)
 		return
 	}
@@ -461,9 +451,7 @@ func (s *Service) processBatches(batcher *tsdb.PointBatcher) {
 		case batch := <-batcher.Out():
 			// Will attempt to create database if not yet created.
 			if err := s.createInternalStorage(); err != nil {
-				if s.diag != nil {
-					s.diag.InternalStorageCreateError(err)
-				}
+				s.diag.InternalStorageCreateError(err)
 				continue
 			}
 
@@ -471,9 +459,7 @@ func (s *Service) processBatches(batcher *tsdb.PointBatcher) {
 				atomic.AddInt64(&s.stats.BatchesTransmitted, 1)
 				atomic.AddInt64(&s.stats.PointsTransmitted, int64(len(batch)))
 			} else {
-				if s.diag != nil {
-					s.diag.PointWriterError(s.database, err)
-				}
+				s.diag.PointWriterError(s.database, err)
 				atomic.AddInt64(&s.stats.BatchesTransmitFail, 1)
 			}
 

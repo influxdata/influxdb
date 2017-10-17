@@ -11,7 +11,7 @@ type MetaClientHandler struct {
 	l *zap.Logger
 }
 
-func (s *Service) MetaClientContext() meta.Context {
+func (s *Service) MetaClientHandler() meta.Handler {
 	if s == nil {
 		return nil
 	}

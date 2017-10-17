@@ -13,7 +13,7 @@ type GraphiteHandlerBuilder struct {
 	l *zap.Logger
 }
 
-func (s *Service) GraphiteContext() graphite.ContextBuilder {
+func (s *Service) GraphiteHandler() graphite.HandlerBuilder {
 	if s == nil {
 		return nil
 	}
@@ -24,7 +24,7 @@ type GraphiteHandler struct {
 	l *zap.Logger
 }
 
-func (h *GraphiteHandlerBuilder) WithContext(bindAddress string) graphite.Context {
+func (h *GraphiteHandlerBuilder) WithContext(bindAddress string) graphite.Handler {
 	return &GraphiteHandler{l: h.l.With(zap.String("addr", bindAddress))}
 }
 

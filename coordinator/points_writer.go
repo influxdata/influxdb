@@ -145,9 +145,9 @@ func (w *PointsWriter) AddWriteSubscriber(c chan<- *WritePointsRequest) {
 	w.subPoints = append(w.subPoints, c)
 }
 
-// WithLogger sets the Logger on w.
-func (w *PointsWriter) With(d diagnostic.PointsWriterContext) {
-	w.Diagnostic = d
+// WithDiagnosticHandler sets the diagnostic handler on w.
+func (w *PointsWriter) WithDiagnosticHandler(d diagnostic.PointsWriterHandler) {
+	w.Diagnostic.Handler = d
 }
 
 // WriteStatistics keeps statistics related to the PointsWriter.
@@ -378,18 +378,14 @@ func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPo
 	if err == tsdb.ErrShardNotFound {
 		err = w.TSDBStore.CreateShard(database, retentionPolicy, shard.ID, true)
 		if err != nil {
-			if w.Diagnostic != nil {
-				w.Diagnostic.WriteFailed(shard.ID, err)
-			}
+			w.Diagnostic.WriteFailed(shard.ID, err)
 			atomic.AddInt64(&w.stats.WriteErr, 1)
 			return err
 		}
 	}
 	err = w.TSDBStore.WriteToShard(shard.ID, points)
 	if err != nil {
-		if w.Diagnostic != nil {
-			w.Diagnostic.WriteFailed(shard.ID, err)
-		}
+		w.Diagnostic.WriteFailed(shard.ID, err)
 		atomic.AddInt64(&w.stats.WriteErr, 1)
 		return err
 	}

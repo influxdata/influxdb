@@ -7,6 +7,7 @@ import (
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/query/diagnostic"
 )
 
 const (
@@ -49,9 +50,7 @@ type TaskManager struct {
 	MaxConcurrentQueries int
 
 	// Diagnostic is used to report any messages sent from the TaskManager.
-	Diagnostic interface {
-		DetectedSlowQuery(query string, id uint64, database string, threshold time.Duration)
-	}
+	Diagnostic diagnostic.TaskManagerContext
 
 	// Used for managing and tracking running queries.
 	queries  map[uint64]*QueryTask
@@ -173,14 +172,14 @@ func (t *TaskManager) AttachQuery(q *influxql.Query, database string, interrupt 
 	t.queries[qid] = query
 
 	go t.waitForQuery(qid, query.closing, interrupt, query.monitorCh)
-	if t.LogQueriesAfter != 0 && t.Diagnostic != nil {
+	if t.LogQueriesAfter != 0 {
 		go query.monitor(func(closing <-chan struct{}) error {
 			timer := time.NewTimer(t.LogQueriesAfter)
 			defer timer.Stop()
 
 			select {
 			case <-timer.C:
-				t.Diagnostic.DetectedSlowQuery(query.query, qid, query.database, t.LogQueriesAfter)
+				t.Diagnostic.OnSlowQueryDetected(query.query, qid, query.database, t.LogQueriesAfter)
 			case <-closing:
 			}
 			return nil

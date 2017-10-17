@@ -12,7 +12,7 @@ type PrecreatorHandler struct {
 	l *zap.Logger
 }
 
-func (s *Service) PrecreatorContext() precreator.Context {
+func (s *Service) PrecreatorHandler() precreator.Handler {
 	if s == nil {
 		return nil
 	}

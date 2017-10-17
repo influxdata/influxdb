@@ -71,10 +71,10 @@ func NewStore(path string) *Store {
 	}
 }
 
-func (s *Store) With(d diagnostic.Context) {
-	s.Diagnostic = d
+func (s *Store) WithDiagnosticHandler(d diagnostic.Handler) {
+	s.Diagnostic.Handler = d
 	for _, sh := range s.shards {
-		sh.WithDiagnosticContext(d)
+		sh.WithDiagnosticHandler(d)
 	}
 }
 
@@ -90,17 +90,13 @@ func (s *Store) Statistics(tags map[string]string) []models.Statistic {
 	for _, database := range databases {
 		sc, err := s.SeriesCardinality(database)
 		if err != nil {
-			if s.Diagnostic != nil {
-				s.Diagnostic.SeriesCardinalityError(err)
-			}
+			s.Diagnostic.SeriesCardinalityError(err)
 			continue
 		}
 
 		mc, err := s.MeasurementsCardinality(database)
 		if err != nil {
-			if s.Diagnostic != nil {
-				s.Diagnostic.MeasurementsCardinalityError(err)
-			}
+			s.Diagnostic.MeasurementsCardinalityError(err)
 			continue
 		}
 
@@ -133,9 +129,7 @@ func (s *Store) Open() error {
 	s.closing = make(chan struct{})
 	s.shards = map[uint64]*Shard{}
 
-	if s.Diagnostic != nil {
-		s.Diagnostic.UsingDataDir(s.Path())
-	}
+	s.Diagnostic.UsingDataDir(s.Path())
 
 	// Create directory.
 	if err := os.MkdirAll(s.path, 0777); err != nil {
@@ -188,9 +182,7 @@ func (s *Store) loadShards() error {
 
 	for _, db := range dbDirs {
 		if !db.IsDir() {
-			if s.Diagnostic != nil {
-				s.Diagnostic.NotADatabaseDir(db.Name())
-			}
+			s.Diagnostic.NotADatabaseDir(db.Name())
 			continue
 		}
 
@@ -208,9 +200,7 @@ func (s *Store) loadShards() error {
 
 		for _, rp := range rpDirs {
 			if !rp.IsDir() {
-				if s.Diagnostic != nil {
-					s.Diagnostic.SkippingRetentionPolicyDir(rp.Name())
-				}
+				s.Diagnostic.SkippingRetentionPolicyDir(rp.Name())
 				continue
 			}
 
@@ -250,7 +240,7 @@ func (s *Store) loadShards() error {
 
 					// Disable compactions, writes and queries until all shards are loaded
 					shard.EnableOnOpen = false
-					shard.WithDiagnosticContext(s.Diagnostic)
+					shard.WithDiagnosticHandler(s.Diagnostic.Handler)
 
 					err = shard.Open()
 					if err != nil {
@@ -259,9 +249,7 @@ func (s *Store) loadShards() error {
 					}
 
 					resC <- &res{s: shard}
-					if s.Diagnostic != nil {
-						s.Diagnostic.ShardOpened(path, time.Since(start))
-					}
+					s.Diagnostic.ShardOpened(path, time.Since(start))
 				}(db.Name(), rp.Name(), sh.Name())
 			}
 		}
@@ -272,9 +260,7 @@ func (s *Store) loadShards() error {
 	for i := 0; i < n; i++ {
 		res := <-resC
 		if res.err != nil {
-			if s.Diagnostic != nil {
-				s.Diagnostic.ShardOpenError(res.err)
-			}
+			s.Diagnostic.ShardOpenError(res.err)
 			continue
 		}
 		s.shards[res.s.id] = res.s
@@ -413,7 +399,7 @@ func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64, en
 
 	path := filepath.Join(s.path, database, retentionPolicy, strconv.FormatUint(shardID, 10))
 	shard := NewShard(shardID, path, walPath, opt)
-	shard.WithDiagnosticContext(s.Diagnostic)
+	shard.WithDiagnosticHandler(s.Diagnostic.Handler)
 	shard.EnableOnOpen = enabled
 
 	if err := shard.Open(); err != nil {
@@ -1299,7 +1285,7 @@ func (s *Store) monitorShards() {
 			s.mu.RLock()
 			for _, sh := range s.shards {
 				if sh.IsIdle() {
-					if err := sh.Free(); err != nil && s.Diagnostic != nil {
+					if err := sh.Free(); err != nil {
 						s.Diagnostic.FreeColdShardError(err)
 					}
 				} else {
@@ -1343,9 +1329,7 @@ func (s *Store) monitorShards() {
 				first := shards[0]
 				names, err := first.MeasurementNamesByExpr(nil)
 				if err != nil {
-					if s.Diagnostic != nil {
-						s.Diagnostic.MeasurementNamesByExprError(err)
-					}
+					s.Diagnostic.MeasurementNamesByExprError(err)
 					return nil
 				}
 
@@ -1359,9 +1343,7 @@ func (s *Store) monitorShards() {
 
 						// Log at 80, 85, 90-100% levels
 						if perc == 80 || perc == 85 || perc >= 90 {
-							if s.Diagnostic != nil {
-								s.Diagnostic.WarnMaxValuesPerTagLimitExceeded(perc, n, s.EngineOptions.Config.MaxValuesPerTag, db, name, k)
-							}
+							s.Diagnostic.WarnMaxValuesPerTagLimitExceeded(perc, n, s.EngineOptions.Config.MaxValuesPerTag, db, name, k)
 						}
 						return nil
 					})

@@ -89,7 +89,7 @@ func TestService_Open_TypesDBDir(t *testing.T) {
 
 	if testing.Verbose() {
 		diag := diagnostic.New(os.Stderr)
-		s.Service.With(diag.CollectdContext())
+		s.Service.WithDiagnosticHandler(diag.CollectdHandler())
 	}
 
 	s.MetaClient.CreateDatabaseFn = func(name string) (*meta.DatabaseInfo, error) {
@@ -421,7 +421,7 @@ func NewTestService(batchSize int, batchDuration time.Duration, parseOpt string)
 
 	if testing.Verbose() {
 		diag := diagnostic.New(os.Stderr)
-		s.Service.With(diag.CollectdContext())
+		s.Service.WithDiagnosticHandler(diag.CollectdHandler())
 	}
 
 	return s

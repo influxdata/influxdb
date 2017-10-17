@@ -11,7 +11,7 @@ type UDPHandler struct {
 	l *zap.Logger
 }
 
-func (s *Service) UDPContext() udp.Context {
+func (s *Service) UDPHandler() udp.Handler {
 	if s == nil {
 		return nil
 	}

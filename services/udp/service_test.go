@@ -143,7 +143,7 @@ func NewTestService(c *udp.Config) *TestService {
 
 	if testing.Verbose() {
 		diag := diagnostic.New(os.Stderr)
-		service.Service.With(diag.UDPContext())
+		service.Service.WithDiagnosticHandler(diag.UDPHandler())
 	}
 
 	service.Service.MetaClient = service.MetaClient

@@ -291,7 +291,7 @@ func NewTestService(c *graphite.Config) *TestService {
 
 	if testing.Verbose() {
 		diag := diagnostic.New(os.Stderr)
-		service.Service.With(diag.GraphiteContext())
+		service.Service.WithDiagnosticHandler(diag.GraphiteHandler())
 	}
 
 	// Set the Meta Client and PointsWriter.

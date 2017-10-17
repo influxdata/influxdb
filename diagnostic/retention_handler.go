@@ -12,7 +12,7 @@ type RetentionHandler struct {
 	l *zap.Logger
 }
 
-func (s *Service) RetentionContext() retention.Context {
+func (s *Service) RetentionHandler() retention.Handler {
 	if s == nil {
 		return nil
 	}

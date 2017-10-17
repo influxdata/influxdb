@@ -31,6 +31,7 @@ import (
 	"github.com/influxdata/influxdb/prometheus"
 	"github.com/influxdata/influxdb/prometheus/remote"
 	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/services/httpd/diagnostic"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/uuid"
@@ -106,20 +107,9 @@ type Handler struct {
 	}
 
 	Config     *Config
-	Diagnostic interface {
-		UnauthorizedRequest(user string, query, database string)
-		AsyncQueryError(query string, err error)
-		WriteBodyReceived(body []byte)
-		WriteBodyReadError()
-		StatusDeprecated()
-		PromWriteBodyReceived(body []byte)
-		PromWriteBodyReadError()
-		PromWriteError(err error)
-		JWTClaimsAssertError()
-		HttpError(status int, errStr string)
-	}
-	CLFLogger *log.Logger
-	stats     *Statistics
+	Diagnostic diagnostic.RouteContext
+	CLFLogger  *log.Logger
+	stats      *Statistics
 
 	requestTracker *RequestTracker
 }
@@ -396,9 +386,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 	if h.Config.AuthEnabled {
 		if err := h.QueryAuthorizer.AuthorizeQuery(user, q, db); err != nil {
 			if err, ok := err.(meta.ErrAuthorize); ok {
-				if h.Diagnostic != nil {
-					h.Diagnostic.UnauthorizedRequest(user.ID(), err.Query.String(), db)
-				}
+				h.Diagnostic.UnauthorizedRequest(user.ID(), err.Query.String(), db)
 			}
 			h.httpError(rw, "error authorizing query: "+err.Error(), http.StatusForbidden)
 			return
@@ -604,9 +592,7 @@ func (h *Handler) async(q *influxql.Query, results <-chan *query.Result) {
 			if r.Err == query.ErrNotExecuted {
 				continue
 			}
-			if h.Diagnostic != nil {
-				h.Diagnostic.AsyncQueryError(q.String(), r.Err)
-			}
+			h.Diagnostic.AsyncQueryError(q.String(), r.Err)
 		}
 	}
 }
@@ -680,7 +666,7 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user meta.U
 			return
 		}
 
-		if h.Config.WriteTracing && h.Diagnostic != nil {
+		if h.Config.WriteTracing {
 			h.Diagnostic.WriteBodyReadError()
 		}
 		h.httpError(w, err.Error(), http.StatusBadRequest)
@@ -688,7 +674,7 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user meta.U
 	}
 	atomic.AddInt64(&h.stats.WriteRequestBytesReceived, int64(buf.Len()))
 
-	if h.Config.WriteTracing && h.Diagnostic != nil {
+	if h.Config.WriteTracing {
 		h.Diagnostic.WriteBodyReceived(buf.Bytes())
 	}
 
@@ -759,9 +745,7 @@ func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
 
 // serveStatus has been deprecated.
 func (h *Handler) serveStatus(w http.ResponseWriter, r *http.Request) {
-	if h.Diagnostic != nil {
-		h.Diagnostic.StatusDeprecated()
-	}
+	h.Diagnostic.StatusDeprecated()
 	atomic.AddInt64(&h.stats.StatusRequests, 1)
 	h.writeHeader(w, http.StatusNoContent)
 }
@@ -852,7 +836,7 @@ func (h *Handler) servePromWrite(w http.ResponseWriter, r *http.Request, user me
 			return
 		}
 
-		if h.Config.WriteTracing && h.Diagnostic != nil {
+		if h.Config.WriteTracing {
 			h.Diagnostic.PromWriteBodyReadError()
 		}
 		h.httpError(w, err.Error(), http.StatusBadRequest)
@@ -860,7 +844,7 @@ func (h *Handler) servePromWrite(w http.ResponseWriter, r *http.Request, user me
 	}
 	atomic.AddInt64(&h.stats.WriteRequestBytesReceived, int64(buf.Len()))
 
-	if h.Config.WriteTracing && h.Diagnostic != nil {
+	if h.Config.WriteTracing {
 		h.Diagnostic.PromWriteBodyReceived(buf.Bytes())
 	}
 
@@ -879,7 +863,7 @@ func (h *Handler) servePromWrite(w http.ResponseWriter, r *http.Request, user me
 
 	points, err := prometheus.WriteRequestToPoints(&req)
 	if err != nil {
-		if h.Config.WriteTracing && h.Diagnostic != nil {
+		if h.Config.WriteTracing {
 			h.Diagnostic.PromWriteError(err)
 		}
 
@@ -957,9 +941,7 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 	if h.Config.AuthEnabled {
 		if err := h.QueryAuthorizer.AuthorizeQuery(user, q, db); err != nil {
 			if err, ok := err.(meta.ErrAuthorize); ok {
-				if h.Diagnostic != nil {
-					h.Diagnostic.UnauthorizedRequest(user.ID(), err.Query.String(), db)
-				}
+				h.Diagnostic.UnauthorizedRequest(user.ID(), err.Query.String(), db)
 			}
 			h.httpError(w, "error authorizing query: "+err.Error(), http.StatusForbidden)
 			return
@@ -1396,9 +1378,7 @@ func authenticate(inner func(http.ResponseWriter, *http.Request, meta.User), h *
 				claims, ok := token.Claims.(jwt.MapClaims)
 				if !ok {
 					h.httpError(w, "problem authenticating token", http.StatusInternalServerError)
-					if h.Diagnostic != nil {
-						h.Diagnostic.JWTClaimsAssertError()
-					}
+					h.Diagnostic.JWTClaimsAssertError()
 					return
 				}
 
@@ -1515,7 +1495,7 @@ func (h *Handler) logging(inner http.Handler, name string) http.Handler {
 		// Log server errors.
 		if l.Status()/100 == 5 {
 			errStr := l.Header().Get("X-InfluxDB-Error")
-			if errStr != "" && h.Diagnostic != nil {
+			if errStr != "" {
 				h.Diagnostic.HttpError(l.Status(), errStr)
 			}
 		}

@@ -94,10 +94,10 @@ func (cmd *Command) run(path, walPath string, verbose bool) error {
 	// Open TSI index in temporary path.
 	tsiIndex := tsi1.NewIndex()
 	tsiIndex.Path = tmpPath
-	if ctx, ok := cmd.Diagnostic.StoreContext().(interface {
-		TSI1Context() tsi1diag.Context
+	if ctx, ok := cmd.Diagnostic.StoreHandler().(interface {
+		TSI1Handler() tsi1diag.Handler
 	}); ok {
-		tsiIndex.WithDiagnosticContext(ctx.TSI1Context())
+		tsiIndex.WithDiagnosticHandler(ctx.TSI1Handler())
 	}
 	cmd.Logger().Info("opening tsi index in temporary location", zap.String("path", tmpPath))
 	if err := tsiIndex.Open(); err != nil {

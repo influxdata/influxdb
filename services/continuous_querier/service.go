@@ -116,9 +116,7 @@ func NewService(c Config) *Service {
 
 // Open starts the service.
 func (s *Service) Open() error {
-	if s.Diagnostic != nil {
-		s.Diagnostic.Starting()
-	}
+	s.Diagnostic.Starting()
 
 	if s.stop != nil {
 		return nil
@@ -147,8 +145,8 @@ func (s *Service) Close() error {
 }
 
 // WithLogger sets the logger on the service.
-func (s *Service) With(d diagnostic.Context) {
-	s.Diagnostic = d
+func (s *Service) WithDiagnosticHandler(d diagnostic.Handler) {
+	s.Diagnostic.Handler = d
 }
 
 // Statistics maintains the statistics for the continuous query service.
@@ -219,18 +217,14 @@ func (s *Service) backgroundLoop() {
 	for {
 		select {
 		case <-s.stop:
-			if s.Diagnostic != nil {
-				s.Diagnostic.Closing()
-			}
+			s.Diagnostic.Closing()
 			return
 		case req := <-s.RunCh:
 			if !s.hasContinuousQueries() {
 				continue
 			}
 			if _, err := s.MetaClient.AcquireLease(leaseName); err == nil {
-				if s.Diagnostic != nil {
-					s.Diagnostic.RunningByRequest(req.Now)
-				}
+				s.Diagnostic.RunningByRequest(req.Now)
 				s.runContinuousQueries(req)
 			}
 		case <-t.C:
@@ -271,9 +265,7 @@ func (s *Service) runContinuousQueries(req *RunRequest) {
 				continue
 			}
 			if ok, err := s.ExecuteContinuousQuery(&db, &cq, req.Now); err != nil {
-				if s.Diagnostic != nil {
-					s.Diagnostic.ExecuteContinuousQueryError(cq.Query, err)
-				}
+				s.Diagnostic.ExecuteContinuousQueryError(cq.Query, err)
 				atomic.AddInt64(&s.stats.QueryFail, 1)
 			} else if ok {
 				atomic.AddInt64(&s.stats.QueryOK, 1)
@@ -376,7 +368,7 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 		start = time.Now()
 	}
 
-	if s.diagnosticsEnabled && s.Diagnostic != nil {
+	if s.diagnosticsEnabled {
 		s.Diagnostic.ExecuteContinuousQuery(cq.Info.Name, startTime, endTime)
 	}
 
@@ -398,7 +390,7 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 		written = s.Values[0][1].(int64)
 	}
 
-	if s.diagnosticsEnabled && s.Diagnostic != nil {
+	if s.diagnosticsEnabled {
 		s.Diagnostic.FinishContinuousQuery(cq.Info.Name, written, startTime, endTime, execDuration)
 	}
 

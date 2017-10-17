@@ -38,9 +38,7 @@ func NewService(c Config) *Service {
 
 // Open starts retention policy enforcement.
 func (s *Service) Open() error {
-	if s.diag != nil {
-		s.diag.Starting(s.checkInterval)
-	}
+	s.diag.Starting(s.checkInterval)
 	s.wg.Add(2)
 	go s.deleteShardGroups()
 	go s.deleteShards()
@@ -49,17 +47,15 @@ func (s *Service) Open() error {
 
 // Close stops retention policy enforcement.
 func (s *Service) Close() error {
-	if s.diag != nil {
-		s.diag.Closing()
-	}
+	s.diag.Closing()
 	close(s.done)
 	s.wg.Wait()
 	return nil
 }
 
-// WithLogger sets the logger on the service.
-func (s *Service) With(d diagnostic.Context) {
-	s.diag = d
+// WithdiagnosticHandler sets the diagnostic handler on the service.
+func (s *Service) WithDiagnosticHandler(d diagnostic.Handler) {
+	s.diag.Handler = d
 }
 
 func (s *Service) deleteShardGroups() {
@@ -78,10 +74,8 @@ func (s *Service) deleteShardGroups() {
 				for _, r := range d.RetentionPolicies {
 					for _, g := range r.ExpiredShardGroups(time.Now().UTC()) {
 						if err := s.MetaClient.DeleteShardGroup(d.Name, r.Name, g.ID); err != nil {
-							if s.diag != nil {
-								s.diag.DeleteShardGroupError(g.ID, d.Name, r.Name, err)
-							}
-						} else if s.diag != nil {
+							s.diag.DeleteShardGroupError(g.ID, d.Name, r.Name, err)
+						} else {
 							s.diag.DeletedShardGroup(g.ID, d.Name, r.Name)
 						}
 					}
@@ -102,9 +96,7 @@ func (s *Service) deleteShards() {
 			return
 
 		case <-ticker.C:
-			if s.diag != nil {
-				s.diag.StartingCheck()
-			}
+			s.diag.StartingCheck()
 
 			type deletionInfo struct {
 				db string
@@ -125,17 +117,13 @@ func (s *Service) deleteShards() {
 			for _, id := range s.TSDBStore.ShardIDs() {
 				if info, ok := deletedShardIDs[id]; ok {
 					if err := s.TSDBStore.DeleteShard(id); err != nil {
-						if s.diag != nil {
-							s.diag.DeleteShardError(id, info.db, info.rp, err)
-						}
+						s.diag.DeleteShardError(id, info.db, info.rp, err)
 						continue
 					}
-					if s.diag != nil {
-						s.diag.DeletedShard(id, info.db, info.rp)
-					}
+					s.diag.DeletedShard(id, info.db, info.rp)
 				}
 			}
-			if err := s.MetaClient.PruneShardGroups(); err != nil && s.diag != nil {
+			if err := s.MetaClient.PruneShardGroups(); err != nil {
 				s.diag.PruneShardGroupsError(err)
 			}
 		}

@@ -2785,7 +2785,7 @@ func BenchmarkFileStore_Stats(b *testing.B) {
 	fs := tsm1.NewFileStore(dir)
 	if testing.Verbose() {
 		diag := diagnostic.New(os.Stderr)
-		fs.WithDiagnosticContext(diag.StoreContext().(interface {
+		fs.WithDiagnosticHandler(diag.StoreHandler().(interface {
 			TSM1Context() tsm1diag.Context
 		}).TSM1Context())
 	}

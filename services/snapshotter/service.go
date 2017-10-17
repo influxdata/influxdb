@@ -54,9 +54,7 @@ func NewService() *Service {
 
 // Open starts the service.
 func (s *Service) Open() error {
-	if s.Diagnostic != nil {
-		s.Diagnostic.Starting()
-	}
+	s.Diagnostic.Starting()
 
 	s.wg.Add(1)
 	go s.serve()
@@ -72,9 +70,9 @@ func (s *Service) Close() error {
 	return nil
 }
 
-// WithLogger sets the logger on the service.
-func (s *Service) With(d diagnostic.Context) {
-	s.Diagnostic = d
+// WithDiagnosticContext sets the diagnostic handler on the service.
+func (s *Service) WithDiagnosticContext(d diagnostic.Handler) {
+	s.Diagnostic.Handler = d
 }
 
 // Err returns a channel for fatal out-of-band errors.
@@ -88,14 +86,10 @@ func (s *Service) serve() {
 		// Wait for next connection.
 		conn, err := s.Listener.Accept()
 		if err != nil && strings.Contains(err.Error(), "connection closed") {
-			if s.Diagnostic != nil {
-				s.Diagnostic.Closed()
-			}
+			s.Diagnostic.Closed()
 			return
 		} else if err != nil {
-			if s.Diagnostic != nil {
-				s.Diagnostic.AcceptError(err)
-			}
+			s.Diagnostic.AcceptError(err)
 			continue
 		}
 
@@ -104,7 +98,7 @@ func (s *Service) serve() {
 		go func(conn net.Conn) {
 			defer s.wg.Done()
 			defer conn.Close()
-			if err := s.handleConn(conn); err != nil && s.Diagnostic != nil {
+			if err := s.handleConn(conn); err != nil {
 				s.Diagnostic.Error(err)
 			}
 		}(conn)

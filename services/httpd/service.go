@@ -60,10 +60,7 @@ type Service struct {
 
 	Handler *Handler
 
-	Diagnostic interface {
-		Starting(authEnabled bool)
-		Listening(protocol string, addr net.Addr)
-	}
+	Diagnostic diagnostic.ServiceContext
 }
 
 // NewService returns a new instance of Service.
@@ -87,9 +84,7 @@ func NewService(c Config) *Service {
 
 // Open starts the service.
 func (s *Service) Open() error {
-	if s.Diagnostic != nil {
-		s.Diagnostic.Starting(s.Handler.Config.AuthEnabled)
-	}
+	s.Diagnostic.Starting(s.Handler.Config.AuthEnabled)
 
 	// Open listener.
 	if s.https {
@@ -105,9 +100,7 @@ func (s *Service) Open() error {
 			return err
 		}
 
-		if s.Diagnostic != nil {
-			s.Diagnostic.Listening("HTTPS", listener.Addr())
-		}
+		s.Diagnostic.Listening("HTTPS", listener.Addr())
 		s.ln = listener
 	} else {
 		listener, err := net.Listen("tcp", s.addr)
@@ -115,9 +108,7 @@ func (s *Service) Open() error {
 			return err
 		}
 
-		if s.Diagnostic != nil {
-			s.Diagnostic.Listening("HTTP", listener.Addr())
-		}
+		s.Diagnostic.Listening("HTTP", listener.Addr())
 		s.ln = listener
 	}
 
@@ -138,9 +129,7 @@ func (s *Service) Open() error {
 			return err
 		}
 
-		if s.Diagnostic != nil {
-			s.Diagnostic.Listening("unix socket", listener.Addr())
-		}
+		s.Diagnostic.Listening("unix socket", listener.Addr())
 		s.unixSocketListener = listener
 
 		go s.serveUnixSocket()
@@ -185,9 +174,9 @@ func (s *Service) Close() error {
 }
 
 // WithLogger sets the logger for the service.
-func (s *Service) With(d diagnostic.Context) {
-	s.Diagnostic = d
-	s.Handler.Diagnostic = d
+func (s *Service) With(d diagnostic.Handler) {
+	s.Diagnostic.Handler = d
+	s.Handler.Diagnostic.Handler = d
 }
 
 // Err returns a channel for fatal errors that occur on the listener.

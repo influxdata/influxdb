@@ -12,7 +12,7 @@ type MonitorHandler struct {
 	l *zap.Logger
 }
 
-func (s *Service) MonitorContext() monitor.Context {
+func (s *Service) MonitorHandler() monitor.Handler {
 	if s == nil {
 		return nil
 	}

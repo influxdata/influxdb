@@ -192,10 +192,7 @@ type QueryExecutor struct {
 
 	// Logger to use for all logging.
 	// Defaults to discarding all log output.
-	Diagnostic interface {
-		PrintStatement(query string)
-		QueryPanic(query string, err interface{}, stack []byte)
-	}
+	Diagnostic diagnostic.ExecutorContext
 
 	// expvar-based stats.
 	stats *QueryStatistics
@@ -240,9 +237,9 @@ func (e *QueryExecutor) Close() error {
 
 // SetLogOutput sets the writer to which all logs are written. It must not be
 // called after Open is called.
-func (e *QueryExecutor) With(d diagnostic.Context) {
-	e.Diagnostic = d
-	e.TaskManager.Diagnostic = d
+func (e *QueryExecutor) WithDiagnosticHandler(d diagnostic.Handler) {
+	e.Diagnostic.Handler = d
+	e.TaskManager.Diagnostic.Handler = d
 }
 
 // ExecuteQuery executes each statement within a query.
@@ -347,8 +344,8 @@ LOOP:
 		}
 
 		// Log each normalized statement.
-		if !ctx.Quiet && e.Diagnostic != nil {
-			e.Diagnostic.PrintStatement(stmt.String())
+		if !ctx.Quiet {
+			e.Diagnostic.OnExecuteStatement(stmt.String())
 		}
 
 		// Send any other statements to the underlying statement executor.
@@ -414,9 +411,7 @@ func init() {
 func (e *QueryExecutor) recover(query *influxql.Query, results chan *Result) {
 	if err := recover(); err != nil {
 		atomic.AddInt64(&e.stats.RecoveredPanics, 1) // Capture the panic in _internal stats.
-		if e.Diagnostic != nil {
-			e.Diagnostic.QueryPanic(query.String(), err, debug.Stack())
-		}
+		e.Diagnostic.OnPanic(query.String(), err, debug.Stack())
 		results <- &Result{
 			StatementID: -1,
 			Err:         fmt.Errorf("%s [panic:%s]", query.String(), err),

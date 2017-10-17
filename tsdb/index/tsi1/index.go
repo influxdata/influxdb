@@ -320,9 +320,9 @@ func (i *Index) writeManifestFile() error {
 	return WriteManifestFile(i.ManifestPath(), i.Manifest())
 }
 
-// WithDiagnosticContext sets the diagnostic for the index.
-func (i *Index) WithDiagnosticContext(d diagnostic.Context) {
-	i.diag = d
+// WithDiagnosticHandler sets the diagnostic handler for the index.
+func (i *Index) WithDiagnosticHandler(d diagnostic.Handler) {
+	i.diag.Handler = d
 }
 
 // SetFieldSet sets a shared field set from the engine.
@@ -911,10 +911,7 @@ func (i *Index) compactToLevel(files []*IndexFile, level int) {
 	assert(level > 0, "cannot compact level zero")
 
 	// Generate a token to identify this compaction.
-	var diag diagnostic.CompactionContext
-	if i.diag != nil {
-		diag = i.diag.WithCompactionToken(generateCompactionToken())
-	}
+	diag := i.diag.WithCompactionToken(generateCompactionToken())
 
 	// Files have already been retained by caller.
 	// Ensure files are released only once.
@@ -928,32 +925,24 @@ func (i *Index) compactToLevel(files []*IndexFile, level int) {
 	path := filepath.Join(i.Path, FormatIndexFileName(i.NextSequence(), level))
 	f, err := os.Create(path)
 	if err != nil {
-		if diag != nil {
-			diag.CreateCompactionFilesError(err)
-		}
+		diag.CreateCompactionFilesError(err)
 		return
 	}
 	defer f.Close()
 
-	if diag != nil {
-		diag.PerformingFullCompaction(IndexFiles(files).IDs(), path)
-	}
+	diag.PerformingFullCompaction(IndexFiles(files).IDs(), path)
 
 	// Compact all index files to new index file.
 	lvl := i.levels[level]
 	n, err := IndexFiles(files).CompactTo(f, lvl.M, lvl.K)
 	if err != nil {
-		if diag != nil {
-			diag.CannotCompactIndexFiles(err)
-		}
+		diag.CannotCompactIndexFiles(err)
 		return
 	}
 
 	// Close file.
 	if err := f.Close(); err != nil {
-		if diag != nil {
-			diag.ErrorClosingIndexFile(err)
-		}
+		diag.ErrorClosingIndexFile(err)
 		return
 	}
 
@@ -961,9 +950,7 @@ func (i *Index) compactToLevel(files []*IndexFile, level int) {
 	file := NewIndexFile()
 	file.SetPath(path)
 	if err := file.Open(); err != nil {
-		if diag != nil {
-			diag.CannotOpenNewIndexFile(err)
-		}
+		diag.CannotOpenNewIndexFile(err)
 		return
 	}
 
@@ -982,35 +969,24 @@ func (i *Index) compactToLevel(files []*IndexFile, level int) {
 		}
 		return nil
 	}(); err != nil {
-		if diag != nil {
-			diag.ManifestWriteError(err)
-		}
+		diag.ManifestWriteError(err)
 		return
 	}
 
-	if diag != nil {
-		elapsed := time.Since(start)
-		diag.CompletedFullCompaction(path, elapsed, n)
-	}
+	diag.CompletedFullCompaction(path, time.Since(start), n)
 
 	// Release old files.
 	once.Do(func() { IndexFiles(files).Release() })
 
 	// Close and delete all old index files.
 	for _, f := range files {
-		if diag != nil {
-			diag.RemovingIndexFile(f.Path())
-		}
+		diag.RemovingIndexFile(f.Path())
 
 		if err := f.Close(); err != nil {
-			if diag != nil {
-				diag.CannotCloseIndexFile(err)
-			}
+			diag.CannotCloseIndexFile(err)
 			return
 		} else if err := os.Remove(f.Path()); err != nil {
-			if diag != nil {
-				diag.CannotRemoveIndexFile(err)
-			}
+			diag.CannotRemoveIndexFile(err)
 			return
 		}
 	}
@@ -1069,18 +1045,13 @@ func (i *Index) compactLogFile(logFile *LogFile) {
 	assert(id != 0, "cannot parse log file id: %s", logFile.Path())
 
 	// Build a logger for this compaction.
-	var diag diagnostic.LogFileCompactionContext
-	if i.diag != nil {
-		diag = i.diag.WithLogFileCompactionToken(generateCompactionToken(), id)
-	}
+	diag := i.diag.WithLogFileCompactionToken(generateCompactionToken(), id)
 
 	// Create new index file.
 	path := filepath.Join(i.Path, FormatIndexFileName(id, 1))
 	f, err := os.Create(path)
 	if err != nil {
-		if diag != nil {
-			diag.CannotCreateIndexFile(err)
-		}
+		diag.CannotCreateIndexFile(err)
 		return
 	}
 	defer f.Close()
@@ -1089,17 +1060,13 @@ func (i *Index) compactLogFile(logFile *LogFile) {
 	lvl := i.levels[1]
 	n, err := logFile.CompactTo(f, lvl.M, lvl.K)
 	if err != nil {
-		if diag != nil {
-			diag.CannotCompactLogFile(logFile.Path(), err)
-		}
+		diag.CannotCompactLogFile(logFile.Path(), err)
 		return
 	}
 
 	// Close file.
 	if err := f.Close(); err != nil {
-		if diag != nil {
-			diag.CannotCloseLogFile(err)
-		}
+		diag.CannotCloseLogFile(err)
 		return
 	}
 
@@ -1107,9 +1074,7 @@ func (i *Index) compactLogFile(logFile *LogFile) {
 	file := NewIndexFile()
 	file.SetPath(path)
 	if err := file.Open(); err != nil {
-		if diag != nil {
-			diag.CannotOpenCompactedIndexFile(file.Path(), err)
-		}
+		diag.CannotOpenCompactedIndexFile(file.Path(), err)
 		return
 	}
 
@@ -1128,27 +1093,18 @@ func (i *Index) compactLogFile(logFile *LogFile) {
 		}
 		return nil
 	}(); err != nil {
-		if diag != nil {
-			diag.UpdateManifestError(err)
-		}
+		diag.UpdateManifestError(err)
 		return
 	}
 
-	if diag != nil {
-		elapsed := time.Since(start)
-		diag.LogFileCompacted(elapsed, n)
-	}
+	diag.LogFileCompacted(time.Since(start), n)
 
 	// Closing the log file will automatically wait until the ref count is zero.
 	if err := logFile.Close(); err != nil {
-		if diag != nil {
-			diag.CannotCloseLogFile(err)
-		}
+		diag.CannotCloseLogFile(err)
 		return
 	} else if err := os.Remove(logFile.Path()); err != nil {
-		if diag != nil {
-			diag.CannotRemoveLogFile(err)
-		}
+		diag.CannotRemoveLogFile(err)
 		return
 	}
 

@@ -792,22 +792,16 @@ func (c *Client) PrecreateShardGroups(from, to time.Time) error {
 				nextShardGroupTime := g.EndTime.Add(1 * time.Nanosecond)
 				// if it already exists, continue
 				if sg, _ := data.ShardGroupByTimestamp(di.Name, rp.Name, nextShardGroupTime); sg != nil {
-					if c.diag != nil {
-						c.diag.ShardGroupExists(sg.ID, di.Name, rp.Name)
-					}
+					c.diag.ShardGroupExists(sg.ID, di.Name, rp.Name)
 					continue
 				}
 				newGroup, err := createShardGroup(data, di.Name, rp.Name, nextShardGroupTime)
 				if err != nil {
-					if c.diag != nil {
-						c.diag.PrecreateShardError(g.ID, err)
-					}
+					c.diag.PrecreateShardError(g.ID, err)
 					continue
 				}
 				changed = true
-				if c.diag != nil {
-					c.diag.NewShardGroup(newGroup.ID, di.Name, rp.Name)
-				}
+				c.diag.NewShardGroup(newGroup.ID, di.Name, rp.Name)
 			}
 		}
 	}
@@ -982,11 +976,11 @@ func (c *Client) MarshalBinary() ([]byte, error) {
 	return c.cacheData.MarshalBinary()
 }
 
-// WithLogger sets the logger for the client.
-func (c *Client) With(d diagnostic.Context) {
+// WithDiagnosticHandler sets the diagnostic handler for the client.
+func (c *Client) WithDiagnosticHandler(d diagnostic.Handler) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.diag = d
+	c.diag.Handler = d
 }
 
 // snapshot saves the current meta data to disk.

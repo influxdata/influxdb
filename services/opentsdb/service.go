@@ -110,9 +110,7 @@ func (s *Service) Open() error {
 	}
 	s.done = make(chan struct{})
 
-	if s.Diagnostic != nil {
-		s.Diagnostic.Starting()
-	}
+	s.Diagnostic.Starting()
 
 	s.batcher = tsdb.NewPointBatcher(s.batchSize, s.batchPending, s.batchTimeout)
 	s.batcher.Start()
@@ -135,9 +133,7 @@ func (s *Service) Open() error {
 			return err
 		}
 
-		if s.Diagnostic != nil {
-			s.Diagnostic.Listening(true, listener.Addr())
-		}
+		s.Diagnostic.Listening(true, listener.Addr())
 		s.ln = listener
 	} else {
 		listener, err := net.Listen("tcp", s.BindAddress)
@@ -145,9 +141,7 @@ func (s *Service) Open() error {
 			return err
 		}
 
-		if s.Diagnostic != nil {
-			s.Diagnostic.Listening(false, listener.Addr())
-		}
+		s.Diagnostic.Listening(false, listener.Addr())
 		s.ln = listener
 	}
 	s.httpln = newChanListener(s.ln.Addr())
@@ -240,9 +234,9 @@ func (s *Service) createInternalStorage() error {
 	return nil
 }
 
-// WithLogger sets the logger for the service.
-func (s *Service) With(d diagnostic.Context) {
-	s.Diagnostic = d
+// WithDiagnosticHandler sets the diagnostic handler for the service.
+func (s *Service) WithDiagnosticHandler(d diagnostic.Handler) {
+	s.Diagnostic.Handler = d
 }
 
 // Statistics maintains statistics for the subscriber service.
@@ -305,14 +299,10 @@ func (s *Service) serve() {
 		// Wait for next connection.
 		conn, err := s.ln.Accept()
 		if opErr, ok := err.(*net.OpError); ok && !opErr.Temporary() {
-			if s.Diagnostic != nil {
-				s.Diagnostic.Closed(nil)
-			}
+			s.Diagnostic.Closed(nil)
 			return
 		} else if err != nil {
-			if s.Diagnostic != nil {
-				s.Diagnostic.Closed(err)
-			}
+			s.Diagnostic.Closed(err)
 			continue
 		}
 
@@ -367,9 +357,7 @@ func (s *Service) handleTelnetConn(conn net.Conn) {
 		if err != nil {
 			if err != io.EOF {
 				atomic.AddInt64(&s.stats.TelnetReadError, 1)
-				if s.Diagnostic != nil {
-					s.Diagnostic.ConnReadError(err)
-				}
+				s.Diagnostic.ConnReadError(err)
 			}
 			return
 		}
@@ -385,7 +373,7 @@ func (s *Service) handleTelnetConn(conn net.Conn) {
 
 		if len(inputStrs) < 4 || inputStrs[0] != "put" {
 			atomic.AddInt64(&s.stats.TelnetBadLine, 1)
-			if s.LogPointErrors && s.Diagnostic != nil {
+			if s.LogPointErrors {
 				s.Diagnostic.MalformedLine(line, conn.RemoteAddr())
 			}
 			continue
@@ -400,7 +388,7 @@ func (s *Service) handleTelnetConn(conn net.Conn) {
 		ts, err := strconv.ParseInt(tsStr, 10, 64)
 		if err != nil {
 			atomic.AddInt64(&s.stats.TelnetBadTime, 1)
-			if s.LogPointErrors && s.Diagnostic != nil {
+			if s.LogPointErrors {
 				s.Diagnostic.MalformedTime(tsStr, conn.RemoteAddr(), err)
 			}
 		}
@@ -412,7 +400,7 @@ func (s *Service) handleTelnetConn(conn net.Conn) {
 			t = time.Unix(ts/1000, (ts%1000)*1000)
 		default:
 			atomic.AddInt64(&s.stats.TelnetBadTime, 1)
-			if s.LogPointErrors && s.Diagnostic != nil {
+			if s.LogPointErrors {
 				s.Diagnostic.MalformedTime(tsStr, conn.RemoteAddr(), fmt.Errorf("must be 10 or 13 chars"))
 			}
 			continue
@@ -423,7 +411,7 @@ func (s *Service) handleTelnetConn(conn net.Conn) {
 			parts := strings.SplitN(tagStrs[t], "=", 2)
 			if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 				atomic.AddInt64(&s.stats.TelnetBadTag, 1)
-				if s.LogPointErrors && s.Diagnostic != nil {
+				if s.LogPointErrors {
 					s.Diagnostic.MalformedTag(tagStrs[t], conn.RemoteAddr())
 				}
 				continue
@@ -437,7 +425,7 @@ func (s *Service) handleTelnetConn(conn net.Conn) {
 		fv, err := strconv.ParseFloat(valueStr, 64)
 		if err != nil {
 			atomic.AddInt64(&s.stats.TelnetBadFloat, 1)
-			if s.LogPointErrors && s.Diagnostic != nil {
+			if s.LogPointErrors {
 				s.Diagnostic.MalformedFloat(valueStr, conn.RemoteAddr())
 			}
 			continue
@@ -447,7 +435,7 @@ func (s *Service) handleTelnetConn(conn net.Conn) {
 		pt, err := models.NewPoint(measurement, models.NewTags(tags), fields, t)
 		if err != nil {
 			atomic.AddInt64(&s.stats.TelnetBadFloat, 1)
-			if s.LogPointErrors && s.Diagnostic != nil {
+			if s.LogPointErrors {
 				s.Diagnostic.MalformedFloat(valueStr, conn.RemoteAddr())
 			}
 			continue
@@ -462,7 +450,7 @@ func (s *Service) serveHTTP() {
 		Database:        s.Database,
 		RetentionPolicy: s.RetentionPolicy,
 		PointsWriter:    s.PointsWriter,
-		Diagnostic:      s.Diagnostic,
+		Diagnostic:      diagnostic.WriteContext{Handler: s.Diagnostic.Handler},
 		stats:           s.stats,
 	}
 	srv := &http.Server{Handler: handler}
@@ -478,9 +466,7 @@ func (s *Service) processBatches(batcher *tsdb.PointBatcher) {
 		case batch := <-batcher.Out():
 			// Will attempt to create database if not yet created.
 			if err := s.createInternalStorage(); err != nil {
-				if s.Diagnostic != nil {
-					s.Diagnostic.InternalStorageCreateError(s.Database, err)
-				}
+				s.Diagnostic.InternalStorageCreateError(s.Database, err)
 				continue
 			}
 
@@ -488,9 +474,7 @@ func (s *Service) processBatches(batcher *tsdb.PointBatcher) {
 				atomic.AddInt64(&s.stats.BatchesTransmitted, 1)
 				atomic.AddInt64(&s.stats.PointsTransmitted, int64(len(batch)))
 			} else {
-				if s.Diagnostic != nil {
-					s.Diagnostic.PointWriterError(s.Database, err)
-				}
+				s.Diagnostic.PointWriterError(s.Database, err)
 				atomic.AddInt64(&s.stats.BatchesTransmitFail, 1)
 			}
 		}

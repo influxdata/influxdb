@@ -33,9 +33,9 @@ func NewService(c Config) (*Service, error) {
 	return &s, nil
 }
 
-// WithLogger sets the logger for the service.
-func (s *Service) With(d diagnostic.Context) {
-	s.Diagnostic = d
+// WithDiagnosticHandler sets the diagnostic handler for the service.
+func (s *Service) WithDiagnosticHandler(d diagnostic.Handler) {
+	s.Diagnostic.Handler = d
 }
 
 // Open starts the precreation service.
@@ -44,9 +44,7 @@ func (s *Service) Open() error {
 		return nil
 	}
 
-	if s.Diagnostic != nil {
-		s.Diagnostic.Starting(s.checkInterval, s.advancePeriod)
-	}
+	s.Diagnostic.Starting(s.checkInterval, s.advancePeriod)
 
 	s.done = make(chan struct{})
 
@@ -76,14 +74,10 @@ func (s *Service) runPrecreation() {
 		select {
 		case <-time.After(s.checkInterval):
 			if err := s.precreate(time.Now().UTC()); err != nil {
-				if s.Diagnostic != nil {
-					s.Diagnostic.PrecreateError(err)
-				}
+				s.Diagnostic.PrecreateError(err)
 			}
 		case <-s.done:
-			if s.Diagnostic != nil {
-				s.Diagnostic.Closing()
-			}
+			s.Diagnostic.Closing()
 			return
 		}
 	}

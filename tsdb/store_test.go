@@ -1198,7 +1198,7 @@ func NewStore() *Store {
 
 	if testing.Verbose() {
 		diag := diagnostic.New(os.Stdout)
-		s.With(diag.StoreContext())
+		s.WithDiagnosticHandler(diag.StoreHandler())
 	}
 	return s
 }

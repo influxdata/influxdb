@@ -523,11 +523,11 @@ func (e *Engine) Close() error {
 	return e.WAL.Close()
 }
 
-// WithDiagnosticContext sets the diagnostic for the engine.
-func (e *Engine) WithDiagnosticContext(d diagnostic.Context) {
-	e.diag = d
-	e.WAL.WithDiagnosticContext(d)
-	e.FileStore.WithDiagnosticContext(d)
+// WithDiagnosticHandler sets the diagnostic handler for the engine.
+func (e *Engine) WithDiagnosticHandler(d diagnostic.Handler) {
+	e.diag.Handler = d
+	e.WAL.WithDiagnosticHandler(d)
+	e.FileStore.WithDiagnosticHandler(d)
 }
 
 // LoadMetadataIndex loads the shard metadata into memory.
@@ -554,7 +554,7 @@ func (e *Engine) LoadMetadataIndex(shardID uint64, index tsdb.Index) error {
 	// load metadata from the Cache
 	if err := e.Cache.ApplyEntryFn(func(key []byte, entry *entry) error {
 		fieldType, err := entry.values.InfluxQLType()
-		if err != nil && e.diag != nil {
+		if err != nil {
 			e.diag.DataTypeRetrievalError(key, err)
 		}
 
@@ -566,7 +566,7 @@ func (e *Engine) LoadMetadataIndex(shardID uint64, index tsdb.Index) error {
 		return err
 	}
 
-	if e.traceLogging && e.diag != nil {
+	if e.traceLogging {
 		e.diag.MetaDataIndexLoaded(shardID, time.Since(now))
 	}
 	return nil
@@ -1119,9 +1119,7 @@ func (e *Engine) WriteSnapshot() error {
 	defer func() {
 		if started != nil {
 			e.Cache.UpdateCompactTime(time.Since(*started))
-			if e.diag != nil {
-				e.diag.SnapshotWritten(e.path, time.Since(*started))
-			}
+			e.diag.SnapshotWritten(e.path, time.Since(*started))
 		}
 	}()
 
@@ -1163,7 +1161,7 @@ func (e *Engine) WriteSnapshot() error {
 	// holding the engine write lock.
 	dedup := time.Now()
 	snapshot.Deduplicate()
-	if e.traceLogging && e.diag != nil {
+	if e.traceLogging {
 		e.diag.SnapshotDeduplicated(e.path, time.Since(dedup))
 	}
 
@@ -1194,9 +1192,7 @@ func (e *Engine) writeSnapshotAndCommit(closedFiles []string, snapshot *Cache) (
 	// write the new snapshot files
 	newFiles, err := e.Compactor.WriteSnapshot(snapshot)
 	if err != nil {
-		if e.diag != nil {
-			e.diag.WriteCompactorSnapshotError(err)
-		}
+		e.diag.WriteCompactorSnapshotError(err)
 		return err
 	}
 
@@ -1205,16 +1201,14 @@ func (e *Engine) writeSnapshotAndCommit(closedFiles []string, snapshot *Cache) (
 
 	// update the file store with these new files
 	if err := e.FileStore.Replace(nil, newFiles); err != nil {
-		if e.diag != nil {
-			e.diag.AddNewTSMFilesFromSnapshotError(err)
-		}
+		e.diag.AddNewTSMFilesFromSnapshotError(err)
 		return err
 	}
 
 	// clear the snapshot from the in-memory cache, then the old WAL files
 	e.Cache.ClearSnapshot(true)
 
-	if err := e.WAL.Remove(closedFiles); err != nil && e.diag != nil {
+	if err := e.WAL.Remove(closedFiles); err != nil {
 		e.diag.RemovingClosedWALSegmentsError(err)
 	}
 
@@ -1234,14 +1228,12 @@ func (e *Engine) compactCache(quit <-chan struct{}) {
 			e.Cache.UpdateAge()
 			if e.ShouldCompactCache(e.WAL.LastWriteTime()) {
 				start := time.Now()
-				if e.traceLogging && e.diag != nil {
+				if e.traceLogging {
 					e.diag.CompactingCache(e.path)
 				}
 				err := e.WriteSnapshot()
 				if err != nil && err != errCompactionsDisabled {
-					if e.diag != nil {
-						e.diag.SnapshotWriteError(err)
-					}
+					e.diag.SnapshotWriteError(err)
 					atomic.AddInt64(&e.stats.CacheCompactionErrors, 1)
 				} else {
 					atomic.AddInt64(&e.stats.CacheCompactions, 1)
@@ -1299,7 +1291,7 @@ func (e *Engine) compact(quit <-chan struct{}) {
 			run3 := atomic.LoadInt64(&e.stats.TSMCompactionsActive[2])
 			run4 := atomic.LoadInt64(&e.stats.TSMFullCompactionsActive)
 
-			if e.traceLogging && e.diag != nil {
+			if e.traceLogging {
 				e.diag.StartCompactionLoop(e.id, [][]int{
 					{int(run1), len(level1Groups)},
 					{int(run2), len(level2Groups)},
@@ -1321,7 +1313,7 @@ func (e *Engine) compact(quit <-chan struct{}) {
 				run3 := atomic.LoadInt64(&e.stats.TSMCompactionsActive[2])
 				run4 := atomic.LoadInt64(&e.stats.TSMFullCompactionsActive)
 
-				if e.traceLogging && e.diag != nil {
+				if e.traceLogging {
 					e.diag.RunCompaction(level, e.id, [][]int{
 						{int(run1), len(level1Groups)},
 						{int(run2), len(level2Groups)},
@@ -1476,16 +1468,12 @@ func (e *Engine) onFileStoreReplace(newFiles []TSMFile) {
 	for v := range merged {
 		fieldType, err := tsmFieldTypeToInfluxQLDataType(v.typ)
 		if err != nil {
-			if e.diag != nil {
-				e.diag.RefreshIndexError(1, err)
-			}
+			e.diag.RefreshIndexError(1, err)
 			continue
 		}
 
 		if err := e.addToIndexFromKey(v.key, fieldType); err != nil {
-			if e.diag != nil {
-				e.diag.RefreshIndexError(2, err)
-			}
+			e.diag.RefreshIndexError(2, err)
 			continue
 		}
 	}
@@ -1494,16 +1482,12 @@ func (e *Engine) onFileStoreReplace(newFiles []TSMFile) {
 	e.Cache.ApplyEntryFn(func(key []byte, entry *entry) error {
 		fieldType, err := entry.InfluxQLType()
 		if err != nil {
-			if e.diag != nil {
-				e.diag.RefreshIndexError(3, err)
-			}
+			e.diag.RefreshIndexError(3, err)
 			return nil
 		}
 
 		if err := e.addToIndexFromKey(key, fieldType); err != nil {
-			if e.diag != nil {
-				e.diag.RefreshIndexError(4, err)
-			}
+			e.diag.RefreshIndexError(4, err)
 			return nil
 		}
 		return nil
@@ -1611,7 +1595,7 @@ func (s *compactionStrategy) compactGroup() {
 func (e *Engine) levelCompactionStrategy(group CompactionGroup, fast bool, level int) *compactionStrategy {
 	return &compactionStrategy{
 		group:     group,
-		diag:      e.diag,
+		diag:      e.diag.Handler,
 		fileStore: e.FileStore,
 		compactor: e.Compactor,
 		fast:      fast,
@@ -1631,7 +1615,7 @@ func (e *Engine) levelCompactionStrategy(group CompactionGroup, fast bool, level
 func (e *Engine) fullCompactionStrategy(group CompactionGroup, optimize bool) *compactionStrategy {
 	s := &compactionStrategy{
 		group:     group,
-		diag:      e.diag,
+		diag:      e.diag.Handler,
 		fileStore: e.FileStore,
 		compactor: e.Compactor,
 		fast:      optimize,
@@ -1673,12 +1657,12 @@ func (e *Engine) reloadCache() error {
 	e.Cache.SetMaxSize(0)
 
 	loader := NewCacheLoader(files)
-	loader.WithDiagnosticContext(e.diag)
+	loader.WithDiagnosticHandler(e.diag.Handler)
 	if err := loader.Load(e.Cache); err != nil {
 		return err
 	}
 
-	if e.traceLogging && e.diag != nil {
+	if e.traceLogging {
 		e.diag.ReloadedWALCache(e.WAL.Path(), time.Since(now))
 	}
 	return nil
@@ -1740,7 +1724,7 @@ func (e *Engine) CreateIterator(measurement string, opt query.IteratorOptions) (
 				if err != nil {
 					return nil, err
 				}
-				return newMergeFinalizerIterator(itrs, opt, e.diag)
+				return newMergeFinalizerIterator(itrs, opt, e.diag.Handler)
 			}
 		}
 
@@ -1750,14 +1734,14 @@ func (e *Engine) CreateIterator(measurement string, opt query.IteratorOptions) (
 		} else if len(inputs) == 0 {
 			return nil, nil
 		}
-		return newMergeFinalizerIterator(inputs, opt, e.diag)
+		return newMergeFinalizerIterator(inputs, opt, e.diag.Handler)
 	}
 
 	itrs, err := e.createVarRefIterator(measurement, opt)
 	if err != nil {
 		return nil, err
 	}
-	return newMergeFinalizerIterator(itrs, opt, e.diag)
+	return newMergeFinalizerIterator(itrs, opt, e.diag.Handler)
 }
 
 func (e *Engine) createCallIterator(measurement string, call *influxql.Call, opt query.IteratorOptions) ([]query.Iterator, error) {

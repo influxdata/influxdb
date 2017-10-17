@@ -11,6 +11,7 @@ import (
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxdb/services/udp/diagnostic"
 	"github.com/influxdata/influxdb/tsdb"
 )
 
@@ -32,15 +33,6 @@ const (
 	statPointsTransmitted   = "pointsTx"
 	statBatchesTransmitFail = "batchesTxFail"
 )
-
-type Diagnostic interface {
-	Started(bindAddress string)
-	Closed()
-	CreateInternalStorageFailure(db string, err error)
-	PointWriterError(database string, err error)
-	ParseError(err error)
-	ReadFromError(err error)
-}
 
 // Service is a UDP service that will listen for incoming packets of line protocol.
 type Service struct {
@@ -64,7 +56,7 @@ type Service struct {
 		CreateDatabase(name string) (*meta.DatabaseInfo, error)
 	}
 
-	Diagnostic  Diagnostic
+	Diagnostic  diagnostic.Context
 	stats       *Statistics
 	defaultTags models.StatisticTags
 }
@@ -116,9 +108,7 @@ func (s *Service) Open() (err error) {
 		}
 	}
 
-	if s.Diagnostic != nil {
-		s.Diagnostic.Started(s.config.BindAddress)
-	}
+	s.Diagnostic.Started(s.config.BindAddress)
 
 	s.wg.Add(3)
 	go s.serve()
@@ -164,9 +154,7 @@ func (s *Service) writer() {
 		case batch := <-s.batcher.Out():
 			// Will attempt to create database if not yet created.
 			if err := s.createInternalStorage(); err != nil {
-				if s.Diagnostic != nil {
-					s.Diagnostic.CreateInternalStorageFailure(s.config.Database, err)
-				}
+				s.Diagnostic.CreateInternalStorageFailure(s.config.Database, err)
 				continue
 			}
 
@@ -174,9 +162,7 @@ func (s *Service) writer() {
 				atomic.AddInt64(&s.stats.BatchesTransmitted, 1)
 				atomic.AddInt64(&s.stats.PointsTransmitted, int64(len(batch)))
 			} else {
-				if s.Diagnostic != nil {
-					s.Diagnostic.PointWriterError(s.config.Database, err)
-				}
+				s.Diagnostic.PointWriterError(s.config.Database, err)
 				atomic.AddInt64(&s.stats.BatchesTransmitFail, 1)
 			}
 
@@ -201,9 +187,7 @@ func (s *Service) serve() {
 			n, _, err := s.conn.ReadFromUDP(buf)
 			if err != nil {
 				atomic.AddInt64(&s.stats.ReadFail, 1)
-				if s.Diagnostic != nil {
-					s.Diagnostic.ReadFromError(err)
-				}
+				s.Diagnostic.ReadFromError(err)
 				continue
 			}
 			atomic.AddInt64(&s.stats.BytesReceived, int64(n))
@@ -226,9 +210,7 @@ func (s *Service) parser() {
 			points, err := models.ParsePointsWithPrecision(buf, time.Now().UTC(), s.config.Precision)
 			if err != nil {
 				atomic.AddInt64(&s.stats.PointsParseFail, 1)
-				if s.Diagnostic != nil {
-					s.Diagnostic.ParseError(err)
-				}
+				s.Diagnostic.ParseError(err)
 				continue
 			}
 
@@ -261,9 +243,7 @@ func (s *Service) Close() error {
 	s.done = nil
 	s.conn = nil
 
-	if s.Diagnostic != nil {
-		s.Diagnostic.Closed()
-	}
+	s.Diagnostic.Closed()
 
 	return nil
 }
@@ -321,8 +301,8 @@ func (s *Service) createInternalStorage() error {
 }
 
 // WithLogger sets the logger on the service.
-func (s *Service) With(d Diagnostic) {
-	s.Diagnostic = d
+func (s *Service) WithDiagnosticHandler(d diagnostic.Handler) {
+	s.Diagnostic.Handler = d
 }
 
 // Addr returns the listener's address.

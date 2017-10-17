@@ -93,15 +93,11 @@ func (m *Monitor) open() bool {
 // for identification purpose.
 func (m *Monitor) Open() error {
 	if m.open() {
-		if m.Diagnostic != nil {
-			m.Diagnostic.AlreadyOpen()
-		}
+		m.Diagnostic.AlreadyOpen()
 		return nil
 	}
 
-	if m.Diagnostic != nil {
-		m.Diagnostic.Starting()
-	}
+	m.Diagnostic.Starting()
 
 	// Self-register various stats and diagnostics.
 	m.RegisterDiagnosticsClient("build", &build{
@@ -151,7 +147,7 @@ func (m *Monitor) writePoints(p models.Points) error {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	if err := m.PointsWriter.WritePoints(m.storeDatabase, m.storeRetentionPolicy, p); err != nil && m.Diagnostic != nil {
+	if err := m.PointsWriter.WritePoints(m.storeDatabase, m.storeRetentionPolicy, p); err != nil {
 		m.Diagnostic.StoreStatisticsError(err)
 	}
 	return nil
@@ -160,15 +156,11 @@ func (m *Monitor) writePoints(p models.Points) error {
 // Close closes the monitor system.
 func (m *Monitor) Close() error {
 	if !m.open() {
-		if m.Diagnostic != nil {
-			m.Diagnostic.AlreadyClosed()
-		}
+		m.Diagnostic.AlreadyClosed()
 		return nil
 	}
 
-	if m.Diagnostic != nil {
-		m.Diagnostic.Closing()
-	}
+	m.Diagnostic.Closing()
 	m.mu.Lock()
 	close(m.done)
 	m.mu.Unlock()
@@ -217,9 +209,9 @@ func (m *Monitor) SetPointsWriter(pw PointsWriter) error {
 	return m.Open()
 }
 
-// WithLogger sets the logger for the Monitor.
-func (m *Monitor) With(d diagnostic.Context) {
-	m.Diagnostic = d
+// WithDiagnosticHandler sets the diagnostic handler for the Monitor.
+func (m *Monitor) WithDiagnosticHandler(d diagnostic.Handler) {
+	m.Diagnostic.Handler = d
 }
 
 // RegisterDiagnosticsClient registers a diagnostics client with the given name and tags.
@@ -227,9 +219,7 @@ func (m *Monitor) RegisterDiagnosticsClient(name string, client diagnostics.Clie
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.diagRegistrations[name] = client
-	if m.Diagnostic != nil {
-		m.Diagnostic.DiagnosticRegistered(name)
-	}
+	m.Diagnostic.DiagnosticRegistered(name)
 }
 
 // DeregisterDiagnosticsClient deregisters a diagnostics client by name.
@@ -393,9 +383,7 @@ func (m *Monitor) createInternalStorage() {
 		}
 
 		if _, err := m.MetaClient.CreateDatabaseWithRetentionPolicy(m.storeDatabase, &spec); err != nil {
-			if m.Diagnostic != nil {
-				m.Diagnostic.CreateInternalStorageFailure(m.storeDatabase, err)
-			}
+			m.Diagnostic.CreateInternalStorageFailure(m.storeDatabase, err)
 			return
 		}
 	}
@@ -422,9 +410,7 @@ func (m *Monitor) waitUntilInterval(d time.Duration) error {
 // storeStatistics writes the statistics to an InfluxDB system.
 func (m *Monitor) storeStatistics() {
 	defer m.wg.Done()
-	if m.Diagnostic != nil {
-		m.Diagnostic.StoreStatistics(m.storeDatabase, m.storeRetentionPolicy, m.storeInterval)
-	}
+	m.Diagnostic.StoreStatistics(m.storeDatabase, m.storeRetentionPolicy, m.storeInterval)
 
 	// Wait until an even interval to start recording monitor statistics.
 	// If we are interrupted before the interval for some reason, exit early.
@@ -447,9 +433,7 @@ func (m *Monitor) storeStatistics() {
 
 			stats, err := m.Statistics(m.globalTags)
 			if err != nil {
-				if m.Diagnostic != nil {
-					m.Diagnostic.StatisticsRetrievalFailure(err)
-				}
+				m.Diagnostic.StatisticsRetrievalFailure(err)
 				return
 			}
 
@@ -458,9 +442,7 @@ func (m *Monitor) storeStatistics() {
 			for _, s := range stats {
 				pt, err := models.NewPoint(s.Name, models.NewTags(s.Tags), s.Values, now)
 				if err != nil {
-					if m.Diagnostic != nil {
-						m.Diagnostic.DroppingPoint(s.Name, err)
-					}
+					m.Diagnostic.DroppingPoint(s.Name, err)
 					return
 				}
 				batch = append(batch, pt)
@@ -476,9 +458,7 @@ func (m *Monitor) storeStatistics() {
 				m.writePoints(batch)
 			}
 		case <-m.done:
-			if m.Diagnostic != nil {
-				m.Diagnostic.StoreStatisticsDone()
-			}
+			m.Diagnostic.StoreStatisticsDone()
 			return
 		}
 	}

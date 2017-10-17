@@ -700,7 +700,7 @@ func NewTestService(t *testing.T, c *continuous_querier.Config) *continuous_quer
 	// Set Logger to write to dev/null so stdout isn't polluted.
 	if testing.Verbose() {
 		diag := diagnostic.New(os.Stderr)
-		s.With(diag.ContinuousQuerierContext())
+		s.WithDiagnosticHandler(diag.ContinuousQuerierHandler())
 	}
 
 	// Add a couple test databases and CQs.

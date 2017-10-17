@@ -700,9 +700,7 @@ func (cl *CacheLoader) Load(cache *Cache) error {
 			if err != nil {
 				return err
 			}
-			if cl.Diagnostic != nil {
-				cl.Diagnostic.CacheReadingFile(f.Name(), stat.Size())
-			}
+			cl.Diagnostic.CacheReadingFile(f.Name(), stat.Size())
 
 			// Nothing to read, skip it
 			if stat.Size() == 0 {
@@ -720,9 +718,7 @@ func (cl *CacheLoader) Load(cache *Cache) error {
 				entry, err := r.Read()
 				if err != nil {
 					n := r.Count()
-					if cl.Diagnostic != nil {
-						cl.Diagnostic.CacheFileCorrupt(f.Name(), n)
-					}
+					cl.Diagnostic.CacheFileCorrupt(f.Name(), n)
 					if err := f.Truncate(n); err != nil {
 						return err
 					}
@@ -749,9 +745,9 @@ func (cl *CacheLoader) Load(cache *Cache) error {
 	return nil
 }
 
-// WithDiagnosticContext sets the diagnostic on the CacheLoader.
-func (cl *CacheLoader) WithDiagnosticContext(d diagnostic.CacheLoaderContext) {
-	cl.Diagnostic = d
+// WithDiagnosticHandler sets the diagnostic handler on the CacheLoader.
+func (cl *CacheLoader) WithDiagnosticHandler(d diagnostic.CacheLoaderHandler) {
+	cl.Diagnostic.Handler = d
 }
 
 // UpdateAge updates the age statistic based on the current time.

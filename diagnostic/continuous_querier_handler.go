@@ -12,7 +12,7 @@ type ContinuousQuerierHandler struct {
 	l *zap.Logger
 }
 
-func (s *Service) ContinuousQuerierContext() continuous_querier.Context {
+func (s *Service) ContinuousQuerierHandler() continuous_querier.Handler {
 	if s == nil {
 		return nil
 	}

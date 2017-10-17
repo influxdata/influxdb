@@ -278,7 +278,7 @@ func NewTestService(database string, bind string) *TestService {
 
 	if testing.Verbose() {
 		diag := diagnostic.New(os.Stderr)
-		service.Service.With(diag.OpenTSDBContext())
+		service.Service.WithDiagnosticHandler(diag.OpenTSDBHandler())
 	}
 
 	service.Service.MetaClient = service.MetaClient

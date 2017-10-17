@@ -153,7 +153,7 @@ func (c cursorsAt) close() {
 // newMergeFinalizerIterator creates a new Merge iterator from the inputs. If the call to Merge succeeds,
 // the resulting Iterator will be wrapped in a finalizer iterator.
 // If Merge returns an error, the inputs will be closed.
-func newMergeFinalizerIterator(inputs []query.Iterator, opt query.IteratorOptions, d diagnostic.Context) (query.Iterator, error) {
+func newMergeFinalizerIterator(inputs []query.Iterator, opt query.IteratorOptions, d diagnostic.Handler) (query.Iterator, error) {
 	itr, err := query.Iterators(inputs).Merge(opt)
 	if err != nil {
 		query.Iterators(inputs).Close()
@@ -166,7 +166,7 @@ func newMergeFinalizerIterator(inputs []query.Iterator, opt query.IteratorOption
 // to ensure close is eventually called if the iterator is garbage collected.
 // This additional guard attempts to protect against clients of CreateIterator not
 // correctly closing them and leaking cursors.
-func newFinalizerIterator(itr query.Iterator, d diagnostic.Context) query.Iterator {
+func newFinalizerIterator(itr query.Iterator, d diagnostic.Handler) query.Iterator {
 	if itr == nil {
 		return nil
 	}

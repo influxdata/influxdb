@@ -12,7 +12,7 @@ type CollectdHandler struct {
 	l *zap.Logger
 }
 
-func (s *Service) CollectdContext() collectd.Context {
+func (s *Service) CollectdHandler() collectd.Handler {
 	if s == nil {
 		return nil
 	}
