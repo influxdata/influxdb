@@ -164,6 +164,8 @@ class CustomTimeRange extends Component {
 
   render() {
     const {isNow} = this.state
+    const {page} = this.props
+    const isNowDisplayed = page !== 'DataExplorer'
 
     return (
       <div className="custom-time--container">
@@ -197,14 +199,16 @@ class CustomTimeRange extends Component {
               ref={r => (this.upperContainer = r)}
               disabled={isNow}
             >
-              <div
-                className={`btn btn-xs custom-time--now ${isNow
-                  ? 'btn-primary'
-                  : 'btn-default'}`}
-                onClick={this.handleToggleNow}
-              >
-                Now
-              </div>
+              {isNowDisplayed
+                ? <div
+                    className={`btn btn-xs custom-time--now ${isNow
+                      ? 'btn-primary'
+                      : 'btn-default'}`}
+                    onClick={this.handleToggleNow}
+                  >
+                    Now
+                  </div>
+                : null}
               <input
                 className="custom-time--upper form-control input-sm"
                 ref={r => (this.upper = r)}
@@ -212,7 +216,7 @@ class CustomTimeRange extends Component {
                 onKeyUp={this.handleRefreshCals}
                 disabled={isNow}
               />
-              {isNow
+              {isNow && page !== 'DataExplorer'
                 ? <div
                     className="custom-time--mask"
                     onClick={this.handleNowOff}
@@ -241,6 +245,7 @@ CustomTimeRange.propTypes = {
     upper: string,
   }).isRequired,
   onClose: func,
+  page: string,
 }
 
 export default CustomTimeRange
