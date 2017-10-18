@@ -67,23 +67,24 @@ export function buildSelectStatement(config) {
 }
 
 function _buildFields(fieldFuncs) {
-  if (fieldFuncs) {
-    return fieldFuncs
-      .map(f => {
-        switch (f.type) {
-          case 'field': {
-            return f.value === '*' ? '*' : `"${f.value}"`
-          }
-          case 'func': {
-            const args = _buildFields(f.args)
-            const alias = f.alias ? ` AS "${f.alias}"` : ''
-            return `${f.value}(${args})${alias}`
-          }
-        }
-      })
-      .join(', ')
+  if (!fieldFuncs) {
+    return ''
   }
-  return ''
+
+  return fieldFuncs
+    .map(f => {
+      switch (f.type) {
+        case 'field': {
+          return f.value === '*' ? '*' : `"${f.value}"`
+        }
+        case 'func': {
+          const args = _buildFields(f.args)
+          const alias = f.alias ? ` AS "${f.alias}"` : ''
+          return `${f.value}(${args})${alias}`
+        }
+      }
+    })
+    .join(', ')
 }
 
 function _buildWhereClause({lower, upper, tags, areTagsAccepted}) {
