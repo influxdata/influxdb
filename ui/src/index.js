@@ -26,7 +26,7 @@ import {
   TickscriptPage,
 } from 'src/kapacitor'
 import {AdminPage} from 'src/admin'
-import {CreateSource, SourcePage, ManageSources} from 'src/sources'
+import {SourcePage, ManageSources} from 'src/sources'
 import NotFound from 'shared/components/NotFound'
 
 import {getMe} from 'shared/apis'
@@ -127,7 +127,7 @@ const Root = React.createClass({
           <Route path="/login" component={UserIsNotAuthenticated(Login)} />
           <Route
             path="/sources/new"
-            component={UserIsAuthenticated(CreateSource)}
+            component={UserIsAuthenticated(SourcePage)}
           />
           <Route path="/sources/:sourceID" component={UserIsAuthenticated(App)}>
             <Route component={CheckSources}>

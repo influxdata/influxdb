@@ -411,3 +411,14 @@ export const PAGE_HEADER_HEIGHT = 60 // TODO: get this dynamically to ensure lon
 export const PAGE_CONTAINER_MARGIN = 30 // TODO: get this dynamically to ensure longevity
 export const LAYOUT_MARGIN = 4
 export const DASHBOARD_LAYOUT_ROW_HEIGHT = 83.5
+
+export const DEFAULT_SOURCE = {
+  url: 'http://localhost:8086',
+  name: 'Influx 1',
+  username: '',
+  password: '',
+  default: true,
+  telegraf: 'telegraf',
+  insecureSkipVerify: false,
+  metaUrl: '',
+}

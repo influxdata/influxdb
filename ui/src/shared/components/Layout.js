@@ -1,4 +1,4 @@
-import React, {PropTypes} from 'react'
+import React, {Component, PropTypes} from 'react'
 import WidgetCell from 'shared/components/WidgetCell'
 import LayoutCell from 'shared/components/LayoutCell'
 import RefreshingGraph from 'shared/components/RefreshingGraph'
@@ -13,6 +13,30 @@ const getSource = (cell, source, sources, defaultSource) => {
   }
 
   return sources.find(src => src.links.self === s) || defaultSource
+}
+
+class LayoutState extends Component {
+  constructor(props) {
+    super(props)
+    this.state = {
+      celldata: [],
+    }
+  }
+
+  grabDataForDownload = celldata => {
+    this.setState({celldata})
+  }
+
+  render() {
+    const {celldata} = this.state
+    return (
+      <Layout
+        {...this.props}
+        celldata={celldata}
+        grabDataForDownload={this.grabDataForDownload}
+      />
+    )
+  }
 }
 
 const Layout = (
@@ -33,6 +57,8 @@ const Layout = (
     resizeCoords,
     onCancelEditCell,
     onSummonOverlayTechnologies,
+    grabDataForDownload,
+    celldata,
   },
   {source: defaultSource}
 ) =>
@@ -40,6 +66,7 @@ const Layout = (
     cell={cell}
     isEditable={isEditable}
     onEditCell={onEditCell}
+    celldata={celldata}
     onDeleteCell={onDeleteCell}
     onCancelEditCell={onCancelEditCell}
     onSummonOverlayTechnologies={onSummonOverlayTechnologies}
@@ -56,6 +83,7 @@ const Layout = (
           templates={templates}
           autoRefresh={autoRefresh}
           synchronizer={synchronizer}
+          grabDataForDownload={grabDataForDownload}
           resizeCoords={resizeCoords}
           queries={buildQueriesForLayouts(
             cell,
@@ -72,7 +100,7 @@ Layout.contextTypes = {
   source: shape(),
 }
 
-Layout.propTypes = {
+const propTypes = {
   autoRefresh: number.isRequired,
   timeRange: shape({
     lower: string.isRequired,
@@ -115,4 +143,11 @@ Layout.propTypes = {
   sources: arrayOf(shape()),
 }
 
-export default Layout
+LayoutState.propTypes = {...propTypes}
+Layout.propTypes = {
+  ...propTypes,
+  grabDataForDownload: func,
+  celldata: arrayOf(shape()),
+}
+
+export default LayoutState
