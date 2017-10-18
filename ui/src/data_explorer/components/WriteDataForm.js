@@ -98,6 +98,7 @@ class WriteDataForm extends Component {
 
   handleCancelFile = () => {
     this.setState({uploadContent: ''})
+    this.fileInput.value = ''
   }
 
   handleDragOver = e => {
