@@ -1045,6 +1045,11 @@ func (c *Compactor) write(path string, iter KeyIterator) (err error) {
 		}
 	}
 
+	// Were there any errors encountered during iteration?
+	if err := iter.Err(); err != nil {
+		return err
+	}
+
 	// We're all done.  Close out the file.
 	if err := w.WriteIndex(); err != nil {
 		return err
@@ -1089,6 +1094,9 @@ type KeyIterator interface {
 
 	// Close closes the iterator.
 	Close() error
+
+	// Err returns any errors encountered during iteration.
+	Err() error
 }
 
 // tsmKeyIterator implements the KeyIterator for set of TSMReaders.  Iteration produces
@@ -1316,6 +1324,10 @@ func (k *tsmKeyIterator) Next() bool {
 					blk.readMax = math.MinInt64
 				}
 			}
+
+			if iter.Err() != nil {
+				k.err = iter.Err()
+			}
 		}
 	}
 
@@ -1403,6 +1415,11 @@ func (k *tsmKeyIterator) Close() error {
 	return nil
 }
 
+// Error returns any errors encountered during iteration.
+func (k *tsmKeyIterator) Err() error {
+	return k.err
+}
+
 type cacheKeyIterator struct {
 	cache *Cache
 	size  int
@@ -1412,6 +1429,7 @@ type cacheKeyIterator struct {
 	blocks    [][]cacheBlock
 	ready     []chan struct{}
 	interrupt chan struct{}
+	err       error
 }
 
 type cacheBlock struct {
@@ -1513,6 +1531,10 @@ func (c *cacheKeyIterator) encode() {
 						b:       b,
 						err:     err,
 					})
+
+					if err != nil {
+						c.err = err
+					}
 				}
 				// Notify this key is fully encoded
 				c.ready[i] <- struct{}{}
@@ -1542,7 +1564,8 @@ func (c *cacheKeyIterator) Read() ([]byte, int64, int64, []byte, error) {
 	// See if snapshot compactions were disabled while we were running.
 	select {
 	case <-c.interrupt:
-		return nil, 0, 0, nil, errCompactionAborted{}
+		c.err = errCompactionAborted{}
+		return nil, 0, 0, nil, c.err
 	default:
 	}
 
@@ -1552,6 +1575,10 @@ func (c *cacheKeyIterator) Read() ([]byte, int64, int64, []byte, error) {
 
 func (c *cacheKeyIterator) Close() error {
 	return nil
+}
+
+func (c *cacheKeyIterator) Err() error {
+	return c.err
 }
 
 type tsmGenerations []*tsmGeneration

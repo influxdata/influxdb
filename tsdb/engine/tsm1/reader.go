@@ -138,6 +138,10 @@ func (b *BlockIterator) PeekNext() []byte {
 
 // Next returns true if there are more blocks to iterate through.
 func (b *BlockIterator) Next() bool {
+	if b.err != nil {
+		return false
+	}
+
 	if b.n-b.i == 0 && len(b.entries) == 0 {
 		return false
 	}
@@ -152,6 +156,13 @@ func (b *BlockIterator) Next() bool {
 	if b.n-b.i > 0 {
 		b.key, b.typ, b.entries = b.r.Key(b.i, &b.cache)
 		b.i++
+
+		// If there were deletes on the TSMReader, then our index is now off and we
+		// can't proceed.  What we just read may not actually the next block.
+		if b.n != b.r.KeyCount() {
+			b.err = fmt.Errorf("delete during iteration")
+			return false
+		}
 
 		if len(b.entries) > 0 {
 			return true
@@ -171,6 +182,11 @@ func (b *BlockIterator) Read() (key []byte, minTime int64, maxTime int64, typ by
 		return nil, 0, 0, 0, 0, nil, err
 	}
 	return b.key, b.entries[0].MinTime, b.entries[0].MaxTime, b.typ, checksum, buf, err
+}
+
+// Err returns any errors encounter during iteration.
+func (b *BlockIterator) Err() error {
+	return b.err
 }
 
 // blockAccessor abstracts a method of accessing blocks from a

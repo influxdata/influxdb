@@ -1136,6 +1136,55 @@ func TestBlockIterator_Single(t *testing.T) {
 	}
 }
 
+func TestBlockIterator_Tombstone(t *testing.T) {
+	dir := mustTempDir()
+	defer os.RemoveAll(dir)
+	f := mustTempFile(dir)
+
+	w, err := NewTSMWriter(f)
+	if err != nil {
+		t.Fatalf("unexpected error creating writer: %v", err)
+	}
+
+	values := []Value{NewValue(0, int64(1))}
+	if err := w.Write([]byte("cpu"), values); err != nil {
+		t.Fatalf("unexpected error writing: %v", err)
+	}
+
+	if err := w.Write([]byte("mem"), values); err != nil {
+		t.Fatalf("unexpected error writing: %v", err)
+	}
+
+	if err := w.WriteIndex(); err != nil {
+		t.Fatalf("unexpected error closing: %v", err)
+	}
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("unexpected error closing: %v", err)
+	}
+
+	fd, err := os.Open(f.Name())
+	if err != nil {
+		t.Fatalf("unexpected error opening: %v", err)
+	}
+
+	r, err := NewTSMReader(fd)
+	if err != nil {
+		t.Fatalf("unexpected error created reader: %v", err)
+	}
+
+	iter := r.BlockIterator()
+	for iter.Next() {
+		// Trigger a delete during iteration.  This should cause an error condition for
+		// the BlockIterator
+		r.Delete([][]byte{[]byte("cpu")})
+	}
+
+	if iter.Err() == nil {
+		t.Fatalf("expected error: got nil")
+	}
+}
+
 func TestBlockIterator_MultipleBlocks(t *testing.T) {
 	dir := mustTempDir()
 	defer os.RemoveAll(dir)
