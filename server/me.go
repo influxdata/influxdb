@@ -88,19 +88,10 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	usrs, err := s.UsersStore.All(ctx)
+	usr, err := getUserBy(s.UsersStore, ctx, username, provider)
 	if err != nil {
-		msg := fmt.Errorf("error retrieving user with Username: %s, Provider: %s: %v", username, provider, err)
-		unknownErrorWithMessage(w, msg, s.Logger)
+		unknownErrorWithMessage(w, err, s.Logger)
 		return
-	}
-
-	var usr *chronograf.User
-	for _, u := range usrs {
-		if u.Name == username && u.Provider == provider {
-			usr = &u
-			break
-		}
 	}
 
 	if usr != nil {
@@ -123,4 +114,21 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 
 	res := newMeResponse(newUser)
 	encodeJSON(w, http.StatusOK, res, s.Logger)
+}
+
+func getUserBy(store chronograf.UsersStore, ctx context.Context, name, provider string) (*chronograf.User, error) {
+	usrs, err := store.All(ctx)
+	if err != nil {
+		msg := fmt.Errorf("error retrieving user with Username: %s, Provider: %s: %v", name, provider, err)
+		return nil, msg
+	}
+
+	for _, u := range usrs {
+		if u.Name == name && u.Provider == provider {
+			return &u, nil
+		}
+	}
+
+	// TODO: this should really return an error
+	return nil, nil
 }
