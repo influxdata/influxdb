@@ -72,6 +72,7 @@ SchemaExplorer.propTypes = {
     fill: func.isRequired,
     editRawTextAsync: func.isRequired,
     addInitialField: func.isRequired,
+    removeFuncs: func.isRequired,
   }).isRequired,
   source: shape({}),
   initialGroupByTime: string.isRequired,
