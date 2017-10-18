@@ -75,6 +75,7 @@
 - [#8909](https://github.com/influxdata/influxdb/issues/8909): Fix use of `INFLUXD_OPTS` in service file
 - [#8952](https://github.com/influxdata/influxdb/issues/8952): Fix WAL panic: runtime error: makeslice: cap out of range
 - [#8975](https://github.com/influxdata/influxdb/pull/8975): Copy returned bytes from TSI meta functions.
+- [#7797](https://github.com/influxdata/influxdb/issues/7706): Fix data deleted outside of time range
 
 ## v1.3.4 [unreleased]
 
