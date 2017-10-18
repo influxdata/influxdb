@@ -405,6 +405,8 @@ func (i *Index) MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
 	defer fs.Release()
 
 	names, err := fs.MeasurementNamesByExpr(expr)
+
+	// Clone byte slices since they will be used after the fileset is released.
 	return bytesutil.CloneSlice(names), err
 }
 
@@ -416,6 +418,7 @@ func (i *Index) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
 	var a [][]byte
 	for e := itr.Next(); e != nil; e = itr.Next() {
 		if re.Match(e.Name()) {
+			// Clone bytes since they will be used after the fileset is released.
 			a = append(a, bytesutil.Clone(e.Name()))
 		}
 	}
@@ -731,6 +734,8 @@ func (i *Index) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr) ([]
 	defer fs.Release()
 
 	keys, err := fs.MeasurementSeriesKeysByExpr(name, expr, i.fieldset)
+
+	// Clone byte slices since they will be used after the fileset is released.
 	return bytesutil.CloneSlice(keys), err
 }
 
