@@ -11,22 +11,23 @@ export const fieldWalk = (fields, fn, acc = []) =>
     )
   )
 
-// functions returns all top-level fields with type
+// ofType returns all top-level fields with type
 export const ofType = (fields, type) =>
   _.filter(fields, f => _.get(f, 'type') === type)
-
-// functions returns all top-level functions in fields
-export const functions = fields => ofType(fields, 'func')
-
-// numFunctions searches queryConfig fields for functions
-export const numFunctions = fields => _.size(functions(fields))
-
-// functionNames returns the value of all top-level functions
-export const functionNames = fields => functions(fields).map(f => f.value)
 
 // getFields returns all of the top-level fields of type field
 export const getFields = fields => ofType(fields, 'field')
 
+// getFunctions returns all top-level functions in fields
+export const getFunctions = fields => ofType(fields, 'func')
+
+// numFunctions searches queryConfig fields for functions and counts them
+export const numFunctions = fields => _.size(getFunctions(fields))
+
+// functionNames returns the value of all top-level functions
+export const functionNames = fields => getFunctions(fields).map(f => f.value)
+
+// returns a flattened list of all fieldNames in a queryConfig
 export const getFieldsDeep = fields =>
   _.uniqBy(
     fieldWalk(fields, f => (_.get(f, 'type') === 'field' ? f : null)),
@@ -57,7 +58,7 @@ export const everyField = fields => everyOfType(fields, 'field')
 export const everyFunction = fields => everyOfType(fields, 'func')
 
 export const getFuncsByFieldName = (fieldName, fields) =>
-  functions(fields).filter(f =>
+  getFunctions(fields).filter(f =>
     _.get(f, 'args', []).some(a => a.value === fieldName)
   )
 
