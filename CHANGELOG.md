@@ -1,6 +1,7 @@
 ## v1.3.10.0 [unreleased]
 ### Bug Fixes
 1. [#2095](https://github.com/influxdata/chronograf/pull/2095): Improve the copy in the retention policy edit page
+1. [#2122](https://github.com/influxdata/chronograf/pull/2122): Fix 'could not connect to source' bug on source creation with unsafe-ssl
 
 ### Features
 1. [#2083](https://github.com/influxdata/chronograf/pull/2083): Every dashboard can now have its own time range
