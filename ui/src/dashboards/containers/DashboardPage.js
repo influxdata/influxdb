@@ -1,5 +1,4 @@
 import React, {PropTypes, Component} from 'react'
-import {Link} from 'react-router'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
@@ -312,6 +311,7 @@ class DashboardPage extends Component {
           source={source}
           sourceID={sourceID}
           dashboard={dashboard}
+          dashboards={dashboards}
           timeRange={timeRange}
           isEditMode={isEditMode}
           autoRefresh={autoRefresh}
@@ -327,17 +327,7 @@ class DashboardPage extends Component {
           handleChooseTimeRange={this.handleChooseTimeRange}
           onToggleTempVarControls={this.handleToggleTempVarControls}
           handleClickPresentationButton={handleClickPresentationButton}
-        >
-          {dashboards
-            ? dashboards.map((d, i) =>
-                <li className="dropdown-item" key={i}>
-                  <Link to={`/sources/${sourceID}/dashboards/${d.id}`}>
-                    {d.name}
-                  </Link>
-                </li>
-              )
-            : null}
-        </DashboardHeader>
+        />
         {dashboard
           ? <Dashboard
               source={source}

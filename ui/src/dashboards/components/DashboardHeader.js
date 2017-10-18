@@ -1,21 +1,22 @@
 import React, {PropTypes} from 'react'
 import classnames from 'classnames'
-import _ from 'lodash'
 
 import AutoRefreshDropdown from 'shared/components/AutoRefreshDropdown'
 import TimeRangeDropdown from 'shared/components/TimeRangeDropdown'
 import SourceIndicator from 'shared/components/SourceIndicator'
 import GraphTips from 'shared/components/GraphTips'
 import DashboardHeaderEdit from 'src/dashboards/components/DashboardHeaderEdit'
+import DashboardSwitcher from 'src/dashboards/components/DashboardSwitcher'
 
 const DashboardHeader = ({
   onSave,
-  children,
+  sourceID,
   onCancel,
   isEditMode,
   isHidden,
   dashboard,
   onAddCell,
+  dashboards,
   autoRefresh,
   dashboardName,
   onEditDashboard,
@@ -39,22 +40,11 @@ const DashboardHeader = ({
                 : 'page-header__left'
             }
           >
-            {children.length > 1
-              ? <div className="dropdown dashboard-switcher">
-                  <button
-                    className="btn btn-square btn-default btn-sm dropdown-toggle"
-                    type="button"
-                    data-toggle="dropdown"
-                  >
-                    <span className="icon dash-f" />
-                  </button>
-                  <ul className="dropdown-menu">
-                    {_.sortBy(children, c =>
-                      c.props.children.props.children.toLowerCase()
-                    )}
-                  </ul>
-                </div>
-              : null}
+            <DashboardSwitcher
+              dashboards={dashboards}
+              currentDashboard={dashboardName}
+              sourceID={sourceID}
+            />
             {dashboard
               ? <DashboardHeaderEdit
                   onSave={onSave}
@@ -109,7 +99,7 @@ const DashboardHeader = ({
         </div>
       </div>
 
-const {array, bool, func, number, shape, string} = PropTypes
+const {arrayOf, bool, func, number, shape, string} = PropTypes
 
 DashboardHeader.defaultProps = {
   zoomedTimeRange: {
@@ -119,7 +109,6 @@ DashboardHeader.defaultProps = {
 }
 
 DashboardHeader.propTypes = {
-  children: array,
   dashboardName: string.isRequired,
   onEditDashboard: func.isRequired,
   dashboard: shape({}),
@@ -140,6 +129,8 @@ DashboardHeader.propTypes = {
   zoomedTimeRange: shape({}),
   onCancel: func.isRequired,
   onSave: func.isRequired,
+  dashboards: arrayOf(shape({})).isRequired,
+  sourceID: string.isRequired,
 }
 
 export default DashboardHeader
