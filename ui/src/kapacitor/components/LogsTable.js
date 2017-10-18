@@ -7,27 +7,6 @@ class LogsTable extends Component {
     super(props)
   }
 
-  renderAlertLevel = level => {
-    let alertCSS
-    switch (level) {
-      case 'ok':
-        alertCSS = 'label label-success'
-        break
-      case 'warn':
-        alertCSS = 'label label-info'
-        break
-      case 'error':
-        alertCSS = 'label label-danger'
-        break
-      case 'debug':
-        alertCSS = 'label label-primary'
-        break
-      default:
-        alertCSS = 'label label-default'
-    }
-    return alertCSS
-  }
-
   renderKeysAndValues = object => {
     if (!object) {
       return <span className="logs-table--empty-cell">--</span>
@@ -43,85 +22,129 @@ class LogsTable extends Component {
     return objElements
   }
 
-  renderEmptyCell = () => {
-    return <span className="logs-table--empty-cell">--</span>
-  }
-  renderMessage = log => {
-    if (log.msg === 'http request') {
-      return `HTTP Request ${log.username}@${log.host}`
-    }
-    return log.msg
-  }
+  renderTableRow = (logItem, i) => {
+    let rowDetails
 
-  renderTable = () => {
-    return (
-      <table className="table table-highlight logs-table">
-        <thead>
-          <tr>
-            {/* <th>Timestamp</th> */}
-            <th>Service</th>
-            <th>Level</th>
-            <th>Task</th>
-            <th>Node</th>
-            <th>Duration</th>
-            <th>Message</th>
-            <th>Tags & Fields</th>
-          </tr>
-        </thead>
-        <tbody>
-          {DUMMY_LOGS.map((l, i) =>
-            <tr key={i}>
-              {/* <td>
-                {l.ts}
-              </td> */}
-              <td>
-                {l.service}
-              </td>
-              <td>
-                <span className={this.renderAlertLevel(l.lvl)}>
-                  {l.lvl}
-                </span>
-              </td>
-              <td>
-                {l.task || this.renderEmptyCell()}
-              </td>
-              <td>
-                {l.node || this.renderEmptyCell()}
-              </td>
-              <td>
-                {l.duration || this.renderEmptyCell()}
-              </td>
-              <td>
-                {this.renderMessage(l)}
-              </td>
-              <td>
-                {l.tag ? <div>TAGS</div> : null}
-                {this.renderKeysAndValues(l.tag)}
-                {l.field ? <div>FIELDS</div> : null}
-                {this.renderKeysAndValues(l.field)}
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-    )
-  }
-  render() {
-    const {isWidget} = this.props
-
-    const output = isWidget
-      ? this.renderTable()
-      : <div className="logs-table--container">
-          <div className="logs-table--header">
-            <h2 className="panel-title">Logs</h2>
-            <div className="filterthing">FILTER</div>
-          </div>
-          <div className="logs-table--panel">
-            {this.renderTable()}
+    if (logItem.service === 'sessions') {
+      rowDetails = (
+        <div className="logs-table--details">
+          <div className="logs-table--session">
+            {logItem.msg}
           </div>
         </div>
+      )
+    }
+    if (logItem.service === 'http' && logItem.msg === 'http request') {
+      rowDetails = (
+        <div className="logs-table--details">
+          <div className="logs-table--service">HTTP Request</div>
+          <div className="logs-table--http">
+            {logItem.method} {logItem.username}@{logItem.host} ({logItem.duration})
+          </div>
+        </div>
+      )
+    }
+    if (logItem.service === 'kapacitor' && logItem.msg === 'point') {
+      rowDetails = (
+        <div className="logs-table--details">
+          <div className="logs-table--service">Kapacitor Point</div>
+          <div className="logs-table--blah">
+            <div className="logs-table--key-values">
+              TAGS<br />
+              {this.renderKeysAndValues(logItem.tag)}
+            </div>
+            <div className="logs-table--key-values">
+              FIELDS<br />
+              {this.renderKeysAndValues(logItem.field)}
+            </div>
+          </div>
+        </div>
+      )
+    }
+    if (logItem.service === 'httpd_server_errors' && logItem.lvl === 'error') {
+      rowDetails = (
+        <div className="logs-table--details">
+          <div className="logs-table--service error">HTTP Server</div>
+          <div className="logs-table--blah">
+            <div className="logs-table--key-values error">
+              ERROR: {logItem.msg}
+            </div>
+          </div>
+        </div>
+      )
+    }
+    if (logItem.service === 'kapacitor' && logItem.lvl === 'error') {
+      rowDetails = (
+        <div className="logs-table--details">
+          <div className="logs-table--service error">Kapacitor</div>
+          <div className="logs-table--blah">
+            <div className="logs-table--key-values error">
+              ERROR: {logItem.msg}
+            </div>
+          </div>
+        </div>
+      )
+    }
+    if (logItem.service === 'kapacitor' && logItem.lvl === 'debug') {
+      rowDetails = (
+        <div className="logs-table--details">
+          <div className="logs-table--service debug">Kapacitor</div>
+          <div className="logs-table--blah">
+            <div className="logs-table--key-values debug">
+              DEBUG: {logItem.msg}
+            </div>
+          </div>
+        </div>
+      )
+    }
+    if (logItem.service === 'influxdb' && logItem.lvl === 'debug') {
+      rowDetails = (
+        <div className="logs-table--details">
+          <div className="logs-table--service debug">InfluxDB</div>
+          <div className="logs-table--blah">
+            <div className="logs-table--key-values debug">
+              DEBUG: {logItem.msg}
+              <br />
+              Cluster: {logItem.cluster}
+            </div>
+          </div>
+        </div>
+      )
+    }
 
-    return output
+    return (
+      <div className="logs-table--row" key={i}>
+        <div className="logs-table--divider">
+          <div className={`logs-table--level ${logItem.lvl}`} />
+          <div className="logs-table--timestamp">
+            {logItem.ts}
+          </div>
+        </div>
+        {rowDetails}
+      </div>
+    )
+  }
+
+  render() {
+    return (
+      <div className="logs-table--container">
+        <div className="logs-table--header">
+          <h2 className="panel-title">Logs</h2>
+          <div className="filterthing">
+            <input
+              type="text"
+              className="form-control input-sm"
+              placeholder="Search Logs..."
+            />
+          </div>
+        </div>
+        <div className="logs-table--panel">
+          <div className="logs-table">
+            {DUMMY_LOGS.map((l, i) => this.renderTableRow(l, i))}
+          </div>
+        </div>
+      </div>
+    )
   }
 }
 

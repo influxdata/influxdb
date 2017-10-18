@@ -20,7 +20,7 @@ const TickscriptHeader = ({
   areLogsVisible,
   onToggleLogsVisbility,
 }) =>
-  <div className="page-header">
+  <div className="page-header full-width">
     <div className="page-header__container">
       <div className="page-header__left">
         {isNewTickscript
