@@ -11,7 +11,9 @@
 
 ### UI Improvements
 1. [#2111](https://github.com/influxdata/chronograf/pull/2111): Increase size of Cell Editor query tabs to reveal more of their query strings
+1. [#2120](https://github.com/influxdata/chronograf/pull/2120): Improve appearance of Admin Page tabs on smaller screens
 1. [#2119](https://github.com/influxdata/chronograf/pull/2119): Add support for graph zooming and point display on the millisecond-level
+
 
 ## v1.3.9.0 [2017-10-06]
 ### Bug Fixes
