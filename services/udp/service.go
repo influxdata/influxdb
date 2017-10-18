@@ -67,7 +67,6 @@ func NewService(c Config) *Service {
 	return &Service{
 		config:      d,
 		parserChan:  make(chan []byte, parserChanLen),
-		batcher:     tsdb.NewPointBatcher(d.BatchSize, d.BatchPending, time.Duration(d.BatchTimeout)),
 		Logger:      zap.New(zap.NullEncoder()),
 		stats:       &Statistics{},
 		defaultTags: models.StatisticTags{"bind": d.BindAddress},
@@ -111,6 +110,8 @@ func (s *Service) Open() (err error) {
 			return err
 		}
 	}
+	s.batcher = tsdb.NewPointBatcher(s.config.BatchSize, s.config.BatchPending, time.Duration(s.config.BatchTimeout))
+	s.batcher.Start()
 
 	s.Logger.Info(fmt.Sprintf("Started listening on UDP: %s", s.config.BindAddress))
 
@@ -180,7 +181,6 @@ func (s *Service) serve() {
 	defer s.wg.Done()
 
 	buf := make([]byte, MaxUDPPayload)
-	s.batcher.Start()
 	for {
 		select {
 		case <-s.done:
@@ -228,24 +228,34 @@ func (s *Service) parser() {
 
 // Close closes the service and the underlying listener.
 func (s *Service) Close() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	if wait := func() bool {
+		s.mu.Lock()
+		defer s.mu.Unlock()
 
-	if s.closed() {
-		return nil // Already closed.
+		if s.closed() {
+			return false // Already closed.
+		}
+		close(s.done)
+
+		if s.conn != nil {
+			s.conn.Close()
+		}
+
+		if s.batcher != nil {
+			s.batcher.Stop()
+		}
+		return true
+	}(); !wait {
+		return nil
 	}
-	close(s.done)
-
-	if s.conn != nil {
-		s.conn.Close()
-	}
-
-	s.batcher.Flush()
 	s.wg.Wait()
 
 	// Release all remaining resources.
+	s.mu.Lock()
 	s.done = nil
 	s.conn = nil
+	s.batcher = nil
+	s.mu.Unlock()
 
 	s.Logger.Info("Service closed")
 
