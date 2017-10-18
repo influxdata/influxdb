@@ -59,6 +59,7 @@ const Header = React.createClass({
             <TimeRangeDropdown
               onChooseTimeRange={this.handleChooseTimeRange}
               selected={timeRange}
+              page="DataExplorer"
             />
           </div>
         </div>

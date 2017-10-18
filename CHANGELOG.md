@@ -2,12 +2,16 @@
 ### Bug Fixes
 1. [#2095](https://github.com/influxdata/chronograf/pull/2095): Improve the copy in the retention policy edit page
 1. [#2122](https://github.com/influxdata/chronograf/pull/2122): Fix 'could not connect to source' bug on source creation with unsafe-ssl
+1. [#2093](https://github.com/influxdata/chronograf/pull/2093): Fix when exporting `SHOW DATABASES` CSV has bad data
+1. [#2098](https://github.com/influxdata/chronograf/pull/2098): Fix not-equal-to highlighting in Kapacitor Rule Builder
 
 ### Features
 1. [#2083](https://github.com/influxdata/chronograf/pull/2083): Every dashboard can now have its own time range
+1. [#2045](https://github.com/influxdata/chronograf/pull/2045): Add CSV download option in dashboard cells
 
 ### UI Improvements
 1. [#2111](https://github.com/influxdata/chronograf/pull/2111): Increase size of Cell Editor query tabs to reveal more of their query strings
+1. [#2119](https://github.com/influxdata/chronograf/pull/2119): Add support for graph zooming and point display on the millisecond-level
 
 ## v1.3.9.0 [2017-10-06]
 ### Bug Fixes
@@ -30,6 +34,7 @@
 1. [#1992](https://github.com/influxdata/chronograf/pull/1992): Add .csv download button to data explorer
 1. [#2082](https://github.com/influxdata/chronograf/pull/2082): Add Data Explorer InfluxQL query and location query synchronization, so queries can be shared via a a URL
 1. [#1996](https://github.com/influxdata/chronograf/pull/1996): Able to switch InfluxDB sources on a per graph basis
+1. [#2041](https://github.com/influxdata/chronograf/pull/2041): Add now() as an option in the Dashboard date picker
 
 ### UI Improvements
 1. [#2002](https://github.com/influxdata/chronograf/pull/2002): Require a second click when deleting a dashboard cell

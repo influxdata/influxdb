@@ -4,6 +4,7 @@ import Dropdown from 'shared/components/Dropdown'
 
 const mapToItems = (arr, type) => arr.map(text => ({text, type}))
 const operators = mapToItems(OPERATORS, 'operator')
+const noopSubmit = e => e.preventDefault()
 
 const Threshold = ({
   rule: {values: {operator, value, rangeValue}},
@@ -24,7 +25,7 @@ const Threshold = ({
       selected={operator}
       onChoose={onDropdownChange}
     />
-    <form style={{display: 'flex'}}>
+    <form style={{display: 'flex'}} onSubmit={noopSubmit}>
       <input
         className="form-control input-sm form-malachite monotype"
         style={{width: '160px', marginLeft: '6px'}}
