@@ -67,23 +67,56 @@ class SourcePage extends Component {
     })
   }
 
-  handleBlurSourceURL = newSource => {
-    if (this.state.editMode) {
+  handleBlurSourceURL = () => {
+    const {source, editMode} = this.state
+    if (editMode) {
+      this.setState(this._normalizeSource)
       return
     }
 
-    if (!newSource.url) {
+    if (!source.url) {
       return
     }
 
+    this.setState(this._normalizeSource, this._createSourceOnBlur)
+  }
+
+  handleSubmit = e => {
+    e.preventDefault()
+    const {isCreated, editMode} = this.state
+    const isNewSource = !editMode
+
+    if (!isCreated && isNewSource) {
+      return this.setState(this._normalizeSource, this._createSource)
+    }
+
+    this.setState(this._normalizeSource, this._updateSource)
+  }
+
+  handleError = (bannerText, err) => {
+    const {notify} = this.props
+    const error = this._parseError(err)
+    console.error('Error: ', error)
+    notify('error', `${bannerText}: ${error}`)
+  }
+
+  _normalizeSource({source}) {
+    const url = source.url.trim()
+    if (source.url.startsWith('http')) {
+      return {source: {...source, url}}
+    }
+    return {source: {...source, url: `http://${url}`}}
+  }
+
+  _createSourceOnBlur = () => {
+    const {source} = this.state
     // if there is a type on source it has already been created
-    if (newSource.type) {
+    if (source.type) {
       return
     }
-
-    createSource(newSource)
+    createSource(source)
       .then(({data: sourceFromServer}) => {
-        this.props.addSourceAction(sourceFromServer)
+        addSourceAction(sourceFromServer)
         this.setState({
           source: {...DEFAULT_SOURCE, ...sourceFromServer},
           isCreated: true,
@@ -91,44 +124,35 @@ class SourcePage extends Component {
       })
       .catch(err => {
         // dont want to flash this until they submit
-        const error = this.parseError(err)
+        const error = this._parseError(err)
         console.error('Error on source creation: ', error)
       })
   }
 
-  handleSubmit = e => {
-    e.preventDefault()
+  _createSource = () => {
+    const {source} = this.state
+    createSource(source)
+      .then(({data: sourceFromServer}) => {
+        addSourceAction(sourceFromServer)
+        this._redirect(sourceFromServer)
+      })
+      .catch(error => {
+        this.handleError('Unable to create source', error)
+      })
+  }
+
+  _updateSource = () => {
+    const {source} = this.state
     const {notify} = this.props
-    const {isCreated, source, editMode} = this.state
-    const isNewSource = !editMode
-
-    if (!isCreated && isNewSource) {
-      return createSource(source)
-        .then(({data: sourceFromServer}) => {
-          this.props.addSourceAction(sourceFromServer)
-          this._redirect(sourceFromServer)
-        })
-        .catch(error => {
-          this.handleError('Unable to create source', error)
-        })
-    }
-
     updateSource(source)
       .then(({data: sourceFromServer}) => {
-        this.props.updateSourceAction(sourceFromServer)
+        updateSourceAction(sourceFromServer)
         this._redirect(sourceFromServer)
         notify('success', `New source ${source.name} added`)
       })
       .catch(error => {
         this.handleError('Unable to update source', error)
       })
-  }
-
-  handleError = (bannerText, err) => {
-    const {notify} = this.props
-    const error = this.parseError(err)
-    console.error('Error: ', error)
-    notify('error', `${bannerText}: ${error}`)
   }
 
   _redirect = source => {
@@ -157,7 +181,7 @@ class SourcePage extends Component {
     return router.push(fixedPath)
   }
 
-  parseError = error => {
+  _parseError = error => {
     return _.get(error, ['data', 'message'], error)
   }
 
