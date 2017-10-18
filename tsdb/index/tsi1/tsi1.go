@@ -792,16 +792,6 @@ func (a byteSlices) Len() int           { return len(a) }
 func (a byteSlices) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a byteSlices) Less(i, j int) bool { return bytes.Compare(a[i], a[j]) == -1 }
 
-// copyBytes returns a copy of b.
-func copyBytes(b []byte) []byte {
-	if b == nil {
-		return nil
-	}
-	buf := make([]byte, len(b))
-	copy(buf, b)
-	return buf
-}
-
 // assert will panic with a given formatted message if the given condition is false.
 func assert(condition bool, msg string, v ...interface{}) {
 	if !condition {

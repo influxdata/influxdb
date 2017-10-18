@@ -88,6 +88,25 @@ func Intersect(a, b [][]byte) [][]byte {
 	return other
 }
 
+// Clone returns a copy of b.
+func Clone(b []byte) []byte {
+	if b == nil {
+		return nil
+	}
+	buf := make([]byte, len(b))
+	copy(buf, b)
+	return buf
+}
+
+// CloneSlice returns a copy of a slice of byte slices.
+func CloneSlice(a [][]byte) [][]byte {
+	other := make([][]byte, len(a))
+	for i := range a {
+		other[i] = Clone(a[i])
+	}
+	return other
+}
+
 type byteSlices [][]byte
 
 func (a byteSlices) Len() int           { return len(a) }
