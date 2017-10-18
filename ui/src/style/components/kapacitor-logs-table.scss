@@ -2,6 +2,13 @@
     Styles for Kapacitor Logs Table
     ----------------------------------------------------------------------------
 */
+
+$logs-table-header-height: 60px;
+$logs-table-padding: 60px;
+$logs-row-indent: 6px;
+$logs-level-dot: 8px;
+$logs-margin: 4px;
+
 .logs-table--container {
   width: 50%;
   position: relative;
