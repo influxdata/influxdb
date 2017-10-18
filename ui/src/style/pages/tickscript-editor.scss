@@ -1,7 +1,14 @@
 /*
     Styles for TICKscript Editor
-    ----------------------------------------------
+    ----------------------------------------------------------------------------
 */
+
+$logs-table-header-height: 60px;
+$logs-table-padding: 60px;
+$logs-row-indent: 6px;
+$logs-level-dot: 8px;
+$logs-margin: 4px;
+$tickscript-console-height: 60px;
 
 .tickscript-wrapper {
   position: absolute !important;
@@ -14,111 +21,72 @@
   align-items: stretch;
 }
 
-$logs-table-header-height: 60px;
-$logs-table-padding: 60px;
-$logs-row-indent: 6px;
-$logs-level-dot: 8px;
-$logs-margin: 4px;
-
 .tickscript {
   flex: 1 0 0;
 }
-.logs-table--container {
-  width: 50%;
+
+.tickscript-controls,
+.tickscript-console,
+.tickscript-editor {
+  padding: 0;
+  margin: 0;
+  width: 100%;
   position: relative;
-  height: 100%;
-  @include gradient-v($g3-castle,$g1-raven);
 }
-.logs-table--header {
+.tickscript-controls,
+.tickscript-console {
+  height: $tickscript-console-height;
+}
+.tickscript-controls {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  flex-wrap: nowrap;
-  height: $logs-table-header-height;
-  padding: 0 $logs-table-padding 0 ($logs-table-padding / 2);
-  background-color: $g4-onyx;
+  padding: 0 60px;
+  background-color: $g3-castle;
 }
-.logs-table--panel {
-  position: absolute;
-  top: $logs-table-header-height;
-  left: 0;
-  width: 100%;
-  height: calc(100% - #{$logs-table-header-height});
-  overflow: auto;
-}
-
-.logs-table,
-.logs-table--row {
-  display: flex;
-  align-items: stretch;
-  flex-direction: column;
-}
-.logs-table--row {
-  padding: 8px ($logs-table-padding - 16px) 8px ($logs-table-padding / 2);
-  border-bottom: 2px solid $g3-castle;
-  transition: background-color 0.25s ease;
-
-  &:hover {
-    background-color: $g4-onyx;
-  }
-  &:last-child {
-    border-bottom: none;
-  }
-}
-.logs-table--divider {
+.tickscript-console--output {
+  padding: 0 60px;
+  font-family: $code-font;
+  font-weight: 600;
   display: flex;
   align-items: center;
-}
-.logs-table--level {
-  width: $logs-level-dot;
-  height: $logs-level-dot;
-  border-radius: 50%;
+  background-color: $g2-kevlar;
+  border-bottom: 2px solid $g3-castle;
   position: relative;
-  margin-right: $logs-row-indent;
+  height: 100%;
+  width: 100%;
+  border-radius: $radius $radius 0 0;
 
-  &.debug {background-color: $c-comet;}
-  &.info {background-color: $g6-smoke;}
-  &.warn {background-color: $c-pineapple;}
-  &.ok {background-color: $c-rainforest;}
-  &.error {background-color: $c-dreamsicle;}
+  > p {
+    margin: 0;
+  }
 }
-.logs-table--timestamp {
-  font-family: $code-font;
-  font-weight: 500;
-  font-size: 11px;
-  color: $g9-mountain;
-  flex: 1 0 0;
-}
-.logs-table--details {
-  display: flex;
-  align-items: flex-start;
-  font-size: 13px;
-  color: $g13-mist;
-  font-weight: 600;
-  padding-left: ($logs-level-dot + $logs-row-indent);
-
-  .error {color: $c-dreamsicle;}
-  .debug {color: $c-comet;}
-}
-
-/* Logs Table Item Types */
-.logs-table--session {
-  text-transform: capitalize;
+.tickscript-console--default {
+  color: $g10-wolf;
   font-style: italic;
 }
-.logs-table--service {
-  width: 140px;
+.tickscript-editor {
+  height: calc(100% - #{$tickscript-console-height * 2});
 }
-.logs-table--blah {
-  display: flex;
-  flex: 1 0 0;
-}
-.logs-table--key-values {
-  color: $g11-sidewalk;
-  flex: 1 0 50%;
-}
-.logs-table--key-value {
-}
-.logs-table--key-value span {
-  color: $c-pool;
+
+/*
+    Toggle for displaying Logs
+    ----------------------------------------------------------------------------
+*/
+.logs-toggle {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+
+  > li {
+    width: 100px;
+    justify-content: center;
+  }
+  > li:not(.active) {
+    background-color: $g0-obsidian;
+
+    &:hover {
+      background-color: $g3-castle;
+    }
+  }
 }

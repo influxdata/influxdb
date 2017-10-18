@@ -7,51 +7,6 @@
 
 */
 
-$tickscript-console-height: 60px;
-
-.tickscript-controls,
-.tickscript-console,
-.tickscript-editor {
-  padding: 0;
-  margin: 0;
-  width: 100%;
-  position: relative;
-}
-.tickscript-controls,
-.tickscript-console {
-  height: $tickscript-console-height;
-}
-.tickscript-controls {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 60px;
-  background-color: $g3-castle;
-}
-.tickscript-console--output {
-  padding: 0 60px;
-  font-family: $code-font;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  background-color: $g2-kevlar;
-  border-bottom: 2px solid $g3-castle;
-  position: relative;
-  height: 100%;
-  width: 100%;
-  border-radius: $radius $radius 0 0;
-
-  > p {
-    margin: 0;
-  }
-}
-.tickscript-console--default {
-  color: $g10-wolf;
-  font-style: italic;
-}
-.tickscript-editor {
-  height: calc(100% - #{$tickscript-console-height * 2});
-}
 .ReactCodeMirror {
   position: relative;
   width: 100%;
