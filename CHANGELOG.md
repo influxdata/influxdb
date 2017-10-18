@@ -2,11 +2,13 @@
 
 ### Bugfixes
 
-[#8900](https://github.com/influxdata/influxdb/issues/8900): Don't assume `which` is present in package post-install script.
-[#8909](https://github.com/influxdata/influxdb/issues/8909): Fix use of `INFLUXD_OPTS` in service file
-[#8908](https://github.com/influxdata/influxdb/issues/8908): Fix missing man pages in new packaging output
-[#8951](https://github.com/influxdata/influxdb/issues/8951): Add RPM dependency on shadow-utils for `useradd`.
-[#7797](https://github.com/influxdata/influxdb/issues/7706): Fix data deleted outside of time range
+- [#8900](https://github.com/influxdata/influxdb/issues/8900): Don't assume `which` is present in package post-install script.
+- [#8909](https://github.com/influxdata/influxdb/issues/8909): Fix use of `INFLUXD_OPTS` in service file
+- [#8908](https://github.com/influxdata/influxdb/issues/8908): Fix missing man pages in new packaging output
+- [#8951](https://github.com/influxdata/influxdb/issues/8951): Add RPM dependency on shadow-utils for `useradd`.
+- [#7797](https://github.com/influxdata/influxdb/issues/7706): Fix data deleted outside of time range
+- [#8822](https://github.com/influxdata/influxdb/issues/8822): Fix data dropped incorrectly during compaction
+
 
 ## v1.3.6 [2017-09-29]
 

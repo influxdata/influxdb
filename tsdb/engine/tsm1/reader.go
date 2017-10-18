@@ -608,6 +608,10 @@ type TimeRange struct {
 	Min, Max int64
 }
 
+func (t TimeRange) Overlaps(min, max int64) bool {
+	return t.Min <= max && t.Max >= min
+}
+
 // NewIndirectIndex returns a new indirect index.
 func NewIndirectIndex() *indirectIndex {
 	return &indirectIndex{
@@ -823,7 +827,59 @@ func (d *indirectIndex) DeleteRange(keys []string, minTime, maxTime int64) {
 			continue
 		}
 
-		tombstones[k] = append(tombstones[k], TimeRange{minTime, maxTime})
+		d.mu.RLock()
+		existing := d.tombstones[string(k)]
+		d.mu.RUnlock()
+
+		// Append the new tombonstes to the existing ones
+		newTs := append(existing, append(tombstones[string(k)], TimeRange{minTime, maxTime})...)
+		fn := func(i, j int) bool {
+			a, b := newTs[i], newTs[j]
+			if a.Min == b.Min {
+				return a.Max <= b.Max
+			}
+			return a.Min < b.Min
+		}
+
+		// Sort the updated tombstones if necessary
+		if len(newTs) > 1 && !sort.SliceIsSorted(newTs, fn) {
+			sort.Slice(newTs, fn)
+		}
+
+		tombstones[string(k)] = newTs
+
+		// We need to see if all the tombstones end up deleting the entire series.  This
+		// could happen if their is one tombstore with min,max time spanning all the block
+		// time ranges or from multiple smaller tombstones the delete segments.  To detect
+		// this cases, we use a window starting at the first tombstone and grow it be each
+		// tombstone that is immediately adjacent to the current window or if it overlaps.
+		// If there are any gaps, we abort.
+		minTs, maxTs := newTs[0].Min, newTs[0].Max
+		for j := 1; j < len(newTs); j++ {
+			prevTs := newTs[j-1]
+			ts := newTs[j]
+
+			// Make sure all the tombstone line up for a continuous range.  We don't
+			// want to have two small deletes on each edges end up causing us to
+			// remove the full key.
+			if prevTs.Max != ts.Min-1 && !prevTs.Overlaps(ts.Min, ts.Max) {
+				minTs, maxTs = int64(math.MaxInt64), int64(math.MinInt64)
+				break
+			}
+
+			if ts.Min < minTs {
+				minTs = ts.Min
+			}
+			if ts.Max > maxTs {
+				maxTs = ts.Max
+			}
+		}
+
+		// If we have a fully deleted series, delete it all of it.
+		if minTs <= min && maxTs >= max {
+			d.Delete(keys[i : i+1])
+			continue
+		}
 	}
 
 	if len(tombstones) == 0 {
@@ -832,7 +888,7 @@ func (d *indirectIndex) DeleteRange(keys []string, minTime, maxTime int64) {
 
 	d.mu.Lock()
 	for k, v := range tombstones {
-		d.tombstones[k] = append(d.tombstones[k], v...)
+		d.tombstones[k] = v
 	}
 	d.mu.Unlock()
 }
