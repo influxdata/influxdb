@@ -6,17 +6,18 @@ const TickscriptHeader = ({
   task: {id},
   onSave,
   areLogsVisible,
+  isNewTickscript,
   onToggleLogsVisbility,
 }) =>
   <div className="page-header full-width">
     <div className="page-header__container">
       <div className="page-header__left">
         <h1 className="page-header__title">TICKscript Editor</h1>
-        <LogsToggle
-          areLogsVisible={areLogsVisible}
-          onToggleLogsVisbility={onToggleLogsVisbility}
-        />
       </div>
+      <LogsToggle
+        areLogsVisible={areLogsVisible}
+        onToggleLogsVisbility={onToggleLogsVisbility}
+      />
       <div className="page-header__right">
         <SourceIndicator />
         <button
