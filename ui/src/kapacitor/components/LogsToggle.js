@@ -1,7 +1,7 @@
 import React, {PropTypes} from 'react'
 
 const LogsToggle = ({areLogsVisible, onToggleLogsVisbility}) =>
-  <ul className="nav nav-tablist nav-tablist-sm nav-tablist-malachite">
+  <ul className="nav nav-tablist nav-tablist-sm nav-tablist-malachite logs-toggle">
     <li
       className={areLogsVisible ? null : 'active'}
       onClick={onToggleLogsVisbility}
