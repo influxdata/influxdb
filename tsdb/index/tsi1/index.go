@@ -17,6 +17,7 @@ import (
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
@@ -404,7 +405,7 @@ func (i *Index) MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
 	defer fs.Release()
 
 	names, err := fs.MeasurementNamesByExpr(expr)
-	return copyByteSlices(names), err
+	return bytesutil.CloneSlice(names), err
 }
 
 func (i *Index) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
@@ -415,7 +416,7 @@ func (i *Index) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
 	var a [][]byte
 	for e := itr.Next(); e != nil; e = itr.Next() {
 		if re.Match(e.Name()) {
-			a = append(a, copyBytes(e.Name()))
+			a = append(a, bytesutil.Clone(e.Name()))
 		}
 	}
 	return a, nil
@@ -730,7 +731,7 @@ func (i *Index) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr) ([]
 	defer fs.Release()
 
 	keys, err := fs.MeasurementSeriesKeysByExpr(name, expr, i.fieldset)
-	return copyByteSlices(keys), err
+	return bytesutil.CloneSlice(keys), err
 }
 
 // TagSets returns an ordered list of tag sets for a measurement by dimension
