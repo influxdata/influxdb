@@ -79,6 +79,10 @@ class WriteDataForm extends Component {
       file = e.target.files[0]
     }
 
+    if (!file) {
+      return
+    }
+
     e.preventDefault()
     e.stopPropagation()
 
