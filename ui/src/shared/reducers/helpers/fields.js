@@ -1,7 +1,6 @@
 import _ from 'lodash'
 
-// fieldWalk traverses fields rescursively into args mapping fn on every
-// field
+// fieldWalk traverses fields rescursively into args mapping fn on every field
 export const fieldWalk = (fields, fn, acc = []) =>
   _.compact(
     _.flattenDeep(
@@ -51,11 +50,11 @@ export const getFieldsWithName = (fieldName, fields) =>
 export const everyOfType = (fields, type) =>
   fields.every(f => _.get(f, 'type') === type)
 
-// everyField returns if all top-level field types are field
-export const everyField = fields => everyOfType(fields, 'field')
+// everyTopField returns if all top-level field types are field
+export const everyTopField = fields => everyOfType(fields, 'field')
 
-// everyFunction returns if all top-level field types are functions
-export const everyFunction = fields => everyOfType(fields, 'func')
+// everyTopFunction returns if all top-level field types are functions
+export const everyTopFunction = fields => everyOfType(fields, 'func')
 
 export const getFuncsByFieldName = (fieldName, fields) =>
   getFunctions(fields).filter(f =>
@@ -65,13 +64,12 @@ export const getFuncsByFieldName = (fieldName, fields) =>
 // removeField will remove the field or function from the field list with the
 // given fieldName. Preconditions: only type field OR only type func
 export const removeField = (fieldName, fields) => {
-  if (everyField(fields)) {
+  if (everyTopField(fields)) {
     return fields.filter(f => f.value !== fieldName)
   }
 
   return fields.reduce((acc, f) => {
-    const has = fieldNamesDeep(f.args).some(n => n === fieldName)
-    if (has) {
+    if (hasField(fieldName, f.args)) {
       return acc
     }
 
