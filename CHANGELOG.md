@@ -9,6 +9,7 @@
 - [#7797](https://github.com/influxdata/influxdb/issues/7706): Fix data deleted outside of time range
 - [#8822](https://github.com/influxdata/influxdb/issues/8822): Fix data dropped incorrectly during compaction
 - [#9006](https://github.com/influxdata/influxdb/pull/9006): Return `query.ErrQueryInterrupted` for a successful read on `InterruptCh`.
+- [#8978](https://github.com/influxdata/influxdb/pull/8978): Copy returned bytes from TSI meta functions.
 
 
 ## v1.3.6 [2017-09-29]
