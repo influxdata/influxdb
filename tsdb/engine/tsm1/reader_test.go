@@ -788,6 +788,127 @@ func TestTSMReader_MMAP_TombstoneMultipleRanges(t *testing.T) {
 	}
 }
 
+func TestTSMReader_MMAP_TombstoneMultipleRangesFull(t *testing.T) {
+	dir := mustTempDir()
+	defer os.RemoveAll(dir)
+	f := mustTempFile(dir)
+	defer f.Close()
+
+	w, err := NewTSMWriter(f)
+	if err != nil {
+		t.Fatalf("unexpected error creating writer: %v", err)
+	}
+
+	expValues := []Value{
+		NewValue(1, 1.0),
+		NewValue(2, 2.0),
+	}
+	if err := w.Write([]byte("cpu"), expValues); err != nil {
+		t.Fatalf("unexpected error writing: %v", err)
+	}
+
+	if err := w.WriteIndex(); err != nil {
+		t.Fatalf("unexpected error writing index: %v", err)
+	}
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("unexpected error closing: %v", err)
+	}
+
+	f, err = os.Open(f.Name())
+	if err != nil {
+		t.Fatalf("unexpected error open file: %v", err)
+	}
+
+	r, err := NewTSMReader(f)
+	if err != nil {
+		t.Fatalf("unexpected error created reader: %v", err)
+	}
+	defer r.Close()
+
+	if err := r.DeleteRange([][]byte{[]byte("cpu")}, 1, 1); err != nil {
+		t.Fatalf("unexpected error deleting: %v", err)
+	}
+
+	if err := r.DeleteRange([][]byte{[]byte("cpu")}, 2, 2); err != nil {
+		t.Fatalf("unexpected error deleting: %v", err)
+	}
+
+	if got, exp := r.KeyCount(), 0; got != exp {
+		t.Fatalf("key count mismatch: got %v, exp %v", got, exp)
+	}
+
+	values, err := r.ReadAll([]byte("cpu"))
+	if err != nil {
+		t.Fatalf("unexpected error reading all: %v", err)
+	}
+
+	if got, exp := len(values), 0; got != exp {
+		t.Fatalf("values length mismatch: got %v, exp %v", got, exp)
+	}
+}
+
+func TestTSMReader_MMAP_TombstoneMultipleRangesNoOverlap(t *testing.T) {
+	dir := mustTempDir()
+	defer os.RemoveAll(dir)
+	f := mustTempFile(dir)
+	defer f.Close()
+
+	w, err := NewTSMWriter(f)
+	if err != nil {
+		t.Fatalf("unexpected error creating writer: %v", err)
+	}
+
+	expValues := []Value{
+		NewValue(1, 1.0),
+		NewValue(2, 2.0),
+		NewValue(3, 2.0),
+	}
+	if err := w.Write([]byte("cpu"), expValues); err != nil {
+		t.Fatalf("unexpected error writing: %v", err)
+	}
+
+	if err := w.WriteIndex(); err != nil {
+		t.Fatalf("unexpected error writing index: %v", err)
+	}
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("unexpected error closing: %v", err)
+	}
+
+	f, err = os.Open(f.Name())
+	if err != nil {
+		t.Fatalf("unexpected error open file: %v", err)
+	}
+
+	r, err := NewTSMReader(f)
+	if err != nil {
+		t.Fatalf("unexpected error created reader: %v", err)
+	}
+	defer r.Close()
+
+	if err := r.DeleteRange([][]byte{[]byte("cpu")}, 1, 1); err != nil {
+		t.Fatalf("unexpected error deleting: %v", err)
+	}
+
+	if err := r.DeleteRange([][]byte{[]byte("cpu")}, 3, 3); err != nil {
+		t.Fatalf("unexpected error deleting: %v", err)
+	}
+
+	if got, exp := r.KeyCount(), 1; got != exp {
+		t.Fatalf("key count mismatch: got %v, exp %v", got, exp)
+	}
+
+	values, err := r.ReadAll([]byte("cpu"))
+	if err != nil {
+		t.Fatalf("unexpected error reading all: %v", err)
+	}
+
+	if got, exp := len(values), 1; got != exp {
+		t.Fatalf("values length mismatch: got %v, exp %v", got, exp)
+	}
+}
+
 func TestTSMReader_MMAP_TombstoneOutsideRange(t *testing.T) {
 	dir := mustTempDir()
 	defer os.RemoveAll(dir)
