@@ -747,9 +747,21 @@ func (i *Index) TagSets(name []byte, opt query.IteratorOptions) ([]*query.TagSet
 	// TagSet are then grouped together, because for the purpose of GROUP BY
 	// they are part of the same composite series.
 	tagSets := make(map[string]*query.TagSet, 64)
+	var seriesN int
 
 	if itr != nil {
 		for e := itr.Next(); e != nil; e = itr.Next() {
+			// Abort if the query was killed
+			select {
+			case <-opt.InterruptCh:
+				return nil, query.ErrQueryInterrupted
+			default:
+			}
+
+			if opt.MaxSeriesN > 0 && seriesN > opt.MaxSeriesN {
+				return nil, fmt.Errorf("max-select-series limit exceeded: (%d/%d)", seriesN, opt.MaxSeriesN)
+			}
+
 			if opt.Authorizer != nil && !opt.Authorizer.AuthorizeSeriesRead(i.Database, name, e.Tags()) {
 				continue
 			}
@@ -777,11 +789,19 @@ func (i *Index) TagSets(name []byte, opt query.IteratorOptions) ([]*query.TagSet
 
 			// Ensure it's back in the map.
 			tagSets[string(tagsAsKey)] = tagSet
+			seriesN++
 		}
 	}
 
 	// Sort the series in each tag set.
 	for _, t := range tagSets {
+		// Abort if the query was killed
+		select {
+		case <-opt.InterruptCh:
+			return nil, query.ErrQueryInterrupted
+		default:
+		}
+
 		sort.Sort(t)
 	}
 
