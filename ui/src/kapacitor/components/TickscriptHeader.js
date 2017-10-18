@@ -26,7 +26,7 @@ const TickscriptHeader = ({
           onClick={onSave}
           disabled={!id}
         >
-          {isNewTickscript ? 'Save New Rule' : 'Save Rule'}
+          {isNewTickscript ? 'Save New TICKscript' : 'Save TICKscript'}
         </button>
       </div>
     </div>
