@@ -129,16 +129,14 @@ func TestAuthorizedUser(t *testing.T) {
 			name: "User with viewer role is viewer authorized",
 			fields: fields{
 				UsersStore: &mocks.UsersStore{
-					AllF: func(ctx context.Context) ([]chronograf.User, error) {
-						return []chronograf.User{
-							{
-								ID:       1337,
-								Name:     "billysteve",
-								Provider: "Google",
-								Scheme:   "OAuth2",
-								Roles: []chronograf.Role{
-									server.ViewerRole,
-								},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						return &chronograf.User{
+							ID:       1337,
+							Name:     "billysteve",
+							Provider: "Google",
+							Scheme:   "OAuth2",
+							Roles: []chronograf.Role{
+								server.ViewerRole,
 							},
 						}, nil
 					},
@@ -157,16 +155,14 @@ func TestAuthorizedUser(t *testing.T) {
 			name: "User with editor role is viewer authorized",
 			fields: fields{
 				UsersStore: &mocks.UsersStore{
-					AllF: func(ctx context.Context) ([]chronograf.User, error) {
-						return []chronograf.User{
-							{
-								ID:       1337,
-								Name:     "billysteve",
-								Provider: "Google",
-								Scheme:   "OAuth2",
-								Roles: []chronograf.Role{
-									server.EditorRole,
-								},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						return &chronograf.User{
+							ID:       1337,
+							Name:     "billysteve",
+							Provider: "Google",
+							Scheme:   "OAuth2",
+							Roles: []chronograf.Role{
+								server.EditorRole,
 							},
 						}, nil
 					},
@@ -185,16 +181,14 @@ func TestAuthorizedUser(t *testing.T) {
 			name: "User with admin role is viewer authorized",
 			fields: fields{
 				UsersStore: &mocks.UsersStore{
-					AllF: func(ctx context.Context) ([]chronograf.User, error) {
-						return []chronograf.User{
-							{
-								ID:       1337,
-								Name:     "billysteve",
-								Provider: "Google",
-								Scheme:   "OAuth2",
-								Roles: []chronograf.Role{
-									server.AdminRole,
-								},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						return &chronograf.User{
+							ID:       1337,
+							Name:     "billysteve",
+							Provider: "Google",
+							Scheme:   "OAuth2",
+							Roles: []chronograf.Role{
+								server.AdminRole,
 							},
 						}, nil
 					},
@@ -213,16 +207,14 @@ func TestAuthorizedUser(t *testing.T) {
 			name: "User with viewer role is editor unauthorized",
 			fields: fields{
 				UsersStore: &mocks.UsersStore{
-					AllF: func(ctx context.Context) ([]chronograf.User, error) {
-						return []chronograf.User{
-							{
-								ID:       1337,
-								Name:     "billysteve",
-								Provider: "Google",
-								Scheme:   "OAuth2",
-								Roles: []chronograf.Role{
-									server.ViewerRole,
-								},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						return &chronograf.User{
+							ID:       1337,
+							Name:     "billysteve",
+							Provider: "Google",
+							Scheme:   "OAuth2",
+							Roles: []chronograf.Role{
+								server.ViewerRole,
 							},
 						}, nil
 					},
@@ -241,16 +233,14 @@ func TestAuthorizedUser(t *testing.T) {
 			name: "User with editor role is editor authorized",
 			fields: fields{
 				UsersStore: &mocks.UsersStore{
-					AllF: func(ctx context.Context) ([]chronograf.User, error) {
-						return []chronograf.User{
-							{
-								ID:       1337,
-								Name:     "billysteve",
-								Provider: "Google",
-								Scheme:   "OAuth2",
-								Roles: []chronograf.Role{
-									server.EditorRole,
-								},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						return &chronograf.User{
+							ID:       1337,
+							Name:     "billysteve",
+							Provider: "Google",
+							Scheme:   "OAuth2",
+							Roles: []chronograf.Role{
+								server.EditorRole,
 							},
 						}, nil
 					},
@@ -269,16 +259,14 @@ func TestAuthorizedUser(t *testing.T) {
 			name: "User with admin role is editor authorized",
 			fields: fields{
 				UsersStore: &mocks.UsersStore{
-					AllF: func(ctx context.Context) ([]chronograf.User, error) {
-						return []chronograf.User{
-							{
-								ID:       1337,
-								Name:     "billysteve",
-								Provider: "Google",
-								Scheme:   "OAuth2",
-								Roles: []chronograf.Role{
-									server.AdminRole,
-								},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						return &chronograf.User{
+							ID:       1337,
+							Name:     "billysteve",
+							Provider: "Google",
+							Scheme:   "OAuth2",
+							Roles: []chronograf.Role{
+								server.AdminRole,
 							},
 						}, nil
 					},
@@ -297,16 +285,14 @@ func TestAuthorizedUser(t *testing.T) {
 			name: "User with viewer role is admin unauthorized",
 			fields: fields{
 				UsersStore: &mocks.UsersStore{
-					AllF: func(ctx context.Context) ([]chronograf.User, error) {
-						return []chronograf.User{
-							{
-								ID:       1337,
-								Name:     "billysteve",
-								Provider: "Google",
-								Scheme:   "OAuth2",
-								Roles: []chronograf.Role{
-									server.ViewerRole,
-								},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						return &chronograf.User{
+							ID:       1337,
+							Name:     "billysteve",
+							Provider: "Google",
+							Scheme:   "OAuth2",
+							Roles: []chronograf.Role{
+								server.ViewerRole,
 							},
 						}, nil
 					},
@@ -325,16 +311,14 @@ func TestAuthorizedUser(t *testing.T) {
 			name: "User with editor role is admin unauthorized",
 			fields: fields{
 				UsersStore: &mocks.UsersStore{
-					AllF: func(ctx context.Context) ([]chronograf.User, error) {
-						return []chronograf.User{
-							{
-								ID:       1337,
-								Name:     "billysteve",
-								Provider: "Google",
-								Scheme:   "OAuth2",
-								Roles: []chronograf.Role{
-									server.EditorRole,
-								},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						return &chronograf.User{
+							ID:       1337,
+							Name:     "billysteve",
+							Provider: "Google",
+							Scheme:   "OAuth2",
+							Roles: []chronograf.Role{
+								server.EditorRole,
 							},
 						}, nil
 					},
@@ -353,16 +337,14 @@ func TestAuthorizedUser(t *testing.T) {
 			name: "User with admin role is admin authorized",
 			fields: fields{
 				UsersStore: &mocks.UsersStore{
-					AllF: func(ctx context.Context) ([]chronograf.User, error) {
-						return []chronograf.User{
-							{
-								ID:       1337,
-								Name:     "billysteve",
-								Provider: "Google",
-								Scheme:   "OAuth2",
-								Roles: []chronograf.Role{
-									server.AdminRole,
-								},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						return &chronograf.User{
+							ID:       1337,
+							Name:     "billysteve",
+							Provider: "Google",
+							Scheme:   "OAuth2",
+							Roles: []chronograf.Role{
+								server.AdminRole,
 							},
 						}, nil
 					},
@@ -381,15 +363,13 @@ func TestAuthorizedUser(t *testing.T) {
 			name: "User with no role is viewer unauthorized",
 			fields: fields{
 				UsersStore: &mocks.UsersStore{
-					AllF: func(ctx context.Context) ([]chronograf.User, error) {
-						return []chronograf.User{
-							{
-								ID:       1337,
-								Name:     "billysteve",
-								Provider: "Google",
-								Scheme:   "OAuth2",
-								Roles:    []chronograf.Role{},
-							},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						return &chronograf.User{
+							ID:       1337,
+							Name:     "billysteve",
+							Provider: "Google",
+							Scheme:   "OAuth2",
+							Roles:    []chronograf.Role{},
 						}, nil
 					},
 				},
@@ -407,15 +387,13 @@ func TestAuthorizedUser(t *testing.T) {
 			name: "User with no role is editor unauthorized",
 			fields: fields{
 				UsersStore: &mocks.UsersStore{
-					AllF: func(ctx context.Context) ([]chronograf.User, error) {
-						return []chronograf.User{
-							{
-								ID:       1337,
-								Name:     "billysteve",
-								Provider: "Google",
-								Scheme:   "OAuth2",
-								Roles:    []chronograf.Role{},
-							},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						return &chronograf.User{
+							ID:       1337,
+							Name:     "billysteve",
+							Provider: "Google",
+							Scheme:   "OAuth2",
+							Roles:    []chronograf.Role{},
 						}, nil
 					},
 				},
@@ -433,15 +411,13 @@ func TestAuthorizedUser(t *testing.T) {
 			name: "User with no role is admin unauthorized",
 			fields: fields{
 				UsersStore: &mocks.UsersStore{
-					AllF: func(ctx context.Context) ([]chronograf.User, error) {
-						return []chronograf.User{
-							{
-								ID:       1337,
-								Name:     "billysteve",
-								Provider: "Google",
-								Scheme:   "OAuth2",
-								Roles:    []chronograf.Role{},
-							},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						return &chronograf.User{
+							ID:       1337,
+							Name:     "billysteve",
+							Provider: "Google",
+							Scheme:   "OAuth2",
+							Roles:    []chronograf.Role{},
 						}, nil
 					},
 				},
@@ -459,17 +435,15 @@ func TestAuthorizedUser(t *testing.T) {
 			name: "User with unknown role is viewer unauthorized",
 			fields: fields{
 				UsersStore: &mocks.UsersStore{
-					AllF: func(ctx context.Context) ([]chronograf.User, error) {
-						return []chronograf.User{
-							{
-								ID:       1337,
-								Name:     "billysteve",
-								Provider: "Google",
-								Scheme:   "OAuth2",
-								Roles: []chronograf.Role{
-									{
-										Name: "sweet_role",
-									},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						return &chronograf.User{
+							ID:       1337,
+							Name:     "billysteve",
+							Provider: "Google",
+							Scheme:   "OAuth2",
+							Roles: []chronograf.Role{
+								{
+									Name: "sweet_role",
 								},
 							},
 						}, nil
@@ -489,17 +463,15 @@ func TestAuthorizedUser(t *testing.T) {
 			name: "User with unknown role is editor unauthorized",
 			fields: fields{
 				UsersStore: &mocks.UsersStore{
-					AllF: func(ctx context.Context) ([]chronograf.User, error) {
-						return []chronograf.User{
-							{
-								ID:       1337,
-								Name:     "billysteve",
-								Provider: "Google",
-								Scheme:   "OAuth2",
-								Roles: []chronograf.Role{
-									{
-										Name: "sweet_role",
-									},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						return &chronograf.User{
+							ID:       1337,
+							Name:     "billysteve",
+							Provider: "Google",
+							Scheme:   "OAuth2",
+							Roles: []chronograf.Role{
+								{
+									Name: "sweet_role",
 								},
 							},
 						}, nil
@@ -519,17 +491,15 @@ func TestAuthorizedUser(t *testing.T) {
 			name: "User with unknown role is admin unauthorized",
 			fields: fields{
 				UsersStore: &mocks.UsersStore{
-					AllF: func(ctx context.Context) ([]chronograf.User, error) {
-						return []chronograf.User{
-							{
-								ID:       1337,
-								Name:     "billysteve",
-								Provider: "Google",
-								Scheme:   "OAuth2",
-								Roles: []chronograf.Role{
-									{
-										Name: "sweet_role",
-									},
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						return &chronograf.User{
+							ID:       1337,
+							Name:     "billysteve",
+							Provider: "Google",
+							Scheme:   "OAuth2",
+							Roles: []chronograf.Role{
+								{
+									Name: "sweet_role",
 								},
 							},
 						}, nil

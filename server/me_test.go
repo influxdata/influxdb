@@ -43,26 +43,13 @@ func TestService_Me(t *testing.T) {
 			},
 			fields: fields{
 				UseAuth: true,
+				Logger:  log.New(log.DebugLevel),
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						return &chronograf.User{
 							Name:     "me",
 							Provider: "GitHub",
 							Passwd:   "hunter2",
-						}, nil
-					},
-					AllF: func(ctx context.Context) ([]chronograf.User, error) {
-						return []chronograf.User{
-							{
-								Name:     "me",
-								Provider: "GitHub",
-								Passwd:   "hunter2",
-							},
-							{
-								Name:     "billietta",
-								Provider: "Google",
-								Passwd:   "billiettaspassword",
-							},
 						}, nil
 					},
 				},
@@ -84,26 +71,13 @@ func TestService_Me(t *testing.T) {
 			},
 			fields: fields{
 				UseAuth: true,
+				Logger:  log.New(log.DebugLevel),
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
-						return nil, fmt.Errorf("Unknown User")
+						return nil, chronograf.ErrUserNotFound
 					},
 					AddF: func(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
 						return u, nil
-					},
-					AllF: func(ctx context.Context) ([]chronograf.User, error) {
-						return []chronograf.User{
-							{
-								Name:     "me",
-								Provider: "GitHub",
-								Passwd:   "hunter2",
-							},
-							{
-								Name:     "billietta",
-								Provider: "Google",
-								Passwd:   "billiettaspassword",
-							},
-						}, nil
 					},
 				},
 			},
@@ -126,24 +100,10 @@ func TestService_Me(t *testing.T) {
 				UseAuth: true,
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
-						return nil, fmt.Errorf("Unknown User")
+						return nil, chronograf.ErrUserNotFound
 					},
 					AddF: func(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
 						return nil, fmt.Errorf("Why Heavy?")
-					},
-					AllF: func(ctx context.Context) ([]chronograf.User, error) {
-						return []chronograf.User{
-							{
-								Name:     "me",
-								Provider: "GitHub",
-								Passwd:   "hunter2",
-							},
-							{
-								Name:     "billietta",
-								Provider: "Google",
-								Passwd:   "billiettaspassword",
-							},
-						}, nil
 					},
 				},
 				Logger: log.New(log.DebugLevel),

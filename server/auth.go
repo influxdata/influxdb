@@ -78,16 +78,10 @@ func AuthorizedUser(store chronograf.UsersStore, useAuth bool, role string, logg
 			return
 		}
 
-		u, err := getUserBy(store, ctx, username, provider)
+		u, err := store.Get(ctx, chronograf.UserQuery{Name: &username, Provider: &provider})
 		if err != nil {
 			log.Error("Error to retrieving user")
 			Error(w, http.StatusUnauthorized, fmt.Sprintf("User %s is not authorized", username), logger)
-			return
-		}
-
-		if u == nil {
-			log.Error("User not found")
-			Error(w, http.StatusNotFound, fmt.Sprintf("User with name %s and provider %s not found", username, provider), logger)
 			return
 		}
 

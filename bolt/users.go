@@ -73,7 +73,7 @@ func (s *UsersStore) Get(ctx context.Context, q chronograf.UserQuery) (*chronogr
 		}
 
 		if user == nil {
-			return nil, fmt.Errorf("user not found")
+			return nil, chronograf.ErrUserNotFound
 		}
 
 		return user, nil
