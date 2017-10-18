@@ -606,6 +606,8 @@ type User struct {
 	Scheme      string      `json:"scheme,omitempty"`
 }
 
+// UserQuery represents the attributes that a user may be retrieved by.
+// It is predominantly used in the UsersStore.Get method.
 type UserQuery struct {
 	ID       *uint64
 	Name     *string

@@ -91,7 +91,7 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.DELETE("/chronograf/v1/sources/:id", EnsureEditor(service.RemoveSource))
 
 	// Source Proxy to Influx; Has gzip compression around the handler
-	influx := gziphandler.GzipHandler(http.HandlerFunc(service.Influx))
+	influx := gziphandler.GzipHandler(http.HandlerFunc(EnsureViewer(service.Influx)))
 	router.Handler("POST", "/chronograf/v1/sources/:id/proxy", influx)
 
 	// Write proxies line protocol write requests to InfluxDB
@@ -101,7 +101,7 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.POST("/chronograf/v1/sources/:id/queries", EnsureEditor(service.Queries))
 
 	// All possible permissions for users in this source
-	router.GET("/chronograf/v1/sources/:id/permissions", EnsureAdmin(service.Permissions))
+	router.GET("/chronograf/v1/sources/:id/permissions", EnsureViewer(service.Permissions))
 
 	// Users associated with the data source
 	router.GET("/chronograf/v1/sources/:id/users", EnsureViewer(service.SourceUsers))
@@ -197,7 +197,7 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.POST("/chronograf/v1/sources/:id/dbs/:dbid/rps", EnsureEditor(service.NewRetentionPolicy))
 
 	router.PUT("/chronograf/v1/sources/:id/dbs/:dbid/rps/:rpid", EnsureEditor(service.UpdateRetentionPolicy))
-	router.DELETE("/chronograf/v1/sources/:id/dbs/:dbid/rps/:rpid", EnsureEditor(service.DropRetentionPolicy))
+	router.DELETE("/chronograf/v1/sources/:id/dbs/:dbid/rps/:rpid", EnsureAdmin(service.DropRetentionPolicy))
 
 	allRoutes := &AllRoutes{
 		Logger:      opts.Logger,

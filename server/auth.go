@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
 	"github.com/influxdata/chronograf"
@@ -68,35 +67,35 @@ func AuthorizedUser(store chronograf.UsersStore, useAuth bool, role string, logg
 		username, err := getUsername(ctx)
 		if err != nil {
 			log.Error("Failed to retrieve username from context")
-			Error(w, http.StatusUnauthorized, fmt.Sprintf("User is not authorized"), logger)
+			Error(w, http.StatusUnauthorized, "User is not authorized", logger)
 			return
 		}
 		provider, err := getProvider(ctx)
 		if err != nil {
 			log.Error("Failed to retrieve provider from context")
-			Error(w, http.StatusUnauthorized, fmt.Sprintf("User %s is not authorized", username), logger)
+			Error(w, http.StatusUnauthorized, "User is not authorized", logger)
 			return
 		}
 
 		u, err := store.Get(ctx, chronograf.UserQuery{Name: &username, Provider: &provider})
 		if err != nil {
 			log.Error("Error to retrieving user")
-			Error(w, http.StatusUnauthorized, fmt.Sprintf("User %s is not authorized", username), logger)
+			Error(w, http.StatusUnauthorized, "User is not authorized", logger)
 			return
 		}
 
-		if hasPrivelege(u, role) {
+		if hasPrivilege(u, role) {
 			next(w, r)
 			return
 		}
 
-		Error(w, http.StatusUnauthorized, fmt.Sprintf("User %s is not authorized", username), logger)
+		Error(w, http.StatusUnauthorized, "User is not authorized", logger)
 		return
 
 	})
 }
 
-func hasPrivelege(u *chronograf.User, role string) bool {
+func hasPrivilege(u *chronograf.User, role string) bool {
 	if u == nil {
 		return false
 	}
@@ -107,8 +106,6 @@ func hasPrivelege(u *chronograf.User, role string) bool {
 			switch r.Name {
 			case ViewerRoleName, EditorRoleName, AdminRoleName:
 				return true
-			default:
-				return false
 			}
 		}
 	case EditorRoleName:
@@ -116,8 +113,6 @@ func hasPrivelege(u *chronograf.User, role string) bool {
 			switch r.Name {
 			case EditorRoleName, AdminRoleName:
 				return true
-			default:
-				return false
 			}
 		}
 	case AdminRoleName:
@@ -125,12 +120,8 @@ func hasPrivelege(u *chronograf.User, role string) bool {
 			switch r.Name {
 			case AdminRoleName:
 				return true
-			default:
-				return false
 			}
 		}
-	default:
-		return false
 	}
 
 	return false
