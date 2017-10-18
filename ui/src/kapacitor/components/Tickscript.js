@@ -25,7 +25,7 @@ const Tickscript = ({
       onToggleLogsVisbility={onToggleLogsVisbility}
       isNewTickscript={isNewTickscript}
     />
-    <div className="tickscript-wrapper">
+    <div className="page-contents--split">
       <div className="tickscript">
         <TickscriptEditorControls
           isNewTickscript={isNewTickscript}

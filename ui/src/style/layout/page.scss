@@ -15,13 +15,18 @@
 .page {
   flex-grow: 1;
 }
-.page-contents {
+.page-contents,
+.page-contents--split {
   position: absolute !important;
   top: $chronograf-page-header-height;
   left: 0;
   width: 100%;
   height: calc(100% - #{$chronograf-page-header-height}) !important;
   @include gradient-v($g2-kevlar,$g0-obsidian);
+}
+.page-contents--split {
+  display: flex;
+  align-items: stretch;
 }
 .container-fluid {
   padding: ($chronograf-page-header-height / 2) $page-wrapper-padding;
@@ -36,7 +41,7 @@
 .page-contents.presentation-mode {
   top: 0;
   height: 100% !important;
-  
+
   .container-fluid {padding: 8px !important;}
   .template-control--manage {display: none;}
 }

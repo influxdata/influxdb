@@ -10,21 +10,9 @@ $logs-level-dot: 8px;
 $logs-margin: 4px;
 $tickscript-console-height: 60px;
 
-.tickscript-wrapper {
-  position: absolute !important;
-  top: $chronograf-page-header-height;
-  left: 0;
-  width: 100%;
-  height: calc(100% - #{$chronograf-page-header-height}) !important;
-  @include gradient-v($g2-kevlar,$g0-obsidian);
-  display: flex;
-  align-items: stretch;
-}
-
 .tickscript {
   flex: 1 0 0;
 }
-
 .tickscript-controls,
 .tickscript-console,
 .tickscript-editor {
