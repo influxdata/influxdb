@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/influxdata/chronograf"
@@ -44,4 +45,96 @@ func AuthorizedToken(auth oauth2.Authenticator, logger chronograf.Logger, next h
 		next.ServeHTTP(w, r.WithContext(ctx))
 		return
 	})
+}
+
+func AuthorizedUser(store chronograf.UsersStore, useAuth bool, role string, logger chronograf.Logger, next http.HandlerFunc) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !useAuth {
+			next(w, r)
+			return
+		}
+
+		log := logger.
+			WithField("component", "role_auth").
+			WithField("remote_addr", r.RemoteAddr).
+			WithField("method", r.Method).
+			WithField("url", r.URL)
+
+		ctx := r.Context()
+
+		username, err := getUsername(ctx)
+		if err != nil {
+			log.Error("Failed to retrieve username from context")
+			Error(w, http.StatusUnauthorized, fmt.Sprintf("User is not authorized"), logger)
+			return
+		}
+		provider, err := getProvider(ctx)
+		if err != nil {
+			log.Error("Failed to retrieve provider from context")
+			Error(w, http.StatusUnauthorized, fmt.Sprintf("User %s is not authorized", username), logger)
+			return
+		}
+
+		u, err := getUserBy(store, ctx, username, provider)
+		if err != nil {
+			log.Error("Error to retrieving user")
+			Error(w, http.StatusUnauthorized, fmt.Sprintf("User %s is not authorized", username), logger)
+			return
+		}
+
+		if u == nil {
+			log.Error("User not found")
+			Error(w, http.StatusNotFound, fmt.Sprintf("User with name %s and provider %s not found", username, provider), logger)
+			return
+		}
+
+		if hasPrivelege(u, role) {
+			next(w, r)
+			return
+		}
+
+		Error(w, http.StatusUnauthorized, fmt.Sprintf("User %s is not authorized", username), logger)
+		return
+
+	})
+}
+
+func hasPrivelege(u *chronograf.User, role string) bool {
+	if u == nil {
+		return false
+	}
+
+	switch role {
+	case ViewerRoleName:
+		for _, r := range u.Roles {
+			switch r.Name {
+			case ViewerRoleName, EditorRoleName, AdminRoleName:
+				return true
+			default:
+				return false
+			}
+		}
+	case EditorRoleName:
+		for _, r := range u.Roles {
+			switch r.Name {
+			case EditorRoleName, AdminRoleName:
+				return true
+			default:
+				return false
+			}
+		}
+	case AdminRoleName:
+		for _, r := range u.Roles {
+			switch r.Name {
+			case AdminRoleName:
+				return true
+			default:
+				return false
+			}
+		}
+	default:
+		return false
+	}
+
+	return false
 }
