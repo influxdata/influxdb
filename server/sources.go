@@ -451,7 +451,7 @@ func (s *Service) SourceUserID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	store := ts.Users(ctx)
-	u, err := store.Get(ctx, uid)
+	u, err := store.Get(ctx, chronograf.UserQuery{Name: &uid})
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 		return
@@ -514,7 +514,7 @@ func (s *Service) UpdateSourceUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	u, err := store.Get(ctx, uid)
+	u, err := store.Get(ctx, chronograf.UserQuery{Name: &uid})
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 		return

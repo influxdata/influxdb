@@ -44,7 +44,7 @@ func TestService_Me(t *testing.T) {
 			fields: fields{
 				UseAuth: true,
 				UsersStore: &mocks.UsersStore{
-					GetF: func(ctx context.Context, name string) (*chronograf.User, error) {
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						return &chronograf.User{
 							Name:     "me",
 							Provider: "GitHub",
@@ -85,7 +85,7 @@ func TestService_Me(t *testing.T) {
 			fields: fields{
 				UseAuth: true,
 				UsersStore: &mocks.UsersStore{
-					GetF: func(ctx context.Context, name string) (*chronograf.User, error) {
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						return nil, fmt.Errorf("Unknown User")
 					},
 					AddF: func(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
@@ -125,7 +125,7 @@ func TestService_Me(t *testing.T) {
 			fields: fields{
 				UseAuth: true,
 				UsersStore: &mocks.UsersStore{
-					GetF: func(ctx context.Context, name string) (*chronograf.User, error) {
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						return nil, fmt.Errorf("Unknown User")
 					},
 					AddF: func(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {

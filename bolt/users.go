@@ -2,7 +2,7 @@ package bolt
 
 import (
 	"context"
-	"strconv"
+	"fmt"
 
 	"github.com/boltdb/bolt"
 	"github.com/influxdata/chronograf"
@@ -38,17 +38,48 @@ func (s *UsersStore) get(ctx context.Context, id uint64) (*chronograf.User, erro
 	return &u, nil
 }
 
+func (s *UsersStore) each(ctx context.Context, fn func(*chronograf.User)) error {
+	return s.client.db.View(func(tx *bolt.Tx) error {
+		return tx.Bucket(UsersBucket).ForEach(func(k, v []byte) error {
+			var user chronograf.User
+			if err := internal.UnmarshalUser(v, &user); err != nil {
+				return err
+			}
+			fn(&user)
+			return nil
+		})
+	})
+}
+
 // Get searches the UsersStore for user with name
-func (s *UsersStore) Get(ctx context.Context, id string) (*chronograf.User, error) {
-	uid, err := strconv.ParseUint(id, 10, 64)
-	if err != nil {
-		return nil, err
+func (s *UsersStore) Get(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+	if q.ID != nil {
+		return s.get(ctx, *q.ID)
 	}
-	u, err := s.get(ctx, uid)
-	if err != nil {
-		return nil, err
+
+	if q.Name != nil && q.Provider != nil {
+		var user *chronograf.User
+		err := s.each(ctx, func(u *chronograf.User) {
+			if user != nil {
+				return
+			}
+			if u.Name == *q.Name && u.Provider == *q.Provider {
+				user = u
+			}
+		})
+
+		if err != nil {
+			return nil, err
+		}
+
+		if user == nil {
+			return nil, fmt.Errorf("user not found")
+		}
+
+		return user, nil
 	}
-	return u, nil
+
+	return nil, fmt.Errorf("must specify ID or Provider and Scheme in UserQuery")
 }
 
 // Add a new Users in the UsersStore.

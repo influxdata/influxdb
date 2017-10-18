@@ -2,7 +2,6 @@ package bolt_test
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"testing"
 
@@ -21,7 +20,7 @@ var cmpOptions = cmp.Options{
 func TestUsersStore_Get(t *testing.T) {
 	type args struct {
 		ctx context.Context
-		ID  string
+		ID  uint64
 	}
 	tests := []struct {
 		name    string
@@ -33,7 +32,7 @@ func TestUsersStore_Get(t *testing.T) {
 			name: "User not found",
 			args: args{
 				ctx: context.Background(),
-				ID:  "1337",
+				ID:  1337,
 			},
 			wantErr: true,
 		},
@@ -49,7 +48,7 @@ func TestUsersStore_Get(t *testing.T) {
 		defer client.Close()
 
 		s := client.UsersStore
-		got, err := s.Get(tt.args.ctx, tt.args.ID)
+		got, err := s.Get(tt.args.ctx, chronograf.UserQuery{ID: &tt.args.ID})
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. UsersStore.Get() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
@@ -114,7 +113,7 @@ func TestUsersStore_Add(t *testing.T) {
 			continue
 		}
 
-		got, err = s.Get(tt.args.ctx, fmt.Sprintf("%d", got.ID))
+		got, err = s.Get(tt.args.ctx, chronograf.UserQuery{ID: &got.ID})
 		if err != nil {
 			t.Fatalf("failed to get user: %v", err)
 		}
@@ -298,7 +297,7 @@ func TestUsersStore_Update(t *testing.T) {
 			continue
 		}
 
-		got, err := s.Get(tt.args.ctx, fmt.Sprintf("%d", tt.args.usr.ID))
+		got, err := s.Get(tt.args.ctx, chronograf.UserQuery{ID: &tt.args.usr.ID})
 		if err != nil {
 			t.Fatalf("failed to get user: %v", err)
 		}
