@@ -105,9 +105,7 @@ const queryConfigs = (state = {}, action) => {
         time: groupBy.time ? groupBy.time : '10s',
       })
 
-      return Object.assign({}, state, {
-        [queryId]: nextQueryConfig,
-      })
+      return {...state, [queryId]: nextQueryConfig}
     }
 
     case 'KAPA_GROUP_BY_TIME': {
