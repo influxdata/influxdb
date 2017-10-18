@@ -99,7 +99,7 @@ class FieldList extends Component {
       return removeFuncs(fields)
     }
 
-    // If there is no groupBy time set apple one
+    // If there is no groupBy time, set one
     if (!groupBy.time) {
       return applyFuncsToField(fieldFunc, {...groupBy, time})
     }
