@@ -1,4 +1,5 @@
 import React, {PropTypes} from 'react'
+
 import TickscriptHeader from 'src/kapacitor/components/TickscriptHeader'
 import TickscriptEditor from 'src/kapacitor/components/TickscriptEditor'
 
@@ -48,7 +49,9 @@ const {arrayOf, bool, func, shape, string} = PropTypes
 
 Tickscript.propTypes = {
   onSave: func.isRequired,
-  source: shape(),
+  source: shape({
+    id: string,
+  }),
   task: shape({
     id: string,
     script: string,

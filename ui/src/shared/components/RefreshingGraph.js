@@ -22,6 +22,7 @@ const RefreshingGraph = ({
   synchronizer,
   resizeCoords,
   editQueryStatus,
+  grabDataForDownload,
 }) => {
   if (!queries.length) {
     return (
@@ -55,6 +56,7 @@ const RefreshingGraph = ({
       axes={axes}
       onZoom={onZoom}
       queries={queries}
+      grabDataForDownload={grabDataForDownload}
       templates={templates}
       timeRange={timeRange}
       autoRefresh={autoRefresh}
@@ -85,6 +87,7 @@ RefreshingGraph.propTypes = {
   editQueryStatus: func,
   onZoom: func,
   resizeCoords: shape(),
+  grabDataForDownload: func,
 }
 
 export default RefreshingGraph

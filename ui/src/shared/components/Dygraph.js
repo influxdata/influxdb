@@ -1,9 +1,8 @@
 /* eslint-disable no-magic-numbers */
 import React, {Component, PropTypes} from 'react'
 import shallowCompare from 'react-addons-shallow-compare'
-
 import _ from 'lodash'
-import moment from 'moment'
+import NanoDate from 'nano-date'
 
 import Dygraphs from 'src/external/dygraph'
 import getRange, {getStackedRange} from 'shared/parsing/getRangeForDygraph'
@@ -305,8 +304,8 @@ export default class Dygraph extends Component {
     if (!timeRange) {
       return ''
     }
-
-    return moment(timeRange).utc().format()
+    const date = new NanoDate(timeRange)
+    return date.toISOString()
   }
 
   deselectCrosshair = () => {

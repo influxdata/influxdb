@@ -12,7 +12,7 @@ const Relative = ({
   onDropdownChange,
   rule: {values: {change, shift, operator, value}},
 }) =>
-  <div className="rule-section--row rule-section--border-bottom">
+  <div className="rule-section--row rule-section--row-first rule-section--border-bottom">
     <p>Send Alert when</p>
     <Dropdown
       className="dropdown-110"

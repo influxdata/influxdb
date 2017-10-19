@@ -3,13 +3,17 @@ import classnames from 'classnames'
 import _ from 'lodash'
 
 import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
-import resultsToCSV from 'src/shared/parsing/resultsToCSV.js'
+import {resultsToCSV} from 'src/shared/parsing/resultsToCSV.js'
 import download from 'src/external/download.js'
 
 const getCSV = (query, errorThrown) => async () => {
   try {
     const {results} = await fetchTimeSeriesAsync({source: query.host, query})
-    const {name, CSVString} = resultsToCSV(results)
+    const {flag, name, CSVString} = resultsToCSV(results)
+    if (flag === 'no_data') {
+      errorThrown('no data', 'There are no data to download.')
+      return
+    }
     download(CSVString, `${name}.csv`, 'text/plain')
   } catch (error) {
     errorThrown(error, 'Unable to download .csv file')

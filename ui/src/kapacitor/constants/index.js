@@ -21,16 +21,27 @@ export const defaultRuleConfigs = {
 
 export const defaultEveryFrequency = '30s'
 
+// constants taken from https://github.com/influxdata/chronograf/blob/870dbc72d1a8b784eaacad5eeea79fc54968b656/kapacitor/operators.go#L13
+export const EQUAL_TO = 'equal to'
+export const LESS_THAN = 'less than'
+export const GREATER_THAN = 'greater than'
+export const NOT_EQUAL_TO = 'not equal to'
+export const INSIDE_RANGE = 'inside range'
+export const OUTSIDE_RANGE = 'outside range'
+export const EQUAL_TO_OR_GREATER_THAN = 'equal to or greater'
+export const EQUAL_TO_OR_LESS_THAN = 'equal to or less than'
+
 export const OPERATORS = [
-  'greater than',
-  'equal to or greater',
-  'equal to or less than',
-  'less than',
-  'equal to',
-  'not equal to',
-  'inside range',
-  'outside range',
+  GREATER_THAN,
+  EQUAL_TO_OR_GREATER_THAN,
+  EQUAL_TO_OR_LESS_THAN,
+  LESS_THAN,
+  EQUAL_TO,
+  NOT_EQUAL_TO,
+  INSIDE_RANGE,
+  OUTSIDE_RANGE,
 ]
+
 // export const RELATIONS = ['once', 'more than ', 'less than'];
 export const PERIODS = ['1m', '5m', '10m', '30m', '1h', '2h', '24h']
 export const CHANGES = ['change', '% change']

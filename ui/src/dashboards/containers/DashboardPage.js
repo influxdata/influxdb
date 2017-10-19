@@ -13,6 +13,7 @@ import Dashboard from 'src/dashboards/components/Dashboard'
 import TemplateVariableManager from 'src/dashboards/components/template_variables/Manager'
 
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
+import idNormalizer, {TYPE_ID} from 'src/normalizers/id'
 
 import * as dashboardActionCreators from 'src/dashboards/actions'
 
@@ -21,6 +22,13 @@ import {
   templateControlBarVisibilityToggled as templateControlBarVisibilityToggledAction,
 } from 'shared/actions/app'
 import {presentationButtonDispatcher} from 'shared/dispatchers'
+
+const FORMAT_INFLUXQL = 'influxql'
+const defaultTimeRange = {
+  upper: null,
+  lower: 'now() - 15m',
+  format: FORMAT_INFLUXQL,
+}
 
 class DashboardPage extends Component {
   constructor(props) {
@@ -48,7 +56,9 @@ class DashboardPage extends Component {
     } = this.props
 
     const dashboards = await getDashboardsAsync()
-    const dashboard = dashboards.find(d => d.id === +dashboardID)
+    const dashboard = dashboards.find(
+      d => d.id === idNormalizer(TYPE_ID, dashboardID)
+    )
 
     // Refresh and persists influxql generated template variable values
     await updateTempVarValues(source, dashboard)
@@ -73,8 +83,9 @@ class DashboardPage extends Component {
   }
 
   handleSaveEditedCell = newCell => {
-    this.props.dashboardActions
-      .updateDashboardCell(this.getActiveDashboard(), newCell)
+    const {dashboardActions, dashboard} = this.props
+    dashboardActions
+      .updateDashboardCell(dashboard, newCell)
       .then(this.handleDismissOverlay)
   }
 
@@ -82,18 +93,26 @@ class DashboardPage extends Component {
     this.setState({selectedCell: cell})
   }
 
-  handleChooseTimeRange = timeRange => {
-    this.props.dashboardActions.setTimeRange(timeRange)
+  handleChooseTimeRange = ({upper, lower}) => {
+    const {dashboard, dashboardActions} = this.props
+    dashboardActions.setDashTimeV1(dashboard.id, {
+      upper,
+      lower,
+      format: FORMAT_INFLUXQL,
+    })
   }
 
   handleUpdatePosition = cells => {
-    const newDashboard = {...this.getActiveDashboard(), cells}
-    this.props.dashboardActions.updateDashboard(newDashboard)
-    this.props.dashboardActions.putDashboard(newDashboard)
+    const {dashboardActions, dashboard} = this.props
+    const newDashboard = {...dashboard, cells}
+
+    dashboardActions.updateDashboard(newDashboard)
+    dashboardActions.putDashboard(newDashboard)
   }
 
   handleAddCell = () => {
-    this.props.dashboardActions.addDashboardCellAsync(this.getActiveDashboard())
+    const {dashboardActions, dashboard} = this.props
+    dashboardActions.addDashboardCellAsync(dashboard)
   }
 
   handleEditDashboard = () => {
@@ -105,42 +124,40 @@ class DashboardPage extends Component {
   }
 
   handleRenameDashboard = name => {
+    const {dashboardActions, dashboard} = this.props
     this.setState({isEditMode: false})
-    const newDashboard = {...this.getActiveDashboard(), name}
-    this.props.dashboardActions.updateDashboard(newDashboard)
-    this.props.dashboardActions.putDashboard(newDashboard)
+    const newDashboard = {...dashboard, name}
+
+    dashboardActions.updateDashboard(newDashboard)
+    dashboardActions.putDashboard(newDashboard)
   }
 
-  handleUpdateDashboardCell = newCell => {
-    return () => {
-      this.props.dashboardActions.updateDashboardCell(
-        this.getActiveDashboard(),
-        newCell
-      )
-    }
+  handleUpdateDashboardCell = newCell => () => {
+    const {dashboardActions, dashboard} = this.props
+    dashboardActions.updateDashboardCell(dashboard, newCell)
   }
 
   handleDeleteDashboardCell = cell => {
-    const dashboard = this.getActiveDashboard()
-    this.props.dashboardActions.deleteDashboardCellAsync(dashboard, cell)
+    const {dashboardActions, dashboard} = this.props
+    dashboardActions.deleteDashboardCellAsync(dashboard, cell)
   }
 
   handleSelectTemplate = templateID => values => {
-    const {params: {dashboardID}} = this.props
-    this.props.dashboardActions.templateVariableSelected(
-      +dashboardID,
-      templateID,
-      [values]
-    )
+    const {dashboardActions, dashboard} = this.props
+    dashboardActions.templateVariableSelected(dashboard.id, templateID, [
+      values,
+    ])
   }
 
   handleEditTemplateVariables = (
     templates,
     onSaveTemplatesSuccess
   ) => async () => {
+    const {dashboardActions, dashboard} = this.props
+
     try {
-      await this.props.dashboardActions.putDashboard({
-        ...this.getActiveDashboard(),
+      await dashboardActions.putDashboard({
+        dashboard,
         templates,
       })
       onSaveTemplatesSuccess()
@@ -156,8 +173,12 @@ class DashboardPage extends Component {
 
   synchronizer = dygraph => {
     const dygraphs = [...this.state.dygraphs, dygraph]
-    const {dashboards, params} = this.props
-    const dashboard = dashboards.find(d => d.id === +params.dashboardID)
+    const {dashboards, params: {dashboardID}} = this.props
+
+    const dashboard = dashboards.find(
+      d => d.id === idNormalizer(TYPE_ID, dashboardID)
+    )
+
     if (
       dashboard &&
       dygraphs.length === dashboard.cells.length &&
@@ -201,6 +222,7 @@ class DashboardPage extends Component {
       timeRange,
       timeRange: {lower, upper},
       showTemplateControlBar,
+      dashboard,
       dashboards,
       autoRefresh,
       cellQueryStatus,
@@ -252,8 +274,6 @@ class DashboardPage extends Component {
       reportingInterval: 10000000000,
       values: [],
     }
-
-    const dashboard = this.getActiveDashboard()
 
     let templatesIncludingDashTime
     if (dashboard) {
@@ -375,6 +395,7 @@ DashboardPage.propTypes = {
     pathname: string.isRequired,
     query: shape({}),
   }).isRequired,
+  dashboard: shape({}),
   dashboardActions: shape({
     putDashboard: func.isRequired,
     getDashboardsAsync: func.isRequired,
@@ -411,7 +432,10 @@ DashboardPage.propTypes = {
   autoRefresh: number.isRequired,
   manualRefresh: number,
   templateControlBarVisibilityToggled: func.isRequired,
-  timeRange: shape({}).isRequired,
+  timeRange: shape({
+    upper: string,
+    lower: string,
+  }),
   showTemplateControlBar: bool.isRequired,
   inPresentationMode: bool.isRequired,
   handleClickPresentationButton: func,
@@ -422,19 +446,30 @@ DashboardPage.propTypes = {
   errorThrown: func,
 }
 
-const mapStateToProps = state => {
+const mapStateToProps = (state, {params: {dashboardID}}) => {
   const {
     app: {
       ephemeral: {inPresentationMode},
       persisted: {autoRefresh, showTemplateControlBar},
     },
-    dashboardUI: {dashboards, timeRange, cellQueryStatus},
+    dashboardUI: {dashboards, cellQueryStatus},
     sources,
+    dashTimeV1,
   } = state
+
+  const timeRange =
+    dashTimeV1.ranges.find(
+      r => r.dashboardID === idNormalizer(TYPE_ID, dashboardID)
+    ) || defaultTimeRange
+
+  const dashboard = dashboards.find(
+    d => d.id === idNormalizer(TYPE_ID, dashboardID)
+  )
 
   return {
     dashboards,
     autoRefresh,
+    dashboard,
     timeRange,
     showTemplateControlBar,
     inPresentationMode,

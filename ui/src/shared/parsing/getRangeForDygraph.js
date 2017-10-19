@@ -3,6 +3,8 @@ import BigNumber from 'bignumber.js'
 const ADD_FACTOR = 1.1
 const SUB_FACTOR = 0.9
 
+const checkNumeric = num => (isFinite(num) ? num : null)
+
 const considerEmpty = (userNumber, number) => {
   if (userNumber) {
     return +userNumber
@@ -17,13 +19,15 @@ const getRange = (
   ruleValues = {value: null, rangeValue: null, operator: ''}
 ) => {
   const {value, rangeValue, operator} = ruleValues
-  const [userMin, userMax] = userSelectedRange
+  const [uMin, uMax] = userSelectedRange
+  const userMin = checkNumeric(uMin)
+  const userMax = checkNumeric(uMax)
 
   const addPad = bigNum => bigNum.times(ADD_FACTOR).toNumber()
   const subPad = bigNum => bigNum.times(SUB_FACTOR).toNumber()
 
   const pad = v => {
-    if (v === null || v === '' || v === undefined) {
+    if (v === null || v === '' || !isFinite(v)) {
       return null
     }
 
