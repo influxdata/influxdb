@@ -79,6 +79,10 @@ class WriteDataForm extends Component {
       file = e.target.files[0]
     }
 
+    if (!file) {
+      return
+    }
+
     e.preventDefault()
     e.stopPropagation()
 
@@ -94,6 +98,7 @@ class WriteDataForm extends Component {
 
   handleCancelFile = () => {
     this.setState({uploadContent: ''})
+    this.fileInput.value = ''
   }
 
   handleDragOver = e => {
