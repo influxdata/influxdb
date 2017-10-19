@@ -7701,33 +7701,38 @@ func TestServer_Query_ShowTagKeyCardinality(t *testing.T) {
 
 	test.addQueries([]*Query{
 		&Query{
-			name:    `show tag key cardinality`,
-			command: "SHOW TAG KEY CARDINALITY",
+			name:    `show tag key exact cardinality`,
+			command: "SHOW TAG KEY EXACT CARDINALITY",
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["count"],"values":[[2]]},{"name":"disk","columns":["count"],"values":[[2]]},{"name":"gpu","columns":["count"],"values":[[2]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
-			name:    "show tag key cardinality from",
-			command: "SHOW TAG KEY CARDINALITY FROM cpu",
+			name:    `show tag key exact cardinality on db0`,
+			command: "SHOW TAG KEY EXACT CARDINALITY ON db0",
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["count"],"values":[[2]]},{"name":"disk","columns":["count"],"values":[[2]]},{"name":"gpu","columns":["count"],"values":[[2]]}]}]}`,
+		},
+		&Query{
+			name:    "show tag key exact cardinality from",
+			command: "SHOW TAG KEY EXACT CARDINALITY FROM cpu",
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["count"],"values":[[2]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
-			name:    "show tag key cardinality from regex",
-			command: "SHOW TAG KEY CARDINALITY FROM /[cg]pu/",
+			name:    "show tag key exact cardinality from regex",
+			command: "SHOW TAG KEY EXACT CARDINALITY FROM /[cg]pu/",
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["count"],"values":[[2]]},{"name":"gpu","columns":["count"],"values":[[2]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
-			name:    "show tag key cardinality measurement not found",
-			command: "SHOW TAG KEY CARDINALITY FROM doesntexist",
+			name:    "show tag key exact cardinality measurement not found",
+			command: "SHOW TAG KEY EXACT CARDINALITY FROM doesntexist",
 			exp:     `{"results":[{"statement_id":0}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
-			name:    "show tag key cardinality with time in WHERE clause errors",
-			command: "SHOW TAG KEY CARDINALITY FROM cpu WHERE time > now() - 1h",
-			exp:     `{"results":[{"statement_id":0,"error":"SHOW TAG KEY CARDINALITY doesn't support time in WHERE clause"}]}`,
+			name:    "show tag key exact cardinality with time in WHERE clause errors",
+			command: "SHOW TAG KEY EXACT CARDINALITY FROM cpu WHERE time > now() - 1h",
+			exp:     `{"results":[{"statement_id":0,"error":"SHOW TAG KEY EXACT CARDINALITY doesn't support time in WHERE clause"}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{

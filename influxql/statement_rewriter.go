@@ -352,7 +352,7 @@ func rewriteShowTagKeysStatement(stmt *ShowTagKeysStatement) (Statement, error) 
 func rewriteShowTagKeyCardinalityStatement(stmt *ShowTagKeyCardinalityStatement) (Statement, error) {
 	// Check for time in WHERE clause (not supported).
 	if HasTimeExpr(stmt.Condition) {
-		return nil, errors.New("SHOW TAG KEY CARDINALITY doesn't support time in WHERE clause")
+		return nil, errors.New("SHOW TAG KEY EXACT CARDINALITY doesn't support time in WHERE clause")
 	}
 
 	// Use all measurements, if zero.
@@ -377,6 +377,9 @@ func rewriteShowTagKeyCardinalityStatement(stmt *ShowTagKeyCardinalityStatement)
 				Alias: "count",
 			},
 		},
+		//
+		// TODO(edd) ON is broken
+		//
 		Sources:    stmt.Sources,
 		Condition:  stmt.Condition,
 		Dimensions: stmt.Dimensions,

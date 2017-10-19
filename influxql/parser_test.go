@@ -1803,31 +1803,31 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
-		// SHOW TAG KEY CARDINALITY statement
+		// SHOW TAG KEY EXACT CARDINALITY statement
 		{
-			s:    `SHOW TAG KEY CARDINALITY`,
+			s:    `SHOW TAG KEY EXACT CARDINALITY`,
 			stmt: &influxql.ShowTagKeyCardinalityStatement{},
 		},
 
-		// SHOW TAG KEY CARDINALITY FROM cpu
+		// SHOW TAG KEY EXACT CARDINALITY FROM cpu
 		{
-			s: `SHOW TAG KEY CARDINALITY FROM cpu`,
+			s: `SHOW TAG KEY EXACT CARDINALITY FROM cpu`,
 			stmt: &influxql.ShowTagKeyCardinalityStatement{
 				Sources: []influxql.Source{&influxql.Measurement{Name: "cpu"}},
 			},
 		},
 
-		// SHOW TAG KEY CARDINALITY ON db0
+		// SHOW TAG KEY EXACT CARDINALITY ON db0
 		{
-			s: `SHOW TAG KEY CARDINALITY ON db0`,
+			s: `SHOW TAG KEY EXACT CARDINALITY ON db0`,
 			stmt: &influxql.ShowTagKeyCardinalityStatement{
 				Database: "db0",
 			},
 		},
 
-		// SHOW TAG KEY CARDINALITY FROM /<regex>/
+		// SHOW TAG KEY EXACT CARDINALITY FROM /<regex>/
 		{
-			s: `SHOW TAG KEY CARDINALITY FROM /[cg]pu/`,
+			s: `SHOW TAG KEY EXACT CARDINALITY FROM /[cg]pu/`,
 			stmt: &influxql.ShowTagKeyCardinalityStatement{
 				Sources: []influxql.Source{
 					&influxql.Measurement{
@@ -1837,21 +1837,21 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
-		// SHOW TAG KEY CARDINALITY with OFFSET 0
+		// SHOW TAG KEY EXACT CARDINALITY with OFFSET 0
 		{
-			s:    `SHOW TAG KEY CARDINALITY OFFSET 0`,
+			s:    `SHOW TAG KEY EXACT CARDINALITY OFFSET 0`,
 			stmt: &influxql.ShowTagKeyCardinalityStatement{Offset: 0},
 		},
 
-		// SHOW TAG KEY CARDINALITY with LIMIT 2 OFFSET 0
+		// SHOW TAG KEY EXACT CARDINALITY with LIMIT 2 OFFSET 0
 		{
-			s:    `SHOW TAG KEY CARDINALITY LIMIT 2 OFFSET 0`,
+			s:    `SHOW TAG KEY EXACT CARDINALITY LIMIT 2 OFFSET 0`,
 			stmt: &influxql.ShowTagKeyCardinalityStatement{Offset: 0, Limit: 2},
 		},
 
-		// SHOW TAG KEY CARDINALITY WHERE with ORDER BY and LIMIT
+		// SHOW TAG KEY EXACT CARDINALITY WHERE with ORDER BY and LIMIT
 		{
-			s: `SHOW TAG KEY CARDINALITY WHERE region = 'order by desc' LIMIT 10`,
+			s: `SHOW TAG KEY EXACT CARDINALITY WHERE region = 'order by desc' LIMIT 10`,
 			stmt: &influxql.ShowTagKeyCardinalityStatement{
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.EQ,

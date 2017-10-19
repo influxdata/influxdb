@@ -1153,19 +1153,19 @@ func (p *Parser) parseShowRetentionPoliciesStatement() (*ShowRetentionPoliciesSt
 	return stmt, nil
 }
 
-// parseShowTagKeyStatement parses a string and returns a Statement.
 // This function assumes the "SHOW TAG KEY" tokens have already been consumed.
-func (p *Parser) parseShowTagKeyStatement() (Statement, error) {
-	if tok, pos, lit := p.ScanIgnoreWhitespace(); tok != CARDINALITY {
-		return nil, newParseError(tokstr(tok, lit), []string{"CARDINALITY"}, pos)
-	}
-	return p.parseShowTagKeyCardinalityStatement()
-}
-
-// This function assumes the "SHOW TAG KEY CARDINALITY" tokens have already been consumed.
 func (p *Parser) parseShowTagKeyCardinalityStatement() (Statement, error) {
 	var err error
 	stmt := &ShowTagKeyCardinalityStatement{}
+
+	if tok, pos, lit := p.ScanIgnoreWhitespace(); tok != EXACT {
+		return nil, newParseError(tokstr(tok, lit), []string{"EXACT"}, pos)
+	}
+
+	// Parse remaining CARDINALITY token
+	if tok, pos, lit := p.ScanIgnoreWhitespace(); tok != CARDINALITY {
+		return nil, newParseError(tokstr(tok, lit), []string{"CARDINALITY"}, pos)
+	}
 
 	// Parse optional ON clause.
 	if tok, _, _ := p.ScanIgnoreWhitespace(); tok == ON {

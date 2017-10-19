@@ -2743,7 +2743,7 @@ type ShowTagKeyCardinalityStatement struct {
 // String returns a string representation of the statement.
 func (s *ShowTagKeyCardinalityStatement) String() string {
 	var buf bytes.Buffer
-	_, _ = buf.WriteString("SHOW TAG KEY CARDINALITY")
+	_, _ = buf.WriteString("SHOW TAG KEY EXACT CARDINALITY")
 
 	if s.Database != "" {
 		_, _ = buf.WriteString(" ON ")

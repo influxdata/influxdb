@@ -158,7 +158,7 @@ func init() {
 			return p.parseShowSubscriptionsStatement()
 		})
 		show.Group(TAG).With(func(tag *ParseTree) {
-			tag.Group(KEY).Handle(CARDINALITY, func(p *Parser) (Statement, error) {
+			tag.Handle(KEY, func(p *Parser) (Statement, error) {
 				return p.parseShowTagKeyCardinalityStatement()
 			})
 			tag.Handle(KEYS, func(p *Parser) (Statement, error) {

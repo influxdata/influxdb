@@ -1175,11 +1175,11 @@ func (e *StatementExecutor) NormalizeStatement(stmt influxql.Statement, defaultD
 			if node.Database == "" {
 				node.Database = defaultDatabase
 			}
-		case *influxql.ShowSeriesCardinalityStatement:
+		case *influxql.ShowMeasurementCardinalityStatement:
 			if node.Database == "" {
 				node.Database = defaultDatabase
 			}
-		case *influxql.ShowMeasurementCardinalityStatement:
+		case *influxql.ShowSeriesCardinalityStatement:
 			if node.Database == "" {
 				node.Database = defaultDatabase
 			}
