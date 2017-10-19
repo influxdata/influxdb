@@ -28,10 +28,6 @@ class DashboardSwitcher extends Component {
     const {dashboards, currentDashboard, sourceID} = this.props
     const {isOpen} = this.state
 
-    if (dashboards.length <= 1) {
-      return null
-    }
-
     return (
       <div
         className={classnames('dropdown dashboard-switcher', {open: isOpen})}

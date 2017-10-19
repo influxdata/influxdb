@@ -40,11 +40,13 @@ const DashboardHeader = ({
                 : 'page-header__left'
             }
           >
-            <DashboardSwitcher
-              dashboards={dashboards}
-              currentDashboard={dashboardName}
-              sourceID={sourceID}
-            />
+            {dashboards.length > 1
+              ? <DashboardSwitcher
+                  dashboards={dashboards}
+                  currentDashboard={dashboardName}
+                  sourceID={sourceID}
+                />
+              : null}
             {dashboard
               ? <DashboardHeaderEdit
                   onSave={onSave}
