@@ -79,7 +79,7 @@ func (s *UsersStore) Get(ctx context.Context, q chronograf.UserQuery) (*chronogr
 		return user, nil
 	}
 
-	return nil, fmt.Errorf("must specify ID or Provider and Scheme in UserQuery")
+	return nil, fmt.Errorf("must specify ID, or Name and Provider in UserQuery")
 }
 
 // Add a new Users in the UsersStore.

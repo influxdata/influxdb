@@ -2,7 +2,6 @@ package bolt_test
 
 import (
 	"context"
-	"reflect"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -17,24 +16,42 @@ var cmpOptions = cmp.Options{
 	cmpopts.EquateEmpty(),
 }
 
-func TestUsersStore_Get(t *testing.T) {
+func TestUsersStore_GetWithID(t *testing.T) {
 	type args struct {
 		ctx context.Context
-		ID  uint64
+		usr *chronograf.User
 	}
 	tests := []struct {
-		name    string
-		args    args
-		want    *chronograf.User
-		wantErr bool
+		name     string
+		args     args
+		want     *chronograf.User
+		wantErr  bool
+		addFirst bool
 	}{
 		{
 			name: "User not found",
 			args: args{
 				ctx: context.Background(),
-				ID:  1337,
+				usr: &chronograf.User{
+					ID: 1337,
+				},
 			},
 			wantErr: true,
+		},
+		{
+			name: "Get user",
+			args: args{
+				ctx: context.Background(),
+				usr: &chronograf.User{
+					Name:     "billietta",
+					Provider: "Google",
+				},
+			},
+			want: &chronograf.User{
+				Name:     "billietta",
+				Provider: "Google",
+			},
+			addFirst: true,
 		},
 	}
 	for _, tt := range tests {
@@ -48,13 +65,92 @@ func TestUsersStore_Get(t *testing.T) {
 		defer client.Close()
 
 		s := client.UsersStore
-		got, err := s.Get(tt.args.ctx, chronograf.UserQuery{ID: &tt.args.ID})
+		if tt.addFirst {
+			tt.args.usr, err = s.Add(tt.args.ctx, tt.args.usr)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		got, err := s.Get(tt.args.ctx, chronograf.UserQuery{ID: &tt.args.usr.ID})
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. UsersStore.Get() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
 		}
-		if !reflect.DeepEqual(got, tt.want) {
-			t.Errorf("%q. UsersStore.Get() = %v, want %v", tt.name, got, tt.want)
+		if diff := cmp.Diff(got, tt.want, cmpOptions...); diff != "" {
+			t.Errorf("%q. UsersStore.Get():\n-got/+want\ndiff %s", tt.name, diff)
+		}
+	}
+}
+
+func TestUsersStore_GetWithNameAndProvider(t *testing.T) {
+	type args struct {
+		ctx      context.Context
+		name     string
+		provider string
+		usr      *chronograf.User
+	}
+	tests := []struct {
+		name     string
+		args     args
+		want     *chronograf.User
+		wantErr  bool
+		addFirst bool
+	}{
+		{
+			name: "User not found",
+			args: args{
+				ctx: context.Background(),
+				usr: &chronograf.User{
+					Name:     "billietta",
+					Provider: "Google",
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "Get user",
+			args: args{
+				ctx: context.Background(),
+				usr: &chronograf.User{
+					Name:     "billietta",
+					Provider: "Google",
+				},
+			},
+			want: &chronograf.User{
+				Name:     "billietta",
+				Provider: "Google",
+			},
+			addFirst: true,
+		},
+	}
+	for _, tt := range tests {
+		client, err := NewTestClient()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := client.Open(context.TODO()); err != nil {
+			t.Fatal(err)
+		}
+		defer client.Close()
+
+		s := client.UsersStore
+		if tt.addFirst {
+			tt.args.usr, err = s.Add(tt.args.ctx, tt.args.usr)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		got, err := s.Get(tt.args.ctx, chronograf.UserQuery{
+			Name:     &tt.args.usr.Name,
+			Provider: &tt.args.usr.Provider,
+		})
+		if (err != nil) != tt.wantErr {
+			t.Errorf("%q. UsersStore.Get() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+			continue
+		}
+		if diff := cmp.Diff(got, tt.want, cmpOptions...); diff != "" {
+			t.Errorf("%q. UsersStore.Get():\n-got/+want\ndiff %s", tt.name, diff)
 		}
 	}
 }
