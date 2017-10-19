@@ -1,5 +1,6 @@
 import React, {Component, PropTypes} from 'react'
 import {Link} from 'react-router'
+import _ from 'lodash'
 import classnames from 'classnames'
 import OnClickOutside from 'shared/components/OnClickOutside'
 
@@ -39,7 +40,7 @@ class DashboardSwitcher extends Component {
           <span className="icon dash-f" />
         </button>
         <ul className="dropdown-menu">
-          {dashboards.map((d, i) =>
+          {_.sortBy(dashboards, d => d.name.toLowerCase()).map((d, i) =>
             <li
               className={classnames('dropdown-item', {
                 active: d.name === currentDashboard,
