@@ -46,10 +46,17 @@ func AuthorizedToken(auth oauth2.Authenticator, logger chronograf.Logger, next h
 	})
 }
 
-// AuthorizedUser extracts the user name and provider from context. If the user and provider can be found on the
-// context, we look up the user by their name and provider. If the user is found, we verify that the user has at
-// at least the role supplied.
-func AuthorizedUser(store chronograf.UsersStore, useAuth bool, role string, logger chronograf.Logger, next http.HandlerFunc) http.HandlerFunc {
+// AuthorizedUser extracts the user name and provider from context. If the
+// user and provider can be found on the context, we look up the user by their
+// name and provider. If the user is found, we verify that the user has at at
+// least the role supplied.
+func AuthorizedUser(
+	store chronograf.UsersStore,
+	useAuth bool,
+	role string,
+	logger chronograf.Logger,
+	next http.HandlerFunc,
+) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !useAuth {
 			next(w, r)
@@ -79,12 +86,12 @@ func AuthorizedUser(store chronograf.UsersStore, useAuth bool, role string, logg
 
 		u, err := store.Get(ctx, chronograf.UserQuery{Name: &username, Provider: &provider})
 		if err != nil {
-			log.Error("Error to retrieving user")
+			log.Error("Failed to retrieve user")
 			Error(w, http.StatusUnauthorized, "User is not authorized", logger)
 			return
 		}
 
-		if hasPrivilege(u, role) {
+		if hasAuthorizedRole(u, role) {
 			next(w, r)
 			return
 		}
@@ -95,7 +102,7 @@ func AuthorizedUser(store chronograf.UsersStore, useAuth bool, role string, logg
 	})
 }
 
-func hasPrivilege(u *chronograf.User, role string) bool {
+func hasAuthorizedRole(u *chronograf.User, role string) bool {
 	if u == nil {
 		return false
 	}
