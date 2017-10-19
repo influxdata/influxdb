@@ -18,6 +18,7 @@ const RefreshingGraph = ({
   timeRange,
   cellHeight,
   autoRefresh,
+  manualRefresh,
   synchronizer,
   resizeCoords,
   editQueryStatus,
@@ -50,6 +51,7 @@ const RefreshingGraph = ({
 
   return (
     <RefreshingLineGraph
+      key={manualRefresh || 0}
       axes={axes}
       onZoom={onZoom}
       queries={queries}
@@ -73,6 +75,7 @@ RefreshingGraph.propTypes = {
     lower: string.isRequired,
   }),
   autoRefresh: number.isRequired,
+  manualRefresh: number,
   templates: arrayOf(shape()),
   synchronizer: func,
   type: string.isRequired,

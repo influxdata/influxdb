@@ -32,6 +32,7 @@ class DashboardPage extends Component {
       selectedCell: null,
       isTemplating: false,
       zoomedTimeRange: {zoomedLower: null, zoomedUpper: null},
+      manualRefresh: Date.now(),
     }
   }
 
@@ -184,8 +185,14 @@ class DashboardPage extends Component {
     return dashboards.find(d => d.id === +dashboardID)
   }
 
+  handleManualRefresh = () => {
+    this.setState({
+      manualRefresh: Date.now(),
+    })
+  }
+
   render() {
-    const {zoomedTimeRange} = this.state
+    const {zoomedTimeRange, manualRefresh} = this.state
     const {zoomedLower, zoomedUpper} = zoomedTimeRange
 
     const {
@@ -309,6 +316,7 @@ class DashboardPage extends Component {
               buttonText={dashboard ? dashboard.name : ''}
               showTemplateControlBar={showTemplateControlBar}
               handleChooseAutoRefresh={handleChooseAutoRefresh}
+              handleManualRefresh={this.handleManualRefresh}
               handleChooseTimeRange={this.handleChooseTimeRange}
               onToggleTempVarControls={this.handleToggleTempVarControls}
               handleClickPresentationButton={handleClickPresentationButton}
@@ -330,6 +338,7 @@ class DashboardPage extends Component {
               dashboard={dashboard}
               timeRange={timeRange}
               autoRefresh={autoRefresh}
+              manualRefresh={manualRefresh}
               onZoom={this.handleZoomedTimeRange}
               onAddCell={this.handleAddCell}
               synchronizer={this.synchronizer}
@@ -400,6 +409,7 @@ DashboardPage.propTypes = {
   ),
   handleChooseAutoRefresh: func.isRequired,
   autoRefresh: number.isRequired,
+  manualRefresh: number,
   templateControlBarVisibilityToggled: func.isRequired,
   timeRange: shape({}).isRequired,
   showTemplateControlBar: bool.isRequired,

@@ -17,6 +17,7 @@ const DashboardHeader = ({
   isHidden,
   handleChooseTimeRange,
   handleChooseAutoRefresh,
+  handleManualRefresh,
   handleClickPresentationButton,
   onAddCell,
   onEditDashboard,
@@ -76,6 +77,7 @@ const DashboardHeader = ({
               : null}
             <AutoRefreshDropdown
               onChoose={handleChooseAutoRefresh}
+              handleManualRefresh={handleManualRefresh}
               selected={autoRefresh}
               iconName="refresh"
             />
@@ -118,6 +120,7 @@ DashboardHeader.propTypes = {
   isHidden: bool.isRequired,
   handleChooseTimeRange: func.isRequired,
   handleChooseAutoRefresh: func.isRequired,
+  handleManualRefresh: func.isRequired,
   handleClickPresentationButton: func.isRequired,
   onAddCell: func,
   onEditDashboard: func,

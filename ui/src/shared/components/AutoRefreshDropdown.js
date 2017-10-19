@@ -25,14 +25,10 @@ class AutoRefreshDropdown extends Component {
     this.setState({isOpen: false})
   }
 
-  handleManualRefresh = () => {
-    console.log('Refresh this bashboard')
-  }
-
   toggleMenu = () => this.setState({isOpen: !this.state.isOpen})
 
   render() {
-    const {selected} = this.props
+    const {selected, handleManualRefresh} = this.props
     const {isOpen} = this.state
     const {milliseconds, inputValue} = this.findAutoRefreshItem(selected)
 
@@ -72,7 +68,7 @@ class AutoRefreshDropdown extends Component {
         {+milliseconds === 0
           ? <div
               className="btn btn-sm btn-default btn-square"
-              onClick={this.handleManualRefresh}
+              onClick={handleManualRefresh}
             >
               <span className="icon refresh" />
             </div>
@@ -87,6 +83,7 @@ const {number, func} = PropTypes
 AutoRefreshDropdown.propTypes = {
   selected: number.isRequired,
   onChoose: func.isRequired,
+  handleManualRefresh: func,
 }
 
 export default OnClickOutside(AutoRefreshDropdown)
