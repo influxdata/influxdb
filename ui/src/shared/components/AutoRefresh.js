@@ -133,7 +133,7 @@ const AutoRefresh = ComposedComponent => {
       }
 
       if (
-        !this.resultsForQuery(timeSeries) ||
+        !this._resultsForQuery(timeSeries) ||
         !this.state.lastQuerySuccessful
       ) {
         return this.renderNoResults()
