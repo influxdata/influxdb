@@ -95,21 +95,26 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.Handler("POST", "/chronograf/v1/sources/:id/proxy", influx)
 
 	// Write proxies line protocol write requests to InfluxDB
-	router.POST("/chronograf/v1/sources/:id/write", EnsureEditor(service.Write))
+	router.POST("/chronograf/v1/sources/:id/write", EnsureViewer(service.Write))
 
-	// Queries is used to analyze a specific queries
-	router.POST("/chronograf/v1/sources/:id/queries", EnsureEditor(service.Queries))
+	// Queries is used to analyze a specific queries and does not create any
+	// resources. It's a POST because Queries are POSTed to InfluxDB, but this
+	// only modifies InfluxDB resources with certain metaqueries, e.g. DROP DATABASE.
+	//
+	// Admins should ensure that the InfluxDB source as the proper permissions
+	// intended for Chronograf Users with the Viewer Role type.
+	router.POST("/chronograf/v1/sources/:id/queries", EnsureViewer(service.Queries))
 
 	// All possible permissions for users in this source
 	router.GET("/chronograf/v1/sources/:id/permissions", EnsureViewer(service.Permissions))
 
 	// Users associated with the data source
-	router.GET("/chronograf/v1/sources/:id/users", EnsureViewer(service.SourceUsers))
-	router.POST("/chronograf/v1/sources/:id/users", EnsureEditor(service.NewSourceUser))
+	router.GET("/chronograf/v1/sources/:id/users", EnsureAdmin(service.SourceUsers))
+	router.POST("/chronograf/v1/sources/:id/users", EnsureAdmin(service.NewSourceUser))
 
-	router.GET("/chronograf/v1/sources/:id/users/:uid", EnsureViewer(service.SourceUserID))
-	router.DELETE("/chronograf/v1/sources/:id/users/:uid", EnsureEditor(service.RemoveSourceUser))
-	router.PATCH("/chronograf/v1/sources/:id/users/:uid", EnsureEditor(service.UpdateSourceUser))
+	router.GET("/chronograf/v1/sources/:id/users/:uid", EnsureAdmin(service.SourceUserID))
+	router.DELETE("/chronograf/v1/sources/:id/users/:uid", EnsureAdmin(service.RemoveSourceUser))
+	router.PATCH("/chronograf/v1/sources/:id/users/:uid", EnsureAdmin(service.UpdateSourceUser))
 
 	// Roles associated with the data source
 	router.GET("/chronograf/v1/sources/:id/roles", EnsureViewer(service.SourceRoles))
@@ -154,7 +159,7 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.DELETE("/chronograf/v1/layouts/:id", EnsureEditor(service.RemoveLayout))
 
 	// Users associated with Chronograf
-	router.GET("/chronograf/v1/me", EnsureViewer(service.Me))
+	router.GET("/chronograf/v1/me", service.Me)
 
 	router.GET("/chronograf/v1/users", EnsureAdmin(service.Users))
 	router.POST("/chronograf/v1/users", EnsureAdmin(service.NewUser))
@@ -190,14 +195,14 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.GET("/chronograf/v1/sources/:id/dbs", EnsureViewer(service.GetDatabases))
 	router.POST("/chronograf/v1/sources/:id/dbs", EnsureEditor(service.NewDatabase))
 
-	router.DELETE("/chronograf/v1/sources/:id/dbs/:dbid", EnsureAdmin(service.DropDatabase))
+	router.DELETE("/chronograf/v1/sources/:id/dbs/:dbid", EnsureEditor(service.DropDatabase))
 
 	// Retention Policies
 	router.GET("/chronograf/v1/sources/:id/dbs/:dbid/rps", EnsureViewer(service.RetentionPolicies))
 	router.POST("/chronograf/v1/sources/:id/dbs/:dbid/rps", EnsureEditor(service.NewRetentionPolicy))
 
 	router.PUT("/chronograf/v1/sources/:id/dbs/:dbid/rps/:rpid", EnsureEditor(service.UpdateRetentionPolicy))
-	router.DELETE("/chronograf/v1/sources/:id/dbs/:dbid/rps/:rpid", EnsureAdmin(service.DropRetentionPolicy))
+	router.DELETE("/chronograf/v1/sources/:id/dbs/:dbid/rps/:rpid", EnsureEditor(service.DropRetentionPolicy))
 
 	allRoutes := &AllRoutes{
 		Logger:      opts.Logger,
