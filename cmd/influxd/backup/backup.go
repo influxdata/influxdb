@@ -75,37 +75,37 @@ func (cmd *Command) Run(args ...string) error {
 
 	if cmd.shardID != "" {
 		// always backup the metastore
-		if err := cmd.extractMetastore(cmd.database); err != nil {
+		if err := cmd.backupMetastore(cmd.database); err != nil {
 			return err
 		}
-		err = cmd.extractShard(cmd.retentionPolicy, cmd.shardID)
+		err = cmd.backupShard(cmd.retentionPolicy, cmd.shardID)
 
 	} else if cmd.retentionPolicy != "" {
 		// always backup the metastore
-		if err := cmd.extractMetastore(cmd.database); err != nil {
+		if err := cmd.backupMetastore(cmd.database); err != nil {
 			return err
 		}
-		err = cmd.extractRetentionPolicy()
+		err = cmd.backupRetentionPolicy()
 	} else if cmd.database != "" {
 		// always backup the metastore
-		if err := cmd.extractMetastore(cmd.database); err != nil {
+		if err := cmd.backupMetastore(cmd.database); err != nil {
 			return err
 		}
-		err = cmd.extractDatabase()
+		err = cmd.backupDatabase()
 	} else {
 		// always backup the metastore
-		if err := cmd.extractMetastore(""); err != nil {
+		if err := cmd.backupMetastore(""); err != nil {
 			return err
 		}
 
-		cmd.StdoutLogger.Printf("No database, retention policy or shard ID given. Full meta store backed up.")
+		cmd.StdoutLogger.Println("No database, retention policy or shard ID given. Full meta store backed up.")
 	}
 
 	if err != nil {
 		cmd.StderrLogger.Printf("backup failed: %v", err)
 		return err
 	}
-	cmd.StdoutLogger.Printf("backup complete")
+	cmd.StdoutLogger.Println("backup complete")
 
 	return nil
 }
@@ -163,7 +163,7 @@ func (cmd *Command) parseFlags(args []string) (err error) {
 	}
 
 	// start should be < end
-	if cmd.start.After(cmd.end) {
+	if !cmd.start.Before(cmd.end) {
 		return errors.New("start date must be before end date")
 	}
 
@@ -178,16 +178,12 @@ func (cmd *Command) parseFlags(args []string) (err error) {
 	return err
 }
 
-func (cmd *Command) extractShard(rp, sid string) error {
-	if cmd.isBackup {
-		return cmd.backupShard(rp, sid)
-	}
-	return cmd.exportShard(rp, sid)
-}
-
-// backupShard will write a tar archive of the passed in shard with any TSM files that have been
-// created since the time passed in
 func (cmd *Command) backupShard(rp, sid string) error {
+	reqType := snapshotter.RequestShardBackup
+	if !cmd.isBackup {
+		reqType = snapshotter.RequestShardExport
+	}
+
 	id, err := strconv.ParseUint(sid, 10, 64)
 	if err != nil {
 		return err
@@ -202,7 +198,7 @@ func (cmd *Command) backupShard(rp, sid string) error {
 		cmd.database, rp, sid, shardArchivePath, cmd.since)
 
 	req := &snapshotter.Request{
-		Type:            snapshotter.RequestShardBackup,
+		Type:            reqType,
 		Database:        cmd.database,
 		RetentionPolicy: rp,
 		ShardID:         id,
@@ -213,39 +209,10 @@ func (cmd *Command) backupShard(rp, sid string) error {
 	return cmd.downloadAndVerify(req, shardArchivePath, nil)
 }
 
-// exportShard will write a gzip archive of the passed in shard with any TSM files that have been
-// created since the time passed in
-func (cmd *Command) exportShard(rp, sid string) error {
-	id, err := strconv.ParseUint(sid, 10, 64)
-	if err != nil {
-		return err
-	}
-
-	shardArchivePath, err := cmd.nextPath(filepath.Join(cmd.path, fmt.Sprintf(BackupFilePattern, cmd.database, rp, id)))
-	if err != nil {
-		return err
-	}
-
-	cmd.StdoutLogger.Printf("exporting db=%v rp=%v shard=%v to %s start %s end  %s",
-		cmd.database, rp, sid, shardArchivePath, cmd.start, cmd.end)
-
-	req := &snapshotter.Request{
-		Type:            snapshotter.RequestShardExport,
-		Database:        cmd.database,
-		RetentionPolicy: rp,
-		ShardID:         id,
-		ExportStart:     cmd.start,
-		ExportEnd:       cmd.end,
-	}
-
-	// TODO: verify shard backup data
-	return cmd.downloadAndVerify(req, shardArchivePath, nil)
-}
-
-// extractDatabase will request the database information from the server and then extract
+// backupDatabase will request the database information from the server and then backup
 // every shard in every retention policy in the database. Each shard will be written to a separate file.
-func (cmd *Command) extractDatabase() error {
-	cmd.StdoutLogger.Printf("extracting db=%s", cmd.database)
+func (cmd *Command) backupDatabase() error {
+	cmd.StdoutLogger.Printf("backing up db=%s", cmd.database)
 
 	req := &snapshotter.Request{
 		Type:     snapshotter.RequestDatabaseInfo,
@@ -257,12 +224,12 @@ func (cmd *Command) extractDatabase() error {
 		return err
 	}
 
-	return cmd.extractResponsePaths(response)
+	return cmd.backupResponsePaths(response)
 }
 
-// extractRetentionPolicy will request the retention policy information from the server and then extract
+// backupRetentionPolicy will request the retention policy information from the server and then backup
 // every shard in the retention policy. Each shard will be written to a separate file.
-func (cmd *Command) extractRetentionPolicy() error {
+func (cmd *Command) backupRetentionPolicy() error {
 	cmd.StdoutLogger.Printf("backing up rp=%s since %s", cmd.retentionPolicy, cmd.since)
 
 	req := &snapshotter.Request{
@@ -276,11 +243,11 @@ func (cmd *Command) extractRetentionPolicy() error {
 		return err
 	}
 
-	return cmd.extractResponsePaths(response)
+	return cmd.backupResponsePaths(response)
 }
 
-// extractResponsePaths will extract all shards identified by shard paths in the response struct
-func (cmd *Command) extractResponsePaths(response *snapshotter.Response) error {
+// backupResponsePaths will backup all shards identified by shard paths in the response struct
+func (cmd *Command) backupResponsePaths(response *snapshotter.Response) error {
 
 	// loop through the returned paths and back up each shard
 	for _, path := range response.Paths {
@@ -290,7 +257,7 @@ func (cmd *Command) extractResponsePaths(response *snapshotter.Response) error {
 			return err
 		}
 
-		err = cmd.extractShard(rp, id)
+		err = cmd.backupShard(rp, id)
 
 		if err != nil {
 			return err
@@ -300,8 +267,9 @@ func (cmd *Command) extractResponsePaths(response *snapshotter.Response) error {
 	return nil
 }
 
-// extractMetastore will backup the whole metastore on the host to the passed in path.
-func (cmd *Command) extractMetastore(useDB string) error {
+// backupMetastore will backup the whole metastore on the host to the backup path
+// if useDB is non-empty, it will backup metadata only for the named database.
+func (cmd *Command) backupMetastore(useDB string) error {
 	metastoreArchivePath, err := cmd.nextPath(filepath.Join(cmd.path, Metafile))
 	if err != nil {
 		return err
@@ -319,9 +287,10 @@ func (cmd *Command) extractMetastore(useDB string) error {
 		if err != nil {
 			return err
 		}
+		defer f.Close()
 
-		magicByte := make([]byte, 8)
-		n, err := f.Read(magicByte)
+		var magicByte [8]byte
+		n, err := io.ReadFull(f, magicByte[:])
 		if err != nil {
 			return err
 		}
@@ -330,7 +299,7 @@ func (cmd *Command) extractMetastore(useDB string) error {
 			return errors.New("Not enough bytes data to verify")
 		}
 
-		magic := binary.BigEndian.Uint64(magicByte)
+		magic := binary.BigEndian.Uint64(magicByte[:])
 		if magic != snapshotter.BackupMagicHeader {
 			cmd.StderrLogger.Println("Invalid metadata blob, ensure the metadata service is running (default port 8088)")
 			return errors.New("invalid metadata received")

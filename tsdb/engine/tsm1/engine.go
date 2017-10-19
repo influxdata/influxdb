@@ -654,7 +654,6 @@ func (e *Engine) Backup(w io.Writer, basePath string, since time.Time) error {
 	return nil
 }
 
-// TODO(Adam): this is copied from another branch, needs more work.
 func (e *Engine) Export(w io.Writer, basePath string, start time.Time, end time.Time) error {
 	path, err := e.CreateSnapshot()
 	if err != nil {
