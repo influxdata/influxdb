@@ -45,11 +45,13 @@ func TestUsersStore_GetWithID(t *testing.T) {
 				usr: &chronograf.User{
 					Name:     "billietta",
 					Provider: "Google",
+					Scheme:   "OAuth2",
 				},
 			},
 			want: &chronograf.User{
 				Name:     "billietta",
 				Provider: "Google",
+				Scheme:   "OAuth2",
 			},
 			addFirst: true,
 		},
@@ -82,7 +84,7 @@ func TestUsersStore_GetWithID(t *testing.T) {
 	}
 }
 
-func TestUsersStore_GetWithNameAndProvider(t *testing.T) {
+func TestUsersStore_GetWithNameProviderScheme(t *testing.T) {
 	type args struct {
 		ctx      context.Context
 		name     string
@@ -103,6 +105,7 @@ func TestUsersStore_GetWithNameAndProvider(t *testing.T) {
 				usr: &chronograf.User{
 					Name:     "billietta",
 					Provider: "Google",
+					Scheme:   "OAuth2",
 				},
 			},
 			wantErr: true,
@@ -114,11 +117,13 @@ func TestUsersStore_GetWithNameAndProvider(t *testing.T) {
 				usr: &chronograf.User{
 					Name:     "billietta",
 					Provider: "Google",
+					Scheme:   "OAuth2",
 				},
 			},
 			want: &chronograf.User{
 				Name:     "billietta",
 				Provider: "Google",
+				Scheme:   "OAuth2",
 			},
 			addFirst: true,
 		},
@@ -144,6 +149,7 @@ func TestUsersStore_GetWithNameAndProvider(t *testing.T) {
 		got, err := s.Get(tt.args.ctx, chronograf.UserQuery{
 			Name:     &tt.args.usr.Name,
 			Provider: &tt.args.usr.Provider,
+			Scheme:   &tt.args.usr.Scheme,
 		})
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. UsersStore.Get() error = %v, wantErr %v", tt.name, err, tt.wantErr)

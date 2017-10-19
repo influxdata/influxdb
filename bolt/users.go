@@ -57,13 +57,13 @@ func (s *UsersStore) Get(ctx context.Context, q chronograf.UserQuery) (*chronogr
 		return s.get(ctx, *q.ID)
 	}
 
-	if q.Name != nil && q.Provider != nil {
+	if q.Name != nil && q.Provider != nil && q.Scheme != nil {
 		var user *chronograf.User
 		err := s.each(ctx, func(u *chronograf.User) {
 			if user != nil {
 				return
 			}
-			if u.Name == *q.Name && u.Provider == *q.Provider {
+			if u.Name == *q.Name && u.Provider == *q.Provider && u.Scheme == *q.Scheme {
 				user = u
 			}
 		})
@@ -79,7 +79,7 @@ func (s *UsersStore) Get(ctx context.Context, q chronograf.UserQuery) (*chronogr
 		return user, nil
 	}
 
-	return nil, fmt.Errorf("must specify ID, or Name and Provider in UserQuery")
+	return nil, fmt.Errorf("must specify either ID, or Name, Provider, and Scheme in UserQuery")
 }
 
 // Add a new Users in the UsersStore.

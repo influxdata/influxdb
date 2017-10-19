@@ -29,6 +29,11 @@ func (r *userRequest) ValidCreate() error {
 	if r.Scheme == "" {
 		return fmt.Errorf("Scheme required on Chronograf User request body")
 	}
+
+	// TODO: This Scheme value is hard-coded temporarily since we only currently
+	// support OAuth2. This hard-coding should be removed whenever we add
+	// support for other authentication schemes.
+	r.Scheme = "OAuth2"
 	return r.ValidRoles()
 }
 

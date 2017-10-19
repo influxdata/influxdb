@@ -46,10 +46,13 @@ func TestService_Me(t *testing.T) {
 				Logger:  log.New(log.DebugLevel),
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
+							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+						}
 						return &chronograf.User{
 							Name:     "me",
 							Provider: "GitHub",
-							Passwd:   "hunter2",
+							Scheme:   "OAuth2",
 						}, nil
 					},
 				},
@@ -60,7 +63,7 @@ func TestService_Me(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody: `{"name":"me","password":"hunter2","provider":"GitHub","links":{"self":"/chronograf/v1/users/me"}}
+			wantBody: `{"name":"me","provider":"GitHub","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/me"}}
 `,
 		},
 		{
@@ -74,6 +77,9 @@ func TestService_Me(t *testing.T) {
 				Logger:  log.New(log.DebugLevel),
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
+							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+						}
 						return nil, chronograf.ErrUserNotFound
 					},
 					AddF: func(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
@@ -87,7 +93,7 @@ func TestService_Me(t *testing.T) {
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody: `{"name":"secret","links":{"self":"/chronograf/v1/users/secret"}}
+			wantBody: `{"name":"secret","provider":"Auth0","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/secret"}}
 `,
 		},
 		{

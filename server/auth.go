@@ -15,7 +15,7 @@ import (
 func AuthorizedToken(auth oauth2.Authenticator, logger chronograf.Logger, next http.Handler) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log := logger.
-			WithField("component", "auth").
+			WithField("component", "token_auth").
 			WithField("remote_addr", r.RemoteAddr).
 			WithField("method", r.Method).
 			WithField("url", r.URL)
@@ -83,8 +83,18 @@ func AuthorizedUser(
 			Error(w, http.StatusUnauthorized, "User is not authorized", logger)
 			return
 		}
+		scheme, err := getScheme(ctx)
+		if err != nil {
+			log.Error("Failed to retrieve scheme from context")
+			Error(w, http.StatusUnauthorized, "User is not authorized", logger)
+			return
+		}
 
-		u, err := store.Get(ctx, chronograf.UserQuery{Name: &username, Provider: &provider})
+		u, err := store.Get(ctx, chronograf.UserQuery{
+			Name:     &username,
+			Provider: &provider,
+			Scheme:   &scheme,
+		})
 		if err != nil {
 			log.Error("Failed to retrieve user")
 			Error(w, http.StatusUnauthorized, "User is not authorized", logger)

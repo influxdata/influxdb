@@ -612,6 +612,7 @@ type UserQuery struct {
 	ID       *uint64
 	Name     *string
 	Provider *string
+	Scheme   *string
 }
 
 // UsersStore is the Storage and retrieval of authentication information
