@@ -303,6 +303,9 @@ func rewriteShowTagValuesCardinalityStatement(stmt *ShowTagValuesCardinalityStat
 		}
 	}
 
+	//
+	// TODO(edd) ON is broken
+	//
 	return &SelectStatement{
 		Fields: []*Field{
 			{

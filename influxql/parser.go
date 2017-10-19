@@ -1270,7 +1270,7 @@ func (p *Parser) parseShowTagValuesStatement() (Statement, error) {
 	stmt := &ShowTagValuesStatement{}
 	var err error
 
-	if tok, _, _ := p.ScanIgnoreWhitespace(); tok == CARDINALITY {
+	if tok, _, _ := p.ScanIgnoreWhitespace(); tok == EXACT {
 		return p.parseShowTagValuesCardinalityStatement()
 	}
 	p.Unscan()
@@ -1323,10 +1323,15 @@ func (p *Parser) parseShowTagValuesStatement() (Statement, error) {
 	return stmt, nil
 }
 
-// This function assumes the "SHOW TAG VALUES CARDINALITY" tokens have already been consumed.
+// This function assumes the "SHOW TAG VALUES EXACT" tokens have already been consumed.
 func (p *Parser) parseShowTagValuesCardinalityStatement() (Statement, error) {
 	var err error
 	stmt := &ShowTagValuesCardinalityStatement{}
+
+	// Parse remaining CARDINALITY token
+	if tok, pos, lit := p.ScanIgnoreWhitespace(); tok != CARDINALITY {
+		return nil, newParseError(tokstr(tok, lit), []string{"CARDINALITY"}, pos)
+	}
 
 	// Parse optional ON clause.
 	if tok, _, _ := p.ScanIgnoreWhitespace(); tok == ON {
