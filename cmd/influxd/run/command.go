@@ -36,6 +36,7 @@ type Command struct {
 	BuildTime string
 
 	closing chan struct{}
+	pidfile string
 	Closed  chan struct{}
 
 	Stdin  io.Reader
@@ -81,6 +82,7 @@ func (cmd *Command) Run(args ...string) error {
 	if err := cmd.writePIDFile(options.PIDFile); err != nil {
 		return fmt.Errorf("write pid file: %s", err)
 	}
+	cmd.pidfile = options.PIDFile
 
 	// Parse config
 	config, err := cmd.ParseConfig(options.GetConfigPath())
@@ -132,6 +134,7 @@ func (cmd *Command) Run(args ...string) error {
 // Close shuts down the server.
 func (cmd *Command) Close() error {
 	defer close(cmd.Closed)
+	defer cmd.removePIDFile()
 	close(cmd.closing)
 	if cmd.Server != nil {
 		return cmd.Server.Close()
@@ -147,6 +150,14 @@ func (cmd *Command) monitorServerErrors() {
 			logger.Println(err)
 		case <-cmd.closing:
 			return
+		}
+	}
+}
+
+func (cmd *Command) removePIDFile() {
+	if cmd.pidfile != "" {
+		if err := os.Remove(cmd.pidfile); err != nil {
+			cmd.Logger.Error("unable to remove pidfile", zap.Error(err))
 		}
 	}
 }
@@ -176,8 +187,7 @@ func (cmd *Command) writePIDFile(path string) error {
 	}
 
 	// Ensure the required directory structure exists.
-	err := os.MkdirAll(filepath.Dir(path), 0777)
-	if err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0777); err != nil {
 		return fmt.Errorf("mkdir: %s", err)
 	}
 

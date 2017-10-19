@@ -78,6 +78,7 @@
 - [#7797](https://github.com/influxdata/influxdb/issues/7706): Fix data deleted outside of time range
 - [#8822](https://github.com/influxdata/influxdb/issues/8822): Fix data dropped incorrectly during compaction
 - [#8780](https://github.com/influxdata/influxdb/issues/8780): Prevent deadlock during collectd, graphite, opentsdb, and udp shutdown.
+- [#8983](https://github.com/influxdata/influxdb/issues/8983): Remove the pidfile after the server has exited.
 
 ## v1.3.4 [unreleased]
 
