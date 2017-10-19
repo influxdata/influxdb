@@ -109,6 +109,7 @@
     "jquery": "^3.1.0",
     "lodash": "^4.3.0",
     "moment": "^2.13.0",
+    "nano-date": "^2.0.1",
     "node-uuid": "^1.4.7",
     "query-string": "^5.0.0",
     "react": "^15.0.2",
