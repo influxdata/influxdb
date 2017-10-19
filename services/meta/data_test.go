@@ -215,6 +215,104 @@ func TestData_SetPrivilege(t *testing.T) {
 	}
 }
 
+func TestData_TruncateShardGroups(t *testing.T) {
+	data := &meta.Data{}
+
+	must := func(err error) {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	must(data.CreateDatabase("db"))
+	rp := meta.NewRetentionPolicyInfo("rp")
+	rp.ShardGroupDuration = 24 * time.Hour
+	must(data.CreateRetentionPolicy("db", rp, true))
+
+	must(data.CreateShardGroup("db", "rp", time.Unix(0, 0)))
+
+	sg0, err := data.ShardGroupByTimestamp("db", "rp", time.Unix(0, 0))
+	if err != nil {
+		t.Fatal("Failed to find shard group:", err)
+	}
+
+	if sg0.Truncated() {
+		t.Fatal("shard group already truncated")
+	}
+
+	sgEnd, err := data.ShardGroupByTimestamp("db", "rp", sg0.StartTime.Add(rp.ShardGroupDuration-1))
+	if err != nil {
+		t.Fatal("Failed to find shard group for end range:", err)
+	}
+
+	if sgEnd == nil || sgEnd.ID != sg0.ID {
+		t.Fatalf("Retention policy mis-match: Expected %v, Got %v", sg0, sgEnd)
+	}
+
+	must(data.CreateShardGroup("db", "rp", sg0.StartTime.Add(rp.ShardGroupDuration)))
+
+	sg1, err := data.ShardGroupByTimestamp("db", "rp", sg0.StartTime.Add(rp.ShardGroupDuration+time.Minute))
+	if err != nil {
+		t.Fatal("Failed to find second shard group:", err)
+	}
+
+	if sg1.Truncated() {
+		t.Fatal("second shard group already truncated")
+	}
+
+	// shouldn't do anything
+	must(data.CreateShardGroup("db", "rp", sg0.EndTime.Add(-time.Minute)))
+
+	sgs, err := data.ShardGroupsByTimeRange("db", "rp", time.Unix(0, 0), sg1.EndTime.Add(time.Minute))
+	if err != nil {
+		t.Fatal("Failed to find shard groups:", err)
+	}
+
+	if len(sgs) != 2 {
+		t.Fatalf("Expected %d shard groups, found %d", 2, len(sgs))
+	}
+
+	truncateTime := sg0.EndTime.Add(-time.Minute)
+	data.TruncateShardGroups(truncateTime)
+
+	// at this point, we should get nil shard groups for times after truncateTime
+	for _, tc := range []struct {
+		t      time.Time
+		exists bool
+	}{
+		{sg0.StartTime, true},
+		{sg0.EndTime.Add(-1), false},
+		{truncateTime.Add(-1), true},
+		{truncateTime, false},
+		{sg1.StartTime, false},
+	} {
+		sg, err := data.ShardGroupByTimestamp("db", "rp", tc.t)
+		if err != nil {
+			t.Fatalf("Failed to find shardgroup for %v: %v", tc.t, err)
+		}
+		if tc.exists && sg == nil {
+			t.Fatalf("Shard group for timestamp '%v' should exist, got nil", tc.t)
+		}
+	}
+
+	for _, x := range data.Databases[0].RetentionPolicies[0].ShardGroups {
+		switch x.ID {
+		case sg0.ID:
+			*sg0 = x
+		case sg1.ID:
+			*sg1 = x
+		}
+	}
+
+	if sg0.TruncatedAt != truncateTime {
+		t.Fatalf("Incorrect truncation of current shard group. Expected %v, got %v", truncateTime, sg0.TruncatedAt)
+	}
+
+	if sg1.TruncatedAt != sg1.StartTime {
+		t.Fatalf("Incorrect truncation of future shard group. Expected %v, got %v", sg1.StartTime, sg1.TruncatedAt)
+	}
+}
+
 func TestUserInfo_AuthorizeDatabase(t *testing.T) {
 	emptyUser := &meta.UserInfo{}
 	if !emptyUser.AuthorizeDatabase(influxql.NoPrivileges, "anydb") {
