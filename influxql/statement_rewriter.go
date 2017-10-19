@@ -78,7 +78,7 @@ func rewriteShowFieldKeyCardinalityStatement(stmt *ShowFieldKeyCardinalityStatem
 				Alias: "count",
 			},
 		},
-		Sources:    stmt.Sources,
+		Sources:    rewriteSources2(stmt.Sources, stmt.Database),
 		Condition:  stmt.Condition,
 		Dimensions: stmt.Dimensions,
 		Offset:     stmt.Offset,
@@ -93,9 +93,6 @@ func rewriteShowMeasurementsStatement(stmt *ShowMeasurementsStatement) (Statemen
 		sources = Sources{stmt.Source}
 	}
 
-	//
-	// TODO(edd) ON is broken
-	//
 	return &SelectStatement{
 		Fields: []*Field{
 			{Expr: &VarRef{Val: "_name"}, Alias: "name"},
@@ -145,7 +142,7 @@ func rewriteShowMeasurementCardinalityStatement(stmt *ShowMeasurementCardinality
 				Alias: "count",
 			},
 		},
-		Sources:    stmt.Sources,
+		Sources:    rewriteSources2(stmt.Sources, stmt.Database),
 		Condition:  stmt.Condition,
 		Dimensions: stmt.Dimensions,
 		Offset:     stmt.Offset,
@@ -193,7 +190,7 @@ func rewriteShowSeriesCardinalityStatement(stmt *ShowSeriesCardinalityStatement)
 		Fields: []*Field{
 			{Expr: &Call{Name: "count", Args: []Expr{&VarRef{Val: "_seriesKey"}}}, Alias: "count"},
 		},
-		Sources:    stmt.Sources,
+		Sources:    rewriteSources2(stmt.Sources, stmt.Database),
 		Condition:  stmt.Condition,
 		Dimensions: stmt.Dimensions,
 		Offset:     stmt.Offset,
@@ -306,9 +303,6 @@ func rewriteShowTagValuesCardinalityStatement(stmt *ShowTagValuesCardinalityStat
 		}
 	}
 
-	//
-	// TODO(edd) ON is broken
-	//
 	return &SelectStatement{
 		Fields: []*Field{
 			{
@@ -324,7 +318,7 @@ func rewriteShowTagValuesCardinalityStatement(stmt *ShowTagValuesCardinalityStat
 				Alias: "count",
 			},
 		},
-		Sources:    stmt.Sources,
+		Sources:    rewriteSources2(stmt.Sources, stmt.Database),
 		Condition:  condition,
 		Dimensions: stmt.Dimensions,
 		Offset:     stmt.Offset,
@@ -383,10 +377,7 @@ func rewriteShowTagKeyCardinalityStatement(stmt *ShowTagKeyCardinalityStatement)
 				Alias: "count",
 			},
 		},
-		//
-		// TODO(edd) ON is broken
-		//
-		Sources:    stmt.Sources,
+		Sources:    rewriteSources2(stmt.Sources, stmt.Database),
 		Condition:  stmt.Condition,
 		Dimensions: stmt.Dimensions,
 		Offset:     stmt.Offset,
