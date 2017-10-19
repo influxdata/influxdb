@@ -178,7 +178,7 @@ const AutoRefresh = ComposedComponent => {
         ? data.every(({response}) =>
             _.get(response, 'results', []).every(
               result =>
-                Object.keys(result).filter(k => k !== 'statement_id').length ===
+                Object.keys(result).filter(k => k !== 'statement_id').length !==
                 0
             )
           )
