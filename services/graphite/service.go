@@ -128,7 +128,7 @@ func (s *Service) Open() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if !s.closed() {
+	if s.done != nil {
 		return nil // Already open.
 	}
 	s.done = make(chan struct{})
@@ -172,33 +172,41 @@ func (s *Service) closeAllConnections() {
 
 // Close stops all data processing on the Graphite input.
 func (s *Service) Close() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	if wait := func() bool {
+		s.mu.Lock()
+		defer s.mu.Unlock()
 
-	if s.closed() {
+		if s.closed() {
+			return false
+		}
+		close(s.done)
+
+		s.closeAllConnections()
+
+		if s.ln != nil {
+			s.ln.Close()
+		}
+		if s.udpConn != nil {
+			s.udpConn.Close()
+		}
+
+		if s.batcher != nil {
+			s.batcher.Stop()
+		}
+
+		if s.Monitor != nil {
+			s.Monitor.DeregisterDiagnosticsClient(s.diagsKey)
+		}
+		return true
+	}(); !wait {
 		return nil // Already closed.
-	}
-	close(s.done)
-
-	s.closeAllConnections()
-
-	if s.ln != nil {
-		s.ln.Close()
-	}
-	if s.udpConn != nil {
-		s.udpConn.Close()
-	}
-
-	if s.batcher != nil {
-		s.batcher.Stop()
-	}
-
-	if s.Monitor != nil {
-		s.Monitor.DeregisterDiagnosticsClient(s.diagsKey)
 	}
 
 	s.wg.Wait()
+
+	s.mu.Lock()
 	s.done = nil
+	s.mu.Unlock()
 
 	return nil
 }

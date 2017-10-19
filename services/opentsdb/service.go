@@ -106,7 +106,7 @@ func (s *Service) Open() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if !s.closed() {
+	if s.done != nil {
 		return nil // Already open.
 	}
 	s.done = make(chan struct{})
@@ -157,28 +157,37 @@ func (s *Service) Open() error {
 
 // Close closes the openTSDB service.
 func (s *Service) Close() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	if wait, err := func() (bool, error) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
 
-	if s.closed() {
-		return nil // Already closed.
-	}
-	close(s.done)
+		if s.closed() {
+			return false, nil // Already closed.
+		}
+		close(s.done)
 
-	// Close the listeners.
-	if err := s.ln.Close(); err != nil {
+		// Close the listeners.
+		if err := s.ln.Close(); err != nil {
+			return false, err
+		}
+		if err := s.httpln.Close(); err != nil {
+			return false, err
+		}
+
+		if s.batcher != nil {
+			s.batcher.Stop()
+		}
+		return true, nil
+	}(); err != nil {
 		return err
+	} else if !wait {
+		return nil
 	}
-	if err := s.httpln.Close(); err != nil {
-		return err
-	}
-
 	s.wg.Wait()
-	s.done = nil
 
-	if s.batcher != nil {
-		s.batcher.Stop()
-	}
+	s.mu.Lock()
+	s.done = nil
+	s.mu.Unlock()
 
 	return nil
 }

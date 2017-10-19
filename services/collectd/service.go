@@ -95,7 +95,7 @@ func (s *Service) Open() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if !s.closed() {
+	if s.done != nil {
 		return nil // Already open.
 	}
 	s.done = make(chan struct{})
@@ -211,24 +211,34 @@ func (s *Service) Open() error {
 
 // Close stops the service.
 func (s *Service) Close() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	if wait := func() bool {
+		s.mu.Lock()
+		defer s.mu.Unlock()
 
-	if s.closed() {
+		if s.closed() {
+			return false
+		}
+		close(s.done)
+
+		// Close the connection, and wait for the goroutine to exit.
+		if s.conn != nil {
+			s.conn.Close()
+		}
+		if s.batcher != nil {
+			s.batcher.Stop()
+		}
+		return true
+	}(); !wait {
 		return nil // Already closed.
 	}
-	close(s.done)
 
-	// Close the connection, and wait for the goroutine to exit.
-	if s.conn != nil {
-		s.conn.Close()
-	}
-	if s.batcher != nil {
-		s.batcher.Stop()
-	}
+	// Wait with the lock unlocked.
 	s.wg.Wait()
 
 	// Release all remaining resources.
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	s.conn = nil
 	s.batcher = nil
 	s.Logger.Info("collectd UDP closed")
