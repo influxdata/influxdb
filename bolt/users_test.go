@@ -161,6 +161,24 @@ func TestUsersStore_GetWithNameProviderScheme(t *testing.T) {
 	}
 }
 
+func TestUsersStore_GetInvalid(t *testing.T) {
+	client, err := NewTestClient()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Open(context.TODO()); err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+
+	s := client.UsersStore
+
+	_, err = s.Get(context.Background(), chronograf.UserQuery{})
+	if err == nil {
+		t.Errorf("Invalid Get. UsersStore.Get() error = %v", err)
+	}
+}
+
 func TestUsersStore_Add(t *testing.T) {
 	type args struct {
 		ctx context.Context
