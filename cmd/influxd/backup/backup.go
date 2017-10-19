@@ -97,6 +97,7 @@ func (cmd *Command) Run(args ...string) error {
 		if err := cmd.extractMetastore(""); err != nil {
 			return err
 		}
+
 		cmd.StdoutLogger.Printf("No database, retention policy or shard ID given. Full meta store backed up.")
 	}
 
@@ -161,13 +162,7 @@ func (cmd *Command) parseFlags(args []string) (err error) {
 		}
 	}
 
-	// some validations
-	// 1.  -database is required
-	if cmd.database == "" {
-		return errors.New("-database <dbname> is a required argument")
-	}
-
-	// 2.  start should be < end
+	// start should be < end
 	if cmd.start.After(cmd.end) {
 		return errors.New("start date must be before end date")
 	}
