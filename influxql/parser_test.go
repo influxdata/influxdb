@@ -2207,6 +2207,70 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// SHOW FIELD KEY EXACT CARDINALITY statement
+		{
+			s:    `SHOW FIELD KEY EXACT CARDINALITY`,
+			stmt: &influxql.ShowFieldKeyCardinalityStatement{},
+		},
+
+		// SHOW FIELD KEY EXACT CARDINALITY FROM cpu
+		{
+			s: `SHOW FIELD KEY EXACT CARDINALITY FROM cpu`,
+			stmt: &influxql.ShowFieldKeyCardinalityStatement{
+				Sources: []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+			},
+		},
+
+		// SHOW FIELD KEY EXACT CARDINALITY ON db0
+		{
+			s: `SHOW FIELD KEY EXACT CARDINALITY ON db0`,
+			stmt: &influxql.ShowFieldKeyCardinalityStatement{
+				Database: "db0",
+			},
+		},
+
+		// SHOW FIELD KEY EXACT CARDINALITY FROM /<regex>/
+		{
+			s: `SHOW FIELD KEY EXACT CARDINALITY FROM /[cg]pu/`,
+			stmt: &influxql.ShowFieldKeyCardinalityStatement{
+				Sources: []influxql.Source{
+					&influxql.Measurement{
+						Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`[cg]pu`)},
+					},
+				},
+			},
+		},
+
+		// SHOW FIELD KEY EXACT CARDINALITY with OFFSET 0
+		{
+			s: `SHOW FIELD KEY EXACT CARDINALITY OFFSET 0`,
+			stmt: &influxql.ShowFieldKeyCardinalityStatement{
+				Offset: 0,
+			},
+		},
+
+		// SHOW FIELD KEY EXACT CARDINALITY with LIMIT 2 OFFSET 0
+		{
+			s: `SHOW FIELD KEY EXACT CARDINALITY LIMIT 2 OFFSET 0`,
+			stmt: &influxql.ShowFieldKeyCardinalityStatement{
+				Offset: 0,
+				Limit:  2,
+			},
+		},
+
+		// SHOW FIELD KEY EXACT CARDINALITY WHERE with ORDER BY and LIMIT
+		{
+			s: `SHOW FIELD KEY EXACT CARDINALITY WHERE region = 'order by desc' LIMIT 10`,
+			stmt: &influxql.ShowFieldKeyCardinalityStatement{
+				Condition: &influxql.BinaryExpr{
+					Op:  influxql.EQ,
+					LHS: &influxql.VarRef{Val: "region"},
+					RHS: &influxql.StringLiteral{Val: "order by desc"},
+				},
+				Limit: 10,
+			},
+		},
+
 		// DELETE statement
 		{
 			s:    `DELETE FROM src`,

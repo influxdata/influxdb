@@ -2945,7 +2945,7 @@ type ShowFieldKeyCardinalityStatement struct {
 // String returns a string representation of the statement.
 func (s *ShowFieldKeyCardinalityStatement) String() string {
 	var buf bytes.Buffer
-	_, _ = buf.WriteString("SHOW FIELD KEY CARDINALITY")
+	_, _ = buf.WriteString("SHOW FIELD KEY EXACT CARDINALITY")
 
 	if s.Database != "" {
 		_, _ = buf.WriteString(" ON ")

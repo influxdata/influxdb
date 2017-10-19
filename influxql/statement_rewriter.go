@@ -93,6 +93,9 @@ func rewriteShowMeasurementsStatement(stmt *ShowMeasurementsStatement) (Statemen
 		sources = Sources{stmt.Source}
 	}
 
+	//
+	// TODO(edd) ON is broken
+	//
 	return &SelectStatement{
 		Fields: []*Field{
 			{Expr: &VarRef{Val: "_name"}, Alias: "name"},

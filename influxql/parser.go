@@ -1441,16 +1441,21 @@ func (p *Parser) parseShowSubscriptionsStatement() (*ShowSubscriptionsStatement,
 // parseShowFieldKeyStatement parses a string and returns a Statement.
 // This function assumes the "SHOW FIELD KEY" tokens have already been consumed.
 func (p *Parser) parseShowFieldKeyStatement() (Statement, error) {
-	if tok, pos, lit := p.ScanIgnoreWhitespace(); tok != CARDINALITY {
-		return nil, newParseError(tokstr(tok, lit), []string{"CARDINALITY"}, pos)
+	if tok, pos, lit := p.ScanIgnoreWhitespace(); tok != EXACT {
+		return nil, newParseError(tokstr(tok, lit), []string{"EXACT"}, pos)
 	}
 	return p.parseShowFieldKeyCardinalityStatement()
 }
 
-// This function assumes the "SHOW FIELD KEY CARDINALITY" tokens have already been consumed.
+// This function assumes the "SHOW FIELD KEY EXACT" tokens have already been consumed.
 func (p *Parser) parseShowFieldKeyCardinalityStatement() (Statement, error) {
 	var err error
 	stmt := &ShowFieldKeyCardinalityStatement{}
+
+	// Parse remaining CARDINALITY token
+	if tok, pos, lit := p.ScanIgnoreWhitespace(); tok != CARDINALITY {
+		return nil, newParseError(tokstr(tok, lit), []string{"CARDINALITY"}, pos)
+	}
 
 	// Parse optional ON clause.
 	if tok, _, _ := p.ScanIgnoreWhitespace(); tok == ON {

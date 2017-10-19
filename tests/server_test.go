@@ -7888,20 +7888,20 @@ func TestServer_Query_ShowFieldKeyCardinality(t *testing.T) {
 
 	test.addQueries([]*Query{
 		&Query{
-			name:    `show field key cardinality`,
-			command: `SHOW FIELD KEY CARDINALITY`,
+			name:    `show field key exact cardinality`,
+			command: `SHOW FIELD KEY EXACT CARDINALITY`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["count"],"values":[[3]]},{"name":"disk","columns":["count"],"values":[[2]]},{"name":"gpu","columns":["count"],"values":[[4]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
-			name:    `show field key cardinality from measurement`,
-			command: `SHOW FIELD KEY CARDINALITY FROM cpu`,
+			name:    `show field key exact cardinality from measurement`,
+			command: `SHOW FIELD KEY EXACT CARDINALITY FROM cpu`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["count"],"values":[[3]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
-			name:    `show field key cardinality measurement with regex`,
-			command: `SHOW FIELD KEY CARDINALITY FROM /[cg]pu/`,
+			name:    `show field key exact cardinality measurement with regex`,
+			command: `SHOW FIELD KEY EXACT CARDINALITY FROM /[cg]pu/`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["count"],"values":[[3]]},{"name":"gpu","columns":["count"],"values":[[4]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
