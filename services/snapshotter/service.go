@@ -3,7 +3,6 @@ package snapshotter // import "github.com/influxdata/influxdb/services/snapshott
 
 import (
 	"bytes"
-	"encoding"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -34,10 +33,7 @@ type Service struct {
 
 	Node *influxdb.Node
 
-	MetaClient interface {
-		encoding.BinaryMarshaler
-		Database(name string) *meta.DatabaseInfo
-	}
+	MetaClient *meta.Client
 
 	TSDBStore *tsdb.Store
 
@@ -123,7 +119,7 @@ func (s *Service) handleConn(conn net.Conn) error {
 			return err
 		}
 	case RequestMetastoreBackup:
-		if err := s.writeMetaStore(conn); err != nil {
+		if err := s.writeMetaStore(conn, r.Database); err != nil {
 			return err
 		}
 	case RequestDatabaseInfo:
@@ -137,9 +133,20 @@ func (s *Service) handleConn(conn net.Conn) error {
 	return nil
 }
 
-func (s *Service) writeMetaStore(conn net.Conn) error {
+func (s *Service) writeMetaStore(conn net.Conn, database string) error {
 	// Retrieve and serialize the current meta data.
-	metaBlob, err := s.MetaClient.MarshalBinary()
+	// if the database name is non-empty, then we drop all the DB's from the metadata
+	// that aren't being exported.
+	data := s.MetaClient.Data()
+	if database != "" {
+		for _, db := range data.Databases[:] {
+			if db.Name != database {
+				data.DropDatabase(db.Name)
+			}
+		}
+	}
+	metaBlob, err := data.MarshalBinary()
+
 	if err != nil {
 		return fmt.Errorf("marshal meta: %s", err)
 	}
