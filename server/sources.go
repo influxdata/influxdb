@@ -442,6 +442,7 @@ func (s *Service) SourceUsers(w http.ResponseWriter, r *http.Request) {
 }
 
 // SourceUserID retrieves a user with ID from store.
+// In InfluxDB, a User's Name is their UID, hence the semantic below.
 func (s *Service) SourceUserID(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	uid := httprouter.GetParamFromContext(ctx, "uid")
@@ -451,7 +452,7 @@ func (s *Service) SourceUserID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	store := ts.Users(ctx)
-	u, err := store.Get(ctx, uid)
+	u, err := store.Get(ctx, chronograf.UserQuery{Name: &uid})
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 		return
@@ -514,7 +515,7 @@ func (s *Service) UpdateSourceUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	u, err := store.Get(ctx, uid)
+	u, err := store.Get(ctx, chronograf.UserQuery{Name: &uid})
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 		return

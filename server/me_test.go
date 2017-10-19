@@ -43,21 +43,27 @@ func TestService_Me(t *testing.T) {
 			},
 			fields: fields{
 				UseAuth: true,
+				Logger:  log.New(log.DebugLevel),
 				UsersStore: &mocks.UsersStore{
-					GetF: func(ctx context.Context, name string) (*chronograf.User, error) {
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
+							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+						}
 						return &chronograf.User{
-							Name:   "me",
-							Passwd: "hunter2",
+							Name:     "me",
+							Provider: "GitHub",
+							Scheme:   "OAuth2",
 						}, nil
 					},
 				},
 			},
 			principal: oauth2.Principal{
 				Subject: "me",
+				Issuer:  "GitHub",
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody: `{"name":"me","password":"hunter2","links":{"self":"/chronograf/v1/users/me"}}
+			wantBody: `{"name":"me","provider":"GitHub","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/me"}}
 `,
 		},
 		{
@@ -68,9 +74,13 @@ func TestService_Me(t *testing.T) {
 			},
 			fields: fields{
 				UseAuth: true,
+				Logger:  log.New(log.DebugLevel),
 				UsersStore: &mocks.UsersStore{
-					GetF: func(ctx context.Context, name string) (*chronograf.User, error) {
-						return nil, fmt.Errorf("Unknown User")
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
+							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+						}
+						return nil, chronograf.ErrUserNotFound
 					},
 					AddF: func(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
 						return u, nil
@@ -79,10 +89,11 @@ func TestService_Me(t *testing.T) {
 			},
 			principal: oauth2.Principal{
 				Subject: "secret",
+				Issuer:  "Auth0",
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody: `{"name":"secret","links":{"self":"/chronograf/v1/users/secret"}}
+			wantBody: `{"name":"secret","provider":"Auth0","scheme":"OAuth2","links":{"self":"/chronograf/v1/users/secret"}}
 `,
 		},
 		{
@@ -94,8 +105,8 @@ func TestService_Me(t *testing.T) {
 			fields: fields{
 				UseAuth: true,
 				UsersStore: &mocks.UsersStore{
-					GetF: func(ctx context.Context, name string) (*chronograf.User, error) {
-						return nil, fmt.Errorf("Unknown User")
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						return nil, chronograf.ErrUserNotFound
 					},
 					AddF: func(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
 						return nil, fmt.Errorf("Why Heavy?")
@@ -105,6 +116,7 @@ func TestService_Me(t *testing.T) {
 			},
 			principal: oauth2.Principal{
 				Subject: "secret",
+				Issuer:  "Heroku",
 			},
 			wantStatus:      http.StatusInternalServerError,
 			wantContentType: "application/json",
@@ -138,6 +150,7 @@ func TestService_Me(t *testing.T) {
 			wantStatus: http.StatusUnprocessableEntity,
 			principal: oauth2.Principal{
 				Subject: "",
+				Issuer:  "",
 			},
 		},
 	}

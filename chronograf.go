@@ -606,6 +606,15 @@ type User struct {
 	Scheme      string      `json:"scheme,omitempty"`
 }
 
+// UserQuery represents the attributes that a user may be retrieved by.
+// It is predominantly used in the UsersStore.Get method.
+type UserQuery struct {
+	ID       *uint64
+	Name     *string
+	Provider *string
+	Scheme   *string
+}
+
 // UsersStore is the Storage and retrieval of authentication information
 type UsersStore interface {
 	// All lists all users from the UsersStore
@@ -615,7 +624,7 @@ type UsersStore interface {
 	// Delete the User from the UsersStore
 	Delete(context.Context, *User) error
 	// Get retrieves a user if name exists.
-	Get(ctx context.Context, name string) (*User, error)
+	Get(ctx context.Context, q UserQuery) (*User, error)
 	// Update the user's permissions or roles
 	Update(context.Context, *User) error
 }

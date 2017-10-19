@@ -778,7 +778,7 @@ func TestService_SourceUserID(t *testing.T) {
 					},
 					UsersF: func(ctx context.Context) chronograf.UsersStore {
 						return &mocks.UsersStore{
-							GetF: func(ctx context.Context, uid string) (*chronograf.User, error) {
+							GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 								return &chronograf.User{
 									Name:   "strickland",
 									Passwd: "discipline",
@@ -833,7 +833,7 @@ func TestService_SourceUserID(t *testing.T) {
 					},
 					UsersF: func(ctx context.Context) chronograf.UsersStore {
 						return &mocks.UsersStore{
-							GetF: func(ctx context.Context, uid string) (*chronograf.User, error) {
+							GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 								return &chronograf.User{
 									Name:   "strickland",
 									Passwd: "discipline",
@@ -1041,7 +1041,7 @@ func TestService_UpdateSourceUser(t *testing.T) {
 							UpdateF: func(ctx context.Context, u *chronograf.User) error {
 								return nil
 							},
-							GetF: func(ctx context.Context, name string) (*chronograf.User, error) {
+							GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 								return &chronograf.User{
 									Name: "marty",
 								}, nil
@@ -1093,7 +1093,7 @@ func TestService_UpdateSourceUser(t *testing.T) {
 							UpdateF: func(ctx context.Context, u *chronograf.User) error {
 								return nil
 							},
-							GetF: func(ctx context.Context, name string) (*chronograf.User, error) {
+							GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 								return &chronograf.User{
 									Name: "marty",
 								}, nil

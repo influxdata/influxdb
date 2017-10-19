@@ -47,9 +47,9 @@ func TestService_UserID(t *testing.T) {
 			fields: fields{
 				Logger: log.New(log.DebugLevel),
 				UsersStore: &mocks.UsersStore{
-					GetF: func(ctx context.Context, ID string) (*chronograf.User, error) {
-						switch ID {
-						case "1337":
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						switch *q.ID {
+						case 1337:
 							return &chronograf.User{
 								ID:       1337,
 								Name:     "billysteve",
@@ -60,7 +60,7 @@ func TestService_UserID(t *testing.T) {
 								},
 							}, nil
 						default:
-							return nil, fmt.Errorf("User with ID %s not found", ID)
+							return nil, fmt.Errorf("User with ID %s not found", *q.ID)
 						}
 					},
 				},
@@ -212,9 +212,9 @@ func TestService_RemoveUser(t *testing.T) {
 			fields: fields{
 				Logger: log.New(log.DebugLevel),
 				UsersStore: &mocks.UsersStore{
-					GetF: func(ctx context.Context, ID string) (*chronograf.User, error) {
-						switch ID {
-						case "1339":
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						switch *q.ID {
+						case 1339:
 							return &chronograf.User{
 								ID:       1339,
 								Name:     "helena",
@@ -222,7 +222,7 @@ func TestService_RemoveUser(t *testing.T) {
 								Scheme:   "LDAP",
 							}, nil
 						default:
-							return nil, fmt.Errorf("User with ID %s not found", ID)
+							return nil, fmt.Errorf("User with ID %s not found", *q.ID)
 						}
 					},
 					DeleteF: func(ctx context.Context, user *chronograf.User) error {
@@ -303,9 +303,9 @@ func TestService_UpdateUser(t *testing.T) {
 					UpdateF: func(ctx context.Context, user *chronograf.User) error {
 						return nil
 					},
-					GetF: func(ctx context.Context, ID string) (*chronograf.User, error) {
-						switch ID {
-						case "1336":
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						switch *q.ID {
+						case 1336:
 							return &chronograf.User{
 								ID:       1336,
 								Name:     "bobbetta2",
@@ -316,7 +316,7 @@ func TestService_UpdateUser(t *testing.T) {
 								},
 							}, nil
 						default:
-							return nil, fmt.Errorf("User with ID %s not found", ID)
+							return nil, fmt.Errorf("User with ID %s not found", *q.ID)
 						}
 					},
 				},
@@ -351,9 +351,9 @@ func TestService_UpdateUser(t *testing.T) {
 					UpdateF: func(ctx context.Context, user *chronograf.User) error {
 						return nil
 					},
-					GetF: func(ctx context.Context, ID string) (*chronograf.User, error) {
-						switch ID {
-						case "1336":
+					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+						switch *q.ID {
+						case 1336:
 							return &chronograf.User{
 								ID:       1336,
 								Name:     "bobbetta2",
@@ -361,7 +361,7 @@ func TestService_UpdateUser(t *testing.T) {
 								Scheme:   "OAuth2",
 							}, nil
 						default:
-							return nil, fmt.Errorf("User with ID %s not found", ID)
+							return nil, fmt.Errorf("User with ID %s not found", *q.ID)
 						}
 					},
 				},

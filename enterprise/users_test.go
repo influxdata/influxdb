@@ -375,7 +375,7 @@ func TestClient_Get(t *testing.T) {
 			Ctrl:   tt.fields.Ctrl,
 			Logger: tt.fields.Logger,
 		}
-		got, err := c.Get(tt.args.ctx, tt.args.name)
+		got, err := c.Get(tt.args.ctx, chronograf.UserQuery{Name: &tt.args.name})
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. Client.Get() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue

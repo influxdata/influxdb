@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strconv"
 
 	"github.com/bouk/httprouter"
 	"github.com/influxdata/chronograf"
@@ -28,6 +29,11 @@ func (r *userRequest) ValidCreate() error {
 	if r.Scheme == "" {
 		return fmt.Errorf("Scheme required on Chronograf User request body")
 	}
+
+	// TODO: This Scheme value is hard-coded temporarily since we only currently
+	// support OAuth2. This hard-coding should be removed whenever we add
+	// support for other authentication schemes.
+	r.Scheme = "OAuth2"
 	return r.ValidRoles()
 }
 
@@ -132,8 +138,13 @@ var (
 func (s *Service) UserID(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	id := httprouter.GetParamFromContext(ctx, "id")
-	user, err := s.UsersStore.Get(ctx, id)
+	idStr := httprouter.GetParamFromContext(ctx, "id")
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		Error(w, http.StatusBadRequest, fmt.Sprintf("invalid user id: %s", err.Error()), s.Logger)
+		return
+	}
+	user, err := s.UsersStore.Get(ctx, chronograf.UserQuery{ID: &id})
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 		return
@@ -178,9 +189,14 @@ func (s *Service) NewUser(w http.ResponseWriter, r *http.Request) {
 // RemoveUser deletes a Chronograf user from store
 func (s *Service) RemoveUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	id := httprouter.GetParamFromContext(ctx, "id")
+	idStr := httprouter.GetParamFromContext(ctx, "id")
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		Error(w, http.StatusBadRequest, fmt.Sprintf("invalid user id: %s", err.Error()), s.Logger)
+		return
+	}
 
-	u, err := s.UsersStore.Get(ctx, id)
+	u, err := s.UsersStore.Get(ctx, chronograf.UserQuery{ID: &id})
 	if err != nil {
 		Error(w, http.StatusNotFound, err.Error(), s.Logger)
 	}
@@ -205,9 +221,14 @@ func (s *Service) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	id := httprouter.GetParamFromContext(ctx, "id")
+	idStr := httprouter.GetParamFromContext(ctx, "id")
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		Error(w, http.StatusBadRequest, fmt.Sprintf("invalid user id: %s", err.Error()), s.Logger)
+		return
+	}
 
-	u, err := s.UsersStore.Get(ctx, id)
+	u, err := s.UsersStore.Get(ctx, chronograf.UserQuery{ID: &id})
 	if err != nil {
 		Error(w, http.StatusNotFound, err.Error(), s.Logger)
 	}

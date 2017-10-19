@@ -2,6 +2,7 @@ package enterprise
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/influxdata/chronograf"
 )
@@ -28,7 +29,7 @@ func (c *UserStore) Add(ctx context.Context, u *chronograf.User) (*chronograf.Us
 		}
 	}
 
-	return c.Get(ctx, u.Name)
+	return c.Get(ctx, chronograf.UserQuery{Name: &u.Name})
 }
 
 // Delete the User from Influx Enterprise
@@ -37,8 +38,11 @@ func (c *UserStore) Delete(ctx context.Context, u *chronograf.User) error {
 }
 
 // Get retrieves a user if name exists.
-func (c *UserStore) Get(ctx context.Context, name string) (*chronograf.User, error) {
-	u, err := c.Ctrl.User(ctx, name)
+func (c *UserStore) Get(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
+	if q.Name == nil {
+		return nil, fmt.Errorf("query must specify name")
+	}
+	u, err := c.Ctrl.User(ctx, *q.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +52,7 @@ func (c *UserStore) Get(ctx context.Context, name string) (*chronograf.User, err
 		return nil, err
 	}
 
-	role := ur[name]
+	role := ur[*q.Name]
 	cr := role.ToChronograf()
 	// For now we are removing all users from a role being returned.
 	for i, r := range cr {

@@ -36,7 +36,7 @@ func newMeResponse(usr *chronograf.User) meResponse {
 	}
 }
 
-func getEmail(ctx context.Context) (string, error) {
+func getUsername(ctx context.Context) (string, error) {
 	principal, err := getPrincipal(ctx)
 	if err != nil {
 		return "", err
@@ -45,6 +45,24 @@ func getEmail(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("Token not found")
 	}
 	return principal.Subject, nil
+}
+
+func getProvider(ctx context.Context) (string, error) {
+	principal, err := getPrincipal(ctx)
+	if err != nil {
+		return "", err
+	}
+	if principal.Issuer == "" {
+		return "", fmt.Errorf("Token not found")
+	}
+	return principal.Issuer, nil
+}
+
+// TODO: This Scheme value is hard-coded temporarily since we only currently
+// support OAuth2. This hard-coding should be removed whenever we add
+// support for other authentication schemes.
+func getScheme(ctx context.Context) (string, error) {
+	return "OAuth2", nil
 }
 
 func getPrincipal(ctx context.Context) (oauth2.Principal, error) {
@@ -56,7 +74,7 @@ func getPrincipal(ctx context.Context) (oauth2.Principal, error) {
 	return principal, nil
 }
 
-// Me does a findOrCreate based on the email in the context
+// Me does a findOrCreate based on the username in the context
 func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !s.UseAuth {
@@ -66,14 +84,33 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	email, err := getEmail(ctx)
+	username, err := getUsername(ctx)
+	if err != nil {
+		invalidData(w, err, s.Logger)
+		return
+	}
+	provider, err := getProvider(ctx)
+	if err != nil {
+		invalidData(w, err, s.Logger)
+		return
+	}
+	scheme, err := getScheme(ctx)
 	if err != nil {
 		invalidData(w, err, s.Logger)
 		return
 	}
 
-	usr, err := s.UsersStore.Get(ctx, email)
-	if err == nil {
+	usr, err := s.UsersStore.Get(ctx, chronograf.UserQuery{
+		Name:     &username,
+		Provider: &provider,
+		Scheme:   &scheme,
+	})
+	if err != nil && err != chronograf.ErrUserNotFound {
+		unknownErrorWithMessage(w, err, s.Logger)
+		return
+	}
+
+	if usr != nil {
 		res := newMeResponse(usr)
 		encodeJSON(w, http.StatusOK, res, s.Logger)
 		return
@@ -81,7 +118,12 @@ func (s *Service) Me(w http.ResponseWriter, r *http.Request) {
 
 	// Because we didnt find a user, making a new one
 	user := &chronograf.User{
-		Name: email,
+		Name:     username,
+		Provider: provider,
+		// TODO: This Scheme value is hard-coded temporarily since we only currently
+		// support OAuth2. This hard-coding should be removed whenever we add
+		// support for other authentication schemes.
+		Scheme: "OAuth2",
 	}
 
 	newUser, err := s.UsersStore.Add(ctx, user)
