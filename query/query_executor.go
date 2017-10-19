@@ -12,7 +12,7 @@ import (
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
-	"github.com/uber-go/zap"
+	"github.com/influxdata/influxdb/query/diagnostic"
 )
 
 var (
@@ -137,9 +137,6 @@ type ExecutionContext struct {
 	// Output channel where results and errors should be sent.
 	Results chan *Result
 
-	// Hold the query executor's logger.
-	Log zap.Logger
-
 	// A channel that is closed when the query is interrupted.
 	InterruptCh <-chan struct{}
 
@@ -195,7 +192,7 @@ type QueryExecutor struct {
 
 	// Logger to use for all logging.
 	// Defaults to discarding all log output.
-	Logger zap.Logger
+	Diagnostic diagnostic.ExecutorContext
 
 	// expvar-based stats.
 	stats *QueryStatistics
@@ -205,7 +202,6 @@ type QueryExecutor struct {
 func NewQueryExecutor() *QueryExecutor {
 	return &QueryExecutor{
 		TaskManager: NewTaskManager(),
-		Logger:      zap.New(zap.NullEncoder()),
 		stats:       &QueryStatistics{},
 	}
 }
@@ -241,9 +237,9 @@ func (e *QueryExecutor) Close() error {
 
 // SetLogOutput sets the writer to which all logs are written. It must not be
 // called after Open is called.
-func (e *QueryExecutor) WithLogger(log zap.Logger) {
-	e.Logger = log.With(zap.String("service", "query"))
-	e.TaskManager.Logger = e.Logger
+func (e *QueryExecutor) WithDiagnosticHandler(d diagnostic.Handler) {
+	e.Diagnostic.Handler = d
+	e.TaskManager.Diagnostic.Handler = d
 }
 
 // ExecuteQuery executes each statement within a query.
@@ -280,7 +276,6 @@ func (e *QueryExecutor) executeQuery(query *influxql.Query, opt ExecutionOptions
 		QueryID:          qid,
 		Query:            task,
 		Results:          results,
-		Log:              e.Logger,
 		InterruptCh:      task.closing,
 		ExecutionOptions: opt,
 	}
@@ -350,7 +345,7 @@ LOOP:
 
 		// Log each normalized statement.
 		if !ctx.Quiet {
-			e.Logger.Info(stmt.String())
+			e.Diagnostic.OnExecuteStatement(stmt.String())
 		}
 
 		// Send any other statements to the underlying statement executor.
@@ -416,16 +411,13 @@ func init() {
 func (e *QueryExecutor) recover(query *influxql.Query, results chan *Result) {
 	if err := recover(); err != nil {
 		atomic.AddInt64(&e.stats.RecoveredPanics, 1) // Capture the panic in _internal stats.
-		e.Logger.Error(fmt.Sprintf("%s [panic:%s] %s", query.String(), err, debug.Stack()))
+		e.Diagnostic.OnPanic(query.String(), err, debug.Stack())
 		results <- &Result{
 			StatementID: -1,
 			Err:         fmt.Errorf("%s [panic:%s]", query.String(), err),
 		}
 
 		if willCrash {
-			e.Logger.Error(fmt.Sprintf("\n\n=====\nAll goroutines now follow:"))
-			buf := debug.Stack()
-			e.Logger.Error(fmt.Sprintf("%s", buf))
 			os.Exit(1)
 		}
 	}

@@ -13,6 +13,7 @@ import (
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/coordinator"
+	"github.com/influxdata/influxdb/diagnostic"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
 	"github.com/influxdata/influxdb/query"
@@ -30,7 +31,7 @@ import (
 	"github.com/influxdata/influxdb/tcp"
 	"github.com/influxdata/influxdb/tsdb"
 	client "github.com/influxdata/usage-client/v1"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 
 	// Initialize the engine & index packages
 	_ "github.com/influxdata/influxdb/tsdb/engine"
@@ -63,7 +64,7 @@ type Server struct {
 	BindAddress string
 	Listener    net.Listener
 
-	Logger zap.Logger
+	DiagnosticService *diagnostic.Service
 
 	MetaClient *meta.Client
 
@@ -140,11 +141,6 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		closing:   make(chan struct{}),
 
 		BindAddress: bind,
-
-		Logger: zap.New(
-			zap.NewTextEncoder(),
-			zap.Output(os.Stderr),
-		),
 
 		MetaClient: meta.NewClient(c.Meta),
 
@@ -226,6 +222,7 @@ func (s *Server) appendSnapshotterService() {
 	srv := snapshotter.NewService()
 	srv.TSDBStore = s.TSDBStore
 	srv.MetaClient = s.MetaClient
+	srv.WithDiagnosticContext(s.DiagnosticService.SnapshotterHandler())
 	s.Services = append(s.Services, srv)
 	s.SnapshotterService = srv
 }
@@ -233,10 +230,16 @@ func (s *Server) appendSnapshotterService() {
 // SetLogOutput sets the logger used for all messages. It must not be called
 // after the Open method has been called.
 func (s *Server) SetLogOutput(w io.Writer) {
-	s.Logger = zap.New(zap.NewTextEncoder(), zap.Output(zap.AddSync(w)))
+	s.DiagnosticService = diagnostic.New(w)
+}
+
+// Logger returns the configured zap logger from the diagnostic service.
+func (s *Server) Logger() *zap.Logger {
+	return s.DiagnosticService.Logger()
 }
 
 func (s *Server) appendMonitorService() {
+	s.Monitor.WithDiagnosticHandler(s.DiagnosticService.MonitorHandler())
 	s.Services = append(s.Services, s.Monitor)
 }
 
@@ -247,6 +250,7 @@ func (s *Server) appendRetentionPolicyService(c retention.Config) {
 	srv := retention.NewService(c)
 	srv.MetaClient = s.MetaClient
 	srv.TSDBStore = s.TSDBStore
+	srv.WithDiagnosticHandler(s.DiagnosticService.RetentionHandler())
 	s.Services = append(s.Services, srv)
 }
 
@@ -263,6 +267,7 @@ func (s *Server) appendHTTPDService(c httpd.Config) {
 	srv.Handler.PointsWriter = s.PointsWriter
 	srv.Handler.Version = s.buildInfo.Version
 	srv.Handler.BuildType = "OSS"
+	srv.With(s.DiagnosticService.HTTPDHandler())
 
 	s.Services = append(s.Services, srv)
 }
@@ -274,6 +279,7 @@ func (s *Server) appendCollectdService(c collectd.Config) {
 	srv := collectd.NewService(c)
 	srv.MetaClient = s.MetaClient
 	srv.PointsWriter = s.PointsWriter
+	srv.WithDiagnosticHandler(s.DiagnosticService.CollectdHandler())
 	s.Services = append(s.Services, srv)
 }
 
@@ -287,6 +293,7 @@ func (s *Server) appendOpenTSDBService(c opentsdb.Config) error {
 	}
 	srv.PointsWriter = s.PointsWriter
 	srv.MetaClient = s.MetaClient
+	srv.WithDiagnosticHandler(s.DiagnosticService.OpenTSDBHandler())
 	s.Services = append(s.Services, srv)
 	return nil
 }
@@ -303,6 +310,7 @@ func (s *Server) appendGraphiteService(c graphite.Config) error {
 	srv.PointsWriter = s.PointsWriter
 	srv.MetaClient = s.MetaClient
 	srv.Monitor = s.Monitor
+	srv.WithDiagnosticHandler(s.DiagnosticService.GraphiteHandler())
 	s.Services = append(s.Services, srv)
 	return nil
 }
@@ -317,6 +325,7 @@ func (s *Server) appendPrecreatorService(c precreator.Config) error {
 	}
 
 	srv.MetaClient = s.MetaClient
+	srv.WithDiagnosticHandler(s.DiagnosticService.PrecreatorHandler())
 	s.Services = append(s.Services, srv)
 	return nil
 }
@@ -328,6 +337,7 @@ func (s *Server) appendUDPService(c udp.Config) {
 	srv := udp.NewService(c)
 	srv.PointsWriter = s.PointsWriter
 	srv.MetaClient = s.MetaClient
+	srv.WithDiagnosticHandler(s.DiagnosticService.UDPHandler())
 	s.Services = append(s.Services, srv)
 }
 
@@ -339,6 +349,7 @@ func (s *Server) appendContinuousQueryService(c continuous_querier.Config) {
 	srv.MetaClient = s.MetaClient
 	srv.QueryExecutor = s.QueryExecutor
 	srv.Monitor = s.Monitor
+	srv.WithDiagnosticHandler(s.DiagnosticService.ContinuousQuerierHandler())
 	s.Services = append(s.Services, srv)
 }
 
@@ -393,19 +404,14 @@ func (s *Server) Open() error {
 
 	// Configure logging for all services and clients.
 	if s.config.Meta.LoggingEnabled {
-		s.MetaClient.WithLogger(s.Logger)
+		s.MetaClient.WithDiagnosticHandler(s.DiagnosticService.MetaClientHandler())
 	}
-	s.TSDBStore.WithLogger(s.Logger)
+	s.TSDBStore.WithDiagnosticHandler(s.DiagnosticService.StoreHandler())
 	if s.config.Data.QueryLogEnabled {
-		s.QueryExecutor.WithLogger(s.Logger)
+		s.QueryExecutor.WithDiagnosticHandler(s.DiagnosticService.QueryHandler())
 	}
-	s.PointsWriter.WithLogger(s.Logger)
-	s.Subscriber.WithLogger(s.Logger)
-	for _, svc := range s.Services {
-		svc.WithLogger(s.Logger)
-	}
-	s.SnapshotterService.WithLogger(s.Logger)
-	s.Monitor.WithLogger(s.Logger)
+	s.PointsWriter.WithDiagnosticHandler(s.DiagnosticService.PointsWriterHandler())
+	s.Subscriber.WithDiagnosticHandler(s.DiagnosticService.SubscriberHandler())
 
 	// Open TSDB store.
 	if err := s.TSDBStore.Open(); err != nil {
@@ -510,14 +516,14 @@ func (s *Server) reportServer() {
 		name := db.Name
 		n, err := s.TSDBStore.SeriesCardinality(name)
 		if err != nil {
-			s.Logger.Error(fmt.Sprintf("Unable to get series cardinality for database %s: %v", name, err))
+			s.Logger().Error(fmt.Sprintf("Unable to get series cardinality for database %s: %v", name, err))
 		} else {
 			numSeries += n
 		}
 
 		n, err = s.TSDBStore.MeasurementsCardinality(name)
 		if err != nil {
-			s.Logger.Error(fmt.Sprintf("Unable to get measurement cardinality for database %s: %v", name, err))
+			s.Logger().Error(fmt.Sprintf("Unable to get measurement cardinality for database %s: %v", name, err))
 		} else {
 			numMeasurements += n
 		}
@@ -543,14 +549,13 @@ func (s *Server) reportServer() {
 		},
 	}
 
-	s.Logger.Info("Sending usage statistics to usage.influxdata.com")
+	s.Logger().Info("Sending usage statistics to usage.influxdata.com")
 
 	go cl.Save(usage)
 }
 
 // Service represents a service attached to the server.
 type Service interface {
-	WithLogger(log zap.Logger)
 	Open() error
 	Close() error
 }

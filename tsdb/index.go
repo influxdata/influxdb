@@ -10,13 +10,11 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/query"
-	"github.com/uber-go/zap"
 )
 
 type Index interface {
 	Open() error
 	Close() error
-	WithLogger(zap.Logger)
 
 	MeasurementExists(name []byte) (bool, error)
 	MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error)

@@ -1,4 +1,4 @@
-package udp
+package udp_test
 
 import (
 	"errors"
@@ -6,10 +6,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/diagnostic"
 	"github.com/influxdata/influxdb/internal"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
-	"github.com/uber-go/zap"
+	"github.com/influxdata/influxdb/services/udp"
 )
 
 func TestService_OpenClose(t *testing.T) {
@@ -77,8 +78,9 @@ func TestService_CreatesDatabase(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	s.Service.batcher.In() <- points[0] // Send a point.
-	s.Service.batcher.Flush()
+	batcher := s.Service.Batcher()
+	batcher.In() <- points[0] // Send a point.
+	batcher.Flush()
 	select {
 	case <-called:
 		// OK
@@ -87,9 +89,7 @@ func TestService_CreatesDatabase(t *testing.T) {
 	}
 
 	// ready status should not have been switched due to meta client error.
-	s.Service.mu.RLock()
-	ready := s.Service.ready
-	s.Service.mu.RUnlock()
+	ready := s.Service.Ready()
 
 	if got, exp := ready, false; got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
@@ -103,8 +103,8 @@ func TestService_CreatesDatabase(t *testing.T) {
 		return nil, nil
 	}
 
-	s.Service.batcher.In() <- points[0] // Send a point.
-	s.Service.batcher.Flush()
+	batcher.In() <- points[0] // Send a point.
+	batcher.Flush()
 	select {
 	case <-called:
 		// OK
@@ -113,9 +113,7 @@ func TestService_CreatesDatabase(t *testing.T) {
 	}
 
 	// ready status should now be true.
-	s.Service.mu.RLock()
-	ready = s.Service.ready
-	s.Service.mu.RUnlock()
+	ready = s.Service.Ready()
 
 	if got, exp := ready, true; got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
@@ -125,29 +123,27 @@ func TestService_CreatesDatabase(t *testing.T) {
 }
 
 type TestService struct {
-	Service       *Service
-	Config        Config
+	Service       *udp.Service
+	Config        udp.Config
 	MetaClient    *internal.MetaClientMock
 	WritePointsFn func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error
 }
 
-func NewTestService(c *Config) *TestService {
+func NewTestService(c *udp.Config) *TestService {
 	if c == nil {
-		defaultC := NewConfig()
+		defaultC := udp.NewConfig()
 		c = &defaultC
 	}
 
 	service := &TestService{
-		Service:    NewService(*c),
+		Service:    udp.NewService(*c),
 		Config:     *c,
 		MetaClient: &internal.MetaClientMock{},
 	}
 
 	if testing.Verbose() {
-		service.Service.WithLogger(zap.New(
-			zap.NewTextEncoder(),
-			zap.Output(os.Stderr),
-		))
+		diag := diagnostic.New(os.Stderr)
+		service.Service.WithDiagnosticHandler(diag.UDPHandler())
 	}
 
 	service.Service.MetaClient = service.MetaClient

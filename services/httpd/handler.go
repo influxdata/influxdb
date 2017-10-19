@@ -31,10 +31,10 @@ import (
 	"github.com/influxdata/influxdb/prometheus"
 	"github.com/influxdata/influxdb/prometheus/remote"
 	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/services/httpd/diagnostic"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/uuid"
-	"github.com/uber-go/zap"
 )
 
 const (
@@ -106,10 +106,10 @@ type Handler struct {
 		WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point) error
 	}
 
-	Config    *Config
-	Logger    zap.Logger
-	CLFLogger *log.Logger
-	stats     *Statistics
+	Config     *Config
+	Diagnostic diagnostic.RouteContext
+	CLFLogger  *log.Logger
+	stats      *Statistics
 
 	requestTracker *RequestTracker
 }
@@ -119,7 +119,6 @@ func NewHandler(c Config) *Handler {
 	h := &Handler{
 		mux:            pat.New(),
 		Config:         &c,
-		Logger:         zap.New(zap.NullEncoder()),
 		CLFLogger:      log.New(os.Stderr, "[httpd] ", 0),
 		stats:          &Statistics{},
 		requestTracker: NewRequestTracker(),
@@ -387,7 +386,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 	if h.Config.AuthEnabled {
 		if err := h.QueryAuthorizer.AuthorizeQuery(user, q, db); err != nil {
 			if err, ok := err.(meta.ErrAuthorize); ok {
-				h.Logger.Info(fmt.Sprintf("Unauthorized request | user: %q | query: %q | database %q", err.User, err.Query.String(), err.Database))
+				h.Diagnostic.UnauthorizedRequest(user.ID(), err.Query.String(), db)
 			}
 			h.httpError(rw, "error authorizing query: "+err.Error(), http.StatusForbidden)
 			return
@@ -593,7 +592,7 @@ func (h *Handler) async(q *influxql.Query, results <-chan *query.Result) {
 			if r.Err == query.ErrNotExecuted {
 				continue
 			}
-			h.Logger.Info(fmt.Sprintf("error while running async query: %s: %s", q, r.Err))
+			h.Diagnostic.AsyncQueryError(q.String(), r.Err)
 		}
 	}
 }
@@ -668,7 +667,7 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user meta.U
 		}
 
 		if h.Config.WriteTracing {
-			h.Logger.Info("Write handler unable to read bytes from request body")
+			h.Diagnostic.WriteBodyReadError()
 		}
 		h.httpError(w, err.Error(), http.StatusBadRequest)
 		return
@@ -676,7 +675,7 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user meta.U
 	atomic.AddInt64(&h.stats.WriteRequestBytesReceived, int64(buf.Len()))
 
 	if h.Config.WriteTracing {
-		h.Logger.Info(fmt.Sprintf("Write body received by handler: %s", buf.Bytes()))
+		h.Diagnostic.WriteBodyReceived(buf.Bytes())
 	}
 
 	points, parseError := models.ParsePointsWithPrecision(buf.Bytes(), time.Now().UTC(), r.URL.Query().Get("precision"))
@@ -746,7 +745,7 @@ func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
 
 // serveStatus has been deprecated.
 func (h *Handler) serveStatus(w http.ResponseWriter, r *http.Request) {
-	h.Logger.Info("WARNING: /status has been deprecated.  Use /ping instead.")
+	h.Diagnostic.StatusDeprecated()
 	atomic.AddInt64(&h.stats.StatusRequests, 1)
 	h.writeHeader(w, http.StatusNoContent)
 }
@@ -838,7 +837,7 @@ func (h *Handler) servePromWrite(w http.ResponseWriter, r *http.Request, user me
 		}
 
 		if h.Config.WriteTracing {
-			h.Logger.Info("Prom write handler unable to read bytes from request body")
+			h.Diagnostic.PromWriteBodyReadError()
 		}
 		h.httpError(w, err.Error(), http.StatusBadRequest)
 		return
@@ -846,7 +845,7 @@ func (h *Handler) servePromWrite(w http.ResponseWriter, r *http.Request, user me
 	atomic.AddInt64(&h.stats.WriteRequestBytesReceived, int64(buf.Len()))
 
 	if h.Config.WriteTracing {
-		h.Logger.Info(fmt.Sprintf("Prom write body received by handler: %s", buf.Bytes()))
+		h.Diagnostic.PromWriteBodyReceived(buf.Bytes())
 	}
 
 	reqBuf, err := snappy.Decode(nil, buf.Bytes())
@@ -865,7 +864,7 @@ func (h *Handler) servePromWrite(w http.ResponseWriter, r *http.Request, user me
 	points, err := prometheus.WriteRequestToPoints(&req)
 	if err != nil {
 		if h.Config.WriteTracing {
-			h.Logger.Info(fmt.Sprintf("Prom write handler: %s", err.Error()))
+			h.Diagnostic.PromWriteError(err)
 		}
 
 		if err != prometheus.ErrNaNDropped {
@@ -942,7 +941,7 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 	if h.Config.AuthEnabled {
 		if err := h.QueryAuthorizer.AuthorizeQuery(user, q, db); err != nil {
 			if err, ok := err.(meta.ErrAuthorize); ok {
-				h.Logger.Info(fmt.Sprintf("Unauthorized request | user: %q | query: %q | database %q", err.User, err.Query.String(), err.Database))
+				h.Diagnostic.UnauthorizedRequest(user.ID(), err.Query.String(), db)
 			}
 			h.httpError(w, "error authorizing query: "+err.Error(), http.StatusForbidden)
 			return
@@ -1379,7 +1378,7 @@ func authenticate(inner func(http.ResponseWriter, *http.Request, meta.User), h *
 				claims, ok := token.Claims.(jwt.MapClaims)
 				if !ok {
 					h.httpError(w, "problem authenticating token", http.StatusInternalServerError)
-					h.Logger.Info("Could not assert JWT token claims as jwt.MapClaims")
+					h.Diagnostic.JWTClaimsAssertError()
 					return
 				}
 
@@ -1497,7 +1496,7 @@ func (h *Handler) logging(inner http.Handler, name string) http.Handler {
 		if l.Status()/100 == 5 {
 			errStr := l.Header().Get("X-InfluxDB-Error")
 			if errStr != "" {
-				h.Logger.Error(fmt.Sprintf("[%d] - %q", l.Status(), errStr))
+				h.Diagnostic.HttpError(l.Status(), errStr)
 			}
 		}
 	})

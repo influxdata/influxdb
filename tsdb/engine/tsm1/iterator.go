@@ -5,7 +5,7 @@ import (
 
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
-	"github.com/uber-go/zap"
+	"github.com/influxdata/influxdb/tsdb/engine/tsm1/diagnostic"
 )
 
 func newLimitIterator(input query.Iterator, opt query.IteratorOptions) query.Iterator {
@@ -153,35 +153,40 @@ func (c cursorsAt) close() {
 // newMergeFinalizerIterator creates a new Merge iterator from the inputs. If the call to Merge succeeds,
 // the resulting Iterator will be wrapped in a finalizer iterator.
 // If Merge returns an error, the inputs will be closed.
-func newMergeFinalizerIterator(inputs []query.Iterator, opt query.IteratorOptions, log zap.Logger) (query.Iterator, error) {
+func newMergeFinalizerIterator(inputs []query.Iterator, opt query.IteratorOptions, d diagnostic.Handler) (query.Iterator, error) {
 	itr, err := query.Iterators(inputs).Merge(opt)
 	if err != nil {
 		query.Iterators(inputs).Close()
 		return nil, err
 	}
-	return newFinalizerIterator(itr, log), nil
+	return newFinalizerIterator(itr, d), nil
 }
 
 // newFinalizerIterator creates a new iterator that installs a runtime finalizer
 // to ensure close is eventually called if the iterator is garbage collected.
 // This additional guard attempts to protect against clients of CreateIterator not
 // correctly closing them and leaking cursors.
-func newFinalizerIterator(itr query.Iterator, log zap.Logger) query.Iterator {
+func newFinalizerIterator(itr query.Iterator, d diagnostic.Handler) query.Iterator {
 	if itr == nil {
 		return nil
 	}
 
+	var callback func(string)
+	if d != nil {
+		callback = d.IteratorFinalized
+	}
+
 	switch inner := itr.(type) {
 	case query.FloatIterator:
-		return newFloatFinalizerIterator(inner, log)
+		return newFloatFinalizerIterator(inner, callback)
 	case query.IntegerIterator:
-		return newIntegerFinalizerIterator(inner, log)
+		return newIntegerFinalizerIterator(inner, callback)
 	case query.UnsignedIterator:
-		return newUnsignedFinalizerIterator(inner, log)
+		return newUnsignedFinalizerIterator(inner, callback)
 	case query.StringIterator:
-		return newStringFinalizerIterator(inner, log)
+		return newStringFinalizerIterator(inner, callback)
 	case query.BooleanIterator:
-		return newBooleanFinalizerIterator(inner, log)
+		return newBooleanFinalizerIterator(inner, callback)
 	default:
 		panic(fmt.Sprintf("unsupported finalizer iterator type: %T", itr))
 	}

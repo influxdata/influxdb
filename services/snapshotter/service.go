@@ -14,8 +14,8 @@ import (
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxdb/services/snapshotter/diagnostic"
 	"github.com/influxdata/influxdb/tsdb"
-	"github.com/uber-go/zap"
 )
 
 const (
@@ -41,21 +41,20 @@ type Service struct {
 
 	TSDBStore *tsdb.Store
 
-	Listener net.Listener
-	Logger   zap.Logger
+	Listener   net.Listener
+	Diagnostic diagnostic.Context
 }
 
 // NewService returns a new instance of Service.
 func NewService() *Service {
 	return &Service{
-		err:    make(chan error),
-		Logger: zap.New(zap.NullEncoder()),
+		err: make(chan error),
 	}
 }
 
 // Open starts the service.
 func (s *Service) Open() error {
-	s.Logger.Info("Starting snapshot service")
+	s.Diagnostic.Starting()
 
 	s.wg.Add(1)
 	go s.serve()
@@ -71,9 +70,9 @@ func (s *Service) Close() error {
 	return nil
 }
 
-// WithLogger sets the logger on the service.
-func (s *Service) WithLogger(log zap.Logger) {
-	s.Logger = log.With(zap.String("service", "snapshot"))
+// WithDiagnosticContext sets the diagnostic handler on the service.
+func (s *Service) WithDiagnosticContext(d diagnostic.Handler) {
+	s.Diagnostic.Handler = d
 }
 
 // Err returns a channel for fatal out-of-band errors.
@@ -87,10 +86,10 @@ func (s *Service) serve() {
 		// Wait for next connection.
 		conn, err := s.Listener.Accept()
 		if err != nil && strings.Contains(err.Error(), "connection closed") {
-			s.Logger.Info("snapshot listener closed")
+			s.Diagnostic.Closed()
 			return
 		} else if err != nil {
-			s.Logger.Info(fmt.Sprint("error accepting snapshot request: ", err.Error()))
+			s.Diagnostic.AcceptError(err)
 			continue
 		}
 
@@ -100,7 +99,7 @@ func (s *Service) serve() {
 			defer s.wg.Done()
 			defer conn.Close()
 			if err := s.handleConn(conn); err != nil {
-				s.Logger.Info(err.Error())
+				s.Diagnostic.Error(err)
 			}
 		}(conn)
 	}

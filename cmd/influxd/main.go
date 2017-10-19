@@ -16,7 +16,8 @@ import (
 	"github.com/influxdata/influxdb/cmd/influxd/help"
 	"github.com/influxdata/influxdb/cmd/influxd/restore"
 	"github.com/influxdata/influxdb/cmd/influxd/run"
-	"github.com/uber-go/zap"
+	"github.com/influxdata/influxdb/diagnostic"
+	"go.uber.org/zap"
 )
 
 // These variables are populated via the Go linker.
@@ -51,7 +52,7 @@ func main() {
 
 // Main represents the program execution.
 type Main struct {
-	Logger zap.Logger
+	Diagnostic *diagnostic.Service
 
 	Stdin  io.Reader
 	Stdout io.Writer
@@ -61,13 +62,10 @@ type Main struct {
 // NewMain return a new instance of Main.
 func NewMain() *Main {
 	return &Main{
-		Logger: zap.New(
-			zap.NewTextEncoder(),
-			zap.Output(os.Stderr),
-		),
-		Stdin:  os.Stdin,
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
+		Diagnostic: diagnostic.New(os.Stderr),
+		Stdin:      os.Stdin,
+		Stdout:     os.Stdout,
+		Stderr:     os.Stderr,
 	}
 }
 
@@ -84,7 +82,7 @@ func (m *Main) Run(args ...string) error {
 		cmd.Version = version
 		cmd.Commit = commit
 		cmd.Branch = branch
-		cmd.Logger = m.Logger
+		cmd.Diagnostic = m.Diagnostic
 
 		if err := cmd.Run(args...); err != nil {
 			return fmt.Errorf("run: %s", err)
@@ -92,23 +90,23 @@ func (m *Main) Run(args ...string) error {
 
 		signalCh := make(chan os.Signal, 1)
 		signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
-		m.Logger.Info("Listening for signals")
+		m.Logger().Info("Listening for signals")
 
 		// Block until one of the signals above is received
 		<-signalCh
-		m.Logger.Info("Signal received, initializing clean shutdown...")
+		m.Logger().Info("Signal received, initializing clean shutdown...")
 		go cmd.Close()
 
 		// Block again until another signal is received, a shutdown timeout elapses,
 		// or the Command is gracefully closed
-		m.Logger.Info("Waiting for clean shutdown...")
+		m.Logger().Info("Waiting for clean shutdown...")
 		select {
 		case <-signalCh:
-			m.Logger.Info("second signal received, initializing hard shutdown")
+			m.Logger().Info("second signal received, initializing hard shutdown")
 		case <-time.After(time.Second * 30):
-			m.Logger.Info("time limit reached, initializing hard shutdown")
+			m.Logger().Info("time limit reached, initializing hard shutdown")
 		case <-cmd.Closed:
-			m.Logger.Info("server shutdown completed")
+			m.Logger().Info("server shutdown completed")
 		}
 
 		// goodbye.
@@ -141,6 +139,8 @@ func (m *Main) Run(args ...string) error {
 
 	return nil
 }
+
+func (m *Main) Logger() *zap.Logger { return m.Diagnostic.Logger() }
 
 // VersionCommand represents the command executed by "influxd version".
 type VersionCommand struct {

@@ -2,12 +2,11 @@
 package retention // import "github.com/influxdata/influxdb/services/retention"
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
 	"github.com/influxdata/influxdb/services/meta"
-	"github.com/uber-go/zap"
+	"github.com/influxdata/influxdb/services/retention/diagnostic"
 )
 
 // Service represents the retention policy enforcement service.
@@ -26,7 +25,7 @@ type Service struct {
 	wg            sync.WaitGroup
 	done          chan struct{}
 
-	logger zap.Logger
+	diag diagnostic.Context
 }
 
 // NewService returns a configured retention policy enforcement service.
@@ -34,13 +33,12 @@ func NewService(c Config) *Service {
 	return &Service{
 		checkInterval: time.Duration(c.CheckInterval),
 		done:          make(chan struct{}),
-		logger:        zap.New(zap.NullEncoder()),
 	}
 }
 
 // Open starts retention policy enforcement.
 func (s *Service) Open() error {
-	s.logger.Info(fmt.Sprint("Starting retention policy enforcement service with check interval of ", s.checkInterval))
+	s.diag.Starting(s.checkInterval)
 	s.wg.Add(2)
 	go s.deleteShardGroups()
 	go s.deleteShards()
@@ -49,15 +47,15 @@ func (s *Service) Open() error {
 
 // Close stops retention policy enforcement.
 func (s *Service) Close() error {
-	s.logger.Info("retention policy enforcement terminating")
+	s.diag.Closing()
 	close(s.done)
 	s.wg.Wait()
 	return nil
 }
 
-// WithLogger sets the logger on the service.
-func (s *Service) WithLogger(log zap.Logger) {
-	s.logger = log.With(zap.String("service", "retention"))
+// WithdiagnosticHandler sets the diagnostic handler on the service.
+func (s *Service) WithDiagnosticHandler(d diagnostic.Handler) {
+	s.diag.Handler = d
 }
 
 func (s *Service) deleteShardGroups() {
@@ -76,11 +74,9 @@ func (s *Service) deleteShardGroups() {
 				for _, r := range d.RetentionPolicies {
 					for _, g := range r.ExpiredShardGroups(time.Now().UTC()) {
 						if err := s.MetaClient.DeleteShardGroup(d.Name, r.Name, g.ID); err != nil {
-							s.logger.Info(fmt.Sprintf("failed to delete shard group %d from database %s, retention policy %s: %s",
-								g.ID, d.Name, r.Name, err.Error()))
+							s.diag.DeleteShardGroupError(g.ID, d.Name, r.Name, err)
 						} else {
-							s.logger.Info(fmt.Sprintf("deleted shard group %d from database %s, retention policy %s",
-								g.ID, d.Name, r.Name))
+							s.diag.DeletedShardGroup(g.ID, d.Name, r.Name)
 						}
 					}
 				}
@@ -100,7 +96,7 @@ func (s *Service) deleteShards() {
 			return
 
 		case <-ticker.C:
-			s.logger.Info("retention policy shard deletion check commencing")
+			s.diag.StartingCheck()
 
 			type deletionInfo struct {
 				db string
@@ -121,16 +117,14 @@ func (s *Service) deleteShards() {
 			for _, id := range s.TSDBStore.ShardIDs() {
 				if info, ok := deletedShardIDs[id]; ok {
 					if err := s.TSDBStore.DeleteShard(id); err != nil {
-						s.logger.Error(fmt.Sprintf("failed to delete shard ID %d from database %s, retention policy %s: %s",
-							id, info.db, info.rp, err.Error()))
+						s.diag.DeleteShardError(id, info.db, info.rp, err)
 						continue
 					}
-					s.logger.Info(fmt.Sprintf("shard ID %d from database %s, retention policy %s, deleted",
-						id, info.db, info.rp))
+					s.diag.DeletedShard(id, info.db, info.rp)
 				}
 			}
 			if err := s.MetaClient.PruneShardGroups(); err != nil {
-				s.logger.Info(fmt.Sprintf("error pruning shard groups: %s", err))
+				s.diag.PruneShardGroupsError(err)
 			}
 		}
 	}

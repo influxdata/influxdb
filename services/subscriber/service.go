@@ -14,7 +14,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
 	"github.com/influxdata/influxdb/services/meta"
-	"github.com/uber-go/zap"
+	"github.com/influxdata/influxdb/services/subscriber/diagnostic"
 )
 
 // Statistics for the Subscriber service.
@@ -47,7 +47,7 @@ type Service struct {
 		WaitForDataChanged() chan struct{}
 	}
 	NewPointsWriter func(u url.URL) (PointsWriter, error)
-	Logger          zap.Logger
+	Diagnostic      diagnostic.Context
 	update          chan struct{}
 	stats           *Statistics
 	points          chan *coordinator.WritePointsRequest
@@ -64,7 +64,6 @@ type Service struct {
 // NewService returns a subscriber service with given settings
 func NewService(c Config) *Service {
 	s := &Service{
-		Logger: zap.New(zap.NullEncoder()),
 		closed: true,
 		stats:  &Statistics{},
 		conf:   c,
@@ -101,7 +100,7 @@ func (s *Service) Open() error {
 		s.waitForMetaUpdates()
 	}()
 
-	s.Logger.Info("opened service")
+	s.Diagnostic.Opened()
 	return nil
 }
 
@@ -121,13 +120,13 @@ func (s *Service) Close() error {
 	close(s.closing)
 
 	s.wg.Wait()
-	s.Logger.Info("closed service")
+	s.Diagnostic.Closed()
 	return nil
 }
 
-// WithLogger sets the logger on the service.
-func (s *Service) WithLogger(log zap.Logger) {
-	s.Logger = log.With(zap.String("service", "subscriber"))
+// WithDiagnosticHandler sets the diagnostic handler on the service.
+func (s *Service) WithDiagnosticHandler(d diagnostic.Handler) {
+	s.Diagnostic.Handler = d
 }
 
 // Statistics maintains the statistics for the subscriber service.
@@ -165,7 +164,7 @@ func (s *Service) waitForMetaUpdates() {
 		case <-ch:
 			err := s.Update()
 			if err != nil {
-				s.Logger.Info(fmt.Sprint("error updating subscriptions: ", err))
+				s.Diagnostic.UpdateSubscriptionError(err)
 			}
 		case <-s.closing:
 			return
@@ -296,7 +295,7 @@ func (s *Service) updateSubs(wg *sync.WaitGroup) {
 				sub, err := s.createSubscription(se, si.Mode, si.Destinations)
 				if err != nil {
 					atomic.AddInt64(&s.stats.CreateFailures, 1)
-					s.Logger.Info(fmt.Sprintf("Subscription creation failed for '%s' with error: %s", si.Name, err))
+					s.Diagnostic.SubscriptionCreateError(si.Name, err)
 					continue
 				}
 				cw := chanWriter{
@@ -304,8 +303,8 @@ func (s *Service) updateSubs(wg *sync.WaitGroup) {
 					pw:            sub,
 					pointsWritten: &s.stats.PointsWritten,
 					failures:      &s.stats.WriteFailures,
-					logger:        s.Logger,
 				}
+				cw.errorFn = s.Diagnostic.Error
 				for i := 0; i < s.conf.WriteConcurrency; i++ {
 					wg.Add(1)
 					go func() {
@@ -314,7 +313,7 @@ func (s *Service) updateSubs(wg *sync.WaitGroup) {
 					}()
 				}
 				s.subs[se] = cw
-				s.Logger.Info(fmt.Sprintf("added new subscription for %s %s", se.db, se.rp))
+				s.Diagnostic.AddedSubscription(se.db, se.rp)
 			}
 		}
 	}
@@ -327,7 +326,7 @@ func (s *Service) updateSubs(wg *sync.WaitGroup) {
 
 			// Remove it from the set
 			delete(s.subs, se)
-			s.Logger.Info(fmt.Sprintf("deleted old subscription for %s %s", se.db, se.rp))
+			s.Diagnostic.DeletedSubscription(se.db, se.rp)
 		}
 	}
 }
@@ -341,7 +340,7 @@ func (s *Service) newPointsWriter(u url.URL) (PointsWriter, error) {
 		return NewHTTP(u.String(), time.Duration(s.conf.HTTPTimeout))
 	case "https":
 		if s.conf.InsecureSkipVerify {
-			s.Logger.Info("WARNING: 'insecure-skip-verify' is true. This will skip all certificate verifications.")
+			s.Diagnostic.SkipInsecureVerify()
 		}
 		return NewHTTPS(u.String(), time.Duration(s.conf.HTTPTimeout), s.conf.InsecureSkipVerify, s.conf.CaCerts)
 	default:
@@ -355,7 +354,7 @@ type chanWriter struct {
 	pw            PointsWriter
 	pointsWritten *int64
 	failures      *int64
-	logger        zap.Logger
+	errorFn       func(err error)
 }
 
 // Close closes the chanWriter.
@@ -367,7 +366,9 @@ func (c chanWriter) Run() {
 	for wr := range c.writeRequests {
 		err := c.pw.WritePoints(wr)
 		if err != nil {
-			c.logger.Info(err.Error())
+			if c.errorFn != nil {
+				c.errorFn(err)
+			}
 			atomic.AddInt64(c.failures, 1)
 		} else {
 			atomic.AddInt64(c.pointsWritten, int64(len(wr.Points)))

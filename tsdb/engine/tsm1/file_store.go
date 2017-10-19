@@ -16,7 +16,7 @@ import (
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/query"
-	"github.com/uber-go/zap"
+	"github.com/influxdata/influxdb/tsdb/engine/tsm1/diagnostic"
 )
 
 // TSMFile represents an on-disk TSM file.
@@ -133,8 +133,7 @@ type FileStore struct {
 
 	files []TSMFile
 
-	logger       zap.Logger // Logger to be used for important messages
-	traceLogger  zap.Logger // Logger to be used when trace-logging is on.
+	diag         diagnostic.FileStoreContext
 	traceLogging bool
 
 	stats  *FileStoreStatistics
@@ -170,16 +169,12 @@ func (f FileStat) ContainsKey(key []byte) bool {
 
 // NewFileStore returns a new instance of FileStore based on the given directory.
 func NewFileStore(dir string) *FileStore {
-	logger := zap.New(zap.NullEncoder())
 	fs := &FileStore{
 		dir:          dir,
 		lastModified: time.Time{},
-		logger:       logger,
-		traceLogger:  logger,
 		stats:        &FileStoreStatistics{},
 		purger: &purger{
-			files:  map[string]TSMFile{},
-			logger: logger,
+			files: map[string]TSMFile{},
 		},
 	}
 	fs.purger.fileStore = fs
@@ -189,19 +184,12 @@ func NewFileStore(dir string) *FileStore {
 // enableTraceLogging must be called before the FileStore is opened.
 func (f *FileStore) enableTraceLogging(enabled bool) {
 	f.traceLogging = enabled
-	if enabled {
-		f.traceLogger = f.logger
-	}
 }
 
-// WithLogger sets the logger on the file store.
-func (f *FileStore) WithLogger(log zap.Logger) {
-	f.logger = log.With(zap.String("service", "filestore"))
-	f.purger.logger = f.logger
-
-	if f.traceLogging {
-		f.traceLogger = f.logger
-	}
+// WithDiagnosticContext sets the diagnostic on the file store.
+func (f *FileStore) WithDiagnosticHandler(d diagnostic.FileStoreHandler) {
+	f.diag.Handler = d
+	f.purger.diag = d
 }
 
 // FileStoreStatistics keeps statistics about the file store.
@@ -407,7 +395,7 @@ func (f *FileStore) Open() error {
 		go func(idx int, file *os.File) {
 			start := time.Now()
 			df, err := NewTSMReader(file)
-			f.logger.Info(fmt.Sprintf("%s (#%d) opened in %v", file.Name(), idx, time.Since(start)))
+			f.diag.OpenedFile(file.Name(), idx, time.Since(start))
 
 			if err != nil {
 				readerC <- &res{r: df, err: fmt.Errorf("error opening memory map for file %s: %v", file.Name(), err)}
@@ -877,7 +865,9 @@ func (f *FileStore) locations(key []byte, t int64, ascending bool) []*location {
 // CreateSnapshot creates hardlinks for all tsm and tombstone files
 // in the path provided.
 func (f *FileStore) CreateSnapshot() (string, error) {
-	f.traceLogger.Info(fmt.Sprintf("Creating snapshot in %s", f.dir))
+	if f.traceLogging {
+		f.diag.CreatingSnapshot(f.dir)
+	}
 	files := f.Files()
 
 	f.mu.Lock()
@@ -1240,7 +1230,10 @@ type purger struct {
 	files     map[string]TSMFile
 	running   bool
 
-	logger zap.Logger
+	diag interface {
+		PurgeFileCloseError(err error)
+		PurgeFileRemoveError(err error)
+	}
 }
 
 func (p *purger) add(files []TSMFile) {
@@ -1267,12 +1260,16 @@ func (p *purger) purge() {
 			for k, v := range p.files {
 				if !v.InUse() {
 					if err := v.Close(); err != nil {
-						p.logger.Info(fmt.Sprintf("purge: close file: %v", err))
+						if p.diag != nil {
+							p.diag.PurgeFileCloseError(err)
+						}
 						continue
 					}
 
 					if err := v.Remove(); err != nil {
-						p.logger.Info(fmt.Sprintf("purge: remove file: %v", err))
+						if p.diag != nil {
+							p.diag.PurgeFileRemoveError(err)
+						}
 						continue
 					}
 					delete(p.files, k)

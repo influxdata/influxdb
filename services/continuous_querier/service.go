@@ -12,8 +12,8 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/services/continuous_querier/diagnostic"
 	"github.com/influxdata/influxdb/services/meta"
-	"github.com/uber-go/zap"
 )
 
 const (
@@ -86,11 +86,11 @@ type Service struct {
 	Config        *Config
 	RunInterval   time.Duration
 	// RunCh can be used by clients to signal service to run CQs.
-	RunCh             chan *RunRequest
-	Logger            zap.Logger
-	loggingEnabled    bool
-	queryStatsEnabled bool
-	stats             *Statistics
+	RunCh              chan *RunRequest
+	Diagnostic         diagnostic.Context
+	diagnosticsEnabled bool
+	queryStatsEnabled  bool
+	stats              *Statistics
 	// lastRuns maps CQ name to last time it was run.
 	mu       sync.RWMutex
 	lastRuns map[string]time.Time
@@ -101,15 +101,14 @@ type Service struct {
 // NewService returns a new instance of Service.
 func NewService(c Config) *Service {
 	s := &Service{
-		Config:            &c,
-		Monitor:           nullMonitor(0),
-		RunInterval:       time.Duration(c.RunInterval),
-		RunCh:             make(chan *RunRequest),
-		loggingEnabled:    c.LogEnabled,
-		queryStatsEnabled: c.QueryStatsEnabled,
-		Logger:            zap.New(zap.NullEncoder()),
-		stats:             &Statistics{},
-		lastRuns:          map[string]time.Time{},
+		Config:             &c,
+		Monitor:            nullMonitor(0),
+		RunInterval:        time.Duration(c.RunInterval),
+		RunCh:              make(chan *RunRequest),
+		diagnosticsEnabled: c.LogEnabled,
+		queryStatsEnabled:  c.QueryStatsEnabled,
+		stats:              &Statistics{},
+		lastRuns:           map[string]time.Time{},
 	}
 
 	return s
@@ -117,7 +116,7 @@ func NewService(c Config) *Service {
 
 // Open starts the service.
 func (s *Service) Open() error {
-	s.Logger.Info("Starting continuous query service")
+	s.Diagnostic.Starting()
 
 	if s.stop != nil {
 		return nil
@@ -146,8 +145,8 @@ func (s *Service) Close() error {
 }
 
 // WithLogger sets the logger on the service.
-func (s *Service) WithLogger(log zap.Logger) {
-	s.Logger = log.With(zap.String("service", "continuous_querier"))
+func (s *Service) WithDiagnosticHandler(d diagnostic.Handler) {
+	s.Diagnostic.Handler = d
 }
 
 // Statistics maintains the statistics for the continuous query service.
@@ -218,14 +217,14 @@ func (s *Service) backgroundLoop() {
 	for {
 		select {
 		case <-s.stop:
-			s.Logger.Info("continuous query service terminating")
+			s.Diagnostic.Closing()
 			return
 		case req := <-s.RunCh:
 			if !s.hasContinuousQueries() {
 				continue
 			}
 			if _, err := s.MetaClient.AcquireLease(leaseName); err == nil {
-				s.Logger.Info(fmt.Sprintf("running continuous queries by request for time: %v", req.Now))
+				s.Diagnostic.RunningByRequest(req.Now)
 				s.runContinuousQueries(req)
 			}
 		case <-t.C:
@@ -266,7 +265,7 @@ func (s *Service) runContinuousQueries(req *RunRequest) {
 				continue
 			}
 			if ok, err := s.ExecuteContinuousQuery(&db, &cq, req.Now); err != nil {
-				s.Logger.Info(fmt.Sprintf("error executing query: %s: err = %s", cq.Query, err))
+				s.Diagnostic.ExecuteContinuousQueryError(cq.Query, err)
 				atomic.AddInt64(&s.stats.QueryFail, 1)
 			} else if ok {
 				atomic.AddInt64(&s.stats.QueryOK, 1)
@@ -361,28 +360,26 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 	}
 
 	if err := cq.q.SetTimeRange(startTime, endTime); err != nil {
-		s.Logger.Info(fmt.Sprintf("error setting time range: %s\n", err))
-		return false, err
+		return false, fmt.Errorf("setting time range: %s", err)
 	}
 
 	var start time.Time
-	if s.loggingEnabled || s.queryStatsEnabled {
+	if s.diagnosticsEnabled || s.queryStatsEnabled {
 		start = time.Now()
 	}
 
-	if s.loggingEnabled {
-		s.Logger.Info(fmt.Sprintf("executing continuous query %s (%v to %v)", cq.Info.Name, startTime, endTime))
+	if s.diagnosticsEnabled {
+		s.Diagnostic.ExecuteContinuousQuery(cq.Info.Name, startTime, endTime)
 	}
 
 	// Do the actual processing of the query & writing of results.
 	res := s.runContinuousQueryAndWriteResult(cq)
 	if res.Err != nil {
-		s.Logger.Info(fmt.Sprintf("error: %s. running: %s\n", res.Err, cq.q.String()))
 		return false, res.Err
 	}
 
 	var execDuration time.Duration
-	if s.loggingEnabled || s.queryStatsEnabled {
+	if s.diagnosticsEnabled || s.queryStatsEnabled {
 		execDuration = time.Since(start)
 	}
 
@@ -393,8 +390,8 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 		written = s.Values[0][1].(int64)
 	}
 
-	if s.loggingEnabled {
-		s.Logger.Info(fmt.Sprintf("finished continuous query %s, %d points(s) written (%v to %v) in %s", cq.Info.Name, written, startTime, endTime, execDuration))
+	if s.diagnosticsEnabled {
+		s.Diagnostic.FinishContinuousQuery(cq.Info.Name, written, startTime, endTime, execDuration)
 	}
 
 	if s.queryStatsEnabled && s.Monitor.Enabled() {

@@ -11,7 +11,6 @@ import (
 	"regexp"
 	"sort"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -21,7 +20,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
-	"github.com/uber-go/zap"
+	"github.com/influxdata/influxdb/tsdb/index/tsi1/diagnostic"
 )
 
 const (
@@ -100,7 +99,7 @@ type Index struct {
 	CompactionEnabled         bool
 	CompactionMonitorInterval time.Duration
 
-	logger zap.Logger
+	diag diagnostic.Context
 
 	// Index's version.
 	version int
@@ -115,7 +114,6 @@ func NewIndex() *Index {
 		MaxLogFileSize:    DefaultMaxLogFileSize,
 		CompactionEnabled: true,
 
-		logger:  zap.New(zap.NullEncoder()),
 		version: Version,
 	}
 }
@@ -323,9 +321,9 @@ func (i *Index) writeManifestFile() error {
 	return WriteManifestFile(i.ManifestPath(), i.Manifest())
 }
 
-// WithLogger sets the logger for the index.
-func (i *Index) WithLogger(logger zap.Logger) {
-	i.logger = logger.With(zap.String("index", "tsi"))
+// WithDiagnosticHandler sets the diagnostic handler for the index.
+func (i *Index) WithDiagnosticHandler(d diagnostic.Handler) {
+	i.diag.Handler = d
 }
 
 // SetFieldSet sets a shared field set from the engine.
@@ -942,8 +940,8 @@ func (i *Index) compactToLevel(files []*IndexFile, level int) {
 	assert(len(files) >= 2, "at least two index files are required for compaction")
 	assert(level > 0, "cannot compact level zero")
 
-	// Build a logger for this compaction.
-	logger := i.logger.With(zap.String("token", generateCompactionToken()))
+	// Generate a token to identify this compaction.
+	diag := i.diag.WithCompactionToken(generateCompactionToken())
 
 	// Files have already been retained by caller.
 	// Ensure files are released only once.
@@ -957,27 +955,24 @@ func (i *Index) compactToLevel(files []*IndexFile, level int) {
 	path := filepath.Join(i.Path, FormatIndexFileName(i.NextSequence(), level))
 	f, err := os.Create(path)
 	if err != nil {
-		logger.Error("cannot create compation files", zap.Error(err))
+		diag.CreateCompactionFilesError(err)
 		return
 	}
 	defer f.Close()
 
-	logger.Info("performing full compaction",
-		zap.String("src", joinIntSlice(IndexFiles(files).IDs(), ",")),
-		zap.String("dst", path),
-	)
+	diag.PerformingFullCompaction(IndexFiles(files).IDs(), path)
 
 	// Compact all index files to new index file.
 	lvl := i.levels[level]
 	n, err := IndexFiles(files).CompactTo(f, lvl.M, lvl.K)
 	if err != nil {
-		logger.Error("cannot compact index files", zap.Error(err))
+		diag.CannotCompactIndexFiles(err)
 		return
 	}
 
 	// Close file.
 	if err := f.Close(); err != nil {
-		logger.Error("error closing index file", zap.Error(err))
+		diag.ErrorClosingIndexFile(err)
 		return
 	}
 
@@ -985,7 +980,7 @@ func (i *Index) compactToLevel(files []*IndexFile, level int) {
 	file := NewIndexFile()
 	file.SetPath(path)
 	if err := file.Open(); err != nil {
-		logger.Error("cannot open new index file", zap.Error(err))
+		diag.CannotOpenNewIndexFile(err)
 		return
 	}
 
@@ -1004,30 +999,24 @@ func (i *Index) compactToLevel(files []*IndexFile, level int) {
 		}
 		return nil
 	}(); err != nil {
-		logger.Error("cannot write manifest", zap.Error(err))
+		diag.ManifestWriteError(err)
 		return
 	}
 
-	elapsed := time.Since(start)
-	logger.Info("full compaction complete",
-		zap.String("path", path),
-		zap.String("elapsed", elapsed.String()),
-		zap.Int64("bytes", n),
-		zap.Int("kb_per_sec", int(float64(n)/elapsed.Seconds())/1024),
-	)
+	diag.CompletedFullCompaction(path, time.Since(start), n)
 
 	// Release old files.
 	once.Do(func() { IndexFiles(files).Release() })
 
 	// Close and delete all old index files.
 	for _, f := range files {
-		logger.Info("removing index file", zap.String("path", f.Path()))
+		diag.RemovingIndexFile(f.Path())
 
 		if err := f.Close(); err != nil {
-			logger.Error("cannot close index file", zap.Error(err))
+			diag.CannotCloseIndexFile(err)
 			return
 		} else if err := os.Remove(f.Path()); err != nil {
-			logger.Error("cannot remove index file", zap.Error(err))
+			diag.CannotRemoveIndexFile(err)
 			return
 		}
 	}
@@ -1086,16 +1075,13 @@ func (i *Index) compactLogFile(logFile *LogFile) {
 	assert(id != 0, "cannot parse log file id: %s", logFile.Path())
 
 	// Build a logger for this compaction.
-	logger := i.logger.With(
-		zap.String("token", generateCompactionToken()),
-		zap.Int("id", id),
-	)
+	diag := i.diag.WithLogFileCompactionToken(generateCompactionToken(), id)
 
 	// Create new index file.
 	path := filepath.Join(i.Path, FormatIndexFileName(id, 1))
 	f, err := os.Create(path)
 	if err != nil {
-		logger.Error("cannot create index file", zap.Error(err))
+		diag.CannotCreateIndexFile(err)
 		return
 	}
 	defer f.Close()
@@ -1104,13 +1090,13 @@ func (i *Index) compactLogFile(logFile *LogFile) {
 	lvl := i.levels[1]
 	n, err := logFile.CompactTo(f, lvl.M, lvl.K)
 	if err != nil {
-		logger.Error("cannot compact log file", zap.Error(err), zap.String("path", logFile.Path()))
+		diag.CannotCompactLogFile(logFile.Path(), err)
 		return
 	}
 
 	// Close file.
 	if err := f.Close(); err != nil {
-		logger.Error("cannot close log file", zap.Error(err))
+		diag.CannotCloseLogFile(err)
 		return
 	}
 
@@ -1118,7 +1104,7 @@ func (i *Index) compactLogFile(logFile *LogFile) {
 	file := NewIndexFile()
 	file.SetPath(path)
 	if err := file.Open(); err != nil {
-		logger.Error("cannot open compacted index file", zap.Error(err), zap.String("path", file.Path()))
+		diag.CannotOpenCompactedIndexFile(file.Path(), err)
 		return
 	}
 
@@ -1137,23 +1123,18 @@ func (i *Index) compactLogFile(logFile *LogFile) {
 		}
 		return nil
 	}(); err != nil {
-		logger.Error("cannot update manifest", zap.Error(err))
+		diag.UpdateManifestError(err)
 		return
 	}
 
-	elapsed := time.Since(start)
-	logger.Error("log file compacted",
-		zap.String("elapsed", elapsed.String()),
-		zap.Int64("bytes", n),
-		zap.Int("kb_per_sec", int(float64(n)/elapsed.Seconds())/1024),
-	)
+	diag.LogFileCompacted(time.Since(start), n)
 
 	// Closing the log file will automatically wait until the ref count is zero.
 	if err := logFile.Close(); err != nil {
-		logger.Error("cannot close log file", zap.Error(err))
+		diag.CannotCloseLogFile(err)
 		return
 	} else if err := os.Remove(logFile.Path()); err != nil {
-		logger.Error("cannot remove log file", zap.Error(err))
+		diag.CannotRemoveLogFile(err)
 		return
 	}
 
@@ -1347,14 +1328,6 @@ func WriteManifestFile(path string, m *Manifest) error {
 	}
 
 	return nil
-}
-
-func joinIntSlice(a []int, sep string) string {
-	other := make([]string, len(a))
-	for i := range a {
-		other[i] = strconv.Itoa(a[i])
-	}
-	return strings.Join(other, sep)
 }
 
 // CompactionLevel represents a grouping of index files based on bloom filter
