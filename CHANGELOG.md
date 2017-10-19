@@ -4,6 +4,7 @@
 1. [#2122](https://github.com/influxdata/chronograf/pull/2122): Fix 'could not connect to source' bug on source creation with unsafe-ssl
 1. [#2093](https://github.com/influxdata/chronograf/pull/2093): Fix when exporting `SHOW DATABASES` CSV has bad data
 1. [#2098](https://github.com/influxdata/chronograf/pull/2098): Fix not-equal-to highlighting in Kapacitor Rule Builder
+1. [#2135](https://github.com/influxdata/chronograf/pull/2135): Fix drag and drop cancel button
 
 ### Features
 1. [#2083](https://github.com/influxdata/chronograf/pull/2083): Every dashboard can now have its own time range
