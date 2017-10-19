@@ -442,6 +442,7 @@ func (s *Service) SourceUsers(w http.ResponseWriter, r *http.Request) {
 }
 
 // SourceUserID retrieves a user with ID from store.
+// In InfluxDB, a User's Name is their UID, hence the semantic below.
 func (s *Service) SourceUserID(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	uid := httprouter.GetParamFromContext(ctx, "uid")
