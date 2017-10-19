@@ -235,6 +235,7 @@ const AutoRefresh = ComposedComponent => {
       }),
     }),
     editQueryStatus: func,
+    grabDataForDownload: func,
   }
 
   return wrapper
