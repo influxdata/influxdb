@@ -1,5 +1,4 @@
 import React, {PropTypes, Component} from 'react'
-import {Link} from 'react-router'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 import _ from 'lodash'
@@ -178,10 +177,15 @@ class HostPage extends Component {
     const {layouts, timeRange, hosts} = this.state
     const appParam = app ? `?app=${app}` : ''
 
+    const hostsList = Object.keys(hosts)
+
     return (
       <div className="page">
         <DashboardHeader
+          sourceID={id}
           source={source}
+          hosts={hostsList}
+          appParam={appParam}
           dashboardName={hostID}
           timeRange={timeRange}
           autoRefresh={autoRefresh}
@@ -190,17 +194,7 @@ class HostPage extends Component {
           handleChooseTimeRange={this.handleChooseTimeRange}
           handleChooseAutoRefresh={handleChooseAutoRefresh}
           handleClickPresentationButton={handleClickPresentationButton}
-        >
-          {Object.keys(hosts).map((host, i) => {
-            return (
-              <li className="dropdown-item" key={i}>
-                <Link to={`/sources/${id}/hosts/${host + appParam}`}>
-                  {host}
-                </Link>
-              </li>
-            )
-          })}
-        </DashboardHeader>
+        />
         <FancyScrollbar
           className={classnames({
             'page-contents': true,

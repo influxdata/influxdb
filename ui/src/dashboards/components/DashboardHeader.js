@@ -9,6 +9,7 @@ import DashboardHeaderEdit from 'src/dashboards/components/DashboardHeaderEdit'
 import DashboardSwitcher from 'src/dashboards/components/DashboardSwitcher'
 
 const DashboardHeader = ({
+  hosts,
   onSave,
   sourceID,
   onCancel,
@@ -40,9 +41,16 @@ const DashboardHeader = ({
                 : 'page-header__left'
             }
           >
-            {dashboards.length > 1
+            {dashboards && dashboards.length > 1
               ? <DashboardSwitcher
                   dashboards={dashboards}
+                  currentDashboard={dashboardName}
+                  sourceID={sourceID}
+                />
+              : null}
+            {hosts && hosts.length > 1
+              ? <DashboardSwitcher
+                  hosts={hosts}
                   currentDashboard={dashboardName}
                   sourceID={sourceID}
                 />
@@ -95,7 +103,7 @@ const DashboardHeader = ({
               className="btn btn-default btn-sm btn-square"
               onClick={handleClickPresentationButton}
             >
-              <span className="icon expand-a" style={{margin: 0}} />
+              <span className="icon expand-a" />
             </div>
           </div>
         </div>
@@ -112,7 +120,7 @@ DashboardHeader.defaultProps = {
 
 DashboardHeader.propTypes = {
   dashboardName: string.isRequired,
-  onEditDashboard: func.isRequired,
+  onEditDashboard: func,
   dashboard: shape({}),
   timeRange: shape({
     lower: string,
@@ -129,10 +137,11 @@ DashboardHeader.propTypes = {
   onToggleTempVarControls: func,
   showTemplateControlBar: bool,
   zoomedTimeRange: shape({}),
-  onCancel: func.isRequired,
-  onSave: func.isRequired,
-  dashboards: arrayOf(shape({})).isRequired,
-  sourceID: string.isRequired,
+  onCancel: func,
+  onSave: func,
+  dashboards: arrayOf(shape({})),
+  sourceID: string,
+  hosts: arrayOf(shape({})),
 }
 
 export default DashboardHeader
