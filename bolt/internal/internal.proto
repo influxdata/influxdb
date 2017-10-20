@@ -132,7 +132,8 @@ message User {
 }
 
 message Organization {
-	string Name             = 1; // Name is the organization's name
+	uint64 ID               = 1; // ID is the unique ID of the organization
+	string Name             = 2; // Name is the organization's name
 }
 
 // The following is a vim modeline, it autoconfigures vim to have the

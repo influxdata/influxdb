@@ -2,6 +2,7 @@ package bolt
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/boltdb/bolt"
 	"github.com/influxdata/chronograf"
@@ -26,6 +27,7 @@ func (s *OrganizationsStore) Add(ctx context.Context, o *chronograf.Organization
 		if err != nil {
 			return err
 		}
+		o.ID = seq
 		if v, err := internal.MarshalOrganization(o); err != nil {
 			return err
 		} else if err := b.Put(u64tob(seq), v); err != nil {
@@ -39,12 +41,44 @@ func (s *OrganizationsStore) Add(ctx context.Context, o *chronograf.Organization
 	return o, nil
 }
 
-func (s *OrganizationsStore) All(context.Context) ([]chronograf.Organization, error) {
-	panic("not implemented")
+func (s *OrganizationsStore) All(ctx context.Context) ([]chronograf.Organization, error) {
+	var orgs []chronograf.Organization
+	err := s.each(ctx, func(o *chronograf.Organization) {
+		orgs = append(orgs, *o)
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return orgs, nil
 }
 
-func (s *OrganizationsStore) Delete(context.Context, *chronograf.Organization) error {
-	panic("not implemented")
+func (s *OrganizationsStore) Delete(ctx context.Context, o *chronograf.Organization) error {
+	_, err := s.get(ctx, o.ID)
+	if err != nil {
+		return err
+	}
+	return s.client.db.Update(func(tx *bolt.Tx) error {
+		return tx.Bucket(OrganizationsBucket).Delete(u64tob(o.ID))
+	})
+}
+
+func (s *OrganizationsStore) get(ctx context.Context, id uint64) (*chronograf.Organization, error) {
+	var o chronograf.Organization
+	err := s.client.db.View(func(tx *bolt.Tx) error {
+		v := tx.Bucket(OrganizationsBucket).Get(u64tob(id))
+		if v == nil {
+			return chronograf.ErrOrganizationNotFound
+		}
+		return internal.UnmarshalOrganization(v, &o)
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &o, nil
 }
 
 func (s *OrganizationsStore) each(ctx context.Context, fn func(*chronograf.Organization)) error {
@@ -61,29 +95,48 @@ func (s *OrganizationsStore) each(ctx context.Context, fn func(*chronograf.Organ
 	return nil
 }
 
-func (s *OrganizationsStore) Get(ctx context.Context, name string) (*chronograf.Organization, error) {
-	var org *chronograf.Organization
-	err := s.each(ctx, func(o *chronograf.Organization) {
-		if org != nil {
-			return
-		}
-
-		if o.Name == name {
-			org = o
-		}
-	})
-
-	if err != nil {
-		return nil, err
+func (s *OrganizationsStore) Get(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
+	if q.ID != nil {
+		return s.get(ctx, *q.ID)
 	}
 
-	if org == nil {
-		return nil, chronograf.ErrOrganizationNotFound
-	}
+	if q.Name != nil {
+		var org *chronograf.Organization
+		err := s.each(ctx, func(o *chronograf.Organization) {
+			if org != nil {
+				return
+			}
 
-	return org, nil
+			if o.Name == *q.Name {
+				org = o
+			}
+		})
+
+		if err != nil {
+			return nil, err
+		}
+
+		if org == nil {
+			return nil, chronograf.ErrOrganizationNotFound
+		}
+
+		return org, nil
+	}
+	return nil, fmt.Errorf("must specify either ID, or Name in OrganizationQuery")
 }
 
-func (s *OrganizationsStore) Update(context.Context, *chronograf.Organization) error {
-	panic("not implemented")
+func (s *OrganizationsStore) Update(ctx context.Context, o *chronograf.Organization) error {
+	org, err := s.get(ctx, o.ID)
+	if err != nil {
+		return err
+	}
+	return s.client.db.Update(func(tx *bolt.Tx) error {
+		org.Name = o.Name
+		if v, err := internal.MarshalOrganization(org); err != nil {
+			return err
+		} else if err := tx.Bucket(OrganizationsBucket).Put(u64tob(org.ID), v); err != nil {
+			return err
+		}
+		return nil
+	})
 }

@@ -462,6 +462,7 @@ func UnmarshalUserPB(data []byte, u *User) error {
 // MarshalOrganization encodes a organization to binary protobuf format.
 func MarshalOrganization(o *chronograf.Organization) ([]byte, error) {
 	return MarshalOrganizationPB(&Organization{
+		ID:   o.ID,
 		Name: o.Name,
 	})
 }
@@ -477,6 +478,7 @@ func UnmarshalOrganization(data []byte, o *chronograf.Organization) error {
 	if err := UnmarshalOrganizationPB(data, &pb); err != nil {
 		return err
 	}
+	o.ID = pb.ID
 	o.Name = pb.Name
 
 	return nil

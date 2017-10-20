@@ -747,11 +747,19 @@ type LayoutStore interface {
 
 // Organization is a group of resources under a common name
 type Organization struct {
+	ID           uint64 `json:"id"`
 	Name         string `json:"name"`
 	SourcesStore SourcesStore
 	ServersStore ServersStore
 	LayoutStore  LayoutStore
 	UsersStore   UsersStore
+}
+
+// OrganizationQuery represents the attributes that a user may be retrieved by.
+// It is predominantly used in the OrganizationsStore.Get method.
+type OrganizationQuery struct {
+	ID   *uint64
+	Name *string
 }
 
 // OrganizationsStore is the storage and retrieval of Organizations
@@ -763,7 +771,7 @@ type OrganizationsStore interface {
 	// Delete removes an Organization from the OrganizationsStore
 	Delete(context.Context, *Organization) error
 	// Get retrieves an Organization from the OrganizationsStore
-	Get(context.Context, string) (*Organization, error)
+	Get(context.Context, OrganizationQuery) (*Organization, error)
 	// Update updates an Organization in the OrganizationsStore
 	Update(context.Context, *Organization) error
 }
