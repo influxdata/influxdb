@@ -239,7 +239,17 @@ func (i *Index) ReplaceIndex(newFiles []string) (*Index, error) {
 
 	// Create, open and return the new index.
 	idx := NewIndex()
+
+	// Set fields on the new Index.
+	i.mu.RLock()
+	idx.logger = i.logger
+	idx.ShardID = i.ShardID
+	idx.Database = i.Database
 	idx.Path = base
+	idx.version = i.version
+	idx.options = i.options
+	i.mu.RUnlock()
+
 	return idx, idx.Open()
 }
 
@@ -364,7 +374,9 @@ func (i *Index) writeManifestFile(m *Manifest) error {
 
 // WithLogger sets the logger for the index.
 func (i *Index) WithLogger(logger *zap.Logger) {
+	i.mu.Lock()
 	i.logger = logger.With(zap.String("index", "tsi"))
+	i.mu.Unlock()
 }
 
 // SetFieldSet sets a shared field set from the engine.
