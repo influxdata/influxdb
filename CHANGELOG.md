@@ -39,6 +39,7 @@
 - [#8886](https://github.com/influxdata/influxdb/pull/8886): Improved compaction scheduling
 - [#8690](https://github.com/influxdata/influxdb/issues/8690): Implicitly decide on a lower limit for fill queries when none is present.
 - [#8947](https://github.com/influxdata/influxdb/pull/8947): Add `EXPLAIN ANALYZE` command, which produces a detailed execution plan of a `SELECT` statement.
+- [#8963](https://github.com/influxdata/influxdb/pull/8963): Streaming inmem2tsi conversion.
 
 ### Bugfixes
 
