@@ -966,8 +966,16 @@ func (f *LogFile) writeTagsetTo(w io.Writer, name string, info *logFileCompactIn
 		tagSetInfo := mmInfo.tagSet[k]
 		assert(tagSetInfo != nil, "tag set info not found")
 
+		// Sort tag values.
+		values := make([]string, 0, len(tag.tagValues))
+		for v := range tag.tagValues {
+			values = append(values, v)
+		}
+		sort.Strings(values)
+
 		// Add each value.
-		for v, value := range tag.tagValues {
+		for _, v := range values {
+			value := tag.tagValues[v]
 			tagValueInfo := tagSetInfo.tagValues[v]
 			sort.Sort(uint32Slice(tagValueInfo.seriesIDs))
 
