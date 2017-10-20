@@ -313,7 +313,6 @@ func TestIndex_ReplaceIndex(t *testing.T) {
 	}
 }
 
-// Ensure index can delete a measurement and all related keys, values, & series.
 func TestIndex_DiskSizeBytes(t *testing.T) {
 	idx := MustOpenIndex()
 	defer idx.Close()
@@ -329,8 +328,9 @@ func TestIndex_DiskSizeBytes(t *testing.T) {
 	}
 
 	// Verify on disk size is the same in each stage.
+	expSize := int64(520) // 419 bytes for MANIFEST and 101 bytes for index file
 	idx.Run(t, func(t *testing.T) {
-		if got, exp := idx.DiskSizeBytes(), int64(464); got != exp {
+		if got, exp := idx.DiskSizeBytes(), expSize; got != exp {
 			t.Fatalf("got %d bytes, expected %d", got, exp)
 		}
 	})
