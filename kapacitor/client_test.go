@@ -75,7 +75,7 @@ func TestClient_All(t *testing.T) {
 		Password   string
 		ID         chronograf.ID
 		Ticker     chronograf.Ticker
-		kapaClient func(url, username, password string) (KapaClient, error)
+		kapaClient func(url, username, password string, insecureSkipVerify bool) (KapaClient, error)
 	}
 	type args struct {
 		ctx context.Context
@@ -100,7 +100,7 @@ func TestClient_All(t *testing.T) {
 		{
 			name: "return no tasks",
 			fields: fields{
-				kapaClient: func(url, username, password string) (KapaClient, error) {
+				kapaClient: func(url, username, password string, insecureSkipVerify bool) (KapaClient, error) {
 					return kapa, nil
 				},
 			},
@@ -110,7 +110,7 @@ func TestClient_All(t *testing.T) {
 		{
 			name: "return a non-reversible task",
 			fields: fields{
-				kapaClient: func(url, username, password string) (KapaClient, error) {
+				kapaClient: func(url, username, password string, insecureSkipVerify bool) (KapaClient, error) {
 					return kapa, nil
 				},
 			},
@@ -141,7 +141,7 @@ func TestClient_All(t *testing.T) {
 		{
 			name: "return a reversible task",
 			fields: fields{
-				kapaClient: func(url, username, password string) (KapaClient, error) {
+				kapaClient: func(url, username, password string, insecureSkipVerify bool) (KapaClient, error) {
 					return kapa, nil
 				},
 			},
@@ -380,7 +380,7 @@ func TestClient_Get(t *testing.T) {
 		Password   string
 		ID         chronograf.ID
 		Ticker     chronograf.Ticker
-		kapaClient func(url, username, password string) (KapaClient, error)
+		kapaClient func(url, username, password string, insecureSkipVerify bool) (KapaClient, error)
 	}
 	type args struct {
 		ctx context.Context
@@ -406,7 +406,7 @@ func TestClient_Get(t *testing.T) {
 		{
 			name: "return no task",
 			fields: fields{
-				kapaClient: func(url, username, password string) (KapaClient, error) {
+				kapaClient: func(url, username, password string, insecureSkipVerify bool) (KapaClient, error) {
 					return kapa, nil
 				},
 			},
@@ -423,7 +423,7 @@ func TestClient_Get(t *testing.T) {
 		{
 			name: "return non-reversible task",
 			fields: fields{
-				kapaClient: func(url, username, password string) (KapaClient, error) {
+				kapaClient: func(url, username, password string, insecureSkipVerify bool) (KapaClient, error) {
 					return kapa, nil
 				},
 			},
@@ -465,7 +465,7 @@ func TestClient_Get(t *testing.T) {
 		{
 			name: "return reversible task",
 			fields: fields{
-				kapaClient: func(url, username, password string) (KapaClient, error) {
+				kapaClient: func(url, username, password string, insecureSkipVerify bool) (KapaClient, error) {
 					return kapa, nil
 				},
 			},
@@ -706,7 +706,7 @@ func TestClient_updateStatus(t *testing.T) {
 		Password   string
 		ID         chronograf.ID
 		Ticker     chronograf.Ticker
-		kapaClient func(url, username, password string) (KapaClient, error)
+		kapaClient func(url, username, password string, insecureSkipVerify bool) (KapaClient, error)
 	}
 	type args struct {
 		ctx    context.Context
@@ -727,7 +727,7 @@ func TestClient_updateStatus(t *testing.T) {
 		{
 			name: "disable alert rule",
 			fields: fields{
-				kapaClient: func(url, username, password string) (KapaClient, error) {
+				kapaClient: func(url, username, password string, insecureSkipVerify bool) (KapaClient, error) {
 					return kapa, nil
 				},
 				Ticker: &Alert{},
@@ -777,7 +777,7 @@ func TestClient_updateStatus(t *testing.T) {
 		{
 			name: "fail to enable alert rule",
 			fields: fields{
-				kapaClient: func(url, username, password string) (KapaClient, error) {
+				kapaClient: func(url, username, password string, insecureSkipVerify bool) (KapaClient, error) {
 					return kapa, nil
 				},
 				Ticker: &Alert{},
@@ -797,7 +797,7 @@ func TestClient_updateStatus(t *testing.T) {
 		{
 			name: "enable alert rule",
 			fields: fields{
-				kapaClient: func(url, username, password string) (KapaClient, error) {
+				kapaClient: func(url, username, password string, insecureSkipVerify bool) (KapaClient, error) {
 					return kapa, nil
 				},
 				Ticker: &Alert{},
@@ -880,7 +880,7 @@ func TestClient_Update(t *testing.T) {
 		Password   string
 		ID         chronograf.ID
 		Ticker     chronograf.Ticker
-		kapaClient func(url, username, password string) (KapaClient, error)
+		kapaClient func(url, username, password string, insecureSkipVerify bool) (KapaClient, error)
 	}
 	type args struct {
 		ctx  context.Context
@@ -902,7 +902,7 @@ func TestClient_Update(t *testing.T) {
 		{
 			name: "update alert rule error",
 			fields: fields{
-				kapaClient: func(url, username, password string) (KapaClient, error) {
+				kapaClient: func(url, username, password string, insecureSkipVerify bool) (KapaClient, error) {
 					return kapa, nil
 				},
 				Ticker: &Alert{},
@@ -936,7 +936,7 @@ func TestClient_Update(t *testing.T) {
 		{
 			name: "update alert rule",
 			fields: fields{
-				kapaClient: func(url, username, password string) (KapaClient, error) {
+				kapaClient: func(url, username, password string, insecureSkipVerify bool) (KapaClient, error) {
 					return kapa, nil
 				},
 				Ticker: &Alert{},
@@ -1000,7 +1000,7 @@ func TestClient_Update(t *testing.T) {
 		{
 			name: "stays disabled when already disabled",
 			fields: fields{
-				kapaClient: func(url, username, password string) (KapaClient, error) {
+				kapaClient: func(url, username, password string, insecureSkipVerify bool) (KapaClient, error) {
 					return kapa, nil
 				},
 				Ticker: &Alert{},
@@ -1099,7 +1099,7 @@ func TestClient_Create(t *testing.T) {
 		Password   string
 		ID         chronograf.ID
 		Ticker     chronograf.Ticker
-		kapaClient func(url, username, password string) (KapaClient, error)
+		kapaClient func(url, username, password string, insecureSkipVerify bool) (KapaClient, error)
 	}
 	type args struct {
 		ctx  context.Context
@@ -1119,7 +1119,7 @@ func TestClient_Create(t *testing.T) {
 		{
 			name: "create alert rule",
 			fields: fields{
-				kapaClient: func(url, username, password string) (KapaClient, error) {
+				kapaClient: func(url, username, password string, insecureSkipVerify bool) (KapaClient, error) {
 					return kapa, nil
 				},
 				Ticker: &Alert{},
@@ -1185,7 +1185,7 @@ func TestClient_Create(t *testing.T) {
 		{
 			name: "create alert rule error",
 			fields: fields{
-				kapaClient: func(url, username, password string) (KapaClient, error) {
+				kapaClient: func(url, username, password string, insecureSkipVerify bool) (KapaClient, error) {
 					return kapa, nil
 				},
 				Ticker: &Alert{},

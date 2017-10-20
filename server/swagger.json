@@ -2357,6 +2357,7 @@
         "name": "kapa",
         "url": "http://localhost:9092",
         "active": false,
+        "insecureSkipVerify": false,
         "links": {
           "proxy": "/chronograf/v1/sources/4/kapacitors/4/proxy",
           "self": "/chronograf/v1/sources/4/kapacitors/4",
@@ -2386,6 +2387,11 @@
           "format": "url",
           "description":
             "URL for the kapacitor backend (e.g. http://localhost:9092)"
+        },
+        "insecureSkipVerify": {
+          "type": "boolean",
+          "description":
+            "True means any certificate presented by the kapacitor is accepted.  Typically used for self-signed certs. Probably should only be used for testing."
         },
         "active": {
           "type": "boolean",
