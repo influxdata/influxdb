@@ -3,16 +3,14 @@ package run_test
 import (
 	"io/ioutil"
 	"os"
-	"testing"
-
 	"path/filepath"
-
+	"testing"
 	"time"
 
 	"github.com/influxdata/influxdb/cmd/influxd/run"
 )
 
-func TestPIDFile(t *testing.T) {
+func TestCommand_PIDFile(t *testing.T) {
 	tmpdir, err := ioutil.TempDir(os.TempDir(), "influxd-test")
 	if err != nil {
 		t.Fatal(err)
