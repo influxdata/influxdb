@@ -32,6 +32,9 @@ type Tombstoner struct {
 	// indicates that the stats may be out of sync with what is on disk and they
 	// should be refreshed.
 	statsLoaded bool
+
+	// Tombstones that have been written but not flushed to disk yet.
+	tombstones []Tombstone
 }
 
 // Tombstone represents an individual deletion.
@@ -66,31 +69,58 @@ func (t *Tombstoner) AddRange(keys [][]byte, min, max int64) error {
 
 	t.statsLoaded = false
 
-	tombstones, err := t.readTombstone()
-	if err != nil {
-		return nil
-	}
-
-	if cap(tombstones) < len(tombstones)+len(keys) {
-		ts := make([]Tombstone, len(tombstones), len(tombstones)+len(keys))
-		copy(ts, tombstones)
-		tombstones = ts
+	if cap(t.tombstones) < len(t.tombstones)+len(keys) {
+		ts := make([]Tombstone, len(t.tombstones), len(t.tombstones)+len(keys))
+		copy(ts, t.tombstones)
+		t.tombstones = ts
 	}
 
 	for _, k := range keys {
-		tombstones = append(tombstones, Tombstone{
+		t.tombstones = append(t.tombstones, Tombstone{
 			Key: k,
 			Min: min,
 			Max: max,
 		})
 	}
 
-	return t.writeTombstone(tombstones)
+	return nil
+}
+
+func (t *Tombstoner) Flush() error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if len(t.tombstones) == 0 {
+		return nil
+	}
+
+	existing, err := t.readTombstone()
+	if err != nil {
+		return nil
+	}
+
+	if err := t.writeTombstone(append(existing, t.tombstones...)); err != nil {
+		return err
+	}
+
+	t.tombstones = t.tombstones[:0]
+	return nil
 }
 
 // ReadAll returns all the tombstones in the Tombstoner's directory.
 func (t *Tombstoner) ReadAll() ([]Tombstone, error) {
-	return t.readTombstone()
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
+	tombstones, err := t.readTombstone()
+	if err != nil {
+		return nil, err
+	}
+
+	if len(t.tombstones) == 0 {
+		return tombstones, nil
+	}
+	return append(tombstones, t.tombstones...), nil
 }
 
 // Delete removes all the tombstone files from disk.
@@ -107,7 +137,11 @@ func (t *Tombstoner) Delete() error {
 // HasTombstones return true if there are any tombstone entries recorded.
 func (t *Tombstoner) HasTombstones() bool {
 	files := t.TombstoneFiles()
-	return len(files) > 0 && files[0].Size > 0
+	t.mu.RLock()
+	n := len(t.tombstones)
+	t.mu.RUnlock()
+
+	return len(files) > 0 && files[0].Size > 0 || n > 0
 }
 
 // TombstoneFiles returns any tombstone files associated with Tombstoner's TSM file.
@@ -266,7 +300,17 @@ func (t *Tombstoner) readTombstoneV1(f *os.File, fn func(t Tombstone) error) err
 			return err
 		}
 	}
-	return r.Err()
+
+	if err := r.Err(); err != nil {
+		return err
+	}
+
+	for _, t := range t.tombstones {
+		if err := fn(t); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // readTombstoneV2 reads the second version of tombstone files that are capable
@@ -292,7 +336,7 @@ func (t *Tombstoner) readTombstoneV2(f *os.File, fn func(t Tombstone) error) err
 	b := make([]byte, 4096)
 	for {
 		if n >= size {
-			return nil
+			break
 		}
 
 		if _, err = f.Read(b[:4]); err != nil {
@@ -332,6 +376,13 @@ func (t *Tombstoner) readTombstoneV2(f *os.File, fn func(t Tombstone) error) err
 			return err
 		}
 	}
+
+	for _, t := range t.tombstones {
+		if err := fn(t); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // readTombstoneV3 reads the third version of tombstone files that are capable
@@ -357,7 +408,7 @@ func (t *Tombstoner) readTombstoneV3(f *os.File, fn func(t Tombstone) error) err
 	b := make([]byte, 4096)
 	for {
 		if _, err = io.ReadFull(gr, b[:4]); err == io.EOF || err == io.ErrUnexpectedEOF {
-			return nil
+			break
 		} else if err != nil {
 			return err
 		}
@@ -395,6 +446,13 @@ func (t *Tombstoner) readTombstoneV3(f *os.File, fn func(t Tombstone) error) err
 			return err
 		}
 	}
+
+	for _, t := range t.tombstones {
+		if err := fn(t); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (t *Tombstoner) tombstonePath() string {

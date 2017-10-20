@@ -31,6 +31,10 @@ func TestTombstoner_Add(t *testing.T) {
 
 	ts.Add([][]byte{[]byte("foo")})
 
+	if err := ts.Flush(); err != nil {
+		t.Fatalf("unexpected error flushing tombstone: %v", err)
+	}
+
 	entries, err = ts.ReadAll()
 	if err != nil {
 		fatal(t, "ReadAll", err)
@@ -95,6 +99,10 @@ func TestTombstoner_Add_Empty(t *testing.T) {
 
 	ts.Add([][]byte{})
 
+	if err := ts.Flush(); err != nil {
+		t.Fatalf("unexpected error flushing tombstone: %v", err)
+	}
+
 	// Use a new Tombstoner to verify values are persisted
 	ts = &tsm1.Tombstoner{Path: f.Name()}
 	entries, err = ts.ReadAll()
@@ -121,6 +129,10 @@ func TestTombstoner_Delete(t *testing.T) {
 	ts := &tsm1.Tombstoner{Path: f.Name()}
 
 	ts.Add([][]byte{[]byte("foo")})
+
+	if err := ts.Flush(); err != nil {
+		t.Fatalf("unexpected error flushing: %v", err)
+	}
 
 	// Use a new Tombstoner to verify values are persisted
 	ts = &tsm1.Tombstoner{Path: f.Name()}

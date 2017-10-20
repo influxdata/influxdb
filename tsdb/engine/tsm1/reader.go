@@ -470,6 +470,10 @@ func (t *TSMReader) DeleteRange(keys [][]byte, minTime, maxTime int64) error {
 		return err
 	}
 
+	if err := t.tombstoner.Flush(); err != nil {
+		return err
+	}
+
 	t.index.DeleteRange(keys, minTime, maxTime)
 	return nil
 }
@@ -477,6 +481,10 @@ func (t *TSMReader) DeleteRange(keys [][]byte, minTime, maxTime int64) error {
 // Delete deletes blocks indicated by keys.
 func (t *TSMReader) Delete(keys [][]byte) error {
 	if err := t.tombstoner.Add(keys); err != nil {
+		return err
+	}
+
+	if err := t.tombstoner.Flush(); err != nil {
 		return err
 	}
 
