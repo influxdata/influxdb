@@ -3,10 +3,13 @@ package bolt
 import (
 	"context"
 	"fmt"
+	"path"
+	"strconv"
 
 	"github.com/boltdb/bolt"
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/bolt/internal"
+	"github.com/influxdata/chronograf/uuid"
 )
 
 // Ensure OrganizationsStore implements chronograf.OrganizationsStore.
@@ -18,6 +21,25 @@ var OrganizationsBucket = []byte("OrganizationsV1")
 // OrganizationsStore uses bolt to store and retrieve Organizations
 type OrganizationsStore struct {
 	client *Client
+}
+
+func (s *OrganizationsStore) Open(tx *bolt.Tx) error {
+	if s == nil {
+		return fmt.Errorf("OrganizationsStore is nil")
+	}
+	// Always create Organizations bucket.
+	if _, err := tx.CreateBucketIfNotExists(OrganizationsBucket); err != nil {
+		return err
+	}
+
+	return tx.Bucket(OrganizationsBucket).ForEach(func(k, v []byte) error {
+		var org chronograf.Organization
+		if err := internal.UnmarshalOrganization(v, &org); err != nil {
+			return err
+		}
+
+		return s.createResources(org.ID, tx)
+	})
 }
 
 func (s *OrganizationsStore) Add(ctx context.Context, o *chronograf.Organization) (*chronograf.Organization, error) {
@@ -32,13 +54,69 @@ func (s *OrganizationsStore) Add(ctx context.Context, o *chronograf.Organization
 			return err
 		} else if err := b.Put(u64tob(seq), v); err != nil {
 			return err
+		} else if err := s.createResources(seq, tx); err != nil {
+			return err
 		}
+
+		s.appendStores(o)
+
 		return nil
 	}); err != nil {
 		return nil, err
 	}
 
 	return o, nil
+}
+
+func (s *OrganizationsStore) createResources(id uint64, tx *bolt.Tx) error {
+	idStr := strconv.FormatUint(id, 10)
+	// Always create Sources bucket.
+	orgSourcesBucket := []byte(path.Join(string(SourcesBucket), idStr))
+	if _, err := tx.CreateBucketIfNotExists(orgSourcesBucket); err != nil {
+		return err
+	}
+	// Always create Servers bucket.
+	orgServersBucket := []byte(path.Join(string(ServersBucket), idStr))
+	if _, err := tx.CreateBucketIfNotExists(orgServersBucket); err != nil {
+		return err
+	}
+	// Always create Layouts bucket.
+	orgLayoutBucket := []byte(path.Join(string(LayoutBucket), idStr))
+	if _, err := tx.CreateBucketIfNotExists(orgLayoutBucket); err != nil {
+		return err
+	}
+	// Always create Dashboards bucket.
+	orgDashboardBucket := []byte(path.Join(string(DashboardBucket), idStr))
+	if _, err := tx.CreateBucketIfNotExists(orgDashboardBucket); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *OrganizationsStore) removeResources(id uint64, tx *bolt.Tx) error {
+	idStr := strconv.FormatUint(id, 10)
+	// Always create Sources bucket.
+	orgSourcesBucket := []byte(path.Join(string(SourcesBucket), idStr))
+	if err := tx.DeleteBucket(orgSourcesBucket); err != nil {
+		return err
+	}
+	// Always create Servers bucket.
+	orgServersBucket := []byte(path.Join(string(ServersBucket), idStr))
+	if err := tx.DeleteBucket(orgServersBucket); err != nil {
+		return err
+	}
+	// Always create Layouts bucket.
+	orgLayoutBucket := []byte(path.Join(string(LayoutBucket), idStr))
+	if err := tx.DeleteBucket(orgLayoutBucket); err != nil {
+		return err
+	}
+	// Always create Dashboards bucket.
+	orgDashboardBucket := []byte(path.Join(string(DashboardBucket), idStr))
+	if err := tx.DeleteBucket(orgDashboardBucket); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *OrganizationsStore) All(ctx context.Context) ([]chronograf.Organization, error) {
@@ -60,6 +138,9 @@ func (s *OrganizationsStore) Delete(ctx context.Context, o *chronograf.Organizat
 		return err
 	}
 	return s.client.db.Update(func(tx *bolt.Tx) error {
+		if err := s.removeResources(o.ID, tx); err != nil {
+			return err
+		}
 		return tx.Bucket(OrganizationsBucket).Delete(u64tob(o.ID))
 	})
 }
@@ -74,11 +155,35 @@ func (s *OrganizationsStore) get(ctx context.Context, id uint64) (*chronograf.Or
 		return internal.UnmarshalOrganization(v, &o)
 	})
 
+	s.appendStores(&o)
+
 	if err != nil {
 		return nil, err
 	}
 
 	return &o, nil
+}
+
+func (s *OrganizationsStore) appendStores(o *chronograf.Organization) {
+	idStr := strconv.FormatUint(o.ID, 10)
+	o.SourcesStore = &SourcesStore{
+		client: s.client,
+		Org:    idStr,
+	}
+	o.ServersStore = &ServersStore{
+		client: s.client,
+		Org:    idStr,
+	}
+	o.LayoutStore = &LayoutStore{
+		client: s.client,
+		Org:    idStr,
+		IDs:    &uuid.V4{},
+	}
+	o.DashboardsStore = &DashboardsStore{
+		client: s.client,
+		Org:    idStr,
+		IDs:    &uuid.V4{},
+	}
 }
 
 func (s *OrganizationsStore) each(ctx context.Context, fn func(*chronograf.Organization)) error {
@@ -88,6 +193,7 @@ func (s *OrganizationsStore) each(ctx context.Context, fn func(*chronograf.Organ
 			if err := internal.UnmarshalOrganization(v, &org); err != nil {
 				return err
 			}
+			s.appendStores(&org)
 			fn(&org)
 			return nil
 		})

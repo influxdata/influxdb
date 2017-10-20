@@ -2,6 +2,7 @@ package bolt
 
 import (
 	"context"
+	"path"
 	"time"
 
 	"github.com/boltdb/bolt"
@@ -52,6 +53,9 @@ func (c *Client) Open(ctx context.Context) error {
 	c.db = db
 
 	if err := c.db.Update(func(tx *bolt.Tx) error {
+		if err := c.OrganizationsStore.Open(tx); err != nil {
+			return err
+		}
 		// Always create Sources bucket.
 		if _, err := tx.CreateBucketIfNotExists(SourcesBucket); err != nil {
 			return err
@@ -72,10 +76,6 @@ func (c *Client) Open(ctx context.Context) error {
 		if _, err := tx.CreateBucketIfNotExists(UsersBucket); err != nil {
 			return err
 		}
-		// Always create Organizations bucket.
-		if _, err := tx.CreateBucketIfNotExists(OrganizationsBucket); err != nil {
-			return err
-		}
 		return nil
 	}); err != nil {
 		return err
@@ -91,4 +91,8 @@ func (c *Client) Close() error {
 		return c.db.Close()
 	}
 	return nil
+}
+
+func bucket(b []byte, org string) []byte {
+	return []byte(path.Join(string(b), org))
 }
