@@ -18,6 +18,7 @@ const RefreshingGraph = ({
   timeRange,
   cellHeight,
   autoRefresh,
+  manualRefresh, // when changed, re-mounts the component
   synchronizer,
   resizeCoords,
   editQueryStatus,
@@ -36,6 +37,7 @@ const RefreshingGraph = ({
   if (type === 'single-stat') {
     return (
       <RefreshingSingleStat
+        key={manualRefresh}
         queries={[queries[0]]}
         templates={templates}
         autoRefresh={autoRefresh}
@@ -54,7 +56,7 @@ const RefreshingGraph = ({
       axes={axes}
       onZoom={onZoom}
       queries={queries}
-      grabDataForDownload={grabDataForDownload}
+      key={manualRefresh}
       templates={templates}
       timeRange={timeRange}
       autoRefresh={autoRefresh}
@@ -63,6 +65,7 @@ const RefreshingGraph = ({
       resizeCoords={resizeCoords}
       displayOptions={displayOptions}
       editQueryStatus={editQueryStatus}
+      grabDataForDownload={grabDataForDownload}
       showSingleStat={type === 'line-plus-single-stat'}
     />
   )
@@ -75,6 +78,7 @@ RefreshingGraph.propTypes = {
     lower: string.isRequired,
   }),
   autoRefresh: number.isRequired,
+  manualRefresh: number,
   templates: arrayOf(shape()),
   synchronizer: func,
   type: string.isRequired,
@@ -85,6 +89,10 @@ RefreshingGraph.propTypes = {
   onZoom: func,
   resizeCoords: shape(),
   grabDataForDownload: func,
+}
+
+RefreshingGraph.defaultProps = {
+  manualRefresh: 0,
 }
 
 export default RefreshingGraph

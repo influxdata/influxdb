@@ -1,66 +1,19 @@
-import React, {PropTypes} from 'react'
+import React, {PropTypes, Component} from 'react'
 import _ from 'lodash'
+
 import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
 import {removeUnselectedTemplateValues} from 'src/dashboards/constants'
 
-const {
-  array,
-  arrayOf,
-  bool,
-  element,
-  func,
-  number,
-  oneOfType,
-  shape,
-  string,
-} = PropTypes
-
 const AutoRefresh = ComposedComponent => {
-  const wrapper = React.createClass({
-    propTypes: {
-      children: element,
-      autoRefresh: number.isRequired,
-      templates: arrayOf(
-        shape({
-          type: string.isRequired,
-          tempVar: string.isRequired,
-          query: shape({
-            db: string,
-            rp: string,
-            influxql: string,
-          }),
-          values: arrayOf(
-            shape({
-              type: string.isRequired,
-              value: string.isRequired,
-              selected: bool,
-            })
-          ).isRequired,
-        })
-      ),
-      queries: arrayOf(
-        shape({
-          host: oneOfType([string, arrayOf(string)]),
-          text: string,
-        }).isRequired
-      ).isRequired,
-      axes: shape({
-        bounds: shape({
-          y: array,
-          y2: array,
-        }),
-      }),
-      editQueryStatus: func,
-      grabDataForDownload: func,
-    },
-
-    getInitialState() {
-      return {
+  class wrapper extends Component {
+    constructor() {
+      super()
+      this.state = {
         lastQuerySuccessful: false,
         timeSeries: [],
         resolution: null,
       }
-    },
+    }
 
     componentDidMount() {
       const {queries, templates, autoRefresh} = this.props
@@ -71,7 +24,7 @@ const AutoRefresh = ComposedComponent => {
           autoRefresh
         )
       }
-    },
+    }
 
     componentWillReceiveProps(nextProps) {
       const queriesDidUpdate = this.queryDifference(
@@ -100,18 +53,18 @@ const AutoRefresh = ComposedComponent => {
           )
         }
       }
-    },
+    }
 
-    queryDifference(left, right) {
+    queryDifference = (left, right) => {
       const leftStrs = left.map(q => `${q.host}${q.text}`)
       const rightStrs = right.map(q => `${q.host}${q.text}`)
       return _.difference(
         _.union(leftStrs, rightStrs),
         _.intersection(leftStrs, rightStrs)
       )
-    },
+    }
 
-    executeQueries(queries, templates = []) {
+    executeQueries = async (queries, templates = []) => {
       const {editQueryStatus, grabDataForDownload} = this.props
       const {resolution} = this.state
 
@@ -148,28 +101,33 @@ const AutoRefresh = ComposedComponent => {
         )
       })
 
-      Promise.all(timeSeriesPromises).then(timeSeries => {
+      try {
+        const timeSeries = await Promise.all(timeSeriesPromises)
         const newSeries = timeSeries.map(response => ({response}))
-        const lastQuerySuccessful = !this._noResultsForQuery(newSeries)
+        const lastQuerySuccessful = this._resultsForQuery(newSeries)
+
         this.setState({
           timeSeries: newSeries,
           lastQuerySuccessful,
           isFetching: false,
         })
+
         if (grabDataForDownload) {
           grabDataForDownload(timeSeries)
         }
-      })
-    },
+      } catch (err) {
+        console.error(err)
+      }
+    }
 
     componentWillUnmount() {
       clearInterval(this.intervalID)
       this.intervalID = false
-    },
+    }
 
-    setResolution(resolution) {
+    setResolution = resolution => {
       this.setState({resolution})
-    },
+    }
 
     render() {
       const {timeSeries} = this.state
@@ -179,7 +137,7 @@ const AutoRefresh = ComposedComponent => {
       }
 
       if (
-        this._noResultsForQuery(timeSeries) ||
+        !this._resultsForQuery(timeSeries) ||
         !this.state.lastQuerySuccessful
       ) {
         return this.renderNoResults()
@@ -192,13 +150,13 @@ const AutoRefresh = ComposedComponent => {
           setResolution={this.setResolution}
         />
       )
-    },
+    }
 
     /**
      * Graphs can potentially show mulitple kinds of spinners based on whether
      * a graph is being fetched for the first time, or is being refreshed.
      */
-    renderFetching(data) {
+    renderFetching = data => {
       const isFirstFetch = !Object.keys(this.state.timeSeries).length
       return (
         <ComposedComponent
@@ -209,30 +167,76 @@ const AutoRefresh = ComposedComponent => {
           isRefreshing={!isFirstFetch}
         />
       )
-    },
+    }
 
-    renderNoResults() {
+    renderNoResults = () => {
       return (
         <div className="graph-empty">
           <p data-test="data-explorer-no-results">No Results</p>
         </div>
       )
-    },
+    }
 
-    _noResultsForQuery(data) {
-      if (!data.length) {
-        return true
-      }
-
-      return data.every(({response}) => {
-        return _.get(response, 'results', []).every(result => {
-          return (
-            Object.keys(result).filter(k => k !== 'statement_id').length === 0
+    _resultsForQuery = data =>
+      data.length
+        ? data.every(({response}) =>
+            _.get(response, 'results', []).every(
+              result =>
+                Object.keys(result).filter(k => k !== 'statement_id').length !==
+                0
+            )
           )
-        })
+        : false
+  }
+
+  const {
+    array,
+    arrayOf,
+    bool,
+    element,
+    func,
+    number,
+    oneOfType,
+    shape,
+    string,
+  } = PropTypes
+
+  wrapper.propTypes = {
+    children: element,
+    autoRefresh: number.isRequired,
+    templates: arrayOf(
+      shape({
+        type: string.isRequired,
+        tempVar: string.isRequired,
+        query: shape({
+          db: string,
+          rp: string,
+          influxql: string,
+        }),
+        values: arrayOf(
+          shape({
+            type: string.isRequired,
+            value: string.isRequired,
+            selected: bool,
+          })
+        ).isRequired,
       })
-    },
-  })
+    ),
+    queries: arrayOf(
+      shape({
+        host: oneOfType([string, arrayOf(string)]),
+        text: string,
+      }).isRequired
+    ).isRequired,
+    axes: shape({
+      bounds: shape({
+        y: array,
+        y2: array,
+      }),
+    }),
+    editQueryStatus: func,
+    grabDataForDownload: func,
+  }
 
   return wrapper
 }

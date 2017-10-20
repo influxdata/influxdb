@@ -52,6 +52,7 @@ const Layout = (
     isEditable,
     onEditCell,
     autoRefresh,
+    manualRefresh,
     onDeleteCell,
     synchronizer,
     resizeCoords,
@@ -82,6 +83,7 @@ const Layout = (
           timeRange={timeRange}
           templates={templates}
           autoRefresh={autoRefresh}
+          manualRefresh={manualRefresh}
           synchronizer={synchronizer}
           grabDataForDownload={grabDataForDownload}
           resizeCoords={resizeCoords}
@@ -102,6 +104,7 @@ Layout.contextTypes = {
 
 const propTypes = {
   autoRefresh: number.isRequired,
+  manualRefresh: number,
   timeRange: shape({
     lower: string.isRequired,
   }),
