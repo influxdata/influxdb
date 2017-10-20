@@ -230,27 +230,7 @@ func (t *Tombstoner) writeTombstoneV3(tombstones []Tombstone) error {
 		}
 	}
 
-	if err := gz.Close(); err != nil {
-		return err
-	}
-
-	if err := bw.Flush(); err != nil {
-		return err
-	}
-
-	// fsync the file to flush the write
-	if err := tmp.Sync(); err != nil {
-		return err
-	}
-
-	tmpFilename := tmp.Name()
-	tmp.Close()
-
-	if err := renameFile(tmpFilename, t.tombstonePath()); err != nil {
-		return err
-	}
-
-	return syncDir(filepath.Dir(t.tombstonePath()))
+	return t.commit(gz, bw, tmp)
 }
 
 // writeTombstoneV4 writes v3 files that are concatenated together.  A v4 header is
@@ -309,6 +289,10 @@ func (t *Tombstoner) writeTombstoneV4(tombstones []Tombstone) error {
 		}
 	}
 
+	return t.commit(gz, bw, tmp)
+}
+
+func (t *Tombstoner) commit(gz *gzip.Writer, bw *bufio.Writer, tmp *os.File) error {
 	if err := gz.Close(); err != nil {
 		return err
 	}
