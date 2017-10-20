@@ -1,16 +1,18 @@
 package query
 
 import (
+	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
+	"regexp"
 	"sync"
 	"time"
 
-	"regexp"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/pkg/tracing"
 	internal "github.com/influxdata/influxdb/query/internal"
 )
 
@@ -640,18 +642,18 @@ func DrainIterators(itrs []Iterator) {
 }
 
 // NewReaderIterator returns an iterator that streams from a reader.
-func NewReaderIterator(r io.Reader, typ influxql.DataType, stats IteratorStats) Iterator {
+func NewReaderIterator(ctx context.Context, r io.Reader, typ influxql.DataType, stats IteratorStats) Iterator {
 	switch typ {
 	case influxql.Float:
-		return newFloatReaderIterator(r, stats)
+		return newFloatReaderIterator(ctx, r, stats)
 	case influxql.Integer:
-		return newIntegerReaderIterator(r, stats)
+		return newIntegerReaderIterator(ctx, r, stats)
 	case influxql.Unsigned:
-		return newUnsignedReaderIterator(r, stats)
+		return newUnsignedReaderIterator(ctx, r, stats)
 	case influxql.String:
-		return newStringReaderIterator(r, stats)
+		return newStringReaderIterator(ctx, r, stats)
 	case influxql.Boolean:
-		return newBooleanReaderIterator(r, stats)
+		return newBooleanReaderIterator(ctx, r, stats)
 	default:
 		return &nilFloatReaderIterator{r: r}
 	}
@@ -660,7 +662,7 @@ func NewReaderIterator(r io.Reader, typ influxql.DataType, stats IteratorStats) 
 // IteratorCreator is an interface to create Iterators.
 type IteratorCreator interface {
 	// Creates a simple iterator for use in an InfluxQL query.
-	CreateIterator(source *influxql.Measurement, opt IteratorOptions) (Iterator, error)
+	CreateIterator(ctx context.Context, source *influxql.Measurement, opt IteratorOptions) (Iterator, error)
 
 	// Determines the potential cost for creating an iterator.
 	IteratorCost(source *influxql.Measurement, opt IteratorOptions) (IteratorCost, error)
@@ -1426,6 +1428,22 @@ func decodeIteratorStats(pb *internal.IteratorStats) IteratorStats {
 	}
 }
 
+func decodeIteratorTrace(ctx context.Context, data []byte) error {
+	pt := tracing.TraceFromContext(ctx)
+	if pt == nil {
+		return nil
+	}
+
+	var ct tracing.Trace
+	if err := ct.UnmarshalBinary(data); err != nil {
+		return err
+	}
+
+	pt.Merge(&ct)
+
+	return nil
+}
+
 // IteratorCost contains statistics retrieved for explaining what potential
 // cost may be incurred by instantiating an iterator.
 type IteratorCost struct {
@@ -1529,4 +1547,87 @@ func abs(v int64) int64 {
 		return -v
 	}
 	return v
+}
+
+// IteratorEncoder is an encoder for encoding an iterator's points to w.
+type IteratorEncoder struct {
+	w io.Writer
+
+	// Frequency with which stats are emitted.
+	StatsInterval time.Duration
+}
+
+// NewIteratorEncoder encodes an iterator's points to w.
+func NewIteratorEncoder(w io.Writer) *IteratorEncoder {
+	return &IteratorEncoder{
+		w: w,
+
+		StatsInterval: DefaultStatsInterval,
+	}
+}
+
+// EncodeIterator encodes and writes all of itr's points to the underlying writer.
+func (enc *IteratorEncoder) EncodeIterator(itr Iterator) error {
+	switch itr := itr.(type) {
+	case FloatIterator:
+		return enc.encodeFloatIterator(itr)
+	case IntegerIterator:
+		return enc.encodeIntegerIterator(itr)
+	case StringIterator:
+		return enc.encodeStringIterator(itr)
+	case BooleanIterator:
+		return enc.encodeBooleanIterator(itr)
+	default:
+		panic(fmt.Sprintf("unsupported iterator for encoder: %T", itr))
+	}
+}
+
+func (enc *IteratorEncoder) EncodeTrace(trace *tracing.Trace) error {
+	data, err := trace.MarshalBinary()
+	if err != nil {
+		return err
+	}
+
+	buf, err := proto.Marshal(&internal.Point{
+		Name: proto.String(""),
+		Tags: proto.String(""),
+		Time: proto.Int64(0),
+		Nil:  proto.Bool(false),
+
+		Trace: data,
+	})
+	if err != nil {
+		return err
+	}
+
+	if err = binary.Write(enc.w, binary.BigEndian, uint32(len(buf))); err != nil {
+		return err
+	}
+	if _, err = enc.w.Write(buf); err != nil {
+		return err
+	}
+	return nil
+}
+
+// encode a stats object in the point stream.
+func (enc *IteratorEncoder) encodeStats(stats IteratorStats) error {
+	buf, err := proto.Marshal(&internal.Point{
+		Name: proto.String(""),
+		Tags: proto.String(""),
+		Time: proto.Int64(0),
+		Nil:  proto.Bool(false),
+
+		Stats: encodeIteratorStats(&stats),
+	})
+	if err != nil {
+		return err
+	}
+
+	if err = binary.Write(enc.w, binary.BigEndian, uint32(len(buf))); err != nil {
+		return err
+	}
+	if _, err = enc.w.Write(buf); err != nil {
+		return err
+	}
+	return nil
 }

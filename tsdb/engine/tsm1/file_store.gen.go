@@ -20,6 +20,10 @@ func (c *KeyCursor) ReadFloatBlock(buf *[]FloatValue) ([]FloatValue, error) {
 	if err != nil {
 		return nil, err
 	}
+	if c.col != nil {
+		c.col.GetCounter(floatBlocksDecodedCounter).Add(1)
+		c.col.GetCounter(floatBlocksSizeCounter).Add(int64(first.entry.Size))
+	}
 
 	// Remove values we already read
 	values = FloatValues(values).Exclude(first.readMin, first.readMax)
@@ -88,6 +92,11 @@ func (c *KeyCursor) ReadFloatBlock(buf *[]FloatValue) ([]FloatValue, error) {
 			if err != nil {
 				return nil, err
 			}
+			if c.col != nil {
+				c.col.GetCounter(floatBlocksDecodedCounter).Add(1)
+				c.col.GetCounter(floatBlocksSizeCounter).Add(int64(cur.entry.Size))
+			}
+
 			// Remove any tombstoned values
 			v = c.filterFloatValues(tombstones, v)
 
@@ -147,6 +156,11 @@ func (c *KeyCursor) ReadFloatBlock(buf *[]FloatValue) ([]FloatValue, error) {
 			if err != nil {
 				return nil, err
 			}
+			if c.col != nil {
+				c.col.GetCounter(floatBlocksDecodedCounter).Add(1)
+				c.col.GetCounter(floatBlocksSizeCounter).Add(int64(cur.entry.Size))
+			}
+
 			// Remove any tombstoned values
 			v = c.filterFloatValues(tombstones, v)
 
@@ -182,6 +196,10 @@ func (c *KeyCursor) ReadIntegerBlock(buf *[]IntegerValue) ([]IntegerValue, error
 	values, err := first.r.ReadIntegerBlockAt(&first.entry, buf)
 	if err != nil {
 		return nil, err
+	}
+	if c.col != nil {
+		c.col.GetCounter(integerBlocksDecodedCounter).Add(1)
+		c.col.GetCounter(integerBlocksSizeCounter).Add(int64(first.entry.Size))
 	}
 
 	// Remove values we already read
@@ -251,6 +269,11 @@ func (c *KeyCursor) ReadIntegerBlock(buf *[]IntegerValue) ([]IntegerValue, error
 			if err != nil {
 				return nil, err
 			}
+			if c.col != nil {
+				c.col.GetCounter(integerBlocksDecodedCounter).Add(1)
+				c.col.GetCounter(integerBlocksSizeCounter).Add(int64(cur.entry.Size))
+			}
+
 			// Remove any tombstoned values
 			v = c.filterIntegerValues(tombstones, v)
 
@@ -310,6 +333,11 @@ func (c *KeyCursor) ReadIntegerBlock(buf *[]IntegerValue) ([]IntegerValue, error
 			if err != nil {
 				return nil, err
 			}
+			if c.col != nil {
+				c.col.GetCounter(integerBlocksDecodedCounter).Add(1)
+				c.col.GetCounter(integerBlocksSizeCounter).Add(int64(cur.entry.Size))
+			}
+
 			// Remove any tombstoned values
 			v = c.filterIntegerValues(tombstones, v)
 
@@ -345,6 +373,10 @@ func (c *KeyCursor) ReadUnsignedBlock(buf *[]UnsignedValue) ([]UnsignedValue, er
 	values, err := first.r.ReadUnsignedBlockAt(&first.entry, buf)
 	if err != nil {
 		return nil, err
+	}
+	if c.col != nil {
+		c.col.GetCounter(unsignedBlocksDecodedCounter).Add(1)
+		c.col.GetCounter(unsignedBlocksSizeCounter).Add(int64(first.entry.Size))
 	}
 
 	// Remove values we already read
@@ -414,6 +446,11 @@ func (c *KeyCursor) ReadUnsignedBlock(buf *[]UnsignedValue) ([]UnsignedValue, er
 			if err != nil {
 				return nil, err
 			}
+			if c.col != nil {
+				c.col.GetCounter(unsignedBlocksDecodedCounter).Add(1)
+				c.col.GetCounter(unsignedBlocksSizeCounter).Add(int64(cur.entry.Size))
+			}
+
 			// Remove any tombstoned values
 			v = c.filterUnsignedValues(tombstones, v)
 
@@ -473,6 +510,11 @@ func (c *KeyCursor) ReadUnsignedBlock(buf *[]UnsignedValue) ([]UnsignedValue, er
 			if err != nil {
 				return nil, err
 			}
+			if c.col != nil {
+				c.col.GetCounter(unsignedBlocksDecodedCounter).Add(1)
+				c.col.GetCounter(unsignedBlocksSizeCounter).Add(int64(cur.entry.Size))
+			}
+
 			// Remove any tombstoned values
 			v = c.filterUnsignedValues(tombstones, v)
 
@@ -508,6 +550,10 @@ func (c *KeyCursor) ReadStringBlock(buf *[]StringValue) ([]StringValue, error) {
 	values, err := first.r.ReadStringBlockAt(&first.entry, buf)
 	if err != nil {
 		return nil, err
+	}
+	if c.col != nil {
+		c.col.GetCounter(stringBlocksDecodedCounter).Add(1)
+		c.col.GetCounter(stringBlocksSizeCounter).Add(int64(first.entry.Size))
 	}
 
 	// Remove values we already read
@@ -577,6 +623,11 @@ func (c *KeyCursor) ReadStringBlock(buf *[]StringValue) ([]StringValue, error) {
 			if err != nil {
 				return nil, err
 			}
+			if c.col != nil {
+				c.col.GetCounter(stringBlocksDecodedCounter).Add(1)
+				c.col.GetCounter(stringBlocksSizeCounter).Add(int64(cur.entry.Size))
+			}
+
 			// Remove any tombstoned values
 			v = c.filterStringValues(tombstones, v)
 
@@ -636,6 +687,11 @@ func (c *KeyCursor) ReadStringBlock(buf *[]StringValue) ([]StringValue, error) {
 			if err != nil {
 				return nil, err
 			}
+			if c.col != nil {
+				c.col.GetCounter(stringBlocksDecodedCounter).Add(1)
+				c.col.GetCounter(stringBlocksSizeCounter).Add(int64(cur.entry.Size))
+			}
+
 			// Remove any tombstoned values
 			v = c.filterStringValues(tombstones, v)
 
@@ -671,6 +727,10 @@ func (c *KeyCursor) ReadBooleanBlock(buf *[]BooleanValue) ([]BooleanValue, error
 	values, err := first.r.ReadBooleanBlockAt(&first.entry, buf)
 	if err != nil {
 		return nil, err
+	}
+	if c.col != nil {
+		c.col.GetCounter(booleanBlocksDecodedCounter).Add(1)
+		c.col.GetCounter(booleanBlocksSizeCounter).Add(int64(first.entry.Size))
 	}
 
 	// Remove values we already read
@@ -740,6 +800,11 @@ func (c *KeyCursor) ReadBooleanBlock(buf *[]BooleanValue) ([]BooleanValue, error
 			if err != nil {
 				return nil, err
 			}
+			if c.col != nil {
+				c.col.GetCounter(booleanBlocksDecodedCounter).Add(1)
+				c.col.GetCounter(booleanBlocksSizeCounter).Add(int64(cur.entry.Size))
+			}
+
 			// Remove any tombstoned values
 			v = c.filterBooleanValues(tombstones, v)
 
@@ -799,6 +864,11 @@ func (c *KeyCursor) ReadBooleanBlock(buf *[]BooleanValue) ([]BooleanValue, error
 			if err != nil {
 				return nil, err
 			}
+			if c.col != nil {
+				c.col.GetCounter(booleanBlocksDecodedCounter).Add(1)
+				c.col.GetCounter(booleanBlocksSizeCounter).Add(int64(cur.entry.Size))
+			}
+
 			// Remove any tombstoned values
 			v = c.filterBooleanValues(tombstones, v)
 

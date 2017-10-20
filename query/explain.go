@@ -2,6 +2,7 @@ package query
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"strings"
@@ -13,7 +14,7 @@ func (p *preparedStatement) Explain() (string, error) {
 	// Determine the cost of all iterators created as part of this plan.
 	ic := &explainIteratorCreator{ic: p.ic}
 	p.ic = ic
-	itrs, _, err := p.Select()
+	itrs, _, err := p.Select(context.Background())
 	p.ic = ic.ic
 
 	if err != nil {
@@ -63,7 +64,7 @@ type explainIteratorCreator struct {
 	nodes []planNode
 }
 
-func (e *explainIteratorCreator) CreateIterator(m *influxql.Measurement, opt IteratorOptions) (Iterator, error) {
+func (e *explainIteratorCreator) CreateIterator(ctx context.Context, m *influxql.Measurement, opt IteratorOptions) (Iterator, error) {
 	cost, err := e.ic.IteratorCost(m, opt)
 	if err != nil {
 		return nil, err

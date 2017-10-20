@@ -7,6 +7,9 @@ import (
 	"sync"
 
 	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/pkg/metrics"
+	"github.com/influxdata/influxdb/pkg/tracing"
+	"github.com/influxdata/influxdb/pkg/tracing/field"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/uber-go/zap"
@@ -137,6 +140,38 @@ func (itr *{{.name}}FinalizerIterator) Close() error {
 	runtime.SetFinalizer(itr, nil)
 	return itr.{{.Name}}Iterator.Close()
 }
+
+
+type {{.name}}InstrumentedIterator struct {
+	query.{{.Name}}Iterator
+	span  *tracing.Span
+	group *metrics.Group
+}
+
+func new{{.Name}}InstrumentedIterator(inner query.{{.Name}}Iterator, span *tracing.Span, group *metrics.Group) *{{.name}}InstrumentedIterator {
+	return &{{.name}}InstrumentedIterator{ {{.Name}}Iterator: inner, span: span, group: group}
+}
+
+func (itr *{{.name}}InstrumentedIterator) Close() error {
+	var f []field.Field
+	itr.group.ForEach(func(v metrics.Metric) {
+		switch m := v.(type) {
+		case *metrics.Counter:
+			f = append(f, field.Int64(m.Name(), m.Value()))
+
+		case *metrics.Timer:
+			f = append(f, field.Duration(m.Name(), m.Value()))
+
+		default:
+			panic("unexpected metrics")
+		}
+	})
+	itr.span.SetFieldSet(field.Fields(f...))
+	itr.span.Finish()
+
+	return itr.{{.Name}}Iterator.Close()
+}
+
 
 type {{.name}}Iterator struct {
 	cur   {{.name}}Cursor

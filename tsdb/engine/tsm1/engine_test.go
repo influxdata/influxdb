@@ -3,6 +3,7 @@ package tsm1_test
 import (
 	"archive/tar"
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -269,7 +270,7 @@ func TestEngine_CreateIterator_Cache_Ascending(t *testing.T) {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
-	itr, err := e.CreateIterator("cpu", query.IteratorOptions{
+	itr, err := e.CreateIterator(context.Background(), "cpu", query.IteratorOptions{
 		Expr:       influxql.MustParseExpr(`value`),
 		Dimensions: []string{"host"},
 		StartTime:  influxql.MinTime,
@@ -321,7 +322,7 @@ func TestEngine_CreateIterator_Cache_Descending(t *testing.T) {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
-	itr, err := e.CreateIterator("cpu", query.IteratorOptions{
+	itr, err := e.CreateIterator(context.Background(), "cpu", query.IteratorOptions{
 		Expr:       influxql.MustParseExpr(`value`),
 		Dimensions: []string{"host"},
 		StartTime:  influxql.MinTime,
@@ -374,7 +375,7 @@ func TestEngine_CreateIterator_TSM_Ascending(t *testing.T) {
 	}
 	e.MustWriteSnapshot()
 
-	itr, err := e.CreateIterator("cpu", query.IteratorOptions{
+	itr, err := e.CreateIterator(context.Background(), "cpu", query.IteratorOptions{
 		Expr:       influxql.MustParseExpr(`value`),
 		Dimensions: []string{"host"},
 		StartTime:  influxql.MinTime,
@@ -427,7 +428,7 @@ func TestEngine_CreateIterator_TSM_Descending(t *testing.T) {
 	}
 	e.MustWriteSnapshot()
 
-	itr, err := e.CreateIterator("cpu", query.IteratorOptions{
+	itr, err := e.CreateIterator(context.Background(), "cpu", query.IteratorOptions{
 		Expr:       influxql.MustParseExpr(`value`),
 		Dimensions: []string{"host"},
 		StartTime:  influxql.MinTime,
@@ -482,7 +483,7 @@ func TestEngine_CreateIterator_Aux(t *testing.T) {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
-	itr, err := e.CreateIterator("cpu", query.IteratorOptions{
+	itr, err := e.CreateIterator(context.Background(), "cpu", query.IteratorOptions{
 		Expr:       influxql.MustParseExpr(`value`),
 		Aux:        []influxql.VarRef{{Val: "F"}},
 		Dimensions: []string{"host"},
@@ -545,7 +546,7 @@ func TestEngine_CreateIterator_Condition(t *testing.T) {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
-	itr, err := e.CreateIterator("cpu", query.IteratorOptions{
+	itr, err := e.CreateIterator(context.Background(), "cpu", query.IteratorOptions{
 		Expr:       influxql.MustParseExpr(`value`),
 		Dimensions: []string{"host"},
 		Condition:  influxql.MustParseExpr(`X = 10 OR Y > 150`),
@@ -874,7 +875,7 @@ func benchmarkIterator(b *testing.B, opt query.IteratorOptions, pointN int) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		itr, err := e.CreateIterator("cpu", opt)
+		itr, err := e.CreateIterator(context.Background(), "cpu", opt)
 		if err != nil {
 			b.Fatal(err)
 		}

@@ -1,9 +1,8 @@
 package query
 
 import (
+	"context"
 	"container/heap"
-	"encoding/binary"
-	"fmt"
 	"io"
 	"sort"
 	"sync"
@@ -11,7 +10,6 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb/influxql"
-	internal "github.com/influxdata/influxdb/query/internal"
 )
 
 // DefaultStatsInterval is the default value for IteratorEncoder.StatsInterval.
@@ -1723,13 +1721,13 @@ type {{$k.name}}ReaderIterator struct {
 }
 
 // new{{$k.Name}}ReaderIterator returns a new instance of {{$k.name}}ReaderIterator.
-func new{{$k.Name}}ReaderIterator(r io.Reader, stats IteratorStats) *{{$k.name}}ReaderIterator {
-	dec := New{{$k.Name}}PointDecoder(r)
+func new{{$k.Name}}ReaderIterator(ctx context.Context, r io.Reader, stats IteratorStats) *{{$k.name}}ReaderIterator {
+	dec := New{{$k.Name}}PointDecoder(ctx, r)
 	dec.stats = stats
 
 	return &{{$k.name}}ReaderIterator{
 		r:     r,
-    dec:   dec,
+		dec:   dec,
 	}
 }
 
@@ -1758,40 +1756,6 @@ func (itr *{{$k.name}}ReaderIterator) Next() (*{{$k.Name}}Point, error) {
 	return p, nil
 }
 {{end}}
-
-
-// IteratorEncoder is an encoder for encoding an iterator's points to w.
-type IteratorEncoder struct {
-	w io.Writer
-
-	// Frequency with which stats are emitted.
-	StatsInterval time.Duration
-}
-
-// NewIteratorEncoder encodes an iterator's points to w.
-func NewIteratorEncoder(w io.Writer) *IteratorEncoder {
-	return &IteratorEncoder{
-		w: w,
-
-		StatsInterval: DefaultStatsInterval,
-	}
-}
-
-// EncodeIterator encodes and writes all of itr's points to the underlying writer.
-func (enc *IteratorEncoder) EncodeIterator(itr Iterator) error {
-	switch itr := itr.(type) {
-	case FloatIterator:
-		return enc.encodeFloatIterator(itr)
-	case IntegerIterator:
-		return enc.encodeIntegerIterator(itr)
-	case StringIterator:
-		return enc.encodeStringIterator(itr)
-	case BooleanIterator:
-		return enc.encodeBooleanIterator(itr)
-	default:
-		panic(fmt.Sprintf("unsupported iterator for encoder: %T", itr))
-	}
-}
 
 {{range .}}
 // encode{{.Name}}Iterator encodes all points from itr to the underlying writer.
@@ -1838,28 +1802,5 @@ func (enc *IteratorEncoder) encode{{.Name}}Iterator(itr {{.Name}}Iterator) error
 }
 
 {{end}}
-
-// encode a stats object in the point stream.
-func (enc *IteratorEncoder) encodeStats(stats IteratorStats) error {
-	buf, err := proto.Marshal(&internal.Point{
-		Name: proto.String(""),
-		Tags: proto.String(""),
-		Time: proto.Int64(0),
-		Nil:  proto.Bool(false),
-
-		Stats: encodeIteratorStats(&stats),
-	})
-	if err != nil {
-		return err
-	}
-
-	if err := binary.Write(enc.w, binary.BigEndian, uint32(len(buf))); err != nil {
-		return err
-	}
-	if _, err := enc.w.Write(buf); err != nil {
-		return err
-	}
-	return nil
-}
 
 {{end}}
