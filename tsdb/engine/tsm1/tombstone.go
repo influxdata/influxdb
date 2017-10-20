@@ -124,6 +124,12 @@ func (t *Tombstoner) Flush() error {
 	return nil
 }
 
+func (t *Tombstoner) Rollback() error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.rollback()
+}
+
 // ReadAll returns all the tombstones in the Tombstoner's directory.
 func (t *Tombstoner) ReadAll() ([]Tombstone, error) {
 	t.mu.RLock()
