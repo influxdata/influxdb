@@ -308,7 +308,6 @@ class DashboardPage extends Component {
             />
           : null}
         <DashboardHeader
-          source={source}
           sourceID={sourceID}
           dashboard={dashboard}
           dashboards={dashboards}
