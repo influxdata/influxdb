@@ -116,7 +116,6 @@ class DataExplorer extends Component {
             activeQuery={this.getActiveQuery()}
           />
           <Visualization
-            isInDataExplorer={true}
             autoRefresh={autoRefresh}
             timeRange={timeRange}
             queryConfigs={queryConfigs}
