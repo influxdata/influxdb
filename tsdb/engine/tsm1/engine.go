@@ -867,6 +867,8 @@ func (e *Engine) overlay(r io.Reader, basePath string, asNew bool) error {
 			e.mu.Unlock()
 			return err
 		}
+
+		e._index.SetFieldSet(e.fieldset)
 		e.mu.Unlock()
 		return nil
 	}
