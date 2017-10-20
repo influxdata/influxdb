@@ -17,6 +17,7 @@ const (
 	headerSize = 4
 	v2header   = 0x1502
 	v3header   = 0x1503
+	v4header   = 0x1504
 )
 
 // Tombstoner records tombstones when entries are deleted.
@@ -94,12 +95,7 @@ func (t *Tombstoner) Flush() error {
 		return nil
 	}
 
-	existing, err := t.readTombstone()
-	if err != nil {
-		return nil
-	}
-
-	if err := t.writeTombstone(append(existing, t.tombstones...)); err != nil {
+	if err := t.writeTombstoneV4(t.tombstones); err != nil {
 		return err
 	}
 
@@ -201,7 +197,9 @@ func (t *Tombstoner) Walk(fn func(t Tombstone) error) error {
 	}
 
 	header := binary.BigEndian.Uint32(b[:])
-	if header == v3header {
+	if header == v4header {
+		return t.readTombstoneV4(f, fn)
+	} else if header == v3header {
 		return t.readTombstoneV3(f, fn)
 	} else if header == v2header {
 		return t.readTombstoneV2(f, fn)
@@ -209,7 +207,7 @@ func (t *Tombstoner) Walk(fn func(t Tombstone) error) error {
 	return t.readTombstoneV1(f, fn)
 }
 
-func (t *Tombstoner) writeTombstone(tombstones []Tombstone) error {
+func (t *Tombstoner) writeTombstoneV3(tombstones []Tombstone) error {
 	tmp, err := ioutil.TempFile(filepath.Dir(t.Path), "tombstone")
 	if err != nil {
 		return err
@@ -227,6 +225,98 @@ func (t *Tombstoner) writeTombstone(tombstones []Tombstone) error {
 
 	gz := gzip.NewWriter(bw)
 
+	for _, t := range tombstones {
+		binary.BigEndian.PutUint32(b[:4], uint32(len(t.Key)))
+		if _, err := gz.Write(b[:4]); err != nil {
+			return err
+		}
+		if _, err := gz.Write([]byte(t.Key)); err != nil {
+			return err
+		}
+		binary.BigEndian.PutUint64(b[:], uint64(t.Min))
+		if _, err := gz.Write(b[:]); err != nil {
+			return err
+		}
+
+		binary.BigEndian.PutUint64(b[:], uint64(t.Max))
+		if _, err := gz.Write(b[:]); err != nil {
+			return err
+		}
+	}
+
+	if err := gz.Close(); err != nil {
+		return err
+	}
+
+	if err := bw.Flush(); err != nil {
+		return err
+	}
+
+	// fsync the file to flush the write
+	if err := tmp.Sync(); err != nil {
+		return err
+	}
+
+	tmpFilename := tmp.Name()
+	tmp.Close()
+
+	if err := renameFile(tmpFilename, t.tombstonePath()); err != nil {
+		return err
+	}
+
+	return syncDir(filepath.Dir(t.tombstonePath()))
+}
+
+// writeTombstoneV4 writes v3 files that are concatenated together.  A v4 header is
+// written to indicated this is a v4 file.
+func (t *Tombstoner) writeTombstoneV4(tombstones []Tombstone) error {
+	tmp, err := ioutil.TempFile(filepath.Dir(t.Path), "tombstone")
+	if err != nil {
+		return err
+	}
+	defer tmp.Close()
+
+	// Copy the existing v4 file if it exists
+	f, err := os.Open(t.tombstonePath())
+	if !os.IsNotExist(err) {
+		var b [4]byte
+		if n, err := f.Read(b[:]); n == 4 && err == nil {
+			header := binary.BigEndian.Uint32(b[:])
+			// There is an existing tombstone on disk and it's not a v3.  Just rewrite it as a v3
+			// version again.
+			if header != v4header {
+				return t.writeTombstoneV3(tombstones)
+			}
+
+			// Seek back to the beginning we copy the header
+			if _, err := f.Seek(0, io.SeekStart); err != nil {
+				return err
+			}
+
+			// Copy the while file
+			if _, err := io.Copy(tmp, f); err != nil {
+				f.Close()
+				return err
+			}
+		}
+	} else if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	f.Close()
+
+	var b [8]byte
+	bw := bufio.NewWriterSize(tmp, 1024*1024)
+
+	// Write the header only if the file is new
+	if os.IsNotExist(err) {
+		binary.BigEndian.PutUint32(b[:4], v4header)
+		if _, err := bw.Write(b[:4]); err != nil {
+			return err
+		}
+	}
+
+	// Write the tombstones
+	gz := gzip.NewWriter(bw)
 	for _, t := range tombstones {
 		binary.BigEndian.PutUint32(b[:4], uint32(len(t.Key)))
 		if _, err := gz.Write(b[:4]); err != nil {
@@ -453,6 +543,87 @@ func (t *Tombstoner) readTombstoneV3(f *os.File, fn func(t Tombstone) error) err
 		}
 	}
 	return nil
+}
+
+// readTombstoneV4 reads the fourth version of tombstone files that are capable
+// of storing multiple v3 files appended together.
+func (t *Tombstoner) readTombstoneV4(f *os.File, fn func(t Tombstone) error) error {
+	// Skip header, already checked earlier
+	if _, err := f.Seek(headerSize, io.SeekStart); err != nil {
+		return err
+	}
+
+	var (
+		min, max int64
+		key      []byte
+	)
+
+	br := bufio.NewReader(f)
+	gr, err := gzip.NewReader(br)
+	if err != nil {
+		return err
+	}
+	defer gr.Close()
+
+	b := make([]byte, 4096)
+	for {
+		gr.Multistream(false)
+		if err := func() error {
+			for {
+				if _, err = io.ReadFull(gr, b[:4]); err == io.EOF || err == io.ErrUnexpectedEOF {
+					return nil
+				} else if err != nil {
+					return err
+				}
+
+				keyLen := int(binary.BigEndian.Uint32(b[:4]))
+				if keyLen > len(b) {
+					b = make([]byte, keyLen)
+				}
+
+				if _, err := io.ReadFull(gr, b[:keyLen]); err != nil {
+					return err
+				}
+
+				// Copy the key since b is re-used
+				key = make([]byte, keyLen)
+				copy(key, b[:keyLen])
+
+				if _, err := io.ReadFull(gr, b[:8]); err != nil {
+					return err
+				}
+
+				min = int64(binary.BigEndian.Uint64(b[:8]))
+
+				if _, err := io.ReadFull(gr, b[:8]); err != nil {
+					return err
+				}
+
+				max = int64(binary.BigEndian.Uint64(b[:8]))
+
+				if err := fn(Tombstone{
+					Key: key,
+					Min: min,
+					Max: max,
+				}); err != nil {
+					return err
+				}
+			}
+		}(); err != nil {
+			return err
+		}
+
+		for _, t := range t.tombstones {
+			if err := fn(t); err != nil {
+				return err
+			}
+		}
+
+		err = gr.Reset(br)
+		if err == io.EOF {
+			return nil
+		}
+	}
 }
 
 func (t *Tombstoner) tombstonePath() string {
