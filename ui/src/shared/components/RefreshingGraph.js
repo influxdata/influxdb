@@ -37,6 +37,7 @@ const RefreshingGraph = ({
   if (type === 'single-stat') {
     return (
       <RefreshingSingleStat
+        key={manualRefresh} // when changed, re-mounts the component
         queries={[queries[0]]}
         templates={templates}
         autoRefresh={autoRefresh}
@@ -52,7 +53,7 @@ const RefreshingGraph = ({
 
   return (
     <RefreshingLineGraph
-      key={manualRefresh || 0}
+      key={manualRefresh} // when changed, re-mounts the component
       axes={axes}
       onZoom={onZoom}
       queries={queries}
@@ -88,6 +89,10 @@ RefreshingGraph.propTypes = {
   onZoom: func,
   resizeCoords: shape(),
   grabDataForDownload: func,
+}
+
+RefreshingGraph.defaultProps = {
+  manualRefresh: 0,
 }
 
 export default RefreshingGraph

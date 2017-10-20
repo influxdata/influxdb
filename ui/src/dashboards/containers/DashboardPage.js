@@ -201,11 +201,6 @@ class DashboardPage extends Component {
     this.setState({zoomedTimeRange: {zoomedLower, zoomedUpper}})
   }
 
-  getActiveDashboard() {
-    const {params: {dashboardID}, dashboards} = this.props
-    return dashboards.find(d => d.id === +dashboardID)
-  }
-
   handleManualRefresh = () => {
     this.setState({
       manualRefresh: Date.now(),
@@ -430,7 +425,6 @@ DashboardPage.propTypes = {
   ),
   handleChooseAutoRefresh: func.isRequired,
   autoRefresh: number.isRequired,
-  manualRefresh: number,
   templateControlBarVisibilityToggled: func.isRequired,
   timeRange: shape({
     upper: string,
