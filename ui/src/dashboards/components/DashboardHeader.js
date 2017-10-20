@@ -9,17 +9,15 @@ import DashboardHeaderEdit from 'src/dashboards/components/DashboardHeaderEdit'
 import DashboardSwitcher from 'src/dashboards/components/DashboardSwitcher'
 
 const DashboardHeader = ({
-  hosts,
+  names,
   onSave,
-  sourceID,
   onCancel,
   isEditMode,
   isHidden,
   dashboard,
   onAddCell,
-  dashboards,
   autoRefresh,
-  dashboardName,
+  activeDashboard,
   onEditDashboard,
   onManualRefresh,
   handleChooseTimeRange,
@@ -41,30 +39,22 @@ const DashboardHeader = ({
                 : 'page-header__left'
             }
           >
-            {dashboards && dashboards.length > 1
+            {names && names.length > 1
               ? <DashboardSwitcher
-                  dashboards={dashboards}
-                  currentDashboard={dashboardName}
-                  sourceID={sourceID}
-                />
-              : null}
-            {hosts && hosts.length > 1
-              ? <DashboardSwitcher
-                  hosts={hosts}
-                  currentDashboard={dashboardName}
-                  sourceID={sourceID}
+                  names={names}
+                  activeDashboard={activeDashboard}
                 />
               : null}
             {dashboard
               ? <DashboardHeaderEdit
                   onSave={onSave}
                   onCancel={onCancel}
-                  dashboardName={dashboardName}
+                  activeDashboard={activeDashboard}
                   onEditDashboard={onEditDashboard}
                   isEditMode={isEditMode}
                 />
               : <h1 className="page-header__title">
-                  {dashboardName}
+                  {activeDashboard}
                 </h1>}
           </div>
           <div className="page-header__right">
@@ -119,7 +109,7 @@ DashboardHeader.defaultProps = {
 }
 
 DashboardHeader.propTypes = {
-  dashboardName: string.isRequired,
+  activeDashboard: string.isRequired,
   onEditDashboard: func,
   dashboard: shape({}),
   timeRange: shape({
@@ -139,9 +129,7 @@ DashboardHeader.propTypes = {
   zoomedTimeRange: shape({}),
   onCancel: func,
   onSave: func,
-  dashboards: arrayOf(shape({})),
-  sourceID: string,
-  hosts: arrayOf(shape({})),
+  names: arrayOf(shape({})).isRequired,
 }
 
 export default DashboardHeader

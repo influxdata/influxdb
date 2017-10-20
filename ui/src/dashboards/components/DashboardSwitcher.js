@@ -26,45 +26,9 @@ class DashboardSwitcher extends Component {
   }
 
   render() {
-    const {dashboards, currentDashboard, sourceID, hosts, appParam} = this.props
+    const {activeDashboard, names} = this.props
     const {isOpen} = this.state
-
-    let dropdownItems
-
-    if (hosts) {
-      dropdownItems = hosts.map((host, i) => {
-        return (
-          <li className="dropdown-item" key={i}>
-            <Link
-              to={`/sources/${sourceID}/hosts/${host + appParam}`}
-              onClick={this.handleCloseMenu}
-            >
-              {host}
-            </Link>
-          </li>
-        )
-      })
-    }
-
-    if (dashboards) {
-      dropdownItems = _.sortBy(dashboards, d =>
-        d.name.toLowerCase()
-      ).map((d, i) =>
-        <li
-          className={classnames('dropdown-item', {
-            active: d.name === currentDashboard,
-          })}
-          key={i}
-        >
-          <Link
-            to={`/sources/${sourceID}/dashboards/${d.id}`}
-            onClick={this.handleCloseMenu}
-          >
-            {d.name}
-          </Link>
-        </li>
-      )
-    }
+    const sorted = _.sortBy(names, ({name}) => name.toLowerCase())
 
     return (
       <div
@@ -77,21 +41,49 @@ class DashboardSwitcher extends Component {
           <span className="icon dash-f" />
         </button>
         <ul className="dropdown-menu">
-          {dropdownItems}
+          {sorted.map(({name, link}) =>
+            <NameLink
+              key={link}
+              name={name}
+              link={link}
+              activeName={activeDashboard}
+              onClose={this.handleCloseMenu}
+            />
+          )}
         </ul>
       </div>
     )
   }
 }
 
-const {arrayOf, shape, string} = PropTypes
+const NameLink = ({name, link, activeName, onClose}) =>
+  <li
+    className={classnames('dropdown-item', {
+      active: name === activeName,
+    })}
+  >
+    <Link to={link} onClick={onClose}>
+      {name}
+    </Link>
+  </li>
+
+const {arrayOf, func, shape, string} = PropTypes
 
 DashboardSwitcher.propTypes = {
-  currentDashboard: string.isRequired,
-  dashboards: arrayOf(shape({})).isRequired,
-  sourceID: string.isRequired,
-  hosts: shape({}),
-  appParam: string,
+  activeDashboard: string.isRequired,
+  names: arrayOf(
+    shape({
+      link: string.isRequired,
+      name: string.isRequired,
+    })
+  ).isRequired,
+}
+
+NameLink.propTypes = {
+  name: string.isRequired,
+  link: string.isRequired,
+  activeName: string.isRequired,
+  onClose: func.isRequired,
 }
 
 export default OnClickOutside(DashboardSwitcher)

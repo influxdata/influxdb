@@ -31,7 +31,7 @@ class DashboardEditHeader extends Component {
       this.inputRef.blur()
     }
     if (e.key === 'Escape') {
-      this.inputRef.value = this.props.dashboardName
+      this.inputRef.value = this.props.activeDashboard
       this.setState({reset: true}, () => this.inputRef.blur())
     }
   }
@@ -41,7 +41,7 @@ class DashboardEditHeader extends Component {
   }
 
   render() {
-    const {onEditDashboard, isEditMode, dashboardName} = this.props
+    const {onEditDashboard, isEditMode, activeDashboard} = this.props
 
     return (
       <div className="dashboard-title">
@@ -50,7 +50,7 @@ class DashboardEditHeader extends Component {
               maxLength={DASHBOARD_NAME_MAX_LENGTH}
               type="text"
               className="dashboard-title--input form-control input-sm"
-              defaultValue={dashboardName}
+              defaultValue={activeDashboard}
               autoComplete="off"
               autoFocus={true}
               spellCheck={false}
@@ -61,7 +61,7 @@ class DashboardEditHeader extends Component {
               ref={r => (this.inputRef = r)}
             />
           : <h1 onClick={onEditDashboard}>
-              {dashboardName}
+              {activeDashboard}
             </h1>}
       </div>
     )
@@ -71,7 +71,7 @@ class DashboardEditHeader extends Component {
 const {bool, func, string} = PropTypes
 
 DashboardEditHeader.propTypes = {
-  dashboardName: string.isRequired,
+  activeDashboard: string.isRequired,
   onSave: func.isRequired,
   onCancel: func.isRequired,
   isEditMode: bool,

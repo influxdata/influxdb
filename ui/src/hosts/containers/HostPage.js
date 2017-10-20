@@ -28,7 +28,7 @@ class HostPage extends Component {
     super(props)
     this.state = {
       layouts: [],
-      hosts: [],
+      hosts: {},
       timeRange: timeRanges.find(tr => tr.lower === 'now() - 1h'),
       dygraphs: [],
     }
@@ -47,6 +47,7 @@ class HostPage extends Component {
       mappings,
       source.telegraf
     )
+
     const measurements = await getMeasurementsForHost(source, params.hostID)
 
     const host = newHosts[this.props.params.hostID]
@@ -164,35 +165,30 @@ class HostPage extends Component {
 
   render() {
     const {
-      source,
       autoRefresh,
-      source: {id},
       onManualRefresh,
-      params: {hostID},
+      params: {hostID, sourceID},
       inPresentationMode,
       handleChooseAutoRefresh,
-      location: {query: {app}},
       handleClickPresentationButton,
     } = this.props
     const {layouts, timeRange, hosts} = this.state
-    const appParam = app ? `?app=${app}` : ''
-
-    const hostsList = Object.keys(hosts)
+    const names = _.map(hosts, ({name}) => ({
+      name,
+      link: `/sources/${sourceID}/hosts/${name}`,
+    }))
 
     return (
       <div className="page">
         <DashboardHeader
-          sourceID={id}
-          source={source}
-          hosts={hostsList}
-          appParam={appParam}
-          dashboardName={hostID}
+          names={names}
           timeRange={timeRange}
+          activeDashboard={hostID}
           autoRefresh={autoRefresh}
           isHidden={inPresentationMode}
           onManualRefresh={onManualRefresh}
-          handleChooseTimeRange={this.handleChooseTimeRange}
           handleChooseAutoRefresh={handleChooseAutoRefresh}
+          handleChooseTimeRange={this.handleChooseTimeRange}
           handleClickPresentationButton={handleClickPresentationButton}
         />
         <FancyScrollbar

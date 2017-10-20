@@ -39,12 +39,13 @@ class DashboardPage extends Component {
       selectedCell: null,
       isTemplating: false,
       zoomedTimeRange: {zoomedLower: null, zoomedUpper: null},
+      names: [],
     }
   }
 
   async componentDidMount() {
     const {
-      params: {dashboardID},
+      params: {dashboardID, sourceID},
       dashboardActions: {
         getDashboardsAsync,
         updateTempVarValues,
@@ -61,6 +62,13 @@ class DashboardPage extends Component {
     // Refresh and persists influxql generated template variable values
     await updateTempVarValues(source, dashboard)
     await putDashboardByID(dashboardID)
+
+    const names = dashboards.map(d => ({
+      name: d.name,
+      link: `/sources/${sourceID}/dashboards/${d.id}`,
+    }))
+
+    this.setState({names})
   }
 
   handleOpenTemplateManager = () => {
@@ -277,7 +285,7 @@ class DashboardPage extends Component {
       templatesIncludingDashTime = []
     }
 
-    const {selectedCell, isEditMode, isTemplating} = this.state
+    const {selectedCell, isEditMode, isTemplating, names} = this.state
 
     return (
       <div className="page">
@@ -308,6 +316,7 @@ class DashboardPage extends Component {
             />
           : null}
         <DashboardHeader
+          names={names}
           sourceID={sourceID}
           dashboard={dashboard}
           dashboards={dashboards}
@@ -321,7 +330,7 @@ class DashboardPage extends Component {
           onSave={this.handleRenameDashboard}
           onCancel={this.handleCancelEditDashboard}
           onEditDashboard={this.handleEditDashboard}
-          dashboardName={dashboard ? dashboard.name : ''}
+          activeDashboard={dashboard ? dashboard.name : ''}
           showTemplateControlBar={showTemplateControlBar}
           handleChooseAutoRefresh={handleChooseAutoRefresh}
           handleChooseTimeRange={this.handleChooseTimeRange}
