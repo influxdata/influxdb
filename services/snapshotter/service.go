@@ -37,6 +37,7 @@ type Service struct {
 	MetaClient interface {
 		encoding.BinaryMarshaler
 		Database(name string) *meta.DatabaseInfo
+		Data() *meta.Data
 	}
 
 	TSDBStore *tsdb.Store
@@ -118,8 +119,12 @@ func (s *Service) handleConn(conn net.Conn) error {
 		if err := s.TSDBStore.BackupShard(r.ShardID, r.Since, conn); err != nil {
 			return err
 		}
+	case RequestShardExport:
+		if err := s.TSDBStore.ExportShard(r.ShardID, r.ExportStart, r.ExportEnd, conn); err != nil {
+			return err
+		}
 	case RequestMetastoreBackup:
-		if err := s.writeMetaStore(conn); err != nil {
+		if err := s.writeMetaStore(conn, r.Database); err != nil {
 			return err
 		}
 	case RequestDatabaseInfo:
@@ -133,9 +138,21 @@ func (s *Service) handleConn(conn net.Conn) error {
 	return nil
 }
 
-func (s *Service) writeMetaStore(conn net.Conn) error {
+func (s *Service) writeMetaStore(conn net.Conn, dbName string) error {
 	// Retrieve and serialize the current meta data.
-	metaBlob, err := s.MetaClient.MarshalBinary()
+	// if the dbName is non-empty, then we drop all the DB's from the metadata
+	// that aren't being exported.
+	data := s.MetaClient.Data()
+
+	if dbName != "" {
+		keepDB := data.Database(dbName)
+		if keepDB == nil {
+			return errors.Errorf("Database %s not found.", dbName)
+		}
+		data.Databases = []meta.DatabaseInfo{*keepDB}
+	}
+	metaBlob, err := data.MarshalBinary()
+
 	if err != nil {
 		return fmt.Errorf("marshal meta: %s", err)
 	}
@@ -273,6 +290,10 @@ const (
 
 	// RequestRetentionPolicyInfo represents a request for retention policy info.
 	RequestRetentionPolicyInfo
+
+	// RequestShardExport represents a request to export Shard data.  Similar to a backup, but shards
+	// may be filtered based on the start/end times on each block.
+	RequestShardExport
 )
 
 // Request represents a request for a specific backup or for information
@@ -283,6 +304,8 @@ type Request struct {
 	RetentionPolicy string
 	ShardID         uint64
 	Since           time.Time
+	ExportStart     time.Time
+	ExportEnd       time.Time
 }
 
 // Response contains the relative paths for all the shards on this server
