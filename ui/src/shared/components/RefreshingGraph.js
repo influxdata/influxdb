@@ -53,11 +53,10 @@ const RefreshingGraph = ({
 
   return (
     <RefreshingLineGraph
-      key={manualRefresh}
       axes={axes}
       onZoom={onZoom}
       queries={queries}
-      grabDataForDownload={grabDataForDownload}
+      key={manualRefresh}
       templates={templates}
       timeRange={timeRange}
       autoRefresh={autoRefresh}
@@ -66,6 +65,7 @@ const RefreshingGraph = ({
       resizeCoords={resizeCoords}
       displayOptions={displayOptions}
       editQueryStatus={editQueryStatus}
+      grabDataForDownload={grabDataForDownload}
       showSingleStat={type === 'line-plus-single-stat'}
     />
   )

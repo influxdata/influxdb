@@ -55,6 +55,7 @@ class Visualization extends Component {
       autoRefresh,
       heightPixels,
       queryConfigs,
+      manualRefresh,
       editQueryStatus,
       activeQueryIndex,
       resizerBottomHeight,
@@ -98,10 +99,11 @@ class Visualization extends Component {
             axes={axes}
             query={query}
             queries={queries}
-            templates={templates}
             cellType={cellType}
+            templates={templates}
             autoRefresh={autoRefresh}
             heightPixels={heightPixels}
+            manualRefresh={manualRefresh}
             editQueryStatus={editQueryStatus}
             resizerBottomHeight={resizerBottomHeight}
           />
@@ -153,6 +155,7 @@ Visualization.propTypes = {
   }),
   resizerBottomHeight: number,
   errorThrown: func.isRequired,
+  manualRefresh: number,
 }
 
 export default Visualization

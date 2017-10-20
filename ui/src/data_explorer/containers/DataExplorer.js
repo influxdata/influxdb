@@ -27,6 +27,7 @@ class DataExplorer extends Component {
 
     this.state = {
       showWriteForm: false,
+      manualRefresh: Date.now(),
     }
   }
 
@@ -67,20 +68,27 @@ class DataExplorer extends Component {
     this.setState({showWriteForm: true})
   }
 
+  handleManualRefresh = () => {
+    this.setState({manualRefresh: Date.now()})
+  }
+
+  handleChooseTimeRange = bounds => {
+    this.props.setTimeRange(bounds)
+  }
+
   render() {
     const {
-      autoRefresh,
-      errorThrownAction,
-      handleChooseAutoRefresh,
-      timeRange,
-      setTimeRange,
-      queryConfigs,
-      queryConfigActions,
       source,
+      timeRange,
+      autoRefresh,
+      queryConfigs,
+      errorThrownAction,
       writeLineProtocol,
+      queryConfigActions,
+      handleChooseAutoRefresh,
     } = this.props
 
-    const {showWriteForm} = this.state
+    const {showWriteForm, manualRefresh} = this.state
     const selectedDatabase = _.get(queryConfigs, ['0', 'database'], null)
 
     return (
@@ -99,8 +107,10 @@ class DataExplorer extends Component {
         <Header
           timeRange={timeRange}
           autoRefresh={autoRefresh}
-          actions={{handleChooseAutoRefresh, setTimeRange}}
           showWriteForm={this.handleOpenWriteData}
+          onChooseTimeRange={this.handleChooseTimeRange}
+          onChooseAutoRefresh={handleChooseAutoRefresh}
+          onManualRefresh={this.handleManualRefresh}
         />
         <ResizeContainer
           containerClass="page-contents"
@@ -116,13 +126,14 @@ class DataExplorer extends Component {
             activeQuery={this.getActiveQuery()}
           />
           <Visualization
-            autoRefresh={autoRefresh}
-            timeRange={timeRange}
-            queryConfigs={queryConfigs}
-            errorThrown={errorThrownAction}
-            activeQueryIndex={0}
-            editQueryStatus={queryConfigActions.editQueryStatus}
             views={VIS_VIEWS}
+            activeQueryIndex={0}
+            timeRange={timeRange}
+            autoRefresh={autoRefresh}
+            queryConfigs={queryConfigs}
+            manualRefresh={manualRefresh}
+            errorThrown={errorThrownAction}
+            editQueryStatus={queryConfigActions.editQueryStatus}
           />
         </ResizeContainer>
       </div>
