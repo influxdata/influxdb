@@ -20,17 +20,18 @@ import (
 
 // General errors.
 const (
-	ErrUpstreamTimeout   = Error("request to backend timed out")
-	ErrSourceNotFound    = Error("source not found")
-	ErrServerNotFound    = Error("server not found")
-	ErrLayoutNotFound    = Error("layout not found")
-	ErrDashboardNotFound = Error("dashboard not found")
-	ErrUserNotFound      = Error("user not found")
-	ErrLayoutInvalid     = Error("layout is invalid")
-	ErrAlertNotFound     = Error("alert not found")
-	ErrAuthentication    = Error("user not authenticated")
-	ErrUninitialized     = Error("client uninitialized. Call Open() method")
-	ErrInvalidAxis       = Error("Unexpected axis in cell. Valid axes are 'x', 'y', and 'y2'")
+	ErrUpstreamTimeout      = Error("request to backend timed out")
+	ErrSourceNotFound       = Error("source not found")
+	ErrServerNotFound       = Error("server not found")
+	ErrLayoutNotFound       = Error("layout not found")
+	ErrDashboardNotFound    = Error("dashboard not found")
+	ErrUserNotFound         = Error("user not found")
+	ErrOrganizationNotFound = Error("organization not found")
+	ErrLayoutInvalid        = Error("layout is invalid")
+	ErrAlertNotFound        = Error("alert not found")
+	ErrAuthentication       = Error("user not authenticated")
+	ErrUninitialized        = Error("client uninitialized. Call Open() method")
+	ErrInvalidAxis          = Error("Unexpected axis in cell. Valid axes are 'x', 'y', and 'y2'")
 )
 
 // Error is a domain error encountered while processing chronograf requests
@@ -742,4 +743,27 @@ type LayoutStore interface {
 	Get(ctx context.Context, ID string) (Layout, error)
 	// Update the dashboard in the store.
 	Update(context.Context, Layout) error
+}
+
+// Organization is a group of resources under a common name
+type Organization struct {
+	Name         string `json:"name"`
+	SourcesStore SourcesStore
+	ServersStore ServersStore
+	LayoutStore  LayoutStore
+	UsersStore   UsersStore
+}
+
+// OrganizationsStore is the storage and retrieval of Organizations
+type OrganizationsStore interface {
+	// Add creates a new Organization
+	Add(context.Context, *Organization) (*Organization, error)
+	// All lists all Organizations in the OrganizationsStore
+	All(context.Context) ([]Organization, error)
+	// Delete removes an Organization from the OrganizationsStore
+	Delete(context.Context, *Organization) error
+	// Get retrieves an Organization from the OrganizationsStore
+	Get(context.Context, string) (*Organization, error)
+	// Update updates an Organization in the OrganizationsStore
+	Update(context.Context, *Organization) error
 }
