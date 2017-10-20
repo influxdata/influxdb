@@ -79,7 +79,6 @@ func (fs *FileSet) PrependLogFile(f *LogFile) *FileSet {
 func (fs *FileSet) Size() int64 {
 	var total int64
 	for _, f := range fs.files {
-		fmt.Println("fs size", f.Size())
 		total += f.Size()
 	}
 	return total + int64(fs.manifestSize)
