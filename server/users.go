@@ -199,9 +199,11 @@ func (s *Service) RemoveUser(w http.ResponseWriter, r *http.Request) {
 	u, err := s.UsersStore.Get(ctx, chronograf.UserQuery{ID: &id})
 	if err != nil {
 		Error(w, http.StatusNotFound, err.Error(), s.Logger)
+		return
 	}
 	if err := s.UsersStore.Delete(ctx, u); err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
+		return
 	}
 
 	w.WriteHeader(http.StatusNoContent)
@@ -231,6 +233,7 @@ func (s *Service) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	u, err := s.UsersStore.Get(ctx, chronograf.UserQuery{ID: &id})
 	if err != nil {
 		Error(w, http.StatusNotFound, err.Error(), s.Logger)
+		return
 	}
 
 	if req.Name != "" {
