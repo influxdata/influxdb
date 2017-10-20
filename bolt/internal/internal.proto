@@ -131,6 +131,10 @@ message User {
 	repeated string Roles   = 5; // Roles is list of roles a user has
 }
 
+message Organization {
+	string Name             = 1; // Name is the organization's name
+}
+
 // The following is a vim modeline, it autoconfigures vim to have the
 // appropriate tabbing and whitespace management to edit this file
 //
