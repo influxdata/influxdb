@@ -51,12 +51,12 @@ func newID(id int, gid GID) ID {
 	return ID(gid)<<gidShift + (ID(id) & idMask)
 }
 
-func (id ID) id() int {
-	return int(id & idMask)
+func (id ID) id() uint32 {
+	return uint32(id & idMask)
 }
 
-func (id ID) gid() int {
-	return int(id >> gidShift)
+func (id ID) gid() uint32 {
+	return uint32(id >> gidShift)
 }
 
 func (id *ID) setGID(gid GID) {
