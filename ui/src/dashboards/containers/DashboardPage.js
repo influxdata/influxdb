@@ -317,6 +317,7 @@ class DashboardPage extends Component {
           autoRefresh={autoRefresh}
           isHidden={inPresentationMode}
           onAddCell={this.handleAddCell}
+          onManualRefresh={onManualRefresh}
           zoomedTimeRange={zoomedTimeRange}
           onSave={this.handleRenameDashboard}
           onCancel={this.handleCancelEditDashboard}
