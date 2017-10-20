@@ -82,6 +82,19 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.GET("/docs", Redoc("/swagger.json"))
 
 	/* API */
+	// Organizations
+	// TODO: Change to SuperAdmin
+	router.GET("/chronograf/v1/organizations", EnsureAdmin(service.Organizations))
+	// TODO: Change to SuperAdmin
+	router.POST("/chronograf/v1/organizations", EnsureAdmin(service.NewOrganization))
+
+	// TODO: Change to SuperAdmin
+	router.GET("/chronograf/v1/organizations/:id", EnsureAdmin(service.OrganizationID))
+	// TODO: Change to SuperAdmin
+	router.PATCH("/chronograf/v1/organizations/:id", EnsureAdmin(service.UpdateOrganization))
+	// TODO: Change to SuperAdmin
+	router.DELETE("/chronograf/v1/organizations/:id", EnsureAdmin(service.RemoveOrganization))
+
 	// Sources
 	router.GET("/chronograf/v1/sources", EnsureViewer(service.Sources))
 	router.POST("/chronograf/v1/sources", EnsureEditor(service.NewSource))

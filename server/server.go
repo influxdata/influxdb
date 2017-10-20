@@ -429,15 +429,16 @@ func openService(ctx context.Context, boltPath string, lBuilder LayoutBuilder, s
 	}
 
 	return Service{
-		TimeSeriesClient: &InfluxClient{},
-		SourcesStore:     sources,
-		ServersStore:     kapacitors,
-		UsersStore:       db.UsersStore,
-		LayoutStore:      layouts,
-		DashboardsStore:  db.DashboardsStore,
-		Logger:           logger,
-		UseAuth:          useAuth,
-		Databases:        &influx.Client{Logger: logger},
+		TimeSeriesClient:   &InfluxClient{},
+		SourcesStore:       sources,
+		ServersStore:       kapacitors,
+		UsersStore:         db.UsersStore,
+		OrganizationsStore: db.OrganizationsStore,
+		LayoutStore:        layouts,
+		DashboardsStore:    db.DashboardsStore,
+		Logger:             logger,
+		UseAuth:            useAuth,
+		Databases:          &influx.Client{Logger: logger},
 	}
 }
 
