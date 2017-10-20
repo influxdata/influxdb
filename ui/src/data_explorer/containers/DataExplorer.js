@@ -12,6 +12,7 @@ import WriteDataForm from 'src/data_explorer/components/WriteDataForm'
 import Header from '../containers/Header'
 import ResizeContainer from 'shared/components/ResizeContainer'
 import OverlayTechnologies from 'shared/components/OverlayTechnologies'
+import ManualRefresh from 'src/shared/components/ManualRefresh'
 
 import {VIS_VIEWS} from 'shared/constants'
 import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from '../constants'
@@ -27,7 +28,6 @@ class DataExplorer extends Component {
 
     this.state = {
       showWriteForm: false,
-      manualRefresh: Date.now(),
     }
   }
 
@@ -68,10 +68,6 @@ class DataExplorer extends Component {
     this.setState({showWriteForm: true})
   }
 
-  handleManualRefresh = () => {
-    this.setState({manualRefresh: Date.now()})
-  }
-
   handleChooseTimeRange = bounds => {
     this.props.setTimeRange(bounds)
   }
@@ -82,13 +78,15 @@ class DataExplorer extends Component {
       timeRange,
       autoRefresh,
       queryConfigs,
+      manualRefresh,
+      onManualRefresh,
       errorThrownAction,
       writeLineProtocol,
       queryConfigActions,
       handleChooseAutoRefresh,
     } = this.props
 
-    const {showWriteForm, manualRefresh} = this.state
+    const {showWriteForm} = this.state
     const selectedDatabase = _.get(queryConfigs, ['0', 'database'], null)
 
     return (
@@ -110,7 +108,7 @@ class DataExplorer extends Component {
           showWriteForm={this.handleOpenWriteData}
           onChooseTimeRange={this.handleChooseTimeRange}
           onChooseAutoRefresh={handleChooseAutoRefresh}
-          onManualRefresh={this.handleManualRefresh}
+          onManualRefresh={onManualRefresh}
         />
         <ResizeContainer
           containerClass="page-contents"
@@ -173,6 +171,8 @@ DataExplorer.propTypes = {
   }).isRequired,
   writeLineProtocol: func.isRequired,
   errorThrownAction: func.isRequired,
+  onManualRefresh: func.isRequired,
+  manualRefresh: number.isRequired,
 }
 
 DataExplorer.childContextTypes = {
@@ -218,5 +218,5 @@ const mapDispatchToProps = dispatch => {
 }
 
 export default connect(mapStateToProps, mapDispatchToProps)(
-  withRouter(DataExplorer)
+  withRouter(ManualRefresh(DataExplorer))
 )

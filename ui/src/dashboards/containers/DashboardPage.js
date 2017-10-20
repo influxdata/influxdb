@@ -11,6 +11,7 @@ import DashboardHeader from 'src/dashboards/components/DashboardHeader'
 import DashboardHeaderEdit from 'src/dashboards/components/DashboardHeaderEdit'
 import Dashboard from 'src/dashboards/components/Dashboard'
 import TemplateVariableManager from 'src/dashboards/components/template_variables/Manager'
+import ManualRefresh from 'src/shared/components/ManualRefresh'
 
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 import idNormalizer, {TYPE_ID} from 'src/normalizers/id'
@@ -40,7 +41,6 @@ class DashboardPage extends Component {
       selectedCell: null,
       isTemplating: false,
       zoomedTimeRange: {zoomedLower: null, zoomedUpper: null},
-      manualRefresh: Date.now(),
     }
   }
 
@@ -172,7 +172,7 @@ class DashboardPage extends Component {
   }
 
   synchronizer = dygraph => {
-    const dygraphs = [...this.state.dygraphs, dygraph]
+    const dygraphs = [...this.state.dygraphs, dygraph].filter(d => d.graphDiv)
     const {dashboards, params: {dashboardID}} = this.props
 
     const dashboard = dashboards.find(
@@ -190,6 +190,7 @@ class DashboardPage extends Component {
         range: false,
       })
     }
+
     this.setState({dygraphs})
   }
 
@@ -201,14 +202,8 @@ class DashboardPage extends Component {
     this.setState({zoomedTimeRange: {zoomedLower, zoomedUpper}})
   }
 
-  handleManualRefresh = () => {
-    this.setState({
-      manualRefresh: Date.now(),
-    })
-  }
-
   render() {
-    const {zoomedTimeRange, manualRefresh} = this.state
+    const {zoomedTimeRange} = this.state
     const {zoomedLower, zoomedUpper} = zoomedTimeRange
 
     const {
@@ -220,6 +215,8 @@ class DashboardPage extends Component {
       dashboard,
       dashboards,
       autoRefresh,
+      manualRefresh,
+      onManualRefresh,
       cellQueryStatus,
       dashboardActions,
       inPresentationMode,
@@ -331,7 +328,7 @@ class DashboardPage extends Component {
               buttonText={dashboard ? dashboard.name : ''}
               showTemplateControlBar={showTemplateControlBar}
               handleChooseAutoRefresh={handleChooseAutoRefresh}
-              handleManualRefresh={this.handleManualRefresh}
+              onManualRefresh={onManualRefresh}
               handleChooseTimeRange={this.handleChooseTimeRange}
               onToggleTempVarControls={this.handleToggleTempVarControls}
               handleClickPresentationButton={handleClickPresentationButton}
@@ -438,6 +435,8 @@ DashboardPage.propTypes = {
     status: shape(),
   }).isRequired,
   errorThrown: func,
+  manualRefresh: number.isRequired,
+  onManualRefresh: func.isRequired,
 }
 
 const mapStateToProps = (state, {params: {dashboardID}}) => {
@@ -483,4 +482,6 @@ const mapDispatchToProps = dispatch => ({
   errorThrown: bindActionCreators(errorThrownAction, dispatch),
 })
 
-export default connect(mapStateToProps, mapDispatchToProps)(DashboardPage)
+export default connect(mapStateToProps, mapDispatchToProps)(
+  ManualRefresh(DashboardPage)
+)
