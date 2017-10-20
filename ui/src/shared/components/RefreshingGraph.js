@@ -18,7 +18,7 @@ const RefreshingGraph = ({
   timeRange,
   cellHeight,
   autoRefresh,
-  manualRefresh,
+  manualRefresh, // when changed, re-mounts the component
   synchronizer,
   resizeCoords,
   editQueryStatus,
@@ -37,7 +37,7 @@ const RefreshingGraph = ({
   if (type === 'single-stat') {
     return (
       <RefreshingSingleStat
-        key={manualRefresh} // when changed, re-mounts the component
+        key={manualRefresh}
         queries={[queries[0]]}
         templates={templates}
         autoRefresh={autoRefresh}
@@ -53,7 +53,7 @@ const RefreshingGraph = ({
 
   return (
     <RefreshingLineGraph
-      key={manualRefresh} // when changed, re-mounts the component
+      key={manualRefresh}
       axes={axes}
       onZoom={onZoom}
       queries={queries}
