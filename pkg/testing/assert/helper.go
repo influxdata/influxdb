@@ -6,7 +6,9 @@ import (
 )
 
 func fail(t TestingT, failureMsg string, msgAndArgs ...interface{}) bool {
-	t.Helper()
+	if th, ok := t.(helper); ok {
+		th.Helper()
+	}
 
 	msg := formatMsgAndArgs(msgAndArgs...)
 	if msg == "" {
