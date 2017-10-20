@@ -224,22 +224,8 @@ func (t *Tombstoner) writeTombstoneV3(tombstones []Tombstone) error {
 	}
 
 	gz := gzip.NewWriter(bw)
-
-	for _, t := range tombstones {
-		binary.BigEndian.PutUint32(b[:4], uint32(len(t.Key)))
-		if _, err := gz.Write(b[:4]); err != nil {
-			return err
-		}
-		if _, err := gz.Write([]byte(t.Key)); err != nil {
-			return err
-		}
-		binary.BigEndian.PutUint64(b[:], uint64(t.Min))
-		if _, err := gz.Write(b[:]); err != nil {
-			return err
-		}
-
-		binary.BigEndian.PutUint64(b[:], uint64(t.Max))
-		if _, err := gz.Write(b[:]); err != nil {
+	for _, ts := range tombstones {
+		if err := t.writeTombstone(gz, ts); err != nil {
 			return err
 		}
 	}
@@ -317,21 +303,8 @@ func (t *Tombstoner) writeTombstoneV4(tombstones []Tombstone) error {
 
 	// Write the tombstones
 	gz := gzip.NewWriter(bw)
-	for _, t := range tombstones {
-		binary.BigEndian.PutUint32(b[:4], uint32(len(t.Key)))
-		if _, err := gz.Write(b[:4]); err != nil {
-			return err
-		}
-		if _, err := gz.Write([]byte(t.Key)); err != nil {
-			return err
-		}
-		binary.BigEndian.PutUint64(b[:], uint64(t.Min))
-		if _, err := gz.Write(b[:]); err != nil {
-			return err
-		}
-
-		binary.BigEndian.PutUint64(b[:], uint64(t.Max))
-		if _, err := gz.Write(b[:]); err != nil {
+	for _, ts := range tombstones {
+		if err := t.writeTombstone(gz, ts); err != nil {
 			return err
 		}
 	}
@@ -642,4 +615,25 @@ func (t *Tombstoner) tombstonePath() string {
 
 	// Append the "tombstone" suffix to create a 0000001.tombstone file
 	return filepath.Join(filepath.Dir(t.Path), filename+".tombstone")
+}
+
+func (t *Tombstoner) writeTombstone(dst io.Writer, ts Tombstone) error {
+	var b [8]byte
+	binary.BigEndian.PutUint32(b[:4], uint32(len(ts.Key)))
+	if _, err := dst.Write(b[:4]); err != nil {
+		return err
+	}
+	if _, err := dst.Write([]byte(ts.Key)); err != nil {
+		return err
+	}
+	binary.BigEndian.PutUint64(b[:], uint64(ts.Min))
+	if _, err := dst.Write(b[:]); err != nil {
+		return err
+	}
+
+	binary.BigEndian.PutUint64(b[:], uint64(ts.Max))
+	if _, err := dst.Write(b[:]); err != nil {
+		return err
+	}
+	return nil
 }
