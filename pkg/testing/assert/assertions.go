@@ -7,8 +7,11 @@ import (
 )
 
 type TestingT interface {
-	Helper()
 	Errorf(format string, args ...interface{})
+}
+
+type helper interface {
+	Helper()
 }
 
 // Equal asserts that the values are equal and returns
@@ -18,7 +21,10 @@ func Equal(t TestingT, got, expected interface{}, msgAndArgs ...interface{}) boo
 		return true
 	}
 
-	t.Helper()
+	if th, ok := t.(helper); ok {
+		th.Helper()
+	}
+
 	got, expected = formatValues(got, expected)
 	fail(t, fmt.Sprintf("Not Equal: got=%s, exp=%s", got, expected), msgAndArgs...)
 	return false
@@ -31,7 +37,9 @@ func NotEqual(t TestingT, got, expected interface{}, msgAndArgs ...interface{}) 
 		return true
 	}
 
-	t.Helper()
+	if th, ok := t.(helper); ok {
+		th.Helper()
+	}
 	_, expected = formatValues(got, expected)
 	fail(t, fmt.Sprintf("Equal: should not be %s", expected), msgAndArgs...)
 	return false
@@ -42,7 +50,9 @@ func NotEqual(t TestingT, got, expected interface{}, msgAndArgs ...interface{}) 
 //
 // Returns true if the assertion was successful.
 func PanicsWithValue(t TestingT, expected interface{}, fn PanicTestFunc, msgAndArgs ...interface{}) bool {
-	t.Helper()
+	if th, ok := t.(helper); ok {
+		th.Helper()
+	}
 	if funcDidPanic, got := didPanic(fn); !funcDidPanic {
 		return fail(t, fmt.Sprintf("func %#v should panic\n\r\tPanic value:\t%v", fn, got), msgAndArgs...)
 	} else if got != expected {
