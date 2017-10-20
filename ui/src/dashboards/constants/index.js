@@ -109,3 +109,5 @@ export const TOOLTIP_CONTENT = {
 
 export const TYPE_QUERY_CONFIG = 'queryConfig'
 export const TYPE_IFQL = 'ifql'
+
+export const DASHBOARD_NAME_MAX_LENGTH = 50

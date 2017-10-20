@@ -19,6 +19,8 @@
 1. [#2111](https://github.com/influxdata/chronograf/pull/2111): Increase size of Cell Editor query tabs to reveal more of their query strings
 1. [#2120](https://github.com/influxdata/chronograf/pull/2120): Improve appearance of Admin Page tabs on smaller screens
 1. [#2119](https://github.com/influxdata/chronograf/pull/2119): Add cancel button to Tickscript editor
+1.[#2104](https://github.com/influxdata/chronograf/pull/2104): Redesign dashboard naming & renaming interaction
+1.[#2104](https://github.com/influxdata/chronograf/pull/2104): Redesign dashboard switching dropdown
 
 ## v1.3.9.0 [2017-10-06]
 ### Bug Fixes
