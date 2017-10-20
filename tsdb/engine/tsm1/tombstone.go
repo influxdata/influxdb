@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"compress/gzip"
 	"encoding/binary"
+	"errors"
 	"io"
 	"io/ioutil"
 	"math"
@@ -19,6 +20,8 @@ const (
 	v3header   = 0x1503
 	v4header   = 0x1504
 )
+
+var errIncompatibleVersion = errors.New("incompatible v4 version")
 
 // Tombstoner records tombstones when entries are deleted.
 type Tombstoner struct {
@@ -36,6 +39,12 @@ type Tombstoner struct {
 
 	// Tombstones that have been written but not flushed to disk yet.
 	tombstones []Tombstone
+
+	// These are references used for pending writes that have not been committed.  If
+	// these are nil, then no pending writes are in progress.
+	gz          *gzip.Writer
+	bw          *bufio.Writer
+	pendingFile *os.File
 }
 
 // Tombstone represents an individual deletion.
@@ -70,18 +79,34 @@ func (t *Tombstoner) AddRange(keys [][]byte, min, max int64) error {
 
 	t.statsLoaded = false
 
-	if cap(t.tombstones) < len(t.tombstones)+len(keys) {
-		ts := make([]Tombstone, len(t.tombstones), len(t.tombstones)+len(keys))
-		copy(ts, t.tombstones)
-		t.tombstones = ts
+	if err := t.prepareV4(); err == errIncompatibleVersion {
+		if cap(t.tombstones) < len(t.tombstones)+len(keys) {
+			ts := make([]Tombstone, len(t.tombstones), len(t.tombstones)+len(keys))
+			copy(ts, t.tombstones)
+			t.tombstones = ts
+		}
+
+		for _, k := range keys {
+			t.tombstones = append(t.tombstones, Tombstone{
+				Key: k,
+				Min: min,
+				Max: max,
+			})
+		}
+		return t.writeTombstoneV3(t.tombstones)
+
+	} else if err != nil {
+		return err
 	}
 
 	for _, k := range keys {
-		t.tombstones = append(t.tombstones, Tombstone{
+		if err := t.writeTombstone(t.gz, Tombstone{
 			Key: k,
 			Min: min,
 			Max: max,
-		})
+		}); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -91,15 +116,11 @@ func (t *Tombstoner) Flush() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	if len(t.tombstones) == 0 {
-		return nil
-	}
-
-	if err := t.writeTombstoneV4(t.tombstones); err != nil {
+	if err := t.commit(); err != nil {
+		// Reset our temp references and clean up.
+		_ = t.rollback()
 		return err
 	}
-
-	t.tombstones = t.tombstones[:0]
 	return nil
 }
 
@@ -230,17 +251,23 @@ func (t *Tombstoner) writeTombstoneV3(tombstones []Tombstone) error {
 		}
 	}
 
-	return t.commit(gz, bw, tmp)
+	t.gz = gz
+	t.bw = bw
+	t.pendingFile = tmp
+	t.tombstones = t.tombstones[:0]
+
+	return t.commit()
 }
 
-// writeTombstoneV4 writes v3 files that are concatenated together.  A v4 header is
-// written to indicated this is a v4 file.
-func (t *Tombstoner) writeTombstoneV4(tombstones []Tombstone) error {
+func (t *Tombstoner) prepareV4() error {
+	if t.pendingFile != nil {
+		return nil
+	}
+
 	tmp, err := ioutil.TempFile(filepath.Dir(t.Path), "tombstone")
 	if err != nil {
 		return err
 	}
-	defer tmp.Close()
 
 	// Copy the existing v4 file if it exists
 	f, err := os.Open(t.tombstonePath())
@@ -251,7 +278,7 @@ func (t *Tombstoner) writeTombstoneV4(tombstones []Tombstone) error {
 			// There is an existing tombstone on disk and it's not a v3.  Just rewrite it as a v3
 			// version again.
 			if header != v4header {
-				return t.writeTombstoneV3(tombstones)
+				return errIncompatibleVersion
 			}
 
 			// Seek back to the beginning we copy the header
@@ -283,37 +310,80 @@ func (t *Tombstoner) writeTombstoneV4(tombstones []Tombstone) error {
 
 	// Write the tombstones
 	gz := gzip.NewWriter(bw)
+
+	t.pendingFile = tmp
+	t.gz = gz
+	t.bw = bw
+
+	return nil
+}
+
+// writeTombstoneV4 writes v3 files that are concatenated together.  A v4 header is
+// written to indicated this is a v4 file.
+func (t *Tombstoner) writeTombstoneV4(tombstones []Tombstone) error {
+	if err := t.prepareV4(); err == errIncompatibleVersion {
+		return t.writeTombstoneV3(tombstones)
+	} else if err != nil {
+		return err
+	}
+
 	for _, ts := range tombstones {
-		if err := t.writeTombstone(gz, ts); err != nil {
+		if err := t.writeTombstone(t.gz, ts); err != nil {
 			return err
 		}
 	}
 
-	return t.commit(gz, bw, tmp)
+	return t.commit()
 }
 
-func (t *Tombstoner) commit(gz *gzip.Writer, bw *bufio.Writer, tmp *os.File) error {
-	if err := gz.Close(); err != nil {
+func (t *Tombstoner) commit() error {
+	// No pending writes
+	if t.pendingFile == nil {
+		return nil
+	}
+
+	if err := t.gz.Close(); err != nil {
 		return err
 	}
 
-	if err := bw.Flush(); err != nil {
+	if err := t.bw.Flush(); err != nil {
 		return err
 	}
 
 	// fsync the file to flush the write
-	if err := tmp.Sync(); err != nil {
+	if err := t.pendingFile.Sync(); err != nil {
 		return err
 	}
 
-	tmpFilename := tmp.Name()
-	tmp.Close()
+	tmpFilename := t.pendingFile.Name()
+	t.pendingFile.Close()
 
 	if err := renameFile(tmpFilename, t.tombstonePath()); err != nil {
 		return err
 	}
 
-	return syncDir(filepath.Dir(t.tombstonePath()))
+	if err := syncDir(filepath.Dir(t.tombstonePath())); err != nil {
+		return err
+	}
+
+	t.pendingFile = nil
+	t.bw = nil
+	t.gz = nil
+
+	return nil
+}
+
+func (t *Tombstoner) rollback() error {
+	if t.pendingFile == nil {
+		return nil
+	}
+
+	tmpFilename := t.pendingFile.Name()
+	t.pendingFile.Close()
+	t.gz = nil
+	t.bw = nil
+	t.pendingFile = nil
+	return os.Remove(tmpFilename)
 }
 
 func (t *Tombstoner) readTombstone() ([]Tombstone, error) {
