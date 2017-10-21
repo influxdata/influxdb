@@ -2,6 +2,7 @@ package influx
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -117,31 +118,25 @@ func Convert(influxQL string) (chronograf.QueryConfig, error) {
 			}
 			// Add fill to queryConfig only if there's a `GROUP BY time`
 			switch stmt.Fill {
-			default:
-				return raw, nil
 			case influxql.NullFill:
 				qc.Fill = "null"
-
 			case influxql.NoFill:
 				qc.Fill = "none"
-
 			case influxql.NumberFill:
 				qc.Fill = fmt.Sprint(stmt.FillValue)
-
 			case influxql.PreviousFill:
 				qc.Fill = "previous"
-
 			case influxql.LinearFill:
 				qc.Fill = "linear"
-
+			default:
+				return raw, nil
 			}
 		case *influxql.VarRef:
 			qc.GroupBy.Tags = append(qc.GroupBy.Tags, v.Val)
 		}
 	}
 
-	fields := make(map[string][]string)
-	order := make(map[string]int)
+	qc.Fields = []chronograf.Field{}
 	for _, fld := range stmt.Fields {
 		switch f := fld.Expr.(type) {
 		default:
@@ -151,42 +146,55 @@ func Convert(influxQL string) (chronograf.QueryConfig, error) {
 			if _, ok = supportedFuncs[f.Name]; !ok {
 				return raw, nil
 			}
-			// Query configs only support single argument functions
-			if len(f.Args) != 1 {
-				return raw, nil
+
+			fldArgs := []chronograf.Field{}
+			for _, arg := range f.Args {
+				switch ref := arg.(type) {
+				case *influxql.VarRef:
+					fldArgs = append(fldArgs, chronograf.Field{
+						Value: ref.Val,
+						Type:  "field",
+					})
+				case *influxql.IntegerLiteral:
+					fldArgs = append(fldArgs, chronograf.Field{
+						Value: strconv.FormatInt(ref.Val, 10),
+						Type:  "integer",
+					})
+				case *influxql.NumberLiteral:
+					fldArgs = append(fldArgs, chronograf.Field{
+						Value: strconv.FormatFloat(ref.Val, 'f', -1, 64),
+						Type:  "number",
+					})
+				case *influxql.RegexLiteral:
+					fldArgs = append(fldArgs, chronograf.Field{
+						Value: ref.Val.String(),
+						Type:  "regex",
+					})
+				case *influxql.Wildcard:
+					fldArgs = append(fldArgs, chronograf.Field{
+						Value: "*",
+						Type:  "wildcard",
+					})
+				default:
+					return raw, nil
+				}
 			}
-			ref, ok := f.Args[0].(*influxql.VarRef)
-			// query config only support fields in the function
-			if !ok {
-				return raw, nil
-			}
-			// We only support field strings
-			if ref.Type != influxql.Unknown {
-				return raw, nil
-			}
-			if call, ok := fields[ref.Val]; !ok {
-				order[ref.Val] = len(fields)
-				fields[ref.Val] = []string{f.Name}
-			} else {
-				fields[ref.Val] = append(call, f.Name)
-			}
+
+			qc.Fields = append(qc.Fields, chronograf.Field{
+				Value: f.Name,
+				Type:  "func",
+				Alias: fld.Alias,
+				Args:  fldArgs,
+			})
 		case *influxql.VarRef:
 			if f.Type != influxql.Unknown {
 				return raw, nil
 			}
-			if _, ok := fields[f.Val]; !ok {
-				order[f.Val] = len(fields)
-				fields[f.Val] = []string{}
-			}
-		}
-	}
-
-	qc.Fields = make([]chronograf.Field, len(fields))
-	for fld, funcs := range fields {
-		i := order[fld]
-		qc.Fields[i] = chronograf.Field{
-			Field: fld,
-			Funcs: funcs,
+			qc.Fields = append(qc.Fields, chronograf.Field{
+				Value: f.Val,
+				Type:  "field",
+				Alias: fld.Alias,
+			})
 		}
 	}
 
@@ -451,16 +459,19 @@ func isTagFilter(exp influxql.Expr) (tagFilter, bool) {
 }
 
 var supportedFuncs = map[string]bool{
-	"mean":   true,
-	"median": true,
-	"count":  true,
-	"min":    true,
-	"max":    true,
-	"sum":    true,
-	"first":  true,
-	"last":   true,
-	"spread": true,
-	"stddev": true,
+	"mean":       true,
+	"median":     true,
+	"count":      true,
+	"min":        true,
+	"max":        true,
+	"sum":        true,
+	"first":      true,
+	"last":       true,
+	"spread":     true,
+	"stddev":     true,
+	"percentile": true,
+	"top":        true,
+	"bottom":     true,
 }
 
 // shortDur converts duration into the queryConfig duration format

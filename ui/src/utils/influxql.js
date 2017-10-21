@@ -1,9 +1,6 @@
 import _ from 'lodash'
 
-import {
-  TEMP_VAR_INTERVAL,
-  DEFAULT_DASHBOARD_GROUP_BY_INTERVAL,
-} from 'shared/constants'
+import {TEMP_VAR_INTERVAL, AUTO_GROUP_BY} from 'shared/constants'
 import {NULL_STRING} from 'shared/constants/queryFillOptions'
 import {TYPE_QUERY_CONFIG, TYPE_IFQL} from 'src/dashboards/constants'
 import timeRanges from 'hson!shared/data/timeRanges.hson'
@@ -70,20 +67,22 @@ export function buildSelectStatement(config) {
 }
 
 function _buildFields(fieldFuncs) {
-  const hasAggregate = fieldFuncs.some(f => f.funcs && f.funcs.length)
-  if (hasAggregate) {
-    return fieldFuncs
-      .map(f => {
-        return f.funcs
-          .map(func => `${func}("${f.field}") AS "${func}_${f.field}"`)
-          .join(', ')
-      })
-      .join(', ')
+  if (!fieldFuncs) {
+    return ''
   }
 
   return fieldFuncs
     .map(f => {
-      return f.field === '*' ? '*' : `"${f.field}"`
+      switch (f.type) {
+        case 'field': {
+          return f.value === '*' ? '*' : `"${f.value}"`
+        }
+        case 'func': {
+          const args = _buildFields(f.args)
+          const alias = f.alias ? ` AS "${f.alias}"` : ''
+          return `${f.value}(${args})${alias}`
+        }
+      }
     })
     .join(', ')
 }
@@ -133,7 +132,7 @@ function _buildGroupByTime(groupBy) {
     return ''
   }
 
-  return ` GROUP BY ${groupBy.time === DEFAULT_DASHBOARD_GROUP_BY_INTERVAL
+  return ` GROUP BY ${groupBy.time === AUTO_GROUP_BY
     ? TEMP_VAR_INTERVAL
     : `time(${groupBy.time})`}`
 }

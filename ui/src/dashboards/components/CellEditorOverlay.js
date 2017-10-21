@@ -21,6 +21,7 @@ import {
 } from 'src/dashboards/constants'
 import {OVERLAY_TECHNOLOGY} from 'shared/constants/classNames'
 import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from 'src/data_explorer/constants'
+import {AUTO_GROUP_BY} from 'shared/constants'
 
 class CellEditorOverlay extends Component {
   constructor(props) {
@@ -62,11 +63,11 @@ class CellEditorOverlay extends Component {
     }
   }
 
-  queryStateReducer = queryModifier => (queryID, payload) => {
+  queryStateReducer = queryModifier => (queryID, ...payload) => {
     const {queriesWorkingDraft} = this.state
     const query = queriesWorkingDraft.find(q => q.id === queryID)
 
-    const nextQuery = queryModifier(query, payload)
+    const nextQuery = queryModifier(query, ...payload)
 
     const nextQueries = queriesWorkingDraft.map(
       q =>
@@ -368,6 +369,7 @@ class CellEditorOverlay extends Component {
                   activeQueryIndex={activeQueryIndex}
                   activeQuery={this.getActiveQuery()}
                   setActiveQueryIndex={this.handleSetActiveQueryIndex}
+                  initialGroupByTime={AUTO_GROUP_BY}
                 />}
           </CEOBottom>
         </ResizeContainer>

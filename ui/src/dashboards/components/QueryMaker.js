@@ -23,6 +23,7 @@ const QueryMaker = ({
   activeQuery,
   onDeleteQuery,
   activeQueryIndex,
+  initialGroupByTime,
   setActiveQueryIndex,
 }) =>
   <div className="query-maker query-maker--panel">
@@ -47,10 +48,11 @@ const QueryMaker = ({
             templates={templates}
           />
           <SchemaExplorer
-            query={activeQuery}
-            actions={actions}
-            onAddQuery={onAddQuery}
             source={source}
+            actions={actions}
+            query={activeQuery}
+            onAddQuery={onAddQuery}
+            initialGroupByTime={initialGroupByTime}
           />
         </div>
       : <EmptyQuery onAddQuery={onAddQuery} />}
@@ -81,6 +83,7 @@ QueryMaker.propTypes = {
     fill: func,
     applyFuncsToField: func.isRequired,
     editRawTextAsync: func.isRequired,
+    addInitialField: func.isRequired,
   }).isRequired,
   setActiveQueryIndex: func.isRequired,
   onDeleteQuery: func.isRequired,
@@ -92,6 +95,7 @@ QueryMaker.propTypes = {
       tempVar: string.isRequired,
     })
   ).isRequired,
+  initialGroupByTime: string.isRequired,
 }
 
 export default QueryMaker

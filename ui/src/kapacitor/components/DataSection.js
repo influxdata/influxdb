@@ -15,13 +15,8 @@ const makeQueryHandlers = (actions, query) => ({
     actions.chooseMeasurement(query.id, measurement)
   },
 
-  handleToggleField: onRemoveEvery => field => {
+  handleToggleField: field => {
     actions.toggleField(query.id, field)
-    // Every is only added when a function has been added to a field.
-    // Here, the field is selected without a function.
-    onRemoveEvery()
-    // Because there are no functions there is no group by time.
-    actions.groupByTime(query.id, null)
   },
 
   handleGroupByTime: time => {
@@ -44,6 +39,10 @@ const makeQueryHandlers = (actions, query) => ({
   handleGroupByTag: tagKey => {
     actions.groupByTag(query.id, tagKey)
   },
+
+  handleRemoveFuncs: fields => {
+    actions.removeFuncs(query.id, fields)
+  },
 })
 
 const DataSection = ({
@@ -51,18 +50,18 @@ const DataSection = ({
   query,
   isDeadman,
   isKapacitorRule,
-  onRemoveEvery,
   onAddEvery,
 }) => {
   const {
-    handleChooseNamespace,
-    handleChooseMeasurement,
+    handleChooseTag,
+    handleGroupByTag,
     handleToggleField,
     handleGroupByTime,
+    handleRemoveFuncs,
+    handleChooseNamespace,
     handleApplyFuncsToField,
-    handleChooseTag,
+    handleChooseMeasurement,
     handleToggleTagAcceptance,
-    handleGroupByTag,
   } = makeQueryHandlers(actions, query)
 
   return (
@@ -80,10 +79,11 @@ const DataSection = ({
           ? null
           : <FieldList
               query={query}
-              onToggleField={handleToggleField(onRemoveEvery)}
-              onGroupByTime={handleGroupByTime}
-              applyFuncsToField={handleApplyFuncsToField(onAddEvery)}
+              onToggleField={handleToggleField}
               isKapacitorRule={isKapacitorRule}
+              onGroupByTime={handleGroupByTime}
+              removeFuncs={handleRemoveFuncs}
+              applyFuncsToField={handleApplyFuncsToField(onAddEvery)}
             />}
       </div>
     </div>
@@ -108,7 +108,6 @@ DataSection.propTypes = {
     toggleTagAcceptance: func.isRequired,
   }).isRequired,
   onAddEvery: func.isRequired,
-  onRemoveEvery: func.isRequired,
   timeRange: shape({}).isRequired,
   isKapacitorRule: bool,
   isDeadman: bool,

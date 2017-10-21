@@ -402,7 +402,8 @@ export const VIS_VIEWS = [GRAPH, TABLE]
 
 // InfluxQL Macros
 export const TEMP_VAR_INTERVAL = ':interval:'
-export const DEFAULT_DASHBOARD_GROUP_BY_INTERVAL = 'auto'
+export const INITIAL_GROUP_BY_TIME = '10s'
+export const AUTO_GROUP_BY = 'auto'
 
 export const DEFAULT_HOME_PAGE = 'status'
 

@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/chronograf"
 )
 
@@ -112,10 +113,14 @@ func TestReverse(t *testing.T) {
 					Measurement:     "cpu",
 					Fields: []chronograf.Field{
 						{
-							Field: "usage_user",
-							Funcs: []string{
-								"mean",
+							Value: "mean",
+							Args: []chronograf.Field{
+								{
+									Value: "usage_user",
+									Type:  "field",
+								},
 							},
+							Type: "func",
 						},
 					},
 					GroupBy: chronograf.GroupBy{
@@ -220,9 +225,15 @@ func TestReverse(t *testing.T) {
 					Measurement:     "cpu",
 					RetentionPolicy: "autogen",
 					Fields: []chronograf.Field{
-						chronograf.Field{
-							Field: "usage_user",
-							Funcs: []string{"mean"},
+						{
+							Value: "mean",
+							Args: []chronograf.Field{
+								{
+									Value: "usage_user",
+									Type:  "field",
+								},
+							},
+							Type: "func",
 						},
 					},
 					Tags: map[string][]string{
@@ -360,8 +371,14 @@ func TestReverse(t *testing.T) {
 					Measurement:     "haproxy",
 					Fields: []chronograf.Field{
 						{
-							Field: "status",
-							Funcs: []string{"last"},
+							Value: "last",
+							Args: []chronograf.Field{
+								{
+									Value: "status",
+									Type:  "field",
+								},
+							},
+							Type: "func",
 						},
 					},
 					GroupBy: chronograf.GroupBy{
@@ -475,8 +492,14 @@ func TestReverse(t *testing.T) {
 					Measurement:     "haproxy",
 					Fields: []chronograf.Field{
 						{
-							Field: "status",
-							Funcs: []string{"last"},
+							Value: "last",
+							Args: []chronograf.Field{
+								{
+									Value: "status",
+									Type:  "field",
+								},
+							},
+							Type: "func",
 						},
 					},
 					GroupBy: chronograf.GroupBy{
@@ -592,8 +615,14 @@ func TestReverse(t *testing.T) {
 					RetentionPolicy: "autogen",
 					Fields: []chronograf.Field{
 						{
-							Field: "usage_user",
-							Funcs: []string{"mean"},
+							Value: "mean",
+							Args: []chronograf.Field{
+								{
+									Value: "usage_user",
+									Type:  "field",
+								},
+							},
+							Type: "func",
 						},
 					},
 					Tags: map[string][]string{
@@ -717,8 +746,14 @@ func TestReverse(t *testing.T) {
 					RetentionPolicy: "autogen",
 					Fields: []chronograf.Field{
 						{
-							Field: "usage_user",
-							Funcs: []string{"mean"},
+							Value: "mean",
+							Args: []chronograf.Field{
+								{
+									Value: "usage_user",
+									Type:  "field",
+								},
+							},
+							Type: "func",
 						},
 					},
 					Tags: map[string][]string{
@@ -842,8 +877,14 @@ func TestReverse(t *testing.T) {
 					RetentionPolicy: "autogen",
 					Fields: []chronograf.Field{
 						{
-							Field: "usage_user",
-							Funcs: []string{"mean"},
+							Value: "mean",
+							Args: []chronograf.Field{
+								{
+									Value: "usage_user",
+									Type:  "field",
+								},
+							},
+							Type: "func",
 						},
 					},
 					Tags: map[string][]string{
@@ -955,8 +996,8 @@ func TestReverse(t *testing.T) {
 					RetentionPolicy: "autogen",
 					Fields: []chronograf.Field{
 						{
-							Field: "usage_user",
-							Funcs: []string{},
+							Value: "usage_user",
+							Type:  "field",
 						},
 					},
 					Tags: map[string][]string{
@@ -1090,8 +1131,14 @@ trigger
 					RetentionPolicy: "autogen",
 					Fields: []chronograf.Field{
 						{
-							Field: "usage_user",
-							Funcs: []string{"mean"},
+							Value: "mean",
+							Args: []chronograf.Field{
+								{
+									Value: "usage_user",
+									Type:  "field",
+								},
+							},
+							Type: "func",
 						},
 					},
 					Tags: map[string][]string{
@@ -1226,8 +1273,14 @@ trigger
 					RetentionPolicy: "autogen",
 					Fields: []chronograf.Field{
 						{
-							Field: "usage_user",
-							Funcs: []string{"mean"},
+							Value: "mean",
+							Args: []chronograf.Field{
+								{
+									Value: "usage_user",
+									Type:  "field",
+								},
+							},
+							Type: "func",
 						},
 					},
 					Tags: map[string][]string{
@@ -1441,8 +1494,8 @@ trigger
 					Measurement:     "cq",
 					Fields: []chronograf.Field{
 						{
-							Field: "queryOk",
-							Funcs: []string{},
+							Value: "queryOk",
+							Type:  "field",
 						},
 					},
 					GroupBy: chronograf.GroupBy{
@@ -1465,8 +1518,8 @@ trigger
 				if tt.want.Query != nil {
 					if got.Query == nil {
 						t.Errorf("Reverse() = got nil QueryConfig")
-					} else if !reflect.DeepEqual(*got.Query, *tt.want.Query) {
-						t.Errorf("Reverse() = QueryConfig not equal\n%#v\n, want \n%#v\n", *got.Query, *tt.want.Query)
+					} else if !cmp.Equal(*got.Query, *tt.want.Query) {
+						t.Errorf("Reverse() = QueryConfig not equal %s", cmp.Diff(*got.Query, *tt.want.Query))
 					}
 				}
 			}
