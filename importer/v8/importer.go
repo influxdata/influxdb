@@ -109,7 +109,7 @@ func (i *Importer) Import() error {
 	}
 
 	// Get our reader
-	scanner := bufio.NewScanner(r)
+	scanner := bufio.NewReader(r)
 
 	// Process the DDL
 	i.processDDL(scanner)
@@ -126,9 +126,9 @@ func (i *Importer) Import() error {
 	i.processDML(scanner)
 
 	// Check if we had any errors scanning the file
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("reading standard input: %s", err)
-	}
+	//if err := scanner.Err(); err != nil {
+	//	return fmt.Errorf("reading standard input: %s", err)
+	//}
 
 	// If there were any failed inserts then return an error so that a non-zero
 	// exit code can be returned.
@@ -144,42 +144,49 @@ func (i *Importer) Import() error {
 	return nil
 }
 
-func (i *Importer) processDDL(scanner *bufio.Scanner) {
-	for scanner.Scan() {
-		line := scanner.Text()
+func (i *Importer) processDDL(scanner *bufio.Reader) {
+	for {
+		line, _, err := scanner.ReadLine()
+		if err == io.EOF {
+			break
+		}
 		// If we find the DML token, we are done with DDL
-		if strings.HasPrefix(line, "# DML") {
+		if strings.HasPrefix(string(line), "# DML") {
 			return
 		}
-		if strings.HasPrefix(line, "#") {
+		if strings.HasPrefix(string(line), "#") {
 			continue
 		}
 		// Skip blank lines
-		if strings.TrimSpace(line) == "" {
+		if strings.TrimSpace(string(line)) == "" {
 			continue
 		}
-		i.queryExecutor(line)
+		i.queryExecutor(string(line))
 	}
 }
 
-func (i *Importer) processDML(scanner *bufio.Scanner) {
+func (i *Importer) processDML(scanner *bufio.Reader) {
 	start := time.Now()
-	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.HasPrefix(line, "# CONTEXT-DATABASE:") {
-			i.database = strings.TrimSpace(strings.Split(line, ":")[1])
+	for {
+		line, _, err := scanner.ReadLine()
+		if err == io.EOF {
+			break
 		}
-		if strings.HasPrefix(line, "# CONTEXT-RETENTION-POLICY:") {
-			i.retentionPolicy = strings.TrimSpace(strings.Split(line, ":")[1])
+
+		if strings.HasPrefix(string(line), "# CONTEXT-DATABASE:") {
+			i.database = strings.TrimSpace(strings.Split(string(line), ":")[1])
 		}
-		if strings.HasPrefix(line, "#") {
+		if strings.HasPrefix(string(line), "# CONTEXT-RETENTION-POLICY:") {
+			i.retentionPolicy = strings.TrimSpace(strings.Split(string(line), ":")[1])
+		}
+		if strings.HasPrefix(string(line), "#") {
 			continue
 		}
 		// Skip blank lines
-		if strings.TrimSpace(line) == "" {
+		if strings.TrimSpace(string(line)) == "" {
 			continue
 		}
-		i.batchAccumulator(line, start)
+		i.batchAccumulator(string(line), start)
 	}
 	// Call batchWrite one last time to flush anything out in the batch
 	i.batchWrite()
