@@ -638,6 +638,37 @@ func (r *TSMReader) BatchDelete() BatchDeleter {
 	return &batchDelete{r: r}
 }
 
+type BatchDeleters []BatchDeleter
+
+func (a BatchDeleters) DeleteRange(keys [][]byte, min, max int64) error {
+	for _, b := range a {
+		if err := b.DeleteRange(keys, min, max); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (a BatchDeleters) Commit() error {
+	for _, b := range a {
+		if err := b.Commit(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (a BatchDeleters) Rollback() error {
+	var rollbackErr error
+	for _, b := range a {
+		// Ensure all batches are rolled back
+		if err := b.Rollback(); err != nil {
+			rollbackErr = err
+		}
+	}
+	return rollbackErr
+}
+
 // indirectIndex is a TSMIndex that uses a raw byte slice representation of an index.  This
 // implementation can be used for indexes that may be MMAPed into memory.
 type indirectIndex struct {
