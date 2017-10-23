@@ -35,6 +35,7 @@ import (
 )
 
 //go:generate tmpl -data=@iterator.gen.go.tmpldata iterator.gen.go.tmpl
+//go:generate tmpl -data=@iterator.gen.go.tmpldata batch_cursor.gen.go.tmpl
 //go:generate tmpl -data=@file_store.gen.go.tmpldata file_store.gen.go.tmpl
 //go:generate tmpl -data=@encoding.gen.go.tmpldata encoding.gen.go.tmpl
 //go:generate tmpl -data=@compact.gen.go.tmpldata compact.gen.go.tmpl
@@ -2267,46 +2268,6 @@ func matchTagValues(tags models.Tags, condition influxql.Expr) []string {
 		}
 	}
 	return values
-}
-
-// buildFloatCursor creates a cursor for a float field.
-func (e *Engine) buildFloatCursor(ctx context.Context, measurement, seriesKey, field string, opt query.IteratorOptions) floatCursor {
-	key := SeriesFieldKeyBytes(seriesKey, field)
-	cacheValues := e.Cache.Values(key)
-	keyCursor := e.KeyCursor(ctx, key, opt.SeekTime(), opt.Ascending)
-	return newFloatCursor(opt.SeekTime(), opt.Ascending, cacheValues, keyCursor)
-}
-
-// buildIntegerCursor creates a cursor for an integer field.
-func (e *Engine) buildIntegerCursor(ctx context.Context, measurement, seriesKey, field string, opt query.IteratorOptions) integerCursor {
-	key := SeriesFieldKeyBytes(seriesKey, field)
-	cacheValues := e.Cache.Values(key)
-	keyCursor := e.KeyCursor(ctx, key, opt.SeekTime(), opt.Ascending)
-	return newIntegerCursor(opt.SeekTime(), opt.Ascending, cacheValues, keyCursor)
-}
-
-// buildUnsignedCursor creates a cursor for an unsigned field.
-func (e *Engine) buildUnsignedCursor(ctx context.Context, measurement, seriesKey, field string, opt query.IteratorOptions) unsignedCursor {
-	key := SeriesFieldKeyBytes(seriesKey, field)
-	cacheValues := e.Cache.Values(key)
-	keyCursor := e.KeyCursor(ctx, key, opt.SeekTime(), opt.Ascending)
-	return newUnsignedCursor(opt.SeekTime(), opt.Ascending, cacheValues, keyCursor)
-}
-
-// buildStringCursor creates a cursor for a string field.
-func (e *Engine) buildStringCursor(ctx context.Context, measurement, seriesKey, field string, opt query.IteratorOptions) stringCursor {
-	key := SeriesFieldKeyBytes(seriesKey, field)
-	cacheValues := e.Cache.Values(key)
-	keyCursor := e.KeyCursor(ctx, key, opt.SeekTime(), opt.Ascending)
-	return newStringCursor(opt.SeekTime(), opt.Ascending, cacheValues, keyCursor)
-}
-
-// buildBooleanCursor creates a cursor for a boolean field.
-func (e *Engine) buildBooleanCursor(ctx context.Context, measurement, seriesKey, field string, opt query.IteratorOptions) booleanCursor {
-	key := SeriesFieldKeyBytes(seriesKey, field)
-	cacheValues := e.Cache.Values(key)
-	keyCursor := e.KeyCursor(ctx, key, opt.SeekTime(), opt.Ascending)
-	return newBooleanCursor(opt.SeekTime(), opt.Ascending, cacheValues, keyCursor)
 }
 
 // IteratorCost produces the cost of an iterator.

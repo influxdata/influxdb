@@ -45,6 +45,7 @@ type Engine interface {
 	Import(r io.Reader, basePath string) error
 
 	CreateIterator(ctx context.Context, measurement string, opt query.IteratorOptions) (query.Iterator, error)
+	CreateCursor(ctx context.Context, r *CursorRequest) (Cursor, error)
 	IteratorCost(measurement string, opt query.IteratorOptions) (query.IteratorCost, error)
 	WritePoints(points []models.Point) error
 
