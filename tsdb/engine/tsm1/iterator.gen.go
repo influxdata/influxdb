@@ -156,7 +156,7 @@ func newFloatInstrumentedIterator(inner query.FloatIterator, span *tracing.Span,
 }
 
 func (itr *floatInstrumentedIterator) Close() error {
-	var f []fields.Field
+	var f fields.Fields
 	itr.group.ForEach(func(v metrics.Metric) {
 		switch m := v.(type) {
 		case *metrics.Counter:
@@ -169,7 +169,7 @@ func (itr *floatInstrumentedIterator) Close() error {
 			panic("unexpected metrics")
 		}
 	})
-	itr.span.SetFields(fields.New(f...))
+	itr.span.SetFields(f)
 	itr.span.Finish()
 
 	return itr.FloatIterator.Close()
@@ -619,7 +619,7 @@ func newIntegerInstrumentedIterator(inner query.IntegerIterator, span *tracing.S
 }
 
 func (itr *integerInstrumentedIterator) Close() error {
-	var f []fields.Field
+	var f fields.Fields
 	itr.group.ForEach(func(v metrics.Metric) {
 		switch m := v.(type) {
 		case *metrics.Counter:
@@ -632,7 +632,7 @@ func (itr *integerInstrumentedIterator) Close() error {
 			panic("unexpected metrics")
 		}
 	})
-	itr.span.SetFields(fields.New(f...))
+	itr.span.SetFields(f)
 	itr.span.Finish()
 
 	return itr.IntegerIterator.Close()
@@ -1082,7 +1082,7 @@ func newUnsignedInstrumentedIterator(inner query.UnsignedIterator, span *tracing
 }
 
 func (itr *unsignedInstrumentedIterator) Close() error {
-	var f []fields.Field
+	var f fields.Fields
 	itr.group.ForEach(func(v metrics.Metric) {
 		switch m := v.(type) {
 		case *metrics.Counter:
@@ -1095,7 +1095,7 @@ func (itr *unsignedInstrumentedIterator) Close() error {
 			panic("unexpected metrics")
 		}
 	})
-	itr.span.SetFields(fields.New(f...))
+	itr.span.SetFields(f)
 	itr.span.Finish()
 
 	return itr.UnsignedIterator.Close()
@@ -1545,7 +1545,7 @@ func newStringInstrumentedIterator(inner query.StringIterator, span *tracing.Spa
 }
 
 func (itr *stringInstrumentedIterator) Close() error {
-	var f []fields.Field
+	var f fields.Fields
 	itr.group.ForEach(func(v metrics.Metric) {
 		switch m := v.(type) {
 		case *metrics.Counter:
@@ -1558,7 +1558,7 @@ func (itr *stringInstrumentedIterator) Close() error {
 			panic("unexpected metrics")
 		}
 	})
-	itr.span.SetFields(fields.New(f...))
+	itr.span.SetFields(f)
 	itr.span.Finish()
 
 	return itr.StringIterator.Close()
@@ -2008,7 +2008,7 @@ func newBooleanInstrumentedIterator(inner query.BooleanIterator, span *tracing.S
 }
 
 func (itr *booleanInstrumentedIterator) Close() error {
-	var f []fields.Field
+	var f fields.Fields
 	itr.group.ForEach(func(v metrics.Metric) {
 		switch m := v.(type) {
 		case *metrics.Counter:
@@ -2021,7 +2021,7 @@ func (itr *booleanInstrumentedIterator) Close() error {
 			panic("unexpected metrics")
 		}
 	})
-	itr.span.SetFields(fields.New(f...))
+	itr.span.SetFields(f)
 	itr.span.Finish()
 
 	return itr.BooleanIterator.Close()
