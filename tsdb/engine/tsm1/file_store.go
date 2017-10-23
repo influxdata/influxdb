@@ -355,9 +355,79 @@ func (f *FileStore) Delete(keys [][]byte) error {
 	return f.DeleteRange(keys, math.MinInt64, math.MaxInt64)
 }
 
-// DeleteRange removes the values for keys between timestamps min and max.
+// DeleteRangeWith removes the values between timestamps min and max for keys where
+// fn returns true.
+func (f *FileStore) DeleteRangeWith(fn func(name []byte, tags models.Tags) bool, min, max int64) error {
+	var batches BatchDeleters
+	f.mu.RLock()
+	for _, f := range f.files {
+		if f.OverlapsTimeRange(min, max) {
+			batches = append(batches, f.BatchDelete())
+		}
+	}
+	f.mu.RUnlock()
+
+	// No TSM files contain this time range, nothing to delete.
+	if len(batches) == 0 {
+		return nil
+	}
+
+	// Bound the deletes in batches to avoid large allocations
+	var batchSize = 10000
+
+	// Delete groups of series in batches
+	if err := func() error {
+		deleteKeys := make([][]byte, 0, batchSize)
+		if err := f.WalkKeys(func(k []byte, _ byte) error {
+			seriesKey, _ := SeriesAndFieldFromCompositeKey(k)
+			meas, tags := models.ParseKeyBytes(seriesKey)
+
+			if !fn(meas, tags) {
+				return nil
+			}
+
+			deleteKeys = append(deleteKeys, k)
+
+			// Delete this batch and reset it
+			if len(deleteKeys) == batchSize {
+				if err := batches.DeleteRange(deleteKeys, min, max); err != nil {
+					return err
+				}
+				deleteKeys = deleteKeys[:0]
+			}
+
+			return nil
+		}); err != nil {
+			return err
+		}
+
+		// Delete the last batch if there is one
+		if len(deleteKeys) > 0 {
+			if err := batches.DeleteRange(deleteKeys, min, max); err != nil {
+				return err
+			}
+		}
+
+		// Try to commit these deletes
+		return batches.Commit()
+	}(); err != nil {
+		// Rollback the deletes
+		_ = batches.Rollback()
+		return err
+	}
+
+	f.mu.Lock()
+	f.lastModified = time.Now().UTC()
+	f.lastFileStats = nil
+	f.mu.Unlock()
+	return nil
+
+}
+
+// DeleteRange removes the values for keys between timestamps min and max.  This should only
+// be used with smaller batches of series keys.
 func (f *FileStore) DeleteRange(keys [][]byte, min, max int64) error {
-	var batches []BatchDeleter
+	var batches BatchDeleters
 	f.mu.RLock()
 	for _, f := range f.files {
 		if f.OverlapsTimeRange(min, max) {
@@ -371,24 +441,14 @@ func (f *FileStore) DeleteRange(keys [][]byte, min, max int64) error {
 	}
 
 	if err := func() error {
-		for _, b := range batches {
-			if err := b.DeleteRange(keys, min, max); err != nil {
-				return err
-			}
+		if err := batches.DeleteRange(keys, min, max); err != nil {
+			return err
 		}
 
-		for _, b := range batches {
-			if err := b.Commit(); err != nil {
-				return err
-			}
-		}
-
-		return nil
+		return batches.Commit()
 	}(); err != nil {
 		// Rollback the deletes
-		for _, b := range batches {
-			b.Rollback()
-		}
+		_ = batches.Rollback()
 		return err
 	}
 
