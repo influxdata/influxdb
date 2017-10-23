@@ -479,7 +479,8 @@ type TagBlockEncoder struct {
 	trailer TagBlockTrailer
 
 	// Track tag keys.
-	keys []tagKeyEncodeEntry
+	keys      []tagKeyEncodeEntry
+	prevValue []byte
 }
 
 // NewTagBlockEncoder returns a new TagBlockEncoder.
@@ -527,6 +528,9 @@ func (enc *TagBlockEncoder) EncodeKey(key []byte, deleted bool) error {
 
 	enc.keys = append(enc.keys, entry)
 
+	// Clear previous value.
+	enc.prevValue = nil
+
 	return nil
 }
 
@@ -537,6 +541,13 @@ func (enc *TagBlockEncoder) EncodeValue(value []byte, deleted bool, seriesIDs []
 		return fmt.Errorf("tag key must be encoded before encoding values")
 	} else if len(value) == 0 {
 		return fmt.Errorf("zero length tag value not allowed")
+	}
+
+	// Validate that keys are in-order.
+	if cmp := bytes.Compare(enc.prevValue, value); cmp == 1 {
+		return fmt.Errorf("tag value out of order: prev=%s, new=%s", enc.prevValue, value)
+	} else if cmp == 0 {
+		return fmt.Errorf("tag value already encoded: %s", value)
 	}
 
 	// Save offset to hash map.
@@ -582,6 +593,9 @@ func (enc *TagBlockEncoder) EncodeValue(value []byte, deleted bool, seriesIDs []
 	if enc.n += nn; err != nil {
 		return err
 	}
+
+	// Save previous value.
+	enc.prevValue = value
 
 	return nil
 }
