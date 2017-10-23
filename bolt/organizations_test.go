@@ -93,7 +93,7 @@ func TestOrganizationsStore_GetWithName(t *testing.T) {
 				return
 			}
 
-			if gotOrg, wantOrg := boltSourcesStore.Org, strconv.FormatUint(got.ID, 10); gotOrg != wantOrg {
+			if gotOrg, wantOrg := boltSourcesStore.Organization, strconv.FormatUint(got.ID, 10); gotOrg != wantOrg {
 				t.Errorf("%q. OrganizationsStore.Get() SourcesStore.org = %s, want %s", gotOrg, wantOrg)
 			}
 
@@ -103,7 +103,7 @@ func TestOrganizationsStore_GetWithName(t *testing.T) {
 				return
 			}
 
-			if gotOrg, wantOrg := boltServersStore.Org, strconv.FormatUint(got.ID, 10); gotOrg != wantOrg {
+			if gotOrg, wantOrg := boltServersStore.Organization, strconv.FormatUint(got.ID, 10); gotOrg != wantOrg {
 				t.Errorf("%q. OrganizationsStore.Get() ServerssStore.org = %s, want %s", gotOrg, wantOrg)
 			}
 
@@ -113,7 +113,7 @@ func TestOrganizationsStore_GetWithName(t *testing.T) {
 				return
 			}
 
-			if gotOrg, wantOrg := boltLayoutStore.Org, strconv.FormatUint(got.ID, 10); gotOrg != wantOrg {
+			if gotOrg, wantOrg := boltLayoutStore.Organization, strconv.FormatUint(got.ID, 10); gotOrg != wantOrg {
 				t.Errorf("%q. OrganizationsStore.Get() LayoutStore.org = %s, want %s", gotOrg, wantOrg)
 			}
 
@@ -123,7 +123,7 @@ func TestOrganizationsStore_GetWithName(t *testing.T) {
 				return
 			}
 
-			if gotOrg, wantOrg := boltDashboardsStore.Org, strconv.FormatUint(got.ID, 10); gotOrg != wantOrg {
+			if gotOrg, wantOrg := boltDashboardsStore.Organization, strconv.FormatUint(got.ID, 10); gotOrg != wantOrg {
 				t.Errorf("%q. OrganizationsStore.Get() DashboardsStore.org = %s, want %s", gotOrg, wantOrg)
 			}
 
@@ -204,7 +204,7 @@ func TestOrganizationsStore_GetWithID(t *testing.T) {
 				return
 			}
 
-			if gotOrg, wantOrg := boltSourcesStore.Org, strconv.FormatUint(got.ID, 10); gotOrg != wantOrg {
+			if gotOrg, wantOrg := boltSourcesStore.Organization, strconv.FormatUint(got.ID, 10); gotOrg != wantOrg {
 				t.Errorf("%q. OrganizationsStore.Get() SourcesStore.org = %s, want %s", gotOrg, wantOrg)
 			}
 
@@ -214,7 +214,7 @@ func TestOrganizationsStore_GetWithID(t *testing.T) {
 				return
 			}
 
-			if gotOrg, wantOrg := boltServersStore.Org, strconv.FormatUint(got.ID, 10); gotOrg != wantOrg {
+			if gotOrg, wantOrg := boltServersStore.Organization, strconv.FormatUint(got.ID, 10); gotOrg != wantOrg {
 				t.Errorf("%q. OrganizationsStore.Get() ServerssStore.org = %s, want %s", gotOrg, wantOrg)
 			}
 
@@ -224,7 +224,7 @@ func TestOrganizationsStore_GetWithID(t *testing.T) {
 				return
 			}
 
-			if gotOrg, wantOrg := boltLayoutStore.Org, strconv.FormatUint(got.ID, 10); gotOrg != wantOrg {
+			if gotOrg, wantOrg := boltLayoutStore.Organization, strconv.FormatUint(got.ID, 10); gotOrg != wantOrg {
 				t.Errorf("%q. OrganizationsStore.Get() LayoutStore.org = %s, want %s", gotOrg, wantOrg)
 			}
 
@@ -234,7 +234,7 @@ func TestOrganizationsStore_GetWithID(t *testing.T) {
 				return
 			}
 
-			if gotOrg, wantOrg := boltDashboardsStore.Org, strconv.FormatUint(got.ID, 10); gotOrg != wantOrg {
+			if gotOrg, wantOrg := boltDashboardsStore.Organization, strconv.FormatUint(got.ID, 10); gotOrg != wantOrg {
 				t.Errorf("%q. OrganizationsStore.Get() DashboardsStore.org = %s, want %s", gotOrg, wantOrg)
 			}
 		})

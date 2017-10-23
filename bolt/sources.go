@@ -16,8 +16,8 @@ var SourcesBucket = []byte("Sources")
 
 // SourcesStore is a bolt implementation to store time-series source information.
 type SourcesStore struct {
-	client *Client
-	Org    string
+	client       *Client
+	Organization string
 }
 
 // All returns all known sources
@@ -101,7 +101,7 @@ func (s *SourcesStore) Update(ctx context.Context, src chronograf.Source) error 
 
 func (s *SourcesStore) all(ctx context.Context, tx *bolt.Tx) ([]chronograf.Source, error) {
 	var srcs []chronograf.Source
-	if err := tx.Bucket(bucket(SourcesBucket, s.Org)).ForEach(func(k, v []byte) error {
+	if err := tx.Bucket(bucket(SourcesBucket, s.Organization)).ForEach(func(k, v []byte) error {
 		var src chronograf.Source
 		if err := internal.UnmarshalSource(v, &src); err != nil {
 			return err
@@ -115,7 +115,7 @@ func (s *SourcesStore) all(ctx context.Context, tx *bolt.Tx) ([]chronograf.Sourc
 }
 
 func (s *SourcesStore) add(ctx context.Context, src *chronograf.Source, tx *bolt.Tx) error {
-	b := tx.Bucket(bucket(SourcesBucket, s.Org))
+	b := tx.Bucket(bucket(SourcesBucket, s.Organization))
 	seq, err := b.NextSequence()
 	if err != nil {
 		return err
@@ -137,7 +137,7 @@ func (s *SourcesStore) add(ctx context.Context, src *chronograf.Source, tx *bolt
 }
 
 func (s *SourcesStore) delete(ctx context.Context, src chronograf.Source, tx *bolt.Tx) error {
-	if err := tx.Bucket(bucket(SourcesBucket, s.Org)).Delete(itob(src.ID)); err != nil {
+	if err := tx.Bucket(bucket(SourcesBucket, s.Organization)).Delete(itob(src.ID)); err != nil {
 		return err
 	}
 	return nil
@@ -145,7 +145,7 @@ func (s *SourcesStore) delete(ctx context.Context, src chronograf.Source, tx *bo
 
 func (s *SourcesStore) get(ctx context.Context, id int, tx *bolt.Tx) (chronograf.Source, error) {
 	var src chronograf.Source
-	if v := tx.Bucket(bucket(SourcesBucket, s.Org)).Get(itob(id)); v == nil {
+	if v := tx.Bucket(bucket(SourcesBucket, s.Organization)).Get(itob(id)); v == nil {
 		return src, chronograf.ErrSourceNotFound
 	} else if err := internal.UnmarshalSource(v, &src); err != nil {
 		return src, err
@@ -155,7 +155,7 @@ func (s *SourcesStore) get(ctx context.Context, id int, tx *bolt.Tx) (chronograf
 
 func (s *SourcesStore) update(ctx context.Context, src chronograf.Source, tx *bolt.Tx) error {
 	// Get an existing soource with the same ID.
-	b := tx.Bucket(bucket(SourcesBucket, s.Org))
+	b := tx.Bucket(bucket(SourcesBucket, s.Organization))
 	if v := b.Get(itob(src.ID)); v == nil {
 		return chronograf.ErrSourceNotFound
 	}
@@ -176,7 +176,7 @@ func (s *SourcesStore) update(ctx context.Context, src chronograf.Source, tx *bo
 
 // resetDefaultSource unsets the Default flag on all sources
 func (s *SourcesStore) resetDefaultSource(ctx context.Context, tx *bolt.Tx) error {
-	b := tx.Bucket(bucket(SourcesBucket, s.Org))
+	b := tx.Bucket(bucket(SourcesBucket, s.Organization))
 	srcs, err := s.all(ctx, tx)
 	if err != nil {
 		return err

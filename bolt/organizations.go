@@ -167,22 +167,22 @@ func (s *OrganizationsStore) get(ctx context.Context, id uint64) (*chronograf.Or
 func (s *OrganizationsStore) appendStores(o *chronograf.Organization) {
 	idStr := strconv.FormatUint(o.ID, 10)
 	o.SourcesStore = &SourcesStore{
-		client: s.client,
-		Org:    idStr,
+		client:       s.client,
+		Organization: idStr,
 	}
 	o.ServersStore = &ServersStore{
-		client: s.client,
-		Org:    idStr,
+		client:       s.client,
+		Organization: idStr,
 	}
 	o.LayoutStore = &LayoutStore{
-		client: s.client,
-		Org:    idStr,
-		IDs:    &uuid.V4{},
+		client:       s.client,
+		Organization: idStr,
+		IDs:          &uuid.V4{},
 	}
 	o.DashboardsStore = &DashboardsStore{
-		client: s.client,
-		Org:    idStr,
-		IDs:    &uuid.V4{},
+		client:       s.client,
+		Organization: idStr,
+		IDs:          &uuid.V4{},
 	}
 }
 
