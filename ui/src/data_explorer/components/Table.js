@@ -88,6 +88,8 @@ class ChronoTable extends Component {
     )
   }
 
+  makeTabName = ({name, tags}) => (tags ? `${name}.${tags[name]}` : name)
+
   render() {
     const {containerWidth, height, query} = this.props
     const {series, columnWidths, isLoading, activeSeriesIndex} = this.state
@@ -121,11 +123,11 @@ class ChronoTable extends Component {
       <div style={{width: '100%', height: '100%', position: 'relative'}}>
         {series.length < maximumTabsCount
           ? <div className="table--tabs">
-              {series.map(({name}, i) =>
+              {series.map((s, i) =>
                 <TabItem
                   isActive={i === activeSeriesIndex}
                   key={i}
-                  name={name}
+                  name={this.makeTabName(s)}
                   index={i}
                   onClickTab={this.handleClickTab}
                 />
