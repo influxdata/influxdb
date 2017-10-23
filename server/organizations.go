@@ -105,7 +105,7 @@ func (s *Service) NewOrganization(w http.ResponseWriter, r *http.Request) {
 	encodeJSON(w, http.StatusCreated, co, s.Logger)
 }
 
-// UserID retrieves a organization with ID from store
+// OrganizationID retrieves a organization with ID from store
 func (s *Service) OrganizationID(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
