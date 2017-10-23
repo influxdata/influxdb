@@ -2,7 +2,6 @@ package bolt_test
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 	"testing"
 
@@ -361,9 +360,7 @@ func TestOrganizationsStore_Update(t *testing.T) {
 		s := client.OrganizationsStore
 
 		if tt.addFirst {
-			fmt.Println(tt.args.org)
 			tt.args.org, err = s.Add(tt.args.ctx, tt.args.org)
-			fmt.Println(tt.args.org)
 			if err != nil {
 				t.Fatal(err)
 			}
