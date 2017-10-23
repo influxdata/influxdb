@@ -111,7 +111,10 @@ func rewriteShowMeasurementsStatement(stmt *ShowMeasurementsStatement) (Statemen
 }
 
 func rewriteShowMeasurementCardinalityStatement(stmt *ShowMeasurementCardinalityStatement) (Statement, error) {
-	if !stmt.Exact { // Use cardinality estimation and don't rewrite.
+	// TODO(edd): currently we only support cardinality estimation for certain
+	// types of query. As the estimation coverage is expanded, this condition
+	// will become less strict.
+	if !stmt.Exact && stmt.Sources == nil && stmt.Condition == nil && stmt.Dimensions == nil && stmt.Limit == 0 && stmt.Offset == 0 {
 		return stmt, nil
 	}
 
@@ -170,7 +173,10 @@ func rewriteShowSeriesStatement(stmt *ShowSeriesStatement) (Statement, error) {
 }
 
 func rewriteShowSeriesCardinalityStatement(stmt *ShowSeriesCardinalityStatement) (Statement, error) {
-	if !stmt.Exact {
+	// TODO(edd): currently we only support cardinality estimation for certain
+	// types of query. As the estimation coverage is expanded, this condition
+	// will become less strict.
+	if !stmt.Exact && stmt.Sources == nil && stmt.Condition == nil && stmt.Dimensions == nil && stmt.Limit == 0 && stmt.Offset == 0 {
 		return stmt, nil
 	}
 

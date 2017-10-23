@@ -1802,17 +1802,78 @@ func TestParser_ParseStatement(t *testing.T) {
 				Database: "db0",
 			},
 		},
+		// SHOW TAG KEY CARDINALITY statement
+		{
+			s:    `SHOW TAG KEY CARDINALITY`,
+			stmt: &influxql.ShowTagKeyCardinalityStatement{},
+		},
+
+		// SHOW TAG KEY CARDINALITY FROM cpu
+		{
+			s: `SHOW TAG KEY CARDINALITY FROM cpu`,
+			stmt: &influxql.ShowTagKeyCardinalityStatement{
+				Sources: []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+			},
+		},
+
+		// SHOW TAG KEY CARDINALITY ON db0
+		{
+			s: `SHOW TAG KEY CARDINALITY ON db0`,
+			stmt: &influxql.ShowTagKeyCardinalityStatement{
+				Database: "db0",
+			},
+		},
+
+		// SHOW TAG KEY CARDINALITY FROM /<regex>/
+		{
+			s: `SHOW TAG KEY CARDINALITY FROM /[cg]pu/`,
+			stmt: &influxql.ShowTagKeyCardinalityStatement{
+				Sources: []influxql.Source{
+					&influxql.Measurement{
+						Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`[cg]pu`)},
+					},
+				},
+			},
+		},
+
+		// SHOW TAG KEY CARDINALITY with OFFSET 0
+		{
+			s:    `SHOW TAG KEY CARDINALITY OFFSET 0`,
+			stmt: &influxql.ShowTagKeyCardinalityStatement{Offset: 0},
+		},
+
+		// SHOW TAG KEY CARDINALITY with LIMIT 2 OFFSET 0
+		{
+			s:    `SHOW TAG KEY CARDINALITY LIMIT 2 OFFSET 0`,
+			stmt: &influxql.ShowTagKeyCardinalityStatement{Offset: 0, Limit: 2},
+		},
+
+		// SHOW TAG KEY CARDINALITY WHERE with ORDER BY and LIMIT
+		{
+			s: `SHOW TAG KEY CARDINALITY WHERE region = 'order by desc' LIMIT 10`,
+			stmt: &influxql.ShowTagKeyCardinalityStatement{
+				Condition: &influxql.BinaryExpr{
+					Op:  influxql.EQ,
+					LHS: &influxql.VarRef{Val: "region"},
+					RHS: &influxql.StringLiteral{Val: "order by desc"},
+				},
+				Limit: 10,
+			},
+		},
 
 		// SHOW TAG KEY EXACT CARDINALITY statement
 		{
-			s:    `SHOW TAG KEY EXACT CARDINALITY`,
-			stmt: &influxql.ShowTagKeyCardinalityStatement{},
+			s: `SHOW TAG KEY EXACT CARDINALITY`,
+			stmt: &influxql.ShowTagKeyCardinalityStatement{
+				Exact: true,
+			},
 		},
 
 		// SHOW TAG KEY EXACT CARDINALITY FROM cpu
 		{
 			s: `SHOW TAG KEY EXACT CARDINALITY FROM cpu`,
 			stmt: &influxql.ShowTagKeyCardinalityStatement{
+				Exact:   true,
 				Sources: []influxql.Source{&influxql.Measurement{Name: "cpu"}},
 			},
 		},
@@ -1821,6 +1882,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SHOW TAG KEY EXACT CARDINALITY ON db0`,
 			stmt: &influxql.ShowTagKeyCardinalityStatement{
+				Exact:    true,
 				Database: "db0",
 			},
 		},
@@ -1829,6 +1891,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SHOW TAG KEY EXACT CARDINALITY FROM /[cg]pu/`,
 			stmt: &influxql.ShowTagKeyCardinalityStatement{
+				Exact: true,
 				Sources: []influxql.Source{
 					&influxql.Measurement{
 						Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`[cg]pu`)},
@@ -1840,19 +1903,20 @@ func TestParser_ParseStatement(t *testing.T) {
 		// SHOW TAG KEY EXACT CARDINALITY with OFFSET 0
 		{
 			s:    `SHOW TAG KEY EXACT CARDINALITY OFFSET 0`,
-			stmt: &influxql.ShowTagKeyCardinalityStatement{Offset: 0},
+			stmt: &influxql.ShowTagKeyCardinalityStatement{Exact: true, Offset: 0},
 		},
 
 		// SHOW TAG KEY EXACT CARDINALITY with LIMIT 2 OFFSET 0
 		{
 			s:    `SHOW TAG KEY EXACT CARDINALITY LIMIT 2 OFFSET 0`,
-			stmt: &influxql.ShowTagKeyCardinalityStatement{Offset: 0, Limit: 2},
+			stmt: &influxql.ShowTagKeyCardinalityStatement{Exact: true, Offset: 0, Limit: 2},
 		},
 
 		// SHOW TAG KEY EXACT CARDINALITY WHERE with ORDER BY and LIMIT
 		{
 			s: `SHOW TAG KEY EXACT CARDINALITY WHERE region = 'order by desc' LIMIT 10`,
 			stmt: &influxql.ShowTagKeyCardinalityStatement{
+				Exact: true,
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.EQ,
 					LHS: &influxql.VarRef{Val: "region"},
@@ -2091,10 +2155,90 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// SHOW TAG VALUES CARDINALITY statement
+		{
+			s: `SHOW TAG VALUES CARDINALITY WITH KEY = host`,
+			stmt: &influxql.ShowTagValuesCardinalityStatement{
+				Op:         influxql.EQ,
+				TagKeyExpr: &influxql.StringLiteral{Val: "host"},
+			},
+		},
+
+		// SHOW TAG VALUES CARDINALITY FROM cpu
+		{
+			s: `SHOW TAG VALUES CARDINALITY FROM cpu WITH KEY =  host`,
+			stmt: &influxql.ShowTagValuesCardinalityStatement{
+				Sources:    []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+				Op:         influxql.EQ,
+				TagKeyExpr: &influxql.StringLiteral{Val: "host"},
+			},
+		},
+
+		// SHOW TAG VALUES CARDINALITY ON db0
+		{
+			s: `SHOW TAG VALUES CARDINALITY ON db0 WITH KEY = host`,
+			stmt: &influxql.ShowTagValuesCardinalityStatement{
+				Database:   "db0",
+				Op:         influxql.EQ,
+				TagKeyExpr: &influxql.StringLiteral{Val: "host"},
+			},
+		},
+
+		// SHOW TAG VALUES CARDINALITY FROM /<regex>/
+		{
+			s: `SHOW TAG VALUES CARDINALITY FROM /[cg]pu/ WITH KEY = host`,
+			stmt: &influxql.ShowTagValuesCardinalityStatement{
+				Sources: []influxql.Source{
+					&influxql.Measurement{
+						Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`[cg]pu`)},
+					},
+				},
+				Op:         influxql.EQ,
+				TagKeyExpr: &influxql.StringLiteral{Val: "host"},
+			},
+		},
+
+		// SHOW TAG VALUES CARDINALITY with OFFSET 0
+		{
+			s: `SHOW TAG VALUES CARDINALITY WITH KEY = host OFFSET 0`,
+			stmt: &influxql.ShowTagValuesCardinalityStatement{
+				Op:         influxql.EQ,
+				TagKeyExpr: &influxql.StringLiteral{Val: "host"},
+				Offset:     0,
+			},
+		},
+
+		// SHOW TAG VALUES CARDINALITY with LIMIT 2 OFFSET 0
+		{
+			s: `SHOW TAG VALUES CARDINALITY WITH KEY = host LIMIT 2 OFFSET 0`,
+			stmt: &influxql.ShowTagValuesCardinalityStatement{
+				Op:         influxql.EQ,
+				TagKeyExpr: &influxql.StringLiteral{Val: "host"},
+				Offset:     0,
+				Limit:      2,
+			},
+		},
+
+		// SHOW TAG VALUES CARDINALITY WHERE with ORDER BY and LIMIT
+		{
+			s: `SHOW TAG VALUES CARDINALITY WITH KEY = host WHERE region = 'order by desc' LIMIT 10`,
+			stmt: &influxql.ShowTagValuesCardinalityStatement{
+				Op:         influxql.EQ,
+				TagKeyExpr: &influxql.StringLiteral{Val: "host"},
+				Condition: &influxql.BinaryExpr{
+					Op:  influxql.EQ,
+					LHS: &influxql.VarRef{Val: "region"},
+					RHS: &influxql.StringLiteral{Val: "order by desc"},
+				},
+				Limit: 10,
+			},
+		},
+
 		// SHOW TAG VALUES EXACT CARDINALITY statement
 		{
 			s: `SHOW TAG VALUES EXACT CARDINALITY WITH KEY = host`,
 			stmt: &influxql.ShowTagValuesCardinalityStatement{
+				Exact:      true,
 				Op:         influxql.EQ,
 				TagKeyExpr: &influxql.StringLiteral{Val: "host"},
 			},
@@ -2104,6 +2248,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SHOW TAG VALUES EXACT CARDINALITY FROM cpu WITH KEY =  host`,
 			stmt: &influxql.ShowTagValuesCardinalityStatement{
+				Exact:      true,
 				Sources:    []influxql.Source{&influxql.Measurement{Name: "cpu"}},
 				Op:         influxql.EQ,
 				TagKeyExpr: &influxql.StringLiteral{Val: "host"},
@@ -2114,6 +2259,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SHOW TAG VALUES EXACT CARDINALITY ON db0 WITH KEY = host`,
 			stmt: &influxql.ShowTagValuesCardinalityStatement{
+				Exact:      true,
 				Database:   "db0",
 				Op:         influxql.EQ,
 				TagKeyExpr: &influxql.StringLiteral{Val: "host"},
@@ -2124,6 +2270,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SHOW TAG VALUES EXACT CARDINALITY FROM /[cg]pu/ WITH KEY = host`,
 			stmt: &influxql.ShowTagValuesCardinalityStatement{
+				Exact: true,
 				Sources: []influxql.Source{
 					&influxql.Measurement{
 						Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`[cg]pu`)},
@@ -2138,6 +2285,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SHOW TAG VALUES EXACT CARDINALITY WITH KEY = host OFFSET 0`,
 			stmt: &influxql.ShowTagValuesCardinalityStatement{
+				Exact:      true,
 				Op:         influxql.EQ,
 				TagKeyExpr: &influxql.StringLiteral{Val: "host"},
 				Offset:     0,
@@ -2148,6 +2296,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SHOW TAG VALUES EXACT CARDINALITY WITH KEY = host LIMIT 2 OFFSET 0`,
 			stmt: &influxql.ShowTagValuesCardinalityStatement{
+				Exact:      true,
 				Op:         influxql.EQ,
 				TagKeyExpr: &influxql.StringLiteral{Val: "host"},
 				Offset:     0,
@@ -2159,6 +2308,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SHOW TAG VALUES EXACT CARDINALITY WITH KEY = host WHERE region = 'order by desc' LIMIT 10`,
 			stmt: &influxql.ShowTagValuesCardinalityStatement{
+				Exact:      true,
 				Op:         influxql.EQ,
 				TagKeyExpr: &influxql.StringLiteral{Val: "host"},
 				Condition: &influxql.BinaryExpr{
@@ -2207,16 +2357,83 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// SHOW FIELD KEY CARDINALITY statement
+		{
+			s:    `SHOW FIELD KEY CARDINALITY`,
+			stmt: &influxql.ShowFieldKeyCardinalityStatement{},
+		},
+
+		// SHOW FIELD KEY CARDINALITY FROM cpu
+		{
+			s: `SHOW FIELD KEY CARDINALITY FROM cpu`,
+			stmt: &influxql.ShowFieldKeyCardinalityStatement{
+				Sources: []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+			},
+		},
+
+		// SHOW FIELD KEY CARDINALITY ON db0
+		{
+			s: `SHOW FIELD KEY CARDINALITY ON db0`,
+			stmt: &influxql.ShowFieldKeyCardinalityStatement{
+				Database: "db0",
+			},
+		},
+
+		// SHOW FIELD KEY CARDINALITY FROM /<regex>/
+		{
+			s: `SHOW FIELD KEY CARDINALITY FROM /[cg]pu/`,
+			stmt: &influxql.ShowFieldKeyCardinalityStatement{
+				Sources: []influxql.Source{
+					&influxql.Measurement{
+						Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`[cg]pu`)},
+					},
+				},
+			},
+		},
+
+		// SHOW FIELD KEY CARDINALITY with OFFSET 0
+		{
+			s: `SHOW FIELD KEY CARDINALITY OFFSET 0`,
+			stmt: &influxql.ShowFieldKeyCardinalityStatement{
+				Offset: 0,
+			},
+		},
+
+		// SHOW FIELD KEY CARDINALITY with LIMIT 2 OFFSET 0
+		{
+			s: `SHOW FIELD KEY CARDINALITY LIMIT 2 OFFSET 0`,
+			stmt: &influxql.ShowFieldKeyCardinalityStatement{
+				Offset: 0,
+				Limit:  2,
+			},
+		},
+
+		// SHOW FIELD KEY CARDINALITY WHERE with ORDER BY and LIMIT
+		{
+			s: `SHOW FIELD KEY CARDINALITY WHERE region = 'order by desc' LIMIT 10`,
+			stmt: &influxql.ShowFieldKeyCardinalityStatement{
+				Condition: &influxql.BinaryExpr{
+					Op:  influxql.EQ,
+					LHS: &influxql.VarRef{Val: "region"},
+					RHS: &influxql.StringLiteral{Val: "order by desc"},
+				},
+				Limit: 10,
+			},
+		},
+
 		// SHOW FIELD KEY EXACT CARDINALITY statement
 		{
-			s:    `SHOW FIELD KEY EXACT CARDINALITY`,
-			stmt: &influxql.ShowFieldKeyCardinalityStatement{},
+			s: `SHOW FIELD KEY EXACT CARDINALITY`,
+			stmt: &influxql.ShowFieldKeyCardinalityStatement{
+				Exact: true,
+			},
 		},
 
 		// SHOW FIELD KEY EXACT CARDINALITY FROM cpu
 		{
 			s: `SHOW FIELD KEY EXACT CARDINALITY FROM cpu`,
 			stmt: &influxql.ShowFieldKeyCardinalityStatement{
+				Exact:   true,
 				Sources: []influxql.Source{&influxql.Measurement{Name: "cpu"}},
 			},
 		},
@@ -2225,6 +2442,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SHOW FIELD KEY EXACT CARDINALITY ON db0`,
 			stmt: &influxql.ShowFieldKeyCardinalityStatement{
+				Exact:    true,
 				Database: "db0",
 			},
 		},
@@ -2233,6 +2451,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SHOW FIELD KEY EXACT CARDINALITY FROM /[cg]pu/`,
 			stmt: &influxql.ShowFieldKeyCardinalityStatement{
+				Exact: true,
 				Sources: []influxql.Source{
 					&influxql.Measurement{
 						Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`[cg]pu`)},
@@ -2245,6 +2464,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SHOW FIELD KEY EXACT CARDINALITY OFFSET 0`,
 			stmt: &influxql.ShowFieldKeyCardinalityStatement{
+				Exact:  true,
 				Offset: 0,
 			},
 		},
@@ -2253,6 +2473,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SHOW FIELD KEY EXACT CARDINALITY LIMIT 2 OFFSET 0`,
 			stmt: &influxql.ShowFieldKeyCardinalityStatement{
+				Exact:  true,
 				Offset: 0,
 				Limit:  2,
 			},
@@ -2262,6 +2483,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SHOW FIELD KEY EXACT CARDINALITY WHERE region = 'order by desc' LIMIT 10`,
 			stmt: &influxql.ShowFieldKeyCardinalityStatement{
+				Exact: true,
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.EQ,
 					LHS: &influxql.VarRef{Val: "region"},
@@ -2270,7 +2492,6 @@ func TestParser_ParseStatement(t *testing.T) {
 				Limit: 10,
 			},
 		},
-
 		// DELETE statement
 		{
 			s:    `DELETE FROM src`,

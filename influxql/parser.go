@@ -974,11 +974,6 @@ func (p *Parser) parseShowSeriesCardinalityStatement(exact bool) (Statement, err
 		p.Unscan()
 	}
 
-	// Estimation command doesn't support any further versions of the command.
-	if !exact {
-		return stmt, nil
-	}
-
 	// Parse optional FROM.
 	if tok, _, _ := p.ScanIgnoreWhitespace(); tok == FROM {
 		if stmt.Sources, err = p.parseSources(false); err != nil {
@@ -1008,8 +1003,7 @@ func (p *Parser) parseShowSeriesCardinalityStatement(exact bool) (Statement, err
 	return stmt, nil
 }
 
-// This function assumes the "SHOW MEASUREMENT EXACT" or "SHOW MEASUREMENT CARDINALITY"
-// tokens have already been consumed.
+// This function assumes the "SHOW MEASUREMENT" tokens have already been consumed.
 func (p *Parser) parseShowMeasurementCardinalityStatement(exact bool) (Statement, error) {
 	stmt := &ShowMeasurementCardinalityStatement{Exact: exact}
 
@@ -1028,11 +1022,6 @@ func (p *Parser) parseShowMeasurementCardinalityStatement(exact bool) (Statement
 		}
 	} else {
 		p.Unscan()
-	}
-
-	// Estimation command doesn't support any further versions of the command.
-	if !stmt.Exact {
-		return stmt, nil
 	}
 
 	// Parse optional FROM.
@@ -1156,15 +1145,20 @@ func (p *Parser) parseShowRetentionPoliciesStatement() (*ShowRetentionPoliciesSt
 // This function assumes the "SHOW TAG KEY" tokens have already been consumed.
 func (p *Parser) parseShowTagKeyCardinalityStatement() (Statement, error) {
 	var err error
-	stmt := &ShowTagKeyCardinalityStatement{}
-
-	if tok, pos, lit := p.ScanIgnoreWhitespace(); tok != EXACT {
-		return nil, newParseError(tokstr(tok, lit), []string{"EXACT"}, pos)
+	var exactCardinality bool
+	requiredTokens := []string{"EXACT", "CARDINALITY"}
+	if tok, _, _ := p.ScanIgnoreWhitespace(); tok == EXACT {
+		exactCardinality = true
+		requiredTokens = requiredTokens[1:]
+	} else {
+		p.Unscan()
 	}
+
+	stmt := &ShowTagKeyCardinalityStatement{Exact: exactCardinality}
 
 	// Parse remaining CARDINALITY token
 	if tok, pos, lit := p.ScanIgnoreWhitespace(); tok != CARDINALITY {
-		return nil, newParseError(tokstr(tok, lit), []string{"CARDINALITY"}, pos)
+		return nil, newParseError(tokstr(tok, lit), requiredTokens, pos)
 	}
 
 	// Parse optional ON clause.
@@ -1271,7 +1265,9 @@ func (p *Parser) parseShowTagValuesStatement() (Statement, error) {
 	var err error
 
 	if tok, _, _ := p.ScanIgnoreWhitespace(); tok == EXACT {
-		return p.parseShowTagValuesCardinalityStatement()
+		return p.parseShowTagValuesCardinalityStatement(true)
+	} else if tok == CARDINALITY {
+		return p.parseShowTagValuesCardinalityStatement(false)
 	}
 	p.Unscan()
 
@@ -1323,14 +1319,16 @@ func (p *Parser) parseShowTagValuesStatement() (Statement, error) {
 	return stmt, nil
 }
 
-// This function assumes the "SHOW TAG VALUES EXACT" tokens have already been consumed.
-func (p *Parser) parseShowTagValuesCardinalityStatement() (Statement, error) {
+// This function assumes the "SHOW TAG VALUES" tokens have already been consumed.
+func (p *Parser) parseShowTagValuesCardinalityStatement(exact bool) (Statement, error) {
 	var err error
-	stmt := &ShowTagValuesCardinalityStatement{}
+	stmt := &ShowTagValuesCardinalityStatement{Exact: exact}
 
-	// Parse remaining CARDINALITY token
-	if tok, pos, lit := p.ScanIgnoreWhitespace(); tok != CARDINALITY {
-		return nil, newParseError(tokstr(tok, lit), []string{"CARDINALITY"}, pos)
+	if stmt.Exact {
+		// Parse remaining CARDINALITY token
+		if tok, pos, lit := p.ScanIgnoreWhitespace(); tok != CARDINALITY {
+			return nil, newParseError(tokstr(tok, lit), []string{"CARDINALITY"}, pos)
+		}
 	}
 
 	// Parse optional ON clause.
@@ -1376,7 +1374,7 @@ func (p *Parser) parseShowTagValuesCardinalityStatement() (Statement, error) {
 	return stmt, nil
 }
 
-// parseTagKeys parses a string and returns a list of tag keys.
+// parseTagKeys pa³rses a string and returns a list of tag keys.
 func (p *Parser) parseTagKeyExpr() (Token, Literal, error) {
 	var err error
 
@@ -1438,23 +1436,23 @@ func (p *Parser) parseShowSubscriptionsStatement() (*ShowSubscriptionsStatement,
 	return stmt, nil
 }
 
-// parseShowFieldKeyStatement parses a string and returns a Statement.
 // This function assumes the "SHOW FIELD KEY" tokens have already been consumed.
-func (p *Parser) parseShowFieldKeyStatement() (Statement, error) {
-	if tok, pos, lit := p.ScanIgnoreWhitespace(); tok != EXACT {
-		return nil, newParseError(tokstr(tok, lit), []string{"EXACT"}, pos)
-	}
-	return p.parseShowFieldKeyCardinalityStatement()
-}
-
-// This function assumes the "SHOW FIELD KEY EXACT" tokens have already been consumed.
 func (p *Parser) parseShowFieldKeyCardinalityStatement() (Statement, error) {
 	var err error
-	stmt := &ShowFieldKeyCardinalityStatement{}
+	var exactCardinality bool
+	requiredTokens := []string{"EXACT", "CARDINALITY"}
+	if tok, _, _ := p.ScanIgnoreWhitespace(); tok == EXACT {
+		exactCardinality = true
+		requiredTokens = requiredTokens[1:]
+	} else {
+		p.Unscan()
+	}
+
+	stmt := &ShowFieldKeyCardinalityStatement{Exact: exactCardinality}
 
 	// Parse remaining CARDINALITY token
 	if tok, pos, lit := p.ScanIgnoreWhitespace(); tok != CARDINALITY {
-		return nil, newParseError(tokstr(tok, lit), []string{"CARDINALITY"}, pos)
+		return nil, newParseError(tokstr(tok, lit), requiredTokens, pos)
 	}
 
 	// Parse optional ON clause.

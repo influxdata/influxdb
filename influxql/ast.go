@@ -2102,7 +2102,7 @@ type ShowSeriesCardinalityStatement struct {
 	// The database can also be specified per source in the Sources.
 	Database string
 
-	// If exact is false then the cardinality estimation approach is used.
+	// Specifies whether the user requires exact counting or not.
 	Exact bool
 
 	// Measurement(s) the series are listed for.
@@ -2734,6 +2734,7 @@ func (s *ShowTagKeysStatement) DefaultDatabase() string {
 // ShowTagKeyCardinalityStatement represents a command for listing tag key cardinality.
 type ShowTagKeyCardinalityStatement struct {
 	Database      string
+	Exact         bool
 	Sources       Sources
 	Condition     Expr
 	Dimensions    Dimensions
@@ -2743,7 +2744,11 @@ type ShowTagKeyCardinalityStatement struct {
 // String returns a string representation of the statement.
 func (s *ShowTagKeyCardinalityStatement) String() string {
 	var buf bytes.Buffer
-	_, _ = buf.WriteString("SHOW TAG KEY EXACT CARDINALITY")
+	_, _ = buf.WriteString("SHOW TAG KEY ")
+	if s.Exact {
+		_, _ = buf.WriteString("EXACT ")
+	}
+	_, _ = buf.WriteString("CARDINALITY")
 
 	if s.Database != "" {
 		_, _ = buf.WriteString(" ON ")
@@ -2863,6 +2868,7 @@ func (s *ShowTagValuesStatement) DefaultDatabase() string {
 // ShowTagValuesCardinalityStatement represents a command for listing tag value cardinality.
 type ShowTagValuesCardinalityStatement struct {
 	Database      string
+	Exact         bool
 	Sources       Sources
 	Op            Token
 	TagKeyExpr    Literal
@@ -2874,7 +2880,11 @@ type ShowTagValuesCardinalityStatement struct {
 // String returns a string representation of the statement.
 func (s *ShowTagValuesCardinalityStatement) String() string {
 	var buf bytes.Buffer
-	_, _ = buf.WriteString("SHOW TAG VALUES EXACT CARDINALITY")
+	_, _ = buf.WriteString("SHOW TAG VALUES ")
+	if s.Exact {
+		_, _ = buf.WriteString("EXACT ")
+	}
+	_, _ = buf.WriteString("CARDINALITY")
 
 	if s.Database != "" {
 		_, _ = buf.WriteString(" ON ")
@@ -2936,6 +2946,7 @@ func (s *ShowUsersStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
 // ShowFieldKeyCardinalityStatement represents a command for listing field key cardinality.
 type ShowFieldKeyCardinalityStatement struct {
 	Database      string
+	Exact         bool
 	Sources       Sources
 	Condition     Expr
 	Dimensions    Dimensions
@@ -2945,7 +2956,12 @@ type ShowFieldKeyCardinalityStatement struct {
 // String returns a string representation of the statement.
 func (s *ShowFieldKeyCardinalityStatement) String() string {
 	var buf bytes.Buffer
-	_, _ = buf.WriteString("SHOW FIELD KEY EXACT CARDINALITY")
+	_, _ = buf.WriteString("SHOW FIELD KEY ")
+
+	if s.Exact {
+		_, _ = buf.WriteString("EXACT ")
+	}
+	_, _ = buf.WriteString("CARDINALITY")
 
 	if s.Database != "" {
 		_, _ = buf.WriteString(" ON ")

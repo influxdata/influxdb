@@ -118,7 +118,7 @@ func init() {
 		})
 		show.Group(FIELD).With(func(field *ParseTree) {
 			field.Handle(KEY, func(p *Parser) (Statement, error) {
-				return p.parseShowFieldKeyStatement()
+				return p.parseShowFieldKeyCardinalityStatement()
 			})
 			field.Handle(KEYS, func(p *Parser) (Statement, error) {
 				return p.parseShowFieldKeysStatement()
