@@ -459,11 +459,9 @@ func (t *TSMReader) DeleteRange(keys [][]byte, minTime, maxTime int64) error {
 	}
 
 	batch := t.BatchDelete()
-	for _, key := range keys {
-		if err := batch.DeleteRange(key, minTime, maxTime); err != nil {
-			batch.Rollback()
-			return err
-		}
+	if err := batch.DeleteRange(keys, minTime, maxTime); err != nil {
+		batch.Rollback()
+		return err
 	}
 	return batch.Commit()
 }
@@ -480,6 +478,11 @@ func (t *TSMReader) Delete(keys [][]byte) error {
 
 	t.index.Delete(keys)
 	return nil
+}
+
+// OverlapsTimeRange returns true if the time range of the file intersect min and max.
+func (t *TSMReader) OverlapsTimeRange(min, max int64) bool {
+	return t.index.OverlapsTimeRange(min, max)
 }
 
 // TimeRange returns the min and max time across all keys in the file.
@@ -582,7 +585,7 @@ func (t *TSMReader) BlockIterator() *BlockIterator {
 }
 
 type BatchDeleter interface {
-	DeleteRange(key []byte, min, max int64) error
+	DeleteRange(keys [][]byte, min, max int64) error
 	Commit() error
 	Rollback() error
 }
@@ -591,9 +594,14 @@ type batchDelete struct {
 	r *TSMReader
 }
 
-func (b *batchDelete) DeleteRange(key []byte, minTime, maxTime int64) error {
+func (b *batchDelete) DeleteRange(keys [][]byte, minTime, maxTime int64) error {
+	if len(keys) == 0 {
+		return nil
+	}
+
 	// If the keys can't exist in this TSM file, skip it.
-	if !b.r.index.OverlapsKeyRange(key, key) {
+	minKey, maxKey := keys[0], keys[len(keys)-1]
+	if !b.r.index.OverlapsKeyRange(minKey, maxKey) {
 		return nil
 	}
 
@@ -602,7 +610,7 @@ func (b *batchDelete) DeleteRange(key []byte, minTime, maxTime int64) error {
 		return nil
 	}
 
-	if err := b.r.tombstoner.AddRange([][]byte{key}, minTime, maxTime); err != nil {
+	if err := b.r.tombstoner.AddRange(keys, minTime, maxTime); err != nil {
 		return err
 	}
 

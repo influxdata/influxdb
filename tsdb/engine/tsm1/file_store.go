@@ -50,6 +50,9 @@ type TSMFile interface {
 	// key.
 	Contains(key []byte) bool
 
+	// OverlapsTimeRange returns true if the time range of the file intersect min and max.
+	OverlapsTimeRange(min, max int64) bool
+
 	// TimeRange returns the min and max time across all keys in the file.
 	TimeRange() (int64, int64)
 
@@ -69,6 +72,10 @@ type TSMFile interface {
 	// BlockFloat64, BlockInt64, BlockBoolean, BlockString.  If key does not exist,
 	// an error is returned.
 	Type(key []byte) (byte, error)
+
+	// BatchDelete return a BatchDeleter that allows for multiple deletes in batches
+	// and group commit or rollback.
+	BatchDelete() BatchDeleter
 
 	// Delete removes the keys from the set of keys available in this file.
 	Delete(keys [][]byte) error
@@ -350,9 +357,38 @@ func (f *FileStore) Delete(keys [][]byte) error {
 
 // DeleteRange removes the values for keys between timestamps min and max.
 func (f *FileStore) DeleteRange(keys [][]byte, min, max int64) error {
-	if err := f.walkFiles(func(tsm TSMFile) error {
-		return tsm.DeleteRange(keys, min, max)
-	}); err != nil {
+	var batches []BatchDeleter
+	f.mu.RLock()
+	for _, f := range f.files {
+		if f.OverlapsTimeRange(min, max) {
+			batches = append(batches, f.BatchDelete())
+		}
+	}
+	f.mu.RUnlock()
+
+	if len(batches) == 0 {
+		return nil
+	}
+
+	if err := func() error {
+		for _, b := range batches {
+			if err := b.DeleteRange(keys, min, max); err != nil {
+				return err
+			}
+		}
+
+		for _, b := range batches {
+			if err := b.Commit(); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}(); err != nil {
+		// Rollback the deletes
+		for _, b := range batches {
+			b.Rollback()
+		}
 		return err
 	}
 
