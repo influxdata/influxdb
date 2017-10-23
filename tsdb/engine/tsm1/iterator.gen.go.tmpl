@@ -9,7 +9,7 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/pkg/metrics"
 	"github.com/influxdata/influxdb/pkg/tracing"
-	"github.com/influxdata/influxdb/pkg/tracing/field"
+	"github.com/influxdata/influxdb/pkg/tracing/fields"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/uber-go/zap"
@@ -153,20 +153,20 @@ func new{{.Name}}InstrumentedIterator(inner query.{{.Name}}Iterator, span *traci
 }
 
 func (itr *{{.name}}InstrumentedIterator) Close() error {
-	var f []field.Field
+	var f fields.Fields
 	itr.group.ForEach(func(v metrics.Metric) {
 		switch m := v.(type) {
 		case *metrics.Counter:
-			f = append(f, field.Int64(m.Name(), m.Value()))
+			f = append(f, fields.Int64(m.Name(), m.Value()))
 
 		case *metrics.Timer:
-			f = append(f, field.Duration(m.Name(), m.Value()))
+			f = append(f, fields.Duration(m.Name(), m.Value()))
 
 		default:
 			panic("unexpected metrics")
 		}
 	})
-	itr.span.SetFieldSet(field.Fields(f...))
+	itr.span.SetFields(f)
 	itr.span.Finish()
 
 	return itr.{{.Name}}Iterator.Close()
