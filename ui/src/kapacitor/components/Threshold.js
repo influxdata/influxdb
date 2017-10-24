@@ -1,10 +1,19 @@
 import React, {PropTypes} from 'react'
 import {OPERATORS} from 'src/kapacitor/constants'
 import Dropdown from 'shared/components/Dropdown'
+import _ from 'lodash'
 
 const mapToItems = (arr, type) => arr.map(text => ({text, type}))
 const operators = mapToItems(OPERATORS, 'operator')
 const noopSubmit = e => e.preventDefault()
+const getField = ({fields}) => {
+  const alias = _.get(fields, ['0', 'alias'], false)
+  if (!alias) {
+    return _.get(fields, ['0', 'value'], 'Select a Time-Series')
+  }
+
+  return alias
+}
 
 const Threshold = ({
   rule: {values: {operator, value, rangeValue}},
@@ -15,7 +24,7 @@ const Threshold = ({
   <div className="rule-section--row rule-section--row-first rule-section--border-bottom">
     <p>Send Alert where</p>
     <span className="rule-builder--metric">
-      {query.fields.length ? query.fields[0].field : 'Select a Time-Series'}
+      {getField(query)}
     </span>
     <p>is</p>
     <Dropdown
