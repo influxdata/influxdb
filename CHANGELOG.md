@@ -82,7 +82,7 @@
 - [#8822](https://github.com/influxdata/influxdb/issues/8822): Fix data dropped incorrectly during compaction
 - [#8780](https://github.com/influxdata/influxdb/issues/8780): Prevent deadlock during collectd, graphite, opentsdb, and udp shutdown.
 - [#8983](https://github.com/influxdata/influxdb/issues/8983): Remove the pidfile after the server has exited.
-- [#8986](https://github.com/influxdata/influxdb/issues/8986): Replace NewScanner to NewReader in importer.go file.
+- [#8986](https://github.com/influxdata/influxdb/issues/8986): Add long-line support to client importer.
 
 ## v1.3.4 [unreleased]
 

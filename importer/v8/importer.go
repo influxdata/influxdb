@@ -112,7 +112,10 @@ func (i *Importer) Import() error {
 	scanner := bufio.NewReader(r)
 
 	// Process the DDL
-	i.processDDL(scanner)
+	ddl_err := i.processDDL(scanner)
+	if ddl_err != nil {
+		return fmt.Errorf("reading standard input: %s", ddl_err)
+	}
 
 	// Set up our throttle channel.  Since there is effectively no other activity at this point
 	// the smaller resolution gets us much closer to the requested PPS
@@ -123,12 +126,10 @@ func (i *Importer) Import() error {
 	i.lastWrite = time.Now()
 
 	// Process the DML
-	i.processDML(scanner)
-
-	// Check if we had any errors scanning the file
-	//if err := scanner.Err(); err != nil {
-	//	return fmt.Errorf("reading standard input: %s", err)
-	//}
+	dml_err := i.processDML(scanner)
+	if dml_err != nil {
+		return fmt.Errorf("reading standard input: %s", dml_err)
+	}
 
 	// If there were any failed inserts then return an error so that a non-zero
 	// exit code can be returned.
@@ -144,52 +145,61 @@ func (i *Importer) Import() error {
 	return nil
 }
 
-func (i *Importer) processDDL(scanner *bufio.Reader) {
+func (i *Importer) processDDL(scanner *bufio.Reader) error {
 	for {
-		line, _, err := scanner.ReadLine()
-		if err == io.EOF {
-			break
+		line, err := scanner.ReadString(byte('\n'))
+		if err != nil && err != io.EOF {
+			return err
 		}
 		// If we find the DML token, we are done with DDL
-		if strings.HasPrefix(string(line), "# DML") {
-			return
+		if strings.HasPrefix(line, "# DML") {
+			return nil
 		}
-		if strings.HasPrefix(string(line), "#") {
+		if strings.HasPrefix(line, "#") {
 			continue
 		}
 		// Skip blank lines
-		if strings.TrimSpace(string(line)) == "" {
+		if strings.TrimSpace(line) == "" {
 			continue
 		}
-		i.queryExecutor(string(line))
+		i.queryExecutor(line)
+		//End of File
+		if err == io.EOF {
+			return nil
+		}
 	}
+	return nil
 }
 
-func (i *Importer) processDML(scanner *bufio.Reader) {
+func (i *Importer) processDML(scanner *bufio.Reader) error {
 	start := time.Now()
 	for {
-		line, _, err := scanner.ReadLine()
-		if err == io.EOF {
-			break
+		line, err := scanner.ReadString(byte('\n'))
+		if err != nil && err != io.EOF {
+			return err
 		}
-
-		if strings.HasPrefix(string(line), "# CONTEXT-DATABASE:") {
+		if strings.HasPrefix(line, "# CONTEXT-DATABASE:") {
 			i.database = strings.TrimSpace(strings.Split(string(line), ":")[1])
 		}
-		if strings.HasPrefix(string(line), "# CONTEXT-RETENTION-POLICY:") {
+		if strings.HasPrefix(line, "# CONTEXT-RETENTION-POLICY:") {
 			i.retentionPolicy = strings.TrimSpace(strings.Split(string(line), ":")[1])
 		}
-		if strings.HasPrefix(string(line), "#") {
+		if strings.HasPrefix(line, "#") {
 			continue
 		}
 		// Skip blank lines
-		if strings.TrimSpace(string(line)) == "" {
+		if strings.TrimSpace(line) == "" {
 			continue
 		}
-		i.batchAccumulator(string(line), start)
+		i.batchAccumulator(line, start)
+		//End of File
+		if err == io.EOF {
+			return nil
+		}
 	}
 	// Call batchWrite one last time to flush anything out in the batch
 	i.batchWrite()
+	return nil
 }
 
 func (i *Importer) execute(command string) {
