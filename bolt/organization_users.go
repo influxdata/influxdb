@@ -31,8 +31,8 @@ func validOrganization(ctx context.Context) (string, error) {
 	return orgID, nil
 }
 
-// userHasValidRoles ensures that each User Role has both an associated OrganizationID and a Name
-func userHasValidRoles(orgID string, u *chronograf.User) error {
+// validOrganizationRoles ensures that each User Role has both an associated OrganizationID and a Name
+func validOrganizationRoles(orgID string, u *chronograf.User) error {
 	if u == nil || u.Roles == nil {
 		return nil
 	}
@@ -83,7 +83,7 @@ func (s *OrganizationUsersStore) Add(ctx context.Context, u *chronograf.User) (*
 	if err != nil {
 		return nil, err
 	}
-	if err := userHasValidRoles(orgID, u); err != nil {
+	if err := validOrganizationRoles(orgID, u); err != nil {
 		return nil, err
 	}
 	return s.client.UsersStore.Add(ctx, u)
@@ -116,7 +116,7 @@ func (s *OrganizationUsersStore) Update(ctx context.Context, usr *chronograf.Use
 	if err != nil {
 		return err
 	}
-	if err := userHasValidRoles(orgID, usr); err != nil {
+	if err := validOrganizationRoles(orgID, usr); err != nil {
 		return err
 	}
 	u, err := s.client.UsersStore.Get(ctx, chronograf.UserQuery{ID: &usr.ID})
