@@ -60,7 +60,7 @@ func TestService_UserID(t *testing.T) {
 								},
 							}, nil
 						default:
-							return nil, fmt.Errorf("User with ID %s not found", *q.ID)
+							return nil, fmt.Errorf("User with ID %d not found", *q.ID)
 						}
 					},
 				},
@@ -222,7 +222,7 @@ func TestService_RemoveUser(t *testing.T) {
 								Scheme:   "LDAP",
 							}, nil
 						default:
-							return nil, fmt.Errorf("User with ID %s not found", *q.ID)
+							return nil, fmt.Errorf("User with ID %d not found", *q.ID)
 						}
 					},
 					DeleteF: func(ctx context.Context, user *chronograf.User) error {
@@ -316,7 +316,7 @@ func TestService_UpdateUser(t *testing.T) {
 								},
 							}, nil
 						default:
-							return nil, fmt.Errorf("User with ID %s not found", *q.ID)
+							return nil, fmt.Errorf("User with ID %d not found", *q.ID)
 						}
 					},
 				},
