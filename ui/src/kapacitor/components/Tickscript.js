@@ -7,6 +7,7 @@ const Tickscript = ({
   source,
   onSave,
   task,
+  logs,
   validation,
   onSelectDbrps,
   onChangeScript,
@@ -37,6 +38,13 @@ const Tickscript = ({
         </div>
       </div>
       <div className="tickscript-editor">
+        <div>
+          {logs.map((l, i) =>
+            <pre key={i}>
+              {JSON.stringify(l, null, 2)}
+            </pre>
+          )}
+        </div>
         <TickscriptEditor
           script={task.tickscript}
           onChangeScript={onChangeScript}
@@ -48,6 +56,7 @@ const Tickscript = ({
 const {arrayOf, bool, func, shape, string} = PropTypes
 
 Tickscript.propTypes = {
+  logs: arrayOf(shape()).isRequired,
   onSave: func.isRequired,
   source: shape({
     id: string,

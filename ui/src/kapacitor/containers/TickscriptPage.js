@@ -23,6 +23,7 @@ class TickscriptPage extends Component {
       },
       validation: '',
       isEditingID: true,
+      logs: [{hai: 'hunter', watts: 'is nice'}, {yoMomma: 'is so nice'}],
     }
   }
 
@@ -98,11 +99,12 @@ class TickscriptPage extends Component {
 
   render() {
     const {source} = this.props
-    const {task, validation} = this.state
+    const {task, validation, logs} = this.state
 
     return (
       <Tickscript
         task={task}
+        logs={logs}
         source={source}
         validation={validation}
         onSave={this.handleSave}
