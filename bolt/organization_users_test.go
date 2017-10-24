@@ -2,7 +2,6 @@ package bolt_test
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -228,6 +227,7 @@ func TestOrganizationUsersStore_Add(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer client.Close()
+
 		tt.args.ctx = context.WithValue(tt.args.ctx, "organizationID", tt.args.orgID)
 		s := client.OrganizationUsersStore
 		got, err := s.Add(tt.args.ctx, tt.args.u)
@@ -467,7 +467,7 @@ func TestOrganizationUsersStore_All(t *testing.T) {
 		name     string
 		ctx      context.Context
 		want     []chronograf.User
-		rawWant  []chronograf.User
+		wantRaw  []chronograf.User
 		orgID    string
 		addFirst bool
 		wantErr  bool
@@ -475,6 +475,46 @@ func TestOrganizationUsersStore_All(t *testing.T) {
 		{
 			name: "No users",
 			ctx:  context.Background(),
+			wantRaw: []chronograf.User{
+				{
+					Name:     "howdy",
+					Provider: "GitHub",
+					Scheme:   "OAuth2",
+					Roles: []chronograf.Role{
+						{
+							OrganizationID: "1338",
+							Name:           "Viewer",
+						},
+						{
+							OrganizationID: "1336",
+							Name:           "Viewer",
+						},
+					},
+				},
+				{
+					Name:     "doody2",
+					Provider: "GitHub2",
+					Scheme:   "OAuth2",
+					Roles: []chronograf.Role{
+						{
+							OrganizationID: "1337",
+							Name:           "Editor",
+						},
+					},
+				},
+				{
+					Name:     "doody",
+					Provider: "GitHub",
+					Scheme:   "OAuth2",
+					Roles: []chronograf.Role{
+						{
+							OrganizationID: "1338",
+							Name:           "Editor",
+						},
+					},
+				},
+			},
+			orgID: "2330",
 		},
 		{
 			name:  "get all users",
@@ -504,7 +544,7 @@ func TestOrganizationUsersStore_All(t *testing.T) {
 					},
 				},
 			},
-			rawWant: []chronograf.User{
+			wantRaw: []chronograf.User{
 				{
 					Name:     "howdy",
 					Provider: "GitHub",
@@ -558,21 +598,18 @@ func TestOrganizationUsersStore_All(t *testing.T) {
 
 		tt.ctx = context.WithValue(tt.ctx, "organizationID", tt.orgID)
 		if tt.addFirst {
-			for _, u := range tt.rawWant {
+			for _, u := range tt.wantRaw {
 				client.UsersStore.Add(tt.ctx, &u)
 			}
 		}
 		s := client.OrganizationUsersStore
-		fmt.Println(tt.name)
 		gots, err := s.All(tt.ctx)
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. OrganizationUsersStore.All() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
 		}
-		for i, got := range gots {
-			if diff := cmp.Diff(got, tt.want[i], cmpOptions...); diff != "" {
-				t.Errorf("%q. OrganizationUsersStore.All():\n-got/+want\ndiff %s", tt.name, diff)
-			}
+		if diff := cmp.Diff(gots, tt.want, cmpOptions...); diff != "" {
+			t.Errorf("%q. OrganizationUsersStore.All():\n-got/+want\ndiff %s", tt.name, diff)
 		}
 	}
 }
