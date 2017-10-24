@@ -240,7 +240,7 @@ func TestOrganizationUsersStore_Add(t *testing.T) {
 		}
 		got, err = client.UsersStore.Get(tt.args.ctx, chronograf.UserQuery{ID: &got.ID})
 		if err != nil {
-			t.Fatalf("failed to get user: %v", err)
+			t.Fatalf("failed to get added user: %v", err)
 		}
 		if diff := cmp.Diff(got, tt.want, cmpOptions...); diff != "" {
 			t.Errorf("%q. OrganizationUsersStore.Add():\n-got/+want\ndiff %s", tt.name, diff)
@@ -447,14 +447,14 @@ func TestOrganizationUsersStore_Update(t *testing.T) {
 
 		got, err := s.Get(tt.args.ctx, chronograf.UserQuery{ID: &tt.args.usr.ID})
 		if err != nil {
-			t.Fatalf("failed to get user: %v", err)
+			t.Fatalf("failed to get updated user: %v", err)
 		}
 		if diff := cmp.Diff(got, tt.want, cmpOptions...); diff != "" {
 			t.Errorf("%q. OrganizationUsersStore.Update():\n-got/+want\ndiff %s", tt.name, diff)
 		}
 		gotRaw, err := client.UsersStore.Get(tt.args.ctx, chronograf.UserQuery{ID: &tt.args.usr.ID})
 		if err != nil {
-			t.Fatalf("failed to get user: %v", err)
+			t.Fatalf("failed to get updated user: %v", err)
 		}
 		if diff := cmp.Diff(gotRaw, tt.wantRaw, cmpOptions...); diff != "" {
 			t.Errorf("%q. OrganizationUsersStore.Update():\n-got/+want\ndiff %s", tt.name, diff)
