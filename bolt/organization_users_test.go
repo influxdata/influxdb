@@ -303,6 +303,95 @@ func TestOrganizationUsersStore_Add(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "Has invalid OrganizationID",
+			args: args{
+				ctx: context.Background(),
+				u: &chronograf.User{
+					Name:     "henrietta",
+					Provider: "GitHub",
+					Scheme:   "OAuth2",
+					Roles: []chronograf.Role{
+						chronograf.Role{},
+					},
+				},
+				orgID: "1337",
+				uInitial: &chronograf.User{
+					Name:     "henrietta",
+					Provider: "GitHub",
+					Scheme:   "OAuth2",
+					Roles: []chronograf.Role{
+						{
+							OrganizationID: "1337",
+							Name:           "Editor",
+						},
+					},
+				},
+			},
+			addFirst: true,
+			wantErr:  true,
+		},
+		{
+			name: "OrganizationID does not match orgID",
+			args: args{
+				ctx: context.Background(),
+				u: &chronograf.User{
+					Name:     "henrietta",
+					Provider: "GitHub",
+					Scheme:   "OAuth2",
+					Roles: []chronograf.Role{
+						{
+							OrganizationID: "1338",
+							Name:           "Editor",
+						},
+					},
+				},
+				orgID: "1337",
+				uInitial: &chronograf.User{
+					Name:     "henrietta",
+					Provider: "GitHub",
+					Scheme:   "OAuth2",
+					Roles: []chronograf.Role{
+						{
+							OrganizationID: "1337",
+							Name:           "Editor",
+						},
+					},
+				},
+			},
+			addFirst: true,
+			wantErr:  true,
+		},
+		{
+			name: "Role Name not specified",
+			args: args{
+				ctx: context.Background(),
+				u: &chronograf.User{
+					Name:     "henrietta",
+					Provider: "GitHub",
+					Scheme:   "OAuth2",
+					Roles: []chronograf.Role{
+						{
+							OrganizationID: "1337",
+						},
+					},
+				},
+				orgID: "1337",
+				uInitial: &chronograf.User{
+					Name:     "henrietta",
+					Provider: "GitHub",
+					Scheme:   "OAuth2",
+					Roles: []chronograf.Role{
+						{
+							OrganizationID: "1337",
+							Name:           "Editor",
+						},
+					},
+				},
+			},
+			addFirst: true,
+			wantErr:  true,
+		},
 	}
 	for _, tt := range tests {
 		client, err := NewTestClient()
