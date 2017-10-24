@@ -3,6 +3,8 @@ import React, {PropTypes} from 'react'
 import DashboardsTable from 'src/dashboards/components/DashboardsTable'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
+import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
+
 const DashboardsPageContents = ({
   dashboards,
   onDeleteDashboard,
@@ -28,12 +30,16 @@ const DashboardsPageContents = ({
                 <h2 className="panel-title">
                   {tableHeader}
                 </h2>
-                <button
-                  className="btn btn-sm btn-primary"
-                  onClick={onCreateDashboard}
-                >
-                  <span className="icon plus" /> Create Dashboard
-                </button>
+                {
+                  <Authorized requiredRole={EDITOR_ROLE}>
+                    <button
+                      className="btn btn-sm btn-primary"
+                      onClick={onCreateDashboard}
+                    >
+                      <span className="icon plus" /> Create Dashboard
+                    </button>
+                  </Authorized>
+                }
               </div>
               <div className="panel-body">
                 <DashboardsTable
