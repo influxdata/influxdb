@@ -112,9 +112,8 @@ func (i *Importer) Import() error {
 	scanner := bufio.NewReader(r)
 
 	// Process the DDL
-	ddl_err := i.processDDL(scanner)
-	if ddl_err != nil {
-		return fmt.Errorf("reading standard input: %s", ddl_err)
+	if err := i.processDDL(scanner); err != nil {
+		return fmt.Errorf("reading standard input: %s", err)
 	}
 
 	// Set up our throttle channel.  Since there is effectively no other activity at this point
@@ -126,9 +125,8 @@ func (i *Importer) Import() error {
 	i.lastWrite = time.Now()
 
 	// Process the DML
-	dml_err := i.processDML(scanner)
-	if dml_err != nil {
-		return fmt.Errorf("reading standard input: %s", dml_err)
+	if err := i.processDML(scanner); err != nil {
+		return fmt.Errorf("reading standard input: %s", err)
 	}
 
 	// If there were any failed inserts then return an error so that a non-zero
@@ -194,11 +192,11 @@ func (i *Importer) processDML(scanner *bufio.Reader) error {
 		i.batchAccumulator(line, start)
 		//End of File
 		if err == io.EOF {
+			// Call batchWrite one last time to flush anything out in the batch
+			i.batchWrite()
 			return nil
 		}
 	}
-	// Call batchWrite one last time to flush anything out in the batch
-	i.batchWrite()
 	return nil
 }
 
