@@ -58,7 +58,7 @@ const QueryMaker = ({
       : <EmptyQuery onAddQuery={onAddQuery} />}
   </div>
 
-const {arrayOf, bool, func, number, shape, string} = PropTypes
+const {arrayOf, func, number, shape, string} = PropTypes
 
 QueryMaker.propTypes = {
   source: shape({
@@ -71,7 +71,6 @@ QueryMaker.propTypes = {
     upper: string,
     lower: string,
   }).isRequired,
-  isInDataExplorer: bool,
   actions: shape({
     chooseNamespace: func.isRequired,
     chooseMeasurement: func.isRequired,
