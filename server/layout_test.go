@@ -126,7 +126,7 @@ func Test_Layouts(t *testing.T) {
 			// setup mock chronograf.Service and mock logger
 			lg := &mocks.TestLogger{}
 			svc := server.Service{
-				LayoutStore: &mocks.LayoutStore{
+				LayoutsStore: &mocks.LayoutsStore{
 					AllF: func(ctx context.Context) ([]chronograf.Layout, error) {
 						if len(test.allLayouts) == 0 {
 							return []chronograf.Layout{

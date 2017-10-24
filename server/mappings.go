@@ -14,7 +14,7 @@ type mapping struct {
 // GetMappings returns the known mappings of measurements to applications
 func (s *Service) GetMappings(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	layouts, err := s.LayoutStore.All(ctx)
+	layouts, err := s.LayoutsStore.All(ctx)
 	if err != nil {
 		Error(w, http.StatusInternalServerError, "Error loading layouts", s.Logger)
 		return

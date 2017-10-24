@@ -13,7 +13,7 @@ import (
 type Service struct {
 	SourcesStore       chronograf.SourcesStore
 	ServersStore       chronograf.ServersStore
-	LayoutStore        chronograf.LayoutStore
+	LayoutsStore        chronograf.LayoutsStore
 	UsersStore         chronograf.UsersStore
 	DashboardsStore    chronograf.DashboardsStore
 	OrganizationsStore chronograf.OrganizationsStore

@@ -81,13 +81,13 @@ func (s *OrganizationsStore) createResources(id uint64, tx *bolt.Tx) error {
 		return err
 	}
 	// Always create Layouts bucket.
-	orgLayoutBucket := []byte(path.Join(string(LayoutBucket), idStr))
-	if _, err := tx.CreateBucketIfNotExists(orgLayoutBucket); err != nil {
+	orgLayoutsBucket := []byte(path.Join(string(LayoutsBucket), idStr))
+	if _, err := tx.CreateBucketIfNotExists(orgLayoutsBucket); err != nil {
 		return err
 	}
 	// Always create Dashboards bucket.
-	orgDashboardBucket := []byte(path.Join(string(DashboardBucket), idStr))
-	if _, err := tx.CreateBucketIfNotExists(orgDashboardBucket); err != nil {
+	orgDashboardsBucket := []byte(path.Join(string(DashboardsBucket), idStr))
+	if _, err := tx.CreateBucketIfNotExists(orgDashboardsBucket); err != nil {
 		return err
 	}
 	return nil
@@ -106,13 +106,13 @@ func (s *OrganizationsStore) removeResources(id uint64, tx *bolt.Tx) error {
 		return err
 	}
 	// Always create Layouts bucket.
-	orgLayoutBucket := []byte(path.Join(string(LayoutBucket), idStr))
-	if err := tx.DeleteBucket(orgLayoutBucket); err != nil {
+	orgLayoutsBucket := []byte(path.Join(string(LayoutsBucket), idStr))
+	if err := tx.DeleteBucket(orgLayoutsBucket); err != nil {
 		return err
 	}
 	// Always create Dashboards bucket.
-	orgDashboardBucket := []byte(path.Join(string(DashboardBucket), idStr))
-	if err := tx.DeleteBucket(orgDashboardBucket); err != nil {
+	orgDashboardsBucket := []byte(path.Join(string(DashboardsBucket), idStr))
+	if err := tx.DeleteBucket(orgDashboardsBucket); err != nil {
 		return err
 	}
 
@@ -174,7 +174,7 @@ func (s *OrganizationsStore) appendStores(o *chronograf.Organization) {
 		client:       s.client,
 		Organization: idStr,
 	}
-	o.LayoutStore = &LayoutStore{
+	o.LayoutsStore = &LayoutsStore{
 		client:       s.client,
 		Organization: idStr,
 		IDs:          &uuid.V4{},

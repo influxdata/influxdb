@@ -732,11 +732,11 @@ type Layout struct {
 	Cells       []Cell `json:"cells"`
 }
 
-// LayoutStore stores dashboards and associated Cells
-type LayoutStore interface {
+// LayoutsStore stores dashboards and associated Cells
+type LayoutsStore interface {
 	// All returns all dashboards in the store
 	All(context.Context) ([]Layout, error)
-	// Add creates a new dashboard in the LayoutStore
+	// Add creates a new dashboard in the LayoutsStore
 	Add(context.Context, Layout) (Layout, error)
 	// Delete the dashboard from the store
 	Delete(context.Context, Layout) error
@@ -752,7 +752,7 @@ type Organization struct {
 	Name            string `json:"name"`
 	SourcesStore    SourcesStore
 	ServersStore    ServersStore
-	LayoutStore     LayoutStore
+	LayoutsStore     LayoutsStore
 	DashboardsStore DashboardsStore
 }
 

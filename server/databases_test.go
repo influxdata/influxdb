@@ -11,7 +11,7 @@ func TestService_GetDatabases(t *testing.T) {
 	type fields struct {
 		SourcesStore     chronograf.SourcesStore
 		ServersStore     chronograf.ServersStore
-		LayoutStore      chronograf.LayoutStore
+		LayoutsStore      chronograf.LayoutsStore
 		UsersStore       chronograf.UsersStore
 		DashboardsStore  chronograf.DashboardsStore
 		TimeSeriesClient TimeSeriesClient
@@ -35,7 +35,7 @@ func TestService_GetDatabases(t *testing.T) {
 			h := &Service{
 				SourcesStore:     tt.fields.SourcesStore,
 				ServersStore:     tt.fields.ServersStore,
-				LayoutStore:      tt.fields.LayoutStore,
+				LayoutsStore:      tt.fields.LayoutsStore,
 				UsersStore:       tt.fields.UsersStore,
 				DashboardsStore:  tt.fields.DashboardsStore,
 				TimeSeriesClient: tt.fields.TimeSeriesClient,
@@ -52,7 +52,7 @@ func TestService_NewDatabase(t *testing.T) {
 	type fields struct {
 		SourcesStore     chronograf.SourcesStore
 		ServersStore     chronograf.ServersStore
-		LayoutStore      chronograf.LayoutStore
+		LayoutsStore      chronograf.LayoutsStore
 		UsersStore       chronograf.UsersStore
 		DashboardsStore  chronograf.DashboardsStore
 		TimeSeriesClient TimeSeriesClient
@@ -76,7 +76,7 @@ func TestService_NewDatabase(t *testing.T) {
 			h := &Service{
 				SourcesStore:     tt.fields.SourcesStore,
 				ServersStore:     tt.fields.ServersStore,
-				LayoutStore:      tt.fields.LayoutStore,
+				LayoutsStore:      tt.fields.LayoutsStore,
 				UsersStore:       tt.fields.UsersStore,
 				DashboardsStore:  tt.fields.DashboardsStore,
 				TimeSeriesClient: tt.fields.TimeSeriesClient,
@@ -93,7 +93,7 @@ func TestService_DropDatabase(t *testing.T) {
 	type fields struct {
 		SourcesStore     chronograf.SourcesStore
 		ServersStore     chronograf.ServersStore
-		LayoutStore      chronograf.LayoutStore
+		LayoutsStore      chronograf.LayoutsStore
 		UsersStore       chronograf.UsersStore
 		DashboardsStore  chronograf.DashboardsStore
 		TimeSeriesClient TimeSeriesClient
@@ -117,7 +117,7 @@ func TestService_DropDatabase(t *testing.T) {
 			h := &Service{
 				SourcesStore:     tt.fields.SourcesStore,
 				ServersStore:     tt.fields.ServersStore,
-				LayoutStore:      tt.fields.LayoutStore,
+				LayoutsStore:      tt.fields.LayoutsStore,
 				UsersStore:       tt.fields.UsersStore,
 				DashboardsStore:  tt.fields.DashboardsStore,
 				TimeSeriesClient: tt.fields.TimeSeriesClient,
@@ -134,7 +134,7 @@ func TestService_RetentionPolicies(t *testing.T) {
 	type fields struct {
 		SourcesStore     chronograf.SourcesStore
 		ServersStore     chronograf.ServersStore
-		LayoutStore      chronograf.LayoutStore
+		LayoutsStore      chronograf.LayoutsStore
 		UsersStore       chronograf.UsersStore
 		DashboardsStore  chronograf.DashboardsStore
 		TimeSeriesClient TimeSeriesClient
@@ -158,7 +158,7 @@ func TestService_RetentionPolicies(t *testing.T) {
 			h := &Service{
 				SourcesStore:     tt.fields.SourcesStore,
 				ServersStore:     tt.fields.ServersStore,
-				LayoutStore:      tt.fields.LayoutStore,
+				LayoutsStore:      tt.fields.LayoutsStore,
 				UsersStore:       tt.fields.UsersStore,
 				DashboardsStore:  tt.fields.DashboardsStore,
 				TimeSeriesClient: tt.fields.TimeSeriesClient,
@@ -175,7 +175,7 @@ func TestService_NewRetentionPolicy(t *testing.T) {
 	type fields struct {
 		SourcesStore     chronograf.SourcesStore
 		ServersStore     chronograf.ServersStore
-		LayoutStore      chronograf.LayoutStore
+		LayoutsStore      chronograf.LayoutsStore
 		UsersStore       chronograf.UsersStore
 		DashboardsStore  chronograf.DashboardsStore
 		TimeSeriesClient TimeSeriesClient
@@ -199,7 +199,7 @@ func TestService_NewRetentionPolicy(t *testing.T) {
 			h := &Service{
 				SourcesStore:     tt.fields.SourcesStore,
 				ServersStore:     tt.fields.ServersStore,
-				LayoutStore:      tt.fields.LayoutStore,
+				LayoutsStore:      tt.fields.LayoutsStore,
 				UsersStore:       tt.fields.UsersStore,
 				DashboardsStore:  tt.fields.DashboardsStore,
 				TimeSeriesClient: tt.fields.TimeSeriesClient,
@@ -216,7 +216,7 @@ func TestService_UpdateRetentionPolicy(t *testing.T) {
 	type fields struct {
 		SourcesStore     chronograf.SourcesStore
 		ServersStore     chronograf.ServersStore
-		LayoutStore      chronograf.LayoutStore
+		LayoutsStore      chronograf.LayoutsStore
 		UsersStore       chronograf.UsersStore
 		DashboardsStore  chronograf.DashboardsStore
 		TimeSeriesClient TimeSeriesClient
@@ -240,7 +240,7 @@ func TestService_UpdateRetentionPolicy(t *testing.T) {
 			h := &Service{
 				SourcesStore:     tt.fields.SourcesStore,
 				ServersStore:     tt.fields.ServersStore,
-				LayoutStore:      tt.fields.LayoutStore,
+				LayoutsStore:      tt.fields.LayoutsStore,
 				UsersStore:       tt.fields.UsersStore,
 				DashboardsStore:  tt.fields.DashboardsStore,
 				TimeSeriesClient: tt.fields.TimeSeriesClient,
@@ -257,7 +257,7 @@ func TestService_DropRetentionPolicy(t *testing.T) {
 	type fields struct {
 		SourcesStore     chronograf.SourcesStore
 		ServersStore     chronograf.ServersStore
-		LayoutStore      chronograf.LayoutStore
+		LayoutsStore      chronograf.LayoutsStore
 		UsersStore       chronograf.UsersStore
 		DashboardsStore  chronograf.DashboardsStore
 		TimeSeriesClient TimeSeriesClient
@@ -281,7 +281,7 @@ func TestService_DropRetentionPolicy(t *testing.T) {
 			h := &Service{
 				SourcesStore:     tt.fields.SourcesStore,
 				ServersStore:     tt.fields.ServersStore,
-				LayoutStore:      tt.fields.LayoutStore,
+				LayoutsStore:      tt.fields.LayoutsStore,
 				UsersStore:       tt.fields.UsersStore,
 				DashboardsStore:  tt.fields.DashboardsStore,
 				TimeSeriesClient: tt.fields.TimeSeriesClient,

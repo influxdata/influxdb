@@ -19,7 +19,7 @@ type Client struct {
 
 	SourcesStore           *SourcesStore
 	ServersStore           *ServersStore
-	LayoutStore            *LayoutStore
+	LayoutsStore            *LayoutsStore
 	DashboardsStore        *DashboardsStore
 	UsersStore             *UsersStore
 	OrganizationsStore     *OrganizationsStore
@@ -31,7 +31,7 @@ func NewClient() *Client {
 	c := &Client{Now: time.Now}
 	c.SourcesStore = &SourcesStore{client: c}
 	c.ServersStore = &ServersStore{client: c}
-	c.LayoutStore = &LayoutStore{
+	c.LayoutsStore = &LayoutsStore{
 		client: c,
 		IDs:    &uuid.V4{},
 	}
@@ -67,11 +67,11 @@ func (c *Client) Open(ctx context.Context) error {
 			return err
 		}
 		// Always create Layouts bucket.
-		if _, err := tx.CreateBucketIfNotExists(LayoutBucket); err != nil {
+		if _, err := tx.CreateBucketIfNotExists(LayoutsBucket); err != nil {
 			return err
 		}
 		// Always create Dashboards bucket.
-		if _, err := tx.CreateBucketIfNotExists(DashboardBucket); err != nil {
+		if _, err := tx.CreateBucketIfNotExists(DashboardsBucket); err != nil {
 			return err
 		}
 		// Always create Users bucket.

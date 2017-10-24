@@ -15,7 +15,7 @@ var orgCmpOptions = cmp.Options{
 	cmpopts.IgnoreFields(chronograf.Organization{}, "ID"),
 	cmpopts.IgnoreFields(chronograf.Organization{}, "SourcesStore"),
 	cmpopts.IgnoreFields(chronograf.Organization{}, "ServersStore"),
-	cmpopts.IgnoreFields(chronograf.Organization{}, "LayoutStore"),
+	cmpopts.IgnoreFields(chronograf.Organization{}, "LayoutsStore"),
 	cmpopts.IgnoreFields(chronograf.Organization{}, "DashboardsStore"),
 	cmpopts.EquateEmpty(),
 }
@@ -106,14 +106,14 @@ func TestOrganizationsStore_GetWithName(t *testing.T) {
 				t.Errorf("%q. OrganizationsStore.Get() ServerssStore.org = %s, want %s", gotOrg, wantOrg)
 			}
 
-			boltLayoutStore, ok := got.LayoutStore.(*bolt.LayoutStore)
+			boltLayoutsStore, ok := got.LayoutsStore.(*bolt.LayoutsStore)
 			if !ok {
-				t.Errorf("got.LayoutStore is not *bolt.LayoutStore")
+				t.Errorf("got.LayoutsStore is not *bolt.LayoutsStore")
 				return
 			}
 
-			if gotOrg, wantOrg := boltLayoutStore.Organization, strconv.FormatUint(got.ID, 10); gotOrg != wantOrg {
-				t.Errorf("%q. OrganizationsStore.Get() LayoutStore.org = %s, want %s", gotOrg, wantOrg)
+			if gotOrg, wantOrg := boltLayoutsStore.Organization, strconv.FormatUint(got.ID, 10); gotOrg != wantOrg {
+				t.Errorf("%q. OrganizationsStore.Get() LayoutsStore.org = %s, want %s", gotOrg, wantOrg)
 			}
 
 			boltDashboardsStore, ok := got.DashboardsStore.(*bolt.DashboardsStore)
@@ -217,14 +217,14 @@ func TestOrganizationsStore_GetWithID(t *testing.T) {
 				t.Errorf("%q. OrganizationsStore.Get() ServerssStore.org = %s, want %s", gotOrg, wantOrg)
 			}
 
-			boltLayoutStore, ok := got.LayoutStore.(*bolt.LayoutStore)
+			boltLayoutsStore, ok := got.LayoutsStore.(*bolt.LayoutsStore)
 			if !ok {
-				t.Errorf("got.LayoutStore is not *bolt.LayoutStore")
+				t.Errorf("got.LayoutsStore is not *bolt.LayoutsStore")
 				return
 			}
 
-			if gotOrg, wantOrg := boltLayoutStore.Organization, strconv.FormatUint(got.ID, 10); gotOrg != wantOrg {
-				t.Errorf("%q. OrganizationsStore.Get() LayoutStore.org = %s, want %s", gotOrg, wantOrg)
+			if gotOrg, wantOrg := boltLayoutsStore.Organization, strconv.FormatUint(got.ID, 10); gotOrg != wantOrg {
+				t.Errorf("%q. OrganizationsStore.Get() LayoutsStore.org = %s, want %s", gotOrg, wantOrg)
 			}
 
 			boltDashboardsStore, ok := got.DashboardsStore.(*bolt.DashboardsStore)

@@ -10,7 +10,7 @@ func TestLayoutBuilder(t *testing.T) {
 	var l server.LayoutBuilder = &server.MultiLayoutBuilder{}
 	layout, err := l.Build(nil)
 	if err != nil {
-		t.Fatalf("MultiLayoutBuilder can't build a MultiLayoutStore: %v", err)
+		t.Fatalf("MultiLayoutBuilder can't build a MultiLayoutsStore: %v", err)
 	}
 
 	if layout == nil {

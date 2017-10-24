@@ -9,30 +9,30 @@ import (
 
 // LayoutBuilder is responsible for building Layouts
 type LayoutBuilder interface {
-	Build(chronograf.LayoutStore) (*layouts.MultiLayoutStore, error)
+	Build(chronograf.LayoutsStore) (*layouts.MultiLayoutsStore, error)
 }
 
-// MultiLayoutBuilder implements LayoutBuilder and will return a MultiLayoutStore
+// MultiLayoutBuilder implements LayoutBuilder and will return a MultiLayoutsStore
 type MultiLayoutBuilder struct {
 	Logger     chronograf.Logger
 	UUID       chronograf.ID
 	CannedPath string
 }
 
-// Build will construct a MultiLayoutStore of canned and db-backed personalized
+// Build will construct a MultiLayoutsStore of canned and db-backed personalized
 // layouts
-func (builder *MultiLayoutBuilder) Build(db chronograf.LayoutStore) (*layouts.MultiLayoutStore, error) {
+func (builder *MultiLayoutBuilder) Build(db chronograf.LayoutsStore) (*layouts.MultiLayoutsStore, error) {
 	// These apps are those handled from a directory
 	apps := canned.NewApps(builder.CannedPath, builder.UUID, builder.Logger)
 	// These apps are statically compiled into chronograf
-	binApps := &canned.BinLayoutStore{
+	binApps := &canned.BinLayoutsStore{
 		Logger: builder.Logger,
 	}
 	// Acts as a front-end to both the bolt layouts, filesystem layouts and binary statically compiled layouts.
 	// The idea here is that these stores form a hierarchy in which each is tried sequentially until
 	// the operation has success.  So, the database is preferred over filesystem over binary data.
-	layouts := &layouts.MultiLayoutStore{
-		Stores: []chronograf.LayoutStore{
+	layouts := &layouts.MultiLayoutsStore{
+		Stores: []chronograf.LayoutsStore{
 			db,
 			apps,
 			binApps,
